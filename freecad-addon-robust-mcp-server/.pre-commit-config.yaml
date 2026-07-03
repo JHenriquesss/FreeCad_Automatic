@@ -1,0 +1,316 @@
+# Pre-commit hooks configuration
+# https://pre-commit.com/
+
+default_language_version:
+  python: python3.11  # Must match FreeCAD's bundled Python version
+
+repos:
+  # ==========================================================================
+  # General File Hygiene
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$  # Allow trailing spaces in markdown for line breaks
+      - id: end-of-file-fixer
+        exclude: \.safety-project\.ini$  # Safety CLI manages its own formatting
+      - id: check-xml
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-toml
+      - id: check-json
+        exclude: ^\.vscode/.*\.json$  # VS Code uses JSONC (JSON with Comments)
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      - id: check-ast  # Check Python syntax
+        types: [text]
+        files: \.(py|FCMacro)$
+
+  # JSON5/JSONC validation for VS Code config files (supports comments)
+  - repo: https://github.com/maresb/check-json5
+    rev: v1.0.1
+    hooks:
+      - id: check-json5
+        files: ^\.vscode/.*\.json$  # Only check VS Code JSONC files
+
+  # ==========================================================================
+  # Python - Linting and Formatting
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.11
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, text]
+        files: \.(py|FCMacro)$
+      - id: ruff-format
+        types_or: [python, text]
+        files: \.(py|FCMacro)$
+
+  # ==========================================================================
+  # Python - Type Checking
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.10.0
+          - pydantic-settings>=2.7.0
+          - mcp>=1.25.0
+        # Note: mypy doesn't natively support .FCMacro, so we skip those files
+        # FCMacro files are checked by ruff and bandit instead
+        args: [--config-file=pyproject.toml]
+
+  # ==========================================================================
+  # Python - Security Scanning
+  # ==========================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.2
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml, -r, src, macros]
+        additional_dependencies: ["bandit[toml]"]
+        types: [text]
+        files: \.(py|FCMacro)$
+
+  # Safety - Dependency vulnerability scanning
+  # Checks installed packages against known security vulnerabilities
+  # Local: Requires free safetycli.com account. Run `uv run safety auth` first.
+  # CI: Uses SAFETY_API_KEY secret passed via environment variable.
+  # Config: .safety-policy.yml (excludes .venv, node_modules, etc.)
+  - repo: local
+    hooks:
+      - id: safety
+        name: safety (dependency vulnerabilities)
+        entry: uv run safety scan --policy-file .safety-policy.yml --detailed-output
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock|\.safety-policy\.yml)$
+
+  # ==========================================================================
+  # Secrets Detection - Multi-Layer Approach
+  # ==========================================================================
+
+  # Layer 1: Gitleaks - Fast, comprehensive secrets scanner
+  # Scans git history and current files using regex patterns
+  # Config: .gitleaks.toml
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secrets scanner)
+        args: [--config, .gitleaks.toml, --verbose]
+
+  # Layer 2: detect-secrets - Yelp's enterprise-grade secrets detector
+  # Uses baseline file to track known/approved secrets
+  # Config: .secrets.baseline
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (baseline scan)
+        args:
+          - --baseline
+          - .secrets.baseline
+          - --exclude-files
+          - '\.secrets\.baseline$'
+          - --exclude-files
+          - '\.gitleaks\.toml$'
+          - --exclude-files
+          - 'uv\.lock$'
+          - --exclude-files
+          - 'poetry\.lock$'
+          - --exclude-files
+          - 'package-lock\.json$'
+
+  # Layer 3: TruffleHog - Deep secrets scanner with verification
+  # Verifies secrets are actually valid (e.g., tests AWS keys)
+  # Note: TruffleHog has wasm/go-re2 panic bugs in GitHub Actions.
+  # It's skipped in CI (via SKIP env var) but runs locally.
+  # See: https://github.com/trufflesecurity/trufflehog/issues/3321
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.92.4
+    hooks:
+      - id: trufflehog
+        name: trufflehog (verified secrets scan)
+        args:
+          - --no-update
+        exclude: '(^|/)uv\.lock$|\.secrets\.baseline$'
+
+  # ==========================================================================
+  # Markdown Linting
+  # ==========================================================================
+
+  # markdownlint-cli2 - Comprehensive markdown linter with auto-fix
+  # Config: .markdownlint.yaml
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.20.0
+    hooks:
+      - id: markdownlint-cli2
+        name: markdownlint (linter)
+        args: [--fix]
+
+  # Tertiary: md-toc - Table of contents generator
+  # Automatically updates TOC between <!--TOC--> markers
+  - repo: https://github.com/frnmst/md-toc
+    rev: 9.0.0
+    hooks:
+      - id: md-toc
+        name: md-toc (table of contents)
+        args: ["-p", "github", "-l", "6"]  # GitHub parser, max 6 levels
+        files: ^(README|docs/development/architecture-detailed)\.md$
+
+  # ==========================================================================
+  # Spell Checking
+  # ==========================================================================
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
+        args:
+          - --ignore-words
+          - .codespell-ignore-words.txt
+          - --skip
+          - "*.lock,*.json,.secrets.baseline"
+
+  # ==========================================================================
+  # Configuration Validation
+  # ==========================================================================
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.24.1
+    hooks:
+      - id: validate-pyproject
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.36.0
+    hooks:
+      - id: check-github-workflows
+        name: validate GitHub workflows
+      - id: check-dependabot
+        name: validate Dependabot config
+
+  # ==========================================================================
+  # GitHub Actions Linting
+  # ==========================================================================
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.10
+    hooks:
+      - id: actionlint
+        name: actionlint (GitHub Actions linter)
+
+  # ==========================================================================
+  # Shell Script Linting
+  # ==========================================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        name: shellcheck (shell linter)
+        args: [--severity=warning]
+
+  # ==========================================================================
+  # Dockerfile Linting
+  # ==========================================================================
+  # hadolint-py: Python wrapper that auto-downloads hadolint binary
+  # No Docker or system installation required
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.14.0
+    hooks:
+      - id: hadolint
+
+  # ==========================================================================
+  # Dockerfile Security Scanning (Misconfigurations)
+  # ==========================================================================
+  # Uses mise-managed trivy binary instead of pre-commit repo.
+  # This avoids case-conflicting git refs in pre-commit-trivy repo that break
+  # `pre-commit autoupdate` on case-insensitive filesystems (macOS).
+  # Version is managed in .mise.toml - update with `mise upgrade trivy`
+  - repo: local
+    hooks:
+      - id: trivy
+        name: trivy (Dockerfile misconfig)
+        entry: trivy
+        args:
+          - config
+          - --severity
+          - HIGH,CRITICAL
+          - --exit-code
+          - "1"
+        language: system
+        files: (Dockerfile|\.dockerfile)$
+        pass_filenames: true
+
+  # ==========================================================================
+  # Documentation Build Validation
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: mkdocs-build
+        name: mkdocs (documentation build)
+        entry: uv run mkdocs build --strict
+        language: system
+        pass_filenames: false
+        files: ^(docs/|mkdocs\.yaml)
+
+  # ==========================================================================
+  # Commit Message Linting
+  # ==========================================================================
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.11.1
+    hooks:
+      - id: commitizen
+        name: commitizen (commit format)
+        stages: [commit-msg]
+
+  # ==========================================================================
+  # AI Code Review (Local Only)
+  # ==========================================================================
+  # CodeRabbit CLI - AI-powered code review
+  # https://www.coderabbit.ai/cli
+  #
+  # SETUP REQUIRED:
+  #   1. Install: just coderabbit::install
+  #   2. Authenticate: just coderabbit::login
+  #
+  # USAGE:
+  #   - Run manually: just coderabbit::review
+  #   - Run via pre-commit: uv run pre-commit run coderabbit --all-files
+  #
+  # NOTE: This hook uses 'manual' stage so it doesn't run automatically.
+  # The CodeRabbit GitHub App already reviews PRs, so CLI is for local use.
+  # Rate limits: Free=1/hour, Lite=1/hour, Pro=5/hour
+  - repo: local
+    hooks:
+      - id: coderabbit
+        name: coderabbit (AI code review)
+        entry: coderabbit review --plain --type uncommitted
+        language: system
+        pass_filenames: false
+        stages: [manual]
+        verbose: true
+
+# ==========================================================================
+# CI Configuration
+# ==========================================================================
+ci:
+  autoupdate_schedule: monthly
+  autoupdate_commit_msg: "chore(deps): update pre-commit hooks"
+  skip:
+    - mypy              # Needs dependencies installed
+    - trivy             # Uses mise-managed binary (local repo)
+    - trufflehog        # Can be slow in CI
+    - coderabbit        # GitHub App handles PR reviews; CLI is for local use

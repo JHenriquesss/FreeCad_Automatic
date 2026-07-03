@@ -1,0 +1,146 @@
+site_name: FreeCAD Robust MCP Suite
+site_description: FreeCAD Robust MCP Suite - MCP Server, Bridge Workbench, and Macros for AI assistant integration
+site_url: https://github.com/spkane/freecad-addon-robust-mcp-server
+repo_url: https://github.com/spkane/freecad-addon-robust-mcp-server
+repo_name: spkane/freecad-addon-robust-mcp-server
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    # Dark mode as default
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.tilde
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+  - minify:
+      minify_html: true
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: 100%
+      height: auto
+      zoomable: true
+      draggable: true
+  - macros:
+      include_yaml:
+        - docs/variables.yaml
+      # Use different delimiters to avoid conflicts with Python dicts in code blocks
+      j2_variable_start_string: "{{@"
+      j2_variable_end_string: "@}}"
+      j2_block_start_string: "{%@"
+      j2_block_end_string: "@%}"
+
+extra:
+  # Version selector for mike-managed versioned docs
+  version:
+    provider: mike
+    default: latest
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/spkane/freecad-addon-robust-mcp-server
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/spkane/freecad-robust-mcp
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/freecad-robust-mcp/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Connection Modes: guide/connection-modes.md
+      - Robust MCP Bridge Workbench: guide/workbench.md
+      - MCP Macro Tools: guide/macros.md
+      - Tools Overview: guide/tools.md
+      - MCP Resources: guide/resources.md
+      - Detailed User Guide: USER_GUIDE.md
+      - Tools Reference: MCP_TOOLS_REFERENCE.md
+  - Comparisons:
+      - Other Implementations: COMPARISON.md
+  - API Reference:
+      - Server: api/server.md
+      - Bridge: api/bridge.md
+      - Config: api/config.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Architecture: development/architecture.md
+      - Detailed Architecture: development/architecture-detailed.md
+      - Release Process: development/releasing.md
+      - MkDocs Guide: development/mkdocs-guide.md

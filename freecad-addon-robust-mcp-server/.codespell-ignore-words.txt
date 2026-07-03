@@ -1,0 +1,64 @@
+# Technical terms that are not typos
+justfile
+sigsegv
+mise
+gitleaks
+trufflehog
+linting
+linted
+linter
+linters
+markdownlint
+ruff
+mypy
+bandit
+codespell
+commitizen
+hadolint
+shellcheck
+freecad
+fcstd
+mcp
+impl
+vertexes
+Vertexes
+recomputation
+heredoc
+heredocs
+docstrings
+virtualenv
+isinstance
+pylance
+pyside
+changelog
+partdesign
+pytest
+
+# GitHub usernames and project names
+spkane
+neka
+bonninr
+contextform
+blockchained
+jango
+
+# File extensions and paths
+md
+js
+
+# X11/Display/CI terms
+AppImage
+Xvfb
+xvfb-run
+xcb
+ConfigureNotify
+Expose
+MapNotify
+openbox
+xdotool
+qmlscene
+ppoll
+eventfd
+
+# Environment variables
+QT_QPA_PLATFORM

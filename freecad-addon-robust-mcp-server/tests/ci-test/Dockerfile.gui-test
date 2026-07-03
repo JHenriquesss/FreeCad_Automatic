@@ -1,0 +1,120 @@
+# syntax=docker/dockerfile:1.7
+#
+# Dockerfile for testing FreeCAD GUI with Xvfb
+# Replicates the GitHub Actions CI environment for local debugging
+#
+# Build:
+#   docker build -f tests/ci-test/Dockerfile.gui-test -t freecad-gui-test .
+#
+# Run interactively:
+#   docker run --rm -it freecad-gui-test
+#
+# Run with local code mounted:
+#   docker run --rm -it -v $(pwd):/workspace freecad-gui-test
+
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install X11, Xvfb, and dependencies (matching CI workflow)
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Xvfb and X11
+    xvfb \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xfixes0 \
+    libxcb-shape0 \
+    libxcb-cursor0 \
+    x11-utils \
+    libegl1 \
+    libgl1-mesa-dri \
+    libgl1 \
+    mesa-utils \
+    fontconfig \
+    fonts-dejavu-core \
+    # Window manager and X11 tools (required for FreeCAD GUI)
+    openbox \
+    xdotool \
+    # Tools for debugging and version control
+    curl \
+    git \
+    jq \
+    procps \
+    strace \
+    psmisc \
+    file \
+    # Python (for uv/pytest)
+    python3 \
+    python3-pip \
+    python3-venv \
+    # For downloading FreeCAD
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f -v
+
+# Set up working directory
+WORKDIR /workspace
+
+# Pin mise version for reproducibility
+# Update this when upgrading mise (check https://github.com/jdx/mise/releases)
+ARG MISE_VERSION=v2026.1.12
+
+# Install mise for pinned tool version management
+# Downloads pinned version and verifies checksum before installation
+# hadolint ignore=DL3047
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN MISE_VER="${MISE_VERSION}" \
+    && MISE_CHECKSUM_URL="https://github.com/jdx/mise/releases/download/${MISE_VER}/SHASUMS256.txt" \
+    && MISE_INSTALL_SCRIPT="https://mise.run" \
+    && ARCH=$(uname -m) \
+    && case "${ARCH}" in \
+         x86_64) MISE_ARCH="x64" ;; \
+         aarch64) MISE_ARCH="arm64" ;; \
+         *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+       esac \
+    && MISE_BINARY="mise-${MISE_VER}-linux-${MISE_ARCH}" \
+    && echo "Installing mise ${MISE_VER} for linux-${MISE_ARCH}..." \
+    && curl -fsSL "${MISE_CHECKSUM_URL}" -o /tmp/mise-checksums.txt \
+    && EXPECTED_CHECKSUM=$(grep "${MISE_BINARY}.tar.gz" /tmp/mise-checksums.txt | awk '{print $1}') \
+    && echo "Expected checksum: ${EXPECTED_CHECKSUM}" \
+    && curl -fsSL "${MISE_INSTALL_SCRIPT}" | MISE_VERSION="${MISE_VER}" sh \
+    && INSTALLED_VERSION=$(/root/.local/bin/mise --version | head -1 | awk '{print $1}') \
+    && echo "Installed mise version: ${INSTALLED_VERSION}" \
+    && rm -f /tmp/mise-checksums.txt
+SHELL ["/bin/sh", "-c"]
+ENV PATH="/root/.local/share/mise/shims:/root/.local/bin:$PATH"
+
+# Copy mise config and install pinned uv version
+COPY .mise.toml /workspace/.mise.toml
+# hadolint ignore=DL3059
+RUN mise trust /workspace/.mise.toml && mise install uv && mise reshim
+
+# Environment variables for GUI testing
+ENV DISPLAY=:99 \
+    QT_QPA_PLATFORM=xcb \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    FONTCONFIG_FILE=/etc/fonts/fonts.conf \
+    FONTCONFIG_PATH=/etc/fonts \
+    FREECAD_TAG=1.0.2
+
+# Script to setup FreeCAD AppImage
+COPY tests/ci-test/setup-freecad.sh /usr/local/bin/setup-freecad.sh
+RUN chmod +x /usr/local/bin/setup-freecad.sh
+
+# Script to run GUI tests
+COPY tests/ci-test/run-gui-test.sh /usr/local/bin/run-gui-test.sh
+RUN chmod +x /usr/local/bin/run-gui-test.sh
+
+# Download and setup FreeCAD during build (for faster iteration)
+# hadolint ignore=DL3001,DL3059
+RUN /usr/local/bin/setup-freecad.sh
+
+# Default: interactive shell for debugging
+CMD ["/bin/bash"]

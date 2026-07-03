@@ -1,0 +1,30 @@
+# Local Python and uv state
+.venv/
+**/.venv/
+.python-version
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local installer/runtime backups
+*.bak-freecad-mcp-*
+*.log
+sessions/
+
+# Nested upstream git metadata should not be committed in the wrapper repo
+**/.git/
+**/.upstream-git/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local agent/runtime state
+.agents/
+.codex/
