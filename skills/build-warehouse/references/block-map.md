@@ -13,9 +13,34 @@ Use these folders:
 ```text
 profiles/hea/
 profiles/heb/
+profiles/gerdau/autocad/
+profiles/gerdau/autocad/dwg/
 roof/steel-sheets/
 openings/glass-skin/
 ```
+
+## Gerdau Profile Blocks
+
+Use these when the project asks for Gerdau steel profiles or Brazilian supplier
+references:
+
+```text
+libraries/cad-blocks/steel-warehouse/profiles/gerdau/MANIFEST.md
+libraries/cad-blocks/steel-warehouse/profiles/gerdau/autocad/dwg/
+```
+
+Available DWG groups:
+
+```text
+Cantoneira
+Perfil I de abas inclinadas - Industria
+Perfil U
+Perfis W/HP 150, 200, 250, 310
+Perfis W 360, 410, 530, 610
+```
+
+FreeCAD usually needs a DWG importer/converter configured. If DWG import fails,
+convert the Gerdau DWG to DXF before importing.
 
 ## Standards And Profile References
 
@@ -24,6 +49,7 @@ libraries/standards/freecad-bim/profiles.csv
 libraries/standards/freecad-bim/ArchProfile.py
 libraries/standards/freecad-draft-patterns/steel.svg
 libraries/standards/freecad-draft-patterns/general_steel.svg
+libraries/standards/gerdau/perfis-estruturais/perfis-estruturais-gerdau-informacoes-tecnicas.pdf
 ```
 
 `profiles.csv` includes profile classes such as circular tube, rectangular,

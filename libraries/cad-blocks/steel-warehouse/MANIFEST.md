@@ -16,6 +16,8 @@ Initial block library for warehouse and light industrial building workflows.
 | Openings/facade | `openings/glass-skin/6 frame modules.step` | STEP | FreeCAD-library | CC-BY 3.0 |
 | Openings/facade | `openings/glass-skin/6 frame modules with doors.FCStd` | FreeCAD | FreeCAD-library | CC-BY 3.0 |
 | Openings/facade | `openings/glass-skin/6 frame modules with doors.step` | STEP | FreeCAD-library | CC-BY 3.0 |
+| Gerdau profiles | `profiles/gerdau/autocad/*.zip` | ZIP/DWG | Gerdau BIM library | Public official download |
+| Gerdau profiles | `profiles/gerdau/autocad/dwg/` | DWG | Gerdau BIM library | Public official download |
 
 ## Source Notes
 
@@ -23,6 +25,10 @@ Initial block library for warehouse and light industrial building workflows.
 - The FreeCAD-library README states that all parts are CC-BY 3.0 and each part
   should be attributed to its respective author.
 - Keep `_sources/freecad-library/README.md` for local license/source reference.
+- Gerdau BIM library source: <https://voce.mais.gerdau.com.br/bibliotecas-bim>
+- The Gerdau page describes the BIM models as free downloads for steel
+  structure projects. Keep the downloaded ZIP files as source originals and
+  use the extracted DWG files as working CAD blocks.
 
 ## Candidate Sources Not Downloaded
 

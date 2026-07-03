@@ -10,11 +10,13 @@ Reference data downloaded for warehouse/steel-structure automation.
 | `freecad-bim/ArchProfile.py` | FreeCAD `src/Mod/BIM/ArchProfile.py` | LGPL-2.1 |
 | `freecad-draft-patterns/steel.svg` | FreeCAD Draft pattern | LGPL-2.1 |
 | `freecad-draft-patterns/general_steel.svg` | FreeCAD Draft pattern | LGPL-2.1 |
+| `gerdau/perfis-estruturais/perfis-estruturais-gerdau-informacoes-tecnicas.pdf` | Gerdau catalog/manuals | Public official download |
 
 ## Source
 
 - FreeCAD source: <https://github.com/FreeCAD/FreeCAD>
 - FreeCAD repository license: LGPL-2.1.
+- Gerdau catalogs/manuals: <https://mais.gerdau.com.br/catalogos-e-manuais>
 
 ## Usage
 
