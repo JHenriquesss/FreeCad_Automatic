@@ -130,7 +130,7 @@ def _get_qt_core() -> Any:
     Returns:
         The QtCore module if available in GUI mode, None otherwise.
     """
-    if not (FREECAD_AVAILABLE and FreeCAD.GuiUp):
+    if not (FREECAD_AVAILABLE and getattr(FreeCAD, "GuiUp", False)):
         return None
 
     # Try PySide2 first, then PySide6
@@ -585,12 +585,12 @@ class FreecadMCPPlugin:
             self._status_timer = None
 
         # Clear status bar message
-        if FREECAD_AVAILABLE and FreeCAD.GuiUp:
+        if FREECAD_AVAILABLE and getattr(FreeCAD, "GuiUp", False):
             self._set_status_bar("")
 
     def _update_status_bar(self) -> None:
         """Update the FreeCAD status bar with MCP bridge status."""
-        if not (FREECAD_AVAILABLE and FreeCAD.GuiUp):
+        if not (FREECAD_AVAILABLE and getattr(FreeCAD, "GuiUp", False)):
             return
 
         # Build status message
@@ -620,7 +620,7 @@ class FreecadMCPPlugin:
         Args:
             message: Message to display in status bar.
         """
-        if not (FREECAD_AVAILABLE and FreeCAD.GuiUp):
+        if not (FREECAD_AVAILABLE and getattr(FreeCAD, "GuiUp", False)):
             return
 
         try:
@@ -665,7 +665,7 @@ class FreecadMCPPlugin:
         # Check if we're in GUI mode using FreeCAD.GuiUp
         # Note: Qt (PySide) may be available even in headless mode, but without
         # a running event loop, Qt timers won't fire. Use GuiUp to detect this.
-        gui_available = FREECAD_AVAILABLE and FreeCAD.GuiUp
+        gui_available = FREECAD_AVAILABLE and getattr(FreeCAD, "GuiUp", False)
 
         if gui_available:
             # GUI mode: use Qt timer for thread-safe GUI operations
@@ -1127,7 +1127,7 @@ import base64
 import tempfile
 import os
 
-if not FreeCAD.GuiUp:
+if not getattr(FreeCAD, "GuiUp", False):
     _result_ = {{"success": False, "error": "GUI not available"}}
 else:
     doc = FreeCAD.ActiveDocument

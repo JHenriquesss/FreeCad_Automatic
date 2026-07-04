@@ -10,7 +10,8 @@ FreeCAD from Codex, Claude Desktop, Claude Code, OpenCode, and Antigravity.
 
 - Global `freecad-mcp` command via `uv tool install`.
 - FreeCAD `RobustMCPBridge` workbench under FreeCAD's `Mod\freecad`
-  namespace folder, including versioned FreeCAD profile folders when present.
+  namespace folder and the classic direct `Mod\RobustMCPBridge` folder,
+  including versioned FreeCAD profile folders when present.
 - MCP client entries for:
   - Claude Desktop
   - Claude Code
@@ -136,7 +137,9 @@ Typical paths:
 %USERPROFILE%\.codex\config.toml
 %USERPROFILE%\.config\opencode\opencode.json
 %APPDATA%\Antigravity IDE\User\mcp.json
+%APPDATA%\FreeCAD\Mod\RobustMCPBridge
 %APPDATA%\FreeCAD\Mod\freecad\RobustMCPBridge
+%APPDATA%\FreeCAD\v1-1\Mod\RobustMCPBridge
 %APPDATA%\FreeCAD\v1-1\Mod\freecad\RobustMCPBridge
 ```
 

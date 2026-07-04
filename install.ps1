@@ -231,20 +231,25 @@ function Install-FreeCADWorkbench([string]$RepoRoot) {
     $uniqueModDirs = $modDirs | Select-Object -Unique
 
     foreach ($modDir in $uniqueModDirs) {
-        $namespaceDir = Join-Path $modDir "freecad"
-        $target = Join-Path $namespaceDir "RobustMCPBridge"
-        Ensure-Directory $namespaceDir
+        $targets = @(
+            (Join-Path $modDir "RobustMCPBridge"),
+            (Join-Path (Join-Path $modDir "freecad") "RobustMCPBridge")
+        )
 
-        if (Test-Path -LiteralPath $target) {
-            $backup = "$target.bak-freecad-mcp-$(Get-Date -Format yyyyMMddHHmmss)"
-            if ($PSCmdlet.ShouldProcess($target, "Move existing workbench to backup")) {
-                Move-Item -LiteralPath $target -Destination $backup -Force
+        foreach ($target in $targets) {
+            Ensure-Directory (Split-Path -Parent $target)
+
+            if (Test-Path -LiteralPath $target) {
+                $backup = "$target.bak-freecad-mcp-$(Get-Date -Format yyyyMMddHHmmss)"
+                if ($PSCmdlet.ShouldProcess($target, "Move existing workbench to backup")) {
+                    Move-Item -LiteralPath $target -Destination $backup -Force
+                }
             }
-        }
 
-        Write-Step "Copying FreeCAD RobustMCPBridge workbench to $target"
-        if ($PSCmdlet.ShouldProcess($target, "Copy workbench")) {
-            Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+            Write-Step "Copying FreeCAD RobustMCPBridge workbench to $target"
+            if ($PSCmdlet.ShouldProcess($target, "Copy workbench")) {
+                Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+            }
         }
     }
 }

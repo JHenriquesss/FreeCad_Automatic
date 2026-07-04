@@ -164,11 +164,15 @@ try:
                     QtWidgets,
                 )
 
+        _gui_up = getattr(FreeCAD, "GuiUp", False)
+        if not hasattr(FreeCAD, "GuiUp"):
+            _is_true_headless = True
+
         # Detect GUI mode vs true headless mode
         # - True headless (freecadcmd): QCoreApplication exists but NOT QApplication
         # - GUI mode early startup: No app yet, or QApplication being initialized
         # - GUI mode ready: FreeCAD.GuiUp is True
-        if QtWidgets is not None and QtCore is not None:
+        if not _is_true_headless and QtWidgets is not None and QtCore is not None:
             qapp = QtWidgets.QApplication.instance()
             if qapp is not None:
                 _has_qapp = True
@@ -183,13 +187,13 @@ try:
                 # If no app at all, assume early GUI startup (will use GuiWaiter)
 
         FreeCAD.Console.PrintMessage(
-            f"Robust MCP Bridge: GuiUp={FreeCAD.GuiUp}, "
+            f"Robust MCP Bridge: GuiUp={_gui_up}, "
             f"QtCore={'available' if QtCore else 'unavailable'}, "
             f"QApp={'running' if _has_qapp else 'none'}, "
             f"headless={_is_true_headless}\n"
         )
 
-        if FreeCAD.GuiUp:
+        if _gui_up:
             # GUI is already up - use timer for deferred start
             FreeCAD.Console.PrintMessage(
                 "Robust MCP Bridge: GUI already up, scheduling deferred start...\n"
