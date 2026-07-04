@@ -9,6 +9,7 @@
 - CAD and standards assets: `libraries/`.
 - AI skill: `skills/build-warehouse/`.
 - Project workspace template: `projects/_template/`.
+- First concrete project workspace: `projects/galpao/`.
 - Project isolation contract: each project folder carries `AGENT_SCOPE.md` and
   project-local `context/` files.
 - Local-only research/logs: `pesquisa/`, `sessions/`, `*.log` ignored by Git.
@@ -43,6 +44,11 @@
   - `freecad-addon-robust-mcp-server/freecad/RobustMCPBridge/Init.py`
   - `freecad-addon-robust-mcp-server/freecad/RobustMCPBridge/InitGui.py`
 - Reason: FreeCAD workbench discovery executes classic `Init.py`/`InitGui.py`.
+- GUI startup rule:
+  - `Init.py` must not start the bridge.
+  - `InitGui.py` owns GUI auto-start after `FreeCAD.GuiUp` is true.
+  - Starting from `Init.py` can classify GUI startup as headless and make
+    XML-RPC `execute` calls hang in the queue processor.
 - Headless robustness patches:
   - `__init__.py`: use `getattr(FreeCAD, "GuiUp", False)` and treat missing
     `GuiUp` as headless.
@@ -83,6 +89,8 @@
 ## Project Isolation Architecture
 
 - New project starts by copying `projects/_template/`.
+- `projects/galpao/` is the first real project fixture, initialized from the
+  template with project-local context, notes, inputs, work, and exports folders.
 - Agent working directory should be the specific project folder, not repo root.
 - `AGENT_SCOPE.md` defines write boundary and startup order.
 - `context/chat.md`, `context/decisions.md`, `context/pending.md` store

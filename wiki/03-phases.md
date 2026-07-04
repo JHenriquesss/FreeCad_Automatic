@@ -61,14 +61,26 @@ Outcome:
 - Verified after real FreeCAD restart.
 - Pushed through `64a9228 fix: make FreeCAD bridge load in 1.1 profile`.
 
-## Current Phase - Documentation Consolidation
+## Phase 6 - Project Workspace Isolation
 
 Scope:
-- Create LLM wiki.
-- Update docs for current architecture and local patches.
-- Commit documentation state.
+- Add isolated per-project workspaces for agents.
+- Prevent project agents from modifying sibling projects or shared config.
+
+Outcome:
+- Added `projects/_template/` with `AGENT_SCOPE.md` and local context folders.
+- Updated `skills/build-warehouse` to respect project write boundaries.
+- Created first fixture `projects/galpao/`.
+- Pushed through `ad7c258 chore: create galpao project workspace`.
+
+## Current Phase - FreeCAD MCP Execute Verification
+
+Scope:
+- Ensure GUI bridge startup happens only after `FreeCAD.GuiUp`.
+- Verify `execute` can create simple geometry without hanging.
 
 Exit:
-- `wiki/` exists and cross-links source docs.
-- README/UPSTREAM mention bridge layout and local patches.
-- Git clean after commit.
+- Restart FreeCAD after patched `Init.py`.
+- `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` succeeds.
+- XML-RPC `execute` creates a simple `Part::Box` in active document.
+- Wiki records final verified status.

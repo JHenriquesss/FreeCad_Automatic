@@ -3,7 +3,8 @@
 Portable Windows repo for installing FreeCAD Robust MCP, configuring AI clients,
 and carrying a steel-warehouse automation workspace. Current focus:
 FreeCAD MCP reliability, reusable CAD/standards library, isolated project
-workspaces, and `build-warehouse` skill for galpao metalico workflows.
+workspaces, first `projects/galpao` fixture, and `build-warehouse` skill for
+galpao metalico workflows.
 
 ## Contents
 
@@ -23,11 +24,12 @@ workspaces, and `build-warehouse` skill for galpao metalico workflows.
 
 ## Current Head
 
-- Last known commit: `64a9228 fix: make FreeCAD bridge load in 1.1 profile`.
-- FreeCAD MCP verified locally after real FreeCAD restart:
-  `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` succeeded
-  against FreeCAD `1.1.1` with GUI available.
+- Last known commit: `ad7c258 chore: create galpao project workspace`.
+- Local uncommitted MCP patch: `RobustMCPBridge/Init.py` now defers GUI startup
+  to `InitGui.py`; restart FreeCAD before verifying `execute`.
+- FreeCAD MCP health checks can pass while `execute` still hangs if the bridge
+  starts before `FreeCAD.GuiUp`; see [[06-open-threads#freecad-mcp-execute-verification]].
 
 ---
 
-last-consolidated: 2026-07-04, sessions: 1
+last-consolidated: 2026-07-04, sessions: 2

@@ -22,6 +22,7 @@ End-to-end trunk for this project:
 | GUI MCP connection | `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` | green |
 | Skill validation | `quick_validate.py skills/build-warehouse` via `uv` | green |
 | Git remote | pushes through `origin/main` | green |
+| Galpao workspace | `projects/galpao/AGENT_SCOPE.md` exists | green |
 
 ## Branches
 
@@ -38,6 +39,8 @@ End-to-end trunk for this project:
 - Assert `Init.py`/`InitGui.py` wrappers load.
 - Assert no hard dependency on `FreeCAD.GuiUp` in headless.
 - Assert XML-RPC port 9875 opens after FreeCAD restart.
+- Assert GUI `execute` creates a simple `Part::Box` after `Init.py` defers to
+  `InitGui.py`.
 - Missing: automated GUI startup test from this wrapper repo.
 
 ### Warehouse Skill Branch
@@ -57,6 +60,7 @@ End-to-end trunk for this project:
 
 - No CI pipeline for this wrapper repo.
 - No scripted FreeCAD GUI integration test in repo root.
+- No verified post-patch `execute` smoke test after restarting FreeCAD.
 - No project example proving `build-warehouse` can create first conceptual
   FreeCAD model.
 - No automated documentation consistency check for README/wiki/manifests.

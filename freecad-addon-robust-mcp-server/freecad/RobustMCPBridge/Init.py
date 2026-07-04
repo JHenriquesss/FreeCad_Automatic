@@ -1,9 +1,13 @@
-"""FreeCAD startup wrapper for Robust MCP Bridge."""
+"""FreeCAD startup wrapper for Robust MCP Bridge.
+
+Do not start the bridge from Init.py. In FreeCAD GUI startup this file can run
+before FreeCAD.GuiUp is true, which starts the queue processor in headless mode
+and makes XML-RPC execute requests hang. InitGui.py owns GUI auto-start.
+"""
 
 from __future__ import annotations
 
 import os
-import runpy
 import sys
 
 try:
@@ -21,4 +25,11 @@ except NameError:
 if _ADDON_DIR not in sys.path:
     sys.path.insert(0, _ADDON_DIR)
 
-runpy.run_path(os.path.join(_ADDON_DIR, "__init__.py"), run_name="__robust_mcp_init__")
+try:
+    import FreeCAD
+
+    FreeCAD.Console.PrintMessage(
+        "Robust MCP Bridge: Init.py loaded; startup deferred to InitGui.py\n"
+    )
+except Exception:
+    pass

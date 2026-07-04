@@ -104,3 +104,18 @@ Why:
 Alternatives rejected:
 - Open all agents at repo root for project work.
 - Duplicate shared libraries and research inside every project.
+
+## 2026-07-04 - Defer FreeCAD GUI Bridge Startup To InitGui
+
+Decision:
+- `RobustMCPBridge/Init.py` must only prepare import path/logging; `InitGui.py`
+  owns GUI bridge startup.
+
+Why:
+- FreeCAD can run `Init.py` before `FreeCAD.GuiUp` is true. Starting there makes
+  the bridge use headless queue processing inside the GUI process, causing
+  XML-RPC `execute` calls to hang.
+
+Alternatives rejected:
+- Keep duplicate auto-start in both `Init.py` and `InitGui.py`.
+- Rely on chat/client restart to clear bridge state.
