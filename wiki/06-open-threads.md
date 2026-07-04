@@ -3,6 +3,8 @@
 ## Needs Real Galpao Example
 
 - Need first project fixture under `projects/<project-slug>/`.
+- Start by copying `projects/_template/` and opening the agent in the new
+  project folder.
 - Minimum input: span, length, eave height, roof slope, bay spacing, use,
   cladding, openings, profile preferences, bracing constraints.
 - Goal: exercise `build-warehouse` skill on a concrete case.

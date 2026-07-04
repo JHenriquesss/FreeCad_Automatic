@@ -2,8 +2,8 @@
 
 Portable Windows repo for installing FreeCAD Robust MCP, configuring AI clients,
 and carrying a steel-warehouse automation workspace. Current focus:
-FreeCAD MCP reliability, reusable CAD/standards library, and `build-warehouse`
-skill for galpao metalico workflows.
+FreeCAD MCP reliability, reusable CAD/standards library, isolated project
+workspaces, and `build-warehouse` skill for galpao metalico workflows.
 
 ## Contents
 

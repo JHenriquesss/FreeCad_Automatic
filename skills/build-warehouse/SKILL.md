@@ -15,10 +15,12 @@ an engineer approves it.
 2. Read `references/steel-warehouse-engineering-map.md` to select the
    structural workflow and design gates.
 3. Read `references/project-inputs.md` before starting a real project.
-4. Ask for missing engineering inputs instead of inventing dimensions.
-5. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
+4. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
+   its write boundary before changing files.
+5. Ask for missing engineering inputs instead of inventing dimensions.
+6. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
    sheets, and openings.
-6. Save project-specific work under `projects/<project-slug>/`.
+7. Save project-specific work under `projects/<project-slug>/`.
 
 ## Workflow
 
@@ -42,6 +44,8 @@ an engineer approves it.
 - Preserve source attribution when using downloaded CAD blocks.
 - Prefer `.FCStd` for editable FreeCAD objects and `.step` for neutral import.
 - Keep external downloads in `libraries/` with source/license notes.
+- Do not modify sibling project folders or shared repo configuration from a
+  project-scoped task.
 
 ## References
 

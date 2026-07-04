@@ -9,6 +9,8 @@
 - CAD and standards assets: `libraries/`.
 - AI skill: `skills/build-warehouse/`.
 - Project workspace template: `projects/_template/`.
+- Project isolation contract: each project folder carries `AGENT_SCOPE.md` and
+  project-local `context/` files.
 - Local-only research/logs: `pesquisa/`, `sessions/`, `*.log` ignored by Git.
 
 ## Installer Architecture
@@ -75,6 +77,18 @@
   - `references/deliverables.md`: output folders and checks.
 - Rule: model geometry and placeholders only until engineer approves design
   assumptions, member sizes, connections, bases, and deliverables.
+- Project-scoped agents may read shared repo knowledge but write only in the
+  active `projects/<project-slug>/` folder.
+
+## Project Isolation Architecture
+
+- New project starts by copying `projects/_template/`.
+- Agent working directory should be the specific project folder, not repo root.
+- `AGENT_SCOPE.md` defines write boundary and startup order.
+- `context/chat.md`, `context/decisions.md`, `context/pending.md` store
+  project-specific memory.
+- Shared assets remain read-only for project work: `wiki/`, `skills/`,
+  `libraries/`, `pesquisa/`.
 
 ## Runtime Assumptions
 

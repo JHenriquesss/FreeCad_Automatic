@@ -90,3 +90,17 @@ Why:
 Alternatives rejected:
 - Wait for upstream release.
 - Tell user to start bridge manually every time.
+
+## 2026-07-04 - Isolate Each Galpao Project Folder
+
+Decision:
+- Each project under `projects/<project-slug>/` gets `AGENT_SCOPE.md` and
+  project-local `context/`.
+
+Why:
+- Agents need read access to shared wiki, skills, libraries, and research while
+  being prevented from modifying sibling projects or shared configuration.
+
+Alternatives rejected:
+- Open all agents at repo root for project work.
+- Duplicate shared libraries and research inside every project.

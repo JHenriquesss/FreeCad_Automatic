@@ -167,3 +167,11 @@ Typical paths:
 The repo includes an LLM-oriented wiki under `wiki/`. New AI sessions should
 start with `wiki/00-index.md` before changing installer, MCP, library, or
 warehouse-skill behavior.
+
+## Project Workspaces
+
+Create project-specific work under `projects/` by copying
+`projects/_template/`. Open the agent in the specific project folder, not at
+repo root, when working on a client/project model. Each project has
+`AGENT_SCOPE.md`, which allows reading shared `wiki/`, `skills/`, `libraries/`,
+and `pesquisa/`, but restricts writes to that project folder.
