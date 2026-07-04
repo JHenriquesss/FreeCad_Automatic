@@ -66,6 +66,10 @@ suggested value; never hard-code a silent default (see the core rule in
   the force flow; when the engineer requires it, model welded reinforcement
   plates around the opening (rings for circular, longitudinal plates for
   rectangular).
+- Web-opening placement: openings reduce shear capacity; keep them in the middle
+  third of the web height and the central two quarters of the span (away from
+  high-shear supports), with >= 2.5x the larger opening dimension between
+  adjacent openings.
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
   for the engineer.
 
@@ -147,6 +151,9 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 - Deck bearing length on the supporting beams (avoid local crushing): MF-50 about
   50 mm at exterior supports, 100 mm at interior; MF-75 about 75 mm exterior,
   150 mm interior. Model the deck overlapping the beam flange accordingly.
+- Shored vs unshored: unshored construction requires the steel/deck to carry wet
+  concrete + workers before curing (usually with camber); shored gives lighter
+  steel but more site work. Record which, as it drives the Gate 6 analysis.
 - Name: `MEZZ_BEAM_...`, `MEZZ_DECK_...`, `STUD_...`.
 
 ## 5. Connections: stiffeners, gussets, base grout gap

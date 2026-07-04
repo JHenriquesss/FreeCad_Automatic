@@ -75,7 +75,10 @@ preferred) and edge distance (~1.5-1.75 db against block shear); slotted/oversiz
 holes get continuous plate washers at least 8 mm thick. Gutters and downspouts
 are modelled and clash-checked against bracing and girts. Partially-encased
 composite columns get web studs and a halved-stirrup note at the load-
-introduction region. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
+introduction region. Mezzanine concreting is flagged shored or unshored; web
+openings sit in the middle third of the web and the central span; floor vibration
+is checked for occupied mezzanines; and natural-ventilation openings follow the
+CBCA chimney-effect proportion. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
 get a composite steel-deck floor with shear studs. The environmental class (ISO
 12944) is captured to drive coating and detailing, crane duty (light/heavy) sets
 runway stiffness and bracing, crane runways get end stops, and erection needs

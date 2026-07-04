@@ -140,9 +140,16 @@ Ask:
   sets stud placement; studs are welded through the deck valley and must project
   above the rib into the concrete. See `constructability-detailing.md` section
   on composite floors.
+- Mezzanine construction: shored or unshored concreting? Unshored means the steel
+  beam / steel deck must carry wet concrete + workers alone before curing (and
+  usually needs camber); shored is lighter steel but costlier/slower site work.
+  Record it; it changes the Gate 6 analysis.
 - Web openings: are service runs (electrical, water, compressed air) passing
   through beam webs, or is height reduction wanted? If yes, model the web
-  openings and coordinate the reinforcement the engineer requires.
+  openings and coordinate the reinforcement the engineer requires. Placement
+  rule: keep openings in the middle third of the web height and the central two
+  quarters of the span (away from high-shear supports), with longitudinal spacing
+  between openings >= 2.5x the larger opening dimension.
 - Crane end stops (if crane): model end stops/bumpers at both ends of each
   runway line, the horizontal surge truss along the runway top flange, and rail
   fixing by clips (see `constructability-detailing.md` section 3).
@@ -170,6 +177,10 @@ Ask:
 - Fixed openings (louvers/venezianas) and movable openings (doors, gates,
   sliding windows): positions, sizes, which wall.
 - Roof lighting/ventilation openings if not already set at Gate 1.
+- Natural ventilation (if lanternim + side louvers): for an effective chimney
+  effect (cool air in low, hot air out at the ridge monitor), the CBCA manual
+  suggests the summed height of the two side inlet openings be about 1.5x the
+  width of the lanternim outlet. Suggest this proportion when sizing openings.
 
 Clash detection (required): check every movable opening against the bays chosen
 for vertical X-bracing. If a gate/door/window lands on a braced bay, alert the
@@ -248,6 +259,9 @@ Confirm, in order:
 - Serviceability (SLS): vertical and lateral displacement limits met. Crane
   runway beams have stricter vertical-deflection limits than roof members:
   about L/600 for capacity up to ~20 tf and L/800 above ~20 tf.
+- Floor vibration: for a mezzanine (especially open offices/large spans), were
+  human-comfort floor-vibration limits checked, not just static deflection?
+  Lightweight composite floors can feel walking-induced vibration.
 - Purlins (NBR 14762 if cold-formed).
 - Girts.
 - Tie rods (tirantes).
