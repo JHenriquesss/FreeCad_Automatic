@@ -145,9 +145,10 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 - Model floor beams, a composite steel-deck slab (formwork acting as platform
   and reinforcement, e.g. MF-50 / MF-75), and shear studs (stud bolts) welded to
   the top flange of the floor beams for steel-concrete composite action.
-- Studs are typically <= 19 mm diameter and should project at least ~50 mm above
-  the top of the steel deck. Model at least ~50 mm of concrete cover above the
-  deck top, and a deck rib height of at most ~75 mm. Confirm with the engineer.
+- Studs are typically <= 19 mm diameter and must project at least ~40 mm above
+  the deck top (code minimum; ~50 mm typical). Model at least ~50 mm of concrete
+  cover above the deck top, and a deck rib height of at most ~75 mm. Confirm with
+  the engineer.
 - Deck bearing length on the supporting beams (avoid local crushing): MF-50 about
   50 mm at exterior supports, 100 mm at interior; MF-75 about 75 mm exterior,
   150 mm interior. Model the deck overlapping the beam flange accordingly.
@@ -241,6 +242,10 @@ The 3D detail must reflect the connection type the engineer specifies:
 - Minimum fillet weld leg depends on the thicker base metal at the joint: about
   3 mm for plates up to ~6.35 mm, ~5 mm for ~6.35-12.5 mm (per NBR 8800). Emit
   this as a note when detailing gussets/stiffeners.
+- Punching vs drilling (fabrication cost): holes can be punched (cheap) only when
+  the plate thickness t <= bolt diameter + 3 mm (NBR 8800); thicker plates must
+  be drilled (costlier). Prefer connection-plate thicknesses within the punching
+  limit when the engineer allows.
 - Minimum bolt spacing: centre-to-centre distance between standard holes should
   be at least 2.7 x bolt diameter (NBR 8800), with ~3 x diameter preferred.
   Enforce this when the script lays out holes on gussets and end plates.

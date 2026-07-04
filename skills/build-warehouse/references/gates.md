@@ -279,8 +279,8 @@ Also confirm the detailing that follows from sizes (see
 - Prying action: flag tensioned end-plate/connection-plate thickness for
   explicit engineer verification (thin plates overload the bolts).
 - Record the code minimum connection force (a common NBR 8800 value is 45 kN,
-  except tie rods and purlins) as an assumption, so no connection is left
-  designed for zero force.
+  except tie rods, roof purlins, and wall girts/travessas) as an assumption, so
+  no connection is left designed for zero force.
 
 Produces: an approved size for every member class. Exit: engineer approves the
 full member list. Nothing is "verified" without the calculation behind it.
@@ -300,6 +300,12 @@ Ask:
 - Tapered members (if chosen at Gate 0): model the variable-web-depth profiles.
 - Slotted/oversized holes for erection adjustment on critical field connections?
   If yes, model hardened washers or larger shim plates over them.
+- Fabrication cost: keep connection-plate thickness within the punching limit
+  (t <= bolt diameter + 3 mm) where the engineer allows, so holes are punched not
+  drilled.
+- Double angles: if back-to-back angles are used in a C3-C5 environment, require
+  continuous sealing welds or sealed spacers (no unfilled crevice), or switch to
+  tubular/single profiles.
 - Sacrificial thickness (sobrespessura): any unmaintained/unprotected component
   needing extra corrosion allowance? Record it for the engineer.
 - Re-check field splices against the real (heavier) profiles and the transport
