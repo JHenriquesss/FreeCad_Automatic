@@ -282,6 +282,86 @@ def clash_check(doc, min_vol=200.0):
     return clashes
 
 
+STEEL_DENSITY = 7.85e-6   # kg per mm^3 (7850 kg/m^3)
+
+
+def _classify(name):
+    """Return (category, profile_label) from the object name."""
+    if "_COL_" in name:
+        return "Columns", "HEA200"
+    if "_RAFTER_" in name:
+        return "Rafters", "HEA180"
+    if "EAVESTRUT" in name or "_RIDGE" in name:
+        return "Eave struts / ridge", "HEA160"
+    if "GABLE" in name and "POST" in name:
+        return "Gable posts", "HEA160"
+    if "PURLIN" in name:
+        return "Purlins", "UPE120"
+    if "GIRT" in name:
+        return "Girts", "UPE100"
+    if "TIEROD" in name or "FLANGEBRACE" in name:
+        return "Sag rods / flange braces", "rod-16"
+    if name.startswith("BRACE_"):
+        return "Cross bracing", "rod-20"
+    if "ANCHOR" in name:
+        return "Anchor rods", "rod-25"
+    if "BASEPLATE" in name:
+        return "Base plates", "plate-22"
+    if "WASHER" in name:
+        return "Plate washers", "plate-10"
+    return "Other", "-"
+
+
+def takeoff(doc):
+    """Material takeoff: per member length + mass, grouped by category/profile.
+    Mass is exact from the solid volume; length from the registered endpoints."""
+    rows = []
+    for o in doc.Objects:
+        if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
+            continue
+        cat, prof = _classify(o.Name)
+        mass = o.Shape.Volume * STEEL_DENSITY
+        pts = REG.get(o.Name)
+        if pts and len(pts) == 2:
+            (x1, y1, z1), (x2, y2, z2) = pts
+            length = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)
+        else:
+            length = 0.0
+        rows.append((o.Name, cat, prof, round(length, 1), round(mass, 2)))
+
+    # group summary
+    groups = {}
+    for _, cat, prof, length, mass in rows:
+        g = groups.setdefault((cat, prof), [0, 0.0, 0.0])
+        g[0] += 1
+        g[1] += length
+        g[2] += mass
+
+    # write CSV
+    tdir = f"{EXPORT_DIR}/takeoff"
+    os.makedirs(tdir, exist_ok=True)
+    csv_path = f"{tdir}/galpao_takeoff.csv"
+    with open(csv_path, "w", encoding="utf-8") as f:
+        f.write("category,profile,count,total_length_m,total_mass_kg\n")
+        total_mass = 0.0
+        for (cat, prof), (cnt, length, mass) in sorted(groups.items()):
+            f.write(f"{cat},{prof},{cnt},{length/1000:.2f},{mass:.1f}\n")
+            total_mass += mass
+        f.write(f"TOTAL,,,,{total_mass:.1f}\n")
+        f.write("\n# Per-member detail\n")
+        f.write("name,category,profile,length_mm,mass_kg\n")
+        for r in sorted(rows):
+            f.write(",".join(str(x) for x in r) + "\n")
+
+    summary = sorted(
+        [(cat, prof, cnt, round(length / 1000, 2), round(mass, 1))
+         for (cat, prof), (cnt, length, mass) in groups.items()],
+        key=lambda r: -r[4])
+    total_mass = round(sum(v[2] for v in groups.values()), 1)
+    return {"csv": csv_path, "total_mass_kg": total_mass,
+            "members": len(rows), "by_group": summary}
+
+
 def export(doc):
     os.makedirs(f"{EXPORT_DIR}/freecad", exist_ok=True)
     os.makedirs(f"{EXPORT_DIR}/step", exist_ok=True)
@@ -302,11 +382,14 @@ def run():
     doc = App.newDocument(name)
     count = build(doc)
     clashes = clash_check(doc)
+    tk = takeoff(doc)
     fcstd, step = export(doc)
     return {"objects": count, "frames": len(frame_axes()),
             "ridge_height_mm": RIDGE_H, "grout_gap_mm": GROUT_GAP,
             "col_steel_length_mm": EAVE_H - Z0,
-            "clash_count": len(clashes), "clashes": clashes[:20],
+            "clash_count": len(clashes),
+            "total_mass_kg": tk["total_mass_kg"], "members": tk["members"],
+            "by_group": tk["by_group"], "takeoff_csv": tk["csv"],
             "fcstd": fcstd, "step": step}
 
 
