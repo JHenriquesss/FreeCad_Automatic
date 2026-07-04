@@ -61,8 +61,13 @@ Ask:
 - Roof slope %. Suggest 10%. Enforce NBR 8800 anti-ponding: not below 5%.
 - Roofing type (drives slope and purlin spans; trapezoidal steel sheet default).
 - Roof monitor (lanternim) for light/ventilation: yes/no + rough size.
+- Overhangs (beirais): does the roof extend beyond the columns? By how much (m)?
+  Affects purlins and wind suction.
+- Parapets (platibandas): does the side/end cladding extend above the roof to
+  hide it? Height (m)?
 
-Produces: rafters, ridge, roof plane geometry. Exit: user confirms roof.
+Produces: rafters, ridge, roof plane, overhangs, parapets. Exit: user confirms
+roof.
 
 ## Gate 2 - Secondary layout and stability
 
@@ -71,7 +76,9 @@ forgotten in a first pass.
 
 Ask:
 
-- Frame spacing (m) -> number of bays. Suggest 5 m; state the resulting count.
+- Frame spacing (m) -> number of bays. Suggest by span, not a fixed 5 m: span
+  <= 15 m -> 3-5 m; 16-35 m -> 4-8 m; > 36 m -> 8-12 m (see
+  `geometry-conventions.md` heuristics). State the resulting bay count.
 - Purlin spacing / count per slope (by roofing span).
 - Girt levels on walls.
 - Roof bracing: which bays (suggest end bays).
@@ -91,6 +98,8 @@ Ask:
 - Field splices: for any member longer than the agreed transport limit
   (suggest 12 m, ask), plan a split point and a splice placeholder. See
   `constructability-detailing.md` section 1.
+- Shear key at bases: do high horizontal loads (wind on facades, crane braking)
+  need a shear key under the base plate? Ask; engineer-decided.
 
 Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
@@ -114,7 +123,13 @@ Ask:
   sliding windows): positions, sizes, which wall.
 - Roof lighting/ventilation openings if not already set at Gate 1.
 
-Produces: opening cut-outs and frames. Exit: user confirms openings.
+Clash detection (required): check every movable opening against the bays chosen
+for vertical X-bracing. If a gate/door/window lands on a braced bay, alert the
+user and propose either moving the bracing to another bay or using a local rigid
+(moment) frame instead. Do not silently overlap an opening and an X-brace.
+
+Produces: opening cut-outs and frames, with bracing conflicts resolved. Exit:
+user confirms openings.
 
 ## Gate 5 - Actions and site
 

@@ -40,15 +40,21 @@ Model buildable reality, not ideal geometry. Z = 0 is the top of concrete; steel
 base plates sit above a grout gap. Members longer than the transport limit get
 field splices. Galvanised closed sections get drain/vent holes and must avoid
 water-trapping shapes. Rigid nodes get stiffeners, truss nodes get gussets.
-Field connections need erection clearances so the model is assemblable. Base
-plates get oversized anchor holes with welded plate washers, and a shear key
-when needed. Cold-formed purlins/girts get sag rods. Passive fire protection
-adds a volume that must be checked for clashes with cladding and openings.
+Field connections need erection clearances so the model is assemblable, and bolt
+holes keep minimum edge and wrench clearances so a tool can reach them. Rigid
+(moment) nodes automatically spawn column web stiffeners; flexible nodes get web
+angles with a flange gap. Base plates get oversized anchor holes with welded
+plate washers, projected anchor rods with nut/washer, and a shear key when
+needed. Cold-formed purlins/girts get sag rods. Galvanised holes are
+diametrically opposed and at least ~50% of the section; sharp exposed plate
+corners get a light fillet. Passive fire protection adds a volume that must be
+checked for clashes with cladding and openings. Movable openings must not clash
+with an X-braced bay; if they do, move the bracing or use a local rigid frame.
 Maintenance access clearances are kept for painting and inspection. Crane
-buildings get corbels, runway beams, and braking bracing. Long buildings get
-expansion joints (doubled axes); large spans get a camber note. All such
-thresholds are asked with a suggested value, never hard-coded. See
-`references/constructability-detailing.md`.
+buildings get corbels, runway beams with full-height transverse stiffeners, and
+braking bracing. Long buildings get expansion joints (doubled axes); large spans
+get a camber note. All such thresholds are asked with a suggested value, never
+hard-coded. See `references/constructability-detailing.md`.
 
 ## First Steps
 

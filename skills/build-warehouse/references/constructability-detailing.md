@@ -29,6 +29,10 @@ suggested value; never hard-code a silent default (see the core rule in
   placed diametrically opposed near each end. Model them as boolean cuts.
   Sealed pockets can explode in the zinc bath; venting is a safety requirement,
   not just drainage.
+- Hole size: galvanising holes should be at least ~50% of the tube diameter (or
+  section diagonal), diametrically opposed. Model them accordingly.
+- Round sharp corners: exposed cut plates (gussets) hold paint poorly on sharp
+  edges; apply a light fillet to the corners of exposed plates.
 - Maintenance access: keep minimum clearances between parallel members and to
   walls so painting/inspection tools fit (ask; suggested 50-300 mm by depth).
   Flag any gap below the chosen clearance as a clash.
@@ -43,6 +47,11 @@ suggested value; never hard-code a silent default (see the core rule in
 - Ask the user the rail top level, crane span/capacity, and clearances.
 - Crane loads (vertical impact, longitudinal braking, lateral) affect bracing
   and columns; those are engineer analysis (Gate 6), not modelled forces.
+- Runway beams need transverse web stiffeners over the full web height (fatigue)
+  and must avoid crevices that retain water (fatigue + corrosion). Model
+  full-height transverse stiffeners; do not model water-trapping pockets.
+- Columns may be variable-inertia or trussed to carry the runway; model per the
+  chosen typology.
 - Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`.
 
 ## 4. Expansion joints and camber
@@ -71,6 +80,28 @@ suggested value; never hard-code a silent default (see the core rule in
   friction capacity. Model `SHEARKEY_...` below the plate; engineer-decided.
 - Necessity of stiffeners/gussets/shear keys depends on forces (engineer, Gate
   6/7); the skill models them once indicated.
+
+### Rigid vs flexible connection geometry
+
+The 3D detail must reflect the connection type the engineer specifies:
+
+- Rigid (moment) beam-column: automatically add column web stiffeners aligned
+  with the beam flanges (forces from the flanges need them).
+- Flexible (shear only): model web angles or a simple plate and keep a gap
+  between the beam flange and the column, so no moment is implied.
+
+### Fastener clearances
+
+- Minimum edge distance: keep bolt-hole centres away from plate edges (a common
+  minimum is about 1.25 x bolt diameter; the engineer confirms per NBR 8800).
+- Wrench clearance: keep bolt holes far enough from a profile web/flange so a
+  tightening wrench fits. Do not place holes where a tool cannot reach.
+
+### Anchor rods (chumbadores) detail
+
+- Model the anchor embedment depth into the concrete and the projection above
+  the base plate for nut, lock-nut, and washer.
+- Combine with oversized holes + plate washers (section 5).
 
 ## 6. Fabrication and erection tolerances
 

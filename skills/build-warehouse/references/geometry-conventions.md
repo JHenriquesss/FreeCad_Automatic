@@ -67,6 +67,20 @@ These are for visualisation only and are NOT profiles:
 Detailing objects (base plates, stiffeners, gussets, splices, corbels, drain
 holes) are added in Gates 7-9, not in the conceptual gates.
 
+## Placeholder sizing heuristics (visualisation only)
+
+These rules-of-thumb make the early placeholder model look realistic before the
+engineer sizes anything. They are NOT design, NOT verified, and are replaced by
+real profiles at Gates 7-8. Always present them as suggestions (ask-with-
+suggestion) and record them as assumptions.
+
+- Frame spacing by span (Bellei, economical range):
+  - Span up to 15 m: spacing 3-5 m.
+  - Span 16-35 m: spacing 4-8 m.
+  - Span over 36 m: spacing 8-12 m.
+- Purlin/girt placeholder depth: about L/40 to L/60 of the member span (the
+  frame spacing for purlins), for the placeholder box height only.
+
 Always state in `notes/assumptions.md` that sections are placeholders. Replace
 them with real profiles only in Gate 5 after approval.
 
