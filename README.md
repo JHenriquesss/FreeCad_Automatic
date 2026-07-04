@@ -100,7 +100,7 @@ After FreeCAD is open and the bridge is running:
 
 ```powershell
 Test-NetConnection localhost -Port 9875
-freecad-mcp --check
+freecad-mcp --check --mode xmlrpc --host localhost --port 9875
 ```
 
 In an AI client, ask:
@@ -143,4 +143,6 @@ Typical paths:
 - If a client is not installed, its step is skipped or its config is created.
 - Claude Code is configured through `claude mcp add` when the CLI exists.
 - Antigravity support uses the VS Code-style `User\mcp.json` file.
-- The MCP health check fails until FreeCAD is open and the bridge is listening.
+- The MCP health check fails until FreeCAD is open and the Robust MCP Bridge is
+  listening. In FreeCAD, switch to `Robust MCP Bridge` and click `Start MCP
+  Bridge`, or enable auto-start in the workbench preferences.
