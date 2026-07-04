@@ -9,18 +9,47 @@ Use this skill to help build a steel warehouse workflow around FreeCAD and the
 local CAD block library. Treat all geometry as drafting/automation input until
 an engineer approves it.
 
+## Core Rule: Ask, Do Not Invent
+
+Every value a human should decide must reach the user as an explicit question,
+preferably button-style (one question, 2-4 options, a Recommended option first,
+a sensible default). Never silently pick an engineering-critical value. When the
+user defers, record the assumed value in `notes/assumptions.md` and mark it
+pending. Recommended defaults are allowed as the first option, not as a silent
+choice.
+
+## Staged Gates
+
+Do not ask for everything at once. Work in 10 gates, one at a time, aligned to
+the CBCA "Galpoes para Usos Gerais" sequence: (0) use and volumetry, (1) roof
+and slope, (2) secondary layout and stability, (3) envelope, (4) openings,
+(5) actions and site, (6) structural analysis (engineer handoff), (7) member
+sizing per element + serviceability, (8) real profiles, (9) documents and
+deliverables. Each gate asks only its own questions, models that step, captures
+a screenshot, and confirms before the next gate. See `references/gates.md` for
+the exact questions, options, and defaults, and
+`references/cbca-galpao-project-sequence.md` for the source sequence.
+
+The skill does not perform structural calculation. Loads, analysis, member
+forces, and verified sizes come from the engineer (Gates 6-7). The skill models,
+documents, and organises; it never presents geometry or sizes as verified.
+
 ## First Steps
 
-1. Read `references/block-map.md` to locate available blocks and standards.
-2. Read `references/steel-warehouse-engineering-map.md` to select the
+1. Read `references/gates.md` to run the staged, question-driven workflow.
+2. Read `references/geometry-conventions.md` for axes, units, naming, and
+   placeholder sections.
+3. Read `references/modeling-workflow-freecad.md` for the FreeCAD/MCP execution
+   pattern.
+4. Read `references/block-map.md` to locate available blocks and standards.
+5. Read `references/steel-warehouse-engineering-map.md` to select the
    structural workflow and design gates.
-3. Read `references/project-inputs.md` before starting a real project.
-4. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
+6. Read `references/project-inputs.md` before starting a real project.
+7. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
    its write boundary before changing files.
-5. Ask for missing engineering inputs instead of inventing dimensions.
-6. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
-   sheets, and openings.
-7. Save project-specific work under `projects/<project-slug>/`.
+8. Ask for missing engineering inputs instead of inventing dimensions.
+9. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
+   sheets, and openings; save project work under `projects/<project-slug>/`.
 
 ## Workflow
 
@@ -49,6 +78,14 @@ an engineer approves it.
 
 ## References
 
+- `references/gates.md`: the 10-gate staged workflow with per-gate questions,
+  options, and recommended defaults. Start here for any real project.
+- `references/cbca-galpao-project-sequence.md`: derived CBCA project sequence
+  and the authoritative NBR/reference chain the gates follow.
+- `references/geometry-conventions.md`: axes, units, origin, object naming, and
+  the placeholder section table.
+- `references/modeling-workflow-freecad.md`: parametric script pattern, running
+  via the MCP bridge, and exports/screenshots per gate.
 - `references/block-map.md`: available libraries and what each folder is for.
 - `references/steel-warehouse-engineering-map.md`: derived map of galpao
   systems, design sequence, and engineering gates.

@@ -1,6 +1,20 @@
 # Project Inputs
 
-Collect these inputs before generating a warehouse model.
+Collect these inputs before generating a warehouse model. Ask them as questions,
+gate by gate (see `gates.md`); do not dump the whole list on the user at once.
+
+## Minimum Inputs To Start (Gate 0)
+
+Just enough to draw the grid and a conceptual skeleton. Ask these first:
+
+- Which dimension is the transverse span (frames cross it)?
+- Length and span (m).
+- Clear/eave height (m). Suggested default: 6 m.
+- Roof: single-slope or gable? Slope %. Suggested default: 10% gable.
+- Structural typology: full-web portal frame, truss/tesoura, shed, geminated
+  span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
+
+Everything below is collected in later gates, not at Gate 0.
 
 ## Site And Geometry
 

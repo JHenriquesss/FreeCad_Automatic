@@ -1,0 +1,186 @@
+# Staged Gate Workflow
+
+The warehouse workflow is split into 10 gates, aligned to the CBCA "Galpoes para
+Usos Gerais" project sequence (see `cbca-galpao-project-sequence.md`). Run one
+gate at a time. Each gate:
+
+1. Ask the user ONLY the questions for that gate, as explicit questions
+   (prefer a button-style question tool: one question, 2-4 options, a
+   Recommended option first, and a sensible default).
+2. Never invent an engineering-critical value silently. If the user defers,
+   record the assumed value in `notes/assumptions.md` and mark it pending.
+3. Model / update the FreeCAD geometry for that gate.
+4. Capture a screenshot and show progress.
+5. Update `context/decisions.md` (answers) and `context/pending.md` (open),
+   then confirm before the next gate.
+
+Hard rules:
+
+- Every value a human should decide must reach the user as a question.
+  Recommended defaults are the first option, never a silent choice.
+- The skill does NOT perform structural calculation. Analysis, load
+  combinations, member forces, and verified sizes come from the engineer
+  (Gate 6). The skill models, documents, and organises; it never presents
+  geometry or sizes as structurally verified.
+
+Geometry conventions (axes, units, naming, placeholder sections) live in
+`geometry-conventions.md`. The FreeCAD execution pattern lives in
+`modeling-workflow-freecad.md`.
+
+---
+
+## Gate 0 - Use and volumetry
+
+Purpose: fix occupancy and the bounding geometry.
+
+Ask:
+
+- Use/occupancy (warehouse, factory, market, workshop, distribution). Drives
+  loads and clearances.
+- Span direction: which dimension is the transverse span (frames cross it)?
+- Length and span (m).
+- Clear/eave height (m). Suggest 6 m.
+- Structural typology: full-web portal frame, truss/tesoura, shed, geminated
+  span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
+
+Produces: grid axes, columns. Exit: user confirms use + bounding geometry.
+
+## Gate 1 - Roof and slope
+
+Purpose: fix roof shape before secondary members.
+
+Ask:
+
+- Roof form: gable (duas aguas), single-slope, multiple/geminated, shed, arch.
+- Roof slope %. Suggest 10%. Enforce NBR 8800 anti-ponding: not below 5%.
+- Roofing type (drives slope and purlin spans; trapezoidal steel sheet default).
+- Roof monitor (lanternim) for light/ventilation: yes/no + rough size.
+
+Produces: rafters, ridge, roof plane geometry. Exit: user confirms roof.
+
+## Gate 2 - Secondary layout and stability
+
+Purpose: complete the conceptual structural system, including members often
+forgotten in a first pass.
+
+Ask:
+
+- Frame spacing (m) -> number of bays. Suggest 5 m; state the resulting count.
+- Purlin spacing / count per slope (by roofing span).
+- Girt levels on walls.
+- Roof bracing: which bays (suggest end bays).
+- Vertical (wall) bracing: which bays and which walls.
+- Tie rods (tirantes / sag rods) for purlins and girts: yes/no.
+- End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
+
+Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
+gable-end posts. Exit: user confirms the full skeleton.
+
+## Gate 3 - Envelope
+
+Ask:
+
+- Roof cladding type and modulation.
+- Wall cladding type (steel sheet, masonry to a height, mixed).
+- Gutters and downspouts: sides and drainage direction.
+
+Produces: roof/wall surfaces, gutters, downspouts. Exit: user confirms envelope.
+
+## Gate 4 - Openings
+
+Ask:
+
+- Fixed openings (louvers/venezianas) and movable openings (doors, gates,
+  sliding windows): positions, sizes, which wall.
+- Roof lighting/ventilation openings if not already set at Gate 1.
+
+Produces: opening cut-outs and frames. Exit: user confirms openings.
+
+## Gate 5 - Actions and site
+
+Purpose: assemble the load basis the engineer will analyse. The skill collects
+and records; it does not compute wind or combinations.
+
+Ask:
+
+- Permanent loads: self-weight (auto), roof sheet weight, lighting, suspended
+  loads, services.
+- Variable loads: roof live load, and any crane/equipment/mezzanine/solar.
+- Wind (NBR 6123): site location, terrain topography, surrounding obstacles,
+  and building dimensions for the wind basis.
+- Design code confirmation (NBR 8800; NBR 14762 if cold-formed; NBR 14323/14432
+  if fire).
+
+Produces: a documented action set in `notes/assumptions.md`. Exit: user/engineer
+confirms the load basis.
+
+## Gate 6 - Structural analysis (engineer handoff)
+
+Purpose: obtain analysis results. The skill does NOT calculate. It records the
+inputs sent to the engineer and waits for the returned results.
+
+Ask / collect from engineer:
+
+- Frame analysis results: member forces/moments for columns and rafters.
+- Sway classification (deslocabilidade) and whether second-order effects govern.
+- Equivalent horizontal (notional) force Fn used.
+- ULS combinations considered.
+- Base condition confirmed: pinned or fixed.
+
+Produces: recorded analysis results, no geometry change. Exit: engineer delivers
+member forces and the sizing basis.
+
+## Gate 7 - Member sizing (per element) + serviceability
+
+Purpose: turn analysis results into approved member sizes, element by element,
+in the CBCA order. Sizes come from the engineer; the skill records and prepares
+the model.
+
+Confirm, in order:
+
+- Columns, then rafters/beams.
+- Serviceability (SLS): vertical and lateral displacement limits met.
+- Purlins (NBR 14762 if cold-formed).
+- Girts.
+- Tie rods (tirantes).
+- Base plates and anchor rods.
+- End-wall (oitao) elements.
+- Roof bracing, then vertical bracing.
+
+Produces: an approved size for every member class. Exit: engineer approves the
+full member list. Nothing is "verified" without the calculation behind it.
+
+## Gate 8 - Real profiles in the model
+
+Ask:
+
+- Map each approved class to a concrete profile from
+  `libraries/standards/freecad-bim/profiles.csv` or the supplier catalog.
+- Confirm member orientation where it matters.
+
+Produces: placeholder boxes replaced by real profile sections. Exit: user
+confirms the profile set.
+
+## Gate 9 - Documents and deliverables
+
+Ask:
+
+- Which deliverables: memorial de calculo (from engineer), design drawings,
+  fabrication drawings, erection drawings, bill of materials (takeoff), plus
+  DXF / STEP / PDF as needed.
+- Drawing scale and sheet set (plan, elevations, sections).
+- Takeoff grouping (by member type, by profile, by axis).
+- Transport/erection notes: splices and connections that affect shipping and
+  assembly.
+
+Produces: files in `projects/<slug>/exports/`. Exit: user accepts deliverables.
+
+---
+
+## Gate status tracking
+
+Record gate progress in `context/pending.md` (open gates) and
+`context/decisions.md` (closed gates with the answers given). Never skip a gate
+silently; if the user wants to jump ahead, note the skipped gate's assumptions.
+Gates 6 and 7 are engineer-dependent; a conceptual model may pause there with
+everything before them modelled as placeholders.
