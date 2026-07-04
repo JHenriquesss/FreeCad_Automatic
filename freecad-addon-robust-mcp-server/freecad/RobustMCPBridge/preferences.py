@@ -31,7 +31,10 @@ class PreferencesDict(TypedDict):
 PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/RobustMCPBridge"
 
 # Default values
-DEFAULT_AUTO_START = False
+# LOCAL PATCH: default auto-start ON so a fresh-PC install works with no manual
+# steps (install FreeCAD -> run install.ps1 -> launch FreeCAD -> bridge listens).
+# Upstream default is False. See UPSTREAM.md.
+DEFAULT_AUTO_START = True
 DEFAULT_STATUS_BAR_ENABLED = True
 DEFAULT_XMLRPC_PORT = 9875
 DEFAULT_SOCKET_PORT = 9876

@@ -49,7 +49,16 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallUvIfMissing
 ```
 
 6. Restart your AI clients.
-7. Open FreeCAD, select `Robust MCP Bridge`, then start the bridge.
+7. Open FreeCAD. The `Robust MCP Bridge` auto-starts about 3 seconds after
+   launch, listening on ports 9875 (XML-RPC) and 9876 (socket). No manual
+   workbench selection or Start click is required.
+
+## One-Click Install
+
+For a no-typing install, double-click `install.bat` in the extracted folder.
+It runs `install.ps1` with the execution policy bypassed and installs `uv`
+automatically if it is missing. After it finishes, open FreeCAD and the bridge
+auto-starts.
 
 ## Prerequisites
 

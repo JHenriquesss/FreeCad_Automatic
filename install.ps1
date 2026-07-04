@@ -403,4 +403,6 @@ foreach ($client in $Clients) {
 
 Write-Step "Done"
 Write-Host "MCP command: $commandPath"
-Write-Host "Next: restart your AI clients, open FreeCAD, select Robust MCP Bridge, and start the bridge."
+Write-Host "Next: restart your AI clients, then open FreeCAD."
+Write-Host "The Robust MCP Bridge auto-starts ~3s after FreeCAD launch (ports $XmlRpcPort / $SocketPort)."
+Write-Host "Verify: freecad-mcp --check --mode $Mode --host $HostName --port $XmlRpcPort"
