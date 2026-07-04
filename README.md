@@ -105,6 +105,14 @@ Test-NetConnection localhost -Port 9875
 freecad-mcp --check --mode xmlrpc --host localhost --port 9875
 ```
 
+Expected result:
+
+```text
+Connection successful
+FreeCAD version: 1.1.1
+GUI available: 1
+```
+
 In an AI client, ask:
 
 ```text
@@ -151,3 +159,11 @@ Typical paths:
 - The MCP health check fails until FreeCAD is open and the Robust MCP Bridge is
   listening. In FreeCAD, switch to `Robust MCP Bridge` and click `Start MCP
   Bridge`, or enable auto-start in the workbench preferences.
+- If the bridge still fails after installer changes, fully close every
+  `freecad.exe` process and reopen FreeCAD so the workbench files are reloaded.
+
+## Project Memory
+
+The repo includes an LLM-oriented wiki under `wiki/`. New AI sessions should
+start with `wiki/00-index.md` before changing installer, MCP, library, or
+warehouse-skill behavior.
