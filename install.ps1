@@ -218,20 +218,34 @@ function Install-FreeCADWorkbench([string]$RepoRoot) {
         throw "RobustMCPBridge source was not found at $source."
     }
 
-    $modDir = Join-Path $env:APPDATA "FreeCAD\Mod"
-    $target = Join-Path $modDir "RobustMCPBridge"
-    Ensure-Directory $modDir
+    $freecadRoot = Join-Path $env:APPDATA "FreeCAD"
+    $modDirs = New-Object System.Collections.Generic.List[string]
+    $modDirs.Add((Join-Path $freecadRoot "Mod"))
 
-    if (Test-Path -LiteralPath $target) {
-        $backup = "$target.bak-freecad-mcp-$(Get-Date -Format yyyyMMddHHmmss)"
-        if ($PSCmdlet.ShouldProcess($target, "Move existing workbench to backup")) {
-            Move-Item -LiteralPath $target -Destination $backup -Force
-        }
+    if (Test-Path -LiteralPath $freecadRoot) {
+        Get-ChildItem -LiteralPath $freecadRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "v*-*" } |
+            ForEach-Object { $modDirs.Add((Join-Path $_.FullName "Mod")) }
     }
 
-    Write-Step "Copying FreeCAD RobustMCPBridge workbench"
-    if ($PSCmdlet.ShouldProcess($target, "Copy workbench")) {
-        Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+    $uniqueModDirs = $modDirs | Select-Object -Unique
+
+    foreach ($modDir in $uniqueModDirs) {
+        $namespaceDir = Join-Path $modDir "freecad"
+        $target = Join-Path $namespaceDir "RobustMCPBridge"
+        Ensure-Directory $namespaceDir
+
+        if (Test-Path -LiteralPath $target) {
+            $backup = "$target.bak-freecad-mcp-$(Get-Date -Format yyyyMMddHHmmss)"
+            if ($PSCmdlet.ShouldProcess($target, "Move existing workbench to backup")) {
+                Move-Item -LiteralPath $target -Destination $backup -Force
+            }
+        }
+
+        Write-Step "Copying FreeCAD RobustMCPBridge workbench to $target"
+        if ($PSCmdlet.ShouldProcess($target, "Copy workbench")) {
+            Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+        }
     }
 }
 
