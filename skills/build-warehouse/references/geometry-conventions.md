@@ -32,6 +32,8 @@ Name objects by system and axis so failures localise:
 - Tie rods: `TIEROD_ROOF_01`, `TIEROD_WALL_L_01`.
 - Gable-end posts (oitao): `GABLE_FRONT_POST_01`, `GABLE_BACK_POST_01`.
 - Eave struts: `EAVE_STRUT_L_01`, `EAVE_STRUT_R_01`.
+- Drainage: `GUTTER_...`, `DOWNSPOUT_...`. Composite column studs: `COLSTUD_...`.
+- Lifting lugs: `LIFTLUG_...`.
 - Detailing: `BASEPLATE_...`, `STIFFENER_...`, `GUSSET_...`, `SPLICE_...`,
   `CRANE_CORBEL_...`, `CRANE_RUNWAY_...`, `DRAINHOLE_...`, `WASHER_...`,
   `SHEARKEY_...`, `FIREPROT_...`.

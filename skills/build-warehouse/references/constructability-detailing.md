@@ -48,7 +48,14 @@ suggested value; never hard-code a silent default (see the core rule in
   bolt should be equal or nobler than the connected members (small cathodic
   area), e.g. weathering-steel bolts (ASTM A325 Type 3) or hot-dip galvanised
   bolts on common carbon steel in aggressive environments. The less-noble
-  component is oversized or isolated; flag for the engineer.
+  component is oversized or isolated; flag for the engineer. When dissimilar
+  metals meet (aluminium roofing, stainless/other bolts, copper), model
+  isolating tapes/separators between them.
+- Aggressive environments (C3 to C5): replace intermittent welds with continuous
+  welds and avoid back-to-back double angles without sealed spacers.
+- Base coating rise: at the column base, extend the protective coating about
+  50 mm (5 cm) up from and into the concrete interface, and shape the concrete
+  plinth/grout to drain outward, so the steel-to-concrete line does not corrode.
 - Environmental class (ISO 12944): record the aggressivity class (C1 to C5-I/M).
   It governs the coating system and how strict the detailing must be.
 - Sacrificial thickness (sobrespessura): if a component cannot be maintained or
@@ -94,6 +101,11 @@ suggested value; never hard-code a silent default (see the core rule in
   fatigue-prone holes.
 - End stops / bumpers: model end stops (para-choques) at both ends of each runway
   line, and ask the engineer to validate the weld fatigue points.
+- Fatigue weld notes (NBR 8800 Annex K): runway welds fall in strict detail
+  categories (C/D/E). Use continuous longitudinal welds; full-penetration splice
+  welds under fatigue must not keep permanent backing bars and should have
+  ground (esmerilhadas) transitions. Emit these as fabrication-drawing notes at
+  Gate 9.
 - Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`, `CRANE_ENDSTOP_L`.
 
 ## 4. Expansion joints and camber
@@ -185,8 +197,12 @@ The 3D detail must reflect the connection type the engineer specifies:
 
 ### Fastener clearances
 
-- Minimum edge distance: keep bolt-hole centres away from plate edges (a common
-  minimum is about 1.25 x bolt diameter; the engineer confirms per NBR 8800).
+- Minimum edge distance: keep bolt-hole centres at least ~1.5 to 1.75 x bolt
+  diameter from the plate edge (per NBR 8800, depending on diameter and cut vs
+  rolled edge) to prevent block-shear tearout; the engineer confirms and checks
+  block shear as a limit state.
+- Plate washers over slotted/oversized holes must be continuous plates at least
+  8 mm thick.
 - Minimum bolt spacing: centre-to-centre distance between standard holes should
   be at least 2.7 x bolt diameter (NBR 8800), with ~3 x diameter preferred.
   Enforce this when the script lays out holes on gussets and end plates.

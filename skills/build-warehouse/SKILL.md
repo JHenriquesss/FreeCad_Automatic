@@ -61,8 +61,12 @@ steel-deck rib orientation are captured to place laps and shear studs correctly.
 prying-action verification. Crane buildings get corbels, runway beams with
 full-height transverse stiffeners (without over-restraining end rotation), and
 braking bracing. Long buildings get expansion joints (doubled axes); large spans
-get a camber note. Bolt holes respect minimum spacing (~2.7 db) and edge
-distance. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
+get a camber note. Bolt holes respect minimum spacing (~2.7 db, ~3 db
+preferred) and edge distance (~1.5-1.75 db against block shear); slotted/oversized
+holes get continuous plate washers at least 8 mm thick. Gutters and downspouts
+are modelled and clash-checked against bracing and girts. Partially-encased
+composite columns get web studs and a halved-stirrup note at the load-
+introduction region. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
 get a composite steel-deck floor with shear studs. The environmental class (ISO
 12944) is captured to drive coating and detailing, crane duty (light/heavy) sets
 runway stiffness and bracing, crane runways get end stops, and erection needs

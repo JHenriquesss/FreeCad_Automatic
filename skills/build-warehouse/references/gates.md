@@ -58,6 +58,10 @@ Ask:
   `constructability-detailing.md`.
 - Mezzanine / elevated floor? If yes, plan a composite steel-deck floor with
   shear studs (detailed in Gate 2). See `constructability-detailing.md`.
+- Partially-encased composite columns? (fire protection, forklift impact, or
+  extra inertia at floor level.) If yes, at the load-introduction region (where
+  beams frame in) the engineer halves the stirrup spacing and adds shear studs
+  welded to the column web; model the studs and note the stirrup requirement.
 
 Produces: grid axes, columns. Exit: user confirms use + bounding geometry.
 
@@ -77,6 +81,9 @@ Ask:
   Affects purlins and wind suction.
 - Parapets (platibandas): does the side/end cladding extend above the roof to
   hide it? Height (m)?
+- Drainage: gutters (eave or valley for geminated bays) and downspouts. Model
+  their volumes and check clashes between downspouts and vertical bracing or
+  girts. (CBCA sequences gutters/downspouts early, right after openings.)
 
 Produces: rafters, ridge, roof plane, overhangs, parapets. Exit: user confirms
 roof.
@@ -296,6 +303,9 @@ Ask:
 - Add sheet notes for the required steel surface-preparation grade before
   coating (ISO 8501-1 / SSPC, e.g. Sa 2.5 white metal, St 2 hand cleaning) and
   standard welding symbols on fabrication drawings.
+- For crane runway beams, auto-add the fatigue weld notes (NBR 8800 Annex K):
+  continuous longitudinal welds, no permanent backing bars on fatigue splices,
+  ground weld transitions.
 
 Produces: files in `projects/<slug>/exports/`. Exit: user accepts deliverables.
 
