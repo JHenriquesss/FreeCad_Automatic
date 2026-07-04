@@ -66,7 +66,12 @@ runway stiffness and bracing, crane runways get end stops, and erection needs
 Bases get levelling nuts; field connections declare bearing vs friction and the
 matching hole type; expansion points may use sliding slotted supports; tapered
 members and web openings are modelled when chosen; and fabrication sheets carry
-the erection temperature, surface-prep grade (ISO 8501-1), and welding symbols. All such thresholds are asked
+the erection temperature, surface-prep grade (ISO 8501-1), and welding symbols.
+Eave struts stabilise the columns longitudinally; purlin/rafter brace points are
+marked so the unbraced length Lb is explicit for lateral-torsional buckling;
+large web openings get reinforcement plates; crane runways get relieved
+stiffeners (not welded to the tension flange) and a horizontal surge truss; and
+unmaintained components carry a sacrificial corrosion thickness. All such thresholds are asked
 with a suggested value, never hard-coded. See
 `references/constructability-detailing.md`.
 

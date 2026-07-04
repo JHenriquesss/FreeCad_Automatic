@@ -99,6 +99,9 @@ Ask:
   mandatory for usual spans (above ~5-6 m, ask). Ask how many lines per bay
   (mid-span or third-points) to restrain the weak axis. See
   `constructability-detailing.md` section 8.
+- Eave struts (escoras de beiral): model the strut near each column-rafter node
+  that stabilises columns longitudinally and carries wind force (single or
+  built-up U/2U/2L). Ask; usually required.
 - End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
 - Crane sub-flow (if crane at Gate 0): model column corbels (consoles) or
   enlarged/trussed columns, crane runway beams at the rail level, runway-beam
@@ -119,7 +122,10 @@ Ask:
   through beam webs, or is height reduction wanted? If yes, model the web
   openings and coordinate the reinforcement the engineer requires.
 - Crane end stops (if crane): model end stops/bumpers at both ends of each
-  runway line (see `constructability-detailing.md` section 3).
+  runway line, the horizontal surge truss along the runway top flange, and rail
+  fixing by clips (see `constructability-detailing.md` section 3).
+- Web-opening reinforcement (if openings at Gate 2): model welded reinforcement
+  plates around large beam-web openings when the engineer requires them.
 
 Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
@@ -244,6 +250,10 @@ Ask:
 - Field connection behaviour: bearing (contact) or friction (slip-critical)? Set
   the hole type (standard / oversized / slotted) and hole clearance accordingly.
 - Tapered members (if chosen at Gate 0): model the variable-web-depth profiles.
+- Slotted/oversized holes for erection adjustment on critical field connections?
+  If yes, model hardened washers or larger shim plates over them.
+- Sacrificial thickness (sobrespessura): any unmaintained/unprotected component
+  needing extra corrosion allowance? Record it for the engineer.
 - Re-check field splices against the real (heavier) profiles and the transport
   limit.
 

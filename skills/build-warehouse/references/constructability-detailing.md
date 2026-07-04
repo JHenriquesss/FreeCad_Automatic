@@ -46,6 +46,14 @@ suggested value; never hard-code a silent default (see the core rule in
   component is oversized or isolated; flag for the engineer.
 - Environmental class (ISO 12944): record the aggressivity class (C1 to C5-I/M).
   It governs the coating system and how strict the detailing must be.
+- Sacrificial thickness (sobrespessura): if a component cannot be maintained or
+  stays unprotected (e.g. unpainted weathering steel), NBR 8800 requires extra
+  sacrificial thickness. Ask and record it so the engineer sizes with the
+  allowance.
+- Web-opening reinforcement: large web openings (especially rectangular) disturb
+  the force flow; when the engineer requires it, model welded reinforcement
+  plates around the opening (rings for circular, longitudinal plates for
+  rectangular).
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
   for the engineer.
 
@@ -57,9 +65,14 @@ suggested value; never hard-code a silent default (see the core rule in
 - Ask the user the rail top level, crane span/capacity, and clearances.
 - Crane loads (vertical impact, longitudinal braking, lateral) affect bracing
   and columns; those are engineer analysis (Gate 6), not modelled forces.
-- Runway beams need transverse web stiffeners over the full web height (fatigue)
-  and must avoid crevices that retain water (fatigue + corrosion). Model
-  full-height transverse stiffeners; do not model water-trapping pockets.
+- Runway beams need transverse (and sometimes horizontal) web stiffeners over
+  the full web height (fatigue) and must avoid crevices that retain water
+  (fatigue + corrosion). Model full-height transverse stiffeners; do not model
+  water-trapping pockets.
+- Stiffener relief: cope/clip the stiffener so it is NOT welded to the bottom
+  (tension) flange of the runway beam; welding there creates fatigue cracks.
+- Horizontal surge truss: for lateral crane impact, model a horizontal truss
+  along the top flange of the runway beam, tied back to the column.
 - Columns may be variable-inertia, trussed, stepped (lower recess / recesso
   inferior), or independent columns (one for the roof, one for the runway) laced
   together; offer these options for medium/heavy cranes.
@@ -168,8 +181,8 @@ The 3D detail must reflect the connection type the engineer specifies:
 - Minimum edge distance: keep bolt-hole centres away from plate edges (a common
   minimum is about 1.25 x bolt diameter; the engineer confirms per NBR 8800).
 - Minimum bolt spacing: centre-to-centre distance between standard holes should
-  be at least 2.7 x bolt diameter (NBR 8800). Enforce this when the script lays
-  out holes on gussets and end plates.
+  be at least 2.7 x bolt diameter (NBR 8800), with ~3 x diameter preferred.
+  Enforce this when the script lays out holes on gussets and end plates.
 - Wrench clearance: keep bolt holes far enough from a profile web/flange so a
   tightening wrench fits. Do not place holes where a tool cannot reach.
 

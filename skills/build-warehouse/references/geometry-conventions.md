@@ -31,6 +31,7 @@ Name objects by system and axis so failures localise:
 - Bracing: `BRACE_ROOF_01_A`, `BRACE_WALL_L_01_A`.
 - Tie rods: `TIEROD_ROOF_01`, `TIEROD_WALL_L_01`.
 - Gable-end posts (oitao): `GABLE_FRONT_POST_01`, `GABLE_BACK_POST_01`.
+- Eave struts: `EAVE_STRUT_L_01`, `EAVE_STRUT_R_01`.
 - Detailing: `BASEPLATE_...`, `STIFFENER_...`, `GUSSET_...`, `SPLICE_...`,
   `CRANE_CORBEL_...`, `CRANE_RUNWAY_...`, `DRAINHOLE_...`, `WASHER_...`,
   `SHEARKEY_...`, `FIREPROT_...`.
@@ -55,6 +56,7 @@ These are for visualisation only and are NOT profiles:
 | Bracing | 80 x 80 |
 | Tie rod (tirante) | 25 dia (model as 25 x 25) |
 | Gable post (oitao) | 150 x 150 |
+| Eave strut (escora de beiral) | 150 x 100 (or 2U/2L) |
 | Base plate | 350 x 350 x 22 |
 | Stiffener plate | node-fit x 10 thick |
 | Gusset plate | node-fit x 10 thick |

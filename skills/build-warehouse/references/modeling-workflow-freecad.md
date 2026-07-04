@@ -14,6 +14,11 @@ after FreeCAD launch; XML-RPC on localhost:9875).
 - Node integrity: member axes (system lines) must meet at exactly the same
   point at each node; do not leave axis eccentricity that creates unplanned
   secondary moments.
+- Lateral restraint marking: where a purlin or girt braces a rafter/column
+  compression flange, create an explicit node or property at the intersection so
+  the exported data shows the unbraced length Lb. This lets the engineer check
+  lateral-torsional buckling (FLT). A purlin only counts as a brace if it is
+  itself properly restrained.
 - Grouping: besides naming by system, group objects by erection phase / shipping
   lot (romaneio), not only by piece type. Split segments of one member
   (`_SEG_A`, `_SEG_B`, `_SPLICE_01`) belong to the same erection group. Record
