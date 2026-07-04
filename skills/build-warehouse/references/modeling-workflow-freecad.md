@@ -90,7 +90,11 @@ operations. All thresholds are asked with a suggestion, never hard-coded.
   `tube.cut(Part.makeCylinder(r, t, pos, dir))`.
 - Stiffener / gusset / base plate: model as thin `Part::Feature` plates sized to
   the node; name per `geometry-conventions.md`. Necessity comes from the
-  engineer.
+  engineer. Continuity plates inherit the beam flange (thickness >= flange
+  thickness, width >= flange width).
+- Fillet weld leg on a free edge: cap the leg so it cannot melt the edge. If the
+  plate thickness t < 6.35 mm, max leg = t; if t >= 6.35 mm, max leg = t - 1.5 mm.
+  Apply this when generating weld annotations/geometry along plate edges.
 - Camber: do NOT bend geometry. Add an object property or a drawing note, e.g.
   `obj.addProperty("App::PropertyLength", "Camber"); obj.Camber = value`. Note
   that end-connection holes must allow the piece to rotate (cambered ends), so

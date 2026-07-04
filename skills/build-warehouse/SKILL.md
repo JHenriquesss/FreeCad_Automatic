@@ -42,10 +42,13 @@ field splices. Galvanised closed sections get drain/vent holes and must avoid
 water-trapping shapes. Rigid nodes get stiffeners, truss nodes get gussets.
 Field connections need erection clearances so the model is assemblable, and bolt
 holes keep minimum edge and wrench clearances so a tool can reach them. Rigid
-(moment) nodes automatically spawn column web stiffeners; flexible nodes get web
-angles with a flange gap. Base plates get oversized anchor holes with welded
-plate washers, projected anchor rods with nut/washer, and a shear key when
-needed. Cold-formed purlins/girts get sag rods. Galvanised holes are
+(moment) nodes automatically spawn column web stiffeners (continuity plates sized
+from the incoming beam flange: thickness >= flange thickness, width >= flange
+width); flexible nodes get web angles with a flange gap. Base plates get oversized
+anchor holes (edge >= 2 d_ca, spacing >= 4 d_ca) with thick welded plate washers,
+projected anchor rods with nut/washer, and a shear key when needed. Hole arrays
+also respect maximum edge/spacing for sealing, and free-edge fillet welds cap the
+leg at the plate thickness (t-1.5 mm for t >= 6.35 mm). Cold-formed purlins/girts get sag rods. Galvanised holes are
 diametrically opposed and at least ~50% of the section; sharp exposed plate
 corners get a light fillet. Passive fire protection adds a volume that must be
 checked for clashes with cladding and openings. Movable openings must not clash

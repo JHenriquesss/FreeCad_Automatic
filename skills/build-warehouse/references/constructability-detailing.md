@@ -169,9 +169,12 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 - Levelling nuts / shim plates: to hold the column plumb before and during grout
   placement, model levelling nuts on the anchor rods below the base plate (or
   shim plates on the pedestal). Model them together with the grout gap.
-- Oversized anchor holes + special washers: base-plate holes are larger than the
-  rods (foundation tolerance); model the enlarged hole and a thick plate washer
-  (`WASHER_...`) welded over each rod after levelling.
+- Oversized anchor holes + special washers: base-plate holes are much larger than
+  the rods for foundation tolerance (e.g. a 25.4 mm anchor uses a ~45 mm hole).
+  Model the enlarged hole and a thick special plate washer (`WASHER_...`, e.g.
+  >= 9.5 mm thick) welded over each rod after alignment. Keep the hole centre at
+  least 2 x anchor diameter (2 d_ca) from the plate edge, and at least 4 d_ca
+  between anchors.
 - Shear key (barra de cisalhamento): optional profile/plate welded under the
   base plate and embedded in concrete when horizontal forces exceed anchor/
   friction capacity. Model `SHEARKEY_...` below the plate; engineer-decided.
@@ -186,8 +189,10 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 
 The 3D detail must reflect the connection type the engineer specifies:
 
-- Rigid (moment) beam-column: automatically add column web stiffeners aligned
-  with the beam flanges (forces from the flanges need them).
+- Rigid (moment) beam-column: automatically add column web stiffeners
+  (continuity plates) aligned with the beam flanges. Inherit their size from the
+  incoming beam: stiffener thickness >= beam flange thickness, and total
+  stiffener width >= beam flange width.
 - Flexible (shear only): model web angles or a simple plate and keep a gap
   between the beam flange and the column, so no moment is implied.
 
@@ -251,6 +256,11 @@ The 3D detail must reflect the connection type the engineer specifies:
   Enforce this when the script lays out holes on gussets and end plates.
 - Wrench clearance: keep bolt holes far enough from a profile web/flange so a
   tightening wrench fits. Do not place holes where a tool cannot reach.
+- Maximum edge/spacing (sealing against crevice corrosion): hole centre to plate
+  edge <= min(12 x thinner-plate thickness, 150 mm); hole-to-hole spacing <=
+  min(24 t, 300 mm) for painted steel, dropping to min(14 t, 180 mm) for
+  unpainted weathering steel. Bound the hole array by these when laying out long
+  splices.
 
 ### Anchor rods (chumbadores) detail
 
