@@ -92,6 +92,9 @@ Ask:
   <= 15 m -> 3-5 m; 16-35 m -> 4-8 m; > 36 m -> 8-12 m (see
   `geometry-conventions.md` heuristics). State the resulting bay count.
 - Purlin spacing / count per slope (by roofing span).
+- Purlin static scheme: simply-supported or continuous with lap sleeves (luvas/
+  trespasse) over the frames? Continuous laps change the copes and holes on the
+  rafter top flange.
 - Girt levels on walls.
 - Roof bracing: which bays (suggest end bays).
 - Vertical (wall) bracing: which bays and which walls.
@@ -116,8 +119,11 @@ Ask:
 - Shear key at bases: do high horizontal loads (wind on facades, crane braking)
   need a shear key under the base plate? Ask; engineer-decided.
 - Mezzanine (if set at Gate 0): model floor beams, a composite steel-deck slab
-  (e.g. MF-50/MF-75), and shear studs on the top flange of the floor beams. See
-  `constructability-detailing.md` section on composite floors.
+  (e.g. MF-50/MF-75), and shear studs on the top flange of the floor beams. Ask
+  the deck rib orientation (parallel or perpendicular to each beam), since it
+  sets stud placement; studs are welded through the deck valley and must project
+  above the rib into the concrete. See `constructability-detailing.md` section
+  on composite floors.
 - Web openings: are service runs (electrical, water, compressed air) passing
   through beam webs, or is height reduction wanted? If yes, model the web
   openings and coordinate the reinforcement the engineer requires.
@@ -171,6 +177,10 @@ Ask:
   NBR 8800), the fatigue regime for heavy-duty runways, and the rail-top drift
   limit (ask; H/400 general to H/600 steel mill). See
   `constructability-detailing.md` section 3.
+- Temperature: record the local temperature variation range (e.g. +/-15 C) and
+  whether erection happens under thermal restraint, into `notes/assumptions.md`,
+  so the engineer can compute thermal effects when the structure cannot expand
+  freely.
 - Wind (NBR 6123): site location, terrain topography, surrounding obstacles,
   and building dimensions for the wind basis.
 - Design code confirmation (NBR 8800; NBR 14762 if cold-formed; NBR 14323/14432
@@ -200,6 +210,9 @@ Ask / collect from engineer:
 - Equivalent horizontal (notional) force Fn used.
 - ULS combinations considered.
 - Base condition confirmed: pinned or fixed.
+- Fatigue verification for crane runway beams, their supports, welds, and
+  stiffeners (repetitive load cycles); confirm no stiffener is welded to the
+  tension flange.
 
 Produces: recorded analysis results, no geometry change. Exit: engineer delivers
 member forces and the sizing basis.

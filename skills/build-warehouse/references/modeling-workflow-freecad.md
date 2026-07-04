@@ -11,9 +11,10 @@ after FreeCAD launch; XML-RPC on localhost:9875).
 - All dimensions come from parameters at the top of the script (from the gate
   answers), never hard-coded mid-body.
 - Section sizes are placeholders until Gate 5 (see `geometry-conventions.md`).
-- Node integrity: member axes (system lines) must meet at exactly the same
-  point at each node; do not leave axis eccentricity that creates unplanned
-  secondary moments.
+- Node integrity: prefer member axes (system lines) meeting at the same point at
+  each node. When profile geometry forces an eccentricity, model the real
+  position and flag it for the engineer (secondary moments); do not silently
+  snap to concentric.
 - Lateral restraint marking: where a purlin or girt braces a rafter/column
   compression flange, create an explicit node or property at the intersection so
   the exported data shows the unbraced length Lb. This lets the engineer check

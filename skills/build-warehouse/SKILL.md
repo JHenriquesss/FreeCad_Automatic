@@ -52,8 +52,12 @@ checked for clashes with cladding and openings. Movable openings must not clash
 with an X-braced bay; if they do, move the bracing or use a local rigid frame.
 Maintenance access clearances are kept for painting and inspection, dissimilar
 metals are checked for galvanic corrosion, and crevices are closed. Member axes
-meet concentrically at each node, and objects are grouped by erection phase
-(shipping lot), not only by piece type. Tensioned end plates are flagged for
+meet concentrically at each node where possible; a geometry-forced eccentricity
+is modelled in its real position and flagged for the engineer, not snapped to
+concentric. Objects are grouped by erection phase (shipping lot), not only by
+piece type, and splices are tagged pre-assembly (ground) or aerial for the
+lifting plan. Purlin continuity (simple vs lapped sleeves) and mezzanine
+steel-deck rib orientation are captured to place laps and shear studs correctly. Tensioned end plates are flagged for
 prying-action verification. Crane buildings get corbels, runway beams with
 full-height transverse stiffeners (without over-restraining end rotation), and
 braking bracing. Long buildings get expansion joints (doubled axes); large spans

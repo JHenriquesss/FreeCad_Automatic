@@ -19,6 +19,11 @@ suggested value; never hard-code a silent default (see the core rule in
   field-splice placeholder (bolted with splice plates / talas, or welded).
 - Name split segments `..._SEG_A`, `..._SEG_B`; name the splice
   `..._SPLICE_01`. Record splice type as pending engineer detail.
+- Ground pre-assembly vs aerial splice: for large trusses/rafters, some joints
+  are assembled on the ground before lifting and others are bolted up in the
+  air. Tag each splice as `pre_assembly` or `aerial`; this drives the lifting
+  diagram, pick points, and lifting lugs. Keep pre-assembled subassemblies in
+  one erection group.
 
 ## 2. Durability geometry (corrosion, galvanising)
 
@@ -160,9 +165,11 @@ The 3D detail must reflect the connection type the engineer specifies:
 - Prying action: in bolted moment connections (high-strength bolts in tension),
   a too-thin end plate flexes and prying overloads the bolts. Flag tensioned
   connection-plate thickness for explicit engineer verification (Gate 7).
-- Eccentricity: cross the system lines (member axes) at exactly the same node.
-  For single-angle members (e.g. bracing), avoid gauge-line eccentricity from
-  the centroid, which adds unplanned secondary bending not in the truss model.
+- Eccentricity: prefer crossing the system lines (member axes) at the same node.
+  When profile geometry forces an eccentricity (common with angles/double angles
+  on gusset gauge lines), model the real physical position and flag it so the
+  engineer accounts for the secondary moments; do not silently snap it to
+  concentric.
 
 ### Hole types and connection behaviour
 
