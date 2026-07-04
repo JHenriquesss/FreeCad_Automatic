@@ -13,6 +13,14 @@ Do not deviate without recording it in the project notes.
 - Steel base plates do not sit on raw concrete: raise the steel by the grout
   gap (ask; suggest 30 mm). Column bottom at Z = `GROUT_GAP`, not Z = 0. See
   `constructability-detailing.md` section 5.
+- Datum convention (resolve before modelling): eave height and ridge height are
+  measured from Z = 0 (top of concrete). The steel column therefore spans
+  Z = GROUT_GAP up to the eave height, so its steel length = eave - grout gap.
+  State this so the grout gap does not silently shorten or shift the frame.
+- Secondary members bear on the FACE of the primary, not through its centreline:
+  offset purlins onto the top of the rafter, girts onto the outer column face.
+  A pure centreline model overlaps every connection; the offset is both more
+  correct and keeps the clash check clean.
 
 ## Key levels
 

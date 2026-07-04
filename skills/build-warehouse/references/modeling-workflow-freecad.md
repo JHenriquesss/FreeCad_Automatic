@@ -108,6 +108,32 @@ operations. All thresholds are asked with a suggestion, never hard-coded.
 - Maintenance access: after placing parallel members, check gaps against the
   agreed access clearance and report clashes.
 
+## Real profiles (Gate 8) and clash checking
+
+Proven in the galpao run; prefer these over bounding boxes once profiles are set.
+
+- Real cross-sections: build the profile outline in the local (y, z) section
+  plane, make a face, `face.extrude(Vector(L, 0, 0))`, then rotate
+  `Rotation(Vector(1,0,0), member_direction)` and translate to p1 (same transform
+  as the box helper). This gives real I/H, U, and (via `makeCylinder`) round-bar
+  members. For U/channel purlins, add a roll angle about the member axis to point
+  the open face toward the eave.
+- Datum: build columns from Z = grout gap up to the eave elevation (measured from
+  Z = 0 = top of concrete); do not start columns at Z = 0.
+- Offset secondaries to their bearing face (purlins on top of rafters, girts on
+  the outer column face) so they do not pass through the primary centreline.
+
+Clash check pattern (make the skill's clash promise real):
+
+- Register each member's endpoints as it is created (name -> endpoints).
+- Compare solids pairwise; skip if bounding boxes miss.
+- Skip pairs that share a connection node (endpoints within a tolerance).
+- Skip pairs where one member is SECONDARY (purlin/girt/tie/brace/gable post/
+  anchor) bearing on a primary - that is a connection, not a clash.
+- Report the remaining `shape_a.common(shape_b).Volume > threshold` as true
+  clashes. On the galpao this dropped 425 naive hits to 0 real ones, and caught
+  a real bug (anchors inside the column flange) on the way.
+
 ## Exports
 
 Write into `projects/<slug>/exports/`:

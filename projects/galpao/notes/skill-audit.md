@@ -51,3 +51,32 @@ in a pre-Gate-6 conceptual box model - it belongs to later gates and needs
 capabilities (profiles, clash, CG, weld/hole detailing) the current FreeCAD
 script does not have. Next real improvement is implementing a few of those
 capabilities, not adding more rules.
+
+## Attack (capabilities implemented, v3)
+
+Four capability gaps were closed in `build_galpao.py` v3 and fed back to the
+skill references:
+
+1. Real profile cross-sections: I/H (HEA), U (UPE), and round bars, swept along
+   member axes, instead of bounding boxes. Purlins are true U channels oriented
+   open-face to the eave (roll parameter). The model now carries section
+   identity and orientation, not just a box.
+2. Datum fixed: Z = 0 = top of concrete; eave/ridge measured from Z = 0; steel
+   columns start at the grout gap (steel length = eave - grout). Resolved the
+   ambiguity the grout rule had introduced.
+3. Real clash check: computes solid common-volume between members, node-aware
+   (skips shared connection nodes) and connection-aware (a secondary member -
+   purlin/girt/tie/brace/gable post/anchor - bearing on a primary is a
+   connection, not a clash). Reports only true primary-primary interference.
+4. The clash check caught a real modelling bug on its first run: anchor rods at
+   +/-90 mm collided with the HEA200 column flange (half = 100). Fixed by moving
+   anchors to +/-140 mm with a 420 mm base plate (also satisfies edge >= 2 d_ca,
+   spacing >= 4 d_ca). Secondary members were offset to their bearing faces
+   (purlins on top of rafters, girts on the outer column face) - more correct
+   physically and removes the pass-through overlaps.
+
+Final run: 172 objects, real profiles, clash_count = 0.
+
+Lesson: execution found a geometry bug and a datum ambiguity that 17 rounds of
+reading did not. The capability work (profiles, clash, datum) was worth more than
+another rules pass.
