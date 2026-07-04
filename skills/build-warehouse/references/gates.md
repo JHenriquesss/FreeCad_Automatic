@@ -310,6 +310,10 @@ Ask:
 - For crane runway beams, auto-add the fatigue weld notes (NBR 8800 Annex K):
   continuous longitudinal welds, no permanent backing bars on fatigue splices,
   ground weld transitions.
+- Mark hatched no-paint (faying) areas: ~50 mm around field welds and the
+  high-strength-bolt contact areas in slip-critical connections.
+- Add machining symbols on connections that transfer compression by contact
+  (heavy bases), when the engineer confirms bearing load transfer.
 
 Produces: files in `projects/<slug>/exports/`. Exit: user accepts deliverables.
 

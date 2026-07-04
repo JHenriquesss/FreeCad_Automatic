@@ -143,7 +143,7 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
   the top flange of the floor beams for steel-concrete composite action.
 - Studs are typically <= 19 mm diameter and should project at least ~50 mm above
   the top of the steel deck. Model at least ~50 mm of concrete cover above the
-  deck top. Confirm with the engineer.
+  deck top, and a deck rib height of at most ~75 mm. Confirm with the engineer.
 - Name: `MEZZ_BEAM_...`, `MEZZ_DECK_...`, `STUD_...`.
 
 ## 5. Connections: stiffeners, gussets, base grout gap
@@ -193,6 +193,20 @@ The 3D detail must reflect the connection type the engineer specifies:
   When profile geometry still forces an eccentricity, model the real physical
   position and flag it so the engineer accounts for the secondary moments; do not
   silently snap it to concentric.
+
+### Unpainted / machined surfaces (fabrication)
+
+- Faying surfaces: slip-critical (friction) connections and field-weld zones must
+  be left unpainted. Mark/extract hatched no-paint areas on fabrication drawings:
+  a ~50 mm margin around field welds and the contact area of high-strength bolts
+  where shop paint is prohibited.
+- Weld extension tabs (run-on / run-off tabs): full-penetration fatigue splices
+  (e.g. crane runway beams) need temporary run-on/run-off tabs to keep the weld
+  sound at the edges; model them for the fabrication phase and note removal.
+- Machined bearing surfaces: connections that transfer compression by direct
+  contact (heavy column bases with thick plates) require machined/planed surfaces
+  for perfect seating; add the machining symbol on the 2D drawing when the
+  engineer confirms bearing (contact) load transfer.
 
 ### Hole types and connection behaviour
 
