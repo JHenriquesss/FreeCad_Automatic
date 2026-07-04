@@ -15,6 +15,7 @@ htmlcov/
 *.bak-freecad-mcp-*
 *.log
 sessions/
+pesquisa/
 
 # Nested upstream git metadata should not be committed in the wrapper repo
 **/.git/
