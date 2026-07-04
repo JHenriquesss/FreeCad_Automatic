@@ -42,6 +42,11 @@ Ask:
 - Clear/eave height (m). Suggest 6 m.
 - Structural typology: full-web portal frame, truss/tesoura, shed, geminated
   span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
+- Overhead crane? If yes, capture rail top level, crane span/capacity, and
+  operating clearances (detailed in Gate 2).
+- If the length is large, ask about thermal expansion joints: suggest a joint
+  beyond ~90 m (ask), and the joint position -> doubled axes. See
+  `constructability-detailing.md`.
 
 Produces: grid axes, columns. Exit: user confirms use + bounding geometry.
 
@@ -72,9 +77,18 @@ Ask:
 - Vertical (wall) bracing: which bays and which walls.
 - Tie rods (tirantes / sag rods) for purlins and girts: yes/no.
 - End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
+- Crane sub-flow (if crane at Gate 0): model column corbels (consoles) or
+  enlarged/trussed columns, crane runway beams at the rail level, and the
+  operating clearances. See `constructability-detailing.md` section 3.
+- Expansion joint (if triggered at Gate 0): model doubled axes (twin
+  columns/beams) at the joint position.
+- Field splices: for any member longer than the agreed transport limit
+  (suggest 12 m, ask), plan a split point and a splice placeholder. See
+  `constructability-detailing.md` section 1.
 
 Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
-gable-end posts. Exit: user confirms the full skeleton.
+gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
+Exit: user confirms the full skeleton.
 
 ## Gate 3 - Envelope
 
@@ -147,6 +161,14 @@ Confirm, in order:
 - End-wall (oitao) elements.
 - Roof bracing, then vertical bracing.
 
+Also confirm the detailing that follows from sizes (see
+`constructability-detailing.md`):
+
+- Base plate grout gap: raise the steel base plate above the concrete (Z=0) by
+  the grout thickness (suggest 30 mm, ask). Model anchor rods.
+- Web stiffeners at rigid beam-column nodes; gusset plates at truss/bracing
+  nodes, where the engineer indicates they are needed.
+
 Produces: an approved size for every member class. Exit: engineer approves the
 full member list. Nothing is "verified" without the calculation behind it.
 
@@ -157,9 +179,14 @@ Ask:
 - Map each approved class to a concrete profile from
   `libraries/standards/freecad-bim/profiles.csv` or the supplier catalog.
 - Confirm member orientation where it matters.
+- Coating system: painted or hot-dip galvanised? If galvanised, model vent/drain
+  holes (diametrically opposed near ends) on closed/tubular sections, and avoid
+  water-trapping geometry. See `constructability-detailing.md` section 2.
+- Re-check field splices against the real (heavier) profiles and the transport
+  limit.
 
-Produces: placeholder boxes replaced by real profile sections. Exit: user
-confirms the profile set.
+Produces: placeholder boxes replaced by real profile sections, with drainage and
+splice detailing. Exit: user confirms the profile set.
 
 ## Gate 9 - Documents and deliverables
 
@@ -172,6 +199,13 @@ Ask:
 - Takeoff grouping (by member type, by profile, by axis).
 - Transport/erection notes: splices and connections that affect shipping and
   assembly.
+- Camber note on large-span beams/trusses (suggest span > 20 m, ask): add as a
+  drawing note / object property, not a modelled deflected shape.
+- Erection clearances: add assembly gaps at field connections (copes, bolt
+  clearances, piece-to-piece) so the model is buildable.
+- Include a recommended tolerance table (NBR 8800 appendix: plumb, alignment,
+  squareness, length) on fabrication/erection PDF sheets. See
+  `constructability-detailing.md` section 6.
 
 Produces: files in `projects/<slug>/exports/`. Exit: user accepts deliverables.
 

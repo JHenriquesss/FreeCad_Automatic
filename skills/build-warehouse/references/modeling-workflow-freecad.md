@@ -56,6 +56,25 @@ def member(doc, p1, p2, section, name):
     return obj
 ```
 
+## Detailing helpers (Gates 7-9)
+
+See `constructability-detailing.md` for the rules; these are the geometric
+operations. All thresholds are asked with a suggestion, never hard-coded.
+
+- Grout gap: build the whole steel frame with column bases at
+  `z0 = GROUT_GAP` (ask; suggest 30 mm), not at 0. Z = 0 is top of concrete.
+- Field splice: if a member length > `L_TRANSPORT_MAX` (ask; suggest 12 m),
+  split it at a chosen station into `_SEG_A` / `_SEG_B` and add a thin
+  `_SPLICE_01` plate placeholder straddling the cut.
+- Drain/vent holes (galvanised tubes): boolean-cut small cylinders near each
+  end, diametrically opposed:
+  `tube.cut(Part.makeCylinder(r, t, pos, dir))`.
+- Stiffener / gusset / base plate: model as thin `Part::Feature` plates sized to
+  the node; name per `geometry-conventions.md`. Necessity comes from the
+  engineer.
+- Camber: do NOT bend geometry. Add an object property or a drawing note, e.g.
+  `obj.addProperty("App::PropertyLength", "Camber"); obj.Camber = value`.
+
 ## Exports
 
 Write into `projects/<slug>/exports/`:

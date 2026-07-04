@@ -34,6 +34,18 @@ The skill does not perform structural calculation. Loads, analysis, member
 forces, and verified sizes come from the engineer (Gates 6-7). The skill models,
 documents, and organises; it never presents geometry or sizes as verified.
 
+## Model For Fabrication And Erection
+
+Model buildable reality, not ideal geometry. Z = 0 is the top of concrete; steel
+base plates sit above a grout gap. Members longer than the transport limit get
+field splices. Galvanised closed sections get drain/vent holes and must avoid
+water-trapping shapes. Rigid nodes get stiffeners, truss nodes get gussets.
+Field connections need erection clearances so the model is assemblable. Crane
+buildings get corbels and runway beams. Long buildings get expansion joints
+(doubled axes); large spans get a camber note. All such thresholds are asked
+with a suggested value, never hard-coded. See
+`references/constructability-detailing.md`.
+
 ## First Steps
 
 1. Read `references/gates.md` to run the staged, question-driven workflow.
@@ -82,6 +94,9 @@ documents, and organises; it never presents geometry or sizes as verified.
   options, and recommended defaults. Start here for any real project.
 - `references/cbca-galpao-project-sequence.md`: derived CBCA project sequence
   and the authoritative NBR/reference chain the gates follow.
+- `references/constructability-detailing.md`: transport/field splices,
+  galvanising geometry, crane runway, expansion joints, camber, stiffeners/
+  gussets, base grout gap, and erection tolerances.
 - `references/geometry-conventions.md`: axes, units, origin, object naming, and
   the placeholder section table.
 - `references/modeling-workflow-freecad.md`: parametric script pattern, running

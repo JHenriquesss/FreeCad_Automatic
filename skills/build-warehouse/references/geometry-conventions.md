@@ -8,8 +8,11 @@ Do not deviate without recording it in the project notes.
 - Units: millimetres (FreeCAD default). Convert user metres to mm.
 - X: longitudinal (building length). Frames repeat along X.
 - Y: transverse (span). Frames cross the span in Y.
-- Z: vertical (height). Floor datum at Z = 0.
-- Origin: first frame at X = 0; left eave column at (0, 0, 0).
+- Z: vertical (height). Z = 0 at the TOP OF CONCRETE / foundation.
+- Origin: first frame at X = 0; left eave column base at (0, 0, grout gap).
+- Steel base plates do not sit on raw concrete: raise the steel by the grout
+  gap (ask; suggest 30 mm). Column bottom at Z = `GROUT_GAP`, not Z = 0. See
+  `constructability-detailing.md` section 5.
 
 ## Key levels
 
@@ -28,6 +31,9 @@ Name objects by system and axis so failures localise:
 - Bracing: `BRACE_ROOF_01_A`, `BRACE_WALL_L_01_A`.
 - Tie rods: `TIEROD_ROOF_01`, `TIEROD_WALL_L_01`.
 - Gable-end posts (oitao): `GABLE_FRONT_POST_01`, `GABLE_BACK_POST_01`.
+- Detailing: `BASEPLATE_...`, `STIFFENER_...`, `GUSSET_...`, `SPLICE_...`,
+  `CRANE_CORBEL_...`, `CRANE_RUNWAY_...`, `DRAINHOLE_...`.
+- Split segments of a spliced member: `..._SEG_A`, `..._SEG_B`.
 - Envelope/openings: `ROOF_SHEET_...`, `WALL_...`, `GATE_...`, `WINDOW_...`.
 
 L = left wall (Y = 0), R = right wall (Y = span).
@@ -48,6 +54,15 @@ These are for visualisation only and are NOT profiles:
 | Bracing | 80 x 80 |
 | Tie rod (tirante) | 25 dia (model as 25 x 25) |
 | Gable post (oitao) | 150 x 150 |
+| Base plate | 350 x 350 x 22 |
+| Stiffener plate | node-fit x 10 thick |
+| Gusset plate | node-fit x 10 thick |
+| Splice plate (tala) | flange-fit x 10 thick |
+| Crane corbel (console) | 300 x 200 |
+| Crane runway beam | 400 x 200 |
+
+Detailing objects (base plates, stiffeners, gussets, splices, corbels, drain
+holes) are added in Gates 7-9, not in the conceptual gates.
 
 Always state in `notes/assumptions.md` that sections are placeholders. Replace
 them with real profiles only in Gate 5 after approval.
