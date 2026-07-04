@@ -83,6 +83,10 @@ suggestion) and record them as assumptions.
 - Purlin/girt placeholder depth: about L/40 to L/60 of the member span (the
   frame spacing for purlins), for the placeholder box height only; note the
   purlin deflection limit L/200 as an assumption for the engineer.
+- Purlin spacing: for usual trapezoidal steel sheet (e.g. 0.55 mm), typically
+  1300-1800 mm (ask; drives the purlin count per slope).
+- Sag-rod lines: purlins spanning ~5-6 m need one line at mid-span; above that,
+  use two lines (third-points) to control weak-axis bending and twist.
 
 Always state in `notes/assumptions.md` that sections are placeholders. Replace
 them with real profiles only in Gate 5 after approval.

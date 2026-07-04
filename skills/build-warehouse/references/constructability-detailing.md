@@ -43,6 +43,8 @@ suggested value; never hard-code a silent default (see the core rule in
   do not pair galvanised bolts with unpainted weathering steel in aggressive
   environments). The less-noble component is oversized or isolated; flag for the
   engineer.
+- Environmental class (ISO 12944): record the aggressivity class (C1 to C5-I/M).
+  It governs the coating system and how strict the detailing must be.
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
   for the engineer.
 
@@ -84,7 +86,19 @@ suggested value; never hard-code a silent default (see the core rule in
 Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 120 m when hot processes/ovens raise internal temperature swings (ask).
 
-## 9. Composite floors (mezzanine)
+## 9. Erection provisions
+
+- Field-splice division depends not only on transport length but on the site
+  crane's tipping moment (lift capacity x radius). Ask the available lifting
+  capacity when deciding splice points and piece weights.
+- Temporary stability: frames are unstable during erection until the permanent
+  bracing is in. Provide/indicate temporary guy wires (estais) anchored to the
+  ground and lifting lugs (olhais) on liftable pieces; show them on the Gate 9
+  erection drawings.
+- Field splices may carry temporary erection tension before the structure is
+  complete (see section 1).
+
+## 10. Composite floors (mezzanine)
 
 - Model floor beams, a composite steel-deck slab (formwork acting as platform
   and reinforcement, e.g. MF-50 / MF-75), and shear studs (stud bolts) welded to

@@ -54,3 +54,10 @@ are intended for the responsible engineer.
   erection constraints.
 - Confirm whether temporary bracing, lifting points, or mounting sequence must
   be modeled or documented.
+- Confirm the environmental aggressivity class (ISO 12944, C1 to C5-I/M) driving
+  the coating and detailing.
+- If a crane is present: confirm fatigue and vibration limits and the crane duty
+  class (light or heavy).
+- Confirm the lateral-drift limit and how it ties to the cladding (masonry
+  panels are stricter than metal sheet); confirm which sway-sensitivity/second-
+  order coefficient applies given the cladding.

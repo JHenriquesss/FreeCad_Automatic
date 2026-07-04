@@ -42,9 +42,13 @@ Ask:
 - Clear/eave height (m). Suggest 6 m.
 - Structural typology: full-web portal frame, truss/tesoura, shed, geminated
   span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
-- Overhead crane? If yes, capture rail top level, crane span/capacity,
-  operating clearances, whether corbels (consoles) are needed, and note the
-  impact/braking loads to hand to the engineer (detailed in Gate 2/5).
+- Environmental aggressivity class (ISO 12944): C1 very low to C5-I/M very high
+  industrial/marine. Drives coating and detailing; ask early.
+- Overhead crane? If yes, capture rail top level, crane span/capacity, class
+  (light or heavy duty), operating clearances, whether corbels (consoles) are
+  needed, and note the impact/braking loads to hand to the engineer (detailed in
+  Gate 2/5). Heavy-duty cranes need stricter longitudinal bracing and stiffer
+  columns (variable-inertia or trussed).
 - If the length is large, ask about thermal expansion joints: suggest a joint
   beyond ~120-150 m for normal buildings (reduce toward ~120 m if hot processes/
   ovens are present); ask, and the joint position -> doubled axes. See

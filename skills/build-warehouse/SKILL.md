@@ -59,7 +59,10 @@ full-height transverse stiffeners (without over-restraining end rotation), and
 braking bracing. Long buildings get expansion joints (doubled axes); large spans
 get a camber note. Bolt holes respect minimum spacing (~2.7 db) and edge
 distance. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
-get a composite steel-deck floor with shear studs. All such thresholds are asked
+get a composite steel-deck floor with shear studs. The environmental class (ISO
+12944) is captured to drive coating and detailing, crane duty (light/heavy) sets
+runway stiffness and bracing, and erection needs (crane lift capacity, temporary
+guys, lifting lugs) are provided or documented. All such thresholds are asked
 with a suggested value, never hard-coded. See
 `references/constructability-detailing.md`.
 
