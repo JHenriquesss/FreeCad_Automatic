@@ -129,6 +129,10 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
   bracing is in. Provide/indicate temporary guy wires (estais) anchored to the
   ground and lifting lugs (olhais) on liftable pieces; show them on the Gate 9
   erection drawings.
+- Lifting-lug placement: compute the true centre of gravity of the fabricated
+  assembly in FreeCAD (e.g. from the combined shape) and place lifting lugs
+  symmetrically ABOVE that CG, so the piece does not rotate or overturn when
+  lifted.
 - Field splices may carry temporary erection tension before the structure is
   complete (see section 1).
 
@@ -160,6 +164,10 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 - Shear key (barra de cisalhamento): optional profile/plate welded under the
   base plate and embedded in concrete when horizontal forces exceed anchor/
   friction capacity. Model `SHEARKEY_...` below the plate; engineer-decided.
+- Anchor-rod geometry: structural anchors are rarely straight bars; model the
+  lower end as a 90-degree bent hook (L/J shape) or a heavy plate/nut at the
+  bottom for cone pull-out resistance. This bent leg affects the concrete
+  pedestal rebar layout (physical interference), so keep it in the model.
 - Necessity of stiffeners/gussets/shear keys depends on forces (engineer, Gate
   6/7); the skill models them once indicated.
 
@@ -178,10 +186,13 @@ The 3D detail must reflect the connection type the engineer specifies:
   a too-thin end plate flexes and prying overloads the bolts. Flag tensioned
   connection-plate thickness for explicit engineer verification (Gate 7).
 - Eccentricity: prefer crossing the system lines (member axes) at the same node.
-  When profile geometry forces an eccentricity (common with angles/double angles
-  on gusset gauge lines), model the real physical position and flag it so the
-  engineer accounts for the secondary moments; do not silently snap it to
-  concentric.
+  For trusses and cross-bracing, the axes that should meet are the members'
+  centre-of-gravity (CG) lines (the gravity axis of an angle/double angle), NOT
+  the geometric bounding-box centre. Build the parametric skeleton on CG lines to
+  minimise secondary moments.
+  When profile geometry still forces an eccentricity, model the real physical
+  position and flag it so the engineer accounts for the secondary moments; do not
+  silently snap it to concentric.
 
 ### Hole types and connection behaviour
 
@@ -245,6 +256,10 @@ The 3D detail must reflect the connection type the engineer specifies:
 - Position sag rods to brace the purlin BOTTOM flange: wind suction (uplift)
   compresses the lower flange, which lacks the natural restraint the roof sheet
   gives the top flange. Place rods where they restrain that flange.
+- Model sag rods as a COMPLETE continuous tension system, not loose hangers: the
+  roof-slope component of load runs up to the ridge, ending in crossed (X) ties
+  at the ridge or bearing on a stiff member, so the force does not push the ridge
+  purlin down.
 
 ## Parameters (all ask-with-suggestion)
 

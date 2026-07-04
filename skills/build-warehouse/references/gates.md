@@ -112,6 +112,10 @@ Ask:
 - Eave struts (escoras de beiral): model the strut near each column-rafter node
   that stabilises columns longitudinally and carries wind force (single or
   built-up U/2U/2L). Ask; usually required.
+- Flange braces (mao-francesa): knee braces from a purlin/girt to the BOTTOM
+  flange of the rafter/column, giving lateral restraint to the compressed lower
+  flange under wind uplift (suction). Ask; add where the bottom flange needs
+  bracing.
 - End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
 - Crane sub-flow (if crane at Gate 0): model column corbels (consoles) or
   enlarged/trussed columns, crane runway beams at the rail level, runway-beam

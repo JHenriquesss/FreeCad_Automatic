@@ -19,7 +19,12 @@ after FreeCAD launch; XML-RPC on localhost:9875).
   compression flange, create an explicit node or property at the intersection so
   the exported data shows the unbraced length Lb. This lets the engineer check
   lateral-torsional buckling (FLT). A purlin only counts as a brace if it is
-  itself properly restrained.
+  itself properly restrained. The purlin restrains only the TOP flange; where the
+  bottom flange is compressed by wind uplift, add a flange brace (mao-francesa)
+  to restrain it.
+- CG axis: build truss/bracing skeletons on member centre-of-gravity lines (not
+  bounding-box centres). Compute an assembly's CG (from its combined shape) to
+  place lifting lugs symmetrically above it.
 - Grouping: besides naming by system, group objects by erection phase / shipping
   lot (romaneio), not only by piece type. Split segments of one member
   (`_SEG_A`, `_SEG_B`, `_SPLICE_01`) belong to the same erection group. Record

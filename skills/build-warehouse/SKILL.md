@@ -51,10 +51,14 @@ corners get a light fillet. Passive fire protection adds a volume that must be
 checked for clashes with cladding and openings. Movable openings must not clash
 with an X-braced bay; if they do, move the bracing or use a local rigid frame.
 Maintenance access clearances are kept for painting and inspection, dissimilar
-metals are checked for galvanic corrosion, and crevices are closed. Member axes
-meet concentrically at each node where possible; a geometry-forced eccentricity
-is modelled in its real position and flagged for the engineer, not snapped to
-concentric. Objects are grouped by erection phase (shipping lot), not only by
+metals are checked for galvanic corrosion, and crevices are closed. Truss and bracing
+skeletons are built on member centre-of-gravity axes (not bounding-box centres);
+a geometry-forced eccentricity is modelled in its real position and flagged for
+the engineer, not snapped to concentric. Flange braces (mao-francesa) restrain
+the bottom flange under wind uplift; sag rods form a complete tension system
+ending in crossed ties at the ridge. Anchor rods are modelled with 90-degree
+hooks (L/J) or bottom plates. Lifting lugs sit symmetrically above the assembly's
+computed centre of gravity. Objects are grouped by erection phase (shipping lot), not only by
 piece type, and splices are tagged pre-assembly (ground) or aerial for the
 lifting plan. Purlin continuity (simple vs lapped sleeves) and mezzanine
 steel-deck rib orientation are captured to place laps and shear studs correctly. Tensioned end plates are flagged for
