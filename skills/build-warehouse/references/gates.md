@@ -42,6 +42,9 @@ Ask:
 - Clear/eave height (m). Suggest 6 m.
 - Structural typology: full-web portal frame, truss/tesoura, shed, geminated
   span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
+- Section variation: constant section, or welded tapered (variable-web-depth)
+  columns/rafters to optimise weight (NBR 8800 Annex J)? Tapered members are
+  modelled parametrically at Gate 8.
 - Environmental aggressivity class (ISO 12944): C1 very low to C5-I/M very high
   industrial/marine. Drives coating and detailing; ask early.
 - Overhead crane? If yes, capture rail top level, crane span/capacity, class
@@ -110,6 +113,11 @@ Ask:
 - Mezzanine (if set at Gate 0): model floor beams, a composite steel-deck slab
   (e.g. MF-50/MF-75), and shear studs on the top flange of the floor beams. See
   `constructability-detailing.md` section on composite floors.
+- Web openings: are service runs (electrical, water, compressed air) passing
+  through beam webs, or is height reduction wanted? If yes, model the web
+  openings and coordinate the reinforcement the engineer requires.
+- Crane end stops (if crane): model end stops/bumpers at both ends of each
+  runway line (see `constructability-detailing.md` section 3).
 
 Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
@@ -231,6 +239,9 @@ Ask:
 - Coating system: painted or hot-dip galvanised? If galvanised, model vent/drain
   holes (diametrically opposed near ends) on closed/tubular sections, and avoid
   water-trapping geometry. See `constructability-detailing.md` section 2.
+- Field connection behaviour: bearing (contact) or friction (slip-critical)? Set
+  the hole type (standard / oversized / slotted) and hole clearance accordingly.
+- Tapered members (if chosen at Gate 0): model the variable-web-depth profiles.
 - Re-check field splices against the real (heavier) profiles and the transport
   limit.
 
@@ -255,6 +266,11 @@ Ask:
 - Include a recommended tolerance table (NBR 8800 appendix: plumb, alignment,
   squareness, length) on fabrication/erection PDF sheets. See
   `constructability-detailing.md` section 6.
+- Add a reference erection temperature note (the temperature range assumed for
+  assembly), since it changes the length of large pieces.
+- Add sheet notes for the required steel surface-preparation grade before
+  coating (ISO 8501-1 / SSPC, e.g. Sa 2.5 white metal, St 2 hand cleaning) and
+  standard welding symbols on fabrication drawings.
 
 Produces: files in `projects/<slug>/exports/`. Exit: user accepts deliverables.
 

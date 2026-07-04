@@ -61,8 +61,12 @@ get a camber note. Bolt holes respect minimum spacing (~2.7 db) and edge
 distance. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
 get a composite steel-deck floor with shear studs. The environmental class (ISO
 12944) is captured to drive coating and detailing, crane duty (light/heavy) sets
-runway stiffness and bracing, and erection needs (crane lift capacity, temporary
-guys, lifting lugs) are provided or documented. All such thresholds are asked
+runway stiffness and bracing, crane runways get end stops, and erection needs
+(crane lift capacity, temporary guys, lifting lugs) are provided or documented.
+Bases get levelling nuts; field connections declare bearing vs friction and the
+matching hole type; expansion points may use sliding slotted supports; tapered
+members and web openings are modelled when chosen; and fabrication sheets carry
+the erection temperature, surface-prep grade (ISO 8501-1), and welding symbols. All such thresholds are asked
 with a suggested value, never hard-coded. See
 `references/constructability-detailing.md`.
 

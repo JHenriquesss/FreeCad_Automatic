@@ -72,7 +72,9 @@ suggested value; never hard-code a silent default (see the core rule in
 - Rail fixing: model clips/clamps (grapas) rather than holes drilled through the
   beam flange, so the rail can be realigned and the flange is not weakened by
   fatigue-prone holes.
-- Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`.
+- End stops / bumpers: model end stops (para-choques) at both ends of each runway
+  line, and ask the engineer to validate the weld fatigue points.
+- Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`, `CRANE_ENDSTOP_L`.
 
 ## 4. Expansion joints and camber
 
@@ -116,6 +118,9 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
   of concrete and raise the steel base plate by the grout thickness. Suggested
   grout gap: 30 mm (ask; typically 25-50 mm). Model anchor rods into the
   concrete.
+- Levelling nuts / shim plates: to hold the column plumb before and during grout
+  placement, model levelling nuts on the anchor rods below the base plate (or
+  shim plates on the pedestal). Model them together with the grout gap.
 - Oversized anchor holes + special washers: base-plate holes are larger than the
   rods (foundation tolerance); model the enlarged hole and a thick plate washer
   (`WASHER_...`) welded over each rod after levelling.
@@ -142,6 +147,18 @@ The 3D detail must reflect the connection type the engineer specifies:
 - Eccentricity: cross the system lines (member axes) at exactly the same node.
   For single-angle members (e.g. bracing), avoid gauge-line eccentricity from
   the centroid, which adds unplanned secondary bending not in the truss model.
+
+### Hole types and connection behaviour
+
+- NBR 8800 hole types: standard, oversized, short-slotted, long-slotted. The
+  choice depends on whether the field connection works by bearing (contact) or
+  by friction (slip-critical). Ask which and model the hole clearance
+  accordingly.
+- With slotted holes, slip becomes a serviceability limit state; note it for the
+  engineer.
+- Sliding supports for thermal movement: at free-expansion locations, model
+  sliding connections with longitudinal slotted holes (and teflon/PTFE pads to
+  remove friction) instead of, or in addition to, doubled axes.
 
 ### Fastener clearances
 
