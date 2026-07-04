@@ -50,8 +50,12 @@ diametrically opposed and at least ~50% of the section; sharp exposed plate
 corners get a light fillet. Passive fire protection adds a volume that must be
 checked for clashes with cladding and openings. Movable openings must not clash
 with an X-braced bay; if they do, move the bracing or use a local rigid frame.
-Maintenance access clearances are kept for painting and inspection. Crane
-buildings get corbels, runway beams with full-height transverse stiffeners, and
+Maintenance access clearances are kept for painting and inspection, dissimilar
+metals are checked for galvanic corrosion, and crevices are closed. Member axes
+meet concentrically at each node, and objects are grouped by erection phase
+(shipping lot), not only by piece type. Tensioned end plates are flagged for
+prying-action verification. Crane buildings get corbels, runway beams with
+full-height transverse stiffeners (without over-restraining end rotation), and
 braking bracing. Long buildings get expansion joints (doubled axes); large spans
 get a camber note. All such thresholds are asked with a suggested value, never
 hard-coded. See `references/constructability-detailing.md`.

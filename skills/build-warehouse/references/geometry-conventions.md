@@ -78,8 +78,11 @@ suggestion) and record them as assumptions.
   - Span up to 15 m: spacing 3-5 m.
   - Span 16-35 m: spacing 4-8 m.
   - Span over 36 m: spacing 8-12 m.
+- Column placeholder section depth: about H/20 to H/30 of the column height H.
+- Main roof beam placeholder depth: about L/50 to L/70 of the span L.
 - Purlin/girt placeholder depth: about L/40 to L/60 of the member span (the
-  frame spacing for purlins), for the placeholder box height only.
+  frame spacing for purlins), for the placeholder box height only; note the
+  purlin deflection limit L/200 as an assumption for the engineer.
 
 Always state in `notes/assumptions.md` that sections are placeholders. Replace
 them with real profiles only in Gate 5 after approval.

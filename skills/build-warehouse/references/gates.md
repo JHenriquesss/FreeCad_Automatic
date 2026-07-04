@@ -141,6 +141,10 @@ Ask:
 - Permanent loads: self-weight (auto), roof sheet weight, lighting, suspended
   loads, services.
 - Variable loads: roof live load, and any crane/equipment/mezzanine/solar.
+- Crane (if present): record dynamic impact coefficients (vertical + horizontal,
+  NBR 8800), the fatigue regime for heavy-duty runways, and the rail-top drift
+  limit (ask; H/400 general to H/600 steel mill). See
+  `constructability-detailing.md` section 3.
 - Wind (NBR 6123): site location, terrain topography, surrounding obstacles,
   and building dimensions for the wind basis.
 - Design code confirmation (NBR 8800; NBR 14762 if cold-formed; NBR 14323/14432
@@ -197,6 +201,11 @@ Also confirm the detailing that follows from sizes (see
   the grout thickness (suggest 30 mm, ask). Model anchor rods.
 - Web stiffeners at rigid beam-column nodes; gusset plates at truss/bracing
   nodes, where the engineer indicates they are needed.
+- Prying action: flag tensioned end-plate/connection-plate thickness for
+  explicit engineer verification (thin plates overload the bolts).
+- Record the code minimum connection force (a common NBR 8800 value is 45 kN,
+  except tie rods and purlins) as an assumption, so no connection is left
+  designed for zero force.
 
 Produces: an approved size for every member class. Exit: engineer approves the
 full member list. Nothing is "verified" without the calculation behind it.

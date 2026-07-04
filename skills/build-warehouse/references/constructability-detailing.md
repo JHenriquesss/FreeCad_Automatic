@@ -33,9 +33,16 @@ suggested value; never hard-code a silent default (see the core rule in
   section diagonal), diametrically opposed. Model them accordingly.
 - Round sharp corners: exposed cut plates (gussets) hold paint poorly on sharp
   edges; apply a light fillet to the corners of exposed plates.
-- Maintenance access: keep minimum clearances between parallel members and to
-  walls so painting/inspection tools fit (ask; suggested 50-300 mm by depth).
-  Flag any gap below the chosen clearance as a clash.
+- Maintenance access: keep minimum clearances so painting/inspection tools fit
+  (ask; ~50-300 mm by depth), and where an operator must reach the surface,
+  keep operator access (ask; suggest 500-600 mm). Areas that become inaccessible
+  after erection need a durable special protection; flag them.
+- Close crevices: seal gaps that hold electrolyte, preferably with continuous
+  weld, so water/dirt cannot accumulate between faying faces.
+- Galvanic corrosion (dissimilar metals): confirm material compatibility (e.g.
+  do not pair galvanised bolts with unpainted weathering steel in aggressive
+  environments). The less-noble component is oversized or isolated; flag for the
+  engineer.
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
   for the engineer.
 
@@ -52,6 +59,14 @@ suggested value; never hard-code a silent default (see the core rule in
   full-height transverse stiffeners; do not model water-trapping pockets.
 - Columns may be variable-inertia or trussed to carry the runway; model per the
   chosen typology.
+- Rail deflection limits are strict: horizontal drift at the rail top commonly
+  H/400 (general) to H/600 (steel-mill buildings). Ask and record the limit.
+- Heavy-duty runways are a fatigue regime: record it so the engineer uses weld
+  details without stress concentration.
+- Impact coefficients: crane loads need dynamic impact factors (vertical and
+  horizontal) per NBR 8800; record this for the engineer.
+- Do NOT model support stiffeners that over-restrain the runway beam's natural
+  end rotation; wrong restraint causes fatigue cracking.
 - Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`.
 
 ## 4. Expansion joints and camber
@@ -89,6 +104,15 @@ The 3D detail must reflect the connection type the engineer specifies:
   with the beam flanges (forces from the flanges need them).
 - Flexible (shear only): model web angles or a simple plate and keep a gap
   between the beam flange and the column, so no moment is implied.
+
+### Connection behaviour geometry
+
+- Prying action: in bolted moment connections (high-strength bolts in tension),
+  a too-thin end plate flexes and prying overloads the bolts. Flag tensioned
+  connection-plate thickness for explicit engineer verification (Gate 7).
+- Eccentricity: cross the system lines (member axes) at exactly the same node.
+  For single-angle members (e.g. bracing), avoid gauge-line eccentricity from
+  the centroid, which adds unplanned secondary bending not in the truss model.
 
 ### Fastener clearances
 

@@ -11,6 +11,14 @@ after FreeCAD launch; XML-RPC on localhost:9875).
 - All dimensions come from parameters at the top of the script (from the gate
   answers), never hard-coded mid-body.
 - Section sizes are placeholders until Gate 5 (see `geometry-conventions.md`).
+- Node integrity: member axes (system lines) must meet at exactly the same
+  point at each node; do not leave axis eccentricity that creates unplanned
+  secondary moments.
+- Grouping: besides naming by system, group objects by erection phase / shipping
+  lot (romaneio), not only by piece type. Split segments of one member
+  (`_SEG_A`, `_SEG_B`, `_SPLICE_01`) belong to the same erection group. Record
+  that column/field splices may carry temporary erection tension before the
+  structure is complete.
 
 ## Execution via the bridge
 
