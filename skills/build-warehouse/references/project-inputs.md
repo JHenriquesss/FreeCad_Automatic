@@ -42,7 +42,10 @@ Everything below is collected in later gates, not at Gate 0.
   Lateral drift (sway) limit depends on the cladding: masonry walls are strict
   (e.g. crack width or H/300 to H/400 to avoid cracking under wind); metal-sheet
   cladding tolerates more flexibility. State which limit governs so the engineer
-  can size the frame accordingly. Confirm the exact value with the engineer.
+  can size the frame accordingly. Confirm the exact value with the engineer. For
+  crane buildings, also limit the differential horizontal displacement between the
+  two opposite columns carrying the runway (commonly <= 15 mm) to avoid crane
+  binding.
 - Foundation interface assumptions and concrete strength.
 - Connection philosophy: shop-welded/field-bolted, bolted moment joints,
   flexible shear joints, truss gussets, or other office standard.

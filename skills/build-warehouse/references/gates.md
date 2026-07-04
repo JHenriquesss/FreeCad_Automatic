@@ -88,7 +88,9 @@ Ask:
   girts. (CBCA sequences gutters/downspouts early, right after openings.) On
   large roofs, gutters are often self-supporting heavy-gauge (5 mm+) plate;
   record the assumed gutter thickness and its added weight in the load memo
-  (`notes/assumptions.md`) for the engineer at Gate 6.
+  (`notes/assumptions.md`) for the engineer at Gate 6. Also model flashings and
+  cap/expansion-joint covers (rufos/tapa-juntas), and keep downspouts clear of
+  bracing.
 
 Produces: rafters, ridge, roof plane, overhangs, parapets. Exit: user confirms
 roof.
@@ -201,9 +203,10 @@ Ask:
   loads, services.
 - Variable loads: roof live load, and any crane/equipment/mezzanine/solar.
 - Crane (if present): record dynamic impact coefficients (vertical impact ~15%
-  common galpao, ~20% general; plus horizontal, NBR 8800), the fatigue regime for
-  heavy-duty runways, and the rail-top drift limit (ask; H/400 general to H/600
-  steel mill). See `constructability-detailing.md` section 3.
+  common galpao, ~20% general), and the horizontal longitudinal braking and
+  transverse surge forces (critical for fatigue and the bracing), the fatigue
+  regime for heavy-duty runways, and the rail-top drift limit (ask; H/400 general
+  to H/600 steel mill). See `constructability-detailing.md` section 3.
 - Temperature: record the local temperature variation range (e.g. +/-15 C) and
   whether erection happens under thermal restraint, into `notes/assumptions.md`,
   so the engineer can compute thermal effects when the structure cannot expand
@@ -334,6 +337,9 @@ Ask:
   `constructability-detailing.md` section 6.
 - Add a reference erection temperature note (the temperature range assumed for
   assembly), since it changes the length of large pieces.
+- Add an erection-drawing note to verify concrete curing and a base survey
+  (levelling and anchor-rod location/plumb) before erection starts; do not begin
+  erection on uncured or unlevel foundations.
 - Add sheet notes for the required steel surface-preparation grade before
   coating (ISO 8501-1 / SSPC, e.g. Sa 2.5 white metal, St 2 hand cleaning) and
   standard welding symbols on fabrication drawings.
