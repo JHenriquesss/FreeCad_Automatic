@@ -20,6 +20,7 @@ End-to-end trunk for this project:
 | Codex MCP registration | `codex mcp list` showed `freecad` enabled | green |
 | FreeCAD bridge import | `freecadcmd.exe` loaded `Init.py` and started bridge | green |
 | GUI MCP connection | `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` | green |
+| GUI `execute` smoke | XML-RPC `execute` created Part::Box (vol 6000, GuiUp=1) post-restart 2026-07-04 | green |
 | Skill validation | `quick_validate.py skills/build-warehouse` via `uv` | green |
 | Git remote | pushes through `origin/main` | green |
 | Galpao workspace | `projects/galpao/AGENT_SCOPE.md` exists | green |

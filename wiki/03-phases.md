@@ -73,14 +73,19 @@ Outcome:
 - Created first fixture `projects/galpao/`.
 - Pushed through `ad7c258 chore: create galpao project workspace`.
 
-## Current Phase - FreeCAD MCP Execute Verification
+## Phase 7 - FreeCAD MCP Execute Verification
 
 Scope:
 - Ensure GUI bridge startup happens only after `FreeCAD.GuiUp`.
 - Verify `execute` can create simple geometry without hanging.
 
-Exit:
-- Restart FreeCAD after patched `Init.py`.
-- `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` succeeds.
-- XML-RPC `execute` creates a simple `Part::Box` in active document.
-- Wiki records final verified status.
+Outcome (verified 2026-07-04):
+- Diagnosed live hang: FreeCAD process predating the patch held stale bridge code
+  auto-started from `Init.py` before `GuiUp`; `ping`/`execute` timed out on 9875
+  though the port listened.
+- Confirmed all 4 installed Mod copies of `Init.py`/`InitGui.py` match patched repo.
+- Restarted FreeCAD; new pid loaded patched `InitGui.py`.
+- `freecad-mcp --check --mode xmlrpc --host localhost --port 9875` -> success,
+  FreeCAD 1.1.1, GUI available.
+- XML-RPC `execute` created `Part::Box` (vol 6000, `GuiUp=1`) with no hang.
+- Fix committed as `1b33707 fix(freecad): defer GUI bridge startup`.

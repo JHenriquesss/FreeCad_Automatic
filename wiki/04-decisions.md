@@ -105,6 +105,25 @@ Alternatives rejected:
 - Open all agents at repo root for project work.
 - Duplicate shared libraries and research inside every project.
 
+## 2026-07-04 - Default Auto-Start On + One-Click install.bat
+
+Decision:
+- Patch vendored `preferences.py` to `DEFAULT_AUTO_START = True`.
+- Add `install.bat` double-click wrapper that runs `install.ps1` with
+  `-ExecutionPolicy Bypass -InstallUvIfMissing`.
+
+Why:
+- Goal is "install FreeCAD, run installer, launch FreeCAD, MCP works" on any PC.
+- Upstream default `False` required manually selecting the workbench and clicking
+  Start each launch; a fresh profile has no stored `AutoStart` param, so the
+  default governs first-run behavior.
+- `install.bat` removes PowerShell command typing and auto-installs `uv`.
+
+Alternatives rejected:
+- Have the installer inject the `AutoStart` param into FreeCAD `user.cfg`
+  (fragile; file may not exist before first FreeCAD launch, per-profile).
+- Leave default `False` and document a manual enable step (breaks one-click goal).
+
 ## 2026-07-04 - Defer FreeCAD GUI Bridge Startup To InitGui
 
 Decision:

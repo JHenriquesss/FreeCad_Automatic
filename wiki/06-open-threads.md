@@ -8,15 +8,19 @@
   cladding, openings, profile preferences, bracing constraints.
 - Goal: exercise `build-warehouse` skill on a concrete case.
 
-## FreeCAD MCP Execute Verification
+## FreeCAD MCP Execute Verification (RESOLVED 2026-07-04)
 
-- `Init.py` was patched to defer GUI startup to `InitGui.py`.
-- Current FreeCAD process may still have old bridge code loaded.
-- Required next check after FreeCAD restart:
-  - `freecad-mcp --check --mode xmlrpc --host localhost --port 9875`
-  - XML-RPC `execute` creates `Part::Box` without timeout.
-- If `execute` still hangs, inspect queue processor timer/thread selection in
-  `freecad_mcp_bridge/server.py`.
+- Verified working: health check + XML-RPC `execute` (Part::Box) succeed, no hang.
+- Operational rule: if `execute`/`ping` hang while port 9875 listens, the running
+  FreeCAD holds a stale in-memory bridge (started before its files were patched, or
+  before `GuiUp`). Fix = fully close FreeCAD and reopen; do NOT just retry the client.
+- Diagnostic sequence that found it:
+  - `Get-NetTCPConnection -LocalPort 9875,9876` (port owned by freecad.exe pid).
+  - Compare FreeCAD `StartTime` vs Mod `Init.py`/`InitGui.py` `LastWriteTime`;
+    if process older than files, it loaded pre-patch code.
+  - Guard health check / `execute` with a hard timeout so a hang is visible.
+- If a hang ever survives a clean restart, inspect queue processor timer/thread
+  selection in `freecad_mcp_bridge/server.py`.
 
 ## Installer Test Coverage
 

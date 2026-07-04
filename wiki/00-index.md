@@ -24,11 +24,15 @@ galpao metalico workflows.
 
 ## Current Head
 
-- Last known commit: `ad7c258 chore: create galpao project workspace`.
-- Local uncommitted MCP patch: `RobustMCPBridge/Init.py` now defers GUI startup
-  to `InitGui.py`; restart FreeCAD before verifying `execute`.
-- FreeCAD MCP health checks can pass while `execute` still hangs if the bridge
-  starts before `FreeCAD.GuiUp`; see [[06-open-threads#freecad-mcp-execute-verification]].
+- Last known commit: `1b33707 fix(freecad): defer GUI bridge startup`.
+- FreeCAD MCP verified working end-to-end on 2026-07-04: after FreeCAD restart,
+  health check and XML-RPC `execute` (Part::Box) both succeed with `GuiUp=1`, no
+  hang.
+- Root cause of prior hang: a FreeCAD process started before the patch had the
+  bridge auto-started from `Init.py` while `FreeCAD.GuiUp` was still false, so the
+  queue processor ran headless-style inside the GUI process and blocked all
+  `execute`/`ping` calls. Fix = patched `InitGui.py` defers start until `GuiUp`;
+  a full FreeCAD restart is required to clear a stale in-memory bridge.
 
 ---
 

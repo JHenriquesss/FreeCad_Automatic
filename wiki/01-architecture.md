@@ -53,6 +53,12 @@
   - `__init__.py`: use `getattr(FreeCAD, "GuiUp", False)` and treat missing
     `GuiUp` as headless.
   - `freecad_mcp_bridge/server.py`: avoid direct `FreeCAD.GuiUp` accesses.
+- Auto-start patch:
+  - `preferences.py`: `DEFAULT_AUTO_START = True` (upstream `False`).
+  - Makes a fresh-PC install auto-start the bridge ~3s after FreeCAD launch via
+    `InitGui.py` `QTimer.singleShot`, with no manual workbench selection.
+  - Machines with `RobustMCPBridge/AutoStart` already in `user.cfg` keep their
+    stored value; the default only governs first run on a new profile.
 - Verified with `freecadcmd.exe`: bridge auto-start logs showed XML-RPC 9875
   and socket 9876.
 - Verified with FreeCAD GUI after process restart: MCP health check succeeded.
