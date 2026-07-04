@@ -53,9 +53,10 @@ Ask:
   Gate 2/5). Heavy-duty cranes need stricter longitudinal bracing and stiffer
   columns (variable-inertia or trussed).
 - If the length is large, ask about thermal expansion joints: suggest a joint
-  beyond ~120-150 m for normal buildings (reduce toward ~120 m if hot processes/
-  ovens are present); ask, and the joint position -> doubled axes. See
-  `constructability-detailing.md`.
+  beyond ~120-150 m for simple rectangular buildings (reduce toward ~120 m if
+  hot processes/ovens are present). Warn that irregular L/T/U shapes drop the
+  limit to ~60 m, and fixed bases reduce the limit ~15%. Ask, and the joint
+  position -> doubled axes. See `constructability-detailing.md`.
 - Mezzanine / elevated floor? If yes, plan a composite steel-deck floor with
   shear studs (detailed in Gate 2). See `constructability-detailing.md`.
 - Partially-encased composite columns? (fire protection, forklift impact, or
@@ -74,7 +75,8 @@ Ask:
 - Roof form: gable (duas aguas), single-slope, multiple/geminated, shed, arch.
   For geminated (multiple naves), model the interior columns and the central
   valley gutters between naves.
-- Roof slope %. Suggest 10%. Enforce NBR 8800 anti-ponding: not below 5%.
+- Roof slope %. Suggest 10%. Enforce NBR 8800 anti-ponding (item 11.6): not below
+  5%, an SLS check against progressive water-ponding accumulation/collapse.
 - Roofing type (drives slope and purlin spans; trapezoidal steel sheet default).
 - Roof monitor (lanternim) for light/ventilation: yes/no + rough size.
 - Overhangs (beirais): does the roof extend beyond the columns? By how much (m)?
@@ -187,10 +189,10 @@ Ask:
 - Permanent loads: self-weight (auto), roof sheet weight, lighting, suspended
   loads, services.
 - Variable loads: roof live load, and any crane/equipment/mezzanine/solar.
-- Crane (if present): record dynamic impact coefficients (vertical + horizontal,
-  NBR 8800), the fatigue regime for heavy-duty runways, and the rail-top drift
-  limit (ask; H/400 general to H/600 steel mill). See
-  `constructability-detailing.md` section 3.
+- Crane (if present): record dynamic impact coefficients (vertical impact ~15%
+  common galpao, ~20% general; plus horizontal, NBR 8800), the fatigue regime for
+  heavy-duty runways, and the rail-top drift limit (ask; H/400 general to H/600
+  steel mill). See `constructability-detailing.md` section 3.
 - Temperature: record the local temperature variation range (e.g. +/-15 C) and
   whether erection happens under thermal restraint, into `notes/assumptions.md`,
   so the engineer can compute thermal effects when the structure cannot expand
@@ -222,6 +224,9 @@ Ask / collect from engineer:
 - Frame analysis results: member forces/moments for columns and rafters.
 - Sway classification (deslocabilidade) and whether second-order effects govern.
 - Equivalent horizontal (notional) force Fn used.
+- Geometric imperfections: were global out-of-plumb (~L/500) and local (~L/1000)
+  imperfections included? For medium-sway structures, were member flexural and
+  axial stiffnesses reduced (e.g. to 80%) in the B1/B2 analysis?
 - ULS combinations considered.
 - Base condition confirmed: pinned or fixed.
 - Fatigue verification for crane runway beams, their supports, welds, and
@@ -240,7 +245,9 @@ the model.
 Confirm, in order:
 
 - Columns, then rafters/beams.
-- Serviceability (SLS): vertical and lateral displacement limits met.
+- Serviceability (SLS): vertical and lateral displacement limits met. Crane
+  runway beams have stricter vertical-deflection limits than roof members:
+  about L/600 for capacity up to ~20 tf and L/800 above ~20 tf.
 - Purlins (NBR 14762 if cold-formed).
 - Girts.
 - Tie rods (tirantes).

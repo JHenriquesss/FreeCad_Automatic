@@ -62,8 +62,9 @@ computed centre of gravity. Objects are grouped by erection phase (shipping lot)
 piece type, and splices are tagged pre-assembly (ground) or aerial for the
 lifting plan. Purlin continuity (simple vs lapped sleeves) and mezzanine
 steel-deck rib orientation are captured to place laps and shear studs correctly.
-Purlins are oriented open-face toward the ridge; steel deck keeps its minimum
-bearing length on beams; fillet welds respect the minimum leg for the base-metal
+Purlins are oriented open-face toward the eave/gutter (CBCA: better service
+performance and durability); steel deck keeps its minimum bearing length on
+beams; fillet welds respect the minimum leg for the base-metal
 thickness; and heavy self-supporting gutters have their weight recorded in the
 load memo. Tensioned end plates are flagged for
 prying-action verification. Crane buildings get corbels, runway beams with

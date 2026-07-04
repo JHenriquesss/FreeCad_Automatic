@@ -90,9 +90,11 @@ suggestion) and record them as assumptions.
 - Prefer these span-proportional depths over the fixed fallback values in the
   placeholder-section table above; the fixed sizes are only a last resort when no
   span is known yet.
-- Purlin orientation: model U/C purlins with the OPEN face toward the ridge
-  (cumeeira) and the back toward the eave, to minimise torsional sagging under
-  gravity load.
+- Purlin orientation: model U/C purlins with the OPEN face toward the EAVE
+  (beiral) / gutter, back toward the ridge. Per the CBCA Galpoes manual (sec.
+  2.9), this gives better service-load performance and is decisive for
+  durability, because the open side toward the ridge would trap dust and
+  moisture inside the profile.
 - Purlin spacing: for usual trapezoidal steel sheet (e.g. 0.55 mm), typically
   1300-1800 mm (ask; drives the purlin count per slope).
 - Sag-rod lines: purlins spanning ~5-6 m need one line at mid-span; above that,

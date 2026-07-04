@@ -288,7 +288,7 @@ The 3D detail must reflect the connection type the engineer specifies:
 | `L_TRANSPORT_MAX` | 12000 mm | Max piece length before a field splice |
 | `GROUT_GAP` | 30 mm | Steel base plate rise above concrete (Z=0) |
 | `CAMBER_SPAN_TRIGGER` | 20000 mm | Span above which a camber note is added |
-| `EXP_JOINT_LENGTH_TRIGGER` | 120000-150000 mm | Length above which to suggest a joint (lower with hot processes) |
+| `EXP_JOINT_LENGTH_TRIGGER` | 120000-150000 mm | Joint trigger for simple rectangular plans; ~60 m for L/T/U shapes; -15% for fixed bases |
 | `BOLT_MIN_SPACING` | 2.7 x db | Min centre-to-centre standard hole spacing |
 | `SLS_LATERAL_DRIFT` | H/300 | NBR 8800 default column-top drift (stricter if masonry) |
 | `ERECTION_GAP` | 5-10 mm | Assembly clearance at field connections |
