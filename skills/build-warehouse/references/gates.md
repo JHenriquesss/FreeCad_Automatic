@@ -68,6 +68,8 @@ Purpose: fix roof shape before secondary members.
 Ask:
 
 - Roof form: gable (duas aguas), single-slope, multiple/geminated, shed, arch.
+  For geminated (multiple naves), model the interior columns and the central
+  valley gutters between naves.
 - Roof slope %. Suggest 10%. Enforce NBR 8800 anti-ponding: not below 5%.
 - Roofing type (drives slope and purlin spans; trapezoidal steel sheet default).
 - Roof monitor (lanternim) for light/ventilation: yes/no + rough size.

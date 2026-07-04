@@ -39,10 +39,11 @@ suggested value; never hard-code a silent default (see the core rule in
   after erection need a durable special protection; flag them.
 - Close crevices: seal gaps that hold electrolyte, preferably with continuous
   weld, so water/dirt cannot accumulate between faying faces.
-- Galvanic corrosion (dissimilar metals): confirm material compatibility (e.g.
-  do not pair galvanised bolts with unpainted weathering steel in aggressive
-  environments). The less-noble component is oversized or isolated; flag for the
-  engineer.
+- Galvanic corrosion (dissimilar metals): confirm material compatibility. The
+  bolt should be equal or nobler than the connected members (small cathodic
+  area), e.g. weathering-steel bolts (ASTM A325 Type 3) or hot-dip galvanised
+  bolts on common carbon steel in aggressive environments. The less-noble
+  component is oversized or isolated; flag for the engineer.
 - Environmental class (ISO 12944): record the aggressivity class (C1 to C5-I/M).
   It governs the coating system and how strict the detailing must be.
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
@@ -59,8 +60,9 @@ suggested value; never hard-code a silent default (see the core rule in
 - Runway beams need transverse web stiffeners over the full web height (fatigue)
   and must avoid crevices that retain water (fatigue + corrosion). Model
   full-height transverse stiffeners; do not model water-trapping pockets.
-- Columns may be variable-inertia or trussed to carry the runway; model per the
-  chosen typology.
+- Columns may be variable-inertia, trussed, stepped (lower recess / recesso
+  inferior), or independent columns (one for the roof, one for the runway) laced
+  together; offer these options for medium/heavy cranes.
 - Rail deflection limits are strict: horizontal drift at the rail top commonly
   H/400 (general) to H/600 (steel-mill buildings). Ask and record the limit.
 - Heavy-duty runways are a fatigue regime: record it so the engineer uses weld
@@ -106,7 +108,8 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
   and reinforcement, e.g. MF-50 / MF-75), and shear studs (stud bolts) welded to
   the top flange of the floor beams for steel-concrete composite action.
 - Studs are typically <= 19 mm diameter and should project at least ~50 mm above
-  the top of the steel deck. Confirm with the engineer.
+  the top of the steel deck. Model at least ~50 mm of concrete cover above the
+  deck top. Confirm with the engineer.
 - Name: `MEZZ_BEAM_...`, `MEZZ_DECK_...`, `STUD_...`.
 
 ## 5. Connections: stiffeners, gussets, base grout gap
@@ -203,6 +206,9 @@ The 3D detail must reflect the connection type the engineer specifies:
   at mid-span or third-points to restrain the minor axis and align the members.
 - Ask how many sag-rod lines per purlin/girt bay. Name `TIEROD_ROOF_...`,
   `TIEROD_WALL_...`.
+- Position sag rods to brace the purlin BOTTOM flange: wind suction (uplift)
+  compresses the lower flange, which lacks the natural restraint the roof sheet
+  gives the top flange. Place rods where they restrain that flange.
 
 ## Parameters (all ask-with-suggestion)
 
