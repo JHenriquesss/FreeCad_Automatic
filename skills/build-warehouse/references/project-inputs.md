@@ -39,6 +39,10 @@ Everything below is collected in later gates, not at Gate 0.
 - Base plate and anchor assumptions.
 - Crane, mezzanine, equipment, or concentrated loads.
 - Serviceability limits for roof, side sway, cladding, and crane operation.
+  Lateral drift (sway) limit depends on the cladding: masonry walls are strict
+  (e.g. crack width or H/300 to H/400 to avoid cracking under wind); metal-sheet
+  cladding tolerates more flexibility. State which limit governs so the engineer
+  can size the frame accordingly. Confirm the exact value with the engineer.
 - Foundation interface assumptions and concrete strength.
 - Connection philosophy: shop-welded/field-bolted, bolted moment joints,
   flexible shear joints, truss gussets, or other office standard.

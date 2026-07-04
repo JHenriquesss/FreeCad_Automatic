@@ -42,8 +42,9 @@ Ask:
 - Clear/eave height (m). Suggest 6 m.
 - Structural typology: full-web portal frame, truss/tesoura, shed, geminated
   span, or crane bay? Recommend by span (portal <= ~12 m, truss for larger).
-- Overhead crane? If yes, capture rail top level, crane span/capacity, and
-  operating clearances (detailed in Gate 2).
+- Overhead crane? If yes, capture rail top level, crane span/capacity,
+  operating clearances, whether corbels (consoles) are needed, and note the
+  impact/braking loads to hand to the engineer (detailed in Gate 2/5).
 - If the length is large, ask about thermal expansion joints: suggest a joint
   beyond ~90 m (ask), and the joint position -> doubled axes. See
   `constructability-detailing.md`.
@@ -75,11 +76,16 @@ Ask:
 - Girt levels on walls.
 - Roof bracing: which bays (suggest end bays).
 - Vertical (wall) bracing: which bays and which walls.
-- Tie rods (tirantes / sag rods) for purlins and girts: yes/no.
+- Sag rods (tirantes / linhas de corrente) for cold-formed purlins and girts:
+  mandatory for usual spans (above ~5-6 m, ask). Ask how many lines per bay
+  (mid-span or third-points) to restrain the weak axis. See
+  `constructability-detailing.md` section 8.
 - End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
 - Crane sub-flow (if crane at Gate 0): model column corbels (consoles) or
-  enlarged/trussed columns, crane runway beams at the rail level, and the
-  operating clearances. See `constructability-detailing.md` section 3.
+  enlarged/trussed columns, crane runway beams at the rail level, runway-beam
+  web stiffeners (fatigue), longitudinal bracing to absorb crane braking
+  forces, and the operating clearances. See `constructability-detailing.md`
+  section 3.
 - Expansion joint (if triggered at Gate 0): model doubled axes (twin
   columns/beams) at the joint position.
 - Field splices: for any member longer than the agreed transport limit
@@ -124,6 +130,14 @@ Ask:
   and building dimensions for the wind basis.
 - Design code confirmation (NBR 8800; NBR 14762 if cold-formed; NBR 14323/14432
   if fire).
+- Passive fire protection: is a required fire-resistance time (TRRF, NBR 14432)
+  needed? If yes, ask protection type and thickness (sprayed mortar, ceramic
+  blanket, concrete encasement, intumescent paint). A 30-50 mm coating changes
+  the effective envelope and can clash with cladding, purlins/girts, piping,
+  doors, and windows. Model it as a clash envelope or record the thickness and
+  run a clearance check. See `constructability-detailing.md` section 7.
+- Serviceability (SLS) lateral drift limits by cladding type (see
+  `project-inputs.md`), so the engineer knows which limit governs member sizing.
 
 Produces: a documented action set in `notes/assumptions.md`. Exit: user/engineer
 confirms the load basis.

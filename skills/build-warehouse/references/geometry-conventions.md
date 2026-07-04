@@ -32,7 +32,8 @@ Name objects by system and axis so failures localise:
 - Tie rods: `TIEROD_ROOF_01`, `TIEROD_WALL_L_01`.
 - Gable-end posts (oitao): `GABLE_FRONT_POST_01`, `GABLE_BACK_POST_01`.
 - Detailing: `BASEPLATE_...`, `STIFFENER_...`, `GUSSET_...`, `SPLICE_...`,
-  `CRANE_CORBEL_...`, `CRANE_RUNWAY_...`, `DRAINHOLE_...`.
+  `CRANE_CORBEL_...`, `CRANE_RUNWAY_...`, `DRAINHOLE_...`, `WASHER_...`,
+  `SHEARKEY_...`, `FIREPROT_...`.
 - Split segments of a spliced member: `..._SEG_A`, `..._SEG_B`.
 - Envelope/openings: `ROOF_SHEET_...`, `WALL_...`, `GATE_...`, `WINDOW_...`.
 
@@ -60,6 +61,8 @@ These are for visualisation only and are NOT profiles:
 | Splice plate (tala) | flange-fit x 10 thick |
 | Crane corbel (console) | 300 x 200 |
 | Crane runway beam | 400 x 200 |
+| Plate washer | 100 x 100 x 16 |
+| Shear key | 150 x 150 (under base) |
 
 Detailing objects (base plates, stiffeners, gussets, splices, corbels, drain
 holes) are added in Gates 7-9, not in the conceptual gates.

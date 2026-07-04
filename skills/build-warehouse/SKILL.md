@@ -40,10 +40,14 @@ Model buildable reality, not ideal geometry. Z = 0 is the top of concrete; steel
 base plates sit above a grout gap. Members longer than the transport limit get
 field splices. Galvanised closed sections get drain/vent holes and must avoid
 water-trapping shapes. Rigid nodes get stiffeners, truss nodes get gussets.
-Field connections need erection clearances so the model is assemblable. Crane
-buildings get corbels and runway beams. Long buildings get expansion joints
-(doubled axes); large spans get a camber note. All such thresholds are asked
-with a suggested value, never hard-coded. See
+Field connections need erection clearances so the model is assemblable. Base
+plates get oversized anchor holes with welded plate washers, and a shear key
+when needed. Cold-formed purlins/girts get sag rods. Passive fire protection
+adds a volume that must be checked for clashes with cladding and openings.
+Maintenance access clearances are kept for painting and inspection. Crane
+buildings get corbels, runway beams, and braking bracing. Long buildings get
+expansion joints (doubled axes); large spans get a camber note. All such
+thresholds are asked with a suggested value, never hard-coded. See
 `references/constructability-detailing.md`.
 
 ## First Steps

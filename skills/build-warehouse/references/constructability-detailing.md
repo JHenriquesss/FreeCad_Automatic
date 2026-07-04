@@ -27,6 +27,11 @@ suggested value; never hard-code a silent default (see the core rule in
 - Avoid tight crevices (e.g. double angles without proper spacer/packing).
 - Hot-dip galvanised closed/tubular sections REQUIRE vent and drain holes,
   placed diametrically opposed near each end. Model them as boolean cuts.
+  Sealed pockets can explode in the zinc bath; venting is a safety requirement,
+  not just drainage.
+- Maintenance access: keep minimum clearances between parallel members and to
+  walls so painting/inspection tools fit (ask; suggested 50-300 mm by depth).
+  Flag any gap below the chosen clearance as a clash.
 - Flag any detail that conflicts with the chosen coating system (paint vs HDG)
   for the engineer.
 
@@ -58,8 +63,14 @@ suggested value; never hard-code a silent default (see the core rule in
   of concrete and raise the steel base plate by the grout thickness. Suggested
   grout gap: 30 mm (ask; typically 25-50 mm). Model anchor rods into the
   concrete.
-- Necessity of stiffeners/gussets depends on forces (engineer, Gate 6/7); the
-  skill models them once indicated.
+- Oversized anchor holes + special washers: base-plate holes are larger than the
+  rods (foundation tolerance); model the enlarged hole and a thick plate washer
+  (`WASHER_...`) welded over each rod after levelling.
+- Shear key (barra de cisalhamento): optional profile/plate welded under the
+  base plate and embedded in concrete when horizontal forces exceed anchor/
+  friction capacity. Model `SHEARKEY_...` below the plate; engineer-decided.
+- Necessity of stiffeners/gussets/shear keys depends on forces (engineer, Gate
+  6/7); the skill models them once indicated.
 
 ## 6. Fabrication and erection tolerances
 
@@ -68,6 +79,26 @@ suggested value; never hard-code a silent default (see the core rule in
   clearances, piece-to-piece gaps).
 - Include a recommended tolerance table (NBR 8800 appendix: plumb, alignment,
   squareness, length) as a note on fabrication/erection PDF drawings.
+
+## 7. Passive fire protection (TRRF)
+
+- If a required fire-resistance time (TRRF, NBR 14432) applies, columns and beams
+  may receive thick protection: sprayed mortar, ceramic blanket, concrete
+  encasement, or intumescent paint (NBR 14323).
+- Ask the required TRRF and the protection type/thickness. A 30-50 mm coating
+  around columns changes the effective envelope and can CLASH with side
+  cladding, purlins/girts, piping, doors, and windows.
+- Model the protection as an added volume (clash envelope) around the member so
+  interferences are caught early, or at least record the thickness as a property
+  and run a clearance check against cladding and openings.
+
+## 8. Sag rods / tie rods for cold-formed secondary members
+
+- Cold-formed purlins/girts (lipped U, Z) twist and buckle about the weak axis.
+  For usual spans (above ~5-6 m, ask), model sag rods (round threaded tie rods)
+  at mid-span or third-points to restrain the minor axis and align the members.
+- Ask how many sag-rod lines per purlin/girt bay. Name `TIEROD_ROOF_...`,
+  `TIEROD_WALL_...`.
 
 ## Parameters (all ask-with-suggestion)
 
@@ -78,3 +109,6 @@ suggested value; never hard-code a silent default (see the core rule in
 | `CAMBER_SPAN_TRIGGER` | 20000 mm | Span above which a camber note is added |
 | `EXP_JOINT_LENGTH_TRIGGER` | 90000 mm | Length above which to suggest a joint |
 | `ERECTION_GAP` | 5-10 mm | Assembly clearance at field connections |
+| `MAINT_CLEARANCE` | 50-300 mm | Access gap for painting/inspection |
+| `SAG_ROD_SPAN_TRIGGER` | 5000-6000 mm | Purlin/girt span needing sag rods |
+| `FIRE_PROTECTION_THK` | ask (TRRF) | Passive fire coating thickness (clash) |

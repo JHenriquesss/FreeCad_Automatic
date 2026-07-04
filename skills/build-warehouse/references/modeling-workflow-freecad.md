@@ -73,7 +73,17 @@ operations. All thresholds are asked with a suggestion, never hard-coded.
   the node; name per `geometry-conventions.md`. Necessity comes from the
   engineer.
 - Camber: do NOT bend geometry. Add an object property or a drawing note, e.g.
-  `obj.addProperty("App::PropertyLength", "Camber"); obj.Camber = value`.
+  `obj.addProperty("App::PropertyLength", "Camber"); obj.Camber = value`. Note
+  that end-connection holes must allow the piece to rotate (cambered ends), so
+  flag the connection as camber-aware.
+- Fire protection (TRRF): model the passive protection as an added offset volume
+  around the member (`Part.makeOffsetShape` or an enlarged prism) to act as a
+  clash envelope, or store the thickness as a property and run a clearance check
+  against cladding, purlins/girts, and openings.
+- Base washers / shear key: model plate washers over oversized anchor holes and
+  an optional shear-key solid below the base plate (engineer-decided).
+- Maintenance access: after placing parallel members, check gaps against the
+  agreed access clearance and report clashes.
 
 ## Exports
 

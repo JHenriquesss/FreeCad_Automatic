@@ -42,6 +42,24 @@ Before modeling or documenting bases, confirm:
 - Edge distances and constructability constraints.
 - Corrosion protection at base, drainage, and access for inspection.
 
+### Base plate constructability detail
+
+Model the base as it is built, not idealised:
+
+- Oversized anchor holes: base-plate holes for anchor rods are made noticeably
+  larger than the rod to absorb foundation setting-out error. Model the hole
+  bigger than the rod (ask; the engineer/AISC/NBR gives the value).
+- Special washers (plate washers): because holes are oversized, thick square or
+  circular plate washers with a standard hole are placed over each rod and
+  welded to the base plate after levelling. Model them as thin plates named
+  `WASHER_...`.
+- Shear key (barra de cisalhamento): when horizontal forces are too large to
+  pass through the anchors, weld a profile or plate under the base plate,
+  embedded in the concrete. Model it as an optional `SHEARKEY_...` solid below
+  the base plate, and flag it as engineer-decided.
+- Grout gap: base plate sits above the concrete on grout (see
+  `constructability-detailing.md` section 5).
+
 ## Durability Checklist
 
 Before choosing paint or galvanizing notes, confirm:
@@ -56,6 +74,19 @@ Before choosing paint or galvanizing notes, confirm:
 - Galvanizing compatibility with member size, holes, venting, distortion risk,
   and field repair.
 - Maintenance access and inspection frequency.
+
+### Durability geometry rules (model actively)
+
+- Drain holes: closed/tubular sections need drain holes for condensed water.
+- Vent holes: hot-dip galvanised closed sections need vent/flow holes to let
+  molten zinc and gases move; sealed pockets can EXPLODE in the zinc bath. Model
+  vent + drain holes diametrically opposed near each end.
+- Water traps: never model a "U" open upward exposed to weather, nor connection
+  pockets that pond; add drain cuts where water could collect.
+- Maintenance access: keep minimum clearances between parallel members and
+  between members and walls so painting equipment and inspection tools fit
+  (ask; suggested range 50-300 mm depending on depth). Flag clashes below the
+  chosen clearance.
 
 ## Fabrication And Mounting Notes
 
