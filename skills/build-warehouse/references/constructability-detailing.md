@@ -144,6 +144,9 @@ Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
 - Studs are typically <= 19 mm diameter and should project at least ~50 mm above
   the top of the steel deck. Model at least ~50 mm of concrete cover above the
   deck top, and a deck rib height of at most ~75 mm. Confirm with the engineer.
+- Deck bearing length on the supporting beams (avoid local crushing): MF-50 about
+  50 mm at exterior supports, 100 mm at interior; MF-75 about 75 mm exterior,
+  150 mm interior. Model the deck overlapping the beam flange accordingly.
 - Name: `MEZZ_BEAM_...`, `MEZZ_DECK_...`, `STUD_...`.
 
 ## 5. Connections: stiffeners, gussets, base grout gap
@@ -228,6 +231,9 @@ The 3D detail must reflect the connection type the engineer specifies:
   block shear as a limit state.
 - Plate washers over slotted/oversized holes must be continuous plates at least
   8 mm thick.
+- Minimum fillet weld leg depends on the thicker base metal at the joint: about
+  3 mm for plates up to ~6.35 mm, ~5 mm for ~6.35-12.5 mm (per NBR 8800). Emit
+  this as a note when detailing gussets/stiffeners.
 - Minimum bolt spacing: centre-to-centre distance between standard holes should
   be at least 2.7 x bolt diameter (NBR 8800), with ~3 x diameter preferred.
   Enforce this when the script lays out holes on gussets and end plates.

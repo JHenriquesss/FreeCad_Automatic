@@ -83,7 +83,10 @@ Ask:
   hide it? Height (m)?
 - Drainage: gutters (eave or valley for geminated bays) and downspouts. Model
   their volumes and check clashes between downspouts and vertical bracing or
-  girts. (CBCA sequences gutters/downspouts early, right after openings.)
+  girts. (CBCA sequences gutters/downspouts early, right after openings.) On
+  large roofs, gutters are often self-supporting heavy-gauge (5 mm+) plate;
+  record the assumed gutter thickness and its added weight in the load memo
+  (`notes/assumptions.md`) for the engineer at Gate 6.
 
 Produces: rafters, ridge, roof plane, overhangs, parapets. Exit: user confirms
 roof.

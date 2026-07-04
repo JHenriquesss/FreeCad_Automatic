@@ -87,6 +87,12 @@ suggestion) and record them as assumptions.
 - Purlin/girt placeholder depth: about L/40 to L/60 of the member span (the
   frame spacing for purlins), for the placeholder box height only; note the
   purlin deflection limit L/200 as an assumption for the engineer.
+- Prefer these span-proportional depths over the fixed fallback values in the
+  placeholder-section table above; the fixed sizes are only a last resort when no
+  span is known yet.
+- Purlin orientation: model U/C purlins with the OPEN face toward the ridge
+  (cumeeira) and the back toward the eave, to minimise torsional sagging under
+  gravity load.
 - Purlin spacing: for usual trapezoidal steel sheet (e.g. 0.55 mm), typically
   1300-1800 mm (ask; drives the purlin count per slope).
 - Sag-rod lines: purlins spanning ~5-6 m need one line at mid-span; above that,
