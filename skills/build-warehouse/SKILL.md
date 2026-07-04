@@ -57,8 +57,11 @@ meet concentrically at each node, and objects are grouped by erection phase
 prying-action verification. Crane buildings get corbels, runway beams with
 full-height transverse stiffeners (without over-restraining end rotation), and
 braking bracing. Long buildings get expansion joints (doubled axes); large spans
-get a camber note. All such thresholds are asked with a suggested value, never
-hard-coded. See `references/constructability-detailing.md`.
+get a camber note. Bolt holes respect minimum spacing (~2.7 db) and edge
+distance. Cross bracing is modelled tension-only (light rods/angles). Mezzanines
+get a composite steel-deck floor with shear studs. All such thresholds are asked
+with a suggested value, never hard-coded. See
+`references/constructability-detailing.md`.
 
 ## First Steps
 

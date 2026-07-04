@@ -67,6 +67,9 @@ suggested value; never hard-code a silent default (see the core rule in
   horizontal) per NBR 8800; record this for the engineer.
 - Do NOT model support stiffeners that over-restrain the runway beam's natural
   end rotation; wrong restraint causes fatigue cracking.
+- Rail fixing: model clips/clamps (grapas) rather than holes drilled through the
+  beam flange, so the rail can be realigned and the flange is not weakened by
+  fatigue-prone holes.
 - Name: `CRANE_CORBEL_A_01`, `CRANE_RUNWAY_L`, `CRANE_RAIL_L`.
 
 ## 4. Expansion joints and camber
@@ -77,6 +80,18 @@ suggested value; never hard-code a silent default (see the core rule in
 - Large-span roof beams/trusses get a fabrication camber (contraflecha) to
   offset self-weight deflection. Suggested trigger span: 20 m (ask). Camber is a
   drawing note / object property, NOT a modelled deflected shape.
+
+Suggested joint trigger length: 120-150 m for normal buildings; reduce toward
+120 m when hot processes/ovens raise internal temperature swings (ask).
+
+## 9. Composite floors (mezzanine)
+
+- Model floor beams, a composite steel-deck slab (formwork acting as platform
+  and reinforcement, e.g. MF-50 / MF-75), and shear studs (stud bolts) welded to
+  the top flange of the floor beams for steel-concrete composite action.
+- Studs are typically <= 19 mm diameter and should project at least ~50 mm above
+  the top of the steel deck. Confirm with the engineer.
+- Name: `MEZZ_BEAM_...`, `MEZZ_DECK_...`, `STUD_...`.
 
 ## 5. Connections: stiffeners, gussets, base grout gap
 
@@ -118,6 +133,9 @@ The 3D detail must reflect the connection type the engineer specifies:
 
 - Minimum edge distance: keep bolt-hole centres away from plate edges (a common
   minimum is about 1.25 x bolt diameter; the engineer confirms per NBR 8800).
+- Minimum bolt spacing: centre-to-centre distance between standard holes should
+  be at least 2.7 x bolt diameter (NBR 8800). Enforce this when the script lays
+  out holes on gussets and end plates.
 - Wrench clearance: keep bolt holes far enough from a profile web/flange so a
   tightening wrench fits. Do not place holes where a tool cannot reach.
 
@@ -162,7 +180,9 @@ The 3D detail must reflect the connection type the engineer specifies:
 | `L_TRANSPORT_MAX` | 12000 mm | Max piece length before a field splice |
 | `GROUT_GAP` | 30 mm | Steel base plate rise above concrete (Z=0) |
 | `CAMBER_SPAN_TRIGGER` | 20000 mm | Span above which a camber note is added |
-| `EXP_JOINT_LENGTH_TRIGGER` | 90000 mm | Length above which to suggest a joint |
+| `EXP_JOINT_LENGTH_TRIGGER` | 120000-150000 mm | Length above which to suggest a joint (lower with hot processes) |
+| `BOLT_MIN_SPACING` | 2.7 x db | Min centre-to-centre standard hole spacing |
+| `SLS_LATERAL_DRIFT` | H/300 | NBR 8800 default column-top drift (stricter if masonry) |
 | `ERECTION_GAP` | 5-10 mm | Assembly clearance at field connections |
 | `MAINT_CLEARANCE` | 50-300 mm | Access gap for painting/inspection |
 | `SAG_ROD_SPAN_TRIGGER` | 5000-6000 mm | Purlin/girt span needing sag rods |

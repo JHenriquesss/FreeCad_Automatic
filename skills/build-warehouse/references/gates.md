@@ -46,8 +46,11 @@ Ask:
   operating clearances, whether corbels (consoles) are needed, and note the
   impact/braking loads to hand to the engineer (detailed in Gate 2/5).
 - If the length is large, ask about thermal expansion joints: suggest a joint
-  beyond ~90 m (ask), and the joint position -> doubled axes. See
+  beyond ~120-150 m for normal buildings (reduce toward ~120 m if hot processes/
+  ovens are present); ask, and the joint position -> doubled axes. See
   `constructability-detailing.md`.
+- Mezzanine / elevated floor? If yes, plan a composite steel-deck floor with
+  shear studs (detailed in Gate 2). See `constructability-detailing.md`.
 
 Produces: grid axes, columns. Exit: user confirms use + bounding geometry.
 
@@ -100,6 +103,9 @@ Ask:
   `constructability-detailing.md` section 1.
 - Shear key at bases: do high horizontal loads (wind on facades, crane braking)
   need a shear key under the base plate? Ask; engineer-decided.
+- Mezzanine (if set at Gate 0): model floor beams, a composite steel-deck slab
+  (e.g. MF-50/MF-75), and shear studs on the top flange of the floor beams. See
+  `constructability-detailing.md` section on composite floors.
 
 Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
@@ -155,8 +161,9 @@ Ask:
   the effective envelope and can clash with cladding, purlins/girts, piping,
   doors, and windows. Model it as a clash envelope or record the thickness and
   run a clearance check. See `constructability-detailing.md` section 7.
-- Serviceability (SLS) lateral drift limits by cladding type (see
-  `project-inputs.md`), so the engineer knows which limit governs member sizing.
+- Serviceability (SLS) lateral drift: ask "adopt the NBR 8800 default of H/300
+  at the column top, or does the cladding require a stricter limit?" (masonry is
+  stricter; metal sheet tolerates more). See `project-inputs.md`.
 
 Produces: a documented action set in `notes/assumptions.md`. Exit: user/engineer
 confirms the load basis.

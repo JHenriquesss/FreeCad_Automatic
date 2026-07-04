@@ -80,6 +80,10 @@ Represent a warehouse as coordinated systems:
 - Store project assumptions in `projects/<project-slug>/notes/assumptions.md`.
 - Do not call any member size, weld, bolt, base plate, anchor, or connection
   "verified" unless the engineer explicitly provides the calculation result.
+- X-bracing convention: common industrial practice designs cross bracing as
+  tension-only, ignoring the compressed diagonal (which would buckle). Model
+  such diagonals as light tension members (round rods or light angles), and note
+  the tension-only assumption for the engineer.
 
 ## What The Skill Should Ask Before Modeling
 
