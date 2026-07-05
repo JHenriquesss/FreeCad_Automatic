@@ -4,6 +4,21 @@ Objetivo: garantir ZERO erro de metodo. Cada item lista o que o script faz, a
 fonte, e o status. Itens NBR 6123 precisam de confirmacao (nao tenho a norma
 aqui). Itens NBR 8800 foram conferidos no PDF da norma.
 
+## STATUS GERAL (toolkit de calculo) - 10/10 MODULOS APROVADOS PELO SENIOR
+
+Todos com formulas extraidas dos PDFs das normas, self-test, saidas em PT e
+markdown (codigo + resultado) em notes/scripts-md/:
+- frame2d (rigidez direta) ; vento_nbr6123 (NBR 6123) ; galpao_portico ;
+  estabilidade_b1b2 (NBR 8800 Anexo D, MAES) ; check_nbr8800 (Anexos F/G) ;
+  tercas_nbr14762 (NBR 14762 + Anexo F) ; base_chumbador (6.3/6.6 + AISC DG1) ;
+  ligacoes (6.2/6.3/6.1.5) ; perfis (biblioteca) ; redimensionamento (driver).
+Limitacoes conhecidas (documentadas, delegadas a entrada/software externo):
+- terca: Mdist distorcional (quando nao dispensa Tab.14) -> falta FSM/CUFSM;
+  Ief e Wef,y rigorosos -> entrada de catalogo.
+- base: cone de arrancamento do concreto (NBR 6118/ACI) -> projeto de fundacao.
+- ligacoes: block shear / flexao da chapa alem do esmagamento.
+Proximo: integrar na skill (a skill pergunta tudo ao usuario e chama os modulos).
+
 Referencia de apoio: exemplo resolvido do Manual CBCA "Galpoes para Usos Gerais"
 (Cap. 2), que segue NBR 6123/88 e NBR 8800/2008.
 
