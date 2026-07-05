@@ -2,8 +2,7 @@
 
 Arquivo: `projects/galpao/calc/estabilidade_b1b2.py`  
 Gerado: 2026-07-05  
-Base normativa: ABNT NBR 8800:2008, Anexo D (Metodo da Amplificacao dos
-Esforcos Solicitantes). Formulas extraidas do PDF da norma (paginas 118-120).
+Base normativa: NBR 8800 Anexo D + 4.9.7 (rigidez reduzida na media deslocabilidade). Formulas extraidas do PDF da norma.
 
 ## Codigo completo
 
@@ -97,7 +96,7 @@ def _apply_combo(fr, ix, combo):
 # negativa). Amplificacao (Anexo D.2.1): Msd=B1*Mnt+B2*Mlt ; Nsd=Nnt+B2*Nlt ;
 # Vsd=Vnt+Vlt (D.2.4, cortante nao amplificado). B1/B2 escalares; combinam-se
 # os esforcos de nt e lt na mesma secao (mesmo no), depois toma-se o maximo.
-def _combina_grupo(mf_nt, mf_lt, elems, B2, sec):
+def _combina_grupo(mf_nt, mf_lt, elems, B2, sec, Efac=1.0):
     # 1) Nsd1 (1a ordem) = normal interno MAIS COMPRIMIDO (mais negativo) do grupo
     Nsd1 = 0.0
     for e in elems:
@@ -105,7 +104,8 @@ def _combina_grupo(mf_nt, mf_lt, elems, B2, sec):
                      (mf_nt[e][3] + mf_lt[e][3])):   # j-end
             if Nint < Nsd1:
                 Nsd1 = Nint
-    Ne = math.pi ** 2 * E * sec["I"] / sec["L"] ** 2
+    # media deslocabilidade -> Ne tambem com a rigidez reduzida (4.9.7.1.3)
+    Ne = math.pi ** 2 * (E * Efac) * sec["I"] / sec["L"] ** 2
     Cm = 1.0                     # ha cargas transversais na barra (D.2.2)
     B1 = max(Cm / (1.0 - abs(Nsd1) / Ne), 1.0) if Nsd1 < 0 else 1.0
     # 2) combina na mesma secao (i e j de cada sub-barra) e toma o maximo
@@ -124,10 +124,20 @@ def _combina_grupo(mf_nt, mf_lt, elems, B2, sec):
             "Msd": Msd, "Nsd": Nsd, "Vsd": Vsd}
 
 
-def _analisa_combo(nome, combo):
-    """Decomposicao nt/lt e coeficientes B1/B2 para uma combinacao."""
+def _scale_E(fr, fac):
+    """Multiplica EA e EI de todas as barras por 'fac' (media deslocabilidade:
+    reduz a rigidez tangencial a 80% - NBR 8800 4.9.7.1.2/4.9.7.1.3)."""
+    if fac != 1.0:
+        for e in fr.elements:
+            e["E"] *= fac
+
+
+def _analisa_combo(nome, combo, Efac=1.0):
+    """Decomposicao nt/lt e coeficientes B1/B2 para uma combinacao.
+    Efac<1 aplica a reducao de rigidez da media deslocabilidade."""
     # ---- estrutura nt: contencao horizontal FICTICIA nos dois beirais ------
     fr, ix = gp._frame()
+    _scale_E(fr, Efac)
     fr.add_support(ix["nEaveL"], u=True)     # contencao ficticia (so horizontal)
     fr.add_support(ix["nEaveR"], u=True)
     _apply_combo(fr, ix, combo)
@@ -142,6 +152,7 @@ def _analisa_combo(nome, combo):
 
     # ---- estrutura lt: sem ficticias, carregada com -Hfict nos beirais -----
     fr2, ix2 = gp._frame()
+    _scale_E(fr2, Efac)
     fr2.add_nodal_load(ix2["nEaveL"], Fx=-Hfict_L)
     fr2.add_nodal_load(ix2["nEaveR"], Fx=-Hfict_R)
     d_lt, mf_lt = fr2.solve()
@@ -160,7 +171,7 @@ def _analisa_combo(nome, combo):
     grupos = {"coluna": ix["colL"] + ix["colR"],
               "viga":   ix["rafL"] + ix["rafR"]}
     for g, elems in grupos.items():
-        out[g] = _combina_grupo(mf_nt, mf_lt, elems, B2, SEC[g])
+        out[g] = _combina_grupo(mf_nt, mf_lt, elems, B2, SEC[g], Efac)
     return out
 
 
@@ -173,9 +184,18 @@ def _classe(B2max):
 
 
 def analyse():
-    res = [_analisa_combo(n, c) for n, c in COMBOS.items()]
-    B2max = max(r["B2"] for r in res)
-    return {"combos": res, "B2max": B2max, "classe": _classe(B2max)}
+    # 1o passo: rigidez integral -> classifica a deslocabilidade pelo B2.
+    base = [_analisa_combo(n, c, 1.0) for n, c in COMBOS.items()]
+    B2max0 = max(r["B2"] for r in base)
+    classe = _classe(B2max0)
+    # 2o passo: se media (ou grande via MAES), refaz com rigidez reduzida a 80%
+    # (4.9.7.1.2) -> esforcos FINAIS. Se pequena, mantem a rigidez integral.
+    reduziu = B2max0 > 1.1
+    Efac = 0.8 if reduziu else 1.0
+    final = [_analisa_combo(n, c, Efac) for n, c in COMBOS.items()] if reduziu else base
+    B2max_f = max(r["B2"] for r in final)
+    return {"combos": final, "B2max": B2max_f, "B2max0": B2max0,
+            "classe": classe, "reduziu": reduziu, "Efac": Efac}
 
 
 def memoria_pt(a):
@@ -188,8 +208,15 @@ def memoria_pt(a):
          "   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH)) ; Rs = 0,85 (portico de nós rígidos)",
          f"   H (pe-direito) = {H_STORY:.1f} m",
          "   Decomposicao: nt = beirais travados (contencao ficticia) ;",
-         "                 lt = reacoes das ficticias aplicadas ao contrario.", "",
-         "2. COEFICIENTES POR COMBINACAO"]
+         "                 lt = reacoes das ficticias aplicadas ao contrario."]
+    if a["reduziu"]:
+        L += [f"   RIGIDEZ REDUZIDA: media deslocabilidade -> EA e EI x {a['Efac']:.1f}",
+              f"   (E = {E*a['Efac']/1e6:.0f} GPa) nos coeficientes e esforcos abaixo",
+              f"   (4.9.7.1.2). B2 na rigidez integral = {a['B2max0']:.3f}."]
+    else:
+        L += ["   Rigidez integral (pequena deslocabilidade - sem reducao)."]
+    L += ["", "2. COEFICIENTES POR COMBINACAO (rigidez "
+          + ("reduzida 80%" if a["reduziu"] else "integral") + ")"]
     for r in a["combos"]:
         L += [f"   {r['nome']}: B2 = {r['B2']:.3f}  "
               f"(dh={r['dh']*1000:.1f} mm ; sumN={r['sumN']:.1f} kN ; "
@@ -201,19 +228,27 @@ def memoria_pt(a):
                   f"        1a ordem Mnt={d['Mnt']:.1f} ; Mlt={d['Mlt']:.1f} kN.m  ->  "
                   f"2a ordem Msd={d['Msd']:.1f} kN.m ; Nsd={d['Nsd']:.1f} ; Vsd={d['Vsd']:.1f}"]
     L += ["", "3. DESLOCABILIDADE",
-          f"   B2,max = {a['B2max']:.3f}  ->  {a['classe']}", "",
-          "4. ESFORCOS AMPLIFICADOS (para o check_nbr8800)"]
+          f"   Classificacao (rigidez integral): B2,max = {a['B2max0']:.3f}  ->  {a['classe']}"]
+    if a["reduziu"]:
+        L += [f"   B2,max com rigidez reduzida (final) = {a['B2max']:.3f}"]
+    L += ["", "4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)"]
     # envoltoria: maior Msd por grupo entre todas as combinacoes
     for g in ("coluna", "viga"):
         best = max(a["combos"], key=lambda r: r[g]["Msd"])
         d = best[g]
         L += [f"   {g.upper()} (governa {best['nome']}): "
               f"Msd={d['Msd']:.1f} kN.m ; Nsd={d['Nsd']:.1f} kN ; Vsd={d['Vsd']:.1f} kN"]
-    L += ["", "5. OBSERVACOES",
-          "   - Se GRANDE deslocabilidade: rigor pede P-Delta real; MAES e limite.",
-          "   - Media deslocabilidade: recalcular B1/B2 com EI e EA reduzidos a 80%.",
-          "   - Alimentar check_nbr8800 com os Msd/Nsd/Vsd amplificados acima."]
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    L += ["", "5. OBSERVACOES"]
+    if a["reduziu"]:
+        L += ["   - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%",
+              "     (EA e EI x 0,8), conforme media deslocabilidade (4.9.7.1.2)."]
+    L += ["   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.",
+          "   - Imperfeicoes geometricas (forca nocional 0,3% ou dh=h/333) a somar",
+          "     nas combinacoes, inclusive com vento (4.9.7.1.1 / 4.9.7.2) - a incluir.",
+          "   - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima."]
+    # virgula decimal (PT) sem mastigar numeros de clausula (4.9.7.1.2): so
+    # converte digito.digito que NAO faca parte de uma cadeia pontilhada.
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 if __name__ == "__main__":
@@ -235,38 +270,45 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    H (pe-direito) = 6,0 m
    Decomposicao: nt = beirais travados (contencao ficticia) ;
                  lt = reacoes das ficticias aplicadas ao contrario.
+   RIGIDEZ REDUZIDA: media deslocabilidade -> EA e EI x 0,8
+   (E = 160 GPa) nos coeficientes e esforcos abaixo
+   (4.9.7.1.2). B2 na rigidez integral = 1,177.
 
-2. COEFICIENTES POR COMBINACAO
-   C1_gravidade: B2 = 1,081  (dh=149,0 mm ; sumN=34,7 kN ; sumH=13,5 kN)
-     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=64,4 kN.m ; Nsd=26,7 ; Vsd=15,2
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=64,4 kN.m ; Nsd=7,7 ; Vsd=25,0
-   C2_uplift: B2 = 1,177  (dh=249,1 mm ; sumN=69,1 kN ; sumH=22,5 kN)
-     coluna: B1=1,025 (Ne=2024 kN ; Nsd1=49,2 kN)
-        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=124,1 kN.m ; Nsd=51,5 ; Vsd=25,8
-     viga: B1=1,013 (Ne=1962 kN ; Nsd1=25,2 kN)
-        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=123,9 kN.m ; Nsd=4,1 ; Vsd=47,0
-   C3_vento_Gdesf: B2 = 1,062  (dh=245,6 mm ; sumN=27,3 kN ; sumH=22,5 kN)
-     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=1,0 kN)
-        1a ordem Mnt=23,4 ; Mlt=73,6 kN.m  ->  2a ordem Msd=85,1 kN.m ; Nsd=29,1 ; Vsd=28,6
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=18,2 ; Mlt=73,6 kN.m  ->  2a ordem Msd=85,1 kN.m ; Nsd=14,3 ; Vsd=26,8
-   C3_vento_Gfav: B2 = 1,017  (dh=245,0 mm ; sumN=8,0 kN ; sumH=22,5 kN)
-     coluna: B1=1,005 (Ne=2024 kN ; Nsd1=10,6 kN)
-        1a ordem Mnt=24,9 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,2 kN.m ; Nsd=18,8 ; Vsd=30,7
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,7 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,2 kN.m ; Nsd=13,4 ; Vsd=17,4
+2. COEFICIENTES POR COMBINACAO (rigidez reduzida 80%)
+   C1_gravidade: B2 = 1,104  (dh=186,3 mm ; sumN=34,7 kN ; sumH=13,5 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=65,6 kN.m ; Nsd=26,9 ; Vsd=15,2
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=65,6 kN.m ; Nsd=6,4 ; Vsd=25,0
+   C2_uplift: B2 = 1,231  (dh=311,4 mm ; sumN=69,1 kN ; sumH=22,5 kN)
+     coluna: B1=1,031 (Ne=1619 kN ; Nsd1=49,2 kN)
+        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=129,2 kN.m ; Nsd=52,3 ; Vsd=25,8
+     viga: B1=1,016 (Ne=1570 kN ; Nsd1=25,2 kN)
+        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=128,9 kN.m ; Nsd=5,9 ; Vsd=47,0
+   C3_vento_Gdesf: B2 = 1,079  (dh=307,0 mm ; sumN=27,3 kN ; sumH=22,5 kN)
+     coluna: B1=1,001 (Ne=1619 kN ; Nsd1=1,0 kN)
+        1a ordem Mnt=23,4 ; Mlt=73,6 kN.m  ->  2a ordem Msd=86,3 kN.m ; Nsd=29,3 ; Vsd=28,6
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=18,2 ; Mlt=73,6 kN.m  ->  2a ordem Msd=86,3 kN.m ; Nsd=13,8 ; Vsd=26,8
+   C3_vento_Gfav: B2 = 1,022  (dh=306,2 mm ; sumN=8,0 kN ; sumH=22,5 kN)
+     coluna: B1=1,007 (Ne=1619 kN ; Nsd1=10,6 kN)
+        1a ordem Mnt=24,9 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,5 kN.m ; Nsd=18,9 ; Vsd=30,7
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,7 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,5 kN.m ; Nsd=13,5 ; Vsd=17,4
 
 3. DESLOCABILIDADE
-   B2,max = 1,177  ->  media deslocabilidade (usar B1/B2 com rigidez reduzida a 80%)
+   Classificacao (rigidez integral): B2,max = 1,177  ->  media deslocabilidade (usar B1/B2 com rigidez reduzida a 80%)
+   B2,max com rigidez reduzida (final) = 1,231
 
-4. ESFORCOS AMPLIFICADOS (para o check_nbr8800)
-   COLUNA (governa C2_uplift): Msd=124,1 kN.m ; Nsd=51,5 kN ; Vsd=25,8 kN
-   VIGA (governa C2_uplift): Msd=123,9 kN.m ; Nsd=4,1 kN ; Vsd=47,0 kN
+4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
+   COLUNA (governa C2_uplift): Msd=129,2 kN.m ; Nsd=52,3 kN ; Vsd=25,8 kN
+   VIGA (governa C2_uplift): Msd=128,9 kN.m ; Nsd=5,9 kN ; Vsd=47,0 kN
 
 5. OBSERVACOES
-   - Se GRANDE deslocabilidade: rigor pede P-Delta real; MAES e limite.
-   - Media deslocabilidade: recalcular B1/B2 com EI e EA reduzidos a 80%.
-   - Alimentar check_nbr8800 com os Msd/Nsd/Vsd amplificados acima.
+   - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%
+     (EA e EI x 0,8), conforme media deslocabilidade (4.9.7.1.2).
+   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.
+   - Imperfeicoes geometricas (forca nocional 0,3% ou dh=h/333) a somar
+     nas combinacoes, inclusive com vento (4.9.7.1.1 / 4.9.7.2) - a incluir.
+   - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima.
 ```

@@ -1,10 +1,10 @@
-# check_nbr8800.py
+# Verificacao de perfil NBR 8800 - check_nbr8800.py
 
-Verificacao de perfil NBR 8800 (Anexos F e G) - Q, FLT/FLM/FLA exatos, cortante, interacao.
+Arquivo: `projects/galpao/calc/check_nbr8800.py`  
+Gerado: 2026-07-05  
+Status: validado pelo engenheiro senior (Anexos F e G).
 
-CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
-
-## Codigo
+## Codigo completo
 
 ```python
 # ============================================================================
@@ -193,7 +193,8 @@ def relatorio_pt(rs, fy):
               f"  Interacao ({r['eq_interacao']}) = {r['interacao']:.2f}  -> "
               f"{'OK' if r['OK'] else 'NAO PASSA'}"]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula pontilhada.
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 # ---- secoes (SI: m, m2, m4, m3). Inclui d, bf, tf, tw para Q, Cw, J ---------

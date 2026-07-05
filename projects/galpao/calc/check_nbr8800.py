@@ -184,7 +184,8 @@ def relatorio_pt(rs, fy):
               f"  Interacao ({r['eq_interacao']}) = {r['interacao']:.2f}  -> "
               f"{'OK' if r['OK'] else 'NAO PASSA'}"]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula pontilhada.
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 # ---- secoes (SI: m, m2, m4, m3). Inclui d, bf, tf, tw para Q, Cw, J ---------

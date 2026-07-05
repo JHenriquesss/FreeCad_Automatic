@@ -236,7 +236,8 @@ def memoria_pt(a):
           "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",
           "   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases."]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula (ex.: 6.2.5-c).
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 if __name__ == "__main__":

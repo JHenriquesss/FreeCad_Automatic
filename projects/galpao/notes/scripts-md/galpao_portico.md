@@ -2,7 +2,7 @@
 
 Arquivo: `projects/galpao/calc/galpao_portico.py`  
 Gerado: 2026-07-05  
-Status: revisado apos apontamentos do engenheiro senior.
+Status: validado pelo engenheiro senior (1a ordem).
 
 ## Codigo completo
 
@@ -79,7 +79,8 @@ def _frame():
     fr.add_support(nBaseL, u=True, v=True)   # rotulada
     fr.add_support(nBaseR, u=True, v=True)
     ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
-              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR)
+              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
+              nBaseL=nBaseL, nBaseR=nBaseR)
     return fr, ix
 
 
@@ -244,7 +245,8 @@ def memoria_pt(a):
           "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",
           "   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases."]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula (ex.: 6.2.5-c).
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 if __name__ == "__main__":
@@ -287,7 +289,7 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
        parede sotavento: -0,60
        cobertura barlavento: -0,93
        cobertura sotavento: -0,60
-     Cpi (item 6,2.5-c, PORTAO como abertura dominante):
+     Cpi (item 6.2.5-c, PORTAO como abertura dominante):
        portao barlavento: +0,80
        portao sotavento: -0,60
      Cp liquido = Cpe - Cpi e pressao (kN/m2):
@@ -302,7 +304,7 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
          cobertura barlavento: -0,33  (-0,260 kN/m2)
          cobertura sotavento: +0,00  (+0,000 kN/m2)
      [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
-      razao de areas das aberturas para o Cpi do portao (6,2.5-c).]
+      razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
    (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
 
 3. COMBINACOES (NBR 8800, ELU) [a confirmar]
