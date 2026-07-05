@@ -33,6 +33,7 @@ NSEG = 8                                          # sub-divisoes por barra
 E = 200e6
 A_COL, I_COL = 53.8e-4, 3692e-8   # HEA200
 A_RAF, I_RAF = 45.3e-4, 2510e-8   # HEA180
+BASE_FIXED = False                # False = base rotulada ; True = engastada
 
 # ---- cargas (kN/m2 de area de telhado; peso proprio kN/m) ------------------
 G_ROOF = 0.27          # telha + tercas + suspensas (por area de telhado)
@@ -67,8 +68,8 @@ def _frame():
     eRafL = _chain(fr, nEaveL, nRidge, A_RAF, I_RAF, NSEG)
     eRafR = _chain(fr, nRidge, nEaveR, A_RAF, I_RAF, NSEG)
     eColR = _chain(fr, nEaveR, nBaseR, A_COL, I_COL, NSEG)
-    fr.add_support(nBaseL, u=True, v=True)   # rotulada
-    fr.add_support(nBaseR, u=True, v=True)
+    fr.add_support(nBaseL, u=True, v=True, rot=BASE_FIXED)   # rotulada/engastada
+    fr.add_support(nBaseR, u=True, v=True, rot=BASE_FIXED)
     ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
               nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
               nBaseL=nBaseL, nBaseR=nBaseR)
