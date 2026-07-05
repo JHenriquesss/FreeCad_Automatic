@@ -14,8 +14,13 @@
 #     o VENTO ja atua NORMAL ao telhado (so qx, sem qy). A linha de corrente
 #     reduz o vao do eixo fraco. Interacao Msx/Mrdx + Msy/Mrdy.
 #   - Eixo fraco: Wef,y (reducao por flambagem local da mesa comprimida) - NAO
-#     usa o modulo bruto (que seria contra a seguranca sob sucao).
-#   - Flecha (ELS): L/180 (gravidade) e L/120 (vento de sucao), com Ix.
+#     usa o modulo bruto (que seria contra a seguranca sob sucao). APROXIMADO.
+#   - Flecha (ELS): L/180 (gravidade) e L/120 (vento de sucao), com INERCIA
+#     EFETIVA Ief=Ix*(Wef/W) (aprox. conservadora de 10.1 - nunca Ix bruto).
+#   - Modelo estatico BIAPOIADO por padrao (M=qL2/8, V=qL/2, flecha=5qL4/384EI),
+#     conservador para terca continua; os coeficientes sao PARAMETRICOS
+#     (coef_momento/cortante/flecha) para refletir continuidade sem inventar.
+# gamma_g FAVORAVEL = 1,00 (NBR 8800 Tabela 1, nota a; nao 0,9 da NBR 8681).
 # Wef pelo MSE usa Wx (catalogo) + kl (Tabela 13, das dimensoes) -> baixo erro.
 # ATENCAO: propriedades do perfil = do catalogo do fornecedor (A CONFIRMAR).
 # Saidas em portugues. Calcula apenas; pendente revisao. Unidades SI: m, kN.
@@ -202,14 +207,24 @@ def verifica_terca(perfil, cfg):
     trib = cfg["larg_influencia"]
     ct, st = math.cos(theta), math.sin(theta)
     Gk, Qk, Wk = cfg.get("G", 0.0), cfg.get("Q", 0.0), cfg.get("W", 0.0)
+    # gamma_g FAVORAVEL = 1,00 (NBR 8800 Tabela 1, nota a).
     g = cfg.get("gamma", {"G": 1.25, "Q": 1.50, "W": 1.40, "G_fav": 1.00})
+    # coeficientes do modelo estatico (default biapoiado; parametricos para
+    # refletir continuidade - o engenheiro fornece se modelar viga continua).
+    cM = cfg.get("coef_momento", 1.0 / 8.0)
+    cV = cfg.get("coef_cortante", 1.0 / 2.0)
+    cD = cfg.get("coef_flecha", 5.0 / 384.0)
+    # inercia efetiva (aprox. conservadora de 10.1): reduz Ix pela relacao Wef/W
+    Ief = Ix * (Wef / W)
+    aviso_y = ("Mrd,y por metodo APROXIMADO (reducao rho da mesa sobre Wy; "
+               "rigor pede recalcular o centroide efetivo no eixo y).")
 
     res = {"perfil": perfil.get("nome", "Ue"), "kl": kl, "Wef": Wef, "Ml": Ml,
            "lp": lp, "Mrd_local": Mrd_local, "Mrd_grav": Mrd_grav,
            "Mrd_succ": Mrd_succ, "R": R, "Mrdy": Mrdy, "Wefy": Wefy,
            "rho_y": rho_y, "Vrd": Vrd, "dispensa_dist": disp, "lim_tab14": lim14,
            "Mrd_dist": Mrd_dist, "dist_inconclusivo": dist_inconclusivo,
-           "casos": {}, "els": {}}
+           "Ief": Ief, "aviso_eixo_fraco": aviso_y, "casos": {}, "els": {}}
 
     # ---- ELU: combos (vento NORMAL ao telhado -> so qx ; gravidade decompoe)
     # carga por metro de terca (kN/m): gravidade vertical ; vento normal
@@ -218,9 +233,9 @@ def verifica_terca(perfil, cfg):
         wn = vW * Wk * trib                         # vento normal (W<0 = sucao)
         qx = vert * ct + wn                         # eixo forte (perp. telhado)
         qy = vert * st                              # eixo fraco (so gravidade)
-        Msx = abs(qx) * L ** 2 / 8.0
-        Msy = abs(qy) * Ly ** 2 / 8.0
-        Vsx = abs(qx) * L / 2.0
+        Msx = cM * abs(qx) * L ** 2
+        Msy = cM * abs(qy) * Ly ** 2
+        Vsx = cV * abs(qx) * L
         uplift = qx < 0                             # mesa comprimida livre
         Mrdx = Mrd_succ if (uplift and Mrd_succ) else Mrd_grav
         inter = (Msx / Mrdx + Msy / Mrdy) if Mrdx else float("inf")
@@ -235,10 +250,11 @@ def verifica_terca(perfil, cfg):
 
     # ---- ELS: flecha (cargas caracteristicas, sem majoracao) --------------
     # gravidade (mesmo sentido G): limite L/180 ; vento sucao (oposto): L/120
+    # flecha com Ief (nao Ix bruto) e coeficiente cD (default biapoiado)
     qx_grav = (Gk + Qk) * trib * ct
-    d_grav = flecha_biapoiada(qx_grav, L, Ix)
+    d_grav = cD * abs(qx_grav) * L ** 4 / (E * Ief)
     qx_vento = (Gk * trib * ct) + (Wk * trib)      # G para baixo + W sucao
-    d_vento = flecha_biapoiada(qx_vento, L, Ix)
+    d_vento = cD * abs(qx_vento) * L ** 4 / (E * Ief)
     res["els"] = {"d_grav": d_grav, "lim_grav": L / 180.0,
                   "ok_grav": d_grav <= L / 180.0,
                   "d_vento": d_vento, "lim_vento": L / 120.0,
@@ -263,7 +279,9 @@ def relatorio_pt(res, cfg):
           if res['Mrd_succ'] else "  Anexo F: fora do escopo (bw>292)"),
          f"  Eixo fraco: rho_y = {res['rho_y']:.3f} -> Wef,y = {res['Wefy']*1e6:.2f} cm3 "
          f"; Mrd,y = {res['Mrdy']:.2f} kN.m (NAO usa Wy bruto)",
-         f"  Vrd = {res['Vrd']:.2f} kN"]
+         f"  [AVISO] {res['aviso_eixo_fraco']}",
+         f"  Vrd = {res['Vrd']:.2f} kN ; Ief (ELS) = {res['Ief']*1e8:.0f} cm4 "
+         f"= Ix*(Wef/W)"]
     if res["dispensa_dist"]:
         L.append(f"  Distorcional: DISPENSADA (D/bw >= {res['lim_tab14']:.3f}, Tab.14)")
     elif res["Mrd_dist"]:
