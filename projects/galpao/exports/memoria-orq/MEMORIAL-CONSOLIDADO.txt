@@ -323,7 +323,59 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
 
 
 ######################################################################
-8. BASE
+8. CONTRAVENTAMENTO
+######################################################################
+
+====================================================================
+BARRAS TRACIONADAS (ABNT NBR 8800:2008 item 5,2)
+  Nt,Rd = min(Ag*fy/1,10 ; 0,75*Ag*fu/1,35) ; esbeltez L/r <= 300
+====================================================================
+  --- Contravento de parede (d20) (d=20 mm ; L=7,81 m) ---
+    Nt,Rd = 69,8 kN (gov ruptura (rosca): esc=71,4 ; rup=69,8)
+    Nsd = 46,1 kN -> u = 0,66
+    Esbeltez L/r = 1562 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Contravento de cobertura (d20) (d=20 mm ; L=7,07 m) ---
+    Nt,Rd = 69,8 kN (gov ruptura (rosca): esc=71,4 ; rup=69,8)
+    Nsd = 41,7 kN -> u = 0,60
+    Esbeltez L/r = 1414 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Tirante de cobertura (d16) (d=16 mm ; L=2,50 m) ---
+    Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
+    Nsd = 8,0 kN -> u = 0,18
+    Esbeltez L/r = 625 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Mao-francesa (d16) (d=16 mm ; L=0,40 m) ---
+    Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
+    Nsd = 7,4 kN -> u = 0,17
+    Esbeltez L/r = 100 (limite 300) -> OK
+    >> OK
+====================================================================
+
+
+######################################################################
+9. VERGA DA PORTA
+######################################################################
+
+====================================================================
+LONGARINA DE PAREDE (perfil U) - UPE100
+NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
+====================================================================
+  Vao (entre porticos) ........ 0,90 m
+  Lb (mesa interna, succao) ... 0,90 m  (Lp=0,87 m ; compacto=True)
+  qx (vento) .................. 2,204 kN/m -> Msdx=0,31 kN.m
+  qy (peso) ................... 0,500 kN/m -> Msdy=0,06 kN.m
+  Mrd,x (FLT) = 11,06 kN.m
+  Mrd,y (min(Zy;1,5Wy)*fy) .... 4,40 kN.m
+  Interacao Mx/Mrdx+My/Mrdy ... 0,03+0,01=0,04 -> OK
+  PREMISSA: interacao biaxial valida so se o tapamento (telha
+  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
+  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
+====================================================================
+
+
+######################################################################
+10. BASE
 ######################################################################
 
 LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
@@ -342,7 +394,7 @@ LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
 
 
 ######################################################################
-9. LIGACOES
+11. LIGACOES
 ######################################################################
 
 VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)

@@ -27,12 +27,13 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
 
-## PENDENTE - pecas secundarias (usar Fa do vento longitudinal, ja pronto)
-- CONTRAVENTAMENTO (barras d20 so-tracao) + TIRANTES (d16): forca do arrasto
-  (Fa/lado) -> tracao + esbeltez + forca minima de travamento (regra 2%). Falta.
-- VERGA da porta: flexao local do vao da abertura. Falta (rapido).
-- [OK] MONTANTE DE OITAO (HEA160): verifica_montante_oitao (flexo-compressao,
-  vento na empena). Ref: 0,43 OK.
+## Pecas secundarias - TODAS VERIFICADAS (2026-07-05)
+- [OK] MONTANTE DE OITAO (HEA160): verifica_montante_oitao. Ref 0,43 OK.
+- [OK] CONTRAVENTAMENTO + TIRANTES + MAO-FRANCESA (barras): contraventamento.py
+  (tracao 5.2 + esbeltez + forca 2%). Ref u_max 0,66 OK.
+- [OK] VERGA da porta (UPE100): reusa verifica_longarina. Ref 0,04 OK.
+- Falta so refinar entradas "A CONFIRMAR": Ca (Figura 4), Nsd do tirante de
+  cobertura (componente do peso na agua), props de catalogo.
 
 ## RESOLVIDO (2026-07-05)
 - Mao-francesa deixou de ser heuristica: calc/mao_francesa.py deriva o passo por

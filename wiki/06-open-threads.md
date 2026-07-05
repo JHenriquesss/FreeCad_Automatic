@@ -8,15 +8,16 @@
   correctly stopped rather than fake it. Build after validation, grounded in
   NBR 8800 (impact/fatigue) + NBR 8400 (classes) + CBCA example. Tracked in
   `projects/galpao-ensaio/notes/backlog.md`.
-- **Secondary member verification (partial 2026-07-05).** `secundarios_nbr8800`
-  checks the wall girt (UPE100, biaxial Anexo G + 5.5.1) and the eave strut/ridge
-  (HEA160, beam-column). Finding: UPE100 needs 2 wall sag-rod lines (0.99); strut
-  0.07 OK. LONGITUDINAL wind (α=0) now in `vento.compute_longitudinal`: gable Cpe
-  (Tab.4) + drag Fa=Ca·q·Ae (Ca from Figura 4 = flagged A CONFIRMAR); ref Fa=59
-  kN / 29.5 kN per side → drives the strut axial. STILL PENDING: gable posts
-  (montante de oitão) bending, longitudinal bracing rods + roof/wall sag rods
-  (tension + slenderness + 2% brace force), door lintel; and the model has 0 wall
-  sag rods (must add 2).
+- **Secondary member verification (RESOLVED 2026-07-05).** All secondary members
+  now checked: wall girt (UPE100 biaxial, `secundarios_nbr8800`), eave strut/ridge
+  + gable post (HEA160 beam-column, same module), bracing/sag/flange-brace rods
+  (`contraventamento`, tension 5.2 + slenderness + 2% brace force), door lintel
+  (reuses the girt check). LONGITUDINAL wind (α=0) in `vento.compute_longitudinal`
+  feeds the strut axial and the diagonal forces (Fa=59 kN / 29.5 per side).
+  Reference utilizations: girt 0.99 (needs 2 sag-rod lines), strut 0.07, gable
+  post 0.43, rods u_max 0.66, lintel 0.04 — all OK. Remaining are INPUT refinements
+  flagged A CONFIRMAR (Ca from Figura 4; sag-rod axial; catalog J/Cw) and the
+  model must add 2 wall sag-rod lines.
 - **Delegated (flagged, not errors):** concrete anchor breakout/pull-out cone
   (NBR 6118/ACI — foundation scope, `base_chumbador` flags); block shear / plate
   limit states beyond bearing (`ligacoes`); moment end-plate thickness + prying;

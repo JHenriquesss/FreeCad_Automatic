@@ -24,6 +24,7 @@ import base_chumbador as bc
 import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
+import contraventamento as ctv
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -152,6 +153,29 @@ def rodar(params, out_dir):
     res["longarina_inter"] = rl.get("inter"); res["longarina_ok"] = rl["OK"]
     res["escora_inter"] = re_["interacao"]; res["escora_ok"] = re_["OK"]
     res["montante_inter"] = rm["interacao"]; res["montante_ok"] = rm["OK"]
+    # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
+    cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
+    Fp = vl["Fa_por_lado_kN"]
+    Ndp, Ldp = ctv.n_diagonal(Fp, g["bay"], g["eave"])           # parede
+    Ndc, Ldc = ctv.n_diagonal(Fp, g["bay"], g["span"] / 2.0)     # cobertura
+    Nmf = ctv.forca_estabilizacao_2pct(abs(cbm["viga"]["Msd"]), sc["d_raf"])
+    barras = [
+        ctv.verifica_barra("Contravento de parede (d20)", cb["d_contrav"], fyb, fub,
+                           Ndp, Ldp, pretensionada=True),
+        ctv.verifica_barra("Contravento de cobertura (d20)", cb["d_contrav"], fyb, fub,
+                           Ndc, Ldc, pretensionada=True),
+        ctv.verifica_barra("Tirante de cobertura (d16)", cb["d_tirante"], fyb, fub,
+                           cb["Nsd_tirante"], g["bay"] / 2.0, pretensionada=True),
+        ctv.verifica_barra("Mao-francesa (d16)", cb["d_tirante"], fyb, fub, Nmf, 0.40)]
+    save("gate7-contraventamento.txt", ctv.relatorio_pt(barras))
+    res["barras_ok"] = all(x["OK"] for x in barras)
+    res["barras_u_max"] = max(x["u"] for x in barras)
+    # Gate 7 - verga da porta (UPE100 sobre o vao da abertura): flexao do U, vao
+    # = largura da porta, sem tirante (Lb = vao). Vento na parede + peso da porta.
+    vg = dict(params["verga"]); vg["q_vento"] = max(net_par) * vr["q_kN_m2"]
+    rv = secmod.verifica_longarina(sp["perfil_long"], params["fy"], vg)
+    save("gate7-verga.txt", secmod.relatorio_pt(rv))
+    res["verga_inter"] = rv.get("inter"); res["verga_ok"] = rv["OK"]
     # Gate 7 - base + ligacoes (esforcos extraidos do portico)
     (bnm, bN, bV, bM), (knm, kN, kV, kM) = _esforcos_base_joelho()
     res["base_gov"] = (bnm, round(bN, 1), round(bV, 1), round(bM, 1))
@@ -179,7 +203,9 @@ def _consolidar(out_dir, save, g, params):
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
-             ("8. BASE", "gate7-base.txt"), ("9. LIGACOES", "gate7-ligacoes.txt")]
+             ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
+             ("9. VERGA DA PORTA", "gate7-verga.txt"),
+             ("10. BASE", "gate7-base.txt"), ("11. LIGACOES", "gate7-ligacoes.txt")]
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
     for tit, f in ordem:
@@ -210,6 +236,13 @@ PARAMS_REF = {
         # Montante de oitao: altura/trib/q_gable vem da geometria + vento long.
         "n_montantes_oitao": 2,
         "montante": {"Nsd": 5.0, "Lb": 2.0}},
+    # Barras tracionadas (aco MR250). Nsd_tirante = componente do peso na agua
+    # (A CONFIRMAR); demais forcas vem do Fa e do Msd da viga.
+    "barras": {"fy": 250e3, "fu": 400e3, "d_contrav": 0.020, "d_tirante": 0.016,
+               "Nsd_tirante": 8.0},
+    # Verga da porta (UPE100 sobre a abertura). vao = largura da porta (gate).
+    "verga": {"vao": 0.90, "trib": 2.0, "g_tapamento": 0.15, "peso_proprio": 0.10,
+              "n_tirantes": 0, "continua": False, "nome": "Verga da porta (UPE100)"},
     "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
              "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
              "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
@@ -238,6 +271,10 @@ if __name__ == "__main__":
           f"({'OK' if r['escora_ok'] else 'NAO'})")
     print(f"  montante oitao   = {r['montante_inter']:.2f} "
           f"({'OK' if r['montante_ok'] else 'NAO'}, HEA160)")
+    print(f"  barras tracao    = u_max {r['barras_u_max']:.2f} "
+          f"({'OK' if r['barras_ok'] else 'NAO'}, contrav.+tirante+mao-francesa)")
+    print(f"  verga da porta   = {r['verga_inter']:.2f} "
+          f"({'OK' if r['verga_ok'] else 'NAO'}, UPE100)")
     print(f"  base governa     = {r['base_gov']}")
     print(f"  joelho governa   = {r['knee_gov']}")
     print(f"  memoriais em: {os.path.abspath(out)}")
