@@ -156,11 +156,14 @@ def analyse():
         return v
 
     # Combinacoes ELU (NBR 8800). psi0: sobrecarga=0,8 ; vento=0,6.
+    # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
+    # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
+    # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
     combos = {
-        "C1_gravidade": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
-        "C2_uplift": {"G": 1.00, "W1": 1.40},
+        "C1_gravidade":   {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
+        "C2_uplift":      {"G": 1.00, "W1": 1.40},               # sem Q (favor.)
         "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-        "C3_vento_Gfav": {"G": 1.00, "W2": 1.40, "Q": 0.8 * 1.50},
+        "C3_vento_Gfav":  {"G": 1.00, "W2": 1.40},               # sem Q (favor.)
     }
     res = {}
     for name, c in combos.items():
@@ -169,12 +172,21 @@ def analyse():
         raf = max(_grupo_MNV(cmf, ix["rafL"]), _grupo_MNV(cmf, ix["rafR"]))
         res[name] = {"coluna": col, "viga": raf}
 
-    dser = combo_d({"W2": 1.0})
-    drift = abs(dser[3 * ix["nEaveL"]])
+    # ELS: vento caracteristico (sem majoracao). Toma o maior deslocamento
+    # lateral entre os dois casos de vento e os dois beirais.
+    drift = 0.0
+    for cs in ("W1", "W2"):
+        dv = combo_d({cs: 1.0})
+        drift = max(drift, abs(dv[3 * ix["nEaveL"]]), abs(dv[3 * ix["nEaveR"]]))
     dvert = combo_d({"G": 1.0, "Q": 1.0})
     ridge_v = abs(dvert[3 * ix["nRidge"] + 1])
+    # Limites de deslocamento lateral (NBR 8800, Anexo C). H/300 e para porticos
+    # que suportam ALVENARIA; para galpao com fechamento em TELHA METALICA
+    # (sem elementos frageis) admite-se H/200 ou H/150 (Bellei, Anexo C nota).
+    lims = {"H/300": EAVE / 300.0, "H/250": EAVE / 250.0,
+            "H/200": EAVE / 200.0, "H/150": EAVE / 150.0}
     return {"wind": wr, "results": res, "drift": drift,
-            "drift_lim": EAVE / 300.0, "ridge_v": ridge_v}
+            "drift_lims": lims, "drift_ref": "H/150", "ridge_v": ridge_v}
 
 
 def memoria_pt(a):
@@ -196,10 +208,11 @@ def memoria_pt(a):
           "   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)", "",
           "3. COMBINACOES (NBR 8800, ELU) [a confirmar]",
           "   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6",
+          "   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).",
           "   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W",
-          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)",
+          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]",
           "   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q",
-          "   C3 vento (G fav):  1,00 G + 1,40 W + 1,20 Q", "",
+          "   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]", "",
           "4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]"]
     for name, r in a["results"].items():
         cM, cN, cV = r["coluna"]
@@ -207,11 +220,16 @@ def memoria_pt(a):
         L += [f"   {name}:",
               f"     Coluna: M={cM:6.1f}  N={cN:6.1f}  V={cV:6.1f}",
               f"     Viga:   M={vM:6.1f}  N={vN:6.1f}  V={vV:6.1f}"]
-    L += ["", "5. DESLOCAMENTOS (ELS)",
-          f"   Deslocamento lateral no beiral (vento caract.): {a['drift']*1000:.1f} mm",
-          f"     Limite H/300 = {a['drift_lim']*1000:.1f} mm  -> "
-          f"{'OK' if a['drift'] <= a['drift_lim'] else 'NAO ATENDE'}",
-          f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/200)",
+    L += ["", "5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)",
+          f"   Deslocamento lateral no beiral: {a['drift']*1000:.1f} mm",
+          "     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica"
+          " admite ate H/150):"]
+    for nome, lim in a["drift_lims"].items():
+        ok = "OK" if a["drift"] <= lim else "NAO ATENDE"
+        marca = "   <== referencia (telha metalica, sem alvenaria)" \
+            if nome == a["drift_ref"] else ""
+        L += [f"       {nome} = {lim*1000:5.1f} mm  -> {ok}{marca}"]
+    L += [f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/250)",
           "", "6. OBSERVACOES / PENDENCIAS",
           "   - Coeficientes de vento a confirmar; portao = abertura dominante.",
           "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",

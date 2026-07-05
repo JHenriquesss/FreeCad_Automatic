@@ -1,10 +1,10 @@
-# vento_nbr6123.py
+# Vento NBR 6123/1988 - vento_nbr6123.py
 
-Vento NBR 6123 - S2, Vk, q, Cpe (Tabelas 4 e 5), Cpi (item 6.2.5-c, portao dominante).
+Arquivo: `projects/galpao/calc/vento_nbr6123.py`  
+Gerado: 2026-07-05  
+Status: revisado apos apontamentos do engenheiro senior.
 
-CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
-
-## Codigo
+## Codigo completo
 
 ```python
 # ============================================================================
@@ -54,13 +54,16 @@ def cpe_paredes():
 
 
 def cpe_telhado(theta_graus=5.71):
-    """NBR 6123 Tabela 5, telhado duas aguas. Bloco 1/2<h/b<=3/2, alpha=0
-    (vento perpendicular a cumeeira). Colunas EG (agua barlavento) e FH (agua
-    sotavento). Interpola theta entre 5 e 10 graus.
-    5 graus:  EG=-0,9  FH=-0,6 ; 10 graus: EG=-0,8  FH=-0,6."""
-    eg = _interp(theta_graus, 5.0, 10.0, -0.9, -0.8)
-    fh = _interp(theta_graus, 5.0, 10.0, -0.6, -0.6)
-    return {"cobertura_barlavento": round(eg, 2), "cobertura_sotavento": round(fh, 2)}
+    """NBR 6123 Tabela 5, telhado duas aguas. MESMA incidencia das paredes:
+    vento perpendicular a cumeeira = alpha=90 graus -> colunas EF (agua
+    barlavento) e GH (agua sotavento). Bloco 1/2<h/b<=3/2 (h/b=0,6). Interpola
+    theta entre 5 e 10 graus:
+      5 graus:  EF=-0,90  GH=-0,60 ; 10 graus: EF=-1,10  GH=-0,60.
+    (As colunas EG/FH da Tabela 5 sao para alpha=0 - vento LONGITUDINAL - e NAO
+    podem ser misturadas com as paredes de alpha=90.)"""
+    ef = _interp(theta_graus, 5.0, 10.0, -0.90, -1.10)
+    gh = _interp(theta_graus, 5.0, 10.0, -0.60, -0.60)
+    return {"cobertura_barlavento": round(ef, 2), "cobertura_sotavento": round(gh, 2)}
 
 
 def cpi_cases():
@@ -96,7 +99,7 @@ def relatorio_pt(r):
     L.append(f"  S2 = 1,00*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
     L.append(f"  Vk = {r['vk']:.2f} m/s ; q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
     L.append(f"  Telhado theta = {r['theta']:.2f} graus (10%) ; h/b=0,6 ; a/b=2")
-    L.append("  Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):")
+    L.append("  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):")
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
     L.append("  Cpi (item 6.2.5-c, PORTAO como abertura dominante):")
@@ -125,10 +128,10 @@ VENTO (ABNT NBR 6123/1988)
   S2 = 1,00*0.98*(6.5/10)^0.090 = 0.943
   Vk = 35.82 m/s ; q = 0,613*Vk^2 = 0.787 kN/m2
   Telhado theta = 5.71 graus (10%) ; h/b=0,6 ; a/b=2
-  Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):
+  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):
     parede barlavento: +0.70
     parede sotavento: -0.60
-    cobertura barlavento: -0.89
+    cobertura barlavento: -0.93
     cobertura sotavento: -0.60
   Cpi (item 6.2.5-c, PORTAO como abertura dominante):
     portao barlavento: +0.80
@@ -137,12 +140,12 @@ VENTO (ABNT NBR 6123/1988)
     caso portao barlavento:
       parede barlavento: -0.10  (-0.079 kN/m2)
       parede sotavento: -1.40  (-1.102 kN/m2)
-      cobertura barlavento: -1.69  (-1.330 kN/m2)
+      cobertura barlavento: -1.73  (-1.362 kN/m2)
       cobertura sotavento: -1.40  (-1.102 kN/m2)
     caso portao sotavento:
       parede barlavento: +1.30  (+1.023 kN/m2)
       parede sotavento: +0.00  (+0.000 kN/m2)
-      cobertura barlavento: -0.29  (-0.228 kN/m2)
+      cobertura barlavento: -0.33  (-0.260 kN/m2)
       cobertura sotavento: +0.00  (+0.000 kN/m2)
   [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
    razao de areas das aberturas para o Cpi do portao (6.2.5-c).]

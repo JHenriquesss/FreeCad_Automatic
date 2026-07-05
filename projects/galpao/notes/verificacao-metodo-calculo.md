@@ -21,9 +21,13 @@ Referencia de apoio: exemplo resolvido do Manual CBCA "Galpoes para Usos Gerais"
 - Fatores psi0 (Tabela 2): sobrecarga em cobertura = 0,8 ; vento = 0,6.
   CORRIGIDO (antes usei 0,5 para a sobrecarga - ERRADO).
 - Sobrecarga minima em cobertura 0,25 kN/m2 (B.5.2). OK (usado).
-- PERGUNTA B1: as tres combinacoes adotadas estao adequadas?
-  C1 = 1,25G + 1,50Q + 0,84W ; C2 = 1,00G + 1,40W (uplift, Q omitida) ;
-  C3 = 1,00G + 1,40W + 1,20Q. Confirmar quais governam e se falta alguma.
+- RESOLVIDO B1 (combinacoes): acao variavel FAVORAVEL entra com gamma=0. Nas
+  combinacoes de uplift com G favoravel (gamma_g=1,00), a sobrecarga Q atua para
+  baixo e RESISTE ao levantamento -> favoravel -> Q=0. Corrigido C3_vento_Gfav
+  (antes somava 1,20Q, mascarando a tracao) e mantido C2_uplift sem Q. Erro
+  apontado pelo engenheiro senior.
+  Combinacoes: C1 = 1,25G + 1,50Q + 0,84W ; C2 = 1,00G + 1,40W (uplift, Q=0) ;
+  C3g_desf = 1,25G + 1,40W + 1,20Q ; C3g_fav = 1,00G + 1,40W (Q=0).
 
 ## C. NBR 6123 - vento - CORRIGIDO com as tabelas reais (norma lida)
 
@@ -31,9 +35,12 @@ Valores agora extraidos direto da NBR 6123 (Tabelas 4, 5 e item 6.2.5-c):
 
 - RESOLVIDO C4 (Cpe paredes, Tabela 4, h/b=0,6, a/b=2, alpha=90): barlavento
   (A) = +0,70 ; sotavento (B) = -0,60. (antes -0,40, ERRADO)
-- RESOLVIDO C5 (Cpe telhado, Tabela 5, bloco 1/2<h/b<=3/2, alpha=0, theta=5,71
-  interpolado entre 5 e 10 graus): barlavento (EG) = -0,89 ; sotavento (FH) =
-  -0,60. (antes -0,80/-0,40, ERRADO no sotavento)
+- RESOLVIDO C5 (Cpe telhado, Tabela 5, bloco 1/2<h/b<=3/2, theta=5,71 interp.
+  5-10 graus): CORRIGIDO PARA alpha=90 (colunas EF/GH, MESMA incidencia das
+  paredes) -> barlavento (EF) = -0,93 ; sotavento (GH) = -0,60. Antes eu havia
+  lido as colunas EG/FH que sao de alpha=0 (vento LONGITUDINAL) - erro apontado
+  pelo engenheiro senior: nao se pode misturar vento a 90 nas paredes com vento
+  a 0 no telhado. Conferido na imagem da Tabela 5 da NBR 6123 (pagina 15).
 - RESOLVIDO C6 (Cpi, item 6.2.5-c, PORTAO abertura dominante): portao a
   barlavento Cpi = +0,80 (conservador, razao >=6) ; portao a sotavento Cpi =
   -0,60 (= Cpe da face). (antes +/-0,30, subestimava muito o uplift)
@@ -63,8 +70,14 @@ Ainda a confirmar pelo engenheiro:
 ## E. Analise - premissa
 
 - PERGUNTA E1: analise e de 1a ordem, base rotulada. Confirmar necessidade de
-  2a ordem / classificacao de deslocabilidade (o deslocamento deu 170 mm >>
-  H/300 = 20 mm, entao a rigidez/base tera que mudar de qualquer forma).
+  2a ordem / classificacao de deslocabilidade (o deslocamento deu 179 mm >>
+  qualquer limite, entao a rigidez/base tera que mudar de qualquer forma).
+- RESOLVIDO E2 (limite de flecha lateral ELS): H/300 e para porticos que
+  suportam ALVENARIA. Para galpao com TELHA METALICA (sem elementos frageis)
+  admite-se H/200 ou H/150 (Bellei; NBR 8800 Anexo C, nota). O script agora
+  mostra a escada de limites (H/300..H/150). Mesmo com H/150 = 40 mm, os 179 mm
+  NAO ATENDEM -> confirma que a estrutura precisa ser enrijecida (engaste na
+  base e/ou perfil maior e/ou mao-francesa no joelho). Ponto do eng. senior.
 
 ## Resultado atual (com as pendencias acima)
 

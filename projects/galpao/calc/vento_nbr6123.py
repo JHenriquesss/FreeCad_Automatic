@@ -45,13 +45,16 @@ def cpe_paredes():
 
 
 def cpe_telhado(theta_graus=5.71):
-    """NBR 6123 Tabela 5, telhado duas aguas. Bloco 1/2<h/b<=3/2, alpha=0
-    (vento perpendicular a cumeeira). Colunas EG (agua barlavento) e FH (agua
-    sotavento). Interpola theta entre 5 e 10 graus.
-    5 graus:  EG=-0,9  FH=-0,6 ; 10 graus: EG=-0,8  FH=-0,6."""
-    eg = _interp(theta_graus, 5.0, 10.0, -0.9, -0.8)
-    fh = _interp(theta_graus, 5.0, 10.0, -0.6, -0.6)
-    return {"cobertura_barlavento": round(eg, 2), "cobertura_sotavento": round(fh, 2)}
+    """NBR 6123 Tabela 5, telhado duas aguas. MESMA incidencia das paredes:
+    vento perpendicular a cumeeira = alpha=90 graus -> colunas EF (agua
+    barlavento) e GH (agua sotavento). Bloco 1/2<h/b<=3/2 (h/b=0,6). Interpola
+    theta entre 5 e 10 graus:
+      5 graus:  EF=-0,90  GH=-0,60 ; 10 graus: EF=-1,10  GH=-0,60.
+    (As colunas EG/FH da Tabela 5 sao para alpha=0 - vento LONGITUDINAL - e NAO
+    podem ser misturadas com as paredes de alpha=90.)"""
+    ef = _interp(theta_graus, 5.0, 10.0, -0.90, -1.10)
+    gh = _interp(theta_graus, 5.0, 10.0, -0.60, -0.60)
+    return {"cobertura_barlavento": round(ef, 2), "cobertura_sotavento": round(gh, 2)}
 
 
 def cpi_cases():
@@ -87,7 +90,7 @@ def relatorio_pt(r):
     L.append(f"  S2 = 1,00*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
     L.append(f"  Vk = {r['vk']:.2f} m/s ; q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
     L.append(f"  Telhado theta = {r['theta']:.2f} graus (10%) ; h/b=0,6 ; a/b=2")
-    L.append("  Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):")
+    L.append("  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):")
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
     L.append("  Cpi (item 6.2.5-c, PORTAO como abertura dominante):")
