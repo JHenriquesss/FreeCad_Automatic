@@ -265,8 +265,9 @@ def verifica_terca(perfil, cfg):
                               "Vsx": Vsx, "Mrdx": Mrdx, "uplift": uplift,
                               "interacao": inter, "uV": okv, "OK": ok}
 
+    gf = g.get("G_fav", 0.90)
     _combo("gravidade 1,25G+1,5Q", g["G"], g["Q"], 0.0)
-    _combo("sucao 1,0G+1,4W", g.get("G_fav", 1.0), 0.0, g["W"])
+    _combo(f"sucao {gf:.2g}G+1,4W".replace(".", ","), gf, 0.0, g["W"])
 
     # ---- ELS: flecha (cargas caracteristicas, sem majoracao) --------------
     # gravidade (mesmo sentido G): limite L/180 ; vento sucao (oposto): L/120

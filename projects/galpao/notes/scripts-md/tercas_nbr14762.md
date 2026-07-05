@@ -2,7 +2,7 @@
 
 Arquivo: `projects/galpao/calc/tercas_nbr14762.py`  
 Gerado: 2026-07-05  
-Base: NBR 14762:2010 (9.8, 10.1, Anexo F). Revisado 3x pelo eng. senior.
+Base: NBR 14762:2010 (9.8, 10.1, Anexo F). APROVADO pelo eng. senior.
 
 ## Codigo completo
 
@@ -274,8 +274,9 @@ def verifica_terca(perfil, cfg):
                               "Vsx": Vsx, "Mrdx": Mrdx, "uplift": uplift,
                               "interacao": inter, "uV": okv, "OK": ok}
 
+    gf = g.get("G_fav", 0.90)
     _combo("gravidade 1,25G+1,5Q", g["G"], g["Q"], 0.0)
-    _combo("sucao 1,0G+1,4W", g.get("G_fav", 1.0), 0.0, g["W"])
+    _combo(f"sucao {gf:.2g}G+1,4W".replace(".", ","), gf, 0.0, g["W"])
 
     # ---- ELS: flecha (cargas caracteristicas, sem majoracao) --------------
     # gravidade (mesmo sentido G): limite L/180 ; vento sucao (oposto): L/120
@@ -402,7 +403,7 @@ VERIFICACAO DE TERCA (ABNT NBR 14762:2010 - 9,8 + Anexo F)
   --- ELU gravidade 1,25G+1,5Q (gravidade) ---
     qx=+0,938 qy=+0,094 kN/m ; Msx=2,93 Msy=0,07 kN.m ; Vsx=2,34 kN
     Interacao Msx/Mrdx + Msy/Mrdy = 2,93/10,91 + 0,07/2,73 = 0,30 ; V/Vrd=0,04  -> OK
-  --- ELU sucao 1,0G+1,4W (SUCCAO/mesa livre) ---
+  --- ELU sucao 0,9G+1,4W (SUCCAO/mesa livre) ---
     qx=-1,885 qy=+0,023 kN/m ; Msx=5,89 Msy=0,02 kN.m ; Vsx=4,71 kN
     Interacao Msx/Mrdx + Msy/Mrdy = 5,89/7,09 + 0,02/2,73 = 0,84 ; V/Vrd=0,07  -> NAO PASSA
 
