@@ -23,6 +23,51 @@ Assumed by agent (NOT confirmed — change freely):
   - Tercas / longarinas: 150 x 60 mm
   - Contraventamento: 80 x 80 mm
 
+## Load Memo (Gate 5, 2026-07-04) - for engineer, NOT computed here
+
+Design codes: ABNT NBR 8800 (steel), NBR 6123 (wind), NBR 14762 (cold-formed if
+purlins/girts are cold-formed), NBR 14323/14432 (fire, TRRF 30 min).
+
+### Permanent loads (self-weight, quantified from the model takeoff)
+
+- Steel frame: ~10.65 t total. Roof steel (rafters+purlins+sag rods+bracing)
+  distributes to roughly 0.12-0.15 kN/m2 of roof plan; columns/struts/gable posts
+  carry to the bases.
+- Roof cladding (trapezoidal 0.65 mm): ~1026 kg -> ~0.05 kN/m2 over 200 m2.
+- Wall cladding: ~1650 kg on the walls.
+- Gutters (self-supporting 5 mm plate): ~1240 kg -> significant eave line load,
+  ~0.6 kN/m per gutter over 20 m; hand to engineer as an eave load.
+- Suspended loads (user-confirmed): lighting/ducts on the bottom chord - assume a
+  provisional ~0.10-0.15 kN/m2 until the real services are defined. PENDING value.
+
+### Variable loads
+
+- Roof live/maintenance: ~0.25 kN/m2 (NBR 8800 minimum) - confirm.
+- Wind (NBR 6123): basic speed V0 = 40 m/s; terrain Category II (open flat
+  field); topography factor S1 = 1.0 assumed (flat site - confirm topography);
+  S2 by Cat II + building height ~6.5 m; S3 statistical by use. Engineer to derive
+  pressure coefficients (walls, roof, internal pressure with the openings modeled
+  in Gate 4) and the wind load cases. High-wind site: wind likely governs.
+- No crane, no mezzanine, no solar (this project).
+
+### Serviceability (SLS)
+
+- Cladding is metal sheet full height -> flexible frame acceptable; lateral drift
+  limit ~H/300 (NBR 8800 default) is adequate (no masonry to protect). Confirm.
+- Roof/purlin vertical deflection limit ~L/200. Ponding avoided (slope 10% > 5%).
+
+### Fire (TRRF 30 min, NBR 14432/14323)
+
+- 30 min is normally met with thin intumescent paint -> negligible added volume,
+  NO geometric clash impact, so no protection envelope modeled. If the engineer
+  requires sprayed mortar/board instead, model the added thickness and re-run the
+  clash check against cladding and openings.
+
+### Temperature
+
+- Building length 20 m << expansion-joint trigger; no thermal joint needed.
+  Record local temperature range for the engineer if thermal effects are checked.
+
 ## Engineer Approval Required
 
 - Member sizes.
