@@ -5,7 +5,16 @@ Gerado: 2026-07-05
 Base: NBR 8800:2008 (acao de ponte, ELS, fadiga Anexo K) + NBR 8400 (classes).
 Metodo do livro "Dimensionamento de elementos estruturais de aco e mistos"
 (cap. 4, pesquisa/aco).
-Status: revisado apos parecer do eng. senior (2 correcoes criticas aplicadas):
+Status: **APROVADO E HOMOLOGADO** pelo eng. senior (2026-07-05) apos 2 correcoes
+criticas. Diretrizes do senior para a integracao no portico (pendente):
+1. Aplicar M_excentrico (39,9 kN.m) como momento concentrado no NO DO CONSOLE
+   (ou barra rigida do console) - gera momento grande no pilar inferior, que
+   costuma GOVERNAR o dimensionamento da coluna.
+2. Ponte = acao variavel autonoma. Alem do psi0=0,7 quando o vento e principal,
+   rodar uma combinacao com a PONTE como acao principal:
+   G + 1,5*Ponte + 1,4*0,6*Vento (governa a flambagem dos pilares da via).
+
+Correcoes aplicadas nesta versao:
 - FLECHA VERTICAL com 2 rodas (era 1 roda no meio -> subestimava ~13%):
   `delta = Pk*(L-d)/(48EI)*(2L^2+2Ld-d^2)`.
 - Mrd,y (surto lateral) SO da MESA SUPERIOR (o surto age no topo do trilho;
