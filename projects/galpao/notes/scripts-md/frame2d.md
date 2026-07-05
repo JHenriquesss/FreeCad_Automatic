@@ -166,11 +166,13 @@ class Frame2D:
         d[free] = np.linalg.solve(Kff, Ff)
 
         # member end forces (local): f = k_loc*T*d + fef
+        # Convention: [N_i, V_i, M_i, N_j, V_j, M_j], forces the ELEMENT exerts on
+        # its end nodes. To plot internal-force diagrams (traction positive), flip
+        # the sign of the i-end (N_i, V_i, M_i).
         member_forces = {}
         for idx, (fef, T, k_loc, dofs) in fef_store.items():
             d_e = d[dofs]
             f_loc = k_loc @ (T @ d_e) + fef
-            # local: [N_i, V_i, M_i, N_j, V_j, M_j]
             member_forces[idx] = f_loc
         return d, member_forces
 
