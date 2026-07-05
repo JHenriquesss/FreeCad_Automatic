@@ -22,5 +22,10 @@ Do not paste full transcripts. Record only durable context needed to resume work
 - Deliverables: FCStd, STEP, PNG, and takeoff CSV
   (exports/takeoff/galpao_takeoff.csv). Total steel ~10.9 t (incl. ~1.24 t
   gutters), ~54 kg/m2 - placeholder sections run heavy, not verified sizing.
-- Gates done: 0, 1, 2; capability 8 (real profiles, placeholder sizes); 9 partial
-  (3D + takeoff, no DXF/PDF/memorial). Gates 3-7 pending (6-7 need engineer).
+- Gate 3 finished: trapezoidal roof sheet + full-height steel wall cladding
+  (thin 0.65 mm skin, area-based mass ~5 kg/m2). Roof clad ~1.0 t, walls ~1.85 t.
+- Total incl. envelope ~13.8 t (steel frame ~10.9 t + cladding ~2.9 t);
+  placeholder sections, not verified.
+- Gates done: 0, 1, 2, 3; capability 8 (real profiles, placeholder sizes); 9
+  partial (3D + takeoff, no DXF/PDF/memorial). Gates 4-7 pending (6-7 need
+  engineer).

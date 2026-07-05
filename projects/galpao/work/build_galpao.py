@@ -147,6 +147,19 @@ def plate(doc, center, wx, wy, wz, name):
     return obj
 
 
+def panel(doc, corners, thick, name):
+    """Thin cladding panel from planar corner points, extruded by thick along the
+    face normal. Corners must be coplanar and ordered around the perimeter."""
+    pts = [App.Vector(*c) for c in corners]
+    wire = Part.makePolygon(pts + [pts[0]])
+    face = Part.Face(wire)
+    n = face.normalAt(0, 0)
+    n.multiply(thick)
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = face.extrude(n)
+    return obj
+
+
 def rafter_z(y):
     return EAVE_H + SLOPE * (y if y <= RIDGE_Y else (SPAN - y))
 
@@ -262,6 +275,27 @@ def build(doc):
             tube(doc, (x, y, EAVE_H), (x, y, 0.0), 100.0, 3.0,
                  f"DOWNSPOUT_{side}_{int(x)//1000:02d}")
 
+    # Gate 3 envelope: trapezoidal roof sheet + full-height steel wall cladding.
+    # Thin skin (0.65 mm) placed just outboard of the purlins/girts; classified as
+    # skin so it is not treated as a structural clash.
+    TCL = 0.65
+    zr = EAVE_H + 200.0          # roof cladding elevation offset (on purlin top)
+    zrr = RIDGE_H + 200.0
+    panel(doc, [(0, 0, zr), (LENGTH, 0, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
+          TCL, "CLAD_ROOF_L")
+    panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
+          TCL, "CLAD_ROOF_R")
+    # side walls (outboard of the girts)
+    yw = 195.0
+    panel(doc, [(0, -yw, Z0), (LENGTH, -yw, Z0), (LENGTH, -yw, EAVE_H), (0, -yw, EAVE_H)],
+          TCL, "CLAD_WALL_L")
+    panel(doc, [(0, SPAN + yw, Z0), (LENGTH, SPAN + yw, Z0),
+                (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL, "CLAD_WALL_R")
+    # gable end walls (pentagon following the roof)
+    for xc, lbl in ((-yw, "FRONT"), (LENGTH + yw, "BACK")):
+        panel(doc, [(xc, 0, Z0), (xc, SPAN, Z0), (xc, SPAN, EAVE_H),
+                    (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL, f"CLAD_GABLE_{lbl}")
+
     doc.recompute()
     return len(doc.Objects)
 
@@ -283,6 +317,7 @@ def _shares_node(na, nb, tol=250.0):
 SECONDARY = ("PURLIN", "GIRT", "TIEROD", "BRACE", "GABLE", "FLANGEBRACE",
              "ANCHOR", "WASHER", "BASEPLATE")
 SERVICE = ("GUTTER", "DOWNSPOUT")
+SKIN = ("CLAD",)
 
 
 def _is_secondary(name):
@@ -291,6 +326,10 @@ def _is_secondary(name):
 
 def _is_service(name):
     return any(name.startswith(p) for p in SERVICE)
+
+
+def _is_skin(name):
+    return any(name.startswith(p) for p in SKIN)
 
 
 def clash_check(doc, min_vol=200.0):
@@ -307,6 +346,8 @@ def clash_check(doc, min_vol=200.0):
             nb = objs[b].Name
             if not ba.intersect(objs[b].Shape.BoundBox):
                 continue
+            if _is_skin(na) or _is_skin(nb):
+                continue  # cladding bears on purlins/girts by design
             svc = _is_service(na) or _is_service(nb)
             if not svc:
                 # structural pair: touching at a node or a secondary-primary
@@ -360,6 +401,10 @@ def _classify(name):
         return "Gutters", "U300x200x5"
     if "DOWNSPOUT" in name:
         return "Downspouts", "tube-100x3"
+    if "CLAD_ROOF" in name:
+        return "Roof cladding", "trapez-0.65"
+    if "CLAD_WALL" in name or "CLAD_GABLE" in name:
+        return "Wall cladding", "trapez-0.65"
     return "Other", "-"
 
 
