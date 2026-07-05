@@ -28,11 +28,11 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
 
 ## PENDENTE - pecas secundarias (usar Fa do vento longitudinal, ja pronto)
-- MONTANTE DE OITAO (HEA160): flexao sob Cpe da empena (barlavento +0,70) - vira
-  viga-coluna, reusa check_nbr8800. Falta.
 - CONTRAVENTAMENTO (barras d20 so-tracao) + TIRANTES (d16): forca do arrasto
   (Fa/lado) -> tracao + esbeltez + forca minima de travamento (regra 2%). Falta.
 - VERGA da porta: flexao local do vao da abertura. Falta (rapido).
+- [OK] MONTANTE DE OITAO (HEA160): verifica_montante_oitao (flexo-compressao,
+  vento na empena). Ref: 0,43 OK.
 
 ## RESOLVIDO (2026-07-05)
 - Mao-francesa deixou de ser heuristica: calc/mao_francesa.py deriva o passo por

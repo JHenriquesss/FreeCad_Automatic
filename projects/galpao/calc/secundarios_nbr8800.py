@@ -161,6 +161,30 @@ def verifica_escora(sec, fy, cfg):
     return res
 
 
+def verifica_montante_oitao(sec, fy, cfg):
+    """Montante de oitao (poste do frontao, perfil I) - flexo-compressao NBR 8800.
+
+    Poste vertical na empena, biapoiado (base + viga do oitao), sob VENTO normal
+    ao frontao (flexao no eixo forte) + axial de gravidade pequeno. As longarinas
+    do oitao travam o eixo fraco (Lb = espacamento das longarinas).
+    cfg (do gate): altura (m, altura do poste governante = mais alto), q_gable
+    (kN/m2, pressao liquida na empena = |Cpe-Cpi| pior * q), trib (m, espacamento
+    entre montantes), Nsd (kN, axial de gravidade), Lb (m), gamma_W.
+    """
+    H = cfg["altura"]
+    gW = cfg.get("gamma_W", 1.40)
+    w = cfg["q_gable"] * cfg["trib"]               # linha de vento (kN/m)
+    Msd = gW * w * H ** 2 / 8.0                     # biapoiado
+    Vsd = gW * w * H / 2.0
+    Nsd = cfg.get("Nsd", 5.0)                       # gravidade (pequeno) - A CONFIRMAR
+    Lb = cfg.get("Lb", H)
+    res = ck.verifica(sec, fy, L=H, Nsd=Nsd, Msd=Msd, Vsd=Vsd,
+                      Kx=1.0, Ky=1.0, Lb=Lb, Cb=cfg.get("Cb", 1.0),
+                      nome=cfg.get("nome", "Montante de oitao (HEA160)"))
+    res["tipo"] = "escora"                          # mesmo layout de relatorio (perfil I)
+    return res
+
+
 def relatorio_pt(r):
     if r["tipo"] == "longarina":
         L = ["=" * 68, f"LONGARINA DE PAREDE (perfil U) - {r['nome']}",
@@ -209,6 +233,13 @@ def _selftest():
     re_ = verifica_escora(HEA160, fy, cfg_esc)
     print("\n" + relatorio_pt(re_))
     assert re_["OK"] and "interacao" in re_
+    # Montante de oitao HEA160: vento na empena (net barlavento ~+1,30*q), poste
+    # ~6,33 m, trib 3,33 m, travado pelas longarinas do oitao (Lb=2 m).
+    cfg_m = {"altura": 6.33, "q_gable": 1.30 * q, "trib": 3.33, "Nsd": 5.0,
+             "Lb": 2.0, "nome": "Montante de oitao (HEA160)"}
+    rm = verifica_montante_oitao(HEA160, fy, cfg_m)
+    print("\n" + relatorio_pt(rm))
+    assert "interacao" in rm
     print("\n[selftest] OK")
 
 

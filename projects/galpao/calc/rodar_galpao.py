@@ -136,9 +136,22 @@ def rodar(params, out_dir):
     sp["escora"]["Nsd"] = vl["Fa_por_lado_kN"]     # axial = arrasto longitudinal/lado
     rl = secmod.verifica_longarina(sp["perfil_long"], params["fy"], sp["longarina"])
     re_ = secmod.verifica_escora(sp["perfil_esc"], params["fy"], sp["escora"])
-    save("gate7-secundarios.txt", secmod.relatorio_pt(rl) + "\n\n" + secmod.relatorio_pt(re_))
+    # Montante de oitao: n postos no oitao -> trib e altura governante da empena
+    n_mont = params["secundarios"].get("n_montantes_oitao", 2)
+    trib_m = g["span"] / (n_mont + 1)
+    y_gov = trib_m if trib_m <= g["span"] / 2 else g["span"] - trib_m
+    h_gov = g["eave"] + (g["ridge"] - g["eave"]) / (g["span"] / 2) * min(y_gov, g["span"] - y_gov)
+    net_oit = max(abs(vl["net"][c][s]) for c in vl["net"] for s in vl["net"][c]
+                  if s.startswith("oitao"))
+    cfg_m = dict(params["secundarios"].get("montante", {}))
+    cfg_m.update(altura=round(h_gov, 2), q_gable=net_oit * vl["q_kN_m2"], trib=trib_m,
+                 nome="Montante de oitao (HEA160)")
+    rm = secmod.verifica_montante_oitao(sp["perfil_esc"], params["fy"], cfg_m)
+    save("gate7-secundarios.txt", "\n\n".join(secmod.relatorio_pt(x)
+                                              for x in (rl, re_, rm)))
     res["longarina_inter"] = rl.get("inter"); res["longarina_ok"] = rl["OK"]
     res["escora_inter"] = re_["interacao"]; res["escora_ok"] = re_["OK"]
+    res["montante_inter"] = rm["interacao"]; res["montante_ok"] = rm["OK"]
     # Gate 7 - base + ligacoes (esforcos extraidos do portico)
     (bnm, bN, bV, bM), (knm, kN, kV, kM) = _esforcos_base_joelho()
     res["base_gov"] = (bnm, round(bN, 1), round(bV, 1), round(bM, 1))
@@ -193,7 +206,10 @@ PARAMS_REF = {
                       "peso_proprio": 0.10, "n_tirantes": 2, "continua": False},
         # Nsd da escora e SOBRESCRITO pelo arrasto longitudinal (Fa/lado).
         "escora": {"vao": 5.0, "Nsd": 60.0, "peso_proprio": 0.31, "Lb": 5.0,
-                   "nome": "Escora de beiral / cumeeira (HEA160)"}},
+                   "nome": "Escora de beiral / cumeeira (HEA160)"},
+        # Montante de oitao: altura/trib/q_gable vem da geometria + vento long.
+        "n_montantes_oitao": 2,
+        "montante": {"Nsd": 5.0, "Lb": 2.0}},
     "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
              "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
              "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
@@ -220,6 +236,8 @@ if __name__ == "__main__":
           f"{r['Fa_por_lado_kN']:.1f} kN/lado -> Nsd escora")
     print(f"  escora HEA160    = {r['escora_inter']:.2f} "
           f"({'OK' if r['escora_ok'] else 'NAO'})")
+    print(f"  montante oitao   = {r['montante_inter']:.2f} "
+          f"({'OK' if r['montante_ok'] else 'NAO'}, HEA160)")
     print(f"  base governa     = {r['base_gov']}")
     print(f"  joelho governa   = {r['knee_gov']}")
     print(f"  memoriais em: {os.path.abspath(out)}")

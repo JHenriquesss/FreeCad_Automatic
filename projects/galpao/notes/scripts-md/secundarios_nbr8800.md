@@ -20,6 +20,8 @@ O toolkit dimensionava portico, terca de cobertura, base e ligacao - mas as
 pecas SECUNDARIAS ficavam como placeholder, sem verificacao:
 - **Longarina de parede (girt, UPE100)** - flexao biaxial.
 - **Escora de beiral / cumeeira (HEA160)** - flexo-compressao.
+- **Montante de oitao (poste do frontao, HEA160)** - flexo-compressao (vento na
+  empena, `verifica_montante_oitao`; Nsd axial pequeno). Ref: 0,43 OK.
 
 Este modulo fecha essa lacuna. Generico e parametrico: todas as cargas/geometrias
 sao `cfg` que a skill pergunta ao usuario no gate (ver [[toolkit-inputs-are-gate-questions]]).

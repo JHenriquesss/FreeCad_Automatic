@@ -2,7 +2,11 @@
 
 Arquivo: `projects/galpao/calc/vento_nbr6123.py`  
 Gerado: 2026-07-05  
-Status: revisado apos apontamentos do engenheiro senior.
+Status: **APROVADO** pelo eng. senior (2026-07-05), incluindo o adendo do vento
+longitudinal. Auditoria confirmou S2=0,943, Vk=35,82 m/s, q=0,787 kN/m2, a
+interpolacao do telhado (Cpe,EF=-0,93), as pressoes liquidas, a area da empena
+(62,50 m2) e Fa=59,0 kN / 29,5 kN por lado. "A CONFIRMAR" (Ca da Figura 4, razao
+de areas do Cpi) apontam corretamente o que exige heuristica do projetista.
 
 ## Codigo completo
 
