@@ -37,6 +37,27 @@ VENTO (ABNT NBR 6123/1988)
 
 
 ######################################################################
+1b. VENTO LONGITUDINAL
+######################################################################
+
+VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)
+  Vk = 35,82 m/s ; q = 0,787 kN/m2
+  Area frontal (empena 10 m) = 62,50 m2
+  Cpe paredes (Tab.4, alpha=0):
+    oitao barlavento: +0,70
+    oitao sotavento: -0,30
+    parede lateral A: -0,80
+    parede lateral B: -0,50
+  Cp liquido (Cpe - Cpi) por caso de portao:
+    portao barlavento: barlavento=-0,10 ; sotavento=-1,10 ; A=-1,60 ; B=-1,30
+    portao sotavento: barlavento=+1,30 ; sotavento=+0,30 ; A=-0,20 ; B=+0,10
+  Forca de arrasto Fa = Ca*q*Ae = 1,20*0,787*62,50 = 59,0 kN
+  Fa por lado (2 paineis de contraventamento) = 29,5 kN
+  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da
+   empena; fracao de Fa por escora conforme o arranjo do contraventamento.]
+
+
+######################################################################
 2. PORTICO 1a ORDEM
 ######################################################################
 
@@ -284,8 +305,8 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
     Mn_FLT=49,8 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=45,3 kN.m
   Cortante: Vrd=124,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,16 ; M/Mrd=0,03 ; V/Vrd=0,01
-  Interacao (N/(2Nrd) + M/Mrd) = 0,11  -> OK
+  Utilizacao: N/Nc=0,08 ; M/Mrd=0,03 ; V/Vrd=0,01
+  Interacao (N/(2Nrd) + M/Mrd) = 0,07  -> OK
 
 
 ######################################################################

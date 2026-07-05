@@ -26,9 +26,13 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 ## Outras lacunas conhecidas (ja documentadas)
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
-- VENTO LONGITUDINAL (NBR 6123, alpha=0): o modulo vento so faz o transversal.
-  Necessario para o axial da escora de beiral e do contraventamento longitudinal
-  (hoje Nsd da escora e A CONFIRMAR em secundarios_nbr8800).
+
+## PENDENTE - pecas secundarias (usar Fa do vento longitudinal, ja pronto)
+- MONTANTE DE OITAO (HEA160): flexao sob Cpe da empena (barlavento +0,70) - vira
+  viga-coluna, reusa check_nbr8800. Falta.
+- CONTRAVENTAMENTO (barras d20 so-tracao) + TIRANTES (d16): forca do arrasto
+  (Fa/lado) -> tracao + esbeltez + forca minima de travamento (regra 2%). Falta.
+- VERGA da porta: flexao local do vao da abertura. Falta (rapido).
 
 ## RESOLVIDO (2026-07-05)
 - Mao-francesa deixou de ser heuristica: calc/mao_francesa.py deriva o passo por
@@ -36,4 +40,8 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
   check. Ref 20x10: 2 bracos/portico, Lb=3,35 m, interacao da viga 0,93.
 - Secoes secundarias verificadas: secundarios_nbr8800 (longarina U biaxial Anexo
   G + escora I flexo-compressao). Achado: UPE100 exige 2 tirantes de parede
-  (0,99); escora HEA160 0,11 OK. Falta so o axial via vento longitudinal (acima).
+  (0,99); escora HEA160 OK.
+- VENTO LONGITUDINAL (alpha=0) pronto em vento_nbr6123: Cpe da empena (Tab.4) +
+  arrasto Fa=Ca*q*Ae (Ca da Figura 4, A CONFIRMAR). Ref: Fa=59 kN, 29,5 kN/lado.
+  Ja alimenta o Nsd da escora (-> 0,07 OK). Falta consumir o Fa no oitao e no
+  contraventamento (ver PENDENTE acima).

@@ -87,8 +87,12 @@ def rodar(params, out_dir):
                   fy=params["terca"]["fy"])
 
     res = {}
-    # Gate 5 - vento
+    # Gate 5 - vento (transversal + longitudinal)
     save("gate5-vento.txt", vento.relatorio_pt(vento.compute()))
+    vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
+                                    ca=params.get("ca_arrasto", 1.2))
+    save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
+    res["Fa_long_kN"] = vl["Fa_kN"]; res["Fa_por_lado_kN"] = vl["Fa_por_lado_kN"]
     # Gate 6 - analise
     save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
     a = est.analyse()
@@ -129,6 +133,7 @@ def rodar(params, out_dir):
     sp = dict(params["secundarios"])
     sp["longarina"]["vao"] = g["bay"]; sp["escora"]["vao"] = g["bay"]
     sp["longarina"]["q_vento"] = max(net_par) * vr["q_kN_m2"]
+    sp["escora"]["Nsd"] = vl["Fa_por_lado_kN"]     # axial = arrasto longitudinal/lado
     rl = secmod.verifica_longarina(sp["perfil_long"], params["fy"], sp["longarina"])
     re_ = secmod.verifica_escora(sp["perfil_esc"], params["fy"], sp["escora"])
     save("gate7-secundarios.txt", secmod.relatorio_pt(rl) + "\n\n" + secmod.relatorio_pt(re_))
@@ -155,7 +160,9 @@ def rodar(params, out_dir):
 
 
 def _consolidar(out_dir, save, g, params):
-    ordem = [("1. VENTO", "gate5-vento.txt"), ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
+    ordem = [("1. VENTO", "gate5-vento.txt"),
+             ("1b. VENTO LONGITUDINAL", "gate5-vento-longitudinal.txt"),
+             ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
@@ -172,7 +179,7 @@ def _consolidar(out_dir, save, g, params):
 # --- params de referencia (galpao 20x10, base engastada) --------------------
 PARAMS_REF = {
     "geometria": {"span": 10.0, "comprimento": 20.0, "eave": 6.0, "ridge": 6.5, "bay": 5.0},
-    "base_fixed": True, "fy": 250e3,
+    "base_fixed": True, "fy": 250e3, "ca_arrasto": 1.2,  # Ca Figura 4 (A CONFIRMAR)
     "secoes": {"perfil_col": chk.HEA200, "perfil_raf": chk.HEA180,
                "A_col": 53.8e-4, "I_col": 3692e-8, "A_raf": 45.3e-4, "I_raf": 2510e-8,
                "d_raf": 0.171, "tf_raf": 0.0095},
@@ -184,6 +191,7 @@ PARAMS_REF = {
         "perfil_long": secmod.UPE100, "perfil_esc": secmod.HEA160,
         "longarina": {"vao": 5.0, "q_vento": None, "trib": 2.0, "g_tapamento": 0.10,
                       "peso_proprio": 0.10, "n_tirantes": 2, "continua": False},
+        # Nsd da escora e SOBRESCRITO pelo arrasto longitudinal (Fa/lado).
         "escora": {"vao": 5.0, "Nsd": 60.0, "peso_proprio": 0.31, "Lb": 5.0,
                    "nome": "Escora de beiral / cumeeira (HEA160)"}},
     "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
@@ -208,8 +216,10 @@ if __name__ == "__main__":
           f"1 a cada {r['mf_stride']} terca(s) ; Lb={r['Lb_raf']} m")
     print(f"  longarina UPE100 = {r['longarina_inter']:.2f} "
           f"({'OK' if r['longarina_ok'] else 'NAO'}, 2 tirantes de parede)")
+    print(f"  vento long. Fa   = {r['Fa_long_kN']:.1f} kN (arrasto) ; "
+          f"{r['Fa_por_lado_kN']:.1f} kN/lado -> Nsd escora")
     print(f"  escora HEA160    = {r['escora_inter']:.2f} "
-          f"({'OK' if r['escora_ok'] else 'NAO'}, Nsd long. A CONFIRMAR)")
+          f"({'OK' if r['escora_ok'] else 'NAO'})")
     print(f"  base governa     = {r['base_gov']}")
     print(f"  joelho governa   = {r['knee_gov']}")
     print(f"  memoriais em: {os.path.abspath(out)}")

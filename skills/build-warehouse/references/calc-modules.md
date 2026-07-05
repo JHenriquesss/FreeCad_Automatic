@@ -28,7 +28,7 @@ before that review.
 
 | Gate | Module | Computes | Key inputs (gate questions) |
 |------|--------|----------|------------------------------|
-| 5 actions | `vento_nbr6123` | NBR 6123 wind: S2, Vk, q, Cpe (Tab.4/5, α=90), Cpi (portão dominante) | V0, categoria, classe, S1, S3, z, θ telhado, dims a/b/h, abertura dominante |
+| 5 actions | `vento_nbr6123` | NBR 6123 wind: S2, Vk, q, Cpe (Tab.4/5, α=90), Cpi (portão dominante); LONGITUDINAL α=0 (`compute_longitudinal`): Cpe empena Tab.4 + arrasto Fa=Ca·q·Ae (Ca da Fig.4, A CONFIRMAR) | V0, categoria, classe, S1, S3, z, θ telhado, dims a/b/h, abertura dominante, Ca arrasto |
 | 6 analysis | `galpao_portico` (+ `frame2d`) | portal efforts M/N/V, drift, ELS ladder | geometria (vão, pé-direito, cumeeira, BAY), G/Q, base rotulada/engastada, perfis placeholder |
 | 6 analysis | `estabilidade_b1b2` | 2nd order MAES: B1/B2, deslocabilidade, 80% stiffness, força nocional, amplified efforts | (reuses portico) |
 | 7 sizing | `check_nbr8800` | member check (Anexos F/G), K=1, interação, worst combo | perfis coluna/viga, fy, Lb travamento |
@@ -76,9 +76,11 @@ portico automatically. Use the orchestrator instead of calling modules ad hoc.
 - Block shear / plate limit states beyond bearing are not in `ligacoes`.
 - Rigorous Ief / Wef,y for the purlin come from catalog/software; the module
   uses a conservative fallback and flags it.
-- `secundarios_nbr8800`: the eave-strut axial needs the LONGITUDINAL wind (NBR
-  6123, α=0), not yet in `vento` — it is a parameter flagged A CONFIRMAR. The
-  U-profile J/Cw for the girt FLT are catalog inputs (method is Anexo G).
+- `secundarios_nbr8800`: the eave-strut axial now comes from the LONGITUDINAL
+  wind drag (`vento.compute_longitudinal`, Fa/side). The drag Ca is read from
+  NBR 6123 Figura 4 (a graph) → flagged A CONFIRMAR. The U-profile J/Cw for the
+  girt FLT are catalog inputs (method is Anexo G). Still pending: consume Fa in
+  the gable posts and the longitudinal bracing rods.
 
 ## Inputs the skill must have collected before running
 

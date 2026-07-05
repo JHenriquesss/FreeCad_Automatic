@@ -150,3 +150,32 @@ VENTO (ABNT NBR 6123/1988)
   [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
    razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
 ```
+
+## Adendo 2026-07-05 - VENTO LONGITUDINAL (alpha=0, oitao)
+
+Adicionado o vento na incidencia alpha=0 (atinge a empena de 10 m), que faltava
+para fechar o axial da escora de beiral e as forcas do contraventamento
+longitudinal. Funcoes: `cpe_paredes_longitudinal` (Tabela 4, alpha=0),
+`forca_arrasto` (Fa = Ca*q*Ae, item 6.3) e `compute_longitudinal`.
+
+- **Cpe (Tab.4, a/b=2):** oitao barlavento +0,70 ; sotavento -0,30 ; paredes
+  laterais (paralelas ao vento) -0,80 / -0,50. Para o MONTANTE DE OITAO.
+- **Forca de arrasto:** `Fa = Ca*q*Ae`. O METODO e exato (norma). O **Ca vem da
+  Figura 4** (grafico, baixa turbulencia) - NAO e tabela: entra como parametro
+  marcado "A CONFIRMAR (ler Figura 4)". Default 1,2.
+- **Area frontal** = empena = retangulo + triangulo (b*eave + b*(ridge-eave)/2).
+
+Resultado (ref 20x10, Ca=1,2): Ae=62,50 m2 ; Fa = 1,2*0,787*62,50 = **59,0 kN** ;
+por lado (2 paineis de contraventamento) = **29,5 kN**. Esse valor alimenta o
+Nsd da escora de beiral (secundarios_nbr8800) e, a seguir, o contraventamento.
+
+```
+VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)
+  Vk = 35,82 m/s ; q = 0,787 kN/m2
+  Area frontal (empena 10 m) = 62,50 m2
+  Cpe paredes (Tab.4, alpha=0): oitao barlavento +0,70 ; sotavento -0,30 ;
+    parede lateral A -0,80 ; B -0,50
+  Forca de arrasto Fa = Ca*q*Ae = 1,20*0,787*62,50 = 59,0 kN
+  Fa por lado (2 paineis de contraventamento) = 29,5 kN
+  [A CONFIRMAR: Ca da Figura 4; area frontal da empena; fracao de Fa por escora.]
+```

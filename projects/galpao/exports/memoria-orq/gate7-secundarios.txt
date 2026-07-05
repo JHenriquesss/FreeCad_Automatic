@@ -24,5 +24,5 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
     Mn_FLT=49,8 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=45,3 kN.m
   Cortante: Vrd=124,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,16 ; M/Mrd=0,03 ; V/Vrd=0,01
-  Interacao (N/(2Nrd) + M/Mrd) = 0,11  -> OK
+  Utilizacao: N/Nc=0,08 ; M/Mrd=0,03 ; V/Vrd=0,01
+  Interacao (N/(2Nrd) + M/Mrd) = 0,07  -> OK

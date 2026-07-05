@@ -9,9 +9,11 @@
 > por inversao da interacao 5.5.1.2 (ref 20x10: 2 bracos/portico, Lb=3,35 m). As
 > secoes secundarias (HEA160/UPE100) AGORA sao verificadas por
 > secundarios_nbr8800 (longarina U biaxial + escora I flexo-compressao); achado:
-> UPE100 exige 2 tirantes de parede (0,99), escora HEA160 0,11 OK. Ainda ABERTO:
-> modo "batch defaults" (#5), o vento LONGITUDINAL (alpha=0; axial da escora e
-> A CONFIRMAR), e o MODULO DE PONTE ROLANTE (ver
+> UPE100 exige 2 tirantes de parede (0,99), escora HEA160 OK. O vento LONGITUDINAL
+> (alpha=0) ja esta em vento_nbr6123 (Cpe da empena + arrasto Fa=Ca*q*Ae; Ca da
+> Figura 4 A CONFIRMAR); Fa=59 kN alimenta o axial da escora (-> 0,07). Ainda
+> ABERTO: consumir o Fa no MONTANTE DE OITAO e no CONTRAVENTAMENTO/tirantes; modo
+> "batch defaults" (#5); e o MODULO DE PONTE ROLANTE (ver
 > projects/galpao-ensaio/notes/backlog.md).
 
 First real execution of the build-warehouse skill after 17 refinement rounds.

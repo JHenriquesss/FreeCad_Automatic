@@ -106,5 +106,69 @@ def relatorio_pt(r):
     return "\n".join(L)
 
 
+# ============================================================================
+# VENTO LONGITUDINAL (incidencia alpha=0, atinge o OITAO / empena de 10 m)
+# Fornece: (a) Cpe das paredes na incidencia 0 (Tabela 4) para o MONTANTE DE
+# OITAO; (b) a FORCA DE ARRASTO global Fa = Ca*q*Ae (item 6.3), que os
+# contraventamentos longitudinais e as escoras de beiral resistem. Ca vem da
+# Figura 4 (grafico, vento de baixa turbulencia) - NAO e tabela: entra como
+# parametro marcado "A CONFIRMAR (ler Figura 4)". O metodo Fa=Ca*q*Ae e exato.
+# ============================================================================
+
+
+def cpe_paredes_longitudinal():
+    """NBR 6123 Tabela 4, incidencia alpha=0 (vento no oitao). a/b = 2.
+    Barlavento (empena atingida) C = +0,7 ; sotavento D = -0,3 (a/b=2) ;
+    paredes laterais (paralelas ao vento) A/B = -0,8 / -0,5."""
+    return {"oitao_barlavento": +0.70, "oitao_sotavento": -0.30,
+            "parede_lateral_A": -0.80, "parede_lateral_B": -0.50}
+
+
+def forca_arrasto(q, area_frontal, ca):
+    """Item 6.3: Fa = Ca * q * Ae (kN). Ae = area frontal (empena) projetada."""
+    return ca * q * area_frontal
+
+
+def compute_longitudinal(v0=40.0, cat="II", classe="B", s1=1.0, s3=0.95, z=6.5,
+                         b=10.0, eave=6.0, ridge=6.5, ca=1.2):
+    """Vento longitudinal (alpha=0). q reaproveitado (independe da direcao).
+    b = largura do oitao ; area frontal = retangulo + triangulo da empena.
+    ca = coeficiente de arrasto (Figura 4, baixa turbulencia) - A CONFIRMAR."""
+    b_, Fr, p, s2 = s2_factor(cat, classe, z)
+    vk = v0 * s1 * s2 * s3
+    q = 0.613 * vk ** 2 / 1000.0
+    area = b * eave + b * (ridge - eave) / 2.0     # empena: retangulo + triangulo
+    cpe = cpe_paredes_longitudinal()
+    cpi = cpi_cases()
+    net = {c: {s: round(cpe[s] - civ, 2) for s in cpe} for c, civ in cpi.items()}
+    Fa = forca_arrasto(q, area, ca)
+    return {"v0": v0, "vk": round(vk, 2), "q_kN_m2": round(q, 3), "b": b,
+            "eave": eave, "ridge": ridge, "area_frontal": round(area, 2),
+            "ca": ca, "Fa_kN": round(Fa, 1), "Fa_por_lado_kN": round(Fa / 2.0, 1),
+            "cpe": cpe, "cpi_cases": cpi, "net": net}
+
+
+def relatorio_longitudinal_pt(r):
+    L = ["VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)",
+         f"  Vk = {r['vk']:.2f} m/s ; q = {r['q_kN_m2']:.3f} kN/m2",
+         f"  Area frontal (empena {r['b']:.0f} m) = {r['area_frontal']:.2f} m2",
+         f"  Cpe paredes (Tab.4, alpha=0):"]
+    for s, v in r["cpe"].items():
+        L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
+    L.append("  Cp liquido (Cpe - Cpi) por caso de portao:")
+    for caso, d in r["net"].items():
+        L.append(f"    {caso.replace('_',' ')}: " +
+                 " ; ".join(f"{s.split('_')[-1]}={v:+.2f}" for s, v in d.items()))
+    L += [f"  Forca de arrasto Fa = Ca*q*Ae = {r['ca']:.2f}*{r['q_kN_m2']:.3f}*"
+          f"{r['area_frontal']:.2f} = {r['Fa_kN']:.1f} kN",
+          f"  Fa por lado (2 paineis de contraventamento) = {r['Fa_por_lado_kN']:.1f} kN",
+          "  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da",
+          "   empena; fracao de Fa por escora conforme o arranjo do contraventamento.]"]
+    import re
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
 if __name__ == "__main__":
     print(relatorio_pt(compute()))
+    print()
+    print(relatorio_longitudinal_pt(compute_longitudinal()))
