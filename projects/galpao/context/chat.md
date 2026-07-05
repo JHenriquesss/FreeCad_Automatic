@@ -26,9 +26,13 @@ Do not paste full transcripts. Record only durable context needed to resume work
   (thin 0.65 mm skin, area-based mass ~5 kg/m2). Roof clad ~1.0 t, walls ~1.85 t.
 - Total incl. envelope ~13.8 t (steel frame ~10.9 t + cladding ~2.9 t);
   placeholder sections, not verified.
-- Gate 4 finished: front-gable gate, one side personnel door, high window strip
-  on both side walls (in the non-braced central bays). Openings boolean-cut in
-  the cladding; opening-vs-bracing check = no conflict.
+- Gate 4 finished: front-gable gate (framed BETWEEN jamb posts, clear opening
+  3080-6920), one side personnel door (mid-bay, clear of columns, lower girt
+  interrupted with a lintel), high window strip on both side walls (central
+  non-braced bays; columns act as mullions).
+- Fixed a real bug the user caught: structure was inside the openings. Added a
+  structure-in-opening check (gate/door must be clear of ALL structure, not just
+  bracing). Now: clash 0, opening-vs-bracing 0, structure-in-openings 0.
 - Gates done: 0, 1, 2, 3, 4; capability 8 (real profiles, placeholder sizes); 9
   partial (3D + takeoff, no DXF/PDF/memorial). Gates 5-7 pending (6-7 need
   engineer).

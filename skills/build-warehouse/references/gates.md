@@ -184,10 +184,18 @@ Ask:
   suggests the summed height of the two side inlet openings be about 1.5x the
   width of the lanternim outlet. Suggest this proportion when sizing openings.
 
-Clash detection (required): check every movable opening against the bays chosen
-for vertical X-bracing. If a gate/door/window lands on a braced bay, alert the
-user and propose either moving the bracing to another bay or using a local rigid
-(moment) frame instead. Do not silently overlap an opening and an X-brace.
+Clash detection (required), two checks:
+
+1. Opening vs bracing: check every movable opening against the bays chosen for
+   vertical X-bracing. If a gate/door/window lands on a braced bay, alert and
+   propose moving the bracing or using a local rigid (moment) frame.
+2. Opening vs ALL structure (walk/drive-through openings): a gate or door must be
+   CLEAR of every structural member - columns, gable posts, girts, purlins - not
+   just bracing. Test the opening volume against all structure and report any
+   intrusion. Resolve by: framing the gate BETWEEN jamb posts (clear opening =
+   between the post inner faces, not through them); placing doors mid-bay clear
+   of columns; and interrupting any girt that crosses the opening with a lintel
+   (header) over it. (Windows may keep columns behind them as mullions.)
 
 Produces: opening cut-outs and frames, with bracing conflicts resolved. Exit:
 user confirms openings.

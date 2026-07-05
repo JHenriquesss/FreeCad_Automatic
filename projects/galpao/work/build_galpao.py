@@ -229,16 +229,27 @@ def build(doc):
                  f"PURLIN_EAVE_{side}", roll=rl)
 
     # Girts bear on the OUTER face of the columns: offset outboard in Y.
+    # The lower-left girt is interrupted over the personnel door with a lintel.
     GOFF = 130.0
+    DOOR_X = (7300.0, 8200.0)
     for lvl, z in enumerate((2000.0, 4000.0), start=1):
-        u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE100, f"GIRT_L_{lvl:02d}", roll=90)
+        if lvl == 1:
+            u_member(doc, (0, -GOFF, z), (DOOR_X[0], -GOFF, z), UPE100, "GIRT_L_01a", roll=90)
+            u_member(doc, (DOOR_X[1], -GOFF, z), (LENGTH, -GOFF, z), UPE100, "GIRT_L_01b", roll=90)
+            u_member(doc, (DOOR_X[0], -GOFF, 2250.0), (DOOR_X[1], -GOFF, 2250.0),
+                     UPE100, "LINTEL_DOOR_L", roll=90)
+        else:
+            u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE100, f"GIRT_L_{lvl:02d}", roll=90)
         u_member(doc, (0, SPAN + GOFF, z), (LENGTH, SPAN + GOFF, z), UPE100, f"GIRT_R_{lvl:02d}", roll=90)
 
-    # Gable-end posts (oitao) on end frames
+    # Gable-end posts (oitao) on end frames. FRONT gable carries the gate, so its
+    # posts sit at the gate jambs (they frame the opening); BACK gable posts at
+    # the span thirds.
+    GATE_Y = (3000.0, 7000.0)
     for i, x in ((1, axes[0]), (len(axes), axes[-1])):
         lbl = "FRONT" if x == 0 else "BACK"
-        for p, yg in enumerate((SPAN / 3.0, 2 * SPAN / 3.0), start=1):
-            # stop just below the rafter underside (bearing), not through it
+        post_ys = GATE_Y if lbl == "FRONT" else (SPAN / 3.0, 2 * SPAN / 3.0)
+        for p, yg in enumerate(post_ys, start=1):
             i_member(doc, (x, yg, Z0), (x, yg, rafter_z(yg) - 95), HEA160,
                      f"GABLE_{lbl}_POST_{p:02d}")
 
@@ -302,8 +313,8 @@ def build(doc):
     def _in_braced(x0, x1):
         return any(not (x1 <= bx0 or x0 >= bx1) for (bx0, bx1) in braced_x)
 
-    # Personnel door on left wall, central (clear of braced end bays)
-    door_x = (9550.0, 10450.0)
+    # Personnel door on left wall, mid-bay (clear of columns at 5000/10000)
+    door_x = DOOR_X  # (7300, 8200)
     door = ((door_x, (-yw - 60, -yw + 60), (Z0, 2130.0)),)
     # High window strip in the non-braced bays (2 and 3) on both walls
     win_x = (BAY, LENGTH - BAY)  # 5000..15000
@@ -316,23 +327,56 @@ def build(doc):
                 (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL, "CLAD_WALL_R",
           openings=list(win_r))
 
-    # Main gate on the FRONT gable (X = -yw); gables have no wall bracing.
-    gate_y = (3000.0, 7000.0)
-    gate = (((-yw - 300, -yw + 300), gate_y, (Z0, 4530.0)),)
+    # Main gate on the FRONT gable, clear opening BETWEEN the jamb posts (at
+    # GATE_Y 3000/7000), so no post intrudes into the doorway.
+    GATE_CLEAR = (GATE_Y[0] + 80.0, GATE_Y[1] - 80.0)   # 3080..6920
+    gate = (((-yw - 300, -yw + 300), GATE_CLEAR, (Z0, 4530.0)),)
     for xc, lbl, ops in ((-yw, "FRONT", list(gate)), (LENGTH + yw, "BACK", [])):
         panel(doc, [(xc, 0, Z0), (xc, SPAN, Z0), (xc, SPAN, EAVE_H),
                     (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL, f"CLAD_GABLE_{lbl}",
               openings=ops)
 
     # Opening-vs-bracing planning check (skill rule): side-wall openings only.
-    global OPENING_CONFLICTS
+    global OPENING_CONFLICTS, WALK_OPENINGS
     OPENING_CONFLICTS = []
     for label, xr in (("door", door_x), ("windows", win_x)):
         if _in_braced(xr[0], xr[1]):
             OPENING_CONFLICTS.append(label)
 
+    # Walk/drive-through openings (gate, door): must be CLEAR of any structure.
+    # Store as (label, (x0,x1,y0,y1,z0,z1)) for the structure-in-opening check.
+    WALK_OPENINGS = [
+        ("gate_front", (-yw - 200, -yw + 200, GATE_CLEAR[0], GATE_CLEAR[1], Z0, 4530.0)),
+        ("door_left", (door_x[0], door_x[1], -yw - 200, -yw + 200, Z0, 2130.0)),
+    ]
+
     doc.recompute()
     return len(doc.Objects)
+
+
+STRUCT_PREFIX = ("FRAME_", "GABLE_", "GIRT_", "EAVE", "BAY_", "PURLIN")
+
+
+def structure_in_openings(doc, min_vol=200.0):
+    """Skill rule: a walk/drive-through opening must be clear of structure. Report
+    any structural member whose solid enters a gate/door opening volume."""
+    hits = []
+    for label, (x0, x1, y0, y1, z0, z1) in globals().get("WALK_OPENINGS", []):
+        box = Part.makeBox(x1 - x0, y1 - y0, z1 - z0)
+        box.translate(App.Vector(x0, y0, z0))
+        for o in doc.Objects:
+            if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
+                continue
+            if not any(o.Name.startswith(p) for p in STRUCT_PREFIX):
+                continue
+            if o.Name.startswith("LINTEL"):
+                continue
+            try:
+                if box.common(o.Shape).Volume > min_vol:
+                    hits.append((label, o.Name))
+            except Exception:
+                pass
+    return hits
 
 
 def _shares_node(na, nb, tol=250.0):
@@ -513,6 +557,7 @@ def run():
     doc = App.newDocument(name)
     count = build(doc)
     clashes = clash_check(doc)
+    struct_in_open = structure_in_openings(doc)
     tk = takeoff(doc)
     fcstd, step = export(doc)
     return {"objects": count, "frames": len(frame_axes()),
@@ -520,6 +565,7 @@ def run():
             "col_steel_length_mm": EAVE_H - Z0,
             "clash_count": len(clashes),
             "opening_bracing_conflicts": globals().get("OPENING_CONFLICTS", []),
+            "structure_in_openings": struct_in_open,
             "total_mass_kg": tk["total_mass_kg"], "members": tk["members"],
             "by_group": tk["by_group"], "takeoff_csv": tk["csv"],
             "fcstd": fcstd, "step": step}
