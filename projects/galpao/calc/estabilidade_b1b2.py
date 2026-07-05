@@ -1,0 +1,210 @@
+# ============================================================================
+# estabilidade_b1b2.py - O QUE ESTE SCRIPT FAZ / CALCULA
+# Analise de 2a ordem APROXIMADA pelo Metodo da Amplificacao dos Esforcos
+# Solicitantes (MAES), ABNT NBR 8800:2008, Anexo D. Para o portico transversal
+# de base rotulada (sway frame), amplifica os esforcos de 1a ordem:
+#   Msd = B1*Mnt + B2*Mlt   ;   Nsd = Nnt + B2*Nlt
+#   B1 = Cm/(1 - Nsd1/Ne) >= 1   (efeito local P-delta, por barra)
+#   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH))   (efeito global P-Delta, por andar)
+# Decompoe cada combinacao ELU em:
+#   nt (no translation): estrutura com contencoes horizontais FICTICIAS nos
+#       beirais -> Mnt, Nnt, e a reacao das contencoes (= forca lateral).
+#   lt (lateral translation): mesma estrutura, sem as ficticias, carregada com
+#       as reacoes ficticias INVERTIDAS -> Mlt, Nlt e o deslocamento dh.
+# Classifica a deslocabilidade por B2 (<=1,1 pequena ; <=1,4 media ; >1,4 grande).
+# Rs = 0,85 (portico estabilizado pela rigidez a flexao e ligacoes rigidas).
+# Saida: esforcos AMPLIFICADOS (Msd, Nsd, Vsd) para alimentar o check_nbr8800.
+# NAO verifica perfil (check_nbr8800) nem gera as pressoes de vento (vento_nbr6123).
+# Reusa frame2d (com reactions()) e a geometria/cargas do galpao_portico.
+# ============================================================================
+"""2a ordem aproximada (MAES) conforme NBR 8800 Anexo D. Saidas em portugues.
+Calcula apenas; pendente revisao do engenheiro responsavel. Unidades: m, kN."""
+
+from __future__ import annotations
+
+import math
+import re
+
+import numpy as np
+
+import frame2d as f2d
+import galpao_portico as gp
+import vento_nbr6123 as vento
+
+H_STORY = gp.EAVE            # altura do andar (pe-direito ate o beiral)
+RS = 0.85                    # Anexo D.2.3: portico de nós rígidos
+E = gp.E
+
+# Combinacoes ELU (identicas as do galpao_portico; Q favoravel = 0 no uplift).
+COMBOS = {
+    "C1_gravidade":   {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
+    "C2_uplift":      {"G": 1.00, "W1": 1.40},
+    "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
+    "C3_vento_Gfav":  {"G": 1.00, "W2": 1.40},
+}
+
+# Secoes: (A, I) e comprimento real para o Ne (flambagem no plano do portico).
+SEC = {"coluna": {"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE},
+       "viga":   {"A": gp.A_RAF, "I": gp.I_RAF,
+                  "L": math.hypot(gp.SPAN / 2, gp.RIDGE - gp.EAVE)}}
+
+
+# ---- aplicacao das cargas FATORADAS de um caso sobre um frame --------------
+def _apply_case(fr, ix, cs, fac):
+    if cs == "G":
+        wy = -(gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * fac
+        for e in ix["rafL"] + ix["rafR"]:
+            fr.add_member_udl(e, wy=wy)
+    elif cs == "Q":
+        wy = -(gp.Q_ROOF * gp.BAY * gp.COS) * fac
+        for e in ix["rafL"] + ix["rafR"]:
+            fr.add_member_udl(e, wy=wy)
+    elif cs in ("W1", "W2"):
+        key = "portao_barlavento" if cs == "W1" else "portao_sotavento"
+        r = vento.compute()
+        q = r["q_kN_m2"]
+        net = r["net"][key]
+        for e in ix["colL"]:
+            fr.add_member_udl(e, wx=+net["parede_barlavento"] * q * gp.BAY * fac)
+        for e in ix["colR"]:
+            fr.add_member_udl(e, wx=-net["parede_sotavento"] * q * gp.BAY * fac)
+        for e in ix["rafL"]:
+            p = net["cobertura_barlavento"] * q * gp.BAY * fac
+            fr.add_member_udl(e, wx=-p * (-gp.SIN), wy=-p * gp.COS)
+        for e in ix["rafR"]:
+            p = net["cobertura_sotavento"] * q * gp.BAY * fac
+            fr.add_member_udl(e, wx=-p * (gp.SIN), wy=-p * gp.COS)
+
+
+def _apply_combo(fr, ix, combo):
+    for cs, fac in combo.items():
+        _apply_case(fr, ix, cs, fac)
+
+
+# ---- combinacao nt/lt de um grupo de sub-barras (na MESMA secao) -----------
+# Convencao frame2d: mf[e] = [N_i, V_i, M_i, N_j, V_j, M_j] = forcas que a barra
+# exerce nos nos. Esforco normal INTERNO (tracao +) = -N_i = +N_j (compressao
+# negativa). Amplificacao (Anexo D.2.1): Msd=B1*Mnt+B2*Mlt ; Nsd=Nnt+B2*Nlt ;
+# Vsd=Vnt+Vlt (D.2.4, cortante nao amplificado). B1/B2 escalares; combinam-se
+# os esforcos de nt e lt na mesma secao (mesmo no), depois toma-se o maximo.
+def _combina_grupo(mf_nt, mf_lt, elems, B2, sec):
+    # 1) Nsd1 (1a ordem) = normal interno MAIS COMPRIMIDO (mais negativo) do grupo
+    Nsd1 = 0.0
+    for e in elems:
+        for Nint in (-(mf_nt[e][0] + mf_lt[e][0]),  # i-end (tracao +)
+                     (mf_nt[e][3] + mf_lt[e][3])):   # j-end
+            if Nint < Nsd1:
+                Nsd1 = Nint
+    Ne = math.pi ** 2 * E * sec["I"] / sec["L"] ** 2
+    Cm = 1.0                     # ha cargas transversais na barra (D.2.2)
+    B1 = max(Cm / (1.0 - abs(Nsd1) / Ne), 1.0) if Nsd1 < 0 else 1.0
+    # 2) combina na mesma secao (i e j de cada sub-barra) e toma o maximo
+    Msd = Nsd = Vsd = Mnt = Mlt = 0.0
+    for e in elems:
+        for im, iN, iV, sgn in ((2, 0, 1, -1.0), (5, 3, 4, +1.0)):
+            m = B1 * mf_nt[e][im] + B2 * mf_lt[e][im]
+            n = sgn * (mf_nt[e][iN] + B2 * mf_lt[e][iN])   # interno (tracao+)
+            v = mf_nt[e][iV] + mf_lt[e][iV]
+            Msd = max(Msd, abs(m))
+            Nsd = max(Nsd, abs(n))
+            Vsd = max(Vsd, abs(v))
+            Mnt = max(Mnt, abs(mf_nt[e][im]))
+            Mlt = max(Mlt, abs(mf_lt[e][im]))
+    return {"B1": B1, "Ne": Ne, "Nsd1": abs(Nsd1), "Mnt": Mnt, "Mlt": Mlt,
+            "Msd": Msd, "Nsd": Nsd, "Vsd": Vsd}
+
+
+def _analisa_combo(nome, combo):
+    """Decomposicao nt/lt e coeficientes B1/B2 para uma combinacao."""
+    # ---- estrutura nt: contencao horizontal FICTICIA nos dois beirais ------
+    fr, ix = gp._frame()
+    fr.add_support(ix["nEaveL"], u=True)     # contencao ficticia (so horizontal)
+    fr.add_support(ix["nEaveR"], u=True)
+    _apply_combo(fr, ix, combo)
+    _, mf_nt = fr.solve()
+    R_nt = fr.reactions()
+    # reacao das contencoes ficticias (horizontal nos beirais)
+    Hfict_L = R_nt[3 * ix["nEaveL"]]
+    Hfict_R = R_nt[3 * ix["nEaveR"]]
+    # carga gravitacional total do andar = reacoes verticais nas bases
+    sumN = abs(R_nt[3 * ix["nBaseL"] + 1] + R_nt[3 * ix["nBaseR"] + 1]) \
+        if "nBaseL" in ix else None
+
+    # ---- estrutura lt: sem ficticias, carregada com -Hfict nos beirais -----
+    fr2, ix2 = gp._frame()
+    fr2.add_nodal_load(ix2["nEaveL"], Fx=-Hfict_L)
+    fr2.add_nodal_load(ix2["nEaveR"], Fx=-Hfict_R)
+    d_lt, mf_lt = fr2.solve()
+    sumH = abs(Hfict_L + Hfict_R)                  # forca lateral total (lt)
+    dh = max(abs(d_lt[3 * ix2["nEaveL"]]), abs(d_lt[3 * ix2["nEaveR"]]))
+
+    # ---- B2 (global P-Delta), Anexo D.2.3 ----------------------------------
+    if sumH < 1e-9:            # combinacao sem forca lateral liquida
+        B2 = 1.0
+    else:
+        B2 = 1.0 / (1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH))
+
+    # ---- esforcos amplificados por grupo (coluna / viga) -------------------
+    out = {"nome": nome, "B2": B2, "dh": dh, "sumN": sumN, "sumH": sumH}
+    # Varre os dois lados juntos: B1 pega a maior compressao e Msd e a envoltoria.
+    grupos = {"coluna": ix["colL"] + ix["colR"],
+              "viga":   ix["rafL"] + ix["rafR"]}
+    for g, elems in grupos.items():
+        out[g] = _combina_grupo(mf_nt, mf_lt, elems, B2, SEC[g])
+    return out
+
+
+def _classe(B2max):
+    if B2max <= 1.1:
+        return "pequena deslocabilidade (2a ordem dispensavel; ver 4.9.7.1.4)"
+    if B2max <= 1.4:
+        return "media deslocabilidade (usar B1/B2 com rigidez reduzida a 80%)"
+    return "GRANDE deslocabilidade (exige analise rigorosa P-Delta; MAES so a criterio do responsavel)"
+
+
+def analyse():
+    res = [_analisa_combo(n, c) for n, c in COMBOS.items()]
+    B2max = max(r["B2"] for r in res)
+    return {"combos": res, "B2max": B2max, "classe": _classe(B2max)}
+
+
+def memoria_pt(a):
+    L = ["=" * 70,
+         "2a ORDEM - METODO DA AMPLIFICACAO (MAES) - NBR 8800 Anexo D",
+         "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 70, "",
+         "1. METODO",
+         "   Msd = B1*Mnt + B2*Mlt ; Nsd = Nnt + B2*Nlt (D.2.1)",
+         "   B1 = Cm/(1 - Nsd1/Ne) >= 1 ; Cm = 1,0 (ha cargas transversais na barra)",
+         "   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH)) ; Rs = 0,85 (portico de nós rígidos)",
+         f"   H (pe-direito) = {H_STORY:.1f} m",
+         "   Decomposicao: nt = beirais travados (contencao ficticia) ;",
+         "                 lt = reacoes das ficticias aplicadas ao contrario.", "",
+         "2. COEFICIENTES POR COMBINACAO"]
+    for r in a["combos"]:
+        L += [f"   {r['nome']}: B2 = {r['B2']:.3f}  "
+              f"(dh={r['dh']*1000:.1f} mm ; sumN={r['sumN']:.1f} kN ; "
+              f"sumH={r['sumH']:.1f} kN)"]
+        for g in ("coluna", "viga"):
+            d = r[g]
+            L += [f"     {g}: B1={d['B1']:.3f} (Ne={d['Ne']:.0f} kN ; "
+                  f"Nsd1={d['Nsd1']:.1f} kN)",
+                  f"        1a ordem Mnt={d['Mnt']:.1f} ; Mlt={d['Mlt']:.1f} kN.m  ->  "
+                  f"2a ordem Msd={d['Msd']:.1f} kN.m ; Nsd={d['Nsd']:.1f} ; Vsd={d['Vsd']:.1f}"]
+    L += ["", "3. DESLOCABILIDADE",
+          f"   B2,max = {a['B2max']:.3f}  ->  {a['classe']}", "",
+          "4. ESFORCOS AMPLIFICADOS (para o check_nbr8800)"]
+    # envoltoria: maior Msd por grupo entre todas as combinacoes
+    for g in ("coluna", "viga"):
+        best = max(a["combos"], key=lambda r: r[g]["Msd"])
+        d = best[g]
+        L += [f"   {g.upper()} (governa {best['nome']}): "
+              f"Msd={d['Msd']:.1f} kN.m ; Nsd={d['Nsd']:.1f} kN ; Vsd={d['Vsd']:.1f} kN"]
+    L += ["", "5. OBSERVACOES",
+          "   - Se GRANDE deslocabilidade: rigor pede P-Delta real; MAES e limite.",
+          "   - Media deslocabilidade: recalcular B1/B2 com EI e EA reduzidos a 80%.",
+          "   - Alimentar check_nbr8800 com os Msd/Nsd/Vsd amplificados acima."]
+    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+
+
+if __name__ == "__main__":
+    print(memoria_pt(analyse()))

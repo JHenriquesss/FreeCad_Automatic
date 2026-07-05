@@ -69,9 +69,13 @@ Ainda a confirmar pelo engenheiro:
 
 ## E. Analise - premissa
 
-- PERGUNTA E1: analise e de 1a ordem, base rotulada. Confirmar necessidade de
-  2a ordem / classificacao de deslocabilidade (o deslocamento deu 179 mm >>
-  qualquer limite, entao a rigidez/base tera que mudar de qualquer forma).
+- RESOLVIDO E1 (2a ordem): criado o modulo estabilidade_b1b2.py (MAES, NBR 8800
+  Anexo D). Decomposicao nt/lt com contencoes ficticias nos beirais. B2,max =
+  1,177 (C2 uplift) -> MEDIA deslocabilidade (1,1 < B2 <= 1,4). Esforcos
+  amplificados: coluna Msd=124,1 / Nsd=51,5 ; viga Msd=123,9 / Nsd=4,1 kN.
+  B1 ~ 1,0-1,03 (barras pouco esbeltas no plano). Nota: em MEDIA deslocabilidade
+  a norma pede recalcular B1/B2 com EI e EA reduzidos a 80% (a fazer). O check
+  de perfil deve passar a usar K=1 (4.9.6.2) com estes esforcos amplificados.
 - RESOLVIDO E2 (limite de flecha lateral ELS): H/300 e para porticos que
   suportam ALVENARIA. Para galpao com TELHA METALICA (sem elementos frageis)
   admite-se H/200 ou H/150 (Bellei; NBR 8800 Anexo C, nota). O script agora

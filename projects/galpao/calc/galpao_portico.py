@@ -70,7 +70,8 @@ def _frame():
     fr.add_support(nBaseL, u=True, v=True)   # rotulada
     fr.add_support(nBaseR, u=True, v=True)
     ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
-              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR)
+              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
+              nBaseL=nBaseL, nBaseR=nBaseR)
     return fr, ix
 
 
