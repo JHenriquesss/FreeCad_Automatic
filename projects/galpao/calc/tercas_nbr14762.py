@@ -15,12 +15,14 @@
 #     reduz o vao do eixo fraco. Interacao Msx/Mrdx + Msy/Mrdy.
 #   - Eixo fraco: Wef,y (reducao por flambagem local da mesa comprimida) - NAO
 #     usa o modulo bruto (que seria contra a seguranca sob sucao). APROXIMADO.
-#   - Flecha (ELS): L/180 (gravidade) e L/120 (vento de sucao), com INERCIA
-#     EFETIVA Ief=Ix*(Wef/W) (aprox. conservadora de 10.1 - nunca Ix bruto).
-#   - Modelo estatico BIAPOIADO por padrao (M=qL2/8, V=qL/2, flecha=5qL4/384EI),
-#     conservador para terca continua; os coeficientes sao PARAMETRICOS
-#     (coef_momento/cortante/flecha) para refletir continuidade sem inventar.
-# gamma_g FAVORAVEL = 1,00 (NBR 8800 Tabela 1, nota a; nao 0,9 da NBR 8681).
+#   - Flecha (ELS): L/180 (gravidade) e L/120 (vento de sucao). Usa Ief do
+#     catalogo (perfil["Ief"], rigoroso) OU o fallback conservador Ix*(Wef/W)
+#     (subestima a rigidez -> flecha maior -> a favor da seguranca).
+#   - Modelo estatico: a flag "continua" AUTO-seleciona os coeficientes -
+#     BIAPOIADO (1/8, 1/2, 5/384) ou CONTINUO >=3 vaos iguais (1/10, 0,6,
+#     2,6/384); ambos ainda sobrescrevveis por coef_momento/cortante/flecha.
+# gamma_g FAVORAVEL: adotado 0,90 (conservador p/ uplift, NBR 8681 / criterio do
+#   RT). A NBR 8800 Tabela 1 permite 1,00; configuravel via cfg["gamma"].
 # Wef pelo MSE usa Wx (catalogo) + kl (Tabela 13, das dimensoes) -> baixo erro.
 # ATENCAO: propriedades do perfil = do catalogo do fornecedor (A CONFIRMAR).
 # Saidas em portugues. Calcula apenas; pendente revisao. Unidades SI: m, kN.
@@ -196,7 +198,11 @@ def verifica_terca(perfil, cfg):
     Mrd_succ = _min_dist(Mrd_succ_local)
 
     # ---- eixo fraco: Wef,y (flambagem local da mesa; NAO usa bruto) --------
-    Wefy, rho_y, lp_y = Wef_y_mesa(bf, t, Wy, fy)
+    if perfil.get("Wefy"):                     # rigoroso, do catalogo/software
+        Wefy = perfil["Wefy"]
+        rho_y = Wefy / Wy
+    else:                                      # aproximado (rho da mesa)
+        Wefy, rho_y, _ = Wef_y_mesa(bf, t, Wy, fy)
     Mrdy = Wefy * fy / GA
 
     Vrd = cortante_Vrd(h, t_m, fy)
@@ -207,24 +213,38 @@ def verifica_terca(perfil, cfg):
     trib = cfg["larg_influencia"]
     ct, st = math.cos(theta), math.sin(theta)
     Gk, Qk, Wk = cfg.get("G", 0.0), cfg.get("Q", 0.0), cfg.get("W", 0.0)
-    # gamma_g FAVORAVEL = 1,00 (NBR 8800 Tabela 1, nota a).
-    g = cfg.get("gamma", {"G": 1.25, "Q": 1.50, "W": 1.40, "G_fav": 1.00})
-    # coeficientes do modelo estatico (default biapoiado; parametricos para
-    # refletir continuidade - o engenheiro fornece se modelar viga continua).
-    cM = cfg.get("coef_momento", 1.0 / 8.0)
-    cV = cfg.get("coef_cortante", 1.0 / 2.0)
-    cD = cfg.get("coef_flecha", 5.0 / 384.0)
-    # inercia efetiva (aprox. conservadora de 10.1): reduz Ix pela relacao Wef/W
-    Ief = Ix * (Wef / W)
-    aviso_y = ("Mrd,y por metodo APROXIMADO (reducao rho da mesa sobre Wy; "
-               "rigor pede recalcular o centroide efetivo no eixo y).")
+    # gamma_g FAVORAVEL = 0,90 (conservador para uplift; NBR 8681 / criterio do
+    # RT). NBR 8800 Tabela 1 permite 1,00 - sobrescrever via cfg["gamma"].
+    g = cfg.get("gamma", {"G": 1.25, "Q": 1.50, "W": 1.40, "G_fav": 0.90})
+    # modelo estatico: a flag "continua" AUTO-seleciona os coeficientes.
+    continua = cfg.get("continua", False)
+    if continua:                              # viga continua (>=3 vaos iguais)
+        cM = cfg.get("coef_momento", 1.0 / 10.0)
+        cV = cfg.get("coef_cortante", 0.60)
+        cD = cfg.get("coef_flecha", 2.6 / 384.0)
+        aviso_estatico = ("modelo CONTINUO (>=3 vaos iguais: M=qL2/10, V=0,6qL, "
+                          "flecha=2,6qL4/384EI). Para 2 vaos use continua=False.")
+    else:                                     # biapoiada (isostatica)
+        cM = cfg.get("coef_momento", 1.0 / 8.0)
+        cV = cfg.get("coef_cortante", 1.0 / 2.0)
+        cD = cfg.get("coef_flecha", 5.0 / 384.0)
+        aviso_estatico = "modelo BIAPOIADO (M=qL2/8, V=qL/2, flecha=5qL4/384EI)."
+    # inercia efetiva (ELS): catalogo (rigoroso) OU fallback conservador Ix*Wef/W
+    Ief = perfil.get("Ief")
+    Ief_fonte = "catalogo/servico" if Ief else "aprox. Ix*(Wef/W)"
+    if not Ief:
+        Ief = Ix * (Wef / W)
+    aviso_y = ("Mrd,y por metodo APROXIMADO (rho da mesa sobre Wy, k=4 uniforme; "
+               "rigor pede a flexao com gradiente de tensoes e centroide efetivo "
+               "no eixo y). Sobrescrever com perfil['Wefy'] se disponivel.")
 
     res = {"perfil": perfil.get("nome", "Ue"), "kl": kl, "Wef": Wef, "Ml": Ml,
            "lp": lp, "Mrd_local": Mrd_local, "Mrd_grav": Mrd_grav,
            "Mrd_succ": Mrd_succ, "R": R, "Mrdy": Mrdy, "Wefy": Wefy,
            "rho_y": rho_y, "Vrd": Vrd, "dispensa_dist": disp, "lim_tab14": lim14,
            "Mrd_dist": Mrd_dist, "dist_inconclusivo": dist_inconclusivo,
-           "Ief": Ief, "aviso_eixo_fraco": aviso_y, "casos": {}, "els": {}}
+           "Ief": Ief, "Ief_fonte": Ief_fonte, "aviso_eixo_fraco": aviso_y,
+           "aviso_estatico": aviso_estatico, "casos": {}, "els": {}}
 
     # ---- ELU: combos (vento NORMAL ao telhado -> so qx ; gravidade decompoe)
     # carga por metro de terca (kN/m): gravidade vertical ; vento normal
@@ -281,7 +301,8 @@ def relatorio_pt(res, cfg):
          f"; Mrd,y = {res['Mrdy']:.2f} kN.m (NAO usa Wy bruto)",
          f"  [AVISO] {res['aviso_eixo_fraco']}",
          f"  Vrd = {res['Vrd']:.2f} kN ; Ief (ELS) = {res['Ief']*1e8:.0f} cm4 "
-         f"= Ix*(Wef/W)"]
+         f"({res['Ief_fonte']})",
+         f"  Modelo estatico: {res['aviso_estatico']}"]
     if res["dispensa_dist"]:
         L.append(f"  Distorcional: DISPENSADA (D/bw >= {res['lim_tab14']:.3f}, Tab.14)")
     elif res["Mrd_dist"]:
