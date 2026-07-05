@@ -1,10 +1,11 @@
 # FreeCAD Automatic Wiki
 
 Portable Windows repo for installing FreeCAD Robust MCP, configuring AI clients,
-and carrying a steel-warehouse automation workspace. Current focus:
-FreeCAD MCP reliability, reusable CAD/standards library, isolated project
-workspaces, first `projects/galpao` fixture, and `build-warehouse` skill for
-galpao metalico workflows.
+and carrying a steel-warehouse automation workspace. Current focus (2026-07-05):
+a validated PARAMETRIC structural-calc toolkit (11 modules + orchestrator, all
+senior-reviewed) wired into the `build-warehouse` skill, which now COMPUTES
+(loads, analysis, 2nd order, member sizing) and emits PT memoriais for engineer
+review. Full gate-loop dry-run (Gates 0-9) validated from scratch.
 
 ## Contents
 
@@ -24,7 +25,15 @@ galpao metalico workflows.
 
 ## Current Head
 
-- Last known commit: `1b33707 fix(freecad): defer GUI bridge startup`.
+- Last known commit: `1843ccc docs(skill): audit fixes` (2026-07-05).
+- Galpao calc toolkit COMPLETE: 11 senior-reviewed modules in
+  `projects/galpao/calc/` + orchestrator `rodar_galpao.py`; geometry parametric
+  via `configurar()`. See [[01-architecture#calc-toolkit-architecture]].
+- `build-warehouse` skill now runs the toolkit at Gates 5-8 and emits PT
+  memoriais (engineer reviews). Full from-scratch dry-run (`projects/galpao-ensaio`)
+  validated the loop; a heavy-crane pick correctly exposed the missing crane
+  module (backlog). See [[06-open-threads#calc-toolkit-backlog-2026-07-05]].
+- Requires numpy < 2 (pycufsm/`distorcional_fsm`); rest is numpy-agnostic.
 - FreeCAD MCP verified working end-to-end on 2026-07-04: after FreeCAD restart,
   health check and XML-RPC `execute` (Part::Box) both succeed with `GuiUp=1`, no
   hang.
@@ -36,4 +45,5 @@ galpao metalico workflows.
 
 ---
 
-last-consolidated: 2026-07-04, sessions: 2
+last-consolidated: 2026-07-05, sessions: 2 (+ ~40 commits 07-04..07-05 not
+session-logged; consolidated from git log + direct session state)
