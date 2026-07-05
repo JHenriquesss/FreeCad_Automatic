@@ -19,11 +19,18 @@ travas de ambiente e mostra o que esperar.
 
 ## 1. Iniciar a skill
 
-- Invoque a skill build-warehouse. Ela roda em **10 gates**, um por vez, no
-  padrao "Ask, Do Not Invent" (toda decisao critica vira pergunta com uma
-  recomendacao justificada).
+- A build-warehouse **nao e um slash-command**: e uma skill de repositorio.
+  Aponte o agente para `skills/build-warehouse/SKILL.md` e peca para segui-la
+  ("rode a skill build-warehouse"). O agente le SKILL.md + `references/gates.md`
+  + `references/calc-modules.md` e conduz o fluxo.
+- Ela roda em **10 gates**, um por vez, "Ask, Do Not Invent" (toda decisao
+  critica vira pergunta com recomendacao justificada).
 - **Comece num slug NOVO**: `projects/<slug-novo>/` (nao reaproveite `galpao/`,
-  que fica como referencia validada). A skill cria a pasta e o `AGENT_SCOPE.md`.
+  que fica como referencia validada). Crie a pasta + `AGENT_SCOPE.md`.
+- **Motor de calculo:** use o orquestrador `calc/rodar_galpao.py` (nao chame os
+  modulos avulsos). Monte o dict de params com as respostas dos gates
+  (geometria, base, perfis, cargas) e chame `rodar(params, out_dir)`. A geometria
+  e parametrica via `gp.configurar(...)` / `build_galpao.configurar(...)`.
 
 ## 2. Sequencia dos gates (o que cada um pergunta / roda)
 
