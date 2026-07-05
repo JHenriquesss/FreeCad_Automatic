@@ -92,7 +92,10 @@ def _mrd_eixo_forte_U(sec, fy, Lb, Cb=1.0):
 
 
 def _mrd_eixo_fraco(sec, fy):
-    """Mrd,y = min(Zy ; 1,5*Wy)*fy / ga1 (5.4.2, sem FLT no eixo fraco)."""
+    """Mrd,y = min(Zy ; 1,5*Wy)*fy / ga1 (5.4.2, sem FLT no eixo fraco).
+    PREMISSA (parecer senior 3.1): a flexao no eixo Y (peso do tapamento)
+    TRACIONA as pontas das abas e comprime a alma -> sem FLM critica nas abas.
+    Se houver inversao que comprima as pontas das abas, incluir FLM (bf/tf)."""
     return min(sec["Zy"], 1.5 * sec["Wy"]) * fy / GA1
 
 
@@ -103,6 +106,11 @@ def verifica_longarina(sec, fy, cfg):
     liquida na parede, do modulo vento), trib (m, altura de influencia da
     longarina), g_tapamento (kN/m2, peso do fechamento), n_tirantes (linhas de
     tirante de parede), continua (bool), gamma (dict opcional).
+
+    PREMISSA (parecer senior 3.2): o centro de cisalhamento do U fica FORA da
+    secao (atras da alma). O vento na alma induz TORCAO. A interacao biaxial so
+    e valida se o tapamento (telha parafusada) TRAVAR O GIRO da secao; senao o U
+    fica subdimensionado. Confirmar a fixacao do tapamento (gate).
     """
     vao = cfg["vao"]; g = cfg.get("gamma", {})
     gW = g.get("W", 1.40); gG = g.get("G", 1.25)   # ELU (Tabela 1)
@@ -171,6 +179,9 @@ def relatorio_pt(r):
                   f"  Mrd,y (min(Zy;1,5Wy)*fy) .... {r['Mrdy']:.2f} kN.m",
                   f"  Interacao Mx/Mrdx+My/Mrdy ... {r['u_x']:.2f}+{r['u_y']:.2f}="
                   f"{r['inter']:.2f} -> {'OK' if r['OK'] else 'NAO PASSA'}"]
+        L += ["  PREMISSA: interacao biaxial valida so se o tapamento (telha",
+              "  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da",
+              "  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM)."]
         L.append("=" * 68)
         out = "\n".join(L)
     else:

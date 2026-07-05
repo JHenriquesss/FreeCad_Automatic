@@ -3,7 +3,16 @@
 Arquivo: `projects/galpao/calc/secundarios_nbr8800.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 - Anexo G (flexao), 5.4.2 (eixo fraco), 5.5.1 (interacao
-biaxial), 5.5.1.2 (flexo-compressao). Pendente revisao do eng. senior.
+biaxial), 5.5.1.2 (flexo-compressao).
+Status: **APROVADO** pelo eng. senior (2026-07-05), condicionado a ciencia de
+duas PREMISSAS (documentadas no codigo e no memorial):
+- (3.1) eixo fraco sem FLM: o peso do tapamento traciona as abas do U -> sem
+  flambagem local critica nas abas. Valido para gravidade pura.
+- (3.2) TORCAO do U: centro de cisalhamento fora da secao; o vento na alma
+  induz giro. A interacao biaxial so vale se o tapamento (telha parafusada)
+  travar o giro. Senao o U fica subdimensionado -> confirmar a fixacao no gate.
+Senior confirmou tambem o Mcr (constante 0,039 = G/(E*pi^2)), os momentos do
+log, e a esbeltez global da escora (lambda=125,6 < 200, OK).
 
 ## Problema que resolve
 
