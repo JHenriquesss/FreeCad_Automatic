@@ -25,31 +25,34 @@ Referencia de apoio: exemplo resolvido do Manual CBCA "Galpoes para Usos Gerais"
   C1 = 1,25G + 1,50Q + 0,84W ; C2 = 1,00G + 1,40W (uplift, Q omitida) ;
   C3 = 1,00G + 1,40W + 1,20Q. Confirmar quais governam e se falta alguma.
 
-## C. NBR 6123 - vento - PENDENTE CONFIRMACAO (nao tenho a norma)
+## C. NBR 6123 - vento - CORRIGIDO com as tabelas reais (norma lida)
 
-O modulo atual usa valores SIMPLIFICADOS. O exemplo CBCA mostra o metodo completo
-(zonas, duas direcoes). Preciso confirmar:
+Valores agora extraidos direto da NBR 6123 (Tabelas 4, 5 e item 6.2.5-c):
 
-- PERGUNTA C1 (Classe): maior dimensao do galpao = 20 m. Classe A (<=20 m) ou
-  B (20-50 m)? (o exemplo CBCA e Classe C, edificio grande). Qual para 20 m?
-- PERGUNTA C2 (S3): usei S3 = 1,00. O exemplo CBCA usa S3 = 0,95 para "galpao
-  para deposito com baixo fator de ocupacao". Adotar 0,95?
-- PERGUNTA C3 (S2 com altura): o exemplo calcula S2 (e q) VARIANDO com a altura
-  (3 m e cumeeira). Eu uso um unico q no topo (conservador). Manter conservador
-  ou variar q com a altura nas paredes?
-- PERGUNTA C4 (Cpe paredes, Tabela 4): usei valores unicos +0,70 (barlavento)
-  e -0,40 (sotavento). A norma da valores por ZONA (A1,B1,C1,D1) e um Cpe medio,
-  em funcao de h/b e a/b. Para h=6, b=10, a=20: quais os Cpe de parede?
-- PERGUNTA C5 (Cpe telhado, Tabela 5): ATENCAO - nosso telhado e 10% = 5,71 graus
-  (o exemplo CBCA e 10 GRAUS, diferente). Quais os Cpe de cobertura (duas aguas,
-  ~5,7 graus) para vento a 0 e a 90 graus? Usei -0,80/-0,40 (chute).
-- PERGUNTA C6 (Cpi, item 6.2 / Anexo D): usei +0,30/-0,30. O exemplo CBCA (sem
-  abertura dominante) usa +0,20/-0,30. MAS nosso galpao TEM PORTAO grande no
-  oitao (abertura dominante) -> pode exigir Anexo D, com Cpi ate +0,7 ou mais.
-  Qual Cpi adotar considerando o portao?
-- PERGUNTA C7 (direcoes): o exemplo usa 4 casos (vento a 0 e a 90 graus x Cpi
-  +0,2/-0,3). Eu so analisei o vento transversal (uma direcao). Precisamos das
-  duas direcoes para o portico? (a 90 graus atua mais nos oitoes/contravento).
+- RESOLVIDO C4 (Cpe paredes, Tabela 4, h/b=0,6, a/b=2, alpha=90): barlavento
+  (A) = +0,70 ; sotavento (B) = -0,60. (antes -0,40, ERRADO)
+- RESOLVIDO C5 (Cpe telhado, Tabela 5, bloco 1/2<h/b<=3/2, alpha=0, theta=5,71
+  interpolado entre 5 e 10 graus): barlavento (EG) = -0,89 ; sotavento (FH) =
+  -0,60. (antes -0,80/-0,40, ERRADO no sotavento)
+- RESOLVIDO C6 (Cpi, item 6.2.5-c, PORTAO abertura dominante): portao a
+  barlavento Cpi = +0,80 (conservador, razao >=6) ; portao a sotavento Cpi =
+  -0,60 (= Cpe da face). (antes +/-0,30, subestimava muito o uplift)
+- RESOLVIDO C2 (S3): adotado 0,95 (galpao deposito, conforme exemplo CBCA).
+
+Ainda a confirmar pelo engenheiro:
+
+- PERGUNTA C1 (Classe): maior dimensao = 20 m. Adotei Classe B (20-50 m). Como
+  20 m e o limite A/B, confirmar se e Classe A ou B (muda pouco o S2).
+- PERGUNTA C3 (S2 com altura): uso um unico q no topo (conservador). Variar q
+  com a altura nas paredes (mais refinado) ou manter conservador?
+- PERGUNTA C6b (razao de areas do portao): adotei Cpi = +0,80 (razao >=6,
+  conservador). Calcular a razao real (area do portao / demais aberturas sob
+  succao) pela Tabela de 6.2.5-c e refinar (+0,1 a +0,8).
+- PERGUNTA C7 (direcoes): so analisei o vento transversal (perpendicular a
+  cumeeira). Falta o vento a 90 graus (longitudinal, no oitao do portao) para
+  os contraventamentos e oitoes. Rodar tambem?
+- PERGUNTA C-map (mapeamento): confirmar que o vento transversal corresponde a
+  Tabela 4 alpha=90 (paredes longas A/B) e Tabela 5 alpha=0 (aguas EG/FH).
 
 ## D. Cargas permanentes/variaveis - conferir valores
 

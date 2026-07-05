@@ -14,32 +14,33 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    2,1 Permanente (G): cobertura 0,27 kN/m2 (telha+tercas+suspensas)
        + peso proprio da viga 0,35 kN/m
    2,2 Sobrecarga (Q): 0,25 kN/m2 (manutencao, NBR 8800)
-   2,3 VENTO (ABNT NBR 6123)
+   2,3 VENTO (ABNT NBR 6123/1988)
      V0 = 40 m/s ; Categoria II ; Classe B
-     S1 = 1,00 (topografia plana) ; S3 = 1,00
-     S2 = b*Fr*(z/10)^p = 1,00*0,98*(6,5/10)^0,090 = 0,943  (z = 6,5 m, altura da cumeeira)
-     Vk = V0*S1*S2*S3 = 37,71 m/s
-     q = 0,613*Vk^2 = 0,872 kN/m2
-     Coeficientes de forma externos Cpe (NBR 6123):
+     S1 = 1,00 (topografia plana) ; S3 = 0,95 (galpao deposito)
+     S2 = 1,00*0,98*(6,5/10)^0,090 = 0,943
+     Vk = 35,82 m/s ; q = 0,613*Vk^2 = 0,787 kN/m2
+     Telhado theta = 5,71 graus (10%) ; h/b=0,6 ; a/b=2
+     Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):
        parede barlavento: +0,70
-       parede sotavento: -0,40
-       cobertura barlavento: -0,80
-       cobertura sotavento: -0,40
-     Coeficiente de pressao interna Cpi (portao = abertura dominante):
-       pressao interna: +0,30
-       succao interna: -0,30
-     Coeficiente liquido Cp = Cpe - Cpi (governante por superficie):
-       caso pressao interna:
-         parede barlavento: +0,40  (pressao +0,349 kN/m2)
-         parede sotavento: -0,70  (pressao -0,610 kN/m2)
-         cobertura barlavento: -1,10  (pressao -0,959 kN/m2)
-         cobertura sotavento: -0,70  (pressao -0,610 kN/m2)
-       caso succao interna:
-         parede barlavento: +1,00  (pressao +0,872 kN/m2)
-         parede sotavento: -0,10  (pressao -0,087 kN/m2)
-         cobertura barlavento: -0,50  (pressao -0,436 kN/m2)
-         cobertura sotavento: -0,10  (pressao -0,087 kN/m2)
-     [VALORES DE COEFICIENTE A CONFIRMAR PELO ENGENHEIRO RESPONSAVEL]
+       parede sotavento: -0,60
+       cobertura barlavento: -0,89
+       cobertura sotavento: -0,60
+     Cpi (item 6,2.5-c, PORTAO como abertura dominante):
+       portao barlavento: +0,80
+       portao sotavento: -0,60
+     Cp liquido = Cpe - Cpi e pressao (kN/m2):
+       caso portao barlavento:
+         parede barlavento: -0,10  (-0,079 kN/m2)
+         parede sotavento: -1,40  (-1,102 kN/m2)
+         cobertura barlavento: -1,69  (-1,330 kN/m2)
+         cobertura sotavento: -1,40  (-1,102 kN/m2)
+       caso portao sotavento:
+         parede barlavento: +1,30  (+1,023 kN/m2)
+         parede sotavento: +0,00  (+0,000 kN/m2)
+         cobertura barlavento: -0,29  (-0,228 kN/m2)
+         cobertura sotavento: +0,00  (+0,000 kN/m2)
+     [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
+      razao de areas das aberturas para o Cpi do portao (6,2.5-c).]
 
 3. COMBINACOES (NBR 8800, ELU) [a confirmar pelo engenheiro]
    psi0: sobrecarga cobertura = 0,8 ; vento = 0,6 (Tabela 2)
@@ -49,17 +50,17 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
    C1_gravidade:
-     Coluna: M=  55,5  N=  23,6  V=  10,4
-     Viga:   M=  55,5  N=  10,5  V=  22,7
+     Coluna: M=  62,1  N=  26,5  V=  10,4
+     Viga:   M=  62,1  N=  12,9  V=  25,4
    C2_vento_succao:
-     Coluna: M=  85,2  N=  34,1  V=  21,5
-     Viga:   M=  85,2  N=  10,2  V=  33,2
+     Coluna: M= 109,8  N=  48,9  V=  19,9
+     Viga:   M= 109,8  N=  24,7  V=  46,7
    C3_vento_pressao:
-     Coluna: M=  70,1  N=  22,0  V=  13,5
-     Viga:   M=  70,1  N=  12,0  V=  20,9
+     Coluna: M=  81,1  N=  26,9  V=  13,5
+     Viga:   M=  81,1  N=  16,1  V=  25,4
 
 5. DESLOCAMENTOS (ELS)
-   Deslocamento lateral no beiral (vento caract.): 170,6 mm
+   Deslocamento lateral no beiral (vento caract.): 183,6 mm
      Limite H/300 = 20,0 mm  -> NAO ATENDE
    Flecha vertical na cumeeira (G+Q): 26,6 mm (verificar L/200)
 

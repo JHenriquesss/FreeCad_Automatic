@@ -104,9 +104,9 @@ def analyse():
     # per-case results (superposition)
     dG, mfG, ix = _run(case_G)
     dQ, mfQ, _ = _run(case_Q)
-    (w1fn, wr) = _wind_case("pressao_interna")
+    (w1fn, wr) = _wind_case("portao_barlavento")   # Cpi +0.8 -> max uplift
     dW1, mfW1, _ = _run(w1fn)
-    (w2fn, _) = _wind_case("succao_interna")
+    (w2fn, _) = _wind_case("portao_sotavento")     # Cpi -0.6 -> max wall push
     dW2, mfW2, _ = _run(w2fn)
 
     def combo_mf(coeffs):

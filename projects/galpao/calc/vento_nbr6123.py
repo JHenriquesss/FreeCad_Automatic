@@ -1,19 +1,19 @@
-"""Wind loads per ABNT NBR 6123 for the galpao transverse frame.
+"""Wind loads per ABNT NBR 6123/1988 for the galpao transverse frame.
 
-Transparent and auditable: every factor is a named variable with the clause it
-comes from, so the reviewing engineer checks the method, not a black box. The
-coefficient VALUES are standard NBR 6123 table entries for a simple rectangular
-building; they are flagged for engineer confirmation. Outputs (report text) are
-in Portuguese.
+Coefficients are the ACTUAL table values (Tabela 1, 4, 5 and item 6.2), read from
+the standard, with clause references. Transparent and auditable. The zone/alpha
+mapping and the dominant-opening area ratio are flagged for engineer confirmation.
+Outputs in Portuguese. Computes only; pending engineer review. Units: m, kN.
 
-Computes only; not certified. Units: m, kN, kN/m2.
+Building: a=20 (length), b=10 (span/width), h=6 (eave). h/b=0.6 ; a/b=2.
+Transverse frame = wind perpendicular to the ridge (hits the long 20 m walls).
 """
 
 from __future__ import annotations
 
 
 def s2_factor(cat, classe, z):
-    """NBR 6123 Table 1: S2 = b * Fr * (z/10)^p (terrain category II)."""
+    """NBR 6123 Tabela 1 (categoria II)."""
     tbl = {
         ("II", "A"): (1.00, 1.00, 0.085),
         ("II", "B"): (1.00, 0.98, 0.09),
@@ -23,63 +23,75 @@ def s2_factor(cat, classe, z):
     return b, Fr, p, b * Fr * (z / 10.0) ** p
 
 
-def compute(v0=40.0, cat="II", classe="B", s1=1.0, s3=1.0, z=6.5):
-    """Return the wind result dict for the transverse case."""
+def _interp(x, x0, x1, y0, y1):
+    return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
+
+
+def cpe_paredes():
+    """NBR 6123 Tabela 4, paredes. Vento transversal atinge as paredes longas
+    (a=20). Bloco 1/2<h/b<=3/2, linha 2<=a/b<=4, incidencia alpha=90 (faces A,B).
+    A = barlavento, B = sotavento."""
+    return {"parede_barlavento": +0.70, "parede_sotavento": -0.60}
+
+
+def cpe_telhado(theta_graus=5.71):
+    """NBR 6123 Tabela 5, telhado duas aguas. Bloco 1/2<h/b<=3/2, alpha=0
+    (vento perpendicular a cumeeira). Colunas EG (agua barlavento) e FH (agua
+    sotavento). Interpola theta entre 5 e 10 graus.
+    5 graus:  EG=-0,9  FH=-0,6 ; 10 graus: EG=-0,8  FH=-0,6."""
+    eg = _interp(theta_graus, 5.0, 10.0, -0.9, -0.8)
+    fh = _interp(theta_graus, 5.0, 10.0, -0.6, -0.6)
+    return {"cobertura_barlavento": round(eg, 2), "cobertura_sotavento": round(fh, 2)}
+
+
+def cpi_cases():
+    """NBR 6123 item 6.2.5-c: PORTAO = abertura dominante no oitao.
+    - Portao a barlavento (vento no oitao): Cpi = +0,1 a +0,8 conforme a razao
+      (area do portao / area das demais aberturas sob succao). Adotado +0,8
+      (conservador, razao >=6) - A CONFIRMAR com a razao real das aberturas.
+    - Portao a sotavento: Cpi = Cpe da face de sotavento (Tabela 4) = -0,6.
+    Consideram-se ambos; o engenheiro escolhe/refina."""
+    return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
+
+
+def compute(v0=40.0, cat="II", classe="B", s1=1.0, s3=0.95, z=6.5, theta=5.71):
     b, Fr, p, s2 = s2_factor(cat, classe, z)
     vk = v0 * s1 * s2 * s3
-    q = 0.613 * vk ** 2 / 1000.0   # kN/m2 (0.613 in N/m2 with V in m/s)
-
-    # External pressure coefficients Cpe (NBR 6123 Tables 4-6), transverse wind
-    # (perpendicular to the 20 m length, hitting the 10 m-span long walls).
-    # Governing values for a low building, roof slope ~5.7deg -> treated low.
-    cpe = {
-        "parede_barlavento": 0.70,    # windward wall (pressure)
-        "parede_sotavento": -0.40,    # leeward wall (suction)
-        "cobertura_barlavento": -0.80,  # windward roof (suction)
-        "cobertura_sotavento": -0.40,   # leeward roof (suction)
-    }
-    # Internal pressure coefficient Cpi (NBR 6123 6.2). Gate is a dominant opening
-    # on the FRONT gable; for transverse wind it is a side face -> use +/-0.30
-    # from permeability. Consider both signs; the engineer confirms.
-    cpi_cases = {"pressao_interna": +0.30, "succao_interna": -0.30}
-
-    # Net pressure coefficient per surface for each Cpi case: Cp = Cpe - Cpi
+    q = 0.613 * vk ** 2 / 1000.0
+    cpe = {**cpe_paredes(), **cpe_telhado(theta)}
+    cpi = cpi_cases()
     net = {}
-    for cname, cpi in cpi_cases.items():
-        net[cname] = {s: round(cpe[s] - cpi, 2) for s in cpe}
-
-    return {
-        "v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
-        "s3": s3, "Fr": Fr, "p": p, "z": z, "vk": round(vk, 2), "q_kN_m2": round(q, 3),
-        "cpe": cpe, "cpi_cases": cpi_cases, "net": net,
-    }
+    for cname, cpiv in cpi.items():
+        net[cname] = {s: round(cpe[s] - cpiv, 2) for s in cpe}
+    return {"v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
+            "s3": s3, "Fr": Fr, "p": p, "z": z, "theta": theta,
+            "vk": round(vk, 2), "q_kN_m2": round(q, 3),
+            "cpe": cpe, "cpi_cases": cpi, "net": net}
 
 
 def relatorio_pt(r):
-    """Portuguese text block for the calc memory."""
     L = []
-    L.append("VENTO (ABNT NBR 6123)")
+    L.append("VENTO (ABNT NBR 6123/1988)")
     L.append(f"  V0 = {r['v0']:.0f} m/s ; Categoria {r['cat']} ; Classe {r['classe']}")
-    L.append(f"  S1 = {r['s1']:.2f} (topografia plana) ; S3 = {r['s3']:.2f}")
-    L.append(f"  S2 = b*Fr*(z/10)^p = 1,00*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} "
-             f"= {r['s2']:.3f}  (z = {r['z']:.1f} m, altura da cumeeira)")
-    L.append(f"  Vk = V0*S1*S2*S3 = {r['vk']:.2f} m/s")
-    L.append(f"  q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
-    L.append("  Coeficientes de forma externos Cpe (NBR 6123):")
+    L.append(f"  S1 = {r['s1']:.2f} (topografia plana) ; S3 = {r['s3']:.2f} (galpao deposito)")
+    L.append(f"  S2 = 1,00*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
+    L.append(f"  Vk = {r['vk']:.2f} m/s ; q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
+    L.append(f"  Telhado theta = {r['theta']:.2f} graus (10%) ; h/b=0,6 ; a/b=2")
+    L.append("  Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):")
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
-    L.append("  Coeficiente de pressao interna Cpi (portao = abertura dominante):")
+    L.append("  Cpi (item 6.2.5-c, PORTAO como abertura dominante):")
     for k, v in r["cpi_cases"].items():
         L.append(f"    {k.replace('_',' ')}: {v:+.2f}")
-    L.append("  Coeficiente liquido Cp = Cpe - Cpi (governante por superficie):")
+    L.append("  Cp liquido = Cpe - Cpi e pressao (kN/m2):")
     for caso, d in r["net"].items():
         L.append(f"    caso {caso.replace('_',' ')}:")
         for s, v in d.items():
-            L.append(f"      {s.replace('_',' ')}: {v:+.2f}  (pressao {v*r['q_kN_m2']:+.3f} kN/m2)")
-    L.append("  [VALORES DE COEFICIENTE A CONFIRMAR PELO ENGENHEIRO RESPONSAVEL]")
+            L.append(f"      {s.replace('_',' ')}: {v:+.2f}  ({v*r['q_kN_m2']:+.3f} kN/m2)")
+    L.append("  [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e")
+    L.append("   razao de areas das aberturas para o Cpi do portao (6.2.5-c).]")
     return "\n".join(L)
 
 
 if __name__ == "__main__":
-    r = compute()
-    print(relatorio_pt(r))
+    print(relatorio_pt(compute()))
