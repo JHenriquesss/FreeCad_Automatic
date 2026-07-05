@@ -1,5 +1,14 @@
 # Skill Audit - Galpao 20x10 End-to-End Run (2026-07-04)
 
+> STATUS 2026-07-05 (historico): este documento e o log do PRIMEIRO run. Varios
+> "furos" abaixo JA FORAM RESOLVIDOS depois: perfis reais no modelo (i/u/ue_member,
+> nao mais so caixas), verificacao de interferencia RODA de verdade
+> (checa_interferencia + estrutura_em_aberturas), toolkit de calculo integrado
+> (11 modulos + orquestrador rodar_galpao), e geometria parametrica. Ainda ABERTO:
+> mao-francesa como heuristica crua (#2), verificacao propria das secoes
+> secundarias (HEA160/UPE100), modo "batch defaults" para nao perguntar tudo (#5),
+> e o MODULO DE PONTE ROLANTE (ver projects/galpao-ensaio/notes/backlog.md).
+
 First real execution of the build-warehouse skill after 17 refinement rounds.
 Model rebuilt as `work/build_galpao.py` v2, run via the FreeCAD MCP bridge.
 Result: 180 objects (was 52), FCStd + STEP + PNG exported.

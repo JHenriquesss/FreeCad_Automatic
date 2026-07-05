@@ -23,7 +23,7 @@ choice.
 Do not ask for everything at once. Work in 10 gates, one at a time, aligned to
 the CBCA "Galpoes para Usos Gerais" sequence: (0) use and volumetry, (1) roof
 and slope, (2) secondary layout and stability, (3) envelope, (4) openings,
-(5) actions and site, (6) structural analysis (engineer handoff), (7) member
+(5) actions and site, (6) structural analysis (skill computes, engineer reviews), (7) member
 sizing per element + serviceability, (8) real profiles, (9) documents and
 deliverables. Each gate asks only its own questions, models that step, captures
 a screenshot, and confirms before the next gate. See `references/gates.md` for
@@ -125,12 +125,14 @@ with a suggested value, never hard-coded. See
 5. Read `references/steel-warehouse-engineering-map.md` to select the
    structural workflow and design gates.
 6. Read `references/project-inputs.md` before starting a real project.
-6b. Read `references/calc-modules.md` to run the structural calc toolkit at
-   Gates 5-8 (which module, inputs, outputs, run order).
-7. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
+7. Read `references/calc-modules.md` to run the structural calc toolkit at
+   Gates 5-8 (which module, inputs, outputs, run order, and the orchestrator).
+8. Read `QUICKSTART.md` for the environment pre-flight (numpy<2, pycufsm, MCP
+   bridge) and how a from-scratch run is conducted.
+9. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
    its write boundary before changing files.
-8. Ask for missing engineering inputs instead of inventing dimensions.
-9. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
+10. Ask for missing engineering inputs instead of inventing dimensions.
+11. Prefer parametric FreeCAD scripts for repeatable frames, purlins, roof
    sheets, and openings; save project work under `projects/<project-slug>/`.
 
 ## Workflow
