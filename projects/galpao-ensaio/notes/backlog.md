@@ -1,12 +1,20 @@
 # Backlog - modulos a construir depois de validar a skill
 
-## MODULO DE PONTE ROLANTE (crane) - prioridade alta
+## MODULO DE PONTE ROLANTE (crane) - CONSTRUIDO 2026-07-05 (falta so integrar no portico)
 
-Lacuna detectada no ensaio (Gate 0): a skill descreve a geometria da ponte
-(consoles, viga de rolamento, batentes, viga de surto) mas NAO ha modulo que
-calcule os esforcos. Necessario para galpoes com ponte (comum em industrial).
+FEITO: calc/ponte_rolante.py (fundamentado no livro Dimensionamento cap.4 +
+NBR 8800/8400). Calcula cargas de roda (impacto phi), surto transversal, frenagem
+longitudinal; verifica a viga de rolamento (momento maximo absoluto de 2 rodas,
+flexao lateral, ELS L/600..L/1000, fadiga sinalizada) e EMPACOTA a reacao no
+portico (R_vert, M_exc, H_transv, H_long). phi/fracoes = fabricante/NBR 8400,
+FLAGADOS "A CONFIRMAR". Ref (ponte 100 kN): viga VS500 interacao 0,34 OK;
+reacao R_vert=132,9 kN, M_exc=39,9 kN.m.
 
-Escopo do modulo:
+FALTA: injetar a reacao no galpao_portico como CASO DE CARGA + combinacao
+(psi0=0,7, equipamento). Mexe no portico ja aprovado -> passo separado, com aval.
+A referencia 20x10 e SEM ponte (roda sob cfg proprio quando ha ponte).
+
+Escopo original do modulo:
 - Cargas da ponte: capacidade Q, peso da ponte + carro, cargas por roda Rmax
   (ponte encostada num trilho, carro junto), n de rodas e espacamento.
 - IMPACTO VERTICAL: coeficiente de impacto (~1,10 a 1,25 conforme a classe;

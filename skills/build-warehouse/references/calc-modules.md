@@ -39,6 +39,7 @@ before that review.
 | 7 sizing | `base_chumbador` | base plate + anchors: bearing (6.6.5), N+M eccentricity (DG1), anchor tension/shear, plate t both sides | N/V/M from portico base, fck, placa BxL, chumbadores, dims pilar |
 | 7 sizing | `secundarios_nbr8800` | secondary members: wall girt (U) biaxial bending (Anexo G + 5.5.1), eave strut/ridge (I) + gable post (I) beam-column | perfis U/I, trib, peso tapamento, nº tirantes de parede, pressão de vento, Nsd (do arrasto) |
 | 7 sizing | `contraventamento` | tension rods (5.2): bracing diagonals, sag rods, flange-brace rod — yield/rupture + slenderness; diagonal force from Fa; 2% brace force | d das barras, fy/fu, Fa/lado (do vento long.), Msd viga, Nsd tirante (A CONFIRMAR) |
+| 5/6 crane | `ponte_rolante` | crane action (NBR 8800/8400): wheel loads (impact φ), surge (transversal), braking (longitudinal); runway beam (moving-load moment + lateral + ELS L/600…L/1000 + fatigue flag); packages the console reaction for the portico | Q, pesos ponte/trole, vão ponte, aproximação mín, nº rodas, φ/frações (fabricante/8400, A CONFIRMAR), perfil da viga de rolamento |
 | 7 sizing | `ligacoes` | bolts (6.3), fillet welds (6.2.5), 45 kN min (6.1.5.2) | efforts per node, bolt/weld data, exception flag |
 
 ## Orchestrator (one call runs the whole chain)

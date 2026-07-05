@@ -2,12 +2,17 @@
 
 ## Calc Toolkit Backlog (2026-07-05)
 
-- **CRANE MODULE (ponte rolante) — high priority.** Toolkit does NOT size for
-  overhead cranes (no load case, runway beam, corbel, surge/braking, fatigue).
-  Surfaced at Gate 0 of the dry-run when a heavy crane was picked; the flow
-  correctly stopped rather than fake it. Build after validation, grounded in
-  NBR 8800 (impact/fatigue) + NBR 8400 (classes) + CBCA example. Tracked in
-  `projects/galpao-ensaio/notes/backlog.md`.
+- **CRANE MODULE (ponte rolante) — BUILT 2026-07-05.** `calc/ponte_rolante.py`
+  (grounded in the "Dimensionamento" book cap.4 + NBR 8800/8400): wheel loads
+  (impact φ), surge (transversal), braking (longitudinal); runway beam (absolute
+  moving-load moment of 2 wheels + lateral bending + ELS L/600…L/1000 + fatigue
+  flag) and packages the console reaction (R_vert, M_ecc, H_transv, H_long). φ and
+  the surge/braking fractions are manufacturer/NBR-8400 data → flagged A CONFIRMAR
+  (the book itself says these usually come from the supplier). Ref (100 kN crane):
+  runway VS500 interaction 0.34, reaction R_vert=132.9 kN. REMAINING: inject the
+  reaction into `galpao_portico` as a crane load case + combination (ψ0=0.7) —
+  touches the approved portico, done as a separate step. PARAMS_REF (20×10) is
+  craneless; the module runs under its own cfg when a crane is present.
 - **Secondary member verification (RESOLVED 2026-07-05).** All secondary members
   now checked: wall girt (UPE100 biaxial, `secundarios_nbr8800`), eave strut/ridge
   + gable post (HEA160 beam-column, same module), bracing/sag/flange-brace rods

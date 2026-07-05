@@ -99,7 +99,7 @@
 
 ## Calc Toolkit Architecture
 
-- Location: `projects/galpao/calc/` (15 modules) + `work/build_galpao.py` (model).
+- Location: `projects/galpao/calc/` (16 modules) + `work/build_galpao.py` (model).
 - Grounding: formulas extracted from norm PDFs in `pesquisa/aco/` (git-ignored):
   NBR 8800, NBR 6123, NBR 14762; AISC DG1 for base plates. **Rule: verify a method
   against the norm PDF, never from memory (zero-method-error).**
@@ -111,7 +111,9 @@
   `tercas_nbr14762`, `distorcional_fsm`, `base_chumbador`, `ligacoes`,
   `secundarios_nbr8800` (wall girt U biaxial + eave strut/ridge + gable post I
   beam-column), `contraventamento` (tension rods: bracing/sag/flange-brace, 5.2
-  + slenderness + 2% brace force), `perfis`, `redimensionamento`.
+  + slenderness + 2% brace force), `ponte_rolante` (crane action NBR 8800/8400:
+  wheel loads + impact/surge/braking, runway beam, console reaction — standalone,
+  portico integration pending), `perfis`, `redimensionamento`.
 - Orchestrator: `calc/rodar_galpao.py` — one params dict configures every module,
   runs Gates 5-9, EXTRACTS base/knee efforts from the portico (not hardcoded),
   emits one memorial per module + `MEMORIAL-CONSOLIDADO.txt`. `PARAMS_REF` is the
