@@ -1,0 +1,21 @@
+==========================================================================
+GATE 7 - ITERACAO DE TERCAS Ue (NBR 14762) - GALPAO 20x10
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO ; PROPRIEDADES A CONFIRMAR
+==========================================================================
+Vao 6,0 m ; linha de corrente no meio (Ly=3,0 m) ; trib 1,675 m ; inclinacao 5,71 graus
+Cargas caract.: G=0,10 Q=0,25 W=-1,362 kN/m2 (pior sucao do vento) ; aco fy=250 MPa
+
+            Perfil   Mdist disp?  inter  flecha_v | resultado
+--------------------------------------------------------------------------
+ Ue 150x60x20x2,00    18,5   nao   2,87    79,2mm | nao passa
+ Ue 200x75x20x2,00    19,6   nao   1,95    37,4mm | nao passa
+ Ue 200x75x25x2,65    42,8   nao   1,37    26,4mm | nao passa
+ Ue 250x85x25x3,00    60,4   nao   1,37    12,9mm | nao passa
+ Ue 300x85x25x3,35    86,3   nao   0,39     7,6mm | PASSA
+--------------------------------------------------------------------------
+
+ADOTADO (mais leve que passa): Ue 300x85x25x3,35
+  interacao max = 0,39 ; flecha vento = 7,6 mm ; Mdist = 86,3 kN.m
+
+OBS: propriedades pela linha media (prop2) - A CONFIRMAR no catalogo
+     do fornecedor. Mdist pela analise de estabilidade elastica (FSM).

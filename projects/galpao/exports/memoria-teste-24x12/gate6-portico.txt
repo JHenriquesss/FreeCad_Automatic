@@ -1,0 +1,80 @@
+======================================================================
+MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+1. DADOS
+   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)
+   Espacamento de porticos (largura de influencia) = 6,0 m
+   Bases ENGASTADAS. Perfis: colunas HEA200, vigas HEA180.
+   Barras malhadas em 8 trechos (momento avaliado ao longo do vao).
+   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).
+
+2. ACOES
+   2,1 Permanente (G): 0,27 kN/m2 (area de telhado, SEM cos)
+       + peso proprio da viga 0,35 kN/m
+   2,2 Sobrecarga (Q): 0,25 kN/m2 (projecao horizontal, com cos)
+   2,3 VENTO (ABNT NBR 6123/1988)
+     V0 = 40 m/s ; Categoria II ; Classe B
+     S1 = 1,00 (topografia plana) ; S3 = 0,95 (galpao deposito)
+     S2 = 1,00*0,98*(6,5/10)^0,090 = 0,943
+     Vk = 35,82 m/s ; q = 0,613*Vk^2 = 0,787 kN/m2
+     Telhado theta = 5,71 graus (10%) ; h/b=0,6 ; a/b=2
+     Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):
+       parede barlavento: +0,70
+       parede sotavento: -0,60
+       cobertura barlavento: -0,93
+       cobertura sotavento: -0,60
+     Cpi (item 6.2.5-c, PORTAO como abertura dominante):
+       portao barlavento: +0,80
+       portao sotavento: -0,60
+     Cp liquido = Cpe - Cpi e pressao (kN/m2):
+       caso portao barlavento:
+         parede barlavento: -0,10  (-0,079 kN/m2)
+         parede sotavento: -1,40  (-1,102 kN/m2)
+         cobertura barlavento: -1,73  (-1,362 kN/m2)
+         cobertura sotavento: -1,40  (-1,102 kN/m2)
+       caso portao sotavento:
+         parede barlavento: +1,30  (+1,023 kN/m2)
+         parede sotavento: +0,00  (+0,000 kN/m2)
+         cobertura barlavento: -0,33  (-0,260 kN/m2)
+         cobertura sotavento: +0,00  (+0,000 kN/m2)
+     [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
+      razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
+   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
+
+3. COMBINACOES (NBR 8800, ELU) [a confirmar]
+   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6
+   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).
+   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W
+   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]
+   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q
+   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
+
+4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
+   C1_gravidade:
+     Coluna: M=  54,2  N=  28,8  V=  15,2
+     Viga:   M=  54,2  N=  18,0  V=  27,2
+   C2_uplift:
+     Coluna: M= 105,1  N=  57,5  V=  30,3
+     Viga:   M= 105,1  N=  37,1  V=  54,2
+   C3_vento_Gdesf:
+     Coluna: M=  85,5  N=  11,8  V=  41,4
+     Viga:   M=  55,4  N=  20,0  V=  24,6
+   C3_vento_Gfav:
+     Coluna: M=  98,3  N=   2,0  V=  46,4
+     Viga:   M=  33,1  N=  13,6  V=  11,4
+
+5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)
+   Deslocamento lateral no beiral: 69,6 mm
+     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica admite ate H/150):
+       H/300 =  23,3 mm  -> NAO ATENDE
+       H/250 =  28,0 mm  -> NAO ATENDE
+       H/200 =  35,0 mm  -> NAO ATENDE
+       H/150 =  46,7 mm  -> NAO ATENDE   <== referencia (telha metalica, sem alvenaria)
+   Flecha vertical na cumeeira (G+Q): 55,5 mm (verificar L/250)
+
+6. OBSERVACOES / PENDENCIAS
+   - Coeficientes de vento a confirmar; portao = abertura dominante.
+   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.
+   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases.

@@ -35,12 +35,13 @@ DOC_NAME = "galpao_20x10"
 
 
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
-               export_dir=None, doc_name=None, mf_stride=None):
+               export_dir=None, doc_name=None, mf_stride=None,
+               n_tirante_parede=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
-    global MF_STRIDE
+    global MF_STRIDE, N_TIRANTE_PAREDE
     if length is not None: LENGTH = float(length)
     if span is not None:   SPAN = float(span)
     if eave_h is not None: EAVE_H = float(eave_h)
@@ -49,6 +50,7 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     if export_dir is not None: EXPORT_DIR = export_dir
     if doc_name is not None:   DOC_NAME = doc_name
     if mf_stride is not None:  MF_STRIDE = max(1, int(mf_stride))
+    if n_tirante_parede is not None: N_TIRANTE_PAREDE = max(0, int(n_tirante_parede))
     RIDGE_Y = SPAN / 2.0
     RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 
@@ -66,6 +68,8 @@ CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
 MF_STRIDE = 2
+# Linhas de tirante de PAREDE por vao (do calc: longarina UPE100 exige 2 -> 0,99).
+N_TIRANTE_PAREDE = 2
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -275,6 +279,17 @@ def build(doc):
         else:
             u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE100, f"TERCA_PAREDE_E_{lvl:02d}", roll=90)
         u_member(doc, (0, SPAN + GOFF, z), (LENGTH, SPAN + GOFF, z), UPE100, f"TERCA_PAREDE_D_{lvl:02d}", roll=90)
+
+    # Tirantes de PAREDE (barras redondas verticais): N_TIRANTE_PAREDE linhas por
+    # vao, dividem o vao da longarina no eixo fraco -> Lb = bay/(n+1). Exigencia
+    # do calc (secundarios_nbr8800): a UPE100 so passa com 2 linhas.
+    for b in range(len(axes) - 1):
+        x0 = axes[b]
+        for k in range(1, N_TIRANTE_PAREDE + 1):
+            xk = x0 + BAY * k / (N_TIRANTE_PAREDE + 1)
+            for y, lado in ((-GOFF, "E"), (SPAN + GOFF, "D")):
+                rod(doc, (xk, y, Z0), (xk, y, EAVE_H), 16,
+                    f"TIRANTE_PAREDE_{lado}_{b + 1:02d}_{k:02d}")
 
     # Montantes de oitao. O oitao da FRENTE recebe o portao, entao seus montantes
     # ficam nos batentes; o oitao do FUNDO tem montantes nos tercos do vao.
