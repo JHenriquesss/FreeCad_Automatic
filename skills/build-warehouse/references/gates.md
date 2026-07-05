@@ -18,10 +18,11 @@ Hard rules:
 
 - Every value a human should decide must reach the user as a question.
   Recommended defaults are the first option, never a silent choice.
-- The skill does NOT perform structural calculation. Analysis, load
-  combinations, member forces, and verified sizes come from the engineer
-  (Gate 6). The skill models, documents, and organises; it never presents
-  geometry or sizes as structurally verified.
+- The skill RUNS structural calculation via the validated toolkit
+  (`references/calc-modules.md`) at Gates 5-8 and emits the PT memoriais, but the
+  responsible ENGINEER reviews and approves them. The skill computes, models,
+  documents, and organises; it never presents geometry or a size as verified
+  before engineer sign-off.
 
 Geometry conventions (axes, units, naming, placeholder sections) live in
 `geometry-conventions.md`. The FreeCAD execution pattern lives in
@@ -202,8 +203,11 @@ user confirms openings.
 
 ## Gate 5 - Actions and site
 
-Purpose: assemble the load basis the engineer will analyse. The skill collects
-and records; it does not compute wind or combinations.
+Purpose: assemble the load basis and COMPUTE the wind action by running
+`vento_nbr6123` (NBR 6123) with the site/geometry answers — S2, Vk, q, external
+Cpe (walls Tab.4 and roof Tab.5 at the SAME incidence α=90), and internal Cpi
+(dominant opening / portão, 6.2.5-c). The permanent/variable loads are collected;
+the combinations are applied later inside `galpao_portico`/`estabilidade_b1b2`.
 
 Ask:
 
@@ -233,38 +237,45 @@ Ask:
   at the column top, or does the cladding require a stricter limit?" (masonry is
   stricter; metal sheet tolerates more). See `project-inputs.md`.
 
-Produces: a documented action set in `notes/assumptions.md`. Exit: user/engineer
-confirms the load basis.
+Produces: the documented action set in `notes/assumptions.md` plus the wind
+memorial (PT) from `vento_nbr6123` under `exports/memoria/`. Exit: user/engineer
+confirms the load basis and the wind coefficients.
 
-## Gate 6 - Structural analysis (engineer handoff)
+## Gate 6 - Structural analysis (skill computes, engineer reviews)
 
-Purpose: obtain analysis results. The skill does NOT calculate. It records the
-inputs sent to the engineer and waits for the returned results.
+Purpose: obtain analysis results by RUNNING the toolkit
+(`references/calc-modules.md`), then hand the memoriais to the engineer for
+review. Wind (Gate 5) feeds the portal; run `galpao_portico` (geometry, G/Q,
+`BASE_FIXED`) and `estabilidade_b1b2` for the 2nd-order MAES.
 
-Ask / collect from engineer:
+Ask the user (module inputs / decisions), then compute and present for review:
 
-- Frame analysis results: member forces/moments for columns and rafters.
-- Sway classification (deslocabilidade) and whether second-order effects govern.
-- Equivalent horizontal (notional) force Fn used.
-- Geometric imperfections: were global out-of-plumb (~L/500) and local (~L/1000)
-  imperfections included? For medium-sway structures, were member flexural and
-  axial stiffnesses reduced (e.g. to 80%) in the B1/B2 analysis?
-- ULS combinations considered.
-- Base condition confirmed: pinned or fixed.
-- Fatigue verification for crane runway beams, their supports, welds, and
-  stiffeners (repetitive load cycles); confirm no stiffener is welded to the
-  tension flange.
+- Base condition: pinned or fixed (`BASE_FIXED`) — recommend with the trade-off
+  (fixed base ⇒ small drift/lighter steel but the foundation takes moment).
+- ULS combinations and psi0 factors (defaults per NBR 8800 Tabela 1/2).
+- Second-order: the module classifies deslocabilidade by B2, applies 80% reduced
+  stiffness for média, and adds the notional force (0.3%) automatically — confirm.
+- Present the computed outputs for engineer review: member M/N/V envelope,
+  B1/B2, deslocabilidade, amplified efforts, lateral drift vs the ELS ladder.
+- Fatigue verification for crane runway beams, supports, welds, and stiffeners
+  (repetitive cycles); confirm no stiffener is welded to the tension flange
+  (out of the toolkit's scope — flag for the engineer).
 
-Produces: recorded analysis results, no geometry change. Exit: engineer delivers
-member forces and the sizing basis.
+Produces: the analysis memorial (PT) under `exports/memoria/`, computed by the
+toolkit, pending engineer review. Exit: engineer reviews and confirms the
+efforts and the sizing basis.
 
 ## Gate 7 - Member sizing (per element) + serviceability
 
-Purpose: turn analysis results into approved member sizes, element by element,
-in the CBCA order. Sizes come from the engineer; the skill records and prepares
-the model.
+Purpose: turn analysis results into member sizes by RUNNING the sizing modules,
+element by element in the CBCA order, then hand the memoriais to the engineer to
+review and approve. `check_nbr8800` (K=1, amplified efforts) verifies profiles;
+`redimensionamento` finds the lightest passing profile+base if a check fails;
+`tercas_nbr14762` (+ `distorcional_fsm` for Mdist when Table 14 does not
+dispense), `base_chumbador`, and `ligacoes` size the rest. See
+`references/calc-modules.md`.
 
-Confirm, in order:
+Compute and confirm, in order (sizes are computed, then engineer-approved):
 
 - Columns, then rafters/beams.
 - Serviceability (SLS): vertical and lateral displacement limits met. Crane

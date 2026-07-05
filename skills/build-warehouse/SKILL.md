@@ -30,9 +30,16 @@ a screenshot, and confirms before the next gate. See `references/gates.md` for
 the exact questions, options, and defaults, and
 `references/cbca-galpao-project-sequence.md` for the source sequence.
 
-The skill does not perform structural calculation. Loads, analysis, member
-forces, and verified sizes come from the engineer (Gates 6-7). The skill models,
-documents, and organises; it never presents geometry or sizes as verified.
+The skill RUNS structural calculation via the validated parametric toolkit in
+`projects/galpao/calc/` (11 engineer-reviewed modules: wind NBR 6123, 2D frame,
+2nd-order MAES NBR 8800, member check Anexos F/G, cold-formed purlin NBR 14762 +
+distortional FSM, base plate + anchors AISC DG1, connections, and a sizing
+driver). At Gates 5-8 it computes loads, analysis, amplified efforts, member
+sizing, and serviceability, and emits the memoriais in Portuguese. The toolkit
+gives the numbers; the responsible ENGINEER still reviews and signs off — never
+present a memorial or a size as final/verified before that review. Every
+engineering-critical input to a module is still a gate question (Ask, Do Not
+Invent). See `references/calc-modules.md`.
 
 ## Model For Fabrication And Erection
 
@@ -118,6 +125,8 @@ with a suggested value, never hard-coded. See
 5. Read `references/steel-warehouse-engineering-map.md` to select the
    structural workflow and design gates.
 6. Read `references/project-inputs.md` before starting a real project.
+6b. Read `references/calc-modules.md` to run the structural calc toolkit at
+   Gates 5-8 (which module, inputs, outputs, run order).
 7. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
    its write boundary before changing files.
 8. Ask for missing engineering inputs instead of inventing dimensions.
@@ -142,7 +151,12 @@ with a suggested value, never hard-coded. See
 ## Rules
 
 - Do not present generated geometry as structurally verified.
-- Do not select final member sizes without explicit engineer approval.
+- The calc toolkit computes; the responsible engineer reviews and approves. Run
+  the modules and emit PT memoriais, but do not select final member sizes or
+  call a memorial verified without explicit engineer approval.
+- Never invent a module input; every engineering-critical value is a gate
+  question or a recorded pending assumption. Do not edit a verified formula from
+  memory — go to the norm PDF in `pesquisa/aço/`.
 - Preserve source attribution when using downloaded CAD blocks.
 - Prefer `.FCStd` for editable FreeCAD objects and `.step` for neutral import.
 - Keep external downloads in `libraries/` with source/license notes.
@@ -153,6 +167,9 @@ with a suggested value, never hard-coded. See
 
 - `references/gates.md`: the 10-gate staged workflow with per-gate questions,
   options, and recommended defaults. Start here for any real project.
+- `references/calc-modules.md`: the structural calc toolkit (11 modules) — which
+  module each gate calls, its inputs/outputs, run order, and the compute-then-
+  engineer-review rule.
 - `references/cbca-galpao-project-sequence.md`: derived CBCA project sequence
   and the authoritative NBR/reference chain the gates follow.
 - `references/constructability-detailing.md`: transport/field splices,
