@@ -57,7 +57,8 @@ End-to-end trunk for this project:
   tercas kl/Wef, base anchor/bearing/uplift, ligacoes bolt/weld/45kN,
   distorcional_fsm local-buckling sanity vs plate k=23.9). All green.
 - Assert `rodar_galpao.py` with `PARAMS_REF` reproduces the reference: column
-  interaction 0.67, rafter 0.87, B2 1.036. Green.
+  interaction 0.67, rafter 0.93 (Lb=3.35 m from `mao_francesa`, 2 braces/frame),
+  B2 1.036. Green.
 - Assert a different geometry (24x12) runs the whole chain without error
   (interactions >1 as expected -> would trigger resizing). Green.
 - Assert `build_galpao.configurar(...)` builds via MCP: 248 elements, 0

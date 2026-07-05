@@ -27,3 +27,8 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
 - Verificacao propria das secoes secundarias (escoras HEA160, longarinas UPE100).
+
+## RESOLVIDO (2026-07-05)
+- Mao-francesa deixou de ser heuristica: calc/mao_francesa.py deriva o passo por
+  inversao da interacao 5.5.1.2 (Lb da viga), ligado ao build (MF_STRIDE) e ao
+  check. Ref 20x10: 2 bracos/portico, Lb=3,35 m, interacao da viga 0,93.

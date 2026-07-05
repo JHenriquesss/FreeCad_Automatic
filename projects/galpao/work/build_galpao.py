@@ -35,10 +35,12 @@ DOC_NAME = "galpao_20x10"
 
 
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
-               export_dir=None, doc_name=None):
+               export_dir=None, doc_name=None, mf_stride=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
-    derivados. Nao muda a modelagem - so os parametros. Chamar antes de run()."""
+    derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
+    mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
+    global MF_STRIDE
     if length is not None: LENGTH = float(length)
     if span is not None:   SPAN = float(span)
     if eave_h is not None: EAVE_H = float(eave_h)
@@ -46,6 +48,7 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     if bay is not None:    BAY = float(bay)
     if export_dir is not None: EXPORT_DIR = export_dir
     if doc_name is not None:   DOC_NAME = doc_name
+    if mf_stride is not None:  MF_STRIDE = max(1, int(mf_stride))
     RIDGE_Y = SPAN / 2.0
     RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 
@@ -59,6 +62,10 @@ UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
 UE_TERCA = (200.0, 75.0, 25.0, 2.65)
 CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
+# Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
+# inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
+# Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
+MF_STRIDE = 2
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -293,12 +300,19 @@ def build(doc):
             ya, yb = rc[s], rc[s + 1]
             rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz), 16, f"TIRANTE_D_{t}_{s:02d}")
 
-    # Maos-francesas: contencao da mesa inferior da viga (sob succao de vento)
+    # Maos-francesas: contencao da mesa inferior da viga (sob succao de vento).
+    # Passo MF_STRIDE vem do calc (inversao da interacao) - so nas tercas
+    # interiores multiplas do passo; joelho e cumeeira ja sao pontos travados.
+    brace_k = [k for k in range(1, n_terca) if k % MF_STRIDE == 0]
     for x in axes:
-        for k, y in enumerate(sorted(set(terca_ys)), start=1):
-            zt = rafter_z(y)
-            dy = 300 if y < RIDGE_Y else -300
-            rod(doc, (x, y, zt - 90), (x, y + dy, zt - 250), 16, f"MAO_FRANCESA_{int(x)//1000:02d}_{k:02d}")
+        c = 0
+        for k in brace_k:
+            for y in (RIDGE_Y * k / n_terca, SPAN - RIDGE_Y * k / n_terca):
+                c += 1
+                zt = rafter_z(y)
+                dy = 300 if y < RIDGE_Y else -300
+                rod(doc, (x, y, zt - 90), (x, y + dy, zt - 250), 16,
+                    f"MAO_FRANCESA_{int(x)//1000:02d}_{c:02d}")
 
     # Contraventamento so-tracao (barras redondas), vaos de extremidade
     for j, (x0, x1) in enumerate([(axes[0], axes[1]), (axes[-2], axes[-1])], start=1):

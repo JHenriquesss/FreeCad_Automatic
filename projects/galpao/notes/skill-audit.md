@@ -4,10 +4,12 @@
 > "furos" abaixo JA FORAM RESOLVIDOS depois: perfis reais no modelo (i/u/ue_member,
 > nao mais so caixas), verificacao de interferencia RODA de verdade
 > (checa_interferencia + estrutura_em_aberturas), toolkit de calculo integrado
-> (11 modulos + orquestrador rodar_galpao), e geometria parametrica. Ainda ABERTO:
-> mao-francesa como heuristica crua (#2), verificacao propria das secoes
-> secundarias (HEA160/UPE100), modo "batch defaults" para nao perguntar tudo (#5),
-> e o MODULO DE PONTE ROLANTE (ver projects/galpao-ensaio/notes/backlog.md).
+> (12 modulos + orquestrador rodar_galpao), e geometria parametrica. A
+> mao-francesa (#2) DEIXOU de ser heuristica: calc/mao_francesa.py deriva o passo
+> por inversao da interacao 5.5.1.2 (ref 20x10: 2 bracos/portico, Lb=3,35 m). Ainda
+> ABERTO: verificacao propria das secoes secundarias (HEA160/UPE100), modo "batch
+> defaults" para nao perguntar tudo (#5), e o MODULO DE PONTE ROLANTE (ver
+> projects/galpao-ensaio/notes/backlog.md).
 
 First real execution of the build-warehouse skill after 17 refinement rounds.
 Model rebuilt as `work/build_galpao.py` v2, run via the FreeCAD MCP bridge.

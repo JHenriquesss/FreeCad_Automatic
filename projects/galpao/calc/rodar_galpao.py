@@ -22,6 +22,7 @@ import check_nbr8800 as chk
 import tercas_iteracao as ti
 import base_chumbador as bc
 import ligacoes as lg
+import mao_francesa as maofr
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -91,9 +92,23 @@ def rodar(params, out_dir):
     save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
     a = est.analyse()
     save("gate6-2a-ordem.txt", est.memoria_pt(a))
-    # Gate 7 - perfis
+    # Gate 7 - mao-francesa: define o Lb da viga (contencao da mesa inferior)
+    # pela inversao da interacao. Combo governante = maior |Msd| na viga.
+    slope = (g["ridge"] - g["eave"]) / (g["span"] / 2.0)
+    n_terca = params["terca"].get("n_por_agua", 3)
+    cbm = max(a["combos"], key=lambda r: abs(r["viga"]["Msd"]))
+    plano_mf = maofr.plano_mao_francesa(
+        sc["perfil_raf"], params["fy"], max(0.0, cbm["viga"]["Nsd"]),
+        abs(cbm["viga"]["Msd"]), abs(cbm["viga"]["Vsd"]),
+        span=g["span"], slope=slope, n_terca=n_terca)
+    save("gate7-mao-francesa.txt", maofr.relatorio_pt(plano_mf, "viga (mesa inferior)"))
+    Lb_raf = plano_mf["Lb_usado"] if plano_mf.get("ok") else params["Lb"]["raf"]
+    res["mf_bracos_portico"] = plano_mf.get("n_bracos_portico")
+    res["mf_stride"] = plano_mf.get("stride")
+    res["Lb_raf"] = round(Lb_raf, 3)
+    # Gate 7 - perfis (Lb da viga vem da mao-francesa; coluna e parametro)
     pecas = {"coluna": (sc["perfil_col"], est.SEC["coluna"]["L"], params["Lb"]["col"]),
-             "viga": (sc["perfil_raf"], est.SEC["viga"]["L"], params["Lb"]["raf"])}
+             "viga": (sc["perfil_raf"], est.SEC["viga"]["L"], Lb_raf)}
     finais = []
     for gname, (sec, Lr, Lb) in pecas.items():
         cands = [chk.verifica(sec, params["fy"], L=Lr, Nsd=r[gname]["Nsd"],
@@ -129,8 +144,8 @@ def rodar(params, out_dir):
 def _consolidar(out_dir, save, g, params):
     ordem = [("1. VENTO", "gate5-vento.txt"), ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
-             ("5. TERCAS", "gate7-tercas.txt"), ("6. BASE", "gate7-base.txt"),
-             ("7. LIGACOES", "gate7-ligacoes.txt")]
+             ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
+             ("7. BASE", "gate7-base.txt"), ("8. LIGACOES", "gate7-ligacoes.txt")]
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
     for tit, f in ordem:
@@ -149,7 +164,7 @@ PARAMS_REF = {
                "d_raf": 0.171, "tf_raf": 0.0095},
     "cargas": {"G": 0.27, "self": 0.35, "Q": 0.25},
     "Lb": {"col": 2.0, "raf": 1.67},
-    "terca": {"trib": 1.675, "fy": 250e3},
+    "terca": {"trib": 1.675, "fy": 250e3, "n_por_agua": 3},
     "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
              "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
              "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
@@ -167,7 +182,9 @@ if __name__ == "__main__":
     r = rodar(PARAMS_REF, os.path.abspath(out))
     print("RESUMO (params de referencia 20x10 engastado):")
     print(f"  interacao coluna = {r['interacao_col']:.2f} (ref 0,67)")
-    print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,87)")
+    print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,93 c/ Lb da mao-francesa)")
+    print(f"  mao-francesa     = {r['mf_bracos_portico']} bracos/portico ; "
+          f"1 a cada {r['mf_stride']} terca(s) ; Lb={r['Lb_raf']} m")
     print(f"  base governa     = {r['base_gov']}")
     print(f"  joelho governa   = {r['knee_gov']}")
     print(f"  memoriais em: {os.path.abspath(out)}")

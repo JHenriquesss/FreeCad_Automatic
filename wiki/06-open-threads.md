@@ -16,9 +16,11 @@
   limit states beyond bearing (`ligacoes`); moment end-plate thickness + prying;
   rigorous purlin Ief/Wefy (catalog input, conservative fallback used).
 - **Skill improvement backlog** (from `projects/galpao/notes/skill-audit.md`):
-  flange-brace (mao-francesa) is a crude +/-150 mm heuristic; no formal "batch
-  defaults" mode (asking every secondary decision as buttons is impractical);
-  rule-timing tags (when each constructability rule becomes geometry) not added.
+  no formal "batch defaults" mode (asking every secondary decision as buttons is
+  impractical); rule-timing tags (when each constructability rule becomes
+  geometry) not added. RESOLVED 2026-07-05: flange-brace (mao-francesa) is no
+  longer a heuristic — `calc/mao_francesa.py` derives the brace spacing by
+  inverting the 5.5.1.2 interaction (feeds the viga Lb; `build_galpao.MF_STRIDE`).
 - Purlin/terca profile properties come from the mid-line (`prop2`) or catalog
   and are flagged "A CONFIRMAR" against the supplier catalog.
 

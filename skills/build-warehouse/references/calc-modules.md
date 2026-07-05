@@ -1,7 +1,7 @@
 # Calc Modules — the structural calculation toolkit
 
 The skill now RUNS structural calculation via a validated, parametric toolkit in
-`projects/galpao/calc/` (11 modules, each with a self-test, Portuguese outputs,
+`projects/galpao/calc/` (12 modules, each with a self-test, Portuguese outputs,
 and formulas extracted from the norm PDFs). Every module was reviewed by the
 responsible engineer. The skill computes and produces the PT memoriais; the
 responsible engineer still REVIEWS them and signs off — the toolkit gives the
@@ -32,6 +32,7 @@ before that review.
 | 6 analysis | `galpao_portico` (+ `frame2d`) | portal efforts M/N/V, drift, ELS ladder | geometria (vão, pé-direito, cumeeira, BAY), G/Q, base rotulada/engastada, perfis placeholder |
 | 6 analysis | `estabilidade_b1b2` | 2nd order MAES: B1/B2, deslocabilidade, 80% stiffness, força nocional, amplified efforts | (reuses portico) |
 | 7 sizing | `check_nbr8800` | member check (Anexos F/G), K=1, interação, worst combo | perfis coluna/viga, fy, Lb travamento |
+| 7 sizing | `mao_francesa` | flange-brace spacing: inverts the 5.5.1.2 interaction for max Lb, derives braces/frame (feeds the viga Lb) | perfil viga, fy, Nsd/Msd/Vsd do combo governante, vão, inclinação, nº terças/água |
 | 7 sizing | `redimensionamento` (+ `perfis`) | iterate profile + base until ELU≤1 and drift≤H/150; lightest | escada de perfis candidatos, limite de flecha (fechamento) |
 | 7 sizing | `tercas_nbr14762` | cold-formed Ue purlin: MSE local, Anexo F suction, distortional, shear, biaxial, deflection | perfil Ue (catálogo), fy, vão, linha de corrente, trib, contínua?, cargas G/Q/W |
 | 7 sizing | `distorcional_fsm` | Mdist (elastic distortional, FSM/pycufsm) when Table 14 does not dispense | Ue dims, fy → feeds `tercas` cfg["Mdist"] |
@@ -45,7 +46,8 @@ before that review.
 configures every module, runs Gates 5-9 in order, extracts the base and knee
 efforts FROM the portico (not hardcoded), and writes one memorial per module +
 `MEMORIAL-CONSOLIDADO.txt`. `PARAMS_REF` is the validated 20x10 reference and
-reproduces it exactly (column 0.67, rafter 0.87). The geometry is PARAMETRIC:
+reproduces it exactly (column 0.67, rafter 0.93 with the flange-brace-derived Lb;
+2 flange braces/frame). The geometry is PARAMETRIC:
 `gp.configurar(span, eave, ridge, bay, base_fixed, sections, loads)`,
 `ti.configurar(...)`, and `build_galpao.configurar(length, span, eave_h, slope,
 bay, export_dir, doc_name)` set any dimension; `estabilidade` re-syncs from the
@@ -57,10 +59,11 @@ portico automatically. Use the orchestrator instead of calling modules ad hoc.
    pressures. Feed into the portico wind case.
 2. Gate 6 → set `galpao_portico` geometry/loads/`BASE_FIXED`; run
    `estabilidade_b1b2.analyse()` → amplified envelope + deslocabilidade + drift.
-3. Gate 7 → `check_nbr8800` (K=1) on the chosen profiles with the amplified
-   envelope. If it fails, `redimensionamento` to find the lightest passing
-   profile+base. Then `tercas_nbr14762` (calling `distorcional_fsm` for Mdist if
-   not dispensed), `base_chumbador`, `ligacoes`.
+3. Gate 7 → `mao_francesa` on the rafter's governing combo to fix the flange-brace
+   spacing (= the viga's Lb), then `check_nbr8800` (K=1) on the chosen profiles
+   with that Lb and the amplified envelope. If it fails, `redimensionamento` to
+   find the lightest passing profile+base. Then `tercas_nbr14762` (calling
+   `distorcional_fsm` for Mdist if not dispensed), `base_chumbador`, `ligacoes`.
 4. Gate 8 → swap placeholder sections for real ones from `perfis` / the
    supplier catalog (properties A CONFIRMAR).
 5. Gate 9 → assemble the memoriais (one per module) into the deliverables.

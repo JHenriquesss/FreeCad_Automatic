@@ -21,7 +21,9 @@ after FreeCAD launch; XML-RPC on localhost:9875).
   lateral-torsional buckling (FLT). A purlin only counts as a brace if it is
   itself properly restrained. The purlin restrains only the TOP flange; where the
   bottom flange is compressed by wind uplift, add a flange brace (mao-francesa)
-  to restrain it.
+  to restrain it. The Lb that makes the check pass — and thus how many flange
+  braces per frame — comes from `calc/mao_francesa.py` (it inverts the 5.5.1.2
+  interaction), not from a fixed guess.
 - CG axis: build truss/bracing skeletons on member centre-of-gravity lines (not
   bounding-box centres). Compute an assembly's CG (from its combined shape) to
   place lifting lugs symmetrically above it.

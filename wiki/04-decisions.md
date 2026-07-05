@@ -196,6 +196,27 @@ Why:
 Alternatives rejected:
 - Keep ad-hoc module calls. Constrain the skill to ~20x10 only.
 
+## 2026-07-05 - Flange-Brace Spacing By Inverting The Member Check
+
+Decision:
+- Derive the mao-francesa (flange-brace) count/spacing from the calc, not a
+  geometric heuristic: `calc/mao_francesa.py` bisects the NBR 8800 5.5.1.2
+  interaction for the max unbraced length Lb with interaction <= 1.0, gives
+  braces/frame, and that Lb feeds the viga check. `build_galpao.MF_STRIDE`
+  places braces per that stride.
+
+Why:
+- The brace spacing WAS a +/-150 mm guess and the check's viga `Lb=1.67` was
+  hardcoded and disconnected from where braces were modelled — two unlinked
+  assumptions. Inverting the same interaction the check uses closes the loop and
+  is the governing limit (FLT alone ignores the axial term = unsafe).
+- Ref 20x10: Lb_max 4.64 m, stride 2 -> 2 braces/frame (was 4), Lb 3.35 m, viga
+  interaction 0.93 (honest; was 0.87 under the assumed 1.67).
+
+Alternatives rejected:
+- Invert FLT-only (ignores flexo-compression). Keep bracing every purlin.
+  Keep the hardcoded Lb.
+
 ## 2026-07-04 - Defer FreeCAD GUI Bridge Startup To InitGui
 
 Decision:
