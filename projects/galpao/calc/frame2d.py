@@ -1,3 +1,14 @@
+# ============================================================================
+# frame2d.py - O QUE ESTE SCRIPT FAZ / CALCULA
+# Resolve um portico plano 2D pelo metodo da rigidez direta.
+#   Entra: geometria (nos e barras), secoes (E, A, I), apoios e cargas (nodais e
+#          distribuidas).
+#   Calcula: deslocamentos dos nos e esforcos nas barras (N normal, V cortante,
+#            M momento fletor).
+#   Auto-teste valida contra solucao fechada (cantilever PL^3/3EI e M=PL;
+#   viga biapoiada M=wL^2/8).
+# NAO dimensiona nem verifica perfil - apenas calcula esforcos e deslocamentos.
+# ============================================================================
 """2D frame solver (direct stiffness method) - transparent and auditable.
 
 For the transverse portal frame of the galpao. 3 DOF per node (u, v, rotation).

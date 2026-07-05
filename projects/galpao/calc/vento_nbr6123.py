@@ -1,3 +1,13 @@
+# ============================================================================
+# vento_nbr6123.py - O QUE ESTE SCRIPT FAZ / CALCULA
+# Calcula a acao do vento pela ABNT NBR 6123/1988.
+#   Calcula: fator de rugosidade S2 (Tabela 1), velocidade caracteristica Vk,
+#            pressao dinamica q = 0,613*Vk^2, coeficientes de forma externos Cpe
+#            (paredes Tabela 4, telhado Tabela 5) e coeficiente de pressao interna
+#            Cpi (item 6.2.5-c, portao como abertura dominante), e a pressao
+#            liquida (Cpe - Cpi)*q por superficie.
+# NAO analisa a estrutura - so fornece as pressoes de vento.
+# ============================================================================
 """Wind loads per ABNT NBR 6123/1988 for the galpao transverse frame.
 
 Coefficients are the ACTUAL table values (Tabela 1, 4, 5 and item 6.2), read from

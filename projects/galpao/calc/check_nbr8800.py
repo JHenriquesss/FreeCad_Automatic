@@ -1,3 +1,14 @@
+# ============================================================================
+# check_nbr8800.py - O QUE ESTE SCRIPT FAZ / CALCULA
+# Verifica um perfil metalico pela ABNT NBR 8800:2008 dados os esforcos
+# solicitantes (Nsd, Msd, Vsd).
+#   Calcula as resistencias de calculo: tracao (5.2), compressao com flambagem
+#   global (5.3, fator chi da Tabela 4), flexao com FLT (5.4/Anexo G,
+#   simplificado), cortante (5.4.3).
+#   Calcula: razoes de utilizacao (N/Nrd, M/Mrd, V/Vrd) e a interacao
+#   flexo-compressao (5.5.1.2), com veredito passa / nao passa.
+# NAO calcula esforcos (vem do galpao_portico) - so verifica a secao.
+# ============================================================================
 """Verificacao de perfil metalico conforme ABNT NBR 8800:2008.
 
 Recebe propriedades da secao + esforcos solicitantes (Nsd, Msd, Vsd) e calcula as

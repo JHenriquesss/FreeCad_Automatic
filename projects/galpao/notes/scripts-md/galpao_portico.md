@@ -1,12 +1,22 @@
 # galpao_portico.py
 
-Analise do portico transversal (usa frame2d + vento) + combinacoes NBR 8800 + memoria.
+Analise do portico transversal + combinacoes NBR 8800 + memoria.
 
 CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
 
 ## Codigo
 
 ```python
+# ============================================================================
+# galpao_portico.py - O QUE ESTE SCRIPT FAZ / CALCULA
+# Monta o portico transversal do galpao e calcula os esforcos e deslocamentos.
+#   Casos de carga: permanente (G), sobrecarga (Q) e vento (W, do vento_nbr6123).
+#   Combinacoes ELU da NBR 8800 (gamma e psi0 das Tabelas 1 e 2).
+#   Calcula: envoltoria de esforcos (M, N, V) em coluna e viga por combinacao,
+#            deslocamento lateral no beiral (ELS) e flecha vertical na cumeeira.
+#   Gera a memoria de calculo em portugues. Usa frame2d + vento_nbr6123.
+# NAO verifica o perfil (isso e feito no check_nbr8800).
+# ============================================================================
 """Transverse portal-frame analysis of the galpao + Portuguese calc memory.
 
 Uses the validated frame2d solver and the NBR 6123 wind module. Linear-elastic,
