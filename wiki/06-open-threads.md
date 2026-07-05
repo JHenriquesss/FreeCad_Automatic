@@ -8,9 +8,12 @@
   correctly stopped rather than fake it. Build after validation, grounded in
   NBR 8800 (impact/fatigue) + NBR 8400 (classes) + CBCA example. Tracked in
   `projects/galpao-ensaio/notes/backlog.md`.
-- **Secondary member verification.** HEA160 (eave struts / ridge) and UPE100
-  (wall girts/travessas) are modelled but NOT checked by any module — only
-  portico, roof purlin, base, connection are sized.
+- **Secondary member verification (RESOLVED 2026-07-05).** `secundarios_nbr8800`
+  checks the wall girt (UPE100, biaxial Anexo G + 5.5.1) and the eave strut/ridge
+  (HEA160, beam-column via `check_nbr8800`). Finding: UPE100 needs 2 wall sag-rod
+  lines (0.99); strut 0.11 OK. Remaining: the strut axial needs LONGITUDINAL wind
+  (NBR 6123 α=0), not yet in `vento` — flagged A CONFIRMAR; and the model has 0
+  wall sag rods (must add 2).
 - **Delegated (flagged, not errors):** concrete anchor breakout/pull-out cone
   (NBR 6118/ACI — foundation scope, `base_chumbador` flags); block shear / plate
   limit states beyond bearing (`ligacoes`); moment end-plate thickness + prying;

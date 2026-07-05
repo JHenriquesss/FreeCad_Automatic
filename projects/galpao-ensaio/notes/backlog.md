@@ -26,9 +26,14 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 ## Outras lacunas conhecidas (ja documentadas)
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
-- Verificacao propria das secoes secundarias (escoras HEA160, longarinas UPE100).
+- VENTO LONGITUDINAL (NBR 6123, alpha=0): o modulo vento so faz o transversal.
+  Necessario para o axial da escora de beiral e do contraventamento longitudinal
+  (hoje Nsd da escora e A CONFIRMAR em secundarios_nbr8800).
 
 ## RESOLVIDO (2026-07-05)
 - Mao-francesa deixou de ser heuristica: calc/mao_francesa.py deriva o passo por
   inversao da interacao 5.5.1.2 (Lb da viga), ligado ao build (MF_STRIDE) e ao
   check. Ref 20x10: 2 bracos/portico, Lb=3,35 m, interacao da viga 0,93.
+- Secoes secundarias verificadas: secundarios_nbr8800 (longarina U biaxial Anexo
+  G + escora I flexo-compressao). Achado: UPE100 exige 2 tirantes de parede
+  (0,99); escora HEA160 0,11 OK. Falta so o axial via vento longitudinal (acima).

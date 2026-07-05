@@ -4,11 +4,14 @@
 > "furos" abaixo JA FORAM RESOLVIDOS depois: perfis reais no modelo (i/u/ue_member,
 > nao mais so caixas), verificacao de interferencia RODA de verdade
 > (checa_interferencia + estrutura_em_aberturas), toolkit de calculo integrado
-> (12 modulos + orquestrador rodar_galpao), e geometria parametrica. A
+> (13 modulos + orquestrador rodar_galpao), e geometria parametrica. A
 > mao-francesa (#2) DEIXOU de ser heuristica: calc/mao_francesa.py deriva o passo
-> por inversao da interacao 5.5.1.2 (ref 20x10: 2 bracos/portico, Lb=3,35 m). Ainda
-> ABERTO: verificacao propria das secoes secundarias (HEA160/UPE100), modo "batch
-> defaults" para nao perguntar tudo (#5), e o MODULO DE PONTE ROLANTE (ver
+> por inversao da interacao 5.5.1.2 (ref 20x10: 2 bracos/portico, Lb=3,35 m). As
+> secoes secundarias (HEA160/UPE100) AGORA sao verificadas por
+> secundarios_nbr8800 (longarina U biaxial + escora I flexo-compressao); achado:
+> UPE100 exige 2 tirantes de parede (0,99), escora HEA160 0,11 OK. Ainda ABERTO:
+> modo "batch defaults" (#5), o vento LONGITUDINAL (alpha=0; axial da escora e
+> A CONFIRMAR), e o MODULO DE PONTE ROLANTE (ver
 > projects/galpao-ensaio/notes/backlog.md).
 
 First real execution of the build-warehouse skill after 17 refinement rounds.

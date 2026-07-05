@@ -1,7 +1,7 @@
 # Calc Modules — the structural calculation toolkit
 
 The skill now RUNS structural calculation via a validated, parametric toolkit in
-`projects/galpao/calc/` (12 modules, each with a self-test, Portuguese outputs,
+`projects/galpao/calc/` (13 modules, each with a self-test, Portuguese outputs,
 and formulas extracted from the norm PDFs). Every module was reviewed by the
 responsible engineer. The skill computes and produces the PT memoriais; the
 responsible engineer still REVIEWS them and signs off — the toolkit gives the
@@ -37,6 +37,7 @@ before that review.
 | 7 sizing | `tercas_nbr14762` | cold-formed Ue purlin: MSE local, Anexo F suction, distortional, shear, biaxial, deflection | perfil Ue (catálogo), fy, vão, linha de corrente, trib, contínua?, cargas G/Q/W |
 | 7 sizing | `distorcional_fsm` | Mdist (elastic distortional, FSM/pycufsm) when Table 14 does not dispense | Ue dims, fy → feeds `tercas` cfg["Mdist"] |
 | 7 sizing | `base_chumbador` | base plate + anchors: bearing (6.6.5), N+M eccentricity (DG1), anchor tension/shear, plate t both sides | N/V/M from portico base, fck, placa BxL, chumbadores, dims pilar |
+| 7 sizing | `secundarios_nbr8800` | secondary members: wall girt (U) biaxial bending (Anexo G + 5.5.1), eave strut/ridge (I) beam-column | perfis U/I, trib, peso tapamento, nº tirantes de parede, pressão de vento, Nsd longitudinal (A CONFIRMAR) |
 | 7 sizing | `ligacoes` | bolts (6.3), fillet welds (6.2.5), 45 kN min (6.1.5.2) | efforts per node, bolt/weld data, exception flag |
 
 ## Orchestrator (one call runs the whole chain)
@@ -75,6 +76,9 @@ portico automatically. Use the orchestrator instead of calling modules ad hoc.
 - Block shear / plate limit states beyond bearing are not in `ligacoes`.
 - Rigorous Ief / Wef,y for the purlin come from catalog/software; the module
   uses a conservative fallback and flags it.
+- `secundarios_nbr8800`: the eave-strut axial needs the LONGITUDINAL wind (NBR
+  6123, α=0), not yet in `vento` — it is a parameter flagged A CONFIRMAR. The
+  U-profile J/Cw for the girt FLT are catalog inputs (method is Anexo G).
 
 ## Inputs the skill must have collected before running
 

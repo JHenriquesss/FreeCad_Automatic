@@ -23,6 +23,7 @@ import tercas_iteracao as ti
 import base_chumbador as bc
 import ligacoes as lg
 import mao_francesa as maofr
+import secundarios_nbr8800 as secmod
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -121,6 +122,18 @@ def rodar(params, out_dir):
     res["interacao_raf"] = finais[1]["interacao"]
     # Gate 7 - tercas
     save("gate7-tercas.txt", ti.memoria_pt())
+    # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
+    vr = vento.compute()
+    net_par = [abs(vr["net"][c][s]) for c in vr["net"] for s in vr["net"][c]
+               if s.startswith("parede")]
+    sp = dict(params["secundarios"])
+    sp["longarina"]["vao"] = g["bay"]; sp["escora"]["vao"] = g["bay"]
+    sp["longarina"]["q_vento"] = max(net_par) * vr["q_kN_m2"]
+    rl = secmod.verifica_longarina(sp["perfil_long"], params["fy"], sp["longarina"])
+    re_ = secmod.verifica_escora(sp["perfil_esc"], params["fy"], sp["escora"])
+    save("gate7-secundarios.txt", secmod.relatorio_pt(rl) + "\n\n" + secmod.relatorio_pt(re_))
+    res["longarina_inter"] = rl.get("inter"); res["longarina_ok"] = rl["OK"]
+    res["escora_inter"] = re_["interacao"]; res["escora_ok"] = re_["OK"]
     # Gate 7 - base + ligacoes (esforcos extraidos do portico)
     (bnm, bN, bV, bM), (knm, kN, kV, kM) = _esforcos_base_joelho()
     res["base_gov"] = (bnm, round(bN, 1), round(bV, 1), round(bM, 1))
@@ -145,7 +158,8 @@ def _consolidar(out_dir, save, g, params):
     ordem = [("1. VENTO", "gate5-vento.txt"), ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
-             ("7. BASE", "gate7-base.txt"), ("8. LIGACOES", "gate7-ligacoes.txt")]
+             ("7. SECUNDARIOS", "gate7-secundarios.txt"),
+             ("8. BASE", "gate7-base.txt"), ("9. LIGACOES", "gate7-ligacoes.txt")]
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
     for tit, f in ordem:
@@ -165,6 +179,13 @@ PARAMS_REF = {
     "cargas": {"G": 0.27, "self": 0.35, "Q": 0.25},
     "Lb": {"col": 2.0, "raf": 1.67},
     "terca": {"trib": 1.675, "fy": 250e3, "n_por_agua": 3},
+    # Pecas secundarias (gate: trib, tapamento, n_tirantes, Nsd escora = A CONFIRMAR)
+    "secundarios": {
+        "perfil_long": secmod.UPE100, "perfil_esc": secmod.HEA160,
+        "longarina": {"vao": 5.0, "q_vento": None, "trib": 2.0, "g_tapamento": 0.10,
+                      "peso_proprio": 0.10, "n_tirantes": 2, "continua": False},
+        "escora": {"vao": 5.0, "Nsd": 60.0, "peso_proprio": 0.31, "Lb": 5.0,
+                   "nome": "Escora de beiral / cumeeira (HEA160)"}},
     "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
              "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
              "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
@@ -185,6 +206,10 @@ if __name__ == "__main__":
     print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,93 c/ Lb da mao-francesa)")
     print(f"  mao-francesa     = {r['mf_bracos_portico']} bracos/portico ; "
           f"1 a cada {r['mf_stride']} terca(s) ; Lb={r['Lb_raf']} m")
+    print(f"  longarina UPE100 = {r['longarina_inter']:.2f} "
+          f"({'OK' if r['longarina_ok'] else 'NAO'}, 2 tirantes de parede)")
+    print(f"  escora HEA160    = {r['escora_inter']:.2f} "
+          f"({'OK' if r['escora_ok'] else 'NAO'}, Nsd long. A CONFIRMAR)")
     print(f"  base governa     = {r['base_gov']}")
     print(f"  joelho governa   = {r['knee_gov']}")
     print(f"  memoriais em: {os.path.abspath(out)}")

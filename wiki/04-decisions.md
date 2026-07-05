@@ -217,6 +217,27 @@ Alternatives rejected:
 - Invert FLT-only (ignores flexo-compression). Keep bracing every purlin.
   Keep the hardcoded Lb.
 
+## 2026-07-05 - Secondary Members: Catalog J/Cw For The Channel FLT
+
+Decision:
+- `secundarios_nbr8800` checks the wall girt (U) and eave strut/ridge (I). For
+  the girt's strong-axis FLT (channel), take J and Cw from the CATALOG (flagged
+  A CONFIRMAR) and apply the same NBR 8800 Anexo G formula the section check
+  uses — do NOT derive a channel Cw formula from memory. Missing J/Cw ->
+  INCONCLUSIVO, never invented.
+
+Why:
+- Zero-method-error: the Anexo G method is verified; a from-memory channel Cw
+  would be an unverifiable method/data error. Making J/Cw a catalog input keeps
+  the method exact and the data auditable (same treatment as purlin Ief/Wef,y).
+- Girt Lp for a channel is tiny (~0.87 m); punting FLT to "compact+braced only"
+  made the check useless — full Anexo G with catalog Cw is the honest path.
+- Ref 20x10: UPE100 girt needs 2 wall sag-rod lines (0.99); HEA160 strut 0.11 OK.
+
+Alternatives rejected:
+- Derive channel Cw from a memorized thin-wall formula. Cap Mrd,x to the plastic
+  value only when Lb<=Lp (unusable). Leave secondary members unchecked.
+
 ## 2026-07-04 - Defer FreeCAD GUI Bridge Startup To InitGui
 
 Decision:

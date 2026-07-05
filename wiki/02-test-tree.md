@@ -66,8 +66,10 @@ End-to-end trunk for this project:
 - Assert full gate-loop dry-run (`projects/galpao-ensaio`, Gates 0-9) runs and a
   heavy-crane pick is correctly caught as unsupported. Green.
 - Each module was senior-reviewed (external engineer) across multiple rounds.
-- Missing: automated (CI) regression on the reference numbers; secondary-member
-  (HEA160/UPE100) verification; crane load path.
+- Assert `secundarios_nbr8800._selftest()`: UPE100 girt fails with 1 wall sag rod,
+  passes with 2 (0.99); HEA160 strut beam-column OK. Green.
+- Missing: automated (CI) regression on the reference numbers; longitudinal wind
+  (α=0) for the strut axial; crane load path.
 
 ### Library Branch
 
