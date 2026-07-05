@@ -3,21 +3,15 @@
 # Monta o portico transversal do galpao e calcula os esforcos e deslocamentos.
 #   Casos de carga: permanente (G), sobrecarga (Q) e vento (W, do vento_nbr6123).
 #   Combinacoes ELU da NBR 8800 (gamma e psi0 das Tabelas 1 e 2).
-#   Calcula: envoltoria de esforcos (M, N, V) em coluna e viga por combinacao,
+#   Calcula: envoltoria de esforcos (M, N, V) em coluna e viga por combinacao
+#            (momento avaliado AO LONGO da barra, nao so nos nos - barras malhadas),
 #            deslocamento lateral no beiral (ELS) e flecha vertical na cumeeira.
+#   Vento na cobertura aplicado NORMAL a superficie (componentes wx e wy).
 #   Gera a memoria de calculo em portugues. Usa frame2d + vento_nbr6123.
 # NAO verifica o perfil (isso e feito no check_nbr8800).
 # ============================================================================
-"""Transverse portal-frame analysis of the galpao + Portuguese calc memory.
-
-Uses the validated frame2d solver and the NBR 6123 wind module. Linear-elastic,
-first-order (note: the engineer must confirm whether 2nd-order/sway effects
-govern - NBR 8800). Load cases are combined by superposition. Output memory is in
-Portuguese for direct review. Computes only; pending engineer review.
-
-Frame plane: horizontal = building span Y, vertical = Z. Pinned bases.
-Units: m, kN.
-"""
+"""Analise do portico transversal + memoria em PT. Linear elastica, 1a ordem
+(2a ordem/B1-B2 e modulo separado). Calcula apenas; pendente revisao."""
 
 from __future__ import annotations
 
@@ -27,191 +21,201 @@ import os
 import frame2d as f2d
 import vento_nbr6123 as vento
 
-# ---- geometry (transverse frame) -------------------------------------------
+# ---- geometria (portico transversal); plano: x=vao Y, y=altura Z -----------
 SPAN = 10.0
 EAVE = 6.0
 RIDGE = 6.5
-BAY = 5.0                     # tributary width (internal frame)
-THETA = (RIDGE - EAVE) / (SPAN / 2)   # slope of rafter (rise/run) = 0.1
-COS = 1.0 / math.hypot(1.0, THETA)    # cos of rafter angle
+BAY = 5.0
+THETA = math.atan((RIDGE - EAVE) / (SPAN / 2))   # angulo da agua (5.71 graus)
+COS, SIN = math.cos(THETA), math.sin(THETA)
+NSEG = 8                                          # sub-divisoes por barra
 
-E = 200e6                     # kN/m2 (200 GPa)
-# placeholder sections (NOT verified): HEA200 columns, HEA180 rafters
-A_COL, I_COL = 53.8e-4, 3692e-8       # m2, m4  (HEA200)
-A_RAF, I_RAF = 45.3e-4, 2510e-8       # m2, m4  (HEA180)
+E = 200e6
+A_COL, I_COL = 53.8e-4, 3692e-8   # HEA200
+A_RAF, I_RAF = 45.3e-4, 2510e-8   # HEA180
 
-# ---- loads (kN/m2 areal, and member self weight kN/m) ----------------------
-G_ROOF = 0.27                 # cladding + purlins + suspended (areal)
-RAFTER_SELF = 0.35            # HEA180 ~35.5 kg/m
-Q_ROOF = 0.25                 # roof live / maintenance
+# ---- cargas (kN/m2 de area de telhado; peso proprio kN/m) ------------------
+G_ROOF = 0.27          # telha + tercas + suspensas (por area de telhado)
+RAFTER_SELF = 0.35     # peso proprio da viga (por metro de barra)
+Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
+
+
+def _chain(fr, na, nb, Asec, Isec, nseg):
+    """Malha nseg barras entre os nos EXISTENTES na e nb (reutiliza os
+    extremos, criando so os nos intermediarios). Retorna os indices dos
+    elementos."""
+    (xa, ya), (xb, yb) = fr.nodes[na], fr.nodes[nb]
+    prev = na
+    elems = []
+    for k in range(1, nseg):
+        nk = fr.add_node(xa + (xb - xa) * k / nseg, ya + (yb - ya) * k / nseg)
+        elems.append(fr.add_element(prev, nk, E, Asec, Isec))
+        prev = nk
+    elems.append(fr.add_element(prev, nb, E, Asec, Isec))
+    return elems
 
 
 def _frame():
     fr = f2d.Frame2D()
-    n0 = fr.add_node(0.0, 0.0)          # left base
-    n1 = fr.add_node(0.0, EAVE)         # left eave
-    n2 = fr.add_node(SPAN / 2, RIDGE)   # ridge
-    n3 = fr.add_node(SPAN, EAVE)        # right eave
-    n4 = fr.add_node(SPAN, 0.0)         # right base
-    eColL = fr.add_element(n0, n1, E, A_COL, I_COL)
-    eRafL = fr.add_element(n1, n2, E, A_RAF, I_RAF)
-    eRafR = fr.add_element(n2, n3, E, A_RAF, I_RAF)
-    eColR = fr.add_element(n3, n4, E, A_COL, I_COL)
-    fr.add_support(n0, u=True, v=True)  # pinned
-    fr.add_support(n4, u=True, v=True)
-    return fr, dict(n1=n1, n2=n2, colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR)
+    # nos de juncao compartilhados
+    nBaseL = fr.add_node(0, 0)
+    nEaveL = fr.add_node(0, EAVE)
+    nRidge = fr.add_node(SPAN / 2, RIDGE)
+    nEaveR = fr.add_node(SPAN, EAVE)
+    nBaseR = fr.add_node(SPAN, 0)
+    eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
+    eRafL = _chain(fr, nEaveL, nRidge, A_RAF, I_RAF, NSEG)
+    eRafR = _chain(fr, nRidge, nEaveR, A_RAF, I_RAF, NSEG)
+    eColR = _chain(fr, nEaveR, nBaseR, A_COL, I_COL, NSEG)
+    fr.add_support(nBaseL, u=True, v=True)   # rotulada
+    fr.add_support(nBaseR, u=True, v=True)
+    ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
+              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR)
+    return fr, ix
 
 
 def _run(load_fn):
     fr, ix = _frame()
     load_fn(fr, ix)
     d, mf = fr.solve()
-    return d, mf, ix
+    return d, mf, ix, fr
 
 
+# ---- casos de carga --------------------------------------------------------
 def case_G(fr, ix):
-    wy = -(G_ROOF * BAY * COS + RAFTER_SELF)   # vertical UDL on rafters (down)
-    fr.add_member_udl(ix["rafL"], wy=wy)
-    fr.add_member_udl(ix["rafR"], wy=wy)
+    # G por area de telhado -> carga vertical por metro de barra = G_ROOF*BAY
+    # (SEM cos: a area ja e a real do telhado) + peso proprio da barra.
+    wy = -(G_ROOF * BAY + RAFTER_SELF)
+    for e in ix["rafL"] + ix["rafR"]:
+        fr.add_member_udl(e, wy=wy)
 
 
 def case_Q(fr, ix):
+    # Q por projecao horizontal -> por metro de barra = Q_ROOF*BAY*cos.
     wy = -(Q_ROOF * BAY * COS)
-    fr.add_member_udl(ix["rafL"], wy=wy)
-    fr.add_member_udl(ix["rafR"], wy=wy)
+    for e in ix["rafL"] + ix["rafR"]:
+        fr.add_member_udl(e, wy=wy)
 
 
-def _wind_case(cpi_key):
-    """Return a load function for a wind sub-case (internal pressure sign)."""
+def _wind(cpi_key):
     r = vento.compute()
     q = r["q_kN_m2"]
     net = r["net"][cpi_key]
 
     def apply(fr, ix):
-        # Walls: net pressure (Cpe-Cpi) acts INWARD on each wall. Inward is +Y for
-        # the left (windward) wall and -Y for the right (leeward) wall, so the
-        # leeward term is negated. Both windward pressure and leeward suction push
-        # the frame in the wind direction (+Y).
-        fr.add_member_udl(ix["colL"], wx=+net["parede_barlavento"] * q * BAY)
-        fr.add_member_udl(ix["colR"], wx=-net["parede_sotavento"] * q * BAY)
-        # Roof: net suction acts outward (up); low slope -> ~vertical uplift.
-        up_bar = -net["cobertura_barlavento"] * q * BAY * COS   # +y up
-        up_lee = -net["cobertura_sotavento"] * q * BAY * COS
-        fr.add_member_udl(ix["rafL"], wy=up_bar)
-        fr.add_member_udl(ix["rafR"], wy=up_lee)
+        # Paredes: pressao liquida horizontal. Inward = +Y (esq) / -Y (dir).
+        for e in ix["colL"]:
+            fr.add_member_udl(e, wx=+net["parede_barlavento"] * q * BAY)
+        for e in ix["colR"]:
+            fr.add_member_udl(e, wx=-net["parede_sotavento"] * q * BAY)
+        # Cobertura: pressao NORMAL a agua. n_hat = normal externa (para cima).
+        # Carga = -Cp*q*BAY * n_hat  (Cp<0 succao -> sai para fora, +n_hat).
+        # agua esquerda (barlavento): normal (-sin, +cos) ; direita (+sin, +cos)
+        for e in ix["rafL"]:
+            p = net["cobertura_barlavento"] * q * BAY
+            fr.add_member_udl(e, wx=-p * (-SIN), wy=-p * COS)
+        for e in ix["rafR"]:
+            p = net["cobertura_sotavento"] * q * BAY
+            fr.add_member_udl(e, wx=-p * (SIN), wy=-p * COS)
     return apply, r
 
 
-def _member_MN(mf, eid):
-    f = mf[eid]  # [N_i, V_i, M_i, N_j, V_j, M_j]
-    M = max(abs(f[2]), abs(f[5]))
-    N = max(abs(f[0]), abs(f[3]))
-    V = max(abs(f[1]), abs(f[4]))
-    return M, N, V
+# ---- esforcos ao longo da barra (varre sub-elementos) ----------------------
+def _grupo_MNV(mf, elems):
+    """Max |M|, |N|, |V| entre os sub-elementos do grupo (le as duas
+    extremidades de cada sub-barra -> captura o pico ao longo do vao)."""
+    Mm = Nm = Vm = 0.0
+    for e in elems:
+        f = mf[e]  # [N_i, V_i, M_i, N_j, V_j, M_j]
+        Mm = max(Mm, abs(f[2]), abs(f[5]))
+        Nm = max(Nm, abs(f[0]), abs(f[3]))
+        Vm = max(Vm, abs(f[1]), abs(f[4]))
+    return Mm, Nm, Vm
 
 
 def analyse():
-    # per-case results (superposition)
-    dG, mfG, ix = _run(case_G)
-    dQ, mfQ, _ = _run(case_Q)
-    (w1fn, wr) = _wind_case("portao_barlavento")   # Cpi +0.8 -> max uplift
-    dW1, mfW1, _ = _run(w1fn)
-    (w2fn, _) = _wind_case("portao_sotavento")     # Cpi -0.6 -> max wall push
-    dW2, mfW2, _ = _run(w2fn)
+    import numpy as np
+    dG, mfG, ix, _ = _run(case_G)
+    dQ, mfQ, _, _ = _run(case_Q)
+    (w1, wr) = _wind("portao_barlavento")
+    dW1, mfW1, _, _ = _run(w1)
+    (w2, _) = _wind("portao_sotavento")
+    dW2, mfW2, _, _ = _run(w2)
 
-    def combo_mf(coeffs):
-        # coeffs: dict case->factor ; returns combined member forces
-        import numpy as np
+    cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
+    cases_d = {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}
+
+    def combo_mf(c):
         keys = list(mfG.keys())
-        out = {}
-        for k in keys:
-            v = np.zeros(6)
-            for case, fac in coeffs.items():
-                v = v + fac * {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}[case][k]
-            out[k] = v
-        return out
+        return {k: sum(fac * cases_mf[cs][k] for cs, fac in c.items()) for k in keys}
 
-    def combo_disp(coeffs):
-        import numpy as np
+    def combo_d(c):
         v = np.zeros_like(dG)
-        for case, fac in coeffs.items():
-            v = v + fac * {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}[case]
+        for cs, fac in c.items():
+            v = v + fac * cases_d[cs]
         return v
 
-    # ULS combinations (NBR 8800 Tabelas 1 e 2). gamma_g=1.25/1.0, gamma_q,vento=
-    # 1.4, gamma_q,sobrecarga=1.5; psi0: sobrecarga cobertura=0.8, vento=0.6.
-    # Combos flagged for engineer confirmation.
-    C1 = {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40}     # gravidade principal (+vento sec.)
-    C2 = {"G": 1.00, "W1": 1.40}                       # vento uplift princ. (Q favoravel omitida)
-    C3 = {"G": 1.00, "W2": 1.40, "Q": 0.8 * 1.50}     # vento pressao princ. (+sobrecarga sec.)
-
-    combos = {"C1_gravidade": C1, "C2_vento_succao": C2, "C3_vento_pressao": C3}
-    results = {}
+    # Combinacoes ELU (NBR 8800). psi0: sobrecarga=0,8 ; vento=0,6.
+    combos = {
+        "C1_gravidade": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
+        "C2_uplift": {"G": 1.00, "W1": 1.40},
+        "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
+        "C3_vento_Gfav": {"G": 1.00, "W2": 1.40, "Q": 0.8 * 1.50},
+    }
+    res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)
-        col = max(_member_MN(cmf, ix["colL"]), _member_MN(cmf, ix["colR"]))
-        raf = max(_member_MN(cmf, ix["rafL"]), _member_MN(cmf, ix["rafR"]))
-        results[name] = {"coluna": col, "viga": raf}
+        col = max(_grupo_MNV(cmf, ix["colL"]), _grupo_MNV(cmf, ix["colR"]))
+        raf = max(_grupo_MNV(cmf, ix["rafL"]), _grupo_MNV(cmf, ix["rafR"]))
+        res[name] = {"coluna": col, "viga": raf}
 
-    # ELS drift (characteristic wind, worst push case W2)
-    dser = combo_disp({"W2": 1.0})
-    drift = abs(dser[3 * ix["n1"]])           # eave horizontal (frame x)
-    drift_lim = EAVE / 300.0
-    # ELS vertical deflection at ridge (G+Q)
-    dvert = combo_disp({"G": 1.0, "Q": 1.0})
-    ridge_v = abs(dvert[3 * ix["n2"] + 1])
-
-    return {"wind": wr, "results": results, "drift": drift, "drift_lim": drift_lim,
-            "ridge_v": ridge_v}
+    dser = combo_d({"W2": 1.0})
+    drift = abs(dser[3 * ix["nEaveL"]])
+    dvert = combo_d({"G": 1.0, "Q": 1.0})
+    ridge_v = abs(dvert[3 * ix["nRidge"] + 1])
+    return {"wind": wr, "results": res, "drift": drift,
+            "drift_lim": EAVE / 300.0, "ridge_v": ridge_v}
 
 
 def memoria_pt(a):
     L = []
-    L.append("=" * 70)
-    L.append("MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)")
-    L.append("CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL")
-    L.append("=" * 70)
-    L.append("")
-    L.append("1. DADOS")
-    L.append(f"   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10%")
-    L.append(f"   Espacamento de porticos (largura de influencia) = {BAY:.1f} m")
-    L.append(f"   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.")
-    L.append(f"   Analise linear elastica de 1a ordem (2a ordem/deslocabilidade a")
-    L.append(f"   confirmar pelo engenheiro - NBR 8800).")
-    L.append("")
-    L.append("2. ACOES")
-    L.append(f"   2.1 Permanente (G): cobertura {G_ROOF:.2f} kN/m2 (telha+tercas+suspensas)")
-    L.append(f"       + peso proprio da viga {RAFTER_SELF:.2f} kN/m")
-    L.append(f"   2.2 Sobrecarga (Q): {Q_ROOF:.2f} kN/m2 (manutencao, NBR 8800)")
-    L.append(f"   2.3 " + vento.relatorio_pt(a["wind"]).replace("\n", "\n   "))
-    L.append("")
-    L.append("3. COMBINACOES (NBR 8800, ELU) [a confirmar pelo engenheiro]")
-    L.append("   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6 (Tabela 2)")
-    L.append("   C1 gravidade:  1,25 G + 1,50 Q + 0,84 W   (Q principal)")
-    L.append("   C2 uplift:     1,00 G + 1,40 W(press. int.)   (Q favoravel omitida)")
-    L.append("   C3 pressao:    1,00 G + 1,40 W(succ. int.) + 1,20 Q")
-    L.append("")
-    L.append("4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]")
+    L += ["=" * 70,
+          "MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)",
+          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 70, "",
+          "1. DADOS",
+          "   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)",
+          f"   Espacamento de porticos (largura de influencia) = {BAY:.1f} m",
+          "   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.",
+          f"   Barras malhadas em {NSEG} trechos (momento avaliado ao longo do vao).",
+          "   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).", "",
+          "2. ACOES",
+          f"   2.1 Permanente (G): {G_ROOF:.2f} kN/m2 (area de telhado, SEM cos)",
+          f"       + peso proprio da viga {RAFTER_SELF:.2f} kN/m",
+          f"   2.2 Sobrecarga (Q): {Q_ROOF:.2f} kN/m2 (projecao horizontal, com cos)",
+          "   2.3 " + vento.relatorio_pt(a["wind"]).replace("\n", "\n   "),
+          "   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)", "",
+          "3. COMBINACOES (NBR 8800, ELU) [a confirmar]",
+          "   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6",
+          "   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W",
+          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)",
+          "   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q",
+          "   C3 vento (G fav):  1,00 G + 1,40 W + 1,20 Q", "",
+          "4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]"]
     for name, r in a["results"].items():
         cM, cN, cV = r["coluna"]
         vM, vN, vV = r["viga"]
-        L.append(f"   {name}:")
-        L.append(f"     Coluna: M={cM:6.1f}  N={cN:6.1f}  V={cV:6.1f}")
-        L.append(f"     Viga:   M={vM:6.1f}  N={vN:6.1f}  V={vV:6.1f}")
-    L.append("")
-    L.append("5. DESLOCAMENTOS (ELS)")
-    L.append(f"   Deslocamento lateral no beiral (vento caract.): {a['drift']*1000:.1f} mm")
-    L.append(f"     Limite H/300 = {a['drift_lim']*1000:.1f} mm  -> "
-             f"{'OK' if a['drift'] <= a['drift_lim'] else 'NAO ATENDE'}")
-    L.append(f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/200)")
-    L.append("")
-    L.append("6. OBSERVACOES / PENDENCIAS (engenheiro)")
-    L.append("   - Coeficientes de vento (Cpe/Cpi) a confirmar; portao = abertura")
-    L.append("     dominante (pressao interna pode chegar a +0,7 com vento no oitao).")
-    L.append("   - Confirmar necessidade de analise de 2a ordem e reducao de rigidez.")
-    L.append("   - Dimensionar/verificar perfis (flexo-compressao, FLT, flambagem)")
-    L.append("     e ligacoes (esforco minimo 45 kN) - proxima etapa.")
-    L.append("   - Verificar tercas, contraventamento e bases separadamente.")
+        L += [f"   {name}:",
+              f"     Coluna: M={cM:6.1f}  N={cN:6.1f}  V={cV:6.1f}",
+              f"     Viga:   M={vM:6.1f}  N={vN:6.1f}  V={vV:6.1f}"]
+    L += ["", "5. DESLOCAMENTOS (ELS)",
+          f"   Deslocamento lateral no beiral (vento caract.): {a['drift']*1000:.1f} mm",
+          f"     Limite H/300 = {a['drift_lim']*1000:.1f} mm  -> "
+          f"{'OK' if a['drift'] <= a['drift_lim'] else 'NAO ATENDE'}",
+          f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/200)",
+          "", "6. OBSERVACOES / PENDENCIAS",
+          "   - Coeficientes de vento a confirmar; portao = abertura dominante.",
+          "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",
+          "   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases."]
     import re
     return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
 
@@ -224,4 +228,3 @@ if __name__ == "__main__":
     os.makedirs(out + "/memoria", exist_ok=True)
     with open(out + "/memoria/memoria-calculo-galpao.txt", "w", encoding="utf-8") as f:
         f.write(txt + "\n")
-    print("\n[gravado] exports/memoria/memoria-calculo-galpao.txt")

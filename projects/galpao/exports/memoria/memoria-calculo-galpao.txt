@@ -4,16 +4,16 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 ======================================================================
 
 1. DADOS
-   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10%
+   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)
    Espacamento de porticos (largura de influencia) = 5,0 m
    Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.
-   Analise linear elastica de 1a ordem (2a ordem/deslocabilidade a
-   confirmar pelo engenheiro - NBR 8800).
+   Barras malhadas em 8 trechos (momento avaliado ao longo do vao).
+   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).
 
 2. ACOES
-   2,1 Permanente (G): cobertura 0,27 kN/m2 (telha+tercas+suspensas)
+   2,1 Permanente (G): 0,27 kN/m2 (area de telhado, SEM cos)
        + peso proprio da viga 0,35 kN/m
-   2,2 Sobrecarga (Q): 0,25 kN/m2 (manutencao, NBR 8800)
+   2,2 Sobrecarga (Q): 0,25 kN/m2 (projecao horizontal, com cos)
    2,3 VENTO (ABNT NBR 6123/1988)
      V0 = 40 m/s ; Categoria II ; Classe B
      S1 = 1,00 (topografia plana) ; S3 = 0,95 (galpao deposito)
@@ -41,33 +41,35 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
          cobertura sotavento: +0,00  (+0,000 kN/m2)
      [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
       razao de areas das aberturas para o Cpi do portao (6,2.5-c).]
+   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
 
-3. COMBINACOES (NBR 8800, ELU) [a confirmar pelo engenheiro]
-   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6 (Tabela 2)
-   C1 gravidade:  1,25 G + 1,50 Q + 0,84 W   (Q principal)
-   C2 uplift:     1,00 G + 1,40 W(press. int.)   (Q favoravel omitida)
-   C3 pressao:    1,00 G + 1,40 W(succ. int.) + 1,20 Q
+3. COMBINACOES (NBR 8800, ELU) [a confirmar]
+   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6
+   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W
+   C2 uplift:         1,00 G + 1,40 W(portao barlavento)
+   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q
+   C3 vento (G fav):  1,00 G + 1,40 W + 1,20 Q
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
    C1_gravidade:
-     Coluna: M=  62,1  N=  26,5  V=  10,4
-     Viga:   M=  62,1  N=  12,9  V=  25,4
-   C2_vento_succao:
-     Coluna: M= 109,8  N=  48,9  V=  19,9
-     Viga:   M= 109,8  N=  24,7  V=  46,7
-   C3_vento_pressao:
-     Coluna: M=  81,1  N=  26,9  V=  13,5
-     Viga:   M=  81,1  N=  16,1  V=  25,4
+     Coluna: M=  60,7  N=  26,3  V=  10,1
+     Viga:   M=  60,7  N=  12,7  V=  25,2
+   C2_uplift:
+     Coluna: M= 107,0  N=  48,4  V=  19,5
+     Viga:   M= 107,0  N=  25,1  V=  46,2
+   C3_vento_Gdesf:
+     Coluna: M=  81,5  N=  28,6  V=  13,6
+     Viga:   M=  81,5  N=  16,4  V=  27,1
+   C3_vento_Gfav:
+     Coluna: M=  78,8  N=  26,4  V=  13,1
+     Viga:   M=  78,8  N=  15,7  V=  25,0
 
 5. DESLOCAMENTOS (ELS)
-   Deslocamento lateral no beiral (vento caract.): 183,6 mm
+   Deslocamento lateral no beiral (vento caract.): 177,3 mm
      Limite H/300 = 20,0 mm  -> NAO ATENDE
-   Flecha vertical na cumeeira (G+Q): 26,6 mm (verificar L/200)
+   Flecha vertical na cumeeira (G+Q): 26,7 mm (verificar L/200)
 
-6. OBSERVACOES / PENDENCIAS (engenheiro)
-   - Coeficientes de vento (Cpe/Cpi) a confirmar; portao = abertura
-     dominante (pressao interna pode chegar a +0,7 com vento no oitao).
-   - Confirmar necessidade de analise de 2a ordem e reducao de rigidez.
-   - Dimensionar/verificar perfis (flexo-compressao, FLT, flambagem)
-     e ligacoes (esforco minimo 45 kN) - proxima etapa.
-   - Verificar tercas, contraventamento e bases separadamente.
+6. OBSERVACOES / PENDENCIAS
+   - Coeficientes de vento a confirmar; portao = abertura dominante.
+   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.
+   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases.
