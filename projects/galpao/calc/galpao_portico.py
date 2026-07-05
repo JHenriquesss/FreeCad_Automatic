@@ -199,7 +199,8 @@ def memoria_pt(a):
           "1. DADOS",
           "   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)",
           f"   Espacamento de porticos (largura de influencia) = {BAY:.1f} m",
-          "   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.",
+          f"   Bases {'ENGASTADAS' if BASE_FIXED else 'rotuladas'}. "
+          "Perfis: colunas HEA200, vigas HEA180.",
           f"   Barras malhadas em {NSEG} trechos (momento avaliado ao longo do vao).",
           "   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).", "",
           "2. ACOES",

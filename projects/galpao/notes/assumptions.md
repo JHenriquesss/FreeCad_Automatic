@@ -10,9 +10,16 @@ Confirmed by user:
 - Pe-direito (eave): 6 m.
 - Inclinacao telhado: 10% (~5.71 deg), duas aguas, cumeeira Z = 6.5 m.
 
+Confirmado pelo usuario (Gate 6, 2026-07-05):
+- BASES ENGASTADAS (fixed). Decisao: a base rotulada REPROVA (flecha lateral
+  179 mm >> H/150; interacao viga 1,75). Com engaste + os perfis atuais
+  (coluna HEA200 / viga HEA180) o portico PASSA (flecha 30,8 mm <= H/150 = 40 mm;
+  interacoes coluna 0,67 / viga 0,87; B2 = 1,04 -> pequena deslocabilidade).
+  Contrapartida: a fundacao recebe momento (~60 kN.m) -> dimensionar
+  base_chumbador + sapata (projeto de fundacao, NBR 6118).
+
 Assumed by agent (NOT confirmed — change freely):
 - Espacamento de porticos: 5.0 m -> 4 vaos, 5 porticos nos eixos X = 0/5/10/15/20 m.
-- Bases rotuladas (pinned).
 - Contraventamento em X nos vaos de extremidade (telhado horizontal + paredes laterais).
 - Tercas (purlins) e longarinas (girts) em posicoes de placeholder.
 - Secoes dos membros sao PLACEHOLDER (caixas retangulares nominais), apenas para

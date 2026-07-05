@@ -6,7 +6,7 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 1. DADOS
    Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)
    Espacamento de porticos (largura de influencia) = 5,0 m
-   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.
+   Bases ENGASTADAS. Perfis: colunas HEA200, vigas HEA180.
    Barras malhadas em 8 trechos (momento avaliado ao longo do vao).
    Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).
 
@@ -53,26 +53,26 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
    C1_gravidade:
-     Coluna: M=  60,1  N=  26,1  V=  10,0
-     Viga:   M=  60,1  N=  12,6  V=  25,0
+     Coluna: M=  32,4  N=  20,5  V=  10,6
+     Viga:   M=  32,4  N=  12,6  V=  19,3
    C2_uplift:
-     Coluna: M= 107,4  N=  49,2  V=  19,6
-     Viga:   M= 107,4  N=  25,2  V=  47,0
+     Coluna: M=  61,3  N=  39,8  V=  20,8
+     Viga:   M=  61,3  N=  25,5  V=  37,6
    C3_vento_Gdesf:
-     Coluna: M=  80,5  N=  28,2  V=  13,4
-     Viga:   M=  80,5  N=  16,2  V=  26,8
+     Coluna: M=  52,7  N=   8,4  V=  29,7
+     Viga:   M=  33,5  N=  14,2  V=  17,6
    C3_vento_Gfav:
-     Coluna: M=  68,0  N=  18,6  V=  11,3
-     Viga:   M=  68,0  N=  13,1  V=  17,4
+     Coluna: M=  60,1  N=   1,3  V=  33,1
+     Viga:   M=  20,5  N=   9,8  V=   8,3
 
 5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)
-   Deslocamento lateral no beiral: 179,0 mm
+   Deslocamento lateral no beiral: 30,8 mm
      Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica admite ate H/150):
        H/300 =  20,0 mm  -> NAO ATENDE
        H/250 =  24,0 mm  -> NAO ATENDE
        H/200 =  30,0 mm  -> NAO ATENDE
-       H/150 =  40,0 mm  -> NAO ATENDE   <== referencia (telha metalica, sem alvenaria)
-   Flecha vertical na cumeeira (G+Q): 26,7 mm (verificar L/250)
+       H/150 =  40,0 mm  -> OK   <== referencia (telha metalica, sem alvenaria)
+   Flecha vertical na cumeeira (G+Q): 23,1 mm (verificar L/250)
 
 6. OBSERVACOES / PENDENCIAS
    - Coeficientes de vento a confirmar; portao = abertura dominante.
