@@ -11,6 +11,7 @@ Units: m, kN.
 
 from __future__ import annotations
 
+import math
 import os
 
 import frame2d as f2d
@@ -22,7 +23,6 @@ EAVE = 6.0
 RIDGE = 6.5
 BAY = 5.0                     # tributary width (internal frame)
 THETA = (RIDGE - EAVE) / (SPAN / 2)   # slope of rafter (rise/run) = 0.1
-import math
 COS = 1.0 / math.hypot(1.0, THETA)    # cos of rafter angle
 
 E = 200e6                     # kN/m2 (200 GPa)
@@ -78,25 +78,18 @@ def _wind_case(cpi_key):
     net = r["net"][cpi_key]
 
     def apply(fr, ix):
-        # walls: horizontal UDL (windward pushes +Y, leeward suction)
-        w_wind = net["parede_barlavento"] * q * BAY     # +x (into building)
-        w_lee = net["parede_sotavento"] * q * BAY       # negative (suction, +x too outward)
-        fr.add_member_udl(ix["colL"], wx=w_wind)        # windward left column
-        fr.add_member_udl(ix["colR"], wx=w_lee)         # leeward right column
-        # roof: perpendicular suction ~ vertical uplift (low slope)
+        # Walls: net pressure (Cpe-Cpi) acts INWARD on each wall. Inward is +Y for
+        # the left (windward) wall and -Y for the right (leeward) wall, so the
+        # leeward term is negated. Both windward pressure and leeward suction push
+        # the frame in the wind direction (+Y).
+        fr.add_member_udl(ix["colL"], wx=+net["parede_barlavento"] * q * BAY)
+        fr.add_member_udl(ix["colR"], wx=-net["parede_sotavento"] * q * BAY)
+        # Roof: net suction acts outward (up); low slope -> ~vertical uplift.
         up_bar = -net["cobertura_barlavento"] * q * BAY * COS   # +y up
         up_lee = -net["cobertura_sotavento"] * q * BAY * COS
         fr.add_member_udl(ix["rafL"], wy=up_bar)
         fr.add_member_udl(ix["rafR"], wy=up_lee)
     return apply, r
-
-
-def _envelope(mf):
-    """Max |M| (kN.m) and axial N (kN) per member group from local end forces."""
-    out = {}
-    for key, eid in (("coluna", None),):
-        pass
-    return out
 
 
 def _member_MN(mf, eid):
@@ -206,7 +199,8 @@ def memoria_pt(a):
     L.append("   - Dimensionar/verificar perfis (flexo-compressao, FLT, flambagem)")
     L.append("     e ligacoes (esforco minimo 45 kN) - proxima etapa.")
     L.append("   - Verificar tercas, contraventamento e bases separadamente.")
-    return "\n".join(L)
+    import re
+    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
 
 
 if __name__ == "__main__":

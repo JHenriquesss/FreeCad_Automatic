@@ -13,15 +13,7 @@ from __future__ import annotations
 
 
 def s2_factor(cat, classe, z):
-    """NBR 6123 Table 1: S2 = b * Fr * (z/10)^p."""
-    # (b, Fr, p) for terrain category II, building classes A/B/C
-    tbl = {
-        ("II", "A"): (1.00, 1.00, 0.06),
-        ("II", "B"): (1.00, 0.98, 0.06),
-        ("II", "C"): (1.00, 0.95, 0.06),
-    }
-    # p differs by class; NBR 6123 Table 1 (Cat II): pA=0.085? use standard set.
-    # Using the commonly tabulated Cat II values:
+    """NBR 6123 Table 1: S2 = b * Fr * (z/10)^p (terrain category II)."""
     tbl = {
         ("II", "A"): (1.00, 1.00, 0.085),
         ("II", "B"): (1.00, 0.98, 0.09),
