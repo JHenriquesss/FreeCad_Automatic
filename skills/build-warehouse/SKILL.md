@@ -127,6 +127,8 @@ with a suggested value, never hard-coded. See
 6. Read `references/project-inputs.md` before starting a real project.
 7. Read `references/calc-modules.md` to run the structural calc toolkit at
    Gates 5-8 (which module, inputs, outputs, run order, and the orchestrator).
+   Read `references/batch-defaults.md` for how secondary decisions are settled
+   in one editable sheet (Gate 4b) instead of a button per choice.
 8. Read `QUICKSTART.md` for the environment pre-flight (numpy<2, pycufsm, MCP
    bridge) and how a from-scratch run is conducted.
 9. If working inside `projects/<project-slug>/`, read `AGENT_SCOPE.md` and obey
@@ -169,7 +171,9 @@ with a suggested value, never hard-coded. See
 
 - `references/gates.md`: the 10-gate staged workflow with per-gate questions,
   options, and recommended defaults. Start here for any real project.
-- `references/calc-modules.md`: the structural calc toolkit (11 modules) — which
+- `references/batch-defaults.md`: batch-defaults mode — the critical-vs-secondary
+  split and the one-pass editable defaults sheet (Gate 4b).
+- `references/calc-modules.md`: the structural calc toolkit (15 modules) — which
   module each gate calls, its inputs/outputs, run order, and the compute-then-
   engineer-review rule.
 - `references/cbca-galpao-project-sequence.md`: derived CBCA project sequence

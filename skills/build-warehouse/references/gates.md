@@ -18,6 +18,11 @@ Hard rules:
 
 - Every value a human should decide must reach the user as a question.
   Recommended defaults are the first option, never a silent choice.
+- CRITICAL decisions are asked one-by-one (the gates). SECONDARY decisions use
+  BATCH-DEFAULTS mode: do NOT fire a button per secondary choice — write the
+  project defaults sheet (`notes/planilha-defaults.md`, from
+  `references/batch-defaults.md`) and hand it to the engineer for ONE review pass.
+  See `batch-defaults.md` for the critical-vs-secondary split and the protocol.
 - The skill RUNS structural calculation via the validated toolkit
   (`references/calc-modules.md`) at Gates 5-8 and emits the PT memoriais, but the
   responsible ENGINEER reviews and approves them. The skill computes, models,
@@ -202,6 +207,28 @@ Clash detection (required), two checks:
 
 Produces: opening cut-outs and frames, with bracing conflicts resolved. Exit:
 user confirms openings.
+
+## Gate 4b - Secondary decisions (batch-defaults sheet)
+
+Purpose: settle ALL secondary decisions in one pass, before sizing consumes them.
+Do NOT ask them one button at a time.
+
+Do:
+
+- Write `projects/<slug>/notes/planilha-defaults.md` from the catalog in
+  `references/batch-defaults.md`, substituting the critical answers already given
+  (span, bay if decided, base condition, wind V0/category, etc.).
+- Present the sheet to the engineer in ONE message: "revise; edite as linhas que
+  quiser, o resto adota o default (justificado)." Highlight the `[C]` lines
+  (they drive a pass/fail — e.g. wall sag-rod lines) and the `[!]` lines
+  (A CONFIRMAR).
+- Record the engineer's edits back into the sheet and into `notes/assumptions.md`
+  (append-only, keep the decision trail for the ART). If the engineer says "adota
+  os defaults", record the sheet as-is — still explicit and auditable.
+- Map the final sheet to the `rodar_galpao` params dict + `build_galpao.configurar`.
+
+This keeps the MAXIMUM number of secondary decisions with the engineer (all
+visible, all editable) with MINIMUM friction (one review, not N buttons).
 
 ## Gate 5 - Actions and site
 
