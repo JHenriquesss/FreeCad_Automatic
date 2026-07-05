@@ -128,10 +128,12 @@ def analyse():
             v = v + fac * {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}[case]
         return v
 
-    # ULS combinations (NBR 8800)
-    C1 = {"G": 1.25, "Q": 1.50}                       # gravity governs
-    C2 = {"G": 1.00, "W1": 1.40, "Q": 0.5 * 1.50}     # wind uplift (int. pressure)
-    C3 = {"G": 1.00, "W2": 1.40}                       # wind (int. suction, max push)
+    # ULS combinations (NBR 8800 Tabelas 1 e 2). gamma_g=1.25/1.0, gamma_q,vento=
+    # 1.4, gamma_q,sobrecarga=1.5; psi0: sobrecarga cobertura=0.8, vento=0.6.
+    # Combos flagged for engineer confirmation.
+    C1 = {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40}     # gravidade principal (+vento sec.)
+    C2 = {"G": 1.00, "W1": 1.40}                       # vento uplift princ. (Q favoravel omitida)
+    C3 = {"G": 1.00, "W2": 1.40, "Q": 0.8 * 1.50}     # vento pressao princ. (+sobrecarga sec.)
 
     combos = {"C1_gravidade": C1, "C2_vento_succao": C2, "C3_vento_pressao": C3}
     results = {}
@@ -173,10 +175,11 @@ def memoria_pt(a):
     L.append(f"   2.2 Sobrecarga (Q): {Q_ROOF:.2f} kN/m2 (manutencao, NBR 8800)")
     L.append(f"   2.3 " + vento.relatorio_pt(a["wind"]).replace("\n", "\n   "))
     L.append("")
-    L.append("3. COMBINACOES (NBR 8800, ELU)")
-    L.append("   C1 gravidade:     1,25 G + 1,50 Q")
-    L.append("   C2 vento succao:  1,00 G + 1,40 W(pressao interna) + 0,75 Q")
-    L.append("   C3 vento pressao: 1,00 G + 1,40 W(succao interna)")
+    L.append("3. COMBINACOES (NBR 8800, ELU) [a confirmar pelo engenheiro]")
+    L.append("   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6 (Tabela 2)")
+    L.append("   C1 gravidade:  1,25 G + 1,50 Q + 0,84 W   (Q principal)")
+    L.append("   C2 uplift:     1,00 G + 1,40 W(press. int.)   (Q favoravel omitida)")
+    L.append("   C3 pressao:    1,00 G + 1,40 W(succ. int.) + 1,20 Q")
     L.append("")
     L.append("4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]")
     for name, r in a["results"].items():

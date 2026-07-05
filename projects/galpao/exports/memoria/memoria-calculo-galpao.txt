@@ -41,21 +41,22 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
          cobertura sotavento: -0,10  (pressao -0,087 kN/m2)
      [VALORES DE COEFICIENTE A CONFIRMAR PELO ENGENHEIRO RESPONSAVEL]
 
-3. COMBINACOES (NBR 8800, ELU)
-   C1 gravidade:     1,25 G + 1,50 Q
-   C2 vento succao:  1,00 G + 1,40 W(pressao interna) + 0,75 Q
-   C3 vento pressao: 1,00 G + 1,40 W(succao interna)
+3. COMBINACOES (NBR 8800, ELU) [a confirmar pelo engenheiro]
+   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6 (Tabela 2)
+   C1 gravidade:  1,25 G + 1,50 Q + 0,84 W   (Q principal)
+   C2 uplift:     1,00 G + 1,40 W(press. int.)   (Q favoravel omitida)
+   C3 pressao:    1,00 G + 1,40 W(succ. int.) + 1,20 Q
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
    C1_gravidade:
-     Coluna: M=  25,9  N=  20,0  V=   4,3
-     Viga:   M=  25,9  N=   6,3  V=  19,5
+     Coluna: M=  55,5  N=  23,6  V=  10,4
+     Viga:   M=  55,5  N=  10,5  V=  22,7
    C2_vento_succao:
-     Coluna: M=  79,2  N=  29,4  V=  20,5
-     Viga:   M=  79,2  N=   8,8  V=  28,7
+     Coluna: M=  85,2  N=  34,1  V=  21,5
+     Viga:   M=  85,2  N=  10,2  V=  33,2
    C3_vento_pressao:
-     Coluna: M=  60,4  N=  14,5  V=  11,9
-     Viga:   M=  60,4  N=   9,6  V=  13,6
+     Coluna: M=  70,1  N=  22,0  V=  13,5
+     Viga:   M=  70,1  N=  12,0  V=  20,9
 
 5. DESLOCAMENTOS (ELS)
    Deslocamento lateral no beiral (vento caract.): 170,6 mm
