@@ -198,9 +198,23 @@ HEA180 = {"A": 45.25e-4, "Ix": 2510e-8, "Iy": 924.6e-8, "ry": 0.0452,
 
 
 if __name__ == "__main__":
+    # Esforcos AMPLIFICADOS de 2a ordem (estabilidade_b1b2, MAES + rigidez 0,8
+    # + forca nocional). Com o MAES, usa-se K=1,0 (4.9.6.2): a flambagem por
+    # translacao de nos ja esta coberta pelo B2. Verifica TODAS as combinacoes
+    # e reporta a pior interacao por peca.
+    import estabilidade_b1b2 as est
     fy = 250e3  # kN/m2 (aco MR250 / ASTM A36)
-    col = verifica(HEA200, fy, L=6.0, Nsd=48.9, Msd=109.8, Vsd=19.9,
-                   Kx=2.0, Ky=1.0, Lb=2.0, nome="Coluna HEA200 (Kx=2 sway; Lb=2 m)")
-    raf = verifica(HEA180, fy, L=5.03, Nsd=24.7, Msd=109.8, Vsd=46.7,
-                   Kx=1.0, Ky=1.0, Lb=1.67, nome="Viga HEA180 (Lb=1,67 m)")
-    print(relatorio_pt([col, raf], fy))
+    a = est.analyse()
+    # (perfil, comprimento real da barra, Lb travamento lateral) por peca
+    pecas = {"coluna": (HEA200, est.SEC["coluna"]["L"], 2.0),
+             "viga":   (HEA180, est.SEC["viga"]["L"], 1.67)}
+    finais = []
+    for g, (sec, Lreal, Lb) in pecas.items():
+        cands = []
+        for r in a["combos"]:
+            d = r[g]
+            cands.append(verifica(sec, fy, L=Lreal, Nsd=d["Nsd"], Msd=d["Msd"],
+                                  Vsd=d["Vsd"], Kx=1.0, Ky=1.0, Lb=Lb,
+                                  nome=f"{g.capitalize()} (K=1; gov {r['nome']})"))
+        finais.append(max(cands, key=lambda x: x["interacao"]))
+    print(relatorio_pt(finais, fy))

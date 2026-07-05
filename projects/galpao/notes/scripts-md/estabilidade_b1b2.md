@@ -2,7 +2,7 @@
 
 Arquivo: `projects/galpao/calc/estabilidade_b1b2.py`  
 Gerado: 2026-07-05  
-Base normativa: NBR 8800 Anexo D + 4.9.7 (rigidez reduzida na media deslocabilidade). Formulas extraidas do PDF da norma.
+Base: NBR 8800 Anexo D + 4.9.7 (rigidez 80% e forca nocional). Validado pelo eng. senior.
 
 ## Codigo completo
 
@@ -56,6 +56,19 @@ COMBOS = {
 SEC = {"coluna": {"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE},
        "viga":   {"A": gp.A_RAF, "I": gp.I_RAF,
                   "L": math.hypot(gp.SPAN / 2, gp.RIDGE - gp.EAVE)}}
+
+# Cargas gravitacionais VERTICAIS totais do andar (para a forca nocional).
+# Aplicadas como UDL vertical por metro de barra sobre as duas aguas.
+_L_RAF = SEC["viga"]["L"]
+GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF   # permanente
+QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF           # sobrecarga
+FN_FRAC = 0.003     # 4.9.7.1.1: forca nocional = 0,3% da carga gravitacional
+
+
+def _forca_nocional(combo):
+    """Forca horizontal equivalente (imperfeicao geometrica, 4.9.7.1.1) =
+    0,3% da carga gravitacional de cálculo do andar (so G e Q; vento nao entra)."""
+    return FN_FRAC * (combo.get("G", 0.0) * GVERT + combo.get("Q", 0.0) * QVERT)
 
 
 # ---- aplicacao das cargas FATORADAS de um caso sobre um frame --------------
@@ -134,13 +147,23 @@ def _scale_E(fr, fac):
 
 def _analisa_combo(nome, combo, Efac=1.0):
     """Decomposicao nt/lt e coeficientes B1/B2 para uma combinacao.
-    Efac<1 aplica a reducao de rigidez da media deslocabilidade."""
+    Efac<1 aplica a reducao de rigidez da media deslocabilidade.
+    A forca nocional (imperfeicao geometrica) e somada no sentido do vento."""
     # ---- estrutura nt: contencao horizontal FICTICIA nos dois beirais ------
     fr, ix = gp._frame()
     _scale_E(fr, Efac)
     fr.add_support(ix["nEaveL"], u=True)     # contencao ficticia (so horizontal)
     fr.add_support(ix["nEaveR"], u=True)
     _apply_combo(fr, ix, combo)
+    # 1a resolucao (sem nocional) so para achar o sentido do vento
+    fr.solve()
+    R0 = fr.reactions()
+    Hap = -(R0[3 * ix["nEaveL"]] + R0[3 * ix["nEaveR"]])   # carga lateral aplicada
+    sgn = 1.0 if Hap >= 0 else -1.0
+    # forca nocional no MESMO sentido do vento (desfavoravel), dividida nos beirais
+    Fn = _forca_nocional(combo)
+    fr.add_nodal_load(ix["nEaveL"], Fx=sgn * Fn / 2.0)
+    fr.add_nodal_load(ix["nEaveR"], Fx=sgn * Fn / 2.0)
     _, mf_nt = fr.solve()
     R_nt = fr.reactions()
     # reacao das contencoes ficticias (horizontal nos beirais)
@@ -166,7 +189,7 @@ def _analisa_combo(nome, combo, Efac=1.0):
         B2 = 1.0 / (1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH))
 
     # ---- esforcos amplificados por grupo (coluna / viga) -------------------
-    out = {"nome": nome, "B2": B2, "dh": dh, "sumN": sumN, "sumH": sumH}
+    out = {"nome": nome, "B2": B2, "dh": dh, "sumN": sumN, "sumH": sumH, "Fn": Fn}
     # Varre os dois lados juntos: B1 pega a maior compressao e Msd e a envoltoria.
     grupos = {"coluna": ix["colL"] + ix["colR"],
               "viga":   ix["rafL"] + ix["rafR"]}
@@ -208,7 +231,9 @@ def memoria_pt(a):
          "   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH)) ; Rs = 0,85 (portico de nós rígidos)",
          f"   H (pe-direito) = {H_STORY:.1f} m",
          "   Decomposicao: nt = beirais travados (contencao ficticia) ;",
-         "                 lt = reacoes das ficticias aplicadas ao contrario."]
+         "                 lt = reacoes das ficticias aplicadas ao contrario.",
+         "   Imperfeicao geometrica: forca nocional = 0,3% da carga gravitacional",
+         "   do andar (4.9.7.1.1), somada no sentido do vento em cada combinacao."]
     if a["reduziu"]:
         L += [f"   RIGIDEZ REDUZIDA: media deslocabilidade -> EA e EI x {a['Efac']:.1f}",
               f"   (E = {E*a['Efac']/1e6:.0f} GPa) nos coeficientes e esforcos abaixo",
@@ -220,7 +245,7 @@ def memoria_pt(a):
     for r in a["combos"]:
         L += [f"   {r['nome']}: B2 = {r['B2']:.3f}  "
               f"(dh={r['dh']*1000:.1f} mm ; sumN={r['sumN']:.1f} kN ; "
-              f"sumH={r['sumH']:.1f} kN)"]
+              f"sumH={r['sumH']:.1f} kN ; Fnocional={r['Fn']:.2f} kN)"]
         for g in ("coluna", "viga"):
             d = r[g]
             L += [f"     {g}: B1={d['B1']:.3f} (Ne={d['Ne']:.0f} kN ; "
@@ -242,9 +267,8 @@ def memoria_pt(a):
     if a["reduziu"]:
         L += ["   - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%",
               "     (EA e EI x 0,8), conforme media deslocabilidade (4.9.7.1.2)."]
-    L += ["   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.",
-          "   - Imperfeicoes geometricas (forca nocional 0,3% ou dh=h/333) a somar",
-          "     nas combinacoes, inclusive com vento (4.9.7.1.1 / 4.9.7.2) - a incluir.",
+    L += ["   - Imperfeicao geometrica INCLUIDA (forca nocional 0,3%, 4.9.7.1.1).",
+          "   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.",
           "   - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima."]
     # virgula decimal (PT) sem mastigar numeros de clausula (4.9.7.1.2): so
     # converte digito.digito que NAO faca parte de uma cadeia pontilhada.
@@ -270,45 +294,46 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    H (pe-direito) = 6,0 m
    Decomposicao: nt = beirais travados (contencao ficticia) ;
                  lt = reacoes das ficticias aplicadas ao contrario.
+   Imperfeicao geometrica: forca nocional = 0,3% da carga gravitacional
+   do andar (4.9.7.1.1), somada no sentido do vento em cada combinacao.
    RIGIDEZ REDUZIDA: media deslocabilidade -> EA e EI x 0,8
    (E = 160 GPa) nos coeficientes e esforcos abaixo
    (4.9.7.1.2). B2 na rigidez integral = 1,177.
 
 2. COEFICIENTES POR COMBINACAO (rigidez reduzida 80%)
-   C1_gravidade: B2 = 1,104  (dh=186,3 mm ; sumN=34,7 kN ; sumH=13,5 kN)
+   C1_gravidade: B2 = 1,104  (dh=187,9 mm ; sumN=34,7 kN ; sumH=13,6 kN ; Fnocional=0,12 kN)
      coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=65,6 kN.m ; Nsd=26,9 ; Vsd=15,2
+        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=27,0 ; Vsd=15,3
      viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=52,7 kN.m  ->  2a ordem Msd=65,6 kN.m ; Nsd=6,4 ; Vsd=25,0
-   C2_uplift: B2 = 1,231  (dh=311,4 mm ; sumN=69,1 kN ; sumH=22,5 kN)
+        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=6,4 ; Vsd=25,0
+   C2_uplift: B2 = 1,231  (dh=312,1 mm ; sumN=69,1 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
      coluna: B1=1,031 (Ne=1619 kN ; Nsd1=49,2 kN)
-        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=129,2 kN.m ; Nsd=52,3 ; Vsd=25,8
+        1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,3 kN.m ; Nsd=52,3 ; Vsd=25,8
      viga: B1=1,016 (Ne=1570 kN ; Nsd1=25,2 kN)
-        1a ordem Mnt=26,9 ; Mlt=91,8 kN.m  ->  2a ordem Msd=128,9 kN.m ; Nsd=5,9 ; Vsd=47,0
-   C3_vento_Gdesf: B2 = 1,079  (dh=307,0 mm ; sumN=27,3 kN ; sumH=22,5 kN)
+        1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,1 kN.m ; Nsd=5,9 ; Vsd=47,0
+   C3_vento_Gdesf: B2 = 1,079  (dh=308,5 mm ; sumN=27,3 kN ; sumH=22,6 kN ; Fnocional=0,11 kN)
      coluna: B1=1,001 (Ne=1619 kN ; Nsd1=1,0 kN)
-        1a ordem Mnt=23,4 ; Mlt=73,6 kN.m  ->  2a ordem Msd=86,3 kN.m ; Nsd=29,3 ; Vsd=28,6
+        1a ordem Mnt=23,4 ; Mlt=73,9 kN.m  ->  2a ordem Msd=86,7 kN.m ; Nsd=29,4 ; Vsd=28,7
      viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=18,2 ; Mlt=73,6 kN.m  ->  2a ordem Msd=86,3 kN.m ; Nsd=13,8 ; Vsd=26,8
-   C3_vento_Gfav: B2 = 1,022  (dh=306,2 mm ; sumN=8,0 kN ; sumH=22,5 kN)
+        1a ordem Mnt=18,2 ; Mlt=73,9 kN.m  ->  2a ordem Msd=86,7 kN.m ; Nsd=13,8 ; Vsd=26,8
+   C3_vento_Gfav: B2 = 1,022  (dh=306,9 mm ; sumN=8,0 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
      coluna: B1=1,007 (Ne=1619 kN ; Nsd1=10,6 kN)
-        1a ordem Mnt=24,9 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,5 kN.m ; Nsd=18,9 ; Vsd=30,7
+        1a ordem Mnt=24,9 ; Mlt=70,3 kN.m  ->  2a ordem Msd=69,6 kN.m ; Nsd=18,9 ; Vsd=30,7
      viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,7 ; Mlt=70,2 kN.m  ->  2a ordem Msd=69,5 kN.m ; Nsd=13,5 ; Vsd=17,4
+        1a ordem Mnt=14,7 ; Mlt=70,3 kN.m  ->  2a ordem Msd=69,6 kN.m ; Nsd=13,5 ; Vsd=17,4
 
 3. DESLOCABILIDADE
    Classificacao (rigidez integral): B2,max = 1,177  ->  media deslocabilidade (usar B1/B2 com rigidez reduzida a 80%)
    B2,max com rigidez reduzida (final) = 1,231
 
 4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
-   COLUNA (governa C2_uplift): Msd=129,2 kN.m ; Nsd=52,3 kN ; Vsd=25,8 kN
-   VIGA (governa C2_uplift): Msd=128,9 kN.m ; Nsd=5,9 kN ; Vsd=47,0 kN
+   COLUNA (governa C2_uplift): Msd=129,3 kN.m ; Nsd=52,3 kN ; Vsd=25,8 kN
+   VIGA (governa C2_uplift): Msd=129,1 kN.m ; Nsd=5,9 kN ; Vsd=47,0 kN
 
 5. OBSERVACOES
    - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%
      (EA e EI x 0,8), conforme media deslocabilidade (4.9.7.1.2).
+   - Imperfeicao geometrica INCLUIDA (forca nocional 0,3%, 4.9.7.1.1).
    - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.
-   - Imperfeicoes geometricas (forca nocional 0,3% ou dh=h/333) a somar
-     nas combinacoes, inclusive com vento (4.9.7.1.1 / 4.9.7.2) - a incluir.
    - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima.
 ```

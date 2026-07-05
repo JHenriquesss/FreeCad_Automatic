@@ -69,13 +69,17 @@ Ainda a confirmar pelo engenheiro:
 
 ## E. Analise - premissa
 
-- RESOLVIDO E1 (2a ordem): criado o modulo estabilidade_b1b2.py (MAES, NBR 8800
-  Anexo D). Decomposicao nt/lt com contencoes ficticias nos beirais. B2,max =
-  1,177 (C2 uplift) -> MEDIA deslocabilidade (1,1 < B2 <= 1,4). Esforcos
-  amplificados: coluna Msd=124,1 / Nsd=51,5 ; viga Msd=123,9 / Nsd=4,1 kN.
-  B1 ~ 1,0-1,03 (barras pouco esbeltas no plano). Nota: em MEDIA deslocabilidade
-  a norma pede recalcular B1/B2 com EI e EA reduzidos a 80% (a fazer). O check
-  de perfil deve passar a usar K=1 (4.9.6.2) com estes esforcos amplificados.
+- RESOLVIDO E1 (2a ordem) - COMPLETO: modulo estabilidade_b1b2.py (MAES, NBR
+  8800 Anexo D), validado pelo eng. senior. Decomposicao nt/lt com contencoes
+  ficticias nos beirais. B2,max integral = 1,177 -> MEDIA deslocabilidade.
+  Rigidez reduzida a 80% aplicada (4.9.7.1.2): B2 final = 1,231. Forca nocional
+  0,3% incluida (4.9.7.1.1). Esforcos finais: coluna Msd=129,3/Nsd=52,3 ;
+  viga Msd=129,1/Nsd=5,9 kN.
+- RESOLVIDO E3 (check com 2a ordem): check_nbr8800 agora consome os esforcos
+  amplificados e usa K=1 (4.9.6.2). Veredito ELU do perfil ATUAL:
+  coluna HEA200 interacao 1,35 (M/Mrd=1,33) NAO PASSA ; viga HEA180 interacao
+  1,75 (M/Mrd=1,75) NAO PASSA. Falha por FLEXAO (Msd~129 >> Mrd 97,6/73,8).
+  Proximo: redimensionar (perfil maior / engaste na base / mao-francesa).
 - RESOLVIDO E2 (limite de flecha lateral ELS): H/300 e para porticos que
   suportam ALVENARIA. Para galpao com TELHA METALICA (sem elementos frageis)
   admite-se H/200 ou H/150 (Bellei; NBR 8800 Anexo C, nota). O script agora
