@@ -122,8 +122,8 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
 
 def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""):
     A, Ix, Iy = sec["A"], sec["Ix"], sec["Iy"]
-    Aw, d, tw, tf = sec["A"], sec["d"], sec["tw"], sec["tf"]
-    Aw = d * tw
+    d, tw, tf = sec["d"], sec["tw"], sec["tf"]
+    Aw = d * tw                       # area de cisalhamento (laminado): d*tw
     if Lb is None:
         Lb = L
     r = {"nome": nome}
