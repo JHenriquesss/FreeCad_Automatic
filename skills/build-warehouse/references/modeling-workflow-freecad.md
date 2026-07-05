@@ -134,6 +134,22 @@ Clash check pattern (make the skill's clash promise real):
   clashes. On the galpao this dropped 425 naive hits to 0 real ones, and caught
   a real bug (anchors inside the column flange) on the way.
 
+Structure-in-opening check (walk/drive-through openings MUST be clear of all
+structure - this is separate from the clash check and from the opening-vs-bracing
+planning check):
+
+- Keep a list of walk openings (gates, doors) as boxes `(x0,x1,y0,y1,z0,z1)`.
+- For each opening box, test `box.common(member.Shape).Volume > threshold`
+  against EVERY structural member (columns, gable posts, girts, purlins, beams),
+  not just bracing. Any hit is forbidden.
+- Resolve, do not just report: frame a gate BETWEEN jamb posts and cut the clear
+  opening between the post inner faces (not through them); place doors mid-bay
+  clear of columns; interrupt any girt crossing a door with a lintel over it.
+- Windows are exempt: columns behind a window act as mullions.
+- On the galpao this caught gable posts inside the gate and a column+girt inside
+  the personnel door; the model was corrected until the check returned empty.
+  ALWAYS run this before calling a model with openings done.
+
 ## Exports
 
 Write into `projects/<slug>/exports/`:

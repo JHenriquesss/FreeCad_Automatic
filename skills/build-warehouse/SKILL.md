@@ -53,6 +53,10 @@ diametrically opposed and at least ~50% of the section; sharp exposed plate
 corners get a light fillet. Passive fire protection adds a volume that must be
 checked for clashes with cladding and openings. Movable openings must not clash
 with an X-braced bay; if they do, move the bracing or use a local rigid frame.
+Walk/drive-through openings (gates, doors) must also be clear of ALL structure -
+columns, gable posts, girts, purlins - not just bracing: frame gates between jamb
+posts, put doors mid-bay clear of columns, and interrupt a crossing girt with a
+lintel. Run the structure-in-opening check before calling openings done.
 Maintenance access clearances are kept for painting and inspection, dissimilar
 metals are checked for galvanic corrosion, and crevices are closed. Truss and bracing
 skeletons are built on member centre-of-gravity axes (not bounding-box centres);
