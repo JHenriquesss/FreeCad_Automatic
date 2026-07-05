@@ -14,9 +14,13 @@ Do not paste full transcripts. Record only durable context needed to resume work
 
 ## Last Agent State
 
-- Parametric script: work/build_galpao.py (re-runnable; closes+rebuilds doc).
-- Deliverables generated:
-  - exports/freecad/galpao_20x10.FCStd
-  - exports/step/galpao_20x10.step
-  - exports/img/galpao_20x10_iso.png
-- No structural verification done. Awaiting engineer inputs (see pending.md).
+- Parametric script: work/build_galpao.py v3 (real profiles, datum fixed, clash
+  check, material takeoff). Re-runnable; closes+rebuilds doc.
+- Model: 180 objects, real I/U/rod sections, clash_count = 0.
+- Gate 1 finished: gutters both eaves + downspouts (drainage clash-verified);
+  no overhang / lanternim / parapet.
+- Deliverables: FCStd, STEP, PNG, and takeoff CSV
+  (exports/takeoff/galpao_takeoff.csv). Total steel ~10.9 t (incl. ~1.24 t
+  gutters), ~54 kg/m2 - placeholder sections run heavy, not verified sizing.
+- Gates done: 0, 1, 2; capability 8 (real profiles, placeholder sizes); 9 partial
+  (3D + takeoff, no DXF/PDF/memorial). Gates 3-7 pending (6-7 need engineer).

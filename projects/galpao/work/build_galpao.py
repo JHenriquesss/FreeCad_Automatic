@@ -48,6 +48,7 @@ HEA180 = (171.0, 180.0, 6.0, 9.5)
 HEA160 = (152.0, 160.0, 6.0, 9.0)
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
+GUTTER = (200.0, 300.0, 5.0, 5.0)   # self-supporting eave gutter, 5 mm plate
 
 
 def i_section_pts(sec):
@@ -115,6 +116,25 @@ def rod(doc, p1, p2, dia, name):
     cyl.translate(v1)
     obj = doc.addObject("Part::Feature", name)
     obj.Shape = cyl
+    _reg(name, p1, p2)
+    return obj
+
+
+def tube(doc, p1, p2, od, wall, name):
+    v1, v2 = App.Vector(*p1), App.Vector(*p2)
+    d = v2.sub(v1)
+    L = d.Length
+    if L < 1e-6:
+        return None
+    outer = Part.makeCylinder(od / 2.0, L)
+    inner = Part.makeCylinder(od / 2.0 - wall, L)
+    shp = outer.cut(inner)
+    rot = App.Rotation(App.Vector(0, 0, 1), d)
+    if abs(rot.Angle) > 1e-9:
+        shp.rotate(App.Vector(0, 0, 0), rot.Axis, math.degrees(rot.Angle))
+    shp.translate(v1)
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = shp
     _reg(name, p1, p2)
     return obj
 
@@ -229,6 +249,19 @@ def build(doc):
             rod(doc, (x0, yw, Z0), (x1, yw, EAVE_H), 20, f"BRACE_WALL_{side}_{j:02d}_A")
             rod(doc, (x1, yw, Z0), (x0, yw, EAVE_H), 20, f"BRACE_WALL_{side}_{j:02d}_B")
 
+    # Gate 1 drainage: eave gutters (both eaves) + downspouts, placed OUTBOARD of
+    # the girts/columns so they clear the steel (clash-verified). Gutter opening
+    # faces up (roll=90).
+    GUT_Y = 340.0    # gutter offset: inboard edge (150) clears the girt outer face
+    DOWN_Y = 280.0   # downspout runs just outboard of the girts, under the gutter
+    for y, side, rl in ((-GUT_Y, "L", 90), (SPAN + GUT_Y, "R", -90)):
+        u_member(doc, (0, y, EAVE_H), (LENGTH, y, EAVE_H), GUTTER,
+                 f"GUTTER_{side}", roll=rl)
+    for x in (axes[0], axes[len(axes) // 2], axes[-1]):
+        for y, side in ((-DOWN_Y, "L"), (SPAN + DOWN_Y, "R")):
+            tube(doc, (x, y, EAVE_H), (x, y, 0.0), 100.0, 3.0,
+                 f"DOWNSPOUT_{side}_{int(x)//1000:02d}")
+
     doc.recompute()
     return len(doc.Objects)
 
@@ -249,10 +282,15 @@ def _shares_node(na, nb, tol=250.0):
 
 SECONDARY = ("PURLIN", "GIRT", "TIEROD", "BRACE", "GABLE", "FLANGEBRACE",
              "ANCHOR", "WASHER", "BASEPLATE")
+SERVICE = ("GUTTER", "DOWNSPOUT")
 
 
 def _is_secondary(name):
     return any(name.startswith(p) for p in SECONDARY)
+
+
+def _is_service(name):
+    return any(name.startswith(p) for p in SERVICE)
 
 
 def clash_check(doc, min_vol=200.0):
@@ -269,10 +307,19 @@ def clash_check(doc, min_vol=200.0):
             nb = objs[b].Name
             if not ba.intersect(objs[b].Shape.BoundBox):
                 continue
-            if _shares_node(na, nb):
-                continue
-            if _is_secondary(na) or _is_secondary(nb):
-                continue  # secondary bearing on primary = intended connection
+            svc = _is_service(na) or _is_service(nb)
+            if not svc:
+                # structural pair: touching at a node or a secondary-primary
+                # bearing is a connection, not a clash.
+                if _shares_node(na, nb):
+                    continue
+                if _is_secondary(na) or _is_secondary(nb):
+                    continue
+            else:
+                # a drainage element intersecting steel IS a real clash;
+                # only skip service-vs-service.
+                if _is_service(na) and _is_service(nb):
+                    continue
             try:
                 v = sa.common(objs[b].Shape).Volume
             except Exception:
@@ -309,6 +356,10 @@ def _classify(name):
         return "Base plates", "plate-22"
     if "WASHER" in name:
         return "Plate washers", "plate-10"
+    if "GUTTER" in name:
+        return "Gutters", "U300x200x5"
+    if "DOWNSPOUT" in name:
+        return "Downspouts", "tube-100x3"
     return "Other", "-"
 
 

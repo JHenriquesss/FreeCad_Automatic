@@ -3,14 +3,16 @@ Anchor rods,rod-25,40,8.60,33.2
 Base plates,plate-22,10,0.00,304.6
 Columns,HEA200,10,59.70,2392.4
 Cross bracing,rod-20,12,107.02,263.9
+Downspouts,tube-100x3,6,36.00,258.4
 Eave struts / ridge,HEA160,12,60.00,1735.2
 Gable posts,HEA160,4,24.83,718.2
 Girts,UPE100,4,80.00,758.3
+Gutters,U300x200x5,2,40.00,1240.3
 Plate washers,plate-10,20,0.00,10.0
 Purlins,UPE120,6,120.00,1394.2
 Rafters,HEA180,10,50.25,1708.8
 Sag rods / flange braces,rod-16,44,47.00,74.2
-TOTAL,,,,9392.9
+TOTAL,,,,10891.5
 
 # Per-member detail
 name,category,profile,length_mm,mass_kg
@@ -88,6 +90,12 @@ BRACE_WALL_R_01_A,Cross bracing,rod-20,7787.2,19.2
 BRACE_WALL_R_01_B,Cross bracing,rod-20,7787.2,19.2
 BRACE_WALL_R_02_A,Cross bracing,rod-20,7787.2,19.2
 BRACE_WALL_R_02_B,Cross bracing,rod-20,7787.2,19.2
+DOWNSPOUT_L_00,Downspouts,tube-100x3,6000.0,43.06
+DOWNSPOUT_L_10,Downspouts,tube-100x3,6000.0,43.06
+DOWNSPOUT_L_20,Downspouts,tube-100x3,6000.0,43.06
+DOWNSPOUT_R_00,Downspouts,tube-100x3,6000.0,43.06
+DOWNSPOUT_R_10,Downspouts,tube-100x3,6000.0,43.06
+DOWNSPOUT_R_20,Downspouts,tube-100x3,6000.0,43.06
 FLANGEBRACE_00_01,Sag rods / flange braces,rod-16,340.0,0.54
 FLANGEBRACE_00_02,Sag rods / flange braces,rod-16,340.0,0.54
 FLANGEBRACE_00_03,Sag rods / flange braces,rod-16,340.0,0.54
@@ -136,6 +144,8 @@ GIRT_L_01,Girts,UPE100,20000.0,189.58
 GIRT_L_02,Girts,UPE100,20000.0,189.58
 GIRT_R_01,Girts,UPE100,20000.0,189.58
 GIRT_R_02,Girts,UPE100,20000.0,189.58
+GUTTER_L,Gutters,U300x200x5,20000.0,620.15
+GUTTER_R,Gutters,U300x200x5,20000.0,620.15
 PURLIN_EAVE_L,Purlins,UPE120,20000.0,232.36
 PURLIN_EAVE_R,Purlins,UPE120,20000.0,232.36
 PURLIN_L_01,Purlins,UPE120,20000.0,232.36
