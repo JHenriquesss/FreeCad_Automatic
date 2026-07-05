@@ -61,7 +61,10 @@ def cargas_de_roda(Q, peso_ponte, peso_trole, vao_ponte, aprox_min, n_rodas_lado
 
 def forcas_horizontais(Q, peso_trole, R_roda_max, n_rodas_lado, frac_lateral,
                        frac_long):
-    """Forca transversal por roda (surto) e longitudinal por trilho (frenagem)."""
+    """Forca transversal por roda (surto) e longitudinal por trilho (frenagem).
+    NOTA (parecer 3.2): a frenagem age nas RODAS MOTORAS. Aqui frac_long incide
+    sobre as cargas de roda do trilho; se so parte das rodas for motorizada, o
+    eng. reduz frac_long por (n_motoras/n_rodas) na entrada (A CONFIRMAR)."""
     n_total = 2 * n_rodas_lado
     H_transv_roda = frac_lateral * (Q + peso_trole) / n_total
     H_long_trilho = frac_long * R_roda_max * n_rodas_lado
@@ -102,16 +105,22 @@ def verifica_viga_rolamento(sec, fy, cfg):
     # resistencias (Anexo G eixo forte ; eixo fraco plastico)
     Mnx, gov, det = ck.momento_resistente(sec, fy, cfg.get("Lb", L), cfg.get("Cb", 1.0))
     Mrdx = Mnx / GA1
-    Zy = sec.get("Zy", sec["Iy"] / (sec["bf"] / 2.0))   # aprox se faltar Zy
+    # Flexao lateral do surto atua no TOPO DO TRILHO -> so a MESA SUPERIOR resiste
+    # (NBR 8800 / Fakury 4.4.2), ~metade das props do perfil inteiro.
     Wy = sec.get("Wy", sec["Iy"] / (sec["bf"] / 2.0))
-    Mrdy = min(Zy, 1.5 * Wy) * fy / GA1
+    Zy = sec.get("Zy", 1.5 * Wy)
+    Wy_top, Zy_top = Wy / 2.0, Zy / 2.0
+    Mrdy = min(Zy_top, 1.5 * Wy_top) * fy / GA1
     inter = Msdx / Mrdx + Msdy / Mrdy
     # flecha (carga movel SEM impacto, combinacao rara): P_carac = P/phi
     lim = limite_flecha_vertical(cfg["cap_kN"], cfg.get("siderurgica", False))
     flecha = None; flecha_ok = None
     if "E_Ix" in cfg and cfg["E_Ix"]:
         Pk = P / cfg.get("phi", 1.10)
-        flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])   # 1 carga no meio (estimativa)
+        if 0.0 < d < L:                               # 2 rodas simetricas no vao
+            flecha = Pk * (L - d) / (48.0 * cfg["E_Ix"]) * (2 * L ** 2 + 2 * L * d - d ** 2)
+        else:                                         # 1 roda no meio
+            flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])
         flecha_ok = flecha <= L / lim
     return {"tipo": "viga_rolamento", "nome": cfg.get("nome", "Viga de rolamento"),
             "L": L, "Msdx": Msdx, "Msdy": Msdy, "Mrdx": Mrdx, "Mrdy": Mrdy,

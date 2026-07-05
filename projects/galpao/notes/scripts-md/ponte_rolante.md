@@ -4,7 +4,13 @@ Arquivo: `projects/galpao/calc/ponte_rolante.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 (acao de ponte, ELS, fadiga Anexo K) + NBR 8400 (classes).
 Metodo do livro "Dimensionamento de elementos estruturais de aco e mistos"
-(cap. 4, pesquisa/aco). Pendente revisao do eng. senior.
+(cap. 4, pesquisa/aco).
+Status: revisado apos parecer do eng. senior (2 correcoes criticas aplicadas):
+- FLECHA VERTICAL com 2 rodas (era 1 roda no meio -> subestimava ~13%):
+  `delta = Pk*(L-d)/(48EI)*(2L^2+2Ld-d^2)`.
+- Mrd,y (surto lateral) SO da MESA SUPERIOR (o surto age no topo do trilho;
+  NBR 8800 / Fakury 4.4.2): props ~metade do perfil. Antes superestimava ~100%.
+- Nota 3.2 registrada: frenagem age nas rodas motoras (frac_long ajustavel).
 
 ## Problema que resolve
 Lacuna detectada no ensaio (Gate 0, ponte pesada): o toolkit descrevia a
@@ -14,31 +20,26 @@ tres direcoes, viga de rolamento e a reacao empacotada para o portico.
 ## Metodo (fundamentado, nao de memoria)
 Tres direcoes de forca (livro cap. 4 / NBR 8800):
 - **Vertical**: (ponte + trole + carga icada) MAJORADO pelo coef. de impacto phi.
-- **Transversal (surto)**: percentual de (icada + trole), dividido nas rodas.
-- **Longitudinal (frenagem)**: percentual das cargas de roda no trilho.
+- **Transversal (surto)**: percentual de (icada + trole), dividido nas rodas;
+  resistido SO pela mesa superior da viga de rolamento.
+- **Longitudinal (frenagem)**: percentual das cargas de roda (rodas motoras).
 
 phi, frac_lateral e frac_long sao **dado do fabricante ou NBR 8400** (o proprio
-livro diz que "sao muitas vezes fornecidas pelos fabricantes") -> entram FLAGADOS
+livro diz que "sao muitas vezes fornecidas pelos fabricantes") -> FLAGADOS
 "A CONFIRMAR". O METODO (combinacao, momento por carga movel, ELS, fadiga) e norma.
 
-- **Cargas de roda**: ponte encostada, trole na aproximacao minima -> Rmax/Rmin
-  por trilho e por roda (braco de alavanca do trole).
+- **Cargas de roda**: ponte encostada, trole na aproximacao minima -> Rmax/Rmin.
 - **Viga de rolamento**: momento maximo ABSOLUTO de 2 rodas (mecanica exata:
-  `Mmax=(2P/L)*(L/2-d/4)^2`), flexao lateral do surto (eixo fraco), verificacao
-  NBR 8800 (Anexo G + biaxial), flecha e FADIGA (sinalizada, nao fabricada).
-- **ELS (NBR 8800, exato do livro)**: flecha vertical L/600 (<200 kN) / L/800
-  (>=200) / L/1000 (siderurgica); horizontal L/400 (L/600 sider.); SEM impacto na
-  flecha. Coluna: desloc. no nivel da viga de rolamento <= Hvr/400 (50 mm sider.);
-  diferencial entre pilares <= 15 mm.
-- **Reacao no portico**: R_vertical + M_excentrico (trilho fora do eixo do pilar)
-  + H_transversal + H_longitudinal -> entram na analise do portico e no
-  contraventamento longitudinal.
+  `Mmax=(2P/L)*(L/2-d/4)^2`), flexao lateral do surto (SO mesa superior),
+  verificacao NBR 8800 (Anexo G + biaxial), flecha (2 rodas, sem impacto) e FADIGA.
+- **ELS (NBR 8800, do livro)**: flecha vertical L/600 (<200 kN) / L/800 (>=200) /
+  L/1000 (siderurgica); horizontal L/400 (L/600 sider.); coluna <= Hvr/400.
+- **Reacao no portico**: R_vertical + M_excentrico + H_transversal + H_longitudinal.
 
 ## Pendente (integracao)
-A reacao empacotada AINDA precisa ser injetada no galpao_portico como um caso de
-carga da ponte (+ combinacao com psi0=0,7, equipamento). Passo separado (mexe no
-portico ja aprovado). A referencia 20x10 e SEM ponte -> este modulo roda sob um
-cfg proprio (do gate quando ha ponte), nao no PARAMS_REF.
+A reacao empacotada AINDA precisa ser injetada no galpao_portico como caso de
+carga da ponte (+ combinacao psi0=0,7). Passo separado (mexe no portico aprovado).
+A referencia 20x10 e SEM ponte -> este modulo roda sob cfg proprio.
 
 ## Codigo completo
 
@@ -106,7 +107,10 @@ def cargas_de_roda(Q, peso_ponte, peso_trole, vao_ponte, aprox_min, n_rodas_lado
 
 def forcas_horizontais(Q, peso_trole, R_roda_max, n_rodas_lado, frac_lateral,
                        frac_long):
-    """Forca transversal por roda (surto) e longitudinal por trilho (frenagem)."""
+    """Forca transversal por roda (surto) e longitudinal por trilho (frenagem).
+    NOTA (parecer 3.2): a frenagem age nas RODAS MOTORAS. Aqui frac_long incide
+    sobre as cargas de roda do trilho; se so parte das rodas for motorizada, o
+    eng. reduz frac_long por (n_motoras/n_rodas) na entrada (A CONFIRMAR)."""
     n_total = 2 * n_rodas_lado
     H_transv_roda = frac_lateral * (Q + peso_trole) / n_total
     H_long_trilho = frac_long * R_roda_max * n_rodas_lado
@@ -147,16 +151,22 @@ def verifica_viga_rolamento(sec, fy, cfg):
     # resistencias (Anexo G eixo forte ; eixo fraco plastico)
     Mnx, gov, det = ck.momento_resistente(sec, fy, cfg.get("Lb", L), cfg.get("Cb", 1.0))
     Mrdx = Mnx / GA1
-    Zy = sec.get("Zy", sec["Iy"] / (sec["bf"] / 2.0))   # aprox se faltar Zy
+    # Flexao lateral do surto atua no TOPO DO TRILHO -> so a MESA SUPERIOR resiste
+    # (NBR 8800 / Fakury 4.4.2), ~metade das props do perfil inteiro.
     Wy = sec.get("Wy", sec["Iy"] / (sec["bf"] / 2.0))
-    Mrdy = min(Zy, 1.5 * Wy) * fy / GA1
+    Zy = sec.get("Zy", 1.5 * Wy)
+    Wy_top, Zy_top = Wy / 2.0, Zy / 2.0
+    Mrdy = min(Zy_top, 1.5 * Wy_top) * fy / GA1
     inter = Msdx / Mrdx + Msdy / Mrdy
     # flecha (carga movel SEM impacto, combinacao rara): P_carac = P/phi
     lim = limite_flecha_vertical(cfg["cap_kN"], cfg.get("siderurgica", False))
     flecha = None; flecha_ok = None
     if "E_Ix" in cfg and cfg["E_Ix"]:
         Pk = P / cfg.get("phi", 1.10)
-        flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])   # 1 carga no meio (estimativa)
+        if 0.0 < d < L:                               # 2 rodas simetricas no vao
+            flecha = Pk * (L - d) / (48.0 * cfg["E_Ix"]) * (2 * L ** 2 + 2 * L * d - d ** 2)
+        else:                                         # 1 roda no meio
+            flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])
         flecha_ok = flecha <= L / lim
     return {"tipo": "viga_rolamento", "nome": cfg.get("nome", "Viga de rolamento"),
             "L": L, "Msdx": Msdx, "Msdy": Msdy, "Mrdx": Mrdx, "Mrdy": Mrdy,
@@ -263,7 +273,7 @@ if __name__ == "__main__":
     _selftest()
 ```
 
-## Resultado da execucao (`python ponte_rolante.py`, ponte 100 kN)
+## Resultado da execucao (`python ponte_rolante.py`, ponte 100 kN, corrigido)
 
 ```
 ======================================================================
@@ -278,9 +288,9 @@ PONTE ROLANTE (ABNT NBR 8800:2008 / NBR 8400)
 ----------------------------------------------------------------------
   VIGA DE ROLAMENTO (carga movel + surto lateral):
     Vao = 5,00 m ; Msd,x = 91,4 kN.m ; Msd,y = 3,6 kN.m
-    Mrd,x (FLT) = 323,4 ; Mrd,y = 68,2 kN.m
-    Interacao Mx/Mrdx+My/Mrdy = 0,28+0,05=0,34 -> OK
-    Flecha vertical (sem impacto) = 2,2 mm (limite L/600) -> OK
+    Mrd,x (FLT) = 323,4 ; Mrd,y = 34,1 kN.m
+    Interacao Mx/Mrdx+My/Mrdy = 0,28+0,11=0,39 -> OK
+    Flecha vertical (sem impacto) = 2,5 mm (limite L/600) -> OK
     >> FADIGA (NBR 8800 Anexo K) a verificar para ciclos elevados (ponte pesada/siderurgica) - dado do regime.
 ----------------------------------------------------------------------
   REACAO NO PORTICO (console/pilar):
