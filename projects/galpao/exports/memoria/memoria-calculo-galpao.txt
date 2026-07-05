@@ -1,0 +1,71 @@
+======================================================================
+MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+1. DADOS
+   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10%
+   Espacamento de porticos (largura de influencia) = 5.0 m
+   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.
+   Analise linear elastica de 1a ordem (2a ordem/deslocabilidade a
+   confirmar pelo engenheiro - NBR 8800).
+
+2. ACOES
+   2.1 Permanente (G): cobertura 0.27 kN/m2 (telha+tercas+suspensas)
+       + peso proprio da viga 0.35 kN/m
+   2.2 Sobrecarga (Q): 0.25 kN/m2 (manutencao, NBR 8800)
+   2.3 VENTO (ABNT NBR 6123)
+     V0 = 40 m/s ; Categoria II ; Classe B
+     S1 = 1.00 (topografia plana) ; S3 = 1.00
+     S2 = b*Fr*(z/10)^p = 1,00*0.98*(6.5/10)^0.090 = 0.943  (z = 6.5 m, altura da cumeeira)
+     Vk = V0*S1*S2*S3 = 37.71 m/s
+     q = 0,613*Vk^2 = 0.872 kN/m2
+     Coeficientes de forma externos Cpe (NBR 6123):
+       parede barlavento: +0.70
+       parede sotavento: -0.40
+       cobertura barlavento: -0.80
+       cobertura sotavento: -0.40
+     Coeficiente de pressao interna Cpi (portao = abertura dominante):
+       pressao interna: +0.30
+       succao interna: -0.30
+     Coeficiente liquido Cp = Cpe - Cpi (governante por superficie):
+       caso pressao interna:
+         parede barlavento: +0.40  (pressao +0.349 kN/m2)
+         parede sotavento: -0.70  (pressao -0.610 kN/m2)
+         cobertura barlavento: -1.10  (pressao -0.959 kN/m2)
+         cobertura sotavento: -0.70  (pressao -0.610 kN/m2)
+       caso succao interna:
+         parede barlavento: +1.00  (pressao +0.872 kN/m2)
+         parede sotavento: -0.10  (pressao -0.087 kN/m2)
+         cobertura barlavento: -0.50  (pressao -0.436 kN/m2)
+         cobertura sotavento: -0.10  (pressao -0.087 kN/m2)
+     [VALORES DE COEFICIENTE A CONFIRMAR PELO ENGENHEIRO RESPONSAVEL]
+
+3. COMBINACOES (NBR 8800, ELU)
+   C1 gravidade:     1,25 G + 1,50 Q
+   C2 vento succao:  1,00 G + 1,40 W(pressao interna) + 0,75 Q
+   C3 vento pressao: 1,00 G + 1,40 W(succao interna)
+
+4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
+   C1_gravidade:
+     Coluna: M=  25.9  N=  20.0  V=   4.3
+     Viga:   M=  25.9  N=   6.3  V=  19.5
+   C2_vento_succao:
+     Coluna: M=  33.9  N=  14.5  V=  18.5
+     Viga:   M=  33.9  N=   6.5  V=  15.2
+   C3_vento_pressao:
+     Coluna: M=  49.7  N=  12.3  V=  10.1
+     Viga:   M=  49.7  N=  11.3  V=  11.2
+
+5. DESLOCAMENTOS (ELS)
+   Deslocamento lateral no beiral (vento caract.): 139.1 mm
+     Limite H/300 = 20.0 mm  -> NAO ATENDE
+   Flecha vertical na cumeeira (G+Q): 26.6 mm (verificar L/200)
+
+6. OBSERVACOES / PENDENCIAS (engenheiro)
+   - Coeficientes de vento (Cpe/Cpi) a confirmar; portao = abertura
+     dominante (pressao interna pode chegar a +0,7 com vento no oitao).
+   - Confirmar necessidade de analise de 2a ordem e reducao de rigidez.
+   - Dimensionar/verificar perfis (flexo-compressao, FLT, flambagem)
+     e ligacoes (esforco minimo 45 kN) - proxima etapa.
+   - Verificar tercas, contraventamento e bases separadamente.
