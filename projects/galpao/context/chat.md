@@ -26,6 +26,9 @@ Do not paste full transcripts. Record only durable context needed to resume work
   (thin 0.65 mm skin, area-based mass ~5 kg/m2). Roof clad ~1.0 t, walls ~1.85 t.
 - Total incl. envelope ~13.8 t (steel frame ~10.9 t + cladding ~2.9 t);
   placeholder sections, not verified.
-- Gates done: 0, 1, 2, 3; capability 8 (real profiles, placeholder sizes); 9
-  partial (3D + takeoff, no DXF/PDF/memorial). Gates 4-7 pending (6-7 need
+- Gate 4 finished: front-gable gate, one side personnel door, high window strip
+  on both side walls (in the non-braced central bays). Openings boolean-cut in
+  the cladding; opening-vs-bracing check = no conflict.
+- Gates done: 0, 1, 2, 3, 4; capability 8 (real profiles, placeholder sizes); 9
+  partial (3D + takeoff, no DXF/PDF/memorial). Gates 5-7 pending (6-7 need
   engineer).

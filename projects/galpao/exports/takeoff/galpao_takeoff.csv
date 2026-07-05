@@ -13,8 +13,8 @@ Purlins,UPE120,6,120.00,1394.2
 Rafters,HEA180,10,50.25,1708.8
 Roof cladding,trapez-0.65,2,0.00,1025.6
 Sag rods / flange braces,rod-16,44,47.00,74.2
-Wall cladding,trapez-0.65,4,0.00,1853.2
-TOTAL,,,,13770.4
+Wall cladding,trapez-0.65,4,0.00,1649.7
+TOTAL,,,,13566.8
 
 # Per-member detail
 name,category,profile,length_mm,mass_kg
@@ -93,11 +93,11 @@ BRACE_WALL_R_01_B,Cross bracing,rod-20,7787.2,19.2
 BRACE_WALL_R_02_A,Cross bracing,rod-20,7787.2,19.2
 BRACE_WALL_R_02_B,Cross bracing,rod-20,7787.2,19.2
 CLAD_GABLE_BACK,Wall cladding,trapez-0.65,0.0,317.38
-CLAD_GABLE_FRONT,Wall cladding,trapez-0.65,0.0,317.38
+CLAD_GABLE_FRONT,Wall cladding,trapez-0.65,0.0,225.53
 CLAD_ROOF_L,Roof cladding,trapez-0.65,0.0,512.79
 CLAD_ROOF_R,Roof cladding,trapez-0.65,0.0,512.79
-CLAD_WALL_L,Wall cladding,trapez-0.65,0.0,609.24
-CLAD_WALL_R,Wall cladding,trapez-0.65,0.0,609.24
+CLAD_WALL_L,Wall cladding,trapez-0.65,0.0,548.57
+CLAD_WALL_R,Wall cladding,trapez-0.65,0.0,558.21
 DOWNSPOUT_L_00,Downspouts,tube-100x3,6000.0,43.06
 DOWNSPOUT_L_10,Downspouts,tube-100x3,6000.0,43.06
 DOWNSPOUT_L_20,Downspouts,tube-100x3,6000.0,43.06

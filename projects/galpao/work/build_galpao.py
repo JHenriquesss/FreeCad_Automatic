@@ -147,16 +147,25 @@ def plate(doc, center, wx, wy, wz, name):
     return obj
 
 
-def panel(doc, corners, thick, name):
-    """Thin cladding panel from planar corner points, extruded by thick along the
-    face normal. Corners must be coplanar and ordered around the perimeter."""
+def panel_shape(corners, thick):
     pts = [App.Vector(*c) for c in corners]
     wire = Part.makePolygon(pts + [pts[0]])
     face = Part.Face(wire)
     n = face.normalAt(0, 0)
     n.multiply(thick)
+    return face.extrude(n)
+
+
+def panel(doc, corners, thick, name, openings=None):
+    """Thin cladding panel from planar corners; optional list of cutter boxes
+    (each ((x0,x1),(y0,y1),(z0,z1))) is subtracted to form openings."""
+    shp = panel_shape(corners, thick)
+    for (xr, yr, zr) in (openings or []):
+        cutter = Part.makeBox(xr[1] - xr[0], yr[1] - yr[0], zr[1] - zr[0])
+        cutter.translate(App.Vector(xr[0], yr[0], zr[0]))
+        shp = shp.cut(cutter)
     obj = doc.addObject("Part::Feature", name)
-    obj.Shape = face.extrude(n)
+    obj.Shape = shp
     return obj
 
 
@@ -285,16 +294,42 @@ def build(doc):
           TCL, "CLAD_ROOF_L")
     panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
           TCL, "CLAD_ROOF_R")
-    # side walls (outboard of the girts)
+    # Gate 4 openings. Braced side-wall bays are the end bays (X 0-BAY and
+    # LENGTH-BAY..LENGTH). Openings are kept clear of them.
     yw = 195.0
+    braced_x = [(0.0, BAY), (LENGTH - BAY, LENGTH)]
+
+    def _in_braced(x0, x1):
+        return any(not (x1 <= bx0 or x0 >= bx1) for (bx0, bx1) in braced_x)
+
+    # Personnel door on left wall, central (clear of braced end bays)
+    door_x = (9550.0, 10450.0)
+    door = ((door_x, (-yw - 60, -yw + 60), (Z0, 2130.0)),)
+    # High window strip in the non-braced bays (2 and 3) on both walls
+    win_x = (BAY, LENGTH - BAY)  # 5000..15000
+    win_l = ((win_x, (-yw - 60, -yw + 60), (4300.0, 5300.0)),)
+    win_r = ((win_x, (SPAN + yw - 60, SPAN + yw + 60), (4300.0, 5300.0)),)
+
     panel(doc, [(0, -yw, Z0), (LENGTH, -yw, Z0), (LENGTH, -yw, EAVE_H), (0, -yw, EAVE_H)],
-          TCL, "CLAD_WALL_L")
+          TCL, "CLAD_WALL_L", openings=list(door) + list(win_l))
     panel(doc, [(0, SPAN + yw, Z0), (LENGTH, SPAN + yw, Z0),
-                (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL, "CLAD_WALL_R")
-    # gable end walls (pentagon following the roof)
-    for xc, lbl in ((-yw, "FRONT"), (LENGTH + yw, "BACK")):
+                (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL, "CLAD_WALL_R",
+          openings=list(win_r))
+
+    # Main gate on the FRONT gable (X = -yw); gables have no wall bracing.
+    gate_y = (3000.0, 7000.0)
+    gate = (((-yw - 300, -yw + 300), gate_y, (Z0, 4530.0)),)
+    for xc, lbl, ops in ((-yw, "FRONT", list(gate)), (LENGTH + yw, "BACK", [])):
         panel(doc, [(xc, 0, Z0), (xc, SPAN, Z0), (xc, SPAN, EAVE_H),
-                    (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL, f"CLAD_GABLE_{lbl}")
+                    (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL, f"CLAD_GABLE_{lbl}",
+              openings=ops)
+
+    # Opening-vs-bracing planning check (skill rule): side-wall openings only.
+    global OPENING_CONFLICTS
+    OPENING_CONFLICTS = []
+    for label, xr in (("door", door_x), ("windows", win_x)):
+        if _in_braced(xr[0], xr[1]):
+            OPENING_CONFLICTS.append(label)
 
     doc.recompute()
     return len(doc.Objects)
@@ -484,6 +519,7 @@ def run():
             "ridge_height_mm": RIDGE_H, "grout_gap_mm": GROUT_GAP,
             "col_steel_length_mm": EAVE_H - Z0,
             "clash_count": len(clashes),
+            "opening_bracing_conflicts": globals().get("OPENING_CONFLICTS", []),
             "total_mass_kg": tk["total_mass_kg"], "members": tk["members"],
             "by_group": tk["by_group"], "takeoff_csv": tk["csv"],
             "fcstd": fcstd, "step": step}
