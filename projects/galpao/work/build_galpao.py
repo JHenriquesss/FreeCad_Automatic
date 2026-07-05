@@ -31,6 +31,23 @@ RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 Z0 = GROUT_GAP
 
 EXPORT_DIR = "D:/dev/FreeCad_Automatic/projects/galpao/exports"
+DOC_NAME = "galpao_20x10"
+
+
+def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
+               export_dir=None, doc_name=None):
+    """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
+    derivados. Nao muda a modelagem - so os parametros. Chamar antes de run()."""
+    global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
+    if length is not None: LENGTH = float(length)
+    if span is not None:   SPAN = float(span)
+    if eave_h is not None: EAVE_H = float(eave_h)
+    if slope is not None:  SLOPE = float(slope)
+    if bay is not None:    BAY = float(bay)
+    if export_dir is not None: EXPORT_DIR = export_dir
+    if doc_name is not None:   DOC_NAME = doc_name
+    RIDGE_Y = SPAN / 2.0
+    RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 
 # Perfis placeholder (secoes europeias; tamanhos NAO verificados).
 # I: (h, b, tw, tf)   U: (h, b, tw, tf)
@@ -521,15 +538,15 @@ def takeoff(doc):
 def export(doc):
     os.makedirs(f"{EXPORT_DIR}/freecad", exist_ok=True)
     os.makedirs(f"{EXPORT_DIR}/step", exist_ok=True)
-    fcstd = f"{EXPORT_DIR}/freecad/galpao_20x10.FCStd"
-    step = f"{EXPORT_DIR}/step/galpao_20x10.step"
+    fcstd = f"{EXPORT_DIR}/freecad/{DOC_NAME}.FCStd"
+    step = f"{EXPORT_DIR}/step/{DOC_NAME}.step"
     doc.saveAs(fcstd)
     Part.export([o for o in doc.Objects if hasattr(o, "Shape")], step)
     return fcstd, step
 
 
 def run():
-    name = "galpao_20x10"
+    name = DOC_NAME
     for d in list(App.listDocuments().values()):
         if d.Name == name:
             App.closeDocument(name)

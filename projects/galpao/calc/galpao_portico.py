@@ -41,6 +41,30 @@ RAFTER_SELF = 0.35     # peso proprio da viga (por metro de barra)
 Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
 
 
+def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
+               A_col=None, I_col=None, A_raf=None, I_raf=None,
+               G_roof=None, rafter_self=None, Q_roof=None):
+    """Define a geometria/cargas do projeto (do gate) e RECOMPUTA os derivados.
+    Nao altera o metodo de calculo - so troca os dados de entrada. Chamar antes
+    de analyse(). Argumentos None mantem o valor atual."""
+    global SPAN, EAVE, RIDGE, BAY, THETA, COS, SIN, BASE_FIXED
+    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF
+    if span is not None:  SPAN = float(span)
+    if eave is not None:  EAVE = float(eave)
+    if ridge is not None: RIDGE = float(ridge)
+    if bay is not None:   BAY = float(bay)
+    if base_fixed is not None: BASE_FIXED = bool(base_fixed)
+    if A_col is not None: A_COL = A_col
+    if I_col is not None: I_COL = I_col
+    if A_raf is not None: A_RAF = A_raf
+    if I_raf is not None: I_RAF = I_raf
+    if G_roof is not None: G_ROOF = G_roof
+    if rafter_self is not None: RAFTER_SELF = rafter_self
+    if Q_roof is not None: Q_ROOF = Q_roof
+    THETA = math.atan((RIDGE - EAVE) / (SPAN / 2))
+    COS, SIN = math.cos(THETA), math.sin(THETA)
+
+
 def _chain(fr, na, nb, Asec, Isec, nseg):
     """Malha nseg barras entre os nos EXISTENTES na e nb (reutiliza os
     extremos, criando so os nos intermediarios). Retorna os indices dos

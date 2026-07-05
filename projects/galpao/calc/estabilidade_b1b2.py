@@ -56,6 +56,19 @@ QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF           # sobrecarga
 FN_FRAC = 0.003     # 4.9.7.1.1: forca nocional = 0,3% da carga gravitacional
 
 
+def sincronizar():
+    """Recalcula SEC / cargas / H_STORY a partir da geometria atual do
+    galpao_portico (apos gp.configurar). Chamado no inicio de analyse()."""
+    global _L_RAF, GVERT, QVERT, H_STORY
+    SEC["coluna"].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
+    SEC["viga"].update(A=gp.A_RAF, I=gp.I_RAF,
+                       L=math.hypot(gp.SPAN / 2, gp.RIDGE - gp.EAVE))
+    _L_RAF = SEC["viga"]["L"]
+    GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF
+    QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF
+    H_STORY = gp.EAVE
+
+
 def _forca_nocional(combo):
     """Forca horizontal equivalente (imperfeicao geometrica, 4.9.7.1.1) =
     0,3% da carga gravitacional de cálculo do andar (so G e Q; vento nao entra)."""
@@ -198,6 +211,7 @@ def _classe(B2max):
 
 
 def analyse():
+    sincronizar()          # reflete a geometria/secoes atuais (gp.configurar)
     # 1o passo: rigidez integral -> classifica a deslocabilidade pelo B2.
     base = [_analisa_combo(n, c, 1.0) for n, c in COMBOS.items()]
     B2max0 = max(r["B2"] for r in base)

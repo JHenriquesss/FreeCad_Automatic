@@ -1,0 +1,173 @@
+# ============================================================================
+# rodar_galpao.py - ORQUESTRADOR PARAMETRICO da cadeia de calculo (Gates 5-9)
+# Recebe os PARAMETROS do projeto (respostas dos gates), configura os modulos
+# (geometria, base, perfis, terca), roda a cadeia na ordem dos gates e emite um
+# memorial por modulo + o consolidado. EXTRAI os esforcos de base e de joelho do
+# proprio portico (nao hardcoded), entao serve para QUALQUER geometria.
+# Modulos: vento_nbr6123, galpao_portico, estabilidade_b1b2, check_nbr8800,
+# tercas_iteracao (+distorcional_fsm), base_chumbador, ligacoes.
+# Nao redefine metodo - so orquestra os modulos ja validados. Saidas em PT.
+# ============================================================================
+"""Orquestrador do fluxo de calculo do galpao. Um projeto = um dict de params."""
+
+from __future__ import annotations
+
+import math
+import os
+
+import vento_nbr6123 as vento
+import galpao_portico as gp
+import estabilidade_b1b2 as est
+import check_nbr8800 as chk
+import tercas_iteracao as ti
+import base_chumbador as bc
+import ligacoes as lg
+
+# --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
+_COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
+         "C2_uplift": {"G": 1.00, "W1": 1.40},
+         "C3_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
+         "C3_Gfav": {"G": 1.00, "W2": 1.40}}
+
+
+def _casos_mf_reac():
+    """member-forces e reacoes por caso base (G, Q, W1, W2)."""
+    out = {}
+    for nm, fn in (("G", gp.case_G), ("Q", gp.case_Q)):
+        fr, ix = gp._frame(); fn(fr, ix); _, mf = fr.solve()
+        out[nm] = (mf, fr.reactions(), ix)
+    for nm, key in (("W1", "portao_barlavento"), ("W2", "portao_sotavento")):
+        apply, _ = gp._wind(key)
+        fr, ix = gp._frame(); apply(fr, ix); _, mf = fr.solve()
+        out[nm] = (mf, fr.reactions(), ix)
+    return out
+
+
+def _esforcos_base_joelho():
+    """Extrai (por combinacao) os esforcos de base e de joelho do portico atual.
+    Retorna o caso de base governante (max |M|) e o de joelho (max |M|)."""
+    casos = _casos_mf_reac()
+    _, _, ix = casos["G"]
+    nbL = ix["nBaseL"]
+    eKnee = ix["colL"][-1]
+    base_best = knee_best = None
+    for nm, c in _COMB.items():
+        R = sum(fac * casos[cs][1] for cs, fac in c.items())
+        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
+        if base_best is None or abs(M) > abs(base_best[3]):
+            base_best = (nm, N, V, M)
+        f = sum(fac * casos[cs][0][eKnee] for cs, fac in c.items())
+        Mk, Vk, Nk = f[5], f[4], -f[3]
+        if knee_best is None or abs(Mk) > abs(knee_best[3]):
+            knee_best = (nm, Nk, Vk, Mk)
+    return base_best, knee_best
+
+
+def rodar(params, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+
+    def save(nome, txt):
+        with open(os.path.join(out_dir, nome), "w", encoding="utf-8") as f:
+            f.write(txt + "\n")
+        return txt
+
+    g = params["geometria"]
+    sc = params["secoes"]
+    # configura geometria + perfis + base
+    gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
+                  base_fixed=params.get("base_fixed", True),
+                  A_col=sc["A_col"], I_col=sc["I_col"],
+                  A_raf=sc["A_raf"], I_raf=sc["I_raf"],
+                  G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                  Q_roof=params["cargas"]["Q"])
+    ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
+                  trib=params["terca"]["trib"], theta=gp.THETA,
+                  fy=params["terca"]["fy"])
+
+    res = {}
+    # Gate 5 - vento
+    save("gate5-vento.txt", vento.relatorio_pt(vento.compute()))
+    # Gate 6 - analise
+    save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
+    a = est.analyse()
+    save("gate6-2a-ordem.txt", est.memoria_pt(a))
+    # Gate 7 - perfis
+    pecas = {"coluna": (sc["perfil_col"], est.SEC["coluna"]["L"], params["Lb"]["col"]),
+             "viga": (sc["perfil_raf"], est.SEC["viga"]["L"], params["Lb"]["raf"])}
+    finais = []
+    for gname, (sec, Lr, Lb) in pecas.items():
+        cands = [chk.verifica(sec, params["fy"], L=Lr, Nsd=r[gname]["Nsd"],
+                              Msd=r[gname]["Msd"], Vsd=r[gname]["Vsd"], Kx=1, Ky=1,
+                              Lb=Lb, nome=f"{gname.capitalize()} (K=1; gov {r['nome']})")
+                 for r in a["combos"]]
+        finais.append(max(cands, key=lambda x: x["interacao"]))
+    save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
+    res["interacao_col"] = finais[0]["interacao"]
+    res["interacao_raf"] = finais[1]["interacao"]
+    # Gate 7 - tercas
+    save("gate7-tercas.txt", ti.memoria_pt())
+    # Gate 7 - base + ligacoes (esforcos extraidos do portico)
+    (bnm, bN, bV, bM), (knm, kN, kV, kM) = _esforcos_base_joelho()
+    res["base_gov"] = (bnm, round(bN, 1), round(bV, 1), round(bM, 1))
+    res["knee_gov"] = (knm, round(kN, 1), round(kV, 1), round(kM, 1))
+    b = dict(params["base"])
+    b.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
+             nome=f"Base engastada - {bnm} (M={abs(bM):.1f})")
+    save("gate7-base.txt", bc.relatorio_pt(bc.verifica_base(b), b))
+    dr = sc["d_raf"]; tf = sc["tf_raf"]
+    Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
+    knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
+                                               nome=f"Joelho - {knm} (M={abs(kM):.1f})")
+    clip = params["clip_terca"]
+    save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(knee),
+                                                lg.verifica_ligacao(clip)]))
+    # Gate 9 - consolidado
+    _consolidar(out_dir, save, g, params)
+    return res
+
+
+def _consolidar(out_dir, save, g, params):
+    ordem = [("1. VENTO", "gate5-vento.txt"), ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
+             ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
+             ("5. TERCAS", "gate7-tercas.txt"), ("6. BASE", "gate7-base.txt"),
+             ("7. LIGACOES", "gate7-ligacoes.txt")]
+    L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
+         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
+    for tit, f in ordem:
+        p = os.path.join(out_dir, f)
+        body = open(p, encoding="utf-8").read().rstrip() if os.path.exists(p) else "(falta)"
+        L += ["#" * 70, tit, "#" * 70, "", body, "", ""]
+    save("MEMORIAL-CONSOLIDADO.txt", "\n".join(L))
+
+
+# --- params de referencia (galpao 20x10, base engastada) --------------------
+PARAMS_REF = {
+    "geometria": {"span": 10.0, "comprimento": 20.0, "eave": 6.0, "ridge": 6.5, "bay": 5.0},
+    "base_fixed": True, "fy": 250e3,
+    "secoes": {"perfil_col": chk.HEA200, "perfil_raf": chk.HEA180,
+               "A_col": 53.8e-4, "I_col": 3692e-8, "A_raf": 45.3e-4, "I_raf": 2510e-8,
+               "d_raf": 0.171, "tf_raf": 0.0095},
+    "cargas": {"G": 0.27, "self": 0.35, "Q": 0.25},
+    "Lb": {"col": 2.0, "raf": 1.67},
+    "terca": {"trib": 1.675, "fy": 250e3},
+    "base": {"fck": 25e3, "B": 0.45, "L": 0.55, "A2": 0.60 * 0.70, "n_chumbadores": 4,
+             "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
+             "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
+             "fy_placa": 250e3, "t_placa": 0.040, "rosca_no_plano": True},
+    "joelho": {"tipo": "parafusos", "n": 4, "db": 0.024, "fub": 825e3,
+               "t_chapa": 0.0125, "fu_chapa": 400e3, "lf": 0.040, "rosca_no_plano": True},
+    "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",
+                   "n": 2, "db": 0.012, "fub": 400e3, "t_chapa": 0.006,
+                   "fu_chapa": 400e3, "lf": 0.025, "V": 8.0, "excecao_terca": True},
+}
+
+
+if __name__ == "__main__":
+    out = os.path.join(os.path.dirname(__file__), "..", "exports", "memoria-orq")
+    r = rodar(PARAMS_REF, os.path.abspath(out))
+    print("RESUMO (params de referencia 20x10 engastado):")
+    print(f"  interacao coluna = {r['interacao_col']:.2f} (ref 0,67)")
+    print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,87)")
+    print(f"  base governa     = {r['base_gov']}")
+    print(f"  joelho governa   = {r['knee_gov']}")
+    print(f"  memoriais em: {os.path.abspath(out)}")

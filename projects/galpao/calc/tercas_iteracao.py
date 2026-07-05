@@ -29,6 +29,16 @@ LY = 2.5            # eixo fraco (linha de corrente no meio-vao), m
 TRIB = 1.675        # largura de influencia da agua, m
 THETA = math.atan(0.5 / 5.0)
 
+
+def configurar(bay=None, ly=None, trib=None, theta=None, fy=None):
+    """Parametros da terca do projeto (do gate). None mantem o atual."""
+    global BAY, LY, TRIB, THETA, FY
+    if bay is not None:   BAY = float(bay)
+    if ly is not None:    LY = float(ly)
+    if trib is not None:  TRIB = float(trib)
+    if theta is not None: THETA = float(theta)
+    if fy is not None:    FY = float(fy)
+
 # escada Ue (bw x bf x D x t, mm) do mais leve ao mais pesado
 ESCADA = [
     (150., 60., 20., 2.00), (200., 75., 20., 2.00), (200., 75., 25., 2.65),

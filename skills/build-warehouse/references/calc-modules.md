@@ -38,6 +38,19 @@ before that review.
 | 7 sizing | `base_chumbador` | base plate + anchors: bearing (6.6.5), N+M eccentricity (DG1), anchor tension/shear, plate t both sides | N/V/M from portico base, fck, placa BxL, chumbadores, dims pilar |
 | 7 sizing | `ligacoes` | bolts (6.3), fillet welds (6.2.5), 45 kN min (6.1.5.2) | efforts per node, bolt/weld data, exception flag |
 
+## Orchestrator (one call runs the whole chain)
+
+`calc/rodar_galpao.py` is the canonical runner: give it a project params dict
+(geometry, base condition, chosen sections, loads, terça/base/knee data) and it
+configures every module, runs Gates 5-9 in order, extracts the base and knee
+efforts FROM the portico (not hardcoded), and writes one memorial per module +
+`MEMORIAL-CONSOLIDADO.txt`. `PARAMS_REF` is the validated 20x10 reference and
+reproduces it exactly (column 0.67, rafter 0.87). The geometry is PARAMETRIC:
+`gp.configurar(span, eave, ridge, bay, base_fixed, sections, loads)`,
+`ti.configurar(...)`, and `build_galpao.configurar(length, span, eave_h, slope,
+bay, export_dir, doc_name)` set any dimension; `estabilidade` re-syncs from the
+portico automatically. Use the orchestrator instead of calling modules ad hoc.
+
 ## Run order for a full galpão
 
 1. Gate 5 → `vento_nbr6123.compute(...)` with the site/geometry answers → net
