@@ -1,0 +1,29 @@
+# Backlog - modulos a construir depois de validar a skill
+
+## MODULO DE PONTE ROLANTE (crane) - prioridade alta
+
+Lacuna detectada no ensaio (Gate 0): a skill descreve a geometria da ponte
+(consoles, viga de rolamento, batentes, viga de surto) mas NAO ha modulo que
+calcule os esforcos. Necessario para galpoes com ponte (comum em industrial).
+
+Escopo do modulo:
+- Cargas da ponte: capacidade Q, peso da ponte + carro, cargas por roda Rmax
+  (ponte encostada num trilho, carro junto), n de rodas e espacamento.
+- IMPACTO VERTICAL: coeficiente de impacto (~1,10 a 1,25 conforme a classe;
+  siderurgica ~1,25). Confirmar na NBR 8800 / NBR 8400.
+- FRENAGEM longitudinal (ao longo do trilho): fracao das cargas de roda.
+- SURTO/forca LATERAL transversal: fracao de (carga icada + carro), dividida
+  nos dois trilhos.
+- VIGA DE ROLAMENTO: momento maximo por carga movel (teorema de Barre), flexao
+  lateral do surto, flecha (limite ~L/600 a L/800 conforme capacidade), FADIGA
+  (ponte pesada = muitos ciclos; NBR 8800 Anexo K).
+- CONSOLE (misula) + reacao excentrica no pilar -> entra na analise do portico.
+- Contraventamento de arrasto longitudinal (rigidez para a frenagem).
+
+Fonte: extrair de NBR 8800 (impacto/fadiga), NBR 8400 (classes de ponte),
+exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
+
+## Outras lacunas conhecidas (ja documentadas)
+- Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
+- Block shear / flexao da chapa alem do esmagamento - ligacoes.
+- Verificacao propria das secoes secundarias (escoras HEA160, longarinas UPE100).
