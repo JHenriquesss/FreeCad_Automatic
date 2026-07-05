@@ -1,143 +1,205 @@
 # ============================================================================
 # check_nbr8800.py - O QUE ESTE SCRIPT FAZ / CALCULA
-# Verifica um perfil metalico pela ABNT NBR 8800:2008 dados os esforcos
-# solicitantes (Nsd, Msd, Vsd).
-#   Calcula as resistencias de calculo: tracao (5.2), compressao com flambagem
-#   global (5.3, fator chi da Tabela 4), flexao com FLT (5.4/Anexo G,
-#   simplificado), cortante (5.4.3).
-#   Calcula: razoes de utilizacao (N/Nrd, M/Mrd, V/Vrd) e a interacao
-#   flexo-compressao (5.5.1.2), com veredito passa / nao passa.
-# NAO calcula esforcos (vem do galpao_portico) - so verifica a secao.
+# Verifica um perfil I/H laminado pela ABNT NBR 8800:2008 dados os esforcos
+# solicitantes (Nsd, Msd, Vsd). Formulas extraidas da norma (Anexos F e G).
+#   Compressao (5.3): flambagem global (chi, Tabela 4) + flambagem local
+#     (fator Q = Qs*Qa, Anexo F / Tabela F.1) - NAO assume Q=1, calcula.
+#   Flexao (5.4 / Anexo G, Tabela G.1): estados-limite FLT, FLM e FLA com as
+#     formulas exatas (Mr = 0,7 fy W ; Lr, Mcr com Cw e J calculados da geometria;
+#     Mn = menor dos tres). Cw = Iy(d-tf)^2/4 ; J = soma(b t^3)/3.
+#   Cortante (5.4.3): com verificacao de esbeltez da alma.
+#   Interacao flexo-compressao (5.5.1.2).
+# ATENCAO: os esforcos de entrada Nsd/Msd ja devem vir amplificados pela analise
+# de 2a ordem (B1/B2). Este script verifica a SECAO, nao a estabilidade global.
+# NAO calcula esforcos (vem do galpao_portico). Calcula apenas; pendente revisao.
 # ============================================================================
-"""Verificacao de perfil metalico conforme ABNT NBR 8800:2008.
-
-Recebe propriedades da secao + esforcos solicitantes (Nsd, Msd, Vsd) e calcula as
-resistencias de calculo e as razoes de utilizacao. Transparente e auditavel, com
-as clausulas citadas. Calcula apenas; pendente revisao do engenheiro.
-
-Verifica: tracao (5.2), compressao com flambagem global (5.3, chi da Tabela 4),
-flexao com FLT (5.4/Anexo G, simplificado), cortante (5.4.3) e a interacao
-flexo-compressao (5.5.1.2). Flambagem local: Q=1 assumido (secao compacta) - a
-confirmar. Unidades internas: kN, m, kN/m2.
-"""
+"""Verificacao de perfil metalico conforme ABNT NBR 8800:2008 (Anexos F e G)."""
 
 from __future__ import annotations
 
 import math
 
 E = 200e6          # kN/m2 (200 GPa)
-GA1 = 1.10         # coef. de resistencia ao escoamento/flambagem
-GA2 = 1.35         # coef. de resistencia a ruptura
+GA1 = 1.10
 
 
 def chi_compressao(lambda0):
-    """NBR 8800 5.3.3 / Tabela 4: fator de reducao chi."""
+    """NBR 8800 5.3.3 / Tabela 4."""
     if lambda0 <= 1.5:
         return 0.658 ** (lambda0 ** 2)
     return 0.877 / lambda0 ** 2
 
 
-def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Q=1.0, Cb=1.0,
-             nome=""):
-    """sec: dict com A, Ix, Iy, ry, Zx, Wx, Aw (SI: m2, m4, m, m3).
-    fy em kN/m2. L, Lb em m. Retorna dict de resultados."""
+def fator_Q(sec, fy):
+    """Anexo F: Q = Qs (mesa, Grupo 4) * Qa (alma, Grupo 2)."""
+    bf, tf, d, tw = sec["bf"], sec["tf"], sec["d"], sec["tw"]
+    h = d - 2 * tf
+    rE = math.sqrt(E / fy)
+    # Qs - mesa (elemento AL, Grupo 4)
+    bt_f = (bf / 2.0) / tf
+    lim1, lim2 = 0.56 * rE, 1.03 * rE
+    if bt_f <= lim1:
+        Qs = 1.0
+    elif bt_f < lim2:
+        Qs = 1.415 - 0.74 * bt_f * math.sqrt(fy / E)
+    else:
+        Qs = 0.69 * E / (fy * bt_f ** 2)
+    # Qa - alma (elemento AA, Grupo 2)
+    bt_w = h / tw
+    limw = 1.49 * rE
+    if bt_w <= limw:
+        Qa = 1.0
+    else:
+        # F.3.2 largura efetiva (ca=0,34), sigma=fy (conservador)
+        t = tw
+        bef = 1.92 * t * rE * (1 - 0.34 / bt_w * rE)
+        bef = min(bef, h)
+        Aef = sec["A"] - (h - bef) * tw
+        Qa = Aef / sec["A"]
+    return Qs * Qa, Qs, Qa, bt_f, bt_w
+
+
+def _cw_j(sec):
+    """Cw = Iy(d-tf)^2/4 ; J = (2 bf tf^3 + (d-2tf) tw^3)/3."""
+    bf, tf, d, tw, Iy = sec["bf"], sec["tf"], sec["d"], sec["tw"], sec["Iy"]
+    Cw = Iy * (d - tf) ** 2 / 4.0
+    J = (2 * bf * tf ** 3 + (d - 2 * tf) * tw ** 3) / 3.0
+    return Cw, J
+
+
+def _interp_M(lam, lamp, lamr, Mpl, Mr, Mcr, Cb=1.0):
+    """G.2.1: Mn plastificacao / inelastico (interp) / elastico."""
+    if lam <= lamp:
+        return Mpl
+    if lam <= lamr:
+        return min(Cb * (Mpl - (Mpl - Mr) * (lam - lamp) / (lamr - lamp)), Mpl)
+    return min(Mcr, Mpl)
+
+
+def momento_resistente(sec, fy, Lb, Cb=1.0):
+    """Menor Mn entre FLT, FLM, FLA (Tabela G.1, I duplo eixo, eixo forte)."""
+    Zx, Wx, ry, bf, tf, d, tw = (sec["Zx"], sec["Wx"], sec["ry"], sec["bf"],
+                                 sec["tf"], sec["d"], sec["tw"])
+    Iy = sec["Iy"]
+    h = d - 2 * tf
+    Mpl = Zx * fy
+    sr = 0.3 * fy                     # tensao residual
+    rE = math.sqrt(E / fy)
+    Cw, J = _cw_j(sec)
+
+    # FLT
+    lam = Lb / ry
+    lamp = 1.76 * rE
+    Mr_flt = (fy - sr) * Wx
+    b1 = (fy - sr) * Wx / (E * J)
+    lamr_flt = (1.38 * math.sqrt(Iy * J)) / (ry * J * b1) * \
+        math.sqrt(1 + math.sqrt(1 + 27 * Cw * b1 ** 2 / Iy))
+    Mcr_flt = (Cb * math.pi ** 2 * E * Iy / Lb ** 2) * \
+        math.sqrt(Cw / Iy + 0.039 * J * Lb ** 2 / Iy)
+    Mn_flt = _interp_M(lam, lamp, lamr_flt, Mpl, Mr_flt, Mcr_flt, Cb)
+
+    # FLM (mesa, laminado)
+    lam_m = (bf / 2.0) / tf
+    lamp_m = 0.38 * rE
+    lamr_m = 0.83 * math.sqrt(E / (fy - sr))
+    Mr_m = (fy - sr) * Wx
+    Mcr_m = 0.69 * E * Wx / lam_m ** 2
+    Mn_flm = _interp_M(lam_m, lamp_m, lamr_m, Mpl, Mr_m, Mcr_m)
+
+    # FLA (alma)
+    lam_a = h / tw
+    lamp_a = 3.76 * rE
+    lamr_a = 5.70 * rE
+    Mr_a = fy * Wx
+    Mn_fla = _interp_M(lam_a, lamp_a, lamr_a, Mpl, Mr_a, Mpl)  # alma nao-esbelta
+
+    Mn = min(Mn_flt, Mn_flm, Mn_fla)
+    gov = ["FLT", "FLM", "FLA"][[Mn_flt, Mn_flm, Mn_fla].index(Mn)]
+    return Mn, gov, {"Mpl": Mpl, "Lp": lamp * ry, "Lr_flt": lamr_flt * ry,
+                     "Mn_flt": Mn_flt, "Mn_flm": Mn_flm, "Mn_fla": Mn_fla,
+                     "Cw": Cw, "J": J}
+
+
+def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""):
     A, Ix, Iy = sec["A"], sec["Ix"], sec["Iy"]
-    ry, Zx, Wx, Aw = sec["ry"], sec["Zx"], sec["Wx"], sec["Aw"]
+    Aw, d, tw, tf = sec["A"], sec["d"], sec["tw"], sec["tf"]
+    Aw = d * tw
     if Lb is None:
         Lb = L
     r = {"nome": nome}
 
-    # --- Tracao (5.2): escoamento da secao bruta ---
-    Nt_Rd = A * fy / GA1
-    r["Nt_Rd"] = Nt_Rd
-
-    # --- Compressao (5.3): flambagem global, dois eixos ---
-    Ne_x = math.pi ** 2 * E * Ix / (Kx * L) ** 2
-    Ne_y = math.pi ** 2 * E * Iy / (Ky * Lb) ** 2
-    Ne = min(Ne_x, Ne_y)
+    # Compressao (5.3): global + local (Q)
+    Q, Qs, Qa, btf, btw = fator_Q(sec, fy)
+    Ne = min(math.pi ** 2 * E * Ix / (Kx * L) ** 2,
+             math.pi ** 2 * E * Iy / (Ky * Lb) ** 2)
     lambda0 = math.sqrt(Q * A * fy / Ne)
     chi = chi_compressao(lambda0)
     Nc_Rd = chi * Q * A * fy / GA1
-    r.update(Ne=Ne, lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
+    r.update(Q=Q, Qs=Qs, Qa=Qa, Ne=Ne, lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
 
-    # --- Flexao com FLT (5.4 / Anexo G), eixo forte, simplificado ---
-    Mpl = Zx * fy
-    Lp = 1.76 * ry * math.sqrt(E / fy)
-    if Lb <= Lp:
-        Mn = Mpl
-        flt = "sem FLT (Lb<=Lp): Mn=Mpl"
-    else:
-        # Mr = fy*Wx (inicio do regime inelastico, conservador sem residual);
-        # Lr aproximado por pi*ry*sqrt(E/(0.7fy)) (limite elastico simplificado).
-        Mr = fy * Wx
-        Lr = math.pi * ry * math.sqrt(E / (0.7 * fy))
-        if Lb <= Lr:
-            Mn = min(Cb * (Mpl - (Mpl - Mr) * (Lb - Lp) / (Lr - Lp)), Mpl)
-            flt = "FLT inelastica (Lp<Lb<=Lr) - VERIFICAR Anexo G detalhado"
-        else:
-            Mcr = Cb * math.pi ** 2 * E * Iy / Lb ** 2  # simplificado (só termo empenamento omitido)
-            Mn = min(Mcr, Mpl)
-            flt = "FLT elastica (Lb>Lr) - VERIFICAR Anexo G detalhado"
+    # Flexao (Anexo G)
+    Mn, gov, det = momento_resistente(sec, fy, Lb, Cb)
     Mrd = Mn / GA1
-    r.update(Mpl=Mpl, Lp=Lp, Lb=Lb, Mn=Mn, Mrd=Mrd, flt=flt)
+    r.update(Mrd=Mrd, M_gov=gov, **det)
 
-    # --- Cortante (5.4.3), alma compacta ---
+    # Cortante (5.4.3): verifica esbeltez da alma
+    h = d - 2 * tf
+    lamw = h / tw
+    lamw_p = 1.10 * math.sqrt(5.0 * E / fy)   # kv=5 (sem enrijecedores)
     Vpl = 0.6 * Aw * fy
-    Vrd = Vpl / GA1
+    Vrd = Vpl / GA1 if lamw <= lamw_p else Vpl / GA1 * (lamw_p / lamw)
     r["Vrd"] = Vrd
+    r["alma_compacta_cisalhamento"] = lamw <= lamw_p
 
-    # --- Razoes de utilizacao ---
-    r["u_N_trac"] = Nsd / Nt_Rd if Nsd > 0 else 0.0
-    r["u_N_comp"] = Nsd / Nc_Rd
+    # Utilizacao + interacao (5.5.1.2)
+    r["u_N"] = Nsd / Nc_Rd
     r["u_M"] = Msd / Mrd
     r["u_V"] = Vsd / Vrd
-
-    # --- Interacao flexo-compressao (5.5.1.2) ---
-    n = Nsd / Nc_Rd
-    m = Msd / Mrd
+    n, m = Nsd / Nc_Rd, Msd / Mrd
     if n >= 0.2:
-        inter = n + (8.0 / 9.0) * m
-        eq = "N/Nrd + 8/9*(M/Mrd)"
+        inter, eq = n + (8.0 / 9.0) * m, "N/Nrd + 8/9*(M/Mrd)"
     else:
-        inter = n / 2.0 + m
-        eq = "N/(2Nrd) + M/Mrd"
+        inter, eq = n / 2.0 + m, "N/(2Nrd) + M/Mrd"
     r.update(interacao=inter, eq_interacao=eq)
-    r["OK"] = (inter <= 1.0 and r["u_V"] <= 1.0)
+    r["OK"] = inter <= 1.0 and r["u_V"] <= 1.0
     return r
 
 
 def relatorio_pt(rs, fy):
-    L = []
-    L.append("VERIFICACAO DE PERFIS (ABNT NBR 8800:2008)")
-    L.append(f"  fy = {fy/1000:.0f} MPa ; gamma_a1 = {GA1:.2f} ; Q = 1,0 (compacta, a confirmar)")
+    L = ["VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)",
+         f"  fy = {fy/1000:.0f} MPa ; gamma_a1 = {GA1:.2f}",
+         "  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem)."]
     for r in rs:
-        L.append("")
-        L.append(f"  --- {r['nome']} ---")
-        L.append(f"  Compressao: Ne={r['Ne']:.0f} kN ; lambda0={r['lambda0']:.3f} ; "
-                 f"chi={r['chi']:.3f} ; Nc,Rd={r['Nc_Rd']:.1f} kN")
-        L.append(f"  Flexao: Mpl={r['Mpl']:.1f} ; Lp={r['Lp']:.2f} m ; Lb={r['Lb']:.2f} m ; "
-                 f"Mrd={r['Mrd']:.1f} kN.m ({r['flt']})")
-        L.append(f"  Cortante: Vrd={r['Vrd']:.1f} kN")
-        L.append(f"  Utilizacao: N/Nc={r['u_N_comp']:.2f} ; M/Mrd={r['u_M']:.2f} ; "
-                 f"V/Vrd={r['u_V']:.2f}")
-        L.append(f"  Interacao ({r['eq_interacao']}) = {r['interacao']:.2f}  -> "
-                 f"{'OK' if r['OK'] else 'NAO PASSA'}")
+        L += ["",
+              f"  --- {r['nome']} ---",
+              f"  Flambagem local: Qs={r['Qs']:.3f} ; Qa={r['Qa']:.3f} ; Q={r['Q']:.3f}",
+              f"  Compressao: Ne={r['Ne']:.0f} kN ; lambda0={r['lambda0']:.3f} ; "
+              f"chi={r['chi']:.3f} ; Nc,Rd={r['Nc_Rd']:.1f} kN",
+              f"  Flexao: Mpl={r['Mpl']:.1f} ; Lp={r['Lp']:.2f} m ; Lr(FLT)={r['Lr_flt']:.2f} m ; "
+              f"Cw={r['Cw']:.3e} ; J={r['J']:.3e}",
+              f"    Mn_FLT={r['Mn_flt']:.1f} ; Mn_FLM={r['Mn_flm']:.1f} ; Mn_FLA={r['Mn_fla']:.1f} "
+              f"-> governa {r['M_gov']} ; Mrd={r['Mrd']:.1f} kN.m",
+              f"  Cortante: Vrd={r['Vrd']:.1f} kN (alma compacta: {r['alma_compacta_cisalhamento']})",
+              f"  Utilizacao: N/Nc={r['u_N']:.2f} ; M/Mrd={r['u_M']:.2f} ; V/Vrd={r['u_V']:.2f}",
+              f"  Interacao ({r['eq_interacao']}) = {r['interacao']:.2f}  -> "
+              f"{'OK' if r['OK'] else 'NAO PASSA'}"]
     import re
     return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
 
 
-# ---- secoes (SI: m2, m4, m, m3) --------------------------------------------
+# ---- secoes (SI: m, m2, m4, m3). Inclui d, bf, tf, tw para Q, Cw, J ---------
 HEA200 = {"A": 53.83e-4, "Ix": 3692e-8, "Iy": 1336e-8, "ry": 0.0498,
-          "Zx": 429.5e-6, "Wx": 388.6e-6, "Aw": 0.190 * 0.0065}
+          "Zx": 429.5e-6, "Wx": 388.6e-6, "d": 0.190, "bf": 0.200,
+          "tf": 0.010, "tw": 0.0065}
 HEA180 = {"A": 45.25e-4, "Ix": 2510e-8, "Iy": 924.6e-8, "ry": 0.0452,
-          "Zx": 324.9e-6, "Wx": 293.6e-6, "Aw": 0.171 * 0.006}
+          "Zx": 324.9e-6, "Wx": 293.6e-6, "d": 0.171, "bf": 0.180,
+          "tf": 0.0095, "tw": 0.006}
 
 
 if __name__ == "__main__":
     fy = 250e3  # kN/m2 (aco MR250 / ASTM A36)
-    # Esforcos da combinacao governante C2 (galpao_portico): coluna e viga.
     col = verifica(HEA200, fy, L=6.0, Nsd=48.9, Msd=109.8, Vsd=19.9,
-                   Kx=2.0, Ky=1.0, Lb=2.0, nome="Coluna HEA200 (K x=2 sway; Lb=2 m girts)")
+                   Kx=2.0, Ky=1.0, Lb=2.0, nome="Coluna HEA200 (Kx=2 sway; Lb=2 m)")
     raf = verifica(HEA180, fy, L=5.03, Nsd=24.7, Msd=109.8, Vsd=46.7,
-                   Kx=1.0, Ky=1.0, Lb=1.67, nome="Viga HEA180 (Lb=1,67 m tercas)")
+                   Kx=1.0, Ky=1.0, Lb=1.67, nome="Viga HEA180 (Lb=1,67 m)")
     print(relatorio_pt([col, raf], fy))
