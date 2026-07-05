@@ -5,7 +5,10 @@ Aplica as regras da skill: gap de graute, placas de base + chumbadores + arruela
 escoras de beiral, montantes de oitao, tirantes fechando na cumeeira, maos-
 francesas, tercas com face aberta para o beiral, contraventamento so-tracao.
 
-CONCEITUAL / desenho apenas. Secoes sao placeholder (nao verificadas) ate Gate 8.
+Gate 8: secoes VERIFICADAS pelo toolkit de calculo (pendente revisao do eng.):
+colunas HEA200, vigas HEA180 (base ENGASTADA), tercas Ue 200x75x25x2,65, placa
+de base 450x550x40 + 4 chumbadores d20 A307. Secoes secundarias (escora/cumeeira
+HEA160, longarinas UPE100) permanecem placeholder ate verificacao propria.
 Unidades: mm. Z = 0 no topo do concreto; aco sobe pelo gap de graute.
 """
 
@@ -36,6 +39,8 @@ HEA180 = (171.0, 180.0, 6.0, 9.5)
 HEA160 = (152.0, 160.0, 6.0, 9.0)
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
+# Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
+UE_TERCA = (200.0, 75.0, 25.0, 2.65)
 CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
@@ -92,6 +97,21 @@ def i_member(doc, p1, p2, sec, name, roll=0.0):
 
 def u_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(u_section_pts(sec), p1, p2, roll, name, doc)
+
+
+def ue_section_pts(sec):
+    """Perfil U ENRIJECIDO (Ue) = (bw, bf, D, t) ; espessura uniforme t."""
+    bw, bf, D, t = sec
+    hz = bw / 2.0
+    fz = hz - t
+    y0, yw, yb, yl = -bf / 2.0, -bf / 2.0 + t, bf / 2.0, bf / 2.0 - t
+    return [(y0, hz), (yb, hz), (yb, hz - D), (yl, hz - D), (yl, fz),
+            (yw, fz), (yw, -fz), (yl, -fz), (yl, -hz + D), (yb, -hz + D),
+            (yb, -hz), (y0, -hz)]
+
+
+def ue_member(doc, p1, p2, sec, name, roll=0.0):
+    return _sweep(ue_section_pts(sec), p1, p2, roll, name, doc)
 
 
 def rod(doc, p1, p2, dia, name):
@@ -176,15 +196,21 @@ def build(doc):
         i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_E")
         i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_D")
 
-    # Placas de base + chumbadores (gancho L) + arruelas
+    # Placas de base ENGASTADAS + chumbadores (gancho L) + arruelas.
+    # Gate 8: base 450 (X) x 550 (Y=direcao do momento) x 40 mm ; 4 chumbadores
+    # d20 A307, straddle em Y para o braco do momento do engaste.
     for i, x in enumerate(axes, start=1):
         for yw, lado in ((0, "E"), (SPAN, "D")):
-            plate(doc, (x, yw, Z0 - 11), 420, 420, 22, f"PLACA_BASE_{lado}_{i:02d}")
-            for dx in (-140, 140):
-                sfx = 'a' if dx < 0 else 'b'
-                rod(doc, (x + dx, yw, -300), (x + dx, yw, Z0 + 40), 25, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
-                rod(doc, (x + dx, yw, -300), (x + dx + 60, yw, -300), 25, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
-                plate(doc, (x + dx, yw, Z0 - 22), 80, 80, 10, f"ARRUELA_{lado}_{i:02d}_{sfx}")
+            plate(doc, (x, yw, Z0 - 20), 450, 550, 40, f"PLACA_BASE_{lado}_{i:02d}")
+            for ddx in (-70, 70):
+                for ddy in (-225, 225):
+                    sfx = f"{'a' if ddx < 0 else 'b'}{'1' if ddy < 0 else '2'}"
+                    rod(doc, (x + ddx, yw + ddy, -300), (x + ddx, yw + ddy, Z0 + 40),
+                        20, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
+                    rod(doc, (x + ddx, yw + ddy, -300), (x + ddx, yw + ddy - 60, -300),
+                        20, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
+                    plate(doc, (x + ddx, yw + ddy, Z0 - 40), 80, 80, 12,
+                          f"ARRUELA_{lado}_{i:02d}_{sfx}")
 
     # Escoras de beiral + viga de cumeeira (perfil I, por vao)
     for b in range(len(axes) - 1):
@@ -202,15 +228,15 @@ def build(doc):
     for k in range(1, n_terca):
         yl = RIDGE_Y * k / n_terca
         terca_ys.append(yl)
-        u_member(doc, (0, yl, rafter_z(yl) + POFF), (LENGTH, yl, rafter_z(yl) + POFF),
-                 UPE120, f"TERCA_E_{k:02d}", roll=180)
+        ue_member(doc, (0, yl, rafter_z(yl) + POFF), (LENGTH, yl, rafter_z(yl) + POFF),
+                  UE_TERCA, f"TERCA_E_{k:02d}", roll=180)
         yr = SPAN - RIDGE_Y * k / n_terca
         terca_ys.append(yr)
-        u_member(doc, (0, yr, rafter_z(yr) + POFF), (LENGTH, yr, rafter_z(yr) + POFF),
-                 UPE120, f"TERCA_D_{k:02d}", roll=0)
+        ue_member(doc, (0, yr, rafter_z(yr) + POFF), (LENGTH, yr, rafter_z(yr) + POFF),
+                  UE_TERCA, f"TERCA_D_{k:02d}", roll=0)
     for y, lado, rl in ((0.0, "E", 180), (SPAN, "D", 0)):
-        u_member(doc, (0, y, EAVE_H + POFF), (LENGTH, y, EAVE_H + POFF), UPE120,
-                 f"TERCA_BEIRAL_{lado}", roll=rl)
+        ue_member(doc, (0, y, EAVE_H + POFF), (LENGTH, y, EAVE_H + POFF), UE_TERCA,
+                  f"TERCA_BEIRAL_{lado}", roll=rl)
 
     # Tercas de parede (girts): apoiadas na face externa das colunas. A inferior
     # esquerda e interrompida sobre a porta com uma verga.
@@ -267,7 +293,7 @@ def build(doc):
 
     # Drenagem (Gate 1): calhas nos dois beirais + condutores, para fora do aco.
     GUT_Y = 340.0
-    DOWN_Y = 280.0
+    DOWN_Y = 340.0    # sob a calha; livra a placa de base engastada (550 mm em Y)
     for y, lado, rl in ((-GUT_Y, "E", 90), (SPAN + GUT_Y, "D", -90)):
         u_member(doc, (0, y, EAVE_H), (LENGTH, y, EAVE_H), CALHA_SEC, f"CALHA_{lado}", roll=rl)
     for x in (axes[0], axes[len(axes) // 2], axes[-1]):
@@ -424,15 +450,15 @@ def _classifica(n):
     if n.startswith("TERCA_PAREDE"):
         return "Tercas de parede", "UPE100"
     if n.startswith("TERCA"):
-        return "Tercas", "UPE120"
+        return "Tercas", "Ue200x75x25x2.65"
     if n.startswith("TIRANTE") or n.startswith("MAO_FRANCESA"):
         return "Tirantes / maos-francesas", "barra-16"
     if n.startswith("CONTRAV"):
         return "Contraventamento", "barra-20"
     if n.startswith("CHUMBADOR"):
-        return "Chumbadores", "barra-25"
+        return "Chumbadores", "barra-20"
     if n.startswith("PLACA_BASE"):
-        return "Placas de base", "chapa-22"
+        return "Placas de base", "chapa-40"
     if n.startswith("ARRUELA"):
         return "Arruelas", "chapa-10"
     if n.startswith("CALHA"):
