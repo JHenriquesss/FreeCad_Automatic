@@ -44,6 +44,20 @@ Run guiado real da skill build-warehouse. Lote no norte fluminense (RJ).
 - Usuario optou por MANTER todos os defaults da referencia (planilha-defaults.md).
 - Ponte: exemplo 100 kN, TUDO A CONFIRMAR na ficha do fabricante.
 
+## Gate 3 - Fechamento das paredes (2026-07-05)
+- **Alvenaria (meia-parede) ate 2,5 m + telha metalica acima**, nas LATERAIS.
+- Oitoes (empenas) em telha (por causa do portao/porta). Peso ~0,12 kN/m2.
+- NOTA ELS: meia-parede + telha nao e parede fragil cheia -> mantido o limite de
+  flecha usual (H/300..H/150), nao H/500. Confirmar com o eng. se a alvenaria for
+  ligada rigido a estrutura.
+
+## FRAMEWORK (novo) - ProjetoSpec
+- O projeto agora e um ProjetoSpec (calc/projeto_spec.py) - fonte unica da verdade.
+  validar() BLOQUEIA calculo/desenho com campo pendente; mappers traduzem p/ os
+  modulos. Spec do projeto: work/spec_nf982.py. Modelo/calculo reconstruidos SO do
+  spec (sem default hardcoded / sem copia). massa_total do takeoff agora mistura
+  aco (~13,8 t) + alvenaria (~26 t) - a categoria separa; total conflaciona (rever).
+
 ## Gate 4 - Aberturas (2026-07-05) - CORRIGIDO apos apontamento do usuario
 - Portao de veiculos: **oitao FRENTE, 4,0 x 4,5 m**.
 - Porta de pessoas: **oitao FUNDO** (0,9 x 2,13 m).

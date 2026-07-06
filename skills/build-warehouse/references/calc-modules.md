@@ -28,6 +28,7 @@ before that review.
 
 | Gate | Module | Computes | Key inputs (gate questions) |
 |------|--------|----------|------------------------------|
+| ALL | `projeto_spec` | FRAMEWORK: single source of truth for the project; `validar()` BLOCKS calc/model while a required field is unasked; `to_rodar_params`/`to_build_kwargs` map spec → modules (no hardcoded copy) | every gate answer fills the spec |
 | T terreno | `terreno` | land feasibility (FIRST): lot area from KML/coords, buildable rectangle, TO/CA/TP caps, fit check | KML/coordenadas, taxa de ocupação, taxa de permeabilidade, coef. aproveitamento, recuos, nº pavimentos |
 | 5 actions | `vento_nbr6123` | NBR 6123 wind: S2, Vk, q, Cpe (Tab.4/5, α=90), Cpi (portão dominante); LONGITUDINAL α=0 (`compute_longitudinal`): Cpe empena Tab.4 + arrasto Fa=Ca·q·Ae (Ca da Fig.4, A CONFIRMAR) | V0, categoria, classe, S1, S3, z, θ telhado, dims a/b/h, abertura dominante, Ca arrasto |
 | 6 analysis | `galpao_portico` (+ `frame2d`) | portal efforts M/N/V, drift, ELS ladder | geometria (vão, pé-direito, cumeeira, BAY), G/Q, base rotulada/engastada, perfis placeholder |

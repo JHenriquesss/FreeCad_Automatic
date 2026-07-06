@@ -1,4 +1,5 @@
 categoria,perfil,quantidade,comprimento_total_m,massa_total_kg
+Alvenaria (meia-parede),bloco-19,2,0.00,26280.8
 Arruelas,chapa-10,40,0.00,24.0
 Calhas,U300x200x5,2,40.00,1240.3
 Chumbadores,barra-20,80,17.20,42.4
@@ -8,13 +9,13 @@ Contraventamento,barra-20,12,107.02,263.9
 Escoras de beiral / cumeeira,HEA160,12,60.00,1735.2
 Montantes de oitao,HEA160,4,24.77,716.2
 Placas de base,chapa-40,10,0.00,777.1
-Tapamento,trapez-0.65,4,0.00,1653.2
+Tapamento,trapez-0.65,4,0.00,1149.1
 Telha de cobertura,trapez-0.65,2,0.00,1025.6
 Tercas,Ue200x75x25x2.65,6,120.00,972.1
 Tercas de parede,UPE100,4,80.00,758.3
 Tirantes / maos-francesas,barra-16,40,135.72,214.1
 Vigas,HEA180,10,50.25,1708.8
-TOTAL,,,,13781.9
+TOTAL,,,,39558.6
 
 # Detalhe por elemento
 nome,categoria,perfil,comprimento_mm,massa_kg
@@ -192,8 +193,10 @@ PORTICO_05_COLUNA_D,Colunas,HEA200,5970.0,239.24
 PORTICO_05_COLUNA_E,Colunas,HEA200,5970.0,239.24
 PORTICO_05_VIGA_D,Vigas,HEA180,5024.9,170.88
 PORTICO_05_VIGA_E,Vigas,HEA180,5024.9,170.88
-TAPAMENTO_LATERAL_D,Tapamento,trapez-0.65,0.0,558.21
-TAPAMENTO_LATERAL_E,Tapamento,trapez-0.65,0.0,558.21
+TAPAMENTO_LATERAL_D,Tapamento,trapez-0.65,0.0,306.15
+TAPAMENTO_LATERAL_D_ALVENARIA,Alvenaria (meia-parede),bloco-19,0.0,13140.4
+TAPAMENTO_LATERAL_E,Tapamento,trapez-0.65,0.0,306.15
+TAPAMENTO_LATERAL_E_ALVENARIA,Alvenaria (meia-parede),bloco-19,0.0,13140.4
 TAPAMENTO_OITAO_FRENTE,Tapamento,trapez-0.65,0.0,229.2
 TAPAMENTO_OITAO_FUNDO,Tapamento,trapez-0.65,0.0,307.59
 TELHA_D,Telha de cobertura,trapez-0.65,0.0,512.79

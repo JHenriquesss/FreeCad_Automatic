@@ -24,6 +24,14 @@ Hard rules:
   project defaults sheet (`notes/planilha-defaults.md`, from
   `references/batch-defaults.md`) and hand it to the engineer for ONE review pass.
   See `batch-defaults.md` for the critical-vs-secondary split and the protocol.
+- FRAMEWORK / GATE COVERAGE (enforced, not advisory): each gate answer fills the
+  `ProjetoSpec` (`calc/projeto_spec.py`) — the single source of truth. Before ANY
+  calculation or model build, run `projeto_spec.validar(spec)`; it BLOCKS while a
+  required field is still PENDENTE (unasked). The builder/orchestrator read ONLY
+  from the spec via `to_rodar_params` / `to_build_kwargs` — nothing falls back to
+  a previous project's values. This is what guarantees every decision is asked and
+  the design is NOT a copy of an existing project. Never model from module
+  defaults on a real run; always go spec → validar → mappers → run.
 - The skill RUNS structural calculation via the validated toolkit
   (`references/calc-modules.md`) at Gates 5-8 and emits the PT memoriais, but the
   responsible ENGINEER reviews and approves them. The skill computes, models,
@@ -207,15 +215,20 @@ Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
 Exit: user confirms the full skeleton.
 
-## Gate 3 - Envelope
+## Gate 3 - Envelope (roof + WALL cladding)
 
-Ask:
+Ask (do NOT skip the walls — this is a required spec field):
 
-- Roof cladding type and modulation.
-- Wall cladding type (steel sheet, masonry to a height, mixed).
+- Roof cladding type and modulation (usually settled at Gate 1).
+- **Wall cladding (fechamento)** — REQUIRED: `telha` (steel sheet, thin skin) |
+  `alvenaria_telha` (masonry up to a height + sheet above; ask the height) |
+  `termoacustica` (sandwich panel) | `aberto` (open sides, no wall). This sets
+  `build_galpao` FECHAMENTO and the wall weight; masonry also changes the ELS
+  drift limit (a full brittle wall wants H/500 — half-wall + sheet is less strict).
 - Gutters and downspouts: sides and drainage direction.
 
-Produces: roof/wall surfaces, gutters, downspouts. Exit: user confirms envelope.
+Produces: roof/wall surfaces (per fechamento), gutters, downspouts. Exit: user
+confirms envelope. Maps to `ProjetoSpec.fechamento` (tipo + altura_alvenaria).
 
 ## Gate 4 - Openings
 

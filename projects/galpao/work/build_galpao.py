@@ -36,14 +36,16 @@ DOC_NAME = "galpao_20x10"
 
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None,
-               n_tirante_parede=None, aberturas=None, terreno_pts=None):
+               n_tirante_parede=None, aberturas=None, terreno_pts=None,
+               fechamento=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
-    global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS
+    global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     if aberturas is not None: ABERTURAS = dict(ABERTURAS, **aberturas)
     if terreno_pts is not None: TERRENO_PTS = terreno_pts
+    if fechamento is not None: FECHAMENTO = dict(FECHAMENTO, **fechamento)
     if length is not None: LENGTH = float(length)
     if span is not None:   SPAN = float(span)
     if eave_h is not None: EAVE_H = float(eave_h)
@@ -91,6 +93,10 @@ ABERTURAS = {
 # Terreno (opcional): lista de pontos (x,y) do lote em mm, ja no referencial do
 # galpao (a skill translada). None = nao desenha o terreno.
 TERRENO_PTS = None
+
+# Fechamento das paredes (Gate 3). tipo: "telha" | "alvenaria_telha" |
+# "termoacustica" | "aberto". altura_alvenaria em mm (so p/ alvenaria_telha).
+FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -408,14 +414,31 @@ def build(doc):
         lat_ops["D"].append((win_x, (SPAN + yw - 60, SPAN + yw + 60), jl))
         if _in_braced(win_x[0], win_x[1]):
             CONFLITOS_ABERTURA_CONTRAV.append("janelas")
-    panel(doc, [(0, -yw, Z0), (LENGTH, -yw, Z0), (LENGTH, -yw, EAVE_H), (0, -yw, EAVE_H)],
-          TCL, "TAPAMENTO_LATERAL_E", openings=lat_ops["E"])
-    panel(doc, [(0, SPAN + yw, Z0), (LENGTH, SPAN + yw, Z0),
-                (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL,
-          "TAPAMENTO_LATERAL_D", openings=lat_ops["D"])
+    # Fechamento (Gate 3): "aberto" nao desenha parede; "alvenaria_telha" faz
+    # meia-parede de alvenaria (ate altura_alvenaria) + telha acima nas LATERAIS
+    # (oitoes ficam em telha por causa dos portoes); demais tipos = telha cheia.
+    ftipo = FECHAMENTO.get("tipo", "telha")
+    h_alv = FECHAMENTO.get("altura_alvenaria") or 0.0
+
+    def _parede_lateral(y, name, ops):
+        if ftipo == "aberto":
+            return
+        if ftipo == "alvenaria_telha" and h_alv > Z0:
+            plate(doc, (LENGTH / 2.0, y, Z0 + (h_alv - Z0) / 2.0), LENGTH, 190.0,
+                  h_alv - Z0, name + "_ALVENARIA")
+            zb = h_alv                                  # telha comeca no topo da alvenaria
+            ops_sup = [o for o in ops if o[2][1] > zb]  # so aberturas acima
+        else:
+            zb, ops_sup = Z0, ops
+        panel(doc, [(0, y, zb), (LENGTH, y, zb), (LENGTH, y, EAVE_H), (0, y, EAVE_H)],
+              TCL, name, openings=ops_sup)
+    _parede_lateral(-yw, "TAPAMENTO_LATERAL_E", lat_ops["E"])
+    _parede_lateral(SPAN + yw, "TAPAMENTO_LATERAL_D", lat_ops["D"])
 
     # --- oitoes (empenas): portao de veiculos e/ou porta de pessoas
     for xc, lbl, sgn in ((-yw, "FRENTE", -1.0), (LENGTH + yw, "FUNDO", +1.0)):
+        if ftipo == "aberto":
+            continue
         ops = []
         portao = ABERTURAS.get(f"portao_{lbl.lower()}")
         porta = ABERTURAS.get(f"porta_{lbl.lower()}")
@@ -569,6 +592,8 @@ def _classifica(n):
         return "Calhas", "U300x200x5"
     if n.startswith("CONDUTOR"):
         return "Condutores", "tubo-100x3"
+    if "ALVENARIA" in n:
+        return "Alvenaria (meia-parede)", "bloco-19"
     if n.startswith("TELHA"):
         return "Telha de cobertura", "trapez-0.65"
     if n.startswith("TAPAMENTO"):
@@ -584,7 +609,10 @@ def takeoff(doc):
         if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
             continue
         cat, prof = _classifica(o.Name)
-        massa = o.Shape.Volume * DENSIDADE_ACO
+        # alvenaria nao e aco: usa densidade de bloco (~1400 kg/m3) e nao entra
+        # na tonelagem de aco (categoria propria).
+        dens = 1.4e-6 if "ALVENARIA" in o.Name else DENSIDADE_ACO
+        massa = o.Shape.Volume * dens
         pts = REG.get(o.Name)
         if pts and len(pts) == 2:
             (x1, y1, z1), (x2, y2, z2) = pts

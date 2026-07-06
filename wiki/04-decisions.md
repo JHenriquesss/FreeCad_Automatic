@@ -238,6 +238,41 @@ Alternatives rejected:
 - Derive channel Cw from a memorized thin-wall formula. Cap Mrd,x to the plastic
   value only when Lb<=Lp (unusable). Leave secondary members unchecked.
 
+## 2026-07-05 - Thin Framework: ProjetoSpec Is The Single Source Of Truth
+
+Decision:
+- Introduce `calc/projeto_spec.py`: a ProjetoSpec (terreno, geometria, cobertura,
+  fechamento, aberturas, estrutura, vento, ponte, cargas). `validar()` BLOCKS the
+  calc/model while a required field is still PENDENTE; `to_rodar_params` /
+  `to_build_kwargs` map the spec to the modules. The builder/orchestrator read
+  ONLY from the spec — no fallback to a previous project.
+
+Why:
+- The real guided run exposed two failures the advisory markdown skill could not
+  prevent: gates were SKIPPED (walls Gate 3, openings Gate 4) and the builder
+  then drew HARDCODED reference values → the design became a copy. A data
+  contract + a blocking validator enforces "everything asked" and, with a builder
+  that has no silent defaults, "not a copy". The skill stays as the conversation
+  that fills the spec; the framework is the spec + validator + spec-driven mappers.
+
+Alternatives rejected:
+- Keep the markdown skill advisory (already failed twice — depends on LLM
+  discipline). A heavy framework/DSL (overkill for the gate flow).
+
+## 2026-07-05 - Parametric Openings + Wall Cladding (no hardcoded copy)
+
+Decision:
+- `build_galpao` openings (ABERTURAS) and wall cladding (FECHAMENTO:
+  telha/alvenaria_telha/termoacustica/aberto) are config-driven from Gate 4/Gate 3;
+  the module defaults exist only for the 20x10 fixture. Terrain drawn from the KML.
+
+Why:
+- The run drew reference side doors/windows never asked, and never drew the lot.
+  Openings/walls/terrain are project decisions, not fixture constants.
+
+Alternatives rejected:
+- Leave the reference openings hardcoded. Draw only the structure.
+
 ## 2026-07-04 - Defer FreeCAD GUI Bridge Startup To InitGui
 
 Decision:
