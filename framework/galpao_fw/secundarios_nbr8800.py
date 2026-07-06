@@ -140,6 +140,59 @@ def verifica_longarina(sec, fy, cfg):
     return r
 
 
+def _util(r):
+    """Utilizacao de um resultado (longarina usa 'inter'; escora/montante usa
+    'interacao' do check)."""
+    return r.get("inter", r.get("interacao"))
+
+
+def _passa(r):
+    if r.get("OK") is not None:
+        return bool(r["OK"])
+    u = _util(r)
+    return u is not None and u <= 1.0
+
+
+def dimensiona_secundarios(fy, cfg_long, cfg_esc, cfg_mont,
+                           n_tir_seed=2, n_tir_max=6):
+    """Dimensiona as secoes SECUNDARIAS ao esforco real:
+      - longarina (U): aumenta as LINHAS DE TIRANTE (sag rods) ate passar (reduz o
+        Lb do FLT). Sem inventar dados de catalogo (so geometria);
+      - escora/cumeeira e montante (I): sobem na escada HEA ate passar.
+    Retorna o dict com perfil/tirantes adotados + utilizacao + ok de cada um."""
+    import perfis
+    # --- longarina: mais tirantes ate passar ---
+    long_r, nt_ad = None, n_tir_seed
+    for nt in range(n_tir_seed, n_tir_max + 1):
+        long_r = verifica_longarina(UPE100, fy, dict(cfg_long, n_tirantes=nt))
+        nt_ad = nt
+        if _passa(long_r):
+            break
+    # --- escora / montante: escada HEA (160 -> 220) ---
+    HEA = [("HEA160", HEA160)] + [(nm, perfis.PERFIS[nm])
+                                  for nm in ("HEA180", "HEA200", "HEA220")
+                                  if nm in perfis.PERFIS]
+
+    def _sobe(verif, cfg):
+        best = None
+        for nm, sec in HEA:
+            r = verif(sec, fy, cfg)
+            if best is None:
+                best = (nm, r)
+            if _passa(r):
+                return (nm, r)
+        return best
+    esc_nm, esc_r = _sobe(verifica_escora, cfg_esc)
+    mnt_nm, mnt_r = _sobe(verifica_montante_oitao, cfg_mont)
+    return {
+        "longarina": {"perfil": "UPE100", "n_tirantes": nt_ad,
+                      "inter": _util(long_r), "ok": _passa(long_r)},
+        "escora": {"perfil": esc_nm, "inter": _util(esc_r), "ok": _passa(esc_r)},
+        "montante": {"perfil": mnt_nm, "inter": _util(mnt_r), "ok": _passa(mnt_r)},
+        "resultados": {"longarina": long_r, "escora": esc_r, "montante": mnt_r},
+    }
+
+
 def verifica_escora(sec, fy, cfg):
     """Escora de beiral / cumeeira (perfil I) - flexo-compressao NBR 8800.
 

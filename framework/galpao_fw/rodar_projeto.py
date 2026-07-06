@@ -31,12 +31,22 @@ def calcular(spec, out_dir):
     if res.get("joelho_adotado"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["joelho_adotado"] = res["joelho_adotado"]
+    if res.get("n_tirante_parede") is not None:
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["n_tirante_parede"] = res["n_tirante_parede"]
+        spec["estrutura"]["perfil_escora"] = res.get("perfil_escora")
+        spec["estrutura"]["perfil_montante"] = res.get("perfil_montante")
+    if res.get("terca_dims"):
+        spec.setdefault("estrutura", {})["terca_dims"] = res["terca_dims"]
     # quadro de verificacoes (utilizacoes/resultados) para o DXF
     spec.setdefault("estrutura", {})["resultados"] = {
         "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
+        "Flecha portico": res.get("flecha_util"),
         "Base": res.get("base_util"), "Joelho": res.get("joelho_util"),
+        "Terca": res.get("terca_inter"),
         "Longarina": res.get("longarina_inter"), "Escora": res.get("escora_inter"),
-        "Verga": res.get("verga_inter"), "Viga rolamento": res.get("ponte_viga_inter"),
+        "Montante": res.get("montante_inter"), "Verga": res.get("verga_inter"),
+        "Viga rolamento": res.get("ponte_viga_inter"),
     }
     return res
 

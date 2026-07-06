@@ -90,6 +90,19 @@ def avalia(bw, bf, D, t):
             "flecha_v": res["els"]["d_vento"] * 1000, "OK": ok, "res": res, "cfg": cfg}
 
 
+def melhor():
+    """Terca Ue MAIS LEVE que passa (ELU interacao + ELS flecha). Retorna o dict de
+    avalia com as dimensoes em _dims=(bw,bf,D,t) mm; se nenhuma passa, a ultima."""
+    ult = None
+    for bw, bf, D, t in ESCADA:
+        r = avalia(bw, bf, D, t)
+        r["_dims"] = (bw, bf, D, t)
+        ult = r
+        if r["OK"]:
+            return r
+    return ult
+
+
 def memoria_pt():
     W = _sucao_caracteristica()
     L = ["=" * 74,

@@ -157,6 +157,14 @@ def to_build_kwargs(spec):
         return (p["d"] * 1000, p["bf"] * 1000, p["tw"] * 1000, p["tf"] * 1000) if p else None
     col_nome = est.get("perfil_col_adotado")
     raf_nome = est.get("perfil_raf_adotado")
+
+    def _maior(a, b):
+        pa, pb = perfis.PERFIS.get(a), perfis.PERFIS.get(b)
+        if pa and pb:
+            return a if pa["d"] >= pb["d"] else b
+        return a or b
+    esc_nome = _maior(est.get("perfil_escora"), est.get("perfil_montante"))
+    jo = est.get("joelho_adotado")
     return {
         "length": g["comprimento"] * 1000.0, "span": g["span"] * 1000.0,
         "eave_h": g["eave"] * 1000.0, "slope": spec["cobertura"]["slope"],
@@ -165,6 +173,11 @@ def to_build_kwargs(spec):
         "terreno_pts": spec["terreno"].get("pts_xy_mm"),
         "perfil_col": _sec(col_nome), "perfil_raf": _sec(raf_nome),
         "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,
+        "perfil_esc": _sec(esc_nome), "perfil_esc_nome": esc_nome,
+        "terca": est.get("terca_dims"),
+        "n_tirante_parede": est.get("n_tirante_parede"),
+        "joelho": ({"t": jo["t"] * 1000, "db": jo["db"] * 1000, "n": jo["n"]}
+                   if jo else None),
         "base": ({"B": ba["B"] * 1000, "L": ba["L"] * 1000, "t": ba["t"] * 1000,
                   "db": ba["db"] * 1000, "n": ba["n"]}
                  if (ba := est.get("base_adotada")) else None),

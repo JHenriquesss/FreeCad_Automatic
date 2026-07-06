@@ -142,6 +142,8 @@ def rodar(params, out_dir):
         a = est.analyse()                       # esforcos com o perfil adotado
         res["perfil_col"], res["perfil_raf"] = ap["col"], ap["raf"]
         res["atende"] = True
+        if ap.get("lim_flecha"):                # ELS: flecha lateral / (H/150)
+            res["flecha_util"] = round(ap["drift"] / ap["lim_flecha"], 2)
     else:
         res["perfil_col"], res["perfil_raf"] = "HEA200", "HEA180"
         res["atende"] = False
@@ -172,8 +174,15 @@ def rodar(params, out_dir):
     save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
     res["interacao_col"] = finais[0]["interacao"]
     res["interacao_raf"] = finais[1]["interacao"]
-    # Gate 7 - tercas
+    # Gate 7 - tercas: adota a Ue mais leve que passa (ELU + ELS); o modelo desenha
+    # a ADOTADA (terca_dims).
     save("gate7-tercas.txt", ti.memoria_pt())
+    _rt = ti.melhor()
+    res["terca_inter"] = round(_rt["interacao"], 2)
+    res["terca_flecha_mm"] = round(_rt.get("flecha_v", 0.0), 1)
+    res["terca_ok"] = bool(_rt.get("OK"))
+    res["terca_dims"] = list(_rt.get("_dims", (200.0, 75.0, 25.0, 2.65)))
+    res["terca_perfil"] = _rt.get("perfil")
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute()
     net_par = [abs(vr["net"][c][s]) for c in vr["net"] for s in vr["net"][c]
@@ -182,8 +191,6 @@ def rodar(params, out_dir):
     sp["longarina"]["vao"] = g["bay"]; sp["escora"]["vao"] = g["bay"]
     sp["longarina"]["q_vento"] = max(net_par) * vr["q_kN_m2"]
     sp["escora"]["Nsd"] = vl["Fa_por_lado_kN"]     # axial = arrasto longitudinal/lado
-    rl = secmod.verifica_longarina(sp["perfil_long"], params["fy"], sp["longarina"])
-    re_ = secmod.verifica_escora(sp["perfil_esc"], params["fy"], sp["escora"])
     # Montante de oitao: n postos no oitao -> trib e altura governante da empena
     n_mont = params["secundarios"].get("n_montantes_oitao", 2)
     trib_m = g["span"] / (n_mont + 1)
@@ -193,13 +200,25 @@ def rodar(params, out_dir):
                   if s.startswith("oitao"))
     cfg_m = dict(params["secundarios"].get("montante", {}))
     cfg_m.update(altura=round(h_gov, 2), q_gable=net_oit * vl["q_kN_m2"], trib=trib_m,
-                 nome="Montante de oitao (HEA160)")
-    rm = secmod.verifica_montante_oitao(sp["perfil_esc"], params["fy"], cfg_m)
-    save("gate7-secundarios.txt", "\n\n".join(secmod.relatorio_pt(x)
-                                              for x in (rl, re_, rm)))
-    res["longarina_inter"] = rl.get("inter"); res["longarina_ok"] = rl["OK"]
-    res["escora_inter"] = re_["interacao"]; res["escora_ok"] = re_["OK"]
-    res["montante_inter"] = rm["interacao"]; res["montante_ok"] = rm["OK"]
+                 nome="Montante de oitao (HEA)")
+    # DIMENSIONA os secundarios: longarina por tirantes (sag rods), escora/montante
+    # pela escada HEA. So geometria/perfis (nao inventa dado de catalogo do U).
+    dsec = secmod.dimensiona_secundarios(
+        params["fy"], sp["longarina"], sp["escora"], cfg_m,
+        n_tir_seed=int(params.get("n_tirante_parede", 2)))
+    rl = dsec["resultados"]["longarina"]; re_ = dsec["resultados"]["escora"]
+    rm = dsec["resultados"]["montante"]
+    save("gate7-secundarios.txt",
+         "\n".join([f"ADOTADO: longarina UPE100 c/ {dsec['longarina']['n_tirantes']} "
+                    f"linhas de tirante ; escora {dsec['escora']['perfil']} ; "
+                    f"montante {dsec['montante']['perfil']}", ""]
+                   + [secmod.relatorio_pt(x) for x in (rl, re_, rm)]))
+    res["longarina_inter"] = dsec["longarina"]["inter"]; res["longarina_ok"] = dsec["longarina"]["ok"]
+    res["escora_inter"] = dsec["escora"]["inter"]; res["escora_ok"] = dsec["escora"]["ok"]
+    res["montante_inter"] = dsec["montante"]["inter"]; res["montante_ok"] = dsec["montante"]["ok"]
+    res["n_tirante_parede"] = dsec["longarina"]["n_tirantes"]
+    res["perfil_escora"] = dsec["escora"]["perfil"]
+    res["perfil_montante"] = dsec["montante"]["perfil"]
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
@@ -263,11 +282,11 @@ def rodar(params, out_dir):
     clip = params["clip_terca"]
     save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(clip)]))
     # Gate 9 - consolidado
-    _consolidar(out_dir, save, g, params)
+    _consolidar(out_dir, save, g, params, res)
     return res
 
 
-def _consolidar(out_dir, save, g, params):
+def _consolidar(out_dir, save, g, params, res=None):
     ordem = [("1. VENTO", "gate5-vento.txt"),
              ("1b. VENTO LONGITUDINAL", "gate5-vento-longitudinal.txt"),
              ("1c. PONTE ROLANTE", "gate5-ponte.txt"),
@@ -286,6 +305,29 @@ def _consolidar(out_dir, save, g, params):
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          f"{carimbo} - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
          "=" * 70, ""]
+    # QUADRO DE VERIFICACOES no topo + ALERTA gritante se algo nao atende.
+    if res is not None:
+        checks = [("Coluna", res.get("interacao_col")), ("Viga", res.get("interacao_raf")),
+                  ("Flecha portico", res.get("flecha_util")), ("Base", res.get("base_util")),
+                  ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
+                  ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
+                  ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
+                  ("Viga rolamento", res.get("ponte_viga_inter"))]
+        L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
+        for nome, u in checks:
+            if u is None:
+                continue
+            L.append(f"  {nome:<16} {u:5.2f}   "
+                     f"{'OK' if u <= 1.001 else '*** NAO ATENDE ***'}")
+        falhas = [(n, u) for n, u in checks if u is not None and u > 1.001]
+        L.append("")
+        if falhas:
+            L += ["!" * 70,
+                  "ATENCAO: ELEMENTOS QUE NAO ATENDEM (util > 1,0) - REVER O PROJETO:",
+                  *[f"     - {n} = {u:.2f}" for n, u in falhas],
+                  "!" * 70, ""]
+        else:
+            L += ["Todos os elementos verificados ATENDEM (util <= 1,0).", ""]
     if not params.get("ponte"):
         ordem = [x for x in ordem if x[1] != "gate5-ponte.txt"]
     for tit, f in ordem:
