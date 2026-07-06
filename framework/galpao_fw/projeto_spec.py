@@ -175,6 +175,8 @@ def to_build_kwargs(spec):
         "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,
         "perfil_esc": _sec(esc_nome), "perfil_esc_nome": esc_nome,
         "terca": est.get("terca_dims"),
+        "longarina": est.get("longarina_dims"),
+        "longarina_nome": est.get("longarina_perfil"),
         "n_tirante_parede": est.get("n_tirante_parede"),
         "joelho": ({"t": jo["t"] * 1000, "db": jo["db"] * 1000, "n": jo["n"]}
                    if jo else None),

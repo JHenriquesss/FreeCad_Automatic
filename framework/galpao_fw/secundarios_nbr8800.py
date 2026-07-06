@@ -48,6 +48,31 @@ UPE100 = {"nome": "UPE100", "A": 12.53e-4,
           "J": 2.01e-8, "Cw": 7.9e-10,
           "_fonte": "A CONFIRMAR no catalogo (props, J e Cw)"}
 
+# UPE maiores (EN 10365) para a escada da longarina. Fonte: structolution.com
+# (props, It=J e Iw=Cw). A CONFIRMAR no catalogo do fornecedor (Gerdau/AM).
+UPE120 = {"nome": "UPE120", "A": 15.40e-4,
+          "Ix": 364e-8, "Wx": 60.6e-6, "Zx": 70.3e-6, "rx": 0.0486,
+          "Iy": 55.5e-8, "Wy": 13.8e-6, "Zy": 24.8e-6, "ry": 0.0190,
+          "d": 0.120, "bf": 0.060, "tf": 0.0080, "tw": 0.0050,
+          "J": 2.90e-8, "Cw": 1.120e-9, "_fonte": "structolution.com EN10365 - A CONFIRMAR"}
+UPE140 = {"nome": "UPE140", "A": 18.40e-4,
+          "Ix": 600e-8, "Wx": 85.6e-6, "Zx": 98.8e-6, "rx": 0.0571,
+          "Iy": 78.8e-8, "Wy": 18.2e-6, "Zy": 32.58e-6, "ry": 0.0207,
+          "d": 0.140, "bf": 0.065, "tf": 0.0090, "tw": 0.0050,
+          "J": 4.05e-8, "Cw": 2.200e-9, "_fonte": "structolution.com EN10365 - A CONFIRMAR"}
+UPE160 = {"nome": "UPE160", "A": 21.70e-4,
+          "Ix": 911e-8, "Wx": 114e-6, "Zx": 132e-6, "rx": 0.0648,
+          "Iy": 107e-8, "Wy": 22.6e-6, "Zy": 40.72e-6, "ry": 0.0222,
+          "d": 0.160, "bf": 0.070, "tf": 0.0095, "tw": 0.0055,
+          "J": 5.20e-8, "Cw": 3.960e-9, "_fonte": "structolution.com EN10365 - A CONFIRMAR"}
+UPE180 = {"nome": "UPE180", "A": 25.10e-4,
+          "Ix": 1350e-8, "Wx": 150e-6, "Zx": 173e-6, "rx": 0.0734,
+          "Iy": 144e-8, "Wy": 28.6e-6, "Zy": 51.47e-6, "ry": 0.0239,
+          "d": 0.180, "bf": 0.075, "tf": 0.0105, "tw": 0.0055,
+          "J": 6.99e-8, "Cw": 6.810e-9, "_fonte": "structolution.com EN10365 - A CONFIRMAR"}
+# Escada da longarina, do mais leve ao mais pesado.
+ESCADA_UPE = [UPE100, UPE120, UPE140, UPE160, UPE180]
+
 # Perfil I/H para escora/cumeeira (formato aceito por check_nbr8800.verifica).
 HEA160 = {"A": 38.77e-4, "Ix": 1673e-8, "Iy": 615.6e-8, "ry": 0.0398,
           "Zx": 245.1e-6, "Wx": 220.1e-6, "d": 0.152, "bf": 0.160,
@@ -161,12 +186,18 @@ def dimensiona_secundarios(fy, cfg_long, cfg_esc, cfg_mont,
       - escora/cumeeira e montante (I): sobem na escada HEA ate passar.
     Retorna o dict com perfil/tirantes adotados + utilizacao + ok de cada um."""
     import perfis
-    # --- longarina: mais tirantes ate passar ---
-    long_r, nt_ad = None, n_tir_seed
-    for nt in range(n_tir_seed, n_tir_max + 1):
-        long_r = verifica_longarina(UPE100, fy, dict(cfg_long, n_tirantes=nt))
-        nt_ad = nt
-        if _passa(long_r):
+    # --- longarina: escada UPE x linhas de tirante (sag rods). Adota o UPE mais
+    # leve que passa, esgotando os tirantes antes de subir o perfil. ---
+    long_r, long_perf, nt_ad = None, UPE100, n_tir_seed
+    achou = False
+    for perf in ESCADA_UPE:
+        for nt in range(n_tir_seed, n_tir_max + 1):
+            long_r, long_perf, nt_ad = (verifica_longarina(
+                perf, fy, dict(cfg_long, n_tirantes=nt)), perf, nt)
+            if _passa(long_r):
+                achou = True
+                break
+        if achou:
             break
     # --- escora / montante: escada HEA (160 -> 220) ---
     HEA = [("HEA160", HEA160)] + [(nm, perfis.PERFIS[nm])
@@ -185,8 +216,11 @@ def dimensiona_secundarios(fy, cfg_long, cfg_esc, cfg_mont,
     esc_nm, esc_r = _sobe(verifica_escora, cfg_esc)
     mnt_nm, mnt_r = _sobe(verifica_montante_oitao, cfg_mont)
     return {
-        "longarina": {"perfil": "UPE100", "n_tirantes": nt_ad,
-                      "inter": _util(long_r), "ok": _passa(long_r)},
+        "longarina": {"perfil": long_perf.get("nome", "UPE100"),
+                      "dims": (long_perf["d"] * 1000, long_perf["bf"] * 1000,
+                               long_perf["tw"] * 1000, long_perf["tf"] * 1000),
+                      "n_tirantes": nt_ad, "inter": _util(long_r),
+                      "ok": _passa(long_r)},
         "escora": {"perfil": esc_nm, "inter": _util(esc_r), "ok": _passa(esc_r)},
         "montante": {"perfil": mnt_nm, "inter": _util(mnt_r), "ok": _passa(mnt_r)},
         "resultados": {"longarina": long_r, "escora": esc_r, "montante": mnt_r},

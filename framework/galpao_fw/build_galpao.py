@@ -40,7 +40,8 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                fechamento=None, ponte_modelo=None,
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
-               perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None):
+               perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
+               longarina=None, longarina_nome=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -49,9 +50,11 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
-    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if terca is not None: UE_SEC = tuple(float(v) for v in terca)
+    if longarina is not None: UPE_LONG = tuple(float(v) for v in longarina)
+    if longarina_nome is not None: LONG_NOME = str(longarina_nome)
     if perfil_esc is not None: HEA_ESC = tuple(float(v) for v in perfil_esc)
     if perfil_esc_nome is not None: ESC_NOME = str(perfil_esc_nome)
     if joelho is not None: JOELHO_CFG = dict(JOELHO_CFG, **joelho)
@@ -100,6 +103,8 @@ UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
 UE_TERCA = (200.0, 75.0, 25.0, 2.65)
 UE_SEC = UE_TERCA          # secao da terca de cobertura (parametrizavel pelo calc)
+UPE_LONG = UPE100          # secao da longarina de parede (parametrizavel pelo calc)
+LONG_NOME = "UPE100"
 CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
@@ -528,18 +533,18 @@ def build(doc):
     # Longarina (girt) assenta CONTRA a face externa da mesa do pilar (nao penetra):
     # GOFF = meia-largura do pilar + meia-altura da girt -> face interna da girt no
     # plano da mesa. Clipe (cantoneira) em cada pilar. Verificado por verifica_conexoes.
-    GOFF = COL_SEC[1] / 2.0 + UPE100[0] / 2.0       # girt contra a mesa do pilar
+    GOFF = COL_SEC[1] / 2.0 + UPE_LONG[0] / 2.0       # girt contra a mesa do pilar
     GIRT_Z = (2000.0, 4000.0)
     DOOR_X = ABERTURAS.get("porta_lateral")         # None se nao ha porta lateral
     for lvl, z in enumerate(GIRT_Z, start=1):
         if lvl == 1 and DOOR_X:
-            u_member(doc, (0, -GOFF, z), (DOOR_X[0], -GOFF, z), UPE100, "TERCA_PAREDE_E_01a", roll=90)
-            u_member(doc, (DOOR_X[1], -GOFF, z), (LENGTH, -GOFF, z), UPE100, "TERCA_PAREDE_E_01b", roll=90)
+            u_member(doc, (0, -GOFF, z), (DOOR_X[0], -GOFF, z), UPE_LONG, "TERCA_PAREDE_E_01a", roll=90)
+            u_member(doc, (DOOR_X[1], -GOFF, z), (LENGTH, -GOFF, z), UPE_LONG, "TERCA_PAREDE_E_01b", roll=90)
             u_member(doc, (DOOR_X[0], -GOFF, 2250.0), (DOOR_X[1], -GOFF, 2250.0),
                      UPE100, "VERGA_PORTA_E", roll=90)
         else:
-            u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE100, f"TERCA_PAREDE_E_{lvl:02d}", roll=90)
-        u_member(doc, (0, SPAN + GOFF, z), (LENGTH, SPAN + GOFF, z), UPE100, f"TERCA_PAREDE_D_{lvl:02d}", roll=90)
+            u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE_LONG, f"TERCA_PAREDE_E_{lvl:02d}", roll=90)
+        u_member(doc, (0, SPAN + GOFF, z), (LENGTH, SPAN + GOFF, z), UPE_LONG, f"TERCA_PAREDE_D_{lvl:02d}", roll=90)
     # Clipes da longarina no pilar (chapa contra a face da mesa) - conexao, CLIPE_.
     for ci, x in enumerate(axes, start=1):
         for lj, z in enumerate(GIRT_Z, start=1):
@@ -1047,7 +1052,7 @@ def _classifica(n):
     if n.startswith("CONSOLE_PONTE"):
         return "Consoles de ponte", "HEA160"
     if n.startswith("TERCA_PAREDE"):
-        return "Tercas de parede", "UPE100"
+        return "Tercas de parede", LONG_NOME
     if n.startswith("TERCA"):
         return "Tercas", "Ue%.0fx%.0fx%.0fx%.2f" % (UE_SEC[0],UE_SEC[1],UE_SEC[2],UE_SEC[3])
     if n.startswith("TIRANTE") or n.startswith("MAO_FRANCESA"):
@@ -1172,8 +1177,10 @@ def reset():
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
-    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME
     UE_SEC = UE_TERCA
+    UPE_LONG = UPE100
+    LONG_NOME = "UPE100"
     MF_STRIDE = 2
     N_TIRANTE_PAREDE = 2
     TERRENO_PTS = None

@@ -38,6 +38,9 @@ def calcular(spec, out_dir):
         spec["estrutura"]["perfil_montante"] = res.get("perfil_montante")
     if res.get("terca_dims"):
         spec.setdefault("estrutura", {})["terca_dims"] = res["terca_dims"]
+    if res.get("longarina_dims"):
+        spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
+        spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
     # quadro de verificacoes (utilizacoes/resultados) para o DXF
     spec.setdefault("estrutura", {})["resultados"] = {
         "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),

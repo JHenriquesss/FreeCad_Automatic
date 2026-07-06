@@ -214,6 +214,8 @@ def rodar(params, out_dir):
                     f"montante {dsec['montante']['perfil']}", ""]
                    + [secmod.relatorio_pt(x) for x in (rl, re_, rm)]))
     res["longarina_inter"] = dsec["longarina"]["inter"]; res["longarina_ok"] = dsec["longarina"]["ok"]
+    res["longarina_perfil"] = dsec["longarina"]["perfil"]
+    res["longarina_dims"] = list(dsec["longarina"]["dims"])
     res["escora_inter"] = dsec["escora"]["inter"]; res["escora_ok"] = dsec["escora"]["ok"]
     res["montante_inter"] = dsec["montante"]["inter"]; res["montante_ok"] = dsec["montante"]["ok"]
     res["n_tirante_parede"] = dsec["longarina"]["n_tirantes"]
