@@ -219,6 +219,33 @@ def plate(doc, center, wx, wy, wz, name):
     return obj
 
 
+def _norm(v):
+    L = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    return (v[0] / L, v[1] / L, v[2] / L) if L > 1e-9 else v
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+def plate_basis(doc, center, ex, ey, ez, wx, wy, wz, name):
+    """Chapa (caixa wx x wy x wz) com eixos locais alinhados a (ex,ey,ez) - para
+    chapas perpendiculares a um membro inclinado (ex.: chapa de topo do joelho)."""
+    box = Part.makeBox(wx, wy, wz)
+    box.translate(App.Vector(-wx / 2.0, -wy / 2.0, -wz / 2.0))
+    m = App.Matrix()
+    m.A11, m.A21, m.A31 = ex
+    m.A12, m.A22, m.A32 = ey
+    m.A13, m.A23, m.A33 = ez
+    box = box.transformGeometry(m)
+    box.translate(App.Vector(*center))
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = box
+    _reg(name, center, center)
+    return obj
+
+
 def panel_shape(corners, thick):
     pts = [App.Vector(*c) for c in corners]
     face = Part.Face(Part.makePolygon(pts + [pts[0]]))
@@ -265,6 +292,54 @@ def _assenta(obj, apoios, clearance=0.5, passes=4):
     return obj.Shape.BoundBox.ZMin
 
 
+def joelho(doc, node, rdir, tag):
+    """Ligacao de momento viga-coluna (joelho): MISULA (haunch) soldada no plano do
+    portico, CHAPA DE TOPO no splice misula-viga (perpendicular a viga, cobrindo a
+    secao cheia), 4 M24 pela chapa e ENRIJECEDORES de continuidade no pilar.
+    Conceitual - dimensoes/parafusamento definitivos sao detalhe do eng. responsavel."""
+    dirn = _norm(rdir)
+    u = (1.0, 0.0, 0.0)                 # ao longo do comprimento (mesas em +-X)
+    v = _norm(_cross(dirn, u))          # perpendicular a viga, no plano do portico
+    cx, cy, cz = node
+    sgn = 1.0 if rdir[1] > 0 else -1.0
+    hlen = 800.0                        # alcance da misula ao longo da viga
+    hdep = 450.0                        # profundidade da misula abaixo da viga (no beiral)
+    hhalf = HEA180[0] / 2.0             # meia-altura da viga (face inferior = +hhalf*v)
+
+    def _p(base, s, vec):
+        return (base[0] + s * vec[0], base[1] + s * vec[1], base[2] + s * vec[2])
+
+    # Misula (haunch) SOLDADA: triangulo no plano do portico, pendurado sob a viga.
+    # Fundo no beiral (A face inf da viga -> B, hdep abaixo) e afina ate a viga a
+    # hlen (C na face inf). +v aponta para BAIXO (perpendicular a viga).
+    A = _p(node, hhalf, v)                                   # face inf da viga no no
+    B = _p(A, hdep, v)                                       # fundo da misula no beiral
+    ncenter = _p(node, hlen, dirn)                           # eixo da viga a hlen
+    C = _p(ncenter, hhalf, v)                                # face inf da viga a hlen
+    sol = Part.Face(Part.makePolygon([App.Vector(*A), App.Vector(*B),
+                                      App.Vector(*C), App.Vector(*A)])).extrude(
+        App.Vector(180.0, 0, 0))
+    sol.translate(App.Vector(-90.0, 0, 0))
+    ob = doc.addObject("Part::Feature", f"CONEX_JOELHO_{tag}_MISULA")
+    ob.Shape = sol
+    _reg(ob.Name, (cx, cy, cz), (cx, cy, cz))
+    # Chapa de topo no fim da misula (splice misula-viga), perpendicular a viga.
+    ec = _p(node, hlen + 20.0, dirn)
+    plate_basis(doc, ec, dirn, u, v, 22.0, 220.0, 250.0, f"CONEX_JOELHO_{tag}_CHAPA")
+    # 4 M24 pela chapa (2 por mesa: +-u no comprimento, +-v junto das mesas).
+    b = 0
+    for sv in (-1.0, 1.0):
+        for su in (-1.0, 1.0):
+            b += 1
+            p = _p(_p(ec, su * 70.0, u), sv * 90.0, v)
+            rod(doc, _p(p, -60.0, dirn), _p(p, 60.0, dirn),
+                24.0, f"CONEX_JOELHO_{tag}_M24_{b:02d}")
+    # Enrijecedores de continuidade no pilar (mesa inf da viga ~cz-95; cap ~cz-15).
+    for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
+        plate(doc, (cx, cy, cz + dz), 190.0, 200.0, 12.0,
+              f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
+
+
 def frame_axes():
     n = int(round(LENGTH / BAY))
     return [i * BAY for i in range(n + 1)]
@@ -297,6 +372,13 @@ def build(doc):
                         20, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
                     plate(doc, (x + ddx, yw + ddy, Z0 - 40), 80, 80, 12,
                           f"ARRUELA_{lado}_{i:02d}_{sfx}")
+
+    # Joelho (ligacao de momento viga-coluna) em cada portico: chapa de topo +
+    # 4 M24 + enrijecedores de continuidade no pilar.
+    _rise = RIDGE_H - EAVE_H
+    for i, x in enumerate(axes, start=1):
+        joelho(doc, (x, 0.0, EAVE_H), (0.0, RIDGE_Y, _rise), f"{i:02d}_E")
+        joelho(doc, (x, SPAN, EAVE_H), (0.0, -RIDGE_Y, _rise), f"{i:02d}_D")
 
     # Escoras de beiral + viga de cumeeira (perfil I, por vao)
     for b in range(len(axes) - 1):
@@ -568,7 +650,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 # ---- verificacoes ----------------------------------------------------------
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
-               "VIGA_ROLAMENTO", "CLIPE")
+               "VIGA_ROLAMENTO", "CLIPE", "CONEX")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -705,6 +787,25 @@ def verifica_conexoes(doc, tol=6.0):
             defeitos.append({"conexao": o.Name, "problema":
                 "atravessa %s (volume comum %.0f mm3) - deve assentar sobre a mesa"
                 % (pen_nome, pen)})
+
+    # --- Joelho: cada parafuso M24 deve estar DENTRO da chapa de topo do seu tag ---
+    chapas = {}                         # tag -> BoundBox da chapa
+    for o in doc.Objects:
+        if "JOELHO" in o.Name and "CHAPA" in o.Name and hasattr(o, "Shape"):
+            tag = o.Name.replace("CONEX_JOELHO_", "").replace("_CHAPA", "")
+            chapas[tag] = o.Shape.BoundBox
+    for o in doc.Objects:
+        if "JOELHO" in o.Name and "M24" in o.Name and hasattr(o, "Shape"):
+            tag = o.Name.replace("CONEX_JOELHO_", "").rsplit("_M24", 1)[0]
+            bb = chapas.get(tag)
+            if bb is None:
+                defeitos.append({"conexao": o.Name, "problema": "sem chapa de topo no tag"})
+                continue
+            c = o.Shape.BoundBox.Center
+            big = App.BoundBox(bb); big.enlarge(tol + 24.0)   # folga = tol + diametro
+            if not big.isInside(c):
+                defeitos.append({"conexao": o.Name,
+                                 "problema": "parafuso fora da chapa de topo"})
     return defeitos
 
 
@@ -805,6 +906,14 @@ def _classifica(n):
         return "Vergas", "UPE100"
     if n.startswith("CLIPE"):
         return "Clipes de apoio (conexao)", "chapa-8"
+    if "JOELHO" in n and "MISULA" in n:
+        return "Misulas (joelho)", "chapa-9.5"
+    if "JOELHO" in n and "CHAPA" in n:
+        return "Chapa de topo (joelho)", "chapa-22"
+    if "JOELHO" in n and "M24" in n:
+        return "Parafusos M24 (joelho)", "M24"
+    if "JOELHO" in n and "ENRIJ" in n:
+        return "Enrijecedores (joelho)", "chapa-12"
     return "Outros", "-"
 
 
