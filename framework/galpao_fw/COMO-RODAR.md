@@ -77,10 +77,10 @@ a ponta com todos os elementos ATENDENDO.
 
 ## 5. O que ainda NÃO faz (fora de escopo / próximos)
 
-- **Fundação**: sapata isolada JÁ dimensionada (rígida, NBR 6118); ainda faltam
-  bloco sobre estacas/tubulão, sapata flexível (punção), detalhamento executivo
-  da armadura e o envelope de combinações por elemento (a sapata usa hoje a
-  reação que governa a placa de base — bearing a confirmar p/ N máx gravitacional);
+- **Fundação**: sapata isolada JÁ dimensionada (rígida, NBR 6118), com envelope
+  de combinações por elemento (bearing pega N máx gravitacional; tombamento pega
+  N mín + M) — ver `REVISAO-FUNDACAO.md`; ainda faltam bloco sobre estacas/
+  tubulão, sapata flexível (punção) e detalhamento executivo da armadura;
 - tipologias além do portal 1 vão (treliça, multi-vão, alma variável, mezanino,
   formado a frio como principal);
 - ligações de **fabricação** (as conexões 3D são conceituais — sem furação/solda

@@ -74,6 +74,21 @@ def _esforcos_base_joelho():
     return base_best, knee_best
 
 
+def _casos_base_envelope():
+    """Todos os casos de base (por combinacao ELU) como lista (nome, N, V, M) -
+    para o ENVELOPE da sapata (bearing pega N max; tombamento pega N min + M)."""
+    casos = _casos_mf_reac()
+    _, _, ix = casos["G"]
+    nbL = ix["nBaseL"]
+    combos = gp._combos_elu(gp.PONTE)
+    out = []
+    for nm, c in combos.items():
+        R = sum(fac * casos[cs][1] for cs, fac in c.items())
+        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
+        out.append((nm, N, V, M))
+    return out
+
+
 def rodar(params, out_dir):
     os.makedirs(out_dir, exist_ok=True)
 
@@ -267,25 +282,28 @@ def rodar(params, out_dir):
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
         res["base_ok"] = False
-    # Gate 7 - SAPATA (NBR 6118): mesma reacao de base (N,V,M). Pedestal ~ pilar.
+    # Gate 7 - SAPATA (NBR 6118) pelo ENVELOPE de combinacoes: cada verificacao
+    # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
+    # = N min + M ; etc). Pedestal ~ pilar adotado.
     sap = dict(params["fundacao"])
-    sap.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
-               nome=f"Sapata isolada - {bnm} (M={abs(bM):.1f})")
-    if res.get("perfil_col") in perfis.PERFIS:      # pedestal ~ dim do pilar adotado
+    if res.get("perfil_col") in perfis.PERFIS:
         pc = perfis.PERFIS[res["perfil_col"]]
         sap["b_ped"] = max(sap.get("b_ped", 0.30), round(pc["bf"] + 0.10, 2))
         sap["d_ped"] = max(sap.get("d_ped", 0.30), round(pc["d"] + 0.10, 2))
-    dims = fs.dimensiona_sapata(sap)
+    casos_base = _casos_base_envelope()
+    dims = fs.dimensiona_sapata_env(sap, casos_base)
     save("gate7-fundacao.txt", dims["tabela"])
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
-        rB = dims["parte_B"]
+        rB = dims["parte_B"]; gv = dims["governantes"]
         res["sapata_adotada"] = {"B": sB, "L": sL, "h": sh,
                                  "As_L": rB["flexao_L"]["As_adot"],
                                  "As_B": rB["flexao_B"]["As_adot"], "rigida": rB["rigida"]}
-        res["sapata_util"] = round(max(sr["u_solo"], rB["compr_diag"]["u_cd"],
-                                       1.0 / sr["fs_tomb"], 1.0 / sr["fs_desl"]), 2)
-        res["sapata_ok"] = sr["OK_A"] and rB["OK_B"]
+        # util do envelope: pior entre solo, compr.diagonal e 1/FS (gov por combo)
+        res["sapata_util"] = round(max(gv.get("solo", ("", 0))[1], gv.get("compr", ("", 0))[1],
+                                       1.0 / gv.get("tomb", ("", 9))[1],
+                                       1.0 / gv.get("desl", ("", 9))[1]), 2)
+        res["sapata_ok"] = res["sapata_util"] <= 1.001
     else:
         res["sapata_adotada"] = None
         res["sapata_ok"] = False

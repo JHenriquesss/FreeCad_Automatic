@@ -162,6 +162,93 @@ def dimensiona_sapata(caso, escada=None):
             "tabela": _tabela_sapata(linhas, aprovado, caso, rB)}
 
 
+def dimensiona_sapata_env(caso_base, casos, escada=None):
+    """Dimensiona a sapata pelo ENVELOPE de combinacoes: adota a MENOR geometria
+    que passa (Parte A + Parte B) em TODAS as combinacoes. Fecha o gap de usar so
+    a combinacao que governa a placa de base - aqui o bearing pega o N MAXIMO
+    gravitacional, o tombamento pega o N minimo com M maximo, etc.
+
+    caso_base: dict com os parametros do solo/concreto (sigma_solo_adm, mu, fck,
+               fyk, pedestal...); N,V,M sao ignorados (vem de 'casos').
+    casos:     lista de (nome, N, V, M) - uma por combinacao ELU.
+    Retorna {aprovado:(B,L,h,rA,c)|None, parte_B, linhas, tabela, governantes}."""
+    escada = escada or ESCADA_SAPATA
+    ap_L = caso_base.get("d_ped") or caso_base.get("ap_L") or 0.30
+    ap_B = caso_base.get("b_ped") or caso_base.get("ap_B") or 0.30
+    linhas, aprovado, rB_ad, gov = [], None, None, {}
+    for (B, L, h0) in escada:
+        h = max(h0, math.ceil(max(L - ap_L, B - ap_B) / 3.0 / 0.05) * 0.05)  # rigida
+        piorA, todosA = None, True
+        # pior u_solo / menor FS entre as combinacoes (Parte A)
+        u_solo = fs_tomb = fs_desl = None
+        for (nm, N, V, M) in casos:
+            c = dict(caso_base); c.update(N=N, V=V, M=M, B=B, L=L, h=h)
+            rA = verifica_sapata_A(c)
+            todosA = todosA and rA["OK_A"]
+            if u_solo is None or rA["u_solo"] > u_solo:
+                u_solo = rA["u_solo"]; gov["solo"] = (nm, rA["u_solo"])
+                piorA = (rA, c)
+            if fs_tomb is None or rA["fs_tomb"] < fs_tomb:
+                fs_tomb = rA["fs_tomb"]; gov["tomb"] = (nm, rA["fs_tomb"])
+            if fs_desl is None or rA["fs_desl"] < fs_desl:
+                fs_desl = rA["fs_desl"]; gov["desl"] = (nm, rA["fs_desl"])
+        # Parte B: pior utilizacao e MAIOR As entre as combinacoes
+        rB_pior, As_L, As_B, okB = None, 0.0, 0.0, True
+        u_cd = None
+        for (nm, N, V, M) in casos:
+            c = dict(caso_base); c.update(N=N, V=V, M=M)
+            rB = dimensiona_sapata_B(c, {"B": B, "L": L, "h": h})
+            okB = okB and rB["OK_B"]
+            As_L = max(As_L, rB["flexao_L"]["As_adot"])
+            As_B = max(As_B, rB["flexao_B"]["As_adot"])
+            if u_cd is None or rB["compr_diag"]["u_cd"] > u_cd:
+                u_cd = rB["compr_diag"]["u_cd"]; gov["compr"] = (nm, u_cd); rB_pior = rB
+        linha = {"B": B, "L": L, "h": h, "u_solo": u_solo, "fs_tomb": fs_tomb,
+                 "fs_desl": fs_desl, "u_cd": u_cd, "As_L": As_L, "As_B": As_B,
+                 "okA": todosA, "okB": okB, "OK": todosA and okB}
+        linhas.append(linha)
+        if linha["OK"] and aprovado is None:
+            rA_ad, c_ad = piorA
+            rB_ad = dict(rB_pior)
+            rB_ad["flexao_L"] = dict(rB_ad["flexao_L"]); rB_ad["flexao_L"]["As_adot"] = As_L
+            rB_ad["flexao_B"] = dict(rB_ad["flexao_B"]); rB_ad["flexao_B"]["As_adot"] = As_B
+            aprovado = (B, L, h, rA_ad, c_ad)
+    return {"aprovado": aprovado, "parte_B": rB_ad, "linhas": linhas,
+            "governantes": gov,
+            "tabela": _tabela_env(linhas, aprovado, casos, gov, rB_ad, caso_base)}
+
+
+def _tabela_env(linhas, aprovado, casos, gov, rB, caso_base):
+    L = ["=" * 82, "DIMENSIONAMENTO DA SAPATA - ENVELOPE DE COMBINACOES (NBR 6118)",
+         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 82, "",
+         f"sigma_solo,adm = {caso_base['sigma_solo_adm']:.0f} kN/m2  [INPUT sondagem - A CONFIRMAR]",
+         f"Combinacoes ELU consideradas: {len(casos)}", ""]
+    for (nm, N, V, M) in casos:
+        L.append(f"    {nm:<20} N={N:+8.1f}  V={V:+7.1f}  M={M:+8.1f} kN,kN.m")
+    L += ["", f"{'BxLxh (m)':>16} | {'u_solo':>6} {'FS_tmb':>6} {'FS_dsl':>6} {'u_cd':>5}"
+          f" {'As_L':>6} {'As_B':>6} | res", "-" * 82]
+    for r in linhas:
+        tag = "PASSA" if r["OK"] else "nao"
+        L.append(f"{r['B']:.2f}x{r['L']:.2f}x{r['h']:.2f} | {r['u_solo']:6.2f} "
+                 f"{r['fs_tomb']:6.2f} {r['fs_desl']:6.2f} {r['u_cd']:5.2f} "
+                 f"{r['As_L']*1e4:5.1f}c {r['As_B']*1e4:5.1f}c | {tag}")
+    L += ["-" * 82, ""]
+    if aprovado:
+        B, Lm, h, rA, _ = aprovado
+        L += [f"ADOTADA (menor que passa o envelope): {B:.2f} x {Lm:.2f} x {h:.2f} m",
+              f"  Governantes: solo={gov.get('solo',('-',0))[0]} (u={gov.get('solo',('-',0))[1]:.2f}) ;"
+              f" tombamento={gov.get('tomb',('-',0))[0]} (FS={gov.get('tomb',('-',0))[1]:.2f}) ;",
+              f"               deslizamento={gov.get('desl',('-',0))[0]} (FS={gov.get('desl',('-',0))[1]:.2f}) ;"
+              f" compr.diagonal={gov.get('compr',('-',0))[0]} (u={gov.get('compr',('-',0))[1]:.2f})"]
+        if rB:
+            L += ["", relatorio_sapata_B(rB, dict(caso_base))]
+    else:
+        L += ["NENHUMA sapata da escada passou o envelope - ampliar escada/revisar."]
+    L += ["", "[FLAG] sigma_solo,adm e parametros do solo: sondagem (geotecnia).",
+          "[FLAG] Detalhamento/ancoragem da armadura (22.6.4): projeto executivo."]
+    return _pt("\n".join(L))
+
+
 def _pt(s):
     """Ponto decimal -> virgula (fora de numeros de item tipo 6.118)."""
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", s)
@@ -401,6 +488,13 @@ def _selftest():
     # 7) rigidez 22.6.1
     assert rB["rigida"] == (h >= (Lm - CASO_EXEMPLO["d_ped"]) / 3.0 - 1e-9 and
                             h >= (B - CASO_EXEMPLO["b_ped"]) / 3.0 - 1e-9)
+    # 8) ENVELOPE: bearing pega N max, tombamento pega N min + M
+    casos = [("C1_grav", 300.0, 10.0, 20.0),      # N alto -> governa solo
+             ("C2_uplift", 5.0, 30.0, 70.0)]      # N baixo + M -> governa tombamento
+    de = dimensiona_sapata_env(dict(CASO_EXEMPLO), casos)
+    assert de["aprovado"] is not None
+    assert de["governantes"]["solo"][0] == "C1_grav"       # N maximo governa bearing
+    assert de["governantes"]["tomb"][0] == "C2_uplift"     # uplift governa tombamento
     print("fundacao_sapata self-test PASSED")
     print(f"  exemplo -> sapata {B:.2f}x{Lm:.2f}x{h:.2f} m ; sig_max={r['sigma_max']:.0f}"
           f" kN/m2 (u={r['u_solo']:.2f}) ; FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}")
