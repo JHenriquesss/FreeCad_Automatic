@@ -52,30 +52,24 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
-   C1_grav_W1:
-     Coluna: M=  35,1  N=   2,7  V=  20,0
-     Viga:   M=  16,7  N=  10,1  V=   8,2
-   C2_uplift_W1:
-     Coluna: M=  61,3  N=  39,8  V=  20,8
-     Viga:   M=  61,3  N=  25,5  V=  37,6
-   C3_Gdesf_W1:
-     Coluna: M=  48,3  N=  30,2  V=  17,4
-     Viga:   M=  48,3  N=  22,2  V=  28,3
-   C3_Gfav_W1:
-     Coluna: M=  61,3  N=  39,8  V=  20,8
-     Viga:   M=  61,3  N=  25,5  V=  37,6
-   C1_grav_W2:
+   C1_gravidade:
      Coluna: M=  32,4  N=  20,5  V=  10,6
      Viga:   M=  32,4  N=  12,6  V=  19,3
-   C2_uplift_W2:
-     Coluna: M=  60,1  N=   1,3  V=  33,1
-     Viga:   M=  20,5  N=   9,8  V=   8,3
-   C3_Gdesf_W2:
+   C2_uplift:
+     Coluna: M=  61,3  N=  39,8  V=  20,8
+     Viga:   M=  61,3  N=  25,5  V=  37,6
+   C3_vento_Gdesf:
      Coluna: M=  52,7  N=   8,4  V=  29,7
      Viga:   M=  33,5  N=  14,2  V=  17,6
-   C3_Gfav_W2:
+   C3_vento_Gfav:
      Coluna: M=  60,1  N=   1,3  V=  33,1
      Viga:   M=  20,5  N=   9,8  V=   8,3
+   C4_ponte_princ:
+     Coluna: M=  43,9  N=  20,7  V=  13,7
+     Viga:   M=  38,2  N=  15,7  V=  19,3
+   C5_vento_ponte:
+     Coluna: M=  50,4  N=  20,4  V=  14,9
+     Viga:   M=  39,3  N=  16,9  V=  18,8
 
 5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)
    Deslocamento lateral no beiral: 30,8 mm

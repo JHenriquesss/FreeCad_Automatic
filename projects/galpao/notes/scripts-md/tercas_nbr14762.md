@@ -1,6 +1,6 @@
 # Tercas formadas a frio (NBR 14762) - tercas_nbr14762.py
 
-Arquivo: `projects/galpao/calc/tercas_nbr14762.py`  
+Arquivo: `framework/galpao_fw/tercas_nbr14762.py`  
 Gerado: 2026-07-05  
 Base: NBR 14762:2010 (9.8, 10.1, Anexo F). APROVADO pelo eng. senior.
 

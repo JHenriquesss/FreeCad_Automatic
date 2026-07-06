@@ -1,6 +1,6 @@
 # Viabilidade do terreno (passo zero) - terreno.py
 
-Arquivo: `projects/galpao/calc/terreno.py`
+Arquivo: `framework/galpao_fw/terreno.py`
 Gerado: 2026-07-05
 Base: parametros urbanisticos da lei de uso do solo / plano diretor (TO, TP, CA,
 recuos) - dados de ENTRADA do gate, nao inventados.

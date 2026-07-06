@@ -1,6 +1,6 @@
 # Vento NBR 6123/1988 - vento_nbr6123.py
 
-Arquivo: `projects/galpao/calc/vento_nbr6123.py`  
+Arquivo: `framework/galpao_fw/vento_nbr6123.py`  
 Gerado: 2026-07-05  
 Status: **APROVADO** pelo eng. senior (2026-07-05), incluindo o adendo do vento
 longitudinal. Auditoria confirmou S2=0,943, Vk=35,82 m/s, q=0,787 kN/m2, a

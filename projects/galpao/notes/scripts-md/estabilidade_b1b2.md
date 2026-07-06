@@ -1,6 +1,6 @@
 # 2a ordem (MAES B1/B2) - estabilidade_b1b2.py
 
-Arquivo: `projects/galpao/calc/estabilidade_b1b2.py`  
+Arquivo: `framework/galpao_fw/estabilidade_b1b2.py`  
 Gerado: 2026-07-06  
 Base: NBR 8800 Anexo D + 4.9.7. APROVADO COM LOUVOR pelo senior (inclui PONTE). ATUALIZADO 2026-07-06: usa o mesmo envelope de combinacoes do portico (_combos_ativos -> gp._combos_elu, cruza W1 e W2). B2max 1,036 inalterado.
 

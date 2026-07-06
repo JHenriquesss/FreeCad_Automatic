@@ -1,6 +1,6 @@
 # Barras tracionadas (contraventamento, tirantes, mao-francesa) - contraventamento.py
 
-Arquivo: `projects/galpao/calc/contraventamento.py`
+Arquivo: `framework/galpao_fw/contraventamento.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 item 5.2 (barra tracionada) + 5.2.8 (esbeltez). Pendente revisao.
 

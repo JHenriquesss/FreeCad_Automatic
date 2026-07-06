@@ -1,6 +1,6 @@
 # Redimensionamento (base engastada) - redimensionamento.py
 
-Arquivo: `projects/galpao/calc/redimensionamento.py`  
+Arquivo: `framework/galpao_fw/redimensionamento.py`  
 Gerado: 2026-07-05  
 Orquestra portico + 2a ordem + check variando perfis, com base engastada.
 

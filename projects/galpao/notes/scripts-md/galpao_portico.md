@@ -1,6 +1,6 @@
 # Portico transversal - galpao_portico.py
 
-Arquivo: `projects/galpao/calc/galpao_portico.py`  
+Arquivo: `framework/galpao_fw/galpao_portico.py`  
 Gerado: 2026-07-06  
 Status: APROVADO pelo eng. senior (1a ordem + PONTE). ATUALIZADO 2026-07-06: combinacoes ELU agora sao ENVELOPE - cada hipotese de gravidade cruza W1 e W2 (_combos_elu), diretriz do senior. Referencia craneless INALTERADA (col 0,67 / viga 0,93; so os rotulos dos combos mudaram). Guardado por PONTE=None.
 

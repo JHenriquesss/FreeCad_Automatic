@@ -1,6 +1,6 @@
 # Solver de portico 2D - frame2d.py
 
-Arquivo: `projects/galpao/calc/frame2d.py`  
+Arquivo: `framework/galpao_fw/frame2d.py`  
 Gerado: 2026-07-05  
 Status: validado (auto-teste contra solucao fechada). Metodo da rigidez
 direta. Inclui reactions() para a decomposicao nt/lt do metodo B1/B2.

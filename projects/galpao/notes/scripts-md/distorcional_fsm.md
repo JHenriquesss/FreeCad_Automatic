@@ -1,6 +1,6 @@
 # Flambagem distorcional (FSM) - distorcional_fsm.py
 
-Arquivo: `projects/galpao/calc/distorcional_fsm.py`  
+Arquivo: `framework/galpao_fw/distorcional_fsm.py`  
 Gerado: 2026-07-05  
 Base: NBR 14762 9.3/9.8.2.3 (analise de estabilidade elastica). Motor FSM
 = pycufsm (port validado do CUFSM). Requer numpy<2. Fecha a lacuna do Mdist

@@ -1,6 +1,6 @@
 # Verificacao de perfil NBR 8800 - check_nbr8800.py
 
-Arquivo: `projects/galpao/calc/check_nbr8800.py`  
+Arquivo: `framework/galpao_fw/check_nbr8800.py`  
 Gerado: 2026-07-05  
 Metodo validado pelo eng. senior. Agora alimentado pelos esforcos de 2a ordem (K=1).
 

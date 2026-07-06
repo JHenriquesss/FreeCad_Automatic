@@ -99,7 +99,7 @@
 
 ## Calc Toolkit Architecture
 
-- Location: `projects/galpao/calc/` (17 modules) + `work/build_galpao.py` (model).
+- Location: `framework/galpao_fw/` (17 modules, shared package) + `work/build_galpao.py` (model).
 - Grounding: formulas extracted from norm PDFs in `pesquisa/aco/` (git-ignored):
   NBR 8800, NBR 6123, NBR 14762; AISC DG1 for base plates. **Rule: verify a method
   against the norm PDF, never from memory (zero-method-error).**

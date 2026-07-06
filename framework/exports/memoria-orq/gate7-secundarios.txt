@@ -2,13 +2,13 @@
 LONGARINA DE PAREDE (perfil U) - UPE100
 NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
 ====================================================================
-  Vao (entre porticos) ........ 6,00 m
-  Lb (mesa interna, succao) ... 2,00 m  (Lp=0,87 m ; compacto=True)
-  qx (vento) .................. 2,204 kN/m -> Msdx=13,88 kN.m
-  qy (peso) ................... 0,400 kN/m -> Msdy=0,25 kN.m
-  Mrd,x (FLT) = 9,81 kN.m
+  Vao (entre porticos) ........ 5,00 m
+  Lb (mesa interna, succao) ... 1,67 m  (Lp=0,87 m ; compacto=True)
+  qx (vento) .................. 2,204 kN/m -> Msdx=9,64 kN.m
+  qy (peso) ................... 0,400 kN/m -> Msdy=0,17 kN.m
+  Mrd,x (FLT) = 10,19 kN.m
   Mrd,y (min(Zy;1,5Wy)*fy) .... 4,40 kN.m
-  Interacao Mx/Mrdx+My/Mrdy ... 1,42+0,06=1,47 -> NAO PASSA
+  Interacao Mx/Mrdx+My/Mrdy ... 0,95+0,04=0,99 -> OK
   PREMISSA: interacao biaxial valida so se o tapamento (telha
   parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
   secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
@@ -24,8 +24,8 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
     Mn_FLT=49,8 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=45,3 kN.m
   Cortante: Vrd=124,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,11 ; M/Mrd=0,04 ; V/Vrd=0,01
-  Interacao (N/(2Nrd) + M/Mrd) = 0,09  -> OK
+  Utilizacao: N/Nc=0,08 ; M/Mrd=0,03 ; V/Vrd=0,01
+  Interacao (N/(2Nrd) + M/Mrd) = 0,07  -> OK
 
 VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
@@ -33,9 +33,9 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
 
   --- Montante de oitao (HEA160) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
-  Compressao: Ne=603 kN ; lambda0=1,268 ; chi=0,510 ; Nc,Rd=449,7 kN
+  Compressao: Ne=824 kN ; lambda0=1,084 ; chi=0,611 ; Nc,Rd=538,6 kN
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
     Mn_FLT=61,2 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=55,6 kN.m
   Cortante: Vrd=124,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,01 ; M/Mrd=0,70 ; V/Vrd=0,17
-  Interacao (N/(2Nrd) + M/Mrd) = 0,71  -> OK
+  Utilizacao: N/Nc=0,01 ; M/Mrd=0,43 ; V/Vrd=0,12
+  Interacao (N/(2Nrd) + M/Mrd) = 0,43  -> OK

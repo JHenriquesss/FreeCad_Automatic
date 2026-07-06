@@ -1,6 +1,9 @@
 # Spec do projeto galpao-nf982 (framework: projeto_spec). Fonte unica da verdade.
-import sys, math
-sys.path.insert(0, r"D:/dev/FreeCad_Automatic/projects/galpao/calc")
+# Caminhos RELATIVOS (descoberta da raiz do repo) - roda em qualquer PC.
+import sys, math, pathlib
+PROJ = pathlib.Path(__file__).resolve().parents[1]          # .../projects/galpao-nf982
+REPO = PROJ.parents[1]                                      # raiz do repo
+sys.path.insert(0, str(REPO / "framework" / "galpao_fw"))
 import projeto_spec as PS
 import terreno as T
 
@@ -10,7 +13,7 @@ def build_spec():
     s["slug"] = "galpao-nf982"
     s["descricao"] = "Deposito 20x10x6, base engastada, ponte leve 100 kN, norte fluminense"
     # --- Gate T (terreno) ---
-    kml = r"D:/dev/FreeCad_Automatic/projects/galpao-nf982/inputs/lote.kml"
+    kml = str(PROJ / "inputs" / "lote.kml")
     pts = T.parse_kml(kml); xy = T.projeta_metros(pts)
     terr = T.analisa_terreno({"pts_xy": xy, "to_max": 0.60, "ca_max": 1.0,
                               "tp_min": 0.20, "recuo_frente": 5.0,

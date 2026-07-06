@@ -1,6 +1,6 @@
 # Pecas secundarias (longarina U + escora I) - secundarios_nbr8800.py
 
-Arquivo: `projects/galpao/calc/secundarios_nbr8800.py`
+Arquivo: `framework/galpao_fw/secundarios_nbr8800.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 - Anexo G (flexao), 5.4.2 (eixo fraco), 5.5.1 (interacao
 biaxial), 5.5.1.2 (flexo-compressao).

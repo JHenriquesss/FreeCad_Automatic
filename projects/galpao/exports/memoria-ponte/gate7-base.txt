@@ -1,5 +1,5 @@
 LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
-  Base engastada - C2_uplift_W2 (M=60,1)
+  Base engastada - C3_Gfav (M=60,1)
   Esforcos: N=+1,3 kN ; V=33,1 kN ; M=60,1 kN.m  (base ENGASTADA)
   Placa: 450 x 550 mm ; fck=25 MPa ; sigma_c,Rd=16616 kN/m2
   Regime placa: grande excentricidade

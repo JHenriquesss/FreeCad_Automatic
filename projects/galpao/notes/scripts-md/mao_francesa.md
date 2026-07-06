@@ -1,6 +1,6 @@
 # Mao-francesa (contencao da mesa inferior) - mao_francesa.py
 
-Arquivo: `projects/galpao/calc/mao_francesa.py`
+Arquivo: `framework/galpao_fw/mao_francesa.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 item 5.5.1.2 (interacao flexo-compressao) + Anexo G (FLT).
 Status: **APROVADO SEM RESSALVAS** pelo eng. senior (2026-07-05). Validou

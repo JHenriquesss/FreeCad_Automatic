@@ -1,6 +1,6 @@
 # Ponte rolante + viga de rolamento - ponte_rolante.py
 
-Arquivo: `projects/galpao/calc/ponte_rolante.py`
+Arquivo: `framework/galpao_fw/ponte_rolante.py`
 Gerado: 2026-07-05
 Base: NBR 8800:2008 (acao de ponte, ELS, fadiga Anexo K) + NBR 8400 (classes).
 Metodo do livro "Dimensionamento de elementos estruturais de aco e mistos"

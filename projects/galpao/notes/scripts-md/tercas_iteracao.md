@@ -1,6 +1,6 @@
 # Gate 7 - Iteracao de tercas Ue - tercas_iteracao.py
 
-Arquivo: `projects/galpao/calc/tercas_iteracao.py`  
+Arquivo: `framework/galpao_fw/tercas_iteracao.py`  
 Gerado: 2026-07-05  
 Driver do projeto: itera escada Ue, calcula Mdist (FSM) e props (linha
 media) de cada, adota o mais leve que passa (NBR 14762).

@@ -1,6 +1,6 @@
 # Ligacao de base (placa + chumbadores) - base_chumbador.py
 
-Arquivo: `projects/galpao/calc/base_chumbador.py`  
+Arquivo: `framework/galpao_fw/base_chumbador.py`  
 Gerado: 2026-07-05  
 Base: NBR 8800 6.3/6.6 + AISC DG1. Revisado apos parecer do eng. senior
 (bug de unidade, sigma_max plastificado, espessura nos dois lados).

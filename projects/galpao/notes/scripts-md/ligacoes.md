@@ -1,6 +1,6 @@
 # Ligacoes parafusadas e soldadas (NBR 8800) - ligacoes.py
 
-Arquivo: `projects/galpao/calc/ligacoes.py`  
+Arquivo: `framework/galpao_fw/ligacoes.py`  
 Gerado: 2026-07-05  
 Base: NBR 8800 6.3 (parafusos), 6.2.5 (solda de filete), 6.1.5.2 (forca
 minima 45 kN). PARAMETRICO: qualquer ligacao parafusada ou soldada.
