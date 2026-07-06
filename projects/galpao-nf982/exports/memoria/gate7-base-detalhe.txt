@@ -1,0 +1,13 @@
+LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
+  Base engastada - C2_uplift_W2 (M=44,4)
+  Esforcos: N=-1,0 kN ; V=24,6 kN ; M=44,4 kN.m  (base ENGASTADA)
+  Placa: 400 x 500 mm ; fck=25 MPa ; sigma_c,Rd=17053 kN/m2
+  Regime placa: uplift (N tracao)
+  Chumbadores: 4 x d=20 mm ; Ft,Rd=69,8 kN ; Fv,Rd=37,2 kN
+  Tracao total = 99,8 kN -> por chumbador Ft,Sd=49,9 kN ; Fv,Sd=6,2 kN
+  Concreto: sigma_max=0 kN/m2 (bloco plastificado) -> u=0,00 ; Y=0,0 mm <=L (cabe)
+  Chumbador: tracao u=0,71 ; corte u=0,17 ; interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = 0,54
+  Placa (AISC DG1): lado comprimido t=60,0 mm (balanco 155 mm) ; lado tracionado t=30,4 mm (braco 105 mm) -> t_req=60,0 mm
+  -> OK
+  [FLAG] Cone de arrancamento/ancoragem do concreto: NBR 6118/ACI 318
+         (projeto de fundacao) - NAO verificado aqui.

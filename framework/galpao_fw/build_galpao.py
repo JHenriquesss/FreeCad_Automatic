@@ -30,7 +30,7 @@ RIDGE_Y = SPAN / 2.0
 RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 Z0 = GROUT_GAP
 
-EXPORT_DIR = "D:/dev/FreeCad_Automatic/projects/galpao/exports"
+EXPORT_DIR = "exports"          # default relativo; sobrescrito por configurar(export_dir=...)
 DOC_NAME = "galpao_20x10"
 
 

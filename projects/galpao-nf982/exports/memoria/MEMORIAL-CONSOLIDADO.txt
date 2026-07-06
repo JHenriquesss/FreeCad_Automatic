@@ -3,6 +3,21 @@ MEMORIAL CONSOLIDADO - GALPAO 20x10 m
 framework galpao_fw v0.1.0 - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
 ======================================================================
 
+QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):
+  Coluna            0.68   OK
+  Viga              0.75   OK
+  Flecha portico    0.59   OK
+  Base              0.71   OK
+  Joelho            0.12   OK
+  Terca             0.72   OK
+  Longarina         0.76   OK
+  Escora            0.06   OK
+  Montante          0.33   OK
+  Verga             0.04   OK
+  Viga rolamento    0.39   OK
+
+Todos os elementos verificados ATENDEM (util <= 1,0).
+
 ######################################################################
 1. VENTO
 ######################################################################
@@ -377,6 +392,8 @@ OBS: propriedades pela linha media (prop2) - A CONFIRMAR no catalogo
 7. SECUNDARIOS
 ######################################################################
 
+ADOTADO: longarina UPE100 c/ 2 linhas de tirante ; escora HEA160 ; montante HEA160
+
 ====================================================================
 LONGARINA DE PAREDE (perfil U) - UPE100
 NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
@@ -392,7 +409,6 @@ NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
   parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
   secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
 ====================================================================
-
 VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
@@ -405,12 +421,11 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   Cortante: Vrd=124,4 kN (alma compacta: True)
   Utilizacao: N/Nc=0,06 ; M/Mrd=0,03 ; V/Vrd=0,01
   Interacao (N/(2Nrd) + M/Mrd) = 0,06  -> OK
-
 VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
 
-  --- Montante de oitao (HEA160) ---
+  --- Montante de oitao (HEA) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
   Compressao: Ne=824 kN ; lambda0=1,084 ; chi=0,611 ; Nc,Rd=538,6 kN
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
@@ -476,19 +491,27 @@ NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
 10. BASE
 ######################################################################
 
-LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
-  Base engastada - C2_uplift_W2 (M=44,4)
-  Esforcos: N=-1,0 kN ; V=24,6 kN ; M=44,4 kN.m  (base ENGASTADA)
-  Placa: 450 x 550 mm ; fck=25 MPa ; sigma_c,Rd=16616 kN/m2
-  Regime placa: uplift (N tracao)
-  Chumbadores: 4 x d=20 mm ; Ft,Rd=69,8 kN ; Fv,Rd=37,2 kN
-  Tracao total = 89,9 kN -> por chumbador Ft,Sd=45,0 kN ; Fv,Sd=6,2 kN
-  Concreto: sigma_max=0 kN/m2 (bloco plastificado) -> u=0,00 ; Y=0,0 mm <=L (cabe)
-  Chumbador: tracao u=0,64 ; corte u=0,17 ; interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = 0,44
-  Placa (AISC DG1): lado comprimido t=68,8 mm (balanco 180 mm) ; lado tracionado t=32,1 mm (braco 130 mm) -> t_req=68,8 mm ; t_adotada=40 mm
-  -> NAO PASSA
-  [FLAG] Cone de arrancamento/ancoragem do concreto: NBR 6118/ACI 318
-         (projeto de fundacao) - NAO verificado aqui.
+==========================================================================
+DIMENSIONAMENTO DA BASE ENGASTADA (placa + chumbadores)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+==========================================================================
+
+Esforco: N=-1,0 kN ; V=24,6 kN ; M=44,4 kN.m
+Criterio: interacao chumbador<=1 ; corte<=1 ; concreto<=1 ; Y<=L ; t_placa>=t_req (AISC DG1).
+
+    BxL (mm)    t   db  n | u.trac u.corte u.conc  Y<=L  t_req | resultado
+--------------------------------------------------------------------------
+  400x500     63   20  4 |   0,71    0,17   0,00   sim    60mm | PASSA
+  450x550     75   20  4 |   0,64    0,17   0,00   sim    69mm | PASSA
+  500x600     90   25  4 |   0,38    0,11   0,00   sim    78mm | PASSA
+  550x700    100   25  6 |   0,21    0,07   0,00   sim    95mm | PASSA
+  600x800    100   32  6 |   0,11    0,04   0,00   sim   113mm | PASSA
+  700x900    100   32  6 |   0,10    0,04   0,00   sim   130mm | PASSA
+--------------------------------------------------------------------------
+
+ADOTADA (mais leve que passa): 400 x 500 x 63 mm ; 4 chumbadores d=20 mm
+
+[FLAG] Cone de arrancamento/ancoragem: NBR 6118/ACI (projeto de fundacao).
 
 
 ######################################################################
@@ -496,12 +519,6 @@ LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
 ######################################################################
 
 VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)
-
-  --- Joelho - C2_uplift_W1 (M=44,2) (parafusos) ---
-    Forca de dimensionamento = 45,0 kN (minimo 6.1.5.2)
-    n=4 parafusos ; Fv,Rd=110,6 ; Ft,Rd=207,3 ; Fc,Rd(esmag.)=177,8 kN
-    por parafuso: V=11,2 ; N=71,9 kN ; corte/min(Fv,Fc)=0,10 ; tracao=0,35
-    interacao/util = 0,13  -> OK
 
   --- Chapa de terca (2 M12) - excecao (parafusos) ---
     n=2 parafusos ; Fv,Rd=13,4 ; Ft,Rd=25,1 ; Fc,Rd(esmag.)=51,2 kN

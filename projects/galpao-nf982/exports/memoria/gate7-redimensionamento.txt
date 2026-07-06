@@ -1,0 +1,23 @@
+==========================================================================
+REDIMENSIONAMENTO - par (coluna, viga) mais leve que passa
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+==========================================================================
+
+Criterio: interacao ELU <= 1,00 (NBR 8800, K=1 com 2a ordem) E
+          flecha lateral <= H/150 = 40,0 mm (telha metalica).
+Travamento: coluna Lb=2,00 m ; viga Lb=1,67 m.
+
+  Coluna    Viga |  B2max |   flecha    lim | int.col int.viga | resultado
+--------------------------------------------------------------------------
+  HEA200  HEA180 |  1,130 |    23,5mm  40,0 |    0,68     0,62 | PASSA
+  HEB200  IPE300 |  1,049 |    12,5mm  40,0 |    0,40     0,32 | PASSA
+  HEB220  IPE330 |  1,034 |     8,8mm  40,0 |    0,31     0,25 | PASSA
+  HEB240  IPE360 |  1,025 |     6,3mm  40,0 |    0,24     0,19 | PASSA
+  HEB260  IPE400 |  1,018 |     4,7mm  40,0 |    0,20     0,15 | PASSA
+  HEB280  IPE450 |  1,013 |     3,5mm  40,0 |    0,17     0,12 | PASSA
+  HEB300  IPE500 |  1,010 |     2,7mm  40,0 |    0,14     0,09 | PASSA
+  HEB300  IPE550 |  1,009 |     2,5mm  40,0 |    0,14     0,07 | PASSA
+--------------------------------------------------------------------------
+
+ADOTADO (mais leve que passa): COLUNA HEA200 + VIGA HEA180
+  B2,max = 1,130 ; flecha = 23,5 mm (<= 40,0) ; int. coluna = 0,68 ; viga = 0,62

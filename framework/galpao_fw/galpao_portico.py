@@ -316,7 +316,7 @@ if __name__ == "__main__":
     a = analyse()
     txt = memoria_pt(a)
     print(txt)
-    out = "D:/dev/FreeCad_Automatic/projects/galpao/exports"
+    out = "exports"          # default relativo (demo __main__)
     os.makedirs(out + "/memoria", exist_ok=True)
     with open(out + "/memoria/memoria-calculo-galpao.txt", "w", encoding="utf-8") as f:
         f.write(txt + "\n")
