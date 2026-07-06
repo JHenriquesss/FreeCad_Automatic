@@ -39,7 +39,8 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
                fechamento=None, ponte_modelo=None,
                perfil_col=None, perfil_raf=None,
-               perfil_col_nome=None, perfil_raf_nome=None, base=None):
+               perfil_col_nome=None, perfil_raf_nome=None, base=None,
+               perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -48,7 +49,12 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
+    if terca is not None: UE_SEC = tuple(float(v) for v in terca)
+    if perfil_esc is not None: HEA_ESC = tuple(float(v) for v in perfil_esc)
+    if perfil_esc_nome is not None: ESC_NOME = str(perfil_esc_nome)
+    if joelho is not None: JOELHO_CFG = dict(JOELHO_CFG, **joelho)
     if perfil_col is not None: COL_SEC = tuple(float(v) for v in perfil_col)
     if perfil_raf is not None: RAF_SEC = tuple(float(v) for v in perfil_raf)
     if perfil_col_nome is not None: COL_NOME = str(perfil_col_nome)
@@ -84,10 +90,16 @@ COL_NOME, RAF_NOME = "HEA200", "HEA180"
 # Base ENGASTADA parametrica (mm): placa B x L x t + n chumbadores d=db. Default =
 # referencia 20x10; sobrescrita pelo dimensionamento (base_adotada) no run real.
 BASE_PLATE = {"B": 450.0, "L": 550.0, "t": 40.0, "db": 20.0, "n": 4}
+# Secao das escoras de beiral/cumeeira e montantes de oitao (dimensionamento dos
+# secundarios). Ligacao do joelho no MODELO (chapa/parafuso). Default = referencia.
+HEA_ESC = HEA160
+ESC_NOME = "HEA160"
+JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
 UE_TERCA = (200.0, 75.0, 25.0, 2.65)
+UE_SEC = UE_TERCA          # secao da terca de cobertura (parametrizavel pelo calc)
 CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
@@ -381,15 +393,16 @@ def joelho(doc, node, rdir, tag):
     _reg(ob.Name, (cx, cy, cz), (cx, cy, cz))
     # Chapa de topo no fim da misula (splice misula-viga), perpendicular a viga.
     ec = _p(node, hlen + 20.0, dirn)
-    plate_basis(doc, ec, dirn, u, v, 22.0, 220.0, 250.0, f"CONEX_JOELHO_{tag}_CHAPA")
-    # 4 M24 pela chapa (2 por mesa: +-u no comprimento, +-v junto das mesas).
+    jt, jdb = JOELHO_CFG["t"], JOELHO_CFG["db"]
+    plate_basis(doc, ec, dirn, u, v, jt, 220.0, 250.0, f"CONEX_JOELHO_{tag}_CHAPA")
+    # parafusos pela chapa (2 por mesa: +-u no comprimento, +-v junto das mesas).
     b = 0
     for sv in (-1.0, 1.0):
         for su in (-1.0, 1.0):
             b += 1
             p = _p(_p(ec, su * 70.0, u), sv * 90.0, v)
             rod(doc, _p(p, -60.0, dirn), _p(p, 60.0, dirn),
-                24.0, f"CONEX_JOELHO_{tag}_M24_{b:02d}")
+                jdb, f"CONEX_JOELHO_{tag}_M24_{b:02d}")
     # Enrijecedores de continuidade no pilar (preenchem a secao entre as mesas).
     for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
         plate(doc, (cx, cy, cz + dz), COL_SEC[0], COL_SEC[1], 12.0,
@@ -466,9 +479,9 @@ def build(doc):
     for b in range(len(axes) - 1):
         x0, x1 = axes[b], axes[b + 1]
         t = f"VAO_{b + 1:02d}"
-        i_member(doc, (x0, 0, EAVE_H), (x1, 0, EAVE_H), HEA160, f"{t}_ESCORA_BEIRAL_E")
-        i_member(doc, (x0, SPAN, EAVE_H), (x1, SPAN, EAVE_H), HEA160, f"{t}_ESCORA_BEIRAL_D")
-        i_member(doc, (x0, RIDGE_Y, RIDGE_H), (x1, RIDGE_Y, RIDGE_H), HEA160, f"{t}_CUMEEIRA")
+        i_member(doc, (x0, 0, EAVE_H), (x1, 0, EAVE_H), HEA_ESC, f"{t}_ESCORA_BEIRAL_E")
+        i_member(doc, (x0, SPAN, EAVE_H), (x1, SPAN, EAVE_H), HEA_ESC, f"{t}_ESCORA_BEIRAL_D")
+        i_member(doc, (x0, RIDGE_Y, RIDGE_H), (x1, RIDGE_Y, RIDGE_H), HEA_ESC, f"{t}_CUMEEIRA")
 
     # Tercas: perfil U com face aberta para o BEIRAL (regra CBCA). ASSENTAM SOBRE a
     # mesa superior da VIGA (nao penetram). A viga e INCLINADA: o topo real em Z do
@@ -479,7 +492,7 @@ def build(doc):
     # terca); o assentamento MEDIDO corrige o residual contra a mesa inclinada.
     _theta = math.atan(SLOPE)
     _rise = (RAF_SEC[0] / 2.0) * math.cos(_theta) + (RAF_SEC[1] / 2.0) * math.sin(_theta)
-    POFF = _rise + UE_TERCA[0] / 2.0
+    POFF = _rise + UE_SEC[0] / 2.0
     vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
     n_terca = 3
     terca_ys = []
@@ -488,16 +501,16 @@ def build(doc):
         yl = RIDGE_Y * k / n_terca
         terca_ys.append(yl)
         terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
-                          (LENGTH, yl, rafter_z(yl) + POFF), UE_TERCA,
+                          (LENGTH, yl, rafter_z(yl) + POFF), UE_SEC,
                           f"TERCA_E_{k:02d}", roll=180)))
         yr = SPAN - RIDGE_Y * k / n_terca
         terca_ys.append(yr)
         terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
-                          (LENGTH, yr, rafter_z(yr) + POFF), UE_TERCA,
+                          (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
                           f"TERCA_D_{k:02d}", roll=0)))
     for y, lado, rl in ((0.0, "E", 180), (SPAN, "D", 0)):
         terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
-                          (LENGTH, y, EAVE_H + POFF), UE_TERCA,
+                          (LENGTH, y, EAVE_H + POFF), UE_SEC,
                           f"TERCA_BEIRAL_{lado}", roll=rl)))
     # Assenta cada terca sobre a viga MEDINDO a penetracao (robusto a inclinacao).
     terca_seats = []                    # (y, z_face_inferior) p/ clipes
@@ -555,7 +568,7 @@ def build(doc):
     for x, lbl, portao in ((axes[0], "FRENTE", ABERTURAS.get("portao_frente")),
                            (axes[-1], "FUNDO", ABERTURAS.get("portao_fundo"))):
         for p, yg in enumerate(_mont_ys(portao), start=1):
-            i_member(doc, (x, yg, Z0), (x, yg, rafter_z(yg) - 95), HEA160,
+            i_member(doc, (x, yg, Z0), (x, yg, rafter_z(yg) - 95), HEA_ESC,
                      f"MONTANTE_OITAO_{lbl}_{p:02d}")
 
     # Tirantes (barras redondas): uma linha por vao/agua, fechando na cumeeira
@@ -1026,9 +1039,9 @@ def _classifica(n):
     if "_VIGA_" in n:
         return "Vigas", RAF_NOME
     if "ESCORA_BEIRAL" in n or "_CUMEEIRA" in n:
-        return "Escoras de beiral / cumeeira", "HEA160"
+        return "Escoras de beiral / cumeeira", ESC_NOME
     if n.startswith("MONTANTE_OITAO"):
-        return "Montantes de oitao", "HEA160"
+        return "Montantes de oitao", ESC_NOME
     if n.startswith("VIGA_ROLAMENTO"):
         return "Viga de rolamento (ponte)", "VS500"
     if n.startswith("CONSOLE_PONTE"):
@@ -1036,7 +1049,7 @@ def _classifica(n):
     if n.startswith("TERCA_PAREDE"):
         return "Tercas de parede", "UPE100"
     if n.startswith("TERCA"):
-        return "Tercas", "Ue200x75x25x2.65"
+        return "Tercas", "Ue%.0fx%.0fx%.0fx%.2f" % (UE_SEC[0],UE_SEC[1],UE_SEC[2],UE_SEC[3])
     if n.startswith("TIRANTE") or n.startswith("MAO_FRANCESA"):
         return "Tirantes / maos-francesas", "barra-16"
     if n.startswith("CONTRAV"):
@@ -1082,9 +1095,9 @@ def _classifica(n):
     if "JOELHO" in n and "MISULA" in n:
         return "Misulas (joelho)", "chapa-9.5"
     if "JOELHO" in n and "CHAPA" in n:
-        return "Chapa de topo (joelho)", "chapa-22"
+        return "Chapa de topo (joelho)", "chapa-%.0f" % JOELHO_CFG["t"]
     if "JOELHO" in n and "M24" in n:
-        return "Parafusos M24 (joelho)", "M24"
+        return "Parafusos joelho", "M%.0f" % JOELHO_CFG["db"]
     if "JOELHO" in n and "ENRIJ" in n:
         return "Enrijecedores (joelho)", "chapa-12"
     return "Outros", "-"
@@ -1159,6 +1172,8 @@ def reset():
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC
+    UE_SEC = UE_TERCA
     MF_STRIDE = 2
     N_TIRANTE_PAREDE = 2
     TERRENO_PTS = None
@@ -1166,6 +1181,9 @@ def reset():
     COL_SEC, RAF_SEC = HEA200, HEA180
     COL_NOME, RAF_NOME = "HEA200", "HEA180"
     BASE_PLATE = {"B": 450.0, "L": 550.0, "t": 40.0, "db": 20.0, "n": 4}
+    HEA_ESC = HEA160
+    ESC_NOME = "HEA160"
+    JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
     FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
     ABERTURAS = {"portao_frente": None, "portao_fundo": None, "porta_frente": None,
                  "porta_fundo": None, "janelas_laterais": None, "porta_lateral": None}
