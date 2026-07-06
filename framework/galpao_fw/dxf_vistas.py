@@ -23,6 +23,7 @@ CAMADAS = [
     ("COTAS", 3, "CONTINUOUS"),    # dimensoes (verde)
     ("TEXTO", 7, "CONTINUOUS"),
     ("CONTRAV", 5, "DASHED"),      # contraventamento (azul, tracejado)
+    ("TELHA", 8, "CONTINUOUS"),    # telha / terca (cinza)
 ]
 
 
@@ -133,6 +134,20 @@ def _portico(msp, d, ox, oy):
         zc = eave + (ridge - eave) / (span / 2.0) * min(hl, span / 2.0)
         _poly(msp, [P(y0, eave - dr / 2.0), P(y0, eave - dr / 2.0 - 450),
                     P(yb, zc - dr / 2.0)], layer="ACO")
+    # CORTE: tercas (Ue) sobre as vigas + linha de telha (2 aguas)
+    def _zr(y):
+        return eave + (ridge - eave) / (span / 2.0) * min(y, span - y)
+    nt = 3
+    ys_t = [0.0, span, span / 2.0]
+    for k in range(1, nt):
+        ys_t += [span / 2.0 * k / nt, span - span / 2.0 * k / nt]
+    for y in ys_t:
+        z = _zr(y) + dr / 2.0 + 90.0
+        _poly(msp, [P(y - 90, z - 90), P(y + 90, z - 90),
+                    P(y + 90, z + 90), P(y - 90, z + 90)], layer="TELHA")
+    tz = dr / 2.0 + 240.0
+    _line(msp, P(0, eave + tz), P(span / 2.0, ridge + tz), "TELHA")
+    _line(msp, P(span, eave + tz), P(span / 2.0, ridge + tz), "TELHA")
     # eixos das colunas (linha de eixo) + bolhas de eixo transversal (A/B)
     _line(msp, P(0, -700), P(0, eave + 500), "EIXOS")
     _line(msp, P(span, -700), P(span, eave + 500), "EIXOS")
@@ -278,8 +293,11 @@ def _detalhe_joelho(msp, d, ox, oy):
     # enrijecedor no pilar
     _line(msp, P(0, Hc - 120), P(dc, Hc - 120), "ACO")
     _txt(msp, "DETALHE DO JOELHO", P(0, -450), h=200)
-    _txt(msp, "misula + chapa de topo + parafusos + enrijecedor",
-         P(0, -750), h=140)
+    j = d.get("joelho")
+    sub = (f"misula + chapa {j['t']*1000:.0f} mm + {j['n']} paraf. d{j['db']*1000:.0f} "
+           f"mm + enrijecedor" if j else
+           "misula + chapa de topo + parafusos + enrijecedor")
+    _txt(msp, sub, P(0, -750), h=140)
 
 
 # ---- DETALHE DA BASE (planta + corte) --------------------------------------
@@ -323,6 +341,60 @@ def _detalhe_base(msp, d, ox, oy):
     _txt(msp, "DETALHE DA BASE", P(-Bp / 2, -Lp / 2 - 1400), h=200)
 
 
+# ---- TABELAS (quadros) -----------------------------------------------------
+def _tabela(msp, ox, oy, titulo, header, rows, wcol, rh=430):
+    W = sum(wcol)
+    nlin = len(rows) + 1
+    _txt(msp, titulo, (ox, oy + 200), h=190)
+    for i in range(nlin + 1):
+        y = oy - i * rh
+        _line(msp, (ox, y), (ox + W, y), "TEXTO")
+    xs, x = [ox], ox
+    for w in wcol:
+        x += w
+        xs.append(x)
+    for xv in xs:
+        _line(msp, (xv, oy), (xv, oy - nlin * rh), "TEXTO")
+
+    def _cell(r, c, s):
+        _txt(msp, str(s), (xs[c] + 90, oy - (r + 1) * rh + 130), h=150)
+    for c, hh in enumerate(header):
+        _cell(0, c, hh)
+    for ri, row in enumerate(rows, start=1):
+        for c, v in enumerate(row):
+            _cell(ri, c, v)
+
+
+def _quadro_verif(msp, d, ox, oy):
+    rows = []
+    for nome, u in (d.get("resultados") or {}).items():
+        if u is None:
+            continue
+        situ = "OK" if u <= 1.001 else "REVER"
+        rows.append([nome, f"{u:.2f}".replace(".", ","), situ])
+    if not rows:
+        return
+    _tabela(msp, ox, oy, "QUADRO DE VERIFICACOES  (util = solic./resist. <= 1)",
+            ["Elemento", "util", "situacao"], rows, [2700, 900, 1200])
+
+
+def _quadro_materiais(msp, d, ox, oy):
+    rows, total = [], 0.0
+    for g in (d.get("takeoff") or []):
+        cat, prof, cnt, comp, massa = g[0], g[1], g[2], g[3], g[4]
+        if "Alvenaria" in cat:
+            continue
+        rows.append([cat, prof, str(cnt), f"{comp:.1f}".replace(".", ","),
+                     f"{massa:.0f}"])
+        total += massa
+    if not rows:
+        return
+    rows.append(["TOTAL ACO", "", "", "", f"{total:.0f}"])
+    _tabela(msp, ox, oy, "QUADRO DE MATERIAIS (aco)",
+            ["Item", "Perfil", "Qtd", "Comp (m)", "Massa (kg)"], rows,
+            [3400, 1600, 700, 1200, 1400])
+
+
 # ---- LEGENDA / CARIMBO -----------------------------------------------------
 def _legenda(msp, d, ox, oy):
     w, h = 6000.0, 2400.0
@@ -357,6 +429,10 @@ def gerar_dxf(design, path):
     _legenda(msp, design, ox=0.0, oy=-(eave + 5500.0))
     _detalhe_joelho(msp, design, ox=0.0, oy=-(eave + 12000.0))
     _detalhe_base(msp, design, ox=8000.0, oy=-(eave + 11000.0))
+    # quadros abaixo da planta
+    yq = -(eave + 6000.0) - span - 2500.0
+    _quadro_verif(msp, design, ox=span + 6000.0, oy=yq)
+    _quadro_materiais(msp, design, ox=span + 12000.0, oy=yq)
     doc.saveas(path)
     return path
 
@@ -387,4 +463,7 @@ def design_de_spec(spec):
         "perfil_col": col_nome, "perfil_raf": raf_nome,
         "base": {"B": ba["B"] * 1000.0, "L": ba["L"] * 1000.0,
                  "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0, "n": ba["n"]},
+        "joelho": est.get("joelho_adotado"),
+        "resultados": est.get("resultados", {}),
+        "takeoff": est.get("takeoff", []),
     }
