@@ -55,7 +55,7 @@ Run guiado real da skill build-warehouse. Lote no norte fluminense (RJ).
 - O projeto agora e um ProjetoSpec (calc/projeto_spec.py) - fonte unica da verdade.
   validar() BLOQUEIA calculo/desenho com campo pendente; mappers traduzem p/ os
   modulos. Spec do projeto: work/spec_nf982.py. Modelo/calculo reconstruidos SO do
-  spec (sem default hardcoded / sem copia). massa_total do takeoff agora mistura
+  spec (sem default hardcoded / sem copia). massa separada agora: massa_aco_kg (~13,3 t) x massa_alvenaria_kg (~26,3 t) no takeoff. Antes misturava
   aco (~13,8 t) + alvenaria (~26 t) - a categoria separa; total conflaciona (rever).
 
 ## Gate 4 - Aberturas (2026-07-05) - CORRIGIDO apos apontamento do usuario

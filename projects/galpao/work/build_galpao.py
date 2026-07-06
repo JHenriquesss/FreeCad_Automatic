@@ -631,13 +631,18 @@ def takeoff(doc):
     tdir = f"{EXPORT_DIR}/takeoff"
     os.makedirs(tdir, exist_ok=True)
     csv_path = f"{tdir}/galpao_levantamento_material.csv"
+    # totais por MATERIAL: aco (estrutura + telha/tapamento metalico) x alvenaria.
+    def _e_alvenaria(cat):
+        return "Alvenaria" in cat
+    massa_aco = sum(m for (cat, _), (_, _, m) in grupos.items() if not _e_alvenaria(cat))
+    massa_alv = sum(m for (cat, _), (_, _, m) in grupos.items() if _e_alvenaria(cat))
     with open(csv_path, "w", encoding="utf-8") as f:
-        f.write("categoria,perfil,quantidade,comprimento_total_m,massa_total_kg\n")
-        massa_total = 0.0
+        f.write("categoria,perfil,quantidade,comprimento_total_m,massa_kg\n")
         for (cat, prof), (cnt, comp, massa) in sorted(grupos.items()):
             f.write(f"{cat},{prof},{cnt},{comp/1000:.2f},{massa:.1f}\n")
-            massa_total += massa
-        f.write(f"TOTAL,,,,{massa_total:.1f}\n")
+        f.write(f"SUBTOTAL ACO,,,,{massa_aco:.1f}\n")
+        f.write(f"SUBTOTAL ALVENARIA,,,,{massa_alv:.1f}\n")
+        f.write(f"TOTAL GERAL,,,,{massa_aco + massa_alv:.1f}\n")
         f.write("\n# Detalhe por elemento\n")
         f.write("nome,categoria,perfil,comprimento_mm,massa_kg\n")
         for r in sorted(rows):
@@ -646,7 +651,9 @@ def takeoff(doc):
     resumo = sorted([(cat, prof, cnt, round(comp / 1000, 2), round(massa, 1))
                      for (cat, prof), (cnt, comp, massa) in grupos.items()],
                     key=lambda r: -r[4])
-    return {"csv": csv_path, "massa_total_kg": round(sum(v[2] for v in grupos.values()), 1),
+    return {"csv": csv_path, "massa_aco_kg": round(massa_aco, 1),
+            "massa_alvenaria_kg": round(massa_alv, 1),
+            "massa_total_kg": round(massa_aco + massa_alv, 1),
             "elementos": len(rows), "por_grupo": resumo}
 
 
@@ -681,6 +688,7 @@ def run():
             "interferencias": len(itf),
             "conflito_abertura_contrav": globals().get("CONFLITOS_ABERTURA_CONTRAV", []),
             "estrutura_em_aberturas": est_ab,
+            "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
             "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
             "por_grupo": tk["por_grupo"], "csv": tk["csv"],
             "fcstd": fcstd, "step": step}
