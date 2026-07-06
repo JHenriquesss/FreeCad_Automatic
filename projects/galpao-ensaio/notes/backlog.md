@@ -41,6 +41,11 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 ## Outras lacunas conhecidas (ja documentadas)
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
+- REFINAMENTO (recomendacao senior, galpao_portico): as combos fixam W2 em C1/C3
+  e W1 em C2 (atribuicao fisicamente raciocinada). Software de alto nivel cruza
+  TODOS os casos de vento (W1, W2) com TODAS as hipoteses de gravidade (loop
+  dinamico) e toma o envelope. Nao urgente; mudaria os numeros da referencia ja
+  validada -> requer nova validacao. Idem estabilidade_b1b2 (mesmas combos).
 
 ## Pecas secundarias - TODAS VERIFICADAS (2026-07-05)
 - [OK] MONTANTE DE OITAO (HEA160): verifica_montante_oitao. Ref 0,43 OK.

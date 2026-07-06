@@ -2,7 +2,18 @@
 
 Arquivo: `projects/galpao/calc/galpao_portico.py`  
 Gerado: 2026-07-05  
-Status: validado pelo engenheiro senior (1a ordem). ATUALIZADO 2026-07-05 com a acao de PONTE ROLANTE (config PONTE): no do console no nivel do trilho, case_ponte (R_vert + M_excentrico + surto) e combos C4 (ponte principal) / C5 (vento principal, ponte psi0=0,7). Tudo guardado por PONTE=None -> galpao SEM ponte fica byte-identico (0,67/0,93). Re-revisao do senior pendente.
+Status: **APROVADO** pelo eng. senior (1a ordem + PONTE, 2026-07-05: "aprovado com
+louvor" algoritmico/matematico/normativo). ATUALIZADO com a acao de PONTE ROLANTE
+(config PONTE): no do console no nivel do trilho, case_ponte (R_vert + M_excentrico
++ surto) e combos C4 (ponte principal) / C5 (vento principal, ponte psi0=0,7). Tudo
+guardado por PONTE=None -> galpao SEM ponte fica byte-identico (0,67/0,93).
+
+> NOTA sobre o resultado abaixo: o `__main__` roda com o DEFAULT `base_fixed=False`
+> (base ROTULADA) -> drift 179 mm (falha ELS, ~H/33), so para demonstrar. O PROJETO
+> de referencia usa base ENGASTADA (PARAMS_REF base_fixed=True) -> drift 30,8 mm,
+> coluna 0,67 / viga 0,93, passa. O senior apontou isso: rotulada nao viabiliza o
+> vao de 10 m; use engaste (ou pilar maior). Refinamento recomendado (backlog):
+> cruzar W1 e W2 com todas as hipoteses de gravidade (hoje C1/C3 usam W2, C2 usa W1).
 
 ## Codigo completo
 
