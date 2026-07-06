@@ -1,0 +1,12 @@
+VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)
+
+  --- Joelho - C2_uplift (M=44,2) (parafusos) ---
+    Forca de dimensionamento = 45,0 kN (minimo 6.1.5.2)
+    n=4 parafusos ; Fv,Rd=110,6 ; Ft,Rd=207,3 ; Fc,Rd(esmag.)=177,8 kN
+    por parafuso: V=11,2 ; N=71,9 kN ; corte/min(Fv,Fc)=0,10 ; tracao=0,35
+    interacao/util = 0,13  -> OK
+
+  --- Chapa de terca (2 M12) - excecao (parafusos) ---
+    n=2 parafusos ; Fv,Rd=13,4 ; Ft,Rd=25,1 ; Fc,Rd(esmag.)=51,2 kN
+    por parafuso: V=4,0 ; N=0,0 kN ; corte/min(Fv,Fc)=0,30 ; tracao=0,00
+    interacao/util = 0,30  -> OK

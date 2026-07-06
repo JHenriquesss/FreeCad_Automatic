@@ -38,6 +38,14 @@ Escopo original do modulo:
 Fonte: extrair de NBR 8800 (impacto/fadiga), NBR 8400 (classes de ponte),
 exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 
+## FINDINGS do run guiado real (galpao-nf982, 2026-07-05)
+- [OK] Vento nao era parametrizado no orquestrador -> adicionado vento.configurar()
+  (V0/cat/classe/S3/z do Gate 5) ; params["vento"]. Default idempotente.
+- GAP: build_galpao desenha a ESTRUTURA mas NAO a geometria da ponte (viga de
+  rolamento, console/misula, batentes). Falta p/ galpao COM ponte.
+- GAP: vento_nbr6123 s2_factor so tem Categoria II (III/IV -> KeyError). Adicionar
+  as demais categorias da Tabela 1 da NBR 6123.
+
 ## Outras lacunas conhecidas (ja documentadas)
 - TERRENO (terreno.py): retangulo construivel usa OBB (eixos do lote) - correto
   para lote retangular/quase. LOTE IRREGULAR pede inset real do poligono (offset

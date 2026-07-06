@@ -94,6 +94,11 @@ def rodar(params, out_dir):
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
                   fy=params["terca"]["fy"])
+    if params.get("vento"):                       # parametros de sitio (Gate 5)
+        vt = params["vento"]
+        vento.configurar(v0=vt.get("v0"), cat=vt.get("cat"), classe=vt.get("classe"),
+                         s1=vt.get("s1"), s3=vt.get("s3"), z=vt.get("z"),
+                         theta=math.degrees(gp.THETA))
 
     res = {}
     # Ponte rolante (opcional): calcula a acao e injeta a reacao no portico como

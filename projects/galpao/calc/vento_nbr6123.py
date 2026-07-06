@@ -22,6 +22,19 @@ Transverse frame = wind perpendicular to the ridge (hits the long 20 m walls).
 from __future__ import annotations
 
 
+# Defaults de sitio (do gate). configurar() troca; compute() usa quando o arg e None.
+_CFG = {"v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0, "s3": 0.95,
+        "z": 6.5, "theta": 5.71}
+
+
+def configurar(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None):
+    """Define os parametros de sitio/vento (do Gate 5). Chamar antes de compute()."""
+    for k, v in (("v0", v0), ("cat", cat), ("classe", classe), ("s1", s1),
+                 ("s3", s3), ("z", z), ("theta", theta)):
+        if v is not None:
+            _CFG[k] = v
+
+
 def s2_factor(cat, classe, z):
     """NBR 6123 Tabela 1 (categoria II)."""
     tbl = {
@@ -67,7 +80,14 @@ def cpi_cases():
     return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
 
 
-def compute(v0=40.0, cat="II", classe="B", s1=1.0, s3=0.95, z=6.5, theta=5.71):
+def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None):
+    v0 = _CFG["v0"] if v0 is None else v0
+    cat = _CFG["cat"] if cat is None else cat
+    classe = _CFG["classe"] if classe is None else classe
+    s1 = _CFG["s1"] if s1 is None else s1
+    s3 = _CFG["s3"] if s3 is None else s3
+    z = _CFG["z"] if z is None else z
+    theta = _CFG["theta"] if theta is None else theta
     b, Fr, p, s2 = s2_factor(cat, classe, z)
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0
@@ -129,11 +149,17 @@ def forca_arrasto(q, area_frontal, ca):
     return ca * q * area_frontal
 
 
-def compute_longitudinal(v0=40.0, cat="II", classe="B", s1=1.0, s3=0.95, z=6.5,
+def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=None,
                          b=10.0, eave=6.0, ridge=6.5, ca=1.2):
     """Vento longitudinal (alpha=0). q reaproveitado (independe da direcao).
     b = largura do oitao ; area frontal = retangulo + triangulo da empena.
     ca = coeficiente de arrasto (Figura 4, baixa turbulencia) - A CONFIRMAR."""
+    v0 = _CFG["v0"] if v0 is None else v0
+    cat = _CFG["cat"] if cat is None else cat
+    classe = _CFG["classe"] if classe is None else classe
+    s1 = _CFG["s1"] if s1 is None else s1
+    s3 = _CFG["s3"] if s3 is None else s3
+    z = _CFG["z"] if z is None else z
     b_, Fr, p, s2 = s2_factor(cat, classe, z)
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0

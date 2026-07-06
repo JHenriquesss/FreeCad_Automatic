@@ -1,0 +1,59 @@
+======================================================================
+2a ORDEM - METODO DA AMPLIFICACAO (MAES) - NBR 8800 Anexo D
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+1. METODO
+   Msd = B1*Mnt + B2*Mlt ; Nsd = Nnt + B2*Nlt (D.2,1)
+   B1 = Cm/(1 - Nsd1/Ne) >= 1 ; Cm = 1,0 (ha cargas transversais na barra)
+   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH)) ; Rs = 0,85 (portico de nós rígidos)
+   H (pe-direito) = 6,0 m
+   Decomposicao: nt = beirais travados (contencao ficticia) ;
+                 lt = reacoes das ficticias aplicadas ao contrario.
+   Imperfeicao geometrica: forca nocional = 0,3% da carga gravitacional
+   do andar (4.9.7.1.1), somada no sentido do vento em cada combinacao.
+   Rigidez integral (pequena deslocabilidade - sem reducao).
+
+2. COEFICIENTES POR COMBINACAO (rigidez integral)
+   C1_gravidade: B2 = 1,019  (dh=19,8 mm ; sumN=35,9 kN ; sumH=7,6 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=10,3 ; Mlt=23,7 kN.m  ->  2a ordem Msd=31,7 kN.m ; Nsd=20,4 ; Vsd=10,1
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=10,3 ; Mlt=23,0 kN.m  ->  2a ordem Msd=31,7 kN.m ; Nsd=10,5 ; Vsd=19,3
+   C2_uplift: B2 = 1,025  (dh=31,7 mm ; sumN=48,9 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,014 (Ne=2024 kN ; Nsd1=28,5 kN)
+        1a ordem Mnt=18,8 ; Mlt=35,6 kN.m  ->  2a ordem Msd=45,2 kN.m ; Nsd=28,5 ; Vsd=19,5
+     viga: B1=1,010 (Ne=1962 kN ; Nsd1=18,8 kN)
+        1a ordem Mnt=15,5 ; Mlt=32,2 kN.m  ->  2a ordem Msd=45,1 kN.m ; Nsd=16,7 ; Vsd=26,8
+   C3_vento_Gdesf: B2 = 1,014  (dh=30,5 mm ; sumN=29,4 kN ; sumH=12,6 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=19,1 ; Mlt=30,8 kN.m  ->  2a ordem Msd=37,5 kN.m ; Nsd=18,8 ; Vsd=21,3
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=11,0 ; Mlt=23,9 kN.m  ->  2a ordem Msd=31,8 kN.m ; Nsd=12,1 ; Vsd=17,6
+   C3_vento_Gfav: B2 = 1,005  (dh=28,9 mm ; sumN=10,1 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=21,1 ; Mlt=25,2 kN.m  ->  2a ordem Msd=44,6 kN.m ; Nsd=9,1 ; Vsd=24,7
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,1 ; Mlt=14,8 kN.m  ->  2a ordem Msd=18,5 kN.m ; Nsd=8,4 ; Vsd=8,3
+   C4_ponte_princ: B2 = 1,087  (dh=36,9 mm ; sumN=167,2 kN ; sumH=15,1 kN ; Fnocional=0,71 kN)
+     coluna: B1=1,102 (Ne=2024 kN ; Nsd1=188,0 kN)
+        1a ordem Mnt=41,1 ; Mlt=38,0 kN.m  ->  2a ordem Msd=49,7 kN.m ; Nsd=188,2 ; Vsd=16,6
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,0 ; Mlt=30,7 kN.m  ->  2a ordem Msd=40,4 kN.m ; Nsd=9,0 ; Vsd=19,4
+   C5_vento_ponte: B2 = 1,054  (dh=42,7 mm ; sumN=110,1 kN ; sumH=17,9 kN ; Fnocional=0,53 kN)
+     coluna: B1=1,069 (Ne=2024 kN ; Nsd1=130,5 kN)
+        1a ordem Mnt=24,3 ; Mlt=41,5 kN.m  ->  2a ordem Msd=47,6 kN.m ; Nsd=130,7 ; Vsd=14,0
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,2 ; Mlt=30,5 kN.m  ->  2a ordem Msd=39,4 kN.m ; Nsd=12,6 ; Vsd=18,9
+
+3. DESLOCABILIDADE
+   Classificacao (rigidez integral): B2,max = 1,087  ->  pequena deslocabilidade (2a ordem dispensavel; ver 4.9.7.1.4)
+
+4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
+   COLUNA (governa C4_ponte_princ): Msd=49,7 kN.m ; Nsd=188,2 kN ; Vsd=16,6 kN
+   VIGA (governa C2_uplift): Msd=45,1 kN.m ; Nsd=16,7 kN ; Vsd=26,8 kN
+
+5. OBSERVACOES
+   - Imperfeicao geometrica INCLUIDA (forca nocional 0,3%, 4.9.7.1.1).
+   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.
+   - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima.
