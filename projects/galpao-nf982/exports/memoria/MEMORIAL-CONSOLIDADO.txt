@@ -1,6 +1,6 @@
 ======================================================================
 MEMORIAL CONSOLIDADO - GALPAO 20x10 m
-CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
+framework galpao_fw v0.1.0 - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
 ======================================================================
 
 ######################################################################

@@ -234,8 +234,14 @@ def _consolidar(out_dir, save, g, params):
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. LIGACOES", "gate7-ligacoes.txt")]
+    try:
+        import framework as FW
+        carimbo = FW.carimbo_versao()
+    except Exception:
+        carimbo = "framework galpao_fw"
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
-         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
+         f"{carimbo} - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+         "=" * 70, ""]
     if not params.get("ponte"):
         ordem = [x for x in ordem if x[1] != "gate5-ponte.txt"]
     for tit, f in ordem:
