@@ -6,10 +6,15 @@ travas de ambiente e mostra o que esperar.
 
 ## 0. Pre-voo (ambiente) — 1 minuto
 
-- [ ] **numpy < 2** no venv (`python -c "import numpy;print(numpy.__version__)"` ->
-  1.26.x). Necessario para o `distorcional_fsm` (pycufsm). Se estiver em numpy 2:
-  `pip install "numpy<2"`. Os demais modulos rodam em qualquer numpy.
-- [ ] **pycufsm** importa (`python -c "import pycufsm"`).
+O `install.ps1` ja prepara TUDO: MCP global (uv tool), workbench do FreeCAD, e o
+**venv do toolkit de calculo** em `framework/galpao_fw/.venv` (Python 3.12,
+numpy<2 + pycufsm). Rode `install.bat` (ou `install.ps1`) uma vez por PC. Depois:
+
+- [ ] **Venv do calculo existe:** `framework/galpao_fw/.venv/Scripts/python.exe`.
+  Verifica: esse python roda `import numpy,pycufsm` (numpy 1.26.x). Se faltar,
+  rode `install.ps1` (ou so a parte: `install.ps1 -SkipGlobalTool -SkipFreeCADAddon`).
+  Toda chamada de calculo do framework usa ESSE python (numpy<2 obrigatorio para
+  o `distorcional_fsm`/pycufsm; os demais modulos rodam em qualquer numpy).
 - [ ] **FreeCAD aberto** com a ponte MCP ativa. Teste:
   `python -c "import xmlrpc.client;print(xmlrpc.client.ServerProxy('http://127.0.0.1:9875/',allow_none=True).ping())"`
   -> `{'pong': True, ...}`. Se falhar, reinicie o FreeCAD (a ponte sobe no
@@ -25,12 +30,20 @@ travas de ambiente e mostra o que esperar.
   + `references/calc-modules.md` e conduz o fluxo.
 - Ela roda em **10 gates**, um por vez, "Ask, Do Not Invent" (toda decisao
   critica vira pergunta com recomendacao justificada).
-- **Comece num slug NOVO**: `projects/<slug-novo>/` (nao reaproveite `galpao/`,
-  que fica como referencia validada). Crie a pasta + `AGENT_SCOPE.md`.
-- **Motor de calculo:** use o orquestrador `calc/rodar_galpao.py` (nao chame os
-  modulos avulsos). Monte o dict de params com as respostas dos gates
-  (geometria, base, perfis, cargas) e chame `rodar(params, out_dir)`. A geometria
-  e parametrica via `gp.configurar(...)` / `build_galpao.configurar(...)`.
+- **Comece num slug NOVO, ISOLADO:** `framework.novo_projeto("<slug>")` cria
+  `projects/<slug>/` a partir do template, sem copiar nada de outro projeto (zero
+  contaminacao). Nao reaproveite `galpao/` (referencia validada). O framework mora
+  em `framework/galpao_fw/` (pacote compartilhado); o projeto guarda so os DADOS.
+- **Fluxo do framework (canonico):** `novo_projeto -> spec -> rodar_projeto`.
+  1. `projeto_spec.novo()` cria o spec com tudo `PENDENTE`. Os gates preenchem o
+     spec (uma decisao = um campo). `validar(spec)` TRAVA enquanto faltar algo.
+  2. `rodar_projeto.calcular(spec, out_dir)` -> reset_tudo (estado limpo) ->
+     `exigir_completo` (trava) -> `to_rodar_params` -> `rodar` (Gates 5-11,
+     memoriais PT). Roda com o python do venv de calculo (item 0).
+  3. `rodar_projeto.montar_modelo(spec, out_dir, doc_name)` -> desenha via MCP com
+     `reset()` ANTES de `configurar()` (slate limpo: so desenha o que o spec pede).
+  Nunca modele a partir dos defaults dos modulos (sao so o fixture 20x10); o
+  builder/orquestrador leem SO do spec num run real.
 
 ## 2. Sequencia dos gates (o que cada um pergunta / roda)
 

@@ -3,6 +3,7 @@ param(
     [switch]$Help,
     [switch]$SkipGlobalTool,
     [switch]$SkipFreeCADAddon,
+    [switch]$SkipCalcEnv,
     [string[]]$Clients = @("ClaudeDesktop", "ClaudeCode", "Codex", "OpenCode", "Antigravity"),
     [string]$McpName = "freecad",
     [ValidateSet("xmlrpc", "socket", "embedded")]
@@ -13,6 +14,7 @@ param(
     [int]$TimeoutMs = 30000,
     [string]$PackageVersion = "0.6.3",
     [switch]$InstallUvIfMissing,
+    [string]$CalcPython = "3.12",
     [switch]$ForceConfig
 )
 
@@ -35,6 +37,8 @@ Install only selected clients:
 Options:
   -SkipGlobalTool       Do not run uv tool install.
   -SkipFreeCADAddon     Do not copy the FreeCAD RobustMCPBridge workbench.
+  -SkipCalcEnv          Do not build the calc toolkit venv (numpy<2 + pycufsm).
+  -CalcPython           Python version for the calc venv. Default: 3.12 (numpy 1.26.4 has no 3.13 wheel).
   -Clients              ClaudeDesktop, ClaudeCode, Codex, OpenCode, Antigravity.
   -ForceConfig          Replace an existing client entry named "$McpName".
   -Mode                 xmlrpc, socket, or embedded. Default: xmlrpc.
@@ -254,6 +258,62 @@ function Install-FreeCADWorkbench([string]$RepoRoot) {
     }
 }
 
+function Resolve-Uv {
+    $uv = Get-Command uv -ErrorAction SilentlyContinue
+    if ($uv) {
+        return $uv.Source
+    }
+    $candidate = Join-Path $env:USERPROFILE ".local\bin\uv.exe"
+    if (Test-Path -LiteralPath $candidate) {
+        return $candidate
+    }
+    return $null
+}
+
+function Install-CalcEnv([string]$RepoRoot) {
+    if ($SkipCalcEnv) {
+        Write-Warn "Skipping calc toolkit venv."
+        return
+    }
+
+    $pkg = Join-Path $RepoRoot "framework\galpao_fw"
+    $req = Join-Path $pkg "requirements.txt"
+    if (-not (Test-Path -LiteralPath $req)) {
+        Write-Warn "requirements.txt not found at $req. Skipping calc env."
+        return
+    }
+
+    $uv = Resolve-Uv
+    if (-not $uv) {
+        Write-Warn "uv not found; cannot build calc venv. Re-run with -InstallUvIfMissing or 'pip install -r `"$req`"' manually (needs numpy<2)."
+        return
+    }
+
+    $venv = Join-Path $pkg ".venv"
+    # numpy 1.26.4 ships wheels only up to cp312 -> pin the interpreter so uv does
+    # not try to compile numpy from source (needs a C toolchain, and fails on 3.13).
+    Write-Step "Building calc toolkit venv (Python $CalcPython, numpy<2 + pycufsm) at $venv"
+    if ($PSCmdlet.ShouldProcess($venv, "uv venv + uv pip install -r requirements.txt")) {
+        & $uv venv --python $CalcPython $venv
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv venv failed with exit code $LASTEXITCODE."
+        }
+        $venvPython = Join-Path $venv "Scripts\python.exe"
+        & $uv pip install --python $venvPython -r $req
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv pip install (calc env) failed with exit code $LASTEXITCODE."
+        }
+        # Sanity: numpy<2 must hold for pycufsm.
+        & $venvPython -c "import numpy,pycufsm,sys; v=numpy.__version__; sys.exit(0 if int(v.split('.')[0])<2 else 1)"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Calc venv built but numpy<2 / pycufsm check failed. Verify manually: `"$venvPython`" -c `"import numpy,pycufsm`""
+        }
+        else {
+            Write-Step "Calc venv OK (numpy<2 + pycufsm import)"
+        }
+    }
+}
+
 function Configure-ClaudeDesktop([string]$CommandPath) {
     $path = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"
     $config = Read-JsonOrEmpty $path
@@ -389,6 +449,7 @@ Write-Step "FreeCAD MCP installer starting"
 Install-GlobalTool $serverRoot
 $commandPath = Get-FreecadMcpCommand
 Install-FreeCADWorkbench $repoRoot
+Install-CalcEnv $repoRoot
 
 foreach ($client in $Clients) {
     switch ($client.ToLowerInvariant()) {
@@ -406,3 +467,7 @@ Write-Host "MCP command: $commandPath"
 Write-Host "Next: restart your AI clients, then open FreeCAD."
 Write-Host "The Robust MCP Bridge auto-starts ~3s after FreeCAD launch (ports $XmlRpcPort / $SocketPort)."
 Write-Host "Verify: freecad-mcp --check --mode $Mode --host $HostName --port $XmlRpcPort"
+if (-not $SkipCalcEnv) {
+    Write-Host "Calc toolkit venv: framework\galpao_fw\.venv (numpy<2 + pycufsm)."
+    Write-Host "Run calc with: framework\galpao_fw\.venv\Scripts\python.exe (see skills\build-warehouse\QUICKSTART.md)."
+}

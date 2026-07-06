@@ -30,8 +30,15 @@ a screenshot, and confirms before the next gate. See `references/gates.md` for
 the exact questions, options, and defaults, and
 `references/cbca-galpao-project-sequence.md` for the source sequence.
 
-The skill RUNS structural calculation via the validated parametric toolkit in
-`projects/galpao/calc/` (11 engineer-reviewed modules: wind NBR 6123, 2D frame,
+The skill RUNS structural calculation via the validated parametric toolkit, now a
+shared package at `framework/galpao_fw/` (moved out of the project for portability;
+projects import it by repo-root discovery, no absolute paths). A real run follows
+the thin-framework flow **`novo_projeto -> spec -> rodar_projeto`**: `framework.novo_projeto("<slug>")`
+scaffolds an isolated project; `projeto_spec.novo()` starts the single source of
+truth with every field `PENDENTE`; gates fill the spec; `validar(spec)` BLOCKS until
+complete; `rodar_projeto.calcular`/`montar_modelo` reset global state, then compute
+and model reading ONLY from the spec (module defaults are just the 20x10 fixture).
+The engineer-reviewed modules cover: wind NBR 6123, 2D frame,
 2nd-order MAES NBR 8800, member check Anexos F/G, cold-formed purlin NBR 14762 +
 distortional FSM, base plate + anchors AISC DG1, connections, and a sizing
 driver). At Gates 5-8 it computes loads, analysis, amplified efforts, member
