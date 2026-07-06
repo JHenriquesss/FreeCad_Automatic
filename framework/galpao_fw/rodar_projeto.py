@@ -25,6 +25,9 @@ def calcular(spec, out_dir):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["perfil_col_adotado"] = res["perfil_col"]
         spec["estrutura"]["perfil_raf_adotado"] = res["perfil_raf"]
+    if res.get("base_adotada"):
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["base_adotada"] = res["base_adotada"]
     return res
 
 

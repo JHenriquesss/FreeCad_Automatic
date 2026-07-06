@@ -199,6 +199,82 @@ def relatorio_pt(r, caso):
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
+# Escada de bases (B, L, db, n) - placa e chumbadores. A ESPESSURA nao entra na
+# escada: e DERIVADA de t_req (AISC DG1) arredondada para chapa padrao. Do mais
+# leve ao mais pesado (m, m, m, -).
+ESCADA_BASE = [
+    (0.40, 0.50, 0.020, 4),
+    (0.45, 0.55, 0.020, 4),             # referencia 20x10
+    (0.50, 0.60, 0.025, 4),
+    (0.55, 0.70, 0.025, 6),
+    (0.60, 0.80, 0.032, 6),
+    (0.70, 0.90, 0.032, 6),
+]
+# Chapas de base padrao (mm) - escolhe a >= t_req.
+STD_T = [16.0, 19.0, 22.0, 25.0, 31.5, 38.0, 44.5, 50.0, 63.0, 75.0, 90.0, 100.0]
+
+
+def _std_t(t_m):
+    tmm = t_m * 1000.0
+    for s in STD_T:
+        if s >= tmm - 1e-6:
+            return s / 1000.0
+    return STD_T[-1] / 1000.0
+
+
+def dimensiona_base(caso, escada=None):
+    """Escolhe a base (placa + chumbadores) MAIS LEVE que PASSA sob o esforco real
+    (N,V,M do caso), variando (B,L,db,n); a ESPESSURA e derivada de t_req (chapa
+    padrao >= t_req). Retorna {aprovado:(B,L,t,db,n,r,caso)|None, linhas, tabela}."""
+    escada = escada or ESCADA_BASE
+    seed = (round(caso["B"], 3), round(caso["L"], 3), round(caso["db"], 3),
+            int(caso["n_chumbadores"]))
+    cand = list(escada)
+    if seed not in cand:
+        cand = [seed] + cand
+    linhas, aprovado = [], None
+    for (B, L, db, n) in cand:
+        c = dict(caso)
+        c.update(B=B, L=L, db=db, n_chumbadores=n, n_tracionados=max(1, n // 2),
+                 borda=caso.get("borda", 0.05), d_anchor=L - caso.get("borda", 0.05),
+                 A2=(B + 0.15) * (L + 0.15), t_placa=None)   # t_placa None: OK ignora espessura
+        r = verifica_base(c)
+        t_adot = _std_t(r["t_placa_req"])                    # espessura derivada
+        linhas.append((B, L, t_adot, db, n, r))
+        if r["OK"] and aprovado is None:                     # OK = ancoragem+concreto+Y
+            c["t_placa"] = t_adot
+            aprovado = (B, L, t_adot, db, n, r, c)
+    return {"aprovado": aprovado, "linhas": linhas,
+            "tabela": _tabela_base(linhas, aprovado, caso)}
+
+
+def _tabela_base(linhas, aprovado, caso):
+    L = ["=" * 74, "DIMENSIONAMENTO DA BASE ENGASTADA (placa + chumbadores)",
+         "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
+         f"Esforco: N={caso['N']:+.1f} kN ; V={caso['V']:.1f} kN ; M={caso['M']:.1f} kN.m",
+         "Criterio: interacao chumbador<=1 ; corte<=1 ; concreto<=1 ; Y<=L ;"
+         " t_placa>=t_req (AISC DG1).", "",
+         f"{'BxL (mm)':>12} {'t':>4} {'db':>4} {'n':>2} | {'u.trac':>6} {'u.corte':>7}"
+         f" {'u.conc':>6} {'Y<=L':>5} {'t_req':>6} | resultado", "-" * 74]
+    for (B, Lm, t, db, n, r) in linhas:
+        tag = "PASSA" if r["OK"] else "nao passa"
+        L.append(f"{B*1000:5.0f}x{Lm*1000:<5.0f} {t*1000:4.0f} {db*1000:4.0f} {n:2d} |"
+                 f" {r['u_tracao']:6.2f} {r['u_corte']:7.2f} {r['u_concreto']:6.2f}"
+                 f" {'sim' if r['Y_cabe'] else 'NAO':>5} {r['t_placa_req']*1000:5.0f}mm"
+                 f" | {tag}")
+    L += ["-" * 74, ""]
+    if aprovado:
+        B, Lm, t, db, n = aprovado[:5]
+        L += [f"ADOTADA (mais leve que passa): {B*1000:.0f} x {Lm*1000:.0f} x "
+              f"{t*1000:.0f} mm ; {n} chumbadores d={db*1000:.0f} mm"]
+    else:
+        L += ["NENHUMA base da escada passou - ampliar a escada ou revisar (M muito",
+              "alto: aumentar pilar/base, ou considerar base rotulada + contravento)."]
+    L += ["", "[FLAG] Cone de arrancamento/ancoragem: NBR 6118/ACI (projeto de fundacao)."]
+    import re
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
 def _selftest():
     # 1) Tracao pura por chumbador: Ft,Rd = Abe*fub/1,35
     Abe, Ab = _area_efetiva(0.020)

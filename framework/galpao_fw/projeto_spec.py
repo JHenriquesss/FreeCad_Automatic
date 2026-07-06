@@ -165,6 +165,9 @@ def to_build_kwargs(spec):
         "terreno_pts": spec["terreno"].get("pts_xy_mm"),
         "perfil_col": _sec(col_nome), "perfil_raf": _sec(raf_nome),
         "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,
+        "base": ({"B": ba["B"] * 1000, "L": ba["L"] * 1000, "t": ba["t"] * 1000,
+                  "db": ba["db"] * 1000, "n": ba["n"]}
+                 if (ba := est.get("base_adotada")) else None),
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),

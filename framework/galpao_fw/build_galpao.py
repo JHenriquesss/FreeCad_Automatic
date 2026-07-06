@@ -39,7 +39,7 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
                fechamento=None, ponte_modelo=None,
                perfil_col=None, perfil_raf=None,
-               perfil_col_nome=None, perfil_raf_nome=None):
+               perfil_col_nome=None, perfil_raf_nome=None, base=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -47,7 +47,8 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     ADOTADO); default = referencia."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
-    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME
+    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
+    if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if perfil_col is not None: COL_SEC = tuple(float(v) for v in perfil_col)
     if perfil_raf is not None: RAF_SEC = tuple(float(v) for v in perfil_raf)
     if perfil_col_nome is not None: COL_NOME = str(perfil_col_nome)
@@ -80,6 +81,9 @@ HEA160 = (152.0, 160.0, 6.0, 9.0)
 COL_SEC = HEA200
 RAF_SEC = HEA180
 COL_NOME, RAF_NOME = "HEA200", "HEA180"
+# Base ENGASTADA parametrica (mm): placa B x L x t + n chumbadores d=db. Default =
+# referencia 20x10; sobrescrita pelo dimensionamento (base_adotada) no run real.
+BASE_PLATE = {"B": 450.0, "L": 550.0, "t": 40.0, "db": 20.0, "n": 4}
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -409,37 +413,41 @@ def build(doc):
         i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_E")
         i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_D")
 
-    # Base ENGASTADA: placa 450 (X) x 550 (Y=dir. do momento) x 40; 4 chumbadores
-    # d20 A307 gancho-L (straddle em Y p/ o braco do engaste); arruela + PORCA
-    # superior; PORCA DE NIVEL sob a placa (nivelamento antes do graute); e
-    # NERVURAS (gussets) da placa no plano do momento. Ptop=topo da placa=Z0.
-    ptop = Z0                                   # topo da placa (= base da coluna)
-    pbot = Z0 - 40.0                            # face inferior da placa
+    # Base ENGASTADA PARAMETRICA (dims do dimensionamento -> BASE_PLATE): placa
+    # B x L x t + n chumbadores d=db gancho-L (straddle em Y = direcao do momento)
+    # + arruela + PORCA superior + PORCA DE NIVEL sob a placa + NERVURAS (gussets)
+    # no plano do momento. Ptop = topo da placa = Z0.
+    Bp, Lp, tp = BASE_PLATE["B"], BASE_PLATE["L"], BASE_PLATE["t"]
+    dbp, npc = BASE_PLATE["db"], int(BASE_PLATE["n"])
+    ptop = Z0
+    pbot = Z0 - tp
+    edge = 60.0
+    gx, gy = Bp / 2.0 - edge, Lp / 2.0 - edge
+    ys = [-gy, 0.0, gy] if npc >= 6 else [-gy, gy]      # straddle em Y (+ meia p/ n=6)
+    ancoras = [(dx, dy) for dx in (-gx, gx) for dy in ys]
+    wsz = 2.0 * dbp + 40.0                              # arruela
+    pod = 1.7 * dbp + 8.0                               # diametro da porca
     for i, x in enumerate(axes, start=1):
         for yw, lado in ((0, "E"), (SPAN, "D")):
-            plate(doc, (x, yw, Z0 - 20), 450, 550, 40, f"PLACA_BASE_{lado}_{i:02d}")
-            for ddx in (-70, 70):
-                for ddy in (-225, 225):
-                    sfx = f"{'a' if ddx < 0 else 'b'}{'1' if ddy < 0 else '2'}"
-                    ax, ay = x + ddx, yw + ddy
-                    rod(doc, (ax, ay, -300), (ax, ay, ptop + 55.0),
-                        20, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
-                    rod(doc, (ax, ay, -300), (ax, ay - 60, -300),
-                        20, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
-                    plate(doc, (ax, ay, ptop + 6.0), 80, 80, 12,
-                          f"ARRUELA_{lado}_{i:02d}_{sfx}")
-                    # porca superior (sobre a arruela) e porca de nivel (sob a placa)
-                    rod(doc, (ax, ay, ptop + 12.0), (ax, ay, ptop + 30.0), 42,
-                        f"PORCA_{lado}_{i:02d}_{sfx}")
-                    rod(doc, (ax, ay, pbot - 28.0), (ax, ay, pbot), 42,
-                        f"PORCA_NIVEL_{lado}_{i:02d}_{sfx}")
-            # Nervuras (2): gussets triangulares no plano do momento (Y-Z), soldados
-            # a coluna e a placa, alcancando os chumbadores.
+            plate(doc, (x, yw, Z0 - tp / 2.0), Bp, Lp, tp, f"PLACA_BASE_{lado}_{i:02d}")
+            for k, (dx, dy) in enumerate(ancoras, start=1):
+                ax, ay, sfx = x + dx, yw + dy, f"{k:02d}"
+                rod(doc, (ax, ay, -300), (ax, ay, ptop + 55.0),
+                    dbp, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
+                rod(doc, (ax, ay, -300), (ax, ay - 60, -300),
+                    dbp, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
+                plate(doc, (ax, ay, ptop + 6.0), wsz, wsz, 12,
+                      f"ARRUELA_{lado}_{i:02d}_{sfx}")
+                rod(doc, (ax, ay, ptop + 12.0), (ax, ay, ptop + 30.0), pod,
+                    f"PORCA_{lado}_{i:02d}_{sfx}")
+                rod(doc, (ax, ay, pbot - 28.0), (ax, ay, pbot), pod,
+                    f"PORCA_NIVEL_{lado}_{i:02d}_{sfx}")
+            # Nervuras (2): gussets no plano do momento, soldados a coluna e a placa.
             for sgn, nm in ((1.0, "P"), (-1.0, "N")):
                 ftip = COL_SEC[1] / 2.0                         # ponta da mesa do pilar
                 V1 = App.Vector(x, yw + sgn * ftip, ptop)
-                V2 = App.Vector(x, yw + sgn * (ftip + 140.0), ptop)  # sobre a placa (ao chumbador)
-                V3 = App.Vector(x, yw + sgn * ftip, ptop + 300.0)    # sobe na coluna
+                V2 = App.Vector(x, yw + sgn * min(ftip + 140.0, gy + edge), ptop)
+                V3 = App.Vector(x, yw + sgn * ftip, ptop + 300.0)
                 g = Part.Face(Part.makePolygon([V1, V2, V3, V1])).extrude(
                     App.Vector(12.0, 0, 0))
                 g.translate(App.Vector(-6.0, 0, 0))
@@ -643,7 +651,8 @@ def build(doc):
     # O condutor DESCE a partir dessa boca (nao do centro/beiral); um bocal curto
     # de maior diametro envolve a juncao calha->tubo (conexao real, nao topo solto).
     GUT_Y = 340.0
-    DOWN_Y = 340.0    # sob a calha; livra a placa de base engastada (550 mm em Y)
+    # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
+    DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
     for y, lado, rl in ((-GUT_Y, "E", 90), (SPAN + GUT_Y, "D", -90)):
         u_member(doc, (0, y, EAVE_H), (LENGTH, y, EAVE_H), CALHA_SEC, f"CALHA_{lado}", roll=rl)
@@ -1033,9 +1042,9 @@ def _classifica(n):
     if n.startswith("CONTRAV"):
         return "Contraventamento", "barra-20"
     if n.startswith("CHUMBADOR"):
-        return "Chumbadores", "barra-20"
+        return "Chumbadores", "barra-%.0f" % BASE_PLATE["db"]
     if n.startswith("PLACA_BASE"):
-        return "Placas de base", "chapa-40"
+        return "Placas de base", "chapa-%.0f" % BASE_PLATE["t"]
     if n.startswith("ARRUELA"):
         return "Arruelas", "chapa-10"
     if n.startswith("PORCA_NIVEL"):
@@ -1149,13 +1158,14 @@ def reset():
     """Zera o estado mutavel do builder para o default (evita vazamento entre
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
-    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME
+    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     MF_STRIDE = 2
     N_TIRANTE_PAREDE = 2
     TERRENO_PTS = None
     PONTE_MODELO = None
     COL_SEC, RAF_SEC = HEA200, HEA180
     COL_NOME, RAF_NOME = "HEA200", "HEA180"
+    BASE_PLATE = {"B": 450.0, "L": 550.0, "t": 40.0, "db": 20.0, "n": 4}
     FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
     ABERTURAS = {"portao_frente": None, "portao_fundo": None, "porta_frente": None,
                  "porta_fundo": None, "janelas_laterais": None, "porta_lateral": None}

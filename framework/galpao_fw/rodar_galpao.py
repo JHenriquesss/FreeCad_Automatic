@@ -230,7 +230,20 @@ def rodar(params, out_dir):
     b = dict(params["base"])
     b.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
              nome=f"Base engastada - {bnm} (M={abs(bM):.1f})")
-    save("gate7-base.txt", bc.relatorio_pt(bc.verifica_base(b), b))
+    if res.get("perfil_col") in perfis.PERFIS:      # base ve o pilar ADOTADO
+        pc = perfis.PERFIS[res["perfil_col"]]
+        b["d_col"] = pc["d"]; b["bf_col"] = pc["bf"]; b["beff_tracao"] = pc["bf"]
+    dimb = bc.dimensiona_base(b)                     # dimensiona ao esforco real
+    save("gate7-base.txt", dimb["tabela"])
+    if dimb["aprovado"]:
+        B, Lm, tb, db, nb, rb, cb = dimb["aprovado"]
+        save("gate7-base-detalhe.txt", bc.relatorio_pt(rb, cb))
+        res["base_adotada"] = {"B": B, "L": Lm, "t": tb, "db": db, "n": nb}
+        res["base_ok"] = True
+    else:
+        res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
+                               "db": b["db"], "n": b["n_chumbadores"]}
+        res["base_ok"] = False
     dr = sc["d_raf"]; tf = sc["tf_raf"]
     Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
     knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
