@@ -340,7 +340,35 @@ def _detalhe_base(msp, d, ox, oy):
             txt=f"{tp:.0f}".replace(".", ","), off=-250)
     _txt(msp, f"CORTE - chapa {tp:.0f} mm ; {n} chumb. d{db:.0f}",
          Q(-Lp / 2, -800), h=160)
-    _txt(msp, "DETALHE DA BASE", P(-Bp / 2, -Lp / 2 - 1400), h=200)
+    # ---- SAPATA (fundacao) sob a base: bloco + pedestal + nota de armadura ----
+    sap = d.get("sapata")
+    if sap:
+        sL, sh = sap["L"], sap["h"]
+        pd = max(dc + 200.0, 300.0)                 # pedestal (dim // L)
+        zt = -350.0                                 # topo da sapata (abaixo dos ganchos)
+        zb = zt - sh
+        _poly(msp, [Q(-sL / 2, zt), Q(sL / 2, zt), Q(sL / 2, zb), Q(-sL / 2, zb)],
+              layer="BASE")                         # bloco da sapata (corte)
+        _poly(msp, [Q(-pd / 2, tp), Q(pd / 2, tp), Q(pd / 2, zt), Q(-pd / 2, zt)],
+              layer="BASE")                         # pedestal
+        # armadura de flexao (malha inferior) - representacao
+        x0, x1 = -sL / 2 + 60, sL / 2 - 60
+        for i in range(7):
+            xx = x0 + (x1 - x0) * i / 6.0
+            _circ(msp, Q(xx, zb + 60), 12.0, layer="FURACAO")
+        _line(msp, Q(-sL / 2 + 60, zb + 60), Q(sL / 2 - 60, zb + 60), "FURACAO")
+        _cota_v(msp, oy2 + zb, oy2 + zt, ox - sL / 2 - 200,
+                txt=f"{sh:.0f}".replace(".", ","), off=-250)
+        _cota_h(msp, ox - sL / 2, ox + sL / 2, oy2 + zb, off=-450)
+        _txt(msp, f"SAPATA {sap['B']/1000:.2f}x{sap['L']/1000:.2f}x{sh/1000:.2f} m"
+                  f" ({'RIGIDA' if sap['rigida'] else 'FLEXIVEL'})".replace(".", ","),
+             Q(-sL / 2, zb - 350), h=160)
+        _txt(msp, f"Arm. flexao: As_L={sap['As_L']:.1f} ; As_B={sap['As_B']:.1f} cm2"
+                  " (NBR 6118 - PENDENTE detalhamento)".replace(".", ","),
+             Q(-sL / 2, zb - 620), h=140)
+        _txt(msp, "DETALHE DA BASE + SAPATA", Q(-sL / 2, zb - 900), h=200)
+    else:
+        _txt(msp, "DETALHE DA BASE", P(-Bp / 2, -Lp / 2 - 1400), h=200)
 
 
 # ---- TABELAS (quadros) -----------------------------------------------------
@@ -466,6 +494,10 @@ def design_de_spec(spec):
         "base": {"B": ba["B"] * 1000.0, "L": ba["L"] * 1000.0,
                  "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0, "n": ba["n"]},
         "joelho": est.get("joelho_adotado"),
+        "sapata": ({"B": sp["B"] * 1000.0, "L": sp["L"] * 1000.0, "h": sp["h"] * 1000.0,
+                    "As_L": sp.get("As_L", 0.0) * 1e4, "As_B": sp.get("As_B", 0.0) * 1e4,
+                    "rigida": sp.get("rigida", True)}
+                   if (sp := est.get("sapata_adotada")) else None),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
     }

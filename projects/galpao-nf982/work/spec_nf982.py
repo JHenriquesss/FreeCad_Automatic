@@ -45,9 +45,12 @@ def build_spec():
                   "siderurgica": False, "excentricidade": 0.30, "Hvr": 4.5}
     # --- cargas ---
     s["cargas"].update(G=0.27, Q=0.25, self=0.35, tapamento=0.10)
+    # --- fundacao (sapata) ---  sigma_solo_adm da sondagem (A CONFIRMAR)
+    s["fundacao"]["sigma_solo_adm"] = 200.0        # kN/m2 (= 0,20 MPa)
     # provisorios (confirmar depois)
     PS.marcar_a_confirmar(s, "vento.v0", "terreno.to_max", "terreno.ca_max",
-                          "terreno.tp_min", "ponte", "vento.abertura_dominante")
+                          "terreno.tp_min", "ponte", "vento.abertura_dominante",
+                          "fundacao.sigma_solo_adm")
     return s
 
 

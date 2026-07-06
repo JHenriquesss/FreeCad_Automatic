@@ -44,6 +44,7 @@ REQUERIDOS = [
     ("ponte", "ponte rolante (dict ou None)"),
     ("cargas.G", "carga permanente de cobertura"),
     ("cargas.Q", "sobrecarga"),
+    ("fundacao.sigma_solo_adm", "tensao admissivel do solo (sondagem/geotecnia)"),
 ]
 
 
@@ -64,6 +65,11 @@ def novo():
                   "abertura_dominante": P},
         "ponte": P,         # None (sem ponte) ou dict de dados
         "cargas": {"G": P, "Q": P, "self": P, "tapamento": P},
+        # Fundacao (sapata NBR 6118). sigma_solo_adm (kN/m2) BLOQUEIA - vem da
+        # sondagem, nao se inventa. Demais parametros tem default (A CONFIRMAR).
+        "fundacao": {"sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
+                     "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
+                     "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4},
         "_a_confirmar": [],  # paths com valor provisorio (confirmar depois)
     }
 
@@ -134,6 +140,10 @@ def to_rodar_params(spec):
     v = spec["vento"]
     p["vento"] = {"v0": v["v0"], "cat": v["cat"], "classe": v.get("classe", "B"),
                   "s1": v.get("s1", 1.0), "s3": v["s3"], "z": v.get("z", ridge)}
+    fu = spec.get("fundacao")           # sapata: sobrescreve os defaults do solo
+    if fu:
+        p.setdefault("fundacao", {}).update({k: v for k, v in fu.items()
+                                             if v not in (None, PENDENTE)})
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
     if spec["ponte"]:
         import ponte_rolante as pr
@@ -215,6 +225,7 @@ def _selftest():
     marcar_a_confirmar(s, "vento.v0", "terreno.to_max")
     s["ponte"] = None
     s["cargas"].update(G=0.27, Q=0.25, self=0.35, tapamento=0.10)
+    s["fundacao"]["sigma_solo_adm"] = 200.0        # kN/m2 (sondagem)
     r = validar(s)
     print(resumo_pt(s))
     assert r["ok"], r["faltando"]

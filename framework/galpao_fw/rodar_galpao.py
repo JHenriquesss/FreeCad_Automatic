@@ -23,6 +23,7 @@ import perfis
 import redimensionamento as redim
 import tercas_iteracao as ti
 import base_chumbador as bc
+import fundacao_sapata as fs
 import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
@@ -266,6 +267,28 @@ def rodar(params, out_dir):
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
         res["base_ok"] = False
+    # Gate 7 - SAPATA (NBR 6118): mesma reacao de base (N,V,M). Pedestal ~ pilar.
+    sap = dict(params["fundacao"])
+    sap.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
+               nome=f"Sapata isolada - {bnm} (M={abs(bM):.1f})")
+    if res.get("perfil_col") in perfis.PERFIS:      # pedestal ~ dim do pilar adotado
+        pc = perfis.PERFIS[res["perfil_col"]]
+        sap["b_ped"] = max(sap.get("b_ped", 0.30), round(pc["bf"] + 0.10, 2))
+        sap["d_ped"] = max(sap.get("d_ped", 0.30), round(pc["d"] + 0.10, 2))
+    dims = fs.dimensiona_sapata(sap)
+    save("gate7-fundacao.txt", dims["tabela"])
+    if dims["aprovado"]:
+        sB, sL, sh, sr, _ = dims["aprovado"]
+        rB = dims["parte_B"]
+        res["sapata_adotada"] = {"B": sB, "L": sL, "h": sh,
+                                 "As_L": rB["flexao_L"]["As_adot"],
+                                 "As_B": rB["flexao_B"]["As_adot"], "rigida": rB["rigida"]}
+        res["sapata_util"] = round(max(sr["u_solo"], rB["compr_diag"]["u_cd"],
+                                       1.0 / sr["fs_tomb"], 1.0 / sr["fs_desl"]), 2)
+        res["sapata_ok"] = sr["OK_A"] and rB["OK_B"]
+    else:
+        res["sapata_adotada"] = None
+        res["sapata_ok"] = False
     dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]   # viga ADOTADA
     Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
     knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
@@ -298,7 +321,8 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
-             ("10. BASE", "gate7-base.txt"), ("11. LIGACOES", "gate7-ligacoes.txt")]
+             ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
+             ("12. LIGACOES", "gate7-ligacoes.txt")]
     try:
         import framework as FW
         carimbo = FW.carimbo_versao()
@@ -311,6 +335,7 @@ def _consolidar(out_dir, save, g, params, res=None):
     if res is not None:
         checks = [("Coluna", res.get("interacao_col")), ("Viga", res.get("interacao_raf")),
                   ("Flecha portico", res.get("flecha_util")), ("Base", res.get("base_util")),
+                  ("Sapata (fundacao)", res.get("sapata_util")),
                   ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
@@ -371,6 +396,12 @@ PARAMS_REF = {
              "n_tracionados": 2, "db": 0.020, "fub": 400e3, "d_col": 0.190,
              "bf_col": 0.200, "beff_tracao": 0.200, "d_anchor": 0.50, "borda": 0.05,
              "fy_placa": 250e3, "t_placa": 0.040, "rosca_no_plano": True},
+    # Sapata isolada (NBR 6118). sigma_solo_adm e parametros do solo = INPUT da
+    # sondagem/geotecnia (A CONFIRMAR); pedestal ~ dim do pilar.
+    "fundacao": {"sigma_solo_adm": 200.0, "mu": 0.5, "coesao": 0.0,
+                 "h_reaterro": 0.5, "d_ped": 0.30, "b_ped": 0.30, "h_ped": 0.50,
+                 "fck": 25e3, "fyk": 500e3, "cobrimento": 0.05, "phi_barra": 0.0125,
+                 "gamma_f": 1.4},
     "joelho": {"tipo": "parafusos", "n": 4, "db": 0.024, "fub": 825e3,
                "t_chapa": 0.0125, "fu_chapa": 400e3, "lf": 0.040, "rosca_no_plano": True},
     "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",

@@ -1,3 +1,5 @@
+ADOTADO: longarina UPE100 c/ 2 linhas de tirante ; escora HEA160 ; montante HEA160
+
 ====================================================================
 LONGARINA DE PAREDE (perfil U) - UPE100
 NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
@@ -13,7 +15,6 @@ NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
   parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
   secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
 ====================================================================
-
 VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
@@ -26,12 +27,11 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   Cortante: Vrd=124,4 kN (alma compacta: True)
   Utilizacao: N/Nc=0,08 ; M/Mrd=0,03 ; V/Vrd=0,01
   Interacao (N/(2Nrd) + M/Mrd) = 0,07  -> OK
-
 VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
 
-  --- Montante de oitao (HEA160) ---
+  --- Montante de oitao (HEA) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
   Compressao: Ne=824 kN ; lambda0=1,084 ; chi=0,611 ; Nc,Rd=538,6 kN
   Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08

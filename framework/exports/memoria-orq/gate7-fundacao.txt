@@ -1,0 +1,42 @@
+==============================================================================
+DIMENSIONAMENTO DA SAPATA ISOLADA - PARTE A (GEOTECNIA/ESTABILIDADE)
+CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
+==============================================================================
+
+Reacao de base: N=+1,3 kN ; V=33,1 kN ; M=60,1 kN.m
+sigma_solo,adm = 200 kN/m2 (= 0,20 MPa)  [INPUT sondagem - A CONFIRMAR]
+mu(solo-concreto) = 0,50 ; FS_tomb>=1,5 ; FS_desl>=1,5
+
+       BxLxh (m) |  sig_max u_solo | FS_tomb FS_desl contato | resultado
+------------------------------------------------------------------------------
+1,20x1,20x0,35 |      ---    inf |    0,18    0,41      0% | nao passa
+1,50x1,50x0,40 |      ---    inf |    0,37    0,67      0% | nao passa
+1,50x2,00x0,45 |      772   3,86 |    0,68    0,94      5% | nao passa
+2,00x2,00x0,50 |       93   0,47 |    0,94    1,32     47% | nao passa
+2,00x2,50x0,55 |       53   0,26 |    1,52    1,74     87% | PASSA
+2,50x2,50x0,60 |       47   0,24 |    1,96    2,29    100% | PASSA
+2,50x3,00x0,65 |       41   0,21 |    2,92    2,88    100% | PASSA
+3,00x3,00x0,70 |       40   0,20 |    3,61    3,62    100% | PASSA
+------------------------------------------------------------------------------
+
+ADOTADA (menor que passa): 2,00 x 2,50 x 0,75 m
+  sigma_max=57 kN/m2 <= 200 (u=0,28) ; FS_tomb=1,73 ; FS_desl=2,12
+  peso proprio+reaterro=139,1 kN ; regime solo: borda (levantamento parcial)
+
+------------------------------------------------------------------------------
+PARTE B - CONCRETO ARMADO (NBR 6118:2014):
+
+SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
+  Geometria: 2,00 x 2,50 x 0,75 m ; d(util)=68,8 cm ; pilar 30x30 cm
+  RIGIDEZ (22.6.1): h>= (a-ap)/3 -> dir.L OK ; dir.B OK -> RIGIDA (sem puncao)
+  fck=25 MPa ; fyk=500 MPa ; cobrimento=5 cm ; gamma_f=1,4
+  Pressao de calculo (flexao) sigma_d=0 kN/m2
+  Flexao dir.L (barras // L): balanco=110 cm ; M_d=0,4 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=22,5 -> As,adot=22,5 cm2
+  Flexao dir.B (barras // B): balanco=85 cm ; M_d=0,3 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=28,1 -> As,adot=28,1 cm2
+  Compressao diagonal (19.5.3.1): tau_Sd=546 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,13 OK
+  -> PARTE B OK
+  [FLAG] As,min=0,15% (17.3.5.2) - confirmar p/ fck adotado.
+  [FLAG] Ancoragem da armadura de arranque (22.6.4.1.2) e detalhamento
+         (gancho de face a face, 22.6.4.1.1): projeto executivo.
+
+[FLAG] sigma_solo,adm e parametros do solo: relatorio de sondagem (geotecnia).
