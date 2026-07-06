@@ -19,7 +19,13 @@ def calcular(spec, out_dir):
     FW.reset_tudo()
     PS.exigir_completo(spec)
     params = PS.to_rodar_params(spec)
-    return R.rodar(params, str(out_dir))
+    res = R.rodar(params, str(out_dir))
+    # grava o perfil ADOTADO no spec -> o modelo desenha o que o calculo dimensionou
+    if res.get("perfil_col"):
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["perfil_col_adotado"] = res["perfil_col"]
+        spec["estrutura"]["perfil_raf_adotado"] = res["perfil_raf"]
+    return res
 
 
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,

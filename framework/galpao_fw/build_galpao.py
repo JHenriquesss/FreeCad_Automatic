@@ -37,13 +37,21 @@ DOC_NAME = "galpao_20x10"
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
-               fechamento=None, ponte_modelo=None):
+               fechamento=None, ponte_modelo=None,
+               perfil_col=None, perfil_raf=None,
+               perfil_col_nome=None, perfil_raf_nome=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
-    mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
+    mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
+    perfil_col/perfil_raf (h,b,tw,tf em mm) vem do redimensionamento (perfil
+    ADOTADO); default = referencia."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
-    global PONTE_MODELO
+    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME
+    if perfil_col is not None: COL_SEC = tuple(float(v) for v in perfil_col)
+    if perfil_raf is not None: RAF_SEC = tuple(float(v) for v in perfil_raf)
+    if perfil_col_nome is not None: COL_NOME = str(perfil_col_nome)
+    if perfil_raf_nome is not None: RAF_NOME = str(perfil_raf_nome)
     if aberturas is not None: ABERTURAS = dict(ABERTURAS, **aberturas)
     if terreno_pts is not None: TERRENO_PTS = terreno_pts
     if fechamento is not None: FECHAMENTO = dict(FECHAMENTO, **fechamento)
@@ -66,6 +74,12 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
 HEA200 = (190.0, 200.0, 6.5, 10.0)
 HEA180 = (171.0, 180.0, 6.0, 9.5)
 HEA160 = (152.0, 160.0, 6.0, 9.0)
+# Secoes ATIVAS de coluna/viga (parametrizaveis pelo perfil ADOTADO no
+# redimensionamento). Default = referencia 20x10. Todas as cotas de conexao
+# (joelho, base, terca) leem COL_SEC/RAF_SEC, nao os literais.
+COL_SEC = HEA200
+RAF_SEC = HEA180
+COL_NOME, RAF_NOME = "HEA200", "HEA180"
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -342,7 +356,7 @@ def joelho(doc, node, rdir, tag):
     sgn = 1.0 if rdir[1] > 0 else -1.0
     hlen = 800.0                        # alcance da misula ao longo da viga
     hdep = 450.0                        # profundidade da misula abaixo da viga (no beiral)
-    hhalf = HEA180[0] / 2.0             # meia-altura da viga (face inferior = +hhalf*v)
+    hhalf = RAF_SEC[0] / 2.0            # meia-altura da viga (face inferior = +hhalf*v)
 
     def _p(base, s, vec):
         return (base[0] + s * vec[0], base[1] + s * vec[1], base[2] + s * vec[2])
@@ -390,10 +404,10 @@ def build(doc):
     # Porticos principais: colunas + vigas (perfil I)
     for i, x in enumerate(axes, start=1):
         t = f"PORTICO_{i:02d}"
-        i_member(doc, (x, 0, Z0), (x, 0, EAVE_H), HEA200, f"{t}_COLUNA_E")
-        i_member(doc, (x, SPAN, Z0), (x, SPAN, EAVE_H), HEA200, f"{t}_COLUNA_D")
-        i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_E")
-        i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_D")
+        i_member(doc, (x, 0, Z0), (x, 0, EAVE_H), COL_SEC, f"{t}_COLUNA_E")
+        i_member(doc, (x, SPAN, Z0), (x, SPAN, EAVE_H), COL_SEC, f"{t}_COLUNA_D")
+        i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_E")
+        i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_D")
 
     # Base ENGASTADA: placa 450 (X) x 550 (Y=dir. do momento) x 40; 4 chumbadores
     # d20 A307 gancho-L (straddle em Y p/ o braco do engaste); arruela + PORCA
@@ -455,7 +469,7 @@ def build(doc):
     # Offset inicial aproximado (meia-altura projetada da viga inclinada + meia-
     # terca); o assentamento MEDIDO corrige o residual contra a mesa inclinada.
     _theta = math.atan(SLOPE)
-    _rise = (HEA180[0] / 2.0) * math.cos(_theta) + (HEA180[1] / 2.0) * math.sin(_theta)
+    _rise = (RAF_SEC[0] / 2.0) * math.cos(_theta) + (RAF_SEC[1] / 2.0) * math.sin(_theta)
     POFF = _rise + UE_TERCA[0] / 2.0
     vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
     n_terca = 3
@@ -492,7 +506,7 @@ def build(doc):
     # Longarina (girt) assenta CONTRA a face externa da mesa do pilar (nao penetra):
     # GOFF = meia-largura do pilar + meia-altura da girt -> face interna da girt no
     # plano da mesa. Clipe (cantoneira) em cada pilar. Verificado por verifica_conexoes.
-    GOFF = HEA200[1] / 2.0 + UPE100[0] / 2.0        # 150: girt contra a mesa do pilar
+    GOFF = COL_SEC[1] / 2.0 + UPE100[0] / 2.0       # girt contra a mesa do pilar
     GIRT_Z = (2000.0, 4000.0)
     DOOR_X = ABERTURAS.get("porta_lateral")         # None se nao ha porta lateral
     for lvl, z in enumerate(GIRT_Z, start=1):
@@ -997,9 +1011,9 @@ DENSIDADE_ACO = 7.85e-6   # kg/mm^3
 
 def _classifica(n):
     if "_COLUNA_" in n:
-        return "Colunas", "HEA200"
+        return "Colunas", COL_NOME
     if "_VIGA_" in n:
-        return "Vigas", "HEA180"
+        return "Vigas", RAF_NOME
     if "ESCORA_BEIRAL" in n or "_CUMEEIRA" in n:
         return "Escoras de beiral / cumeeira", "HEA160"
     if n.startswith("MONTANTE_OITAO"):
@@ -1133,11 +1147,13 @@ def reset():
     """Zera o estado mutavel do builder para o default (evita vazamento entre
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
-    global PONTE_MODELO
+    global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME
     MF_STRIDE = 2
     N_TIRANTE_PAREDE = 2
     TERRENO_PTS = None
     PONTE_MODELO = None
+    COL_SEC, RAF_SEC = HEA200, HEA180
+    COL_NOME, RAF_NOME = "HEA200", "HEA180"
     FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
     ABERTURAS = {"portao_frente": None, "portao_fundo": None, "porta_frente": None,
                  "porta_fundo": None, "janelas_laterais": None, "porta_lateral": None}

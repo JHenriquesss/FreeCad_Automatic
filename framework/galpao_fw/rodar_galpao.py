@@ -19,6 +19,8 @@ import vento_nbr6123 as vento
 import galpao_portico as gp
 import estabilidade_b1b2 as est
 import check_nbr8800 as chk
+import perfis
+import redimensionamento as redim
 import tercas_iteracao as ti
 import base_chumbador as bc
 import ligacoes as lg
@@ -125,6 +127,24 @@ def rodar(params, out_dir):
     save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
     a = est.analyse()
     save("gate6-2a-ordem.txt", est.memoria_pt(a))
+    # Gate 7 - REDIMENSIONAMENTO: adota o par (coluna, viga) MAIS LEVE que passa
+    # (interacao<=1 + flecha<=H/150), partindo do seed HEA200/HEA180. Recomputa os
+    # esforcos com o perfil adotado -> tudo a jusante (mao-francesa, check, modelo)
+    # usa o perfil que ATENDE. Referencia 20x10 ja passa no seed -> inalterada.
+    adoc = redim.melhor(fixed=params.get("base_fixed", True),
+                        lb_col=params["Lb"]["col"], lb_raf=params["Lb"]["raf"],
+                        seed=("HEA200", "HEA180"))
+    save("gate7-redimensionamento.txt", adoc["tabela"])
+    if adoc["aprovado"]:
+        ap = adoc["aprovado"]
+        sc["perfil_col"] = perfis.PERFIS[ap["col"]]
+        sc["perfil_raf"] = perfis.PERFIS[ap["raf"]]
+        a = est.analyse()                       # esforcos com o perfil adotado
+        res["perfil_col"], res["perfil_raf"] = ap["col"], ap["raf"]
+        res["atende"] = True
+    else:
+        res["perfil_col"], res["perfil_raf"] = "HEA200", "HEA180"
+        res["atende"] = False
     # Gate 7 - mao-francesa: define o Lb da viga (contencao da mesa inferior)
     # pela inversao da interacao. Combo governante = maior |Msd| na viga.
     slope = (g["ridge"] - g["eave"]) / (g["span"] / 2.0)

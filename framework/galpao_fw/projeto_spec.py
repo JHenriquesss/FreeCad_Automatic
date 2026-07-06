@@ -148,12 +148,23 @@ def to_build_kwargs(spec):
     aberturas + fechamento + terreno). NADA vem de default hardcoded."""
     exigir_completo(spec)
     g = spec["geometria"]
+    # perfil ADOTADO (redimensionamento) -> secao do modelo (h,b,tw,tf em mm).
+    import perfis
+    est = spec.get("estrutura", {})
+
+    def _sec(nome):
+        p = perfis.PERFIS.get(nome) if nome else None
+        return (p["d"] * 1000, p["bf"] * 1000, p["tw"] * 1000, p["tf"] * 1000) if p else None
+    col_nome = est.get("perfil_col_adotado")
+    raf_nome = est.get("perfil_raf_adotado")
     return {
         "length": g["comprimento"] * 1000.0, "span": g["span"] * 1000.0,
         "eave_h": g["eave"] * 1000.0, "slope": spec["cobertura"]["slope"],
         "bay": g["bay"] * 1000.0,
         "aberturas": spec["aberturas"], "fechamento": spec["fechamento"],
         "terreno_pts": spec["terreno"].get("pts_xy_mm"),
+        "perfil_col": _sec(col_nome), "perfil_raf": _sec(raf_nome),
+        "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),

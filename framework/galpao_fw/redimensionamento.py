@@ -55,12 +55,13 @@ def _peso_rel(col, raf):
     return perfis.PERFIS[col]["A"] + perfis.PERFIS[raf]["A"]
 
 
-def avalia(col, raf, fixed=True):
+def avalia(col, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
     _aplica(col, raf, fixed)
     a = est.analyse()                       # esforcos amplificados (2a ordem)
     drift = gp.analyse()["drift"]           # flecha lateral (ELS, base atual)
+    lim_flecha = gp.EAVE / 150.0            # H/150 com o pe-direito atual
     inter = {}
-    for g, prof, Lb in (("coluna", col, LB_COL), ("viga", raf, LB_VIGA)):
+    for g, prof, Lb in (("coluna", col, lb_col), ("viga", raf, lb_raf)):
         sec = perfis.PERFIS[prof]
         L = est.SEC[g]["L"]
         worst = max((chk.verifica(sec, FY, L=L, Nsd=r[g]["Nsd"], Msd=r[g]["Msd"],
@@ -68,45 +69,69 @@ def avalia(col, raf, fixed=True):
                      for r in a["combos"]), key=lambda x: x["interacao"])
         inter[g] = worst["interacao"]
     passa = (inter["coluna"] <= LIM_INT and inter["viga"] <= LIM_INT
-             and drift <= LIM_FLECHA)
+             and drift <= lim_flecha)
     return {"col": col, "raf": raf, "B2": a["B2max"], "drift": drift,
-            "int_col": inter["coluna"], "int_viga": inter["viga"],
-            "peso": _peso_rel(col, raf), "passa": passa}
+            "lim_flecha": lim_flecha, "int_col": inter["coluna"],
+            "int_viga": inter["viga"], "peso": _peso_rel(col, raf), "passa": passa}
 
 
-def memoria_pt():
-    L = ["=" * 74,
-         "REDIMENSIONAMENTO - BASE ENGASTADA - GALPAO 20x10 m",
-         "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
-         "Criterio: interacao ELU <= 1,00 (NBR 8800, K=1 com 2a ordem) E",
-         f"          flecha lateral <= H/150 = {LIM_FLECHA*1000:.1f} mm (telha metalica).",
-         f"Travamento lateral: coluna Lb={LB_COL:.2f} m ; viga Lb={LB_VIGA:.2f} m.",
-         "Esforcos de 2a ordem (MAES + rigidez 0,8 + forca nocional).", "",
-         f"{'Coluna':>8} {'Viga':>7} | {'B2max':>6} | {'flecha':>8} "
-         f"{'lim':>6} | {'int.col':>7} {'int.viga':>8} | resultado",
-         "-" * 74]
-    aprovado = None
-    for col, raf in CANDIDATOS:
-        r = avalia(col, raf)
-        tag = "PASSA" if r["passa"] else "nao passa"
+def melhor(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
+    """Escolhe o par (coluna, viga) MAIS LEVE que passa (interacao<=1 + flecha),
+    partindo do seed (perfil atual) e subindo pela escada. Deixa o estado global
+    no perfil ADOTADO (aprovado; ou o seed se nada passar). Retorna
+    {aprovado, candidatos, tabela}."""
+    escada = []
+    if seed:
+        seed = tuple(seed)
+        if seed not in CANDIDATOS:
+            escada.append(seed)
+    escada += list(CANDIDATOS)
+    linhas, aprovado = [], None
+    for col, raf in escada:
+        if col not in perfis.PERFIS or raf not in perfis.PERFIS:
+            continue
+        r = avalia(col, raf, fixed, lb_col, lb_raf)
+        linhas.append(r)
         if r["passa"] and aprovado is None:
             aprovado = r
-        L.append(f"{col:>8} {raf:>7} | {r['B2']:6.3f} | {r['drift']*1000:7.1f}mm "
-                 f"{LIM_FLECHA*1000:5.1f} | {r['int_col']:7.2f} {r['int_viga']:8.2f}"
-                 f" | {tag}")
+    fin = aprovado or (avalia(*seed, fixed=fixed, lb_col=lb_col, lb_raf=lb_raf)
+                       if seed else None)
+    if fin:
+        _aplica(fin["col"], fin["raf"], fixed)      # estado = perfil adotado
+    return {"aprovado": aprovado, "candidatos": linhas,
+            "tabela": _tabela(linhas, aprovado, lb_col, lb_raf)}
+
+
+def _tabela(linhas, aprovado, lb_col, lb_raf):
+    lim = gp.EAVE / 150.0
+    L = ["=" * 74, "REDIMENSIONAMENTO - par (coluna, viga) mais leve que passa",
+         "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
+         "Criterio: interacao ELU <= 1,00 (NBR 8800, K=1 com 2a ordem) E",
+         f"          flecha lateral <= H/150 = {lim*1000:.1f} mm (telha metalica).",
+         f"Travamento: coluna Lb={lb_col:.2f} m ; viga Lb={lb_raf:.2f} m.", "",
+         f"{'Coluna':>8} {'Viga':>7} | {'B2max':>6} | {'flecha':>8} {'lim':>6} |"
+         f" {'int.col':>7} {'int.viga':>8} | resultado", "-" * 74]
+    for r in linhas:
+        tag = "PASSA" if r["passa"] else "nao passa"
+        L.append(f"{r['col']:>8} {r['raf']:>7} | {r['B2']:6.3f} | "
+                 f"{r['drift']*1000:7.1f}mm {lim*1000:5.1f} | {r['int_col']:7.2f} "
+                 f"{r['int_viga']:8.2f} | {tag}")
     L += ["-" * 74, ""]
     if aprovado:
         L += [f"ADOTADO (mais leve que passa): COLUNA {aprovado['col']} + "
               f"VIGA {aprovado['raf']}",
               f"  B2,max = {aprovado['B2']:.3f} ; flecha = {aprovado['drift']*1000:.1f} mm "
-              f"(<= {LIM_FLECHA*1000:.1f}) ; interacao coluna = {aprovado['int_col']:.2f} ; "
+              f"(<= {lim*1000:.1f}) ; int. coluna = {aprovado['int_col']:.2f} ; "
               f"viga = {aprovado['int_viga']:.2f}"]
     else:
-        L += ["NENHUM candidato da escada passou - ampliar a lista ou revisar o",
-              "esquema estrutural (mao-francesa, contraventamento, 2 aguas mais inclinadas)."]
-    L += ["", "OBS: propriedades dos perfis A CONFIRMAR no catalogo do fornecedor.",
-          "     Base engastada exige verificar a fundacao/chumbadores ao momento."]
+        L += ["NENHUM candidato passou - ampliar a escada ou revisar o esquema",
+              "estrutural (mao-francesa, contraventamento, inclinacao)."]
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
+def memoria_pt(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
+    """Roda a escada e devolve a tabela + o adotado (memorial standalone)."""
+    return melhor(fixed=fixed, lb_col=lb_col, lb_raf=lb_raf, seed=seed)["tabela"]
 
 
 if __name__ == "__main__":
