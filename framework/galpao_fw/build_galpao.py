@@ -357,21 +357,42 @@ def build(doc):
         i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_E")
         i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), HEA180, f"{t}_VIGA_D")
 
-    # Placas de base ENGASTADAS + chumbadores (gancho L) + arruelas.
-    # Gate 8: base 450 (X) x 550 (Y=direcao do momento) x 40 mm ; 4 chumbadores
-    # d20 A307, straddle em Y para o braco do momento do engaste.
+    # Base ENGASTADA: placa 450 (X) x 550 (Y=dir. do momento) x 40; 4 chumbadores
+    # d20 A307 gancho-L (straddle em Y p/ o braco do engaste); arruela + PORCA
+    # superior; PORCA DE NIVEL sob a placa (nivelamento antes do graute); e
+    # NERVURAS (gussets) da placa no plano do momento. Ptop=topo da placa=Z0.
+    ptop = Z0                                   # topo da placa (= base da coluna)
+    pbot = Z0 - 40.0                            # face inferior da placa
     for i, x in enumerate(axes, start=1):
         for yw, lado in ((0, "E"), (SPAN, "D")):
             plate(doc, (x, yw, Z0 - 20), 450, 550, 40, f"PLACA_BASE_{lado}_{i:02d}")
             for ddx in (-70, 70):
                 for ddy in (-225, 225):
                     sfx = f"{'a' if ddx < 0 else 'b'}{'1' if ddy < 0 else '2'}"
-                    rod(doc, (x + ddx, yw + ddy, -300), (x + ddx, yw + ddy, Z0 + 40),
+                    ax, ay = x + ddx, yw + ddy
+                    rod(doc, (ax, ay, -300), (ax, ay, ptop + 55.0),
                         20, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
-                    rod(doc, (x + ddx, yw + ddy, -300), (x + ddx, yw + ddy - 60, -300),
+                    rod(doc, (ax, ay, -300), (ax, ay - 60, -300),
                         20, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
-                    plate(doc, (x + ddx, yw + ddy, Z0 - 40), 80, 80, 12,
+                    plate(doc, (ax, ay, ptop + 6.0), 80, 80, 12,
                           f"ARRUELA_{lado}_{i:02d}_{sfx}")
+                    # porca superior (sobre a arruela) e porca de nivel (sob a placa)
+                    rod(doc, (ax, ay, ptop + 12.0), (ax, ay, ptop + 30.0), 42,
+                        f"PORCA_{lado}_{i:02d}_{sfx}")
+                    rod(doc, (ax, ay, pbot - 28.0), (ax, ay, pbot), 42,
+                        f"PORCA_NIVEL_{lado}_{i:02d}_{sfx}")
+            # Nervuras (2): gussets triangulares no plano do momento (Y-Z), soldados
+            # a coluna e a placa, alcancando os chumbadores.
+            for sgn, nm in ((1.0, "P"), (-1.0, "N")):
+                V1 = App.Vector(x, yw + sgn * 100.0, ptop)      # ponta da mesa
+                V2 = App.Vector(x, yw + sgn * 240.0, ptop)      # sobre a placa (ao chumbador)
+                V3 = App.Vector(x, yw + sgn * 100.0, ptop + 300.0)  # sobe na coluna
+                g = Part.Face(Part.makePolygon([V1, V2, V3, V1])).extrude(
+                    App.Vector(12.0, 0, 0))
+                g.translate(App.Vector(-6.0, 0, 0))
+                ob = doc.addObject("Part::Feature", f"NERVURA_BASE_{lado}_{i:02d}_{nm}")
+                ob.Shape = g
+                _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
 
     # Joelho (ligacao de momento viga-coluna) em cada portico: chapa de topo +
     # 4 M24 + enrijecedores de continuidade no pilar.
@@ -650,7 +671,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 # ---- verificacoes ----------------------------------------------------------
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
-               "VIGA_ROLAMENTO", "CLIPE", "CONEX")
+               "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -742,6 +763,7 @@ def verifica_conexoes(doc, tol=6.0):
         ("CONSOLE_PONTE",  ("PORTICO_",),                            False),
         ("VIGA_ROLAMENTO", ("CONSOLE_PONTE",),                       False),
         ("MONTANTE_OITAO", ("PORTICO_", "VAO_"),                     False),
+        ("NERVURA_BASE",   ("PLACA_BASE", "PORTICO_"),               False),
     ]
 
     def _familia(nome):
@@ -890,6 +912,12 @@ def _classifica(n):
         return "Placas de base", "chapa-40"
     if n.startswith("ARRUELA"):
         return "Arruelas", "chapa-10"
+    if n.startswith("PORCA_NIVEL"):
+        return "Porcas de nivel", "porca-M20"
+    if n.startswith("PORCA"):
+        return "Porcas", "porca-M20"
+    if n.startswith("NERVURA_BASE"):
+        return "Nervuras da base", "chapa-12"
     if n.startswith("CALHA"):
         return "Calhas", "U300x200x5"
     if n.startswith("CONDUTOR"):
