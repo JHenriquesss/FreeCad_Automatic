@@ -242,6 +242,29 @@ def rafter_z(y):
     return EAVE_H + SLOPE * (y if y <= RIDGE_Y else (SPAN - y))
 
 
+def _assenta(obj, apoios, clearance=0.5, passes=4):
+    """Sobe 'obj' ate ASSENTAR sobre 'apoios' MEDINDO a penetracao real (volume
+    comum) e levantando por ela. Robusto a secao inclinada/perfil qualquer - nao
+    depende de formula de offset (que errava contra a mesa inclinada). Retorna o
+    Z da face inferior final."""
+    for _ in range(passes):
+        ub = obj.Shape.BoundBox
+        over = 0.0
+        for a in apoios:
+            if not ub.intersect(a.Shape.BoundBox):
+                continue
+            try:
+                inter = obj.Shape.common(a.Shape)
+            except Exception:
+                continue
+            if inter.Volume > 1.0:
+                over = max(over, inter.BoundBox.ZMax - ub.ZMin)
+        if over <= 0.0:
+            break
+        obj.Shape = obj.Shape.translated(App.Vector(0, 0, over + clearance))
+    return obj.Shape.BoundBox.ZMin
+
+
 def frame_axes():
     n = int(round(LENGTH / BAY))
     return [i * BAY for i in range(n + 1)]
@@ -283,29 +306,55 @@ def build(doc):
         i_member(doc, (x0, SPAN, EAVE_H), (x1, SPAN, EAVE_H), HEA160, f"{t}_ESCORA_BEIRAL_D")
         i_member(doc, (x0, RIDGE_Y, RIDGE_H), (x1, RIDGE_Y, RIDGE_H), HEA160, f"{t}_CUMEEIRA")
 
-    # Tercas: perfil U com face aberta para o BEIRAL (regra CBCA), apoiadas sobre
-    # a mesa superior da viga (offset para cima).
-    POFF = 130.0
+    # Tercas: perfil U com face aberta para o BEIRAL (regra CBCA). ASSENTAM SOBRE a
+    # mesa superior da VIGA (nao penetram). A viga e INCLINADA: o topo real em Z do
+    # perfil sobe (h/2)*cos(theta)+(b/2)*sin(theta) acima do eixo (canto da mesa),
+    # nao so h/2. Face inferior da terca (plana) == esse topo -> toca sem penetrar.
+    # Cada cruzamento com um portico ganha um clipe de apoio. Verif. verifica_conexoes.
+    # Offset inicial aproximado (meia-altura projetada da viga inclinada + meia-
+    # terca); o assentamento MEDIDO corrige o residual contra a mesa inclinada.
+    _theta = math.atan(SLOPE)
+    _rise = (HEA180[0] / 2.0) * math.cos(_theta) + (HEA180[1] / 2.0) * math.sin(_theta)
+    POFF = _rise + UE_TERCA[0] / 2.0
+    vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
     n_terca = 3
     terca_ys = []
+    terca_objs = []                     # p/ assentar e depois posicionar clipes
     for k in range(1, n_terca):
         yl = RIDGE_Y * k / n_terca
         terca_ys.append(yl)
-        ue_member(doc, (0, yl, rafter_z(yl) + POFF), (LENGTH, yl, rafter_z(yl) + POFF),
-                  UE_TERCA, f"TERCA_E_{k:02d}", roll=180)
+        terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
+                          (LENGTH, yl, rafter_z(yl) + POFF), UE_TERCA,
+                          f"TERCA_E_{k:02d}", roll=180)))
         yr = SPAN - RIDGE_Y * k / n_terca
         terca_ys.append(yr)
-        ue_member(doc, (0, yr, rafter_z(yr) + POFF), (LENGTH, yr, rafter_z(yr) + POFF),
-                  UE_TERCA, f"TERCA_D_{k:02d}", roll=0)
+        terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
+                          (LENGTH, yr, rafter_z(yr) + POFF), UE_TERCA,
+                          f"TERCA_D_{k:02d}", roll=0)))
     for y, lado, rl in ((0.0, "E", 180), (SPAN, "D", 0)):
-        ue_member(doc, (0, y, EAVE_H + POFF), (LENGTH, y, EAVE_H + POFF), UE_TERCA,
-                  f"TERCA_BEIRAL_{lado}", roll=rl)
+        terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
+                          (LENGTH, y, EAVE_H + POFF), UE_TERCA,
+                          f"TERCA_BEIRAL_{lado}", roll=rl)))
+    # Assenta cada terca sobre a viga MEDINDO a penetracao (robusto a inclinacao).
+    terca_seats = []                    # (y, z_face_inferior) p/ clipes
+    for y, o in terca_objs:
+        ub = _assenta(o, vigas)
+        terca_seats.append((y, ub))
+    # Clipes de apoio da terca sobre a mesa da viga/escora (chapa de assento sob a
+    # terca em cada portico) - excluidos do clash (conexao), nome CLIPE_.
+    for ci, x in enumerate(axes, start=1):
+        for cj, (y, ztop) in enumerate(terca_seats, start=1):
+            plate(doc, (x, y, ztop - 4.0), 90.0, 120.0, 8.0, f"CLIPE_TERCA_{ci:02d}_{cj:02d}")
 
     # Tercas de parede (girts): apoiadas na face externa das colunas. Se ha porta
     # LATERAL, a girt inferior esquerda e interrompida sobre ela com uma verga.
-    GOFF = 130.0
+    # Longarina (girt) assenta CONTRA a face externa da mesa do pilar (nao penetra):
+    # GOFF = meia-largura do pilar + meia-altura da girt -> face interna da girt no
+    # plano da mesa. Clipe (cantoneira) em cada pilar. Verificado por verifica_conexoes.
+    GOFF = HEA200[1] / 2.0 + UPE100[0] / 2.0        # 150: girt contra a mesa do pilar
+    GIRT_Z = (2000.0, 4000.0)
     DOOR_X = ABERTURAS.get("porta_lateral")         # None se nao ha porta lateral
-    for lvl, z in enumerate((2000.0, 4000.0), start=1):
+    for lvl, z in enumerate(GIRT_Z, start=1):
         if lvl == 1 and DOOR_X:
             u_member(doc, (0, -GOFF, z), (DOOR_X[0], -GOFF, z), UPE100, "TERCA_PAREDE_E_01a", roll=90)
             u_member(doc, (DOOR_X[1], -GOFF, z), (LENGTH, -GOFF, z), UPE100, "TERCA_PAREDE_E_01b", roll=90)
@@ -314,6 +363,11 @@ def build(doc):
         else:
             u_member(doc, (0, -GOFF, z), (LENGTH, -GOFF, z), UPE100, f"TERCA_PAREDE_E_{lvl:02d}", roll=90)
         u_member(doc, (0, SPAN + GOFF, z), (LENGTH, SPAN + GOFF, z), UPE100, f"TERCA_PAREDE_D_{lvl:02d}", roll=90)
+    # Clipes da longarina no pilar (chapa contra a face da mesa) - conexao, CLIPE_.
+    for ci, x in enumerate(axes, start=1):
+        for lj, z in enumerate(GIRT_Z, start=1):
+            plate(doc, (x, -100.0 - 4.0, z), 90.0, 8.0, 120.0, f"CLIPE_GIRT_E_{ci:02d}_{lj:02d}")
+            plate(doc, (x, SPAN + 100.0 + 4.0, z), 90.0, 8.0, 120.0, f"CLIPE_GIRT_D_{ci:02d}_{lj:02d}")
 
     # Tirantes de PAREDE (barras redondas verticais): N_TIRANTE_PAREDE linhas por
     # vao, dividem o vao da longarina no eixo fraco -> Lb = bay/(n+1). Exigencia
@@ -344,7 +398,7 @@ def build(doc):
     for b in range(len(axes) - 1):
         xm = (axes[b] + axes[b + 1]) / 2.0
         t = f"VAO_{b + 1:02d}"
-        pz = 130.0
+        pz = POFF                       # no plano das tercas (que subiram para assentar)
         lc = [0.0] + sorted([y for y in terca_ys if y < RIDGE_Y]) + [RIDGE_Y]
         for s in range(len(lc) - 1):
             ya, yb = lc[s], lc[s + 1]
@@ -514,7 +568,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 # ---- verificacoes ----------------------------------------------------------
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
-               "VIGA_ROLAMENTO")
+               "VIGA_ROLAMENTO", "CLIPE")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -749,6 +803,8 @@ def _classifica(n):
         return "Tapamento", "trapez-0.65"
     if n.startswith("VERGA"):
         return "Vergas", "UPE100"
+    if n.startswith("CLIPE"):
+        return "Clipes de apoio (conexao)", "chapa-8"
     return "Outros", "-"
 
 
