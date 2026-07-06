@@ -17,7 +17,11 @@
   check, and the base/knee extraction — all guarded by `PONTE=None` so the craneless
   reference is byte-identical (0.67/0.93, B2 1.036). `rodar_galpao.py --ponte` runs
   a 100 kN example (doesn't govern: uplift 0.67); a 250 kN crane governs (column
-  1.8 → resize). REMAINING: senior re-review (touched the approved gp + estabilidade).
+  1.8 → resize). Senior RE-APPROVED both gp and estabilidade with the crane
+  ("aprovado com louvor"): B2 conta conferida, node-by-node NT/LT superposition,
+  notional force incl. PVERT, K=1 (Direct Analysis) confirmed for the check.
+  Crane→portico is fully homologated. Remaining crane item: none for the craneless
+  or crane sheds; only the general wind-crossing refinement (see below).
 - **Secondary member verification (RESOLVED 2026-07-05).** All secondary members
   now checked: wall girt (UPE100 biaxial, `secundarios_nbr8800`), eave strut/ridge
   + gable post (HEA160 beam-column, same module), bracing/sag/flange-brace rods

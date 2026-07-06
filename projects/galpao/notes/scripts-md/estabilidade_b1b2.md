@@ -3,7 +3,15 @@
 Arquivo: `projects/galpao/calc/estabilidade_b1b2.py`  
 Gerado: 2026-07-05  
 Base: NBR 8800 Anexo D + 4.9.7 (rigidez 80% e forca nocional).  
-Validado pelo eng. senior. ATUALIZADO 2026-07-05 com a PONTE ROLANTE: caso PONTE no _apply_case, combos C4/C5 em _combos_ativos(), e a vertical da ponte (PVERT) na forca nocional. O split nt/lt do MAES trata a ponte automaticamente. Guardado por gp.PONTE -> sem ponte fica byte-identico (B2max 1,036). Re-revisao do senior pendente.
+**APROVADO COM LOUVOR** pelo eng. senior (2026-07-05), incluindo a PONTE. Auditoria
+confirmou: decomposicao NT/LT exata, B2=1,104 (C1) conferido na conta, superposicao
+no-a-no (Msd=129,3 vs 141 se somasse picos cegamente), forca nocional 0,3%, rigidez
+80% (media deslocabilidade) com Ne tambem reduzido, Cm=1,0 (D.2.2). Ciencia: o check
+subsequente DEVE usar K=1,0 (Metodo da Analise Direta) - ja adotado em check_nbr8800.
+ATUALIZADO com a PONTE ROLANTE: caso PONTE no _apply_case, combos C4/C5 em
+_combos_ativos(), vertical da ponte (PVERT) na forca nocional; o split nt/lt trata a
+ponte automaticamente (surto -> LT, majorado por B2). Guardado por gp.PONTE -> sem
+ponte fica byte-identico (B2max 1,036).
 
 ## Codigo completo
 
