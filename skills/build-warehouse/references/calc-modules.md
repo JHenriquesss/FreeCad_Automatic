@@ -1,7 +1,7 @@
 # Calc Modules — the structural calculation toolkit
 
 The skill now RUNS structural calculation via a validated, parametric toolkit in
-`projects/galpao/calc/` (15 modules, each with a self-test, Portuguese outputs,
+`projects/galpao/calc/` (17 modules, each with a self-test, Portuguese outputs,
 and formulas extracted from the norm PDFs). Every module was reviewed by the
 responsible engineer. The skill computes and produces the PT memoriais; the
 responsible engineer still REVIEWS them and signs off — the toolkit gives the
@@ -28,6 +28,7 @@ before that review.
 
 | Gate | Module | Computes | Key inputs (gate questions) |
 |------|--------|----------|------------------------------|
+| T terreno | `terreno` | land feasibility (FIRST): lot area from KML/coords, buildable rectangle, TO/CA/TP caps, fit check | KML/coordenadas, taxa de ocupação, taxa de permeabilidade, coef. aproveitamento, recuos, nº pavimentos |
 | 5 actions | `vento_nbr6123` | NBR 6123 wind: S2, Vk, q, Cpe (Tab.4/5, α=90), Cpi (portão dominante); LONGITUDINAL α=0 (`compute_longitudinal`): Cpe empena Tab.4 + arrasto Fa=Ca·q·Ae (Ca da Fig.4, A CONFIRMAR) | V0, categoria, classe, S1, S3, z, θ telhado, dims a/b/h, abertura dominante, Ca arrasto |
 | 6 analysis | `galpao_portico` (+ `frame2d`) | portal efforts M/N/V, drift, ELS ladder | geometria (vão, pé-direito, cumeeira, BAY), G/Q, base rotulada/engastada, perfis placeholder |
 | 6 analysis | `estabilidade_b1b2` | 2nd order MAES: B1/B2, deslocabilidade, 80% stiffness, força nocional, amplified efforts | (reuses portico) |

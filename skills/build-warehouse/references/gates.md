@@ -1,8 +1,9 @@
 # Staged Gate Workflow
 
 The warehouse workflow is split into 10 gates, aligned to the CBCA "Galpoes para
-Usos Gerais" project sequence (see `cbca-galpao-project-sequence.md`). Run one
-gate at a time. Each gate:
+Usos Gerais" project sequence (see `cbca-galpao-project-sequence.md`), PRECEDED
+by Gate T (terreno) which establishes land feasibility and bounds the geometry.
+Run one gate at a time. Each gate:
 
 1. Ask the user ONLY the questions for that gate, as explicit questions
    (prefer a button-style question tool: one question, 2-4 options, a
@@ -35,9 +36,45 @@ Geometry conventions (axes, units, naming, placeholder sections) live in
 
 ---
 
+## Gate T - Terreno (viabilidade urbanistica) — VEM ANTES DO GATE 0
+
+Purpose: establish land feasibility FIRST — it bounds every downstream dimension.
+Run `calc/terreno.py`.
+
+Get the lot:
+
+- KML from Google Earth (or a list of lat/lon coordinates, or planar X/Y). The
+  skill runs `terreno.parse_kml` / `projeta_metros` / `area_poligono_m2` to get
+  the lot area and bounding box. Put the KML under `projects/<slug>/inputs/`.
+
+Ask (from the plano diretor / lei de uso do solo — do NOT invent these):
+
+- **Taxa de ocupacao (TO)** max — max building footprint / lot (e.g. 60%).
+- **Taxa de permeabilidade (TP)** min — min permeable area / lot for soil drainage
+  ("pontos de escoamento para o solo"); so impermeable <= (1-TP)*lot.
+- **Coeficiente de aproveitamento (CA)** max — max total built floor area / lot.
+- **Recuos** frente/lateral/fundos (m) — setbacks shrinking the buildable rectangle.
+- Pavimentos (usually 1 for a galpao; mezzanine adds floor area for CA).
+- Any paving (patio/manobra) that also counts as impermeable area.
+
+Output: lot area, the buildable rectangle (bbox − recuos), and the caps
+(footprint_max = TO·A, floor_max = CA·A, permeable_min = TP·A). These CONSTRAIN
+Gate 0: the galpao footprint (comprimento × largura incl. beirais) must fit the
+buildable rectangle AND respect TO/CA/TP. `terreno.verifica_galpao(...)` checks it
+and reports VIAVEL / NAO VIAVEL. If the desired galpao does not fit, the geometry
+must shrink (or the engineer revises the urban parameters). Record the KML source
+and the adopted parameters in `notes/assumptions.md`.
+
+Note: the projection is a local equirectangular one (exact at lot scale, <0.1%);
+for large lots or a precision survey, confirm with UTM/geodesic.
+
+---
+
 ## Gate 0 - Use and volumetry
 
-Purpose: fix occupancy and the bounding geometry.
+Purpose: fix occupancy and the bounding geometry WITHIN the terrain envelope
+(Gate T). The span/length/eave must fit the buildable rectangle and the TO/CA/TP
+caps; re-check with `terreno.verifica_galpao` once dimensions are chosen.
 
 Ask:
 

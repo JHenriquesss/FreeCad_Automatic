@@ -99,21 +99,22 @@
 
 ## Calc Toolkit Architecture
 
-- Location: `projects/galpao/calc/` (16 modules) + `work/build_galpao.py` (model).
+- Location: `projects/galpao/calc/` (17 modules) + `work/build_galpao.py` (model).
 - Grounding: formulas extracted from norm PDFs in `pesquisa/aco/` (git-ignored):
   NBR 8800, NBR 6123, NBR 14762; AISC DG1 for base plates. **Rule: verify a method
   against the norm PDF, never from memory (zero-method-error).**
 - Each module: PT outputs, a `_selftest()` (or `__main__`), and a markdown twin
   (code + run result) in `notes/scripts-md/`. All senior-reviewed.
-- Modules: `frame2d` (solver, `reactions()`), `vento_nbr6123`, `galpao_portico`,
-  `estabilidade_b1b2` (MAES 2nd order), `check_nbr8800`, `mao_francesa`
-  (flange-brace spacing by inverting the 5.5.1.2 interaction → viga Lb),
-  `tercas_nbr14762`, `distorcional_fsm`, `base_chumbador`, `ligacoes`,
-  `secundarios_nbr8800` (wall girt U biaxial + eave strut/ridge + gable post I
-  beam-column), `contraventamento` (tension rods: bracing/sag/flange-brace, 5.2
-  + slenderness + 2% brace force), `ponte_rolante` (crane action NBR 8800/8400:
-  wheel loads + impact/surge/braking, runway beam, console reaction — standalone,
-  portico integration pending), `perfis`, `redimensionamento`.
+- Modules: `terreno` (land feasibility FIRST: KML/coord → lot area, buildable
+  rectangle, TO/CA/TP caps, fit check), `frame2d` (solver, `reactions()`),
+  `vento_nbr6123`, `galpao_portico`, `estabilidade_b1b2` (MAES 2nd order),
+  `check_nbr8800`, `mao_francesa` (flange-brace spacing by inverting the 5.5.1.2
+  interaction → viga Lb), `tercas_nbr14762`, `distorcional_fsm`, `base_chumbador`,
+  `ligacoes`, `secundarios_nbr8800` (wall girt U biaxial + eave strut/ridge +
+  gable post I beam-column), `contraventamento` (tension rods: bracing/sag/
+  flange-brace, 5.2 + slenderness + 2% brace force), `ponte_rolante` (crane action
+  NBR 8800/8400: wheel loads + impact/surge/braking, runway beam, console reaction;
+  integrated into the portico via `PONTE` config), `perfis`, `redimensionamento`.
 - Orchestrator: `calc/rodar_galpao.py` — one params dict configures every module,
   runs Gates 5-9, EXTRACTS base/knee efforts from the portico (not hardcoded),
   emits one memorial per module + `MEMORIAL-CONSOLIDADO.txt`. `PARAMS_REF` is the
