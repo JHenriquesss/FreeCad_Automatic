@@ -35,3 +35,6 @@ Thumbs.db
 *.FCBak
 projects/galpao-cert/
 **/exports/freecad/freecad/
+
+# scratch de execucao direta dos modulos (raiz)
+/exports/

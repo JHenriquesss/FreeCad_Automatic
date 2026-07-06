@@ -193,6 +193,9 @@ def to_build_kwargs(spec):
         "base": ({"B": ba["B"] * 1000, "L": ba["L"] * 1000, "t": ba["t"] * 1000,
                   "db": ba["db"] * 1000, "n": ba["n"]}
                  if (ba := est.get("base_adotada")) else None),
+        "sapata": ({"B": sa["B"] * 1000, "L": sa["L"] * 1000, "h": sa["h"] * 1000,
+                    "ped": spec.get("fundacao", {}).get("h_ped", 0.5) * 1000}
+                   if (sa := est.get("sapata_adotada")) else None),
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),

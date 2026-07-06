@@ -41,7 +41,7 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
-               longarina=None, longarina_nome=None):
+               longarina=None, longarina_nome=None, sapata=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -50,8 +50,9 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
-    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
+    if sapata is not None: SAPATA_MODEL = dict(sapata) if sapata else None
     if terca is not None: UE_SEC = tuple(float(v) for v in terca)
     if longarina is not None: UPE_LONG = tuple(float(v) for v in longarina)
     if longarina_nome is not None: LONG_NOME = str(longarina_nome)
@@ -98,6 +99,9 @@ BASE_PLATE = {"B": 450.0, "L": 550.0, "t": 40.0, "db": 20.0, "n": 4}
 HEA_ESC = HEA160
 ESC_NOME = "HEA160"
 JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
+# Sapata de fundacao (concreto) - opcional. None = nao desenha (so a placa de
+# base). Dims em mm: bloco B x L x h + pedestal de altura 'ped' ate a placa.
+SAPATA_MODEL = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -472,6 +476,19 @@ def build(doc):
                 ob = doc.addObject("Part::Feature", f"NERVURA_BASE_{lado}_{i:02d}_{nm}")
                 ob.Shape = g
                 _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
+            # Sapata de fundacao (concreto): pedestal (pbot -> topo do bloco) +
+            # bloco B x L x h enterrado. So desenha se SAPATA_MODEL definido.
+            if SAPATA_MODEL:
+                sB = SAPATA_MODEL["B"]; sL = SAPATA_MODEL["L"]; sh = SAPATA_MODEL["h"]
+                ped = SAPATA_MODEL.get("ped", 500.0)
+                pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)  # pedestal ~ pilar+cobrimento
+                z_ped_top = pbot                              # sob a placa de base
+                z_ped_bot = z_ped_top - ped                   # topo do bloco
+                z_blk_bot = z_ped_bot - sh
+                plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
+                      f"PEDESTAL_{lado}_{i:02d}")
+                plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
+                      f"SAPATA_{lado}_{i:02d}")
 
     # Joelho (ligacao de momento viga-coluna) em cada portico: chapa de topo +
     # 4 M24 + enrijecedores de continuidade no pilar.
@@ -790,6 +807,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
                "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA", "ESTICADOR")
+FUNDACAO = ("SAPATA", "PEDESTAL")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -1059,6 +1077,11 @@ def _classifica(n):
         return "Tirantes / maos-francesas", "barra-16"
     if n.startswith("CONTRAV"):
         return "Contraventamento", "barra-20"
+    if n.startswith("SAPATA"):
+        return "Sapatas (concreto)", "%.0fx%.0fx%.0f" % (
+            SAPATA_MODEL["B"], SAPATA_MODEL["L"], SAPATA_MODEL["h"]) if SAPATA_MODEL else "concreto"
+    if n.startswith("PEDESTAL"):
+        return "Pedestais (concreto)", "concreto"
     if n.startswith("CHUMBADOR"):
         return "Chumbadores", "barra-%.0f" % BASE_PLATE["db"]
     if n.startswith("PLACA_BASE"):
@@ -1114,9 +1137,14 @@ def takeoff(doc):
         if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
             continue
         cat, prof = _classifica(o.Name)
-        # alvenaria nao e aco: usa densidade de bloco (~1400 kg/m3) e nao entra
-        # na tonelagem de aco (categoria propria).
-        dens = 1.4e-6 if "ALVENARIA" in o.Name else DENSIDADE_ACO
+        # material por densidade: alvenaria (~1400), concreto de fundacao (~2500),
+        # aco (7850). Cada um tem subtotal proprio (nao entram na tonelagem de aco).
+        if "ALVENARIA" in o.Name:
+            dens = 1.4e-6
+        elif o.Name.startswith("SAPATA") or o.Name.startswith("PEDESTAL"):
+            dens = 2.5e-6                      # concreto armado (2500 kg/m3)
+        else:
+            dens = DENSIDADE_ACO
         massa = o.Shape.Volume * dens
         pts = REG.get(o.Name)
         if pts and len(pts) == 2:
@@ -1139,15 +1167,21 @@ def takeoff(doc):
     # totais por MATERIAL: aco (estrutura + telha/tapamento metalico) x alvenaria.
     def _e_alvenaria(cat):
         return "Alvenaria" in cat
-    massa_aco = sum(m for (cat, _), (_, _, m) in grupos.items() if not _e_alvenaria(cat))
+
+    def _e_concreto(cat):
+        return "concreto" in cat.lower()
+    massa_aco = sum(m for (cat, _), (_, _, m) in grupos.items()
+                    if not _e_alvenaria(cat) and not _e_concreto(cat))
     massa_alv = sum(m for (cat, _), (_, _, m) in grupos.items() if _e_alvenaria(cat))
+    massa_conc = sum(m for (cat, _), (_, _, m) in grupos.items() if _e_concreto(cat))
     with open(csv_path, "w", encoding="utf-8") as f:
         f.write("categoria,perfil,quantidade,comprimento_total_m,massa_kg\n")
         for (cat, prof), (cnt, comp, massa) in sorted(grupos.items()):
             f.write(f"{cat},{prof},{cnt},{comp/1000:.2f},{massa:.1f}\n")
         f.write(f"SUBTOTAL ACO,,,,{massa_aco:.1f}\n")
         f.write(f"SUBTOTAL ALVENARIA,,,,{massa_alv:.1f}\n")
-        f.write(f"TOTAL GERAL,,,,{massa_aco + massa_alv:.1f}\n")
+        f.write(f"SUBTOTAL CONCRETO (fundacao),,,,{massa_conc:.1f}\n")
+        f.write(f"TOTAL GERAL,,,,{massa_aco + massa_alv + massa_conc:.1f}\n")
         f.write("\n# Detalhe por elemento\n")
         f.write("nome,categoria,perfil,comprimento_mm,massa_kg\n")
         for r in sorted(rows):
@@ -1158,6 +1192,7 @@ def takeoff(doc):
                     key=lambda r: -r[4])
     return {"csv": csv_path, "massa_aco_kg": round(massa_aco, 1),
             "massa_alvenaria_kg": round(massa_alv, 1),
+            "massa_concreto_kg": round(massa_conc, 1),
             "massa_total_kg": round(massa_aco + massa_alv, 1),
             "elementos": len(rows), "por_grupo": resumo}
 
@@ -1177,7 +1212,7 @@ def reset():
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
-    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME
+    global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"
@@ -1191,6 +1226,7 @@ def reset():
     HEA_ESC = HEA160
     ESC_NOME = "HEA160"
     JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
+    SAPATA_MODEL = None
     FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
     ABERTURAS = {"portao_frente": None, "portao_fundo": None, "porta_frente": None,
                  "porta_fundo": None, "janelas_laterais": None, "porta_lateral": None}

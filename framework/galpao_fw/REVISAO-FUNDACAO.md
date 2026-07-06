@@ -191,6 +191,18 @@ Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
 
 ---
 
+## 5b. Representação no modelo 3D (FreeCAD)
+
+`build_galpao` desenha a sapata (bloco B×L×h de concreto) + o pedestal sob cada
+placa de base, parametrizados pelo spec (`SAPATA_MODEL`, via
+`to_build_kwargs → configurar(sapata=...)`). O concreto entra no take-off com
+**densidade própria** (2500 kg/m³) e **categoria separada** ("Sapatas/Pedestais
+(concreto)") — não soma na tonelagem de aço. O auditor geométrico
+(`verifica_conexoes`) confirma que a placa de base assenta sobre o pedestal/sapata.
+
+Validado ao vivo (nf982): 10 sapatas + 10 pedestais, volume 3,75 m³/sapata,
+0 conexões suspeitas, aço 16,7 t (concreto à parte, 93,75 t = 10×3,75×2,5).
+
 ## 6. Onde revisar no código
 
 | Assunto | Função | Item NBR |
