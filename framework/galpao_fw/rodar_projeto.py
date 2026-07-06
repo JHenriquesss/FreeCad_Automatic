@@ -31,6 +31,17 @@ def calcular(spec, out_dir):
     return res
 
 
+def gerar_dxf(spec, out_dir, nome=None):
+    """Gera o DXF com as vistas (portico, elevacao, planta, legenda) a partir do
+    spec com perfil/base ADOTADOS (rodar calcular() antes). Retorna o path."""
+    import os
+    import dxf_vistas as dv
+    PS.exigir_completo(spec)
+    os.makedirs(str(out_dir), exist_ok=True)
+    path = os.path.join(str(out_dir), (nome or spec.get("slug", "galpao")) + ".dxf")
+    return dv.gerar_dxf(dv.design_de_spec(spec), path)
+
+
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
                   host="http://localhost:9875", timeout=180):
     """Desenha o modelo via MCP (FreeCAD). reset() ANTES de configurar (slate
