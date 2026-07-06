@@ -118,6 +118,59 @@ def verifica_ligacao(caso):
     return r
 
 
+# Escada da ligacao de momento do joelho (n parafusos, db, t_chapa) em m.
+ESCADA_JOELHO = [
+    (4, 0.020, 0.0125),
+    (4, 0.024, 0.0160),        # referencia
+    (6, 0.024, 0.0190),
+    (6, 0.027, 0.0220),
+    (8, 0.027, 0.0250),
+    (8, 0.030, 0.0315),
+]
+
+
+def dimensiona_ligacao(caso, escada=None):
+    """Escolhe a ligacao de momento (n parafusos, db, t_chapa) MAIS LEVE que passa
+    (interacao<=1) sob o esforco do caso (N tracao da mesa, V). Parte do seed.
+    Retorna {aprovado:(n,db,t,r,caso)|None, linhas, tabela}."""
+    escada = escada or ESCADA_JOELHO
+    seed = (int(caso["n"]), round(caso["db"], 3), round(caso["t_chapa"], 4))
+    cand = list(escada)
+    if seed not in cand:
+        cand = [seed] + cand
+    linhas, aprovado = [], None
+    for (n, db, t) in cand:
+        c = dict(caso)
+        c.update(n=n, db=db, t_chapa=t, lf=caso.get("lf", 1.5 * db))
+        r = parafusos(c)
+        linhas.append((n, db, t, r))
+        if r["OK"] and aprovado is None:
+            aprovado = (n, db, t, r, c)
+    return {"aprovado": aprovado, "linhas": linhas,
+            "tabela": _tabela_ligacao(linhas, aprovado, caso)}
+
+
+def _tabela_ligacao(linhas, aprovado, caso):
+    L = ["=" * 68, "DIMENSIONAMENTO DA LIGACAO DE MOMENTO (JOELHO)",
+         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 68, "",
+         f"Esforco: N(tracao mesa)={caso.get('N',0):.1f} kN ; V={caso.get('V',0):.1f} kN",
+         "Criterio: interacao (Nsd/Ft,Rd)^2+(Vsd/Fv,Rd)^2 <= 1 ; corte<=1.", "",
+         f"{'n':>2} {'db(mm)':>6} {'t(mm)':>5} | {'u.trac':>6} {'u.corte':>7}"
+         f" {'inter':>6} | resultado", "-" * 68]
+    for (n, db, t, r) in linhas:
+        tag = "PASSA" if r["OK"] else "nao passa"
+        L.append(f"{n:>2} {db*1000:6.0f} {t*1000:5.1f} | {r['u_tracao']:6.2f}"
+                 f" {r['u_corte']:7.2f} {r['interacao']:6.2f} | {tag}")
+    L += ["-" * 68, ""]
+    if aprovado:
+        n, db, t = aprovado[:3]
+        L += [f"ADOTADA: {n} parafusos d{db*1000:.0f} mm ; chapa de topo {t*1000:.0f} mm"]
+    else:
+        L += ["NENHUMA ligacao da escada passou - ampliar a escada ou rever o no."]
+    import re
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
 def relatorio_pt(rs):
     L = ["VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6.2 / 6.3 / 6.1.5)"]
     for r in rs:

@@ -28,6 +28,16 @@ def calcular(spec, out_dir):
     if res.get("base_adotada"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["base_adotada"] = res["base_adotada"]
+    if res.get("joelho_adotado"):
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["joelho_adotado"] = res["joelho_adotado"]
+    # quadro de verificacoes (utilizacoes/resultados) para o DXF
+    spec.setdefault("estrutura", {})["resultados"] = {
+        "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
+        "Base": res.get("base_util"), "Joelho": res.get("joelho_util"),
+        "Longarina": res.get("longarina_inter"), "Escora": res.get("escora_inter"),
+        "Verga": res.get("verga_inter"), "Viga rolamento": res.get("ponte_viga_inter"),
+    }
     return res
 
 
@@ -61,4 +71,8 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     call = "reset()\nconfigurar(**%r)\n_result_ = run()\n" % (bk,)
     socket.setdefaulttimeout(timeout)
     srv = xmlrpc.client.ServerProxy(host)
-    return srv.execute(src + call)
+    r = srv.execute(src + call)
+    resm = r.get("result") if isinstance(r, dict) else None
+    if isinstance(resm, dict) and resm.get("por_grupo"):     # takeoff -> DXF
+        spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
+    return r

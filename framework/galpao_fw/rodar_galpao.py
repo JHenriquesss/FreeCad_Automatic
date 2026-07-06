@@ -239,18 +239,29 @@ def rodar(params, out_dir):
         B, Lm, tb, db, nb, rb, cb = dimb["aprovado"]
         save("gate7-base-detalhe.txt", bc.relatorio_pt(rb, cb))
         res["base_adotada"] = {"B": B, "L": Lm, "t": tb, "db": db, "n": nb}
+        res["base_util"] = round(max(rb["u_tracao"], rb["u_corte"], rb["u_concreto"]), 2)
         res["base_ok"] = True
     else:
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
         res["base_ok"] = False
-    dr = sc["d_raf"]; tf = sc["tf_raf"]
+    dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]   # viga ADOTADA
     Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
     knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
                                                nome=f"Joelho - {knm} (M={abs(kM):.1f})")
+    dimj = lg.dimensiona_ligacao(knee)               # dimensiona ao momento real
+    save("gate7-joelho.txt", dimj["tabela"])
+    if dimj["aprovado"]:
+        jn, jdb, jt, jr, _ = dimj["aprovado"]
+        res["joelho_adotado"] = {"n": jn, "db": jdb, "t": jt}
+        res["joelho_util"] = round(jr["interacao"], 2)
+        res["joelho_ok"] = True
+    else:
+        j = params["joelho"]
+        res["joelho_adotado"] = {"n": j["n"], "db": j["db"], "t": j["t_chapa"]}
+        res["joelho_ok"] = False
     clip = params["clip_terca"]
-    save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(knee),
-                                                lg.verifica_ligacao(clip)]))
+    save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(clip)]))
     # Gate 9 - consolidado
     _consolidar(out_dir, save, g, params)
     return res
