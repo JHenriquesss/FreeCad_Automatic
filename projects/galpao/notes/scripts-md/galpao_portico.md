@@ -1,19 +1,8 @@
 # Portico transversal - galpao_portico.py
 
 Arquivo: `projects/galpao/calc/galpao_portico.py`  
-Gerado: 2026-07-05  
-Status: **APROVADO** pelo eng. senior (1a ordem + PONTE, 2026-07-05: "aprovado com
-louvor" algoritmico/matematico/normativo). ATUALIZADO com a acao de PONTE ROLANTE
-(config PONTE): no do console no nivel do trilho, case_ponte (R_vert + M_excentrico
-+ surto) e combos C4 (ponte principal) / C5 (vento principal, ponte psi0=0,7). Tudo
-guardado por PONTE=None -> galpao SEM ponte fica byte-identico (0,67/0,93).
-
-> NOTA sobre o resultado abaixo: o `__main__` roda com o DEFAULT `base_fixed=False`
-> (base ROTULADA) -> drift 179 mm (falha ELS, ~H/33), so para demonstrar. O PROJETO
-> de referencia usa base ENGASTADA (PARAMS_REF base_fixed=True) -> drift 30,8 mm,
-> coluna 0,67 / viga 0,93, passa. O senior apontou isso: rotulada nao viabiliza o
-> vao de 10 m; use engaste (ou pilar maior). Refinamento recomendado (backlog):
-> cruzar W1 e W2 com todas as hipoteses de gravidade (hoje C1/C3 usam W2, C2 usa W1).
+Gerado: 2026-07-06  
+Status: APROVADO pelo eng. senior (1a ordem + PONTE). ATUALIZADO 2026-07-06: combinacoes ELU agora sao ENVELOPE - cada hipotese de gravidade cruza W1 e W2 (_combos_elu), diretriz do senior. Referencia craneless INALTERADA (col 0,67 / viga 0,93; so os rotulos dos combos mudaram). Guardado por PONTE=None.
 
 ## Codigo completo
 
@@ -165,6 +154,25 @@ def case_ponte(fr, ix):
     fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
 
 
+def _combos_elu(ponte=None):
+    """Combinacoes ELU (NBR 8800) - ENVELOPE: cada hipotese de gravidade cruzada
+    com CADA caso de vento (W1=portao barlavento, W2=portao sotavento). Antes o
+    vento era fixado por combo (W2 na C1/C3, W1 na C2); o cruzamento pega o pior
+    (diretriz do senior). psi0: sobrecarga=0,8 ; vento=0,6. Q FAVORAVEL no uplift
+    (G=1,00) nao entra."""
+    combos = {}
+    for wc in ("W1", "W2"):
+        combos[f"C1_grav_{wc}"] = {"G": 1.25, "Q": 1.50, wc: 0.6 * 1.40}
+        combos[f"C2_uplift_{wc}"] = {"G": 1.00, wc: 1.40}            # sem Q (favor.)
+        combos[f"C3_Gdesf_{wc}"] = {"G": 1.25, wc: 1.40, "Q": 0.8 * 1.50}
+        combos[f"C3_Gfav_{wc}"] = {"G": 1.00, wc: 1.40}             # sem Q (favor.)
+        if ponte:
+            # Ponte = acao variavel autonoma (diretriz do senior).
+            combos[f"C4_ponte_{wc}"] = {"G": 1.25, "PONTE": 1.50, wc: 0.6 * 1.40, "Q": 0.8 * 1.50}
+            combos[f"C5_vento_ponte_{wc}"] = {"G": 1.25, wc: 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    return combos
+
+
 def _wind(cpi_key):
     r = vento.compute()
     q = r["q_kN_m2"]
@@ -230,18 +238,7 @@ def analyse():
     # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
     # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
     # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
-    combos = {
-        "C1_gravidade":   {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
-        "C2_uplift":      {"G": 1.00, "W1": 1.40},               # sem Q (favor.)
-        "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-        "C3_vento_Gfav":  {"G": 1.00, "W2": 1.40},               # sem Q (favor.)
-    }
-    if PONTE:
-        # Ponte = acao variavel autonoma (diretriz do senior):
-        #  - PONTE principal: G desf + 1,5*Ponte + 1,4*0,6*Vento (governa o pilar);
-        #  - Vento principal + Ponte secundaria (psi0=0,7).
-        combos["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
-        combos["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    combos = _combos_elu(PONTE)
     res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)
@@ -384,16 +381,28 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
-   C1_gravidade:
-     Coluna: M=  60,1  N=  26,1  V=  10,0
-     Viga:   M=  60,1  N=  12,6  V=  25,0
-   C2_uplift:
+   C1_grav_W1:
+     Coluna: M=  45,2  N=  14,6  V=   8,5
+     Viga:   M=  45,2  N=  11,9  V=  13,6
+   C2_uplift_W1:
      Coluna: M= 107,4  N=  49,2  V=  19,6
      Viga:   M= 107,4  N=  25,2  V=  47,0
-   C3_vento_Gdesf:
+   C3_Gdesf_W1:
+     Coluna: M=  95,0  N=  39,5  V=  17,5
+     Viga:   M=  95,0  N=  23,1  V=  37,6
+   C3_Gfav_W1:
+     Coluna: M= 107,4  N=  49,2  V=  19,6
+     Viga:   M= 107,4  N=  25,2  V=  47,0
+   C1_grav_W2:
+     Coluna: M=  60,1  N=  26,1  V=  10,0
+     Viga:   M=  60,1  N=  12,6  V=  25,0
+   C2_uplift_W2:
+     Coluna: M=  68,0  N=  18,6  V=  11,3
+     Viga:   M=  68,0  N=  13,1  V=  17,4
+   C3_Gdesf_W2:
      Coluna: M=  80,5  N=  28,2  V=  13,4
      Viga:   M=  80,5  N=  16,2  V=  26,8
-   C3_vento_Gfav:
+   C3_Gfav_W2:
      Coluna: M=  68,0  N=  18,6  V=  11,3
      Viga:   M=  68,0  N=  13,1  V=  17,4
 

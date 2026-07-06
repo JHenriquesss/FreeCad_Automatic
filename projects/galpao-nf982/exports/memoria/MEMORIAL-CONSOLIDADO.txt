@@ -144,22 +144,40 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
-   C1_gravidade:
-     Coluna: M=  31,1  N=  20,4  V=   9,8
-     Viga:   M=  31,1  N=  11,8  V=  19,3
-   C2_uplift:
+   C1_grav_W1:
+     Coluna: M=  30,5  N=   2,7  V=  16,9
+     Viga:   M=   7,4  N=   6,0  V=   3,1
+   C2_uplift_W1:
      Coluna: M=  44,2  N=  28,5  V=  15,2
      Viga:   M=  44,2  N=  18,8  V=  26,8
-   C3_vento_Gdesf:
-     Coluna: M=  37,0  N=  10,7  V=  21,2
-     Viga:   M=  31,3  N=  12,7  V=  17,6
-   C3_vento_Gfav:
+   C3_Gdesf_W1:
+     Coluna: M=  39,1  N=  10,8  V=  22,9
+     Viga:   M=  31,2  N=  15,5  V=  17,6
+   C3_Gfav_W1:
+     Coluna: M=  44,2  N=  28,5  V=  15,2
+     Viga:   M=  44,2  N=  18,8  V=  26,8
+   C4_ponte_W1:
+     Coluna: M=  43,0  N=   2,9  V=  20,0
+     Viga:   M=  21,9  N=   3,2  V=   6,0
+   C5_vento_ponte_W1:
+     Coluna: M=  48,9  N=   9,3  V=  25,5
+     Viga:   M=  40,3  N=  13,0  V=  19,3
+   C1_grav_W2:
+     Coluna: M=  31,1  N=  20,4  V=   9,8
+     Viga:   M=  31,1  N=  11,8  V=  19,3
+   C2_uplift_W2:
      Coluna: M=  44,4  N=   1,0  V=  24,6
      Viga:   M=  18,4  N=   8,4  V=   8,3
-   C4_ponte_princ:
+   C3_Gdesf_W2:
+     Coluna: M=  37,0  N=  10,7  V=  21,2
+     Viga:   M=  31,3  N=  12,7  V=  17,6
+   C3_Gfav_W2:
+     Coluna: M=  44,4  N=   1,0  V=  24,6
+     Viga:   M=  18,4  N=   8,4  V=   8,3
+   C4_ponte_W2:
      Coluna: M=  45,4  N= 187,8  V=  17,0
      Viga:   M=  37,0  N=  14,8  V=  19,3
-   C5_vento_ponte:
+   C5_vento_ponte_W2:
      Coluna: M=  44,1  N=  20,2  V=  13,6
      Viga:   M=  37,2  N=  15,5  V=  18,8
 
@@ -196,48 +214,83 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
                  lt = reacoes das ficticias aplicadas ao contrario.
    Imperfeicao geometrica: forca nocional = 0,3% da carga gravitacional
    do andar (4.9.7.1.1), somada no sentido do vento em cada combinacao.
-   Rigidez integral (pequena deslocabilidade - sem reducao).
+   RIGIDEZ REDUZIDA: media deslocabilidade -> EA e EI x 0,8
+   (E = 160 GPa) nos coeficientes e esforcos abaixo
+   (4.9.7.1.2). B2 na rigidez integral = 1,101.
 
-2. COEFICIENTES POR COMBINACAO (rigidez integral)
-   C1_gravidade: B2 = 1,019  (dh=19,8 mm ; sumN=35,9 kN ; sumH=7,6 kN ; Fnocional=0,12 kN)
-     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=10,3 ; Mlt=23,7 kN.m  ->  2a ordem Msd=31,7 kN.m ; Nsd=20,4 ; Vsd=10,1
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=10,3 ; Mlt=23,0 kN.m  ->  2a ordem Msd=31,7 kN.m ; Nsd=10,5 ; Vsd=19,3
-   C2_uplift: B2 = 1,025  (dh=31,7 mm ; sumN=48,9 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
-     coluna: B1=1,014 (Ne=2024 kN ; Nsd1=28,5 kN)
-        1a ordem Mnt=18,8 ; Mlt=35,6 kN.m  ->  2a ordem Msd=45,2 kN.m ; Nsd=28,5 ; Vsd=19,5
-     viga: B1=1,010 (Ne=1962 kN ; Nsd1=18,8 kN)
-        1a ordem Mnt=15,5 ; Mlt=32,2 kN.m  ->  2a ordem Msd=45,1 kN.m ; Nsd=16,7 ; Vsd=26,8
-   C3_vento_Gdesf: B2 = 1,014  (dh=30,5 mm ; sumN=29,4 kN ; sumH=12,6 kN ; Fnocional=0,11 kN)
-     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=19,1 ; Mlt=30,8 kN.m  ->  2a ordem Msd=37,5 kN.m ; Nsd=18,8 ; Vsd=21,3
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=11,0 ; Mlt=23,9 kN.m  ->  2a ordem Msd=31,8 kN.m ; Nsd=12,1 ; Vsd=17,6
-   C3_vento_Gfav: B2 = 1,005  (dh=28,9 mm ; sumN=10,1 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
-     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=21,1 ; Mlt=25,2 kN.m  ->  2a ordem Msd=44,6 kN.m ; Nsd=9,1 ; Vsd=24,7
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+2. COEFICIENTES POR COMBINACAO (rigidez reduzida 80%)
+   C1_grav_W1: B2 = 1,000  (dh=22,3 mm ; sumN=0,5 kN ; sumH=7,6 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,001 (Ne=1619 kN ; Nsd1=2,2 kN)
+        1a ordem Mnt=14,3 ; Mlt=16,4 kN.m  ->  2a ordem Msd=30,7 kN.m ; Nsd=2,7 ; Vsd=17,0
+     viga: B1=1,004 (Ne=1570 kN ; Nsd1=6,1 kN)
+        1a ordem Mnt=3,4 ; Mlt=10,9 kN.m  ->  2a ordem Msd=7,5 kN.m ; Nsd=6,1 ; Vsd=3,1
+   C2_uplift_W1: B2 = 1,031  (dh=39,7 mm ; sumN=48,9 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,018 (Ne=1619 kN ; Nsd1=28,5 kN)
+        1a ordem Mnt=18,8 ; Mlt=35,6 kN.m  ->  2a ordem Msd=45,4 kN.m ; Nsd=28,6 ; Vsd=19,5
+     viga: B1=1,012 (Ne=1570 kN ; Nsd1=18,8 kN)
+        1a ordem Mnt=15,5 ; Mlt=32,2 kN.m  ->  2a ordem Msd=45,4 kN.m ; Nsd=16,1 ; Vsd=26,8
+   C3_Gdesf_W1: B2 = 1,018  (dh=38,0 mm ; sumN=29,6 kN ; sumH=12,6 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,012 (Ne=1619 kN ; Nsd1=18,8 kN)
+        1a ordem Mnt=20,7 ; Mlt=30,3 kN.m  ->  2a ordem Msd=39,9 kN.m ; Nsd=18,9 ; Vsd=22,9
+     viga: B1=1,010 (Ne=1570 kN ; Nsd1=15,5 kN)
+        1a ordem Mnt=11,7 ; Mlt=23,2 kN.m  ->  2a ordem Msd=31,8 kN.m ; Nsd=14,7 ; Vsd=17,6
+   C3_Gfav_W1: B2 = 1,031  (dh=39,7 mm ; sumN=48,9 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,018 (Ne=1619 kN ; Nsd1=28,5 kN)
+        1a ordem Mnt=18,8 ; Mlt=35,6 kN.m  ->  2a ordem Msd=45,4 kN.m ; Nsd=28,6 ; Vsd=19,5
+     viga: B1=1,012 (Ne=1570 kN ; Nsd1=18,8 kN)
+        1a ordem Mnt=15,5 ; Mlt=32,2 kN.m  ->  2a ordem Msd=45,4 kN.m ; Nsd=16,1 ; Vsd=26,8
+   C4_ponte_W1: B2 = 1,130  (dh=43,6 mm ; sumN=202,6 kN ; sumH=15,1 kN ; Fnocional=0,71 kN)
+     coluna: B1=1,145 (Ne=1619 kN ; Nsd1=205,7 kN)
+        1a ordem Mnt=41,9 ; Mlt=30,7 kN.m  ->  2a ordem Msd=50,4 kN.m ; Nsd=206,1 ; Vsd=20,4
+     viga: B1=1,002 (Ne=1570 kN ; Nsd1=3,2 kN)
+        1a ordem Mnt=9,1 ; Mlt=18,5 kN.m  ->  2a ordem Msd=24,4 kN.m ; Nsd=4,8 ; Vsd=6,2
+   C5_vento_ponte_W1: B2 = 1,109  (dh=52,7 mm ; sumN=169,1 kN ; sumH=17,9 kN ; Fnocional=0,53 kN)
+     coluna: B1=1,110 (Ne=1619 kN ; Nsd1=160,0 kN)
+        1a ordem Mnt=25,6 ; Mlt=39,8 kN.m  ->  2a ordem Msd=55,4 kN.m ; Nsd=160,4 ; Vsd=25,7
+     viga: B1=1,008 (Ne=1570 kN ; Nsd1=13,0 kN)
+        1a ordem Mnt=13,1 ; Mlt=27,7 kN.m  ->  2a ordem Msd=44,0 kN.m ; Nsd=8,7 ; Vsd=19,4
+   C1_grav_W2: B2 = 1,023  (dh=24,8 mm ; sumN=35,9 kN ; sumH=7,6 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=10,3 ; Mlt=23,7 kN.m  ->  2a ordem Msd=31,8 kN.m ; Nsd=20,4 ; Vsd=10,1
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=10,3 ; Mlt=23,0 kN.m  ->  2a ordem Msd=31,8 kN.m ; Nsd=10,1 ; Vsd=19,3
+   C2_uplift_W2: B2 = 1,006  (dh=36,1 mm ; sumN=10,1 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=21,1 ; Mlt=25,2 kN.m  ->  2a ordem Msd=44,7 kN.m ; Nsd=9,1 ; Vsd=24,7
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
         1a ordem Mnt=7,1 ; Mlt=14,8 kN.m  ->  2a ordem Msd=18,5 kN.m ; Nsd=8,4 ; Vsd=8,3
-   C4_ponte_princ: B2 = 1,087  (dh=36,9 mm ; sumN=167,2 kN ; sumH=15,1 kN ; Fnocional=0,71 kN)
-     coluna: B1=1,102 (Ne=2024 kN ; Nsd1=188,0 kN)
-        1a ordem Mnt=41,1 ; Mlt=38,0 kN.m  ->  2a ordem Msd=49,7 kN.m ; Nsd=188,2 ; Vsd=16,6
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=7,0 ; Mlt=30,7 kN.m  ->  2a ordem Msd=40,4 kN.m ; Nsd=9,0 ; Vsd=19,4
-   C5_vento_ponte: B2 = 1,054  (dh=42,7 mm ; sumN=110,1 kN ; sumH=17,9 kN ; Fnocional=0,53 kN)
-     coluna: B1=1,069 (Ne=2024 kN ; Nsd1=130,5 kN)
-        1a ordem Mnt=24,3 ; Mlt=41,5 kN.m  ->  2a ordem Msd=47,6 kN.m ; Nsd=130,7 ; Vsd=14,0
-     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=7,2 ; Mlt=30,5 kN.m  ->  2a ordem Msd=39,4 kN.m ; Nsd=12,6 ; Vsd=18,9
+   C3_Gdesf_W2: B2 = 1,018  (dh=38,2 mm ; sumN=29,4 kN ; sumH=12,6 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=19,1 ; Mlt=30,8 kN.m  ->  2a ordem Msd=37,6 kN.m ; Nsd=18,8 ; Vsd=21,3
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=11,0 ; Mlt=23,9 kN.m  ->  2a ordem Msd=31,9 kN.m ; Nsd=11,9 ; Vsd=17,6
+   C3_Gfav_W2: B2 = 1,006  (dh=36,1 mm ; sumN=10,1 kN ; sumH=12,6 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=21,1 ; Mlt=25,2 kN.m  ->  2a ordem Msd=44,7 kN.m ; Nsd=9,1 ; Vsd=24,7
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,1 ; Mlt=14,8 kN.m  ->  2a ordem Msd=18,5 kN.m ; Nsd=8,4 ; Vsd=8,3
+   C4_ponte_W2: B2 = 1,111  (dh=46,1 mm ; sumN=167,2 kN ; sumH=15,1 kN ; Fnocional=0,71 kN)
+     coluna: B1=1,131 (Ne=1619 kN ; Nsd1=188,0 kN)
+        1a ordem Mnt=41,1 ; Mlt=38,0 kN.m  ->  2a ordem Msd=51,0 kN.m ; Nsd=188,3 ; Vsd=16,6
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,0 ; Mlt=30,7 kN.m  ->  2a ordem Msd=41,1 kN.m ; Nsd=7,4 ; Vsd=19,4
+   C5_vento_ponte_W2: B2 = 1,069  (dh=53,3 mm ; sumN=110,1 kN ; sumH=17,9 kN ; Fnocional=0,53 kN)
+     coluna: B1=1,088 (Ne=1619 kN ; Nsd1=130,5 kN)
+        1a ordem Mnt=24,3 ; Mlt=41,5 kN.m  ->  2a ordem Msd=48,3 kN.m ; Nsd=130,7 ; Vsd=14,0
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=7,2 ; Mlt=30,5 kN.m  ->  2a ordem Msd=39,9 kN.m ; Nsd=11,8 ; Vsd=18,9
 
 3. DESLOCABILIDADE
-   Classificacao (rigidez integral): B2,max = 1,087  ->  pequena deslocabilidade (2a ordem dispensavel; ver 4.9.7.1.4)
+   Classificacao (rigidez integral): B2,max = 1,101  ->  media deslocabilidade (usar B1/B2 com rigidez reduzida a 80%)
+   B2,max com rigidez reduzida (final) = 1,130
 
 4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
-   COLUNA (governa C4_ponte_princ): Msd=49,7 kN.m ; Nsd=188,2 kN ; Vsd=16,6 kN
-   VIGA (governa C2_uplift): Msd=45,1 kN.m ; Nsd=16,7 kN ; Vsd=26,8 kN
+   COLUNA (governa C5_vento_ponte_W1): Msd=55,4 kN.m ; Nsd=160,4 kN ; Vsd=25,7 kN
+   VIGA (governa C2_uplift_W1): Msd=45,4 kN.m ; Nsd=16,1 kN ; Vsd=26,8 kN
 
 5. OBSERVACOES
+   - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%
+     (EA e EI x 0,8), conforme media deslocabilidade (4.9.7.1.2).
    - Imperfeicao geometrica INCLUIDA (forca nocional 0,3%, 4.9.7.1.1).
    - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.
    - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima.
@@ -251,16 +304,16 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
 
-  --- Coluna (K=1; gov C4_ponte_princ) ---
+  --- Coluna (K=1; gov C4_ponte_W1) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
   Compressao: Ne=2024 kN ; lambda0=0,815 ; chi=0,757 ; Nc,Rd=926,3 kN
   Flexao: Mpl=107,4 ; Lp=2,48 m ; Lr(FLT)=8,98 m ; Cw=1,082e-07 ; J=1,489e-07
     Mn_FLT=107,4 ; Mn_FLM=107,4 ; Mn_FLA=107,4 -> governa FLT ; Mrd=97,6 kN.m
   Cortante: Vrd=168,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,20 ; M/Mrd=0,51 ; V/Vrd=0,10
-  Interacao (N/Nrd + 8/9*(M/Mrd)) = 0,66  -> OK
+  Utilizacao: N/Nc=0,22 ; M/Mrd=0,52 ; V/Vrd=0,12
+  Interacao (N/Nrd + 8/9*(M/Mrd)) = 0,68  -> OK
 
-  --- Viga (K=1; gov C2_uplift) ---
+  --- Viga (K=1; gov C2_uplift_W1) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
   Compressao: Ne=723 kN ; lambda0=1,251 ; chi=0,519 ; Nc,Rd=534,2 kN
   Flexao: Mpl=81,2 ; Lp=2,25 m ; Lr(FLT)=8,50 m ; Cw=6,029e-08 ; J=1,138e-07
@@ -278,16 +331,16 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
 MAO-FRANCESA (contencao da mesa inferior) - viga (mesa inferior)
 NBR 8800 5.5.1.2 - espacamento por inversao da interacao flexo-compressao
 ====================================================================
-  Esforcos na mesa comprimida . Nsd=16.7 kN ; Msd=45.1 kN.m ; Vsd=26.8 kN
+  Esforcos na mesa comprimida . Nsd=16.1 kN ; Msd=45.4 kN.m ; Vsd=26.8 kN
   Comprimento da meia-agua L .. 5.025 m
   Espacamento das tercas s .... 1.675 m
   Lp (plastico) ............... 2.250 m
   Lr (FLT elastico) ........... 8.497 m
-  Interacao totalmente travada. 0.622
+  Interacao totalmente travada. 0.624
   Lb_max (interacao=1.00) ..... 5.025 m
   Passo adotado ............... 1 braco a cada 3 terca(s)
   Lb usado (maior tramo) ...... 5.025 m
-  Interacao em Lb_usado ....... 0.746 (OK)
+  Interacao em Lb_usado ....... 0.749 (OK)
   Bracos por meia-agua ........ 0
   Bracos por portico .......... 0
 ====================================================================
@@ -424,7 +477,7 @@ NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
 ######################################################################
 
 LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
-  Base engastada - C3_Gfav (M=44,4)
+  Base engastada - C2_uplift_W2 (M=44,4)
   Esforcos: N=-1,0 kN ; V=24,6 kN ; M=44,4 kN.m  (base ENGASTADA)
   Placa: 450 x 550 mm ; fck=25 MPa ; sigma_c,Rd=16616 kN/m2
   Regime placa: uplift (N tracao)
@@ -444,7 +497,7 @@ LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
 
 VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)
 
-  --- Joelho - C2_uplift (M=44,2) (parafusos) ---
+  --- Joelho - C2_uplift_W1 (M=44,2) (parafusos) ---
     Forca de dimensionamento = 45,0 kN (minimo 6.1.5.2)
     n=4 parafusos ; Fv,Rd=110,6 ; Ft,Rd=207,3 ; Fc,Rd(esmag.)=177,8 kN
     por parafuso: V=11,2 ; N=71,9 kN ; corte/min(Fv,Fc)=0,10 ; tracao=0,35

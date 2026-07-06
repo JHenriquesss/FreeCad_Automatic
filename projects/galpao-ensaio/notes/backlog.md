@@ -53,11 +53,13 @@ exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
   construivel). Recomendacao do senior; hoje aproximado e flagado.
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
-- REFINAMENTO (recomendacao senior, galpao_portico): as combos fixam W2 em C1/C3
-  e W1 em C2 (atribuicao fisicamente raciocinada). Software de alto nivel cruza
-  TODOS os casos de vento (W1, W2) com TODAS as hipoteses de gravidade (loop
-  dinamico) e toma o envelope. Nao urgente; mudaria os numeros da referencia ja
-  validada -> requer nova validacao. Idem estabilidade_b1b2 (mesmas combos).
+- [OK] REFINAMENTO W1xW2 (recomendacao senior) FEITO 2026-07-06: gp._combos_elu()
+  gera o ENVELOPE (cada hipotese de gravidade x W1 e W2), usado no portico,
+  estabilidade (_combos_ativos) e no orquestrador (base/joelho). Referencia
+  craneless INALTERADA (col 0,67 / viga 0,93; so os rotulos dos combos mudaram -
+  a atribuicao manual ja era a governante); nf982 col 0,66->0,68 (envelope mais
+  rigoroso nos combos da ponte). PENDENTE: aval do senior (mexeu no portico +
+  estabilidade aprovados; numeros de membro praticamente iguais).
 
 ## Pecas secundarias - TODAS VERIFICADAS (2026-07-05)
 - [OK] MONTANTE DE OITAO (HEA160): verifica_montante_oitao. Ref 0,43 OK.

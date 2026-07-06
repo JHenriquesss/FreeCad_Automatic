@@ -57,10 +57,7 @@ def _esforcos_base_joelho():
     _, _, ix = casos["G"]
     nbL = ix["nBaseL"]
     eKnee = ix["colL"][-1]
-    combos = dict(_COMB)
-    if gp.PONTE:
-        combos["C4_ponte"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
-        combos["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    combos = gp._combos_elu(gp.PONTE)      # envelope (cruza W1 e W2)
     base_best = knee_best = None
     for nm, c in combos.items():
         R = sum(fac * casos[cs][1] for cs, fac in c.items())

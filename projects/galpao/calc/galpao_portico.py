@@ -145,6 +145,25 @@ def case_ponte(fr, ix):
     fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
 
 
+def _combos_elu(ponte=None):
+    """Combinacoes ELU (NBR 8800) - ENVELOPE: cada hipotese de gravidade cruzada
+    com CADA caso de vento (W1=portao barlavento, W2=portao sotavento). Antes o
+    vento era fixado por combo (W2 na C1/C3, W1 na C2); o cruzamento pega o pior
+    (diretriz do senior). psi0: sobrecarga=0,8 ; vento=0,6. Q FAVORAVEL no uplift
+    (G=1,00) nao entra."""
+    combos = {}
+    for wc in ("W1", "W2"):
+        combos[f"C1_grav_{wc}"] = {"G": 1.25, "Q": 1.50, wc: 0.6 * 1.40}
+        combos[f"C2_uplift_{wc}"] = {"G": 1.00, wc: 1.40}            # sem Q (favor.)
+        combos[f"C3_Gdesf_{wc}"] = {"G": 1.25, wc: 1.40, "Q": 0.8 * 1.50}
+        combos[f"C3_Gfav_{wc}"] = {"G": 1.00, wc: 1.40}             # sem Q (favor.)
+        if ponte:
+            # Ponte = acao variavel autonoma (diretriz do senior).
+            combos[f"C4_ponte_{wc}"] = {"G": 1.25, "PONTE": 1.50, wc: 0.6 * 1.40, "Q": 0.8 * 1.50}
+            combos[f"C5_vento_ponte_{wc}"] = {"G": 1.25, wc: 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    return combos
+
+
 def _wind(cpi_key):
     r = vento.compute()
     q = r["q_kN_m2"]
@@ -210,18 +229,7 @@ def analyse():
     # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
     # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
     # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
-    combos = {
-        "C1_gravidade":   {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
-        "C2_uplift":      {"G": 1.00, "W1": 1.40},               # sem Q (favor.)
-        "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-        "C3_vento_Gfav":  {"G": 1.00, "W2": 1.40},               # sem Q (favor.)
-    }
-    if PONTE:
-        # Ponte = acao variavel autonoma (diretriz do senior):
-        #  - PONTE principal: G desf + 1,5*Ponte + 1,4*0,6*Vento (governa o pilar);
-        #  - Vento principal + Ponte secundaria (psi0=0,7).
-        combos["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
-        combos["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    combos = _combos_elu(PONTE)
     res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)

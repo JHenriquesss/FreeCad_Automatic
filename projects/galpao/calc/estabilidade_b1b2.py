@@ -218,12 +218,8 @@ def _classe(B2max):
 
 
 def _combos_ativos():
-    """COMBOS + combinacoes da ponte (se houver), identicas as do galpao_portico."""
-    c = dict(COMBOS)
-    if gp.PONTE:
-        c["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
-        c["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
-    return c
+    """Combinacoes ELU do envelope (cruzam W1 e W2) - as MESMAS do galpao_portico."""
+    return gp._combos_elu(gp.PONTE)
 
 
 def analyse():

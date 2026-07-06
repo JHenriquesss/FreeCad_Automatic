@@ -1,17 +1,8 @@
 # 2a ordem (MAES B1/B2) - estabilidade_b1b2.py
 
 Arquivo: `projects/galpao/calc/estabilidade_b1b2.py`  
-Gerado: 2026-07-05  
-Base: NBR 8800 Anexo D + 4.9.7 (rigidez 80% e forca nocional).  
-**APROVADO COM LOUVOR** pelo eng. senior (2026-07-05), incluindo a PONTE. Auditoria
-confirmou: decomposicao NT/LT exata, B2=1,104 (C1) conferido na conta, superposicao
-no-a-no (Msd=129,3 vs 141 se somasse picos cegamente), forca nocional 0,3%, rigidez
-80% (media deslocabilidade) com Ne tambem reduzido, Cm=1,0 (D.2.2). Ciencia: o check
-subsequente DEVE usar K=1,0 (Metodo da Analise Direta) - ja adotado em check_nbr8800.
-ATUALIZADO com a PONTE ROLANTE: caso PONTE no _apply_case, combos C4/C5 em
-_combos_ativos(), vertical da ponte (PVERT) na forca nocional; o split nt/lt trata a
-ponte automaticamente (surto -> LT, majorado por B2). Guardado por gp.PONTE -> sem
-ponte fica byte-identico (B2max 1,036).
+Gerado: 2026-07-06  
+Base: NBR 8800 Anexo D + 4.9.7. APROVADO COM LOUVOR pelo senior (inclui PONTE). ATUALIZADO 2026-07-06: usa o mesmo envelope de combinacoes do portico (_combos_ativos -> gp._combos_elu, cruza W1 e W2). B2max 1,036 inalterado.
 
 ## Codigo completo
 
@@ -236,12 +227,8 @@ def _classe(B2max):
 
 
 def _combos_ativos():
-    """COMBOS + combinacoes da ponte (se houver), identicas as do galpao_portico."""
-    c = dict(COMBOS)
-    if gp.PONTE:
-        c["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
-        c["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
-    return c
+    """Combinacoes ELU do envelope (cruzam W1 e W2) - as MESMAS do galpao_portico."""
+    return gp._combos_elu(gp.PONTE)
 
 
 def analyse():
@@ -341,22 +328,42 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    (4.9.7.1.2). B2 na rigidez integral = 1,177.
 
 2. COEFICIENTES POR COMBINACAO (rigidez reduzida 80%)
-   C1_gravidade: B2 = 1,104  (dh=187,9 mm ; sumN=34,7 kN ; sumH=13,6 kN ; Fnocional=0,12 kN)
-     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=27,0 ; Vsd=15,3
-     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
-        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=6,4 ; Vsd=25,0
-   C2_uplift: B2 = 1,231  (dh=312,1 mm ; sumN=69,1 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
+   C1_grav_W1: B2 = 1,032  (dh=185,1 mm ; sumN=11,6 kN ; sumH=13,6 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,009 (Ne=1619 kN ; Nsd1=14,6 kN)
+        1a ordem Mnt=15,5 ; Mlt=41,5 kN.m  ->  2a ordem Msd=46,9 kN.m ; Nsd=14,9 ; Vsd=18,8
+     viga: B1=1,008 (Ne=1570 kN ; Nsd1=11,9 kN)
+        1a ordem Mnt=10,8 ; Mlt=41,5 kN.m  ->  2a ordem Msd=46,9 kN.m ; Nsd=11,8 ; Vsd=13,7
+   C2_uplift_W1: B2 = 1,231  (dh=312,1 mm ; sumN=69,1 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
      coluna: B1=1,031 (Ne=1619 kN ; Nsd1=49,2 kN)
         1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,3 kN.m ; Nsd=52,3 ; Vsd=25,8
      viga: B1=1,016 (Ne=1570 kN ; Nsd1=25,2 kN)
         1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,1 kN.m ; Nsd=5,9 ; Vsd=47,0
-   C3_vento_Gdesf: B2 = 1,079  (dh=308,5 mm ; sumN=27,3 kN ; sumH=22,6 kN ; Fnocional=0,11 kN)
+   C3_Gdesf_W1: B2 = 1,156  (dh=310,7 mm ; sumN=49,9 kN ; sumH=22,6 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,025 (Ne=1619 kN ; Nsd1=39,6 kN)
+        1a ordem Mnt=23,7 ; Mlt=83,1 kN.m  ->  2a ordem Msd=108,5 kN.m ; Nsd=41,7 ; Vsd=27,9
+     viga: B1=1,015 (Ne=1570 kN ; Nsd1=23,1 kN)
+        1a ordem Mnt=23,5 ; Mlt=83,1 kN.m  ->  2a ordem Msd=108,4 kN.m ; Nsd=11,5 ; Vsd=37,7
+   C3_Gfav_W1: B2 = 1,231  (dh=312,1 mm ; sumN=69,1 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,031 (Ne=1619 kN ; Nsd1=49,2 kN)
+        1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,3 kN.m ; Nsd=52,3 ; Vsd=25,8
+     viga: B1=1,016 (Ne=1570 kN ; Nsd1=25,2 kN)
+        1a ordem Mnt=26,9 ; Mlt=92,0 kN.m  ->  2a ordem Msd=129,1 kN.m ; Nsd=5,9 ; Vsd=47,0
+   C1_grav_W2: B2 = 1,104  (dh=187,9 mm ; sumN=34,7 kN ; sumH=13,6 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,000 (Ne=1619 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=27,0 ; Vsd=15,3
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,1 ; Mlt=53,1 kN.m  ->  2a ordem Msd=66,0 kN.m ; Nsd=6,4 ; Vsd=25,0
+   C2_uplift_W2: B2 = 1,022  (dh=306,9 mm ; sumN=8,0 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,007 (Ne=1619 kN ; Nsd1=10,6 kN)
+        1a ordem Mnt=24,9 ; Mlt=70,3 kN.m  ->  2a ordem Msd=69,6 kN.m ; Nsd=18,9 ; Vsd=30,7
+     viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=14,7 ; Mlt=70,3 kN.m  ->  2a ordem Msd=69,6 kN.m ; Nsd=13,5 ; Vsd=17,4
+   C3_Gdesf_W2: B2 = 1,079  (dh=308,5 mm ; sumN=27,3 kN ; sumH=22,6 kN ; Fnocional=0,11 kN)
      coluna: B1=1,001 (Ne=1619 kN ; Nsd1=1,0 kN)
         1a ordem Mnt=23,4 ; Mlt=73,9 kN.m  ->  2a ordem Msd=86,7 kN.m ; Nsd=29,4 ; Vsd=28,7
      viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
         1a ordem Mnt=18,2 ; Mlt=73,9 kN.m  ->  2a ordem Msd=86,7 kN.m ; Nsd=13,8 ; Vsd=26,8
-   C3_vento_Gfav: B2 = 1,022  (dh=306,9 mm ; sumN=8,0 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
+   C3_Gfav_W2: B2 = 1,022  (dh=306,9 mm ; sumN=8,0 kN ; sumH=22,5 kN ; Fnocional=0,05 kN)
      coluna: B1=1,007 (Ne=1619 kN ; Nsd1=10,6 kN)
         1a ordem Mnt=24,9 ; Mlt=70,3 kN.m  ->  2a ordem Msd=69,6 kN.m ; Nsd=18,9 ; Vsd=30,7
      viga: B1=1,000 (Ne=1570 kN ; Nsd1=0,0 kN)
@@ -367,8 +374,8 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
    B2,max com rigidez reduzida (final) = 1,231
 
 4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
-   COLUNA (governa C2_uplift): Msd=129,3 kN.m ; Nsd=52,3 kN ; Vsd=25,8 kN
-   VIGA (governa C2_uplift): Msd=129,1 kN.m ; Nsd=5,9 kN ; Vsd=47,0 kN
+   COLUNA (governa C2_uplift_W1): Msd=129,3 kN.m ; Nsd=52,3 kN ; Vsd=25,8 kN
+   VIGA (governa C2_uplift_W1): Msd=129,1 kN.m ; Nsd=5,9 kN ; Vsd=47,0 kN
 
 5. OBSERVACOES
    - Esforcos finais gerados com a RIGIDEZ TANGENCIAL REDUZIDA em 20%
