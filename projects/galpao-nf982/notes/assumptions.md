@@ -85,7 +85,7 @@ Run guiado real da skill build-warehouse. Lote no norte fluminense (RJ).
 - **A CONFIRMAR (prefeitura)**: TO/CA/TP/recuos ; orientacao da testada.
 - **A CONFIRMAR (fabricante)**: dados da ponte (Q, pesos, phi, fracoes, Hvr, classe).
 - **A CONFIRMAR**: V0 na isopleta ; Ca do arrasto (Figura 4) ; props/J/Cw UPE100 e VS500.
-- GAP: o modelo (build_galpao) desenha a ESTRUTURA mas NAO a geometria da ponte
-  (viga de rolamento, console/misula). Falta modelar p/ galpao com ponte.
-- GAP: modulo vento so tem Categoria II na tabela S2 (III/IV dariam erro).
+- [OK] Geometria da ponte no modelo: viga de rolamento (VS500) + consoles nos
+  pilares (PONTE_MODELO). Ref: 2 vigas + 10 consoles, aco 17,05 t.
+- [OK] Vento categorias I-V na Tabela 1 (Cat II intacta; demais A CONFIRMAR vs PDF).
 

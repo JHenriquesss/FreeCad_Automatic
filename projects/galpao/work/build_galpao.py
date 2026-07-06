@@ -37,15 +37,18 @@ DOC_NAME = "galpao_20x10"
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
-               fechamento=None):
+               fechamento=None, ponte_modelo=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
+    global PONTE_MODELO
     if aberturas is not None: ABERTURAS = dict(ABERTURAS, **aberturas)
     if terreno_pts is not None: TERRENO_PTS = terreno_pts
     if fechamento is not None: FECHAMENTO = dict(FECHAMENTO, **fechamento)
+    if ponte_modelo is not None:
+        PONTE_MODELO = ponte_modelo if ponte_modelo else None
     if length is not None: LENGTH = float(length)
     if span is not None:   SPAN = float(span)
     if eave_h is not None: EAVE_H = float(eave_h)
@@ -97,6 +100,11 @@ TERRENO_PTS = None
 # Fechamento das paredes (Gate 3). tipo: "telha" | "alvenaria_telha" |
 # "termoacustica" | "aberto". altura_alvenaria em mm (so p/ alvenaria_telha).
 FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
+
+# Ponte rolante - GEOMETRIA (se houver). None = sem ponte no desenho.
+#   Hvr = altura do trilho (mm) ; excentricidade = trilho fora do eixo do pilar (mm).
+PONTE_MODELO = None
+VR_SEC = (500.0, 250.0, 8.0, 16.0)   # viga de rolamento (I soldado) - placeholder
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -368,6 +376,19 @@ def build(doc):
             rod(doc, (x0, yw, Z0), (x1, yw, EAVE_H), 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_A")
             rod(doc, (x1, yw, Z0), (x0, yw, EAVE_H), 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_B")
 
+    # Ponte rolante (geometria): viga de rolamento sobre consoles (misulas) nos
+    # pilares, no nivel do trilho Hvr, excentrica ao eixo do pilar.
+    if PONTE_MODELO:
+        hvr = float(PONTE_MODELO.get("Hvr", 4500.0))
+        ecc = float(PONTE_MODELO.get("excentricidade", 300.0))
+        for yw, lado, sgn in ((0.0, "E", +1.0), (SPAN, "D", -1.0)):
+            yr = yw + sgn * ecc                      # eixo do trilho (para dentro)
+            i_member(doc, (0, yr, hvr), (LENGTH, yr, hvr), VR_SEC,
+                     f"VIGA_ROLAMENTO_{lado}")
+            for x in axes:                           # console/misula em cada portico
+                i_member(doc, (x, yw, hvr), (x, yr, hvr), HEA160,
+                         f"CONSOLE_PONTE_{lado}_{int(x)//1000:02d}")
+
     # Drenagem (Gate 1): calhas nos dois beirais + condutores, para fora do aco.
     GUT_Y = 340.0
     DOWN_Y = 340.0    # sob a calha; livra a placa de base engastada (550 mm em Y)
@@ -482,7 +503,8 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 
 # ---- verificacoes ----------------------------------------------------------
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
-               "CHUMBADOR", "ARRUELA", "PLACA_BASE")
+               "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
+               "VIGA_ROLAMENTO")
 SERVICO = ("CALHA", "CONDUTOR")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -574,6 +596,10 @@ def _classifica(n):
         return "Escoras de beiral / cumeeira", "HEA160"
     if n.startswith("MONTANTE_OITAO"):
         return "Montantes de oitao", "HEA160"
+    if n.startswith("VIGA_ROLAMENTO"):
+        return "Viga de rolamento (ponte)", "VS500"
+    if n.startswith("CONSOLE_PONTE"):
+        return "Consoles de ponte", "HEA160"
     if n.startswith("TERCA_PAREDE"):
         return "Tercas de parede", "UPE100"
     if n.startswith("TERCA"):

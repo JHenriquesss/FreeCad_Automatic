@@ -154,6 +154,9 @@ def to_build_kwargs(spec):
         "bay": g["bay"] * 1000.0,
         "aberturas": spec["aberturas"], "fechamento": spec["fechamento"],
         "terreno_pts": spec["terreno"].get("pts_xy_mm"),
+        "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
+                          "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
+                         if spec["ponte"] else None),
     }
 
 

@@ -36,13 +36,23 @@ def configurar(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=N
 
 
 def s2_factor(cat, classe, z):
-    """NBR 6123 Tabela 1 (categoria II)."""
-    tbl = {
-        ("II", "A"): (1.00, 1.00, 0.085),
-        ("II", "B"): (1.00, 0.98, 0.09),
-        ("II", "C"): (1.00, 0.95, 0.10),
+    """NBR 6123 Tabela 1 (parametros meteorologicos) -> S2 = b*Fr*(z/10)^p.
+    Fr = fator de rajada da categoria II por classe (A=1,00; B=0,98; C=0,95),
+    usado para todas as categorias. b e p por categoria/classe. Cat II conferida
+    contra a referencia; demais categorias A CONFIRMAR contra a Tabela 1 do PDF."""
+    Fr = {"A": 1.00, "B": 0.98, "C": 0.95}[classe]
+    # (b, p) por (categoria, classe) - Tabela 1 da NBR 6123/1988
+    bp = {
+        ("I", "A"): (1.10, 0.06), ("I", "B"): (1.10, 0.065), ("I", "C"): (1.10, 0.07),
+        ("II", "A"): (1.00, 0.085), ("II", "B"): (1.00, 0.09), ("II", "C"): (1.00, 0.10),
+        ("III", "A"): (0.94, 0.10), ("III", "B"): (0.94, 0.105), ("III", "C"): (0.94, 0.115),
+        ("IV", "A"): (0.86, 0.12), ("IV", "B"): (0.86, 0.125), ("IV", "C"): (0.86, 0.135),
+        ("V", "A"): (0.74, 0.15), ("V", "B"): (0.74, 0.16), ("V", "C"): (0.74, 0.175),
     }
-    b, Fr, p = tbl[(cat, classe)]
+    if (cat, classe) not in bp:
+        raise ValueError(f"categoria/classe de vento invalida: {cat}/{classe} "
+                         "(NBR 6123 Tabela 1: categorias I-V, classes A/B/C)")
+    b, p = bp[(cat, classe)]
     return b, Fr, p, b * Fr * (z / 10.0) ** p
 
 
