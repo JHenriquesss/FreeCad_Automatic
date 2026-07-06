@@ -64,6 +64,9 @@ Portal de 1 vão, 2 águas, base engastada/rotulada, com ou sem ponte rolante:
 - pórtico 1ª + 2ª ordem (MAES) e **redimensiona** coluna/viga (HEA→HEB300/IPE550);
 - **dimensiona** base (placa/chumbadores/espessura), joelho (chapa/parafusos),
   terça (Ue), longarina (UPE + tirantes), escora/montante (HEA);
+- **dimensiona** a sapata isolada (NBR 6118): tensão no solo + FS tombamento/
+  deslizamento (Parte A) e concreto — rigidez 22.6.1, armadura de flexão
+  (22.6.3+17.2.2), compressão diagonal 19.5.3.1 (Parte B, sapata rígida);
 - terças NBR 14762 (+ distorcional FSM), mão-francesa, contraventamento;
 - modelo 3D com conexões detalhadas + **auditor geométrico** (mede a forma real
   e pega erro de conexão no build);
@@ -74,7 +77,10 @@ a ponta com todos os elementos ATENDENDO.
 
 ## 5. O que ainda NÃO faz (fora de escopo / próximos)
 
-- **Fundação** (sapata/bloco/estaca) — framework separado (marca PENDENTE NBR 6118);
+- **Fundação**: sapata isolada JÁ dimensionada (rígida, NBR 6118); ainda faltam
+  bloco sobre estacas/tubulão, sapata flexível (punção), detalhamento executivo
+  da armadura e o envelope de combinações por elemento (a sapata usa hoje a
+  reação que governa a placa de base — bearing a confirmar p/ N máx gravitacional);
 - tipologias além do portal 1 vão (treliça, multi-vão, alma variável, mezanino,
   formado a frio como principal);
 - ligações de **fabricação** (as conexões 3D são conceituais — sem furação/solda
