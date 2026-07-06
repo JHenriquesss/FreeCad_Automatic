@@ -547,9 +547,13 @@ def verifica_conexoes(doc, tol=6.0):
     """Verifica invariantes GEOMETRICOS de conexao MEDINDO as formas reais (nao
     deduz de parametros/roll). Retorna lista de defeitos {conexao, problema}. E o
     ponto de crescimento: cada conexao critica vira uma regra aqui para que o erro
-    seja pego pelo build, nao pelo olho. Regras atuais:
-      - dreno: topo do condutor deve coincidir com o FUNDO da calha do seu lado;
-      - bocal: deve alcancar (cobrir) essa junta calha->condutor."""
+    seja pego pelo build, nao pelo olho. Regras:
+      - dreno: topo do condutor coincide com o FUNDO da calha; bocal cobre a junta;
+      - contato: cada secundario ENCOSTA (dist<=tol) em pelo menos um apoio valido
+        do seu mapa (senao 'flutuando'); um APOIO por distancia-ao-primario puro
+        daria falso positivo (tirantes apoiam em secundarios), por isso o mapa;
+      - apoio (terca): membro que APOIA nao pode ATRAVESSAR a viga/pilar (volume
+        comum acima de vol_pen) - deve assentar sobre a mesa, nao penetrar."""
     defeitos = []
     calha_fundo = {}                       # lado -> Z do fundo (medido)
     for o in doc.Objects:
@@ -584,6 +588,69 @@ def verifica_conexoes(doc, tol=6.0):
                 defeitos.append({"conexao": o.Name, "problema":
                     "nao cobre a junta (fundo calha %.0f fora de %.0f..%.0f)"
                     % (fundo, b.ZMin, b.ZMax)})
+
+    # --- Contato secundario -> apoio (mapa por familia) + penetracao (so apoio) ---
+    # (prefixo_familia, (prefixos de apoio validos), apoia_sobre?)
+    # apoia_sobre=True (terca/longarina) -> assenta na mesa, penetracao e defeito.
+    # False (tirante/contrav/console/montante) -> enquadra no NO, volume comum e ok.
+    APOIO = [
+        ("TERCA_BEIRAL",   ("PORTICO_", "VAO_"),                     True),
+        ("TERCA_PAREDE",   ("PORTICO_",),                            True),
+        ("TERCA_E",        ("PORTICO_",),                            True),
+        ("TERCA_D",        ("PORTICO_",),                            True),
+        ("TIRANTE_PAREDE", ("TERCA_PAREDE", "PORTICO_", "PLACA_BASE"), False),
+        ("TIRANTE_E_VAO",  ("TERCA_",),                              False),
+        ("TIRANTE_D_VAO",  ("TERCA_",),                              False),
+        ("MAO_FRANCESA",   ("PORTICO_", "TERCA_"),                   False),
+        ("CONTRAV",        ("PORTICO_",),                            False),
+        ("CONSOLE_PONTE",  ("PORTICO_",),                            False),
+        ("VIGA_ROLAMENTO", ("CONSOLE_PONTE",),                       False),
+        ("MONTANTE_OITAO", ("PORTICO_", "VAO_"),                     False),
+    ]
+
+    def _familia(nome):
+        for pref, apo, bear in APOIO:
+            if nome.startswith(pref):
+                return apo, bear
+        return None, None
+
+    shapes = [o for o in doc.Objects if hasattr(o, "Shape") and o.Shape.Volume > 0]
+    vol_pen = 500.0                       # volume comum acima disso = atravessa
+    for o in shapes:
+        apo, bear = _familia(o.Name)
+        if apo is None:
+            continue
+        bb = App.BoundBox(o.Shape.BoundBox)
+        bb.enlarge(700.0)
+        cand = [p for p in shapes if p.Name != o.Name
+                and p.Name.startswith(tuple(apo)) and bb.intersect(p.Shape.BoundBox)]
+        if not cand:
+            defeitos.append({"conexao": o.Name,
+                             "problema": "sem apoio %s por perto" % (apo,)})
+            continue
+        dmin = 1e9
+        pen, pen_nome = 0.0, None
+        for p in cand:
+            try:
+                d = o.Shape.distToShape(p.Shape)[0]
+            except Exception:
+                continue
+            if d < dmin:
+                dmin = d
+            if bear and d < tol:
+                try:
+                    v = o.Shape.common(p.Shape).Volume
+                    if v > pen:
+                        pen, pen_nome = v, p.Name
+                except Exception:
+                    pass
+        if dmin > tol:
+            defeitos.append({"conexao": o.Name,
+                             "problema": "flutuando: gap %.0f ao apoio" % dmin})
+        elif bear and pen > vol_pen:
+            defeitos.append({"conexao": o.Name, "problema":
+                "atravessa %s (volume comum %.0f mm3) - deve assentar sobre a mesa"
+                % (pen_nome, pen)})
     return defeitos
 
 
