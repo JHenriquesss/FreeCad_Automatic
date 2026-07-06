@@ -608,6 +608,18 @@ def build(doc):
             for x in axes:                           # console/misula em cada portico
                 i_member(doc, (x, yw, hvr), (x, yr, hvr), HEA160,
                          f"CONSOLE_PONTE_{lado}_{int(x)//1000:02d}")
+                tg = f"{lado}_{int(x)//1000:02d}"
+                # chapa de ligacao console->pilar (face do pilar, perpendicular ao console)
+                plate(doc, (x, yw + sgn * 95.0, hvr), 240.0, 16.0, 240.0,
+                      f"CONEX_CONSOLE_{tg}_CHAPA")
+                # enrijecedor SOB O TRILHO: chapa transversal na alma da viga de
+                # rolamento sobre o apoio (rigidez local + assento do trilho).
+                plate(doc, (x, yr, hvr), 12.0, 240.0, 480.0, f"CONEX_CONSOLE_{tg}_TRILHO")
+                # mao-francesa (bracket) do console: triangulo no plano do portico
+                # sob o console, do pilar ate a ponta.
+                _gusset_tri(doc, (x, yw + sgn * 95.0, hvr - 76.0),
+                            (0.0, sgn * (ecc - 95.0), 0.0), (0.0, 0.0, -450.0),
+                            f"CONEX_CONSOLE_{tg}_BRACKET", L=1.0)
 
     # Drenagem (Gate 1): calhas nos dois beirais + condutores.
     # A calha (CALHA_SEC rolada 90) fica CALHA_SEC[1]=300 mm alta, centrada em
@@ -912,6 +924,20 @@ def verifica_conexoes(doc, tol=6.0):
                 pass
         if not toca:
             defeitos.append({"conexao": o.Name, "problema": "diagonal sem esticador"})
+
+    # --- Ponte: enrijecedor SOB O TRILHO deve encostar na viga de rolamento ---
+    vrs = [o for o in doc.Objects
+           if o.Name.startswith("VIGA_ROLAMENTO") and hasattr(o, "Shape")]
+    for o in doc.Objects:
+        if "CONEX_CONSOLE" not in o.Name or "TRILHO" not in o.Name:
+            continue
+        if not hasattr(o, "Shape"):
+            continue
+        toca = any(o.Shape.distToShape(vr.Shape)[0] < tol for vr in vrs
+                   if o.Shape.BoundBox.intersect(vr.Shape.BoundBox))
+        if not toca:
+            defeitos.append({"conexao": o.Name,
+                             "problema": "enrijecedor nao encosta na viga de rolamento"})
     return defeitos
 
 
@@ -1002,6 +1028,12 @@ def _classifica(n):
         return "Porcas", "porca-M20"
     if n.startswith("NERVURA_BASE"):
         return "Nervuras da base", "chapa-12"
+    if "CONEX_CONSOLE" in n and "CHAPA" in n:
+        return "Chapa console-pilar (ponte)", "chapa-16"
+    if "CONEX_CONSOLE" in n and "TRILHO" in n:
+        return "Enrijecedor sob o trilho (ponte)", "chapa-12"
+    if "CONEX_CONSOLE" in n and "BRACKET" in n:
+        return "Mao-francesa do console (ponte)", "chapa-12"
     if "GUSSET" in n:
         return "Chapas gusset (contravento)", "chapa-12"
     if n.startswith("ESTICADOR"):
