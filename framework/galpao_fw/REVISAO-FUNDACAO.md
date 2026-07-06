@@ -130,6 +130,22 @@ rígida, util 0,27.
 
 ---
 
+## 4b. Quantitativo (concreto + aço)
+
+`quantitativo(rA, rB, n_sapatas)` — por sapata × nº de sapatas
+(`2 pilares × nº de pórticos`):
+
+- **Concreto** (m³): `B·L·h` do bloco + pedestal.
+- **Aço** (kg): `(A_s,L·(B−0,10) + A_s,B·(L−0,10)) · 7850` — A_s é área total
+  por largura (já integra a quantidade de barras); comprimento aproximado das
+  barras. Indicador `taxa` em kg/m³.
+
+Aparece no memorial `gate7-fundacao.txt` e no DXF (nota sob o detalhe da base).
+Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
+
+> Aproximação de **anteprojeto** (não substitui o detalhamento executivo, que
+> define bitolas, espaçamentos, ganchos e traspasses).
+
 ## 5. Limitações / pendências (FLAGS no memorial)
 
 1. `sigma_solo,adm` e parâmetros do solo (μ, coesão, γ) — **relatório de

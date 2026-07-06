@@ -366,7 +366,12 @@ def _detalhe_base(msp, d, ox, oy):
         _txt(msp, f"Arm. flexao: As_L={sap['As_L']:.1f} ; As_B={sap['As_B']:.1f} cm2"
                   " (NBR 6118 - PENDENTE detalhamento)".replace(".", ","),
              Q(-sL / 2, zb - 620), h=140)
-        _txt(msp, "DETALHE DA BASE + SAPATA", Q(-sL / 2, zb - 900), h=200)
+        q = d.get("sapata_quant")
+        if q:
+            _txt(msp, (f"Quant.: {q['n']} sapatas ; concreto {q['vol_conc_tot']:.1f} m3 ; "
+                       f"aco {q['massa_aco_tot']:.0f} kg (taxa {q['taxa_aco']:.0f} kg/m3)")
+                 .replace(".", ","), Q(-sL / 2, zb - 760), h=140)
+        _txt(msp, "DETALHE DA BASE + SAPATA", Q(-sL / 2, zb - 1080), h=200)
     else:
         _txt(msp, "DETALHE DA BASE", P(-Bp / 2, -Lp / 2 - 1400), h=200)
 
@@ -498,6 +503,7 @@ def design_de_spec(spec):
                     "As_L": sp.get("As_L", 0.0) * 1e4, "As_B": sp.get("As_B", 0.0) * 1e4,
                     "rigida": sp.get("rigida", True)}
                    if (sp := est.get("sapata_adotada")) else None),
+        "sapata_quant": est.get("sapata_quant"),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
     }

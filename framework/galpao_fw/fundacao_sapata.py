@@ -249,6 +249,30 @@ def _tabela_env(linhas, aprovado, casos, gov, rB, caso_base):
     return _pt("\n".join(L))
 
 
+RHO_ACO = 7850.0           # massa especifica do aco (kg/m3)
+
+
+def quantitativo(rA, rB, n_sapatas=1, h_ped=0.5):
+    """Quantitativo de UMA sapata x n_sapatas: volume de concreto (m3) e consumo
+    de aco da armadura de flexao (kg). Aproximacao: barras na direcao L com
+    comprimento ~ B e vice-versa; As e area total por largura (ja integra a
+    quantidade de barras). Retorna dict por sapata e total."""
+    B, L, h = rA["B"], rA["L"], rA["h"]
+    ap_L = rB.get("ap_L", 0.30); ap_B = rB.get("ap_B", 0.30)
+    vol_sapata = B * L * h
+    vol_ped = ap_L * ap_B * h_ped
+    vol_conc = vol_sapata + vol_ped
+    As_L = rB["flexao_L"]["As_adot"]           # m2 (por largura B)
+    As_B = rB["flexao_B"]["As_adot"]           # m2 (por largura L)
+    # volume de aco = As * comprimento das barras (barras // L tem comprimento ~B)
+    vol_aco = As_L * (B - 0.10) + As_B * (L - 0.10)
+    massa_aco = vol_aco * RHO_ACO
+    taxa = massa_aco / vol_conc if vol_conc else 0.0    # kg/m3 (indicador)
+    return {"n": n_sapatas,
+            "vol_conc_un": vol_conc, "massa_aco_un": massa_aco, "taxa_aco": taxa,
+            "vol_conc_tot": vol_conc * n_sapatas, "massa_aco_tot": massa_aco * n_sapatas}
+
+
 def _pt(s):
     """Ponto decimal -> virgula (fora de numeros de item tipo 6.118)."""
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", s)

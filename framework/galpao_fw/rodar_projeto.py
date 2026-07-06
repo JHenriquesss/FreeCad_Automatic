@@ -31,6 +31,7 @@ def calcular(spec, out_dir):
     if res.get("sapata_adotada"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["sapata_adotada"] = res["sapata_adotada"]
+        spec["estrutura"]["sapata_quant"] = res.get("sapata_quant")
     if res.get("joelho_adotado"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["joelho_adotado"] = res["joelho_adotado"]

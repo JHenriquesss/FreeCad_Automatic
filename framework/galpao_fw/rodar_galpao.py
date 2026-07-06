@@ -304,6 +304,16 @@ def rodar(params, out_dir):
                                        1.0 / gv.get("tomb", ("", 9))[1],
                                        1.0 / gv.get("desl", ("", 9))[1]), 2)
         res["sapata_ok"] = res["sapata_util"] <= 1.001
+        # quantitativo (concreto + aco) - n_sapatas = 2 pilares x n_porticos
+        n_port = int(round(g["comprimento"] / g["bay"])) + 1
+        q = fs.quantitativo(sr, rB, n_sapatas=2 * n_port,
+                            h_ped=params["fundacao"].get("h_ped", 0.5))
+        res["sapata_quant"] = q
+        save("gate7-fundacao.txt", dims["tabela"] + "\n\n" +
+             f"QUANTITATIVO ({q['n']} sapatas = 2 pilares x {n_port} porticos):\n"
+             f"  Concreto: {q['vol_conc_un']:.2f} m3/sapata  ->  TOTAL {q['vol_conc_tot']:.1f} m3\n"
+             f"  Aco (flexao): {q['massa_aco_un']:.1f} kg/sapata (taxa {q['taxa_aco']:.0f} kg/m3)"
+             f"  ->  TOTAL {q['massa_aco_tot']:.0f} kg".replace(".", ","))
     else:
         res["sapata_adotada"] = None
         res["sapata_ok"] = False

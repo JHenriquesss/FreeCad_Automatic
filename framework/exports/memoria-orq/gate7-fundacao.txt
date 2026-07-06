@@ -46,3 +46,7 @@ SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
 
 [FLAG] sigma_solo,adm e parametros do solo: sondagem (geotecnia).
 [FLAG] Detalhamento/ancoragem da armadura (22.6.4): projeto executivo.
+
+QUANTITATIVO (10 sapatas = 2 pilares x 5 porticos):
+  Concreto: 3,79 m3/sapata  ->  TOTAL 38,0 m3
+  Aco (flexao): 86,5 kg/sapata (taxa 23 kg/m3)  ->  TOTAL 865 kg
