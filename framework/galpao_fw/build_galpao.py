@@ -389,14 +389,24 @@ def build(doc):
                 i_member(doc, (x, yw, hvr), (x, yr, hvr), HEA160,
                          f"CONSOLE_PONTE_{lado}_{int(x)//1000:02d}")
 
-    # Drenagem (Gate 1): calhas nos dois beirais + condutores, para fora do aco.
+    # Drenagem (Gate 1): calhas nos dois beirais + condutores.
+    # A calha (CALHA_SEC rolada 90) fica CALHA_SEC[1]=300 mm alta, centrada em
+    # EAVE_H e abrindo para cima -> a boca de saida (fundo) esta em EAVE_H-150.
+    # O condutor DESCE a partir dessa boca (nao do centro/beiral); um bocal curto
+    # de maior diametro envolve a juncao calha->tubo (conexao real, nao topo solto).
     GUT_Y = 340.0
     DOWN_Y = 340.0    # sob a calha; livra a placa de base engastada (550 mm em Y)
+    GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
     for y, lado, rl in ((-GUT_Y, "E", 90), (SPAN + GUT_Y, "D", -90)):
         u_member(doc, (0, y, EAVE_H), (LENGTH, y, EAVE_H), CALHA_SEC, f"CALHA_{lado}", roll=rl)
     for x in (axes[0], axes[len(axes) // 2], axes[-1]):
         for y, lado in ((-DOWN_Y, "E"), (SPAN + DOWN_Y, "D")):
-            tube(doc, (x, y, EAVE_H), (x, y, 0.0), 100.0, 3.0, f"CONDUTOR_{lado}_{int(x)//1000:02d}")
+            tag = f"{lado}_{int(x)//1000:02d}"
+            # bocal/coletor: colar curto ABAIXO do fundo da calha, abracando o topo
+            # do condutor -> boca de saida + emenda, sem furar para dentro da calha.
+            tube(doc, (x, y, GUT_BOTTOM), (x, y, GUT_BOTTOM - 120.0), 130.0, 3.0,
+                 f"BOCAL_{tag}")
+            tube(doc, (x, y, GUT_BOTTOM), (x, y, 0.0), 100.0, 3.0, f"CONDUTOR_{tag}")
 
     # Envelope (Gate 3): telha trapezoidal + tapamento metalico. Pele fina.
     TCL = 0.65
@@ -505,7 +515,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
                "VIGA_ROLAMENTO")
-SERVICO = ("CALHA", "CONDUTOR")
+SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
 
@@ -531,6 +541,50 @@ def _compartilha_no(na, nb, tol=250.0):
             if all(abs(a[k] - b[k]) <= tol for k in range(3)):
                 return True
     return False
+
+
+def verifica_conexoes(doc, tol=6.0):
+    """Verifica invariantes GEOMETRICOS de conexao MEDINDO as formas reais (nao
+    deduz de parametros/roll). Retorna lista de defeitos {conexao, problema}. E o
+    ponto de crescimento: cada conexao critica vira uma regra aqui para que o erro
+    seja pego pelo build, nao pelo olho. Regras atuais:
+      - dreno: topo do condutor deve coincidir com o FUNDO da calha do seu lado;
+      - bocal: deve alcancar (cobrir) essa junta calha->condutor."""
+    defeitos = []
+    calha_fundo = {}                       # lado -> Z do fundo (medido)
+    for o in doc.Objects:
+        if o.Name.startswith("CALHA_") and hasattr(o, "Shape"):
+            lado = o.Name.split("_")[1]
+            calha_fundo[lado] = o.Shape.BoundBox.ZMin
+    for o in doc.Objects:
+        if not hasattr(o, "Shape"):
+            continue
+        if o.Name.startswith("CONDUTOR_"):
+            lado = o.Name.split("_")[1]
+            fundo = calha_fundo.get(lado)
+            if fundo is None:
+                defeitos.append({"conexao": o.Name, "problema": "sem calha no lado"})
+                continue
+            topo = o.Shape.BoundBox.ZMax
+            if topo > fundo + tol:
+                defeitos.append({"conexao": o.Name, "problema":
+                    "topo %.0f ACIMA do fundo da calha %.0f (dif %.0f)"
+                    % (topo, fundo, topo - fundo)})
+            elif topo < fundo - tol:
+                defeitos.append({"conexao": o.Name, "problema":
+                    "topo %.0f DESCOLADO do fundo da calha %.0f (gap %.0f)"
+                    % (topo, fundo, fundo - topo)})
+        elif o.Name.startswith("BOCAL_"):
+            lado = o.Name.split("_")[1]
+            fundo = calha_fundo.get(lado)
+            if fundo is None:
+                continue
+            b = o.Shape.BoundBox
+            if not (b.ZMin - tol <= fundo <= b.ZMax + tol):
+                defeitos.append({"conexao": o.Name, "problema":
+                    "nao cobre a junta (fundo calha %.0f fora de %.0f..%.0f)"
+                    % (fundo, b.ZMin, b.ZMax)})
+    return defeitos
 
 
 def checa_interferencia(doc, vol_min=200.0):
@@ -618,6 +672,8 @@ def _classifica(n):
         return "Calhas", "U300x200x5"
     if n.startswith("CONDUTOR"):
         return "Condutores", "tubo-100x3"
+    if n.startswith("BOCAL"):
+        return "Bocais (coletores calha->condutor)", "tubo-130x3"
     if "ALVENARIA" in n:
         return "Alvenaria (meia-parede)", "bloco-19"
     if n.startswith("TELHA"):
@@ -716,6 +772,7 @@ def run():
     doc = App.newDocument(name)
     count = build(doc)
     itf = checa_interferencia(doc)
+    conx = verifica_conexoes(doc)
     est_ab = estrutura_em_aberturas(doc)
     tk = takeoff(doc)
     if TERRENO_PTS:                                 # lote depois do takeoff/clash
@@ -726,6 +783,7 @@ def run():
             "altura_cumeeira_mm": RIDGE_H, "gap_graute_mm": GROUT_GAP,
             "comprimento_aco_coluna_mm": EAVE_H - Z0,
             "interferencias": len(itf),
+            "conexoes_suspeitas": conx,
             "conflito_abertura_contrav": globals().get("CONFLITOS_ABERTURA_CONTRAV", []),
             "estrutura_em_aberturas": est_ab,
             "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
