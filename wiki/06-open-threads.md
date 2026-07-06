@@ -9,10 +9,15 @@
   flag) and packages the console reaction (R_vert, M_ecc, H_transv, H_long). φ and
   the surge/braking fractions are manufacturer/NBR-8400 data → flagged A CONFIRMAR
   (the book itself says these usually come from the supplier). Ref (100 kN crane):
-  runway VS500 interaction 0.34, reaction R_vert=132.9 kN. REMAINING: inject the
-  reaction into `galpao_portico` as a crane load case + combination (ψ0=0.7) —
-  touches the approved portico, done as a separate step. PARAMS_REF (20×10) is
-  craneless; the module runs under its own cfg when a crane is present.
+  runway VS500 interaction 0.34, reaction R_vert=132.9 kN. INTEGRATED INTO THE
+  PORTICO 2026-07-05: `gp.configurar(ponte=)` injects the reaction as a load case
+  (R_vert + eccentric moment at the console node + surge) and adds combos C4
+  (crane-principal G+1.5·Crane+1.4·0.6·Wind) and C5 (wind-principal, crane ψ0=0.7).
+  It flows through 1st order, the MAES 2nd order (`estabilidade_b1b2`), the member
+  check, and the base/knee extraction — all guarded by `PONTE=None` so the craneless
+  reference is byte-identical (0.67/0.93, B2 1.036). `rodar_galpao.py --ponte` runs
+  a 100 kN example (doesn't govern: uplift 0.67); a 250 kN crane governs (column
+  1.8 → resize). REMAINING: senior re-review (touched the approved gp + estabilidade).
 - **Secondary member verification (RESOLVED 2026-07-05).** All secondary members
   now checked: wall girt (UPE100 biaxial, `secundarios_nbr8800`), eave strut/ridge
   + gable post (HEA160 beam-column, same module), bracing/sag/flange-brace rods

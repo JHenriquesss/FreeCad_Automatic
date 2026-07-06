@@ -25,6 +25,7 @@ import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
+import ponte_rolante as pr
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -43,6 +44,9 @@ def _casos_mf_reac():
         apply, _ = gp._wind(key)
         fr, ix = gp._frame(); apply(fr, ix); _, mf = fr.solve()
         out[nm] = (mf, fr.reactions(), ix)
+    if gp.PONTE:
+        fr, ix = gp._frame(); gp.case_ponte(fr, ix); _, mf = fr.solve()
+        out["PONTE"] = (mf, fr.reactions(), ix)
     return out
 
 
@@ -53,8 +57,12 @@ def _esforcos_base_joelho():
     _, _, ix = casos["G"]
     nbL = ix["nBaseL"]
     eKnee = ix["colL"][-1]
+    combos = dict(_COMB)
+    if gp.PONTE:
+        combos["C4_ponte"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
+        combos["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
     base_best = knee_best = None
-    for nm, c in _COMB.items():
+    for nm, c in combos.items():
         R = sum(fac * casos[cs][1] for cs, fac in c.items())
         N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
         if base_best is None or abs(M) > abs(base_best[3]):
@@ -88,6 +96,22 @@ def rodar(params, out_dir):
                   fy=params["terca"]["fy"])
 
     res = {}
+    # Ponte rolante (opcional): calcula a acao e injeta a reacao no portico como
+    # caso de carga + combinacoes (C4/C5). Sem "ponte" nos params -> galpao SEM
+    # ponte, portico identico a referencia.
+    if params.get("ponte"):
+        pcfg = dict(params["ponte"]); pcfg.setdefault("vao_viga", g["bay"])
+        pcfg.setdefault("vao_ponte", g["span"] - pcfg.get("folga_trilho", 0.5))
+        esf, viga, reac = pr.analisa(pcfg)
+        save("gate5-ponte.txt", pr.relatorio_pt(esf, viga, reac))
+        gp.configurar(ponte={"R_vert": reac["R_vertical_kN"],
+                             "M_exc": reac["M_excentrico_kNm"],
+                             "H_transv": reac["H_transversal_kN"],
+                             "Hvr": pcfg["Hvr"]})
+        res["ponte_R_vert"] = round(reac["R_vertical_kN"], 1)
+        res["ponte_viga_inter"] = round(viga["inter"], 2)
+    else:
+        gp.configurar(ponte=False)
     # Gate 5 - vento (transversal + longitudinal)
     save("gate5-vento.txt", vento.relatorio_pt(vento.compute()))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
@@ -199,6 +223,7 @@ def rodar(params, out_dir):
 def _consolidar(out_dir, save, g, params):
     ordem = [("1. VENTO", "gate5-vento.txt"),
              ("1b. VENTO LONGITUDINAL", "gate5-vento-longitudinal.txt"),
+             ("1c. PONTE ROLANTE", "gate5-ponte.txt"),
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
@@ -208,6 +233,8 @@ def _consolidar(out_dir, save, g, params):
              ("10. BASE", "gate7-base.txt"), ("11. LIGACOES", "gate7-ligacoes.txt")]
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 70, ""]
+    if not params.get("ponte"):
+        ordem = [x for x in ordem if x[1] != "gate5-ponte.txt"]
     for tit, f in ordem:
         p = os.path.join(out_dir, f)
         body = open(p, encoding="utf-8").read().rstrip() if os.path.exists(p) else "(falta)"
@@ -252,14 +279,36 @@ PARAMS_REF = {
     "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",
                    "n": 2, "db": 0.012, "fub": 400e3, "t_chapa": 0.006,
                    "fu_chapa": 400e3, "lf": 0.025, "V": 8.0, "excecao_terca": True},
+    # "ponte": None -> galpao SEM ponte (portico identico a referencia).
 }
 
 
+def params_com_ponte():
+    """PARAMS_REF + uma ponte rolante de 100 kN (exemplo; dados A CONFIRMAR do
+    fabricante/NBR 8400). Demonstra o galpao COM ponte de ponta a ponta."""
+    import copy
+    p = copy.deepcopy(PARAMS_REF)
+    p["ponte"] = {"Q": 100.0, "peso_ponte": 60.0, "peso_trole": 15.0,
+                  "aprox_min": 1.0, "n_rodas_lado": 2, "phi": 1.10,
+                  "frac_lateral": 0.10, "frac_long": 0.10, "d_rodas": 3.0,
+                  "fy": 250e3, "perfil_viga": pr.VS500, "siderurgica": False,
+                  "excentricidade": 0.30, "Hvr": 4.5,
+                  "E_Ix": pr.ck.E * pr.VS500["Ix"]}
+    return p
+
+
 if __name__ == "__main__":
-    out = os.path.join(os.path.dirname(__file__), "..", "exports", "memoria-orq")
-    r = rodar(PARAMS_REF, os.path.abspath(out))
-    print("RESUMO (params de referencia 20x10 engastado):")
-    print(f"  interacao coluna = {r['interacao_col']:.2f} (ref 0,67)")
+    import sys
+    com_ponte = "--ponte" in sys.argv
+    P = params_com_ponte() if com_ponte else PARAMS_REF
+    out = os.path.join(os.path.dirname(__file__), "..", "exports",
+                       "memoria-ponte" if com_ponte else "memoria-orq")
+    r = rodar(P, os.path.abspath(out))
+    print(f"RESUMO (20x10 engastado{' + PONTE 100 kN' if com_ponte else ''}):")
+    if com_ponte:
+        print(f"  ponte: R_vert={r['ponte_R_vert']} kN ; viga de rolamento "
+              f"interacao={r['ponte_viga_inter']}")
+    print(f"  interacao coluna = {r['interacao_col']:.2f} (ref 0,67 s/ ponte)")
     print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,93 c/ Lb da mao-francesa)")
     print(f"  mao-francesa     = {r['mf_bracos_portico']} bracos/portico ; "
           f"1 a cada {r['mf_stride']} terca(s) ; Lb={r['Lb_raf']} m")

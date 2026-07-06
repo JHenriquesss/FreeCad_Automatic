@@ -53,26 +53,29 @@ SEC = {"coluna": {"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE},
 _L_RAF = SEC["viga"]["L"]
 GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF   # permanente
 QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF           # sobrecarga
+PVERT = 0.0         # vertical da ponte (para a forca nocional; 0 se sem ponte)
 FN_FRAC = 0.003     # 4.9.7.1.1: forca nocional = 0,3% da carga gravitacional
 
 
 def sincronizar():
     """Recalcula SEC / cargas / H_STORY a partir da geometria atual do
     galpao_portico (apos gp.configurar). Chamado no inicio de analyse()."""
-    global _L_RAF, GVERT, QVERT, H_STORY
+    global _L_RAF, GVERT, QVERT, H_STORY, PVERT
     SEC["coluna"].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
     SEC["viga"].update(A=gp.A_RAF, I=gp.I_RAF,
                        L=math.hypot(gp.SPAN / 2, gp.RIDGE - gp.EAVE))
     _L_RAF = SEC["viga"]["L"]
     GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF
     QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF
+    PVERT = abs(gp.PONTE["R_vert"]) if gp.PONTE else 0.0
     H_STORY = gp.EAVE
 
 
 def _forca_nocional(combo):
     """Forca horizontal equivalente (imperfeicao geometrica, 4.9.7.1.1) =
     0,3% da carga gravitacional de cálculo do andar (so G e Q; vento nao entra)."""
-    return FN_FRAC * (combo.get("G", 0.0) * GVERT + combo.get("Q", 0.0) * QVERT)
+    return FN_FRAC * (combo.get("G", 0.0) * GVERT + combo.get("Q", 0.0) * QVERT
+                      + combo.get("PONTE", 0.0) * PVERT)
 
 
 # ---- aplicacao das cargas FATORADAS de um caso sobre um frame --------------
@@ -100,6 +103,10 @@ def _apply_case(fr, ix, cs, fac):
         for e in ix["rafR"]:
             p = net["cobertura_sotavento"] * q * gp.BAY * fac
             fr.add_member_udl(e, wx=-p * (gp.SIN), wy=-p * gp.COS)
+    elif cs == "PONTE" and gp.PONTE:
+        p = gp.PONTE
+        fr.add_nodal_load(ix["nConsL"], Fy=-abs(p["R_vert"]) * fac,
+                          M=p["M_exc"] * fac, Fx=abs(p["H_transv"]) * fac)
 
 
 def _apply_combo(fr, ix, combo):
@@ -210,17 +217,27 @@ def _classe(B2max):
     return "GRANDE deslocabilidade (exige analise rigorosa P-Delta; MAES so a criterio do responsavel)"
 
 
+def _combos_ativos():
+    """COMBOS + combinacoes da ponte (se houver), identicas as do galpao_portico."""
+    c = dict(COMBOS)
+    if gp.PONTE:
+        c["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
+        c["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    return c
+
+
 def analyse():
     sincronizar()          # reflete a geometria/secoes atuais (gp.configurar)
+    combos = _combos_ativos()
     # 1o passo: rigidez integral -> classifica a deslocabilidade pelo B2.
-    base = [_analisa_combo(n, c, 1.0) for n, c in COMBOS.items()]
+    base = [_analisa_combo(n, c, 1.0) for n, c in combos.items()]
     B2max0 = max(r["B2"] for r in base)
     classe = _classe(B2max0)
     # 2o passo: se media (ou grande via MAES), refaz com rigidez reduzida a 80%
     # (4.9.7.1.2) -> esforcos FINAIS. Se pequena, mantem a rigidez integral.
     reduziu = B2max0 > 1.1
     Efac = 0.8 if reduziu else 1.0
-    final = [_analisa_combo(n, c, Efac) for n, c in COMBOS.items()] if reduziu else base
+    final = [_analisa_combo(n, c, Efac) for n, c in combos.items()] if reduziu else base
     B2max_f = max(r["B2"] for r in final)
     return {"combos": final, "B2max": B2max_f, "B2max0": B2max0,
             "classe": classe, "reduziu": reduziu, "Efac": Efac}

@@ -10,9 +10,16 @@ portico (R_vert, M_exc, H_transv, H_long). phi/fracoes = fabricante/NBR 8400,
 FLAGADOS "A CONFIRMAR". Ref (ponte 100 kN): viga VS500 interacao 0,34 OK;
 reacao R_vert=132,9 kN, M_exc=39,9 kN.m.
 
-FALTA: injetar a reacao no galpao_portico como CASO DE CARGA + combinacao
-(psi0=0,7, equipamento). Mexe no portico ja aprovado -> passo separado, com aval.
-A referencia 20x10 e SEM ponte (roda sob cfg proprio quando ha ponte).
+INTEGRADO NO PORTICO 2026-07-05: gp.configurar(ponte=...) injeta a reacao como
+caso de carga (case_ponte: R_vert + M_exc no no do console + surto) e adiciona os
+combos C4 (ponte principal: G+1,5*Ponte+1,4*0,6*Vento) e C5 (vento principal,
+ponte psi0=0,7). Flui por 1a ordem, MAES 2a ordem (estabilidade_b1b2), check de
+perfil, base e joelho. Tudo GUARDADO por PONTE=None -> galpao SEM ponte fica
+byte-identico a referencia (0,67/0,93, B2 1,036). Orquestrador: params["ponte"]
+liga; rodar_galpao.py --ponte roda o exemplo de 100 kN. Testes: ponte leve
+(100 kN) nao governa (uplift 0,67 manda); ponte pesada (250 kN) governa (coluna
+1,8 -> redimensionar). PENDENTE: re-revisao do senior (mexeu em gp + estabilidade
+aprovados).
 
 Escopo original do modulo:
 - Cargas da ponte: capacidade Q, peso da ponte + carro, cargas por roda Rmax

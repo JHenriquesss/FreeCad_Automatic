@@ -40,15 +40,21 @@ G_ROOF = 0.27          # telha + tercas + suspensas (por area de telhado)
 RAFTER_SELF = 0.35     # peso proprio da viga (por metro de barra)
 Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
 
+# ---- ponte rolante (opcional). None = galpao SEM ponte (nao altera nada). ----
+# dict do ponte_rolante.reacao_no_portico + altura do trilho:
+#   {"R_vert","M_exc","H_transv","Hvr"} (kN, kN.m, kN, m).
+PONTE = None
+
 
 def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
-               G_roof=None, rafter_self=None, Q_roof=None):
+               G_roof=None, rafter_self=None, Q_roof=None, ponte=None):
     """Define a geometria/cargas do projeto (do gate) e RECOMPUTA os derivados.
     Nao altera o metodo de calculo - so troca os dados de entrada. Chamar antes
     de analyse(). Argumentos None mantem o valor atual."""
     global SPAN, EAVE, RIDGE, BAY, THETA, COS, SIN, BASE_FIXED
-    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF
+    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE
+    if ponte is not None: PONTE = ponte if ponte else None
     if span is not None:  SPAN = float(span)
     if eave is not None:  EAVE = float(eave)
     if ridge is not None: RIDGE = float(ridge)
@@ -88,7 +94,13 @@ def _frame():
     nRidge = fr.add_node(SPAN / 2, RIDGE)
     nEaveR = fr.add_node(SPAN, EAVE)
     nBaseR = fr.add_node(SPAN, 0)
-    eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
+    nConsL = None
+    if PONTE:                                    # no do console no nivel do trilho
+        nConsL = fr.add_node(0, float(PONTE["Hvr"]))
+        eColL = (_chain(fr, nBaseL, nConsL, A_COL, I_COL, max(2, NSEG // 2)) +
+                 _chain(fr, nConsL, nEaveL, A_COL, I_COL, max(2, NSEG // 2)))
+    else:
+        eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
     eRafL = _chain(fr, nEaveL, nRidge, A_RAF, I_RAF, NSEG)
     eRafR = _chain(fr, nRidge, nEaveR, A_RAF, I_RAF, NSEG)
     eColR = _chain(fr, nEaveR, nBaseR, A_COL, I_COL, NSEG)
@@ -96,7 +108,7 @@ def _frame():
     fr.add_support(nBaseR, u=True, v=True, rot=BASE_FIXED)
     ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
               nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
-              nBaseL=nBaseL, nBaseR=nBaseR)
+              nBaseL=nBaseL, nBaseR=nBaseR, nConsL=nConsL)
     return fr, ix
 
 
@@ -121,6 +133,16 @@ def case_Q(fr, ix):
     wy = -(Q_ROOF * BAY * COS)
     for e in ix["rafL"] + ix["rafR"]:
         fr.add_member_udl(e, wy=wy)
+
+
+def case_ponte(fr, ix):
+    """Reacao da ponte no console (nivel do trilho): vertical R_vert, momento
+    EXCENTRICO concentrado (trilho fora do eixo do pilar) e surto transversal.
+    So a coluna esquerda (governante; portico simetrico). Diretriz do senior:
+    o M_excentrico costuma governar a coluna inferior."""
+    p = PONTE
+    n = ix["nConsL"]
+    fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
 
 
 def _wind(cpi_key):
@@ -170,6 +192,9 @@ def analyse():
 
     cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
     cases_d = {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}
+    if PONTE:
+        dP, mfP, _, _ = _run(case_ponte)
+        cases_mf["PONTE"] = mfP; cases_d["PONTE"] = dP
 
     def combo_mf(c):
         keys = list(mfG.keys())
@@ -191,6 +216,12 @@ def analyse():
         "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
         "C3_vento_Gfav":  {"G": 1.00, "W2": 1.40},               # sem Q (favor.)
     }
+    if PONTE:
+        # Ponte = acao variavel autonoma (diretriz do senior):
+        #  - PONTE principal: G desf + 1,5*Ponte + 1,4*0,6*Vento (governa o pilar);
+        #  - Vento principal + Ponte secundaria (psi0=0,7).
+        combos["C4_ponte_princ"] = {"G": 1.25, "PONTE": 1.50, "W2": 0.6 * 1.40, "Q": 0.8 * 1.50}
+        combos["C5_vento_ponte"] = {"G": 1.25, "W2": 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
     res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)
