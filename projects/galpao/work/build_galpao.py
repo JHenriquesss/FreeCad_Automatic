@@ -36,12 +36,14 @@ DOC_NAME = "galpao_20x10"
 
 def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None,
-               n_tirante_parede=None):
+               n_tirante_parede=None, aberturas=None, terreno_pts=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas)."""
     global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
-    global MF_STRIDE, N_TIRANTE_PAREDE
+    global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS
+    if aberturas is not None: ABERTURAS = dict(ABERTURAS, **aberturas)
+    if terreno_pts is not None: TERRENO_PTS = terreno_pts
     if length is not None: LENGTH = float(length)
     if span is not None:   SPAN = float(span)
     if eave_h is not None: EAVE_H = float(eave_h)
@@ -70,6 +72,25 @@ CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 MF_STRIDE = 2
 # Linhas de tirante de PAREDE por vao (do calc: longarina UPE100 exige 2 -> 0,99).
 N_TIRANTE_PAREDE = 2
+
+# Aberturas (Gate 4). NENHUMA e desenhada por padrao alem do que estiver aqui.
+# Cada chave None = sem aquela abertura. Larguras/alturas em mm.
+#   portao_frente/portao_fundo: (largura, altura) de portao de veiculos no oitao.
+#   porta_frente/porta_fundo:   (largura, altura) de porta de pessoas no oitao.
+#   janelas_laterais: (z_base, z_topo) da faixa de janelas nas paredes longas.
+# Default = conjunto da REFERENCIA (galpao_20x10). A skill sobrescreve pelo Gate 4.
+ABERTURAS = {
+    "portao_frente": (4000.0, 4530.0),
+    "portao_fundo": None,
+    "porta_frente": None,
+    "porta_fundo": None,
+    "janelas_laterais": (4300.0, 5300.0),
+    "porta_lateral": (7300.0, 8200.0),   # X0,X1 da porta lateral (ref); None=nenhuma
+}
+
+# Terreno (opcional): lista de pontos (x,y) do lote em mm, ja no referencial do
+# galpao (a skill translada). None = nao desenha o terreno.
+TERRENO_PTS = None
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -266,12 +287,12 @@ def build(doc):
         ue_member(doc, (0, y, EAVE_H + POFF), (LENGTH, y, EAVE_H + POFF), UE_TERCA,
                   f"TERCA_BEIRAL_{lado}", roll=rl)
 
-    # Tercas de parede (girts): apoiadas na face externa das colunas. A inferior
-    # esquerda e interrompida sobre a porta com uma verga.
+    # Tercas de parede (girts): apoiadas na face externa das colunas. Se ha porta
+    # LATERAL, a girt inferior esquerda e interrompida sobre ela com uma verga.
     GOFF = 130.0
-    DOOR_X = (7300.0, 8200.0)
+    DOOR_X = ABERTURAS.get("porta_lateral")         # None se nao ha porta lateral
     for lvl, z in enumerate((2000.0, 4000.0), start=1):
-        if lvl == 1:
+        if lvl == 1 and DOOR_X:
             u_member(doc, (0, -GOFF, z), (DOOR_X[0], -GOFF, z), UPE100, "TERCA_PAREDE_E_01a", roll=90)
             u_member(doc, (DOOR_X[1], -GOFF, z), (LENGTH, -GOFF, z), UPE100, "TERCA_PAREDE_E_01b", roll=90)
             u_member(doc, (DOOR_X[0], -GOFF, 2250.0), (DOOR_X[1], -GOFF, 2250.0),
@@ -291,13 +312,17 @@ def build(doc):
                 rod(doc, (xk, y, Z0), (xk, y, EAVE_H), 16,
                     f"TIRANTE_PAREDE_{lado}_{b + 1:02d}_{k:02d}")
 
-    # Montantes de oitao. O oitao da FRENTE recebe o portao, entao seus montantes
-    # ficam nos batentes; o oitao do FUNDO tem montantes nos tercos do vao.
-    GATE_Y = (3000.0, 7000.0)
-    for i, x in ((1, axes[0]), (len(axes), axes[-1])):
-        lbl = "FRENTE" if x == 0 else "FUNDO"
-        mont_ys = GATE_Y if lbl == "FRENTE" else (SPAN / 3.0, 2 * SPAN / 3.0)
-        for p, yg in enumerate(mont_ys, start=1):
+    # Montantes de oitao. Se ha portao de veiculos no oitao, os montantes ficam
+    # nos BATENTES do portao (centrado no vao); senao, nos tercos do vao.
+    def _mont_ys(portao):
+        if portao:
+            gw = portao[0]
+            return (SPAN / 2.0 - gw / 2.0, SPAN / 2.0 + gw / 2.0)
+        return (SPAN / 3.0, 2 * SPAN / 3.0)
+    GATE_Y = _mont_ys(ABERTURAS.get("portao_frente"))
+    for x, lbl, portao in ((axes[0], "FRENTE", ABERTURAS.get("portao_frente")),
+                           (axes[-1], "FUNDO", ABERTURAS.get("portao_fundo"))):
+        for p, yg in enumerate(_mont_ys(portao), start=1):
             i_member(doc, (x, yg, Z0), (x, yg, rafter_z(yg) - 95), HEA160,
                      f"MONTANTE_OITAO_{lbl}_{p:02d}")
 
@@ -355,48 +380,81 @@ def build(doc):
     panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
           TCL, "TELHA_D")
 
-    # Aberturas (Gate 4). Vaos contraventados = vaos de extremidade.
+    # Aberturas (Gate 4) - dirigidas por ABERTURAS (config). So desenha o pedido.
     yw = 195.0
     braced_x = [(0.0, BAY), (LENGTH - BAY, LENGTH)]
 
     def _in_braced(x0, x1):
         return any(not (x1 <= bx0 or x0 >= bx1) for (bx0, bx1) in braced_x)
 
-    door_x = DOOR_X
-    porta = ((door_x, (-yw - 60, -yw + 60), (Z0, 2130.0)),)
-    win_x = (BAY, LENGTH - BAY)
-    jan_e = ((win_x, (-yw - 60, -yw + 60), (4300.0, 5300.0)),)
-    jan_d = ((win_x, (SPAN + yw - 60, SPAN + yw + 60), (4300.0, 5300.0)),)
+    global CONFLITOS_ABERTURA_CONTRAV, ABERTURAS_PASSAGEM
+    CONFLITOS_ABERTURA_CONTRAV = []
+    ABERTURAS_PASSAGEM = []
+    PORTA_PESSOA = (900.0, 2130.0)                  # vao de porta de pessoas padrao
 
+    # --- paredes laterais (longas): porta lateral (opcional) + faixa de janelas
+    lat_ops = {"E": [], "D": []}
+    pl = ABERTURAS.get("porta_lateral")
+    if pl:                                          # (X0, X1) na parede esquerda
+        lat_ops["E"].append((pl, (-yw - 60, -yw + 60), (Z0, Z0 + PORTA_PESSOA[1])))
+        ABERTURAS_PASSAGEM.append(("porta_lateral", (pl[0], pl[1], -yw - 200,
+                                   -yw + 200, Z0, Z0 + PORTA_PESSOA[1])))
+        if _in_braced(pl[0], pl[1]):
+            CONFLITOS_ABERTURA_CONTRAV.append("porta_lateral")
+    jl = ABERTURAS.get("janelas_laterais")
+    if jl:                                          # faixa (z_base, z_topo) nos vaos centrais
+        win_x = (BAY, LENGTH - BAY)
+        lat_ops["E"].append((win_x, (-yw - 60, -yw + 60), jl))
+        lat_ops["D"].append((win_x, (SPAN + yw - 60, SPAN + yw + 60), jl))
+        if _in_braced(win_x[0], win_x[1]):
+            CONFLITOS_ABERTURA_CONTRAV.append("janelas")
     panel(doc, [(0, -yw, Z0), (LENGTH, -yw, Z0), (LENGTH, -yw, EAVE_H), (0, -yw, EAVE_H)],
-          TCL, "TAPAMENTO_LATERAL_E", openings=list(porta) + list(jan_e))
+          TCL, "TAPAMENTO_LATERAL_E", openings=lat_ops["E"])
     panel(doc, [(0, SPAN + yw, Z0), (LENGTH, SPAN + yw, Z0),
                 (LENGTH, SPAN + yw, EAVE_H), (0, SPAN + yw, EAVE_H)], TCL,
-          "TAPAMENTO_LATERAL_D", openings=list(jan_d))
+          "TAPAMENTO_LATERAL_D", openings=lat_ops["D"])
 
-    # Portao no oitao da FRENTE, vao livre ENTRE os montantes-batente.
-    GATE_CLEAR = (GATE_Y[0] + 80.0, GATE_Y[1] - 80.0)
-    portao = (((-yw - 300, -yw + 300), GATE_CLEAR, (Z0, 4530.0)),)
-    for xc, lbl, ops in ((-yw, "FRENTE", list(portao)), (LENGTH + yw, "FUNDO", [])):
+    # --- oitoes (empenas): portao de veiculos e/ou porta de pessoas
+    for xc, lbl, sgn in ((-yw, "FRENTE", -1.0), (LENGTH + yw, "FUNDO", +1.0)):
+        ops = []
+        portao = ABERTURAS.get(f"portao_{lbl.lower()}")
+        porta = ABERTURAS.get(f"porta_{lbl.lower()}")
+        if portao:
+            gw, gh = portao
+            yr = (SPAN / 2.0 - gw / 2.0 + 80.0, SPAN / 2.0 + gw / 2.0 - 80.0)
+            ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + gh)))
+            ABERTURAS_PASSAGEM.append((f"portao_{lbl.lower()}",
+                (xc - 200, xc + 200, yr[0], yr[1], Z0, Z0 + gh)))
+        if porta:
+            pw, ph = porta
+            yr = (SPAN / 2.0 - pw / 2.0, SPAN / 2.0 + pw / 2.0)
+            ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + ph)))
+            ABERTURAS_PASSAGEM.append((f"porta_{lbl.lower()}",
+                (xc - 200, xc + 200, yr[0], yr[1], Z0, Z0 + ph)))
         panel(doc, [(xc, 0, Z0), (xc, SPAN, Z0), (xc, SPAN, EAVE_H),
                     (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL,
               f"TAPAMENTO_OITAO_{lbl}", openings=ops)
 
-    # Check abertura x contraventamento (aberturas de parede)
-    global CONFLITOS_ABERTURA_CONTRAV, ABERTURAS_PASSAGEM
-    CONFLITOS_ABERTURA_CONTRAV = []
-    for label, xr in (("porta", door_x), ("janelas", win_x)):
-        if _in_braced(xr[0], xr[1]):
-            CONFLITOS_ABERTURA_CONTRAV.append(label)
-
-    # Aberturas de passagem (portao/porta): devem estar livres de estrutura.
-    ABERTURAS_PASSAGEM = [
-        ("portao_frente", (-yw - 200, -yw + 200, GATE_CLEAR[0], GATE_CLEAR[1], Z0, 4530.0)),
-        ("porta_lateral", (door_x[0], door_x[1], -yw - 200, -yw + 200, Z0, 2130.0)),
-    ]
-
     doc.recompute()
     return len(doc.Objects)
+
+
+def desenha_terreno(doc, pts_xy, z=0.0):
+    """Desenha o poligono do lote (pts em mm, referencial do galpao) como uma
+    face no nivel do solo (Z=0). So representacao - nao entra no takeoff/clash."""
+    import Part
+    vees = [App.Vector(x, y, z) for (x, y) in pts_xy]
+    if (vees[0] - vees[-1]).Length > 1e-6:
+        vees.append(vees[0])
+    wire = Part.makePolygon(vees)
+    obj = doc.addObject("Part::Feature", "TERRENO_LOTE")
+    try:
+        obj.Shape = Part.Face(wire)
+    except Exception:
+        obj.Shape = wire
+    if hasattr(obj, "ViewObject") and obj.ViewObject:
+        obj.ViewObject.Transparency = 60
+    return obj
 
 
 # ---- verificacoes ----------------------------------------------------------
@@ -585,6 +643,9 @@ def run():
     itf = checa_interferencia(doc)
     est_ab = estrutura_em_aberturas(doc)
     tk = takeoff(doc)
+    if TERRENO_PTS:                                 # lote depois do takeoff/clash
+        desenha_terreno(doc, TERRENO_PTS)
+        doc.recompute()
     fcstd, step = export(doc)
     return {"elementos": count, "porticos": len(frame_axes()),
             "altura_cumeeira_mm": RIDGE_H, "gap_graute_mm": GROUT_GAP,

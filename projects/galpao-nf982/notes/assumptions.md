@@ -44,6 +44,16 @@ Run guiado real da skill build-warehouse. Lote no norte fluminense (RJ).
 - Usuario optou por MANTER todos os defaults da referencia (planilha-defaults.md).
 - Ponte: exemplo 100 kN, TUDO A CONFIRMAR na ficha do fabricante.
 
+## Gate 4 - Aberturas (2026-07-05) - CORRIGIDO apos apontamento do usuario
+- Portao de veiculos: **oitao FRENTE, 4,0 x 4,5 m**.
+- Porta de pessoas: **oitao FUNDO** (0,9 x 2,13 m).
+- Janelas: **faixa nas duas laterais** (z 4,3-5,3 m).
+- SEM porta lateral (o modelo da referencia tinha uma hardcoded - removida).
+- Terreno: desenhado (poligono do lote, galpao centrado no OBB).
+- NOTA: no 1o build eu pulei o Gate 4 e o build_galpao desenhou as aberturas
+  HARDCODED da referencia (porta lateral, janelas, portao). Corrigido: aberturas
+  agora sao config (ABERTURAS) do Gate 4; default so vale p/ a fixture 20x10.
+
 ## Resultado do calculo (Gates 5-11, orquestrador) - TUDO PASSA
 - Coluna 0,66 ; viga 0,75 ; ELS drift OK (engastada).
 - **Mao-francesa: 0 bracos** (com V0=35 a viga passa destravada em 5,0 m -> nao

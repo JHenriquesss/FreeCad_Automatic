@@ -8,14 +8,13 @@ Contraventamento,barra-20,12,107.02,263.9
 Escoras de beiral / cumeeira,HEA160,12,60.00,1735.2
 Montantes de oitao,HEA160,4,24.77,716.2
 Placas de base,chapa-40,10,0.00,777.1
-Tapamento,trapez-0.65,4,0.00,1653.4
+Tapamento,trapez-0.65,4,0.00,1653.2
 Telha de cobertura,trapez-0.65,2,0.00,1025.6
 Tercas,Ue200x75x25x2.65,6,120.00,972.1
-Tercas de parede,UPE100,5,79.10,749.8
+Tercas de parede,UPE100,4,80.00,758.3
 Tirantes / maos-francesas,barra-16,40,135.72,214.1
-Vergas,UPE100,1,0.90,8.5
 Vigas,HEA180,10,50.25,1708.8
-TOTAL,,,,13782.1
+TOTAL,,,,13781.9
 
 # Detalhe por elemento
 nome,categoria,perfil,comprimento_mm,massa_kg
@@ -194,9 +193,9 @@ PORTICO_05_COLUNA_E,Colunas,HEA200,5970.0,239.24
 PORTICO_05_VIGA_D,Vigas,HEA180,5024.9,170.88
 PORTICO_05_VIGA_E,Vigas,HEA180,5024.9,170.88
 TAPAMENTO_LATERAL_D,Tapamento,trapez-0.65,0.0,558.21
-TAPAMENTO_LATERAL_E,Tapamento,trapez-0.65,0.0,548.57
+TAPAMENTO_LATERAL_E,Tapamento,trapez-0.65,0.0,558.21
 TAPAMENTO_OITAO_FRENTE,Tapamento,trapez-0.65,0.0,229.2
-TAPAMENTO_OITAO_FUNDO,Tapamento,trapez-0.65,0.0,317.38
+TAPAMENTO_OITAO_FUNDO,Tapamento,trapez-0.65,0.0,307.59
 TELHA_D,Telha de cobertura,trapez-0.65,0.0,512.79
 TELHA_E,Telha de cobertura,trapez-0.65,0.0,512.79
 TERCA_BEIRAL_D,Tercas,Ue200x75x25x2.65,20000.0,162.01
@@ -207,8 +206,7 @@ TERCA_E_01,Tercas,Ue200x75x25x2.65,20000.0,162.01
 TERCA_E_02,Tercas,Ue200x75x25x2.65,20000.0,162.01
 TERCA_PAREDE_D_01,Tercas de parede,UPE100,20000.0,189.58
 TERCA_PAREDE_D_02,Tercas de parede,UPE100,20000.0,189.58
-TERCA_PAREDE_E_01a,Tercas de parede,UPE100,7300.0,69.2
-TERCA_PAREDE_E_01b,Tercas de parede,UPE100,11800.0,111.85
+TERCA_PAREDE_E_01,Tercas de parede,UPE100,20000.0,189.58
 TERCA_PAREDE_E_02,Tercas de parede,UPE100,20000.0,189.58
 TIRANTE_D_VAO_01_00,Tirantes / maos-francesas,barra-16,1675.0,2.64
 TIRANTE_D_VAO_01_01,Tirantes / maos-francesas,barra-16,1674.9,2.64
@@ -262,4 +260,3 @@ VAO_03_ESCORA_BEIRAL_E,Escoras de beiral / cumeeira,HEA160,5000.0,144.6
 VAO_04_CUMEEIRA,Escoras de beiral / cumeeira,HEA160,5000.0,144.6
 VAO_04_ESCORA_BEIRAL_D,Escoras de beiral / cumeeira,HEA160,5000.0,144.6
 VAO_04_ESCORA_BEIRAL_E,Escoras de beiral / cumeeira,HEA160,5000.0,144.6
-VERGA_PORTA_E,Vergas,UPE100,900.0,8.53
