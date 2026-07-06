@@ -246,6 +246,44 @@ def plate_basis(doc, center, ex, ey, ez, wx, wy, wz, name):
     return obj
 
 
+def _esticador(doc, p1, p2, name, od=45.0, ln=180.0):
+    """Esticador (lanterna/turnbuckle) no meio de uma barra: manga cilindrica de
+    maior diametro, alinhada a barra, centrada no meio."""
+    a, b = App.Vector(*p1), App.Vector(*p2)
+    d = b.sub(a)
+    u = App.Vector(d)
+    u.normalize()
+    mid = App.Vector((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0,
+                     (p1[2] + p2[2]) / 2.0)
+    start = mid.sub(App.Vector(u).multiply(ln / 2.0))
+    cyl = Part.makeCylinder(od / 2.0, ln)
+    rot = App.Rotation(App.Vector(0, 0, 1), d)
+    if abs(rot.Angle) > 1e-9:
+        cyl.rotate(App.Vector(0, 0, 0), rot.Axis, math.degrees(rot.Angle))
+    cyl.translate(start)
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = cyl
+    _reg(name, p1, p2)
+    return obj
+
+
+def _gusset_tri(doc, node, d1, d2, name, L=150.0, thick=12.0):
+    """Chapa gusset triangular no CANTO de um painel de contravento: no + duas
+    direcoes de aresta (no plano do painel). Espessura perpendicular ao plano."""
+    A = App.Vector(*node)
+    B = A.add(App.Vector(*d1).multiply(L))
+    C = A.add(App.Vector(*d2).multiply(L))
+    face = Part.Face(Part.makePolygon([A, B, C, A]))
+    n = face.normalAt(0, 0)
+    n.multiply(thick)
+    sol = face.extrude(n)
+    sol.translate(App.Vector(n).multiply(-0.5))
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = sol
+    _reg(name, node, node)
+    return obj
+
+
 def panel_shape(corners, thick):
     pts = [App.Vector(*c) for c in corners]
     face = Part.Face(Part.makePolygon(pts + [pts[0]]))
@@ -525,13 +563,38 @@ def build(doc):
                 rod(doc, (x, y, zt - 90), (x, y + dy, zt - 250), 16,
                     f"MAO_FRANCESA_{int(x)//1000:02d}_{c:02d}")
 
-    # Contraventamento so-tracao (barras redondas), vaos de extremidade
+    # Contraventamento so-tracao (barras redondas) nos vaos de extremidade. Cada
+    # diagonal recebe um ESTICADOR (lanterna) no meio; cada canto do painel recebe
+    # uma CHAPA GUSSET no plano do painel.
     for j, (x0, x1) in enumerate([(axes[0], axes[1]), (axes[-2], axes[-1])], start=1):
-        rod(doc, (x0, 0, EAVE_H), (x1, SPAN, EAVE_H), 20, f"CONTRAV_COBERTURA_{j:02d}_A")
-        rod(doc, (x1, 0, EAVE_H), (x0, SPAN, EAVE_H), 20, f"CONTRAV_COBERTURA_{j:02d}_B")
+        # cobertura (plano X-Y no beiral)
+        ca = ((x0, 0, EAVE_H), (x1, SPAN, EAVE_H))
+        cb = ((x1, 0, EAVE_H), (x0, SPAN, EAVE_H))
+        rod(doc, *ca, 20, f"CONTRAV_COBERTURA_{j:02d}_A")
+        rod(doc, *cb, 20, f"CONTRAV_COBERTURA_{j:02d}_B")
+        _esticador(doc, *ca, f"ESTICADOR_COBERTURA_{j:02d}_A")
+        _esticador(doc, *cb, f"ESTICADOR_COBERTURA_{j:02d}_B")
+        for (nx, ny, d1, d2) in ((x0, 0.0, (1, 0, 0), (0, 1, 0)),
+                                 (x1, 0.0, (-1, 0, 0), (0, 1, 0)),
+                                 (x0, SPAN, (1, 0, 0), (0, -1, 0)),
+                                 (x1, SPAN, (-1, 0, 0), (0, -1, 0))):
+            _gusset_tri(doc, (nx, ny, EAVE_H), d1, d2,
+                        f"CONEX_GUSSET_COB_{j:02d}_{int(nx)//1000:02d}_{int(ny)//1000:02d}")
+        # paredes (plano X-Z em cada lado)
         for yw, lado in ((0, "E"), (SPAN, "D")):
-            rod(doc, (x0, yw, Z0), (x1, yw, EAVE_H), 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_A")
-            rod(doc, (x1, yw, Z0), (x0, yw, EAVE_H), 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_B")
+            wa = ((x0, yw, Z0), (x1, yw, EAVE_H))
+            wb = ((x1, yw, Z0), (x0, yw, EAVE_H))
+            rod(doc, *wa, 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_A")
+            rod(doc, *wb, 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_B")
+            _esticador(doc, *wa, f"ESTICADOR_PAREDE_{lado}_{j:02d}_A")
+            _esticador(doc, *wb, f"ESTICADOR_PAREDE_{lado}_{j:02d}_B")
+            for (nx, nz, d1, d2) in ((x0, Z0, (1, 0, 0), (0, 0, 1)),
+                                     (x1, Z0, (-1, 0, 0), (0, 0, 1)),
+                                     (x0, EAVE_H, (1, 0, 0), (0, 0, -1)),
+                                     (x1, EAVE_H, (-1, 0, 0), (0, 0, -1))):
+                _gusset_tri(doc, (nx, yw, nz), d1, d2,
+                            f"CONEX_GUSSET_PAR_{lado}_{j:02d}_{int(nx)//1000:02d}_"
+                            f"{'B' if nz < EAVE_H else 'T'}")
 
     # Ponte rolante (geometria): viga de rolamento sobre consoles (misulas) nos
     # pilares, no nivel do trilho Hvr, excentrica ao eixo do pilar.
@@ -671,7 +734,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 # ---- verificacoes ----------------------------------------------------------
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
-               "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA")
+               "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA", "ESTICADOR")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -828,6 +891,27 @@ def verifica_conexoes(doc, tol=6.0):
             if not big.isInside(c):
                 defeitos.append({"conexao": o.Name,
                                  "problema": "parafuso fora da chapa de topo"})
+
+    # --- Contravento: cada diagonal deve ter um ESTICADOR encostado (tensor) ---
+    esticadores = [o for o in doc.Objects
+                   if o.Name.startswith("ESTICADOR") and hasattr(o, "Shape")]
+    for o in doc.Objects:
+        if not o.Name.startswith("CONTRAV") or not hasattr(o, "Shape"):
+            continue
+        bb = App.BoundBox(o.Shape.BoundBox)
+        bb.enlarge(50.0)
+        toca = False
+        for e in esticadores:
+            if not bb.intersect(e.Shape.BoundBox):
+                continue
+            try:
+                if o.Shape.distToShape(e.Shape)[0] < tol:
+                    toca = True
+                    break
+            except Exception:
+                pass
+        if not toca:
+            defeitos.append({"conexao": o.Name, "problema": "diagonal sem esticador"})
     return defeitos
 
 
@@ -918,6 +1002,10 @@ def _classifica(n):
         return "Porcas", "porca-M20"
     if n.startswith("NERVURA_BASE"):
         return "Nervuras da base", "chapa-12"
+    if "GUSSET" in n:
+        return "Chapas gusset (contravento)", "chapa-12"
+    if n.startswith("ESTICADOR"):
+        return "Esticadores (contravento)", "esticador-M20"
     if n.startswith("CALHA"):
         return "Calhas", "U300x200x5"
     if n.startswith("CONDUTOR"):
