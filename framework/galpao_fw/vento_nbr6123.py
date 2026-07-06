@@ -23,8 +23,14 @@ from __future__ import annotations
 
 
 # Defaults de sitio (do gate). configurar() troca; compute() usa quando o arg e None.
-_CFG = {"v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0, "s3": 0.95,
-        "z": 6.5, "theta": 5.71}
+_CFG_DEFAULT = {"v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0, "s3": 0.95,
+                "z": 6.5, "theta": 5.71}
+_CFG = dict(_CFG_DEFAULT)
+
+
+def reset():
+    """Zera o estado de sitio para o default (evita vazamento entre projetos)."""
+    _CFG.clear(); _CFG.update(_CFG_DEFAULT)
 
 
 def configurar(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None):

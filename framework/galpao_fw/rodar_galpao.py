@@ -79,6 +79,7 @@ def rodar(params, out_dir):
             f.write(txt + "\n")
         return txt
 
+    gp.reset(); vento.reset()          # estado limpo (sem vazamento entre projetos)
     g = params["geometria"]
     sc = params["secoes"]
     # configura geometria + perfis + base

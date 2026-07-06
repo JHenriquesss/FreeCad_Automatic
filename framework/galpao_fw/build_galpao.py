@@ -693,6 +693,20 @@ def export(doc):
     return fcstd, step
 
 
+def reset():
+    """Zera o estado mutavel do builder para o default (evita vazamento entre
+    projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
+    global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
+    global PONTE_MODELO
+    MF_STRIDE = 2
+    N_TIRANTE_PAREDE = 2
+    TERRENO_PTS = None
+    PONTE_MODELO = None
+    FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
+    ABERTURAS = {"portao_frente": None, "portao_fundo": None, "porta_frente": None,
+                 "porta_fundo": None, "janelas_laterais": None, "porta_lateral": None}
+
+
 def run():
     name = DOC_NAME
     for d in list(App.listDocuments().values()):

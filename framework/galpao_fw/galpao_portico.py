@@ -46,6 +46,13 @@ Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
 PONTE = None
 
 
+def reset():
+    """Zera o estado mutavel do portico (evita vazamento entre projetos)."""
+    global PONTE, BASE_FIXED
+    PONTE = None
+    BASE_FIXED = False
+
+
 def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
                G_roof=None, rafter_self=None, Q_roof=None, ponte=None):
