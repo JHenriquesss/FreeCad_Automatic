@@ -39,6 +39,10 @@ Fonte: extrair de NBR 8800 (impacto/fadiga), NBR 8400 (classes de ponte),
 exemplo do Manual CBCA Galpoes. NAO codar de memoria (zero-erro).
 
 ## Outras lacunas conhecidas (ja documentadas)
+- TERRENO (terreno.py): retangulo construivel usa OBB (eixos do lote) - correto
+  para lote retangular/quase. LOTE IRREGULAR pede inset real do poligono (offset
+  para dentro), feature futura com Shapely (buffer(-recuo) + OBB da area
+  construivel). Recomendacao do senior; hoje aproximado e flagado.
 - Cone de arrancamento do concreto (fundacao, NBR 6118) - base_chumbador flag.
 - Block shear / flexao da chapa alem do esmagamento - ligacoes.
 - REFINAMENTO (recomendacao senior, galpao_portico): as combos fixam W2 em C1/C3

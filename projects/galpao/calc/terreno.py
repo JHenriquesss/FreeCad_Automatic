@@ -69,8 +69,58 @@ def area_poligono_m2(pts_xy):
 
 
 def _bbox(pts_xy):
+    """Bounding box ALINHADO AOS EIXOS (N-S / L-O) - so informativo."""
     xs = [p[0] for p in pts_xy]; ys = [p[1] for p in pts_xy]
-    return max(xs) - min(xs), max(ys) - min(ys)   # largura (X), profundidade (Y)
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def _convex_hull(pts):
+    """Fecho convexo (monotone chain de Andrew). Retorna vertices CCW."""
+    p = sorted(set(pts))
+    if len(p) <= 2:
+        return p
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower = []
+    for q in p:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], q) <= 0:
+            lower.pop()
+        lower.append(q)
+    upper = []
+    for q in reversed(p):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], q) <= 0:
+            upper.pop()
+        upper.append(q)
+    return lower[:-1] + upper[:-1]
+
+
+def _obb(pts_xy):
+    """Retangulo envolvente de AREA MINIMA (Oriented Bounding Box), medido pelos
+    eixos do PROPRIO lote (nao Norte). Corrige a distorcao do AABB para lotes
+    girados. Retorna (lado_maior, lado_menor, angulo_rad). Rotating calipers:
+    o retangulo minimo tem um lado colinear a uma aresta do fecho convexo."""
+    h = _convex_hull(pts_xy)
+    if len(h) < 3:
+        w, d = _bbox(pts_xy)
+        return max(w, d), min(w, d), 0.0
+    best = None
+    n = len(h)
+    for i in range(n):
+        ax, ay = h[i]; bx, by = h[(i + 1) % n]
+        ex, ey = bx - ax, by - ay
+        L = math.hypot(ex, ey)
+        if L < 1e-12:
+            continue
+        ux, uy = ex / L, ey / L          # eixo ao longo da aresta
+        vx, vy = -uy, ux                 # eixo perpendicular
+        us = [px * ux + py * uy for px, py in h]
+        vs = [px * vx + py * vy for px, py in h]
+        w = max(us) - min(us); d = max(vs) - min(vs)
+        area = w * d
+        if best is None or area < best[0]:
+            best = (area, max(w, d), min(w, d), math.atan2(uy, ux))
+    return best[1], best[2], best[3]
 
 
 def analisa_terreno(cfg):
@@ -85,13 +135,19 @@ def analisa_terreno(cfg):
         pts = cfg["pts_lonlat"] if "pts_lonlat" in cfg else parse_kml(cfg["kml"])
         xy = projeta_metros(pts)
     A = area_poligono_m2(xy)
-    W, D = _bbox(xy)                              # largura x profundidade (bbox)
+    W, D = _bbox(xy)                              # AABB (N-S/L-O) - informativo
+    lado_maior, lado_menor, ang = _obb(xy)       # OBB (eixos do lote) - correto
     rf = cfg.get("recuo_frente", 0.0); rl = cfg.get("recuo_lateral", 0.0)
     rfu = cfg.get("recuo_fundos", 0.0)
-    Wc = max(0.0, W - 2 * rl)                     # largura construivel
-    Dc = max(0.0, D - rf - rfu)                  # profundidade construivel
+    # Retangulo construivel medido pelos eixos do lote (OBB): lado MENOR = frente
+    # (recuos frente+fundos) ; lado MAIOR = profundidade (recuos laterais). Ajuste
+    # a orientacao no gate se a testada nao for o lado menor.
+    Dc = max(0.0, lado_menor - rf - rfu)         # sentido da testada (frente)
+    Wc = max(0.0, lado_maior - 2 * rl)           # sentido das laterais
     to, ca, tp = cfg["to_max"], cfg["ca_max"], cfg["tp_min"]
-    return {"area_lote_m2": A, "bbox_m": (W, D), "retangulo_construivel_m": (Wc, Dc),
+    return {"area_lote_m2": A, "bbox_m": (W, D), "obb_m": (lado_maior, lado_menor),
+            "obb_angulo_graus": round(math.degrees(ang), 1),
+            "retangulo_construivel_m": (Wc, Dc),
             "footprint_max_TO_m2": to * A, "area_construida_max_CA_m2": ca * A,
             "area_permeavel_min_TP_m2": tp * A, "area_impermeavel_max_m2": (1 - tp) * A,
             "to_max": to, "ca_max": ca, "tp_min": tp,
@@ -124,7 +180,9 @@ def relatorio_pt(terr, ver=None):
     L = ["=" * 70, "VIABILIDADE DO TERRENO (parametros urbanisticos - lei de uso do solo)",
          "=" * 70,
          f"  Area do lote ................ {terr['area_lote_m2']:.1f} m2",
-         f"  Bounding box (L x P) ........ {terr['bbox_m'][0]:.1f} x {terr['bbox_m'][1]:.1f} m",
+         f"  AABB (N-S x L-O, informativo) {terr['bbox_m'][0]:.1f} x {terr['bbox_m'][1]:.1f} m",
+         f"  OBB (eixos do lote) ......... {terr['obb_m'][0]:.1f} x {terr['obb_m'][1]:.1f} m "
+         f"(girado {terr['obb_angulo_graus']} graus do Norte)",
          f"  Recuos (frente/lat/fundos) .. {terr['recuos_m']} m",
          f"  Retangulo construivel ....... {terr['retangulo_construivel_m'][0]:.1f} x "
          f"{terr['retangulo_construivel_m'][1]:.1f} m",
@@ -162,7 +220,19 @@ def _selftest():
     # galpao gigante (footprint > TO) -> nao viavel
     ver2 = verifica_galpao(terr, comprimento=120.0, largura=100.0)
     assert ver2["OK"] is False
-    print("\n[selftest] OK")
+    # --- OBB: lote retangular 50 x 20 m GIRADO 45 graus (X/Y em metros) --------
+    import math as _m
+    c, s = _m.cos(_m.radians(45)), _m.sin(_m.radians(45))
+    ret = [(0, 0), (50, 0), (50, 20), (0, 20)]
+    xy = [(x * c - y * s, x * s + y * c) for x, y in ret]     # gira 45 graus
+    t2 = analisa_terreno({"pts_xy": xy, "to_max": 1.0, "ca_max": 2.0, "tp_min": 0.0,
+                          "recuo_frente": 0.0, "recuo_lateral": 0.0, "recuo_fundos": 0.0})
+    lado_maior, lado_menor = t2["obb_m"]
+    # OBB recupera 50 x 20 (nao ~53 x 53 do AABB)
+    assert abs(lado_maior - 50.0) < 0.5 and abs(lado_menor - 20.0) < 0.5, t2["obb_m"]
+    # AABB distorce: lado real de 20 m aparece como ~49,5 (inflado) -> prova o erro
+    assert t2["bbox_m"][1] > 40.0, t2["bbox_m"]
+    print("\n[selftest] OK (inclui lote girado 45 graus: OBB recupera 50x20)")
 
 
 if __name__ == "__main__":
