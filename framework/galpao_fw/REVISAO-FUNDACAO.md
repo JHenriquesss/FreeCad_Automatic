@@ -169,3 +169,187 @@ Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
 | Flexão / armadura | `_armadura_flexao` | 22.6.3 / 17.2.2 / 14.6.4.3 |
 | Compressão diagonal | `dimensiona_sapata_B` (bloco compr_diag) | 19.5.3.1 / Tab. 19.2 |
 | Combinações na base | `rodar_galpao._casos_base_envelope` | `_combos_elu` |
+
+---
+
+## 7. Código-fonte das rotinas de cálculo (conferência matemática)
+
+Cópia **verbatim** de `fundacao_sapata.py` (mantida em sincronia a cada
+alteração). Unidades SI: m, kN (fck/fyk/σ em kN/m²). Confira aqui a matemática.
+
+### Constantes
+
+```python
+FS_TOMB_MIN = 1.5          # tombamento (pratica usual p/ ELU geotecnico)
+FS_DESL_MIN = 1.5          # deslizamento
+GAMMA_C_CONCRETO = 25.0    # peso especifico concreto armado (kN/m3) - NBR 6120
+GAMMA_SOLO = 18.0          # reaterro (kN/m3) - INPUT (sondagem); default flag
+
+LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa)
+ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa)
+XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50)
+RHO_MIN = 0.0015           # 17.3.5.2 taxa minima (fck<=~30) - A CONFIRMAR p/ fck
+RHO_ACO = 7850.0           # massa especifica do aco (kg/m3)
+_K_TAB = [(0.5, 0.45), (1.0, 0.60), (2.0, 0.70), (3.0, 0.80)]  # Tabela 19.2
+```
+
+### Parte A — tensão no solo (flexão composta)
+
+```python
+def tensoes_solo(N, M, B, L):
+    A = B * L
+    if N <= 0:
+        return None, None, "sem compressao (N<=0)", 0.0
+    e = abs(M) / N
+    if e <= L / 6.0 + 1e-12:                       # dentro do nucleo: contato total
+        sig_max = N / A * (1.0 + 6.0 * e / L)
+        sig_min = N / A * (1.0 - 6.0 * e / L)
+        return sig_max, sig_min, "nucleo (contato total)", L
+    # fora do nucleo: parte da sapata levanta, diagrama triangular.
+    # comprimento de contato x = 3*(L/2 - e); sigma_max = 2N/(B*x).
+    x = 3.0 * (L / 2.0 - e)
+    if x <= 0:
+        return None, 0.0, "instavel (resultante fora da base)", 0.0
+    sig_max = 2.0 * N / (B * x)
+    return sig_max, 0.0, "borda (levantamento parcial)", x
+```
+
+### Parte A — peso próprio e estabilidade
+
+```python
+def peso_proprio(B, L, h, h_reaterro=0.0, d_ped=0.0, b_ped=0.0, h_ped=0.0):
+    p_sapata = B * L * h * GAMMA_C_CONCRETO
+    a_ped = (d_ped * b_ped) if (d_ped and b_ped) else 0.0
+    p_ped = a_ped * h_ped * GAMMA_C_CONCRETO
+    p_solo = max(B * L - a_ped, 0.0) * h_reaterro * GAMMA_SOLO
+    return p_sapata + p_ped + p_solo, {...}
+
+
+def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
+                 d_ped=0.0, b_ped=0.0, h_ped=0.0):
+    Pp, det = peso_proprio(B, L, h, h_reaterro, d_ped, b_ped, h_ped)
+    N_tot = N + Pp
+    h_tot = h + h_ped                              # altura ate o topo do pedestal
+    M_tomb = abs(V) * h_tot + abs(M)
+    M_est = N_tot * L / 2.0
+    fs_tomb = (M_est / M_tomb) if M_tomb > 0 else float("inf")
+    resist = N_tot * mu + coesao * (B * L)
+    fs_desl = (resist / abs(V)) if abs(V) > 0 else float("inf")
+    return {"N_tot": N_tot, "Pp": Pp, "M_tomb": M_tomb, "M_est": M_est,
+            "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot, ...}
+```
+
+Critérios (em `verifica_sapata_A`): `ok_solo = σ_max ≤ σ_adm` ;
+`ok_tomb = fs_tomb ≥ 1,5` ; `ok_desl = fs_desl ≥ 1,5` ;
+`ok_contato = x_contato ≥ L/3` (resultante no terço médio).
+
+### Parte B — coeficiente K (Tabela 19.2) e armadura de flexão
+
+```python
+def _K_puncao(c1_c2):
+    if c1_c2 <= _K_TAB[0][0]:
+        return _K_TAB[0][1]
+    if c1_c2 >= _K_TAB[-1][0]:
+        return _K_TAB[-1][1]
+    for (r0, k0), (r1, k1) in zip(_K_TAB, _K_TAB[1:]):
+        if r0 <= c1_c2 <= r1:
+            return k0 + (k1 - k0) * (c1_c2 - r0) / (r1 - r0)
+    return _K_TAB[-1][1]
+
+
+def _armadura_flexao(M_d, b, d, fck, fyk):
+    fcd = fck / 1.4
+    fyd = fyk / 1.15
+    if M_d <= 0:
+        return 0.0, 0.0, d, True
+    mu = M_d / (b * d * d * ALPHA_C * fcd)
+    disc = 1.0 - 2.0 * mu
+    if disc < 0:                                  # secao insuficiente a flexao
+        return None, 1.0 / LAMBDA_BLOCO, 0.0, False
+    x_d = (1.0 - math.sqrt(disc)) / LAMBDA_BLOCO
+    z = d * (1.0 - 0.5 * LAMBDA_BLOCO * x_d)
+    As = M_d / (fyd * z)
+    return As, x_d, z, (x_d <= XD_LIM + 1e-9)
+```
+
+### Parte B — verificação completa (rigidez + flexão + compressão diagonal)
+
+```python
+def dimensiona_sapata_B(caso, r_A):
+    B, L, h = r_A["B"], r_A["L"], r_A["h"]
+    ap_L = caso.get("d_ped") or caso.get("ap_L") or 0.30    # pilar // L
+    ap_B = caso.get("b_ped") or caso.get("ap_B") or 0.30    # pilar // B
+    fck, fyk = caso["fck"], caso["fyk"]
+    fck_MPa = fck / 1000.0
+    cob = caso.get("cobrimento", 0.05)             # contato c/ solo: >= 5 cm (7.4)
+    phi = caso.get("phi_barra", 0.0125)
+    gf = caso.get("gamma_f", 1.4)
+    d = h - cob - phi                              # altura util (2 camadas ort.)
+
+    # 1) RIGIDEZ (22.6.1): h >= (a - ap)/3 nas duas direcoes
+    rig_L = h >= (L - ap_L) / 3.0 - 1e-9
+    rig_B = h >= (B - ap_B) / 3.0 - 1e-9
+
+    # esforcos de calculo (ELU); pressao de flexao = so a reacao do pilar.
+    N_d, V_d, M_d0 = gf * caso["N"], gf * caso["V"], gf * caso["M"]
+    sig_max_d, _, _, _ = tensoes_solo(N_d, M_d0, B, L)
+    if sig_max_d is None:
+        sig_max_d = N_d / (B * L)
+
+    # 2) FLEXAO (22.6.3 + 17.2.2): balanco a partir da face do pilar
+    c_L = max((L - ap_L) / 2.0, 0.0)               # balanco na direcao L
+    c_B = max((B - ap_B) / 2.0, 0.0)               # balanco na direcao B
+    M_dL = sig_max_d * B * c_L ** 2 / 2.0          # momento (barras // L), largura B
+    M_dB = sig_max_d * L * c_B ** 2 / 2.0          # momento (barras // B), largura L
+    As_L, xdL, zL, okL = _armadura_flexao(M_dL, B, d, fck, fyk)
+    As_B, xdB, zB, okB = _armadura_flexao(M_dB, L, d, fck, fyk)
+    As_min_L = RHO_MIN * B * h                     # As,min por largura (17.3.5.2)
+    As_min_B = RHO_MIN * L * h
+    # As_adot = max(As_flexao, As_min)  em cada direcao
+
+    # 3) COMPRESSAO DIAGONAL no perimetro do pilar (19.5.3.1)
+    fcd = fck / 1.4
+    alpha_v = 1.0 - fck_MPa / 250.0
+    tau_rd2 = 0.27 * alpha_v * fcd
+    u0 = 2.0 * (ap_L + ap_B)                        # perimetro do pilar
+    C1, C2 = ap_L, ap_B                             # C1 // excentricidade (plano do M)
+    K = _K_puncao(C1 / C2 if C2 > 0 else 1.0)
+    Wp0 = C1 ** 2 / 2.0 + C1 * C2                   # modulo plastico do contorno u0
+    tau_sd = N_d / (u0 * d) + (K * abs(M_d0) / (Wp0 * d) if Wp0 > 0 else 0.0)
+    # OK_B = rigida and (x/d<=lim nas 2 dir) and (tau_sd <= tau_rd2)
+```
+
+### Envelope de combinações (núcleo do laço)
+
+```python
+def dimensiona_sapata_env(caso_base, casos, escada=None):
+    # ... para cada geometria (B,L,h0) da escada:
+    h = max(h0, math.ceil(max(L - ap_L, B - ap_B) / 3.0 / 0.05) * 0.05)  # rigida
+    # Parte A: pior u_solo / menor FS entre TODAS as combinacoes
+    for (nm, N, V, M) in casos:
+        c = dict(caso_base); c.update(N=N, V=V, M=M, B=B, L=L, h=h)
+        rA = verifica_sapata_A(c)
+        # guarda o maior u_solo (bearing = N max), menor fs_tomb, menor fs_desl
+    # Parte B: pior utilizacao e MAIOR As entre TODAS as combinacoes
+    for (nm, N, V, M) in casos:
+        rB = dimensiona_sapata_B({**caso_base, "N": N, "V": V, "M": M},
+                                 {"B": B, "L": L, "h": h})
+        As_L = max(As_L, rB["flexao_L"]["As_adot"])   # adota o MAIOR As
+        As_B = max(As_B, rB["flexao_B"]["As_adot"])
+        # guarda o maior tau_sd (compr. diagonal)
+    # adota a MENOR geometria cujo (todosA and okB) for verdadeiro.
+```
+
+### Quantitativo (concreto + aço)
+
+```python
+def quantitativo(rA, rB, n_sapatas=1, h_ped=0.5):
+    B, L, h = rA["B"], rA["L"], rA["h"]
+    ap_L = rB.get("ap_L", 0.30); ap_B = rB.get("ap_B", 0.30)
+    vol_conc = B * L * h + ap_L * ap_B * h_ped     # bloco + pedestal
+    As_L = rB["flexao_L"]["As_adot"]               # m2 (por largura B)
+    As_B = rB["flexao_B"]["As_adot"]               # m2 (por largura L)
+    vol_aco = As_L * (B - 0.10) + As_B * (L - 0.10)   # As x comprimento das barras
+    massa_aco = vol_aco * RHO_ACO
+    # taxa = massa_aco / vol_conc  (kg/m3, indicador)
+```
