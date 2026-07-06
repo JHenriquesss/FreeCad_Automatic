@@ -37,6 +37,9 @@ CANDIDATOS = [
     ("HEB220", "IPE330"),
     ("HEB240", "IPE360"),
     ("HEB260", "IPE400"),
+    ("HEB280", "IPE450"),
+    ("HEB300", "IPE500"),
+    ("HEB300", "IPE550"),
 ]
 
 

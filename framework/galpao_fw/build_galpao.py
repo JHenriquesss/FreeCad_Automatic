@@ -386,9 +386,9 @@ def joelho(doc, node, rdir, tag):
             p = _p(_p(ec, su * 70.0, u), sv * 90.0, v)
             rod(doc, _p(p, -60.0, dirn), _p(p, 60.0, dirn),
                 24.0, f"CONEX_JOELHO_{tag}_M24_{b:02d}")
-    # Enrijecedores de continuidade no pilar (mesa inf da viga ~cz-95; cap ~cz-15).
+    # Enrijecedores de continuidade no pilar (preenchem a secao entre as mesas).
     for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
-        plate(doc, (cx, cy, cz + dz), 190.0, 200.0, 12.0,
+        plate(doc, (cx, cy, cz + dz), COL_SEC[0], COL_SEC[1], 12.0,
               f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
 
 
@@ -436,9 +436,10 @@ def build(doc):
             # Nervuras (2): gussets triangulares no plano do momento (Y-Z), soldados
             # a coluna e a placa, alcancando os chumbadores.
             for sgn, nm in ((1.0, "P"), (-1.0, "N")):
-                V1 = App.Vector(x, yw + sgn * 100.0, ptop)      # ponta da mesa
-                V2 = App.Vector(x, yw + sgn * 240.0, ptop)      # sobre a placa (ao chumbador)
-                V3 = App.Vector(x, yw + sgn * 100.0, ptop + 300.0)  # sobe na coluna
+                ftip = COL_SEC[1] / 2.0                         # ponta da mesa do pilar
+                V1 = App.Vector(x, yw + sgn * ftip, ptop)
+                V2 = App.Vector(x, yw + sgn * (ftip + 140.0), ptop)  # sobre a placa (ao chumbador)
+                V3 = App.Vector(x, yw + sgn * ftip, ptop + 300.0)    # sobe na coluna
                 g = Part.Face(Part.makePolygon([V1, V2, V3, V1])).extrude(
                     App.Vector(12.0, 0, 0))
                 g.translate(App.Vector(-6.0, 0, 0))
@@ -623,16 +624,17 @@ def build(doc):
                 i_member(doc, (x, yw, hvr), (x, yr, hvr), HEA160,
                          f"CONSOLE_PONTE_{lado}_{int(x)//1000:02d}")
                 tg = f"{lado}_{int(x)//1000:02d}"
+                cface = COL_SEC[0] / 2.0                  # face do pilar (h/2)
                 # chapa de ligacao console->pilar (face do pilar, perpendicular ao console)
-                plate(doc, (x, yw + sgn * 95.0, hvr), 240.0, 16.0, 240.0,
+                plate(doc, (x, yw + sgn * cface, hvr), 240.0, 16.0, 240.0,
                       f"CONEX_CONSOLE_{tg}_CHAPA")
                 # enrijecedor SOB O TRILHO: chapa transversal na alma da viga de
                 # rolamento sobre o apoio (rigidez local + assento do trilho).
                 plate(doc, (x, yr, hvr), 12.0, 240.0, 480.0, f"CONEX_CONSOLE_{tg}_TRILHO")
                 # mao-francesa (bracket) do console: triangulo no plano do portico
                 # sob o console, do pilar ate a ponta.
-                _gusset_tri(doc, (x, yw + sgn * 95.0, hvr - 76.0),
-                            (0.0, sgn * (ecc - 95.0), 0.0), (0.0, 0.0, -450.0),
+                _gusset_tri(doc, (x, yw + sgn * cface, hvr - 76.0),
+                            (0.0, sgn * (ecc - cface), 0.0), (0.0, 0.0, -450.0),
                             f"CONEX_CONSOLE_{tg}_BRACKET", L=1.0)
 
     # Drenagem (Gate 1): calhas nos dois beirais + condutores.
