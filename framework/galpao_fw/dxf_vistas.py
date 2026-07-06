@@ -363,9 +363,10 @@ def _detalhe_base(msp, d, ox, oy):
         _txt(msp, f"SAPATA {sap['B']/1000:.2f}x{sap['L']/1000:.2f}x{sh/1000:.2f} m"
                   f" ({'RIGIDA' if sap['rigida'] else 'FLEXIVEL'})".replace(".", ","),
              Q(-sL / 2, zb - 350), h=160)
-        _txt(msp, f"Arm. flexao: As_L={sap['As_L']:.1f} ; As_B={sap['As_B']:.1f} cm2"
-                  " (NBR 6118 - PENDENTE detalhamento)".replace(".", ","),
-             Q(-sL / 2, zb - 620), h=140)
+        arm = (f"Arm. flexao: L={sap['arm_L']} mm ; B={sap['arm_B']} mm (NBR 6118)"
+               if sap.get("arm_L") else
+               f"Arm. flexao: As_L={sap['As_L']:.1f} ; As_B={sap['As_B']:.1f} cm2 (NBR 6118)")
+        _txt(msp, arm.replace(".", ","), Q(-sL / 2, zb - 620), h=140)
         q = d.get("sapata_quant")
         if q:
             _txt(msp, (f"Quant.: {q['n']} sapatas ; concreto {q['vol_conc_tot']:.1f} m3 ; "
@@ -501,6 +502,7 @@ def design_de_spec(spec):
         "joelho": est.get("joelho_adotado"),
         "sapata": ({"B": sp["B"] * 1000.0, "L": sp["L"] * 1000.0, "h": sp["h"] * 1000.0,
                     "As_L": sp.get("As_L", 0.0) * 1e4, "As_B": sp.get("As_B", 0.0) * 1e4,
+                    "arm_L": sp.get("arm_L"), "arm_B": sp.get("arm_B"),
                     "rigida": sp.get("rigida", True)}
                    if (sp := est.get("sapata_adotada")) else None),
         "sapata_quant": est.get("sapata_quant"),

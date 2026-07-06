@@ -209,9 +209,14 @@ def dimensiona_sapata_env(caso_base, casos, escada=None):
         linhas.append(linha)
         if linha["OK"] and aprovado is None:
             rA_ad, c_ad = piorA
+            cob = caso_base.get("cobrimento", 0.05)
             rB_ad = dict(rB_pior)
-            rB_ad["flexao_L"] = dict(rB_ad["flexao_L"]); rB_ad["flexao_L"]["As_adot"] = As_L
-            rB_ad["flexao_B"] = dict(rB_ad["flexao_B"]); rB_ad["flexao_B"]["As_adot"] = As_B
+            rB_ad["flexao_L"] = dict(rB_ad["flexao_L"])
+            rB_ad["flexao_L"]["As_adot"] = As_L
+            rB_ad["flexao_L"]["barras"] = detalha_barras(As_L, B, cob)
+            rB_ad["flexao_B"] = dict(rB_ad["flexao_B"])
+            rB_ad["flexao_B"]["As_adot"] = As_B
+            rB_ad["flexao_B"]["barras"] = detalha_barras(As_B, L, cob)
             aprovado = (B, L, h, rA_ad, c_ad)
     return {"aprovado": aprovado, "parte_B": rB_ad, "linhas": linhas,
             "governantes": gov,
@@ -365,6 +370,52 @@ def _armadura_flexao(M_d, b, d, fck, fyk):
     return As, x_d, z, (x_d <= XD_LIM + 1e-9)
 
 
+# Bitolas comerciais (mm) e area da barra (m2). CA-50.
+_BITOLAS = [6.3, 8.0, 10.0, 12.5, 16.0, 20.0, 25.0]
+S_MIN = 0.10        # espacamento min pratico entre barras (m) - A CONFIRMAR (18.3.2.2)
+S_MAX = 0.20        # espacamento max pratico p/ armadura de flexao (m) - A CONFIRMAR
+
+
+def _area_barra(phi_mm):
+    return math.pi * (phi_mm / 1000.0) ** 2 / 4.0
+
+
+def detalha_barras(As_req, largura, cobrimento=0.05):
+    """Traduz As requerido (m2, por largura) num arranjo de barras: escolhe a
+    bitola comercial cujo espacamento resultante cai na faixa pratica
+    [S_MIN, S_MAX]; entre as validas, prefere a de MENOR bitola (mais barras,
+    fissuracao melhor). n = ceil(As_req/A_barra) (>=2). Retorna dict ou None.
+    Espacamentos-limite marcados A CONFIRMAR (detalhamento NBR 6118)."""
+    b_util = max(largura - 2 * cobrimento, 0.0)
+    if As_req <= 0 or b_util <= 0:
+        return None
+    melhor = None
+    for phi in _BITOLAS:
+        A1 = _area_barra(phi)
+        n = max(2, math.ceil(As_req / A1))
+        s = b_util / (n - 1)                       # espacamento entre eixos
+        As_ef = n * A1
+        cand = {"phi": phi, "n": n, "s": s, "As_ef": As_ef,
+                "na_faixa": (S_MIN - 1e-9) <= s <= (S_MAX + 1e-9)}
+        if cand["na_faixa"]:
+            if melhor is None or phi < melhor["phi"]:
+                melhor = cand
+    if melhor:
+        return melhor
+    # nenhuma na faixa: adota a que da o MAIOR espacamento <= S_MAX (mais barras)
+    # ou, se todas muito juntas, a menor bitola; devolve a mais proxima da faixa.
+    fallback = None
+    for phi in _BITOLAS:
+        A1 = _area_barra(phi)
+        n = max(2, math.ceil(As_req / A1))
+        s = b_util / (n - 1)
+        if s <= S_MAX + 1e-9:                      # cabe (pode estar < S_MIN)
+            fallback = {"phi": phi, "n": n, "s": s, "As_ef": n * A1,
+                        "na_faixa": False}
+            break
+    return fallback
+
+
 def dimensiona_sapata_B(caso, r_A):
     """PARTE B - concreto da sapata (NBR 6118) sobre a geometria adotada na
     Parte A: rigidez (22.6.1), armadura de flexao nas 2 direcoes (22.6.3 modelo
@@ -406,10 +457,14 @@ def dimensiona_sapata_B(caso, r_A):
     As_B, xdB, zB, okB = _armadura_flexao(M_dB, L, d, fck, fyk)
     As_min_L = RHO_MIN * B * h                     # As,min por largura (17.3.5.2)
     As_min_B = RHO_MIN * L * h
+    As_ad_L = max(As_L or 0.0, As_min_L)
+    As_ad_B = max(As_B or 0.0, As_min_B)
     r["flexao_L"] = {"M_d": M_dL, "As": As_L, "As_min": As_min_L, "x_d": xdL,
-                     "As_adot": max(As_L or 0.0, As_min_L), "ok_dom": okL, "balanco": c_L}
+                     "As_adot": As_ad_L, "ok_dom": okL, "balanco": c_L,
+                     "barras": detalha_barras(As_ad_L, B, cob)}      # barras // L (largura B)
     r["flexao_B"] = {"M_d": M_dB, "As": As_B, "As_min": As_min_B, "x_d": xdB,
-                     "As_adot": max(As_B or 0.0, As_min_B), "ok_dom": okB, "balanco": c_B}
+                     "As_adot": As_ad_B, "ok_dom": okB, "balanco": c_B,
+                     "barras": detalha_barras(As_ad_B, L, cob)}      # barras // B (largura L)
 
     # 3) COMPRESSAO DIAGONAL no perimetro do pilar (19.5.3.1)
     fcd = fck / 1.4
@@ -453,6 +508,11 @@ def relatorio_sapata_B(rB, caso):
                  f"M_d={f['M_d']:.1f} kN.m ; x/d={f['x_d']:.2f} ({dom}) ; "
                  f"As={cm2(f['As']):.1f} cm2 ; As,min={cm2(f['As_min']):.1f} -> "
                  f"As,adot={cm2(f['As_adot']):.1f} cm2")
+        bb = f.get("barras")
+        if bb:
+            aviso = "" if bb["na_faixa"] else "  [!] espacamento fora de [10;20]cm - revisar"
+            L.append(f"      -> {bb['n']} barras phi {bb['phi']:.1f} mm c/ "
+                     f"{bb['s']*100:.0f} cm (As,ef={cm2(bb['As_ef']):.1f} cm2){aviso}")
     cd = rB["compr_diag"]
     L.append(f"  Compressao diagonal (19.5.3.1): tau_Sd={cd['tau_sd']:.0f} <= "
              f"tau_Rd2={cd['tau_rd2']:.0f} kN/m2 (alpha_v={cd['alpha_v']:.2f} ; "
@@ -519,6 +579,10 @@ def _selftest():
     assert de["aprovado"] is not None
     assert de["governantes"]["solo"][0] == "C1_grav"       # N maximo governa bearing
     assert de["governantes"]["tomb"][0] == "C2_uplift"     # uplift governa tombamento
+    # 9) detalhamento: As_ef >= As_req e espacamento coerente
+    bb = detalha_barras(18e-4, 2.0, 0.05)          # 18 cm2 em 2 m
+    assert bb and bb["As_ef"] >= 18e-4 - 1e-9 and bb["n"] >= 2
+    assert bb["s"] > 0
     print("fundacao_sapata self-test PASSED")
     print(f"  exemplo -> sapata {B:.2f}x{Lm:.2f}x{h:.2f} m ; sig_max={r['sigma_max']:.0f}"
           f" kN/m2 (u={r['u_solo']:.2f}) ; FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}")

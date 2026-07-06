@@ -130,6 +130,39 @@ rígida, util 0,27.
 
 ---
 
+## 4a. Detalhamento das barras de flexão (arranjo)
+
+Traduz o `A_s` requerido (por largura) num arranjo comercial: escolhe a bitola
+cujo espaçamento cai na faixa prática [10; 20] cm; entre as válidas, prefere a
+**menor bitola** (mais barras, melhor fissuração). `n = ⌈A_s/A_barra⌉` (≥ 2).
+
+```python
+_BITOLAS = [6.3, 8.0, 10.0, 12.5, 16.0, 20.0, 25.0]   # mm, CA-50
+S_MIN = 0.10 ; S_MAX = 0.20        # faixa pratica (m) - A CONFIRMAR (18.3.2.2)
+
+def detalha_barras(As_req, largura, cobrimento=0.05):
+    b_util = max(largura - 2 * cobrimento, 0.0)
+    if As_req <= 0 or b_util <= 0:
+        return None
+    melhor = None
+    for phi in _BITOLAS:
+        A1 = math.pi * (phi/1000)**2 / 4.0
+        n = max(2, math.ceil(As_req / A1))
+        s = b_util / (n - 1)
+        if S_MIN - 1e-9 <= s <= S_MAX + 1e-9:      # na faixa
+            if melhor is None or phi < melhor["phi"]:
+                melhor = {"phi": phi, "n": n, "s": s, "As_ef": n*A1, "na_faixa": True}
+    # fallback: se nenhuma na faixa, a menor bitola que ainda cabe (s <= S_MAX)
+    return melhor or _fallback(...)
+```
+
+Ex. nf982: dir L → 19 φ12,5 c/11 cm ; dir B → 23 φ12,5 c/11 cm. Se o espaçamento
+sair da faixa, o memorial emite `[!] espacamento fora de [10;20]cm - revisar`.
+
+> **A CONFIRMAR**: S_MIN/S_MAX práticos e o espaçamento máximo normativo da
+> armadura de flexão da sapata (detalhamento NBR 6118 18.3.2 / 20.1) — o código
+> flaga em vez de fixar um s_max possivelmente incorreto.
+
 ## 4b. Quantitativo (concreto + aço)
 
 `quantitativo(rA, rB, n_sapatas)` — por sapata × nº de sapatas

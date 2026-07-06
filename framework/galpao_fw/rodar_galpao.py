@@ -296,9 +296,13 @@ def rodar(params, out_dir):
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]
+        def _arm(f):
+            b = f.get("barras")
+            return (f"{b['n']} phi {b['phi']:.1f} c/{b['s']*100:.0f}" if b else None)
         res["sapata_adotada"] = {"B": sB, "L": sL, "h": sh,
                                  "As_L": rB["flexao_L"]["As_adot"],
-                                 "As_B": rB["flexao_B"]["As_adot"], "rigida": rB["rigida"]}
+                                 "As_B": rB["flexao_B"]["As_adot"], "rigida": rB["rigida"],
+                                 "arm_L": _arm(rB["flexao_L"]), "arm_B": _arm(rB["flexao_B"])}
         # util do envelope: pior entre solo, compr.diagonal e 1/FS (gov por combo)
         res["sapata_util"] = round(max(gv.get("solo", ("", 0))[1], gv.get("compr", ("", 0))[1],
                                        1.0 / gv.get("tomb", ("", 9))[1],
