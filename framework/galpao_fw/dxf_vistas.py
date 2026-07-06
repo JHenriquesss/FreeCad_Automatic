@@ -14,23 +14,25 @@ import math
 import ezdxf
 
 
-# ---- camadas (nome, cor ACI, linetype) -------------------------------------
+# ---- camadas (nome, RGB fixo, linetype) ------------------------------------
+# RGB FIXO (true color) -> visivel tanto em fundo BRANCO (visualizadores comuns)
+# quanto preto. Evita a cor 7 (branca no branco) e amarelo/ciano (some no branco).
 CAMADAS = [
-    ("EIXOS", 4, "CENTER"),        # linhas de eixo (ciano, traco-ponto)
-    ("ACO", 7, "CONTINUOUS"),      # perfis metalicos (branco/preto)
-    ("BASE", 2, "CONTINUOUS"),     # placas de base / concreto (amarelo)
-    ("FURACAO", 1, "CONTINUOUS"),  # chumbadores / parafusos (vermelho)
-    ("COTAS", 3, "CONTINUOUS"),    # dimensoes (verde)
-    ("TEXTO", 7, "CONTINUOUS"),
-    ("CONTRAV", 5, "DASHED"),      # contraventamento (azul, tracejado)
-    ("TELHA", 8, "CONTINUOUS"),    # telha / terca (cinza)
+    ("EIXOS", (120, 120, 120), "CENTER"),        # eixos (cinza)
+    ("ACO", (0, 0, 0), "CONTINUOUS"),            # perfis metalicos (preto)
+    ("BASE", (200, 110, 0), "CONTINUOUS"),       # placas de base (laranja escuro)
+    ("FURACAO", (210, 0, 0), "CONTINUOUS"),      # chumbadores/parafusos (vermelho)
+    ("COTAS", (0, 140, 0), "CONTINUOUS"),        # dimensoes (verde)
+    ("TEXTO", (0, 0, 0), "CONTINUOUS"),          # textos (preto)
+    ("CONTRAV", (0, 0, 210), "DASHED"),          # contraventamento (azul)
+    ("TELHA", (120, 120, 120), "CONTINUOUS"),    # telha/terca (cinza)
 ]
 
 
 def _setup(doc):
-    for nome, cor, lt in CAMADAS:
+    for nome, rgb, lt in CAMADAS:
         ly = doc.layers.add(nome)
-        ly.color = cor
+        ly.rgb = rgb
         try:
             ly.linetype = lt
         except Exception:
@@ -374,7 +376,7 @@ def _quadro_verif(msp, d, ox, oy):
         rows.append([nome, f"{u:.2f}".replace(".", ","), situ])
     if not rows:
         return
-    _tabela(msp, ox, oy, "QUADRO DE VERIFICACOES  (util = solic./resist. <= 1)",
+    _tabela(msp, ox, oy, "QUADRO DE VERIFICACOES",
             ["Elemento", "util", "situacao"], rows, [2700, 900, 1200])
 
 
