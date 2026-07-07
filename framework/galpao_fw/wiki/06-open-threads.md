@@ -14,7 +14,7 @@ Além dos flags de executivo (T4), o projeto de galpão **completo** ainda não 
 1. ~~Ancoragem do chumbador no concreto~~ — **PARCIAL** [[04-decisions#D9]]: aderência NBR 6118 9.4.2 feita; **cone de arrancamento + grupo (ACI 318 Ch.17) ainda faltam** (sem ACI no acervo).
 2. **Recalque da fundação** (NBR 6122) — só capacidade/estabilidade, não deformação.
 3. **Fundações profundas** (estaca/tubulão + bloco + viga de equilíbrio) — só sapata isolada.
-4. **Fadiga da viga de rolamento** (Anexo K) — flagado, não automatizado.
+4. ~~Fadiga da viga de rolamento (Anexo K)~~ — **FEITO** [[04-decisions#D10]]: σSR=Msdx/Wx vs σadm (K.4); categoria+N são INPUT. Refinamento pendente: parcela lateral/biaxial (K.3.3).
 5. **Junta de dilatação / temperatura** — ausente (galpão longo).
 6. **Sismo** (NBR 15421) — não verificado (baixa sismicidade BR raramente governa).
 

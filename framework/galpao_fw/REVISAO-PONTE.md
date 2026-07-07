@@ -170,3 +170,35 @@ teste-limite `d→0 ⇒ 2P no centro`; (4) indexação kN/roda × kN/trilho isol
 evitando falha de transferência viga→console.
 
 Módulo `ponte_rolante.py` liberado para o orquestrador.
+
+---
+
+## 9. Fadiga da viga de rolamento (NBR 8800 Anexo K) — feature adicionada 2026-07-07
+
+Fecha a lacuna: antes só um FLAG "a verificar"; agora **calcula** a faixa de tensões
+e compara com a admissível. Fórmula extraída do PDF (não de memória):
+
+- **K.4 a)** — faixa admissível `σ_SR = (327·C_f / N)^0,333 ≥ σ_TH` [MPa].
+- **Tabela K.1** (lida do PDF): `(C_f×10⁸, σ_TH)` — A (250; 165), **B (120; 110)**,
+  B' (61; 83), **C (44; 69)**, D (22; 48), E (11; 31), E' (3,9; 18).
+- **K.3** — faixa de tensões por análise elástica: `σ_SR,Sd = M_fad / W_x`.
+
+**Carga de fadiga (B.7.3.4):** 1 ponte com impacto. Como `P = φ·R_roda,max`
+(característico com impacto, **sem** γ_f) e a carga móvel **zera** quando a ponte se
+afasta, a faixa de variação ≈ o próprio momento da ponte: `M_fad = Msdx`. Logo
+`σ_SR,Sd = Msdx/W_x`.
+
+**Parametrização (Ask, Do Not Invent):** a **categoria do detalhe** (`cat_fadiga`,
+default **B** = metal-base junto à solda longitudinal contínua mesa-alma) e o
+**número de ciclos** `N` (`n_ciclos`, do regime — NBR 8400) são INPUT. O código não
+fabrica a categoria: enrijecedores/ligações transversais soldadas são **C**, e o
+detalhe do trilho pode ser pior — o engenheiro confirma. Entra no `OK` da viga.
+
+Ex. (ponte 100 kN, VS500, bay 5 m, cat B, N=2×10⁶): `σ_SR=57 MPa ≤ σ_adm=125 MPa`
+(`u=0,46`) → OK. Selftest confere a fórmula K.4 (categorias A/C/E/E'), o piso
+`σ_TH` (muitos ciclos) e `σ_SR=Msdx/Wx`. Não-regressivo: Msdx/interação/flecha do
+VS500 inalterados.
+
+> **Limite:** faixa de tensões da **flexão vertical** (dominante). A parcela lateral
+> (surto no topo do trilho) e a combinação biaxial (K.3.3) ficam como refinamento;
+> a categoria real do detalhe de fabricação continua sendo a decisão do projetista.
