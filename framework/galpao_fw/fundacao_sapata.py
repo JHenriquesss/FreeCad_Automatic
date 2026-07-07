@@ -399,6 +399,35 @@ def _armadura_flexao(M_d, b, d, fck, fyk):
     return As, x_d, z, (x_d <= XD_LIM + 1e-9)
 
 
+def puncao_sapata(N_d, B, L, ap_L, ap_B, d, fck, As_L, As_B):
+    """PUNCAO da sapata FLEXIVEL (NBR 6118 19.5), no contorno critico C' distante
+    2d do pilar. So faz sentido quando a sapata NAO e rigida (a rigida fica dentro
+    do cone e dispensa punção por 22.6.2.2). Modelo de sapata: a reacao do solo
+    DENTRO de C' alivia a forca de punção (nao atravessa a superficie critica).
+
+      - 19.5.2.1: tau_Sd = F_Sd,ef / (u * d) ; u = perimetro de C' (2d do pilar);
+      - 19.5.3.2: tau_Rd1 = 0,13*(1+raiz(20/d[cm]))*(100*rho*fck[MPa])^(1/3)
+                  (sigma_cp=0: sem protensao/normal na sapata -> conservador);
+      - rho = raiz(rho_x*rho_y), taxa geometrica de armadura de flexao aderente.
+    Unidades: N em kN, dims em m, fck em kN/m2. Retorna dict com tau e utilizacao."""
+    C1, C2 = ap_L, ap_B
+    u = 2.0 * (C1 + C2) + 2.0 * math.pi * (2.0 * d)      # contorno C' a 2d (cantos arredondados)
+    # area em planta dentro de C' = soma de Minkowski do pilar com disco de raio 2d
+    A_cp = C1 * C2 + 2.0 * (C1 + C2) * (2.0 * d) + math.pi * (2.0 * d) ** 2
+    sig = N_d / (B * L)                                  # pressao media (equilibrio)
+    F_ef = max(N_d - sig * min(A_cp, B * L), 0.0)        # alivio da reacao dentro de C'
+    tau_sd = F_ef / (u * d) if (u * d) > 0 else float("inf")
+    fck_MPa = fck / 1000.0
+    d_cm = d * 100.0
+    rho_x = As_L / (B * d) if (B * d) > 0 else 0.0       # As_L distribuido na largura B
+    rho_y = As_B / (L * d) if (L * d) > 0 else 0.0
+    rho = math.sqrt(max(rho_x, 0.0) * max(rho_y, 0.0))
+    tau_rd1 = 0.13 * (1.0 + math.sqrt(20.0 / d_cm)) * (100.0 * rho * fck_MPa) ** (1.0 / 3.0) * 1000.0
+    return {"tau_sd": tau_sd, "tau_rd1": tau_rd1, "u": u, "A_cp": A_cp, "F_ef": F_ef,
+            "rho": rho, "u_punc": (tau_sd / tau_rd1 if tau_rd1 > 0 else float("inf")),
+            "ok": tau_sd <= tau_rd1 + 1e-9}
+
+
 # Bitolas comerciais (mm) e area da barra (m2). CA-50.
 _BITOLAS = [6.3, 8.0, 10.0, 12.5, 16.0, 20.0, 25.0]
 S_MIN = 0.10        # espacamento min pratico entre barras (m) - A CONFIRMAR (18.3.2.2)
@@ -512,11 +541,21 @@ def dimensiona_sapata_B(caso, r_A):
 
     r["ok_flexao"] = okL and okB
     r["ok_compr_diag"] = tau_sd <= tau_rd2 + 1e-9
-    r["OK_B"] = r["rigida"] and r["ok_flexao"] and r["ok_compr_diag"]
-    if not r["rigida"]:
-        r["flag_flexivel"] = ("Sapata FLEXIVEL (h < (a-ap)/3): exige verificacao "
-                              "de PUNCAO (19.5) e flexao nao-uniforme (22.6.4.1.3) "
-                              "- PENDENTE; aumentar h para tornar rigida.")
+
+    # 4) PUNCAO (19.5): so a sapata FLEXIVEL. A rigida fica dentro do cone e
+    #    dispensa punção (22.6.2.2) - a compressao diagonal (item 3) ja a cobre.
+    if r["rigida"]:
+        r["OK_B"] = r["ok_flexao"] and r["ok_compr_diag"]
+    else:
+        pc = puncao_sapata(N_d, B, L, ap_L, ap_B, d, fck, As_ad_L, As_ad_B)
+        r["puncao"] = pc
+        r["ok_puncao"] = pc["ok"]
+        r["OK_B"] = r["ok_flexao"] and r["ok_compr_diag"] and r["ok_puncao"]
+        r["flag_flexivel"] = ("Sapata FLEXIVEL (h < (a-ap)/3): PUNCAO verificada "
+                              "(19.5) no contorno C' a 2d -> u_punc=%.2f (%s). Flexao "
+                              "nao-uniforme (22.6.4.1.3) mantida simplificada "
+                              "(conservador). Alternativa: aumentar h -> rigida."
+                              % (pc["u_punc"], "OK" if pc["ok"] else "NAO PASSA"))
     return r
 
 
@@ -548,6 +587,12 @@ def relatorio_sapata_B(rB, caso):
              f"tau_Rd2={cd['tau_rd2']:.0f} kN/m2 (alpha_v={cd['alpha_v']:.2f} ; "
              f"K={cd['K']:.2f}) -> u={cd['u_cd']:.2f} "
              f"{'OK' if rB['ok_compr_diag'] else 'NAO PASSA'}")
+    if not rB["rigida"] and rB.get("puncao"):
+        pc = rB["puncao"]
+        L.append(f"  Puncao (19.5, sapata flexivel): tau_Sd={pc['tau_sd']:.0f} <= "
+                 f"tau_Rd1={pc['tau_rd1']:.0f} kN/m2 no contorno C' a 2d "
+                 f"(u={pc['u']*100:.0f} cm ; rho={pc['rho']*100:.3f}%) -> "
+                 f"u_punc={pc['u_punc']:.2f} {'OK' if pc['ok'] else 'NAO PASSA'}")
     L.append(f"  -> PARTE B {'OK' if rB['OK_B'] else 'NAO PASSA'}")
     if not rB["rigida"]:
         L.append("  [FLAG] " + rB["flag_flexivel"])
@@ -626,6 +671,20 @@ def _selftest():
     assert abs(rho_min(35) - 0.00164) < 1e-9 and abs(rho_min(50) - 0.00208) < 1e-9
     assert rho_min(15) == 0.0015 and rho_min(90) == 0.00208     # fora da faixa: extremos
     assert 0.00164 < rho_min(37.5) < 0.00179                    # interpola 35..40
+    # 11) PUNCAO (19.5): sapata flexivel verifica C' a 2d; formulas conferidas
+    pc = puncao_sapata(300.0, 2.0, 2.0, 0.30, 0.30, 0.25, 25e3, 8e-4, 8e-4)
+    d_ = 0.25; C1 = C2 = 0.30
+    u_exp = 2.0 * (C1 + C2) + 2.0 * math.pi * (2.0 * d_)
+    assert abs(pc["u"] - u_exp) < 1e-9                           # contorno C' a 2d
+    rho_exp = math.sqrt((8e-4 / (2.0 * d_)) ** 2)               # rho_x=rho_y aqui
+    trd1 = 0.13 * (1.0 + math.sqrt(20.0 / (d_ * 100.0))) * (100.0 * rho_exp * 25.0) ** (1.0 / 3.0) * 1000.0
+    assert abs(pc["tau_rd1"] - trd1) < 1e-3                      # 19.5.3.2
+    assert pc["F_ef"] < 300.0 and pc["F_ef"] > 0.0              # alivio da reacao do solo
+    assert "u_punc" in pc and pc["u_punc"] >= 0.0
+    # sapata deliberadamente FLEXIVEL (h pequeno) -> Parte B roda puncao, nao so flag
+    cf = dict(CASO_EXEMPLO)
+    rBf = dimensiona_sapata_B(cf, {"B": 2.5, "L": 2.5, "h": 0.30})   # h<(2,5-0,3)/3=0,73
+    assert not rBf["rigida"] and "puncao" in rBf and "ok_puncao" in rBf
     print("fundacao_sapata self-test PASSED")
     print(f"  exemplo -> sapata {B:.2f}x{Lm:.2f}x{h:.2f} m ; sig_max={r['sigma_max']:.0f}"
           f" kN/m2 (u={r['u_solo']:.2f}) ; FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}")

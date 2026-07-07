@@ -11,7 +11,7 @@ Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender ap�
 
 ## T4 — Flags de projeto executivo (não são bugs — limites de escopo)
 - **Fundação**: quantitativo de aço ~10–15% baixo (sem ganchos/arranques 22.6.4.1) — marcador de anteprojeto. Detalhamento/ancoragem = executivo.
-- **Fundação**: sapata flexível (h<(a−ap)/3) exige punção 19.5 — código força rígida, senão emite FLAG.
+- ~~**Fundação**: sapata flexível exige punção 19.5~~ — **RESOLVIDO** [[04-decisions#D8]]: `puncao_sapata()` verifica C' a 2d; auto-sizer ainda prefere rígida.
 - **Ponte**: fadiga Anexo K sinalizada, não automatizada (depende da categoria de detalhe de fabricação).
 - **Redim/mão-francesa**: Lb fixo (col 2,0m / viga 1,67m) é contrato — a mão-francesa deve entregar essa contenção da mesa interna. Premissa de wiring.
 - **σ_solo,adm, μ, coesão, φ (impacto ponte), frações lateral/long** — INPUT de sondagem/fabricante; bloqueia se não informado.
