@@ -106,10 +106,13 @@ def verifica_viga_rolamento(sec, fy, cfg):
     Mnx, gov, det = ck.momento_resistente(sec, fy, cfg.get("Lb", L), cfg.get("Cb", 1.0))
     Mrdx = Mnx / GA1
     # Flexao lateral do surto atua no TOPO DO TRILHO -> so a MESA SUPERIOR resiste
-    # (NBR 8800 / Fakury 4.4.2), ~metade das props do perfil inteiro.
+    # (NBR 8800 / Fakury 4.4.2). Para I bissimetrico, ~metade das props globais;
+    # para seca MONOSSIMETRICA (mesa sup com U/chapa de reforco) Wy_top != Wy/2 ->
+    # aceitar override direto do banzo superior (parecer 4). Fallback = Wy/2.
     Wy = sec.get("Wy", sec["Iy"] / (sec["bf"] / 2.0))
     Zy = sec.get("Zy", 1.5 * Wy)
-    Wy_top, Zy_top = Wy / 2.0, Zy / 2.0
+    Wy_top = sec.get("Wy_top", Wy / 2.0)
+    Zy_top = sec.get("Zy_top", Zy / 2.0)
     Mrdy = min(Zy_top, 1.5 * Wy_top) * fy / GA1
     inter = Msdx / Mrdx + Msdy / Mrdy
     # flecha (carga movel SEM impacto, combinacao rara): P_carac = P/phi

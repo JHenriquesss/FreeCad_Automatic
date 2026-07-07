@@ -85,9 +85,14 @@ def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
     M_tomb = abs(V) * h_tot + abs(M)
     M_est = N_tot * L / 2.0
     fs_tomb = (M_est / M_tomb) if M_tomb > 0 else float("inf")
-    resist = N_tot * mu + coesao * (B * L)
+    # atrito ~ N_tot (independe da area); ADESAO (coesao) atua so sob a area de
+    # contato efetiva: sob levantamento (e>L/6) so B*x toca o solo, nao B*L.
+    e = abs(M) / N_tot if N_tot > 0 else 0.0
+    x_cont = L if e <= L / 6.0 else max(3.0 * (L / 2.0 - e), 0.0)
+    A_ef = B * min(x_cont, L)                       # = B*L com contato total
+    resist = N_tot * mu + coesao * A_ef
     fs_desl = (resist / abs(V)) if abs(V) > 0 else float("inf")
-    return {"N_tot": N_tot, "Pp": Pp, "Pp_det": det, "M_tomb": M_tomb,
+    return {"N_tot": N_tot, "Pp": Pp, "Pp_det": det, "M_tomb": M_tomb, "A_ef": A_ef,
             "M_est": M_est, "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot}
 
 
@@ -335,7 +340,31 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
 LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa)
 ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa)
 XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50)
-RHO_MIN = 0.0015           # 17.3.5.2 taxa minima (fck<=~30) - A CONFIRMAR p/ fck
+RHO_MIN = 0.0015           # piso absoluto 0,15% (17.3.5.2.1); rho_min(fck) p/ fck>30
+
+# Tabela 17.3 (NBR 6118:2014) - taxa minima de armadura de flexao, secao
+# retangular, CA-50, gamma_c=1,4, d/h=0,8. Piso absoluto 0,15% (17.3.5.2.1); sobe
+# para fck>30. Valores conferidos contra a norma (Carvalho & Figueiredo, Quadro
+# 4.2 = Tabela 17.3) - nao de memoria. Adotado o valor de VIGA (mais exigente que
+# o de laje 2-direcoes 0,67*rho_min, 19.3.3.2/Tab.19.1): remove o canto nao-
+# conservador qualquer que seja a classificacao da sapata pelo revisor.
+_RHO_MIN_TAB = {20: 0.00150, 25: 0.00150, 30: 0.00150, 35: 0.00164,
+                40: 0.00179, 45: 0.00194, 50: 0.00208}
+
+
+def rho_min(fck_MPa):
+    """Taxa minima de armadura de flexao (Tabela 17.3, secao retangular CA-50).
+    Piso 0,15% ate fck 30; interpola linearmente entre pontos tabelados p/ fck>30
+    (a favor da seguranca). fck em MPa. Ex.: 25->0,00150 ; 40->0,00179."""
+    pts = sorted(_RHO_MIN_TAB.items())
+    if fck_MPa <= pts[0][0]:
+        return pts[0][1]
+    if fck_MPa >= pts[-1][0]:
+        return pts[-1][1]
+    for (f0, r0), (f1, r1) in zip(pts, pts[1:]):
+        if f0 <= fck_MPa <= f1:
+            return r0 + (r1 - r0) * (fck_MPa - f0) / (f1 - f0)
+    return pts[-1][1]
 
 # Tabela 19.2 - coeficiente K (parcela de M transmitida por cisalhamento).
 _K_TAB = [(0.5, 0.45), (1.0, 0.60), (2.0, 0.70), (3.0, 0.80)]
@@ -455,8 +484,9 @@ def dimensiona_sapata_B(caso, r_A):
     M_dB = sig_max_d * L * c_B ** 2 / 2.0          # momento (barras // B), largura L
     As_L, xdL, zL, okL = _armadura_flexao(M_dL, B, d, fck, fyk)
     As_B, xdB, zB, okB = _armadura_flexao(M_dB, L, d, fck, fyk)
-    As_min_L = RHO_MIN * B * h                     # As,min por largura (17.3.5.2)
-    As_min_B = RHO_MIN * L * h
+    rho = rho_min(fck_MPa)                          # Tabela 17.3 (sobe p/ fck>30)
+    As_min_L = rho * B * h                          # As,min por largura (17.3.5.2)
+    As_min_B = rho * L * h
     As_ad_L = max(As_L or 0.0, As_min_L)
     As_ad_B = max(As_B or 0.0, As_min_B)
     r["flexao_L"] = {"M_d": M_dL, "As": As_L, "As_min": As_min_L, "x_d": xdL,
@@ -557,6 +587,14 @@ def _selftest():
     assert abs(e["M_tomb"] - (20.0 * 0.4 + 40.0)) < 1e-9
     assert abs(e["M_est"] - (100.0 + Pp) * 0.75) < 1e-6
     assert abs(e["fs_desl"] - ((100.0 + Pp) * 0.5) / 20.0) < 1e-6
+    # 3b) coesao atua so na area efetiva: sob uplift (e>L/6) A_ef = B*x < B*L
+    ec = estabilidade(100.0, 20.0, 80.0, 1.5, 1.5, 0.4, 0.5, coesao=10.0)
+    Ntc = 100.0 + Pp                               # e=80/Ntc > L/6=0,25 -> uplift
+    xc = 3.0 * (0.75 - 80.0 / Ntc)
+    assert abs(ec["A_ef"] - 1.5 * xc) < 1e-6 and ec["A_ef"] < 1.5 * 1.5   # < B*L
+    assert abs(ec["fs_desl"] - (Ntc * 0.5 + 10.0 * 1.5 * xc) / 20.0) < 1e-6
+    e2 = estabilidade(300.0, 20.0, 10.0, 1.5, 1.5, 0.4, 0.5, coesao=10.0)  # contato total
+    assert abs(e2["A_ef"] - 1.5 * 1.5) < 1e-9      # e<L/6 -> A_ef = B*L (nao regride)
     # 4) dimensiona: escolhe a menor que passa + roda Parte B
     d = dimensiona_sapata(CASO_EXEMPLO)
     assert d["aprovado"] is not None, "exemplo deveria passar em alguma sapata"
@@ -583,6 +621,11 @@ def _selftest():
     bb = detalha_barras(18e-4, 2.0, 0.05)          # 18 cm2 em 2 m
     assert bb and bb["As_ef"] >= 18e-4 - 1e-9 and bb["n"] >= 2
     assert bb["s"] > 0
+    # 10) rho_min (Tabela 17.3): piso 0,15% ate fck 30 ; sobe p/ fck>30
+    assert rho_min(20) == 0.0015 and rho_min(25) == 0.0015 and rho_min(30) == 0.0015
+    assert abs(rho_min(35) - 0.00164) < 1e-9 and abs(rho_min(50) - 0.00208) < 1e-9
+    assert rho_min(15) == 0.0015 and rho_min(90) == 0.00208     # fora da faixa: extremos
+    assert 0.00164 < rho_min(37.5) < 0.00179                    # interpola 35..40
     print("fundacao_sapata self-test PASSED")
     print(f"  exemplo -> sapata {B:.2f}x{Lm:.2f}x{h:.2f} m ; sig_max={r['sigma_max']:.0f}"
           f" kN/m2 (u={r['u_solo']:.2f}) ; FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}")

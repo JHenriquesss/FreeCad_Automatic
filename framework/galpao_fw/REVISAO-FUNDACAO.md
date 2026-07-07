@@ -91,8 +91,11 @@ z    = d·(1 − 0,5·λ·x/d)
 A_s  = M_d / (f_yd·z)
 ```
 
-Altura útil `d = h − cobrimento − φ`. Armadura mínima `A_s,min = 0,15%·b·h`
-(17.3.5.2 — **confirmar** para o fck adotado).
+Altura útil `d = h − cobrimento − φ`. Armadura mínima `A_s,min = ρ_min(fck)·b·h`
+com `ρ_min` da **Tabela 17.3** (piso 0,15% até fck 30; sobe para fck>30 —
+0,164% em 35 … 0,208% em 50). Adota o valor de **viga** (mais exigente que o de
+laje 2-direções `0,67·ρ_min`, 19.3.3.2/Tab.19.1) — cobre as duas classificações.
+Ver §8.
 
 ### 3.3 Compressão diagonal — item 19.5.3.1
 
@@ -184,7 +187,7 @@ Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
 1. `sigma_solo,adm` e parâmetros do solo (μ, coesão, γ) — **relatório de
    sondagem** (geotecnia). Bloqueia se não informado.
 2. Sapata **flexível** exige punção (19.5) — PENDENTE (o código força rígida).
-3. `A_s,min` = 0,15% (17.3.5.2) — confirmar para o fck.
+3. `A_s,min` = `ρ_min(fck)` da Tabela 17.3 (§8) — **resolvido** (era fixo 0,15%).
 4. **Detalhamento/ancoragem** da armadura (gancho face a face 22.6.4.1.1;
    arranque 22.6.4.1.2) — projeto executivo.
 5. Fatores de segurança 1,5 (tombamento/deslizamento) — confirmar critério.
@@ -233,8 +236,20 @@ GAMMA_SOLO = 18.0          # reaterro (kN/m3) - INPUT (sondagem); default flag
 LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa)
 ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa)
 XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50)
-RHO_MIN = 0.0015           # 17.3.5.2 taxa minima (fck<=~30) - A CONFIRMAR p/ fck
+RHO_MIN = 0.0015           # piso absoluto 0,15% (17.3.5.2.1); rho_min(fck) p/ fck>30
+_RHO_MIN_TAB = {20: 0.00150, 25: 0.00150, 30: 0.00150, 35: 0.00164,   # Tabela 17.3
+                40: 0.00179, 45: 0.00194, 50: 0.00208}                 # (viga, CA-50)
 RHO_ACO = 7850.0           # massa especifica do aco (kg/m3)
+
+def rho_min(fck_MPa):
+    """Tabela 17.3: piso 0,15% ate fck 30; interpola p/ fck>30 (a favor da seg.)."""
+    pts = sorted(_RHO_MIN_TAB.items())
+    if fck_MPa <= pts[0][0]:  return pts[0][1]
+    if fck_MPa >= pts[-1][0]: return pts[-1][1]
+    for (f0, r0), (f1, r1) in zip(pts, pts[1:]):
+        if f0 <= fck_MPa <= f1:
+            return r0 + (r1 - r0) * (fck_MPa - f0) / (f1 - f0)
+    return pts[-1][1]
 _K_TAB = [(0.5, 0.45), (1.0, 0.60), (2.0, 0.70), (3.0, 0.80)]  # Tabela 19.2
 ```
 
@@ -278,9 +293,13 @@ def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
     M_tomb = abs(V) * h_tot + abs(M)
     M_est = N_tot * L / 2.0
     fs_tomb = (M_est / M_tomb) if M_tomb > 0 else float("inf")
-    resist = N_tot * mu + coesao * (B * L)
+    # atrito ~ N_tot; ADESAO (coesao) so na area de contato efetiva B*x (uplift)
+    e = abs(M) / N_tot if N_tot > 0 else 0.0
+    x_cont = L if e <= L / 6.0 else max(3.0 * (L / 2.0 - e), 0.0)
+    A_ef = B * min(x_cont, L)                       # = B*L com contato total
+    resist = N_tot * mu + coesao * A_ef
     fs_desl = (resist / abs(V)) if abs(V) > 0 else float("inf")
-    return {"N_tot": N_tot, "Pp": Pp, "M_tomb": M_tomb, "M_est": M_est,
+    return {"N_tot": N_tot, "Pp": Pp, "M_tomb": M_tomb, "M_est": M_est, "A_ef": A_ef,
             "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot, ...}
 ```
 
@@ -348,8 +367,9 @@ def dimensiona_sapata_B(caso, r_A):
     M_dB = sig_max_d * L * c_B ** 2 / 2.0          # momento (barras // B), largura L
     As_L, xdL, zL, okL = _armadura_flexao(M_dL, B, d, fck, fyk)
     As_B, xdB, zB, okB = _armadura_flexao(M_dB, L, d, fck, fyk)
-    As_min_L = RHO_MIN * B * h                     # As,min por largura (17.3.5.2)
-    As_min_B = RHO_MIN * L * h
+    rho = rho_min(fck_MPa)                          # Tabela 17.3 (sobe p/ fck>30)
+    As_min_L = rho * B * h                          # As,min por largura (17.3.5.2)
+    As_min_B = rho * L * h
     # As_adot = max(As_flexao, As_min)  em cada direcao
 
     # 3) COMPRESSAO DIAGONAL no perimetro do pilar (19.5.3.1)
@@ -398,3 +418,104 @@ def quantitativo(rA, rB, n_sapatas=1, h_ped=0.5):
     massa_aco = vol_aco * RHO_ACO
     # taxa = massa_aco / vol_conc  (kg/m3, indicador)
 ```
+
+---
+
+## 8. Resposta ao parecer do sênior (rodada 1 — 2026-07-07)
+
+Parecer **sem erro de método** — Parte A e Parte B corretas. Um ponto acionável
+(`ρ_min` × fck) e três notas conservadoras aceitas. Todos os pontos duros
+conferidos contra o **PDF da NBR 6118:2014** e cruzados com Carvalho & Figueiredo
+(Quadro 4.2 = Tabela 17.3) — **não de memória**.
+
+### 8.1 — `RHO_MIN` fixo em 0,15% — PARCIALMENTE procedente → MELHORIA APLICADA
+
+O parecer alega que `RHO_MIN = 0,0015` subdimensiona a armadura mínima para
+fck>30 MPa. Verificado contra a norma:
+
+- **17.3.5.2.1** (vigas): piso absoluto **0,15%**; **Tabela 17.3** sobe com fck.
+  Valores conferidos na fonte: fck 20/25/30 → **0,150%**; 35 → **0,164%**;
+  40 → **0,179%**; 45 → **0,194%**; 50 → **0,208%** (CA-50, γc=1,4, d/h=0,8).
+- **19.3.3.2 + Tabela 19.1** (lajes): a sapata rígida flexiona nas **duas
+  direções** → "armadura positiva de lajes armadas nas duas direções:
+  **ρs ≥ 0,67·ρ_min**". Mesmo em fck 50: 0,67×0,208% = **0,139% < 0,15%**. Ou
+  seja, **como laje** o código já era conservador em toda a faixa 20–50 (o parecer
+  erra ao supor subdimensionamento nesta classificação).
+- **Como viga** (ρ_min cheio): 0,15% fica **abaixo** para fck>30 — real canto
+  não-conservador.
+
+**Fix (strict-safe):** `RHO_MIN` vira `rho_min(fck)` pela **Tabela 17.3** (valor de
+viga, o mais exigente das duas classificações). Para **fck≤30 devolve 0,0015**
+(idêntico ao anterior → **sem regressão**, o exemplo fck 25 mantém As_L=18,0 cm²
+porque ali a flexão governa, não o mínimo); para **fck>30 sobe** conforme a tabela,
+com interpolação linear entre os pontos tabelados. Remove o único canto
+não-conservador seja qual for a classificação adotada pelo revisor. Selftest #10
+adicionado (piso 0,15% até 30; 0,164% em 35; 0,208% em 50; extremos e interpolação).
+
+> Projeto real do galpão usa fck 25–30 → 0,15% é **exato** (piso absoluto),
+> logo **nenhum quantitativo já emitido muda**. A melhoria blinda fck>30 futuro.
+
+### 8.2 — Pressão σ_max uniforme no balanço (flexão) — conservador, mantido
+
+O parecer nota (§2) que a pressão sob o balanço é **trapezoidal** na presença de
+M, e o código usa `σ_max_d` **uniforme** sobre todo o balanço (`M_dL = σ_max_d·B·c²/2`).
+Correto: é simplificação **a favor da segurança** (integra o trapézio pelo seu
+valor máximo) → leve superdimensionamento de As em sapatas de grande
+excentricidade. Escolha válida e comum para envelope de anteprojeto. Sem alteração.
+
+### 8.3 — Quantitativo de aço sem gancho (~10–15% baixo) — nota de orçamento, mantido
+
+O parecer aponta (§3) que `vol_aco` conta barras retas (desconta só 5 cm de
+cobrimento/lado), sem o comprimento dos **ganchos/ancoragem** (22.6.4.1.1) →
+quantitativo ~10–15% subestimado. Verdade, e **já sinalizado** no memorial como
+"Aproximação de anteprojeto" (§4b). Detalhamento executivo define ganchos,
+traspasses e o consumo final. É indicador, não lista de corte. Sem alteração de
+método (registrado como margem de orçamento).
+
+### 8.4 — Confirmações verificadas contra o PDF
+
+- **Núcleo** `σ = N/A·(1±6e/L)` (e≤L/6) e **borda** triangular `x=3·(L/2−e)`,
+  `σ_max=2N/(B·x)` — flexão composta exata (Alonso). ✅
+- **Estabilidade**: braço de tombamento com `h_tot = h + h_ped` (inclui V);
+  FS 1,5 usual (ELU geotécnico / NBR 6122). ✅
+- **Rigidez 22.6.1** `h ≥ (a−a_p)/3` → dispensa punção (22.6.2.2). ✅
+- **Bloco retangular 17.2.2** (λ=0,8, α_c=0,85, fck≤50); x/d ≤ 0,45 (14.6.4.3);
+  `_armadura_flexao` reversível (selftest #5). ✅
+- **Compressão diagonal 19.5.3.1** `τ_Rd2 = 0,27·α_v·f_cd`, `α_v = 1−fck/250`;
+  parcela de M por `K` (Tabela 19.2) e `Wp0`. ✅
+- **S_MAX = 0,20 m** (20.1: menor de 20 cm ou 2h; sapata rígida tem h alto →
+  20 cm governa). ✅
+
+### 8.5 — Não-regressão
+
+Selftest `fundacao_sapata` OK (10 casos, +#10 `rho_min`, +#3b coesão/A_ef).
+Exemplo fck 25 → sapata 2,00×2,00×0,60 m, As_L=As_B=18,0 cm², compr.diag u=0,18,
+FS_desl=2,79 — **inalterado**. Envelope mantém governantes.
+
+---
+
+## 9. Homologação (rodada 2 — 2026-07-07)
+
+**Status: ✅ VALIDADO / HOMOLOGADO sob a NBR 6118:2014 (+ estabilidade geotécnica).**
+
+Sênior homologou a Parte A e a Parte B, confirmando: flexão composta (núcleo +
+triangular exato de Alonso), rigidez 22.6.1, bloco retangular 17.2.2, compressão
+diagonal 19.5.3.1 (`Wp0`, `K` Tab.19.2), e a correção do `ρ_min(fck)` (§8.1).
+
+**Ponto novo levantado na homologação (§1, deslizamento) — MELHORIA APLICADA:**
+o sênior notou que `resist = N_tot·μ + coesao·(B·L)` usa a **área total** mesmo
+sob levantamento parcial (e>L/6), quando só `B·x` toca o solo — otimista se
+`c>0`. Aceitou como abstração, mas por ser canto **não-conservador** real, foi
+corrigido (strict-safe): o termo de **atrito** segue `N_tot·μ` (independe de área,
+a resultante normal passa pelo bulbo de contato), e a **adesão** passa a atuar só
+na **área efetiva** `A_ef = B·min(x,L)` (Velloso & Lopes). Contato total (e≤L/6):
+`x=L` → `A_ef=B·L` → **idêntico ao anterior** (sem regressão; exemplo coesão=0
+inalterado). Sob uplift com `c>0`: reduz a resistência ao deslizamento → a favor
+da segurança. Selftest #3b adicionado.
+
+Notas conservadoras aceitas sem alteração: pressão σ_max uniforme no balanço
+(§8.2), `d = h − cob − φ` (centroide na interface das camadas cruzadas),
+quantitativo de aço sem ganchos (~10–15%, marcador de anteprojeto, §8.3).
+
+Módulo `fundacao_sapata.py` liberado. **1 melhoria de código nesta rodada**
+(adesão na área efetiva) + a de r1 (`ρ_min(fck)`).

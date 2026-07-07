@@ -37,7 +37,9 @@ SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
   fck=25 MPa ; fyk=500 MPa ; cobrimento=5 cm ; gamma_f=1,4
   Pressao de calculo (flexao) sigma_d=11 kN/m2
   Flexao dir.L (barras // L): balanco=110 cm ; M_d=13,5 kN.m ; x/d=0,00 (OK) ; As=0,5 cm2 ; As,min=22,5 -> As,adot=22,5 cm2
+      -> 19 barras phi 12,5 mm c/ 11 cm (As,ef=23,3 cm2)
   Flexao dir.B (barras // B): balanco=85 cm ; M_d=10,1 kN.m ; x/d=0,00 (OK) ; As=0,3 cm2 ; As,min=28,1 -> As,adot=28,1 cm2
+      -> 23 barras phi 12,5 mm c/ 11 cm (As,ef=28,2 cm2)
   Compressao diagonal (19.5.3.1): tau_Sd=555 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,13 OK
   -> PARTE B OK
   [FLAG] As,min=0,15% (17.3.5.2) - confirmar p/ fck adotado.

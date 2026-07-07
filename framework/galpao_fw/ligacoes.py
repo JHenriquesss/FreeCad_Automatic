@@ -8,7 +8,8 @@
 #     Fc,Rd=min(1,2*lf*t*fu ; 2,4*db*t*fu)/ga2 ; interacao tracao+corte
 #     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4).
 #   - Solda de filete (6.2.5): metal da solda Fw,Rd=0,60*fw*Aw/gw2
-#     (Aw=0,707*perna*comprimento) e metal-base 0,60*fy*AMB/ga1 (menor).
+#     (Aw=0,707*perna*comprimento). Metal-base (Tabela 8 -> 6.5.5): menor entre
+#     escoamento 0,60*fy*AMB/ga1 e ruptura 0,60*fu*AMB/ga2.
 #   - Forca minima de ligacao 45 kN (6.1.5.2), com as excecoes da norma
 #     (tirantes redondos, travessas, TERCAS de cobertura, travejamento).
 # NAO cobre estados-limites da chapa (rasgamento em bloco/flexao) alem do
@@ -73,16 +74,22 @@ def fw_rd_filete(perna, Lw, fw):
     return 0.60 * fw * Aw / GW2, Aw
 
 
-def fw_rd_base(t_base, Lw, fy):
-    """Metal-base ao cisalhamento (0,60*fy*AMB/ga1)."""
+def fw_rd_base(t_base, Lw, fy, fu=None):
+    """Metal-base ao cisalhamento (Tabela 8 filete -> 6.5.5): menor entre
+    escoamento 0,60*fy*Ag/ga1 e ruptura 0,60*fu*Anv/ga2. Ao longo da solda nao
+    ha furos -> Anv=Ag=AMB. Sem fu -> so escoamento (retrocompativel)."""
     AMB = t_base * Lw
-    return 0.60 * fy * AMB / GA1
+    Fesc = 0.60 * fy * AMB / GA1
+    if fu is None:
+        return Fesc
+    Frup = 0.60 * fu * AMB / GA2
+    return min(Fesc, Frup)
 
 
 def solda(caso):
     perna, Lw, fw = caso["perna"], caso["Lw"], caso["fw"]
     Fw, Aw = fw_rd_filete(perna, Lw, fw)
-    Fb = fw_rd_base(caso["t_base"], Lw, caso["fy_base"])
+    Fb = fw_rd_base(caso["t_base"], Lw, caso["fy_base"], caso.get("fu_base"))
     Frd = min(Fw, Fb)
     Fsd = caso["F"]
     return {"tipo": "solda", "Aw": Aw, "Fw_metal": Fw, "Fw_base": Fb,
@@ -201,6 +208,11 @@ def _selftest():
     # solda: Fw = 0,60*fw*0,707*perna*L/1,35
     Fw, Aw = fw_rd_filete(0.006, 0.200, 485e3)
     assert abs(Fw - 0.60 * 485e3 * Aw / 1.35) < 1e-6
+    # metal-base filete (6.5.5): menor entre escoamento e ruptura
+    AMB = 0.008 * 0.200
+    esc, rup = 0.60 * 250e3 * AMB / 1.10, 0.60 * 400e3 * AMB / 1.35
+    assert abs(fw_rd_base(0.008, 0.200, 250e3, 400e3) - min(esc, rup)) < 1e-6
+    assert abs(fw_rd_base(0.008, 0.200, 250e3) - esc) < 1e-6   # sem fu -> escoamento
     # forca minima
     assert forca_minima(30.0)[0] == 45.0 and forca_minima(30.0, excecao=True)[0] == 30.0
     print("ligacoes self-test PASSED")
@@ -218,7 +230,7 @@ EXEMPLOS = [
      "lf": 0.025, "V": 8.0, "excecao_terca": True},
     {"nome": "Ligacao de contravento (solda filete)", "tipo": "solda",
      "perna": 0.006, "Lw": 0.240, "fw": 485e3, "t_base": 0.008, "fy_base": 250e3,
-     "F": 45.0},
+     "fu_base": 400e3, "F": 45.0},
 ]
 
 

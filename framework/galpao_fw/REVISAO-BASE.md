@@ -102,3 +102,77 @@ placa aumenta o balanço e o próprio t_req.
 | Chumbador | `ft_rd_chumbador` / `fv_rd_chumbador` | 6.3.3 |
 | Espessura | `verifica_base` (bloco t) | AISC DG1 3.1.3 |
 | Escada | `dimensiona_base` | — |
+
+---
+
+## 7. Resposta ao parecer do sênior (rodada 1 — 2026-07-06)
+
+### 7.1 — Pressão no concreto: fator 0,85 e teto — IMPROCEDENTE
+
+**Veredito: REJEITADO. Código já correto (segue NBR 8800 6.6.5 literal).**
+
+O parecer pediu inserir `0,85` e trocar o teto de `fck` por `2×0,85·fck/(γc·γn)`,
+alegando 17 % de superestimativa. Confrontado com o texto autêntico da
+**NBR 8800:2008 item 6.6.5** ("Apoios de concreto", pág. 100 do PDF), literal:
+
+> "A tensão resistente de cálculo à pressão de contato, na área A1 da região
+> carregada sob placas de apoio [...]:
+> **σc,Rd = (fck)/(γc·γn)·√(A2/A1) ≤ fck** ; γn = 1,40"
+
+Não há fator 0,85, e o teto é **fck** (não 2×). O código:
+```python
+val = fck / (GC * GN) * math.sqrt(A2 / A1)   # GC=γc=1,40 ; GN=γn=1,40
+return min(val, fck)
+```
+corresponde **exatamente** à norma (denominador γc·γn = 1,96). O parecer confundiu
+a NBR 8800 6.6.5 com a **compressão localizada da NBR 6118** (que traz 0,85·fcd e
+teto 3·fcd/√ etc.) ou com o **AISC** (0,85·f'c·√(A2/A1) ≤ 1,7·f'c). São normas e
+filosofias distintas — a NBR 8800 já embute o conservadorismo nos dois γ (1,40 ×
+1,40). O item "6.6.5.2" citado no parecer não existe (6.6.5 tem alíneas a/b).
+**Nenhuma alteração de código.**
+
+### 7.2 — Confirmações do parecer (corretas, verificadas contra o PDF)
+
+- **Placa N+M** (AISC DG1): equilíbrio `C·(d_anchor − Y/2) = N·(d_anchor − L/2)
+  + |M|`, quadrática `a=−q/2, b=q·d_anchor, c=−(...)`, menor raiz positiva de Y.
+  Uplift `N≤0`: `T=|N|+|M|/d_anchor` (conservador). ✅
+- **Chumbadores** (NBR 8800 6.3.3): `Ft,Rd = 0,75·Ab·fub/γa2`, `Fv,Rd =
+  0,4(ou 0,5)·Ab·fub/γa2`, γa2=1,35; interação `(Ft/FtRd)²+(Fv/FvRd)² ≤ 1`. ✅
+- **Espessura** (AISC DG1 3.1.3): `t = √(4·m·γa1/fy)` (reverte Z=t²/4). ✅
+
+### 7.3 — Pergunta do parecer (export para a equipe de concreto)
+
+O cone de arrancamento / ancoragem (NBR 6118 / ACI 318) já é **FLAG delegada à
+fundação** (§5.2). `verifica_base` retorna a **tração T por chumbador** e a
+geometria (B, L, d_anchor, bitola, disposição) — dados que alimentam o
+detalhamento da armadura de fretagem / comprimento de embutimento no pedestal
+(módulo `fundacao_sapata`). Integração explícita fica registrada como pendência
+de projeto (sem alteração de método nesta rodada).
+
+### 7.4 — Não-regressão
+
+`base_chumbador` selftest OK; sem alteração de código. Aguarda re-revisão.
+
+---
+
+## 8. Homologação (rodada 2 — 2026-07-07)
+
+**Status: ✅ VALIDADO / HOMOLOGADO sob NBR 8800:2008 + AISC DG1.**
+
+Sênior concordou com a rejeição do 0,85 — reconhecido como "vício comum de
+projetistas que aplicam a NBR 6118 (concreto armado puro) ou o ACI 318 diretamente
+em bases metálicas". Confirmado: a NBR 8800 6.6.5 embute o conservadorismo no
+denominador `γc·γn = 1,40 × 1,40 = 1,96`; o `min(val, fck)` é ~2 % mais conservador
+que o teto normativo real (√(A2/A1) ≤ 2 → 1,02·fck), boa prática. **Nenhuma
+alteração de código.**
+
+Confirmados contra o método:
+- **Placa N+M** (grande excentricidade): equilíbrio de momentos na linha de
+  chumbadores tracionados → quadrática `a=−q/2, b=q·d_anchor`, menor raiz positiva
+  de Y (bloco de contato real). Uplift `N≤0`: `T=|N|+|M|/d_anchor` envoltória
+  conservadora padrão. ✅
+- **Chumbadores** (6.3.3.4): interação quadrática `(Ft/FtRd)²+(Fv/FvRd)² ≤ 1`. ✅
+- **Espessura** (AISC DG1 3.1.3): reverte `Z=t²/4` → `t=√(4·m·γa1/fy)`; braços
+  `x_face` (aba comprimida em balanço) e `x_t` (lado tracionado). ✅
+
+Módulo `base_chumbador.py` liberado.
