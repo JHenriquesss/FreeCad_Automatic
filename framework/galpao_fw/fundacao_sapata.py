@@ -96,6 +96,28 @@ def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
             "M_est": M_est, "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot}
 
 
+# Fator de forma Iw (Perloff 1975, meio de espessura infinita; via Veloso & Lopes
+# Tab. 5.1) - RIGIDO. Lido do PDF (nao de memoria): circulo 0,79 ; quadrado 0,88.
+# Retangulo cresce com L/B - o valor exato sai da Tab. 5.1 pela relacao L/B (o
+# engenheiro confirma / passa Iw). Default = 0,88 (quadrado rigido).
+_IW_RIGIDO = {1.0: 0.88}                             # circulo -> usar 0,79 (caso.Iw)
+
+
+def recalque_elastico(q_liq, B, Es, nu=0.30, Iw=0.88):
+    """Recalque IMEDIATO/elastico de sapata pela Teoria da Elasticidade
+    (Veloso & Lopes; NBR 6122 remete a metodos geotecnicos):
+
+        rho = q_liq * B * (1 - nu^2) * Iw / Es
+
+    q_liq = pressao LIQUIDA de servico (kN/m2) ; B = menor dimensao (m) ; Es =
+    modulo de deformabilidade do solo (kN/m2, INPUT sondagem) ; nu = coef. de
+    Poisson do solo ; Iw = fator de forma/rigidez (Tab. 5.1 Perloff). Retorna rho
+    em metros. Es e nu sao dados geotecnicos - Ask, Do Not Invent."""
+    if Es <= 0:
+        return None
+    return q_liq * B * (1.0 - nu ** 2) * Iw / Es
+
+
 def verifica_sapata_A(caso):
     """PARTE A completa: tensao no solo + estabilidade. Retorna dict de resultados."""
     N, V, M = caso["N"], caso["V"], caso["M"]
@@ -120,7 +142,28 @@ def verifica_sapata_A(caso):
     # levantamento: em sapata isolada de galpao aceita-se contato parcial, mas a
     # resultante deve cair no terco medio para nao ter borda descolando demais.
     r["ok_contato"] = xcont >= L / 3.0
-    r["OK_A"] = r["ok_solo"] and r["ok_tomb"] and r["ok_desl"] and r["ok_contato"]
+
+    # RECALQUE (ELS geotecnico, NBR 6122 - teoria da elasticidade). So calcula se
+    # Es_solo (deformabilidade, sondagem) for dado. Pressao LIQUIDA de SERVICO:
+    # usa N_serv se dado, senao N (o envelope passa ELU -> conservador; o eng.
+    # informa a combinacao de servico). Informativo; gateia OK_A so se exceder.
+    Es = caso.get("Es_solo")
+    if Es:
+        N_serv = caso.get("N_serv", N)
+        q_liq = max(N_serv / (B * L) - caso.get("q_sobrecarga", 0.0), 0.0)
+        Bmin = min(B, L)                             # menor dimensao (recalque)
+        rho = recalque_elastico(q_liq, Bmin, Es, caso.get("nu_solo", 0.30),
+                                caso.get("Iw", 0.88))
+        r["recalque_mm"] = rho * 1000.0
+        r["recalque_adm_mm"] = caso.get("recalque_adm_mm", 25.0)
+        r["ok_recalque"] = r["recalque_mm"] <= r["recalque_adm_mm"] + 1e-9
+    else:
+        r["recalque_mm"] = None
+        r["recalque_adm_mm"] = caso.get("recalque_adm_mm", 25.0)
+        r["ok_recalque"] = None                      # sem Es: nao verifica (FLAG)
+
+    r["OK_A"] = (r["ok_solo"] and r["ok_tomb"] and r["ok_desl"] and r["ok_contato"]
+                 and (r["ok_recalque"] is not False))
     return r
 
 
@@ -311,6 +354,13 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
               f"  sigma_max={r['sigma_max']:.0f} kN/m2 <= {r['sigma_adm']:.0f} (u={r['u_solo']:.2f}) ;"
               f" FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}",
               f"  peso proprio+reaterro={r['Pp']:.1f} kN ; regime solo: {r['regime']}"]
+        if r.get("recalque_mm") is not None:
+            L += [f"  Recalque (ELS, teoria da elasticidade): rho={r['recalque_mm']:.1f} mm "
+                  f"<= adm {r['recalque_adm_mm']:.0f} mm -> "
+                  f"{'OK' if r['ok_recalque'] else 'NAO PASSA'}"]
+        else:
+            L += ["  Recalque: [informe Es_solo (deformabilidade, sondagem) para "
+                  "verificar - NBR 6122]"]
     else:
         L += ["NENHUMA sapata da escada passou - ampliar a escada, reduzir sigma pela",
               "geometria, ou revisar (M/V alto: aumentar sapata, tirante, ou base rotulada)."]
@@ -685,6 +735,17 @@ def _selftest():
     cf = dict(CASO_EXEMPLO)
     rBf = dimensiona_sapata_B(cf, {"B": 2.5, "L": 2.5, "h": 0.30})   # h<(2,5-0,3)/3=0,73
     assert not rBf["rigida"] and "puncao" in rBf and "ok_puncao" in rBf
+    # 12) RECALQUE elastico (NBR 6122 / teoria da elasticidade)
+    rho = recalque_elastico(200.0, 2.0, 20e3, 0.30, 0.88)          # q200,B2,Es20MPa
+    assert abs(rho - 200.0 * 2.0 * (1 - 0.30 ** 2) * 0.88 / 20e3) < 1e-12
+    assert recalque_elastico(200.0, 2.0, 0.0) is None              # Es=0 -> None
+    # sem Es -> nao verifica (informativo); com Es -> entra no OK_A
+    cse = dict(CASO_EXEMPLO); cse.update(B=2.0, L=2.0, h=0.60)
+    r_sem = verifica_sapata_A(cse)
+    assert r_sem["recalque_mm"] is None and r_sem["ok_recalque"] is None
+    cse2 = dict(cse); cse2.update(Es_solo=20e3, nu_solo=0.30, recalque_adm_mm=25.0)
+    r_com = verifica_sapata_A(cse2)
+    assert r_com["recalque_mm"] is not None and r_com["ok_recalque"] in (True, False)
     print("fundacao_sapata self-test PASSED")
     print(f"  exemplo -> sapata {B:.2f}x{Lm:.2f}x{h:.2f} m ; sig_max={r['sigma_max']:.0f}"
           f" kN/m2 (u={r['u_solo']:.2f}) ; FS_tomb={r['fs_tomb']:.2f} ; FS_desl={r['fs_desl']:.2f}")

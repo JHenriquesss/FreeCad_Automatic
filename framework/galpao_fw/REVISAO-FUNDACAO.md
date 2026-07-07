@@ -568,3 +568,39 @@ o alívio `0 < F_ef < N_d`, e que uma sapata flexível roda a punção (não só
 rígida** — a punção é o caminho de verificação para geometrias flexíveis (uso
 direto, ou quando h for limitado), não a preferência do envelope. Não-regressivo: o
 exemplo de referência (rígido) mantém As e utilização inalterados.
+
+---
+
+## 11. Recalque da sapata (ELS geotécnico, NBR 6122) — feature adicionada 2026-07-07
+
+Fecha a lacuna do **deslocamento** da fundação (o módulo só tinha capacidade de
+carga + estabilidade, não deformação). A NBR 6122 exige a verificação de recalque
+mas **remete a métodos geotécnicos** — usou-se o **recalque imediato/elástico pela
+Teoria da Elasticidade** (Veloso & Lopes; Perloff 1975), extraído do PDF:
+
+```
+rho = q_liq · B · (1 − ν²) · Iw / Es
+```
+
+- `q_liq` = pressão **líquida de serviço** (kN/m²) = N_serv/(B·L) − sobrecarga;
+- `B` = **menor** dimensão da sapata; `Es` = módulo de deformabilidade do solo
+  (INPUT sondagem); `ν` = Poisson do solo; `Iw` = fator de forma/rigidez.
+- **Iw (Tab. 5.1 Perloff, lido do PDF):** rígido — círculo **0,79**, quadrado
+  **0,88**; retângulo cresce com L/B (o engenheiro confirma pela relação L/B).
+
+**Ask, Do Not Invent:** `Es_solo`, `nu_solo`, `Iw`, `recalque_adm_mm` são dados
+geotécnicos — **INPUT**. Sem `Es_solo`, o recalque **não é calculado** (FLAG,
+informativo), e o `OK_A` não é afetado; **com** `Es_solo`, entra no `OK_A` (só
+reprova se exceder o admissível). Carga de **serviço**: usa `N_serv` (senão `N`,
+com o envelope ELU sendo conservador — o engenheiro passa a combinação de serviço).
+
+Ex. (sapata 2,0×2,0, N_serv 49 kN, Es 20 MPa, ν 0,3, Iw 0,88): `q=12,3 kN/m²` →
+`ρ=0,98 mm ≤ 25 mm` (OK). Selftest #12 confere a fórmula, `Es=0→None`, e o
+gate por `Es_solo`. Não-regressivo: exemplo sem `Es_solo` inalterado.
+
+> **Limites:** (1) recalque **imediato/elástico** (meio homogêneo, espessura
+> infinita) — solos estratificados pedem **Steinbrenner** (soma de camadas) e o
+> **adensamento** (argilas) fica fora; (2) `recalque_adm` (default 25 mm total) e
+> o **diferencial entre pilares** (≤15 mm, Tabela C.1 da NBR 8800, já no módulo de
+> ponte) dependem da sensibilidade da estrutura — confirmar. Es via SPT (correlações)
+> é do relatório de sondagem, não inventado aqui.

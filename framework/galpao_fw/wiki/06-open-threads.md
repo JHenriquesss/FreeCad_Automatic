@@ -12,7 +12,7 @@ Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender ap�
 ## Lacunas de escopo estrutural (gap analysis 2026-07-07)
 Além dos flags de executivo (T4), o projeto de galpão **completo** ainda não cobre (dentro do escopo estrutural):
 1. ~~Ancoragem do chumbador no concreto~~ — **PARCIAL** [[04-decisions#D9]]: aderência NBR 6118 9.4.2 feita; **cone de arrancamento + grupo (ACI 318 Ch.17) ainda faltam** (sem ACI no acervo).
-2. **Recalque da fundação** (NBR 6122) — só capacidade/estabilidade, não deformação.
+2. ~~Recalque da fundação (NBR 6122)~~ — **FEITO** [[04-decisions#D11]]: recalque elástico (Perloff/Veloso&Lopes); Es/ν/Iw INPUT. Pendente: Steinbrenner (estratificado), adensamento (argila).
 3. **Fundações profundas** (estaca/tubulão + bloco + viga de equilíbrio) — só sapata isolada.
 4. ~~Fadiga da viga de rolamento (Anexo K)~~ — **FEITO** [[04-decisions#D10]]: σSR=Msdx/Wx vs σadm (K.4); categoria+N são INPUT. Refinamento pendente: parcela lateral/biaxial (K.3.3).
 5. **Junta de dilatação / temperatura** — ausente (galpão longo).
