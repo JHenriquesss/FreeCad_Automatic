@@ -81,16 +81,65 @@
 
 - Main skill: `skills/build-warehouse/SKILL.md`.
 - Progressive references:
+  - `references/gates.md`: the 10-gate staged workflow (start here).
+  - `references/calc-modules.md`: gate->module map + orchestrator (calc toolkit).
+  - `QUICKSTART.md`: env pre-flight + how a from-scratch run is conducted.
   - `references/block-map.md`: locate assets.
   - `references/project-inputs.md`: required project inputs.
   - `references/steel-warehouse-engineering-map.md`: systems and sequence.
   - `references/connections-bases-durability.md`: connection/base/durability.
   - `references/engineering-review-questions.md`: engineer validation prompts.
   - `references/deliverables.md`: output folders and checks.
+  - `references/constructability-detailing.md`, `references/geometry-conventions.md`,
+    `references/modeling-workflow-freecad.md`, `references/cbca-galpao-project-sequence.md`.
 - Rule: model geometry and placeholders only until engineer approves design
   assumptions, member sizes, connections, bases, and deliverables.
 - Project-scoped agents may read shared repo knowledge but write only in the
   active `projects/<project-slug>/` folder.
+
+## Calc Toolkit Architecture
+
+- Location: `framework/galpao_fw/` (17 modules, shared package) + `work/build_galpao.py` (model).
+- Grounding: formulas extracted from norm PDFs in `pesquisa/aco/` (git-ignored):
+  NBR 8800, NBR 6123, NBR 14762; AISC DG1 for base plates. **Rule: verify a method
+  against the norm PDF, never from memory (zero-method-error).**
+- Each module: PT outputs, a `_selftest()` (or `__main__`), and a markdown twin
+  (code + run result) in `notes/scripts-md/`. All senior-reviewed.
+- Modules: `terreno` (land feasibility FIRST: KML/coord → lot area, buildable
+  rectangle, TO/CA/TP caps, fit check), `frame2d` (solver, `reactions()`),
+  `vento_nbr6123`, `galpao_portico`, `estabilidade_b1b2` (MAES 2nd order),
+  `check_nbr8800`, `mao_francesa` (flange-brace spacing by inverting the 5.5.1.2
+  interaction → viga Lb), `tercas_nbr14762`, `distorcional_fsm`, `base_chumbador`,
+  `ligacoes`, `secundarios_nbr8800` (wall girt U biaxial + eave strut/ridge +
+  gable post I beam-column), `contraventamento` (tension rods: bracing/sag/
+  flange-brace, 5.2 + slenderness + 2% brace force), `ponte_rolante` (crane action
+  NBR 8800/8400: wheel loads + impact/surge/braking, runway beam, console reaction;
+  integrated into the portico via `PONTE` config), `perfis`, `redimensionamento`.
+- Orchestrator: `calc/rodar_galpao.py` — one params dict configures every module,
+  runs Gates 5-9, EXTRACTS base/knee efforts from the portico (not hardcoded),
+  emits one memorial per module + `MEMORIAL-CONSOLIDADO.txt`. `PARAMS_REF` is the
+  validated 20x10 reference and reproduces it exactly.
+- Parametric geometry: `gp.configurar(span,eave,ridge,bay,base_fixed,sections,
+  loads)`, `est.sincronizar()` (called in `analyse()`), `ti.configurar(...)`,
+  `build_galpao.configurar(length,span,eave_h,slope,bay,export_dir,doc_name)`.
+  Defaults = the 20x10 reference; any dimension runs.
+- Dependency: **numpy < 2** (pycufsm 0.2.0 has numpy-2 incompatibilities, one in
+  compiled Cython) — pinned to 1.26.4; only `distorcional_fsm` needs it. See
+  `calc/REQUISITOS.txt`.
+- Model builder uses real profile sweeps: `i_member` (HEA), `u_member` (UPE),
+  `ue_member` (cold-formed lipped channel). Runs `checa_interferencia` +
+  `estrutura_em_aberturas` (real clash checks) and a volume-based takeoff.
+
+## Skill-Computes-Engineer-Reviews Model
+
+- The `build-warehouse` skill RUNS the toolkit at Gates 5-8 and emits PT
+  memoriais; the responsible ENGINEER reviews and signs off (ART). Nothing is
+  "verified" before that. Every engineering-critical module input is a gate
+  question (Ask, Do Not Invent) or a recorded pending assumption.
+- Entry docs: `SKILL.md` -> `references/gates.md` (10 gates) ->
+  `references/calc-modules.md` (gate->module map + orchestrator) -> `QUICKSTART.md`
+  (env pre-flight: numpy<2, pycufsm, MCP bridge). The skill is READ-AND-FOLLOW
+  (not a slash-command).
 
 ## Project Isolation Architecture
 

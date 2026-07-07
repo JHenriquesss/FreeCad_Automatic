@@ -10,9 +10,31 @@ Confirmed by user:
 - Pe-direito (eave): 6 m.
 - Inclinacao telhado: 10% (~5.71 deg), duas aguas, cumeeira Z = 6.5 m.
 
+## Gate 7 - Dimensionamento adotado (2026-07-05, toolkit ; pendente revisao do eng.)
+
+- Colunas: HEA200 ; Vigas (rafters): HEA180 (base engastada). Interacao ELU
+  0,67 (coluna) / 0,87 (viga), K=1 com esforcos de 2a ordem. Flecha 30,8 mm.
+- Tercas: Ue 200x75x25x2,65 (formado a frio, ZAR-250). Mais leve da escada que
+  passa (interacao 0,95 ; flecha vento 12,7 mm ; Mdist do FSM). Props pela linha
+  media - A CONFIRMAR no catalogo do fornecedor.
+- Base engastada: placa 450x550x40 mm ; 4 chumbadores d20 ASTM A307 (2
+  tracionados) ; fck 25 MPa. Interacao chumbador 0,81 ; t_req 37,3 mm (lado
+  tracionado governa). Cone de concreto/ancoragem -> projeto de fundacao.
+- Joelho viga-coluna (no rigido): chapa de topo estendida, 4 parafusos M24 A325
+  na tracao (T mesa 399,5 kN, interacao 0,24). FALTA: espessura da chapa +
+  acao de alavanca (prying) e enrijecedores no pilar - verificacao de detalhe.
+- Ligacoes menores: forca minima 45 kN (6.1.5.2), exceto tercas/travessas/tirantes.
+
+Confirmado pelo usuario (Gate 6, 2026-07-05):
+- BASES ENGASTADAS (fixed). Decisao: a base rotulada REPROVA (flecha lateral
+  179 mm >> H/150; interacao viga 1,75). Com engaste + os perfis atuais
+  (coluna HEA200 / viga HEA180) o portico PASSA (flecha 30,8 mm <= H/150 = 40 mm;
+  interacoes coluna 0,67 / viga 0,87; B2 = 1,04 -> pequena deslocabilidade).
+  Contrapartida: a fundacao recebe momento (~60 kN.m) -> dimensionar
+  base_chumbador + sapata (projeto de fundacao, NBR 6118).
+
 Assumed by agent (NOT confirmed — change freely):
 - Espacamento de porticos: 5.0 m -> 4 vaos, 5 porticos nos eixos X = 0/5/10/15/20 m.
-- Bases rotuladas (pinned).
 - Contraventamento em X nos vaos de extremidade (telhado horizontal + paredes laterais).
 - Tercas (purlins) e longarinas (girts) em posicoes de placeholder.
 - Secoes dos membros sao PLACEHOLDER (caixas retangulares nominais), apenas para

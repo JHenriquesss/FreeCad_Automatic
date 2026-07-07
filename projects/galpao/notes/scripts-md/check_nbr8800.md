@@ -1,10 +1,10 @@
-# check_nbr8800.py
+# Verificacao de perfil NBR 8800 - check_nbr8800.py
 
-Verificacao de perfil NBR 8800 (Anexos F e G) - Q, FLT/FLM/FLA exatos, cortante, interacao.
+Arquivo: `framework/galpao_fw/check_nbr8800.py`  
+Gerado: 2026-07-05  
+Metodo validado pelo eng. senior. Agora alimentado pelos esforcos de 2a ordem (K=1).
 
-CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
-
-## Codigo
+## Codigo completo
 
 ```python
 # ============================================================================
@@ -193,7 +193,8 @@ def relatorio_pt(rs, fy):
               f"  Interacao ({r['eq_interacao']}) = {r['interacao']:.2f}  -> "
               f"{'OK' if r['OK'] else 'NAO PASSA'}"]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula pontilhada.
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 # ---- secoes (SI: m, m2, m4, m3). Inclui d, bf, tf, tw para Q, Cw, J ---------
@@ -206,12 +207,26 @@ HEA180 = {"A": 45.25e-4, "Ix": 2510e-8, "Iy": 924.6e-8, "ry": 0.0452,
 
 
 if __name__ == "__main__":
+    # Esforcos AMPLIFICADOS de 2a ordem (estabilidade_b1b2, MAES + rigidez 0,8
+    # + forca nocional). Com o MAES, usa-se K=1,0 (4.9.6.2): a flambagem por
+    # translacao de nos ja esta coberta pelo B2. Verifica TODAS as combinacoes
+    # e reporta a pior interacao por peca.
+    import estabilidade_b1b2 as est
     fy = 250e3  # kN/m2 (aco MR250 / ASTM A36)
-    col = verifica(HEA200, fy, L=6.0, Nsd=48.9, Msd=109.8, Vsd=19.9,
-                   Kx=2.0, Ky=1.0, Lb=2.0, nome="Coluna HEA200 (Kx=2 sway; Lb=2 m)")
-    raf = verifica(HEA180, fy, L=5.03, Nsd=24.7, Msd=109.8, Vsd=46.7,
-                   Kx=1.0, Ky=1.0, Lb=1.67, nome="Viga HEA180 (Lb=1,67 m)")
-    print(relatorio_pt([col, raf], fy))
+    a = est.analyse()
+    # (perfil, comprimento real da barra, Lb travamento lateral) por peca
+    pecas = {"coluna": (HEA200, est.SEC["coluna"]["L"], 2.0),
+             "viga":   (HEA180, est.SEC["viga"]["L"], 1.67)}
+    finais = []
+    for g, (sec, Lreal, Lb) in pecas.items():
+        cands = []
+        for r in a["combos"]:
+            d = r[g]
+            cands.append(verifica(sec, fy, L=Lreal, Nsd=d["Nsd"], Msd=d["Msd"],
+                                  Vsd=d["Vsd"], Kx=1.0, Ky=1.0, Lb=Lb,
+                                  nome=f"{g.capitalize()} (K=1; gov {r['nome']})"))
+        finais.append(max(cands, key=lambda x: x["interacao"]))
+    print(relatorio_pt(finais, fy))
 ```
 
 ## Resultado da execucao
@@ -221,21 +236,21 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
   fy = 250 MPa ; gamma_a1 = 1,10
   ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
 
-  --- Coluna HEA200 (Kx=2 sway; Lb=2 m) ---
+  --- Coluna (K=1; gov C2_uplift) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
-  Compressao: Ne=506 kN ; lambda0=1,631 ; chi=0,330 ; Nc,Rd=403,5 kN
+  Compressao: Ne=2024 kN ; lambda0=0,815 ; chi=0,757 ; Nc,Rd=926,3 kN
   Flexao: Mpl=107,4 ; Lp=2,48 m ; Lr(FLT)=8,98 m ; Cw=1,082e-07 ; J=1,489e-07
     Mn_FLT=107,4 ; Mn_FLM=107,4 ; Mn_FLA=107,4 -> governa FLT ; Mrd=97,6 kN.m
   Cortante: Vrd=168,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,12 ; M/Mrd=1,12 ; V/Vrd=0,12
-  Interacao (N/(2Nrd) + M/Mrd) = 1,19  -> NAO PASSA
+  Utilizacao: N/Nc=0,06 ; M/Mrd=1,33 ; V/Vrd=0,15
+  Interacao (N/(2Nrd) + M/Mrd) = 1,35  -> NAO PASSA
 
-  --- Viga HEA180 (Lb=1,67 m) ---
+  --- Viga (K=1; gov C2_uplift) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
-  Compressao: Ne=1958 kN ; lambda0=0,760 ; chi=0,785 ; Nc,Rd=807,5 kN
+  Compressao: Ne=1962 kN ; lambda0=0,759 ; chi=0,786 ; Nc,Rd=807,9 kN
   Flexao: Mpl=81,2 ; Lp=2,25 m ; Lr(FLT)=8,50 m ; Cw=6,029e-08 ; J=1,138e-07
     Mn_FLT=81,2 ; Mn_FLM=81,2 ; Mn_FLA=81,2 -> governa FLT ; Mrd=73,8 kN.m
   Cortante: Vrd=139,9 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,03 ; M/Mrd=1,49 ; V/Vrd=0,33
-  Interacao (N/(2Nrd) + M/Mrd) = 1,50  -> NAO PASSA
+  Utilizacao: N/Nc=0,01 ; M/Mrd=1,75 ; V/Vrd=0,34
+  Interacao (N/(2Nrd) + M/Mrd) = 1,75  -> NAO PASSA
 ```

@@ -1,0 +1,445 @@
+======================================================================
+MEMORIAL CONSOLIDADO - GALPAO 20x10 m
+CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
+======================================================================
+
+######################################################################
+1. VENTO
+######################################################################
+
+VENTO (ABNT NBR 6123/1988)
+  V0 = 40 m/s ; Categoria II ; Classe B
+  S1 = 1.00 (topografia plana) ; S3 = 0.95 (galpao deposito)
+  S2 = 1,00*0.98*(6.5/10)^0.090 = 0.943
+  Vk = 35.82 m/s ; q = 0,613*Vk^2 = 0.787 kN/m2
+  Telhado theta = 5.71 graus (10%) ; h/b=0,6 ; a/b=2
+  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):
+    parede barlavento: +0.70
+    parede sotavento: -0.60
+    cobertura barlavento: -0.93
+    cobertura sotavento: -0.60
+  Cpi (item 6.2.5-c, PORTAO como abertura dominante):
+    portao barlavento: +0.80
+    portao sotavento: -0.60
+  Cp liquido = Cpe - Cpi e pressao (kN/m2):
+    caso portao barlavento:
+      parede barlavento: -0.10  (-0.079 kN/m2)
+      parede sotavento: -1.40  (-1.102 kN/m2)
+      cobertura barlavento: -1.73  (-1.362 kN/m2)
+      cobertura sotavento: -1.40  (-1.102 kN/m2)
+    caso portao sotavento:
+      parede barlavento: +1.30  (+1.023 kN/m2)
+      parede sotavento: +0.00  (+0.000 kN/m2)
+      cobertura barlavento: -0.33  (-0.260 kN/m2)
+      cobertura sotavento: +0.00  (+0.000 kN/m2)
+  [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
+   razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
+
+
+######################################################################
+1b. VENTO LONGITUDINAL
+######################################################################
+
+VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)
+  Vk = 35,82 m/s ; q = 0,787 kN/m2
+  Area frontal (empena 10 m) = 62,50 m2
+  Cpe paredes (Tab.4, alpha=0):
+    oitao barlavento: +0,70
+    oitao sotavento: -0,30
+    parede lateral A: -0,80
+    parede lateral B: -0,50
+  Cp liquido (Cpe - Cpi) por caso de portao:
+    portao barlavento: barlavento=-0,10 ; sotavento=-1,10 ; A=-1,60 ; B=-1,30
+    portao sotavento: barlavento=+1,30 ; sotavento=+0,30 ; A=-0,20 ; B=+0,10
+  Forca de arrasto Fa = Ca*q*Ae = 1,20*0,787*62,50 = 59,0 kN
+  Fa por lado (2 paineis de contraventamento) = 29,5 kN
+  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da
+   empena; fracao de Fa por escora conforme o arranjo do contraventamento.]
+
+
+######################################################################
+2. PORTICO 1a ORDEM
+######################################################################
+
+======================================================================
+MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+1. DADOS
+   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)
+   Espacamento de porticos (largura de influencia) = 5,0 m
+   Bases ENGASTADAS. Perfis: colunas HEA200, vigas HEA180.
+   Barras malhadas em 8 trechos (momento avaliado ao longo do vao).
+   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).
+
+2. ACOES
+   2,1 Permanente (G): 0,27 kN/m2 (area de telhado, SEM cos)
+       + peso proprio da viga 0,35 kN/m
+   2,2 Sobrecarga (Q): 0,25 kN/m2 (projecao horizontal, com cos)
+   2,3 VENTO (ABNT NBR 6123/1988)
+     V0 = 40 m/s ; Categoria II ; Classe B
+     S1 = 1,00 (topografia plana) ; S3 = 0,95 (galpao deposito)
+     S2 = 1,00*0,98*(6,5/10)^0,090 = 0,943
+     Vk = 35,82 m/s ; q = 0,613*Vk^2 = 0,787 kN/m2
+     Telhado theta = 5,71 graus (10%) ; h/b=0,6 ; a/b=2
+     Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):
+       parede barlavento: +0,70
+       parede sotavento: -0,60
+       cobertura barlavento: -0,93
+       cobertura sotavento: -0,60
+     Cpi (item 6.2.5-c, PORTAO como abertura dominante):
+       portao barlavento: +0,80
+       portao sotavento: -0,60
+     Cp liquido = Cpe - Cpi e pressao (kN/m2):
+       caso portao barlavento:
+         parede barlavento: -0,10  (-0,079 kN/m2)
+         parede sotavento: -1,40  (-1,102 kN/m2)
+         cobertura barlavento: -1,73  (-1,362 kN/m2)
+         cobertura sotavento: -1,40  (-1,102 kN/m2)
+       caso portao sotavento:
+         parede barlavento: +1,30  (+1,023 kN/m2)
+         parede sotavento: +0,00  (+0,000 kN/m2)
+         cobertura barlavento: -0,33  (-0,260 kN/m2)
+         cobertura sotavento: +0,00  (+0,000 kN/m2)
+     [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
+      razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
+   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
+
+3. COMBINACOES (NBR 8800, ELU) [a confirmar]
+   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6
+   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).
+   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W
+   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]
+   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q
+   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
+
+4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
+   C1_grav_W1:
+     Coluna: M=  35,1  N=   2,7  V=  20,0
+     Viga:   M=  16,7  N=  10,1  V=   8,2
+   C2_uplift_W1:
+     Coluna: M=  61,3  N=  39,8  V=  20,8
+     Viga:   M=  61,3  N=  25,5  V=  37,6
+   C3_Gdesf_W1:
+     Coluna: M=  48,3  N=  30,2  V=  17,4
+     Viga:   M=  48,3  N=  22,2  V=  28,3
+   C3_Gfav_W1:
+     Coluna: M=  61,3  N=  39,8  V=  20,8
+     Viga:   M=  61,3  N=  25,5  V=  37,6
+   C1_grav_W2:
+     Coluna: M=  32,4  N=  20,5  V=  10,6
+     Viga:   M=  32,4  N=  12,6  V=  19,3
+   C2_uplift_W2:
+     Coluna: M=  60,1  N=   1,3  V=  33,1
+     Viga:   M=  20,5  N=   9,8  V=   8,3
+   C3_Gdesf_W2:
+     Coluna: M=  52,7  N=   8,4  V=  29,7
+     Viga:   M=  33,5  N=  14,2  V=  17,6
+   C3_Gfav_W2:
+     Coluna: M=  60,1  N=   1,3  V=  33,1
+     Viga:   M=  20,5  N=   9,8  V=   8,3
+
+5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)
+   Deslocamento lateral no beiral: 30,8 mm
+     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica admite ate H/150):
+       H/300 =  20,0 mm  -> NAO ATENDE
+       H/250 =  24,0 mm  -> NAO ATENDE
+       H/200 =  30,0 mm  -> NAO ATENDE
+       H/150 =  40,0 mm  -> OK   <== referencia (telha metalica, sem alvenaria)
+   Flecha vertical na cumeeira (G+Q): 23,1 mm (verificar L/250)
+
+6. OBSERVACOES / PENDENCIAS
+   - Coeficientes de vento a confirmar; portao = abertura dominante.
+   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.
+   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases.
+
+
+######################################################################
+3. 2a ORDEM (MAES)
+######################################################################
+
+======================================================================
+2a ORDEM - METODO DA AMPLIFICACAO (MAES) - NBR 8800 Anexo D
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+1. METODO
+   Msd = B1*Mnt + B2*Mlt ; Nsd = Nnt + B2*Nlt (D.2,1)
+   B1 = Cm/(1 - Nsd1/Ne) >= 1 ; Cm = 1,0 (ha cargas transversais na barra)
+   B2 = 1/(1 - (1/Rs)*(dh*sumN)/(H*sumH)) ; Rs = 0,85 (portico de nós rígidos)
+   H (pe-direito) = 6,0 m
+   Decomposicao: nt = beirais travados (contencao ficticia) ;
+                 lt = reacoes das ficticias aplicadas ao contrario.
+   Imperfeicao geometrica: forca nocional = 0,3% da carga gravitacional
+   do andar (4.9.7.1.1), somada no sentido do vento em cada combinacao.
+   Rigidez integral (pequena deslocabilidade - sem reducao).
+
+2. COEFICIENTES POR COMBINACAO (rigidez integral)
+   C1_grav_W1: B2 = 1,005  (dh=23,0 mm ; sumN=11,6 kN ; sumH=9,9 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,004 (Ne=2024 kN ; Nsd1=9,0 kN)
+        1a ordem Mnt=17,4 ; Mlt=20,6 kN.m  ->  2a ordem Msd=35,5 kN.m ; Nsd=9,0 ; Vsd=20,0
+     viga: B1=1,005 (Ne=1962 kN ; Nsd1=10,1 kN)
+        1a ordem Mnt=6,8 ; Mlt=12,8 kN.m  ->  2a ordem Msd=16,9 kN.m ; Nsd=10,1 ; Vsd=8,2
+   C2_uplift_W1: B2 = 1,036  (dh=41,9 mm ; sumN=69,1 kN ; sumH=16,4 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,020 (Ne=2024 kN ; Nsd1=39,8 kN)
+        1a ordem Mnt=24,0 ; Mlt=48,0 kN.m  ->  2a ordem Msd=63,3 kN.m ; Nsd=40,0 ; Vsd=24,6
+     viga: B1=1,013 (Ne=1962 kN ; Nsd1=25,5 kN)
+        1a ordem Mnt=21,4 ; Mlt=44,5 kN.m  ->  2a ordem Msd=63,1 kN.m ; Nsd=21,1 ; Vsd=37,6
+   C3_Gdesf_W1: B2 = 1,025  (dh=40,5 mm ; sumN=49,9 kN ; sumH=16,5 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,015 (Ne=2024 kN ; Nsd1=30,2 kN)
+        1a ordem Mnt=26,0 ; Mlt=42,7 kN.m  ->  2a ordem Msd=49,5 kN.m ; Nsd=30,3 ; Vsd=28,0
+     viga: B1=1,011 (Ne=1962 kN ; Nsd1=22,2 kN)
+        1a ordem Mnt=17,5 ; Mlt=35,5 kN.m  ->  2a ordem Msd=49,5 kN.m ; Nsd=20,1 ; Vsd=28,3
+   C3_Gfav_W1: B2 = 1,036  (dh=41,9 mm ; sumN=69,1 kN ; sumH=16,4 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,020 (Ne=2024 kN ; Nsd1=39,8 kN)
+        1a ordem Mnt=24,0 ; Mlt=48,0 kN.m  ->  2a ordem Msd=63,3 kN.m ; Nsd=40,0 ; Vsd=24,6
+     viga: B1=1,013 (Ne=1962 kN ; Nsd1=25,5 kN)
+        1a ordem Mnt=21,4 ; Mlt=44,5 kN.m  ->  2a ordem Msd=63,1 kN.m ; Nsd=21,1 ; Vsd=37,6
+   C1_grav_W2: B2 = 1,017  (dh=24,9 mm ; sumN=34,7 kN ; sumH=9,9 kN ; Fnocional=0,12 kN)
+     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=13,8 ; Mlt=27,5 kN.m  ->  2a ordem Msd=32,9 kN.m ; Nsd=20,5 ; Vsd=14,7
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=11,0 ; Mlt=24,3 kN.m  ->  2a ordem Msd=32,9 kN.m ; Nsd=11,5 ; Vsd=19,4
+   C2_uplift_W2: B2 = 1,004  (dh=37,5 mm ; sumN=8,0 kN ; sumH=16,4 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,001 (Ne=2024 kN ; Nsd1=1,3 kN)
+        1a ordem Mnt=28,1 ; Mlt=32,1 kN.m  ->  2a ordem Msd=60,3 kN.m ; Nsd=9,3 ; Vsd=33,1
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=8,3 ; Mlt=18,0 kN.m  ->  2a ordem Msd=20,6 kN.m ; Nsd=9,8 ; Vsd=8,3
+   C3_Gdesf_W2: B2 = 1,013  (dh=39,0 mm ; sumN=27,3 kN ; sumH=16,5 kN ; Fnocional=0,11 kN)
+     coluna: B1=1,000 (Ne=2024 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=26,2 ; Mlt=37,0 kN.m  ->  2a ordem Msd=53,3 kN.m ; Nsd=19,0 ; Vsd=29,8
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=12,1 ; Mlt=26,0 kN.m  ->  2a ordem Msd=33,9 kN.m ; Nsd=13,7 ; Vsd=17,6
+   C3_Gfav_W2: B2 = 1,004  (dh=37,5 mm ; sumN=8,0 kN ; sumH=16,4 kN ; Fnocional=0,05 kN)
+     coluna: B1=1,001 (Ne=2024 kN ; Nsd1=1,3 kN)
+        1a ordem Mnt=28,1 ; Mlt=32,1 kN.m  ->  2a ordem Msd=60,3 kN.m ; Nsd=9,3 ; Vsd=33,1
+     viga: B1=1,000 (Ne=1962 kN ; Nsd1=0,0 kN)
+        1a ordem Mnt=8,3 ; Mlt=18,0 kN.m  ->  2a ordem Msd=20,6 kN.m ; Nsd=9,8 ; Vsd=8,3
+
+3. DESLOCABILIDADE
+   Classificacao (rigidez integral): B2,max = 1,036  ->  pequena deslocabilidade (2a ordem dispensavel; ver 4.9.7.1.4)
+
+4. ESFORCOS AMPLIFICADOS FINAIS (para o check_nbr8800)
+   COLUNA (governa C2_uplift_W1): Msd=63,3 kN.m ; Nsd=40,0 kN ; Vsd=24,6 kN
+   VIGA (governa C2_uplift_W1): Msd=63,1 kN.m ; Nsd=21,1 kN ; Vsd=37,6 kN
+
+5. OBSERVACOES
+   - Imperfeicao geometrica INCLUIDA (forca nocional 0,3%, 4.9.7.1.1).
+   - Se GRANDE deslocabilidade (B2>1,4): rigor pede P-Delta real; MAES e limite.
+   - Alimentar check_nbr8800 (com K=1, 4.9.6.2) com os Msd/Nsd/Vsd acima.
+
+
+######################################################################
+4. PERFIS
+######################################################################
+
+VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
+  fy = 250 MPa ; gamma_a1 = 1,10
+  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
+
+  --- Coluna (K=1; gov C2_uplift_W1) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=2024 kN ; lambda0=0,815 ; chi=0,757 ; Nc,Rd=926,3 kN
+  Flexao: Mpl=107,4 ; Lp=2,48 m ; Lr(FLT)=8,98 m ; Cw=1,082e-07 ; J=1,489e-07
+    Mn_FLT=107,4 ; Mn_FLM=107,4 ; Mn_FLA=107,4 -> governa FLT ; Mrd=97,6 kN.m
+  Cortante: Vrd=168,4 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,04 ; M/Mrd=0,65 ; V/Vrd=0,15
+  Interacao (N/(2Nrd) + M/Mrd) = 0,67  -> OK
+
+  --- Viga (K=1; gov C2_uplift_W1) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=1626 kN ; lambda0=0,834 ; chi=0,747 ; Nc,Rd=768,6 kN
+  Flexao: Mpl=81,2 ; Lp=2,25 m ; Lr(FLT)=8,50 m ; Cw=6,029e-08 ; J=1,138e-07
+    Mn_FLT=76,0 ; Mn_FLM=81,2 ; Mn_FLA=81,2 -> governa FLT ; Mrd=69,1 kN.m
+  Cortante: Vrd=139,9 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,03 ; M/Mrd=0,91 ; V/Vrd=0,27
+  Interacao (N/(2Nrd) + M/Mrd) = 0,93  -> OK
+
+
+######################################################################
+5. MAO-FRANCESA
+######################################################################
+
+====================================================================
+MAO-FRANCESA (contencao da mesa inferior) - viga (mesa inferior)
+NBR 8800 5.5.1.2 - espacamento por inversao da interacao flexo-compressao
+====================================================================
+  Esforcos na mesa comprimida . Nsd=21.1 kN ; Msd=63.1 kN.m ; Vsd=37.6 kN
+  Comprimento da meia-agua L .. 5.025 m
+  Espacamento das tercas s .... 1.675 m
+  Lp (plastico) ............... 2.250 m
+  Lr (FLT elastico) ........... 8.497 m
+  Interacao totalmente travada. 0.868
+  Lb_max (interacao=1.00) ..... 4.460 m
+  Passo adotado ............... 1 braco a cada 2 terca(s)
+  Lb usado (maior tramo) ...... 3.350 m
+  Interacao em Lb_usado ....... 0.928 (OK)
+  Bracos por meia-agua ........ 1
+  Bracos por portico .......... 2
+====================================================================
+
+
+######################################################################
+6. TERCAS
+######################################################################
+
+==========================================================================
+GATE 7 - ITERACAO DE TERCAS Ue (NBR 14762) - GALPAO 20x10
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO ; PROPRIEDADES A CONFIRMAR
+==========================================================================
+Vao 5,0 m ; linha de corrente no meio (Ly=2,5 m) ; trib 1,675 m ; inclinacao 5,71 graus
+Cargas caract.: G=0,10 Q=0,25 W=-1,362 kN/m2 (pior sucao do vento) ; aco fy=250 MPa
+
+            Perfil   Mdist disp?  inter  flecha_v | resultado
+--------------------------------------------------------------------------
+ Ue 150x60x20x2,00    18,5   nao   2,00    38,2mm | nao passa
+ Ue 200x75x20x2,00    19,6   nao   1,35    18,0mm | nao passa
+ Ue 200x75x25x2,65    42,8   nao   0,95    12,7mm | PASSA
+ Ue 250x85x25x3,00    60,4   nao   0,95     6,2mm | PASSA
+ Ue 300x85x25x3,35    86,3   nao   0,27     3,7mm | PASSA
+--------------------------------------------------------------------------
+
+ADOTADO (mais leve que passa): Ue 200x75x25x2,65
+  interacao max = 0,95 ; flecha vento = 12,7 mm ; Mdist = 42,8 kN.m
+
+OBS: propriedades pela linha media (prop2) - A CONFIRMAR no catalogo
+     do fornecedor. Mdist pela analise de estabilidade elastica (FSM).
+
+
+######################################################################
+7. SECUNDARIOS
+######################################################################
+
+====================================================================
+LONGARINA DE PAREDE (perfil U) - UPE100
+NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
+====================================================================
+  Vao (entre porticos) ........ 5,00 m
+  Lb (mesa interna, succao) ... 1,67 m  (Lp=0,87 m ; compacto=True)
+  qx (vento) .................. 2,204 kN/m -> Msdx=9,64 kN.m
+  qy (peso) ................... 0,400 kN/m -> Msdy=0,17 kN.m
+  Mrd,x (FLT) = 10,19 kN.m
+  Mrd,y (min(Zy;1,5Wy)*fy) .... 4,40 kN.m
+  Interacao Mx/Mrdx+My/Mrdy ... 0,95+0,04=0,99 -> OK
+  PREMISSA: interacao biaxial valida so se o tapamento (telha
+  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
+  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
+====================================================================
+
+VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
+  fy = 250 MPa ; gamma_a1 = 1,10
+  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
+
+  --- Escora de beiral / cumeeira (HEA160) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=486 kN ; lambda0=1,412 ; chi=0,434 ; Nc,Rd=382,4 kN
+  Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
+    Mn_FLT=49,8 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=45,3 kN.m
+  Cortante: Vrd=124,4 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,08 ; M/Mrd=0,03 ; V/Vrd=0,01
+  Interacao (N/(2Nrd) + M/Mrd) = 0,07  -> OK
+
+VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
+  fy = 250 MPa ; gamma_a1 = 1,10
+  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
+
+  --- Montante de oitao (HEA160) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=824 kN ; lambda0=1,084 ; chi=0,611 ; Nc,Rd=538,6 kN
+  Flexao: Mpl=61,3 ; Lp=1,98 m ; Lr(FLT)=7,96 m ; Cw=3,147e-08 ; J=8,741e-08
+    Mn_FLT=61,2 ; Mn_FLM=61,3 ; Mn_FLA=61,3 -> governa FLT ; Mrd=55,6 kN.m
+  Cortante: Vrd=124,4 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,01 ; M/Mrd=0,43 ; V/Vrd=0,12
+  Interacao (N/(2Nrd) + M/Mrd) = 0,43  -> OK
+
+
+######################################################################
+8. CONTRAVENTAMENTO
+######################################################################
+
+====================================================================
+BARRAS TRACIONADAS (ABNT NBR 8800:2008 item 5,2)
+  Nt,Rd = min(Ag*fy/1,10 ; 0,75*Ag*fu/1,35) ; esbeltez L/r <= 300
+====================================================================
+  --- Contravento de parede (d20) (d=20 mm ; L=7,81 m) ---
+    Nt,Rd = 69,8 kN (gov ruptura (rosca): esc=71,4 ; rup=69,8)
+    Nsd = 46,1 kN -> u = 0,66
+    Esbeltez L/r = 1562 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Contravento de cobertura (d20) (d=20 mm ; L=7,07 m) ---
+    Nt,Rd = 69,8 kN (gov ruptura (rosca): esc=71,4 ; rup=69,8)
+    Nsd = 41,7 kN -> u = 0,60
+    Esbeltez L/r = 1414 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Tirante de cobertura (d16) (d=16 mm ; L=2,50 m) ---
+    Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
+    Nsd = 8,0 kN -> u = 0,18
+    Esbeltez L/r = 625 (limite 300 ; pre-tensionada -> dispensa) -> OK
+    >> OK
+  --- Mao-francesa (d16) (d=16 mm ; L=0,40 m) ---
+    Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
+    Nsd = 7,4 kN -> u = 0,17
+    Esbeltez L/r = 100 (limite 300) -> OK
+    >> OK
+====================================================================
+
+
+######################################################################
+9. VERGA DA PORTA
+######################################################################
+
+====================================================================
+LONGARINA DE PAREDE (perfil U) - UPE100
+NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
+====================================================================
+  Vao (entre porticos) ........ 0,90 m
+  Lb (mesa interna, succao) ... 0,90 m  (Lp=0,87 m ; compacto=True)
+  qx (vento) .................. 2,204 kN/m -> Msdx=0,31 kN.m
+  qy (peso) ................... 0,500 kN/m -> Msdy=0,06 kN.m
+  Mrd,x (FLT) = 11,06 kN.m
+  Mrd,y (min(Zy;1,5Wy)*fy) .... 4,40 kN.m
+  Interacao Mx/Mrdx+My/Mrdy ... 0,03+0,01=0,04 -> OK
+  PREMISSA: interacao biaxial valida so se o tapamento (telha
+  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
+  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
+====================================================================
+
+
+######################################################################
+10. BASE
+######################################################################
+
+LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
+  Base engastada - C2_uplift_W2 (M=60,1)
+  Esforcos: N=+1,3 kN ; V=33,1 kN ; M=60,1 kN.m  (base ENGASTADA)
+  Placa: 450 x 550 mm ; fck=25 MPa ; sigma_c,Rd=16616 kN/m2
+  Regime placa: grande excentricidade
+  Chumbadores: 4 x d=20 mm ; Ft,Rd=69,8 kN ; Fv,Rd=37,2 kN
+  Tracao total = 121,5 kN -> por chumbador Ft,Sd=60,8 kN ; Fv,Sd=8,3 kN
+  Concreto: sigma_max=16616 kN/m2 (bloco plastificado) -> u=1,00 ; Y=16,4 mm <=L (cabe)
+  Chumbador: tracao u=0,87 ; corte u=0,22 ; interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = 0,81
+  Placa (AISC DG1): lado comprimido t=28,7 mm (balanco 180 mm) ; lado tracionado t=37,3 mm (braco 130 mm) -> t_req=37,3 mm ; t_adotada=40 mm
+  -> OK
+  [FLAG] Cone de arrancamento/ancoragem do concreto: NBR 6118/ACI 318
+         (projeto de fundacao) - NAO verificado aqui.
+
+
+######################################################################
+11. LIGACOES
+######################################################################
+
+VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)
+
+  --- Joelho - C2_uplift_W1 (M=61,3) (parafusos) ---
+    Forca de dimensionamento = 45,0 kN (minimo 6.1.5.2)
+    n=4 parafusos ; Fv,Rd=110,6 ; Ft,Rd=207,3 ; Fc,Rd(esmag.)=177,8 kN
+    por parafuso: V=11,2 ; N=99,8 kN ; corte/min(Fv,Fc)=0,10 ; tracao=0,48
+    interacao/util = 0,24  -> OK
+
+  --- Chapa de terca (2 M12) - excecao (parafusos) ---
+    n=2 parafusos ; Fv,Rd=13,4 ; Ft,Rd=25,1 ; Fc,Rd(esmag.)=51,2 kN
+    por parafuso: V=4,0 ; N=0,0 kN ; corte/min(Fv,Fc)=0,30 ; tracao=0,00
+    interacao/util = 0,30  -> OK
+
+

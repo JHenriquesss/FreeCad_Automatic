@@ -65,8 +65,9 @@ drawings, erection drawings, bill of materials.
 ## Gaps this closes in the skill
 
 - Wind and site is a first-class step, not a single question.
-- Structural analysis (2nd order, sway, notional force, ULS) is an explicit
-  engineer handoff, distinct from drafting.
+- Structural analysis (2nd order, sway, notional force, ULS) is an explicit,
+  distinct step: the skill computes it with the calc toolkit and the engineer
+  reviews/approves it (not just drafting).
 - Serviceability displacement limits are a named check.
 - Tie rods (tirantes) and end-wall gable framing (oitao) are required members.
 - Member sizing is element-by-element in a fixed order.

@@ -1,0 +1,15 @@
+====================================================================
+LONGARINA DE PAREDE (perfil U) - UPE100
+NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)
+====================================================================
+  Vao (entre porticos) ........ 0,90 m
+  Lb (mesa interna, succao) ... 0,90 m  (Lp=0,87 m ; compacto=True)
+  qx (vento) .................. 2,204 kN/m -> Msdx=0,31 kN.m
+  qy (peso) ................... 0,500 kN/m -> Msdy=0,06 kN.m
+  Mrd,x (FLT) = 11,06 kN.m
+  Mrd,y (min(Zy;1,5Wy)*fy) .... 4,40 kN.m
+  Interacao Mx/Mrdx+My/Mrdy ... 0,03+0,01=0,04 -> OK
+  PREMISSA: interacao biaxial valida so se o tapamento (telha
+  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da
+  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM).
+====================================================================

@@ -1,0 +1,8 @@
+Dependencias do toolkit de calculo (projects/galpao/calc):
+
+  numpy < 2        (OBRIGATORIO: pycufsm 0.2.0 nao roda em numpy 2.x)
+  pycufsm >= 0.2   (motor FSM para distorcional_fsm.py)
+
+Os demais modulos (frame2d, portico, estabilidade, check, tercas, base,
+ligacoes) usam apenas numpy basico e funcionam em numpy 1.x e 2.x. Apenas o
+distorcional_fsm.py exige numpy<2 por causa do pycufsm. numpy fixado em 1.26.4.

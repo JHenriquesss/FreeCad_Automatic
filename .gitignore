@@ -30,3 +30,11 @@ Thumbs.db
 # Local agent/runtime state
 .agents/
 .codex/
+
+# artefatos de teste / backups do FreeCAD
+*.FCBak
+projects/galpao-cert/
+**/exports/freecad/freecad/
+
+# scratch de execucao direta dos modulos (raiz)
+/exports/

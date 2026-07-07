@@ -1,10 +1,10 @@
-# galpao_portico.py
+# Portico transversal - galpao_portico.py
 
-Analise do portico transversal + combinacoes NBR 8800 + memoria. Barras malhadas (momento no vao), vento normal a superficie, G sem cos.
+Arquivo: `framework/galpao_fw/galpao_portico.py`  
+Gerado: 2026-07-06  
+Status: APROVADO pelo eng. senior (1a ordem + PONTE). ATUALIZADO 2026-07-06: combinacoes ELU agora sao ENVELOPE - cada hipotese de gravidade cruza W1 e W2 (_combos_elu), diretriz do senior. Referencia craneless INALTERADA (col 0,67 / viga 0,93; so os rotulos dos combos mudaram). Guardado por PONTE=None.
 
-CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
-
-## Codigo
+## Codigo completo
 
 ```python
 # ============================================================================
@@ -42,11 +42,42 @@ NSEG = 8                                          # sub-divisoes por barra
 E = 200e6
 A_COL, I_COL = 53.8e-4, 3692e-8   # HEA200
 A_RAF, I_RAF = 45.3e-4, 2510e-8   # HEA180
+BASE_FIXED = False                # False = base rotulada ; True = engastada
 
 # ---- cargas (kN/m2 de area de telhado; peso proprio kN/m) ------------------
 G_ROOF = 0.27          # telha + tercas + suspensas (por area de telhado)
 RAFTER_SELF = 0.35     # peso proprio da viga (por metro de barra)
 Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
+
+# ---- ponte rolante (opcional). None = galpao SEM ponte (nao altera nada). ----
+# dict do ponte_rolante.reacao_no_portico + altura do trilho:
+#   {"R_vert","M_exc","H_transv","Hvr"} (kN, kN.m, kN, m).
+PONTE = None
+
+
+def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
+               A_col=None, I_col=None, A_raf=None, I_raf=None,
+               G_roof=None, rafter_self=None, Q_roof=None, ponte=None):
+    """Define a geometria/cargas do projeto (do gate) e RECOMPUTA os derivados.
+    Nao altera o metodo de calculo - so troca os dados de entrada. Chamar antes
+    de analyse(). Argumentos None mantem o valor atual."""
+    global SPAN, EAVE, RIDGE, BAY, THETA, COS, SIN, BASE_FIXED
+    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE
+    if ponte is not None: PONTE = ponte if ponte else None
+    if span is not None:  SPAN = float(span)
+    if eave is not None:  EAVE = float(eave)
+    if ridge is not None: RIDGE = float(ridge)
+    if bay is not None:   BAY = float(bay)
+    if base_fixed is not None: BASE_FIXED = bool(base_fixed)
+    if A_col is not None: A_COL = A_col
+    if I_col is not None: I_COL = I_col
+    if A_raf is not None: A_RAF = A_raf
+    if I_raf is not None: I_RAF = I_raf
+    if G_roof is not None: G_ROOF = G_roof
+    if rafter_self is not None: RAFTER_SELF = rafter_self
+    if Q_roof is not None: Q_ROOF = Q_roof
+    THETA = math.atan((RIDGE - EAVE) / (SPAN / 2))
+    COS, SIN = math.cos(THETA), math.sin(THETA)
 
 
 def _chain(fr, na, nb, Asec, Isec, nseg):
@@ -72,14 +103,21 @@ def _frame():
     nRidge = fr.add_node(SPAN / 2, RIDGE)
     nEaveR = fr.add_node(SPAN, EAVE)
     nBaseR = fr.add_node(SPAN, 0)
-    eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
+    nConsL = None
+    if PONTE:                                    # no do console no nivel do trilho
+        nConsL = fr.add_node(0, float(PONTE["Hvr"]))
+        eColL = (_chain(fr, nBaseL, nConsL, A_COL, I_COL, max(2, NSEG // 2)) +
+                 _chain(fr, nConsL, nEaveL, A_COL, I_COL, max(2, NSEG // 2)))
+    else:
+        eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
     eRafL = _chain(fr, nEaveL, nRidge, A_RAF, I_RAF, NSEG)
     eRafR = _chain(fr, nRidge, nEaveR, A_RAF, I_RAF, NSEG)
     eColR = _chain(fr, nEaveR, nBaseR, A_COL, I_COL, NSEG)
-    fr.add_support(nBaseL, u=True, v=True)   # rotulada
-    fr.add_support(nBaseR, u=True, v=True)
+    fr.add_support(nBaseL, u=True, v=True, rot=BASE_FIXED)   # rotulada/engastada
+    fr.add_support(nBaseR, u=True, v=True, rot=BASE_FIXED)
     ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
-              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR)
+              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
+              nBaseL=nBaseL, nBaseR=nBaseR, nConsL=nConsL)
     return fr, ix
 
 
@@ -104,6 +142,35 @@ def case_Q(fr, ix):
     wy = -(Q_ROOF * BAY * COS)
     for e in ix["rafL"] + ix["rafR"]:
         fr.add_member_udl(e, wy=wy)
+
+
+def case_ponte(fr, ix):
+    """Reacao da ponte no console (nivel do trilho): vertical R_vert, momento
+    EXCENTRICO concentrado (trilho fora do eixo do pilar) e surto transversal.
+    So a coluna esquerda (governante; portico simetrico). Diretriz do senior:
+    o M_excentrico costuma governar a coluna inferior."""
+    p = PONTE
+    n = ix["nConsL"]
+    fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
+
+
+def _combos_elu(ponte=None):
+    """Combinacoes ELU (NBR 8800) - ENVELOPE: cada hipotese de gravidade cruzada
+    com CADA caso de vento (W1=portao barlavento, W2=portao sotavento). Antes o
+    vento era fixado por combo (W2 na C1/C3, W1 na C2); o cruzamento pega o pior
+    (diretriz do senior). psi0: sobrecarga=0,8 ; vento=0,6. Q FAVORAVEL no uplift
+    (G=1,00) nao entra."""
+    combos = {}
+    for wc in ("W1", "W2"):
+        combos[f"C1_grav_{wc}"] = {"G": 1.25, "Q": 1.50, wc: 0.6 * 1.40}
+        combos[f"C2_uplift_{wc}"] = {"G": 1.00, wc: 1.40}            # sem Q (favor.)
+        combos[f"C3_Gdesf_{wc}"] = {"G": 1.25, wc: 1.40, "Q": 0.8 * 1.50}
+        combos[f"C3_Gfav_{wc}"] = {"G": 1.00, wc: 1.40}             # sem Q (favor.)
+        if ponte:
+            # Ponte = acao variavel autonoma (diretriz do senior).
+            combos[f"C4_ponte_{wc}"] = {"G": 1.25, "PONTE": 1.50, wc: 0.6 * 1.40, "Q": 0.8 * 1.50}
+            combos[f"C5_vento_ponte_{wc}"] = {"G": 1.25, wc: 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    return combos
 
 
 def _wind(cpi_key):
@@ -153,6 +220,9 @@ def analyse():
 
     cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
     cases_d = {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}
+    if PONTE:
+        dP, mfP, _, _ = _run(case_ponte)
+        cases_mf["PONTE"] = mfP; cases_d["PONTE"] = dP
 
     def combo_mf(c):
         keys = list(mfG.keys())
@@ -165,12 +235,10 @@ def analyse():
         return v
 
     # Combinacoes ELU (NBR 8800). psi0: sobrecarga=0,8 ; vento=0,6.
-    combos = {
-        "C1_gravidade": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
-        "C2_uplift": {"G": 1.00, "W1": 1.40},
-        "C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-        "C3_vento_Gfav": {"G": 1.00, "W2": 1.40, "Q": 0.8 * 1.50},
-    }
+    # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
+    # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
+    # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
+    combos = _combos_elu(PONTE)
     res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)
@@ -178,12 +246,21 @@ def analyse():
         raf = max(_grupo_MNV(cmf, ix["rafL"]), _grupo_MNV(cmf, ix["rafR"]))
         res[name] = {"coluna": col, "viga": raf}
 
-    dser = combo_d({"W2": 1.0})
-    drift = abs(dser[3 * ix["nEaveL"]])
+    # ELS: vento caracteristico (sem majoracao). Toma o maior deslocamento
+    # lateral entre os dois casos de vento e os dois beirais.
+    drift = 0.0
+    for cs in ("W1", "W2"):
+        dv = combo_d({cs: 1.0})
+        drift = max(drift, abs(dv[3 * ix["nEaveL"]]), abs(dv[3 * ix["nEaveR"]]))
     dvert = combo_d({"G": 1.0, "Q": 1.0})
     ridge_v = abs(dvert[3 * ix["nRidge"] + 1])
+    # Limites de deslocamento lateral (NBR 8800, Anexo C). H/300 e para porticos
+    # que suportam ALVENARIA; para galpao com fechamento em TELHA METALICA
+    # (sem elementos frageis) admite-se H/200 ou H/150 (Bellei, Anexo C nota).
+    lims = {"H/300": EAVE / 300.0, "H/250": EAVE / 250.0,
+            "H/200": EAVE / 200.0, "H/150": EAVE / 150.0}
     return {"wind": wr, "results": res, "drift": drift,
-            "drift_lim": EAVE / 300.0, "ridge_v": ridge_v}
+            "drift_lims": lims, "drift_ref": "H/150", "ridge_v": ridge_v}
 
 
 def memoria_pt(a):
@@ -194,7 +271,8 @@ def memoria_pt(a):
           "1. DADOS",
           "   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)",
           f"   Espacamento de porticos (largura de influencia) = {BAY:.1f} m",
-          "   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.",
+          f"   Bases {'ENGASTADAS' if BASE_FIXED else 'rotuladas'}. "
+          "Perfis: colunas HEA200, vigas HEA180.",
           f"   Barras malhadas em {NSEG} trechos (momento avaliado ao longo do vao).",
           "   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).", "",
           "2. ACOES",
@@ -205,10 +283,11 @@ def memoria_pt(a):
           "   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)", "",
           "3. COMBINACOES (NBR 8800, ELU) [a confirmar]",
           "   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6",
+          "   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).",
           "   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W",
-          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)",
+          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]",
           "   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q",
-          "   C3 vento (G fav):  1,00 G + 1,40 W + 1,20 Q", "",
+          "   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]", "",
           "4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]"]
     for name, r in a["results"].items():
         cM, cN, cV = r["coluna"]
@@ -216,17 +295,23 @@ def memoria_pt(a):
         L += [f"   {name}:",
               f"     Coluna: M={cM:6.1f}  N={cN:6.1f}  V={cV:6.1f}",
               f"     Viga:   M={vM:6.1f}  N={vN:6.1f}  V={vV:6.1f}"]
-    L += ["", "5. DESLOCAMENTOS (ELS)",
-          f"   Deslocamento lateral no beiral (vento caract.): {a['drift']*1000:.1f} mm",
-          f"     Limite H/300 = {a['drift_lim']*1000:.1f} mm  -> "
-          f"{'OK' if a['drift'] <= a['drift_lim'] else 'NAO ATENDE'}",
-          f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/200)",
+    L += ["", "5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)",
+          f"   Deslocamento lateral no beiral: {a['drift']*1000:.1f} mm",
+          "     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica"
+          " admite ate H/150):"]
+    for nome, lim in a["drift_lims"].items():
+        ok = "OK" if a["drift"] <= lim else "NAO ATENDE"
+        marca = "   <== referencia (telha metalica, sem alvenaria)" \
+            if nome == a["drift_ref"] else ""
+        L += [f"       {nome} = {lim*1000:5.1f} mm  -> {ok}{marca}"]
+    L += [f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/250)",
           "", "6. OBSERVACOES / PENDENCIAS",
           "   - Coeficientes de vento a confirmar; portao = abertura dominante.",
           "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",
           "   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases."]
     import re
-    return re.sub(r"(\d)\.(\d)", r"\1,\2", "\n".join(L))
+    # virgula decimal (PT) sem mastigar numeros de clausula (ex.: 6.2.5-c).
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
 if __name__ == "__main__":
@@ -250,7 +335,7 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 1. DADOS
    Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)
    Espacamento de porticos (largura de influencia) = 5,0 m
-   Bases rotuladas. Perfis PLACEHOLDER: colunas HEA200, vigas HEA180.
+   Bases rotuladas. Perfis: colunas HEA200, vigas HEA180.
    Barras malhadas em 8 trechos (momento avaliado ao longo do vao).
    Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).
 
@@ -264,54 +349,71 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
      S2 = 1,00*0,98*(6,5/10)^0,090 = 0,943
      Vk = 35,82 m/s ; q = 0,613*Vk^2 = 0,787 kN/m2
      Telhado theta = 5,71 graus (10%) ; h/b=0,6 ; a/b=2
-     Cpe (Tabela 4 paredes alpha=90 ; Tabela 5 telhado alpha=0):
+     Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):
        parede barlavento: +0,70
        parede sotavento: -0,60
-       cobertura barlavento: -0,89
+       cobertura barlavento: -0,93
        cobertura sotavento: -0,60
-     Cpi (item 6,2.5-c, PORTAO como abertura dominante):
+     Cpi (item 6.2.5-c, PORTAO como abertura dominante):
        portao barlavento: +0,80
        portao sotavento: -0,60
      Cp liquido = Cpe - Cpi e pressao (kN/m2):
        caso portao barlavento:
          parede barlavento: -0,10  (-0,079 kN/m2)
          parede sotavento: -1,40  (-1,102 kN/m2)
-         cobertura barlavento: -1,69  (-1,330 kN/m2)
+         cobertura barlavento: -1,73  (-1,362 kN/m2)
          cobertura sotavento: -1,40  (-1,102 kN/m2)
        caso portao sotavento:
          parede barlavento: +1,30  (+1,023 kN/m2)
          parede sotavento: +0,00  (+0,000 kN/m2)
-         cobertura barlavento: -0,29  (-0,228 kN/m2)
+         cobertura barlavento: -0,33  (-0,260 kN/m2)
          cobertura sotavento: +0,00  (+0,000 kN/m2)
      [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
-      razao de areas das aberturas para o Cpi do portao (6,2.5-c).]
+      razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
    (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
 
 3. COMBINACOES (NBR 8800, ELU) [a confirmar]
    psi0: sobrecarga cobertura = 0,8 ; vento = 0,6
+   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).
    C1 gravidade:      1,25 G + 1,50 Q + 0,84 W
-   C2 uplift:         1,00 G + 1,40 W(portao barlavento)
+   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]
    C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q
-   C3 vento (G fav):  1,00 G + 1,40 W + 1,20 Q
+   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]
 
 4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]
-   C1_gravidade:
-     Coluna: M=  60,7  N=  26,3  V=  10,1
-     Viga:   M=  60,7  N=  12,7  V=  25,2
-   C2_uplift:
-     Coluna: M= 107,0  N=  48,4  V=  19,5
-     Viga:   M= 107,0  N=  25,1  V=  46,2
-   C3_vento_Gdesf:
-     Coluna: M=  81,5  N=  28,6  V=  13,6
-     Viga:   M=  81,5  N=  16,4  V=  27,1
-   C3_vento_Gfav:
-     Coluna: M=  78,8  N=  26,4  V=  13,1
-     Viga:   M=  78,8  N=  15,7  V=  25,0
+   C1_grav_W1:
+     Coluna: M=  45,2  N=  14,6  V=   8,5
+     Viga:   M=  45,2  N=  11,9  V=  13,6
+   C2_uplift_W1:
+     Coluna: M= 107,4  N=  49,2  V=  19,6
+     Viga:   M= 107,4  N=  25,2  V=  47,0
+   C3_Gdesf_W1:
+     Coluna: M=  95,0  N=  39,5  V=  17,5
+     Viga:   M=  95,0  N=  23,1  V=  37,6
+   C3_Gfav_W1:
+     Coluna: M= 107,4  N=  49,2  V=  19,6
+     Viga:   M= 107,4  N=  25,2  V=  47,0
+   C1_grav_W2:
+     Coluna: M=  60,1  N=  26,1  V=  10,0
+     Viga:   M=  60,1  N=  12,6  V=  25,0
+   C2_uplift_W2:
+     Coluna: M=  68,0  N=  18,6  V=  11,3
+     Viga:   M=  68,0  N=  13,1  V=  17,4
+   C3_Gdesf_W2:
+     Coluna: M=  80,5  N=  28,2  V=  13,4
+     Viga:   M=  80,5  N=  16,2  V=  26,8
+   C3_Gfav_W2:
+     Coluna: M=  68,0  N=  18,6  V=  11,3
+     Viga:   M=  68,0  N=  13,1  V=  17,4
 
-5. DESLOCAMENTOS (ELS)
-   Deslocamento lateral no beiral (vento caract.): 177,3 mm
-     Limite H/300 = 20,0 mm  -> NAO ATENDE
-   Flecha vertical na cumeeira (G+Q): 26,7 mm (verificar L/200)
+5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)
+   Deslocamento lateral no beiral: 179,0 mm
+     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica admite ate H/150):
+       H/300 =  20,0 mm  -> NAO ATENDE
+       H/250 =  24,0 mm  -> NAO ATENDE
+       H/200 =  30,0 mm  -> NAO ATENDE
+       H/150 =  40,0 mm  -> NAO ATENDE   <== referencia (telha metalica, sem alvenaria)
+   Flecha vertical na cumeeira (G+Q): 26,7 mm (verificar L/250)
 
 6. OBSERVACOES / PENDENCIAS
    - Coeficientes de vento a confirmar; portao = abertura dominante.

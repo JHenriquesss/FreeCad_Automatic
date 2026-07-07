@@ -1,0 +1,15 @@
+VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)
+  Vk = 31,35 m/s ; q = 0,602 kN/m2
+  Area frontal (empena 10 m) = 62,50 m2
+  Cpe paredes (Tab.4, alpha=0):
+    oitao barlavento: +0,70
+    oitao sotavento: -0,30
+    parede lateral A: -0,80
+    parede lateral B: -0,50
+  Cp liquido (Cpe - Cpi) por caso de portao:
+    portao barlavento: barlavento=-0,10 ; sotavento=-1,10 ; A=-1,60 ; B=-1,30
+    portao sotavento: barlavento=+1,30 ; sotavento=+0,30 ; A=-0,20 ; B=+0,10
+  Forca de arrasto Fa = Ca*q*Ae = 1,20*0,602*62,50 = 45,2 kN
+  Fa por lado (2 paineis de contraventamento) = 22,6 kN
+  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da
+   empena; fracao de Fa por escora conforme o arranjo do contraventamento.]

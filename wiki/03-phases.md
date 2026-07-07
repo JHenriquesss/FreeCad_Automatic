@@ -89,3 +89,49 @@ Outcome (verified 2026-07-04):
   FreeCAD 1.1.1, GUI available.
 - XML-RPC `execute` created `Part::Box` (vol 6000, `GuiUp=1`) with no hang.
 - Fix committed as `1b33707 fix(freecad): defer GUI bridge startup`.
+
+## Phase 8 - Galpao Structural Calc Toolkit (2026-07-04..05)
+
+Scope:
+- Build a parametric, norm-grounded structural-calc toolkit so the skill can
+  size a galpao (user is an engineer; a senior only reviews).
+- Formulas extracted from the actual norm PDFs (`pesquisa/aco/`), one self-test
+  per module, PT outputs, one markdown per script (code + result) under
+  `projects/galpao/notes/scripts-md/`.
+
+Outcome (11 modules in `projects/galpao/calc/`, all senior-reviewed):
+- `frame2d` (direct-stiffness 2D solver + `reactions()`); `vento_nbr6123`
+  (NBR 6123 wind); `galpao_portico` (transverse frame); `estabilidade_b1b2`
+  (NBR 8800 Anexo D MAES: nt/lt split, B1/B2, 80% stiffness for media
+  deslocabilidade, notional force); `check_nbr8800` (member check Anexos F/G);
+  `tercas_nbr14762` (cold-formed Ue purlin, MSE + Anexo F suction);
+  `distorcional_fsm` (Mdist via pycufsm FSM); `base_chumbador` (base plate +
+  anchors, NBR 8800 6.3/6.6 + AISC DG1); `ligacoes` (bolts/welds + 45 kN min);
+  `perfis` (profile library); `redimensionamento` (sizing driver).
+- Iterated through many senior-review rounds (wind incidence alpha=90, ELU combos,
+  reduced stiffness, terca load-split/Ief/distortional, base plate unit bug +
+  plastified bearing + two-interface plate). Commits `bc40619`..`ded22d1`,
+  `2417bbb`.
+
+## Phase 9 - Skill Integration, Parametrization, Dry-Run (2026-07-05)
+
+Scope:
+- Wire the toolkit into `build-warehouse` (skill computes, engineer reviews).
+- Run the current galpao through Gates 6-9 with the toolkit.
+- Bulletproof: parametrize geometry and validate a full from-scratch loop.
+
+Outcome:
+- Skill rewired: `references/calc-modules.md` maps each gate to its module;
+  SKILL.md/gates.md say "skill computes, engineer reviews" (was handoff). Commit
+  `eafc410`.
+- Galpao 20x10 through Gates 6-9: FIXED base adopted (pinned failed, drift
+  179 mm); HEA200/HEA180, Ue 200x75x25x2.65 purlins, base 450x550x40 + 4 d20
+  A307, knee 4 M24 A325; verified sections in the FreeCAD model (0 clashes);
+  consolidated PT memorial. Commits `cf21f8e`..`595cfa4`.
+- Parametrized geometry (`gp.configurar`, `est.sincronizar`,
+  `build_galpao.configurar`) + canonical orchestrator `rodar_galpao.py` that
+  extracts base/knee efforts from the portico. Default reproduces the reference
+  exactly; a 24x12 run executes cleanly. Commit `8dd3525`.
+- Full gate-loop dry-run from scratch in `projects/galpao-ensaio` (Gates 0-9,
+  live gate questions). A heavy-crane pick at Gate 0 correctly stopped the flow
+  (no crane module) -> crane backlogged. Commits `0b2809a`, `1843ccc`.

@@ -1,0 +1,6 @@
+# Ambiente Python do toolkit de calculo (framework/galpao_fw).
+# OBRIGATORIO: numpy<2 -- pycufsm 0.2.x nao roda em numpy 2.x (distorcional_fsm).
+# Instalado por install.ps1 (Install-CalcEnv) num venv isolado: framework/galpao_fw/.venv
+numpy==1.26.4
+pycufsm>=0.2,<0.3
+ezdxf>=1.3,<2       # gerador de vistas DXF (dxf_vistas.py) - puro-python

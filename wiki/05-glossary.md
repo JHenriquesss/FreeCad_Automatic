@@ -34,6 +34,25 @@
 - Lanternim: roof monitor/ventilation/light opening.
 - Gerdau W/HP: supplier profile family used in local CAD library.
 
+## Structural Calc (NBR)
+
+- NBR 8800: steel structures (hot-rolled) design norm.
+- NBR 6123: wind loads (S2, Vk, q, Cpe walls Tab.4 / roof Tab.5, Cpi dominant
+  opening 6.2.5-c). Transverse frame = same incidence alpha=90 for walls+roof.
+- NBR 14762: cold-formed steel design (purlins). MSE = Metodo da Secao Efetiva
+  (effective section); Anexo F = free compression flange under suction (R factor).
+- MAES / B1-B2: NBR 8800 Anexo D 2nd-order amplification (nt/lt split). B2 =
+  global P-Delta (story); B1 = local P-delta (member).
+- Deslocabilidade: sway classification by B2 (<=1.1 pequena, <=1.4 media, >1.4
+  grande). Media -> 80% reduced stiffness (4.9.7.1.2).
+- Forca nocional: notional horizontal load = 0.3% of story gravity (imperfection).
+- Distortional buckling / Mdist: cold-formed flange-lip mode; elastic Mdist from
+  FSM. FSM = Finite Strip Method; CUFSM / pycufsm = the tool.
+- Ue: perfil U enrijecido (lipped channel), the cold-formed purlin section.
+- Taxa de utilizacao: demand/capacity ratio; <=1.0 passes the norm.
+- AISC DG1: base-plate-under-moment design guide (eccentricity method).
+- ART: engineer's signed responsibility (Anotacao de Responsabilidade Tecnica).
+
 ## Engineering Status Terms
 
 - Placeholder: modeled geometry not yet engineered.

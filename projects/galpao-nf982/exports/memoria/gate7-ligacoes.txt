@@ -1,0 +1,6 @@
+VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6,2 / 6,3 / 6.1.5)
+
+  --- Chapa de terca (2 M12) - excecao (parafusos) ---
+    n=2 parafusos ; Fv,Rd=13,4 ; Ft,Rd=25,1 ; Fc,Rd(esmag.)=51,2 kN
+    por parafuso: V=4,0 ; N=0,0 kN ; corte/min(Fv,Fc)=0,30 ; tracao=0,00
+    interacao/util = 0,30  -> OK

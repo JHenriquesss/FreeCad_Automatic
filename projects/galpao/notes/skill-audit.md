@@ -1,5 +1,23 @@
 # Skill Audit - Galpao 20x10 End-to-End Run (2026-07-04)
 
+> STATUS 2026-07-05 (historico): este documento e o log do PRIMEIRO run. Varios
+> "furos" abaixo JA FORAM RESOLVIDOS depois: perfis reais no modelo (i/u/ue_member,
+> nao mais so caixas), verificacao de interferencia RODA de verdade
+> (checa_interferencia + estrutura_em_aberturas), toolkit de calculo integrado
+> (13 modulos + orquestrador rodar_galpao), e geometria parametrica. A
+> mao-francesa (#2) DEIXOU de ser heuristica: calc/mao_francesa.py deriva o passo
+> por inversao da interacao 5.5.1.2 (ref 20x10: 2 bracos/portico, Lb=3,35 m). As
+> secoes secundarias (HEA160/UPE100) AGORA sao verificadas por
+> secundarios_nbr8800 (longarina U biaxial + escora I flexo-compressao); achado:
+> UPE100 exige 2 tirantes de parede (0,99), escora HEA160 OK. O vento LONGITUDINAL
+> (alpha=0) ja esta em vento_nbr6123 (Cpe da empena + arrasto Fa=Ca*q*Ae; Ca da
+> Figura 4 A CONFIRMAR); Fa=59 kN alimenta o axial da escora, o oitao
+> (verifica_montante_oitao) e o contraventamento (contraventamento.py: barras
+> d20/d16, tracao+esbeltez+2%). TODAS as pecas secundarias verificadas. O modo
+> "batch defaults" (#5) foi RESOLVIDO: planilha unica editavel no Gate 4b
+> (references/batch-defaults.md). Ainda ABERTO: rule-timing tags e o MODULO DE
+> PONTE ROLANTE (ver projects/galpao-ensaio/notes/backlog.md).
+
 First real execution of the build-warehouse skill after 17 refinement rounds.
 Model rebuilt as `work/build_galpao.py` v2, run via the FreeCAD MCP bridge.
 Result: 180 objects (was 52), FCStd + STEP + PNG exported.

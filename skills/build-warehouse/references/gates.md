@@ -1,8 +1,9 @@
 # Staged Gate Workflow
 
 The warehouse workflow is split into 10 gates, aligned to the CBCA "Galpoes para
-Usos Gerais" project sequence (see `cbca-galpao-project-sequence.md`). Run one
-gate at a time. Each gate:
+Usos Gerais" project sequence (see `cbca-galpao-project-sequence.md`), PRECEDED
+by Gate T (terreno) which establishes land feasibility and bounds the geometry.
+Run one gate at a time. Each gate:
 
 1. Ask the user ONLY the questions for that gate, as explicit questions
    (prefer a button-style question tool: one question, 2-4 options, a
@@ -18,10 +19,24 @@ Hard rules:
 
 - Every value a human should decide must reach the user as a question.
   Recommended defaults are the first option, never a silent choice.
-- The skill does NOT perform structural calculation. Analysis, load
-  combinations, member forces, and verified sizes come from the engineer
-  (Gate 6). The skill models, documents, and organises; it never presents
-  geometry or sizes as structurally verified.
+- CRITICAL decisions are asked one-by-one (the gates). SECONDARY decisions use
+  BATCH-DEFAULTS mode: do NOT fire a button per secondary choice — write the
+  project defaults sheet (`notes/planilha-defaults.md`, from
+  `references/batch-defaults.md`) and hand it to the engineer for ONE review pass.
+  See `batch-defaults.md` for the critical-vs-secondary split and the protocol.
+- FRAMEWORK / GATE COVERAGE (enforced, not advisory): each gate answer fills the
+  `ProjetoSpec` (`calc/projeto_spec.py`) — the single source of truth. Before ANY
+  calculation or model build, run `projeto_spec.validar(spec)`; it BLOCKS while a
+  required field is still PENDENTE (unasked). The builder/orchestrator read ONLY
+  from the spec via `to_rodar_params` / `to_build_kwargs` — nothing falls back to
+  a previous project's values. This is what guarantees every decision is asked and
+  the design is NOT a copy of an existing project. Never model from module
+  defaults on a real run; always go spec → validar → mappers → run.
+- The skill RUNS structural calculation via the validated toolkit
+  (`references/calc-modules.md`) at Gates 5-8 and emits the PT memoriais, but the
+  responsible ENGINEER reviews and approves them. The skill computes, models,
+  documents, and organises; it never presents geometry or a size as verified
+  before engineer sign-off.
 
 Geometry conventions (axes, units, naming, placeholder sections) live in
 `geometry-conventions.md`. The FreeCAD execution pattern lives in
@@ -29,9 +44,45 @@ Geometry conventions (axes, units, naming, placeholder sections) live in
 
 ---
 
+## Gate T - Terreno (viabilidade urbanistica) — VEM ANTES DO GATE 0
+
+Purpose: establish land feasibility FIRST — it bounds every downstream dimension.
+Run `calc/terreno.py`.
+
+Get the lot:
+
+- KML from Google Earth (or a list of lat/lon coordinates, or planar X/Y). The
+  skill runs `terreno.parse_kml` / `projeta_metros` / `area_poligono_m2` to get
+  the lot area and bounding box. Put the KML under `projects/<slug>/inputs/`.
+
+Ask (from the plano diretor / lei de uso do solo — do NOT invent these):
+
+- **Taxa de ocupacao (TO)** max — max building footprint / lot (e.g. 60%).
+- **Taxa de permeabilidade (TP)** min — min permeable area / lot for soil drainage
+  ("pontos de escoamento para o solo"); so impermeable <= (1-TP)*lot.
+- **Coeficiente de aproveitamento (CA)** max — max total built floor area / lot.
+- **Recuos** frente/lateral/fundos (m) — setbacks shrinking the buildable rectangle.
+- Pavimentos (usually 1 for a galpao; mezzanine adds floor area for CA).
+- Any paving (patio/manobra) that also counts as impermeable area.
+
+Output: lot area, the buildable rectangle (bbox − recuos), and the caps
+(footprint_max = TO·A, floor_max = CA·A, permeable_min = TP·A). These CONSTRAIN
+Gate 0: the galpao footprint (comprimento × largura incl. beirais) must fit the
+buildable rectangle AND respect TO/CA/TP. `terreno.verifica_galpao(...)` checks it
+and reports VIAVEL / NAO VIAVEL. If the desired galpao does not fit, the geometry
+must shrink (or the engineer revises the urban parameters). Record the KML source
+and the adopted parameters in `notes/assumptions.md`.
+
+Note: the projection is a local equirectangular one (exact at lot scale, <0.1%);
+for large lots or a precision survey, confirm with UTM/geodesic.
+
+---
+
 ## Gate 0 - Use and volumetry
 
-Purpose: fix occupancy and the bounding geometry.
+Purpose: fix occupancy and the bounding geometry WITHIN the terrain envelope
+(Gate T). The span/length/eave must fit the buildable rectangle and the TO/CA/TP
+caps; re-check with `terreno.verifica_galpao` once dimensions are chosen.
 
 Ask:
 
@@ -121,8 +172,10 @@ Ask:
   built-up U/2U/2L). Ask; usually required.
 - Flange braces (mao-francesa): knee braces from a purlin/girt to the BOTTOM
   flange of the rafter/column, giving lateral restraint to the compressed lower
-  flange under wind uplift (suction). Ask; add where the bottom flange needs
-  bracing.
+  flange under wind uplift (suction). The COUNT/SPACING is not guessed: at Gate 7
+  `calc/mao_francesa.py` inverts the 5.5.1.2 interaction for the max unbraced
+  length Lb and derives braces/frame (that Lb then feeds the viga check). The
+  model places braces per that stride (`build_galpao` `MF_STRIDE`).
 - End-wall framing (tapamento frontal / oitao): gable posts on the end frames?
 - Crane sub-flow (if crane at Gate 0): model column corbels (consoles) or
   enlarged/trussed columns, crane runway beams at the rail level, runway-beam
@@ -162,15 +215,20 @@ Produces: purlins, girts, eave/ridge beams, roof + vertical bracing, tie rods,
 gable-end posts, crane corbels/runway, doubled joint axes, splice markers.
 Exit: user confirms the full skeleton.
 
-## Gate 3 - Envelope
+## Gate 3 - Envelope (roof + WALL cladding)
 
-Ask:
+Ask (do NOT skip the walls — this is a required spec field):
 
-- Roof cladding type and modulation.
-- Wall cladding type (steel sheet, masonry to a height, mixed).
+- Roof cladding type and modulation (usually settled at Gate 1).
+- **Wall cladding (fechamento)** — REQUIRED: `telha` (steel sheet, thin skin) |
+  `alvenaria_telha` (masonry up to a height + sheet above; ask the height) |
+  `termoacustica` (sandwich panel) | `aberto` (open sides, no wall). This sets
+  `build_galpao` FECHAMENTO and the wall weight; masonry also changes the ELS
+  drift limit (a full brittle wall wants H/500 — half-wall + sheet is less strict).
 - Gutters and downspouts: sides and drainage direction.
 
-Produces: roof/wall surfaces, gutters, downspouts. Exit: user confirms envelope.
+Produces: roof/wall surfaces (per fechamento), gutters, downspouts. Exit: user
+confirms envelope. Maps to `ProjetoSpec.fechamento` (tipo + altura_alvenaria).
 
 ## Gate 4 - Openings
 
@@ -200,10 +258,35 @@ Clash detection (required), two checks:
 Produces: opening cut-outs and frames, with bracing conflicts resolved. Exit:
 user confirms openings.
 
+## Gate 4b - Secondary decisions (batch-defaults sheet)
+
+Purpose: settle ALL secondary decisions in one pass, before sizing consumes them.
+Do NOT ask them one button at a time.
+
+Do:
+
+- Write `projects/<slug>/notes/planilha-defaults.md` from the catalog in
+  `references/batch-defaults.md`, substituting the critical answers already given
+  (span, bay if decided, base condition, wind V0/category, etc.).
+- Present the sheet to the engineer in ONE message: "revise; edite as linhas que
+  quiser, o resto adota o default (justificado)." Highlight the `[C]` lines
+  (they drive a pass/fail — e.g. wall sag-rod lines) and the `[!]` lines
+  (A CONFIRMAR).
+- Record the engineer's edits back into the sheet and into `notes/assumptions.md`
+  (append-only, keep the decision trail for the ART). If the engineer says "adota
+  os defaults", record the sheet as-is — still explicit and auditable.
+- Map the final sheet to the `rodar_galpao` params dict + `build_galpao.configurar`.
+
+This keeps the MAXIMUM number of secondary decisions with the engineer (all
+visible, all editable) with MINIMUM friction (one review, not N buttons).
+
 ## Gate 5 - Actions and site
 
-Purpose: assemble the load basis the engineer will analyse. The skill collects
-and records; it does not compute wind or combinations.
+Purpose: assemble the load basis and COMPUTE the wind action by running
+`vento_nbr6123` (NBR 6123) with the site/geometry answers — S2, Vk, q, external
+Cpe (walls Tab.4 and roof Tab.5 at the SAME incidence α=90), and internal Cpi
+(dominant opening / portão, 6.2.5-c). The permanent/variable loads are collected;
+the combinations are applied later inside `galpao_portico`/`estabilidade_b1b2`.
 
 Ask:
 
@@ -233,38 +316,45 @@ Ask:
   at the column top, or does the cladding require a stricter limit?" (masonry is
   stricter; metal sheet tolerates more). See `project-inputs.md`.
 
-Produces: a documented action set in `notes/assumptions.md`. Exit: user/engineer
-confirms the load basis.
+Produces: the documented action set in `notes/assumptions.md` plus the wind
+memorial (PT) from `vento_nbr6123` under `exports/memoria/`. Exit: user/engineer
+confirms the load basis and the wind coefficients.
 
-## Gate 6 - Structural analysis (engineer handoff)
+## Gate 6 - Structural analysis (skill computes, engineer reviews)
 
-Purpose: obtain analysis results. The skill does NOT calculate. It records the
-inputs sent to the engineer and waits for the returned results.
+Purpose: obtain analysis results by RUNNING the toolkit
+(`references/calc-modules.md`), then hand the memoriais to the engineer for
+review. Wind (Gate 5) feeds the portal; run `galpao_portico` (geometry, G/Q,
+`BASE_FIXED`) and `estabilidade_b1b2` for the 2nd-order MAES.
 
-Ask / collect from engineer:
+Ask the user (module inputs / decisions), then compute and present for review:
 
-- Frame analysis results: member forces/moments for columns and rafters.
-- Sway classification (deslocabilidade) and whether second-order effects govern.
-- Equivalent horizontal (notional) force Fn used.
-- Geometric imperfections: were global out-of-plumb (~L/500) and local (~L/1000)
-  imperfections included? For medium-sway structures, were member flexural and
-  axial stiffnesses reduced (e.g. to 80%) in the B1/B2 analysis?
-- ULS combinations considered.
-- Base condition confirmed: pinned or fixed.
-- Fatigue verification for crane runway beams, their supports, welds, and
-  stiffeners (repetitive load cycles); confirm no stiffener is welded to the
-  tension flange.
+- Base condition: pinned or fixed (`BASE_FIXED`) — recommend with the trade-off
+  (fixed base ⇒ small drift/lighter steel but the foundation takes moment).
+- ULS combinations and psi0 factors (defaults per NBR 8800 Tabela 1/2).
+- Second-order: the module classifies deslocabilidade by B2, applies 80% reduced
+  stiffness for média, and adds the notional force (0.3%) automatically — confirm.
+- Present the computed outputs for engineer review: member M/N/V envelope,
+  B1/B2, deslocabilidade, amplified efforts, lateral drift vs the ELS ladder.
+- Fatigue verification for crane runway beams, supports, welds, and stiffeners
+  (repetitive cycles); confirm no stiffener is welded to the tension flange
+  (out of the toolkit's scope — flag for the engineer).
 
-Produces: recorded analysis results, no geometry change. Exit: engineer delivers
-member forces and the sizing basis.
+Produces: the analysis memorial (PT) under `exports/memoria/`, computed by the
+toolkit, pending engineer review. Exit: engineer reviews and confirms the
+efforts and the sizing basis.
 
 ## Gate 7 - Member sizing (per element) + serviceability
 
-Purpose: turn analysis results into approved member sizes, element by element,
-in the CBCA order. Sizes come from the engineer; the skill records and prepares
-the model.
+Purpose: turn analysis results into member sizes by RUNNING the sizing modules,
+element by element in the CBCA order, then hand the memoriais to the engineer to
+review and approve. `check_nbr8800` (K=1, amplified efforts) verifies profiles;
+`redimensionamento` finds the lightest passing profile+base if a check fails;
+`tercas_nbr14762` (+ `distorcional_fsm` for Mdist when Table 14 does not
+dispense), `base_chumbador`, and `ligacoes` size the rest. See
+`references/calc-modules.md`.
 
-Confirm, in order:
+Compute and confirm, in order (sizes are computed, then engineer-approved):
 
 - Columns, then rafters/beams.
 - Serviceability (SLS): vertical and lateral displacement limits met. Crane

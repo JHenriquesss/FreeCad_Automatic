@@ -1,0 +1,21 @@
+VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
+  fy = 250 MPa ; gamma_a1 = 1,10
+  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem).
+
+  --- Coluna (K=1; gov C4_ponte_W1) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=2024 kN ; lambda0=0,815 ; chi=0,757 ; Nc,Rd=926,3 kN
+  Flexao: Mpl=107,4 ; Lp=2,48 m ; Lr(FLT)=8,98 m ; Cw=1,082e-07 ; J=1,489e-07
+    Mn_FLT=107,4 ; Mn_FLM=107,4 ; Mn_FLA=107,4 -> governa FLT ; Mrd=97,6 kN.m
+  Cortante: Vrd=168,4 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,22 ; M/Mrd=0,52 ; V/Vrd=0,12
+  Interacao (N/Nrd + 8/9*(M/Mrd)) = 0,68  -> OK
+
+  --- Viga (K=1; gov C2_uplift_W1) ---
+  Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
+  Compressao: Ne=723 kN ; lambda0=1,251 ; chi=0,519 ; Nc,Rd=534,2 kN
+  Flexao: Mpl=81,2 ; Lp=2,25 m ; Lr(FLT)=8,50 m ; Cw=6,029e-08 ; J=1,138e-07
+    Mn_FLT=68,0 ; Mn_FLM=81,2 ; Mn_FLA=81,2 -> governa FLT ; Mrd=61,8 kN.m
+  Cortante: Vrd=139,9 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,03 ; M/Mrd=0,73 ; V/Vrd=0,19
+  Interacao (N/(2Nrd) + M/Mrd) = 0,75  -> OK

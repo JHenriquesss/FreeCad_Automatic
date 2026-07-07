@@ -1,0 +1,20 @@
+====================================================================
+DIMENSIONAMENTO DA LIGACAO DE MOMENTO (JOELHO)
+CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
+====================================================================
+
+Esforco: N(tracao mesa)=287,7 kN ; V=7,6 kN
+Criterio: interacao (Nsd/Ft,Rd)^2+(Vsd/Fv,Rd)^2 <= 1 ; corte<=1.
+
+ n db(mm) t(mm) | u.trac u.corte  inter | resultado
+--------------------------------------------------------------------
+ 4     24  12,5 |   0,35    0,02   0,12 | PASSA
+ 4     20  12,5 |   0,50    0,02   0,25 | PASSA
+ 4     24  16,0 |   0,35    0,02   0,12 | PASSA
+ 6     24  19,0 |   0,23    0,01   0,05 | PASSA
+ 6     27  22,0 |   0,18    0,01   0,03 | PASSA
+ 8     27  25,0 |   0,14    0,01   0,02 | PASSA
+ 8     30  31,5 |   0,11    0,01   0,01 | PASSA
+--------------------------------------------------------------------
+
+ADOTADA: 4 parafusos d24 mm ; chapa de topo 12 mm

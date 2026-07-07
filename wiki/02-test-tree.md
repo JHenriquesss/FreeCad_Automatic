@@ -51,6 +51,26 @@ End-to-end trunk for this project:
 - Assert no raw research PDFs are committed.
 - Missing: real galpao project fixture and FreeCAD model generation test.
 
+### Calc Toolkit Branch (2026-07-05)
+
+- Assert each `calc/*.py` module `_selftest()` passes (frame2d closed-form,
+  tercas kl/Wef, base anchor/bearing/uplift, ligacoes bolt/weld/45kN,
+  distorcional_fsm local-buckling sanity vs plate k=23.9). All green.
+- Assert `rodar_galpao.py` with `PARAMS_REF` reproduces the reference: column
+  interaction 0.67, rafter 0.93 (Lb=3.35 m from `mao_francesa`, 2 braces/frame),
+  B2 1.036. Green.
+- Assert a different geometry (24x12) runs the whole chain without error
+  (interactions >1 as expected -> would trigger resizing). Green.
+- Assert `build_galpao.configurar(...)` builds via MCP: 248 elements, 0
+  interferences, 0 structure-in-openings, verified sections in takeoff. Green.
+- Assert full gate-loop dry-run (`projects/galpao-ensaio`, Gates 0-9) runs and a
+  heavy-crane pick is correctly caught as unsupported. Green.
+- Each module was senior-reviewed (external engineer) across multiple rounds.
+- Assert `secundarios_nbr8800._selftest()`: UPE100 girt fails with 1 wall sag rod,
+  passes with 2 (0.99); HEA160 strut beam-column OK. Green.
+- Missing: automated (CI) regression on the reference numbers; longitudinal wind
+  (α=0) for the strut axial; crane load path.
+
 ### Library Branch
 
 - Assert manifests exist for source/license notes.

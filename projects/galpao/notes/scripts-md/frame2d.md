@@ -1,10 +1,11 @@
-# frame2d.py
+# Solver de portico 2D - frame2d.py
 
-Solver de portico 2D (metodo da rigidez direta). Auto-teste valida contra solucao fechada.
+Arquivo: `framework/galpao_fw/frame2d.py`  
+Gerado: 2026-07-05  
+Status: validado (auto-teste contra solucao fechada). Metodo da rigidez
+direta. Inclui reactions() para a decomposicao nt/lt do metodo B1/B2.
 
-CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO. Codigo em ingles; saidas em PT.
-
-## Codigo
+## Codigo completo
 
 ```python
 # ============================================================================
@@ -165,6 +166,9 @@ class Frame2D:
         Ff = F[free]
         d[free] = np.linalg.solve(Kff, Ff)
 
+        # store for reactions(): R = K*d - F (nonzero at supported DOFs)
+        self._K, self._F, self._d = K, F, d
+
         # member end forces (local): f = k_loc*T*d + fef
         # Convention: [N_i, V_i, M_i, N_j, V_j, M_j], forces the ELEMENT exerts on
         # its end nodes. To plot internal-force diagrams (traction positive), flip
@@ -175,6 +179,13 @@ class Frame2D:
             f_loc = k_loc @ (T @ d_e) + fef
             member_forces[idx] = f_loc
         return d, member_forces
+
+    def reactions(self):
+        """Reacoes de apoio: R = K*d - F (por GDL global; nao-nulo nos apoios).
+        Chamar apos solve(). No no n: horizontal=R[3n], vertical=R[3n+1],
+        momento=R[3n+2]. Inclui as reacoes de contencoes ficticias (usadas na
+        decomposicao nt/lt do metodo B1-B2)."""
+        return self._K @ self._d - self._F
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +235,7 @@ if __name__ == "__main__":
     _selftest()
 ```
 
-## Resultado da execucao
+## Resultado da execucao (auto-teste)
 
 ```
 frame2d self-test PASSED
