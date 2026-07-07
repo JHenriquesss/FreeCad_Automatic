@@ -260,10 +260,15 @@ def verifica_terca(perfil, cfg):
         Mrdx = Mrd_succ if (uplift and Mrd_succ) else Mrd_grav
         inter = (Msx / Mrdx + Msy / Mrdy) if Mrdx else float("inf")
         okv = Vsx / Vrd
-        ok = inter <= 1.0 and okv <= 1.0 and not (uplift and dist_inconclusivo)
+        # 9.8.4 M+V combinados, alma SEM enrijecedores transversais (terca):
+        # (Msd/Mrd)^2 + (Vsd/Vrd)^2 <= 1,0 . Usa a utilizacao de flexao biaxial
+        # (inter) como termo de momento (conservador na flexao obliqua).
+        mv = inter ** 2 + okv ** 2
+        ok = (inter <= 1.0 and okv <= 1.0 and mv <= 1.0
+              and not (uplift and dist_inconclusivo))
         res["casos"][nome] = {"qx": qx, "qy": qy, "Msx": Msx, "Msy": Msy,
                               "Vsx": Vsx, "Mrdx": Mrdx, "uplift": uplift,
-                              "interacao": inter, "uV": okv, "OK": ok}
+                              "interacao": inter, "uV": okv, "mv": mv, "OK": ok}
 
     gf = g.get("G_fav", 0.90)
     _combo("gravidade 1,25G+1,5Q", g["G"], g["Q"], 0.0)
@@ -321,7 +326,9 @@ def relatorio_pt(res, cfg):
               f"Msx={c['Msx']:.2f} Msy={c['Msy']:.2f} kN.m ; Vsx={c['Vsx']:.2f} kN",
               f"    Interacao Msx/Mrdx + Msy/Mrdy = {c['Msx']:.2f}/{c['Mrdx']:.2f} + "
               f"{c['Msy']:.2f}/{res['Mrdy']:.2f} = {c['interacao']:.2f} ; "
-              f"V/Vrd={c['uV']:.2f}  -> {'OK' if c['OK'] else 'NAO PASSA'}"]
+              f"V/Vrd={c['uV']:.2f}",
+              f"    9.8.4 M+V (alma s/ enrijec.): (M/Mrd)^2+(V/Vrd)^2 = "
+              f"{c['mv']:.2f}  -> {'OK' if c['OK'] else 'NAO PASSA'}"]
     L += ["", "  --- ELS (flecha, cargas caracteristicas) ---",
           f"    Gravidade: {e['d_grav']*1000:.1f} mm ; limite L/180 = "
           f"{e['lim_grav']*1000:.1f} mm -> {'OK' if e['ok_grav'] else 'NAO ATENDE'}",

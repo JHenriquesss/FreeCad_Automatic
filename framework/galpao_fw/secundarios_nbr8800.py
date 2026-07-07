@@ -140,8 +140,16 @@ def verifica_longarina(sec, fy, cfg):
     vao = cfg["vao"]; g = cfg.get("gamma", {})
     gW = g.get("W", 1.40); gG = g.get("G", 1.25)   # ELU (Tabela 1)
     n_t = cfg.get("n_tirantes", 1)
-    Lb = vao / (n_t + 1)                            # destravamento (eixo forte, succao)
-    Ly = vao / (n_t + 1)                            # vao do eixo fraco (peso) c/ tirante
+    Ly = vao / (n_t + 1)                            # eixo fraco (peso): tirante trava
+    # FLT (eixo forte) sob SUCCAO: a mesa comprimida e a INTERNA (livre). Tirante
+    # comum (sag rod) NAO trava a mesa interna -> Lb = vao cheio (conservador).
+    # So mao-francesa (cantoneira ligada a mesa interna) reduz o Lb. Flag do gate:
+    #   mesa_interna_travada=True + n_maos_francesas -> Lb = vao/(n_maos+1).
+    if cfg.get("mesa_interna_travada", False):
+        n_mf = cfg.get("n_maos_francesas", n_t)
+        Lb = vao / (n_mf + 1)
+    else:
+        Lb = vao                                   # mesa interna livre sob succao
     # linhas de carga caracteristicas (kN/m)
     qx = cfg["q_vento"] * cfg["trib"]              # vento normal -> eixo forte
     qy = (cfg["g_tapamento"] + cfg.get("peso_proprio", 0.10)) * cfg["trib"]  # peso -> fraco
@@ -309,11 +317,23 @@ def _selftest():
     # tapamento 0,10 kN/m2, vao = BAY 5 m. Com 1 tirante NAO passa; com 2 passa.
     base = {"vao": 5.0, "q_vento": 1.40 * q, "trib": 2.0, "g_tapamento": 0.10,
             "peso_proprio": 0.10, "continua": False}
-    r1 = verifica_longarina(UPE100, fy, {**base, "n_tirantes": 1})
-    r2 = verifica_longarina(UPE100, fy, {**base, "n_tirantes": 2})
+    # (a) CONSERVADOR (mesa_interna_travada=False, default): sob succao a mesa
+    # interna comprimida fica livre -> Lb = vao cheio. UPE100 NAO passa e o
+    # tirante NAO reduz o Lb do FLT (so trava o eixo fraco/peso).
+    r1 = verifica_longarina(UPE100, fy, {**base, "n_tirantes": 2})
+    r1b = verifica_longarina(UPE100, fy, {**base, "n_tirantes": 6})
+    print(relatorio_pt(r1))
+    assert r1["OK"] is False and abs(r1["Lb"] - 5.0) < 1e-9     # Lb = vao cheio
+    assert abs(r1b["Lb"] - 5.0) < 1e-9                          # + tirante nao muda Lb
+    # (b) MAO-FRANCESA travando a mesa interna: Lb = vao/(n_maos+1) -> UPE100 passa.
+    r2 = verifica_longarina(UPE100, fy, {**base, "n_tirantes": 2,
+                                         "mesa_interna_travada": True,
+                                         "n_maos_francesas": 2})
     print(relatorio_pt(r2))
-    assert r1["OK"] is False and r2["OK"] is True   # + tirante -> menor Lb -> passa
-    assert r2["inter"] < r1["inter"]
+    assert r2["OK"] is True and r2["Lb"] < r1["Lb"]
+    # (c) Sem mao-francesa, sobe o perfil (UPE140 passa com Lb cheio).
+    r3 = verifica_longarina(UPE140, fy, {**base, "n_tirantes": 2})
+    assert r3["OK"] is True
     # Escora HEA160: axial do vento longitudinal (A CONFIRMAR) + peso proprio, vao 5 m
     cfg_esc = {"vao": 5.0, "Nsd": 60.0, "peso_proprio": 0.31, "Lb": 5.0,
                "nome": "Escora de beiral (HEA160)"}

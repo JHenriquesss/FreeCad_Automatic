@@ -58,7 +58,11 @@ def novo():
                       "bay": P, "base_fixed": P},
         "cobertura": {"aguas": P, "slope": P, "telha_tipo": P, "telha_peso": P,
                       "calha": P},
-        "fechamento": {"tipo": P, "altura_alvenaria": None, "peso": P},
+        # mesa_interna_travada: longarina sob succao. False (default seguro) =
+        # mesa interna livre, Lb=vao cheio no FLT. True = mao-francesa trava a
+        # mesa interna -> Lb menor (exige o detalhe). Nao bloqueia (tem default).
+        "fechamento": {"tipo": P, "altura_alvenaria": None, "peso": P,
+                       "mesa_interna_travada": False, "n_maos_francesas": None},
         "aberturas": P,     # dict {portao_frente, portao_fundo, porta_*, janelas_*}
         "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P},
         "vento": {"v0": P, "cat": P, "classe": P, "s1": 1.0, "s3": P, "z": P,
@@ -140,6 +144,11 @@ def to_rodar_params(spec):
     v = spec["vento"]
     p["vento"] = {"v0": v["v0"], "cat": v["cat"], "classe": v.get("classe", "B"),
                   "s1": v.get("s1", 1.0), "s3": v["s3"], "z": v.get("z", ridge)}
+    fe = spec.get("fechamento", {})     # longarina: travamento da mesa interna
+    lg = p.setdefault("secundarios", {}).setdefault("longarina", {})
+    lg["mesa_interna_travada"] = bool(fe.get("mesa_interna_travada", False))
+    if fe.get("n_maos_francesas") not in (None, PENDENTE):
+        lg["n_maos_francesas"] = fe["n_maos_francesas"]
     fu = spec.get("fundacao")           # sapata: sobrescreve os defaults do solo
     if fu:
         p.setdefault("fundacao", {}).update({k: v for k, v in fu.items()

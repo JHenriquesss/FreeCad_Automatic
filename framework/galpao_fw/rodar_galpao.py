@@ -225,7 +225,8 @@ def rodar(params, out_dir):
     rl = dsec["resultados"]["longarina"]; re_ = dsec["resultados"]["escora"]
     rm = dsec["resultados"]["montante"]
     save("gate7-secundarios.txt",
-         "\n".join([f"ADOTADO: longarina UPE100 c/ {dsec['longarina']['n_tirantes']} "
+         "\n".join([f"ADOTADO: longarina {dsec['longarina']['perfil']} c/ "
+                    f"{dsec['longarina']['n_tirantes']} "
                     f"linhas de tirante ; escora {dsec['escora']['perfil']} ; "
                     f"montante {dsec['montante']['perfil']}", ""]
                    + [secmod.relatorio_pt(x) for x in (rl, re_, rm)]))
@@ -409,8 +410,12 @@ PARAMS_REF = {
     # Pecas secundarias (gate: trib, tapamento, n_tirantes, Nsd escora = A CONFIRMAR)
     "secundarios": {
         "perfil_long": secmod.UPE100, "perfil_esc": secmod.HEA160,
+        # mesa_interna_travada (gate): False = mesa interna livre sob succao,
+        # Lb=vao cheio (conservador, default). True = ha mao-francesa travando a
+        # mesa interna -> Lb=vao/(n_maos_francesas+1). Ver REVISAO-SECUNDARIOS 9.1.
         "longarina": {"vao": 5.0, "q_vento": None, "trib": 2.0, "g_tapamento": 0.10,
-                      "peso_proprio": 0.10, "n_tirantes": 2, "continua": False},
+                      "peso_proprio": 0.10, "n_tirantes": 2, "continua": False,
+                      "mesa_interna_travada": False},
         # Nsd da escora e SOBRESCRITO pelo arrasto longitudinal (Fa/lado).
         "escora": {"vao": 5.0, "Nsd": 60.0, "peso_proprio": 0.31, "Lb": 5.0,
                    "nome": "Escora de beiral / cumeeira (HEA160)"},
@@ -472,8 +477,9 @@ if __name__ == "__main__":
     print(f"  interacao viga   = {r['interacao_raf']:.2f} (ref 0,93 c/ Lb da mao-francesa)")
     print(f"  mao-francesa     = {r['mf_bracos_portico']} bracos/portico ; "
           f"1 a cada {r['mf_stride']} terca(s) ; Lb={r['Lb_raf']} m")
-    print(f"  longarina UPE100 = {r['longarina_inter']:.2f} "
-          f"({'OK' if r['longarina_ok'] else 'NAO'}, 2 tirantes de parede)")
+    print(f"  longarina {r['longarina_perfil']} = {r['longarina_inter']:.2f} "
+          f"({'OK' if r['longarina_ok'] else 'NAO'}, "
+          f"{r['n_tirante_parede']} tirantes de parede)")
     print(f"  vento long. Fa   = {r['Fa_long_kN']:.1f} kN (arrasto) ; "
           f"{r['Fa_por_lado_kN']:.1f} kN/lado -> Nsd escora")
     print(f"  escora HEA160    = {r['escora_inter']:.2f} "
