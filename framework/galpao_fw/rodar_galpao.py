@@ -24,6 +24,7 @@ import redimensionamento as redim
 import tercas_iteracao as ti
 import base_chumbador as bc
 import fundacao_sapata as fs
+import junta_dilatacao as jd
 import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
@@ -294,6 +295,15 @@ def rodar(params, out_dir):
     casos_base = _casos_base_envelope()
     dims = fs.dimensiona_sapata_env(sap, casos_base)
     save("gate7-fundacao.txt", dims["tabela"])
+
+    # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
+    rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
+                           base_fixa=params.get("base_fixed", True),
+                           aquecido=params.get("aquecido", False),
+                           ar_condicionado=params.get("ar_condicionado", False))
+    save("gate7-junta-dilatacao.txt", jd.relatorio_pt(rj))
+    res["junta_dilatacao"] = {"L_max_m": rj["L_max_junta"], "precisa": rj["precisa_junta"],
+                              "n_juntas": rj["n_juntas"], "delta_mm": rj["delta_segmento_mm"]}
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]

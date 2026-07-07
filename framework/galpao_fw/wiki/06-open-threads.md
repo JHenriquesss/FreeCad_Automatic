@@ -15,7 +15,7 @@ Além dos flags de executivo (T4), o projeto de galpão **completo** ainda não 
 2. ~~Recalque da fundação (NBR 6122)~~ — **FEITO** [[04-decisions#D11]]: recalque elástico (Perloff/Veloso&Lopes); Es/ν/Iw INPUT. Pendente: Steinbrenner (estratificado), adensamento (argila).
 3. **Fundações profundas** (estaca/tubulão + bloco + viga de equilíbrio) — só sapata isolada.
 4. ~~Fadiga da viga de rolamento (Anexo K)~~ — **FEITO** [[04-decisions#D10]]: σSR=Msdx/Wx vs σadm (K.4); categoria+N são INPUT. Refinamento pendente: parcela lateral/biaxial (K.3.3).
-5. **Junta de dilatação / temperatura** — ausente (galpão longo).
+5. ~~Junta de dilatação / temperatura~~ — **FEITO** [[04-decisions#D12]]: `junta_dilatacao.py` (Bellei/FCC 65); L_max + movimento térmico. Guia de literatura, não NBR fechada.
 6. **Sismo** (NBR 15421) — não verificado (baixa sismicidade BR raramente governa).
 
 ## T4 — Flags de projeto executivo (não são bugs — limites de escopo)
