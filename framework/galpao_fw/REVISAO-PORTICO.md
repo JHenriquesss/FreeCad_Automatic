@@ -195,3 +195,106 @@ rigidez integral.
 | B2 / classe | `_analisa_combo`, `_classe` | D.2.3 |
 | Força nocional | `_forca_nocional` | 4.9.7.1.1 |
 | Rigidez reduzida | `analyse`, `_scale_E` | 4.9.7.1.2 |
+
+---
+
+## 6. Resposta ao parecer do sênior (rodada 1 — 2026-07-06)
+
+Parecer recebido confrontado, item a item, com o **texto autêntico da NBR
+8800:2008** (PDF `pesquisa/aço/nbr8800_2008_1.pdf`). Verificação de método,
+nunca de memória. Os 3 pontos acionáveis do parecer foram **rejeitados**: o
+código já segue a norma. Citações abaixo para re-revisão.
+
+### 6.1 — Vsd = Vnt + Vlt (parecer: "recompor por equilíbrio com M amplificado")
+
+**Veredito: REJEITADO. Código correto (segue D.2.4).**
+
+NBR 8800 **D.2.4** (pág. 129 do PDF), literal:
+> "A força cortante solicitante de cálculo **pode ser tomada igual à da análise
+> elástica de primeira ordem** [...] igual a: **Vsd = Vnt + Vlt**."
+
+`estabilidade_b1b2._combina_grupo`, linha 141:
+```python
+v = mf_nt[e][iV] + mf_lt[e][iV]   # Vsd = Vnt + Vlt (D.2.4, sem amplificar)
+```
+Corresponde exatamente à norma (sem B2 no Vlt). O argumento do parecer (o
+cortante em equilíbrio com os momentos amplificados cresce, Vsd = V_transv +
+(M_A+M_B)/L) é fisicamente verdadeiro, porém é **conservadorismo além do exigido**;
+a NBR 8800 dispensa explicitamente. **Não é erro de método.**
+DECISÃO DO ENG.: adotar a recomposição por equilíbrio (mais conservadora) ou
+manter D.2.4. Recomendação: **manter D.2.4** (norma; e Vsd não governa o perfil
+neste galpão — flexão+normal governa).
+
+### 6.2 — Rs = 0,85 → 1,0 (parecer: "sem pilares escorados, logo Rs = 1,0")
+
+**Veredito: REJEITADO. Código correto. Mudar para 1,0 seria contra a norma e
+a favor da insegurança (B2 menor).**
+
+NBR 8800 **D.2.3** (pág. 129), literal:
+> "Rs é um coeficiente de ajuste, igual a **0,85 nas estruturas onde o sistema
+> resistente a ações horizontais é constituído apenas por subestruturas de
+> contraventamento formadas por pórticos nos quais a estabilidade lateral é
+> assegurada pela rigidez à flexão das barras e pela capacidade de transmissão
+> de momentos das ligações** e igual a 1,0 para todas as outras estruturas."
+
+O galpão é justamente um **pórtico de nós rígidos** (estabilidade lateral pela
+rigidez à flexão das barras + ligações que transmitem momento) → **Rs = 0,85 é
+o caso literal da norma**. `estabilidade_b1b2.RS = 0.85` (linha 35) está correto.
+O parecer confundiu o **Rs da NBR 8800** (0,85 fixo para pórtico rígido) com o
+**R_M do AISC 360** (fator de pilares escorados, R_M = 1 − 0,15·ΣP_escorado/ΣP_total).
+São coeficientes distintos. A fórmula de leaning columns do parecer **não pertence
+à NBR 8800**.
+
+### 6.3 — ψ0 de Q com vento (parecer: "cobertura → ψ0 = 0, não combina com vento")
+
+**Veredito: REJEITADO. Código correto.**
+
+NBR 8800 **Tabela 2** (pág. 28), linha "Bibliotecas, arquivos, depósitos,
+oficinas e garagens e **sobrecargas em coberturas (ver B.5.1)**": **ψ0 = 0,8**
+(vento: ψ0 = 0,6).
+
+`estabilidade_b1b2.COMBOS`, linha 42:
+```python
+"C3_vento_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},   # γq·ψ0 = 1,50 × 0,8
+```
+γq·ψ0 = 1,50 × 0,8, exatamente a Tabela 2 para sobrecarga de cobertura como ação
+secundária. Verificado **B.5.1** (pág. 121): define apenas a sobrecarga mínima
+de 0,25 kN/m² — **não há** cláusula de não-simultaneidade com vento. O parecer
+confundiu com a regra ASCE/AISC ("roof live não combina com vento"), que **não
+existe na NBR 8800**.
+
+### 6.4 — Confirmações do parecer (corretas, já implementadas)
+
+- Solver de 1ª ordem (matriz de rigidez 6×6, FEF de UDL wL²/12): correto.
+- B1 com **K = 1** e L real da barra: correto (D.2.2 + **4.9.6.2**, pág. 37 —
+  "adoção do coeficiente de flambagem K igual a 1,0").
+- Força nocional só de G/Q/ponte (vento não gera imperfeição de prumo), somada
+  no sentido do vento: correto (**4.9.7.1.1**, pág. 37).
+- B2 por andar único (galpão térreo): correto.
+
+### 6.5 — Ações de código desta rodada
+
+**Nenhuma alteração de código.** Os 3 pontos acionáveis contrariam a NBR 8800;
+implementá-los introduziria erro (2×) ou conservadorismo não-normativo (1×,
+item 6.1, à escolha do eng.). Itens da seção 4 "Pontos de conferência" #1
+(Rs=0,85) e #5 (Vsd não amplificado) ficam **confirmados pela norma** acima.
+Aguarda re-revisão do parecer com estas citações.
+
+---
+
+## 7. Homologação (rodada 2 — 2026-07-06)
+
+**Status: ✅ APROVADO / HOMOLOGADO sob a NBR 8800:2008.**
+
+O sênior confrontou a resposta da §6 com o texto literal da norma e homologou os
+três itens contestados, mantendo o código original:
+
+- **7.1 Vsd** — mantém `v = mf_nt[e][iV] + mf_lt[e][iV]`. D.2.4 dispensa a 2ª
+  ordem no cortante; recompor por equilíbrio (V=M/L) seria rigor acima do legal.
+- **7.2 Rs = 0,85** — mantém. D.2.3 fixa 0,85 para pórtico rígido não
+  contraventado. 1,0 daria B2 irrealmente conservador e violaria a norma.
+- **7.3 ψ0 = 0,8** — mantém `"Q": 0.8 * 1.50`. Tabela 2 crava ψ0=0,8 para
+  sobrecarga de cobertura como ação secundária; NBR não abre a exceção do ASCE 7.
+
+**Módulos homologados:** `frame2d.py`, `galpao_portico.py`, `estabilidade_b1b2.py`.
+MAES (Anexo D) traduzido com rigor. Liberado para detalhamento e emissão de ART.

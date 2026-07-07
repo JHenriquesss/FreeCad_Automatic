@@ -110,6 +110,11 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
     lam_a = h / tw
     lamp_a = 3.76 * rE
     lamr_a = 5.70 * rE
+    if lam_a > lamr_a:                 # alma esbelta: fora do escopo (Tabela G.1)
+        raise ValueError(
+            f"{sec.get('nome', 'perfil')}: esbeltez da alma h/tw={lam_a:.1f} > "
+            f"lamr={lamr_a:.1f}. Alma esbelta -> dimensionar como viga de alma "
+            f"cheia (NBR 8800 Anexo H); fora do escopo deste verificador.")
     Mr_a = fy * Wx
     Mn_fla = _interp_M(lam_a, lamp_a, lamr_a, Mpl, Mr_a, Mpl)  # alma nao-esbelta
 
@@ -142,12 +147,19 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
     Mrd = Mn / GA1
     r.update(Mrd=Mrd, M_gov=gov, **det)
 
-    # Cortante (5.4.3): verifica esbeltez da alma
+    # Cortante (5.4.3.1.1): tres dominios, kv=5 (alma sem enrijecedores)
     h = d - 2 * tf
     lamw = h / tw
-    lamw_p = 1.10 * math.sqrt(5.0 * E / fy)   # kv=5 (sem enrijecedores)
+    lamw_p = 1.10 * math.sqrt(5.0 * E / fy)   # escoamento (plastificacao)
+    lamw_r = 1.37 * math.sqrt(5.0 * E / fy)   # flambagem elastica
     Vpl = 0.6 * Aw * fy
-    Vrd = Vpl / GA1 if lamw <= lamw_p else Vpl / GA1 * (lamw_p / lamw)
+    if lamw <= lamw_p:
+        Vn = Vpl                                   # plastificacao da alma
+    elif lamw <= lamw_r:
+        Vn = Vpl * (lamw_p / lamw)                 # flambagem inelastica
+    else:
+        Vn = Vpl * 1.24 * (lamw_p / lamw) ** 2     # flambagem elastica
+    Vrd = Vn / GA1
     r["Vrd"] = Vrd
     r["alma_compacta_cisalhamento"] = lamw <= lamw_p
 

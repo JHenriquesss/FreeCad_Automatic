@@ -78,6 +78,8 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
     Mn_flm = _interp_M(lam_m, lamp_m, lamr_m, Mpl, (fy-sr)*Wx, Mcr_m)
     # FLA (alma)
     lam_a = h/tw ; lamp_a = 3.76*rE ; lamr_a = 5.70*rE
+    if lam_a > lamr_a:                 # alma esbelta: fora do escopo (Tabela G.1)
+        raise ValueError("... Alma esbelta -> viga de alma cheia (Anexo H)")
     Mn_fla = _interp_M(lam_a, lamp_a, lamr_a, Mpl, fy*Wx, Mpl)
     Mn = min(Mn_flt, Mn_flm, Mn_fla)
 ```
@@ -95,14 +97,25 @@ def _interp_M(lam, lamp, lamr, Mpl, Mr, Mcr, Cb=1.0):
 
 ---
 
-## 3. Cortante (5.4.3)
+## 3. Cortante (5.4.3.1.1) — três domínios, kv=5 (alma sem enrijecedores)
 
 ```python
 Aw = d * tw                              # area de cisalhamento (laminado)
-lamw = h / tw ; lamw_p = 1.10 * math.sqrt(5.0 * E / fy)   # kv=5 (sem enrijec.)
+lamw = h / tw
+lamw_p = 1.10 * math.sqrt(5.0 * E / fy)  # escoamento (plastificacao)
+lamw_r = 1.37 * math.sqrt(5.0 * E / fy)  # flambagem elastica
 Vpl = 0.6 * Aw * fy
-Vrd = Vpl/GA1 if lamw <= lamw_p else Vpl/GA1 * (lamw_p / lamw)
+if lamw <= lamw_p:
+    Vn = Vpl                                 # plastificacao da alma
+elif lamw <= lamw_r:
+    Vn = Vpl * (lamw_p / lamw)               # flambagem inelastica
+else:
+    Vn = Vpl * 1.24 * (lamw_p / lamw) ** 2   # flambagem elastica
+Vrd = Vn / GA1
 ```
+
+Forma literal da norma (5.4.3.1.1): `Vrd = 1,24·(λp/λ)²·Vpl/γa1` para `λ > λr`.
+Equivale à forma expandida `1,24·1,10²·kv·E/(fy·λ²) ≈ 1,50·kv·E/(fy·λ²)`.
 
 ---
 
@@ -140,5 +153,72 @@ OK = inter <= 1.0 and (Vsd/Vrd) <= 1.0
 | Q local | `fator_Q` | Anexo F / F.3.2 |
 | Cw, J | `_cw_j` | — |
 | Mn FLT/FLM/FLA | `momento_resistente` | Anexo G / Tab. G.1 |
-| Cortante | `verifica` (bloco Vrd) | 5.4.3 |
+| Cortante | `verifica` (bloco Vrd) | 5.4.3.1.1 |
 | Interação | `verifica` (bloco inter) | 5.5.1.2 |
+
+---
+
+## 7. Resposta ao parecer do sênior (rodada 1 — 2026-07-06)
+
+Parecer confrontado com o texto autêntico da NBR 8800:2008 (PDF
+`pesquisa/aço/nbr8800_2008_1.pdf`). **Dois achados procedentes → código corrigido.**
+
+### 7.1 — Cortante (5.4.3.1.1): faltava o 3º domínio (flambagem elástica)
+
+**Veredito: PROCEDE. CORRIGIDO.**
+
+O código anterior tinha só 2 ramos e aplicava a flambagem **inelástica** (`λp/λ`)
+para qualquer alma acima de `λp`, superestimando o cortante em almas muito
+esbeltas. NBR 8800 **5.4.3.1.1** (pág. 59 do PDF) prescreve **três** domínios:
+
+- `λ ≤ λp` → `Vrd = Vpl/γa1`
+- `λp < λ ≤ λr` → `Vrd = (Vpl/γa1)·(λp/λ)`
+- `λ > λr` → `Vrd = (Vpl/γa1)·1,24·(λp/λ)²`   ← **domínio adicionado**
+
+com `λ = h/tw`, `λp = 1,10√(kv·E/fy)`, `λr = 1,37√(kv·E/fy)`, `kv = 5`.
+A fórmula do parecer (`1,51·kv·E/(fy·λw²)`) é a forma expandida equivalente
+(`1,24·1,10² = 1,50`). Adotada a **forma literal da norma** `1,24·(λp/λ)²`.
+Ver §3. Impacto prático: nulo para perfis I laminados (alma sempre no domínio 1;
+run de referência confirma `alma compacta: True`, Vrd inalterado), mas o código
+fica correto para almas esbeltas.
+
+### 7.2 — FLA (Anexo G): guardrail p/ alma esbelta
+
+**Veredito: PROCEDE. CORRIGIDO.**
+
+`_interp_M(lam_a, ..., Mpl, fy·Wx, Mpl)` retornava `Mpl` mesmo com
+`λa > λr,a = 5,70√(E/fy)` (alma esbelta), silenciosamente inseguro. Perfis com
+alma esbelta saem do escopo deste verificador (perfil laminado compacto) e devem
+ir para **viga de alma cheia (Anexo H)**. Adicionado `raise ValueError` (fail-loud)
+quando `λa > λr,a`, conforme sugestão do parecer. Ver §2. Não dispara em nenhum
+perfil laminado do galpão (run de referência OK, sem raise).
+
+### 7.3 — Confirmações do parecer (corretas, sem alteração)
+
+Compressão global χ (5.3.3) e local Qs/Qa (Anexo F, incl. `bef` com ca=0,34) ✓ ·
+FLT/FLM e Mcr (Anexo G) ✓ · interação flexo-compressão (5.5.1.2) ✓ ·
+K=1 (4.9.6.2) · Cw/J por geometria (conservador) · Aw = d·tw (laminado). ✓
+
+### 7.4 — Verificação de não-regressão
+
+`check_nbr8800.py` selftest OK. `rodar_galpao.py` (galpão 20×10 referência):
+interação coluna = 0,67 e viga = 0,93 — **idênticas à referência**. Sem raise,
+sem traceback. Aguarda re-revisão.
+
+---
+
+## 8. Homologação (rodada 2 — 2026-07-06)
+
+**Status: ✅ VALIDADO / HOMOLOGADO sob a NBR 8800:2008.**
+
+O sênior confrontou as correções da §7 com o texto autêntico da norma e homologou:
+
+- **8.1 Cortante** — 3 domínios (5.4.3.1.1) corretos; forma literal `1,24·(λp/λ)²`
+  confirmada equivalente a `1,51·kv·E/(fy·λw²)`. Sanou a única vulnerabilidade.
+- **8.2 FLA** — `raise ValueError` para `λa > 5,70√(E/fy)` homologado; perfis de
+  alma esbelta exigem Anexo H (campo de tração), fora do escopo deste verificador.
+- **8.3 Confirmados** — compressão global/local (5.3, Anexo F, bef ca=0,34),
+  FLT/FLM e Mcr (Anexo G, ≡ G.12), interação (5.5.1.2, eq. 5.25/5.26).
+
+Módulo `check_nbr8800.py` liberado para produção. Robusto contra falso-positivo
+(cisalhamento) e extrapolação fora de escopo (alma esbelta).

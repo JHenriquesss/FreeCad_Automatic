@@ -44,16 +44,16 @@ def configurar(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=N
 def s2_factor(cat, classe, z):
     """NBR 6123 Tabela 1 (parametros meteorologicos) -> S2 = b*Fr*(z/10)^p.
     Fr = fator de rajada da categoria II por classe (A=1,00; B=0,98; C=0,95),
-    usado para todas as categorias. b e p por categoria/classe. Cat II conferida
-    contra a referencia; demais categorias A CONFIRMAR contra a Tabela 1 do PDF."""
+    usado para todas as categorias. b e p por categoria/classe, conferidos
+    integralmente contra a Tabela 1 da NBR 6123/1988 (pag. 8 do PDF)."""
     Fr = {"A": 1.00, "B": 0.98, "C": 0.95}[classe]
-    # (b, p) por (categoria, classe) - Tabela 1 da NBR 6123/1988
+    # (b, p) por (categoria, classe) - Tabela 1 da NBR 6123/1988 (verbatim)
     bp = {
-        ("I", "A"): (1.10, 0.06), ("I", "B"): (1.10, 0.065), ("I", "C"): (1.10, 0.07),
+        ("I", "A"): (1.10, 0.06), ("I", "B"): (1.11, 0.065), ("I", "C"): (1.12, 0.07),
         ("II", "A"): (1.00, 0.085), ("II", "B"): (1.00, 0.09), ("II", "C"): (1.00, 0.10),
-        ("III", "A"): (0.94, 0.10), ("III", "B"): (0.94, 0.105), ("III", "C"): (0.94, 0.115),
-        ("IV", "A"): (0.86, 0.12), ("IV", "B"): (0.86, 0.125), ("IV", "C"): (0.86, 0.135),
-        ("V", "A"): (0.74, 0.15), ("V", "B"): (0.74, 0.16), ("V", "C"): (0.74, 0.175),
+        ("III", "A"): (0.94, 0.10), ("III", "B"): (0.94, 0.105), ("III", "C"): (0.93, 0.115),
+        ("IV", "A"): (0.86, 0.12), ("IV", "B"): (0.85, 0.125), ("IV", "C"): (0.84, 0.135),
+        ("V", "A"): (0.74, 0.15), ("V", "B"): (0.73, 0.16), ("V", "C"): (0.71, 0.175),
     }
     if (cat, classe) not in bp:
         raise ValueError(f"categoria/classe de vento invalida: {cat}/{classe} "
@@ -106,7 +106,7 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     theta = _CFG["theta"] if theta is None else theta
     b, Fr, p, s2 = s2_factor(cat, classe, z)
     vk = v0 * s1 * s2 * s3
-    q = 0.613 * vk ** 2 / 1000.0
+    q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
     cpe = {**cpe_paredes(), **cpe_telhado(theta)}
     cpi = cpi_cases()
     net = {}
@@ -178,7 +178,7 @@ def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=Non
     z = _CFG["z"] if z is None else z
     b_, Fr, p, s2 = s2_factor(cat, classe, z)
     vk = v0 * s1 * s2 * s3
-    q = 0.613 * vk ** 2 / 1000.0
+    q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
     area = b * eave + b * (ridge - eave) / 2.0     # empena: retangulo + triangulo
     cpe = cpe_paredes_longitudinal()
     cpi = cpi_cases()
