@@ -176,3 +176,40 @@ Confirmados contra o método:
   `x_face` (aba comprimida em balanço) e `x_t` (lado tracionado). ✅
 
 Módulo `base_chumbador.py` liberado.
+
+---
+
+## 9. Ancoragem do chumbador no concreto (NBR 6118 9.4.2) — feature adicionada 2026-07-07
+
+Fecha a lacuna do **lado do concreto** (o módulo só tinha aço/placa/bearing). A
+ligação de base agora calcula o **comprimento de ancoragem por aderência** do
+chumbador — o embutimento reto que desenvolve a tração `Ft,Sd`. Fórmulas do PDF
+(não de memória):
+
+- **9.3.2.1** — `f_bd = η1·η2·η3·f_ctd`, `f_ctd = f_ctk,inf/γc`,
+  `f_ctk,inf = 0,7·f_ctm`, `f_ctm = 0,3·f_ck^(2/3)` [MPa]. `η1 = 1,0` (barra
+  **lisa** = chumbador liso; nervurada seria 2,25), `η3 = 1,0` (φ<32 mm).
+- **9.4.2.4** — `lb = (φ/4)·(f_yd/f_bd)` (ancoragem básica).
+- **9.4.2.5** — `lb,nec = α·lb·(A_s,cal/A_s,ef) ≥ lb,min`; `α = 0,7` com gancho
+  (tracionada, cobrimento normal ao gancho ≥ 3φ); `lb,min = max(0,3·lb; 10φ; 100 mm)`.
+
+**Saída = requisito de projeto** (como `t_req` da placa): `lb,nec` é o embutimento
+reto requerido. **Informativo por default** — não reprova o OK (só com
+`gate_ancoragem=True` + `h_embed` insuficiente). Razão: a aderência de **barra
+lisa** é conservadora e **subestima** o gancho/placa, que transferem por
+**mecânica** (cone/bearing). Esse cone de arrancamento e o efeito de **grupo**
+(ACI 318 Ch.17) **permanecem FLAG** do projeto de fundação — não há ACI no acervo
+`pesquisa/aço/` para citar rigorosamente, e a aderência NBR sozinha não os cobre.
+
+Ex. (base HEA200, Ft,Sd=63,2 kN, d20 liso, fck25): `f_bd=1,28 MPa`, `lb=848 mm`,
+`lb,nec=593 mm` (α=0,7) — ou seja, chumbador liso reto precisaria de ~59 cm de
+embutimento por aderência (na prática o gancho/placa reduz isso via mecânica).
+Selftest #5 confere `f_bd`, `lb`, `lb,nec ≥ lb,min`, α gancho×sem-gancho, e o gate
+por `h_embed`. Não-regressivo: auto-sizer segue adotando a base (ancoragem
+informativa).
+
+> **Limite honesto:** esta verificação é a ancoragem por **aderência** (NBR 6118).
+> O modo que costuma **governar** o chumbador — **cone de arrancamento do
+> concreto** e **grupo** (ACI 318 Ch.17) — continua fora, remetido ao projeto de
+> fundação. O que se fechou: o framework deixou de ser omisso no lado do concreto
+> e passou a entregar o **embutimento requerido** por aderência.

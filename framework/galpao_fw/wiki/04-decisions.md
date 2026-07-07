@@ -28,5 +28,8 @@ Formato: `Dn — data — decisão. Porquê. Alternativa rejeitada.` Append-only
 ## D8 — 2026-07-07 — Fundação: punção da sapata flexível (19.5)
 `fundacao_sapata.puncao_sapata()` + integração em `dimensiona_sapata_B`. Fecha a pendência (antes forçava rígida e só flagava). Flexível (`h<(a−ap)/3`) → verifica C' a 2d: `τSd=F_ef/(u·d)` (19.5.2.1), `τRd1=0,13(1+√(20/d))(100ρfck)^⅓` (19.5.3.2), `u=2(C1+C2)+4πd`, alívio `F_ef=N_d−σ·A_C'` (reação do solo dentro de C', modelo de sapata), `ρ=√(ρx·ρy)`, `σcp=0` conservador. Rígida dispensa (22.6.2.2, já coberta pela compr. diagonal). Fórmulas do PDF NBR 6118. Selftest #11. Não-regressivo (exemplo rígido inalterado). Escopo: auto-sizer ainda sobe h→rígida; punção é o caminho p/ geometria flexível.
 
+## D9 — 2026-07-07 — Base: ancoragem do chumbador no concreto (NBR 6118 9.4.2)
+`base_chumbador.ancoragem_chumbador()`. Fecha o lado do concreto (só tinha aço/placa/bearing). Aderência: `fbd=η1η2η3·fctd` (9.3.2.1, η1=1,0 barra lisa), `lb=(φ/4)(fyd/fbd)` (9.4.2.4), `lb,nec=α·lb·(As,cal/As,ef)≥lb,min`, α=0,7 c/ gancho (9.4.2.5). Saída = embutimento requerido `lb,nec` (como t_req), **informativo** (não gateia OK salvo `gate_ancoragem=True`). Razão: aderência de barra lisa é conservadora e subestima gancho/placa mecânico. **Cone de arrancamento + grupo (ACI 318 Ch.17) seguem FLAG** — não há ACI no acervo p/ citar; aderência NBR não cobre o cone. Fórmulas do PDF NBR 6118. Selftest #5. Não-regressivo (auto-sizer inalterado). Ex.: d20 liso, Ft,Sd 63 kN → lb,nec 593mm.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

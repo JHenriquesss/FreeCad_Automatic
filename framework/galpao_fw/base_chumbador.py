@@ -17,8 +17,11 @@
 #     Fv,Rd=0,4*Ab*fub/gamma_a2 (rosca no plano, 6.3.3.2), interacao
 #     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4).
 #   - Espessura da placa por flexao em balanco (modelo de mesa em balanco).
-# NAO verifica o cone de arrancamento do concreto / ancoragem (NBR 6118 / ACI
-# 318) - isso e do projeto de fundacao (FLAG). Saidas em portugues.
+#   - Ancoragem do chumbador no concreto por ADERENCIA (NBR 6118 9.4.2): produz o
+#     embutimento reto requerido lb,nec (informativo/requisito, como t_req). O CONE
+#     DE ARRANCAMENTO e o efeito de GRUPO (ACI 318 Ch.17) seguem do projeto de
+#     fundacao (FLAG - a aderencia sozinha subestima o gancho/placa mecanico).
+# Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
 """Ligacao de base (placa + chumbadores) conforme NBR 8800 6.3/6.6 + AISC DG1."""
@@ -54,6 +57,50 @@ def _area_efetiva(db):
     """Area efetiva (rosqueada) aproximada = 0,75*area bruta (uso comum)."""
     Ab = math.pi * db ** 2 / 4.0
     return 0.75 * Ab, Ab
+
+
+def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
+                        eta1=1.0, eta2=1.0, h_embed=None):
+    """NBR 6118 9.4.2: comprimento de ancoragem POR ADERENCIA do chumbador (o
+    embutimento reto desenvolve a tracao Ft_sd por aderencia; o gancho reduz por
+    alpha). Fecha o lado do CONCRETO que faltava (o modulo so tinha aco/placa).
+
+      - 9.3.2.1  fbd = eta1*eta2*eta3*fctd ; fctd = fctk,inf/gamma_c ,
+                 fctk,inf = 0,7*fctm , fctm = 0,3*fck^(2/3) [MPa] ;
+                 eta1 = 1,0 (barra LISA = chumbador liso; nervurada seria 2,25) ;
+                 eta2 = 1,0 boa aderencia / 0,7 ma ; eta3 = 1,0 (phi<32 mm) ;
+      - 9.4.2.4  lb = (phi/4)*(fyd/fbd) ;
+      - 9.4.2.5  lb,nec = alpha*lb*(As,cal/As,ef) >= lb,min ; alpha=0,7 c/ gancho
+                 (tracionada, cobrimento normal ao gancho >= 3 phi), 1,0 sem ;
+                 lb,min = max(0,3*lb ; 10*phi ; 100 mm).
+
+    LIMITE: NAO cobre o CONE DE ARRANCAMENTO do concreto nem o efeito de GRUPO
+    (ACI 318 Ch.17 / concrete breakout) - permanece FLAG do projeto de fundacao.
+    Unidades: db,h_embed em m ; fck,fyk em kN/m2 ; Ft_sd em kN."""
+    phi = db
+    fck_MPa = fck / 1000.0
+    fctm = 0.3 * fck_MPa ** (2.0 / 3.0)              # MPa (fck<=50)
+    fctd = 0.7 * fctm / GC * 1000.0                  # kN/m2
+    eta3 = 1.0 if db < 0.032 else (132.0 - db * 1000.0) / 100.0
+    fbd = eta1 * eta2 * eta3 * fctd
+    fyd = fyk / 1.15
+    lb = (phi / 4.0) * (fyd / fbd)                   # 9.4.2.4
+    Abe, _ = _area_efetiva(db)
+    As_cal = Ft_sd / fyd if fyd > 0 else 0.0         # area necessaria p/ a tracao
+    ratio = min(As_cal / Abe, 1.0) if Abe > 0 else 0.0
+    alpha = 0.7 if com_gancho else 1.0
+    lb_min = max(0.3 * lb, 10.0 * phi, 0.100)
+    lb_nec = max(alpha * lb * ratio, lb_min)         # 9.4.2.5
+    r = {"fbd": fbd, "fctd": fctd, "lb": lb, "lb_nec": lb_nec, "lb_min": lb_min,
+         "alpha": alpha, "eta3": eta3, "As_cal": As_cal, "Abe": Abe,
+         "h_embed": h_embed}
+    if h_embed is not None:
+        r["u_anc"] = lb_nec / h_embed if h_embed > 0 else float("inf")
+        r["ok_anc"] = h_embed >= lb_nec - 1e-9
+    else:                                            # sem embutimento dado: informa o requerido
+        r["u_anc"] = None
+        r["ok_anc"] = None
+    return r
 
 
 def placa_sob_NM(N, M, B, L, sig_rd, d_anchor):
@@ -124,6 +171,13 @@ def verifica_base(caso):
     r["u_corte"] = Fv_sd / Fv_rd
     r["interacao"] = (Ft_sd / Ft_rd) ** 2 + (Fv_sd / Fv_rd) ** 2
 
+    # ancoragem no concreto por aderencia (NBR 6118 9.4.2) - lado do concreto
+    anc = ancoragem_chumbador(Ft_sd, db, fck, caso.get("fyk_chumbador", 250e3),
+                              com_gancho=caso.get("com_gancho", True),
+                              eta2=caso.get("eta2_aderencia", 1.0),
+                              h_embed=caso.get("h_embed"))
+    r["ancoragem"] = anc
+
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
     r["sigma_max"] = sig_max
@@ -165,9 +219,18 @@ def verifica_base(caso):
     r.update(t_comp=t_comp, t_trac=t_trac, c_bal=c_bal, x_trac=x_t or 0.0,
              t_placa_req=t_req, t_placa=caso.get("t_placa", None))
 
+    # A ancoragem PRODUZ o embutimento requerido lb,nec (como t_req da placa) -
+    # INFORMATIVO por default; so reprova o OK se o caso pedir gate_ancoragem=True
+    # E o embutimento dado for insuficiente. Motivo: a aderencia (barra lisa) e
+    # conservadora; o gancho/placa transfere por MECANICA (cone/bearing, ACI Ch.17
+    # - flagado), que a aderencia NBR sozinha subestima. lb,nec fica como
+    # requisito de projeto para o embutimento (ou ancoragem mecanica equivalente).
+    ok_anc_gate = True
+    if caso.get("gate_ancoragem", False) and anc["ok_anc"] is False:
+        ok_anc_gate = False
     r["OK"] = (r["interacao"] <= 1.0 and r["u_corte"] <= 1.0 and
                r["u_concreto"] <= 1.0 + 1e-9 and r["Y_cabe"] and
-               (r["t_placa"] is None or r["t_placa"] >= t_req))
+               (r["t_placa"] is None or r["t_placa"] >= t_req) and ok_anc_gate)
     return r
 
 
@@ -188,15 +251,31 @@ def relatorio_pt(r, caso):
          f"{'<=L (cabe)' if r['Y_cabe'] else '> L (NAO CABE)'}",
          f"  Chumbador: tracao u={r['u_tracao']:.2f} ; corte u={r['u_corte']:.2f} ; "
          f"interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = {r['interacao']:.2f}",
+         _linha_ancoragem(r["ancoragem"]),
          f"  Placa (AISC DG1): lado comprimido t={r['t_comp']*1000:.1f} mm "
          f"(balanco {r['c_bal']*1000:.0f} mm) ; lado tracionado t={r['t_trac']*1000:.1f} mm "
          f"(braco {r['x_trac']*1000:.0f} mm) -> t_req={r['t_placa_req']*1000:.1f} mm"
          + (f" ; t_adotada={r['t_placa']*1000:.0f} mm" if r['t_placa'] else ""),
          f"  -> {'OK' if r['OK'] else 'NAO PASSA'}",
-         "  [FLAG] Cone de arrancamento/ancoragem do concreto: NBR 6118/ACI 318",
-         "         (projeto de fundacao) - NAO verificado aqui."]
+         "  [FLAG] Ancoragem por ADERENCIA verificada (NBR 6118 9.4.2). O CONE DE",
+         "         ARRANCAMENTO do concreto e o efeito de GRUPO (ACI 318 Ch.17)",
+         "         permanecem do projeto de fundacao - NAO cobertos aqui."]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
+def _linha_ancoragem(anc):
+    """Linha do relatorio para a ancoragem por aderencia (NBR 6118 9.4.2)."""
+    base = (f"  Ancoragem (NBR 6118 9.4.2): fbd={anc['fbd']:.0f} kN/m2 ; "
+            f"lb={anc['lb']*1000:.0f} mm -> lb,nec={anc['lb_nec']*1000:.0f} mm "
+            f"(alpha={anc['alpha']:.1f} c/ gancho ; lb,min={anc['lb_min']*1000:.0f} mm)")
+    if anc["h_embed"] is not None:
+        tag = "OK" if anc["ok_anc"] else "embutir >= lb,nec (ou ancoragem mecanica)"
+        base += (f" ; embutimento={anc['h_embed']*1000:.0f} mm -> u={anc['u_anc']:.2f} "
+                 f"[{tag}]")
+    else:
+        base += " ; [lb,nec = embutimento reto requerido por aderencia]"
+    return base
 
 
 # Escada de bases (B, L, db, n) - placa e chumbadores. A ESPESSURA nao entra na
@@ -270,7 +349,12 @@ def _tabela_base(linhas, aprovado, caso):
     else:
         L += ["NENHUMA base da escada passou - ampliar a escada ou revisar (M muito",
               "alto: aumentar pilar/base, ou considerar base rotulada + contravento)."]
-    L += ["", "[FLAG] Cone de arrancamento/ancoragem: NBR 6118/ACI (projeto de fundacao)."]
+    if aprovado:
+        anc = aprovado[5]["ancoragem"]
+        L += [f"Ancoragem (NBR 6118 9.4.2): embutimento reto requerido lb,nec="
+              f"{anc['lb_nec']*1000:.0f} mm (c/ gancho) - ou ancoragem mecanica equiv."]
+    L += ["", "[FLAG] Cone de arrancamento/grupo (ACI 318 Ch.17): projeto de fundacao "
+          "(a aderencia NBR 6118 nao cobre o cone/bearing mecanico do gancho)."]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -290,6 +374,18 @@ def _selftest():
     # 4) grande excentricidade: bloco plastificado (sig_max = sig_rd)
     Tg, Yg, smg, mg = placa_sob_NM(49.0, 60.0, 0.40, 0.45, 24791.5, 0.40)
     assert abs(smg - 24791.5) < 1e-6 and abs(Tg - 126.3) < 0.5, (Tg, Yg, smg)
+    # 5) ancoragem NBR 6118 9.4.2: fbd, lb e lb,nec com gancho (alpha=0,7)
+    a = ancoragem_chumbador(126.3, 0.020, 25e3, 250e3, com_gancho=True, h_embed=0.30)
+    fck_MPa = 25.0
+    fctd = 0.7 * 0.3 * fck_MPa ** (2.0 / 3.0) / 1.4 * 1000.0
+    assert abs(a["fbd"] - 1.0 * 1.0 * 1.0 * fctd) < 1e-3          # eta1=eta2=eta3=1
+    lb_exp = (0.020 / 4.0) * ((250e3 / 1.15) / a["fbd"])          # 9.4.2.4
+    assert abs(a["lb"] - lb_exp) < 1e-9
+    assert a["lb_nec"] >= a["lb_min"] - 1e-12 and a["alpha"] == 0.7
+    assert a["ok_anc"] == (0.30 >= a["lb_nec"])                   # gate por h_embed
+    # sem gancho (alpha=1,0) exige mais que com gancho
+    a2 = ancoragem_chumbador(126.3, 0.020, 25e3, 250e3, com_gancho=False, h_embed=0.30)
+    assert a2["lb_nec"] >= a["lb_nec"] - 1e-12
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")
@@ -305,6 +401,7 @@ CASO_EXEMPLO_ENGASTE = {
     "d_col": 0.190, "bf_col": 0.200,          # HEA200 (para os balancos AISC)
     "beff_tracao": 0.200,                     # largura efetiva lado tracionado
     "fy_placa": 250e3, "t_placa": 0.025, "rosca_no_plano": True,
+    "fyk_chumbador": 250e3, "com_gancho": True, "h_embed": 0.30,   # ancoragem 9.4.2
 }
 
 

@@ -9,6 +9,15 @@ Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenrique
 ## T3 — Backlog: módulo ponte rolante estendido
 Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender após validação (frac_long por rodas motoras, fadiga Anexo K não automatizada — só flag). Ver memory `crane-module-backlog`.
 
+## Lacunas de escopo estrutural (gap analysis 2026-07-07)
+Além dos flags de executivo (T4), o projeto de galpão **completo** ainda não cobre (dentro do escopo estrutural):
+1. ~~Ancoragem do chumbador no concreto~~ — **PARCIAL** [[04-decisions#D9]]: aderência NBR 6118 9.4.2 feita; **cone de arrancamento + grupo (ACI 318 Ch.17) ainda faltam** (sem ACI no acervo).
+2. **Recalque da fundação** (NBR 6122) — só capacidade/estabilidade, não deformação.
+3. **Fundações profundas** (estaca/tubulão + bloco + viga de equilíbrio) — só sapata isolada.
+4. **Fadiga da viga de rolamento** (Anexo K) — flagado, não automatizado.
+5. **Junta de dilatação / temperatura** — ausente (galpão longo).
+6. **Sismo** (NBR 15421) — não verificado (baixa sismicidade BR raramente governa).
+
 ## T4 — Flags de projeto executivo (não são bugs — limites de escopo)
 - **Fundação**: quantitativo de aço ~10–15% baixo (sem ganchos/arranques 22.6.4.1) — marcador de anteprojeto. Detalhamento/ancoragem = executivo.
 - ~~**Fundação**: sapata flexível exige punção 19.5~~ — **RESOLVIDO** [[04-decisions#D8]]: `puncao_sapata()` verifica C' a 2d; auto-sizer ainda prefere rígida.
