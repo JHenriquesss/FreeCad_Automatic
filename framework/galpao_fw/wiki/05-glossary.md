@@ -1,0 +1,23 @@
+# 05 — Glossário
+
+- **Galpão** — steel warehouse / edifício industrial de um pavimento.
+- **Pórtico** — frame plano (2 colunas + 2 rafters inclinados), unidade estrutural repetida a cada `bay`.
+- **Rafter / viga** — barra inclinada da cobertura. **Coluna / pilar** — barra vertical.
+- **Beiral (eave)** — topo da coluna; **cumeeira (ridge)** — topo do pórtico. `EAVE` = pé-direito = H p/ flecha lateral.
+- **MAES** — Método da Análise Elástica de 2ª ordem. Rigidez reduzida 0,8 + forças nocionais → captura P-Δ/P-δ → dispensa K por nomograma (K=1, 4.9.6.2).
+- **ELU / ELS** — estado limite último (resistência, interação≤1) / de serviço (deslocamento/flecha).
+- **Interação (flexo-compressão)** — 5.5.1.2, split 0,2 (NÃO o 8/9 do AISC).
+- **FLT** — flambagem lateral com torção (Anexo G). **Lb** — comprimento destravado entre contenções laterais.
+- **Mesa interna/externa** — no nó pórtico o momento é negativo → mesa interna comprimida; terças travam só a externa → mesa interna exige mão-francesa.
+- **Mão-francesa (flange brace)** — contenção que trava a mesa interna comprimida ligando-a às terças; reduz Lb.
+- **Contraventamento** — diagonais redondas só-tração que levam o arrasto do vento longitudinal à fundação. Sag rods = tirantes de terça.
+- **Sapata rígida** — h ≥ (a−ap)/3 (22.6.1) → distribuição plana de tensões, dispensa punção (22.6.2.2), resta compressão diagonal (19.5.3.1).
+- **Núcleo central** — e≤L/6 → contato total (trapézio). **Levantamento parcial** — e>L/6 → triângulo, contato B·x.
+- **Envelope de combinações** — cada verificação pega a combinação ELU que a governa (bearing=N máx, tombamento=N mín+M).
+- **Barré (teorema)** — posição do momento máx absoluto sob 2 cargas móveis iguais.
+- **γa1=1,10, γa2=1,35** — coef. de resistência do aço (escoamento/ruptura). **γw2=1,35** solda. **γc=γn=1,40** concreto.
+- **ρmin** — taxa mínima de armadura (Tab.17.3 viga; laje 2-dir = 0,67·ρmin, Tab.19.1).
+- **ProjetoSpec** — `projeto_spec.py`, contrato de dados; `validar()` bloqueia até gates respondidos.
+- **Gate** — pergunta ao engenheiro no fluxo da skill (Gate 4b = batch-defaults; Gate 5 = vento/ponte; Gate 7 = fundação/envelope).
+- **nf982** — galpão de referência (20×10, ponte 100 kN) usado na não-regressão.
+- **ART** — Anotação de Responsabilidade Técnica; o eng. responsável assina, o framework só calcula.

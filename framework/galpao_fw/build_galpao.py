@@ -418,6 +418,28 @@ def joelho(doc, node, rdir, tag):
               f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
 
 
+def cumeeira_conn(doc, x, tag):
+    """Ligacao de momento no APICE (cumeeira): CHAPA DE TOPO no encontro das duas
+    vigas + parafusos, no plano vertical do portico (normal em Y). Conceitual -
+    dimensionamento/parafusamento sao detalhe do eng. responsavel. Fecha a lacuna
+    de as duas vigas se encontrarem no apice sem ligacao modelada."""
+    jt, jdb = JOELHO_CFG["t"], JOELHO_CFG["db"]
+    dep = RAF_SEC[0]                       # altura da viga (Z)
+    wid = RAF_SEC[1]                       # largura da mesa (X)
+    # chapa de topo: fina em Y, cobre a secao da viga (+ folga vertical p/ mesas).
+    plate(doc, (x, RIDGE_Y, RIDGE_H), wid, jt, dep + 140.0, f"CONEX_CUMEEIRA_{tag}_CHAPA")
+    # 4 parafusos passando pela chapa (2 por mesa), ao longo de Y.
+    bx = wid / 2.0 - 35.0
+    bz = dep / 2.0 - 25.0
+    b = 0
+    for sz in (-1.0, 1.0):
+        for sx in (-1.0, 1.0):
+            b += 1
+            rod(doc, (x + sx * bx, RIDGE_Y - 70.0, RIDGE_H + sz * bz),
+                     (x + sx * bx, RIDGE_Y + 70.0, RIDGE_H + sz * bz),
+                jdb, f"CONEX_CUMEEIRA_{tag}_M{int(jdb)}_{b:02d}")
+
+
 def frame_axes():
     n = int(round(LENGTH / BAY))
     return [i * BAY for i in range(n + 1)]
@@ -496,6 +518,7 @@ def build(doc):
     for i, x in enumerate(axes, start=1):
         joelho(doc, (x, 0.0, EAVE_H), (0.0, RIDGE_Y, _rise), f"{i:02d}_E")
         joelho(doc, (x, SPAN, EAVE_H), (0.0, -RIDGE_Y, _rise), f"{i:02d}_D")
+        cumeeira_conn(doc, x, f"{i:02d}")
 
     # Escoras de beiral + viga de cumeeira (perfil I, por vao)
     for b in range(len(axes) - 1):
@@ -689,7 +712,10 @@ def build(doc):
     # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
     DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
-    for y, lado, rl in ((-GUT_Y, "E", 90), (SPAN + GUT_Y, "D", -90)):
+    # AMBAS as calhas abrem PARA CIMA (boca +Z) -> roll=+90 nos dois lados. roll=-90
+    # invertia a calha do lado D (boca para baixo); o boundbox e simetrico, entao o
+    # verifica_conexoes por ZMin nao pegava (ver regra de orientacao em verifica_conexoes).
+    for y, lado, rl in ((-GUT_Y, "E", 90), (SPAN + GUT_Y, "D", 90)):
         u_member(doc, (0, y, EAVE_H), (LENGTH, y, EAVE_H), CALHA_SEC, f"CALHA_{lado}", roll=rl)
     for x in (axes[0], axes[len(axes) // 2], axes[-1]):
         for y, lado in ((-DOWN_Y, "E"), (SPAN + DOWN_Y, "D")):
@@ -701,9 +727,16 @@ def build(doc):
             tube(doc, (x, y, GUT_BOTTOM), (x, y, 0.0), 100.0, 3.0, f"CONDUTOR_{tag}")
 
     # Envelope (Gate 3): telha trapezoidal + tapamento metalico. Pele fina.
+    # A telha ASSENTA SOBRE o topo das tercas (nao as atravessa): offset = topo da
+    # mesa da terca acima do eixo da viga (POFF + meia-altura da terca) + meia-telha.
+    # (O +200 fixo anterior deixava a telha ~94 mm ABAIXO do topo da terca, enterrada;
+    # como a telha e PELE, o clash com ESTRUTURA nao pegava.)
     TCL = 0.65
-    zr = EAVE_H + 200.0
-    zrr = RIDGE_H + 200.0
+    # offset acima do eixo da viga = topo da terca MAIS ALTA, MEDIDO apos _assenta
+    # (POFF e so a estimativa inicial; o assentamento levanta a terca alguns mm).
+    _off = max((zb + UE_SEC[0] - rafter_z(y)) for (y, zb) in terca_seats)
+    zr = EAVE_H + _off + TCL / 2.0
+    zrr = RIDGE_H + _off + TCL / 2.0
     panel(doc, [(0, 0, zr), (LENGTH, 0, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
           TCL, "TELHA_E")
     panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
@@ -881,6 +914,20 @@ def verifica_conexoes(doc, tol=6.0):
                 defeitos.append({"conexao": o.Name, "problema":
                     "nao cobre a junta (fundo calha %.0f fora de %.0f..%.0f)"
                     % (fundo, b.ZMin, b.ZMax)})
+
+    # --- Orientacao da calha: a BOCA deve abrir PARA CIMA (nao invertida) ---
+    # Mede o centro de massa vs o centro do boundbox: numa calha U aberta para cima
+    # o web (fundo) esta embaixo -> CM abaixo do centro; se invertida (boca p/ baixo),
+    # o web fica em cima -> CM acima do centro. O boundbox sozinho NAO distingue
+    # (simetrico), por isso o defeito da calha invertida passava despercebido.
+    for o in doc.Objects:
+        if o.Name.startswith("CALHA_") and hasattr(o, "Shape"):
+            bb = o.Shape.BoundBox
+            cm = o.Shape.CenterOfMass
+            if cm.z > bb.Center.z + tol:
+                defeitos.append({"conexao": o.Name, "problema":
+                    "calha INVERTIDA (boca abre para baixo): CM z=%.0f acima do "
+                    "centro %.0f - deve abrir para cima" % (cm.z, bb.Center.z)})
 
     # --- Contato secundario -> apoio (mapa por familia) + penetracao (so apoio) ---
     # (prefixo_familia, (prefixos de apoio validos), apoia_sobre?)
