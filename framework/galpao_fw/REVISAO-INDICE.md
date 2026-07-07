@@ -23,11 +23,13 @@ os FLAGS/pendências.
 | 9 | Ponte rolante | [REVISAO-PONTE.md](REVISAO-PONTE.md) | NBR 8800 + NBR 8400 | ✅ HOMOLOGADO (r2, 2026-07-07) — §7/§8 |
 | 10 | Mão-francesa / Lb | [REVISAO-MAO-FRANCESA.md](REVISAO-MAO-FRANCESA.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6 |
 | 11 | Contraventamento | [REVISAO-CONTRAVENTAMENTO.md](REVISAO-CONTRAVENTAMENTO.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §6/§7 |
-| 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ⬜ pendente sênior |
+| 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6; fix flecha H/150→H/300 (Tab.C.1) |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`
 (geometria/desenho), `rodar_galpao`/`rodar_projeto`/`framework` (orquestração),
 `projeto_spec` (contrato de dados), `terreno` (KML), `perfis` (tabela de perfis).
+
+**Todos os 12 módulos matemáticos HOMOLOGADOS (rodada 2, 2026-07-07).**
 
 Última atualização do índice: 2026-07-07.

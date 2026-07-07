@@ -8,8 +8,9 @@
 #      amplificados Msd/Nsd/Vsd;
 #   3) verificacao NBR 8800 (check_nbr8800) com K=1 em todas as combinacoes ->
 #      pior interacao por peca.
-# Criterio de aprovacao: interacao <= 1,00 (ELU) E flecha <= H/150 (ELS, telha
-# metalica). Reporta uma tabela e o primeiro candidato (mais leve) que passa.
+# Criterio de aprovacao: interacao <= 1,00 (ELU) E flecha <= H/300 (ELS, topo
+# dos pilares de galpao, NBR 8800 Tabela C.1). Reporta uma tabela e o primeiro
+# candidato (mais leve) que passa.
 # NAO redefine o metodo - so orquestra os modulos ja validados variando perfis.
 # ============================================================================
 """Iteracao de perfis com base engastada. Saidas em portugues. Usa modulos ja
@@ -26,7 +27,11 @@ import check_nbr8800 as chk
 
 FY = 250e3                 # aco MR250
 LIM_INT = 1.00             # interacao ELU
-LIM_FLECHA = gp.EAVE / 150.0   # telha metalica (NBR 8800 Anexo C / Bellei)
+# ELS: deslocamento horizontal do topo dos pilares de galpao em relacao a base.
+# NBR 8800:2008 Tabela C.1 ("Galpoes em geral e edificios de um pavimento"): H/300
+# (limite duro, sem nota). NAO usar H/150 (excessivamente flexivel -> rasgo nos
+# furos das telhas, fadiga dos costureiros).
+LIM_FLECHA = gp.EAVE / 300.0
 LB_COL = 2.0               # travamento lateral da coluna (espac. das longarinas)
 LB_VIGA = 1.67             # travamento lateral da viga (espac. das tercas)
 
@@ -54,15 +59,20 @@ def _aplica(col, raf, fixed=True):
 
 
 def _peso_rel(col, raf):
-    """Peso relativo ~ soma das areas (proxy do consumo de aco)."""
-    return perfis.PERFIS[col]["A"] + perfis.PERFIS[raf]["A"]
+    """Peso relativo ~ soma A*L (proxy do consumo de aco ponderado pelos
+    comprimentos reais de coluna e viga, nao so a area). Requer _aplica antes
+    (usa est.SEC[...]['L']). Nota: a SELECAO em melhor() e por ordem da escada
+    (primeiro que passa), nao por este valor - ele so informa o memorial."""
+    lc = est.SEC["coluna"]["L"]
+    lr = est.SEC["viga"]["L"]
+    return 2.0 * (perfis.PERFIS[col]["A"] * lc + perfis.PERFIS[raf]["A"] * lr)
 
 
 def avalia(col, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
     _aplica(col, raf, fixed)
     a = est.analyse()                       # esforcos amplificados (2a ordem)
     drift = gp.analyse()["drift"]           # flecha lateral (ELS, base atual)
-    lim_flecha = gp.EAVE / 150.0            # H/150 com o pe-direito atual
+    lim_flecha = gp.EAVE / 300.0            # H/300 galpao (NBR 8800 Tab. C.1)
     inter = {}
     for g, prof, Lb in (("coluna", col, lb_col), ("viga", raf, lb_raf)):
         sec = perfis.PERFIS[prof]
@@ -106,11 +116,11 @@ def melhor(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
 
 
 def _tabela(linhas, aprovado, lb_col, lb_raf):
-    lim = gp.EAVE / 150.0
+    lim = gp.EAVE / 300.0
     L = ["=" * 74, "REDIMENSIONAMENTO - par (coluna, viga) mais leve que passa",
          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
          "Criterio: interacao ELU <= 1,00 (NBR 8800, K=1 com 2a ordem) E",
-         f"          flecha lateral <= H/150 = {lim*1000:.1f} mm (telha metalica).",
+         f"          flecha lateral <= H/300 = {lim*1000:.1f} mm (galpao, Tab. C.1).",
          f"Travamento: coluna Lb={lb_col:.2f} m ; viga Lb={lb_raf:.2f} m.", "",
          f"{'Coluna':>8} {'Viga':>7} | {'B2max':>6} | {'flecha':>8} {'lim':>6} |"
          f" {'int.col':>7} {'int.viga':>8} | resultado", "-" * 74]
