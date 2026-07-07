@@ -1,5 +1,9 @@
 # Revisão — Junta de dilatação / movimento térmico
 
+> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo (2026-07-07). A conferir: `δ=α·dT·L`,
+> o guia de comprimento máximo (120/60 m + fatores, Bellei/FCC Report 65) e o
+> caráter de **recomendação** (não cláusula fechada da NBR 8800).
+
 Verifica a **necessidade de junta de dilatação** no galpão (ação de temperatura)
 e o **movimento térmico** longitudinal. Fecha a lacuna da ação de temperatura em
 edifício longo. **Nível do edifício** (não por elemento).

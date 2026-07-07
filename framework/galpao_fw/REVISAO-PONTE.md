@@ -175,6 +175,10 @@ Módulo `ponte_rolante.py` liberado para o orquestrador.
 
 ## 9. Fadiga da viga de rolamento (NBR 8800 Anexo K) — feature adicionada 2026-07-07
 
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (pós-homologação r2). A conferir:
+> `σ_SR = Msdx/Wx` (K.3), `σ_adm = (327·Cf/N)^0,333 ≥ σ_TH` (K.4), a **Tabela K.1**
+> (valores lidos do PDF), a carga de fadiga B.7.3.4 e a categoria/N como INPUT.
+
 Fecha a lacuna: antes só um FLAG "a verificar"; agora **calcula** a faixa de tensões
 e compara com a admissível. Fórmula extraída do PDF (não de memória):
 

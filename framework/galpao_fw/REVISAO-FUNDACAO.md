@@ -527,6 +527,10 @@ Módulo `fundacao_sapata.py` liberado. **1 melhoria de código nesta rodada**
 
 ## 10. Punção da sapata flexível (NBR 6118 19.5) — feature adicionada 2026-07-07
 
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (pós-homologação r2). A conferir:
+> fórmulas 19.5.2.1 / 19.5.3.2, o contorno C' a 2d, o alívio da reação do solo e a
+> integração no `OK_B` (só sapata flexível).
+
 Fecha a pendência FLAG 2 (antes: código forçava rígida e só emitia flag). Agora a
 Parte B, quando a sapata é **flexível** (`h < (a−a_p)/3`), **verifica a punção** no
 contorno crítico C' a **2d** do pilar; a **rígida** continua dispensada (22.6.2.2 —
@@ -572,6 +576,10 @@ exemplo de referência (rígido) mantém As e utilização inalterados.
 ---
 
 ## 11. Recalque da sapata (ELS geotécnico, NBR 6122) — feature adicionada 2026-07-07
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: fórmula elástica
+> (Perloff/Veloso & Lopes), `Iw` rígido (0,79/0,88), o uso de carga de **serviço**
+> e o gate informativo (só com `Es_solo`).
 
 Fecha a lacuna do **deslocamento** da fundação (o módulo só tinha capacidade de
 carga + estabilidade, não deformação). A NBR 6122 exige a verificação de recalque

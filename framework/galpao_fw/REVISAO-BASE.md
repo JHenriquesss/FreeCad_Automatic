@@ -181,6 +181,10 @@ Módulo `base_chumbador.py` liberado.
 
 ## 9. Ancoragem do chumbador no concreto (NBR 6118 9.4.2) — feature adicionada 2026-07-07
 
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (pós-homologação r2). A conferir:
+> `fbd` (9.3.2.1, η1=1,0 barra lisa), `lb` (9.4.2.4), `lb,nec` (9.4.2.5, α gancho),
+> o caráter **informativo** (não gateia) e o **limite honesto** (cone/grupo ACI fora).
+
 Fecha a lacuna do **lado do concreto** (o módulo só tinha aço/placa/bearing). A
 ligação de base agora calcula o **comprimento de ancoragem por aderência** do
 chumbador — o embutimento reto que desenvolve a tração `Ft,Sd`. Fórmulas do PDF
