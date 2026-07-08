@@ -1,0 +1,12 @@
+======================================================================
+ACAO SISMICA - NBR 15421:2023 (forcas horizontais equivalentes)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+Zona sismica: 0 (ag=0,025 g) ; categoria sismica: A ; classe do terreno: C
+
+>> Zona 0: NENHUM requisito de resistencia sismica (7.3.2). Dispensado.
+
+[FLAG] zona/ag (mapa de zoneamento), classe do terreno (SPT/Vs30),
+       R (sistema) e I (categoria de utilizacao) = dados do sitio/projeto
+       - a skill confirma. Combinacao ultima EXCEPCIONAL (gamma_q=1,0).

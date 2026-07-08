@@ -16,6 +16,7 @@ import math
 import os
 
 import vento_nbr6123 as vento
+import telha_cobertura as telha
 import galpao_portico as gp
 import estabilidade_b1b2 as est
 import check_nbr8800 as chk
@@ -202,8 +203,26 @@ def rodar(params, out_dir):
     res["terca_ok"] = bool(_rt.get("OK"))
     res["terca_dims"] = list(_rt.get("_dims", (200.0, 75.0, 25.0, 2.65)))
     res["terca_perfil"] = _rt.get("perfil")
+    # Gate 7 - TELHA: verifica a telha vencendo o espacamento das tercas sob a
+    # sucao LOCAL de borda/canto (vento §8). Perfil da telha = catalogo (params).
+    if params.get("telha"):
+        vt_loc = vento.compute(larg_b=g["span"], alt_h=g["eave"],
+                               comp_a=g.get("comprimento", 2 * g["span"]))
+        w_agua = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])   # comprimento da agua
+        esp_terca = w_agua / max(n_terca, 1)                           # vao da telha
+        tcfg = dict(params["telha"].get("cfg", {}))
+        tcfg.setdefault("vao", round(esp_terca, 3))
+        tcfg.setdefault("W_sucao", vt_loc["local"]["p_local_cob_kN_m2"])
+        tcfg.setdefault("Q", params["cargas"].get("Q", 0.25))
+        rt_telha = telha.verifica_telha(params["telha"]["perfil"], tcfg)
+        save("gate7-telha.txt", telha.relatorio_pt(rt_telha))
+        res["telha_util"] = rt_telha["util_elu"]
+        res["telha_vao"] = rt_telha["vao"]
+        res["telha_vao_max"] = rt_telha["vao_max"]["vao_max_m"]
+        res["telha_ok"] = rt_telha["OK"]
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
-    vr = vento.compute()
+    vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
+                       comp_a=g.get("comprimento", 2 * g["span"]))
     net_par = [abs(vr["net"][c][s]) for c in vr["net"] for s in vr["net"][c]
                if s.startswith("parede")]
     sp = dict(params["secundarios"])
@@ -376,6 +395,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
+             ("6b. TELHA", "gate7-telha.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
@@ -432,6 +452,10 @@ PARAMS_REF = {
     "cargas": {"G": 0.27, "self": 0.35, "Q": 0.25},
     "Lb": {"col": 2.0, "raf": 1.67},
     "terca": {"trib": 1.675, "fy": 250e3, "n_por_agua": 3},
+    # Telha: perfil = CATALOGO do fabricante (Wef cm3/m, Ief cm4/m, peso kN/m2) -
+    # A CONFIRMAR. cfg.vao e W_sucao sao auto-preenchidos (espacamento das tercas
+    # e sucao local do vento §8) se omitidos.
+    "telha": {"perfil": telha.TELHA_EXEMPLO, "cfg": {"continuidade": "simples"}},
     # Pecas secundarias (gate: trib, tapamento, n_tirantes, Nsd escora = A CONFIRMAR)
     "secundarios": {
         "perfil_long": secmod.UPE100, "perfil_esc": secmod.HEA160,

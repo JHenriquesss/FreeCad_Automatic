@@ -19,7 +19,7 @@ BARRAS TRACIONADAS (ABNT NBR 8800:2008 item 5,2)
     >> OK
   --- Mao-francesa (d16) (d=16 mm ; L=0,40 m) ---
     Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
-    Nsd = 7,4 kN -> u = 0,17
+    Nsd = 6,9 kN -> u = 0,16
     Esbeltez L/r = 100 (limite 300) -> OK
     >> OK
 ====================================================================
