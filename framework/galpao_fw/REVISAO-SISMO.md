@@ -1,8 +1,11 @@
 # Revisão — Ação sísmica (NBR 15421:2023)
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo (2026-07-08). A conferir: o método
-> das **forças horizontais equivalentes** (Seção 9), o espectro `Sa(T)` (6.3), as
-> Tabelas 1-6/10 lidas do PDF, e o caráter de **dado do sítio** (zona/classe/R/I/W).
+> **STATUS: ✅ HOMOLOGADO — PRONTO PARA PRODUÇÃO (2026-07-08).** Sênior refez o
+> cálculo (zona 3, D, hn=8): `ags0=0,225`, `Sa,max=0,5625 g`, `Cs=0,5625/3,5=0,1607`
+> (< cap 0,185 → governado pelo platô), `H=160,7 kN` — todos exatos; interpolação
+> `Ca(0,125)=1,55` validada; triagem 0/1/2-4 "tradução brilhante" da 7.3.2. Sem
+> erro. Ressalvas (confirmar `I` e a dupla interpolação Ca/Cv com a skill) são
+> lembretes de input, já cobertos pelos FLAGS. Liberado.
 
 Fecha a lacuna da **ação sísmica** — a última grande pendência do projeto completo.
 Método e constantes **extraídos do PDF** `NBR 15421:2023` (em `pesquisa/aço/`), não

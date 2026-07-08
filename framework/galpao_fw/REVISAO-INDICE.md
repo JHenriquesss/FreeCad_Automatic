@@ -25,7 +25,7 @@ os FLAGS/pendências.
 | 11 | Contraventamento | [REVISAO-CONTRAVENTAMENTO.md](REVISAO-CONTRAVENTAMENTO.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §6/§7 |
 | 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6; fix flecha H/150→H/300 (Tab.C.1) |
 | 13 | Junta de dilatação / temperatura | [REVISAO-JUNTA-DILATACAO.md](REVISAO-JUNTA-DILATACAO.md) | Bellei / FCC Report 65 | ✅ HOMOLOGADO (2026-07-08) — §1-§4 |
-| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | 🆕 módulo novo (2026-07-08) — pendente sênior |
+| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`
@@ -48,7 +48,7 @@ citação normativa do PDF + selftest. **TODAS HOMOLOGADAS (2026-07-07/08):**
 | ✅ Cortante-tríade (atrito+chumbador+chaveta) | base | NBR 8800 (Fakury cap.11) | [BASE §11](REVISAO-BASE.md) — HOMOLOGADO |
 | ✅ Fadiga da viga de rolamento (+50% lat B.7.3.4) | ponte | NBR 8800 Anexo K | [PONTE §9](REVISAO-PONTE.md) — HOMOLOGADA |
 | ✅ Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) — HOMOLOGADA |
-| 🆕 Ação sísmica (forças horiz. equiv.) | sismo (novo) | NBR 15421:2023 | [SISMO](REVISAO-SISMO.md) — PENDENTE |
+| ✅ Ação sísmica (forças horiz. equiv.) | sismo (novo) | NBR 15421:2023 | [SISMO](REVISAO-SISMO.md) — HOMOLOGADA |
 
 **Fixes de geometria do build 3D** (calha invertida, telha sobre as terças, chapa
 de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vivo no
@@ -57,7 +57,7 @@ de método, mas registrado no `wiki/04-decisions.md` (D7).
 
 Ainda **em aberto** (análise de lacunas): cone ACI — cortante (breakout/pryout do
 V) + armadura de ancoragem (17.4.2.9) + interação T-V (21.16); fundações profundas
-(estaca/tubulão). **Sismo (NBR 15421) — módulo criado (§14), pendente sênior.**
+(estaca/tubulão). **Sismo (NBR 15421 §14) — HOMOLOGADO.**
 
 ---
 
