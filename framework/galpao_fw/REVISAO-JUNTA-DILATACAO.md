@@ -1,8 +1,10 @@
 # Revisão — Junta de dilatação / movimento térmico
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo (2026-07-07). A conferir: `δ=α·dT·L`,
-> o guia de comprimento máximo (120/60 m + fatores, Bellei/FCC Report 65) e o
-> caráter de **recomendação** (não cláusula fechada da NBR 8800).
+> **STATUS: ✅ HOMOLOGADO (2026-07-08).** Sênior conferiu `L_max=120·(1−0,33−0,15)=
+> 62,4 m`, `n_juntas=⌈100/62,4⌉−1=1`, `δ=12e-6·30·50=18 mm` (todos exatos), os
+> fatores FCC Report 65, α=12e-6 e o caráter de **recomendação** (não cláusula
+> fechada da NBR 8800) — "precisão absoluta". Duas diretrizes de log aplicadas
+> (§4): δ/2 por lado + escolha furo-oblongo×pilar; significado de `rigidez_assimetrica`.
 
 Verifica a **necessidade de junta de dilatação** no galpão (ação de temperatura)
 e o **movimento térmico** longitudinal. Fecha a lacuna da ação de temperatura em
@@ -74,3 +76,20 @@ rigidez_assimetrica)`:
   executivo**.
 - O guia (120/60 m + fatores) é **recomendação** de literatura, não cláusula
   fechada da NBR 8800 — o responsável confirma o critério.
+
+---
+
+## 4. Diretrizes de log aplicadas (pós-parecer, 2026-07-08)
+
+Duas recomendações do sênior, para o log não ser ambíguo no detalhamento:
+
+1. **Restrição no apoio** — o `δ` do trecho é repartido: o relatório agora imprime
+   **`~δ/2` por lado** e a **escolha executiva**: _furos oblongos / apoio deslizante_
+   que absorvam esse `δ/2`, **OU** dimensionar os **pilares de extremidade** para o
+   momento do deslocamento imposto no topo (ex. galpão 100 m → 18 mm/trecho →
+   **~9 mm por lado**). Vale também no caso "sem junta" (o deslocamento vai todo
+   para os apoios de extremidade).
+2. **`rigidez_assimetrica` (−25 %)** — documentado no código: é o
+   **contraventamento vertical (X) concentrado em UMA fachada/plano** (não
+   distribuído) — a estrutura dilata contra o ponto rígido, ampliando a coação.
+   Continua sendo **input** do sítio (a skill confirma).

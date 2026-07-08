@@ -53,7 +53,10 @@ def comprimento_max_junta(retangular=True, aquecido=False, ar_condicionado=False
     if base_fixa:
         f -= 0.15                              # bases fixas (engastadas)
     if rigidez_assimetrica:
-        f -= 0.25                              # maior rigidez lateral em um plano
+        # maior rigidez lateral em um plano: contraventamento vertical (X)
+        # concentrado em UMA fachada/plano (nao distribuido) -> a estrutura se
+        # dilata contra o ponto rigido, ampliando a coacao termica.
+        f -= 0.25
     return base * (1.0 + f), f
 
 
@@ -90,14 +93,21 @@ def relatorio_pt(r):
          f"(fator {r['fator_total']*100:+.0f}%)",
          ""]
     if r["precisa_junta"]:
+        meia = r['delta_segmento_mm'] / 2.0
         L += [f">> PRECISA de junta: {r['n_juntas']} junta(s) -> {r['n_segmentos']} "
               f"trechos de ~{r['L_segmento']:.1f} m (cada <= L_max).",
               f"   Movimento termico do trecho: delta={r['delta_segmento_mm']:.1f} mm "
-              f"(a junta/apoio deve absorver ~metade por lado)."]
+              f"-> ~{meia:.1f} mm por lado da junta.",
+              f"   DETALHE (executivo, confirmar): furos oblongos/apoio deslizante que",
+              f"   absorvam ~{meia:.1f} mm por lado, OU dimensionar os pilares de",
+              f"   extremidade para o momento do deslocamento imposto no topo."]
     else:
+        meia = r['delta_total_mm'] / 2.0
         L += [f">> NAO precisa de junta ({r['L_total']:.1f} m <= {r['L_max_junta']:.1f} m).",
               f"   Movimento termico total: delta={r['delta_total_mm']:.1f} mm "
-              f"(coacao/deslocamento a considerar nos apoios/contraventamento)."]
+              f"(~{meia:.1f} mm por lado).",
+              f"   Sem junta: os apoios/pilares de extremidade absorvem esse "
+              f"deslocamento (furo oblongo) ou sao dimensionados para a coacao termica."]
     L += ["", "[FLAG] dT e as condicoes (aquecimento, AC, base, rigidez) sao dados",
           "       do projeto/sitio - a skill confirma. Detalhe da junta (linha dupla",
           "       de pilares, apoio deslizante) = projeto executivo."]

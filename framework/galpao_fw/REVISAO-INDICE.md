@@ -24,7 +24,7 @@ os FLAGS/pendências.
 | 10 | Mão-francesa / Lb | [REVISAO-MAO-FRANCESA.md](REVISAO-MAO-FRANCESA.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6 |
 | 11 | Contraventamento | [REVISAO-CONTRAVENTAMENTO.md](REVISAO-CONTRAVENTAMENTO.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §6/§7 |
 | 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6; fix flecha H/150→H/300 (Tab.C.1) |
-| 13 | Junta de dilatação / temperatura | [REVISAO-JUNTA-DILATACAO.md](REVISAO-JUNTA-DILATACAO.md) | Bellei / FCC Report 65 | 🆕 feature nova (2026-07-07) — pendente sênior |
+| 13 | Junta de dilatação / temperatura | [REVISAO-JUNTA-DILATACAO.md](REVISAO-JUNTA-DILATACAO.md) | Bellei / FCC Report 65 | ✅ HOMOLOGADO (2026-07-08) — §1-§4 |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`
@@ -36,8 +36,7 @@ Módulos **não-matemáticos** (não precisam de conferência de método): `fram
 ## 🆕 Features novas para revisão (fecham a análise de lacunas do projeto completo)
 
 Adicionadas **após** a homologação r2 dos 12 módulos — cada uma com método +
-citação normativa do PDF + selftest. **Fundação (punção + recalque) HOMOLOGADA
-em 2026-07-07; demais PENDENTES:**
+citação normativa do PDF + selftest. **TODAS HOMOLOGADAS (2026-07-07/08):**
 
 | Feature | Módulo / doc | Norma / referência | Onde |
 |---|---|---|---|
@@ -47,7 +46,7 @@ em 2026-07-07; demais PENDENTES:**
 | ✅ Cone de arrancamento / grupo | base | ACI 318 Ch.17 (Nilson cap.21) | [BASE §10](REVISAO-BASE.md) — HOMOLOGADO |
 | ✅ Cortante-tríade (atrito+chumbador+chaveta) | base | NBR 8800 (Fakury cap.11) | [BASE §11](REVISAO-BASE.md) — HOMOLOGADO |
 | ✅ Fadiga da viga de rolamento (+50% lat B.7.3.4) | ponte | NBR 8800 Anexo K | [PONTE §9](REVISAO-PONTE.md) — HOMOLOGADA |
-| Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) |
+| ✅ Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) — HOMOLOGADA |
 
 **Fixes de geometria do build 3D** (calha invertida, telha sobre as terças, chapa
 de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vivo no
@@ -60,7 +59,8 @@ V) + armadura de ancoragem (17.4.2.9) + interação T-V (21.16); fundações pro
 
 ---
 
-**12 módulos matemáticos HOMOLOGADOS (r2, 2026-07-07)** + **5 features novas +
-build fixes PENDENTES sênior**.
+**12 módulos matemáticos HOMOLOGADOS (r2, 2026-07-07)** + **7 features novas
+(punção, recalque, ancoragem, cone ACI, cortante-tríade, fadiga+lateral, junta)
+TODAS HOMOLOGADAS (2026-07-08)** + build fixes verificados no FreeCAD.
 
 Última atualização do índice: 2026-07-07.

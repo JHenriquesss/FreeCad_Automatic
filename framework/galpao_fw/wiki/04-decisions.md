@@ -52,5 +52,8 @@ Dois defeitos determinísticos que recorriam em TODO galpão gerado (`build_galp
 ## D16 — 2026-07-08 — Ponte: fadiga inclui 50% da força lateral (B.7.3.4)
 `ponte_rolante.verifica_fadiga` passa a somar a parcela lateral: `σ_SR = Msdx/Wx + 0,5·Msdy/Wy_top`. Porquê: **B.7.3.4** (lido verbatim do PDF NBR 8800) manda considerar "cargas verticais majoradas pelo impacto e **50% das forças horizontais**"; a versão anterior só usava a vertical (flag de refinamento). Surto atua na mesa superior → usa `Wy_top` (banzo sup, fallback `Wy/2`); `frac_fadiga_lat` parametrizável (default 0,5). Efeito: VS500 σ_SR 57→75 MPa (u 0,46→0,60), ainda passa; termo lateral +32% (Wy_top esbelto) — pode virar cat B↔C a alto N (ponto do parecer do sênior). Soma simples das fibras do topo (conservadora vs biaxial rigorosa K.3.3). Selftest checa split x/y. Atende recomendação do parecer rodada-fadiga.
 
+## D17 — 2026-07-08 — Junta: log explicita δ/2 por lado + rigidez assimétrica
+`junta_dilatacao.relatorio_pt` passa a imprimir `~δ/2 por lado` e a escolha executiva (furo oblongo/apoio deslizante que absorva δ/2 **OU** pilar de extremidade dimensionado p/ o momento do deslocamento imposto). Documentado `rigidez_assimetrica` (−25%) = contraventamento vertical X concentrado numa fachada (dilata contra o ponto rígido). Atende as 2 diretrizes do parecer de homologação da junta (matemática já estava exata: Lmax 62,4, 1 junta, δ=18mm). Módulo `junta_dilatacao` homologado. **Fecha o lote de 7 features novas — todas homologadas.**
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
