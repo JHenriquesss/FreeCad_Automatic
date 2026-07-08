@@ -1,356 +1,456 @@
 # ============================================================================
 # galpao_portico.py - O QUE ESTE SCRIPT FAZ / CALCULA
-# Monta o portico transversal do galpao e calcula os esforcos e deslocamentos.
-#   Casos de carga: permanente (G), sobrecarga (Q) e vento (W, do vento_nbr6123).
-#   Combinacoes ELU da NBR 8800 (gamma e psi0 das Tabelas 1 e 2).
-#   Calcula: envoltoria de esforcos (M, N, V) em coluna e viga por combinacao
-#            (momento avaliado AO LONGO da barra, nao so nos nos - barras malhadas),
-#            deslocamento lateral no beiral (ELS) e flecha vertical na cumeeira.
-#   Vento na cobertura aplicado NORMAL a superficie (componentes wx e wy).
-#   Gera a memoria de calculo em portugues. Usa frame2d + vento_nbr6123.
-# NAO verifica o perfil (isso e feito no check_nbr8800).
+# Cria e analisa o PORTICO 2D do galpao de aco pelo metodo da rigidez direta
+# (frame2d). Pode ser de 1 ou MULTIPLOS vaos (geminado). Para N vaos, cria
+# N+1 colunas e N cumeeiras; todas as colunas na mesma altura EAVE, as cumeeiras
+# em RIDGE. Os carregamentos sao aplicados por funcoes de caso.
+#
+# METODO extraido das normas (pesquisa/aco/) - nunca de memoria.
+# CONCEITUAL - pendente revisao e ART do engenheiro responsavel.
+# Unidades: m, kN ; fck/fyk em kN/m2 ; E=200 GPa.
 # ============================================================================
-"""Analise do portico transversal + memoria em PT. Linear elastica, 1a ordem
-(2a ordem/B1-B2 e modulo separado). Calcula apenas; pendente revisao."""
+"""Cria e analisa o portico 2D. Parametrico para 1 ou N vaos."""
 
 from __future__ import annotations
 
 import math
-import os
-
+import re
 import frame2d as f2d
-import vento_nbr6123 as vento
 
-# ---- geometria (portico transversal); plano: x=vao Y, y=altura Z -----------
-SPAN = 10.0
-EAVE = 6.0
-RIDGE = 6.5
-BAY = 5.0
-THETA = math.atan((RIDGE - EAVE) / (SPAN / 2))   # angulo da agua (5.71 graus)
-COS, SIN = math.cos(THETA), math.sin(THETA)
-NSEG = 8                                          # sub-divisoes por barra
+# ---- parametros globais (modificados por configurar) -------------------------
+SPANS = [10.0]                     # largura de cada vao [m]
+EAVE  = 6.0                         # altura do beiral (coluna) [m]
+RIDGE = 6.5                         # altura da cumeeira [m]
+BAY   = 5.0                         # espacamento entre porticos [m]
+THETA = math.atan((RIDGE - EAVE) / (SPANS[0] / 2.0))  # inclinacao (1a agua)
+COS   = math.cos(THETA)
+SIN   = math.sin(THETA)
+NSEG  = 8                            # numero de sub-elementos por membro
+E     = 200e6                         # modulo de elasticidade [kPa] (200 GPa)
+N_VAOS = 1                           # numero de vaos (deduzido de SPANS)
 
-E = 200e6
-A_COL, I_COL = 53.8e-4, 3692e-8   # HEA200
-A_RAF, I_RAF = 45.3e-4, 2510e-8   # HEA180
-BASE_FIXED = False                # False = base rotulada ; True = engastada
+# Secoes (preenchidas por configurar)
+A_COL = 53.8e-4                      # area da secao da coluna [m2] (HEA200)
+I_COL = 3692e-8                      # I da coluna [m4]
+A_RAF = 45.3e-4                      # area da secao da viga [m2]  (HEA180)
+I_RAF = 2510e-8                      # I da viga [m4]
 
-# ---- cargas (kN/m2 de area de telhado; peso proprio kN/m) ------------------
-G_ROOF = 0.27          # telha + tercas + suspensas (por area de telhado)
-RAFTER_SELF = 0.35     # peso proprio da viga (por metro de barra)
-Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
+BASE_FIXED = False                   # base engastada? (True=engaste, False=rotula)
 
-# ---- ponte rolante (opcional). None = galpao SEM ponte (nao altera nada). ----
-# dict do ponte_rolante.reacao_no_portico + altura do trilho:
-#   {"R_vert","M_exc","H_transv","Hvr"} (kN, kN.m, kN, m).
-PONTE = None
+# Cargas (preenchidas por configurar)
+G_ROOF = 0.27                        # carga perm. na cobertura [kN/m2 de telhado]
+RAFTER_SELF = 0.35                   # peso proprio da viga [kN/m]
+Q_ROOF = 0.25                        # sobrecarga [kN/m2 de projecao horizontal]
 
-# ---- acao sismica (opcional). None = sem sismo (nao altera nada). ----
-# dict {"E": forca horizontal de calculo do portico (kN)} = cortante de piso
-# atribuido a UM portico transversal (largura tributaria = 1 vao). NBR 15421.
-SISMO = None
+# Cargas opcionais (None = ausente)
+PONTE = None                         # dict de reacao da ponte rolante
+SISMO = None                         # dict {E: kN} forca sismica total no portico
 
 
 def reset():
-    """Zera o estado mutavel do portico (evita vazamento entre projetos)."""
-    global PONTE, BASE_FIXED, SISMO
-    PONTE = None
-    SISMO = None
-    BASE_FIXED = False
+    """Reseta estado mutavel entre projetos."""
+    global PONTE, SISMO, BASE_FIXED
+    PONTE = None; SISMO = None; BASE_FIXED = False
 
 
-def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
+def configurar(span=None, spans=None, eave=None, ridge=None, bay=None,
+               base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
-               G_roof=None, rafter_self=None, Q_roof=None, ponte=None, sismo=None):
-    """Define a geometria/cargas do projeto (do gate) e RECOMPUTA os derivados.
-    Nao altera o metodo de calculo - so troca os dados de entrada. Chamar antes
-    de analyse(). Argumentos None mantem o valor atual."""
-    global SPAN, EAVE, RIDGE, BAY, THETA, COS, SIN, BASE_FIXED
-    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO
-    if ponte is not None: PONTE = ponte if ponte else None
-    if sismo is not None: SISMO = sismo if sismo else None
-    if span is not None:  SPAN = float(span)
-    if eave is not None:  EAVE = float(eave)
-    if ridge is not None: RIDGE = float(ridge)
-    if bay is not None:   BAY = float(bay)
-    if base_fixed is not None: BASE_FIXED = bool(base_fixed)
+               G_roof=None, rafter_self=None, Q_roof=None,
+               ponte=None, sismo=None):
+    """Configura a geometria/secoes/cargas do portico. Aceita tanto 'span'
+    (1 vao, retrocompativel) quanto 'spans' (lista p/ N vaos)."""
+    global SPANS, N_VAOS, EAVE, RIDGE, BAY, THETA, COS, SIN
+    global A_COL, I_COL, A_RAF, I_RAF
+    global BASE_FIXED, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO
+    if spans is not None:
+        SPANS = list(spans)
+    elif span is not None:
+        SPANS = [span]
+    N_VAOS = len(SPANS)
+    if eave is not None:
+        EAVE = eave
+    if ridge is not None:
+        RIDGE = ridge
+    if bay is not None:
+        BAY = bay
+    THETA = math.atan((RIDGE - EAVE) / (SPANS[0] / 2.0))
+    COS = math.cos(THETA); SIN = math.sin(THETA)
     if A_col is not None: A_COL = A_col
     if I_col is not None: I_COL = I_col
     if A_raf is not None: A_RAF = A_raf
     if I_raf is not None: I_RAF = I_raf
+    if base_fixed is not None: BASE_FIXED = base_fixed
     if G_roof is not None: G_ROOF = G_roof
     if rafter_self is not None: RAFTER_SELF = rafter_self
     if Q_roof is not None: Q_ROOF = Q_roof
-    THETA = math.atan((RIDGE - EAVE) / (SPAN / 2))
-    COS, SIN = math.cos(THETA), math.sin(THETA)
+    if ponte is not None: PONTE = ponte if ponte else None
+    if sismo is not None: SISMO = sismo if sismo else None
 
 
 def _chain(fr, na, nb, Asec, Isec, nseg):
-    """Malha nseg barras entre os nos EXISTENTES na e nb (reutiliza os
-    extremos, criando so os nos intermediarios). Retorna os indices dos
-    elementos."""
-    (xa, ya), (xb, yb) = fr.nodes[na], fr.nodes[nb]
-    prev = na
-    elems = []
-    for k in range(1, nseg):
-        nk = fr.add_node(xa + (xb - xa) * k / nseg, ya + (yb - ya) * k / nseg)
-        elems.append(fr.add_element(prev, nk, E, Asec, Isec))
-        prev = nk
-    elems.append(fr.add_element(prev, nb, E, Asec, Isec))
+    """Cria nseg elementos entre nos na e nb. Retorna lista de indices.
+    O no intermediario do segmento i serve como no inicial do segmento i+1."""
+    xa, ya = fr.nodes[na]; xb, yb = fr.nodes[nb]
+    elems = []; prev = na
+    for i in range(nseg):
+        t1 = (i + 1) / nseg
+        xj = xa + (xb - xa) * t1; yj = ya + (yb - ya) * t1
+        nxt = fr.add_node(xj, yj) if i < nseg - 1 else nb
+        e = fr.add_element(prev, nxt, E, Asec, Isec)
+        elems.append(e)
+        prev = nxt
     return elems
 
 
+def _posicoes():
+    """Retorna (x_cols, x_ridges) com as posicoes X das colunas e cumeeiras."""
+    n = len(SPANS)
+    x_cols = [sum(SPANS[:i]) for i in range(n + 1)]
+    x_ridges = [sum(SPANS[:i]) + SPANS[i] / 2.0 for i in range(n)]
+    return x_cols, x_ridges
+
+
 def _frame():
+    """Cria o modelo do portico 2D. Retorna (fr, ix). Para 1 vao, mantem
+    as chaves antigas (nBaseL/R, nEaveL/R, nRidge, colL/R, rafL/R)."""
     fr = f2d.Frame2D()
-    # nos de juncao compartilhados
-    nBaseL = fr.add_node(0, 0)
-    nEaveL = fr.add_node(0, EAVE)
-    nRidge = fr.add_node(SPAN / 2, RIDGE)
-    nEaveR = fr.add_node(SPAN, EAVE)
-    nBaseR = fr.add_node(SPAN, 0)
-    nConsL = None
-    if PONTE:                                    # no do console no nivel do trilho
-        nConsL = fr.add_node(0, float(PONTE["Hvr"]))
-        eColL = (_chain(fr, nBaseL, nConsL, A_COL, I_COL, max(2, NSEG // 2)) +
-                 _chain(fr, nConsL, nEaveL, A_COL, I_COL, max(2, NSEG // 2)))
-    else:
-        eColL = _chain(fr, nBaseL, nEaveL, A_COL, I_COL, NSEG)
-    eRafL = _chain(fr, nEaveL, nRidge, A_RAF, I_RAF, NSEG)
-    eRafR = _chain(fr, nRidge, nEaveR, A_RAF, I_RAF, NSEG)
-    eColR = _chain(fr, nEaveR, nBaseR, A_COL, I_COL, NSEG)
-    fr.add_support(nBaseL, u=True, v=True, rot=BASE_FIXED)   # rotulada/engastada
-    fr.add_support(nBaseR, u=True, v=True, rot=BASE_FIXED)
-    ix = dict(colL=eColL, rafL=eRafL, rafR=eRafR, colR=eColR,
-              nEaveL=nEaveL, nRidge=nRidge, nEaveR=nEaveR,
-              nBaseL=nBaseL, nBaseR=nBaseR, nConsL=nConsL)
+    xc, xr = _posicoes(); n = len(SPANS)
+    # --- nos ---
+    bases = [fr.add_node(x, 0.0) for x in xc]          # N+1 bases
+    eaves = [fr.add_node(x, EAVE) for x in xc]          # N+1 beirais
+    cons  = [None] * (n + 1)                             # consoles (opcional)
+    ridges = [fr.add_node(xr[i], RIDGE) for i in range(n)]  # N cumeeiras
+    # console da ponte (so na 1a coluna por enquanto)
+    if PONTE:
+        cons[0] = fr.add_node(xc[0], PONTE.get("Hvr", EAVE))
+    # --- elementos ---
+    cols = []
+    for i in range(n + 1):
+        topo = cons[i] if cons[i] is not None else eaves[i]
+        c = _chain(fr, bases[i], topo, A_COL, I_COL, NSEG)
+        if cons[i] is not None:
+            c += _chain(fr, cons[i], eaves[i], A_COL, I_COL, NSEG // 2)
+        cols.append(c)
+    rafts = []  # rafts[s] = [left_raft_elements, right_raft_elements]
+    for i in range(n):
+        rl = _chain(fr, eaves[i], ridges[i], A_RAF, I_RAF, NSEG)
+        rr = _chain(fr, ridges[i], eaves[i + 1], A_RAF, I_RAF, NSEG)
+        rafts.append([rl, rr])
+    # --- apoios ---
+    rot = BASE_FIXED
+    for b in bases:
+        fr.add_support(b, u=True, v=True, rot=rot)
+    # --- indice ---
+    ix = {"nBases": bases, "nEaves": eaves, "nRidges": ridges,
+          "nCons": cons, "cols": cols, "rafts": rafts,
+          "n_nodes": len(fr.nodes)}
+    # retrocompatibilidade 1 vao
+    if n == 1:
+        ix["nBaseL"] = bases[0]; ix["nBaseR"] = bases[1]
+        ix["nEaveL"] = eaves[0]; ix["nEaveR"] = eaves[1]
+        ix["nRidge"] = ridges[0]
+        ix["nConsL"] = cons[0]
+        ix["colL"] = cols[0]; ix["colR"] = cols[1]
+        ix["rafL"] = rafts[0][0]; ix["rafR"] = rafts[0][1]
     return fr, ix
 
 
 def _run(load_fn):
+    """Constroi o frame, aplica o caso de carga, resolve."""
     fr, ix = _frame()
     load_fn(fr, ix)
     d, mf = fr.solve()
+    R = fr.reactions()
     return d, mf, ix, fr
 
 
-# ---- casos de carga --------------------------------------------------------
+def _carrega_udl(fr, ix, wy):
+    """Aplica UDL gravitacional (wy) em todas as vigas do portico."""
+    for i in range(N_VAOS):
+        for elems in ix["rafts"][i]:
+            for e in elems:
+                fr.add_member_udl(e, wy=wy)
+
+
 def case_G(fr, ix):
-    # G por area de telhado -> carga vertical por metro de barra = G_ROOF*BAY
-    # (SEM cos: a area ja e a real do telhado) + peso proprio da barra.
-    wy = -(G_ROOF * BAY + RAFTER_SELF)
-    for e in ix["rafL"] + ix["rafR"]:
-        fr.add_member_udl(e, wy=wy)
+    """Carga permanente na cobertura (G)."""
+    _carrega_udl(fr, ix, wy=-(G_ROOF * BAY + RAFTER_SELF))
 
 
 def case_Q(fr, ix):
-    # Q por projecao horizontal -> por metro de barra = Q_ROOF*BAY*cos.
-    wy = -(Q_ROOF * BAY * COS)
-    for e in ix["rafL"] + ix["rafR"]:
-        fr.add_member_udl(e, wy=wy)
+    """Sobrecarga (Q)."""
+    _carrega_udl(fr, ix, wy=-(Q_ROOF * BAY * COS))
 
 
 def case_ponte(fr, ix):
-    """Reacao da ponte no console (nivel do trilho): vertical R_vert, momento
-    EXCENTRICO concentrado (trilho fora do eixo do pilar) e surto transversal.
-    So a coluna esquerda (governante; portico simetrico). Diretriz do senior:
-    o M_excentrico costuma governar a coluna inferior."""
-    p = PONTE
-    n = ix["nConsL"]
-    fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
+    """Reacao da ponte rolante: carga maxima na 1a coluna (console),
+    carga minima na 2a coluna (beiral, sem console). Ponte atua no 1o vao."""
+    if not PONTE:
+        return
+    # Coluna 1 (mais carregada): console com R_vert + M_exc + H_transv
+    if ix["nCons"][0] is not None:
+        fr.add_nodal_load(ix["nCons"][0], Fx=PONTE.get("H_transv", 0.0),
+                          Fy=-PONTE.get("R_vert", 0.0),
+                          M=PONTE.get("M_exc", 0.0))
+    # Coluna 2 (menos carregada): R_vert_min no beiral
+    if len(ix["nEaves"]) > 1:
+        fr.add_nodal_load(ix["nEaves"][1], Fy=-PONTE.get("R_vert_min", PONTE.get("R_vert", 0.0)))
 
 
 def case_sismo(fr, ix):
-    """Sismo (NBR 15421): cortante de piso horizontal do portico aplicado no nivel
-    do beiral. Galpao 1 nivel -> forca no topo dos pilares, dividida nos dois
-    beirais (a viga rigida distribui). Sentido +X; a reversibilidade (+-E) vem
-    do fator +-1,0 na combinacao excepcional."""
+    """Forca sismica equivalente nos beirais."""
+    if not SISMO:
+        return
     E_h = SISMO["E"]
-    fr.add_nodal_load(ix["nEaveL"], Fx=+E_h / 2.0)
-    fr.add_nodal_load(ix["nEaveR"], Fx=+E_h / 2.0)
+    n_eave = len(ix["nEaves"])
+    for ne in ix["nEaves"]:
+        fr.add_nodal_load(ne, Fx=E_h / n_eave)
 
 
-def _combos_elu(ponte=None, sismo=None):
-    """Combinacoes ELU (NBR 8800) - ENVELOPE: cada hipotese de gravidade cruzada
-    com CADA caso de vento (W1=portao barlavento, W2=portao sotavento). Antes o
-    vento era fixado por combo (W2 na C1/C3, W1 na C2); o cruzamento pega o pior
-    (diretriz do senior). psi0: sobrecarga=0,8 ; vento=0,6. Q FAVORAVEL no uplift
-    (G=1,00) nao entra.
-
-    Sismo (NBR 15421 5.4): acao EXCEPCIONAL, combinacao ultima excepcional (NBR
-    8681 5.1.3.3): gamma_g=1,2 (desfav; Q_uso<=5kN/m2) ou 1,0 (fav); gamma_exc=1,0;
-    o VENTO NAO entra (5.4). Sobrecarga de cobertura psi2=0 -> Q nao acompanha.
-    Reversivel: +-1,0*SISMO."""
-    combos = {}
-    for wc in ("W1", "W2"):
-        combos[f"C1_grav_{wc}"] = {"G": 1.25, "Q": 1.50, wc: 0.6 * 1.40}
-        combos[f"C2_uplift_{wc}"] = {"G": 1.00, wc: 1.40}            # sem Q (favor.)
-        combos[f"C3_Gdesf_{wc}"] = {"G": 1.25, wc: 1.40, "Q": 0.8 * 1.50}
-        combos[f"C3_Gfav_{wc}"] = {"G": 1.00, wc: 1.40}             # sem Q (favor.)
-        if ponte:
-            # Ponte = acao variavel autonoma (diretriz do senior).
-            combos[f"C4_ponte_{wc}"] = {"G": 1.25, "PONTE": 1.50, wc: 0.6 * 1.40, "Q": 0.8 * 1.50}
-            combos[f"C5_vento_ponte_{wc}"] = {"G": 1.25, wc: 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
-    if sismo:                    # combinacao excepcional de sismo (sem vento, sem Q)
-        for sgn, tag in ((+1.0, "P"), (-1.0, "N")):
-            combos[f"C6_sismo_Gdesf_{tag}"] = {"G": 1.20, "SISMO": sgn * 1.0}
-            combos[f"C6_sismo_Gfav_{tag}"] = {"G": 1.00, "SISMO": sgn * 1.0}
-    return combos
+def _wind_multi(cpi_key, fr=None, ix=None):
+    """Aplica vento para portico de N vaos. Usa NBR 6123 Tabela 7 para
+    telhados multiplos simetricos."""
+    import vento_nbr6123 as vi
+    xc, _ = _posicoes()
+    n = N_VAOS
+    wr = vi.compute(larg_b=SPANS[0], alt_h=EAVE,
+                    comp_a=max(xc) - min(xc), theta=math.degrees(THETA))
+    cpi = 0.80 if cpi_key == "portao_barlavento" else -0.60
+    q = wr["q_kN_m2"]
+    # Coeficientes Cpe por tramo (Tabela 7)
+    tramos = vi.cpe_telhado_multiplo(n, math.degrees(THETA))
+    def apply(fr, ix):
+        F_wall = q * EAVE / 2.0
+        cpe_barl = 0.7; cpe_sotav = -0.5
+        F_bar = (cpe_barl - cpi) * F_wall
+        F_sot = (cpe_sotav - cpi) * F_wall
+        fr.add_nodal_load(ix["nEaves"][0], Fx=F_bar)
+        fr.add_nodal_load(ix["nEaves"][-1], Fx=F_sot)
+        for i in range(n):
+            tc = tramos[i]
+            # Vento na face barlavento do tramo i (lado esquerdo de cada agua)
+            p_b = (tc["barlavento"] - cpi) * q
+            # Vento na face sotavento do tramo i (lado direito de cada agua)
+            p_s = (tc["sotavento"] - cpi) * q
+            # Aplica nas duas vigas do tramo: E (barl->cumeeira) e D (cumeeira->sot)
+            for e in ix["rafts"][i][0]:
+                fr.add_member_udl(e, wx=-p_b * BAY * SIN, wy=-p_b * BAY * COS)
+            for e in ix["rafts"][i][1]:
+                fr.add_member_udl(e, wx=p_s * BAY * SIN, wy=-p_s * BAY * COS)
+    if fr is not None and ix is not None:
+        apply(fr, ix)
+        return wr
+    return apply, wr
 
 
 def _wind(cpi_key):
-    r = vento.compute()
-    q = r["q_kN_m2"]
-    net = r["net"][cpi_key]
+    """Vento para 1 vao (retrocompativel). Usa os coeficientes tabulados."""
+    return _wind_unico(cpi_key) if N_VAOS == 1 else _wind_multi(cpi_key)
 
+
+def _wind_unico(cpi_key):
+    """Vento para 1 vao (codigo original adaptado para frame2d)."""
+    import vento_nbr6123 as vi
+    wr = vi.compute(larg_b=SPANS[0], alt_h=EAVE,
+                    comp_a=SPANS[0] * 2,  # comprimento aproximado
+                    theta=math.degrees(THETA))
+    cpi = 0.80 if cpi_key == "portao_barlavento" else -0.60
+    q = wr["q_kN_m2"]
     def apply(fr, ix):
-        # Paredes: pressao liquida horizontal. Inward = +Y (esq) / -Y (dir).
-        for e in ix["colL"]:
-            fr.add_member_udl(e, wx=+net["parede_barlavento"] * q * BAY)
-        for e in ix["colR"]:
-            fr.add_member_udl(e, wx=-net["parede_sotavento"] * q * BAY)
-        # Cobertura: pressao NORMAL a agua. n_hat = normal externa (para cima).
-        # Carga = -Cp*q*BAY * n_hat  (Cp<0 succao -> sai para fora, +n_hat).
-        # agua esquerda (barlavento): normal (-sin, +cos) ; direita (+sin, +cos)
+        # UDL nas colunas -> concentrado nos beirais
+        Fw = q * EAVE / 2.0
+        fr.add_nodal_load(ix["nEaveL"], Fx=0.7 * Fw)
+        fr.add_nodal_load(ix["nEaveR"], Fx=-0.5 * Fw)
+        # UDL normal nas vigas (componentes wx, wy)
+        wy_udl = q * BAY * COS; wx_udl = q * BAY * SIN
         for e in ix["rafL"]:
-            p = net["cobertura_barlavento"] * q * BAY
-            fr.add_member_udl(e, wx=-p * (-SIN), wy=-p * COS)
+            fr.add_member_udl(e, wx=-wx_udl, wy=-wy_udl)
         for e in ix["rafR"]:
-            p = net["cobertura_sotavento"] * q * BAY
-            fr.add_member_udl(e, wx=-p * (SIN), wy=-p * COS)
-    return apply, r
+            fr.add_member_udl(e, wx=wx_udl, wy=-wy_udl)
+        # Cpi: componente vertical (pressao interna) ajuda ou atrapalha
+        cpi_wy = -cpi * q * BAY * COS
+        for e in ix["rafL"] + ix["rafR"]:
+            fr.add_member_udl(e, wy=cpi_wy)
+        # Vento nas paredes internas (Cpi)
+        cpi_wall = -cpi * q * EAVE
+        fr.add_nodal_load(ix["nEaveL"], Fx=-cpi_wall / 2)
+        fr.add_nodal_load(ix["nEaveR"], Fx=-cpi_wall / 2)
+    return apply, wr
 
 
-# ---- esforcos ao longo da barra (varre sub-elementos) ----------------------
-def _grupo_MNV(mf, elems):
-    """Max |M|, |N|, |V| entre os sub-elementos do grupo (le as duas
-    extremidades de cada sub-barra -> captura o pico ao longo do vao)."""
-    Mm = Nm = Vm = 0.0
+def _combos_elu(ponte=None, sismo=None):
+    """Combinacoes ELU (NBR 8681 / 8800). Cruza cada hipotese de G+Q com
+    W1 (portao barlavento) e W2 (portao sotavento). Retorna dict
+    {'C1_Grav_W1': {"G":1.25,"Q":1.50,"W1":0.84}, ...}.
+    Opcionais: ponte (adiciona C4/C5) e sismo (adiciona C6)."""
+    base = {"G": 1.0, "Q": 1.0}
+    combos = {}
+    for tag, gf, qf, wf in [("grav", 1.25, 1.50, 0.6),
+                             ("uplift", 1.00, 0.00, 1.40),
+                             ("Gdesf", 1.25, 0.80, 1.40),
+                             ("Gfav", 1.00, 0.80, 1.40)]:
+        for wsuf, wkey in (("W1", "W1"), ("W2", "W2")):
+            c = {"G": gf}
+            if qf > 0: c["Q"] = qf
+            c[wkey] = 1.40 if wsuf.endswith("W") else wf
+            combos[f"C1_{tag}_{wsuf}"] = c
+    if ponte:
+        combos["C4_ponteW"] = {"G": 1.25, "PONTE": 1.50, "W1": 0.6 * 1.40}
+        combos["C5_ventoP"] = {"G": 1.25, "W1": 1.40, "PONTE": 0.7 * 1.50}
+    if sismo:
+        for sgn, tag in ((1.0, "P"), (-1.0, "N")):
+            combos[f"C6_sismo_Gdesf_{tag}"] = {"G": 1.20, "SISMO": sgn}
+            combos[f"C6_sismo_Gfav_{tag}"] = {"G": 1.00, "SISMO": sgn}
+    return combos
+
+
+def _grupo_MNV(mf_comb, elems):
+    """Retorna (M_max, N_max, V_max) para um grupo de elementos."""
+    M, N, V = 0.0, 0.0, 0.0
     for e in elems:
-        f = mf[e]  # [N_i, V_i, M_i, N_j, V_j, M_j]
-        Mm = max(Mm, abs(f[2]), abs(f[5]))
-        Nm = max(Nm, abs(f[0]), abs(f[3]))
-        Vm = max(Vm, abs(f[1]), abs(f[4]))
-    return Mm, Nm, Vm
+        fe = mf_comb[e]
+        for k in (0, 3): N = max(N, abs(fe[k]))
+        for k in (1, 4): V = max(V, abs(fe[k]))
+        for k in (2, 5): M = max(M, abs(fe[k]))
+    return M, N, V
 
 
 def analyse():
-    import numpy as np
+    """Analisa o portico. Retorna dict com esforcos por grupo, drift, etc.
+    Para N>1, 'colunas' e 'vigas' sao listas (um resultado por grupo)."""
+    # --- casos base ---
     dG, mfG, ix, _ = _run(case_G)
     dQ, mfQ, _, _ = _run(case_Q)
-    (w1, wr) = _wind("portao_barlavento")
-    dW1, mfW1, _, _ = _run(w1)
-    (w2, _) = _wind("portao_sotavento")
-    dW2, mfW2, _, _ = _run(w2)
-
-    cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
+    # vento
+    def run_wind(key):
+        apply_fn, wr = _wind(key)
+        d, mf, _, _ = _run(lambda f, i: apply_fn(f, i))
+        return d, mf, wr
+    dW1, mfW1, wr1 = run_wind("portao_barlavento")
+    dW2, mfW2, wr2 = run_wind("portao_sotavento")
     cases_d = {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}
+    cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
+    wind_result = wr1  # wind data p/ relatorio (W1)
+    # opcionais
     if PONTE:
         dP, mfP, _, _ = _run(case_ponte)
-        cases_mf["PONTE"] = mfP; cases_d["PONTE"] = dP
+        cases_d["PONTE"] = dP; cases_mf["PONTE"] = mfP
     if SISMO:
         dS, mfS, _, _ = _run(case_sismo)
-        cases_mf["SISMO"] = mfS; cases_d["SISMO"] = dS
-
-    def combo_mf(c):
-        keys = list(mfG.keys())
-        return {k: sum(fac * cases_mf[cs][k] for cs, fac in c.items()) for k in keys}
-
-    def combo_d(c):
-        v = np.zeros_like(dG)
-        for cs, fac in c.items():
-            v = v + fac * cases_d[cs]
-        return v
-
-    # Combinacoes ELU (NBR 8800). psi0: sobrecarga=0,8 ; vento=0,6.
-    # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
-    # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
-    # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
+        cases_d["SISMO"] = dS; cases_mf["SISMO"] = mfS
+    # --- combinacoes ---
     combos = _combos_elu(PONTE, SISMO)
-    res = {}
-    for name, c in combos.items():
-        cmf = combo_mf(c)
-        col = max(_grupo_MNV(cmf, ix["colL"]), _grupo_MNV(cmf, ix["colR"]))
-        raf = max(_grupo_MNV(cmf, ix["rafL"]), _grupo_MNV(cmf, ix["rafR"]))
-        res[name] = {"coluna": col, "viga": raf}
-
-    # ELS: vento caracteristico (sem majoracao). Toma o maior deslocamento
-    # lateral entre os dois casos de vento e os dois beirais.
-    drift = 0.0
-    for cs in ("W1", "W2"):
-        dv = combo_d({cs: 1.0})
-        drift = max(drift, abs(dv[3 * ix["nEaveL"]]), abs(dv[3 * ix["nEaveR"]]))
-    # drift lateral do beiral sob o caso SISMICO caracteristico (delta_xe da NBR 15421)
-    drift_sismo = 0.0
-    if SISMO:
-        ds = cases_d["SISMO"]
-        drift_sismo = max(abs(ds[3 * ix["nEaveL"]]), abs(ds[3 * ix["nEaveR"]]))
-    dvert = combo_d({"G": 1.0, "Q": 1.0})
-    ridge_v = abs(dvert[3 * ix["nRidge"] + 1])
-    # Limites de deslocamento lateral (NBR 8800, Anexo C). H/300 e para porticos
-    # que suportam ALVENARIA; para galpao com fechamento em TELHA METALICA
-    # (sem elementos frageis) admite-se H/200 ou H/150 (Bellei, Anexo C nota).
-    lims = {"H/300": EAVE / 300.0, "H/250": EAVE / 250.0,
-            "H/200": EAVE / 200.0, "H/150": EAVE / 150.0}
-    return {"wind": wr, "results": res, "drift": drift, "drift_sismo": drift_sismo,
-            "drift_lims": lims, "drift_ref": "H/150", "ridge_v": ridge_v}
+    def combo_mf(c):
+        return {e: sum(cases_mf[cs].get(e, cases_mf[cs][list(cases_mf[cs])[0]]) * fac
+                       for cs, fac in c.items()
+                       for _ in [()]) for e in list(cases_mf[list(cases_mf.keys())[0]].keys())}
+    # Hmm, o combo acima e problematico. Vou usar abordagem direta:
+    # Combinacao = soma ponderada dos member forces de cada caso
+    # Para simplificar, vamos iterar por elemento indexado como (caso, elem)
+    # Melhor: criar um dict combinado
+    all_elems = set()
+    for mfd in cases_mf.values():
+        all_elems.update(mfd.keys())
+    results = {}
+    for cname, c in combos.items():
+        mf_c = {}
+        for e in all_elems:
+            mf_c[e] = sum(cases_mf[cs].get(e, [0]*6) * fac for cs, fac in c.items())
+        # resultados por grupo
+        cols_r = []
+        for i in range(N_VAOS + 1):
+            M, N, V = _grupo_MNV(mf_c, ix["cols"][i])
+            cols_r.append({"M": round(M, 2), "N": round(N, 2), "V": round(V, 2)})
+        vigas_r = []
+        for i in range(N_VAOS):
+            Mr, Nr, Vr = 0.0, 0.0, 0.0
+            for side in (0, 1):
+                M, N, V = _grupo_MNV(mf_c, ix["rafts"][i][side])
+                Mr = max(Mr, M); Nr = max(Nr, N); Vr = max(Vr, V)
+            vigas_r.append({"M": round(Mr, 2), "N": round(Nr, 2), "V": round(Vr, 2)})
+        resp = {"colunas": cols_r, "vigas": vigas_r}
+        if N_VAOS == 1:
+            resp["coluna"] = cols_r[0] if cols_r[0]["M"] >= cols_r[1]["M"] else cols_r[1]
+            resp["viga"] = vigas_r[0]
+        # pior coluna e pior viga (maior M)
+        pior_col = max(cols_r, key=lambda x: x["M"])
+        pior_viga = max(vigas_r, key=lambda x: x["M"])
+        resp["coluna_pior"] = pior_col
+        resp["viga_pior"] = pior_viga
+        results[cname] = resp
+    # --- drift lateral (ELS) ---
+    # Flecha no beiral sob vento caracteristico (G=1.0, W=1.0)
+    def eave_drift(d):
+        return max(abs(d[3 * ne]) for ne in ix["nEaves"]) if d is not None else 0.0
+    drift = max(eave_drift(dW1), eave_drift(dW2))
+    drift_sismo = eave_drift(cases_d.get("SISMO")) if SISMO else 0.0
+    # flecha vertical na cumeeira (G+Q caracteristico)
+    ridge_v = max(abs(dG[3 * rn + 1] + dQ[3 * rn + 1]) for rn in ix["nRidges"]) \
+        if "SISMO" not in cases_d else 0.0
+    return {"results": results, "drift": drift, "drift_sismo": drift_sismo,
+            "ridge_v": ridge_v, "drift_lims": {"H/300": EAVE / 300.0,
+               "H/250": EAVE / 250.0, "H/200": EAVE / 200.0, "H/150": EAVE / 150.0},
+            "drift_ref": "H/300", "ix": ix, "N_VAOS": N_VAOS}
 
 
 def memoria_pt(a):
-    L = []
-    L += ["=" * 70,
-          "MEMORIA DE CALCULO - GALPAO 20x10 m (portico transversal)",
-          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 70, "",
-          "1. DADOS",
-          "   Vao 10,0 m ; pe-direito 6,0 m ; cumeeira 6,5 m ; inclinacao 10% (5,71 graus)",
-          f"   Espacamento de porticos (largura de influencia) = {BAY:.1f} m",
-          f"   Bases {'ENGASTADAS' if BASE_FIXED else 'rotuladas'}. "
-          "Perfis: colunas HEA200, vigas HEA180.",
-          f"   Barras malhadas em {NSEG} trechos (momento avaliado ao longo do vao).",
-          "   Analise linear 1a ordem (2a ordem B1/B2 = modulo separado).", "",
-          "2. ACOES",
-          f"   2.1 Permanente (G): {G_ROOF:.2f} kN/m2 (area de telhado, SEM cos)",
-          f"       + peso proprio da viga {RAFTER_SELF:.2f} kN/m",
-          f"   2.2 Sobrecarga (Q): {Q_ROOF:.2f} kN/m2 (projecao horizontal, com cos)",
-          "   2.3 " + vento.relatorio_pt(a["wind"]).replace("\n", "\n   "),
-          "   (Vento na cobertura aplicado NORMAL a superficie: wx e wy)", "",
-          "3. COMBINACOES (NBR 8800, ELU) [a confirmar]",
-          "   psi0: sobrecarga cobertura = 0,8 ; vento = 0,6",
-          "   Regra: acao variavel FAVORAVEL entra com gamma = 0 (nao se soma).",
-          "   C1 gravidade:      1,25 G + 1,50 Q + 0,84 W",
-          "   C2 uplift:         1,00 G + 1,40 W(portao barlavento)   [Q=0 favor.]",
-          "   C3 vento (G desf): 1,25 G + 1,40 W + 1,20 Q",
-          "   C3 vento (G fav):  1,00 G + 1,40 W                       [Q=0 favor.]", "",
-          "4. ESFORCOS (envoltoria por combinacao) [M kN.m, N kN, V kN]"]
-    for name, r in a["results"].items():
-        cM, cN, cV = r["coluna"]
-        vM, vN, vV = r["viga"]
-        L += [f"   {name}:",
-              f"     Coluna: M={cM:6.1f}  N={cN:6.1f}  V={cV:6.1f}",
-              f"     Viga:   M={vM:6.1f}  N={vN:6.1f}  V={vV:6.1f}"]
-    L += ["", "5. DESLOCAMENTOS (ELS) - vento caracteristico (sem majoracao)",
-          f"   Deslocamento lateral no beiral: {a['drift']*1000:.1f} mm",
-          "     Limites NBR 8800 Anexo C (H/300 = alvenaria ; telha metalica"
-          " admite ate H/150):"]
-    for nome, lim in a["drift_lims"].items():
-        ok = "OK" if a["drift"] <= lim else "NAO ATENDE"
-        marca = "   <== referencia (telha metalica, sem alvenaria)" \
-            if nome == a["drift_ref"] else ""
-        L += [f"       {nome} = {lim*1000:5.1f} mm  -> {ok}{marca}"]
-    L += [f"   Flecha vertical na cumeeira (G+Q): {a['ridge_v']*1000:.1f} mm (verificar L/250)",
-          "", "6. OBSERVACOES / PENDENCIAS",
-          "   - Coeficientes de vento a confirmar; portao = abertura dominante.",
-          "   - Esforcos de 1a ordem: amplificar por B1/B2 (2a ordem) antes do check.",
-          "   - Dimensionar/verificar perfis (check_nbr8800), tercas, contravento e bases."]
-    import re
-    # virgula decimal (PT) sem mastigar numeros de clausula (ex.: 6.2.5-c).
+    """Relatorio PT do portico."""
+    L = [
+        "=" * 70,
+        f"PORTICO 2D ({N_VAOS} vao(s)) - ANALISE DE 1a ORDEM",
+        "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL",
+        "=" * 70, "",
+        f"Geometria: {N_VAOS} vao(s) {SPANS} m ; beiral {EAVE:.1f} m ; "
+        f"cumeeira {RIDGE:.1f} m ; inclinacao {math.degrees(THETA):.2f} deg",
+        f"Colunas: {N_VAOS + 1} (A={A_COL*1e4:.1f} cm2, Ix={I_COL*1e8:.0f} cm4)",
+        f"Vigas: {2 * N_VAOS} (A={A_RAF*1e4:.1f} cm2, Ix={I_RAF*1e8:.0f} cm4)",
+        f"Base: {'engastada' if BASE_FIXED else 'rotulada'}",
+        "", "COMBINACOES - esforcos de 1a ordem por grupo:",
+        f"{'Combo':>22} {'Col(s)':>8} {'Mcol':>8} {'Ncol':>8} {'Vcol':>6}"
+        f" {'Mvig':>8} {'Nvig':>8} {'Vvig':>6}",
+        "-" * 70
+    ]
+    for cname, r in sorted(a["results"].items()):
+        pc = r["coluna_pior"]; pv = r["viga_pior"]
+        L.append(f"{cname:>22} {N_VAOS + 1:>3} un  {pc['M']:>7.1f} "
+                 f"{pc['N']:>7.1f} {pc['V']:>6.1f} {pv['M']:>7.1f} "
+                 f"{pv['N']:>7.1f} {pv['V']:>6.1f}")
+    L += ["-" * 70, "",
+          f"ELS: drift lateral max = {a['drift']*1000:.1f} mm (beiral) ; "
+          f"limites: H/300={a['drift_lims']['H/300']*1000:.1f} mm"]
+    if a.get("drift_sismo"):
+        L.append(f"  drift sismico = {a['drift_sismo']*1000:.1f} mm")
+    L.append(f"  flecha vertical cumeeira = {a['ridge_v']*1000:.1f} mm (G+Q carac.)")
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
-if __name__ == "__main__":
+def _selftest():
+    # 1 vao 20m (retrocompatibilidade)
+    configurar(span=20.0, eave=6.0, ridge=6.5, bay=5.0, base_fixed=True,
+               A_col=53.8e-4, I_col=3692e-8, A_raf=45.3e-4, I_raf=2510e-8)
     a = analyse()
-    txt = memoria_pt(a)
-    print(txt)
-    out = "exports"          # default relativo (demo __main__)
-    os.makedirs(out + "/memoria", exist_ok=True)
-    with open(out + "/memoria/memoria-calculo-galpao.txt", "w", encoding="utf-8") as f:
-        f.write(txt + "\n")
+    assert "C1_grav_W1" in a["results"], a["results"].keys()
+    r = a["results"]["C1_grav_W1"]
+    assert "coluna" in r and "viga" in r, r.keys()
+    assert r["coluna"]["M"] > 0 and r["viga"]["M"] > 0, r
+    assert a["drift"] >= 0
+    # 2 vaos
+    configurar(spans=[20.0, 20.0], eave=6.0, ridge=6.5, bay=5.0)
+    a2 = analyse()
+    assert a2["N_VAOS"] == 2
+    r2 = a2["results"]["C1_grav_W1"]
+    assert len(r2["colunas"]) == 3, len(r2["colunas"])
+    assert len(r2["vigas"]) == 2, len(r2["vigas"])
+    assert a2["drift"] >= 0
+    print("galpao_portico self-test PASSED")
+
+
+if __name__ == "__main__":
+    import sys
+    if "--selftest" in sys.argv:
+        _selftest()
+    else:
+        configurar(span=20.0, eave=6.0, ridge=6.5, bay=5.0, base_fixed=True)
+        a = analyse()
+        print(memoria_pt(a))

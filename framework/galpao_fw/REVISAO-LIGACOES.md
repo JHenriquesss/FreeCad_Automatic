@@ -4,7 +4,9 @@ Conferência do sênior. Verifica ligações parafusadas e soldadas pela
 **NBR 8800:2008** (6.2 solda / 6.3 parafusos / 6.1.5 força mínima). Genérico:
 joelho viga-coluna, emenda, contravento, chapa de terça.
 
-Código: `ligacoes.py`. Última atualização: 2026-07-07.
+Código: `ligacoes.py`. Última atualização: 2026-07-08. Inclui detalhamento
+executivo: perna de solda mínima (Tab.9), comprimento de parafuso, chapa de
+extremidade, `detalha_ligacao()`.
 
 ---
 
@@ -195,7 +197,7 @@ para módulos futuros: **efeito alavanca (T-stub)** e **rasgamento em bloco (6.5
 
 ## 9. Detalhamento dos furos (6.3.9/6.3.10/6.3.11) — feature adicionada 2026-07-08
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: `s ≥ 2,7db`, distância
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — dh variável (Tab.12) corrigido. `s ≥ 2,7db`, distância
 > livre `≥ db` (6.3.9), `s_max ≤ min(24t; 300)` (6.3.10) e o **`lf` derivado da
 > geometria** que alimenta o esmagamento 6.3.3.3.
 
@@ -207,7 +209,8 @@ layout — e os mínimos de detalhamento são checados. Regras **lidas do PDF**:
   entre bordas de furos consecutivos `≥ db`.
 - **6.3.10 a)** — espaçamento máximo (chapa pintada) `≤ min(24·t; 300 mm)`.
 - **`lf` (6.3.3.3):** `min(e_borda − d_h/2; s_furos − d_h)` (distância livre do furo à
-  extremidade / ao furo vizinho), `d_h = db + 1,5 mm` (furo-padrão, Tabela 12).
+  extremidade / ao furo vizinho), `d_h = db + 1,5 mm` (db < 24) ou `db + 2,0 mm`
+  (db ≥ 24), conforme Tabela 12 (NBR 8800).
   Alimenta `Fc,Rd = min(1,2·lf·t·fu; 2,4·db·t·fu)/γa2` (já existente).
 
 **Tabela 14 (distância furo-borda) — AGORA verificada** (2026-07-08, era FLAG). Lida
@@ -223,7 +226,7 @@ Selftest: `db20 s=60 ≥ 54` OK, livre `38,5 ≥ 20` OK, `lf=24,25 mm`, `e_min=3
 
 ## 10. Rasgamento em bloco (6.5.6) — feature adicionada 2026-07-08
 
-> **STATUS: 🆕 PENDENTE SÊNIOR.** Fecha o FLAG 2 (§7.4) do rasgamento em bloco.
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — subtração (n-0,5) dh corrigida.
 > O efeito alavanca (T-stub/prying) permanece FLAG — é método da EN 1993-1-8, fora
 > do escopo da NBR 8800.
 
@@ -239,7 +242,10 @@ F_r,Rd = (0,60·fu·Anv + Cts·fu·Ant)/γa2  ≤  (0,60·fy·Agv + Cts·fu·Ant
   bloco de falha, que o responsável define pelo percurso).
 - `block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu)` — conveniência
   para o caso comum (1 linha de n parafusos tracionada, chapa de nó/barra): 1 plano
-  de cisalhamento `Lgv = e_long + (n−1)·s_furos`, n furos subtraídos no cisalhamento,
+  de cisalhamento `Lgv = e_long + (n−1)·s_furos`, **(n−0,5) furos** subtraídos na
+  área líquida (a linha de ruptura parte da borda, passa pelo centro do 1º furo → 0,5
+  dh, segue pelos demais furos inteiros, e termina no centro do último, onde faz a
+  curva de 90° para o plano de tração),
   tração transversal `e_transv − dh/2`. **FLAG:** o percurso de falha é uma hipótese
   do caso típico; outros arranjos (dupla linha, cantoneira, viga recortada) o
   engenheiro define as áreas e chama `block_shear` diretamente.
@@ -251,7 +257,7 @@ Selftest: `block_shear` confere ruptura×escoamento (min); `block_shear_linha`
 
 ## 11. Efeito alavanca / T-stub (EN 1993-1-8) — feature adicionada 2026-07-08
 
-> **STATUS: 🆕 PENDENTE SÊNIOR.** Fecha o FLAG do efeito alavanca. **Fora da NBR
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — aprovado conforme parecer. **Fora da NBR
 > 8800** (que não trata prying) — método **EN 1993-1-8** 6.2.4 (T-stub equivalente),
 > uso comum para a **chapa de topo parafusada** do joelho viga-coluna.
 

@@ -403,9 +403,13 @@ def verifica_estaca(cfg):
     N_up = abs(cfg.get("N_uplift", 0.0))
     if N_up > 0:
         trac = capacidade_tracao(cap, cfg.get("FS_tracao", 2.0))
+        peso_bloco = cfg.get("peso_bloco", 0.0)
+        N_up_liq = max(N_up - peso_bloco, 0.0)           # peso proprio do bloco alivia o arranque
         trac["N_uplift_kN"] = round(N_up, 1)
-        trac["N_por_estaca_kN"] = round(N_up / nn["n"], 1)
-        trac["util"] = round((N_up / nn["n"]) / trac["P_adm_tracao_kN"], 3) \
+        trac["peso_bloco_kN"] = peso_bloco
+        trac["N_uplift_liquido_kN"] = round(N_up_liq, 1)
+        trac["N_por_estaca_kN"] = round(N_up_liq / nn["n"], 1)
+        trac["util"] = round((N_up_liq / nn["n"]) / trac["P_adm_tracao_kN"], 3) \
             if trac["P_adm_tracao_kN"] > 0 else float("inf")
         trac["OK"] = trac["util"] <= 1.0
         out["tracao"] = trac

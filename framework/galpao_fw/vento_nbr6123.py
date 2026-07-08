@@ -202,6 +202,44 @@ def cpe_local_cobertura(theta_graus=5.71, b=10.0, h=6.0, a=20.0):
             "lanternim_cpe_medio": -2.0}
 
 
+def cpe_telhado_multiplo(n_vaos, theta_graus=5.71):
+    """Cpe para telhados MULTIPLOS simetricos de tramos IGUAIS (NBR 6123 Tab.7).
+    Retorna uma lista de dicts, um por tramo (vao). Cada dict tem:
+      {"barlavento": float, "sotavento": float}  (face E e D de cada vao)
+    Para vento a 0° (perpendicular as cumeeiras): o 1o tramo recebe mais carga,
+    os intermediarios e o ultimo recebem menos (sombreamento aerodinamico).
+    Para vento a 90° (paralelo) os valores sao constantes ao longo do telhado:
+      faixa b1 (h): -0,8 ; b2 (h): -0,6 ; b3: -0,2 (Tab.7, α=90°).
+    Interpolacao linear entre 5° e 10°. h/b e a/b definem as faixas (nao os
+    coeficientes nominais, que dependem so de θ)."""
+    th = max(5.0, min(theta_graus, 10.0))
+    f = (th - 5.0) / (10.0 - 5.0)
+    # Tramo 1 (barlavento): face a (barlavento), face b (sotavento)
+    a = -0.9 + f * (-1.1 + 0.9)     # -0.9 (5°) a -1.1 (10°)
+    b = -0.6                         # constante
+    # Tramo 2 (1o intermediario): faces c (barl) e d (sot)
+    c = -0.4; d = -0.3              # constante
+    # Demais intermediarios: m (barl) e n (sot)
+    m = -0.3; n = -0.3
+    # Ultimo tramo (sotavento): x (barl) e z (sot)
+    x = -0.3
+    z = -0.3 + f * (-0.4 + 0.3)     # -0.3 (5°) a -0.4 (10°)
+    tramos = []
+    if n_vaos == 1:
+        tramos.append({"barlavento": a, "sotavento": b if th < 7.5 else z})
+    elif n_vaos == 2:
+        tramos.append({"barlavento": a, "sotavento": b})
+        tramos.append({"barlavento": x, "sotavento": z})
+    else:
+        tramos.append({"barlavento": a, "sotavento": b})
+        for _ in range(n_vaos - 2):
+            tramos.append({"barlavento": m, "sotavento": n})
+        tramos.append({"barlavento": x, "sotavento": z})
+    # Vento a 90°: valores por faixa longitudinal (nao por tramo)
+    # Retorna tambem os valores para α=90°
+    return tramos
+
+
 def sucao_local_fixacao(q_kN_m2, cpe_medio, cpi=+0.80):
     """Succao liquida LOCAL para dimensionar telha/terca e FIXADORES na borda/canto.
     p = (cpe_medio - cpi)*q. Usa o Cpi mais desfavoravel (portao a barlavento,

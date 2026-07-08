@@ -5,7 +5,8 @@ capacidade de carga da **estaca** pelo método **Aoki-Velloso (1975)** a partir 
 SPT (NBR 6122) e o **bloco de coroamento** em concreto armado (bielas-e-tirantes,
 NBR 6118). Código: `estaca_profunda.py`. Criado 2026-07-08.
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo, escolha de sítio (opt-in).
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — correção no uplift (subtração do peso
+> do bloco) aplicada conforme parecer sênior. Converse-Labarre já operava em graus.
 
 ---
 
@@ -106,7 +107,8 @@ Para o galpão, a combinação que governa a base é de **uplift** (sucção do 
 o pilar **arranca**, tracionando a estaca. À tração **só o atrito lateral resiste**
 (a ponta não trabalha): `P_adm,tração = R_lateral / FS_tração` (FS_tração=2,0). O
 orquestrador injeta `N_uplift` = maior reação **negativa** (tração) da base no
-envelope e verifica `N_uplift/n ≤ P_adm,tração`.
+envelope e verifica `(N_uplift − peso_bloco)/n ≤ P_adm,tração` (o peso
+próprio do bloco alivia o arranque, a favor da segurança).
 
 ---
 

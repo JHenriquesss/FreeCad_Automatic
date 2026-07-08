@@ -8,7 +8,9 @@
 # tercas_iteracao (+distorcional_fsm), base_chumbador, ligacoes.
 # Nao redefine metodo - so orquestra os modulos ja validados. Saidas em PT.
 # ============================================================================
-"""Orquestrador do fluxo de calculo do galpao. Um projeto = um dict de params."""
+"""Orquestrador do fluxo de calculo do galpao. Suporta 1 ou N vaos.
+Um projeto = um dict de params. Se params['geometria']['spans'] existir,
+usa multi-vao; senao, usa 'span' (retrocompativel)."""
 
 from __future__ import annotations
 
@@ -34,6 +36,9 @@ import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
 import ponte_rolante as pr
+import fogo_nbr14323 as fogo
+import escada as esc
+import plataforma
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -62,38 +67,40 @@ def _casos_mf_reac():
 
 
 def _esforcos_base_joelho():
-    """Extrai (por combinacao) os esforcos de base e de joelho do portico atual.
-    Retorna o caso de base governante (max |M|) e o de joelho (max |M|)."""
+    """Extrai esforcos de base + joelho do portico. Para N>1, retorna o pior
+    caso entre todas as colunas. Cada resultado = (nome, N, V, M)."""
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
-    nbL = ix["nBaseL"]
-    eKnee = ix["colL"][-1]
-    combos = gp._combos_elu(gp.PONTE, gp.SISMO)   # envelope (cruza W1 e W2; + sismo C6)
+    bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     base_best = knee_best = None
     for nm, c in combos.items():
-        R = sum(fac * casos[cs][1] for cs, fac in c.items())
-        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
-        if base_best is None or abs(M) > abs(base_best[3]):
-            base_best = (nm, N, V, M)
-        f = sum(fac * casos[cs][0][eKnee] for cs, fac in c.items())
-        Mk, Vk, Nk = f[5], f[4], -f[3]
-        if knee_best is None or abs(Mk) > abs(knee_best[3]):
-            knee_best = (nm, Nk, Vk, Mk)
+        for i, nb in enumerate(bases):
+            R = sum(fac * casos[cs][1] for cs, fac in c.items())
+            N, V, M = R[3 * nb + 1], R[3 * nb], R[3 * nb + 2]
+            if base_best is None or abs(M) > abs(base_best[3]):
+                base_best = (nm, N, V, M)
+            eKnee = ix["cols"][i][-1]
+            f = sum(fac * casos[cs][0][eKnee] for cs, fac in c.items())
+            Mk, Vk, Nk = f[5], f[4], -f[3]
+            if knee_best is None or abs(Mk) > abs(knee_best[3]):
+                knee_best = (nm, Nk, Vk, Mk)
     return base_best, knee_best
 
 
 def _casos_base_envelope():
     """Todos os casos de base (por combinacao ELU) como lista (nome, N, V, M) -
-    para o ENVELOPE da sapata (bearing pega N max; tombamento pega N min + M)."""
+    para o ENVELOPE da sapata. Para N>1, retorna o PIOR caso entre as colunas."""
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
-    nbL = ix["nBaseL"]
+    bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
     combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     out = []
     for nm, c in combos.items():
-        R = sum(fac * casos[cs][1] for cs, fac in c.items())
-        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
-        out.append((nm, N, V, M))
+        for nb in bases:
+            R = sum(fac * casos[cs][1] for cs, fac in c.items())
+            N, V, M = R[3 * nb + 1], R[3 * nb], R[3 * nb + 2]
+            out.append((nm, N, V, M))
     return out
 
 
@@ -108,13 +115,21 @@ def rodar(params, out_dir):
     gp.reset(); vento.reset()          # estado limpo (sem vazamento entre projetos)
     g = params["geometria"]
     sc = params["secoes"]
-    # configura geometria + perfis + base
-    gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
-                  base_fixed=params.get("base_fixed", True),
-                  A_col=sc["A_col"], I_col=sc["I_col"],
-                  A_raf=sc["A_raf"], I_raf=sc["I_raf"],
-                  G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                  Q_roof=params["cargas"]["Q"])
+    # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)
+    if "spans" in g:
+        gp.configurar(spans=g["spans"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
+                      base_fixed=params.get("base_fixed", True),
+                      A_col=sc["A_col"], I_col=sc["I_col"],
+                      A_raf=sc["A_raf"], I_raf=sc["I_raf"],
+                      G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      Q_roof=params["cargas"]["Q"])
+    else:
+        gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
+                      base_fixed=params.get("base_fixed", True),
+                      A_col=sc["A_col"], I_col=sc["I_col"],
+                      A_raf=sc["A_raf"], I_raf=sc["I_raf"],
+                      G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      Q_roof=params["cargas"]["Q"])
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
                   fy=params["terca"]["fy"])
@@ -134,6 +149,7 @@ def rodar(params, out_dir):
         esf, viga, reac = pr.analisa(pcfg)
         save("gate5-ponte.txt", pr.relatorio_pt(esf, viga, reac))
         gp.configurar(ponte={"R_vert": reac["R_vertical_kN"],
+                             "R_vert_min": reac.get("R_vertical_min_kN", reac["R_vertical_kN"]),
                              "M_exc": reac["M_excentrico_kNm"],
                              "H_transv": reac["H_transversal_kN"],
                              "Hvr": pcfg["Hvr"]})
@@ -170,48 +186,64 @@ def rodar(params, out_dir):
     # esforcos com o perfil adotado -> tudo a jusante (mao-francesa, check, modelo)
     # usa o perfil que ATENDE. Referencia 20x10 ja passa no seed -> inalterada.
     adoc = redim.melhor(fixed=params.get("base_fixed", True),
-                        lb_col=params["Lb"]["col"], lb_raf=params["Lb"]["raf"],
-                        seed=("HEA200", "HEA180"))
+                        lb_col=params["Lb"]["col"], lb_raf=params["Lb"]["raf"])
     save("gate7-redimensionamento.txt", adoc["tabela"])
     if adoc["aprovado"]:
         ap = adoc["aprovado"]
-        sc["perfil_col"] = perfis.PERFIS[ap["col"]]
+        for i, p in enumerate(ap["cols"]):
+            sc[f"perfil_col_{i}"] = perfis.PERFIS[p]
+        sc["perfil_col"] = perfis.PERFIS[ap["cols"][0]]
         sc["perfil_raf"] = perfis.PERFIS[ap["raf"]]
-        a = est.analyse()                       # esforcos com o perfil adotado
-        res["perfil_col"], res["perfil_raf"] = ap["col"], ap["raf"]
+        a = est.analyse()
+        res["perfil_colunas"] = ap["cols"]
+        res["perfil_raf"] = ap["raf"]
         res["atende"] = True
-        if ap.get("lim_flecha"):                # ELS: flecha lateral / (H/150)
+        if ap.get("lim_flecha"):
             res["flecha_util"] = round(ap["drift"] / ap["lim_flecha"], 2)
     else:
-        res["perfil_col"], res["perfil_raf"] = "HEA200", "HEA180"
+        sc["perfil_col"] = perfis.PERFIS["HEA200"]
+        sc["perfil_raf"] = perfis.PERFIS["HEA180"]
+        res["perfil_colunas"] = ["HEA200"] * gp.N_VAOS
+        res["perfil_raf"] = "HEA180"
         res["atende"] = False
-    # Gate 7 - mao-francesa: define o Lb da viga (contencao da mesa inferior)
-    # pela inversao da interacao. Combo governante = maior |Msd| na viga.
+    # Gate 7 - mao-francesa
     slope = (g["ridge"] - g["eave"]) / (g["span"] / 2.0)
     n_terca = params["terca"].get("n_por_agua", 3)
-    cbm = max(a["combos"], key=lambda r: abs(r["viga"]["Msd"]))
+    cbm = max(a["combos"], key=lambda r: abs(r.get("viga", {}).get("Msd", 0) or
+                  max(r.get(f"viga_{j}_{s}", {}).get("Msd", 0) for j in range(gp.N_VAOS) for s in ("E","D"))))
+    cbm_v = cbm.get("viga", cbm.get("viga_0_E", cbm.get("viga_0_D", {"Nsd":0,"Msd":0,"Vsd":0})))
     plano_mf = maofr.plano_mao_francesa(
-        sc["perfil_raf"], params["fy"], max(0.0, cbm["viga"]["Nsd"]),
-        abs(cbm["viga"]["Msd"]), abs(cbm["viga"]["Vsd"]),
+        sc["perfil_raf"], params["fy"], max(0.0, cbm_v["Nsd"]),
+        abs(cbm_v["Msd"]), abs(cbm_v["Vsd"]),
         span=g["span"], slope=slope, n_terca=n_terca)
     save("gate7-mao-francesa.txt", maofr.relatorio_pt(plano_mf, "viga (mesa inferior)"))
     Lb_raf = plano_mf["Lb_usado"] if plano_mf.get("ok") else params["Lb"]["raf"]
     res["mf_bracos_portico"] = plano_mf.get("n_bracos_portico")
     res["mf_stride"] = plano_mf.get("stride")
     res["Lb_raf"] = round(Lb_raf, 3)
-    # Gate 7 - perfis (Lb da viga vem da mao-francesa; coluna e parametro)
-    pecas = {"coluna": (sc["perfil_col"], est.SEC["coluna"]["L"], params["Lb"]["col"]),
-             "viga": (sc["perfil_raf"], est.SEC["viga"]["L"], Lb_raf)}
+    # Gate 7 - perfis (verifica por grupo)
     finais = []
-    for gname, (sec, Lr, Lb) in pecas.items():
-        cands = [chk.verifica(sec, params["fy"], L=Lr, Nsd=r[gname]["Nsd"],
+    nv = gp.N_VAOS
+    cols_prof = res.get("perfil_colunas", [sc.get("perfil_col_nome","HEA200")]*(nv+1))
+    for i in range(nv + 1):
+        gname = f"col_{i}"
+        sec = perfis.PERFIS[cols_prof[i]]
+        cands = [chk.verifica(sec, params["fy"], L=gp.EAVE, Nsd=r[gname]["Nsd"],
                               Msd=r[gname]["Msd"], Vsd=r[gname]["Vsd"], Kx=1, Ky=1,
-                              Lb=Lb, nome=f"{gname.capitalize()} (K=1; gov {r['nome']})")
+                              Lb=params["Lb"]["col"], nome=f"Col {i} (K=1; gov {r['nome']})")
                  for r in a["combos"]]
         finais.append(max(cands, key=lambda x: x["interacao"]))
+    for i in range(nv):
+        for side, sname in ((0, "E"), (1, "D")):
+            gname = f"viga_{i}_{sname}"
+            cands = [chk.verifica(sc["perfil_raf"], params["fy"], L=est.SEC_VIGAS[0]["L"],
+                                  Nsd=r[gname]["Nsd"], Msd=r[gname]["Msd"],
+                                  Vsd=r[gname]["Vsd"], Kx=1, Ky=1,
+                                  Lb=Lb_raf, nome=f"Viga {i}{sname} (K=1; gov {r['nome']})")
+                     for r in a["combos"]]
+            finais.append(max(cands, key=lambda x: x["interacao"]))
     save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
-    res["interacao_col"] = finais[0]["interacao"]
-    res["interacao_raf"] = finais[1]["interacao"]
+    res["interacao_max"] = max(f["interacao"] for f in finais) if finais else 0
     # Gate 7 - tercas: adota a Ue mais leve que passa (ELU + ELS); o modelo desenha
     # a ADOTADA (terca_dims).
     save("gate7-tercas.txt", ti.memoria_pt())
@@ -431,7 +463,7 @@ def rodar(params, out_dir):
     else:
         res["sapata_adotada"] = None
         res["sapata_ok"] = False
-    dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]   # viga ADOTADA
+    dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]
     Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
     knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
                                                nome=f"Joelho - {knm} (M={abs(kM):.1f})")
@@ -448,6 +480,38 @@ def rodar(params, out_dir):
         res["joelho_ok"] = False
     clip = params["clip_terca"]
     save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(clip)]))
+    # Gate 8 - FOGO (NBR 14323): verifica o perfil adotado em situacao de incendio
+    if params.get("fogo") and res.get("perfil_colunas"):
+        fg = params["fogo"]
+        sec_fogo = {"h": sc["perfil_col"]["d"]*1000, "b": sc["perfil_col"]["bf"]*1000,
+                    "tw": sc["perfil_col"]["tw"]*1000, "tf": sc["perfil_col"]["tf"]*1000}
+        Gk = params["cargas"]["G"] * g["bay"] * g["span"] / 2.0
+        Qk = params["cargas"]["Q"] * g["bay"] * g["span"] / 2.0
+        rf = fogo.verifica_fogo(sec_fogo, params["fy"], Gk, Qk,
+                                TRRF_min=fg.get("TRRF_min", 60),
+                                protecao=fg.get("protecao"))
+        save("gate8-fogo.txt", fogo.relatorio_pt(rf))
+        res["fogo_theta"] = rf["theta_aco_C"]
+        res["fogo_ky"] = rf["ky"]
+        res["fogo_TRRF"] = rf["TRRF_min"]
+    # Gate 8 - ESCADA INDUSTRIAL
+    if params.get("escada"):
+        esc_cfg = params["escada"]
+        re = esc.dimensiona(esc_cfg["desnivel"], esc_cfg["projecao"],
+                            esc_cfg.get("largura", 1.20),
+                            q_acidental=esc_cfg.get("q_acidental", 3.0))
+        save("gate8-escada.txt", esc.relatorio_pt(re))
+        res["escada_ok"] = re.get("ok", False)
+        res["escada_perfil"] = re.get("perfil")
+    # Gate 8 - PLATAFORMA / PASSARELA
+    if params.get("plataforma"):
+        plt_cfg = params["plataforma"]
+        rp = plataforma.viga_secundaria(plt_cfg["L"], plt_cfg["b_trib"],
+                                        plt_cfg.get("q_perm", 2.0),
+                                        plt_cfg.get("q_acidental", 3.0))
+        save("gate8-plataforma.txt", plataforma.relatorio_pt(rp))
+        res["plataforma_ok"] = rp.get("ok", False)
+        res["plataforma_perfil"] = rp.get("perfil")
     # Gate 9 - consolidado
     _consolidar(out_dir, save, g, params, res)
     return res
@@ -467,6 +531,9 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
+             ("11d. FOGO NBR 14323", "gate8-fogo.txt"),
+             ("11e. ESCADA", "gate8-escada.txt"),
+             ("11f. PLATAFORMA", "gate8-plataforma.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt")]
     try:
         import framework as FW
@@ -484,7 +551,10 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
-                  ("Viga rolamento", res.get("ponte_viga_inter"))]
+                  ("Viga rolamento", res.get("ponte_viga_inter")),
+                  ("Fogo theta C", res.get("fogo_theta")),
+                  ("Escada", 0 if res.get("escada_ok") else None),
+                  ("Plataforma", 0 if res.get("plataforma_ok") else None)]
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:
@@ -565,6 +635,12 @@ PARAMS_REF = {
     "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",
                    "n": 2, "db": 0.012, "fub": 400e3, "t_chapa": 0.006,
                    "fu_chapa": 400e3, "lf": 0.025, "V": 8.0, "excecao_terca": True},
+    # Fogo: None = nao verifica. Dict = parametros (TRRF_min, protecao).
+    "fogo": None,
+    # Escada: None = nao dimensiona. Dict = {desnivel, projecao, largura, q_acidental}.
+    "escada": None,
+    # Plataforma: None = nao dimensiona. Dict = {L, b_trib, q_perm, q_acidental}.
+    "plataforma": None,
     # "ponte": None -> galpao SEM ponte (portico identico a referencia).
 }
 

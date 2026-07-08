@@ -21,9 +21,9 @@ def calcular(spec, out_dir):
     params = PS.to_rodar_params(spec)
     res = R.rodar(params, str(out_dir))
     # grava o perfil ADOTADO no spec -> o modelo desenha o que o calculo dimensionou
-    if res.get("perfil_col"):
+    if res.get("perfil_colunas"):
         spec.setdefault("estrutura", {})
-        spec["estrutura"]["perfil_col_adotado"] = res["perfil_col"]
+        spec["estrutura"]["perfil_col_adotado"] = res["perfil_colunas"][0]
         spec["estrutura"]["perfil_raf_adotado"] = res["perfil_raf"]
     if res.get("base_adotada"):
         spec.setdefault("estrutura", {})
@@ -47,7 +47,7 @@ def calcular(spec, out_dir):
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
     # quadro de verificacoes (utilizacoes/resultados) para o DXF
     spec.setdefault("estrutura", {})["resultados"] = {
-        "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
+        "Maxima": res.get("interacao_max"), "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
         "Flecha portico": res.get("flecha_util"),
         "Base": res.get("base_util"), "Sapata": res.get("sapata_util"),
         "Joelho": res.get("joelho_util"), "Terca": res.get("terca_inter"),

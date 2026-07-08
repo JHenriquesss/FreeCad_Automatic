@@ -1,151 +1,155 @@
 # ============================================================================
-# redimensionamento.py - O QUE ESTE SCRIPT FAZ / CALCULA
-# Busca a combinacao de perfis (coluna + viga) mais leve que faz o portico
-# PASSAR, com BASE ENGASTADA, rodando a cadeia de calculo completa para cada
-# candidato:
-#   1) portico (galpao_portico) -> flecha lateral no beiral (ELS);
-#   2) 2a ordem (estabilidade_b1b2, MAES + rigidez 0,8 + nocional) -> esforcos
-#      amplificados Msd/Nsd/Vsd;
-#   3) verificacao NBR 8800 (check_nbr8800) com K=1 em todas as combinacoes ->
-#      pior interacao por peca.
-# Criterio de aprovacao: interacao <= 1,00 (ELU) E flecha <= H/300 (ELS, topo
-# dos pilares de galpao, NBR 8800 Tabela C.1). Reporta uma tabela e o primeiro
-# candidato (mais leve) que passa.
-# NAO redefine o metodo - so orquestra os modulos ja validados variando perfis.
+# redimensionamento.py - AUTO-SIZING para 1 ou N vaos (assimetricos inclusive)
+# Otimizacao GULOSA: inicia todos os perfis no mais leve, identifica a
+# coluna mais solicitada, sobe um degrau nela, reavalia, itera.
+# Cada coluna pode ter um perfil diferente (util para vaos assimetricos).
 # ============================================================================
-"""Iteracao de perfis com base engastada. Saidas em portugues. Usa modulos ja
-validados (portico, 2a ordem, check). Unidades: m, kN."""
-
 from __future__ import annotations
-
-import re
-
-import perfis
+import math, re
 import galpao_portico as gp
 import estabilidade_b1b2 as est
 import check_nbr8800 as chk
+import perfis
 
-FY = 250e3                 # aco MR250
-LIM_INT = 1.00             # interacao ELU
-# ELS: deslocamento horizontal do topo dos pilares de galpao em relacao a base.
-# NBR 8800:2008 Tabela C.1 ("Galpoes em geral e edificios de um pavimento"): H/300
-# (limite duro, sem nota). NAO usar H/150 (excessivamente flexivel -> rasgo nos
-# furos das telhas, fadiga dos costureiros).
+FY = 250e3
+LIM_INT = 1.00
 LIM_FLECHA = gp.EAVE / 300.0
-LB_COL = 2.0               # travamento lateral da coluna (espac. das longarinas)
-LB_VIGA = 1.67             # travamento lateral da viga (espac. das tercas)
+LB_COL = 2.0
+LB_VIGA = 1.67
 
-# escada de candidatos (coluna, viga), do mais leve ao mais pesado (peso ~ A)
-CANDIDATOS = [
-    ("HEA200", "HEA180"),   # atual (base rotulada reprovava)
-    ("HEB200", "IPE300"),
-    ("HEB220", "IPE330"),
-    ("HEB240", "IPE360"),
-    ("HEB260", "IPE400"),
-    ("HEB280", "IPE450"),
-    ("HEB300", "IPE500"),
-    ("HEB300", "IPE550"),
-]
+# Escada de perfis (do mais leve ao mais pesado)
+_ESC_COL = ["HEA160","HEA180","HEA200","HEA220","HEA240",
+            "HEB200","HEB220","HEB240","HEB260","HEB280","HEB300",
+            "IPE300","IPE330","IPE360","IPE400","IPE450","IPE500","IPE550"]
+_ESC_RAF = ["HEA160","HEA180","HEA200","HEA220","HEA240",
+            "IPE300","IPE330","IPE360","IPE400","IPE450","IPE500","IPE550",
+            "HEB200","HEB220","HEB240","HEB260","HEB280","HEB300"]
+# Indices maximos validos
+_MAX_COL_IDX = len(_ESC_COL) - 1
+_MAX_RAF_IDX = len(_ESC_RAF) - 1
 
 
-def _aplica(col, raf, fixed=True):
-    """Injeta o candidato nos modulos (secoes + condicao de base)."""
-    pc, pr = perfis.PERFIS[col], perfis.PERFIS[raf]
-    gp.A_COL, gp.I_COL = pc["A"], pc["Ix"]
+def _aplica(cols_perfil, raf, fixed=True):
+    """cols_perfil: lista de N+1 nomes de perfis, um por coluna.
+    raf: nome do perfil da viga (usado em todas)."""
+    nv = gp.N_VAOS
+    pr = perfis.PERFIS[raf]
     gp.A_RAF, gp.I_RAF = pr["A"], pr["Ix"]
     gp.BASE_FIXED = fixed
-    est.SEC["coluna"].update(A=pc["A"], I=pc["Ix"])
-    est.SEC["viga"].update(A=pr["A"], I=pr["Ix"])
+    while len(est.SEC_COLS) < nv + 1:
+        est.SEC_COLS.append({"A": gp.A_RAF, "I": gp.I_RAF, "L": gp.EAVE})
+    while len(est.SEC_VIGAS) < nv * 2:
+        est.SEC_VIGAS.append({"A": pr["A"], "I": pr["Ix"],
+                              "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)})
+    for i in range(nv + 1):
+        sec = perfis.PERFIS[cols_perfil[i]]
+        est.SEC_COLS[i].update(A=sec["A"], I=sec["Ix"], L=gp.EAVE)
+        if i == 0:
+            gp.A_COL, gp.I_COL = sec["A"], sec["Ix"]
+    Lr = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
+    for i in range(nv * 2):
+        est.SEC_VIGAS[i].update(A=pr["A"], I=pr["Ix"], L=Lr)
 
 
-def _peso_rel(col, raf):
-    """Peso relativo ~ soma A*L (proxy do consumo de aco ponderado pelos
-    comprimentos reais de coluna e viga, nao so a area). Requer _aplica antes
-    (usa est.SEC[...]['L']). Nota: a SELECAO em melhor() e por ordem da escada
-    (primeiro que passa), nao por este valor - ele so informa o memorial."""
-    lc = est.SEC["coluna"]["L"]
-    lr = est.SEC["viga"]["L"]
-    return 2.0 * (perfis.PERFIS[col]["A"] * lc + perfis.PERFIS[raf]["A"] * lr)
+def _peso(cols_perfil, raf):
+    lc = gp.EAVE
+    lr = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
+    peso_col = sum(perfis.PERFIS[p]["A"] * lc for p in cols_perfil)
+    peso_raf = 2 * gp.N_VAOS * perfis.PERFIS[raf]["A"] * lr
+    return peso_col + peso_raf
 
 
-def avalia(col, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
-    _aplica(col, raf, fixed)
-    a = est.analyse()                       # esforcos amplificados (2a ordem)
-    drift = gp.analyse()["drift"]           # flecha lateral (ELS, base atual)
-    lim_flecha = gp.EAVE / 300.0            # H/300 galpao (NBR 8800 Tab. C.1)
-    inter = {}
-    for g, prof, Lb in (("coluna", col, lb_col), ("viga", raf, lb_raf)):
-        sec = perfis.PERFIS[prof]
-        L = est.SEC[g]["L"]
-        worst = max((chk.verifica(sec, FY, L=L, Nsd=r[g]["Nsd"], Msd=r[g]["Msd"],
-                                  Vsd=r[g]["Vsd"], Kx=1.0, Ky=1.0, Lb=Lb)
-                     for r in a["combos"]), key=lambda x: x["interacao"])
-        inter[g] = worst["interacao"]
-    passa = (inter["coluna"] <= LIM_INT and inter["viga"] <= LIM_INT
-             and drift <= lim_flecha)
-    return {"col": col, "raf": raf, "B2": a["B2max"], "drift": drift,
-            "lim_flecha": lim_flecha, "int_col": inter["coluna"],
-            "int_viga": inter["viga"], "peso": _peso_rel(col, raf), "passa": passa}
+def avalia(cols_perfil, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
+    """Avalia um conjunto de perfis (lista de colunas + viga).
+    Retorna dict com interacao maxima, drift, etc."""
+    _aplica(cols_perfil, raf, fixed)
+    a = est.analyse()
+    drift = gp.analyse()["drift"]
+    lim = gp.EAVE / 300.0
+    nv = gp.N_VAOS
+    worst_int = 0.0
+    for combo in a["combos"]:
+        for i in range(nv + 1):
+            gc = combo[f"col_{i}"]
+            sec = perfis.PERFIS[cols_perfil[i]]
+            r = chk.verifica(sec, FY, gp.EAVE, Nsd=gc["Nsd"], Msd=gc["Msd"],
+                             Vsd=gc["Vsd"], Kx=1.0, Ky=1.0, Lb=lb_col)
+            worst_int = max(worst_int, r["interacao"])
+        for i in range(nv):
+            for side in (0, 1):
+                sname = "E" if side == 0 else "D"
+                gv = combo[f"viga_{i}_{sname}"]
+                r = chk.verifica(perfis.PERFIS[raf], FY, est.SEC_VIGAS[0]["L"],
+                                 Nsd=gv["Nsd"], Msd=gv["Msd"], Vsd=gv["Vsd"],
+                                 Kx=1.0, Ky=1.0, Lb=lb_raf)
+                worst_int = max(worst_int, r["interacao"])
+    return {"cols": list(cols_perfil), "raf": raf, "B2": a["B2max"],
+            "drift": drift, "lim_flecha": lim, "int_pior": worst_int,
+            "peso": _peso(cols_perfil, raf), "passa": worst_int <= LIM_INT and drift <= lim}
 
 
 def melhor(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
-    """Escolhe o par (coluna, viga) MAIS LEVE que passa (interacao<=1 + flecha),
-    partindo do seed (perfil atual) e subindo pela escada. Deixa o estado global
-    no perfil ADOTADO (aprovado; ou o seed se nada passar). Retorna
-    {aprovado, candidatos, tabela}."""
-    escada = []
+    """Otimizacao GULOSA: comeca do mais leve, sobe o perfil da peca
+    mais solicitada ate tudo passar. seed: (cols_tuple, raf) ou None."""
+    nv = gp.N_VAOS
+    # Perfil inicial
+    col_leve = "HEA200" if "HEA200" in perfis.PERFIS else _ESC_COL[0]
+    raf_leve = "HEA180" if "HEA180" in perfis.PERFIS else _ESC_RAF[0]
+    cols = [col_leve] * (nv + 1)
+    raf = raf_leve
     if seed:
-        seed = tuple(seed)
-        if seed not in CANDIDATOS:
-            escada.append(seed)
-    escada += list(CANDIDATOS)
-    linhas, aprovado = [], None
-    for col, raf in escada:
-        if col not in perfis.PERFIS or raf not in perfis.PERFIS:
-            continue
-        r = avalia(col, raf, fixed, lb_col, lb_raf)
-        linhas.append(r)
-        if r["passa"] and aprovado is None:
-            aprovado = r
-    fin = aprovado or (avalia(*seed, fixed=fixed, lb_col=lb_col, lb_raf=lb_raf)
-                       if seed else None)
-    if fin:
-        _aplica(fin["col"], fin["raf"], fixed)      # estado = perfil adotado
-    return {"aprovado": aprovado, "candidatos": linhas,
-            "tabela": _tabela(linhas, aprovado, lb_col, lb_raf)}
+        cols = list(seed[0]) if isinstance(seed, tuple) else [seed[0]] * (nv + 1)
+        raf = seed[-1] if len(seed) > nv + 1 else seed[1] if nv == 0 else raf_leve
+    iteracoes, max_iter = 0, 200
+    while iteracoes < max_iter:
+        iteracoes += 1
+        r = avalia(cols, raf, fixed, lb_col, lb_raf)
+        if r["passa"]:
+            return {"aprovado": r, "candidatos": [r], "iteracoes": iteracoes,
+                    "tabela": _tabela(r)}
+        arts = []
+        for i in range(nv + 1):
+            try:
+                idx = _ESC_COL.index(cols[i])
+                if idx < _MAX_COL_IDX:
+                    arts.append((r["int_pior"], "col", i, idx + 1))
+            except ValueError:
+                pass
+        try:
+            idx = _ESC_RAF.index(raf)
+            if idx < _MAX_RAF_IDX:
+                arts.append((r["int_pior"] * 0.9, "raf", 0, idx + 1))
+        except ValueError:
+            pass
+        if not arts:
+            break
+        arts.sort(key=lambda x: -x[0])
+        _, tipo, i, novo_idx = arts[0]
+        if tipo == "col":
+            cols[i] = _ESC_COL[novo_idx]
+        else:
+            raf = _ESC_RAF[novo_idx]
+    # Ultimo teste com o que temos
+    r = avalia(cols, raf, fixed, lb_col, lb_raf)
+    return {"aprovado": r if r["passa"] else None, "candidatos": [r],
+            "iteracoes": iteracoes, "tabela": _tabela(r)}
 
 
-def _tabela(linhas, aprovado, lb_col, lb_raf):
-    lim = gp.EAVE / 300.0
-    L = ["=" * 74, "REDIMENSIONAMENTO - par (coluna, viga) mais leve que passa",
-         "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
-         "Criterio: interacao ELU <= 1,00 (NBR 8800, K=1 com 2a ordem) E",
-         f"          flecha lateral <= H/300 = {lim*1000:.1f} mm (galpao, Tab. C.1).",
-         f"Travamento: coluna Lb={lb_col:.2f} m ; viga Lb={lb_raf:.2f} m.", "",
-         f"{'Coluna':>8} {'Viga':>7} | {'B2max':>6} | {'flecha':>8} {'lim':>6} |"
-         f" {'int.col':>7} {'int.viga':>8} | resultado", "-" * 74]
-    for r in linhas:
-        tag = "PASSA" if r["passa"] else "nao passa"
-        L.append(f"{r['col']:>8} {r['raf']:>7} | {r['B2']:6.3f} | "
-                 f"{r['drift']*1000:7.1f}mm {lim*1000:5.1f} | {r['int_col']:7.2f} "
-                 f"{r['int_viga']:8.2f} | {tag}")
-    L += ["-" * 74, ""]
-    if aprovado:
-        L += [f"ADOTADO (mais leve que passa): COLUNA {aprovado['col']} + "
-              f"VIGA {aprovado['raf']}",
-              f"  B2,max = {aprovado['B2']:.3f} ; flecha = {aprovado['drift']*1000:.1f} mm "
-              f"(<= {lim*1000:.1f}) ; int. coluna = {aprovado['int_col']:.2f} ; "
-              f"viga = {aprovado['int_viga']:.2f}"]
-    else:
-        L += ["NENHUM candidato passou - ampliar a escada ou revisar o esquema",
-              "estrutural (mao-francesa, contraventamento, inclinacao)."]
+def _tabela(r):
+    L = ["=" * 80, f"REDIMENSIONAMENTO - {gp.N_VAOS} vao(s) - otimizacao gulosa",
+         f"Flecha: {r['drift']*1000:.1f}mm <= H/300 = {r['lim_flecha']*1000:.1f}mm",
+         f"Interacao pior: {r['int_pior']:.2f}",
+         "Perfis:"]
+    for i, p in enumerate(r["cols"]):
+        L.append(f"  Col {i}: {p}")
+    L.append(f"  Viga: {r['raf']}")
+    L += [f"  B2max = {r['B2']:.3f}",
+          f"  {'PASSA' if r['passa'] else 'NAO PASSA'}"]
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
-def memoria_pt(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
-    """Roda a escada e devolve a tabela + o adotado (memorial standalone)."""
-    return melhor(fixed=fixed, lb_col=lb_col, lb_raf=lb_raf, seed=seed)["tabela"]
-
-
 if __name__ == "__main__":
-    print(memoria_pt())
+    r = melhor()
+    print(r["tabela"])
+    if r["aprovado"]:
+        print(f"Aprovado: cols={r['aprovado']['cols']} raf={r['aprovado']['raf']}")

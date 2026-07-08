@@ -54,9 +54,10 @@ def fc_rd(db, t, fu, lf):
 
 
 def _diam_furo(db):
-    """Diametro do furo-padrao (Tabela 12): db + 1,5 mm (db<=24) / db + 1,5 mm
-    (>=30 usa +1,5 tambem, conservador para lf). Unidades m."""
-    return db + 0.0015
+    """Diametro do furo-padrao (Tabela 12, NBR 8800). db em m.
+    db < 24 mm: dh = db + 1,5 mm ; db >= 24 mm: dh = db + 2,0 mm.
+    Unidades m."""
+    return db + (0.002 if db >= 0.024 else 0.0015)
 
 
 # Tabela 14 (NBR 8800) - distancia minima do centro de furo-padrao a borda [mm],
@@ -87,8 +88,9 @@ def tstub_prying(leff, m, e, t_chapa, fy, Ft_Rd_total, gM0=1.0):
     F3 = Ft_Rd_total
     F = min(F1, F2, F3)
     modo = 1 if F == F1 else (2 if F == F2 else 3)
-    # forca de alavanca Q (prying) presente nos modos 1 e 2
-    Q = max(F * n / (m + n) - 0.0, 0.0) if modo in (1, 2) else 0.0
+    # forca de alavanca Q (prying) por equilibrio: F*m - Q*n = 2*Mpl
+    # Q = (F*m - 2*Mpl)/n ; eq. vertical confirma: Ft = F+Q (modo 2) <= SFt
+    Q = max((F * m - 2.0 * Mpl) / n, 0.0) if modo in (1, 2) and n > 0 else 0.0
     return {"F_T_Rd": F, "modo": modo, "F1": F1, "F2": F2, "F3": F3,
             "Mpl": Mpl, "m": m, "n": n, "e": e, "leff": leff,
             "Q_prying": round(Q, 2),
@@ -138,15 +140,17 @@ def block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu, Cts=1.0):
     linha) + tracao no segmento transversal na extremidade. Percurso assumido
     (FLAG - o responsavel confirma para outros arranjos):
       - comprimento ao cisalhamento Lgv = e_long + (n-1)*s_furos (borda -> ultimo furo)
-      - furos no plano de cisalhamento = n (subtrai n*dh na area liquida)
+      - furos no plano de cisalhamento = n - 0,5 (a linha de ruptura parte da
+        borda, passa pelo CENTRO do 1o furo -> 0,5 dh ; segue pelos demais furos
+        inteiros ; termina no centro do ultimo furo, onde faz a curva de 90°)
       - tracao transversal Lnt = e_transv (subtrai 1/2 furo)
     e_long = distancia do 1o furo a borda na direcao da forca ; e_transv = distancia
     do furo a borda transversal. Unidades m. Retorna o dict de block_shear."""
     dh = _diam_furo(db)
     Lgv = e_long + (n - 1) * s_furos
     Agv = Lgv * t
-    Anv = (Lgv - n * dh) * t
-    Ant = max(e_transv - 0.5 * dh, 0.0) * t
+    Anv = (Lgv - (n - 0.5) * dh) * t                  # 6.5.6: meio furo na borda
+    Ant = max(e_transv - 0.5 * dh, 0.0) * t            # meio furo na transversal
     r = block_shear(Agv, max(Anv, 0.0), Ant, fy, fu, Cts)
     r.update(Lgv=Lgv, dh=dh, n=n)
     return r
@@ -249,6 +253,53 @@ def solda(caso):
     return {"tipo": "solda", "Aw": Aw, "Fw_metal": Fw, "Fw_base": Fb,
             "Fw_Rd": Frd, "Fsd": Fsd, "u": Fsd / Frd, "OK": Fsd <= Frd,
             "governa": "metal-base" if Fb < Fw else "metal da solda"}
+
+
+# ==== DETALHAMENTO EXECUTIVO ================================================
+
+def comprimento_parafuso(db, esp_chapa, esp_arruela=3.0, n_porcas=1):
+    """Comprimento necessario do parafuso (mm) conforme NBR 8800.
+    L = esp_chapa_total + soma(arruelas) + n_porcas*alt_porca + folga.
+    alt_porca ~ 0.8*db."""
+    alt_porca = 0.8 * db * 1000.0
+    return round(esp_chapa + 2 * esp_arruela + n_porcas * alt_porca + 5.0, 0)
+
+
+def solda_filete_minimo(t_chapa):
+    """Perna minima de solda de filete (mm) conforme NBR 8800 Tab.9."""
+    if t_chapa <= 6.0:    return 3.0
+    elif t_chapa <= 12.0: return 5.0
+    elif t_chapa <= 19.0: return 6.0
+    elif t_chapa <= 38.0: return 8.0
+    else:                 return 10.0
+
+
+def chapa_extremidade(bf_viga, d_alma, fy=250e3, fu=400e3, t_min=12.5):
+    """Pre-dimensiona chapa de extremidade para ligacao de momento.
+    Retorna espessura minima (mm) e dimensoes (mm)."""
+    t_est = max(t_min, math.sqrt(0.1 * d_alma * bf_viga * fy / fu))
+    return {"esp_mm": round(t_est, 1), "larg_mm": bf_viga + 20.0,
+            "alt_mm": d_alma * 1.5, "fu_MPa": fu / 1000.0}
+
+
+def detalha_ligacao(N, V, db=24, fub=825e3, t_chapa=16.0, fu_chapa=400e3,
+                    bf_viga=200.0, d_alma=190.0):
+    """Detalhamento completo de ligacao parafusada (joelho)."""
+    from math import ceil
+    Fv_par = fv_rd(db / 1000.0, fub)
+    Ft_par = ft_rd(db / 1000.0, fub)
+    n_corte = max(2, ceil(abs(V) / (Fv_par * 0.8)))
+    n_tracao = max(2, ceil(abs(N) / (Ft_par * 0.8)))
+    n = max(n_corte, n_tracao)
+    if n % 2: n += 1
+    chapa = chapa_extremidade(bf_viga, d_alma)
+    solda_perna = solda_filete_minimo(t_chapa)
+    L_paraf = comprimento_parafuso(db, t_chapa + 6.0)
+    return {"n_parafusos": n, "db_mm": db, "fub_MPa": fub / 1000.0,
+            "t_chapa_mm": t_chapa, "chapa": chapa,
+            "solda_perna_mm": solda_perna,
+            "comprimento_parafuso_mm": L_paraf,
+            "Fv_Rd_par": round(Fv_par, 1), "Ft_Rd_par": round(Ft_par, 1)}
 
 
 # ---- forca minima 6.1.5.2 --------------------------------------------------
@@ -377,6 +428,10 @@ def _selftest():
     assert abs(fw_rd_base(0.008, 0.200, 250e3) - esc) < 1e-6   # sem fu -> escoamento
     # forca minima
     assert forca_minima(30.0)[0] == 45.0 and forca_minima(30.0, excecao=True)[0] == 30.0
+    # diametro do furo (Tabela 12): db=20 (<24) -> dh=21,5mm ; db=24 -> dh=26mm
+    assert abs(_diam_furo(0.020) - 0.0215) < 1e-9
+    assert abs(_diam_furo(0.024) - 0.0260) < 1e-9
+    assert abs(_diam_furo(0.030) - 0.0320) < 1e-9
     # espacamento (6.3.9/10/11) + lf derivado da geometria. db=20, dh=21,5.
     esp = verifica_espacamento(0.020, s_furos=0.060, e_borda=0.035, t=0.0125)
     assert abs(esp["dh"] - 0.0215) < 1e-9
@@ -408,6 +463,10 @@ def _selftest():
     bl = block_shear_linha(3, 0.060, 0.035, 0.040, 0.020, 0.0125, 250e3, 400e3)
     Lgv = 0.035 + 2 * 0.060
     assert abs(bl["Lgv"] - Lgv) < 1e-9 and bl["Frd"] > 0
+    # Anv com (n-0,5) furos: 3 furos -> 2,5*dh subtraidos
+    dh_esp = _diam_furo(0.020)
+    Anv_esp = (Lgv - (3 - 0.5) * dh_esp) * 0.0125
+    assert abs(bl["Anv"] - Anv_esp) < 1e-12, f"Anv {bl['Anv']} != {Anv_esp}"
     # T-stub / prying (EN 1993-1-8): 3 modos, F_T,Rd = min
     ts = tstub_prying(leff=0.120, m=0.040, e=0.035, t_chapa=0.0160, fy=250e3,
                       Ft_Rd_total=2 * ft_rd(0.020, 800e3))
@@ -417,6 +476,19 @@ def _selftest():
     F2 = (2 * Mpl + n * 2 * ft_rd(0.020, 800e3)) / (0.040 + n)
     assert abs(ts["F_T_Rd"] - min(F1, F2, 2 * ft_rd(0.020, 800e3))) < 1e-6, ts
     assert ts["modo"] in (1, 2, 3)
+    # Q corrigida por equilibrio: F*m - Q*n = 2*Mpl
+    Q_esp = (ts["F_T_Rd"] * 0.040 - 2 * Mpl) / n if n > 0 else 0.0
+    assert abs(ts["Q_prying"] - Q_esp) < 0.1, f"Q {ts['Q_prying']} != {Q_esp}"
+    if ts["modo"] == 2:
+        # Modo 2: equilibrio F + Q = SFt (parafusos no limite)
+        SFt = 2 * ft_rd(0.020, 800e3)
+        assert abs(ts["F_T_Rd"] + ts["Q_prying"] - SFt) < 1.0, \
+            f"Modo2: F({ts['F_T_Rd']})+Q({ts['Q_prying']}) != SFt({SFt})"
+    # Detalhamento executivo
+    d = detalha_ligacao(N=90.0, V=130.0, db=24)
+    assert d["n_parafusos"] >= 2
+    assert d["solda_perna_mm"] >= 5.0
+    assert chapa_extremidade(200, 190)["esp_mm"] >= 12.0
     print("ligacoes self-test PASSED")
     print(f"  Fv,Rd(d16, fub800) = {fv_rd(0.016,800e3):.1f} kN")
     print(f"  Fw,Rd filete 6mm x 200mm (fw=485) metal = {Fw:.1f} kN")

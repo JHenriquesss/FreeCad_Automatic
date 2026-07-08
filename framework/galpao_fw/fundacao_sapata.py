@@ -375,6 +375,34 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
     return _pt("\n".join(L))
 
 
+# ==== DETALHAMENTO EXECUTIVO DE ARMADURA ====================================
+
+def comprimento_ancoragem(phi_mm, fck_MPa=25, fyk_MPa=500, gancho=True,
+                           boa_aderencia=True):
+    """Comprimento de ancoragem basico (lb) e necessario (lb,nec) (NBR 6118 9.4).
+    Retorna lb, lb_nec, lb_min em mm, fbd em MPa."""
+    fctd = 0.7 * 0.3 * fck_MPa ** (2.0 / 3.0) / 1.4
+    fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * 1.0 * fctd
+    fyd = fyk_MPa / 1.15
+    lb = (phi_mm / 4.0) * (fyd / fbd)
+    alpha = 0.7 if gancho else 1.0
+    lb_min = max(0.3 * lb, 10.0 * phi_mm, 100.0)
+    lb_nec = max(alpha * lb, lb_min)
+    return {"lb_mm": round(lb), "lb_nec_mm": round(lb_nec),
+            "lb_min_mm": round(lb_min), "fbd_MPa": round(fbd, 2),
+            "gancho": gancho, "phi_mm": phi_mm}
+
+
+def quadro_dobramento(barras):
+    """Gera quadro de dobramento simplificado (phi, n, comprimento, peso).
+    barras: lista de dicts com phi_mm, n, comprimento_total_mm."""
+    return [{"phi": b["phi_mm"], "n": b["n"],
+             "L_total_m": round(b["comprimento_total_mm"] / 1000.0, 2),
+             "peso_kg": round(b["n"] * (b["comprimento_total_mm"] / 1000.0)
+                              * 0.00617 * b["phi_mm"] ** 2, 2)}
+            for b in barras]
+
+
 # ---- PARTE B: CONCRETO ARMADO (NBR 6118) -----------------------------------
 # Metodo extraido da NBR 6118:2014 (pesquisa/aco/nbr-6118-2014...pdf):
 #   - 22.6.1  : sapata RIGIDA se h >= (a - ap)/3 nas duas direcoes (a=dim sapata,

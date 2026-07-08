@@ -19,22 +19,57 @@ import FreeCAD as App
 import Part
 
 # ---- Parametros (mm) --------------------------------------------------------
-LENGTH = 20000.0            # comprimento (X)
-SPAN = 10000.0             # vao transversal (Y)
+SPANS = [10000.0]          # largura de cada vao transversal (Y), lista para N vaos
+LENGTH = 20000.0           # comprimento (X)
 EAVE_H = 6000.0            # pe-direito (do topo do concreto)
-SLOPE = 0.10              # inclinacao 10%
-BAY = 5000.0             # espacamento entre porticos
+SLOPE = 0.10               # inclinacao 10%
+BAY = 5000.0               # espacamento entre porticos
 GROUT_GAP = 30.0
 
-RIDGE_Y = SPAN / 2.0
-RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
+TOTAL_Y = sum(SPANS)
 Z0 = GROUT_GAP
 
-EXPORT_DIR = "exports"          # default relativo; sobrescrito por configurar(export_dir=...)
-DOC_NAME = "galpao_20x10"
+
+def _col_ys():
+    """Posicoes Y das linhas de coluna (N+1)."""
+    return [sum(SPANS[:i]) for i in range(len(SPANS) + 1)]
+
+def _ridge_ys():
+    """Posicoes Y das cumeeiras (N)."""
+    return [sum(SPANS[:i]) + SPANS[i] / 2.0 for i in range(len(SPANS))]
 
 
-def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
+def rafter_z(y):
+    """Cota Z no plano do telhado para um dado Y. Suporta N vaos."""
+    cols = _col_ys(); ridges = _ridge_ys()
+    for i in range(len(SPANS)):
+        c0, c1 = cols[i], cols[i + 1]
+        if c0 - 1e-6 <= y <= c1 + 1e-6:
+            ry = ridges[i]
+            if y <= ry:
+                return EAVE_H + SLOPE * (y - c0)
+            else:
+                return EAVE_H + SLOPE * (c1 - y)
+    return EAVE_H
+
+
+def _span_idx(y):
+    """Indice do vao que contem a coordenada Y."""
+    cols = _col_ys()
+    for i in range(len(SPANS)):
+        if cols[i] - 1e-6 <= y <= cols[i + 1] + 1e-6:
+            return i
+    return 0
+
+# Retrocompatibilidade 1 vao: SPAN, RIDGE_Y, RIDGE_H
+SPAN = TOTAL_Y
+RIDGE_Y = _ridge_ys()[0] if len(SPANS) > 0 else SPAN / 2.0
+RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
+EXPORT_DIR = "exports"
+DOC_NAME = "galpao"
+
+
+def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
                fechamento=None, ponte_modelo=None,
@@ -47,7 +82,7 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
     perfil_col/perfil_raf (h,b,tw,tf em mm) vem do redimensionamento (perfil
     ADOTADO); default = referencia."""
-    global LENGTH, SPAN, EAVE_H, SLOPE, BAY, RIDGE_Y, RIDGE_H, EXPORT_DIR, DOC_NAME
+    global LENGTH, SPANS, EAVE_H, SLOPE, BAY, EXPORT_DIR, DOC_NAME
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
@@ -69,7 +104,10 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     if ponte_modelo is not None:
         PONTE_MODELO = ponte_modelo if ponte_modelo else None
     if length is not None: LENGTH = float(length)
-    if span is not None:   SPAN = float(span)
+    if spans is not None:
+        SPANS = [float(s) for s in spans]
+    elif span is not None:
+        SPANS = [float(span)]
     if eave_h is not None: EAVE_H = float(eave_h)
     if slope is not None:  SLOPE = float(slope)
     if bay is not None:    BAY = float(bay)
@@ -77,8 +115,6 @@ def configurar(length=None, span=None, eave_h=None, slope=None, bay=None,
     if doc_name is not None:   DOC_NAME = doc_name
     if mf_stride is not None:  MF_STRIDE = max(1, int(mf_stride))
     if n_tirante_parede is not None: N_TIRANTE_PAREDE = max(0, int(n_tirante_parede))
-    RIDGE_Y = SPAN / 2.0
-    RIDGE_H = EAVE_H + SLOPE * RIDGE_Y
 
 # Perfis placeholder (secoes europeias; tamanhos NAO verificados).
 # I: (h, b, tw, tf)   U: (h, b, tw, tf)
@@ -342,10 +378,6 @@ def panel(doc, corners, thick, name, openings=None):
     return obj
 
 
-def rafter_z(y):
-    return EAVE_H + SLOPE * (y if y <= RIDGE_Y else (SPAN - y))
-
-
 def _assenta(obj, apoios, clearance=0.5, passes=4):
     """Sobe 'obj' ate ASSENTAR sobre 'apoios' MEDINDO a penetracao real (volume
     comum) e levantando por ela. Robusto a secao inclinada/perfil qualquer - nao
@@ -452,14 +484,24 @@ def frame_axes():
 # ---- montagem do modelo ----------------------------------------------------
 def build(doc):
     axes = frame_axes()
+    nv = len(SPANS)
+    cols_y = _col_ys()
+    ridges_y = _ridge_ys()
+    SPAN = cols_y[-1]
+    RIDGE_Y = ridges_y[0]
+    RIDGE_H = rafter_z(RIDGE_Y)
 
-    # Porticos principais: colunas + vigas (perfil I)
+    # Porticos principais: colunas + vigas (I)
     for i, x in enumerate(axes, start=1):
         t = f"PORTICO_{i:02d}"
-        i_member(doc, (x, 0, Z0), (x, 0, EAVE_H), COL_SEC, f"{t}_COLUNA_E")
-        i_member(doc, (x, SPAN, Z0), (x, SPAN, EAVE_H), COL_SEC, f"{t}_COLUNA_D")
-        i_member(doc, (x, 0, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_E")
-        i_member(doc, (x, SPAN, EAVE_H), (x, RIDGE_Y, RIDGE_H), RAF_SEC, f"{t}_VIGA_D")
+        for j in range(nv + 1):
+            yc = cols_y[j]
+            i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
+        for j in range(nv):
+            yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
+            zh = rafter_z(yr)
+            i_member(doc, (x, y0, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_E")
+            i_member(doc, (x, y1, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_D")
 
     # Base ENGASTADA PARAMETRICA (dims do dimensionamento -> BASE_PLATE): placa
     # B x L x t + n chumbadores d=db gancho-L (straddle em Y = direcao do momento)
@@ -476,7 +518,8 @@ def build(doc):
     wsz = 2.0 * dbp + 40.0                              # arruela
     pod = 1.7 * dbp + 8.0                               # diametro da porca
     for i, x in enumerate(axes, start=1):
-        for yw, lado in ((0, "E"), (SPAN, "D")):
+        for j, yw in enumerate(cols_y):
+            lado = f"C{j:02d}"
             plate(doc, (x, yw, Z0 - tp / 2.0), Bp, Lp, tp, f"PLACA_BASE_{lado}_{i:02d}")
             for k, (dx, dy) in enumerate(ancoras, start=1):
                 ax, ay, sfx = x + dx, yw + dy, f"{k:02d}"
@@ -490,9 +533,8 @@ def build(doc):
                     f"PORCA_{lado}_{i:02d}_{sfx}")
                 rod(doc, (ax, ay, pbot - 28.0), (ax, ay, pbot), pod,
                     f"PORCA_NIVEL_{lado}_{i:02d}_{sfx}")
-            # Nervuras (2): gussets no plano do momento, soldados a coluna e a placa.
             for sgn, nm in ((1.0, "P"), (-1.0, "N")):
-                ftip = COL_SEC[1] / 2.0                         # ponta da mesa do pilar
+                ftip = COL_SEC[1] / 2.0
                 V1 = App.Vector(x, yw + sgn * ftip, ptop)
                 V2 = App.Vector(x, yw + sgn * min(ftip + 140.0, gy + edge), ptop)
                 V3 = App.Vector(x, yw + sgn * ftip, ptop + 300.0)
@@ -502,35 +544,47 @@ def build(doc):
                 ob = doc.addObject("Part::Feature", f"NERVURA_BASE_{lado}_{i:02d}_{nm}")
                 ob.Shape = g
                 _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
-            # Sapata de fundacao (concreto): pedestal (pbot -> topo do bloco) +
-            # bloco B x L x h enterrado. So desenha se SAPATA_MODEL definido.
             if SAPATA_MODEL:
                 sB = SAPATA_MODEL["B"]; sL = SAPATA_MODEL["L"]; sh = SAPATA_MODEL["h"]
                 ped = SAPATA_MODEL.get("ped", 500.0)
-                pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)  # pedestal ~ pilar+cobrimento
-                z_ped_top = pbot                              # sob a placa de base
-                z_ped_bot = z_ped_top - ped                   # topo do bloco
-                z_blk_bot = z_ped_bot - sh
+                pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+                z_ped_top = pbot; z_ped_bot = z_ped_top - ped; z_blk_bot = z_ped_bot - sh
                 plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
                       f"PEDESTAL_{lado}_{i:02d}")
                 plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
                       f"SAPATA_{lado}_{i:02d}")
 
-    # Joelho (ligacao de momento viga-coluna) em cada portico: chapa de topo +
-    # 4 M24 + enrijecedores de continuidade no pilar.
-    _rise = RIDGE_H - EAVE_H
+    # Joelho (ligacao de momento viga-coluna) em cada portico + cumeeira por vao.
     for i, x in enumerate(axes, start=1):
-        joelho(doc, (x, 0.0, EAVE_H), (0.0, RIDGE_Y, _rise), f"{i:02d}_E")
-        joelho(doc, (x, SPAN, EAVE_H), (0.0, -RIDGE_Y, _rise), f"{i:02d}_D")
-        cumeeira_conn(doc, x, f"{i:02d}")
+        for j in range(nv + 1):
+            yc = cols_y[j]
+            # Coluna externa: 1 joelho (para dentro do vao)
+            if j == 0:
+                _r = rafter_z(ridges_y[0]) - EAVE_H
+                joelho(doc, (x, yc, EAVE_H), (0.0, ridges_y[0] - yc, _r), f"{i:02d}_C{j:02d}")
+            elif j == nv:
+                _r = rafter_z(ridges_y[-1]) - EAVE_H
+                joelho(doc, (x, yc, EAVE_H), (0.0, ridges_y[-1] - yc, _r), f"{i:02d}_C{j:02d}")
+            else:
+                # Coluna interna: 2 joelhos (esquerdo e direito)
+                _rl = rafter_z(ridges_y[j - 1]) - EAVE_H
+                joelho(doc, (x, yc, EAVE_H), (0.0, ridges_y[j - 1] - yc, _rl), f"{i:02d}_C{j:02d}_E")
+                _rr = rafter_z(ridges_y[j]) - EAVE_H
+                joelho(doc, (x, yc, EAVE_H), (0.0, ridges_y[j] - yc, _rr), f"{i:02d}_C{j:02d}_D")
+        for j in range(nv):
+            cumeeira_conn(doc, x, f"{i:02d}_S{j:02d}")
 
     # Escoras de beiral + viga de cumeeira (perfil I, por vao)
     for b in range(len(axes) - 1):
         x0, x1 = axes[b], axes[b + 1]
         t = f"VAO_{b + 1:02d}"
-        i_member(doc, (x0, 0, EAVE_H), (x1, 0, EAVE_H), HEA_ESC, f"{t}_ESCORA_BEIRAL_E")
-        i_member(doc, (x0, SPAN, EAVE_H), (x1, SPAN, EAVE_H), HEA_ESC, f"{t}_ESCORA_BEIRAL_D")
-        i_member(doc, (x0, RIDGE_Y, RIDGE_H), (x1, RIDGE_Y, RIDGE_H), HEA_ESC, f"{t}_CUMEEIRA")
+        i_member(doc, (x0, cols_y[0], EAVE_H), (x1, cols_y[0], EAVE_H), HEA_ESC,
+                 f"{t}_ESCORA_BEIRAL_E")
+        i_member(doc, (x0, cols_y[-1], EAVE_H), (x1, cols_y[-1], EAVE_H), HEA_ESC,
+                 f"{t}_ESCORA_BEIRAL_D")
+        for j in range(nv):
+            yr = ridges_y[j]; zh = rafter_z(yr)
+            i_member(doc, (x0, yr, zh), (x1, yr, zh), HEA_ESC, f"{t}_CUMEEIRA_S{j:02d}")
 
     # Tercas: perfil U com face aberta para o BEIRAL (regra CBCA). ASSENTAM SOBRE a
     # mesa superior da VIGA (nao penetram). A viga e INCLINADA: o topo real em Z do
@@ -545,19 +599,21 @@ def build(doc):
     vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
     n_terca = 3
     terca_ys = []
-    terca_objs = []                     # p/ assentar e depois posicionar clipes
-    for k in range(1, n_terca):
-        yl = RIDGE_Y * k / n_terca
-        terca_ys.append(yl)
-        terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
-                          (LENGTH, yl, rafter_z(yl) + POFF), UE_SEC,
-                          f"TERCA_E_{k:02d}", roll=180)))
-        yr = SPAN - RIDGE_Y * k / n_terca
-        terca_ys.append(yr)
-        terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
-                          (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
-                          f"TERCA_D_{k:02d}", roll=0)))
-    for y, lado, rl in ((0.0, "E", 180), (SPAN, "D", 0)):
+    terca_objs = []
+    for j in range(nv):
+        y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]
+        for k in range(1, n_terca):
+            yl = y0 + (yrj - y0) * k / n_terca
+            terca_ys.append(yl)
+            terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
+                              (LENGTH, yl, rafter_z(yl) + POFF), UE_SEC,
+                              f"TERCA_S{j:02d}_E_{k:02d}", roll=180)))
+            yr = y1 - (y1 - yrj) * k / n_terca
+            terca_ys.append(yr)
+            terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
+                              (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
+                              f"TERCA_S{j:02d}_D_{k:02d}", roll=0)))
+    for y, lado, rl in ((cols_y[0], "E", 180), (cols_y[-1], "D", 0)):
         terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
                           (LENGTH, y, EAVE_H + POFF), UE_SEC,
                           f"TERCA_BEIRAL_{lado}", roll=rl)))
@@ -602,7 +658,7 @@ def build(doc):
         x0 = axes[b]
         for k in range(1, N_TIRANTE_PAREDE + 1):
             xk = x0 + BAY * k / (N_TIRANTE_PAREDE + 1)
-            for y, lado in ((-GOFF, "E"), (SPAN + GOFF, "D")):
+            for y, lado in ((-GOFF, "E"), (cols_y[-1] + GOFF, "D")):
                 rod(doc, (xk, y, Z0), (xk, y, EAVE_H), 16,
                     f"TIRANTE_PAREDE_{lado}_{b + 1:02d}_{k:02d}")
 
@@ -624,29 +680,34 @@ def build(doc):
     for b in range(len(axes) - 1):
         xm = (axes[b] + axes[b + 1]) / 2.0
         t = f"VAO_{b + 1:02d}"
-        pz = POFF                       # no plano das tercas (que subiram para assentar)
-        lc = [0.0] + sorted([y for y in terca_ys if y < RIDGE_Y]) + [RIDGE_Y]
-        for s in range(len(lc) - 1):
-            ya, yb = lc[s], lc[s + 1]
-            rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz), 16, f"TIRANTE_E_{t}_{s:02d}")
-        rc = [SPAN] + sorted([y for y in terca_ys if y > RIDGE_Y], reverse=True) + [RIDGE_Y]
-        for s in range(len(rc) - 1):
-            ya, yb = rc[s], rc[s + 1]
-            rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz), 16, f"TIRANTE_D_{t}_{s:02d}")
+        pz = POFF
+        for j in range(nv):
+            y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]
+            pts_e = sorted([y for y in terca_ys if y0 <= y < yrj]) + [yrj]
+            pts_e = [y0] + [p for p in pts_e if p not in (y0,)]
+            for s in range(len(pts_e) - 1):
+                ya, yb = pts_e[s], pts_e[s + 1]
+                rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz),
+                    16, f"TIRANTE_S{j:02d}_E_{t}_{s:02d}")
+            pts_d = sorted([y for y in terca_ys if yrj < y <= y1], reverse=True) + [yrj]
+            pts_d = [y1] + [p for p in pts_d if p not in (y1,)]
+            for s in range(len(pts_d) - 1):
+                ya, yb = pts_d[s], pts_d[s + 1]
+                rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz),
+                    16, f"TIRANTE_S{j:02d}_D_{t}_{s:02d}")
 
     # Maos-francesas: contencao da mesa inferior da viga (sob succao de vento).
-    # Passo MF_STRIDE vem do calc (inversao da interacao) - so nas tercas
-    # interiores multiplas do passo; joelho e cumeeira ja sao pontos travados.
     brace_k = [k for k in range(1, n_terca) if k % MF_STRIDE == 0]
     for x in axes:
         c = 0
-        for k in brace_k:
-            for y in (RIDGE_Y * k / n_terca, SPAN - RIDGE_Y * k / n_terca):
-                c += 1
-                zt = rafter_z(y)
-                dy = 300 if y < RIDGE_Y else -300
-                rod(doc, (x, y, zt - 90), (x, y + dy, zt - 250), 16,
-                    f"MAO_FRANCESA_{int(x)//1000:02d}_{c:02d}")
+        for j in range(nv):
+            y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]
+            for k in brace_k:
+                for y, sgn in ((y0 + (yrj - y0) * k / n_terca, +1),
+                               (y1 - (y1 - yrj) * k / n_terca, -1)):
+                    c += 1; zt = rafter_z(y)
+                    rod(doc, (x, y, zt - 90), (x, y + sgn * 300, zt - 250), 16,
+                        f"MAO_FRANCESA_S{j:02d}_{int(x)//1000:02d}_{c:02d}")
 
     # Contraventamento so-tracao (barras redondas) nos vaos de extremidade. Cada
     # diagonal recebe um ESTICADOR (lanterna) no meio; cada canto do painel recebe
@@ -744,11 +805,12 @@ def build(doc):
     # (POFF e so a estimativa inicial; o assentamento levanta a terca alguns mm).
     _off = max((zb + UE_SEC[0] - rafter_z(y)) for (y, zb) in terca_seats)
     zr = EAVE_H + _off + TELHA_GAP + TCL / 2.0
-    zrr = RIDGE_H + _off + TELHA_GAP + TCL / 2.0
-    panel(doc, [(0, 0, zr), (LENGTH, 0, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
-          TCL, "TELHA_E")
-    panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
-          TCL, "TELHA_D")
+    for j in range(nv):
+        y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]; zrrj = rafter_z(yrj) + _off + TELHA_GAP + TCL / 2.0
+        panel(doc, [(0, y0, zr), (LENGTH, y0, zr), (LENGTH, yrj, zrrj), (0, yrj, zrrj)],
+              TCL, f"TELHA_S{j:02d}_E")
+        panel(doc, [(0, y1, zr), (LENGTH, y1, zr), (LENGTH, yrj, zrrj), (0, yrj, zrrj)],
+              TCL, f"TELHA_S{j:02d}_D")
 
     # Aberturas (Gate 4) - dirigidas por ABERTURAS (config). So desenha o pedido.
     yw = 195.0
@@ -818,9 +880,11 @@ def build(doc):
             ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + ph)))
             ABERTURAS_PASSAGEM.append((f"porta_{lbl.lower()}",
                 (xc - 200, xc + 200, yr[0], yr[1], Z0, Z0 + ph)))
-        panel(doc, [(xc, 0, Z0), (xc, SPAN, Z0), (xc, SPAN, EAVE_H),
-                    (xc, RIDGE_Y, RIDGE_H), (xc, 0, EAVE_H)], TCL,
-              f"TAPAMENTO_OITAO_{lbl}", openings=ops)
+        pts_gable = [(xc, cols_y[0], Z0), (xc, cols_y[-1], Z0), (xc, cols_y[-1], EAVE_H)]
+        for j in range(nv):
+            pts_gable.insert(-1, (xc, ridges_y[j], rafter_z(ridges_y[j])))
+        pts_gable.insert(-1, (xc, cols_y[0], EAVE_H))
+        panel(doc, pts_gable, TCL, f"TAPAMENTO_OITAO_{lbl}", openings=ops)
 
     doc.recompute()
     return len(doc.Objects)
@@ -1303,8 +1367,9 @@ def run():
         desenha_terreno(doc, TERRENO_PTS)
         doc.recompute()
     fcstd, step = export(doc)
+    count = len([o for o in doc.Objects if hasattr(o, "Shape")])
     return {"elementos": count, "porticos": len(frame_axes()),
-            "altura_cumeeira_mm": RIDGE_H, "gap_graute_mm": GROUT_GAP,
+            "altura_cumeeira_mm": rafter_z(_ridge_ys()[0]), "gap_graute_mm": GROUT_GAP,
             "comprimento_aco_coluna_mm": EAVE_H - Z0,
             "interferencias": len(itf),
             "conexoes_suspeitas": conx,

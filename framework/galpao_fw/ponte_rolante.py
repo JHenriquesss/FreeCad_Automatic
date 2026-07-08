@@ -191,12 +191,16 @@ def verifica_viga_rolamento(sec, fy, cfg):
 
 
 def reacao_no_portico(R_roda_max, n_rodas_lado, H_transv_roda, H_long_trilho,
-                      excentricidade):
-    """Empacota a reacao da viga de rolamento para o PORTICO (console/pilar).
-    R_vert = soma das rodas no trilho ; M_exc = R_vert * excentricidade (trilho
-    fora do eixo do pilar) ; H_transv e H_long entram na analise/contraventamento."""
-    R_vert = R_roda_max * n_rodas_lado
-    return {"R_vertical_kN": R_vert, "M_excentrico_kNm": R_vert * excentricidade,
+                      excentricidade, R_roda_min=None):
+    """Reacoes da ponte no PORTICO (2 colunas do vao). Retorna dict com:
+    R_vert_max = reacao no trilho mais carregado (coluna de apoio do trole)
+    R_vert_min = reacao no trilho oposto
+    M_exc = R_vert_max * excentricidade (fora do eixo do pilar)
+    H_transv e H_long entram na analise/contraventamento."""
+    Rv_max = R_roda_max * n_rodas_lado
+    Rv_min = (R_roda_min if R_roda_min else R_roda_max) * n_rodas_lado
+    return {"R_vertical_kN": Rv_max, "R_vertical_min_kN": Rv_min,
+            "M_excentrico_kNm": Rv_max * excentricidade,
             "H_transversal_kN": H_transv_roda * n_rodas_lado,
             "H_longitudinal_kN": H_long_trilho}
 
@@ -223,8 +227,9 @@ def relatorio_pt(esf, viga, reac):
                  f"{'OK' if viga['flecha_ok'] else 'NAO'}")
     L += [f"    >> {viga['fadiga_flag']}",
           "-" * 70, "  REACAO NO PORTICO (console/pilar):",
-          f"    R_vertical = {reac['R_vertical_kN']:.1f} kN ; M_excentrico = "
-          f"{reac['M_excentrico_kNm']:.1f} kN.m",
+          f"    R_vert,max (col 1) = {reac['R_vertical_kN']:.1f} kN ; "
+          f"R_vert,min (col 2) = {reac.get('R_vertical_min_kN', reac['R_vertical_kN']):.1f} kN",
+          f"    M_excentrico = {reac['M_excentrico_kNm']:.1f} kN.m",
           f"    H_transversal = {reac['H_transversal_kN']:.1f} kN ; H_longitudinal = "
           f"{reac['H_longitudinal_kN']:.1f} kN",
           "    (entram na analise do portico e no contraventamento longitudinal)",
@@ -256,7 +261,7 @@ def analisa(cfg):
             "nome": "Viga de rolamento"}
     viga = verifica_viga_rolamento(cfg["perfil_viga"], cfg["fy"], vcfg)
     reac = reacao_no_portico(Rmx, cfg["n_rodas_lado"], Ht, Hl,
-                             cfg.get("excentricidade", 0.30))
+                             cfg.get("excentricidade", 0.30), R_roda_min=Rmn)
     return esf, viga, reac
 
 
