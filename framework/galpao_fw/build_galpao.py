@@ -377,8 +377,12 @@ def joelho(doc, node, rdir, tag):
     dirn = _norm(rdir)
     u = (1.0, 0.0, 0.0)                 # ao longo do comprimento (mesas em +-X)
     v = _norm(_cross(dirn, u))          # perpendicular a viga, no plano do portico
+    # cross(dirn,u) troca de sinal entre os beirais (dirn inverte em Y no cume),
+    # entao +v aponta p/ cima num lado e p/ baixo no outro. Forca +v p/ BAIXO para
+    # a misula pendurar sob a viga nos DOIS lados (senao um joelho fica invertido).
+    if v[2] > 0.0:
+        v = (-v[0], -v[1], -v[2])
     cx, cy, cz = node
-    sgn = 1.0 if rdir[1] > 0 else -1.0
     hlen = 800.0                        # alcance da misula ao longo da viga
     hdep = 450.0                        # profundidade da misula abaixo da viga (no beiral)
     hhalf = RAF_SEC[0] / 2.0            # meia-altura da viga (face inferior = +hhalf*v)
@@ -732,11 +736,15 @@ def build(doc):
     # (O +200 fixo anterior deixava a telha ~94 mm ABAIXO do topo da terca, enterrada;
     # como a telha e PELE, o clash com ESTRUTURA nao pegava.)
     TCL = 0.65
+    TELHA_GAP = 20.0        # folga da face inf da telha sobre o topo da terca mais
+                            # alta (altura do clipe/costaneira de fixacao). Sem gap a
+                            # telha (pele 0,65 mm) fica COPLANAR ao topo da terca e a
+                            # aba aflora pela casca (le como "terca acima da telha").
     # offset acima do eixo da viga = topo da terca MAIS ALTA, MEDIDO apos _assenta
     # (POFF e so a estimativa inicial; o assentamento levanta a terca alguns mm).
     _off = max((zb + UE_SEC[0] - rafter_z(y)) for (y, zb) in terca_seats)
-    zr = EAVE_H + _off + TCL / 2.0
-    zrr = RIDGE_H + _off + TCL / 2.0
+    zr = EAVE_H + _off + TELHA_GAP + TCL / 2.0
+    zrr = RIDGE_H + _off + TELHA_GAP + TCL / 2.0
     panel(doc, [(0, 0, zr), (LENGTH, 0, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
           TCL, "TELHA_E")
     panel(doc, [(0, SPAN, zr), (LENGTH, SPAN, zr), (LENGTH, RIDGE_Y, zrr), (0, RIDGE_Y, zrr)],
