@@ -29,7 +29,11 @@
 #     sigma_bc<=sig_c,Rd). Informativo (credita atrito so se atrito_cortante=True).
 #   - EDGE BREAKOUT no cisalhamento (ACI 318 Ch.17 / Nilson cap.21): quando o V vai
 #     aos chumbadores perto da borda -> Vcbg (21.7/8) + pryout Vcp (21.14). Opt-in
-#     (cone_geom com ca1/ca2/h_bloco); informativo.
+#     (cone_geom com ca1/ca2/h_bloco); informativo. Warning de armadura de ancoragem
+#     (hairpin, 17.5.2.9) se u>1.
+#   - INTERACAO TRACAO-CORTANTE do concreto (ACI 318 17.6 / Nilson 21.16): trilinear
+#     (Nua/phiNn + Vua/phiVn <= 1,2, com cutoffs 0,2). Combina cone (§tracao) + edge
+#     breakout (§cortante). Informativo.
 # Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
@@ -306,6 +310,27 @@ def edge_breakout_cisalhamento_aci(V_sd, n_borda, db, hef, fck, ca1, ca2, ha,
     return r
 
 
+def interacao_tracao_cortante_aci(Nua, Vua, phiNn, phiVn):
+    """Interacao TRACAO-CORTANTE do concreto (ACI 318 17.6 / Nilson 21.16), modelo
+    TRILINEAR: (a) se Vua/phiVn < 0,2 -> usa a tracao cheia (Nua <= phiNn) ;
+    (b) se Nua/phiNn < 0,2 -> usa o cortante cheio (Vua <= phiVn) ; (c) entre os dois
+    limites: Nua/phiNn + Vua/phiVn <= 1,2 (Eq.21.16). phiNn/phiVn = capacidades de
+    CALCULO (ja com phi) governantes do concreto (menor modo). kN. Retorna dict."""
+    rN = Nua / phiNn if phiNn > 0 else float("inf")
+    rV = Vua / phiVn if phiVn > 0 else float("inf")
+    if rV < 0.2:
+        regime = "tracao dominante (V<0,2) - so tracao"
+        util, ok = rN, rN <= 1.0 + 1e-9
+    elif rN < 0.2:
+        regime = "cortante dominante (N<0,2) - so cortante"
+        util, ok = rV, rV <= 1.0 + 1e-9
+    else:
+        regime = "combinada (soma <= 1,2)"
+        util, ok = (rN + rV) / 1.2, (rN + rV) <= 1.2 + 1e-9
+    return {"rN": rN, "rV": rV, "regime": regime, "u_interacao": util, "ok": ok,
+            "soma": rN + rV}
+
+
 # ---- Transferencia de cortante na base (Fakury cap.11 - NBR 8800) ------------
 # Fonte: "Dimensionamento de elementos estruturais de aco e mistos de aco e
 # concreto" (Fakury/Silva/Caldas), cap.11 "Bases de pilar", lido do PDF em
@@ -487,6 +512,12 @@ def verifica_base(caso):
             com_reforco=g.get("com_reforco", False), ncbg_kN=ncbg_nom,
             paralelo=caso.get("cortante_paralelo_borda", False))
     r["cortante"] = cv
+    # interacao tracao-cortante do CONCRETO (ACI 318 17.6): so quando ambos os
+    # modos do concreto foram calculados (cone de tracao + edge breakout).
+    if cone is not None and cv.get("edge") is not None:
+        r["interacao_conc"] = interacao_tracao_cortante_aci(
+            cone["demanda_kN"], cv["edge"]["demanda_kN"],
+            cone["cap_concreto_kN"], cv["edge"]["cap_cisalhamento_kN"])
 
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
@@ -614,6 +645,11 @@ def relatorio_pt(r, caso):
             else:
                 L += ["         [FLAG] Edge breakout no cortante (ACI Ch.17): passar "
                       "cone_geom (ca1,ca2,h_bloco) p/ calcular quando V vai aos chumbadores."]
+    ic = r.get("interacao_conc")
+    if ic is not None:
+        L += [f"  Interacao tracao-cortante do concreto (ACI 318 17.6): "
+              f"rN={ic['rN']:.2f} ; rV={ic['rV']:.2f} ; {ic['regime']} -> "
+              f"u={ic['u_interacao']:.2f} [{'OK' if ic['ok'] else 'NAO PASSA'}]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -799,6 +835,15 @@ def _selftest():
     elow = edge_breakout_cisalhamento_aci(5.0, 1, 0.020, 0.30, fc_si,
                                           ca1=0.30, ca2=0.30, ha=0.60)
     assert elow["ok_edge"] and elow["armadura_ancoragem"] is False
+    # 9) Interacao T-V do concreto (ACI 318 17.6, trilinear 21.16)
+    i_t = interacao_tracao_cortante_aci(90.0, 5.0, 100.0, 100.0)   # rV=0,05<0,2
+    assert "tracao dominante" in i_t["regime"] and i_t["ok"]        # so tracao (0,9)
+    i_v = interacao_tracao_cortante_aci(5.0, 90.0, 100.0, 100.0)   # rN=0,05<0,2
+    assert "cortante dominante" in i_v["regime"] and i_v["ok"]
+    i_c = interacao_tracao_cortante_aci(50.0, 50.0, 100.0, 100.0)  # 0,5+0,5=1,0<=1,2
+    assert "combinada" in i_c["regime"] and i_c["ok"] and abs(i_c["soma"] - 1.0) < 1e-9
+    i_x = interacao_tracao_cortante_aci(80.0, 60.0, 100.0, 100.0)  # 0,8+0,6=1,4>1,2
+    assert not i_x["ok"]
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")

@@ -380,6 +380,36 @@ armadura de ancoragem **dispensa** o cálculo do breakout do concreto. O flag
 `u>1` aciona o flag e um caso folgado não. É recado ao **fundações** (segregação de
 disciplinas), não trava a emissão da metálica.
 
-> **Limites:** `ψ_ec,V` (excentricidade do V) assumido 1 (grupo centrado); a
-> interação **tração-cortante** (21.16) continua fora. Geometria do bloco = projeto
-> de fundação.
+> **Limites:** `ψ_ec,V` (excentricidade do V) assumido 1 (grupo centrado).
+> Geometria do bloco = projeto de fundação.
+
+---
+
+## 13. Interação tração-cortante do concreto (ACI 318 17.6, trilinear)
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: o modelo
+> **trilinear** (Eq. 21.16) e os *cutoffs* de 0,2.
+
+Fecha o **último modo** do concreto: combina a tração (cone §10) e o cortante
+(edge breakout §12) num mesmo grupo. Fonte: **ACI 318 17.6 = Nilson 21.16**, lido
+do PDF. Modelo **trilinear**:
+```
+Vua/(φVn) < 0,2  ->  usa a tração cheia   (Nua ≤ φNn)
+Nua/(φNn) < 0,2  ->  usa o cortante cheio (Vua ≤ φVn)
+caso contrário   ->  Nua/(φNn) + Vua/(φVn) ≤ 1,2         (21.16)
+```
+`φNn` = capacidade de cálculo governante da **tração** (menor modo do cone, §10);
+`φVn` = do **cortante** (edge breakout, §12). Ambas já com φ.
+
+**Validação (selftest #9):** os três regimes — `rV<0,2` (só tração, `0,9` OK);
+`rN<0,2` (só cortante); combinada `0,5+0,5=1,0 ≤ 1,2` OK; e `0,8+0,6=1,4 > 1,2`
+reprova. Ex. HEA200 (gancho): `rN=3,34` (pullout governa) + `rV=0,80` → **combinada
+u=3,45 NÃO PASSA** — coerente (base de gancho falha na tração, §10).
+
+**Opt-in:** roda só quando **ambos** os modos do concreto foram calculados (cone +
+edge breakout). Informativo.
+
+> **Nota:** a curva mais precisa `(Nua/φNn)^(5/3)+(Vua/φVn)^(5/3)=1` (Fig. 21.12)
+> é alternativa; o **ACI Code 17.6** adota o **trilinear** (implementado). Base
+> agora completa nos modos do concreto (aderência §9, cone §10, cortante §11,
+> edge breakout §12, interação §13).

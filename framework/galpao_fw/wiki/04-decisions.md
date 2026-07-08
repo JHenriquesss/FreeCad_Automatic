@@ -64,5 +64,8 @@ Novo módulo `sismo_nbr15421.py` + wire em `rodar_galpao` (`gate7-sismo.txt`). F
 ## D20 — 2026-07-08 — Base: warning de armadura de ancoragem (hairpin)
 `edge_breakout_cisalhamento_aci` passa a expor `armadura_ancoragem = not ok_edge`; o relatório emite [WARNING] quando `u_edge>1`: projeto de fundação deve detalhar armadura de ancoragem em laço (hairpin/estribo) atravessando a ruptura (ACI 318 17.5.2.9), que dispensa o breakout do concreto. Atende recomendação do parecer de homologação do §12. Recado ao fundações (segregação de disciplinas), não trava a metálica. Selftest #8 checa flag u>1 vs caso folgado. Edge breakout §12 homologado.
 
+## D21 — 2026-07-08 — Base: interação tração-cortante do concreto (ACI 318 17.6)
+`base_chumbador.interacao_tracao_cortante_aci` combina cone de tração (§10) + edge breakout (§12) no modelo TRILINEAR do ACI 318 17.6 (Nilson 21.16): se Vua/φVn<0,2 → só tração; se Nua/φNn<0,2 → só cortante; senão Nua/φNn+Vua/φVn≤1,2. φNn/φVn = capacidades de cálculo governantes (menor modo de cada). Opt-in (roda quando cone + edge presentes), informativo. Selftest #9: 3 regimes + reprova (0,8+0,6=1,4>1,2). Ex HEA200 gancho: rN=3,34+rV=0,80 → u=3,45 NAO PASSA (pullout de gancho governa, coerente). Curva 5/3 (Fig.21.12) é alternativa; ACI Code usa trilinear. **Fecha a base 100% nos modos do concreto (§9-§13).**
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
