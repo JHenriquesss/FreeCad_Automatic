@@ -68,6 +68,35 @@ _TAB14 = [(12.7, 22.0, 19.0), (16.0, 29.0, 22.0), (19.05, 32.0, 26.0),
           (31.75, 57.0, 42.0), (36.0, 64.0, 46.0)]
 
 
+def tstub_prying(leff, m, e, t_chapa, fy, Ft_Rd_total, gM0=1.0):
+    """Efeito ALAVANCA (prying) da chapa de topo pelo modelo do T-stub equivalente
+    (EN 1993-1-8 6.2.4, Tabela 6.2). FORA da NBR 8800 (que nao trata prying); metodo
+    europeu, uso comum p/ chapa de topo parafusada (joelho viga-coluna). 3 modos:
+      Mpl,Rd = 0,25*leff*t^2*fy/gM0
+      Modo 1 (escoamento total da chapa):  F1 = 4*Mpl/m
+      Modo 2 (escoam. da chapa + ruptura do parafuso): F2 = (2*Mpl + n*SFt)/(m+n)
+      Modo 3 (ruptura dos parafusos):      F3 = SFt
+      F_T,Rd = min(F1, F2, F3) ; n = min(e ; 1,25 m) (braco de alavanca).
+    leff = comprimento efetivo das charneiras (linhas de escoamento) ; m = distancia
+    do parafuso ao pe do filete/alma ; e = distancia do parafuso a borda ; SFt =
+    soma das Ft,Rd dos parafusos da linha ; t_chapa espessura. Unidades m, kN, kN/m2."""
+    n = min(e, 1.25 * m)
+    Mpl = 0.25 * leff * t_chapa ** 2 * fy / gM0      # kN*m
+    F1 = 4.0 * Mpl / m if m > 0 else float("inf")
+    F2 = (2.0 * Mpl + n * Ft_Rd_total) / (m + n) if (m + n) > 0 else float("inf")
+    F3 = Ft_Rd_total
+    F = min(F1, F2, F3)
+    modo = 1 if F == F1 else (2 if F == F2 else 3)
+    # forca de alavanca Q (prying) presente nos modos 1 e 2
+    Q = max(F * n / (m + n) - 0.0, 0.0) if modo in (1, 2) else 0.0
+    return {"F_T_Rd": F, "modo": modo, "F1": F1, "F2": F2, "F3": F3,
+            "Mpl": Mpl, "m": m, "n": n, "e": e, "leff": leff,
+            "Q_prying": round(Q, 2),
+            "obs": {1: "escoamento total da chapa (alavanca plena)",
+                    2: "escoamento da chapa + ruptura do parafuso (alavanca parcial)",
+                    3: "ruptura dos parafusos (sem alavanca)"}[modo]}
+
+
 def dist_min_borda(db, borda_cortada=True, baixa_solicitacao=False):
     """Distancia minima do centro do furo a borda (NBR 8800 Tabela 14). db em m.
     borda_cortada=True -> coluna serra/tesoura ; False -> laminada/macarico.
@@ -379,6 +408,15 @@ def _selftest():
     bl = block_shear_linha(3, 0.060, 0.035, 0.040, 0.020, 0.0125, 250e3, 400e3)
     Lgv = 0.035 + 2 * 0.060
     assert abs(bl["Lgv"] - Lgv) < 1e-9 and bl["Frd"] > 0
+    # T-stub / prying (EN 1993-1-8): 3 modos, F_T,Rd = min
+    ts = tstub_prying(leff=0.120, m=0.040, e=0.035, t_chapa=0.0160, fy=250e3,
+                      Ft_Rd_total=2 * ft_rd(0.020, 800e3))
+    Mpl = 0.25 * 0.120 * 0.016 ** 2 * 250e3
+    n = min(0.035, 1.25 * 0.040)
+    F1 = 4 * Mpl / 0.040
+    F2 = (2 * Mpl + n * 2 * ft_rd(0.020, 800e3)) / (0.040 + n)
+    assert abs(ts["F_T_Rd"] - min(F1, F2, 2 * ft_rd(0.020, 800e3))) < 1e-6, ts
+    assert ts["modo"] in (1, 2, 3)
     print("ligacoes self-test PASSED")
     print(f"  Fv,Rd(d16, fub800) = {fv_rd(0.016,800e3):.1f} kN")
     print(f"  Fw,Rd filete 6mm x 200mm (fw=485) metal = {Fw:.1f} kN")

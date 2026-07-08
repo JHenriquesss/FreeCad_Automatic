@@ -247,6 +247,39 @@ F_r,Rd = (0,60·fu·Anv + Cts·fu·Ant)/γa2  ≤  (0,60·fy·Agv + Cts·fu·Ant
 Selftest: `block_shear` confere ruptura×escoamento (min); `block_shear_linha`
 (3Φ20, s=60, e_long=35) confere `Lgv=155 mm`. **PASSED**.
 
-FLAGs remanescentes de `ligacoes.py`: **efeito alavanca (T-stub, EN 1993-1-8)** —
-fora do escopo NBR; e a **Tabela 14** (furo-borda) que segue como confirmação do
-responsável (nota (a) remete ao 6.3.3.3, já calculado).
+---
+
+## 11. Efeito alavanca / T-stub (EN 1993-1-8) — feature adicionada 2026-07-08
+
+> **STATUS: 🆕 PENDENTE SÊNIOR.** Fecha o FLAG do efeito alavanca. **Fora da NBR
+> 8800** (que não trata prying) — método **EN 1993-1-8** 6.2.4 (T-stub equivalente),
+> uso comum para a **chapa de topo parafusada** do joelho viga-coluna.
+
+A mesa/chapa em flexão é modelada como um perfil T equivalente. `tstub_prying(leff,
+m, e, t_chapa, fy, ΣFt,Rd)` → `F_T,Rd = min` dos 3 modos (Tabela 6.2):
+
+```
+Mpl,Rd = 0,25·leff·t²·fy/γM0 ;   n = min(e ; 1,25·m)
+Modo 1 (escoamento total da chapa):            F1 = 4·Mpl/m
+Modo 2 (escoamento da chapa + ruptura bolt):   F2 = (2·Mpl + n·ΣFt,Rd)/(m+n)
+Modo 3 (ruptura dos parafusos):                F3 = ΣFt,Rd
+```
+
+`m` = distância do parafuso ao pé do filete/alma; `e` = distância à borda; `leff` =
+comprimento efetivo das linhas de escoamento (padrão de charneiras — circular/não
+circular, o engenheiro define). A **força de alavanca Q** é reportada (modos 1/2).
+Exemplo: leff=120, m=40, e=35, t=16, 2Φ20/f800 → **F_T,Rd=181,5 kN, modo 2 (alavanca
+parcial), Q=84,7 kN**. Selftest **PASSED**.
+
+**FLAG:** `leff` (padrão de charneiras) é do arranjo — o engenheiro fornece; o
+módulo entrega a resistência dos 3 modos dado `leff`.
+
+---
+
+## 12. FLAGs remanescentes
+
+- **Tabela 14** (furo-borda): agora **verificada** (§9), com a coluna borda cortada/
+  laminada como entrada do responsável.
+- **T-stub**: agora **disponível** (§11) como método EN (fora da NBR).
+- Sem pendências abertas de método em `ligacoes.py` além do `leff` do T-stub
+  (arranjo-dependente) e da confirmação da coluna de borda da Tabela 14.
