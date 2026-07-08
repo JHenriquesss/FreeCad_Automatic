@@ -1,5 +1,23 @@
 # 06 — Open threads
 
+## HANDOFF — continuar em outro chat (2026-07-08)
+**Onde paramos:** análise de lacunas do galpão completo ENCERRADA + todos os FLAGs corrigíveis fechados. Branch `revisao/homologacao-12-modulos`, HEAD `7009b61`, pushed. Ref 20×10 inalterada (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5) = prova de não-regressão.
+
+**Objetivo do projeto:** framework Python que dimensiona/verifica galpão de aço BR fim-a-fim sob NBR, zero-erro-de-método (todo valor da norma verificado no PDF em `pesquisa/aço/`, nunca de memória). Engenheiro roda; sênior revisa/assina. Saídas PT, SI.
+
+**O que NÃO tem pendência de implementação.** Todos os 6 gaps + 16 FLAGs fechados. Módulos novos da sessão: `telha_cobertura.py`, `viga_baldrame.py`, `estaca_profunda.py` (3 métodos de capacidade + tração + grupo + atrito neg + recalque + bloco completo). Extensões em `vento_nbr6123` (§8 Cpe local), `sismo_nbr15421` (θ, 100/30), `ligacoes` (furos, Tab.14, block shear, T-stub), `galpao_portico`/`estabilidade_b1b2` (envelope sísmico).
+
+**Próximos passos possíveis (o outro chat escolhe com o usuário):**
+1. **Processar os 6 pareceres sênior** quando chegarem (ligações §9, vento §8, telha, sismo §6, baldrame, estaca) — homologar/ajustar, atualizar REVISAO-INDICE.md. [[#T7]] — caminho mais provável.
+2. **Merge do PR #1** (usuário) [[#T1]].
+3. **Integrar `estaca`/`baldrame` no ProjetoSpec + build 3D** — hoje são opt-in via `params["estaca"]`/`["baldrame"]`; não estão no `projeto_spec.py` (gates) nem desenhados no FreeCAD. Se o usuário quiser fundação profunda no modelo 3D, é o próximo trabalho de integração.
+4. Refinos acadêmicos fora de escopo (NÃO gaps): análise sísmica modal/histórica (15421 §10/§11 — estático §9 cobre galpão regular); α/β de estacas escavadas do Décourt 1996 (já coberto por Teixeira).
+
+**Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
+
+## T7 — 6 pareceres sênior pendentes
+Features implementadas nesta sessão aguardam parecer (status PENDENTE em REVISAO-INDICE.md): **ligações §9** (furos/Tab.14/block shear/T-stub), **vento §8** (Cpe local), **telha** (REVISAO-TELHA), **sismo §6** (envelope+θ+100/30), **baldrame** (REVISAO-BALDRAME), **estaca** (REVISAO-ESTACA: 3 métodos+grupo+bloco). Cadência: usuário cola o parecer → assistente confere finding-a-finding contra o PDF → homologa ou corrige → atualiza doc + índice.
+
 ## T1 — PR #1 aguarda merge
 Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenriquesss/FreeCad_Automatic/pull/1 . Contém 87 commits (origin/main estava 87 atrás do local). Merge sincroniza tudo. Usuário faz merge pelo GitHub.
 
@@ -9,14 +27,14 @@ Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenrique
 ## T3 — Backlog: módulo ponte rolante estendido
 Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender após validação (frac_long por rodas motoras, fadiga Anexo K não automatizada — só flag). Ver memory `crane-module-backlog`.
 
-## Lacunas de escopo estrutural (gap analysis 2026-07-07)
-Além dos flags de executivo (T4), o projeto de galpão **completo** ainda não cobre (dentro do escopo estrutural):
-1. ~~Ancoragem do chumbador no concreto~~ — **PARCIAL** [[04-decisions#D9]]: aderência NBR 6118 9.4.2 feita; **cone de arrancamento + grupo (ACI 318 Ch.17) ainda faltam** (sem ACI no acervo).
-2. ~~Recalque da fundação (NBR 6122)~~ — **FEITO** [[04-decisions#D11]]: recalque elástico (Perloff/Veloso&Lopes); Es/ν/Iw INPUT. Pendente: Steinbrenner (estratificado), adensamento (argila).
-3. **Fundações profundas** (estaca/tubulão + bloco + viga de equilíbrio) — só sapata isolada.
-4. ~~Fadiga da viga de rolamento (Anexo K)~~ — **FEITO** [[04-decisions#D10]]: σSR=Msdx/Wx vs σadm (K.4); categoria+N são INPUT. Refinamento pendente: parcela lateral/biaxial (K.3.3).
-5. ~~Junta de dilatação / temperatura~~ — **FEITO** [[04-decisions#D12]]: `junta_dilatacao.py` (Bellei/FCC 65); L_max + movimento térmico. Guia de literatura, não NBR fechada.
-6. **Sismo** (NBR 15421) — não verificado (baixa sismicidade BR raramente governa).
+## Lacunas de escopo estrutural — TODAS FECHADAS (2026-07-08)
+Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "Análise de lacunas" + [[04-decisions]] D8–D32.
+1. ~~Cone de arrancamento do chumbador (ACI 318 Ch.17)~~ — **FEITO** (via Nilson): cone, grupo, edge breakout, interação T-V [[04-decisions#D14]].
+2. ~~Recalque estratificado~~ — recalque elástico feito; grupo (radier equivalente) feito [[04-decisions#D31]]; Steinbrenner/adensamento = refino.
+3. ~~Fundações profundas~~ — **FEITO** `estaca_profunda.py` [[04-decisions#D28]]: 3 métodos (Aoki/Décourt/Teixeira), tração, grupo, atrito neg, recalque, bloco (biela+ancoragem+punção). Falta só: viga de equilíbrio de divisa (excêntrica).
+4. ~~Fadiga lateral/biaxial (K.3.3)~~ — **FEITO** (+50% lateral B.7.3.4) [[04-decisions]].
+5. ~~Junta de dilatação~~ — **FEITO** `junta_dilatacao.py`.
+6. ~~Sismo (NBR 15421)~~ — **FEITO** `sismo_nbr15421.py` [[04-decisions#D26]]: forças horizontais equiv. (§9) + envelope excepcional (§5.4) + θ/P-Δ (§9.6) + 100/30 (§8.5). Falta só: modal/histórica (§10/§11 — fora de escopo p/ galpão regular).
 
 ## T4 — Flags de projeto executivo (não são bugs — limites de escopo)
 - **Fundação**: quantitativo de aço ~10–15% baixo (sem ganchos/arranques 22.6.4.1) — marcador de anteprojeto. Detalhamento/ancoragem = executivo.
