@@ -155,6 +155,71 @@ def capacidade_decourt_quaresma(perfil, D, L, N_ponta=None, fs_global=FS_GLOBAL)
             "FS_lateral": 1.3, "FS_ponta": 4.0, "P_adm_partic_kN": round(P_adm_partic, 1)}
 
 
+# --- Teixeira (1996) - Tab.12.16 alpha [tf/m2] por solo x tipo de estaca ---------
+# Tipos: I=pre-moldada/perfil metalico ; II=Franki ; III=escavada a ceu aberto ;
+# IV=raiz. LIDO do PDF (Veloso & Lopes pg.290, Tab.12.16 / rodape).
+_TEIX_ALPHA = {   # (I, II, III, IV) em tf/m2
+    "argila_siltosa": (11, 10, 10, 10), "silte_argiloso": (16, 13, 11, 11),
+    "argila_arenosa": (21, 18, 13, 14), "silte_arenoso": (26, 21, 16, 16),
+    "areia_argilosa": (30, 24, 20, 19), "areia_siltosa": (36, 30, 24, 22),
+    "areia": (40, 34, 27, 26), "areia_pedregulho": (44, 38, 31, 29),
+}
+_TEIX_BETA = {"I": 0.4, "II": 0.5, "III": 0.4, "IV": 0.6}    # tf/m2 (rodape Tab.12.16)
+# mapa: tipo de estaca de _F1_F2 -> coluna de Teixeira
+_TEIX_TIPO = {"pre_moldada": "I", "metalica": "I", "franki": "II",
+              "escavada": "III", "raiz": "IV", "helice": "IV", "omega": "IV"}
+
+
+def _grupo_teixeira(tipo):
+    """Mapeia os 15 solos de Aoki nos 8 grupos de Teixeira (Tab.12.16)."""
+    if tipo == "areia":
+        return "areia"
+    if tipo.startswith("areia"):
+        return "areia_siltosa" if "silt" in tipo else "areia_argilosa"
+    if tipo.startswith("silte"):
+        return "silte_arenoso" if "aren" in tipo else "silte_argiloso"
+    if tipo.startswith("argila"):
+        return "argila_arenosa" if "aren" in tipo else "argila_siltosa"
+    return "argila_siltosa"
+
+
+def capacidade_teixeira(perfil, D, L, tipo_estaca="pre_moldada", N_ponta=None):
+    """Capacidade da estaca por Teixeira (1996) - 3o metodo (cross-check).
+      q_ponta = alpha*N_p ; r_lateral = beta*N_med (tf/m2, x10 -> kPa)
+      alpha por solo x tipo de estaca (Tab.12.16) ; beta por tipo de estaca.
+    FS: tipos I,II,IV -> global 2,0 ; tipo III (escavada) -> ponta 4,0 / lateral 1,3
+    (recomendacao de Teixeira, lida do PDF). N em [4;40] p/ a ponta. Retorna dict."""
+    col = _TEIX_TIPO.get(tipo_estaca, "I")
+    A_ponta = math.pi * D ** 2 / 4.0
+    U = math.pi * D
+    Np = N_ponta if N_ponta is not None else perfil[-1]["N"]
+    Np = max(4.0, min(Np, 40.0))
+    idx = {"I": 0, "II": 1, "III": 2, "IV": 3}[col]
+    alpha = _TEIX_ALPHA[_grupo_teixeira(perfil[-1]["tipo"])][idx]
+    beta = _TEIX_BETA[col]
+    R_ponta = alpha * Np * _TF_KPA * A_ponta
+    # N medio ao longo do fuste
+    somaNz = somaz = z = 0.0
+    for cam in perfil:
+        if z >= L - 1e-9:
+            break
+        dz = min(cam["dz"], L - z); somaNz += cam["N"] * dz; somaz += dz; z += dz
+    N_med = somaNz / somaz if somaz > 0 else 0.0
+    r_l = beta * N_med * _TF_KPA                      # kPa
+    R_lat = r_l * U * L
+    R_ult = R_ponta + R_lat
+    if col == "III":                                 # escavada: FS partido 4,0/1,3
+        P_adm = R_lat / 1.3 + R_ponta / 4.0
+        fs_txt = "escavada: R_lat/1,3 + R_ponta/4,0"
+    else:
+        P_adm = R_ult / 2.0
+        fs_txt = "global 2,0"
+    return {"metodo": "teixeira", "alpha": alpha, "beta": beta, "col_estaca": col,
+            "N_ponta": Np, "N_med_fuste": round(N_med, 1), "r_l_kPa": round(r_l, 1),
+            "R_ponta_kN": round(R_ponta, 1), "R_lateral_kN": round(R_lat, 1),
+            "R_ult_kN": round(R_ult, 1), "P_adm_kN": round(P_adm, 1), "fs": fs_txt}
+
+
 def capacidade_tracao(cap_compressao, fs_tracao=2.0):
     """Capacidade a TRACAO (arranque/uplift): so o atrito lateral resiste (a ponta
     nao trabalha). NBR 6122. R_lat,trac = R_lateral ; P_adm,trac = R_lat/FS_tracao.
@@ -291,16 +356,22 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
     rigido = tan_theta >= 0.57
     punc = None
     if not rigido:
-        # puncao no contorno critico C' a 2d do pilar (NBR 6118 19.5), carga TOTAL
-        # (sem alivio de solo - conservador p/ bloco). tau_sd <= tau_rd1.
-        u = 2.0 * (a_pilar + a_pilar) + 2.0 * math.pi * (2.0 * d)
-        tau_sd = N_pilar / (u * d)
-        rho_fl = As / (a_pilar * d) if (a_pilar * d) > 0 else 0.0
+        # puncao (NBR 6118 19.5) no bloco flexivel, contorno critico C' a 2d, carga
+        # TOTAL (sem alivio de solo, conservador). Verifica DOIS contornos: (a) o
+        # pilar puncionando p/ baixo ; (b) cada ESTACA puncionando p/ cima (CEB/Blevot).
         d_cm = d * 100.0
+        rho_fl = As / (a_pilar * d) if (a_pilar * d) > 0 else 0.0
         tau_rd1 = 0.13 * (1.0 + math.sqrt(20.0 / d_cm)) * (100.0 * rho_fl * fck_MPa) ** (1.0 / 3.0) * 1000.0
-        punc = {"u": round(u, 3), "tau_sd_MPa": round(tau_sd / 1000.0, 3),
-                "tau_rd1_MPa": round(tau_rd1 / 1000.0, 3),
-                "ok_puncao": tau_sd <= tau_rd1, "util": round(tau_sd / tau_rd1, 3) if tau_rd1 > 0 else None}
+        u_pil = 2.0 * (a_pilar + a_pilar) + 2.0 * math.pi * (2.0 * d)   # contorno do pilar
+        tau_pil = N_pilar / (u_pil * d)
+        u_est = math.pi * D_estaca + 2.0 * math.pi * (2.0 * d)          # contorno da estaca
+        tau_est = P_est / (u_est * d)
+        ok_pil = tau_pil <= tau_rd1
+        ok_est = tau_est <= tau_rd1
+        punc = {"tau_rd1_MPa": round(tau_rd1 / 1000.0, 3),
+                "tau_pilar_MPa": round(tau_pil / 1000.0, 3), "ok_pilar": ok_pil,
+                "tau_estaca_MPa": round(tau_est / 1000.0, 3), "ok_estaca": ok_est,
+                "ok_puncao": ok_pil and ok_est}
 
     return {"n_est": n_est, "P_estaca_kN": round(P_est, 1), "braco_m": round(braco, 3),
             "T_kN": round(T, 1), "As_tirante_cm2": round(As * 1e4, 2),
@@ -323,8 +394,11 @@ def verifica_estaca(cfg):
     dq = capacidade_decourt_quaresma(cfg["perfil"], cfg["D"], cfg["L"],
                                      N_ponta=cfg.get("N_ponta"),
                                      fs_global=cfg.get("FS", FS_GLOBAL))
+    tx = capacidade_teixeira(cfg["perfil"], cfg["D"], cfg["L"],
+                             cfg.get("tipo_estaca", "pre_moldada"), N_ponta=cfg.get("N_ponta"))
     nn = n_estacas(cfg["N_pilar"], cap["P_adm_kN"], cfg.get("peso_bloco", 0.0))
-    out = {"capacidade": cap, "decourt": dq, "grupo": nn, "N_pilar": cfg["N_pilar"]}
+    out = {"capacidade": cap, "decourt": dq, "teixeira": tx, "grupo": nn,
+           "N_pilar": cfg["N_pilar"]}
     # Tracao (uplift): se o pilar arranca (N_uplift > 0), verifica pelo atrito lateral
     N_up = abs(cfg.get("N_uplift", 0.0))
     if N_up > 0:
@@ -381,6 +455,12 @@ def relatorio_pt(r):
                  f"(P_adm global={dq['P_adm_kN']:.1f} ; P_adm FS partido "
                  f"R_lat/1,3+R_p/4,0={dq['P_adm_partic_kN']:.1f}) ; C={dq['C']:.0f} tf/m2 "
                  f"; dif R_ult vs Aoki {dif:+.0f}%")
+    tx = r.get("teixeira")
+    if tx:
+        dift = 100.0 * (tx["R_ult_kN"] - c["R_ult_kN"]) / c["R_ult_kN"] if c["R_ult_kN"] else 0.0
+        L.append(f"  [cross-check Teixeira 1996] R_ult={tx['R_ult_kN']:.1f} kN "
+                 f"(P_adm={tx['P_adm_kN']:.1f}, FS {tx['fs']}) ; alpha={tx['alpha']} beta={tx['beta']} "
+                 f"tf/m2 (estaca tipo {tx['col_estaca']}) ; dif R_ult vs Aoki {dift:+.0f}%")
     if "tracao" in r:
         t = r["tracao"]
         L.append(f"  TRACAO (uplift): N_up={t['N_uplift_kN']:.1f} kN "
@@ -400,9 +480,9 @@ def relatorio_pt(r):
               f"{'OK' if b['ok_biela'] else 'REPROVA (aumentar bloco/fck)'}",
               f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL'}"
               + ("" if b["rigido"] or not b.get("puncao") else
-                 f" -> puncao C' 2d: tau_sd={b['puncao']['tau_sd_MPa']:.3f}<="
-                 f"tau_rd1={b['puncao']['tau_rd1_MPa']:.3f} MPa "
-                 f"{'OK' if b['puncao']['ok_puncao'] else 'REPROVA'}"),
+                 f" -> puncao C' 2d (tau_rd1={b['puncao']['tau_rd1_MPa']:.3f} MPa): "
+                 f"pilar {b['puncao']['tau_pilar_MPa']:.3f} {'OK' if b['puncao']['ok_pilar'] else 'REPROVA'} ; "
+                 f"estaca {b['puncao']['tau_estaca_MPa']:.3f} {'OK' if b['puncao']['ok_estaca'] else 'REPROVA'}"),
               f"    Ancoragem do tirante (9.4.2): phi={b['phi_tirante_mm']:.1f} mm -> "
               f"lb,nec={b['lb_nec_tirante_m']*100:.0f} cm (com gancho)"]
     if "grupo_estacas" in r:
@@ -421,8 +501,8 @@ def relatorio_pt(r):
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
           "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
           "   puncao do bloco flexivel = projeto do bloco.]",
-          "  [Decourt: FS partido (lat 1,3 / ponta 4,0) implementado; alpha/beta de",
-          "   estacas escavadas (Decourt 1996) fica p/ o metodo de Teixeira (futuro).]"]
+          "  [3 metodos de capacidade (Aoki-Velloso, Decourt-Quaresma, Teixeira) +",
+          "   tracao, grupo, atrito negativo, recalque, bloco (biela+ancoragem+puncao).]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -483,7 +563,7 @@ def _selftest():
     # bloco flexivel -> puncao verificada (tan<0,57): d pequeno, braco grande
     bf = bloco_coroamento(500.0, 2, 1.5, 0.30, 0.20, 25e3, 500e3, D_estaca=0.30)
     assert not bf["rigido"] and bf["puncao"] is not None
-    assert "ok_puncao" in bf["puncao"]
+    assert "ok_pilar" in bf["puncao"] and "ok_estaca" in bf["puncao"]
     # Decourt-Quaresma: ponta areia C=40 tf/m2, q_p=40*25*10=10000 kPa
     dq = capacidade_decourt_quaresma(perfil, D, L)
     assert dq["C"] == 40.0, dq
@@ -495,6 +575,16 @@ def _selftest():
     assert abs(dq["R_lateral_kN"] - rl * U * L) < 0.2, dq
     # FS partido (Veloso & Lopes pg.288): R_lat/1,3 + R_ponta/4,0
     assert abs(dq["P_adm_partic_kN"] - (dq["R_lateral_kN"] / 1.3 + dq["R_ponta_kN"] / 4.0)) < 0.1, dq
+    # Teixeira 1996: ponta areia col I alpha=40 ; q_p=40*25*10 ; beta I=0,4
+    tx = capacidade_teixeira(perfil, D, L, "pre_moldada")
+    assert tx["alpha"] == 40 and tx["beta"] == 0.4 and tx["col_estaca"] == "I", tx
+    assert abs(tx["R_ponta_kN"] - 40 * 25 * 10.0 * Ap) < 0.2, tx
+    Nmed_t = (5 * 3 + 15 * 4 + 25 * 3) / 10.0
+    assert abs(tx["R_lateral_kN"] - 0.4 * Nmed_t * 10.0 * U * L) < 0.2, tx
+    # escavada -> FS partido 4,0/1,3
+    txe = capacidade_teixeira(perfil, D, L, "escavada")
+    assert txe["col_estaca"] == "III"
+    assert abs(txe["P_adm_kN"] - (txe["R_lateral_kN"] / 1.3 + txe["R_ponta_kN"] / 4.0)) < 0.1, txe
     # grupo decourt: silte arenoso -> silte_arenoso (25) ; argila -> argila (12)
     assert _grupo_decourt("areia_siltosa") == "areia"        # comeca com areia
     assert _grupo_decourt("silte_arenoso") == "silte_arenoso"
