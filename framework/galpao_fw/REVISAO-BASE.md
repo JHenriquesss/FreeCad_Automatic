@@ -222,10 +222,12 @@ informativa).
 
 ## 10. Cone de arrancamento do concreto — grupo (ACI 318 Ch.17, método CCD)
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: as
-> equações do CCD lidas do PDF (Nilson cap.21 = ACI 318 Ch.17), o **isolamento de
-> unidades** (US interno ↔ SI no contorno), a área projetada de grupo `A_Nc`, e o
-> caráter **informativo/opt-in** (geometria do bloco é do projeto de fundação).
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — sênior cruzou com Nilson 15ª ed. cap.21:
+> `Nb` (kc=24 cast-in), `A_Nco=9hef²`, `A_Nc` (expansão 1,5hef limitada pela borda),
+> `ψed,N`/`ψc,N` (Tab.21.4/21.5), pullout de gancho `0,9·f'c·eh·da` (3da≤eh<4,5da) e
+> os selftests Ex.21.3 (`Ncbg`=33,7 kip=149,8 kN) + Ex.21.6 (`Npng`=141,4 kip=628,9
+> kN) — "espelhamento primoroso", sem erro. Aprovou o isolamento de unidades e o
+> opt-in/informativo (segregação de disciplinas metálica↔fundação). Liberado.
 
 Fecha o modo de ruptura do **concreto** que a aderência (§9) não cobre. Como **não
 há ACI 318 no acervo** `pesquisa/aço/`, a fonte é **Nilson, _Design of Concrete

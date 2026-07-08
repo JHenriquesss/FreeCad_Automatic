@@ -18,7 +18,7 @@ os FLAGS/pendências.
 | 4 | Vento | [REVISAO-VENTO.md](REVISAO-VENTO.md) | NBR 6123 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
 | 5 | Terças (formado a frio) | [REVISAO-TERCAS.md](REVISAO-TERCAS.md) | NBR 14762 | ✅ HOMOLOGADO (r2, 2026-07-06) — §8/§9 |
 | 6 | Secundários (longarina/escora/montante) | [REVISAO-SECUNDARIOS.md](REVISAO-SECUNDARIOS.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
-| 7 | Base (placa + chumbadores) | [REVISAO-BASE.md](REVISAO-BASE.md) | NBR 8800 + AISC DG1 + ACI 318 | ✅ HOMOLOGADO r2 · ✅ ancoragem 9.4.2 (§9) · 🆕 cone ACI 318 Ch.17 (§10) PENDENTE sênior |
+| 7 | Base (placa + chumbadores) | [REVISAO-BASE.md](REVISAO-BASE.md) | NBR 8800 + AISC DG1 + ACI 318 | ✅ HOMOLOGADO r2 · ✅ ancoragem 9.4.2 (§9) · ✅ cone ACI 318 Ch.17 (§10) HOMOLOGADO (2026-07-08) |
 | 8 | Ligações (joelho/parafusos) | [REVISAO-LIGACOES.md](REVISAO-LIGACOES.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §7/§8 |
 | 9 | Ponte rolante | [REVISAO-PONTE.md](REVISAO-PONTE.md) | NBR 8800 + NBR 8400 | ✅ HOMOLOGADO r2 · 🆕 feature fadiga Anexo K (§9) PENDENTE sênior |
 | 10 | Mão-francesa / Lb | [REVISAO-MAO-FRANCESA.md](REVISAO-MAO-FRANCESA.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6 |
@@ -44,7 +44,7 @@ em 2026-07-07; demais PENDENTES:**
 | ✅ Punção da sapata flexível | fundação | NBR 6118 19.5 | [FUNDACAO §10](REVISAO-FUNDACAO.md) — HOMOLOGADA |
 | ✅ Recalque elástico da sapata | fundação | NBR 6122 / Perloff (Veloso & Lopes) | [FUNDACAO §11](REVISAO-FUNDACAO.md) — HOMOLOGADA |
 | ✅ Ancoragem do chumbador (aderência) | base | NBR 6118 9.4.2 | [BASE §9](REVISAO-BASE.md) — HOMOLOGADA |
-| 🆕 Cone de arrancamento / grupo | base | ACI 318 Ch.17 (Nilson cap.21) | [BASE §10](REVISAO-BASE.md) — PENDENTE |
+| ✅ Cone de arrancamento / grupo | base | ACI 318 Ch.17 (Nilson cap.21) | [BASE §10](REVISAO-BASE.md) — HOMOLOGADO |
 | Fadiga da viga de rolamento | ponte | NBR 8800 Anexo K | [PONTE §9](REVISAO-PONTE.md) |
 | Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) |
 
