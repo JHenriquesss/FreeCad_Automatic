@@ -275,7 +275,57 @@ gateia o `OK` por default (só com `gate_cone=True`).
 > ou **armadura de ancoragem** (17.4.2.9), que transfere a carga por barras. O
 > exemplo HEA200 reprova por pullout (u=3,3), sinalizando exatamente isso.
 >
-> **Limites:** o cortante (breakout/pryout na direção do V) fica como refinamento;
-> a **armadura de ancoragem** (que dispensa o breakout, 17.4.2.9) e a interação
-> tração-cortante (21.16) não estão automatizadas. Fonte é Nilson/CCD (equivalente
-> ao ACI 318M SI); o responsável confirma a geometria e o detalhe do gancho/cabeça.
+> **Limites:** o cortante do concreto (edge breakout/pryout na direção do V) fica
+> como FLAG (ver §11); a **armadura de ancoragem** (que dispensa o breakout,
+> 17.4.2.9) e a interação tração-cortante (21.16) não estão automatizadas. Fonte é
+> Nilson/CCD (equivalente ao ACI 318M SI); o responsável confirma a geometria.
+
+---
+
+## 11. Transferência de cortante na base — tríade (Fakury cap.11, NBR 8800)
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: `Vat,Rd`
+> (11.21, µ=0,55), o dimensionamento da **chaveta** (barra de cisalhamento,
+> 11.22-25/28) e a **triagem automática** atrito→chumbador/chaveta.
+
+Fecha a **física do cortante da placa de base** (antes só `Fv,Rd` do chumbador +
+interação). Fonte: **Fakury/Silva/Caldas, _Dimensionamento de elementos
+estruturais de aço e mistos_, cap. 11 "Bases de pilar"** — lido do PDF, **SI/NBR**
+(mais consistente que o AISC DG1, que não está no acervo). Tríade em ordem de
+prioridade:
+
+**1. Atrito placa-concreto (Eq. 11.21):**
+```
+Vat,Rd = min( 0,7·µ·Nc,Sd ; 0,2·f_ck·Y·B_pb )     µ = 0,55 (face inf SEM pintura)
+```
+Só existe com **compressão** `Nc,Sd` na base. Se `Vat,Rd ≥ V_Sd` → cortante
+**resolvido por atrito**, chumbadores só à tração. (O `0,7` é o redutor da norma; o
+segundo termo limita pelo esmagamento do contato `Y·B`.)
+
+**2. Chumbadores (Eq. 11.26):** `Vca,Sd = V_Sd − Vat,Rd`, distribuído nos `n`
+chumbadores → `Fv,Sd,líq/Fv,Rd` (o aço já é o `fv_rd_chumbador` da NBR 8800). Exige
+**arruela especial soldada** à placa (garante o contato apesar da folga do furo).
+
+**3. Chaveta / barra de cisalhamento (Eq. 11.22-25, 11.28):** quando o residual é
+alto (típico em uplift, `Vat=0`) ou o aço do chumbador não basta. Dimensionada por:
+```
+Vbc,Sd = V_Sd − Vat,Rd ;   h_bc ≥ 2·h_ar
+σ_bc,Sd = Vbc,Sd / (b_bc·(h_bc − h_ar)) ≤ σ_c,Rd        (11.25/28 - esmagamento)
+c_bc = h_ar + (h_bc − h_ar)/2 ;  M_bc,Sd = Vbc,Sd·c_bc  (11.23/24 - flexão da chapa)
+t_bc,req = √(4·M_bc,Sd·γa1 / (b_bc·f_y))                (plastificação da chaveta)
+```
+O código **dimensiona** a chaveta requerida (`h_bc`, `t_bc`, checa `σ_bc ≤ σ_c,Rd`).
+
+**Triagem automática:** atrito → se sobrar, reporta a utilização do **chumbador** e
+**dimensiona a chaveta** como alternativa; recomenda a chaveta se o aço estourar.
+Selftest #7: (a) `V=26`, `Nc=200` → `Vat,Rd=min(77;35,4)` resolve por atrito; (b)
+uplift `Nc=0` → `Vat=0`, residual 120 kN, dimensiona chaveta com `h_bc≥2h_ar` e
+`σ_bc ≤ σ_c,Rd`.
+
+> **Informativo:** creditar o atrito exige que a **compressão atue na mesma
+> combinação** do cortante — decisão do projetista, por isso o crédito é **opt-in**
+> (`atrito_cortante=True`); por default todo o `V` vai aos chumbadores
+> (conservador, não-regressivo). O **edge breakout no cortante** (ACI 318 Ch.17,
+> quando o `V` é resistido pelos chumbadores perto da borda) permanece **FLAG** do
+> projeto de fundação — as fórmulas do Nilson (`V_b`, `A_Vc/A_Vco`) já estão lidas
+> e podem ser automatizadas numa próxima sprint.

@@ -23,6 +23,10 @@
 #     via Nilson cap.21): breakout Ncbg + pullout Npn + side-face Nsb do grupo
 #     tracionado (opt-in via cone_geom - a geometria do bloco de fundacao e do
 #     projeto de fundacao). Informativo; gateia so se gate_cone=True.
+#   - TRANSFERENCIA DE CORTANTE (Fakury cap.11 - NBR 8800): triagem automatica
+#     ATRITO (Vat,Rd=min(0,7 mu Nc; 0,2 fck Y B), mu=0,55) -> se sobrar, CHUMBADOR
+#     (Vca,Sd=VSd-Vat) e/ou dimensiona a CHAVETA (barra de cisalhamento: hbc, tbc,
+#     sigma_bc<=sig_c,Rd). Informativo (credita atrito so se atrito_cortante=True).
 # Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
@@ -227,6 +231,72 @@ def cone_arrancamento_aci(Ft_sd_por_ancora, n_tracao, db, hef, fck,
     return r
 
 
+# ---- Transferencia de cortante na base (Fakury cap.11 - NBR 8800) ------------
+# Fonte: "Dimensionamento de elementos estruturais de aco e mistos de aco e
+# concreto" (Fakury/Silva/Caldas), cap.11 "Bases de pilar", lido do PDF em
+# pesquisa/aco/ (NAO de memoria). Triade de transferencia de cisalhamento:
+#   1) ATRITO placa-concreto (11.21): Vat,Rd = min(0,7*mu*Nc,Sd ; 0,2*fck*Y*Bpb),
+#      mu=0,55 (face inferior SEM pintura). So com compressao na base.
+#   2) BARRA DE CISALHAMENTO / chaveta (11.22-25,28): Vbc,Sd = VSd - Vat,Rd ;
+#      hbc >= 2*har ; sigma_bc,Sd = Vbc/(bbc*(hbc-har)) <= sigma_c,Rd ;
+#      Mbc,Sd = Vbc*cbc , cbc = har + (hbc-har)/2 -> flexao da chapa da chaveta.
+#   3) CHUMBADORES (11.26): Vca,Sd = VSd - Vat,Rd (exige arruela especial soldada).
+MU_ACO_CONCRETO = 0.55          # coef. atrito placa de aco x concreto (sem pintura)
+
+
+def transferencia_cortante_base(V_sd, N_comp, fck, B, Y, sig_c_rd, n_ch, Fv_rd,
+                                mu=MU_ACO_CONCRETO, har=0.030, b_chaveta=None,
+                                fy_chaveta=250e3):
+    """Triagem automatica do cortante da base (Fakury cap.11). Ordem de prioridade:
+    ATRITO -> se sobrar, CHUMBADOR (aco) e/ou CHAVETA (barra de cisalhamento).
+
+    V_sd = cortante de calculo (kN) ; N_comp = forca NORMAL de COMPRESSAO na mesma
+    combinacao (kN, 0 se tracao/uplift -> sem atrito) ; Y = comprimento comprimido
+    do concreto (m, de placa_sob_NM) ; sig_c_rd = tensao resistente de contato
+    (kN/m2, 6.6.5) ; b_chaveta = largura da chaveta (m, default = B) ; har = altura
+    da argamassa/graute (m). Unidades SI. Dimensiona a chaveta requerida (hbc, tbc).
+
+    Retorna o mecanismo que RESOLVE o cortante e o dimensionamento da chaveta caso
+    o atrito nao baste. INFORMATIVO (nao gateia): creditar o atrito exige que a
+    COMPRESSAO atue na MESMA combinacao do cortante - decisao do projetista."""
+    # 1) ATRITO (11.21): so com compressao. Cap por esmagamento do contato.
+    if N_comp and N_comp > 0:
+        Vat_rd = min(0.7 * mu * N_comp, 0.2 * fck * max(Y, 0.0) * B)
+    else:
+        Vat_rd = 0.0
+    V_resid = max(V_sd - Vat_rd, 0.0)
+    r = {"Vat_rd": Vat_rd, "V_resid": V_resid, "mu": mu}
+    if V_resid <= 1e-9:
+        r["mecanismo"] = "atrito"
+        r["ok"] = True
+        return r
+    # 2) CHUMBADORES (11.26): cortante residual distribuido nos n chumbadores.
+    Fv_sd_liq = V_resid / n_ch if n_ch > 0 else float("inf")
+    r["Vca_sd"] = V_resid
+    r["Fv_sd_liq"] = Fv_sd_liq
+    r["u_chumbador"] = Fv_sd_liq / Fv_rd if Fv_rd > 0 else float("inf")
+    r["ok_chumbador"] = Fv_sd_liq <= Fv_rd + 1e-9
+    # 3) CHAVETA (barra de cisalhamento): dimensiona hbc e tbc para o residual.
+    bbc = b_chaveta if b_chaveta else B
+    Vbc_sd = V_resid
+    # (hbc-har) requerido p/ nao esmagar o concreto: sigma_bc <= sig_c_rd (11.25/28)
+    h_util_req = Vbc_sd / (bbc * sig_c_rd) if (bbc > 0 and sig_c_rd > 0) else float("inf")
+    hbc_req = max(2.0 * har, har + h_util_req)          # hbc >= 2*har (11 recomenda)
+    h_util = hbc_req - har
+    sigma_bc = Vbc_sd / (bbc * h_util) if h_util > 0 else float("inf")
+    cbc = har + h_util / 2.0                            # (11.24)
+    Mbc_sd = Vbc_sd * cbc                               # (11.23)
+    # flexao da chapa da chaveta (secao bbc x tbc, plastificacao): tbc requerido
+    tbc_req = math.sqrt(4.0 * Mbc_sd * GA1 / (bbc * fy_chaveta)) if bbc > 0 else float("inf")
+    r["chaveta"] = {"bbc": bbc, "hbc_req": hbc_req, "h_util": h_util,
+                    "sigma_bc": sigma_bc, "sig_c_rd": sig_c_rd, "cbc": cbc,
+                    "Mbc_sd": Mbc_sd, "tbc_req": tbc_req, "har": har}
+    # mecanismo recomendado: chumbador se aguentar o aco, senao chaveta.
+    r["mecanismo"] = "chumbador" if r["ok_chumbador"] else "chaveta"
+    r["ok"] = True                                     # a chaveta sempre pode ser dimensionada
+    return r
+
+
 def placa_sob_NM(N, M, B, L, sig_rd, d_anchor):
     """Metodo da excentricidade (AISC DG1). N>0 compressao. Retorna a tracao
     total T nos chumbadores do lado tracionado e a extensao Y do bloco de
@@ -318,6 +388,16 @@ def verifica_base(caso):
             gancho=caso.get("com_gancho", True), eh=g.get("eh"),
             A_brg=g.get("A_brg"))
     r["cone"] = cone
+
+    # transferencia de cortante (Fakury cap.11): atrito -> chumbador/chaveta.
+    # N>0 = compressao (convencao placa_sob_NM). So credita atrito se o caso pedir
+    # (a compressao tem de atuar na MESMA combinacao do cortante) - default: sem
+    # credito (conservador, todo V nos chumbadores, como antes).
+    N_comp = N if (N and N > 0 and caso.get("atrito_cortante", False)) else 0.0
+    r["cortante"] = transferencia_cortante_base(
+        abs(V), N_comp, fck, B, (Y if Y else 0.0), sig_rd, n, Fv_rd,
+        har=caso.get("h_graute", 0.030), b_chaveta=caso.get("b_chaveta"),
+        fy_chaveta=caso.get("fy_chaveta", caso.get("fy_placa", 250e3)))
 
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
@@ -417,6 +497,23 @@ def relatorio_pt(r, caso):
         L += ["  [FLAG] Ancoragem por ADERENCIA verificada (NBR 6118 9.4.2). O CONE DE",
               "         ARRANCAMENTO do concreto e o efeito de GRUPO (ACI 318 Ch.17)",
               "         seguem do projeto de fundacao (passar cone_geom para calcular)."]
+    cv = r.get("cortante")
+    if cv is not None:
+        if cv["mecanismo"] == "atrito":
+            L += [f"  Cortante (Fakury cap.11): atrito Vat,Rd={cv['Vat_rd']:.0f} kN >= "
+                  f"V={caso['V']:.0f} kN -> RESOLVIDO por atrito (chumbadores so a tracao)."]
+        else:
+            ch = cv["chaveta"]
+            L += [f"  Cortante (Fakury cap.11): atrito Vat,Rd={cv['Vat_rd']:.0f} kN ; "
+                  f"residual Vbc,Sd={cv['V_resid']:.0f} kN -> "
+                  f"chumbador u={cv['u_chumbador']:.2f}"
+                  + (" OK" if cv["ok_chumbador"] else " NAO PASSA (aco) -> usar CHAVETA"),
+                  f"         Chaveta requerida: bbc={ch['bbc']*1000:.0f} mm ; "
+                  f"hbc>={ch['hbc_req']*1000:.0f} mm (h_util={ch['h_util']*1000:.0f}) ; "
+                  f"tbc>={ch['tbc_req']*1000:.1f} mm ; sigma_bc={ch['sigma_bc']:.0f}<="
+                  f"sig_c,Rd={ch['sig_c_rd']:.0f} kN/m2",
+                  "         [FLAG] Concrete Edge Breakout no cortante (ACI 318 Ch.17) "
+                  "fica do projeto de fundacao se o V for pelos chumbadores."]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -562,6 +659,21 @@ def _selftest():
     Npng_nom = c["cap_pullout_kN"] / 0.70
     assert abs(Npng_nom - 628.9) < 3.0, Npng_nom      # 141,4 kips
     assert c["psi_ed"] == 1.0 and c["psi_c"] == 1.0   # ca>1,5hef ; fissurado
+    # 7) Transferencia de cortante (Fakury cap.11): atrito, chumbador, chaveta.
+    #    (a) atrito resolve: V baixo + compressao alta -> mecanismo="atrito".
+    sig = sigma_c_rd(25e3, 0.4 * 0.45, 0.4 * 0.45)
+    t1 = transferencia_cortante_base(V_sd=26.0, N_comp=200.0, fck=25e3, B=0.40,
+                                     Y=0.10, sig_c_rd=sig, n_ch=4, Fv_rd=37.2)
+    Vat_exp = min(0.7 * 0.55 * 200.0, 0.2 * 25e3 * 0.10 * 0.40)   # 77 vs 200 -> 77
+    assert abs(t1["Vat_rd"] - Vat_exp) < 1e-6 and t1["mecanismo"] == "atrito", t1
+    #    (b) uplift (sem compressao) -> atrito=0, cortante vai p/ chumbador/chaveta.
+    t2 = transferencia_cortante_base(V_sd=120.0, N_comp=0.0, fck=25e3, B=0.40,
+                                     Y=0.0, sig_c_rd=sig, n_ch=4, Fv_rd=37.2)
+    assert t2["Vat_rd"] == 0.0 and abs(t2["V_resid"] - 120.0) < 1e-9
+    assert t2["chaveta"]["hbc_req"] >= 2.0 * 0.030 - 1e-12         # hbc>=2 har
+    assert t2["chaveta"]["sigma_bc"] <= sig + 1e-6                 # chaveta nao esmaga
+    # cortante alto sozinho nos 4 chumbadores estoura o aco -> recomenda chaveta
+    assert t2["mecanismo"] in ("chaveta", "chumbador")
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")
