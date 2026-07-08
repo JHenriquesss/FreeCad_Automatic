@@ -144,10 +144,15 @@ def capacidade_decourt_quaresma(perfil, D, L, N_ponta=None, fs_global=FS_GLOBAL)
     r_l = (N_med / 3.0 + 1.0) * _TF_KPA              # kPa (Tab.12.13 / Eq.12.60)
     R_lat = r_l * U * L
     R_ult = R_ponta + R_lat
+    # admissivel de Decourt-Quaresma com FS PARTIDO (Veloso & Lopes pg.288):
+    #   FS_lateral = 1,1*1,0*1,0*1,2 = 1,32 ~ 1,3 ; FS_ponta = 1,35*1,0*2,5*1,2 ~ 4,0
+    #   Q_adm = R_lateral/1,3 + R_ponta/4,0  (mais racional que o FS global)
+    P_adm_partic = R_lat / 1.3 + R_ponta / 4.0
     return {"metodo": "decourt_quaresma", "C": C, "N_ponta": Np, "N_med_fuste": round(N_med, 1),
             "r_l_kPa": round(r_l, 1), "R_ponta_kN": round(R_ponta, 1),
             "R_lateral_kN": round(R_lat, 1), "R_ult_kN": round(R_ult, 1),
-            "FS": fs_global, "P_adm_kN": round(R_ult / fs_global, 1)}
+            "FS": fs_global, "P_adm_kN": round(R_ult / fs_global, 1),
+            "FS_lateral": 1.3, "FS_ponta": 4.0, "P_adm_partic_kN": round(P_adm_partic, 1)}
 
 
 def capacidade_tracao(cap_compressao, fs_tracao=2.0):
@@ -196,6 +201,26 @@ def atrito_negativo(D, camadas_neg):
     N_neg = sum(c["f_neg"] * c["dz"] for c in camadas_neg) * U
     return {"N_negativo_kN": round(N_neg, 1), "U": U,
             "camadas": [{"f_neg": c["f_neg"], "dz": c["dz"]} for c in camadas_neg]}
+
+
+def recalque_grupo(N_grupo, B_grupo, L_grupo, L_estaca, Es, nu=0.30, Iw=0.88,
+                   ponta_apoiada=False):
+    """Recalque do GRUPO de estacas pelo metodo do RADIER EQUIVALENTE (Terzaghi-Peck
+    / Veloso & Lopes): substitui o grupo por uma sapata ficticia na profundidade
+      z = 2/3 * L_estaca  (estacas de atrito)  ou  z = L_estaca (ponta apoiada),
+    com a carga espalhada 1:4 (talude 1H:4V) ate esse nivel. Recalque elastico da
+    sapata equivalente (reusa fundacao_sapata.recalque_elastico).
+    N_grupo = carga total (kN) ; B_grupo x L_grupo = dimensoes em planta do grupo (m) ;
+    Es = modulo do solo abaixo da ponta (kN/m2, sondagem). Retorna dict (rho em m)."""
+    z = (L_estaca if ponta_apoiada else (2.0 / 3.0) * L_estaca)
+    # espalhamento 1:4 da carga ate a profundidade z do radier equivalente
+    B_eq = B_grupo + 2.0 * (z / 4.0)
+    L_eq = L_grupo + 2.0 * (z / 4.0)
+    q_liq = N_grupo / (B_eq * L_eq)
+    rho = fs.recalque_elastico(q_liq, min(B_eq, L_eq), Es, nu, Iw)
+    return {"z_radier_m": round(z, 2), "B_eq_m": round(B_eq, 2), "L_eq_m": round(L_eq, 2),
+            "q_liq_kPa": round(q_liq, 1), "recalque_mm": round(rho * 1000.0, 1) if rho else None,
+            "Es": Es}
 
 
 def ancoragem_tirante(phi, fck, fyk, boa_aderencia=True, gancho=False,
@@ -262,8 +287,20 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
     sig_estaca = P_est / (A_estaca * sin2)           # tensao da biela junto a estaca
     ok_ang = 0.57 <= tan_theta <= 2.0                # 22.3.1 (0,57 <= tan(theta) <= 2)
     ok_biela = sig_pilar <= fcd1 and sig_estaca <= fcd3
-    # bloco rigido (tan>=0,57) dispensa puncao (trabalha por bielas); senao FLAG
+    # bloco rigido (tan>=0,57) dispensa puncao (trabalha por bielas); senao verifica
     rigido = tan_theta >= 0.57
+    punc = None
+    if not rigido:
+        # puncao no contorno critico C' a 2d do pilar (NBR 6118 19.5), carga TOTAL
+        # (sem alivio de solo - conservador p/ bloco). tau_sd <= tau_rd1.
+        u = 2.0 * (a_pilar + a_pilar) + 2.0 * math.pi * (2.0 * d)
+        tau_sd = N_pilar / (u * d)
+        rho_fl = As / (a_pilar * d) if (a_pilar * d) > 0 else 0.0
+        d_cm = d * 100.0
+        tau_rd1 = 0.13 * (1.0 + math.sqrt(20.0 / d_cm)) * (100.0 * rho_fl * fck_MPa) ** (1.0 / 3.0) * 1000.0
+        punc = {"u": round(u, 3), "tau_sd_MPa": round(tau_sd / 1000.0, 3),
+                "tau_rd1_MPa": round(tau_rd1 / 1000.0, 3),
+                "ok_puncao": tau_sd <= tau_rd1, "util": round(tau_sd / tau_rd1, 3) if tau_rd1 > 0 else None}
 
     return {"n_est": n_est, "P_estaca_kN": round(P_est, 1), "braco_m": round(braco, 3),
             "T_kN": round(T, 1), "As_tirante_cm2": round(As * 1e4, 2),
@@ -272,8 +309,8 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
             "sig_pilar_MPa": round(sig_pilar / 1000.0, 2), "fcd1_MPa": round(fcd1 / 1000.0, 2),
             "sig_estaca_MPa": round(sig_estaca / 1000.0, 2), "fcd3_MPa": round(fcd3 / 1000.0, 2),
             "ok_biela": ok_biela, "rigido": rigido, "phi_tirante_mm": phi_tir * 1000.0,
-            "lb_nec_tirante_m": anc["lb_nec_m"], "ancoragem": anc,
-            "OK": braco > 0 and ok_biela and ok_ang}
+            "lb_nec_tirante_m": anc["lb_nec_m"], "ancoragem": anc, "puncao": punc,
+            "OK": braco > 0 and ok_biela and ok_ang and (punc is None or punc["ok_puncao"])}
 
 
 def verifica_estaca(cfg):
@@ -307,6 +344,13 @@ def verifica_estaca(cfg):
     # atrito negativo (downdrag) - se houver camadas em adensamento
     if cfg.get("camadas_neg"):
         out["atrito_negativo"] = atrito_negativo(cfg["D"], cfg["camadas_neg"])
+    # recalque do grupo (radier equivalente) - se Es do solo for informado
+    rg = cfg.get("recalque_grupo")
+    if rg:
+        out["recalque_grupo"] = recalque_grupo(
+            cfg["N_pilar"], rg["B_grupo"], rg["L_grupo"], cfg["L"], rg["Es"],
+            nu=rg.get("nu", 0.30), Iw=rg.get("Iw", 0.88),
+            ponta_apoiada=rg.get("ponta_apoiada", False))
     bl = cfg.get("bloco")
     if bl and nn["n"] in (2, 4):
         h = bl.get("h", max(0.4, 1.2 * cfg["D"]))
@@ -334,8 +378,9 @@ def relatorio_pt(r):
     if dq:
         dif = 100.0 * (dq["R_ult_kN"] - c["R_ult_kN"]) / c["R_ult_kN"] if c["R_ult_kN"] else 0.0
         L.append(f"  [cross-check Decourt-Quaresma] R_ult={dq['R_ult_kN']:.1f} kN "
-                 f"(P_adm={dq['P_adm_kN']:.1f}) ; C={dq['C']:.0f} tf/m2, N_med={dq['N_med_fuste']:.1f} "
-                 f"; dif vs Aoki {dif:+.0f}%")
+                 f"(P_adm global={dq['P_adm_kN']:.1f} ; P_adm FS partido "
+                 f"R_lat/1,3+R_p/4,0={dq['P_adm_partic_kN']:.1f}) ; C={dq['C']:.0f} tf/m2 "
+                 f"; dif R_ult vs Aoki {dif:+.0f}%")
     if "tracao" in r:
         t = r["tracao"]
         L.append(f"  TRACAO (uplift): N_up={t['N_uplift_kN']:.1f} kN "
@@ -353,7 +398,11 @@ def relatorio_pt(r):
               f"    Biela (22.3.2): pilar {b['sig_pilar_MPa']:.2f}<={b['fcd1_MPa']:.2f} MPa ; "
               f"estaca {b['sig_estaca_MPa']:.2f}<={b['fcd3_MPa']:.2f} MPa "
               f"{'OK' if b['ok_biela'] else 'REPROVA (aumentar bloco/fck)'}",
-              f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL -> VERIFICAR PUNCAO'}",
+              f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL'}"
+              + ("" if b["rigido"] or not b.get("puncao") else
+                 f" -> puncao C' 2d: tau_sd={b['puncao']['tau_sd_MPa']:.3f}<="
+                 f"tau_rd1={b['puncao']['tau_rd1_MPa']:.3f} MPa "
+                 f"{'OK' if b['puncao']['ok_puncao'] else 'REPROVA'}"),
               f"    Ancoragem do tirante (9.4.2): phi={b['phi_tirante_mm']:.1f} mm -> "
               f"lb,nec={b['lb_nec_tirante_m']*100:.0f} cm (com gancho)"]
     if "grupo_estacas" in r:
@@ -364,11 +413,16 @@ def relatorio_pt(r):
         an = r["atrito_negativo"]
         L.append(f"  ATRITO NEGATIVO (downdrag): N_neg={an['N_negativo_kN']:.1f} kN "
                  f"(carga adicional na estaca)")
+    if "recalque_grupo" in r:
+        rg = r["recalque_grupo"]
+        L.append(f"  RECALQUE DO GRUPO (radier equivalente z={rg['z_radier_m']:.1f} m, "
+                 f"{rg['B_eq_m']:.1f}x{rg['L_eq_m']:.1f} m): "
+                 f"{rg['recalque_mm']:.1f} mm (q={rg['q_liq_kPa']:.0f} kPa)")
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
           "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
           "   puncao do bloco flexivel = projeto do bloco.]",
-          "  [FLAG: Decourt-Quaresma 2a versao (alpha/beta, 1996) - tabelas nao",
-          "   legiveis no PDF, nao fabricadas (zero-erro); versao inicial implementada.]"]
+          "  [Decourt: FS partido (lat 1,3 / ponta 4,0) implementado; alpha/beta de",
+          "   estacas escavadas (Decourt 1996) fica p/ o metodo de Teixeira (futuro).]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -421,6 +475,15 @@ def _selftest():
     # atrito negativo: U*sum(f*dz)
     an = atrito_negativo(0.30, [{"f_neg": 20.0, "dz": 3.0}, {"f_neg": 30.0, "dz": 2.0}])
     assert abs(an["N_negativo_kN"] - (20 * 3 + 30 * 2) * math.pi * 0.30) < 0.1, an
+    # recalque de grupo (radier equivalente): z=2/3 L ; espalhamento 1:4
+    rg = recalque_grupo(2000.0, 2.0, 2.0, 12.0, Es=20000.0)
+    z = 2.0 / 3.0 * 12.0
+    Beq = 2.0 + 2.0 * (z / 4.0)
+    assert abs(rg["B_eq_m"] - Beq) < 1e-9 and rg["recalque_mm"] > 0, rg
+    # bloco flexivel -> puncao verificada (tan<0,57): d pequeno, braco grande
+    bf = bloco_coroamento(500.0, 2, 1.5, 0.30, 0.20, 25e3, 500e3, D_estaca=0.30)
+    assert not bf["rigido"] and bf["puncao"] is not None
+    assert "ok_puncao" in bf["puncao"]
     # Decourt-Quaresma: ponta areia C=40 tf/m2, q_p=40*25*10=10000 kPa
     dq = capacidade_decourt_quaresma(perfil, D, L)
     assert dq["C"] == 40.0, dq
@@ -430,6 +493,8 @@ def _selftest():
     assert abs(dq["N_med_fuste"] - Nmed) < 1e-6, dq
     rl = (Nmed / 3.0 + 1.0) * 10.0
     assert abs(dq["R_lateral_kN"] - rl * U * L) < 0.2, dq
+    # FS partido (Veloso & Lopes pg.288): R_lat/1,3 + R_ponta/4,0
+    assert abs(dq["P_adm_partic_kN"] - (dq["R_lateral_kN"] / 1.3 + dq["R_ponta_kN"] / 4.0)) < 0.1, dq
     # grupo decourt: silte arenoso -> silte_arenoso (25) ; argila -> argila (12)
     assert _grupo_decourt("areia_siltosa") == "areia"        # comeca com areia
     assert _grupo_decourt("silte_arenoso") == "silte_arenoso"
@@ -462,4 +527,5 @@ if __name__ == "__main__":
             "N_pilar": 1500.0, "N_uplift": 300.0,
             "grupo": {"m": 2, "n": 1, "s": 0.9},
             "camadas_neg": [{"f_neg": 15.0, "dz": 3.0}],
+            "recalque_grupo": {"B_grupo": 1.2, "L_grupo": 0.6, "Es": 20000.0},
             "bloco": {"espacamento": 0.9, "a_pilar": 0.30, "h": 0.55}})))

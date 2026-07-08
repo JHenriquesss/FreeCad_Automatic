@@ -60,6 +60,13 @@ ponderada de N ao longo do fuste embutido. Os 15 solos de Aoki são mapeados nos
 grupos de Décourt (`_grupo_decourt`). No exemplo, Décourt dá R_ult 20 % **abaixo**
 do Aoki (banda típica de dispersão entre métodos — os dois entram no relatório).
 
+**FS partido de Décourt** (Veloso & Lopes pg.288, lido do PDF): a admissível própria
+de Décourt-Quaresma usa fatores separados — `FS_lateral = 1,1·1,0·1,0·1,2 ≈ 1,3` e
+`FS_ponta = 1,35·1,0·2,5·1,2 ≈ 4,0` → `Q_adm = R_lat/1,3 + R_ponta/4,0` (mais
+racional que o FS global 2,0; a ponta é mais penalizada por mobilizar mais recalque).
+Reportado ao lado do P_adm global. Resta só o **α/β de estacas escavadas** (Décourt
+1996) — extensão a estacas sem deslocamento, trabalho futuro.
+
 ---
 
 ## 2. Número de estacas + bloco de coroamento
@@ -103,10 +110,15 @@ envelope e verifica `N_uplift/n ≤ P_adm,tração`.
    `fcd3=0,72·αv2·fcd` (CCT), `αv2=1−fck/250`, `σ=F/(A·sen²θ)`, `0,57≤tanθ≤2`.
    Ancoragem: `fbd=η1η2η3·fctd`, `fctd=0,7·(0,3·fck^⅔)/1,4`, η1=2,25 (nervurada),
    `lb=(φ/4)(fyd/fbd)`, `lb,nec=α·lb·(As,c/As,ef)≥lb,min`. Bloco **rígido** (tanθ≥0,57)
-   → punção dispensada; flexível → FLAG. Resta a **punção do bloco flexível**.
-5. **Tração/uplift, efeito de grupo (Converse-Labarre) e atrito negativo (downdrag)**
-   implementados. `η=1−(θ/90)·[(m−1)n+(n−1)m]/(mn)`, `N_neg=U·Σ(f_neg·dz)` (f_neg =
-   dado geotécnico). Resta o **recalque do grupo** (deformação) — verificar à parte.
+   → punção dispensada; **flexível → punção verificada** no contorno C' a 2d com a
+   carga total (sem alívio de solo, conservador): `τsd=N/(u·d) ≤ τrd1` (NBR 6118
+   19.5.3.2). FLAG: a punção rigorosa de bloco (contornos ao redor das estacas,
+   CEB/Blévot) é mais completa — este é o check simplificado do pilar.
+5. **Tração/uplift, efeito de grupo (Converse-Labarre), atrito negativo (downdrag) e
+   recalque do grupo (radier equivalente)** implementados. `η=1−(θ/90)·[(m−1)n+(n−1)m]/(mn)`,
+   `N_neg=U·Σ(f_neg·dz)`, recalque = sapata fictícia a `z=⅔L` (atrito) / `z=L` (ponta),
+   carga espalhada 1:4, recalque elástico (reusa `fundacao_sapata`). f_neg e Es = dados
+   geotécnicos.
 6. Só roda com `params["estaca"]` (escolha deliberada de fundação profunda); a
    referência 20×10 permanece em **sapata** (rasa).
 
