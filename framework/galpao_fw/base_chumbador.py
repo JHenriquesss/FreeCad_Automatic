@@ -310,14 +310,26 @@ def edge_breakout_cisalhamento_aci(V_sd, n_borda, db, hef, fck, ca1, ca2, ha,
     return r
 
 
-def interacao_tracao_cortante_aci(Nua, Vua, phiNn, phiVn):
-    """Interacao TRACAO-CORTANTE do concreto (ACI 318 17.6 / Nilson 21.16), modelo
-    TRILINEAR: (a) se Vua/phiVn < 0,2 -> usa a tracao cheia (Nua <= phiNn) ;
-    (b) se Nua/phiNn < 0,2 -> usa o cortante cheio (Vua <= phiVn) ; (c) entre os dois
-    limites: Nua/phiNn + Vua/phiVn <= 1,2 (Eq.21.16). phiNn/phiVn = capacidades de
-    CALCULO (ja com phi) governantes do concreto (menor modo). kN. Retorna dict."""
+def interacao_tracao_cortante_aci(Nua, Vua, phiNn, phiVn, curva_exata=False):
+    """Interacao TRACAO-CORTANTE do concreto (ACI 318 17.6 / Nilson 21.16).
+
+    Default = modelo TRILINEAR (ACI Code 17.6.1/.2): (a) se Vua/phiVn < 0,2 -> usa a
+    tracao cheia (Nua <= phiNn) ; (b) se Nua/phiNn < 0,2 -> usa o cortante cheio
+    (Vua <= phiVn) ; (c) entre os limites: Nua/phiNn + Vua/phiVn <= 1,2 (Eq.21.16).
+
+    curva_exata=True = envoltoria de POTENCIA 5/3 (Fig.21.12 / 17.6.3):
+    (Nua/phiNn)^(5/3) + (Vua/phiVn)^(5/3) <= 1,0 - ~2 a 8% mais de capacidade na
+    zona central; usar so em otimizacao (o trilinear e mais auditavel).
+
+    phiNn/phiVn = capacidades de CALCULO (ja com phi) governantes do concreto (menor
+    modo). kN. Retorna dict."""
     rN = Nua / phiNn if phiNn > 0 else float("inf")
     rV = Vua / phiVn if phiVn > 0 else float("inf")
+    if curva_exata:
+        soma53 = rN ** (5.0 / 3.0) + rV ** (5.0 / 3.0)
+        return {"rN": rN, "rV": rV, "regime": "potencia 5/3 (17.6.3)",
+                "u_interacao": soma53, "ok": soma53 <= 1.0 + 1e-9,
+                "soma": rN + rV, "soma53": soma53}
     if rV < 0.2:
         regime = "tracao dominante (V<0,2) - so tracao"
         util, ok = rN, rN <= 1.0 + 1e-9
@@ -517,7 +529,8 @@ def verifica_base(caso):
     if cone is not None and cv.get("edge") is not None:
         r["interacao_conc"] = interacao_tracao_cortante_aci(
             cone["demanda_kN"], cv["edge"]["demanda_kN"],
-            cone["cap_concreto_kN"], cv["edge"]["cap_cisalhamento_kN"])
+            cone["cap_concreto_kN"], cv["edge"]["cap_cisalhamento_kN"],
+            curva_exata=caso.get("interacao_curva_exata", False))
 
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
@@ -844,6 +857,11 @@ def _selftest():
     assert "combinada" in i_c["regime"] and i_c["ok"] and abs(i_c["soma"] - 1.0) < 1e-9
     i_x = interacao_tracao_cortante_aci(80.0, 60.0, 100.0, 100.0)  # 0,8+0,6=1,4>1,2
     assert not i_x["ok"]
+    # curva 5/3 (17.6.3): 0,65+0,65 reprova no trilinear (1,3>1,2) mas passa no 5/3
+    i_tri = interacao_tracao_cortante_aci(65.0, 65.0, 100.0, 100.0)
+    i_53 = interacao_tracao_cortante_aci(65.0, 65.0, 100.0, 100.0, curva_exata=True)
+    assert not i_tri["ok"] and i_53["ok"]                          # 2*0,65^(5/3)<1
+    assert abs(i_53["soma53"] - 2 * 0.65 ** (5.0 / 3.0)) < 1e-9
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")

@@ -67,5 +67,8 @@ Novo módulo `sismo_nbr15421.py` + wire em `rodar_galpao` (`gate7-sismo.txt`). F
 ## D21 — 2026-07-08 — Base: interação tração-cortante do concreto (ACI 318 17.6)
 `base_chumbador.interacao_tracao_cortante_aci` combina cone de tração (§10) + edge breakout (§12) no modelo TRILINEAR do ACI 318 17.6 (Nilson 21.16): se Vua/φVn<0,2 → só tração; se Nua/φNn<0,2 → só cortante; senão Nua/φNn+Vua/φVn≤1,2. φNn/φVn = capacidades de cálculo governantes (menor modo de cada). Opt-in (roda quando cone + edge presentes), informativo. Selftest #9: 3 regimes + reprova (0,8+0,6=1,4>1,2). Ex HEA200 gancho: rN=3,34+rV=0,80 → u=3,45 NAO PASSA (pullout de gancho governa, coerente). Curva 5/3 (Fig.21.12) é alternativa; ACI Code usa trilinear. **Fecha a base 100% nos modos do concreto (§9-§13).**
 
+## D22 — 2026-07-08 — Base: curva 5/3 opcional na interação T-V
+`interacao_tracao_cortante_aci` ganha `curva_exata=True` (caso["interacao_curva_exata"]) → envoltória de potência (ACI 318 17.6.3 / Fig.21.12): (Nua/φNn)^(5/3)+(Vua/φVn)^(5/3)≤1. ~2-8% mais de capacidade central; trilinear continua default (auditabilidade). Atende sugestão do parecer de homologação do §13. Selftest #9: 0,65+0,65 reprova trilinear (1,3>1,2) mas passa 5/3 (0,978<1). §13 homologado — base 100% completa nos modos do concreto.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

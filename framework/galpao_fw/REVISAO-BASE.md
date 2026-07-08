@@ -387,8 +387,10 @@ disciplinas), não trava a emissão da metálica.
 
 ## 13. Interação tração-cortante do concreto (ACI 318 17.6, trilinear)
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: o modelo
-> **trilinear** (Eq. 21.16) e os *cutoffs* de 0,2.
+> **STATUS: ✅ HOMOLOGADO (2026-07-08).** Sênior conferiu o trilinear (cutoffs 0,2,
+> soma ≤1,2, continuidade nos vértices) e a nota sobre a curva 5/3 — "estritamente
+> correto". **Curva de potência 5/3 adicionada como opt-in** (`curva_exata=True`,
+> ver 13.1), mantendo o trilinear como default (auditabilidade). Liberado.
 
 Fecha o **último modo** do concreto: combina a tração (cone §10) e o cortante
 (edge breakout §12) num mesmo grupo. Fonte: **ACI 318 17.6 = Nilson 21.16**, lido
@@ -409,7 +411,19 @@ u=3,45 NÃO PASSA** — coerente (base de gancho falha na tração, §10).
 **Opt-in:** roda só quando **ambos** os modos do concreto foram calculados (cone +
 edge breakout). Informativo.
 
-> **Nota:** a curva mais precisa `(Nua/φNn)^(5/3)+(Vua/φVn)^(5/3)=1` (Fig. 21.12)
-> é alternativa; o **ACI Code 17.6** adota o **trilinear** (implementado). Base
-> agora completa nos modos do concreto (aderência §9, cone §10, cortante §11,
-> edge breakout §12, interação §13).
+### 13.1 — Curva de potência 5/3 opcional (pós-parecer 2026-07-08)
+
+Além do trilinear (default), o código aceita `curva_exata=True` (`caso
+["interacao_curva_exata"]`) → envoltória **de potência** (ACI 318 17.6.3 / Fig.
+21.12):
+```
+(Nua/φNn)^(5/3) + (Vua/φVn)^(5/3) ≤ 1,0
+```
+Ganha **~2 a 8 %** de capacidade na zona central (o trilinear `x+y≤1,2` fica quase
+sempre inscrito na curva). Uso: **otimização pesada**; o **trilinear continua o
+default** pela transparência de auditoria (reprova legível `0,8+0,6=1,4>1,2`).
+Selftest #9: `0,65+0,65=1,3>1,2` reprova no trilinear mas `2·0,65^(5/3)=0,978<1`
+**passa** na curva 5/3.
+
+> A base está **completa nos modos do concreto**: aderência §9, cone §10, cortante
+> §11, edge breakout §12, interação §13 (trilinear + 5/3).
