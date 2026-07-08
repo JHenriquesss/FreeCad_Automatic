@@ -111,15 +111,25 @@ def faixa_admissivel_fadiga(cat, N):
     return max((327.0 * Cf / N) ** (1.0 / 3.0), sTH)
 
 
-def verifica_fadiga(M_fad, Wx, cat="B", N=2.0e6):
+def verifica_fadiga(M_fad, Wx, cat="B", N=2.0e6, M_lat=0.0, Wy_top=None,
+                    frac_lat=0.5):
     """Fadiga da viga de rolamento (NBR 8800 Anexo K). Faixa de variacao de
-    tensoes (K.3, analise elastica) vs faixa admissivel (K.4). B.7.3.4: 1 ponte
-    com impacto - aqui M_fad e o momento CARACTERISTICO com impacto (a carga movel
-    zera quando a ponte se afasta -> a faixa e ~ o proprio momento da ponte).
-    M_fad em kN.m ; Wx em m3 -> sigma em MPa. Retorna dict."""
-    sig_sr = (M_fad / Wx) / 1000.0                  # kN/m2 -> MPa
+    tensoes (K.3, analise elastica) vs faixa admissivel (K.4).
+
+    Carga de fadiga B.7.3.4 (lida do PDF): 1 ponte, cargas verticais majoradas
+    pelo impacto + **50 % das forcas horizontais**. Logo a faixa de tensoes na
+    fibra extrema da MESA SUPERIOR combina a flexao vertical e a lateral (surto):
+        sigma_SR = M_fad/Wx + frac_lat*M_lat/Wy_top          (frac_lat = 0,50)
+    M_fad e M_lat sao os momentos CARACTERISTICOS com impacto (a carga movel zera
+    quando a ponte se afasta -> a faixa e ~ o proprio momento). Wy_top = modulo do
+    BANZO SUPERIOR (o surto atua no topo do trilho). Sem Wy_top, so a vertical.
+    M em kN.m ; W em m3 -> sigma em MPa. Retorna dict."""
+    sig_x = (M_fad / Wx) / 1000.0                   # kN/m2 -> MPa (vertical)
+    sig_y = (frac_lat * M_lat / Wy_top) / 1000.0 if (Wy_top and Wy_top > 0) else 0.0
+    sig_sr = sig_x + sig_y                          # soma simples na fibra do topo
     sig_rd = faixa_admissivel_fadiga(cat, N)
-    return {"sigma_sr": sig_sr, "sigma_rd": sig_rd, "cat": cat, "N": N,
+    return {"sigma_sr": sig_sr, "sigma_sr_x": sig_x, "sigma_sr_y": sig_y,
+            "sigma_rd": sig_rd, "cat": cat, "N": N,
             "u_fadiga": sig_sr / sig_rd if sig_rd > 0 else float("inf"),
             "ok": sig_sr <= sig_rd + 1e-9}
 
@@ -158,22 +168,26 @@ def verifica_viga_rolamento(sec, fy, cfg):
         else:                                         # 1 roda no meio
             flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])
         flecha_ok = flecha <= L / lim
-    # FADIGA (NBR 8800 Anexo K): faixa de tensoes da carga movel vertical. Wx do
-    # perfil ; M_fad = Msdx (caracteristico com impacto, sem gamma_f - P=phi*Rmx).
+    # FADIGA (NBR 8800 Anexo K + B.7.3.4): vertical + 50% da lateral (surto) na
+    # fibra da mesa superior. Wx do perfil ; Wy_top do banzo superior (surto no
+    # topo do trilho). M_fad = Msdx e M_lat = Msdy (caracteristicos com impacto).
     Wx = sec.get("Wx", sec["Ix"] / (sec.get("d", sec.get("h", 1.0)) / 2.0))
     fad = verifica_fadiga(Msdx, Wx, cfg.get("cat_fadiga", "B"),
-                          cfg.get("n_ciclos", 2.0e6))
+                          cfg.get("n_ciclos", 2.0e6),
+                          M_lat=Msdy, Wy_top=Wy_top,
+                          frac_lat=cfg.get("frac_fadiga_lat", 0.5))
     return {"tipo": "viga_rolamento", "nome": cfg.get("nome", "Viga de rolamento"),
             "L": L, "Msdx": Msdx, "Msdy": Msdy, "Mrdx": Mrdx, "Mrdy": Mrdy,
             "M_gov": gov, "inter": inter, "u_x": Msdx / Mrdx, "u_y": Msdy / Mrdy,
             "flecha_mm": None if flecha is None else flecha * 1000.0,
             "flecha_lim": lim, "flecha_ok": flecha_ok, "fadiga": fad,
             "OK": inter <= 1.0 and (flecha_ok in (None, True)) and fad["ok"],
-            "fadiga_flag": ("FADIGA (Anexo K) cat.%s N=%.0e: faixa sig_SR=%.0f <= "
-                            "sig_adm=%.0f MPa (u=%.2f). Categoria do DETALHE real "
-                            "(enrijecedor/trilho/solda) e nciclos do regime (NBR 8400) "
-                            "= A CONFIRMAR." % (fad["cat"], fad["N"], fad["sigma_sr"],
-                            fad["sigma_rd"], fad["u_fadiga"]))}
+            "fadiga_flag": ("FADIGA (Anexo K + B.7.3.4) cat.%s N=%.0e: sig_SR=%.0f "
+                            "(vert %.0f + 50%% lat %.0f) <= sig_adm=%.0f MPa (u=%.2f). "
+                            "Categoria do DETALHE real (enrijecedor/trilho/solda) e "
+                            "nciclos do regime (NBR 8400) = A CONFIRMAR." %
+                            (fad["cat"], fad["N"], fad["sigma_sr"], fad["sigma_sr_x"],
+                             fad["sigma_sr_y"], fad["sigma_rd"], fad["u_fadiga"]))}
 
 
 def reacao_no_portico(R_roda_max, n_rodas_lado, H_transv_roda, H_long_trilho,
@@ -272,7 +286,11 @@ def _selftest():
     assert faixa_admissivel_fadiga("C", 1e5) > 69.0            # poucos ciclos -> > sigma_TH
     assert abs(faixa_admissivel_fadiga("E", 1e9) - 31.0) < 1e-6   # muitos ciclos -> piso sigma_TH
     fad = viga["fadiga"]
-    assert abs(fad["sigma_sr"] - (viga["Msdx"]/VS500["Wx"])/1000.0) < 1e-6
+    # B.7.3.4: vertical + 50% da lateral no banzo superior (Wy_top = Wy/2 fallback)
+    Wy_top = VS500["Wy"] / 2.0
+    sr_exp = (viga["Msdx"]/VS500["Wx"])/1000.0 + 0.5*viga["Msdy"]/Wy_top/1000.0
+    assert abs(fad["sigma_sr"] - sr_exp) < 1e-6, (fad["sigma_sr"], sr_exp)
+    assert fad["sigma_sr_y"] > 0 and fad["sigma_sr"] > fad["sigma_sr_x"]   # lateral entra
     assert fad["ok"] and 0 < fad["u_fadiga"] < 1.0            # VS500 passa a fadiga
     # categoria pior (E') aperta a faixa admissivel
     assert faixa_admissivel_fadiga("E'", 2e6) < faixa_admissivel_fadiga("B", 2e6)
