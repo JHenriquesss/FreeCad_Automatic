@@ -142,9 +142,11 @@ fictícia do beiral captura a força lateral, idêntico ao vento) e no envelope 
    (9.5) e θ=Px·Δx/(Hx·hsx·Cd) (9.6): θ<0,10 dispensa 2ª ordem; 0,1<θ≤θmax=0,5/Cd≤0,25
    amplifica por 1/(1−θ); θ>θmax = instável. δxe = drift do beiral sob o caso sísmico
    característico (do pórtico). Ref zona 4/pêndulo: θ=0,022 → dispensada.
-4. **Direção**: só a transversal (plano do pórtico). A longitudinal (contraventos)
-   e a combinação ortogonal **100/30** (só cat. C com irregularidade de plano Tipo 3,
-   8.5 — exige modelo 3D) ficam fora — FLAG, não aplicável ao galpão regular.
+4. **Direção**: análise no plano do pórtico (transversal). A combinação ortogonal
+   **100/30** (8.5) está disponível em `combinacao_ortogonal(Ex, Ey)` =
+   max(|Ex|+0,3|Ey|; |Ey|+0,3|Ex|), **exigida só p/ cat. C com irregularidade de
+   plano Tipo 3** — não se aplica ao galpão regular (sem acoplamento); a resposta
+   longitudinal (Ey) vem da análise dos contraventos, fornecida pelo engenheiro.
 5. Reversível ±E cobre os dois sentidos; o pior entra no envelope.
 
 ### 6.4 — Não-regressão

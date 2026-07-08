@@ -203,6 +203,20 @@ def deslocamento_theta(delta_xe, Cd, I, Px, Hx, hsx):
             "situacao": situacao}
 
 
+def combinacao_ortogonal(E_x, E_y, frac=0.30):
+    """Combinacao ortogonal 100/30 (NBR 15421 8.5). EXIGIDA apenas para estruturas
+    de categoria sismica C com irregularidade no plano do Tipo 3 (Tab.7). Combina
+    100% das forcas em uma direcao com 30% na perpendicular; toma a envoltoria:
+      E_comb = max(|E_x| + frac*|E_y| ; |E_y| + frac*|E_x|).
+    E_x, E_y = respostas sismicas nas duas direcoes ortogonais (mesmo efeito, ex.:
+    momento na base). frac=0,30. Galpao REGULAR nao precisa (nao ha acoplamento)."""
+    ex, ey = abs(E_x), abs(E_y)
+    return {"E_x": ex, "E_y": ey, "frac": frac,
+            "E_comb_x100": round(ex + frac * ey, 3),
+            "E_comb_y100": round(ey + frac * ex, 3),
+            "E_comb": round(max(ex + frac * ey, ey + frac * ex), 3)}
+
+
 def relatorio_pt(r):
     L = ["=" * 70, "ACAO SISMICA - NBR 15421:2023 (forcas horizontais equivalentes)",
          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 70, "",
@@ -273,6 +287,10 @@ def _selftest():
     # theta na faixa 0,1..max -> amplifica
     dt2 = deslocamento_theta(0.05, Cd=3.0, I=1.0, Px=500.0, Hx=30.0, hsx=6.0)
     assert dt2["theta"] >= 0.10 and abs(dt2["amplif_2a_ordem"] - 1.0 / (1.0 - dt2["theta"])) < 1e-3, dt2
+    # 6) combinacao ortogonal 100/30 (8.5)
+    co = combinacao_ortogonal(100.0, 60.0, 0.30)
+    assert abs(co["E_comb"] - max(100 + 0.3 * 60, 60 + 0.3 * 100)) < 1e-9, co
+    assert abs(co["E_comb"] - 118.0) < 1e-9, co
     print("sismo_nbr15421 self-test PASSED")
     print(f"  zona3 D aco-momento hn8: Ta={r3['T']:.3f}s ; Cs={r3['Cs']:.4f} ; "
           f"H={r3['H']:.1f} kN (W=1000)")
