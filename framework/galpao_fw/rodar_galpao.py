@@ -136,7 +136,8 @@ def rodar(params, out_dir):
     else:
         gp.configurar(ponte=False)
     # Gate 5 - vento (transversal + longitudinal)
-    save("gate5-vento.txt", vento.relatorio_pt(vento.compute()))
+    save("gate5-vento.txt", vento.relatorio_pt(vento.compute(
+        larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]))))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
                                     ca=params.get("ca_arrasto", 1.2))
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))

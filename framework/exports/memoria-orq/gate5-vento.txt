@@ -23,5 +23,11 @@ VENTO (ABNT NBR 6123/1988)
       parede sotavento: +0.00  (+0.000 kN/m2)
       cobertura barlavento: -0.33  (-0.260 kN/m2)
       cobertura sotavento: +0.00  (+0.000 kN/m2)
+  Cpe MEDIO / LOCAL (borda-canto, Tab.4/5 col. 'cpe medio') - TELHA/TERCA/FIXADOR:
+    cobertura: envoltoria -2.00 (zonas [-2.0, -2.0, -1.5, -1.03]); faixa y=1.50 m ; zona=5.00 m ; lanternim -2.00
+    parede:    cpe medio -1.10 (h/b=0.60, a/b=2.00); faixa=2.00 m
+    succao liquida (Cpi=+0.80 p/ arranque): cobertura -2.203 kN/m2 ; parede -1.495 kN/m2
+    -> dimensionar o fixador da telha e a ligacao terca-portico de BORDA/CANTO
+       com esta succao local (bem maior que a global do portico).
   [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
    razao de areas das aberturas para o Cpi do portao (6.2.5-c).]

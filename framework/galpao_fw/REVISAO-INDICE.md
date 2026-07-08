@@ -15,7 +15,7 @@ os FLAGS/pendências.
 | 1 | Fundação (sapata) | [REVISAO-FUNDACAO.md](REVISAO-FUNDACAO.md) | NBR 6118 | ✅ HOMOLOGADO r2 · ✅ features punção (§10) + recalque (§11) HOMOLOGADAS (2026-07-07) |
 | 2 | Pórtico (análise 1ª+2ª ordem) | [REVISAO-PORTICO.md](REVISAO-PORTICO.md) | NBR 8800 An. D | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
 | 3 | Verificação de perfil | [REVISAO-CHECK-NBR8800.md](REVISAO-CHECK-NBR8800.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-06) — §7/§8 |
-| 4 | Vento | [REVISAO-VENTO.md](REVISAO-VENTO.md) | NBR 6123 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
+| 4 | Vento | [REVISAO-VENTO.md](REVISAO-VENTO.md) | NBR 6123 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 · 🆕 Cpe médio local borda/canto §8 (Tab.4/5, 2026-07-08) PENDENTE |
 | 5 | Terças (formado a frio) | [REVISAO-TERCAS.md](REVISAO-TERCAS.md) | NBR 14762 | ✅ HOMOLOGADO (r2, 2026-07-06) — §8/§9 |
 | 6 | Secundários (longarina/escora/montante) | [REVISAO-SECUNDARIOS.md](REVISAO-SECUNDARIOS.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
 | 7 | Base (placa + chumbadores) | [REVISAO-BASE.md](REVISAO-BASE.md) | NBR 8800 + AISC DG1 + ACI 318 | ✅ **100% HOMOLOGADO §9-§13** (ancoragem, cone, cortante-tríade, edge breakout, interação T-V trilinear+5/3, 2026-07-08) |
@@ -49,6 +49,8 @@ citação normativa do PDF + selftest. **TODAS HOMOLOGADAS (2026-07-07/08):**
 | ✅ Fadiga da viga de rolamento (+50% lat B.7.3.4) | ponte | NBR 8800 Anexo K | [PONTE §9](REVISAO-PONTE.md) — HOMOLOGADA |
 | ✅ Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) — HOMOLOGADA |
 | ✅ Ação sísmica (forças horiz. equiv.) | sismo (novo) | NBR 15421:2023 | [SISMO](REVISAO-SISMO.md) — HOMOLOGADA |
+| 🆕 Detalhamento de furos (espaçamento/borda) | ligações | NBR 8800 6.3.9/10/11 | [LIGACOES §9](REVISAO-LIGACOES.md) — PENDENTE |
+| 🆕 Cpe médio local de borda/canto (telha/terça/fixador) | vento | NBR 6123 Tab.4/5 | [VENTO §8](REVISAO-VENTO.md) — PENDENTE |
 
 **Fixes de geometria do build 3D** (calha invertida, telha sobre as terças, chapa
 de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vivo no
