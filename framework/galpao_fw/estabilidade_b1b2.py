@@ -107,6 +107,10 @@ def _apply_case(fr, ix, cs, fac):
         p = gp.PONTE
         fr.add_nodal_load(ix["nConsL"], Fy=-abs(p["R_vert"]) * fac,
                           M=p["M_exc"] * fac, Fx=abs(p["H_transv"]) * fac)
+    elif cs == "SISMO" and gp.SISMO:
+        E_h = gp.SISMO["E"]
+        fr.add_nodal_load(ix["nEaveL"], Fx=+E_h / 2.0 * fac)
+        fr.add_nodal_load(ix["nEaveR"], Fx=+E_h / 2.0 * fac)
 
 
 def _apply_combo(fr, ix, combo):
@@ -218,8 +222,9 @@ def _classe(B2max):
 
 
 def _combos_ativos():
-    """Combinacoes ELU do envelope (cruzam W1 e W2) - as MESMAS do galpao_portico."""
-    return gp._combos_elu(gp.PONTE)
+    """Combinacoes ELU do envelope (cruzam W1 e W2) - as MESMAS do galpao_portico.
+    Inclui a combinacao excepcional de sismo quando gp.SISMO esta configurado."""
+    return gp._combos_elu(gp.PONTE, gp.SISMO)
 
 
 def analyse():

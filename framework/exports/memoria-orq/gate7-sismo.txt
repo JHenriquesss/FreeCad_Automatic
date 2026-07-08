@@ -10,3 +10,5 @@ Zona sismica: 0 (ag=0,025 g) ; categoria sismica: A ; classe do terreno: C
 [FLAG] zona/ag (mapa de zoneamento), classe do terreno (SPT/Vs30),
        R (sistema) e I (categoria de utilizacao) = dados do sitio/projeto
        - a skill confirma. Combinacao ultima EXCEPCIONAL (gamma_q=1,0).
+
+>> Zona sem exigencia -> nao entra no envelope.

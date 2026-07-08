@@ -45,23 +45,30 @@ Q_ROOF = 0.25          # sobrecarga (por projecao horizontal)
 #   {"R_vert","M_exc","H_transv","Hvr"} (kN, kN.m, kN, m).
 PONTE = None
 
+# ---- acao sismica (opcional). None = sem sismo (nao altera nada). ----
+# dict {"E": forca horizontal de calculo do portico (kN)} = cortante de piso
+# atribuido a UM portico transversal (largura tributaria = 1 vao). NBR 15421.
+SISMO = None
+
 
 def reset():
     """Zera o estado mutavel do portico (evita vazamento entre projetos)."""
-    global PONTE, BASE_FIXED
+    global PONTE, BASE_FIXED, SISMO
     PONTE = None
+    SISMO = None
     BASE_FIXED = False
 
 
 def configurar(span=None, eave=None, ridge=None, bay=None, base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
-               G_roof=None, rafter_self=None, Q_roof=None, ponte=None):
+               G_roof=None, rafter_self=None, Q_roof=None, ponte=None, sismo=None):
     """Define a geometria/cargas do projeto (do gate) e RECOMPUTA os derivados.
     Nao altera o metodo de calculo - so troca os dados de entrada. Chamar antes
     de analyse(). Argumentos None mantem o valor atual."""
     global SPAN, EAVE, RIDGE, BAY, THETA, COS, SIN, BASE_FIXED
-    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE
+    global A_COL, I_COL, A_RAF, I_RAF, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO
     if ponte is not None: PONTE = ponte if ponte else None
+    if sismo is not None: SISMO = sismo if sismo else None
     if span is not None:  SPAN = float(span)
     if eave is not None:  EAVE = float(eave)
     if ridge is not None: RIDGE = float(ridge)
@@ -152,12 +159,27 @@ def case_ponte(fr, ix):
     fr.add_nodal_load(n, Fy=-abs(p["R_vert"]), M=p["M_exc"], Fx=abs(p["H_transv"]))
 
 
-def _combos_elu(ponte=None):
+def case_sismo(fr, ix):
+    """Sismo (NBR 15421): cortante de piso horizontal do portico aplicado no nivel
+    do beiral. Galpao 1 nivel -> forca no topo dos pilares, dividida nos dois
+    beirais (a viga rigida distribui). Sentido +X; a reversibilidade (+-E) vem
+    do fator +-1,0 na combinacao excepcional."""
+    E_h = SISMO["E"]
+    fr.add_nodal_load(ix["nEaveL"], Fx=+E_h / 2.0)
+    fr.add_nodal_load(ix["nEaveR"], Fx=+E_h / 2.0)
+
+
+def _combos_elu(ponte=None, sismo=None):
     """Combinacoes ELU (NBR 8800) - ENVELOPE: cada hipotese de gravidade cruzada
     com CADA caso de vento (W1=portao barlavento, W2=portao sotavento). Antes o
     vento era fixado por combo (W2 na C1/C3, W1 na C2); o cruzamento pega o pior
     (diretriz do senior). psi0: sobrecarga=0,8 ; vento=0,6. Q FAVORAVEL no uplift
-    (G=1,00) nao entra."""
+    (G=1,00) nao entra.
+
+    Sismo (NBR 15421 5.4): acao EXCEPCIONAL, combinacao ultima excepcional (NBR
+    8681 5.1.3.3): gamma_g=1,2 (desfav; Q_uso<=5kN/m2) ou 1,0 (fav); gamma_exc=1,0;
+    o VENTO NAO entra (5.4). Sobrecarga de cobertura psi2=0 -> Q nao acompanha.
+    Reversivel: +-1,0*SISMO."""
     combos = {}
     for wc in ("W1", "W2"):
         combos[f"C1_grav_{wc}"] = {"G": 1.25, "Q": 1.50, wc: 0.6 * 1.40}
@@ -168,6 +190,10 @@ def _combos_elu(ponte=None):
             # Ponte = acao variavel autonoma (diretriz do senior).
             combos[f"C4_ponte_{wc}"] = {"G": 1.25, "PONTE": 1.50, wc: 0.6 * 1.40, "Q": 0.8 * 1.50}
             combos[f"C5_vento_ponte_{wc}"] = {"G": 1.25, wc: 1.40, "PONTE": 0.7 * 1.50, "Q": 0.8 * 1.50}
+    if sismo:                    # combinacao excepcional de sismo (sem vento, sem Q)
+        for sgn, tag in ((+1.0, "P"), (-1.0, "N")):
+            combos[f"C6_sismo_Gdesf_{tag}"] = {"G": 1.20, "SISMO": sgn * 1.0}
+            combos[f"C6_sismo_Gfav_{tag}"] = {"G": 1.00, "SISMO": sgn * 1.0}
     return combos
 
 
@@ -221,6 +247,9 @@ def analyse():
     if PONTE:
         dP, mfP, _, _ = _run(case_ponte)
         cases_mf["PONTE"] = mfP; cases_d["PONTE"] = dP
+    if SISMO:
+        dS, mfS, _, _ = _run(case_sismo)
+        cases_mf["SISMO"] = mfS; cases_d["SISMO"] = dS
 
     def combo_mf(c):
         keys = list(mfG.keys())
@@ -236,7 +265,7 @@ def analyse():
     # REGRA: acoes variaveis FAVORAVEIS entram com gamma=0 (nao se somam).
     # Nas combinacoes de UPLIFT (G favoravel, gamma_g=1,00), a sobrecarga Q
     # atua para BAIXO -> resiste ao levantamento -> e FAVORAVEL -> Q NAO entra.
-    combos = _combos_elu(PONTE)
+    combos = _combos_elu(PONTE, SISMO)
     res = {}
     for name, c in combos.items():
         cmf = combo_mf(c)

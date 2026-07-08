@@ -84,3 +84,70 @@ tudo no topo (trivial).
 > fora. Torção acidental (9.4.2), efeitos P-Δ/θ (9.6) e deslocamentos relativos
 > (9.5, Tab.9) não automatizados. Detalhamento sismorresistente (ductilidade,
 > ligações) é do projeto do material. `Ω0`/`Cd` (Tab.6) tabelados, não aplicados.
+
+---
+
+## 6. Sismo → ENVELOPE do pórtico (combinação excepcional) — feature 2026-07-08
+
+> **STATUS: 🆕 PENDENTE SÊNIOR.** Antes o sismo era **calculado mas não
+> redimensionava** nada (H isolado no memorial). Agora entra no envelope do
+> pórtico, da base e do joelho como **combinação última excepcional**.
+
+### 6.1 — Combinação (NBR 15421:2023 §5.4, lida VERBATIM do PDF)
+
+A ação sísmica é **excepcional** (§5.2). §5.4 remete à **NBR 8681:2003 5.1.3.3**:
+
+- **γg** (Tab.1/2 NBR 8681): para edificações com ações variáveis de utilização
+  **≤ 5 kN/m²**, quando o efeito permanente for **desfavorável**, `γg = 1,2`
+  (favorável `γg = 1,0`).
+- **γq = 1,0** (Tab.4/5) para as ações variáveis na combinação excepcional.
+- **γexc = 1,0** (5.1.4.3) para a ação sísmica.
+- **"os efeitos de vento, recalques de apoio e retração dos materiais NÃO precisam
+  ser considerados na combinação última excepcional"** — vento **fora**.
+
+Sobrecarga de cobertura tem **ψ2 = 0** (NBR 8800 Tab.2, coberturas) → a Q vertical
+**não acompanha** a combinação sísmica. Resultam as combinações (reversíveis ±E):
+
+```
+C6_sismo_Gdesf_P/N: 1,20·G ± 1,00·SISMO
+C6_sismo_Gfav_P/N : 1,00·G ± 1,00·SISMO     (sem vento, sem Q)
+```
+
+### 6.2 — Força sísmica no pórtico
+
+`H = Cs·W` (total do edifício, §9.1) → cortante de piso atribuído a **um pórtico
+transversal** pela largura tributária: `E = H·(vão / comprimento)`. Aplicada no
+**nível do beiral** (galpão 1 nível), dividida nos dois beirais (`case_sismo`). A
+reversibilidade vem do fator ±1,0 nas combinações C6.
+
+```python
+# rodar_galpao.py
+H_sismo = rs.get("H", 0.0)
+E_frame = H_sismo * g["bay"] / g["comprimento"]
+gp.configurar(sismo={"E": E_frame} if E_frame > 1e-9 else False)
+```
+
+O `SISMO` entra em `galpao_portico` (`case_sismo`, combos C6), em
+`estabilidade_b1b2` (`_apply_case` cs="SISMO", nt/lt automático — a contenção
+fictícia do beiral captura a força lateral, idêntico ao vento) e no envelope de
+**base** e **joelho** (`_casos_mf_reac` + `_combos_elu(PONTE, SISMO)`).
+
+### 6.3 — FLAGS / limites
+
+1. **`E = H·vão/comprimento`** (distribuição por largura tributária) — pórtico
+   interno típico. Empenas/pórticos de extremidade têm ½ da largura; o valor é
+   **conservador** para o interno. FLAG para o engenheiro confirmar a distribuição.
+2. **Peso efetivo W** (8.7.2) = entrada do sítio; a força escala linearmente nele.
+3. **Sem P-Δ sísmico dedicado (θ, 9.6)** — a amplificação B1/B2 (Anexo D NBR 8800)
+   já roda sobre a combinação C6, mas o `θ` da NBR 15421 9.6 não é verificado.
+4. **Direção**: só a transversal (plano do pórtico). A longitudinal (contraventos)
+   e a combinação ortogonal 100/30 (se exigida) ficam fora.
+5. Reversível ±E cobre os dois sentidos; o pior entra no envelope.
+
+### 6.4 — Não-regressão
+
+Referência 20×10 é **zona 0** (dispensado) → `E=0` → `gp.SISMO=None` → envelope
+**idêntico** ao anterior (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5 kNm
+inalterados). Teste zona 4 / classe E / pêndulo invertido / I=1,25 / W=1500:
+`Cs=0,394`, `H=590,6 kN`, `E=147,7 kN/pórtico` → **C6_sismo_Gdesf_P governa a
+base** (M=261,7 kNm) e sobe a coluna a 0,91. Aguarda revisão.

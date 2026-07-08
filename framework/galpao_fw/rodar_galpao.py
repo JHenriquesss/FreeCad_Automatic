@@ -53,6 +53,9 @@ def _casos_mf_reac():
     if gp.PONTE:
         fr, ix = gp._frame(); gp.case_ponte(fr, ix); _, mf = fr.solve()
         out["PONTE"] = (mf, fr.reactions(), ix)
+    if gp.SISMO:
+        fr, ix = gp._frame(); gp.case_sismo(fr, ix); _, mf = fr.solve()
+        out["SISMO"] = (mf, fr.reactions(), ix)
     return out
 
 
@@ -63,7 +66,7 @@ def _esforcos_base_joelho():
     _, _, ix = casos["G"]
     nbL = ix["nBaseL"]
     eKnee = ix["colL"][-1]
-    combos = gp._combos_elu(gp.PONTE)      # envelope (cruza W1 e W2)
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)   # envelope (cruza W1 e W2; + sismo C6)
     base_best = knee_best = None
     for nm, c in combos.items():
         R = sum(fac * casos[cs][1] for cs, fac in c.items())
@@ -83,7 +86,7 @@ def _casos_base_envelope():
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
     nbL = ix["nBaseL"]
-    combos = gp._combos_elu(gp.PONTE)
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     out = []
     for nm, c in combos.items():
         R = sum(fac * casos[cs][1] for cs, fac in c.items())
@@ -136,6 +139,19 @@ def rodar(params, out_dir):
         res["ponte_viga_inter"] = round(viga["inter"], 2)
     else:
         gp.configurar(ponte=False)
+    # Acao SISMICA (NBR 15421) - calculada ANTES da analise para ENTRAR no envelope
+    # do portico (combinacao excepcional). zona/classe/sistema/I/peso = sitio (skill
+    # confirma). zona 0 (default, maior parte do Brasil) -> H=0 -> nada muda.
+    ps = params.get("sismo", {})
+    rs = sismo.verifica_sismo(
+        W=ps.get("peso_efetivo_kN", 0.0), zona=ps.get("zona", 0),
+        classe=ps.get("classe_terreno", "C"), sistema=ps.get("sistema", "aco_momento"),
+        I=ps.get("I", 1.0), hn=ps.get("hn", g.get("ridge")), ag=ps.get("ag"))
+    # Cortante de piso atribuido a UM portico = H_total * (vao tributario / comprimento).
+    H_sismo = rs.get("H", 0.0) or 0.0
+    E_frame = H_sismo * g["bay"] / g.get("comprimento", 2 * g["span"])
+    gp.configurar(sismo={"E": E_frame} if E_frame > 1e-9 else False)
+    res["sismo_E_portico_kN"] = round(E_frame, 2)
     # Gate 5 - vento (transversal + longitudinal)
     save("gate5-vento.txt", vento.relatorio_pt(vento.compute(
         larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]))))
@@ -326,18 +342,17 @@ def rodar(params, out_dir):
     res["junta_dilatacao"] = {"L_max_m": rj["L_max_junta"], "precisa": rj["precisa_junta"],
                               "n_juntas": rj["n_juntas"], "delta_mm": rj["delta_segmento_mm"]}
 
-    # Acao sismica (NBR 15421) - metodo das forcas horizontais equivalentes.
-    # zona/classe/sistema/I/peso = dados do sitio (a skill confirma). Default zona
-    # 0 -> dispensado (maior parte do Brasil). peso_efetivo_kN so exigido em zona>1.
-    ps = params.get("sismo", {})
-    rs = sismo.verifica_sismo(
-        W=ps.get("peso_efetivo_kN", 0.0), zona=ps.get("zona", 0),
-        classe=ps.get("classe_terreno", "C"), sistema=ps.get("sistema", "aco_momento"),
-        I=ps.get("I", 1.0), hn=ps.get("hn", g.get("ridge")), ag=ps.get("ag"))
-    save("gate7-sismo.txt", sismo.relatorio_pt(rs))
+    # Acao sismica (NBR 15421) - ja calculada no inicio (rs) e injetada no envelope
+    # do portico como combinacao excepcional (C6). Aqui so gera o memorial + resumo.
+    save("gate7-sismo.txt", sismo.relatorio_pt(rs) + (
+        f"\n\n>> Forca de calculo por portico (cortante de piso, vao tributario "
+        f"{g['bay']:.1f} m / {g.get('comprimento', 2 * g['span']):.1f} m):\n"
+        f"   E = {E_frame:.1f} kN, aplicada no beiral -> combinacao EXCEPCIONAL C6\n"
+        f"   (1,2G+-E desfav / 1,0G+-E fav ; sem vento e sem Q, NBR 15421 5.4)."
+        if E_frame > 1e-9 else "\n\n>> Zona sem exigencia -> nao entra no envelope."))
     res["sismo"] = {"zona": rs["zona"], "categoria": rs["categoria"],
                     "dispensado": rs.get("dispensado"), "H_kN": rs.get("H"),
-                    "Cs": rs.get("Cs")}
+                    "Cs": rs.get("Cs"), "E_portico_kN": round(E_frame, 2)}
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]

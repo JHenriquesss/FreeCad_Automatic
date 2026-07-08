@@ -25,7 +25,7 @@ os FLAGS/pendências.
 | 11 | Contraventamento | [REVISAO-CONTRAVENTAMENTO.md](REVISAO-CONTRAVENTAMENTO.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §6/§7 |
 | 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6; fix flecha H/150→H/300 (Tab.C.1) |
 | 13 | Junta de dilatação / temperatura | [REVISAO-JUNTA-DILATACAO.md](REVISAO-JUNTA-DILATACAO.md) | Bellei / FCC Report 65 | ✅ HOMOLOGADO (2026-07-08) — §1-§4 |
-| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 |
+| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 · 🆕 sismo→envelope excepcional §6 (5.4 / NBR 8681, 2026-07-08) PENDENTE |
 | 15 | Telha de cobertura (vão × carga) | [REVISAO-TELHA.md](REVISAO-TELHA.md) | NBR 14762 | 🆕 PENDENTE (2026-07-08) — §1-§6 |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
@@ -53,6 +53,7 @@ citação normativa do PDF + selftest. **TODAS HOMOLOGADAS (2026-07-07/08):**
 | 🆕 Detalhamento de furos (espaçamento/borda) | ligações | NBR 8800 6.3.9/10/11 | [LIGACOES §9](REVISAO-LIGACOES.md) — PENDENTE |
 | 🆕 Cpe médio local de borda/canto (telha/terça/fixador) | vento | NBR 6123 Tab.4/5 | [VENTO §8](REVISAO-VENTO.md) — PENDENTE |
 | 🆕 Telha de cobertura (vão × carga) | telha (novo) | NBR 14762 | [TELHA](REVISAO-TELHA.md) — PENDENTE |
+| 🆕 Sismo → envelope (combinação excepcional) | pórtico/estab./base | NBR 15421 5.4 / NBR 8681 | [SISMO §6](REVISAO-SISMO.md) — PENDENTE |
 
 **Fixes de geometria do build 3D** (calha invertida, telha sobre as terças, chapa
 de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vivo no
