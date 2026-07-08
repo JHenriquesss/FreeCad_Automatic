@@ -115,73 +115,107 @@ def _perf_rect(msp, p1, p2, depth, layer="ACO"):
 
 # ---- VISTA 1: PORTICO TRANSVERSAL (plano Y-Z) ------------------------------
 def _portico(msp, d, ox, oy):
-    span, eave, ridge = d["span"], d["eave"], d["ridge"]
+    nv = d.get("n_vaos", 1)
+    cols = d.get("col_ys", [0.0, d["span"]])
+    ridges = d.get("ridge_ys", [d["span"] / 2.0])
+    eave, ridge0 = d["eave"], d["ridge"]
     dc, dr = d["col_d"], d["raf_d"]
     B = d["base"]
     bl, bt = B["L"], B["t"]
+    span_total = cols[-1]
 
     def P(y, z):
         return (ox + y, oy + z)
 
-    # colunas (contorno do perfil, profundidade dc)
-    _perf_rect(msp, P(0, 0), P(0, eave), dc)
-    _perf_rect(msp, P(span, 0), P(span, eave), dc)
-    # vigas (duas aguas)
-    _perf_rect(msp, P(0, eave), P(span / 2.0, ridge), dr)
-    _perf_rect(msp, P(span, eave), P(span / 2.0, ridge), dr)
-    # misulas (joelho) - triangulo sob a viga
+    def _z_ridge(y):
+        for j in range(nv):
+            c0, c1 = cols[j], cols[j + 1]
+            if c0 - 1 <= y <= c1 + 1:
+                rj = ridges[j]
+                if y <= rj:
+                    return eave + (d["ridges"][j] - eave) / (rj - c0) * (y - c0)
+                else:
+                    return eave + (d["ridges"][j] - eave) / (c1 - rj) * (c1 - y)
+        return eave
+
+    # Colunas (N+1)
+    for yc in cols:
+        _perf_rect(msp, P(yc, 0), P(yc, eave), dc)
+    # Vigas (2 por vao)
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j + 1]; rj = ridges[j]; zj = d["ridges"][j]
+        _perf_rect(msp, P(y0, eave), P(rj, zj), dr)
+        _perf_rect(msp, P(y1, eave), P(rj, zj), dr)
+    # Misulas (joelho) em cada coluna
     hl = 800.0
-    for sgn, y0 in ((1, 0.0), (-1, span)):
-        yb = y0 + sgn * hl
-        zc = eave + (ridge - eave) / (span / 2.0) * min(hl, span / 2.0)
-        _poly(msp, [P(y0, eave - dr / 2.0), P(y0, eave - dr / 2.0 - 450),
-                    P(yb, zc - dr / 2.0)], layer="ACO")
-    # CORTE: tercas (Ue) sobre as vigas + linha de telha (2 aguas)
-    def _zr(y):
-        return eave + (ridge - eave) / (span / 2.0) * min(y, span - y)
+    for yc in cols:
+        if yc == cols[0]:
+            yb = yc + hl; zc = _z_ridge(yb)
+            _poly(msp, [P(yc, eave - dr / 2.0), P(yc, eave - dr / 2.0 - 450),
+                        P(yb, zc - dr / 2.0)], layer="ACO")
+        elif yc == cols[-1]:
+            yb = yc - hl; zc = _z_ridge(yb)
+            _poly(msp, [P(yc, eave - dr / 2.0), P(yc, eave - dr / 2.0 - 450),
+                        P(yb, zc - dr / 2.0)], layer="ACO")
+        else:
+            for sgn in (+1, -1):
+                yb = yc + sgn * hl; zc = _z_ridge(yb)
+                _poly(msp, [P(yc, eave - dr / 2.0), P(yc, eave - dr / 2.0 - 450),
+                            P(yb, zc - dr / 2.0)], layer="ACO")
+    # Tercas + telha por vao
     nt = 3
-    ys_t = [0.0, span, span / 2.0]
-    for k in range(1, nt):
-        ys_t += [span / 2.0 * k / nt, span - span / 2.0 * k / nt]
-    for y in ys_t:
-        z = _zr(y) + dr / 2.0 + 90.0
+    ys_t = list(cols)
+    for j in range(nv):
+        rj = ridges[j]
+        ys_t.append(rj)
+        for k in range(1, nt):
+            ys_t.append(cols[j] + (rj - cols[j]) * k / nt)
+            ys_t.append(cols[j + 1] - (cols[j + 1] - rj) * k / nt)
+    for y in set(ys_t):
+        z = _z_ridge(y) + dr / 2.0 + 90.0
         _poly(msp, [P(y - 90, z - 90), P(y + 90, z - 90),
                     P(y + 90, z + 90), P(y - 90, z + 90)], layer="TELHA")
     tz = dr / 2.0 + 240.0
-    _line(msp, P(0, eave + tz), P(span / 2.0, ridge + tz), "TELHA")
-    _line(msp, P(span, eave + tz), P(span / 2.0, ridge + tz), "TELHA")
-    # eixos das colunas (linha de eixo) + bolhas de eixo transversal (A/B)
-    _line(msp, P(0, -700), P(0, eave + 500), "EIXOS")
-    _line(msp, P(span, -700), P(span, eave + 500), "EIXOS")
-    _line(msp, P(span / 2.0, eave), P(span / 2.0, ridge + 400), "EIXOS")
-    _bolha(msp, P(0, eave + 900), "A")
-    _bolha(msp, P(span, eave + 900), "B")
-    # niveis (elevacoes)
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j + 1]; rj = ridges[j]; zj = d["ridges"][j]
+        _line(msp, P(y0, eave + tz), P(rj, zj + tz), "TELHA")
+        _line(msp, P(y1, eave + tz), P(rj, zj + tz), "TELHA")
+    # Eixos de colunas + bolhas (letras A, B, C...)
+    for i, yc in enumerate(cols):
+        lbl = chr(65 + i) if i < 26 else f"X{i}"
+        _line(msp, P(yc, -700), P(yc, eave + 500), "EIXOS")
+        _bolha(msp, P(yc, eave + 900), lbl)
+    # Eixos de cumeeiras
+    for rj in ridges:
+        zj = _z_ridge(rj)
+        _line(msp, P(rj, eave), P(rj, zj + 400), "EIXOS")
+    # Niveis
     _nivel(msp, P(-dc / 2.0 - 250, 0), "+0,00")
     _nivel(msp, P(-dc / 2.0 - 250, eave), f"+{eave/1000:.2f}".replace(".", ","))
-    _nivel(msp, P(span / 2.0 + 250, ridge), f"+{ridge/1000:.2f}".replace(".", ","))
-    # placas de base (largura L na direcao Y, espessura t)
-    for y0 in (0.0, span):
-        _poly(msp, [P(y0 - bl / 2.0, 0), P(y0 + bl / 2.0, 0),
-                    P(y0 + bl / 2.0, -bt), P(y0 - bl / 2.0, -bt)], layer="BASE")
-        # chumbadores (tracos verticais)
+    for j in range(nv):
+        _nivel(msp, P(ridges[j] + 250, d['ridges'][j]),
+               f"+{d['ridges'][j]/1000:.2f}".replace(".", ","))
+    # Placas de base (N+1)
+    for yc in cols:
+        _poly(msp, [P(yc - bl / 2.0, 0), P(yc + bl / 2.0, 0),
+                    P(yc + bl / 2.0, -bt), P(yc - bl / 2.0, -bt)], layer="BASE")
         gy = bl / 2.0 - 60.0
-        ys = [-gy, 0.0, gy] if B["n"] >= 6 else [-gy, gy]
-        for yy in ys:
-            _line(msp, P(y0 + yy, 20), P(y0 + yy, -bt - 120), "FURACAO")
-    # cotas
-    _cota_h(msp, ox, ox + span, oy, txt=f"{span/1000:.2f} m (vao)".replace(".", ","),
-            off=-1200)
-    _cota_v(msp, oy, oy + eave, ox, txt=f"{eave/1000:.2f}".replace(".", ","),
-            off=-900)
-    _cota_v(msp, oy + eave, oy + ridge, ox + span + 900,
-            txt=f"+{(ridge-eave)/1000:.2f}".replace(".", ","), off=300)
-    # rotulos de perfil
+        ys_c = [-gy, 0.0, gy] if B["n"] >= 6 else [-gy, gy]
+        for yy in ys_c:
+            _line(msp, P(yc + yy, 20), P(yc + yy, -bt - 120), "FURACAO")
+    # Cotas horizontais (cada vao)
+    for j in range(nv):
+        _cota_h(msp, ox + cols[j], ox + cols[j + 1], oy,
+                txt=f"{d['spans'][j]/1000:.2f} m".replace(".", ","), off=-1200)
+    _cota_v(msp, oy, oy + eave, ox, txt=f"{eave/1000:.2f}".replace(".", ","), off=-900)
+    _cota_v(msp, oy + eave, oy + d['ridges'][-1], ox + span_total + 900,
+            txt=f"+{(d['ridges'][-1]-eave)/1000:.2f}".replace(".", ","), off=300)
+    # Rotulos
     _txt(msp, d["perfil_col"], P(-dc - 550, eave / 2.0), h=150)
-    _txt(msp, d["perfil_raf"], P(span / 4.0 - 300, (eave + ridge) / 2.0 + 250), h=150)
+    _txt(msp, d["perfil_raf"], P(cols[0] + 300, (eave + d['ridges'][0]) / 2.0 + 250), h=150)
     _txt(msp, f"Base {B['B']:.0f}x{B['L']:.0f}x{B['t']:.0f} - "
               f"{B['n']} chumb. d{B['db']:.0f}", P(-dc - 550, -bt - 700), h=140)
-    _txt(msp, "PORTICO TRANSVERSAL", P(span / 2.0 - 1400, -bt - 1500), h=220)
+    _txt(msp, f"PORTICO TRANSVERSAL ({nv} vao(s))", P(span_total / 2.0 - 1600, -bt - 1500), h=220)
 
 
 # ---- VISTA 2: ELEVACAO LONGITUDINAL (plano X-Z) ----------------------------
@@ -218,33 +252,36 @@ def _elev_long(msp, d, ox, oy):
 
 # ---- VISTA 3: PLANTA DE COBERTURA (plano X-Y) ------------------------------
 def _planta(msp, d, ox, oy):
-    comp, span = d["comprimento"], d["span"]
+    nv = d.get("n_vaos", 1)
+    cols = d.get("col_ys", [0.0, d["span"]])
+    ridges = d.get("ridge_ys", [d["span"] / 2.0])
+    span_total = cols[-1]
+    comp = d["comprimento"]
     xs = d["frame_x"]
 
     def P(x, y):
         return (ox + x, oy + y)
 
-    # contorno da cobertura
-    _poly(msp, [P(0, 0), P(comp, 0), P(comp, span), P(0, span)], layer="ACO")
-    # cumeeira (meio)
-    _line(msp, P(0, span / 2.0), P(comp, span / 2.0), "EIXOS")
-    # porticos (linhas transversais)
+    _poly(msp, [P(0, 0), P(comp, 0), P(comp, span_total), P(0, span_total)], layer="ACO")
+    for rj in ridges:
+        _line(msp, P(0, rj), P(comp, rj), "EIXOS")
     for x in xs:
-        _line(msp, P(x, 0), P(x, span), "EIXOS")
-    # tercas (longitudinais) - 3 por agua
-    for k in range(1, 3):
-        yl = span / 2.0 * k / 3.0
-        _line(msp, P(0, yl), P(comp, yl), "ACO")
-        _line(msp, P(0, span - yl), P(comp, span - yl), "ACO")
-    _line(msp, P(0, 0), P(comp, 0), "ACO")
-    _line(msp, P(0, span), P(comp, span), "ACO")
-    # contraventamento de cobertura (X) nos vaos de extremidade
+        _line(msp, P(x, 0), P(x, span_total), "EIXOS")
+    nt = 3
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j + 1]; rj = ridges[j]
+        for k in range(1, nt):
+            yl = y0 + (rj - y0) * k / nt
+            _line(msp, P(0, yl), P(comp, yl), "ACO")
+            yr = y1 - (y1 - rj) * k / nt
+            _line(msp, P(0, yr), P(comp, yr), "ACO")
+    _line(msp, P(0, cols[0]), P(comp, cols[0]), "ACO")
+    _line(msp, P(0, cols[-1]), P(comp, cols[-1]), "ACO")
     for (x0, x1) in ((xs[0], xs[1]), (xs[-2], xs[-1])):
-        _line(msp, P(x0, 0), P(x1, span), "CONTRAV")
-        _line(msp, P(x1, 0), P(x0, span), "CONTRAV")
-    # eixos numerados (1..n) e transversais (A/B)
+        _line(msp, P(x0, cols[0]), P(x1, cols[-1]), "CONTRAV")
+        _line(msp, P(x1, cols[0]), P(x0, cols[-1]), "CONTRAV")
     for i, x in enumerate(xs, start=1):
-        _bolha(msp, P(x, span + 900), i)
+        _bolha(msp, P(x, span_total + 900), i)
     _bolha(msp, P(-900, 0), "A")
     _bolha(msp, P(-900, span), "B")
     _cota_h(msp, ox, ox + comp, oy, txt=f"{comp/1000:.2f} m".replace(".", ","),
@@ -450,14 +487,11 @@ def _legenda(msp, d, ox, oy):
 
 
 def gerar_dxf(design, path):
-    """design: dict com span/comprimento/eave/ridge/slope/bay (mm), frame_x (lista),
-    col_d/raf_d (mm), perfil_col/perfil_raf (str), base {B,L,t,db,n} (mm), slug,
-    descricao. Escreve o DXF em 'path'."""
+    """design: dict com geometria do galpao (1 ou N vaos). Escreve o DXF."""
     doc = ezdxf.new("R2010", setup=True)
     _setup(doc)
     msp = doc.modelspace()
     span, comp = design["span"], design["comprimento"]
-    # layout das vistas em modelspace (offsets), com folga
     eave = design["eave"]
     _portico(msp, design, ox=0.0, oy=0.0)
     _elev_long(msp, design, ox=span + 6000.0, oy=0.0)
@@ -465,7 +499,6 @@ def gerar_dxf(design, path):
     _legenda(msp, design, ox=0.0, oy=-(eave + 5500.0))
     _detalhe_joelho(msp, design, ox=0.0, oy=-(eave + 12000.0))
     _detalhe_base(msp, design, ox=8000.0, oy=-(eave + 11000.0))
-    # quadros abaixo da planta
     yq = -(eave + 6000.0) - span - 2500.0
     _quadro_verif(msp, design, ox=span + 6000.0, oy=yq)
     _quadro_materiais(msp, design, ox=span + 12000.0, oy=yq)
@@ -474,25 +507,33 @@ def gerar_dxf(design, path):
 
 
 def design_de_spec(spec):
-    """Monta o 'design' do DXF a partir do spec (com perfil/base ADOTADOS no
-    calculo). Requer que calcular() ja tenha rodado (estrutura preenchida)."""
+    """Monta o 'design' do DXF a partir do spec. Suporta 1 ou N vaos."""
     import perfis
     g = spec["geometria"]
     est = spec.get("estrutura", {})
     col_nome = est.get("perfil_col_adotado", "HEA200")
     raf_nome = est.get("perfil_raf_adotado", "HEA180")
     ba = est.get("base_adotada", {"B": 0.45, "L": 0.55, "t": 0.04, "db": 0.02, "n": 4})
-    span = g["span"] * 1000.0
+    # Multi-vao: spans ou span?
+    if "spans" in g:
+        spans_m = [s * 1000.0 for s in g["spans"]]
+    else:
+        spans_m = [g["span"] * 1000.0]
+    total_span = sum(spans_m)
     comp = g["comprimento"] * 1000.0
     eave = g["eave"] * 1000.0
     slope = spec["cobertura"]["slope"]
-    ridge = eave + slope * span / 2.0
+    ridges_m = [eave + slope * s / 2.0 for s in spans_m]
     bay = g["bay"] * 1000.0
     n = int(round(comp / bay))
+    col_ys = [sum(spans_m[:i]) for i in range(len(spans_m) + 1)]
+    ridge_ys = [sum(spans_m[:i]) + spans_m[i] / 2.0 for i in range(len(spans_m))]
     return {
         "slug": spec.get("slug", "galpao"), "descricao": spec.get("descricao", ""),
-        "span": span, "comprimento": comp, "eave": eave, "ridge": ridge,
+        "span": total_span, "spans": spans_m, "comprimento": comp,
+        "eave": eave, "ridge": ridges_m[0], "ridges": ridges_m,
         "slope": slope, "bay": bay, "frame_x": [i * bay for i in range(n + 1)],
+        "col_ys": col_ys, "ridge_ys": ridge_ys, "n_vaos": len(spans_m),
         "col_d": perfis.PERFIS[col_nome]["d"] * 1000.0,
         "col_bf": perfis.PERFIS[col_nome]["bf"] * 1000.0,
         "raf_d": perfis.PERFIS[raf_nome]["d"] * 1000.0,

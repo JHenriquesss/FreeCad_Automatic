@@ -11,7 +11,7 @@ dimensionamento da sapata, com as **citações exatas da NBR 6118:2014**
 Código: `framework/galpao_fw/fundacao_sapata.py`
 Fluxo: `rodar_galpao.py` Gate 7 (`_casos_base_envelope` → `fs.dimensiona_sapata_env`).
 
-Última atualização: 2026-07-06.
+Última atualização: 2026-07-07.
 
 ---
 
@@ -72,8 +72,9 @@ O código **aumenta h** até satisfazer a rigidez (só ajuda a Parte A). Sendo
 rígida, o item **22.6.2.2** dispensa a verificação de **punção** (a sapata
 fica dentro do cone) — resta a **compressão diagonal** (19.5.3.1).
 
-> Se a geometria não puder ser rígida, o memorial emite FLAG exigindo punção
-> (19.5) e flexão não-uniforme (22.6.4.1.3) — **PENDENTE**.
+> Se a geometria for **flexível** (`h < (a−a_p)/3`), a Parte B agora **verifica a
+> punção** (19.5) no contorno C' a 2d — ver §10. A flexão não-uniforme (22.6.4.1.3)
+> permanece simplificada (conservadora).
 
 ### 3.2 Flexão — itens 22.6.3 (modelo de flexão) + 17.2.2 (bloco retangular)
 
@@ -186,7 +187,9 @@ Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
 
 1. `sigma_solo,adm` e parâmetros do solo (μ, coesão, γ) — **relatório de
    sondagem** (geotecnia). Bloqueia se não informado.
-2. Sapata **flexível** exige punção (19.5) — PENDENTE (o código força rígida).
+2. Sapata **flexível** — punção (19.5) **implementada** (§10): a Parte B verifica o
+   contorno C' a 2d em vez de só flagar. A rígida dispensa (22.6.2.2). Flexão
+   não-uniforme (22.6.4.1.3) segue simplificada (conservadora).
 3. `A_s,min` = `ρ_min(fck)` da Tabela 17.3 (§8) — **resolvido** (era fixo 0,15%).
 4. **Detalhamento/ancoragem** da armadura (gancho face a face 22.6.4.1.1;
    arranque 22.6.4.1.2) — projeto executivo.
@@ -519,3 +522,96 @@ quantitativo de aço sem ganchos (~10–15%, marcador de anteprojeto, §8.3).
 
 Módulo `fundacao_sapata.py` liberado. **1 melhoria de código nesta rodada**
 (adesão na área efetiva) + a de r1 (`ρ_min(fck)`).
+
+---
+
+## 10. Punção da sapata flexível (NBR 6118 19.5) — feature adicionada 2026-07-07
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior conferiu: contorno C' = soma de
+> Minkowski (`u=2(C1+C2)+4πd`, `A_C'=C1·C2+4d(C1+C2)+4πd²` — "cálculo exato"),
+> alívio `F_Sd,ef=N_d−σ·A_C'` correto, e o isolamento de unidades híbridas da
+> `τ_Rd1` (d→cm via `d*100`, fck→MPa via `/1000`, ×1000 devolve ao SI) — "lógica
+> brilhante". Sem vício de modelagem. Liberado.
+
+Fecha a pendência FLAG 2 (antes: código forçava rígida e só emitia flag). Agora a
+Parte B, quando a sapata é **flexível** (`h < (a−a_p)/3`), **verifica a punção** no
+contorno crítico C' a **2d** do pilar; a **rígida** continua dispensada (22.6.2.2 —
+fica dentro do cone, a compressão diagonal 19.5.3.1 já a cobre).
+
+Fórmulas extraídas do PDF (não de memória):
+
+- **19.5.2.1** — `τ_Sd = F_Sd,ef / (u·d)`, `u` = perímetro de C' a 2d
+  (`u = 2(C1+C2) + 2π·2d`, cantos arredondados).
+- **19.5.3.2** — `τ_Rd1 = 0,13·(1+√(20/d))·(100·ρ·f_ck)^(1/3) + 0,10·σ_cp`
+  (`d` em cm, `f_ck` em MPa; `ρ = √(ρ_x·ρ_y)`; `σ_cp = 0` sem protensão/normal →
+  conservador).
+
+**Modelo de sapata (alívio da reação):** a reação do solo **dentro de C'** não
+atravessa a superfície crítica, então alivia a força de punção:
+`F_Sd,ef = N_d − σ·A_C'`, com `σ = N_d/(B·L)` (pressão média, equilíbrio) e
+`A_C' = C1·C2 + 2(C1+C2)·2d + π·(2d)²` (soma de Minkowski do pilar com disco de raio
+2d). `ρ_x = As_L/(B·d)`, `ρ_y = As_B/(L·d)` (a largura da faixa cancela).
+
+```python
+def puncao_sapata(N_d, B, L, ap_L, ap_B, d, fck, As_L, As_B):
+    C1, C2 = ap_L, ap_B
+    u = 2.0*(C1+C2) + 2.0*math.pi*(2.0*d)                 # contorno C' a 2d
+    A_cp = C1*C2 + 2.0*(C1+C2)*(2.0*d) + math.pi*(2.0*d)**2
+    sig = N_d/(B*L)                                       # pressao media
+    F_ef = max(N_d - sig*min(A_cp, B*L), 0.0)            # alivio da reacao em C'
+    tau_sd = F_ef/(u*d)
+    rho = math.sqrt(max(As_L/(B*d),0)*max(As_B/(L*d),0))
+    tau_rd1 = 0.13*(1+math.sqrt(20/(d*100)))*(100*rho*fck/1000.0)**(1/3)*1000.0
+    return {"tau_sd": tau_sd, "tau_rd1": tau_rd1, "u_punc": tau_sd/tau_rd1,
+            "ok": tau_sd <= tau_rd1 + 1e-9, ...}
+```
+
+Integração em `dimensiona_sapata_B`: `if rigida: OK_B = flexao and compr_diag ;
+else: OK_B = flexao and compr_diag and puncao`. Selftest #11 confere `u`, `τ_Rd1`,
+o alívio `0 < F_ef < N_d`, e que uma sapata flexível roda a punção (não só flag).
+
+**Nota de escopo:** o auto-sizer (`dimensiona_sapata_env`) **ainda sobe h até a
+rígida** — a punção é o caminho de verificação para geometrias flexíveis (uso
+direto, ou quando h for limitado), não a preferência do envelope. Não-regressivo: o
+exemplo de referência (rígido) mantém As e utilização inalterados.
+
+---
+
+## 11. Recalque da sapata (ELS geotécnico, NBR 6122) — feature adicionada 2026-07-07
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior confirmou a solução analítica de
+> fundação rasa sobre semiespaço elástico (Perloff 1975) e que rodar a verificação
+> **apenas** com `Es_solo` consistente "evita fabricação de parâmetros e preserva a
+> premissa Ask, Do Not Invent". Liberado.
+
+Fecha a lacuna do **deslocamento** da fundação (o módulo só tinha capacidade de
+carga + estabilidade, não deformação). A NBR 6122 exige a verificação de recalque
+mas **remete a métodos geotécnicos** — usou-se o **recalque imediato/elástico pela
+Teoria da Elasticidade** (Veloso & Lopes; Perloff 1975), extraído do PDF:
+
+```
+rho = q_liq · B · (1 − ν²) · Iw / Es
+```
+
+- `q_liq` = pressão **líquida de serviço** (kN/m²) = N_serv/(B·L) − sobrecarga;
+- `B` = **menor** dimensão da sapata; `Es` = módulo de deformabilidade do solo
+  (INPUT sondagem); `ν` = Poisson do solo; `Iw` = fator de forma/rigidez.
+- **Iw (Tab. 5.1 Perloff, lido do PDF):** rígido — círculo **0,79**, quadrado
+  **0,88**; retângulo cresce com L/B (o engenheiro confirma pela relação L/B).
+
+**Ask, Do Not Invent:** `Es_solo`, `nu_solo`, `Iw`, `recalque_adm_mm` são dados
+geotécnicos — **INPUT**. Sem `Es_solo`, o recalque **não é calculado** (FLAG,
+informativo), e o `OK_A` não é afetado; **com** `Es_solo`, entra no `OK_A` (só
+reprova se exceder o admissível). Carga de **serviço**: usa `N_serv` (senão `N`,
+com o envelope ELU sendo conservador — o engenheiro passa a combinação de serviço).
+
+Ex. (sapata 2,0×2,0, N_serv 49 kN, Es 20 MPa, ν 0,3, Iw 0,88): `q=12,3 kN/m²` →
+`ρ=0,98 mm ≤ 25 mm` (OK). Selftest #12 confere a fórmula, `Es=0→None`, e o
+gate por `Es_solo`. Não-regressivo: exemplo sem `Es_solo` inalterado.
+
+> **Limites:** (1) recalque **imediato/elástico** (meio homogêneo, espessura
+> infinita) — solos estratificados pedem **Steinbrenner** (soma de camadas) e o
+> **adensamento** (argilas) fica fora; (2) `recalque_adm` (default 25 mm total) e
+> o **diferencial entre pilares** (≤15 mm, Tabela C.1 da NBR 8800, já no módulo de
+> ponte) dependem da sensibilidade da estrutura — confirmar. Es via SPT (correlações)
+> é do relatório de sondagem, não inventado aqui.

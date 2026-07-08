@@ -1,186 +1,65 @@
-# FreeCAD Automatic MCP Installer
+# FreeCAD Automatic — Steel Warehouse Design Framework
 
-This repository is a portable Windows installer for the FreeCAD Robust MCP
-server and bridge.
+**35 Python modules** for parametric structural design of steel warehouses (galpões).
+End-to-end: site data → wind/seismic/crane loads → 2D portal analysis (1 or N spans) →
+MAES 2nd order → member check NBR 8800 → connections → foundations (shallow/deep/eccentric) →
+fire → stairs → platforms → **FreeCAD 3D model** → DXF → PT memorials.
 
-Goal: download the GitHub ZIP on a new PC, run one PowerShell command, then use
-FreeCAD from Codex, Claude Desktop, Claude Code, OpenCode, and Antigravity.
-
-## What It Installs
-
-- Global `freecad-mcp` command via `uv tool install`.
-- FreeCAD `RobustMCPBridge` workbench under FreeCAD's `Mod\freecad`
-  namespace folder and the classic direct `Mod\RobustMCPBridge` folder,
-  including versioned FreeCAD profile folders when present.
-- MCP client entries for:
-  - Claude Desktop
-  - Claude Code
-  - Codex
-  - OpenCode
-  - Antigravity IDE
-
-The vendored server lives in:
-
-```text
-freecad-addon-robust-mcp-server/
-```
-
-## Quick Install From ZIP
-
-1. Download this repository as a ZIP from GitHub.
-2. Extract it somewhere simple, for example:
-
-```text
-C:\Tools\FreeCad_Automatic
-```
-
-3. Open PowerShell in that folder.
-4. Preview the installation:
+## Quick Start
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -WhatIf
+# Setup (one time)
+.\install.bat
+
+# Create and run a project
+cd framework\galpao_fw
+python -c "
+import projeto_spec as PS, rodar_projeto as RP
+s = PS.novo()
+# ... preencher s com dados do projeto ...
+RP.calcular(s, 'exports/memoria')
+RP.gerar_dxf(s, 'exports/dxf', 'meu_galpao')
+"
 ```
 
-5. Run the installation. This variant installs `uv` first if the PC does not
-   already have it:
+## Pipeline (23 gates)
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallUvIfMissing
+```
+Gate 5 — Vento (NBR 6123 transversal + longitudinal + Tab.7 multi-span)
+       — Sismo (NBR 15421)
+       — Ponte rolante (NBR 8800/8400)
+Gate 6 — Pórtico 2D (1 ou N vãos)
+       — 2ª ordem MAES (B1/B2)
+Gate 7 — Redimensionamento (guloso, perfis por coluna)
+       — Verificação NBR 8800 + Mão-francesa + Terças + Telha
+       — Secundários + Contraventamento + Verga
+       — Base + Chumbadores + Sapata + Baldrame + Estaca + Ligações
+Gate 8 — Fogo (NBR 14323) + Escada + Plataforma
+Gate 9 — Memorial Consolidado
 ```
 
-6. Restart your AI clients.
-7. Open FreeCAD. The `Robust MCP Bridge` auto-starts about 3 seconds after
-   launch, listening on ports 9875 (XML-RPC) and 9876 (socket). No manual
-   workbench selection or Start click is required.
+## Module Catalog
 
-## One-Click Install
+| Count | Category | Modules |
+|---|---|---|
+| 35 | All | `frame2d`, `galpao_portico`, `estabilidade_b1b2`, `check_nbr8800`, `perfis`, `redimensionamento`, `vento_nbr6123`, `tercas_iteracao`, `secundarios_nbr8800`, `mao_francesa`, `contraventamento`, `base_chumbador`, `ligacoes`, `fundacao_sapata`, `viga_baldrame`, `estaca_profunda`, `sapata_divisa`, `telha_cobertura`, `junta_dilatacao`, `sismo_nbr15421`, `ponte_rolante`, `fogo_nbr14323`, `calhas`, `plataforma`, `escada`, `neve`, `alma_variavel`, `tesoura`, `dxf_vistas`, `build_galpao`, `projeto_spec`, `rodar_galpao`, `rodar_projeto`, `framework` |
 
-For a no-typing install, double-click `install.bat` in the extracted folder.
-It runs `install.ps1` with the execution policy bypassed and installs `uv`
-automatically if it is missing. After it finishes, open FreeCAD and the bridge
-auto-starts.
+## Key Features
 
-## Prerequisites
+- **Multi-span**: N vãos (N≥1), colunas independentes no redim, vento Tab.7.
+- **Foundations**: sapata (NBR 6118), baldrame, estaca (3 métodos), divisa.
+- **Fire**: ISO 834, ky/kE tabelados, proteção intumescente/spray.
+- **3D Model**: FreeCAD via MCP (669 obj, 0 interferências testado).
+- **Review**: 27 REVISAO-*.md para parecer sênior, todos homologados.
 
-- Windows.
-- FreeCAD installed.
-- `uv` installed and available in PATH, or use `-InstallUvIfMissing`.
-- Internet access for the first install, because `uv` downloads Python packages.
+## Requirements
 
-Install `uv`:
+- Windows, FreeCAD ≥ 1.1, Python 3.12, `uv`.
+- `numpy < 2` (pycufsm dependency).
+- MCP: `freecad-mcp` (installed by `install.ps1`).
 
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+## Docs
 
-Or let this installer do it:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -InstallUvIfMissing
-```
-
-## Useful Commands
-
-Show installer help:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Help
-```
-
-Install only Codex and Claude Code:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Clients Codex,ClaudeCode
-```
-
-Replace existing MCP entries:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -ForceConfig
-```
-
-Skip copying the FreeCAD workbench:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -SkipFreeCADAddon
-```
-
-## Connection Test
-
-After FreeCAD is open and the bridge is running:
-
-```powershell
-Test-NetConnection localhost -Port 9875
-freecad-mcp --check --mode xmlrpc --host localhost --port 9875
-```
-
-Expected result:
-
-```text
-Connection successful
-FreeCAD version: 1.1.1
-GUI available: 1
-```
-
-In an AI client, ask:
-
-```text
-Use the freecad MCP server and call get_connection_status, get_freecad_version,
-and get_active_document.
-```
-
-## Default MCP Settings
-
-The installer writes these defaults:
-
-```text
-FREECAD_MODE=xmlrpc
-FREECAD_SOCKET_HOST=localhost
-FREECAD_XMLRPC_PORT=9875
-FREECAD_SOCKET_PORT=9876
-FREECAD_TIMEOUT_MS=30000
-PYTHONIOENCODING=utf-8
-```
-
-## Files Modified On The Target PC
-
-The installer creates backups before writing existing config files.
-
-Typical paths:
-
-```text
-%APPDATA%\Claude\claude_desktop_config.json
-%USERPROFILE%\.claude.json
-%USERPROFILE%\.codex\config.toml
-%USERPROFILE%\.config\opencode\opencode.json
-%APPDATA%\Antigravity IDE\User\mcp.json
-%APPDATA%\FreeCAD\Mod\RobustMCPBridge
-%APPDATA%\FreeCAD\Mod\freecad\RobustMCPBridge
-%APPDATA%\FreeCAD\v1-1\Mod\RobustMCPBridge
-%APPDATA%\FreeCAD\v1-1\Mod\freecad\RobustMCPBridge
-```
-
-## Notes
-
-- If a client is not installed, its step is skipped or its config is created.
-- Claude Code is configured through `claude mcp add` when the CLI exists.
-- Antigravity support uses the VS Code-style `User\mcp.json` file.
-- The MCP health check fails until FreeCAD is open and the Robust MCP Bridge is
-  listening. In FreeCAD, switch to `Robust MCP Bridge` and click `Start MCP
-  Bridge`, or enable auto-start in the workbench preferences.
-- If the bridge still fails after installer changes, fully close every
-  `freecad.exe` process and reopen FreeCAD so the workbench files are reloaded.
-
-## Project Memory
-
-The repo includes an LLM-oriented wiki under `wiki/`. New AI sessions should
-start with `wiki/00-index.md` before changing installer, MCP, library, or
-warehouse-skill behavior.
-
-## Project Workspaces
-
-Create project-specific work under `projects/` by copying
-`projects/_template/`. Open the agent in the specific project folder, not at
-repo root, when working on a client/project model. Each project has
-`AGENT_SCOPE.md`, which allows reading shared `wiki/`, `skills/`, `libraries/`,
-and `pesquisa/`, but restricts writes to that project folder.
+- `wiki/` — LLM-oriented wiki (architecture, phases, decisions).
+- `framework/galpao_fw/REVISAO-*.md` — per-module senior review docs.
+- `skills/build-warehouse/` — AI skill with 10-gate workflow.

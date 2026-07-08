@@ -1,0 +1,15 @@
+======================================================================
+JUNTA DE DILATACAO / MOVIMENTO TERMICO (temperatura)
+CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
+======================================================================
+
+Comprimento do galpao: 20,0 m ; dT = 30 C (alpha=12e-6/C) [Bellei 4,5 / FCC Report 65]
+Comprimento maximo entre juntas: 62,4 m (fator -48%)
+
+>> NAO precisa de junta (20,0 m <= 62,4 m).
+   Movimento termico total: delta=7,2 mm (~3,6 mm por lado).
+   Sem junta: os apoios/pilares de extremidade absorvem esse deslocamento (furo oblongo) ou sao dimensionados para a coacao termica.
+
+[FLAG] dT e as condicoes (aquecimento, AC, base, rigidez) sao dados
+       do projeto/sitio - a skill confirma. Detalhe da junta (linha dupla
+       de pilares, apoio deslizante) = projeto executivo.

@@ -176,3 +176,254 @@ Confirmados contra o método:
   `x_face` (aba comprimida em balanço) e `x_t` (lado tracionado). ✅
 
 Módulo `base_chumbador.py` liberado.
+
+---
+
+## 9. Ancoragem do chumbador no concreto (NBR 6118 9.4.2) — feature adicionada 2026-07-07
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior refez o exemplo (HEA200,
+> Ft,Sd=63,2 kN, φ20 liso, fck25): `fctm=2,565 → fctk,inf=1,795 → fctd=1,282 →
+> fbd=1,28 MPa` (exato); `lb=(φ/4)(fyd/fbd)` com `fyd=250/1,15=217,4 MPa` → 848 mm;
+> `lb,nec=0,7·848=593 mm` (todos batem). Confirmou o **caráter informativo** (barra
+> lisa tem aderência ruim; transferência real é mecânica pela porca/arruela no
+> fundo → cone ACI 318 Ch.17) como a decisão madura. Sem erro. Liberado.
+
+Fecha a lacuna do **lado do concreto** (o módulo só tinha aço/placa/bearing). A
+ligação de base agora calcula o **comprimento de ancoragem por aderência** do
+chumbador — o embutimento reto que desenvolve a tração `Ft,Sd`. Fórmulas do PDF
+(não de memória):
+
+- **9.3.2.1** — `f_bd = η1·η2·η3·f_ctd`, `f_ctd = f_ctk,inf/γc`,
+  `f_ctk,inf = 0,7·f_ctm`, `f_ctm = 0,3·f_ck^(2/3)` [MPa]. `η1 = 1,0` (barra
+  **lisa** = chumbador liso; nervurada seria 2,25), `η3 = 1,0` (φ<32 mm).
+- **9.4.2.4** — `lb = (φ/4)·(f_yd/f_bd)` (ancoragem básica).
+- **9.4.2.5** — `lb,nec = α·lb·(A_s,cal/A_s,ef) ≥ lb,min`; `α = 0,7` com gancho
+  (tracionada, cobrimento normal ao gancho ≥ 3φ); `lb,min = max(0,3·lb; 10φ; 100 mm)`.
+
+**Saída = requisito de projeto** (como `t_req` da placa): `lb,nec` é o embutimento
+reto requerido. **Informativo por default** — não reprova o OK (só com
+`gate_ancoragem=True` + `h_embed` insuficiente). Razão: a aderência de **barra
+lisa** é conservadora e **subestima** o gancho/placa, que transferem por
+**mecânica** (cone/bearing). Esse cone de arrancamento e o efeito de **grupo**
+(ACI 318 Ch.17) são agora **calculados** em separado — ver **§10**.
+
+Ex. (base HEA200, Ft,Sd=63,2 kN, d20 liso, fck25): `f_bd=1,28 MPa`, `lb=848 mm`,
+`lb,nec=593 mm` (α=0,7) — ou seja, chumbador liso reto precisaria de ~59 cm de
+embutimento por aderência (na prática o gancho/placa reduz isso via mecânica).
+Selftest #5 confere `f_bd`, `lb`, `lb,nec ≥ lb,min`, α gancho×sem-gancho, e o gate
+por `h_embed`. Não-regressivo: auto-sizer segue adotando a base (ancoragem
+informativa).
+
+> **Limite honesto:** esta verificação é a ancoragem por **aderência** (NBR 6118).
+> O modo que costuma **governar** o chumbador — **cone de arrancamento do
+> concreto** e **grupo** — está agora em **§10** (ACI 318 Ch.17, método CCD).
+
+---
+
+## 10. Cone de arrancamento do concreto — grupo (ACI 318 Ch.17, método CCD)
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — sênior cruzou com Nilson 15ª ed. cap.21:
+> `Nb` (kc=24 cast-in), `A_Nco=9hef²`, `A_Nc` (expansão 1,5hef limitada pela borda),
+> `ψed,N`/`ψc,N` (Tab.21.4/21.5), pullout de gancho `0,9·f'c·eh·da` (3da≤eh<4,5da) e
+> os selftests Ex.21.3 (`Ncbg`=33,7 kip=149,8 kN) + Ex.21.6 (`Npng`=141,4 kip=628,9
+> kN) — "espelhamento primoroso", sem erro. Aprovou o isolamento de unidades e o
+> opt-in/informativo (segregação de disciplinas metálica↔fundação). Liberado.
+
+Fecha o modo de ruptura do **concreto** que a aderência (§9) não cobre. Como **não
+há ACI 318 no acervo** `pesquisa/aço/`, a fonte é **Nilson, _Design of Concrete
+Structures_, 15ª ed., cap. 21**, que **reproduz o ACI 318 Ch.17** (método CCD) —
+lido do PDF, **não de memória**. O ACI é escrito em **unidades US** (lb, in, psi);
+para preservar as **constantes exatas** (`kc=24`, `A_Nco=9h_ef²`, `N_p=8·A_brg·f'c`,
+`N_sb=160…`, `1,9·f_ya`) a rotina **converte a entrada SI → US no contorno**,
+calcula, e devolve kN (mesmo padrão de isolamento da punção da fundação).
+
+**Modos de ruptura na tração** (o menor governa; o aço já é coberto pela NBR 8800):
+
+- **Breakout do grupo (21.6):**
+  - `N_b = k_c·λ_a·√f'c·h_ef^1,5` (Eq. 21.1; `k_c=24` cast-in); alternativa profunda
+    `N_b = 16·λ_a·√f'c·h_ef^(5/3)` para `11 ≤ h_ef ≤ 25 in` (21.2);
+  - `A_Nco = 9·h_ef²` (21.9b); `A_Nc` = área projetada do grupo (expande o retângulo
+    dos ancoras por `min(1,5h_ef; borda)` em cada face — Fig. 21.10);
+  - `ψ_ec,N = 1/(1+2e'_N/(3h_ef)) ≤ 1` (Tab. 21.6); `ψ_ed,N = 1` se `c_a,min ≥ 1,5h_ef`
+    senão `0,7+0,3·c_a,min/(1,5h_ef)` (Tab. 21.5); `ψ_c,N = 1,0` fissurado / `1,25`
+    não-fissurado cast-in (Tab. 21.4); `ψ_cp,N = 1,0` (cast-in);
+  - `N_cbg = (A_Nc/A_Nco)·ψ_ec·ψ_ed·ψ_c·ψ_cp·N_b` (21.6).
+- **Pullout (21.9/10/11):** headed `N_p = 8·A_brg·f'c`; **gancho J/L** `N_p =
+  0,9·f'c·e_h·d_a` (`3d_a ≤ e_h < 4,5d_a`); `ψ_c,p = 1,0` fissurado / `1,4` não;
+  `N_pn = ψ_c,p·N_p`.
+- **Side-face blowout (21.12):** `N_sb = 160·c_a1·√A_brg·λ_a·√f'c`, só quando
+  `h_ef > 2,5·c_a1` (embutimento profundo perto da borda), com modificador de canto.
+
+**φ (Tab. 21.1):** breakout cast-in Cond. B (**sem** armadura suplementar) **0,70**,
+Cond. A (**com**) 0,75; pullout/side-face 0,70. `cap = φ·N` de cada modo; governa o
+menor. Demanda `N_ua = Ft,Sd,ancora · n_tração`.
+
+**Validação (selftest #6, entrada SI reproduzindo Nilson):** Ex. 21.3 — 6 studs
+½″, `h_ef=4″`, `s1=5″`, `s2=4,5″`, `c_a1=8″` (>1,5h_ef), fissurado, 5000 psi →
+`N_b=13,58 kip (60,4 kN)`, `A_Nc/A_Nco=357/144=2,479`, **`N_cbg`nom `= 33,7 kip
+(149,7 kN)`**. Ex. 21.6 — `A_brg=0,589 in²` → **`N_png = 141,4 kip (628,9 kN)`**.
+Ambos batem → **isolamento de unidades provado**.
+
+**Opt-in / informativo:** só roda com `caso["cone_geom"]` (`h_ef`, `n_x/n_y`,
+`s_x/s_y`, `c_a1/c_a2`, fissuração, reforço) — a geometria do bloco/pedestal e o
+detalhe da cabeça/gancho são **do projeto de fundação** (Ask, Do Not Invent). Não
+gateia o `OK` por default (só com `gate_cone=True`).
+
+> **Nota física:** para **chumbador de gancho** (nosso caso) o `N_p = 0,9·f'c·e_h·d_a`
+> costuma **governar** e dar baixa capacidade — é o próprio recado do ACI: gancho
+> tem pullout ruim; capacidade real de tração vem de **cabeça/placa de ancoragem**
+> ou **armadura de ancoragem** (17.4.2.9), que transfere a carga por barras. O
+> exemplo HEA200 reprova por pullout (u=3,3), sinalizando exatamente isso.
+>
+> **Limites:** o cortante do concreto (edge breakout/pryout na direção do V) fica
+> como FLAG (ver §11); a **armadura de ancoragem** (que dispensa o breakout,
+> 17.4.2.9) e a interação tração-cortante (21.16) não estão automatizadas. Fonte é
+> Nilson/CCD (equivalente ao ACI 318M SI); o responsável confirma a geometria.
+
+---
+
+## 11. Transferência de cortante na base — tríade (Fakury cap.11, NBR 8800)
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — sênior auditou 11.21-11.28: atrito
+> `0,7·µ·N` (µ=0,55) + teto de esmagamento `0,2·fck·Y·B`, o crédito **opt-in**
+> (uplift+cortante na mesma combinação = armadilha evitada), a área de contato
+> `b·(h_bc−h_ar)` (desconta graute sem confinamento), o braço `c_bc` no centroide
+> do embutido e a `t_bc` por módulo **plástico** `Z=b·t²/4` — "exatidão absoluta".
+> **Módulo base 100% homologado**, liberado para merge.
+
+Fecha a **física do cortante da placa de base** (antes só `Fv,Rd` do chumbador +
+interação). Fonte: **Fakury/Silva/Caldas, _Dimensionamento de elementos
+estruturais de aço e mistos_, cap. 11 "Bases de pilar"** — lido do PDF, **SI/NBR**
+(mais consistente que o AISC DG1, que não está no acervo). Tríade em ordem de
+prioridade:
+
+**1. Atrito placa-concreto (Eq. 11.21):**
+```
+Vat,Rd = min( 0,7·µ·Nc,Sd ; 0,2·f_ck·Y·B_pb )     µ = 0,55 (face inf SEM pintura)
+```
+Só existe com **compressão** `Nc,Sd` na base. Se `Vat,Rd ≥ V_Sd` → cortante
+**resolvido por atrito**, chumbadores só à tração. (O `0,7` é o redutor da norma; o
+segundo termo limita pelo esmagamento do contato `Y·B`.)
+
+**2. Chumbadores (Eq. 11.26):** `Vca,Sd = V_Sd − Vat,Rd`, distribuído nos `n`
+chumbadores → `Fv,Sd,líq/Fv,Rd` (o aço já é o `fv_rd_chumbador` da NBR 8800). Exige
+**arruela especial soldada** à placa (garante o contato apesar da folga do furo).
+
+**3. Chaveta / barra de cisalhamento (Eq. 11.22-25, 11.28):** quando o residual é
+alto (típico em uplift, `Vat=0`) ou o aço do chumbador não basta. Dimensionada por:
+```
+Vbc,Sd = V_Sd − Vat,Rd ;   h_bc ≥ 2·h_ar
+σ_bc,Sd = Vbc,Sd / (b_bc·(h_bc − h_ar)) ≤ σ_c,Rd        (11.25/28 - esmagamento)
+c_bc = h_ar + (h_bc − h_ar)/2 ;  M_bc,Sd = Vbc,Sd·c_bc  (11.23/24 - flexão da chapa)
+t_bc,req = √(4·M_bc,Sd·γa1 / (b_bc·f_y))                (plastificação da chaveta)
+```
+O código **dimensiona** a chaveta requerida (`h_bc`, `t_bc`, checa `σ_bc ≤ σ_c,Rd`).
+
+**Triagem automática:** atrito → se sobrar, reporta a utilização do **chumbador** e
+**dimensiona a chaveta** como alternativa; recomenda a chaveta se o aço estourar.
+Selftest #7: (a) `V=26`, `Nc=200` → `Vat,Rd=min(77;35,4)` resolve por atrito; (b)
+uplift `Nc=0` → `Vat=0`, residual 120 kN, dimensiona chaveta com `h_bc≥2h_ar` e
+`σ_bc ≤ σ_c,Rd`.
+
+> **Informativo:** creditar o atrito exige que a **compressão atue na mesma
+> combinação** do cortante — decisão do projetista, por isso o crédito é **opt-in**
+> (`atrito_cortante=True`); por default todo o `V` vai aos chumbadores
+> (conservador, não-regressivo). O **edge breakout no cortante** é agora
+> **calculado** — ver **§12**.
+
+---
+
+## 12. Edge breakout no cisalhamento (ACI 318 Ch.17, método CCD)
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08).** Sênior refez o Ex. 21.5: `Vb=7·(4/0,75)^0,2
+> ·√0,75·√5000·8^1,5 = 13,55 kip` (teto `9·…=14,4 kip` não governa), `ψ_ed,V=0,7+
+> 0,3·8/12=0,90`, pryout `k_cp=2` — todos exatos; isolamento de unidades "melhor
+> prática". Liberado. **Warning de hairpin (u>1) adicionado** — ver 12.1.
+
+Fecha o modo do **concreto no cortante**: quando o `V` é resistido pelos
+**chumbadores** (uplift → sem atrito) perto da borda do pedestal, o concreto pode
+**estourar a borda**. Fonte: **Nilson cap.21 = ACI 318 Ch.17** (CCD), lido do PDF.
+Mesmo isolamento de unidades da tração (§10).
+
+**Modos (o menor governa):**
+- **Edge breakout `Vcbg` (21.7/21.8):**
+  - `V_b = (7·(l_e/d_a)^0,2·√d_a)·λ·√f'c·c_a1^1,5 ≤ 9·λ·√f'c·c_a1^1,5` (21.3/21.4;
+    `l_e = h_ef ≤ 8d_a`);
+  - `A_Vco = 4,5·c_a1²`; `A_Vc` = área na face livre (`largura × altura`,
+    `altura = min(1,5c_a1; h_a)`) — Fig. 21.10;
+  - `ψ_ed,V = 1` se `c_a2 ≥ 1,5c_a1` senão `0,7+0,3·c_a2/(1,5c_a1)`;
+    `ψ_c,V = 1,0` fissurado / `1,4` não; `ψ_h,V = √(1,5c_a1/h_a) ≥ 1` (`h_a<1,5c_a1`);
+  - `V_cbg = (A_Vc/A_Vco)·ψ_ed·ψ_c·ψ_h·V_b`; **cortante paralelo à borda = 2×**
+    (17.5.2.1).
+- **Pryout `Vcp` (21.14):** `V_cpg = k_cp·N_cbg`, `k_cp = 1` (`h_ef<2,5″`) / `2`
+  (`≥2,5″`) — usa o breakout de **tração** do grupo (§10) como `N_cbg`.
+
+φ (Tab.21.1): breakout cast-in Cond. B 0,70 / Cond. A 0,75; pryout 0,70.
+
+**Validação (selftest #8):** Nilson Ex. 21.5 — `d_a=0,75″`, `h_ef=4″`, `c_a1=8″`,
+5000 psi → **`V_b = 13,56 kip = 60,3 kN`** (teto `9·…=14,4 kip` não governa);
+`A_Vco=4,5·8²=288 in²`; `ψ_ed,V(c_a2=8″)=0,7+0,3·8/12=0,90`; pryout `k_cp=2`
+(`h_ef=4″>2,5″`). Isolamento de unidades provado.
+
+**Opt-in:** roda quando o `V` residual vai aos **chumbadores** e o caso traz
+`cone_geom` (`c_a1`, `c_a2`, `h_bloco`). Ex. HEA200 (V=26 kN, `c_a1=0,15 m`):
+`V_cbg` governa, `cap=33 kN` → `u=0,80` OK (borda estreita limita). Informativo.
+
+### 12.1 — Warning de armadura de ancoragem (hairpin), pós-parecer 2026-07-08
+
+Quando o edge breakout **sem armadura** não passa (`u_edge > 1`), a borda do
+pedestal estoura. O relatório agora emite um **[WARNING]** automático: o projeto de
+fundação deve desenvolver a carga com **armadura de ancoragem em laço**
+(hairpin/estribo) atravessando a superfície de ruptura (**ACI 318 17.5.2.9**) — a
+armadura de ancoragem **dispensa** o cálculo do breakout do concreto. O flag
+`armadura_ancoragem` (=`not ok_edge`) sinaliza a triagem. Selftest #8 confere que
+`u>1` aciona o flag e um caso folgado não. É recado ao **fundações** (segregação de
+disciplinas), não trava a emissão da metálica.
+
+> **Limites:** `ψ_ec,V` (excentricidade do V) assumido 1 (grupo centrado).
+> Geometria do bloco = projeto de fundação.
+
+---
+
+## 13. Interação tração-cortante do concreto (ACI 318 17.6, trilinear)
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08).** Sênior conferiu o trilinear (cutoffs 0,2,
+> soma ≤1,2, continuidade nos vértices) e a nota sobre a curva 5/3 — "estritamente
+> correto". **Curva de potência 5/3 adicionada como opt-in** (`curva_exata=True`,
+> ver 13.1), mantendo o trilinear como default (auditabilidade). Liberado.
+
+Fecha o **último modo** do concreto: combina a tração (cone §10) e o cortante
+(edge breakout §12) num mesmo grupo. Fonte: **ACI 318 17.6 = Nilson 21.16**, lido
+do PDF. Modelo **trilinear**:
+```
+Vua/(φVn) < 0,2  ->  usa a tração cheia   (Nua ≤ φNn)
+Nua/(φNn) < 0,2  ->  usa o cortante cheio (Vua ≤ φVn)
+caso contrário   ->  Nua/(φNn) + Vua/(φVn) ≤ 1,2         (21.16)
+```
+`φNn` = capacidade de cálculo governante da **tração** (menor modo do cone, §10);
+`φVn` = do **cortante** (edge breakout, §12). Ambas já com φ.
+
+**Validação (selftest #9):** os três regimes — `rV<0,2` (só tração, `0,9` OK);
+`rN<0,2` (só cortante); combinada `0,5+0,5=1,0 ≤ 1,2` OK; e `0,8+0,6=1,4 > 1,2`
+reprova. Ex. HEA200 (gancho): `rN=3,34` (pullout governa) + `rV=0,80` → **combinada
+u=3,45 NÃO PASSA** — coerente (base de gancho falha na tração, §10).
+
+**Opt-in:** roda só quando **ambos** os modos do concreto foram calculados (cone +
+edge breakout). Informativo.
+
+### 13.1 — Curva de potência 5/3 opcional (pós-parecer 2026-07-08)
+
+Além do trilinear (default), o código aceita `curva_exata=True` (`caso
+["interacao_curva_exata"]`) → envoltória **de potência** (ACI 318 17.6.3 / Fig.
+21.12):
+```
+(Nua/φNn)^(5/3) + (Vua/φVn)^(5/3) ≤ 1,0
+```
+Ganha **~2 a 8 %** de capacidade na zona central (o trilinear `x+y≤1,2` fica quase
+sempre inscrito na curva). Uso: **otimização pesada**; o **trilinear continua o
+default** pela transparência de auditoria (reprova legível `0,8+0,6=1,4>1,2`).
+Selftest #9: `0,65+0,65=1,3>1,2` reprova no trilinear mas `2·0,65^(5/3)=0,978<1`
+**passa** na curva 5/3.
+
+> A base está **completa nos modos do concreto**: aderência §9, cone §10, cortante
+> §11, edge breakout §12, interação §13 (trilinear + 5/3).

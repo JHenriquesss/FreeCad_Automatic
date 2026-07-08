@@ -170,3 +170,56 @@ teste-limite `d→0 ⇒ 2P no centro`; (4) indexação kN/roda × kN/trilho isol
 evitando falha de transferência viga→console.
 
 Módulo `ponte_rolante.py` liberado para o orquestrador.
+
+---
+
+## 9. Fadiga da viga de rolamento (NBR 8800 Anexo K) — feature adicionada 2026-07-07
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08), termo lateral incluído.** O sênior homologou
+> a matemática (K.4 `(327·Cf/N)^0,333`, origem do 327 = 6,89476³ ksi→MPa, Tabela K.1,
+> Barré, flecha) e, na re-revisão, **validou o termo lateral B.7.3.4** (9.1):
+> `σ_SR = Msdx/Wx + 0,5·Msdy/Wy_top` (superposição de Navier na fibra do topo) —
+> "sem furo lógico ou matemático". Ponte 100% homologada.
+
+Fecha a lacuna: antes só um FLAG "a verificar"; agora **calcula** a faixa de tensões
+e compara com a admissível. Fórmula extraída do PDF (não de memória):
+
+- **K.4 a)** — faixa admissível `σ_SR = (327·C_f / N)^0,333 ≥ σ_TH` [MPa].
+- **Tabela K.1** (lida do PDF): `(C_f×10⁸, σ_TH)` — A (250; 165), **B (120; 110)**,
+  B' (61; 83), **C (44; 69)**, D (22; 48), E (11; 31), E' (3,9; 18).
+- **K.3** — faixa de tensões por análise elástica: `σ_SR,Sd = M_fad / W_x`.
+
+**Carga de fadiga (B.7.3.4):** 1 ponte com impacto. Como `P = φ·R_roda,max`
+(característico com impacto, **sem** γ_f) e a carga móvel **zera** quando a ponte se
+afasta, a faixa de variação ≈ o próprio momento da ponte: `M_fad = Msdx`. Logo
+`σ_SR,Sd = Msdx/W_x`.
+
+**Parametrização (Ask, Do Not Invent):** a **categoria do detalhe** (`cat_fadiga`,
+default **B** = metal-base junto à solda longitudinal contínua mesa-alma) e o
+**número de ciclos** `N` (`n_ciclos`, do regime — NBR 8400) são INPUT. O código não
+fabrica a categoria: enrijecedores/ligações transversais soldadas são **C**, e o
+detalhe do trilho pode ser pior — o engenheiro confirma. Entra no `OK` da viga.
+
+### 9.1 — Termo lateral B.7.3.4 (melhoria pós-parecer, 2026-07-08)
+
+**Citação verbatim do PDF (B.7.3.4 Fadiga):** _"deve-se considerar (…) a atuação de
+somente uma ponte rolante com suas cargas verticais máximas das rodas majoradas
+pelo impacto e com **50 % das forças horizontais**."_ Logo a faixa de tensões na
+fibra extrema da **mesa superior** (onde atua o surto, no topo do trilho) combina a
+vertical e a lateral:
+```
+σ_SR = Msdx/Wx + 0,5·Msdy/Wy_top          (soma simples na fibra do topo)
+```
+`Wy_top` = módulo do **banzo superior** (o mesmo do cálculo do surto; fallback
+`Wy/2` bissimétrico). `frac_fadiga_lat` é parametrizável (default 0,5). A vertical
+segue dominante, mas o surto pode ser a diferença entre categorias B/C a alto N —
+exatamente o ponto do parecer.
+
+**Ex. atualizado** (ponte 100 kN, VS500, bay 5 m, cat B, N=2×10⁶): `σ_SR = 75 MPa`
+(**vert 57 + 50 % lat 18**) `≤ σ_adm = 125 MPa` (`u = 0,60`, era 0,46) → OK. O termo
+lateral subiu a faixa em **+32 %** (VS500 tem `Wy_top` esbelto). Selftest confere o
+split x/y e que a lateral entra. Não-regressivo em Msdx/interação/flecha.
+
+> **Limite remanescente:** soma **simples** das fibras do topo (conservadora vs. a
+> combinação biaxial rigorosa K.3.3, que pondera posições de fibra distintas); a
+> categoria real do detalhe de fabricação continua sendo decisão do projetista.

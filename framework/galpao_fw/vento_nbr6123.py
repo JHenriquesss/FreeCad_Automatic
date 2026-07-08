@@ -96,7 +96,159 @@ def cpi_cases():
     return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
 
 
-def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None):
+# ============================================================================
+# Cpe MEDIO / LOCAL (alta succao de borda e canto) - Tabelas 4 e 5, coluna
+# "cpe medio" (zonas hachuradas). NAO governa o portico (que usa o Cpe global
+# acima); governa a TELHA, a TERCA e seus FIXADORES nas faixas de borda/canto,
+# onde a succao e muito maior. Valores lidos VERBATIM do PDF (pags. 14-15).
+# ============================================================================
+
+# Tabela 4 (paredes) - coluna "cpe medio", faixa de barlavento das paredes
+# paralelas ao vento, largura = min(0,2b ; h) [nota c]. Chave: (bloco h/b, bloco a/b).
+_CPE_MEDIO_PAREDE = {
+    ("<=1/2", "1-3"): -0.9, ("<=1/2", "2-4"): -1.0,
+    ("1/2-3/2", "1-3"): -1.1, ("1/2-3/2", "2-4"): -1.1,
+    ("3/2-6", "1-3"): -1.2, ("3/2-6", "2-4"): -1.2,
+}
+
+# Tabela 5 (telhado 2 aguas) - coluna "cpe medio", 4 zonas hachuradas por
+# (bloco h/b, theta). None = zona ausente naquele angulo (celula em branco).
+# Faixa: y = min(h ; 0,15b) ; dimensao da zona = min(max(b/3 ; a/4) ; 2h).
+_CPE_MEDIO_COB = {
+    "<=1/2": [
+        (0,  (-2.0, -2.0, -2.0, None)), (5,  (-1.4, -1.2, -1.2, -1.0)),
+        (10, (-1.4, -1.4, None, -1.2)), (15, (-1.4, -1.2, None, -1.2)),
+        (20, (-1.0, None, None, -1.2)), (30, (-0.8, None, None, -1.1)),
+        (45, (None, None, None, -1.1)), (60, (None, None, None, -1.1)),
+    ],
+    "1/2-3/2": [
+        (0,  (-2.0, -2.0, -2.0, None)), (5,  (-2.0, -2.0, -1.5, -1.0)),
+        (10, (-2.0, -2.0, -1.5, -1.2)), (15, (-1.8, -1.5, -1.5, -1.2)),
+        (20, (-1.5, -1.5, -1.5, -1.0)), (30, (-1.0, None, None, -1.0)),
+    ],
+    "3/2-6": [
+        (0,  (-2.0, -2.0, -2.0, None)), (5,  (-2.0, -2.0, -1.5, -1.0)),
+        (10, (-2.0, -2.0, -1.5, -1.2)), (15, (-1.8, -1.8, -1.5, -1.2)),
+        (20, (-1.5, -1.5, -1.5, -1.2)), (30, (-1.5, None, None, None)),
+        (40, (-1.0, None, None, None)),
+    ],
+}
+
+
+def _bloco_hb(h, b):
+    hb = h / b
+    if hb <= 0.5:
+        return "<=1/2", hb
+    if hb <= 1.5:
+        return "1/2-3/2", hb
+    if hb <= 6.0:
+        return "3/2-6", hb
+    raise ValueError(f"h/b={hb:.2f} fora da Tabela 4/5 (limite 6)")
+
+
+def _bloco_ab(a, b):
+    ab = a / b
+    return ("1-3" if ab <= 1.5 else "2-4"), ab   # nota a: interpola 3/2..2
+
+
+def cpe_local_parede(a=20.0, b=10.0, h=6.0):
+    """cpe medio das paredes (Tabela 4), zona de alta succao de borda a barlavento
+    das paredes paralelas ao vento. Largura da faixa = min(0,2b ; h) [nota c].
+    Governa o fixador da telha/terca de fechamento lateral no canto de barlavento."""
+    bloco_h, hb = _bloco_hb(h, b)
+    bloco_a, ab = _bloco_ab(a, b)
+    cpe = _CPE_MEDIO_PAREDE[(bloco_h, bloco_a)]
+    faixa = min(0.2 * b, h)
+    return {"cpe_medio": cpe, "faixa_m": round(faixa, 2),
+            "hb": round(hb, 3), "ab": round(ab, 3),
+            "bloco_hb": bloco_h, "bloco_ab": bloco_a}
+
+
+def cpe_local_cobertura(theta_graus=5.71, b=10.0, h=6.0, a=20.0):
+    """cpe medio do telhado (Tabela 5), envoltoria das 4 zonas hachuradas de
+    borda/canto, interpolada em theta. Governa o fixador da telha e a ligacao
+    terca-portico nas bordas/cantos da cobertura. Retorna a envoltoria (mais
+    negativa) e a geometria da zona (faixa y e dimensao da zona)."""
+    bloco_h, hb = _bloco_hb(h, b)
+    linhas = _CPE_MEDIO_COB[bloco_h]
+    th = max(linhas[0][0], min(theta_graus, linhas[-1][0]))   # clamp ao dominio
+    # localiza o par de linhas que envolve th
+    lo = hi = linhas[0]
+    for row in linhas:
+        if row[0] <= th:
+            lo = row
+        if row[0] >= th:
+            hi = row
+            break
+    zonas = []
+    for j in range(4):
+        y0, y1 = lo[1][j], hi[1][j]
+        if y0 is None and y1 is None:
+            zonas.append(None)
+        elif y0 is None:
+            zonas.append(y1)
+        elif y1 is None:
+            zonas.append(y0)
+        elif lo[0] == hi[0]:
+            zonas.append(y0)
+        else:
+            zonas.append(round(_interp(th, lo[0], hi[0], y0, y1), 2))
+    envoltoria = min(v for v in zonas if v is not None)
+    y = min(h, 0.15 * b)
+    dim_zona = min(max(b / 3.0, a / 4.0), 2.0 * h)
+    return {"cpe_medio_envoltoria": round(envoltoria, 2),
+            "zonas": zonas, "theta": theta_graus, "bloco_hb": bloco_h,
+            "faixa_y_m": round(y, 2), "dim_zona_m": round(dim_zona, 2),
+            "lanternim_cpe_medio": -2.0}
+
+
+def cpe_telhado_multiplo(n_vaos, theta_graus=5.71):
+    """Cpe para telhados MULTIPLOS simetricos de tramos IGUAIS (NBR 6123 Tab.7).
+    Retorna uma lista de dicts, um por tramo (vao). Cada dict tem:
+      {"barlavento": float, "sotavento": float}  (face E e D de cada vao)
+    Para vento a 0° (perpendicular as cumeeiras): o 1o tramo recebe mais carga,
+    os intermediarios e o ultimo recebem menos (sombreamento aerodinamico).
+    Para vento a 90° (paralelo) os valores sao constantes ao longo do telhado:
+      faixa b1 (h): -0,8 ; b2 (h): -0,6 ; b3: -0,2 (Tab.7, α=90°).
+    Interpolacao linear entre 5° e 10°. h/b e a/b definem as faixas (nao os
+    coeficientes nominais, que dependem so de θ)."""
+    th = max(5.0, min(theta_graus, 10.0))
+    f = (th - 5.0) / (10.0 - 5.0)
+    # Tramo 1 (barlavento): face a (barlavento), face b (sotavento)
+    a = -0.9 + f * (-1.1 + 0.9)     # -0.9 (5°) a -1.1 (10°)
+    b = -0.6                         # constante
+    # Tramo 2 (1o intermediario): faces c (barl) e d (sot)
+    c = -0.4; d = -0.3              # constante
+    # Demais intermediarios: m (barl) e n (sot)
+    m = -0.3; n = -0.3
+    # Ultimo tramo (sotavento): x (barl) e z (sot)
+    x = -0.3
+    z = -0.3 + f * (-0.4 + 0.3)     # -0.3 (5°) a -0.4 (10°)
+    tramos = []
+    if n_vaos == 1:
+        tramos.append({"barlavento": a, "sotavento": b if th < 7.5 else z})
+    elif n_vaos == 2:
+        tramos.append({"barlavento": a, "sotavento": b})
+        tramos.append({"barlavento": x, "sotavento": z})
+    else:
+        tramos.append({"barlavento": a, "sotavento": b})
+        for _ in range(n_vaos - 2):
+            tramos.append({"barlavento": m, "sotavento": n})
+        tramos.append({"barlavento": x, "sotavento": z})
+    # Vento a 90°: valores por faixa longitudinal (nao por tramo)
+    # Retorna tambem os valores para α=90°
+    return tramos
+
+
+def sucao_local_fixacao(q_kN_m2, cpe_medio, cpi=+0.80):
+    """Succao liquida LOCAL para dimensionar telha/terca e FIXADORES na borda/canto.
+    p = (cpe_medio - cpi)*q. Usa o Cpi mais desfavoravel (portao a barlavento,
+    +0,8, empurra de dentro e soma na succao externa). kN/m2 (negativo = arranque)."""
+    return round((cpe_medio - cpi) * q_kN_m2, 3)
+
+
+def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None,
+            larg_b=10.0, alt_h=6.0, comp_a=20.0):
     v0 = _CFG["v0"] if v0 is None else v0
     cat = _CFG["cat"] if cat is None else cat
     classe = _CFG["classe"] if classe is None else classe
@@ -104,7 +256,7 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     s3 = _CFG["s3"] if s3 is None else s3
     z = _CFG["z"] if z is None else z
     theta = _CFG["theta"] if theta is None else theta
-    b, Fr, p, s2 = s2_factor(cat, classe, z)
+    b, Fr, p, s2 = s2_factor(cat, classe, z)     # b = coef. da Tabela 1 (NAO a largura)
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
     cpe = {**cpe_paredes(), **cpe_telhado(theta)}
@@ -112,10 +264,17 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     net = {}
     for cname, cpiv in cpi.items():
         net[cname] = {s: round(cpe[s] - cpiv, 2) for s in cpe}
+    # Cpe medio / local (borda-canto) para telha/terca/fixador
+    loc_cob = cpe_local_cobertura(theta, larg_b, alt_h, comp_a)
+    loc_par = cpe_local_parede(comp_a, larg_b, alt_h)
+    cpi_arr = max(cpi.values())     # Cpi mais desfavoravel para arranque
+    local = {"cobertura": loc_cob, "parede": loc_par, "cpi_arranque": cpi_arr,
+             "p_local_cob_kN_m2": sucao_local_fixacao(q, loc_cob["cpe_medio_envoltoria"], cpi_arr),
+             "p_local_par_kN_m2": sucao_local_fixacao(q, loc_par["cpe_medio"], cpi_arr)}
     return {"v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
             "s3": s3, "Fr": Fr, "p": p, "z": z, "theta": theta,
             "vk": round(vk, 2), "q_kN_m2": round(q, 3),
-            "cpe": cpe, "cpi_cases": cpi, "net": net}
+            "cpe": cpe, "cpi_cases": cpi, "net": net, "local": local}
 
 
 def relatorio_pt(r):
@@ -137,6 +296,20 @@ def relatorio_pt(r):
         L.append(f"    caso {caso.replace('_',' ')}:")
         for s, v in d.items():
             L.append(f"      {s.replace('_',' ')}: {v:+.2f}  ({v*r['q_kN_m2']:+.3f} kN/m2)")
+    loc = r.get("local")
+    if loc:
+        c = loc["cobertura"]; pa = loc["parede"]
+        L.append("  Cpe MEDIO / LOCAL (borda-canto, Tab.4/5 col. 'cpe medio') - TELHA/TERCA/FIXADOR:")
+        L.append(f"    cobertura: envoltoria {c['cpe_medio_envoltoria']:+.2f} "
+                 f"(zonas {c['zonas']}); faixa y={c['faixa_y_m']:.2f} m ; "
+                 f"zona={c['dim_zona_m']:.2f} m ; lanternim {c['lanternim_cpe_medio']:+.2f}")
+        L.append(f"    parede:    cpe medio {pa['cpe_medio']:+.2f} "
+                 f"(h/b={pa['hb']:.2f}, a/b={pa['ab']:.2f}); faixa={pa['faixa_m']:.2f} m")
+        L.append(f"    succao liquida (Cpi={loc['cpi_arranque']:+.2f} p/ arranque): "
+                 f"cobertura {loc['p_local_cob_kN_m2']:+.3f} kN/m2 ; "
+                 f"parede {loc['p_local_par_kN_m2']:+.3f} kN/m2")
+        L.append("    -> dimensionar o fixador da telha e a ligacao terca-portico de BORDA/CANTO")
+        L.append("       com esta succao local (bem maior que a global do portico).")
     L.append("  [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e")
     L.append("   razao de areas das aberturas para o Cpi do portao (6.2.5-c).]")
     return "\n".join(L)
@@ -210,7 +383,34 @@ def relatorio_longitudinal_pt(r):
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
+def _selftest():
+    # Tabela 4 - parede, bloco 1/2<h/b<=3/2, 2<=a/b<=4 (galpao 20x10, h=6): cpe medio -1,1
+    p = cpe_local_parede(20.0, 10.0, 6.0)
+    assert p["cpe_medio"] == -1.1, p
+    assert p["bloco_hb"] == "1/2-3/2" and p["bloco_ab"] == "2-4", p
+    assert abs(p["faixa_m"] - 2.0) < 1e-9, p     # min(0,2*10 ; 6) = 2,0
+    # Tabela 5 - cobertura, mesmo bloco, theta 5,71 -> zona 1 governa -2,0
+    c = cpe_local_cobertura(5.71, 10.0, 6.0, 20.0)
+    assert c["cpe_medio_envoltoria"] == -2.0, c
+    assert abs(c["faixa_y_m"] - 1.5) < 1e-9, c   # min(6 ; 0,15*10)=1,5
+    assert abs(c["dim_zona_m"] - 5.0) < 1e-9, c  # min(max(10/3;20/4)=5 ; 2*6=12)=5
+    # interpolacao em theta: bloco <=1/2, theta=7,5 -> zona1 entre -1,4 e -1,4 = -1,4
+    c2 = cpe_local_cobertura(7.5, 20.0, 6.0, 40.0)   # h/b=0,3
+    assert c2["bloco_hb"] == "<=1/2", c2
+    assert c2["zonas"][0] == -1.4, c2
+    # succao local de arranque: (cpe_medio - cpi)*q, cpi=+0,8
+    assert sucao_local_fixacao(1.0, -2.0, +0.80) == -2.8
+    # compute integra local sem quebrar
+    r = compute()
+    assert "local" in r and r["local"]["cobertura"]["cpe_medio_envoltoria"] == -2.0
+    print("vento self-test PASSED")
+
+
 if __name__ == "__main__":
-    print(relatorio_pt(compute()))
-    print()
-    print(relatorio_longitudinal_pt(compute_longitudinal()))
+    import sys
+    if "--selftest" in sys.argv:
+        _selftest()
+    else:
+        print(relatorio_pt(compute()))
+        print()
+        print(relatorio_longitudinal_pt(compute_longitudinal()))

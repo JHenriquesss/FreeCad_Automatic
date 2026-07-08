@@ -173,3 +173,87 @@ O sênior confrontou as correções da §6 com o texto autêntico da norma e hom
 
 Módulo `vento_nbr6123.py` liberado para alimentar o dimensionamento da estrutura
 principal. Auditoria cruzada elogiada como mais rigorosa que a revisão inicial.
+
+---
+
+## 8. Cpe médio / local de borda e canto (Tabelas 4 e 5) — feature adicionada 2026-07-08
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: a coluna **"cpe médio"**
+> das Tabelas 4 (paredes) e 5 (telhado), as zonas hachuradas de alta sucção de
+> borda/canto e a sucção líquida local que dimensiona **telha, terça e fixadores**.
+
+### 8.1 — O que faltava
+
+O módulo só entregava o **Cpe global** (faces inteiras) que alimenta o **pórtico**.
+A NBR 6123 traz, na coluna **"cpe médio"** das Tabelas 4 e 5, coeficientes de
+sucção **muito mais severos**, aplicados em **faixas estreitas de borda e canto**.
+Esses valores **não** governam o pórtico, mas **governam** o dimensionamento da
+**telha**, da **terça** e — o crítico — dos **fixadores** (parafuso auto-atarraxante
+telha→terça e ligação terça→pórtico), que arrancam por sucção nos cantos.
+
+### 8.2 — Valores lidos VERBATIM do PDF (págs. 14-15)
+
+**Tabela 4 — paredes, coluna "cpe médio"** (faixa de barlavento das paredes
+paralelas ao vento, largura = **min(0,2b ; h)**, nota c):
+
+| bloco h/b | 1≤a/b≤3 | 2≤a/b≤4 |
+|---|---|---|
+| h/b ≤ 1/2 | −0,9 | −1,0 |
+| 1/2 < h/b ≤ 3/2 | −1,1 | −1,1 |
+| 3/2 < h/b ≤ 6 | −1,2 | −1,2 |
+
+**Tabela 5 — telhado 2 águas, coluna "cpe médio"** (4 zonas hachuradas; faixa
+**y = min(h ; 0,15b)**; dimensão da zona **min(max(b/3 ; a/4) ; 2h)**). Transcrição
+integral em `_CPE_MEDIO_COB` (3 blocos h/b × θ × 4 zonas; `None` = célula em branco
+= zona ausente naquele ângulo). Notas: **c) lanternins cpe médio = −2,0**;
+b) saliências (chaminé/torre) Ce=1,2 até meia-diagonal.
+
+Para o galpão de referência (h/b=0,6 → bloco 1/2<h/b≤3/2; θ=5,71°): a envoltória
+das 4 zonas dá **−2,0** (zona de canto). Sucção líquida local (Cpi=+0,8 de arranque):
+`p = (−2,0 − 0,8)·q = −2,80·q = −2,203 kN/m²` na cobertura — **62 % acima** da global
+de barlavento (−1,362 kN/m²). Parede: `(−1,10 − 0,8)·q = −1,495 kN/m²`.
+
+### 8.3 — Código (verbatim)
+
+```python
+_CPE_MEDIO_PAREDE = {("<=1/2","1-3"):-0.9, ("<=1/2","2-4"):-1.0,
+    ("1/2-3/2","1-3"):-1.1, ("1/2-3/2","2-4"):-1.1,
+    ("3/2-6","1-3"):-1.2, ("3/2-6","2-4"):-1.2}
+
+def cpe_local_parede(a=20.0, b=10.0, h=6.0):
+    bloco_h, hb = _bloco_hb(h, b); bloco_a, ab = _bloco_ab(a, b)
+    cpe = _CPE_MEDIO_PAREDE[(bloco_h, bloco_a)]
+    faixa = min(0.2*b, h)                     # nota c
+    return {"cpe_medio": cpe, "faixa_m": round(faixa,2), ...}
+
+def cpe_local_cobertura(theta_graus=5.71, b=10.0, h=6.0, a=20.0):
+    # envoltória (mais negativa) das 4 zonas, interpolada em theta;
+    # y = min(h, 0.15*b) ; dim_zona = min(max(b/3, a/4), 2*h)
+    ...
+    envoltoria = min(v for v in zonas if v is not None)
+
+def sucao_local_fixacao(q, cpe_medio, cpi=+0.80):
+    return round((cpe_medio - cpi)*q, 3)      # negativo = arranque
+```
+
+### 8.4 — FLAGS / limites de escopo
+
+1. **Envoltória conservadora** — retorno-chave é a zona **mais severa** das 4
+   (dimensionar o fixador pelo pior canto). As 4 zonas ficam disponíveis em
+   `zonas` para quem quiser mapear faixa-a-faixa.
+2. **Interpolação só em θ** (nota a da Tab.5). a/b entra apenas no bloco (Tab.4);
+   a interpolação a/b 3/2..2 da nota (a) da Tab.4 **não** altera a coluna cpe médio
+   (constante dentro do bloco h/b) — sem perda.
+3. **Cpi de arranque = +0,8** (portão a barlavento, máx. de 6.2.5-c) — mesmo FLAG
+   de razão de aberturas da §6/§3; o engenheiro confirma a razão real.
+4. Não dimensiona o parafuso da telha em si (bitola/arranque do fixador) — entrega
+   a **sucção de projeto**; o cálculo do fixador é do fabricante da telha/terça.
+
+### 8.5 — Não-regressão
+
+`python vento_nbr6123.py --selftest` → **PASSED**. Cpe global, S2, q e Fa
+**inalterados** (feature é aditiva: nova chave `local` no dict, novo bloco no
+relatório). Orquestrador roda limpo; `gate5-vento.txt` traz o bloco local.
+Selftest cobre: parede −1,1 (bloco/faixa), cobertura envoltória −2,0
+(faixa y=1,5 / zona=5,0), interpolação θ no bloco h/b≤1/2, sucção −2,8·q.
+Aguarda revisão.

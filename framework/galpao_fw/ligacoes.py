@@ -12,6 +12,10 @@
 #     escoamento 0,60*fy*AMB/ga1 e ruptura 0,60*fu*AMB/ga2.
 #   - Forca minima de ligacao 45 kN (6.1.5.2), com as excecoes da norma
 #     (tirantes redondos, travessas, TERCAS de cobertura, travejamento).
+#   - Detalhamento dos furos (6.3.9/6.3.10/6.3.11): espacamento >= 2,7 db (pref
+#     3 db), distancia livre entre furos >= db, espacamento max <= min(24t; 300);
+#     lf (do esmagamento 6.3.3.3) DERIVADO da geometria (e_borda/s_furos). A
+#     Tabela 14 (furo-borda) fica FLAG (resistencia governada por 6.3.3.3).
 # NAO cobre estados-limites da chapa (rasgamento em bloco/flexao) alem do
 # esmagamento - FLAG onde aplicavel. Saidas em portugues. Unidades SI: m, kN.
 # ============================================================================
@@ -49,10 +53,161 @@ def fc_rd(db, t, fu, lf):
     return min(1.2 * lf * t * fu, 2.4 * db * t * fu) / GA2
 
 
+def _diam_furo(db):
+    """Diametro do furo-padrao (Tabela 12, NBR 8800). db em m.
+    db < 24 mm: dh = db + 1,5 mm ; db >= 24 mm: dh = db + 2,0 mm.
+    Unidades m."""
+    return db + (0.002 if db >= 0.024 else 0.0015)
+
+
+# Tabela 14 (NBR 8800) - distancia minima do centro de furo-padrao a borda [mm],
+# por diametro db [mm]: (borda cortada com serra/tesoura ; borda laminada ou cortada
+# a macarico). Linhas em pol convertidas p/ mm nominal. LIDO do PDF (pg.94).
+_TAB14 = [(12.7, 22.0, 19.0), (16.0, 29.0, 22.0), (19.05, 32.0, 26.0),
+          (20.0, 35.0, 27.0), (22.0, 38.0, 29.0), (24.0, 42.0, 31.0),
+          (25.4, 44.0, 32.0), (27.0, 50.0, 38.0), (30.0, 53.0, 39.0),
+          (31.75, 57.0, 42.0), (36.0, 64.0, 46.0)]
+
+
+def tstub_prying(leff, m, e, t_chapa, fy, Ft_Rd_total, gM0=1.0):
+    """Efeito ALAVANCA (prying) da chapa de topo pelo modelo do T-stub equivalente
+    (EN 1993-1-8 6.2.4, Tabela 6.2). FORA da NBR 8800 (que nao trata prying); metodo
+    europeu, uso comum p/ chapa de topo parafusada (joelho viga-coluna). 3 modos:
+      Mpl,Rd = 0,25*leff*t^2*fy/gM0
+      Modo 1 (escoamento total da chapa):  F1 = 4*Mpl/m
+      Modo 2 (escoam. da chapa + ruptura do parafuso): F2 = (2*Mpl + n*SFt)/(m+n)
+      Modo 3 (ruptura dos parafusos):      F3 = SFt
+      F_T,Rd = min(F1, F2, F3) ; n = min(e ; 1,25 m) (braco de alavanca).
+    leff = comprimento efetivo das charneiras (linhas de escoamento) ; m = distancia
+    do parafuso ao pe do filete/alma ; e = distancia do parafuso a borda ; SFt =
+    soma das Ft,Rd dos parafusos da linha ; t_chapa espessura. Unidades m, kN, kN/m2."""
+    n = min(e, 1.25 * m)
+    Mpl = 0.25 * leff * t_chapa ** 2 * fy / gM0      # kN*m
+    F1 = 4.0 * Mpl / m if m > 0 else float("inf")
+    F2 = (2.0 * Mpl + n * Ft_Rd_total) / (m + n) if (m + n) > 0 else float("inf")
+    F3 = Ft_Rd_total
+    F = min(F1, F2, F3)
+    modo = 1 if F == F1 else (2 if F == F2 else 3)
+    # forca de alavanca Q (prying) por equilibrio: F*m - Q*n = 2*Mpl
+    # Q = (F*m - 2*Mpl)/n ; eq. vertical confirma: Ft = F+Q (modo 2) <= SFt
+    Q = max((F * m - 2.0 * Mpl) / n, 0.0) if modo in (1, 2) and n > 0 else 0.0
+    return {"F_T_Rd": F, "modo": modo, "F1": F1, "F2": F2, "F3": F3,
+            "Mpl": Mpl, "m": m, "n": n, "e": e, "leff": leff,
+            "Q_prying": round(Q, 2),
+            "obs": {1: "escoamento total da chapa (alavanca plena)",
+                    2: "escoamento da chapa + ruptura do parafuso (alavanca parcial)",
+                    3: "ruptura dos parafusos (sem alavanca)"}[modo]}
+
+
+def dist_min_borda(db, borda_cortada=True, baixa_solicitacao=False):
+    """Distancia minima do centro do furo a borda (NBR 8800 Tabela 14). db em m.
+    borda_cortada=True -> coluna serra/tesoura ; False -> laminada/macarico.
+    baixa_solicitacao (nota b): so p/ borda laminada, reduz 3 mm quando Fsd <= 25%
+    da forca resistente. Para db > 36 mm: 1,75 db (cortada) / 1,25 db (laminada).
+    Retorna a distancia minima em m."""
+    dbmm = db * 1000.0
+    if dbmm > 36.0 + 1e-9:
+        e_mm = 1.75 * dbmm if borda_cortada else 1.25 * dbmm
+    else:
+        row = next((r for r in _TAB14 if r[0] >= dbmm - 1e-6), _TAB14[-1])
+        e_mm = row[1] if borda_cortada else row[2]
+        if (not borda_cortada) and baixa_solicitacao:
+            e_mm -= 3.0                              # nota b
+    return e_mm / 1000.0
+
+
+def block_shear(Agv, Anv, Ant, fy, fu, Cts=1.0):
+    """Colapso por RASGAMENTO EM BLOCO (NBR 8800 6.5.6). Soma da resistencia ao
+    cisalhamento de linha(s) de falha + tracao no segmento perpendicular:
+
+      F_r,Rd = (0,60*fu*Anv + Cts*fu*Ant)/ga2  <=  (0,60*fy*Agv + Cts*fu*Ant)/ga2
+
+    Agv = area BRUTA ao cisalhamento ; Anv = area LIQUIDA ao cisalhamento ;
+    Ant = area LIQUIDA a tracao ; Cts = 1,0 (tracao uniforme na area liquida) ou
+    0,5 (nao-uniforme). Areas em m2, fy/fu em kN/m2. Retorna dict (Frd em kN).
+    As AREAS vem da geometria do bloco de falha (o responsavel define o percurso)."""
+    r_rup = (0.60 * fu * Anv + Cts * fu * Ant) / GA2      # ruptura ao cisalhamento
+    r_esc = (0.60 * fy * Agv + Cts * fu * Ant) / GA2      # escoamento ao cisalhamento
+    Frd = min(r_rup, r_esc)
+    return {"Frd": Frd, "r_ruptura": r_rup, "r_escoamento": r_esc,
+            "governa": "ruptura ao cisalhamento" if r_rup <= r_esc else "escoamento ao cisalhamento",
+            "Agv": Agv, "Anv": Anv, "Ant": Ant, "Cts": Cts}
+
+
+def block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu, Cts=1.0):
+    """Rasgamento em bloco para o caso comum: 1 LINHA de n parafusos tracionada
+    (chapa de no / barra tracionada), com UM plano de cisalhamento (ao longo da
+    linha) + tracao no segmento transversal na extremidade. Percurso assumido
+    (FLAG - o responsavel confirma para outros arranjos):
+      - comprimento ao cisalhamento Lgv = e_long + (n-1)*s_furos (borda -> ultimo furo)
+      - furos no plano de cisalhamento = n - 0,5 (a linha de ruptura parte da
+        borda, passa pelo CENTRO do 1o furo -> 0,5 dh ; segue pelos demais furos
+        inteiros ; termina no centro do ultimo furo, onde faz a curva de 90°)
+      - tracao transversal Lnt = e_transv (subtrai 1/2 furo)
+    e_long = distancia do 1o furo a borda na direcao da forca ; e_transv = distancia
+    do furo a borda transversal. Unidades m. Retorna o dict de block_shear."""
+    dh = _diam_furo(db)
+    Lgv = e_long + (n - 1) * s_furos
+    Agv = Lgv * t
+    Anv = (Lgv - (n - 0.5) * dh) * t                  # 6.5.6: meio furo na borda
+    Ant = max(e_transv - 0.5 * dh, 0.0) * t            # meio furo na transversal
+    r = block_shear(Agv, max(Anv, 0.0), Ant, fy, fu, Cts)
+    r.update(Lgv=Lgv, dh=dh, n=n)
+    return r
+
+
+def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
+    """Detalhamento geometrico dos furos (NBR 8800 6.3.9/6.3.10/6.3.11) e a
+    distancia livre 'lf' DERIVADA da geometria (alimenta o esmagamento 6.3.3.3).
+
+      - 6.3.9  espacamento entre centros >= 2,7 db (pref. 3 db) ; distancia LIVRE
+               entre bordas de furos consecutivos >= db ;
+      - 6.3.10 espacamento maximo (chapa pintada) <= min(24 t ; 300 mm) ;
+      - lf (para 6.3.3.3): min(e_borda - dh/2 ; s_furos - dh) (distancia livre do
+               furo a borda / ao furo vizinho, na direcao da forca), dh do furo.
+
+    db, s_furos (centro a centro), e_borda (centro-borda), t em m. borda_cortada:
+    True = serra/tesoura ; False = laminada/macarico (Tabela 14). A distancia minima
+    furo-borda (6.3.11 / Tabela 14) AGORA e verificada; o estado-limite de resistencia
+    segue o esmagamento 6.3.3.3 (nota a). Retorna dict."""
+    dh = _diam_furo(db)
+    s_min = 2.7 * db                                 # 6.3.9 (pref 3 db)
+    livre_furos = s_furos - dh                       # distancia livre entre furos
+    lf_borda = e_borda - dh / 2.0                    # livre furo-extremidade
+    lf_inter = s_furos - dh                          # livre furo-furo
+    lf = max(min(lf_borda, lf_inter), 0.0)
+    e_min_borda = dist_min_borda(db, borda_cortada)  # 6.3.11 / Tabela 14
+    r = {"dh": dh, "s_min_2p7db": s_min, "s_furos": s_furos, "e_borda": e_borda,
+         "livre_furos": livre_furos, "lf": lf,
+         "e_min_borda": e_min_borda, "ok_borda_t14": e_borda >= e_min_borda - 1e-9,
+         "ok_espac": s_furos >= s_min - 1e-9,
+         "ok_livre": livre_furos >= db - 1e-9,       # distancia livre >= db
+         "ok_borda_livre": lf_borda >= 0.0}
+    if t:
+        s_max = min(24.0 * t, 0.300)                 # 6.3.10 a) pintado
+        r["s_max"] = s_max
+        r["ok_s_max"] = s_furos <= s_max + 1e-9
+        e_max = min(12.0 * t, 0.150)                 # 6.3.12 distancia MAXIMA a borda
+        r["e_max_borda"] = e_max
+        r["ok_e_max"] = e_borda <= e_max + 1e-9
+    r["OK"] = r["ok_espac"] and r["ok_livre"] and r["ok_borda_livre"] and \
+        r["ok_borda_t14"] and r.get("ok_s_max", True) and r.get("ok_e_max", True)
+    return r
+
+
 def parafusos(caso):
     n = caso["n"]
     db, fub = caso["db"], caso["fub"]
-    t, fu, lf = caso["t_chapa"], caso["fu_chapa"], caso["lf"]
+    t, fu = caso["t_chapa"], caso["fu_chapa"]
+    # lf: se a geometria (s_furos + e_borda) for dada, DERIVA lf dela (consistente);
+    # senao usa o lf explicito (retrocompativel).
+    esp = None
+    if caso.get("s_furos") and caso.get("e_borda"):
+        esp = verifica_espacamento(db, caso["s_furos"], caso["e_borda"], t,
+                                   caso.get("borda_cortada", True))
+        lf = esp["lf"]
+    else:
+        lf = caso["lf"]
     Fvrd = fv_rd(db, fub, caso.get("rosca_no_plano", True), caso.get("n_planos", 1))
     Ftrd = ft_rd(db, fub)
     Fcrd = fc_rd(db, t, fu, lf)
@@ -61,10 +216,13 @@ def parafusos(caso):
     # resistencia ao corte por parafuso = min(corte, esmagamento)
     Fv_lim = min(Fvrd, Fcrd)
     inter = (Nsd / Ftrd) ** 2 + (Vsd / Fvrd) ** 2 if Nsd > 0 else Vsd / Fv_lim
+    ok_esp = (esp["OK"] if esp else True)
     return {"tipo": "parafusos", "n": n, "Fv_Rd": Fvrd, "Ft_Rd": Ftrd,
-            "Fc_Rd": Fcrd, "Fv_lim": Fv_lim, "Vsd": Vsd, "Nsd": Nsd,
+            "Fc_Rd": Fcrd, "Fv_lim": Fv_lim, "Vsd": Vsd, "Nsd": Nsd, "lf": lf,
             "u_corte": Vsd / Fv_lim, "u_tracao": (Nsd / Ftrd) if Nsd else 0.0,
-            "interacao": inter, "OK": inter <= 1.0 and (Vsd / Fv_lim) <= 1.0}
+            "espacamento": esp,
+            "interacao": inter, "OK": inter <= 1.0 and (Vsd / Fv_lim) <= 1.0
+            and ok_esp}
 
 
 # ---- solda de filete -------------------------------------------------------
@@ -95,6 +253,53 @@ def solda(caso):
     return {"tipo": "solda", "Aw": Aw, "Fw_metal": Fw, "Fw_base": Fb,
             "Fw_Rd": Frd, "Fsd": Fsd, "u": Fsd / Frd, "OK": Fsd <= Frd,
             "governa": "metal-base" if Fb < Fw else "metal da solda"}
+
+
+# ==== DETALHAMENTO EXECUTIVO ================================================
+
+def comprimento_parafuso(db, esp_chapa, esp_arruela=3.0, n_porcas=1):
+    """Comprimento necessario do parafuso (mm) conforme NBR 8800.
+    L = esp_chapa_total + soma(arruelas) + n_porcas*alt_porca + folga.
+    alt_porca ~ 0.8*db."""
+    alt_porca = 0.8 * db * 1000.0
+    return round(esp_chapa + 2 * esp_arruela + n_porcas * alt_porca + 5.0, 0)
+
+
+def solda_filete_minimo(t_chapa):
+    """Perna minima de solda de filete (mm) conforme NBR 8800 Tab.9."""
+    if t_chapa <= 6.0:    return 3.0
+    elif t_chapa <= 12.0: return 5.0
+    elif t_chapa <= 19.0: return 6.0
+    elif t_chapa <= 38.0: return 8.0
+    else:                 return 10.0
+
+
+def chapa_extremidade(bf_viga, d_alma, fy=250e3, fu=400e3, t_min=12.5):
+    """Pre-dimensiona chapa de extremidade para ligacao de momento.
+    Retorna espessura minima (mm) e dimensoes (mm)."""
+    t_est = max(t_min, math.sqrt(0.1 * d_alma * bf_viga * fy / fu))
+    return {"esp_mm": round(t_est, 1), "larg_mm": bf_viga + 20.0,
+            "alt_mm": d_alma * 1.5, "fu_MPa": fu / 1000.0}
+
+
+def detalha_ligacao(N, V, db=24, fub=825e3, t_chapa=16.0, fu_chapa=400e3,
+                    bf_viga=200.0, d_alma=190.0):
+    """Detalhamento completo de ligacao parafusada (joelho)."""
+    from math import ceil
+    Fv_par = fv_rd(db / 1000.0, fub)
+    Ft_par = ft_rd(db / 1000.0, fub)
+    n_corte = max(2, ceil(abs(V) / (Fv_par * 0.8)))
+    n_tracao = max(2, ceil(abs(N) / (Ft_par * 0.8)))
+    n = max(n_corte, n_tracao)
+    if n % 2: n += 1
+    chapa = chapa_extremidade(bf_viga, d_alma)
+    solda_perna = solda_filete_minimo(t_chapa)
+    L_paraf = comprimento_parafuso(db, t_chapa + 6.0)
+    return {"n_parafusos": n, "db_mm": db, "fub_MPa": fub / 1000.0,
+            "t_chapa_mm": t_chapa, "chapa": chapa,
+            "solda_perna_mm": solda_perna,
+            "comprimento_parafuso_mm": L_paraf,
+            "Fv_Rd_par": round(Fv_par, 1), "Ft_Rd_par": round(Ft_par, 1)}
 
 
 # ---- forca minima 6.1.5.2 --------------------------------------------------
@@ -191,6 +396,14 @@ def relatorio_pt(rs):
                   f"corte/min(Fv,Fc)={r['u_corte']:.2f} ; tracao={r['u_tracao']:.2f}",
                   f"    interacao/util = {r['interacao']:.2f}  -> "
                   f"{'OK' if r['OK'] else 'NAO PASSA'}"]
+            esp = r.get("espacamento")
+            if esp is not None:
+                L += [f"    Detalhamento (6.3.9/10/11): s={esp['s_furos']*1000:.0f} mm "
+                      f"(>=2,7db={esp['s_min_2p7db']*1000:.0f}: {'OK' if esp['ok_espac'] else 'NAO'}) ; "
+                      f"livre entre furos={esp['livre_furos']*1000:.0f} mm "
+                      f"(>=db: {'OK' if esp['ok_livre'] else 'NAO'}) ; lf={esp['lf']*1000:.0f} mm",
+                      "    [FLAG] distancia furo-borda pela Tabela 14 (borda cortada x "
+                      "laminada) = confirmar; resistencia governada por 6.3.3.3 (esmag.)."]
         else:
             L += [f"    Aw={r['Aw']*1e4:.2f} cm2 ; metal solda={r['Fw_metal']:.1f} ; "
                   f"metal-base={r['Fw_base']:.1f} -> Fw,Rd={r['Fw_Rd']:.1f} kN "
@@ -215,6 +428,67 @@ def _selftest():
     assert abs(fw_rd_base(0.008, 0.200, 250e3) - esc) < 1e-6   # sem fu -> escoamento
     # forca minima
     assert forca_minima(30.0)[0] == 45.0 and forca_minima(30.0, excecao=True)[0] == 30.0
+    # diametro do furo (Tabela 12): db=20 (<24) -> dh=21,5mm ; db=24 -> dh=26mm
+    assert abs(_diam_furo(0.020) - 0.0215) < 1e-9
+    assert abs(_diam_furo(0.024) - 0.0260) < 1e-9
+    assert abs(_diam_furo(0.030) - 0.0320) < 1e-9
+    # espacamento (6.3.9/10/11) + lf derivado da geometria. db=20, dh=21,5.
+    esp = verifica_espacamento(0.020, s_furos=0.060, e_borda=0.035, t=0.0125)
+    assert abs(esp["dh"] - 0.0215) < 1e-9
+    assert esp["ok_espac"]                          # 60 >= 2,7*20=54 mm
+    assert esp["ok_livre"]                          # 60-21,5=38,5 >= 20 mm
+    assert abs(esp["lf"] - min(0.035 - 0.0215 / 2, 0.060 - 0.0215)) < 1e-9
+    # Tabela 14 (6.3.11): db=20 borda cortada -> e_min=35 mm ; e_borda=35 -> OK
+    assert abs(dist_min_borda(0.020, borda_cortada=True) - 0.035) < 1e-9
+    assert abs(dist_min_borda(0.020, borda_cortada=False) - 0.027) < 1e-9
+    assert abs(dist_min_borda(0.040, borda_cortada=True) - 1.75 * 0.040) < 1e-9  # >36mm
+    assert esp["ok_borda_t14"] and esp["OK"]
+    # e_borda insuficiente pela Tabela 14 reprova (db24 cortada precisa 42 mm)
+    esp3 = verifica_espacamento(0.024, s_furos=0.070, e_borda=0.035, t=0.0125)
+    assert not esp3["ok_borda_t14"] and not esp3["OK"]      # 35 < 42 mm
+    # espacamento apertado reprova (s < 2,7 db)
+    esp2 = verifica_espacamento(0.020, s_furos=0.045, e_borda=0.030)
+    assert not esp2["ok_espac"] and not esp2["OK"]  # 45 < 54 mm
+    # parafusos deriva lf da geometria quando s_furos/e_borda dados
+    p = parafusos({"n": 4, "db": 0.020, "fub": 825e3, "t_chapa": 0.0125,
+                   "fu_chapa": 400e3, "V": 200.0, "s_furos": 0.060, "e_borda": 0.035})
+    assert p["espacamento"] is not None and abs(p["lf"] - esp["lf"]) < 1e-9
+    # rasgamento em bloco (6.5.6): F_r,Rd = min(0,6fu*Anv+Cts*fu*Ant ; 0,6fy*Agv+Cts*fu*Ant)/ga2
+    bs = block_shear(Agv=6e-4, Anv=4e-4, Ant=2e-4, fy=250e3, fu=400e3, Cts=1.0)
+    rup = (0.60 * 400e3 * 4e-4 + 1.0 * 400e3 * 2e-4) / 1.35
+    esc = (0.60 * 250e3 * 6e-4 + 1.0 * 400e3 * 2e-4) / 1.35
+    assert abs(bs["Frd"] - min(rup, esc)) < 1e-6, bs
+    assert bs["governa"] in ("ruptura ao cisalhamento", "escoamento ao cisalhamento")
+    # helper de linha: 3 furos db20, s=60, e_long=35, e_transv=40, t=12,5
+    bl = block_shear_linha(3, 0.060, 0.035, 0.040, 0.020, 0.0125, 250e3, 400e3)
+    Lgv = 0.035 + 2 * 0.060
+    assert abs(bl["Lgv"] - Lgv) < 1e-9 and bl["Frd"] > 0
+    # Anv com (n-0,5) furos: 3 furos -> 2,5*dh subtraidos
+    dh_esp = _diam_furo(0.020)
+    Anv_esp = (Lgv - (3 - 0.5) * dh_esp) * 0.0125
+    assert abs(bl["Anv"] - Anv_esp) < 1e-12, f"Anv {bl['Anv']} != {Anv_esp}"
+    # T-stub / prying (EN 1993-1-8): 3 modos, F_T,Rd = min
+    ts = tstub_prying(leff=0.120, m=0.040, e=0.035, t_chapa=0.0160, fy=250e3,
+                      Ft_Rd_total=2 * ft_rd(0.020, 800e3))
+    Mpl = 0.25 * 0.120 * 0.016 ** 2 * 250e3
+    n = min(0.035, 1.25 * 0.040)
+    F1 = 4 * Mpl / 0.040
+    F2 = (2 * Mpl + n * 2 * ft_rd(0.020, 800e3)) / (0.040 + n)
+    assert abs(ts["F_T_Rd"] - min(F1, F2, 2 * ft_rd(0.020, 800e3))) < 1e-6, ts
+    assert ts["modo"] in (1, 2, 3)
+    # Q corrigida por equilibrio: F*m - Q*n = 2*Mpl
+    Q_esp = (ts["F_T_Rd"] * 0.040 - 2 * Mpl) / n if n > 0 else 0.0
+    assert abs(ts["Q_prying"] - Q_esp) < 0.1, f"Q {ts['Q_prying']} != {Q_esp}"
+    if ts["modo"] == 2:
+        # Modo 2: equilibrio F + Q = SFt (parafusos no limite)
+        SFt = 2 * ft_rd(0.020, 800e3)
+        assert abs(ts["F_T_Rd"] + ts["Q_prying"] - SFt) < 1.0, \
+            f"Modo2: F({ts['F_T_Rd']})+Q({ts['Q_prying']}) != SFt({SFt})"
+    # Detalhamento executivo
+    d = detalha_ligacao(N=90.0, V=130.0, db=24)
+    assert d["n_parafusos"] >= 2
+    assert d["solda_perna_mm"] >= 5.0
+    assert chapa_extremidade(200, 190)["esp_mm"] >= 12.0
     print("ligacoes self-test PASSED")
     print(f"  Fv,Rd(d16, fub800) = {fv_rd(0.016,800e3):.1f} kN")
     print(f"  Fw,Rd filete 6mm x 200mm (fw=485) metal = {Fw:.1f} kN")
@@ -224,7 +498,7 @@ def _selftest():
 EXEMPLOS = [
     {"nome": "Joelho viga-coluna (parafusos M20 A325)", "tipo": "parafusos",
      "n": 6, "db": 0.020, "fub": 825e3, "t_chapa": 0.0125, "fu_chapa": 400e3,
-     "lf": 0.035, "V": 130.0, "N": 90.0, "rosca_no_plano": True},
+     "s_furos": 0.060, "e_borda": 0.035, "V": 130.0, "N": 90.0, "rosca_no_plano": True},
     {"nome": "Chapa de terca (parafusos M12) - excecao terca", "tipo": "parafusos",
      "n": 2, "db": 0.012, "fub": 400e3, "t_chapa": 0.006, "fu_chapa": 400e3,
      "lf": 0.025, "V": 8.0, "excecao_terca": True},

@@ -4,12 +4,12 @@ framework galpao_fw v0.1.0 - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSA
 ======================================================================
 
 QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):
-  Coluna            0.67   OK
-  Viga              0.93   OK
-  Flecha portico    0.77   OK
+  Coluna            0.42   OK
+  Viga              0.68   OK
+  Flecha portico    0.82   OK
   Base              1.00   OK
-  Sapata (fundacao)  0.25   OK
-  Joelho            0.23   OK
+  Sapata (fundacao)  0.24   OK
+  Joelho            0.07   OK
   Terca             0.95   OK
   Longarina         0.77   OK
   Escora            0.07   OK
@@ -47,6 +47,12 @@ VENTO (ABNT NBR 6123/1988)
       parede sotavento: +0.00  (+0.000 kN/m2)
       cobertura barlavento: -0.33  (-0.260 kN/m2)
       cobertura sotavento: +0.00  (+0.000 kN/m2)
+  Cpe MEDIO / LOCAL (borda-canto, Tab.4/5 col. 'cpe medio') - TELHA/TERCA/FIXADOR:
+    cobertura: envoltoria -2.00 (zonas [-2.0, -2.0, -1.5, -1.03]); faixa y=1.50 m ; zona=5.00 m ; lanternim -2.00
+    parede:    cpe medio -1.10 (h/b=0.60, a/b=2.00); faixa=2.00 m
+    succao liquida (Cpi=+0.80 p/ arranque): cobertura -2.203 kN/m2 ; parede -1.495 kN/m2
+    -> dimensionar o fixador da telha e a ligacao terca-portico de BORDA/CANTO
+       com esta succao local (bem maior que a global do portico).
   [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
    razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
 
@@ -117,6 +123,12 @@ CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
          parede sotavento: +0,00  (+0,000 kN/m2)
          cobertura barlavento: -0,33  (-0,260 kN/m2)
          cobertura sotavento: +0,00  (+0,000 kN/m2)
+     Cpe MEDIO / LOCAL (borda-canto, Tab.4/5 col. 'cpe medio') - TELHA/TERCA/FIXADOR:
+       cobertura: envoltoria -2,00 (zonas [-2,0, -2,0, -1,5, -1,03]); faixa y=1,50 m ; zona=5,00 m ; lanternim -2,00
+       parede:    cpe medio -1,10 (h/b=0,60, a/b=2,00); faixa=2,00 m
+       succao liquida (Cpi=+0,80 p/ arranque): cobertura -2,203 kN/m2 ; parede -1,495 kN/m2
+       -> dimensionar o fixador da telha e a ligacao terca-portico de BORDA/CANTO
+          com esta succao local (bem maior que a global do portico).
      [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e
       razao de areas das aberturas para o Cpi do portao (6.2.5-c).]
    (Vento na cobertura aplicado NORMAL a superficie: wx e wy)
@@ -255,21 +267,21 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
 
   --- Coluna (K=1; gov C2_uplift_W1) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
-  Compressao: Ne=2024 kN ; lambda0=0,815 ; chi=0,757 ; Nc,Rd=926,3 kN
-  Flexao: Mpl=107,4 ; Lp=2,48 m ; Lr(FLT)=8,98 m ; Cw=1,082e-07 ; J=1,489e-07
-    Mn_FLT=107,4 ; Mn_FLM=107,4 ; Mn_FLA=107,4 -> governa FLT ; Mrd=97,6 kN.m
-  Cortante: Vrd=168,4 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,04 ; M/Mrd=0,65 ; V/Vrd=0,15
-  Interacao (N/(2Nrd) + M/Mrd) = 0,67  -> OK
+  Compressao: Ne=3123 kN ; lambda0=0,791 ; chi=0,770 ; Nc,Rd=1366,1 kN
+  Flexao: Mpl=160,6 ; Lp=2,52 m ; Lr(FLT)=12,62 m ; Cw=1,714e-07 ; J=4,913e-07
+    Mn_FLT=160,6 ; Mn_FLM=160,6 ; Mn_FLA=160,6 -> governa FLT ; Mrd=146,0 kN.m
+  Cortante: Vrd=245,5 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,03 ; M/Mrd=0,41 ; V/Vrd=0,11
+  Interacao (N/(2Nrd) + M/Mrd) = 0,42  -> OK
 
   --- Viga (K=1; gov C2_uplift_W1) ---
   Flambagem local: Qs=1,000 ; Qa=1,000 ; Q=1,000
-  Compressao: Ne=1626 kN ; lambda0=0,834 ; chi=0,747 ; Nc,Rd=768,6 kN
-  Flexao: Mpl=81,2 ; Lp=2,25 m ; Lr(FLT)=8,50 m ; Cw=6,029e-08 ; J=1,138e-07
-    Mn_FLT=76,0 ; Mn_FLM=81,2 ; Mn_FLA=81,2 -> governa FLT ; Mrd=69,1 kN.m
-  Cortante: Vrd=139,9 kN (alma compacta: True)
-  Utilizacao: N/Nc=0,03 ; M/Mrd=0,91 ; V/Vrd=0,27
-  Interacao (N/(2Nrd) + M/Mrd) = 0,93  -> OK
+  Compressao: Ne=472 kN ; lambda0=1,688 ; chi=0,308 ; Nc,Rd=376,5 kN
+  Flexao: Mpl=157,1 ; Lp=1,67 m ; Lr(FLT)=5,18 m ; Cw=1,264e-07 ; J=1,557e-07
+    Mn_FLT=100,1 ; Mn_FLM=157,1 ; Mn_FLA=157,1 -> governa FLT ; Mrd=91,0 kN.m
+  Cortante: Vrd=290,5 kN (alma compacta: True)
+  Utilizacao: N/Nc=0,06 ; M/Mrd=0,65 ; V/Vrd=0,13
+  Interacao (N/(2Nrd) + M/Mrd) = 0,68  -> OK
 
 
 ######################################################################
@@ -280,18 +292,18 @@ VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)
 MAO-FRANCESA (contencao da mesa inferior) - viga (mesa inferior)
 NBR 8800 5.5.1.2 - espacamento por inversao da interacao flexo-compressao
 ====================================================================
-  Esforcos na mesa comprimida . Nsd=21.1 kN ; Msd=63.1 kN.m ; Vsd=37.6 kN
+  Esforcos na mesa comprimida . Nsd=22.3 kN ; Msd=59.3 kN.m ; Vsd=38.2 kN
   Comprimento da meia-agua L .. 5.025 m
   Espacamento das tercas s .... 1.675 m
-  Lp (plastico) ............... 2.250 m
-  Lr (FLT elastico) ........... 8.497 m
-  Interacao totalmente travada. 0.868
-  Lb_max (interacao=1.00) ..... 4.460 m
-  Passo adotado ............... 1 braco a cada 2 terca(s)
-  Lb usado (maior tramo) ...... 3.350 m
-  Interacao em Lb_usado ....... 0.928 (OK)
-  Bracos por meia-agua ........ 1
-  Bracos por portico .......... 2
+  Lp (plastico) ............... 1.668 m
+  Lr (FLT elastico) ........... 5.178 m
+  Interacao totalmente travada. 0.425
+  Lb_max (interacao=1.00) ..... 5.025 m
+  Passo adotado ............... 1 braco a cada 3 terca(s)
+  Lb usado (maior tramo) ...... 5.025 m
+  Interacao em Lb_usado ....... 0.682 (OK)
+  Bracos por meia-agua ........ 0
+  Bracos por portico .......... 0
 ====================================================================
 
 
@@ -320,6 +332,25 @@ ADOTADO (mais leve que passa): Ue 200x75x25x2,65
 
 OBS: propriedades pela linha media (prop2) - A CONFIRMAR no catalogo
      do fornecedor. Mdist pela analise de estabilidade elastica (FSM).
+
+
+######################################################################
+6b. TELHA
+######################################################################
+
+TELHA DE COBERTURA (ABNT NBR 14762 - formado a frio, vao entre tercas)
+  Perfil: Trapezoidal 40/0,65 (exemplo) ; vao (espacamento das tercas) = 1,68 m
+  M_Rd = Wef*fy/gamma = 1,9091 kN*m/m
+  ELU (flexao, faixa de 1 m):
+    gravidade (1,25G+1,50Q): w=0,450 kN/m ; M_Sd=0,1578 ; util=0,083 OK
+    sucao (1,40W-0,90G): w=3,030 kN/m ; M_Sd=1,0627 ; util=0,557 OK
+  ELS (flecha, cargas caracteristicas):
+    gravidade: 0,88 mm <= L/180=9,31 mm OK
+    vento    : 6,27 mm <= L/120=13,96 mm OK
+  VAO MAXIMO admissivel = 2,187 m (governa ELS_vento(L/120): ELU=2,25 / ELS_g=3,67 / ELS_v=2,19)
+  RESULTADO: APROVADA (util ELU 0,557)
+  [A CONFIRMAR: Wef, Ief e peso do CATALOGO do fabricante da telha; a
+   continuidade (n de vaos); a sobrecarga Q e a sucao local W do vento.]
 
 
 ######################################################################
@@ -394,7 +425,7 @@ BARRAS TRACIONADAS (ABNT NBR 8800:2008 item 5,2)
     >> OK
   --- Mao-francesa (d16) (d=16 mm ; L=0,40 m) ---
     Nt,Rd = 44,7 kN (gov ruptura (rosca): esc=45,7 ; rup=44,7)
-    Nsd = 7,4 kN -> u = 0,17
+    Nsd = 6,9 kN -> u = 0,16
     Esbeltez L/r = 100 (limite 300) -> OK
     >> OK
 ====================================================================
@@ -430,22 +461,23 @@ DIMENSIONAMENTO DA BASE ENGASTADA (placa + chumbadores)
 CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL
 ==========================================================================
 
-Esforco: N=+1,3 kN ; V=33,1 kN ; M=60,1 kN.m
+Esforco: N=+1,7 kN ; V=32,9 kN ; M=57,5 kN.m
 Criterio: interacao chumbador<=1 ; corte<=1 ; concreto<=1 ; Y<=L ; t_placa>=t_req (AISC DG1).
 
     BxL (mm)    t   db  n | u.trac u.corte u.conc  Y<=L  t_req | resultado
 --------------------------------------------------------------------------
-  400x500     38   20  4 |   0,97    0,22   1,00   sim    35mm | PASSA
-  450x550     38   20  4 |   0,87    0,22   1,00   sim    37mm | PASSA
-  500x600     44   25  4 |   0,50    0,14   1,00   sim    39mm | PASSA
-  550x700     44   25  6 |   0,28    0,09   1,00   sim    41mm | PASSA
-  600x800     44   32  6 |   0,15    0,06   1,00   sim    42mm | PASSA
-  700x900     44   32  6 |   0,13    0,06   1,00   sim    43mm | PASSA
+  400x500     38   20  4 |   0,93    0,22   1,00   sim    34mm | PASSA
+  450x550     38   20  4 |   0,83    0,22   1,00   sim    36mm | PASSA
+  500x600     38   25  4 |   0,48    0,14   1,00   sim    37mm | PASSA
+  550x700     44   25  6 |   0,27    0,09   1,00   sim    39mm | PASSA
+  600x800     44   32  6 |   0,14    0,06   1,00   sim    41mm | PASSA
+  700x900     44   32  6 |   0,12    0,06   1,00   sim    42mm | PASSA
 --------------------------------------------------------------------------
 
 ADOTADA (mais leve que passa): 400 x 500 x 38 mm ; 4 chumbadores d=20 mm
+Ancoragem (NBR 6118 9.4.2): embutimento reto requerido lb,nec=593 mm (c/ gancho) - ou ancoragem mecanica equiv.
 
-[FLAG] Cone de arrancamento/ancoragem: NBR 6118/ACI (projeto de fundacao).
+[FLAG] Cone de arrancamento/grupo (ACI 318 Ch.17): projeto de fundacao (a aderencia NBR 6118 nao cobre o cone/bearing mecanico do gancho).
 
 
 ######################################################################
@@ -460,41 +492,41 @@ CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
 sigma_solo,adm = 200 kN/m2  [INPUT sondagem - A CONFIRMAR]
 Combinacoes ELU consideradas: 8
 
-    C1_grav_W1           N=    +9,0  V=   +5,3  M=   -20,9 kN,kN.m
-    C2_uplift_W1         N=   +39,8  V=  +17,5  M=   -53,8 kN,kN.m
-    C3_Gdesf_W1          N=   +30,2  V=  +14,1  M=   -46,5 kN,kN.m
-    C3_Gfav_W1           N=   +39,8  V=  +17,5  M=   -53,8 kN,kN.m
-    C1_grav_W2           N=   -14,2  V=  +14,6  M=   -24,6 kN,kN.m
-    C2_uplift_W2         N=    +1,3  V=  +33,1  M=   -60,1 kN,kN.m
-    C3_Gdesf_W2          N=    -8,4  V=  +29,7  M=   -52,7 kN,kN.m
-    C3_Gfav_W2           N=    +1,3  V=  +33,1  M=   -60,1 kN,kN.m
+    C1_grav_W1           N=    +9,2  V=   +5,2  M=   -19,3 kN,kN.m
+    C2_uplift_W1         N=   +40,3  V=  +16,1  M=   -47,9 kN,kN.m
+    C3_Gdesf_W1          N=   +30,7  V=  +13,2  M=   -41,9 kN,kN.m
+    C3_Gfav_W1           N=   +40,3  V=  +16,1  M=   -47,9 kN,kN.m
+    C1_grav_W2           N=   -13,9  V=  +15,3  M=   -25,1 kN,kN.m
+    C2_uplift_W2         N=    +1,7  V=  +32,9  M=   -57,5 kN,kN.m
+    C3_Gdesf_W2          N=    -7,9  V=  +30,1  M=   -51,4 kN,kN.m
+    C3_Gfav_W2           N=    +1,7  V=  +32,9  M=   -57,5 kN,kN.m
 
        BxLxh (m) | u_solo FS_tmb FS_dsl  u_cd   As_L   As_B | res
 ----------------------------------------------------------------------------------
-1,20x1,20x0,35 |    inf   0,13   0,29  0,31   6,3c   6,3c | nao
-1,50x1,50x0,40 |    inf   0,33   0,58  0,26   9,0c   9,0c | nao
-1,50x2,00x0,60 |   0,89   0,75   1,08  0,16  13,5c  18,0c | nao
-2,00x2,00x0,60 |   0,42   1,01   1,47  0,16  18,0c  18,0c | nao
-2,00x2,50x0,75 |   0,31   1,73   2,12  0,13  22,5c  28,1c | PASSA
-2,50x2,50x0,75 |   0,27   2,16   2,64  0,13  28,1c  28,1c | PASSA
-2,50x3,00x0,90 |   0,26   3,35   3,59  0,10  33,8c  40,5c | PASSA
-3,00x3,00x0,90 |   0,24   4,02   4,30  0,10  40,5c  40,5c | PASSA
+1,20x1,20x0,35 |    inf   0,14   0,30  0,29   6,3c   6,3c | nao
+1,50x1,50x0,40 |    inf   0,34   0,58  0,25   9,0c   9,0c | nao
+1,50x2,00x0,60 |   0,74   0,76   1,07  0,15  13,5c  18,0c | nao
+2,00x2,00x0,60 |   0,40   1,05   1,47  0,15  18,0c  18,0c | nao
+2,00x2,50x0,75 |   0,29   1,78   2,14  0,12  22,5c  28,1c | PASSA
+2,50x2,50x0,75 |   0,26   2,22   2,66  0,12  28,1c  28,1c | PASSA
+2,50x3,00x0,90 |   0,25   3,45   3,62  0,10  33,8c  40,5c | PASSA
+3,00x3,00x0,90 |   0,23   4,13   4,34  0,10  40,5c  40,5c | PASSA
 ----------------------------------------------------------------------------------
 
 ADOTADA (menor que passa o envelope): 2,00 x 2,50 x 0,75 m
-  Governantes: solo=C2_uplift_W1 (u=0,24) ; tombamento=C2_uplift_W2 (FS=4,02) ;
-               deslizamento=C2_uplift_W2 (FS=4,30) ; compr.diagonal=C2_uplift_W1 (u=0,10)
+  Governantes: solo=C2_uplift_W1 (u=0,23) ; tombamento=C2_uplift_W2 (FS=4,13) ;
+               deslizamento=C2_uplift_W2 (FS=4,34) ; compr.diagonal=C2_uplift_W2 (u=0,10)
 
 SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
   Geometria: 2,00 x 2,50 x 0,75 m ; d(util)=68,8 cm ; pilar 30x30 cm
   RIGIDEZ (22.6.1): h>= (a-ap)/3 -> dir.L OK ; dir.B OK -> RIGIDA (sem puncao)
   fck=25 MPa ; fyk=500 MPa ; cobrimento=5 cm ; gamma_f=1,4
-  Pressao de calculo (flexao) sigma_d=11 kN/m2
-  Flexao dir.L (barras // L): balanco=110 cm ; M_d=13,5 kN.m ; x/d=0,00 (OK) ; As=0,5 cm2 ; As,min=22,5 -> As,adot=22,5 cm2
+  Pressao de calculo (flexao) sigma_d=0 kN/m2
+  Flexao dir.L (barras // L): balanco=110 cm ; M_d=0,6 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=22,5 -> As,adot=22,5 cm2
       -> 19 barras phi 12,5 mm c/ 11 cm (As,ef=23,3 cm2)
-  Flexao dir.B (barras // B): balanco=85 cm ; M_d=10,1 kN.m ; x/d=0,00 (OK) ; As=0,3 cm2 ; As,min=28,1 -> As,adot=28,1 cm2
+  Flexao dir.B (barras // B): balanco=85 cm ; M_d=0,4 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=28,1 -> As,adot=28,1 cm2
       -> 23 barras phi 12,5 mm c/ 11 cm (As,ef=28,2 cm2)
-  Compressao diagonal (19.5.3.1): tau_Sd=555 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,13 OK
+  Compressao diagonal (19.5.3.1): tau_Sd=523 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,12 OK
   -> PARTE B OK
   [FLAG] As,min=0,15% (17.3.5.2) - confirmar p/ fck adotado.
   [FLAG] Ancoragem da armadura de arranque (22.6.4.1.2) e detalhamento
@@ -506,6 +538,31 @@ SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
 QUANTITATIVO (10 sapatas = 2 pilares x 5 porticos):
   Concreto: 3,79 m3/sapata  ->  TOTAL 38,0 m3
   Aco (flexao): 86,5 kg/sapata (taxa 23 kg/m3)  ->  TOTAL 865 kg
+
+
+######################################################################
+11b. VIGA DE BALDRAME
+######################################################################
+
+VIGA DE BALDRAME / AMARRACAO (ABNT NBR 6118:2014)
+  Vao entre sapatas = 5,00 m ; secao 20x40 cm (d=34 cm) ; b_min 12 cm OK
+  BALDRAME (flexao): w = 2,000 kN/m (parede + p.proprio 2,000) ; M_d = 8,75 kN.m
+    As,flexao = 0,61 cm2 ; x/d = 0,033 OK
+  AMARRACAO (tracao): N_tie = 32,9 kN (reacao horiz. da base) ; As,amarracao = 1,06 cm2
+  As,min (rho_min*b*h) = 1,20 cm2
+  Armadura inferior: As = 1,20 cm2 -> 2 phi 10,0 mm (s=100 mm, As_ef=1,57 cm2)
+  Armadura superior: As = 1,20 cm2 -> 2 phi 10,0 mm (s=100 mm, As_ef=1,57 cm2)
+  Estribos: phi 5,0 mm ; s_max = 0,6d <= 300 mm = 201 mm (18.3.3.2)
+  RESULTADO: APROVADA
+  [A CONFIRMAR: carga da parede de fechamento (tipo/altura da alvenaria);
+   forca de amarracao (reacao horizontal da base do envelope); secao b x h.]
+
+
+######################################################################
+11c. FUNDACAO PROFUNDA (ESTACA)
+######################################################################
+
+(falta)
 
 
 ######################################################################

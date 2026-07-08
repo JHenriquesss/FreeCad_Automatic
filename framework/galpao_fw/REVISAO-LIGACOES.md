@@ -4,7 +4,9 @@ Conferência do sênior. Verifica ligações parafusadas e soldadas pela
 **NBR 8800:2008** (6.2 solda / 6.3 parafusos / 6.1.5 força mínima). Genérico:
 joelho viga-coluna, emenda, contravento, chapa de terça.
 
-Código: `ligacoes.py`. Última atualização: 2026-07-07.
+Código: `ligacoes.py`. Última atualização: 2026-07-08. Inclui detalhamento
+executivo: perna de solda mínima (Tab.9), comprimento de parafuso, chapa de
+extremidade, `detalha_ligacao()`.
 
 ---
 
@@ -190,3 +192,100 @@ plano de corte paralelo à solda contínua (sem furos). Confirmados γa1=1,10,
 
 Módulo `ligacoes.py` liberado para o orquestrador. FLAGs mantidas e documentadas
 para módulos futuros: **efeito alavanca (T-stub)** e **rasgamento em bloco (6.5.6)**.
+
+---
+
+## 9. Detalhamento dos furos (6.3.9/6.3.10/6.3.11) — feature adicionada 2026-07-08
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — dh variável (Tab.12) corrigido. `s ≥ 2,7db`, distância
+> livre `≥ db` (6.3.9), `s_max ≤ min(24t; 300)` (6.3.10) e o **`lf` derivado da
+> geometria** que alimenta o esmagamento 6.3.3.3.
+
+Antes o `lf` do esmagamento era **input solto**; agora, quando o caso traz a
+geometria (`s_furos`, `e_borda`), o `lf` é **derivado** dela — coerente com o
+layout — e os mínimos de detalhamento são checados. Regras **lidas do PDF**:
+
+- **6.3.9** — distância entre centros `≥ 2,7·db` (pref. `3·db`); distância **livre**
+  entre bordas de furos consecutivos `≥ db`.
+- **6.3.10 a)** — espaçamento máximo (chapa pintada) `≤ min(24·t; 300 mm)`.
+- **`lf` (6.3.3.3):** `min(e_borda − d_h/2; s_furos − d_h)` (distância livre do furo à
+  extremidade / ao furo vizinho), `d_h = db + 1,5 mm` (db < 24) ou `db + 2,0 mm`
+  (db ≥ 24), conforme Tabela 12 (NBR 8800).
+  Alimenta `Fc,Rd = min(1,2·lf·t·fu; 2,4·db·t·fu)/γa2` (já existente).
+
+**Tabela 14 (distância furo-borda) — AGORA verificada** (2026-07-08, era FLAG). Lida
+do PDF (pg.94) via imagem, por db [mm] → (borda cortada serra/tesoura ; laminada/
+maçarico): 16→29/22 · 20→35/27 · 22→38/29 · 24→42/31 · 27→50/38 · 30→53/39 · 36→64/46
+· >36 mm → 1,75db/1,25db. Nota (b): coluna laminada reduz 3 mm se Fsd ≤ 25 % Frd.
+`dist_min_borda(db, borda_cortada)` + gate `ok_borda_t14 = e_borda ≥ e_min`. Também
+entra a **distância MÁXIMA** furo-borda (6.3.12): `e_borda ≤ min(12t; 150 mm)`.
+Selftest: `db20 s=60 ≥ 54` OK, livre `38,5 ≥ 20` OK, `lf=24,25 mm`, `e_min=35` OK;
+`db24 e_borda=35<42` reprova. Não-regressivo (joelho usa escada, não gate geométrico).
+
+---
+
+## 10. Rasgamento em bloco (6.5.6) — feature adicionada 2026-07-08
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — subtração (n-0,5) dh corrigida.
+> O efeito alavanca (T-stub/prying) permanece FLAG — é método da EN 1993-1-8, fora
+> do escopo da NBR 8800.
+
+Colapso por rasgamento em bloco (NBR 8800 **6.5.6**, lido verbatim do PDF, pg.96):
+
+```
+F_r,Rd = (0,60·fu·Anv + Cts·fu·Ant)/γa2  ≤  (0,60·fy·Agv + Cts·fu·Ant)/γa2
+```
+
+- **Agv** = área bruta ao cisalhamento; **Anv** = área líquida ao cisalhamento;
+  **Ant** = área líquida à tração; **Cts** = 1,0 (tração uniforme) / 0,5 (não).
+- `block_shear(Agv, Anv, Ant, fy, fu, Cts)` — fórmula pura (áreas = geometria do
+  bloco de falha, que o responsável define pelo percurso).
+- `block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu)` — conveniência
+  para o caso comum (1 linha de n parafusos tracionada, chapa de nó/barra): 1 plano
+  de cisalhamento `Lgv = e_long + (n−1)·s_furos`, **(n−0,5) furos** subtraídos na
+  área líquida (a linha de ruptura parte da borda, passa pelo centro do 1º furo → 0,5
+  dh, segue pelos demais furos inteiros, e termina no centro do último, onde faz a
+  curva de 90° para o plano de tração),
+  tração transversal `e_transv − dh/2`. **FLAG:** o percurso de falha é uma hipótese
+  do caso típico; outros arranjos (dupla linha, cantoneira, viga recortada) o
+  engenheiro define as áreas e chama `block_shear` diretamente.
+
+Selftest: `block_shear` confere ruptura×escoamento (min); `block_shear_linha`
+(3Φ20, s=60, e_long=35) confere `Lgv=155 mm`. **PASSED**.
+
+---
+
+## 11. Efeito alavanca / T-stub (EN 1993-1-8) — feature adicionada 2026-07-08
+
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — aprovado conforme parecer. **Fora da NBR
+> 8800** (que não trata prying) — método **EN 1993-1-8** 6.2.4 (T-stub equivalente),
+> uso comum para a **chapa de topo parafusada** do joelho viga-coluna.
+
+A mesa/chapa em flexão é modelada como um perfil T equivalente. `tstub_prying(leff,
+m, e, t_chapa, fy, ΣFt,Rd)` → `F_T,Rd = min` dos 3 modos (Tabela 6.2):
+
+```
+Mpl,Rd = 0,25·leff·t²·fy/γM0 ;   n = min(e ; 1,25·m)
+Modo 1 (escoamento total da chapa):            F1 = 4·Mpl/m
+Modo 2 (escoamento da chapa + ruptura bolt):   F2 = (2·Mpl + n·ΣFt,Rd)/(m+n)
+Modo 3 (ruptura dos parafusos):                F3 = ΣFt,Rd
+```
+
+`m` = distância do parafuso ao pé do filete/alma; `e` = distância à borda; `leff` =
+comprimento efetivo das linhas de escoamento (padrão de charneiras — circular/não
+circular, o engenheiro define). A **força de alavanca Q** é reportada (modos 1/2).
+Exemplo: leff=120, m=40, e=35, t=16, 2Φ20/f800 → **F_T,Rd=181,5 kN, modo 2 (alavanca
+parcial), Q=84,7 kN**. Selftest **PASSED**.
+
+**FLAG:** `leff` (padrão de charneiras) é do arranjo — o engenheiro fornece; o
+módulo entrega a resistência dos 3 modos dado `leff`.
+
+---
+
+## 12. FLAGs remanescentes
+
+- **Tabela 14** (furo-borda): agora **verificada** (§9), com a coluna borda cortada/
+  laminada como entrada do responsável.
+- **T-stub**: agora **disponível** (§11) como método EN (fora da NBR).
+- Sem pendências abertas de método em `ligacoes.py` além do `leff` do T-stub
+  (arranjo-dependente) e da confirmação da coluna de borda da Tabela 14.

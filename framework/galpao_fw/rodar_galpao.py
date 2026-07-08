@@ -8,7 +8,9 @@
 # tercas_iteracao (+distorcional_fsm), base_chumbador, ligacoes.
 # Nao redefine metodo - so orquestra os modulos ja validados. Saidas em PT.
 # ============================================================================
-"""Orquestrador do fluxo de calculo do galpao. Um projeto = um dict de params."""
+"""Orquestrador do fluxo de calculo do galpao. Suporta 1 ou N vaos.
+Um projeto = um dict de params. Se params['geometria']['spans'] existir,
+usa multi-vao; senao, usa 'span' (retrocompativel)."""
 
 from __future__ import annotations
 
@@ -16,6 +18,7 @@ import math
 import os
 
 import vento_nbr6123 as vento
+import telha_cobertura as telha
 import galpao_portico as gp
 import estabilidade_b1b2 as est
 import check_nbr8800 as chk
@@ -24,11 +27,18 @@ import redimensionamento as redim
 import tercas_iteracao as ti
 import base_chumbador as bc
 import fundacao_sapata as fs
+import viga_baldrame as vbal
+import estaca_profunda as ep
+import junta_dilatacao as jd
+import sismo_nbr15421 as sismo
 import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
 import ponte_rolante as pr
+import fogo_nbr14323 as fogo
+import escada as esc
+import plataforma
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -50,42 +60,47 @@ def _casos_mf_reac():
     if gp.PONTE:
         fr, ix = gp._frame(); gp.case_ponte(fr, ix); _, mf = fr.solve()
         out["PONTE"] = (mf, fr.reactions(), ix)
+    if gp.SISMO:
+        fr, ix = gp._frame(); gp.case_sismo(fr, ix); _, mf = fr.solve()
+        out["SISMO"] = (mf, fr.reactions(), ix)
     return out
 
 
 def _esforcos_base_joelho():
-    """Extrai (por combinacao) os esforcos de base e de joelho do portico atual.
-    Retorna o caso de base governante (max |M|) e o de joelho (max |M|)."""
+    """Extrai esforcos de base + joelho do portico. Para N>1, retorna o pior
+    caso entre todas as colunas. Cada resultado = (nome, N, V, M)."""
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
-    nbL = ix["nBaseL"]
-    eKnee = ix["colL"][-1]
-    combos = gp._combos_elu(gp.PONTE)      # envelope (cruza W1 e W2)
+    bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     base_best = knee_best = None
     for nm, c in combos.items():
-        R = sum(fac * casos[cs][1] for cs, fac in c.items())
-        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
-        if base_best is None or abs(M) > abs(base_best[3]):
-            base_best = (nm, N, V, M)
-        f = sum(fac * casos[cs][0][eKnee] for cs, fac in c.items())
-        Mk, Vk, Nk = f[5], f[4], -f[3]
-        if knee_best is None or abs(Mk) > abs(knee_best[3]):
-            knee_best = (nm, Nk, Vk, Mk)
+        for i, nb in enumerate(bases):
+            R = sum(fac * casos[cs][1] for cs, fac in c.items())
+            N, V, M = R[3 * nb + 1], R[3 * nb], R[3 * nb + 2]
+            if base_best is None or abs(M) > abs(base_best[3]):
+                base_best = (nm, N, V, M)
+            eKnee = ix["cols"][i][-1]
+            f = sum(fac * casos[cs][0][eKnee] for cs, fac in c.items())
+            Mk, Vk, Nk = f[5], f[4], -f[3]
+            if knee_best is None or abs(Mk) > abs(knee_best[3]):
+                knee_best = (nm, Nk, Vk, Mk)
     return base_best, knee_best
 
 
 def _casos_base_envelope():
     """Todos os casos de base (por combinacao ELU) como lista (nome, N, V, M) -
-    para o ENVELOPE da sapata (bearing pega N max; tombamento pega N min + M)."""
+    para o ENVELOPE da sapata. Para N>1, retorna o PIOR caso entre as colunas."""
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
-    nbL = ix["nBaseL"]
-    combos = gp._combos_elu(gp.PONTE)
+    bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     out = []
     for nm, c in combos.items():
-        R = sum(fac * casos[cs][1] for cs, fac in c.items())
-        N, V, M = R[3 * nbL + 1], R[3 * nbL], R[3 * nbL + 2]
-        out.append((nm, N, V, M))
+        for nb in bases:
+            R = sum(fac * casos[cs][1] for cs, fac in c.items())
+            N, V, M = R[3 * nb + 1], R[3 * nb], R[3 * nb + 2]
+            out.append((nm, N, V, M))
     return out
 
 
@@ -100,13 +115,21 @@ def rodar(params, out_dir):
     gp.reset(); vento.reset()          # estado limpo (sem vazamento entre projetos)
     g = params["geometria"]
     sc = params["secoes"]
-    # configura geometria + perfis + base
-    gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
-                  base_fixed=params.get("base_fixed", True),
-                  A_col=sc["A_col"], I_col=sc["I_col"],
-                  A_raf=sc["A_raf"], I_raf=sc["I_raf"],
-                  G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                  Q_roof=params["cargas"]["Q"])
+    # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)
+    if "spans" in g:
+        gp.configurar(spans=g["spans"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
+                      base_fixed=params.get("base_fixed", True),
+                      A_col=sc["A_col"], I_col=sc["I_col"],
+                      A_raf=sc["A_raf"], I_raf=sc["I_raf"],
+                      G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      Q_roof=params["cargas"]["Q"])
+    else:
+        gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
+                      base_fixed=params.get("base_fixed", True),
+                      A_col=sc["A_col"], I_col=sc["I_col"],
+                      A_raf=sc["A_raf"], I_raf=sc["I_raf"],
+                      G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      Q_roof=params["cargas"]["Q"])
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
                   fy=params["terca"]["fy"])
@@ -126,6 +149,7 @@ def rodar(params, out_dir):
         esf, viga, reac = pr.analisa(pcfg)
         save("gate5-ponte.txt", pr.relatorio_pt(esf, viga, reac))
         gp.configurar(ponte={"R_vert": reac["R_vertical_kN"],
+                             "R_vert_min": reac.get("R_vertical_min_kN", reac["R_vertical_kN"]),
                              "M_exc": reac["M_excentrico_kNm"],
                              "H_transv": reac["H_transversal_kN"],
                              "Hvr": pcfg["Hvr"]})
@@ -133,8 +157,22 @@ def rodar(params, out_dir):
         res["ponte_viga_inter"] = round(viga["inter"], 2)
     else:
         gp.configurar(ponte=False)
+    # Acao SISMICA (NBR 15421) - calculada ANTES da analise para ENTRAR no envelope
+    # do portico (combinacao excepcional). zona/classe/sistema/I/peso = sitio (skill
+    # confirma). zona 0 (default, maior parte do Brasil) -> H=0 -> nada muda.
+    ps = params.get("sismo", {})
+    rs = sismo.verifica_sismo(
+        W=ps.get("peso_efetivo_kN", 0.0), zona=ps.get("zona", 0),
+        classe=ps.get("classe_terreno", "C"), sistema=ps.get("sistema", "aco_momento"),
+        I=ps.get("I", 1.0), hn=ps.get("hn", g.get("ridge")), ag=ps.get("ag"))
+    # Cortante de piso atribuido a UM portico = H_total * (vao tributario / comprimento).
+    H_sismo = rs.get("H", 0.0) or 0.0
+    E_frame = H_sismo * g["bay"] / g.get("comprimento", 2 * g["span"])
+    gp.configurar(sismo={"E": E_frame} if E_frame > 1e-9 else False)
+    res["sismo_E_portico_kN"] = round(E_frame, 2)
     # Gate 5 - vento (transversal + longitudinal)
-    save("gate5-vento.txt", vento.relatorio_pt(vento.compute()))
+    save("gate5-vento.txt", vento.relatorio_pt(vento.compute(
+        larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]))))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
                                     ca=params.get("ca_arrasto", 1.2))
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
@@ -148,48 +186,64 @@ def rodar(params, out_dir):
     # esforcos com o perfil adotado -> tudo a jusante (mao-francesa, check, modelo)
     # usa o perfil que ATENDE. Referencia 20x10 ja passa no seed -> inalterada.
     adoc = redim.melhor(fixed=params.get("base_fixed", True),
-                        lb_col=params["Lb"]["col"], lb_raf=params["Lb"]["raf"],
-                        seed=("HEA200", "HEA180"))
+                        lb_col=params["Lb"]["col"], lb_raf=params["Lb"]["raf"])
     save("gate7-redimensionamento.txt", adoc["tabela"])
     if adoc["aprovado"]:
         ap = adoc["aprovado"]
-        sc["perfil_col"] = perfis.PERFIS[ap["col"]]
+        for i, p in enumerate(ap["cols"]):
+            sc[f"perfil_col_{i}"] = perfis.PERFIS[p]
+        sc["perfil_col"] = perfis.PERFIS[ap["cols"][0]]
         sc["perfil_raf"] = perfis.PERFIS[ap["raf"]]
-        a = est.analyse()                       # esforcos com o perfil adotado
-        res["perfil_col"], res["perfil_raf"] = ap["col"], ap["raf"]
+        a = est.analyse()
+        res["perfil_colunas"] = ap["cols"]
+        res["perfil_raf"] = ap["raf"]
         res["atende"] = True
-        if ap.get("lim_flecha"):                # ELS: flecha lateral / (H/150)
+        if ap.get("lim_flecha"):
             res["flecha_util"] = round(ap["drift"] / ap["lim_flecha"], 2)
     else:
-        res["perfil_col"], res["perfil_raf"] = "HEA200", "HEA180"
+        sc["perfil_col"] = perfis.PERFIS["HEA200"]
+        sc["perfil_raf"] = perfis.PERFIS["HEA180"]
+        res["perfil_colunas"] = ["HEA200"] * gp.N_VAOS
+        res["perfil_raf"] = "HEA180"
         res["atende"] = False
-    # Gate 7 - mao-francesa: define o Lb da viga (contencao da mesa inferior)
-    # pela inversao da interacao. Combo governante = maior |Msd| na viga.
+    # Gate 7 - mao-francesa
     slope = (g["ridge"] - g["eave"]) / (g["span"] / 2.0)
     n_terca = params["terca"].get("n_por_agua", 3)
-    cbm = max(a["combos"], key=lambda r: abs(r["viga"]["Msd"]))
+    cbm = max(a["combos"], key=lambda r: abs(r.get("viga", {}).get("Msd", 0) or
+                  max(r.get(f"viga_{j}_{s}", {}).get("Msd", 0) for j in range(gp.N_VAOS) for s in ("E","D"))))
+    cbm_v = cbm.get("viga", cbm.get("viga_0_E", cbm.get("viga_0_D", {"Nsd":0,"Msd":0,"Vsd":0})))
     plano_mf = maofr.plano_mao_francesa(
-        sc["perfil_raf"], params["fy"], max(0.0, cbm["viga"]["Nsd"]),
-        abs(cbm["viga"]["Msd"]), abs(cbm["viga"]["Vsd"]),
+        sc["perfil_raf"], params["fy"], max(0.0, cbm_v["Nsd"]),
+        abs(cbm_v["Msd"]), abs(cbm_v["Vsd"]),
         span=g["span"], slope=slope, n_terca=n_terca)
     save("gate7-mao-francesa.txt", maofr.relatorio_pt(plano_mf, "viga (mesa inferior)"))
     Lb_raf = plano_mf["Lb_usado"] if plano_mf.get("ok") else params["Lb"]["raf"]
     res["mf_bracos_portico"] = plano_mf.get("n_bracos_portico")
     res["mf_stride"] = plano_mf.get("stride")
     res["Lb_raf"] = round(Lb_raf, 3)
-    # Gate 7 - perfis (Lb da viga vem da mao-francesa; coluna e parametro)
-    pecas = {"coluna": (sc["perfil_col"], est.SEC["coluna"]["L"], params["Lb"]["col"]),
-             "viga": (sc["perfil_raf"], est.SEC["viga"]["L"], Lb_raf)}
+    # Gate 7 - perfis (verifica por grupo)
     finais = []
-    for gname, (sec, Lr, Lb) in pecas.items():
-        cands = [chk.verifica(sec, params["fy"], L=Lr, Nsd=r[gname]["Nsd"],
+    nv = gp.N_VAOS
+    cols_prof = res.get("perfil_colunas", [sc.get("perfil_col_nome","HEA200")]*(nv+1))
+    for i in range(nv + 1):
+        gname = f"col_{i}"
+        sec = perfis.PERFIS[cols_prof[i]]
+        cands = [chk.verifica(sec, params["fy"], L=gp.EAVE, Nsd=r[gname]["Nsd"],
                               Msd=r[gname]["Msd"], Vsd=r[gname]["Vsd"], Kx=1, Ky=1,
-                              Lb=Lb, nome=f"{gname.capitalize()} (K=1; gov {r['nome']})")
+                              Lb=params["Lb"]["col"], nome=f"Col {i} (K=1; gov {r['nome']})")
                  for r in a["combos"]]
         finais.append(max(cands, key=lambda x: x["interacao"]))
+    for i in range(nv):
+        for side, sname in ((0, "E"), (1, "D")):
+            gname = f"viga_{i}_{sname}"
+            cands = [chk.verifica(sc["perfil_raf"], params["fy"], L=est.SEC_VIGAS[0]["L"],
+                                  Nsd=r[gname]["Nsd"], Msd=r[gname]["Msd"],
+                                  Vsd=r[gname]["Vsd"], Kx=1, Ky=1,
+                                  Lb=Lb_raf, nome=f"Viga {i}{sname} (K=1; gov {r['nome']})")
+                     for r in a["combos"]]
+            finais.append(max(cands, key=lambda x: x["interacao"]))
     save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
-    res["interacao_col"] = finais[0]["interacao"]
-    res["interacao_raf"] = finais[1]["interacao"]
+    res["interacao_max"] = max(f["interacao"] for f in finais) if finais else 0
     # Gate 7 - tercas: adota a Ue mais leve que passa (ELU + ELS); o modelo desenha
     # a ADOTADA (terca_dims).
     save("gate7-tercas.txt", ti.memoria_pt())
@@ -199,8 +253,26 @@ def rodar(params, out_dir):
     res["terca_ok"] = bool(_rt.get("OK"))
     res["terca_dims"] = list(_rt.get("_dims", (200.0, 75.0, 25.0, 2.65)))
     res["terca_perfil"] = _rt.get("perfil")
+    # Gate 7 - TELHA: verifica a telha vencendo o espacamento das tercas sob a
+    # sucao LOCAL de borda/canto (vento §8). Perfil da telha = catalogo (params).
+    if params.get("telha"):
+        vt_loc = vento.compute(larg_b=g["span"], alt_h=g["eave"],
+                               comp_a=g.get("comprimento", 2 * g["span"]))
+        w_agua = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])   # comprimento da agua
+        esp_terca = w_agua / max(n_terca, 1)                           # vao da telha
+        tcfg = dict(params["telha"].get("cfg", {}))
+        tcfg.setdefault("vao", round(esp_terca, 3))
+        tcfg.setdefault("W_sucao", vt_loc["local"]["p_local_cob_kN_m2"])
+        tcfg.setdefault("Q", params["cargas"].get("Q", 0.25))
+        rt_telha = telha.verifica_telha(params["telha"]["perfil"], tcfg)
+        save("gate7-telha.txt", telha.relatorio_pt(rt_telha))
+        res["telha_util"] = rt_telha["util_elu"]
+        res["telha_vao"] = rt_telha["vao"]
+        res["telha_vao_max"] = rt_telha["vao_max"]["vao_max_m"]
+        res["telha_ok"] = rt_telha["OK"]
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
-    vr = vento.compute()
+    vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
+                       comp_a=g.get("comprimento", 2 * g["span"]))
     net_par = [abs(vr["net"][c][s]) for c in vr["net"] for s in vr["net"][c]
                if s.startswith("parede")]
     sp = dict(params["secundarios"])
@@ -294,6 +366,75 @@ def rodar(params, out_dir):
     casos_base = _casos_base_envelope()
     dims = fs.dimensiona_sapata_env(sap, casos_base)
     save("gate7-fundacao.txt", dims["tabela"])
+
+    # Gate 7 - VIGA DE BALDRAME / AMARRACAO entre sapatas (NBR 6118). Amarra as
+    # sapatas e absorve a reacao HORIZONTAL da base (empuxo do portico) como tracao;
+    # baldrame sob a parede de fechamento. N_amarracao = max|V| da base no envelope.
+    if params.get("baldrame"):
+        V_base_max = max(abs(v) for _, _, v, _ in casos_base)
+        bd = dict(params["baldrame"])
+        bd.setdefault("vao", g["bay"])
+        bd.setdefault("N_amarracao", round(V_base_max, 2))
+        bd.setdefault("fck", sap.get("fck", 25e3)); bd.setdefault("fyk", sap.get("fyk", 500e3))
+        rbd = vbal.verifica_baldrame(bd)
+        save("gate7-baldrame.txt", vbal.relatorio_pt(rbd))
+        res["baldrame"] = {"secao": f"{rbd['b']*100:.0f}x{rbd['h']*100:.0f}",
+                           "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
+                           "ok": rbd["OK"]}
+
+    # Gate 7 - FUNDACAO PROFUNDA (opcional): estaca (Aoki-Velloso) + bloco de
+    # coroamento. So roda com params["estaca"] (escolha de sitio: sondagem SPT).
+    # N_pilar = maior reacao vertical de compressao na base (envelope).
+    if params.get("estaca"):
+        N_comp = max(n for _, n, _, _ in casos_base)          # maior compressao
+        N_pilar = abs(N_comp)
+        N_tr = max(0.0, -min(n for _, n, _, _ in casos_base))  # uplift (reacao negativa)
+        ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
+        ecfg.setdefault("N_uplift", round(N_tr, 1))
+        ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
+        re_ = ep.verifica_estaca(ecfg)
+        save("gate7-estaca.txt", ep.relatorio_pt(re_))
+        res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
+                         "P_adm_kN": re_["capacidade"]["P_adm_kN"],
+                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1)}
+
+    # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
+    rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
+                           base_fixa=params.get("base_fixed", True),
+                           aquecido=params.get("aquecido", False),
+                           ar_condicionado=params.get("ar_condicionado", False))
+    save("gate7-junta-dilatacao.txt", jd.relatorio_pt(rj))
+    res["junta_dilatacao"] = {"L_max_m": rj["L_max_junta"], "precisa": rj["precisa_junta"],
+                              "n_juntas": rj["n_juntas"], "delta_mm": rj["delta_segmento_mm"]}
+
+    # Acao sismica (NBR 15421) - ja calculada no inicio (rs) e injetada no envelope
+    # do portico como combinacao excepcional (C6). Aqui so gera o memorial + resumo.
+    extra = ""
+    if E_frame > 1e-9:
+        comp = g.get("comprimento", 2 * g["span"])
+        extra = (f"\n\n>> Forca de calculo por portico (cortante de piso, vao tributario "
+                 f"{g['bay']:.1f} m / {comp:.1f} m):\n"
+                 f"   E = {E_frame:.1f} kN, aplicada no beiral -> combinacao EXCEPCIONAL C6\n"
+                 f"   (1,2G+-E desfav / 1,0G+-E fav ; sem vento e sem Q, NBR 15421 5.4).")
+        # Efeitos de 2a ordem (9.6): coeficiente de estabilidade theta
+        Cd = sismo.SISTEMA_R.get(ps.get("sistema", "aco_momento"), (0, 0, 3.0))[2]
+        d_xe = gp.analyse().get("drift_sismo", 0.0)
+        Px = (rs.get("W", 0.0) or 0.0) * g["bay"] / comp        # vertical servico tributario
+        dt = sismo.deslocamento_theta(d_xe, Cd=Cd, I=ps.get("I", 1.0),
+                                      Px=Px, Hx=E_frame, hsx=g["eave"])
+        extra += (f"\n>> Deslocamentos (9.5) e 2a ordem (9.6): delta_xe={d_xe*1000:.1f} mm ; "
+                  f"delta_x=Cd*delta_xe/I={dt['delta_x']*1000:.1f} mm (Cd={Cd})\n"
+                  f"   theta = Px*Dx/(Hx*hsx*Cd) = {dt['theta']:.4f} "
+                  f"(theta_max={dt['theta_max']:.3f}) -> {dt['situacao']}\n"
+                  f"   fator de amplificacao de 2a ordem = {dt['amplif_2a_ordem']:.3f}")
+        res["sismo_theta"] = {"theta": dt["theta"], "amplif": dt["amplif_2a_ordem"],
+                              "dispensa": dt["dispensa_2a_ordem"], "ok": dt["ok"]}
+    else:
+        extra = "\n\n>> Zona sem exigencia -> nao entra no envelope."
+    save("gate7-sismo.txt", sismo.relatorio_pt(rs) + extra)
+    res["sismo"] = {"zona": rs["zona"], "categoria": rs["categoria"],
+                    "dispensado": rs.get("dispensado"), "H_kN": rs.get("H"),
+                    "Cs": rs.get("Cs"), "E_portico_kN": round(E_frame, 2)}
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]
@@ -322,7 +463,7 @@ def rodar(params, out_dir):
     else:
         res["sapata_adotada"] = None
         res["sapata_ok"] = False
-    dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]   # viga ADOTADA
+    dr = sc["perfil_raf"]["d"]; tf = sc["perfil_raf"]["tf"]
     Tf = abs(kM) / (dr - tf) + abs(kN) / 2.0
     knee = dict(params["joelho"]); knee.update(N=Tf, V=abs(kV) * 4 / 8.0,
                                                nome=f"Joelho - {knm} (M={abs(kM):.1f})")
@@ -339,6 +480,38 @@ def rodar(params, out_dir):
         res["joelho_ok"] = False
     clip = params["clip_terca"]
     save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(clip)]))
+    # Gate 8 - FOGO (NBR 14323): verifica o perfil adotado em situacao de incendio
+    if params.get("fogo") and res.get("perfil_colunas"):
+        fg = params["fogo"]
+        sec_fogo = {"h": sc["perfil_col"]["d"]*1000, "b": sc["perfil_col"]["bf"]*1000,
+                    "tw": sc["perfil_col"]["tw"]*1000, "tf": sc["perfil_col"]["tf"]*1000}
+        Gk = params["cargas"]["G"] * g["bay"] * g["span"] / 2.0
+        Qk = params["cargas"]["Q"] * g["bay"] * g["span"] / 2.0
+        rf = fogo.verifica_fogo(sec_fogo, params["fy"], Gk, Qk,
+                                TRRF_min=fg.get("TRRF_min", 60),
+                                protecao=fg.get("protecao"))
+        save("gate8-fogo.txt", fogo.relatorio_pt(rf))
+        res["fogo_theta"] = rf["theta_aco_C"]
+        res["fogo_ky"] = rf["ky"]
+        res["fogo_TRRF"] = rf["TRRF_min"]
+    # Gate 8 - ESCADA INDUSTRIAL
+    if params.get("escada"):
+        esc_cfg = params["escada"]
+        re = esc.dimensiona(esc_cfg["desnivel"], esc_cfg["projecao"],
+                            esc_cfg.get("largura", 1.20),
+                            q_acidental=esc_cfg.get("q_acidental", 3.0))
+        save("gate8-escada.txt", esc.relatorio_pt(re))
+        res["escada_ok"] = re.get("ok", False)
+        res["escada_perfil"] = re.get("perfil")
+    # Gate 8 - PLATAFORMA / PASSARELA
+    if params.get("plataforma"):
+        plt_cfg = params["plataforma"]
+        rp = plataforma.viga_secundaria(plt_cfg["L"], plt_cfg["b_trib"],
+                                        plt_cfg.get("q_perm", 2.0),
+                                        plt_cfg.get("q_acidental", 3.0))
+        save("gate8-plataforma.txt", plataforma.relatorio_pt(rp))
+        res["plataforma_ok"] = rp.get("ok", False)
+        res["plataforma_perfil"] = rp.get("perfil")
     # Gate 9 - consolidado
     _consolidar(out_dir, save, g, params, res)
     return res
@@ -351,10 +524,16 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
+             ("6b. TELHA", "gate7-telha.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
+             ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
+             ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
+             ("11d. FOGO NBR 14323", "gate8-fogo.txt"),
+             ("11e. ESCADA", "gate8-escada.txt"),
+             ("11f. PLATAFORMA", "gate8-plataforma.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt")]
     try:
         import framework as FW
@@ -372,7 +551,10 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
-                  ("Viga rolamento", res.get("ponte_viga_inter"))]
+                  ("Viga rolamento", res.get("ponte_viga_inter")),
+                  ("Fogo theta C", res.get("fogo_theta")),
+                  ("Escada", 0 if res.get("escada_ok") else None),
+                  ("Plataforma", 0 if res.get("plataforma_ok") else None)]
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:
@@ -407,6 +589,10 @@ PARAMS_REF = {
     "cargas": {"G": 0.27, "self": 0.35, "Q": 0.25},
     "Lb": {"col": 2.0, "raf": 1.67},
     "terca": {"trib": 1.675, "fy": 250e3, "n_por_agua": 3},
+    # Telha: perfil = CATALOGO do fabricante (Wef cm3/m, Ief cm4/m, peso kN/m2) -
+    # A CONFIRMAR. cfg.vao e W_sucao sao auto-preenchidos (espacamento das tercas
+    # e sucao local do vento §8) se omitidos.
+    "telha": {"perfil": telha.TELHA_EXEMPLO, "cfg": {"continuidade": "simples"}},
     # Pecas secundarias (gate: trib, tapamento, n_tirantes, Nsd escora = A CONFIRMAR)
     "secundarios": {
         "perfil_long": secmod.UPE100, "perfil_esc": secmod.HEA160,
@@ -439,11 +625,22 @@ PARAMS_REF = {
                  "h_reaterro": 0.5, "d_ped": 0.30, "b_ped": 0.30, "h_ped": 0.50,
                  "fck": 25e3, "fyk": 500e3, "cobrimento": 0.05, "phi_barra": 0.0125,
                  "gamma_f": 1.4},
+    # Viga de baldrame / amarracao (NBR 6118). vao e N_amarracao (reacao horiz.
+    # da base) auto do modelo se omitidos; q_parede = alvenaria de fechamento
+    # (0 = so telha). Secao b x h e A CONFIRMAR.
+    "baldrame": {"b": 0.20, "h": 0.40, "cobrimento": 0.05, "q_parede": 0.0,
+                 "continuidade": "simples"},
     "joelho": {"tipo": "parafusos", "n": 4, "db": 0.024, "fub": 825e3,
                "t_chapa": 0.0125, "fu_chapa": 400e3, "lf": 0.040, "rosca_no_plano": True},
     "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",
                    "n": 2, "db": 0.012, "fub": 400e3, "t_chapa": 0.006,
                    "fu_chapa": 400e3, "lf": 0.025, "V": 8.0, "excecao_terca": True},
+    # Fogo: None = nao verifica. Dict = parametros (TRRF_min, protecao).
+    "fogo": None,
+    # Escada: None = nao dimensiona. Dict = {desnivel, projecao, largura, q_acidental}.
+    "escada": None,
+    # Plataforma: None = nao dimensiona. Dict = {L, b_trib, q_perm, q_acidental}.
+    "plataforma": None,
     # "ponte": None -> galpao SEM ponte (portico identico a referencia).
 }
 

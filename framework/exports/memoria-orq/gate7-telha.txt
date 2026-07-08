@@ -1,0 +1,13 @@
+TELHA DE COBERTURA (ABNT NBR 14762 - formado a frio, vao entre tercas)
+  Perfil: Trapezoidal 40/0,65 (exemplo) ; vao (espacamento das tercas) = 1,68 m
+  M_Rd = Wef*fy/gamma = 1,9091 kN*m/m
+  ELU (flexao, faixa de 1 m):
+    gravidade (1,25G+1,50Q): w=0,450 kN/m ; M_Sd=0,1578 ; util=0,083 OK
+    sucao (1,40W-0,90G): w=3,030 kN/m ; M_Sd=1,0627 ; util=0,557 OK
+  ELS (flecha, cargas caracteristicas):
+    gravidade: 0,88 mm <= L/180=9,31 mm OK
+    vento    : 6,27 mm <= L/120=13,96 mm OK
+  VAO MAXIMO admissivel = 2,187 m (governa ELS_vento(L/120): ELU=2,25 / ELS_g=3,67 / ELS_v=2,19)
+  RESULTADO: APROVADA (util ELU 0,557)
+  [A CONFIRMAR: Wef, Ief e peso do CATALOGO do fabricante da telha; a
+   continuidade (n de vaos); a sobrecarga Q e a sucao local W do vento.]

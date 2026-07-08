@@ -74,7 +74,10 @@ def novo():
         "fundacao": {"sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
                      "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
                      "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4},
-        "_a_confirmar": [],  # paths com valor provisorio (confirmar depois)
+        "fogo": None,         # None (sem verificacao) ou dict {TRRF_min, protecao}
+        "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
+        "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
+        "_a_confirmar": [],
     }
 
 
@@ -159,6 +162,9 @@ def to_rodar_params(spec):
         p["ponte"].setdefault("perfil_viga", pr.VS500)
         p["ponte"].setdefault("fy", 250e3)
         p["ponte"].setdefault("E_Ix", pr.ck.E * pr.VS500["Ix"])
+    p["fogo"] = spec.get("fogo") if spec.get("fogo") else None
+    p["escada"] = spec.get("escada") if spec.get("escada") else None
+    p["plataforma"] = spec.get("plataforma") if spec.get("plataforma") else None
     return p
 
 

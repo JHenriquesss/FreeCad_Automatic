@@ -23,8 +23,11 @@
 # ELS (NBR 8800): flecha vertical L/600 (<200 kN) / L/800 (>=200) / L/1000
 # (siderurgica); horizontal L/400 (L/600 siderurgica); NAO majorar por impacto.
 # Coluna: deslocamento no nivel da viga de rolamento <= Hvr/400.
-# FADIGA: pontes pesadas exigem verificacao (NBR 8800 Anexo K) - SINALIZA, nao
-# fabrica categoria de detalhe sem dado.
+# FADIGA (NBR 8800 Anexo K): CALCULA a faixa de tensoes da carga movel vertical
+# (sigma_SR = Msdx/Wx) e compara com a faixa admissivel sigma_adm=(327*Cf/N)^0,333
+# >= sigma_TH (K.4, Tabela K.1). A CATEGORIA do detalhe (default B = metal-base
+# junto a solda longitudinal; enrijecedor/trilho pode ser C ou pior) e o numero de
+# CICLOS N (regime, NBR 8400) sao INPUT (a skill pergunta) - nao inventa o detalhe.
 #
 # Generico e parametrico (dados da ponte = gate/fabricante). NAO inventa
 # coeficientes normativos: phi, frac_lateral, frac_long entram flagados. Calcula
@@ -91,6 +94,46 @@ def limite_flecha_vertical(cap_kN, siderurgica):
     return 600.0
 
 
+# NBR 8800 Tabela K.1 - parametros de fadiga (valores lidos do PDF, nao de
+# memoria): (Cf [x10^8], sigma_TH [MPa]). Categorias tipicas da viga de rolamento
+# soldada: B = metal-base junto a solda longitudinal continua (mesa-alma);
+# C = enrijecedores/ligacoes transversais soldadas; A = metal-base sem solda.
+_FADIGA_K1 = {
+    "A": (250e8, 165.0), "B": (120e8, 110.0), "B'": (61e8, 83.0),
+    "C": (44e8, 69.0), "D": (22e8, 48.0), "E": (11e8, 31.0), "E'": (3.9e8, 18.0),
+}
+
+
+def faixa_admissivel_fadiga(cat, N):
+    """NBR 8800 K.4a: sigma_SR = (327*Cf/N)^0,333 >= sigma_TH [MPa].
+    Cf e sigma_TH da Tabela K.1 ; N = numero de ciclos na vida util."""
+    Cf, sTH = _FADIGA_K1[cat]
+    return max((327.0 * Cf / N) ** (1.0 / 3.0), sTH)
+
+
+def verifica_fadiga(M_fad, Wx, cat="B", N=2.0e6, M_lat=0.0, Wy_top=None,
+                    frac_lat=0.5):
+    """Fadiga da viga de rolamento (NBR 8800 Anexo K). Faixa de variacao de
+    tensoes (K.3, analise elastica) vs faixa admissivel (K.4).
+
+    Carga de fadiga B.7.3.4 (lida do PDF): 1 ponte, cargas verticais majoradas
+    pelo impacto + **50 % das forcas horizontais**. Logo a faixa de tensoes na
+    fibra extrema da MESA SUPERIOR combina a flexao vertical e a lateral (surto):
+        sigma_SR = M_fad/Wx + frac_lat*M_lat/Wy_top          (frac_lat = 0,50)
+    M_fad e M_lat sao os momentos CARACTERISTICOS com impacto (a carga movel zera
+    quando a ponte se afasta -> a faixa e ~ o proprio momento). Wy_top = modulo do
+    BANZO SUPERIOR (o surto atua no topo do trilho). Sem Wy_top, so a vertical.
+    M em kN.m ; W em m3 -> sigma em MPa. Retorna dict."""
+    sig_x = (M_fad / Wx) / 1000.0                   # kN/m2 -> MPa (vertical)
+    sig_y = (frac_lat * M_lat / Wy_top) / 1000.0 if (Wy_top and Wy_top > 0) else 0.0
+    sig_sr = sig_x + sig_y                          # soma simples na fibra do topo
+    sig_rd = faixa_admissivel_fadiga(cat, N)
+    return {"sigma_sr": sig_sr, "sigma_sr_x": sig_x, "sigma_sr_y": sig_y,
+            "sigma_rd": sig_rd, "cat": cat, "N": N,
+            "u_fadiga": sig_sr / sig_rd if sig_rd > 0 else float("inf"),
+            "ok": sig_sr <= sig_rd + 1e-9}
+
+
 def verifica_viga_rolamento(sec, fy, cfg):
     """Viga de rolamento (perfil I) sob carga movel + surto lateral - NBR 8800.
 
@@ -125,23 +168,39 @@ def verifica_viga_rolamento(sec, fy, cfg):
         else:                                         # 1 roda no meio
             flecha = Pk * L ** 3 / (48.0 * cfg["E_Ix"])
         flecha_ok = flecha <= L / lim
+    # FADIGA (NBR 8800 Anexo K + B.7.3.4): vertical + 50% da lateral (surto) na
+    # fibra da mesa superior. Wx do perfil ; Wy_top do banzo superior (surto no
+    # topo do trilho). M_fad = Msdx e M_lat = Msdy (caracteristicos com impacto).
+    Wx = sec.get("Wx", sec["Ix"] / (sec.get("d", sec.get("h", 1.0)) / 2.0))
+    fad = verifica_fadiga(Msdx, Wx, cfg.get("cat_fadiga", "B"),
+                          cfg.get("n_ciclos", 2.0e6),
+                          M_lat=Msdy, Wy_top=Wy_top,
+                          frac_lat=cfg.get("frac_fadiga_lat", 0.5))
     return {"tipo": "viga_rolamento", "nome": cfg.get("nome", "Viga de rolamento"),
             "L": L, "Msdx": Msdx, "Msdy": Msdy, "Mrdx": Mrdx, "Mrdy": Mrdy,
             "M_gov": gov, "inter": inter, "u_x": Msdx / Mrdx, "u_y": Msdy / Mrdy,
             "flecha_mm": None if flecha is None else flecha * 1000.0,
-            "flecha_lim": lim, "flecha_ok": flecha_ok,
-            "OK": inter <= 1.0 and (flecha_ok in (None, True)),
-            "fadiga_flag": "FADIGA (NBR 8800 Anexo K) a verificar para ciclos "
-                           "elevados (ponte pesada/siderurgica) - dado do regime."}
+            "flecha_lim": lim, "flecha_ok": flecha_ok, "fadiga": fad,
+            "OK": inter <= 1.0 and (flecha_ok in (None, True)) and fad["ok"],
+            "fadiga_flag": ("FADIGA (Anexo K + B.7.3.4) cat.%s N=%.0e: sig_SR=%.0f "
+                            "(vert %.0f + 50%% lat %.0f) <= sig_adm=%.0f MPa (u=%.2f). "
+                            "Categoria do DETALHE real (enrijecedor/trilho/solda) e "
+                            "nciclos do regime (NBR 8400) = A CONFIRMAR." %
+                            (fad["cat"], fad["N"], fad["sigma_sr"], fad["sigma_sr_x"],
+                             fad["sigma_sr_y"], fad["sigma_rd"], fad["u_fadiga"]))}
 
 
 def reacao_no_portico(R_roda_max, n_rodas_lado, H_transv_roda, H_long_trilho,
-                      excentricidade):
-    """Empacota a reacao da viga de rolamento para o PORTICO (console/pilar).
-    R_vert = soma das rodas no trilho ; M_exc = R_vert * excentricidade (trilho
-    fora do eixo do pilar) ; H_transv e H_long entram na analise/contraventamento."""
-    R_vert = R_roda_max * n_rodas_lado
-    return {"R_vertical_kN": R_vert, "M_excentrico_kNm": R_vert * excentricidade,
+                      excentricidade, R_roda_min=None):
+    """Reacoes da ponte no PORTICO (2 colunas do vao). Retorna dict com:
+    R_vert_max = reacao no trilho mais carregado (coluna de apoio do trole)
+    R_vert_min = reacao no trilho oposto
+    M_exc = R_vert_max * excentricidade (fora do eixo do pilar)
+    H_transv e H_long entram na analise/contraventamento."""
+    Rv_max = R_roda_max * n_rodas_lado
+    Rv_min = (R_roda_min if R_roda_min else R_roda_max) * n_rodas_lado
+    return {"R_vertical_kN": Rv_max, "R_vertical_min_kN": Rv_min,
+            "M_excentrico_kNm": Rv_max * excentricidade,
             "H_transversal_kN": H_transv_roda * n_rodas_lado,
             "H_longitudinal_kN": H_long_trilho}
 
@@ -168,8 +227,9 @@ def relatorio_pt(esf, viga, reac):
                  f"{'OK' if viga['flecha_ok'] else 'NAO'}")
     L += [f"    >> {viga['fadiga_flag']}",
           "-" * 70, "  REACAO NO PORTICO (console/pilar):",
-          f"    R_vertical = {reac['R_vertical_kN']:.1f} kN ; M_excentrico = "
-          f"{reac['M_excentrico_kNm']:.1f} kN.m",
+          f"    R_vert,max (col 1) = {reac['R_vertical_kN']:.1f} kN ; "
+          f"R_vert,min (col 2) = {reac.get('R_vertical_min_kN', reac['R_vertical_kN']):.1f} kN",
+          f"    M_excentrico = {reac['M_excentrico_kNm']:.1f} kN.m",
           f"    H_transversal = {reac['H_transversal_kN']:.1f} kN ; H_longitudinal = "
           f"{reac['H_longitudinal_kN']:.1f} kN",
           "    (entram na analise do portico e no contraventamento longitudinal)",
@@ -196,10 +256,12 @@ def analisa(cfg):
             "d_rodas": cfg.get("d_rodas", 0.0), "cap_kN": cfg["Q"],
             "siderurgica": cfg.get("siderurgica", False), "phi": phi,
             "Lb": cfg.get("Lb", cfg["vao_viga"]), "E_Ix": cfg.get("E_Ix"),
+            "cat_fadiga": cfg.get("cat_fadiga", "B"),          # detalhe (Tab.K.1)
+            "n_ciclos": cfg.get("n_ciclos", 2.0e6),            # regime (NBR 8400)
             "nome": "Viga de rolamento"}
     viga = verifica_viga_rolamento(cfg["perfil_viga"], cfg["fy"], vcfg)
     reac = reacao_no_portico(Rmx, cfg["n_rodas_lado"], Ht, Hl,
-                             cfg.get("excentricidade", 0.30))
+                             cfg.get("excentricidade", 0.30), R_roda_min=Rmn)
     return esf, viga, reac
 
 
@@ -223,6 +285,20 @@ def _selftest():
     assert esf["R_roda_max"] > esf["R_roda_min"]
     assert viga["Msdx"] > 0 and viga["inter"] > 0
     assert reac["R_vertical_kN"] > 0 and reac["M_excentrico_kNm"] > 0
+    # FADIGA (Anexo K): faixa admissivel e a formula K.4 conferidas contra o PDF
+    import math as _m
+    assert abs(faixa_admissivel_fadiga("A", 2e6) - max((327.0*250e8/2e6)**(1/3), 165.0)) < 1e-6
+    assert faixa_admissivel_fadiga("C", 1e5) > 69.0            # poucos ciclos -> > sigma_TH
+    assert abs(faixa_admissivel_fadiga("E", 1e9) - 31.0) < 1e-6   # muitos ciclos -> piso sigma_TH
+    fad = viga["fadiga"]
+    # B.7.3.4: vertical + 50% da lateral no banzo superior (Wy_top = Wy/2 fallback)
+    Wy_top = VS500["Wy"] / 2.0
+    sr_exp = (viga["Msdx"]/VS500["Wx"])/1000.0 + 0.5*viga["Msdy"]/Wy_top/1000.0
+    assert abs(fad["sigma_sr"] - sr_exp) < 1e-6, (fad["sigma_sr"], sr_exp)
+    assert fad["sigma_sr_y"] > 0 and fad["sigma_sr"] > fad["sigma_sr_x"]   # lateral entra
+    assert fad["ok"] and 0 < fad["u_fadiga"] < 1.0            # VS500 passa a fadiga
+    # categoria pior (E') aperta a faixa admissivel
+    assert faixa_admissivel_fadiga("E'", 2e6) < faixa_admissivel_fadiga("B", 2e6)
     print("\n[selftest] OK")
 
 
