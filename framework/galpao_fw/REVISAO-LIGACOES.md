@@ -216,3 +216,35 @@ layout — e os mínimos de detalhamento são checados. Regras **lidas do PDF**:
 confirma a coluna de borda. Selftest: `db20`, `s=60 mm ≥ 2,7·20=54` OK, livre
 `60−21,5=38,5 ≥ 20` OK, `lf=min(35−10,75; 60−21,5)=24,25 mm`; `s=45<54` reprova.
 Não-regressivo: sem `s_furos`/`e_borda`, usa o `lf` explícito (ex. da terça).
+
+---
+
+## 10. Rasgamento em bloco (6.5.6) — feature adicionada 2026-07-08
+
+> **STATUS: 🆕 PENDENTE SÊNIOR.** Fecha o FLAG 2 (§7.4) do rasgamento em bloco.
+> O efeito alavanca (T-stub/prying) permanece FLAG — é método da EN 1993-1-8, fora
+> do escopo da NBR 8800.
+
+Colapso por rasgamento em bloco (NBR 8800 **6.5.6**, lido verbatim do PDF, pg.96):
+
+```
+F_r,Rd = (0,60·fu·Anv + Cts·fu·Ant)/γa2  ≤  (0,60·fy·Agv + Cts·fu·Ant)/γa2
+```
+
+- **Agv** = área bruta ao cisalhamento; **Anv** = área líquida ao cisalhamento;
+  **Ant** = área líquida à tração; **Cts** = 1,0 (tração uniforme) / 0,5 (não).
+- `block_shear(Agv, Anv, Ant, fy, fu, Cts)` — fórmula pura (áreas = geometria do
+  bloco de falha, que o responsável define pelo percurso).
+- `block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu)` — conveniência
+  para o caso comum (1 linha de n parafusos tracionada, chapa de nó/barra): 1 plano
+  de cisalhamento `Lgv = e_long + (n−1)·s_furos`, n furos subtraídos no cisalhamento,
+  tração transversal `e_transv − dh/2`. **FLAG:** o percurso de falha é uma hipótese
+  do caso típico; outros arranjos (dupla linha, cantoneira, viga recortada) o
+  engenheiro define as áreas e chama `block_shear` diretamente.
+
+Selftest: `block_shear` confere ruptura×escoamento (min); `block_shear_linha`
+(3Φ20, s=60, e_long=35) confere `Lgv=155 mm`. **PASSED**.
+
+FLAGs remanescentes de `ligacoes.py`: **efeito alavanca (T-stub, EN 1993-1-8)** —
+fora do escopo NBR; e a **Tabela 14** (furo-borda) que segue como confirmação do
+responsável (nota (a) remete ao 6.3.3.3, já calculado).

@@ -59,6 +59,44 @@ def _diam_furo(db):
     return db + 0.0015
 
 
+def block_shear(Agv, Anv, Ant, fy, fu, Cts=1.0):
+    """Colapso por RASGAMENTO EM BLOCO (NBR 8800 6.5.6). Soma da resistencia ao
+    cisalhamento de linha(s) de falha + tracao no segmento perpendicular:
+
+      F_r,Rd = (0,60*fu*Anv + Cts*fu*Ant)/ga2  <=  (0,60*fy*Agv + Cts*fu*Ant)/ga2
+
+    Agv = area BRUTA ao cisalhamento ; Anv = area LIQUIDA ao cisalhamento ;
+    Ant = area LIQUIDA a tracao ; Cts = 1,0 (tracao uniforme na area liquida) ou
+    0,5 (nao-uniforme). Areas em m2, fy/fu em kN/m2. Retorna dict (Frd em kN).
+    As AREAS vem da geometria do bloco de falha (o responsavel define o percurso)."""
+    r_rup = (0.60 * fu * Anv + Cts * fu * Ant) / GA2      # ruptura ao cisalhamento
+    r_esc = (0.60 * fy * Agv + Cts * fu * Ant) / GA2      # escoamento ao cisalhamento
+    Frd = min(r_rup, r_esc)
+    return {"Frd": Frd, "r_ruptura": r_rup, "r_escoamento": r_esc,
+            "governa": "ruptura ao cisalhamento" if r_rup <= r_esc else "escoamento ao cisalhamento",
+            "Agv": Agv, "Anv": Anv, "Ant": Ant, "Cts": Cts}
+
+
+def block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu, Cts=1.0):
+    """Rasgamento em bloco para o caso comum: 1 LINHA de n parafusos tracionada
+    (chapa de no / barra tracionada), com UM plano de cisalhamento (ao longo da
+    linha) + tracao no segmento transversal na extremidade. Percurso assumido
+    (FLAG - o responsavel confirma para outros arranjos):
+      - comprimento ao cisalhamento Lgv = e_long + (n-1)*s_furos (borda -> ultimo furo)
+      - furos no plano de cisalhamento = n (subtrai n*dh na area liquida)
+      - tracao transversal Lnt = e_transv (subtrai 1/2 furo)
+    e_long = distancia do 1o furo a borda na direcao da forca ; e_transv = distancia
+    do furo a borda transversal. Unidades m. Retorna o dict de block_shear."""
+    dh = _diam_furo(db)
+    Lgv = e_long + (n - 1) * s_furos
+    Agv = Lgv * t
+    Anv = (Lgv - n * dh) * t
+    Ant = max(e_transv - 0.5 * dh, 0.0) * t
+    r = block_shear(Agv, max(Anv, 0.0), Ant, fy, fu, Cts)
+    r.update(Lgv=Lgv, dh=dh, n=n)
+    return r
+
+
 def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
     """Detalhamento geometrico dos furos (NBR 8800 6.3.9/6.3.10/6.3.11) e a
     distancia livre 'lf' DERIVADA da geometria (alimenta o esmagamento 6.3.3.3).
@@ -293,6 +331,16 @@ def _selftest():
     p = parafusos({"n": 4, "db": 0.020, "fub": 825e3, "t_chapa": 0.0125,
                    "fu_chapa": 400e3, "V": 200.0, "s_furos": 0.060, "e_borda": 0.035})
     assert p["espacamento"] is not None and abs(p["lf"] - esp["lf"]) < 1e-9
+    # rasgamento em bloco (6.5.6): F_r,Rd = min(0,6fu*Anv+Cts*fu*Ant ; 0,6fy*Agv+Cts*fu*Ant)/ga2
+    bs = block_shear(Agv=6e-4, Anv=4e-4, Ant=2e-4, fy=250e3, fu=400e3, Cts=1.0)
+    rup = (0.60 * 400e3 * 4e-4 + 1.0 * 400e3 * 2e-4) / 1.35
+    esc = (0.60 * 250e3 * 6e-4 + 1.0 * 400e3 * 2e-4) / 1.35
+    assert abs(bs["Frd"] - min(rup, esc)) < 1e-6, bs
+    assert bs["governa"] in ("ruptura ao cisalhamento", "escoamento ao cisalhamento")
+    # helper de linha: 3 furos db20, s=60, e_long=35, e_transv=40, t=12,5
+    bl = block_shear_linha(3, 0.060, 0.035, 0.040, 0.020, 0.0125, 250e3, 400e3)
+    Lgv = 0.035 + 2 * 0.060
+    assert abs(bl["Lgv"] - Lgv) < 1e-9 and bl["Frd"] > 0
     print("ligacoes self-test PASSED")
     print(f"  Fv,Rd(d16, fub800) = {fv_rd(0.016,800e3):.1f} kN")
     print(f"  Fw,Rd filete 6mm x 200mm (fw=485) metal = {Fw:.1f} kN")
