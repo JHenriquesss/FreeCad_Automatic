@@ -205,8 +205,7 @@ reto requerido. **Informativo por default** — não reprova o OK (só com
 `gate_ancoragem=True` + `h_embed` insuficiente). Razão: a aderência de **barra
 lisa** é conservadora e **subestima** o gancho/placa, que transferem por
 **mecânica** (cone/bearing). Esse cone de arrancamento e o efeito de **grupo**
-(ACI 318 Ch.17) **permanecem FLAG** do projeto de fundação — não há ACI no acervo
-`pesquisa/aço/` para citar rigorosamente, e a aderência NBR sozinha não os cobre.
+(ACI 318 Ch.17) são agora **calculados** em separado — ver **§10**.
 
 Ex. (base HEA200, Ft,Sd=63,2 kN, d20 liso, fck25): `f_bd=1,28 MPa`, `lb=848 mm`,
 `lb,nec=593 mm` (α=0,7) — ou seja, chumbador liso reto precisaria de ~59 cm de
@@ -217,6 +216,64 @@ informativa).
 
 > **Limite honesto:** esta verificação é a ancoragem por **aderência** (NBR 6118).
 > O modo que costuma **governar** o chumbador — **cone de arrancamento do
-> concreto** e **grupo** (ACI 318 Ch.17) — continua fora, remetido ao projeto de
-> fundação. O que se fechou: o framework deixou de ser omisso no lado do concreto
-> e passou a entregar o **embutimento requerido** por aderência.
+> concreto** e **grupo** — está agora em **§10** (ACI 318 Ch.17, método CCD).
+
+---
+
+## 10. Cone de arrancamento do concreto — grupo (ACI 318 Ch.17, método CCD)
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: as
+> equações do CCD lidas do PDF (Nilson cap.21 = ACI 318 Ch.17), o **isolamento de
+> unidades** (US interno ↔ SI no contorno), a área projetada de grupo `A_Nc`, e o
+> caráter **informativo/opt-in** (geometria do bloco é do projeto de fundação).
+
+Fecha o modo de ruptura do **concreto** que a aderência (§9) não cobre. Como **não
+há ACI 318 no acervo** `pesquisa/aço/`, a fonte é **Nilson, _Design of Concrete
+Structures_, 15ª ed., cap. 21**, que **reproduz o ACI 318 Ch.17** (método CCD) —
+lido do PDF, **não de memória**. O ACI é escrito em **unidades US** (lb, in, psi);
+para preservar as **constantes exatas** (`kc=24`, `A_Nco=9h_ef²`, `N_p=8·A_brg·f'c`,
+`N_sb=160…`, `1,9·f_ya`) a rotina **converte a entrada SI → US no contorno**,
+calcula, e devolve kN (mesmo padrão de isolamento da punção da fundação).
+
+**Modos de ruptura na tração** (o menor governa; o aço já é coberto pela NBR 8800):
+
+- **Breakout do grupo (21.6):**
+  - `N_b = k_c·λ_a·√f'c·h_ef^1,5` (Eq. 21.1; `k_c=24` cast-in); alternativa profunda
+    `N_b = 16·λ_a·√f'c·h_ef^(5/3)` para `11 ≤ h_ef ≤ 25 in` (21.2);
+  - `A_Nco = 9·h_ef²` (21.9b); `A_Nc` = área projetada do grupo (expande o retângulo
+    dos ancoras por `min(1,5h_ef; borda)` em cada face — Fig. 21.10);
+  - `ψ_ec,N = 1/(1+2e'_N/(3h_ef)) ≤ 1` (Tab. 21.6); `ψ_ed,N = 1` se `c_a,min ≥ 1,5h_ef`
+    senão `0,7+0,3·c_a,min/(1,5h_ef)` (Tab. 21.5); `ψ_c,N = 1,0` fissurado / `1,25`
+    não-fissurado cast-in (Tab. 21.4); `ψ_cp,N = 1,0` (cast-in);
+  - `N_cbg = (A_Nc/A_Nco)·ψ_ec·ψ_ed·ψ_c·ψ_cp·N_b` (21.6).
+- **Pullout (21.9/10/11):** headed `N_p = 8·A_brg·f'c`; **gancho J/L** `N_p =
+  0,9·f'c·e_h·d_a` (`3d_a ≤ e_h < 4,5d_a`); `ψ_c,p = 1,0` fissurado / `1,4` não;
+  `N_pn = ψ_c,p·N_p`.
+- **Side-face blowout (21.12):** `N_sb = 160·c_a1·√A_brg·λ_a·√f'c`, só quando
+  `h_ef > 2,5·c_a1` (embutimento profundo perto da borda), com modificador de canto.
+
+**φ (Tab. 21.1):** breakout cast-in Cond. B (**sem** armadura suplementar) **0,70**,
+Cond. A (**com**) 0,75; pullout/side-face 0,70. `cap = φ·N` de cada modo; governa o
+menor. Demanda `N_ua = Ft,Sd,ancora · n_tração`.
+
+**Validação (selftest #6, entrada SI reproduzindo Nilson):** Ex. 21.3 — 6 studs
+½″, `h_ef=4″`, `s1=5″`, `s2=4,5″`, `c_a1=8″` (>1,5h_ef), fissurado, 5000 psi →
+`N_b=13,58 kip (60,4 kN)`, `A_Nc/A_Nco=357/144=2,479`, **`N_cbg`nom `= 33,7 kip
+(149,7 kN)`**. Ex. 21.6 — `A_brg=0,589 in²` → **`N_png = 141,4 kip (628,9 kN)`**.
+Ambos batem → **isolamento de unidades provado**.
+
+**Opt-in / informativo:** só roda com `caso["cone_geom"]` (`h_ef`, `n_x/n_y`,
+`s_x/s_y`, `c_a1/c_a2`, fissuração, reforço) — a geometria do bloco/pedestal e o
+detalhe da cabeça/gancho são **do projeto de fundação** (Ask, Do Not Invent). Não
+gateia o `OK` por default (só com `gate_cone=True`).
+
+> **Nota física:** para **chumbador de gancho** (nosso caso) o `N_p = 0,9·f'c·e_h·d_a`
+> costuma **governar** e dar baixa capacidade — é o próprio recado do ACI: gancho
+> tem pullout ruim; capacidade real de tração vem de **cabeça/placa de ancoragem**
+> ou **armadura de ancoragem** (17.4.2.9), que transfere a carga por barras. O
+> exemplo HEA200 reprova por pullout (u=3,3), sinalizando exatamente isso.
+>
+> **Limites:** o cortante (breakout/pryout na direção do V) fica como refinamento;
+> a **armadura de ancoragem** (que dispensa o breakout, 17.4.2.9) e a interação
+> tração-cortante (21.16) não estão automatizadas. Fonte é Nilson/CCD (equivalente
+> ao ACI 318M SI); o responsável confirma a geometria e o detalhe do gancho/cabeça.

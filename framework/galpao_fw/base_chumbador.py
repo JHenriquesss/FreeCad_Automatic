@@ -18,9 +18,11 @@
 #     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4).
 #   - Espessura da placa por flexao em balanco (modelo de mesa em balanco).
 #   - Ancoragem do chumbador no concreto por ADERENCIA (NBR 6118 9.4.2): produz o
-#     embutimento reto requerido lb,nec (informativo/requisito, como t_req). O CONE
-#     DE ARRANCAMENTO e o efeito de GRUPO (ACI 318 Ch.17) seguem do projeto de
-#     fundacao (FLAG - a aderencia sozinha subestima o gancho/placa mecanico).
+#     embutimento reto requerido lb,nec (informativo/requisito, como t_req).
+#   - CONE DE ARRANCAMENTO do concreto e efeito de GRUPO (ACI 318 Ch.17, metodo CCD
+#     via Nilson cap.21): breakout Ncbg + pullout Npn + side-face Nsb do grupo
+#     tracionado (opt-in via cone_geom - a geometria do bloco de fundacao e do
+#     projeto de fundacao). Informativo; gateia so se gate_cone=True.
 # Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
@@ -103,6 +105,128 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     return r
 
 
+# ---- ACI 318 Ch.17 (metodo CCD) - cone de arrancamento do concreto -----------
+# Fonte: Nilson, "Design of Concrete Structures" 15th ed., Cap.21 (reproduz o ACI
+# 318 Ch.17), lido do PDF em pesquisa/aco/ (NAO de memoria). O ACI e escrito em
+# unidades US (lb, in, psi); para preservar as CONSTANTES EXATAS das equacoes
+# (kc=24, ANco=9hef^2, Np=8Abrg fc', Nsb=160..., 1.9 fya) a rotina converte a
+# ENTRADA SI (m, kN, kN/m2) -> US no contorno, calcula, e devolve kN.
+_IN_PER_M = 39.37007874          # 1 m  -> in
+_PSI_PER_KPA = 0.14503773773     # 1 kN/m2 (=kPa) -> psi
+_KN_PER_LB = 0.004448221615      # 1 lb -> kN
+
+
+def cone_arrancamento_aci(Ft_sd_por_ancora, n_tracao, db, hef, fck,
+                          s_x, s_y, n_x, n_y, ca1, ca2,
+                          fyk=250e3, fissurado=True, com_reforco=False,
+                          gancho=True, eh=None, A_brg=None, lam_a=1.0):
+    """Verificacao do CONE DE ARRANCAMENTO do concreto (ACI 318 Ch.17, metodo CCD)
+    para o GRUPO de chumbadores tracionados de uma base. Fecha o modo de ruptura do
+    concreto que a ancoragem por aderencia (NBR 6118) NAO cobre.
+
+    Modos de ruptura na TRACAO (o menor governa; NBR 8800 ja cobre o aco):
+      - Breakout do grupo (Ncbg)  Eq.21.6:
+          Nb   = kc*lam_a*sqrt(fc')*hef^1.5   (kc=24 cast-in)          [21.1]
+          ANco = 9*hef^2 ; ANc = area projetada do grupo (limitada por 1.5hef/borda)
+          psi_ec,N = 1/(1+2 e'N/(3 hef)) <= 1                          [Tab.21.6]
+          psi_ed,N = 1 se ca,min>=1.5hef senao 0,7+0,3*ca,min/(1.5hef) [Tab.21.5]
+          psi_c,N  = 1,0 fissurado / 1,25 nao-fissurado cast-in        [Tab.21.4]
+          psi_cp,N = 1,0 (cast-in)
+          Ncbg = (ANc/ANco)*psi_ec*psi_ed*psi_c*psi_cp*Nb
+      - Pullout (Npn)  Eq.21.9/21.10/21.11:
+          headed: Np = 8*Abrg*fc' ; hooked (gancho J/L): Np = 0,9*fc'*eh*da
+          psi_c,p = 1,0 fissurado / 1,4 nao-fissurado ; Npn = psi_c,p*Np (por ancora)
+      - Side-face blowout (Nsb)  Eq.21.12: 160*ca1*sqrt(Abrg)*lam_a*sqrt(fc')
+          so quando hef > 2,5*ca1 (embutimento profundo perto da borda).
+
+    phi (Tab.21.1): aco ductil 0,75 ; breakout cast-in Cond.B (SEM armadura
+    suplementar) 0,70 e Cond.A (COM) 0,75 ; pullout/side-face sempre 0,70.
+    Demanda: N_ua = Ft_sd_por_ancora * n_tracao (tracao fatorada do lado tracionado).
+
+    Convencao de grupo: n_x*n_y chumbadores tracionados, espacamentos s_x/s_y (m),
+    distancias de borda ca1 (mais proxima) e ca2 (m). e'N = 0 (default, carga
+    centrada no grupo tracionado). Unidades SI: db,hef,s_x,s_y,ca1,ca2,eh,A_brg em
+    m/m2 ; fck,fyk em kN/m2 ; Ft_sd_por_ancora em kN. Devolve capacidades em kN.
+
+    INFORMATIVO por padrao (nao gateia OK): a geometria do bloco de fundacao
+    (borda/altura) e do detalhe da cabeca/gancho e do projeto de fundacao; o
+    responsavel confirma ca1/ca2/hef/reforco. Devolve ok=None sem geometria."""
+    # ---- SI -> US -----------------------------------------------------------
+    hef_in = hef * _IN_PER_M
+    da_in = db * _IN_PER_M
+    fc_psi = fck * _PSI_PER_KPA
+    s1_in = s_x * _IN_PER_M                       # espacamento em x
+    s2_in = s_y * _IN_PER_M                       # espacamento em y
+    ca1_in = ca1 * _IN_PER_M
+    ca2_in = ca2 * _IN_PER_M
+    sqfc = math.sqrt(fc_psi)
+    kc = 24.0                                     # cast-in (chumbador embutido)
+
+    # ---- Breakout (tracao) --------------------------------------------------
+    # Nb basico (21.1); alternativa profunda (21.2) para 11<=hef<=25 in.
+    Nb = kc * lam_a * sqfc * hef_in ** 1.5
+    if 11.0 <= hef_in <= 25.0:
+        Nb = max(Nb, 16.0 * lam_a * sqfc * hef_in ** (5.0 / 3.0))
+    ANco = 9.0 * hef_in ** 2
+    # Area projetada do grupo: expande o retangulo dos ancoras por min(1.5hef,borda)
+    # em cada face. sx_tot/sy_tot = extensao total do grupo tracionado.
+    infl = 1.5 * hef_in
+    sx_tot = (n_x - 1) * s1_in
+    sy_tot = (n_y - 1) * s2_in
+    largura = min(infl, ca1_in) + sx_tot + infl          # borda so no lado ca1 (x)
+    profund = min(infl, ca2_in) + sy_tot + infl          # borda so no lado ca2 (y)
+    ANc = largura * profund
+    ca_min = min(ca1_in, ca2_in)
+    psi_ed = 1.0 if ca_min >= infl else (0.7 + 0.3 * ca_min / infl)
+    psi_c = 1.0 if fissurado else 1.25                   # cast-in
+    psi_cp = 1.0                                         # cast-in
+    psi_ec = 1.0                                         # e'N=0 (carga centrada)
+    Ncbg_lb = (ANc / ANco) * psi_ec * psi_ed * psi_c * psi_cp * Nb
+
+    # ---- Pullout (por ancora) ----------------------------------------------
+    if gancho:
+        eh_in = (eh * _IN_PER_M) if eh else 3.0 * da_in  # 3da<=eh<4.5da; 3da conserv.
+        Np_lb = 0.9 * fc_psi * eh_in * da_in             # 21.11 hooked
+        Abrg_in2 = None
+    else:
+        if A_brg:
+            Abrg_in2 = A_brg * _IN_PER_M ** 2
+        else:                                            # cabeca de porca sextavada ~1,7db
+            d_head = 1.7 * da_in
+            Abrg_in2 = math.pi * (d_head ** 2 - da_in ** 2) / 4.0
+        Np_lb = 8.0 * Abrg_in2 * fc_psi                  # 21.10 headed
+    psi_cp_pull = 1.0 if fissurado else 1.4
+    Npn_lb = psi_cp_pull * Np_lb
+    Npng_lb = Npn_lb * (n_x * n_y)                       # grupo (soma das ancoras)
+
+    # ---- Side-face blowout (so hef > 2,5 ca1) -------------------------------
+    if hef_in > 2.5 * ca1_in and Abrg_in2 is not None:
+        Nsb_lb = 160.0 * ca1_in * math.sqrt(Abrg_in2) * lam_a * sqfc
+        if ca2_in < 3.0 * ca1_in:                        # modificador de canto
+            Nsb_lb *= (1.0 + max(min(ca2_in / ca1_in, 3.0), 1.0)) / 4.0
+    else:
+        Nsb_lb = float("inf")                            # nao governa (raso/longe da borda)
+
+    # ---- phi + governante ---------------------------------------------------
+    phi_brk = 0.75 if com_reforco else 0.70              # Cond.A / Cond.B (Tab.21.1)
+    phi_pull = 0.70                                      # pullout sempre Cond.B
+    cap_breakout = phi_brk * Ncbg_lb * _KN_PER_LB
+    cap_pullout = phi_pull * Npng_lb * _KN_PER_LB
+    cap_sideface = (phi_pull * Nsb_lb * _KN_PER_LB) if Nsb_lb != float("inf") else float("inf")
+    cap_conc = min(cap_breakout, cap_pullout, cap_sideface)
+    modo = min((("breakout", cap_breakout), ("pullout", cap_pullout),
+                ("side-face", cap_sideface)), key=lambda t: t[1])[0]
+    demanda = Ft_sd_por_ancora * n_tracao
+    r = {"Nb_kN": Nb * _KN_PER_LB, "ANc_ANco": ANc / ANco,
+         "psi_ed": psi_ed, "psi_c": psi_c,
+         "cap_breakout_kN": cap_breakout, "cap_pullout_kN": cap_pullout,
+         "cap_sideface_kN": cap_sideface, "cap_concreto_kN": cap_conc,
+         "modo_governante": modo, "demanda_kN": demanda, "hef_m": hef}
+    r["u_cone"] = demanda / cap_conc if cap_conc > 0 else float("inf")
+    r["ok_cone"] = cap_conc >= demanda - 1e-9
+    return r
+
+
 def placa_sob_NM(N, M, B, L, sig_rd, d_anchor):
     """Metodo da excentricidade (AISC DG1). N>0 compressao. Retorna a tracao
     total T nos chumbadores do lado tracionado e a extensao Y do bloco de
@@ -178,6 +302,23 @@ def verifica_base(caso):
                               h_embed=caso.get("h_embed"))
     r["ancoragem"] = anc
 
+    # cone de arrancamento (ACI 318 Ch.17) - opt-in: so quando o caso traz a
+    # geometria do bloco de fundacao (borda/altura/espacamento), que e do projeto
+    # de fundacao. Informativo; gateia OK so se caso["gate_cone"]=True.
+    cone = None
+    if caso.get("cone_geom"):
+        g = caso["cone_geom"]
+        cone = cone_arrancamento_aci(
+            Ft_sd, g.get("n_tracao", n_t), db,
+            g.get("hef", caso.get("h_embed", 0.30)), fck,
+            s_x=g["s_x"], s_y=g["s_y"], n_x=g["n_x"], n_y=g["n_y"],
+            ca1=g["ca1"], ca2=g["ca2"],
+            fissurado=g.get("fissurado", True),
+            com_reforco=g.get("com_reforco", False),
+            gancho=caso.get("com_gancho", True), eh=g.get("eh"),
+            A_brg=g.get("A_brg"))
+    r["cone"] = cone
+
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
     r["sigma_max"] = sig_max
@@ -228,9 +369,14 @@ def verifica_base(caso):
     ok_anc_gate = True
     if caso.get("gate_ancoragem", False) and anc["ok_anc"] is False:
         ok_anc_gate = False
+    # cone: informativo por default; gateia so se gate_cone=True e reprovar.
+    ok_cone_gate = True
+    if caso.get("gate_cone", False) and cone is not None and cone["ok_cone"] is False:
+        ok_cone_gate = False
     r["OK"] = (r["interacao"] <= 1.0 and r["u_corte"] <= 1.0 and
                r["u_concreto"] <= 1.0 + 1e-9 and r["Y_cabe"] and
-               (r["t_placa"] is None or r["t_placa"] >= t_req) and ok_anc_gate)
+               (r["t_placa"] is None or r["t_placa"] >= t_req) and ok_anc_gate and
+               ok_cone_gate)
     return r
 
 
@@ -256,10 +402,21 @@ def relatorio_pt(r, caso):
          f"(balanco {r['c_bal']*1000:.0f} mm) ; lado tracionado t={r['t_trac']*1000:.1f} mm "
          f"(braco {r['x_trac']*1000:.0f} mm) -> t_req={r['t_placa_req']*1000:.1f} mm"
          + (f" ; t_adotada={r['t_placa']*1000:.0f} mm" if r['t_placa'] else ""),
-         f"  -> {'OK' if r['OK'] else 'NAO PASSA'}",
-         "  [FLAG] Ancoragem por ADERENCIA verificada (NBR 6118 9.4.2). O CONE DE",
-         "         ARRANCAMENTO do concreto e o efeito de GRUPO (ACI 318 Ch.17)",
-         "         permanecem do projeto de fundacao - NAO cobertos aqui."]
+         f"  -> {'OK' if r['OK'] else 'NAO PASSA'}"]
+    c = r.get("cone")
+    if c is not None:
+        tag = ("OK" if c["ok_cone"] else
+               "REPROVA - aumentar hef/borda/n, cabeca/gancho (pullout) ou reforco de ancoragem")
+        L += [f"  Cone de arrancamento (ACI 318 Ch.17): governa {c['modo_governante']} ; "
+              f"cap.concreto={c['cap_concreto_kN']:.0f} kN vs demanda={c['demanda_kN']:.0f} "
+              f"kN -> u={c['u_cone']:.2f} [{tag}]",
+              f"         (breakout={c['cap_breakout_kN']:.0f} ; pullout={c['cap_pullout_kN']:.0f}"
+              + ("" if c['cap_sideface_kN'] == float('inf') else f" ; side-face={c['cap_sideface_kN']:.0f}")
+              + f" kN ; ANc/ANco={c['ANc_ANco']:.2f} ; psi_ed={c['psi_ed']:.2f})"]
+    else:
+        L += ["  [FLAG] Ancoragem por ADERENCIA verificada (NBR 6118 9.4.2). O CONE DE",
+              "         ARRANCAMENTO do concreto e o efeito de GRUPO (ACI 318 Ch.17)",
+              "         seguem do projeto de fundacao (passar cone_geom para calcular)."]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -386,6 +543,25 @@ def _selftest():
     # sem gancho (alpha=1,0) exige mais que com gancho
     a2 = ancoragem_chumbador(126.3, 0.020, 25e3, 250e3, com_gancho=False, h_embed=0.30)
     assert a2["lb_nec"] >= a["lb_nec"] - 1e-12
+    # 6) Cone ACI 318 Ch.17 - reproduz Nilson Ex.21.3 (breakout) e 21.6 (pullout)
+    #    via ENTRADA SI, provando o isolamento de unidades (US interno).
+    #    Ex.21.3: 6 studs 1/2", hef=4", s1=5", s2=4.5", ca1=ca2=8" (>1.5hef), fc=5000
+    #    psi, fissurado -> Ncbg nominal = 33,7 kips = 149,7 kN (Nb=13,58 kip, ANc/ANco
+    #    =357/144=2,479). Ex.21.6: Abrg=0,589 in^2 -> Npng = 141,4 kips = 628,9 kN.
+    IN = 0.0254
+    fc_si = 5000.0 / _PSI_PER_KPA                     # 5000 psi -> kN/m2
+    c = cone_arrancamento_aci(50.0, 6, 0.5 * IN, 4.0 * IN, fc_si,
+                              s_x=5.0 * IN, s_y=4.5 * IN, n_x=2, n_y=3,
+                              ca1=8.0 * IN, ca2=8.0 * IN, fissurado=True,
+                              com_reforco=False,             # Cond.B -> phi=0,70
+                              gancho=False, A_brg=0.589 * IN ** 2)
+    assert abs(c["Nb_kN"] - 60.4) < 1.0, c["Nb_kN"]   # 13.576 lb -> 60,4 kN
+    assert abs(c["ANc_ANco"] - 2.479) < 1e-2, c["ANc_ANco"]
+    Ncbg_nom = c["cap_breakout_kN"] / 0.70            # remove phi -> nominal
+    assert abs(Ncbg_nom - 149.7) < 1.5, Ncbg_nom      # 33,7 kips
+    Npng_nom = c["cap_pullout_kN"] / 0.70
+    assert abs(Npng_nom - 628.9) < 3.0, Npng_nom      # 141,4 kips
+    assert c["psi_ed"] == 1.0 and c["psi_c"] == 1.0   # ca>1,5hef ; fissurado
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")
@@ -402,6 +578,12 @@ CASO_EXEMPLO_ENGASTE = {
     "beff_tracao": 0.200,                     # largura efetiva lado tracionado
     "fy_placa": 250e3, "t_placa": 0.025, "rosca_no_plano": True,
     "fyk_chumbador": 250e3, "com_gancho": True, "h_embed": 0.30,   # ancoragem 9.4.2
+    # cone ACI 318 Ch.17 (EXEMPLO - geometria do bloco de fundacao; a skill pergunta):
+    # 2 chumbadores tracionados lado a lado (n_x=2, s_x=0,30), 1 fila (n_y=1);
+    # bloco/pedestal dando borda ca1=ca2=0,15 m ; hef=embutimento=0,30 m ; fissurado.
+    "cone_geom": {"n_tracao": 2, "hef": 0.30, "n_x": 2, "n_y": 1,
+                  "s_x": 0.30, "s_y": 0.0, "ca1": 0.15, "ca2": 0.15,
+                  "fissurado": True, "com_reforco": False},
 }
 
 
