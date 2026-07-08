@@ -25,6 +25,7 @@ import tercas_iteracao as ti
 import base_chumbador as bc
 import fundacao_sapata as fs
 import junta_dilatacao as jd
+import sismo_nbr15421 as sismo
 import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
@@ -304,6 +305,19 @@ def rodar(params, out_dir):
     save("gate7-junta-dilatacao.txt", jd.relatorio_pt(rj))
     res["junta_dilatacao"] = {"L_max_m": rj["L_max_junta"], "precisa": rj["precisa_junta"],
                               "n_juntas": rj["n_juntas"], "delta_mm": rj["delta_segmento_mm"]}
+
+    # Acao sismica (NBR 15421) - metodo das forcas horizontais equivalentes.
+    # zona/classe/sistema/I/peso = dados do sitio (a skill confirma). Default zona
+    # 0 -> dispensado (maior parte do Brasil). peso_efetivo_kN so exigido em zona>1.
+    ps = params.get("sismo", {})
+    rs = sismo.verifica_sismo(
+        W=ps.get("peso_efetivo_kN", 0.0), zona=ps.get("zona", 0),
+        classe=ps.get("classe_terreno", "C"), sistema=ps.get("sistema", "aco_momento"),
+        I=ps.get("I", 1.0), hn=ps.get("hn", g.get("ridge")), ag=ps.get("ag"))
+    save("gate7-sismo.txt", sismo.relatorio_pt(rs))
+    res["sismo"] = {"zona": rs["zona"], "categoria": rs["categoria"],
+                    "dispensado": rs.get("dispensado"), "H_kN": rs.get("H"),
+                    "Cs": rs.get("Cs")}
     if dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]
