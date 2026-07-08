@@ -138,10 +138,13 @@ fictícia do beiral captura a força lateral, idêntico ao vento) e no envelope 
    interno típico. Empenas/pórticos de extremidade têm ½ da largura; o valor é
    **conservador** para o interno. FLAG para o engenheiro confirmar a distribuição.
 2. **Peso efetivo W** (8.7.2) = entrada do sítio; a força escala linearmente nele.
-3. **Sem P-Δ sísmico dedicado (θ, 9.6)** — a amplificação B1/B2 (Anexo D NBR 8800)
-   já roda sobre a combinação C6, mas o `θ` da NBR 15421 9.6 não é verificado.
+3. **P-Δ sísmico (θ, 9.6) implementado** — `deslocamento_theta` calcula δx=Cd·δxe/I
+   (9.5) e θ=Px·Δx/(Hx·hsx·Cd) (9.6): θ<0,10 dispensa 2ª ordem; 0,1<θ≤θmax=0,5/Cd≤0,25
+   amplifica por 1/(1−θ); θ>θmax = instável. δxe = drift do beiral sob o caso sísmico
+   característico (do pórtico). Ref zona 4/pêndulo: θ=0,022 → dispensada.
 4. **Direção**: só a transversal (plano do pórtico). A longitudinal (contraventos)
-   e a combinação ortogonal 100/30 (se exigida) ficam fora.
+   e a combinação ortogonal **100/30** (só cat. C com irregularidade de plano Tipo 3,
+   8.5 — exige modelo 3D) ficam fora — FLAG, não aplicável ao galpão regular.
 5. Reversível ±E cobre os dois sentidos; o pior entra no envelope.
 
 ### 6.4 — Não-regressão

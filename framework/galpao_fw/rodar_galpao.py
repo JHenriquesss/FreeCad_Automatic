@@ -377,12 +377,29 @@ def rodar(params, out_dir):
 
     # Acao sismica (NBR 15421) - ja calculada no inicio (rs) e injetada no envelope
     # do portico como combinacao excepcional (C6). Aqui so gera o memorial + resumo.
-    save("gate7-sismo.txt", sismo.relatorio_pt(rs) + (
-        f"\n\n>> Forca de calculo por portico (cortante de piso, vao tributario "
-        f"{g['bay']:.1f} m / {g.get('comprimento', 2 * g['span']):.1f} m):\n"
-        f"   E = {E_frame:.1f} kN, aplicada no beiral -> combinacao EXCEPCIONAL C6\n"
-        f"   (1,2G+-E desfav / 1,0G+-E fav ; sem vento e sem Q, NBR 15421 5.4)."
-        if E_frame > 1e-9 else "\n\n>> Zona sem exigencia -> nao entra no envelope."))
+    extra = ""
+    if E_frame > 1e-9:
+        comp = g.get("comprimento", 2 * g["span"])
+        extra = (f"\n\n>> Forca de calculo por portico (cortante de piso, vao tributario "
+                 f"{g['bay']:.1f} m / {comp:.1f} m):\n"
+                 f"   E = {E_frame:.1f} kN, aplicada no beiral -> combinacao EXCEPCIONAL C6\n"
+                 f"   (1,2G+-E desfav / 1,0G+-E fav ; sem vento e sem Q, NBR 15421 5.4).")
+        # Efeitos de 2a ordem (9.6): coeficiente de estabilidade theta
+        Cd = sismo.SISTEMA_R.get(ps.get("sistema", "aco_momento"), (0, 0, 3.0))[2]
+        d_xe = gp.analyse().get("drift_sismo", 0.0)
+        Px = (rs.get("W", 0.0) or 0.0) * g["bay"] / comp        # vertical servico tributario
+        dt = sismo.deslocamento_theta(d_xe, Cd=Cd, I=ps.get("I", 1.0),
+                                      Px=Px, Hx=E_frame, hsx=g["eave"])
+        extra += (f"\n>> Deslocamentos (9.5) e 2a ordem (9.6): delta_xe={d_xe*1000:.1f} mm ; "
+                  f"delta_x=Cd*delta_xe/I={dt['delta_x']*1000:.1f} mm (Cd={Cd})\n"
+                  f"   theta = Px*Dx/(Hx*hsx*Cd) = {dt['theta']:.4f} "
+                  f"(theta_max={dt['theta_max']:.3f}) -> {dt['situacao']}\n"
+                  f"   fator de amplificacao de 2a ordem = {dt['amplif_2a_ordem']:.3f}")
+        res["sismo_theta"] = {"theta": dt["theta"], "amplif": dt["amplif_2a_ordem"],
+                              "dispensa": dt["dispensa_2a_ordem"], "ok": dt["ok"]}
+    else:
+        extra = "\n\n>> Zona sem exigencia -> nao entra no envelope."
+    save("gate7-sismo.txt", sismo.relatorio_pt(rs) + extra)
     res["sismo"] = {"zona": rs["zona"], "categoria": rs["categoria"],
                     "dispensado": rs.get("dispensado"), "H_kN": rs.get("H"),
                     "Cs": rs.get("Cs"), "E_portico_kN": round(E_frame, 2)}

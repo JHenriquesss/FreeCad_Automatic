@@ -279,6 +279,11 @@ def analyse():
     for cs in ("W1", "W2"):
         dv = combo_d({cs: 1.0})
         drift = max(drift, abs(dv[3 * ix["nEaveL"]]), abs(dv[3 * ix["nEaveR"]]))
+    # drift lateral do beiral sob o caso SISMICO caracteristico (delta_xe da NBR 15421)
+    drift_sismo = 0.0
+    if SISMO:
+        ds = cases_d["SISMO"]
+        drift_sismo = max(abs(ds[3 * ix["nEaveL"]]), abs(ds[3 * ix["nEaveR"]]))
     dvert = combo_d({"G": 1.0, "Q": 1.0})
     ridge_v = abs(dvert[3 * ix["nRidge"] + 1])
     # Limites de deslocamento lateral (NBR 8800, Anexo C). H/300 e para porticos
@@ -286,7 +291,7 @@ def analyse():
     # (sem elementos frageis) admite-se H/200 ou H/150 (Bellei, Anexo C nota).
     lims = {"H/300": EAVE / 300.0, "H/250": EAVE / 250.0,
             "H/200": EAVE / 200.0, "H/150": EAVE / 150.0}
-    return {"wind": wr, "results": res, "drift": drift,
+    return {"wind": wr, "results": res, "drift": drift, "drift_sismo": drift_sismo,
             "drift_lims": lims, "drift_ref": "H/150", "ridge_v": ridge_v}
 
 

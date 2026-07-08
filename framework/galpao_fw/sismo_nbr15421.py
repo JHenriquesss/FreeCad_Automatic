@@ -179,6 +179,30 @@ def verifica_sismo(W, zona, classe="C", sistema="aco_momento", I=1.0,
     return r
 
 
+def deslocamento_theta(delta_xe, Cd, I, Px, Hx, hsx):
+    """Deslocamentos (9.5) e efeitos de 2a ordem (9.6), NBR 15421.
+    delta_xe = deslocamento lateral do pavimento na analise ESTATICA sob a forca
+    sismica (9.3) ; Cd = amplificacao de deslocamentos (Tab.6) ; I = importancia ;
+    Px = forca vertical em SERVICO no pavimento (gamma=1,0) ; Hx = cortante sismico
+    do pavimento ; hsx = altura do pavimento. Retorna deslocamento amplificado,
+    coeficiente de estabilidade theta e o fator de amplificacao de 2a ordem."""
+    delta_x = Cd * delta_xe / I                       # 9.5: deslocamento absoluto
+    drift = delta_x                                   # galpao 1 nivel: Delta_x = delta_x
+    theta = (Px * drift) / (Hx * hsx * Cd) if (Hx * hsx * Cd) > 0 else 0.0
+    theta_max = min(0.5 / Cd, 0.25)                   # 9.6 (beta=1 conservador)
+    if theta < 0.10:
+        amplif = 1.0; situacao = "2a ordem DISPENSADA (theta < 0,10)"
+    elif theta <= theta_max:
+        amplif = 1.0 / (1.0 - theta); situacao = "amplificar por 1/(1-theta)"
+    else:
+        amplif = 1.0 / (1.0 - theta); situacao = "theta > theta_max: ESTRUTURA INSTAVEL (redimensionar)"
+    return {"delta_xe": delta_xe, "Cd": Cd, "I": I, "delta_x": delta_x,
+            "drift": drift, "Px": Px, "Hx": Hx, "hsx": hsx, "theta": round(theta, 4),
+            "theta_max": round(theta_max, 4), "amplif_2a_ordem": round(amplif, 4),
+            "dispensa_2a_ordem": theta < 0.10, "ok": theta <= theta_max,
+            "situacao": situacao}
+
+
 def relatorio_pt(r):
     L = ["=" * 70, "ACAO SISMICA - NBR 15421:2023 (forcas horizontais equivalentes)",
          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 70, "",
@@ -240,6 +264,15 @@ def _selftest():
                         I=1.0, hn=8.0)
     assert abs(r3["H"] - r3["Cs"] * 1000.0) < 1e-9 and r3["H"] > 0
     assert abs(r3["Cs"] - cs_plato) < 1e-6
+    # 5) deslocamento + theta (9.5/9.6). Cd=3, I=1, delta_xe=0,01 m, Px=200, Hx=50, h=6
+    dt = deslocamento_theta(0.01, Cd=3.0, I=1.0, Px=200.0, Hx=50.0, hsx=6.0)
+    assert abs(dt["delta_x"] - 3.0 * 0.01 / 1.0) < 1e-9, dt        # 0,03 m
+    theta = (200.0 * 0.03) / (50.0 * 6.0 * 3.0)
+    assert abs(dt["theta"] - round(theta, 4)) < 1e-6, dt          # = 0,00667
+    assert dt["dispensa_2a_ordem"] and abs(dt["theta_max"] - min(0.5 / 3.0, 0.25)) < 1e-3
+    # theta na faixa 0,1..max -> amplifica
+    dt2 = deslocamento_theta(0.05, Cd=3.0, I=1.0, Px=500.0, Hx=30.0, hsx=6.0)
+    assert dt2["theta"] >= 0.10 and abs(dt2["amplif_2a_ordem"] - 1.0 / (1.0 - dt2["theta"])) < 1e-3, dt2
     print("sismo_nbr15421 self-test PASSED")
     print(f"  zona3 D aco-momento hn8: Ta={r3['T']:.3f}s ; Cs={r3['Cs']:.4f} ; "
           f"H={r3['H']:.1f} kN (W=1000)")
