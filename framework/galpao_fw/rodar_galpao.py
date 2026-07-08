@@ -25,6 +25,7 @@ import redimensionamento as redim
 import tercas_iteracao as ti
 import base_chumbador as bc
 import fundacao_sapata as fs
+import viga_baldrame as vbal
 import junta_dilatacao as jd
 import sismo_nbr15421 as sismo
 import ligacoes as lg
@@ -333,6 +334,21 @@ def rodar(params, out_dir):
     dims = fs.dimensiona_sapata_env(sap, casos_base)
     save("gate7-fundacao.txt", dims["tabela"])
 
+    # Gate 7 - VIGA DE BALDRAME / AMARRACAO entre sapatas (NBR 6118). Amarra as
+    # sapatas e absorve a reacao HORIZONTAL da base (empuxo do portico) como tracao;
+    # baldrame sob a parede de fechamento. N_amarracao = max|V| da base no envelope.
+    if params.get("baldrame"):
+        V_base_max = max(abs(v) for _, _, v, _ in casos_base)
+        bd = dict(params["baldrame"])
+        bd.setdefault("vao", g["bay"])
+        bd.setdefault("N_amarracao", round(V_base_max, 2))
+        bd.setdefault("fck", sap.get("fck", 25e3)); bd.setdefault("fyk", sap.get("fyk", 500e3))
+        rbd = vbal.verifica_baldrame(bd)
+        save("gate7-baldrame.txt", vbal.relatorio_pt(rbd))
+        res["baldrame"] = {"secao": f"{rbd['b']*100:.0f}x{rbd['h']*100:.0f}",
+                           "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
+                           "ok": rbd["OK"]}
+
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
                            base_fixa=params.get("base_fixed", True),
@@ -415,6 +431,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
+             ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt")]
     try:
         import framework as FW
@@ -503,6 +520,11 @@ PARAMS_REF = {
                  "h_reaterro": 0.5, "d_ped": 0.30, "b_ped": 0.30, "h_ped": 0.50,
                  "fck": 25e3, "fyk": 500e3, "cobrimento": 0.05, "phi_barra": 0.0125,
                  "gamma_f": 1.4},
+    # Viga de baldrame / amarracao (NBR 6118). vao e N_amarracao (reacao horiz.
+    # da base) auto do modelo se omitidos; q_parede = alvenaria de fechamento
+    # (0 = so telha). Secao b x h e A CONFIRMAR.
+    "baldrame": {"b": 0.20, "h": 0.40, "cobrimento": 0.05, "q_parede": 0.0,
+                 "continuidade": "simples"},
     "joelho": {"tipo": "parafusos", "n": 4, "db": 0.024, "fub": 825e3,
                "t_chapa": 0.0125, "fu_chapa": 400e3, "lf": 0.040, "rosca_no_plano": True},
     "clip_terca": {"nome": "Chapa de terca (2 M12) - excecao", "tipo": "parafusos",
