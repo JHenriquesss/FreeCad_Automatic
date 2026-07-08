@@ -27,6 +27,9 @@
 #     ATRITO (Vat,Rd=min(0,7 mu Nc; 0,2 fck Y B), mu=0,55) -> se sobrar, CHUMBADOR
 #     (Vca,Sd=VSd-Vat) e/ou dimensiona a CHAVETA (barra de cisalhamento: hbc, tbc,
 #     sigma_bc<=sig_c,Rd). Informativo (credita atrito so se atrito_cortante=True).
+#   - EDGE BREAKOUT no cisalhamento (ACI 318 Ch.17 / Nilson cap.21): quando o V vai
+#     aos chumbadores perto da borda -> Vcbg (21.7/8) + pryout Vcp (21.14). Opt-in
+#     (cone_geom com ca1/ca2/h_bloco); informativo.
 # Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
@@ -231,6 +234,74 @@ def cone_arrancamento_aci(Ft_sd_por_ancora, n_tracao, db, hef, fck,
     return r
 
 
+def edge_breakout_cisalhamento_aci(V_sd, n_borda, db, hef, fck, ca1, ca2, ha,
+                                   s_par=0.0, n_par=1, fissurado=True,
+                                   com_reforco=False, le=None, ncbg_kN=None,
+                                   paralelo=False, lam_a=1.0):
+    """Concrete Edge Breakout no CISALHAMENTO (ACI 318 Ch.17 / Nilson cap.21).
+    Complementa o cone de tracao: quando o cortante e resistido pelos chumbadores
+    perto da borda do pedestal, o concreto pode 'estourar' a borda empurrado pela
+    ancora. Mesmo isolamento de unidades (US interno <- SI no contorno).
+
+    Modos (o menor governa):
+      - Edge breakout Vcbg (21.7/21.8):
+          Vb = (7*(le/da)^0,2*sqrt(da))*lam*sqrt(fc')*ca1^1,5  <= 9*lam*sqrt(fc')*ca1^1,5
+               (le = comprimento de apoio ao cisalhamento = hef, <= 8*da)   [21.3/21.4]
+          AVco = 4,5*ca1^2 ; AVc = area projetada na face livre (largura x altura,
+                 altura = min(1,5ca1, ha))                                   [Fig.21.10]
+          psi_ed,V = 1 se ca2>=1,5ca1 senao 0,7+0,3*ca2/(1,5ca1)            [Tab.21.5]
+          psi_c,V  = 1,0 fissurado / 1,4 nao-fissurado cast-in              [Tab.21.4]
+          psi_h,V  = sqrt(1,5ca1/ha) >= 1 (ha < 1,5ca1)                     [21.4d]
+          Vcbg = (AVc/AVco)*psi_ed*psi_c*psi_h*Vb ; cortante PARALELO a borda = 2x.
+      - Pryout Vcpg = kcp*Ncbg (21.14/15): kcp = 1 (hef<2,5in) / 2 (>=2,5in). So
+        calculado se ncbg_kN (breakout de TRACAO do grupo) for passado.
+
+    phi (Tab.21.1): breakout cast-in Cond.B 0,70 / Cond.A 0,75 ; pryout 0,70.
+    V_sd = cortante de calculo no grupo junto a borda (kN). Unidades SI: m/kN/kN-m2.
+    INFORMATIVO/opt-in (geometria do bloco = projeto de fundacao)."""
+    da_in = db * _IN_PER_M
+    hef_in = hef * _IN_PER_M
+    ca1_in = ca1 * _IN_PER_M
+    ca2_in = ca2 * _IN_PER_M
+    ha_in = ha * _IN_PER_M
+    s_in = s_par * _IN_PER_M
+    fc_psi = fck * _PSI_PER_KPA
+    sqfc = math.sqrt(fc_psi)
+    le_in = (le * _IN_PER_M) if le else min(hef_in, 8.0 * da_in)
+
+    Vb = (7.0 * (le_in / da_in) ** 0.2 * math.sqrt(da_in)) * lam_a * sqfc * ca1_in ** 1.5
+    Vb = min(Vb, 9.0 * lam_a * sqfc * ca1_in ** 1.5)          # teto 21.4
+    AVco = 4.5 * ca1_in ** 2
+    altura = min(1.5 * ca1_in, ha_in)
+    largura = min(1.5 * ca1_in, ca2_in) + (n_par - 1) * s_in + 1.5 * ca1_in
+    AVc = largura * altura
+    infl = 1.5 * ca1_in
+    psi_ed = 1.0 if ca2_in >= infl else (0.7 + 0.3 * ca2_in / infl)
+    psi_c = 1.0 if fissurado else 1.4
+    psi_h = math.sqrt(infl / ha_in) if ha_in < infl else 1.0
+    Vcbg_lb = (AVc / AVco) * psi_ed * psi_c * psi_h * Vb
+    if paralelo:
+        Vcbg_lb *= 2.0                                       # 17.5.2.1
+    phi_brk = 0.75 if com_reforco else 0.70
+    cap_breakout = phi_brk * Vcbg_lb * _KN_PER_LB
+
+    # pryout (precisa do Ncbg de tracao)
+    if ncbg_kN is not None:
+        kcp = 2.0 if hef_in >= 2.5 else 1.0
+        cap_pryout = 0.70 * kcp * ncbg_kN                    # ncbg ja em kN nominal
+    else:
+        cap_pryout = float("inf")
+    cap = min(cap_breakout, cap_pryout)
+    modo = "edge-breakout" if cap_breakout <= cap_pryout else "pryout"
+    r = {"Vb_kN": Vb * _KN_PER_LB, "AVc_AVco": AVc / AVco, "psi_ed": psi_ed,
+         "psi_c": psi_c, "psi_h": psi_h, "cap_breakout_kN": cap_breakout,
+         "cap_pryout_kN": cap_pryout, "cap_cisalhamento_kN": cap,
+         "modo": modo, "demanda_kN": V_sd, "paralelo": paralelo}
+    r["u_edge"] = V_sd / cap if cap > 0 else float("inf")
+    r["ok_edge"] = cap >= V_sd - 1e-9
+    return r
+
+
 # ---- Transferencia de cortante na base (Fakury cap.11 - NBR 8800) ------------
 # Fonte: "Dimensionamento de elementos estruturais de aco e mistos de aco e
 # concreto" (Fakury/Silva/Caldas), cap.11 "Bases de pilar", lido do PDF em
@@ -394,10 +465,24 @@ def verifica_base(caso):
     # (a compressao tem de atuar na MESMA combinacao do cortante) - default: sem
     # credito (conservador, todo V nos chumbadores, como antes).
     N_comp = N if (N and N > 0 and caso.get("atrito_cortante", False)) else 0.0
-    r["cortante"] = transferencia_cortante_base(
+    cv = transferencia_cortante_base(
         abs(V), N_comp, fck, B, (Y if Y else 0.0), sig_rd, n, Fv_rd,
         har=caso.get("h_graute", 0.030), b_chaveta=caso.get("b_chaveta"),
         fy_chaveta=caso.get("fy_chaveta", caso.get("fy_placa", 250e3)))
+    # edge breakout no cisalhamento (ACI Ch.17): so quando o V residual vai aos
+    # CHUMBADORES e ha geometria de bloco (cone_geom + h_bloco). Informativo.
+    if caso.get("cone_geom") and cv.get("mecanismo") == "chumbador":
+        g = caso["cone_geom"]
+        ncbg_nom = (cone["cap_breakout_kN"] / 0.70) if cone else None
+        cv["edge"] = edge_breakout_cisalhamento_aci(
+            cv["V_resid"], g.get("n_tracao", n_t), db,
+            g.get("hef", caso.get("h_embed", 0.30)), fck,
+            ca1=g["ca1"], ca2=g["ca2"], ha=g.get("h_bloco", g.get("hef", 0.40)),
+            s_par=g.get("s_x", 0.0), n_par=g.get("n_x", 1),
+            fissurado=g.get("fissurado", True),
+            com_reforco=g.get("com_reforco", False), ncbg_kN=ncbg_nom,
+            paralelo=caso.get("cortante_paralelo_borda", False))
+    r["cortante"] = cv
 
     # bearing no concreto: na grande excentricidade o bloco esta PLASTIFICADO
     # (sig_max = sig_rd, u=1,0). O criterio geometrico e Y <= L (o bloco cabe).
@@ -511,9 +596,16 @@ def relatorio_pt(r, caso):
                   f"         Chaveta requerida: bbc={ch['bbc']*1000:.0f} mm ; "
                   f"hbc>={ch['hbc_req']*1000:.0f} mm (h_util={ch['h_util']*1000:.0f}) ; "
                   f"tbc>={ch['tbc_req']*1000:.1f} mm ; sigma_bc={ch['sigma_bc']:.0f}<="
-                  f"sig_c,Rd={ch['sig_c_rd']:.0f} kN/m2",
-                  "         [FLAG] Concrete Edge Breakout no cortante (ACI 318 Ch.17) "
-                  "fica do projeto de fundacao se o V for pelos chumbadores."]
+                  f"sig_c,Rd={ch['sig_c_rd']:.0f} kN/m2"]
+            eg = cv.get("edge")
+            if eg is not None:
+                tage = "OK" if eg["ok_edge"] else "REPROVA - afastar da borda/aumentar ca1,hef ou usar chaveta"
+                L += [f"         Edge breakout no cortante (ACI Ch.17): governa "
+                      f"{eg['modo']} ; cap={eg['cap_cisalhamento_kN']:.0f} kN vs "
+                      f"V={eg['demanda_kN']:.0f} kN -> u={eg['u_edge']:.2f} [{tage}]"]
+            else:
+                L += ["         [FLAG] Edge breakout no cortante (ACI Ch.17): passar "
+                      "cone_geom (ca1,ca2,h_bloco) p/ calcular quando V vai aos chumbadores."]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -674,6 +766,23 @@ def _selftest():
     assert t2["chaveta"]["sigma_bc"] <= sig + 1e-6                 # chaveta nao esmaga
     # cortante alto sozinho nos 4 chumbadores estoura o aco -> recomenda chaveta
     assert t2["mecanismo"] in ("chaveta", "chumbador")
+    # 8) Edge breakout no cisalhamento (ACI Ch.17) - Vb do Nilson Ex.21.5
+    #    (da=0,75", hef=4", ca1=8", fc=5000 psi) -> Vb=13,56 kip=60,3 kN ; AVco=4,5ca1^2.
+    e = edge_breakout_cisalhamento_aci(50.0, 1, 0.75 * IN, 4.0 * IN, fc_si,
+                                       ca1=8.0 * IN, ca2=20.0 * IN, ha=16.0 * IN,
+                                       s_par=0.0, n_par=1, fissurado=True)
+    assert abs(e["Vb_kN"] - 60.3) < 0.6, e["Vb_kN"]         # 13,56 kip
+    assert e["psi_ed"] == 1.0 and e["psi_h"] == 1.0         # ca2>=1,5ca1 ; ha>=1,5ca1
+    assert e["cap_pryout_kN"] == float("inf")               # sem Ncbg -> so breakout
+    # ca2 < 1,5ca1 reduz o breakout (psi_ed = 0,7+0,3*ca2/(1,5ca1))
+    ered = edge_breakout_cisalhamento_aci(50.0, 1, 0.75 * IN, 4.0 * IN, fc_si,
+                                          ca1=8.0 * IN, ca2=8.0 * IN, ha=16.0 * IN)
+    assert abs(ered["psi_ed"] - (0.7 + 0.3 * 8.0 / 12.0)) < 1e-9   # = 0,90
+    # com Ncbg de tracao -> pryout kcp=2 (hef=4in>2,5)
+    e2 = edge_breakout_cisalhamento_aci(50.0, 1, 0.75 * IN, 4.0 * IN, fc_si,
+                                        ca1=8.0 * IN, ca2=20.0 * IN, ha=16.0 * IN,
+                                        ncbg_kN=150.0)
+    assert abs(e2["cap_pryout_kN"] - 0.70 * 2.0 * 150.0) < 1e-9
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")
@@ -695,7 +804,7 @@ CASO_EXEMPLO_ENGASTE = {
     # bloco/pedestal dando borda ca1=ca2=0,15 m ; hef=embutimento=0,30 m ; fissurado.
     "cone_geom": {"n_tracao": 2, "hef": 0.30, "n_x": 2, "n_y": 1,
                   "s_x": 0.30, "s_y": 0.0, "ca1": 0.15, "ca2": 0.15,
-                  "fissurado": True, "com_reforco": False},
+                  "h_bloco": 0.60, "fissurado": True, "com_reforco": False},
 }
 
 

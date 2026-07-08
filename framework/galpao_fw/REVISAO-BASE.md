@@ -328,7 +328,46 @@ uplift `Nc=0` → `Vat=0`, residual 120 kN, dimensiona chaveta com `h_bc≥2h_ar
 > **Informativo:** creditar o atrito exige que a **compressão atue na mesma
 > combinação** do cortante — decisão do projetista, por isso o crédito é **opt-in**
 > (`atrito_cortante=True`); por default todo o `V` vai aos chumbadores
-> (conservador, não-regressivo). O **edge breakout no cortante** (ACI 318 Ch.17,
-> quando o `V` é resistido pelos chumbadores perto da borda) permanece **FLAG** do
-> projeto de fundação — as fórmulas do Nilson (`V_b`, `A_Vc/A_Vco`) já estão lidas
-> e podem ser automatizadas numa próxima sprint.
+> (conservador, não-regressivo). O **edge breakout no cortante** é agora
+> **calculado** — ver **§12**.
+
+---
+
+## 12. Edge breakout no cisalhamento (ACI 318 Ch.17, método CCD)
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: `Vb`
+> (21.3/21.4), `A_Vc/A_Vco` (Fig.21.10), `ψ_ed,V`/`ψ_c,V`/`ψ_h,V`, pryout `Vcp`
+> (21.14) e o isolamento de unidades (US↔SI).
+
+Fecha o modo do **concreto no cortante**: quando o `V` é resistido pelos
+**chumbadores** (uplift → sem atrito) perto da borda do pedestal, o concreto pode
+**estourar a borda**. Fonte: **Nilson cap.21 = ACI 318 Ch.17** (CCD), lido do PDF.
+Mesmo isolamento de unidades da tração (§10).
+
+**Modos (o menor governa):**
+- **Edge breakout `Vcbg` (21.7/21.8):**
+  - `V_b = (7·(l_e/d_a)^0,2·√d_a)·λ·√f'c·c_a1^1,5 ≤ 9·λ·√f'c·c_a1^1,5` (21.3/21.4;
+    `l_e = h_ef ≤ 8d_a`);
+  - `A_Vco = 4,5·c_a1²`; `A_Vc` = área na face livre (`largura × altura`,
+    `altura = min(1,5c_a1; h_a)`) — Fig. 21.10;
+  - `ψ_ed,V = 1` se `c_a2 ≥ 1,5c_a1` senão `0,7+0,3·c_a2/(1,5c_a1)`;
+    `ψ_c,V = 1,0` fissurado / `1,4` não; `ψ_h,V = √(1,5c_a1/h_a) ≥ 1` (`h_a<1,5c_a1`);
+  - `V_cbg = (A_Vc/A_Vco)·ψ_ed·ψ_c·ψ_h·V_b`; **cortante paralelo à borda = 2×**
+    (17.5.2.1).
+- **Pryout `Vcp` (21.14):** `V_cpg = k_cp·N_cbg`, `k_cp = 1` (`h_ef<2,5″`) / `2`
+  (`≥2,5″`) — usa o breakout de **tração** do grupo (§10) como `N_cbg`.
+
+φ (Tab.21.1): breakout cast-in Cond. B 0,70 / Cond. A 0,75; pryout 0,70.
+
+**Validação (selftest #8):** Nilson Ex. 21.5 — `d_a=0,75″`, `h_ef=4″`, `c_a1=8″`,
+5000 psi → **`V_b = 13,56 kip = 60,3 kN`** (teto `9·…=14,4 kip` não governa);
+`A_Vco=4,5·8²=288 in²`; `ψ_ed,V(c_a2=8″)=0,7+0,3·8/12=0,90`; pryout `k_cp=2`
+(`h_ef=4″>2,5″`). Isolamento de unidades provado.
+
+**Opt-in:** roda quando o `V` residual vai aos **chumbadores** e o caso traz
+`cone_geom` (`c_a1`, `c_a2`, `h_bloco`). Ex. HEA200 (V=26 kN, `c_a1=0,15 m`):
+`V_cbg` governa, `cap=33 kN` → `u=0,80` OK (borda estreita limita). Informativo.
+
+> **Limites:** `ψ_ec,V` (excentricidade do V) assumido 1 (grupo centrado); a
+> interação **tração-cortante** (21.16) e a **armadura de ancoragem** (17.4.2.9,
+> que dispensa o breakout) continuam fora. Geometria do bloco = projeto de fundação.

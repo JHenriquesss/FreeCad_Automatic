@@ -18,7 +18,7 @@ os FLAGS/pendências.
 | 4 | Vento | [REVISAO-VENTO.md](REVISAO-VENTO.md) | NBR 6123 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
 | 5 | Terças (formado a frio) | [REVISAO-TERCAS.md](REVISAO-TERCAS.md) | NBR 14762 | ✅ HOMOLOGADO (r2, 2026-07-06) — §8/§9 |
 | 6 | Secundários (longarina/escora/montante) | [REVISAO-SECUNDARIOS.md](REVISAO-SECUNDARIOS.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
-| 7 | Base (placa + chumbadores) | [REVISAO-BASE.md](REVISAO-BASE.md) | NBR 8800 + AISC DG1 + ACI 318 | ✅ **100% HOMOLOGADO** · ancoragem §9 · cone ACI §10 · cortante-tríade §11 (2026-07-08) |
+| 7 | Base (placa + chumbadores) | [REVISAO-BASE.md](REVISAO-BASE.md) | NBR 8800 + AISC DG1 + ACI 318 | ✅ HOMOLOGADO §9-§11 · 🆕 edge breakout cortante §12 (2026-07-08) PENDENTE |
 | 8 | Ligações (joelho/parafusos) | [REVISAO-LIGACOES.md](REVISAO-LIGACOES.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §7/§8 |
 | 9 | Ponte rolante | [REVISAO-PONTE.md](REVISAO-PONTE.md) | NBR 8800 + NBR 8400 | ✅ **100% HOMOLOGADO** · fadiga Anexo K §9 + 50% lateral B.7.3.4 §9.1 (2026-07-08) |
 | 10 | Mão-francesa / Lb | [REVISAO-MAO-FRANCESA.md](REVISAO-MAO-FRANCESA.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6 |
@@ -55,9 +55,9 @@ de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vi
 FreeCAD (0 interferências / 0 conexões suspeitas). Módulo não-matemático; sem doc
 de método, mas registrado no `wiki/04-decisions.md` (D7).
 
-Ainda **em aberto** (análise de lacunas): cone ACI — cortante (breakout/pryout do
-V) + armadura de ancoragem (17.4.2.9) + interação T-V (21.16); fundações profundas
-(estaca/tubulão). **Sismo (NBR 15421 §14) — HOMOLOGADO.**
+Ainda **em aberto** (análise de lacunas): armadura de ancoragem (ACI 17.4.2.9) +
+interação T-V (21.16); fundações profundas (estaca/tubulão). **Cone ACI cortante
+(edge breakout §12) e sismo (§14) — implementados.**
 
 ---
 
