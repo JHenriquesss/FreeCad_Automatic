@@ -26,6 +26,7 @@ import tercas_iteracao as ti
 import base_chumbador as bc
 import fundacao_sapata as fs
 import viga_baldrame as vbal
+import estaca_profunda as ep
 import junta_dilatacao as jd
 import sismo_nbr15421 as sismo
 import ligacoes as lg
@@ -349,6 +350,19 @@ def rodar(params, out_dir):
                            "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
                            "ok": rbd["OK"]}
 
+    # Gate 7 - FUNDACAO PROFUNDA (opcional): estaca (Aoki-Velloso) + bloco de
+    # coroamento. So roda com params["estaca"] (escolha de sitio: sondagem SPT).
+    # N_pilar = maior reacao vertical de compressao na base (envelope).
+    if params.get("estaca"):
+        N_pilar = max(abs(n) for _, n, _, _ in casos_base)
+        ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
+        ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
+        re_ = ep.verifica_estaca(ecfg)
+        save("gate7-estaca.txt", ep.relatorio_pt(re_))
+        res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
+                         "P_adm_kN": re_["capacidade"]["P_adm_kN"],
+                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1)}
+
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
                            base_fixa=params.get("base_fixed", True),
@@ -432,6 +446,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
+             ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt")]
     try:
         import framework as FW

@@ -28,6 +28,7 @@ os FLAGS/pendências.
 | 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 · 🆕 sismo→envelope excepcional §6 (5.4 / NBR 8681, 2026-07-08) PENDENTE |
 | 15 | Telha de cobertura (vão × carga) | [REVISAO-TELHA.md](REVISAO-TELHA.md) | NBR 14762 | 🆕 PENDENTE (2026-07-08) — §1-§6 |
 | 16 | Viga de baldrame / amarração | [REVISAO-BALDRAME.md](REVISAO-BALDRAME.md) | NBR 6118 | 🆕 PENDENTE (2026-07-08) — §1-§6 |
+| 17 | Fundação profunda (estaca + bloco) | [REVISAO-ESTACA.md](REVISAO-ESTACA.md) | Aoki-Velloso / NBR 6122 / NBR 6118 | 🆕 PENDENTE (2026-07-08) — §1-§5 |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`
@@ -56,15 +57,19 @@ citação normativa do PDF + selftest. **TODAS HOMOLOGADAS (2026-07-07/08):**
 | 🆕 Telha de cobertura (vão × carga) | telha (novo) | NBR 14762 | [TELHA](REVISAO-TELHA.md) — PENDENTE |
 | 🆕 Sismo → envelope (combinação excepcional) | pórtico/estab./base | NBR 15421 5.4 / NBR 8681 | [SISMO §6](REVISAO-SISMO.md) — PENDENTE |
 | 🆕 Viga de baldrame / amarração entre sapatas | baldrame (novo) | NBR 6118 | [BALDRAME](REVISAO-BALDRAME.md) — PENDENTE |
+| 🆕 Fundação profunda (estaca Aoki-Velloso + bloco) | estaca (novo) | Aoki-Velloso / NBR 6122 / 6118 | [ESTACA](REVISAO-ESTACA.md) — PENDENTE |
 
 **Fixes de geometria do build 3D** (calha invertida, telha sobre as terças, chapa
 de ápice, regra de auditoria da calha) — `build_galpao.py`, verificados ao vivo no
 FreeCAD (0 interferências / 0 conexões suspeitas). Módulo não-matemático; sem doc
 de método, mas registrado no `wiki/04-decisions.md` (D7).
 
-Ainda **em aberto** (análise de lacunas): **fundações profundas** (estaca/tubulão)
-— única grande. Base **100 % completa nos modos do concreto** (§9-§13); armadura de
-ancoragem entra como WARNING (hairpin) ao projeto de fundação.
+**Análise de lacunas ENCERRADA** (2026-07-08): fechadas as 3 pequenas (furos,
+Cpe local, telha), as 2 médias (sismo→envelope, baldrame) e a **grande** (fundação
+profunda — estaca Aoki-Velloso + bloco). Resíduos como FLAG documentado:
+Décourt-Quaresma (2º método de estaca, cross-check), verificação de biela/punção do
+bloco, e efeitos de grupo/atrito negativo da estaca — trabalhos futuros, não
+bloqueiam. Base **100 % completa nos modos do concreto** (§9-§13).
 
 ---
 
