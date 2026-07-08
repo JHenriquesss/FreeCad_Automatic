@@ -59,6 +59,32 @@ def _diam_furo(db):
     return db + 0.0015
 
 
+# Tabela 14 (NBR 8800) - distancia minima do centro de furo-padrao a borda [mm],
+# por diametro db [mm]: (borda cortada com serra/tesoura ; borda laminada ou cortada
+# a macarico). Linhas em pol convertidas p/ mm nominal. LIDO do PDF (pg.94).
+_TAB14 = [(12.7, 22.0, 19.0), (16.0, 29.0, 22.0), (19.05, 32.0, 26.0),
+          (20.0, 35.0, 27.0), (22.0, 38.0, 29.0), (24.0, 42.0, 31.0),
+          (25.4, 44.0, 32.0), (27.0, 50.0, 38.0), (30.0, 53.0, 39.0),
+          (31.75, 57.0, 42.0), (36.0, 64.0, 46.0)]
+
+
+def dist_min_borda(db, borda_cortada=True, baixa_solicitacao=False):
+    """Distancia minima do centro do furo a borda (NBR 8800 Tabela 14). db em m.
+    borda_cortada=True -> coluna serra/tesoura ; False -> laminada/macarico.
+    baixa_solicitacao (nota b): so p/ borda laminada, reduz 3 mm quando Fsd <= 25%
+    da forca resistente. Para db > 36 mm: 1,75 db (cortada) / 1,25 db (laminada).
+    Retorna a distancia minima em m."""
+    dbmm = db * 1000.0
+    if dbmm > 36.0 + 1e-9:
+        e_mm = 1.75 * dbmm if borda_cortada else 1.25 * dbmm
+    else:
+        row = next((r for r in _TAB14 if r[0] >= dbmm - 1e-6), _TAB14[-1])
+        e_mm = row[1] if borda_cortada else row[2]
+        if (not borda_cortada) and baixa_solicitacao:
+            e_mm -= 3.0                              # nota b
+    return e_mm / 1000.0
+
+
 def block_shear(Agv, Anv, Ant, fy, fu, Cts=1.0):
     """Colapso por RASGAMENTO EM BLOCO (NBR 8800 6.5.6). Soma da resistencia ao
     cisalhamento de linha(s) de falha + tracao no segmento perpendicular:
@@ -107,18 +133,20 @@ def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
       - lf (para 6.3.3.3): min(e_borda - dh/2 ; s_furos - dh) (distancia livre do
                furo a borda / ao furo vizinho, na direcao da forca), dh do furo.
 
-    db, s_furos (centro a centro), e_borda (centro-borda), t em m. A Tabela 14
-    (distancia minima de furo a borda) e FLAG - o responsavel confirma a coluna
-    (borda cortada x laminada) pois a extracao tabular e ambigua; o ESTADO-LIMITE
-    de resistencia e o esmagamento 6.3.3.3 (nota a da Tabela 14). Retorna dict."""
+    db, s_furos (centro a centro), e_borda (centro-borda), t em m. borda_cortada:
+    True = serra/tesoura ; False = laminada/macarico (Tabela 14). A distancia minima
+    furo-borda (6.3.11 / Tabela 14) AGORA e verificada; o estado-limite de resistencia
+    segue o esmagamento 6.3.3.3 (nota a). Retorna dict."""
     dh = _diam_furo(db)
     s_min = 2.7 * db                                 # 6.3.9 (pref 3 db)
     livre_furos = s_furos - dh                       # distancia livre entre furos
     lf_borda = e_borda - dh / 2.0                    # livre furo-extremidade
     lf_inter = s_furos - dh                          # livre furo-furo
     lf = max(min(lf_borda, lf_inter), 0.0)
+    e_min_borda = dist_min_borda(db, borda_cortada)  # 6.3.11 / Tabela 14
     r = {"dh": dh, "s_min_2p7db": s_min, "s_furos": s_furos, "e_borda": e_borda,
          "livre_furos": livre_furos, "lf": lf,
+         "e_min_borda": e_min_borda, "ok_borda_t14": e_borda >= e_min_borda - 1e-9,
          "ok_espac": s_furos >= s_min - 1e-9,
          "ok_livre": livre_furos >= db - 1e-9,       # distancia livre >= db
          "ok_borda_livre": lf_borda >= 0.0}
@@ -126,8 +154,11 @@ def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
         s_max = min(24.0 * t, 0.300)                 # 6.3.10 a) pintado
         r["s_max"] = s_max
         r["ok_s_max"] = s_furos <= s_max + 1e-9
+        e_max = min(12.0 * t, 0.150)                 # 6.3.12 distancia MAXIMA a borda
+        r["e_max_borda"] = e_max
+        r["ok_e_max"] = e_borda <= e_max + 1e-9
     r["OK"] = r["ok_espac"] and r["ok_livre"] and r["ok_borda_livre"] and \
-        r.get("ok_s_max", True)
+        r["ok_borda_t14"] and r.get("ok_s_max", True) and r.get("ok_e_max", True)
     return r
 
 
@@ -323,7 +354,14 @@ def _selftest():
     assert esp["ok_espac"]                          # 60 >= 2,7*20=54 mm
     assert esp["ok_livre"]                          # 60-21,5=38,5 >= 20 mm
     assert abs(esp["lf"] - min(0.035 - 0.0215 / 2, 0.060 - 0.0215)) < 1e-9
-    assert esp["OK"]
+    # Tabela 14 (6.3.11): db=20 borda cortada -> e_min=35 mm ; e_borda=35 -> OK
+    assert abs(dist_min_borda(0.020, borda_cortada=True) - 0.035) < 1e-9
+    assert abs(dist_min_borda(0.020, borda_cortada=False) - 0.027) < 1e-9
+    assert abs(dist_min_borda(0.040, borda_cortada=True) - 1.75 * 0.040) < 1e-9  # >36mm
+    assert esp["ok_borda_t14"] and esp["OK"]
+    # e_borda insuficiente pela Tabela 14 reprova (db24 cortada precisa 42 mm)
+    esp3 = verifica_espacamento(0.024, s_furos=0.070, e_borda=0.035, t=0.0125)
+    assert not esp3["ok_borda_t14"] and not esp3["OK"]      # 35 < 42 mm
     # espacamento apertado reprova (s < 2,7 db)
     esp2 = verifica_espacamento(0.020, s_furos=0.045, e_borda=0.030)
     assert not esp2["ok_espac"] and not esp2["OK"]  # 45 < 54 mm

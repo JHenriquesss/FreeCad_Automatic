@@ -210,12 +210,14 @@ layout — e os mínimos de detalhamento são checados. Regras **lidas do PDF**:
   extremidade / ao furo vizinho), `d_h = db + 1,5 mm` (furo-padrão, Tabela 12).
   Alimenta `Fc,Rd = min(1,2·lf·t·fu; 2,4·db·t·fu)/γa2` (já existente).
 
-**Tabela 14 (distância furo-borda) fica FLAG:** a extração tabular é ambígua
-(colunas borda cortada × laminada) e a **nota (a) da própria Tabela 14** remete ao
-**6.3.3.3** como estado-limite de resistência — que já é calculado. O engenheiro
-confirma a coluna de borda. Selftest: `db20`, `s=60 mm ≥ 2,7·20=54` OK, livre
-`60−21,5=38,5 ≥ 20` OK, `lf=min(35−10,75; 60−21,5)=24,25 mm`; `s=45<54` reprova.
-Não-regressivo: sem `s_furos`/`e_borda`, usa o `lf` explícito (ex. da terça).
+**Tabela 14 (distância furo-borda) — AGORA verificada** (2026-07-08, era FLAG). Lida
+do PDF (pg.94) via imagem, por db [mm] → (borda cortada serra/tesoura ; laminada/
+maçarico): 16→29/22 · 20→35/27 · 22→38/29 · 24→42/31 · 27→50/38 · 30→53/39 · 36→64/46
+· >36 mm → 1,75db/1,25db. Nota (b): coluna laminada reduz 3 mm se Fsd ≤ 25 % Frd.
+`dist_min_borda(db, borda_cortada)` + gate `ok_borda_t14 = e_borda ≥ e_min`. Também
+entra a **distância MÁXIMA** furo-borda (6.3.12): `e_borda ≤ min(12t; 150 mm)`.
+Selftest: `db20 s=60 ≥ 54` OK, livre `38,5 ≥ 20` OK, `lf=24,25 mm`, `e_min=35` OK;
+`db24 e_borda=35<42` reprova. Não-regressivo (joelho usa escada, não gate geométrico).
 
 ---
 
