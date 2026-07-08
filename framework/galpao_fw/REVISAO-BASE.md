@@ -181,9 +181,12 @@ Módulo `base_chumbador.py` liberado.
 
 ## 9. Ancoragem do chumbador no concreto (NBR 6118 9.4.2) — feature adicionada 2026-07-07
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (pós-homologação r2). A conferir:
-> `fbd` (9.3.2.1, η1=1,0 barra lisa), `lb` (9.4.2.4), `lb,nec` (9.4.2.5, α gancho),
-> o caráter **informativo** (não gateia) e o **limite honesto** (cone/grupo ACI fora).
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior refez o exemplo (HEA200,
+> Ft,Sd=63,2 kN, φ20 liso, fck25): `fctm=2,565 → fctk,inf=1,795 → fctd=1,282 →
+> fbd=1,28 MPa` (exato); `lb=(φ/4)(fyd/fbd)` com `fyd=250/1,15=217,4 MPa` → 848 mm;
+> `lb,nec=0,7·848=593 mm` (todos batem). Confirmou o **caráter informativo** (barra
+> lisa tem aderência ruim; transferência real é mecânica pela porca/arruela no
+> fundo → cone ACI 318 Ch.17) como a decisão madura. Sem erro. Liberado.
 
 Fecha a lacuna do **lado do concreto** (o módulo só tinha aço/placa/bearing). A
 ligação de base agora calcula o **comprimento de ancoragem por aderência** do
