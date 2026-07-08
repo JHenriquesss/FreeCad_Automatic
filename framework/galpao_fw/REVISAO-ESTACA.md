@@ -46,6 +46,20 @@ estaca = **Tabela 12.7**. Ambas **lidas do PDF** (Veloso & Lopes 2012 / Aoki-Vel
 | Escavada | 3,0 | 6,0 |
 | Raiz / hélice / ômega | 2,0 | 4,0 |
 
+### Décourt-Quaresma (1978) — cross-check (Tab.12.12 / 12.13, verbatim)
+
+2º método independente, para conferir o Aoki-Velloso:
+```
+q_ponta = C·N_p          (C em tf/m², ×10 → kPa)   ; R_ponta = q_ponta·A_ponta
+r_lateral = (N_méd/3 + 1)·10  kPa  (3 ≤ N ≤ 50, independe do solo)
+R_ult = R_ponta + R_lateral      ;  P_adm = R_ult / FS
+```
+**Tab.12.12 C [tf/m²]:** argila 12 · silte argiloso 20 · silte arenoso 25 · areia 40.
+**Tab.12.13 (= N/3+1):** N≤3→2 · 6→3 · 9→4 · 12→5 · N≥15→6 tf/m². N_méd = média
+ponderada de N ao longo do fuste embutido. Os 15 solos de Aoki são mapeados nos 4
+grupos de Décourt (`_grupo_decourt`). No exemplo, Décourt dá R_ult 20 % **abaixo**
+do Aoki (banda típica de dispersão entre métodos — os dois entram no relatório).
+
 ---
 
 ## 2. Número de estacas + bloco de coroamento
@@ -65,6 +79,14 @@ As = T / f_yd                        (f_yd = f_yk/1,15)
 Implementado para blocos **simétricos de 2 ou 4 estacas**. Reaproveita o concreto
 de `fundacao_sapata` (`rho_min`).
 
+### Tração / arranque (uplift) — NBR 6122
+
+Para o galpão, a combinação que governa a base é de **uplift** (sucção do vento) →
+o pilar **arranca**, tracionando a estaca. À tração **só o atrito lateral resiste**
+(a ponta não trabalha): `P_adm,tração = R_lateral / FS_tração` (FS_tração=2,0). O
+orquestrador injeta `N_uplift` = maior reação **negativa** (tração) da base no
+envelope e verifica `N_uplift/n ≤ P_adm,tração`.
+
 ---
 
 ## 3. FLAGS / limites de escopo
@@ -74,15 +96,14 @@ de `fundacao_sapata` (`rho_min`).
 2. **FS = 2,0** (NBR 6122, método semi-empírico **sem prova de carga**) — valor
    global clássico, **configurável** (`FS`). A NBR 6122:2022 admite abordagem por
    fatores parciais; o engenheiro confirma o critério adotado. **A CONFIRMAR.**
-3. **Décourt-Quaresma** como 2º método (cross-check) = **trabalho futuro** — a
-   tabela de C (Tab.12.12) não foi lida com nitidez suficiente no PDF; **não** foram
-   fabricados valores (zero-erro).
+3. **Décourt-Quaresma** implementado como **cross-check** (Tab.12.12/12.13 lidas do
+   PDF). Resta a **2ª versão (α/β, Décourt 1996)** — trabalho futuro.
 4. **Bloco**: entrega o **tirante** (armadura principal). A **biela comprimida**
    (tensão ≤ limite NBR 6118), a **punção** do bloco e a ancoragem do tirante ficam
    **fora deste escopo** — FLAG para o projeto do bloco.
-5. **Atrito negativo, tração/arranque, efeito de grupo** (eficiência) e recalque do
-   grupo **não** tratados — governam em solos moles / estacas tracionadas (o uplift
-   do galpão pode tracionar a estaca: verificar à parte).
+5. **Tração/arranque (uplift)** implementado (atrito lateral / FS_tração). Restam
+   **atrito negativo, efeito de grupo** (eficiência) e recalque do grupo — governam
+   em solos moles / grupos densos; verificar à parte.
 6. Só roda com `params["estaca"]` (escolha deliberada de fundação profunda); a
    referência 20×10 permanece em **sapata** (rasa).
 

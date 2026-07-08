@@ -104,6 +104,61 @@ def _solo(tipo):
     return _K_ALPHA[tipo]
 
 
+# --- Decourt-Quaresma (1978) - Tab.12.12 C [tf/m2] por grupo de solo ------------
+# LIDO do PDF (Veloso & Lopes 2012, pag.281). q_ponta = C*N (tf/m2); em kPa = x10.
+_C_DECOURT = {"argila": 12.0, "silte_argiloso": 20.0, "silte_arenoso": 25.0,
+              "areia": 40.0}
+_TF_KPA = 10.0         # convencao Decourt: 1 tf/m2 ~ 10 kPa
+
+
+def _grupo_decourt(tipo):
+    """Mapeia os 15 solos de Aoki nos 4 grupos de Decourt (Tab.12.12)."""
+    if tipo.startswith("areia"):
+        return "areia"
+    if tipo.startswith("silte"):
+        return "silte_arenoso" if "aren" in tipo else "silte_argiloso"
+    return "argila"                                  # argila* (e demais finos)
+
+
+def capacidade_decourt_quaresma(perfil, D, L, N_ponta=None, fs_global=FS_GLOBAL):
+    """Capacidade da estaca por Decourt-Quaresma (1978, versao inicial). Usado como
+    CROSS-CHECK do Aoki-Velloso. q_ponta = C*N_p ; atrito r_l = N/3+1 (tf/m2, 3<=N<=50,
+    independe do solo, Tab.12.13); R_l usa a MEDIA de N ao longo do fuste embutido.
+    P_adm = R_ult/FS. Unidades: kN. (A 2a versao 1996 com alpha/beta e FLAG futuro.)"""
+    A_ponta = math.pi * D ** 2 / 4.0
+    U = math.pi * D
+    Np = N_ponta if N_ponta is not None else perfil[-1]["N"]
+    Np = max(3.0, min(Np, N_LIMITE))
+    C = _C_DECOURT[_grupo_decourt(perfil[-1]["tipo"])]
+    q_p = C * Np * _TF_KPA                            # kPa
+    R_ponta = q_p * A_ponta
+    # media de N ao longo do fuste embutido (ponderada por dz)
+    somaNz = 0.0; somaz = 0.0; z = 0.0
+    for cam in perfil:
+        if z >= L - 1e-9:
+            break
+        dz = min(cam["dz"], L - z)
+        somaNz += cam["N"] * dz; somaz += dz; z += dz
+    N_med = somaNz / somaz if somaz > 0 else 0.0
+    N_med = max(3.0, min(N_med, N_LIMITE))
+    r_l = (N_med / 3.0 + 1.0) * _TF_KPA              # kPa (Tab.12.13 / Eq.12.60)
+    R_lat = r_l * U * L
+    R_ult = R_ponta + R_lat
+    return {"metodo": "decourt_quaresma", "C": C, "N_ponta": Np, "N_med_fuste": round(N_med, 1),
+            "r_l_kPa": round(r_l, 1), "R_ponta_kN": round(R_ponta, 1),
+            "R_lateral_kN": round(R_lat, 1), "R_ult_kN": round(R_ult, 1),
+            "FS": fs_global, "P_adm_kN": round(R_ult / fs_global, 1)}
+
+
+def capacidade_tracao(cap_compressao, fs_tracao=2.0):
+    """Capacidade a TRACAO (arranque/uplift): so o atrito lateral resiste (a ponta
+    nao trabalha). NBR 6122. R_lat,trac = R_lateral ; P_adm,trac = R_lat/FS_tracao.
+    Recebe o dict de capacidade_aoki_velloso (usa seu R_lateral)."""
+    R_lat = cap_compressao["R_lateral_kN"]
+    return {"R_lateral_kN": R_lat, "FS_tracao": fs_tracao,
+            "P_adm_tracao_kN": round(R_lat / fs_tracao, 1)}
+
+
 def n_estacas(N_pilar, P_adm, peso_bloco=0.0):
     """Numero de estacas = teto((N_pilar + peso_bloco) / P_adm), minimo 1."""
     N_tot = N_pilar + peso_bloco
@@ -149,8 +204,21 @@ def verifica_estaca(cfg):
                                   cfg.get("tipo_estaca", "pre_moldada"),
                                   N_ponta=cfg.get("N_ponta"),
                                   fs_global=cfg.get("FS", FS_GLOBAL))
+    dq = capacidade_decourt_quaresma(cfg["perfil"], cfg["D"], cfg["L"],
+                                     N_ponta=cfg.get("N_ponta"),
+                                     fs_global=cfg.get("FS", FS_GLOBAL))
     nn = n_estacas(cfg["N_pilar"], cap["P_adm_kN"], cfg.get("peso_bloco", 0.0))
-    out = {"capacidade": cap, "grupo": nn, "N_pilar": cfg["N_pilar"]}
+    out = {"capacidade": cap, "decourt": dq, "grupo": nn, "N_pilar": cfg["N_pilar"]}
+    # Tracao (uplift): se o pilar arranca (N_uplift > 0), verifica pelo atrito lateral
+    N_up = abs(cfg.get("N_uplift", 0.0))
+    if N_up > 0:
+        trac = capacidade_tracao(cap, cfg.get("FS_tracao", 2.0))
+        trac["N_uplift_kN"] = round(N_up, 1)
+        trac["N_por_estaca_kN"] = round(N_up / nn["n"], 1)
+        trac["util"] = round((N_up / nn["n"]) / trac["P_adm_tracao_kN"], 3) \
+            if trac["P_adm_tracao_kN"] > 0 else float("inf")
+        trac["OK"] = trac["util"] <= 1.0
+        out["tracao"] = trac
     bl = cfg.get("bloco")
     if bl and nn["n"] in (2, 4):
         h = bl.get("h", max(0.4, 1.2 * cfg["D"]))
@@ -173,6 +241,18 @@ def relatorio_pt(r):
          f"  R_ult = {c['R_ult_kN']:.1f} kN ; P_adm = R_ult/{c['FS']:.1f} = {c['P_adm_kN']:.1f} kN",
          f"  Pilar N = {r['N_pilar']:.1f} kN -> n estacas = {g['n']} "
          f"(N/estaca = {g['N_por_estaca_kN']:.1f} kN ; util {g['util']:.2f})"]
+    dq = r.get("decourt")
+    if dq:
+        dif = 100.0 * (dq["R_ult_kN"] - c["R_ult_kN"]) / c["R_ult_kN"] if c["R_ult_kN"] else 0.0
+        L.append(f"  [cross-check Decourt-Quaresma] R_ult={dq['R_ult_kN']:.1f} kN "
+                 f"(P_adm={dq['P_adm_kN']:.1f}) ; C={dq['C']:.0f} tf/m2, N_med={dq['N_med_fuste']:.1f} "
+                 f"; dif vs Aoki {dif:+.0f}%")
+    if "tracao" in r:
+        t = r["tracao"]
+        L.append(f"  TRACAO (uplift): N_up={t['N_uplift_kN']:.1f} kN "
+                 f"({t['N_por_estaca_kN']:.1f}/estaca) ; P_adm,trac=R_lat/{t['FS_tracao']:.1f}="
+                 f"{t['P_adm_tracao_kN']:.1f} kN ; util {t['util']:.2f} "
+                 f"{'OK' if t['OK'] else 'REPROVA (aumentar L/atrito)'}")
     if "bloco" in r:
         b = r["bloco"]
         L += [f"  BLOCO DE COROAMENTO ({b['n_est']} estacas, bielas-e-tirantes):",
@@ -183,7 +263,7 @@ def relatorio_pt(r):
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
           "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
           "   verificar biela comprimida e puncao do bloco (fora deste escopo).]",
-          "  [FLAG: Decourt-Quaresma como 2o metodo (cross-check) = trabalho futuro.]"]
+          "  [FLAG: Decourt-Quaresma 2a versao (alpha/beta, 1996) = trabalho futuro.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -216,11 +296,29 @@ def _selftest():
     brc = 0.9 / 2.0 - 0.30 / 4.0
     assert abs(b["T_kN"] - 450.0 * brc / 0.55) < 0.2, b
     assert abs(b["As_tirante_cm2"] - (450.0 * brc / 0.55) / (500e3 / 1.15) * 1e4) < 0.1, b
-    # verifica_estaca integra
+    # Decourt-Quaresma: ponta areia C=40 tf/m2, q_p=40*25*10=10000 kPa
+    dq = capacidade_decourt_quaresma(perfil, D, L)
+    assert dq["C"] == 40.0, dq
+    assert abs(dq["R_ponta_kN"] - 40.0 * 25 * 10.0 * Ap) < 0.2, dq
+    # r_l = (N_med/3+1)*10 ; N_med = (5*3+15*4+25*3)/10 = 15,0
+    Nmed = (5 * 3 + 15 * 4 + 25 * 3) / 10.0
+    assert abs(dq["N_med_fuste"] - Nmed) < 1e-6, dq
+    rl = (Nmed / 3.0 + 1.0) * 10.0
+    assert abs(dq["R_lateral_kN"] - rl * U * L) < 0.2, dq
+    # grupo decourt: silte arenoso -> silte_arenoso (25) ; argila -> argila (12)
+    assert _grupo_decourt("areia_siltosa") == "areia"        # comeca com areia
+    assert _grupo_decourt("silte_arenoso") == "silte_arenoso"
+    assert _grupo_decourt("silte_argiloso") == "silte_argiloso"
+    assert _grupo_decourt("argila_arenosa") == "argila"
+    # tracao: so atrito lateral / FS
+    tr = capacidade_tracao(cap, 2.0)
+    assert abs(tr["P_adm_tracao_kN"] - cap["R_lateral_kN"] / 2.0) < 0.1, tr
+    # verifica_estaca integra (com uplift)
     r = verifica_estaca({"perfil": perfil, "D": D, "L": L, "tipo_estaca": "pre_moldada",
-                         "N_pilar": 600.0,
+                         "N_pilar": 600.0, "N_uplift": 200.0,
                          "bloco": {"espacamento": 0.9, "a_pilar": 0.30, "h": 0.55}})
-    assert r["grupo"]["n"] >= 1 and "capacidade" in r
+    assert r["grupo"]["n"] >= 1 and "capacidade" in r and "decourt" in r and "tracao" in r
+    assert r["tracao"]["OK"] in (True, False)
     print("estaca_profunda self-test PASSED")
     print(f"  D30 L10 pre-moldada: R_ult={cap['R_ult_kN']:.0f} kN, "
           f"P_adm={cap['P_adm_kN']:.0f} kN")
@@ -236,5 +334,5 @@ if __name__ == "__main__":
                   {"tipo": "areia", "N": 25, "dz": 3.0}]
         print(relatorio_pt(verifica_estaca({
             "perfil": perfil, "D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
-            "N_pilar": 1500.0,
+            "N_pilar": 1500.0, "N_uplift": 300.0,
             "bloco": {"espacamento": 0.9, "a_pilar": 0.30, "h": 0.55}})))

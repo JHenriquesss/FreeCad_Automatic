@@ -354,8 +354,11 @@ def rodar(params, out_dir):
     # coroamento. So roda com params["estaca"] (escolha de sitio: sondagem SPT).
     # N_pilar = maior reacao vertical de compressao na base (envelope).
     if params.get("estaca"):
-        N_pilar = max(abs(n) for _, n, _, _ in casos_base)
+        N_comp = max(n for _, n, _, _ in casos_base)          # maior compressao
+        N_pilar = abs(N_comp)
+        N_tr = max(0.0, -min(n for _, n, _, _ in casos_base))  # uplift (reacao negativa)
         ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
+        ecfg.setdefault("N_uplift", round(N_tr, 1))
         ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
         re_ = ep.verifica_estaca(ecfg)
         save("gate7-estaca.txt", ep.relatorio_pt(re_))
