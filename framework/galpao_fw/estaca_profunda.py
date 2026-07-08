@@ -167,34 +167,49 @@ def n_estacas(N_pilar, P_adm, peso_bloco=0.0):
             "util": round(N_tot / (n * P_adm), 3) if (n and P_adm > 0) else None}
 
 
-def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk):
+def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca=0.30):
     """Bloco RIGIDO de coroamento por BIELAS-E-TIRANTES (modelo de Blevot; NBR 6118
-    22.3 admite bielas para blocos rigidos). Equilibrio: a biela vai do quarto do
-    pilar (no a a_pilar/4 do eixo) ate a estaca (a espacamento/2 do eixo); o
-    componente horizontal e o tirante. As = T/f_yd. So blocos SIMETRICOS 2 ou 4
-    estacas. Retorna dict (T em kN, As em m2). d = altura util do bloco (m)."""
-    fyd = fyk / 1.15
-    P_est = N_pilar / n_est                          # carga por estaca (biela)
-    # braco horizontal da biela: da estaca (esp/2) ao no do pilar (a_pilar/4)
-    braco = espacamento / 2.0 - a_pilar / 4.0
+    22.3). Equilibrio: a biela vai do quarto do pilar (no a a_pilar/4 do eixo) ate a
+    estaca (a espacamento/2 do eixo); o componente horizontal e o tirante (As=T/f_yd,
+    22.3.3). Verifica a BIELA comprimida (22.3.2): tensao junto ao pilar <= fcd1 e
+    junto a estaca <= fcd3. So blocos SIMETRICOS 2 ou 4 estacas. d = altura util (m)."""
     if d <= 0:
         raise ValueError("altura util d do bloco deve ser > 0")
-    if n_est == 2:
-        # 2 estacas: 1 tirante ; T = P_est * braco / d (por estaca, 1 lado)
-        T = P_est * braco / d
-        n_tirantes = 1
-    elif n_est == 4:
-        # 4 estacas: tirantes nas 2 direcoes; cada estaca puxa em x e y
-        T = P_est * braco / d
-        n_tirantes = 2
-    else:
+    if n_est not in (2, 4):
         raise ValueError("bloco_coroamento: implementado p/ 2 ou 4 estacas")
+    fyd = fyk / 1.15
+    P_est = N_pilar / n_est                          # carga por estaca (biela)
+    braco = espacamento / 2.0 - a_pilar / 4.0        # braco horizontal da biela
+    T = P_est * braco / d
+    n_tirantes = 1 if n_est == 2 else 2
     As = T / fyd
     As_min = fs.rho_min(fck / 1000.0) * a_pilar * (d + 0.05)   # referencia p/ minimo
+
+    # ---- biela comprimida (NBR 6118 22.3.2) -------------------------------
+    tan_theta = d / braco if braco > 0 else float("inf")
+    sin2 = tan_theta ** 2 / (1.0 + tan_theta ** 2)   # sen^2(theta)
+    fck_MPa = fck / 1000.0
+    alpha_v2 = 1.0 - fck_MPa / 250.0
+    fcd = fck / 1.4
+    fcd1 = 0.85 * alpha_v2 * fcd                      # no CCC (junto ao pilar)
+    fcd3 = 0.72 * alpha_v2 * fcd                      # no CCT (junto a estaca, c/ tirante)
+    A_pilar = a_pilar ** 2                            # pilar quadrado (contato no topo)
+    A_estaca = math.pi * D_estaca ** 2 / 4.0
+    sig_pilar = N_pilar / (A_pilar * sin2)           # tensao da biela junto ao pilar
+    sig_estaca = P_est / (A_estaca * sin2)           # tensao da biela junto a estaca
+    ok_ang = 0.57 <= tan_theta <= 2.0                # 22.3.1 (0,57 <= tan(theta) <= 2)
+    ok_biela = sig_pilar <= fcd1 and sig_estaca <= fcd3
+    # bloco rigido (tan>=0,57) dispensa puncao (trabalha por bielas); senao FLAG
+    rigido = tan_theta >= 0.57
+
     return {"n_est": n_est, "P_estaca_kN": round(P_est, 1), "braco_m": round(braco, 3),
             "T_kN": round(T, 1), "As_tirante_cm2": round(As * 1e4, 2),
-            "n_tirantes": n_tirantes, "As_min_cm2": round(As_min * 1e4, 2),
-            "d": d, "OK": braco > 0}
+            "n_tirantes": n_tirantes, "As_min_cm2": round(As_min * 1e4, 2), "d": d,
+            "tan_theta": round(tan_theta, 3), "ok_angulo": ok_ang,
+            "sig_pilar_MPa": round(sig_pilar / 1000.0, 2), "fcd1_MPa": round(fcd1 / 1000.0, 2),
+            "sig_estaca_MPa": round(sig_estaca / 1000.0, 2), "fcd3_MPa": round(fcd3 / 1000.0, 2),
+            "ok_biela": ok_biela, "rigido": rigido,
+            "OK": braco > 0 and ok_biela and ok_ang}
 
 
 def verifica_estaca(cfg):
@@ -225,7 +240,8 @@ def verifica_estaca(cfg):
         d = h - bl.get("cobrimento", 0.05) - 0.02
         out["bloco"] = bloco_coroamento(
             cfg["N_pilar"], nn["n"], bl.get("espacamento", 3.0 * cfg["D"]),
-            bl.get("a_pilar", 0.30), d, bl.get("fck", 25e3), bl.get("fyk", 500e3))
+            bl.get("a_pilar", 0.30), d, bl.get("fck", 25e3), bl.get("fyk", 500e3),
+            D_estaca=cfg["D"])
         out["bloco"]["h"] = h
     return out
 
@@ -257,12 +273,17 @@ def relatorio_pt(r):
         b = r["bloco"]
         L += [f"  BLOCO DE COROAMENTO ({b['n_est']} estacas, bielas-e-tirantes):",
               f"    h={b['h']*100:.0f} cm (d={b['d']*100:.0f} cm) ; carga/estaca={b['P_estaca_kN']:.1f} kN ; "
-              f"braco={b['braco_m']:.3f} m",
+              f"braco={b['braco_m']:.3f} m ; tan(theta)={b['tan_theta']:.2f} "
+              f"{'OK' if b['ok_angulo'] else 'FORA de [0,57;2]'}",
               f"    Tirante T = {b['T_kN']:.1f} kN -> As = {b['As_tirante_cm2']:.2f} cm2 "
-              f"(x{b['n_tirantes']} direcao(oes)) ; As_min ref {b['As_min_cm2']:.2f} cm2"]
+              f"(x{b['n_tirantes']} direcao(oes)) ; As_min ref {b['As_min_cm2']:.2f} cm2",
+              f"    Biela (22.3.2): pilar {b['sig_pilar_MPa']:.2f}<={b['fcd1_MPa']:.2f} MPa ; "
+              f"estaca {b['sig_estaca_MPa']:.2f}<={b['fcd3_MPa']:.2f} MPa "
+              f"{'OK' if b['ok_biela'] else 'REPROVA (aumentar bloco/fck)'}",
+              f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL -> VERIFICAR PUNCAO'}"]
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
           "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
-          "   verificar biela comprimida e puncao do bloco (fora deste escopo).]",
+          "   ancoragem do tirante e puncao do bloco flexivel = projeto do bloco.]",
           "  [FLAG: Decourt-Quaresma 2a versao (alpha/beta, 1996) = trabalho futuro.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
@@ -291,11 +312,18 @@ def _selftest():
     g = n_estacas(900.0, cap["P_adm_kN"])
     assert g["n"] == math.ceil(900.0 / cap["P_adm_kN"]) and g["util"] <= 1.0 + 1e-9, g
     # bloco 2 estacas
-    b = bloco_coroamento(900.0, 2, 0.9, 0.30, 0.55, 25e3, 500e3)
+    b = bloco_coroamento(900.0, 2, 0.9, 0.30, 0.55, 25e3, 500e3, D_estaca=0.30)
     # T = (900/2) * (0,9/2 - 0,30/4) / 0,55
     brc = 0.9 / 2.0 - 0.30 / 4.0
     assert abs(b["T_kN"] - 450.0 * brc / 0.55) < 0.2, b
     assert abs(b["As_tirante_cm2"] - (450.0 * brc / 0.55) / (500e3 / 1.15) * 1e4) < 0.1, b
+    # biela (22.3.2): fcd1=0,85*(1-25/250)*25/1,4 ; fcd3=0,72*...
+    fcd = 25e3 / 1.4; av2 = 1.0 - 25.0 / 250.0
+    assert abs(b["fcd1_MPa"] - 0.85 * av2 * fcd / 1000.0) < 0.01, b
+    assert abs(b["fcd3_MPa"] - 0.72 * av2 * fcd / 1000.0) < 0.01, b
+    tan = 0.55 / brc; sin2 = tan ** 2 / (1 + tan ** 2)
+    assert abs(b["sig_estaca_MPa"] - (450.0 / (math.pi * 0.3 ** 2 / 4.0 * sin2)) / 1000.0) < 0.02, b
+    assert b["ok_angulo"] == (0.57 <= tan <= 2.0) and "ok_biela" in b
     # Decourt-Quaresma: ponta areia C=40 tf/m2, q_p=40*25*10=10000 kPa
     dq = capacidade_decourt_quaresma(perfil, D, L)
     assert dq["C"] == 40.0, dq

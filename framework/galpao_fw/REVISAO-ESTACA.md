@@ -98,9 +98,11 @@ envelope e verifica `N_uplift/n ≤ P_adm,tração`.
    fatores parciais; o engenheiro confirma o critério adotado. **A CONFIRMAR.**
 3. **Décourt-Quaresma** implementado como **cross-check** (Tab.12.12/12.13 lidas do
    PDF). Resta a **2ª versão (α/β, Décourt 1996)** — trabalho futuro.
-4. **Bloco**: entrega o **tirante** (armadura principal). A **biela comprimida**
-   (tensão ≤ limite NBR 6118), a **punção** do bloco e a ancoragem do tirante ficam
-   **fora deste escopo** — FLAG para o projeto do bloco.
+4. **Bloco**: tirante (22.3.3) + **biela comprimida** (22.3.2) implementados —
+   `σ_pilar ≤ fcd1=0,85·αv2·fcd` (nó CCC) e `σ_estaca ≤ fcd3=0,72·αv2·fcd` (nó CCT),
+   `αv2=1−fck/250`, `σ=Força/(A·sen²θ)`, ângulo `0,57 ≤ tanθ ≤ 2` (22.3.1). Bloco
+   **rígido** (tanθ≥0,57) → **punção dispensada** (trabalha por bielas); flexível →
+   FLAG verificar punção. Resta a **ancoragem** do tirante sobre a estaca.
 5. **Tração/arranque (uplift)** implementado (atrito lateral / FS_tração). Restam
    **atrito negativo, efeito de grupo** (eficiência) e recalque do grupo — governam
    em solos moles / grupos densos; verificar à parte.
