@@ -299,6 +299,10 @@ def edge_breakout_cisalhamento_aci(V_sd, n_borda, db, hef, fck, ca1, ca2, ha,
          "modo": modo, "demanda_kN": V_sd, "paralelo": paralelo}
     r["u_edge"] = V_sd / cap if cap > 0 else float("inf")
     r["ok_edge"] = cap >= V_sd - 1e-9
+    # ACI 17.5.2.9: se o breakout sem armadura nao passa (u>1), a borda estoura ->
+    # o projeto de fundacao pode desenvolver a carga com ARMADURA DE ANCORAGEM em
+    # laco (hairpin/estribo) transversal, atravessando a superficie de ruptura.
+    r["armadura_ancoragem"] = not r["ok_edge"]
     return r
 
 
@@ -603,6 +607,10 @@ def relatorio_pt(r, caso):
                 L += [f"         Edge breakout no cortante (ACI Ch.17): governa "
                       f"{eg['modo']} ; cap={eg['cap_cisalhamento_kN']:.0f} kN vs "
                       f"V={eg['demanda_kN']:.0f} kN -> u={eg['u_edge']:.2f} [{tage}]"]
+                if eg.get("armadura_ancoragem"):
+                    L += ["         [WARNING] u>1 SEM armadura: borda estoura. Projeto de "
+                          "fundacao deve detalhar ARMADURA DE ANCORAGEM em laco "
+                          "(hairpin/estribo) atravessando a ruptura (ACI 17.5.2.9)."]
             else:
                 L += ["         [FLAG] Edge breakout no cortante (ACI Ch.17): passar "
                       "cone_geom (ca1,ca2,h_bloco) p/ calcular quando V vai aos chumbadores."]
@@ -783,6 +791,14 @@ def _selftest():
                                         ca1=8.0 * IN, ca2=20.0 * IN, ha=16.0 * IN,
                                         ncbg_kN=150.0)
     assert abs(e2["cap_pryout_kN"] - 0.70 * 2.0 * 150.0) < 1e-9
+    # u>1 sem armadura -> aciona o warning de armadura de ancoragem (hairpin)
+    ehi = edge_breakout_cisalhamento_aci(500.0, 1, 0.020, 0.30, fc_si,
+                                         ca1=0.10, ca2=0.10, ha=0.40)
+    assert ehi["u_edge"] > 1.0 and ehi["armadura_ancoragem"] is True
+    # caso folgado (V pequeno, borda larga) passa e nao aciona armadura
+    elow = edge_breakout_cisalhamento_aci(5.0, 1, 0.020, 0.30, fc_si,
+                                          ca1=0.30, ca2=0.30, ha=0.60)
+    assert elow["ok_edge"] and elow["armadura_ancoragem"] is False
     print("base_chumbador self-test PASSED")
     print(f"  Ft,Rd(d20, fub400) = {ft:.1f} kN ; sigma_c,Rd(fck20,A2=A1) = {s:.0f} kN/m2")
     print(f"  grande exc.: T={Tg:.1f} kN ; Y={Yg*1000:.1f} mm ; sig_max=sig_rd={smg:.0f}")

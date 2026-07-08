@@ -335,9 +335,10 @@ uplift `Nc=0` → `Vat=0`, residual 120 kN, dimensiona chaveta com `h_bc≥2h_ar
 
 ## 12. Edge breakout no cisalhamento (ACI 318 Ch.17, método CCD)
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: `Vb`
-> (21.3/21.4), `A_Vc/A_Vco` (Fig.21.10), `ψ_ed,V`/`ψ_c,V`/`ψ_h,V`, pryout `Vcp`
-> (21.14) e o isolamento de unidades (US↔SI).
+> **STATUS: ✅ HOMOLOGADO (2026-07-08).** Sênior refez o Ex. 21.5: `Vb=7·(4/0,75)^0,2
+> ·√0,75·√5000·8^1,5 = 13,55 kip` (teto `9·…=14,4 kip` não governa), `ψ_ed,V=0,7+
+> 0,3·8/12=0,90`, pryout `k_cp=2` — todos exatos; isolamento de unidades "melhor
+> prática". Liberado. **Warning de hairpin (u>1) adicionado** — ver 12.1.
 
 Fecha o modo do **concreto no cortante**: quando o `V` é resistido pelos
 **chumbadores** (uplift → sem atrito) perto da borda do pedestal, o concreto pode
@@ -368,6 +369,17 @@ Mesmo isolamento de unidades da tração (§10).
 `cone_geom` (`c_a1`, `c_a2`, `h_bloco`). Ex. HEA200 (V=26 kN, `c_a1=0,15 m`):
 `V_cbg` governa, `cap=33 kN` → `u=0,80` OK (borda estreita limita). Informativo.
 
+### 12.1 — Warning de armadura de ancoragem (hairpin), pós-parecer 2026-07-08
+
+Quando o edge breakout **sem armadura** não passa (`u_edge > 1`), a borda do
+pedestal estoura. O relatório agora emite um **[WARNING]** automático: o projeto de
+fundação deve desenvolver a carga com **armadura de ancoragem em laço**
+(hairpin/estribo) atravessando a superfície de ruptura (**ACI 318 17.5.2.9**) — a
+armadura de ancoragem **dispensa** o cálculo do breakout do concreto. O flag
+`armadura_ancoragem` (=`not ok_edge`) sinaliza a triagem. Selftest #8 confere que
+`u>1` aciona o flag e um caso folgado não. É recado ao **fundações** (segregação de
+disciplinas), não trava a emissão da metálica.
+
 > **Limites:** `ψ_ec,V` (excentricidade do V) assumido 1 (grupo centrado); a
-> interação **tração-cortante** (21.16) e a **armadura de ancoragem** (17.4.2.9,
-> que dispensa o breakout) continuam fora. Geometria do bloco = projeto de fundação.
+> interação **tração-cortante** (21.16) continua fora. Geometria do bloco = projeto
+> de fundação.
