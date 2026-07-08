@@ -175,11 +175,11 @@ Módulo `ponte_rolante.py` liberado para o orquestrador.
 
 ## 9. Fadiga da viga de rolamento (NBR 8800 Anexo K) — feature adicionada 2026-07-07
 
-> **STATUS: ✅ HOMOLOGADO (2026-07-08) + melhoria B.7.3.4 aplicada.** O sênior
-> homologou a matemática (K.4 `(327·Cf/N)^0,333`, origem do 327 = 6,89476³ ksi→MPa,
-> Tabela K.1, Barré, flecha) e **recomendou** somar os **50 % da força horizontal**
-> (B.7.3.4). **Recomendação implementada** (ver 9.1): `σ_SR = Msdx/Wx +
-> 0,5·Msdy/Wy_top`. Aguarda só o re-check do termo lateral novo.
+> **STATUS: ✅ HOMOLOGADO (2026-07-08), termo lateral incluído.** O sênior homologou
+> a matemática (K.4 `(327·Cf/N)^0,333`, origem do 327 = 6,89476³ ksi→MPa, Tabela K.1,
+> Barré, flecha) e, na re-revisão, **validou o termo lateral B.7.3.4** (9.1):
+> `σ_SR = Msdx/Wx + 0,5·Msdy/Wy_top` (superposição de Navier na fibra do topo) —
+> "sem furo lógico ou matemático". Ponte 100% homologada.
 
 Fecha a lacuna: antes só um FLAG "a verificar"; agora **calcula** a faixa de tensões
 e compara com a admissível. Fórmula extraída do PDF (não de memória):
