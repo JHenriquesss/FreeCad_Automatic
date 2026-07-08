@@ -70,5 +70,8 @@ Novo módulo `sismo_nbr15421.py` + wire em `rodar_galpao` (`gate7-sismo.txt`). F
 ## D22 — 2026-07-08 — Base: curva 5/3 opcional na interação T-V
 `interacao_tracao_cortante_aci` ganha `curva_exata=True` (caso["interacao_curva_exata"]) → envoltória de potência (ACI 318 17.6.3 / Fig.21.12): (Nua/φNn)^(5/3)+(Vua/φVn)^(5/3)≤1. ~2-8% mais de capacidade central; trilinear continua default (auditabilidade). Atende sugestão do parecer de homologação do §13. Selftest #9: 0,65+0,65 reprova trilinear (1,3>1,2) mas passa 5/3 (0,978<1). §13 homologado — base 100% completa nos modos do concreto.
 
+## D23 — 2026-07-08 — Ligações: detalhamento dos furos (6.3.9/10/11)
+`ligacoes.verifica_espacamento` + `parafusos` deriva o `lf` (esmagamento 6.3.3.3) da GEOMETRIA (e_borda/s_furos) em vez de input solto. Regras lidas do PDF NBR 8800: 6.3.9 s≥2,7db (pref 3db) + livre entre furos ≥db; 6.3.10 s_max≤min(24t;300); lf=min(e_borda−dh/2; s_furos−dh), dh=db+1,5mm (Tab.12). Tabela 14 (furo-borda) fica FLAG — extração ambígua e a própria nota (a) remete ao 6.3.3.3 (resistência já calculada). Não fabriquei os valores mm da Tab.14 (zero-erro). Retrocompatível: sem geometria usa lf explícito. Selftest: s=60≥54 OK, livre 38,5≥20, lf=24,25; s=45<54 reprova. Pequena lacuna #1 (das pequenas antes das grandes).
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

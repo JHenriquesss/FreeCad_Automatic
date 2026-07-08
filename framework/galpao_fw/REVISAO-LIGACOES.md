@@ -190,3 +190,29 @@ plano de corte paralelo à solda contínua (sem furos). Confirmados γa1=1,10,
 
 Módulo `ligacoes.py` liberado para o orquestrador. FLAGs mantidas e documentadas
 para módulos futuros: **efeito alavanca (T-stub)** e **rasgamento em bloco (6.5.6)**.
+
+---
+
+## 9. Detalhamento dos furos (6.3.9/6.3.10/6.3.11) — feature adicionada 2026-07-08
+
+> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: `s ≥ 2,7db`, distância
+> livre `≥ db` (6.3.9), `s_max ≤ min(24t; 300)` (6.3.10) e o **`lf` derivado da
+> geometria** que alimenta o esmagamento 6.3.3.3.
+
+Antes o `lf` do esmagamento era **input solto**; agora, quando o caso traz a
+geometria (`s_furos`, `e_borda`), o `lf` é **derivado** dela — coerente com o
+layout — e os mínimos de detalhamento são checados. Regras **lidas do PDF**:
+
+- **6.3.9** — distância entre centros `≥ 2,7·db` (pref. `3·db`); distância **livre**
+  entre bordas de furos consecutivos `≥ db`.
+- **6.3.10 a)** — espaçamento máximo (chapa pintada) `≤ min(24·t; 300 mm)`.
+- **`lf` (6.3.3.3):** `min(e_borda − d_h/2; s_furos − d_h)` (distância livre do furo à
+  extremidade / ao furo vizinho), `d_h = db + 1,5 mm` (furo-padrão, Tabela 12).
+  Alimenta `Fc,Rd = min(1,2·lf·t·fu; 2,4·db·t·fu)/γa2` (já existente).
+
+**Tabela 14 (distância furo-borda) fica FLAG:** a extração tabular é ambígua
+(colunas borda cortada × laminada) e a **nota (a) da própria Tabela 14** remete ao
+**6.3.3.3** como estado-limite de resistência — que já é calculado. O engenheiro
+confirma a coluna de borda. Selftest: `db20`, `s=60 mm ≥ 2,7·20=54` OK, livre
+`60−21,5=38,5 ≥ 20` OK, `lf=min(35−10,75; 60−21,5)=24,25 mm`; `s=45<54` reprova.
+Não-regressivo: sem `s_furos`/`e_borda`, usa o `lf` explícito (ex. da terça).
