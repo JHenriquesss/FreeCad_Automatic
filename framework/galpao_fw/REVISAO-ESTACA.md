@@ -98,14 +98,15 @@ envelope e verifica `N_uplift/n ≤ P_adm,tração`.
    fatores parciais; o engenheiro confirma o critério adotado. **A CONFIRMAR.**
 3. **Décourt-Quaresma** implementado como **cross-check** (Tab.12.12/12.13 lidas do
    PDF). Resta a **2ª versão (α/β, Décourt 1996)** — trabalho futuro.
-4. **Bloco**: tirante (22.3.3) + **biela comprimida** (22.3.2) implementados —
-   `σ_pilar ≤ fcd1=0,85·αv2·fcd` (nó CCC) e `σ_estaca ≤ fcd3=0,72·αv2·fcd` (nó CCT),
-   `αv2=1−fck/250`, `σ=Força/(A·sen²θ)`, ângulo `0,57 ≤ tanθ ≤ 2` (22.3.1). Bloco
-   **rígido** (tanθ≥0,57) → **punção dispensada** (trabalha por bielas); flexível →
-   FLAG verificar punção. Resta a **ancoragem** do tirante sobre a estaca.
-5. **Tração/arranque (uplift)** implementado (atrito lateral / FS_tração). Restam
-   **atrito negativo, efeito de grupo** (eficiência) e recalque do grupo — governam
-   em solos moles / grupos densos; verificar à parte.
+4. **Bloco**: tirante (22.3.3) + **biela comprimida** (22.3.2) + **ancoragem do
+   tirante** (9.3.2/9.4.2) implementados. Biela: `σ ≤ fcd1=0,85·αv2·fcd` (CCC) e
+   `fcd3=0,72·αv2·fcd` (CCT), `αv2=1−fck/250`, `σ=F/(A·sen²θ)`, `0,57≤tanθ≤2`.
+   Ancoragem: `fbd=η1η2η3·fctd`, `fctd=0,7·(0,3·fck^⅔)/1,4`, η1=2,25 (nervurada),
+   `lb=(φ/4)(fyd/fbd)`, `lb,nec=α·lb·(As,c/As,ef)≥lb,min`. Bloco **rígido** (tanθ≥0,57)
+   → punção dispensada; flexível → FLAG. Resta a **punção do bloco flexível**.
+5. **Tração/uplift, efeito de grupo (Converse-Labarre) e atrito negativo (downdrag)**
+   implementados. `η=1−(θ/90)·[(m−1)n+(n−1)m]/(mn)`, `N_neg=U·Σ(f_neg·dz)` (f_neg =
+   dado geotécnico). Resta o **recalque do grupo** (deformação) — verificar à parte.
 6. Só roda com `params["estaca"]` (escolha deliberada de fundação profunda); a
    referência 20×10 permanece em **sapata** (rasa).
 

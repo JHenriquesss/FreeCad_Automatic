@@ -167,6 +167,64 @@ def n_estacas(N_pilar, P_adm, peso_bloco=0.0):
             "util": round(N_tot / (n * P_adm), 3) if (n and P_adm > 0) else None}
 
 
+def eficiencia_grupo(m, n, s, D):
+    """Eficiencia do GRUPO de estacas por Converse-Labarre. m x n estacas em malha,
+    espacamento s, diametro D. eta = 1 - (theta/90)*[(m-1)*n + (n-1)*m]/(m*n), com
+    theta = atan(D/s) em graus. R_grupo = eta * (m*n) * R_estaca_isolada. Grupos com
+    s >= 3D tem eta ~1 (pouca interacao); solos arenosos podem ter eta>1 (nao usado,
+    a favor da seguranca). Retorna dict."""
+    if m < 1 or n < 1:
+        raise ValueError("m, n >= 1")
+    theta = math.degrees(math.atan(D / s)) if s > 0 else 90.0
+    N = m * n
+    if N <= 1:
+        eta = 1.0
+    else:
+        eta = 1.0 - (theta / 90.0) * ((m - 1) * n + (n - 1) * m) / (m * n)
+    return {"m": m, "n": n, "N_estacas": N, "s": s, "D": D,
+            "theta_graus": round(theta, 2), "eficiencia": round(eta, 3)}
+
+
+def atrito_negativo(D, camadas_neg):
+    """Atrito NEGATIVO (downdrag): em solo em adensamento/aterro recente, o solo
+    desce em relacao a estaca e o atrito lateral INVERTE de sinal, virando CARGA
+    (soma-se a solicitacao, nao resiste). N_neg = U * sum(f_neg * dz).
+    camadas_neg: lista [{f_neg [kPa], dz [m]}] das camadas que adensam. f_neg (atrito
+    negativo unitario) = beta*sigma_v' (metodo beta) OU medido - e DADO GEOTECNICO.
+    Retorna a forca de arrasto (kN, positiva = carga adicional na estaca)."""
+    U = math.pi * D
+    N_neg = sum(c["f_neg"] * c["dz"] for c in camadas_neg) * U
+    return {"N_negativo_kN": round(N_neg, 1), "U": U,
+            "camadas": [{"f_neg": c["f_neg"], "dz": c["dz"]} for c in camadas_neg]}
+
+
+def ancoragem_tirante(phi, fck, fyk, boa_aderencia=True, gancho=False,
+                      As_calc=None, As_ef=None):
+    """Comprimento de ancoragem do tirante (NBR 6118 9.3.2/9.4.2). phi em m.
+      fctm = 0,3*fck^(2/3) (<=C50) ; fctd = 0,7*fctm/1,4 ; fbd = eta1*eta2*eta3*fctd
+      eta1=2,25 (nervurada CA-50) ; eta2=1,0 boa / 0,7 ma aderencia ; eta3=1,0 (phi<32mm)
+      lb = (phi/4)*(fyd/fbd) ; lb_nec = alpha*lb*(As_calc/As_ef) >= lb_min
+      lb_min = max(0,3 lb ; 10 phi ; 100 mm) ; alpha = 0,7 (gancho) / 1,0 (reta).
+    fck, fyk em kN/m2. Retorna dict (comprimentos em m)."""
+    fck_MPa = fck / 1000.0
+    fctm = 0.3 * fck_MPa ** (2.0 / 3.0)              # MPa (<= C50)
+    fctd = 0.7 * fctm / 1.4                          # MPa
+    phi_mm = phi * 1000.0
+    eta1 = 2.25                                      # barra nervurada (CA-50)
+    eta2 = 1.0 if boa_aderencia else 0.7
+    eta3 = 1.0 if phi_mm < 32.0 else (132.0 - phi_mm) / 100.0
+    fbd = eta1 * eta2 * eta3 * fctd                  # MPa
+    fyd = (fyk / 1000.0) / 1.15                      # MPa
+    lb = (phi / 4.0) * (fyd / fbd)                   # m
+    alpha = 0.7 if gancho else 1.0
+    rel = (As_calc / As_ef) if (As_calc and As_ef and As_ef > 0) else 1.0
+    lb_min = max(0.3 * lb, 10.0 * phi, 0.10)
+    lb_nec = max(alpha * lb * rel, lb_min)
+    return {"phi_mm": phi_mm, "fctm_MPa": round(fctm, 2), "fbd_MPa": round(fbd, 2),
+            "lb_m": round(lb, 3), "lb_min_m": round(lb_min, 3),
+            "lb_nec_m": round(lb_nec, 3), "gancho": gancho, "boa_aderencia": boa_aderencia}
+
+
 def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca=0.30):
     """Bloco RIGIDO de coroamento por BIELAS-E-TIRANTES (modelo de Blevot; NBR 6118
     22.3). Equilibrio: a biela vai do quarto do pilar (no a a_pilar/4 do eixo) ate a
@@ -184,6 +242,11 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
     n_tirantes = 1 if n_est == 2 else 2
     As = T / fyd
     As_min = fs.rho_min(fck / 1000.0) * a_pilar * (d + 0.05)   # referencia p/ minimo
+    As_req = max(As, As_min)
+    arr = fs.detalha_barras(As_req, a_pilar)         # bitola do tirante
+    phi_tir = (arr["phi"] / 1000.0) if arr else 0.0125
+    anc = ancoragem_tirante(phi_tir, fck, fyk, boa_aderencia=True, gancho=True,
+                            As_calc=As_req, As_ef=(arr["As_ef"] if arr else As_req))
 
     # ---- biela comprimida (NBR 6118 22.3.2) -------------------------------
     tan_theta = d / braco if braco > 0 else float("inf")
@@ -208,7 +271,8 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
             "tan_theta": round(tan_theta, 3), "ok_angulo": ok_ang,
             "sig_pilar_MPa": round(sig_pilar / 1000.0, 2), "fcd1_MPa": round(fcd1 / 1000.0, 2),
             "sig_estaca_MPa": round(sig_estaca / 1000.0, 2), "fcd3_MPa": round(fcd3 / 1000.0, 2),
-            "ok_biela": ok_biela, "rigido": rigido,
+            "ok_biela": ok_biela, "rigido": rigido, "phi_tirante_mm": phi_tir * 1000.0,
+            "lb_nec_tirante_m": anc["lb_nec_m"], "ancoragem": anc,
             "OK": braco > 0 and ok_biela and ok_ang}
 
 
@@ -234,6 +298,15 @@ def verifica_estaca(cfg):
             if trac["P_adm_tracao_kN"] > 0 else float("inf")
         trac["OK"] = trac["util"] <= 1.0
         out["tracao"] = trac
+    # efeito de grupo (Converse-Labarre) - se a malha for informada
+    gr = cfg.get("grupo")
+    if gr:
+        ge = eficiencia_grupo(gr["m"], gr["n"], gr.get("s", 3.0 * cfg["D"]), cfg["D"])
+        ge["R_grupo_kN"] = round(ge["eficiencia"] * ge["N_estacas"] * cap["P_adm_kN"], 1)
+        out["grupo_estacas"] = ge
+    # atrito negativo (downdrag) - se houver camadas em adensamento
+    if cfg.get("camadas_neg"):
+        out["atrito_negativo"] = atrito_negativo(cfg["D"], cfg["camadas_neg"])
     bl = cfg.get("bloco")
     if bl and nn["n"] in (2, 4):
         h = bl.get("h", max(0.4, 1.2 * cfg["D"]))
@@ -280,11 +353,22 @@ def relatorio_pt(r):
               f"    Biela (22.3.2): pilar {b['sig_pilar_MPa']:.2f}<={b['fcd1_MPa']:.2f} MPa ; "
               f"estaca {b['sig_estaca_MPa']:.2f}<={b['fcd3_MPa']:.2f} MPa "
               f"{'OK' if b['ok_biela'] else 'REPROVA (aumentar bloco/fck)'}",
-              f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL -> VERIFICAR PUNCAO'}"]
+              f"    Bloco {'RIGIDO -> puncao dispensada (trabalha por bielas)' if b['rigido'] else 'FLEXIVEL -> VERIFICAR PUNCAO'}",
+              f"    Ancoragem do tirante (9.4.2): phi={b['phi_tirante_mm']:.1f} mm -> "
+              f"lb,nec={b['lb_nec_tirante_m']*100:.0f} cm (com gancho)"]
+    if "grupo_estacas" in r:
+        ge = r["grupo_estacas"]
+        L.append(f"  EFEITO DE GRUPO (Converse-Labarre {ge['m']}x{ge['n']}): "
+                 f"eta={ge['eficiencia']:.3f} -> R_grupo={ge['R_grupo_kN']:.1f} kN")
+    if "atrito_negativo" in r:
+        an = r["atrito_negativo"]
+        L.append(f"  ATRITO NEGATIVO (downdrag): N_neg={an['N_negativo_kN']:.1f} kN "
+                 f"(carga adicional na estaca)")
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
           "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
-          "   ancoragem do tirante e puncao do bloco flexivel = projeto do bloco.]",
-          "  [FLAG: Decourt-Quaresma 2a versao (alpha/beta, 1996) = trabalho futuro.]"]
+          "   puncao do bloco flexivel = projeto do bloco.]",
+          "  [FLAG: Decourt-Quaresma 2a versao (alpha/beta, 1996) - tabelas nao",
+          "   legiveis no PDF, nao fabricadas (zero-erro); versao inicial implementada.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -324,6 +408,19 @@ def _selftest():
     tan = 0.55 / brc; sin2 = tan ** 2 / (1 + tan ** 2)
     assert abs(b["sig_estaca_MPa"] - (450.0 / (math.pi * 0.3 ** 2 / 4.0 * sin2)) / 1000.0) < 0.02, b
     assert b["ok_angulo"] == (0.57 <= tan <= 2.0) and "ok_biela" in b
+    # ancoragem do tirante (9.3.2): fctm=0,3*25^(2/3) ; fbd=2,25*1*1*0,7*fctm/1,4
+    anc = ancoragem_tirante(0.0125, 25e3, 500e3, boa_aderencia=True, gancho=False)
+    fctm = 0.3 * 25.0 ** (2.0 / 3.0); fbd = 2.25 * 0.7 * fctm / 1.4
+    lb = (0.0125 / 4.0) * ((500.0 / 1.15) / fbd)
+    assert abs(anc["lb_m"] - round(lb, 3)) < 1e-3, anc
+    # efeito de grupo Converse-Labarre 2x2, s=3D
+    ge = eficiencia_grupo(2, 2, 0.9, 0.30)
+    th = math.degrees(math.atan(0.30 / 0.9))
+    eta = 1.0 - (th / 90.0) * ((2 - 1) * 2 + (2 - 1) * 2) / 4.0
+    assert abs(ge["eficiencia"] - round(eta, 3)) < 1e-3, ge
+    # atrito negativo: U*sum(f*dz)
+    an = atrito_negativo(0.30, [{"f_neg": 20.0, "dz": 3.0}, {"f_neg": 30.0, "dz": 2.0}])
+    assert abs(an["N_negativo_kN"] - (20 * 3 + 30 * 2) * math.pi * 0.30) < 0.1, an
     # Decourt-Quaresma: ponta areia C=40 tf/m2, q_p=40*25*10=10000 kPa
     dq = capacidade_decourt_quaresma(perfil, D, L)
     assert dq["C"] == 40.0, dq
@@ -363,4 +460,6 @@ if __name__ == "__main__":
         print(relatorio_pt(verifica_estaca({
             "perfil": perfil, "D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
             "N_pilar": 1500.0, "N_uplift": 300.0,
+            "grupo": {"m": 2, "n": 1, "s": 0.9},
+            "camadas_neg": [{"f_neg": 15.0, "dz": 3.0}],
             "bloco": {"espacamento": 0.9, "a_pilar": 0.30, "h": 0.55}})))
