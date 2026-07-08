@@ -284,9 +284,12 @@ gateia o `OK` por default (só com `gate_cone=True`).
 
 ## 11. Transferência de cortante na base — tríade (Fakury cap.11, NBR 8800)
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (2026-07-08). A conferir: `Vat,Rd`
-> (11.21, µ=0,55), o dimensionamento da **chaveta** (barra de cisalhamento,
-> 11.22-25/28) e a **triagem automática** atrito→chumbador/chaveta.
+> **STATUS: ✅ HOMOLOGADO (2026-07-08)** — sênior auditou 11.21-11.28: atrito
+> `0,7·µ·N` (µ=0,55) + teto de esmagamento `0,2·fck·Y·B`, o crédito **opt-in**
+> (uplift+cortante na mesma combinação = armadilha evitada), a área de contato
+> `b·(h_bc−h_ar)` (desconta graute sem confinamento), o braço `c_bc` no centroide
+> do embutido e a `t_bc` por módulo **plástico** `Z=b·t²/4` — "exatidão absoluta".
+> **Módulo base 100% homologado**, liberado para merge.
 
 Fecha a **física do cortante da placa de base** (antes só `Fv,Rd` do chumbador +
 interação). Fonte: **Fakury/Silva/Caldas, _Dimensionamento de elementos
