@@ -527,9 +527,11 @@ Módulo `fundacao_sapata.py` liberado. **1 melhoria de código nesta rodada**
 
 ## 10. Punção da sapata flexível (NBR 6118 19.5) — feature adicionada 2026-07-07
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova (pós-homologação r2). A conferir:
-> fórmulas 19.5.2.1 / 19.5.3.2, o contorno C' a 2d, o alívio da reação do solo e a
-> integração no `OK_B` (só sapata flexível).
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior conferiu: contorno C' = soma de
+> Minkowski (`u=2(C1+C2)+4πd`, `A_C'=C1·C2+4d(C1+C2)+4πd²` — "cálculo exato"),
+> alívio `F_Sd,ef=N_d−σ·A_C'` correto, e o isolamento de unidades híbridas da
+> `τ_Rd1` (d→cm via `d*100`, fck→MPa via `/1000`, ×1000 devolve ao SI) — "lógica
+> brilhante". Sem vício de modelagem. Liberado.
 
 Fecha a pendência FLAG 2 (antes: código forçava rígida e só emitia flag). Agora a
 Parte B, quando a sapata é **flexível** (`h < (a−a_p)/3`), **verifica a punção** no
@@ -577,9 +579,10 @@ exemplo de referência (rígido) mantém As e utilização inalterados.
 
 ## 11. Recalque da sapata (ELS geotécnico, NBR 6122) — feature adicionada 2026-07-07
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: fórmula elástica
-> (Perloff/Veloso & Lopes), `Iw` rígido (0,79/0,88), o uso de carga de **serviço**
-> e o gate informativo (só com `Es_solo`).
+> **STATUS: ✅ HOMOLOGADO (2026-07-07)** — sênior confirmou a solução analítica de
+> fundação rasa sobre semiespaço elástico (Perloff 1975) e que rodar a verificação
+> **apenas** com `Es_solo` consistente "evita fabricação de parâmetros e preserva a
+> premissa Ask, Do Not Invent". Liberado.
 
 Fecha a lacuna do **deslocamento** da fundação (o módulo só tinha capacidade de
 carga + estabilidade, não deformação). A NBR 6122 exige a verificação de recalque

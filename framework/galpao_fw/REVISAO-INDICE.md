@@ -12,7 +12,7 @@ os FLAGS/pendências.
 
 | # | Módulo | Doc | Norma principal | Status revisão |
 |---|--------|-----|-----------------|----------------|
-| 1 | Fundação (sapata) | [REVISAO-FUNDACAO.md](REVISAO-FUNDACAO.md) | NBR 6118 | ✅ HOMOLOGADO r2 · 🆕 features punção (§10) + recalque (§11) PENDENTE sênior |
+| 1 | Fundação (sapata) | [REVISAO-FUNDACAO.md](REVISAO-FUNDACAO.md) | NBR 6118 | ✅ HOMOLOGADO r2 · ✅ features punção (§10) + recalque (§11) HOMOLOGADAS (2026-07-07) |
 | 2 | Pórtico (análise 1ª+2ª ordem) | [REVISAO-PORTICO.md](REVISAO-PORTICO.md) | NBR 8800 An. D | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
 | 3 | Verificação de perfil | [REVISAO-CHECK-NBR8800.md](REVISAO-CHECK-NBR8800.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-06) — §7/§8 |
 | 4 | Vento | [REVISAO-VENTO.md](REVISAO-VENTO.md) | NBR 6123 | ✅ HOMOLOGADO (r2, 2026-07-06) — §6/§7 |
@@ -36,12 +36,13 @@ Módulos **não-matemáticos** (não precisam de conferência de método): `fram
 ## 🆕 Features novas para revisão (fecham a análise de lacunas do projeto completo)
 
 Adicionadas **após** a homologação r2 dos 12 módulos — cada uma com método +
-citação normativa do PDF + selftest. **Todas PENDENTES SÊNIOR:**
+citação normativa do PDF + selftest. **Fundação (punção + recalque) HOMOLOGADA
+em 2026-07-07; demais PENDENTES:**
 
 | Feature | Módulo / doc | Norma / referência | Onde |
 |---|---|---|---|
-| Punção da sapata flexível | fundação | NBR 6118 19.5 | [FUNDACAO §10](REVISAO-FUNDACAO.md) |
-| Recalque elástico da sapata | fundação | NBR 6122 / Perloff (Veloso & Lopes) | [FUNDACAO §11](REVISAO-FUNDACAO.md) |
+| ✅ Punção da sapata flexível | fundação | NBR 6118 19.5 | [FUNDACAO §10](REVISAO-FUNDACAO.md) — HOMOLOGADA |
+| ✅ Recalque elástico da sapata | fundação | NBR 6122 / Perloff (Veloso & Lopes) | [FUNDACAO §11](REVISAO-FUNDACAO.md) — HOMOLOGADA |
 | Ancoragem do chumbador (aderência) | base | NBR 6118 9.4.2 | [BASE §9](REVISAO-BASE.md) |
 | Fadiga da viga de rolamento | ponte | NBR 8800 Anexo K | [PONTE §9](REVISAO-PONTE.md) |
 | Junta de dilatação / mov. térmico | junta (novo) | Bellei 4.5 / FCC Report 65 | [JUNTA](REVISAO-JUNTA-DILATACAO.md) |
