@@ -709,18 +709,20 @@ def gerar_dxf(design, path):
     y3 = y2 - 8000.0
     _detalhe_joelho(msp, design, ox=0.0, oy=y3)
     _detalhe_base(msp, design, ox=8000.0, oy=y3 + 1000.0)
-    # Linha 4: Quadros (direita) + Planta fundacoes (esquerda, abaixo dos detalhes)
+    # Linha 4: Quadros (direita) — ocupam de y4 ateh y4 - altura_quadros
     y4 = y3 - 12000.0
     _quadro_verif(msp, design, ox=span + 6000.0, oy=y4)
     _quadro_materiais(msp, design, ox=span + 12000.0, oy=y4)
-    # Planta fundacoes abaixo de TUDO na esquerda
-    y5 = y4 - 5000.0
+    # Linha 5: Planta fundacoes — precisa ficar ABAIXO dos quadros
+    # Quadros tem ~5000 de altura. Planta vai de oy ate oy+span, mais texto -2200.
+    # Garantimos que topo da planta < fundo dos quadros.
+    y5 = y4 - (design.get("span", span) + 12000.0)
     _planta_fundacoes(msp, design, ox=0.0, oy=y5)
     # Linha 5: Notas tecnicas (abaixo de tudo)
     y6 = y5 - (design.get("span", span) + eave + 6000.0)
     _notas_tecnicas(msp, design, ox=0.0, oy=y6)
-    # Linha 6: Corte A-A (abaixo das notas)
-    _corte_aa(msp, design, ox=0.0, oy=y6 - 5000.0)
+    # Linha 6: Corte A-A (abaixo das notas — com gap seguro)
+    _corte_aa(msp, design, ox=0.0, oy=y6 - (eave + 4000.0))
     doc.saveas(path)
     return path
 
