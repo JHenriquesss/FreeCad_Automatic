@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rodar_projeto as RP
 import projeto_spec as PS
 import framework as FW
+import techdraw_exec as TD
 
 FREECADCMD = os.environ.get(
     "FREECADCMD", r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe")
@@ -86,7 +87,43 @@ CASOS = [
 ]
 
 
+def _acha_pendente(v, caminho="cfg"):
+    """Anda no cfg e retorna o 1o caminho cujo valor string seja PENDENTE."""
+    if isinstance(v, str):
+        return caminho if v == PS.PENDENTE else None
+    if isinstance(v, dict):
+        for k, sub in v.items():
+            r = _acha_pendente(sub, "%s.%s" % (caminho, k))
+            if r:
+                return r
+    elif isinstance(v, (list, tuple)):
+        for i, sub in enumerate(v):
+            r = _acha_pendente(sub, "%s[%d]" % (caminho, i))
+            if r:
+                return r
+    return None
+
+
+def checar_carimbo():
+    """Pre-flight SEM freecad: garante que nenhum campo do cfg vaza
+    __PENDENTE__ para as pranchas (regressao do carimbo). Instantaneo."""
+    print("\n===== pre-flight carimbo (sem freecad) =====")
+    ok = True
+    for nome, kw in CASOS:
+        s = _spec(nome, **kw)      # spec crua: descricao/slug ficam PENDENTE
+        cfg = TD.config_de_spec(s, "x.FCStd", "out")
+        p = _acha_pendente(cfg)
+        if p:
+            print("  %-14s VAZOU PENDENTE em %s" % (nome, p)); ok = False
+        else:
+            print("  %-14s limpo" % nome)
+    return ok
+
+
 def rodar():
+    if not checar_carimbo():
+        print("  pre-flight FALHOU: __PENDENTE__ vazando no carimbo")
+        return False
     resultados = []
     for nome, kw in CASOS:
         print("\n===== %s =====" % nome)
