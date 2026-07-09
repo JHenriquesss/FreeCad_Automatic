@@ -1084,7 +1084,7 @@ class FreecadMCPPlugin:
         Returns:
             Execution result dictionary.
         """
-        return self._execute_via_queue(code, 30000)
+        return self._execute_via_queue(code, 300000)
 
     # Valid view types for screenshot capture
     _VALID_VIEW_TYPES = frozenset(
