@@ -49,6 +49,11 @@ def circ(doc, nome, centro, raio, cor=None):
         o.ViewObject.ShapeColor = _cor(*cor)
     return o
 
+def _dec(v):
+    """Formata numero com virgula decimal (pt_BR)."""
+    s = f"{v:.2f}" if isinstance(v, float) else str(v)
+    return s.replace(".", ",")
+
 def texto(doc, nome, txt, pos, tam=6):
     try:
         t = Draft.make_text(str(txt), vec(*pos))
@@ -58,27 +63,38 @@ def texto(doc, nome, txt, pos, tam=6):
     except Exception:
         return None
 
+def _seta(doc, nome, ponta, direcao, tam=80):
+    """Triangulo preenchido (seta de cota). direcao=(dx,dy) normalizado."""
+    dx, dy = direcao
+    nx, ny = -dy, dx  # perpendicular
+    pts = [ponta, (ponta[0]+dx*tam+ny*tam*0.4, ponta[1]+dy*tam-nx*tam*0.4),
+           (ponta[0]+dx*tam-ny*tam*0.4, ponta[1]+dy*tam+nx*tam*0.4)]
+    # Filled triangle using face
+    o = doc.addObject("Part::Feature", nome)
+    o.Shape = Part.Face(Part.makePolygon([vec(*p) for p in pts + [pts[0]]]))
+    return o
+
 def cotah(doc, nome, p1, p2, off=-350):
-    try:
-        x1, y1 = p1; x2, y2 = p2
-        v1 = vec(x1, y1); v2 = vec(x2, y2)
-        v3 = vec((x1 + x2) / 2, min(y1, y2) + off)
-        d = Draft.make_dimension(v1, v2, v3)
-        d.Label = nome
-        return d
-    except Exception:
-        return None
+    """Cota horizontal manual: extensao + linha + setas + texto."""
+    x1, y1 = p1; x2, y2 = p2
+    yd = min(y1, y2) + off; xm = (x1 + x2) / 2
+    ln(doc, f"{nome}_E1", (x1, y1), (x1, yd))
+    ln(doc, f"{nome}_E2", (x2, y2), (x2, yd))
+    ln(doc, f"{nome}_DL", (x1, yd), (x2, yd))
+    _seta(doc, f"{nome}_A1", (x1, yd), (1, 0))
+    _seta(doc, f"{nome}_A2", (x2, yd), (-1, 0))
+    texto(doc, f"{nome}_T", _dec(abs(x2-x1)/1000) + " m", (xm, yd - 150), 7)
 
 def cotav(doc, nome, p1, p2, off=-350):
-    try:
-        x1, y1 = p1; x2, y2 = p2
-        v1 = vec(x1, y1); v2 = vec(x2, y2)
-        v3 = vec(min(x1, x2) + off, (y1 + y2) / 2)
-        d = Draft.make_dimension(v1, v2, v3)
-        d.Label = nome
-        return d
-    except Exception:
-        return None
+    """Cota vertical manual: extensao + linha + setas + texto."""
+    x1, y1 = p1; x2, y2 = p2
+    xd = min(x1, x2) + off; ym = (y1 + y2) / 2
+    ln(doc, f"{nome}_E1", (x1, y1), (xd, y1))
+    ln(doc, f"{nome}_E2", (x2, y2), (xd, y2))
+    ln(doc, f"{nome}_DL", (xd, y1), (xd, y2))
+    _seta(doc, f"{nome}_A1", (xd, y1), (0, 1))
+    _seta(doc, f"{nome}_A2", (xd, y2), (0, -1))
+    texto(doc, f"{nome}_T", _dec(abs(y2-y1)/1000) + " m", (xd - 400, ym), 7)
 
 def bolha(doc, nome, p, rotulo, r=400):
     centro = vec(*p)
@@ -89,7 +105,7 @@ def nivel(doc, nome, p, txt, s=180):
     x, y = p
     pts = [(x, y), (x - s, y + s), (x + s, y + s), (x, y)]
     rect(doc, f"{nome}_N", pts, (0, 0.6, 0))
-    texto(doc, f"{nome}_L", txt, (x + s + 100, y + s - 40), 7)
+    texto(doc, f"{nome}_L", txt, (x + s + 100, y + s - 40), 8)
 
 def poligono(doc, nome, pts, fechado=True, cor=None):
     pts_v = [vec(*p) for p in pts]
@@ -167,9 +183,9 @@ def _portico(doc, d, ox, oy):
         bolha(doc, f"PC_BL_{i}", Q(yc, eave + 900), lbl)
     # Niveis
     nivel(doc, "PC_NV0", Q(-dc/2 - 250, 0), "+0,00")
-    nivel(doc, "PC_NVE", Q(-dc/2 - 250, eave), f"+{eave/1000:.2f}")
+    nivel(doc, "PC_NVE", Q(-dc/2 - 250, eave), "+" + _dec(eave/1000))
     for j in range(nv):
-        nivel(doc, f"PC_NV_{j}", Q(ridges[j] + 250, d["ridges"][j]), f"+{d['ridges'][j]/1000:.2f}")
+        nivel(doc, f"PC_NV_{j}", Q(ridges[j] + 250, d["ridges"][j]), "+" + _dec(d['ridges'][j]/1000))
     # Cotas
     for j in range(nv):
         cotah(doc, f"PC_CH_{j}", Q(cols[j], 0), Q(cols[j + 1], 0), off=-1200)
@@ -360,29 +376,44 @@ def _quadro_verif(doc, ck, ox, oy):
     linhas = [(n, v) for n, v in ck.items() if v is not None]
     if not linhas:
         return
-    texto(doc, "QV_TIT", "QUADRO DE VERIFICACOES", (ox, oy+200), 10)
+    texto(doc, "QV_TIT", "QUADRO DE VERIFICACOES", (ox, oy+200), 12)
     rh, W = 400, 4500.0
+    # Grid vertical (3 colunas: nome, barra, situacao)
+    col_x = [ox, ox+2200, ox+3700, ox+W]
+    for xv in col_x:
+        ln(doc, f"QV_V_{xv:.0f}", (xv, oy), (xv, oy - rh * (len(linhas) + 1)))
+    # Header
+    ry0 = oy - rh
+    ln(doc, "QV_HDR", (ox, ry0), (ox+W, ry0))
+    texto(doc, "QV_HN", "Elemento", (ox+80, ry0+40), 7)
+    texto(doc, "QV_HU", "util", (ox+2300, ry0+40), 7)
+    texto(doc, "QV_HS", "OK", (ox+3800, ry0+40), 7)
     for i, (nome, val) in enumerate(linhas):
-        ry = oy - rh * (i + 1)
+        ry = oy - rh * (i + 2)
         ln(doc, f"QV_L_{i}", (ox, ry), (ox+W, ry))
-        texto(doc, f"QV_N_{i}", nome, (ox+50, ry+30), 5)
-        _barra_util(doc, f"QV_B_{i}", ox+2500, ry, 1500, val, f"QV_{i}")
-    ln(doc, "QV_BOT", (ox, oy - rh * (len(linhas) + 1)), (ox+W, oy - rh * (len(linhas) + 1)))
+        texto(doc, f"QV_N_{i}", nome, (ox+80, ry+30), 5)
+        _barra_util(doc, f"QV_B_{i}", ox+2300, ry, 1200, val, f"QV_{i}")
+        texto(doc, f"QV_S_{i}", "OK" if val <= 1.001 else "REVER", (ox+3800, ry+30), 5)
 
 def _quadro_materiais(doc, tk, ox, oy):
     rows = [(g[0], g[1], g[2], g[4]) for g in tk if "Alvenaria" not in g[0]]
     if not rows:
         return
     rows.sort(key=lambda r: -r[3]); rows = rows[:15]
-    texto(doc, "QM_TIT", "MATERIAIS (aco)", (ox, oy+200), 10)
-    rh, W = 380, 5000.0; mm = max(r[3] for r in rows) or 1
+    texto(doc, "QM_TIT", "MATERIAIS (aco)", (ox, oy+200), 12)
+    rh, W = 380, 5500.0; mm = max(r[3] for r in rows) or 1
+    col_x = [ox, ox+W]
+    for xv in col_x:
+        ln(doc, f"QM_V_{xv:.0f}", (xv, oy), (xv, oy - rh * (len(rows) + 1)))
     for i, (cat, prof, cnt, massa) in enumerate(rows):
         ry = oy - rh * (i + 1)
         ln(doc, f"QM_L_{i}", (ox, ry), (ox+W, ry))
+        texto(doc, f"QM_C_{i}", f"{cat} ({prof})", (ox+50, ry+30), 5)
         bw = (massa / mm) * 3500
-        rect(doc, f"QM_B_{i}", [(ox+1050, ry-30), (ox+1050+bw, ry-30), (ox+1050+bw, ry+30), (ox+1050, ry+30)], (0.3, 0.3, 0.5))
+        rect(doc, f"QM_B_{i}", [(ox+2500, ry-25), (ox+2500+bw, ry-25), (ox+2500+bw, ry+25), (ox+2500, ry+25)], (0.4, 0.4, 0.6))
+        texto(doc, f"QM_M_{i}", f"{massa:.0f} kg", (ox+2500+bw+50, ry+30), 5)
     ln(doc, "QM_BOT", (ox, oy - rh * (len(rows) + 1)), (ox+W, oy - rh * (len(rows) + 1)))
-    texto(doc, "QM_TOT", f"Total: {sum(r[3] for r in rows):.0f} kg", (ox+50, oy - rh * (len(rows) + 1) - 200), 6)
+    texto(doc, "QM_TOT", f"Total: {sum(r[3] for r in rows):.0f} kg", (ox+50, oy - rh * (len(rows) + 1) - 200), 7)
 
 
 # ── NOTAS TÉCNICAS ───────────────────────────────────────────────────
