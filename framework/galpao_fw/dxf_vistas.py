@@ -694,21 +694,33 @@ def gerar_dxf(design, path):
     msp = doc.modelspace()
     span, comp = design["span"], design["comprimento"]
     eave = design["eave"]
+    # Layout: cada view posicionada com intervalo Y seguro para evitar sobreposicao
+    # Linha 1: Portico, Elevacao, Detalhes (terca, contrav, calha)
     _portico(msp, design, ox=0.0, oy=0.0)
     _elev_long(msp, design, ox=span + 6000.0, oy=0.0)
-    _planta(msp, design, ox=span + 6000.0, oy=-(eave + 6000.0))
-    _planta_fundacoes(msp, design, ox=0.0, oy=-(span + eave + 8000.0))
-    _legenda(msp, design, ox=0.0, oy=-(eave + 5500.0))
-    _detalhe_joelho(msp, design, ox=0.0, oy=-(eave + 12000.0))
-    _detalhe_base(msp, design, ox=8000.0, oy=-(eave + 11000.0))
     _detalhe_terca_viga(msp, design, ox=span + 6000.0 + 6000.0, oy=0.0)
     _detalhe_contraventamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-3000.0)
     _detalhe_calha_fechamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-5500.0)
-    yq = -(eave + 6000.0) - span - 2500.0
-    _quadro_verif(msp, design, ox=span + 6000.0, oy=yq)
-    _quadro_materiais(msp, design, ox=span + 12000.0, oy=yq)
-    _notas_tecnicas(msp, design, ox=0.0, oy=-(span + eave + 21000.0))
-    _corte_aa(msp, design, ox=0.0, oy=-(span + eave + 27000.0))
+    # Linha 2: Legenda esquerda + Planta cobertura direita
+    y2 = -(eave + 7000.0)   # abaixo da linha 1 (eave+6000)
+    _legenda(msp, design, ox=0.0, oy=y2)
+    _planta(msp, design, ox=span + 6000.0, oy=y2 - 1000.0)
+    # Linha 3: Detalhes joelho (esq) + base (dir)
+    y3 = y2 - 8000.0
+    _detalhe_joelho(msp, design, ox=0.0, oy=y3)
+    _detalhe_base(msp, design, ox=8000.0, oy=y3 + 1000.0)
+    # Linha 4: Quadros (direita) + Planta fundacoes (esquerda, abaixo dos detalhes)
+    y4 = y3 - 12000.0
+    _quadro_verif(msp, design, ox=span + 6000.0, oy=y4)
+    _quadro_materiais(msp, design, ox=span + 12000.0, oy=y4)
+    # Planta fundacoes abaixo de TUDO na esquerda
+    y5 = y4 - 5000.0
+    _planta_fundacoes(msp, design, ox=0.0, oy=y5)
+    # Linha 5: Notas tecnicas (abaixo de tudo)
+    y6 = y5 - (design.get("span", span) + eave + 6000.0)
+    _notas_tecnicas(msp, design, ox=0.0, oy=y6)
+    # Linha 6: Corte A-A (abaixo das notas)
+    _corte_aa(msp, design, ox=0.0, oy=y6 - 5000.0)
     doc.saveas(path)
     return path
 
