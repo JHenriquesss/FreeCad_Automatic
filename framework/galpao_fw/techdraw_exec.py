@@ -533,16 +533,32 @@ def _pr_contravent(doc, cfg, objs):
     page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
                          _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
                                   nome, "05/09"))
+    g = cfg["geo"]
+    comp, bay = g["comprimento"], g.get("bay") or 5000.0
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    _vista(doc, page, "V05_CV_LAT", cv, dlt, xlt, esc, 410, 430, coarse=True)
+    v1 = _vista(doc, page, "V05_CV_LAT", cv, dlt, xlt, esc, 410, 430,
+                coarse=True)
+    hw1, hh1 = _paper_half(bb, esc, "y" if comp_x else "x")
+    c1 = _Cotador(doc, page, v1, hw1, hh1)
+    # baia contraventada + altura
+    a = (0, 0, 0.) if comp_x else (0, 0, 0.)
+    b = (bay, 0, 0.) if comp_x else (0, bay, 0.)
+    c1.d(a, b, "DistanceX", _fmt_m(bay), "baixo")
+    if comp_x:
+        c1.d((comp, 0, 0.), (comp, 0, g["eave"]), "DistanceY",
+             _fmt_m(g["eave"]), "dir")
+    else:
+        c1.d((0, comp, 0.), (0, comp, g["eave"]), "DistanceY",
+             _fmt_m(g["eave"]), "dir")
     _vista(doc, page, "V05_CV_COB", cob, (0, 0, 1), (1, 0, 0), esc,
            410, 220, coarse=True)
-    _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome],
-          200, 350, 5)
-    _anot(doc, page, "A05b", ["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome],
-          200, 130, 5)
-    return [page], []
+    _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome,
+                              "Barras redondas pretensionadas c/ esticador."],
+          200, 345, 5)
+    _anot(doc, page, "A05b", ["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome,
+                              "Cotas em metros."], 200, 120, 5)
+    return [page], [c1]
 
 
 def _pr_base(doc, cfg, objs, todos):
@@ -593,6 +609,11 @@ def _pr_base(doc, cfg, objs, todos):
 
 
 def _pr_joelho(doc, cfg, objs, todos):
+    """Detalhe REAL do no viga-coluna: recorta a geometria numa janela em torno
+    de UM joelho (Part.common com uma caixa) para ter um close-up limpo, em vez
+    de mostrar o topo inteiro do portico. Projeta o compound recortado."""
+    import Part
+    import FreeCAD as App
     g = cfg["geo"]
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
@@ -600,34 +621,61 @@ def _pr_joelho(doc, cfg, objs, todos):
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
     frame = _faixa(todos, eixo, meio, bay * 0.45)
-    joelho = [o for o in frame
-              if hasattr(o, "Shape") and not o.Shape.isNull()
-              and o.Shape.BoundBox.ZMax >= g["eave"] - 900
-              and o.Shape.BoundBox.ZMin <= g["eave"] + 900]
-    if not joelho:
+    # canto do joelho (topo da coluna no lado y=0 / x=0)
+    if comp_x:
+        cx0, cy0, cz0 = meio, bb.YMin + 100.0, g["eave"]
+    else:
+        cx0, cy0, cz0 = bb.XMin + 100.0, meio, g["eave"]
+    KW = 1500.0                                       # meia-janela do no (mm)
+    caixa = Part.makeBox(2 * KW, 2 * KW, 2 * KW,
+                         App.Vector(cx0 - KW, cy0 - KW, cz0 - KW))
+    crops = []
+    mao_bb = None
+    for o in frame:
+        try:
+            com = o.Shape.common(caixa)
+            if com.Edges:
+                crops.append(com)
+                if o.Label.startswith("MAO"):
+                    mao_bb = com.BoundBox
+        except Exception:
+            pass
+    if not crops:
         page = _nova_prancha(doc, "PE07_DET_JOELHO",
                              _carimbo(cfg, "DETALHE - LIGACAO JOELHO", "PE-07",
                                       "-", "07/09"))
         return [page], []
-    jb = _bbox(joelho)
+    feat = doc.addObject("Part::Feature", "JOELHO_CROP")
+    feat.Shape = Part.makeCompound(crops)
+    jb = feat.Shape.BoundBox
     ax = "x" if comp_x else "y"
-    esc, nome = _fit_escala(jb, ax, *AREA_1V)
+    esc, nome = _fit_escala(jb, ax, 620, 400)
     page = _nova_prancha(doc, "PE07_DET_JOELHO",
-                         _carimbo(cfg, "DETALHE - LIGACAO JOELHO/CUMEEIRA",
+                         _carimbo(cfg, "DETALHE - LIGACAO JOELHO (VIGA-COLUNA)",
                                   "PE-07", nome, "07/09"))
     dv = (-1, 0, 0) if comp_x else (0, -1, 0)
     xv = (0, -1, 0) if comp_x else (1, 0, 0)
-    v = _vista(doc, page, "V07_JOELHO", joelho, dv, xv, esc, 410, 350)
+    v = _vista(doc, page, "V07_JOELHO", [feat], dv, xv, esc, 410, 350)
     hw, hh = _paper_half(jb, esc, ax)
     c = _Cotador(doc, page, v, hw, hh)
+    # altura da janela + dimensoes reais da mao-francesa (se identificada)
     c.d((jb.XMin, jb.YMin, jb.ZMin), (jb.XMin, jb.YMin, jb.ZMax),
         "DistanceY", _fmt_mm(jb.ZLength), "esq")
+    if mao_bb:
+        if comp_x:
+            c.d((jb.XMin, mao_bb.YMin, mao_bb.ZMin),
+                (jb.XMin, mao_bb.YMax, mao_bb.ZMin),
+                "DistanceX", _fmt_mm(mao_bb.YLength), "baixo")
+        else:
+            c.d((mao_bb.XMin, jb.YMin, mao_bb.ZMin),
+                (mao_bb.XMax, jb.YMin, mao_bb.ZMin),
+                "DistanceX", _fmt_mm(mao_bb.XLength), "baixo")
     _anot(doc, page, "A07", [
-        "LIGACAO DE JOELHO (VIGA-COLUNA)   ESCALA %s" % nome,
+        "DETALHE DO NO VIGA-COLUNA (JOELHO)   ESCALA %s" % nome,
         "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
                                      cfg.get("perfil_raf", "?")),
-        "Parafusos e soldas conforme memoria de calculo. Cotas em mm."],
-          200, 90, 5)
+        "Mao-francesa, chapas e parafusos conforme memoria de calculo.",
+        "Cotas em milimetros."], 200, 80, 5)
     return [page], [c]
 
 
@@ -639,6 +687,7 @@ def _pr_fechamento(doc, cfg, objs):
         return [page], []
     fch = _pref(objs, ("TERCA", "TAPAMENTO", "MAO", "MONTANTE", "TELHA",
                        "CALHA", "PORTICO"))
+    g = cfg["geo"]
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
     ax = "y" if comp_x else "x"
@@ -648,13 +697,27 @@ def _pr_fechamento(doc, cfg, objs):
                                   "PE-08", nome, "08/09"))
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    _vista(doc, page, "V08_FECH", fch, dlt, xlt, esc, 410, 350, coarse=True)
+    v = _vista(doc, page, "V08_FECH", fch, dlt, xlt, esc, 410, 360,
+               coarse=True)
+    comp, bay = g["comprimento"], g.get("bay") or 5000.0
+    hw, hh = _paper_half(bb, esc, "y" if comp_x else "x")
+    c = _Cotador(doc, page, v, hw, hh)
+    # comprimento + baia + altura (espacamento das tercas via eixos de baia)
+    if comp_x:
+        c.d((0, 0, 0.), (comp, 0, 0.), "DistanceX", _fmt_m(comp), "baixo", nivel=1)
+        c.d((0, 0, 0.), (bay, 0, 0.), "DistanceX", _fmt_m(bay), "baixo", nivel=0)
+        c.d((0, 0, 0.), (0, 0, g["eave"]), "DistanceY", _fmt_m(g["eave"]), "esq")
+    else:
+        c.d((0, 0, 0.), (0, comp, 0.), "DistanceX", _fmt_m(comp), "baixo", nivel=1)
+        c.d((0, 0, 0.), (0, bay, 0.), "DistanceX", _fmt_m(bay), "baixo", nivel=0)
+        c.d((0, 0, 0.), (0, 0, g["eave"]), "DistanceY", _fmt_m(g["eave"]), "esq")
     tc = cfg.get("terca")
-    linhas = ["FECHAMENTO E TERCAS   ESCALA %s" % nome]
+    linhas = ["FECHAMENTO E TERCAS (VISTA LATERAL)   ESCALA %s" % nome]
     if tc:
         linhas.append("Terca Ue: %s" % tc)
+    linhas.append("Cotas em metros.")
     _anot(doc, page, "A08", linhas, 200, 80, 5)
-    return [page], []
+    return [page], [c]
 
 
 def _pr_quadros(doc, cfg):
