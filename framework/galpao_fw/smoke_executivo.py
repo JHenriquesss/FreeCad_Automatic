@@ -24,6 +24,7 @@ import rodar_projeto as RP
 import projeto_spec as PS
 import framework as FW
 import techdraw_exec as TD
+import relatorio_calculo as RC
 
 FREECADCMD = os.environ.get(
     "FREECADCMD", r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe")
@@ -143,7 +144,11 @@ def rodar():
             # de fora de todas as pranchas (nem virar invisivel silenciosamente).
             nc = ex.get('cobertura', {}).get('nao_cobertos', [])
             assert not nc, "solidos nao cobertos por nenhuma prancha: %s" % nc
-            print("  OK: %d pranchas, cobertura completa -> %s/pranchas"
+            # PDF do memorial de calculo: gera sem erro e sai um arquivo != vazio
+            pdf = RC.gerar_pdf(out, titulo="SMOKE %s" % nome)
+            assert os.path.exists(pdf) and os.path.getsize(pdf) > 2000, \
+                "PDF de calculo nao gerou (%s)" % pdf
+            print("  OK: %d pranchas + memorial PDF, cobertura completa -> %s"
                   % (n, out))
             ok = True
         except Exception as ex:

@@ -1,6 +1,7 @@
 import sys, tempfile
 sys.path.insert(0, 'D:/dev/FreeCad_Automatic/framework/galpao_fw')
 import rodar_projeto as RP, projeto_spec as PS
+import relatorio_calculo as RC
 
 s = PS.novo()
 s['slug'] = 'galpao_final'
@@ -19,6 +20,14 @@ out = tempfile.mkdtemp(prefix='final_')
 res = RP.calcular(s, out)
 print(f'Pipeline: atende={res.get("atende")}')
 print(f'Memoriais: {out}')
+
+# PDF unico do memorial de calculo (metodo + calculo) para o Eng. Senior
+try:
+    g = s['geometria']
+    pdf = RC.gerar_pdf(out, titulo=f"GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m")
+    print(f'Memorial PDF: {pdf}')
+except Exception as ex:
+    print(f'Memorial PDF (erro): {ex}')
 
 r = RP.montar_modelo(s, out, 'galpao_final',
                      mf_stride=res.get('mf_stride'),
