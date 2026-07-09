@@ -45,3 +45,7 @@ framework/galpao_fw/exports/
 __pycache__/
 *.pyc
 *.pyo
+
+# Saidas de entrega geradas (pranchas, memoriais, PDF de calculo, FCStd de saida)
+ENTREGA_PRANCHAS/
+*.FCStd1
