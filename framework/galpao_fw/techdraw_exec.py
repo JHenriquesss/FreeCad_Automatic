@@ -34,15 +34,19 @@ _MIUDEZAS = ("PORCA", "ARRUELA", "CLIPE", "CONEX", "CHUMBADOR", "ESTICADOR")
 # cobertura (_cobertura) so aceita como "ok" o que estiver desenhado OU listado
 # aqui -- assim um tipo de elemento novo do build_galpao acusa falha ate ser
 # classificado, em vez de sumir silenciosamente das pranchas.
+# Cobertura: toda peca do modelo aparece desenhada, EXCETO os prefixos abaixo.
+# - VAO: auxiliar, nao e peca fisica.
+# - Ligacoes robustas (console/cumeeira/gusset) e clipes: o dimensionamento,
+#   metodo e detalhamento (chapas/solda/parafusos) vao no MEMORIAL DE CALCULO
+#   (PDF de calculos, gerado por relatorio_calculo.py). Nao ganham corte
+#   grafico auto porque o auto-crop projeta a peca robusta como silhueta cheia,
+#   sem linhas -- um detalhe legivel exige plano de corte + simbologia propria.
 PREFIXOS_SEM_DESENHO = (
-    "VAO",                      # auxiliar de vao livre (nao e peca)
-    # Miudezas de LIGACAO sem detalhe grafico dedicado: sao dimensionadas e
-    # especificadas no memorial/quadro de ligacoes, nao desenhadas em corte
-    # proprio. Se um projeto exigir o detalhe, criar a prancha e remover daqui.
-    "CLIPE_GIRT",               # clipes de fixacao das girts
-    "CONEX_CONSOLE",            # chapa de ligacao do console da ponte rolante
-    "CONEX_CUMEEIRA",           # ligacao de cumeeira
-    "CONEX_GUSSET",             # gussets dos contraventamentos
+    "VAO",
+    "CLIPE_GIRT",
+    "CONEX_CONSOLE",
+    "CONEX_CUMEEIRA",
+    "CONEX_GUSSET",
 )
 
 
@@ -52,6 +56,20 @@ def _prefixo_label(lbl):
     import re
     m = re.match(r"^([A-Z]+(?:_[A-Z]+)*)", lbl)
     return m.group(1) if m else lbl
+
+
+# Sufixos de LADO/posicao: a mesma peca espelhada (esq/dir, frente/fundo). Para
+# a cobertura, D e E sao o MESMO tipo -- o detalhe desenha so um representante.
+_LADOS = ("D", "E", "FRENTE", "FUNDO")
+
+
+def _tipo_solido(lbl):
+    """Tipo de peca ignorando o lado: CONEX_GUSSET_PAR_D -> CONEX_GUSSET_PAR ;
+    MONTANTE_OITAO_FRENTE -> MONTANTE_OITAO ; CONEX_GUSSET_COB (COB nao e lado)."""
+    parts = _prefixo_label(lbl).split("_")
+    while len(parts) > 1 and parts[-1] in _LADOS:
+        parts.pop()
+    return "_".join(parts)
 
 
 def _bb_overlap(a, b):
@@ -82,7 +100,7 @@ def _cobertura(doc, todos):
     prefixos_todos = set()
     prefixos_ok = set()
     for o in todos:
-        p = _prefixo_label(o.Label)
+        p = _tipo_solido(o.Label)      # tipo sem lado (D/E = mesmo tipo)
         prefixos_todos.add(p)
         coberto = o.Name in desenhados_nomes
         if not coberto:
@@ -903,6 +921,23 @@ def gerar_executivo(cfg):
         paginas += pgs
     except Exception as ex:
         App.Console.PrintError("Prancha quadros: %s\n" % ex)
+
+    # Numeracao dinamica: o total de pranchas varia por projeto (detalhes de
+    # ligacao so saem se o tipo existe). Reescreve drawing_number "PE-NN" e
+    # sheet_number "NN/TOTAL" na ordem final, para o carimbo bater com o
+    # conjunto realmente gerado.
+    total = len(paginas)
+    for i, p in enumerate(paginas, 1):
+        try:
+            tpl = p.Template
+            et = tpl.EditableTexts
+            if "drawing_number" in et:
+                et["drawing_number"] = "PE-%02d" % i
+            if "sheet_number" in et:
+                et["sheet_number"] = "%02d/%02d" % (i, total)
+            tpl.EditableTexts = et
+        except Exception:
+            pass
 
     doc.recompute()                      # projeta todas as vistas
 
