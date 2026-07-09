@@ -24,7 +24,7 @@ CAMADAS = [
     ("BASE", 6, "CONTINUOUS"),       # placas de base (magenta ACI 6)
     ("FURACAO", 1, "CONTINUOUS"),    # chumbadores/parafusos (vermelho ACI 1)
     ("COTAS", 3, "CONTINUOUS"),      # dimensoes (verde ACI 3)
-    ("TEXTO", 7, "CONTINUOUS"),      # textos (preto/branco ACI 7)
+    ("TEXTO", 6, "CONTINUOUS"),      # textos (magenta ACI 6 - visivel qq fundo)
     ("CONTRAV", 5, "DASHED"),        # contraventamento (azul ACI 5)
     ("TELHA", 9, "CONTINUOUS"),      # telha/terca (cinza claro ACI 9)
     ("CONCRETO", 4, "CONTINUOUS"),   # concreto/fundacao (ciano ACI 4)
