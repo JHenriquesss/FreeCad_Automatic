@@ -14,25 +14,28 @@ import math
 import ezdxf
 
 
-# ---- camadas (nome, RGB fixo, linetype) ------------------------------------
-# RGB FIXO (true color) -> visivel tanto em fundo BRANCO (visualizadores comuns)
-# quanto preto. Evita a cor 7 (branca no branco) e amarelo/ciano (some no branco).
+# ---- camadas (nome, ACI index, linetype) ------------------------------------
+# ACI (AutoCAD Color Index) para compatibilidade com TODOS os visualizadores
+# incluindo FreeCAD (que ignora RGB true color). Cores definidas por funcao
+# padrao do DXF -> visiveis em fundo branco E preto.
 CAMADAS = [
-    ("EIXOS", (120, 120, 120), "CENTER"),        # eixos (cinza)
-    ("ACO", (0, 0, 0), "CONTINUOUS"),            # perfis metalicos (preto)
-    ("BASE", (200, 110, 0), "CONTINUOUS"),       # placas de base (laranja escuro)
-    ("FURACAO", (210, 0, 0), "CONTINUOUS"),      # chumbadores/parafusos (vermelho)
-    ("COTAS", (0, 140, 0), "CONTINUOUS"),        # dimensoes (verde)
-    ("TEXTO", (0, 0, 0), "CONTINUOUS"),          # textos (preto)
-    ("CONTRAV", (0, 0, 210), "DASHED"),          # contraventamento (azul)
-    ("TELHA", (120, 120, 120), "CONTINUOUS"),    # telha/terca (cinza)
+    ("EIXOS", 8, "CENTER"),          # eixos (cinza escuro ACI 8)
+    ("ACO", 7, "CONTINUOUS"),        # perfis metalicos (preto/branco ACI 7)
+    ("BASE", 6, "CONTINUOUS"),       # placas de base (magenta ACI 6)
+    ("FURACAO", 1, "CONTINUOUS"),    # chumbadores/parafusos (vermelho ACI 1)
+    ("COTAS", 3, "CONTINUOUS"),      # dimensoes (verde ACI 3)
+    ("TEXTO", 7, "CONTINUOUS"),      # textos (preto/branco ACI 7)
+    ("CONTRAV", 5, "DASHED"),        # contraventamento (azul ACI 5)
+    ("TELHA", 9, "CONTINUOUS"),      # telha/terca (cinza claro ACI 9)
+    ("CONCRETO", 4, "CONTINUOUS"),   # concreto/fundacao (ciano ACI 4)
+    ("ARMADURA", 1, "CONTINUOUS"),   # armadura (vermelho ACI 1)
 ]
 
 
 def _setup(doc):
-    for nome, rgb, lt in CAMADAS:
+    for nome, aci, lt in CAMADAS:
         ly = doc.layers.add(nome)
-        ly.rgb = rgb
+        ly.color = aci
         try:
             ly.linetype = lt
         except Exception:
@@ -486,6 +489,204 @@ def _legenda(msp, d, ox, oy):
         _txt(msp, s, (ox + 150, oy + h - 350 - i * 360), h=150 if i else 200)
 
 
+# ---- NOTAS TECNICAS GERAIS --------------------------------------------------
+def _notas_tecnicas(msp, d, ox, oy):
+    w, h = 8000.0, 4000.0
+    _poly(msp, [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)], "TEXTO")
+    linhas = [
+        "NOTAS TECNICAS GERAIS",
+        "",
+        "1. PROJETO CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL.",
+        "2. COTAS EM MILIMETROS (mm) SALVO INDICACAO EM CONTRARIO.",
+        "3. RN: +0,00 = TOPO DO CONCRETO (BASE DAS PLACAS).",
+        "4. ACO ESTRUTURAL: MR250 (fy=250 MPa, fu=400 MPa) NBR 8800.",
+        "5. ACO ARMADURA: CA-50 (fyk=500 MPa) NBR 7480.",
+        "6. CONCRETO: fck=25 MPa (NBR 6118). COBRIMENTO: 5 cm (fund.), 3 cm (superestrut.).",
+        "7. PARAFUSOS: ASTM A325 (fub=825 MPa) ou A307 (fub=400 MPa) conforme indicado.",
+        "8. SOLDAS: Eletrodo E70XX (fw=485 MPa). Filete min. 6 mm.",
+        "9. CHUMBADORES: Aco ASTM A36, gancho 180 mm.",
+        "10. CONTRAVENTAMENTO: Barras redondas pretensionadas d20 c/ esticadores.",
+        "11. TERÇAS: Ue formado a frio (NBR 14762) - face aberta p/ o beiral.",
+        "12. TAPAMENTO: Telha trapezoidal 0,65 mm parafusada nas terças/longarinas.",
+        "13. MAO-FRANCESA: d16 mm a cada 2 terças (Lb da viga = 3,35 m).",
+        "14. TOLERANCIAS: NBR 8800 Anexo N (fabricacao/montagem).",
+        "15. TODAS AS LIGACOES DEVEM SER VERIFICADAS PELO ENGENHEIRO RESPONSAVEL.",
+    ]
+    for i, s in enumerate(linhas):
+        _txt(msp, s, (ox + 150, oy + h - 350 - i * 220), h=180 if i == 0 else 130)
+
+
+# ---- DETALHE TERÇA x VIGA --------------------------------------------------
+def _detalhe_terca_viga(msp, d, ox, oy):
+    dr = d["raf_d"]; bf = d.get("col_bf", dr)
+    th = d.get("terca_dims", [200, 75, 0, 0])[0]; tb = d.get("terca_dims", [200, 75, 0, 0])[1]
+
+    def P(x, y): return (ox + x, oy + y)
+    _poly(msp, [P(-bf/2, 0), P(bf/2, 0), P(bf/2, dr), P(-bf/2, dr)], "ACO")
+    _line(msp, P(0, 0), P(0, dr), "EIXOS")
+    ty = dr + 30
+    _poly(msp, [P(-tb/2, ty), P(tb/2, ty), P(tb/2, ty+th), P(-tb/2, ty+th)], "TELHA")
+    _poly(msp, [P(-tb/2-15, dr), P(-tb/2-15, ty+20), P(-tb/2+5, ty+20)], "BASE")
+    _circ(msp, P(-tb/2+30, dr+30), 6, "FURACAO")
+    _cota_v(msp, oy, oy+dr, ox-bf/2-200, txt=f"{dr:.0f}".replace(".",","), off=-400)
+    _txt(msp, f"Ue{th:.0f}x{tb:.0f}x25x2,65", P(-bf/2-200, ty+th/2-50), h=120)
+    _txt(msp, f"CLIPE L 90x120x8 c/ 2 M12", P(tb/2+50, dr+100), h=120)
+    _txt(msp, "DET. TERÇA x VIGA", P(-200, -500), h=180)
+
+
+# ---- DETALHE TIRANTE / CONTRAVENTAMENTO ------------------------------------
+def _detalhe_contraventamento(msp, d, ox, oy):
+    def P(x, y): return (ox + x, oy + y)
+    _poly(msp, [P(0, 0), P(250, 0), P(0, 250)], "ACO")
+    for xx, yy in [(70, 70), (180, 70), (70, 180)]: _circ(msp, P(xx, yy), 11, "FURACAO")
+    ang = math.radians(45); Lb = 600
+    xb, yb = 250 + Lb*math.cos(ang), Lb*math.sin(ang)
+    _line(msp, P(250, 0), P(xb, yb), "CONTRAV")
+    xm, ym = (250+xb)/2, yb/2
+    _poly(msp, [P(xm-60, ym-30), P(xm+60, ym-30), P(xm+60, ym+30), P(xm-60, ym+30)], "CONTRAV")
+    _line(msp, P(xm-80, ym), P(xm+80, ym), "CONTRAV")
+    _line(msp, P(0, -50), P(0, 300), "ACO")
+    _txt(msp, "CH. GUSSET t=12 mm", P(10, -100), h=120)
+    _txt(msp, "d20 mm (pretensionada)", P(300, yb/2-50), h=120)
+    _txt(msp, "ESTICADOR M20", P(xm-80, ym-80), h=120)
+    _txt(msp, "DET. CONTRAVENTAMENTO", P(0, -300), h=180)
+
+
+# ---- DETALHE CALHA / FECHAMENTO LATERAL ------------------------------------
+def _detalhe_calha_fechamento(msp, d, ox, oy):
+    dr = d["raf_d"]; bf = d.get("col_bf", dr)
+    def P(x, y): return (ox + x, oy + y)
+    _poly(msp, [P(-bf/2, 0), P(bf/2, 0), P(bf/2, dr), P(-bf/2, dr)], "ACO")
+    ch, cb = 300, 200
+    _poly(msp, [P(-cb/2, dr), P(cb/2, dr), P(cb/2, dr+ch), P(-cb/2, dr+ch)], "TELHA")
+    _line(msp, P(-cb/2+10, dr+20), P(cb/2-10, dr+20), "EIXOS")
+    _txt(msp, "CALHA 200x300 mm", P(cb/2+50, dr+ch/2), h=120)
+    fx, fh = bf/2+100, 600
+    _line(msp, P(fx, dr), P(fx, dr+fh), "TELHA")
+    _poly(msp, [P(fx+5, dr+fh/2-30), P(fx+60, dr+fh/2-30),
+                P(fx+60, dr+fh/2+30), P(fx+5, dr+fh/2+30)], "ACO")
+    _circ(msp, P(fx+20, dr+fh/2), 6, "FURACAO")
+    _txt(msp, "TELHA TRAPEZOIDAL 0,65 mm", P(fx+5, dr+fh+100), h=110)
+    _txt(msp, "LONGARINA UPE (girt)", P(fx+70, dr+fh/2-20), h=110)
+    cx = -cb/2 - 50
+    _line(msp, P(cx, dr), P(cx, -200), "FURACAO")
+    _line(msp, P(cx-40, dr-100), P(cx+40, dr-100), "FURACAO")
+    _txt(msp, "CONDUTOR d=100 mm", P(cx-150, -100), h=110)
+    _txt(msp, "DET. CALHA + FECHAMENTO", P(-bf/2-50, -500), h=180)
+
+
+# ---- PLANTA DE FUNDACOES ----------------------------------------------------
+def _planta_fundacoes(msp, d, ox, oy):
+    xs = d["frame_x"]; nv = d.get("n_vaos", 1)
+    cols = d.get("col_ys", [0.0, d["span"]]); sap = d.get("sapata")
+    comp = d["comprimento"]; span = cols[-1]
+    def P(x, y): return (ox + x, oy + y)
+    # Contorno da edificacao
+    _poly(msp, [P(0, 0), P(comp, 0), P(comp, span), P(0, span)], "EIXOS")
+    for x in xs:
+        _line(msp, P(x, 0), P(x, span), "EIXOS")
+    for yc in cols:
+        _line(msp, P(0, yc), P(comp, yc), "EIXOS")
+    # Sapatas
+    if sap:
+        sB, sL = sap["B"], sap["L"]
+        for x in xs:
+            for yc in cols:
+                _poly(msp, [P(x-sB/2, yc-sL/2), P(x+sB/2, yc-sL/2),
+                            P(x+sB/2, yc+sL/2), P(x-sB/2, yc+sL/2)], "CONCRETO")
+                _line(msp, P(x-sB/2+40, yc-sL/2+40), P(x+sB/2-40, yc-sL/2+40), "ARMADURA")
+                _line(msp, P(x-sB/2+40, yc+sL/2-40), P(x+sB/2-40, yc+sL/2-40), "ARMADURA")
+                _line(msp, P(x-sB/2+40, yc-sL/2+40), P(x-sB/2+40, yc+sL/2-40), "ARMADURA")
+                _line(msp, P(x+sB/2-40, yc-sL/2+40), P(x+sB/2-40, yc+sL/2-40), "ARMADURA")
+    # Vigas baldrame (linhas entre sapatas)
+    for i in range(len(xs)):
+        for j in range(len(cols)-1):
+            x0, x1 = xs[i], xs[i] if i < len(xs)-1 else xs[i]
+            _line(msp, P(xs[i], cols[j]), P(xs[i], cols[j+1]), "CONCRETO")
+    for i in range(len(xs)-1):
+        for j in range(len(cols)):
+            _line(msp, P(xs[i], cols[j]), P(xs[i+1], cols[j]), "CONCRETO")
+    # Cotas e eixos
+    for i, x in enumerate(xs, 1):
+        _bolha(msp, P(x, span+900), i)
+    _bolha(msp, P(-900, 0), "A"); _bolha(msp, P(-900, span), "B")
+    _cota_h(msp, ox, ox+comp, oy, txt=f"{comp/1000:.2f} m", off=-900)
+    _cota_v(msp, oy, oy+span, ox-200, txt=f"{span/1000:.2f}", off=-900)
+    _txt(msp, "PLANTA DE FUNDACOES", P(comp/2-1400, -2200), h=220)
+
+
+# ---- CORTE A-A (secao construtiva) -----------------------------------------
+def _corte_aa(msp, d, ox, oy):
+    nv = d.get("n_vaos", 1); cols = d.get("col_ys", [0.0, d["span"]])
+    ridges = d.get("ridge_ys", [d["span"]/2.0]); eave = d["eave"]
+    dc, dr = d["col_d"], d["raf_d"]; B = d["base"]; sap = d.get("sapata")
+    span_total = cols[-1]
+    def P(y, z): return (ox + y, oy + z)
+    def _zr(y):
+        for j in range(nv):
+            c0, c1 = cols[j], cols[j+1]
+            if c0-1 <= y <= c1+1:
+                rj = ridges[j]; zrj = d["ridges"][j]
+                return eave + (zrj-eave)/(rj-c0)*(y-c0) if y <= rj else eave + (zrj-eave)/(c1-rj)*(c1-y)
+        return eave
+    # Terreno
+    _line(msp, P(-500, -300), P(span_total+500, -300), "TEXTO")
+    for yc in cols:
+        if sap:
+            sB, sh = sap["B"], sap["h"]; pd = max(dc+200, 300)
+            zt, zb = -350, -350-sh
+            _poly(msp, [P(yc-sB/2, zt), P(yc+sB/2, zt), P(yc+sB/2, zb), P(yc-sB/2, zb)], "CONCRETO")
+            _poly(msp, [P(yc-pd/2, 0), P(yc+pd/2, 0), P(yc+pd/2, zt), P(yc-pd/2, zt)], "CONCRETO")
+            _line(msp, P(yc-sB/2+60, zb+60), P(yc+sB/2-60, zb+60), "ARMADURA")
+        bl, bt = B["L"], B["t"]
+        _poly(msp, [P(yc-bl/2, 0), P(yc+bl/2, 0), P(yc+bl/2, -bt), P(yc-bl/2, -bt)], "BASE")
+        _perf_rect(msp, P(yc, 0), P(yc, eave), dc)
+        # Joelho
+        hl = 800
+        if yc == cols[0]:
+            yb = yc+hl; zc = _zr(yb)
+            _poly(msp, [P(yc, eave-dr/2), P(yc, eave-dr/2-450), P(yb, zc-dr/2)], "ACO")
+        elif yc == cols[-1]:
+            yb = yc-hl; zc = _zr(yb)
+            _poly(msp, [P(yc, eave-dr/2), P(yc, eave-dr/2-450), P(yb, zc-dr/2)], "ACO")
+        else:
+            for sgn in (+1, -1):
+                yb = yc+sgn*hl; zc = _zr(yb)
+                _poly(msp, [P(yc, eave-dr/2), P(yc, eave-dr/2-450), P(yb, zc-dr/2)], "ACO")
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j+1]; rj = ridges[j]; zj = d["ridges"][j]
+        _perf_rect(msp, P(y0, eave), P(rj, zj), dr)
+        _perf_rect(msp, P(y1, eave), P(rj, zj), dr)
+    nt = 3
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j+1]; rj = ridges[j]
+        for k in range(1, nt):
+            for y, z in [(y0+(rj-y0)*k/nt, _zr(y0+(rj-y0)*k/nt)),
+                         (y1-(y1-rj)*k/nt, _zr(y1-(y1-rj)*k/nt))]:
+                _poly(msp, [P(y-90, z+dr/2), P(y+90, z+dr/2),
+                            P(y+90, z+dr/2+180), P(y-90, z+dr/2+180)], "TELHA")
+    tz = dr/2+240
+    for j in range(nv):
+        y0, y1 = cols[j], cols[j+1]; rj = ridges[j]; zj = d["ridges"][j]
+        _line(msp, P(y0, eave+tz), P(rj, zj+tz), "TELHA")
+        _line(msp, P(y1, eave+tz), P(rj, zj+tz), "TELHA")
+    # Calha nos beirais (esq+dir)
+    for yc in (cols[0], cols[-1]):
+        _poly(msp, [P(yc-100, eave+dr/2+200), P(yc+100, eave+dr/2+200),
+                    P(yc+100, eave+dr/2+500), P(yc-100, eave+dr/2+500)], "TELHA")
+    # Eixos
+    for i, yc in enumerate(cols):
+        _line(msp, P(yc, -700), P(yc, eave+500), "EIXOS")
+        _bolha(msp, P(yc, eave+900), chr(65+i) if i < 26 else f"X{i}")
+    _line(msp, P(-500, eave/2), P(span_total+500, eave/2), "TEXTO")  # linha de chamada
+    _nivel(msp, P(-dc/2-250, 0), "+0,00")
+    _nivel(msp, P(-dc/2-250, eave), f"+{eave/1000:.2f}")
+    for j in range(nv):
+        _nivel(msp, P(ridges[j]+250, d['ridges'][j]), f"+{d['ridges'][j]/1000:.2f}")
+    _cota_v(msp, oy, oy+eave, ox, txt=f"{eave/1000:.2f}", off=-900)
+    _txt(msp, f"CORTE A-A (secao construtiva) - {nv} vao(s)", P(span_total/2-1800, -bt-1200), h=220)
+
+
 def gerar_dxf(design, path):
     """design: dict com geometria do galpao (1 ou N vaos). Escreve o DXF."""
     doc = ezdxf.new("R2010", setup=True)
@@ -496,12 +697,18 @@ def gerar_dxf(design, path):
     _portico(msp, design, ox=0.0, oy=0.0)
     _elev_long(msp, design, ox=span + 6000.0, oy=0.0)
     _planta(msp, design, ox=span + 6000.0, oy=-(eave + 6000.0))
+    _planta_fundacoes(msp, design, ox=0.0, oy=-(span + eave + 8000.0))
     _legenda(msp, design, ox=0.0, oy=-(eave + 5500.0))
     _detalhe_joelho(msp, design, ox=0.0, oy=-(eave + 12000.0))
     _detalhe_base(msp, design, ox=8000.0, oy=-(eave + 11000.0))
+    _detalhe_terca_viga(msp, design, ox=span + 6000.0 + 6000.0, oy=0.0)
+    _detalhe_contraventamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-3000.0)
+    _detalhe_calha_fechamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-5500.0)
     yq = -(eave + 6000.0) - span - 2500.0
     _quadro_verif(msp, design, ox=span + 6000.0, oy=yq)
     _quadro_materiais(msp, design, ox=span + 12000.0, oy=yq)
+    _notas_tecnicas(msp, design, ox=0.0, oy=-(span + eave + 21000.0))
+    _corte_aa(msp, design, ox=0.0, oy=-(span + eave + 27000.0))
     doc.saveas(path)
     return path
 
@@ -549,4 +756,5 @@ def design_de_spec(spec):
         "sapata_quant": est.get("sapata_quant"),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
+        "terca_dims": est.get("terca_dims", [200, 75, 25, 2.65]),
     }

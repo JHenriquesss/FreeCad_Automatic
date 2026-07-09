@@ -266,8 +266,9 @@ class TestDxf:
         msp = doc.modelspace()
         entities = list(msp)
         layers = {e.dxf.layer for e in entities if hasattr(e.dxf, "layer")}
-        esperadas = {"ACO", "BASE", "CONTRAV", "COTAS", "EIXOS", "FURACAO", "TELHA", "TEXTO"}
-        for ly in esperadas:
+        obrigatorias = {"ACO", "BASE", "CONTRAV", "COTAS", "EIXOS", "FURACAO", "TELHA", "TEXTO"}
+        for ly in obrigatorias:
             assert ly in layers, f"Camada {ly} ausente no DXF {nome}"
-        assert len(entities) > 50, (
+        assert "CONCRETO" in layers, f"Camada CONCRETO ausente no DXF {nome}"
+        assert len(entities) > 200, (
             f"Poucas entidades no DXF {nome}: {len(entities)}")
