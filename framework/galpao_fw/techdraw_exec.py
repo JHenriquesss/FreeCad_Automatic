@@ -631,10 +631,12 @@ def _pr_joelho(doc, cfg, objs, todos):
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
     frame = _faixa(todos, eixo, meio, bay * 0.45)
-    # SO a ligacao estrutural: coluna+viga (PORTICO), mao-francesa, chapas e
-    # parafusos. Exclui acessorios de beiral/vedacao (calha, tapamento, terca,
-    # telha, montante) que poluem o detalhe e aparecem como barras "soltas".
-    INCLUI_JOELHO = ("PORTICO", "MAO", "CONEX", "CHAPA", "PARAFUSO", "ENRIJ")
+    # Mostra a ligacao estrutural (coluna+viga PORTICO, mao-francesa, chapas,
+    # parafusos) MAIS os acessorios de beiral que pertencem ao no: terca de
+    # beiral e calha. Exclui a vedacao de PAREDE (chapa lateral, terca parede,
+    # montante) que corre pela parede e nao faz parte do joelho.
+    INCLUI_JOELHO = ("PORTICO", "MAO", "CONEX", "CHAPA", "PARAFUSO", "ENRIJ",
+                     "CALHA", "TERCA_BEIRAL")
     frame = [o for o in frame
              if any(o.Label.upper().startswith(p) for p in INCLUI_JOELHO)]
     # canto do joelho (topo da coluna no lado y=0 / x=0)
