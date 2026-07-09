@@ -283,11 +283,11 @@ def _planta(msp, d, ox, oy):
     for i, x in enumerate(xs, start=1):
         _bolha(msp, P(x, span_total + 900), i)
     _bolha(msp, P(-900, 0), "A")
-    _bolha(msp, P(-900, span), "B")
+    _bolha(msp, P(-900, span_total), "B")
     _cota_h(msp, ox, ox + comp, oy, txt=f"{comp/1000:.2f} m".replace(".", ","),
             off=-900)
-    _cota_v(msp, oy, oy + span, ox - 200, txt=f"{span/1000:.2f}".replace(".", ","),
-            off=-900)
+    _cota_v(msp, oy, oy + span_total, ox - 200,
+            txt=f"{span_total/1000:.2f}".replace(".", ","), off=-900)
     _txt(msp, "PLANTA DE COBERTURA", P(comp / 2.0 - 1400, -2200), h=220)
 
 

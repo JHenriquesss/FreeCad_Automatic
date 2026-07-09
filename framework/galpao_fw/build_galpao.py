@@ -593,6 +593,8 @@ def build(doc):
     # Cada cruzamento com um portico ganha um clipe de apoio. Verif. verifica_conexoes.
     # Offset inicial aproximado (meia-altura projetada da viga inclinada + meia-
     # terca); o assentamento MEDIDO corrige o residual contra a mesa inclinada.
+    # Terças de beiral (y=col[0] e y=col[-1]) ficam SOBRE o pilar, não sobre a viga
+    # (a viga termina na face do pilar). Por isso são posicionadas SEM _assenta.
     _theta = math.atan(SLOPE)
     _rise = (RAF_SEC[0] / 2.0) * math.cos(_theta) + (RAF_SEC[1] / 2.0) * math.sin(_theta)
     POFF = _rise + UE_SEC[0] / 2.0
@@ -613,15 +615,17 @@ def build(doc):
             terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
                               (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
                               f"TERCA_S{j:02d}_D_{k:02d}", roll=0)))
-    for y, lado, rl in ((cols_y[0], "E", 180), (cols_y[-1], "D", 0)):
-        terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
-                          (LENGTH, y, EAVE_H + POFF), UE_SEC,
-                          f"TERCA_BEIRAL_{lado}", roll=rl)))
-    # Assenta cada terca sobre a viga MEDINDO a penetracao (robusto a inclinacao).
+    # Assenta cada terca INTERMEDIARIA sobre a viga MEDINDO a penetracao (robusto a
+    # inclinacao). Terças de beiral ficam SEM _assenta (apoiam no pilar, nao na viga).
     terca_seats = []                    # (y, z_face_inferior) p/ clipes
     for y, o in terca_objs:
         ub = _assenta(o, vigas)
         terca_seats.append((y, ub))
+    for y, lado, rl in ((cols_y[0], "E", 180), (cols_y[-1], "D", 0)):
+        terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
+                          (LENGTH, y, EAVE_H + POFF), UE_SEC,
+                          f"TERCA_BEIRAL_{lado}", roll=rl)))
+        terca_seats.append((y, EAVE_H))
     # Clipes de apoio da terca sobre a mesa da viga/escora (chapa de assento sob a
     # terca em cada portico) - excluidos do clash (conexao), nome CLIPE_.
     for ci, x in enumerate(axes, start=1):
@@ -880,10 +884,13 @@ def build(doc):
             ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + ph)))
             ABERTURAS_PASSAGEM.append((f"porta_{lbl.lower()}",
                 (xc - 200, xc + 200, yr[0], yr[1], Z0, Z0 + ph)))
-        pts_gable = [(xc, cols_y[0], Z0), (xc, cols_y[-1], Z0), (xc, cols_y[-1], EAVE_H)]
-        for j in range(nv):
-            pts_gable.insert(-1, (xc, ridges_y[j], rafter_z(ridges_y[j])))
-        pts_gable.insert(-1, (xc, cols_y[0], EAVE_H))
+        pts_gable = [(xc, cols_y[0], Z0), (xc, cols_y[-1], Z0)]
+        pts_gable.append((xc, cols_y[-1], EAVE_H))
+        for j in range(nv - 1, -1, -1):
+            pts_gable.append((xc, ridges_y[j], rafter_z(ridges_y[j])))
+            if j > 0:
+                pts_gable.append((xc, cols_y[j], EAVE_H))
+        pts_gable.append((xc, cols_y[0], EAVE_H))
         panel(doc, pts_gable, TCL, f"TAPAMENTO_OITAO_{lbl}", openings=ops)
 
     doc.recompute()
@@ -1006,7 +1013,7 @@ def verifica_conexoes(doc, tol=6.0):
     # apoia_sobre=True (terca/longarina) -> assenta na mesa, penetracao e defeito.
     # False (tirante/contrav/console/montante) -> enquadra no NO, volume comum e ok.
     APOIO = [
-        ("TERCA_BEIRAL",   ("PORTICO_", "VAO_"),                     True),
+        ("TERCA_BEIRAL",   ("PORTICO_", "VAO_"),                     False),
         ("TERCA_PAREDE",   ("PORTICO_",),                            True),
         ("TERCA_E",        ("PORTICO_",),                            True),
         ("TERCA_D",        ("PORTICO_",),                            True),
@@ -1171,14 +1178,135 @@ def estrutura_em_aberturas(doc, vol_min=200.0):
     return hits
 
 
-# ---- levantamento de material (takeoff) ------------------------------------
+# ---- verificacao de geometria (testes) ------------------------------------
+def verificar_geometria(doc):
+    """Verifica invariantes geometricos do modelo 3D. Retorna dict com
+    status (ok/falha) de cada verificacao. Usado por test_build.py para
+    garantir que mudancas no builder nao quebram a geometria."""
+    nv = len(SPANS)
+    axes = frame_axes()
+    n_porticos = len(axes)
+    cols_y = _col_ys()
+    ridges_y = _ridge_ys()
+
+    objetos = {o.Name: o for o in doc.Objects if hasattr(o, "Shape")}
+    nomes = set(objetos.keys())
+
+    def _tem(prefixo):
+        return any(n.startswith(prefixo) for n in nomes)
+
+    def _cnt(prefixo):
+        return sum(1 for n in nomes if n.startswith(prefixo))
+
+    checks = {}
+    # C1: numero de colunas = n_porticos * (nv + 1)
+    col_esperadas = n_porticos * (nv + 1)
+    col_reais = _cnt("PORTICO_") - _cnt("PORTICO_01_C") - n_porticos * 2 * nv
+    # contagem real: cada PORTICO_XX_CYY
+    col_reais = sum(1 for n in nomes
+                    if any(n.startswith(f"PORTICO_{i:02d}_C{j:02d}")
+                           for i in range(1, n_porticos + 1)
+                           for j in range(nv + 1)))
+    checks["colunas_qtd"] = {"ok": col_reais == col_esperadas,
+                             "esperado": col_esperadas, "real": col_reais,
+                             "msg": f"{col_reais}/{col_esperadas} colunas"}
+
+    # C2: numero de vigas = n_porticos * nv * 2
+    vigas_esp = n_porticos * nv * 2
+    vigas_real = sum(1 for n in nomes
+                     if any(n.startswith(f"PORTICO_{i:02d}_V{j:02d}_{s}")
+                            for i in range(1, n_porticos + 1)
+                            for j in range(nv) for s in ("E", "D")))
+    checks["vigas_qtd"] = {"ok": vigas_real == vigas_esp,
+                           "esperado": vigas_esp, "real": vigas_real,
+                           "msg": f"{vigas_real}/{vigas_esp} vigas"}
+
+    # C3: tapamento oitao — 2 paineis (frente + fundo)
+    oitao_esp = 2
+    oitao_real = _cnt("TAPAMENTO_OITAO_")
+    checks["oitao_qtd"] = {"ok": oitao_real == oitao_esp,
+                           "esperado": oitao_esp, "real": oitao_real,
+                           "msg": f"{oitao_real}/{oitao_esp} oitoes"}
+
+    # C4: cada oitao tem shape valido e area > 1000 mm2
+    for lbl in ("FRENTE", "FUNDO"):
+        nome = f"TAPAMENTO_OITAO_{lbl}"
+        ob = objetos.get(nome)
+        valido = ob is not None and hasattr(ob.Shape, "Area") and ob.Shape.Area > 1000
+        checks[f"oitao_{lbl}_valido"] = {"ok": valido, "area": ob.Shape.Area if ob and hasattr(ob.Shape, "Area") else 0}
+
+    # C5: telhado de cobertura — 2 paineis por vao
+    telha_esp = nv * 2
+    telha_real = _cnt("TELHA_")
+    checks["telha_qtd"] = {"ok": telha_real == telha_esp,
+                           "esperado": telha_esp, "real": telha_real,
+                           "msg": f"{telha_real}/{telha_esp} aguas de telhado"}
+
+    # C6: tapamento lateral — 2 paineis (E + D)
+    lat_esp = 2
+    lat_real = _cnt("TAPAMENTO_LATERAL_")
+    checks["lateral_qtd"] = {"ok": lat_real == lat_esp,
+                             "esperado": lat_esp, "real": lat_real,
+                             "msg": f"{lat_real}/{lat_esp} tapamentos laterais"}
+
+    # C7: colunas nas posicoes Y esperadas
+    for i, x in enumerate(axes, start=1):
+        for j, yc in enumerate(cols_y):
+            nome = f"PORTICO_{i:02d}_C{j:02d}"
+            ob = objetos.get(nome)
+            if ob is None:
+                checks[f"col_{i}_{j}_existe"] = {"ok": False, "msg": f"{nome} ausente"}
+                continue
+            bb = ob.Shape.BoundBox
+            y_centro = (bb.YMin + bb.YMax) / 2.0
+            erro = abs(y_centro - yc)
+            ok = erro < 10.0
+            checks[f"col_{i}_{j}_y"] = {"ok": ok, "y_esperado": yc, "y_real": round(y_centro, 1),
+                                        "erro_mm": round(erro, 1)}
+
+    # C8: oitao = poligono simples (nao self-intersect): verifica pelo numero de
+    # vertices/edges. Um poligono auto-intersectante tem edges que se cruzam.
+    for lbl in ("FRENTE", "FUNDO"):
+        nome = f"TAPAMENTO_OITAO_{lbl}"
+        ob = objetos.get(nome)
+        if ob and hasattr(ob.Shape, "Wires") and ob.Shape.Wires:
+            try:
+                w = ob.Shape.Wires[0]
+                edges = w.Edges
+                # Uma face de N vertices tem N edges com shared vertices.
+                # Self-intersection e detectada por OCCT, mas aqui fazemos
+                # check simples: todo edge deve compartilhar vertice com
+                # no maximo 2 outros edges
+                shared_count = {}
+                for e in edges:
+                    for v in e.Vertexes:
+                        p = (round(v.X, 1), round(v.Y, 1), round(v.Z, 1))
+                        shared_count[p] = shared_count.get(p, 0) + 1
+                ok = all(c <= 2 for c in shared_count.values())
+                checks[f"oitao_{lbl}_poligono"] = {"ok": ok,
+                    "msg": f"{len(edges)} edges, {len(shared_count)} vertices"}
+            except Exception:
+                checks[f"oitao_{lbl}_poligono"] = {"ok": False, "msg": "erro ao ler wire"}
+
+    # C9: verifica_conexoes() retorna 0 defeitos
+    conx = verifica_conexoes(doc)
+    checks["conexoes"] = {"ok": len(conx) == 0, "n": len(conx),
+                          "msg": f"{len(conx)} conexoes suspeitas" if conx else "ok"}
+
+    # C10: checa_interferencia() retorna 0
+    itf = checa_interferencia(doc)
+    checks["interferencias"] = {"ok": len(itf) == 0, "n": len(itf),
+                                "msg": f"{len(itf)} interferencias" if itf else "ok"}
+
+    checks["todas_ok"] = all(v.get("ok", False) for v in checks.values())
+    return checks
 DENSIDADE_ACO = 7.85e-6   # kg/mm^3
 
 
 def _classifica(n):
-    if "_COLUNA_" in n:
+    if n.startswith("PORTICO_") and "_C" in n:
         return "Colunas", COL_NOME
-    if "_VIGA_" in n:
+    if n.startswith("PORTICO_") and "_V" in n:
         return "Vigas", RAF_NOME
     if "ESCORA_BEIRAL" in n or "_CUMEEIRA" in n:
         return "Escoras de beiral / cumeeira", ESC_NOME
@@ -1326,6 +1454,46 @@ def export(doc):
     return fcstd, step
 
 
+def capturar_vistas(doc):
+    """Captura screenshots das 6 vistas padrao apos o build.
+    Salva em EXPORT_DIR/vistas/. Retorna lista de paths.
+    Requer FreeCAD.GuiUp (modo grafico)."""
+    import time
+    VISTAS = [
+        ("isometrica",  "viewIsometric"),
+        ("frontal",     "viewFront"),
+        ("traseira",    "viewRear"),
+        ("lateral_dir", "viewRight"),
+        ("lateral_esq", "viewLeft"),
+        ("superior",    "viewTop"),
+    ]
+    out = []
+    vdir = f"{EXPORT_DIR}/vistas"
+    os.makedirs(vdir, exist_ok=True)
+    try:
+        import FreeCAD
+        if not FreeCAD.GuiUp:
+            return out
+        import FreeCADGui as Gui
+        if not hasattr(Gui, "ActiveDocument") or Gui.ActiveDocument is None:
+            return out
+        Gui.setActiveDocument(doc.Name)
+        view = Gui.ActiveDocument.ActiveView
+        view.fitAll()
+        time.sleep(0.2)
+        for nome, metodo in VISTAS:
+            getattr(view, metodo)()
+            view.fitAll()
+            time.sleep(0.5)
+            FreeCADGui.updateGui()
+            path = f"{vdir}/{nome}.png"
+            view.saveImage(path, 1200, 800, "#FFFFFF")
+            out.append(path)
+    except Exception:
+        pass
+    return out
+
+
 def reset():
     """Zera o estado mutavel do builder para o default (evita vazamento entre
     projetos na MESMA sessao do FreeCAD). Chamado no inicio de run()."""
@@ -1368,7 +1536,9 @@ def run():
         doc.recompute()
     fcstd, step = export(doc)
     count = len([o for o in doc.Objects if hasattr(o, "Shape")])
-    return {"elementos": count, "porticos": len(frame_axes()),
+    geo = verificar_geometria(doc)
+    vistas = capturar_vistas(doc)
+    return {"elementos": count, "vistas": vistas, "porticos": len(frame_axes()),
             "altura_cumeeira_mm": rafter_z(_ridge_ys()[0]), "gap_graute_mm": GROUT_GAP,
             "comprimento_aco_coluna_mm": EAVE_H - Z0,
             "interferencias": len(itf),
@@ -1376,9 +1546,10 @@ def run():
             "conflito_abertura_contrav": globals().get("CONFLITOS_ABERTURA_CONTRAV", []),
             "estrutura_em_aberturas": est_ab,
             "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
-            "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
-            "por_grupo": tk["por_grupo"], "csv": tk["csv"],
-            "fcstd": fcstd, "step": step}
+             "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
+             "por_grupo": tk["por_grupo"], "csv": tk["csv"],
+             "fcstd": fcstd, "step": step,
+             "geometria": geo}
 
 
 _result_ = run()
