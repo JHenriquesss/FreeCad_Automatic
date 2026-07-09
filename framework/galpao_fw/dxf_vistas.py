@@ -728,35 +728,42 @@ def gerar_dxf(design, path):
     msp = doc.modelspace()
     span, comp = design["span"], design["comprimento"]
     eave = design["eave"]
-    # Layout: cada view posicionada com intervalo Y seguro para evitar sobreposicao
-    # Linha 1: Portico, Elevacao, Detalhes (terca, contrav, calha)
+    span_total = design["span"]
+    XD = span_total + 7000.0
+
+    # L1 (oy=0): Portico(0)  |  Elevacao(XD)
     _portico(msp, design, ox=0.0, oy=0.0)
-    _elev_long(msp, design, ox=span + 6000.0, oy=0.0)
-    _detalhe_terca_viga(msp, design, ox=span + 6000.0 + 6000.0, oy=0.0)
-    _detalhe_contraventamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-3000.0)
-    _detalhe_calha_fechamento(msp, design, ox=span + 6000.0 + 6000.0, oy=-5500.0)
-    # Linha 2: Legenda esquerda + Planta cobertura direita
-    y2 = -(eave + 7000.0)   # abaixo da linha 1 (eave+6000)
-    _legenda(msp, design, ox=0.0, oy=y2)
-    _planta(msp, design, ox=span + 6000.0, oy=y2 - 1000.0)
-    # Linha 3: Detalhes joelho (esq) + base (dir)
-    y3 = y2 - 8000.0
-    _detalhe_joelho(msp, design, ox=0.0, oy=y3)
-    _detalhe_base(msp, design, ox=8000.0, oy=y3 + 1000.0)
-    # Linha 4: Quadros (direita) — ocupam de y4 ateh y4 - altura_quadros
-    y4 = y3 - 12000.0
-    _quadro_verif(msp, design, ox=span + 6000.0, oy=y4)
-    _quadro_materiais(msp, design, ox=span + 12000.0, oy=y4)
-    # Linha 5: Planta fundacoes — precisa ficar ABAIXO dos quadros
-    # Quadros tem ~5000 de altura. Planta vai de oy ate oy+span, mais texto -2200.
-    # Garantimos que topo da planta < fundo dos quadros.
-    y5 = y4 - (design.get("span", span) + 12000.0)
-    _planta_fundacoes(msp, design, ox=0.0, oy=y5)
-    # Linha 5: Notas tecnicas (abaixo de tudo)
-    y6 = y5 - (design.get("span", span) + eave + 6000.0)
-    _notas_tecnicas(msp, design, ox=0.0, oy=y6)
-    # Linha 6: Corte A-A (abaixo das notas — com gap seguro)
-    _corte_aa(msp, design, ox=0.0, oy=y6 - (eave + 4000.0))
+    _elev_long(msp, design, ox=XD, oy=0.0)
+    # fundo L1 = -2400 (elevacao)
+
+    # L2 (oy=-13000): Corte AA(0) [-14600,-5600]  |  Planta(XD) [-15200,-3000]
+    # Planta topo=-3000 < fundo L1-500=-2900 ✓
+    oy2 = -13000.0
+    _corte_aa(msp, design, ox=0.0, oy=oy2)
+    _planta(msp, design, ox=XD, oy=oy2)
+
+    # L3 (oy=-18500): Joelho(0)+Base(7000)  |  Terca(XD)+Contrav(XD,-2500)+Calha(XD,-5000)
+    # Joelho topo=-16100 < fundo L2-500=-15700 ✓
+    oy3 = -18500.0
+    _detalhe_joelho(msp, design, ox=0.0, oy=oy3)
+    _detalhe_base(msp, design, ox=7000.0, oy=oy3)
+    _detalhe_terca_viga(msp, design, ox=XD, oy=oy3)
+    _detalhe_contraventamento(msp, design, ox=XD, oy=oy3 - 2500.0)
+    _detalhe_calha_fechamento(msp, design, ox=XD, oy=oy3 - 5000.0)
+
+    # L4 (oy=-20500): Quadros(XD)  |  fundo L3=-19250, topo quadros=-20300 ✓
+    oy4 = -20500.0
+    _quadro_verif(msp, design, ox=XD, oy=oy4)
+    _quadro_materiais(msp, design, ox=XD + 6000.0, oy=oy4)
+
+    # L5 (oy=-37000): Planta Fundacoes(0) full  |  topo=-27000 < fundo L4-500=-26500 ✓
+    oy5 = -37000.0
+    _planta_fundacoes(msp, design, ox=0.0, oy=oy5)
+
+    # L6 (oy=-44000): Notas(0)+Legenda(10000)  |  topo=-40000 < fundo L5-500=-39700 ✓
+    oy6 = -44000.0
+    _notas_tecnicas(msp, design, ox=0.0, oy=oy6)
+    _legenda(msp, design, ox=10000.0, oy=oy6)
     doc.saveas(path)
     return path
 
