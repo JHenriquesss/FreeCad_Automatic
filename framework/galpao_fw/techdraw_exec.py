@@ -479,8 +479,10 @@ def _pr_portico(doc, cfg, objs):
     eixo = "x" if comp_x else "y"
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
+    # inclui console e viga de rolamento da ponte (quando houver) no portico
     frame = _faixa(_pref(objs, ("PORTICO", "NERVURA", "MAO", "PLACA",
-                                "PEDESTAL", "SAPATA")),
+                                "PEDESTAL", "SAPATA", "CONSOLE_PONTE",
+                                "VIGA_ROLAMENTO")),
                    eixo, meio, bay * 0.45)
     if not frame:
         frame = objs
@@ -508,11 +510,19 @@ def _pr_portico(doc, cfg, objs):
     ar = (linha, 0, g["ridge"]) if comp_x else (0, linha, g["ridge"])
     c.d(a0, ae, "DistanceY", _fmt_m(g["eave"]), "esq")
     c.d(a0, ar, "DistanceY", _fmt_m(g["ridge"]), "esq")
-    _anot(doc, page, "A04", [
-        "PORTICO TIPICO   ESCALA %s" % nome,
-        "Colunas: %s    Vigas: %s" % (cfg.get("perfil_col", "?"),
-                                      cfg.get("perfil_raf", "?")),
-        "Cotas em metros."], 200, 70, 6)
+    pt = cfg.get("ponte")
+    if pt:  # cota o nivel do trilho da ponte
+        at = (linha, 0, pt["Hvr"]) if comp_x else (0, linha, pt["Hvr"])
+        c.d(a0, at, "DistanceY", _fmt_m(pt["Hvr"]), "esq")
+    linhas = ["PORTICO TIPICO   ESCALA %s" % nome,
+              "Colunas: %s    Vigas: %s" % (cfg.get("perfil_col", "?"),
+                                            cfg.get("perfil_raf", "?"))]
+    if pt:
+        cap = (" %.0f kN" % pt["Q"]) if pt.get("Q") else ""
+        linhas.append("Ponte rolante%s: viga de rolamento no nivel +%s" %
+                      (cap, _fmt_m(pt["Hvr"])))
+    linhas.append("Cotas em metros.")
+    _anot(doc, page, "A04", linhas, 200, 70, 6)
     return [page], [c]
 
 
@@ -969,6 +979,9 @@ def config_de_spec(spec, fcstd_path, out_dir):
                   "n": ba["n"]} if ba else None),
         "sapata": ({"B": sp["B"], "L": sp["L"], "h": sp["h"]} if sp else None),
         "terca": est.get("terca_dims"),
+        "ponte": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
+                   "Q": spec["ponte"].get("Q")}
+                  if spec.get("ponte") else None),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
     }
