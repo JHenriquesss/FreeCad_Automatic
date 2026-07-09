@@ -92,4 +92,19 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     resm = r.get("result") if isinstance(r, dict) else None
     if isinstance(resm, dict) and resm.get("por_grupo"):     # takeoff -> DXF
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
+    # Gera vistas 2D com Draft::Text em documento separado
+    try:
+        vistas_path = FW.raiz_repo() / "framework" / "galpao_fw" / "vistas_fc_builder.py"
+        vistas_src = vistas_path.read_text(encoding="utf-8")
+        import dxf_vistas as dv
+        design = dv.design_de_spec(spec)
+        design["resultados"] = spec.get("estrutura", {}).get("resultados", {})
+        design["dxf_out"] = str(out_dir).replace("\\", "/") + "/vistas_2d.dxf"
+        code = f"_result_ = {repr(design)}\n" + vistas_src
+        socket.setdefaulttimeout(timeout)
+        r2 = srv.execute(code)
+        if isinstance(r2, dict) and r2.get("result"):
+            spec.setdefault("estrutura", {})["vistas2d"] = r2["result"]
+    except Exception as ex:
+        print(f"2D views error: {ex}")
     return r
