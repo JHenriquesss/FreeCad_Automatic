@@ -50,12 +50,12 @@ def _setup(doc):
         ds.dxf.dimtad = 1       # texto acima da linha
 
 
-def _txt(msp, s, p, h=120, layer="TEXTO", align="LEFT"):
-    t = msp.add_text(s, height=h, dxfattribs={"layer": layer})
+def _txt(msp, s, p, h=120, layer="TEXTO", align=ezdxf.enums.MTextEntityAlignment.TOP_LEFT):
+    t = msp.add_mtext(s, dxfattribs={"layer": layer, "char_height": h})
     try:
-        t.set_placement(p, align=ezdxf.enums.TextEntityAlignment[align])
+        t.set_location(p, attachment_point=align)
     except Exception:
-        t.dxf.insert = p
+        pass
     return t
 
 
@@ -85,11 +85,8 @@ def _cota_v(msp, y1, y2, x, txt=None, off=-350):
 def _bolha(msp, p, label, r=400):
     """Bolha de eixo (circulo + rotulo centrado)."""
     msp.add_circle(p, r, dxfattribs={"layer": "EIXOS"})
-    t = msp.add_text(str(label), height=r * 0.85, dxfattribs={"layer": "TEXTO"})
-    try:
-        t.set_placement(p, align=ezdxf.enums.TextEntityAlignment.MIDDLE_CENTER)
-    except Exception:
-        t.dxf.insert = (p[0] - r / 2, p[1] - r / 2)
+    _txt(msp, str(label), p, h=r * 0.85, layer="TEXTO",
+         align=ezdxf.enums.MTextEntityAlignment.MIDDLE_CENTER)
 
 
 def _nivel(msp, p, texto, s=180):
@@ -226,7 +223,8 @@ def _portico(msp, d, ox, oy):
                             (cols[0] + span_total / 4, "4", "DET. CONTRAV"),
                             (cols[-1], "5", "DET. CALHA")):
         _circ(msp, P(yc - 250, eave - 500), 300, layer="TEXTO")
-        _txt(msp, tag, P(yc - 280, eave - 590), h=250, layer="TEXTO", align="MIDDLE_CENTER")
+        _txt(msp, tag, P(yc - 280, eave - 590), h=250, layer="TEXTO",
+             align=ezdxf.enums.MTextEntityAlignment.MIDDLE_CENTER)
 
 
 # ---- VISTA 2: ELEVACAO LONGITUDINAL (plano X-Z) ----------------------------
@@ -751,17 +749,17 @@ def gerar_dxf(design, path):
     _detalhe_contraventamento(msp, design, ox=XD, oy=oy3 - 2500.0)
     _detalhe_calha_fechamento(msp, design, ox=XD, oy=oy3 - 5000.0)
 
-    # L4 (oy=-20500): Quadros(XD)  |  fundo L3=-19250, topo quadros=-20300 ✓
-    oy4 = -20500.0
+    # L4 (oy=-25000): Quadros(XD) — abaixo da Calha (fundo L3=-24000)
+    oy4 = -25000.0
     _quadro_verif(msp, design, ox=XD, oy=oy4)
     _quadro_materiais(msp, design, ox=XD + 6000.0, oy=oy4)
 
-    # L5 (oy=-37000): Planta Fundacoes(0) full  |  topo=-27000 < fundo L4-500=-26500 ✓
-    oy5 = -37000.0
+    # L5 (oy=-41000): Planta Fundacoes(0) full
+    oy5 = -41000.0
     _planta_fundacoes(msp, design, ox=0.0, oy=oy5)
 
-    # L6 (oy=-44000): Notas(0)+Legenda(10000)  |  topo=-40000 < fundo L5-500=-39700 ✓
-    oy6 = -44000.0
+    # L6 (oy=-48000): Notas(0)+Legenda(10000)
+    oy6 = -48000.0
     _notas_tecnicas(msp, design, ox=0.0, oy=oy6)
     _legenda(msp, design, ox=10000.0, oy=oy6)
     doc.saveas(path)
