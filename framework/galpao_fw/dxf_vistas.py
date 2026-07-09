@@ -442,28 +442,18 @@ def _detalhe_base(msp, d, ox, oy):
         _txt(msp, "DETALHE DA BASE", P(-Bp / 2, -Lp / 2 - 1400), h=200)
 
 
-# ---- TABELAS (quadros) -----------------------------------------------------
-def _tabela(msp, ox, oy, titulo, header, rows, wcol, rh=430):
-    W = sum(wcol)
-    nlin = len(rows) + 1
-    _txt(msp, titulo, (ox, oy + 200), h=190)
-    for i in range(nlin + 1):
-        y = oy - i * rh
-        _line(msp, (ox, y), (ox + W, y), "TEXTO")
-    xs, x = [ox], ox
-    for w in wcol:
-        x += w
-        xs.append(x)
-    for xv in xs:
-        _line(msp, (xv, oy), (xv, oy - nlin * rh), "TEXTO")
-
-    def _cell(r, c, s):
-        _txt(msp, str(s), (xs[c] + 90, oy - (r + 1) * rh + 130), h=150)
-    for c, hh in enumerate(header):
-        _cell(0, c, hh)
-    for ri, row in enumerate(rows, start=1):
-        for c, v in enumerate(row):
-            _cell(ri, c, v)
+# ---- TABELAS GRAFICAS (linhas + barras de utilizacao) ----------------------
+# FreeCAD nao importa TEXT/MTEXT do DXF. Usamos linhas para representar dados.
+# Cada linha da tabela tem: grid + barra de utilizacao + marcador OK/REVER.
+def _barra_util(msp, x, y, w, u, layer_ok="COTAS", layer_fail="FURACAO"):
+    """Barra horizontal proporcional a u (0..1). w=largura em mm."""
+    fill = w * min(u, 1.0)
+    ly = layer_ok if u <= 1.001 else layer_fail
+    _poly(msp, [(x, y - 40), (x + fill, y - 40),
+                (x + fill, y + 40), (x, y + 40)], layer=ly)
+    # contorno da barra
+    _poly(msp, [(x, y - 40), (x + w, y - 40),
+                (x + w, y + 40), (x, y + 40)], layer="TEXTO")
 
 
 def _quadro_verif(msp, d, ox, oy):
@@ -471,29 +461,77 @@ def _quadro_verif(msp, d, ox, oy):
     for nome, u in (d.get("resultados") or {}).items():
         if u is None:
             continue
-        situ = "OK" if u <= 1.001 else "REVER"
-        rows.append([nome, f"{u:.2f}".replace(".", ","), situ])
+        rows.append((nome, u))
     if not rows:
         return
-    _tabela(msp, ox, oy, "QUADRO DE VERIFICACOES",
-            ["Elemento", "util", "situacao"], rows, [2700, 900, 1200])
+    rh = 430
+    nlin = len(rows)
+    W = 4800.0
+    # Titulo como retangulo hachurado + cabecalho visual
+    _poly(msp, [(ox, oy), (ox + W, oy),
+                (ox + W, oy - nlin * rh - rh),
+                (ox, oy - nlin * rh - rh)], layer="TEXTO")
+    # Grid horizontal
+    for i in range(nlin + 2):
+        y = oy - i * rh
+        _line(msp, (ox, y), (ox + W, y), "TEXTO")
+    # Grid vertical (3 colunas)
+    for xv in (ox, ox + 2500, ox + 3500, ox + W):
+        _line(msp, (xv, oy), (xv, oy - (nlin + 1) * rh), "TEXTO")
+    # Preenche as linhas
+    for ri, (nome, u) in enumerate(rows, start=1):
+        y = oy - ri * rh
+        # Coluna 1: nome (sem texto) - linha fina no centro
+        _line(msp, (ox + 50, y), (ox + 2450, y), "TEXTO")
+        # Coluna 2: barra de utilizacao
+        cx = ox + 2600
+        _barra_util(msp, cx, y, 800, u)
+        # Coluna 3: marcador OK/REVER
+        mx = ox + 3600
+        if u <= 1.001:
+            _poly(msp, [(mx, y - 30), (mx + 30, y), (mx, y + 30)], layer="COTAS")
+        else:
+            _line(msp, (mx - 30, y - 30), (mx + 30, y + 30), layer="FURACAO")
+            _line(msp, (mx - 30, y + 30), (mx + 30, y - 30), layer="FURACAO")
 
 
 def _quadro_materiais(msp, d, ox, oy):
-    rows, total = [], 0.0
+    rows = []
     for g in (d.get("takeoff") or []):
         cat, prof, cnt, comp, massa = g[0], g[1], g[2], g[3], g[4]
         if "Alvenaria" in cat:
             continue
-        rows.append([cat, prof, str(cnt), f"{comp:.1f}".replace(".", ","),
-                     f"{massa:.0f}"])
-        total += massa
+        rows.append([cat, prof, cnt, massa])
     if not rows:
         return
-    rows.append(["TOTAL ACO", "", "", "", f"{total:.0f}"])
-    _tabela(msp, ox, oy, "QUADRO DE MATERIAIS (aco)",
-            ["Item", "Perfil", "Qtd", "Comp (m)", "Massa (kg)"], rows,
-            [3400, 1600, 700, 1200, 1400])
+    rows = sorted(rows, key=lambda r: -r[3])[:15]  # top 15 por massa
+    total = sum(r[3] for r in rows)
+    rh = 380
+    nlin = len(rows)
+    W = 5000.0
+    _poly(msp, [(ox, oy), (ox + W, oy), (ox + W, oy - nlin * rh - rh),
+                (ox, oy - nlin * rh - rh)], layer="TEXTO")
+    for i in range(nlin + 2):
+        y = oy - i * rh
+        _line(msp, (ox, y), (ox + W, y), "TEXTO")
+    for xv in (ox, ox + 1000, ox + W):
+        _line(msp, (xv, oy), (xv, oy - (nlin + 1) * rh), "TEXTO")
+    max_massa = max(r[3] for r in rows) or 1
+    for ri, (cat, prof, cnt, massa) in enumerate(rows, start=1):
+        y = oy - ri * rh
+        _line(msp, (ox + 50, y), (ox + 950, y), "TEXTO")
+        bx = ox + 1050
+        bw = (massa / max_massa) * 3500
+        _poly(msp, [(bx, y - 30), (bx + bw, y - 30),
+                    (bx + bw, y + 30), (bx, y + 30)], layer="ACO")
+        _poly(msp, [(bx, y - 30), (bx + 3500, y - 30),
+                    (bx + 3500, y + 30), (bx, y + 30)], layer="TEXTO")
+    # Linha de total
+    yt = oy - (nlin + 1) * rh
+    _poly(msp, [(ox + 50, yt - 30), (ox + 500, yt - 30),
+                (ox + 500, yt + 30), (ox + 50, yt + 30)], layer="FURACAO")
+    _poly(msp, [(ox + 1050, yt - 30), (ox + 1050 + 3500, yt - 30),
+                (ox + 1050 + 3500, yt + 30), (ox + 1050, yt + 30)], layer="FURACAO")
 
 
 # ---- LEGENDA / CARIMBO -----------------------------------------------------
