@@ -139,7 +139,11 @@ def rodar():
             assert isinstance(ex, dict) and ex.get('ok'), "executivo falhou: %s" % ex
             n = len(ex['pranchas'])
             assert n == 9, "esperado 9 pranchas, veio %d" % n
-            print("  OK: 9 pranchas -> %s/pranchas" % out)
+            # guard de cobertura: nenhum TIPO de solido do modelo pode ficar
+            # de fora de todas as pranchas (nem virar invisivel silenciosamente).
+            nc = ex.get('cobertura', {}).get('nao_cobertos', [])
+            assert not nc, "solidos nao cobertos por nenhuma prancha: %s" % nc
+            print("  OK: 9 pranchas, cobertura completa -> %s/pranchas" % out)
             ok = True
         except Exception as ex:
             print("  FALHOU: %r" % ex)

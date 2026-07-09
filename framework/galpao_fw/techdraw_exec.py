@@ -29,6 +29,74 @@ TPL_REL = ("Mod", "TechDraw", "Templates", "ISO",
 # Miudezas: poluem e encarecem as vistas gerais; entram so nos detalhes.
 _MIUDEZAS = ("PORCA", "ARRUELA", "CLIPE", "CONEX", "CHUMBADOR", "ESTICADOR")
 
+# Prefixos de solidos que, DE PROPOSITO, nao precisam aparecer desenhados numa
+# vista/detalhe (cobertos por quadros/especificacao ou auxiliares). O guard de
+# cobertura (_cobertura) so aceita como "ok" o que estiver desenhado OU listado
+# aqui -- assim um tipo de elemento novo do build_galpao acusa falha ate ser
+# classificado, em vez de sumir silenciosamente das pranchas.
+PREFIXOS_SEM_DESENHO = (
+    "VAO",                      # auxiliar de vao livre (nao e peca)
+    # Miudezas de LIGACAO sem detalhe grafico dedicado: sao dimensionadas e
+    # especificadas no memorial/quadro de ligacoes, nao desenhadas em corte
+    # proprio. Se um projeto exigir o detalhe, criar a prancha e remover daqui.
+    "CLIPE_GIRT",               # clipes de fixacao das girts
+    "CONEX_CONSOLE",            # chapa de ligacao do console da ponte rolante
+    "CONEX_CUMEEIRA",           # ligacao de cumeeira
+    "CONEX_GUSSET",             # gussets dos contraventamentos
+)
+
+
+def _prefixo_label(lbl):
+    """Prefixo alfabetico do Label (ate o 1o bloco numerico). Ex.:
+    PORTICO_01_C00 -> PORTICO ; TERCA_BEIRAL_E -> TERCA_BEIRAL."""
+    import re
+    m = re.match(r"^([A-Z]+(?:_[A-Z]+)*)", lbl)
+    return m.group(1) if m else lbl
+
+
+def _bb_overlap(a, b):
+    return (a.XMin <= b.XMax and a.XMax >= b.XMin and
+            a.YMin <= b.YMax and a.YMax >= b.YMin and
+            a.ZMin <= b.ZMax and a.ZMax >= b.ZMin)
+
+
+def _cobertura(doc, todos):
+    """Verifica (pos-geracao) que todo TIPO de solido do modelo aparece em ao
+    menos uma prancha: como Source de alguma vista, ou dentro da janela de um
+    corte de detalhe. Retorna prefixos desenhados e nao-cobertos."""
+    desenhados_nomes = set()
+    janelas = []
+    for o in doc.Objects:
+        if o.TypeId != "TechDraw::DrawViewPart":
+            continue
+        for s in getattr(o, "Source", []) or []:
+            nome = getattr(s, "Name", "") or ""
+            lbl = getattr(s, "Label", "") or ""
+            if nome.endswith("_CROP") or lbl.endswith("_CROP"):
+                try:
+                    janelas.append(s.Shape.BoundBox)
+                except Exception:
+                    pass
+            else:
+                desenhados_nomes.add(nome)
+    prefixos_todos = set()
+    prefixos_ok = set()
+    for o in todos:
+        p = _prefixo_label(o.Label)
+        prefixos_todos.add(p)
+        coberto = o.Name in desenhados_nomes
+        if not coberto:
+            try:
+                bb = o.Shape.BoundBox
+                coberto = any(_bb_overlap(bb, w) for w in janelas)
+            except Exception:
+                pass
+        if coberto:
+            prefixos_ok.add(p)
+    nao = sorted(p for p in (prefixos_todos - prefixos_ok)
+                 if not any(p.startswith(sd) for sd in PREFIXOS_SEM_DESENHO))
+    return {"desenhados": sorted(prefixos_ok), "nao_cobertos": nao}
+
 
 # ─────────────────────────────────────────────────────────────────────────
 # HELPERS DE GEOMETRIA (rodam dentro do FreeCAD)
@@ -378,7 +446,7 @@ def _pr_cobertura(doc, cfg, objs):
 
 def _pr_fundacoes(doc, cfg, objs):
     g = cfg["geo"]
-    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA"))
+    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA", "NERVURA"))
     if not fund:
         page = _nova_prancha(doc, "PE02_FUNDACOES",
                              _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",
@@ -526,14 +594,17 @@ def _pr_portico(doc, cfg, objs):
     return [page], [c]
 
 
-def _pr_contravent(doc, cfg, objs):
+def _pr_contravent(doc, cfg, objs, todos):
     if not _pref(objs, ("CONTRAV", "TIRANTE")):
         page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
                              _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
                                       "-", "05/09"))
         return [page], []
-    cv = _pref(objs, ("CONTRAV", "ESTICADOR", "TIRANTE", "PORTICO"))
-    cob = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO"))
+    # esticadores sao miudezas (fora de `objs`); puxa de `todos` para o sistema
+    # de contraventamento aparecer completo (barra + esticador) nesta prancha.
+    est = _pref(todos, ("ESTICADOR",))
+    cv = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO")) + est
+    cob = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO")) + est
     bb = _bbox(objs)
     comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     ax_lt = "y" if comp_x else "x"
@@ -819,8 +890,8 @@ def gerar_executivo(cfg):
                     _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento]
     for fn in construtores:
         try:
-            if fn in (_pr_base, _pr_joelho):
-                pgs, cts = fn(doc, cfg, objs, todos)  # detalhes usam miudezas
+            if fn in (_pr_base, _pr_joelho, _pr_contravent):
+                pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
             paginas += pgs
@@ -890,8 +961,13 @@ def gerar_executivo(cfg):
     except Exception:
         pass
 
+    try:
+        cob = _cobertura(doc, todos)
+    except Exception:
+        cob = {"desenhados": [], "nao_cobertos": []}
+
     return {"ok": True, "pranchas": [p.Name for p in paginas],
-            "arquivos": arquivos, "fcstd": fcstd_out}
+            "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob}
 
 
 def _svg_para_png(svg_path, png_path, w=2100, h=1485):
