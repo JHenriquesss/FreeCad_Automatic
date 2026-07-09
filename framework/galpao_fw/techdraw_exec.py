@@ -422,7 +422,7 @@ def _pr_fundacoes(doc, cfg, objs):
 def _pr_elevacoes(doc, cfg, objs):
     g = cfg["geo"]
     bb = _bbox(objs)
-    comp_x = (bb.XLength >= bb.YLength)
+    comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     span, comp, bay = g["span"], g["comprimento"], g.get("bay")
     ax_fr = "x" if comp_x else "y"
     ax_lt = "y" if comp_x else "x"
@@ -475,7 +475,7 @@ def _pr_elevacoes(doc, cfg, objs):
 def _pr_portico(doc, cfg, objs):
     g = cfg["geo"]
     bb = _bbox(objs)
-    comp_x = (bb.XLength >= bb.YLength)
+    comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     eixo = "x" if comp_x else "y"
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
@@ -525,7 +525,7 @@ def _pr_contravent(doc, cfg, objs):
     cv = _pref(objs, ("CONTRAV", "ESTICADOR", "TIRANTE", "PORTICO"))
     cob = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO"))
     bb = _bbox(objs)
-    comp_x = (bb.XLength >= bb.YLength)
+    comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     ax_lt = "y" if comp_x else "x"
     e1, _ = _fit_escala(bb, ax_lt, 720, 200)
     e2, _ = _fit_escala(_bbox(cob), "z", 720, 200)
@@ -616,7 +616,7 @@ def _pr_joelho(doc, cfg, objs, todos):
     import FreeCAD as App
     g = cfg["geo"]
     bb = _bbox(objs)
-    comp_x = (bb.XLength >= bb.YLength)
+    comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     eixo = "x" if comp_x else "y"
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
@@ -689,7 +689,7 @@ def _pr_fechamento(doc, cfg, objs):
                        "CALHA", "PORTICO"))
     g = cfg["geo"]
     bb = _bbox(objs)
-    comp_x = (bb.XLength >= bb.YLength)
+    comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     ax = "y" if comp_x else "x"
     esc, nome = _fit_escala(bb, ax, *AREA_1V)
     page = _nova_prancha(doc, "PE08_FECHAMENTO",
