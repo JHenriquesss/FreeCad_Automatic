@@ -219,6 +219,14 @@ def _portico(msp, d, ox, oy):
     _txt(msp, f"Base {B['B']:.0f}x{B['L']:.0f}x{B['t']:.0f} - "
               f"{B['n']} chumb. d{B['db']:.0f}", P(-dc - 550, -bt - 700), h=140)
     _txt(msp, f"PORTICO TRANSVERSAL ({nv} vao(s))", P(span_total / 2.0 - 1600, -bt - 1500), h=220)
+    # Chamadas de detalhe (círculos numerados)
+    for yc, tag, texto in ((cols[0], "1", "DET. JOELHO"),
+                            (cols[0], "2", "DET. BASE"),
+                            (ridges[0] if ridges else cols[0], "3", "DET. TERCA"),
+                            (cols[0] + span_total / 4, "4", "DET. CONTRAV"),
+                            (cols[-1], "5", "DET. CALHA")):
+        _circ(msp, P(yc - 250, eave - 500), 300, layer="TEXTO")
+        _txt(msp, tag, P(yc - 280, eave - 590), h=250, layer="TEXTO", align="MIDDLE_CENTER")
 
 
 # ---- VISTA 2: ELEVACAO LONGITUDINAL (plano X-Z) ----------------------------
@@ -251,6 +259,11 @@ def _elev_long(msp, d, ox, oy):
     _cota_v(msp, oy, oy + eave, ox - 200, txt=f"{eave/1000:.2f}".replace(".", ","),
             off=-900)
     _txt(msp, "ELEVACAO LONGITUDINAL", P(comp / 2.0 - 1600, -2400), h=220)
+    # Indicador de corte A-A na elevação
+    mx = comp / 2.0
+    _line(msp, P(mx, -300), P(mx, eave + 500), "TEXTO")
+    _line(msp, P(mx - 200, -300), P(mx + 200, -300), "TEXTO")
+    _txt(msp, "CORTE A-A", P(mx + 300, eave + 200), h=160, layer="TEXTO")
 
 
 # ---- VISTA 3: PLANTA DE COBERTURA (plano X-Y) ------------------------------
@@ -292,6 +305,20 @@ def _planta(msp, d, ox, oy):
     _cota_v(msp, oy, oy + span_total, ox - 200,
             txt=f"{span_total/1000:.2f}".replace(".", ","), off=-900)
     _txt(msp, "PLANTA DE COBERTURA", P(comp / 2.0 - 1400, -2200), h=220)
+    # Linha de corte A-A com setas nas extremidades
+    cy = span_total / 2.0
+    _line(msp, P(-500, cy), P(comp + 500, cy), "TEXTO")
+    _line(msp, P(-500, cy), P(-300, cy + 300), "TEXTO")
+    _line(msp, P(-500, cy), P(-300, cy - 300), "TEXTO")
+    _txt(msp, "A", P(-600, cy + 400), h=200, layer="TEXTO")
+    _line(msp, P(comp + 500, cy), P(comp + 300, cy + 300), "TEXTO")
+    _line(msp, P(comp + 500, cy), P(comp + 300, cy - 300), "TEXTO")
+    _txt(msp, "A", P(comp + 500, cy + 400), h=200, layer="TEXTO")
+    # Chamadas de detalhe na planta
+    for x, texto in ((comp / 4, "DET. 1 - JOELHO"), (comp * 3 / 4, "DET. 2 - BASE"),
+                     (comp / 2, "DET. 3 - TERCA"), (comp / 5, "DET. 4 - CONTRAV"),
+                     (comp * 4 / 5, "DET. 5 - CALHA")):
+        _txt(msp, texto, P(x, span_total + 1400), h=130, layer="TEXTO")
 
 
 # ---- DETALHE DO JOELHO (ampliado) ------------------------------------------
@@ -473,20 +500,27 @@ def _quadro_materiais(msp, d, ox, oy):
 
 # ---- LEGENDA / CARIMBO -----------------------------------------------------
 def _legenda(msp, d, ox, oy):
-    w, h = 6000.0, 2400.0
+    w, h = 7000.0, 3200.0
     _poly(msp, [(ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)], layer="TEXTO")
+    import datetime
+    data = datetime.date.today().strftime("%d/%m/%Y")
+    sap = d.get("sapata")
     linhas = [
         f"PROJETO: {d.get('slug','galpao')}",
-        d.get("descricao", ""),
+        d.get("descricao", "") or "Galpao em aco - Projeto Estrutural",
         f"Vao {d['span']/1000:.1f} m x Comp {d['comprimento']/1000:.1f} m x "
         f"Pe-direito {d['eave']/1000:.1f} m".replace(".", ","),
         f"Colunas {d['perfil_col']} | Vigas {d['perfil_raf']}",
         f"Base {d['base']['B']:.0f}x{d['base']['L']:.0f}x{d['base']['t']:.0f} mm - "
-        f"{d['base']['n']} chumbadores d{d['base']['db']:.0f} mm",
+        f"{d['base']['n']} chumb. d{d['base']['db']:.0f} mm",
+        (f"Sapata {sap['B']/1000:.2f}x{sap['L']/1000:.2f}x{sap['h']/1000:.2f} m"
+         if sap else "Sapata: N/A").replace(".", ","),
+        f"Data: {data}  |  Revisao: 00  |  Escala: 1:50 (portico) / 1:100 (demais)",
         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+        "NBR 8800:2008  |  NBR 6123:1988  |  NBR 6118:2014  |  NBR 6122:2022",
     ]
     for i, s in enumerate(linhas):
-        _txt(msp, s, (ox + 150, oy + h - 350 - i * 360), h=150 if i else 200)
+        _txt(msp, s, (ox + 150, oy + h - 350 - i * 320), h=170 if i == 0 else 130)
 
 
 # ---- NOTAS TECNICAS GERAIS --------------------------------------------------

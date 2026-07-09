@@ -244,6 +244,11 @@ def rodar(params, out_dir):
             finais.append(max(cands, key=lambda x: x["interacao"]))
     save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
     res["interacao_max"] = max(f["interacao"] for f in finais) if finais else 0
+    n_col = nv + 1
+    col_f = finais[:n_col]
+    raf_f = finais[n_col:]
+    res["interacao_col"] = max(f["interacao"] for f in col_f) if col_f else 0
+    res["interacao_raf"] = max(f["interacao"] for f in raf_f) if raf_f else 0
     # Gate 7 - tercas: adota a Ue mais leve que passa (ELU + ELS); o modelo desenha
     # a ADOTADA (terca_dims).
     save("gate7-tercas.txt", ti.memoria_pt())
