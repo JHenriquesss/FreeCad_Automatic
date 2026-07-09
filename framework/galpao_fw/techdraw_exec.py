@@ -114,18 +114,55 @@ def _n_verts(view):
     return i
 
 
+def _dims_no_eixo(bbox, axis):
+    """(largura, altura) do MODELO projetado no plano da vista, por eixo."""
+    if axis == "z":
+        return abs(bbox.XLength), abs(bbox.YLength)
+    if axis == "x":
+        return abs(bbox.YLength), abs(bbox.ZLength)
+    return abs(bbox.XLength), abs(bbox.ZLength)  # 'y'
+
+
 def _paper_half(bbox, scale, axis):
-    """Meia-largura/altura da vista NO PAPEL (mm), conforme o eixo de projecao.
-    axis: 'z' (planta), 'x' (olha ao longo de X), 'y' (olha ao longo de Y)."""
+    """Meia-largura/altura da vista NO PAPEL (mm), conforme o eixo de projecao."""
     if bbox is None:
         return 100.0, 100.0
-    if axis == "z":
-        w, h = bbox.XLength, bbox.YLength
-    elif axis == "x":
-        w, h = bbox.YLength, bbox.ZLength
-    else:  # 'y'
-        w, h = bbox.XLength, bbox.ZLength
-    return abs(w) * scale / 2.0, abs(h) * scale / 2.0
+    w, h = _dims_no_eixo(bbox, axis)
+    return w * scale / 2.0, h * scale / 2.0
+
+
+# Escalas normalizadas de desenho (arquitetura/estrutura), maior -> menor.
+_ESCALAS = [1 / 5., 1 / 10., 1 / 15., 1 / 20., 1 / 25., 1 / 33.33, 1 / 50.,
+            1 / 75., 1 / 100., 1 / 125., 1 / 150., 1 / 200., 1 / 250., 1 / 300.,
+            1 / 400., 1 / 500.]
+
+_ESC_NOME = {1 / 5.: "1:5", 1 / 10.: "1:10", 1 / 15.: "1:15", 1 / 20.: "1:20",
+             1 / 25.: "1:25", 1 / 33.33: "1:33", 1 / 50.: "1:50",
+             1 / 75.: "1:75", 1 / 100.: "1:100", 1 / 125.: "1:125",
+             1 / 150.: "1:150", 1 / 200.: "1:200", 1 / 250.: "1:250",
+             1 / 300.: "1:300", 1 / 400.: "1:400", 1 / 500.: "1:500"}
+
+
+def _fit_escala(bbox, axis, avail_w, avail_h):
+    """Maior escala normalizada em que a vista cabe em avail_w x avail_h (mm de
+    papel). Retorna (escala, nome). Preenche a folha em vez de deixar minuscula."""
+    w, h = _dims_no_eixo(bbox, axis)
+    w = max(w, 1.0); h = max(h, 1.0)
+    smax = min(avail_w / w, avail_h / h)
+    for s in _ESCALAS:
+        if s <= smax:
+            return s, _ESC_NOME[s]
+    return _ESCALAS[-1], _ESC_NOME[_ESCALAS[-1]]
+
+
+def _fmt_m(mm):
+    """Cota em metros, virgula decimal, com unidade: 10000 -> '10,00 m'."""
+    return ("%.2f m" % (mm / 1000.0)).replace(".", ",")
+
+
+def _fmt_mm(mm):
+    """Cota em milimetros inteiros com unidade: 500 -> '500 mm'."""
+    return "%d mm" % int(round(mm))
 
 
 class _Cotador:
@@ -136,19 +173,22 @@ class _Cotador:
     peca, verticais empilhadas a esquerda, com passo constante. As posicoes
     (dim.X, dim.Y) sao em mm de papel, origem no centro da vista."""
 
-    MARGEM = 14.0
-    PASSO = 11.0
+    MARGEM = 16.0
+    PASSO = 13.0
+    FONTE = 5.0
 
     def __init__(self, doc, page, view, halfw=100.0, halfh=100.0):
         self.doc, self.page, self.view = doc, page, view
         self.halfw, self.halfh = halfw, halfh
         self.itens = []
 
-    def d(self, p1, p2, tipo="Distance", valor=None):
-        """Registra uma cota. valor (mm): se dado, fixa o rotulo nesse numero
-        (evita ambiguidade do esquema de unidades e cota o valor de projeto)."""
+    def d(self, p1, p2, tipo, rotulo, lado=None, nivel=None):
+        """Registra uma cota com rotulo JA formatado (com unidade).
+        lado: 'baixo'|'cima' p/ horizontais, 'esq'|'dir' p/ verticais.
+        nivel: forca a linha de cota (mm de afastamento = MARGEM+nivel*PASSO);
+        None -> auto-empilha. Use nivel igual p/ cotas em cadeia (ex. baias)."""
         if self.view is not None:
-            self.itens.append((p1, p2, tipo, valor))
+            self.itens.append((p1, p2, tipo, rotulo, lado, nivel))
         return self
 
     def aplica(self):
@@ -160,34 +200,38 @@ class _Cotador:
             self.view.makeCosmeticVertex3d(App.Vector(*it[1]))
         self.view.recompute()
         base = _n_verts(self.view) - 2 * len(self.itens)
-        iv = ih = 0
+        cont = {"baixo": 0, "cima": 0, "esq": 0, "dir": 0}
         for j, it in enumerate(self.itens):
-            p1, p2, tipo, valor = it
+            p1, p2, tipo, rotulo, lado, nivel = it
+            vert = (tipo == "DistanceY")
+            if lado is None:
+                lado = "esq" if vert else "baixo"
             try:
                 dm = self.doc.addObject("TechDraw::DrawViewDimension",
                                         self.view.Name + "_dim")
                 dm.Type = tipo
                 dm.References2D = [(self.view, "Vertex%d" % (base + 2 * j)),
                                    (self.view, "Vertex%d" % (base + 2 * j + 1))]
-                # Arbitrary=True -> FormatSpec e exibido literalmente. Cotamos o
-                # valor de PROJETO (mm inteiros), inequivoco e sem depender do
-                # esquema de unidades (que exibia vao em metros: "10" p/ 10000).
-                if valor is not None:
-                    dm.Arbitrary = True
-                    dm.FormatSpec = "%d" % int(round(valor))
-                else:
-                    dm.FormatSpec = "%.0f"
+                # Arbitrary=True -> FormatSpec exibido literalmente (rotulo com
+                # unidade). Evita a ambiguidade do esquema de unidades.
+                dm.Arbitrary = True
+                dm.FormatSpec = rotulo
                 self.page.addView(dm)
-                if tipo == "DistanceY":       # vertical -> a esquerda
-                    dm.X = -(self.halfw + self.MARGEM + iv * self.PASSO)
-                    dm.Y = 0.0
-                    iv += 1
-                else:                          # horizontal -> abaixo
-                    dm.X = 0.0
-                    dm.Y = -(self.halfh + self.MARGEM + ih * self.PASSO)
-                    ih += 1
+                if nivel is None:
+                    k = cont[lado]; cont[lado] += 1
+                else:
+                    k = nivel
+                off = self.MARGEM + k * self.PASSO
+                if lado == "esq":
+                    dm.X, dm.Y = -(self.halfw + off), 0.0
+                elif lado == "dir":
+                    dm.X, dm.Y = (self.halfw + off), 0.0
+                elif lado == "cima":
+                    dm.X, dm.Y = 0.0, (self.halfh + off)
+                else:  # baixo
+                    dm.X, dm.Y = 0.0, -(self.halfh + off)
                 try:
-                    dm.ViewObject.Fontsize = 5.0
+                    dm.ViewObject.Fontsize = self.FONTE
                     dm.ViewObject.ArrowSize = 2.5
                 except Exception:
                     pass
@@ -204,15 +248,66 @@ def _anot(doc, page, nome, linhas, x, y, tam=4.0):
     return a
 
 
-def _planilha(doc, page, nome, celulas, cell_end, x, y, tam=3.5):
+def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None):
+    """Tabela estilizada: cabecalho em negrito/sombreado, larguras de coluna,
+    alinhamento. Renderizada como DrawViewSpreadsheet."""
     ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
-    for addr, val in celulas.items():
-        ss.set(addr, str(val))
+    ncol = len(header)
+    cols = [chr(ord("A") + i) for i in range(ncol)]
+    for i, h in enumerate(header):
+        a = "%s1" % cols[i]
+        ss.set(a, str(h))
+        try:
+            ss.setStyle(a, "bold")
+            ss.setBackground(a, (0.82, 0.82, 0.82))
+            ss.setAlignment(a, "center|vcenter")
+        except Exception:
+            pass
+    for r, row in enumerate(rows, start=2):
+        for i, val in enumerate(row):
+            a = "%s%d" % (cols[i], r)
+            ss.set(a, str(val))
+            try:
+                ss.setAlignment(a, ("left" if i == 0 else "center") + "|vcenter")
+            except Exception:
+                pass
+    if larguras:
+        for i, w in enumerate(larguras):
+            try:
+                ss.setColumnWidth(cols[i], int(w))
+            except Exception:
+                pass
     doc.recompute()
     v = doc.addObject("TechDraw::DrawViewSpreadsheet", nome)
     v.Source = ss
     v.CellStart = "A1"
-    v.CellEnd = cell_end
+    v.CellEnd = "%s%d" % (cols[-1], len(rows) + 1)
+    v.TextSize = tam
+    page.addView(v)
+    v.X, v.Y = float(x), float(y)
+    return v
+
+
+def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520):
+    """Bloco de texto ALINHADO A ESQUERDA (1 coluna). Usa spreadsheet pois o
+    DrawViewAnnotation centraliza o texto (ruim p/ listas/notas)."""
+    ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
+    for i, l in enumerate(linhas, start=1):
+        a = "A%d" % i
+        ss.set(a, str(l))
+        try:
+            ss.setAlignment(a, "left|vcenter")
+        except Exception:
+            pass
+    try:
+        ss.setColumnWidth("A", int(largura))
+    except Exception:
+        pass
+    doc.recompute()
+    v = doc.addObject("TechDraw::DrawViewSpreadsheet", nome)
+    v.Source = ss
+    v.CellStart = "A1"
+    v.CellEnd = "A%d" % len(linhas)
     v.TextSize = tam
     page.addView(v)
     v.X, v.Y = float(x), float(y)
@@ -249,111 +344,136 @@ def _carimbo(cfg, titulo, numero, escala, folha):
 # ─────────────────────────────────────────────────────────────────────────
 # PRANCHAS
 # ─────────────────────────────────────────────────────────────────────────
+# Area util de desenho na A1 (mm de papel): folha 841x594, descontando margem,
+# carimbo (canto inf. direito) e faixa de anotacao (base).
+AREA_1V = (700.0, 380.0)     # vista unica
+AREA_2V = (330.0, 360.0)     # cada vista quando ha 2 lado a lado
+
+
 def _pr_cobertura(doc, cfg, objs):
     g = cfg["geo"]
+    bb = _bbox(objs)
+    esc, nome = _fit_escala(bb, "z", *AREA_1V)
     page = _nova_prancha(doc, "PE01_COBERTURA",
                          _carimbo(cfg, "PLANTA DE COBERTURA", "PE-01",
-                                  "1:100", "01/09"))
-    bb = _bbox(objs)
+                                  nome, "01/09"))
     v = _vista(doc, page, "V01_COB", objs, (0, 0, 1), (1, 0, 0),
-               1 / 100.0, 420, 320, coarse=True)
-    hw, hh = _paper_half(bb, 1 / 100.0, "z")
+               esc, 410, 350, coarse=True)
+    hw, hh = _paper_half(bb, esc, "z")
     c = _Cotador(doc, page, v, hw, hh)
     z = bb.ZMax
     comp, span, bay = g["comprimento"], g["span"], g.get("bay")
-    c.d((0, 0, z), (comp, 0, z), "DistanceX", comp)      # comprimento
-    c.d((0, 0, z), (0, span, z), "DistanceY", span)      # vao
-    if bay:
-        c.d((0, span, z), (bay, span, z), "DistanceX", bay)  # 1 vao de baia
-    _anot(doc, page, "A01", ["PLANTA DE COBERTURA   ESC 1:100",
-                             "Inclinacao: %.0f%%" % (g.get("slope", 0.1) * 100)],
-          200, 120, 5)
+    n = int(round(comp / bay)) if bay else 0
+    for i in range(n):                                   # cadeia de baias
+        c.d((i * bay, 0, z), ((i + 1) * bay, 0, z), "DistanceX",
+            _fmt_m(bay), "baixo", nivel=0)
+    c.d((0, 0, z), (comp, 0, z), "DistanceX", _fmt_m(comp), "baixo", nivel=1)
+    c.d((0, 0, z), (0, span, z), "DistanceY", _fmt_m(span), "esq")
+    _anot(doc, page, "A01", ["PLANTA DE COBERTURA   ESCALA %s" % nome,
+                             "Inclinacao: %.0f%%" % (g.get("slope", 0.1) * 100),
+                             "Cotas em metros."],
+          200, 70, 6)
     return [page], [c]
 
 
 def _pr_fundacoes(doc, cfg, objs):
-    page = _nova_prancha(doc, "PE02_FUNDACOES",
-                         _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",
-                                  "1:100", "02/09"))
+    g = cfg["geo"]
     fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA"))
     if not fund:
+        page = _nova_prancha(doc, "PE02_FUNDACOES",
+                             _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",
+                                      "-", "02/09"))
         return [page], []
     bf = _bbox(fund)
+    esc, nome = _fit_escala(bf, "z", *AREA_1V)
+    page = _nova_prancha(doc, "PE02_FUNDACOES",
+                         _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",
+                                  nome, "02/09"))
     v = _vista(doc, page, "V02_FUND", fund, (0, 0, 1), (1, 0, 0),
-               1 / 100.0, 400, 330, coarse=True)
-    g = cfg["geo"]
-    hw, hh = _paper_half(bf, 1 / 100.0, "z")
+               esc, 410, 350, coarse=True)
+    hw, hh = _paper_half(bf, esc, "z")
     c = _Cotador(doc, page, v, hw, hh)
     z = bf.ZMax
-    comp, span = g["comprimento"], g["span"]
-    c.d((0, 0, z), (comp, 0, z), "DistanceX", comp)      # entre eixos (comp)
-    c.d((0, 0, z), (0, span, z), "DistanceY", span)      # entre eixos (vao)
+    comp, span, bay = g["comprimento"], g["span"], g.get("bay")
+    n = int(round(comp / bay)) if bay else 0
+    for i in range(n):
+        c.d((i * bay, 0, z), ((i + 1) * bay, 0, z), "DistanceX",
+            _fmt_m(bay), "baixo", nivel=0)
+    c.d((0, 0, z), (comp, 0, z), "DistanceX", _fmt_m(comp), "baixo", nivel=1)
+    c.d((0, 0, z), (0, span, z), "DistanceY", _fmt_m(span), "esq")
     sap = _pref(fund, ("SAPATA",))
     if sap:
         b1 = sap[0].Shape.BoundBox
         c.d((b1.XMin, b1.YMin, b1.ZMax), (b1.XMax, b1.YMin, b1.ZMax),
-            "DistanceX", b1.XLength)                     # B da sapata
-        c.d((b1.XMin, b1.YMin, b1.ZMax), (b1.XMin, b1.YMax, b1.ZMax),
-            "DistanceY", b1.YLength)                     # L da sapata
+            "DistanceX", _fmt_mm(b1.XLength), "cima", nivel=0)
     sp = cfg.get("sapata")
     if sp:
-        _planilha(doc, page, "Q02", {
-            "A1": "SAPATA", "B1": "B (m)", "C1": "L (m)", "D1": "h (m)",
-            "A2": "S1", "B2": "%.2f" % sp["B"], "C2": "%.2f" % sp["L"],
-            "D2": "%.2f" % sp["h"]}, "D2", 150, 180, 4)
-    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESC 1:100"], 200, 120, 5)
+        _anot(doc, page, "A02q", ["QUADRO DE SAPATAS"], 120, 175, 6)
+        _tabela(doc, page, "Q02",
+                ["TIPO", "B (cm)", "L (cm)", "h (cm)"],
+                [["S1", "%.0f" % (sp["B"] * 100), "%.0f" % (sp["L"] * 100),
+                  "%.0f" % (sp["h"] * 100)]],
+                120, 150, tam=6, larguras=[90, 70, 70, 70])
+    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome,
+                             "Cotas em metros; sapatas em cm."], 200, 70, 6)
     return [page], [c]
 
 
 def _pr_elevacoes(doc, cfg, objs):
     g = cfg["geo"]
-    page = _nova_prancha(doc, "PE03_ELEVACOES",
-                         _carimbo(cfg, "ELEVACOES", "PE-03", "1:100", "03/09"))
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
-    # oitao: olha ao longo do comprimento
+    span, comp, bay = g["span"], g["comprimento"], g.get("bay")
+    ax_fr = "x" if comp_x else "y"
+    ax_lt = "y" if comp_x else "x"
+    e1, n1 = _fit_escala(bb, ax_fr, *AREA_2V)
+    e2, n2 = _fit_escala(bb, ax_lt, *AREA_2V)
+    esc = min(e1, e2)                                    # mesma escala p/ as 2
+    nome = _ESC_NOME[esc]
+    page = _nova_prancha(doc, "PE03_ELEVACOES",
+                         _carimbo(cfg, "ELEVACOES", "PE-03", nome, "03/09"))
+    # oitao (olha ao longo do comprimento)
     dfr = (-1, 0, 0) if comp_x else (0, -1, 0)
     xfr = (0, -1, 0) if comp_x else (1, 0, 0)
-    v1 = _vista(doc, page, "V03_OITAO", objs, dfr, xfr, 1 / 100.0,
-                230, 380, coarse=True)
-    span, comp = g["span"], g["comprimento"]
-    hw1, hh1 = _paper_half(bb, 1 / 100.0, "x" if comp_x else "y")
+    v1 = _vista(doc, page, "V03_OITAO", objs, dfr, xfr, esc, 220, 360,
+                coarse=True)
+    hw1, hh1 = _paper_half(bb, esc, ax_fr)
     c1 = _Cotador(doc, page, v1, hw1, hh1)
-    # oitao: vao na horizontal, alturas eave/cumeeira
     if comp_x:
-        c1.d((0, 0, 0.0), (0, span, 0.0), "DistanceX", span)
+        c1.d((0, 0, 0.), (0, span, 0.), "DistanceX", _fmt_m(span), "baixo")
     else:
-        c1.d((0, 0, 0.0), (span, 0, 0.0), "DistanceX", span)
-    c1.d((0, 0, 0.0), (0, 0, g["eave"]), "DistanceY", g["eave"])
-    c1.d((0, 0, 0.0), (0, 0, g["ridge"]), "DistanceY", g["ridge"])
+        c1.d((0, 0, 0.), (span, 0, 0.), "DistanceX", _fmt_m(span), "baixo")
+    c1.d((0, 0, 0.), (0, 0, g["eave"]), "DistanceY", _fmt_m(g["eave"]), "esq")
+    c1.d((0, 0, 0.), (0, 0, g["ridge"]), "DistanceY", _fmt_m(g["ridge"]), "esq")
     # lateral
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    v2 = _vista(doc, page, "V03_LATERAL", objs, dlt, xlt, 1 / 100.0,
-                560, 380, coarse=True)
-    bay = g.get("bay")
-    hw2, hh2 = _paper_half(bb, 1 / 100.0, "y" if comp_x else "x")
+    v2 = _vista(doc, page, "V03_LATERAL", objs, dlt, xlt, esc, 590, 360,
+                coarse=True)
+    hw2, hh2 = _paper_half(bb, esc, ax_lt)
     c2 = _Cotador(doc, page, v2, hw2, hh2)
-    # lateral: comprimento total + 1 baia, altura eave
+    n = int(round(comp / bay)) if bay else 0
+    for i in range(n):                                   # cadeia de baias
+        a = (i * bay, 0, 0.) if comp_x else (0, i * bay, 0.)
+        b = ((i + 1) * bay, 0, 0.) if comp_x else (0, (i + 1) * bay, 0.)
+        c2.d(a, b, "DistanceX", _fmt_m(bay), "baixo", nivel=0)
     if comp_x:
-        c2.d((0, 0, 0.0), (comp, 0, 0.0), "DistanceX", comp)
-        if bay:
-            c2.d((0, 0, 0.0), (bay, 0, 0.0), "DistanceX", bay)
+        c2.d((0, 0, 0.), (comp, 0, 0.), "DistanceX", _fmt_m(comp),
+             "baixo", nivel=1)
     else:
-        c2.d((0, 0, 0.0), (0, comp, 0.0), "DistanceX", comp)
-        if bay:
-            c2.d((0, 0, 0.0), (0, bay, 0.0), "DistanceX", bay)
-    c2.d((0, 0, 0.0), (0, 0, g["eave"]), "DistanceY", g["eave"])
-    _anot(doc, page, "A03a", ["ELEVACAO FRONTAL (OITAO)  1:100"], 230, 170, 5)
-    _anot(doc, page, "A03b", ["ELEVACAO LATERAL  1:100"], 560, 170, 5)
+        c2.d((0, 0, 0.), (0, comp, 0.), "DistanceX", _fmt_m(comp),
+             "baixo", nivel=1)
+    c2.d((0, 0, 0.), (0, 0, g["eave"]), "DistanceY", _fmt_m(g["eave"]), "esq")
+    _anot(doc, page, "A03a", ["ELEVACAO FRONTAL (OITAO)   ESC %s" % nome],
+          120, 150, 5)
+    _anot(doc, page, "A03b", ["ELEVACAO LATERAL   ESC %s" % nome], 490, 150, 5)
+    _anot(doc, page, "A03c", ["Cotas em metros. RN +0,00 = topo do concreto."],
+          200, 60, 5)
     return [page], [c1, c2]
 
 
 def _pr_portico(doc, cfg, objs):
     g = cfg["geo"]
-    page = _nova_prancha(doc, "PE04_PORTICO",
-                         _carimbo(cfg, "PORTICO TIPICO", "PE-04",
-                                  "1:50", "04/09"))
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
     eixo = "x" if comp_x else "y"
@@ -364,141 +484,176 @@ def _pr_portico(doc, cfg, objs):
                    eixo, meio, bay * 0.45)
     if not frame:
         frame = objs
+    fb = _bbox(frame)
+    ax = "x" if comp_x else "y"
+    esc, nome = _fit_escala(fb, ax, *AREA_1V)
+    page = _nova_prancha(doc, "PE04_PORTICO",
+                         _carimbo(cfg, "PORTICO TIPICO", "PE-04",
+                                  nome, "04/09"))
     dv = (-1, 0, 0) if comp_x else (0, -1, 0)
     xv = (0, -1, 0) if comp_x else (1, 0, 0)
-    v = _vista(doc, page, "V04_PORTICO", frame, dv, xv, 1 / 50.0, 420, 330)
-    fb = _bbox(frame)
+    v = _vista(doc, page, "V04_PORTICO", frame, dv, xv, esc, 410, 350)
     span = g["span"]
-    # eixo do portico (linha do frame) no eixo perpendicular ao vao
     linha = meio
-    hw, hh = _paper_half(fb, 1 / 50.0, "x" if comp_x else "y")
+    hw, hh = _paper_half(fb, esc, ax)
     c = _Cotador(doc, page, v, hw, hh)
-    # vao entre eixos de coluna (nao o bbox, que inclui sapatas); alturas em z0
     if comp_x:
-        c.d((linha, 0, 0.0), (linha, span, 0.0), "DistanceX", span)
+        c.d((linha, 0, 0.), (linha, span, 0.), "DistanceX", _fmt_m(span),
+            "baixo")
     else:
-        c.d((0, linha, 0.0), (span, linha, 0.0), "DistanceX", span)
-    ax = (linha, 0, 0.0) if comp_x else (0, linha, 0.0)
+        c.d((0, linha, 0.), (span, linha, 0.), "DistanceX", _fmt_m(span),
+            "baixo")
+    a0 = (linha, 0, 0.) if comp_x else (0, linha, 0.)
     ae = (linha, 0, g["eave"]) if comp_x else (0, linha, g["eave"])
     ar = (linha, 0, g["ridge"]) if comp_x else (0, linha, g["ridge"])
-    c.d(ax, ae, "DistanceY", g["eave"])
-    c.d(ax, ar, "DistanceY", g["ridge"])
+    c.d(a0, ae, "DistanceY", _fmt_m(g["eave"]), "esq")
+    c.d(a0, ar, "DistanceY", _fmt_m(g["ridge"]), "esq")
     _anot(doc, page, "A04", [
-        "PORTICO TIPICO   ESC 1:50",
-        "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
-                                     cfg.get("perfil_raf", "?"))],
-          200, 130, 4.5)
+        "PORTICO TIPICO   ESCALA %s" % nome,
+        "Colunas: %s    Vigas: %s" % (cfg.get("perfil_col", "?"),
+                                      cfg.get("perfil_raf", "?")),
+        "Cotas em metros."], 200, 70, 6)
     return [page], [c]
 
 
 def _pr_contravent(doc, cfg, objs):
-    page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
-                         _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
-                                  "1:100", "05/09"))
-    cv = _pref(objs, ("CONTRAV", "ESTICADOR", "TIRANTE", "PORTICO"))
     if not _pref(objs, ("CONTRAV", "TIRANTE")):
+        page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
+                             _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
+                                      "-", "05/09"))
         return [page], []
+    cv = _pref(objs, ("CONTRAV", "ESTICADOR", "TIRANTE", "PORTICO"))
+    cob = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO"))
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
+    ax_lt = "y" if comp_x else "x"
+    e1, _ = _fit_escala(bb, ax_lt, 720, 200)
+    e2, _ = _fit_escala(_bbox(cob), "z", 720, 200)
+    esc = min(e1, e2); nome = _ESC_NOME[esc]
+    page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
+                         _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
+                                  nome, "05/09"))
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    _vista(doc, page, "V05_CV_LAT", cv, dlt, xlt, 1 / 100.0, 300, 400, coarse=True)
-    _vista(doc, page, "V05_CV_COB", _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO")),
-           (0, 0, 1), (1, 0, 0), 1 / 100.0, 300, 180, coarse=True)
-    _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL  1:100"], 200, 300, 5)
-    _anot(doc, page, "A05b", ["CONTRAVENTAMENTO DE COBERTURA  1:100"], 200, 90, 5)
+    _vista(doc, page, "V05_CV_LAT", cv, dlt, xlt, esc, 410, 430, coarse=True)
+    _vista(doc, page, "V05_CV_COB", cob, (0, 0, 1), (1, 0, 0), esc,
+           410, 220, coarse=True)
+    _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome],
+          200, 350, 5)
+    _anot(doc, page, "A05b", ["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome],
+          200, 130, 5)
     return [page], []
 
 
 def _pr_base(doc, cfg, objs, todos):
-    page = _nova_prancha(doc, "PE06_DET_BASE",
-                         _carimbo(cfg, "DETALHE - BASE DE COLUNA", "PE-06",
-                                  "1:10", "06/09"))
-    # usa 'todos' (inclui chumbadores/porcas/arruelas, que sao miudezas
-    # excluidas das vistas gerais) para o detalhe mostrar a ancoragem.
     base = _pref(todos, ("PLACA", "CHUMBADOR", "PEDESTAL", "PORCA", "ARRUELA"))
     if not base:
+        page = _nova_prancha(doc, "PE06_DET_BASE",
+                             _carimbo(cfg, "DETALHE - BASE DE COLUNA", "PE-06",
+                                      "-", "06/09"))
         return [page], []
     b0 = base[0].Shape.BoundBox
     cx, cy = (b0.XMin + b0.XMax) / 2, (b0.YMin + b0.YMax) / 2
-    um = _faixa(_faixa(base, "x", cx, 500), "y", cy, 500)
-    um = um or base[:6]
+    um = _faixa(_faixa(base, "x", cx, 500), "y", cy, 500) or base[:6]
     db = _bbox(um)
+    esc, nome = _fit_escala(db, "y", *AREA_2V)
+    page = _nova_prancha(doc, "PE06_DET_BASE",
+                         _carimbo(cfg, "DETALHE - BASE DE COLUNA", "PE-06",
+                                  nome, "06/09"))
     # vista frontal
     v1 = _vista(doc, page, "V06_BASE_FR", um, (0, -1, 0), (1, 0, 0),
-                1 / 10.0, 300, 350)
-    hw1, hh1 = _paper_half(db, 1 / 10.0, "y")
+                esc, 230, 350)
+    hw1, hh1 = _paper_half(db, esc, "y")
     c1 = _Cotador(doc, page, v1, hw1, hh1)
     c1.d((db.XMin, db.YMin, db.ZMin), (db.XMin, db.YMin, db.ZMax),
-         "DistanceY", db.ZLength)
+         "DistanceY", _fmt_mm(db.ZLength), "esq")
     c1.d((db.XMin, db.YMin, db.ZMax), (db.XMax, db.YMin, db.ZMax),
-         "DistanceX", db.XLength)
+         "DistanceX", _fmt_mm(db.XLength), "baixo")
     # vista superior (placa + furos)
-    v2 = _vista(doc, page, "V06_BASE_TOP", _pref(um, ("PLACA", "CHUMBADOR")),
-                (0, 0, 1), (1, 0, 0), 1 / 10.0, 560, 350)
+    pl = _pref(um, ("PLACA", "CHUMBADOR"))
     pb = _bbox(_pref(um, ("PLACA",)) or um)
-    hw2, hh2 = _paper_half(pb, 1 / 10.0, "z")
+    e2, n2 = _fit_escala(pb, "z", *AREA_2V)
+    v2 = _vista(doc, page, "V06_BASE_TOP", pl, (0, 0, 1), (1, 0, 0),
+                e2, 600, 350)
+    hw2, hh2 = _paper_half(pb, e2, "z")
     c2 = _Cotador(doc, page, v2, hw2, hh2)
     c2.d((pb.XMin, pb.YMin, pb.ZMax), (pb.XMax, pb.YMin, pb.ZMax),
-         "DistanceX", pb.XLength)
+         "DistanceX", _fmt_mm(pb.XLength), "baixo")
     c2.d((pb.XMin, pb.YMin, pb.ZMax), (pb.XMin, pb.YMax, pb.ZMax),
-         "DistanceY", pb.YLength)
+         "DistanceY", _fmt_mm(pb.YLength), "esq")
     ba = cfg.get("base")
+    linhas = ["DETALHE DA BASE",
+              "Vista frontal ESC %s   Vista superior ESC %s" % (nome, n2),
+              "Cotas em milimetros."]
     if ba:
-        _anot(doc, page, "A06", [
-            "DETALHE DA BASE   ESC 1:10",
-            "Placa %.0fx%.0fx%.0f mm" % (ba["B"], ba["L"], ba["t"]),
-            "%dx chumbadores d%.0f mm" % (ba["n"], ba["db"])],
-              180, 150, 4.5)
+        linhas += ["Placa %.0f x %.0f x %.0f mm" % (ba["B"], ba["L"], ba["t"]),
+                   "%dx chumbadores d %.0f mm" % (ba["n"], ba["db"])]
+    _anot(doc, page, "A06", linhas, 200, 90, 5)
     return [page], [c1, c2]
 
 
 def _pr_joelho(doc, cfg, objs, todos):
-    page = _nova_prancha(doc, "PE07_DET_JOELHO",
-                         _carimbo(cfg, "DETALHE - LIGACAO JOELHO/CUMEEIRA",
-                                  "PE-07", "1:10", "07/09"))
     g = cfg["geo"]
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
     eixo = "x" if comp_x else "y"
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
-    # inclui miudezas (parafusos/chapas de ligacao CONEX) no detalhe do joelho
     frame = _faixa(todos, eixo, meio, bay * 0.45)
-    # regiao do joelho: topo da coluna (z ~ eave)
     joelho = [o for o in frame
               if hasattr(o, "Shape") and not o.Shape.isNull()
-              and o.Shape.BoundBox.ZMax >= g["eave"] - 800
-              and o.Shape.BoundBox.ZMin <= g["eave"] + 800]
+              and o.Shape.BoundBox.ZMax >= g["eave"] - 900
+              and o.Shape.BoundBox.ZMin <= g["eave"] + 900]
     if not joelho:
+        page = _nova_prancha(doc, "PE07_DET_JOELHO",
+                             _carimbo(cfg, "DETALHE - LIGACAO JOELHO", "PE-07",
+                                      "-", "07/09"))
         return [page], []
+    jb = _bbox(joelho)
+    ax = "x" if comp_x else "y"
+    esc, nome = _fit_escala(jb, ax, *AREA_1V)
+    page = _nova_prancha(doc, "PE07_DET_JOELHO",
+                         _carimbo(cfg, "DETALHE - LIGACAO JOELHO/CUMEEIRA",
+                                  "PE-07", nome, "07/09"))
     dv = (-1, 0, 0) if comp_x else (0, -1, 0)
     xv = (0, -1, 0) if comp_x else (1, 0, 0)
-    v = _vista(doc, page, "V07_JOELHO", joelho, dv, xv, 1 / 10.0, 420, 320)
-    _anot(doc, page, "A07", ["LIGACAO DE JOELHO   ESC 1:10",
-                             "Ver quadro de ligacoes / memoria de calculo"],
-          200, 130, 4.5)
-    return [page], []
+    v = _vista(doc, page, "V07_JOELHO", joelho, dv, xv, esc, 410, 350)
+    hw, hh = _paper_half(jb, esc, ax)
+    c = _Cotador(doc, page, v, hw, hh)
+    c.d((jb.XMin, jb.YMin, jb.ZMin), (jb.XMin, jb.YMin, jb.ZMax),
+        "DistanceY", _fmt_mm(jb.ZLength), "esq")
+    _anot(doc, page, "A07", [
+        "LIGACAO DE JOELHO (VIGA-COLUNA)   ESCALA %s" % nome,
+        "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
+                                     cfg.get("perfil_raf", "?")),
+        "Parafusos e soldas conforme memoria de calculo. Cotas em mm."],
+          200, 90, 5)
+    return [page], [c]
 
 
 def _pr_fechamento(doc, cfg, objs):
-    page = _nova_prancha(doc, "PE08_FECHAMENTO",
-                         _carimbo(cfg, "FECHAMENTO / TERCAS / MAO-FRANCESA",
-                                  "PE-08", "1:100", "08/09"))
+    if not _pref(objs, ("TERCA", "TAPAMENTO", "MAO")):
+        page = _nova_prancha(doc, "PE08_FECHAMENTO",
+                             _carimbo(cfg, "FECHAMENTO / TERCAS", "PE-08",
+                                      "-", "08/09"))
+        return [page], []
     fch = _pref(objs, ("TERCA", "TAPAMENTO", "MAO", "MONTANTE", "TELHA",
                        "CALHA", "PORTICO"))
-    if not _pref(objs, ("TERCA", "TAPAMENTO", "MAO")):
-        return [page], []
     bb = _bbox(objs)
     comp_x = (bb.XLength >= bb.YLength)
+    ax = "y" if comp_x else "x"
+    esc, nome = _fit_escala(bb, ax, *AREA_1V)
+    page = _nova_prancha(doc, "PE08_FECHAMENTO",
+                         _carimbo(cfg, "FECHAMENTO / TERCAS / MAO-FRANCESA",
+                                  "PE-08", nome, "08/09"))
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    _vista(doc, page, "V08_FECH", fch, dlt, xlt, 1 / 100.0, 420, 340, coarse=True)
+    _vista(doc, page, "V08_FECH", fch, dlt, xlt, esc, 410, 350, coarse=True)
     tc = cfg.get("terca")
-    linhas = ["FECHAMENTO E TERCAS   ESC 1:100"]
+    linhas = ["FECHAMENTO E TERCAS   ESCALA %s" % nome]
     if tc:
-        linhas.append("Terca Ue %s" % tc)
-    _anot(doc, page, "A08", linhas, 200, 140, 4.5)
+        linhas.append("Terca Ue: %s" % tc)
+    _anot(doc, page, "A08", linhas, 200, 80, 5)
     return [page], []
 
 
@@ -506,60 +661,43 @@ def _pr_quadros(doc, cfg):
     page = _nova_prancha(doc, "PE09_QUADROS",
                          _carimbo(cfg, "QUADROS E NOTAS TECNICAS", "PE-09",
                                   "-", "09/09"))
-    # verificacoes
+    # QUADRO DE VERIFICACOES (utilizacoes do calculo, NBR 8800)
     res = [(k, v) for k, v in (cfg.get("resultados") or {}).items()
            if v is not None]
     if res:
-        cel = {"A1": "ELEMENTO", "B1": "UTILIZACAO", "C1": "SITUACAO"}
-        for i, (k, v) in enumerate(res, start=2):
-            cel["A%d" % i] = k
-            cel["B%d" % i] = "%.2f" % float(v)
-            cel["C%d" % i] = "OK" if float(v) <= 1.001 else "REVER"
-        _planilha(doc, page, "Q09V", cel, "C%d" % (len(res) + 1), 200, 400, 4)
-        _anot(doc, page, "A09v", ["QUADRO DE VERIFICACOES (NBR 8800)"], 200, 470, 5)
-    # materiais
+        _anot(doc, page, "A09v",
+              ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 240, 500, 7)
+        rows = [[k, "%.2f" % float(v), "OK" if float(v) <= 1.001 else "REVER"]
+                for k, v in res]
+        _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
+                rows, 240, 470 - len(rows) * 5, tam=6, larguras=[170, 130, 100])
+    # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     if tk:
-        tk = sorted(tk, key=lambda r: -float(r[4]))[:18]
-        cel = {"A1": "ELEMENTO", "B1": "PERFIL", "C1": "QTDE", "D1": "MASSA kg"}
-        tot = 0.0
-        for i, r in enumerate(tk, start=2):
-            cel["A%d" % i] = str(r[0]); cel["B%d" % i] = str(r[1])
-            cel["C%d" % i] = str(r[2]); cel["D%d" % i] = "%.0f" % float(r[4])
-            tot += float(r[4])
-        n = len(tk) + 2
-        cel["A%d" % n] = "TOTAL"; cel["D%d" % n] = "%.0f" % tot
-        _planilha(doc, page, "Q09M", cel, "D%d" % n, 470, 400, 4)
-        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS (ACO)"], 470, 470, 5)
-    # notas
+        tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
+        rows = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
+                for r in tk]
+        rows.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
+        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 600, 500, 7)
+        _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
+                rows, 600, 470 - len(rows) * 5, tam=6,
+                larguras=[150, 130, 60, 110])
+    # NOTAS TECNICAS
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
-        "1. COTAS EM MM SALVO INDICACAO.",
-        "2. RN +0,00 = TOPO DO CONCRETO (BASE DAS PLACAS).",
-        "3. ACO ESTRUTURAL MR250 (NBR 8800). ARMADURA CA-50.",
-        "4. CONCRETO fck 25 MPa. COBRIMENTO 5 cm (FUND.), 3 cm (SUP.).",
-        "5. PARAFUSOS A325 (fub 825 MPa) OU A307 CONFORME LIGACAO.",
-        "6. SOLDAS E70XX (fw 485 MPa). FILETE MINIMO 6 mm.",
-        "7. CHUMBADORES ASTM A36 COM GANCHO 180 mm.",
-        "8. CONTRAVENTAMENTO: BARRAS D20 PRETENSIONADAS C/ ESTICADOR.",
-        "9. TERCAS Ue FORMADO A FRIO (NBR 14762).",
-        "10. PROJETO EXECUTIVO SUJEITO A REVISAO E ART.",
+        "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
+        "2. RN +0,00 = topo do concreto (base das placas).",
+        "3. Aco estrutural MR250 (NBR 8800). Armadura CA-50.",
+        "4. Concreto fck 25 MPa. Cobrimento 5 cm (fund.), 3 cm (sup.).",
+        "5. Parafusos A325 (fub 825 MPa) ou A307 conforme ligacao.",
+        "6. Soldas E70XX (fw 485 MPa). Filete minimo 6 mm.",
+        "7. Chumbadores ASTM A36 com gancho 180 mm.",
+        "8. Contraventamento: barras d20 pretensionadas c/ esticador.",
+        "9. Tercas Ue formado a frio (NBR 14762).",
+        "10. Projeto executivo sujeito a revisao e ART.",
     ]
-    _anot(doc, page, "A09n", notas, 350, 200, 4)
+    _bloco_texto(doc, page, "A09n", notas, 240, 250, tam=5, largura=560)
     return [page], []
-
-
-_BUILDERS = [
-    ("modelo", _pr_cobertura),
-    ("modelo", _pr_fundacoes),
-    ("modelo", _pr_elevacoes),
-    ("modelo", _pr_portico),
-    ("modelo", _pr_contravent),
-    ("modelo", _pr_base),
-    ("modelo", _pr_joelho),
-    ("modelo", _pr_fechamento),
-    ("quadros", None),  # _pr_quadros (sem objs)
-]
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -715,10 +853,27 @@ def _entry(cfg):
             json.dump(res, f, default=str)
     except Exception:
         pass
+    # Fecha limpo: primeiro fecha TODOS os documentos sem prompt (via API, que
+    # nao dispara o dialogo "salvar/descartar"), depois encerra o app. Sem isso
+    # o close() da janela abre o dialogo com doc sujo e a instancia fica zumbi.
     try:
         import FreeCADGui as Gui
         from PySide import QtCore
-        QtCore.QTimer.singleShot(400, Gui.getMainWindow().close)
+
+        def _quit():
+            try:
+                for nome in list(App.listDocuments().keys()):
+                    App.closeDocument(nome)
+            except Exception:
+                pass
+            try:
+                QtCore.QCoreApplication.quit()
+            except Exception:
+                try:
+                    Gui.getMainWindow().close()
+                except Exception:
+                    pass
+        QtCore.QTimer.singleShot(400, _quit)
     except Exception:
         pass
 
