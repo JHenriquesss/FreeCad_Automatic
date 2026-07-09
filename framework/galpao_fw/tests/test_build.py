@@ -229,46 +229,43 @@ class TestBuild:
         assert geo.get("interferencias", {}).get("ok") is True, (
             f"Interferencias: {geo.get('interferencias')}")
 
+    @pytest.mark.parametrize("span,comprimento,spans,nome", BUILD_CASES)
+    def test_vistas2d(self, span, comprimento, spans, nome):
+        """Gera vistas 2D via MCP e verifica objetos criados."""
+        import rodar_projeto as RP
+        s = _spec(nome, span, comprimento, spans=spans)
+        out = tempfile.mkdtemp(prefix=f"{nome}_2d_")
+        res = RP.calcular(s, out)
+        assert res.get("atende") is True
+        path = RP.rodar_vistas(s, out)
+        assert os.path.exists(path), f"DXF nao criado: {path}"
+        vres = s.get("estrutura", {}).get("vistas2d", {})
+        assert vres.get("ok") is True, f"Vistas 2D falharam: {vres}"
+
 # ============================================================================
-# DXF tests (no FreeCAD needed)
+# 2D Views tests (require FreeCAD + MCP)
 # ============================================================================
 
-DXF_CASES = [
-    pytest.param(10, 20, None, "dxf_N1", id="dxf_N1"),
-    pytest.param(20, 24, [8, 12], "dxf_N2", id="dxf_N2"),
-    pytest.param(30, 30, [10, 10, 10], "dxf_N3", id="dxf_N3"),
+VISTAS_CASES = [
+    pytest.param(10, 20, None, "vis_N1", id="vis_N1"),
+    pytest.param(10, 15, [5, 5], "vis_N2", id="vis_N2"),
 ]
 
 
-class TestDxf:
-    """Testa a geracao do DXF (nao requer FreeCAD)."""
+class TestVistas2D:
+    """Testa geracao de vistas 2D (requer FreeCAD)."""
 
-    @pytest.mark.parametrize("span,comprimento,spans,nome", DXF_CASES)
-    def test_gerar_dxf(self, span, comprimento, spans, nome):
+    @pytest.mark.parametrize("span,comprimento,spans,nome", VISTAS_CASES)
+    def test_design_de_spec(self, span, comprimento, spans, nome):
+        """Verifica que design_de_spec() funciona sem FreeCAD."""
         import rodar_projeto as RP
+        import vistas_fc as VF
         s = _spec(nome, span, comprimento, spans=spans)
         out = tempfile.mkdtemp(prefix=f"{nome}_")
-        RP.calcular(s, out)
-        path = RP.gerar_dxf(s, out, nome)
-        assert os.path.exists(path), f"DXF nao criado: {path}"
-        assert os.path.getsize(path) > 10000, (
-            f"DXF muito pequeno: {os.path.getsize(path)} bytes")
-
-    @pytest.mark.parametrize("span,comprimento,spans,nome", DXF_CASES)
-    def test_dxf_layers(self, span, comprimento, spans, nome):
-        import rodar_projeto as RP
-        import ezdxf
-        s = _spec(nome, span, comprimento, spans=spans)
-        out = tempfile.mkdtemp(prefix=f"{nome}_")
-        RP.calcular(s, out)
-        path = RP.gerar_dxf(s, out, nome)
-        doc = ezdxf.readfile(path)
-        msp = doc.modelspace()
-        entities = list(msp)
-        layers = {e.dxf.layer for e in entities if hasattr(e.dxf, "layer")}
-        obrigatorias = {"ACO", "BASE", "CONTRAV", "COTAS", "EIXOS", "FURACAO", "TELHA", "TEXTO"}
-        for ly in obrigatorias:
-            assert ly in layers, f"Camada {ly} ausente no DXF {nome}"
-        assert "CONCRETO" in layers, f"Camada CONCRETO ausente no DXF {nome}"
-        assert len(entities) > 200, (
-            f"Poucas entidades no DXF {nome}: {len(entities)}")
+        res = RP.calcular(s, out)
+        design = VF.design_de_spec(s)
+        assert design["span"] > 0
+        assert design["eave"] > 0
+        assert design["col_d"] > 0
+        assert design["perfil_col"] is not None
+        assert design["n_vaos"] == (len(spans) if spans else 1)

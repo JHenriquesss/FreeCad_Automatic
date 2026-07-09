@@ -38,3 +38,10 @@ projects/galpao-cert/
 
 # scratch de execucao direta dos modulos (raiz)
 /exports/
+
+# Generated artifacts
+framework/galpao_fw/exports/
+*.bak
+__pycache__/
+*.pyc
+*.pyo

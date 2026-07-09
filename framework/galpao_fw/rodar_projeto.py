@@ -59,22 +59,49 @@ def calcular(spec, out_dir):
 
 
 def gerar_dxf(spec, out_dir, nome=None):
-    """Gera o DXF com as vistas (portico, elevacao, planta, legenda) a partir do
-    spec com perfil/base ADOTADOS (rodar calcular() antes). Retorna o path."""
+    """Gera as vistas 2D no FreeCAD e exporta DXF. Retorna o path."""
     import os
-    import dxf_vistas as dv
+    return rodar_vistas(spec, out_dir)
+
+
+def rodar_vistas(spec, out_dir, host="http://localhost:9875", timeout=300):
+    """Gera vistas 2D com texto real (Draft::Text) diretamente no FreeCAD.
+    Cria documento separado 'Vistas2D_*' e exporta DXF."""
+    import xmlrpc.client, socket, os
+    import vistas_fc as VF
     PS.exigir_completo(spec)
+    design = VF.design_de_spec(spec)
+    design["resultados"] = spec.get("estrutura", {}).get("resultados", {})
+    design["takeoff"] = spec.get("estrutura", {}).get("takeoff", [])
+    design["dxf_out"] = str(out_dir).replace("\\", "/") + "/vistas_2d.dxf"
+
+    src = VF.codigo_fonte()
+    # Monta codigo que executa dentro do FreeCAD: define _result_ com o design,
+    # carrega o modulo, chama gerar_vistas e captura o resultado final
+    slug = design.get("slug", "galpao")
+    dxf_out = design.get("dxf_out", "")
+    code = (f'_result_ = {repr(design)}\n' + src +
+            f'\ntry:\n'
+            f'    doc = App.newDocument("Vistas2D_{slug}")\n'
+            f'    gerar_vistas(_result_, doc, r"{dxf_out}")\n'
+            f'    _result_ = {{"ok": True, "objetos": len(doc.Objects)}}\n'
+            f'except Exception as ex:\n'
+            f'    import traceback\n'
+            f'    _result_ = {{"erro": str(ex), "traceback": traceback.format_exc()}}\n')
+    socket.setdefaulttimeout(timeout)
+    srv = xmlrpc.client.ServerProxy(host, allow_none=True)
+    r = srv.execute(code)
+    if isinstance(r, dict) and r.get("result"):
+        spec.setdefault("estrutura", {})["vistas2d"] = r["result"]
     os.makedirs(str(out_dir), exist_ok=True)
-    path = os.path.join(str(out_dir), (nome or spec.get("slug", "galpao")) + ".dxf")
-    return dv.gerar_dxf(dv.design_de_spec(spec), path)
+    return os.path.join(str(out_dir), "vistas_2d.dxf")
 
 
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
                   host="http://localhost:9875", timeout=180):
-    """Desenha o modelo via MCP (FreeCAD). reset() ANTES de configurar (slate
-    limpo) - so desenha o que o spec pede. Retorna o result do bridge."""
-    import xmlrpc.client
-    import socket
+    """Desenha o modelo 3D + vistas 2D via MCP (FreeCAD)."""
+    import xmlrpc.client, socket
+    import vistas_fc as VF
     PS.exigir_completo(spec)
     bk = PS.to_build_kwargs(spec)
     if mf_stride is not None:
@@ -90,19 +117,27 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     srv = xmlrpc.client.ServerProxy(host)
     r = srv.execute(src + call)
     resm = r.get("result") if isinstance(r, dict) else None
-    if isinstance(resm, dict) and resm.get("por_grupo"):     # takeoff -> DXF
+    if isinstance(resm, dict) and resm.get("por_grupo"):
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
-    # Gera vistas 2D com Draft::Text em documento separado
+    # Gera vistas 2D
     try:
-        vistas_path = FW.raiz_repo() / "framework" / "galpao_fw" / "vistas_fc_builder.py"
-        vistas_src = vistas_path.read_text(encoding="utf-8")
-        import dxf_vistas as dv
-        design = dv.design_de_spec(spec)
+        design = VF.design_de_spec(spec)
         design["resultados"] = spec.get("estrutura", {}).get("resultados", {})
+        design["takeoff"] = spec.get("estrutura", {}).get("takeoff", [])
         design["dxf_out"] = str(out_dir).replace("\\", "/") + "/vistas_2d.dxf"
-        code = f"_result_ = {repr(design)}\n" + vistas_src
+        vfsrc = VF.codigo_fonte()
+        slug = design.get("slug", "galpao")
+        dxf_out = design.get("dxf_out", "")
+        code2 = (f'_result_ = {repr(design)}\n' + vfsrc +
+                 f'\ntry:\n'
+                 f'    doc = App.newDocument("Vistas2D_{slug}")\n'
+                 f'    gerar_vistas(_result_, doc, r"{dxf_out}")\n'
+                 f'    _result_ = {{"ok": True, "objetos": len(doc.Objects)}}\n'
+                 f'except Exception as ex:\n'
+                 f'    import traceback\n'
+                 f'    _result_ = {{"erro": str(ex), "traceback": traceback.format_exc()}}\n')
         socket.setdefaulttimeout(timeout)
-        r2 = srv.execute(code)
+        r2 = srv.execute(code2)
         if isinstance(r2, dict) and r2.get("result"):
             spec.setdefault("estrutura", {})["vistas2d"] = r2["result"]
     except Exception as ex:
