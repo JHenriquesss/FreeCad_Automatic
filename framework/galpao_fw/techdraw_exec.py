@@ -954,6 +954,13 @@ def _entry(cfg):
 # ─────────────────────────────────────────────────────────────────────────
 # API PUBLICA (roda FORA do FreeCAD)
 # ─────────────────────────────────────────────────────────────────────────
+def _limpo(v, padrao):
+    """Valor de spec, tratando PENDENTE/vazio/None como nao preenchido."""
+    if v is None or v == "__PENDENTE__" or str(v).strip() == "":
+        return padrao
+    return v
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
@@ -962,8 +969,9 @@ def config_de_spec(spec, fcstd_path, out_dir):
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
-        "slug": spec.get("slug", "galpao"),
-        "descricao": spec.get("descricao", "Galpao em aco - Projeto Estrutural"),
+        "slug": _limpo(spec.get("slug"), "galpao"),
+        "descricao": _limpo(spec.get("descricao"),
+                            "Galpao em aco - Projeto Estrutural"),
         "geo": {
             "span": g["span"] * 1000.0,
             "comprimento": g["comprimento"] * 1000.0,
