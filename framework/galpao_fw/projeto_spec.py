@@ -80,8 +80,10 @@ def novo():
                     "tp_min": P, "recuos": P, "n_pav": 1, "pts_xy_mm": None},
         "geometria": {"span": P, "comprimento": P, "eave": P, "ridge": P,
                       "bay": P, "base_fixed": P},
+        # chuva_I_mm_h: intensidade pluviometrica local (NBR 10844) p/ dimensionar
+        # a calha. Default 150 (A CONFIRMAR regional); nao bloqueia.
         "cobertura": {"aguas": P, "slope": P, "telha_tipo": P, "telha_peso": P,
-                      "calha": P},
+                      "calha": P, "chuva_I_mm_h": 150.0},
         # mesa_interna_travada: longarina sob succao. False (default seguro) =
         # mesa interna livre, Lb=vao cheio no FLT. True = mao-francesa trava a
         # mesa interna -> Lb menor (exige o detalhe). Nao bloqueia (tem default).
@@ -100,7 +102,11 @@ def novo():
         "fundacao": {"tipo": P, "sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
                      "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
                      "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4,
-                     "estaca": None},
+                     "estaca": None,
+                     # divisa: None (sem pilar de divisa) OU dict {dist_divisa (m):
+                     # distancia do eixo do pilar de divisa a linha do lote}. Dispara
+                     # a sapata de divisa excentrica + viga alavanca (Alonso).
+                     "divisa": None},
         # Viga de baldrame / amarracao entre fundacoes (NBR 6118). None = nao ha;
         # dict {b, h, q_parede, continuidade} = dimensiona (vao e N_amarracao do modelo).
         "baldrame": None,
@@ -232,6 +238,17 @@ def to_rodar_params(spec):
     if isinstance(bal, dict):
         p.setdefault("baldrame", {}).update(
             {k: v for k, v in bal.items() if v not in (None, PENDENTE)})
+    # calha (dimensionamento hidraulico): roda quando ha calha na cobertura;
+    # intensidade pluviometrica local (NBR 10844).
+    cob = spec.get("cobertura", {})
+    p["calha"] = bool(cob.get("calha")) and cob.get("calha") != PENDENTE
+    ci = cob.get("chuva_I_mm_h")
+    if ci not in (None, PENDENTE):
+        p["chuva_I_mm_h"] = ci
+    # sapata de divisa: so quando o gate fundacao.divisa e informado.
+    dv = fu.get("divisa")
+    if isinstance(dv, dict):
+        p["divisa"] = dv
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
     if spec["ponte"]:
         import ponte_rolante as pr

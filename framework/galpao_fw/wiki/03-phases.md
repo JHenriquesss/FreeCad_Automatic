@@ -1,5 +1,22 @@
 # 03 — Fases
 
+## FECHADA — Wiring calha + sapata de divisa (fase 6.a) — 2026-07-10
+**Escopo:** ligar 2 módulos homologados ÓRFÃOS (não alcançáveis pelo pipeline) ao
+fluxo: dimensionamento de **calha** (hidráulico NBR 10844/Bellei) e **sapata de
+divisa** (excêntrica + viga alavanca, Alonso). Cálculo já existia; fase é wiring.
+- **Gates:** `cobertura.chuva_I_mm_h` (default 150, A CONFIRMAR regional — não
+  bloqueia); `fundacao.divisa` (None|dict `{dist_divisa}` — dispara só quando setado).
+- **rodar_galpao:** calha roda da geometria (comprimento × meia-água / cos slope, I)
+  quando `params["calha"]` → `gate-calha.txt` + `res["calha"]`; divisa roda
+  `dimensiona_divisa(P=maior compressão do envelope, dist_eixos=bay, dist_divisa)`
+  → `gate7-divisa.txt` + `res["divisa"]`. Ambos entram no MEMORIAL-CONSOLIDADO.
+- **Memorial:** `relatorio_calculo.METODOS` +`13. CALHAS` (NBR 10844/Bellei) +`11g.
+  SAPATA DE DIVISA` (Alonso); estaca já tinha `11c`.
+- **Regressão:** smoke 5/5 (calha no memorial); 9 testes fase6a; divisa só com gate.
+  Commit `<fase6a>`.
+- **Órfãos restantes:** `neve` (não escolhido pelo usuário — fica documentado, não
+  wired); `alma_variavel`/`tesoura` = Fase 6.b (tipo de pórtico, build 3D novo).
+
 ## FECHADA — Corte seccionado 2D (fase 5) — 2026-07-10
 **Escopo:** corte SECCIONADO real (hachurado) nos detalhes de ligação. Fecha o
 resíduo de polimento 2D de [[06-open-threads#T6]].

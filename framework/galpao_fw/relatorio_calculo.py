@@ -124,10 +124,22 @@ METODOS = {
     "11f. PLATAFORMA": (
         "NBR 8800 + NBR 6120. Piso/vigas da plataforma: flexao para a "
         "sobrecarga de uso, apoio e flecha."),
+    "11g. SAPATA DE DIVISA": (
+        "NBR 6118:2014 + metodo de Alonso. Pilar na linha do lote: sapata "
+        "EXCENTRICA (a resultante do solo nao passa pelo eixo do pilar) equilibrada "
+        "por VIGA ALAVANCA ate o pilar interno vizinho. Reacao majorada R = P . "
+        "dist_eixos / (dist_eixos - e); alivio na sapata interna; flexao/cortante "
+        "da viga de equilibrio. sigma_solo,adm por sondagem."),
     "12. LIGACOES": (
         "NBR 8800:2008 (cap. 6 e Anexo). Parafusos a cisalhamento e tracao, "
         "pressao de contato (bearing), ruptura de bloco de cisalhamento e "
         "solda de filete (metal-base e eletrodo E70XX)."),
+    "13. CALHAS E CONDUTORES": (
+        "NBR 10844:1989 + Bellei (Edificios Industriais 2.4). Area de contribuicao "
+        "da cobertura x intensidade pluviometrica local I -> vazao de projeto Q; "
+        "secao da calha (lamina d'agua + borda livre >= 25%, Manning) e diametro/"
+        "numero de condutores. Criterio de Bellei (As >= 1 cm2 por m2 de telhado). "
+        "I pluviometrica local = A CONFIRMAR (dado regional)."),
 }
 
 # fim de _METODOS -> texto padrao quando o modulo nao tem entrada dedicada
