@@ -46,7 +46,14 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 ## T6 — Projeto executivo 2D (FECHADO 2026-07-09)
 2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** aberto.
 **Nível fabricação (fase 2, 2026-07-09):** callouts de fabricação do CÁLCULO nos detalhes (joelho/cumeeira "N×db, chapa t"; gusset/console "chapa t, solda perna") via `_callout_fab`. 2 módulos de cálculo novos (`gusset_ligacao`, `console_ponte`, PENDENTE sênior). Ver [[04-decisions#D37]].
-**Aberto:** **corte seccionado** — `DrawViewSection` falha headless (`failed to create section CS`); precisa investigação em contexto GUI. Símbolo gráfico de solda (glyph) também ausente — hoje o dado de solda vai como texto/callout, não símbolo AWS. Ambos são polimento visual; o dado de fabricação já está nos callouts.
+**~~Aberto~~ RESOLVIDO (fase 5, 2026-07-10):** **corte seccionado** — o
+`DrawViewSection` **constrói headless no FreeCAD 1.1** (o `failed to create section
+CS` era da versão antiga). `techdraw_exec._secao_ligacao` adiciona um corte
+hachurado (`CutSurfaceDisplay="Hatch"`) a cada detalhe de ligação, sob smoke
+(`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D]].
+**Ainda aberto (menor):** símbolo gráfico de solda (glyph AWS) — `DrawWeldSymbol`
+é feature de GUI (não instanciável headless); o dado de solda segue como
+texto/callout (já rastreável ao cálculo). Polimento visual, não lacuna de dado.
 
 ### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).

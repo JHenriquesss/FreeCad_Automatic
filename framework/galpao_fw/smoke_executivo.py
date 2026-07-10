@@ -180,6 +180,12 @@ def rodar():
                         'VLIG_ELEV_GUSSET_PAR', 'VLIG_ELEV_CLIPE_GIRT'}
             faltam = base_lig - set(edges)
             assert not faltam, "faltam detalhes de ligacao: %s" % faltam
+            # CORTE SECCIONADO (fase 5): pelo menos 1 secao hachurada gerada, e
+            # nenhuma secao vazia (corte com arestas reais).
+            secoes = ex.get('detalhes_secoes', {})
+            assert secoes, "nenhum corte seccionado gerado (VLIG_SEC_*)"
+            vazias = {k: v for k, v in secoes.items() if v <= 0}
+            assert not vazias, "corte seccionado vazio: %s" % vazias
             if kw.get('ponte'):
                 assert 'VLIG_ELEV_CONSOLE' in edges, "falta detalhe do console"
             # PDF do memorial de calculo: gera sem erro e sai um arquivo != vazio

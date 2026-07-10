@@ -1,31 +1,29 @@
 {
-  "phase": 4,
-  "phase_name": "ponte-rolante-estendida",
+  "phase": 5,
+  "phase_name": "corte-seccionado-2d",
   "step": "closed",
   "must_exist": [
-    { "id": "me-1", "text": "nbr8400.py: coef_dinamico (Tab.12 HC1-4 + Psi=Psimin+beta2*Vh, cap 1.5) e n_ciclos (Tab.9 B0-B10); verbatim PDF; _selftest", "done": true },
-    { "id": "me-2", "text": "ponte_rolante.forcas_horizontais: n_rodas_motoras (default n_rodas_lado); H_long = frac_long*R_roda_max*n_rodas_motoras; saturacao se >lado", "done": true },
-    { "id": "me-3", "text": "ponte_rolante.analisa: phi da classe HC/Vh (8400) se dado; n_ciclos da classe B (8400) se dado; senao input flagado; relatorio imprime rodas motoras + fonte 8400", "done": true },
-    { "id": "me-4", "text": "projeto_spec: REQUERIDOS_PONTE condicional (ponte!=None -> Q/pesos/aprox/n_rodas_lado/n_rodas_motoras/frac_* bloqueiam); mapper passa n_rodas_motoras + classe_hc/classe_b/Vh", "done": true },
-    { "id": "me-5", "text": "rodar_galpao params_com_ponte + wiring passam n_rodas_motoras/classe 8400; smoke caso ponte inalterado (14 pranchas)", "done": true },
-    { "id": "me-6", "text": "REVISA-PONTE-8400.md (rodas motoras basis NBR 8800 + phi/N da 8400) PENDENTE senior; INDICE item 31; wiki", "done": true }
+    { "id": "me-1", "text": "helper _secao_ligacao: DrawViewSection do crop compound, plano de corte no eixo do detalhe, hachura SvgHatch; recompute sincrono", "done": true },
+    { "id": "me-2", "text": "_detalhe_ligacao wire: adiciona VLIG_SEC_* sem remover elevacao/callouts", "done": true },
+    { "id": "me-3", "text": "cobertura ignora DrawViewSection (nao-DrawViewPart); resultado expoe detalhes_secoes", "done": true },
+    { "id": "me-4", "text": "smoke: detalhes com secao presente e arestas>0; 5/5 casos", "done": true },
+    { "id": "me-5", "text": "wiki: blocker T6 (DrawViewSection headless) RESOLVIDO no FreeCAD 1.1; simbolo AWS solda segue callout (GUI-only)", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "tabela NBR 8400 hardcoded sem citacao/verbatim do PDF (coef inventado)", "violated": false },
-    { "id": "mne-2", "text": "n_rodas_motoras > n_rodas_lado aceito silenciosamente", "violated": false },
-    { "id": "mne-3", "text": "regressao do caso ponte no smoke (14 pranchas/reacao/console) ou _selftest ponte/spec", "violated": false },
-    { "id": "mne-4", "text": "ponte incompleta furando validar() (fabricante PENDENTE)", "violated": false },
-    { "id": "mne-5", "text": "alterar a fadiga Anexo K ja homologada (so propaga N)", "violated": false }
+    { "id": "mne-1", "text": "secao vazia/silenciosa (checado no guard final detalhes_secoes)", "violated": false },
+    { "id": "mne-2", "text": "regressao dos detalhes de ligacao (elevacao/callouts/edges>=15) ou do smoke", "violated": false },
+    { "id": "mne-3", "text": "numero de fabricacao inventado na secao (herda mne-1 da fase 2)", "violated": false }
   ],
-  "current_item": "me-6",
+  "current_item": "me-5",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke_executivo 5/5 (padrao/vao/largo 13, ponte 14 inalterado, estaca 13); 27 fast tests (13 fase3 + 14 fase4) verdes; selftests nbr8400/ponte_rolante/projeto_spec OK; NBR 8400-1:2019 Tab.9/12 verbatim do PDF",
+  "trunk_evidence": "smoke_executivo 5/5 com corte seccionado (detalhes_secoes>0, nenhuma vazia); DrawViewSection headless FreeCAD 1.1 (blocker T6 resolvido, enum SvgHatch); test_fase5 build verde",
   "opened_at": "2026-07-10",
   "last_tune_at": null,
   "history": [
     { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" },
     { "phase": 2, "closed_at": "2026-07-09", "outcome": "ok" },
     { "phase": 3, "closed_at": "2026-07-10", "outcome": "ok" },
-    { "phase": 4, "closed_at": "2026-07-10", "outcome": "ok" }
+    { "phase": 4, "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": 5, "closed_at": "2026-07-10", "outcome": "ok" }
   ]
 }

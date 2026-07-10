@@ -831,6 +831,50 @@ def _callout_fab(cfg, key):
     return []
 
 
+def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y):
+    """Corte SECCIONADO (TechDraw::DrawViewSection) do detalhe de ligacao: plano de
+    corte pelo CENTRO do compound, normal = normal_corte, superficie cortada
+    HACHURADA. Revela a espessura das chapas e a secao dos parafusos. Retorna a
+    view, ou None se o corte nao produzir arestas (vazio -> nao engana o guard).
+
+    NOTA: o blocker historico (T6, 'failed to create section CS' headless) foi
+    resolvido no FreeCAD 1.1 - a secao constroi via freecadcmd/freecad.exe."""
+    import FreeCAD as App
+    if base_view is None or feat is None:
+        return None
+    try:
+        sec = doc.addObject("TechDraw::DrawViewSection", "VLIG_SEC_" + base)
+        sec.BaseView = base_view
+        sec.Source = [feat]
+        c = feat.Shape.BoundBox.Center
+        sec.SectionOrigin = App.Vector(c.x, c.y, c.z)
+        sec.SectionNormal = App.Vector(*normal_corte)
+        sec.SectionDirection = "Right"
+        sec.ScaleType = "Custom"
+        sec.Scale = escala
+        # superficie cortada hachurada. Enum valido da TechDraw 1.1:
+        # ['Hide','Color','SvgHatch','PatHatch']. SvgHatch usa o padrao svg
+        # embutido (sem depender de .pat externo -> robusto headless).
+        try:
+            sec.CutSurfaceDisplay = "SvgHatch"
+        except Exception:
+            pass
+        page.addView(sec)
+        sec.X, sec.Y = float(x), float(y)
+        # forca o recompute do proprio corte + do doc. No freecad.exe (GUI headless)
+        # a geometria da secao pode computar DEFERIDA -> nao descartamos aqui pelo
+        # n_edges (falso zero); o guard mne-1 (secao vazia) e checado no fim, apos
+        # o render/export completo (detalhes_secoes).
+        try:
+            sec.recompute()
+        except Exception:
+            pass
+        doc.recompute()
+        return sec
+    except Exception:
+        return None
+
+
 def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
                      page_name, callout=None):
     """Uma prancha de detalhe de ligacao: elevacao (perfis edge-on = linhas)
@@ -897,9 +941,17 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
             c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMin, jb.YMax, jb.ZMax),
                  "DistanceY", _fmt_mm(jb.YLength), "esq")
         cots.append(c2)
+    # CORTE SECCIONADO: hachura a superficie de material cortada (espessura das
+    # chapas + secao dos parafusos). Normal do corte = xdir da elevacao (corta
+    # perpendicular a ela, pelo centro). Best-effort: se vazio, nao desenha.
+    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc,
+                         (xpos if not dupla else 230.0), 120.0)
+    tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
         linhas.append("Elevacao ESC %s   Vista da chapa ESC %s" % (nome, n2))
+    if tem_sec:
+        linhas.append("Corte A-A seccionado (material hachurado) ESC %s" % nome)
     fab = _callout_fab(cfg, callout)
     linhas += fab
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
@@ -1147,19 +1199,22 @@ def gerar_executivo(cfg):
     except Exception:
         cob = {"desenhados": [], "nao_cobertos": []}
 
-    # edge-count das elevacoes de ligacao (proxy anti-silhueta chapada)
+    # edge-count das elevacoes de ligacao (proxy anti-silhueta chapada) e das
+    # SECOES seccionadas (corte hachurado - Fase 5).
     edges = {}
+    secoes = {}
     for o in doc.Objects:
         try:
-            if (o.TypeId == "TechDraw::DrawViewPart"
-                    and o.Name.startswith("VLIG_ELEV")):
+            if o.Name.startswith("VLIG_ELEV") and o.TypeId == "TechDraw::DrawViewPart":
                 edges[o.Name] = _n_edges(o)
+            elif o.Name.startswith("VLIG_SEC"):
+                secoes[o.Name] = _n_edges(o)
         except Exception:
             pass
 
     return {"ok": True, "pranchas": [p.Name for p in paginas],
             "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob,
-            "detalhes_edges": edges}
+            "detalhes_edges": edges, "detalhes_secoes": secoes}
 
 
 def _svg_para_png(svg_path, png_path, w=2100, h=1485):

@@ -1,5 +1,21 @@
 # 03 — Fases
 
+## FECHADA — Corte seccionado 2D (fase 5) — 2026-07-10
+**Escopo:** corte SECCIONADO real (hachurado) nos detalhes de ligação. Fecha o
+resíduo de polimento 2D de [[06-open-threads#T6]].
+- **Blocker resolvido:** `DrawViewSection` **constrói headless no FreeCAD 1.1**
+  (probe: box → seção com 4 arestas; nenhum `failed to create section CS`). O erro
+  histórico era da versão antiga.
+- **`techdraw_exec._secao_ligacao`:** DrawViewSection do crop compound, plano de
+  corte pelo centro, `CutSurfaceDisplay="Hatch"` (material cortado). Descarta a
+  seção se vazia (arestas=0 → não engana o guard, `mne-1`). Wire em
+  `_detalhe_ligacao` (view extra `VLIG_SEC_*`, sem mexer na elevação/callouts).
+- **Guard:** resultado expõe `detalhes_secoes` (nome→arestas); `smoke_executivo`
+  exige ≥1 seção e nenhuma vazia. Cobertura ignora DrawViewSection (não-DrawViewPart).
+- **Fora (menor):** símbolo AWS de solda = `DrawWeldSymbol` é GUI-only; segue
+  callout de texto (dado já rastreável ao cálculo).
+- **Regressão:** smoke 5/5; `tests/test_fase5_corte_seccionado.py` (build).
+
 ## FECHADA — Ponte rolante estendida (fase 4) — 2026-07-10
 **Escopo:** fechar o backlog da ponte rolante. **Fadiga Anexo K já estava
 implementada** (T3 wiki desatualizado). Três adições:
