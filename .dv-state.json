@@ -1,7 +1,7 @@
 {
   "phase": 1,
   "phase_name": "detalhes-ligacao",
-  "step": "green",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "PE10 CUMEEIRA: elevacao + vista da chapa legiveis (edge-count OK, visual OK)", "done": true },
     { "id": "me-2", "text": "PE11 GUSSET_COB e PE12 GUSSET_PAR legiveis", "done": true },
@@ -15,8 +15,10 @@
   ],
   "current_item": null,
   "trunk_status": "pass",
-  "trunk_evidence": "ponte: 14 pranchas, nao_cobertos=[], edges cumeeira16/gusset_cob41/gusset_par77/clipe23/console55 (LIMIAR 15)",
+  "trunk_evidence": "smoke 4/4: padrao/vao_maior/baixo_largo 13 pranchas, ponte 14; cobertura completa + edge-count>=15 + memorial PDF, nas 4 geometrias",
   "opened_at": "2026-07-09",
   "last_tune_at": null,
-  "history": []
+  "history": [
+    { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" }
+  ]
 }
