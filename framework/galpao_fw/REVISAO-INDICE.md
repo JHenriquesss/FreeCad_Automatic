@@ -41,6 +41,7 @@ os FLAGS/pendências.
 | 26 | Pórtico alma variável | [REVISAO-ALMA-VARIAVEL.md](REVISAO-ALMA-VARIAVEL.md) | NBR 8800 | ✅ HOMOLOGADO |
 | 27 | Pórtico treliçado (tesoura) | [REVISAO-TESOURA.md](REVISAO-TESOURA.md) | NBR 8800 | ✅ HOMOLOGADO |
 | 28 | Gusset de contraventamento | [REVISAO-GUSSET.md](REVISAO-GUSSET.md) | NBR 8800 + Whitmore (AISC) | 🆕 PENDENTE SÊNIOR (2026-07-09) |
+| 29 | Console da ponte rolante (ligação) | [REVISAO-CONSOLE.md](REVISAO-CONSOLE.md) | NBR 8800 + grupo de solda elástico | 🆕 PENDENTE SÊNIOR (2026-07-09) |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

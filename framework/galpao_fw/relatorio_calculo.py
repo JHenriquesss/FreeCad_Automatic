@@ -50,6 +50,12 @@ METODOS = {
         "vertical pelo coeficiente phi; forcas horizontais transversais "
         "(translacao/frenagem do carro) e longitudinais como fracoes da carga "
         "movel. Aplicadas na viga de rolamento e no console."),
+    "1d. CONSOLE": (
+        "NBR 8800:2008 (metal da solda 6.2.5, cisalhamento da chapa 5.4) + "
+        "grupo de solda ELASTICO (vetorial, mecanica/AISC). Console da ponte: "
+        "reacao vertical do trilho + forca transversal, com excentricidade -> "
+        "momento; dimensiona a perna do filete (first-fit padrao). Compoe "
+        "primitivos de ligacoes.py."),
     "2. PORTICO": (
         "Analise elastica linear do portico plano (metodo da rigidez). Esforcos "
         "N, V, M em cada barra para todas as combinacoes de acoes (ELU/ELS), "

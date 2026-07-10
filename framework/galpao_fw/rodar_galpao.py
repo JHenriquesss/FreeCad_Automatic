@@ -37,6 +37,7 @@ import secundarios_nbr8800 as secmod
 import contraventamento as ctv
 import gusset_ligacao as gus
 import ponte_rolante as pr
+import console_ponte as cons
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -156,6 +157,17 @@ def rodar(params, out_dir):
                              "Hvr": pcfg["Hvr"]})
         res["ponte_R_vert"] = round(reac["R_vertical_kN"], 1)
         res["ponte_viga_inter"] = round(viga["inter"], 2)
+        # Ligacao do CONSOLE a coluna (chapa+solda que recebe a viga de
+        # rolamento excentrica). Dimensiona a perna do filete. L = altura de
+        # solda ~ misula do console (build BRACKET 450mm); chapa 16mm (build).
+        rc = cons.verifica_console({
+            "Rv": reac["R_vertical_kN"], "Ht": reac.get("H_transversal_kN", 0.0),
+            "ecc": pcfg.get("excentricidade", 0.30), "t": 0.016, "L": 0.45,
+            "fy": params["fy"], "fu": 400e3})
+        save("gate7-console.txt", cons.relatorio_pt(rc))
+        res["console_adotado"] = rc["adotado"]
+        res["console_u_max"] = rc["u_max"]
+        res["console_ok"] = rc["OK"]
     else:
         gp.configurar(ponte=False)
     # Acao SISMICA (NBR 15421) - calculada ANTES da analise para ENTRAR no envelope
@@ -547,6 +559,7 @@ def _consolidar(out_dir, save, g, params, res=None):
     ordem = [("1. VENTO", "gate5-vento.txt"),
              ("1b. VENTO LONGITUDINAL", "gate5-vento-longitudinal.txt"),
              ("1c. PONTE ROLANTE", "gate5-ponte.txt"),
+             ("1d. CONSOLE DA PONTE", "gate7-console.txt"),
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
