@@ -15,4 +15,4 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 ## Estado atual (2026-07-09)
 Galpão completo fim-a-fim. **17 módulos matemáticos** + features, selftest verde. **Cálculo 100% homologado pelo sênior** (REVISAO-INDICE: itens 1–27 ✅, zero pendente, 2026-07-09). **Projeto executivo 2D FECHADO** (2026-07-09): 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, TechDraw headless, guard de cobertura (toda peça desenhada), `smoke_executivo` 4/4. **PR #4** aberto. Único adiado: detalhe de ligação nível fabricação (section+solda) — [[06-open-threads#T6]].
 
-last-consolidated: 2026-07-09, sessions: 5 (bootstrap + features + lacunas/FLAGs + executivo-2D + detalhe-fabricação A+B; construído do ciclo de revisão + sessão 07-09, sem sessions/*.md desta)
+last-consolidated: 2026-07-10, sessions: 5 (bootstrap + features + lacunas/FLAGs + executivo-2D + detalhe-fabricação A+B; construído do ciclo de revisão + sessão 07-09, sem sessions/*.md desta)
