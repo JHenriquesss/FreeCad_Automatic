@@ -1,23 +1,23 @@
 {
   "phase": 2,
   "phase_name": "detalhe-fabricacao",
-  "step": "red",
+  "step": "ready-to-close",
   "must_exist": [
     { "id": "me-1", "text": "verifica_gusset compondo primitivos homologados; selftest; gate7-gusset; REVISAO-GUSSET (PENDENTE)", "done": true },
     { "id": "me-2", "text": "verifica_console (so ponte); selftest; gate7-console; REVISAO-CONSOLE (PENDENTE)", "done": true },
     { "id": "me-3", "text": "config_de_spec passa joelho/gusset/console/clip ao cfg", "done": true },
     { "id": "me-4", "text": "callouts de fabricacao (leader+texto) nos detalhes, todo numero do cfg", "done": true },
-    { "id": "me-5", "text": "corte seccionado A: proof DrawViewSection headless -> corte+hachura ou fallback elevacao", "done": false },
-    { "id": "me-6", "text": "smoke 4/4 callouts+cobertura+edges; REVISAO-INDICE +gusset+console; wiki", "done": false }
+    { "id": "me-5", "text": "corte seccionado A: proof feito - DrawViewSection falha headless (section CS) -> FALLBACK elevacao", "done": true },
+    { "id": "me-6", "text": "smoke 4/4 callouts+cobertura+edges; REVISAO-INDICE +gusset+console; wiki", "done": true }
   ],
   "must_not_exist": [
     { "id": "mne-1", "text": "numero de fabricacao no desenho fora do cfg/calculo (inventado)", "violated": false },
     { "id": "mne-2", "text": "formula de calculo de memoria (nao-primitivo, sem citacao de norma)", "violated": false },
     { "id": "mne-3", "text": "regressao ref 20x10 (takeoff/massa/interferencias) ou selftest existente", "violated": false }
   ],
-  "current_item": "me-1",
-  "trunk_status": "fail",
-  "trunk_evidence": null,
+  "current_item": "me-6",
+  "trunk_status": "pass",
+  "trunk_evidence": "smoke_executivo 4/4 (13 padrao/vao/largo, 14 ponte); callouts joelho/gusset(+console ponte)+cobertura+edges>=15+memorial PDF; ref 20x10 inalterada",
   "opened_at": "2026-07-09",
   "last_tune_at": null,
   "history": [

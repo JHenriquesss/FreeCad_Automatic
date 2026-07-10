@@ -45,7 +45,8 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 
 ## T6 — Projeto executivo 2D (FECHADO 2026-07-09)
 2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** aberto.
-**Aberto (adiado, baixo valor/alto esforço):** detalhe de ligação **nível fabricação** — `DrawViewSection`+hachura+símbolo de solda/parafuso. Hoje é elevação+arranjo com cotas (nota "conforme memorial"); sizing/método no memorial de cálculo PDF. `techdraw_exec` não tem section/hachura/cosmetic-line/weld-symbol — seria a lacuna a preencher.
+**Nível fabricação (fase 2, 2026-07-09):** callouts de fabricação do CÁLCULO nos detalhes (joelho/cumeeira "N×db, chapa t"; gusset/console "chapa t, solda perna") via `_callout_fab`. 2 módulos de cálculo novos (`gusset_ligacao`, `console_ponte`, PENDENTE sênior). Ver [[04-decisions#D37]].
+**Aberto:** **corte seccionado** — `DrawViewSection` falha headless (`failed to create section CS`); precisa investigação em contexto GUI. Símbolo gráfico de solda (glyph) também ausente — hoje o dado de solda vai como texto/callout, não símbolo AWS. Ambos são polimento visual; o dado de fabricação já está nos callouts.
 
 ### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).
