@@ -1,22 +1,24 @@
 {
-  "phase": "6.1",
-  "phase_name": "wiring-calha-divisa",
+  "phase": "6.2",
+  "phase_name": "portico-alma-variavel",
   "step": "closed",
   "must_exist": [
-    { "id": "me-1", "text": "gate cobertura.chuva_I_mm_h (default 150); rodar_galpao roda calhas.dimensiona da geometria quando cobertura.calha -> gate-calha.txt + res['calha']", "done": true },
-    { "id": "me-2", "text": "gate fundacao.divisa (None|dict dist_divisa); rodar_galpao roda sapata_divisa.dimensiona_divisa (P do envelope, dist_eixos=bay) -> gate7-divisa.txt + res['divisa']", "done": true },
-    { "id": "me-3", "text": "relatorio_calculo.METODOS: estaca (11c ja existia) + calha (13 NBR 10844/Bellei) + divisa (11g Alonso)", "done": true },
-    { "id": "me-4", "text": "projeto_spec: gates chuva_I_mm_h + divisa (nao bloqueiam); mappers passam; memorial ordem inclui calha+divisa", "done": true },
-    { "id": "me-5", "text": "testes de integracao (9); smoke 5/5 com calha no memorial", "done": true }
+    { "id": "me-1", "text": "galpao_portico: global TAPERED + configurar(tapered=, sentinela) + _chain_var; rafter secao_tapered quando TAPERED", "done": true },
+    { "id": "me-2", "text": "gate estrutura.tipo_portico (prismatico|alma_variavel) + tapered; validar tipo; mappers to_rodar/to_build passam", "done": true },
+    { "id": "me-3", "text": "rodar_galpao roteia tapered ao portico + gate6-alma-variavel.txt (secao_tapered+peso) + res['alma_variavel']; METODOS 3b", "done": true },
+    { "id": "me-4", "text": "build_galpao: tapered_rafter via _sweep_tapered (loft I joelho->cumeeira); reset; to_build_kwargs tipo+tapered", "done": true },
+    { "id": "me-5", "text": "smoke caso alma_var 6/6 (calc+3D loft+cobertura); prismaticos inalterados", "done": true },
+    { "id": "me-6", "text": "REVISA-ALMA-VARIAVEL-INTEG.md (Q1-Q4) PENDENTE senior; INDICE item 32", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "calha/divisa com numero inventado (fora do modulo homologado)", "violated": false },
-    { "id": "mne-2", "text": "regressao do memorial/smoke atual ou selftests", "violated": false },
-    { "id": "mne-3", "text": "divisa rodando sem pilar de divisa declarado (so quando gate setado)", "violated": false }
+    { "id": "mne-1", "text": "ref 20x10 prismatica regride quando TAPERED=None (sentinela reseta)", "violated": false },
+    { "id": "mne-2", "text": "secao tapered inventada (fora de secao_tapered homologado)", "violated": false },
+    { "id": "mne-3", "text": "loft degenerado h1==h2 (cai no i_member prismatico)", "violated": false },
+    { "id": "mne-4", "text": "tipo_portico fora de {prismatico,alma_variavel} passa silencioso (validar bloqueia)", "violated": false }
   ],
-  "current_item": "me-5",
+  "current_item": "me-6",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke 5/5 com calha no memorial (13/14 pranchas); 9 testes fase6a verdes; selftests calha/divisa/spec OK; divisa so roda com gate; estaca metodo 11c ja existia, +calha 13 +divisa 11g no METODOS",
+  "trunk_evidence": "smoke 6/6 (padrao/vao/largo 13, ponte 14, estaca 13, alma_var 13); frame tapered I_joelho>1.5*I_cumeeira; prismatico inalterado; 7 fast + 1 build tests; selftests portico/alma_variavel/spec OK",
   "opened_at": "2026-07-10",
   "last_tune_at": null,
   "history": [
@@ -25,6 +27,7 @@
     { "phase": 3, "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": 4, "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": 5, "closed_at": "2026-07-10", "outcome": "ok" },
-    { "phase": "6.1", "closed_at": "2026-07-10", "outcome": "ok" }
+    { "phase": "6.1", "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.2", "closed_at": "2026-07-10", "outcome": "ok" }
   ]
 }

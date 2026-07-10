@@ -56,6 +56,7 @@ REQUERIDOS_ESTACA = [
     ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
 ]
 TIPOS_FUNDACAO = ("sapata", "estaca")
+TIPOS_PORTICO = ("prismatico", "alma_variavel")
 
 # Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.
 # Sao dado de catalogo/projeto (Ask, Do Not Invent) - PENDENTE/ausente bloqueia.
@@ -90,7 +91,10 @@ def novo():
         "fechamento": {"tipo": P, "altura_alvenaria": None, "peso": P,
                        "mesa_interna_travada": False, "n_maos_francesas": None},
         "aberturas": P,     # dict {portao_frente, portao_fundo, porta_*, janelas_*}
-        "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P},
+        # tipo_portico: prismatico (default) | alma_variavel (misula tapered).
+        # tapered = None p/ prismatico; dict {h_joelho,h_cumeeira,bf,tw,tf} (m).
+        "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P,
+                      "tipo_portico": "prismatico", "tapered": None},
         "vento": {"v0": P, "cat": P, "classe": P, "s1": 1.0, "s3": P, "z": P,
                   "abertura_dominante": P},
         "ponte": P,         # None (sem ponte) ou dict de dados
@@ -148,6 +152,11 @@ def validar(spec):
                 v = _get(spec, path)
                 if v in (KeyError, None, PENDENTE, [], "") or v == PENDENTE:
                     faltando.append((path, desc))
+    # tipo de portico invalido bloqueia (prismatico|alma_variavel)
+    tp = _get(spec, "estrutura.tipo_portico")
+    if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
+        faltando.append(("estrutura.tipo_portico",
+                         "valor invalido '%s' (use %s)" % (tp, "/".join(TIPOS_PORTICO))))
     # ponte rolante: se ha ponte (dict), os dados do fabricante bloqueiam. phi
     # exige classe_hc OU phi direto; n de ciclos exige classe_b OU n_ciclos.
     ponte = spec.get("ponte")
@@ -249,6 +258,11 @@ def to_rodar_params(spec):
     dv = fu.get("divisa")
     if isinstance(dv, dict):
         p["divisa"] = dv
+    # tipo de portico (prismatico|alma_variavel) + misula tapered.
+    est0 = spec.get("estrutura", {})
+    p["tipo_portico"] = est0.get("tipo_portico", "prismatico")
+    if est0.get("tipo_portico") == "alma_variavel" and isinstance(est0.get("tapered"), dict):
+        p["tapered"] = est0["tapered"]
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
     if spec["ponte"]:
         import ponte_rolante as pr
@@ -321,6 +335,13 @@ def to_build_kwargs(spec):
         "baldrame": ({"b": bl["b"] * 1000, "h": bl["h"] * 1000,
                       "vao": bl.get("vao", g["bay"]) * 1000}
                      if (profunda and bl) else None),
+        # portico de alma variavel: tipo + misula tapered (alturas em mm p/ o loft).
+        "tipo_portico": est.get("tipo_portico", "prismatico"),
+        "tapered": ({"h_joelho": tap["h_joelho"] * 1000, "h_cumeeira": tap["h_cumeeira"] * 1000,
+                     "bf": tap.get("bf", 0.20) * 1000, "tw": tap.get("tw", 0.008) * 1000,
+                     "tf": tap.get("tf", 0.0125) * 1000}
+                    if (est.get("tipo_portico") == "alma_variavel"
+                        and isinstance(tap := est.get("tapered"), dict)) else None),
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),

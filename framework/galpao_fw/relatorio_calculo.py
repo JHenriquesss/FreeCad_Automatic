@@ -64,6 +64,12 @@ METODOS = {
         "NBR 8800:2008, Anexo D (metodo da amplificacao). Efeitos de 2a ordem "
         "P-delta (local) e P-Delta (global) via coeficientes B1 e B2; verifica "
         "a estabilidade e amplifica os momentos para o dimensionamento."),
+    "3b. PORTICO ALMA VARIAVEL": (
+        "Portico de misula de alma variavel (tapered), perfil I duplamente "
+        "simetrico com altura variando linearmente (funda no joelho, rasa na "
+        "cumeeira). A analise do portico usa a secao por segmento (rigidez EI "
+        "variavel ao longo do rafter); a secao do JOELHO governa a flexo-compressao "
+        "(maior momento). Secoes geradas por alma_variavel.secao_tapered."),
     "4. PERFIS": (
         "NBR 8800:2008. Barras a flexo-compressao: equacao de interacao 5.4.2 "
         "(N/Nrd + fatores . M/Mrd <= 1,0). Resistencias com estados-limite de "

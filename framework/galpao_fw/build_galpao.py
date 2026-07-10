@@ -77,7 +77,8 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
                longarina=None, longarina_nome=None, sapata=None,
-               estaca=None, bloco=None, baldrame=None):
+               estaca=None, bloco=None, baldrame=None,
+               tipo_portico=None, tapered=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -87,7 +88,8 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
-    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL
+    if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if sapata is not None: SAPATA_MODEL = dict(sapata) if sapata else None
     if estaca is not None: ESTACA_MODEL = dict(estaca) if estaca else None
@@ -149,6 +151,10 @@ SAPATA_MODEL = None
 ESTACA_MODEL = None
 BLOCO_MODEL = None
 BALDRAME_MODEL = None
+# Portico de alma variavel (tapered): None = rafter prismatico. dict (mm)
+# {h_joelho, h_cumeeira, bf, tw, tf} -> rafter em loft (funda no joelho -> rasa na
+# cumeeira). O calculo (galpao_portico) ja usou a rigidez variavel.
+TAPERED_MODEL = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -242,6 +248,44 @@ def _sweep(pts2d, p1, p2, roll_deg, name, doc):
 
 def i_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(i_section_pts(sec), p1, p2, roll, name, doc)
+
+
+def _sweep_tapered(pts1, pts2, p1, p2, roll_deg, name, doc):
+    """Como _sweep, mas LOFT entre duas secoes (pts1 em p1, pts2 em p2) -> membro
+    de altura variavel (alma variavel/misula). Mesma base local que _sweep."""
+    v1, v2 = App.Vector(*p1), App.Vector(*p2)
+    d = v2.sub(v1)
+    L = d.Length
+    if L < 1e-6:
+        return None
+    w1 = Part.makePolygon([App.Vector(0, y, z) for (y, z) in pts1] +
+                          [App.Vector(0, pts1[0][0], pts1[0][1])])
+    w2 = Part.makePolygon([App.Vector(L, y, z) for (y, z) in pts2] +
+                          [App.Vector(L, pts2[0][0], pts2[0][1])])
+    solid = Part.makeLoft([w1, w2], True)          # True = solido
+    if abs(roll_deg) > 1e-9:
+        solid.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), roll_deg)
+    rot = App.Rotation(App.Vector(1, 0, 0), d)
+    if abs(rot.Angle) > 1e-9:
+        solid.rotate(App.Vector(0, 0, 0), rot.Axis, math.degrees(rot.Angle))
+    solid.translate(v1)
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = solid
+    _reg(name, p1, p2)
+    return obj
+
+
+def tapered_rafter(doc, p1, p2, name, roll=0.0):
+    """Rafter de alma variavel: secao funda no joelho (p1) -> rasa na cumeeira (p2).
+    Dims (mm) do TAPERED_MODEL. Perfil I duplamente simetrico. Cai no i_member
+    prismatico se as alturas forem iguais (h1==h2)."""
+    t = TAPERED_MODEL
+    bf, tw, tf = t.get("bf", 200.0), t.get("tw", 8.0), t.get("tf", 12.5)
+    h1, h2 = t["h_joelho"], t["h_cumeeira"]
+    if abs(h1 - h2) < 1e-6:
+        return i_member(doc, p1, p2, (h1, bf, tw, tf), name, roll)
+    return _sweep_tapered(i_section_pts((h1, bf, tw, tf)),
+                          i_section_pts((h2, bf, tw, tf)), p1, p2, roll, name, doc)
 
 
 def u_member(doc, p1, p2, sec, name, roll=0.0):
@@ -549,8 +593,12 @@ def build(doc):
         for j in range(nv):
             yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
             zh = rafter_z(yr)
-            i_member(doc, (x, y0, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_E")
-            i_member(doc, (x, y1, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_D")
+            if TAPERED_MODEL:                        # alma variavel: loft tapered
+                tapered_rafter(doc, (x, y0, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_E")
+                tapered_rafter(doc, (x, y1, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_D")
+            else:
+                i_member(doc, (x, y0, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_E")
+                i_member(doc, (x, y1, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_D")
 
     # Base ENGASTADA PARAMETRICA (dims do dimensionamento -> BASE_PLATE): placa
     # B x L x t + n chumbadores d=db gancho-L (straddle em Y = direcao do momento)
@@ -1580,8 +1628,9 @@ def reset():
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
-    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
+    TAPERED_MODEL = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"

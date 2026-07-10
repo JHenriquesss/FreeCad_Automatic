@@ -1,5 +1,23 @@
 # 03 — Fases
 
+## FECHADA — Pórtico de alma variável / tapered (fase 6.b) — 2026-07-10
+**Escopo:** integrar o pórtico de mísula de alma variável (calc + 3D). Gerador
+`alma_variavel.secao_tapered` já homologado; fase é integração análise+spec+3D.
+- **Análise:** gate `estrutura.tipo_portico`=alma_variavel → rafter com seção por
+  segmento (`galpao_portico._chain_var` + `secao_tapered`, funda no joelho → rasa
+  na cumeeira; `NSEG=8`). `frame2d.add_element` já aceitava I/A por elemento. A
+  distribuição de momento reflete a rigidez variável. `configurar(tapered=)` usa
+  **sentinela** `_UNSET` → `tapered=None` RESETA (prismático byte-idêntico).
+- **Spec:** `estrutura.tipo_portico` (default prismatico; inválido bloqueia) +
+  `estrutura.tapered` {h_joelho,h_cumeeira,bf,tw,tf}; mappers to_rodar/to_build.
+- **3D:** `build_galpao.tapered_rafter` = `_sweep_tapered` (loft `Part.makeLoft`
+  entre o I do joelho e o da cumeeira; cai no prismático se h1==h2).
+- **Memorial:** `gate6-alma-variavel.txt` (tabela seção/segmento + peso) +
+  METODOS `3b`; a **seção do joelho governa** (verificação por segmento = FLAG).
+- **Regressão:** smoke 6/6 (caso `alma_var`); prismáticos inalterados. Commit `<6b>`.
+- **PENDENTE sênior:** `REVISA-ALMA-VARIAVEL-INTEG.md` Q1–Q4, INDICE 32.
+- **Próxima:** 6.c tesoura (treliça — topologia nova).
+
 ## FECHADA — Wiring calha + sapata de divisa (fase 6.a) — 2026-07-10
 **Escopo:** ligar 2 módulos homologados ÓRFÃOS (não alcançáveis pelo pipeline) ao
 fluxo: dimensionamento de **calha** (hidráulico NBR 10844/Bellei) e **sapata de

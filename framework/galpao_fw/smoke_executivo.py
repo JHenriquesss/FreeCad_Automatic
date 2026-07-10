@@ -38,7 +38,8 @@ _PERFIL_SPT = [                     # sondagem exemplo (dado de sitio) topo->pon
 ]
 
 
-def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata"):
+def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata",
+          tipo_portico="prismatico", tapered=None):
     s = PS.novo()
     s['slug'] = slug
     s['terreno'].update(area_lote_m2=4000, to_max=0.6, ca_max=1.0, tp_min=0.2,
@@ -64,6 +65,9 @@ def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata"):
             'bloco': {'a_pilar': 0.30, 'fck': 25e3, 'fyk': 500e3}}
         s['baldrame'] = {'b': 0.20, 'h': 0.40, 'q_parede': 0.0,
                          'continuidade': 'simples'}
+    s['estrutura']['tipo_portico'] = tipo_portico
+    if tapered is not None:
+        s['estrutura']['tapered'] = tapered
     return s
 
 
@@ -103,6 +107,10 @@ CASOS = [
     ("ponte",    dict(span=15, comp=20, eave=7, ridge=7.75, ponte=PONTE)),
     # fundacao PROFUNDA: estaca + bloco de coroamento + viga de baldrame no 3D.
     ("estaca",   dict(span=10, comp=20, eave=6, ridge=6.5, fundacao="estaca")),
+    # PORTICO de alma variavel (misula tapered): rafter em loft + analise variavel.
+    ("alma_var", dict(span=10, comp=20, eave=6, ridge=6.5, tipo_portico="alma_variavel",
+                      tapered={"h_joelho": 0.60, "h_cumeeira": 0.30, "bf": 0.20,
+                               "tw": 0.008, "tf": 0.0125})),
 ]
 
 

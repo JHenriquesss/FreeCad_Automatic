@@ -53,16 +53,25 @@ def reset():
     PONTE = None; SISMO = None; BASE_FIXED = False
 
 
+# Alma variavel (tapered): None = rafter prismatico (default). dict = misula
+# {h_joelho, h_cumeeira, bf, tw, tf} (m) -> rafter com secao variando por segmento
+# (secao_tapered de alma_variavel). Fundo no joelho, raso na cumeeira.
+TAPERED = None
+_UNSET = object()      # sentinela: tapered=None RESETA para prismatico; omitido mantem
+
+
 def configurar(span=None, spans=None, eave=None, ridge=None, bay=None,
                base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
                G_roof=None, rafter_self=None, Q_roof=None,
-               ponte=None, sismo=None):
+               ponte=None, sismo=None, tapered=_UNSET):
     """Configura a geometria/secoes/cargas do portico. Aceita tanto 'span'
     (1 vao, retrocompativel) quanto 'spans' (lista p/ N vaos)."""
     global SPANS, N_VAOS, EAVE, RIDGE, BAY, THETA, COS, SIN
     global A_COL, I_COL, A_RAF, I_RAF
-    global BASE_FIXED, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO
+    global BASE_FIXED, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO, TAPERED
+    if tapered is not _UNSET:
+        TAPERED = dict(tapered) if tapered else None
     if spans is not None:
         SPANS = list(spans)
     elif span is not None:
@@ -103,6 +112,36 @@ def _chain(fr, na, nb, Asec, Isec, nseg):
     return elems
 
 
+def _chain_var(fr, na, nb, secoes):
+    """Como _chain, mas cada segmento recebe a SUA secao (A,I) da lista `secoes`
+    (len == nseg). Usado no rafter de alma variavel: I varia ao longo do vao."""
+    import alma_variavel as av  # noqa: F401 (import p/ manter dependencia explicita)
+    nseg = len(secoes)
+    xa, ya = fr.nodes[na]; xb, yb = fr.nodes[nb]
+    elems = []; prev = na
+    for i in range(nseg):
+        t1 = (i + 1) / nseg
+        xj = xa + (xb - xa) * t1; yj = ya + (yb - ya) * t1
+        nxt = fr.add_node(xj, yj) if i < nseg - 1 else nb
+        e = fr.add_element(prev, nxt, E, secoes[i]["A_m2"], secoes[i]["I_m4"])
+        elems.append(e)
+        prev = nxt
+    return elems
+
+
+def _secoes_rafter(sentido):
+    """Secoes por segmento do rafter tapered (NSEG). sentido='eave2ridge' (fundo
+    no inicio) ou 'ridge2eave' (raso no inicio). Usa alma_variavel.secao_tapered."""
+    import alma_variavel as av
+    t = TAPERED
+    if sentido == "eave2ridge":
+        h1, h2 = t["h_joelho"], t["h_cumeeira"]
+    else:
+        h1, h2 = t["h_cumeeira"], t["h_joelho"]
+    return av.secao_tapered(h1, h2, t.get("bf", 0.20), t.get("tw", 0.008),
+                            t.get("tf", 0.0125), nseg=NSEG)
+
+
 def _posicoes():
     """Retorna (x_cols, x_ridges) com as posicoes X das colunas e cumeeiras."""
     n = len(SPANS)
@@ -134,8 +173,12 @@ def _frame():
         cols.append(c)
     rafts = []  # rafts[s] = [left_raft_elements, right_raft_elements]
     for i in range(n):
-        rl = _chain(fr, eaves[i], ridges[i], A_RAF, I_RAF, NSEG)
-        rr = _chain(fr, ridges[i], eaves[i + 1], A_RAF, I_RAF, NSEG)
+        if TAPERED:                                 # alma variavel: secao por segmento
+            rl = _chain_var(fr, eaves[i], ridges[i], _secoes_rafter("eave2ridge"))
+            rr = _chain_var(fr, ridges[i], eaves[i + 1], _secoes_rafter("ridge2eave"))
+        else:                                       # prismatico (ref)
+            rl = _chain(fr, eaves[i], ridges[i], A_RAF, I_RAF, NSEG)
+            rr = _chain(fr, ridges[i], eaves[i + 1], A_RAF, I_RAF, NSEG)
         rafts.append([rl, rr])
     # --- apoios ---
     rot = BASE_FIXED

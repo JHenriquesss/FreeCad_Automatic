@@ -38,6 +38,7 @@ import contraventamento as ctv
 import gusset_ligacao as gus
 import calhas
 import sapata_divisa as sd
+import alma_variavel as av
 import ponte_rolante as pr
 import console_ponte as cons
 import fogo_nbr14323 as fogo
@@ -126,13 +127,14 @@ def rodar(params, out_dir):
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                      Q_roof=params["cargas"]["Q"])
+                      Q_roof=params["cargas"]["Q"], tapered=params.get("tapered"))
     else:
         gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      tapered=params.get("tapered"),
                       Q_roof=params["cargas"]["Q"])
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
@@ -479,6 +481,37 @@ def rodar(params, out_dir):
                          "R_kN": rdv["divisa"]["R"], "e_m": rdv["divisa"]["e"],
                          "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
 
+    # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
+    # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
+    # tapered); aqui gera o memorial da misula (secao_tapered + peso) e sinaliza
+    # que a SECAO DO JOELHO (mais funda) governa a flexo-compressao.
+    if params.get("tipo_portico") == "alma_variavel" and params.get("tapered"):
+        tp = params["tapered"]
+        secs = av.secao_tapered(tp["h_joelho"], tp["h_cumeeira"], tp.get("bf", 0.20),
+                                tp.get("tw", 0.008), tp.get("tf", 0.0125), nseg=gp.NSEG)
+        peso = av.peso_tapered(tp["h_joelho"], tp["h_cumeeira"], tp.get("bf", 0.20),
+                               tp.get("tw", 0.008), tp.get("tf", 0.0125), g["span"])
+        L = ["=" * 66, "PORTICO DE ALMA VARIAVEL (misula tapered)", "=" * 66,
+             f"  h_joelho = {tp['h_joelho']*1000:.0f} mm ; h_cumeeira = "
+             f"{tp['h_cumeeira']*1000:.0f} mm ; nseg = {gp.NSEG}",
+             f"  Peso linear medio = {peso:.2f} kN/m",
+             "  Secoes por segmento (joelho -> cumeeira):",
+             "    seg |  h(mm) |  A(cm2) |  I(cm4)  |  Wx(cm3)"]
+        for s in secs:
+            L.append("    %3d | %6.0f | %7.1f | %8.0f | %8.0f" %
+                     (s["segmento"], s["h_m"] * 1000, s["A_m2"] * 1e4,
+                      s["I_m4"] * 1e8, s["Wx_m3"] * 1e6))
+        L += ["  >> A secao do JOELHO (mais funda) governa a flexo-compressao; o",
+              "     portico foi resolvido com a rigidez variavel (secao por segmento).",
+              "  >> Verificacao de estados-limite por segmento = A CONFIRMAR (sensor).",
+              "=" * 66]
+        save("gate6-alma-variavel.txt", "\n".join(L))
+        res["alma_variavel"] = {
+            "h_joelho_mm": tp["h_joelho"] * 1000, "h_cumeeira_mm": tp["h_cumeeira"] * 1000,
+            "peso_kN_m": round(peso, 2), "nseg": gp.NSEG,
+            "I_joelho_cm4": round(secs[0]["I_m4"] * 1e8, 0),
+            "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0)}
+
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
                            base_fixa=params.get("base_fixed", True),
@@ -604,7 +637,9 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("1c. PONTE ROLANTE", "gate5-ponte.txt"),
              ("1d. CONSOLE DA PONTE", "gate7-console.txt"),
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
-             ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
+             ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"),
+             ("3b. PORTICO ALMA VARIAVEL", "gate6-alma-variavel.txt"),
+             ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
              ("6b. TELHA", "gate7-telha.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
