@@ -38,7 +38,14 @@ Mesmo `R` para redim/fundação/base → consistência; M do engaste não é rec
 ## Auditoria geométrica
 `verifica_conexoes` mede as formas reais no modelo 3D (assentamento medido `_assenta`) → auto-captura defeitos de conexão/geometria. Sapata desenhada (bloco+pedestal) no take-off com densidade própria (concreto categoria separada, não soma na tonelagem de aço).
 
+## Projeto executivo (2D) — split calc/model/executivo
+Pipeline: **calc** (`rodar_projeto.calcular`, python) → **3D** (`build_galpao`, freecadcmd ou MCP) → **executivo** (`rodar_projeto.rodar_executivo` lança `freecad.exe` c/ `techdraw_exec`). `build_final.py` encadeia + gera memorial PDF (`relatorio_calculo`). Detalhes D33–D36.
+- **`techdraw_exec`** roda DENTRO do freecad.exe (config gerada FORA por `config_de_spec`, injetada via `script_bootstrap`). `construtores` = lista de builders `_pr_*`; detalhes (`_pr_base/_joelho/_contravent/_ligacoes`) recebem `todos` (inclui miudezas); gerais recebem `objs` (sem `_MIUDEZAS`).
+- **Padrão de detalhe:** crop `Part.makeBox`+`Shape.common` → compound `<PREFIXO>_CROP` → `_vista` HLR. Eixo de vista curado (`_AXES`), não heurística.
+- **Guard de cobertura** `_cobertura`: toda peça (tipo, normalizado por lado) desenhada em ≥1 prancha; `PREFIXOS_SEM_DESENHO`=("VAO",). Guard anti-silhueta `_n_edges`≥15. `smoke_executivo` sela 4 geometrias.
+
 ## Convenções
+- Convenção do modelo: **comprimento em X, vão em Y, altura em Z** (build_galpao; `comp_x=True` fixo no executivo).
 - `L` // eixo do momento do pórtico. Momento no plano do pórtico → dimensão L.
 - γa1=1,10, γa2=1,35, γw2=1,35 (aço); γc=γn=1,40 (concreto).
 - `_pt()` troca ponto decimal por vírgula nos memoriais (preserva nº de item tipo 6.118).

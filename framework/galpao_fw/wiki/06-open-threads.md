@@ -43,7 +43,11 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 - **Redim/mão-francesa**: Lb fixo (col 2,0m / viga 1,67m) é contrato — a mão-francesa deve entregar essa contenção da mesa interna. Premissa de wiring.
 - **σ_solo,adm, μ, coesão, φ (impacto ponte), frações lateral/long** — INPUT de sondagem/fabricante; bloqueia se não informado.
 
-## T6 — Build 3D: detalhamento executivo (em andamento)
+## T6 — Projeto executivo 2D (FECHADO 2026-07-09)
+2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** aberto.
+**Aberto (adiado, baixo valor/alto esforço):** detalhe de ligação **nível fabricação** — `DrawViewSection`+hachura+símbolo de solda/parafuso. Hoje é elevação+arranjo com cotas (nota "conforme memorial"); sizing/método no memorial de cálculo PDF. `techdraw_exec` não tem section/hachura/cosmetic-line/weld-symbol — seria a lacuna a preencher.
+
+### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).
 
 **Verificação empírica (doc `audit_build2`, 551 obj):** `checa_interferencia`=0, `verifica_conexoes`=0, `estrutura_em_aberturas`=0. Calhas CM.z 5964,5 < centro 6000 (abrem p/ cima). Telha ZMin 6299,1 > terça topo 6298,8 (assenta). Export OK (`exports/freecad/galpao_20x10.FCStd`, `exports/step/...`). Build 2s / auditoria 5s / export 0,8s (rodar por estágio; `run()` completo estoura o cap ~30s do bridge xmlrpc — chunk).
