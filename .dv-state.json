@@ -1,7 +1,7 @@
 {
   "phase": 2,
   "phase_name": "detalhe-fabricacao",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "verifica_gusset compondo primitivos homologados; selftest; gate7-gusset; REVISAO-GUSSET (PENDENTE)", "done": true },
     { "id": "me-2", "text": "verifica_console (so ponte); selftest; gate7-console; REVISAO-CONSOLE (PENDENTE)", "done": true },
@@ -21,6 +21,7 @@
   "opened_at": "2026-07-09",
   "last_tune_at": null,
   "history": [
-    { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" }
+    { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" },
+    { "phase": 2, "closed_at": "2026-07-09", "outcome": "ok" }
   ]
 }
