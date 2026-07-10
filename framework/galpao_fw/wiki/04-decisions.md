@@ -124,5 +124,32 @@ Estaca (Aoki-Velloso)+bloco+baldrame, antes opt-in só via `params`, agora gate 
 ## D40 — 2026-07-10 — Corte seccionado headless resolvido (fase 5), reverte D37-A
 O `DrawViewSection` **constrói headless no FreeCAD 1.1** — o `failed to create section CS` de [[#D37]] era da versão antiga (probe: box→4 arestas). `techdraw_exec._secao_ligacao` adiciona corte hachurado `VLIG_SEC_*` a cada detalhe (plano pelo centro, normal=xdir da elevação), sem mexer na elevação/callouts. 2 gotchas: (a) enum válido de `CutSurfaceDisplay`=['Hide','Color','SvgHatch','PatHatch'] — `"Hatch"` NÃO existe; uso `SvgHatch` (svg embutido, sem .pat externo). (b) no `freecad.exe` (GUI headless) a geometria da seção computa DEFERIDA → `_n_edges` imediato lê 0 (falso zero) → NÃO descartar na hora; verificação de vazio movida pro guard final (`detalhes_secoes`, smoke exige ≥1 e nenhuma vazia). Cobertura ignora DrawViewSection (não-DrawViewPart). Símbolo AWS solda = `DrawWeldSymbol` GUI-only → segue callout texto. Commit f912e98. [[06-open-threads#T6]].
 
+## D41 — 2026-07-10 — Wiring de módulos órfãos: calha + sapata de divisa (fase 6.a)
+Auditoria achou 5 módulos homologados ÓRFÃOS (calc existia, pipeline não alcançava):
+neve, calhas, sapata_divisa, alma_variavel, tesoura. Fase 6.a ligou os 2 menores:
+`cobertura.chuva_I_mm_h` (NBR 10844) → `calhas.dimensiona` da geometria;
+`fundacao.divisa` {dist_divisa} → `sapata_divisa.dimensiona_divisa` (P do envelope,
+Alonso). Gates não bloqueiam (default/None). Memorial METODOS 13/11g. `neve` NÃO
+wired (usuário não pediu — região sem neve). Commit 5fd4003. [[03-phases]].
+
+## D42 — 2026-07-10 — Pórtico de alma variável (tapered): rigidez variável + loft (fase 6.b)
+`estrutura.tipo_portico`=alma_variavel → rafter com seção por segmento
+(`galpao_portico._chain_var` + `alma_variavel.secao_tapered`, funda no joelho→rasa
+na cumeeira). `frame2d.add_element` já aceitava I/A por elemento. `configurar(tapered=)`
+usa **sentinela `_UNSET`** (tapered=None RESETA → prismático byte-idêntico, crítico p/
+não-regressão em processo compartilhado). 3D: `build_galpao.tapered_rafter` = loft
+`Part.makeLoft` de 2 perfis I. Seção do JOELHO governa (verif. por segmento = FLAG).
+Commit 21d9941. [[03-phases]].
+
+## D43 — 2026-07-10 — Pórtico treliçado (tesoura): cálculo NOVO (método dos nós) + 3D (fase 6.c)
+`tesoura.py` era SÓ geometria (nós+barras isostática); fase criou o cálculo.
+`resolve_trelica` = método dos nós (equilíbrio nodal, sistema `2j×(b+3)`, numpy);
+N>0 tração; banzo inf traciona/sup comprime. `verifica_tesoura` = combos grav+vento,
+barras por NBR 8800 (tração escoamento / compressão chi·Q·A·fy via check_nbr8800).
+**numpy LAZY** (só no solver) → `gera_trelica` importável no build sem numpy;
+geometria da treliça **replicada numpy-free** no build_galpao (self-contained).
+`_desenha_tesoura` barras biapoiadas no topo dos pilares, SEM joelho/cumeeira
+(rotulada). Sucção de vento = INPUT. Commit 820b0e0. [[03-phases]].
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

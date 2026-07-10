@@ -14,6 +14,12 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 
 ## Estado atual (2026-07-10)
 Galpão completo fim-a-fim. **18 módulos matemáticos** (+`nbr8400`) + features, selftest verde. Cálculo homologado (itens 1–27). **Fases 3–5 FECHADAS (2026-07-10):** (3) fundação profunda integrada ao ProjetoSpec + 3D (estaca/bloco/baldrame desenhados; `fundacao.tipo` gate); (4) ponte estendida — rodas motoras + NBR 8400-1:2019 (φ Tab.12 / N Tab.9 do PDF) + gate do fabricante; (5) **corte seccionado hachurado** nos detalhes (blocker T6 resolvido — DrawViewSection headless FreeCAD 1.1). `smoke_executivo` **5/5**. Commits 9ac3c4f→f912e98 na branch `revisao/homologacao-12-modulos`.
-**PENDENTE gate humano:** homologação sênior itens 28/29 (gusset/console) + 30 (fundação-integr., Q1–Q6) + 31 (ponte-8400, Q1–Q4); merge PR #1+#4; push da branch (3 commits). [[06-open-threads]].
+**Órfãos wired (fase 6):** calha (6.a), sapata_divisa (6.a), pórtico alma variável
+(6.b), pórtico tesoura (6.c — cálculo NOVO método dos nós). Restou `neve` (não
+escolhido). **3 tipos de pórtico**: prismatico | alma_variavel | tesoura.
+**PENDENTE gate humano:** homologação sênior itens 28–33; merge PR #1+#4; push da
+branch (9 commits nesta sessão). [[06-open-threads]].
 
-last-consolidated: 2026-07-10, sessions: 6 (+fases 3–5: fundação profunda integr., ponte NBR 8400/rodas motoras, corte seccionado; via /dv pipeline)
+last-consolidated: 2026-07-10, sessions: 6 (fases 3–6.c via /dv: fundação profunda,
+ponte NBR 8400/rodas motoras, corte seccionado, wiring calha/divisa, pórticos alma
+variável e tesoura)
