@@ -63,14 +63,20 @@ def cargas_de_roda(Q, peso_ponte, peso_trole, vao_ponte, aprox_min, n_rodas_lado
 
 
 def forcas_horizontais(Q, peso_trole, R_roda_max, n_rodas_lado, frac_lateral,
-                       frac_long):
+                       frac_long, n_rodas_motoras=None):
     """Forca transversal por roda (surto) e longitudinal por trilho (frenagem).
-    NOTA (parecer 3.2): a frenagem age nas RODAS MOTORAS. Aqui frac_long incide
-    sobre as cargas de roda do trilho; se so parte das rodas for motorizada, o
-    eng. reduz frac_long por (n_motoras/n_rodas) na entrada (A CONFIRMAR)."""
+    A frenagem (longitudinal) age nas RODAS MOTORAS: frac_long incide APENAS sobre
+    as cargas das n_rodas_motoras do trilho, nao sobre todas as rodas. Default
+    n_rodas_motoras = n_rodas_lado (todas motrizes = comportamento anterior).
+    frac_long/frac_lateral sao A CONFIRMAR (fabricante / NBR 8400)."""
+    if n_rodas_motoras is None:
+        n_rodas_motoras = n_rodas_lado
+    if n_rodas_motoras < 0 or n_rodas_motoras > n_rodas_lado:
+        raise ValueError("n_rodas_motoras (%s) deve estar em [0, n_rodas_lado=%s]"
+                         % (n_rodas_motoras, n_rodas_lado))
     n_total = 2 * n_rodas_lado
     H_transv_roda = frac_lateral * (Q + peso_trole) / n_total
-    H_long_trilho = frac_long * R_roda_max * n_rodas_lado
+    H_long_trilho = frac_long * R_roda_max * n_rodas_motoras
     return H_transv_roda, H_long_trilho
 
 
@@ -209,12 +215,13 @@ def relatorio_pt(esf, viga, reac):
     L = ["=" * 70, "PONTE ROLANTE (ABNT NBR 8800:2008 / NBR 8400)", "=" * 70,
          "  CARGAS DE RODA (ponte encostada, trole na aproximacao minima):",
          f"    R_roda_max = {esf['R_roda_max']:.1f} kN ; R_roda_min = {esf['R_roda_min']:.1f} kN",
-         f"    Coef. de impacto phi = {esf['phi']:.2f} (A CONFIRMAR: fabricante/NBR 8400)",
+         f"    Coef. de impacto phi = {esf['phi']:.3f} [{esf.get('phi_fonte', 'input')}]",
          f"    P_vertical (com impacto) = {esf['P_vertical']:.1f} kN/roda",
          f"    Surto transversal = {esf['H_transv']:.1f} kN/roda "
          f"(frac {esf['frac_lateral']:.2f} A CONFIRMAR)",
          f"    Frenagem longitudinal = {esf['H_long']:.1f} kN/trilho "
-         f"(frac {esf['frac_long']:.2f} A CONFIRMAR)",
+         f"(frac {esf['frac_long']:.2f} A CONFIRMAR ; rodas motoras "
+         f"{esf.get('n_rodas_motoras', esf.get('n_rodas_lado'))}/{esf.get('n_rodas_lado')})",
          "-" * 70, "  VIGA DE ROLAMENTO (carga movel + surto lateral):",
          f"    Vao = {viga['L']:.2f} m ; Msd,x = {viga['Msdx']:.1f} kN.m ; "
          f"Msd,y = {viga['Msdy']:.1f} kN.m",
@@ -244,20 +251,38 @@ def analisa(cfg):
     Rmx, Rmn, Rtmx, Rtmn = cargas_de_roda(
         cfg["Q"], cfg["peso_ponte"], cfg["peso_trole"], cfg["vao_ponte"],
         cfg["aprox_min"], cfg["n_rodas_lado"])
-    phi = cfg["phi"]
+    # impacto phi: da classe de elevacao HC + Vh (NBR 8400 Tab.12) se informada;
+    # senao input do fabricante (retrocompat). Fonte registrada p/ o relatorio.
+    phi_src = "input (A CONFIRMAR: fabricante/NBR 8400)"
+    if cfg.get("classe_hc"):
+        import nbr8400 as n8
+        phi = n8.coef_dinamico(cfg["classe_hc"], cfg.get("Vh_elevacao", 0.0))
+        phi_src = "NBR 8400 Tab.12 (%s, Vh=%.2f m/s)" % (
+            str(cfg["classe_hc"]).upper(), cfg.get("Vh_elevacao", 0.0))
+    else:
+        phi = cfg["phi"]
+    n_mot = cfg.get("n_rodas_motoras", cfg["n_rodas_lado"])
     Ht, Hl = forcas_horizontais(cfg["Q"], cfg["peso_trole"], Rmx,
                                 cfg["n_rodas_lado"], cfg["frac_lateral"],
-                                cfg["frac_long"])
+                                cfg["frac_long"], n_rodas_motoras=n_mot)
     P = phi * Rmx
-    esf = {"R_roda_max": Rmx, "R_roda_min": Rmn, "phi": phi, "P_vertical": P,
-           "H_transv": Ht, "H_long": Hl, "frac_lateral": cfg["frac_lateral"],
-           "frac_long": cfg["frac_long"]}
+    esf = {"R_roda_max": Rmx, "R_roda_min": Rmn, "phi": phi, "phi_fonte": phi_src,
+           "P_vertical": P, "H_transv": Ht, "H_long": Hl,
+           "n_rodas_lado": cfg["n_rodas_lado"], "n_rodas_motoras": n_mot,
+           "frac_lateral": cfg["frac_lateral"], "frac_long": cfg["frac_long"]}
+    # n de ciclos da fadiga: da classe de utilizacao B do componente (NBR 8400
+    # Tab.9) se informada; senao input (regime). Alimenta o Anexo K (inalterado).
+    if cfg.get("classe_b"):
+        import nbr8400 as n8
+        n_ciclos_fad = n8.n_ciclos(cfg["classe_b"])
+    else:
+        n_ciclos_fad = cfg.get("n_ciclos", 2.0e6)
     vcfg = {"vao": cfg["vao_viga"], "P_vertical": P, "H_transv": Ht,
             "d_rodas": cfg.get("d_rodas", 0.0), "cap_kN": cfg["Q"],
             "siderurgica": cfg.get("siderurgica", False), "phi": phi,
             "Lb": cfg.get("Lb", cfg["vao_viga"]), "E_Ix": cfg.get("E_Ix"),
             "cat_fadiga": cfg.get("cat_fadiga", "B"),          # detalhe (Tab.K.1)
-            "n_ciclos": cfg.get("n_ciclos", 2.0e6),            # regime (NBR 8400)
+            "n_ciclos": n_ciclos_fad,                          # classe B (NBR 8400 Tab.9)
             "nome": "Viga de rolamento"}
     viga = verifica_viga_rolamento(cfg["perfil_viga"], cfg["fy"], vcfg)
     reac = reacao_no_portico(Rmx, cfg["n_rodas_lado"], Ht, Hl,
@@ -299,6 +324,17 @@ def _selftest():
     assert fad["ok"] and 0 < fad["u_fadiga"] < 1.0            # VS500 passa a fadiga
     # categoria pior (E') aperta a faixa admissivel
     assert faixa_admissivel_fadiga("E'", 2e6) < faixa_admissivel_fadiga("B", 2e6)
+    # RODAS MOTORAS: frenagem so nas rodas motrizes -> 1 de 2 = metade de H_long
+    _, Hl2 = forcas_horizontais(100.0, 15.0, 80.0, 2, 0.10, 0.10, n_rodas_motoras=2)
+    _, Hl1 = forcas_horizontais(100.0, 15.0, 80.0, 2, 0.10, 0.10, n_rodas_motoras=1)
+    assert abs(Hl1 - Hl2 / 2.0) < 1e-9 and abs(Hl2 - 0.10 * 80.0 * 2) < 1e-9
+    # NBR 8400: phi da classe HC/Vh e n de ciclos da classe B entram no calculo
+    import nbr8400 as _n8
+    esf2, viga2, _ = analisa({**cfg, "classe_hc": "HC2", "Vh_elevacao": 0.5,
+                              "classe_b": "B7", "n_rodas_motoras": 1})
+    assert abs(esf2["phi"] - _n8.coef_dinamico("HC2", 0.5)) < 1e-9
+    assert viga2["fadiga"]["N"] == _n8.n_ciclos("B7")
+    assert esf2["H_long"] < esf["H_long"]                 # 1 roda motora < 2
     print("\n[selftest] OK")
 
 

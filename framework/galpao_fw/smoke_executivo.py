@@ -93,7 +93,7 @@ def _build_3d(spec, out, doc_name):
 
 
 PONTE = {'Q': 50.0, 'peso_ponte': 30.0, 'peso_trole': 8.0, 'aprox_min': 1.0,
-         'n_rodas_lado': 2, 'phi': 1.10, 'frac_lateral': 0.10,
+         'n_rodas_lado': 2, 'n_rodas_motoras': 2, 'phi': 1.10, 'frac_lateral': 0.10,
          'frac_long': 0.10, 'Hvr': 4.5, 'excentricidade': 0.3}
 
 CASOS = [

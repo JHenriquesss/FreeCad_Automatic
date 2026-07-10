@@ -57,6 +57,20 @@ REQUERIDOS_ESTACA = [
 ]
 TIPOS_FUNDACAO = ("sapata", "estaca")
 
+# Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.
+# Sao dado de catalogo/projeto (Ask, Do Not Invent) - PENDENTE/ausente bloqueia.
+# phi/n_ciclos podem vir das classes NBR 8400 (classe_hc/classe_b) OU direto.
+REQUERIDOS_PONTE = [
+    ("Q", "capacidade icada (kN)"),
+    ("peso_ponte", "peso proprio da ponte (kN)"),
+    ("peso_trole", "peso do trole/carro (kN)"),
+    ("aprox_min", "aproximacao minima do gancho ao trilho (m)"),
+    ("n_rodas_lado", "numero de rodas por lado (trilho)"),
+    ("n_rodas_motoras", "numero de rodas MOTORAS por lado (frenagem)"),
+    ("frac_lateral", "fracao do surto transversal (A CONFIRMAR)"),
+    ("frac_long", "fracao da frenagem longitudinal (A CONFIRMAR)"),
+]
+
 
 def novo():
     """Template de spec: tudo PENDENTE. A skill preenche gate a gate."""
@@ -128,6 +142,16 @@ def validar(spec):
                 v = _get(spec, path)
                 if v in (KeyError, None, PENDENTE, [], "") or v == PENDENTE:
                     faltando.append((path, desc))
+    # ponte rolante: se ha ponte (dict), os dados do fabricante bloqueiam. phi
+    # exige classe_hc OU phi direto; n de ciclos exige classe_b OU n_ciclos.
+    ponte = spec.get("ponte")
+    if isinstance(ponte, dict):
+        for k, desc in REQUERIDOS_PONTE:
+            v = ponte.get(k)
+            if v in (None, PENDENTE):
+                faltando.append(("ponte." + k, desc))
+        if ponte.get("phi") in (None, PENDENTE) and not ponte.get("classe_hc"):
+            faltando.append(("ponte.phi", "impacto phi OU classe de elevacao HC (NBR 8400)"))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "ok": not faltando}
 

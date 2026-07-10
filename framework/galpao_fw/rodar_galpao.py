@@ -702,10 +702,10 @@ def params_com_ponte():
     import copy
     p = copy.deepcopy(PARAMS_REF)
     p["ponte"] = {"Q": 100.0, "peso_ponte": 60.0, "peso_trole": 15.0,
-                  "aprox_min": 1.0, "n_rodas_lado": 2, "phi": 1.10,
-                  "frac_lateral": 0.10, "frac_long": 0.10, "d_rodas": 3.0,
-                  "fy": 250e3, "perfil_viga": pr.VS500, "siderurgica": False,
-                  "excentricidade": 0.30, "Hvr": 4.5,
+                  "aprox_min": 1.0, "n_rodas_lado": 2, "n_rodas_motoras": 2,
+                  "phi": 1.10, "frac_lateral": 0.10, "frac_long": 0.10,
+                  "d_rodas": 3.0, "fy": 250e3, "perfil_viga": pr.VS500,
+                  "siderurgica": False, "excentricidade": 0.30, "Hvr": 4.5,
                   "E_Ix": pr.ck.E * pr.VS500["Ix"]}
     return p
 

@@ -1,5 +1,41 @@
 # 03 — Fases
 
+## FECHADA — Ponte rolante estendida (fase 4) — 2026-07-10
+**Escopo:** fechar o backlog da ponte rolante. **Fadiga Anexo K já estava
+implementada** (T3 wiki desatualizado). Três adições:
+- **Rodas motoras:** `ponte_rolante.forcas_horizontais(..., n_rodas_motoras)` —
+  frenagem longitudinal `H_long = frac_long·R_roda_max·n_motoras` (só rodas
+  motrizes; default = `n_rodas_lado` ⇒ retrocompatível). Saturação se `> n_lado`.
+- **NBR 8400-1:2019 (novo `nbr8400.py`, lido do PDF verbatim):** φ (Ψ) da Tab.12
+  (`Ψ=Ψmín+β2·Vh`, HC1–HC4, cap Vh=1,5) + Nº de ciclos da Tab.9 (B0–B10, limite
+  superior conservador). `analisa` usa a classe (HC/Vh → φ ; B → N do Anexo K)
+  quando dada, senão input flagado. Fadiga Anexo K só **recebe** o N — inalterada.
+- **Gate:** `projeto_spec.REQUERIDOS_PONTE` — `validar()` bloqueia ponte incompleta
+  (dados do fabricante) quando `ponte != None`; `ponte=None` segue válido.
+- **Regressão:** `smoke_executivo` 5/5 (caso ponte 14 pranchas inalterado);
+  27 fast tests; selftests nbr8400/ponte/spec. Commit `<fase4>`.
+- **PENDENTE sênior:** `REVISA-PONTE-8400.md` (Q1–Q4) + INDICE item 31.
+
+## FECHADA — Fundação profunda no ProjetoSpec + 3D (fase 3) — 2026-07-10
+**Escopo:** integrar a fundação PROFUNDA (estaca Aoki-Velloso + bloco de coroamento
++ viga de baldrame) — antes opt-in só via `params` — como gate de 1ª classe no
+`ProjetoSpec` e como geometria no build 3D. Cálculo já existia (`rodar_galpao`
+411/426); a fase é wiring de spec + geometria, sem fórmula normativa nova.
+- **Spec:** `fundacao.tipo` (sapata|estaca) BLOQUEIA; bloco `estaca` (perfil SPT da
+  sondagem — sem default, bloqueia) + `baldrame`; `validar()` condicional; mappers
+  `to_rodar_params`/`to_build_kwargs` (estaca EXCLUSIVA da sapata — `mne-2`).
+- **Cálculo→spec:** `rodar_galpao` expõe D/L/n/espaçamento/bloco/baldrame no
+  envelope (N_pilar compressão, N_uplift tração, V_base amarração); `calcular`
+  grava `estaca_adotada`/`bloco_adotado`/`baldrame_adotado`.
+- **3D:** `build_galpao` desenha ESTACA (cilindros)/BLOCO (envelope do grupo + coroa
+  150 mm)/BALDRAME (entre pórticos); concreto de fundação MONOLÍTICO isento de clash
+  interno concreto×concreto (aço×concreto continua verificado); take-off de concreto;
+  cobertura na planta PE-02.
+- **Regressão:** `smoke_executivo` 5/5 (5º caso `estaca`); ref 20×10 sapata inalterada.
+  `tests/test_fase3_fundacao_profunda.py`: 13 fast + 1 build. Commit `9ac3c4f`.
+- **PENDENTE sênior:** `REVISAO-FUNDACAO-PROFUNDA-INTEG.md` (só integração/geometria,
+  Q1–Q6; método já homologado em ESTACA/BALDRAME) + INDICE item 30.
+
 ## FECHADA — Revisão sênior módulo-a-módulo (r2) — 2026-07-07
 **Escopo:** conferência matemática/normativa dos 12 módulos de cálculo por engenheiro sênior (parecer colado pelo usuário) + auditoria independente. Regra: verificar CADA finding contra o PDF da norma (não de memória) e contra o código-fonte real (não o snippet do doc). Fixar defeitos reais; rejeitar findings inválidos com citação exata.
 
