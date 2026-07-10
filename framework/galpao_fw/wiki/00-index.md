@@ -12,7 +12,8 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
 - [[06-open-threads]] — **HANDOFF (continuar em outro chat)**, T7 pareceres pendentes, PR #1, backlog
 
-## Estado atual (2026-07-09)
-Galpão completo fim-a-fim. **17 módulos matemáticos** + features, selftest verde. **Cálculo 100% homologado pelo sênior** (REVISAO-INDICE: itens 1–27 ✅, zero pendente, 2026-07-09). **Projeto executivo 2D FECHADO** (2026-07-09): 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, TechDraw headless, guard de cobertura (toda peça desenhada), `smoke_executivo` 4/4. **PR #4** aberto. Único adiado: detalhe de ligação nível fabricação (section+solda) — [[06-open-threads#T6]].
+## Estado atual (2026-07-10)
+Galpão completo fim-a-fim. **18 módulos matemáticos** (+`nbr8400`) + features, selftest verde. Cálculo homologado (itens 1–27). **Fases 3–5 FECHADAS (2026-07-10):** (3) fundação profunda integrada ao ProjetoSpec + 3D (estaca/bloco/baldrame desenhados; `fundacao.tipo` gate); (4) ponte estendida — rodas motoras + NBR 8400-1:2019 (φ Tab.12 / N Tab.9 do PDF) + gate do fabricante; (5) **corte seccionado hachurado** nos detalhes (blocker T6 resolvido — DrawViewSection headless FreeCAD 1.1). `smoke_executivo` **5/5**. Commits 9ac3c4f→f912e98 na branch `revisao/homologacao-12-modulos`.
+**PENDENTE gate humano:** homologação sênior itens 28/29 (gusset/console) + 30 (fundação-integr., Q1–Q6) + 31 (ponte-8400, Q1–Q4); merge PR #1+#4; push da branch (3 commits). [[06-open-threads]].
 
-last-consolidated: 2026-07-10, sessions: 5 (bootstrap + features + lacunas/FLAGs + executivo-2D + detalhe-fabricação A+B; construído do ciclo de revisão + sessão 07-09, sem sessions/*.md desta)
+last-consolidated: 2026-07-10, sessions: 6 (+fases 3–5: fundação profunda integr., ponte NBR 8400/rodas motoras, corte seccionado; via /dv pipeline)

@@ -27,3 +27,8 @@
 - **Gate** — pergunta ao engenheiro no fluxo da skill (Gate 4b = batch-defaults; Gate 5 = vento/ponte; Gate 7 = fundação/envelope).
 - **nf982** — galpão de referência (20×10, ponte 100 kN) usado na não-regressão.
 - **ART** — Anotação de Responsabilidade Técnica; o eng. responsável assina, o framework só calcula.
+- **Fundação profunda / estaca / bloco de coroamento / baldrame** — estaca = elemento vertical que transfere carga a camada profunda (Aoki-Velloso, SPT); bloco de coroamento = concreto que amarra o topo das estacas ao pilar (bielas-e-tirantes 22.3); baldrame/amarração = viga entre fundações. `fundacao.tipo`=estaca no spec desenha os três no 3D (fase 3).
+- **Classe de elevação HC1–HC4** — NBR 8400-1:2019 Tab.12; define β2/Ψmín do coeficiente dinâmico Ψ (impacto φ vertical) da ponte rolante.
+- **Classe de utilização B0–B10** — NBR 8400-1:2019 Tab.9; nº de ciclos de tensão do componente estrutural → N da fadiga (Anexo K).
+- **Rodas motoras** — rodas motrizes do caminho de rolamento; a frenagem longitudinal da ponte age só nelas (`n_rodas_motoras`).
+- **DrawViewSection / corte seccionado** — vista de corte hachurada do TechDraw (material cortado). Constrói headless no FreeCAD 1.1 (`CutSurfaceDisplay="SvgHatch"`). `VLIG_SEC_*` = corte do detalhe de ligação.
