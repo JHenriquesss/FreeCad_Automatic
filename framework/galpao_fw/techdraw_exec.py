@@ -35,18 +35,10 @@ _MIUDEZAS = ("PORCA", "ARRUELA", "CLIPE", "CONEX", "CHUMBADOR", "ESTICADOR")
 # aqui -- assim um tipo de elemento novo do build_galpao acusa falha ate ser
 # classificado, em vez de sumir silenciosamente das pranchas.
 # Cobertura: toda peca do modelo aparece desenhada, EXCETO os prefixos abaixo.
-# - VAO: auxiliar, nao e peca fisica.
-# - Ligacoes robustas (console/cumeeira/gusset) e clipes: o dimensionamento,
-#   metodo e detalhamento (chapas/solda/parafusos) vao no MEMORIAL DE CALCULO
-#   (PDF de calculos, gerado por relatorio_calculo.py). Nao ganham corte
-#   grafico auto porque o auto-crop projeta a peca robusta como silhueta cheia,
-#   sem linhas -- um detalhe legivel exige plano de corte + simbologia propria.
+# So auxiliares que nao sao peca fisica. As ligacoes (cumeeira/gusset/console/
+# clipe) tem prancha de detalhe propria via _pr_ligacoes (PE10+).
 PREFIXOS_SEM_DESENHO = (
     "VAO",
-    "CLIPE_GIRT",
-    "CONEX_CONSOLE",
-    "CONEX_CUMEEIRA",
-    "CONEX_GUSSET",
 )
 
 
@@ -193,6 +185,21 @@ def _n_verts(view):
     while True:
         try:
             if view.getVertexByIndex(i) is None:
+                break
+        except Exception:
+            break
+        i += 1
+    return i
+
+
+def _n_edges(view):
+    """Numero de arestas projetadas na vista. Serve de proxy anti-silhueta:
+    uma caixa chapada tem poucas arestas; uma elevacao real de perfis+furos
+    tem dezenas."""
+    i = 0
+    while True:
+        try:
+            if view.getEdgeByIndex(i) is None:
                 break
         except Exception:
             break
@@ -781,6 +788,122 @@ def _pr_joelho(doc, cfg, objs, todos):
     return [page], [c]
 
 
+# Eixos de vista: (direcao, xdirection, eixo-de-profundidade p/ escala/cotas).
+_AXES = {
+    "x": ((-1, 0, 0), (0, -1, 0), "x"),   # elevacao olhando ao longo do comp.
+    "y": ((0, -1, 0), (1, 0, 0), "y"),    # elevacao olhando ao longo do vao
+    "z": ((0, 0, 1), (1, 0, 0), "z"),     # vista de topo (plano horizontal)
+}
+
+# Vedacao/cobertura nao entra em detalhe de ligacao de aco (placas chapadas).
+_EXCLUI_LIGACAO = ("TELHA", "TAPAMENTO", "CALHA")
+
+# Detalhes de ligacao: um por tipo presente no modelo. Eixo da elevacao CURADO
+# por tipo (nao heuristica): os perfis conectados aparecem como perfil (linhas),
+# como no joelho. `chapa` = eixo da 2a vista (face da chapa) ou None.
+# (prefixo, titulo, base_pagina, KW_mm, elev_axis, chapa_axis)
+LIGACOES = [
+    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y"),
+    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None),
+    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None),
+    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y"),
+    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None),
+]
+
+
+def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
+                     page_name):
+    """Uma prancha de detalhe de ligacao: elevacao (perfis edge-on = linhas)
+    + opcional vista da chapa (face), recortando UMA instancia representativa
+    (a mais proxima do centro do galpao) numa janela. Espelha o padrao do
+    _pr_joelho. Retorna (page, [cotadores]) ou (None, None) se o tipo ausente."""
+    import Part
+    import FreeCAD as App
+    pcs = _pref(todos, (prefixo,))
+    if not pcs:
+        return None, None
+    bbm = _bbox(todos)
+    cx = (bbm.XMin + bbm.XMax) / 2.0
+    alvo = min(pcs, key=lambda o: abs(o.Shape.BoundBox.Center.x - cx))
+    c0 = alvo.Shape.BoundBox.Center
+    caixa = Part.makeBox(2 * KW, 2 * KW, 2 * KW,
+                         App.Vector(c0.x - KW, c0.y - KW, c0.z - KW))
+    cbb = caixa.BoundBox
+    # telha/tapamento/calha nao fazem parte de um detalhe de LIGACAO de aco e
+    # so poluem o corte (placas grandes chapadas). Exclui do crop; os perfis
+    # estruturais e a ferragem (parafusos/chumbadores) ficam.
+    crops = []
+    for o in todos:
+        try:
+            if any(o.Label.startswith(p) for p in _EXCLUI_LIGACAO):
+                continue
+            if not _bb_overlap(o.Shape.BoundBox, cbb):
+                continue
+            com = o.Shape.common(caixa)
+            if com.Edges:
+                crops.append(com)
+        except Exception:
+            pass
+    if not crops:
+        return None, None
+    feat = doc.addObject("Part::Feature", prefixo + "_CROP")
+    feat.Shape = Part.makeCompound(crops)
+    jb = feat.Shape.BoundBox
+    dupla = chapa is not None
+    dv, xv, ax = _AXES[elev]
+    aw = 300.0 if dupla else 620.0
+    esc, nome = _fit_escala(jb, ax, aw, 400)
+    page = _nova_prancha(doc, page_name, _carimbo(cfg, titulo, "-", nome, "-"))
+    xpos = 230.0 if dupla else 410.0
+    v = _vista(doc, page, "VLIG_ELEV_" + base, [feat], dv, xv, esc, xpos, 350)
+    hw, hh = _paper_half(jb, esc, ax)
+    c = _Cotador(doc, page, v, hw, hh)
+    # cota a altura (Z) da janela do detalhe
+    c.d((jb.XMin, jb.YMin, jb.ZMin), (jb.XMin, jb.YMin, jb.ZMax),
+        "DistanceY", _fmt_mm(jb.ZLength), "esq")
+    cots = [c]
+    n2 = None
+    if dupla:
+        dv2, xv2, ax2 = _AXES[chapa]
+        e2, n2 = _fit_escala(jb, ax2, 300.0, 400)
+        v2 = _vista(doc, page, "VLIG_CHAPA_" + base, [feat], dv2, xv2, e2, 600, 350)
+        hw2, hh2 = _paper_half(jb, e2, ax2)
+        c2 = _Cotador(doc, page, v2, hw2, hh2)
+        # cota largura+altura da face da chapa
+        if ax2 == "y":
+            c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMax, jb.YMin, jb.ZMax),
+                 "DistanceX", _fmt_mm(jb.XLength), "baixo")
+        else:
+            c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMin, jb.YMax, jb.ZMax),
+                 "DistanceY", _fmt_mm(jb.YLength), "esq")
+        cots.append(c2)
+    linhas = ["%s   ESCALA %s" % (titulo, nome)]
+    if n2:
+        linhas.append("Elevacao ESC %s   Vista da chapa ESC %s" % (nome, n2))
+    linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
+               "Cotas em milimetros."]
+    _anot(doc, page, "ALIG_" + base, linhas, 200, 80, 5)
+    return page, cots
+
+
+def _pr_ligacoes(doc, cfg, objs, todos):
+    """Uma prancha de detalhe por tipo de ligacao presente no modelo."""
+    paginas, cotadores = [], []
+    for i, (pref, titulo, base, KW, elev, chapa) in enumerate(LIGACOES):
+        pg_name = "PE%02d_DET_%s" % (10 + i, base)
+        try:
+            pg, cts = _detalhe_ligacao(doc, cfg, todos, pref, titulo, base,
+                                       KW, elev, chapa, pg_name)
+        except Exception as ex:
+            import FreeCAD as App
+            App.Console.PrintError("Detalhe ligacao %s: %s\n" % (pref, ex))
+            pg, cts = None, None
+        if pg is not None:
+            paginas.append(pg)
+            cotadores += cts or []
+    return paginas, cotadores
+
+
 def _pr_fechamento(doc, cfg, objs):
     if not _pref(objs, ("TERCA", "TAPAMENTO", "MAO")):
         page = _nova_prancha(doc, "PE08_FECHAMENTO",
@@ -905,10 +1028,11 @@ def gerar_executivo(cfg):
 
     paginas, cotadores = [], []
     construtores = [_pr_cobertura, _pr_fundacoes, _pr_elevacoes, _pr_portico,
-                    _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento]
+                    _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento,
+                    _pr_ligacoes]
     for fn in construtores:
         try:
-            if fn in (_pr_base, _pr_joelho, _pr_contravent):
+            if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes):
                 pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
@@ -1001,8 +1125,19 @@ def gerar_executivo(cfg):
     except Exception:
         cob = {"desenhados": [], "nao_cobertos": []}
 
+    # edge-count das elevacoes de ligacao (proxy anti-silhueta chapada)
+    edges = {}
+    for o in doc.Objects:
+        try:
+            if (o.TypeId == "TechDraw::DrawViewPart"
+                    and o.Name.startswith("VLIG_ELEV")):
+                edges[o.Name] = _n_edges(o)
+        except Exception:
+            pass
+
     return {"ok": True, "pranchas": [p.Name for p in paginas],
-            "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob}
+            "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob,
+            "detalhes_edges": edges}
 
 
 def _svg_para_png(svg_path, png_path, w=2100, h=1485):

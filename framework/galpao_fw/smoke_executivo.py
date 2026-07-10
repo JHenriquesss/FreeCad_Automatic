@@ -144,6 +144,18 @@ def rodar():
             # de fora de todas as pranchas (nem virar invisivel silenciosamente).
             nc = ex.get('cobertura', {}).get('nao_cobertos', [])
             assert not nc, "solidos nao cobertos por nenhuma prancha: %s" % nc
+            # detalhes de ligacao (PE10+): presentes e com traço real (nao
+            # silhueta chapada). LIMIAR de arestas calibrado na fase de prova.
+            LIMIAR = 15
+            edges = ex.get('detalhes_edges', {})
+            baixos = {k: v for k, v in edges.items() if v < LIMIAR}
+            assert not baixos, "detalhe de ligacao com poucas arestas: %s" % baixos
+            base_lig = {'VLIG_ELEV_CUMEEIRA', 'VLIG_ELEV_GUSSET_COB',
+                        'VLIG_ELEV_GUSSET_PAR', 'VLIG_ELEV_CLIPE_GIRT'}
+            faltam = base_lig - set(edges)
+            assert not faltam, "faltam detalhes de ligacao: %s" % faltam
+            if kw.get('ponte'):
+                assert 'VLIG_ELEV_CONSOLE' in edges, "falta detalhe do console"
             # PDF do memorial de calculo: gera sem erro e sai um arquivo != vazio
             pdf = RC.gerar_pdf(out, titulo="SMOKE %s" % nome)
             assert os.path.exists(pdf) and os.path.getsize(pdf) > 2000, \

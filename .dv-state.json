@@ -1,0 +1,22 @@
+{
+  "phase": 1,
+  "phase_name": "detalhes-ligacao",
+  "step": "green",
+  "must_exist": [
+    { "id": "me-1", "text": "PE10 CUMEEIRA: elevacao + vista da chapa legiveis (edge-count OK, visual OK)", "done": true },
+    { "id": "me-2", "text": "PE11 GUSSET_COB e PE12 GUSSET_PAR legiveis", "done": true },
+    { "id": "me-3", "text": "PE13 CLIPE_GIRT legivel", "done": true },
+    { "id": "me-4", "text": "PE14 CONSOLE (ponte) legivel", "done": true },
+    { "id": "me-5", "text": "PREFIXOS_SEM_DESENHO reduzido a VAO; smoke 4/4 cobertura+edge-count", "done": true }
+  ],
+  "must_not_exist": [
+    { "id": "mne-1", "text": "ligacao (fora VAO) em PREFIXOS_SEM_DESENHO", "violated": false },
+    { "id": "mne-2", "text": "vista de detalhe com arestas abaixo do limiar (silhueta chapada)", "violated": false }
+  ],
+  "current_item": null,
+  "trunk_status": "pass",
+  "trunk_evidence": "ponte: 14 pranchas, nao_cobertos=[], edges cumeeira16/gusset_cob41/gusset_par77/clipe23/console55 (LIMIAR 15)",
+  "opened_at": "2026-07-09",
+  "last_tune_at": null,
+  "history": []
+}
