@@ -45,6 +45,7 @@ os FLAGS/pendências.
 | 30 | Fundação profunda — **integração** (spec + 3D) | [REVISAO-FUNDACAO-PROFUNDA-INTEG.md](REVISAO-FUNDACAO-PROFUNDA-INTEG.md) | integração (método já em ESTACA/BALDRAME) | 🆕 PENDENTE SÊNIOR (2026-07-10) — só decisões de wiring/geometria [Q1]…[Q6] |
 | 31 | Ponte rolante estendida — rodas motoras + NBR 8400 | [REVISAO-PONTE-8400.md](REVISAO-PONTE-8400.md) | NBR 8800 (frenagem) + NBR 8400-1:2019 Tab.9/12 | 🆕 PENDENTE SÊNIOR (2026-07-10) — [Q1]…[Q4]; fadiga Anexo K inalterada |
 | 32 | Pórtico alma variável — **integração** (análise + spec + 3D) | [REVISAO-ALMA-VARIAVEL-INTEG.md](REVISAO-ALMA-VARIAVEL-INTEG.md) | integração (secao_tapered já homologado) | 🆕 PENDENTE SÊNIOR (2026-07-10) — [Q1]…[Q4]; verificação por segmento é FLAG |
+| 33 | Pórtico treliçado (tesoura) — **cálculo novo** + 3D | [REVISAO-TESOURA-INTEG.md](REVISAO-TESOURA-INTEG.md) | método dos nós (novo) + NBR 8800 (barras) | 🆕 PENDENTE SÊNIOR (2026-07-10) — [Q1]…[Q5]; solver+verificação são método NOVO |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

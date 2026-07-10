@@ -56,7 +56,7 @@ REQUERIDOS_ESTACA = [
     ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
 ]
 TIPOS_FUNDACAO = ("sapata", "estaca")
-TIPOS_PORTICO = ("prismatico", "alma_variavel")
+TIPOS_PORTICO = ("prismatico", "alma_variavel", "tesoura")
 
 # Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.
 # Sao dado de catalogo/projeto (Ask, Do Not Invent) - PENDENTE/ausente bloqueia.
@@ -94,7 +94,10 @@ def novo():
         # tipo_portico: prismatico (default) | alma_variavel (misula tapered).
         # tapered = None p/ prismatico; dict {h_joelho,h_cumeeira,bf,tw,tf} (m).
         "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P,
-                      "tipo_portico": "prismatico", "tapered": None},
+                      "tipo_portico": "prismatico", "tapered": None,
+                      # trelica: None p/ nao-tesoura; dict {h,n_paineis,tipo,
+                      # perfil_banzo,perfil_diagonal} quando tipo_portico=tesoura.
+                      "trelica": None},
         "vento": {"v0": P, "cat": P, "classe": P, "s1": 1.0, "s3": P, "z": P,
                   "abertura_dominante": P},
         "ponte": P,         # None (sem ponte) ou dict de dados
@@ -263,6 +266,8 @@ def to_rodar_params(spec):
     p["tipo_portico"] = est0.get("tipo_portico", "prismatico")
     if est0.get("tipo_portico") == "alma_variavel" and isinstance(est0.get("tapered"), dict):
         p["tapered"] = est0["tapered"]
+    if est0.get("tipo_portico") == "tesoura" and isinstance(est0.get("trelica"), dict):
+        p["trelica"] = est0["trelica"]
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
     if spec["ponte"]:
         import ponte_rolante as pr
@@ -342,6 +347,13 @@ def to_build_kwargs(spec):
                      "tf": tap.get("tf", 0.0125) * 1000}
                     if (est.get("tipo_portico") == "alma_variavel"
                         and isinstance(tap := est.get("tapered"), dict)) else None),
+        # portico trelicado (tesoura): geometria (m) + perfis (mm) p/ desenhar as barras.
+        "trelica": ({"h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
+                     "tipo": tr.get("tipo", "warren"),
+                     "d_banzo": max(tr["perfil_banzo"][0], tr["perfil_banzo"][1]) * 1000,
+                     "d_diag": max(tr["perfil_diagonal"][0], tr["perfil_diagonal"][1]) * 1000}
+                    if (est.get("tipo_portico") == "tesoura"
+                        and isinstance(tr := est.get("trelica"), dict)) else None),
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),

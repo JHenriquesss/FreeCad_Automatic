@@ -78,7 +78,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
                longarina=None, longarina_nome=None, sapata=None,
                estaca=None, bloco=None, baldrame=None,
-               tipo_portico=None, tapered=None):
+               tipo_portico=None, tapered=None, trelica=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -88,8 +88,9 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
-    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
     if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
+    if trelica is not None: TRELICA_MODEL = dict(trelica) if trelica else None
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if sapata is not None: SAPATA_MODEL = dict(sapata) if sapata else None
     if estaca is not None: ESTACA_MODEL = dict(estaca) if estaca else None
@@ -155,6 +156,9 @@ BALDRAME_MODEL = None
 # {h_joelho, h_cumeeira, bf, tw, tf} -> rafter em loft (funda no joelho -> rasa na
 # cumeeira). O calculo (galpao_portico) ja usou a rigidez variavel.
 TAPERED_MODEL = None
+# Portico trelicado (tesoura): None = rafter cheio. dict {h(m), n_paineis, tipo,
+# d_banzo(mm), d_diag(mm)} -> rafter vira trelica de barras (banzos+diagonais).
+TRELICA_MODEL = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -387,6 +391,55 @@ def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
         ob.Shape = cyl
 
 
+def _trelica_geom(L, h, n_paineis, tipo):
+    """Geometria da tesoura (nos + barras) - copia numpy-free de tesoura.gera_trelica
+    (build e self-contained). Retorna (nos[(x,y)], barras[(i,j)])."""
+    dx = L / n_paineis
+    nos = [(i * dx, 4.0 * h * (i * dx) * (L - i * dx) / (L * L) if L > 0 else 0.0)
+           for i in range(n_paineis + 1)]
+    n_sup = n_paineis + 1
+    bars = [(i, i + 1) for i in range(n_paineis)]              # banzo superior
+    if tipo == "warren":
+        for i in range(n_paineis):
+            nos.append(((i + 0.5) * dx, 0.0))
+        for i in range(n_paineis - 1):
+            bars.append((n_sup + i, n_sup + i + 1))            # banzo inferior
+        for i in range(n_paineis):
+            bars.append((n_sup + i, i)); bars.append((n_sup + i, i + 1))  # diagonais
+    else:  # pratt
+        for i in range(1, n_paineis):
+            nos.append((i * dx, 0.0))
+        n_inf = len(nos)
+        bars.append((0, n_sup))
+        for i in range(n_sup, n_inf - 1):
+            bars.append((i, i + 1))
+        bars.append((n_inf - 1, n_paineis))
+        for i in range(1, n_paineis):
+            bars.append((i, n_sup + i - 1))                    # montantes
+        for i in range(1, n_paineis - 1):
+            bars.append((i + 1, n_sup + i - 1) if i < n_paineis / 2 else (i, n_sup + i))
+    return nos, bars
+
+
+def _desenha_tesoura(doc, x, y0, y1, tag):
+    """Desenha a tesoura (trelica) no plano do portico em X=x, de y0 a y1 (span),
+    apoiada no topo das colunas (EAVE_H). Barras como cilindros (banzos+web). Dims
+    do TRELICA_MODEL. Banzo superior parabolico ate EAVE_H + h."""
+    t = TRELICA_MODEL
+    L = abs(y1 - y0) / 1000.0                                  # span em m
+    h = t["h"]; npn = int(t.get("n_paineis", 8)); tipo = t.get("tipo", "warren")
+    d_banzo = t.get("d_banzo", 100.0); d_diag = t.get("d_diag", 75.0)
+    nos, bars = _trelica_geom(L, h, npn, tipo)
+    ybase = min(y0, y1)
+    P3 = [(x, ybase + xn * 1000.0, EAVE_H + yn * 1000.0) for (xn, yn) in nos]
+    n_sup = npn + 1
+    for k, (i, j) in enumerate(bars):
+        # banzo (sup: i,j<n_sup e |i-j|==1 ; inf idem no range inferior) x web
+        banzo = (i < n_sup and j < n_sup) or (i >= n_sup and j >= n_sup)
+        dia = d_banzo if banzo else d_diag
+        rod(doc, P3[i], P3[j], dia, f"TRELICA_{tag}_{k:02d}")
+
+
 def _norm(v):
     L = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
     return (v[0] / L, v[1] / L, v[2] / L) if L > 1e-9 else v
@@ -593,7 +646,9 @@ def build(doc):
         for j in range(nv):
             yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
             zh = rafter_z(yr)
-            if TAPERED_MODEL:                        # alma variavel: loft tapered
+            if TRELICA_MODEL:                        # tesoura: trelica no lugar do rafter
+                _desenha_tesoura(doc, x, y0, y1, f"{i:02d}_{j:02d}")
+            elif TAPERED_MODEL:                      # alma variavel: loft tapered
                 tapered_rafter(doc, (x, y0, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_E")
                 tapered_rafter(doc, (x, y1, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_D")
             else:
@@ -668,7 +723,11 @@ def build(doc):
                       f"BALDRAME_{lado}_{i + 1:02d}")
 
     # Joelho (ligacao de momento viga-coluna) em cada portico + cumeeira por vao.
+    # Tesoura: a trelica e biapoiada (rotulada) no topo dos pilares -> sem joelho
+    # de momento nem chapa de cumeeira (nao ha rafter solido).
     for i, x in enumerate(axes, start=1):
+        if TRELICA_MODEL:
+            break
         for j in range(nv + 1):
             yc = cols_y[j]
             # Coluna externa: 1 joelho (para dentro do vao)
@@ -1437,6 +1496,8 @@ def _classifica(n):
         return "Viga de rolamento (ponte)", "VS500"
     if n.startswith("CONSOLE_PONTE"):
         return "Consoles de ponte", "HEA160"
+    if n.startswith("TRELICA"):
+        return "Trelica (tesoura)", ("tubo-%.0f" % TRELICA_MODEL["d_banzo"]) if TRELICA_MODEL else "barra"
     if n.startswith("TERCA_PAREDE"):
         return "Tercas de parede", LONG_NOME
     if n.startswith("TERCA"):
@@ -1628,9 +1689,9 @@ def reset():
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
-    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
-    TAPERED_MODEL = None
+    TAPERED_MODEL = None; TRELICA_MODEL = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"

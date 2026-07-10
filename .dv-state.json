@@ -1,24 +1,24 @@
 {
-  "phase": "6.2",
-  "phase_name": "portico-alma-variavel",
+  "phase": "6.3",
+  "phase_name": "portico-tesoura-trelica",
   "step": "closed",
   "must_exist": [
-    { "id": "me-1", "text": "galpao_portico: global TAPERED + configurar(tapered=, sentinela) + _chain_var; rafter secao_tapered quando TAPERED", "done": true },
-    { "id": "me-2", "text": "gate estrutura.tipo_portico (prismatico|alma_variavel) + tapered; validar tipo; mappers to_rodar/to_build passam", "done": true },
-    { "id": "me-3", "text": "rodar_galpao roteia tapered ao portico + gate6-alma-variavel.txt (secao_tapered+peso) + res['alma_variavel']; METODOS 3b", "done": true },
-    { "id": "me-4", "text": "build_galpao: tapered_rafter via _sweep_tapered (loft I joelho->cumeeira); reset; to_build_kwargs tipo+tapered", "done": true },
-    { "id": "me-5", "text": "smoke caso alma_var 6/6 (calc+3D loft+cobertura); prismaticos inalterados", "done": true },
-    { "id": "me-6", "text": "REVISA-ALMA-VARIAVEL-INTEG.md (Q1-Q4) PENDENTE senior; INDICE item 32", "done": true }
+    { "id": "me-1", "text": "tesoura.resolve_trelica: solver isostatico (metodo dos nos); equilibrio global fecha (teste)", "done": true },
+    { "id": "me-2", "text": "tesoura.verifica_tesoura: combos grav/vento; verifica banzos/diagonais (tracao+compressao via check_nbr8800); u_max+governante; relatorio", "done": true },
+    { "id": "me-3", "text": "gate estrutura.tipo_portico=tesoura + trelica; validar; mappers to_rodar/to_build", "done": true },
+    { "id": "me-4", "text": "rodar_galpao roteia tesoura -> gate6-tesoura.txt + res['tesoura']; METODOS 3c + ordem", "done": true },
+    { "id": "me-5", "text": "build_galpao desenha barras TRELICA_* (numpy-free inline); sem joelho/cumeeira; cobertura PE04; 0 interferencias", "done": true },
+    { "id": "me-6", "text": "smoke caso tesoura 7/7 (calc+3D+cobertura); prismatico/alma_var inalterados; REVISA-TESOURA-INTEG + INDICE 33", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "ref 20x10 prismatica regride quando TAPERED=None (sentinela reseta)", "violated": false },
-    { "id": "mne-2", "text": "secao tapered inventada (fora de secao_tapered homologado)", "violated": false },
-    { "id": "mne-3", "text": "loft degenerado h1==h2 (cai no i_member prismatico)", "violated": false },
-    { "id": "mne-4", "text": "tipo_portico fora de {prismatico,alma_variavel} passa silencioso (validar bloqueia)", "violated": false }
+    { "id": "mne-1", "text": "esforco de trelica sem equilibrio (teste de equilibrio global obrigatorio)", "violated": false },
+    { "id": "mne-2", "text": "ref prismatica/alma_var regride quando tipo!=tesoura", "violated": false },
+    { "id": "mne-3", "text": "barra da trelica flutuando/sem ligacao (0 interferencias no build)", "violated": false },
+    { "id": "mne-4", "text": "perfil de banzo/diagonal inventado (vem do gate; sizing usa check_nbr8800)", "violated": false }
   ],
   "current_item": "me-6",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke 6/6 (padrao/vao/largo 13, ponte 14, estaca 13, alma_var 13); frame tapered I_joelho>1.5*I_cumeeira; prismatico inalterado; 7 fast + 1 build tests; selftests portico/alma_variavel/spec OK",
+  "trunk_evidence": "smoke 7/7 (padrao/vao/largo 13, ponte 14, estaca 13, alma_var 13, tesoura 13); solver equilibrio global; banzo inf traciona; 7 fast + 1 build; selftests tesoura/spec OK; numpy lazy (build importa geometria sem numpy)",
   "opened_at": "2026-07-10",
   "last_tune_at": null,
   "history": [
@@ -28,6 +28,7 @@
     { "phase": 4, "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": 5, "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": "6.1", "closed_at": "2026-07-10", "outcome": "ok" },
-    { "phase": "6.2", "closed_at": "2026-07-10", "outcome": "ok" }
+    { "phase": "6.2", "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.3", "closed_at": "2026-07-10", "outcome": "ok" }
   ]
 }

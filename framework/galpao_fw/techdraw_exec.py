@@ -576,7 +576,7 @@ def _pr_portico(doc, cfg, objs):
     # inclui console e viga de rolamento da ponte (quando houver) no portico
     frame = _faixa(_pref(objs, ("PORTICO", "NERVURA", "MAO", "PLACA",
                                 "PEDESTAL", "SAPATA", "CONSOLE_PONTE",
-                                "VIGA_ROLAMENTO")),
+                                "VIGA_ROLAMENTO", "TRELICA")),
                    eixo, meio, bay * 0.45)
     if not frame:
         frame = objs

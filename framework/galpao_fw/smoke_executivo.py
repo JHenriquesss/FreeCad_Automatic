@@ -39,7 +39,7 @@ _PERFIL_SPT = [                     # sondagem exemplo (dado de sitio) topo->pon
 
 
 def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata",
-          tipo_portico="prismatico", tapered=None):
+          tipo_portico="prismatico", tapered=None, trelica=None):
     s = PS.novo()
     s['slug'] = slug
     s['terreno'].update(area_lote_m2=4000, to_max=0.6, ca_max=1.0, tp_min=0.2,
@@ -68,6 +68,8 @@ def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata",
     s['estrutura']['tipo_portico'] = tipo_portico
     if tapered is not None:
         s['estrutura']['tapered'] = tapered
+    if trelica is not None:
+        s['estrutura']['trelica'] = trelica
     return s
 
 
@@ -111,6 +113,11 @@ CASOS = [
     ("alma_var", dict(span=10, comp=20, eave=6, ridge=6.5, tipo_portico="alma_variavel",
                       tapered={"h_joelho": 0.60, "h_cumeeira": 0.30, "bf": 0.20,
                                "tw": 0.008, "tf": 0.0125})),
+    # PORTICO trelicado (tesoura): analise por metodo dos nos + barras no 3D.
+    ("tesoura",  dict(span=20, comp=30, eave=6, ridge=8, tipo_portico="tesoura",
+                      trelica={"h": 2.5, "n_paineis": 8, "tipo": "warren",
+                               "perfil_banzo": (0.150, 0.100, 0.006, 0.009),
+                               "perfil_diagonal": (0.100, 0.075, 0.005, 0.008)})),
 ]
 
 
@@ -184,8 +191,12 @@ def rodar():
             edges = ex.get('detalhes_edges', {})
             baixos = {k: v for k, v in edges.items() if v < LIMIAR}
             assert not baixos, "detalhe de ligacao com poucas arestas: %s" % baixos
-            base_lig = {'VLIG_ELEV_CUMEEIRA', 'VLIG_ELEV_GUSSET_COB',
-                        'VLIG_ELEV_GUSSET_PAR', 'VLIG_ELEV_CLIPE_GIRT'}
+            base_lig = {'VLIG_ELEV_GUSSET_COB', 'VLIG_ELEV_GUSSET_PAR',
+                        'VLIG_ELEV_CLIPE_GIRT'}
+            # cumeeira (no de momento) so existe no portico solido; a tesoura e
+            # biapoiada rotulada (sem joelho/cumeeira).
+            if kw.get('tipo_portico') != 'tesoura':
+                base_lig.add('VLIG_ELEV_CUMEEIRA')
             faltam = base_lig - set(edges)
             assert not faltam, "faltam detalhes de ligacao: %s" % faltam
             # CORTE SECCIONADO (fase 5): pelo menos 1 secao hachurada gerada, e

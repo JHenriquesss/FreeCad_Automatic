@@ -1,5 +1,22 @@
 # 03 — Fases
 
+## FECHADA — Pórtico treliçado / tesoura (fase 6.c) — 2026-07-10
+**Escopo:** pórtico treliçado (tesoura) fim-a-fim. `tesoura.py` era **só geometria**
+(nós+barras isostática); esta fase **cria o cálculo** (solver+verificação) + 3D.
+- **Solver NOVO:** `tesoura.resolve_trelica` — método dos nós (equilíbrio nodal,
+  sistema `2j×(b+3)`, `numpy.linalg.solve`); N>0 tração; banzo inf traciona, sup
+  comprime. Equilíbrio global testado.
+- **Verificação:** `verifica_tesoura` — combos gravidade `1,4w` + vento
+  `1,4w_v+0,9(−w)`; barras por NBR 8800 (tração escoamento `A·fy/γa1`; compressão
+  `χ·Q·A·fy/γa1` via `check_nbr8800.chi_compressao/fator_Q`). Sucção de vento = INPUT.
+- **Spec/3D:** gate `tipo_portico=tesoura` + `estrutura.trelica`; `_desenha_tesoura`
+  desenha as barras (cilindros) biapoiadas no topo dos pilares, **sem joelho/
+  cumeeira** (treliça rotulada). Geometria da treliça **replicada numpy-free** no
+  build (self-contained); `numpy` só no solver (lazy). Cobertura PE-04.
+- **Memorial:** `gate6-tesoura.txt` + METODOS `3c`.
+- **Regressão:** smoke 7/7 (caso `tesoura`); prismático/alma_var inalterados.
+  Commit `<6c>`. PENDENTE `REVISA-TESOURA-INTEG.md` Q1–Q5, INDICE 33.
+
 ## FECHADA — Pórtico de alma variável / tapered (fase 6.b) — 2026-07-10
 **Escopo:** integrar o pórtico de mísula de alma variável (calc + 3D). Gerador
 `alma_variavel.secao_tapered` já homologado; fase é integração análise+spec+3D.

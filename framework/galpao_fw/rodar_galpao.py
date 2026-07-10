@@ -39,6 +39,7 @@ import gusset_ligacao as gus
 import calhas
 import sapata_divisa as sd
 import alma_variavel as av
+import tesoura as tes
 import ponte_rolante as pr
 import console_ponte as cons
 import fogo_nbr14323 as fogo
@@ -512,6 +513,27 @@ def rodar(params, out_dir):
             "I_joelho_cm4": round(secs[0]["I_m4"] * 1e8, 0),
             "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0)}
 
+    # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
+    # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga
+    # de cobertura (permanente+sobrecarga) x largura tributaria (bay). Sucção de
+    # vento = A CONFIRMAR (informar em trelica.w_vento_kN_m; senao so gravidade).
+    if params.get("tipo_portico") == "tesoura" and params.get("trelica"):
+        tr = dict(params["trelica"])
+        c = params["cargas"]
+        w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]
+        tcfg = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
+                "tipo": tr.get("tipo", "warren"),
+                "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
+                "w_vento_kN_m": tr.get("w_vento_kN_m", 0.0),
+                "fy": tr.get("fy", 250e3),
+                "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}
+        rt = tes.verifica_tesoura(tcfg)
+        save("gate6-tesoura.txt", tes.relatorio_tesoura_pt(rt))
+        res["tesoura"] = {"tipo": rt["tipo"], "u_max": rt["u_max"], "OK": rt["OK"],
+                          "N_banzo_sup_max": rt["N_banzo_sup_max"],
+                          "N_banzo_inf_max": rt["N_banzo_inf_max"],
+                          "n_paineis": rt["n_paineis"], "h_m": rt["h_m"]}
+
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
                            base_fixa=params.get("base_fixed", True),
@@ -639,6 +661,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
              ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"),
              ("3b. PORTICO ALMA VARIAVEL", "gate6-alma-variavel.txt"),
+             ("3c. PORTICO TRELICADO (TESOURA)", "gate6-tesoura.txt"),
              ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
              ("6b. TELHA", "gate7-telha.txt"),

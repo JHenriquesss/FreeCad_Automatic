@@ -70,6 +70,12 @@ METODOS = {
         "cumeeira). A analise do portico usa a secao por segmento (rigidez EI "
         "variavel ao longo do rafter); a secao do JOELHO governa a flexo-compressao "
         "(maior momento). Secoes geradas por alma_variavel.secao_tapered."),
+    "3c. PORTICO TRELICADO (TESOURA)": (
+        "Trelica de cobertura (Warren/Pratt) biapoiada nos pilares, banzo superior "
+        "parabolico, isostatica (b+r=2j). Esforcos axiais pelo METODO DOS NOS "
+        "(equilibrio nodal, sistema 2j x (b+3)); banzo inferior traciona, superior "
+        "comprime. Barras verificadas por NBR 8800 (tracao = escoamento A.fy/ga1; "
+        "compressao = flambagem chi.Q.A.fy/ga1). Sucao de vento = A CONFIRMAR."),
     "4. PERFIS": (
         "NBR 8800:2008. Barras a flexo-compressao: equacao de interacao 5.4.2 "
         "(N/Nrd + fatores . M/Mrd <= 1,0). Resistencias com estados-limite de "
