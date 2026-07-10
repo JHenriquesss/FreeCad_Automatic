@@ -9,7 +9,8 @@
 #   - vao > comprimento (inverte os eixos)  [regressao do bug comp_x]
 #   - baixo e largo
 #   - com ponte rolante (console + viga de rolamento)
-# (estaca profunda / escada / plataforma sao calc-only: nao mudam o 3D.)
+#   - fundacao PROFUNDA (estaca + bloco de coroamento + viga de baldrame no 3D)
+# (escada / plataforma sao calc-only: nao mudam o 3D.)
 #
 # Uso:  python smoke_executivo.py
 # ============================================================================
@@ -30,7 +31,14 @@ FREECADCMD = os.environ.get(
     "FREECADCMD", r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe")
 
 
-def _spec(slug, span, comp, eave, ridge, ponte=None):
+_PERFIL_SPT = [                     # sondagem exemplo (dado de sitio) topo->ponta
+    {"tipo": "argila_siltosa", "N": 5, "dz": 3.0},
+    {"tipo": "silte_arenoso", "N": 12, "dz": 4.0},
+    {"tipo": "areia_siltosa", "N": 25, "dz": 5.0},
+]
+
+
+def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata"):
     s = PS.novo()
     s['slug'] = slug
     s['terreno'].update(area_lote_m2=4000, to_max=0.6, ca_max=1.0, tp_min=0.2,
@@ -48,6 +56,14 @@ def _spec(slug, span, comp, eave, ridge, ponte=None):
     s['ponte'] = ponte
     s['cargas'].update(G=0.27, Q=0.25, self=0.35, tapamento=0.05)
     s['fundacao']['sigma_solo_adm'] = 200.0
+    s['fundacao']['tipo'] = fundacao
+    if fundacao == 'estaca':                 # fundacao profunda (SPT da sondagem)
+        s['fundacao']['estaca'] = {
+            'perfil_spt': [dict(c) for c in _PERFIL_SPT],
+            'tipo_estaca': 'pre_moldada', 'D': 0.30, 'L': 10.0, 'FS': 2.0,
+            'bloco': {'a_pilar': 0.30, 'fck': 25e3, 'fyk': 500e3}}
+        s['baldrame'] = {'b': 0.20, 'h': 0.40, 'q_parede': 0.0,
+                         'continuidade': 'simples'}
     return s
 
 
@@ -85,6 +101,8 @@ CASOS = [
     ("vao_maior", dict(span=18, comp=12, eave=7, ridge=7.9)),
     ("baixo_largo", dict(span=8, comp=30, eave=4, ridge=4.4)),
     ("ponte",    dict(span=15, comp=20, eave=7, ridge=7.75, ponte=PONTE)),
+    # fundacao PROFUNDA: estaca + bloco de coroamento + viga de baldrame no 3D.
+    ("estaca",   dict(span=10, comp=20, eave=6, ridge=6.5, fundacao="estaca")),
 ]
 
 

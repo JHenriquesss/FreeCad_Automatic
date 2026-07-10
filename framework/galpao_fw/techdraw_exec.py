@@ -471,7 +471,8 @@ def _pr_cobertura(doc, cfg, objs):
 
 def _pr_fundacoes(doc, cfg, objs):
     g = cfg["geo"]
-    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA", "NERVURA"))
+    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA", "NERVURA",
+                        "ESTACA", "BLOCO", "BALDRAME"))
     if not fund:
         page = _nova_prancha(doc, "PE02_FUNDACOES",
                              _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",

@@ -1,24 +1,26 @@
 {
-  "phase": 2,
-  "phase_name": "detalhe-fabricacao",
-  "step": "closed",
+  "phase": 3,
+  "phase_name": "fundacao-profunda-integracao",
+  "step": "ready-to-close",
   "must_exist": [
-    { "id": "me-1", "text": "verifica_gusset compondo primitivos homologados; selftest; gate7-gusset; REVISAO-GUSSET (PENDENTE)", "done": true },
-    { "id": "me-2", "text": "verifica_console (so ponte); selftest; gate7-console; REVISAO-CONSOLE (PENDENTE)", "done": true },
-    { "id": "me-3", "text": "config_de_spec passa joelho/gusset/console/clip ao cfg", "done": true },
-    { "id": "me-4", "text": "callouts de fabricacao (leader+texto) nos detalhes, todo numero do cfg", "done": true },
-    { "id": "me-5", "text": "corte seccionado A: proof feito - DrawViewSection falha headless (section CS) -> FALLBACK elevacao", "done": true },
-    { "id": "me-6", "text": "smoke 4/4 callouts+cobertura+edges; REVISAO-INDICE +gusset+console; wiki", "done": true }
+    { "id": "me-1", "text": "projeto_spec: fundacao.tipo gate (sapata|estaca) + blocos estaca/baldrame; validar() condicional (perfil SPT requerido se estaca)", "done": true },
+    { "id": "me-2", "text": "to_rodar_params injeta estaca/baldrame do spec (consumido por rodar_galpao 411/426)", "done": true },
+    { "id": "me-3", "text": "rodar_projeto.calcular grava estaca_adotada/bloco_adotado/baldrame_adotado; res expoe dims geometricas", "done": true },
+    { "id": "me-4", "text": "to_build_kwargs passa estaca/bloco/baldrame (mm) quando tipo=estaca; sapata so quando tipo=sapata", "done": true },
+    { "id": "me-5", "text": "build_galpao desenha ESTACA_*/BLOCO_*/BALDRAME_*; _reg; take-off concreto; guard cobertura reconhece prefixos", "done": true },
+    { "id": "me-6", "text": "smoke_executivo caso estaca (calc+3D+cobertura); ref sapata 20x10 inalterada; REVISAO-FUNDACAO-PROFUNDA-INTEG.md + INDICE (PENDENTE)", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "numero de fabricacao no desenho fora do cfg/calculo (inventado)", "violated": false },
-    { "id": "mne-2", "text": "formula de calculo de memoria (nao-primitivo, sem citacao de norma)", "violated": false },
-    { "id": "mne-3", "text": "regressao ref 20x10 (takeoff/massa/interferencias) ou selftest existente", "violated": false }
+    { "id": "mne-1", "text": "estaca com dado geometrico inventado (D/L/n fora do verifica_estaca/envelope)", "violated": false },
+    { "id": "mne-2", "text": "sapata E estaca no mesmo pe (tipo e exclusivo)", "violated": false },
+    { "id": "mne-3", "text": "perfil SPT com default hardcoded no spec (e sondagem -> PENDENTE bloqueia)", "violated": false },
+    { "id": "mne-4", "text": "regressao ref 20x10 sapata (takeoff/massa/interferencias) ou selftest existente", "violated": false },
+    { "id": "mne-5", "text": "baldrame flutuando/nao conectado (interferencia ou gap na auditoria)", "violated": false }
   ],
   "current_item": "me-6",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke_executivo 4/4 (13 padrao/vao/largo, 14 ponte); callouts joelho/gusset(+console ponte)+cobertura+edges>=15+memorial PDF; ref 20x10 inalterada",
-  "opened_at": "2026-07-09",
+  "trunk_evidence": "smoke_executivo 5/5 (padrao/vao/largo 13, ponte 14, estaca 13); caso estaca calc+3D(ESTACA/BLOCO/BALDRAME)+pranchas+PDF; ref sapata inalterada; 13 fast tests + 1 build test verdes; selftests spec/estaca/baldrame OK",
+  "opened_at": "2026-07-10",
   "last_tune_at": null,
   "history": [
     { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" },

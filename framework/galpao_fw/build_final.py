@@ -15,6 +15,7 @@ s['vento'].update(v0=40, cat='II', classe='B', s3=0.95, z=6.5, abertura_dominant
 s['ponte'] = None
 s['cargas'].update(G=0.27, Q=0.25, self=0.35, tapamento=0.05)
 s['fundacao']['sigma_solo_adm'] = 200.0
+s['fundacao']['tipo'] = 'sapata'
 
 out = tempfile.mkdtemp(prefix='final_')
 res = RP.calcular(s, out)

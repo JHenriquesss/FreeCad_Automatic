@@ -418,7 +418,9 @@ def rodar(params, out_dir):
         save("gate7-baldrame.txt", vbal.relatorio_pt(rbd))
         res["baldrame"] = {"secao": f"{rbd['b']*100:.0f}x{rbd['h']*100:.0f}",
                            "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
-                           "ok": rbd["OK"]}
+                           "ok": rbd["OK"],
+                           # geometria p/ o build 3D
+                           "b": rbd["b"], "h": rbd["h"], "vao": bd["vao"]}
 
     # Gate 7 - FUNDACAO PROFUNDA (opcional): estaca (Aoki-Velloso) + bloco de
     # coroamento. So roda com params["estaca"] (escolha de sitio: sondagem SPT).
@@ -430,11 +432,20 @@ def rodar(params, out_dir):
         ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
         ecfg.setdefault("N_uplift", round(N_tr, 1))
         ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
+        # garante o bloco de coroamento no calculo (dims p/ desenhar o 3D)
+        ecfg.setdefault("bloco", {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3})
         re_ = ep.verifica_estaca(ecfg)
         save("gate7-estaca.txt", ep.relatorio_pt(re_))
+        Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
+        esp = (ecfg.get("bloco") or {}).get("espacamento", 3.0 * Dp)
+        h_bloco = (re_.get("bloco") or {}).get("h", max(0.40, 1.2 * Dp))
         res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
                          "P_adm_kN": re_["capacidade"]["P_adm_kN"],
-                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1)}
+                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1),
+                         # geometria p/ o build 3D (tudo do calculo / envelope)
+                         "D": Dp, "L": ecfg["L"], "espacamento": esp,
+                         "bloco_h": h_bloco, "bloco_a": a_pil,
+                         "uplift": bool(N_tr > 1e-6)}
 
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),

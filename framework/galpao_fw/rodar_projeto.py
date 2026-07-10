@@ -32,6 +32,22 @@ def calcular(spec, out_dir):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["sapata_adotada"] = res["sapata_adotada"]
         spec["estrutura"]["sapata_quant"] = res.get("sapata_quant")
+    # fundacao PROFUNDA: grava a geometria dimensionada (estaca + bloco + baldrame)
+    # p/ o build 3D desenhar exatamente o que o calculo produziu (nada inventado).
+    if res.get("estaca"):
+        e = res["estaca"]
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["estaca_adotada"] = {
+            "D": e["D"], "L": e["L"], "n": e["n_estacas"],
+            "espacamento": e["espacamento"], "tipo": e["tipo"],
+            "uplift": e.get("uplift", False)}
+        spec["estrutura"]["bloco_adotado"] = {
+            "h": e["bloco_h"], "a": e["bloco_a"]}
+    if res.get("baldrame"):
+        b = res["baldrame"]
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["baldrame_adotado"] = {
+            "b": b["b"], "h": b["h"], "vao": b["vao"]}
     if res.get("joelho_adotado"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["joelho_adotado"] = res["joelho_adotado"]

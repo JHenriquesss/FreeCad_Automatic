@@ -76,7 +76,8 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
-               longarina=None, longarina_nome=None, sapata=None):
+               longarina=None, longarina_nome=None, sapata=None,
+               estaca=None, bloco=None, baldrame=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -86,8 +87,12 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if sapata is not None: SAPATA_MODEL = dict(sapata) if sapata else None
+    if estaca is not None: ESTACA_MODEL = dict(estaca) if estaca else None
+    if bloco is not None: BLOCO_MODEL = dict(bloco) if bloco else None
+    if baldrame is not None: BALDRAME_MODEL = dict(baldrame) if baldrame else None
     if terca is not None: UE_SEC = tuple(float(v) for v in terca)
     if longarina is not None: UPE_LONG = tuple(float(v) for v in longarina)
     if longarina_nome is not None: LONG_NOME = str(longarina_nome)
@@ -138,6 +143,12 @@ JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
 # Sapata de fundacao (concreto) - opcional. None = nao desenha (so a placa de
 # base). Dims em mm: bloco B x L x h + pedestal de altura 'ped' ate a placa.
 SAPATA_MODEL = None
+# Fundacao PROFUNDA (concreto) - opcional e EXCLUSIVA da sapata. Dims em mm, do
+# CALCULO (estaca_profunda / rodar_galpao): estaca {D, L, n, espacamento, tipo};
+# bloco de coroamento {h, a}; viga de baldrame {b, h, vao}. None = nao desenha.
+ESTACA_MODEL = None
+BLOCO_MODEL = None
+BALDRAME_MODEL = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -292,6 +303,44 @@ def plate(doc, center, wx, wy, wz, name):
     obj = doc.addObject("Part::Feature", name)
     obj.Shape = box
     return obj
+
+
+def _estaca_offsets(n, esp):
+    """Posicoes (dx,dy) das n estacas sob o bloco, do calculo (grupo). 1=central,
+    2=linha em X, 4=malha 2x2, demais=fileira em X centrada (espacamento esp)."""
+    if n <= 1:
+        return [(0.0, 0.0)]
+    if n == 2:
+        return [(-esp / 2.0, 0.0), (esp / 2.0, 0.0)]
+    if n == 4:
+        return [(sx * esp / 2.0, sy * esp / 2.0) for sx in (-1, 1) for sy in (-1, 1)]
+    return [((k - (n - 1) / 2.0) * esp, 0.0) for k in range(n)]
+
+
+def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
+    """Fundacao profunda em um pe: pedestal + bloco de coroamento (concreto) e as
+    n estacas (cilindros) descendo do bloco. Dims (mm) do ESTACA_MODEL/BLOCO_MODEL,
+    que vem do calculo (estaca_profunda). O bloco em planta cobre o grupo + coroa."""
+    D = ESTACA_MODEL["D"]; L = ESTACA_MODEL["L"]
+    n = int(ESTACA_MODEL.get("n", 1)); esp = ESTACA_MODEL.get("espacamento", 3.0 * D)
+    bh = (BLOCO_MODEL or {}).get("h", max(400.0, 1.2 * D))
+    offs = _estaca_offsets(n, esp)
+    coroa = 150.0                                    # borda de concreto alem da estaca
+    xs = [o[0] for o in offs]; ys = [o[1] for o in offs]
+    Bx = (max(xs) - min(xs)) + D + 2.0 * coroa
+    Ly = (max(ys) - min(ys)) + D + 2.0 * coroa
+    ped = 500.0                                       # pedestal do pilar ate o bloco
+    z_ped_top = pbot; z_ped_bot = z_ped_top - ped
+    z_blk_top = z_ped_bot; z_blk_bot = z_blk_top - bh
+    plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
+          f"PEDESTAL_{lado}_{i:02d}")
+    plate(doc, (x, yw, (z_blk_top + z_blk_bot) / 2.0), Bx, Ly, bh,
+          f"BLOCO_{lado}_{i:02d}")
+    for k, (dx, dy) in enumerate(offs, start=1):
+        cyl = Part.makeCylinder(D / 2.0, L)
+        cyl.translate(App.Vector(x + dx, yw + dy, z_blk_bot - L))
+        ob = doc.addObject("Part::Feature", f"ESTACA_{lado}_{i:02d}_{k:02d}")
+        ob.Shape = cyl
 
 
 def _norm(v):
@@ -544,15 +593,31 @@ def build(doc):
                 ob = doc.addObject("Part::Feature", f"NERVURA_BASE_{lado}_{i:02d}_{nm}")
                 ob.Shape = g
                 _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
-            if SAPATA_MODEL:
+            pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+            if ESTACA_MODEL:                        # fundacao PROFUNDA (exclusiva)
+                _desenha_estaca(doc, x, yw, pbot, pdim, lado, i)
+            elif SAPATA_MODEL:                       # fundacao RASA
                 sB = SAPATA_MODEL["B"]; sL = SAPATA_MODEL["L"]; sh = SAPATA_MODEL["h"]
                 ped = SAPATA_MODEL.get("ped", 500.0)
-                pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
                 z_ped_top = pbot; z_ped_bot = z_ped_top - ped; z_blk_bot = z_ped_bot - sh
                 plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
                       f"PEDESTAL_{lado}_{i:02d}")
                 plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
                       f"SAPATA_{lado}_{i:02d}")
+
+    # Viga de baldrame / amarracao: liga as fundacoes de porticos adjacentes (uma
+    # por linha de coluna, ao longo das baias). Concreto sob a cota Z0 (topo ~ pbot).
+    # So com fundacao profunda (BALDRAME_MODEL vem do calc; amarra o bloco).
+    if BALDRAME_MODEL:
+        bb = BALDRAME_MODEL["b"]; bh = BALDRAME_MODEL["h"]
+        z_bal_top = pbot; z_bal_c = z_bal_top - bh / 2.0
+        for j, yw in enumerate(cols_y):
+            lado = f"C{j:02d}"
+            for i in range(len(axes) - 1):
+                x0, x1 = axes[i], axes[i + 1]
+                xc = (x0 + x1) / 2.0; wx = abs(x1 - x0)
+                plate(doc, (xc, yw, z_bal_c), wx, bb, bh,
+                      f"BALDRAME_{lado}_{i + 1:02d}")
 
     # Joelho (ligacao de momento viga-coluna) em cada portico + cumeeira por vao.
     for i, x in enumerate(axes, start=1):
@@ -919,7 +984,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
                "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA", "ESTICADOR")
-FUNDACAO = ("SAPATA", "PEDESTAL")
+FUNDACAO = ("SAPATA", "PEDESTAL", "ESTACA", "BLOCO", "BALDRAME")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -935,6 +1000,10 @@ def _e_servico(n):
 
 def _e_pele(n):
     return any(n.startswith(p) for p in PELE)
+
+
+def _e_fundacao(n):
+    return any(n.startswith(p) for p in FUNDACAO)
 
 
 def _compartilha_no(na, nb, tol=250.0):
@@ -1140,6 +1209,10 @@ def checa_interferencia(doc, vol_min=200.0):
                 continue
             if _e_pele(na) or _e_pele(nb):
                 continue
+            # fundacao de concreto e monolitica: estaca/bloco/baldrame/pedestal/
+            # sapata se interpenetram DE PROPOSITO (uma unica peca de concreto).
+            if _e_fundacao(na) and _e_fundacao(nb):
+                continue
             servico = _e_servico(na) or _e_servico(nb)
             if not servico:
                 if _compartilha_no(na, nb):
@@ -1329,6 +1402,13 @@ def _classifica(n):
             SAPATA_MODEL["B"], SAPATA_MODEL["L"], SAPATA_MODEL["h"]) if SAPATA_MODEL else "concreto"
     if n.startswith("PEDESTAL"):
         return "Pedestais (concreto)", "concreto"
+    if n.startswith("ESTACA"):
+        return "Estacas (concreto)", ("D%.0f" % ESTACA_MODEL["D"]) if ESTACA_MODEL else "concreto"
+    if n.startswith("BLOCO"):
+        return "Blocos de coroamento (concreto)", "concreto"
+    if n.startswith("BALDRAME"):
+        return "Vigas de baldrame (concreto)", ("%.0fx%.0f" % (
+            BALDRAME_MODEL["b"], BALDRAME_MODEL["h"])) if BALDRAME_MODEL else "concreto"
     if n.startswith("CHUMBADOR"):
         return "Chumbadores", "barra-%.0f" % BASE_PLATE["db"]
     if n.startswith("PLACA_BASE"):
@@ -1388,7 +1468,7 @@ def takeoff(doc):
         # aco (7850). Cada um tem subtotal proprio (nao entram na tonelagem de aco).
         if "ALVENARIA" in o.Name:
             dens = 1.4e-6
-        elif o.Name.startswith("SAPATA") or o.Name.startswith("PEDESTAL"):
+        elif o.Name.startswith(("SAPATA", "PEDESTAL", "ESTACA", "BLOCO", "BALDRAME")):
             dens = 2.5e-6                      # concreto armado (2500 kg/m3)
         else:
             dens = DENSIDADE_ACO
@@ -1500,6 +1580,8 @@ def reset():
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL
+    ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"
