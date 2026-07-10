@@ -89,7 +89,7 @@ tudo no topo (trivial).
 
 ## 6. Sismo → ENVELOPE do pórtico (combinação excepcional) — feature 2026-07-08
 
-> **STATUS: 🆕 PENDENTE SÊNIOR.** Antes o sismo era **calculado mas não
+> **STATUS: ✅ HOMOLOGADO (2026-07-09).** Antes o sismo era **calculado mas não
 > redimensionava** nada (H isolado no memorial). Agora entra no envelope do
 > pórtico, da base e do joelho como **combinação última excepcional**.
 

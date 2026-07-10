@@ -6,7 +6,7 @@ seção por Manning-Strickler, diâmetro de condutores e carga de água no pórt
 
 Código: `calhas.py`. Criado 2026-07-08.
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo.
+> **STATUS: ✅ HOMOLOGADO (2026-07-09).**
 
 ---
 

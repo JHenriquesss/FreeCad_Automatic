@@ -15,8 +15,8 @@
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
 
-## T7 — 6 pareceres sênior pendentes
-Features implementadas nesta sessão aguardam parecer (status PENDENTE em REVISAO-INDICE.md): **ligações §9** (furos/Tab.14/block shear/T-stub), **vento §8** (Cpe local), **telha** (REVISAO-TELHA), **sismo §6** (envelope+θ+100/30), **baldrame** (REVISAO-BALDRAME), **estaca** (REVISAO-ESTACA: 3 métodos+grupo+bloco). Cadência: usuário cola o parecer → assistente confere finding-a-finding contra o PDF → homologa ou corrige → atualiza doc + índice.
+## T7 — pareceres sênior (FECHADO 2026-07-09)
+**Todos homologados.** REVISAO-INDICE.md: itens 1–27 ✅ HOMOLOGADO, zero PENDENTE. Os 5 que faltavam foram homologados em 2026-07-09 (banners atualizados): calhas, sapata de divisa, telha, vento §8 (Cpe médio local), sismo §6 (envelope excepcional). Nada aguarda parecer.
 
 ## T1 — PR #1 aguarda merge
 Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenriquesss/FreeCad_Automatic/pull/1 . Contém 87 commits (origin/main estava 87 atrás do local). Merge sincroniza tudo. Usuário faz merge pelo GitHub.

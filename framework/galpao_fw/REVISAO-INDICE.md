@@ -25,7 +25,7 @@ os FLAGS/pendências.
 | 11 | Contraventamento | [REVISAO-CONTRAVENTAMENTO.md](REVISAO-CONTRAVENTAMENTO.md) | NBR 8800 | ✅ HOMOLOGADO (r2, 2026-07-07) — §6/§7 |
 | 12 | Redimensionamento (auto-sizing) | [REVISAO-REDIMENSIONAMENTO.md](REVISAO-REDIMENSIONAMENTO.md) | — (usa 3) | ✅ HOMOLOGADO (r2, 2026-07-07) — §5/§6; fix flecha H/150→H/300 (Tab.C.1) |
 | 13 | Junta de dilatação / temperatura | [REVISAO-JUNTA-DILATACAO.md](REVISAO-JUNTA-DILATACAO.md) | Bellei / FCC Report 65 | ✅ HOMOLOGADO (2026-07-08) — §1-§4 |
-| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 · 🆕 sismo→envelope excepcional §6 (5.4 / NBR 8681, 2026-07-08) PENDENTE |
+| 14 | Sismo (forças horizontais equivalentes) | [REVISAO-SISMO.md](REVISAO-SISMO.md) | NBR 15421:2023 | ✅ HOMOLOGADO (2026-07-08) — §1-§5 · ✅ sismo→envelope excepcional §6 (5.4 / NBR 8681, 2026-07-09) HOMOLOGADO |
 | 15 | Telha de cobertura (vão × carga) | [REVISAO-TELHA.md](REVISAO-TELHA.md) | NBR 14762 | ✅ HOMOLOGADO (2026-07-08) — §1-§6 |
 | 16 | Viga de baldrame / amarração | [REVISAO-BALDRAME.md](REVISAO-BALDRAME.md) | NBR 6118 | ✅ HOMOLOGADO (2026-07-08) — correções de cisalhamento e armadura superior aplicadas |
 | 17 | Fundação profunda (estaca + bloco) | [REVISAO-ESTACA.md](REVISAO-ESTACA.md) | Aoki-Velloso / NBR 6122 / NBR 6118 | ✅ HOMOLOGADO (2026-07-08) — correção uplift aplicada |

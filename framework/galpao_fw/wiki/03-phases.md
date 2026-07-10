@@ -34,7 +34,7 @@
 
 ## ATUAL — Handoff / aguardando pareceres — 2026-07-08
 - **NADA pendente de implementação do lado do assistente.** Todos os gaps + FLAGs corrigíveis fechados.
-- **6 pareceres sênior PENDENTES** (ligações §9, vento §8, telha, sismo §6, baldrame, estaca) — ciclo: sênior emite → homologa/ajusta. [[06-open-threads#T7]]
+- ~~6 pareceres sênior pendentes~~ → **TODOS HOMOLOGADOS 2026-07-09** (calhas, divisa, telha, vento §8, sismo §6; demais já eram). REVISAO-INDICE zero pendente. [[06-open-threads#T7]]
 - PR #1 ainda aberto, aguarda merge do usuário. [[06-open-threads#T1]]
 - Continuação em outro chat: ver [[06-open-threads#HANDOFF]].
 
