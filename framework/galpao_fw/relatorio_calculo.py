@@ -82,6 +82,12 @@ METODOS = {
         "NBR 8800:2008. Barras redondas tracionadas (contraventamento em X) "
         "pretensionadas: dimensionamento ao escoamento da secao bruta e "
         "ruptura da secao liquida; limite de esbeltez para montagem."),
+    "8b. GUSSET": (
+        "NBR 8800:2008 (estados-limite) + largura efetiva de Whitmore (convencao "
+        "AISC, 30 graus). Chapa de gusset do no de contraventamento: tracao na "
+        "secao de Whitmore (5.2.2), flambagem da faixa (5.3.3, so se comprimida), "
+        "solda de filete ao membro (6.2.5) e rasgamento em bloco (6.5.6) se "
+        "parafusada. Compoe primitivos verificados de ligacoes.py."),
     "9. VERGA": (
         "NBR 8800:2008. Viga sobre a abertura (portao/porta): flexao simples "
         "com a carga de fechamento acima do vao e verificacao de flecha."),

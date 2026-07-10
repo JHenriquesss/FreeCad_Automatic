@@ -1,21 +1,23 @@
 {
-  "phase": 1,
-  "phase_name": "detalhes-ligacao",
-  "step": "closed",
+  "phase": 2,
+  "phase_name": "detalhe-fabricacao",
+  "step": "red",
   "must_exist": [
-    { "id": "me-1", "text": "PE10 CUMEEIRA: elevacao + vista da chapa legiveis (edge-count OK, visual OK)", "done": true },
-    { "id": "me-2", "text": "PE11 GUSSET_COB e PE12 GUSSET_PAR legiveis", "done": true },
-    { "id": "me-3", "text": "PE13 CLIPE_GIRT legivel", "done": true },
-    { "id": "me-4", "text": "PE14 CONSOLE (ponte) legivel", "done": true },
-    { "id": "me-5", "text": "PREFIXOS_SEM_DESENHO reduzido a VAO; smoke 4/4 cobertura+edge-count", "done": true }
+    { "id": "me-1", "text": "verifica_gusset compondo primitivos homologados; selftest; gate7-gusset; REVISAO-GUSSET (PENDENTE)", "done": true },
+    { "id": "me-2", "text": "verifica_console (so ponte); selftest; gate7-console; REVISAO-CONSOLE (PENDENTE)", "done": false },
+    { "id": "me-3", "text": "config_de_spec passa joelho/gusset/console/clip ao cfg", "done": false },
+    { "id": "me-4", "text": "callouts de fabricacao (leader+texto) nos detalhes, todo numero do cfg", "done": false },
+    { "id": "me-5", "text": "corte seccionado A: proof DrawViewSection headless -> corte+hachura ou fallback elevacao", "done": false },
+    { "id": "me-6", "text": "smoke 4/4 callouts+cobertura+edges; REVISAO-INDICE +gusset+console; wiki", "done": false }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "ligacao (fora VAO) em PREFIXOS_SEM_DESENHO", "violated": false },
-    { "id": "mne-2", "text": "vista de detalhe com arestas abaixo do limiar (silhueta chapada)", "violated": false }
+    { "id": "mne-1", "text": "numero de fabricacao no desenho fora do cfg/calculo (inventado)", "violated": false },
+    { "id": "mne-2", "text": "formula de calculo de memoria (nao-primitivo, sem citacao de norma)", "violated": false },
+    { "id": "mne-3", "text": "regressao ref 20x10 (takeoff/massa/interferencias) ou selftest existente", "violated": false }
   ],
-  "current_item": null,
-  "trunk_status": "pass",
-  "trunk_evidence": "smoke 4/4: padrao/vao_maior/baixo_largo 13 pranchas, ponte 14; cobertura completa + edge-count>=15 + memorial PDF, nas 4 geometrias",
+  "current_item": "me-1",
+  "trunk_status": "fail",
+  "trunk_evidence": null,
   "opened_at": "2026-07-09",
   "last_tune_at": null,
   "history": [

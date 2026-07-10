@@ -35,6 +35,7 @@ import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
+import gusset_ligacao as gus
 import ponte_rolante as pr
 import fogo_nbr14323 as fogo
 import escada as esc
@@ -332,6 +333,26 @@ def rodar(params, out_dir):
     save("gate7-contraventamento.txt", ctv.relatorio_pt(barras))
     res["barras_ok"] = all(x["OK"] for x in barras)
     res["barras_u_max"] = max(x["u"] for x in barras)
+    # Gate 7 - GUSSET dos contraventamentos (chapa de no; verifica a chapa que
+    # recebe a diagonal tracionada). Geometria do build_galpao (_gusset_tri
+    # L=150, t=12). Verifica o no de PAREDE e o de COBERTURA; adota o pior.
+    G_T, G_LC = 0.012, 0.150                              # t, Lc (m) - build
+    gcasos = [("Gusset de contravento - PAREDE", abs(Ndp)),
+              ("Gusset de contravento - COBERTURA", abs(Ndc))]
+    gres, gtxt = [], []
+    for gnome, gN in gcasos:
+        rg = gus.verifica_gusset({"N": gN, "t": G_T, "w0": 0.0, "Lc": G_LC,
+                                  "fy": params["fy"], "fu": 400e3,
+                                  "Lsolda": 2.0 * G_LC})
+        gres.append(rg)
+        gtxt.append(gus.relatorio_pt(rg, gnome))
+    save("gate7-gusset.txt", "\n\n".join(gtxt))
+    gpior = max(gres, key=lambda r: r["u_max"])
+    res["gusset_adotado"] = {"t_mm": gpior["adotado"]["t_mm"],
+                             "perna_solda_mm": round(
+                                 gus.LG.solda_filete_minimo(G_T * 1000.0), 1)}
+    res["gusset_u_max"] = gpior["u_max"]
+    res["gusset_ok"] = all(r["OK"] for r in gres)
     # Gate 7 - verga da porta (UPE100 sobre o vao da abertura): flexao do U, vao
     # = largura da porta, sem tirante (Lb = vao). Vento na parede + peso da porta.
     vg = dict(params["verga"]); vg["q_vento"] = max(net_par) * vr["q_kN_m2"]
@@ -532,6 +553,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("6b. TELHA", "gate7-telha.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
+             ("8b. GUSSET DE CONTRAVENTO", "gate7-gusset.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
