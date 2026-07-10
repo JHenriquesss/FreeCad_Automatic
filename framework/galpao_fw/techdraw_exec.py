@@ -779,12 +779,14 @@ def _pr_joelho(doc, cfg, objs, todos):
             c.d((mao_bb.XMin, jb.YMin, mao_bb.ZMin),
                 (mao_bb.XMax, jb.YMin, mao_bb.ZMin),
                 "DistanceX", _fmt_mm(mao_bb.XLength), "baixo")
+    fab07 = _callout_fab(cfg, "joelho")
     _anot(doc, page, "A07", [
         "DETALHE DO NO VIGA-COLUNA (JOELHO)   ESCALA %s" % nome,
         "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
-                                     cfg.get("perfil_raf", "?")),
+                                     cfg.get("perfil_raf", "?"))]
+        + fab07 + [
         "Mao-francesa, chapas e parafusos conforme memoria de calculo.",
-        "Cotas em milimetros."], 200, 80, 5)
+        "Cotas em milimetros."], 200, 80 + 6 * len(fab07), 5)
     return [page], [c]
 
 
@@ -803,16 +805,33 @@ _EXCLUI_LIGACAO = ("TELHA", "TAPAMENTO", "CALHA")
 # como no joelho. `chapa` = eixo da 2a vista (face da chapa) ou None.
 # (prefixo, titulo, base_pagina, KW_mm, elev_axis, chapa_axis)
 LIGACOES = [
-    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y"),
-    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None),
-    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None),
-    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y"),
-    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None),
+    # (prefixo, titulo, base, KW, elev, chapa, callout) - callout = chave do cfg
+    # com a spec de fabricacao (do CALCULO); None => so "conforme memorial".
+    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y", "joelho"),
+    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None, "gusset"),
+    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None, "gusset"),
+    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y", None),
+    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None, "console"),
 ]
 
 
+def _callout_fab(cfg, key):
+    """Linha(s) de callout de fabricacao a partir do CFG (numeros do calculo).
+    Retorna [] se nao houver dado -> mantem 'conforme memorial'."""
+    d = cfg.get(key) if key else None
+    if not d:
+        return []
+    if key == "joelho":
+        return ["Parafusos: %d x %s   Chapa de topo t = %s"
+                % (d["n"], _fmt_mm(d["db"]), _fmt_mm(d["t"]))]
+    if key in ("gusset", "console"):
+        return ["Chapa t = %s   Solda filete perna = %s"
+                % (_fmt_mm(d["t_mm"]), _fmt_mm(d["perna_solda_mm"]))]
+    return []
+
+
 def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
-                     page_name):
+                     page_name, callout=None):
     """Uma prancha de detalhe de ligacao: elevacao (perfis edge-on = linhas)
     + opcional vista da chapa (face), recortando UMA instancia representativa
     (a mais proxima do centro do galpao) numa janela. Espelha o padrao do
@@ -880,20 +899,22 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
         linhas.append("Elevacao ESC %s   Vista da chapa ESC %s" % (nome, n2))
+    fab = _callout_fab(cfg, callout)
+    linhas += fab
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
                "Cotas em milimetros."]
-    _anot(doc, page, "ALIG_" + base, linhas, 200, 80, 5)
+    _anot(doc, page, "ALIG_" + base, linhas, 200, 80 + 6 * len(fab), 5)
     return page, cots
 
 
 def _pr_ligacoes(doc, cfg, objs, todos):
     """Uma prancha de detalhe por tipo de ligacao presente no modelo."""
     paginas, cotadores = [], []
-    for i, (pref, titulo, base, KW, elev, chapa) in enumerate(LIGACOES):
+    for i, (pref, titulo, base, KW, elev, chapa, callout) in enumerate(LIGACOES):
         pg_name = "PE%02d_DET_%s" % (10 + i, base)
         try:
             pg, cts = _detalhe_ligacao(doc, cfg, todos, pref, titulo, base,
-                                       KW, elev, chapa, pg_name)
+                                       KW, elev, chapa, pg_name, callout)
         except Exception as ex:
             import FreeCAD as App
             App.Console.PrintError("Detalhe ligacao %s: %s\n" % (pref, ex))

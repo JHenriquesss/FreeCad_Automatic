@@ -134,6 +134,14 @@ def rodar():
         try:
             r = RP.calcular(s, out)
             print("  calc: atende=%s" % r.get('atende'))
+            # callouts de fabricacao (me-4): cfg deve carregar a spec de ligacao
+            # do calculo (joelho/gusset sempre; console so ponte). Se presente,
+            # _callout_fab desenha os numeros -> todo callout rastreia ao calculo.
+            cfg = TD.config_de_spec(s, 'x.FCStd', out)
+            for k in ('joelho', 'gusset'):
+                assert cfg.get(k), "cfg sem spec de ligacao '%s' (callout)" % k
+            if kw.get('ponte'):
+                assert cfg.get('console'), "cfg sem console (callout)"
             fcstd = _build_3d(s, out, nome)
             assert fcstd and os.path.exists(fcstd), "3D nao gerou FCStd"
             ex = RP.rodar_executivo(s, out, fcstd, timeout=900)
