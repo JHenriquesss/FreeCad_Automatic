@@ -38,3 +38,14 @@ projects/galpao-cert/
 
 # scratch de execucao direta dos modulos (raiz)
 /exports/
+
+# Generated artifacts
+framework/galpao_fw/exports/
+*.bak
+__pycache__/
+*.pyc
+*.pyo
+
+# Saidas de entrega geradas (pranchas, memoriais, PDF de calculo, FCStd de saida)
+ENTREGA_PRANCHAS/
+*.FCStd1

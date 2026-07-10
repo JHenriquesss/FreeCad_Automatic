@@ -45,7 +45,7 @@ def calcular(spec, out_dir):
     if res.get("longarina_dims"):
         spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
-    # quadro de verificacoes (utilizacoes/resultados) para o DXF
+    # quadro de verificacoes (utilizacoes/resultados) para as pranchas
     spec.setdefault("estrutura", {})["resultados"] = {
         "Maxima": res.get("interacao_max"), "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
         "Flecha portico": res.get("flecha_util"),
@@ -58,23 +58,10 @@ def calcular(spec, out_dir):
     return res
 
 
-def gerar_dxf(spec, out_dir, nome=None):
-    """Gera o DXF com as vistas (portico, elevacao, planta, legenda) a partir do
-    spec com perfil/base ADOTADOS (rodar calcular() antes). Retorna o path."""
-    import os
-    import dxf_vistas as dv
-    PS.exigir_completo(spec)
-    os.makedirs(str(out_dir), exist_ok=True)
-    path = os.path.join(str(out_dir), (nome or spec.get("slug", "galpao")) + ".dxf")
-    return dv.gerar_dxf(dv.design_de_spec(spec), path)
-
-
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
                   host="http://localhost:9875", timeout=180):
-    """Desenha o modelo via MCP (FreeCAD). reset() ANTES de configurar (slate
-    limpo) - so desenha o que o spec pede. Retorna o result do bridge."""
-    import xmlrpc.client
-    import socket
+    """Desenha o modelo 3D via MCP (FreeCAD)."""
+    import xmlrpc.client, socket
     PS.exigir_completo(spec)
     bk = PS.to_build_kwargs(spec)
     if mf_stride is not None:
@@ -90,6 +77,70 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     srv = xmlrpc.client.ServerProxy(host)
     r = srv.execute(src + call)
     resm = r.get("result") if isinstance(r, dict) else None
-    if isinstance(resm, dict) and resm.get("por_grupo"):     # takeoff -> DXF
+    if isinstance(resm, dict) and resm.get("por_grupo"):
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
     return r
+
+
+def rodar_executivo(spec, out_dir, fcstd_path, freecad_exe=None, timeout=1200):
+    """Gera o projeto executivo COMPLETO (pranchas A1 TechDraw) a partir do
+    modelo 3D ja SALVO em fcstd_path. Roda o freecad.exe em modo headless
+    (GUI disponivel p/ exportar PDF, sem interacao: job por QTimer, janela
+    fecha sozinha). Exporta PDF + SVG + DXF por prancha em out_dir/pranchas.
+
+    Nao usa o servidor MCP (que corta em ~30 s e nao aguenta a projecao do
+    modelo cheio). Le o resultado de out_dir/pranchas/_status.json."""
+    import os, json, time, tempfile, subprocess
+    import techdraw_exec as TD
+    PS.exigir_completo(spec)
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": f"freecad.exe nao encontrado: {exe}"}
+
+    cfg = TD.config_de_spec(spec, fcstd_path, str(out_dir))
+    prdir = os.path.join(str(out_dir), "pranchas")
+    os.makedirs(prdir, exist_ok=True)
+    status = os.path.join(prdir, "_status.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = tempfile.NamedTemporaryFile(
+        mode="w", suffix="_exec.py", delete=False, encoding="utf-8")
+    boot.write(TD.script_bootstrap(cfg))
+    boot.close()
+
+    proc = subprocess.Popen([exe, boot.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    while time.time() - t0 < timeout:
+        if os.path.exists(status):
+            time.sleep(0.5)
+            with open(status, encoding="utf-8") as f:
+                res = json.load(f)
+            break
+        if proc.poll() is not None and not os.path.exists(status):
+            time.sleep(2)  # processo saiu; da uma ultima chance ao arquivo
+            if os.path.exists(status):
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+            else:
+                res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
+            break
+        time.sleep(2)
+    if res is None:
+        res = {"erro": f"timeout {timeout}s aguardando pranchas"}
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    try:
+        os.unlink(boot.name)
+    except OSError:
+        pass
+    spec.setdefault("estrutura", {})["executivo"] = res
+    return res
