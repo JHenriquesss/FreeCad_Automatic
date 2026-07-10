@@ -40,6 +40,10 @@ def calcular(spec, out_dir):
         spec["estrutura"]["n_tirante_parede"] = res["n_tirante_parede"]
         spec["estrutura"]["perfil_escora"] = res.get("perfil_escora")
         spec["estrutura"]["perfil_montante"] = res.get("perfil_montante")
+    if res.get("gusset_adotado"):
+        spec.setdefault("estrutura", {})["gusset_adotado"] = res["gusset_adotado"]
+    if res.get("console_adotado"):
+        spec.setdefault("estrutura", {})["console_adotado"] = res["console_adotado"]
     if res.get("terca_dims"):
         spec.setdefault("estrutura", {})["terca_dims"] = res["terca_dims"]
     if res.get("longarina_dims"):

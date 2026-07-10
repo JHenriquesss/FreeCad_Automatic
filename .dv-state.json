@@ -5,7 +5,7 @@
   "must_exist": [
     { "id": "me-1", "text": "verifica_gusset compondo primitivos homologados; selftest; gate7-gusset; REVISAO-GUSSET (PENDENTE)", "done": true },
     { "id": "me-2", "text": "verifica_console (so ponte); selftest; gate7-console; REVISAO-CONSOLE (PENDENTE)", "done": true },
-    { "id": "me-3", "text": "config_de_spec passa joelho/gusset/console/clip ao cfg", "done": false },
+    { "id": "me-3", "text": "config_de_spec passa joelho/gusset/console/clip ao cfg", "done": true },
     { "id": "me-4", "text": "callouts de fabricacao (leader+texto) nos detalhes, todo numero do cfg", "done": false },
     { "id": "me-5", "text": "corte seccionado A: proof DrawViewSection headless -> corte+hachura ou fallback elevacao", "done": false },
     { "id": "me-6", "text": "smoke 4/4 callouts+cobertura+edges; REVISAO-INDICE +gusset+console; wiki", "done": false }

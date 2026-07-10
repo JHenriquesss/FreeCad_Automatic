@@ -1215,6 +1215,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
     est = spec.get("estrutura", {})
     ba = est.get("base_adotada")
     sp = est.get("sapata_adotada")
+    jo = est.get("joelho_adotado")
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
@@ -1235,6 +1236,12 @@ def config_de_spec(spec, fcstd_path, out_dir):
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),
         "sapata": ({"B": sp["B"], "L": sp["L"], "h": sp["h"]} if sp else None),
+        # ligacoes (para callouts de fabricacao): joelho {n, db, t} do calculo;
+        # gusset/console ja em mm/adotado do calculo.
+        "joelho": ({"n": jo["n"], "db": jo["db"] * 1000.0, "t": jo["t"] * 1000.0}
+                   if jo else None),
+        "gusset": est.get("gusset_adotado"),
+        "console": est.get("console_adotado"),
         "terca": est.get("terca_dims"),
         "ponte": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                    "Q": spec["ponte"].get("Q")}
