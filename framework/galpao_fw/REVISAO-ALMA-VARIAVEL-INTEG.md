@@ -6,8 +6,50 @@ homologado ([ALMA-VARIAVEL](REVISAO-ALMA-VARIAVEL.md)). Esta revisão trata da
 variável por segmento), no ProjetoSpec (gate) e no build 3D (loft). Fase 6.b.
 Criado 2026-07-10.
 
-> **STATUS: ⏳ PENDENTE — aguarda parecer do sênior.**
-> Revisar as decisões de integração/modelagem marcadas **[Q1]…[Q4]**.
+> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** (2026-07-11). Q2 (CRÍTICO) corrigido:
+> **verificação FLA/FLM/FLT + flexo-compressão por segmento** (não assume mais o
+> joelho). Q4 aprovado. Q1 (coluna tapered) e Q3 (panel zone/doubler no nó)
+> aceitos como **backlog** (features maiores). Prova empírica: no caso 600→300 mm
+> sob vento, **governa o segmento 7 (cumeeira, h=319 mm, util 0,68), NÃO o joelho**
+> (h=581 mm, util 0,17) — confirma a tese do parecer.
+
+## PARECER SÊNIOR 1 — respostas
+
+| Q | Ponto | Decisão |
+|---|---|---|
+| Q1 | discretização 8 seg + **coluna tapered** | seções no ponto médio OK; **coluna tapered = backlog** (aceito; hoje só o rafter). |
+| Q2 | **seção do joelho NÃO governa** [CRÍTICO] | **ATENDIDO** — loop de estados-limite por segmento (§6). |
+| Q3 | panel zone / doubler plate no nó alto | **FLAG/backlog** — verificação do painel da coluna + enrijecedor diagonal fica p/ o executivo do nó. |
+| Q4 | não-regressão prismático | **OK** (aprovado pelo sênior). |
+
+## 6. Verificação por segmento (Q2 — implementado 2026-07-11)
+
+Em alma variável o módulo `Wx` cai de forma ~quadrática com a altura, mais rápido
+que o `Msd` decresce a partir do joelho → a **utilização pica num segmento
+intermediário/da cumeeira**, não no joelho. Implementado:
+
+- `alma_variavel.props_I(h, bf, tw, tf)` — props **completas** (A, Ix, Iy, Wx, Zx,
+  ry, rx, …) por seção; `secao_tapered` embute `props` em cada segmento.
+- `galpao_portico.analyse()` devolve `rafter_segmentos`: envelope ELU de `M/N/V`
+  **por elemento** do rafter + a seção local + a combinação governante.
+- `rodar_galpao` (gate6): para cada um dos `2·NSEG` segmentos, roda
+  `check_nbr8800.verifica` (FLA/FLM/FLT + flexo-compressão) com a **seção local**,
+  `Lb` da mão-francesa e os esforços **amplificados pelo B2 do MAES** (2ª ordem;
+  B2 é multiplicador global, não muda qual segmento governa). Reporta o
+  **segmento governante** e sinaliza `[!]` quando **não** é o joelho.
+- `res["alma_variavel"]`: `interacao_max_seg`, `seg_governante`, `governa_joelho`.
+- Teste `test_verificacao_por_segmento`: exige o campo e confere que, neste caso,
+  o governante **não** é o joelho.
+
+**Exemplo (gate6-alma-variavel.txt), h 600→300, vento:**
+
+```
+  seg |  h(mm) | Msd(kN.m) | interacao | governa
+    0E |    581 |      52.3 |      0.17 | C1_Gdesf_W1   <- joelho (NAO governa)
+    ...
+    7E |    319 |     115.6 |      0.68 | C1_Gdesf_W1   <- GOVERNA (cumeeira)
+  >> GOVERNA o segmento 7E (h=319 mm, interacao=0.68)  [!] NAO e o joelho
+```
 
 ---
 
@@ -44,6 +86,9 @@ linear médio, sinalizando que a **seção do joelho governa** a flexo-compress�
 maior momento) como governante, deixando a verificação segmento-a-segmento
 (esp. FLT com o banzo comprimido de altura variável — Anexo H / mísula) como
 trabalho de detalhamento? Ou exige a verificação por segmento já nesta fase?
+
+> **RESPOSTA:** parecer **vetou** assumir o joelho — implementada a **verificação
+> por segmento** (§6). Confirmado empiricamente que o joelho não governa.
 
 ---
 

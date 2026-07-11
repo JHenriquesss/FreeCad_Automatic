@@ -115,6 +115,26 @@ def test_calcular_roda_alma_variavel(tmp_path):
     assert os.path.exists(os.path.join(str(tmp_path), "gate6-alma-variavel.txt"))
 
 
+def test_verificacao_por_segmento(tmp_path):
+    # parecer Q2: verifica FLA/FLM/FLT por segmento; a secao do joelho NAO governa
+    # necessariamente (Wx cai mais rapido que M). O gate deve reportar o governante.
+    import rodar_projeto as RP
+    s = _spec(tipo="alma_variavel",
+              tapered={"h_joelho": 0.60, "h_cumeeira": 0.30, "bf": 0.20,
+                       "tw": 0.008, "tf": 0.0125})
+    r = RP.calcular(s, str(tmp_path))
+    av = r["alma_variavel"]
+    assert av.get("interacao_max_seg") is not None, "sem verificacao por segmento"
+    assert av.get("seg_governante"), "sem segmento governante"
+    assert "governa_joelho" in av, "sem flag de governante-joelho"
+    txt = open(os.path.join(str(tmp_path), "gate6-alma-variavel.txt"),
+               encoding="utf-8").read()
+    assert "VERIFICACAO POR SEGMENTO" in txt and "interacao" in txt
+    # este geometria (600->300, vento) governa longe do joelho (nao no seg do joelho)
+    assert av["governa_joelho"] is False, \
+        "esperado governante fora do joelho neste caso (Wx cai mais rapido que M)"
+
+
 # ==================== me-4: build 3D tapered (freecadcmd) ===================
 FREECADCMD = os.environ.get(
     "FREECADCMD", r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe")

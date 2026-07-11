@@ -196,9 +196,15 @@ def rodar(params, out_dir):
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
     res["Fa_long_kN"] = vl["Fa_kN"]; res["Fa_por_lado_kN"] = vl["Fa_por_lado_kN"]
     # Gate 6 - analise
-    save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
-    a = est.analyse()
+    a_gp = gp.analyse()                               # 1a ordem (tem os segmentos)
+    save("gate6-portico.txt", gp.memoria_pt(a_gp))
+    a = est.analyse()                                 # 2a ordem MAES (B1/B2 por grupo)
     save("gate6-2a-ordem.txt", est.memoria_pt(a))
+    # envelope por segmento do rafter tapered: capturado do gp.analyse (tapered ainda
+    # ativo; o redim adiante reseta TAPERED). B2 global do MAES amplifica os M (nao
+    # muda QUAL segmento governa - so a magnitude).
+    segs_tapered = a_gp.get("rafter_segmentos", []) if a_gp.get("tapered") else []
+    B2_amp = a.get("B2max", 1.0)
     # Gate 7 - REDIMENSIONAMENTO: adota o par (coluna, viga) MAIS LEVE que passa
     # (interacao<=1 + flecha<=H/150), partindo do seed HEA200/HEA180. Recomputa os
     # esforcos com o perfil adotado -> tudo a jusante (mao-francesa, check, modelo)
@@ -504,16 +510,60 @@ def rodar(params, out_dir):
             L.append("    %3d | %6.0f | %7.1f | %8.0f | %8.0f" %
                      (s["segmento"], s["h_m"] * 1000, s["A_m2"] * 1e4,
                       s["I_m4"] * 1e8, s["Wx_m3"] * 1e6))
-        L += ["  >> A secao do JOELHO (mais funda) governa a flexo-compressao; o",
-              "     portico foi resolvido com a rigidez variavel (secao por segmento).",
-              "  >> Verificacao de estados-limite por segmento = A CONFIRMAR (sensor).",
-              "=" * 66]
+        # VERIFICACAO DE ESTADOS-LIMITE POR SEGMENTO (parecer Q2): em alma variavel
+        # o Wx cai mais rapido que o M ao longo do vao -> a utilizacao pode picar num
+        # segmento INTERMEDIARIO, nao no joelho. Verifica FLA/FLM/FLT + flexo-compressao
+        # (chk.verifica) em CADA segmento, com a secao local e o esforco enveloped.
+        segs_env = segs_tapered
+        verifs = []
+        for seg in segs_env:
+            sp = seg.get("sec_props")
+            if not sp:
+                continue
+            sec_seg = dict(sp)
+            sec_seg["nome"] = "misula seg%d(%s h=%.0fmm)" % (
+                seg["seg"], "E" if seg["lado"] == 0 else "D", (seg["h_m"] or 0) * 1000)
+            # esforcos amplificados pela 2a ordem (B2 global do MAES)
+            Msd_s = seg["M"] * B2_amp; Nsd_s = seg["N"] * B2_amp
+            v = chk.verifica(sec_seg, params["fy"], L=seg.get("L_seg") or Lb_raf,
+                             Nsd=Nsd_s, Msd=Msd_s, Vsd=seg["V"], Kx=1, Ky=1,
+                             Lb=Lb_raf, nome=sec_seg["nome"])
+            v["_seg"] = seg
+            verifs.append(v)
+        L += ["", "  VERIFICACAO POR SEGMENTO (FLA/FLM/FLT + flexo-compressao, "
+              "Lb=%.2f m):" % Lb_raf,
+              "    seg |  h(mm) | Msd(kN.m) | interacao | governa"]
+        gov_seg = None
+        for v in verifs:
+            s = v["_seg"]
+            L.append("    %3d%s | %6.0f | %9.1f | %9.2f | %s" %
+                     (s["seg"], "E" if s["lado"] == 0 else "D", (s["h_m"] or 0) * 1000,
+                      s["M"], v["interacao"], s.get("gov", "")))
+            if gov_seg is None or v["interacao"] > gov_seg["interacao"]:
+                gov_seg = v
+        if gov_seg:
+            gs = gov_seg["_seg"]
+            no_joelho = (gs["seg"] == 0 and gs["lado"] == 0) or \
+                        (gs["seg"] == gp.NSEG - 1 and gs["lado"] == 1)
+            L += ["  >> GOVERNA o segmento %d%s (h=%.0f mm, interacao=%.2f)%s"
+                  % (gs["seg"], "E" if gs["lado"] == 0 else "D", (gs["h_m"] or 0) * 1000,
+                     gov_seg["interacao"],
+                     "" if no_joelho else "  [!] NAO e o joelho - verificacao por "
+                     "segmento essencial (parecer Q2)"),
+                  "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
+        L.append("=" * 66)
         save("gate6-alma-variavel.txt", "\n".join(L))
         res["alma_variavel"] = {
             "h_joelho_mm": tp["h_joelho"] * 1000, "h_cumeeira_mm": tp["h_cumeeira"] * 1000,
             "peso_kN_m": round(peso, 2), "nseg": gp.NSEG,
             "I_joelho_cm4": round(secs[0]["I_m4"] * 1e8, 0),
-            "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0)}
+            "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0),
+            "interacao_max_seg": round(gov_seg["interacao"], 2) if gov_seg else None,
+            "seg_governante": ("%d%s" % (gov_seg["_seg"]["seg"],
+                               "E" if gov_seg["_seg"]["lado"] == 0 else "D")) if gov_seg else None,
+            "governa_joelho": bool(gov_seg and (
+                (gov_seg["_seg"]["seg"] == 0 and gov_seg["_seg"]["lado"] == 0) or
+                (gov_seg["_seg"]["seg"] == gp.NSEG - 1 and gov_seg["_seg"]["lado"] == 1)))}
 
     # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
     # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga

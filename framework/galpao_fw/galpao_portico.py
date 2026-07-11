@@ -396,10 +396,25 @@ def analyse():
     for mfd in cases_mf.values():
         all_elems.update(mfd.keys())
     results = {}
+    # envelope por SEGMENTO do rafter (para a verificacao segmento-a-segmento do
+    # tapered - a secao do joelho NAO governa necessariamente): por elemento do
+    # rafter, guarda o maior |M| (e o N/V concomitantes) e a combinacao governante.
+    raft_seg_env = {}
+    for i in range(N_VAOS):
+        for side in (0, 1):
+            for e in ix["rafts"][i][side]:
+                raft_seg_env[e] = {"M": 0.0, "N": 0.0, "V": 0.0, "gov": None}
     for cname, c in combos.items():
         mf_c = {}
         for e in all_elems:
             mf_c[e] = sum(cases_mf[cs].get(e, [0]*6) * fac for cs, fac in c.items())
+        for e, se in raft_seg_env.items():
+            fe = mf_c[e]
+            M = max(abs(fe[2]), abs(fe[5]))
+            N = max(abs(fe[0]), abs(fe[3])); V = max(abs(fe[1]), abs(fe[4]))
+            if M > se["M"]:
+                se["M"] = M; se["gov"] = cname
+            se["N"] = max(se["N"], N); se["V"] = max(se["V"], V)
         # resultados por grupo
         cols_r = []
         for i in range(N_VAOS + 1):
@@ -431,10 +446,28 @@ def analyse():
     # flecha vertical na cumeeira (G+Q caracteristico)
     ridge_v = max(abs(dG[3 * rn + 1] + dQ[3 * rn + 1]) for rn in ix["nRidges"]) \
         if "SISMO" not in cases_d else 0.0
+    # lista ordenada dos segmentos do rafter com esforco enveloped + secao (tapered)
+    rafter_segmentos = []
+    for i in range(N_VAOS):
+        for side in (0, 1):
+            secs = (_secoes_rafter("eave2ridge" if side == 0 else "ridge2eave")
+                    if TAPERED else None)
+            elems = ix["rafts"][i][side]
+            L_raft = math.hypot(SPANS[i] / 2.0, RIDGE - EAVE)   # meia-agua (m)
+            Lseg = L_raft / len(elems) if elems else None
+            for k, e in enumerate(elems):
+                se = raft_seg_env[e]
+                rafter_segmentos.append({
+                    "vao": i, "lado": side, "seg": k,
+                    "M": round(se["M"], 2), "N": round(se["N"], 2),
+                    "V": round(se["V"], 2), "gov": se["gov"],
+                    "L_seg": Lseg, "h_m": (secs[k]["h_m"] if secs else None),
+                    "sec_props": (secs[k]["props"] if secs else None)})
     return {"results": results, "drift": drift, "drift_sismo": drift_sismo,
             "ridge_v": ridge_v, "drift_lims": {"H/300": EAVE / 300.0,
                "H/250": EAVE / 250.0, "H/200": EAVE / 200.0, "H/150": EAVE / 150.0},
-            "drift_ref": "H/300", "ix": ix, "N_VAOS": N_VAOS}
+            "drift_ref": "H/300", "ix": ix, "N_VAOS": N_VAOS,
+            "rafter_segmentos": rafter_segmentos, "tapered": bool(TAPERED)}
 
 
 def memoria_pt(a):
