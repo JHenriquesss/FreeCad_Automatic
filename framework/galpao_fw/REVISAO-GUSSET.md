@@ -6,11 +6,12 @@ primitivos já homologados** de `ligacoes.py` + a compressão de `check_nbr8800`
 
 Código: `gusset_ligacao.py`. Criado 2026-07-09.
 
-> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** — sênior aprovou a matemática
-> (escoamento 314,9 kN e solda 228,6 kN conferidos), mas apontou 4 correções
-> conceituais (§4). **Todas aplicadas** no `gusset_ligacao.py` (§5). A largura de
-> **Whitmore (30°)** permanece FLAG (convenção AISC/Thornton, não é item da NBR;
-> análogo ao T-stub EN 1993 já aceito no joelho).
+> **STATUS: ✅ HOMOLOGADO** (2026-07-10) — parecer 1: 4 correções conceituais
+> aplicadas (§4/§5). Parecer 2: aprovado com ressalva **só de documentação**
+> ("não são necessárias novas alterações lógicas") — selftest do markdown
+> reescrito p/ o caso real Ø20 (bw=135,5 / Nt,Rd=369,5), congruente com o código.
+> A largura de **Whitmore (30°)** permanece FLAG (convenção AISC/Thornton, não é
+> item da NBR; análogo ao T-stub EN 1993 já aceito no joelho).
 
 ## PARECER SÊNIOR 1 (matemática ✅ / conceito ❌→corrigido)
 
@@ -61,15 +62,20 @@ Governa = maior utilização entre os estados presentes.
 
 ## 2. Selftest
 
-Gusset t=12 mm, Ø20, Lc=100 mm, tração 50 kN:
-- Whitmore `bw = 115,5 mm`; `Nt,Rd = 314,9 kN` (util 0,16) ✅
-- Solda filete perna 5 mm (Tab.9), L=300 mm: `Fw,Rd = 228,6 kN` (util 0,22) ✅
-- Compressão (habilitada): `0 < χ ≤ 1` ✅
-- Block shear parafusado: bate com `ligacoes.block_shear_linha` ✅
+Gusset t=12 mm, barra redonda **Ø20 soldada** (w0 = d_barra = 20 mm, parecer 2),
+Lc=100 mm, tração 50 kN:
+- Whitmore `bw = w0 + 2·Lc·tan30° = 20 + 115,47 = 135,47 mm`
+- Tração escoam. `Ag = 135,47·12 = 1625,6 mm²`; `Nt,Rd = Ag·fy/γa1 = 369,46 kN`
+  (util 0,14) ✅
+- Solda filete perna 5 mm (Tab.9), L=300 mm: `Fw,Rd = 228,6 kN` (util 0,22) ✅ → **governa**
+- Compressão (habilitada, tração_only=False): `Kl = 0,65·L_livre`, `0 < χ ≤ 1` ✅
+- Block shear + ruptura líquida (parafusado): batem com `ligacoes` (dh Tab.12);
+  `Ct = 1,0` (shear-lag já coberto pelo espraiamento 30° de Whitmore) ✅
 - Gusset 3 mm sob 5000 kN → **NÃO ATENDE** (guarda de reprovação) ✅
 
-Caso real (galpão 20×10, nó de parede): `bw = 173 mm`, tração util 0,10, solda
-util 0,20 → governa solda, **ATENDE**.
+Nota (w0=0, chapa plana): o mesmo gusset com transferência plana daria
+`bw = 115,5 mm` / `Nt,Rd = 314,9 kN` — número da iteração anterior, agora
+substituído pelo caso real de barra redonda.
 
 **PASSED.**
 

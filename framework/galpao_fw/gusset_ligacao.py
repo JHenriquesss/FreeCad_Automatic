@@ -227,6 +227,7 @@ def _selftest():
 if __name__ == "__main__":
     _selftest()
     print()
-    print(relatorio_pt(verifica_gusset({"N": 50.0, "t": 0.012, "w0": 0.0,
+    # caso REAL: barra redonda Ø20 soldada -> w0 = d_barra = 20 mm (nao ponto)
+    print(relatorio_pt(verifica_gusset({"N": 50.0, "t": 0.012, "d_barra": 0.020,
                                         "Lc": 0.100, "fy": 250e3, "fu": 400e3,
                                         "Lsolda": 0.30})))
