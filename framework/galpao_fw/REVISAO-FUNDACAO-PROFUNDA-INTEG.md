@@ -8,14 +8,12 @@ dados (`projeto_spec.py`) e como sua **geometria** é desenhada no modelo 3D
 (`build_galpao.py`), sem inventar nenhum número — tudo vem do cálculo/envelope.
 Fase 3 do pipeline. Criado 2026-07-10.
 
-> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** (2026-07-11) — sênior apontou erros
-> conceituais/normativos na integração. Correções aplicadas (§6): momento no
-> grupo (Q2), coroa/altura de bloco rígido (Q3), pedestal parametrizado (Q4),
-> **baldrame transversal p/ bloco de 1–2 estacas (Q5, NBR 6122)**, vão livre sem
-> dupla contagem (Q6). **Divergência registrada em Q1 (FS): mantido 2,0**
-> conforme as próprias referências do método (Cintra & Aoki / Veloso & Lopes) —
-> pede reconfirmação. Evidência de build: caso estaca 10 blocos + 8 baldrames
-> long + 5 transversais, **0 interferências**.
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11) — parecer 1: Q2–Q6 corrigidos. Parecer 2:
+> sênior validou Q2/Q4/Q5/Q6 (matemática canônica confirmada) e condicionou a
+> homologação a **dois ajustes normativos**, ambos aplicados (§7):
+> **(Q1) FS default 3,0** com gate no `validar()` que bloqueia FS<3,0 sem
+> `fundacao.estaca.prova_de_carga=True` (NBR 6122); **(Q3b) bloco rígido exige
+> tan θ ≥ 1,0** (θ≥45°), não 0,57. Build revalidado (estaca, 0 interferências).
 
 ## PARECER SÊNIOR 1 — respostas Q1…Q6 (§6 detalha)
 
@@ -46,13 +44,27 @@ Fase 3 do pipeline. Criado 2026-07-10.
 **Build (`build_galpao.py`):** `coroa=max(150,D/2)`; `ped` do modelo (default 500);
 baldrame longitudinal **e transversal** (n≤2) com vão livre `tramo−pdim`.
 
-**Q1 — FS (posição técnica):** o módulo usa FS_global=2,0 citando Cintra & Aoki
-(2010) e Veloso & Lopes (2012), que para métodos semi-empíricos (Aoki-Velloso,
-Décourt, Teixeira) adotam FS=2,0 — não 3,0. A NBR 6122 disponível é PDF
-escaneado (sem camada de texto), então **não cito a cláusula literal**; mantenho
-o valor coerente com as referências homologadas do próprio método e sinalizo p/
-o sênior reconfirmar (mesmo padrão do parecer console-1). Não altero p/ 3,0 sem
-base verificável.
+## 7. PARECER SÊNIOR 2 — ajustes finais (2026-07-11)
+
+Sênior validou Q2 (Navier), Q4, Q5 e Q6. Dois ajustes p/ homologar:
+
+**Q1 — FS (resolvido por gate, sem adjudicar norma escaneada):** em vez de fixar
+2,0 ou 3,0 unilateralmente, encodei a **condicional que sênior E literatura
+concordam**: FS=2,0 exige prova de carga. Implementado:
+- `estaca_profunda.FS_GLOBAL = 3,0` e mapper `to_map_rodar_params` default 3,0;
+- `projeto_spec.validar()`: `tipo==estaca` com `FS<3,0` e sem
+  `fundacao.estaca.prova_de_carga==True` → **BLOQUEIA** com mensagem citando 6122;
+- campo novo `fundacao.estaca.prova_de_carga` (bool);
+- testes: `test_fs_menor_que_3_sem_prova_bloqueia`, `test_fs_2_com_prova_de_carga_valida`.
+Assim o default é seguro (3,0) e 2,0 só sai com prova de carga — atende o sênior
+e a NBR, sem eu ter que citar cláusula de PDF ilegível.
+
+**Q3b — bloco rígido tan θ ≥ 1,0 (θ≥45°):** `altura_bloco_rigido` agora com piso
+`tan_alvo=1,0` (era 0,57); `bloco_coroamento` classifica `rigido = tan θ ≥ 1,0`
+e `ok_angulo = 1,0 ≤ tan θ ≤ 2,0`. Blocos com tan θ < 1,0 caem no caminho
+**flexível** (verifica punção, conservador) em vez de serem tratados como rígidos
+sem armadura de cisalhamento. Faixa 35°–45° (fissuração/fadiga da biela) fica
+FLAG — o projeto deve usar tan θ ≥ 1,0.
 
 ---
 

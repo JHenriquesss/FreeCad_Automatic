@@ -155,6 +155,17 @@ def validar(spec):
                 v = _get(spec, path)
                 if v in (KeyError, None, PENDENTE, [], "") or v == PENDENTE:
                     faltando.append((path, desc))
+            # Fator de seguranca global (NBR 6122): metodo semi-empirico SEM prova
+            # de carga estatica -> FS >= 3,0. FS < 3,0 (ate 2,0) so e admitido COM
+            # prova de carga na obra (fundacao.estaca.prova_de_carga = True). Sem a
+            # flag, FS<3,0 BLOQUEIA (evita relatorio contra a norma).
+            fs_est = _get(spec, "fundacao.estaca.FS")
+            prova = _get(spec, "fundacao.estaca.prova_de_carga")
+            if isinstance(fs_est, (int, float)) and fs_est < 3.0 and prova is not True:
+                faltando.append(
+                    ("fundacao.estaca.FS",
+                     "FS=%.2f < 3,0 exige prova de carga estatica (NBR 6122): "
+                     "marque fundacao.estaca.prova_de_carga=True ou use FS>=3,0" % fs_est))
     # tipo de portico invalido bloqueia (prismatico|alma_variavel)
     tp = _get(spec, "estrutura.tipo_portico")
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
@@ -235,9 +246,11 @@ def to_rodar_params(spec):
     # da sapata). Nada de dado geometrico inventado: tudo vem do bloco 'estaca'.
     if fu.get("tipo") == "estaca" and isinstance(fu.get("estaca"), dict):
         e = fu["estaca"]
+        # FS default 3,0 (NBR 6122 semi-empirico s/ prova de carga); 2,0 so com
+        # prova de carga (barrado no validar()).
         ec = {"perfil": e["perfil_spt"], "D": e.get("D", 0.30),
               "L": e.get("L", 10.0), "tipo_estaca": e.get("tipo_estaca", "pre_moldada"),
-              "FS": e.get("FS", 2.0)}
+              "FS": e.get("FS", 3.0)}
         for opt in ("N_ponta", "bloco", "grupo", "camadas_neg", "recalque_grupo",
                     "FS_tracao"):
             if e.get(opt) is not None:
@@ -397,8 +410,16 @@ def _selftest():
     assert validar(s2)["ok"] is False                # falta o bloco de estaca
     s2["fundacao"]["estaca"] = {
         "perfil_spt": [{"tipo": "areia_siltosa", "N": 20, "dz": 8.0}],
-        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 8.0, "FS": 2.0}
+        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 8.0, "FS": 3.0}
     assert validar(s2)["ok"], validar(s2)["faltando"]
+    # FS < 3,0 SEM prova de carga BLOQUEIA (NBR 6122 semi-empirico)
+    s3 = copy.deepcopy(s2)
+    s3["fundacao"]["estaca"]["FS"] = 2.0
+    r3 = validar(s3)
+    assert r3["ok"] is False and any("FS" in p for p, _ in r3["faltando"]), r3
+    # com prova de carga, FS=2,0 e liberado
+    s3["fundacao"]["estaca"]["prova_de_carga"] = True
+    assert validar(s3)["ok"], validar(s3)["faltando"]
     # remover um obrigatorio volta a bloquear
     s["geometria"]["bay"] = PENDENTE
     assert validar(s)["ok"] is False

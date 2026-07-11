@@ -61,7 +61,7 @@ def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata",
     if fundacao == 'estaca':                 # fundacao profunda (SPT da sondagem)
         s['fundacao']['estaca'] = {
             'perfil_spt': [dict(c) for c in _PERFIL_SPT],
-            'tipo_estaca': 'pre_moldada', 'D': 0.30, 'L': 10.0, 'FS': 2.0,
+            'tipo_estaca': 'pre_moldada', 'D': 0.30, 'L': 10.0, 'FS': 3.0,
             'bloco': {'a_pilar': 0.30, 'fck': 25e3, 'fyk': 500e3}}
         s['baldrame'] = {'b': 0.20, 'h': 0.40, 'q_parede': 0.0,
                          'continuidade': 'simples'}

@@ -3,7 +3,7 @@
 # Fundacao PROFUNDA: capacidade de carga da ESTACA pelo metodo semi-empirico de
 # AOKI-VELLOSO (1975) a partir do SPT, e o BLOCO DE COROAMENTO em concreto armado.
 #   - capacidade_aoki_velloso: R_ult = R_ponta + R_lateral ; P_adm = R_ult/FS
-#     (NBR 6122, FS=2,0 semi-empirico sem prova de carga).
+#     (NBR 6122, FS>=3,0 semi-empirico SEM prova de carga; 2,0 so COM prova).
 #       R_ponta   = (K*N_p/F1) * A_ponta
 #       R_lateral = sum_camadas (alpha*K*N_l/F2) * U * dL
 #     K, alpha (Tab.12.6) e F1, F2 (Tab.12.7) LIDOS do PDF (Veloso & Lopes 2012 /
@@ -55,7 +55,10 @@ _F1_F2 = {
 }
 
 N_LIMITE = 50.0        # valor limite de N adotado no metodo (Veloso & Lopes p.279)
-FS_GLOBAL = 2.0        # NBR 6122: fator de seguranca global (semi-empirico s/ prova de carga)
+# NBR 6122 - fator de seguranca global: metodo semi-empirico (SPT) SEM prova de
+# carga estatica -> FS >= 3,0. FS = 2,0 so e admitido COM prova de carga na obra.
+# O gate projeto_spec.validar() barra FS<3,0 sem fundacao.estaca.prova_de_carga.
+FS_GLOBAL = 3.0
 
 
 def capacidade_aoki_velloso(perfil, D, L, tipo_estaca="pre_moldada",
@@ -280,13 +283,14 @@ def carga_estaca_grupo(N, offsets, Mx=0.0, My=0.0, peso_bloco=0.0):
 def altura_bloco_rigido(espacamento, a_pilar, cobrimento=0.05, embutimento=0.02,
                         tan_alvo=1.0):
     """Altura MINIMA do bloco p/ ele ser RIGIDO (trabalhar por bielas, NBR 6118
-    22.3.1): a biela precisa de tan(theta) = d/braco no intervalo [0,57; 2,0].
+    22.3.1): p/ o bloco ser RIGIDO (bielas s/ armadura de cisalhamento) a biela
+    deve ter theta >= 45 graus -> tan(theta) = d/braco >= 1,0 (limite superior 2,0).
     braco = espacamento/2 - a_pilar/4 (biela do 1/4 do pilar ate a estaca).
-    Fixa d = tan_alvo*braco (tan_alvo em [0,57;2], 1,0 ~ 45 graus) e retorna
+    Fixa d = tan_alvo*braco (tan_alvo em [1,0;2,0], 1,0 = 45 graus) e retorna
     h = d + cobrimento + embutimento (piso de 0,40 m). Assim a GEOMETRIA nasce
     coerente com a premissa de bloco rigido (nao com uma constante 1,2*D)."""
     braco = espacamento / 2.0 - a_pilar / 4.0
-    tan_alvo = max(0.57, min(tan_alvo, 2.0))
+    tan_alvo = max(1.0, min(tan_alvo, 2.0))
     d = tan_alvo * max(braco, 0.0)
     return max(0.40, d + cobrimento + embutimento)
 
@@ -404,10 +408,13 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
     A_estaca = math.pi * D_estaca ** 2 / 4.0
     sig_pilar = N_pilar / (A_pilar * sin2)           # tensao da biela junto ao pilar
     sig_estaca = P_est / (A_estaca * sin2)           # tensao da biela junto a estaca
-    ok_ang = 0.57 <= tan_theta <= 2.0                # 22.3.1 (0,57 <= tan(theta) <= 2)
+    # bloco RIGIDO (bielas, s/ armadura de cisalhamento) exige theta>=45 -> tan>=1,0
+    # (NBR 6118 22.3; limite superior 2,0). tan<1,0 => trata como FLEXIVEL (verifica
+    # puncao, conservador). Entre 35 e 45 graus a norma ainda pede checagem de
+    # fissuracao/fadiga da biela -> FLAG (nao coberto; usar tan>=1,0 no projeto).
+    ok_ang = 1.0 <= tan_theta <= 2.0
     ok_biela = sig_pilar <= fcd1 and sig_estaca <= fcd3
-    # bloco rigido (tan>=0,57) dispensa puncao (trabalha por bielas); senao verifica
-    rigido = tan_theta >= 0.57
+    rigido = tan_theta >= 1.0
     punc = None
     if not rigido:
         # puncao (NBR 6118 19.5) no bloco flexivel, contorno critico C' a 2d, carga
@@ -585,7 +592,7 @@ def relatorio_pt(r):
                  f"{rg['B_eq_m']:.1f}x{rg['L_eq_m']:.1f} m): "
                  f"{rg['recalque_mm']:.1f} mm (q={rg['q_liq_kPa']:.0f} kPa)")
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
-          "   tipo/geometria da estaca; FS da NBR 6122 (2,0 semi-empirico s/ prova);",
+          "   tipo/geometria da estaca; FS da NBR 6122 (>=3,0 s/ prova; 2,0 c/ prova);",
           "   puncao do bloco flexivel = projeto do bloco.]",
           "  [3 metodos de capacidade (Aoki-Velloso, Decourt-Quaresma, Teixeira) +",
           "   tracao, grupo, atrito negativo, recalque, bloco (biela+ancoragem+puncao).]"]
@@ -608,7 +615,7 @@ def _selftest():
     rl_arg = (6.0 / 100.0) * 200.0 * 5 / 3.5
     dR_arg = rl_arg * U * 3.0
     assert abs(cap["camadas"][0]["dR_kN"] - round(dR_arg, 1)) < 0.2, cap["camadas"][0]
-    assert abs(cap["P_adm_kN"] - cap["R_ult_kN"] / 2.0) < 0.1, cap
+    assert abs(cap["P_adm_kN"] - cap["R_ult_kN"] / 3.0) < 0.1, cap   # FS default 3,0
     # N limite 50: ponta N=80 -> usa 50
     cap2 = capacidade_aoki_velloso(perfil, D, L, "pre_moldada", N_ponta=80)
     assert abs(cap2["N_ponta"] - 50.0) < 1e-9, cap2
@@ -627,7 +634,7 @@ def _selftest():
     assert abs(b["fcd3_MPa"] - 0.72 * av2 * fcd / 1000.0) < 0.01, b
     tan = 0.55 / brc; sin2 = tan ** 2 / (1 + tan ** 2)
     assert abs(b["sig_estaca_MPa"] - (450.0 / (math.pi * 0.3 ** 2 / 4.0 * sin2)) / 1000.0) < 0.02, b
-    assert b["ok_angulo"] == (0.57 <= tan <= 2.0) and "ok_biela" in b
+    assert b["ok_angulo"] == (1.0 <= tan <= 2.0) and "ok_biela" in b   # rigido: tan>=1,0
     # ancoragem do tirante (9.3.2): fctm=0,3*25^(2/3) ; fbd=2,25*1*1*0,7*fctm/1,4
     anc = ancoragem_tirante(0.0125, 25e3, 500e3, boa_aderencia=True, gancho=False)
     fctm = 0.3 * 25.0 ** (2.0 / 3.0); fbd = 2.25 * 0.7 * fctm / 1.4
@@ -706,7 +713,7 @@ def _selftest():
     assert abs(hr - max(0.40, 1.0*brc + 0.05 + 0.02)) < 1e-9, hr
     # a altura rigida gera tan(theta)>=0,57 no bloco (rigido por construcao)
     br = bloco_coroamento(600.0, 2, 0.9, 0.30, hr - 0.05 - 0.02, 25e3, 500e3, D_estaca=0.30)
-    assert br["tan_theta"] >= 0.57 and br["rigido"], br
+    assert br["tan_theta"] >= 1.0 and br["rigido"], br               # rigido por construcao
     # verifica_estaca integra (com uplift)
     r = verifica_estaca({"perfil": perfil, "D": D, "L": L, "tipo_estaca": "pre_moldada",
                          "N_pilar": 600.0, "N_uplift": 200.0,

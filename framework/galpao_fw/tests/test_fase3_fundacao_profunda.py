@@ -52,7 +52,7 @@ def _spec_base(tipo_fundacao="sapata"):
     if tipo_fundacao == "estaca":
         s["fundacao"]["estaca"] = {
             "perfil_spt": copy.deepcopy(_PERFIL_SPT),
-            "tipo_estaca": "pre_moldada", "D": 0.30, "L": 10.0, "FS": 2.0,
+            "tipo_estaca": "pre_moldada", "D": 0.30, "L": 10.0, "FS": 3.0,
             "bloco": {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3},
         }
         s["baldrame"] = {"b": 0.20, "h": 0.40, "q_parede": 0.0,
@@ -98,6 +98,22 @@ def test_tipo_invalido_bloqueia():
     s["fundacao"]["tipo"] = "radier_magico"
     r = PS.validar(s)
     assert not r["ok"], "fundacao.tipo fora de {sapata,estaca} deve bloquear"
+
+
+def test_fs_menor_que_3_sem_prova_bloqueia():
+    # NBR 6122: semi-empirico s/ prova de carga -> FS >= 3,0
+    s = _spec_base("estaca")
+    s["fundacao"]["estaca"]["FS"] = 2.0
+    r = PS.validar(s)
+    assert not r["ok"] and any("FS" in p for p, _ in r["faltando"]), \
+        "FS<3,0 sem prova de carga deve BLOQUEAR"
+
+
+def test_fs_2_com_prova_de_carga_valida():
+    s = _spec_base("estaca")
+    s["fundacao"]["estaca"]["FS"] = 2.0
+    s["fundacao"]["estaca"]["prova_de_carga"] = True
+    assert PS.validar(s)["ok"], "FS=2,0 COM prova de carga deve validar"
 
 
 # ============================ me-2: to_rodar_params =========================
