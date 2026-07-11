@@ -55,7 +55,11 @@ concordam**: FS=2,0 exige prova de carga. Implementado:
 - `projeto_spec.validar()`: `tipo==estaca` com `FS<3,0` e sem
   `fundacao.estaca.prova_de_carga==True` → **BLOQUEIA** com mensagem citando 6122;
 - campo novo `fundacao.estaca.prova_de_carga` (bool);
-- testes: `test_fs_menor_que_3_sem_prova_bloqueia`, `test_fs_2_com_prova_de_carga_valida`.
+- **auditoria**: com prova de carga, `validar()` devolve um `avisos` registrando a
+  exceção normativa ativa (FS<3,0 liberado por prova de carga) → memória de
+  cálculo/ART, conforme sugestão do sênior;
+- testes: `test_fs_menor_que_3_sem_prova_bloqueia`, `test_fs_2_com_prova_de_carga_valida`
+  (este confere o aviso de auditoria).
 Assim o default é seguro (3,0) e 2,0 só sai com prova de carga — atende o sênior
 e a NBR, sem eu ter que citar cláusula de PDF ilegível.
 

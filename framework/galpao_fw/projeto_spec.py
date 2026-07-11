@@ -134,8 +134,11 @@ def _get(spec, path):
 
 
 def validar(spec):
-    """Retorna {faltando, a_confirmar, ok}. ok=False BLOQUEIA calculo/desenho."""
+    """Retorna {faltando, a_confirmar, avisos, ok}. ok=False BLOQUEIA calculo/desenho.
+    `avisos` = excecoes normativas ativas (nao bloqueiam, mas ficam na memoria de
+    calculo para auditoria/ART)."""
     faltando = []
+    avisos = []
     for path, desc in REQUERIDOS:
         v = _get(spec, path)
         if v is KeyError or v == PENDENTE:
@@ -161,11 +164,19 @@ def validar(spec):
             # flag, FS<3,0 BLOQUEIA (evita relatorio contra a norma).
             fs_est = _get(spec, "fundacao.estaca.FS")
             prova = _get(spec, "fundacao.estaca.prova_de_carga")
-            if isinstance(fs_est, (int, float)) and fs_est < 3.0 and prova is not True:
-                faltando.append(
-                    ("fundacao.estaca.FS",
-                     "FS=%.2f < 3,0 exige prova de carga estatica (NBR 6122): "
-                     "marque fundacao.estaca.prova_de_carga=True ou use FS>=3,0" % fs_est))
+            if isinstance(fs_est, (int, float)) and fs_est < 3.0:
+                if prova is not True:
+                    faltando.append(
+                        ("fundacao.estaca.FS",
+                         "FS=%.2f < 3,0 exige prova de carga estatica (NBR 6122): "
+                         "marque fundacao.estaca.prova_de_carga=True ou use FS>=3,0" % fs_est))
+                else:
+                    # excecao normativa ATIVA: fica na memoria de calculo (auditoria).
+                    avisos.append(
+                        ("fundacao.estaca.FS",
+                         "FS=%.2f < 3,0 liberado por PROVA DE CARGA estatica (NBR 6122). "
+                         "Validade do dimensionamento condicionada a execucao das provas "
+                         "na obra - responsabilidade do engenheiro." % fs_est))
     # tipo de portico invalido bloqueia (prismatico|alma_variavel)
     tp = _get(spec, "estrutura.tipo_portico")
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
@@ -182,7 +193,7 @@ def validar(spec):
         if ponte.get("phi") in (None, PENDENTE) and not ponte.get("classe_hc"):
             faltando.append(("ponte.phi", "impacto phi OU classe de elevacao HC (NBR 8400)"))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
-            "ok": not faltando}
+            "avisos": avisos, "ok": not faltando}
 
 
 def exigir_completo(spec):
@@ -417,9 +428,11 @@ def _selftest():
     s3["fundacao"]["estaca"]["FS"] = 2.0
     r3 = validar(s3)
     assert r3["ok"] is False and any("FS" in p for p, _ in r3["faltando"]), r3
-    # com prova de carga, FS=2,0 e liberado
+    # com prova de carga, FS=2,0 e liberado E registra aviso de auditoria
     s3["fundacao"]["estaca"]["prova_de_carga"] = True
-    assert validar(s3)["ok"], validar(s3)["faltando"]
+    r3b = validar(s3)
+    assert r3b["ok"], r3b["faltando"]
+    assert any("FS" in p for p, _ in r3b["avisos"]), r3b   # excecao normativa auditada
     # remover um obrigatorio volta a bloquear
     s["geometria"]["bay"] = PENDENTE
     assert validar(s)["ok"] is False
