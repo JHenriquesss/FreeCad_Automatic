@@ -43,6 +43,7 @@ import tesoura as tes
 import ponte_rolante as pr
 import console_ponte as cons
 import zona_painel as zpn
+import flt_misula as fltm
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -574,18 +575,24 @@ def rodar(params, out_dir):
                              Lb=1e-3, nome=sec_seg["nome"])   # Lb->0: sem FLT local
             v["_seg"] = seg
             verifs.append(v)
-        # FLT de TRECHO (member-level) com a secao mais funda, nos 2 regimes de Lb
+        # FLT de TRECHO (member-level) por NBR 8800 ANEXO J: lambda da secao de MAIOR
+        # altura (J.4.2), Cb por analise racional (J.4.1, 5.4.2.3a) do diagrama de M
+        # do trecho e demanda na secao de MAIOR tensao M/Wx (nao M_max cego). Dois
+        # regimes de Lb (gravidade=tercas / succao=maos-francesas). B2 amplifica M.
         M_max = max((s["M"] for s in segs_env), default=0.0) * B2_amp
+        segs_flt = [{"M": s["M"] * B2_amp, "props": s["sec_props"], "h_m": s["h_m"]}
+                    for s in segs_env if s.get("sec_props")]
         flt = {}
-        if deep:
+        cb_raf = 1.0
+        if segs_flt:
             for regime, Lb_f, mesa in (("gravidade(tercas)", Lb_terca, "superior"),
                                        ("succao(maos-francesas)", Lb_mf, "inferior")):
-                _mn, _gov, mr = chk.momento_resistente(
-                    dict(deep["sec_props"]), params["fy"], Lb_f, Cb=1.0)
-                MRd_flt = mr["Mn_flt"] / chk.GA1
-                flt[regime] = {"Lb": Lb_f, "mesa": mesa, "M_Rd_flt": MRd_flt,
-                               "u": M_max / MRd_flt if MRd_flt > 0 else float("inf")}
+                rj = fltm.flt_misula(segs_flt, params["fy"], Lb_f)
+                cb_raf = rj["Cb"]
+                flt[regime] = {"Lb": Lb_f, "mesa": mesa, "M_Rd_flt": rj["M_Rd"],
+                               "u": rj["util"], "secao_critica": rj["secao_critica"]}
         u_flt = max((f["u"] for f in flt.values()), default=0.0)
+        flt_sec_crit = next(iter(flt.values()), {}).get("secao_critica")
         # relatorio
         L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
               "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -597,12 +604,14 @@ def rodar(params, out_dir):
                       s["M"], v["interacao"], s.get("gov", "")))
             if gov_seg is None or v["interacao"] > gov_seg["interacao"]:
                 gov_seg = v
-        L += ["", "  FLT DE TRECHO (member-level, secao mais funda h=%.0f mm):"
-              % ((deep["h_m"] or 0) * 1000 if deep else 0)]
+        L += ["", "  FLT DE TRECHO (member-level, NBR 8800 Anexo J; secao de maior "
+              "altura h=%.0f mm, Cb=%.2f):"
+              % ((deep["h_m"] or 0) * 1000 if deep else 0, cb_raf)]
         for regime, f in flt.items():
             L.append("    %-24s Lb=%.2f m (mesa %s) -> M_Rd,FLT=%.1f kN.m ; "
-                     "M_max=%.1f -> u=%.2f" % (regime, f["Lb"], f["mesa"],
-                     f["M_Rd_flt"], M_max, f["u"]))
+                     "demanda na secao %s (max M/Wx, J.4.1) -> u=%.2f" %
+                     (regime, f["Lb"], f["mesa"], f["M_Rd_flt"],
+                      f.get("secao_critica"), f["u"]))
         u_local = gov_seg["interacao"] if gov_seg else 0.0
         gs = gov_seg["_seg"] if gov_seg else {}
         no_joelho = bool(gov_seg) and not (
@@ -619,9 +628,9 @@ def rodar(params, out_dir):
                   else "gravidade(mesa sup)"),
               "  >> UTILIZACAO GOVERNANTE = %.2f (%s)" % (
                   u_geral, "FLT de trecho" if u_flt >= u_local else "estado local do segmento"),
-              "  [FLAG] FLT usa a secao mais funda do trecho (conservador). A formulacao",
-              "         completa de misula (fator gamma, AISC DG25 / NBR 8800 Anexo H)",
-              "         fica como refinamento.",
+              "  [NBR 8800 Anexo J] FLT: lambda da secao de maior altura (J.4.2), Cb",
+              "         racional (J.4.1, 5.4.2.3a), demanda na secao de max M/Wx. O",
+              "         fator gamma (AISC DG25) NAO e adotado - nao e normativo na NBR.",
               "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
         # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
         # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
@@ -643,15 +652,14 @@ def rodar(params, out_dir):
                                  Lb=1e-3, nome=sec_c["nome"])   # Lb->0: sem FLT local
                 v["_seg"] = seg
                 verifs_c.append(v)
-            deep_c = max((s for s in segs_col_tapered if s.get("sec_props")),
-                         key=lambda s: s.get("h_m") or 0, default=None)
-            M_max_c = max((s["M"] for s in segs_col_tapered), default=0.0) * B2_amp
-            u_col_flt = 0.0
-            if deep_c:
-                _mn, _gov, mrc = chk.momento_resistente(
-                    dict(deep_c["sec_props"]), params["fy"], Lb_col, Cb=1.0)
-                MRd_c = mrc["Mn_flt"] / chk.GA1
-                u_col_flt = M_max_c / MRd_c if MRd_c > 0 else float("inf")
+            # FLT da coluna por Anexo J (seção maior altura J.4.2 + Cb racional J.4.1)
+            segs_col_flt = [{"M": s["M"] * B2_amp, "props": s["sec_props"],
+                             "h_m": s["h_m"]} for s in segs_col_tapered
+                            if s.get("sec_props")]
+            rj_c = fltm.flt_misula(segs_col_flt, params["fy"], Lb_col) if segs_col_flt \
+                else {"util": 0.0, "Cb": 1.0}
+            u_col_flt = rj_c["util"]
+            cb_col = rj_c["Cb"]
             gov_c = None
             for v in verifs_c:
                 if gov_c is None or v["interacao"] > gov_c["interacao"]:
@@ -666,13 +674,14 @@ def rodar(params, out_dir):
                 L.append("    %3d | %6.0f | %9.1f | %14.2f | %s" %
                          (s["seg"], (s["h_m"] or 0) * 1000, s["M"], v["interacao"],
                           s.get("gov", "")))
-            L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Lb=%.2f m) = %.2f ; "
-                  "GOVERNANTE = %.2f (%s)" % (
-                      u_col_local, Lb_col, u_col_flt, u_col_geral,
+            L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Anexo J, Lb=%.2f m, "
+                  "Cb=%.2f) = %.2f ; GOVERNANTE = %.2f (%s)" % (
+                      u_col_local, Lb_col, cb_col, u_col_flt, u_col_geral,
                       "FLT de trecho" if u_col_flt >= u_col_local else "estado local")]
             col_res = {"util_col_local_max": round(u_col_local, 2),
                        "util_col_flt": round(u_col_flt, 2),
                        "interacao_max_col": round(u_col_geral, 2),
+                       "cb_misula_col": round(cb_col, 3),
                        "h_col_base_mm": tp["h_col_base"] * 1000}
         L.append("=" * 66)
         save("gate6-alma-variavel.txt", "\n".join(L))
@@ -687,7 +696,9 @@ def rodar(params, out_dir):
             "seg_governante": ("%d%s" % (gs.get("seg"),
                                "E" if gs.get("lado") == 0 else "D")) if gov_seg else None,
             "governa_joelho": not no_joelho if gov_seg else None,
-            "governa_flt": bool(u_flt >= u_local)}
+            "governa_flt": bool(u_flt >= u_local),
+            "cb_misula_raf": round(cb_raf, 3),
+            "flt_secao_critica": flt_sec_crit}
         if col_res:
             res["alma_variavel"].update(col_res)
 
