@@ -660,12 +660,26 @@ def rodar(params, out_dir):
                 else {"util": 0.0, "Cb": 1.0}
             u_col_flt = rj_c["util"]
             cb_col = rj_c["Cb"]
+            # COMPRESSAO GLOBAL da coluna (Anexo J.3): a verificacao por segmento usa
+            # L=L_seg (~0,75 m) e NAO captura a flambagem GLOBAL por flexao ao longo
+            # dos ~H metros. J.3 exige Nc,Rd pela secao de MENOR altura (base) com o
+            # comprimento de flambagem do membro inteiro (K racional; aqui K=1 no
+            # plano nao-sway + B2 do MAES ja amplifica o sway). N_Sd = axial maximo.
+            sec_min = av.props_I(tp["h_col_base"], tp.get("bf", 0.20),
+                                 tp.get("tw", 0.008), tp.get("tf", 0.0125))
+            sec_min["nome"] = "coluna_base(menor_altura)"
+            N_col_max = max((abs(s["N"]) for s in segs_col_tapered), default=0.0) * B2_amp
+            H_col = g["eave"]
+            vg = chk.verifica(sec_min, params["fy"], L=H_col, Nsd=N_col_max, Msd=0.0,
+                              Vsd=0.0, Kx=1.0, Ky=1.0, Lb=Lb_col,
+                              nome=sec_min["nome"])
+            u_col_global = vg["u_N"]
             gov_c = None
             for v in verifs_c:
                 if gov_c is None or v["interacao"] > gov_c["interacao"]:
                     gov_c = v
             u_col_local = gov_c["interacao"] if gov_c else 0.0
-            u_col_geral = max(u_col_local, u_col_flt)
+            u_col_geral = max(u_col_local, u_col_flt, u_col_global)
             L += ["", "  COLUNA TAPERED (base rasa -> joelho fundo; h_col_base=%.0f mm):"
                   % (tp["h_col_base"] * 1000),
                   "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -674,12 +688,18 @@ def rodar(params, out_dir):
                 L.append("    %3d | %6.0f | %9.1f | %14.2f | %s" %
                          (s["seg"], (s["h_m"] or 0) * 1000, s["M"], v["interacao"],
                           s.get("gov", "")))
+            _gov_nome = max((("local", u_col_local), ("FLT de trecho", u_col_flt),
+                             ("compressao global J.3", u_col_global)),
+                            key=lambda x: x[1])[0]
             L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Anexo J, Lb=%.2f m, "
-                  "Cb=%.2f) = %.2f ; GOVERNANTE = %.2f (%s)" % (
-                      u_col_local, Lb_col, cb_col, u_col_flt, u_col_geral,
-                      "FLT de trecho" if u_col_flt >= u_col_local else "estado local")]
+                  "Cb=%.2f) = %.2f" % (u_col_local, Lb_col, cb_col, u_col_flt),
+                  "     compressao GLOBAL (Anexo J.3, secao menor altura h=%.0f mm, "
+                  "H=%.2f m, N_Sd=%.1f kN) = %.2f" % (
+                      tp["h_col_base"] * 1000, H_col, N_col_max, u_col_global),
+                  "     GOVERNANTE = %.2f (%s)" % (u_col_geral, _gov_nome)]
             col_res = {"util_col_local_max": round(u_col_local, 2),
                        "util_col_flt": round(u_col_flt, 2),
+                       "util_col_global": round(u_col_global, 2),
                        "interacao_max_col": round(u_col_geral, 2),
                        "cb_misula_col": round(cb_col, 3),
                        "h_col_base_mm": tp["h_col_base"] * 1000}

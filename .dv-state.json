@@ -1,7 +1,7 @@
 {
   "phase": "6.7",
   "phase_name": "vento-succao-tesoura",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "rodar_galpao (tesoura): w_vento_auto = min(vr.net[*][cobertura_*])*q*bay (uplift kN/m); usa quando usuario nao informou; gate6-tesoura reporta acoplamento (net,q,bay,w_vento) citando NBR 6123", "done": true },
     { "id": "me-2", "text": "projeto_spec: campo opcional estrutura.trelica.w_vento_kN_m (override); mapper repassa; res[tesoura] += w_vento_auto_kN_m + w_vento_fonte (auto/input)", "done": true },
@@ -30,6 +30,7 @@
     { "phase": "6.3", "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": "6.4", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" },
-    { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" }
+    { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" }
   ]
 }

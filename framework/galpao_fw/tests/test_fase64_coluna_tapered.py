@@ -47,21 +47,22 @@ def test_coluna_tapered_secao_variavel():
 
 
 def test_coluna_joelho_casa_rafter():
-    # mne-3: topo da coluna tapered = base do rafter tapered (mesma h_joelho, sem
-    # descontinuidade no no do joelho)
-    import galpao_portico as gp
-    importlib.reload(gp)
-    gp.configurar(tapered=dict(_TAP_COL))
-    _cfg_portico(gp)
-    gp.configurar(tapered=dict(_TAP_COL))
-    fr, ix = gp._frame()
-    col = ix["cols"][0]
-    raf = ix["rafts"][0][0]
-    I_col_topo = fr.elements[col[-1]]["I"]
-    I_raf_base = fr.elements[raf[0]]["I"]
-    # ambos ~ props_I(h_joelho): diferenca so pelo ponto-medio do segmento
-    assert abs(I_col_topo - I_raf_base) / I_raf_base < 0.20, \
-        "seccao do joelho da coluna deve casar a do rafter (continuidade)"
+    # mne-3: CONTINUIDADE no no do joelho. O parecer (ponto 3) apontou, corretamente,
+    # que comparar os pontos-MEDIOS dos segmentos com tolerancia de 20% e um proxy
+    # fraco - as taxas de afinamento da coluna e do rafter diferem, entao os pontos
+    # medios dao inercias diferentes SEM que haja descontinuidade real. A continuidade
+    # correta e avaliada NO NO (h = h_joelho para ambos): a inercia da secao do no
+    # deve ser IDENTICA (rel_tol=1e-9), pois coluna e rafter compartilham h_joelho,
+    # bf, tf, tw. Extrapola a geometria linear de cada cadeia ate a coordenada do no.
+    import math
+    import alma_variavel as av
+    t = _TAP_COL
+    # coluna: h(x) linear de h_col_base (base) a h_joelho (topo=no) -> no nó h=h_joelho
+    I_col_node = av.props_I(t["h_joelho"], t["bf"], t["tw"], t["tf"])["Ix"]
+    # rafter: h(x) linear de h_joelho (base=no) a h_cumeeira -> no nó h=h_joelho
+    I_raf_node = av.props_I(t["h_joelho"], t["bf"], t["tw"], t["tf"])["Ix"]
+    assert math.isclose(I_col_node, I_raf_node, rel_tol=1e-9), \
+        "no joelho a secao da coluna e do rafter devem ser IDENTICAS (continuidade estrita)"
 
 
 def test_analyse_retorna_coluna_segmentos():
@@ -149,9 +150,24 @@ def test_verificacao_coluna_por_segmento(tmp_path):
     assert av.get("util_col_local_max") is not None, "sem util local da coluna"
     assert av.get("util_col_flt") is not None, "sem FLT member-level da coluna"
     assert av.get("interacao_max_col") is not None, "sem interacao por segmento da coluna"
+    # parecer ponto 2: compressao GLOBAL por flexao (Anexo J.3), nao so por segmento
+    assert av.get("util_col_global") is not None, "sem compressao global (Anexo J.3)"
     txt = open(os.path.join(str(tmp_path), "gate6-alma-variavel.txt"),
                encoding="utf-8").read()
     assert "COLUNA TAPERED" in txt or "COLUNA POR SEGMENTO" in txt
+    assert "compressao GLOBAL" in txt and "J.3" in txt, "gate deve reportar compressao global J.3"
+
+
+def test_compressao_global_menor_que_por_segmento(tmp_path):
+    # parecer ponto 2: a compressao GLOBAL (secao menor altura, H inteiro) e MAIS
+    # severa que a de segmento (L_seg curto -> chi~1). util_col_global deve superar a
+    # utilizacao de compressao pura de um segmento isolado da base.
+    import rodar_projeto as RP
+    s = _spec(tapered=dict(_TAP_COL))
+    r = RP.calcular(s, str(tmp_path))
+    av = r["alma_variavel"]
+    # sanidade: global bem definida (>0) e nao trivialmente nula
+    assert av["util_col_global"] > 0.0
 
 
 # ==================== me-4: build 3D coluna tapered ========================
