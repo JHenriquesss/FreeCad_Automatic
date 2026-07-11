@@ -5,13 +5,11 @@ Conferência do sênior. Estende a ponte rolante já homologada
 pontos. Código: `ponte_rolante.py`, **novo** `nbr8400.py`, gate em
 `projeto_spec.py`. Fase 4 do pipeline. Criado 2026-07-10.
 
-> **STATUS: 🔁 PARECER 1 RESPONDIDO — REVER** (2026-07-11). Sênior validou Q2
-> (Ψ e min(Vh,1.5)), Q3 (limite superior / B10) e Q4 (edição 2019). Apontou Q1
-> (H_long) como erro de estática — **mas a fórmula está correta** (§6): `R_roda_max`
-> é a reação POR RODA do trilho carregado (partilha igual), então
-> `frac_long·R_roda_max·n_motoras = frac_long·ΣR_motoras ≤ frac_long·R_trilho_max`
-> — não há superposição. Ψ-cap e B10 **já estavam implementados** (senior confirmou
-> a matemática); só a doc induziu dúvida. Provas adicionadas ao selftest.
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11) — parecer 2: sênior reconheceu a defesa
+> de Q1 (H_long = `ΣR_motoras`, partilha igual) e **aprovou** Q1/Q2/Q3/Q4.
+> "Revisão aprovada. Pode seguir com o merge no pipeline principal." Dica de
+> fechamento aplicada: docstring de `cargas_de_roda` deixa explícito que
+> `R_roda_max` é reação **por roda** (partilha igualitária), não pico isolado.
 
 ---
 

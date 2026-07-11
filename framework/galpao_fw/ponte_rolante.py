@@ -53,6 +53,12 @@ def cargas_de_roda(Q, peso_ponte, peso_trole, vao_ponte, aprox_min, n_rodas_lado
     Q = capacidade icada ; pesos em kN ; vao_ponte = distancia entre trilhos (m) ;
     aprox_min = distancia minima do gancho ao trilho (m). O peso da ponte divide-se
     igualmente nos dois trilhos; a carga movel (Q+trole) vai por braco de alavanca.
+
+    IMPORTANTE (partilha igualitaria): R_roda_max = R_trilho_max / n_rodas_lado, ou
+    seja, a reacao do trilho mais carregado e repartida IGUALMENTE entre as rodas
+    daquele lado (truque/cabeceira). Logo R_roda_max e a reacao POR RODA, NAO um
+    pico isolado de uma unica roda -> ao somar sobre as rodas motoras
+    (forcas_horizontais) obtem-se ΣR_motoras, sem violar o equilibrio vertical.
     """
     S = vao_ponte
     movel = Q + peso_trole
