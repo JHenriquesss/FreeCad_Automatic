@@ -182,6 +182,16 @@ def validar(spec):
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
         faltando.append(("estrutura.tipo_portico",
                          "valor invalido '%s' (use %s)" % (tp, "/".join(TIPOS_PORTICO))))
+    # tesoura: n_paineis deve ser PAR (cumeeira em no; impar poe o apice no meio da
+    # barra do banzo superior e reintroduz flexao -> invalida o metodo dos nos).
+    if tp == "tesoura":
+        tr = _get(spec, "estrutura.trelica")
+        if isinstance(tr, dict):
+            npn = tr.get("n_paineis", 8)
+            if isinstance(npn, int) and npn % 2 != 0:
+                faltando.append(("estrutura.trelica.n_paineis",
+                                 "n_paineis=%d deve ser PAR (cumeeira em no; impar "
+                                 "reintroduz flexao na tesoura)" % npn))
     # ponte rolante: se ha ponte (dict), os dados do fabricante bloqueiam. phi
     # exige classe_hc OU phi direto; n de ciclos exige classe_b OU n_ciclos.
     ponte = spec.get("ponte")

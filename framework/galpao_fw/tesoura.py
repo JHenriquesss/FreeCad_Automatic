@@ -20,7 +20,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def gera_trelica(L, h, n_paineis=8, tipo="warren"):
-    """Gera trelica isostatica. L (m), h (m) no centro."""
+    """Gera trelica isostatica. L (m), h (m) no centro. n_paineis deve ser PAR:
+    a cumeeira (x=L/2) precisa cair num NO do banzo superior; se impar, o apice
+    fica no meio de uma barra e reintroduz flexao (invalida o metodo dos nos)."""
+    if n_paineis % 2 != 0:
+        raise ValueError(
+            "n_paineis deve ser PAR (cumeeira em no; impar poe o apice no meio da "
+            "barra e reintroduz flexao). Recebido: %s" % n_paineis)
     dx = L / n_paineis
     nos = []
     # Banzo superior RETO em DUAS AGUAS: sobe do beiral (y=0) ate a cumeeira (y=h no
@@ -269,6 +275,12 @@ def _selftest():
     assert b2 == 29 and b2 + 3 == 2 * t2["n_nos"], f"pratt: {t2['n_nos']}nos {b2}barras b+3={b2+3} 2j={2*t2['n_nos']}"
     assert len(t2["diagonais"]) == 6
     assert len(t2["montantes"]) == 7
+
+    # n_paineis IMPAR bloqueia (cumeeira cairia no meio da barra -> flexao)
+    try:
+        gera_trelica(20.0, 2.5, 7, "warren"); raise AssertionError("impar deveria falhar")
+    except ValueError:
+        pass
 
     # GEOMETRIA duas-aguas RETA (parecer Q5): banzo sup sobe linear ate a cumeeira
     # (no central, y=h) e desce; nao parabola. Inclinacao constante em cada agua.

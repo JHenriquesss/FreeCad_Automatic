@@ -5,13 +5,11 @@ Conferência do sênior. O `tesoura.py` já homologado era **só geração de ge
 **cria o cálculo de esforços** (solver + verificação) e integra ao pipeline
 (spec + rodar + 3D). Fase 6.c. Criado 2026-07-10.
 
-> **STATUS: 🔁 PARECER 1 (BLOQUEADO) ATENDIDO — REVER** (2026-07-11). O sênior
-> bloqueou por 3 itens; **todos corrigidos** (§5): **(Q5)** banzo superior agora
-> **reto em duas águas** (segue o telhado), não parábola — terças apoiam nos nós;
-> **tração** ganhou **ruptura da seção líquida** (Ae·fu/γa2, Ct); **compressão**
-> verifica **os 2 eixos** (Lb_y de travamento fora do plano). Q2/Q3 validados
-> (cargas já eram nodais; agora tributária inclinada). Q1/Q4 aprovados. Solver
-> (método dos nós) aprovado pelo sênior; equilíbrio global provado no selftest.
+> **STATUS: ✅ HOMOLOGADO — APROVADO PARA MERGE** (2026-07-11). Parecer 2: sênior
+> aprovou as 3 correções (§5) e a defesa do solver. Ação crítica de fechamento
+> aplicada: **guard `n_paineis` PAR** (ímpar poria a cumeeira no meio da barra →
+> flexão → invalida o método dos nós) — bloqueia em `gera_trelica` **e** no gate
+> `projeto_spec.validar()`. "Integração homologada. Pode prosseguir com o merge."
 
 ---
 
@@ -104,8 +102,12 @@ executivo. Confirma que fica para o detalhamento?
 governa u=0,71), banzo inf +219,7 kN (tração), Lb_y=2,58 m. Build 3D **0 interferências**.
 Selftest: equilíbrio global (ΣFx=0, ΣFy=carga), duas águas reta, tração(ruptura)+compressão(2 eixos).
 
-**FLAGs residuais:** fator γ de mísula não se aplica; auto-acoplamento da sucção de
-vento à treliça (hoje input); `n_paineis` par (cumeeira em nó).
+**Fechamento (parecer 2):** `n_paineis` PAR agora é **guard** (raise em
+`gera_trelica` + bloqueio em `validar()`), não FLAG. Sênior confirmou obrigatório.
+
+**FLAGs residuais:** fator γ de mísula não se aplica (treliça rotulada);
+auto-acoplamento da sucção de vento à treliça (hoje input — dívida técnica aceita;
+próxima iteração: NBR 6123 cp/ce → P_nos).
 
 ---
 
