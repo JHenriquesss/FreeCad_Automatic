@@ -42,12 +42,13 @@ def verifica_console(caso):
       h_trilho - altura do topo do trilho acima do TOPO da solda (m; default 0);
                  braco de Ht ao centroide da solda = L/2 + h_trilho
       t        - espessura da chapa do console (m)
-      L        - comprimento (vertical) de CADA cordao console->coluna (m)
+      L        - comprimento (vertical) FISICO de CADA cordao console->coluna (m)
       fy, fu   - aco da chapa (kN/m2)
       fw       - resistencia do metal da solda (kN/m2; E70XX ~ 485e3)
       perna    - perna do filete (m); default = minimo Tab.9
-    Dois cordoes (A_w=2L, Sw=L^2/3). Retorna dict: solda (grupo elastico) +
-    chapa em balanco (cisalhamento 5.4 E flexao na raiz)."""
+    Dois cordoes de comprimento EFETIVO L_ef=L-2*perna (desconta crateras):
+    A_w=2*L_ef, Sw=L_ef^2/3. Retorna dict: solda (grupo elastico) + chapa em
+    balanco (cisalhamento 5.4 E flexao na raiz, na secao t x L fisico)."""
     Rv, Ht = abs(caso["Rv"]), abs(caso.get("Ht", 0.0))
     ecc, t, L = caso["ecc"], caso["t"], caso["L"]
     h_trilho = caso.get("h_trilho", 0.0)
@@ -56,26 +57,40 @@ def verifica_console(caso):
 
     M = Rv * ecc                                 # flexao no plano (Rv excentrico)
     Mz = Ht * (L / 2.0 + h_trilho)               # flexao por excentricidade de Ht
-    # grupo de solda elastico, DOIS cordoes: A_w=2L, Sw=2*(L^2/6)=L^2/3
-    f_v = Rv / (2.0 * L)                          # vertical direto (z, // cordao)
-    f_h = Ht / (2.0 * L)                          # horizontal direto (x)
-    f_bV = 3.0 * M / (L ** 2)                     # flexao Rv*ecc (x)
-    f_bH = 3.0 * Mz / (L ** 2)                    # flexao Ht*braco (x)
-    f_horiz = f_h + f_bV + f_bH                   # COLINEARES no eixo x -> soma
-    f_dem = math.sqrt(f_v ** 2 + f_horiz ** 2)    # x ortogonal a z (f_v)
+
+    def _grupo_solda(Lw):
+        """Grupo de solda elastico, DOIS cordoes de comprimento EFETIVO Lw:
+        A_w=2*Lw, Sw=Lw^2/3. M e Mz vem da geometria FISICA (fixos). Retorna
+        (f_dem, componentes). Colineares em x somam; x ortogonal a z (f_v)."""
+        f_v = Rv / (2.0 * Lw)                    # vertical direto (z, // cordao)
+        f_h = Ht / (2.0 * Lw)                    # horizontal direto (x)
+        f_bV = 3.0 * M / (Lw ** 2)               # flexao Rv*ecc (x)
+        f_bH = 3.0 * Mz / (Lw ** 2)              # flexao Ht*braco (x)
+        f_horiz = f_h + f_bV + f_bH              # COLINEARES no eixo x -> soma
+        return math.sqrt(f_v ** 2 + f_horiz ** 2), f_v, f_h, f_bV, f_bH, f_horiz
+
+    # comprimento EFETIVO de cada cordao: desconta crateras de inicio/fim
+    # (2*perna), pratica de rigor recomendada p/ filetes. Depende da perna,
+    # entao entra no proprio laco de dimensionamento.
+    def _L_ef(perna_m):
+        return max(L - 2.0 * perna_m, 1e-6)
+
     # DIMENSIONA a perna do filete: menor perna-padrao (>= minimo Tab.9) cuja
-    # capacidade por comprimento cubra a demanda do grupo (first-fit). Se nem
-    # 12 mm bastar, adota 12 e sinaliza (requer solda de penetracao/redesenho).
+    # capacidade por comprimento cubra a demanda do grupo (first-fit, com L_ef da
+    # propria perna). Se nem 12 mm bastar, adota 12 e sinaliza (penetracao/redesenho).
     p_min = LG.solda_filete_minimo(t * 1000.0)
     pernas = [p for p in (6.0, 8.0, 10.0, 12.0) if p >= p_min] or [p_min]
     perna = caso.get("perna") and caso["perna"] * 1000.0
     if perna is None:
         perna = pernas[-1]
         for p in pernas:
-            if LG.fw_rd_filete(p / 1000.0, 1.0, fw)[0] >= f_dem:
+            fdem_p = _grupo_solda(_L_ef(p / 1000.0))[0]
+            if LG.fw_rd_filete(p / 1000.0, 1.0, fw)[0] >= fdem_p:
                 perna = p
                 break
     perna = perna / 1000.0
+    L_ef = _L_ef(perna)
+    f_dem, f_v, f_h, f_bV, f_bH, f_horiz = _grupo_solda(L_ef)
     f_cap = LG.fw_rd_filete(perna, 1.0, fw)[0]   # capacidade por comprimento (kN/m)
     u_solda = f_dem / f_cap if f_cap else float("inf")
 
@@ -93,10 +108,10 @@ def verifica_console(caso):
 
     res = {
         "M": M, "Mz": Mz, "perna_mm": round(perna * 1000.0, 1),
-        "L_mm": round(L * 1000.0, 1),
+        "L_mm": round(L * 1000.0, 1), "L_ef_mm": round(L_ef * 1000.0, 1),
         "solda": {"f_dem": f_dem, "f_cap": f_cap, "u": u_solda, "OK": u_solda <= 1.0,
                   "f_v": f_v, "f_horiz": f_horiz, "f_h": f_h, "f_bV": f_bV,
-                  "f_bH": f_bH},
+                  "f_bH": f_bH, "L_ef": L_ef},
         "chapa_cisalhamento": {"V_Rd": V_pl_Rd, "u": u_cis, "OK": u_cis <= 1.0},
         "chapa_flexao": {"M_Sd": M, "M_Rd": M_Rd, "W": W, "u": u_flex,
                          "OK": u_flex <= 1.0},
@@ -118,9 +133,9 @@ def relatorio_pt(res, titulo="CONSOLE DA PONTE ROLANTE"):
         "=" * 74, "%s - CONCEITUAL, PENDENTE REVISAO E ART DO ENG." % titulo,
         "Grupo de solda ELASTICO 2 cordoes (mecanica/AISC, FLAG) + chapa em balanco",
         "=" * 74, "",
-        "Chapa t = %s mm ; solda perna %s mm x L %s mm (2 cordoes) ; M = Rv*ecc = %s kN.m"
+        "Chapa t = %s mm ; solda perna %s mm x L %s mm (L_ef %s ; 2 cordoes) ; M = Rv*ecc = %s kN.m"
         % (_pt(res["adotado"]["t_mm"]), _pt(res["perna_mm"]), _pt(res["L_mm"]),
-           _pt(res["M"])), "",
+           _pt(res["L_ef_mm"]), _pt(res["M"])), "",
         "  Solda (grupo elastico)   dem = %s kN/m  cap = %s kN/m  util = %s %s"
         % (_pt(s["f_dem"]), _pt(s["f_cap"]), _pt(s["u"]),
            "OK" if s["OK"] else "*** NAO ATENDE ***"),
@@ -142,12 +157,15 @@ def _selftest():
                           "fy": 250e3, "fu": 400e3})
     M = Rv * ecc                                            # 18 kN.m
     Mz = Ht * (L / 2.0 + 0.0)                               # h_trilho default 0
-    f_v = Rv / (2 * L)
-    f_horiz = Ht / (2 * L) + 3 * M / L**2 + 3 * Mz / L**2
+    # grupo com comprimento EFETIVO L_ef = L - 2*perna adotada (crateras)
+    L_ef = L - 2 * r["perna_mm"] / 1000.0
+    assert abs(r["solda"]["L_ef"] - L_ef) < 1e-9
+    f_v = Rv / (2 * L_ef)
+    f_horiz = Ht / (2 * L_ef) + 3 * M / L_ef**2 + 3 * Mz / L_ef**2
     assert abs(r["solda"]["f_dem"] - math.sqrt(f_v**2 + f_horiz**2)) < 1e-6
     assert abs(r["solda"]["f_horiz"] - f_horiz) < 1e-9      # colineares somados
     # componentes horizontais NAO sao SRSS entre si (seria nao-conservador):
-    srss3 = math.sqrt(f_v**2 + (Ht/(2*L))**2 + (3*M/L**2)**2 + (3*Mz/L**2)**2)
+    srss3 = math.sqrt(f_v**2 + (Ht/(2*L_ef))**2 + (3*M/L_ef**2)**2 + (3*Mz/L_ef**2)**2)
     assert r["solda"]["f_dem"] > srss3                      # soma algebrica > SRSS
     # DIMENSIONA: menor perna-padrao (>= min Tab.9=6mm) cuja cap(1 cordao) >= dem
     cand = [p for p in (6.0, 8.0, 10.0, 12.0)
