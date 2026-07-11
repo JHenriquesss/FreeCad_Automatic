@@ -434,8 +434,10 @@ def rodar(params, out_dir):
         N_comp = max(n for _, n, _, _ in casos_base)          # maior compressao
         N_pilar = abs(N_comp)
         N_tr = max(0.0, -min(n for _, n, _, _ in casos_base))  # uplift (reacao negativa)
+        M_base = max(abs(m) for _, _, _, m in casos_base)      # momento na base (envelope)
         ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
         ecfg.setdefault("N_uplift", round(N_tr, 1))
+        ecfg.setdefault("Mx", round(M_base, 1))                # flexo-compressao no grupo (Q2)
         ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
         # garante o bloco de coroamento no calculo (dims p/ desenhar o 3D)
         ecfg.setdefault("bloco", {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3})

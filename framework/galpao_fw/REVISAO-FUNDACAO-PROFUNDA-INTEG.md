@@ -8,9 +8,51 @@ dados (`projeto_spec.py`) e como sua **geometria** é desenhada no modelo 3D
 (`build_galpao.py`), sem inventar nenhum número — tudo vem do cálculo/envelope.
 Fase 3 do pipeline. Criado 2026-07-10.
 
-> **STATUS: ⏳ PENDENTE — aguarda parecer do sênior.**
-> Cálculo inalterado; revisar apenas as **decisões de integração e geometria**
-> marcadas com **[Q1]…[Q6]** abaixo.
+> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** (2026-07-11) — sênior apontou erros
+> conceituais/normativos na integração. Correções aplicadas (§6): momento no
+> grupo (Q2), coroa/altura de bloco rígido (Q3), pedestal parametrizado (Q4),
+> **baldrame transversal p/ bloco de 1–2 estacas (Q5, NBR 6122)**, vão livre sem
+> dupla contagem (Q6). **Divergência registrada em Q1 (FS): mantido 2,0**
+> conforme as próprias referências do método (Cintra & Aoki / Veloso & Lopes) —
+> pede reconfirmação. Evidência de build: caso estaca 10 blocos + 8 baldrames
+> long + 5 transversais, **0 interferências**.
+
+## PARECER SÊNIOR 1 — respostas Q1…Q6 (§6 detalha)
+
+| Q | Ponto do sênior | Decisão |
+|---|---|---|
+| Q1 | FS=2,0 viola 6122; exige 3,0 s/ prova de carga | **DIVERGE** — mantém 2,0 (semi-empírico Aoki-Velloso, Cintra & Aoki 2010 / Veloso & Lopes 2012, refs do método). FLAG p/ sênior; PDF 6122 escaneado, não citável. `D`/`L` seguem default A CONFIRMAR. |
+| Q2 | Falta momento na distribuição das estacas | **ATENDE** — `carga_estaca_grupo` (flexo-compressão, Navier); wire de `M_base` do envelope. Bloco 1–2 estacas não resiste (S=0) → momento vai p/ tirantes (Q5); grupo 2×2 verifica N_max. |
+| Q3 | coroa e distância à face | **ATENDE** — `coroa = max(150 mm, D/2)`. |
+| Q3b | h=1,2·D gera bloco flexível | **ATENDE** — `altura_bloco_rigido`: h derivado do ângulo da biela (tan θ alvo 1,0 ∈[0,57;2]), não constante. |
+| Q4 | pedestal fixo 500 mm | **ATENDE (param)** — build lê `ped` do modelo (cota de arrasamento); default 500 A CONFIRMAR. Gate obrigatório = FLAG. |
+| Q5 | falta travamento transversal (1–2 estacas) | **ATENDE** — baldrame nas 2 direções quando n≤2 (NBR 6122); dispensado p/ malha 2×2+. |
+| Q6 | clash concreto×concreto ok, evitar dupla contagem | **ATENDE** — tramos de baldrame de face a face do pedestal (vão livre) → sem sobreposição no take-off. |
+
+## 6. Correções aplicadas (2026-07-11)
+
+**Cálculo (`estaca_profunda.py`):**
+- `carga_estaca_grupo(N, offsets, Mx, My)` — `N_i = N/n ± Mx·yi/Σyi² ± My·xi/Σxi²`;
+  marca `traciona_por_momento` e `resiste_no_grupo`.
+- `offsets_grupo(n, esp)` — malha igual à do build (1 central / 2 linha-X / 4 malha).
+- `altura_bloco_rigido(esp, a_pilar, …, tan_alvo=1,0)` — `d=tan·braço`, `h=d+cob+emb`;
+  default de altura no `verifica_estaca` (bloco rígido por construção).
+- `verifica_estaca`: com `Mx/My` monta offsets e reporta `grupo_momento`
+  (util_max, OK). Só é resistido no grupo quando há braço nas 2 direções (n=4);
+  em 1–2 estacas o momento é anotado como carga dos tirantes de baldrame.
+
+**Wiring (`rodar_galpao.py`):** `M_base = max|M|` do envelope da base → `ecfg["Mx"]`.
+
+**Build (`build_galpao.py`):** `coroa=max(150,D/2)`; `ped` do modelo (default 500);
+baldrame longitudinal **e transversal** (n≤2) com vão livre `tramo−pdim`.
+
+**Q1 — FS (posição técnica):** o módulo usa FS_global=2,0 citando Cintra & Aoki
+(2010) e Veloso & Lopes (2012), que para métodos semi-empíricos (Aoki-Velloso,
+Décourt, Teixeira) adotam FS=2,0 — não 3,0. A NBR 6122 disponível é PDF
+escaneado (sem camada de texto), então **não cito a cláusula literal**; mantenho
+o valor coerente com as referências homologadas do próprio método e sinalizo p/
+o sênior reconfirmar (mesmo padrão do parecer console-1). Não altero p/ 3,0 sem
+base verificável.
 
 ---
 

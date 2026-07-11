@@ -230,11 +230,65 @@ def capacidade_tracao(cap_compressao, fs_tracao=2.0):
 
 
 def n_estacas(N_pilar, P_adm, peso_bloco=0.0):
-    """Numero de estacas = teto((N_pilar + peso_bloco) / P_adm), minimo 1."""
+    """Numero de estacas = teto((N_pilar + peso_bloco) / P_adm), minimo 1.
+    ATENCAO: so a carga VERTICAL. Havendo momento na base (Mx, My), a carga
+    maxima na estaca de canto excede N/n -> usar carga_estaca_grupo p/ verificar."""
     N_tot = N_pilar + peso_bloco
     n = max(1, math.ceil(N_tot / P_adm)) if P_adm > 0 else float("inf")
     return {"n": n, "N_por_estaca_kN": round(N_tot / n, 1) if n else None,
             "util": round(N_tot / (n * P_adm), 3) if (n and P_adm > 0) else None}
+
+
+def offsets_grupo(n, esp):
+    """Posicoes (xi, yi) das n estacas sob o bloco (mesma malha do build 3D):
+    1=central, 2=linha em X, 4=malha 2x2, demais=fileira em X. esp em m."""
+    if n <= 1:
+        return [(0.0, 0.0)]
+    if n == 2:
+        return [(-esp / 2.0, 0.0), (esp / 2.0, 0.0)]
+    if n == 4:
+        return [(sx * esp / 2.0, sy * esp / 2.0) for sx in (-1, 1) for sy in (-1, 1)]
+    return [((k - (n - 1) / 2.0) * esp, 0.0) for k in range(n)]
+
+
+def carga_estaca_grupo(N, offsets, Mx=0.0, My=0.0, peso_bloco=0.0):
+    """Distribuicao da carga vertical no GRUPO de estacas sob FLEXO-COMPRESSAO
+    (bloco rigido, hipotese de Navier / regua rigida):
+        N_i = (N + peso_bloco)/n  +/-  Mx*yi/sum(yi^2)  +/-  My*xi/sum(xi^2)
+    offsets = [(xi, yi)] das estacas (m, relativo ao centroide do grupo).
+    Mx (kN.m) flexiona em torno do eixo x (usa yi) ; My em torno de y (usa xi).
+    N_min < 0 => estaca TRACIONADA (arranque). Retorna dict."""
+    n = len(offsets)
+    if n == 0:
+        raise ValueError("grupo sem estacas")
+    Syy = sum(y * y for _, y in offsets)             # p/ Mx (bracos yi)
+    Sxx = sum(x * x for x, _ in offsets)             # p/ My (bracos xi)
+    Ntot = N + peso_bloco
+    cargas = []
+    for xi, yi in offsets:
+        Ni = Ntot / n
+        if Syy > 1e-12:
+            Ni += Mx * yi / Syy
+        if Sxx > 1e-12:
+            Ni += My * xi / Sxx
+        cargas.append(Ni)
+    return {"n": n, "N_por_estaca_kN": [round(c, 1) for c in cargas],
+            "N_max_kN": round(max(cargas), 1), "N_min_kN": round(min(cargas), 1),
+            "Sxx": Sxx, "Syy": Syy, "traciona_por_momento": min(cargas) < -1e-9}
+
+
+def altura_bloco_rigido(espacamento, a_pilar, cobrimento=0.05, embutimento=0.02,
+                        tan_alvo=1.0):
+    """Altura MINIMA do bloco p/ ele ser RIGIDO (trabalhar por bielas, NBR 6118
+    22.3.1): a biela precisa de tan(theta) = d/braco no intervalo [0,57; 2,0].
+    braco = espacamento/2 - a_pilar/4 (biela do 1/4 do pilar ate a estaca).
+    Fixa d = tan_alvo*braco (tan_alvo em [0,57;2], 1,0 ~ 45 graus) e retorna
+    h = d + cobrimento + embutimento (piso de 0,40 m). Assim a GEOMETRIA nasce
+    coerente com a premissa de bloco rigido (nao com uma constante 1,2*D)."""
+    braco = espacamento / 2.0 - a_pilar / 4.0
+    tan_alvo = max(0.57, min(tan_alvo, 2.0))
+    d = tan_alvo * max(braco, 0.0)
+    return max(0.40, d + cobrimento + embutimento)
 
 
 def eficiencia_grupo(m, n, s, D):
@@ -431,13 +485,34 @@ def verifica_estaca(cfg):
             ponta_apoiada=rg.get("ponta_apoiada", False))
     bl = cfg.get("bloco")
     if bl and nn["n"] in (2, 4):
-        h = bl.get("h", max(0.4, 1.2 * cfg["D"]))
-        d = h - bl.get("cobrimento", 0.05) - 0.02
+        esp_bl = bl.get("espacamento", 3.0 * cfg["D"])
+        a_pil = bl.get("a_pilar", 0.30)
+        cob = bl.get("cobrimento", 0.05)
+        # altura DEFAULT coerente com bloco RIGIDO (biela), nao 1,2*D (Q3-bonus)
+        h = bl.get("h", altura_bloco_rigido(esp_bl, a_pil, cob))
+        d = h - cob - 0.02
         out["bloco"] = bloco_coroamento(
-            cfg["N_pilar"], nn["n"], bl.get("espacamento", 3.0 * cfg["D"]),
-            bl.get("a_pilar", 0.30), d, bl.get("fck", 25e3), bl.get("fyk", 500e3),
-            D_estaca=cfg["D"])
+            cfg["N_pilar"], nn["n"], esp_bl, a_pil, d,
+            bl.get("fck", 25e3), bl.get("fyk", 500e3), D_estaca=cfg["D"])
         out["bloco"]["h"] = h
+    # Momento na base -> flexo-compressao no grupo (Q2). O momento do portico so
+    # e resistido pelo GRUPO se as estacas tiverem braco no eixo do momento; um
+    # bloco de 1 ou 2 estacas em linha NAO tem (S=0 no eixo perpendicular) -> esse
+    # momento vai para os TIRANTES DE BALDRAME (travamento nas 2 direcoes, Q5).
+    # Logo, so verifica o grupo quando ha braco nas duas direcoes (n=4).
+    Mx, My = cfg.get("Mx", 0.0), cfg.get("My", 0.0)
+    if abs(Mx) > 1e-9 or abs(My) > 1e-9:
+        esp_g = (bl or {}).get("espacamento", 3.0 * cfg["D"]) if bl else 3.0 * cfg["D"]
+        offs = cfg.get("offsets") or offsets_grupo(nn["n"], esp_g)
+        cg = carga_estaca_grupo(cfg["N_pilar"], offs, Mx=Mx, My=My,
+                                peso_bloco=cfg.get("peso_bloco", 0.0))
+        P_adm = cap["P_adm_kN"]
+        cg["util_max"] = round(cg["N_max_kN"] / P_adm, 3) if P_adm > 0 else float("inf")
+        cg["OK"] = cg["N_max_kN"] <= P_adm
+        cg["Mx"] = Mx; cg["My"] = My
+        cg["resiste_no_grupo"] = (cg["Sxx"] > 1e-9 and abs(My) > 1e-9) or \
+                                 (cg["Syy"] > 1e-9 and abs(Mx) > 1e-9)
+        out["grupo_momento"] = cg
     return out
 
 
@@ -489,6 +564,13 @@ def relatorio_pt(r):
                  f"estaca {b['puncao']['tau_estaca_MPa']:.3f} {'OK' if b['puncao']['ok_estaca'] else 'REPROVA'}"),
               f"    Ancoragem do tirante (9.4.2): phi={b['phi_tirante_mm']:.1f} mm -> "
               f"lb,nec={b['lb_nec_tirante_m']*100:.0f} cm (com gancho)"]
+    if "grupo_momento" in r:
+        gm = r["grupo_momento"]
+        L.append(f"  FLEXO-COMPRESSAO NO GRUPO (Mx={gm['Mx']:.1f} My={gm['My']:.1f} kN.m): "
+                 f"N_max={gm['N_max_kN']:.1f} kN / N_min={gm['N_min_kN']:.1f} kN "
+                 f"(util {gm['util_max']:.2f}) "
+                 f"{'OK' if gm['OK'] else 'REPROVA (aumentar n/espacamento)'}"
+                 + ("  [!] estaca TRACIONADA pelo momento" if gm['traciona_por_momento'] else ""))
     if "grupo_estacas" in r:
         ge = r["grupo_estacas"]
         L.append(f"  EFEITO DE GRUPO (Converse-Labarre {ge['m']}x{ge['n']}): "
@@ -597,6 +679,34 @@ def _selftest():
     # tracao: so atrito lateral / FS
     tr = capacidade_tracao(cap, 2.0)
     assert abs(tr["P_adm_tracao_kN"] - cap["R_lateral_kN"] / 2.0) < 0.1, tr
+    # carga no grupo sob flexo-compressao (bloco rigido): 2 estacas em linha x,
+    # offsets (+-esp/2, 0). Mx nao gera diferenca (yi=0); My reparte pela linha.
+    esp = 0.9
+    cg = carga_estaca_grupo(900.0, [(-esp/2, 0.0), (esp/2, 0.0)], My=100.0)
+    # N_i = 900/2 +/- 100*(+-0,45)/(2*0,45^2) = 450 +/- 111,1
+    assert abs(cg["N_max_kN"] - (450.0 + 100.0*0.45/(2*0.45**2))) < 0.2, cg
+    assert abs(cg["N_min_kN"] - (450.0 - 100.0*0.45/(2*0.45**2))) < 0.2, cg
+    assert cg["Syy"] == 0.0 and not cg["traciona_por_momento"]
+    # momento grande traciona a estaca de tras
+    cg2 = carga_estaca_grupo(200.0, [(-esp/2, 0.0), (esp/2, 0.0)], My=300.0)
+    assert cg2["traciona_por_momento"] and cg2["N_min_kN"] < 0
+    # offsets_grupo: 2=linha X (Syy=0), 4=malha 2x2 (Sxx,Syy>0)
+    assert offsets_grupo(2, 0.9) == [(-0.45, 0.0), (0.45, 0.0)]
+    cg4 = carga_estaca_grupo(800.0, offsets_grupo(4, 0.9), Mx=200.0)
+    assert cg4["Syy"] > 0 and cg4["N_max_kN"] > 200.0    # 2x2 resiste ao Mx
+    # verifica_estaca com momento e n=4: monta offsets e marca resiste_no_grupo
+    rm = verifica_estaca({"perfil": perfil, "D": D, "L": L, "tipo_estaca": "pre_moldada",
+                          "N_pilar": 2400.0, "Mx": 300.0,
+                          "bloco": {"espacamento": 0.9, "a_pilar": 0.30}})
+    if rm["grupo"]["n"] == 4:
+        assert rm["grupo_momento"]["resiste_no_grupo"]
+    # altura de bloco rigido: d = tan_alvo*braco ; braco = esp/2 - a_pil/4
+    hr = altura_bloco_rigido(0.9, 0.30, cobrimento=0.05, tan_alvo=1.0)
+    brc = 0.9/2.0 - 0.30/4.0
+    assert abs(hr - max(0.40, 1.0*brc + 0.05 + 0.02)) < 1e-9, hr
+    # a altura rigida gera tan(theta)>=0,57 no bloco (rigido por construcao)
+    br = bloco_coroamento(600.0, 2, 0.9, 0.30, hr - 0.05 - 0.02, 25e3, 500e3, D_estaca=0.30)
+    assert br["tan_theta"] >= 0.57 and br["rigido"], br
     # verifica_estaca integra (com uplift)
     r = verifica_estaca({"perfil": perfil, "D": D, "L": L, "tipo_estaca": "pre_moldada",
                          "N_pilar": 600.0, "N_uplift": 200.0,

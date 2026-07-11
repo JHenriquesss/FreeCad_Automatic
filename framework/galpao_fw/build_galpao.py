@@ -373,11 +373,15 @@ def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
     n = int(ESTACA_MODEL.get("n", 1)); esp = ESTACA_MODEL.get("espacamento", 3.0 * D)
     bh = (BLOCO_MODEL or {}).get("h", max(400.0, 1.2 * D))
     offs = _estaca_offsets(n, esp)
-    coroa = 150.0                                    # borda de concreto alem da estaca
+    # coroa (aba de concreto da face da estaca a borda do bloco): praxe 150 mm,
+    # mas no minimo D/2 p/ estacas de grande diametro (Q3, Velloso & Lopes/Alonso)
+    coroa = max(150.0, D / 2.0)
     xs = [o[0] for o in offs]; ys = [o[1] for o in offs]
     Bx = (max(xs) - min(xs)) + D + 2.0 * coroa
     Ly = (max(ys) - min(ys)) + D + 2.0 * coroa
-    ped = 500.0                                       # pedestal do pilar ate o bloco
+    # pedestal (pescoco) do pilar ate o bloco = cota de arrasamento da sondagem
+    # (Q4): parametro do modelo, default 500 mm A CONFIRMAR pela topografia.
+    ped = (BLOCO_MODEL or {}).get("ped", ESTACA_MODEL.get("ped", 500.0))
     z_ped_top = pbot; z_ped_bot = z_ped_top - ped
     z_blk_top = z_ped_bot; z_blk_bot = z_blk_top - bh
     plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
@@ -708,19 +712,39 @@ def build(doc):
                 plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
                       f"SAPATA_{lado}_{i:02d}")
 
-    # Viga de baldrame / amarracao: liga as fundacoes de porticos adjacentes (uma
-    # por linha de coluna, ao longo das baias). Concreto sob a cota Z0 (topo ~ pbot).
-    # So com fundacao profunda (BALDRAME_MODEL vem do calc; amarra o bloco).
+    # Viga de baldrame / amarracao: liga as fundacoes de porticos adjacentes.
+    # Concreto sob a cota Z0 (topo ~ pbot). So com fundacao profunda (BALDRAME_MODEL
+    # vem do calc; amarra o bloco). Q6: cada tramo vai de FACE a FACE do pedestal
+    # (vao livre = tramo - pdim), evitando sobrepor o pedestal (sem dupla contagem
+    # de concreto no take-off, sem clash espurio).
     if BALDRAME_MODEL:
         bb = BALDRAME_MODEL["b"]; bh = BALDRAME_MODEL["h"]
         z_bal_top = pbot; z_bal_c = z_bal_top - bh / 2.0
+        pdim_b = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+        # (1) LONGITUDINAL: ao longo das baias, uma por linha de coluna.
         for j, yw in enumerate(cols_y):
             lado = f"C{j:02d}"
             for i in range(len(axes) - 1):
                 x0, x1 = axes[i], axes[i + 1]
-                xc = (x0 + x1) / 2.0; wx = abs(x1 - x0)
+                xc = (x0 + x1) / 2.0
+                wx = max(abs(x1 - x0) - pdim_b, 50.0)     # vao livre entre pedestais
                 plate(doc, (xc, yw, z_bal_c), wx, bb, bh,
                       f"BALDRAME_{lado}_{i + 1:02d}")
+        # (2) TRANSVERSAL (Q5): bloco de 1 ou 2 estacas NAO tem estabilidade a
+        # rotacao no eixo perpendicular -> NBR 6122 exige travamento nas DUAS
+        # direcoes. Desenha baldrames tambem no eixo y (entre linhas de coluna)
+        # em cada portico. Malha 2x2 ou maior dispensa (grupo ja resiste em 2
+        # direcoes) -> so quando n_estacas <= 2.
+        n_est = int(ESTACA_MODEL.get("n", 1)) if ESTACA_MODEL else 0
+        if n_est <= 2 and len(cols_y) >= 2:
+            for i, x in enumerate(axes):
+                lado = f"A{i:02d}"
+                for j in range(len(cols_y) - 1):
+                    y0, y1 = cols_y[j], cols_y[j + 1]
+                    yc = (y0 + y1) / 2.0
+                    wy = max(abs(y1 - y0) - pdim_b, 50.0)  # vao livre entre pedestais
+                    plate(doc, (x, yc, z_bal_c), bb, wy, bh,
+                          f"BALDRAME_T_{lado}_{j + 1:02d}")
 
     # Joelho (ligacao de momento viga-coluna) em cada portico + cumeeira por vao.
     # Tesoura: a trelica e biapoiada (rotulada) no topo dos pilares -> sem joelho
