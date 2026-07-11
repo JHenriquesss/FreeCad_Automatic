@@ -44,7 +44,7 @@ os FLAGS/pendências.
 | 29 | Console da ponte rolante (ligação) | [REVISAO-CONSOLE.md](REVISAO-CONSOLE.md) | NBR 8800 + grupo de solda elástico | ✅ HOMOLOGADO — APROVADO COM LOUVOR (2026-07-11) |
 | 30 | Fundação profunda — **integração** (spec + 3D) | [REVISAO-FUNDACAO-PROFUNDA-INTEG.md](REVISAO-FUNDACAO-PROFUNDA-INTEG.md) | integração (método já em ESTACA/BALDRAME) | ✅ HOMOLOGADO (2026-07-11) — Q1 (FS gate 3,0/prova) + Q3b (tan≥1,0) + Q2–Q6 |
 | 31 | Ponte rolante estendida — rodas motoras + NBR 8400 | [REVISAO-PONTE-8400.md](REVISAO-PONTE-8400.md) | NBR 8800 (frenagem) + NBR 8400-1:2019 Tab.9/12 | ✅ HOMOLOGADO (2026-07-11) — Q1 defesa aceita; Q2/Q3/Q4 ok |
-| 32 | Pórtico alma variável — **integração** (análise + spec + 3D) | [REVISAO-ALMA-VARIAVEL-INTEG.md](REVISAO-ALMA-VARIAVEL-INTEG.md) | integração (secao_tapered já homologado) | 🔁 PARECER 2 RESPONDIDO — REVER (2026-07-11) — p1 (mapeamento) refutado c/ provas; p2 (FLT trecho) + p3 (Lb dinâmico) corrigidos |
+| 32 | Pórtico alma variável — **integração** (análise + spec + 3D) | [REVISAO-ALMA-VARIAVEL-INTEG.md](REVISAO-ALMA-VARIAVEL-INTEG.md) | integração (secao_tapered já homologado) | ✅ HOMOLOGADO (2026-07-11) — solver absolvido; FLT trecho + Lb dinâmico ok |
 | 33 | Pórtico treliçado (tesoura) — **cálculo novo** + 3D | [REVISAO-TESOURA-INTEG.md](REVISAO-TESOURA-INTEG.md) | método dos nós (novo) + NBR 8800 (barras) | 🆕 PENDENTE SÊNIOR (2026-07-10) — [Q1]…[Q5]; solver+verificação são método NOVO |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`

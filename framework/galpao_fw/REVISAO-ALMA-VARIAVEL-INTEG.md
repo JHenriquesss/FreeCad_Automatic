@@ -6,12 +6,11 @@ homologado ([ALMA-VARIAVEL](REVISAO-ALMA-VARIAVEL.md)). Esta revisão trata da
 variável por segmento), no ProjetoSpec (gate) e no build 3D (loft). Fase 6.b.
 Criado 2026-07-10.
 
-> **STATUS: 🔁 PARECER 2 RESPONDIDO — REVER** (2026-07-11). Parecer 1: Q2 (verif.
-> por segmento) implementado. Parecer 2: **ponto 1 (bug de mapeamento invertido)
-> NÃO procede — comprovado por 2 testes** (§7); **pontos 2 (FLT por fatia) e 3 (Lb
-> pela mesa comprimida) procedem e foram corrigidos** (§7). FLA/FLM/flexo-compressão
-> ficam locais por segmento; **FLT vira check de TRECHO** (member-level, seção mais
-> funda) com **Lb dinâmico** (terça p/ gravidade / mão-francesa p/ sucção).
+> **STATUS: ✅ HOMOLOGADO — FASE 6.b APROVADA** (2026-07-11). Parecer 3: sênior
+> **absolveu o solver** (ponto 1 — defesa por bancada irrefutável), aprovou a
+> **FLT member-level** (ponto 2, aderente ao AISC DG25) e o **Lb dinâmico pela mesa
+> comprimida** (ponto 3). Q1 (coluna tapered) e Q3 (zona de painel do joelho) no
+> backlog; Q4 (não-regressão byte-idêntica) validado. "Pode proceder para o merge."
 
 ## PARECER SÊNIOR 1 — respostas
 
