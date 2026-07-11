@@ -127,10 +127,13 @@ def test_verificacao_por_segmento(tmp_path):
     assert av.get("interacao_max_seg") is not None, "sem verificacao por segmento"
     assert av.get("seg_governante"), "sem segmento governante"
     assert "governa_joelho" in av, "sem flag de governante-joelho"
+    # FLT de trecho (member-level) separada dos estados locais (parecer 2)
+    assert av.get("util_flt_trecho") is not None, "sem FLT de trecho"
+    assert av.get("util_local_max") is not None, "sem util local por segmento"
     txt = open(os.path.join(str(tmp_path), "gate6-alma-variavel.txt"),
                encoding="utf-8").read()
-    assert "VERIFICACAO POR SEGMENTO" in txt and "interacao" in txt
-    # este geometria (600->300, vento) governa longe do joelho (nao no seg do joelho)
+    assert "ESTADOS LOCAIS POR SEGMENTO" in txt and "FLT DE TRECHO" in txt
+    # esta geometria (600->300, vento) governa longe do joelho (nao no seg do joelho)
     assert av["governa_joelho"] is False, \
         "esperado governante fora do joelho neste caso (Wx cai mais rapido que M)"
 

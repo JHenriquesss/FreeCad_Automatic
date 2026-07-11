@@ -510,47 +510,87 @@ def rodar(params, out_dir):
             L.append("    %3d | %6.0f | %7.1f | %8.0f | %8.0f" %
                      (s["segmento"], s["h_m"] * 1000, s["A_m2"] * 1e4,
                       s["I_m4"] * 1e8, s["Wx_m3"] * 1e6))
-        # VERIFICACAO DE ESTADOS-LIMITE POR SEGMENTO (parecer Q2): em alma variavel
-        # o Wx cai mais rapido que o M ao longo do vao -> a utilizacao pode picar num
-        # segmento INTERMEDIARIO, nao no joelho. Verifica FLA/FLM/FLT + flexo-compressao
-        # (chk.verifica) em CADA segmento, com a secao local e o esforco enveloped.
+        # VERIFICACAO DE ESTADOS-LIMITE (parecer Q2/2, correcoes):
+        #  - FLA/FLM/flexo-compressao: LOCAIS -> por segmento com a secao local
+        #    (dependem so de b/t e h/t locais). No verifica, Lb minusculo neutraliza
+        #    a FLT (isola os estados locais).
+        #  - FLT: fenomeno de TRECHO (nao por fatia). Calculada UMA vez por trecho
+        #    destravado, com a MAIOR secao do trecho (a mais funda, conservador -
+        #    AISC DG25 / NBR 8800 Anexo H) e o Lb correto:
+        #      * gravidade domina -> mesa SUPERIOR comprimida -> Lb = tercas.
+        #      * succao (vento) domina -> mesa INFERIOR comprimida -> Lb = maos-francesas.
+        #    Aplicada como TETO a todos os segmentos (M_max*B2 vs M_Rd,FLT).
         segs_env = segs_tapered
+        L_raft = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])
+        n_terca = params["terca"].get("n_por_agua", 3)
+        Lb_terca = L_raft / (n_terca + 1)               # mesa sup (gravidade)
+        Lb_mf = Lb_raf                                   # mesa inf (succao) - mao-francesa
+        # secao mais funda do rafter (governa a FLT do trecho)
+        deep = max((s for s in segs_env if s.get("sec_props")),
+                   key=lambda s: s.get("h_m") or 0, default=None)
+        # LOCAIS por segmento (FLT neutralizada com Lb->0)
         verifs = []
         for seg in segs_env:
             sp = seg.get("sec_props")
             if not sp:
                 continue
-            sec_seg = dict(sp)
-            sec_seg["nome"] = "misula seg%d(%s h=%.0fmm)" % (
-                seg["seg"], "E" if seg["lado"] == 0 else "D", (seg["h_m"] or 0) * 1000)
-            # esforcos amplificados pela 2a ordem (B2 global do MAES)
+            sec_seg = dict(sp); sec_seg["nome"] = "seg%d%s" % (
+                seg["seg"], "E" if seg["lado"] == 0 else "D")
             Msd_s = seg["M"] * B2_amp; Nsd_s = seg["N"] * B2_amp
             v = chk.verifica(sec_seg, params["fy"], L=seg.get("L_seg") or Lb_raf,
                              Nsd=Nsd_s, Msd=Msd_s, Vsd=seg["V"], Kx=1, Ky=1,
-                             Lb=Lb_raf, nome=sec_seg["nome"])
+                             Lb=1e-3, nome=sec_seg["nome"])   # Lb->0: sem FLT local
             v["_seg"] = seg
             verifs.append(v)
-        L += ["", "  VERIFICACAO POR SEGMENTO (FLA/FLM/FLT + flexo-compressao, "
-              "Lb=%.2f m):" % Lb_raf,
-              "    seg |  h(mm) | Msd(kN.m) | interacao | governa"]
+        # FLT de TRECHO (member-level) com a secao mais funda, nos 2 regimes de Lb
+        M_max = max((s["M"] for s in segs_env), default=0.0) * B2_amp
+        flt = {}
+        if deep:
+            for regime, Lb_f, mesa in (("gravidade(tercas)", Lb_terca, "superior"),
+                                       ("succao(maos-francesas)", Lb_mf, "inferior")):
+                _mn, _gov, mr = chk.momento_resistente(
+                    dict(deep["sec_props"]), params["fy"], Lb_f, Cb=1.0)
+                MRd_flt = mr["Mn_flt"] / chk.GA1
+                flt[regime] = {"Lb": Lb_f, "mesa": mesa, "M_Rd_flt": MRd_flt,
+                               "u": M_max / MRd_flt if MRd_flt > 0 else float("inf")}
+        u_flt = max((f["u"] for f in flt.values()), default=0.0)
+        # relatorio
+        L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
+              "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
         gov_seg = None
         for v in verifs:
             s = v["_seg"]
-            L.append("    %3d%s | %6.0f | %9.1f | %9.2f | %s" %
+            L.append("    %3d%s | %6.0f | %9.1f | %14.2f | %s" %
                      (s["seg"], "E" if s["lado"] == 0 else "D", (s["h_m"] or 0) * 1000,
                       s["M"], v["interacao"], s.get("gov", "")))
             if gov_seg is None or v["interacao"] > gov_seg["interacao"]:
                 gov_seg = v
-        if gov_seg:
-            gs = gov_seg["_seg"]
-            no_joelho = (gs["seg"] == 0 and gs["lado"] == 0) or \
-                        (gs["seg"] == gp.NSEG - 1 and gs["lado"] == 1)
-            L += ["  >> GOVERNA o segmento %d%s (h=%.0f mm, interacao=%.2f)%s"
-                  % (gs["seg"], "E" if gs["lado"] == 0 else "D", (gs["h_m"] or 0) * 1000,
-                     gov_seg["interacao"],
-                     "" if no_joelho else "  [!] NAO e o joelho - verificacao por "
-                     "segmento essencial (parecer Q2)"),
-                  "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
+        L += ["", "  FLT DE TRECHO (member-level, secao mais funda h=%.0f mm):"
+              % ((deep["h_m"] or 0) * 1000 if deep else 0)]
+        for regime, f in flt.items():
+            L.append("    %-24s Lb=%.2f m (mesa %s) -> M_Rd,FLT=%.1f kN.m ; "
+                     "M_max=%.1f -> u=%.2f" % (regime, f["Lb"], f["mesa"],
+                     f["M_Rd_flt"], M_max, f["u"]))
+        u_local = gov_seg["interacao"] if gov_seg else 0.0
+        gs = gov_seg["_seg"] if gov_seg else {}
+        no_joelho = bool(gov_seg) and not (
+            (gs.get("seg") == 0 and gs.get("lado") == 0) or
+            (gs.get("seg") == gp.NSEG - 1 and gs.get("lado") == 1))
+        u_geral = max(u_local, u_flt)
+        L += ["",
+              "  >> util local max = %.2f (seg %s%s)%s" % (
+                  u_local, gs.get("seg", "?"), "E" if gs.get("lado") == 0 else "D",
+                  "  [!] NAO e o joelho (Wx cai mais rapido que M)" if no_joelho else ""),
+              "  >> util FLT trecho = %.2f (%s)" % (
+                  u_flt, "succao(mesa inf) governa" if flt and
+                  flt.get("succao(maos-francesas)", {}).get("u", 0) >= u_flt - 1e-9
+                  else "gravidade(mesa sup)"),
+              "  >> UTILIZACAO GOVERNANTE = %.2f (%s)" % (
+                  u_geral, "FLT de trecho" if u_flt >= u_local else "estado local do segmento"),
+              "  [FLAG] FLT usa a secao mais funda do trecho (conservador). A formulacao",
+              "         completa de misula (fator gamma, AISC DG25 / NBR 8800 Anexo H)",
+              "         fica como refinamento.",
+              "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
         L.append("=" * 66)
         save("gate6-alma-variavel.txt", "\n".join(L))
         res["alma_variavel"] = {
@@ -558,12 +598,13 @@ def rodar(params, out_dir):
             "peso_kN_m": round(peso, 2), "nseg": gp.NSEG,
             "I_joelho_cm4": round(secs[0]["I_m4"] * 1e8, 0),
             "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0),
-            "interacao_max_seg": round(gov_seg["interacao"], 2) if gov_seg else None,
-            "seg_governante": ("%d%s" % (gov_seg["_seg"]["seg"],
-                               "E" if gov_seg["_seg"]["lado"] == 0 else "D")) if gov_seg else None,
-            "governa_joelho": bool(gov_seg and (
-                (gov_seg["_seg"]["seg"] == 0 and gov_seg["_seg"]["lado"] == 0) or
-                (gov_seg["_seg"]["seg"] == gp.NSEG - 1 and gov_seg["_seg"]["lado"] == 1)))}
+            "util_local_max": round(u_local, 2),
+            "util_flt_trecho": round(u_flt, 2),
+            "interacao_max_seg": round(u_geral, 2),
+            "seg_governante": ("%d%s" % (gs.get("seg"),
+                               "E" if gs.get("lado") == 0 else "D")) if gov_seg else None,
+            "governa_joelho": not no_joelho if gov_seg else None,
+            "governa_flt": bool(u_flt >= u_local)}
 
     # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
     # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga

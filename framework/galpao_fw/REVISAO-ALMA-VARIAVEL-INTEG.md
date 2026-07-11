@@ -6,12 +6,12 @@ homologado ([ALMA-VARIAVEL](REVISAO-ALMA-VARIAVEL.md)). Esta revisão trata da
 variável por segmento), no ProjetoSpec (gate) e no build 3D (loft). Fase 6.b.
 Criado 2026-07-10.
 
-> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** (2026-07-11). Q2 (CRÍTICO) corrigido:
-> **verificação FLA/FLM/FLT + flexo-compressão por segmento** (não assume mais o
-> joelho). Q4 aprovado. Q1 (coluna tapered) e Q3 (panel zone/doubler no nó)
-> aceitos como **backlog** (features maiores). Prova empírica: no caso 600→300 mm
-> sob vento, **governa o segmento 7 (cumeeira, h=319 mm, util 0,68), NÃO o joelho**
-> (h=581 mm, util 0,17) — confirma a tese do parecer.
+> **STATUS: 🔁 PARECER 2 RESPONDIDO — REVER** (2026-07-11). Parecer 1: Q2 (verif.
+> por segmento) implementado. Parecer 2: **ponto 1 (bug de mapeamento invertido)
+> NÃO procede — comprovado por 2 testes** (§7); **pontos 2 (FLT por fatia) e 3 (Lb
+> pela mesa comprimida) procedem e foram corrigidos** (§7). FLA/FLM/flexo-compressão
+> ficam locais por segmento; **FLT vira check de TRECHO** (member-level, seção mais
+> funda) com **Lb dinâmico** (terça p/ gravidade / mão-francesa p/ sucção).
 
 ## PARECER SÊNIOR 1 — respostas
 
@@ -41,15 +41,59 @@ intermediário/da cumeeira**, não no joelho. Implementado:
 - Teste `test_verificacao_por_segmento`: exige o campo e confere que, neste caso,
   o governante **não** é o joelho.
 
-**Exemplo (gate6-alma-variavel.txt), h 600→300, vento:**
+## 7. PARECER SÊNIOR 2 — respostas (2026-07-11)
+
+### Ponto 1 — "array de esforços invertido" → **NÃO PROCEDE** (2 provas)
+
+O parecer alega que `analyse()` espelha os esforços (cumeeira recebendo o M do
+joelho). **Falso.** Duas verificações decisivas:
+
+1. **Solver (frame2d) — viga bi-engastada reta, EI 8:1**: extremidade RÍGIDA
+   (I=8e-4) M=−76,86 ; extremidade flexível (I=1e-4) M=+30,36. O rígido atrai
+   **mais** momento → o solver mapeia rigidez→momento corretamente.
+2. **Swap do taper no pórtico (gravidade)**: `stiff@joelho` → M_joelho 5,67 >
+   `stiff@cumeeira` → M_joelho 3,86 ; `stiff@cumeeira` → M_cumeeira 16,73 >
+   `stiff@joelho` → M_cumeeira 14,72. **Cada extremidade ganha M quando fica mais
+   rígida** — exatamente o esperado; nada invertido.
+
+O pico na cumeeira neste pórtico **abatido** (slope 0,10, i=6,0→6,5 m) é real, não
+incoerência: no prismático o joelho pica (−11,48 > 8,37 cumeeira); ao afinar, a
+cumeeira mais solicitada em relação ao seu `Wx` minúsculo governa. `I_x` correto
+por elemento (joelho 51915 cm⁴ / cumeeira 13420 cm⁴).
+
+### Ponto 2 — FLT por fatia → **CORRIGIDO** (member-level)
+
+FLT é fenômeno de **trecho destravado**, não de fatia. Agora:
+- **FLA/FLM/flexo-compressão**: locais por segmento (dependem só de b/t, h/t
+  locais) — no `chk.verifica`, `Lb→0` neutraliza a FLT local.
+- **FLT**: calculada **uma vez por trecho** com a **maior seção** (mais funda,
+  conservador — AISC DG25 / NBR 8800 Anexo H), aplicada como **teto** a todos os
+  segmentos. `[FLAG]` do fator γ de mísula (formulação completa) como refinamento.
+
+### Ponto 3 — Lb pela mesa comprimida → **CORRIGIDO**
+
+Dois `Lb` conforme o regime:
+- **gravidade** (mesa **superior** comprimida) → `Lb = terças` (mais curto).
+- **sucção** (mesa **inferior** comprimida) → `Lb = mãos-francesas` (mais longo).
+FLT avaliada nos dois; governa o pior.
+
+**Exemplo (gate6-alma-variavel.txt), h 600→300:**
 
 ```
-  seg |  h(mm) | Msd(kN.m) | interacao | governa
-    0E |    581 |      52.3 |      0.17 | C1_Gdesf_W1   <- joelho (NAO governa)
-    ...
-    7E |    319 |     115.6 |      0.68 | C1_Gdesf_W1   <- GOVERNA (cumeeira)
-  >> GOVERNA o segmento 7E (h=319 mm, interacao=0.68)  [!] NAO e o joelho
+  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):
+    seg |  h(mm) | Msd(kN.m) | interacao_local | governa
+    0E |   581 |    52.3 |  0.12 | C1_Gdesf_W1   <- joelho (NAO governa)
+    7E |   319 |   115.6 |  0.55 | C1_Gdesf_W1   <- governa local (cumeeira)
+  FLT DE TRECHO (member-level, secao mais funda h=581 mm):
+    gravidade(tercas)       Lb=1.26 m (mesa sup) -> M_Rd,FLT=463.8 ; u=0.25
+    succao(maos-francesas)  Lb=5.02 m (mesa inf) -> M_Rd,FLT=326.1 ; u=0.36
+  >> util local max = 0.55 (seg 7E) [!] NAO e o joelho
+  >> util FLT trecho = 0.36 (succao mesa inf governa)
+  >> UTILIZACAO GOVERNANTE = 0.55 (estado local do segmento)
 ```
+
+`res["alma_variavel"]`: `util_local_max`, `util_flt_trecho`, `interacao_max_seg`
+(máx dos dois), `seg_governante`, `governa_joelho`, `governa_flt`.
 
 ---
 
