@@ -1,5 +1,21 @@
 # 03 — Fases
 
+## FECHADA — Homologação dos 6 pareceres sênior (itens 28–33) — 2026-07-11
+**Escopo:** processar os 6 REVISAO-*.md pendentes (gusset, console, fundação
+profunda, ponte 8400, alma variável, tesoura); homologar/corrigir. Detalhe por
+item em [[04-decisions#D44]]. **Resultado: itens 1–33 todos ✅ HOMOLOGADO.**
+- **Correções reais aplicadas:** gusset (ruptura líquida, Kl/Thornton, K=0,65),
+  console (SRSS colinear→algébrico, 2 cordões, flexão em balanço, L_ef), fundação
+  (FS gate 3,0/prova, biela tan≥1,0, momento no grupo, baldrame transversal n≤2),
+  alma variável (FLT member-level + Lb dinâmico pela mesa comprimida), tesoura
+  (banzo reto duas águas, tração ruptura líquida, compressão 2 eixos, guard
+  n_paineis par).
+- **3 alegações de "erro grave" REFUTADAS com prova de bancada** (console SRSS,
+  ponte H_long=ΣR_motoras, alma-var array não-invertido) — sênior retratou-se.
+  Regra [[04-decisions#D6]] reforçada: conferir contra código+PDF, não aceitar cego.
+- **Evidência:** selftests verdes; builds estaca/tesoura 0 interferências; fase6b/6c
+  tests passed. Commits 718bbe8→35cda72. [[06-open-threads#T8]].
+
 ## FECHADA — Pórtico treliçado / tesoura (fase 6.c) — 2026-07-10
 **Escopo:** pórtico treliçado (tesoura) fim-a-fim. `tesoura.py` era **só geometria**
 (nós+barras isostática); esta fase **cria o cálculo** (solver+verificação) + 3D.
