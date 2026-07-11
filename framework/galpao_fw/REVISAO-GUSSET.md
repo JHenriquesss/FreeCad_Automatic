@@ -6,10 +6,37 @@ primitivos já homologados** de `ligacoes.py` + a compressão de `check_nbr8800`
 
 Código: `gusset_ligacao.py`. Criado 2026-07-09.
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo. A conferir: a premissa da
-> **largura de Whitmore (30°)** — convenção AISC/Thornton, **não é item da NBR**
-> (documentada como FLAG, análogo ao T-stub EN 1993 já aceito no joelho) — e o
-> comprimento de flambagem `Kl` da faixa (default 0,6·Lc).
+> **STATUS: 🔁 PARECER 1 ATENDIDO — REVER** — sênior aprovou a matemática
+> (escoamento 314,9 kN e solda 228,6 kN conferidos), mas apontou 4 correções
+> conceituais (§4). **Todas aplicadas** no `gusset_ligacao.py` (§5). A largura de
+> **Whitmore (30°)** permanece FLAG (convenção AISC/Thornton, não é item da NBR;
+> análogo ao T-stub EN 1993 já aceito no joelho).
+
+## PARECER SÊNIOR 1 (matemática ✅ / conceito ❌→corrigido)
+
+> Matemática do selftest **irretocável** (MR250 fy250/fu400, E70XX fEXX485,
+> γa1=1,10, γw2=1,35): Whitmore bw=115,47 mm → Nt,Rd=314,91 kN; solda perna 5 mm
+> L=300 mm → Fw,Rd=228,60 kN. **Aprovado**. Conceituação exigiu 4 ajustes:
+
+1. **Lc ≠ comprimento de flambagem.** Lc (espraiamento 30°) é o comprimento da
+   ligação; o comprimento de flambagem de Thornton é a distância LIVRE do fim da
+   ligação à face do apoio. Desacoplar.
+2. **w0=0 inviável p/ barra redonda.** Ponto único = singularidade. Barra
+   ranhurada/soldada → w0 = diâmetro da barra.
+3. **Faltou ruptura da seção líquida** (5.2.3): Nt,Rd=Ae·fu/γa2, subtraindo furos
+   da largura de Whitmore, quando parafusada.
+4. **K de flambagem = 0,65** (2 bordas, nó de canto, AISC DG29); 1,2 em bandeira.
+
+## 5. Correções aplicadas (2026-07-10)
+
+| # parecer | Mudança no `gusset_ligacao.py` |
+|---|---|
+| 1 | `L_livre` separado de `Lc`; `Kl = K·L_livre` (default L_livre=Lc, conservador). `_compressao_whitmore` doc explicita Thornton. Teste: `L_livre` maior → χ menor. |
+| 2 | `d_barra` vira `w0` quando `w0` omitido (2 soldas laterais, não ponto). Teste: w0=0,020 p/ Ø20. |
+| 3 | `_ruptura_whitmore` (5.2.3): `An=(bw−n_furos_transv·dh)·t`, `Ae=Ct·An`, `Nt,Rd=Ae·fu/γa2`; `dh` reusa `ligacoes._diam_furo` (Tab.12). Entra junto do block shear (parafusado). |
+| 4 | `K_DUAS_BORDAS=0,65` / `K_UMA_BORDA=1,2`; default 0,65. Teste: `Kl=0,65·L_livre`. |
+
+Selftest **PASSED** após correções (todos os estados + guardas).
 
 ---
 
@@ -49,6 +76,10 @@ util 0,20 → governa solda, **ATENDE**.
 ## 3. FLAGs
 
 - Ângulo de Whitmore 30° (convenção AISC; o responsável confirma).
-- `Kl` de flambagem da faixa (default 0,6·Lc) — só relevante se compressão.
+- ~~`Kl` de flambagem (default 0,6·Lc)~~ **resolvido parecer 1**: `Kl=K·L_livre`,
+  K=0,65 (2 bordas), `L_livre` desacoplado de `Lc` (Thornton). L_livre real do
+  nó a confirmar (default = Lc, conservador).
 - Percurso do bloco de falha (quando parafusado) — herdado de `block_shear_linha`.
 - fu do gusset = 400 MPa (MR250); confirmar aço da chapa.
+- Integração: contravento é barra Ø20 **soldada** (w0 = d_barra = Ø20; ruptura
+  líquida não aplica — sem furos). Ruptura líquida só entra em nó parafusado.

@@ -40,7 +40,7 @@ os FLAGS/pendências.
 | 25 | Carga de neve | [REVISAO-NEVE.md](REVISAO-NEVE.md) | EN 1991-1-3 | ✅ HOMOLOGADO |
 | 26 | Pórtico alma variável | [REVISAO-ALMA-VARIAVEL.md](REVISAO-ALMA-VARIAVEL.md) | NBR 8800 | ✅ HOMOLOGADO |
 | 27 | Pórtico treliçado (tesoura) | [REVISAO-TESOURA.md](REVISAO-TESOURA.md) | NBR 8800 | ✅ HOMOLOGADO |
-| 28 | Gusset de contraventamento | [REVISAO-GUSSET.md](REVISAO-GUSSET.md) | NBR 8800 + Whitmore (AISC) | 🆕 PENDENTE SÊNIOR (2026-07-09) |
+| 28 | Gusset de contraventamento | [REVISAO-GUSSET.md](REVISAO-GUSSET.md) | NBR 8800 + Whitmore (AISC) | 🔁 PARECER 1 ATENDIDO — REVER (2026-07-10) |
 | 29 | Console da ponte rolante (ligação) | [REVISAO-CONSOLE.md](REVISAO-CONSOLE.md) | NBR 8800 + grupo de solda elástico | 🆕 PENDENTE SÊNIOR (2026-07-09) |
 | 30 | Fundação profunda — **integração** (spec + 3D) | [REVISAO-FUNDACAO-PROFUNDA-INTEG.md](REVISAO-FUNDACAO-PROFUNDA-INTEG.md) | integração (método já em ESTACA/BALDRAME) | 🆕 PENDENTE SÊNIOR (2026-07-10) — só decisões de wiring/geometria [Q1]…[Q6] |
 | 31 | Ponte rolante estendida — rodas motoras + NBR 8400 | [REVISAO-PONTE-8400.md](REVISAO-PONTE-8400.md) | NBR 8800 (frenagem) + NBR 8400-1:2019 Tab.9/12 | 🆕 PENDENTE SÊNIOR (2026-07-10) — [Q1]…[Q4]; fadiga Anexo K inalterada |

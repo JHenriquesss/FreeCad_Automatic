@@ -30,6 +30,8 @@ import ligacoes as LG
 from check_nbr8800 import chi_compressao, E, GA1
 
 GA2 = LG.GA2                       # 1,35 (ruptura)
+K_DUAS_BORDAS = 0.65              # gusset apoiado em 2 bordas (no de canto) - AISC DG29
+K_UMA_BORDA = 1.2                 # gusset em bandeira (1 borda) - AISC DG29
 
 
 def largura_whitmore(w0, Lc, ang_graus=30.0):
@@ -49,7 +51,9 @@ def _tracao_whitmore(N, bw, t, fy):
 
 def _compressao_whitmore(N, bw, t, Kl, fy):
     """Flambagem da faixa de Whitmore como coluna curta (NBR 8800 5.3.3).
-    r = t/sqrt(12) (raio de giração da chapa); lambda0 = (Kl/r)/pi*sqrt(fy/E)."""
+    r = t/sqrt(12) (raio de giração da chapa); lambda0 = (Kl/r)/pi*sqrt(fy/E).
+    Kl = K * L_livre (metodo Thornton/AISC): L_livre = distancia LIVRE da ultima
+    fixacao ate a face do apoio, NAO o comprimento da ligacao Lc."""
     r = t / math.sqrt(12.0)
     if r <= 0:
         return {"Nc_Rd": 0.0, "u": float("inf"), "OK": False}
@@ -57,8 +61,20 @@ def _compressao_whitmore(N, bw, t, Kl, fy):
     chi = chi_compressao(lam)
     Ag = bw * t
     Nc_Rd = chi * Ag * fy / GA1
-    return {"lambda0": lam, "chi": chi, "Ag": Ag, "Nc_Rd": Nc_Rd,
+    return {"lambda0": lam, "chi": chi, "Ag": Ag, "Nc_Rd": Nc_Rd, "Kl": Kl,
             "u": N / Nc_Rd if Nc_Rd else float("inf"), "OK": N <= Nc_Rd}
+
+
+def _ruptura_whitmore(N, bw, t, fu, n_furos_transv, db, Ct):
+    """Ruptura da secao liquida na faixa de Whitmore (NBR 8800 5.2.2b/5.2.3).
+    So quando a barra e PARAFUSADA ao gusset. An = (bw - n_furos_transv*dh)*t;
+    Ae = Ct*An; Nt,Rd = Ae*fu/GA2. dh = furo-padrao (Tabela 12, reusa ligacoes)."""
+    dh = LG._diam_furo(db)
+    An = max(bw - n_furos_transv * dh, 0.0) * t
+    Ae = Ct * An
+    Nt_Rd = Ae * fu / GA2
+    return {"dh": dh, "An": An, "Ae": Ae, "Nt_Rd": Nt_Rd,
+            "u": N / Nt_Rd if Nt_Rd else float("inf"), "OK": N <= Nt_Rd}
 
 
 def verifica_gusset(caso):
@@ -66,28 +82,38 @@ def verifica_gusset(caso):
       N       - esforço da diagonal (kN, tração > 0)
       t       - espessura do gusset (m)
       w0      - largura do elemento ligado (m; 0 p/ barra redonda)
-      Lc      - comprimento da ligação ao longo da força (m)
+      Lc      - comprimento da LIGAÇÃO ao longo da força (m; define o espraiamento 30°)
       fy, fu  - do aço do gusset (kN/m2)
+      d_barra - diâmetro da barra redonda ranhurada/soldada (m); vira w0 se w0 omitido
+      w0      - largura inicial de distribuição (m); default d_barra (0 só se plano)
       Lsolda  - comprimento total de solda gusset->estrutura (m)
       perna   - perna do filete (m); default = mínimo por Tab.9 (solda_filete_minimo)
-      Kl      - comprimento de flambagem da faixa (m); default 0.6*Lc
+      L_livre - distância LIVRE da última fixação à face de apoio (m; flambagem);
+                default = Lc (conservador; NÃO é o Lc por definição - Thornton)
+      K       - fator de flambagem; default 0.65 (2 bordas). 1.2 se em bandeira.
       tracao_only - True p/ barra redonda pré-tensionada (dispensa compressão)
       # opcionais p/ ligação PARAFUSADA da barra ao gusset:
-      n, db, s_furos, e_long, e_transv, Cts
+      n, db, s_furos, e_long, e_transv, Cts, n_furos_transv (ruptura líquida)
     Retorna dict com util por estado, governante e o gusset adotado."""
     N = abs(caso["N"])
     t = caso["t"]
     fy, fu = caso["fy"], caso["fu"]
-    w0 = caso.get("w0", 0.0)
+    # barra redonda ranhurada/soldada -> largura inicial = diametro (nao 0):
+    # transfere carga em 2 soldas laterais, nao num ponto (evita singularidade).
+    w0 = caso.get("w0")
+    if w0 is None:
+        w0 = caso.get("d_barra", 0.0)
     Lc = caso["Lc"]
     bw = largura_whitmore(w0, Lc, caso.get("ang_whitmore", 30.0))
 
-    res = {"bw": bw, "t": t, "estados": {}}
+    res = {"bw": bw, "t": t, "w0": w0, "estados": {}}
     tr = _tracao_whitmore(N, bw, t, fy)
     res["estados"]["tracao_whitmore"] = tr
 
     if not caso.get("tracao_only", True):
-        Kl = caso.get("Kl", 0.6 * Lc)
+        K = caso.get("K", K_DUAS_BORDAS)
+        L_livre = caso.get("L_livre", Lc)
+        Kl = caso.get("Kl", K * L_livre)
         res["estados"]["compressao_whitmore"] = _compressao_whitmore(N, bw, t, Kl, fy)
 
     # solda gusset -> estrutura (filete)
@@ -98,7 +124,7 @@ def verifica_gusset(caso):
         sd["perna"] = perna
         res["estados"]["solda"] = sd
 
-    # rasgamento em bloco se a barra for PARAFUSADA ao gusset
+    # rasgamento em bloco + ruptura da secao liquida se a barra for PARAFUSADA
     if caso.get("n") and caso.get("db"):
         bs = LG.block_shear_linha(caso["n"], caso["s_furos"], caso["e_long"],
                                   caso["e_transv"], caso["db"], t, fy, fu,
@@ -106,6 +132,10 @@ def verifica_gusset(caso):
         bs["u"] = N / bs["Frd"] if bs["Frd"] else float("inf")
         bs["OK"] = N <= bs["Frd"]
         res["estados"]["block_shear"] = bs
+        # ruptura da secao liquida na largura de Whitmore (5.2.2b/5.2.3)
+        res["estados"]["ruptura_whitmore"] = _ruptura_whitmore(
+            N, bw, t, fu, caso.get("n_furos_transv", 1), caso["db"],
+            caso.get("Cts", 1.0))
 
     us = {k: v["u"] for k, v in res["estados"].items() if "u" in v}
     res["u_max"] = max(us.values()) if us else float("inf")
@@ -123,7 +153,8 @@ def relatorio_pt(res, titulo="GUSSET DE CONTRAVENTAMENTO"):
          "=" * 74, "",
          "Gusset: t = %s mm ; largura de Whitmore bw = %s mm"
          % (_pt(res["t"] * 1000.0), _pt(res["bw"] * 1000.0)), ""]
-    nomes = {"tracao_whitmore": "Tracao (Whitmore) 5.2.2",
+    nomes = {"tracao_whitmore": "Tracao escoam. (Whitmore) 5.2.2",
+             "ruptura_whitmore": "Tracao ruptura liq. (Whitmore) 5.2.3",
              "compressao_whitmore": "Compressao (faixa Whitmore) 5.3.3",
              "solda": "Solda de filete 6.2.5", "block_shear": "Rasgamento bloco 6.5.6"}
     for k, v in res["estados"].items():
@@ -156,19 +187,36 @@ def _selftest():
     ref = LG.solda({"perna": perna, "Lw": 0.30, "fw": 485e3, "t_base": 0.012,
                     "fy_base": 250e3, "fu_base": 400e3, "F": 50.0})
     assert abs(sd["Fw_Rd"] - ref["Fw_Rd"]) < 1e-9
-    # compressao habilitada quando nao tracao_only
+    # d_barra vira w0 quando w0 omitido (barra redonda ranhurada, nao ponto)
+    rb = verifica_gusset({"N": 50.0, "t": 0.012, "d_barra": 0.020, "Lc": 0.100,
+                          "fy": 250e3, "fu": 400e3})
+    assert abs(rb["w0"] - 0.020) < 1e-9
+    assert abs(rb["bw"] - largura_whitmore(0.020, 0.100)) < 1e-9
+    # compressao habilitada quando nao tracao_only; K default = 0.65 (2 bordas)
     r2 = verifica_gusset({"N": 50.0, "t": 0.012, "w0": 0.0, "Lc": 0.100,
                           "fy": 250e3, "fu": 400e3, "tracao_only": False})
     assert "compressao_whitmore" in r2["estados"]
     cw = r2["estados"]["compressao_whitmore"]
     assert 0.0 < cw["chi"] <= 1.0
-    # block shear entra se parafusado; reusa ligacoes.block_shear_linha
+    assert abs(cw["Kl"] - K_DUAS_BORDAS * 0.100) < 1e-9   # Kl = K*L_livre, L_livre=Lc
+    # L_livre desacoplado de Lc: distancia livre maior -> Kl maior -> chi menor
+    r2b = verifica_gusset({"N": 50.0, "t": 0.012, "w0": 0.0, "Lc": 0.100,
+                           "fy": 250e3, "fu": 400e3, "tracao_only": False,
+                           "L_livre": 0.300})
+    assert r2b["estados"]["compressao_whitmore"]["chi"] < cw["chi"]
+    # block shear + ruptura liquida entram se parafusado
     r3 = verifica_gusset({"N": 50.0, "t": 0.012, "w0": 0.0, "Lc": 0.100,
                           "fy": 250e3, "fu": 400e3, "n": 2, "db": 0.020,
                           "s_furos": 0.060, "e_long": 0.035, "e_transv": 0.035})
     bs = r3["estados"]["block_shear"]
     ref_bs = LG.block_shear_linha(2, 0.060, 0.035, 0.035, 0.020, 0.012, 250e3, 400e3)
     assert abs(bs["Frd"] - ref_bs["Frd"]) < 1e-9
+    # ruptura liquida: An = (bw - n_furos_transv*dh)*t ; Nt_Rd = Ae*fu/GA2
+    rup = r3["estados"]["ruptura_whitmore"]
+    dh = LG._diam_furo(0.020)
+    An_ref = (r3["bw"] - 1 * dh) * 0.012
+    assert abs(rup["An"] - An_ref) < 1e-12
+    assert abs(rup["Nt_Rd"] - An_ref * 400e3 / GA2) < 1e-6   # Ct=1
     # gusset fino demais reprova a tracao
     r4 = verifica_gusset({"N": 5000.0, "t": 0.003, "w0": 0.0, "Lc": 0.050,
                           "fy": 250e3, "fu": 400e3})

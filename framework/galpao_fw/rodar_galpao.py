@@ -358,8 +358,8 @@ def rodar(params, out_dir):
               ("Gusset de contravento - COBERTURA", abs(Ndc))]
     gres, gtxt = [], []
     for gnome, gN in gcasos:
-        rg = gus.verifica_gusset({"N": gN, "t": G_T, "w0": 0.0, "Lc": G_LC,
-                                  "fy": params["fy"], "fu": 400e3,
+        rg = gus.verifica_gusset({"N": gN, "t": G_T, "d_barra": cb["d_contrav"],
+                                  "Lc": G_LC, "fy": params["fy"], "fu": 400e3,
                                   "Lsolda": 2.0 * G_LC})
         gres.append(rg)
         gtxt.append(gus.relatorio_pt(rg, gnome))
