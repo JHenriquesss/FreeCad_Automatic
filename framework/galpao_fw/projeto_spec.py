@@ -409,6 +409,13 @@ def to_build_kwargs(spec):
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),
+        # reforco da zona de painel do joelho (doubler/enrijecedor) - so quando o
+        # calculo exigiu (zona_painel_adotado.precisa_*). Espessuras em mm.
+        "reforco_joelho": ({"t_doubler": zp.get("t_doubler_mm", 0.0),
+                            "enrijecedor": bool(zp.get("precisa_enrijecedor"))}
+                           if (isinstance(zp := est.get("zona_painel_adotado"), dict)
+                               and (zp.get("precisa_reforco") or zp.get("precisa_enrijecedor")))
+                           else None),
     }
 
 

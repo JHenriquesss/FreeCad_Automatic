@@ -42,6 +42,7 @@ import alma_variavel as av
 import tesoura as tes
 import ponte_rolante as pr
 import console_ponte as cons
+import zona_painel as zpn
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -405,6 +406,36 @@ def rodar(params, out_dir):
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
         res["base_ok"] = False
+    # Gate 7 - ZONA DE PAINEL DO JOELHO (no rigido viga-coluna; NBR 8800 5.7.7 +
+    # estados locais 5.7.2/5.7.3/5.7.6). So para porticos de NO RIGIDO (prismatico
+    # e alma variavel); a tesoura e biapoiada (sem joelho) e nao dispara. Esforcos
+    # do joelho (kM/kN/kV) ja extraidos em _esforcos_base_joelho.
+    if params.get("tipo_portico") in (None, "prismatico", "alma_variavel"):
+        tap = params.get("tapered") if params.get("tipo_portico") == "alma_variavel" else None
+        if isinstance(tap, dict):
+            # no tapered a secao do joelho (pilar e viga) e a mais funda (h_joelho).
+            pj = av.props_I(tap["h_joelho"], tap.get("bf", 0.20),
+                            tap.get("tw", 0.008), tap.get("tf", 0.0125))
+            dc, tw_c, tf_c, bf_c, Ag_c = pj["d"], pj["tw"], pj["tf"], pj["bf"], pj["A"]
+            d_viga, tf_viga = tap["h_joelho"], tap.get("tf", 0.0125)
+        else:
+            pc = perfis.PERFIS.get(res.get("perfil_col"), sc["perfil_col"])
+            praf = sc["perfil_raf"]
+            dc, tw_c, tf_c, bf_c, Ag_c = pc["d"], pc["tw"], pc["tf"], pc["bf"], pc["A"]
+            d_viga, tf_viga = praf["d"], praf["tf"]
+        caso_zp = {"M_Sd": abs(kM), "N_Sd": abs(kN), "V_col": abs(kV),
+                   "dc": dc, "tw_col": tw_c, "bf_col": bf_c, "tf_col": tf_c,
+                   "Ag_col": Ag_c, "d_viga": d_viga, "tf_viga": tf_viga,
+                   "fy": params["fy"], "extremidade": False}
+        rzp = zpn.verifica_painel(caso_zp)
+        save("gate-zona-painel.txt", zpn.relatorio_pt(rzp, caso_zp))
+        res["zona_painel"] = {
+            "u_painel": round(rzp["u_painel"], 2), "u_local": round(rzp["u_local"], 2),
+            "u_max": round(rzp["u_max"], 2),
+            "precisa_reforco": rzp["precisa_reforco"], "t_doubler_mm": rzp["t_doubler_mm"],
+            "precisa_enrijecedor": rzp["precisa_enrijecedor"],
+            "FSd_kN": round(rzp["FSd"], 1), "F_Rd_kN": round(rzp["F_Rd"], 1)}
+
     # Gate 7 - SAPATA (NBR 6118) pelo ENVELOPE de combinacoes: cada verificacao
     # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
     # = N min + M ; etc). Pedestal ~ pilar adotado.

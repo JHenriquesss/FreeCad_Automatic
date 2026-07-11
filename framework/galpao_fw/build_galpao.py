@@ -78,7 +78,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
                longarina=None, longarina_nome=None, sapata=None,
                estaca=None, bloco=None, baldrame=None,
-               tipo_portico=None, tapered=None, trelica=None):
+               tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -89,6 +89,9 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global REFORCO_JOELHO
+    if reforco_joelho is not None:
+        REFORCO_JOELHO = dict(reforco_joelho) if reforco_joelho else None
     if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
     if trelica is not None: TRELICA_MODEL = dict(trelica) if trelica else None
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
@@ -159,6 +162,9 @@ TAPERED_MODEL = None
 # Portico trelicado (tesoura): None = rafter cheio. dict {h(m), n_paineis, tipo,
 # d_banzo(mm), d_diag(mm)} -> rafter vira trelica de barras (banzos+diagonais).
 TRELICA_MODEL = None
+# Reforco da zona de painel do joelho: None = nenhum. dict {t_doubler (mm),
+# enrijecedor (bool)} vindo do calculo (zona_painel). So desenha quando exigido.
+REFORCO_JOELHO = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -617,6 +623,20 @@ def joelho(doc, node, rdir, tag):
     for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
         plate(doc, (cx, cy, cz + dz), COL_SEC[0], COL_SEC[1], 12.0,
               f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
+    # CHAPA DE REFORCO DE ALMA (doubler, NBR 8800 5.7.7.2) - SO quando o calculo da
+    # zona de painel exigiu (REFORCO_JOELHO.t_doubler > 0). Duas chapas, uma de cada
+    # lado da alma do pilar (paralelas a alma, plano X-Z), cobrindo o painel + 150 mm.
+    rj = REFORCO_JOELHO
+    if isinstance(rj, dict) and rj.get("t_doubler", 0.0) > 0.0:
+        td = float(rj["t_doubler"])                 # espessura total (mm), dividida nos 2 lados
+        t_lado = max(td / 2.0, 4.0)
+        tw_col = COL_SEC[2]
+        painel_h = RAF_SEC[0] + 300.0               # altura do painel + 150 mm cada lado
+        wx = COL_SEC[0] * 0.7                        # dentro da altura da alma do pilar
+        for sy, nm in ((-1.0, "L"), (1.0, "R")):
+            offy = sy * (tw_col / 2.0 + t_lado / 2.0)
+            plate(doc, (cx, cy + offy, cz - RAF_SEC[0] / 2.0),
+                  wx, t_lado, painel_h, f"CONEX_JOELHO_{tag}_DOUBLER_{nm}")
 
 
 def cumeeira_conn(doc, x, tag):
@@ -1733,8 +1753,9 @@ def reset():
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global REFORCO_JOELHO
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
-    TAPERED_MODEL = None; TRELICA_MODEL = None
+    TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"

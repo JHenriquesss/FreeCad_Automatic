@@ -47,6 +47,7 @@ os FLAGS/pendências.
 | 32 | Pórtico alma variável — **integração** (análise + spec + 3D) | [REVISAO-ALMA-VARIAVEL-INTEG.md](REVISAO-ALMA-VARIAVEL-INTEG.md) | integração (secao_tapered já homologado) | ✅ HOMOLOGADO (2026-07-11) — solver absolvido; FLT trecho + Lb dinâmico ok |
 | 33 | Pórtico treliçado (tesoura) — **cálculo novo** + 3D | [REVISAO-TESOURA-INTEG.md](REVISAO-TESOURA-INTEG.md) | método dos nós (novo) + NBR 8800 (barras) | ✅ HOMOLOGADO (2026-07-11) — Q5 duas águas + ruptura líq. + compressão 2 eixos + guard n_paineis par |
 | 34 | Coluna de alma variável (tapered) — fecha Q1 da fase 6.b | [REVISAO-COLUNA-TAPERED.md](REVISAO-COLUNA-TAPERED.md) | integração (secao_tapered já homologado) | 🟡 A REVISAR — coluna base rasa→joelho fundo; FLT member-level; back-compat |
+| 35 | Zona de painel do joelho (cisalhamento + doubler) — fecha Q3 da fase 6.b | [REVISAO-ZONA-PAINEL.md](REVISAO-ZONA-PAINEL.md) | NBR 8800 §5.7.7 + §5.7.2/§5.7.3/§5.7.6 + §5.4.3 (verbatim do PDF) | 🟡 A REVISAR — painel do pilar + doubler/enrijecedor; prismático+alma var |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

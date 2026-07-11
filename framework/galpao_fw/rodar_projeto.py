@@ -58,6 +58,8 @@ def calcular(spec, out_dir):
         spec["estrutura"]["perfil_montante"] = res.get("perfil_montante")
     if res.get("gusset_adotado"):
         spec.setdefault("estrutura", {})["gusset_adotado"] = res["gusset_adotado"]
+    if res.get("zona_painel"):
+        spec.setdefault("estrutura", {})["zona_painel_adotado"] = res["zona_painel"]
     if res.get("console_adotado"):
         spec.setdefault("estrutura", {})["console_adotado"] = res["console_adotado"]
     if res.get("terca_dims"):
