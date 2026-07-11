@@ -1,25 +1,25 @@
 {
-  "phase": "6.3",
-  "phase_name": "portico-tesoura-trelica",
-  "step": "closed",
+  "phase": "6.4",
+  "phase_name": "coluna-tapered",
+  "step": "ready-to-close",
   "must_exist": [
-    { "id": "me-1", "text": "tesoura.resolve_trelica: solver isostatico (metodo dos nos); equilibrio global fecha (teste)", "done": true },
-    { "id": "me-2", "text": "tesoura.verifica_tesoura: combos grav/vento; verifica banzos/diagonais (tracao+compressao via check_nbr8800); u_max+governante; relatorio", "done": true },
-    { "id": "me-3", "text": "gate estrutura.tipo_portico=tesoura + trelica; validar; mappers to_rodar/to_build", "done": true },
-    { "id": "me-4", "text": "rodar_galpao roteia tesoura -> gate6-tesoura.txt + res['tesoura']; METODOS 3c + ordem", "done": true },
-    { "id": "me-5", "text": "build_galpao desenha barras TRELICA_* (numpy-free inline); sem joelho/cumeeira; cobertura PE04; 0 interferencias", "done": true },
-    { "id": "me-6", "text": "smoke caso tesoura 7/7 (calc+3D+cobertura); prismatico/alma_var inalterados; REVISA-TESOURA-INTEG + INDICE 33", "done": true }
+    { "id": "me-1", "text": "galpao_portico: _secoes_coluna (base->joelho); _frame usa _chain_var na coluna quando TAPERED.h_col_base; envelope col_seg_env + retorna coluna_segmentos (h_m,L_seg,sec_props,M/N/V env,gov)", "done": true },
+    { "id": "me-2", "text": "rodar_galpao: verifica coluna por segmento (Lb->0 local) *B2; FLT member-level coluna (2 regimes Lb); res['alma_variavel'] += util_col_local_max, util_col_flt, interacao_max_col", "done": true },
+    { "id": "me-3", "text": "projeto_spec: campo estrutura.tapered.h_col_base (opcional); validar avisa se h_col_base>=h_joelho ou <=2tf; mappers to_rodar + to_build (mm)", "done": true },
+    { "id": "me-4", "text": "build_galpao: tapered_column (sweep I base->joelho, numpy-free); coluna vira loft tapered quando TAPERED_MODEL.h_col_base; 0 interferencias", "done": true },
+    { "id": "me-5", "text": "smoke caso coluna_tapered (calc+3D) verde; prismatico/alma_var-rafter/tesoura inalterados; REVISAO-COLUNA-TAPERED.md + INDICE 34", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "esforco de trelica sem equilibrio (teste de equilibrio global obrigatorio)", "violated": false },
-    { "id": "mne-2", "text": "ref prismatica/alma_var regride quando tipo!=tesoura", "violated": false },
-    { "id": "mne-3", "text": "barra da trelica flutuando/sem ligacao (0 interferencias no build)", "violated": false },
-    { "id": "mne-4", "text": "perfil de banzo/diagonal inventado (vem do gate; sizing usa check_nbr8800)", "violated": false }
+    { "id": "mne-1", "text": "coluna tapered sem FLT member-level (so fatia local)", "violated": false },
+    { "id": "mne-2", "text": "ref prismatica/alma_var-so-rafter regride quando h_col_base ausente", "violated": false },
+    { "id": "mne-3", "text": "secao joelho da coluna != secao joelho do rafter (descontinuidade no no)", "violated": false },
+    { "id": "mne-4", "text": "h_col inventado no build (deve vir do gate/mapper; numpy-free)", "violated": false },
+    { "id": "mne-5", "text": "coluna tapered flutuando/sem ligacao no 3D (interferencia>0)", "violated": false }
   ],
-  "current_item": "me-6",
+  "current_item": "me-5",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke 7/7 (padrao/vao/largo 13, ponte 14, estaca 13, alma_var 13, tesoura 13); solver equilibrio global; banzo inf traciona; 7 fast + 1 build; selftests tesoura/spec OK; numpy lazy (build importa geometria sem numpy)",
-  "opened_at": "2026-07-10",
+  "trunk_evidence": "fase6.4 9/9 (8 fast + 1 build coluna tapered 0 interf); alma-var-rafter 8/8 nao-regressao; smoke_executivo 7/7 (padrao/vao/largo/ponte/estaca/alma_var/tesoura); selftests portico/alma_variavel/spec OK; back-compat: coluna prismatica sem h_col_base (I_base==I_topo)",
+  "opened_at": "2026-07-11",
   "last_tune_at": null,
   "history": [
     { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" },

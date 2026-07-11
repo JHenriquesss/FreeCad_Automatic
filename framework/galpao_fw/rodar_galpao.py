@@ -204,6 +204,7 @@ def rodar(params, out_dir):
     # ativo; o redim adiante reseta TAPERED). B2 global do MAES amplifica os M (nao
     # muda QUAL segmento governa - so a magnitude).
     segs_tapered = a_gp.get("rafter_segmentos", []) if a_gp.get("tapered") else []
+    segs_col_tapered = a_gp.get("coluna_segmentos", []) if a_gp.get("coluna_tapered") else []
     B2_amp = a.get("B2max", 1.0)
     # Gate 7 - REDIMENSIONAMENTO: adota o par (coluna, viga) MAIS LEVE que passa
     # (interacao<=1 + flecha<=H/150), partindo do seed HEA200/HEA180. Recomputa os
@@ -591,6 +592,57 @@ def rodar(params, out_dir):
               "         completa de misula (fator gamma, AISC DG25 / NBR 8800 Anexo H)",
               "         fica como refinamento.",
               "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
+        # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
+        # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
+        # + FLT de TRECHO (member-level) com a secao mais funda da coluna (o joelho).
+        # Lb da coluna = contrato de travamento (params["Lb"]["col"]): mesa externa
+        # travada pela longarina de fechamento, mesa interna pela mao-francesa.
+        col_res = None
+        if segs_col_tapered:
+            Lb_col = params["Lb"]["col"]
+            verifs_c = []
+            for seg in segs_col_tapered:
+                sp = seg.get("sec_props")
+                if not sp:
+                    continue
+                sec_c = dict(sp); sec_c["nome"] = "col%d_%d" % (seg["coluna"], seg["seg"])
+                Msd_c = seg["M"] * B2_amp; Nsd_c = seg["N"] * B2_amp
+                v = chk.verifica(sec_c, params["fy"], L=seg.get("L_seg") or Lb_col,
+                                 Nsd=Nsd_c, Msd=Msd_c, Vsd=seg["V"], Kx=1, Ky=1,
+                                 Lb=1e-3, nome=sec_c["nome"])   # Lb->0: sem FLT local
+                v["_seg"] = seg
+                verifs_c.append(v)
+            deep_c = max((s for s in segs_col_tapered if s.get("sec_props")),
+                         key=lambda s: s.get("h_m") or 0, default=None)
+            M_max_c = max((s["M"] for s in segs_col_tapered), default=0.0) * B2_amp
+            u_col_flt = 0.0
+            if deep_c:
+                _mn, _gov, mrc = chk.momento_resistente(
+                    dict(deep_c["sec_props"]), params["fy"], Lb_col, Cb=1.0)
+                MRd_c = mrc["Mn_flt"] / chk.GA1
+                u_col_flt = M_max_c / MRd_c if MRd_c > 0 else float("inf")
+            gov_c = None
+            for v in verifs_c:
+                if gov_c is None or v["interacao"] > gov_c["interacao"]:
+                    gov_c = v
+            u_col_local = gov_c["interacao"] if gov_c else 0.0
+            u_col_geral = max(u_col_local, u_col_flt)
+            L += ["", "  COLUNA TAPERED (base rasa -> joelho fundo; h_col_base=%.0f mm):"
+                  % (tp["h_col_base"] * 1000),
+                  "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
+            for v in verifs_c:
+                s = v["_seg"]
+                L.append("    %3d | %6.0f | %9.1f | %14.2f | %s" %
+                         (s["seg"], (s["h_m"] or 0) * 1000, s["M"], v["interacao"],
+                          s.get("gov", "")))
+            L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Lb=%.2f m) = %.2f ; "
+                  "GOVERNANTE = %.2f (%s)" % (
+                      u_col_local, Lb_col, u_col_flt, u_col_geral,
+                      "FLT de trecho" if u_col_flt >= u_col_local else "estado local")]
+            col_res = {"util_col_local_max": round(u_col_local, 2),
+                       "util_col_flt": round(u_col_flt, 2),
+                       "interacao_max_col": round(u_col_geral, 2),
+                       "h_col_base_mm": tp["h_col_base"] * 1000}
         L.append("=" * 66)
         save("gate6-alma-variavel.txt", "\n".join(L))
         res["alma_variavel"] = {
@@ -605,6 +657,8 @@ def rodar(params, out_dir):
                                "E" if gs.get("lado") == 0 else "D")) if gov_seg else None,
             "governa_joelho": not no_joelho if gov_seg else None,
             "governa_flt": bool(u_flt >= u_local)}
+        if col_res:
+            res["alma_variavel"].update(col_res)
 
     # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
     # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga

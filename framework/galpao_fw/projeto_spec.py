@@ -192,6 +192,22 @@ def validar(spec):
                 faltando.append(("estrutura.trelica.n_paineis",
                                  "n_paineis=%d deve ser PAR (cumeeira em no; impar "
                                  "reintroduz flexao na tesoura)" % npn))
+    # coluna de alma variavel (tapered): h_col_base opcional (rasa na base, funda
+    # no joelho). Deve ser < h_joelho (senao a coluna nao afina) e > 2*tf (secao I
+    # valida). Fora disso -> AVISO (nao bloqueia; alerta de geometria incoerente).
+    if tp == "alma_variavel":
+        tap = _get(spec, "estrutura.tapered")
+        if isinstance(tap, dict) and tap.get("h_col_base") is not None:
+            hcb = tap["h_col_base"]; hj = tap.get("h_joelho")
+            tf = tap.get("tf", 0.0125)
+            if isinstance(hcb, (int, float)):
+                if isinstance(hj, (int, float)) and hcb >= hj:
+                    avisos.append(("estrutura.tapered.h_col_base",
+                                   "h_col_base=%.3f >= h_joelho=%.3f: coluna nao afina "
+                                   "(base deve ser mais rasa que o joelho)" % (hcb, hj)))
+                if hcb <= 2.0 * tf:
+                    avisos.append(("estrutura.tapered.h_col_base",
+                                   "h_col_base=%.3f <= 2*tf=%.4f: secao I invalida" % (hcb, 2.0 * tf)))
     # ponte rolante: se ha ponte (dict), os dados do fabricante bloqueiam. phi
     # exige classe_hc OU phi direto; n de ciclos exige classe_b OU n_ciclos.
     ponte = spec.get("ponte")
@@ -378,7 +394,9 @@ def to_build_kwargs(spec):
         "tipo_portico": est.get("tipo_portico", "prismatico"),
         "tapered": ({"h_joelho": tap["h_joelho"] * 1000, "h_cumeeira": tap["h_cumeeira"] * 1000,
                      "bf": tap.get("bf", 0.20) * 1000, "tw": tap.get("tw", 0.008) * 1000,
-                     "tf": tap.get("tf", 0.0125) * 1000}
+                     "tf": tap.get("tf", 0.0125) * 1000,
+                     **({"h_col_base": tap["h_col_base"] * 1000}
+                        if tap.get("h_col_base") is not None else {})}
                     if (est.get("tipo_portico") == "alma_variavel"
                         and isinstance(tap := est.get("tapered"), dict)) else None),
         # portico trelicado (tesoura): geometria (m) + perfis (mm) p/ desenhar as barras.

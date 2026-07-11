@@ -292,6 +292,19 @@ def tapered_rafter(doc, p1, p2, name, roll=0.0):
                           i_section_pts((h2, bf, tw, tf)), p1, p2, roll, name, doc)
 
 
+def tapered_column(doc, p1, p2, name, roll=0.0):
+    """Coluna de alma variavel: secao RASA na base (p1, h_col_base) -> FUNDA no
+    joelho (p2, h_joelho, casa a base do rafter). Dims (mm) do TAPERED_MODEL.
+    Cai no i_member prismatico se as alturas forem iguais (h_col_base==h_joelho)."""
+    t = TAPERED_MODEL
+    bf, tw, tf = t.get("bf", 200.0), t.get("tw", 8.0), t.get("tf", 12.5)
+    h1, h2 = t["h_col_base"], t["h_joelho"]
+    if abs(h1 - h2) < 1e-6:
+        return i_member(doc, p1, p2, (h1, bf, tw, tf), name, roll)
+    return _sweep_tapered(i_section_pts((h1, bf, tw, tf)),
+                          i_section_pts((h2, bf, tw, tf)), p1, p2, roll, name, doc)
+
+
 def u_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(u_section_pts(sec), p1, p2, roll, name, doc)
 
@@ -646,9 +659,13 @@ def build(doc):
     # Porticos principais: colunas + vigas (I)
     for i, x in enumerate(axes, start=1):
         t = f"PORTICO_{i:02d}"
+        col_tap = bool(TAPERED_MODEL) and TAPERED_MODEL.get("h_col_base") is not None
         for j in range(nv + 1):
             yc = cols_y[j]
-            i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
+            if col_tap:                              # alma variavel: coluna afina
+                tapered_column(doc, (x, yc, Z0), (x, yc, EAVE_H), f"{t}_C{j:02d}")
+            else:
+                i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
         for j in range(nv):
             yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
             zh = rafter_z(yr)
