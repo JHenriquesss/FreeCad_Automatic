@@ -5,9 +5,13 @@ Conferência do sênior. Estende a ponte rolante já homologada
 pontos. Código: `ponte_rolante.py`, **novo** `nbr8400.py`, gate em
 `projeto_spec.py`. Fase 4 do pipeline. Criado 2026-07-10.
 
-> **STATUS: ⏳ PENDENTE — aguarda parecer do sênior.**
-> Revisar: (1) o *basis* da frenagem nas rodas motoras; (2) a leitura das
-> Tabelas 9 e 12 da NBR 8400-1:2019. A fadiga Anexo K **não mudou** (só recebe o N).
+> **STATUS: 🔁 PARECER 1 RESPONDIDO — REVER** (2026-07-11). Sênior validou Q2
+> (Ψ e min(Vh,1.5)), Q3 (limite superior / B10) e Q4 (edição 2019). Apontou Q1
+> (H_long) como erro de estática — **mas a fórmula está correta** (§6): `R_roda_max`
+> é a reação POR RODA do trilho carregado (partilha igual), então
+> `frac_long·R_roda_max·n_motoras = frac_long·ΣR_motoras ≤ frac_long·R_trilho_max`
+> — não há superposição. Ψ-cap e B10 **já estavam implementados** (senior confirmou
+> a matemática); só a doc induziu dúvida. Provas adicionadas ao selftest.
 
 ---
 
@@ -29,6 +33,20 @@ H_long = frac_long · R_roda_max · n_rodas_motoras     (n_motoras ≤ n_rodas_l
 **[Q1]** Confirma o *basis* de que a frenagem longitudinal se distribui apenas
 nas rodas motoras do caminho de rolamento (NBR 8800 / prática de ponte rolante),
 com `frac_long` aplicado sobre `R_roda_max · n_motoras`?
+
+> **RESPOSTA AO PARECER (§6):** o sênior objetou que `R_roda_max · n_motoras`
+> superdimensiona (somaria o pico de uma roda em todas). **A objeção não procede**
+> porque `R_roda_max` **não** é o pico isolado de uma roda: `cargas_de_roda`
+> devolve `R_roda_max = R_trilho_max / n_rodas_lado` — a reação **por roda** do
+> trilho carregado, com partilha igual. Então, nesse trilho, cada roda vale
+> `R_roda_max` e a soma sobre as motoras é exatamente `ΣR_motoras`:
+> `frac_long·R_roda_max·n_motoras = frac_long·ΣR_motoras`. Como
+> `n_motoras ≤ n_rodas_lado` (guard), isso é **sempre ≤ `frac_long·R_trilho_max`**
+> (a fração do trilho inteiro) → equilíbrio vertical preservado. Usar `R_roda_max`
+> (trole na aproximação mínima) é o **envelope** conservador da carga aderente,
+> não um erro. Igual à fórmula `H_long = μ·ΣR_motoras` que o próprio parecer pede.
+> Doc reforçada e **teto provado no selftest** (`H_long ≤ frac_long·R_trilho_max`
+> p/ todo `n_motoras ∈ [0, n_rodas_lado]`). Fórmula mantida.
 
 ---
 
@@ -108,6 +126,21 @@ continua válido. Nada inventado: tudo é catálogo/projeto.
 
 ---
 
+## 6. Respostas ao parecer sênior (2026-07-11)
+
+| Q | Parecer | Situação |
+|---|---|---|
+| Q1 | `R_roda_max·n_motoras` viola estática | **DEFENDIDO** — é `ΣR_motoras` do trilho carregado (partilha igual), ≤ `frac_long·R_trilho_max`. Fórmula mantida; teto provado no selftest. |
+| Q2 | usar `min(Vh, 1,5)` (saturação) | **JÁ IMPLEMENTADO** — `coef_dinamico`: `v = max(0, min(Vh, VH_MAX))`; selftest `coef_dinamico("HC2",2.0)==coef_dinamico("HC2",1.5)`. Sênior validou a matemática. |
+| Q3 | B10 sem limite superior → fixar 8×10⁶ | **JÁ IMPLEMENTADO** — `_TAB9_SUP["B10"] = 8_000_000` (absoluto, não aberto/`inf`); selftest `n_ciclos("B10") >= 8e6`. |
+| Q4 | usar edição 2019 (Ψ/HC) | **CONFIRMADO** — módulo `nbr8400` é 100% NBR 8400-1:2019. |
+
+Q2 e Q3 já estavam no código desde a fase 4; o parecer os sinalizou por leitura do
+markdown. Nenhuma alteração de lógica foi necessária além do reforço de doc/prova
+em Q1.
+
+---
+
 *Evidência: NBR 8400-1:2019 lida do PDF `pesquisa/pdfcoffee.com_abnt-nbr-8400-1...`
 (Tab.9 p.23, Tab.12 p.20, verbatim). Fadiga Anexo K homologada em PONTE §9 — não
-alterada.*
+alterada. Selftests `ponte_rolante`, `nbr8400`, `projeto_spec` verdes.*

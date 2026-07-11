@@ -65,10 +65,19 @@ def cargas_de_roda(Q, peso_ponte, peso_trole, vao_ponte, aprox_min, n_rodas_lado
 def forcas_horizontais(Q, peso_trole, R_roda_max, n_rodas_lado, frac_lateral,
                        frac_long, n_rodas_motoras=None):
     """Forca transversal por roda (surto) e longitudinal por trilho (frenagem).
-    A frenagem (longitudinal) age nas RODAS MOTORAS: frac_long incide APENAS sobre
-    as cargas das n_rodas_motoras do trilho, nao sobre todas as rodas. Default
-    n_rodas_motoras = n_rodas_lado (todas motrizes = comportamento anterior).
-    frac_long/frac_lateral sao A CONFIRMAR (fabricante / NBR 8400)."""
+
+    ESTATICA da frenagem (longitudinal): a forca aderente age SO nas rodas
+    motrizes -> H_long = frac_long * (SOMATORIA das reacoes verticais nas rodas
+    motoras). Aqui `R_roda_max` NAO e o pico isolado de uma roda: e a reacao POR
+    RODA do trilho carregado (cargas_de_roda: R_roda_max = R_trilho_max /
+    n_rodas_lado, partilha igual). Logo, no trilho carregado, cada roda vale
+    R_roda_max e a soma sobre as motoras e:
+        H_long_trilho = frac_long * R_roda_max * n_rodas_motoras = frac_long*Sum(R_mot)
+    Como n_rodas_motoras <= n_rodas_lado, isso e SEMPRE <= frac_long*R_trilho_max
+    (a fracao do trilho inteiro) -> nao viola o equilibrio vertical. Usar R_roda_max
+    (trole na aproximacao minima) e conservador (envelope da carga aderente).
+    Default n_rodas_motoras = n_rodas_lado (todas motrizes). frac_long/frac_lateral
+    sao A CONFIRMAR (fabricante / NBR 8400)."""
     if n_rodas_motoras is None:
         n_rodas_motoras = n_rodas_lado
     if n_rodas_motoras < 0 or n_rodas_motoras > n_rodas_lado:
@@ -76,7 +85,7 @@ def forcas_horizontais(Q, peso_trole, R_roda_max, n_rodas_lado, frac_lateral,
                          % (n_rodas_motoras, n_rodas_lado))
     n_total = 2 * n_rodas_lado
     H_transv_roda = frac_lateral * (Q + peso_trole) / n_total
-    H_long_trilho = frac_long * R_roda_max * n_rodas_motoras
+    H_long_trilho = frac_long * R_roda_max * n_rodas_motoras   # = frac_long*Sum(R_mot)
     return H_transv_roda, H_long_trilho
 
 
@@ -328,6 +337,15 @@ def _selftest():
     _, Hl2 = forcas_horizontais(100.0, 15.0, 80.0, 2, 0.10, 0.10, n_rodas_motoras=2)
     _, Hl1 = forcas_horizontais(100.0, 15.0, 80.0, 2, 0.10, 0.10, n_rodas_motoras=1)
     assert abs(Hl1 - Hl2 / 2.0) < 1e-9 and abs(Hl2 - 0.10 * 80.0 * 2) < 1e-9
+    # TETO ESTATICO (parecer ponte-1): H_long = frac_long*Sum(R_motoras) nunca
+    # excede frac_long*R_trilho_max (R_trilho_max = R_roda_max*n_rodas_lado). Ou
+    # seja: R_roda_max e a reacao POR RODA (partilha igual), nao um pico isolado.
+    R_roda, n_lado, frac = 80.0, 2, 0.10
+    R_trilho = R_roda * n_lado
+    for nmot in range(0, n_lado + 1):
+        _, Hl = forcas_horizontais(100.0, 15.0, R_roda, n_lado, 0.10, frac,
+                                   n_rodas_motoras=nmot)
+        assert Hl <= frac * R_trilho + 1e-9, (nmot, Hl, frac * R_trilho)
     # NBR 8400: phi da classe HC/Vh e n de ciclos da classe B entram no calculo
     import nbr8400 as _n8
     esf2, viga2, _ = analisa({**cfg, "classe_hc": "HC2", "Vh_elevacao": 0.5,
