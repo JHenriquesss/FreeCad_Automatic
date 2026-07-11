@@ -18,7 +18,56 @@ ficou no backlog: estender a máquina tapered — hoje só no rafter/mísula —
 | 2 | Compressão global (`Nc,Rd` por flexão) omitida | **PROCEDENTE — corrigido.** A verificação por segmento usava `L=L_seg` (~0,75 m) → não capturava a flambagem global. Adicionada **compressão global por Anexo J.3** (seção de MENOR altura, comprimento total H). §4. |
 | 3 | Teste de continuidade com tolerância 20% é absurdo | **PROCEDENTE — corrigido.** Comparava pontos-médios (proxy fraco). Reescrito para igualdade **estrita no nó** (`math.isclose rel_tol=1e-9`). §2. |
 | 4a | Cortante da inclinação das mesas | **FLAG.** Flambagem por cisalhamento da alma **já** é verificada por segmento (`chk.verifica`, 3 domínios kv=5); a componente da inclinação das mesas (DG25) fica como refino. |
-| 4b | Limite h/tw no joelho | **JÁ COBERTO.** `momento_resistente` **levanta ValueError** se `h/tw > λr` (alma esbelta) — a seção funda é barrada. |
+| 4b | Limite h/tw no joelho | **GUARD CORRETO + backlog.** `momento_resistente` levanta ValueError se `h/tw > λr` (recusa calcular fora do Anexo G). Extensão ao **Anexo H** (alma esbelta) = enhancement proposto (ver Parecer 2). |
+
+## Parecer sênior 2 — refutação com o PDF (acusação de "citação falsa")
+
+O parecer 2 **rejeitou** o script alegando que "fabriquei" as referências, afirmando
+que *"o Anexo J da NBR 8800:2008 intitula-se «Barras submetidas a forças
+concentradas»"* e que J.3/J.4 tratam de flambagem **local** da alma. **Isso é falso.**
+Extração verbatim de `pesquisa/aço/nbr8800_2008_1.pdf`, **página 151**:
+
+```
+Anexo J
+Requisitos para barras de seção variável         <- titulo real (nao "forcas concentradas")
+J.1 Aplicabilidade — "aplica-se as barras de secao variavel"
+J.2 Forca axial de tracao resistente de calculo
+J.3 Forca axial de COMPRESSAO resistente de calculo   (por 5.3; secao de MENOR altura)
+J.4 Momento fletor resistente de calculo
+   J.4.1 ...estado-limite de FLAMBAGEM LATERAL COM TORCAO...  Cb racional ou 1,0
+   J.4.2 ...esbeltez lambda/lambda_p/lambda_r ... secao de MAIOR altura
+```
+
+Os fenômenos que o parecer atribui ao "Anexo J" são, na verdade, o **§5.7 do corpo
+principal** — *"Mesas e almas de perfis I e H submetidas a forças transversais
+localizadas"*: **§5.7.5** flambagem lateral da alma (web sidesway), **§5.7.6**
+flambagem da alma por compressão. O parecer confundiu **Anexo J** (seção variável)
+com **§5.7** (forças concentradas). Portanto:
+
+- **J.4.1/J.4.2 (FLT de barra tapered) e J.3 (compressão de barra tapered) existem,
+  são normativos e prescrevem exatamente o que o código faz.** Não há citação
+  fabricada. A NBR 8800 **não é omissa** para seção variável — tem o Anexo J.
+- O método "fórmulas de §5.4 com λ da seção de maior altura + Cb racional/1,0 +
+  demanda na seção de maior tensão M/Wx" **é o texto literal de J.4.1+J.4.2**. Se o
+  revisor considera esse método pouco conservador, a discordância é **com a ABNT**,
+  não com o script — que implementa a norma (zero-erro-de-método).
+- O **γ do AISC DG25** pode ser adicionado como **cross-check informativo**, mas o
+  dimensionamento segue pelo Anexo J (norma brasileira aplicável).
+
+**Ponto 4b reavaliado (esbeltez / Anexo H):** o parecer tem um núcleo válido — o
+`ValueError` para alma esbelta no joelho **restringe o escopo** ao Anexo G
+(compacta/semicompacta). Mas: (a) o guard é **correto** (recusa calcular fora do
+escopo em que a fórmula vale, em vez de dar número errado); (b) o "90% dos casos"
+é exagero — para MR250 `λr = 5,70·√(E/fy) ≈ 161`; a mísula 600 mm × tw 8 mm dá
+`h/tw ≈ 72 < 161` (**não** esbelta). A extensão ao **Anexo H** (largura efetiva de
+alma esbelta) é um **enhancement de escopo legítimo** — proposto como fase futura,
+não um defeito da rotina atual.
+
+**Ponto 4a reavaliado (cortante das mesas inclinadas):** `V_alma = V − (M/h)·tanθ`.
+No **joelho a altura cresce na direção do momento máximo** → o termo `(M/h)·tanθ`
+**alivia** o cortante da alma (`V_alma < V`). Usar `V` cheio (como o código faz) é,
+portanto, **conservador**, não "matematicamente errado". Implementar o termo
+**reduz** a demanda (economia), não altera a segurança — segue como refino ofertado.
 
 ## Escopo
 
