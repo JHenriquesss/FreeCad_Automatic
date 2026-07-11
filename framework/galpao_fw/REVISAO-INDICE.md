@@ -49,6 +49,7 @@ os FLAGS/pendências.
 | 34 | Coluna de alma variável (tapered) — fecha Q1 da fase 6.b | [REVISAO-COLUNA-TAPERED.md](REVISAO-COLUNA-TAPERED.md) | integração (secao_tapered já homologado) | 🟡 A REVISAR — coluna base rasa→joelho fundo; FLT member-level; back-compat |
 | 35 | Zona de painel do joelho (cisalhamento + doubler) — fecha Q3 da fase 6.b | [REVISAO-ZONA-PAINEL.md](REVISAO-ZONA-PAINEL.md) | NBR 8800 §5.7.7 + §5.7.2/§5.7.3/§5.7.6 + §5.4.3 (verbatim do PDF) | 🟡 A REVISAR — painel do pilar + doubler/enrijecedor; prismático+alma var |
 | 36 | FLT de mísula (Anexo J) — refino tapered; corrige framing do "fator γ" | [REVISAO-FLT-MISULA.md](REVISAO-FLT-MISULA.md) | NBR 8800 Anexo J (J.4.1/J.4.2) + §5.4.2.3a Cb (verbatim do PDF) | 🟡 A REVISAR — λ seção maior altura + Cb racional + demanda max M/Wx; **sem γ (não normativo)** |
+| 37 | Sucção de vento auto-acoplada à tesoura | [REVISAO-VENTO-TESOURA.md](REVISAO-VENTO-TESOURA.md) | NBR 6123 (Cpe−Cpi)·q (vento_nbr6123 já homologado) | 🟡 A REVISAR — envelope cobertura·q·bay → uplift; override honrado; só tesoura |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

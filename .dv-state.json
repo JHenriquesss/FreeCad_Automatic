@@ -1,22 +1,22 @@
 {
-  "phase": "6.6",
-  "phase_name": "flt-misula-anexo-j",
+  "phase": "6.7",
+  "phase_name": "vento-succao-tesoura",
   "step": "ready-to-close",
   "must_exist": [
-    { "id": "me-1", "text": "flt_misula.py: cb_momento (5.4.2.3a, Rm=1.0); flt_misula (M_Rd,FLT secao maior altura J.4.2 + Cb racional J.4.1; demanda na secao max M/Wx) -> util, Cb, secao_critica, M_Rd; _selftest", "done": true },
-    { "id": "me-2", "text": "rodar_galpao: FLT rafter+coluna tapered usam flt_misula (Cb racional + demanda max sigma), citam Anexo J no gate; res[alma_variavel] += cb_misula_raf/col, flt_secao_critica; estados locais inalterados", "done": true },
-    { "id": "me-3", "text": "REVISAO-FLT-MISULA.md + INDICE 36; smoke 7/7; suite 6b/6.4 verde (campos/headers preservados)", "done": true }
+    { "id": "me-1", "text": "rodar_galpao (tesoura): w_vento_auto = min(vr.net[*][cobertura_*])*q*bay (uplift kN/m); usa quando usuario nao informou; gate6-tesoura reporta acoplamento (net,q,bay,w_vento) citando NBR 6123", "done": true },
+    { "id": "me-2", "text": "projeto_spec: campo opcional estrutura.trelica.w_vento_kN_m (override); mapper repassa; res[tesoura] += w_vento_auto_kN_m + w_vento_fonte (auto/input)", "done": true },
+    { "id": "me-3", "text": "REVISAO-VENTO-TESOURA.md + INDICE 37; teste (auto<0 casa net*q*bay; override honrado); nao-regressao tesoura calc+executivo", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "fator gamma inventado (Anexo J e o metodo; gamma AISC so citado como alternativa nao adotada)", "violated": false },
-    { "id": "mne-2", "text": "lambda da FLT da secao de menor altura (J.4.2 exige a de maior altura)", "violated": false },
-    { "id": "mne-3", "text": "Cb sem teto 3.0 ou aplicado a balanco (la Cb=1.0, 5.4.2.3b)", "violated": false },
-    { "id": "mne-4", "text": "demanda FLT como M_max cego quando a critica e a de max M/W (J.4.1)", "violated": false },
-    { "id": "mne-5", "text": "prismatico regride (mudanca so no ramo tapered)", "violated": false }
+    { "id": "mne-1", "text": "coeficiente de vento inventado (tudo de vento.compute homologado)", "violated": false },
+    { "id": "mne-2", "text": "sinal trocado (succao deve ser negativa=uplift; nao somar como gravidade)", "violated": false },
+    { "id": "mne-3", "text": "override do usuario ignorado (input explicito vence o auto)", "violated": false },
+    { "id": "mne-4", "text": "acoplamento vazando p/ prismatico/alma var (so tesoura)", "violated": false },
+    { "id": "mne-5", "text": "usar net de parede (nao cobertura) para a carga do banzo", "violated": false }
   ],
   "current_item": "me-3",
   "trunk_status": "pass",
-  "trunk_evidence": "fase6.6 9/9; nao-regressao 6b+6.4 25/25 fast; flt_misula selftest OK; calc sweep 7/7 (alma_var Cb_raf=1.121, util_flt=0.67, secao_critica=7 cumeeira); executivo alma_var end-to-end 13 pranchas. Smoke completo morria no cap de background ~2min (nao falha) - validado por-caso.",
+  "trunk_evidence": "fase6.7 5/5; w_vento_auto=-6.808 kN/m (=-1.73*0.787*5, uplift); calc sweep 7/7 (acoplamento so na tesoura, demais None); tesoura executivo end-to-end 12 pranchas; override honrado.",
   "opened_at": "2026-07-11",
   "last_tune_at": null,
   "history": [
@@ -29,6 +29,7 @@
     { "phase": "6.2", "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": "6.3", "closed_at": "2026-07-10", "outcome": "ok" },
     { "phase": "6.4", "closed_at": "2026-07-11", "outcome": "ok" },
-    { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" }
+    { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" }
   ]
 }

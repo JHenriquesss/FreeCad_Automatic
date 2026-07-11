@@ -705,23 +705,41 @@ def rodar(params, out_dir):
     # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
     # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga
     # de cobertura (permanente+sobrecarga) x largura tributaria (bay). Sucção de
-    # vento = A CONFIRMAR (informar em trelica.w_vento_kN_m; senao so gravidade).
+    # vento AUTO-ACOPLADA da NBR 6123 (envelope da zona de cobertura), salvo override.
     if params.get("tipo_portico") == "tesoura" and params.get("trelica"):
         tr = dict(params["trelica"])
         c = params["cargas"]
         w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]
+        # succao AUTO: envelope da cobertura (Cpe-Cpi mais negativo) * q * bay (kN/m,
+        # uplift < 0). Usa o mesmo vr ja computado (NBR 6123, homologado). O usuario
+        # pode sobrescrever informando trelica.w_vento_kN_m (override).
+        net_cob = [vr["net"][cs][sf] for cs in vr["net"] for sf in vr["net"][cs]
+                   if sf.startswith("cobertura")]
+        w_vento_auto = round(min(net_cob) * vr["q_kN_m2"] * g["bay"], 3) if net_cob else 0.0
+        w_vento_in = tr.get("w_vento_kN_m")
+        w_vento = w_vento_in if w_vento_in is not None else w_vento_auto
+        fonte = "input" if w_vento_in is not None else "auto"
         tcfg = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
                 "tipo": tr.get("tipo", "warren"),
                 "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
-                "w_vento_kN_m": tr.get("w_vento_kN_m", 0.0),
+                "w_vento_kN_m": w_vento,
                 "fy": tr.get("fy", 250e3),
                 "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}
         rt = tes.verifica_tesoura(tcfg)
-        save("gate6-tesoura.txt", tes.relatorio_tesoura_pt(rt))
+        rel = tes.relatorio_tesoura_pt(rt)
+        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123, auto-acoplada):\n"
+                "    envelope cobertura (Cpe-Cpi) = %.2f ; q = %.3f kN/m2 ; bay = %.2f m\n"
+                "    -> w_vento = %.3f kN/m (uplift) ; fonte = %s\n"
+                "    combinacao de uplift na tesoura: 1,4 w_vento + 0,9 (-w_grav)."
+                % (min(net_cob) if net_cob else 0.0, vr["q_kN_m2"], g["bay"],
+                   w_vento, fonte))
+        save("gate6-tesoura.txt", rel)
         res["tesoura"] = {"tipo": rt["tipo"], "u_max": rt["u_max"], "OK": rt["OK"],
                           "N_banzo_sup_max": rt["N_banzo_sup_max"],
                           "N_banzo_inf_max": rt["N_banzo_inf_max"],
-                          "n_paineis": rt["n_paineis"], "h_m": rt["h_m"]}
+                          "n_paineis": rt["n_paineis"], "h_m": rt["h_m"],
+                          "w_vento_auto_kN_m": w_vento_auto,
+                          "w_vento_usado_kN_m": w_vento, "w_vento_fonte": fonte}
 
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
