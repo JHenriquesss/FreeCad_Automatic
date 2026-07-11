@@ -5,8 +5,13 @@ Conferência do sênior. O `tesoura.py` já homologado era **só geração de ge
 **cria o cálculo de esforços** (solver + verificação) e integra ao pipeline
 (spec + rodar + 3D). Fase 6.c. Criado 2026-07-10.
 
-> **STATUS: ⏳ PENDENTE — aguarda parecer do sênior.**
-> Método NOVO (solver + verificação de barras) — revisar **[Q1]…[Q5]**.
+> **STATUS: 🔁 PARECER 1 (BLOQUEADO) ATENDIDO — REVER** (2026-07-11). O sênior
+> bloqueou por 3 itens; **todos corrigidos** (§5): **(Q5)** banzo superior agora
+> **reto em duas águas** (segue o telhado), não parábola — terças apoiam nos nós;
+> **tração** ganhou **ruptura da seção líquida** (Ae·fu/γa2, Ct); **compressão**
+> verifica **os 2 eixos** (Lb_y de travamento fora do plano). Q2/Q3 validados
+> (cargas já eram nodais; agora tributária inclinada). Q1/Q4 aprovados. Solver
+> (método dos nós) aprovado pelo sênior; equilíbrio global provado no selftest.
 
 ---
 
@@ -35,10 +40,11 @@ momento de nó. Confirma (padrão para treliça isostática)?
 ## 2. Verificação das barras (reusa NBR 8800)
 
 `verifica_tesoura(cfg)`: para cada barra, com o esforço N do solver:
-- **Tração** (N>0): escoamento da seção bruta `Nt,Rd = A·fy/γa1`.
-- **Compressão** (N<0): flambagem `Nc,Rd = χ·Q·A·fy/γa1`, com `χ` de
-  `check_nbr8800.chi_compressao(λ0)` (λ0 do índice de esbeltez KL/r, K=1) e `Q` de
-  `fator_Q` (flambagem local). **Reusa os primitivos homologados** — sem fórmula nova.
+- **Tração** (N>0): **menor** entre escoamento bruta `A·fy/γa1` e **ruptura líquida**
+  `Ct·(A−furos)·fu/γa2` (§5, correção do parecer).
+- **Compressão** (N<0): flambagem `Nc,Rd = χ·Q·A·fy/γa1`, verificando **os 2 eixos**
+  (no plano `L/rx`; fora do plano `Lb_y/ry`) — `χ` de `check_nbr8800.chi_compressao`,
+  `Q` de `fator_Q`. **Reusa os primitivos homologados** — sem fórmula nova.
 - Combinações: **gravidade** `1,4·w_grav` e **vento** `1,4·w_vento + 0,9·(−w_grav)`
   (alívio/uplift). Pega a pior utilização por barra.
 
@@ -59,7 +65,7 @@ anteprojeto?
   {h, n_paineis, tipo (warren/pratt), perfil_banzo, perfil_diagonal}. Inválido bloqueia.
 - **3D:** `build_galpao._desenha_tesoura` desenha as barras (banzos + diagonais/
   montantes) como cilindros no plano do pórtico, biapoiadas no topo dos pilares
-  (banzo superior parabólico até EAVE_H+h). **Sem joelho/cumeeira** (treliça
+  (banzo superior **reto em duas águas** até EAVE_H+h na cumeeira). **Sem joelho/cumeeira** (treliça
   rotulada, não pórtico de momento). Geometria da treliça **replicada numpy-free**
   no build (build é self-contained).
 - **Memorial:** `gate6-tesoura.txt` + METODOS `3c`.
@@ -84,6 +90,24 @@ executivo. Confirma que fica para o detalhamento?
 
 ---
 
-*Solver + verificação são MÉTODO NOVO (a geometria `gera_trelica` já era
-homologada). A auto-integração da sucção de vento e a compatibilização
-terça↔banzo são FLAGs [Q3]/[Q5].*
+## 5. Correções do parecer BLOQUEADO (2026-07-11)
+
+| Ponto | Parecer | Correção |
+|---|---|---|
+| **Q5** (bloqueio) | banzo parabólico (bowstring) não bate com telhado reto → terças fora dos nós | `gera_trelica` + build `_trelica_geom`: banzo superior **reto em duas águas** `y=(2h/L)·min(x,L−x)`, cumeeira no nó central. Terças apoiam **nos nós** → carga só nodal → método dos nós válido. |
+| Tração | falta **ruptura da seção líquida** | `_nt_rd`: `min(A·fy/γa1, Ct·(A−furos)·fu/γa2)`. `Ct` (shear lag) e `area_furos` no gate (default 1,0 / 0). |
+| Compressão | K=1 só; **Ly fora do plano** ignorado | `_nc_rd` verifica **2 eixos**: no plano `L_barra/rx`; fora do plano `Lb_y/ry` (travamento das terças). Governa o menor χ. `_props_I` agora dá `rx` e `ry`. |
+| Q3 | distribuída → nodal | já era nodal; **tributária inclinada** exata a partir das coordenadas dos nós (segue o banzo). |
+| Q2 | rótula só se carga nos nós | **válido** — com o banzo reto e terças nos nós, toda carga é nodal. |
+
+**Evidência (gate6-tesoura.txt, L=20, h=2,5, warren):** banzo sup −226,5 kN (compressão,
+governa u=0,71), banzo inf +219,7 kN (tração), Lb_y=2,58 m. Build 3D **0 interferências**.
+Selftest: equilíbrio global (ΣFx=0, ΣFy=carga), duas águas reta, tração(ruptura)+compressão(2 eixos).
+
+**FLAGs residuais:** fator γ de mísula não se aplica; auto-acoplamento da sucção de
+vento à treliça (hoje input); `n_paineis` par (cumeeira em nó).
+
+---
+
+*Solver + verificação são MÉTODO NOVO (a geometria `gera_trelica` foi corrigida p/
+duas águas no parecer). Sucção de vento como input = FLAG [Q3].*

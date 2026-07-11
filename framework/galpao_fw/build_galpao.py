@@ -399,7 +399,9 @@ def _trelica_geom(L, h, n_paineis, tipo):
     """Geometria da tesoura (nos + barras) - copia numpy-free de tesoura.gera_trelica
     (build e self-contained). Retorna (nos[(x,y)], barras[(i,j)])."""
     dx = L / n_paineis
-    nos = [(i * dx, 4.0 * h * (i * dx) * (L - i * dx) / (L * L) if L > 0 else 0.0)
+    # banzo superior RETO em duas aguas (segue o telhado; sincronizado com
+    # tesoura.gera_trelica apos o parecer Q5): y = (2h/L)*min(x, L-x)
+    nos = [(i * dx, (2.0 * h / L) * min(i * dx, L - i * dx) if L > 0 else 0.0)
            for i in range(n_paineis + 1)]
     n_sup = n_paineis + 1
     bars = [(i, i + 1) for i in range(n_paineis)]              # banzo superior
