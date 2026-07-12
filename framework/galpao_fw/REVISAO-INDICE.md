@@ -51,6 +51,7 @@ os FLAGS/pendências.
 | 36 | FLT de mísula (Anexo J) — refino tapered; corrige framing do "fator γ" | [REVISAO-FLT-MISULA.md](REVISAO-FLT-MISULA.md) | NBR 8800 Anexo J (J.4.1/J.4.2) + §5.4.2.3a Cb (verbatim do PDF) | ✅ HOMOLOGADO (2026-07-11) — todas as cláusulas aprovadas; nota técnica (h_m/Wx por segmento) verificada |
 | 37 | Sucção de vento auto-acoplada à tesoura | [REVISAO-VENTO-TESOURA.md](REVISAO-VENTO-TESOURA.md) | NBR 6123 (Cpe−Cpi)·q + NBR 8681 (combinação uplift) | ✅ HOMOLOGADO (2026-07-11) — bug de sinal do uplift corrigido (`+0,9·w_dead`, sem Q); "aprovado para merge" |
 | 38 | Momento resistente de alma esbelta (Anexo H) — fecha 4b do parecer 2 | [REVISAO-ALMA-ESBELTA.md](REVISAO-ALMA-ESBELTA.md) | NBR 8800 Anexo H (H.2.1/2.2/2.3 + kpg) + F.2 kc (verbatim do PDF) | ✅ HOMOLOGADO (2026-07-11) — despacho h/tw>5,70√(E/fy); Wxc+kpg; FLM/Cb já corretos (parecer refutado); "aprovado para merge" |
+| 39 | Interação M-V no joelho de alma esbelta (verificação por tensões) — fecha dívida (d) da fase 6.b | [REVISAO-TENSAO-PONTO.md](REVISAO-TENSAO-PONTO.md) | NBR 8800 §5.5.2.3 (alíneas a–d, σ/τ da teoria da elasticidade; pág 57 verbatim) + von Mises suplementar (não-NBR, flag) | 🟡 PENDENTE SÊNIOR (2026-07-12) — σ/τ na junção mesa-alma; checagens a–d SEPARADAS (NBR não tem von Mises combinado); só dispara no joelho esbelto; ref 20×10 intocada |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

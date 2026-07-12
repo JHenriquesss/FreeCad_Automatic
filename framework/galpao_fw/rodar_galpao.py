@@ -44,6 +44,8 @@ import ponte_rolante as pr
 import console_ponte as cons
 import zona_painel as zpn
 import flt_misula as fltm
+import alma_esbelta as ae
+import tensao_ponto as tsp
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -674,12 +676,29 @@ def rodar(params, out_dir):
                               Vsd=0.0, Kx=1.0, Ky=1.0, Lb=Lb_col,
                               nome=sec_min["nome"])
             u_col_global = vg["u_N"]
+            # INTERACAO M-V no joelho (5.5.2.3): a alma esbelta do joelho ve o M e o
+            # V de pico juntos; as checagens separadas (flexao Anexo J + cortante
+            # 5.4.3) nao capturam a tensao COMBINADA no ponto (juncao mesa-alma).
+            # So dispara se a alma do joelho for esbelta (Anexo H); chi_v vem da
+            # esbeltez ao cisalhamento da propria alma. chi_n=1 (a flambagem normal
+            # ja e coberta pela FLT/FLM de trecho). Esforcos amplificados por B2.
+            u_col_5523 = 0.0; r5523 = None
+            sec_joelho = av.props_I(tp["h_joelho"], tp.get("bf", 0.20),
+                                    tp.get("tw", 0.008), tp.get("tf", 0.0125))
+            if ae.e_esbelta(sec_joelho, params["fy"]):
+                Awj = sec_joelho["d"] * sec_joelho["tw"]
+                chi_v = min(1.0, vg["Vrd"] * chk.GA1 / (0.6 * Awj * params["fy"]))
+                r5523 = tsp.verifica_5523(sec_joelho, params["fy"],
+                                          Nsd=abs(kN) * B2_amp, Msd=abs(kM) * B2_amp,
+                                          Vsd=abs(kV), chi_n=1.0, chi_v=chi_v)
+                u_col_5523 = max(r5523["u_sigma_a"], r5523["u_tau_b"],
+                                 r5523["u_sigma_c"], r5523["u_tau_d"], r5523["u_vm"])
             gov_c = None
             for v in verifs_c:
                 if gov_c is None or v["interacao"] > gov_c["interacao"]:
                     gov_c = v
             u_col_local = gov_c["interacao"] if gov_c else 0.0
-            u_col_geral = max(u_col_local, u_col_flt, u_col_global)
+            u_col_geral = max(u_col_local, u_col_flt, u_col_global, u_col_5523)
             L += ["", "  COLUNA TAPERED (base rasa -> joelho fundo; h_col_base=%.0f mm):"
                   % (tp["h_col_base"] * 1000),
                   "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -689,17 +708,23 @@ def rodar(params, out_dir):
                          (s["seg"], (s["h_m"] or 0) * 1000, s["M"], v["interacao"],
                           s.get("gov", "")))
             _gov_nome = max((("local", u_col_local), ("FLT de trecho", u_col_flt),
-                             ("compressao global J.3", u_col_global)),
+                             ("compressao global J.3", u_col_global),
+                             ("interacao M-V joelho 5.5.2.3", u_col_5523)),
                             key=lambda x: x[1])[0]
             L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Anexo J, Lb=%.2f m, "
                   "Cb=%.2f) = %.2f" % (u_col_local, Lb_col, cb_col, u_col_flt),
                   "     compressao GLOBAL (Anexo J.3, secao menor altura h=%.0f mm, "
                   "H=%.2f m, N_Sd=%.1f kN) = %.2f" % (
-                      tp["h_col_base"] * 1000, H_col, N_col_max, u_col_global),
-                  "     GOVERNANTE = %.2f (%s)" % (u_col_geral, _gov_nome)]
+                      tp["h_col_base"] * 1000, H_col, N_col_max, u_col_global)]
+            if r5523 is not None:
+                L += ["     interacao M-V no JOELHO esbelto (5.5.2.3 tensoes, "
+                      "juncao mesa-alma; govs a/b/c/d + vonMises): %.2f (gov %s ; "
+                      "von Mises=%.2f)" % (u_col_5523, r5523["gov"], r5523["u_vm"])]
+            L += ["     GOVERNANTE = %.2f (%s)" % (u_col_geral, _gov_nome)]
             col_res = {"util_col_local_max": round(u_col_local, 2),
                        "util_col_flt": round(u_col_flt, 2),
                        "util_col_global": round(u_col_global, 2),
+                       "util_col_mv_5523": round(u_col_5523, 2),
                        "interacao_max_col": round(u_col_geral, 2),
                        "cb_misula_col": round(cb_col, 3),
                        "h_col_base_mm": tp["h_col_base"] * 1000}
