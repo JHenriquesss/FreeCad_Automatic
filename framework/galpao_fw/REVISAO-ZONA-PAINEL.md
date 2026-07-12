@@ -5,9 +5,13 @@ ficou no backlog: verificação do **painel de alma do pilar no nó rígido viga
 (joelho)** e a decisão de chapa de reforço (doubler) e/ou enrijecedores. Fase 6.5.
 Criado 2026-07-11.
 
-> **STATUS: A REVISAR (parecer 1 respondido).** Módulo novo `zona_painel.py`. Base
-> normativa lida **verbatim** do PDF `pesquisa/aço/nbr8800_2008_1.pdf`. Aplica a
-> **todo pórtico de nó rígido** (prismático + alma variável); a tesoura não dispara.
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11). Parecer 3: sênior **retratou-se** dos
+> pontos A/B do parecer 2 — as imagens da pág. 68 (§5.7.4.2) confirmam **0,66/0,33**
+> (o 0,80/0,40 era importação indevida do AISC 360 J10.4); e o código já executa a
+> fórmula completa do §5.7.3.2 (`ln` presente). *"Commit 99dc286 e a lógica
+> físico-matemática estão oficialmente validados e liberados para integração."*
+> Pontos A/C/D do parecer 1 implementados (FSd−V_col, enrugamento §5.7.4, esbeltez
+> do doubler). Módulo novo `zona_painel.py`, base **verbatim** do PDF.
 
 ## Parecer sênior 1 — respostas
 
