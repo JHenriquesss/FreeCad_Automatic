@@ -1,7 +1,7 @@
 {
   "phase": "6.10",
   "phase_name": "cortante-mesa-inclinada-tapered",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "cortante_tapered.py: dh_dx(h1,h2,L); v_alma_efetivo(M,V,h_m,dhdx,sentido)=V-sentido*(|M|/h_m)*|dhdx|; sentido_haunch(segs) deriva sinal da geometria; _selftest", "done": true },
     { "id": "me-2", "text": "cortante_efetivo_conservador(...,creditar): adverso -> max(|V|,|V_ef|) sempre; favoravel -> |V_ef| se creditar senao |V|; reporta alivio/acrescimo/creditado", "done": true },
@@ -34,6 +34,7 @@
     { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" },
-    { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" }
+    { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.10", "closed_at": "2026-07-12", "outcome": "ok" }
   ]
 }
