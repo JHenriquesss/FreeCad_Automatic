@@ -134,6 +134,54 @@ def resolve_trelica(t, P_nos):
             "comprimentos": comp, **idx}
 
 
+# ---- carregamento nodal do banzo superior -----------------------------------
+def _trib_sup(t):
+    """Comprimento tributario INCLINADO de cada no do banzo superior (0..n_p):
+    metade do segmento de banzo de cada lado (nas pontas, so um lado)."""
+    nos = t["nos"]; n_p = t["n_paineis"]
+    seg = [math.hypot(nos[i + 1][0] - nos[i][0], nos[i + 1][1] - nos[i][1])
+           for i in range(n_p)]
+    trib = [0.0] * (n_p + 1)
+    for i in range(n_p + 1):
+        esq = seg[i - 1] if i > 0 else 0.0
+        dir_ = seg[i] if i < n_p else 0.0
+        trib[i] = (esq + dir_) / 2.0
+    return trib, seg
+
+
+def _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction=1):
+    """Cargas nodais da combinacao de UPLIFT com vento POR AGUA (zona). Cada metade
+    do banzo superior recebe o Cpe da sua agua (NBR 6123 Tabela 5, EF/sotavento GH),
+    atuando SIMULTANEAMENTE. w_barl/w_sot: succao por m de banzo (kN/m, <0 = uplift).
+    direction=+1: agua ESQUERDA=barlavento, DIREITA=sotavento; -1: espelhado.
+    Combinacao (NBR 8681): 1,4 w_vento(agua) + 0,9 w_dead (permanente estabilizante).
+    Convencao: w>0 -> carga p/ BAIXO (Fy=-w.trib). Cumeeira (x=L/2) -> agua mais
+    desfavoravel (mais negativa) - conservador."""
+    nos = t["nos"]; n_p = t["n_paineis"]; L = t["L"]
+    P = {}
+    for i in range(n_p + 1):
+        x = nos[i][0]
+        if abs(x - L / 2.0) < 1e-9:
+            wv = min(w_barl, w_sot)                       # cumeeira: mais desfavoravel
+        else:
+            esq = x < L / 2.0
+            barlavento = esq if direction >= 0 else (not esq)
+            wv = w_barl if barlavento else w_sot
+        w_no = 1.4 * wv + 0.9 * w_dead                   # combinacao de uplift
+        P[i] = (0.0, -w_no * trib[i])
+    return P
+
+
+def cargas_vento_zonas(cfg, w_barl, w_sot, direction=1):
+    """Wrapper testavel: monta a trelica de cfg e devolve as cargas nodais de vento
+    por zona (ver _P_vento_zonas)."""
+    t = gera_trelica(cfg["L"], cfg["h"], cfg.get("n_paineis", 8),
+                     cfg.get("tipo", "warren"))
+    trib, _ = _trib_sup(t)
+    w_dead = cfg.get("w_dead_kN_m", cfg["w_grav_kN_m"])
+    return _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction)
+
+
 # ---- verificacao das barras (reusa check_nbr8800) ---------------------------
 def _props_I(sec):
     """A, rx (raio de giracao forte), ry (fraco) de um I duplamente simetrico
@@ -201,15 +249,7 @@ def verifica_tesoura(cfg):
     Ct = cfg.get("Ct", 1.0); area_furos = cfg.get("area_furos", 0.0)
     sb, sd = cfg["perfil_banzo"], cfg["perfil_diagonal"]
     nos = t["nos"]
-    # comprimento tributario INCLINADO de cada no do banzo superior (0..n_p):
-    # metade do segmento de banzo de cada lado (nas pontas, so um lado).
-    seg = [math.hypot(nos[i + 1][0] - nos[i][0], nos[i + 1][1] - nos[i][1])
-           for i in range(n_p)]
-    trib = [0.0] * (n_p + 1)
-    for i in range(n_p + 1):
-        esq = seg[i - 1] if i > 0 else 0.0
-        dir_ = seg[i] if i < n_p else 0.0
-        trib[i] = (esq + dir_) / 2.0
+    trib, seg = _trib_sup(t)
     # travamento fora do plano do banzo superior (default: cada no travado ->
     # maior segmento inclinado adjacente)
     Lby_sup = cfg.get("Lb_y_sup", max(seg))
@@ -219,15 +259,25 @@ def verifica_tesoura(cfg):
 
     # w_dead = permanente estabilizante (exclui Q); default = w_grav (retrocompat).
     w_dead = cfg.get("w_dead_kN_m", cfg["w_grav_kN_m"])
-    combos = [("gravidade", 1.4 * cfg["w_grav_kN_m"]),
-              ("vento", 1.4 * cfg.get("w_vento_kN_m", 0.0) + 0.9 * w_dead)]
+    # Combinacoes (NBR 8681): gravidade + uplift. O uplift pode vir POR ZONA (agua):
+    # cfg["w_vento_zonas"]=(w_barl,w_sot) -> NBR 6123 Tabela 5 por agua, ENVELOPE das
+    # 2 direcoes de vento. Ausente -> escalar w_vento_kN_m uniforme (back-compat).
+    load_cases = [("gravidade", _cargas(1.4 * cfg["w_grav_kN_m"]))]
+    zonas = cfg.get("w_vento_zonas")
+    if zonas is not None:
+        wb, ws = zonas
+        load_cases.append(("vento(barl.esq)", _P_vento_zonas(t, trib, wb, ws, w_dead, +1)))
+        load_cases.append(("vento(barl.dir)", _P_vento_zonas(t, trib, wb, ws, w_dead, -1)))
+    else:
+        load_cases.append(("vento", _cargas(1.4 * cfg.get("w_vento_kN_m", 0.0)
+                                            + 0.9 * w_dead)))
     bars = _barras(t)
     sol0 = resolve_trelica(t, _cargas(1.0))
     diag_idx = set(sol0["idx_diagonais"] + sol0["idx_montantes"])
     sup_idx = set(sol0["idx_banzo_sup"])
     u_max = 0.0; gov = None; Nsup = 0.0; Ninf = 0.0
-    for nome, w in combos:
-        sol = resolve_trelica(t, _cargas(w))
+    for nome, P in load_cases:
+        sol = resolve_trelica(t, P)
         for bi, N in enumerate(sol["N_barras"]):
             sec = sd if bi in diag_idx else sb
             Lbar = sol["comprimentos"][bi]

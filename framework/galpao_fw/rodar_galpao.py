@@ -783,34 +783,62 @@ def rodar(params, out_dir):
         # succao AUTO: envelope da cobertura (Cpe-Cpi mais negativo) * q * bay (kN/m,
         # uplift < 0). Usa o mesmo vr ja computado (NBR 6123, homologado). O usuario
         # pode sobrescrever informando trelica.w_vento_kN_m (override).
+        # net por AGUA (NBR 6123 Tabela 5): Cpe barlavento (EF) e sotavento (GH)
+        # atuam SIMULTANEAMENTE - o estado de projeto real. min por caso de Cpi.
+        def _net_agua(sufixo):
+            vals = [vr["net"][cs][sf] for cs in vr["net"] for sf in vr["net"][cs]
+                    if sf == "cobertura_" + sufixo]
+            return min(vals) if vals else None
+        net_barl = _net_agua("barlavento")
+        net_sot = _net_agua("sotavento")
         net_cob = [vr["net"][cs][sf] for cs in vr["net"] for sf in vr["net"][cs]
                    if sf.startswith("cobertura")]
-        w_vento_auto = round(min(net_cob) * vr["q_kN_m2"] * g["bay"], 3) if net_cob else 0.0
+        w_vento_uniforme = round(min(net_cob) * vr["q_kN_m2"] * g["bay"], 3) if net_cob else 0.0
+        qb = vr["q_kN_m2"] * g["bay"]
+        w_barl = round(net_barl * qb, 3) if net_barl is not None else w_vento_uniforme
+        w_sot = round(net_sot * qb, 3) if net_sot is not None else w_vento_uniforme
         w_vento_in = tr.get("w_vento_kN_m")
-        w_vento = w_vento_in if w_vento_in is not None else w_vento_auto
-        fonte = "input" if w_vento_in is not None else "auto"
         tcfg = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
                 "tipo": tr.get("tipo", "warren"),
                 "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
                 "w_dead_kN_m": tr.get("w_dead_kN_m", round(w_dead, 3)),
-                "w_vento_kN_m": w_vento,
                 "fy": tr.get("fy", 250e3),
                 "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}
+        # override manual (escalar uniforme) tem prioridade; senao vento POR ZONA
+        # (por agua, NBR 6123 Tabela 5), com envelope das 2 direcoes.
+        if w_vento_in is not None:
+            tcfg["w_vento_kN_m"] = w_vento_in
+            fonte = "input"; modo = "uniforme(input)"
+        else:
+            tcfg["w_vento_zonas"] = (w_barl, w_sot)
+            fonte = "auto"; modo = "por_zona(agua)"
         rt = tes.verifica_tesoura(tcfg)
         rel = tes.relatorio_tesoura_pt(rt)
-        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123, auto-acoplada):\n"
-                "    envelope cobertura (Cpe-Cpi) = %.2f ; q = %.3f kN/m2 ; bay = %.2f m\n"
-                "    -> w_vento = %.3f kN/m (uplift) ; fonte = %s\n"
-                "    combinacao de uplift na tesoura: 1,4 w_vento + 0,9 (-w_grav)."
-                % (min(net_cob) if net_cob else 0.0, vr["q_kN_m2"], g["bay"],
-                   w_vento, fonte))
+        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123 Tabela 5, POR AGUA - estado "
+                "simultaneo real):\n"
+                "    barlavento (Cpe-Cpi) = %s ; sotavento = %s ; q = %.3f kN/m2 ; "
+                "bay = %.2f m\n"
+                "    -> w_barlavento = %.3f kN/m ; w_sotavento = %.3f kN/m (uplift) ; "
+                "fonte = %s\n"
+                "    [comparacao] uniforme-pior (min aplicado em todo o vao, antigo) "
+                "= %.3f kN/m\n"
+                "    combinacao: 1,4 w_vento(agua) + 0,9 w_dead ; envelope das 2 "
+                "direcoes de vento."
+                % ("%.2f" % net_barl if net_barl is not None else "-",
+                   "%.2f" % net_sot if net_sot is not None else "-",
+                   vr["q_kN_m2"], g["bay"], w_barl, w_sot, fonte, w_vento_uniforme))
         save("gate6-tesoura.txt", rel)
         res["tesoura"] = {"tipo": rt["tipo"], "u_max": rt["u_max"], "OK": rt["OK"],
                           "N_banzo_sup_max": rt["N_banzo_sup_max"],
                           "N_banzo_inf_max": rt["N_banzo_inf_max"],
                           "n_paineis": rt["n_paineis"], "h_m": rt["h_m"],
-                          "w_vento_auto_kN_m": w_vento_auto,
-                          "w_vento_usado_kN_m": w_vento, "w_vento_fonte": fonte}
+                          "w_vento_barl_kN_m": w_barl, "w_vento_sot_kN_m": w_sot,
+                          "w_vento_uniforme_kN_m": w_vento_uniforme,
+                          "w_vento_modo": modo, "w_vento_fonte": fonte,
+                          # back-compat (contrato do item 37): auto = envoltoria uniforme
+                          "w_vento_auto_kN_m": w_vento_uniforme,
+                          "w_vento_usado_kN_m": (w_vento_in if w_vento_in is not None
+                                                 else w_vento_uniforme)}
 
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
