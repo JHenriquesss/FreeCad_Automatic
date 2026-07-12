@@ -1,5 +1,29 @@
 # 03 — Fases
 
+## FECHADA — Backlog do parecer 6.b (fases 6.4–6.8) + revisão itens 34–38 — 2026-07-11
+**Escopo:** esgotar o backlog do parecer da alma variável (coluna tapered, zona de
+painel, FLT Anexo J, vento→tesoura) + desdobramento (alma esbelta Anexo H); processar
+os 5 REVISAO-*.md (índice 34–38). Detalhe por fase em [[04-decisions#D45]].
+**Resultado: itens 1–38 todos ✅ HOMOLOGADO.**
+- **6.4 coluna tapered:** `_secoes_coluna`/`coluna_segmentos`; +compressão global J.3
+  (`util_col_global`); continuidade estrita no nó. Módulos novos: nenhum (estende
+  `galpao_portico`/`rodar`/`build`). Testes `test_fase64_coluna_tapered` (10 fast+1 build).
+- **6.5 zona de painel:** módulo novo `zona_painel.py` (§5.7.7 + §5.7.2/3/4/6 + doubler);
+  `FSd=M/dm−V_col`; enrugamento §5.7.4 (0,66/0,33); esbeltez do doubler §5.4.3. Build
+  desenha `CONEX_JOELHO_*_DOUBLER` só quando exigido. `test_fase65_zona_painel` (13+1).
+- **6.6 FLT mísula:** módulo novo `flt_misula.py` (Anexo J: λ maior altura + Cb racional
+  §5.4.2.3a + demanda max M/Wx; sem γ). `test_fase66_flt_misula` (9).
+- **6.7 vento→tesoura:** `w_vento` auto NBR 6123; **bug de sinal do uplift corrigido**
+  (`+0,9·w_dead`, sem Q). `test_fase67_vento_tesoura` (7).
+- **6.8 alma esbelta:** módulo novo `alma_esbelta.py` (Anexo H, despacho por
+  `h/tw>5,70√(E/fy)`; Anexo G intocado). `test_fase68_alma_esbelta` (11).
+**Padrão de revisão:** conferir cada alegação contra código+PDF; **8 "erros graves"
+refutados** (Anexo J=seção variável, coef 0,66/0,33, FLM/Cb já no código) — imagens do
+PDF via `SendUserFile` encerraram citações; **1 bug real acolhido** (sinal do uplift).
+Não-regressão: ref prismática 20×10 intocada (Anexo G); smoke/calc-sweep 7/7 (smoke
+completo estoura o cap de background ~2min → validado por-caso). Commits
+`1baef85`→`a55a1fe` (branch `revisao/homologacao-12-modulos`).
+
 ## FECHADA — Homologação dos 6 pareceres sênior (itens 28–33) — 2026-07-11
 **Escopo:** processar os 6 REVISAO-*.md pendentes (gusset, console, fundação
 profunda, ponte 8400, alma variável, tesoura); homologar/corrigir. Detalhe por

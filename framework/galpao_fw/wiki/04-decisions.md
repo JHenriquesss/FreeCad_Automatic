@@ -161,5 +161,51 @@ Sessão fechou os 6 REVISAO-*.md pendentes (índice 28–33). **Padrão-chave: 3
 - **33 tesoura** ([[#D43]]): BLOQUEADO por Q5. **banzo superior RETO em duas águas** `y=(2h/L)·min(x,L−x)` (não parábola/bowstring) em `gera_trelica`+build `_trelica_geom` → terças nos nós → método dos nós válido; **tração ruptura líquida** `_nt_rd` min(escoam, Ct·(A−furos)·fu/γa2); **compressão 2 eixos** `_nc_rd` (no plano L/rx; fora Lb_y/ry); tributária inclinada; **guard n_paineis PAR** (raise em gera_trelica + bloqueio em validar; ímpar→cumeeira no meio da barra→flexão). Solver aprovado. ✅
 Commits 718bbe8→35cda72 (branch `revisao/homologacao-12-modulos`). **REVISAO-INDICE.md: itens 1–33 todos ✅ HOMOLOGADO.**
 
+## D45 — 2026-07-11 — Backlog do parecer 6.b esgotado (fases 6.4–6.8) + revisão itens 34–38
+Sessão fechou os 4 itens de backlog do parecer da alma variável + 1 desdobramento,
+todos por leitura **verbatim** do PDF. **Padrão-chave repetido: 8 alegações de "erro
+grave" refutadas com a fonte primária; 1 bug real acolhido.** Enviar **imagem da
+página do PDF** (via `SendUserFile`) encerrou disputas de citação.
+- **6.4 coluna tapered** ([[03-phases]]): estende `secao_tapered` à COLUNA (base rasa
+  `h_col_base`→joelho fundo `h_joelho`); `_chain_var` na coluna, `coluna_segmentos` no
+  envelope; verificação por segmento + FLT member-level. **Parecer 1:** (2) add
+  **compressão global Anexo J.3** (seção de MENOR altura + H total; a por-segmento com
+  `L_seg` não capturava flambagem global) → `util_col_global`; (3) teste de
+  continuidade → igualdade **estrita no nó** (`isclose 1e-9`, era ponto-médio tol 20%);
+  (1/4a/4b defendidos). **Parecer 2 REFUTADO com PDF pág.151:** sênior alegou "Anexo J
+  = forças concentradas / citação fabricada" — **falso**, Anexo J = "Requisitos para
+  barras de seção variável" (J.3 compressão, J.4 FLT); os fenômenos que ele citou são
+  §5.7 (corpo principal). Sênior retratou-se. Commits `1baef85`→`16cec73`. ✅
+- **6.5 zona de painel do joelho** ([[03-phases]]): módulo novo `zona_painel.py` (NBR
+  8800 **§5.7.7** cisalhamento do painel + estados locais **§5.7.2/3/4/6** + doubler
+  §5.7.7.2). Nó rígido (prismático+alma var); tesoura pula. **Parecer 1:** (A)
+  `FSd=M/dm−V_col` (equilíbrio nodal); (C) add **enrugamento §5.7.4** (coef **0,66/0,33**
+  verbatim, NÃO 0,80/0,40 do AISC que o sênior pediu); (D) esbeltez do doubler por
+  **§5.4.3** `t≥dc/λp` (não a fórmula imperial `hw/418√fy` do AISC) → `max(t_força,
+  t_esbeltez)`. **Parecer 2 REFUTADO com imagens do PDF** (pág.68 §5.7.4.2=0,66/0,33;
+  pág.67 §5.7.3.2 já completa no código). Doubler = `CONEX_JOELHO_*_DOUBLER_L/R` (só
+  quando exigido; prefixo CONEX exclui da interferência). Commits `a4b336a`→`082319b`. ✅
+- **6.6 FLT de mísula (Anexo J)** ([[03-phases]]): `flt_misula.py` substitui o método
+  conservador (seção mais funda + Cb=1,0 + M_max) pelo **Anexo J**: λ da seção de MAIOR
+  altura (**J.4.2**), `Cb` racional (**§5.4.2.3a**, Rm=1, teto 3,0, balanço→1,0),
+  demanda na seção de **max M/Wx** (**J.4.1**). **NÃO usa fator γ** (AISC DG25, não
+  normativo na NBR). Efeito só quando `Lb>Lp` (senão FLT no platô plástico). Rafter+coluna
+  wired. Aprovado integralmente. Commit `caa5cfc`. ✅
+- **6.7 sucção vento→tesoura** ([[03-phases]]): `w_vento` auto-acoplado da NBR 6123
+  (`min(net cobertura)·q·bay`, uplift<0) em vez de INPUT manual; override honrado.
+  **BUG REAL do parecer acolhido:** combinação de uplift `1,4·w_vento+0,9·(−w_grav)`
+  invertia a gravidade (somava ao uplift) → corrigido p/ `1,4·w_vento+0,9·w_dead`
+  (vetores opostos, convenção do solver `w>0`=baixo). **Bônus:** `w_dead` exclui a
+  sobrecarga Q (NBR 8681: variável não estabiliza uplift). Validado: banzo inf
+  reverte tração→compressão sob sucção. Commits `0d67ffc`→`3c5b1d6`. ✅
+- **6.8 alma esbelta (Anexo H)** ([[03-phases]]): `alma_esbelta.py` — quando
+  `h/tw>5,70√(E/fy)`, `momento_resistente` **despacha** ao Anexo H (Wxc+`kpg`, não
+  Zx/Mpl) em vez de abortar com ValueError; compacta/semicompacta→Anexo G intocado.
+  `kpg=1−ar/(1200+300ar)(hc/tw−5,70√(E/fy))≤1`; `kc=4/√(h/tw)∈[0,35;0,76]` (F.2);
+  FLT com trava no platô; FLM sem Cb. **Parecer REFUTADO** (FLM inelástico + trava do
+  Cb "omitidos") — já estavam no código; markdown abreviava. +testes de trava. Sênior
+  mea-culpa. Commit `cfdbb03`→`a55a1fe`. ✅
+**REVISAO-INDICE.md: itens 1–38 todos ✅ HOMOLOGADO.** Backlog do parecer 6.b esgotado.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

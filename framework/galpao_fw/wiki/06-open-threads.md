@@ -15,6 +15,21 @@
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
 
+## T9 — backlog parecer 6.b + itens 34–38 (FECHADO 2026-07-11)
+**Todos os 5 homologados** — ver [[04-decisions#D45]]. REVISAO-INDICE.md: **itens 1–38
+✅ HOMOLOGADO, zero PENDENTE**. Fases 6.4–6.8 (coluna tapered, zona de painel, FLT
+Anexo J, vento→tesoura, alma esbelta). Módulos novos: `zona_painel.py`, `flt_misula.py`,
+`alma_esbelta.py`. Padrão: 8 "erros graves" refutados com o PDF (imagens via
+`SendUserFile` decidiram citações), 1 bug real acolhido (sinal do uplift). Commits
+`1baef85`→`a55a1fe` (não pushados — push blocked [[#T5]]).
+**Backlog residual (dívida, não bug):** (a) alívio de cortante das mesas inclinadas
+`V_alma=V−(M/h)tanθ` (economia; ignorar é conservador); (b) γ do AISC DG25 como
+cross-check informativo da FLT tapered (não normativo); (c) ponderação da sucção de
+vento por área de influência das zonas (NBR 6123) na tesoura (menos aço); (d) interação
+M-V na alma esbelta do joelho (§5.5.2.3 von Mises; NBR sem cláusula M-V explícita);
+(e) limite `h/tw` do Anexo H com enrijecedores de painel (a/h). `neve` segue não
+escolhido.
+
 ## T8 — pareceres itens 28–33 (FECHADO 2026-07-11)
 **Todos os 6 homologados** — ver [[04-decisions#D44]]. REVISAO-INDICE.md: **itens 1–33 ✅ HOMOLOGADO, zero PENDENTE**. Padrão: 3 alegações de "erro grave" (console-1, ponte H_long, tesoura mapeamento) NÃO procediam → refutadas com prova de bancada, sênior retratou-se. Correções reais aplicadas nos demais. Commits 718bbe8→35cda72 na branch `revisao/homologacao-12-modulos` (não pushados — push blocked [[#T5]], usuário roda `git push`).
 **Backlog aceito (dívida técnica, não bug):** coluna tapered (hoje só rafter); zona de painel/doubler do joelho tapered; auto-acoplar sucção de vento à tesoura (hoje input → próxima: NBR 6123 cp/ce→P_nos); fator γ de mísula (refino FLT tapered).
