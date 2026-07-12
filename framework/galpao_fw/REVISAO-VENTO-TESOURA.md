@@ -5,8 +5,12 @@ vento na cobertura** deixa de ser INPUT manual (`w_vento_kN_m`, default 0) e pas
 ser **auto-acoplada** da NBR 6123 (`(Cpe−Cpi)·q`) como carga de uplift na tesoura.
 Fase 6.7. Criado 2026-07-11.
 
-> **STATUS: A REVISAR (parecer 1 respondido).** Reusa `vento_nbr6123.compute` (**já
-> homologado**) — nenhum coeficiente novo. Override explícito do usuário honrado.
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11). Parecer 2: **"APROVADO PARA MERGE"** — os
+> dois erros críticos do parecer 1 corrigidos (unidade de `q` no doc; sinal do
+> uplift `1,4·w_vento + 0,9·w_dead`). A exclusão da sobrecarga `Q` do estabilizante
+> foi **"elogiada"** (aderente à NBR 8681 — carga variável não estabiliza uplift).
+> Aritmética re-conferida (−6,808 kN/m). Envelope uniforme aceito como V1 + backlog.
+> Reusa `vento_nbr6123.compute` (homologado); override do usuário honrado.
 
 ## Parecer sênior 1 — respostas
 
