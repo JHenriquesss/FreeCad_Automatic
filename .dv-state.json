@@ -1,7 +1,7 @@
 {
   "phase": "6.11",
   "phase_name": "vento-por-zona-tesoura",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "tesoura: _trib_sup; _P_vento_zonas(t,trib,w_barl,w_sot,w_dead,direction) carga nodal por agua; cargas_vento_zonas wrapper; verifica_tesoura aceita w_vento_zonas com envelope 2 direcoes; ausente->escalar (back-compat); _selftest", "done": true },
     { "id": "me-2", "text": "consistencia: w_barl==w_sot reproduz escalar; cargas nodais diferem entre metades quando w_barl!=w_sot; cumeeira agua mais desfavoravel", "done": true },
@@ -35,6 +35,7 @@
     { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" },
-    { "phase": "6.10", "closed_at": "2026-07-12", "outcome": "ok" }
+    { "phase": "6.10", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.11", "closed_at": "2026-07-12", "outcome": "ok" }
   ]
 }
