@@ -78,7 +78,10 @@ def ryt(sec):
 
 
 def _valida(sec):
-    """H.1.3 - limites de validade: Aw/Afc <= 10 ; h/tw <= 260."""
+    """H.1.3 - limites de validade: Aw/Afc <= 10 ; h/tw <= 260.
+    O limite 260 vale para almas SEM enrijecedores transversais (5.3.3.1 / 5.4.3.1.3).
+    TODO: com enrijecedores no painel (comum no joelho), o limite depende de a/h -
+    expandir quando um modulo de enrijecimento do painel tapered for adicionado."""
     hw = sec["d"] - 2.0 * sec["tf"]
     Aw = hw * sec["tw"]; Afc = sec["bf"] * sec["tf"]
     return (Aw / Afc <= 10.0) and (_lam_alma(sec) <= 260.0)

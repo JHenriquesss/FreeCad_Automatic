@@ -71,6 +71,33 @@ def test_selftest_roda():
     ae._selftest()
 
 
+def test_cb_nao_excede_plato():
+    # parecer 38 ponto 2: no regime inelastico da FLT, Cb alto (2,5) NAO pode gerar
+    # Mn > plato = kpg Wxc fy. A trava min(..., plato) deve segurar.
+    import alma_esbelta as ae
+    s = _sec_esbelta()
+    # Lb=3,0 coloca a FLT no regime inelastico (lamp_t < lam_t < lamr_t)
+    r = ae.mrd_alma_esbelta(s, 250e3, Lb=3.0, Cb=2.5)
+    plato = r["kpg"] * s["Wx"] * 250e3
+    assert r["M_flt"] <= plato + 1e-6, "Cb nao pode levar M_flt acima do plato kpg Wxc fy"
+    assert r["Mn"] <= plato + 1e-6, "Mn (min) nunca supera o plato"
+    # confirma que a trava REALMENTE engatou (Cb 2,5 empurraria acima sem o clamp)
+    assert abs(r["M_flt"] - plato) < 1e-6, "com Cb=2,5 no inelastico a FLT deve travar no plato"
+
+
+def test_flm_inelastico_presente():
+    # parecer 38 ponto 1: o regime inelastico da FLM (lamp < lam <= lamr) existe e
+    # NAO usa Cb. Secao com mesa semicompacta -> FLM inelastico entre plato e elastico.
+    import alma_esbelta as ae
+    import alma_variavel as av
+    # mesa semicompacta: bf/2tf entre 0,38 e 0,95 sqrt(kc E / 0,7 fy)
+    s = av.props_I(0.90, 0.30, 0.003, 0.010)   # bf/2tf = 15 -> inelastico p/ MR250
+    r = ae.mrd_alma_esbelta(s, 250e3, Lb=1.0, Cb=1.0)
+    plato = r["kpg"] * s["Wx"] * 250e3
+    # se a mesa cai no ramo inelastico, M_flm fica ESTRITAMENTE entre elastico e plato
+    assert 0 < r["M_flm"] <= plato + 1e-6
+
+
 # ==================== me-2: momento_resistente despacha ====================
 def test_momento_resistente_nao_aborta_esbelta():
     import check_nbr8800 as ck

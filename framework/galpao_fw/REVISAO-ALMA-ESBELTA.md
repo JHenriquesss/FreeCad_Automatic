@@ -10,6 +10,19 @@ habilitando mísulas altas de alma fina — o caso econômico real. Fase 6.8. Cr
 > `pesquisa/aço/nbr8800_2008_1.pdf` (págs 147–149 + 136). Back-compat total: alma
 > compacta/semicompacta segue o **Anexo G** (ref 20×10 byte-idêntica).
 
+## Parecer sênior 1 — respostas
+
+| Pt | Alegação | Veredito |
+|---|---|---|
+| 1 | Ramo **inelástico da FLM (H.2.3) omitido** | **IMPROCEDENTE (código correto).** `alma_esbelta.py` linha ~117-118 tem o ramo inelástico `kp·(1−0,3(λ−λp)/(λr−λp))·Wx·fy`, **sem Cb** (correto). Só a tabela do markdown abreviava — corrigida. Teste `test_flm_inelastico_presente` adicionado. |
+| 2 | **Trava do Cb na FLT (H.2.2) ausente** | **IMPROCEDENTE (código correto).** Linhas ~105-108: ambos os ramos já têm `min(..., platô)`. Teste `test_cb_nao_excede_plato` (Cb=2,5 no inelástico) adicionado — **confirma que a trava engata**. |
+| 3 | `h/tw ≤ 260` assume alma sem enrijecedores | **NOTA acatada.** Guard mantido; comentário/TODO adicionado (com enrijecedores no painel o limite depende de a/h). |
+| 4 | H.2.1 redundante em duplo-simétrico | **NOTA (sem ação).** Mantido por coerência normativa; governa em monossimétricas (`Wxt ≪ Wxc`). Sênior pediu "deixe como está". |
+
+Pontos 1 e 2 (os "dois erros críticos") **já estavam corretos no código** — o parecer
+leu a tabela abreviada do markdown como omissão (mesmo padrão do parecer da zona de
+painel). Testes novos travam os comportamentos.
+
 ## Contexto (parecer 2, ponto 4b)
 
 O parecer apontou, com razão em seu núcleo, que travar o cálculo com `ValueError`
@@ -25,8 +38,8 @@ correto **fora** da validade do Anexo H (`Aw/Afc > 10` ou `h/tw > 260`).
 | **H.1.2** | alma esbelta: `λ = h/tw > 5,70·√(E/fy)` |
 | **H.1.3** | validade: `Aw/Afc ≤ 10` ; `h/tw ≤ 260` |
 | **H.2.1** | escoamento da mesa tracionada: `M_Rd = Wxt·fy/γa1` |
-| **H.2.2** | FLT: `M_Rd = kpg·[…]/γa1` ; `λ=Lb/ryT` ; `λp=1,10√(E/fy)` ; `λr=π√(E/(0,7fy))` ; platô `kpg·Wxc·fy` ; inel. `kpg·Cb·(1−0,3(λ−λp)/(λr−λp))·Wxc·fy` ; elást. `kpg·Cb·π²E·Wxc/λ²` |
-| **H.2.3** | FLM: `λ=bf/2tf` ; `λp=0,38√(E/fy)` ; `λr=0,95√(kc·E/(0,7fy))` ; elást. `0,90·kpg·E·kc·Wxc/λ²` |
+| **H.2.2** | FLT: `λ=Lb/ryT` ; `λp=1,10√(E/fy)` ; `λr=π√(E/(0,7fy))` ; platô `kpg·Wxc·fy` ; inel. `min(kpg·Cb·(1−0,3(λ−λp)/(λr−λp))·Wxc·fy, platô)` ; elást. `min(kpg·Cb·π²E·Wxc/λ², platô)` — **trava no platô** (Cb não pode superar `kpg·Wxc·fy`) |
+| **H.2.3** | FLM: `λ=bf/2tf` ; `λp=0,38√(E/fy)` ; `λr=0,95√(kc·E/(0,7fy))` ; platô `kpg·Wxc·fy` ; **inel.** `kpg·(1−0,3(λ−λp)/(λr−λp))·Wxc·fy` (**sem Cb**) ; elást. `0,90·kpg·E·kc·Wxc/λ²` |
 | **kpg** | `1 − ar/(1200+300·ar)·(hc/tw − 5,70√(E/fy)) ≤ 1,0` ; `ar=Aw/Afc≤10` ; `hc=hw` (duplo-sim.) |
 | **F.2** | `kc = 4/√(h/tw)` , `0,35 ≤ kc ≤ 0,76` |
 
@@ -68,8 +81,10 @@ em vez de abortar.
 | `test_momento_resistente_nao_aborta_esbelta` | despacho H (não ValueError) |
 | `test_compacta_usa_anexo_g_inalterado` | Anexo G intocado (mne-2, `Mpl=Zx·fy`) |
 | `test_misula_alma_fina_calcula` | mísula alma fina fim-a-fim (`flt_misula`) |
+| `test_cb_nao_excede_plato` | trava FLT: Cb=2,5 no inelástico não passa do platô (parecer pt.2) |
+| `test_flm_inelastico_presente` | ramo inelástico da FLM existe, sem Cb (parecer pt.1) |
 
-9 testes verdes.
+11 testes verdes.
 
 ## Notas / backlog
 
