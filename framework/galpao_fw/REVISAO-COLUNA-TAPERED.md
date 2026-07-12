@@ -4,7 +4,15 @@ Conferência do sênior. Fecha o **Q1 do parecer da alma variável** (fase 6.b),
 ficou no backlog: estender a máquina tapered — hoje só no rafter/mísula — para a
 **coluna** do pórtico. Fase 6.4. Criado 2026-07-11.
 
-> **STATUS: A REVISAR (parecer 1 respondido).** Implementado sobre a máquina tapered
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11). Parecer 3: sênior **retratou-se** — "aluci-
+> nei ao afirmar que o Anexo J tratava de forças transversais"; confirmou que **Anexo
+> J = «Requisitos para barras de seção variável»**, que J.4.2 (λ da seção de maior
+> altura) e J.3 (compressão pela seção de menor altura) **amparam o código**, e que
+> a acusação de citação fabricada foi falha dele. Validou também o guard de alma
+> esbelta (ponto 4b) e o cortante conservador (4a). "O seu código está consistente e
+> apto para seguir na esteira."
+>
+> **STATUS anterior (parecer 1 respondido).** Implementado sobre a máquina tapered
 > já homologada ([ALMA-VARIAVEL](REVISAO-ALMA-VARIAVEL.md),
 > [ALMA-VARIAVEL-INTEG](REVISAO-ALMA-VARIAVEL-INTEG.md)). Reusa
 > `secao_tapered`/`props_I` sem alteração. Back-compat total: sem `h_col_base`, a

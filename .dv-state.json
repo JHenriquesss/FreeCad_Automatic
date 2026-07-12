@@ -1,7 +1,7 @@
 {
   "phase": "6.8",
   "phase_name": "alma-esbelta-anexo-h",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "alma_esbelta.py: kpg(sec,fy); ryt(sec) (mesa comp + 1/3 alma comp); kc(sec); mrd_alma_esbelta (min H.2.1/H.2.2 FLT/H.2.3 FLM) + det; guard H.1.3 (Aw/Afc<=10, h/tw<=260); _selftest", "done": true },
     { "id": "me-2", "text": "check_nbr8800.momento_resistente: h/tw>5.70 sqrt(E/fy) -> despacha Anexo H (Mn=M_Rd*GA1, gov, det); compacta/semicompacta -> Anexo G inalterado (ref intocada)", "done": true },
@@ -32,6 +32,7 @@
     { "phase": "6.4", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" },
-    { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" }
+    { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" }
   ]
 }
