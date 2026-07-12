@@ -18,6 +18,19 @@ Criado 2026-07-11.
 | C | Falta o **enrugamento da alma** (web crippling) | **PROCEDENTE — adicionado §5.7.4.** (O sênior citou "§5.7.5" e coef "0,80"; no PDF **§5.7.4** e coef **0,66** interior / 0,33 extremidade — `Ff = 0,66·tw²[1+3(ln/d)(tw/tf)^1,5]√(E·fy·tf/tw)/γa1`.) |
 | D | Doubler pode flambar por cisalhamento (esbeltez) | **PROCEDENTE — implementado por critério NBR.** A fórmula `hw/418√fy` do parecer é **AISC imperial** (não normativa na NBR); usei a esbeltez de **§5.4.3.1.1**: `t ≥ dc/λp`, `λp = 1,10√(kv·E/fy)`, kv=5. `dimensiona_doubler` retorna `max(t_força, t_esbeltez)`. Ponte: doubler 3→8 mm. |
 
+## Parecer sênior 2 — refutação com o PDF
+
+| Pt | Alegação | Veredito |
+|---|---|---|
+| A | Coef do enrugamento (§5.7.4) deve ser **0,80/0,40**, não 0,66/0,33 | **IMPROCEDENTE.** Re-extração verbatim do PDF, **pág. 68, §5.7.4.2**: coeficiente **`0,66`** (interior, `≥ d/2`) e **`0,33`** (extremidade, `< d/2`). O **0,80/0,40 é AISC 360**, não NBR 8800:2008. O código está correto. |
+| B | `F_Rd = 2,5k` na extremidade "anula ln e ignora o material" | **IMPROCEDENTE (era atalho do markdown, não do código).** PDF **pág. 67, §5.7.3.2 b**: `F_Rd = 1,10·(2,5k + ln)·fy·tw/γa1`. O código **sempre** teve a fórmula completa: `Ff_esc = 1,10·(a_k·k + ln)·fy·tw/γa1`, `a_k = 2,5` na extremidade. Só o texto do doc escrevia "2,5k" como abreviação — corrigido para a fórmula inteira. Sem mudança de código. |
+| C | FSd = M/dm − V_col | **CORRETO** (sênior confirmou o refino). |
+| D | Esbeltez do doubler por §5.4.3 | **CORRETO** (sênior aprovou a decisão). |
+
+**Conclusão:** nenhuma correção de cálculo procede do parecer 2 — os coeficientes
+0,66/0,33 e a fórmula do escoamento local estão **verbatim** conforme o PDF. Ajuste
+apenas de redação (abreviação "2,5k" → fórmula completa).
+
 ## Base normativa (NBR 8800:2008, lida do PDF)
 
 | Cláusula | Estado-limite | Fórmula (verbatim) |
@@ -25,7 +38,8 @@ Criado 2026-07-11.
 | **§5.7.7.1** | Cisalhamento do painel de alma | `N_Sd ≤ 0,4·Npl` → `F_Rd = V_Rd` ; `N_Sd > 0,4·Npl` → `F_Rd = V_Rd·(1,4 − N_Sd/Npl)` |
 | **§5.4.3.1.2** | Cortante do painel `V_Rd` | `Vpl = 0,60·fy·Aw`, `Aw = dc·tw` (pilar), `V_Rd = Vpl/γa1` (+redução por esbeltez §5.4.3.1.1, kv=5,0) |
 | **§5.7.2.2** | Flexão local da mesa | `F_Rd = 6,25·tf²·fy/γa1` (metade se extremidade, §5.7.2.3) |
-| **§5.7.3.2** | Escoamento local da alma | `F_Rd = 1,10·(5k + ln)·fy·tw/γa1` (interior) / `2,5k` (extremidade) |
+| **§5.7.3.2** | Escoamento local da alma | interior `F_Rd = 1,10·(5k + ln)·fy·tw/γa1` ; extremidade `F_Rd = 1,10·(2,5k + ln)·fy·tw/γa1` (só troca `5k`→`2,5k`; `ln`, `fy`, `tw` mantidos) |
+| **§5.7.4.2** | Enrugamento da alma (web crippling) | `F_Rd = 0,66·tw²·[1+3(ln/d)(tw/tf)^1,5]·√(E·fy·tf/tw)/γa1` (interior) ; `0,33` (extremidade) |
 | **§5.7.6.2** | Flambagem da alma por compressão | `F_Rd = 24·tw³·√(E·fy)/(h·γa1)` (metade se perto da extremidade, §5.7.6.3) |
 | **§5.7.7.2** | Doubler (chapa de reforço) | dois lados da alma, dimensionada por §5.4 p/ o excesso; estende +150 mm além do painel |
 
