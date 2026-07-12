@@ -50,7 +50,7 @@ os FLAGS/pendências.
 | 35 | Zona de painel do joelho (cisalhamento + doubler) — fecha Q3 da fase 6.b | [REVISAO-ZONA-PAINEL.md](REVISAO-ZONA-PAINEL.md) | NBR 8800 §5.7.7 + §5.7.2/3/4/6 + §5.4.3 (verbatim do PDF) | ✅ HOMOLOGADO (2026-07-11) — FSd−V_col + enrugamento §5.7.4 + esbeltez doubler; parecer 2 (0,80/0,40 AISC) refutado com imagens do PDF |
 | 36 | FLT de mísula (Anexo J) — refino tapered; corrige framing do "fator γ" | [REVISAO-FLT-MISULA.md](REVISAO-FLT-MISULA.md) | NBR 8800 Anexo J (J.4.1/J.4.2) + §5.4.2.3a Cb (verbatim do PDF) | ✅ HOMOLOGADO (2026-07-11) — todas as cláusulas aprovadas; nota técnica (h_m/Wx por segmento) verificada |
 | 37 | Sucção de vento auto-acoplada à tesoura | [REVISAO-VENTO-TESOURA.md](REVISAO-VENTO-TESOURA.md) | NBR 6123 (Cpe−Cpi)·q + NBR 8681 (combinação uplift) | ✅ HOMOLOGADO (2026-07-11) — bug de sinal do uplift corrigido (`+0,9·w_dead`, sem Q); "aprovado para merge" |
-| 38 | Momento resistente de alma esbelta (Anexo H) — fecha 4b do parecer 2 | [REVISAO-ALMA-ESBELTA.md](REVISAO-ALMA-ESBELTA.md) | NBR 8800 Anexo H (H.2.1/2.2/2.3 + kpg) + F.2 kc (verbatim do PDF) | 🟡 A REVISAR — despacho quando h/tw>5,70√(E/fy); Wxc+kpg; Anexo G intocado |
+| 38 | Momento resistente de alma esbelta (Anexo H) — fecha 4b do parecer 2 | [REVISAO-ALMA-ESBELTA.md](REVISAO-ALMA-ESBELTA.md) | NBR 8800 Anexo H (H.2.1/2.2/2.3 + kpg) + F.2 kc (verbatim do PDF) | ✅ HOMOLOGADO (2026-07-11) — despacho h/tw>5,70√(E/fy); Wxc+kpg; FLM/Cb já corretos (parecer refutado); "aprovado para merge" |
 
 Módulos **não-matemáticos** (não precisam de conferência de método): `frame2d`
 (solver genérico, validado contra solução fechada), `build_galpao`/`dxf_vistas`

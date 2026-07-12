@@ -6,9 +6,12 @@ dimensionamento à flexão de **vigas de alma esbelta** (NBR 8800 **Anexo H**),
 habilitando mísulas altas de alma fina — o caso econômico real. Fase 6.8. Criado
 2026-07-11.
 
-> **STATUS: A REVISAR (sênior).** Base normativa lida **verbatim** do PDF
-> `pesquisa/aço/nbr8800_2008_1.pdf` (págs 147–149 + 136). Back-compat total: alma
-> compacta/semicompacta segue o **Anexo G** (ref 20×10 byte-idêntica).
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11). Parecer 2: **"APROVADO PARA MERGE"** com
+> **mea-culpa** — os "dois erros críticos" do parecer 1 (FLM inelástico, trava do
+> Cb) já estavam no código; o revisor baseou-se na tabela sintética do markdown.
+> *"A revisão matemática atesta 100% da integridade do Anexo H."* kpg, kc, FLT (com
+> trava no platô), FLM (sem Cb), despacho por `h/tw > 5,70√(E/fy)` e back-compat
+> Anexo G — todos validados. Base **verbatim** do PDF (págs 147–149 + 136).
 
 ## Parecer sênior 1 — respostas
 
