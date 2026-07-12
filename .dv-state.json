@@ -1,7 +1,7 @@
 {
   "phase": "6.9",
   "phase_name": "tensao-ponto-5523-joelho",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "tensao_ponto.py: sigma_tau(sec,N,M,V) -> fibra extrema + juncao mesa-alma (sigma=N/A+M yj/Ix, tau=V Qf/(Ix tw), Qf=bf tf (d-tf)/2); von_mises(sigma,tau); _selftest", "done": true },
     { "id": "me-2", "text": "verifica_5523(sec,fy,N,M,V,chi_n,chi_v): checks 5.5.2.3 a) sigma<=fy/ga1 b) tau<=0,60fy/ga1 c) sigma<=chi_n fy/ga1 d) tau<=0,60 chi_v fy/ga1 + von Mises SUPLEMENTAR (base_vm flag); u_*/gov/OK", "done": true },
@@ -33,6 +33,7 @@
     { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" },
-    { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" }
+    { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" }
   ]
 }
