@@ -5,9 +5,16 @@ Conferência do sênior. Fecha o backlog **"fator γ de mísula"** da fase 6.b, 
 25). O caminho normativo é o **Anexo J** (barras de seção variável). Fase 6.6.
 Criado 2026-07-11.
 
-> **STATUS: A REVISAR (sênior).** Substitui o método conservador da FLT de trecho
-> tapered (seção mais funda + `Cb=1,0` + `M_max` cego) pelo método do **Anexo J**.
-> Base lida **verbatim** do PDF `pesquisa/aço/nbr8800_2008_1.pdf`.
+> **STATUS: ✅ HOMOLOGADO** (2026-07-11). Parecer aprovou **todas** as cláusulas
+> (J.1, J.4.2, J.4.1, §5.4.2.3a): *"O script está correto em sua proposta de
+> engenharia. A transição para o Anexo J refina o dimensionamento."* Confirmou que
+> o γ do AISC DG25 é estranho à NBR e sua exclusão evita erro de método. **Nota
+> técnica verificada:** `h_m`/`Wx` de cada segmento vêm do mesmo `props_I(h)`
+> (consistentes); `h_secao_flt` = seção de maior altura (J.4.2), `secao_critica` =
+> max `M/Wx` (J.4.1) — distintas por projeto, ambas corretas.
+>
+> Substitui o método conservador da FLT de trecho tapered (seção mais funda +
+> `Cb=1,0` + `M_max` cego) pelo método do **Anexo J**. Base verbatim do PDF.
 
 ## Por que não "fator γ"
 
