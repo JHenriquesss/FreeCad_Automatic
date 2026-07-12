@@ -46,6 +46,7 @@ import zona_painel as zpn
 import flt_misula as fltm
 import alma_esbelta as ae
 import tensao_ponto as tsp
+import cortante_tapered as cta
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -557,6 +558,13 @@ def rodar(params, out_dir):
         #    Aplicada como TETO a todos os segmentos (M_max*B2 vs M_Rd,FLT).
         segs_env = segs_tapered
         L_raft = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])
+        # CORTANTE DA ALMA com mesas inclinadas (equilibrio; Anexo J omisso em
+        # cortante -> refino, nao clausula). Alivio favoravel so com opt-in; adverso
+        # sempre contado. dh/dx do rafter = (h_joelho - h_cumeeira)/L_raft.
+        creditar_cme = bool(params.get("creditar_cortante_mesa_inclinada", False))
+        dhdx_raf = cta.dh_dx(tp["h_cumeeira"], tp["h_joelho"], L_raft)
+        sent_raf = cta.sentido_haunch(segs_env)
+        cme_alivio_max = 0.0                             # maior reserva/acrescimo (kN)
         n_terca = params["terca"].get("n_por_agua", 3)
         Lb_terca = L_raft / (n_terca + 1)               # mesa sup (gravidade)
         Lb_mf = Lb_raf                                   # mesa inf (succao) - mao-francesa
@@ -572,8 +580,12 @@ def rodar(params, out_dir):
             sec_seg = dict(sp); sec_seg["nome"] = "seg%d%s" % (
                 seg["seg"], "E" if seg["lado"] == 0 else "D")
             Msd_s = seg["M"] * B2_amp; Nsd_s = seg["N"] * B2_amp
+            cme = cta.cortante_efetivo_conservador(
+                Msd_s, seg["V"], seg.get("h_m") or sec_seg["d"], dhdx_raf,
+                sent_raf, creditar_cme)
+            cme_alivio_max = max(cme_alivio_max, cme["alivio"], cme["acrescimo"])
             v = chk.verifica(sec_seg, params["fy"], L=seg.get("L_seg") or Lb_raf,
-                             Nsd=Nsd_s, Msd=Msd_s, Vsd=seg["V"], Kx=1, Ky=1,
+                             Nsd=Nsd_s, Msd=Msd_s, Vsd=cme["V_usar"], Kx=1, Ky=1,
                              Lb=1e-3, nome=sec_seg["nome"])   # Lb->0: sem FLT local
             v["_seg"] = seg
             verifs.append(v)
@@ -642,6 +654,10 @@ def rodar(params, out_dir):
         col_res = None
         if segs_col_tapered:
             Lb_col = params["Lb"]["col"]
+            # cortante da alma com mesas inclinadas (coluna): dh/dx = (h_joelho -
+            # h_col_base)/H_col ; sentido pela geometria dos segmentos.
+            dhdx_col = cta.dh_dx(tp["h_col_base"], tp["h_joelho"], g["eave"])
+            sent_col = cta.sentido_haunch(segs_col_tapered)
             verifs_c = []
             for seg in segs_col_tapered:
                 sp = seg.get("sec_props")
@@ -649,8 +665,12 @@ def rodar(params, out_dir):
                     continue
                 sec_c = dict(sp); sec_c["nome"] = "col%d_%d" % (seg["coluna"], seg["seg"])
                 Msd_c = seg["M"] * B2_amp; Nsd_c = seg["N"] * B2_amp
+                cme_c = cta.cortante_efetivo_conservador(
+                    Msd_c, seg["V"], seg.get("h_m") or sec_c["d"], dhdx_col,
+                    sent_col, creditar_cme)
+                cme_alivio_max = max(cme_alivio_max, cme_c["alivio"], cme_c["acrescimo"])
                 v = chk.verifica(sec_c, params["fy"], L=seg.get("L_seg") or Lb_col,
-                                 Nsd=Nsd_c, Msd=Msd_c, Vsd=seg["V"], Kx=1, Ky=1,
+                                 Nsd=Nsd_c, Msd=Msd_c, Vsd=cme_c["V_usar"], Kx=1, Ky=1,
                                  Lb=1e-3, nome=sec_c["nome"])   # Lb->0: sem FLT local
                 v["_seg"] = seg
                 verifs_c.append(v)
@@ -743,7 +763,11 @@ def rodar(params, out_dir):
             "governa_joelho": not no_joelho if gov_seg else None,
             "governa_flt": bool(u_flt >= u_local),
             "cb_misula_raf": round(cb_raf, 3),
-            "flt_secao_critica": flt_sec_crit}
+            "flt_secao_critica": flt_sec_crit,
+            "cortante_mesa_alivio_kN": round(cme_alivio_max, 1),
+            "cortante_mesa_creditado": creditar_cme,
+            "cortante_mesa_sentido": ("haunch/alivio" if sent_raf >= 0
+                                      else "adverso/acrescimo")}
         if col_res:
             res["alma_variavel"].update(col_res)
 

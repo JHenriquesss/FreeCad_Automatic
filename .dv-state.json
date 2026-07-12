@@ -1,23 +1,23 @@
 {
-  "phase": "6.9",
-  "phase_name": "tensao-ponto-5523-joelho",
-  "step": "closed",
+  "phase": "6.10",
+  "phase_name": "cortante-mesa-inclinada-tapered",
+  "step": "ready-to-close",
   "must_exist": [
-    { "id": "me-1", "text": "tensao_ponto.py: sigma_tau(sec,N,M,V) -> fibra extrema + juncao mesa-alma (sigma=N/A+M yj/Ix, tau=V Qf/(Ix tw), Qf=bf tf (d-tf)/2); von_mises(sigma,tau); _selftest", "done": true },
-    { "id": "me-2", "text": "verifica_5523(sec,fy,N,M,V,chi_n,chi_v): checks 5.5.2.3 a) sigma<=fy/ga1 b) tau<=0,60fy/ga1 c) sigma<=chi_n fy/ga1 d) tau<=0,60 chi_v fy/ga1 + von Mises SUPLEMENTAR (base_vm flag); u_*/gov/OK", "done": true },
-    { "id": "me-3", "text": "integracao rodar_galpao: no joelho tapered com alma esbelta (ae.e_esbelta), u_col_5523 entra no envelope interacao_max_col; chi_v da esbeltez ao cisalhamento; nao aborta fim-a-fim", "done": true },
-    { "id": "me-4", "text": "REVISAO-TENSAO-PONTO.md (5.5.2.3 verbatim pag 57 + nota von Mises nao-normativo) + INDICE item 39; nao-regressao (ref 20x10 intocada; suites 6.4/6.6/6.8/6.b; build tapered)", "done": true }
+    { "id": "me-1", "text": "cortante_tapered.py: dh_dx(h1,h2,L); v_alma_efetivo(M,V,h_m,dhdx,sentido)=V-sentido*(|M|/h_m)*|dhdx|; sentido_haunch(segs) deriva sinal da geometria; _selftest", "done": true },
+    { "id": "me-2", "text": "cortante_efetivo_conservador(...,creditar): adverso -> max(|V|,|V_ef|) sempre; favoravel -> |V_ef| se creditar senao |V|; reporta alivio/acrescimo/creditado", "done": true },
+    { "id": "me-3", "text": "integracao rodar_galpao: segmentos tapered (rafter+coluna) usam Vsd=cortante_efetivo; flag spec creditar_cortante_mesa_inclinada (mapper, default False); res reporta cortante_mesa_alivio_kN", "done": true },
+    { "id": "me-4", "text": "REVISAO-CORTANTE-TAPERED.md (equilibrio + prova Anexo J omisso em cortante J.1.2->5.4.3; opt-in) + INDICE item 40; nao-regressao (ref 20x10; suites 6.4/6.6/6.9/6.b; build tapered)", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "coeficiente/formula inventado (0,60 e a-d verbatim do PDF pag 57)", "violated": false },
-    { "id": "mne-2", "text": "von Mises apresentado como equacao NBR (deve ser flag suplementar base_vm)", "violated": false },
-    { "id": "mne-3", "text": "substituir checks separados a)/b) SO por von Mises (mascara sigma/tau isolado)", "violated": false },
-    { "id": "mne-4", "text": "ref prismatica 20x10 alterada (so dispara no ramo alma esbelta)", "violated": false },
-    { "id": "mne-5", "text": "tau=V/Aw uniforme na juncao (Qf real da mesa, nao simplificacao)", "violated": false }
+    { "id": "mne-1", "text": "apresentar o alivio como clausula da NBR (e equilibrio; Anexo J omisso em cortante documentado)", "violated": false },
+    { "id": "mne-2", "text": "creditar alivio favoravel por DEFAULT (default conservador; opt-in)", "violated": false },
+    { "id": "mne-3", "text": "ignorar componente ADVERSO (mesa que aumenta o cortante sempre entra)", "violated": false },
+    { "id": "mne-4", "text": "sinal fixo/hardcoded (sentido derivado da geometria dh/dx x |M|)", "violated": false },
+    { "id": "mne-5", "text": "aplicar em prismatica (dh/dx=0 -> V_ef=V; ref 20x10 intocada)", "violated": false }
   ],
   "current_item": "me-4",
   "trunk_status": "pass",
-  "trunk_evidence": "fase6.9 11/11; regressao fase-6 completa (6.4/6.5/6.6/6.7/6.8/6.9/6.b incl. build tapered) 71 passed em 337s; e2e joelho esbelto (h/tw~230) u_col_mv_5523=0.18 governa von Mises, sem abortar; ref prismatica 20x10 intocada (tensao_ponto so no ramo tapered esbelto).",
+  "trunk_evidence": "fase6.10 12/12; regressao fase-6 completa (6.4-6.10 + 6.b incl. build tapered) 83 passed em 406s; prismatico dh/dx=0 -> V_ef=V exato; default creditar=False (so reporta reserva, nao credita); ref 20x10 intocada.",
   "opened_at": "2026-07-12",
   "last_tune_at": null,
   "history": [

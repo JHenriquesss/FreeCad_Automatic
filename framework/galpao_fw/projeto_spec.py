@@ -316,6 +316,10 @@ def to_rodar_params(spec):
     p["tipo_portico"] = est0.get("tipo_portico", "prismatico")
     if est0.get("tipo_portico") == "alma_variavel" and isinstance(est0.get("tapered"), dict):
         p["tapered"] = est0["tapered"]
+    # opt-in: creditar o alivio de cortante das mesas inclinadas (equilibrio; refino
+    # nao-normativo). Default False (conservador). Ver cortante_tapered.py.
+    p["creditar_cortante_mesa_inclinada"] = bool(
+        est0.get("creditar_cortante_mesa_inclinada", False))
     if est0.get("tipo_portico") == "tesoura" and isinstance(est0.get("trelica"), dict):
         p["trelica"] = est0["trelica"]
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
