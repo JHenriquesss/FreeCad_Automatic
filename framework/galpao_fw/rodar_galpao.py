@@ -729,7 +729,8 @@ def rodar(params, out_dir):
     if params.get("tipo_portico") == "tesoura" and params.get("trelica"):
         tr = dict(params["trelica"])
         c = params["cargas"]
-        w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]
+        w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]   # combo gravidade
+        w_dead = (c["G"] + c.get("self", 0.0)) * g["bay"]            # estabiliza uplift (sem Q)
         # succao AUTO: envelope da cobertura (Cpe-Cpi mais negativo) * q * bay (kN/m,
         # uplift < 0). Usa o mesmo vr ja computado (NBR 6123, homologado). O usuario
         # pode sobrescrever informando trelica.w_vento_kN_m (override).
@@ -742,6 +743,7 @@ def rodar(params, out_dir):
         tcfg = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
                 "tipo": tr.get("tipo", "warren"),
                 "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
+                "w_dead_kN_m": tr.get("w_dead_kN_m", round(w_dead, 3)),
                 "w_vento_kN_m": w_vento,
                 "fy": tr.get("fy", 250e3),
                 "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}

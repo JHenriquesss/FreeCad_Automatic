@@ -186,7 +186,12 @@ def verifica_tesoura(cfg):
     Lb_y_sup (m; travamento FORA do plano do banzo superior - terças; default =
     painel inclinado, i.e. cada no travado), Ct (shear lag, default 1.0),
     area_furos (m2, secao critica parafusada, default 0)}.
-    Combinacoes: gravidade 1,4.w_grav ; vento 1,4.w_vento + 0,9.(-w_grav) (uplift).
+    Combinacoes (NBR 8681): gravidade 1,4.w_grav ; vento (uplift) 1,4.w_vento +
+    0,9.w_dead, onde w_dead = carga PERMANENTE estabilizante (>0, p/ baixo) e
+    w_vento e a succao (<0, p/ cima) - vetores OPOSTOS. A sobrecarga Q NAO estabiliza
+    o uplift (carga variavel pode estar ausente): w_dead exclui Q (default = w_grav
+    p/ retrocompatibilidade se w_dead_kN_m nao for informado).
+    Convencao do solver (_cargas): w>0 -> carga p/ BAIXO (Fy = -w.trib).
     N>0 tracao. Carga distribuida -> NODAL por trib. inclinada (metodo dos nos).
     Retorna util maxima, barra governante e esforcos por banzo."""
     t = gera_trelica(cfg["L"], cfg["h"], cfg.get("n_paineis", 8),
@@ -212,8 +217,10 @@ def verifica_tesoura(cfg):
     def _cargas(w):
         return {i: (0.0, -w * trib[i]) for i in range(n_p + 1)}   # w>0 p/ baixo
 
+    # w_dead = permanente estabilizante (exclui Q); default = w_grav (retrocompat).
+    w_dead = cfg.get("w_dead_kN_m", cfg["w_grav_kN_m"])
     combos = [("gravidade", 1.4 * cfg["w_grav_kN_m"]),
-              ("vento", 1.4 * cfg.get("w_vento_kN_m", 0.0) + 0.9 * (-cfg["w_grav_kN_m"]))]
+              ("vento", 1.4 * cfg.get("w_vento_kN_m", 0.0) + 0.9 * w_dead)]
     bars = _barras(t)
     sol0 = resolve_trelica(t, _cargas(1.0))
     diag_idx = set(sol0["idx_diagonais"] + sol0["idx_montantes"])

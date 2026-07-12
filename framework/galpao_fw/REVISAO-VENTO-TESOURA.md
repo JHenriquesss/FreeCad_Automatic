@@ -5,14 +5,21 @@ vento na cobertura** deixa de ser INPUT manual (`w_vento_kN_m`, default 0) e pas
 ser **auto-acoplada** da NBR 6123 (`(Cpe−Cpi)·q`) como carga de uplift na tesoura.
 Fase 6.7. Criado 2026-07-11.
 
-> **STATUS: A REVISAR (sênior).** Reusa `vento_nbr6123.compute` (**já homologado** —
-> itens 6/24 do índice) — nenhum coeficiente novo. Override explícito do usuário
-> continua honrado.
+> **STATUS: A REVISAR (parecer 1 respondido).** Reusa `vento_nbr6123.compute` (**já
+> homologado**) — nenhum coeficiente novo. Override explícito do usuário honrado.
+
+## Parecer sênior 1 — respostas
+
+| Pt | Alegação | Veredito / ação |
+|---|---|---|
+| 1 | `q = 0,613·Vk²` daria N/m², não kN/m² | **Doc corrigido; código já certo.** `vento.compute` faz `q = 0,613·Vk²/1000` (N/m²→kN/m²). O sênior admitiu "o motor provavelmente está correto"; era só o texto do markdown sem o `/1000`. |
+| 2 | Sinal do uplift `0,9·(−w_grav)` inverte a gravidade (soma em vez de opor) | **PROCEDENTE — corrigido (bug real).** Convenção do solver: `w>0` = p/ baixo. `w_grav>0` (baixo), `w_vento<0` (cima). O `−w_grav` levava a gravidade p/ cima → **somava** ao uplift (superdimensionava). Corrigido para `1,4·w_vento + 0,9·w_dead` (vetores opostos). **Além disso**, o estabilizante passa a excluir a sobrecarga `Q` (NBR 8681: carga variável não resiste ao uplift) → `w_dead = (G+self)·bay`. |
+| 4 | Envelope uniforme (min de todas as zonas) é conservador/antieconômico | **ACEITO como V1 + backlog.** O envelope global usa o Cpe médio da zona de cobertura de maior sucção. Ponderação por área de influência das zonas (menos aço) = dívida técnica p/ fase futura. |
 
 ## Base normativa (via `vento_nbr6123`, homologado)
 
-- `q = 0,613·Vk²` (kN/m²); `net = Cpe − Cpi` por superfície (telhado Tabela 5 +
-  Cpi Tabela 4). O `vr = vento.compute(...)` já roda no gate5 do pórtico.
+- `q = 0,613·Vk²` **[N/m²]** → `/1000` → **[kN/m²]** (o código faz a conversão);
+  `net = Cpe − Cpi` por superfície (telhado Tabela 5 + Cpi Tabela 4).
 - **Envelope** = superfície de cobertura de **maior sucção** (net mais negativo).
 
 ## 1. Acoplamento (rodar_galpao, gate6 tesoura)
@@ -21,8 +28,9 @@ Fase 6.7. Criado 2026-07-11.
 w_vento_auto = min( vr.net[caso][cobertura_*] ) · q · bay      [kN/m, uplift < 0]
 ```
 Usa o **mesmo `vr`** já computado (nada recalculado). Aplicado como `w_vento_kN_m`
-na `verifica_tesoura`, cuja combinação de uplift é `1,4·w_vento + 0,9·(−w_grav)`
-(sinal negativo = sucção sobe, alivia a gravidade → inverte esforços nos banzos). O
+na `verifica_tesoura`, cuja combinação de uplift é `1,4·w_vento + 0,9·w_dead`
+(`w_vento<0` sobe, `w_dead>0` desce → **vetores opostos**; a gravidade permanente
+alivia a sucção). Sob sucção máxima o banzo inferior **reverte** para compressão. O
 gate `gate6-tesoura.txt` reporta `net`, `q`, `bay`, `w_vento` e a fonte, citando a
 NBR 6123.
 

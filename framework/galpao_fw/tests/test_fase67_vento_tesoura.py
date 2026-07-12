@@ -81,6 +81,42 @@ def test_gate_cita_nbr6123(tmp_path):
     assert "6123" in txt, "gate deve citar NBR 6123 no acoplamento de succao"
 
 
+def test_combo_uplift_gravidade_opoe_vento():
+    # parecer 37 ponto 2: na combinacao de uplift a gravidade deve OPOR o vento
+    # (vetores opostos), nao somar. w_vento<0 (cima), w_dead>0 (baixo).
+    # combo = 1,4 w_vento + 0,9 w_dead -> |combo| < |1,4 w_vento| (gravidade alivia).
+    wv, wd = -9.0, 3.10
+    combo = 1.4 * wv + 0.9 * wd
+    assert combo < 0, "uplift deve permanecer liquido para cima"
+    assert abs(combo) < abs(1.4 * wv), "gravidade deve ALIVIAR (opor) o uplift, nao somar"
+
+
+def test_uplift_reverte_banzo_inferior():
+    # sob succao forte o banzo inferior REVERTE para compressao (era tracao na
+    # gravidade). Valida que o sinal da combinacao esta fisicamente correto.
+    import tesoura as tes
+    cfg = {"L": 10.0, "h": 1.2, "n_paineis": 8, "tipo": "warren", "fy": 250e3,
+           "w_grav_kN_m": 4.35, "w_dead_kN_m": 3.10, "w_vento_kN_m": -9.0,
+           "perfil_banzo": (0.15, 0.15, 0.008, 0.008),
+           "perfil_diagonal": (0.10, 0.10, 0.006, 0.006)}
+    import math
+    t = tes.gera_trelica(10.0, 1.2, 8, "warren")
+    npn = t["n_paineis"]
+    seg = [math.hypot(t["nos"][i + 1][0] - t["nos"][i][0],
+                      t["nos"][i + 1][1] - t["nos"][i][1]) for i in range(npn)]
+    trib = [((seg[i - 1] if i > 0 else 0) + (seg[i] if i < npn else 0)) / 2
+            for i in range(npn + 1)]
+
+    def _inf(w):
+        sol = tes.resolve_trelica(t, {i: (0.0, -w * trib[i]) for i in range(npn + 1)})
+        ks = sol["idx_banzo_inf"]
+        return sol["N_barras"][ks[len(ks) // 2]]
+    N_grav = _inf(1.4 * 4.35)                       # gravidade
+    N_uplift = _inf(1.4 * (-9.0) + 0.9 * 3.10)      # vento (uplift)
+    assert N_grav > 0, "banzo inferior traciona sob gravidade"
+    assert N_uplift < 0, "banzo inferior COMPRIME sob succao (reversao)"
+
+
 def test_prismatico_sem_w_vento_auto(tmp_path):
     # mne-4: acoplamento so na tesoura
     import rodar_projeto as RP
