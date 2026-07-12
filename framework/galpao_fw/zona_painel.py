@@ -67,30 +67,45 @@ def _Vrd_painel(dc, tw_col, fy):
 
 def cisalhamento_painel(caso):
     """5.7.7.1 - cisalhamento do painel de alma do pilar no no rigido.
-    caso: M_Sd, N_Sd (axial no pilar), dc, tw_col, Ag_col, d_viga, tf_viga, fy.
-    Retorna FSd, V_Rd, F_Rd, Npl, u_painel, reduz_axial."""
+    caso: M_Sd, N_Sd (axial no pilar), V_col (cortante do pilar no no), dc, tw_col,
+    Ag_col, d_viga, tf_viga, fy.
+    A demanda do painel = forca das mesas da viga (M/dm) MENOS o cortante do pilar no
+    no (equilibrio do painel nodal; AISC J10.6 / Bellei). A NBR 5.7.7.1 define FSd
+    como "a forca cortante transmitida pelas mesas da viga"; o abatimento de V_col e
+    o refinamento mecanico (a favor da economia; omiti-lo e conservador).
+    Retorna FSd (liquido), FSd_mesas (bruto), V_Rd, F_Rd, Npl, u_painel, reduz_axial."""
     fy = caso["fy"]
-    FSd = forca_das_mesas(caso["M_Sd"], caso["d_viga"], caso["tf_viga"])
+    FSd_mesas = forca_das_mesas(caso["M_Sd"], caso["d_viga"], caso["tf_viga"])
+    V_col = abs(caso.get("V_col", 0.0))
+    FSd = max(FSd_mesas - V_col, 0.0)               # cisalhamento liquido do painel
     V_Rd, Vpl = _Vrd_painel(caso["dc"], caso["tw_col"], fy)
     Npl = caso["Ag_col"] * fy
     N_Sd = abs(caso.get("N_Sd", 0.0))
     reduz = N_Sd > 0.4 * Npl
     F_Rd = V_Rd * (1.4 - N_Sd / Npl) if reduz else V_Rd
     F_Rd = max(F_Rd, 0.0)
-    return {"FSd": FSd, "V_Rd": V_Rd, "Vpl": Vpl, "Npl": Npl, "N_Sd": N_Sd,
+    return {"FSd": FSd, "FSd_mesas": FSd_mesas, "V_col": V_col,
+            "V_Rd": V_Rd, "Vpl": Vpl, "Npl": Npl, "N_Sd": N_Sd,
             "F_Rd": F_Rd, "reduz_axial": reduz,
             "u_painel": FSd / F_Rd if F_Rd > 0 else float("inf")}
 
 
 def dimensiona_doubler(FSd, F_Rd, dc, fy):
-    """5.7.7.2 - chapa(s) de reforco da alma. Dimensiona a espessura TOTAL de
-    reforco (dois lados) que cobre o excesso de cortante (FSd - F_Rd), por 5.4:
-    0,6 fy dc t_dob / gamma_a1 >= FSd - F_Rd. Retorna t_dob em mm (0 se nao precisa)."""
+    """5.7.7.2 - chapa(s) de reforco da alma. Espessura TOTAL de reforco que atende
+    ao MAIOR entre:
+      (a) RESISTENCIA (5.4): 0,6 fy dc t / gamma_a1 >= FSd - F_Rd ;
+      (b) ESTABILIDADE (5.4.3.1.1): a chapa nao pode ser esbelta ao cisalhamento -
+          dc/t <= lambda_p = 1,10 sqrt(kv E/fy), kv=5 (sem enrijecedores). Logo
+          t >= dc / lambda_p (senao a chapa flamba antes de escoar).
+    O criterio AISC imperial (hw/418 sqrt(fy)) NAO e adotado - nao e normativo na NBR;
+    a exigencia equivalente e a esbeltez de 5.4.3. Retorna t (mm, 0 se nao precisa)."""
     excesso = FSd - F_Rd
     if excesso <= 0:
         return 0.0
-    t = excesso * GA1 / (0.6 * fy * dc)          # m
-    return math.ceil(t * 1000.0)                  # mm, arredonda p/ cima
+    t_forca = excesso * GA1 / (0.6 * fy * dc)                 # m (resistencia)
+    lam_p = 1.10 * math.sqrt(5.0 * E / fy)                    # 5.4.3.1.1 (kv=5)
+    t_esbeltez = dc / lam_p                                    # m (estabilidade)
+    return math.ceil(max(t_forca, t_esbeltez) * 1000.0)       # mm, arredonda p/ cima
 
 
 def estados_locais(caso):
@@ -98,6 +113,8 @@ def estados_locais(caso):
     do pilar). Retorna dict por estado + precisa_enrijecedor.
       5.7.2.2 flexao local da mesa (tracao)    : 6,25 tf^2 fy / GA1
       5.7.3.2 escoamento local da alma          : 1,10 (a*k + ln) fy tw / GA1
+      5.7.4.2 enrugamento da alma (web crippling): 0,66 tw^2 [1+3(ln/d)(tw/tf)^1,5]
+                                                   sqrt(E fy tf/tw) / GA1
       5.7.6.2 flambagem da alma por compressao  : 24 tw^3 sqrt(E fy) / (h GA1)
     A forca concentrada = FSd (mesma das mesas da viga)."""
     fy = caso["fy"]
@@ -114,10 +131,17 @@ def estados_locais(caso):
     if caso.get("extremidade"):
         Ff_flex *= 0.5                                         # 5.7.2.3
     Ff_esc = 1.10 * (a_k * k + ln) * fy * tw_c / GA1           # 5.7.3.2
+    # 5.7.4.2 enrugamento da alma (web crippling). Coef 0,66 (interior, dist >= d/2);
+    # 0,33 na extremidade (5.7.4.2 b, ln/d <= 0,2). NBR = 0,66/0,33 (nao 0,80 do AISC).
+    coef_cr = 0.33 if caso.get("extremidade") else 0.66
+    Ff_cripp = (coef_cr * tw_c ** 2 / GA1 *
+                (1.0 + 3.0 * (ln / dc) * (tw_c / tf_c) ** 1.5) *
+                math.sqrt(E * fy * tf_c / tw_c))               # 5.7.4.2
     Ff_flamb = 24.0 * tw_c ** 3 * math.sqrt(E * fy) / (h * GA1)  # 5.7.6.2
     if caso.get("extremidade"):
         Ff_flamb *= 0.5                                        # 5.7.6.3
     estados = {"flexao_local_mesa": Ff_flex, "escoamento_local_alma": Ff_esc,
+               "enrugamento_alma": Ff_cripp,
                "flambagem_alma_compressao": Ff_flamb}
     governa = min(estados, key=estados.get)
     F_min = estados[governa]
@@ -155,7 +179,9 @@ def relatorio_pt(r, caso):
              caso["M_Sd"], caso.get("N_Sd", 0.0), caso["fy"] / 1000),
          "",
          "  CISALHAMENTO DO PAINEL (5.7.7):",
-         "    FSd (mesas da viga) = M/dm = %.1f kN" % r["FSd"],
+         "    forca das mesas M/dm = %.1f kN ; V_col (no) = %.1f kN" % (
+             r.get("FSd_mesas", r["FSd"]), r.get("V_col", 0.0)),
+         "    FSd liquido do painel (M/dm - V_col) = %.1f kN" % r["FSd"],
          "    V_Rd (painel, 5.4.3) = %.1f kN" % r["V_Rd"],
          "    Npl = Ag.fy = %.1f kN ; N_Sd/0,4Npl -> %s" % (
              r["Npl"], "reduz F_Rd" if r["reduz_axial"] else "sem reducao"),
@@ -169,6 +195,7 @@ def relatorio_pt(r, caso):
     L += ["", "  ESTADOS LOCAIS SOB AS MESAS (forca concentrada = FSd):",
           "    flexao local da mesa (5.7.2)      = %.1f kN" % loc["estados"]["flexao_local_mesa"],
           "    escoamento local da alma (5.7.3)  = %.1f kN" % loc["estados"]["escoamento_local_alma"],
+          "    enrugamento da alma (5.7.4)       = %.1f kN" % loc["estados"]["enrugamento_alma"],
           "    flambagem da alma compr. (5.7.6)  = %.1f kN" % loc["estados"]["flambagem_alma_compressao"],
           "    governante = %s ; u_local = %.2f" % (loc["governa"], loc["u_local"])]
     if loc["precisa_enrijecedor"]:

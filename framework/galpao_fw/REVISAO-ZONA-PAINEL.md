@@ -5,10 +5,18 @@ ficou no backlog: verificação do **painel de alma do pilar no nó rígido viga
 (joelho)** e a decisão de chapa de reforço (doubler) e/ou enrijecedores. Fase 6.5.
 Criado 2026-07-11.
 
-> **STATUS: A REVISAR (sênior).** Módulo novo `zona_painel.py`. Base normativa lida
-> **verbatim** do PDF `pesquisa/aço/nbr8800_2008_1.pdf` (zero-erro-de-método).
-> Aplica a **todo pórtico de nó rígido** (prismático + alma variável); a tesoura
-> (biapoiada, sem joelho) não dispara.
+> **STATUS: A REVISAR (parecer 1 respondido).** Módulo novo `zona_painel.py`. Base
+> normativa lida **verbatim** do PDF `pesquisa/aço/nbr8800_2008_1.pdf`. Aplica a
+> **todo pórtico de nó rígido** (prismático + alma variável); a tesoura não dispara.
+
+## Parecer sênior 1 — respostas
+
+| Pt | Alegação | Veredito / ação |
+|---|---|---|
+| A | `FSd = M/dm` deveria abater `V_col` (equilíbrio do painel nodal) | **PROCEDENTE — implementado.** `FSd = M/dm − V_col` (V_col = cortante do pilar no nó, já disponível = `kV`). NBR 5.7.7.1 define FSd como força das mesas (M/dm); o abatimento de `V_col` é o refino mecânico (AISC J10.6/Bellei), a favor da economia. Ponte: 1053→989 kN, u 1,27→1,19. |
+| B | Capacidade + redução axial | **Correto** (sênior confirmou). Sem ação. |
+| C | Falta o **enrugamento da alma** (web crippling) | **PROCEDENTE — adicionado §5.7.4.** (O sênior citou "§5.7.5" e coef "0,80"; no PDF **§5.7.4** e coef **0,66** interior / 0,33 extremidade — `Ff = 0,66·tw²[1+3(ln/d)(tw/tf)^1,5]√(E·fy·tf/tw)/γa1`.) |
+| D | Doubler pode flambar por cisalhamento (esbeltez) | **PROCEDENTE — implementado por critério NBR.** A fórmula `hw/418√fy` do parecer é **AISC imperial** (não normativa na NBR); usei a esbeltez de **§5.4.3.1.1**: `t ≥ dc/λp`, `λp = 1,10√(kv·E/fy)`, kv=5. `dimensiona_doubler` retorna `max(t_força, t_esbeltez)`. Ponte: doubler 3→8 mm. |
 
 ## Base normativa (NBR 8800:2008, lida do PDF)
 

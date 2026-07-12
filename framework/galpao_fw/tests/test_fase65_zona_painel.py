@@ -73,6 +73,39 @@ def test_alma_espessa_passa():
     assert r["u_painel"] < 1.0
 
 
+def test_fsd_abate_vcol():
+    # parecer 35 ponto A: FSd liquido do painel = M/dm - V_col (equilibrio nodal)
+    import zona_painel as zp
+    c = _caso_pilar(M=180.0)
+    r0 = zp.cisalhamento_painel(c)                       # sem V_col
+    c2 = dict(c); c2["V_col"] = 50.0
+    r1 = zp.cisalhamento_painel(c2)                      # com V_col
+    assert abs(r1["FSd"] - (r0["FSd_mesas"] - 50.0)) < 1e-6, "FSd deve abater V_col"
+    assert r1["FSd"] < r0["FSd"], "V_col alivia a demanda do painel"
+
+
+def test_enrugamento_alma_presente():
+    # parecer 35 ponto C: estado-limite de enrugamento da alma (web crippling, 5.7.4)
+    import zona_painel as zp
+    r = zp.verifica_painel(_caso_pilar())
+    assert "enrugamento_alma" in r["local"]["estados"], "falta o enrugamento (5.7.4)"
+    assert r["local"]["estados"]["enrugamento_alma"] > 0
+
+
+def test_doubler_trava_esbeltez():
+    # parecer 35 ponto D: doubler nao pode ser esbelto ao cisalhamento (5.4.3).
+    # t_min por esbeltez = dc/lambda_p; um deficit minimo de forca ainda deve dar
+    # uma chapa nao-esbelta.
+    import zona_painel as zp
+    import math, check_nbr8800 as ck
+    dc, fy = 0.19, 250e3
+    # excesso pequeno -> t por forca seria minusculo; a esbeltez deve elevar
+    t = zp.dimensiona_doubler(FSd=1.0, F_Rd=0.0, dc=dc, fy=fy)  # excesso 1 kN
+    lam_p = 1.10 * math.sqrt(5.0 * ck.E / fy)
+    t_esb = dc / lam_p * 1000.0
+    assert t >= math.floor(t_esb), "doubler deve respeitar a esbeltez minima (5.4.3)"
+
+
 def test_estados_locais_mesa_fina():
     import zona_painel as zp
     # mesa do pilar fina -> flexao local da mesa (5.7.2) / flambagem (5.7.6) estoura
