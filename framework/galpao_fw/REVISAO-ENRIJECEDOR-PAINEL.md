@@ -6,8 +6,12 @@ transversais no painel do joelho (comum em pórtico tapered) a NBR 8800 **§5.4.
 admite almas mais esbeltas e eleva a **força cortante resistente** via `kv`. Fase 6.13.
 Criado 2026-07-13.
 
-> **STATUS: ✅ PARECER RESPONDIDO (aguarda confirmação)** (2026-07-13). Escrutínio
-> matemático **validou** curva de cisalhamento (1,10/1,37; continuidade
+> **STATUS: ✅ HOMOLOGADO — APROVADO COM LOUVOR, LIBERADO PARA MERGE** (2026-07-13).
+> Parecer final: "matematicamente exato e normativamente irrepreensível"; ambas as
+> refutações (eixo I singelo = plano médio NBR; §5.4.3.2 ≠ tension field) confirmadas;
+> `a_min→a_max` acolhida; `ist_singelo` opt-in elogiado ("supra-sumo do bom
+> julgamento de engenharia"). Escrutínio matemático **validou** curva de cisalhamento
+> (1,10/1,37; continuidade
 > `1,24·(1,10/1,37)² ≈ 1,10/1,37 ≈ 0,80`), condições de `kv` e `Aw=d·tw`. **3
 > apontamentos:** (1) nomenclatura `a_min→a_max` **ACOLHIDA** (bug real de nome); (2)
 > eixo de inércia singelo×par — **norma REFUTADA** (NBR §5.4.3.1.3c diz *plano médio*

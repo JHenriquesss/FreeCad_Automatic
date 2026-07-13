@@ -21,7 +21,11 @@ Os 2 resíduos NÃO-bug do [[#T10]] fechados na implementação — ver [[04-dec
 §5.4.3.1.3; relaxa cap h/tw≤260 do Anexo H). **6.14/item 44:** DG25 full (`dg25_ltb.py`
 estendido: Cb tapered, Rpc/Rpg, Mn nominal 3 regiões; `cross_check_capacidade`, Cb não
 cancela). Ambos INFORMATIVOS. `REVISAO-ENRIJECEDOR-PAINEL.md` + `REVISAO-DG25-FULL.md`
-prontos; **REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER**. Achado honesto: prismático
+prontos. **Item 43 ✅ HOMOLOGADO — APROVADO COM LOUVOR (2026-07-13):** parecer apontou
+3 pts; `a_min→a_max` acolhido (bug de nome), 2 refutados com PDF (eixo I singelo =
+plano médio NBR §5.4.3.1.3c p/ ambos, ≠ AISC G2.2; §5.4.3.2 = tubular, ≠ tension field
+— NBR 8800:2008 não tem campo de tração); `ist_singelo` (eixo-face, conservador)
+adicionado como opt-in. **Item 44 ⏳ AGUARDA PARECER.** Achado honesto: prismático
 capacidade 0,951 (inelástica White-Kim ≠ Anexo G ~5%).
 **Backlog residual (não bug):** FLB/TFY/ruptura do DG25 (§5.4.4/5/6) se o sênior quiser o
 envelope DG25 completo dos 5 estados-limite; enrijecedor de apoio (§5.7.4); campo de
