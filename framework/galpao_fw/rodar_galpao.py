@@ -44,6 +44,7 @@ import ponte_rolante as pr
 import console_ponte as cons
 import zona_painel as zpn
 import flt_misula as fltm
+import dg25_ltb as dg25
 import alma_esbelta as ae
 import tensao_ponto as tsp
 import cortante_tapered as cta
@@ -607,6 +608,13 @@ def rodar(params, out_dir):
                                "u": rj["util"], "secao_critica": rj["secao_critica"]}
         u_flt = max((f["u"] for f in flt.values()), default=0.0)
         flt_sec_crit = next(iter(flt.values()), {}).get("secao_critica")
+        # CROSS-CHECK DG25 (validacao INFORMATIVA; nao altera dimensionamento). Compara
+        # o M_eLTB elastico do DG25 (secao do MEIO, 5.4.3) com o Mcr do NBR Anexo J
+        # (secao mais funda, J.4.2). Lb do regime que governa a FLT.
+        cc_raf = None
+        if segs_flt and flt:
+            Lb_gov = max(flt.values(), key=lambda f: f["u"])["Lb"]
+            cc_raf = dg25.cross_check_flt(segs_flt, params["fy"], Lb_gov, Cb=cb_raf)
         # relatorio
         L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
               "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -646,6 +654,17 @@ def rodar(params, out_dir):
               "         racional (J.4.1, 5.4.2.3a), demanda na secao de max M/Wx. O",
               "         fator gamma (AISC DG25) NAO e adotado - nao e normativo na NBR.",
               "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
+        if cc_raf is not None:
+            L += ["  [CROSS-CHECK DG25 (informativo, nao-normativo)] M_eLTB elastico "
+                  "AISC DG25 5.4.3:",
+                  "         M_eLTB(secao MEIO h=%.0fmm)=%.1f kN.m ; Mcr(NBR Anexo J, "
+                  "secao FUNDA h=%.0fmm)=%.1f kN.m" % (
+                      cc_raf["sec_meio"], cc_raf["M_dg"], cc_raf["sec_funda"],
+                      cc_raf["M_nbr"]),
+                  "         razao DG25/NBR = %.3f -> %s (tol +-%.0f%%). NAO altera o "
+                  "dimensionamento (segue a NBR)." % (
+                      cc_raf["razao"], "CONVERGE" if cc_raf["converge"] else "DIVERGE",
+                      cc_raf["tol"] * 100)]
         # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
         # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
         # + FLT de TRECHO (member-level) com a secao mais funda da coluna (o joelho).
@@ -682,6 +701,8 @@ def rodar(params, out_dir):
                 else {"util": 0.0, "Cb": 1.0}
             u_col_flt = rj_c["util"]
             cb_col = rj_c["Cb"]
+            cc_col = dg25.cross_check_flt(segs_col_flt, params["fy"], Lb_col,
+                                          Cb=cb_col) if segs_col_flt else None
             # COMPRESSAO GLOBAL da coluna (Anexo J.3): a verificacao por segmento usa
             # L=L_seg (~0,75 m) e NAO captura a flambagem GLOBAL por flexao ao longo
             # dos ~H metros. J.3 exige Nc,Rd pela secao de MENOR altura (base) com o
@@ -741,13 +762,21 @@ def rodar(params, out_dir):
                       "juncao mesa-alma; govs a/b/c/d + vonMises): %.2f (gov %s ; "
                       "von Mises=%.2f)" % (u_col_5523, r5523["gov"], r5523["u_vm"])]
             L += ["     GOVERNANTE = %.2f (%s)" % (u_col_geral, _gov_nome)]
+            if cc_col is not None:
+                L += ["     [cross-check DG25 (informativo)] M_eLTB(meio h=%.0fmm)=%.1f "
+                      "; Mcr(NBR funda h=%.0fmm)=%.1f -> razao=%.3f %s" % (
+                          cc_col["sec_meio"], cc_col["M_dg"], cc_col["sec_funda"],
+                          cc_col["M_nbr"], cc_col["razao"],
+                          "CONVERGE" if cc_col["converge"] else "DIVERGE")]
             col_res = {"util_col_local_max": round(u_col_local, 2),
                        "util_col_flt": round(u_col_flt, 2),
                        "util_col_global": round(u_col_global, 2),
                        "util_col_mv_5523": round(u_col_5523, 2),
                        "interacao_max_col": round(u_col_geral, 2),
                        "cb_misula_col": round(cb_col, 3),
-                       "h_col_base_mm": tp["h_col_base"] * 1000}
+                       "h_col_base_mm": tp["h_col_base"] * 1000,
+                       "dg25_razao_col": round(cc_col["razao"], 3) if cc_col else None,
+                       "dg25_converge_col": cc_col["converge"] if cc_col else None}
         L.append("=" * 66)
         save("gate6-alma-variavel.txt", "\n".join(L))
         res["alma_variavel"] = {
@@ -767,7 +796,9 @@ def rodar(params, out_dir):
             "cortante_mesa_alivio_kN": round(cme_alivio_max, 1),
             "cortante_mesa_creditado": creditar_cme,
             "cortante_mesa_sentido": ("haunch/alivio" if sent_raf >= 0
-                                      else "adverso/acrescimo")}
+                                      else "adverso/acrescimo"),
+            "dg25_razao_raf": round(cc_raf["razao"], 3) if cc_raf else None,
+            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None}
         if col_res:
             res["alma_variavel"].update(col_res)
 

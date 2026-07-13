@@ -1,23 +1,23 @@
 {
-  "phase": "6.11",
-  "phase_name": "vento-por-zona-tesoura",
-  "step": "closed",
+  "phase": "6.12",
+  "phase_name": "dg25-ltb-crosscheck-flt",
+  "step": "ready-to-close",
   "must_exist": [
-    { "id": "me-1", "text": "tesoura: _trib_sup; _P_vento_zonas(t,trib,w_barl,w_sot,w_dead,direction) carga nodal por agua; cargas_vento_zonas wrapper; verifica_tesoura aceita w_vento_zonas com envelope 2 direcoes; ausente->escalar (back-compat); _selftest", "done": true },
-    { "id": "me-2", "text": "consistencia: w_barl==w_sot reproduz escalar; cargas nodais diferem entre metades quando w_barl!=w_sot; cumeeira agua mais desfavoravel", "done": true },
-    { "id": "me-3", "text": "rodar_galpao: net_barl/net_sot (min por Cpi) -> w_vento_zonas; reporta w_vento_barl/sot/uniforme + back-compat w_vento_auto/usado/fonte; override manual preservado", "done": true },
-    { "id": "me-4", "text": "REVISAO-VENTO-ZONA-TESOURA.md (Tabela 5 EF/GH simultaneos; min-uniforme superconservador; economia u 1.04->0.96) + INDICE item 41; nao-regressao (6.7 + 6.c build)", "done": true }
+    { "id": "me-1", "text": "dg25_ltb.py: hc/ho/aw; rt (5.4-11); J_dg (5.4-12 slender->0); f_eltb (5.4-10 F4-5); m_eltb=Cb F_eLTB Sxc; puro sem numpy; _selftest (prismatico razao 0.998)", "done": true },
+    { "id": "me-2", "text": "cross_check_flt(segs,fy,Lb,Cb,tol): DG25 M_eLTB (secao MEIO) x NBR Mcr (secao FUNDA J.4.2); razao + converge; Cb cancela", "done": true },
+    { "id": "me-3", "text": "rodar_galpao: cross-check FLT rafter+coluna tapered; memorial + res dg25_razao_raf/col; UTILIZACAO INTOCADA (so reporta)", "done": true },
+    { "id": "me-4", "text": "REVISAO-DG25-CROSSCHECK.md (5.4.3 verbatim imagem; meio x funda; AISC informativo) + INDICE item 42; nao-regressao (nenhuma util muda; build)", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "inventar Cpe (usa cpe_telhado/vr[net] homologados, Tabela 5)", "violated": false },
-    { "id": "mne-2", "text": "perder envoltoria das 2 direcoes de vento (envelope +1/-1)", "violated": false },
-    { "id": "mne-3", "text": "quebrar back-compat (escalar w_vento_kN_m e chaves do item 37 preservados)", "violated": false },
-    { "id": "mne-4", "text": "usar Cpe LOCAL de borda/canto (cpe_medio) na tesoura (usa Cpe global por agua)", "violated": false },
-    { "id": "mne-5", "text": "erro na tributaria da cumeeira (no do apice 2x ou omitido)", "violated": false }
+    { "id": "mne-1", "text": "DG25 alterar utilizacao/dimensionamento (interacao_max byte-identico ao 6.11; so reporta)", "violated": false },
+    { "id": "mne-2", "text": "coeficiente inventado (5.4-10/11/12 + hc/aw/ho verbatim pg 60-61; 0.078/5.70/0.63)", "violated": false },
+    { "id": "mne-3", "text": "comparar secoes distintas sem explicitar (meio x funda aparece no relatorio)", "violated": false },
+    { "id": "mne-4", "text": "usar numpy (modulo puro, importavel no build)", "violated": false },
+    { "id": "mne-5", "text": "alarme falso em ~prismatico (h1~h2 -> razao~1 CONVERGE)", "violated": false }
   ],
   "current_item": "me-4",
   "trunk_status": "pass",
-  "trunk_evidence": "fase6.11 8/8; 6.7+6.11 15 passed; economia real: uniforme-pior u=1.04 REPROVA -> por zona u=0.956 PASSA (w_barl=-7.97, w_sot=-5.72); back-compat item 37 restaurada (w_vento_auto/usado/fonte); regressao fase-6 completa em curso.",
+  "trunk_evidence": "fase6.12 9/9; prismatico razao DG25/NBR=0.998 (F4-5 == F2, base sa); tapered DIVERGE 0.544 rafter/0.447 coluna (secao meio x funda, nao erro de util - NBR auto-consistente); utilizacao byte-identica ao 6.11 (so reporta); regressao tapered+build em curso.",
   "opened_at": "2026-07-12",
   "last_tune_at": null,
   "history": [
