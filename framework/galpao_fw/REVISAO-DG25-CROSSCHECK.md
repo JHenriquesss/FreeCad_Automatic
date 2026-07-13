@@ -5,12 +5,14 @@ Conferência do sênior. Fecha a **dívida (b)** do backlog do parecer 6.b como
 trecho de barra afunilada pelo **AISC Design Guide 25 §5.4.3** e compara com o `Mcr`
 do **NBR 8800 Anexo J**. Fase 6.12. Criado 2026-07-12.
 
-> **STATUS: ✅ HOMOLOGADO (validação; 2 esclarecimentos)** (2026-07-12). Parecer:
+> **STATUS: ✅ HOMOLOGADO (validação; parecer + follow-up)** (2026-07-12). Parecer:
 > **"aprovado para integração"** — fórmulas `F_eLTB` (F4-5), `rt` (F4-11), `J`
 > (com fator de Roark `1−0,63 t/b`) **impecáveis** vs AISC 360-16 / DG25 / Salmon &
-> Johnson. O sênior **confirmou** a origem do fator ~0,5 (razão `(h_meio/h_max)²≈0,562`
-> vs meu 0,544 — decaimento quadrático de `Sx∝h²`; "não é falso alarme"). **É
-> VALIDAÇÃO, não dimensionamento** — utilização segue **100% NBR Anexo J** (item 36).
+> Johnson. O fator ~0,5 (razão 0,544) vem de **efeitos não-lineares combinados** da
+> redução do módulo `Sx` (parte linear das mesas + quadrática da alma) **e** da
+> constante de empenamento `Cw` (estritamente quadrática) entre a seção do meio e a
+> funda — não de um `Sx∝h²` puro (mea-culpa do sênior no follow-up). **É VALIDAÇÃO,
+> não dimensionamento** — utilização segue **100% NBR Anexo J** (item 36).
 
 ## Parecer sênior — respostas
 
@@ -18,11 +20,20 @@ do **NBR 8800 Anexo J**. Fase 6.12. Criado 2026-07-12.
 |---|---|---|
 | **1 (mat.)** | `F_eLTB`, `rt`, `J` (Roark) transcritos verbatim, corretos | **APROVADO** — "impecável / rigorosamente correto"; `0,078≈1/(2(1+ν)π²)` p/ ν=0,3. Sem ação. |
 | **2 (Cb)** | "Cb cancela na razão" **não é universal** — o Cb tapered do DG25 (5.4-2, γ_eLTB) ≠ Cb do Anexo J; só cancela porque o teste usa o MESMO Cb dos dois lados | **ACATADO (esclarecido).** Documentado no `cross_check_flt` e no `test_razao_independe_de_cb` que o cancelamento é **premissa de teste** (Cb idêntico dos dois lados p/ isolar a diferença GEOMÉTRICA da seção), não propriedade intrínseca da formulação completa. |
-| **3 (~0,5)** | Origem do 0,544 é a seção de referência (meio×funda), não erro | **CONFIRMADO pelo sênior** — `(0,675/0,90)²≈0,562`, "obedece às leis da mecânica"; comparar momentos absolutos meio×funda é "maçãs com laranjas"; cada norma é um pacote fechado. Sem ação. |
+| **3 (~0,5)** | Origem do 0,544 é a seção de referência (meio×funda), não erro | **CONFIRMADO** — a razão é real; comparar momentos absolutos meio×funda é "maçãs com laranjas"; cada norma é um pacote fechado. Sem ação. |
 
-Nenhum bug. Fórmulas aprovadas; a única nota (Cb) foi esclarecida como premissa de
-teste na documentação (lógica intocada). DIVERGE mantido no memorial como **alerta
-visual** ao projetista (tapers fortes têm comportamento localizado complexo).
+### Follow-up (2º parecer do item 42)
+
+| Pt | Observação | Veredito / ação |
+|---|---|---|
+| **F1 (Sx∝h²)** | Justificar por `Sx∝h²` puro é impreciso — em I, `Sx≈Af·ho + tw·hw²/6` (parte **linear** das mesas + **quadrática** da alma); o 0,544 vem do efeito combinado `Sx` + `Cw` | **ACATADO (reformulado).** Banner e nota trocam "decaimento quadrático `Sx∝h²`" por "efeitos não-lineares combinados de `Sx` e `Cw`". |
+| **F2 (rt: h²=hc)** | Garantir que o `h²` da F4-11 seja a **altura livre da alma** (`hc=hw`), NÃO a total `d` | **VERIFICADO — já correto.** `rt()`: `h = hc(sec) = d−2tf = hw`; `h**2 = hc²`. O `d` aparece só em `ho/d` e `/(ho·d)` (altura total, conforme F4-10). Sem bug. |
+| **F3 (Iyc/Iy≤0,23→J=0)** | Gatilho impecável (fora da faixa F4 → comporta-se como T/F9) | **APROVADO** pelo sênior. Sem ação. |
+| **F4 (tol=0,20)** | Adequado para separar CONVERGE/DIVERGE? | **Adequado.** Prismático 0,998 (converge) × tapered 0,544 (diverge) — separação folgada; `tol` é limiar de **relato informativo**, não de dimensionamento. Parametrizável na assinatura. |
+
+Nenhum bug. Fórmulas aprovadas (rt confirmado com `hc`); notas de documentação
+esclarecidas (Cb premissa de teste; `Sx`/`Cw` não-linear). DIVERGE mantido no memorial
+como **alerta visual** ao projetista (tapers fortes têm comportamento localizado complexo).
 
 ## O que o cross-check faz
 

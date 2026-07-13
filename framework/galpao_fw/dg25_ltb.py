@@ -54,9 +54,12 @@ def aw(sec):
 
 
 def rt(sec):
-    """Raio de giracao efetivo rt (5.4-11 / Spec. F4-10), I duplo-simetrico."""
+    """Raio de giracao efetivo rt (5.4-11 / Spec. F4-10), I duplo-simetrico.
+    ATENCAO (parecer item 42 F2): o 'h' que vai ao QUADRADO e a ALTURA LIVRE DA ALMA
+    (hc = hw = d-2tf), NAO a altura total d. O d aparece so em ho/d e /(ho*d)."""
     d, bf = sec["d"], sec["bf"]
-    h = hc(sec); ho_ = ho(sec); aw_ = aw(sec)
+    h = hc(sec)                                        # altura livre da alma (hw), NAO d
+    ho_ = ho(sec); aw_ = aw(sec)
     return bf / math.sqrt(12.0 * (ho_ / d + (1.0 / 6.0) * aw_ * h ** 2 / (ho_ * d)))
 
 
