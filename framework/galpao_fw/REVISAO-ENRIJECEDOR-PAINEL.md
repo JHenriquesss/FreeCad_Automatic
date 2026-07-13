@@ -6,11 +6,24 @@ transversais no painel do joelho (comum em pórtico tapered) a NBR 8800 **§5.4.
 admite almas mais esbeltas e eleva a **força cortante resistente** via `kv`. Fase 6.13.
 Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDA PARECER.** Módulo `enrijecedor_painel.py` novo; método lido
-> **verbatim** da NBR 8800:2008 §5.4.3.1 (pág 50–51, imagens renderizadas). Cortante
-> com `kv = 5 + 5/(a/h)²`, requisitos do enrijecedor §5.4.3.1.3, relaxamento do cap
-> 260 do Anexo H quando `a/h ≤ 3`. **INFORMATIVO/opt-in** — não muda a utilização a
-> menos que o engenheiro adote os enrijecedores.
+> **STATUS: ✅ PARECER RESPONDIDO (aguarda confirmação)** (2026-07-13). Escrutínio
+> matemático **validou** curva de cisalhamento (1,10/1,37; continuidade
+> `1,24·(1,10/1,37)² ≈ 1,10/1,37 ≈ 0,80`), condições de `kv` e `Aw=d·tw`. **3
+> apontamentos:** (1) nomenclatura `a_min→a_max` **ACOLHIDA** (bug real de nome); (2)
+> eixo de inércia singelo×par — **norma REFUTADA** (NBR §5.4.3.1.3c diz *plano médio*
+> para AMBOS, verbatim; o eixo-na-face é AISC 360 G2.2), **mérito mecânico ACOLHIDO**
+> (adicionado `ist_singelo` no eixo-da-face como conservador); (3) campo de tração —
+> **REFUTADO** (§5.4.3.2 é *"Seções tubulares retangulares e caixão"*, não tension
+> field; NBR 8800:2008 **não tem** cláusula de campo de tração; redação refinada).
+
+## Parecer sênior — respostas
+
+| Pt | Apontamento | Veredito / ação |
+|---|---|---|
+| **Acertos** | Curva cisalhamento (1,10/1,37, continuidade ≈0,80), travas de `kv`, `Aw=d·tw` | **CONFIRMADOS.** Sem ação. |
+| **1 (nome)** | `a_min_para_vsd` retorna o espaçamento **máximo** (maior `a` com `V_Rd≥V_Sd`); nome contraria a física | **ACOLHIDO — bug de nomenclatura.** Renomeado `a_max_para_vsd` (módulo, `rodar_galpao`, teste). Docstring reforça "limite superior admissível". |
+| **2 (eixo I)** | "Divergência normativa": singelo deveria ter I em relação à **face** da alma, não ao plano médio | **NORMA REFUTADA + MÉRITO ACOLHIDO.** NBR 8800:2008 §5.4.3.1.3c, **verbatim** (pág 51): *"inércia da seção de um enrijecedor singelo **ou** de um par… **em relação ao eixo no plano médio da alma**"* — a NBR usa **plano médio para AMBOS**. O eixo-na-face para singelo é **AISC 360 G2.2**, não a NBR. Porém o mérito mecânico é válido (plano médio superestima I no singelo assimétrico): adicionado `ist_singelo` = `t·b³/3` (eixo na face, **conservador**), selecionável por `disposicao='singelo'`. Ficar mais conservador que a NBR é sempre admissível. |
+| **3 (tração)** | "NBR não inclui" seria falsa premissa; campo de tração estaria em §5.4.3.2 | **REFUTADO.** NBR 8800:2008 **§5.4.3.2** (verbatim, pág 51) = *"Seções tubulares retangulares e caixão"*, **não** campo de tração. A NBR 8800:2008 **não possui** cláusula de tension field em §5.4.3 (.1 I/H/U · .2 tubular · .3 T · .4 cantoneiras · .5 I/H/U eixo-mesas · .6 tubular circular) — ao contrário do **AISC 360 G3**. FLAG mantido; **redação refinada** para "a NBR 8800:2008 não contempla campo de tração (≠ AISC G3)". |
 
 ## Contexto — o TODO que esta fase fecha
 
@@ -55,7 +68,7 @@ kv = 5 + 5/(a/h)²      para todos os outros casos
 |---|---|
 | **a** | soldado à alma e às mesas; interrupção do lado tracionado entre `4tw` e `6tw` |
 | **b** | (largura/espessura) do enrijecedor `≤ 0,56·√(E/fy)` |
-| **c** | `I_st ≥ a·tw³·j`, com `j = [2,5/(a/h)²] − 2 ≥ 0,5` (inércia da seção do enrijecedor — singelo ou par — em relação ao eixo no plano médio da alma) |
+| **c** | `I_st ≥ a·tw³·j`, com `j = [2,5/(a/h)²] − 2 ≥ 0,5`. NBR **verbatim**: inércia do enrijecedor **singelo OU par** em relação ao eixo no **plano médio da alma** (para ambos). Módulo adota, para o singelo, o eixo **na face** (`t·b³/3`, conservador — AISC 360 G2.2) como *safe-side* opcional |
 
 Coeficientes `5 / 5 / 260 / 0,56 / 2,5 / 4tw / 6tw` lidos verbatim (mne-1).
 
@@ -68,9 +81,10 @@ Coeficientes `5 / 5 / 260 / 0,56 / 2,5 / 4tw / 6tw` lidos verbatim (mne-1).
 | `vrd(sec, fy, a)` | §5.4.3.1.1 — três domínios; `a=None` reproduz o cortante de `check_nbr8800` (kv=5) |
 | `j_rigidez(a_h)` | §5.4.3.1.3c — `[2,5/(a/h)²]−2 ≥ 0,5` |
 | `ist_req(sec, a)` | §5.4.3.1.3c — `a·tw³·j` |
-| `ist_par(sec, b_st, t_st)` | inércia de um par de enrijecedores em relação ao plano médio (conservador) |
-| `requisitos_enrijecedor(...)` | §5.4.3.1.3 a/b/c → `OK` global |
-| `a_min_para_vsd(sec, fy, Vsd)` | maior `a` (menos enrijecedores) que faz `V_Rd(a) ≥ V_Sd` |
+| `ist_par(sec, b_st, t_st)` | par (um de cada lado), eixo **plano médio** = `t·(2b+tw)³/12` (NBR verbatim) |
+| `ist_singelo(sec, b_st, t_st)` | singelo (um lado), eixo **na face** = `t·b³/3` (conservador, AISC-aligned — safe-side vs NBR) |
+| `requisitos_enrijecedor(..., disposicao)` | §5.4.3.1.3 a/b/c → `OK`; `disposicao='par'\|'singelo'` |
+| `a_max_para_vsd(sec, fy, Vsd)` | **maior** `a` admissível (espaçamento **máximo**, menos enrijecedores) com `V_Rd(a) ≥ V_Sd` |
 
 Puro (sem numpy — importável no build headless). `_selftest`.
 
@@ -111,18 +125,23 @@ dimensionamento do reforço, adotado pelo engenheiro (mne-2).
 | `test_bt_limite_verbatim` | `0,56√(E/fy)` |
 | `test_anexo_h_cap_260_relaxado_com_enrijecedor` | cap 260 dispensado com `a/h≤3` |
 | `test_aw_afc_ainda_limita` | `Aw/Afc>10` reprova mesmo com `a` |
-| `test_a_min_para_vsd` | busca do `a` que atende `V_Sd` |
+| `test_a_max_para_vsd` | espaçamento **máximo** admissível (a maior falha) |
+| `test_ist_singelo_conservador_vs_par` | singelo (face) < par (plano médio); `disposicao` |
 | `test_selftest_roda` | selftest |
 | `test_integra_reporta_enrijecedor_quando_esbelto` | rodar reporta reforço; util intacta (mne-2) |
 
-15 testes verdes.
+16 testes verdes.
 
 ## FLAGs / backlog
 
 - **Enrijecedores de apoio** (bearing stiffeners sob cargas concentradas, §5.7.4) não
   cobertos aqui — escopo é o enrijecedor **intermediário** de cisalhamento do painel.
-- Contribuição de **campo de tração** (tension field action) NÃO adotada — a NBR
-  8800 §5.4.3.1 não a inclui; `V_Rd` fica no ramo de flambagem por cisalhamento
-  (conservador). Documentado.
+- Contribuição de **campo de tração** (tension field action) NÃO adotada. Motivo: a
+  **NBR 8800:2008 não contempla campo de tração** em §5.4.3 (ao contrário do **AISC
+  360 G3**) — §5.4.3.1 dá apenas os ramos de flambagem elástica/inelástica por
+  cisalhamento, e os subitens seguintes (§5.4.3.2 tubular/caixão, §5.4.3.3 T, etc.)
+  tratam de **outras seções**, não da parcela pós-flambagem de tração diagonal. `V_Rd`
+  fica no ramo convencional (conservador). Refutado o apontamento de que §5.4.3.2
+  seria tension field.
 - Espaçamento `a` **sugerido**, não imposto: a decisão de adotar (e o desenho do
   enrijecedor) é do engenheiro.

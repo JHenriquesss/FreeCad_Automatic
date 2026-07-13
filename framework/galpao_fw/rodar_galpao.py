@@ -453,7 +453,7 @@ def rodar(params, out_dir):
             V_sd_j = abs(kV)
             if ae.e_esbelta(sj, params["fy"]) and \
                enp.vrd(sj, params["fy"], None)["Vrd"] < V_sd_j:
-                a_sug = enp.a_min_para_vsd(sj, params["fy"], V_sd_j)
+                a_sug = enp.a_max_para_vsd(sj, params["fy"], V_sd_j)
                 if a_sug is not None:
                     ve = enp.vrd(sj, params["fy"], a_sug)
                     ireq = enp.ist_req(sj, a_sug)

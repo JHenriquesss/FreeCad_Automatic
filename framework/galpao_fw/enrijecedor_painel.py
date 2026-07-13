@@ -90,35 +90,54 @@ def ist_req(sec, a):
 
 def ist_par(sec, b_st, t_st):
     """Inercia de um PAR de enrijecedores (um de cada lado da alma), retangulos de
-    largura b_st e espessura t_st, em relacao ao eixo no plano medio da alma. O par
-    equivale a uma chapa de largura (2 b_st + tw) e espessura t_st: I = t_st (2 b_st
-    + tw)^3 / 12. Conservador (nao credita a alma)."""
+    largura b_st e espessura t_st, em relacao ao eixo no PLANO MEDIO da alma
+    (§5.4.3.1.3c). O par equivale a uma chapa de largura (2 b_st + tw) e espessura
+    t_st: I = t_st (2 b_st + tw)^3 / 12. Conservador (nao credita a alma)."""
     return t_st * (2.0 * b_st + sec["tw"]) ** 3 / 12.0
 
 
-def requisitos_enrijecedor(sec, a, fy, b_st, t_st, Ist=None):
+def ist_singelo(sec, b_st, t_st):
+    """Inercia de um enrijecedor SINGELO (de um lado so), calculada em relacao a
+    FACE da alma (eixo na face de contato), = t_st b_st^3 / 3. NOTA: a NBR 8800:2008
+    §5.4.3.1.3c refere-se LITERALMENTE ao eixo no PLANO MEDIO da alma tanto para o
+    singelo quanto para o par; porem, para o singelo (assimetrico), o eixo no plano
+    medio SUPERESTIMA a inercia disponivel. Adota-se aqui o eixo na FACE (pratica
+    do AISC 360 G2.2) como CONSERVADOR (I menor -> mais dificil passar), ficando a
+    favor da seguranca em relacao a leitura literal da NBR."""
+    return t_st * b_st ** 3 / 3.0
+
+
+def requisitos_enrijecedor(sec, a, fy, b_st, t_st, Ist=None, disposicao="par"):
     """§5.4.3.1.3 - verifica os requisitos do enrijecedor transversal.
       (a) faixa de interrupcao da solda: 4tw a 6tw (informativo);
       (b) b/t do enrijecedor <= 0,56 sqrt(E/fy);
-      (c) I_st fornecido (ou estimado como par) >= a tw^3 j.
-    Retorna dict com utilizacoes e OK global."""
+      (c) I_st fornecido (ou estimado) >= a tw^3 j.
+    disposicao = 'par' (um de cada lado, eixo plano medio) ou 'singelo' (um lado,
+    eixo na face - conservador). Ist explicito sobrepoe a estimativa."""
     tw = sec["tw"]
     bt = b_st / t_st
     bt_lim = 0.56 * math.sqrt(E / fy)
-    Ist_val = Ist if Ist is not None else ist_par(sec, b_st, t_st)
+    if Ist is not None:
+        Ist_val = Ist
+    elif disposicao == "singelo":
+        Ist_val = ist_singelo(sec, b_st, t_st)
+    else:
+        Ist_val = ist_par(sec, b_st, t_st)
     Ireq = ist_req(sec, a)
     return {"bt": bt, "bt_lim": bt_lim, "bt_ok": bt <= bt_lim,
             "j": j_rigidez(a / _h(sec)), "Ist": Ist_val, "Ist_req": Ireq,
+            "disposicao": disposicao,
             "u_ist": Ireq / Ist_val if Ist_val > 0 else float("inf"),
             "Ist_ok": Ist_val >= Ireq,
             "solda_min": 4.0 * tw, "solda_max": 6.0 * tw,
             "OK": (bt <= bt_lim) and (Ist_val >= Ireq)}
 
 
-def a_min_para_vsd(sec, fy, Vsd, a_lo=0.05, a_hi=None, tol=1e-4):
-    """Menor espacamento a (mais enrijecedores) que faz V_Rd(a) >= Vsd, se possivel.
-    Retorna a (m) ou None se nem a->0 atende (busca por bisseccao decrescente).
-    V_Rd cresce quando a diminui (kv sobe). a_hi default = 3 h (limite a/h<=3)."""
+def a_max_para_vsd(sec, fy, Vsd, a_lo=0.05, a_hi=None, tol=1e-4):
+    """MAIOR espacamento a (espacamento MAXIMO admissivel, menos enrijecedores) que
+    ainda faz V_Rd(a) >= Vsd. Como V_Rd cresce quando a diminui (kv sobe), este e o
+    LIMITE SUPERIOR do espacamento: qualquer a menor tambem atende. Retorna a (m) ou
+    None se nem o espacamento minimo (a_lo) atende. a_hi default = 3 h (limite a/h<=3)."""
     h = _h(sec)
     if a_hi is None:
         a_hi = 3.0 * h
@@ -158,9 +177,11 @@ def _selftest():
     assert r["bt_ok"] and r["Ist_ok"] and r["OK"]
     r_bad = requisitos_enrijecedor(s, a=h, fy=fy, b_st=0.10, t_st=0.004)  # b/t alto
     assert not r_bad["bt_ok"] and not r_bad["OK"]
-    # a_min_para_vsd: alvo entre v0 e o V_Rd de a pequeno
+    # singelo (eixo na face) e mais conservador que par (plano medio)
+    assert ist_singelo(s, 0.075, 0.008) < ist_par(s, 0.075, 0.008)
+    # a_max_para_vsd: alvo entre v0 e o V_Rd de a pequeno
     alvo = 0.5 * (v0 + vrd(s, fy, 0.05)["Vrd"])
-    a_ok = a_min_para_vsd(s, fy, alvo)
+    a_ok = a_max_para_vsd(s, fy, alvo)
     assert a_ok is not None and vrd(s, fy, a_ok)["Vrd"] >= alvo * 0.999
     print("enrijecedor_painel self-test PASSED "
           f"(kv(a=h)={kv(s, h):.1f}, V_Rd {v0:.0f}->{v1:.0f} kN)")

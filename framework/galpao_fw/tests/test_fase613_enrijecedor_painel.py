@@ -136,13 +136,27 @@ def test_aw_afc_ainda_limita():
 
 
 # ==================== me-5: a_min_para_vsd + selftest ==================
-def test_a_min_para_vsd():
+def test_a_max_para_vsd():
     import enrijecedor_painel as enp
     s = _sec(0.95)
     v0 = enp.vrd(s, FY, None)["Vrd"]
     alvo = 0.5 * (v0 + enp.vrd(s, FY, 0.05)["Vrd"])
-    a = enp.a_min_para_vsd(s, FY, alvo)
+    a = enp.a_max_para_vsd(s, FY, alvo)
     assert a is not None and enp.vrd(s, FY, a)["Vrd"] >= alvo * 0.999
+    # espacamento MAXIMO: um pouco maior deve falhar (V_Rd cai abaixo do alvo)
+    assert enp.vrd(s, FY, a * 1.10)["Vrd"] < alvo
+
+
+def test_ist_singelo_conservador_vs_par():
+    import enrijecedor_painel as enp
+    s = _sec(0.95)
+    # singelo (eixo na face, t b^3/3) < par (plano medio) -> mais dificil passar
+    assert enp.ist_singelo(s, 0.075, 0.008) < enp.ist_par(s, 0.075, 0.008)
+    a = s["d"] - 2 * s["tf"]
+    r_par = enp.requisitos_enrijecedor(s, a, FY, 0.075, 0.008, disposicao="par")
+    r_sing = enp.requisitos_enrijecedor(s, a, FY, 0.075, 0.008, disposicao="singelo")
+    assert r_sing["Ist"] < r_par["Ist"]
+    assert r_par["disposicao"] == "par" and r_sing["disposicao"] == "singelo"
 
 
 def test_selftest_roda():
