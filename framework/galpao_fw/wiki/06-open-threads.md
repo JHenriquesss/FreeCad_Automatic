@@ -15,6 +15,21 @@
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
 
+## T11 — balde 3 (dívida e + refino DG25) + itens 43–44 (impl. FECHADA; aguarda parecer 2026-07-13)
+Os 2 resíduos NÃO-bug do [[#T10]] fechados na implementação — ver [[04-decisions#D47]].
+**6.13/item 43:** `enrijecedor_painel.py` (NBR 8800 §5.4.3.1, `kv=5+5/(a/h)²`, requisitos
+§5.4.3.1.3; relaxa cap h/tw≤260 do Anexo H). **6.14/item 44:** DG25 full (`dg25_ltb.py`
+estendido: Cb tapered, Rpc/Rpg, Mn nominal 3 regiões; `cross_check_capacidade`, Cb não
+cancela). Ambos INFORMATIVOS. `REVISAO-ENRIJECEDOR-PAINEL.md` + `REVISAO-DG25-FULL.md`
+prontos; **REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER**. Achado honesto: prismático
+capacidade 0,951 (inelástica White-Kim ≠ Anexo G ~5%).
+**Backlog residual (não bug):** FLB/TFY/ruptura do DG25 (§5.4.4/5/6) se o sênior quiser o
+envelope DG25 completo dos 5 estados-limite; enrijecedor de apoio (§5.7.4); campo de
+tração NÃO adotado (NBR não inclui). `neve` segue não escolhido. **Crane: NÃO é resíduo**
+— 100% homologado (itens 9/29/31).
+Sênior ainda ofereceu auditoria do código puro do `dg25_ltb.py` (tipagem/tol) — se vier,
+aplicar o rito.
+
 ## T10 — balde 2 (dívidas a/b/c/d) + itens 39–42 (FECHADO 2026-07-13)
 **Todas as 4 dívidas técnicas do balde 2 fechadas e homologadas** — ver
 [[04-decisions#D46]]. REVISAO-INDICE.md: **itens 1–42 ✅ HOMOLOGADO, zero PENDENTE**.

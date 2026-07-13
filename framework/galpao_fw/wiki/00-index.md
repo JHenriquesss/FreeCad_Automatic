@@ -13,14 +13,16 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[06-open-threads]] — **HANDOFF (continuar em outro chat)**, T7 pareceres pendentes, PR #1, backlog
 
 ## Estado atual (2026-07-13)
-**25 módulos matemáticos.** Balde 2 do parecer 6.b FECHADO — fases 6.9–6.12, itens
-39–42 HOMOLOGADOS (2026-07-13): M-V no joelho (`tensao_ponto.py`, §5.5.2.3), cortante
-de mesas inclinadas (`cortante_tapered.py`, equilíbrio), vento por zona 90°+0°
-(`tesoura`/`vento_nbr6123`, Tabela 5), cross-check AISC DG25 (`dg25_ltb.py`, validação
-informativa). **REVISAO-INDICE itens 1–42 ✅, zero pendente.** 2 bugs reais acolhidos
-(braço `h_0`; vento 0° longitudinal), 1 refutação com prova (Cpi). Ver
-[[04-decisions#D46]], [[06-open-threads#T10]]. **PENDENTE gate humano:** push da branch
-`revisao/homologacao-12-modulos` (bloqueado p/ assistente) + merge PR.
+**26 módulos matemáticos.** Balde 3 (fases 6.13–6.14) FECHADO na implementação —
+resíduos NÃO-bug (crane já era 100% homologado): **6.13** `enrijecedor_painel.py`
+(NBR 8800 §5.4.3.1, `kv=5+5/(a/h)²`, requisitos §5.4.3.1.3; relaxa cap h/tw≤260 do
+Anexo H) e **6.14** DG25 full (`dg25_ltb.py` estendido: Cb tapered 5.4-1/2, Rpc/Rpg,
+Mn nominal 3 regiões; `cross_check_capacidade` onde Cb NÃO cancela). Ambos INFORMATIVOS
+(dimensionamento segue NBR). **REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER.**
+Achado: prismático capacidade DG25/NBR 0,951 (inelástica White-Kim ≠ Anexo G ~5%).
+Balde 2 (6.9–6.12, itens 39–42) HOMOLOGADO. **REVISAO-INDICE itens 1–42 ✅.**
+Ver [[04-decisions#D46]], [[06-open-threads#T10]]. **PENDENTE gate humano:** merge PR #5
++ pareceres 43–44.
 
 ## Estado anterior (2026-07-10)
 Galpão completo fim-a-fim. **18 módulos matemáticos** (+`nbr8400`) + features, selftest verde. Cálculo homologado (itens 1–27). **Fases 3–5 FECHADAS (2026-07-10):** (3) fundação profunda integrada ao ProjetoSpec + 3D (estaca/bloco/baldrame desenhados; `fundacao.tipo` gate); (4) ponte estendida — rodas motoras + NBR 8400-1:2019 (φ Tab.12 / N Tab.9 do PDF) + gate do fabricante; (5) **corte seccionado hachurado** nos detalhes (blocker T6 resolvido — DrawViewSection headless FreeCAD 1.1). `smoke_executivo` **5/5**. Commits 9ac3c4f→f912e98 na branch `revisao/homologacao-12-modulos`.

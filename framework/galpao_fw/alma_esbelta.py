@@ -77,19 +77,26 @@ def ryt(sec):
     return math.sqrt(Iy / A)
 
 
-def _valida(sec):
+def _valida(sec, a=None):
     """H.1.3 - limites de validade: Aw/Afc <= 10 ; h/tw <= 260.
-    O limite 260 vale para almas SEM enrijecedores transversais (5.3.3.1 / 5.4.3.1.3).
-    TODO: com enrijecedores no painel (comum no joelho), o limite depende de a/h -
-    expandir quando um modulo de enrijecimento do painel tapered for adicionado."""
+    O limite 260 de h/tw vale para almas SEM enrijecedores transversais. Com
+    enrijecedores no painel (comum no joelho tapered), a NBR 8800 §5.4.3.1.1 admite
+    almas mais esbeltas desde que a/h <= 3 (kv = 5 + 5/(a/h)^2 > 5): nesse caso o
+    cap de 260 e substituido pelo provimento dos enrijecedores (ver
+    enrijecedor_painel.requisitos_enrijecedor). Aw/Afc <= 10 continua valendo.
+    a = espacamento dos enrijecedores (m) ou None (sem enrijecedores)."""
     hw = sec["d"] - 2.0 * sec["tf"]
     Aw = hw * sec["tw"]; Afc = sec["bf"] * sec["tf"]
+    if a is not None and (a / hw) <= 3.0:
+        return Aw / Afc <= 10.0                          # enrijecido: cap 260 dispensado
     return (Aw / Afc <= 10.0) and (_lam_alma(sec) <= 260.0)
 
 
-def mrd_alma_esbelta(sec, fy, Lb, Cb=1.0):
+def mrd_alma_esbelta(sec, fy, Lb, Cb=1.0, a=None):
     """M_Rd de viga de alma esbelta (Anexo H) = min(H.2.1, H.2.2 FLT, H.2.3 FLM).
-    Retorna dict: M_Rd (kN.m), gov, fora_validade, kpg, kc, ryT + parcelas."""
+    a = espacamento de enrijecedores transversais (m); relaxa o cap h/tw<=260 da
+    validade (§5.4.3.1.1). Retorna dict: M_Rd (kN.m), gov, fora_validade, kpg, kc,
+    ryT + parcelas."""
     Wx = sec["Wx"]
     kp = kpg(sec, fy)
     rE = math.sqrt(E / fy)
@@ -125,7 +132,7 @@ def mrd_alma_esbelta(sec, fy, Lb, Cb=1.0):
     Mn = min(M_esc, M_flt, M_flm)
     gov = {M_esc: "escoamento_mesa", M_flt: "FLT", M_flm: "FLM"}[Mn]
     return {"M_Rd": Mn / GA1, "Mn": Mn, "gov": gov,
-            "fora_validade": not _valida(sec),
+            "fora_validade": not _valida(sec, a),
             "kpg": kp, "kc": kcf, "ryT": ryt(sec),
             "M_esc": M_esc, "M_flt": M_flt, "M_flm": M_flm, "anexo": "H"}
 

@@ -195,6 +195,19 @@ acolhidos** (braço `h_0` 6.10; vento 0° longitudinal 6.11 — refino removia c
 60–61). REVISAO-INDICE **itens 1–42 ✅**. Ver [[04-decisions#D46]], [[06-open-threads#T10]].
 Commits `6e3551f`→`a18b524`. **Gate humano:** push branch + merge PR (bloqueado p/ assistente).
 
+## FECHADA (impl.) — Balde 3 (dívida e + refino DG25) fases 6.13–6.14 — 2026-07-13
+Escopo: fechar os 2 resíduos NÃO-bug restantes (crane já estava 100% homologado — itens
+9/29/31 — backlog "crane no toolkit" era estale). **6.13 enrijecedor de painel:** módulo
+novo `enrijecedor_painel.py` (NBR 8800 §5.4.3.1 verbatim pág 50–51: `kv=5+5/(a/h)²`,
+V_Rd 3 domínios, requisitos §5.4.3.1.3 b/t·I_st·j); relaxa cap `h/tw≤260` do Anexo H em
+`alma_esbelta._valida(sec,a)` quando `a/h≤3`; wire informativo/opt-in na zona de painel.
+`test_fase613` (15). **6.14 DG25 full:** estende `dg25_ltb.py` (Cb tapered 5.4-1/2, Rpc
+5.4-4/5, Rpg 5.4-6/7, F_L, Mn nominal 3 regiões 5.4-16/17/18; `cross_check_capacidade`
+onde Cb NÃO cancela). Base verbatim DG25 pág 58–62. `test_fase614` (17). Achado honesto:
+prismático capacidade 0,951 (curva inelástica White-Kim ≠ Anexo G ~5%), elástico ≡ 0,998.
+Ambos INFORMATIVOS (dimensionamento segue NBR). REVISAO-INDICE **itens 43–44 ⏳ aguardam
+parecer**. Não-regressão: `a=None`⇒kv=5 byte-idêntico; `cross_check_flt` intocado.
+
 ## ATUAL — Handoff / aguardando pareceres — 2026-07-08
 - **NADA pendente de implementação do lado do assistente.** Todos os gaps + FLAGs corrigíveis fechados.
 - ~~6 pareceres sênior pendentes~~ → **TODOS HOMOLOGADOS 2026-07-09** (calhas, divisa, telha, vento §8, sismo §6; demais já eram). REVISAO-INDICE zero pendente. [[06-open-threads#T7]]

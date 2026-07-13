@@ -250,5 +250,30 @@ pelo sênior. **25 módulos matemáticos.** Commits `6e3551f`→`a18b524`.
 prova** aceita pelo sênior (Cpi). Imagens de PDF (Tabela 5 NBR 6123 pág 15; DG25 pág
 60–61) para leitura verbatim. **REVISAO-INDICE.md: itens 1–42 todos ✅ HOMOLOGADO.**
 
+## D47 — 2026-07-13 — Balde 3 (fases 6.13–6.14): dívida (e) + refino DG25
+Resíduos NÃO-bug restantes fechados. **Crane NÃO entrou** — já estava 100% homologado
+(itens 9 ponte, 29 console, 31 rodas-motoras+8400); o backlog "crane no toolkit" da
+memória era estale (`ponte_rolante.py`+`nbr8400.py` existem e integrados). **26 módulos.**
+
+- **6.13 / item 43 — `enrijecedor_painel.py` (enrijecedores transversais da alma, NBR
+  8800 §5.4.3.1, pág 50–51 verbatim por imagem).** `kv=5+5/(a/h)²` (senão 5 se `a/h>3`
+  ou `a/h>(260/(h/tw))²`); `V_Rd` 3 domínios com `λp/λr=1,10/1,37·√(kv·E/fy)`;
+  requisitos §5.4.3.1.3 (b/t≤0,56√(E/fy); `I_st≥a·tw³·j`, `j=[2,5/(a/h)²]−2≥0,5`).
+  Fecha o TODO do item 38: `alma_esbelta._valida(sec,a)` **relaxa o cap h/tw≤260** do
+  Anexo H quando `a/h≤3` (enrijecido); `Aw/Afc≤10` continua. Wire informativo/opt-in na
+  zona de painel (sugere maior `a` que atende `V_Sd`). `a=None`⇒kv=5 byte-idêntico.
+- **6.14 / item 44 — DG25 full (`dg25_ltb.py` estendido, pág 58–62 verbatim por imagem).**
+  Cb tapered por tensões (5.4-1/5.4-2), `Rpc` (5.4-4/5), `Rpg` (5.4-6/7), `F_L`, `Mn`
+  nominal em 3 regiões (5.4-16/17/18) + CFY (5.4-8). Chave: `γ_eLTB·f_r=F_eLTB` ⇒ `f_r`
+  cancela; `Mn` depende só de `F_eLTB`/`F_L`/`Fy`/`Rpc`/`Rpg`. `cross_check_capacidade`
+  onde **Cb NÃO cancela** (não-linear nas regiões) — vs `cross_check_flt` (item 42,
+  elástico, Cb cancela). Achado: prismático capacidade **0,951** (curva inelástica
+  White-Kim ancorada em `Rpc·Myc`/`F_L` ≠ interpolação Anexo G ancorada em `Mp`/`ry` →
+  ~5%), enquanto o elástico é ≡ 0,998. Ambos INFORMATIVOS — dimensionamento segue NBR.
+
+**REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER.** Método lido verbatim (NBR 8800
+§5.4.3.1; AISC DG25 §5.4). Não-regressão: `cross_check_flt` intocado; `a=None`⇒kv=5
+idêntico. Ver [[06-open-threads#T11]].
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

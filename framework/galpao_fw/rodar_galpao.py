@@ -48,6 +48,7 @@ import dg25_ltb as dg25
 import alma_esbelta as ae
 import tensao_ponto as tsp
 import cortante_tapered as cta
+import enrijecedor_painel as enp
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -441,6 +442,29 @@ def rodar(params, out_dir):
             "precisa_enrijecedor": rzp["precisa_enrijecedor"],
             "FSd_kN": round(rzp["FSd"], 1), "F_Rd_kN": round(rzp["F_Rd"], 1)}
 
+        # Enrijecedor transversal da alma do joelho (NBR 8800 §5.4.3.1) - so quando a
+        # alma do joelho e esbelta E o V_Sd de pico excede o V_Rd sem enrijecedor
+        # (kv=5). Sugere o MAIOR espacamento "a" que atende (menos enrijecedores),
+        # reporta V_Rd(a), kv, I_st minimo. INFORMATIVO/opt-in: nao muda a utilizacao
+        # a menos que o engenheiro adote os enrijecedores.
+        if isinstance(tap, dict):
+            sj = av.props_I(tap["h_joelho"], tap.get("bf", 0.20),
+                            tap.get("tw", 0.008), tap.get("tf", 0.0125))
+            V_sd_j = abs(kV)
+            if ae.e_esbelta(sj, params["fy"]) and \
+               enp.vrd(sj, params["fy"], None)["Vrd"] < V_sd_j:
+                a_sug = enp.a_min_para_vsd(sj, params["fy"], V_sd_j)
+                if a_sug is not None:
+                    ve = enp.vrd(sj, params["fy"], a_sug)
+                    ireq = enp.ist_req(sj, a_sug)
+                    res["zona_painel"].update({
+                        "enrij_a_sug_mm": round(a_sug * 1000, 0),
+                        "enrij_kv": round(ve["kv"], 2),
+                        "enrij_Vrd_kN": round(ve["Vrd"], 1),
+                        "enrij_Vrd_sem_kN": round(
+                            enp.vrd(sj, params["fy"], None)["Vrd"], 1),
+                        "enrij_Ist_req_cm4": round(ireq * 1e8, 1)})
+
     # Gate 7 - SAPATA (NBR 6118) pelo ENVELOPE de combinacoes: cada verificacao
     # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
     # = N min + M ; etc). Pedestal ~ pilar adotado.
@@ -611,10 +635,14 @@ def rodar(params, out_dir):
         # CROSS-CHECK DG25 (validacao INFORMATIVA; nao altera dimensionamento). Compara
         # o M_eLTB elastico do DG25 (secao do MEIO, 5.4.3) com o Mcr do NBR Anexo J
         # (secao mais funda, J.4.2). Lb do regime que governa a FLT.
-        cc_raf = None
+        cc_raf = None; ccap_raf = None
         if segs_flt and flt:
             Lb_gov = max(flt.values(), key=lambda f: f["u"])["Lb"]
             cc_raf = dg25.cross_check_flt(segs_flt, params["fy"], Lb_gov, Cb=cb_raf)
+            # fase 6.14: cross-check de CAPACIDADE (Mn nominal completo, Rpc/Rpg/3
+            # regioes; Cb NAO cancela). INFORMATIVO - nao muda dimensionamento.
+            ccap_raf = dg25.cross_check_capacidade(segs_flt, params["fy"], Lb_gov,
+                                                   Cb=cb_raf)
         # relatorio
         L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
               "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -665,6 +693,14 @@ def rodar(params, out_dir):
                   "dimensionamento (segue a NBR)." % (
                       cc_raf["razao"], "CONVERGE" if cc_raf["converge"] else "DIVERGE",
                       cc_raf["tol"] * 100)]
+        if ccap_raf is not None:
+            L += ["  [CROSS-CHECK DG25 CAPACIDADE (informativo)] Mn nominal completo "
+                  "(Rpc/Rpg/3 regioes, regiao %s):" % ccap_raf["regiao_dg"],
+                  "         Mn_DG(meio h=%.0fmm)=%.1f kN.m ; Mn_NBR(funda h=%.0fmm)="
+                  "%.1f kN.m -> razao=%.3f %s" % (
+                      ccap_raf["sec_meio"], ccap_raf["Mn_dg"], ccap_raf["sec_funda"],
+                      ccap_raf["Mn_nbr"], ccap_raf["razao"],
+                      "CONVERGE" if ccap_raf["converge"] else "DIVERGE")]
         # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
         # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
         # + FLT de TRECHO (member-level) com a secao mais funda da coluna (o joelho).
@@ -798,7 +834,10 @@ def rodar(params, out_dir):
             "cortante_mesa_sentido": ("haunch/alivio" if sent_raf >= 0
                                       else "adverso/acrescimo"),
             "dg25_razao_raf": round(cc_raf["razao"], 3) if cc_raf else None,
-            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None}
+            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None,
+            "dg25_cap_razao_raf": round(ccap_raf["razao"], 3) if ccap_raf else None,
+            "dg25_cap_regiao_raf": ccap_raf["regiao_dg"] if ccap_raf else None,
+            "dg25_cap_converge_raf": ccap_raf["converge"] if ccap_raf else None}
         if col_res:
             res["alma_variavel"].update(col_res)
 
