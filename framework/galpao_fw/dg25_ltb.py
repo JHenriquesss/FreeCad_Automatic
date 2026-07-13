@@ -212,6 +212,112 @@ def mn_ltb_dg(sec, fy, Lb, Cb=1.0):
             "F_L": FL, "F_eLTB": Feltb, "ratio_FeFy": ratio, "esbelta": esbelta}
 
 
+# ============================================================================
+# ENVELOPE DE ESTADOS-LIMITE DE FLEXAO (fase 6.16) - DG25 §5.4.4/5/6/7
+# (verbatim DG25 pgs 62-64, imagens). Momento nominal = MENOR entre:
+#   CFY  §5.4.2  escoamento da mesa comprimida (m_cfy = Rpc Rpg Myc) - teto
+#   LTB  §5.4.3  flambagem lateral com torcao (mn_ltb_dg)
+#   FLB  §5.4.4  flambagem local da mesa comprimida (3 regioes, 5.4-14..24)
+#   TFY  §5.4.5  escoamento da mesa tracionada (so se Sxt<Sxc; 5.4-25..29)
+#   TFR  §5.4.6  ruptura da mesa tracionada com furos (5.4-30; F13.1)
+# lambda_pf=0,38 sqrt(E/Fy); lambda_rf=0,95 sqrt(kc E/FL); kc=4/sqrt(hc/tw) em
+# [0,35;0,76] (5.4-24). Rpt (fator de plastificacao p/ tracao) espelha Rpc mas
+# em Myt=Fy Sxt. INFORMATIVO/verificacao - nao dimensiona (dimensionamento = NBR).
+# ============================================================================
+def _lam_pf(fy):
+    """lambda_pf = 0,38 sqrt(E/Fy) (mesa compacta, Spec Tab. B4.1b)."""
+    return 0.38 * math.sqrt(E / fy)
+
+
+def kc_flb(sec):
+    """kc = 4/sqrt(hc/tw), limitado a [0,35 ; 0,76] (5.4-24)."""
+    return min(max(4.0 / math.sqrt(hc(sec) / sec["tw"]), 0.35), 0.76)
+
+
+def _lam_rf(sec, fy):
+    """lambda_rf = 0,95 sqrt(kc E/FL) (mesa nao-compacta, 5.4-22 denom)."""
+    return 0.95 * math.sqrt(kc_flb(sec) * E / f_L(sec, fy))
+
+
+def mn_flb(sec, fy):
+    """§5.4.4 - flambagem local da mesa comprimida (FLB), 3 regioes por
+    lambda=bfc/(2 tfc). (a) compacta: nao aplica -> retorna o teto CFY. (b) nao-
+    compacta: interpola 5.4-22. (c) esbelta: 5.4-23. Retorna {Mn, regiao, aplica}."""
+    bf = sec.get("bfc", sec["bf"]); tf = sec.get("tfc", sec["tf"])
+    lam = bf / (2.0 * tf)
+    lpf = _lam_pf(fy); lrf = _lam_rf(sec, fy)
+    Rpc = rpc(sec, fy); Rpg = rpg(sec, fy); FL = f_L(sec, fy)
+    Sxc = sec["Wx"]; Myc = myc(sec, fy); Mcfy = Rpc * Rpg * Myc
+    if lam <= lpf:                                       # (a) compacta: FLB nao aplica
+        return {"Mn": Mcfy, "regiao": "a", "aplica": False}
+    if lam < lrf:                                        # (b) nao-compacta (5.4-22)
+        Mn = Rpg * (Rpc * Myc - (Rpc * Myc - FL * Sxc) * (lam - lpf) / (lrf - lpf))
+        return {"Mn": min(Mn, Mcfy), "regiao": "b", "aplica": True}
+    kc = kc_flb(sec)                                     # (c) esbelta (5.4-23)
+    Mn = Rpg * 0.9 * E * kc * Sxc / lam ** 2
+    return {"Mn": min(Mn, Mcfy), "regiao": "c", "aplica": True}
+
+
+def rpt(sec, fy):
+    """Fator de plastificacao da alma p/ mesa TRACIONADA (5.4-26/27/28). Espelha
+    Rpc mas referido a Myt=Fy Sxt. Iyc/Iy<=0,23 OU alma esbelta -> Rpt=1,0."""
+    lam = hc(sec) / sec["tw"]; lpw = _lam_pw(fy); lrw = _lam_rw(fy)
+    Iyc_Iy = sec.get("Iyc_Iy", 0.5)
+    Sxt = sec.get("Wxt", sec["Wx"])
+    Mp = min(fy * sec["Zx"], 1.6 * fy * Sxt)             # 5.4-28
+    Myt = fy * Sxt                                       # 5.4-29
+    mp_myt = Mp / Myt
+    if lam > lrw or Iyc_Iy <= 0.23:
+        return 1.0                                       # 5.4-28 (clausula)
+    if lam <= lpw:
+        return mp_myt                                    # 5.4-26
+    return min(mp_myt - (mp_myt - 1.0) * (lam - lpw) / (lrw - lpw), mp_myt)  # 5.4-27
+
+
+def mn_tfy(sec, fy):
+    """§5.4.5 - escoamento da mesa tracionada (TFY). So aplica se Sxt<Sxc (mesa
+    tracionada menor). Mn = Rpt Fy Sxt (5.4-25). Retorna {Mn, aplica, Rpt}."""
+    Sxt = sec.get("Wxt", sec["Wx"]); Sxc = sec["Wx"]
+    if Sxt >= Sxc:
+        return {"Mn": None, "aplica": False}
+    Rpt = rpt(sec, fy)
+    return {"Mn": Rpt * fy * Sxt, "Rpt": Rpt, "aplica": True}
+
+
+def mn_tfr(sec, fy, fu, n_furos=0, dh=0.0):
+    """§5.4.6 - ruptura da mesa tracionada com furos (5.4-30, Spec F13.1). So com
+    furos (n_furos>0, dh>0). Yt=1,0 se Fy/Fu<=0,8 senao 1,1. Nao aplica se
+    Fu Afn >= Yt Fy Afg. Mn=(Fu Afn/Afg) Sxt. dh em m (furo bruto)."""
+    Sxt = sec.get("Wxt", sec["Wx"])
+    bft = sec.get("bft", sec["bf"]); tft = sec.get("tft", sec["tf"])
+    if n_furos <= 0 or dh <= 0:
+        return {"Mn": None, "aplica": False}
+    Afg = bft * tft; Afn = Afg - n_furos * dh * tft
+    Yt = 1.0 if fy / fu <= 0.8 else 1.1
+    if fu * Afn >= Yt * fy * Afg:
+        return {"Mn": None, "aplica": False, "Yt": Yt}
+    return {"Mn": (fu * Afn / Afg) * Sxt, "aplica": True, "Yt": Yt,
+            "Afn": Afn, "Afg": Afg}
+
+
+def mn_envelope(sec, fy, Lb, Cb=1.0, fu=None, n_furos=0, dh=0.0):
+    """§5.4.7 - momento nominal de flexao = MENOR entre CFY/LTB/FLB/TFY/TFR.
+    Retorna {Mn, governa, estados{}, ltb_regiao, flb_regiao}. INFORMATIVO."""
+    cfy = m_cfy(sec, fy)
+    ltb = mn_ltb_dg(sec, fy, Lb, Cb)
+    flb = mn_flb(sec, fy)
+    tfy = mn_tfy(sec, fy)
+    tfr = mn_tfr(sec, fy, fu, n_furos, dh) if fu else {"Mn": None, "aplica": False}
+    estados = {"CFY": cfy, "LTB": ltb["Mn"], "FLB": flb["Mn"]}
+    if tfy["aplica"]:
+        estados["TFY"] = tfy["Mn"]
+    if tfr["aplica"]:
+        estados["TFR"] = tfr["Mn"]
+    gov = min(estados, key=lambda k: estados[k])
+    return {"Mn": estados[gov], "governa": gov, "estados": estados,
+            "ltb_regiao": ltb["regiao"], "flb_regiao": flb["regiao"]}
+
+
 def cb_tapered(f0, fmid, f2):
     """Cb do DG25 por TENSOES na mesa (5.4-1/5.4-2), metodo Yura-Helwig/AASHTO.
     f2 = |maior tensao de compressao| numa extremidade (compressao +, tracao -);
