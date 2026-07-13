@@ -207,5 +207,48 @@ página do PDF** (via `SendUserFile`) encerrou disputas de citação.
   mea-culpa. Commit `cfdbb03`→`a55a1fe`. ✅
 **REVISAO-INDICE.md: itens 1–38 todos ✅ HOMOLOGADO.** Backlog do parecer 6.b esgotado.
 
+## D46 — 2026-07-12/13 — Backlog balde 2 (fases 6.9–6.12) + pareceres itens 39–42
+4 dívidas técnicas do parecer 6.b fechadas por código + validação, todas homologadas
+pelo sênior. **25 módulos matemáticos.** Commits `6e3551f`→`a18b524`.
+
+- **6.9 / item 39 — `tensao_ponto.py` (interação M-V no joelho, NBR 8800 §5.5.2.3, pág
+  57 verbatim).** Verificação por TENSÕES da teoria da elasticidade: σ (fibra extrema
+  + junção mesa-alma) e τ (junção, `Qf` real da mesa, não `V/Aw`); alíneas a–d
+  SEPARADAS (a NBR **não** tem von Mises combinado — von Mises entra só suplementar,
+  flag `base_vm`). Wired na coluna tapered de alma esbelta (`ae.e_esbelta`), entra no
+  envelope `interacao_max_col`. Parecer: **0 bug** (σ/τ/Qf/von Mises "milimetricamente
+  corretos"); 3 premissas documentadas (χn=1,0 coberta pelos checks paralelos; cos²θ
+  desprezível p/ θ≈2,6°; von Mises suplementar).
+- **6.10 / item 40 — `cortante_tapered.py` (cortante da alma com mesas inclinadas,
+  EQUILÍBRIO, NÃO-NBR).** `V_alma=V−(M/h)(dh/dx)`; Anexo J (J.1–J.4) não trata cortante
+  (J.1.2→§5.4.3). Adverso SEMPRE contado; alívio favorável OPT-IN
+  (`creditar_cortante_mesa_inclinada`, default conservador). **BUG DE SEGURANÇA acolhido
+  (parecer):** braço `h_m` subestimava o caso adverso → braço **assimétrico**: `h_0=h_m−tf`
+  no adverso (seguro), `h_m` no favorável (conservador). Galpão é haunch (favorável) →
+  sem regressão.
+- **6.11 / item 41 — vento por zona na tesoura (`tesoura.py`+`vento_nbr6123.py`, NBR
+  6123 Tabela 5).** Cada água seu Cpe simultâneo (barlavento EF / sotavento GH) em vez
+  de `min` uniforme (estado fictício). **CRÍTICO acolhido (parecer):** faltava o **vento
+  a 0° (longitudinal)** — as 2 águas na MESMA zona (EG) → uplift SIMÉTRICO, pode
+  governar; sem ele o refino REMOVIA carga real (a "economia" 1,04→0,96 era artefato de
+  envelope incompleto). Adicionado `cpe_telhado_longitudinal` (EG/FH verbatim pág 15) +
+  envelope 90°+0°. +fixes: cumeeira = média `(w_barl+w_sot)/2`; `_gamma_g_dead` 0,9
+  (sucção)/1,4 (pressão). Cpi refutado como bug (mesmo Cpi p/ as 2 águas por
+  monotonicidade `argmin(Cpe−Cpi)=max Cpi`) + hardening par-fixo. u honesto = **0,928**.
+- **6.12 / item 42 — `dg25_ltb.py` (cross-check AISC DG25 §5.4.3, VALIDAÇÃO informativa,
+  NÃO dimensiona).** `M_eLTB=F_eLTB·Sxc` (F4-5, seção do MEIO) vs `Mcr` NBR Anexo J
+  (seção FUNDA J.4.2). Base do DG25 lida por IMAGEM (texto do PDF corrompido; PDF que o
+  usuário colocou no corpus destravou a dívida (b)). Prismático converge **0,998**
+  (F4-5≡F2, base sã); tapered **DIVERGE 0,54/0,45** = diferença de seção de referência
+  (meio×funda), NÃO erro de util (NBR auto-consistente). Parecer: **0 bug**; `rt` usa
+  `hc=hw` (não `d`) confirmado; razão 0,544 = efeitos não-lineares combinados `Sx`+`Cw`
+  (não `Sx∝h²` puro); Cb cancela por premissa de teste (Cb idêntico dos 2 lados), não
+  intrínseco.
+
+**Padrão dos pareceres (itens 39–42):** cada alegação verificada contra código + PDF.
+**2 bugs reais acolhidos** (braço `h_0` item 40; vento 0° item 41). **1 refutação com
+prova** aceita pelo sênior (Cpi). Imagens de PDF (Tabela 5 NBR 6123 pág 15; DG25 pág
+60–61) para leitura verbatim. **REVISAO-INDICE.md: itens 1–42 todos ✅ HOMOLOGADO.**
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

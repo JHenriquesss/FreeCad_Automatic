@@ -15,6 +15,19 @@
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
 
+## T10 — balde 2 (dívidas a/b/c/d) + itens 39–42 (FECHADO 2026-07-13)
+**Todas as 4 dívidas técnicas do balde 2 fechadas e homologadas** — ver
+[[04-decisions#D46]]. REVISAO-INDICE.md: **itens 1–42 ✅ HOMOLOGADO, zero PENDENTE**.
+Fases 6.9–6.12: (d)→§5.5.2.3 `tensao_ponto.py`; (a)→equilíbrio `cortante_tapered.py`;
+(c)→vento zona+0° `tesoura`/`vento_nbr6123`; (b)→cross-check `dg25_ltb.py`. **2 bugs
+reais acolhidos** (braço `h_0`; vento 0° longitudinal omitido — o refino removia carga
+real), **1 refutação com prova** (Cpi monotonicidade). Commits `6e3551f`→`a18b524`
+(não pushados — push blocked [[#T5]]).
+**Backlog residual (não bug):** (e) limite `h/tw` do Anexo H com enrijecedores de painel
+(a/h); Cb tapered do DG25 (γ_eLTB) + `Fcr` de projeto completo (Rpc/Rpg/Rpt) como refino
+futuro do cross-check; sênior ofereceu **auditoria do código-fonte puro do `dg25_ltb.py`**
+(tipagem/tol) — se vier, aplicar o rito. `neve` segue não escolhido.
+
 ## T9 — backlog parecer 6.b + itens 34–38 (FECHADO 2026-07-11)
 **Todos os 5 homologados** — ver [[04-decisions#D45]]. REVISAO-INDICE.md: **itens 1–38
 ✅ HOMOLOGADO, zero PENDENTE**. Fases 6.4–6.8 (coluna tapered, zona de painel, FLT

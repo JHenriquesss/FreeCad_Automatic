@@ -184,6 +184,17 @@ implementada** (T3 wiki desatualizado). Três adições:
 - **Regressão:** `smoke_executivo.py` 4/4 — callouts (cfg tem joelho/gusset sempre; console só ponte) + cobertura + edges≥15 + memorial PDF. Ref 20×10 inalterada (`mne-3` limpo).
 - **PENDENTE sênior:** REVISAO-INDICE itens 28 (gusset) + 29 (console). Módulos entram no memorial PDF automático (`relatorio_calculo` lê consolidado).
 
+## FECHADA — Balde 2 (dívidas a/b/c/d) fases 6.9–6.12 + revisão itens 39–42 — 2026-07-13
+Escopo: fechar as 4 dívidas técnicas residuais do parecer 6.b (não-bugs; economia/validação).
+Módulos novos: `tensao_ponto.py` (§5.5.2.3 M-V), `cortante_tapered.py` (equilíbrio),
+`dg25_ltb.py` (cross-check AISC DG25); +vento por zona (90°+0°) em `tesoura.py`/`vento_nbr6123.py`.
+Testes: `test_fase69`..`test_fase612` (11+14+13+9 = 47), regressão fase-6 completa
+com 2 suítes de build = **113 passed**. Revisão sênior item-a-item: **2 bugs reais
+acolhidos** (braço `h_0` 6.10; vento 0° longitudinal 6.11 — refino removia carga real),
+1 refutação com prova (Cpi). Base lida por imagem de PDF (Tabela 5 NBR 6123; DG25 pág
+60–61). REVISAO-INDICE **itens 1–42 ✅**. Ver [[04-decisions#D46]], [[06-open-threads#T10]].
+Commits `6e3551f`→`a18b524`. **Gate humano:** push branch + merge PR (bloqueado p/ assistente).
+
 ## ATUAL — Handoff / aguardando pareceres — 2026-07-08
 - **NADA pendente de implementação do lado do assistente.** Todos os gaps + FLAGs corrigíveis fechados.
 - ~~6 pareceres sênior pendentes~~ → **TODOS HOMOLOGADOS 2026-07-09** (calhas, divisa, telha, vento §8, sismo §6; demais já eram). REVISAO-INDICE zero pendente. [[06-open-threads#T7]]
