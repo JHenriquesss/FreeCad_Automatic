@@ -1,7 +1,7 @@
 {
   "phase": "6.12",
   "phase_name": "dg25-ltb-crosscheck-flt",
-  "step": "ready-to-close",
+  "step": "closed",
   "must_exist": [
     { "id": "me-1", "text": "dg25_ltb.py: hc/ho/aw; rt (5.4-11); J_dg (5.4-12 slender->0); f_eltb (5.4-10 F4-5); m_eltb=Cb F_eLTB Sxc; puro sem numpy; _selftest (prismatico razao 0.998)", "done": true },
     { "id": "me-2", "text": "cross_check_flt(segs,fy,Lb,Cb,tol): DG25 M_eLTB (secao MEIO) x NBR Mcr (secao FUNDA J.4.2); razao + converge; Cb cancela", "done": true },
@@ -36,6 +36,7 @@
     { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" },
     { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" },
     { "phase": "6.10", "closed_at": "2026-07-12", "outcome": "ok" },
-    { "phase": "6.11", "closed_at": "2026-07-12", "outcome": "ok" }
+    { "phase": "6.11", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.12", "closed_at": "2026-07-12", "outcome": "ok" }
   ]
 }
