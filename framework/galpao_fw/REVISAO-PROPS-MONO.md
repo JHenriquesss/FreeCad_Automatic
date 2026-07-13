@@ -6,8 +6,9 @@ rt 5.4-11 via bfc, Rpc/Rpg via hc real). Fecha o refino pendente do item 44
 (o parecer do DG25 full pediu "pacote de props assimétricas `props_I_mono`
 com Wxt/Wxc, Iyc/Iy, hc/hp"). Fase 6.15. Criado 2026-07-13.
 
-> **STATUS: ✅ PARECER RECEBIDO — CORRIGIDO** (2026-07-13). 🟡 Aprovado com ressalva
-> (1 correção de variável em `rt`). Correção aplicada e testada — ver §Parecer abaixo.
+> **STATUS: ✅ HOMOLOGADO SEM RESSALVAS** (2026-07-13). Parecer inicial: aprovado com
+> ressalva (rt 5.4-11 hc²→hw²); correção aplicada e re-aprovada sem ressalvas.
+> Ver §Parecer abaixo.
 
 ## O que faz
 
