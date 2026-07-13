@@ -38,26 +38,34 @@ GA1 = ck.GA1
 
 
 def hc(sec):
-    """Duas vezes a distancia do centroide a face interna da mesa comprimida
-    (I duplo-simetrico) = altura livre da alma hw."""
-    return sec["d"] - 2.0 * sec["tf"]
+    """Duas vezes a distancia do centroide a face interna da mesa comprimida.
+    I duplo-simetrico: hc = altura livre da alma hw = d-2tf. Secao monossimetrica:
+    hc ja vem calculado em props_I_mono (sec['hc']) - usa se presente."""
+    return sec.get("hc", sec["d"] - 2.0 * sec["tf"])
 
 
 def ho(sec):
-    """Distancia entre os centroides das mesas = d - tf (I duplo-simetrico)."""
-    return sec["d"] - sec["tf"]
+    """Distancia entre os centroides das mesas. I duplo-simetrico: d-tf.
+    Monossimetrico: props_I_mono fornece sec['ho']."""
+    return sec.get("ho", sec["d"] - sec["tf"])
 
 
 def aw(sec):
-    """aw = hc tw / (bfc tfc) (para rt, sem o limite de 10)."""
-    return hc(sec) * sec["tw"] / (sec["bf"] * sec["tf"])
+    """aw = hc tw / (bfc tfc) (para rt, sem o limite de 10). bfc/tfc = mesa
+    COMPRIMIDA (sec['bfc']/['tfc'] no monossim.; = bf/tf no duplo-sim)."""
+    bfc = sec.get("bfc", sec["bf"]); tfc = sec.get("tfc", sec["tf"])
+    return hc(sec) * sec["tw"] / (bfc * tfc)
 
 
 def rt(sec):
-    """Raio de giracao efetivo rt (5.4-11 / Spec. F4-10), I duplo-simetrico.
+    """Raio de giracao efetivo rt (5.4-11 / Spec. F4-10).
     ATENCAO (parecer item 42 F2): o 'h' que vai ao QUADRADO e a ALTURA LIVRE DA ALMA
-    (hc = hw = d-2tf), NAO a altura total d. O d aparece so em ho/d e /(ho*d)."""
-    d, bf = sec["d"], sec["bf"]
+    (hc = hw = d-2tf no duplo-sim; hc real no monossim.), NAO a altura total d. O d
+    aparece so em ho/d e /(ho*d). bf = mesa COMPRIMIDA (bfc). props_I_mono ja entrega
+    rt pronto (sec['rt']) - usa se presente (evita divergencia numerica)."""
+    if "rt" in sec:
+        return sec["rt"]
+    d = sec["d"]; bf = sec.get("bfc", sec["bf"])
     h = hc(sec)                                        # altura livre da alma (hw), NAO d
     ho_ = ho(sec); aw_ = aw(sec)
     return bf / math.sqrt(12.0 * (ho_ / d + (1.0 / 6.0) * aw_ * h ** 2 / (ho_ * d)))
@@ -71,14 +79,18 @@ def e_alma_esbelta(sec, fy):
 def J_dg(sec, fy):
     """Constante de torcao J do DG25 (5.4-12). Se a alma e esbelta OU Iyc/Iy<=0.23,
     J=0; senao, forma completa com o desconto (1-0.63 t/b) por mesa. I duplo-sim:
-    Iyc/Iy = 0.5 -> so a alma esbelta zera J."""
-    bf, tf, tw = sec["bf"], sec["tf"], sec["tw"]
-    Iyc_sobre_Iy = 0.5                                # duplo-simetrico
+    Iyc/Iy = 0.5 -> so a alma esbelta zera J. Monossimetrico: usa as duas mesas
+    (bfc/tfc, bft/tft) e Iyc/Iy real de props_I_mono, e a altura livre hw (NAO hc)."""
+    tw = sec["tw"]
+    Iyc_sobre_Iy = sec.get("Iyc_Iy", 0.5)
     if e_alma_esbelta(sec, fy) or Iyc_sobre_Iy <= 0.23:
         return 0.0
-    h = hc(sec)
-    termo_mesa = bf * tf ** 3 / 3.0 * (1.0 - 0.63 * tf / bf)
-    return h * tw ** 3 / 3.0 + 2.0 * termo_mesa       # 2 mesas iguais
+    bfc = sec.get("bfc", sec["bf"]); tfc = sec.get("tfc", sec["tf"])
+    bft = sec.get("bft", sec["bf"]); tft = sec.get("tft", sec["tf"])
+    hw = sec.get("hw", sec["d"] - 2.0 * sec["tf"])    # altura livre da alma (NAO hc)
+    termo_c = bfc * tfc ** 3 / 3.0 * (1.0 - 0.63 * tfc / bfc)
+    termo_t = bft * tft ** 3 / 3.0 * (1.0 - 0.63 * tft / bft)
+    return hw * tw ** 3 / 3.0 + termo_c + termo_t
 
 
 def f_eltb(sec, fy, Lb, Cb=1.0):
