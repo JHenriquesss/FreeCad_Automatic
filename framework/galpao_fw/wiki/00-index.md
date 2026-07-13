@@ -18,11 +18,12 @@ resíduos NÃO-bug (crane já era 100% homologado): **6.13** `enrijecedor_painel
 (NBR 8800 §5.4.3.1, `kv=5+5/(a/h)²`, requisitos §5.4.3.1.3; relaxa cap h/tw≤260 do
 Anexo H) e **6.14** DG25 full (`dg25_ltb.py` estendido: Cb tapered 5.4-1/2, Rpc/Rpg,
 Mn nominal 3 regiões; `cross_check_capacidade` onde Cb NÃO cancela). Ambos INFORMATIVOS
-(dimensionamento segue NBR). **REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER.**
-Achado: prismático capacidade DG25/NBR 0,951 (inelástica White-Kim ≠ Anexo G ~5%).
-Balde 2 (6.9–6.12, itens 39–42) HOMOLOGADO. **REVISAO-INDICE itens 1–42 ✅.**
-Ver [[04-decisions#D46]], [[06-open-threads#T10]]. **PENDENTE gate humano:** merge PR #5
-+ pareceres 43–44.
+(dimensionamento segue NBR). **Itens 43 (APROVADO COM LOUVOR) + 44 (validado)
+HOMOLOGADOS (2026-07-13).** Item 43: 2 refutações confirmadas (eixo I singelo = plano
+médio NBR; §5.4.3.2 ≠ tension field) + `a_min→a_max`. Item 44: `γ·f_r=F_eLTB` "mais
+elegante"; 5% inelástico = diferença de método; F_L monossim. já coberto (5.4-15).
+**REVISAO-INDICE itens 1–44 ✅, zero pendente.** Ver [[04-decisions#D47]],
+[[06-open-threads#T11]]. **PENDENTE gate humano:** push branch + merge PR #5.
 
 ## Estado anterior (2026-07-10)
 Galpão completo fim-a-fim. **18 módulos matemáticos** (+`nbr8400`) + features, selftest verde. Cálculo homologado (itens 1–27). **Fases 3–5 FECHADAS (2026-07-10):** (3) fundação profunda integrada ao ProjetoSpec + 3D (estaca/bloco/baldrame desenhados; `fundacao.tipo` gate); (4) ponte estendida — rodas motoras + NBR 8400-1:2019 (φ Tab.12 / N Tab.9 do PDF) + gate do fabricante; (5) **corte seccionado hachurado** nos detalhes (blocker T6 resolvido — DrawViewSection headless FreeCAD 1.1). `smoke_executivo` **5/5**. Commits 9ac3c4f→f912e98 na branch `revisao/homologacao-12-modulos`.

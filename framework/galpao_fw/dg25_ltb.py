@@ -205,7 +205,12 @@ def cb_tapered(f0, fmid, f2):
     f2 = |maior tensao de compressao| numa extremidade (compressao +, tracao -);
     fmid = tensao na mesa no meio do Lb; f0 = tensao na extremidade oposta a f2.
     Se fmid/f2>=1 ou f2==0 -> Cb=1. Senao Cb=1,75-1,05(f1/f2)+0,3(f1/f2)^2 <=2,3,
-    com f1 por 5.4-2: se |fmid|<|(f0+f2)/2| -> f1=f0 ; senao f1=2 fmid-f2 (>=f0)."""
+    com f1 por 5.4-2: se |fmid|<|(f0+f2)/2| -> f1=f0 ; senao f1=2 fmid-f2 (>=f0).
+    PREMISSA DO CHAMADOR (parecer item 44, pt 2): os sinais das tensoes sao
+    RESPONSABILIDADE de quem chama - o metodo Yura-Helwig e sensivel a sinal
+    (compressao +, tracao -). f2 deve ser o MODULO da MAIOR compressao numa
+    extremidade; se a fibra critica reverte para tracao nas outras estacoes, f0/fmid
+    devem vir NEGATIVOS. Um erro de sinal aqui inverte a parabola do limite de Cb."""
     if f2 == 0 or (fmid / f2) >= 1.0:
         return 1.0
     if abs(fmid) < abs((f0 + f2) / 2.0):

@@ -271,9 +271,16 @@ memória era estale (`ponte_rolante.py`+`nbr8400.py` existem e integrados). **26
   White-Kim ancorada em `Rpc·Myc`/`F_L` ≠ interpolação Anexo G ancorada em `Mp`/`ry` →
   ~5%), enquanto o elástico é ≡ 0,998. Ambos INFORMATIVOS — dimensionamento segue NBR.
 
-**REVISAO-INDICE itens 43–44 ⏳ AGUARDAM PARECER.** Método lido verbatim (NBR 8800
-§5.4.3.1; AISC DG25 §5.4). Não-regressão: `cross_check_flt` intocado; `a=None`⇒kv=5
-idêntico. Ver [[06-open-threads#T11]].
+**REVISAO-INDICE itens 43–44 ✅ HOMOLOGADOS (2026-07-13).** Item 43 **APROVADO COM
+LOUVOR:** parecer apontou 3 pts — `a_min→a_max` acolhido (bug de nome); 2 refutados com
+PDF (eixo I singelo = plano médio NBR §5.4.3.1.3c p/ ambos, ≠ AISC G2.2; §5.4.3.2 =
+tubular ≠ tension field, NBR 8800:2008 sem campo de tração); `ist_singelo` (eixo-face,
+conservador) opt-in elogiado. Item 44 **validado (sanity-check):** `γ·f_r=F_eLTB` "mais
+elegante"; 5% inelástico = diferença de método (Cb externo NBR × embutido sob raiz
+DG25); 3 apontamentos de escopo sem bug (F_L monossim. já coberto pelo ramo 5.4-15 via
+`Wxt`; sinais Cb = premissa do chamador; `aw≤10` reflete DG25). Método lido verbatim
+(NBR 8800 §5.4.3.1; AISC DG25 §5.4). Não-regressão: `cross_check_flt` intocado;
+`a=None`⇒kv=5 idêntico. Ver [[06-open-threads#T11]].
 
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

@@ -5,11 +5,24 @@ Conferência do sênior. Estende o cross-check DG25 (item 42, elástico) para o
 regiões 5.4-16/17/18) e o **Cb tapered por tensões** (5.4-1/5.4-2). Fecha o refino
 listado no backlog do item 42. Fase 6.14. Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDA PARECER.** Método lido **verbatim** do AISC DG25 §5.4.1–5.4.3
-> (pág 58–62, imagens renderizadas). Continua **INFORMATIVO** — não altera o
-> dimensionamento, que segue a **NBR 8800 Anexo J** (item 36). A novidade frente ao
-> item 42: agora o Cb **NÃO cancela** na razão (entra não-linearmente pelas três
-> regiões), e a comparação é de **capacidade nominal** (Mn), não só do `Mcr` elástico.
+> **STATUS: ✅ HOMOLOGADO (validação; parecer final)** (2026-07-13). Parecer:
+> "matematicamente validado frente ao AISC DG25; adequado como ferramenta informativa
+> (sanity-check)". Extração verbatim "impecável"; Cb tapered, Rpc/Rpg (com `aw≤10`
+> "frequentemente esquecido"), regiões (a)/(b)/(c) e a chave `γ_eLTB·f_r=F_eLTB`
+> ("abordagem matematicamente mais elegante") validadas; a "assinatura" de 5%
+> confirmada como **diferença de método** (Cb multiplicador externo no NBR × embutido
+> em `F_eLTB` sob raiz no DG25). 3 apontamentos = **limitações de escopo, sem bug**
+> (ver tabela); 2 já cobertos no código. **INFORMATIVO** — dimensionamento segue NBR.
+
+## Parecer sênior — respostas (final)
+
+| Pt | Apontamento | Veredito / ação |
+|---|---|---|
+| **Fórmulas** | Cb (Yura-Helwig), Rpc/Rpg (`aw≤10`), λpw/λrw, regiões a/b/c, `γ·f_r=F_eLTB` | **VALIDADAS** ("impecável / mais elegante"). Sem ação. |
+| **5% inelástico** | Não é falso alarme — Cb externo (NBR/F2) × embutido sob raiz `√(Fy/F_eLTB)` (DG25 5.4-16) muda a concavidade | **CONFIRMADO** (interpretação aceita na íntegra). Sem ação. |
+| **1 (F_L monossim.)** | Se `Sxt/Sxc<0,7`, `F_L=Fy·Sxt/Sxc≥0,5Fy` (5.4-15); fixar `0,7Fy` superestima Região B em seção monossimétrica extrema | **JÁ COBERTO.** `f_L` **já** implementa o ramo 5.4-15 via `sec.get("Wxt", sec["Wx"])`: duplo-sim (`props_I`, sem `Wxt`) → `0,7Fy`; se um gerador de seção emitir `Wxt<Wx` → reduz. Testes `test_fL_monossimetrico_reduz`/`_piso_meio_fy` exercem o ramo. |
+| **2 (sinais Cb)** | Yura-Helwig sensível a sinal; garantir `f2`=módulo da maior compressão e reversão p/ tração refletida em `f0/fmid` | **DOCUMENTADO (premissa do chamador).** Docstring de `cb_tapered` reforça: sinais são responsabilidade de quem chama (compressão +, tração −); erro de sinal inverte a parábola. `cb_tapered` é helper — a integração usa `cb_raf`/`cb_col` do Anexo J. |
+| **3 (aw/Rpg AISC 2016)** | Refinamentos AISC 360-16 sutis no `aw`; script reflete o texto atual do DG25 | **CONFIRMADO** — reflete o DG25 verbatim (objetivo documentado). Sem ação. |
 
 ## O que muda frente ao item 42 (cross-check elástico)
 
@@ -140,10 +153,12 @@ região X): Mn_DG(meio)=… ; Mn_NBR(funda)=… → razão=… CONVERGE/DIVERGE`
 | `test_cb_formula_verbatim` | 5.4-1/5.4-2 verbatim |
 | `test_capacidade_cb_nao_cancela` | Cb **altera** a razão (≠ item 42) |
 | `test_capacidade_prismatico_finito` | prismático finito, região definida |
+| `test_fL_monossimetrico_reduz` | ramo 5.4-15 (Sxt/Sxc<0,7) reduz F_L (parecer pt 1) |
+| `test_fL_monossimetrico_piso_meio_fy` | piso 0,5Fy (5.4-15) |
 | `test_selftest_roda` | selftest |
 | `test_integra_reporta_capacidade` | rodar reporta razão de capacidade; util intacta (mne-1) |
 
-17 testes verdes.
+19 testes verdes.
 
 ## FLAGs / backlog
 
@@ -157,3 +172,12 @@ região X): Mn_DG(meio)=… ; Mn_NBR(funda)=… → razão=… CONVERGE/DIVERGE`
   sênior — fora do escopo (informativo).
 - **Divergência meio×funda + inelástica:** decisão de método, não bug. Documentada,
   não aplicada.
+- **Resposta à pergunta do sênior (seções monossimétricas extremas, `Sxt/Sxc<0,7`):**
+  o ramo `F_L=Fy·Sxt/Sxc≥0,5Fy` (5.4-15) **já está** em `f_L` e é regression-safe (só
+  dispara quando `sec["Wxt"]<sec["Wx"]`). O que falta para o galpão **realmente** ter
+  monossimetria não é o `F_L` — é o **pacote de propriedades da seção**: um gerador
+  `props_I_mono` (ou `props_I` com mesas distintas) que emita `Wxt`/`Wxc`, `Iyc/Iy` e
+  `hc`/`hp` **assimétricos**. Aí `Rpc` (Iyc/Iy≤0,23→1,0), `rt` (bfc da mesa
+  comprimida), `Rm` do Cb e o próprio `F_L` passam a ler valores distintos por mesa.
+  É um **upgrade coordenado de propriedades**, não uma troca pontual — planejado para
+  quando um pórtico de mesas desiguais entrar no escopo (hoje `props_I` é duplo-sim).

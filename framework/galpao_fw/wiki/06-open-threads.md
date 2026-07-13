@@ -25,8 +25,13 @@ prontos. **Item 43 ✅ HOMOLOGADO — APROVADO COM LOUVOR (2026-07-13):** parece
 3 pts; `a_min→a_max` acolhido (bug de nome), 2 refutados com PDF (eixo I singelo =
 plano médio NBR §5.4.3.1.3c p/ ambos, ≠ AISC G2.2; §5.4.3.2 = tubular, ≠ tension field
 — NBR 8800:2008 não tem campo de tração); `ist_singelo` (eixo-face, conservador)
-adicionado como opt-in. **Item 44 ⏳ AGUARDA PARECER.** Achado honesto: prismático
-capacidade 0,951 (inelástica White-Kim ≠ Anexo G ~5%).
+adicionado como opt-in. **Item 44 ✅ HOMOLOGADO — validação (2026-07-13):** "sanity-check
+adequado"; `γ·f_r=F_eLTB` "mais elegante"; 5% inelástico = diferença de método
+(confirmado); 3 apontamentos de escopo sem bug (F_L monossim. **já coberto** pelo ramo
+5.4-15 via `Wxt`; sinais Cb = premissa do chamador documentada; `aw≤10` reflete DG25).
+Pergunta do sênior (monossim. extrema): F_L já pronto; falta pacote de props assimétricas
+(`props_I_mono` com Wxt/Wxc, Iyc/Iy, hc/hp) — upgrade coordenado futuro.
+**BALDE 3 COMPLETO: itens 43–44 ✅ HOMOLOGADOS. REVISAO-INDICE 1–44 ✅, zero pendente.**
 **Backlog residual (não bug):** FLB/TFY/ruptura do DG25 (§5.4.4/5/6) se o sênior quiser o
 envelope DG25 completo dos 5 estados-limite; enrijecedor de apoio (§5.7.4); campo de
 tração NÃO adotado (NBR não inclui). `neve` segue não escolhido. **Crane: NÃO é resíduo**

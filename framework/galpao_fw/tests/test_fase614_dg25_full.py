@@ -75,6 +75,25 @@ def test_fL_duplo_simetrico():
     assert dg.f_L(s, FY) == pytest.approx(0.7 * FY)      # Sxt/Sxc=1 -> 0.7Fy
 
 
+def test_fL_monossimetrico_reduz():
+    # parecer item 44 pt 1: ramo 5.4-15 (Sxt/Sxc<0,7) JA existe em f_L via Wxt.
+    import dg25_ltb as dg
+    s = _sec(0.60)
+    # secao sintetica monossimetrica: mesa tracionada bem menor (Sxt/Sxc=0,5)
+    s_mono = dict(s); s_mono["Wxt"] = 0.5 * s["Wx"]
+    fl = dg.f_L(s_mono, FY)
+    # 5.4-15: F_L = Fy*Sxt/Sxc >= 0,5Fy -> 0,5Fy (piso)
+    assert fl == pytest.approx(max(FY * 0.5, 0.5 * FY))
+    assert fl < 0.7 * FY                                  # reduziu vs duplo-sim
+
+
+def test_fL_monossimetrico_piso_meio_fy():
+    import dg25_ltb as dg
+    s = _sec(0.60)
+    s_mono = dict(s); s_mono["Wxt"] = 0.30 * s["Wx"]     # Sxt/Sxc=0,3 -> abaixo do piso
+    assert dg.f_L(s_mono, FY) == pytest.approx(0.5 * FY)  # piso 0,5Fy (5.4-15)
+
+
 # ==================== Mn full (5.4-8..5.4-21) ==========================
 def test_mn_positivo_e_bounded_por_cfy():
     import dg25_ltb as dg
