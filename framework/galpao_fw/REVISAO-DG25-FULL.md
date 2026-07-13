@@ -5,7 +5,10 @@ Conferência do sênior. Estende o cross-check DG25 (item 42, elástico) para o
 regiões 5.4-16/17/18) e o **Cb tapered por tensões** (5.4-1/5.4-2). Fecha o refino
 listado no backlog do item 42. Fase 6.14. Criado 2026-07-13.
 
-> **STATUS: ✅ HOMOLOGADO (validação; parecer final)** (2026-07-13). Parecer:
+> **STATUS: ✅ HOMOLOGADO E ENCERRADO — validado para integração na base principal**
+> (2026-07-13). Termo de encerramento: "escopo cumprido com rigor"; 3 resoluções
+> aceitas (F_L via `Wxt` "elegante e regression-safe"; sinais Cb delegados ao chamador
+> "aceitável p/ helper isolado"; `aw≤10` verbatim "evita norma quimera"). Parecer:
 > "matematicamente validado frente ao AISC DG25; adequado como ferramenta informativa
 > (sanity-check)". Extração verbatim "impecável"; Cb tapered, Rpc/Rpg (com `aw≤10`
 > "frequentemente esquecido"), regiões (a)/(b)/(c) e a chave `γ_eLTB·f_r=F_eLTB`
