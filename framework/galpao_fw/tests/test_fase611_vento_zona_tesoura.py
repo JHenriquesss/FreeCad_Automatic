@@ -79,6 +79,41 @@ def test_agua_em_pressao_sinal_correto():
     assert P[right[1]][1] > 0, "agua em succao forte: carga para CIMA (uplift)"
 
 
+def test_cumeeira_carga_media():
+    # parecer item 41 (pt.1): o no da cumeeira (x=L/2) tem area tributaria metade
+    # barlavento + metade sotavento -> carga da MEDIA (w_barl+w_sot)/2, nao o min.
+    import tesoura as TS
+    wb, ws = -2.0, -6.0
+    P = TS.cargas_vento_zonas(_cfg(), w_barl=wb, w_sot=ws, direction=+1)
+    t = TS.gera_trelica(20.0, 2.5, 8, "warren"); nos = t["nos"]
+    ridge = [i for i in range(t["n_paineis"] + 1) if abs(nos[i][0] - 10.0) < 1e-9][0]
+    trib, _ = TS._trib_sup(t)
+    w_dead = _cfg()["w_dead_kN_m"]
+    w_media = 1.4 * ((wb + ws) / 2.0) + 0.9 * w_dead
+    assert P[ridge][1] == pytest.approx(-w_media * trib[ridge], rel=1e-9), \
+        "cumeeira deve receber a carga da media das duas aguas"
+
+
+def test_pressao_dead_desfavoravel():
+    # parecer item 41 (pt.3): agua em PRESSAO (wv>0, p/ baixo) -> peso e DESFAVORAVEL
+    # -> gamma_g = 1,4 (nao 0,9). Sucao mantem 0,9 (peso favoravel ao uplift).
+    import tesoura as TS
+    P = TS.cargas_vento_zonas(_cfg(), w_barl=+1.5, w_sot=-6.0, direction=+1)
+    t = TS.gera_trelica(20.0, 2.5, 8, "warren"); nos = t["nos"]
+    trib, _ = TS._trib_sup(t)
+    wd = _cfg()["w_dead_kN_m"]
+    left = [i for i in range(t["n_paineis"] + 1) if nos[i][0] < 10.0 - 1e-9]
+    right = [i for i in range(t["n_paineis"] + 1) if nos[i][0] > 10.0 + 1e-9]
+    # barlavento em pressao: 1,4*1,5 + 1,4*wd (peso desfavoravel)
+    w_press = 1.4 * 1.5 + 1.4 * wd
+    assert P[left[1]][1] == pytest.approx(-w_press * trib[left[1]], rel=1e-9), \
+        "agua em pressao: peso com gamma_g=1,4 (desfavoravel)"
+    # sotavento em sucao: 1,4*(-6) + 0,9*wd (peso favoravel)
+    w_suc = 1.4 * (-6.0) + 0.9 * wd
+    assert P[right[1]][1] == pytest.approx(-w_suc * trib[right[1]], rel=1e-9), \
+        "agua em sucao: peso com gamma_g=0,9 (favoravel)"
+
+
 def test_backcompat_escalar():
     # sem w_vento_zonas: comportamento atual (escalar) inalterado.
     r = TS.verifica_tesoura(_cfg(w_vento_kN_m=-2.0))
@@ -90,11 +125,25 @@ def test_selftest_roda():
 
 
 # ==================== me-3: integracao rodar =============================
+def test_cpe_longitudinal_tabela5():
+    # parecer item 41 (pt.2): vento a 0 (longitudinal) - Tabela 5 colunas alpha=0.
+    # EG (barlavento do comprimento) mais negativo que FH; valores verbatim.
+    import vento_nbr6123 as v
+    cl5 = v.cpe_telhado_longitudinal(5.0)
+    assert cl5["cobertura_long_EG"] == -0.90 and cl5["cobertura_long_FH"] == -0.60
+    cl10 = v.cpe_telhado_longitudinal(10.0)
+    assert cl10["cobertura_long_EG"] == -0.80 and cl10["cobertura_long_FH"] == -0.60
+
+
 def test_integra_reporta_zonas(tmp_path):
     import rodar_projeto as RP
     from test_fase6c_tesoura import _spec, _TREL
     s = _spec("tesoura", _TREL)
     r = RP.calcular(s, str(tmp_path))
     tz = r.get("tesoura", {})
-    for k in ("w_vento_barl_kN_m", "w_vento_sot_kN_m", "w_vento_uniforme_kN_m"):
+    # 90 (por agua) + 0 (longitudinal simetrico) + governante enveloped
+    for k in ("w_vento_barl_kN_m", "w_vento_sot_kN_m", "w_vento_long_kN_m",
+              "vento_caso_governante", "w_vento_uniforme_kN_m"):
         assert k in tz, f"res['tesoura'] deve reportar {k}"
+    assert tz["w_vento_long_kN_m"] < 0, "vento 0 (longitudinal) deve ser succao"
+    assert "90" in tz["vento_caso_governante"] or "0" in tz["vento_caso_governante"]

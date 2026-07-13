@@ -811,62 +811,71 @@ def rodar(params, out_dir):
         c = params["cargas"]
         w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]   # combo gravidade
         w_dead = (c["G"] + c.get("self", 0.0)) * g["bay"]            # estabiliza uplift (sem Q)
-        # succao AUTO: envelope da cobertura (Cpe-Cpi mais negativo) * q * bay (kN/m,
-        # uplift < 0). Usa o mesmo vr ja computado (NBR 6123, homologado). O usuario
-        # pode sobrescrever informando trelica.w_vento_kN_m (override).
-        # net por AGUA (NBR 6123 Tabela 5): Cpe barlavento (EF) e sotavento (GH)
-        # atuam SIMULTANEAMENTE - o estado de projeto real. min por caso de Cpi.
-        def _net_agua(sufixo):
-            vals = [vr["net"][cs][sf] for cs in vr["net"] for sf in vr["net"][cs]
-                    if sf == "cobertura_" + sufixo]
-            return min(vals) if vals else None
-        net_barl = _net_agua("barlavento")
-        net_sot = _net_agua("sotavento")
-        net_cob = [vr["net"][cs][sf] for cs in vr["net"] for sf in vr["net"][cs]
-                   if sf.startswith("cobertura")]
-        w_vento_uniforme = round(min(net_cob) * vr["q_kN_m2"] * g["bay"], 3) if net_cob else 0.0
+        # SUCCAO de vento auto-acoplada (NBR 6123 Tabela 5). Cpi CONSISTENTE (parecer
+        # item 41, pt.1): um unico Cpi (o mais desfavoravel = mais positivo) aplicado
+        # SIMULTANEAMENTE a todas as superficies - net = Cpe - Cpi_max (par fixo, nao
+        # min independente por agua). qb = q * bay.
         qb = vr["q_kN_m2"] * g["bay"]
-        w_barl = round(net_barl * qb, 3) if net_barl is not None else w_vento_uniforme
-        w_sot = round(net_sot * qb, 3) if net_sot is not None else w_vento_uniforme
+        cpe = vr["cpe"]; cpi_max = max(vr["cpi_cases"].values())
+        # (a) vento a 90 (transversal): Cpe por AGUA, barlavento (EF) x sotavento (GH),
+        #     ASSIMETRICO e simultaneo.
+        net_barl = round(cpe["cobertura_barlavento"] - cpi_max, 2)
+        net_sot = round(cpe["cobertura_sotavento"] - cpi_max, 2)
+        w_barl = round(net_barl * qb, 3); w_sot = round(net_sot * qb, 3)
+        # (b) vento a 0 (longitudinal): as DUAS aguas do portico ficam na MESMA zona
+        #     (EG, mais negativa) -> uplift SIMETRICO. Parecer item 41 pt.2: este caso
+        #     pode governar (simetria) e NAO pode ser omitido.
+        cl = vento.cpe_telhado_longitudinal(vr["theta"])
+        net_eg = round(cl["cobertura_long_EG"] - cpi_max, 2)
+        w_long = round(net_eg * qb, 3)
+        # (c) comparacao: uniforme-pior antigo (min de tudo em todo o vao).
+        w_vento_uniforme = round(min(net_barl, net_sot, net_eg) * qb, 3)
         w_vento_in = tr.get("w_vento_kN_m")
-        tcfg = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
+        base = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
                 "tipo": tr.get("tipo", "warren"),
                 "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
                 "w_dead_kN_m": tr.get("w_dead_kN_m", round(w_dead, 3)),
                 "fy": tr.get("fy", 250e3),
                 "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}
-        # override manual (escalar uniforme) tem prioridade; senao vento POR ZONA
-        # (por agua, NBR 6123 Tabela 5), com envelope das 2 direcoes.
+        # ENVELOPE dos casos de vento: override manual (uniforme) tem prioridade;
+        # senao envelopa 90 (por agua) + 0 (simetrico longitudinal). Pior u_max.
         if w_vento_in is not None:
-            tcfg["w_vento_kN_m"] = w_vento_in
-            fonte = "input"; modo = "uniforme(input)"
+            casos_v = [("input(uniforme)", dict(base, w_vento_kN_m=w_vento_in))]
+            fonte = "input"
         else:
-            tcfg["w_vento_zonas"] = (w_barl, w_sot)
-            fonte = "auto"; modo = "por_zona(agua)"
-        rt = tes.verifica_tesoura(tcfg)
+            casos_v = [("vento 90 (transversal, por agua)",
+                        dict(base, w_vento_zonas=(w_barl, w_sot))),
+                       ("vento 0 (longitudinal, simetrico EG)",
+                        dict(base, w_vento_zonas=(w_long, w_long)))]
+            fonte = "auto"
+        rt = None; caso_gov = None
+        for nome_v, cfg_v in casos_v:
+            rti = tes.verifica_tesoura(cfg_v)
+            if rt is None or rti["u_max"] > rt["u_max"]:
+                rt = rti; caso_gov = nome_v
         rel = tes.relatorio_tesoura_pt(rt)
-        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123 Tabela 5, POR AGUA - estado "
-                "simultaneo real):\n"
-                "    barlavento (Cpe-Cpi) = %s ; sotavento = %s ; q = %.3f kN/m2 ; "
-                "bay = %.2f m\n"
-                "    -> w_barlavento = %.3f kN/m ; w_sotavento = %.3f kN/m (uplift) ; "
-                "fonte = %s\n"
-                "    [comparacao] uniforme-pior (min aplicado em todo o vao, antigo) "
-                "= %.3f kN/m\n"
-                "    combinacao: 1,4 w_vento(agua) + 0,9 w_dead ; envelope das 2 "
-                "direcoes de vento."
-                % ("%.2f" % net_barl if net_barl is not None else "-",
-                   "%.2f" % net_sot if net_sot is not None else "-",
-                   vr["q_kN_m2"], g["bay"], w_barl, w_sot, fonte, w_vento_uniforme))
+        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123 Tabela 5, Cpi consistente = %.2f):\n"
+                "    q = %.3f kN/m2 ; bay = %.2f m\n"
+                "    (a) 90 transversal: barlavento(EF) net=%.2f -> %.3f kN/m ; "
+                "sotavento(GH) net=%.2f -> %.3f kN/m (assimetrico)\n"
+                "    (b) 0 longitudinal: EG net=%.2f -> %.3f kN/m nas DUAS aguas "
+                "(simetrico)\n"
+                "    [comparacao] uniforme-pior antigo = %.3f kN/m\n"
+                "    combinacao: 1,4 w_vento(agua) + gamma_g w_dead (0,9 succao / 1,4 "
+                "pressao) ; cumeeira = media das aguas ; envelope 90+0 + 2 direcoes.\n"
+                "    -> CASO GOVERNANTE: %s ; u_max = %.2f (%s)"
+                % (cpi_max, vr["q_kN_m2"], g["bay"], net_barl, w_barl, net_sot, w_sot,
+                   net_eg, w_long, w_vento_uniforme, caso_gov, rt["u_max"],
+                   "OK" if rt["OK"] else "NAO PASSA"))
         save("gate6-tesoura.txt", rel)
         res["tesoura"] = {"tipo": rt["tipo"], "u_max": rt["u_max"], "OK": rt["OK"],
                           "N_banzo_sup_max": rt["N_banzo_sup_max"],
                           "N_banzo_inf_max": rt["N_banzo_inf_max"],
                           "n_paineis": rt["n_paineis"], "h_m": rt["h_m"],
                           "w_vento_barl_kN_m": w_barl, "w_vento_sot_kN_m": w_sot,
-                          "w_vento_uniforme_kN_m": w_vento_uniforme,
-                          "w_vento_modo": modo, "w_vento_fonte": fonte,
-                          # back-compat (contrato do item 37): auto = envoltoria uniforme
+                          "w_vento_long_kN_m": w_long, "vento_caso_governante": caso_gov,
+                          "w_vento_uniforme_kN_m": w_vento_uniforme, "w_vento_fonte": fonte,
+                          # back-compat (contrato do item 37)
                           "w_vento_auto_kN_m": w_vento_uniforme,
                           "w_vento_usado_kN_m": (w_vento_in if w_vento_in is not None
                                                  else w_vento_uniforme)}

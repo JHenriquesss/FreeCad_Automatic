@@ -149,25 +149,36 @@ def _trib_sup(t):
     return trib, seg
 
 
+def _gamma_g_dead(wv):
+    """gamma_g do peso permanente (NBR 8681) conforme o SENTIDO do vento no no:
+    - vento de SUCCAO (wv<=0, uplift): peso e FAVORAVEL (opoe o arranque) -> 0,9;
+    - vento de PRESSAO (wv>0, p/ baixo): peso e DESFAVORAVEL (soma) -> 1,4.
+    (parecer item 41, pt.3: nao usar 0,9 hardcoded se o vento vira pressao.)"""
+    return 0.9 if wv <= 0.0 else 1.4
+
+
 def _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction=1):
-    """Cargas nodais da combinacao de UPLIFT com vento POR AGUA (zona). Cada metade
-    do banzo superior recebe o Cpe da sua agua (NBR 6123 Tabela 5, EF/sotavento GH),
-    atuando SIMULTANEAMENTE. w_barl/w_sot: succao por m de banzo (kN/m, <0 = uplift).
-    direction=+1: agua ESQUERDA=barlavento, DIREITA=sotavento; -1: espelhado.
-    Combinacao (NBR 8681): 1,4 w_vento(agua) + 0,9 w_dead (permanente estabilizante).
-    Convencao: w>0 -> carga p/ BAIXO (Fy=-w.trib). Cumeeira (x=L/2) -> agua mais
-    desfavoravel (mais negativa) - conservador."""
+    """Cargas nodais da combinacao com vento POR AGUA (zona). Cada metade do banzo
+    superior recebe o Cpe da sua agua (NBR 6123 Tabela 5, barlavento EF / sotavento
+    GH), atuando SIMULTANEAMENTE. w_barl/w_sot: vento por m de banzo (kN/m, <0 =
+    uplift/succao, >0 = pressao). direction=+1: agua ESQUERDA=barlavento, DIREITA=
+    sotavento; -1: espelhado.
+    Combinacao (NBR 8681): 1,4 w_vento(agua) + gamma_g w_dead, com gamma_g=0,9
+    (succao, peso favoravel) ou 1,4 (pressao, peso desfavoravel).
+    Cumeeira (x=L/2): area tributaria = metade barlavento + metade sotavento -> carga
+    da MEDIA (w_barl+w_sot)/2 (fiel a fisica; parecer item 41 pt.1).
+    Convencao: w>0 -> carga p/ BAIXO (Fy=-w.trib)."""
     nos = t["nos"]; n_p = t["n_paineis"]; L = t["L"]
     P = {}
     for i in range(n_p + 1):
         x = nos[i][0]
         if abs(x - L / 2.0) < 1e-9:
-            wv = min(w_barl, w_sot)                       # cumeeira: mais desfavoravel
+            wv = (w_barl + w_sot) / 2.0                   # cumeeira: media das aguas
         else:
             esq = x < L / 2.0
             barlavento = esq if direction >= 0 else (not esq)
             wv = w_barl if barlavento else w_sot
-        w_no = 1.4 * wv + 0.9 * w_dead                   # combinacao de uplift
+        w_no = 1.4 * wv + _gamma_g_dead(wv) * w_dead
         P[i] = (0.0, -w_no * trib[i])
     return P
 
