@@ -341,9 +341,10 @@ def _anot(doc, page, nome, linhas, x, y, tam=4.0):
     return a
 
 
-def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None):
+def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None, escala=1.0):
     """Tabela estilizada: cabecalho em negrito/sombreado, larguras de coluna,
-    alinhamento. Renderizada como DrawViewSpreadsheet."""
+    alinhamento. Renderizada como DrawViewSpreadsheet. escala>1 amplia celula+texto
+    juntos (legibilidade em A1, sem clipar)."""
     ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
     ncol = len(header)
     cols = [chr(ord("A") + i) for i in range(ncol)]
@@ -376,14 +377,18 @@ def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None):
     v.CellStart = "A1"
     v.CellEnd = "%s%d" % (cols[-1], len(rows) + 1)
     v.TextSize = tam
+    try:
+        v.Scale = float(escala)
+    except Exception:
+        pass
     page.addView(v)
     v.X, v.Y = float(x), float(y)
     return v
 
 
-def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520):
+def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520, escala=1.0):
     """Bloco de texto ALINHADO A ESQUERDA (1 coluna). Usa spreadsheet pois o
-    DrawViewAnnotation centraliza o texto (ruim p/ listas/notas)."""
+    DrawViewAnnotation centraliza o texto (ruim p/ listas/notas). escala>1 amplia."""
     ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
     for i, l in enumerate(linhas, start=1):
         a = "A%d" % i
@@ -402,6 +407,10 @@ def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520):
     v.CellStart = "A1"
     v.CellEnd = "A%d" % len(linhas)
     v.TextSize = tam
+    try:
+        v.Scale = float(escala)
+    except Exception:
+        pass
     page.addView(v)
     v.X, v.Y = float(x), float(y)
     return v
@@ -817,6 +826,48 @@ LIGACOES = [
 ]
 
 
+def _svg_solda_filete(perna_mm, campo=False, todo_contorno=False):
+    """SVG do simbolo AWS/AWS A2.4 de solda de FILETE (arrow-side, abaixo da linha
+    de referencia): linha de referencia + seta ao pe da junta + triangulo do filete
+    (perna vertical a esquerda) + a perna em mm. campo=bandeira (solda de campo);
+    todo_contorno=circulo na dobra. Renderizado headless via DrawViewSymbol."""
+    perna = ("%g" % perna_mm) if perna_mm else ""
+    flag = ('<path d="M10,14 L10,7 L17,9 Z" fill="black"/>' if campo else "")
+    circ = ('<circle cx="10" cy="14" r="2.6" fill="none" stroke="black" '
+            'stroke-width="1"/>' if todo_contorno else "")
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="34" '
+        'viewBox="0 0 64 34">'
+        '<g stroke="black" stroke-width="1" fill="none">'
+        '<line x1="10" y1="14" x2="58" y2="14"/>'            # linha de referencia
+        '<line x1="10" y1="14" x2="2" y2="26"/>'             # leader ate a junta
+        '</g>'
+        '<polygon points="2,26 8,22 7,25.5" fill="black"/>'  # ponta da seta
+        '<polygon points="30,14 38,14 30,24" fill="black"/>' # triangulo do filete
+        + circ + flag +
+        ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
+         % perna if perna else "") +
+        '</svg>')
+
+
+def _glifo_solda(doc, page, nome, perna_mm, x, y, escala=1.6, campo=False,
+                 todo_contorno=False):
+    """Coloca o simbolo grafico de solda de filete (SVG AWS) na prancha, ligado ao
+    dado do calculo (perna em mm). Substitui o DrawWeldSymbol (feature so-GUI)."""
+    try:
+        sym = doc.addObject("TechDraw::DrawViewSymbol", nome)
+        sym.Symbol = _svg_solda_filete(perna_mm, campo, todo_contorno)
+        try:
+            sym.Scale = float(escala)
+        except Exception:
+            pass
+        page.addView(sym)
+        sym.X, sym.Y = float(x), float(y)
+        return sym
+    except Exception:
+        return None
+
+
 def _callout_fab(cfg, key):
     """Linha(s) de callout de fabricacao a partir do CFG (numeros do calculo).
     Retorna [] se nao houver dado -> mantem 'conforme memorial'."""
@@ -958,6 +1009,13 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
                "Cotas em milimetros."]
     _anot(doc, page, "ALIG_" + base, linhas, 200, 80 + 6 * len(fab), 5)
+    # simbolo grafico AWS de solda de filete (quando o callout tras a perna do
+    # calculo): glyph ligado ao dado, headless via DrawViewSymbol (nao DrawWeldSymbol).
+    dfab = cfg.get(callout) if callout else None
+    if isinstance(dfab, dict) and dfab.get("perna_solda_mm"):
+        _anot(doc, page, "WLDt_" + base, ["SIMBOLO DE SOLDA (AWS):"], 150, 200, 4)
+        _glifo_solda(doc, page, "WLD_" + base, dfab["perna_solda_mm"],
+                     x=210, y=170, escala=7.0, todo_contorno=True)
     return page, cots
 
 
@@ -1027,13 +1085,15 @@ def _pr_quadros(doc, cfg):
     # QUADRO DE VERIFICACOES (utilizacoes do calculo, NBR 8800)
     res = [(k, v) for k, v in (cfg.get("resultados") or {}).items()
            if v is not None]
+    ESC_Q = 1.5                      # ampliacao dos quadros p/ legibilidade em A1
     if res:
         _anot(doc, page, "A09v",
-              ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 240, 500, 7)
+              ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 210, 510, 9)
         rows = [[k, "%.2f" % float(v), "OK" if float(v) <= 1.001 else "REVER"]
                 for k, v in res]
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
-                rows, 240, 470 - len(rows) * 5, tam=6, larguras=[170, 130, 100])
+                rows, 210, 480 - len(rows) * 7, tam=6, larguras=[170, 130, 100],
+                escala=ESC_Q)
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     if tk:
@@ -1041,10 +1101,10 @@ def _pr_quadros(doc, cfg):
         rows = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
                 for r in tk]
         rows.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
-        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 600, 500, 7)
+        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows, 600, 470 - len(rows) * 5, tam=6,
-                larguras=[150, 130, 60, 110])
+                rows, 560, 480 - len(rows) * 7, tam=6,
+                larguras=[150, 130, 60, 110], escala=ESC_Q)
     # NOTAS TECNICAS
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
@@ -1059,7 +1119,7 @@ def _pr_quadros(doc, cfg):
         "9. Tercas Ue formado a frio (NBR 14762).",
         "10. Projeto executivo sujeito a revisao e ART.",
     ]
-    _bloco_texto(doc, page, "A09n", notas, 240, 250, tam=5, largura=560)
+    _bloco_texto(doc, page, "A09n", notas, 210, 240, tam=5, largura=560, escala=1.4)
     return [page], []
 
 
