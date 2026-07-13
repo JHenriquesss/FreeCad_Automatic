@@ -429,7 +429,8 @@ def _carimbo(cfg, titulo, numero, escala, folha):
         "revision_index": "00",
         "language_code": "PT",
         "responsible_department": "ESTRUTURAS",
-        "general_tolerances": "NBR 8800 / NBR 6118",
+        # compacto p/ caber na celula estreita do ISO5457 (evita colisao com scale)
+        "general_tolerances": "NBR 8800/6118",
         "part_material": "ACO MR250 / CONCRETO fck 25 MPa",
     }
 
@@ -1287,12 +1288,40 @@ def _limpo(v, padrao):
     return v
 
 
+def _descreve_perfis(est):
+    """Rotulo (perfil_col, perfil_raf) para o callout. Em portico de ALMA VARIAVEL
+    a viga (e a coluna, se h_col_base) e chapa soldada tapered - NAO um laminado;
+    descreve a chapa a partir do dict tapered do calculo. Em TESOURA descreve a
+    trelica. Caso contrario usa os perfis laminados adotados."""
+    col = est.get("perfil_col_adotado", "?")
+    raf = est.get("perfil_raf_adotado", "?")
+    tipo = est.get("tipo_portico", "prismatico")
+    tp = est.get("tapered")
+    if tipo == "alma_variavel" and isinstance(tp, dict):
+        hj = tp.get("h_joelho", 0) * 1000.0; hc = tp.get("h_cumeeira", 0) * 1000.0
+        tw = tp.get("tw", 0) * 1000.0; bf = tp.get("bf", 0) * 1000.0
+        tf = tp.get("tf", 0) * 1000.0
+        raf = ("Alma variavel h=%.0f->%.0f (tw=%.0f, mesa %.0fx%.1f) mm"
+               % (hj, hc, tw, bf, tf))
+        if tp.get("h_col_base"):
+            hcb = tp["h_col_base"] * 1000.0
+            col = ("Alma variavel h=%.0f->%.0f (tw=%.0f, mesa %.0fx%.1f) mm"
+                   % (hcb, hj, tw, bf, tf))
+    elif tipo == "tesoura" and isinstance(est.get("trelica"), dict):
+        tr = est["trelica"]
+        raf = ("Trelica %s h=%.0f mm, %d paineis (banzo/diagonal cfg calculo)"
+               % (tr.get("tipo", "warren"), tr.get("h", 0) * 1000.0,
+                  tr.get("n_paineis", 0)))
+    return col, raf
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
     ba = est.get("base_adotada")
     sp = est.get("sapata_adotada")
     jo = est.get("joelho_adotado")
+    perfil_col, perfil_raf = _descreve_perfis(est)
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
@@ -1307,8 +1336,8 @@ def config_de_spec(spec, fcstd_path, out_dir):
             "bay": g["bay"] * 1000.0,
             "slope": spec.get("cobertura", {}).get("slope", 0.1),
         },
-        "perfil_col": est.get("perfil_col_adotado", "?"),
-        "perfil_raf": est.get("perfil_raf_adotado", "?"),
+        "perfil_col": perfil_col,
+        "perfil_raf": perfil_raf,
         "base": ({"B": ba["B"] * 1000.0, "L": ba["L"] * 1000.0,
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),
