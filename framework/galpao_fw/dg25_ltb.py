@@ -103,8 +103,11 @@ def nbr_mcr(sec, fy, Lb, Cb=1.0):
 def cross_check_flt(segs, fy, Lb, Cb=1.0, tol=0.20):
     """Compara o momento de FLT elastico do DG25 (secao do MEIO do trecho, 5.4.3)
     com o Mcr do NBR 8800 Anexo J (secao de MAIOR altura, J.4.2). segs = lista de
-    {'props': sec, 'h_m': altura}. Cb cancela na razao. Retorna dict com a razao e o
-    veredito CONVERGE (|razao-1|<=tol). INFORMATIVO - nao altera dimensionamento."""
+    {'props': sec, 'h_m': altura}. O MESMO Cb (escalar) multiplica os dois lados ->
+    cancela na razao POR CONSTRUCAO do teste (nao e propriedade intrinseca: em tapered
+    o Cb do DG25 5.4-2 difere do Cb do Anexo J; aqui isola-se so a diferenca da secao
+    de referencia). Retorna dict com a razao e o veredito CONVERGE (|razao-1|<=tol).
+    INFORMATIVO - nao altera dimensionamento."""
     valid = [s for s in segs if s.get("props")]
     if not valid:
         return {"M_dg": 0.0, "M_nbr": 0.0, "razao": float("nan"),

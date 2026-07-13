@@ -5,10 +5,24 @@ Conferência do sênior. Fecha a **dívida (b)** do backlog do parecer 6.b como
 trecho de barra afunilada pelo **AISC Design Guide 25 §5.4.3** e compara com o `Mcr`
 do **NBR 8800 Anexo J**. Fase 6.12. Criado 2026-07-12.
 
-> **STATUS: 🟡 PENDENTE SÊNIOR** (2026-07-12). **É VALIDAÇÃO, não dimensionamento.**
-> Não altera nenhuma utilização — o dimensionamento continua **100% NBR Anexo J**
-> (item 36, homologado). DG25 é **AISC/LRFD, informativo**. Base **verbatim** do
-> DG25 (pág 60–61, lida por imagem — a camada de texto do PDF é corrompida).
+> **STATUS: ✅ HOMOLOGADO (validação; 2 esclarecimentos)** (2026-07-12). Parecer:
+> **"aprovado para integração"** — fórmulas `F_eLTB` (F4-5), `rt` (F4-11), `J`
+> (com fator de Roark `1−0,63 t/b`) **impecáveis** vs AISC 360-16 / DG25 / Salmon &
+> Johnson. O sênior **confirmou** a origem do fator ~0,5 (razão `(h_meio/h_max)²≈0,562`
+> vs meu 0,544 — decaimento quadrático de `Sx∝h²`; "não é falso alarme"). **É
+> VALIDAÇÃO, não dimensionamento** — utilização segue **100% NBR Anexo J** (item 36).
+
+## Parecer sênior — respostas
+
+| Pt | Observação | Veredito / ação |
+|---|---|---|
+| **1 (mat.)** | `F_eLTB`, `rt`, `J` (Roark) transcritos verbatim, corretos | **APROVADO** — "impecável / rigorosamente correto"; `0,078≈1/(2(1+ν)π²)` p/ ν=0,3. Sem ação. |
+| **2 (Cb)** | "Cb cancela na razão" **não é universal** — o Cb tapered do DG25 (5.4-2, γ_eLTB) ≠ Cb do Anexo J; só cancela porque o teste usa o MESMO Cb dos dois lados | **ACATADO (esclarecido).** Documentado no `cross_check_flt` e no `test_razao_independe_de_cb` que o cancelamento é **premissa de teste** (Cb idêntico dos dois lados p/ isolar a diferença GEOMÉTRICA da seção), não propriedade intrínseca da formulação completa. |
+| **3 (~0,5)** | Origem do 0,544 é a seção de referência (meio×funda), não erro | **CONFIRMADO pelo sênior** — `(0,675/0,90)²≈0,562`, "obedece às leis da mecânica"; comparar momentos absolutos meio×funda é "maçãs com laranjas"; cada norma é um pacote fechado. Sem ação. |
+
+Nenhum bug. Fórmulas aprovadas; a única nota (Cb) foi esclarecida como premissa de
+teste na documentação (lógica intocada). DIVERGE mantido no memorial como **alerta
+visual** ao projetista (tapers fortes têm comportamento localizado complexo).
 
 ## O que o cross-check faz
 
@@ -104,9 +118,11 @@ Mcr(NBR,funda)=… ; razão=… → CONVERGE/DIVERGE`. `res["alma_variavel"]`:
 
 ## Notas / backlog
 
-- `Cb` próprio do DG25 (5.4-1/5.4-2) não implementado: cancela na razão → o
-  cross-check é Cb-independente. Fica como refino se o sênior quiser o `Fcr` de
-  projeto completo (Rpc/Rpg/Rpt + mapeamento inelástico — o "sabor AISC" do que o
-  Anexo G/H já faz).
+- `Cb` próprio do DG25 (5.4-1/5.4-2) não implementado. O cross-check usa **o mesmo
+  Cb dos dois lados** (premissa de teste) → cancela na razão, **isolando a diferença
+  geométrica da seção**. **Não** é propriedade intrínseca: em tapered o Cb do DG25
+  (γ_eLTB, sensível à variação de inércia) difere do Cb do Anexo J. Implementar o Cb
+  tapered + o `Fcr` de projeto completo (Rpc/Rpg/Rpt + mapeamento inelástico — o
+  "sabor AISC" do que o Anexo G/H já faz) fica como refino futuro.
 - Divergência meio×funda: **decisão de método do sênior**, não bug. Documentada, não
   aplicada.

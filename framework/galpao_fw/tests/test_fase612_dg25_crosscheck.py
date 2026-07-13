@@ -79,11 +79,17 @@ def test_prismatico_converge():
 
 
 def test_razao_independe_de_cb():
+    # PREMISSA DE TESTE (parecer item 42, obs.1): o cancelamento do Cb aqui e um
+    # ARTEFATO da construcao do cross-check - o MESMO Cb (escalar) multiplica os dois
+    # lados (m_eltb e nbr_mcr), logo cancela na razao. NAO e propriedade intrinseca:
+    # em barra tapered o Cb do DG25 (5.4-2, gamma_eLTB, sensivel a variacao de inercia)
+    # NAO e igual ao Cb do NBR Anexo J. O cross-check isola a diferenca GEOMETRICA da
+    # secao de referencia (meio x funda) fixando Cb identico dos dois lados.
     import dg25_ltb as dg
     r1 = dg.cross_check_flt(_segs(0.90, 0.45), FY, Lb=4.0, Cb=1.0)
     r2 = dg.cross_check_flt(_segs(0.90, 0.45), FY, Lb=4.0, Cb=2.3)
     assert r1["razao"] == pytest.approx(r2["razao"], rel=1e-9), \
-        "Cb cancela na razao DG25/NBR"
+        "com Cb IDENTICO dos dois lados (premissa de teste), o Cb cancela na razao"
 
 
 def test_taper_forte_sinaliza_sem_excecao():
