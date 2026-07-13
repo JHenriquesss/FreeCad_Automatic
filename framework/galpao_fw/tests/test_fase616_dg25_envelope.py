@@ -35,6 +35,25 @@ def test_flb_mesa_esbelta_regiao_c():
     assert r["Mn"] < dg.m_cfy(s, FY)              # FLB reduz
 
 
+def test_kc_usa_h_livre_da_alma_nao_hc():
+    # parecer item 46 F1: kc (5.4-24) = 4/sqrt(h/tw), h = altura LIVRE da alma (hw),
+    # NAO hc. Verbatim DG25 pag 63. Numa secao mono hc != hw discrimina.
+    m = pm.props_I_mono(0.70, 0.35, 0.010, 0.18, 0.012, 0.006)
+    hw, hc, tw = m["hw"], m["hc"], m["tw"]
+    assert abs(hc - hw) > 0.05 * hw                  # geometria discrimina
+    kc_hw = min(max(4.0 / math.sqrt(hw / tw), 0.35), 0.76)
+    kc_hc = min(max(4.0 / math.sqrt(hc / tw), 0.35), 0.76)
+    assert abs(dg.kc_flb(m) - kc_hw) < 1e-9          # usa hw
+    assert abs(dg.kc_flb(m) - kc_hc) > 1e-4          # e NAO hc
+
+
+def test_kc_duplo_sim_inalterado():
+    # hc == hw no duplo-sim -> kc identico ao calculo por hc
+    s = av.props_I(0.60, 0.25, 0.008, 0.009)
+    hw = s["d"] - 2 * s["tf"]
+    assert abs(dg.kc_flb(s) - min(max(4.0 / math.sqrt(hw / s["tw"]), 0.35), 0.76)) < 1e-12
+
+
 def test_flb_mesa_nao_compacta_regiao_b():
     s = av.props_I(0.60, 0.25, 0.008, 0.009)     # bf/2tf=13.9 -> intermediaria
     r = dg.mn_flb(s, FY)

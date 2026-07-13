@@ -230,8 +230,11 @@ def _lam_pf(fy):
 
 
 def kc_flb(sec):
-    """kc = 4/sqrt(hc/tw), limitado a [0,35 ; 0,76] (5.4-24)."""
-    return min(max(4.0 / math.sqrt(hc(sec) / sec["tw"]), 0.35), 0.76)
+    """kc = 4/sqrt(h/tw), limitado a [0,35 ; 0,76] (5.4-24, verbatim DG25 pag 63).
+    h = altura LIVRE da alma (hw = d-tfc-tft; = d-2tf no duplo-sim), NAO hc (parecer
+    item 46 F1). hc=hw no duplo-sim -> regressao inalterada."""
+    hw = sec.get("hw", sec["d"] - 2.0 * sec["tf"])
+    return min(max(4.0 / math.sqrt(hw / sec["tw"]), 0.35), 0.76)
 
 
 def _lam_rf(sec, fy):

@@ -6,8 +6,8 @@ Guide 25 §5.4: **FLB** (flambagem local da mesa comprimida, §5.4.4), **TFY**
 o **envelope** Mn = min(CFY, LTB, FLB, TFY, TFR) (§5.4.7). Fecha o backlog "FLB/TFY
 DG25 §5.4.4/5/6" (residual dos itens 43/44). Fase 6.16. Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDANDO PARECER** (2026-07-13). **INFORMATIVO** — dimensionamento
-> segue a NBR 8800 (Anexo G/J). Cross-check independente.
+> **STATUS: ✅ PARECER RECEBIDO — 1 CORRIGIDO, 1 REJEITADO C/ VERBATIM** (2026-07-13).
+> **INFORMATIVO** — dimensionamento segue a NBR 8800 (Anexo G/J). Ver §Parecer abaixo.
 
 ## Base normativa (AISC DG25 §5.4 — verbatim das imagens, pág 62–64)
 
@@ -19,7 +19,7 @@ DG25 §5.4.4/5/6" (residual dos itens 43/44). Fase 6.16. Criado 2026-07-13.
      Mn = Rpg·[Rpc·Myc − (Rpc·Myc − FL·Sxc)·(λ−λpf)/(λrf−λpf)]        (5.4-22)
 (c) esbelta   λ ≥ 0,95·√(kc·E/FL):
      Mn = Rpg·0,9·E·kc·Sxc/λ²                                          (5.4-23)
-kc = 4/√(hc/tw),  0,35 ≤ kc ≤ 0,76                                     (5.4-24)
+kc = 4/√(h/tw),  0,35 ≤ kc ≤ 0,76   (h = hw, alma LIVRE)               (5.4-24)
 λpf = 0,38·√(E/Fy) ; λrf = 0,95·√(kc·E/FL)
 ```
 
@@ -64,10 +64,46 @@ Afg = bft·tft ; Afn = Afg − n_furos·dh·tft
 
 ## Cobertura de teste (fase 6.16)
 
-`tests/test_fase616_dg25_envelope.py` — 10 testes: FLB compacta/não-compacta/esbelta;
+`tests/test_fase616_dg25_envelope.py` — 12 testes: FLB compacta/não-compacta/esbelta;
+**kc usa h livre (hw) e não hc (5.4-24)**; **kc duplo-sim inalterado**;
 TFY duplo-sim não aplica / mono aplica; TFR sem furos não aplica / com furos reduz;
 envelope governa o menor estado; mono c/ furos inclui CFY/LTB/FLB/TFY/TFR; prismático
 Lb curto → CFY/LTB/FLB.
+
+## Parecer do sênior (2026-07-13) — 2 pontos, conferidos contra PDF pág 63
+
+Ambos verificados no verbatim renderizado do DG25 (pág 63 = índice 83).
+
+### F1 — `kc` usa `h` (alma livre), não `hc` — ✅ PROCEDENTE, CORRIGIDO
+
+DG25 eq **5.4-24** verbatim: `kc = 4/√(h/tw)`, onde `h` = altura **livre** da alma
+(`hw = d−tfc−tft`; = `d−2tf` no duplo-sim), **não** `hc`. O código usava `hc(sec)/tw`.
+
+- **Regressão:** duplo-sim `hc = hw` → `kc` idêntico (selftest 0,998 inalterado).
+- **Impacto (mono):** seção mesa comp. esbelta (350×10 / 180×12 / alma 6):
+  `hw=678 hc=584` → `kc(hc)=0,406` vs `kc(hw)=0,376` (+7,8%). `kc` maior aumenta
+  `λrf` e o `Mn` da FLB esbelta → **contra a segurança**. Correção usa `hw` (menor
+  `kc`, conservador).
+- **Corrigido:** `dg25_ltb.kc_flb` (`hc`→`hw`). Testes novos
+  `test_kc_usa_h_livre_da_alma_nao_hc` + `test_kc_duplo_sim_inalterado` (fase 6.16
+  → 12 testes).
+
+### F2 — teto de `Mp` no `Rpt` (5.4-28): `Sxc` vs `Sxt` — ❌ REJEITADO (DG25 usa Sxt)
+
+O sênior sugeriu `Mp = Fy·Zx ≤ 1,6·Fy·Sxc` (regra geral do AISC F4.1). **DG25 pág 63
+eq 5.4-28 verbatim mostra `Mp = Fy·Zx ≤ 1,6·Fy·Sxt`** — o DG25 define um `Mp`
+**específico do bloco TFY/Rpt**, referido à mesa **tracionada**, porque
+`Rpt = Mp/Myt` com `Myt = Fy·Sxt` (5.4-29). O código já usa `Sxt` (linha `rpt`) =
+casa com o verbatim. **Mantido.** (O `Mp` da eq geral 5.4-9/Rpc — outra função,
+`mp()` — usa `Sxc(=Wx)`, também correto.)
+
+### Nota informativa — `Iyc/Iy ≤ 0,23` → perfil T (F9)
+
+Sênior sugeriu warning: proporção com `Iyc/Iy ≤ 0,23` sai de F4/F5 e cai em F9
+(perfis T). DG25 pág 63 **explicitamente** manda `Rpt=1,0` nesse caso (extensão de
+White & Jung 2006) — não é erro. Registrado como **FLAG informativo**: geometrias
+tão assimétricas (mesa tracionada domina Iy) fogem do galpão típico; se surgirem,
+verificar isoladamente como T. Não altera o cálculo (módulo é informativo).
 
 ## Escopo
 
