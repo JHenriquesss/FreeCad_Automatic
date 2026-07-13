@@ -29,6 +29,21 @@
 #     tau = V Qf/(Ix tw), Qf = bf tf (d-tf)/2 (momento estatico da mesa).
 #   A juncao concentra sigma alto E tau alto -> ponto critico para 5.5.2.3.
 # Unidades SI: m, kN (fy em kN/m2, tensao em kN/m2).
+#
+# PREMISSAS (parecer senior item 39, APROVADO COM OBSERVACOES):
+#   (A) chi_n = 1,0 por padrao (alinea c): a verificacao pontual NAO reavalia a
+#       instabilidade NORMAL - ela ja e coberta, na mesma peca, pelos checks
+#       PARALELOS de FLT (Anexo J via flt_misula) e FLM/FLA por segmento (Anexo
+#       G/H via check_nbr8800). Logo os Nsd/Msd aqui sao os do joelho (crus); a
+#       reducao por flambagem local NAO e refeita neste ponto. chi_n e parametro
+#       de override caso o consumidor queira aplicar chi<1 explicitamente.
+#   (B) Teoria de VIGA PRISMATICA (Navier/Jourawski): sigma = M y/I ; tau = V Q/(I t).
+#       No joelho tapered a mesa e inclinada de theta -> a tensao normal REAL na
+#       mesa e ~ M/(W cos^2 theta). Para inclinacoes de galpao (mesa 2-11 graus na
+#       coluna/rafter tipicos) cos^2 theta > 0,96 -> desvio < 5% (conservador o
+#       suficiente). A PRECISAO CAI para joelhos ingremes (theta > ~25 graus);
+#       nesse caso, aplicar o fator 1/cos^2 theta a sigma. O alivio de cortante das
+#       mesas inclinadas (V_alma = V - (M/h) tan theta) esta em cortante_tapered.py.
 # ============================================================================
 """Verificacao por tensoes NBR 8800 5.5.2.3 (juncao mesa-alma). Unidades m, kN."""
 

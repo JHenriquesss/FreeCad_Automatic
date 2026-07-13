@@ -7,13 +7,32 @@ a **tensão combinada no ponto** (junção mesa-alma). O `tensao_ponto.py` aplic
 verificação por **tensões da teoria da elasticidade** da NBR 8800 **§5.5.2.3**.
 Fase 6.9. Criado 2026-07-12.
 
-> **STATUS: 🟡 PENDENTE SÊNIOR** (2026-07-12). Aguarda parecer. Base **verbatim** do
-> PDF (`nbr8800_2008_1.pdf`, pág 57). **Ponto de atenção honesto ao revisor:** a NBR
-> **não** traz von Mises combinado `√(σ²+3τ²)` como equação explícita — §5.5.2.3 dá
-> checagens **separadas** de σ e τ (a–d). O von Mises entra aqui **apenas como check
-> suplementar conservador** (energia de distorção), sinalizado em `base_vm`. Se o
-> revisor considerar o suplementar indesejado, é remoção de uma linha (as checagens
-> a–d normativas ficam).
+> **STATUS: ✅ HOMOLOGADO (com observações acatadas)** (2026-07-12). Parecer:
+> **"APROVADO COM OBSERVAÇÕES"** — *"do ponto de vista puramente matemático e da
+> Resistência dos Materiais Clássica, não há erros nas fórmulas propostas"*; σ, τ,
+> `Qf` e o envelope de von Mises **verificados milimetricamente** (dedução reversa
+> contra Hibbeler / Gere-Timoshenko). Nenhuma refatoração de fórmula exigida. Base
+> **verbatim** do PDF (`nbr8800_2008_1.pdf`, pág 57). As **3 observações** (χn=1,0;
+> teoria prismática vs cos²θ; von Mises na instabilidade) eram **notas de premissa**,
+> não bugs — acatadas na documentação do módulo.
+
+## Parecer sênior — respostas
+
+| Pt | Observação | Veredito / ação |
+|---|---|---|
+| **1 (mat.)** | σ, τ, `Qf`, envelope von Mises: dedução reversa bate com a mecânica clássica | **APROVADO** — "irretocável / matematicamente perfeito". Sem ação. |
+| **A** | χn=1,0 só é seguro se `Msd/Nsd` já limitados pela flambagem local | **ACATADO (documentado).** A instabilidade normal do joelho **é** coberta, na mesma peça, pelos checks PARALELOS: FLT de trecho (Anexo J, `flt_misula`) + FLM/FLA por segmento (Anexo G/H, `check_nbr8800`). O §5.5.2.3 é interação PONTUAL adicional. `chi_n` é parâmetro de override. Premissa registrada no cabeçalho de `tensao_ponto.py`. |
+| **B** | Teoria prismática (Navier/Jourawski) ignora cos²θ da mesa inclinada | **ACATADO (documentado).** Geometria real: mesa da coluna 0,35→0,90 m em 6 m → θ≈2,6° → cos²θ=0,998 → **0,2%** (rafter menor). Nota no módulo: precisão cai para joelhos íngremes (θ>25°) → aplicar `1/cos²θ` a σ. Alívio de cortante correlato já em `cortante_tapered.py` (item 40). |
+| **C** | von Mises perde sentido físico na instabilidade ao cisalhamento (χv≪1) | **SEM AÇÃO** — sênior confirma bem tratado: `base_vm` marcado suplementar, sem peso normativo. |
+
+Zero bug de fórmula. Premissas A e B acatadas como **documentação** no cabeçalho de
+`tensao_ponto.py`; a lógica não muda.
+
+### Contexto original (base normativa)
+
+A NBR **não** traz von Mises combinado `√(σ²+3τ²)` como equação explícita — §5.5.2.3 dá
+checagens **separadas** de σ e τ (a–d). O von Mises entra **apenas como check
+suplementar conservador** (energia de distorção), sinalizado em `base_vm`.
 
 ## Contexto — qual lacuna fecha
 
