@@ -583,7 +583,7 @@ def rodar(params, out_dir):
             Msd_s = seg["M"] * B2_amp; Nsd_s = seg["N"] * B2_amp
             cme = cta.cortante_efetivo_conservador(
                 Msd_s, seg["V"], seg.get("h_m") or sec_seg["d"], dhdx_raf,
-                sent_raf, creditar_cme)
+                sent_raf, creditar_cme, tf=sec_seg["tf"])
             cme_alivio_max = max(cme_alivio_max, cme["alivio"], cme["acrescimo"])
             v = chk.verifica(sec_seg, params["fy"], L=seg.get("L_seg") or Lb_raf,
                              Nsd=Nsd_s, Msd=Msd_s, Vsd=cme["V_usar"], Kx=1, Ky=1,
@@ -686,7 +686,7 @@ def rodar(params, out_dir):
                 Msd_c = seg["M"] * B2_amp; Nsd_c = seg["N"] * B2_amp
                 cme_c = cta.cortante_efetivo_conservador(
                     Msd_c, seg["V"], seg.get("h_m") or sec_c["d"], dhdx_col,
-                    sent_col, creditar_cme)
+                    sent_col, creditar_cme, tf=sec_c["tf"])
                 cme_alivio_max = max(cme_alivio_max, cme_c["alivio"], cme_c["acrescimo"])
                 v = chk.verifica(sec_c, params["fy"], L=seg.get("L_seg") or Lb_col,
                                  Nsd=Nsd_c, Msd=Msd_c, Vsd=cme_c["V_usar"], Kx=1, Ky=1,

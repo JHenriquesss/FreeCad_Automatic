@@ -5,14 +5,33 @@ seção variável, as **mesas inclinadas** carregam parte da força cortante via
 componente transversal da força de mesa; a **alma** vê um cortante efetivo menor
 (haunch/joelho) ou maior (geometria adversa). Fase 6.10. Criado 2026-07-12.
 
-> **STATUS: 🟡 PENDENTE SÊNIOR** (2026-07-12). Aguarda parecer.
-> **Ponto de honestidade ao revisor:** isto **NÃO é cláusula da NBR 8800** — é
-> **equilíbrio (mecânica)**. O **Anexo J** (barras de seção variável) tem apenas
-> **J.1** (aplicabilidade), **J.2** (tração), **J.3** (compressão) e **J.4**
-> (momento/FLT); **não trata cortante**. Por **J.1.2**, o que não está excetuado
-> segue a Seção 5 → o cortante segue **§5.4.3 por seção** (o verificador já faz).
-> Este módulo é um **refino por equilíbrio**, não uma citação normativa, e **não
-> inventa coeficiente** (a componente é geométrica exata).
+> **STATUS: ✅ HOMOLOGADO (após correção do braço)** (2026-07-12). Parecer:
+> mecânica, estática, norma e testes **aprovados**; derivação confirmada contra
+> Blodgett (*Design of Welded Structures*) e Salmon & Johnson (*Steel Structures*).
+> **1 correção acatada (segurança):** a aproximação do braço `= h_m` **subestimava o
+> caso ADVERSO** (força de mesa `M/h_0`, `h_0=h_m−tf<h_m` → componente real maior).
+> Corrigido para braço **assimétrico**: `h_0=h_m−tf` no adverso (seguro), `h_m` no
+> favorável (conservador). Sem regressão no galpão (haunch = favorável). Base **NÃO é
+> cláusula da NBR** — é **equilíbrio**; Anexo J (J.1–J.4) não trata cortante (J.1.2→§5.4.3).
+
+## Parecer sênior — respostas
+
+| Pt | Alegação | Veredito / ação |
+|---|---|---|
+| **1 (crítico)** | Braço `h_m` subestima a força de mesa (real `M/h_0`, `h_0=h_m−tf`); no **adverso** o acréscimo fica **menor que o real** → **inseguro** | **PROCEDENTE — CORRIGIDO.** Braço assimétrico: **adverso** usa `h_0=h_m−tf` (força maior → acréscimo maior → seguro); **favorável** mantém `h_m` (menos crédito → conservador). `tf` passado da seção em `rodar_galpao`. Testes `test_adverso_usa_braco_exato_h0` + `test_favoravel_mantem_hm_conservador`. **Sem regressão** (galpão é haunch/favorável → `h_m`, util inalterada). |
+| **2** | Componente transversal `V_flanges=(M/h_0)(dh/dx)` (2 mesas somam) | **APROVADO** — bate com Blodgett / Salmon & Johnson. |
+| **3** | Topologia do sinal (`+1` alívio quando profundidade e `\|M\|` co-crescem) | **APROVADO** — consequência de `V=dM/dx`; "capta a topologia perfeitamente". |
+| **4** | Política de testes (M=0, prismático, adverso sem opt-in) | **APROVADO** — "cobre a matriz de risco". |
+
+Correção de **braço de alavanca** foi a única exigida. Base normativa (equilíbrio,
+Anexo J silente) e política de segurança (opt-in) aprovadas sem ressalva.
+
+### Contexto original
+
+Isto **NÃO é cláusula da NBR 8800** — é **equilíbrio (mecânica)**. O **Anexo J**
+(barras de seção variável) tem apenas **J.1–J.4** e **não trata cortante**. Por
+**J.1.2**, o cortante segue **§5.4.3 por seção**. Refino por equilíbrio, **não
+inventa coeficiente** (componente geométrica exata).
 
 ## Prova de que o Anexo J não trata cortante (PDF verbatim)
 
@@ -99,8 +118,10 @@ Só no ramo alma variável → **ref prismática 20×10 intocada** (dh/dx=0 → 
 
 ## Notas / backlog
 
-- Braço do binário tomado `= h_m` (aproximação usual; o braço exato `h_m − tf` daria
-  alívio marginalmente **maior** → adotar `h_m` é conservador no crédito).
+- Braço do binário (parecer item 40, corrigido): braço **assimétrico** para ser sempre
+  conservador — **adverso** usa o braço EXATO `h_0 = h_m − tf` (força de mesa maior →
+  acréscimo maior → seguro); **favorável** mantém `h_m` (força menor → menos crédito →
+  conservador). `tf` passado por `rodar_galpao` da própria seção.
 - Interação do cortante efetivo com a verificação por tensões §5.5.2.3 (fase 6.9): o
   `τ` da junção usa o `V` de entrada; se o engenheiro creditar o alívio, o `V` já
   chega reduzido — coerente.

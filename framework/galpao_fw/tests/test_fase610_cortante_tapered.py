@@ -80,6 +80,27 @@ def test_conservador_adverso_sempre_conta():
     assert r["acrescimo"] > 0.0
 
 
+def test_adverso_usa_braco_exato_h0():
+    # parecer item 40: no caso ADVERSO o braco deve ser h0 = h_m - tf (exato,
+    # MENOR que h_m) -> forca de mesa MAIOR -> acrescimo MAIOR (seguro). Passar tf>0
+    # deve aumentar |V_ef| adverso vs tf=0 (aproximacao h_m).
+    import cortante_tapered as ct
+    v_hm = ct.v_alma_efetivo(300.0, 200.0, 0.90, 0.10, sentido=-1, tf=0.0)
+    v_h0 = ct.v_alma_efetivo(300.0, 200.0, 0.90, 0.10, sentido=-1, tf=0.02)
+    assert abs(v_h0) > abs(v_hm) + 1e-9, \
+        "adverso deve usar braco exato h0=h_m-tf (acrescimo maior, seguro)"
+
+
+def test_favoravel_mantem_hm_conservador():
+    # no caso FAVORAVEL (alivio) o braco deve permanecer h_m (MAIOR) -> forca de mesa
+    # MENOR -> menos credito -> conservador. tf nao deve alterar o alivio favoravel.
+    import cortante_tapered as ct
+    v_hm = ct.v_alma_efetivo(300.0, 200.0, 0.90, 0.10, sentido=+1, tf=0.0)
+    v_tf = ct.v_alma_efetivo(300.0, 200.0, 0.90, 0.10, sentido=+1, tf=0.02)
+    assert v_tf == pytest.approx(v_hm, rel=1e-12), \
+        "favoravel deve manter h_m (credito menor, conservador) mesmo com tf"
+
+
 def test_conservador_prismatico_creditar_nada_muda():
     # mne-5: prismatico (dh/dx=0) -> nada muda mesmo com creditar=True
     import cortante_tapered as ct

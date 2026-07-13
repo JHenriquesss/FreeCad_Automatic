@@ -37,31 +37,39 @@ def dh_dx(h1, h2, L_seg):
     return (h2 - h1) / L_seg
 
 
-def _componente_mesa(M, h_m, dhdx):
-    """Componente transversal das mesas inclinadas: (|M|/h_m)*|dh/dx| (kN)."""
-    if h_m <= 0.0:
+def _componente_mesa(M, h_m, dhdx, tf=0.0, adverso=False):
+    """Componente transversal das mesas inclinadas: (|M|/braco)*|dh/dx| (kN).
+    O BRACO do binario e escolhido para ser SEMPRE conservador (parecer item 40):
+      - ADVERSO (acrescimo): braco EXATO h0 = h_m - tf (menor -> forca MAIOR ->
+        acrescimo maior -> seguro);
+      - FAVORAVEL (alivio):  braco h_m (maior -> forca MENOR -> credito menor ->
+        conservador). tf ausente (=0) recai em h_m nos dois casos (retrocompat)."""
+    braco = (h_m - tf) if adverso else h_m
+    if braco <= 0.0:
         return 0.0
-    return (abs(M) / h_m) * abs(dhdx)
+    return (abs(M) / braco) * abs(dhdx)
 
 
-def v_alma_efetivo(M, V, h_m, dhdx, sentido=1):
-    """Cortante efetivo da alma = V - sentido*(|M|/h_m)*|dh/dx|.
+def v_alma_efetivo(M, V, h_m, dhdx, sentido=1, tf=0.0):
+    """Cortante efetivo da alma = V - sentido*(|M|/braco)*|dh/dx|.
     sentido=+1: profundidade cresce onde |M| cresce -> ALIVIO (haunch/joelho).
-    sentido=-1: geometria adversa -> ACRESCIMO. Retorna valor com o sinal de V."""
-    comp = _componente_mesa(M, h_m, dhdx)
-    s = 1 if sentido >= 0 else -1
+    sentido=-1: geometria adversa -> ACRESCIMO. braco: h0=h_m-tf no adverso (exato,
+    seguro), h_m no favoravel (conservador). Retorna valor com o sinal de V."""
+    adverso = sentido < 0
+    comp = _componente_mesa(M, h_m, dhdx, tf, adverso)
+    s = -1 if adverso else 1
     Vmag = abs(V) - s * comp
     return Vmag if V >= 0 else -Vmag
 
 
-def cortante_efetivo_conservador(M, V, h_m, dhdx, sentido=1, creditar=False):
+def cortante_efetivo_conservador(M, V, h_m, dhdx, sentido=1, creditar=False, tf=0.0):
     """Cortante a USAR na verificacao 5.4.3, aplicando a politica de seguranca:
-      - adverso (sentido<0): V_usar = max(|V|, |V_ef|) (sempre conta).
+      - adverso (sentido<0): V_usar = max(|V|, |V_ef|) (sempre conta; braco exato h0).
       - favoravel (sentido>=0): V_usar = |V_ef| se creditar, senao |V| (conservador).
     Retorna dict {V_usar, V_efetivo, alivio, acrescimo, creditado}."""
-    Vef = v_alma_efetivo(M, V, h_m, dhdx, sentido)
-    comp = _componente_mesa(M, h_m, dhdx)
+    Vef = v_alma_efetivo(M, V, h_m, dhdx, sentido, tf)
     favoravel = sentido >= 0
+    comp = _componente_mesa(M, h_m, dhdx, tf, not favoravel)
     alivio = comp if favoravel else 0.0
     acrescimo = 0.0 if favoravel else comp
     if favoravel:
@@ -100,6 +108,12 @@ def _selftest():
     assert v_alma_efetivo(0.0, 200.0, 0.9, 0.10, +1) == 200.0
     # adverso aumenta
     assert abs(v_alma_efetivo(300.0, 200.0, 0.9, 0.10, -1)) > 200.0
+    # braco EXATO no adverso (h0=h_m-tf) -> acrescimo MAIOR que com h_m (parecer 40)
+    assert abs(v_alma_efetivo(300.0, 200.0, 0.9, 0.10, -1, tf=0.02)) > \
+        abs(v_alma_efetivo(300.0, 200.0, 0.9, 0.10, -1, tf=0.0))
+    # favoravel mantem h_m (credito conservador) - tf nao altera
+    assert v_alma_efetivo(300.0, 200.0, 0.9, 0.10, +1, tf=0.02) == \
+        v_alma_efetivo(300.0, 200.0, 0.9, 0.10, +1, tf=0.0)
     # politica conservadora
     rf = cortante_efetivo_conservador(300.0, 200.0, 0.9, 0.10, +1, creditar=False)
     assert rf["V_usar"] == 200.0 and rf["alivio"] > 0.0 and not rf["creditado"]
