@@ -38,6 +38,7 @@ import contraventamento as ctv
 import gusset_ligacao as gus
 import calhas
 import sapata_divisa as sd
+import viga_equilibrio as veq
 import alma_variavel as av
 import tesoura as tes
 import ponte_rolante as pr
@@ -535,21 +536,40 @@ def rodar(params, out_dir):
                         "condutor_mm": rca.get("condutor_diam_mm"),
                         "ok": rca["ok"]}
 
-    # Gate 7 - SAPATA DE DIVISA (excentrica + viga alavanca, Alonso). So quando o
-    # gate fundacao.divisa e informado: pilar na linha do lote. Carga = maior
-    # compressao da base (envelope); vizinho interno = mesma ordem; vao = bay.
+    # Gate 7 - FUNDACAO DE DIVISA (pilar na linha do lote). Duas variantes:
+    #  - RASA  (sem estaca): sapata excentrica + viga alavanca (sapata_divisa).
+    #  - PROFUNDA (com estaca): bloco excentrico sobre estacas + viga de equilibrio
+    #    (viga_equilibrio), usando a P_adm da estaca ja calculada acima.
+    # Carga = maior compressao da base (envelope); vizinho interno = mesma ordem;
+    # vao da viga = bay.
     if params.get("divisa"):
         dvg = dict(params["divisa"])
         N_comp_d = abs(max(n for _, n, _, _ in casos_base))
-        rdv = sd.dimensiona_divisa(
-            P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
-            dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
-            sigma_solo=sap.get("sigma_solo_adm", 200.0),
-            fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
-        save("gate7-divisa.txt", sd.relatorio_pt(rdv))
-        res["divisa"] = {"B": rdv["divisa"]["B"], "L": rdv["divisa"]["L"],
-                         "R_kN": rdv["divisa"]["R"], "e_m": rdv["divisa"]["e"],
-                         "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
+        if params.get("estaca") and res.get("estaca"):          # variante PROFUNDA
+            est_res = res["estaca"]
+            rve = veq.dimensiona_viga_equilibrio(
+                P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
+                dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
+                P_estaca_adm=est_res["P_adm_kN"], a_pilar=est_res.get("bloco_a", 0.30),
+                D_estaca=est_res.get("D", 0.30), e=dvg.get("e"),
+                espacamento=est_res.get("espacamento"),
+                fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
+            save("gate7-divisa.txt", veq.relatorio_pt(rve))
+            res["divisa"] = {"tipo": "estaca", "R_kN": rve["divisa"]["R"],
+                             "e_m": rve["divisa"]["e"],
+                             "n_estacas": rve["divisa"]["n_estacas"],
+                             "viga_As_cm2": rve["viga"]["As_adot_cm2"]}
+        else:                                                    # variante RASA
+            rdv = sd.dimensiona_divisa(
+                P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
+                dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
+                sigma_solo=sap.get("sigma_solo_adm", 200.0),
+                fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
+            save("gate7-divisa.txt", sd.relatorio_pt(rdv))
+            res["divisa"] = {"tipo": "sapata", "B": rdv["divisa"]["B"],
+                             "L": rdv["divisa"]["L"], "R_kN": rdv["divisa"]["R"],
+                             "e_m": rdv["divisa"]["e"],
+                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
 
     # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
     # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
