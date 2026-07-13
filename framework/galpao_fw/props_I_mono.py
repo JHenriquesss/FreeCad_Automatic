@@ -100,9 +100,10 @@ def props_I_mono(d, bfc, tfc, bft, tft, tw):
          + bft * tft ** 3 / 3.0 * (1.0 - 0.63 * tft / bft)
          + hw * tw ** 3 / 3.0)
     Cw = ho ** 2 * Iyc * Iyt / (Iyc + Iyt)
-    # rt (DG25 5.4-11) usa a mesa COMPRIMIDA e a alma comprimida hc
+    # rt (DG25 5.4-11 = Spec. F4-10): aw usa a alma COMPRIMIDA (hc), mas o termo
+    # da raiz usa h = altura LIVRE da alma (hw), nao hc (verbatim pag 61).
     aw = hc * tw / (bfc * tfc)
-    rt = bfc / math.sqrt(12.0 * (ho / d + (1.0 / 6.0) * aw * hc ** 2 / (ho * d)))
+    rt = bfc / math.sqrt(12.0 * (ho / d + (1.0 / 6.0) * aw * hw ** 2 / (ho * d)))
     return {"A": A, "Ix": Ix, "Iy": Iy, "Wx": Wxc, "Wxc": Wxc, "Wxt": Wxt,
             "Zx": Zx, "Wy": Wy, "Zy": Zy, "rx": math.sqrt(Ix / A),
             "ry": math.sqrt(Iy / A), "rt": rt, "d": d, "bf": bfc, "tf": tfc,

@@ -59,14 +59,14 @@ def aw(sec):
 
 def rt(sec):
     """Raio de giracao efetivo rt (5.4-11 / Spec. F4-10).
-    ATENCAO (parecer item 42 F2): o 'h' que vai ao QUADRADO e a ALTURA LIVRE DA ALMA
-    (hc = hw = d-2tf no duplo-sim; hc real no monossim.), NAO a altura total d. O d
-    aparece so em ho/d e /(ho*d). bf = mesa COMPRIMIDA (bfc). props_I_mono ja entrega
-    rt pronto (sec['rt']) - usa se presente (evita divergencia numerica)."""
+    ATENCAO (parecer item 45 F2): o 'h' que vai ao QUADRADO e a ALTURA LIVRE DA ALMA
+    (hw = d-tfc-tft; = d-2tf no duplo-sim), NAO hc nem a altura total d. hc entra so
+    no aw. O d aparece so em ho/d e /(ho*d). bf = mesa COMPRIMIDA (bfc). props_I_mono
+    ja entrega rt pronto (sec['rt']) - usa se presente (evita divergencia numerica)."""
     if "rt" in sec:
         return sec["rt"]
     d = sec["d"]; bf = sec.get("bfc", sec["bf"])
-    h = hc(sec)                                        # altura livre da alma (hw), NAO d
+    h = sec.get("hw", sec["d"] - 2.0 * sec["tf"])      # altura LIVRE da alma, NAO hc/d
     ho_ = ho(sec); aw_ = aw(sec)
     return bf / math.sqrt(12.0 * (ho_ / d + (1.0 / 6.0) * aw_ * h ** 2 / (ho_ * d)))
 

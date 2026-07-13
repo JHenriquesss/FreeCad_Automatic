@@ -67,6 +67,19 @@ def test_dg25_rt_usa_bfc():
     assert abs(dg.rt(m1) - m1["rt"]) < 1e-12    # dg25 usa o rt pronto
 
 
+def test_rt_usa_h_livre_da_alma_nao_hc():
+    # parecer item 45 F2: em 5.4-11 o termo ao quadrado e h = ALTURA LIVRE da alma
+    # (hw), NAO hc. Numa secao mono forte hc<<hw; rt tem de bater com a formula em hw.
+    m = pm.props_I_mono(0.60, 0.30, 0.019, 0.15, 0.0095, 0.008)
+    hw, hc, ho, d, tw = m["hw"], m["hc"], m["ho"], m["d"], m["tw"]
+    assert hc < 0.9 * hw                                  # geometria discrimina hw x hc
+    aw = hc * tw / (0.30 * 0.019)                         # aw usa hc (correto)
+    rt_hw = 0.30 / math.sqrt(12.0 * (ho / d + (1.0 / 6.0) * aw * hw ** 2 / (ho * d)))
+    rt_hc = 0.30 / math.sqrt(12.0 * (ho / d + (1.0 / 6.0) * aw * hc ** 2 / (ho * d)))
+    assert abs(m["rt"] - rt_hw) < 1e-12                   # usa hw
+    assert abs(m["rt"] - rt_hc) > 1e-4                    # e NAO hc
+
+
 def test_dg25_FL_clampa_em_meia_fy():
     # mesa tracionada pequena -> Sxt/Sxc<0.5 -> F_L = 0.5 Fy (limite inferior 5.4-15)
     m = pm.props_I_mono(0.60, 0.28, 0.019, 0.12, 0.0095, 0.008)
