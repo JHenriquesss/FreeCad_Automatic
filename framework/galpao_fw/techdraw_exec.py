@@ -471,7 +471,8 @@ def _pr_cobertura(doc, cfg, objs):
 
 def _pr_fundacoes(doc, cfg, objs):
     g = cfg["geo"]
-    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA", "NERVURA"))
+    fund = _pref(objs, ("SAPATA", "PEDESTAL", "PLACA", "NERVURA",
+                        "ESTACA", "BLOCO", "BALDRAME"))
     if not fund:
         page = _nova_prancha(doc, "PE02_FUNDACOES",
                              _carimbo(cfg, "PLANTA DE FUNDACOES", "PE-02",
@@ -575,7 +576,7 @@ def _pr_portico(doc, cfg, objs):
     # inclui console e viga de rolamento da ponte (quando houver) no portico
     frame = _faixa(_pref(objs, ("PORTICO", "NERVURA", "MAO", "PLACA",
                                 "PEDESTAL", "SAPATA", "CONSOLE_PONTE",
-                                "VIGA_ROLAMENTO")),
+                                "VIGA_ROLAMENTO", "TRELICA")),
                    eixo, meio, bay * 0.45)
     if not frame:
         frame = objs
@@ -779,12 +780,14 @@ def _pr_joelho(doc, cfg, objs, todos):
             c.d((mao_bb.XMin, jb.YMin, mao_bb.ZMin),
                 (mao_bb.XMax, jb.YMin, mao_bb.ZMin),
                 "DistanceX", _fmt_mm(mao_bb.XLength), "baixo")
+    fab07 = _callout_fab(cfg, "joelho")
     _anot(doc, page, "A07", [
         "DETALHE DO NO VIGA-COLUNA (JOELHO)   ESCALA %s" % nome,
         "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
-                                     cfg.get("perfil_raf", "?")),
+                                     cfg.get("perfil_raf", "?"))]
+        + fab07 + [
         "Mao-francesa, chapas e parafusos conforme memoria de calculo.",
-        "Cotas em milimetros."], 200, 80, 5)
+        "Cotas em milimetros."], 200, 80 + 6 * len(fab07), 5)
     return [page], [c]
 
 
@@ -803,16 +806,77 @@ _EXCLUI_LIGACAO = ("TELHA", "TAPAMENTO", "CALHA")
 # como no joelho. `chapa` = eixo da 2a vista (face da chapa) ou None.
 # (prefixo, titulo, base_pagina, KW_mm, elev_axis, chapa_axis)
 LIGACOES = [
-    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y"),
-    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None),
-    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None),
-    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y"),
-    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None),
+    # (prefixo, titulo, base, KW, elev, chapa, callout) - callout = chave do cfg
+    # com a spec de fabricacao (do CALCULO); None => so "conforme memorial".
+    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y", "joelho"),
+    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None, "gusset"),
+    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None, "gusset"),
+    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y", None),
+    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None, "console"),
 ]
 
 
+def _callout_fab(cfg, key):
+    """Linha(s) de callout de fabricacao a partir do CFG (numeros do calculo).
+    Retorna [] se nao houver dado -> mantem 'conforme memorial'."""
+    d = cfg.get(key) if key else None
+    if not d:
+        return []
+    if key == "joelho":
+        return ["Parafusos: %d x %s   Chapa de topo t = %s"
+                % (d["n"], _fmt_mm(d["db"]), _fmt_mm(d["t"]))]
+    if key in ("gusset", "console"):
+        return ["Chapa t = %s   Solda filete perna = %s"
+                % (_fmt_mm(d["t_mm"]), _fmt_mm(d["perna_solda_mm"]))]
+    return []
+
+
+def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y):
+    """Corte SECCIONADO (TechDraw::DrawViewSection) do detalhe de ligacao: plano de
+    corte pelo CENTRO do compound, normal = normal_corte, superficie cortada
+    HACHURADA. Revela a espessura das chapas e a secao dos parafusos. Retorna a
+    view, ou None se o corte nao produzir arestas (vazio -> nao engana o guard).
+
+    NOTA: o blocker historico (T6, 'failed to create section CS' headless) foi
+    resolvido no FreeCAD 1.1 - a secao constroi via freecadcmd/freecad.exe."""
+    import FreeCAD as App
+    if base_view is None or feat is None:
+        return None
+    try:
+        sec = doc.addObject("TechDraw::DrawViewSection", "VLIG_SEC_" + base)
+        sec.BaseView = base_view
+        sec.Source = [feat]
+        c = feat.Shape.BoundBox.Center
+        sec.SectionOrigin = App.Vector(c.x, c.y, c.z)
+        sec.SectionNormal = App.Vector(*normal_corte)
+        sec.SectionDirection = "Right"
+        sec.ScaleType = "Custom"
+        sec.Scale = escala
+        # superficie cortada hachurada. Enum valido da TechDraw 1.1:
+        # ['Hide','Color','SvgHatch','PatHatch']. SvgHatch usa o padrao svg
+        # embutido (sem depender de .pat externo -> robusto headless).
+        try:
+            sec.CutSurfaceDisplay = "SvgHatch"
+        except Exception:
+            pass
+        page.addView(sec)
+        sec.X, sec.Y = float(x), float(y)
+        # forca o recompute do proprio corte + do doc. No freecad.exe (GUI headless)
+        # a geometria da secao pode computar DEFERIDA -> nao descartamos aqui pelo
+        # n_edges (falso zero); o guard mne-1 (secao vazia) e checado no fim, apos
+        # o render/export completo (detalhes_secoes).
+        try:
+            sec.recompute()
+        except Exception:
+            pass
+        doc.recompute()
+        return sec
+    except Exception:
+        return None
+
+
 def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
-                     page_name):
+                     page_name, callout=None):
     """Uma prancha de detalhe de ligacao: elevacao (perfis edge-on = linhas)
     + opcional vista da chapa (face), recortando UMA instancia representativa
     (a mais proxima do centro do galpao) numa janela. Espelha o padrao do
@@ -877,23 +941,33 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
             c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMin, jb.YMax, jb.ZMax),
                  "DistanceY", _fmt_mm(jb.YLength), "esq")
         cots.append(c2)
+    # CORTE SECCIONADO: hachura a superficie de material cortada (espessura das
+    # chapas + secao dos parafusos). Normal do corte = xdir da elevacao (corta
+    # perpendicular a ela, pelo centro). Best-effort: se vazio, nao desenha.
+    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc,
+                         (xpos if not dupla else 230.0), 120.0)
+    tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
         linhas.append("Elevacao ESC %s   Vista da chapa ESC %s" % (nome, n2))
+    if tem_sec:
+        linhas.append("Corte A-A seccionado (material hachurado) ESC %s" % nome)
+    fab = _callout_fab(cfg, callout)
+    linhas += fab
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
                "Cotas em milimetros."]
-    _anot(doc, page, "ALIG_" + base, linhas, 200, 80, 5)
+    _anot(doc, page, "ALIG_" + base, linhas, 200, 80 + 6 * len(fab), 5)
     return page, cots
 
 
 def _pr_ligacoes(doc, cfg, objs, todos):
     """Uma prancha de detalhe por tipo de ligacao presente no modelo."""
     paginas, cotadores = [], []
-    for i, (pref, titulo, base, KW, elev, chapa) in enumerate(LIGACOES):
+    for i, (pref, titulo, base, KW, elev, chapa, callout) in enumerate(LIGACOES):
         pg_name = "PE%02d_DET_%s" % (10 + i, base)
         try:
             pg, cts = _detalhe_ligacao(doc, cfg, todos, pref, titulo, base,
-                                       KW, elev, chapa, pg_name)
+                                       KW, elev, chapa, pg_name, callout)
         except Exception as ex:
             import FreeCAD as App
             App.Console.PrintError("Detalhe ligacao %s: %s\n" % (pref, ex))
@@ -1125,19 +1199,22 @@ def gerar_executivo(cfg):
     except Exception:
         cob = {"desenhados": [], "nao_cobertos": []}
 
-    # edge-count das elevacoes de ligacao (proxy anti-silhueta chapada)
+    # edge-count das elevacoes de ligacao (proxy anti-silhueta chapada) e das
+    # SECOES seccionadas (corte hachurado - Fase 5).
     edges = {}
+    secoes = {}
     for o in doc.Objects:
         try:
-            if (o.TypeId == "TechDraw::DrawViewPart"
-                    and o.Name.startswith("VLIG_ELEV")):
+            if o.Name.startswith("VLIG_ELEV") and o.TypeId == "TechDraw::DrawViewPart":
                 edges[o.Name] = _n_edges(o)
+            elif o.Name.startswith("VLIG_SEC"):
+                secoes[o.Name] = _n_edges(o)
         except Exception:
             pass
 
     return {"ok": True, "pranchas": [p.Name for p in paginas],
             "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob,
-            "detalhes_edges": edges}
+            "detalhes_edges": edges, "detalhes_secoes": secoes}
 
 
 def _svg_para_png(svg_path, png_path, w=2100, h=1485):
@@ -1215,6 +1292,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
     est = spec.get("estrutura", {})
     ba = est.get("base_adotada")
     sp = est.get("sapata_adotada")
+    jo = est.get("joelho_adotado")
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
@@ -1235,6 +1313,12 @@ def config_de_spec(spec, fcstd_path, out_dir):
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),
         "sapata": ({"B": sp["B"], "L": sp["L"], "h": sp["h"]} if sp else None),
+        # ligacoes (para callouts de fabricacao): joelho {n, db, t} do calculo;
+        # gusset/console ja em mm/adotado do calculo.
+        "joelho": ({"n": jo["n"], "db": jo["db"] * 1000.0, "t": jo["t"] * 1000.0}
+                   if jo else None),
+        "gusset": est.get("gusset_adotado"),
+        "console": est.get("console_adotado"),
         "terca": est.get("terca_dims"),
         "ponte": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                    "Q": spec["ponte"].get("Q")}

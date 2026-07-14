@@ -35,7 +35,19 @@ import ligacoes as lg
 import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
+import gusset_ligacao as gus
+import calhas
+import sapata_divisa as sd
+import alma_variavel as av
+import tesoura as tes
 import ponte_rolante as pr
+import console_ponte as cons
+import zona_painel as zpn
+import flt_misula as fltm
+import dg25_ltb as dg25
+import alma_esbelta as ae
+import tensao_ponto as tsp
+import cortante_tapered as cta
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -122,13 +134,14 @@ def rodar(params, out_dir):
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                      Q_roof=params["cargas"]["Q"])
+                      Q_roof=params["cargas"]["Q"], tapered=params.get("tapered"))
     else:
         gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
+                      tapered=params.get("tapered"),
                       Q_roof=params["cargas"]["Q"])
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
@@ -155,6 +168,17 @@ def rodar(params, out_dir):
                              "Hvr": pcfg["Hvr"]})
         res["ponte_R_vert"] = round(reac["R_vertical_kN"], 1)
         res["ponte_viga_inter"] = round(viga["inter"], 2)
+        # Ligacao do CONSOLE a coluna (chapa+solda que recebe a viga de
+        # rolamento excentrica). Dimensiona a perna do filete. L = altura de
+        # solda ~ misula do console (build BRACKET 450mm); chapa 16mm (build).
+        rc = cons.verifica_console({
+            "Rv": reac["R_vertical_kN"], "Ht": reac.get("H_transversal_kN", 0.0),
+            "ecc": pcfg.get("excentricidade", 0.30), "t": 0.016, "L": 0.45,
+            "fy": params["fy"], "fu": 400e3})
+        save("gate7-console.txt", cons.relatorio_pt(rc))
+        res["console_adotado"] = rc["adotado"]
+        res["console_u_max"] = rc["u_max"]
+        res["console_ok"] = rc["OK"]
     else:
         gp.configurar(ponte=False)
     # Acao SISMICA (NBR 15421) - calculada ANTES da analise para ENTRAR no envelope
@@ -178,9 +202,16 @@ def rodar(params, out_dir):
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
     res["Fa_long_kN"] = vl["Fa_kN"]; res["Fa_por_lado_kN"] = vl["Fa_por_lado_kN"]
     # Gate 6 - analise
-    save("gate6-portico.txt", gp.memoria_pt(gp.analyse()))
-    a = est.analyse()
+    a_gp = gp.analyse()                               # 1a ordem (tem os segmentos)
+    save("gate6-portico.txt", gp.memoria_pt(a_gp))
+    a = est.analyse()                                 # 2a ordem MAES (B1/B2 por grupo)
     save("gate6-2a-ordem.txt", est.memoria_pt(a))
+    # envelope por segmento do rafter tapered: capturado do gp.analyse (tapered ainda
+    # ativo; o redim adiante reseta TAPERED). B2 global do MAES amplifica os M (nao
+    # muda QUAL segmento governa - so a magnitude).
+    segs_tapered = a_gp.get("rafter_segmentos", []) if a_gp.get("tapered") else []
+    segs_col_tapered = a_gp.get("coluna_segmentos", []) if a_gp.get("coluna_tapered") else []
+    B2_amp = a.get("B2max", 1.0)
     # Gate 7 - REDIMENSIONAMENTO: adota o par (coluna, viga) MAIS LEVE que passa
     # (interacao<=1 + flecha<=H/150), partindo do seed HEA200/HEA180. Recomputa os
     # esforcos com o perfil adotado -> tudo a jusante (mao-francesa, check, modelo)
@@ -332,6 +363,26 @@ def rodar(params, out_dir):
     save("gate7-contraventamento.txt", ctv.relatorio_pt(barras))
     res["barras_ok"] = all(x["OK"] for x in barras)
     res["barras_u_max"] = max(x["u"] for x in barras)
+    # Gate 7 - GUSSET dos contraventamentos (chapa de no; verifica a chapa que
+    # recebe a diagonal tracionada). Geometria do build_galpao (_gusset_tri
+    # L=150, t=12). Verifica o no de PAREDE e o de COBERTURA; adota o pior.
+    G_T, G_LC = 0.012, 0.150                              # t, Lc (m) - build
+    gcasos = [("Gusset de contravento - PAREDE", abs(Ndp)),
+              ("Gusset de contravento - COBERTURA", abs(Ndc))]
+    gres, gtxt = [], []
+    for gnome, gN in gcasos:
+        rg = gus.verifica_gusset({"N": gN, "t": G_T, "d_barra": cb["d_contrav"],
+                                  "Lc": G_LC, "fy": params["fy"], "fu": 400e3,
+                                  "Lsolda": 2.0 * G_LC})
+        gres.append(rg)
+        gtxt.append(gus.relatorio_pt(rg, gnome))
+    save("gate7-gusset.txt", "\n\n".join(gtxt))
+    gpior = max(gres, key=lambda r: r["u_max"])
+    res["gusset_adotado"] = {"t_mm": gpior["adotado"]["t_mm"],
+                             "perna_solda_mm": round(
+                                 gus.LG.solda_filete_minimo(G_T * 1000.0), 1)}
+    res["gusset_u_max"] = gpior["u_max"]
+    res["gusset_ok"] = all(r["OK"] for r in gres)
     # Gate 7 - verga da porta (UPE100 sobre o vao da abertura): flexao do U, vao
     # = largura da porta, sem tirante (Lb = vao). Vento na parede + peso da porta.
     vg = dict(params["verga"]); vg["q_vento"] = max(net_par) * vr["q_kN_m2"]
@@ -360,6 +411,36 @@ def rodar(params, out_dir):
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
         res["base_ok"] = False
+    # Gate 7 - ZONA DE PAINEL DO JOELHO (no rigido viga-coluna; NBR 8800 5.7.7 +
+    # estados locais 5.7.2/5.7.3/5.7.6). So para porticos de NO RIGIDO (prismatico
+    # e alma variavel); a tesoura e biapoiada (sem joelho) e nao dispara. Esforcos
+    # do joelho (kM/kN/kV) ja extraidos em _esforcos_base_joelho.
+    if params.get("tipo_portico") in (None, "prismatico", "alma_variavel"):
+        tap = params.get("tapered") if params.get("tipo_portico") == "alma_variavel" else None
+        if isinstance(tap, dict):
+            # no tapered a secao do joelho (pilar e viga) e a mais funda (h_joelho).
+            pj = av.props_I(tap["h_joelho"], tap.get("bf", 0.20),
+                            tap.get("tw", 0.008), tap.get("tf", 0.0125))
+            dc, tw_c, tf_c, bf_c, Ag_c = pj["d"], pj["tw"], pj["tf"], pj["bf"], pj["A"]
+            d_viga, tf_viga = tap["h_joelho"], tap.get("tf", 0.0125)
+        else:
+            pc = perfis.PERFIS.get(res.get("perfil_col"), sc["perfil_col"])
+            praf = sc["perfil_raf"]
+            dc, tw_c, tf_c, bf_c, Ag_c = pc["d"], pc["tw"], pc["tf"], pc["bf"], pc["A"]
+            d_viga, tf_viga = praf["d"], praf["tf"]
+        caso_zp = {"M_Sd": abs(kM), "N_Sd": abs(kN), "V_col": abs(kV),
+                   "dc": dc, "tw_col": tw_c, "bf_col": bf_c, "tf_col": tf_c,
+                   "Ag_col": Ag_c, "d_viga": d_viga, "tf_viga": tf_viga,
+                   "fy": params["fy"], "extremidade": False}
+        rzp = zpn.verifica_painel(caso_zp)
+        save("gate-zona-painel.txt", zpn.relatorio_pt(rzp, caso_zp))
+        res["zona_painel"] = {
+            "u_painel": round(rzp["u_painel"], 2), "u_local": round(rzp["u_local"], 2),
+            "u_max": round(rzp["u_max"], 2),
+            "precisa_reforco": rzp["precisa_reforco"], "t_doubler_mm": rzp["t_doubler_mm"],
+            "precisa_enrijecedor": rzp["precisa_enrijecedor"],
+            "FSd_kN": round(rzp["FSd"], 1), "F_Rd_kN": round(rzp["F_Rd"], 1)}
+
     # Gate 7 - SAPATA (NBR 6118) pelo ENVELOPE de combinacoes: cada verificacao
     # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
     # = N min + M ; etc). Pedestal ~ pilar adotado.
@@ -385,7 +466,9 @@ def rodar(params, out_dir):
         save("gate7-baldrame.txt", vbal.relatorio_pt(rbd))
         res["baldrame"] = {"secao": f"{rbd['b']*100:.0f}x{rbd['h']*100:.0f}",
                            "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
-                           "ok": rbd["OK"]}
+                           "ok": rbd["OK"],
+                           # geometria p/ o build 3D
+                           "b": rbd["b"], "h": rbd["h"], "vao": bd["vao"]}
 
     # Gate 7 - FUNDACAO PROFUNDA (opcional): estaca (Aoki-Velloso) + bloco de
     # coroamento. So roda com params["estaca"] (escolha de sitio: sondagem SPT).
@@ -394,14 +477,408 @@ def rodar(params, out_dir):
         N_comp = max(n for _, n, _, _ in casos_base)          # maior compressao
         N_pilar = abs(N_comp)
         N_tr = max(0.0, -min(n for _, n, _, _ in casos_base))  # uplift (reacao negativa)
+        M_base = max(abs(m) for _, _, _, m in casos_base)      # momento na base (envelope)
         ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
         ecfg.setdefault("N_uplift", round(N_tr, 1))
+        ecfg.setdefault("Mx", round(M_base, 1))                # flexo-compressao no grupo (Q2)
         ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
+        # garante o bloco de coroamento no calculo (dims p/ desenhar o 3D)
+        ecfg.setdefault("bloco", {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3})
         re_ = ep.verifica_estaca(ecfg)
         save("gate7-estaca.txt", ep.relatorio_pt(re_))
+        Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
+        esp = (ecfg.get("bloco") or {}).get("espacamento", 3.0 * Dp)
+        h_bloco = (re_.get("bloco") or {}).get("h", max(0.40, 1.2 * Dp))
         res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
                          "P_adm_kN": re_["capacidade"]["P_adm_kN"],
-                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1)}
+                         "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1),
+                         # geometria p/ o build 3D (tudo do calculo / envelope)
+                         "D": Dp, "L": ecfg["L"], "espacamento": esp,
+                         "bloco_h": h_bloco, "bloco_a": a_pil,
+                         "uplift": bool(N_tr > 1e-6)}
+
+    # Gate - CALHA (dimensionamento hidraulico, NBR 10844 / Bellei). Roda quando
+    # ha calha na cobertura. Area de contribuicao da geometria: comprimento (ao
+    # longo da calha) x meia-largura (uma agua) projetada; I pluviometrica do gate.
+    if params.get("calha"):
+        agua = g["span"] / 2.0 / max(math.cos(math.atan(slope)), 1e-6)
+        rca = calhas.dimensiona(g["comprimento"], agua,
+                                I_mm_h=params.get("chuva_I_mm_h", 150.0))
+        save("gate-calha.txt", calhas.relatorio_pt(rca))
+        res["calha"] = {"vazao_Lmin": rca["vazao_Lmin"],
+                        "B_mm": rca["secao"].get("B_base_m", 0) * 1000,
+                        "H_mm": rca["secao"].get("H_max_m", 0) * 1000,
+                        "condutor_mm": rca.get("condutor_diam_mm"),
+                        "ok": rca["ok"]}
+
+    # Gate 7 - SAPATA DE DIVISA (excentrica + viga alavanca, Alonso). So quando o
+    # gate fundacao.divisa e informado: pilar na linha do lote. Carga = maior
+    # compressao da base (envelope); vizinho interno = mesma ordem; vao = bay.
+    if params.get("divisa"):
+        dvg = dict(params["divisa"])
+        N_comp_d = abs(max(n for _, n, _, _ in casos_base))
+        rdv = sd.dimensiona_divisa(
+            P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
+            dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
+            sigma_solo=sap.get("sigma_solo_adm", 200.0),
+            fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
+        save("gate7-divisa.txt", sd.relatorio_pt(rdv))
+        res["divisa"] = {"B": rdv["divisa"]["B"], "L": rdv["divisa"]["L"],
+                         "R_kN": rdv["divisa"]["R"], "e_m": rdv["divisa"]["e"],
+                         "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
+
+    # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
+    # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
+    # tapered); aqui gera o memorial da misula (secao_tapered + peso) e sinaliza
+    # que a SECAO DO JOELHO (mais funda) governa a flexo-compressao.
+    if params.get("tipo_portico") == "alma_variavel" and params.get("tapered"):
+        tp = params["tapered"]
+        secs = av.secao_tapered(tp["h_joelho"], tp["h_cumeeira"], tp.get("bf", 0.20),
+                                tp.get("tw", 0.008), tp.get("tf", 0.0125), nseg=gp.NSEG)
+        peso = av.peso_tapered(tp["h_joelho"], tp["h_cumeeira"], tp.get("bf", 0.20),
+                               tp.get("tw", 0.008), tp.get("tf", 0.0125), g["span"])
+        L = ["=" * 66, "PORTICO DE ALMA VARIAVEL (misula tapered)", "=" * 66,
+             f"  h_joelho = {tp['h_joelho']*1000:.0f} mm ; h_cumeeira = "
+             f"{tp['h_cumeeira']*1000:.0f} mm ; nseg = {gp.NSEG}",
+             f"  Peso linear medio = {peso:.2f} kN/m",
+             "  Secoes por segmento (joelho -> cumeeira):",
+             "    seg |  h(mm) |  A(cm2) |  I(cm4)  |  Wx(cm3)"]
+        for s in secs:
+            L.append("    %3d | %6.0f | %7.1f | %8.0f | %8.0f" %
+                     (s["segmento"], s["h_m"] * 1000, s["A_m2"] * 1e4,
+                      s["I_m4"] * 1e8, s["Wx_m3"] * 1e6))
+        # VERIFICACAO DE ESTADOS-LIMITE (parecer Q2/2, correcoes):
+        #  - FLA/FLM/flexo-compressao: LOCAIS -> por segmento com a secao local
+        #    (dependem so de b/t e h/t locais). No verifica, Lb minusculo neutraliza
+        #    a FLT (isola os estados locais).
+        #  - FLT: fenomeno de TRECHO (nao por fatia). Calculada UMA vez por trecho
+        #    destravado, com a MAIOR secao do trecho (a mais funda, conservador -
+        #    AISC DG25 / NBR 8800 Anexo H) e o Lb correto:
+        #      * gravidade domina -> mesa SUPERIOR comprimida -> Lb = tercas.
+        #      * succao (vento) domina -> mesa INFERIOR comprimida -> Lb = maos-francesas.
+        #    Aplicada como TETO a todos os segmentos (M_max*B2 vs M_Rd,FLT).
+        segs_env = segs_tapered
+        L_raft = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])
+        # CORTANTE DA ALMA com mesas inclinadas (equilibrio; Anexo J omisso em
+        # cortante -> refino, nao clausula). Alivio favoravel so com opt-in; adverso
+        # sempre contado. dh/dx do rafter = (h_joelho - h_cumeeira)/L_raft.
+        creditar_cme = bool(params.get("creditar_cortante_mesa_inclinada", False))
+        dhdx_raf = cta.dh_dx(tp["h_cumeeira"], tp["h_joelho"], L_raft)
+        sent_raf = cta.sentido_haunch(segs_env)
+        cme_alivio_max = 0.0                             # maior reserva/acrescimo (kN)
+        n_terca = params["terca"].get("n_por_agua", 3)
+        Lb_terca = L_raft / (n_terca + 1)               # mesa sup (gravidade)
+        Lb_mf = Lb_raf                                   # mesa inf (succao) - mao-francesa
+        # secao mais funda do rafter (governa a FLT do trecho)
+        deep = max((s for s in segs_env if s.get("sec_props")),
+                   key=lambda s: s.get("h_m") or 0, default=None)
+        # LOCAIS por segmento (FLT neutralizada com Lb->0)
+        verifs = []
+        for seg in segs_env:
+            sp = seg.get("sec_props")
+            if not sp:
+                continue
+            sec_seg = dict(sp); sec_seg["nome"] = "seg%d%s" % (
+                seg["seg"], "E" if seg["lado"] == 0 else "D")
+            Msd_s = seg["M"] * B2_amp; Nsd_s = seg["N"] * B2_amp
+            cme = cta.cortante_efetivo_conservador(
+                Msd_s, seg["V"], seg.get("h_m") or sec_seg["d"], dhdx_raf,
+                sent_raf, creditar_cme, tf=sec_seg["tf"])
+            cme_alivio_max = max(cme_alivio_max, cme["alivio"], cme["acrescimo"])
+            v = chk.verifica(sec_seg, params["fy"], L=seg.get("L_seg") or Lb_raf,
+                             Nsd=Nsd_s, Msd=Msd_s, Vsd=cme["V_usar"], Kx=1, Ky=1,
+                             Lb=1e-3, nome=sec_seg["nome"])   # Lb->0: sem FLT local
+            v["_seg"] = seg
+            verifs.append(v)
+        # FLT de TRECHO (member-level) por NBR 8800 ANEXO J: lambda da secao de MAIOR
+        # altura (J.4.2), Cb por analise racional (J.4.1, 5.4.2.3a) do diagrama de M
+        # do trecho e demanda na secao de MAIOR tensao M/Wx (nao M_max cego). Dois
+        # regimes de Lb (gravidade=tercas / succao=maos-francesas). B2 amplifica M.
+        M_max = max((s["M"] for s in segs_env), default=0.0) * B2_amp
+        segs_flt = [{"M": s["M"] * B2_amp, "props": s["sec_props"], "h_m": s["h_m"]}
+                    for s in segs_env if s.get("sec_props")]
+        flt = {}
+        cb_raf = 1.0
+        if segs_flt:
+            for regime, Lb_f, mesa in (("gravidade(tercas)", Lb_terca, "superior"),
+                                       ("succao(maos-francesas)", Lb_mf, "inferior")):
+                rj = fltm.flt_misula(segs_flt, params["fy"], Lb_f)
+                cb_raf = rj["Cb"]
+                flt[regime] = {"Lb": Lb_f, "mesa": mesa, "M_Rd_flt": rj["M_Rd"],
+                               "u": rj["util"], "secao_critica": rj["secao_critica"]}
+        u_flt = max((f["u"] for f in flt.values()), default=0.0)
+        flt_sec_crit = next(iter(flt.values()), {}).get("secao_critica")
+        # CROSS-CHECK DG25 (validacao INFORMATIVA; nao altera dimensionamento). Compara
+        # o M_eLTB elastico do DG25 (secao do MEIO, 5.4.3) com o Mcr do NBR Anexo J
+        # (secao mais funda, J.4.2). Lb do regime que governa a FLT.
+        cc_raf = None
+        if segs_flt and flt:
+            Lb_gov = max(flt.values(), key=lambda f: f["u"])["Lb"]
+            cc_raf = dg25.cross_check_flt(segs_flt, params["fy"], Lb_gov, Cb=cb_raf)
+        # relatorio
+        L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
+              "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
+        gov_seg = None
+        for v in verifs:
+            s = v["_seg"]
+            L.append("    %3d%s | %6.0f | %9.1f | %14.2f | %s" %
+                     (s["seg"], "E" if s["lado"] == 0 else "D", (s["h_m"] or 0) * 1000,
+                      s["M"], v["interacao"], s.get("gov", "")))
+            if gov_seg is None or v["interacao"] > gov_seg["interacao"]:
+                gov_seg = v
+        L += ["", "  FLT DE TRECHO (member-level, NBR 8800 Anexo J; secao de maior "
+              "altura h=%.0f mm, Cb=%.2f):"
+              % ((deep["h_m"] or 0) * 1000 if deep else 0, cb_raf)]
+        for regime, f in flt.items():
+            L.append("    %-24s Lb=%.2f m (mesa %s) -> M_Rd,FLT=%.1f kN.m ; "
+                     "demanda na secao %s (max M/Wx, J.4.1) -> u=%.2f" %
+                     (regime, f["Lb"], f["mesa"], f["M_Rd_flt"],
+                      f.get("secao_critica"), f["u"]))
+        u_local = gov_seg["interacao"] if gov_seg else 0.0
+        gs = gov_seg["_seg"] if gov_seg else {}
+        no_joelho = bool(gov_seg) and not (
+            (gs.get("seg") == 0 and gs.get("lado") == 0) or
+            (gs.get("seg") == gp.NSEG - 1 and gs.get("lado") == 1))
+        u_geral = max(u_local, u_flt)
+        L += ["",
+              "  >> util local max = %.2f (seg %s%s)%s" % (
+                  u_local, gs.get("seg", "?"), "E" if gs.get("lado") == 0 else "D",
+                  "  [!] NAO e o joelho (Wx cai mais rapido que M)" if no_joelho else ""),
+              "  >> util FLT trecho = %.2f (%s)" % (
+                  u_flt, "succao(mesa inf) governa" if flt and
+                  flt.get("succao(maos-francesas)", {}).get("u", 0) >= u_flt - 1e-9
+                  else "gravidade(mesa sup)"),
+              "  >> UTILIZACAO GOVERNANTE = %.2f (%s)" % (
+                  u_geral, "FLT de trecho" if u_flt >= u_local else "estado local do segmento"),
+              "  [NBR 8800 Anexo J] FLT: lambda da secao de maior altura (J.4.2), Cb",
+              "         racional (J.4.1, 5.4.2.3a), demanda na secao de max M/Wx. O",
+              "         fator gamma (AISC DG25) NAO e adotado - nao e normativo na NBR.",
+              "  >> Portico resolvido com rigidez variavel (secao por segmento)."]
+        if cc_raf is not None:
+            L += ["  [CROSS-CHECK DG25 (informativo, nao-normativo)] M_eLTB elastico "
+                  "AISC DG25 5.4.3:",
+                  "         M_eLTB(secao MEIO h=%.0fmm)=%.1f kN.m ; Mcr(NBR Anexo J, "
+                  "secao FUNDA h=%.0fmm)=%.1f kN.m" % (
+                      cc_raf["sec_meio"], cc_raf["M_dg"], cc_raf["sec_funda"],
+                      cc_raf["M_nbr"]),
+                  "         razao DG25/NBR = %.3f -> %s (tol +-%.0f%%). NAO altera o "
+                  "dimensionamento (segue a NBR)." % (
+                      cc_raf["razao"], "CONVERGE" if cc_raf["converge"] else "DIVERGE",
+                      cc_raf["tol"] * 100)]
+        # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
+        # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
+        # + FLT de TRECHO (member-level) com a secao mais funda da coluna (o joelho).
+        # Lb da coluna = contrato de travamento (params["Lb"]["col"]): mesa externa
+        # travada pela longarina de fechamento, mesa interna pela mao-francesa.
+        col_res = None
+        if segs_col_tapered:
+            Lb_col = params["Lb"]["col"]
+            # cortante da alma com mesas inclinadas (coluna): dh/dx = (h_joelho -
+            # h_col_base)/H_col ; sentido pela geometria dos segmentos.
+            dhdx_col = cta.dh_dx(tp["h_col_base"], tp["h_joelho"], g["eave"])
+            sent_col = cta.sentido_haunch(segs_col_tapered)
+            verifs_c = []
+            for seg in segs_col_tapered:
+                sp = seg.get("sec_props")
+                if not sp:
+                    continue
+                sec_c = dict(sp); sec_c["nome"] = "col%d_%d" % (seg["coluna"], seg["seg"])
+                Msd_c = seg["M"] * B2_amp; Nsd_c = seg["N"] * B2_amp
+                cme_c = cta.cortante_efetivo_conservador(
+                    Msd_c, seg["V"], seg.get("h_m") or sec_c["d"], dhdx_col,
+                    sent_col, creditar_cme, tf=sec_c["tf"])
+                cme_alivio_max = max(cme_alivio_max, cme_c["alivio"], cme_c["acrescimo"])
+                v = chk.verifica(sec_c, params["fy"], L=seg.get("L_seg") or Lb_col,
+                                 Nsd=Nsd_c, Msd=Msd_c, Vsd=cme_c["V_usar"], Kx=1, Ky=1,
+                                 Lb=1e-3, nome=sec_c["nome"])   # Lb->0: sem FLT local
+                v["_seg"] = seg
+                verifs_c.append(v)
+            # FLT da coluna por Anexo J (seção maior altura J.4.2 + Cb racional J.4.1)
+            segs_col_flt = [{"M": s["M"] * B2_amp, "props": s["sec_props"],
+                             "h_m": s["h_m"]} for s in segs_col_tapered
+                            if s.get("sec_props")]
+            rj_c = fltm.flt_misula(segs_col_flt, params["fy"], Lb_col) if segs_col_flt \
+                else {"util": 0.0, "Cb": 1.0}
+            u_col_flt = rj_c["util"]
+            cb_col = rj_c["Cb"]
+            cc_col = dg25.cross_check_flt(segs_col_flt, params["fy"], Lb_col,
+                                          Cb=cb_col) if segs_col_flt else None
+            # COMPRESSAO GLOBAL da coluna (Anexo J.3): a verificacao por segmento usa
+            # L=L_seg (~0,75 m) e NAO captura a flambagem GLOBAL por flexao ao longo
+            # dos ~H metros. J.3 exige Nc,Rd pela secao de MENOR altura (base) com o
+            # comprimento de flambagem do membro inteiro (K racional; aqui K=1 no
+            # plano nao-sway + B2 do MAES ja amplifica o sway). N_Sd = axial maximo.
+            sec_min = av.props_I(tp["h_col_base"], tp.get("bf", 0.20),
+                                 tp.get("tw", 0.008), tp.get("tf", 0.0125))
+            sec_min["nome"] = "coluna_base(menor_altura)"
+            N_col_max = max((abs(s["N"]) for s in segs_col_tapered), default=0.0) * B2_amp
+            H_col = g["eave"]
+            vg = chk.verifica(sec_min, params["fy"], L=H_col, Nsd=N_col_max, Msd=0.0,
+                              Vsd=0.0, Kx=1.0, Ky=1.0, Lb=Lb_col,
+                              nome=sec_min["nome"])
+            u_col_global = vg["u_N"]
+            # INTERACAO M-V no joelho (5.5.2.3): a alma esbelta do joelho ve o M e o
+            # V de pico juntos; as checagens separadas (flexao Anexo J + cortante
+            # 5.4.3) nao capturam a tensao COMBINADA no ponto (juncao mesa-alma).
+            # So dispara se a alma do joelho for esbelta (Anexo H); chi_v vem da
+            # esbeltez ao cisalhamento da propria alma. chi_n=1 (a flambagem normal
+            # ja e coberta pela FLT/FLM de trecho). Esforcos amplificados por B2.
+            u_col_5523 = 0.0; r5523 = None
+            sec_joelho = av.props_I(tp["h_joelho"], tp.get("bf", 0.20),
+                                    tp.get("tw", 0.008), tp.get("tf", 0.0125))
+            if ae.e_esbelta(sec_joelho, params["fy"]):
+                Awj = sec_joelho["d"] * sec_joelho["tw"]
+                chi_v = min(1.0, vg["Vrd"] * chk.GA1 / (0.6 * Awj * params["fy"]))
+                r5523 = tsp.verifica_5523(sec_joelho, params["fy"],
+                                          Nsd=abs(kN) * B2_amp, Msd=abs(kM) * B2_amp,
+                                          Vsd=abs(kV), chi_n=1.0, chi_v=chi_v)
+                u_col_5523 = max(r5523["u_sigma_a"], r5523["u_tau_b"],
+                                 r5523["u_sigma_c"], r5523["u_tau_d"], r5523["u_vm"])
+            gov_c = None
+            for v in verifs_c:
+                if gov_c is None or v["interacao"] > gov_c["interacao"]:
+                    gov_c = v
+            u_col_local = gov_c["interacao"] if gov_c else 0.0
+            u_col_geral = max(u_col_local, u_col_flt, u_col_global, u_col_5523)
+            L += ["", "  COLUNA TAPERED (base rasa -> joelho fundo; h_col_base=%.0f mm):"
+                  % (tp["h_col_base"] * 1000),
+                  "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
+            for v in verifs_c:
+                s = v["_seg"]
+                L.append("    %3d | %6.0f | %9.1f | %14.2f | %s" %
+                         (s["seg"], (s["h_m"] or 0) * 1000, s["M"], v["interacao"],
+                          s.get("gov", "")))
+            _gov_nome = max((("local", u_col_local), ("FLT de trecho", u_col_flt),
+                             ("compressao global J.3", u_col_global),
+                             ("interacao M-V joelho 5.5.2.3", u_col_5523)),
+                            key=lambda x: x[1])[0]
+            L += ["  >> COLUNA: util local max = %.2f ; FLT trecho (Anexo J, Lb=%.2f m, "
+                  "Cb=%.2f) = %.2f" % (u_col_local, Lb_col, cb_col, u_col_flt),
+                  "     compressao GLOBAL (Anexo J.3, secao menor altura h=%.0f mm, "
+                  "H=%.2f m, N_Sd=%.1f kN) = %.2f" % (
+                      tp["h_col_base"] * 1000, H_col, N_col_max, u_col_global)]
+            if r5523 is not None:
+                L += ["     interacao M-V no JOELHO esbelto (5.5.2.3 tensoes, "
+                      "juncao mesa-alma; govs a/b/c/d + vonMises): %.2f (gov %s ; "
+                      "von Mises=%.2f)" % (u_col_5523, r5523["gov"], r5523["u_vm"])]
+            L += ["     GOVERNANTE = %.2f (%s)" % (u_col_geral, _gov_nome)]
+            if cc_col is not None:
+                L += ["     [cross-check DG25 (informativo)] M_eLTB(meio h=%.0fmm)=%.1f "
+                      "; Mcr(NBR funda h=%.0fmm)=%.1f -> razao=%.3f %s" % (
+                          cc_col["sec_meio"], cc_col["M_dg"], cc_col["sec_funda"],
+                          cc_col["M_nbr"], cc_col["razao"],
+                          "CONVERGE" if cc_col["converge"] else "DIVERGE")]
+            col_res = {"util_col_local_max": round(u_col_local, 2),
+                       "util_col_flt": round(u_col_flt, 2),
+                       "util_col_global": round(u_col_global, 2),
+                       "util_col_mv_5523": round(u_col_5523, 2),
+                       "interacao_max_col": round(u_col_geral, 2),
+                       "cb_misula_col": round(cb_col, 3),
+                       "h_col_base_mm": tp["h_col_base"] * 1000,
+                       "dg25_razao_col": round(cc_col["razao"], 3) if cc_col else None,
+                       "dg25_converge_col": cc_col["converge"] if cc_col else None}
+        L.append("=" * 66)
+        save("gate6-alma-variavel.txt", "\n".join(L))
+        res["alma_variavel"] = {
+            "h_joelho_mm": tp["h_joelho"] * 1000, "h_cumeeira_mm": tp["h_cumeeira"] * 1000,
+            "peso_kN_m": round(peso, 2), "nseg": gp.NSEG,
+            "I_joelho_cm4": round(secs[0]["I_m4"] * 1e8, 0),
+            "I_cumeeira_cm4": round(secs[-1]["I_m4"] * 1e8, 0),
+            "util_local_max": round(u_local, 2),
+            "util_flt_trecho": round(u_flt, 2),
+            "interacao_max_seg": round(u_geral, 2),
+            "seg_governante": ("%d%s" % (gs.get("seg"),
+                               "E" if gs.get("lado") == 0 else "D")) if gov_seg else None,
+            "governa_joelho": not no_joelho if gov_seg else None,
+            "governa_flt": bool(u_flt >= u_local),
+            "cb_misula_raf": round(cb_raf, 3),
+            "flt_secao_critica": flt_sec_crit,
+            "cortante_mesa_alivio_kN": round(cme_alivio_max, 1),
+            "cortante_mesa_creditado": creditar_cme,
+            "cortante_mesa_sentido": ("haunch/alivio" if sent_raf >= 0
+                                      else "adverso/acrescimo"),
+            "dg25_razao_raf": round(cc_raf["razao"], 3) if cc_raf else None,
+            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None}
+        if col_res:
+            res["alma_variavel"].update(col_res)
+
+    # Gate 6 - PORTICO TRELICADO (tesoura). So com tipo_portico=tesoura: a
+    # cobertura vira trelica biapoiada nos pilares. Carga por metro de banzo = carga
+    # de cobertura (permanente+sobrecarga) x largura tributaria (bay). Sucção de
+    # vento AUTO-ACOPLADA da NBR 6123 (envelope da zona de cobertura), salvo override.
+    if params.get("tipo_portico") == "tesoura" and params.get("trelica"):
+        tr = dict(params["trelica"])
+        c = params["cargas"]
+        w_grav = (c["G"] + c["Q"] + c.get("self", 0.0)) * g["bay"]   # combo gravidade
+        w_dead = (c["G"] + c.get("self", 0.0)) * g["bay"]            # estabiliza uplift (sem Q)
+        # SUCCAO de vento auto-acoplada (NBR 6123 Tabela 5). Cpi CONSISTENTE (parecer
+        # item 41, pt.1): um unico Cpi (o mais desfavoravel = mais positivo) aplicado
+        # SIMULTANEAMENTE a todas as superficies - net = Cpe - Cpi_max (par fixo, nao
+        # min independente por agua). qb = q * bay.
+        qb = vr["q_kN_m2"] * g["bay"]
+        cpe = vr["cpe"]; cpi_max = max(vr["cpi_cases"].values())
+        # (a) vento a 90 (transversal): Cpe por AGUA, barlavento (EF) x sotavento (GH),
+        #     ASSIMETRICO e simultaneo.
+        net_barl = round(cpe["cobertura_barlavento"] - cpi_max, 2)
+        net_sot = round(cpe["cobertura_sotavento"] - cpi_max, 2)
+        w_barl = round(net_barl * qb, 3); w_sot = round(net_sot * qb, 3)
+        # (b) vento a 0 (longitudinal): as DUAS aguas do portico ficam na MESMA zona
+        #     (EG, mais negativa) -> uplift SIMETRICO. Parecer item 41 pt.2: este caso
+        #     pode governar (simetria) e NAO pode ser omitido.
+        cl = vento.cpe_telhado_longitudinal(vr["theta"])
+        net_eg = round(cl["cobertura_long_EG"] - cpi_max, 2)
+        w_long = round(net_eg * qb, 3)
+        # (c) comparacao: uniforme-pior antigo (min de tudo em todo o vao).
+        w_vento_uniforme = round(min(net_barl, net_sot, net_eg) * qb, 3)
+        w_vento_in = tr.get("w_vento_kN_m")
+        base = {"L": g["span"], "h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
+                "tipo": tr.get("tipo", "warren"),
+                "w_grav_kN_m": tr.get("w_grav_kN_m", round(w_grav, 3)),
+                "w_dead_kN_m": tr.get("w_dead_kN_m", round(w_dead, 3)),
+                "fy": tr.get("fy", 250e3),
+                "perfil_banzo": tr["perfil_banzo"], "perfil_diagonal": tr["perfil_diagonal"]}
+        # ENVELOPE dos casos de vento: override manual (uniforme) tem prioridade;
+        # senao envelopa 90 (por agua) + 0 (simetrico longitudinal). Pior u_max.
+        if w_vento_in is not None:
+            casos_v = [("input(uniforme)", dict(base, w_vento_kN_m=w_vento_in))]
+            fonte = "input"
+        else:
+            casos_v = [("vento 90 (transversal, por agua)",
+                        dict(base, w_vento_zonas=(w_barl, w_sot))),
+                       ("vento 0 (longitudinal, simetrico EG)",
+                        dict(base, w_vento_zonas=(w_long, w_long)))]
+            fonte = "auto"
+        rt = None; caso_gov = None
+        for nome_v, cfg_v in casos_v:
+            rti = tes.verifica_tesoura(cfg_v)
+            if rt is None or rti["u_max"] > rt["u_max"]:
+                rt = rti; caso_gov = nome_v
+        rel = tes.relatorio_tesoura_pt(rt)
+        rel += ("\n\n  SUCCAO DE VENTO (NBR 6123 Tabela 5, Cpi consistente = %.2f):\n"
+                "    q = %.3f kN/m2 ; bay = %.2f m\n"
+                "    (a) 90 transversal: barlavento(EF) net=%.2f -> %.3f kN/m ; "
+                "sotavento(GH) net=%.2f -> %.3f kN/m (assimetrico)\n"
+                "    (b) 0 longitudinal: EG net=%.2f -> %.3f kN/m nas DUAS aguas "
+                "(simetrico)\n"
+                "    [comparacao] uniforme-pior antigo = %.3f kN/m\n"
+                "    combinacao: 1,4 w_vento(agua) + gamma_g w_dead (0,9 succao / 1,4 "
+                "pressao) ; cumeeira = media das aguas ; envelope 90+0 + 2 direcoes.\n"
+                "    -> CASO GOVERNANTE: %s ; u_max = %.2f (%s)"
+                % (cpi_max, vr["q_kN_m2"], g["bay"], net_barl, w_barl, net_sot, w_sot,
+                   net_eg, w_long, w_vento_uniforme, caso_gov, rt["u_max"],
+                   "OK" if rt["OK"] else "NAO PASSA"))
+        save("gate6-tesoura.txt", rel)
+        res["tesoura"] = {"tipo": rt["tipo"], "u_max": rt["u_max"], "OK": rt["OK"],
+                          "N_banzo_sup_max": rt["N_banzo_sup_max"],
+                          "N_banzo_inf_max": rt["N_banzo_inf_max"],
+                          "n_paineis": rt["n_paineis"], "h_m": rt["h_m"],
+                          "w_vento_barl_kN_m": w_barl, "w_vento_sot_kN_m": w_sot,
+                          "w_vento_long_kN_m": w_long, "vento_caso_governante": caso_gov,
+                          "w_vento_uniforme_kN_m": w_vento_uniforme, "w_vento_fonte": fonte,
+                          # back-compat (contrato do item 37)
+                          "w_vento_auto_kN_m": w_vento_uniforme,
+                          "w_vento_usado_kN_m": (w_vento_in if w_vento_in is not None
+                                                 else w_vento_uniforme)}
 
     # Junta de dilatacao / movimento termico (temperatura) - nivel do edificio.
     rj = jd.verifica_junta(g["comprimento"], dT=params.get("dT_termico", jd.DT_BRASIL),
@@ -526,20 +1003,27 @@ def _consolidar(out_dir, save, g, params, res=None):
     ordem = [("1. VENTO", "gate5-vento.txt"),
              ("1b. VENTO LONGITUDINAL", "gate5-vento-longitudinal.txt"),
              ("1c. PONTE ROLANTE", "gate5-ponte.txt"),
+             ("1d. CONSOLE DA PONTE", "gate7-console.txt"),
              ("2. PORTICO 1a ORDEM", "gate6-portico.txt"),
-             ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"), ("4. PERFIS", "gate7-check-perfis.txt"),
+             ("3. 2a ORDEM (MAES)", "gate6-2a-ordem.txt"),
+             ("3b. PORTICO ALMA VARIAVEL", "gate6-alma-variavel.txt"),
+             ("3c. PORTICO TRELICADO (TESOURA)", "gate6-tesoura.txt"),
+             ("4. PERFIS", "gate7-check-perfis.txt"),
              ("5. MAO-FRANCESA", "gate7-mao-francesa.txt"), ("6. TERCAS", "gate7-tercas.txt"),
              ("6b. TELHA", "gate7-telha.txt"),
              ("7. SECUNDARIOS", "gate7-secundarios.txt"),
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
+             ("8b. GUSSET DE CONTRAVENTO", "gate7-gusset.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
+             ("11g. SAPATA DE DIVISA", "gate7-divisa.txt"),
              ("11d. FOGO NBR 14323", "gate8-fogo.txt"),
              ("11e. ESCADA", "gate8-escada.txt"),
              ("11f. PLATAFORMA", "gate8-plataforma.txt"),
-             ("12. LIGACOES", "gate7-ligacoes.txt")]
+             ("12. LIGACOES", "gate7-ligacoes.txt"),
+             ("13. CALHAS E CONDUTORES", "gate-calha.txt")]
     try:
         import framework as FW
         carimbo = FW.carimbo_versao()
@@ -656,10 +1140,10 @@ def params_com_ponte():
     import copy
     p = copy.deepcopy(PARAMS_REF)
     p["ponte"] = {"Q": 100.0, "peso_ponte": 60.0, "peso_trole": 15.0,
-                  "aprox_min": 1.0, "n_rodas_lado": 2, "phi": 1.10,
-                  "frac_lateral": 0.10, "frac_long": 0.10, "d_rodas": 3.0,
-                  "fy": 250e3, "perfil_viga": pr.VS500, "siderurgica": False,
-                  "excentricidade": 0.30, "Hvr": 4.5,
+                  "aprox_min": 1.0, "n_rodas_lado": 2, "n_rodas_motoras": 2,
+                  "phi": 1.10, "frac_lateral": 0.10, "frac_long": 0.10,
+                  "d_rodas": 3.0, "fy": 250e3, "perfil_viga": pr.VS500,
+                  "siderurgica": False, "excentricidade": 0.30, "Hvr": 4.5,
                   "E_Ix": pr.ck.E * pr.VS500["Ix"]}
     return p
 

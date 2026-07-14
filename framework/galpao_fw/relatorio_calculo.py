@@ -50,6 +50,12 @@ METODOS = {
         "vertical pelo coeficiente phi; forcas horizontais transversais "
         "(translacao/frenagem do carro) e longitudinais como fracoes da carga "
         "movel. Aplicadas na viga de rolamento e no console."),
+    "1d. CONSOLE": (
+        "NBR 8800:2008 (metal da solda 6.2.5, cisalhamento da chapa 5.4) + "
+        "grupo de solda ELASTICO (vetorial, mecanica/AISC). Console da ponte: "
+        "reacao vertical do trilho + forca transversal, com excentricidade -> "
+        "momento; dimensiona a perna do filete (first-fit padrao). Compoe "
+        "primitivos de ligacoes.py."),
     "2. PORTICO": (
         "Analise elastica linear do portico plano (metodo da rigidez). Esforcos "
         "N, V, M em cada barra para todas as combinacoes de acoes (ELU/ELS), "
@@ -58,6 +64,18 @@ METODOS = {
         "NBR 8800:2008, Anexo D (metodo da amplificacao). Efeitos de 2a ordem "
         "P-delta (local) e P-Delta (global) via coeficientes B1 e B2; verifica "
         "a estabilidade e amplifica os momentos para o dimensionamento."),
+    "3b. PORTICO ALMA VARIAVEL": (
+        "Portico de misula de alma variavel (tapered), perfil I duplamente "
+        "simetrico com altura variando linearmente (funda no joelho, rasa na "
+        "cumeeira). A analise do portico usa a secao por segmento (rigidez EI "
+        "variavel ao longo do rafter); a secao do JOELHO governa a flexo-compressao "
+        "(maior momento). Secoes geradas por alma_variavel.secao_tapered."),
+    "3c. PORTICO TRELICADO (TESOURA)": (
+        "Trelica de cobertura (Warren/Pratt) biapoiada nos pilares, banzo superior "
+        "parabolico, isostatica (b+r=2j). Esforcos axiais pelo METODO DOS NOS "
+        "(equilibrio nodal, sistema 2j x (b+3)); banzo inferior traciona, superior "
+        "comprime. Barras verificadas por NBR 8800 (tracao = escoamento A.fy/ga1; "
+        "compressao = flambagem chi.Q.A.fy/ga1). Sucao de vento = A CONFIRMAR."),
     "4. PERFIS": (
         "NBR 8800:2008. Barras a flexo-compressao: equacao de interacao 5.4.2 "
         "(N/Nrd + fatores . M/Mrd <= 1,0). Resistencias com estados-limite de "
@@ -82,6 +100,12 @@ METODOS = {
         "NBR 8800:2008. Barras redondas tracionadas (contraventamento em X) "
         "pretensionadas: dimensionamento ao escoamento da secao bruta e "
         "ruptura da secao liquida; limite de esbeltez para montagem."),
+    "8b. GUSSET": (
+        "NBR 8800:2008 (estados-limite) + largura efetiva de Whitmore (convencao "
+        "AISC, 30 graus). Chapa de gusset do no de contraventamento: tracao na "
+        "secao de Whitmore (5.2.2), flambagem da faixa (5.3.3, so se comprimida), "
+        "solda de filete ao membro (6.2.5) e rasgamento em bloco (6.5.6) se "
+        "parafusada. Compoe primitivos verificados de ligacoes.py."),
     "9. VERGA": (
         "NBR 8800:2008. Viga sobre a abertura (portao/porta): flexao simples "
         "com a carga de fechamento acima do vao e verificacao de flecha."),
@@ -112,10 +136,22 @@ METODOS = {
     "11f. PLATAFORMA": (
         "NBR 8800 + NBR 6120. Piso/vigas da plataforma: flexao para a "
         "sobrecarga de uso, apoio e flecha."),
+    "11g. SAPATA DE DIVISA": (
+        "NBR 6118:2014 + metodo de Alonso. Pilar na linha do lote: sapata "
+        "EXCENTRICA (a resultante do solo nao passa pelo eixo do pilar) equilibrada "
+        "por VIGA ALAVANCA ate o pilar interno vizinho. Reacao majorada R = P . "
+        "dist_eixos / (dist_eixos - e); alivio na sapata interna; flexao/cortante "
+        "da viga de equilibrio. sigma_solo,adm por sondagem."),
     "12. LIGACOES": (
         "NBR 8800:2008 (cap. 6 e Anexo). Parafusos a cisalhamento e tracao, "
         "pressao de contato (bearing), ruptura de bloco de cisalhamento e "
         "solda de filete (metal-base e eletrodo E70XX)."),
+    "13. CALHAS E CONDUTORES": (
+        "NBR 10844:1989 + Bellei (Edificios Industriais 2.4). Area de contribuicao "
+        "da cobertura x intensidade pluviometrica local I -> vazao de projeto Q; "
+        "secao da calha (lamina d'agua + borda livre >= 25%, Manning) e diametro/"
+        "numero de condutores. Criterio de Bellei (As >= 1 cm2 por m2 de telhado). "
+        "I pluviometrica local = A CONFIRMAR (dado regional)."),
 }
 
 # fim de _METODOS -> texto padrao quando o modulo nao tem entrada dedicada

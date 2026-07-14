@@ -77,11 +77,23 @@ def _interp_M(lam, lamp, lamr, Mpl, Mr, Mcr, Cb=1.0):
 
 
 def momento_resistente(sec, fy, Lb, Cb=1.0):
-    """Menor Mn entre FLT, FLM, FLA (Tabela G.1, I duplo eixo, eixo forte)."""
+    """Menor Mn entre FLT, FLM, FLA (Tabela G.1, I duplo eixo, eixo forte).
+    Se a alma for ESBELTA (h/tw > 5,70 sqrt(E/fy)), despacha para o Anexo H
+    (viga de alma esbelta: Wxc/Wxt + kpg), em vez de abortar."""
     Zx, Wx, ry, bf, tf, d, tw = (sec["Zx"], sec["Wx"], sec["ry"], sec["bf"],
                                  sec["tf"], sec["d"], sec["tw"])
     Iy = sec["Iy"]
     h = d - 2 * tf
+    # despacho para o Anexo H quando a alma e esbelta (h/tw > 5,70 sqrt(E/fy)).
+    if h / tw > 5.70 * math.sqrt(E / fy):
+        import alma_esbelta as ae
+        rh = ae.mrd_alma_esbelta(sec, fy, Lb, Cb)
+        Mn = rh["Mn"]
+        det = {"Mpl": None, "Lp": None, "Lr_flt": None,
+               "Mn_flt": rh["M_flt"], "Mn_flm": rh["M_flm"], "Mn_fla": rh["M_esc"],
+               "kpg": rh["kpg"], "kc": rh["kc"], "ryT": rh["ryT"],
+               "fora_validade": rh["fora_validade"], "anexo": "H"}
+        return Mn, rh["gov"], det
     Mpl = Zx * fy
     sr = 0.3 * fy                     # tensao residual
     rE = math.sqrt(E / fy)
@@ -122,7 +134,7 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
     gov = ["FLT", "FLM", "FLA"][[Mn_flt, Mn_flm, Mn_fla].index(Mn)]
     return Mn, gov, {"Mpl": Mpl, "Lp": lamp * ry, "Lr_flt": lamr_flt * ry,
                      "Mn_flt": Mn_flt, "Mn_flm": Mn_flm, "Mn_fla": Mn_fla,
-                     "Cw": Cw, "J": J}
+                     "Cw": Cw, "J": J, "anexo": "G"}
 
 
 def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""):

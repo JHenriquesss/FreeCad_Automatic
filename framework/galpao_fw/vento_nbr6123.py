@@ -86,6 +86,20 @@ def cpe_telhado(theta_graus=5.71):
     return {"cobertura_barlavento": round(ef, 2), "cobertura_sotavento": round(gh, 2)}
 
 
+def cpe_telhado_longitudinal(theta_graus=5.71):
+    """NBR 6123 Tabela 5, colunas alpha=0 (vento LONGITUDINAL, paralelo a cumeeira).
+    Sob vento a 0 graus, o telhado se divide AO LONGO DO COMPRIMENTO nas zonas EG
+    (metade a barlavento do comprimento) e FH (metade a sotavento); AMBAS as aguas
+    de um MESMO portico transversal ficam na MESMA zona -> carga SIMETRICA nas duas
+    aguas da tesoura. Bloco 1/2<h/b<=3/2 (mesmo bloco de cpe_telhado), verbatim:
+      5 graus:  EG=-0,90  FH=-0,60 ; 10 graus: EG=-0,80  FH=-0,60.
+    EG (mais negativo) e a zona critica para o uplift simetrico. Valores lidos da
+    Tabela 5 (PDF pag.15, imagem)."""
+    eg = _interp(theta_graus, 5.0, 10.0, -0.90, -0.80)
+    fh = _interp(theta_graus, 5.0, 10.0, -0.60, -0.60)
+    return {"cobertura_long_EG": round(eg, 2), "cobertura_long_FH": round(fh, 2)}
+
+
 def cpi_cases():
     """NBR 6123 item 6.2.5-c: PORTAO = abertura dominante no oitao.
     - Portao a barlavento (vento no oitao): Cpi = +0,1 a +0,8 conforme a razao

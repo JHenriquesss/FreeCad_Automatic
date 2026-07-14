@@ -178,9 +178,10 @@ principal. Auditoria cruzada elogiada como mais rigorosa que a revisão inicial.
 
 ## 8. Cpe médio / local de borda e canto (Tabelas 4 e 5) — feature adicionada 2026-07-08
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — feature nova. A conferir: a coluna **"cpe médio"**
-> das Tabelas 4 (paredes) e 5 (telhado), as zonas hachuradas de alta sucção de
-> borda/canto e a sucção líquida local que dimensiona **telha, terça e fixadores**.
+> **STATUS: ✅ HOMOLOGADO (2026-07-09)** — Cpe médio local §8. Conferido: a
+> coluna **"cpe médio"** das Tabelas 4 (paredes) e 5 (telhado), as zonas de alta
+> sucção de borda/canto e a sucção líquida local que dimensiona **telha, terça e
+> fixadores**.
 
 ### 8.1 — O que faltava
 

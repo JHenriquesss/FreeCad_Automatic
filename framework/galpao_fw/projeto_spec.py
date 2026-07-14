@@ -45,6 +45,31 @@ REQUERIDOS = [
     ("cargas.G", "carga permanente de cobertura"),
     ("cargas.Q", "sobrecarga"),
     ("fundacao.sigma_solo_adm", "tensao admissivel do solo (sondagem/geotecnia)"),
+    ("fundacao.tipo", "tipo de fundacao (sapata=rasa / estaca=profunda)"),
+]
+
+# Fundacao PROFUNDA (estaca): campos requeridos SO quando fundacao.tipo=="estaca".
+# O perfil SPT e o tipo de estaca vem da SONDAGEM (Ask, Do Not Invent) -> sem
+# default; PENDENTE/ausente bloqueia. D, L, FS tem default (A CONFIRMAR).
+REQUERIDOS_ESTACA = [
+    ("fundacao.estaca.perfil_spt", "perfil SPT da sondagem (camadas tipo/N/dz)"),
+    ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
+]
+TIPOS_FUNDACAO = ("sapata", "estaca")
+TIPOS_PORTICO = ("prismatico", "alma_variavel", "tesoura")
+
+# Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.
+# Sao dado de catalogo/projeto (Ask, Do Not Invent) - PENDENTE/ausente bloqueia.
+# phi/n_ciclos podem vir das classes NBR 8400 (classe_hc/classe_b) OU direto.
+REQUERIDOS_PONTE = [
+    ("Q", "capacidade icada (kN)"),
+    ("peso_ponte", "peso proprio da ponte (kN)"),
+    ("peso_trole", "peso do trole/carro (kN)"),
+    ("aprox_min", "aproximacao minima do gancho ao trilho (m)"),
+    ("n_rodas_lado", "numero de rodas por lado (trilho)"),
+    ("n_rodas_motoras", "numero de rodas MOTORAS por lado (frenagem)"),
+    ("frac_lateral", "fracao do surto transversal (A CONFIRMAR)"),
+    ("frac_long", "fracao da frenagem longitudinal (A CONFIRMAR)"),
 ]
 
 
@@ -56,24 +81,42 @@ def novo():
                     "tp_min": P, "recuos": P, "n_pav": 1, "pts_xy_mm": None},
         "geometria": {"span": P, "comprimento": P, "eave": P, "ridge": P,
                       "bay": P, "base_fixed": P},
+        # chuva_I_mm_h: intensidade pluviometrica local (NBR 10844) p/ dimensionar
+        # a calha. Default 150 (A CONFIRMAR regional); nao bloqueia.
         "cobertura": {"aguas": P, "slope": P, "telha_tipo": P, "telha_peso": P,
-                      "calha": P},
+                      "calha": P, "chuva_I_mm_h": 150.0},
         # mesa_interna_travada: longarina sob succao. False (default seguro) =
         # mesa interna livre, Lb=vao cheio no FLT. True = mao-francesa trava a
         # mesa interna -> Lb menor (exige o detalhe). Nao bloqueia (tem default).
         "fechamento": {"tipo": P, "altura_alvenaria": None, "peso": P,
                        "mesa_interna_travada": False, "n_maos_francesas": None},
         "aberturas": P,     # dict {portao_frente, portao_fundo, porta_*, janelas_*}
-        "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P},
+        # tipo_portico: prismatico (default) | alma_variavel (misula tapered).
+        # tapered = None p/ prismatico; dict {h_joelho,h_cumeeira,bf,tw,tf} (m).
+        "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P,
+                      "tipo_portico": "prismatico", "tapered": None,
+                      # trelica: None p/ nao-tesoura; dict {h,n_paineis,tipo,
+                      # perfil_banzo,perfil_diagonal} quando tipo_portico=tesoura.
+                      "trelica": None},
         "vento": {"v0": P, "cat": P, "classe": P, "s1": 1.0, "s3": P, "z": P,
                   "abertura_dominante": P},
         "ponte": P,         # None (sem ponte) ou dict de dados
         "cargas": {"G": P, "Q": P, "self": P, "tapamento": P},
-        # Fundacao (sapata NBR 6118). sigma_solo_adm (kN/m2) BLOQUEIA - vem da
-        # sondagem, nao se inventa. Demais parametros tem default (A CONFIRMAR).
-        "fundacao": {"sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
+        # Fundacao. tipo (sapata=rasa / estaca=profunda) BLOQUEIA. sigma_solo_adm
+        # (kN/m2) BLOQUEIA - vem da sondagem, nao se inventa. Demais parametros da
+        # sapata tem default (A CONFIRMAR). estaca=None ate tipo=="estaca": ai vira
+        # dict {perfil_spt (sondagem), tipo_estaca, D, L, FS, bloco}.
+        "fundacao": {"tipo": P, "sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
                      "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
-                     "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4},
+                     "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4,
+                     "estaca": None,
+                     # divisa: None (sem pilar de divisa) OU dict {dist_divisa (m):
+                     # distancia do eixo do pilar de divisa a linha do lote}. Dispara
+                     # a sapata de divisa excentrica + viga alavanca (Alonso).
+                     "divisa": None},
+        # Viga de baldrame / amarracao entre fundacoes (NBR 6118). None = nao ha;
+        # dict {b, h, q_parede, continuidade} = dimensiona (vao e N_amarracao do modelo).
+        "baldrame": None,
         "fogo": None,         # None (sem verificacao) ou dict {TRRF_min, protecao}
         "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
         "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
@@ -91,14 +134,92 @@ def _get(spec, path):
 
 
 def validar(spec):
-    """Retorna {faltando, a_confirmar, ok}. ok=False BLOQUEIA calculo/desenho."""
+    """Retorna {faltando, a_confirmar, avisos, ok}. ok=False BLOQUEIA calculo/desenho.
+    `avisos` = excecoes normativas ativas (nao bloqueiam, mas ficam na memoria de
+    calculo para auditoria/ART)."""
     faltando = []
+    avisos = []
     for path, desc in REQUERIDOS:
         v = _get(spec, path)
         if v is KeyError or v == PENDENTE:
             faltando.append((path, desc))
+    # tipo de fundacao invalido bloqueia (so sapata|estaca)
+    tipo = _get(spec, "fundacao.tipo")
+    if tipo not in (KeyError, PENDENTE) and tipo not in TIPOS_FUNDACAO:
+        faltando.append(("fundacao.tipo",
+                         "valor invalido '%s' (use %s)" % (tipo, "/".join(TIPOS_FUNDACAO))))
+    # fundacao profunda: perfil SPT + tipo de estaca sao da sondagem (bloqueiam)
+    if tipo == "estaca":
+        est = _get(spec, "fundacao.estaca")
+        if est in (KeyError, None, PENDENTE) or not isinstance(est, dict):
+            faltando.append(("fundacao.estaca", "bloco de estaca ausente (sondagem)"))
+        else:
+            for path, desc in REQUERIDOS_ESTACA:
+                v = _get(spec, path)
+                if v in (KeyError, None, PENDENTE, [], "") or v == PENDENTE:
+                    faltando.append((path, desc))
+            # Fator de seguranca global (NBR 6122): metodo semi-empirico SEM prova
+            # de carga estatica -> FS >= 3,0. FS < 3,0 (ate 2,0) so e admitido COM
+            # prova de carga na obra (fundacao.estaca.prova_de_carga = True). Sem a
+            # flag, FS<3,0 BLOQUEIA (evita relatorio contra a norma).
+            fs_est = _get(spec, "fundacao.estaca.FS")
+            prova = _get(spec, "fundacao.estaca.prova_de_carga")
+            if isinstance(fs_est, (int, float)) and fs_est < 3.0:
+                if prova is not True:
+                    faltando.append(
+                        ("fundacao.estaca.FS",
+                         "FS=%.2f < 3,0 exige prova de carga estatica (NBR 6122): "
+                         "marque fundacao.estaca.prova_de_carga=True ou use FS>=3,0" % fs_est))
+                else:
+                    # excecao normativa ATIVA: fica na memoria de calculo (auditoria).
+                    avisos.append(
+                        ("fundacao.estaca.FS",
+                         "FS=%.2f < 3,0 liberado por PROVA DE CARGA estatica (NBR 6122). "
+                         "Validade do dimensionamento condicionada a execucao das provas "
+                         "na obra - responsabilidade do engenheiro." % fs_est))
+    # tipo de portico invalido bloqueia (prismatico|alma_variavel)
+    tp = _get(spec, "estrutura.tipo_portico")
+    if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
+        faltando.append(("estrutura.tipo_portico",
+                         "valor invalido '%s' (use %s)" % (tp, "/".join(TIPOS_PORTICO))))
+    # tesoura: n_paineis deve ser PAR (cumeeira em no; impar poe o apice no meio da
+    # barra do banzo superior e reintroduz flexao -> invalida o metodo dos nos).
+    if tp == "tesoura":
+        tr = _get(spec, "estrutura.trelica")
+        if isinstance(tr, dict):
+            npn = tr.get("n_paineis", 8)
+            if isinstance(npn, int) and npn % 2 != 0:
+                faltando.append(("estrutura.trelica.n_paineis",
+                                 "n_paineis=%d deve ser PAR (cumeeira em no; impar "
+                                 "reintroduz flexao na tesoura)" % npn))
+    # coluna de alma variavel (tapered): h_col_base opcional (rasa na base, funda
+    # no joelho). Deve ser < h_joelho (senao a coluna nao afina) e > 2*tf (secao I
+    # valida). Fora disso -> AVISO (nao bloqueia; alerta de geometria incoerente).
+    if tp == "alma_variavel":
+        tap = _get(spec, "estrutura.tapered")
+        if isinstance(tap, dict) and tap.get("h_col_base") is not None:
+            hcb = tap["h_col_base"]; hj = tap.get("h_joelho")
+            tf = tap.get("tf", 0.0125)
+            if isinstance(hcb, (int, float)):
+                if isinstance(hj, (int, float)) and hcb >= hj:
+                    avisos.append(("estrutura.tapered.h_col_base",
+                                   "h_col_base=%.3f >= h_joelho=%.3f: coluna nao afina "
+                                   "(base deve ser mais rasa que o joelho)" % (hcb, hj)))
+                if hcb <= 2.0 * tf:
+                    avisos.append(("estrutura.tapered.h_col_base",
+                                   "h_col_base=%.3f <= 2*tf=%.4f: secao I invalida" % (hcb, 2.0 * tf)))
+    # ponte rolante: se ha ponte (dict), os dados do fabricante bloqueiam. phi
+    # exige classe_hc OU phi direto; n de ciclos exige classe_b OU n_ciclos.
+    ponte = spec.get("ponte")
+    if isinstance(ponte, dict):
+        for k, desc in REQUERIDOS_PONTE:
+            v = ponte.get(k)
+            if v in (None, PENDENTE):
+                faltando.append(("ponte." + k, desc))
+        if ponte.get("phi") in (None, PENDENTE) and not ponte.get("classe_hc"):
+            faltando.append(("ponte.phi", "impacto phi OU classe de elevacao HC (NBR 8400)"))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
-            "ok": not faltando}
+            "avisos": avisos, "ok": not faltando}
 
 
 def exigir_completo(spec):
@@ -152,10 +273,55 @@ def to_rodar_params(spec):
     lg["mesa_interna_travada"] = bool(fe.get("mesa_interna_travada", False))
     if fe.get("n_maos_francesas") not in (None, PENDENTE):
         lg["n_maos_francesas"] = fe["n_maos_francesas"]
-    fu = spec.get("fundacao")           # sapata: sobrescreve os defaults do solo
+    fu = spec.get("fundacao") or {}     # sapata: sobrescreve os defaults do solo
     if fu:
-        p.setdefault("fundacao", {}).update({k: v for k, v in fu.items()
-                                             if v not in (None, PENDENTE)})
+        p.setdefault("fundacao", {}).update(
+            {k: v for k, v in fu.items()
+             if k not in ("tipo", "estaca") and v not in (None, PENDENTE)})
+    # fundacao PROFUNDA: monta o cfg da estaca (perfil SPT da sondagem) que o
+    # rodar_galpao consome (verifica_estaca). SO quando tipo=="estaca" (exclusivo
+    # da sapata). Nada de dado geometrico inventado: tudo vem do bloco 'estaca'.
+    if fu.get("tipo") == "estaca" and isinstance(fu.get("estaca"), dict):
+        e = fu["estaca"]
+        # FS default 3,0 (NBR 6122 semi-empirico s/ prova de carga); 2,0 so com
+        # prova de carga (barrado no validar()).
+        ec = {"perfil": e["perfil_spt"], "D": e.get("D", 0.30),
+              "L": e.get("L", 10.0), "tipo_estaca": e.get("tipo_estaca", "pre_moldada"),
+              "FS": e.get("FS", 3.0)}
+        for opt in ("N_ponta", "bloco", "grupo", "camadas_neg", "recalque_grupo",
+                    "FS_tracao"):
+            if e.get(opt) is not None:
+                ec[opt] = e[opt]
+        p["estaca"] = ec
+    else:
+        p.pop("estaca", None)           # tipo=sapata: garante que nao ha estaca
+    # viga de baldrame: opt-in pelo spec (sobrescreve o default do PARAMS_REF).
+    bal = spec.get("baldrame")
+    if isinstance(bal, dict):
+        p.setdefault("baldrame", {}).update(
+            {k: v for k, v in bal.items() if v not in (None, PENDENTE)})
+    # calha (dimensionamento hidraulico): roda quando ha calha na cobertura;
+    # intensidade pluviometrica local (NBR 10844).
+    cob = spec.get("cobertura", {})
+    p["calha"] = bool(cob.get("calha")) and cob.get("calha") != PENDENTE
+    ci = cob.get("chuva_I_mm_h")
+    if ci not in (None, PENDENTE):
+        p["chuva_I_mm_h"] = ci
+    # sapata de divisa: so quando o gate fundacao.divisa e informado.
+    dv = fu.get("divisa")
+    if isinstance(dv, dict):
+        p["divisa"] = dv
+    # tipo de portico (prismatico|alma_variavel) + misula tapered.
+    est0 = spec.get("estrutura", {})
+    p["tipo_portico"] = est0.get("tipo_portico", "prismatico")
+    if est0.get("tipo_portico") == "alma_variavel" and isinstance(est0.get("tapered"), dict):
+        p["tapered"] = est0["tapered"]
+    # opt-in: creditar o alivio de cortante das mesas inclinadas (equilibrio; refino
+    # nao-normativo). Default False (conservador). Ver cortante_tapered.py.
+    p["creditar_cortante_mesa_inclinada"] = bool(
+        est0.get("creditar_cortante_mesa_inclinada", False))
+    if est0.get("tipo_portico") == "tesoura" and isinstance(est0.get("trelica"), dict):
+        p["trelica"] = est0["trelica"]
     p["ponte"] = spec["ponte"] if spec["ponte"] else None
     if spec["ponte"]:
         import ponte_rolante as pr
@@ -190,6 +356,10 @@ def to_build_kwargs(spec):
         return a or b
     esc_nome = _maior(est.get("perfil_escora"), est.get("perfil_montante"))
     jo = est.get("joelho_adotado")
+    tipo_fund = spec.get("fundacao", {}).get("tipo")
+    profunda = tipo_fund == "estaca"
+    ea = est.get("estaca_adotada"); bo = est.get("bloco_adotado")
+    bl = est.get("baldrame_adotado")
     return {
         "length": g["comprimento"] * 1000.0, "span": g["span"] * 1000.0,
         "eave_h": g["eave"] * 1000.0, "slope": spec["cobertura"]["slope"],
@@ -208,12 +378,48 @@ def to_build_kwargs(spec):
         "base": ({"B": ba["B"] * 1000, "L": ba["L"] * 1000, "t": ba["t"] * 1000,
                   "db": ba["db"] * 1000, "n": ba["n"]}
                  if (ba := est.get("base_adotada")) else None),
+        # fundacao RASA (sapata): so quando tipo!=estaca (exclusivo - mne-2).
         "sapata": ({"B": sa["B"] * 1000, "L": sa["L"] * 1000, "h": sa["h"] * 1000,
                     "ped": spec.get("fundacao", {}).get("h_ped", 0.5) * 1000}
-                   if (sa := est.get("sapata_adotada")) else None),
+                   if (not profunda and (sa := est.get("sapata_adotada"))) else None),
+        # fundacao PROFUNDA (estaca + bloco + baldrame): dims do CALCULO em mm.
+        "estaca": ({"D": ea["D"] * 1000, "L": ea["L"] * 1000, "n": ea["n"],
+                    "espacamento": ea.get("espacamento", 3.0 * ea["D"]) * 1000,
+                    "tipo": ea.get("tipo")}
+                   if (profunda and ea) else None),
+        "bloco": ({"h": bo["h"] * 1000, "a": bo.get("a", 0.30) * 1000,
+                   "B": bo.get("B", bo.get("a", 0.30)) * 1000,
+                   "L": bo.get("L", bo.get("a", 0.30)) * 1000}
+                  if (profunda and bo) else None),
+        "baldrame": ({"b": bl["b"] * 1000, "h": bl["h"] * 1000,
+                      "vao": bl.get("vao", g["bay"]) * 1000}
+                     if (profunda and bl) else None),
+        # portico de alma variavel: tipo + misula tapered (alturas em mm p/ o loft).
+        "tipo_portico": est.get("tipo_portico", "prismatico"),
+        "tapered": ({"h_joelho": tap["h_joelho"] * 1000, "h_cumeeira": tap["h_cumeeira"] * 1000,
+                     "bf": tap.get("bf", 0.20) * 1000, "tw": tap.get("tw", 0.008) * 1000,
+                     "tf": tap.get("tf", 0.0125) * 1000,
+                     **({"h_col_base": tap["h_col_base"] * 1000}
+                        if tap.get("h_col_base") is not None else {})}
+                    if (est.get("tipo_portico") == "alma_variavel"
+                        and isinstance(tap := est.get("tapered"), dict)) else None),
+        # portico trelicado (tesoura): geometria (m) + perfis (mm) p/ desenhar as barras.
+        "trelica": ({"h": tr["h"], "n_paineis": tr.get("n_paineis", 8),
+                     "tipo": tr.get("tipo", "warren"),
+                     "d_banzo": max(tr["perfil_banzo"][0], tr["perfil_banzo"][1]) * 1000,
+                     "d_diag": max(tr["perfil_diagonal"][0], tr["perfil_diagonal"][1]) * 1000}
+                    if (est.get("tipo_portico") == "tesoura"
+                        and isinstance(tr := est.get("trelica"), dict)) else None),
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                           "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
                          if spec["ponte"] else None),
+        # reforco da zona de painel do joelho (doubler/enrijecedor) - so quando o
+        # calculo exigiu (zona_painel_adotado.precisa_*). Espessuras em mm.
+        "reforco_joelho": ({"t_doubler": zp.get("t_doubler_mm", 0.0),
+                            "enrijecedor": bool(zp.get("precisa_enrijecedor"))}
+                           if (isinstance(zp := est.get("zona_painel_adotado"), dict)
+                               and (zp.get("precisa_reforco") or zp.get("precisa_enrijecedor")))
+                           else None),
     }
 
 
@@ -244,9 +450,28 @@ def _selftest():
     s["ponte"] = None
     s["cargas"].update(G=0.27, Q=0.25, self=0.35, tapamento=0.10)
     s["fundacao"]["sigma_solo_adm"] = 200.0        # kN/m2 (sondagem)
+    s["fundacao"]["tipo"] = "sapata"
     r = validar(s)
     print(resumo_pt(s))
     assert r["ok"], r["faltando"]
+    # fundacao profunda: tipo=estaca exige perfil SPT + tipo de estaca (sondagem)
+    s2 = copy.deepcopy(s)
+    s2["fundacao"]["tipo"] = "estaca"
+    assert validar(s2)["ok"] is False                # falta o bloco de estaca
+    s2["fundacao"]["estaca"] = {
+        "perfil_spt": [{"tipo": "areia_siltosa", "N": 20, "dz": 8.0}],
+        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 8.0, "FS": 3.0}
+    assert validar(s2)["ok"], validar(s2)["faltando"]
+    # FS < 3,0 SEM prova de carga BLOQUEIA (NBR 6122 semi-empirico)
+    s3 = copy.deepcopy(s2)
+    s3["fundacao"]["estaca"]["FS"] = 2.0
+    r3 = validar(s3)
+    assert r3["ok"] is False and any("FS" in p for p, _ in r3["faltando"]), r3
+    # com prova de carga, FS=2,0 e liberado E registra aviso de auditoria
+    s3["fundacao"]["estaca"]["prova_de_carga"] = True
+    r3b = validar(s3)
+    assert r3b["ok"], r3b["faltando"]
+    assert any("FS" in p for p, _ in r3b["avisos"]), r3b   # excecao normativa auditada
     # remover um obrigatorio volta a bloquear
     s["geometria"]["bay"] = PENDENTE
     assert validar(s)["ok"] is False

@@ -9,7 +9,8 @@
 #   - vao > comprimento (inverte os eixos)  [regressao do bug comp_x]
 #   - baixo e largo
 #   - com ponte rolante (console + viga de rolamento)
-# (estaca profunda / escada / plataforma sao calc-only: nao mudam o 3D.)
+#   - fundacao PROFUNDA (estaca + bloco de coroamento + viga de baldrame no 3D)
+# (escada / plataforma sao calc-only: nao mudam o 3D.)
 #
 # Uso:  python smoke_executivo.py
 # ============================================================================
@@ -30,7 +31,15 @@ FREECADCMD = os.environ.get(
     "FREECADCMD", r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe")
 
 
-def _spec(slug, span, comp, eave, ridge, ponte=None):
+_PERFIL_SPT = [                     # sondagem exemplo (dado de sitio) topo->ponta
+    {"tipo": "argila_siltosa", "N": 5, "dz": 3.0},
+    {"tipo": "silte_arenoso", "N": 12, "dz": 4.0},
+    {"tipo": "areia_siltosa", "N": 25, "dz": 5.0},
+]
+
+
+def _spec(slug, span, comp, eave, ridge, ponte=None, fundacao="sapata",
+          tipo_portico="prismatico", tapered=None, trelica=None):
     s = PS.novo()
     s['slug'] = slug
     s['terreno'].update(area_lote_m2=4000, to_max=0.6, ca_max=1.0, tp_min=0.2,
@@ -48,6 +57,19 @@ def _spec(slug, span, comp, eave, ridge, ponte=None):
     s['ponte'] = ponte
     s['cargas'].update(G=0.27, Q=0.25, self=0.35, tapamento=0.05)
     s['fundacao']['sigma_solo_adm'] = 200.0
+    s['fundacao']['tipo'] = fundacao
+    if fundacao == 'estaca':                 # fundacao profunda (SPT da sondagem)
+        s['fundacao']['estaca'] = {
+            'perfil_spt': [dict(c) for c in _PERFIL_SPT],
+            'tipo_estaca': 'pre_moldada', 'D': 0.30, 'L': 10.0, 'FS': 3.0,
+            'bloco': {'a_pilar': 0.30, 'fck': 25e3, 'fyk': 500e3}}
+        s['baldrame'] = {'b': 0.20, 'h': 0.40, 'q_parede': 0.0,
+                         'continuidade': 'simples'}
+    s['estrutura']['tipo_portico'] = tipo_portico
+    if tapered is not None:
+        s['estrutura']['tapered'] = tapered
+    if trelica is not None:
+        s['estrutura']['trelica'] = trelica
     return s
 
 
@@ -77,7 +99,7 @@ def _build_3d(spec, out, doc_name):
 
 
 PONTE = {'Q': 50.0, 'peso_ponte': 30.0, 'peso_trole': 8.0, 'aprox_min': 1.0,
-         'n_rodas_lado': 2, 'phi': 1.10, 'frac_lateral': 0.10,
+         'n_rodas_lado': 2, 'n_rodas_motoras': 2, 'phi': 1.10, 'frac_lateral': 0.10,
          'frac_long': 0.10, 'Hvr': 4.5, 'excentricidade': 0.3}
 
 CASOS = [
@@ -85,6 +107,17 @@ CASOS = [
     ("vao_maior", dict(span=18, comp=12, eave=7, ridge=7.9)),
     ("baixo_largo", dict(span=8, comp=30, eave=4, ridge=4.4)),
     ("ponte",    dict(span=15, comp=20, eave=7, ridge=7.75, ponte=PONTE)),
+    # fundacao PROFUNDA: estaca + bloco de coroamento + viga de baldrame no 3D.
+    ("estaca",   dict(span=10, comp=20, eave=6, ridge=6.5, fundacao="estaca")),
+    # PORTICO de alma variavel (misula tapered): rafter em loft + analise variavel.
+    ("alma_var", dict(span=10, comp=20, eave=6, ridge=6.5, tipo_portico="alma_variavel",
+                      tapered={"h_joelho": 0.60, "h_cumeeira": 0.30, "bf": 0.20,
+                               "tw": 0.008, "tf": 0.0125})),
+    # PORTICO trelicado (tesoura): analise por metodo dos nos + barras no 3D.
+    ("tesoura",  dict(span=20, comp=30, eave=6, ridge=8, tipo_portico="tesoura",
+                      trelica={"h": 2.5, "n_paineis": 8, "tipo": "warren",
+                               "perfil_banzo": (0.150, 0.100, 0.006, 0.009),
+                               "perfil_diagonal": (0.100, 0.075, 0.005, 0.008)})),
 ]
 
 
@@ -134,6 +167,14 @@ def rodar():
         try:
             r = RP.calcular(s, out)
             print("  calc: atende=%s" % r.get('atende'))
+            # callouts de fabricacao (me-4): cfg deve carregar a spec de ligacao
+            # do calculo (joelho/gusset sempre; console so ponte). Se presente,
+            # _callout_fab desenha os numeros -> todo callout rastreia ao calculo.
+            cfg = TD.config_de_spec(s, 'x.FCStd', out)
+            for k in ('joelho', 'gusset'):
+                assert cfg.get(k), "cfg sem spec de ligacao '%s' (callout)" % k
+            if kw.get('ponte'):
+                assert cfg.get('console'), "cfg sem console (callout)"
             fcstd = _build_3d(s, out, nome)
             assert fcstd and os.path.exists(fcstd), "3D nao gerou FCStd"
             ex = RP.rodar_executivo(s, out, fcstd, timeout=900)
@@ -150,10 +191,20 @@ def rodar():
             edges = ex.get('detalhes_edges', {})
             baixos = {k: v for k, v in edges.items() if v < LIMIAR}
             assert not baixos, "detalhe de ligacao com poucas arestas: %s" % baixos
-            base_lig = {'VLIG_ELEV_CUMEEIRA', 'VLIG_ELEV_GUSSET_COB',
-                        'VLIG_ELEV_GUSSET_PAR', 'VLIG_ELEV_CLIPE_GIRT'}
+            base_lig = {'VLIG_ELEV_GUSSET_COB', 'VLIG_ELEV_GUSSET_PAR',
+                        'VLIG_ELEV_CLIPE_GIRT'}
+            # cumeeira (no de momento) so existe no portico solido; a tesoura e
+            # biapoiada rotulada (sem joelho/cumeeira).
+            if kw.get('tipo_portico') != 'tesoura':
+                base_lig.add('VLIG_ELEV_CUMEEIRA')
             faltam = base_lig - set(edges)
             assert not faltam, "faltam detalhes de ligacao: %s" % faltam
+            # CORTE SECCIONADO (fase 5): pelo menos 1 secao hachurada gerada, e
+            # nenhuma secao vazia (corte com arestas reais).
+            secoes = ex.get('detalhes_secoes', {})
+            assert secoes, "nenhum corte seccionado gerado (VLIG_SEC_*)"
+            vazias = {k: v for k, v in secoes.items() if v <= 0}
+            assert not vazias, "corte seccionado vazio: %s" % vazias
             if kw.get('ponte'):
                 assert 'VLIG_ELEV_CONSOLE' in edges, "falta detalhe do console"
             # PDF do memorial de calculo: gera sem erro e sai um arquivo != vazio

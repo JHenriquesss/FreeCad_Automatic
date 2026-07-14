@@ -1,24 +1,42 @@
 {
-  "phase": 1,
-  "phase_name": "detalhes-ligacao",
+  "phase": "6.12",
+  "phase_name": "dg25-ltb-crosscheck-flt",
   "step": "closed",
   "must_exist": [
-    { "id": "me-1", "text": "PE10 CUMEEIRA: elevacao + vista da chapa legiveis (edge-count OK, visual OK)", "done": true },
-    { "id": "me-2", "text": "PE11 GUSSET_COB e PE12 GUSSET_PAR legiveis", "done": true },
-    { "id": "me-3", "text": "PE13 CLIPE_GIRT legivel", "done": true },
-    { "id": "me-4", "text": "PE14 CONSOLE (ponte) legivel", "done": true },
-    { "id": "me-5", "text": "PREFIXOS_SEM_DESENHO reduzido a VAO; smoke 4/4 cobertura+edge-count", "done": true }
+    { "id": "me-1", "text": "dg25_ltb.py: hc/ho/aw; rt (5.4-11); J_dg (5.4-12 slender->0); f_eltb (5.4-10 F4-5); m_eltb=Cb F_eLTB Sxc; puro sem numpy; _selftest (prismatico razao 0.998)", "done": true },
+    { "id": "me-2", "text": "cross_check_flt(segs,fy,Lb,Cb,tol): DG25 M_eLTB (secao MEIO) x NBR Mcr (secao FUNDA J.4.2); razao + converge; Cb cancela", "done": true },
+    { "id": "me-3", "text": "rodar_galpao: cross-check FLT rafter+coluna tapered; memorial + res dg25_razao_raf/col; UTILIZACAO INTOCADA (so reporta)", "done": true },
+    { "id": "me-4", "text": "REVISAO-DG25-CROSSCHECK.md (5.4.3 verbatim imagem; meio x funda; AISC informativo) + INDICE item 42; nao-regressao (nenhuma util muda; build)", "done": true }
   ],
   "must_not_exist": [
-    { "id": "mne-1", "text": "ligacao (fora VAO) em PREFIXOS_SEM_DESENHO", "violated": false },
-    { "id": "mne-2", "text": "vista de detalhe com arestas abaixo do limiar (silhueta chapada)", "violated": false }
+    { "id": "mne-1", "text": "DG25 alterar utilizacao/dimensionamento (interacao_max byte-identico ao 6.11; so reporta)", "violated": false },
+    { "id": "mne-2", "text": "coeficiente inventado (5.4-10/11/12 + hc/aw/ho verbatim pg 60-61; 0.078/5.70/0.63)", "violated": false },
+    { "id": "mne-3", "text": "comparar secoes distintas sem explicitar (meio x funda aparece no relatorio)", "violated": false },
+    { "id": "mne-4", "text": "usar numpy (modulo puro, importavel no build)", "violated": false },
+    { "id": "mne-5", "text": "alarme falso em ~prismatico (h1~h2 -> razao~1 CONVERGE)", "violated": false }
   ],
-  "current_item": null,
+  "current_item": "me-4",
   "trunk_status": "pass",
-  "trunk_evidence": "smoke 4/4: padrao/vao_maior/baixo_largo 13 pranchas, ponte 14; cobertura completa + edge-count>=15 + memorial PDF, nas 4 geometrias",
-  "opened_at": "2026-07-09",
+  "trunk_evidence": "fase6.12 9/9; prismatico razao DG25/NBR=0.998 (F4-5 == F2, base sa); tapered DIVERGE 0.544 rafter/0.447 coluna (secao meio x funda, nao erro de util - NBR auto-consistente); utilizacao byte-identica ao 6.11 (so reporta); regressao tapered+build em curso.",
+  "opened_at": "2026-07-12",
   "last_tune_at": null,
   "history": [
-    { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" }
+    { "phase": 1, "closed_at": "2026-07-09", "outcome": "ok" },
+    { "phase": 2, "closed_at": "2026-07-09", "outcome": "ok" },
+    { "phase": 3, "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": 4, "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": 5, "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.1", "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.2", "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.3", "closed_at": "2026-07-10", "outcome": "ok" },
+    { "phase": "6.4", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.5", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.6", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.7", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.8", "closed_at": "2026-07-11", "outcome": "ok" },
+    { "phase": "6.9", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.10", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.11", "closed_at": "2026-07-12", "outcome": "ok" },
+    { "phase": "6.12", "closed_at": "2026-07-12", "outcome": "ok" }
   ]
 }

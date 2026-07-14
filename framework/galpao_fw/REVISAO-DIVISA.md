@@ -5,7 +5,7 @@ com **viga alavanca** conectada a uma sapata interna, conforme NBR 6122 e Vellos
 
 Código: `sapata_divisa.py`. Criado 2026-07-08.
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo.
+> **STATUS: ✅ HOMOLOGADO (2026-07-09).**
 
 ---
 

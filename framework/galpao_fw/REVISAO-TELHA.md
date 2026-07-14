@@ -7,7 +7,7 @@ a lacuna do Cpe médio: agora a sucção local tem um elemento que a resiste.
 
 Código: `telha_cobertura.py`. Criado 2026-07-08.
 
-> **STATUS: 🆕 PENDENTE SÊNIOR** — módulo novo.
+> **STATUS: ✅ HOMOLOGADO (2026-07-09).**
 
 ---
 

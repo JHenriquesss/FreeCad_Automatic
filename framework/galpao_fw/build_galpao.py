@@ -76,7 +76,9 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
-               longarina=None, longarina_nome=None, sapata=None):
+               longarina=None, longarina_nome=None, sapata=None,
+               estaca=None, bloco=None, baldrame=None,
+               tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
@@ -86,8 +88,17 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global REFORCO_JOELHO
+    if reforco_joelho is not None:
+        REFORCO_JOELHO = dict(reforco_joelho) if reforco_joelho else None
+    if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
+    if trelica is not None: TRELICA_MODEL = dict(trelica) if trelica else None
     if base is not None: BASE_PLATE = dict(BASE_PLATE, **base)
     if sapata is not None: SAPATA_MODEL = dict(sapata) if sapata else None
+    if estaca is not None: ESTACA_MODEL = dict(estaca) if estaca else None
+    if bloco is not None: BLOCO_MODEL = dict(bloco) if bloco else None
+    if baldrame is not None: BALDRAME_MODEL = dict(baldrame) if baldrame else None
     if terca is not None: UE_SEC = tuple(float(v) for v in terca)
     if longarina is not None: UPE_LONG = tuple(float(v) for v in longarina)
     if longarina_nome is not None: LONG_NOME = str(longarina_nome)
@@ -138,6 +149,22 @@ JOELHO_CFG = {"t": 22.0, "db": 24.0, "n": 4}
 # Sapata de fundacao (concreto) - opcional. None = nao desenha (so a placa de
 # base). Dims em mm: bloco B x L x h + pedestal de altura 'ped' ate a placa.
 SAPATA_MODEL = None
+# Fundacao PROFUNDA (concreto) - opcional e EXCLUSIVA da sapata. Dims em mm, do
+# CALCULO (estaca_profunda / rodar_galpao): estaca {D, L, n, espacamento, tipo};
+# bloco de coroamento {h, a}; viga de baldrame {b, h, vao}. None = nao desenha.
+ESTACA_MODEL = None
+BLOCO_MODEL = None
+BALDRAME_MODEL = None
+# Portico de alma variavel (tapered): None = rafter prismatico. dict (mm)
+# {h_joelho, h_cumeeira, bf, tw, tf} -> rafter em loft (funda no joelho -> rasa na
+# cumeeira). O calculo (galpao_portico) ja usou a rigidez variavel.
+TAPERED_MODEL = None
+# Portico trelicado (tesoura): None = rafter cheio. dict {h(m), n_paineis, tipo,
+# d_banzo(mm), d_diag(mm)} -> rafter vira trelica de barras (banzos+diagonais).
+TRELICA_MODEL = None
+# Reforco da zona de painel do joelho: None = nenhum. dict {t_doubler (mm),
+# enrijecedor (bool)} vindo do calculo (zona_painel). So desenha quando exigido.
+REFORCO_JOELHO = None
 UPE120 = (120.0, 60.0, 5.0, 8.0)
 UPE100 = (100.0, 55.0, 4.5, 7.5)
 # Gate 8: secoes VERIFICADAS (toolkit). Terca Ue (bw, bf, D, t).
@@ -233,6 +260,57 @@ def i_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(i_section_pts(sec), p1, p2, roll, name, doc)
 
 
+def _sweep_tapered(pts1, pts2, p1, p2, roll_deg, name, doc):
+    """Como _sweep, mas LOFT entre duas secoes (pts1 em p1, pts2 em p2) -> membro
+    de altura variavel (alma variavel/misula). Mesma base local que _sweep."""
+    v1, v2 = App.Vector(*p1), App.Vector(*p2)
+    d = v2.sub(v1)
+    L = d.Length
+    if L < 1e-6:
+        return None
+    w1 = Part.makePolygon([App.Vector(0, y, z) for (y, z) in pts1] +
+                          [App.Vector(0, pts1[0][0], pts1[0][1])])
+    w2 = Part.makePolygon([App.Vector(L, y, z) for (y, z) in pts2] +
+                          [App.Vector(L, pts2[0][0], pts2[0][1])])
+    solid = Part.makeLoft([w1, w2], True)          # True = solido
+    if abs(roll_deg) > 1e-9:
+        solid.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), roll_deg)
+    rot = App.Rotation(App.Vector(1, 0, 0), d)
+    if abs(rot.Angle) > 1e-9:
+        solid.rotate(App.Vector(0, 0, 0), rot.Axis, math.degrees(rot.Angle))
+    solid.translate(v1)
+    obj = doc.addObject("Part::Feature", name)
+    obj.Shape = solid
+    _reg(name, p1, p2)
+    return obj
+
+
+def tapered_rafter(doc, p1, p2, name, roll=0.0):
+    """Rafter de alma variavel: secao funda no joelho (p1) -> rasa na cumeeira (p2).
+    Dims (mm) do TAPERED_MODEL. Perfil I duplamente simetrico. Cai no i_member
+    prismatico se as alturas forem iguais (h1==h2)."""
+    t = TAPERED_MODEL
+    bf, tw, tf = t.get("bf", 200.0), t.get("tw", 8.0), t.get("tf", 12.5)
+    h1, h2 = t["h_joelho"], t["h_cumeeira"]
+    if abs(h1 - h2) < 1e-6:
+        return i_member(doc, p1, p2, (h1, bf, tw, tf), name, roll)
+    return _sweep_tapered(i_section_pts((h1, bf, tw, tf)),
+                          i_section_pts((h2, bf, tw, tf)), p1, p2, roll, name, doc)
+
+
+def tapered_column(doc, p1, p2, name, roll=0.0):
+    """Coluna de alma variavel: secao RASA na base (p1, h_col_base) -> FUNDA no
+    joelho (p2, h_joelho, casa a base do rafter). Dims (mm) do TAPERED_MODEL.
+    Cai no i_member prismatico se as alturas forem iguais (h_col_base==h_joelho)."""
+    t = TAPERED_MODEL
+    bf, tw, tf = t.get("bf", 200.0), t.get("tw", 8.0), t.get("tf", 12.5)
+    h1, h2 = t["h_col_base"], t["h_joelho"]
+    if abs(h1 - h2) < 1e-6:
+        return i_member(doc, p1, p2, (h1, bf, tw, tf), name, roll)
+    return _sweep_tapered(i_section_pts((h1, bf, tw, tf)),
+                          i_section_pts((h2, bf, tw, tf)), p1, p2, roll, name, doc)
+
+
 def u_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(u_section_pts(sec), p1, p2, roll, name, doc)
 
@@ -292,6 +370,99 @@ def plate(doc, center, wx, wy, wz, name):
     obj = doc.addObject("Part::Feature", name)
     obj.Shape = box
     return obj
+
+
+def _estaca_offsets(n, esp):
+    """Posicoes (dx,dy) das n estacas sob o bloco, do calculo (grupo). 1=central,
+    2=linha em X, 4=malha 2x2, demais=fileira em X centrada (espacamento esp)."""
+    if n <= 1:
+        return [(0.0, 0.0)]
+    if n == 2:
+        return [(-esp / 2.0, 0.0), (esp / 2.0, 0.0)]
+    if n == 4:
+        return [(sx * esp / 2.0, sy * esp / 2.0) for sx in (-1, 1) for sy in (-1, 1)]
+    return [((k - (n - 1) / 2.0) * esp, 0.0) for k in range(n)]
+
+
+def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
+    """Fundacao profunda em um pe: pedestal + bloco de coroamento (concreto) e as
+    n estacas (cilindros) descendo do bloco. Dims (mm) do ESTACA_MODEL/BLOCO_MODEL,
+    que vem do calculo (estaca_profunda). O bloco em planta cobre o grupo + coroa."""
+    D = ESTACA_MODEL["D"]; L = ESTACA_MODEL["L"]
+    n = int(ESTACA_MODEL.get("n", 1)); esp = ESTACA_MODEL.get("espacamento", 3.0 * D)
+    bh = (BLOCO_MODEL or {}).get("h", max(400.0, 1.2 * D))
+    offs = _estaca_offsets(n, esp)
+    # coroa (aba de concreto da face da estaca a borda do bloco): praxe 150 mm,
+    # mas no minimo D/2 p/ estacas de grande diametro (Q3, Velloso & Lopes/Alonso)
+    coroa = max(150.0, D / 2.0)
+    xs = [o[0] for o in offs]; ys = [o[1] for o in offs]
+    Bx = (max(xs) - min(xs)) + D + 2.0 * coroa
+    Ly = (max(ys) - min(ys)) + D + 2.0 * coroa
+    # pedestal (pescoco) do pilar ate o bloco = cota de arrasamento da sondagem
+    # (Q4): parametro do modelo, default 500 mm A CONFIRMAR pela topografia.
+    ped = (BLOCO_MODEL or {}).get("ped", ESTACA_MODEL.get("ped", 500.0))
+    z_ped_top = pbot; z_ped_bot = z_ped_top - ped
+    z_blk_top = z_ped_bot; z_blk_bot = z_blk_top - bh
+    plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
+          f"PEDESTAL_{lado}_{i:02d}")
+    plate(doc, (x, yw, (z_blk_top + z_blk_bot) / 2.0), Bx, Ly, bh,
+          f"BLOCO_{lado}_{i:02d}")
+    for k, (dx, dy) in enumerate(offs, start=1):
+        cyl = Part.makeCylinder(D / 2.0, L)
+        cyl.translate(App.Vector(x + dx, yw + dy, z_blk_bot - L))
+        ob = doc.addObject("Part::Feature", f"ESTACA_{lado}_{i:02d}_{k:02d}")
+        ob.Shape = cyl
+
+
+def _trelica_geom(L, h, n_paineis, tipo):
+    """Geometria da tesoura (nos + barras) - copia numpy-free de tesoura.gera_trelica
+    (build e self-contained). Retorna (nos[(x,y)], barras[(i,j)])."""
+    dx = L / n_paineis
+    # banzo superior RETO em duas aguas (segue o telhado; sincronizado com
+    # tesoura.gera_trelica apos o parecer Q5): y = (2h/L)*min(x, L-x)
+    nos = [(i * dx, (2.0 * h / L) * min(i * dx, L - i * dx) if L > 0 else 0.0)
+           for i in range(n_paineis + 1)]
+    n_sup = n_paineis + 1
+    bars = [(i, i + 1) for i in range(n_paineis)]              # banzo superior
+    if tipo == "warren":
+        for i in range(n_paineis):
+            nos.append(((i + 0.5) * dx, 0.0))
+        for i in range(n_paineis - 1):
+            bars.append((n_sup + i, n_sup + i + 1))            # banzo inferior
+        for i in range(n_paineis):
+            bars.append((n_sup + i, i)); bars.append((n_sup + i, i + 1))  # diagonais
+    else:  # pratt
+        for i in range(1, n_paineis):
+            nos.append((i * dx, 0.0))
+        n_inf = len(nos)
+        bars.append((0, n_sup))
+        for i in range(n_sup, n_inf - 1):
+            bars.append((i, i + 1))
+        bars.append((n_inf - 1, n_paineis))
+        for i in range(1, n_paineis):
+            bars.append((i, n_sup + i - 1))                    # montantes
+        for i in range(1, n_paineis - 1):
+            bars.append((i + 1, n_sup + i - 1) if i < n_paineis / 2 else (i, n_sup + i))
+    return nos, bars
+
+
+def _desenha_tesoura(doc, x, y0, y1, tag):
+    """Desenha a tesoura (trelica) no plano do portico em X=x, de y0 a y1 (span),
+    apoiada no topo das colunas (EAVE_H). Barras como cilindros (banzos+web). Dims
+    do TRELICA_MODEL. Banzo superior parabolico ate EAVE_H + h."""
+    t = TRELICA_MODEL
+    L = abs(y1 - y0) / 1000.0                                  # span em m
+    h = t["h"]; npn = int(t.get("n_paineis", 8)); tipo = t.get("tipo", "warren")
+    d_banzo = t.get("d_banzo", 100.0); d_diag = t.get("d_diag", 75.0)
+    nos, bars = _trelica_geom(L, h, npn, tipo)
+    ybase = min(y0, y1)
+    P3 = [(x, ybase + xn * 1000.0, EAVE_H + yn * 1000.0) for (xn, yn) in nos]
+    n_sup = npn + 1
+    for k, (i, j) in enumerate(bars):
+        # banzo (sup: i,j<n_sup e |i-j|==1 ; inf idem no range inferior) x web
+        banzo = (i < n_sup and j < n_sup) or (i >= n_sup and j >= n_sup)
+        dia = d_banzo if banzo else d_diag
+        rod(doc, P3[i], P3[j], dia, f"TRELICA_{tag}_{k:02d}")
 
 
 def _norm(v):
@@ -452,6 +623,20 @@ def joelho(doc, node, rdir, tag):
     for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
         plate(doc, (cx, cy, cz + dz), COL_SEC[0], COL_SEC[1], 12.0,
               f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
+    # CHAPA DE REFORCO DE ALMA (doubler, NBR 8800 5.7.7.2) - SO quando o calculo da
+    # zona de painel exigiu (REFORCO_JOELHO.t_doubler > 0). Duas chapas, uma de cada
+    # lado da alma do pilar (paralelas a alma, plano X-Z), cobrindo o painel + 150 mm.
+    rj = REFORCO_JOELHO
+    if isinstance(rj, dict) and rj.get("t_doubler", 0.0) > 0.0:
+        td = float(rj["t_doubler"])                 # espessura total (mm), dividida nos 2 lados
+        t_lado = max(td / 2.0, 4.0)
+        tw_col = COL_SEC[2]
+        painel_h = RAF_SEC[0] + 300.0               # altura do painel + 150 mm cada lado
+        wx = COL_SEC[0] * 0.7                        # dentro da altura da alma do pilar
+        for sy, nm in ((-1.0, "L"), (1.0, "R")):
+            offy = sy * (tw_col / 2.0 + t_lado / 2.0)
+            plate(doc, (cx, cy + offy, cz - RAF_SEC[0] / 2.0),
+                  wx, t_lado, painel_h, f"CONEX_JOELHO_{tag}_DOUBLER_{nm}")
 
 
 def cumeeira_conn(doc, x, tag):
@@ -494,14 +679,24 @@ def build(doc):
     # Porticos principais: colunas + vigas (I)
     for i, x in enumerate(axes, start=1):
         t = f"PORTICO_{i:02d}"
+        col_tap = bool(TAPERED_MODEL) and TAPERED_MODEL.get("h_col_base") is not None
         for j in range(nv + 1):
             yc = cols_y[j]
-            i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
+            if col_tap:                              # alma variavel: coluna afina
+                tapered_column(doc, (x, yc, Z0), (x, yc, EAVE_H), f"{t}_C{j:02d}")
+            else:
+                i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
         for j in range(nv):
             yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
             zh = rafter_z(yr)
-            i_member(doc, (x, y0, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_E")
-            i_member(doc, (x, y1, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_D")
+            if TRELICA_MODEL:                        # tesoura: trelica no lugar do rafter
+                _desenha_tesoura(doc, x, y0, y1, f"{i:02d}_{j:02d}")
+            elif TAPERED_MODEL:                      # alma variavel: loft tapered
+                tapered_rafter(doc, (x, y0, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_E")
+                tapered_rafter(doc, (x, y1, EAVE_H), (x, yr, zh), f"{t}_V{j:02d}_D")
+            else:
+                i_member(doc, (x, y0, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_E")
+                i_member(doc, (x, y1, EAVE_H), (x, yr, zh), RAF_SEC, f"{t}_V{j:02d}_D")
 
     # Base ENGASTADA PARAMETRICA (dims do dimensionamento -> BASE_PLATE): placa
     # B x L x t + n chumbadores d=db gancho-L (straddle em Y = direcao do momento)
@@ -544,18 +739,58 @@ def build(doc):
                 ob = doc.addObject("Part::Feature", f"NERVURA_BASE_{lado}_{i:02d}_{nm}")
                 ob.Shape = g
                 _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
-            if SAPATA_MODEL:
+            pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+            if ESTACA_MODEL:                        # fundacao PROFUNDA (exclusiva)
+                _desenha_estaca(doc, x, yw, pbot, pdim, lado, i)
+            elif SAPATA_MODEL:                       # fundacao RASA
                 sB = SAPATA_MODEL["B"]; sL = SAPATA_MODEL["L"]; sh = SAPATA_MODEL["h"]
                 ped = SAPATA_MODEL.get("ped", 500.0)
-                pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
                 z_ped_top = pbot; z_ped_bot = z_ped_top - ped; z_blk_bot = z_ped_bot - sh
                 plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
                       f"PEDESTAL_{lado}_{i:02d}")
                 plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
                       f"SAPATA_{lado}_{i:02d}")
 
+    # Viga de baldrame / amarracao: liga as fundacoes de porticos adjacentes.
+    # Concreto sob a cota Z0 (topo ~ pbot). So com fundacao profunda (BALDRAME_MODEL
+    # vem do calc; amarra o bloco). Q6: cada tramo vai de FACE a FACE do pedestal
+    # (vao livre = tramo - pdim), evitando sobrepor o pedestal (sem dupla contagem
+    # de concreto no take-off, sem clash espurio).
+    if BALDRAME_MODEL:
+        bb = BALDRAME_MODEL["b"]; bh = BALDRAME_MODEL["h"]
+        z_bal_top = pbot; z_bal_c = z_bal_top - bh / 2.0
+        pdim_b = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+        # (1) LONGITUDINAL: ao longo das baias, uma por linha de coluna.
+        for j, yw in enumerate(cols_y):
+            lado = f"C{j:02d}"
+            for i in range(len(axes) - 1):
+                x0, x1 = axes[i], axes[i + 1]
+                xc = (x0 + x1) / 2.0
+                wx = max(abs(x1 - x0) - pdim_b, 50.0)     # vao livre entre pedestais
+                plate(doc, (xc, yw, z_bal_c), wx, bb, bh,
+                      f"BALDRAME_{lado}_{i + 1:02d}")
+        # (2) TRANSVERSAL (Q5): bloco de 1 ou 2 estacas NAO tem estabilidade a
+        # rotacao no eixo perpendicular -> NBR 6122 exige travamento nas DUAS
+        # direcoes. Desenha baldrames tambem no eixo y (entre linhas de coluna)
+        # em cada portico. Malha 2x2 ou maior dispensa (grupo ja resiste em 2
+        # direcoes) -> so quando n_estacas <= 2.
+        n_est = int(ESTACA_MODEL.get("n", 1)) if ESTACA_MODEL else 0
+        if n_est <= 2 and len(cols_y) >= 2:
+            for i, x in enumerate(axes):
+                lado = f"A{i:02d}"
+                for j in range(len(cols_y) - 1):
+                    y0, y1 = cols_y[j], cols_y[j + 1]
+                    yc = (y0 + y1) / 2.0
+                    wy = max(abs(y1 - y0) - pdim_b, 50.0)  # vao livre entre pedestais
+                    plate(doc, (x, yc, z_bal_c), bb, wy, bh,
+                          f"BALDRAME_T_{lado}_{j + 1:02d}")
+
     # Joelho (ligacao de momento viga-coluna) em cada portico + cumeeira por vao.
+    # Tesoura: a trelica e biapoiada (rotulada) no topo dos pilares -> sem joelho
+    # de momento nem chapa de cumeeira (nao ha rafter solido).
     for i, x in enumerate(axes, start=1):
+        if TRELICA_MODEL:
+            break
         for j in range(nv + 1):
             yc = cols_y[j]
             # Coluna externa: 1 joelho (para dentro do vao)
@@ -919,7 +1154,7 @@ def desenha_terreno(doc, pts_xy, z=0.0):
 SECUNDARIOS = ("TERCA", "TIRANTE", "CONTRAV", "MONTANTE_OITAO", "MAO_FRANCESA",
                "CHUMBADOR", "ARRUELA", "PLACA_BASE", "CONSOLE_PONTE",
                "VIGA_ROLAMENTO", "CLIPE", "CONEX", "NERVURA", "PORCA", "ESTICADOR")
-FUNDACAO = ("SAPATA", "PEDESTAL")
+FUNDACAO = ("SAPATA", "PEDESTAL", "ESTACA", "BLOCO", "BALDRAME")
 SERVICO = ("CALHA", "CONDUTOR", "BOCAL")
 PELE = ("TELHA", "TAPAMENTO")
 ESTRUTURA = ("PORTICO_", "MONTANTE_OITAO", "TERCA", "ESCORA_BEIRAL", "CUMEEIRA", "VAO_")
@@ -935,6 +1170,10 @@ def _e_servico(n):
 
 def _e_pele(n):
     return any(n.startswith(p) for p in PELE)
+
+
+def _e_fundacao(n):
+    return any(n.startswith(p) for p in FUNDACAO)
 
 
 def _compartilha_no(na, nb, tol=250.0):
@@ -1140,6 +1379,10 @@ def checa_interferencia(doc, vol_min=200.0):
                 continue
             if _e_pele(na) or _e_pele(nb):
                 continue
+            # fundacao de concreto e monolitica: estaca/bloco/baldrame/pedestal/
+            # sapata se interpenetram DE PROPOSITO (uma unica peca de concreto).
+            if _e_fundacao(na) and _e_fundacao(nb):
+                continue
             servico = _e_servico(na) or _e_servico(nb)
             if not servico:
                 if _compartilha_no(na, nb):
@@ -1316,6 +1559,8 @@ def _classifica(n):
         return "Viga de rolamento (ponte)", "VS500"
     if n.startswith("CONSOLE_PONTE"):
         return "Consoles de ponte", "HEA160"
+    if n.startswith("TRELICA"):
+        return "Trelica (tesoura)", ("tubo-%.0f" % TRELICA_MODEL["d_banzo"]) if TRELICA_MODEL else "barra"
     if n.startswith("TERCA_PAREDE"):
         return "Tercas de parede", LONG_NOME
     if n.startswith("TERCA"):
@@ -1329,6 +1574,13 @@ def _classifica(n):
             SAPATA_MODEL["B"], SAPATA_MODEL["L"], SAPATA_MODEL["h"]) if SAPATA_MODEL else "concreto"
     if n.startswith("PEDESTAL"):
         return "Pedestais (concreto)", "concreto"
+    if n.startswith("ESTACA"):
+        return "Estacas (concreto)", ("D%.0f" % ESTACA_MODEL["D"]) if ESTACA_MODEL else "concreto"
+    if n.startswith("BLOCO"):
+        return "Blocos de coroamento (concreto)", "concreto"
+    if n.startswith("BALDRAME"):
+        return "Vigas de baldrame (concreto)", ("%.0fx%.0f" % (
+            BALDRAME_MODEL["b"], BALDRAME_MODEL["h"])) if BALDRAME_MODEL else "concreto"
     if n.startswith("CHUMBADOR"):
         return "Chumbadores", "barra-%.0f" % BASE_PLATE["db"]
     if n.startswith("PLACA_BASE"):
@@ -1388,7 +1640,7 @@ def takeoff(doc):
         # aco (7850). Cada um tem subtotal proprio (nao entram na tonelagem de aco).
         if "ALVENARIA" in o.Name:
             dens = 1.4e-6
-        elif o.Name.startswith("SAPATA") or o.Name.startswith("PEDESTAL"):
+        elif o.Name.startswith(("SAPATA", "PEDESTAL", "ESTACA", "BLOCO", "BALDRAME")):
             dens = 2.5e-6                      # concreto armado (2500 kg/m3)
         else:
             dens = DENSIDADE_ACO
@@ -1500,6 +1752,10 @@ def reset():
     global ABERTURAS, FECHAMENTO, TERRENO_PTS, MF_STRIDE, N_TIRANTE_PAREDE
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
+    global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global REFORCO_JOELHO
+    ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
+    TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100
     LONG_NOME = "UPE100"

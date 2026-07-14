@@ -15,8 +15,40 @@
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
 
-## T7 — 6 pareceres sênior pendentes
-Features implementadas nesta sessão aguardam parecer (status PENDENTE em REVISAO-INDICE.md): **ligações §9** (furos/Tab.14/block shear/T-stub), **vento §8** (Cpe local), **telha** (REVISAO-TELHA), **sismo §6** (envelope+θ+100/30), **baldrame** (REVISAO-BALDRAME), **estaca** (REVISAO-ESTACA: 3 métodos+grupo+bloco). Cadência: usuário cola o parecer → assistente confere finding-a-finding contra o PDF → homologa ou corrige → atualiza doc + índice.
+## T10 — balde 2 (dívidas a/b/c/d) + itens 39–42 (FECHADO 2026-07-13)
+**Todas as 4 dívidas técnicas do balde 2 fechadas e homologadas** — ver
+[[04-decisions#D46]]. REVISAO-INDICE.md: **itens 1–42 ✅ HOMOLOGADO, zero PENDENTE**.
+Fases 6.9–6.12: (d)→§5.5.2.3 `tensao_ponto.py`; (a)→equilíbrio `cortante_tapered.py`;
+(c)→vento zona+0° `tesoura`/`vento_nbr6123`; (b)→cross-check `dg25_ltb.py`. **2 bugs
+reais acolhidos** (braço `h_0`; vento 0° longitudinal omitido — o refino removia carga
+real), **1 refutação com prova** (Cpi monotonicidade). Commits `6e3551f`→`a18b524`
+(não pushados — push blocked [[#T5]]).
+**Backlog residual (não bug):** (e) limite `h/tw` do Anexo H com enrijecedores de painel
+(a/h); Cb tapered do DG25 (γ_eLTB) + `Fcr` de projeto completo (Rpc/Rpg/Rpt) como refino
+futuro do cross-check; sênior ofereceu **auditoria do código-fonte puro do `dg25_ltb.py`**
+(tipagem/tol) — se vier, aplicar o rito. `neve` segue não escolhido.
+
+## T9 — backlog parecer 6.b + itens 34–38 (FECHADO 2026-07-11)
+**Todos os 5 homologados** — ver [[04-decisions#D45]]. REVISAO-INDICE.md: **itens 1–38
+✅ HOMOLOGADO, zero PENDENTE**. Fases 6.4–6.8 (coluna tapered, zona de painel, FLT
+Anexo J, vento→tesoura, alma esbelta). Módulos novos: `zona_painel.py`, `flt_misula.py`,
+`alma_esbelta.py`. Padrão: 8 "erros graves" refutados com o PDF (imagens via
+`SendUserFile` decidiram citações), 1 bug real acolhido (sinal do uplift). Commits
+`1baef85`→`a55a1fe` (não pushados — push blocked [[#T5]]).
+**Backlog residual (dívida, não bug):** (a) alívio de cortante das mesas inclinadas
+`V_alma=V−(M/h)tanθ` (economia; ignorar é conservador); (b) γ do AISC DG25 como
+cross-check informativo da FLT tapered (não normativo); (c) ponderação da sucção de
+vento por área de influência das zonas (NBR 6123) na tesoura (menos aço); (d) interação
+M-V na alma esbelta do joelho (§5.5.2.3 von Mises; NBR sem cláusula M-V explícita);
+(e) limite `h/tw` do Anexo H com enrijecedores de painel (a/h). `neve` segue não
+escolhido.
+
+## T8 — pareceres itens 28–33 (FECHADO 2026-07-11)
+**Todos os 6 homologados** — ver [[04-decisions#D44]]. REVISAO-INDICE.md: **itens 1–33 ✅ HOMOLOGADO, zero PENDENTE**. Padrão: 3 alegações de "erro grave" (console-1, ponte H_long, tesoura mapeamento) NÃO procediam → refutadas com prova de bancada, sênior retratou-se. Correções reais aplicadas nos demais. Commits 718bbe8→35cda72 na branch `revisao/homologacao-12-modulos` (não pushados — push blocked [[#T5]], usuário roda `git push`).
+**Backlog aceito (dívida técnica, não bug):** coluna tapered (hoje só rafter); zona de painel/doubler do joelho tapered; auto-acoplar sucção de vento à tesoura (hoje input → próxima: NBR 6123 cp/ce→P_nos); fator γ de mísula (refino FLT tapered).
+
+## T7 — pareceres sênior (FECHADO 2026-07-09)
+**Todos homologados.** REVISAO-INDICE.md: itens 1–27 ✅ HOMOLOGADO, zero PENDENTE. Os 5 que faltavam foram homologados em 2026-07-09 (banners atualizados): calhas, sapata de divisa, telha, vento §8 (Cpe médio local), sismo §6 (envelope excepcional). Nada aguarda parecer. **[Superado por [[#T8]]: itens 28–33 também homologados.]**
 
 ## T1 — PR #1 aguarda merge
 Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenriquesss/FreeCad_Automatic/pull/1 . Contém 87 commits (origin/main estava 87 atrás do local). Merge sincroniza tudo. Usuário faz merge pelo GitHub.
@@ -45,7 +77,15 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 
 ## T6 — Projeto executivo 2D (FECHADO 2026-07-09)
 2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** aberto.
-**Aberto (adiado, baixo valor/alto esforço):** detalhe de ligação **nível fabricação** — `DrawViewSection`+hachura+símbolo de solda/parafuso. Hoje é elevação+arranjo com cotas (nota "conforme memorial"); sizing/método no memorial de cálculo PDF. `techdraw_exec` não tem section/hachura/cosmetic-line/weld-symbol — seria a lacuna a preencher.
+**Nível fabricação (fase 2, 2026-07-09):** callouts de fabricação do CÁLCULO nos detalhes (joelho/cumeeira "N×db, chapa t"; gusset/console "chapa t, solda perna") via `_callout_fab`. 2 módulos de cálculo novos (`gusset_ligacao`, `console_ponte`, PENDENTE sênior). Ver [[04-decisions#D37]].
+**~~Aberto~~ RESOLVIDO (fase 5, 2026-07-10):** **corte seccionado** — o
+`DrawViewSection` **constrói headless no FreeCAD 1.1** (o `failed to create section
+CS` era da versão antiga). `techdraw_exec._secao_ligacao` adiciona um corte
+hachurado (`CutSurfaceDisplay="Hatch"`) a cada detalhe de ligação, sob smoke
+(`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D]].
+**Ainda aberto (menor):** símbolo gráfico de solda (glyph AWS) — `DrawWeldSymbol`
+é feature de GUI (não instanciável headless); o dado de solda segue como
+texto/callout (já rastreável ao cálculo). Polimento visual, não lacuna de dado.
 
 ### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).

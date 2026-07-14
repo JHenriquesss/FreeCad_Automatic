@@ -11,6 +11,12 @@
 - **Mesa interna/externa** — no nó pórtico o momento é negativo → mesa interna comprimida; terças travam só a externa → mesa interna exige mão-francesa.
 - **Mão-francesa (flange brace)** — contenção que trava a mesa interna comprimida ligando-a às terças; reduz Lb.
 - **Contraventamento** — diagonais redondas só-tração que levam o arrasto do vento longitudinal à fundação. Sag rods = tirantes de terça.
+- **Gusset (chapa de nó)** — chapa que recebe a diagonal de contravento e a transfere ao membro. Verificado em `gusset_ligacao` [[02-test-tree]].
+- **Largura de Whitmore** — largura efetiva da chapa de gusset por espalhamento a 30° do parafuso/solda extremo (convenção AISC, FLAG não-NBR, análogo ao T-stub EN 1993 aceito).
+- **Block shear (ruptura em bloco)** — 6.5.6: arrancamento de bloco em L (tração numa face + cisalhamento na perpendicular). Primitivo `ligacoes.block_shear_linha`.
+- **Console / mísula da ponte** — bracket soldado à coluna que apoia a viga de rolamento; recebe reação vertical + horizontal transversal com excentricidade. Verificado em `console_ponte`.
+- **Grupo de solda elástico** — tensão no filete por soma vetorial f=√(fv²+fh²+fb²) (cisalhamento direto V/L, horizontal H/L, flexão 6M/L² via módulo Sw=L²/6). Mecânica/AISC (FLAG).
+- **Callout de fabricação** — leader+texto no detalhe 2D com N×db/chapa t/solda perna; **todo número vem do cálculo** (`_callout_fab`), nunca inventado [[04-decisions#D37]].
 - **Sapata rígida** — h ≥ (a−ap)/3 (22.6.1) → distribuição plana de tensões, dispensa punção (22.6.2.2), resta compressão diagonal (19.5.3.1).
 - **Núcleo central** — e≤L/6 → contato total (trapézio). **Levantamento parcial** — e>L/6 → triângulo, contato B·x.
 - **Envelope de combinações** — cada verificação pega a combinação ELU que a governa (bearing=N máx, tombamento=N mín+M).
@@ -21,3 +27,8 @@
 - **Gate** — pergunta ao engenheiro no fluxo da skill (Gate 4b = batch-defaults; Gate 5 = vento/ponte; Gate 7 = fundação/envelope).
 - **nf982** — galpão de referência (20×10, ponte 100 kN) usado na não-regressão.
 - **ART** — Anotação de Responsabilidade Técnica; o eng. responsável assina, o framework só calcula.
+- **Fundação profunda / estaca / bloco de coroamento / baldrame** — estaca = elemento vertical que transfere carga a camada profunda (Aoki-Velloso, SPT); bloco de coroamento = concreto que amarra o topo das estacas ao pilar (bielas-e-tirantes 22.3); baldrame/amarração = viga entre fundações. `fundacao.tipo`=estaca no spec desenha os três no 3D (fase 3).
+- **Classe de elevação HC1–HC4** — NBR 8400-1:2019 Tab.12; define β2/Ψmín do coeficiente dinâmico Ψ (impacto φ vertical) da ponte rolante.
+- **Classe de utilização B0–B10** — NBR 8400-1:2019 Tab.9; nº de ciclos de tensão do componente estrutural → N da fadiga (Anexo K).
+- **Rodas motoras** — rodas motrizes do caminho de rolamento; a frenagem longitudinal da ponte age só nelas (`n_rodas_motoras`).
+- **DrawViewSection / corte seccionado** — vista de corte hachurada do TechDraw (material cortado). Constrói headless no FreeCAD 1.1 (`CutSurfaceDisplay="SvgHatch"`). `VLIG_SEC_*` = corte do detalhe de ligação.

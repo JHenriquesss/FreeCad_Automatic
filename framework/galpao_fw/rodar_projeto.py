@@ -32,6 +32,22 @@ def calcular(spec, out_dir):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["sapata_adotada"] = res["sapata_adotada"]
         spec["estrutura"]["sapata_quant"] = res.get("sapata_quant")
+    # fundacao PROFUNDA: grava a geometria dimensionada (estaca + bloco + baldrame)
+    # p/ o build 3D desenhar exatamente o que o calculo produziu (nada inventado).
+    if res.get("estaca"):
+        e = res["estaca"]
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["estaca_adotada"] = {
+            "D": e["D"], "L": e["L"], "n": e["n_estacas"],
+            "espacamento": e["espacamento"], "tipo": e["tipo"],
+            "uplift": e.get("uplift", False)}
+        spec["estrutura"]["bloco_adotado"] = {
+            "h": e["bloco_h"], "a": e["bloco_a"]}
+    if res.get("baldrame"):
+        b = res["baldrame"]
+        spec.setdefault("estrutura", {})
+        spec["estrutura"]["baldrame_adotado"] = {
+            "b": b["b"], "h": b["h"], "vao": b["vao"]}
     if res.get("joelho_adotado"):
         spec.setdefault("estrutura", {})
         spec["estrutura"]["joelho_adotado"] = res["joelho_adotado"]
@@ -40,6 +56,12 @@ def calcular(spec, out_dir):
         spec["estrutura"]["n_tirante_parede"] = res["n_tirante_parede"]
         spec["estrutura"]["perfil_escora"] = res.get("perfil_escora")
         spec["estrutura"]["perfil_montante"] = res.get("perfil_montante")
+    if res.get("gusset_adotado"):
+        spec.setdefault("estrutura", {})["gusset_adotado"] = res["gusset_adotado"]
+    if res.get("zona_painel"):
+        spec.setdefault("estrutura", {})["zona_painel_adotado"] = res["zona_painel"]
+    if res.get("console_adotado"):
+        spec.setdefault("estrutura", {})["console_adotado"] = res["console_adotado"]
     if res.get("terca_dims"):
         spec.setdefault("estrutura", {})["terca_dims"] = res["terca_dims"]
     if res.get("longarina_dims"):

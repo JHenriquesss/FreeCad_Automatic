@@ -112,5 +112,143 @@ Regra: o script corta as vistas e mostra **tudo** — sem escolher a mão o que 
 ## D36 — 2026-07-09 — Memorial de cálculo em PDF único (método + cálculo)
 `relatorio_calculo.py` (reportlab): 1 PDF pro sênior — capa + quadro de verificações + índice + por módulo MÉTODO (norma+procedimento, dict `METODOS` curado) + CÁLCULO (memorial). Lê `MEMORIAL-CONSOLIDADO.txt` (fonte única; seções delimitadas por `#`). Descarta módulos com corpo `(falta)`. Integrado no `build_final.py` (calc→PDF). Commits 91253ee, e8c9b81.
 
+## D37 — 2026-07-09 — Detalhe de fabricação: callouts do cálculo (A+B), corte A em fallback
+Ligações passam a ter callout de fabricação **rastreável ao cálculo** (nada inventado). Decisão A+B (C rejeitado: 2ª fonte de verdade + regressão no build_galpao). Como o cálculo só dimensionava base/joelho/clip, foram criados 2 módulos que **compõem primitivos homologados** (não fórmula nova): `gusset_ligacao.verifica_gusset` (Whitmore+block_shear+solda+compressão; Whitmore 30° = convenção AISC, FLAG análogo T-stub) e `console_ponte.verifica_console` (grupo de solda elástico + cisalhamento chapa; dimensiona a perna do filete). Ambos selftest PASSED, gate7-gusset/gate7-console, REVISAO-GUSSET/CONSOLE (PENDENTE sênior, índice 28/29). `joelho_adotado` (antes dropado) + gusset/console threaded ao cfg via `config_de_spec`; `_callout_fab(cfg,key)` anota só números do cfg (joelho "N×db, chapa t"; gusset/console "chapa t, solda perna"); clip sem dado → "conforme memorial". **Corte seccionado (A): `DrawViewSection` FALHA headless** (`failed to create section CS` mesmo em box trivial) → **fallback elevação** (callouts entregam o valor de fabricação). Guard mne-1: callout só do cfg (arquitetural). Commits me-1..me-6. [[03-phases]].
+
+## D38 — 2026-07-10 — Fundação profunda vira cidadã do ProjetoSpec + 3D (fase 3)
+Estaca (Aoki-Velloso)+bloco+baldrame, antes opt-in só via `params`, agora gate de 1ª classe. `fundacao.tipo`(sapata|estaca) BLOQUEIA; `fundacao.estaca.perfil_spt`+`tipo_estaca` requeridos condicionais (sondagem, sem default → `validar()` bloqueia); `baldrame` opt-in. Mappers `to_rodar_params` (monta cfg da estaca p/ rodar_galpao 411/426) + `to_build_kwargs` (dims mm; estaca EXCLUSIVA da sapata). `rodar_galpao` expõe geometria (D/L/n/espaçamento/bloco/baldrame) do envelope; `rodar_projeto.calcular` grava `estaca_adotada`/`bloco_adotado`/`baldrame_adotado`. `build_galpao`: `_desenha_estaca` (cilindros+bloco=envelope do grupo+coroa 150mm+pedestal 500mm) + baldrame entre pórticos; concreto de fundação MONOLÍTICO isento de clash interno concreto×concreto (`_e_fundacao`; aço×concreto continua verificado); take-off concreto; PE-02 cobre. Método já homologado (ESTACA/BALDRAME); PENDENTE = só integração/geometria: `REVISAO-FUNDACAO-PROFUNDA-INTEG.md` Q1–Q6, índice 30. Commit 9ac3c4f. [[03-phases]].
+
+## D39 — 2026-07-10 — Ponte estendida: rodas motoras + NBR 8400-1:2019 (fase 4)
+(1) Frenagem longitudinal age só nas RODAS MOTORAS: `forcas_horizontais(n_rodas_motoras)`, `H_long=frac_long·R_roda_max·n_motoras` (default n_lado=retrocompat; erro se >n_lado). Basis NBR 8800 (Q1 sênior). (2) NOVO `nbr8400.py` lê a **NBR 8400-1:2019** do PDF (`pesquisa/pdfcoffee...8400`), verbatim: `coef_dinamico(HC,Vh)`=Ψmín+β2·Vh (Tab.12 HC1-4: β2 0,17/0,34/0,51/0,68, Ψmín 1,05/1,10/1,15/1,20; cap Vh 1,5 p.21) e `n_ciclos(B0-B10)` (Tab.9, limite superior conservador). `analisa` usa classe HC/Vh→φ e classe B→N do Anexo K quando dadas, senão input flagado. **Fadiga Anexo K já existia** (T3 wiki desatualizado) — só recebe o N, inalterada. (3) Gate `REQUERIDOS_PONTE`: `validar()` bloqueia ponte incompleta (fabricante) se `ponte!=None`; `ponte=None` válido. PENDENTE `REVISA-PONTE-8400.md` Q1–Q4, índice 31. Commit 4d090e5. [[03-phases]].
+
+## D40 — 2026-07-10 — Corte seccionado headless resolvido (fase 5), reverte D37-A
+O `DrawViewSection` **constrói headless no FreeCAD 1.1** — o `failed to create section CS` de [[#D37]] era da versão antiga (probe: box→4 arestas). `techdraw_exec._secao_ligacao` adiciona corte hachurado `VLIG_SEC_*` a cada detalhe (plano pelo centro, normal=xdir da elevação), sem mexer na elevação/callouts. 2 gotchas: (a) enum válido de `CutSurfaceDisplay`=['Hide','Color','SvgHatch','PatHatch'] — `"Hatch"` NÃO existe; uso `SvgHatch` (svg embutido, sem .pat externo). (b) no `freecad.exe` (GUI headless) a geometria da seção computa DEFERIDA → `_n_edges` imediato lê 0 (falso zero) → NÃO descartar na hora; verificação de vazio movida pro guard final (`detalhes_secoes`, smoke exige ≥1 e nenhuma vazia). Cobertura ignora DrawViewSection (não-DrawViewPart). Símbolo AWS solda = `DrawWeldSymbol` GUI-only → segue callout texto. Commit f912e98. [[06-open-threads#T6]].
+
+## D41 — 2026-07-10 — Wiring de módulos órfãos: calha + sapata de divisa (fase 6.a)
+Auditoria achou 5 módulos homologados ÓRFÃOS (calc existia, pipeline não alcançava):
+neve, calhas, sapata_divisa, alma_variavel, tesoura. Fase 6.a ligou os 2 menores:
+`cobertura.chuva_I_mm_h` (NBR 10844) → `calhas.dimensiona` da geometria;
+`fundacao.divisa` {dist_divisa} → `sapata_divisa.dimensiona_divisa` (P do envelope,
+Alonso). Gates não bloqueiam (default/None). Memorial METODOS 13/11g. `neve` NÃO
+wired (usuário não pediu — região sem neve). Commit 5fd4003. [[03-phases]].
+
+## D42 — 2026-07-10 — Pórtico de alma variável (tapered): rigidez variável + loft (fase 6.b)
+`estrutura.tipo_portico`=alma_variavel → rafter com seção por segmento
+(`galpao_portico._chain_var` + `alma_variavel.secao_tapered`, funda no joelho→rasa
+na cumeeira). `frame2d.add_element` já aceitava I/A por elemento. `configurar(tapered=)`
+usa **sentinela `_UNSET`** (tapered=None RESETA → prismático byte-idêntico, crítico p/
+não-regressão em processo compartilhado). 3D: `build_galpao.tapered_rafter` = loft
+`Part.makeLoft` de 2 perfis I. Seção do JOELHO governa (verif. por segmento = FLAG).
+Commit 21d9941. [[03-phases]].
+
+## D43 — 2026-07-10 — Pórtico treliçado (tesoura): cálculo NOVO (método dos nós) + 3D (fase 6.c)
+`tesoura.py` era SÓ geometria (nós+barras isostática); fase criou o cálculo.
+`resolve_trelica` = método dos nós (equilíbrio nodal, sistema `2j×(b+3)`, numpy);
+N>0 tração; banzo inf traciona/sup comprime. `verifica_tesoura` = combos grav+vento,
+barras por NBR 8800 (tração escoamento / compressão chi·Q·A·fy via check_nbr8800).
+**numpy LAZY** (só no solver) → `gera_trelica` importável no build sem numpy;
+geometria da treliça **replicada numpy-free** no build_galpao (self-contained).
+`_desenha_tesoura` barras biapoiadas no topo dos pilares, SEM joelho/cumeeira
+(rotulada). Sucção de vento = INPUT. Commit 820b0e0. [[03-phases]].
+
+## D44 — 2026-07-11 — Homologação dos 6 pareceres sênior (itens 28–33) + correções
+Sessão fechou os 6 REVISAO-*.md pendentes (índice 28–33). **Padrão-chave: 3 dos "erros graves" NÃO procediam** — refutados com prova de bancada, sênior retratou-se (mesmo padrão [[#D6]]). **Regra reforçada: verificar cada alegação contra código+PDF, nunca aceitar/rejeitar cego.**
+- **28 gusset** ([[#D37]]): 4 correções conceituais (AISC DG29): (a) `L_livre` desacoplado de `Lc`, `Kl=K·L_livre` (Thornton), `K=0,65` 2 bordas; (b) barra redonda `w0=d_barra` (não 0, singularidade); (c) ruptura da seção líquida `Ae·fu/γa2` (Ct, dh reusa `ligacoes._diam_furo`); (d) `__main__` imprime caso real Ø20 (bw=135,5/Nt=369,5). ✅
+- **29 console** ([[#D37]]): parecer-1 REPROVOU por erro de estática do PRÓPRIO parecer (SRSS de colineares errado) → sênior mea-culpa. Correções: colineares HORIZONTAIS (f_h+f_bV+f_bH) somam algébrico, SRSS só com f_v; **2 cordões** (A_w=2L, Sw=L²/3); momento de Ht `Mz=Ht·(L/2+h_trilho)`; **chapa em balanço** (flexão na raiz M_Sd=Rv·ecc + cisalhamento 5.4); comprimento efetivo `L_ef=L−2·perna` (crateras). ✅ APROVADO COM LOUVOR.
+- **30 fundação profunda** ([[#D38]]): (Q2) `carga_estaca_grupo` flexo-compressão N/n±Mx·yi/Σyi²±My·xi/Σxi², `offsets_grupo`, wire M_base do envelope; bloco 1-2 estacas não resiste (S=0)→tirantes de baldrame; (Q3) `coroa=max(150,D/2)`; (Q3b) `altura_bloco_rigido` do ângulo da biela **tan θ≥1,0** (não 1,2·D); (Q4) pedestal do modelo (cota arrasamento); (Q5) **baldrame transversal p/ n≤2** (NBR 6122 travamento 2 direções); (Q6) baldrame de face a face do pedestal (sem dupla contagem). **Q1 FS: gate condicional** — default 3,0, `FS<3,0` bloqueia sem `fundacao.estaca.prova_de_carga=True` (encoda a condicional que sênior+literatura concordam, sem citar PDF 6122 escaneado); `validar()` devolve `avisos` (auditoria). Build: 0 interferências. ✅
+- **31 ponte 8400** ([[#D39]]): Q2 (min(Vh,1.5)) e Q3 (B10=8e6) **já estavam** no nbr8400.py. **Q1 H_long DEFENDIDO** — `R_roda_max=R_trilho_max/n_rodas_lado` é reação POR RODA (partilha igual), então `frac_long·R_roda_max·n_motoras=frac_long·ΣR_motoras≤frac_long·R_trilho_max`; não é superposição. Teto provado no selftest; docstring de `cargas_de_roda` explicita a partilha. ✅
+- **32 alma variável** ([[#D42]]): parecer-1 Q2 (seção do joelho NÃO governa)→**verificação por segmento**. parecer-2 ponto-1 (array invertido) REFUTADO por 2 provas: frame2d bi-engastado EI 8:1 (rígido atrai mais M) + swap do taper (M segue rigidez). pontos 2/3 corrigidos: **FLT vira check de TRECHO** (member-level, seção mais funda, AISC DG25/Anexo H; FLA/FLM/flexo locais com Lb→0 no verifica), **Lb dinâmico pela mesa comprimida** (terças gravidade / mãos-francesas sucção). `props_I` completa; `analyse()` devolve `rafter_segmentos`; B2 global amplifica M. ✅
+- **33 tesoura** ([[#D43]]): BLOQUEADO por Q5. **banzo superior RETO em duas águas** `y=(2h/L)·min(x,L−x)` (não parábola/bowstring) em `gera_trelica`+build `_trelica_geom` → terças nos nós → método dos nós válido; **tração ruptura líquida** `_nt_rd` min(escoam, Ct·(A−furos)·fu/γa2); **compressão 2 eixos** `_nc_rd` (no plano L/rx; fora Lb_y/ry); tributária inclinada; **guard n_paineis PAR** (raise em gera_trelica + bloqueio em validar; ímpar→cumeeira no meio da barra→flexão). Solver aprovado. ✅
+Commits 718bbe8→35cda72 (branch `revisao/homologacao-12-modulos`). **REVISAO-INDICE.md: itens 1–33 todos ✅ HOMOLOGADO.**
+
+## D45 — 2026-07-11 — Backlog do parecer 6.b esgotado (fases 6.4–6.8) + revisão itens 34–38
+Sessão fechou os 4 itens de backlog do parecer da alma variável + 1 desdobramento,
+todos por leitura **verbatim** do PDF. **Padrão-chave repetido: 8 alegações de "erro
+grave" refutadas com a fonte primária; 1 bug real acolhido.** Enviar **imagem da
+página do PDF** (via `SendUserFile`) encerrou disputas de citação.
+- **6.4 coluna tapered** ([[03-phases]]): estende `secao_tapered` à COLUNA (base rasa
+  `h_col_base`→joelho fundo `h_joelho`); `_chain_var` na coluna, `coluna_segmentos` no
+  envelope; verificação por segmento + FLT member-level. **Parecer 1:** (2) add
+  **compressão global Anexo J.3** (seção de MENOR altura + H total; a por-segmento com
+  `L_seg` não capturava flambagem global) → `util_col_global`; (3) teste de
+  continuidade → igualdade **estrita no nó** (`isclose 1e-9`, era ponto-médio tol 20%);
+  (1/4a/4b defendidos). **Parecer 2 REFUTADO com PDF pág.151:** sênior alegou "Anexo J
+  = forças concentradas / citação fabricada" — **falso**, Anexo J = "Requisitos para
+  barras de seção variável" (J.3 compressão, J.4 FLT); os fenômenos que ele citou são
+  §5.7 (corpo principal). Sênior retratou-se. Commits `1baef85`→`16cec73`. ✅
+- **6.5 zona de painel do joelho** ([[03-phases]]): módulo novo `zona_painel.py` (NBR
+  8800 **§5.7.7** cisalhamento do painel + estados locais **§5.7.2/3/4/6** + doubler
+  §5.7.7.2). Nó rígido (prismático+alma var); tesoura pula. **Parecer 1:** (A)
+  `FSd=M/dm−V_col` (equilíbrio nodal); (C) add **enrugamento §5.7.4** (coef **0,66/0,33**
+  verbatim, NÃO 0,80/0,40 do AISC que o sênior pediu); (D) esbeltez do doubler por
+  **§5.4.3** `t≥dc/λp` (não a fórmula imperial `hw/418√fy` do AISC) → `max(t_força,
+  t_esbeltez)`. **Parecer 2 REFUTADO com imagens do PDF** (pág.68 §5.7.4.2=0,66/0,33;
+  pág.67 §5.7.3.2 já completa no código). Doubler = `CONEX_JOELHO_*_DOUBLER_L/R` (só
+  quando exigido; prefixo CONEX exclui da interferência). Commits `a4b336a`→`082319b`. ✅
+- **6.6 FLT de mísula (Anexo J)** ([[03-phases]]): `flt_misula.py` substitui o método
+  conservador (seção mais funda + Cb=1,0 + M_max) pelo **Anexo J**: λ da seção de MAIOR
+  altura (**J.4.2**), `Cb` racional (**§5.4.2.3a**, Rm=1, teto 3,0, balanço→1,0),
+  demanda na seção de **max M/Wx** (**J.4.1**). **NÃO usa fator γ** (AISC DG25, não
+  normativo na NBR). Efeito só quando `Lb>Lp` (senão FLT no platô plástico). Rafter+coluna
+  wired. Aprovado integralmente. Commit `caa5cfc`. ✅
+- **6.7 sucção vento→tesoura** ([[03-phases]]): `w_vento` auto-acoplado da NBR 6123
+  (`min(net cobertura)·q·bay`, uplift<0) em vez de INPUT manual; override honrado.
+  **BUG REAL do parecer acolhido:** combinação de uplift `1,4·w_vento+0,9·(−w_grav)`
+  invertia a gravidade (somava ao uplift) → corrigido p/ `1,4·w_vento+0,9·w_dead`
+  (vetores opostos, convenção do solver `w>0`=baixo). **Bônus:** `w_dead` exclui a
+  sobrecarga Q (NBR 8681: variável não estabiliza uplift). Validado: banzo inf
+  reverte tração→compressão sob sucção. Commits `0d67ffc`→`3c5b1d6`. ✅
+- **6.8 alma esbelta (Anexo H)** ([[03-phases]]): `alma_esbelta.py` — quando
+  `h/tw>5,70√(E/fy)`, `momento_resistente` **despacha** ao Anexo H (Wxc+`kpg`, não
+  Zx/Mpl) em vez de abortar com ValueError; compacta/semicompacta→Anexo G intocado.
+  `kpg=1−ar/(1200+300ar)(hc/tw−5,70√(E/fy))≤1`; `kc=4/√(h/tw)∈[0,35;0,76]` (F.2);
+  FLT com trava no platô; FLM sem Cb. **Parecer REFUTADO** (FLM inelástico + trava do
+  Cb "omitidos") — já estavam no código; markdown abreviava. +testes de trava. Sênior
+  mea-culpa. Commit `cfdbb03`→`a55a1fe`. ✅
+**REVISAO-INDICE.md: itens 1–38 todos ✅ HOMOLOGADO.** Backlog do parecer 6.b esgotado.
+
+## D46 — 2026-07-12/13 — Backlog balde 2 (fases 6.9–6.12) + pareceres itens 39–42
+4 dívidas técnicas do parecer 6.b fechadas por código + validação, todas homologadas
+pelo sênior. **25 módulos matemáticos.** Commits `6e3551f`→`a18b524`.
+
+- **6.9 / item 39 — `tensao_ponto.py` (interação M-V no joelho, NBR 8800 §5.5.2.3, pág
+  57 verbatim).** Verificação por TENSÕES da teoria da elasticidade: σ (fibra extrema
+  + junção mesa-alma) e τ (junção, `Qf` real da mesa, não `V/Aw`); alíneas a–d
+  SEPARADAS (a NBR **não** tem von Mises combinado — von Mises entra só suplementar,
+  flag `base_vm`). Wired na coluna tapered de alma esbelta (`ae.e_esbelta`), entra no
+  envelope `interacao_max_col`. Parecer: **0 bug** (σ/τ/Qf/von Mises "milimetricamente
+  corretos"); 3 premissas documentadas (χn=1,0 coberta pelos checks paralelos; cos²θ
+  desprezível p/ θ≈2,6°; von Mises suplementar).
+- **6.10 / item 40 — `cortante_tapered.py` (cortante da alma com mesas inclinadas,
+  EQUILÍBRIO, NÃO-NBR).** `V_alma=V−(M/h)(dh/dx)`; Anexo J (J.1–J.4) não trata cortante
+  (J.1.2→§5.4.3). Adverso SEMPRE contado; alívio favorável OPT-IN
+  (`creditar_cortante_mesa_inclinada`, default conservador). **BUG DE SEGURANÇA acolhido
+  (parecer):** braço `h_m` subestimava o caso adverso → braço **assimétrico**: `h_0=h_m−tf`
+  no adverso (seguro), `h_m` no favorável (conservador). Galpão é haunch (favorável) →
+  sem regressão.
+- **6.11 / item 41 — vento por zona na tesoura (`tesoura.py`+`vento_nbr6123.py`, NBR
+  6123 Tabela 5).** Cada água seu Cpe simultâneo (barlavento EF / sotavento GH) em vez
+  de `min` uniforme (estado fictício). **CRÍTICO acolhido (parecer):** faltava o **vento
+  a 0° (longitudinal)** — as 2 águas na MESMA zona (EG) → uplift SIMÉTRICO, pode
+  governar; sem ele o refino REMOVIA carga real (a "economia" 1,04→0,96 era artefato de
+  envelope incompleto). Adicionado `cpe_telhado_longitudinal` (EG/FH verbatim pág 15) +
+  envelope 90°+0°. +fixes: cumeeira = média `(w_barl+w_sot)/2`; `_gamma_g_dead` 0,9
+  (sucção)/1,4 (pressão). Cpi refutado como bug (mesmo Cpi p/ as 2 águas por
+  monotonicidade `argmin(Cpe−Cpi)=max Cpi`) + hardening par-fixo. u honesto = **0,928**.
+- **6.12 / item 42 — `dg25_ltb.py` (cross-check AISC DG25 §5.4.3, VALIDAÇÃO informativa,
+  NÃO dimensiona).** `M_eLTB=F_eLTB·Sxc` (F4-5, seção do MEIO) vs `Mcr` NBR Anexo J
+  (seção FUNDA J.4.2). Base do DG25 lida por IMAGEM (texto do PDF corrompido; PDF que o
+  usuário colocou no corpus destravou a dívida (b)). Prismático converge **0,998**
+  (F4-5≡F2, base sã); tapered **DIVERGE 0,54/0,45** = diferença de seção de referência
+  (meio×funda), NÃO erro de util (NBR auto-consistente). Parecer: **0 bug**; `rt` usa
+  `hc=hw` (não `d`) confirmado; razão 0,544 = efeitos não-lineares combinados `Sx`+`Cw`
+  (não `Sx∝h²` puro); Cb cancela por premissa de teste (Cb idêntico dos 2 lados), não
+  intrínseco.
+
+**Padrão dos pareceres (itens 39–42):** cada alegação verificada contra código + PDF.
+**2 bugs reais acolhidos** (braço `h_0` item 40; vento 0° item 41). **1 refutação com
+prova** aceita pelo sênior (Cpi). Imagens de PDF (Tabela 5 NBR 6123 pág 15; DG25 pág
+60–61) para leitura verbatim. **REVISAO-INDICE.md: itens 1–42 todos ✅ HOMOLOGADO.**
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
