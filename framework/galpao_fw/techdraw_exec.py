@@ -826,15 +826,32 @@ LIGACOES = [
 ]
 
 
-def _svg_solda_filete(perna_mm, campo=False, todo_contorno=False):
-    """SVG do simbolo AWS/AWS A2.4 de solda de FILETE (arrow-side, abaixo da linha
-    de referencia): linha de referencia + seta ao pe da junta + triangulo do filete
-    (perna vertical a esquerda) + a perna em mm. campo=bandeira (solda de campo);
+def _svg_solda_filete(perna_mm, campo=False, todo_contorno=False, lado="arrow"):
+    """SVG do simbolo AWS A2.4 de solda de FILETE. A perna vertical do triangulo fica
+    SEMPRE a esquerda; a POSICAO em relacao a linha de referencia segue a norma:
+      lado='arrow' -> triangulo ABAIXO da linha  = solda no lado da seta (arrow-side)
+      lado='other' -> triangulo ACIMA  da linha  = solda no lado oposto (other-side)
+      lado='both'  -> triangulos espelhados nos dois lados (ambos os lados)
+    A linha de referencia esta em y=14. campo=bandeira (solda de campo);
     todo_contorno=circulo na dobra. Renderizado headless via DrawViewSymbol."""
     perna = ("%g" % perna_mm) if perna_mm else ""
     flag = ('<path d="M10,14 L10,7 L17,9 Z" fill="black"/>' if campo else "")
     circ = ('<circle cx="10" cy="14" r="2.6" fill="none" stroke="black" '
             'stroke-width="1"/>' if todo_contorno else "")
+    tri_arrow = '<polygon points="30,14 38,14 30,24" fill="black"/>'   # abaixo (arrow)
+    tri_other = '<polygon points="30,14 38,14 30,4" fill="black"/>'    # acima (other)
+    if lado == "other":
+        tri = tri_other
+        txt = ('<text x="20" y="11" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
+    elif lado == "both":
+        tri = tri_arrow + tri_other
+        txt = ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
+    else:                                                             # arrow (default)
+        tri = tri_arrow
+        txt = ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="34" '
         'viewBox="0 0 64 34">'
@@ -843,20 +860,18 @@ def _svg_solda_filete(perna_mm, campo=False, todo_contorno=False):
         '<line x1="10" y1="14" x2="2" y2="26"/>'             # leader ate a junta
         '</g>'
         '<polygon points="2,26 8,22 7,25.5" fill="black"/>'  # ponta da seta
-        '<polygon points="30,14 38,14 30,24" fill="black"/>' # triangulo do filete
-        + circ + flag +
-        ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
-         % perna if perna else "") +
+        + tri + circ + flag + txt +
         '</svg>')
 
 
 def _glifo_solda(doc, page, nome, perna_mm, x, y, escala=1.6, campo=False,
-                 todo_contorno=False):
+                 todo_contorno=False, lado="arrow"):
     """Coloca o simbolo grafico de solda de filete (SVG AWS) na prancha, ligado ao
-    dado do calculo (perna em mm). Substitui o DrawWeldSymbol (feature so-GUI)."""
+    dado do calculo (perna em mm). Substitui o DrawWeldSymbol (feature so-GUI).
+    lado: arrow-side / other-side / both (AWS A2.4) - vem do dado de fabricacao."""
     try:
         sym = doc.addObject("TechDraw::DrawViewSymbol", nome)
-        sym.Symbol = _svg_solda_filete(perna_mm, campo, todo_contorno)
+        sym.Symbol = _svg_solda_filete(perna_mm, campo, todo_contorno, lado)
         try:
             sym.Scale = float(escala)
         except Exception:
@@ -1013,9 +1028,13 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     # calculo): glyph ligado ao dado, headless via DrawViewSymbol (nao DrawWeldSymbol).
     dfab = cfg.get(callout) if callout else None
     if isinstance(dfab, dict) and dfab.get("perna_solda_mm"):
-        _anot(doc, page, "WLDt_" + base, ["SIMBOLO DE SOLDA (AWS):"], 150, 200, 4)
+        # lado/campo vem do dado de fabricacao (AWS A2.4); default arrow-side + campo?
+        lado = dfab.get("lado_solda", "arrow")
+        campo = bool(dfab.get("solda_campo", False))
+        _anot(doc, page, "WLDt_" + base, ["SIMBOLO DE SOLDA (AWS A2.4):"], 150, 200, 4)
         _glifo_solda(doc, page, "WLD_" + base, dfab["perna_solda_mm"],
-                     x=210, y=170, escala=7.0, todo_contorno=True)
+                     x=210, y=170, escala=7.0, todo_contorno=True,
+                     campo=campo, lado=lado)
     return page, cots
 
 

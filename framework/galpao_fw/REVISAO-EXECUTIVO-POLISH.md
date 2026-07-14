@@ -4,8 +4,9 @@ Duas melhorias no projeto executivo 2D (`techdraw_exec.py`), ambos itens de
 **polimento visual** do backlog (não são lacunas de dado). Fases 6.19 (glyph) e
 6.12 (PE09). Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDANDO PARECER** (2026-07-13). Cosmético — não altera cálculo
-> nem geometria; valida-se **visualmente** (PNGs re-renderizados).
+> **STATUS: ✅ PARECER RECEBIDO — 1 CORRIGIDO (conformidade AWS A2.4)** (2026-07-13).
+> Glyph deixou de ser arrow-side engessado: parametrizado arrow/other/both. PE09
+> cosmético (aprovado). Ver §Parecer.
 
 ## 1. Glyph de solda AWS (fase 6.19)
 
@@ -23,9 +24,32 @@ inline via `TechDraw::DrawViewSymbol` (renderiza headless).
 - **Validado visual** em PE14 (console, perna 6 mm) e PE11 (gusset): símbolo legível
   com círculo de contorno + "6" + triângulo do filete.
 
-**O que revisar:** o símbolo é AWS de filete arrow-side com todo-o-contorno; a perna
-é o valor do cálculo. A convenção arrow-side/other-side (posição relativa à linha)
-é simplificada — o dado (tipo filete + perna + contorno) está correto e rastreável.
+**O que revisar:** o símbolo é AWS de filete com todo-o-contorno; a perna é o valor
+do cálculo. A convenção arrow-side/other-side é **respeitada** (ver §Parecer): a perna
+vertical fica sempre à esquerda; a posição do triângulo (abaixo/acima da linha de
+referência) segue AWS A2.4 e é dada pelo dado de fabricação.
+
+### Parecer do sênior (2026-07-13) — conformidade AWS A2.4 (CORRIGIDO)
+
+**Ressalva procedente.** A convenção arrow-side/other-side **não pode ser simplificada**:
+na AWS A2.4 a posição do triângulo em relação à linha de referência define de que lado
+da junta a solda é depositada (abaixo=arrow-side; acima=other-side; ambos=espelhado).
+Um glyph engessado em arrow-side pode mandar soldar a face errada do gusset.
+
+**Corrigido:** `_svg_solda_filete(perna, campo, todo_contorno, lado)` com
+`lado ∈ {arrow, other, both}`:
+- `arrow` (default, retrocompat.): triângulo **abaixo** da linha (y=14→24);
+- `other`: triângulo **acima** (y=14→4), com a perna reposicionada acima;
+- `both`: dois triângulos espelhados.
+A perna vertical permanece **sempre à esquerda** (correto per norma, confirmado pelo
+sênior). O círculo de todo-o-contorno e a bandeira de campo ficam na dobra,
+independentes do lado. `_glifo_solda` e o caller passam `lado`/`campo` — **lidos do
+dado de fabricação** (`cfg[callout]["lado_solda"]`/`["solda_campo"]`, Ask-Do-Not-Invent;
+default arrow-side). Removida a nota de "convenção simplificada".
+
+**Confirmados corretos pelo sênior:** perna vertical à esquerda; círculo all-around na
+dobra; bandeira de campo preenchida; omissão de passo/comprimento (redundante com
+todo-o-contorno).
 
 ## 2. Quadros do PE09 legíveis (fase 6.12)
 
@@ -43,10 +67,11 @@ cálculo, takeoff do modelo 3D, notas) inalterado.
 
 ## Cobertura de teste
 
-`tests/test_fase619_glifo_solda.py` — 5 testes do gerador de SVG (XML bem-formado;
+`tests/test_fase619_glifo_solda.py` — 9 testes do gerador de SVG (XML bem-formado;
 perna + triângulo + linha de referência; círculo de todo-o-contorno; bandeira de
-campo; sem perna omite texto). O render foi validado **visualmente** (o teste de
-render completo é o `smoke_executivo`, 7/7).
+campo; sem perna omite texto; **arrow-side triângulo abaixo**; **other-side acima**;
+**both dois triângulos espelhados**; **default = arrow-side**). O render foi validado
+**visualmente** (o teste de render completo é o `smoke_executivo`, 7/7).
 
 ## Escopo
 
