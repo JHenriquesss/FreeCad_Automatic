@@ -86,6 +86,26 @@ def test_peso_proprio_conta_nas_estacas():
     assert d["n_estacas"] >= math.ceil(1.05 * d["R"] / 700.0)
 
 
+def test_armadura_de_pele_h_maior_60():
+    # parecer item 48: h>60cm exige pele 0,10% Ac,alma/face (<=5 cm2/m), s<=20 cm.
+    r = _r()
+    v = r["viga"]
+    assert v["h"] > 0.60                                   # cisalhamento elevou h
+    p = v["pele"]
+    assert p["aplica"] is True and p["s_max_cm"] == 20.0
+    esperado = min(0.0010 * v["b"] * v["h"], 5e-4 * v["h"]) * 1e4
+    assert abs(p["As_face_cm2"] - esperado) < 0.05
+
+
+def test_armadura_de_pele_dispensada_viga_baixa():
+    # vao curto + carga leve -> h=50cm (<=60) -> pele dispensada (17.3.5.2.3)
+    r = ve.dimensiona_viga_equilibrio(P_divisa=500.0, P_interno=500.0, dist_eixos=3.5,
+                                      dist_divisa=0.20, P_estaca_adm=3000.0,
+                                      a_pilar=0.30, D_estaca=0.30, e=0.10)
+    assert r["viga"]["h"] <= 0.60
+    assert r["viga"]["pele"]["aplica"] is False
+
+
 def test_excentricidade_estimada_geometrica():
     e = ve.excentricidade_estimada(dist_divisa=0.20, D_estaca=0.40)
     # 2 estacas, s=3D=1.2: x_centroide = 0.2 + 0.15 + 0.6 = 0.95; e = 0.95-0.20=0.75

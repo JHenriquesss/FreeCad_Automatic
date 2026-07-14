@@ -7,9 +7,9 @@ excêntrico e uma **viga de equilíbrio** (viga alavanca) o liga a um bloco inte
 Fecha o backlog "viga de equilíbrio de divisa excêntrica (estaca)". Fase 6.18.
 Criado 2026-07-13.
 
-> **STATUS: ✅ PARECER RECEBIDO — 3 CORRIGIDOS** (2026-07-13). Erro de estática no
-> momento (M=R'·e → **P·e**) + cisalhamento obrigatório + peso próprio nas estacas.
-> Ver §Parecer. Unidades SI (m, kN). Saídas PT.
+> **STATUS: ✅ HOMOLOGADO — 3 CORRIGIDOS + pele adicionada** (2026-07-13). Erro de
+> estática no momento (M=R'·e → **P·e**) + cisalhamento + peso próprio; 2ª rodada
+> homologou e adicionou armadura de pele (h>60cm). Ver §Parecer. SI (m, kN). PT.
 
 ## Mecânica (corpo rígido — a MESMA já validada em `sapata_divisa`)
 
@@ -85,6 +85,16 @@ contagem: `n = ⌈1,05·R'/P_adm⌉` via `estaca_profunda.n_estacas(..., peso_bl
 Aplicado ao bloco de divisa e ao interno. `FATOR_PP=1,05` constante nomeada, documentada
 como praxe (FLAG — refinar com peso real de bloco+viga no detalhamento).
 
+### 4 — Armadura de pele (NBR 6118 §17.3.5.2.3) — 🟡 ADICIONADO (2ª rodada)
+
+O sênior perguntou pela pele: a nova verificação de cisalhamento elevou a viga a
+102 cm (>60 cm), disparando a exigência. Verbatim (PDF 6118 pág 132/§17.3.5.2.3):
+*"A mínima armadura lateral deve ser 0,10% Ac,alma em cada face da alma... espaçamento
+não maior que 20 cm... não sendo necessária armadura superior a 5 cm²/m por face. Em
+vigas com altura igual ou inferior a 60 cm, pode ser dispensada."* Implementado:
+`As_pele/face = min(0,10%·b·h, 5 cm²/m·h)`, `s≤20 cm`, só quando `h>0,60 m`; senão
+`aplica=False`. Saída `viga.pele`. Ex. viga 40×102: **4,08 cm²/face**.
+
 ### Confirmados sem alteração
 - Estática de `R'` e `Delta_P`: OK. Alívio 50% no interno (viga calculada p/ 100% de
   `Delta_P`): OK (parecer endossa). Excentricidade geométrica `e`: OK.
@@ -95,7 +105,8 @@ como praxe (FLAG — refinar com peso real de bloco+viga no detalhamento).
 braço); e maior amplifica mais; nº de estacas cobre R'; alívio 50% no interno; viga
 passa à flexão; **M = P·e e não R'·e (estática)**; **cisalhamento V=Delta_P (biela
 VRd2 + estribo)**; **peso próprio ~5% na contagem de estacas**; excentricidade
-geométrica; relatório PT; wiring escolhe a variante estaca.
+geométrica; **armadura de pele h>60cm (0,10% Ac,alma/face)**; **pele dispensada
+h≤60cm**; relatório PT; wiring escolhe a variante estaca. **13 testes.**
 
 ## Escopo (FLAGs — Ask-Do-Not-Invent)
 

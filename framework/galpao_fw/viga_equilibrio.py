@@ -101,6 +101,14 @@ def dimensiona_viga_equilibrio(P_divisa, P_interno, dist_eixos, dist_divisa,
     As_min = fs.rho_min(fck / 1000.0) * b_v * h_viga
     As_final = max(As_viga, As_min)
     arr = fs.detalha_barras(As_final, b_v, cobrimento)
+    # armadura de pele (NBR 6118 17.3.5.2.3): h>60 cm exige 0,10% Ac,alma POR FACE,
+    # <= 5 cm2/m por face, s<=20 cm. Dispensada se h<=60 cm. (parecer item 48)
+    if h_viga > 0.60:
+        As_pele_face = min(0.0010 * b_v * h_viga, 5e-4 * h_viga)   # m2, teto 5 cm2/m
+        pele = {"aplica": True, "As_face_cm2": round(As_pele_face * 1e4, 2),
+                "s_max_cm": 20.0, "obs": "0,10% Ac,alma/face, teto 5 cm2/m (17.3.5.2.3)"}
+    else:
+        pele = {"aplica": False, "As_face_cm2": 0.0}
     return {
         "divisa": {"P": P_divisa, "R": round(R_divisa, 1), "e": round(e, 3),
                    "n_estacas": n_est_div, "espacamento": round(s, 2),
@@ -115,7 +123,7 @@ def dimensiona_viga_equilibrio(P_divisa, P_interno, dist_eixos, dist_divisa,
                  "As_adot_cm2": round(As_final * 1e4, 2), "arr": arr,
                  "V_d_kN": round(V_d, 1), "VRd2_kN": round(cr["VRd2"], 1),
                  "VRd3_min_kN": round(cr["VRd3_min"], 1), "u_biela": round(cr["u_biela"], 3),
-                 "s_estribo_cm": round(s_estribo * 100.0, 1),
+                 "s_estribo_cm": round(s_estribo * 100.0, 1), "pele": pele,
                  "ok_flexao": ok_flex, "ok_cortante": ok_cort, "ok": ok},
         "params": {"P_divisa": P_divisa, "P_interno": P_interno,
                    "dist_eixos": dist_eixos, "dist_divisa": dist_divisa,
@@ -143,6 +151,8 @@ def relatorio_pt(r):
          f"   Armadura adotada: {v['As_adot_cm2']:.2f} cm2 -> {_arr(v['arr'])}",
          f"   CORTANTE (NBR 6118 17.4): Vd = {v['V_d_kN']:.1f} kN ; VRd2 (biela) = {v['VRd2_kN']:.1f} kN "
          f"(u={v['u_biela']:.2f}) ; estribos s <= {v['s_estribo_cm']:.0f} cm",
+         (f"   PELE (17.3.5.2.3, h>60cm): {v['pele']['As_face_cm2']:.2f} cm2/face (s<=20 cm)"
+          if v["pele"]["aplica"] else "   PELE: dispensada (h <= 60 cm)"),
          "", "3. BLOCO INTERNO (com alivio):",
          f"   Pilar interno P = {i['P']:.0f} kN ; Delta_P = R - P = {i['delta_P']:.1f} kN",
          f"   Alivio {FATOR_ALIVIO*100:.0f}% -> P_ajust = {i['P_ajust']:.1f} kN ; Estacas: {i['n_estacas']}",
