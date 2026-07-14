@@ -341,9 +341,10 @@ def _anot(doc, page, nome, linhas, x, y, tam=4.0):
     return a
 
 
-def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None):
+def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None, escala=1.0):
     """Tabela estilizada: cabecalho em negrito/sombreado, larguras de coluna,
-    alinhamento. Renderizada como DrawViewSpreadsheet."""
+    alinhamento. Renderizada como DrawViewSpreadsheet. escala>1 amplia celula+texto
+    juntos (legibilidade em A1, sem clipar)."""
     ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
     ncol = len(header)
     cols = [chr(ord("A") + i) for i in range(ncol)]
@@ -376,14 +377,18 @@ def _tabela(doc, page, nome, header, rows, x, y, tam=6.0, larguras=None):
     v.CellStart = "A1"
     v.CellEnd = "%s%d" % (cols[-1], len(rows) + 1)
     v.TextSize = tam
+    try:
+        v.Scale = float(escala)
+    except Exception:
+        pass
     page.addView(v)
     v.X, v.Y = float(x), float(y)
     return v
 
 
-def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520):
+def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520, escala=1.0):
     """Bloco de texto ALINHADO A ESQUERDA (1 coluna). Usa spreadsheet pois o
-    DrawViewAnnotation centraliza o texto (ruim p/ listas/notas)."""
+    DrawViewAnnotation centraliza o texto (ruim p/ listas/notas). escala>1 amplia."""
     ss = doc.addObject("Spreadsheet::Sheet", nome + "_ss")
     for i, l in enumerate(linhas, start=1):
         a = "A%d" % i
@@ -402,6 +407,10 @@ def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520):
     v.CellStart = "A1"
     v.CellEnd = "A%d" % len(linhas)
     v.TextSize = tam
+    try:
+        v.Scale = float(escala)
+    except Exception:
+        pass
     page.addView(v)
     v.X, v.Y = float(x), float(y)
     return v
@@ -429,7 +438,8 @@ def _carimbo(cfg, titulo, numero, escala, folha):
         "revision_index": "00",
         "language_code": "PT",
         "responsible_department": "ESTRUTURAS",
-        "general_tolerances": "NBR 8800 / NBR 6118",
+        # compacto p/ caber na celula estreita do ISO5457 (evita colisao com scale)
+        "general_tolerances": "NBR 8800/6118",
         "part_material": "ACO MR250 / CONCRETO fck 25 MPa",
     }
 
@@ -816,6 +826,63 @@ LIGACOES = [
 ]
 
 
+def _svg_solda_filete(perna_mm, campo=False, todo_contorno=False, lado="arrow"):
+    """SVG do simbolo AWS A2.4 de solda de FILETE. A perna vertical do triangulo fica
+    SEMPRE a esquerda; a POSICAO em relacao a linha de referencia segue a norma:
+      lado='arrow' -> triangulo ABAIXO da linha  = solda no lado da seta (arrow-side)
+      lado='other' -> triangulo ACIMA  da linha  = solda no lado oposto (other-side)
+      lado='both'  -> triangulos espelhados nos dois lados (ambos os lados)
+    A linha de referencia esta em y=14. campo=bandeira (solda de campo);
+    todo_contorno=circulo na dobra. Renderizado headless via DrawViewSymbol."""
+    perna = ("%g" % perna_mm) if perna_mm else ""
+    flag = ('<path d="M10,14 L10,7 L17,9 Z" fill="black"/>' if campo else "")
+    circ = ('<circle cx="10" cy="14" r="2.6" fill="none" stroke="black" '
+            'stroke-width="1"/>' if todo_contorno else "")
+    tri_arrow = '<polygon points="30,14 38,14 30,24" fill="black"/>'   # abaixo (arrow)
+    tri_other = '<polygon points="30,14 38,14 30,4" fill="black"/>'    # acima (other)
+    if lado == "other":
+        tri = tri_other
+        txt = ('<text x="20" y="11" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
+    elif lado == "both":
+        tri = tri_arrow + tri_other
+        txt = ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
+    else:                                                             # arrow (default)
+        tri = tri_arrow
+        txt = ('<text x="20" y="23" font-size="9" font-family="sans-serif">%s</text>'
+               % perna if perna else "")
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="34" '
+        'viewBox="0 0 64 34">'
+        '<g stroke="black" stroke-width="1" fill="none">'
+        '<line x1="10" y1="14" x2="58" y2="14"/>'            # linha de referencia
+        '<line x1="10" y1="14" x2="2" y2="26"/>'             # leader ate a junta
+        '</g>'
+        '<polygon points="2,26 8,22 7,25.5" fill="black"/>'  # ponta da seta
+        + tri + circ + flag + txt +
+        '</svg>')
+
+
+def _glifo_solda(doc, page, nome, perna_mm, x, y, escala=1.6, campo=False,
+                 todo_contorno=False, lado="arrow"):
+    """Coloca o simbolo grafico de solda de filete (SVG AWS) na prancha, ligado ao
+    dado do calculo (perna em mm). Substitui o DrawWeldSymbol (feature so-GUI).
+    lado: arrow-side / other-side / both (AWS A2.4) - vem do dado de fabricacao."""
+    try:
+        sym = doc.addObject("TechDraw::DrawViewSymbol", nome)
+        sym.Symbol = _svg_solda_filete(perna_mm, campo, todo_contorno, lado)
+        try:
+            sym.Scale = float(escala)
+        except Exception:
+            pass
+        page.addView(sym)
+        sym.X, sym.Y = float(x), float(y)
+        return sym
+    except Exception:
+        return None
+
+
 def _callout_fab(cfg, key):
     """Linha(s) de callout de fabricacao a partir do CFG (numeros do calculo).
     Retorna [] se nao houver dado -> mantem 'conforme memorial'."""
@@ -957,6 +1024,17 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
                "Cotas em milimetros."]
     _anot(doc, page, "ALIG_" + base, linhas, 200, 80 + 6 * len(fab), 5)
+    # simbolo grafico AWS de solda de filete (quando o callout tras a perna do
+    # calculo): glyph ligado ao dado, headless via DrawViewSymbol (nao DrawWeldSymbol).
+    dfab = cfg.get(callout) if callout else None
+    if isinstance(dfab, dict) and dfab.get("perna_solda_mm"):
+        # lado/campo vem do dado de fabricacao (AWS A2.4); default arrow-side + campo?
+        lado = dfab.get("lado_solda", "arrow")
+        campo = bool(dfab.get("solda_campo", False))
+        _anot(doc, page, "WLDt_" + base, ["SIMBOLO DE SOLDA (AWS A2.4):"], 150, 200, 4)
+        _glifo_solda(doc, page, "WLD_" + base, dfab["perna_solda_mm"],
+                     x=210, y=170, escala=7.0, todo_contorno=True,
+                     campo=campo, lado=lado)
     return page, cots
 
 
@@ -1026,13 +1104,15 @@ def _pr_quadros(doc, cfg):
     # QUADRO DE VERIFICACOES (utilizacoes do calculo, NBR 8800)
     res = [(k, v) for k, v in (cfg.get("resultados") or {}).items()
            if v is not None]
+    ESC_Q = 1.5                      # ampliacao dos quadros p/ legibilidade em A1
     if res:
         _anot(doc, page, "A09v",
-              ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 240, 500, 7)
+              ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 210, 510, 9)
         rows = [[k, "%.2f" % float(v), "OK" if float(v) <= 1.001 else "REVER"]
                 for k, v in res]
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
-                rows, 240, 470 - len(rows) * 5, tam=6, larguras=[170, 130, 100])
+                rows, 210, 480 - len(rows) * 7, tam=6, larguras=[170, 130, 100],
+                escala=ESC_Q)
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     if tk:
@@ -1040,10 +1120,10 @@ def _pr_quadros(doc, cfg):
         rows = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
                 for r in tk]
         rows.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
-        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 600, 500, 7)
+        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows, 600, 470 - len(rows) * 5, tam=6,
-                larguras=[150, 130, 60, 110])
+                rows, 560, 480 - len(rows) * 7, tam=6,
+                larguras=[150, 130, 60, 110], escala=ESC_Q)
     # NOTAS TECNICAS
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
@@ -1058,7 +1138,7 @@ def _pr_quadros(doc, cfg):
         "9. Tercas Ue formado a frio (NBR 14762).",
         "10. Projeto executivo sujeito a revisao e ART.",
     ]
-    _bloco_texto(doc, page, "A09n", notas, 240, 250, tam=5, largura=560)
+    _bloco_texto(doc, page, "A09n", notas, 210, 240, tam=5, largura=560, escala=1.4)
     return [page], []
 
 
@@ -1287,12 +1367,40 @@ def _limpo(v, padrao):
     return v
 
 
+def _descreve_perfis(est):
+    """Rotulo (perfil_col, perfil_raf) para o callout. Em portico de ALMA VARIAVEL
+    a viga (e a coluna, se h_col_base) e chapa soldada tapered - NAO um laminado;
+    descreve a chapa a partir do dict tapered do calculo. Em TESOURA descreve a
+    trelica. Caso contrario usa os perfis laminados adotados."""
+    col = est.get("perfil_col_adotado", "?")
+    raf = est.get("perfil_raf_adotado", "?")
+    tipo = est.get("tipo_portico", "prismatico")
+    tp = est.get("tapered")
+    if tipo == "alma_variavel" and isinstance(tp, dict):
+        hj = tp.get("h_joelho", 0) * 1000.0; hc = tp.get("h_cumeeira", 0) * 1000.0
+        tw = tp.get("tw", 0) * 1000.0; bf = tp.get("bf", 0) * 1000.0
+        tf = tp.get("tf", 0) * 1000.0
+        raf = ("Alma variavel h=%.0f->%.0f (tw=%.0f, mesa %.0fx%.1f) mm"
+               % (hj, hc, tw, bf, tf))
+        if tp.get("h_col_base"):
+            hcb = tp["h_col_base"] * 1000.0
+            col = ("Alma variavel h=%.0f->%.0f (tw=%.0f, mesa %.0fx%.1f) mm"
+                   % (hcb, hj, tw, bf, tf))
+    elif tipo == "tesoura" and isinstance(est.get("trelica"), dict):
+        tr = est["trelica"]
+        raf = ("Trelica %s h=%.0f mm, %d paineis (banzo/diagonal cfg calculo)"
+               % (tr.get("tipo", "warren"), tr.get("h", 0) * 1000.0,
+                  tr.get("n_paineis", 0)))
+    return col, raf
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
     ba = est.get("base_adotada")
     sp = est.get("sapata_adotada")
     jo = est.get("joelho_adotado")
+    perfil_col, perfil_raf = _descreve_perfis(est)
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
@@ -1307,8 +1415,8 @@ def config_de_spec(spec, fcstd_path, out_dir):
             "bay": g["bay"] * 1000.0,
             "slope": spec.get("cobertura", {}).get("slope", 0.1),
         },
-        "perfil_col": est.get("perfil_col_adotado", "?"),
-        "perfil_raf": est.get("perfil_raf_adotado", "?"),
+        "perfil_col": perfil_col,
+        "perfil_raf": perfil_raf,
         "base": ({"B": ba["B"] * 1000.0, "L": ba["L"] * 1000.0,
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),

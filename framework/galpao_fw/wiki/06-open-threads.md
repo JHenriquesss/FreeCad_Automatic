@@ -1,5 +1,21 @@
 # 06 — Open threads
 
+## T12 — Balde 4 (fases 6.15–6.19) — RESOLVIDO 2026-07-13/14
+- **~~Glyph AWS de solda (resíduo do 2D T6)~~ RESOLVIDO:** `DrawWeldSymbol` é só-GUI;
+  substituído por `TechDraw::DrawViewSymbol` + SVG inline (`_svg_solda_filete`), headless.
+  Parametrizado arrow/other/both (AWS A2.4). Último resíduo do executivo 2D fechado.
+- **9 correções dos pareceres 45–49 aplicadas** — ver [[04-decisions#D48]]. pytest 245,
+  smoke 7/7.
+- **FLAGs residuais (Ask-Do-Not-Invent, entradas de projeto — não são bugs):**
+  - viga de equilíbrio: `lado_solda`/`solda_campo` do glyph, `e`/arranjo do grupo na
+    divisa, `P_adm` da estaca (sondagem), cargas reais dos pilares (envelope) = entradas.
+  - `props_I_mono`/DG25 envelope são **INFORMATIVOS** (cross-check; dimensionamento
+    segue NBR 8800). Perfis com `Iyc/Iy≤0,23` fogem de F4/F5 (viram perfil T, F9):
+    `Rpt=1,0` per DG25, fora do galpão típico.
+  - `forcas_localizadas`: `ln`/`k`/dist. extremidade = dado de fabricação; soldas do
+    enrijecedor e esmagamento local = detalhamento executivo.
+- **Gate humano pendente:** push branch `revisao/homologacao-12-modulos` + merge PR.
+
 ## HANDOFF — continuar em outro chat (2026-07-08)
 **Onde paramos:** análise de lacunas do galpão completo ENCERRADA + todos os FLAGs corrigíveis fechados. Branch `revisao/homologacao-12-modulos`, HEAD `7009b61`, pushed. Ref 20×10 inalterada (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5) = prova de não-regressão.
 
@@ -14,6 +30,30 @@
 4. Refinos acadêmicos fora de escopo (NÃO gaps): análise sísmica modal/histórica (15421 §10/§11 — estático §9 cobre galpão regular); α/β de estacas escavadas do Décourt 1996 (já coberto por Teixeira).
 
 **Regras que o outro chat DEVE seguir:** zero-erro (ler PDF, render de imagem se OCR falhar — ver como Tab.4/5 vento, K/α Aoki, C Décourt, α Teixeira, Tab.14 foram lidas); não hardcodar dados de sítio (são params/gates); manter REVISAO-*.md sincronizado com código verbatim; commitar por feature; push blocked na main → branch+PR (D0); caveman mode ativo. Memória `gap-analysis-closed` resume tudo.
+
+## T11 — balde 3 (dívida e + refino DG25) + itens 43–44 (impl. FECHADA; aguarda parecer 2026-07-13)
+Os 2 resíduos NÃO-bug do [[#T10]] fechados na implementação — ver [[04-decisions#D47]].
+**6.13/item 43:** `enrijecedor_painel.py` (NBR 8800 §5.4.3.1, `kv=5+5/(a/h)²`, requisitos
+§5.4.3.1.3; relaxa cap h/tw≤260 do Anexo H). **6.14/item 44:** DG25 full (`dg25_ltb.py`
+estendido: Cb tapered, Rpc/Rpg, Mn nominal 3 regiões; `cross_check_capacidade`, Cb não
+cancela). Ambos INFORMATIVOS. `REVISAO-ENRIJECEDOR-PAINEL.md` + `REVISAO-DG25-FULL.md`
+prontos. **Item 43 ✅ HOMOLOGADO — APROVADO COM LOUVOR (2026-07-13):** parecer apontou
+3 pts; `a_min→a_max` acolhido (bug de nome), 2 refutados com PDF (eixo I singelo =
+plano médio NBR §5.4.3.1.3c p/ ambos, ≠ AISC G2.2; §5.4.3.2 = tubular, ≠ tension field
+— NBR 8800:2008 não tem campo de tração); `ist_singelo` (eixo-face, conservador)
+adicionado como opt-in. **Item 44 ✅ HOMOLOGADO — validação (2026-07-13):** "sanity-check
+adequado"; `γ·f_r=F_eLTB` "mais elegante"; 5% inelástico = diferença de método
+(confirmado); 3 apontamentos de escopo sem bug (F_L monossim. **já coberto** pelo ramo
+5.4-15 via `Wxt`; sinais Cb = premissa do chamador documentada; `aw≤10` reflete DG25).
+Pergunta do sênior (monossim. extrema): F_L já pronto; falta pacote de props assimétricas
+(`props_I_mono` com Wxt/Wxc, Iyc/Iy, hc/hp) — upgrade coordenado futuro.
+**BALDE 3 COMPLETO: itens 43–44 ✅ HOMOLOGADOS. REVISAO-INDICE 1–44 ✅, zero pendente.**
+**Backlog residual (não bug):** FLB/TFY/ruptura do DG25 (§5.4.4/5/6) se o sênior quiser o
+envelope DG25 completo dos 5 estados-limite; enrijecedor de apoio (§5.7.4); campo de
+tração NÃO adotado (NBR não inclui). `neve` segue não escolhido. **Crane: NÃO é resíduo**
+— 100% homologado (itens 9/29/31).
+Sênior ainda ofereceu auditoria do código puro do `dg25_ltb.py` (tipagem/tol) — se vier,
+aplicar o rito.
 
 ## T10 — balde 2 (dívidas a/b/c/d) + itens 39–42 (FECHADO 2026-07-13)
 **Todas as 4 dívidas técnicas do balde 2 fechadas e homologadas** — ver
@@ -83,9 +123,9 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 CS` era da versão antiga). `techdraw_exec._secao_ligacao` adiciona um corte
 hachurado (`CutSurfaceDisplay="Hatch"`) a cada detalhe de ligação, sob smoke
 (`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D]].
-**Ainda aberto (menor):** símbolo gráfico de solda (glyph AWS) — `DrawWeldSymbol`
-é feature de GUI (não instanciável headless); o dado de solda segue como
-texto/callout (já rastreável ao cálculo). Polimento visual, não lacuna de dado.
+**~~Aberto (menor)~~ RESOLVIDO (fase 6.19, 2026-07-13):** símbolo gráfico de solda
+(glyph AWS) — `DrawWeldSymbol` é só-GUI; substituído por `DrawViewSymbol`+SVG inline
+headless (arrow/other/both AWS A2.4). Ver [[06-open-threads#T12]].
 
 ### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).

@@ -38,6 +38,7 @@ import contraventamento as ctv
 import gusset_ligacao as gus
 import calhas
 import sapata_divisa as sd
+import viga_equilibrio as veq
 import alma_variavel as av
 import tesoura as tes
 import ponte_rolante as pr
@@ -48,6 +49,7 @@ import dg25_ltb as dg25
 import alma_esbelta as ae
 import tensao_ponto as tsp
 import cortante_tapered as cta
+import enrijecedor_painel as enp
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
@@ -441,6 +443,29 @@ def rodar(params, out_dir):
             "precisa_enrijecedor": rzp["precisa_enrijecedor"],
             "FSd_kN": round(rzp["FSd"], 1), "F_Rd_kN": round(rzp["F_Rd"], 1)}
 
+        # Enrijecedor transversal da alma do joelho (NBR 8800 §5.4.3.1) - so quando a
+        # alma do joelho e esbelta E o V_Sd de pico excede o V_Rd sem enrijecedor
+        # (kv=5). Sugere o MAIOR espacamento "a" que atende (menos enrijecedores),
+        # reporta V_Rd(a), kv, I_st minimo. INFORMATIVO/opt-in: nao muda a utilizacao
+        # a menos que o engenheiro adote os enrijecedores.
+        if isinstance(tap, dict):
+            sj = av.props_I(tap["h_joelho"], tap.get("bf", 0.20),
+                            tap.get("tw", 0.008), tap.get("tf", 0.0125))
+            V_sd_j = abs(kV)
+            if ae.e_esbelta(sj, params["fy"]) and \
+               enp.vrd(sj, params["fy"], None)["Vrd"] < V_sd_j:
+                a_sug = enp.a_max_para_vsd(sj, params["fy"], V_sd_j)
+                if a_sug is not None:
+                    ve = enp.vrd(sj, params["fy"], a_sug)
+                    ireq = enp.ist_req(sj, a_sug)
+                    res["zona_painel"].update({
+                        "enrij_a_sug_mm": round(a_sug * 1000, 0),
+                        "enrij_kv": round(ve["kv"], 2),
+                        "enrij_Vrd_kN": round(ve["Vrd"], 1),
+                        "enrij_Vrd_sem_kN": round(
+                            enp.vrd(sj, params["fy"], None)["Vrd"], 1),
+                        "enrij_Ist_req_cm4": round(ireq * 1e8, 1)})
+
     # Gate 7 - SAPATA (NBR 6118) pelo ENVELOPE de combinacoes: cada verificacao
     # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
     # = N min + M ; etc). Pedestal ~ pilar adotado.
@@ -511,21 +536,40 @@ def rodar(params, out_dir):
                         "condutor_mm": rca.get("condutor_diam_mm"),
                         "ok": rca["ok"]}
 
-    # Gate 7 - SAPATA DE DIVISA (excentrica + viga alavanca, Alonso). So quando o
-    # gate fundacao.divisa e informado: pilar na linha do lote. Carga = maior
-    # compressao da base (envelope); vizinho interno = mesma ordem; vao = bay.
+    # Gate 7 - FUNDACAO DE DIVISA (pilar na linha do lote). Duas variantes:
+    #  - RASA  (sem estaca): sapata excentrica + viga alavanca (sapata_divisa).
+    #  - PROFUNDA (com estaca): bloco excentrico sobre estacas + viga de equilibrio
+    #    (viga_equilibrio), usando a P_adm da estaca ja calculada acima.
+    # Carga = maior compressao da base (envelope); vizinho interno = mesma ordem;
+    # vao da viga = bay.
     if params.get("divisa"):
         dvg = dict(params["divisa"])
         N_comp_d = abs(max(n for _, n, _, _ in casos_base))
-        rdv = sd.dimensiona_divisa(
-            P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
-            dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
-            sigma_solo=sap.get("sigma_solo_adm", 200.0),
-            fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
-        save("gate7-divisa.txt", sd.relatorio_pt(rdv))
-        res["divisa"] = {"B": rdv["divisa"]["B"], "L": rdv["divisa"]["L"],
-                         "R_kN": rdv["divisa"]["R"], "e_m": rdv["divisa"]["e"],
-                         "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
+        if params.get("estaca") and res.get("estaca"):          # variante PROFUNDA
+            est_res = res["estaca"]
+            rve = veq.dimensiona_viga_equilibrio(
+                P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
+                dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
+                P_estaca_adm=est_res["P_adm_kN"], a_pilar=est_res.get("bloco_a", 0.30),
+                D_estaca=est_res.get("D", 0.30), e=dvg.get("e"),
+                espacamento=est_res.get("espacamento"),
+                fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
+            save("gate7-divisa.txt", veq.relatorio_pt(rve))
+            res["divisa"] = {"tipo": "estaca", "R_kN": rve["divisa"]["R"],
+                             "e_m": rve["divisa"]["e"],
+                             "n_estacas": rve["divisa"]["n_estacas"],
+                             "viga_As_cm2": rve["viga"]["As_adot_cm2"]}
+        else:                                                    # variante RASA
+            rdv = sd.dimensiona_divisa(
+                P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
+                dist_eixos=g["bay"], dist_divisa=dvg["dist_divisa"],
+                sigma_solo=sap.get("sigma_solo_adm", 200.0),
+                fck=sap.get("fck", 25e3), fyk=sap.get("fyk", 500e3))
+            save("gate7-divisa.txt", sd.relatorio_pt(rdv))
+            res["divisa"] = {"tipo": "sapata", "B": rdv["divisa"]["B"],
+                             "L": rdv["divisa"]["L"], "R_kN": rdv["divisa"]["R"],
+                             "e_m": rdv["divisa"]["e"],
+                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
 
     # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
     # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
@@ -611,10 +655,14 @@ def rodar(params, out_dir):
         # CROSS-CHECK DG25 (validacao INFORMATIVA; nao altera dimensionamento). Compara
         # o M_eLTB elastico do DG25 (secao do MEIO, 5.4.3) com o Mcr do NBR Anexo J
         # (secao mais funda, J.4.2). Lb do regime que governa a FLT.
-        cc_raf = None
+        cc_raf = None; ccap_raf = None
         if segs_flt and flt:
             Lb_gov = max(flt.values(), key=lambda f: f["u"])["Lb"]
             cc_raf = dg25.cross_check_flt(segs_flt, params["fy"], Lb_gov, Cb=cb_raf)
+            # fase 6.14: cross-check de CAPACIDADE (Mn nominal completo, Rpc/Rpg/3
+            # regioes; Cb NAO cancela). INFORMATIVO - nao muda dimensionamento.
+            ccap_raf = dg25.cross_check_capacidade(segs_flt, params["fy"], Lb_gov,
+                                                   Cb=cb_raf)
         # relatorio
         L += ["", "  ESTADOS LOCAIS POR SEGMENTO (FLA/FLM/flexo-compressao; FLT a parte):",
               "    seg |  h(mm) | Msd(kN.m) | interacao_local | governa"]
@@ -665,6 +713,14 @@ def rodar(params, out_dir):
                   "dimensionamento (segue a NBR)." % (
                       cc_raf["razao"], "CONVERGE" if cc_raf["converge"] else "DIVERGE",
                       cc_raf["tol"] * 100)]
+        if ccap_raf is not None:
+            L += ["  [CROSS-CHECK DG25 CAPACIDADE (informativo)] Mn nominal completo "
+                  "(Rpc/Rpg/3 regioes, regiao %s):" % ccap_raf["regiao_dg"],
+                  "         Mn_DG(meio h=%.0fmm)=%.1f kN.m ; Mn_NBR(funda h=%.0fmm)="
+                  "%.1f kN.m -> razao=%.3f %s" % (
+                      ccap_raf["sec_meio"], ccap_raf["Mn_dg"], ccap_raf["sec_funda"],
+                      ccap_raf["Mn_nbr"], ccap_raf["razao"],
+                      "CONVERGE" if ccap_raf["converge"] else "DIVERGE")]
         # ---- COLUNA TAPERED (opcional; h_col_base no gate) ----
         # Mesma logica do rafter: estados LOCAIS por segmento (Lb->0 neutraliza FLT)
         # + FLT de TRECHO (member-level) com a secao mais funda da coluna (o joelho).
@@ -798,7 +854,10 @@ def rodar(params, out_dir):
             "cortante_mesa_sentido": ("haunch/alivio" if sent_raf >= 0
                                       else "adverso/acrescimo"),
             "dg25_razao_raf": round(cc_raf["razao"], 3) if cc_raf else None,
-            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None}
+            "dg25_converge_raf": cc_raf["converge"] if cc_raf else None,
+            "dg25_cap_razao_raf": round(ccap_raf["razao"], 3) if ccap_raf else None,
+            "dg25_cap_regiao_raf": ccap_raf["regiao_dg"] if ccap_raf else None,
+            "dg25_cap_converge_raf": ccap_raf["converge"] if ccap_raf else None}
         if col_res:
             res["alma_variavel"].update(col_res)
 
