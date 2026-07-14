@@ -7,16 +7,22 @@ excêntrico e uma **viga de equilíbrio** (viga alavanca) o liga a um bloco inte
 Fecha o backlog "viga de equilíbrio de divisa excêntrica (estaca)". Fase 6.18.
 Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDANDO PARECER** (2026-07-13). Unidades SI (m, kN). Saídas PT.
+> **STATUS: ✅ PARECER RECEBIDO — 3 CORRIGIDOS** (2026-07-13). Erro de estática no
+> momento (M=R'·e → **P·e**) + cisalhamento obrigatório + peso próprio nas estacas.
+> Ver §Parecer. Unidades SI (m, kN). Saídas PT.
 
 ## Mecânica (corpo rígido — a MESMA já validada em `sapata_divisa`)
 
 ```
 R' = P_divisa · l / (l − e)          reação amplificada no bloco de divisa
 Delta_P = R' − P_divisa              acréscimo -> ALIVIA o pilar interno (praxe 50%)
-M_viga = R' · e                      momento na viga (tração na face SUPERIOR)
-V_viga = Delta_P
+M_viga = P_divisa · e                momento na viga (tração na face SUPERIOR) [ver §Parecer]
+V_viga = Delta_P                     cortante CONSTANTE ao longo do vão (l − e)
 ```
+> Corrigido do parecer: `M = P·e` (NÃO `R'·e`). Prova por corte no centroide do grupo:
+> à direita do corte só atua `P_divisa` no braço `e` → `M = P·e`; pelo outro lado
+> `Delta_P·(l−e) = (R'−P)(l−e) = P·l − P(l−e) = P·e`. Idênticos. `R'·e` superestimava
+> por `R'/P = l/(l−e)`.
 `l` = vão da viga (entre eixos dos pilares); `e` = excentricidade do eixo do pilar
 ao centroide do grupo de estacas. **Não é norma nova** — é a estática de alavanca
 de Alonso/Velloso & Lopes, já validada contra o exemplo trabalhado no
@@ -51,12 +57,45 @@ de Alonso/Velloso & Lopes, já validada contra o exemplo trabalhado no
    `ve`→`veq`) que colidiam com locais de `rodar`. Runtime end-to-end confirmado
    (`res["divisa"]["tipo"]` ∈ {estaca, sapata}).
 
+## Parecer do sênior (2026-07-13) — 3 correções (estática conferida do zero)
+
+### 1 — Momento fletor `M = P·e`, não `R'·e` — 🔴 ERRO GRAVE, CORRIGIDO
+
+Conferi a estática por FBD independente (corte no centroide do grupo): à direita do
+corte a única força é `P_divisa` no braço `e` → **`M = P·e`**. Pelo lado interno,
+`Delta_P·(l−e) = P·e` (idêntico). O código usava `R'·e`, que **superestimava** o
+momento por `l/(l−e)`. No selftest (P=1400, e=0,75, l=5,5): era `1621·0,75=1216` kN·m,
+agora `1400·0,75=1050` kN·m → menos armadura de flexão injustificada. **Sênior correto.**
+Corrigido `viga_equilibrio.py` (`M_viga = P_divisa * e`), relatório e selftest.
+
+### 2 — Cisalhamento obrigatório (NBR 6118 §17.4) — 🔴 OMISSÃO, ADICIONADO
+
+`V_viga = Delta_P` é **constante** ao longo do vão. Faltava verificar a viga ao
+cortante. Adicionada verificação via `viga_baldrame._verifica_cortante` (biela `VRd2`
++ estribo mínimo `VRd3`, Modelo I θ=45°) com `Vd = 1,4·Delta_P`. A iteração de altura
+agora cresce `h` até passar **flexão E biela**; espaçamento de estribo por §18.3.3.2
+(`s ≤ 0,6d≤30cm` ou `0,3d≤20cm` se `Vd>0,67 VRd2`). Saídas novas: `V_d_kN`, `VRd2_kN`,
+`VRd3_min_kN`, `u_biela`, `s_estribo_cm`, `ok_cortante`. No selftest a viga subiu de
+~79 cm para 102 cm de altura (governada pela biela).
+
+### 3 — Peso próprio na contagem de estacas — 🟡 ADICIONADO
+
+Bloco+viga são peças robustas; peso próprio (praxe Alonso ~5% da reação) entra na
+contagem: `n = ⌈1,05·R'/P_adm⌉` via `estaca_profunda.n_estacas(..., peso_bloco=0,05·R')`.
+Aplicado ao bloco de divisa e ao interno. `FATOR_PP=1,05` constante nomeada, documentada
+como praxe (FLAG — refinar com peso real de bloco+viga no detalhamento).
+
+### Confirmados sem alteração
+- Estática de `R'` e `Delta_P`: OK. Alívio 50% no interno (viga calculada p/ 100% de
+  `Delta_P`): OK (parecer endossa). Excentricidade geométrica `e`: OK.
+
 ## Cobertura de teste (fase 6.18)
 
-`tests/test_fase618_viga_equilibrio.py` — 8 testes: reação amplificada (fórmula do
+`tests/test_fase618_viga_equilibrio.py` — 11 testes: reação amplificada (fórmula do
 braço); e maior amplifica mais; nº de estacas cobre R'; alívio 50% no interno; viga
-passa à flexão; excentricidade geométrica; relatório PT; wiring escolhe a variante
-estaca.
+passa à flexão; **M = P·e e não R'·e (estática)**; **cisalhamento V=Delta_P (biela
+VRd2 + estribo)**; **peso próprio ~5% na contagem de estacas**; excentricidade
+geométrica; relatório PT; wiring escolhe a variante estaca.
 
 ## Escopo (FLAGs — Ask-Do-Not-Invent)
 

@@ -59,6 +59,33 @@ def test_viga_tracao_superior_passa():
     assert v["M_max_kNm"] > 0 and v["As_adot_cm2"] >= v["As_min_cm2"]
 
 
+def test_momento_viga_e_P_vezes_e_nao_R():
+    # parecer item 48: estatica de corpo rigido -> M = P_divisa*e (NAO R'*e).
+    r = _r()
+    d = r["divisa"]; v = r["viga"]
+    assert abs(v["M_max_kNm"] - 1400.0 * d["e"]) < 0.02        # M = P*e
+    assert v["M_max_kNm"] < d["R"] * d["e"] - 1.0              # estritamente < R*e (antigo)
+    # coerencia: Delta_P*(l-e) == P*e
+    dP = r["interno"]["delta_P"]
+    assert abs(dP * (5.5 - d["e"]) - 1400.0 * d["e"]) < 1.0
+
+
+def test_viga_verifica_cisalhamento():
+    # cortante obrigatorio (NBR 6118 17.4): V = Delta_P; biela VRd2 nao esmaga; estribo.
+    r = _r()
+    v = r["viga"]; i = r["interno"]
+    assert abs(v["V_max_kN"] - i["delta_P"]) < 0.2            # V = Delta_P
+    assert v["ok_cortante"] is True and v["VRd2_kN"] > v["V_d_kN"]
+    assert v["s_estribo_cm"] > 0 and v["VRd3_min_kN"] > 0
+
+
+def test_peso_proprio_conta_nas_estacas():
+    # peso proprio (~5%) majora a reacao usada na contagem de estacas
+    r = _r()
+    d = r["divisa"]
+    assert d["n_estacas"] >= math.ceil(1.05 * d["R"] / 700.0)
+
+
 def test_excentricidade_estimada_geometrica():
     e = ve.excentricidade_estimada(dist_divisa=0.20, D_estaca=0.40)
     # 2 estacas, s=3D=1.2: x_centroide = 0.2 + 0.15 + 0.6 = 0.95; e = 0.95-0.20=0.75

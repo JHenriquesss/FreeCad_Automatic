@@ -10,9 +10,16 @@
 # Velloso & Lopes / Alonso): a reacao no bloco de divisa e AMPLIFICADA pelo braco
 #   R' = P_divisa . l / (l - e)                (l = vao da viga; e = excentricidade
 #                                               eixo do pilar -> centroide do grupo)
-# O acrescimo Delta_P = R' - P_divisa ALIVIA o pilar interno (praxe: 50%). A viga
-# de equilibrio e uma viga de concreto tracionada na FACE SUPERIOR, M = R'.e.
-# Reaproveita estaca_profunda (n_estacas, bloco) e fundacao_sapata (_armadura_flexao).
+# O acrescimo Delta_P = R' - P_divisa ALIVIA o pilar interno (praxe: 50%).
+# ESFORCOS NA VIGA (parecer item 48 - estatica de corpo rigido, corte no centroide
+# do grupo): a unica forca a direita do corte e P_divisa no braco e, logo
+#   M_viga = P_divisa . e     (NAO R'.e! provado: Delta_P.(l-e) = P.e)
+#   V_viga = Delta_P          (cortante CONSTANTE ao longo do vao l-e)
+# A viga e RC tracionada na FACE SUPERIOR: dimensiona flexao (_armadura_flexao) E
+# CISALHAMENTO obrigatorio (NBR 6118 17.4: biela VRd2 + estribos, via viga_baldrame).
+# Peso proprio do bloco+viga (praxe ~5% de R') entra na contagem de estacas.
+# Reaproveita estaca_profunda (n_estacas, bloco), fundacao_sapata (_armadura_flexao)
+# e viga_baldrame (_verifica_cortante).
 # Ask-Do-Not-Invent: capacidade da estaca (P_adm) vem da SONDAGEM (estaca_profunda);
 # a excentricidade depende do arranjo/diametro (default geometrico, A CONFIRMAR).
 # Unidades SI: m, kN.
@@ -23,9 +30,11 @@ from __future__ import annotations
 import math
 import fundacao_sapata as fs
 import estaca_profunda as ep
+import viga_baldrame as vb
 
 GF = 1.4                     # coef. ponderacao ELU
 FATOR_ALIVIO = 0.5           # fracao do alivio aplicada no bloco interno (praxe 0,5)
+FATOR_PP = 1.05              # majoracao p/ peso proprio bloco+viga na contagem de estacas (praxe Alonso ~5%)
 
 
 def excentricidade_estimada(dist_divisa, D_estaca, espacamento=None, folga_borda=0.15):
@@ -54,29 +63,41 @@ def dimensiona_viga_equilibrio(P_divisa, P_interno, dist_eixos, dist_divisa,
         e = excentricidade_estimada(dist_divisa, D_estaca, s)
     # --- reacao amplificada no bloco de divisa (braco de alavanca) --------------
     R_divisa = P_divisa * dist_eixos / max(dist_eixos - e, 0.01)
-    n_est_div = ep.n_estacas(R_divisa, P_estaca_adm)["n"]
+    # peso proprio bloco+viga (praxe ~5% da reacao) majora a contagem de estacas
+    n_est_div = ep.n_estacas(R_divisa, P_estaca_adm, peso_bloco=(FATOR_PP - 1.0) * R_divisa)["n"]
     # --- alivio no pilar interno -----------------------------------------------
     delta_P = R_divisa - P_divisa
     P_int_ajust = P_interno - FATOR_ALIVIO * delta_P
-    n_est_int = ep.n_estacas(max(P_int_ajust, 0.0), P_estaca_adm)["n"]
+    n_est_int = ep.n_estacas(max(P_int_ajust, 0.0), P_estaca_adm,
+                             peso_bloco=(FATOR_PP - 1.0) * max(P_int_ajust, 0.0))["n"]
     # --- viga de equilibrio: esforcos (tracao na face SUPERIOR) ----------------
-    M_viga = R_divisa * e                              # momento da excentricidade
+    # M_max no centroide do grupo: forcas a direita do corte = so P_divisa @ braco e.
+    # (parecer item 48: M = P.e, NAO R'.e; V = Delta_P constante ao longo do vao.)
+    M_viga = P_divisa * e                              # momento fletor (estatica exata)
     V_viga = delta_P                                   # cortante = acrescimo de carga
     h_viga = max(dist_eixos / 7.0, 0.50)               # viga de transicao (l/7 a l/8)
     b_v = b_viga if b_viga is not None else max(a_pilar, 0.30)
-    d_viga = h_viga - cobrimento - 0.0125
     M_d = GF * M_viga
+    V_d = GF * V_viga
+    d_viga = h_viga - cobrimento - 0.0125
     As_viga, x_d, _, ok = fs._armadura_flexao(M_d, b_v, d_viga, fck, fyk)
-    if As_viga is None:
-        ok = False; As_viga = 0.0
-    for _ in range(6):                                 # aumenta h ate passar
-        if ok:
+    cr = vb._verifica_cortante(V_d, b_v, d_viga, fck, fyk)
+    ok_flex = ok and As_viga is not None
+    ok_cort = cr["ok_biela"] and cr["ok_min"]
+    for _ in range(6):                                 # aumenta h ate passar flexao E biela
+        if ok_flex and ok_cort:
             break
         h_viga *= 1.3
         d_viga = h_viga - cobrimento - 0.0125
         As_viga, x_d, _, ok = fs._armadura_flexao(M_d, b_v, d_viga, fck, fyk)
-        if As_viga is None:
-            ok = False; As_viga = 0.0
+        cr = vb._verifica_cortante(V_d, b_v, d_viga, fck, fyk)
+        ok_flex = ok and As_viga is not None
+        ok_cort = cr["ok_biela"] and cr["ok_min"]
+    if As_viga is None:
+        As_viga = 0.0
+    ok = ok_flex and ok_cort
+    # espacamento de estribo (NBR 6118 18.3.3.2)
+    s_estribo = min(0.6 * d_viga, 0.30) if V_d <= 0.67 * cr["VRd2"] else min(0.3 * d_viga, 0.20)
     As_min = fs.rho_min(fck / 1000.0) * b_v * h_viga
     As_final = max(As_viga, As_min)
     arr = fs.detalha_barras(As_final, b_v, cobrimento)
@@ -91,7 +112,11 @@ def dimensiona_viga_equilibrio(P_divisa, P_interno, dist_eixos, dist_divisa,
         "viga": {"M_max_kNm": round(M_viga, 2), "V_max_kN": round(V_viga, 1),
                  "h": round(h_viga, 2), "b": round(b_v, 2), "d": round(d_viga, 2),
                  "As_cm2": round(As_viga * 1e4, 2), "As_min_cm2": round(As_min * 1e4, 2),
-                 "As_adot_cm2": round(As_final * 1e4, 2), "arr": arr, "ok_flexao": ok},
+                 "As_adot_cm2": round(As_final * 1e4, 2), "arr": arr,
+                 "V_d_kN": round(V_d, 1), "VRd2_kN": round(cr["VRd2"], 1),
+                 "VRd3_min_kN": round(cr["VRd3_min"], 1), "u_biela": round(cr["u_biela"], 3),
+                 "s_estribo_cm": round(s_estribo * 100.0, 1),
+                 "ok_flexao": ok_flex, "ok_cortante": ok_cort, "ok": ok},
         "params": {"P_divisa": P_divisa, "P_interno": P_interno,
                    "dist_eixos": dist_eixos, "dist_divisa": dist_divisa,
                    "P_estaca_adm": P_estaca_adm, "D_estaca": D_estaca,
@@ -112,10 +137,12 @@ def relatorio_pt(r):
          f"   Reacao amplificada R = P.l/(l-e) = {d['R']:.1f} kN (l={p['dist_eixos']:.2f} m)",
          f"   Estacas: {d['n_estacas']} x (P_adm={d['P_estaca_adm']:.0f} kN) ; carga/estaca = {d['carga_estaca']:.1f} kN",
          "", "2. VIGA DE EQUILIBRIO (tracao na face SUPERIOR):",
-         f"   M_max = R.e = {v['M_max_kNm']:.2f} kN.m ; V_max = R - P = {v['V_max_kN']:.1f} kN",
+         f"   M_max = P.e = {v['M_max_kNm']:.2f} kN.m ; V = Delta_P = {v['V_max_kN']:.1f} kN (constante)",
          f"   Secao: {v['b']*100:.0f} x {v['h']*100:.0f} cm (d={v['d']*100:.0f} cm)",
-         f"   As,flexao = {v['As_cm2']:.2f} cm2 ; As,min = {v['As_min_cm2']:.2f} cm2",
+         f"   FLEXAO: As = {v['As_cm2']:.2f} cm2 ; As,min = {v['As_min_cm2']:.2f} cm2",
          f"   Armadura adotada: {v['As_adot_cm2']:.2f} cm2 -> {_arr(v['arr'])}",
+         f"   CORTANTE (NBR 6118 17.4): Vd = {v['V_d_kN']:.1f} kN ; VRd2 (biela) = {v['VRd2_kN']:.1f} kN "
+         f"(u={v['u_biela']:.2f}) ; estribos s <= {v['s_estribo_cm']:.0f} cm",
          "", "3. BLOCO INTERNO (com alivio):",
          f"   Pilar interno P = {i['P']:.0f} kN ; Delta_P = R - P = {i['delta_P']:.1f} kN",
          f"   Alivio {FATOR_ALIVIO*100:.0f}% -> P_ajust = {i['P_ajust']:.1f} kN ; Estacas: {i['n_estacas']}",
@@ -138,11 +165,15 @@ def _selftest():
     assert d["n_estacas"] >= math.ceil(d["R"] / 700.0)
     # alivio reduz o pilar interno
     assert i["P_ajust"] < 1900.0 and i["delta_P"] > 0
-    # viga passa a flexao
-    assert v["ok_flexao"] and v["As_adot_cm2"] > 0
-    print(f"viga_equilibrio self-test PASSED (e={d['e']:.3f} R={d['R']:.0f} kN, "
+    # momento fletor = P.e (estatica exata), NAO R.e
+    assert abs(v["M_max_kNm"] - 1400.0 * d["e"]) < 0.01, f"M={v['M_max_kNm']} vs P.e={1400.0*d['e']:.2f}"
+    assert v["M_max_kNm"] < d["R"] * d["e"]            # menor que a formula antiga R.e
+    # viga passa a flexao E cortante (biela + estribo)
+    assert v["ok_flexao"] and v["ok_cortante"] and v["ok"] and v["As_adot_cm2"] > 0
+    assert v["VRd2_kN"] > v["V_d_kN"]                  # biela nao esmaga
+    print(f"viga_equilibrio self-test PASSED (e={d['e']:.3f} R={d['R']:.0f} kN, M=P.e={v['M_max_kNm']:.0f} kNm, "
           f"{d['n_estacas']} estacas divisa / {i['n_estacas']} interno, "
-          f"viga {v['b']*100:.0f}x{v['h']*100:.0f} As={v['As_adot_cm2']:.1f} cm2)")
+          f"viga {v['b']*100:.0f}x{v['h']*100:.0f} As={v['As_adot_cm2']:.1f} cm2 Vd={v['V_d_kN']:.0f} kN)")
 
 
 if __name__ == "__main__":
