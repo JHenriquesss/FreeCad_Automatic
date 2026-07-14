@@ -282,5 +282,41 @@ DG25); 3 apontamentos de escopo sem bug (F_L monossim. já coberto pelo ramo 5.4
 (NBR 8800 §5.4.3.1; AISC DG25 §5.4). Não-regressão: `cross_check_flt` intocado;
 `a=None`⇒kv=5 idêntico. Ver [[06-open-threads#T11]].
 
+## D48 — 2026-07-13/14 — Balde 4 (fases 6.15–6.19) + 9 correções de parecer
+**Módulos novos:** `props_I_mono.py` (perfil I monossimétrico), `forcas_localizadas.py`
+(NBR 8800 §5.7 + enrijecedor de apoio), `viga_equilibrio.py` (viga de divisa sobre
+estacas). `dg25_ltb` estendido (envelope FLB/TFY/ruptura §5.4.4–7, mono-aware).
+`techdraw_exec` ganhou glyph de solda AWS A2.4 headless.
+
+**Correções dos pareceres (cada uma conferida contra PDF/estática antes de aceitar):**
+- **rt (5.4-11) usa `hw`, não `hc`** (item 45). O `h` ao quadrado em `rt` é a altura
+  LIVRE da alma; `hc` entra só no `aw`. Dupl-sim `hc=hw` ⇒ byte-idêntico; mono era
+  +2,3% contra a segurança (FLT). Verbatim DG25 pág 61.
+- **kc (5.4-24) usa `hw`, não `hc`** (item 46). Idem — `kc=4/√(h/tw)`, h=alma livre.
+  Mono +7,8% contra a segurança. Verbatim DG25 pág 63.
+- **Teto de Mp no Rpt (5.4-28) usa `Sxc`, não `Sxt`** (item 46). A eq 5.4-28 imprime
+  `Sxt` mas remete a "termos como no Rpc"; o bloco Rpc (DG25 **pág 60**) define
+  `Mp=Fy·Zx≤1,6·Fy·Sxc`. Logo `Sxt` = **erratum tipográfico**; AISC 360 F4 tem UMA
+  definição de Mp (Sxc). **Rejeitei na 1ª rodada** (verbatim isolado de 5.4-28); o
+  sênior insistiu, segui a remissão interna → sênior correto. Lição: quando a eq diz
+  "as defined previously", **seguir a remissão** antes de cravar. Só difere quando
+  Zx/Sxt>1,6 (teto Sxt clampava Rpt em 1,6).
+- **M da viga de equilíbrio = `P·e`, não `R'·e`** (item 48). Estática de corpo rígido:
+  corte no centroide do grupo, à direita só atua P no braço e ⇒ M=P·e; `ΔP·(l−e)=P·e`.
+  `R'·e` superestimava por `l/(l−e)` → excesso de armadura. Selftest 1216→1050 kN·m.
+- **Viga de equilíbrio: +cisalhamento §17.4 + peso próprio + pele** (item 48). V=ΔP
+  constante ⇒ verifica biela VRd2 + estribo (reusa `viga_baldrame._verifica_cortante`);
+  h itera até passar flexão E biela (subiu 79→102 cm). Peso próprio ~5% na contagem de
+  estacas (`FATOR_PP=1,05`, `n_estacas(peso_bloco=)`). Armadura de pele §17.3.5.2.3
+  (0,10% Ac,alma/face, teto 5 cm²/m, s≤20cm) para h>60cm.
+- **Glyph de solda arrow/other/both (AWS A2.4)** (item 49). Posição do triângulo vs
+  linha de referência = lado da junta (abaixo=arrow, acima=other, ambos=espelhado) —
+  não pode ser engessado. `lado` lido do dado de fabricação (`cfg[callout]["lado_solda"]`,
+  Ask-Do-Not-Invent, default arrow). Perna vertical sempre à esquerda.
+
+**Aceito sem alteração:** inércia `I_par` do enrijecedor (chapa cheia, erro ~0,05%,
+A_eff já inclui a faixa colaborante — parecer endossa, FLAG explícito).
+**REVISAO-INDICE itens 45–49 ✅ HOMOLOGADOS.** Ver [[03-phases#FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14]], [[06-open-threads#T12]].
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

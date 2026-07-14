@@ -1,5 +1,38 @@
 # 03 — Fases
 
+## FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14
+**Escopo:** resolver os 6 itens residuais de refino (não-bug) do sistema: perfil I
+monossimétrico, envelope DG25 de estados de flexão, forças localizadas §5.7, viga de
+equilíbrio de divisa sobre estacas, glyph de solda AWS headless, PE09 legível.
+Detalhe por fase em [[04-decisions#D48]].
+- **6.15 `props_I_mono.py`** (novo): propriedades de perfil I monossimétrico (Wxc≠Wxt,
+  Iyc/Iy, hc/hp/ho, Cw mono, J, rt) → habilita o ramo monossimétrico real do DG25;
+  `dg25_ltb` fica mono-aware por `.get()` (dupl-sim byte-idêntico). `test_fase615` (11).
+- **6.16 `dg25_ltb` estendido:** envelope FLB §5.4.4 / TFY §5.4.5 / ruptura §5.4.6 /
+  Mn=min §5.4.7 (verbatim DG25 pág 62–64). INFORMATIVO. `test_fase616` (13).
+- **6.17 `forcas_localizadas.py`** (novo): NBR 8800 §5.7 completo (flexão mesa 5.7.2,
+  escoamento alma 5.7.3, enrugamento 5.7.4, flamb. lateral 5.7.5, flamb. par 5.7.6) +
+  enrijecedor de apoio §5.7.9 (barra comprimida, Lb=0,75h, faixa 12tw/25tw). Verbatim
+  pág 57–62. `test_fase617` (11). Fecha backlog "enrijecedor de apoio §5.7.4".
+- **6.18 `viga_equilibrio.py`** (novo): variante PROFUNDA (estaca) da fundação de
+  divisa; R'=P·l/(l−e), viga alavanca RC. Wiring ramifica estaca/sapata em
+  `rodar_galpao` (gate divisa). `test_fase618` (13).
+- **6.19 glyph solda + PE09 (`techdraw_exec`):** símbolo AWS A2.4 de filete headless
+  via `DrawViewSymbol`+SVG inline (resolve o último resíduo do 2D, T6 glyph); PE09
+  quadros ampliados via `DrawViewSpreadsheet.Scale`. `test_fase619` (9).
+
+**HOMOLOGAÇÃO (5 pareceres sênior, 2026-07-13/14): 9 correções técnicas reais.**
+REVISAO-INDICE **itens 45–49 ✅**. Cada alegação conferida contra PDF/estática antes de
+aceitar. 7 bugs contra-segurança + 2 omissões normativas; 1 rejeição minha revertida
+com evidência. Correções: (45) `rt` hc²→**hw²** (5.4-11); (46) `kc` hc→**hw** (5.4-24)
++ teto `Mp` do Rpt Sxt→**Sxc** (5.4-28 erratum, remete ao Rpc pág 60); (47) homologado
+(k/ln documentados, inércia I_par aceita ~0,05%); (48) M do fletor da viga **R'·e→P·e**
+(erro de estática) + cisalhamento §17.4 (biela VRd2+estribo, V=ΔP) + peso próprio ~5%
+nas estacas + armadura de pele §17.3.5.2.3 (h>60cm); (49) glyph arrow/other/both AWS
+A2.4 (posição do triângulo = lado da junta). Ver [[04-decisions#D48]], [[06-open-threads#T12]].
+Não-regressão: pytest **245 passed**; `smoke_executivo` **7/7**. Commits `12ff107`→`01e14e7`.
+**Gate humano:** push branch + merge PR (bloqueado p/ assistente).
+
 ## FECHADA — Backlog do parecer 6.b (fases 6.4–6.8) + revisão itens 34–38 — 2026-07-11
 **Escopo:** esgotar o backlog do parecer da alma variável (coluna tapered, zona de
 painel, FLT Anexo J, vento→tesoura) + desdobramento (alma esbelta Anexo H); processar

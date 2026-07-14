@@ -1,5 +1,21 @@
 # 06 — Open threads
 
+## T12 — Balde 4 (fases 6.15–6.19) — RESOLVIDO 2026-07-13/14
+- **~~Glyph AWS de solda (resíduo do 2D T6)~~ RESOLVIDO:** `DrawWeldSymbol` é só-GUI;
+  substituído por `TechDraw::DrawViewSymbol` + SVG inline (`_svg_solda_filete`), headless.
+  Parametrizado arrow/other/both (AWS A2.4). Último resíduo do executivo 2D fechado.
+- **9 correções dos pareceres 45–49 aplicadas** — ver [[04-decisions#D48]]. pytest 245,
+  smoke 7/7.
+- **FLAGs residuais (Ask-Do-Not-Invent, entradas de projeto — não são bugs):**
+  - viga de equilíbrio: `lado_solda`/`solda_campo` do glyph, `e`/arranjo do grupo na
+    divisa, `P_adm` da estaca (sondagem), cargas reais dos pilares (envelope) = entradas.
+  - `props_I_mono`/DG25 envelope são **INFORMATIVOS** (cross-check; dimensionamento
+    segue NBR 8800). Perfis com `Iyc/Iy≤0,23` fogem de F4/F5 (viram perfil T, F9):
+    `Rpt=1,0` per DG25, fora do galpão típico.
+  - `forcas_localizadas`: `ln`/`k`/dist. extremidade = dado de fabricação; soldas do
+    enrijecedor e esmagamento local = detalhamento executivo.
+- **Gate humano pendente:** push branch `revisao/homologacao-12-modulos` + merge PR.
+
 ## HANDOFF — continuar em outro chat (2026-07-08)
 **Onde paramos:** análise de lacunas do galpão completo ENCERRADA + todos os FLAGs corrigíveis fechados. Branch `revisao/homologacao-12-modulos`, HEAD `7009b61`, pushed. Ref 20×10 inalterada (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5) = prova de não-regressão.
 
@@ -107,9 +123,9 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 CS` era da versão antiga). `techdraw_exec._secao_ligacao` adiciona um corte
 hachurado (`CutSurfaceDisplay="Hatch"`) a cada detalhe de ligação, sob smoke
 (`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D]].
-**Ainda aberto (menor):** símbolo gráfico de solda (glyph AWS) — `DrawWeldSymbol`
-é feature de GUI (não instanciável headless); o dado de solda segue como
-texto/callout (já rastreável ao cálculo). Polimento visual, não lacuna de dado.
+**~~Aberto (menor)~~ RESOLVIDO (fase 6.19, 2026-07-13):** símbolo gráfico de solda
+(glyph AWS) — `DrawWeldSymbol` é só-GUI; substituído por `DrawViewSymbol`+SVG inline
+headless (arrow/other/both AWS A2.4). Ver [[06-open-threads#T12]].
 
 ### T6-hist — Build 3D: defeitos de teto (histórico, corrigido)
 Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado empírico no FreeCAD** [[04-decisions#D7]]: calha invertida (lado D), telha enterrada nas terças, regra de auditoria de orientação da calha, **chapa de emenda no ápice** (CONEX_CUMEEIRA, chapa+4 M24/pórtico).
