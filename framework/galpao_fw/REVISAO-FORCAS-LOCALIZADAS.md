@@ -5,9 +5,10 @@ Novo módulo `forcas_localizadas.py` com a Seção 5.7 completa da NBR 8800:2008
 do **enrijecedor de apoio** (§5.7.8/5.7.9). Fecha o backlog "enrijecedor de apoio
 §5.7.4". Fase 6.17. Criado 2026-07-13.
 
-> **STATUS: ⏳ AGUARDANDO PARECER** (2026-07-13). Método **verbatim** do PDF
-> (`pesquisa/aço/nbr8800_2008_1.pdf`, pág 57–62, texto + imagens das equações —
-> zero-erro). Unidades SI (m, kN); `F_Rd` = força resistente de cálculo.
+> **STATUS: ✅ HOMOLOGADO SEM IMPEDITIVOS** (2026-07-13). Auditoria do sênior conferiu
+> as 4 contas manuais (501,8 / 552 / 414 / 163,4 kN) por engenharia reversa e bateu
+> casas decimais. 2 ressalvas processuais atendidas — ver §Parecer. Método **verbatim**
+> do PDF (`pesquisa/aço/nbr8800_2008_1.pdf`, pág 57–62). Unidades SI (m, kN).
 
 ## Base normativa (NBR 8800 §5.7 — verbatim)
 
@@ -63,6 +64,27 @@ escoamento int/ext, flambagem par + ½); dispensa 5.7.2.1; ramos do enrugamento;
 aplicabilidade da flambagem lateral (razão ≤2,30) + Cr 32E/16E; geometria 5.7.9.5;
 enrijecedor barra comprimida (Lb=0,75h, faixa 12tw); dimensionador; agregador
 `precisa_enrijecedor`.
+
+## Parecer do sênior (2026-07-13) — HOMOLOGADO, 2 ressalvas processuais
+
+Sem erro de método. Coeficientes verbatim confirmados (1,10; 6,25; 0,66/0,33;
+32E/16E; 2,30/1,70; 12tw/25tw; Lb=0,75h). Contas manuais auditadas por eng. reversa:
+`k=20 mm` (=tf+a, filete 4 mm) e `ln=100 mm` fecham flexão 501,8 / escoamento 552/414
+/ flambagem par 163,4 kN. Agregador `reacao_apoio` corretamente filtra os estados de
+extremidade e exclui a flambagem da alma (par de forças).
+
+**R1 (processual) — documentar `k`/`ln` no teste. ATENDIDO.** `test_fase617` ganhou
+constantes nomeadas `K_REF=0,020` e `LN_REF=0,100` com comentário do racional
+(k=tf+a; ln=comprimento de atuação) e os resultados esperados anotados nas asserções.
+
+**R2 (matemático) — inércia do enrijecedor `I_par`. ACEITO como simplificação.**
+`I = t_st·(2b_st+tw)³/12` (chapa cheia contínua) despreza a inércia própria da faixa
+de alma colaborante e trata a lacuna como `t_st` (não `tw`). A inércia exata da seção
+em cruz seria `I − t_st·tw³/12 + L_faixa·tw³/12`. Erro ≈ **0,05%** (termo cúbico
+central irrelevante frente ao cubo do braço das abas). Direção: leve **super**estimativa
+de I → χ marginalmente maior (contra a segurança), porém <0,05% — desprezível. A
+**área efetiva** `A_eff` (que domina `λ0=√(A_eff fy/Ne)`) **já inclui** a faixa 12tw/25tw.
+Mantido conforme prática tradicional (parecer endossa). Registrado como FLAG explícito.
 
 ## Escopo (FLAGs — Ask-Do-Not-Invent)
 

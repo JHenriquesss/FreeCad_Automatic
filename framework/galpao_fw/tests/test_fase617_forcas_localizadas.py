@@ -20,6 +20,15 @@ GA1 = 1.10
 E = 200e6
 
 
+# Perfil de referencia da auditoria (parecer item 47): 600x250, tw=8, tf=16, fy=345.
+# Inputs de fabricacao/geometria fixados para reprodutibilidade das contas manuais:
+#   k  = 0,020 m = 20 mm  (transicao mesa-alma: k = tf + a; tf=16 + filete a=4 mm)
+#   ln = 0,100 m = 100 mm (comprimento de atuacao da forca localizada)
+# Conferem: flexao mesa 501,8 kN; escoamento int/ext 552/414 kN; flamb. par 163,4 kN.
+K_REF = 0.020
+LN_REF = 0.100
+
+
 def _sec():
     return av.props_I(0.60, 0.25, 0.008, 0.016)
 
@@ -44,10 +53,10 @@ def test_flexao_local_mesa_meia_perto_extremidade():
 
 def test_escoamento_local_alma_interior_e_extremidade():
     s = _sec()
-    i = fl.escoamento_local_alma(s, FY, ln=0.10, k=0.02, na_extremidade=False)
-    e = fl.escoamento_local_alma(s, FY, ln=0.10, k=0.02, na_extremidade=True)
-    assert abs(i["F_Rd"] - 1.10 * (5 * 0.02 + 0.10) * FY * 0.008 / GA1) < 1e-6
-    assert abs(e["F_Rd"] - 1.10 * (2.5 * 0.02 + 0.10) * FY * 0.008 / GA1) < 1e-6
+    i = fl.escoamento_local_alma(s, FY, ln=LN_REF, k=K_REF, na_extremidade=False)
+    e = fl.escoamento_local_alma(s, FY, ln=LN_REF, k=K_REF, na_extremidade=True)
+    assert abs(i["F_Rd"] - 1.10 * (5 * K_REF + LN_REF) * FY * 0.008 / GA1) < 1e-6   # 552 kN
+    assert abs(e["F_Rd"] - 1.10 * (2.5 * K_REF + LN_REF) * FY * 0.008 / GA1) < 1e-6  # 414 kN
     assert e["F_Rd"] < i["F_Rd"]
 
 
@@ -104,7 +113,7 @@ def test_enrijecedor_apoio_barra_comprimida():
 
 def test_dimensiona_enrijecedor_apoio():
     s = _sec()
-    base = fl.reacao_apoio(s, FY, 0.0, ln=0.10, k=0.02)["F_Rd_min"]
+    base = fl.reacao_apoio(s, FY, 0.0, ln=LN_REF, k=K_REF)["F_Rd_min"]
     F_sd = base * 1.8                                  # excede -> exige enrijecedor
     dim = fl.dimensiona_enrijecedor_apoio(s, FY, F_sd)
     assert dim["atende"] and dim["escolha"]["t_st"] >= 0.016 / 2.0   # 5.7.9.5b
@@ -112,8 +121,8 @@ def test_dimensiona_enrijecedor_apoio():
 
 def test_reacao_apoio_precisa_enrijecedor():
     s = _sec()
-    r_ok = fl.reacao_apoio(s, FY, 100.0, ln=0.10, k=0.02)
-    r_no = fl.reacao_apoio(s, FY, 5000.0, ln=0.10, k=0.02)
+    r_ok = fl.reacao_apoio(s, FY, 100.0, ln=LN_REF, k=K_REF)
+    r_no = fl.reacao_apoio(s, FY, 5000.0, ln=LN_REF, k=K_REF)
     assert r_ok["atende"] and not r_ok["precisa_enrijecedor"]
     assert not r_no["atende"] and r_no["precisa_enrijecedor"]
     assert r_no["governa"] in r_no["estados"]
