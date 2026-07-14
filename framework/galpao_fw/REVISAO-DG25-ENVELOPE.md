@@ -6,8 +6,9 @@ Guide 25 §5.4: **FLB** (flambagem local da mesa comprimida, §5.4.4), **TFY**
 o **envelope** Mn = min(CFY, LTB, FLB, TFY, TFR) (§5.4.7). Fecha o backlog "FLB/TFY
 DG25 §5.4.4/5/6" (residual dos itens 43/44). Fase 6.16. Criado 2026-07-13.
 
-> **STATUS: ✅ PARECER RECEBIDO — 1 CORRIGIDO, 1 REJEITADO C/ VERBATIM** (2026-07-13).
-> **INFORMATIVO** — dimensionamento segue a NBR 8800 (Anexo G/J). Ver §Parecer abaixo.
+> **STATUS: ✅ PARECER RECEBIDO (2 RODADAS) — 2 CORRIGIDOS** (2026-07-13).
+> F1 (kc) e F2 (teto Mp) ambos corrigidos. **INFORMATIVO** — dimensionamento segue a
+> NBR 8800 (Anexo G/J). Ver §Parecer abaixo.
 
 ## Base normativa (AISC DG25 §5.4 — verbatim das imagens, pág 62–64)
 
@@ -29,9 +30,9 @@ kc = 4/√(h/tw),  0,35 ≤ kc ≤ 0,76   (h = hw, alma LIVRE)               (5.
 Sxt ≥ Sxc:  TFY não aplica.
 Sxt < Sxc:  Mn = Rpt·Fy·Sxt                                           (5.4-25)
 Rpt:  hc/tw ≤ λpw           → Mp/Myt                                   (5.4-26)
-      λpw < hc/tw ≤ λrw     → [Mp/Myt − (Mp/Myt−1)(λ−λpw)/(λrw−λpw)] ≤ Mp/Myt (5.4-27)
+      λpw < hc/tw ≤ λrw     → [Mp/Myt − (Mp/Myt−1)(λ−λpw)/(λrw−λpw)] ≤ Mp/Myt (5.4-27)  [λ = hc/tw, alma]
       hc/tw > λrw ou Iyc/Iy ≤ 0,23 → 1,0                              (5.4-28)
-Mp = Fy·Zx ≤ 1,6·Fy·Sxt (5.4-28) ; Myt = Fy·Sxt (5.4-29)
+Mp = Fy·Zx ≤ 1,6·Fy·Sxc (5.4-28*) ; Myt = Fy·Sxt (5.4-29)   [*Sxt impresso = erratum; ver §Parecer F2]
 λpw = 3,76·√(E/Fy) ; λrw = 5,70·√(E/Fy)
 ```
 
@@ -64,8 +65,9 @@ Afg = bft·tft ; Afn = Afg − n_furos·dh·tft
 
 ## Cobertura de teste (fase 6.16)
 
-`tests/test_fase616_dg25_envelope.py` — 12 testes: FLB compacta/não-compacta/esbelta;
+`tests/test_fase616_dg25_envelope.py` — 13 testes: FLB compacta/não-compacta/esbelta;
 **kc usa h livre (hw) e não hc (5.4-24)**; **kc duplo-sim inalterado**;
+**teto Mp do Rpt usa Sxc, não Sxt (5.4-28)**;
 TFY duplo-sim não aplica / mono aplica; TFR sem furos não aplica / com furos reduz;
 envelope governa o menor estado; mono c/ furos inclui CFY/LTB/FLB/TFY/TFR; prismático
 Lb curto → CFY/LTB/FLB.
@@ -88,14 +90,31 @@ DG25 eq **5.4-24** verbatim: `kc = 4/√(h/tw)`, onde `h` = altura **livre** da 
   `test_kc_usa_h_livre_da_alma_nao_hc` + `test_kc_duplo_sim_inalterado` (fase 6.16
   → 12 testes).
 
-### F2 — teto de `Mp` no `Rpt` (5.4-28): `Sxc` vs `Sxt` — ❌ REJEITADO (DG25 usa Sxt)
+### F2 — teto de `Mp` no `Rpt` (5.4-28): `Sxc` vs `Sxt` — ✅ PROCEDENTE, CORRIGIDO (2ª rodada)
 
-O sênior sugeriu `Mp = Fy·Zx ≤ 1,6·Fy·Sxc` (regra geral do AISC F4.1). **DG25 pág 63
-eq 5.4-28 verbatim mostra `Mp = Fy·Zx ≤ 1,6·Fy·Sxt`** — o DG25 define um `Mp`
-**específico do bloco TFY/Rpt**, referido à mesa **tracionada**, porque
-`Rpt = Mp/Myt` com `Myt = Fy·Sxt` (5.4-29). O código já usa `Sxt` (linha `rpt`) =
-casa com o verbatim. **Mantido.** (O `Mp` da eq geral 5.4-9/Rpc — outra função,
-`mp()` — usa `Sxc(=Wx)`, também correto.)
+**Histórico honesto:** na 1ª rodada rejeitei com base no verbatim isolado de 5.4-28
+(pág 63, que imprime `Sxt`). O sênior insistiu (erratum tipográfico do DG25) e cobrou
+conferência contra a definição primária. **Reabri e conferi a evidência decisiva:**
+
+- 5.4-28 (pág 63) diz textualmente *"and all other terms are as defined for Rpc
+  previously"*.
+- O bloco **Rpc** (DG25 **pág 60**, imagem renderizada) define, no seu *"where"*:
+  **`Mp = Fy·Zx ≤ 1,6·Fy·Sxc`** e `Myc = Fy·Sxc`.
+- Logo o `Sxt` impresso em 5.4-28 **contradiz a própria remissão** → é **erratum**.
+  O AISC 360 F4 tem **uma** definição de `Mp` (com `Sxc`), usada por `Rpc` e `Rpt`.
+
+**Sênior correto.** `Mp` é propriedade da seção (fibras extremas de **compressão**);
+a resistência da mesa tracionada já entra por `Myt = Fy·Sxt`.
+
+- **Corrigido:** `rpt()` passou a usar `mp_dg(sec,fy)` (o `Mp` canônico do Rpc,
+  `≤ 1,6·Fy·Sxc`) em vez de `1,6·Fy·Sxt`.
+- **Impacto:** só difere quando `Zx/Sxt > 1,6` (o teto `Sxt` clampava `Rpt` em 1,6).
+  Ex. mesa comp. 450×40 / trac. 70×5 / alma 12 (alma compacta): `Zx/Sxt=1,671` →
+  `Rpt` era 1,60 (clamp), agora **1,671** (correto, per-norma). Para seções I usuais
+  o *shape factor* fica <1,6 e nada muda.
+- **Teste novo:** `test_rpt_mp_teto_usa_sxc_nao_sxt` (fase 6.16 → 13 testes).
+- **Nota λ (ponto #3 do sênior):** `rpt()` usa `λ = hc/tw` (esbeltez da **alma**),
+  não `bfc/2tfc` — já correto; conferido.
 
 ### Nota informativa — `Iyc/Iy ≤ 0,23` → perfil T (F9)
 

@@ -263,11 +263,15 @@ def mn_flb(sec, fy):
 
 def rpt(sec, fy):
     """Fator de plastificacao da alma p/ mesa TRACIONADA (5.4-26/27/28). Espelha
-    Rpc mas referido a Myt=Fy Sxt. Iyc/Iy<=0,23 OU alma esbelta -> Rpt=1,0."""
+    Rpc mas referido a Myt=Fy Sxt. Iyc/Iy<=0,23 OU alma esbelta -> Rpt=1,0.
+    Mp: parecer item 46 F2 (2a rodada) - o teto e 1,6 Fy Sxc (NAO Sxt). A eq 5.4-28
+    imprime Sxt, mas remete a 'todos os termos como definidos para Rpc' (pag 60), onde
+    Mp = Fy Zx <= 1,6 Fy Sxc. O Sxt em 5.4-28 e erratum tipografico do DG25; o AISC 360
+    F4 define Mp unico com Sxc. Usa mp() canonico (= o do Rpc)."""
     lam = hc(sec) / sec["tw"]; lpw = _lam_pw(fy); lrw = _lam_rw(fy)
     Iyc_Iy = sec.get("Iyc_Iy", 0.5)
     Sxt = sec.get("Wxt", sec["Wx"])
-    Mp = min(fy * sec["Zx"], 1.6 * fy * Sxt)             # 5.4-28
+    Mp = mp_dg(sec, fy)                                  # Fy Zx <= 1,6 Fy Sxc (5.4-28*)
     Myt = fy * Sxt                                       # 5.4-29
     mp_myt = Mp / Myt
     if lam > lrw or Iyc_Iy <= 0.23:

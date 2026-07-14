@@ -73,6 +73,20 @@ def test_tfy_mono_mesa_tracionada_menor_aplica():
     assert abs(r["Mn"] - r["Rpt"] * FY * m["Wxt"]) < 1e-6
 
 
+def test_rpt_mp_teto_usa_sxc_nao_sxt():
+    # parecer item 46 F2 (2a rodada): o Mp de 5.4-28 tem teto 1,6 Fy Sxc (NAO Sxt).
+    # A eq imprime Sxt (erratum), mas remete a "termos como no Rpc" (DG25 pag 60),
+    # onde Mp = Fy Zx <= 1,6 Fy Sxc. Geometria com Zx/Sxt>1,6 e alma compacta:
+    # teto Sxt daria Rpt=1,6 (clamp); teto Sxc da Rpt=Zx/Sxt>1,6.
+    m = pm.props_I_mono(0.60, 0.45, 0.040, 0.07, 0.005, 0.012)
+    lam = m["hc"] / m["tw"]
+    assert lam <= 3.76 * math.sqrt(dg.E / FY)     # alma compacta -> Rpt = Mp/Myt
+    assert m["Zx"] / m["Wxt"] > 1.6               # razao ultrapassa 1,6
+    Rpt = dg.rpt(m, FY)
+    assert abs(Rpt - m["Zx"] / m["Wxt"]) < 1e-6   # Mp=Fy Zx (teto Sxc nao morde)
+    assert Rpt > 1.6 + 1e-6                        # NAO clampou em 1,6 (teto Sxt)
+
+
 def test_tfr_sem_furos_nao_aplica():
     m = pm.props_I_mono(0.60, 0.28, 0.019, 0.12, 0.0095, 0.008)
     assert dg.mn_tfr(m, FY, FU, n_furos=0, dh=0.0)["aplica"] is False
