@@ -10,12 +10,20 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **HANDOFF (continuar em outro chat)**, T7 pareceres pendentes, PR #1, backlog
-- [[07-discovered-bugs]] — relatório detalhado de inconformidades e bugs descobertos no framework
-- [[08-new-discovered-bugs]] — relatório detalhado de novas inconformidades e bugs descobertos sob as diretrizes técnicas de revisão de projetos
+- [[06-open-threads]] — **T13 auditoria (push pendente)**, HANDOFF, PR #1, backlog
 
 ## Estado atual (2026-07-15)
-**Nova auditoria de bugs com base nas Diretrizes Técnicas concluída.** Relatório detalhado gerado em [[08-new-discovered-bugs]]. Identificados 4 novos bugs/inconformidades críticas, incluindo omissão de cisalhamento em sapata de divisa, erro normativo de combinações de vento com sobrecarga favorável em pórticos, erro mecânico na flexo-tração do helper do nbr8800, e falta de travamento transversal para estacas simples ou duplas. Todos os 9 bugs originais do ciclo anterior permanecem resolvidos e verificados ([[07-discovered-bugs]]). Código preservado intacto.
+**Auditoria "Diretrizes Técnicas" (bugs 8.1–8.36) concluída** — via MCP NotebookLM, 5
+lotes: **33 bugs reais corrigidos + 3 falsos positivos** (8.9 junta aditiva, 8.11 `Lc`
+conservador, 8.14 cortante sem B2). Temas: cortante viga alavanca, uplift γq=0,
+flexo-tração abs, fencepost `Lb_terca`, travas B1/B2, console `Mz`, `SEC_COLS` por-coluna,
+fogo incremental (Anexo B) + `θ/θ_cr`, `Nsd_tirante` geométrico, calha `h_elevacao`, e a
+**observabilidade do QUADRO DE VERIFICAÇÕES** (14 verificações antes omitidas surfaçam;
+`terreno.py` deixou de ser órfão; export TechDraw completo). Commits `dad7b87`→`741221d`
+na branch `revisao/homologacao-12-modulos` (**não pushada**). Selftests por módulo ✅;
+**smoke completo pendente** (exige `pycufsm`). Ver [[03-phases]], [[04-decisions#D49]],
+[[06-open-threads#T13]]. Os relatórios de trabalho `07-`/`08-`/`review_completo.md` foram
+**consolidados aqui e removidos** (wiki mantida na estrutura do skill).
 
 ## Estado anterior (2026-07-14)
 **29 módulos matemáticos.** Balde 4 (fases 6.15–6.19) FECHADO **e HOMOLOGADO** — 6 itens
@@ -60,8 +68,8 @@ zero pendente.** 8 alegações de erro grave refutadas com o PDF (imagens via Se
 1 bug real acolhido. **21 módulos matemáticos.** **PENDENTE gate humano:** merge PR #1+#4;
 **push da branch** (bloqueado p/ assistente → usuário roda `git push`). [[06-open-threads]].
 
-last-consolidated: 2026-07-14, sessions: 10 (fases 3–6.c + homologação itens 28–33 +
+last-consolidated: 2026-07-15, sessions: 11 (fases 3–6.c + homologação itens 28–33 +
 backlog parecer 6.b fases 6.4–6.8 itens 34–38 + balde 2 fases 6.9–6.12 itens 39–42 +
-balde 3 fases 6.13–6.14 itens 43–44 + **balde 4 fases 6.15–6.19 itens 45–49**: perfil
-I monossimétrico, DG25 envelope §5.4.4–7, forças localizadas §5.7, viga de equilíbrio
-de divisa sobre estacas, glyph solda AWS A2.4; 9 correções de parecer)
+balde 3 fases 6.13–6.14 itens 43–44 + balde 4 fases 6.15–6.19 itens 45–49 + **auditoria
+"Diretrizes Técnicas" bugs 8.1–8.36 via NotebookLM: 33 reais + 3 falsos positivos**;
+markdowns 07-/08-/review_completo consolidados e removidos)
