@@ -162,7 +162,13 @@ def _analisa_combo(nome, combo, Efac=1.0):
     if sumH < 1e-9:
         B2 = 1.0
     else:
-        B2 = 1.0 / (1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH))
+        # denom = 1 - (1/Rs)*(dh*sumN)/(H*sumH). A parcela subtraida e a razao
+        # entre a carga gravitacional do andar e a carga critica de flambagem
+        # lateral global. Se denom <= 0, a carga vertical atingiu/superou a
+        # critica -> INSTABILIDADE GLOBAL (colapso por P-Delta). B2 e sempre >= 1,0
+        # (o efeito P-Delta so amplifica; nunca alivia).
+        denom = 1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH)
+        B2 = float("inf") if denom <= 0.0 else max(1.0 / denom, 1.0)
     out = {"nome": nome, "B2": B2, "dh": dh, "sumN": sumN, "sumH": sumH, "Fn": Fn}
     # ---- esforcos amplificados por GRUPO ------------------------------------
     # Colunas: cada linha de coluna e um grupo (secao pode variar)
@@ -210,8 +216,15 @@ def analyse():
     Efac = 0.8 if reduziu else 1.0
     final = [_analisa_combo(n, c, Efac) for n, c in combos.items()] if reduziu else base
     B2max_f = max(r["B2"] for r in final)
+    # Limite de validade do MAES (NBR 8800 4.9.7 / Anexo D): 1,40 com rigidez
+    # ORIGINAL (B2max0) ou 1,55 com rigidez REDUZIDA (B2max_f). Acima disso a
+    # estrutura e de GRANDE deslocabilidade e o metodo aproximado nao e valido
+    # (exige analise rigorosa de 2a ordem). B2 infinito = instabilidade global.
+    maes_valido = (math.isfinite(B2max0) and math.isfinite(B2max_f)
+                   and B2max0 <= 1.40 and B2max_f <= 1.55)
     return {"combos": final, "B2max": B2max_f, "B2max0": B2max0,
-            "classe": classe, "reduziu": reduziu, "Efac": Efac}
+            "classe": classe, "reduziu": reduziu, "Efac": Efac,
+            "maes_valido": maes_valido}
 
 
 def memoria_pt(a):
@@ -234,6 +247,12 @@ def memoria_pt(a):
     L += ["", f"Deslocabilidade: B2max = {a['B2max0']:.3f} -> {a['classe']}"]
     if a["reduziu"]:
         L += [f"  Rigidez reduzida 80% ; B2max final = {a['B2max']:.3f}"]
+    if not a.get("maes_valido", True):
+        L += ["", "*** ATENCAO: MAES INVALIDO (NBR 8800 4.9.7) ***",
+              "  B2 excede o limite (1,40 rigidez original / 1,55 reduzida) OU e",
+              "  infinito (instabilidade global P-Delta). Estrutura de GRANDE",
+              "  deslocabilidade: EXIGE analise rigorosa de 2a ordem e/ou enrijecer",
+              "  o portico (aumentar secoes / adicionar contraventamento)."]
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 

@@ -100,11 +100,15 @@ def verifica_console(caso):
     V_pl_Rd = 0.6 * fy * Aw / GA1
     u_cis = (Rv / V_pl_Rd) if V_pl_Rd else float("inf")
     # (b) flexao na raiz (elastico, conservador): W = t*L^2/6 ; M_Rd = W*fy/ga1.
-    #     M_Sd = Rv*ecc (mesma flexao que gera f_bV na solda). Z=t*L^2/4 disponivel
-    #     mas fica flagado (flambagem local do bordo comprimido - ver FLAG).
+    #     M_Sd = |M| + |Mz|: M=Rv*ecc e Mz=Ht*(L/2+h_trilho) fletem a chapa em torno
+    #     do MESMO eixo forte (ambos no plano da chapa) -> tensoes normais colineares
+    #     que SOMAM (flexao reta, nao obliqua). Consistente com o grupo de solda, que
+    #     ja soma f_bV+f_bH. Z=t*L^2/4 disponivel mas fica flagado (flambagem local
+    #     do bordo comprimido - ver FLAG).
+    M_Sd_chapa = abs(M) + abs(Mz)
     W = t * (L ** 2) / 6.0
     M_Rd = W * fy / GA1
-    u_flex = (M / M_Rd) if M_Rd else float("inf")
+    u_flex = (M_Sd_chapa / M_Rd) if M_Rd else float("inf")
 
     res = {
         "M": M, "Mz": Mz, "perna_mm": round(perna * 1000.0, 1),
@@ -113,8 +117,8 @@ def verifica_console(caso):
                   "f_v": f_v, "f_horiz": f_horiz, "f_h": f_h, "f_bV": f_bV,
                   "f_bH": f_bH, "L_ef": L_ef},
         "chapa_cisalhamento": {"V_Rd": V_pl_Rd, "u": u_cis, "OK": u_cis <= 1.0},
-        "chapa_flexao": {"M_Sd": M, "M_Rd": M_Rd, "W": W, "u": u_flex,
-                         "OK": u_flex <= 1.0},
+        "chapa_flexao": {"M_Sd": M_Sd_chapa, "M": M, "Mz": Mz, "M_Rd": M_Rd,
+                         "W": W, "u": u_flex, "OK": u_flex <= 1.0},
     }
     us = {"solda": u_solda, "chapa_cis": u_cis, "chapa_flex": u_flex}
     res["u_max"] = max(us.values())
@@ -181,7 +185,8 @@ def _selftest():
     assert abs(r["chapa_cisalhamento"]["V_Rd"] - 0.6 * 250e3 * 0.016 * L / GA1) < 1e-6
     W = 0.016 * L**2 / 6.0
     assert abs(r["chapa_flexao"]["M_Rd"] - W * 250e3 / GA1) < 1e-6
-    assert abs(r["chapa_flexao"]["M_Sd"] - M) < 1e-9
+    # M_Sd da chapa = |M| + |Mz| (flexao reta aditiva, mesmo eixo forte)
+    assert abs(r["chapa_flexao"]["M_Sd"] - (abs(M) + abs(Mz))) < 1e-9
     # console curto/fino sob carga enorme: nem 12mm basta -> adota 12 e NAO ATENDE
     r2 = verifica_console({"Rv": 3000.0, "Ht": 300.0, "ecc": 0.60, "t": 0.006,
                            "L": 0.12, "fy": 250e3, "fu": 400e3})

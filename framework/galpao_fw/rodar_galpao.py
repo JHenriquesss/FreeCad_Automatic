@@ -660,7 +660,11 @@ def rodar(params, out_dir):
         sent_raf = cta.sentido_haunch(segs_env)
         cme_alivio_max = 0.0                             # maior reserva/acrescimo (kN)
         n_terca = params["terca"].get("n_por_agua", 3)
-        Lb_terca = L_raft / (n_terca + 1)               # mesa sup (gravidade)
+        # n_por_agua = numero de VAOS (espacos) entre tercas na meia-agua, com
+        # travamento tambem no beiral e na cumeeira -> espacamento = L_raft/n_terca
+        # (mesmo divisor do vao da telha na L300 e do modelo em build_galpao). NAO
+        # dividir por n_terca+1 (fencepost): subestimaria Lb e superestimaria a FLT.
+        Lb_terca = L_raft / n_terca                     # mesa sup (gravidade)
         Lb_mf = Lb_raf                                   # mesa inf (succao) - mao-francesa
         # secao mais funda do rafter (governa a FLT do trecho)
         deep = max((s for s in segs_env if s.get("sec_props")),

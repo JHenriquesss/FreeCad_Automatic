@@ -4,10 +4,9 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 
 > [!NOTE]
 > **Status Geral (2026-07-15):**
-> - **Fase 1 (bugs 8.1–8.4):** ✅ 4/4 verificados (NotebookLM) e corrigidos — commit `dad7b87`.
-> - **Fase 9 (bugs 8.5–8.13):** ✅ 7 reais corrigidos (8.5, 8.6, 8.7, 8.8, 8.10, 8.12, 8.13) + ⚪ 2 falsos positivos (8.9, 8.11), todos verificados no notebook *"Diretrizes Técnicas para Revisão de Projetos de Engenharia"*.
->
-> Selftests dos módulos afetados (`escada`, `plataforma`, `fogo_nbr14323`, `sapata_divisa`, `calhas`) reexecutados sem regressão. (Ambiente sem `pytest`; verificação por `--selftest` de cada módulo.)
+> - **Fase 1 (bugs 8.1–8.4):** ✅ 4/4 verificados e corrigidos — commit `dad7b87`.
+> - **Fase 9 (bugs 8.5–8.13):** ✅ 7 reais corrigidos (8.5, 8.6, 8.7, 8.8, 8.10, 8.12, 8.13) + ⚪ 2 falsos positivos (8.9, 8.11) — commit `06130c0`.
+> - **Fase 10 (bugs 8.14–8.17):** ✅ 3 reais corrigidos (8.15, 8.16, 8.17) + ⚪ 1 falso positivo (8.14) — verificados no notebook *"Diretrizes Técnicas para Revisão de Projetos de Engenharia"*.
 
 ---
 
@@ -28,6 +27,11 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 | **Bug 8.11** | 🔴 Crítico | [gusset_ligacao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/gusset_ligacao.py) | Definição de comprimento de flambagem L_livre padrão incorreta usando Lc. | AISC DG29 / Thornton | **⚪ Falso positivo** |
 | **Bug 8.12** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Esforço do tirante de terça Nsd_tirante hardcoded em 8.0 kN sem cálculo real. | NBR 8800 | **✅ Resolvido** |
 | **Bug 8.13** | 🟡 Médio | [fogo_nbr14323.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/fogo_nbr14323.py) | Espessura de tinta intumescente é ignorada no cálculo incremental de temperatura do aço. | NBR 14323 | **✅ Resolvido** |
+| **Bug 8.14** | 🔴 Crítico | [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py) | Omissão do fator $B_2$ na amplificação do esforço cortante de translação lateral $V_{lt}$. | NBR 8800 (Item D.2.4) | **⚪ Falso positivo** |
+| **Bug 8.15** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Erro de "fencepost" no cálculo do vão de flambagem superior do rafter ($Lb_{terca}$). | NBR 8800 (Anexo J.4.2) | **✅ Resolvido** |
+| **Bug 8.16** | 🟡 Médio | [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py) | Ausência de salvaguardas para $B_2$ negativo ou excessivo (instabilidade de 2ª ordem). | NBR 8800 (Item 4.9.7) | **✅ Resolvido** |
+| **Bug 8.17** | 🟡 Médio | [console_ponte.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/console_ponte.py) | Omissão do momento horizontal $M_z$ (surto lateral) na flexão da raiz da chapa do console. | NBR 8800 (§5.4) | **✅ Resolvido** |
+
 
 ---
 
@@ -210,3 +214,53 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
       return round(theta_s_prot, 1)
   ```
   O fator redutor fixo de `0.35` é aplicado diretamente sobre a temperatura sem proteção. Como a variável `espessura_mm` é ignorada, alterar a especificação de espessura da película seca (DFT) no arquivo de entrada não gera nenhuma alteração física na temperatura calculada, mascarando o comportamento real do perfil sob fogo.
+
+---
+
+### Bug 8.14: Omissão de $B_2$ no Cortante Lateral em `estabilidade_b1b2.py`
+* **Arquivo:** [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py#L120)
+* **Status:** **⚪ FALSO POSITIVO** — nenhuma correção. **MCP:** a NBR 8800 **Item D.2.4** é literal: *"A força cortante solicitante de cálculo pode ser tomada igual à da análise elástica de primeira ordem [...] ou igual a: $V_{Sd} = V_{nt} + V_{lt}$"* — **sem** amplificação por $B_2$ (só $M$ e $N$ são amplificados, D.2.1/D.2.2). O código `v = mf_nt + mf_lt` está **correto**; aplicar $B_2·V_{lt}$ seria uma formulação inexistente na norma. (Ponto já confrontado e rejeitado em parecer sênior 2026-07-06.)
+* **Risco:** ~~🔴 Crítico~~ (não procede)
+* **Descrição:** A rotina `_combina_grupo` calcula o cortante final $V_{sd}$ simplesmente somando de forma linear os componentes `mf_nt` e `mf_lt`:
+  ```python
+  v = mf_nt[e][iV] + mf_lt[e][iV]
+  ```
+  De acordo com as regras de segunda ordem (NBR 8800 Anexo D.1.1), os esforços provenientes da translação lateral (estrutura `lt`) devem ser multiplicados pelo fator de amplificação global $B_2$, resultando em:
+  $$V_{sd} = V_{nt} + B_2 \cdot V_{lt}$$
+  Ao ignorar a amplificação no cortante lateral, o framework subdimensiona o esforço solicitante de cisalhamento em pilares e ligações de pórticos deslocáveis sujeitos ao vento.
+
+---
+
+### Bug 8.15: Erro de "Fencepost" no Comprimento de Flambagem $Lb_{terca}$ em `rodar_galpao.py`
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L663)
+* **Status:** **✅ RESOLVIDO** — `Lb_terca = L_raft / n_terca` (era `/(n_terca+1)`). **MCP:** *fencepost* confirmado — `n_por_agua` é o **número de vãos** (com travamento no beiral e na cumeeira), logo o espaçamento é `L/n_terca`. O divisor errado encolhia o $L_b$ e **superestimava a resistência à FLT** (inseguro). Consistente agora com a L300 (vão da telha) e com o modelo em `build_galpao` — ambos já usam `/n_terca`.
+* **Risco:** 🔴 Crítico
+* **Descrição:** O vão de flexotração/flambagem lateral da mesa superior do rafter sob ações gravitacionais (`Lb_terca`) está definido como:
+  ```python
+  Lb_terca = L_raft / (n_terca + 1)
+  ```
+  Contudo, o parâmetro `n_terca` (retornado pela chave `n_por_agua` das terças) é usado no modelo físico (`build_galpao.py`) como o número de divisões (vãos) da telha, o que significa que o telhado já é dividido em `n_terca` espaços (gerando `n_terca - 1` terças intermediárias). Ao dividir `L_raft` por `n_terca + 1` no orquestrador, assume-se falsamente a existência de um travamento adicional, subestimando o comprimento livre de flambagem lateral com torção (FLT) real (por exemplo, em `n_por_agua = 3`, assume-se $L_b = L/4$ em vez de $L/3$, resultando em avaliações não-conservadoras de resistência da viga).
+
+---
+
+### Bug 8.16: Ausência de Salvaguardas para $B_2$ Negativo/Instabilidade em `estabilidade_b1b2.py`
+* **Arquivo:** [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py#L161)
+* **Status:** **✅ RESOLVIDO** — adicionadas salvaguardas: `denom ≤ 0 → B2 = inf` (instabilidade global P-Δ), `B2 = max(1/denom, 1.0)` (piso 1,0), flag `maes_valido` e alerta no relatório quando `B2max0 > 1,40` (rigidez original) ou `B2max_f > 1,55` (reduzida) ou infinito. **MCP:** B2 é sempre ≥ 1,0; denominador nulo/negativo = carga vertical ≥ carga crítica de flambagem lateral (colapso); limites de validade do MAES = **1,40 / 1,55** (NBR 8800 4.9.7 — acima → grande deslocabilidade, exige análise rigorosa).
+* **Risco:** 🟡 Médio
+* **Descrição:** A equação de amplificação global de segunda ordem (MAES) calcula $B_2$ como:
+  ```python
+  B2 = 1.0 / (1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH))
+  ```
+  Se a rigidez lateral do pórtico for muito baixa em relação às cargas gravitacionais verticais, a expressão `(1.0 / RS) * (dh * sumN) / (H_STORY * sumH)` pode atingir ou ultrapassar `1.0`. Nesse caso, `B2` torna-se infinito ou negativo (ex.: $-10.0$), invertendo os momentos e gerando esforços absurdos que passam nas verificações locais sem disparar alertas. O código carece de um limitador inferior de $B_2 \ge 1.0$ e de uma trava de erro crítico caso $B_2$ supere o limite normativo da NBR 8800 de $1.40$ (original) ou $1.55$ (reduzida), que indica que o método aproximado é inválido.
+
+---
+
+### Bug 8.17: Omissão de Momento $M_z$ na Flexão da Chapa do Console em `console_ponte.py`
+* **Arquivo:** [console_ponte.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/console_ponte.py#L107)
+* **Status:** **✅ RESOLVIDO** — `u_flex = (|M| + |Mz|)/M_Rd` (era só `M/M_Rd`). **MCP:** $M = R_v·ecc$ e $M_z = H_t·(L/2+h_{trilho})$ fletem a chapa em torno do **mesmo eixo forte** (ambos no plano da chapa) → flexão reta, tensões normais **colineares que somam** (não é flexão oblíqua). Agora consistente com o grupo de solda, que já somava `f_bV+f_bH`. Selftest atualizado e OK.
+* **Risco:** 🟡 Médio
+* **Descrição:** Ao verificar as tensões na chapa do console em balanço, o código define a utilização por flexão pura no plano como:
+  ```python
+  u_flex = (M / M_Rd)
+  ```
+  onde `M = Rv * ecc`. No entanto, a força horizontal de surto transversal $H_t$ atua no topo do trilho com excentricidade vertical, gerando o momento fletor horizontal coplanar $M_z = H_t \cdot (L/2 + h_{trilho})$ na raiz da solda/chapa. Como $M_z$ também provoca tensões normais de flexão na mesma seção transversal da chapa do console, ignorá-lo no cálculo de $u_{flex}$ é inseguro, sendo necessário verificar a chapa sob a soma absoluta/envelope dos momentos $(|M| + |M_z|) / M_{Rd}$.
