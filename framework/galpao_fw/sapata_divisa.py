@@ -88,8 +88,10 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
     V_viga = R_divisa - P_divisa  # cortante = delta_P (diferenca entre R e P)
     # Secao da viga alavanca: h ~ L/6 a L/8 (viga de transicao)
     h_viga = max(dist_eixos / 7.0, 0.50)
-    # Largura da viga = largura do pilar da divisa
-    b_viga = 0.25  # largura tipica da viga alavanca (m)
+    # Largura da viga = largura do pilar da divisa (dimensao PARALELA a divisa,
+    # b_col_paralela); se nao informada, adota 0,25 m (largura tipica). A viga
+    # nao deve ser mais estreita que o pilar que ela apoia.
+    b_viga = max(b_col_paralela or 0.0, 0.25)
     d_viga = h_viga - cobrimento - 0.0125
     
     # Armadura longitudinal (flexao): tracao na face SUPERIOR.

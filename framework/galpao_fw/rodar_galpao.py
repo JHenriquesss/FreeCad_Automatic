@@ -354,13 +354,28 @@ def rodar(params, out_dir):
     Ndp, Ldp = ctv.n_diagonal(Fp, g["bay"], g["eave"])           # parede
     Ndc, Ldc = ctv.n_diagonal(Fp, g["bay"], g["span"] / 2.0)     # cobertura
     Nmf = ctv.forca_estabilizacao_2pct(abs(cbm_v["Msd"]), sc["d_raf"])
+    # Nsd do TIRANTE DE COBERTURA (sag rod): componente TANGENCIAL (down-slope) do
+    # peso da cobertura (telhas + tercas G + sobrecarga Q), acumulada nas tercas de
+    # uma agua ate a linha de tirante (NBR 8800 / Manual CBCA). A soma das
+    # componentes das n_terca tercas equivale a:
+    #   T_d = (1,25 G + 1,5 Q) * w_agua * sin(theta) * trib_tir
+    # e w_agua*sin(theta) = (span/2)*tan(theta) = (ridge - eave). Assim a tracao
+    # ESCALA com a inclinacao e o vao (nao mais fixa em 8 kN, que subestimava
+    # telhados ingremes/longos). Mantem-se o valor da config como piso pratico
+    # (pre-tensao de montagem). NAO inclui o peso proprio do rafter (self).
+    n_tir_cob = max(int(sp["longarina"].get("n_tirantes", 2)), 1)
+    trib_tir = g["bay"] / (n_tir_cob + 1)
+    N_tir_d = ((1.25 * params["cargas"]["G"] + 1.5 * params["cargas"]["Q"])
+               * (g["ridge"] - g["eave"]) * trib_tir)
+    Nsd_tirante = max(N_tir_d, float(cb.get("Nsd_tirante", 0.0)))
+    res["Nsd_tirante_kN"] = round(Nsd_tirante, 2)
     barras = [
         ctv.verifica_barra("Contravento de parede (d20)", cb["d_contrav"], fyb, fub,
                            Ndp, Ldp, pretensionada=True),
         ctv.verifica_barra("Contravento de cobertura (d20)", cb["d_contrav"], fyb, fub,
                            Ndc, Ldc, pretensionada=True),
         ctv.verifica_barra("Tirante de cobertura (d16)", cb["d_tirante"], fyb, fub,
-                           cb["Nsd_tirante"], g["bay"] / 2.0, pretensionada=True),
+                           Nsd_tirante, g["bay"] / 2.0, pretensionada=True),
         ctv.verifica_barra("Mao-francesa (d16)", cb["d_tirante"], fyb, fub, Nmf, 0.40)]
     save("gate7-contraventamento.txt", ctv.relatorio_pt(barras))
     res["barras_ok"] = all(x["OK"] for x in barras)
@@ -556,7 +571,12 @@ def rodar(params, out_dir):
     # longo da calha) x meia-largura (uma agua) projetada; I pluviometrica do gate.
     if params.get("calha"):
         agua = g["span"] / 2.0 / max(math.cos(math.atan(slope)), 1e-6)
-        rca = calhas.dimensiona(g["comprimento"], agua,
+        # NBR 10844: parede vertical adjacente (platibanda/oitao acima da calha)
+        # contribui com 50% da sua area (chuva com vento). h_elevacao = altura
+        # dessa face vertical (m); 0,0 p/ calha de beiral sem platibanda.
+        _cal = params["calha"]
+        h_elev_calha = _cal.get("h_elevacao", 0.0) if isinstance(_cal, dict) else 0.0
+        rca = calhas.dimensiona(g["comprimento"], agua, h_elevacao=h_elev_calha,
                                 I_mm_h=params.get("chuva_I_mm_h", 150.0))
         save("gate-calha.txt", calhas.relatorio_pt(rca))
         res["calha"] = {"vazao_Lmin": rca["vazao_Lmin"],

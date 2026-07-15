@@ -54,7 +54,10 @@ def viga_secundaria(L, b_trib, q_perm, q_acidental=Q_UTILIZACAO,
             freq = math.sqrt(980.665 * 200e6 * Ix / (w_total_serv * L ** 3)) / (2 * math.pi)
         except Exception:
             freq = 0
-        if freq < FREQ_MIN and L > 4.0:
+        # NBR 8800 Anexo L.1.2: "em nenhum caso a frequencia natural pode ser
+        # inferior a 3 Hz" - sem isencao por vao. Vao curto ja tende a freq alta
+        # (f ~ 1/L^1.5), mas o criterio e verificado SEMPRE (sem bypass L>4,0).
+        if freq < FREQ_MIN:
             continue
         if melhor is None:
             melhor = {"perfil": pnome, "sec": sec, "L": L, "M_max": M_max,

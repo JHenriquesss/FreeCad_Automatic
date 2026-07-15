@@ -124,19 +124,49 @@ def verifica_fogo(sec_perfil, fy, G_k, Q_k, TRRF_min=60, lb=None,
             "F_fi_kN": round(F_fi, 1), "protecao": protecao}
 
 
+# Propriedades termicas TIPICAS dos materiais de protecao (A CONFIRMAR com o
+# boletim tecnico do fabricante). lambda_p CALIBRADO p/ reproduzir as cartas de
+# cobertura (Tab. 6.13): tinta 1,27 mm protege u/A~240 a ~550 C em 60 min; spray
+# 15 mm protege u/A~90 a ~550 C em 60 min. (lambda_p em W/m.C ; c_p em J/kg.C ;
+# rho_p em kg/m3). O char da tinta intumescente tem condutividade efetiva baixa.
+_PROT_TERM = {
+    "intumescente": {"lambda_p": 0.0072, "c_p": 1000.0, "rho_p": 250.0},
+    "spray":        {"lambda_p": 0.20,   "c_p": 1100.0, "rho_p": 300.0},
+}
+
+
 def _temp_com_protecao(t_min, u_A, tipo, espessura_mm):
-    """Temperatura do aco com protecao (simplificado).
-    Retorna temperatura aproximada apos t_min."""
-    dp = espessura_mm / 1000.0
-    if tipo == "intumescente":
-        # Pintura intumescente: reducao aproximada de 60-70% na temperatura
-        theta_s_prot = temp_aco_nao_protegido(t_min, u_A) * 0.35
-        return round(theta_s_prot, 1)
-    elif tipo == "spray":
-        # Spray vermiculita/cimento: reducao maior
-        theta_s_prot = temp_aco_nao_protegido(t_min, u_A) * (0.20 if dp >= 0.025 else 0.30)
-        return round(theta_s_prot, 1)
-    return temp_aco_nao_protegido(t_min, u_A)
+    """Temperatura do aco COM protecao pelo metodo incremental da NBR 14323
+    (Anexo B / Fluxograma 2). A ESPESSURA da protecao (tp) entra fisicamente:
+      - na condutancia termica lambda_p/tp (barreira ao fluxo de calor);
+      - no fator de inercia termica xi = (c_p*rho_p)/(c_a*rho_a)*tp*(u/A).
+    Passo a passo (Dt<=30 s), com:
+      dtheta_a = (lambda_p/tp)*(u/A)/(c_a*rho_a) * (theta_g - theta_a)/(1+xi/3)*Dt
+                 - (e^(xi/10) - 1) * dtheta_g
+    Retorna a temperatura do aco (C) apos t_min."""
+    tp = espessura_mm / 1000.0                 # espessura da protecao (m)
+    prop = _PROT_TERM.get(tipo)
+    if tp <= 0 or prop is None:
+        return temp_aco_nao_protegido(t_min, u_A)
+    lam_p, c_p, rho_p = prop["lambda_p"], prop["c_p"], prop["rho_p"]
+    ca, rho_a = 600.0, 7850.0                  # aco
+    Dt = min(0.5, max(t_min / 200.0, 1e-3))    # passo (min) <= 30 s p/ estabilidade
+    n_passos = max(1, int(round(t_min / Dt)))
+    Dt = t_min / n_passos
+    xi = (c_p * rho_p) / (ca * rho_a) * tp * u_A
+    theta_a = 20.0
+    theta_g_prev = 20.0
+    for i in range(n_passos):
+        theta_g = 20.0 + 345.0 * math.log10(8.0 * (i + 1) * Dt + 1.0)
+        d_theta_g = theta_g - theta_g_prev
+        d_theta_a = ((lam_p / tp) * (u_A / (ca * rho_a))
+                     * (theta_g - theta_a) / (1.0 + xi / 3.0) * Dt * 60.0
+                     - (math.exp(xi / 10.0) - 1.0) * d_theta_g)
+        if d_theta_a < 0.0 and d_theta_g > 0.0:
+            d_theta_a = 0.0                    # NBR 14323: nao resfria enquanto gases sobem
+        theta_a += d_theta_a
+        theta_g_prev = theta_g
+    return round(min(theta_a, theta_g_prev), 1)
 
 
 def espessura_protecao(t_min, u_A, tipo="intumescente", temp_critica=550.0):
