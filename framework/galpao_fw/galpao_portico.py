@@ -354,14 +354,20 @@ def _combos_elu(ponte=None, sismo=None):
     Opcionais: ponte (adiciona C4/C5) e sismo (adiciona C6)."""
     base = {"G": 1.0, "Q": 1.0}
     combos = {}
-    for tag, gf, qf, wf in [("grav", 1.25, 1.50, 0.6),
+    # wf = fator de combinacao ELU do vento: PRIMARIO 1,40 ; SECUNDARIO (combo de
+    # gravidade, Q predomina) = gamma_f * psi0 = 1,40 * 0,60 = 0,84 (NBR 8681).
+    # Gfav: G FAVORAVEL (gamma_g=1,0) com vento principal (uplift). A sobrecarga Q
+    # (variavel gravitacional) NAO pode estabilizar o arrancamento -> gamma_q=0
+    # (NBR 8681: acoes variaveis favoraveis nao entram na combinacao). qf=0,80 seria
+    # nao-conservativo (subdimensiona chumbadores/blocos/estacas sob tracao).
+    for tag, gf, qf, wf in [("grav", 1.25, 1.50, 0.6 * 1.40),
                              ("uplift", 1.00, 0.00, 1.40),
                              ("Gdesf", 1.25, 0.80, 1.40),
-                             ("Gfav", 1.00, 0.80, 1.40)]:
+                             ("Gfav", 1.00, 0.00, 1.40)]:
         for wsuf, wkey in (("W1", "W1"), ("W2", "W2")):
             c = {"G": gf}
             if qf > 0: c["Q"] = qf
-            c[wkey] = 1.40 if wsuf.endswith("W") else wf
+            c[wkey] = wf
             combos[f"C1_{tag}_{wsuf}"] = c
     if ponte:
         combos["C4_ponteW"] = {"G": 1.25, "PONTE": 1.50, "W1": 0.6 * 1.40}

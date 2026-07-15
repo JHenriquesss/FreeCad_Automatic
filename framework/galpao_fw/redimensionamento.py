@@ -67,14 +67,17 @@ def avalia(cols_perfil, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
     drift = gp.analyse()["drift"]
     lim = gp.EAVE / 300.0
     nv = gp.N_VAOS
-    worst_int = 0.0
+    # Interacao POR ELEMENTO (nao so a global): o guloso precisa saber QUAL peca
+    # governa para subir a peca certa (senao esgota a coluna 0 antes da viga).
+    int_cols = [0.0] * (nv + 1)
+    int_raf = 0.0
     for combo in a["combos"]:
         for i in range(nv + 1):
             gc = combo[f"col_{i}"]
             sec = perfis.PERFIS[cols_perfil[i]]
             r = chk.verifica(sec, FY, gp.EAVE, Nsd=gc["Nsd"], Msd=gc["Msd"],
                              Vsd=gc["Vsd"], Kx=1.0, Ky=1.0, Lb=lb_col)
-            worst_int = max(worst_int, r["interacao"])
+            int_cols[i] = max(int_cols[i], r["interacao"])
         for i in range(nv):
             for side in (0, 1):
                 sname = "E" if side == 0 else "D"
@@ -82,9 +85,11 @@ def avalia(cols_perfil, raf, fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA):
                 r = chk.verifica(perfis.PERFIS[raf], FY, est.SEC_VIGAS[0]["L"],
                                  Nsd=gv["Nsd"], Msd=gv["Msd"], Vsd=gv["Vsd"],
                                  Kx=1.0, Ky=1.0, Lb=lb_raf)
-                worst_int = max(worst_int, r["interacao"])
+                int_raf = max(int_raf, r["interacao"])
+    worst_int = max(max(int_cols), int_raf)
     return {"cols": list(cols_perfil), "raf": raf, "B2": a["B2max"],
             "drift": drift, "lim_flecha": lim, "int_pior": worst_int,
+            "int_cols": int_cols, "int_raf": int_raf,
             "peso": _peso(cols_perfil, raf), "passa": worst_int <= LIM_INT and drift <= lim}
 
 
@@ -112,13 +117,13 @@ def melhor(fixed=True, lb_col=LB_COL, lb_raf=LB_VIGA, seed=None):
             try:
                 idx = _ESC_COL.index(cols[i])
                 if idx < _MAX_COL_IDX:
-                    arts.append((r["int_pior"], "col", i, idx + 1))
+                    arts.append((r["int_cols"][i], "col", i, idx + 1))
             except ValueError:
                 pass
         try:
             idx = _ESC_RAF.index(raf)
             if idx < _MAX_RAF_IDX:
-                arts.append((r["int_pior"] * 0.9, "raf", 0, idx + 1))
+                arts.append((r["int_raf"], "raf", 0, idx + 1))
         except ValueError:
             pass
         if not arts:

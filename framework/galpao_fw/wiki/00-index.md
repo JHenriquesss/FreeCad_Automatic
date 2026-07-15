@@ -11,8 +11,13 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
 - [[06-open-threads]] — **HANDOFF (continuar em outro chat)**, T7 pareceres pendentes, PR #1, backlog
+- [[07-discovered-bugs]] — relatório detalhado de inconformidades e bugs descobertos no framework
+- [[08-new-discovered-bugs]] — relatório detalhado de novas inconformidades e bugs descobertos sob as diretrizes técnicas de revisão de projetos
 
-## Estado atual (2026-07-14)
+## Estado atual (2026-07-15)
+**Nova auditoria de bugs com base nas Diretrizes Técnicas concluída.** Relatório detalhado gerado em [[08-new-discovered-bugs]]. Identificados 4 novos bugs/inconformidades críticas, incluindo omissão de cisalhamento em sapata de divisa, erro normativo de combinações de vento com sobrecarga favorável em pórticos, erro mecânico na flexo-tração do helper do nbr8800, e falta de travamento transversal para estacas simples ou duplas. Todos os 9 bugs originais do ciclo anterior permanecem resolvidos e verificados ([[07-discovered-bugs]]). Código preservado intacto.
+
+## Estado anterior (2026-07-14)
 **29 módulos matemáticos.** Balde 4 (fases 6.15–6.19) FECHADO **e HOMOLOGADO** — 6 itens
 residuais de refino: **6.15** `props_I_mono.py` (perfil I monossimétrico → ramo mono
 real do DG25, `dg25_ltb` mono-aware); **6.16** DG25 envelope FLB/TFY/ruptura §5.4.4–7;

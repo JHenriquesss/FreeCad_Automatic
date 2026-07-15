@@ -12,6 +12,7 @@
 from __future__ import annotations
 import math
 import fundacao_sapata as fs
+import viga_baldrame as vb        # reaproveita _verifica_cortante (biela/estribo min)
 
 GF = 1.4                     # coef. ponderacao ELU
 SIGMA_SOLO_ADM = 250.0       # kN/m2 (default, sobrescrito por input)
@@ -91,20 +92,30 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
     b_viga = 0.25  # largura tipica da viga alavanca (m)
     d_viga = h_viga - cobrimento - 0.0125
     
-    # Armadura longitudinal (flexao): tracao na face SUPERIOR
+    # Armadura longitudinal (flexao): tracao na face SUPERIOR.
+    # Cisalhamento (NBR 6118 17.4): V = Delta_P e CONSTANTE ao longo do vao; a
+    # viga alavanca frequentemente e governada pela biela (VRd2), nao pela flexao.
     M_d = GF * M_viga
+    V_d = GF * V_viga
     As_viga, x_d, _, ok = fs._armadura_flexao(M_d, b_viga, d_viga, fck, fyk)
-    if As_viga is None:
-        ok = False
-        As_viga = 0.0
-    # Se a viga nao passa, aumentar h ate passar (iteracao simples)
-    for _ in range(5):
-        if ok: break
+    cr = vb._verifica_cortante(V_d, b_viga, d_viga, fck, fyk)
+    ok_flex = ok and As_viga is not None
+    ok_cort = cr["ok_biela"] and cr["ok_min"]
+    # Se nao passa flexao E biela, aumentar h ate passar as duas
+    for _ in range(6):
+        if ok_flex and ok_cort: break
         h_viga *= 1.3
         d_viga = h_viga - cobrimento - 0.0125
         As_viga, x_d, _, ok = fs._armadura_flexao(M_d, b_viga, d_viga, fck, fyk)
-        if As_viga is None: ok = False; As_viga = 0.0
-    
+        cr = vb._verifica_cortante(V_d, b_viga, d_viga, fck, fyk)
+        ok_flex = ok and As_viga is not None
+        ok_cort = cr["ok_biela"] and cr["ok_min"]
+    if As_viga is None:
+        As_viga = 0.0
+    ok = ok_flex and ok_cort
+    # espacamento maximo de estribo (NBR 6118 18.3.3.2)
+    s_estribo = min(0.6 * d_viga, 0.30) if V_d <= 0.67 * cr["VRd2"] else min(0.3 * d_viga, 0.20)
+
     # Armadura de pele / construtiva
     As_viga_min = fs.rho_min(fck / 1000.0) * b_viga * h_viga
     As_viga_final = max(As_viga, As_viga_min)
@@ -119,11 +130,13 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
                     "delta_P": round(delta_P, 1), "B": round(B_int, 2),
                     "L": round(L_int, 2), "A": round(B_int * L_int, 2)},
         "viga": {"M_max_kNm": round(M_viga, 2), "V_max_kN": round(V_viga, 1),
-                 "h": round(h_viga, 2), "b": b_viga, "d": round(d_viga, 2),
-                 "As_cm2": round(As_viga * 1e4, 2),
+                 "Vd_kN": round(V_d, 1), "h": round(h_viga, 2), "b": b_viga,
+                 "d": round(d_viga, 2), "As_cm2": round(As_viga * 1e4, 2),
                  "As_min_cm2": round(As_viga_min * 1e4, 2),
                  "As_adot_cm2": round(As_viga_final * 1e4, 2),
-                 "arr": arr_viga, "ok_flexao": ok},
+                 "VRd2_kN": round(cr["VRd2"], 1), "VRd3_min_kN": round(cr["VRd3_min"], 1),
+                 "u_biela": round(cr["u_biela"], 3), "s_estribo_max_m": round(s_estribo, 3),
+                 "arr": arr_viga, "ok_flexao": ok_flex, "ok_cortante": ok_cort, "ok": ok},
         "params": {"P_divisa": P_divisa, "P_interno": P_interno,
                    "dist_eixos": dist_eixos, "dist_divisa": dist_divisa,
                    "sigma_solo": sig, "fck": fck, "fyk": fyk}
@@ -147,6 +160,9 @@ def relatorio_pt(r):
          f"   Secao: {v['b']*100:.0f} x {v['h']*100:.0f} cm (d={v['d']*100:.0f} cm)",
          f"   As,flexao = {v['As_cm2']:.2f} cm2 ; As,min = {v['As_min_cm2']:.2f} cm2",
          f"   Armadura adotada: {v['As_adot_cm2']:.2f} cm2 -> {_arr(v['arr'])}",
+         f"   Cortante (17.4): Vd = {v['Vd_kN']:.1f} kN ; VRd2 (biela) = {v['VRd2_kN']:.1f} kN "
+         f"(u={v['u_biela']:.3f}) ; VRd3,min = {v['VRd3_min_kN']:.1f} kN ; "
+         f"s_max = {v['s_estribo_max_m']*1000:.0f} mm ; {'OK' if v['ok_cortante'] else 'REPROVA (biela)'}",
          "", "3. SAPATA INTERNA (com alivio):",
          f"   Pilar interno P = {i['P']:.0f} kN ; Delta_P = R - P = {i['delta_P']:.1f} kN",
          f"   Alivio adotado: {FATOR_ALIVIO*100:.0f}% -> P_ajust = P - {FATOR_ALIVIO:.1f}*Delta_P = {i['P_ajust']:.1f} kN",

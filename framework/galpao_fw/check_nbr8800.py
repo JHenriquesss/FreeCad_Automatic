@@ -179,7 +179,10 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
     r["u_N"] = Nsd / Nc_Rd
     r["u_M"] = Msd / Mrd
     r["u_V"] = Vsd / Vrd
-    n, m = Nsd / Nc_Rd, Msd / Mrd
+    # NBR 8800 5.5.1.2 aplica-se a forca axial de tracao OU compressao: a interacao
+    # SOMA os modulos das utilizacoes. Usar abs() impede que a tracao (Nsd<0) subtraia
+    # da flexao (flexo-tracao) e mascare a solicitacao acumulada na mesa tracionada.
+    n, m = abs(Nsd) / Nc_Rd, abs(Msd) / Mrd
     if n >= 0.2:
         inter, eq = n + (8.0 / 9.0) * m, "N/Nrd + 8/9*(M/Mrd)"
     else:
@@ -194,13 +197,19 @@ def relatorio_pt(rs, fy):
          f"  fy = {fy/1000:.0f} MPa ; gamma_a1 = {GA1:.2f}",
          "  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem)."]
     for r in rs:
+        # Alma esbelta (Anexo H): Mpl/Lp/Lr_flt = None e nao ha Cw/J no dict.
+        if r.get("anexo") == "H":
+            flexao = (f"  Flexao (Anexo H, alma esbelta): kpg={r['kpg']:.3f} ; "
+                      f"kc={r['kc']:.3f} ; ryT={r['ryT']:.4f} m")
+        else:
+            flexao = (f"  Flexao: Mpl={r['Mpl']:.1f} ; Lp={r['Lp']:.2f} m ; "
+                      f"Lr(FLT)={r['Lr_flt']:.2f} m ; Cw={r['Cw']:.3e} ; J={r['J']:.3e}")
         L += ["",
               f"  --- {r['nome']} ---",
               f"  Flambagem local: Qs={r['Qs']:.3f} ; Qa={r['Qa']:.3f} ; Q={r['Q']:.3f}",
               f"  Compressao: Ne={r['Ne']:.0f} kN ; lambda0={r['lambda0']:.3f} ; "
               f"chi={r['chi']:.3f} ; Nc,Rd={r['Nc_Rd']:.1f} kN",
-              f"  Flexao: Mpl={r['Mpl']:.1f} ; Lp={r['Lp']:.2f} m ; Lr(FLT)={r['Lr_flt']:.2f} m ; "
-              f"Cw={r['Cw']:.3e} ; J={r['J']:.3e}",
+              flexao,
               f"    Mn_FLT={r['Mn_flt']:.1f} ; Mn_FLM={r['Mn_flm']:.1f} ; Mn_FLA={r['Mn_fla']:.1f} "
               f"-> governa {r['M_gov']} ; Mrd={r['Mrd']:.1f} kN.m",
               f"  Cortante: Vrd={r['Vrd']:.1f} kN (alma compacta: {r['alma_compacta_cisalhamento']})",

@@ -353,7 +353,7 @@ def rodar(params, out_dir):
     Fp = vl["Fa_por_lado_kN"]
     Ndp, Ldp = ctv.n_diagonal(Fp, g["bay"], g["eave"])           # parede
     Ndc, Ldc = ctv.n_diagonal(Fp, g["bay"], g["span"] / 2.0)     # cobertura
-    Nmf = ctv.forca_estabilizacao_2pct(abs(cbm["viga"]["Msd"]), sc["d_raf"])
+    Nmf = ctv.forca_estabilizacao_2pct(abs(cbm_v["Msd"]), sc["d_raf"])
     barras = [
         ctv.verifica_barra("Contravento de parede (d20)", cb["d_contrav"], fyb, fub,
                            Ndp, Ldp, pretensionada=True),
@@ -521,6 +521,35 @@ def rodar(params, out_dir):
                          "D": Dp, "L": ecfg["L"], "espacamento": esp,
                          "bloco_h": h_bloco, "bloco_a": a_pil,
                          "uplift": bool(N_tr > 1e-6)}
+
+        # NBR 6122 8.5.6.1: blocos sobre 1 estaca (n=1) ou 1 linha de 2 estacas
+        # (n=2) NAO tem rigidez rotacional na direcao perpendicular a linha das
+        # estacas -> TRAVAMENTO em 2 direcoes ortogonais e OBRIGATORIO. O baldrame
+        # longitudinal (gate7-baldrame) trava a direcao do comprimento; aqui
+        # dimensiona-se a CINTA TRANSVERSAL, para a excentricidade executiva
+        # acidental (>= 10% da carga vertical, NBR 6122 / Alonso).
+        n_est_blk = re_["grupo"]["n"]
+        if n_est_blk <= 2:
+            blk = ecfg.get("bloco") or {}
+            vao_tr = g.get("span") or (g["spans"][0] if g.get("spans") else g["bay"])
+            N_cinta = 0.10 * N_pilar                     # amarracao acidental
+            cfg_cinta = {"vao": vao_tr, "b": 0.20, "h": 0.40, "cobrimento": 0.05,
+                         "q_parede": 0.0, "N_amarracao": round(N_cinta, 2),
+                         "fck": blk.get("fck", 25e3), "fyk": blk.get("fyk", 500e3),
+                         "continuidade": "simples"}
+            rct = vbal.verifica_baldrame(cfg_cinta)
+            save("gate7-travamento-transversal.txt",
+                 f"TRAVAMENTO TRANSVERSAL OBRIGATORIO (NBR 6122 8.5.6 - bloco de "
+                 f"{n_est_blk} estaca(s))\n"
+                 f"Cinta de amarracao dimensionada p/ excentricidade executiva "
+                 f"acidental N = 0,10*N_pilar = {N_cinta:.1f} kN "
+                 f"(vao transversal {vao_tr:.2f} m).\n\n" + vbal.relatorio_pt(rct))
+            res["travamento_transversal"] = {
+                "obrigatorio": True, "n_estacas": n_est_blk,
+                "N_amarracao_kN": round(N_cinta, 2), "vao": round(vao_tr, 2),
+                "secao": f"{rct['b']*100:.0f}x{rct['h']*100:.0f}",
+                "As_inf_cm2": rct["As_inf_cm2"], "ok": rct["OK"],
+                "b": rct["b"], "h": rct["h"]}
 
     # Gate - CALHA (dimensionamento hidraulico, NBR 10844 / Bellei). Roda quando
     # ha calha na cobertura. Area de contribuicao da geometria: comprimento (ao
@@ -1077,6 +1106,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
+             ("11d. TRAVAMENTO TRANSVERSAL (CINTA)", "gate7-travamento-transversal.txt"),
              ("11g. SAPATA DE DIVISA", "gate7-divisa.txt"),
              ("11d. FOGO NBR 14323", "gate8-fogo.txt"),
              ("11e. ESCADA", "gate8-escada.txt"),
