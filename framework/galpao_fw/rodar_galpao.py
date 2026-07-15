@@ -53,6 +53,7 @@ import enrijecedor_painel as enp
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
+import terreno
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -170,6 +171,9 @@ def rodar(params, out_dir):
                              "Hvr": pcfg["Hvr"]})
         res["ponte_R_vert"] = round(reac["R_vertical_kN"], 1)
         res["ponte_viga_inter"] = round(viga["inter"], 2)
+        # viga["OK"] engloba flexao biaxial + FADIGA (Anexo K) + FLECHA (L/600..1000):
+        # sem isto, uma reprovacao de fadiga/flecha (inter < 1) passaria silenciosa.
+        res["ponte_viga_ok"] = bool(viga.get("OK", True))
         # Ligacao do CONSOLE a coluna (chapa+solda que recebe a viga de
         # rolamento excentrica). Dimensiona a perna do filete. L = altura de
         # solda ~ misula do console (build BRACKET 450mm); chapa 16mm (build).
@@ -593,6 +597,23 @@ def rodar(params, out_dir):
                         "H_mm": rca["secao"].get("H_max_m", 0) * 1000,
                         "condutor_mm": rca.get("condutor_diam_mm"),
                         "ok": rca["ok"]}
+
+    # Gate - TERRENO (viabilidade urbanistica: TO/CA/TP + recuos, terreno.py). So
+    # roda com params["terreno"] (lote KML/pontos + limites do zoneamento). Antes o
+    # modulo era orfao (nunca importado); agora entra no quadro. Defensivo: qualquer
+    # erro de parsing do lote nao derruba o dimensionamento estrutural.
+    if params.get("terreno"):
+        try:
+            terr = terreno.analisa_terreno(params["terreno"])
+            ver = terreno.verifica_galpao(
+                terr, g["comprimento"], g["span"],
+                n_pav=params["terreno"].get("n_pav", 1),
+                area_pavimentada=params["terreno"].get("area_pavimentada", 0.0))
+            save("gate-terreno.txt", terreno.relatorio_pt(terr, ver))
+            res["terreno"] = {"area_lote_m2": terr["area_lote_m2"],
+                              "footprint_m2": ver["footprint_m2"], "ok": ver["OK"]}
+        except Exception as _e:
+            res["terreno"] = {"erro": str(_e), "ok": None}
 
     # Gate 7 - FUNDACAO DE DIVISA (pilar na linha do lote). Duas variantes:
     #  - RASA  (sem estaca): sapata excentrica + viga alavanca (sapata_divisa).
@@ -1054,7 +1075,10 @@ def rodar(params, out_dir):
         res["sapata_util"] = round(max(gv.get("solo", ("", 0))[1], gv.get("compr", ("", 0))[1],
                                        1.0 / gv.get("tomb", ("", 9))[1],
                                        1.0 / gv.get("desl", ("", 9))[1]), 2)
-        res["sapata_ok"] = res["sapata_util"] <= 1.001
+        # OK = geotecnico (solo/tombamento/desliz.) E estrutural do concreto
+        # (flexao B/L, compressao diagonal, puncao) via rB["OK_B"]. Sem o OK_B,
+        # uma ruptura de armadura/puncao passaria com sapata_util<=1 (so solo).
+        res["sapata_ok"] = bool(res["sapata_util"] <= 1.001 and rB.get("OK_B", True))
         # quantitativo (concreto + aco) - n_sapatas = 2 pilares x n_porticos
         n_port = int(round(g["comprimento"] / g["bay"])) + 1
         q = fs.quantitativo(sr, rB, n_sapatas=2 * n_port,
@@ -1099,6 +1123,13 @@ def rodar(params, out_dir):
         res["fogo_theta"] = rf["theta_aco_C"]
         res["fogo_ky"] = rf["ky"]
         res["fogo_TRRF"] = rf["TRRF_min"]
+        # A temperatura (C) NAO e uma utilizacao (bug 8.34: 550 C virava
+        # "util 550 > 1 -> NAO ATENDE" sempre). Verificacao ao fogo: aco abaixo da
+        # temperatura critica no TRRF. theta_critica (NBR 14323, ~550 C p/ mu~0,6,
+        # A CONFIRMAR pelo eng.) configuravel. util = theta/theta_critica.
+        theta_cr = fg.get("theta_critica_C", 550.0)
+        res["fogo_util"] = round(rf["theta_aco_C"] / theta_cr, 2)
+        res["fogo_ok"] = bool(rf["theta_aco_C"] <= theta_cr)
     # Gate 8 - ESCADA INDUSTRIAL
     if params.get("escada"):
         esc_cfg = params["escada"]
@@ -1168,6 +1199,23 @@ def _consolidar(out_dir, save, g, params, res=None):
             d = res[key]
             ok = d.get(okfield, True) if isinstance(d, dict) else bool(d)
             return 0.0 if ok else 1.99
+        # util-like a partir de uma util PLANA + flag de OK (chaves separadas em res):
+        # forca >1,0 se o OK reprovar mesmo com util <= 1 (ex.: base sob interacao,
+        # sapata sob puncao, viga de rolamento sob fadiga/flecha).
+        def _uok(util_key, ok_key):
+            u = res.get(util_key)
+            if u is None:
+                return None
+            return u if res.get(ok_key, True) else max(u, 1.99)
+        # idem para util ANINHADA em res[key] (dict com ufield/okfield).
+        def _uokd(key, ufield="u_max", okfield="OK"):
+            d = res.get(key)
+            if not isinstance(d, dict):
+                return None
+            u = d.get(ufield)
+            if u is None:
+                return _bok(key, okfield)
+            return u if d.get(okfield, True) else max(u, 1.99)
         # Estaca: usa a util real do grupo, forcando >1,0 se qualquer estado (grupo/
         # tracao/bloco) reprovar mesmo com util <= 1.
         est = res.get("estaca")
@@ -1176,20 +1224,35 @@ def _consolidar(out_dir, save, g, params, res=None):
             u_est = est.get("util") or 0.0
             if not est.get("ok", True):
                 u_est = max(u_est, 1.99)
+        # Junta de dilatacao: "precisa" = excede o comprimento sem junta -> acao
+        # requerida (o modulo trata como nao-OK). Ausente -> pulado.
+        u_junta = None
+        if "junta_dilatacao" in res:
+            u_junta = 1.99 if res["junta_dilatacao"].get("precisa") else 0.0
         checks = [("Coluna", res.get("interacao_col")), ("Viga", res.get("interacao_raf")),
-                  ("Flecha portico", res.get("flecha_util")), ("Base", res.get("base_util")),
-                  ("Sapata (fundacao)", res.get("sapata_util")),
-                  ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
+                  ("Tesoura (trelica)", _uokd("tesoura", "u_max", "OK")),
+                  ("Flecha portico", res.get("flecha_util")),
+                  ("Base (placa+chumbador)", _uok("base_util", "base_ok")),
+                  ("Sapata (fundacao)", _uok("sapata_util", "sapata_ok")),
+                  ("Joelho", res.get("joelho_util")),
+                  ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
+                  ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
-                  ("Viga rolamento", res.get("ponte_viga_inter")),
-                  ("Fogo theta C", res.get("fogo_theta")),
+                  ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
+                  ("Gusset contravento", _uok("gusset_u_max", "gusset_ok")),
+                  ("Viga rolamento", _uok("ponte_viga_inter", "ponte_viga_ok")),
+                  ("Console ponte", _uok("console_u_max", "console_ok")),
+                  ("Fogo (theta/theta_cr)", _uok("fogo_util", "fogo_ok")),
                   # Verificacoes globais antes ausentes do quadro (falha silenciosa):
                   ("Estaca (fund. profunda)", u_est),
                   ("Travamento transversal", _bok("travamento_transversal")),
+                  ("Baldrame longitudinal", _bok("baldrame")),
                   ("Sismo (theta 2a ordem)", _bok("sismo_theta")),
+                  ("Junta de dilatacao", u_junta),
                   ("Calha (hidraulica)", _bok("calha")),
                   ("Fundacao de divisa", _bok("divisa")),
+                  ("Terreno (TO/CA/TP)", _bok("terreno")),
                   ("Escada", None if "escada_ok" not in res else (0.0 if res["escada_ok"] else 1.99)),
                   ("Plataforma", None if "plataforma_ok" not in res else (0.0 if res["plataforma_ok"] else 1.99))]
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")

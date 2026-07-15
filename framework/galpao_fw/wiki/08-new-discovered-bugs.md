@@ -7,7 +7,33 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 > - **Fase 1 (bugs 8.1–8.4):** ✅ 4/4 verificados e corrigidos — commit `dad7b87`.
 > - **Fase 9 (bugs 8.5–8.13):** ✅ 7 reais corrigidos (8.5, 8.6, 8.7, 8.8, 8.10, 8.12, 8.13) + ⚪ 2 falsos positivos (8.9, 8.11) — commit `06130c0`.
 > - **Fase 10 (bugs 8.14–8.17):** ✅ 3 reais corrigidos (8.15, 8.16, 8.17) + ⚪ 1 falso positivo (8.14) — commit `ac529a2`.
-> - **Fase 11 (bugs 8.18–8.20):** ✅ 3/3 reais corrigidos — verificações globais (fundação profunda, sismo, calha, divisa) agora entram no QUADRO DE VERIFICAÇÕES; corrigido também o padrão que escondia falhas de Escada/Plataforma.
+> - **Fase 11 (bugs 8.18–8.20):** ✅ 3 reais corrigidos (8.18, 8.19, 8.20) — commit `a6e3808`.
+> - **Fase 12 (bugs 8.21–8.36):** ✅ 16/16 reais corrigidos. Detalhe por bug:
+>
+> | Bug | Correção |
+> | :-- | :-- |
+> | 8.21 | `sincronizar` deixava de sobrescrever seções por-coluna: flag `SEC_COLS_EXTERNO` (setada por `redimensionamento`) preserva o `I` de cada coluna → B1 por-coluna correto. *(O frame do `galpao_portico` ainda modela colunas uniformes — B2/esforços; o B1 local agora honra o perfil real de cada coluna.)* |
+> | 8.22 | Trava de B1: `denom≤0 → B1=inf` (flambagem local elástica), igual ao B2 (8.16); fim do `max(negativo,1)=1` silencioso. |
+> | 8.23 | **Tesoura (treliça)** no quadro (`res["tesoura"]["u_max"]/["OK"]`). |
+> | 8.24 | Viga de rolamento: `res["ponte_viga_ok"]` (fadiga Anexo K + flecha) força NAO ATENDE mesmo com `inter<1`. |
+> | 8.25 | **Console da ponte** no quadro (`console_u_max/console_ok`). |
+> | 8.26 | **Contraventos/tirantes/mão-francesa** no quadro (`barras_u_max/barras_ok`). |
+> | 8.27 | **Gusset** no quadro (`gusset_u_max/gusset_ok`). |
+> | 8.28 | Base: usa `base_ok` (interação tração+corte, ACI, grout) → falha surface mesmo com `base_util<1`. |
+> | 8.29 | Sapata: `sapata_ok` agora inclui `rB["OK_B"]` (flexão B/L, compressão diagonal, punção), não só solo. |
+> | 8.30 | **Telha** no quadro (`telha_util/telha_ok`). |
+> | 8.31 | **Baldrame longitudinal** no quadro (`res["baldrame"]["ok"]`). |
+> | 8.32 | `terreno.py` deixou de ser órfão: importado + gate `params["terreno"]` (TO/CA/TP/recuos) + linha no quadro, defensivo (try/except). |
+> | 8.33 | `rodar_projeto` exporta ao TechDraw todos os novos subsistemas (`resultados` + `estados`). |
+> | 8.34 | Fogo: temperatura (°C) não é mais tratada como util. `fogo_util=θ/θ_cr`, `fogo_ok=θ≤θ_cr` (θ_cr=550 °C, NBR 14323, A CONFIRMAR). |
+> | 8.35 | **Junta de dilatação** no quadro (`precisa → NAO ATENDE`). |
+> | 8.36 | **Zona de painel do joelho** no quadro (`res["zona_painel"]["u_max"]`). |
+>
+> Validado por simulação: itens com `util<1` porém `ok=False` (base/interação, sapata/punção, viga-rolamento/fadiga) agora surfaçam como NAO ATENDE.
+
+
+
+
 
 
 ---
@@ -36,6 +62,26 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 | **Bug 8.18** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de fundação profunda no QUADRO DE VERIFICAÇÕES global. | NBR 6122 / NBR 6118 | **✅ Resolvido** |
 | **Bug 8.19** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação do drift/estabilidade de 2ª ordem do sismo no QUADRO DE VERIFICAÇÕES global. | NBR 15421 (§9.6) | **✅ Resolvido** |
 | **Bug 8.20** | 🟡 Médio | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de calhas e de fundação de divisa no QUADRO DE VERIFICAÇÕES global. | NBR 10844 / NBR 6118 | **✅ Resolvido** |
+| **Bug 8.21** | 🔴 Crítico | [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py) | Sobrescrita de perfis de coluna em pórticos multi-vão no sincronizar. | NBR 8800 Anexo D | **✅ Resolvido** |
+| **Bug 8.22** | 🔴 Crítico | [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py) | Ausência de salvaguardas para $B_1$ negativo ou esmagamento elástico (instabilidade local). | NBR 8800 Anexo D.1.2 | **✅ Resolvido** |
+| **Bug 8.23** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de tesoura (treliça) no QUADRO DE VERIFICAÇÕES global. | NBR 8800 | **✅ Resolvido** |
+| **Bug 8.24** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão de falhas de fadiga e deformação na viga de rolamento no QUADRO DE VERIFICAÇÕES global. | NBR 8800 (§6.3) | **✅ Resolvido** |
+| **Bug 8.25** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão do console de apoio da viga de rolamento no QUADRO DE VERIFICAÇÕES global. | NBR 8800 (§5.4) | **✅ Resolvido** |
+| **Bug 8.26** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão das barras tracionadas (contraventos e tirantes) no QUADRO DE VERIFICAÇÕES global. | NBR 8800 (§5.2) | **✅ Resolvido** |
+| **Bug 8.27** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão dos gussets de ligação de contraventamento no QUADRO DE VERIFICAÇÕES global. | NBR 8800 (§6.5) | **✅ Resolvido** |
+| **Bug 8.28** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão de falhas de interação/concreto/grout da placa de base no QUADRO DE VERIFICAÇÕES global. | NBR 8800 / ACI 318 | **✅ Resolvido** |
+| **Bug 8.29** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão das verificações estruturais de flexão, cisalhamento e punção de sapata no QUADRO DE VERIFICAÇÕES global. | NBR 6118 / NBR 6122 | **✅ Resolvido** |
+| **Bug 8.30** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de telha no QUADRO DE VERIFICAÇÕES global. | NBR 14762 | **✅ Resolvido** |
+| **Bug 8.31** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação da viga de baldrame longitudinal no QUADRO DE VERIFICAÇÕES global. | NBR 6118 | **✅ Resolvido** |
+| **Bug 8.32** | 🔴 Crítico | [terreno.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/terreno.py) | Módulo terreno.py completamente órfão/desconectado da cadeia de cálculo e validação. | Lei de Uso do Solo | **✅ Resolvido** |
+| **Bug 8.33** | 🔴 Crítico | [rodar_projeto.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_projeto.py) | Omissão de todos os novos sub-sistemas no dicionário de resultados exportado para o TechDraw. | TechDraw 2D | **✅ Resolvido** |
+| **Bug 8.34** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Temperatura do fogo em Celsius é tratada erroneamente como taxa de utilização no quadro consolidado. | NBR 14323 | **✅ Resolvido** |
+| **Bug 8.35** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de necessidade de junta de dilatação no QUADRO DE VERIFICAÇÕES global. | FCC Report 65 / Bellei | **✅ Resolvido** |
+| **Bug 8.36** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de Zona de Painel do joelho no QUADRO DE VERIFICAÇÕES global. | NBR 8800 | **✅ Resolvido** |
+
+
+
+
 
 
 
@@ -294,4 +340,148 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 * **Status:** **✅ RESOLVIDO** — adicionadas as linhas **"Calha (hidráulica)"** (`res["calha"]["ok"]`) e **"Fundação de divisa"** ao quadro. `res["divisa"]` passou a expor `ok` nas duas variantes (viga de equilíbrio sobre estacas `rve["viga"]["ok"]` e sapata + viga alavanca `rdv["viga"]["ok"]`). **Bônus:** corrigido o padrão `0 if ok else None` de Escada/Plataforma, que enviava a **falha** para `None` (pulada no quadro) — agora falha → 1,99 (NAO ATENDE) e "não rodou" → pulado, distinguidos por presença da chave.
 * **Risco:** 🟡 Médio
 * **Descrição:** Semelhante às fundações profundas e ao sismo, o dimensionamento hidráulico de calhas (`res["calha"]["ok"]`) e a fundação superficial de divisa (`res["divisa"]["ok"]`) não são inseridos no `checks` do relatório consolidado de `rodar_galpao.py`. Caso a calha transborde (altura d'água requerida acima do limite ou desconformidade com a regra prática de 1 cm²/m² de Bellei), ou a viga alavanca da sapata de divisa falhe à flexão/cisalhamento, o erro passará desapercebido na tabela sumária de utilizações.
+
+---
+
+### Bug 8.21: Sobrescrita de Perfis de Coluna em Pórticos Multi-vão no `sincronizar` de `estabilidade_b1b2.py`
+* **Arquivo:** [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py#L33-L41) e [redimensionamento.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/redimensionamento.py#L62-L65)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A rotina `avalia` de `redimensionamento.py` define seções de colunas individuais no vetor `est.SEC_COLS` para pórticos multi-vão assimétricos. No entanto, logo em seguida ela chama `est.analyse()`, a qual executa `sincronizar()` como primeiro passo. A função `sincronizar()` lê o valor global `gp.A_COL` (que contém as propriedades de uma única seção, correspondente a `cols_perfil[0]`) e sobrescreve todas as colunas do vetor com essa única seção:
+  ```python
+  for i in range(nv + 1):
+      SEC_COLS[i].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
+  ```
+  Isso apaga os perfis de coluna individuais (por exemplo, `cols_perfil[1]`, `cols_perfil[2]`) e força toda a análise de estabilidade e amplificação de segunda ordem ($B_1/B_2$) a ocorrer como se todas as colunas tivessem a seção da coluna 0, mascarando subdimensionamentos severos e distorcendo a física de pórticos com rigidezes laterais distintas.
+
+---
+
+### Bug 8.22: Ausência de Salvaguardas para $B_1$ em `estabilidade_b1b2.py`
+* **Arquivo:** [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py#L114)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** O cálculo do fator de amplificação local de segunda ordem ($B_1$) é feito por:
+  ```python
+  B1 = max(Cm / (1.0 - abs(Nsd1) / Ne), 1.0) if Nsd1 < 0 else 1.0
+  ```
+  Se o esforço axial de compressão de projeto $N_{sd1}$ na peça exceder a carga crítica de Euler $N_e$, o termo `1.0 - abs(Nsd1) / Ne` torna-se negativo (ex.: $-0,2$), resultando em um $B_1$ negativo (ex.: $-5,0$). Pelo uso direto de `max(..., 1.0)`, o programa adota silenciosamente $B_1 = 1.0$, o que é extremamente perigoso e fisicamente incorreto, pois ignora o colapso por flambagem local elástica e não amplifica os momentos fletores. É necessário implementar a trava `denom <= 0.0 -> B1 = inf`, idêntica à que foi corrigida no fator $B_2$.
+
+---
+
+### Bug 8.23: Omissão da Verificação de Tesoura (Treliça) no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** Se o tipo de pórtico selecionado for `"tesoura"` (`params.get("tipo_portico") == "tesoura"`), o programa dimensiona a treliça de cobertura através de `tesoura.py`. Entretanto, a utilização máxima obtida (`res["tesoura"]["u_max"]`) e a flag de aprovação (`res["tesoura"]["OK"]`) são totalmente omitidas da lista `checks` consolidada. Se a tesoura falhar (por exemplo, por flambagem catastrófica dos banzos sob gravidade ou diagonais sob sucção), o quadro continuará mostrando `"Viga: (falta)"` (já que a viga de alma cheia não foi dimensionada) e não reportará a falha da treliça que de fato sustenta a cobertura.
+
+---
+
+### Bug 8.24: Omissão de Falhas de Fadiga e Deformação da Viga de Rolamento no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L172) e [rodar_galpao.py#L1185](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1185)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A taxa de utilização da viga de rolamento gravada em `res["ponte_viga_inter"]` recebe estritamente a interação plástica de flexão biaxial (`round(viga["inter"], 2)`). Caso a viga de rolamento sofra falha de fadiga (vida útil excedida pelo Anexo K da NBR 8800) ou falha por deformação excessiva (flecha maior que L/600 ou L/800), a flag `viga["OK"]` é setada para `False`, mas a utilização em `checks` permanece inferior a `1.0`, impedindo que o sumário alerte o engenheiro sobre o colapso por fadiga ou travamento da ponte.
+
+---
+
+### Bug 8.25: Omissão do Console de Apoio da Viga de Rolamento no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** Se houver ponte rolante, o console metálico excentricamente soldado que serve de apoio para a viga de rolamento é verificado (`console_ponte.py`). O status de aprovação (`res["console_ok"]`) e a utilização (`res["console_u_max"]`) não constam na lista `checks` de unificação do relatório. Se a solda da raiz ou a chapa do console falharem estruturalmente, o erro passará silenciosamente na consolidação.
+
+---
+
+### Bug 8.26: Omissão de Contraventamentos, Tirantes e Mão-Francesa no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A verificação de todas as barras puramente tracionadas (contraventamento de parede/cobertura, tirantes de terça e barra de mão-francesa) é consolidada na variável `res["barras_ok"]` e `res["barras_u_max"]`. Contudo, esses itens não são inseridos no checklist `checks` de `rodar_galpao.py`. Se qualquer diagonal sob vento longitudinal romper, ou o tirante de terça falhar na rosca, o quadro sumário não apontará nenhuma desconformidade.
+
+---
+
+### Bug 8.27: Omissão dos Gussets de Contraventamento no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A chapa de nó (gusset) que conecta as diagonais de contraventamento aos pilares e rafters é verificada em `gusset_ligacao.py`, gerando `res["gusset_ok"]` e `res["gusset_u_max"]`. O resultado do cálculo da solda e ruptura da chapa não é incorporado ao checklist global, ocultando falhas mecânicas na ligação dos contraventamentos.
+
+---
+
+### Bug 8.28: Omissão de Falhas de Interação/Concreto/Grout da Placa de Base no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L425)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A utilização do chumbador gravada em `res["base_util"]` é definida por:
+  ```python
+  res["base_util"] = round(max(rb["u_tracao"], rb["u_corte"], rb["u_concreto"]), 2)
+  ```
+  Isso omite por completo a taxa de utilização da interação de tração e cisalhamento nos chumbadores (`rb["interacao"]`), a verificação de interação no concreto pela ACI 318 (`rb["interacao_conc"]`), as falhas por geometria insuficiente da placa (`Y > L_placa`) e a falha de esmagamento do grout (`grout_ok == False`). Se os parafusos falharem em cortante-tração combinados (por exemplo, `u_tracao = 0,8` e `u_corte = 0,8` -> `interacao = 1,28 > 1,0`), `rb["OK"]` é setado para `False`, mas `base_util` reportará falsamente `0,80` (OK).
+
+---
+
+### Bug 8.29: Omissão das Verificações Estruturais de Concreto da Sapata no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1054)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A taxa de utilização da sapata de fundação superficial é definida em `res["sapata_util"]` levando em conta apenas critérios geotécnicos (pressão no solo, tombamento e deslizamento). No entanto, o dimensionamento estrutural do concreto armado (flexão na direção B e L, compressão diagonal na face do pedestal e punção para sapatas flexíveis) é totalmente ignorado para fins de aprovação no quadro. Caso ocorra ruptura por punção ou flexão na armadura da sapata, `rB["OK_B"]` será `False`, mas o relatório final indicará que a sapata atende perfeitamente ao projeto baseado apenas nas pressões de solo.
+
+---
+
+### Bug 8.30: Omissão da Verificação de Telha no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L307)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A chapa de cobertura (telha) é verificada contra flexão e deformação limite através de `telha_cobertura.py`, gerando as variáveis `res["telha_util"]` e `res["telha_ok"]`. Contudo, nenhuma destas variáveis é incluída no quadro de verificações sumário. Se a cobertura do galpão falhar sob ação de sucção de vento local (borda e canto), a estrutura será erroneamente aprovada no relatório consolidado.
+
+---
+
+### Bug 8.31: Omissão da Verificação da Viga de Baldrame Longitudinal no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L509)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** Quando a fundação profunda é utilizada, a viga de baldrame longitudinal (viga de amarração) que resiste ao peso da alvenaria e ao empuxo de terra/tração é calculada, gerando `res["baldrame"]["ok"]`. No entanto, a aprovação dessa viga é completamente omitida do quadro de verificações global de `rodar_galpao.py` (o qual inclui apenas a viga de travamento transversal da fundação), deixando as vigas longitudinais sem validação final no resumo.
+
+---
+
+### Bug 8.32: Módulo `terreno.py` Completamente Órfão e sem Integração
+* **Arquivo:** [terreno.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/terreno.py)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** O módulo `terreno.py` implementa toda a lógica geométrica e urbanística para leitura de KML de lotes e validação contra restrições de Taxa de Ocupação (TO), Coeficiente de Aproveitamento (CA), Taxa de Permeabilidade (TP) e recuos limites (utilizando Oriented Bounding Box - OBB). No entanto, este arquivo nunca é importado ou acoplado na rotina principal `rodar_galpao.py` ou no runner `rodar_projeto.py`, fazendo com que os parâmetros de terreno fornecidos fiquem inoperantes e sem validação alguma no projeto estrutural do galpão. O módulo também carece de arquivos de testes unitários em `tests/`.
+
+---
+
+### Bug 8.33: Inconsistência na Exportação de Resultados para Desenhos TechDraw em `rodar_projeto.py`
+* **Arquivo:** [rodar_projeto.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_projeto.py#L71-L79)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** O dicionário `spec["estrutura"]["resultados"]` montado ao final de `calcular()` é a fonte de dados que `techdraw_exec.py` utiliza para desenhar a tabela sumária de resultados de utilização diretamente nas folhas 2D do projeto executivo. Esse dicionário contém apenas um subconjunto estático de elementos antigos. Ele omite por completo todos os novos sub-sistemas adicionados (como Tesoura, Calhas, Sismo, Estacas, Baldrame longitudinal/transversal, Divisas, Escadas, Plataformas, Contraventamento e Gussets). Com isso, as pranchas técnicas desenhadas contêm um quadro de verificações desatualizado e incompleto em relação ao escopo real de elementos do galpão.
+
+---
+
+### Bug 8.34: Temperatura de Incêndio em Celsius Tratada como Taxa de Utilização no Quadro Consolidado
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1186)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** O cálculo ao fogo pelo módulo `fogo_nbr14323.py` exporta a temperatura física final do aço em Celsius (`res["fogo_theta"] = rf["theta_aco_C"]`), que normalmente varia entre 400°C e 950°C. No entanto, no checklist consolidado, este valor é inserido diretamente como `("Fogo theta C", res.get("fogo_theta"))` na lista `checks` de taxas de utilização. Na consolidação, qualquer valor maior que 1,001 (ou seja, qualquer temperatura acima de 1°C) é tratado como uma falha grave, forçando a impressão de `"Fogo theta C     550.00   *** NAO ATENDE ***"` no sumário de erros do memorial, mesmo se o elemento passar na resistência sob combinação excepcional.
+
+---
+
+### Bug 8.35: Omissão da Verificação de Necessidade de Junta de Dilatação no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1007)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** O módulo `junta_dilatacao.py` determina o limite de comprimento de edificação retangular sem juntas e calcula o deslocamento térmico (`rj = jd.verifica_junta(...)`), definindo se a edificação precisa ou não de junta de dilatação. No entanto, a flag de aprovação (`rj["OK"]` ou `not precisa_junta`) é completamente omitida da lista `checks` em `rodar_galpao.py`. Se um galpão exceder o comprimento térmico máximo (gerando esforços excessivos de coação nos pilares de extremidade), o quadro de verificações unificado continuará aprovando a estrutura de forma silenciosa.
+
+---
+
+### Bug 8.36: Omissão da Verificação da Zona de Painel do Joelho no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L454)
+* **Status:** **✅ RESOLVIDO** (Fase 12 — ver tabela de correções no topo do documento)
+* **Risco:** 🔴 Crítico
+* **Descrição:** A verificação de cisalhamento do painel da alma do pilar no nó rígido do pórtico (zona de painel) é calculada através de `zona_painel.py`, definindo as taxas de utilização e se necessita de chapa de reforço (`t_doubler_mm`). Apesar da importância para a estabilidade da ligação viga-coluna, o resultado de sua validação (`rzp["u_max"]` ou `rzp["OK"]`) não consta na lista global `checks` do orquestrador principal, permitindo que falhas de cisalhamento no nó passem sem report no resumo.
+
+
+
 

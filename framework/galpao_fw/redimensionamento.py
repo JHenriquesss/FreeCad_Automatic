@@ -46,6 +46,10 @@ def _aplica(cols_perfil, raf, fixed=True):
         est.SEC_COLS[i].update(A=sec["A"], I=sec["Ix"], L=gp.EAVE)
         if i == 0:
             gp.A_COL, gp.I_COL = sec["A"], sec["Ix"]
+    # colunas podem ter perfis distintos por linha -> avisa o sincronizar() do
+    # estabilidade a NAO sobrescrever as secoes por-coluna com a unica gp.A_COL
+    # (senao o B1 por-coluna usaria o Ne da coluna 0 p/ todas). Bug 8.21.
+    est.SEC_COLS_EXTERNO = True
     Lr = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
     for i in range(nv * 2):
         est.SEC_VIGAS[i].update(A=pr["A"], I=pr["Ix"], L=Lr)

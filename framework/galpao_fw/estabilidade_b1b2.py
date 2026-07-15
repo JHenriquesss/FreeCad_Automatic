@@ -17,6 +17,11 @@ H_STORY = gp.EAVE
 RS = 0.85
 E = gp.E
 
+# True quando as secoes por coluna sao definidas EXTERNAMENTE (redimensionamento
+# multi-perfil, colunas com perfis distintos): sincronizar() NAO deve sobrescreve-
+# las com a secao unica gp.A_COL/I_COL (senao o B1 por-coluna usaria o Ne errado).
+SEC_COLS_EXTERNO = False
+
 # Secoes: dict por grupo. Inicializado com uma coluna e uma viga (1 vao).
 # Para N vaos: cols = [sec0, sec1, ...] (N+1), vigas = [sec0, ...] (N*2)
 SEC_COLS = [{"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE}]
@@ -38,7 +43,10 @@ def sincronizar():
     while len(SEC_COLS) < nv + 1:
         SEC_COLS.append({"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE})
     for i in range(nv + 1):
-        SEC_COLS[i].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
+        if SEC_COLS_EXTERNO:
+            SEC_COLS[i]["L"] = gp.EAVE       # preserva A/I por-coluna (multi-perfil)
+        else:
+            SEC_COLS[i].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
     # Replicar secoes das vigas (2 por vao)
     L_raf = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
     while len(SEC_VIGAS) < nv * 2:
@@ -111,7 +119,14 @@ def _combina_grupo(mf_nt, mf_lt, elems, B2, sec, Efac=1.0):
             if Nint < Nsd1: Nsd1 = Nint
     Ne = math.pi ** 2 * (E * Efac) * sec["I"] / sec["L"] ** 2
     Cm = 1.0
-    B1 = max(Cm / (1.0 - abs(Nsd1) / Ne), 1.0) if Nsd1 < 0 else 1.0
+    # B1 (amplificacao local P-delta). Se Nsd1 (compressao) >= Ne (carga critica de
+    # Euler), denom<=0 -> flambagem LOCAL elastica (colapso): B1=inf (nao mascarar
+    # com max(...,1)). Salvaguarda identica a do B2 (bug 8.16).
+    if Nsd1 < 0:
+        denom_b1 = 1.0 - abs(Nsd1) / Ne
+        B1 = float("inf") if denom_b1 <= 0.0 else max(Cm / denom_b1, 1.0)
+    else:
+        B1 = 1.0
     Msd = Nsd = Vsd = Mnt = Mlt = 0.0
     for e in elems:
         for im, iN, iV, sgn in ((2, 0, 1, -1.0), (5, 3, 4, +1.0)):
