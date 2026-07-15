@@ -529,13 +529,22 @@ def rodar(params, out_dir):
         Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
         esp = (ecfg.get("bloco") or {}).get("espacamento", 3.0 * Dp)
         h_bloco = (re_.get("bloco") or {}).get("h", max(0.40, 1.2 * Dp))
+        # OK/util consolidado da fundacao profunda (grupo + tracao + bloco), p/ o
+        # QUADRO DE VERIFICACOES global (senao falha de fundacao passa silenciosa).
+        _g = re_["grupo"]
+        _ok_grupo = _g.get("OK")
+        if _ok_grupo is None:
+            _ok_grupo = (_g.get("util") or 0.0) <= 1.0
+        _ok_est = bool(_ok_grupo and re_.get("tracao", {}).get("OK", True)
+                       and re_.get("bloco", {}).get("OK", True))
         res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
                          "P_adm_kN": re_["capacidade"]["P_adm_kN"],
                          "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1),
                          # geometria p/ o build 3D (tudo do calculo / envelope)
                          "D": Dp, "L": ecfg["L"], "espacamento": esp,
                          "bloco_h": h_bloco, "bloco_a": a_pil,
-                         "uplift": bool(N_tr > 1e-6)}
+                         "uplift": bool(N_tr > 1e-6),
+                         "util": _g.get("util"), "ok": _ok_est}
 
         # NBR 6122 8.5.6.1: blocos sobre 1 estaca (n=1) ou 1 linha de 2 estacas
         # (n=2) NAO tem rigidez rotacional na direcao perpendicular a linha das
@@ -607,7 +616,8 @@ def rodar(params, out_dir):
             res["divisa"] = {"tipo": "estaca", "R_kN": rve["divisa"]["R"],
                              "e_m": rve["divisa"]["e"],
                              "n_estacas": rve["divisa"]["n_estacas"],
-                             "viga_As_cm2": rve["viga"]["As_adot_cm2"]}
+                             "viga_As_cm2": rve["viga"]["As_adot_cm2"],
+                             "ok": bool(rve["viga"]["ok"])}
         else:                                                    # variante RASA
             rdv = sd.dimensiona_divisa(
                 P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
@@ -618,7 +628,8 @@ def rodar(params, out_dir):
             res["divisa"] = {"tipo": "sapata", "B": rdv["divisa"]["B"],
                              "L": rdv["divisa"]["L"], "R_kN": rdv["divisa"]["R"],
                              "e_m": rdv["divisa"]["e"],
-                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
+                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"],
+                             "ok": bool(rdv["viga"]["ok"])}
 
     # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
     # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
@@ -1147,6 +1158,24 @@ def _consolidar(out_dir, save, g, params, res=None):
          "=" * 70, ""]
     # QUADRO DE VERIFICACOES no topo + ALERTA gritante se algo nao atende.
     if res is not None:
+        # Converte um estado booleano (OK/nao) em "util-like": None se o gate nao
+        # rodou (chave ausente -> pulado no quadro); 0,0 se OK; 1,99 se NAO ATENDE
+        # (>1,0 -> aparece como falha). Antes usava-se "0 if ok else None", que
+        # PULAVA as falhas (None), escondendo-as do quadro.
+        def _bok(key, okfield="ok"):
+            if key not in res:
+                return None
+            d = res[key]
+            ok = d.get(okfield, True) if isinstance(d, dict) else bool(d)
+            return 0.0 if ok else 1.99
+        # Estaca: usa a util real do grupo, forcando >1,0 se qualquer estado (grupo/
+        # tracao/bloco) reprovar mesmo com util <= 1.
+        est = res.get("estaca")
+        u_est = None
+        if est is not None:
+            u_est = est.get("util") or 0.0
+            if not est.get("ok", True):
+                u_est = max(u_est, 1.99)
         checks = [("Coluna", res.get("interacao_col")), ("Viga", res.get("interacao_raf")),
                   ("Flecha portico", res.get("flecha_util")), ("Base", res.get("base_util")),
                   ("Sapata (fundacao)", res.get("sapata_util")),
@@ -1155,8 +1184,14 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Viga rolamento", res.get("ponte_viga_inter")),
                   ("Fogo theta C", res.get("fogo_theta")),
-                  ("Escada", 0 if res.get("escada_ok") else None),
-                  ("Plataforma", 0 if res.get("plataforma_ok") else None)]
+                  # Verificacoes globais antes ausentes do quadro (falha silenciosa):
+                  ("Estaca (fund. profunda)", u_est),
+                  ("Travamento transversal", _bok("travamento_transversal")),
+                  ("Sismo (theta 2a ordem)", _bok("sismo_theta")),
+                  ("Calha (hidraulica)", _bok("calha")),
+                  ("Fundacao de divisa", _bok("divisa")),
+                  ("Escada", None if "escada_ok" not in res else (0.0 if res["escada_ok"] else 1.99)),
+                  ("Plataforma", None if "plataforma_ok" not in res else (0.0 if res["plataforma_ok"] else 1.99))]
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:

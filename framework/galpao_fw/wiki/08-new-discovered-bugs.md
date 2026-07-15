@@ -6,7 +6,9 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 > **Status Geral (2026-07-15):**
 > - **Fase 1 (bugs 8.1–8.4):** ✅ 4/4 verificados e corrigidos — commit `dad7b87`.
 > - **Fase 9 (bugs 8.5–8.13):** ✅ 7 reais corrigidos (8.5, 8.6, 8.7, 8.8, 8.10, 8.12, 8.13) + ⚪ 2 falsos positivos (8.9, 8.11) — commit `06130c0`.
-> - **Fase 10 (bugs 8.14–8.17):** ✅ 3 reais corrigidos (8.15, 8.16, 8.17) + ⚪ 1 falso positivo (8.14) — verificados no notebook *"Diretrizes Técnicas para Revisão de Projetos de Engenharia"*.
+> - **Fase 10 (bugs 8.14–8.17):** ✅ 3 reais corrigidos (8.15, 8.16, 8.17) + ⚪ 1 falso positivo (8.14) — commit `ac529a2`.
+> - **Fase 11 (bugs 8.18–8.20):** ✅ 3/3 reais corrigidos — verificações globais (fundação profunda, sismo, calha, divisa) agora entram no QUADRO DE VERIFICAÇÕES; corrigido também o padrão que escondia falhas de Escada/Plataforma.
+
 
 ---
 
@@ -31,6 +33,10 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
 | **Bug 8.15** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Erro de "fencepost" no cálculo do vão de flambagem superior do rafter ($Lb_{terca}$). | NBR 8800 (Anexo J.4.2) | **✅ Resolvido** |
 | **Bug 8.16** | 🟡 Médio | [estabilidade_b1b2.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/estabilidade_b1b2.py) | Ausência de salvaguardas para $B_2$ negativo ou excessivo (instabilidade de 2ª ordem). | NBR 8800 (Item 4.9.7) | **✅ Resolvido** |
 | **Bug 8.17** | 🟡 Médio | [console_ponte.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/console_ponte.py) | Omissão do momento horizontal $M_z$ (surto lateral) na flexão da raiz da chapa do console. | NBR 8800 (§5.4) | **✅ Resolvido** |
+| **Bug 8.18** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de fundação profunda no QUADRO DE VERIFICAÇÕES global. | NBR 6122 / NBR 6118 | **✅ Resolvido** |
+| **Bug 8.19** | 🔴 Crítico | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação do drift/estabilidade de 2ª ordem do sismo no QUADRO DE VERIFICAÇÕES global. | NBR 15421 (§9.6) | **✅ Resolvido** |
+| **Bug 8.20** | 🟡 Médio | [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py) | Omissão da verificação de calhas e de fundação de divisa no QUADRO DE VERIFICAÇÕES global. | NBR 10844 / NBR 6118 | **✅ Resolvido** |
+
 
 
 ---
@@ -264,3 +270,28 @@ Este documento registra as novas inconformidades, inconsistências e riscos estr
   u_flex = (M / M_Rd)
   ```
   onde `M = Rv * ecc`. No entanto, a força horizontal de surto transversal $H_t$ atua no topo do trilho com excentricidade vertical, gerando o momento fletor horizontal coplanar $M_z = H_t \cdot (L/2 + h_{trilho})$ na raiz da solda/chapa. Como $M_z$ também provoca tensões normais de flexão na mesma seção transversal da chapa do console, ignorá-lo no cálculo de $u_{flex}$ é inseguro, sendo necessário verificar a chapa sob a soma absoluta/envelope dos momentos $(|M| + |M_z|) / M_{Rd}$.
+
+---
+
+### Bug 8.18: Omissão da Verificação de Fundação Profunda no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** — `res["estaca"]` passou a expor `ok` (consolidando grupo + tração + bloco) e `util`, e foram adicionadas ao quadro as linhas **"Estaca (fund. profunda)"** e **"Travamento transversal"**. A estaca entra pela util real do grupo, forçada a >1,0 se qualquer estado (grupo/tração/bloco) reprovar mesmo com util ≤ 1. Verificado por simulação: estaca com `util=0,80` porém `ok=False` (bloco reprova) agora aparece como **NAO ATENDE**.
+* **Risco:** 🔴 Crítico
+* **Descrição:** Quando o usuário seleciona fundação profunda (`params.get("estaca")`), o framework calcula a capacidade das estacas, dimensiona o bloco de coroamento, o travamento transversal e a viga de equilíbrio de divisa. No entanto, os resultados e taxas de utilização dessas peças estruturais (como `re_["grupo"]["util"]`, `re_["bloco"]["OK"]`, `rct["OK"]`, `rve["viga"]["ok"]`) são completamente omitidos da lista `checks` e do controle de `falhas` de `rodar_galpao.py`. Se qualquer um desses elementos de fundação profunda falhar, a consolidação no topo do memorial exibirá silenciosamente que todos os elementos estão "OK", mascarando falhas graves de fundação sob compressão, tração ou flexo-compressão.
+
+---
+
+### Bug 8.19: Omissão da Verificação do Drift/Estabilidade Sísmica no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** — adicionada a linha **"Sismo (theta 2ª ordem)"** ao quadro, lendo `res["sismo_theta"]["ok"]` (já calculado como `θ ≤ θ_max`, NBR 15421 §9.6). Falha de estabilidade sísmica agora surface como NAO ATENDE.
+* **Risco:** 🔴 Crítico
+* **Descrição:** Se a ação sísmica for ativada e o coeficiente de estabilidade global de segunda ordem exceder o limite normativo da NBR 15421 (§9.6, $\theta > \theta_{max}$), indicando instabilidade física da estrutura sob terremoto, a util correspondente ou o estado de aprovação (`res["sismo_theta"]["ok"]`) não é incluído na lista `checks` de verificação consolidada. O programa indica que a estrutura atende integralmente ao projeto mesmo em estado crítico de colapso sísmico.
+
+---
+
+### Bug 8.20: Omissão da Verificação de Calhas e Sapata de Divisa no QUADRO DE VERIFICAÇÕES Global
+* **Arquivo:** [rodar_galpao.py](file:///C:/Users/joseh/OneDrive/Área%20de%20Trabalho/dev/FreeCad_Automatic/framework/galpao_fw/rodar_galpao.py#L1150-L1159)
+* **Status:** **✅ RESOLVIDO** — adicionadas as linhas **"Calha (hidráulica)"** (`res["calha"]["ok"]`) e **"Fundação de divisa"** ao quadro. `res["divisa"]` passou a expor `ok` nas duas variantes (viga de equilíbrio sobre estacas `rve["viga"]["ok"]` e sapata + viga alavanca `rdv["viga"]["ok"]`). **Bônus:** corrigido o padrão `0 if ok else None` de Escada/Plataforma, que enviava a **falha** para `None` (pulada no quadro) — agora falha → 1,99 (NAO ATENDE) e "não rodou" → pulado, distinguidos por presença da chave.
+* **Risco:** 🟡 Médio
+* **Descrição:** Semelhante às fundações profundas e ao sismo, o dimensionamento hidráulico de calhas (`res["calha"]["ok"]`) e a fundação superficial de divisa (`res["divisa"]["ok"]`) não são inseridos no `checks` do relatório consolidado de `rodar_galpao.py`. Caso a calha transborde (altura d'água requerida acima do limite ou desconformidade com a regra prática de 1 cm²/m² de Bellei), ou a viga alavanca da sapata de divisa falhe à flexão/cisalhamento, o erro passará desapercebido na tabela sumária de utilizações.
+
