@@ -14,10 +14,16 @@ OK. Valores ligeiramente ≠ das refs pré-auditoria (esperado — reflete os fi
 13 pranchas + memorial PDF, cobertura completa cada) antes de ser interrompido por tempo
 (cada caso ~min); camada executiva íntegra. Rodar os 7 leva ~15 min.
 **Pendências reais (antes de assinar):**
-- **fogo** `θ_crítica=550 °C` (mu~0,6) e `λp` da tinta intumescente **calibrados** — A
-  CONFIRMAR pelo eng. com boletim do fabricante (8.13/8.34).
-- **8.21**: frame de `galpao_portico` ainda modela colunas **uniformes** (B2/esforços); só
-  o B1 local honra o perfil por-coluna. Suporte per-coluna no frame = refino futuro.
+- **fogo** `θ_crítica` e `λp` da protecão — **RESOLVIDO 2026-07-15 (gate flagado)**: viraram
+  input do `ProjetoSpec` (`fogo.theta_critica_C`, `fogo.protecao.lambda_p/c_p/rho_p`).
+  Ausentes → default calibrado (550 °C / λp típico) **+ AVISO** em `validar()` e marca
+  `[DEFAULT - CONFIRMAR boletim]` no `gate8-fogo.txt` (Ask-Do-Not-Invent). O eng. ainda
+  confirma os valores do boletim, mas agora é perguntado/rastreado, não silencioso.
+- **8.21 frame per-coluna** — **RESOLVIDO 2026-07-15**: `galpao_portico._frame()` passou a
+  honrar `SEC_COLS_PORTICO` (seção real por coluna); `redimensionamento._aplica` a preenche,
+  então a análise 2D **e o B2** (P-Δ) enxergam a rigidez real por coluna, não só o B1 local.
+  Ref 20×10 (1 vão) idêntico (guard de não-regressão); selftest prova coluna central rígida
+  atrair mais momento. Multi-vão heterogêneo agora correto. `reset()` limpa o estado.
 - **`review_completo.md`** consolidado neste wiki e **removido**; correções do laudo em
   [[04-decisions#D49]] (nomes de arquivo, γG uplift 1,00, combos `C1_`).
 

@@ -1125,7 +1125,6 @@ def rodar(params, out_dir):
         rf = fogo.verifica_fogo(sec_fogo, params["fy"], Gk, Qk,
                                 TRRF_min=fg.get("TRRF_min", 60),
                                 protecao=fg.get("protecao"))
-        save("gate8-fogo.txt", fogo.relatorio_pt(rf))
         res["fogo_theta"] = rf["theta_aco_C"]
         res["fogo_ky"] = rf["ky"]
         res["fogo_TRRF"] = rf["TRRF_min"]
@@ -1136,6 +1135,18 @@ def rodar(params, out_dir):
         theta_cr = fg.get("theta_critica_C", 550.0)
         res["fogo_util"] = round(rf["theta_aco_C"] / theta_cr, 2)
         res["fogo_ok"] = bool(rf["theta_aco_C"] <= theta_cr)
+        # Ask-Do-Not-Invent: theta_critica e lambda_p da protecao vem do eng./
+        # boletim. Se defaultados, flaga no memorial (nao bloqueia - o gate do
+        # ProjetoSpec ja avisa; aqui deixa o rastro na memoria de calculo).
+        res["fogo_theta_cr"] = theta_cr
+        res["fogo_theta_cr_default"] = fg.get("theta_critica_C") is None
+        res["fogo_lambda_p_default"] = bool(rf.get("lambda_p_default"))
+        _txt_fogo = fogo.relatorio_pt(rf)
+        if res["fogo_theta_cr_default"]:
+            _txt_fogo += ("\n  [DEFAULT - CONFIRMAR: theta_critica = 550 C (mu~0,6, "
+                          "NBR 14323) assumida; depende do nivel de carregamento a "
+                          "quente. Informe params['fogo']['theta_critica_C'].]")
+        save("gate8-fogo.txt", _txt_fogo)
     # Gate 8 - ESCADA INDUSTRIAL
     if params.get("escada"):
         esc_cfg = params["escada"]

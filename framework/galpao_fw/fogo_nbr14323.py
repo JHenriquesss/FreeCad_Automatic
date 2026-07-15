@@ -101,8 +101,12 @@ def verifica_fogo(sec_perfil, fy, G_k, Q_k, TRRF_min=60, lb=None,
         u_A = massividade_I(h, b, tw, tf, lados_expostos)
     
     # Temperatura do aco no TRRF
+    lam_p_default = None
     if protecao:
-        theta_a = _temp_com_protecao(TRRF_min, u_A, protecao["tipo"], protecao["espessura"])
+        theta_a = _temp_com_protecao(TRRF_min, u_A, protecao["tipo"],
+                                     protecao["espessura"], props=protecao)
+        # lambda_p do BOLETIM do fabricante? senao usa o TIPICO calibrado (flag).
+        lam_p_default = protecao.get("lambda_p") is None
     else:
         theta_a = temp_aco_nao_protegido(TRRF_min, u_A)
     
@@ -121,7 +125,8 @@ def verifica_fogo(sec_perfil, fy, G_k, Q_k, TRRF_min=60, lb=None,
             "theta_gases_C": round(temp_gases(TRRF_min), 1),
             "u_A_1m": round(u_A, 1), "ky": ky, "kE": kE,
             "fy_fi_kN_m2": round(fy_fi), "E_fi_kPa": round(E_fi),
-            "F_fi_kN": round(F_fi, 1), "protecao": protecao}
+            "F_fi_kN": round(F_fi, 1), "protecao": protecao,
+            "lambda_p_default": lam_p_default}
 
 
 # Propriedades termicas TIPICAS dos materiais de protecao (A CONFIRMAR com o
@@ -135,7 +140,7 @@ _PROT_TERM = {
 }
 
 
-def _temp_com_protecao(t_min, u_A, tipo, espessura_mm):
+def _temp_com_protecao(t_min, u_A, tipo, espessura_mm, props=None):
     """Temperatura do aco COM protecao pelo metodo incremental da NBR 14323
     (Anexo B / Fluxograma 2). A ESPESSURA da protecao (tp) entra fisicamente:
       - na condutancia termica lambda_p/tp (barreira ao fluxo de calor);
@@ -143,12 +148,17 @@ def _temp_com_protecao(t_min, u_A, tipo, espessura_mm):
     Passo a passo (Dt<=30 s), com:
       dtheta_a = (lambda_p/tp)*(u/A)/(c_a*rho_a) * (theta_g - theta_a)/(1+xi/3)*Dt
                  - (e^(xi/10) - 1) * dtheta_g
-    Retorna a temperatura do aco (C) apos t_min."""
+    `props`: dict opcional {lambda_p, c_p, rho_p} do BOLETIM do fabricante;
+    o que faltar cai no valor TIPICO calibrado de _PROT_TERM. Retorna a
+    temperatura do aco (C) apos t_min."""
     tp = espessura_mm / 1000.0                 # espessura da protecao (m)
-    prop = _PROT_TERM.get(tipo)
-    if tp <= 0 or prop is None:
+    base = _PROT_TERM.get(tipo)
+    if tp <= 0 or base is None:
         return temp_aco_nao_protegido(t_min, u_A)
-    lam_p, c_p, rho_p = prop["lambda_p"], prop["c_p"], prop["rho_p"]
+    props = props or {}
+    lam_p = props.get("lambda_p", base["lambda_p"])
+    c_p = props.get("c_p", base["c_p"])
+    rho_p = props.get("rho_p", base["rho_p"])
     ca, rho_a = 600.0, 7850.0                  # aco
     Dt = min(0.5, max(t_min / 200.0, 1e-3))    # passo (min) <= 30 s p/ estabilidade
     n_passos = max(1, int(round(t_min / Dt)))
@@ -220,6 +230,9 @@ def relatorio_pt(r):
          f"  fy,fi = {r['fy_fi_kN_m2']:.0f} kN/m2 ; E,fi = {r['E_fi_kPa']:.0f} kPa"]
     if r.get("protecao"):
         L.append(f"  Protecao: {r['protecao']['tipo']} esp={r['protecao']['espessura']} mm")
+        if r.get("lambda_p_default"):
+            L.append("  [DEFAULT - CONFIRMAR boletim do fabricante: condutividade "
+                     "lambda_p da protecao usou valor TIPICO calibrado, nao o do boletim.]")
     else:
         L.append("  Sem protecao passiva.")
     L.append("  [FLAG: verificacao completa requer analise da estrutura em incendio")
