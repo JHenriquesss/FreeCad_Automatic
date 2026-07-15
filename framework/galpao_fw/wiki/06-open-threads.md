@@ -1,13 +1,19 @@
 # 06 — Open threads
 
-## T13 — Auditoria Diretrizes Técnicas (bugs 8.1–8.36) — RESOLVIDO 2026-07-15 (push pendente)
-33 bugs reais corrigidos + 3 falsos positivos. Commits `dad7b87`→`741221d`, branch
-`revisao/homologacao-12-modulos` (**não pushada** — gate humano [[#T5]]). Ver
+## T13 — Auditoria Diretrizes Técnicas (bugs 8.1–8.36) — RESOLVIDO 2026-07-15; PR #8 MERGED; smoke rodado 2026-07-15
+33 bugs reais corrigidos + 3 falsos positivos. Commits `dad7b87`→`0a5e135`, branch
+`revisao/homologacao-12-modulos` → **PR #8 MERGED em `main`** (`20a53a5`). Ver
 [[04-decisions#D49]], [[03-phases]] (fase "Auditoria Diretrizes Técnicas").
+**Smoke fim-a-fim RODADO (2026-07-15):** destravado instalando o trio
+`numpy 1.26.4 + scipy 1.12.0 + pycufsm 0.2.0` (ver `REQUISITOS.txt` atualizado — a
+restrição real inclui `scipy<1.13`; a metadata do wheel do pycufsm mente que aceita
+numpy≥2). `rodar_galpao` **sem ponte** (col 0,65 / viga 0,91) e **com ponte** (col 0,82
+/ viga 0,94, R_vert 132,9 kN) OK; selftests `tercas_iteracao`/`distorcional_fsm` (FSM)
+OK. Valores ligeiramente ≠ das refs pré-auditoria (esperado — reflete os fixes).
+`smoke_executivo` (FreeCAD headless): 2/7 casos completos OK (`padrao`, `vao_maior` —
+13 pranchas + memorial PDF, cobertura completa cada) antes de ser interrompido por tempo
+(cada caso ~min); camada executiva íntegra. Rodar os 7 leva ~15 min.
 **Pendências reais (antes de assinar):**
-- **Smoke/pytest completo NÃO rodado** neste ambiente: falta `pycufsm` (numpy<2). Só
-  `_selftest()` por módulo + simulação da lógica do quadro verificados. Rodar
-  `pip install pycufsm` e `rodar_galpao` fim-a-fim.
 - **fogo** `θ_crítica=550 °C` (mu~0,6) e `λp` da tinta intumescente **calibrados** — A
   CONFIRMAR pelo eng. com boletim do fabricante (8.13/8.34).
 - **8.21**: frame de `galpao_portico` ainda modela colunas **uniformes** (B2/esforços); só
