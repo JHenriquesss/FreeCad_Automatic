@@ -42,14 +42,16 @@ def dimensiona(desnivel, projecao_horizontal, largura=1.20,
         return {"ok": False, "erro": f"Blondel {blondel:.1f}cm fora de [62;64]"}
     # Comprimento da longarina
     L_long = math.hypot(projecao_horizontal, desnivel)
-    # Carga na longarina (2 longarinas)
-    w_perm = (PESO_DEGRAU * largura + 0.50) * largura / 2.0
+    # Carga na longarina (2 longarinas). PESO_DEGRAU*largura ja e a carga LINEAR
+    # dos degraus (kN/m); somado 0,50 kN/m (longarina + guarda-corpo) e dividido
+    # pelas 2 longarinas. NAO multiplicar por largura de novo (erro dimensional).
+    w_perm = (PESO_DEGRAU * largura + 0.50) / 2.0
     w_acid = q_acidental * largura / 2.0
     w_total = w_perm + w_acid
     M_max = w_total * L_long ** 2 / 8.0
     V_max = w_total * L_long / 2.0
-    # Flecha (combinacao frequente)
-    delta = 5.0 * (w_perm + 0.6 * w_acid) * L_long ** 4 / (384.0 * 200e6 * 1e-8)
+    # Flecha (combinacao frequente): limite L/300. A flecha real e verificada no
+    # loop com o Ix REAL de cada perfil (delta_real); aqui so o limite.
     lim_delta = L_long / LIM_FECHA
     
     escada_perfis = ["U100x10", "U125x10", "U150x12", "U150x15",

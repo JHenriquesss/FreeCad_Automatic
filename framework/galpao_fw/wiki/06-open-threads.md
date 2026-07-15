@@ -1,5 +1,20 @@
 # 06 — Open threads
 
+## T13 — Auditoria Diretrizes Técnicas (bugs 8.1–8.36) — RESOLVIDO 2026-07-15 (push pendente)
+33 bugs reais corrigidos + 3 falsos positivos. Commits `dad7b87`→`741221d`, branch
+`revisao/homologacao-12-modulos` (**não pushada** — gate humano [[#T5]]). Ver
+[[04-decisions#D49]], [[03-phases]] (fase "Auditoria Diretrizes Técnicas").
+**Pendências reais (antes de assinar):**
+- **Smoke/pytest completo NÃO rodado** neste ambiente: falta `pycufsm` (numpy<2). Só
+  `_selftest()` por módulo + simulação da lógica do quadro verificados. Rodar
+  `pip install pycufsm` e `rodar_galpao` fim-a-fim.
+- **fogo** `θ_crítica=550 °C` (mu~0,6) e `λp` da tinta intumescente **calibrados** — A
+  CONFIRMAR pelo eng. com boletim do fabricante (8.13/8.34).
+- **8.21**: frame de `galpao_portico` ainda modela colunas **uniformes** (B2/esforços); só
+  o B1 local honra o perfil por-coluna. Suporte per-coluna no frame = refino futuro.
+- **`review_completo.md`** consolidado neste wiki e **removido**; correções do laudo em
+  [[04-decisions#D49]] (nomes de arquivo, γG uplift 1,00, combos `C1_`).
+
 ## T12 — Balde 4 (fases 6.15–6.19) — RESOLVIDO 2026-07-13/14
 - **~~Glyph AWS de solda (resíduo do 2D T6)~~ RESOLVIDO:** `DrawWeldSymbol` é só-GUI;
   substituído por `TechDraw::DrawViewSymbol` + SVG inline (`_svg_solda_filete`), headless.

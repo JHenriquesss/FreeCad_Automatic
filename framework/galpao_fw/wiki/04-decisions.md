@@ -318,5 +318,53 @@ estacas). `dg25_ltb` estendido (envelope FLB/TFY/ruptura §5.4.4–7, mono-aware
 A_eff já inclui a faixa colaborante — parecer endossa, FLAG explícito).
 **REVISAO-INDICE itens 45–49 ✅ HOMOLOGADOS.** Ver [[03-phases#FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14]], [[06-open-threads#T12]].
 
+## D49 — 2026-07-15 — Auditoria "Diretrizes Técnicas" (bugs 8.1–8.36) via NotebookLM
+Auditoria confrontando o código com as normas via MCP NotebookLM. **36 achados triados:
+33 bugs reais corrigidos + 3 falsos positivos.** Ritual: 1 pergunta/bug ao notebook antes
+de corrigir; verdito verificado contra citação da norma (não de memória). Commits
+`dad7b87`→`741221d`.
+
+**Falsos positivos (sem mudança, confirmados no notebook):**
+- **8.9** junta_dilatacao: fatores FCC Report 65 são **aditivos** ("soma algébrica dos
+  vários fatores") — `base·(1+Σf)` correto; multiplicar seria não-conservador.
+- **8.11** gusset: `L_livre=Lc` como fallback é **conservador** e já documentado (Thornton
+  DG29); variáveis já desacopladas.
+- **8.14** estabilidade: NBR 8800 **D.2.4** é literal `Vsd=Vnt+Vlt` — cortante NÃO leva B2
+  (só M e N). `v=mf_nt+mf_lt` correto.
+
+**Correções por tema:**
+- **Concreto/fundação** (6118/6122): 8.1 cortante da viga alavanca (biela/estribo, itera
+  h); 8.10 `b_viga=b_col_paralela`; 8.29 `sapata_ok` inclui `OK_B` (flexão/compr.diag/
+  punção); 8.4/8.18/8.31 travamento transversal + baldrame long. + estaca no quadro.
+- **Combinações** (8681): 8.2 Q não estabiliza uplift na `Gfav` (γq=0). γG favorável=**1,0**
+  (NBR 8800 Tab.1, peso próprio metálico); combos são `C1_uplift_W*`/`C1_Gfav_W*`.
+- **Aço** (8800): 8.3 `abs()` na flexo-tração 5.5.1.2; 8.15 fencepost `Lb_terca=L_raft/
+  n_terca` (era `/(n+1)`); 8.16/8.22 travas B2/B1 (`denom≤0→inf`, `≥1,0`; MAES inválido
+  se >1,40 rig. original / >1,55 reduzida); 8.17 console `(|M|+|Mz|)/M_Rd` (flexão reta,
+  mesmo eixo forte); 8.21 `SEC_COLS_EXTERNO` preserva `I` por-coluna no B1 (frame de
+  `galpao_portico` segue uniforme — refino futuro).
+- **Física/unidade**: 8.5 escada peso próprio `(…)/2` (era `×largura` extra); 8.6 `delta`
+  morto removido; 8.7 vibração 3 Hz **sempre** (L.1.2, sem isenção L≤4m); 8.12
+  `Nsd_tirante` da geometria (componente tangencial acumulada `(1,25G+1,5Q)·(ridge−eave)·
+  bay/(n_tir+1)`; 8,0 kN vira piso); 8.13 fogo intumescente = **método incremental Anexo
+  B** (espessura via `λp/tp` e `ξ`; `λp` calibrado vs cartas de cobertura); 8.34 fogo
+  `util=θ/θ_cr` (não °C absoluto; `θ_cr=550 °C` default, A CONFIRMAR).
+- **Hidráulica/vento**: 8.8 calha `h_elevacao` (NBR 10844, parede vertical +50%); 8.20
+  calha + divisa no quadro.
+- **Observabilidade do QUADRO** (8.18–8.20, 8.23–8.36): verificações calculadas mas
+  ausentes do resumo passavam "todos ATENDEM". Helpers `_uok`/`_uokd` forçam `util>1`
+  quando o OK reprova com `util≤1` (base/interação, sapata/punção, viga-rolamento/fadiga).
+  Ligados: tesoura, telha, contravento/gusset, console, zona de painel, sismo θ, junta,
+  terreno. Corrigido `0 if ok else None` (mandava FALHA→None, pulada). `terreno.py`
+  deixou de ser órfão (import + gate `params["terreno"]`); `rodar_projeto` exporta os
+  novos subsistemas ao TechDraw (`resultados`+`estados`). Ver [[01-architecture#Quadro de
+  verificações (pass/fail consolidado)]].
+
+**Método/infra:** MCP NotebookLM `bf7feaa3-…`; git instalado via winget. **Laudo
+`review_completo.md` consolidado aqui e removido — correções aplicadas:** nomes de arquivo
+errados (`viga_ponte.py`→`ponte_rolante.py`; `placa_base.py`→`base_chumbador.py`); γG
+uplift **1,00** (não 0,90); combos `C1_uplift_*` (não `C2_`); "sem regressão" depende do
+smoke com pycufsm ([[06-open-threads#T13]]).
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

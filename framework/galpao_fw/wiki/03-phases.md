@@ -1,5 +1,21 @@
 # 03 — Fases
 
+## FECHADA — Auditoria "Diretrizes Técnicas" (bugs 8.1–8.36) — 2026-07-15
+Auditoria de conformidade via MCP NotebookLM (notebook "Diretrizes Técnicas para Revisão
+de Projetos de Engenharia"), 5 lotes. **33 bugs reais corrigidos + 3 falsos positivos**
+(8.9 junta aditiva ✓; 8.11 `L_livre=Lc` conservador ✓; 8.14 cortante sem B2 — D.2.4 ✓).
+- Lote 1 (8.1–8.4) `dad7b87`; Lote 9 (8.5–8.13, 7+2FP) `06130c0`; Lote 10 (8.14–8.17,
+  3+1FP) `ac529a2`; Lote 11 (8.18–8.20) `a6e3808`; Lote 12 (8.21–8.36) `741221d`.
+- Temas: cortante viga alavanca; uplift γq=0; flexo-tração abs; fencepost `Lb_terca=
+  L_raft/n_terca`; travas B1/B2 (denom≤0→inf); console `(|M|+|Mz|)`; `SEC_COLS_EXTERNO`
+  (B1 por-coluna); fogo incremental Anexo B + `θ/θ_cr`; `Nsd_tirante` geométrico; calha
+  `h_elevacao`; **observabilidade do QUADRO** (14 verificações antes omitidas surfaçam;
+  `_uok`/`_uokd`); `terreno.py` deixou de ser órfão; export TechDraw completo.
+- Verificação: `_selftest()` por módulo ✅ + simulação da lógica do quadro ✅. **Smoke
+  completo pendente** (pipeline exige `pycufsm`, ausente no ambiente). Branch
+  `revisao/homologacao-12-modulos` **não pushada**. Ver [[04-decisions#D49]],
+  [[06-open-threads#T13]].
+
 ## FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14
 **Escopo:** resolver os 6 itens residuais de refino (não-bug) do sistema: perfil I
 monossimétrico, envelope DG25 de estados de flexão, forças localizadas §5.7, viga de

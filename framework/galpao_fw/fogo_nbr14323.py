@@ -124,32 +124,64 @@ def verifica_fogo(sec_perfil, fy, G_k, Q_k, TRRF_min=60, lb=None,
             "F_fi_kN": round(F_fi, 1), "protecao": protecao}
 
 
+# Propriedades termicas TIPICAS dos materiais de protecao (A CONFIRMAR com o
+# boletim tecnico do fabricante). lambda_p CALIBRADO p/ reproduzir as cartas de
+# cobertura (Tab. 6.13): tinta 1,27 mm protege u/A~240 a ~550 C em 60 min; spray
+# 15 mm protege u/A~90 a ~550 C em 60 min. (lambda_p em W/m.C ; c_p em J/kg.C ;
+# rho_p em kg/m3). O char da tinta intumescente tem condutividade efetiva baixa.
+_PROT_TERM = {
+    "intumescente": {"lambda_p": 0.0072, "c_p": 1000.0, "rho_p": 250.0},
+    "spray":        {"lambda_p": 0.20,   "c_p": 1100.0, "rho_p": 300.0},
+}
+
+
 def _temp_com_protecao(t_min, u_A, tipo, espessura_mm):
-    """Temperatura do aco com protecao (simplificado).
-    Retorna temperatura aproximada apos t_min."""
-    dp = espessura_mm / 1000.0
-    if tipo == "intumescente":
-        # Pintura intumescente: reducao aproximada de 60-70% na temperatura
-        theta_s_prot = temp_aco_nao_protegido(t_min, u_A) * 0.35
-        return round(theta_s_prot, 1)
-    elif tipo == "spray":
-        # Spray vermiculita/cimento: reducao maior
-        theta_s_prot = temp_aco_nao_protegido(t_min, u_A) * (0.20 if dp >= 0.025 else 0.30)
-        return round(theta_s_prot, 1)
-    return temp_aco_nao_protegido(t_min, u_A)
+    """Temperatura do aco COM protecao pelo metodo incremental da NBR 14323
+    (Anexo B / Fluxograma 2). A ESPESSURA da protecao (tp) entra fisicamente:
+      - na condutancia termica lambda_p/tp (barreira ao fluxo de calor);
+      - no fator de inercia termica xi = (c_p*rho_p)/(c_a*rho_a)*tp*(u/A).
+    Passo a passo (Dt<=30 s), com:
+      dtheta_a = (lambda_p/tp)*(u/A)/(c_a*rho_a) * (theta_g - theta_a)/(1+xi/3)*Dt
+                 - (e^(xi/10) - 1) * dtheta_g
+    Retorna a temperatura do aco (C) apos t_min."""
+    tp = espessura_mm / 1000.0                 # espessura da protecao (m)
+    prop = _PROT_TERM.get(tipo)
+    if tp <= 0 or prop is None:
+        return temp_aco_nao_protegido(t_min, u_A)
+    lam_p, c_p, rho_p = prop["lambda_p"], prop["c_p"], prop["rho_p"]
+    ca, rho_a = 600.0, 7850.0                  # aco
+    Dt = min(0.5, max(t_min / 200.0, 1e-3))    # passo (min) <= 30 s p/ estabilidade
+    n_passos = max(1, int(round(t_min / Dt)))
+    Dt = t_min / n_passos
+    xi = (c_p * rho_p) / (ca * rho_a) * tp * u_A
+    theta_a = 20.0
+    theta_g_prev = 20.0
+    for i in range(n_passos):
+        theta_g = 20.0 + 345.0 * math.log10(8.0 * (i + 1) * Dt + 1.0)
+        d_theta_g = theta_g - theta_g_prev
+        d_theta_a = ((lam_p / tp) * (u_A / (ca * rho_a))
+                     * (theta_g - theta_a) / (1.0 + xi / 3.0) * Dt * 60.0
+                     - (math.exp(xi / 10.0) - 1.0) * d_theta_g)
+        if d_theta_a < 0.0 and d_theta_g > 0.0:
+            d_theta_a = 0.0                    # NBR 14323: nao resfria enquanto gases sobem
+        theta_a += d_theta_a
+        theta_g_prev = theta_g
+    return round(min(theta_a, theta_g_prev), 1)
 
 
 def espessura_protecao(t_min, u_A, tipo="intumescente", temp_critica=550.0):
     """Calcula espessura necessaria de protecao para manter o aco abaixo
     de temp_critica durante t_min minutos. Retorna espessura em mm."""
     if tipo == "intumescente":
-        # Dados da Tab. 6.13 (Fakury / Nullifire): u/A vs espessura
+        # Tab. 6.13 (carta de cobertura) - tinta intumescente Nulifire/S605 (ext.),
+        # temp. limite 550 C, 4 faces expostas. Espessura seca [mm] por (u/A ; TRRF).
+        # Colunas: u/A_limite, 30, 60, 90, 120 min. Monotonica nao-decrescente em u/A
+        # (perfil mais massivo = aquece mais rapido = exige MAIOR espessura).
+        # None = combinacao nao coberta pela tinta -> usar outra protecao.
         tabela = [
             (55,  0.49, 1.27, 1.73, 3.96),
-            (105, 0.32, 0.88, 1.27, 2.31),
-            (155, 0.47, 1.70, 2.31, 5.94),
-            (205, 0.60, 1.25, 2.30, None),
-            (260, 0.67, 2.30, None, None),
+            (240, 0.49, 1.27, 2.31, 5.94),
+            (334, 0.49, 2.23, None, None),
         ]
         col = {30: 1, 60: 2, 90: 3, 120: 4}
         if t_min not in col:
@@ -157,8 +189,8 @@ def espessura_protecao(t_min, u_A, tipo="intumescente", temp_critica=550.0):
         ci = col[t_min]
         for row in tabela:
             if u_A <= row[0]:
-                return row[ci] if row[ci] is not None else row[ci - 1] + 0.5
-        return None
+                return row[ci]      # None => TRRF/massividade fora do escopo da tinta
+        return None                 # u/A acima da tabela -> exige protecao mais robusta
     elif tipo == "spray":
         tab_spray = [
             (30,  10, 10, 10, 17),

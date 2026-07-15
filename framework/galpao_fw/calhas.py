@@ -77,7 +77,8 @@ def relatorio_pt(r):
               f"    Lamina d'agua req = {s['h_agua_m']*1000:.0f} mm ; As={s['As_cm2']:.1f} cm2",
               f"    Q calc = {s['Q_calc_Lmin']:.0f} >= {s['Q_req_Lmin']:.0f} L/min",
               f"    Borda livre = {s.get('borda_livre_pct',0):.0f}% (>= 25% OK)",
-              f"    Bellei As>=A_contrib: {s['As_cm2']:.0f} >= {r['area_contrib_m2']:.0f} cm2"
+              f"    Bellei A_secao>=A_contrib: {s['B_base_m']*s['H_max_m']*1e4:.0f} >= {r['area_contrib_m2']:.0f} cm2"
+              + f" (lamina util {s['As_cm2']:.0f} cm2)"
               + (" OK" if s.get('ok_bellei') else " NAO (usar H maior)")]
         L.append(f"  Condutores: {r['n_condutores']} x d{r['condutor_diam_mm']} mm")
         L.append(f"  Peso da agua = {r['peso_agua_kN']:.1f} kN")

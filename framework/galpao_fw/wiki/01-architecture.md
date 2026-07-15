@@ -41,6 +41,20 @@ da estaca já calculada); senão → `sapata_divisa` (rasa). `res["divisa"]["tip
 
 **Fundação profunda/baldrame:** opt-in via `params["estaca"]` / `params["baldrame"]`. `estaca_profunda` = 3 métodos de capacidade (Aoki-Velloso/Décourt-Quaresma/Teixeira) + tração/grupo/atrito negativo/recalque + bloco de coroamento (bielas-tirantes+ancoragem+punção). N_pilar/N_uplift do envelope de base.
 
+## Quadro de verificações (pass/fail consolidado)
+`rodar_galpao` monta o **QUADRO DE VERIFICAÇÕES** no topo do MEMORIAL-CONSOLIDADO: uma
+linha por elemento (`util = solicitação/resistência ≤ 1,0`) + alerta se algo não atende.
+Único ponto de verdade pass/fail. Regras (pós-auditoria [[04-decisions#D49]]):
+- Toda verificação com pass/fail calculado entra no quadro: coluna/viga/tesoura, base,
+  sapata, joelho, zona de painel, terça, telha, secundários, contravento/gusset, viga de
+  rolamento, console, fogo, estaca/travamento/baldrame, sismo θ, junta, calha, divisa,
+  terreno, escada, plataforma.
+- Helpers `_uok(util,ok)`/`_uokd(dict)` forçam `util>1` quando a flag de OK reprova mesmo
+  com `util≤1` (base sob interação T-V, sapata sob punção, viga-rolamento sob fadiga/
+  flecha). Elemento não rodado → linha ausente (não conta como falha).
+- `fogo` reporta `θ_aço/θ_crítica` (não °C absoluto). `rodar_projeto` exporta o mesmo
+  conjunto (`resultados`+`estados`) para a tabela das pranchas TechDraw.
+
 ## Auditoria geométrica
 `verifica_conexoes` mede as formas reais no modelo 3D (assentamento medido `_assenta`) → auto-captura defeitos de conexão/geometria. Sapata desenhada (bloco+pedestal) no take-off com densidade própria (concreto categoria separada, não soma na tonelagem de aço).
 

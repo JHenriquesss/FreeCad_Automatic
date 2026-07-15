@@ -67,16 +67,42 @@ def calcular(spec, out_dir):
     if res.get("longarina_dims"):
         spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
-    # quadro de verificacoes (utilizacoes/resultados) para as pranchas
-    spec.setdefault("estrutura", {})["resultados"] = {
-        "Maxima": res.get("interacao_max"), "Coluna": res.get("interacao_col"), "Viga": res.get("interacao_raf"),
+    # quadro de verificacoes (utilizacoes/resultados) para as pranchas. Inclui os
+    # sub-sistemas novos (tesoura, telha, contravento/gusset, console, fogo,
+    # estaca/baldrame/travamento, sismo, junta, calha, divisa, escada, plataforma,
+    # zona de painel, terreno) - antes so continha os elementos antigos.
+    def _flag(ok):                       # None (nao rodou) / "OK" / "NAO ATENDE"
+        return None if ok is None else ("OK" if ok else "NAO ATENDE")
+    def _u(d, f="u_max"):                # util aninhada
+        return d.get(f) if isinstance(d, dict) else None
+    resultados = {
+        "Maxima": res.get("interacao_max"), "Coluna": res.get("interacao_col"),
+        "Viga": res.get("interacao_raf"), "Tesoura": _u(res.get("tesoura")),
         "Flecha portico": res.get("flecha_util"),
         "Base": res.get("base_util"), "Sapata": res.get("sapata_util"),
-        "Joelho": res.get("joelho_util"), "Terca": res.get("terca_inter"),
+        "Joelho": res.get("joelho_util"), "Zona painel": _u(res.get("zona_painel")),
+        "Terca": res.get("terca_inter"), "Telha": res.get("telha_util"),
         "Longarina": res.get("longarina_inter"), "Escora": res.get("escora_inter"),
         "Montante": res.get("montante_inter"), "Verga": res.get("verga_inter"),
-        "Viga rolamento": res.get("ponte_viga_inter"),
+        "Contrav./tirantes": res.get("barras_u_max"), "Gusset": res.get("gusset_u_max"),
+        "Viga rolamento": res.get("ponte_viga_inter"), "Console": res.get("console_u_max"),
+        "Fogo (theta/theta_cr)": res.get("fogo_util"),
     }
+    # estados booleanos (OK/NAO ATENDE/None) dos gates que nao tem util numerica
+    estados = {
+        "Estaca": _flag((res.get("estaca") or {}).get("ok") if res.get("estaca") else None),
+        "Travamento transv.": _flag((res.get("travamento_transversal") or {}).get("ok") if res.get("travamento_transversal") else None),
+        "Baldrame long.": _flag((res.get("baldrame") or {}).get("ok") if res.get("baldrame") else None),
+        "Sismo (theta)": _flag((res.get("sismo_theta") or {}).get("ok") if res.get("sismo_theta") else None),
+        "Junta dilatacao": _flag((not res["junta_dilatacao"]["precisa"]) if res.get("junta_dilatacao") else None),
+        "Calha": _flag((res.get("calha") or {}).get("ok") if res.get("calha") else None),
+        "Divisa": _flag((res.get("divisa") or {}).get("ok") if res.get("divisa") else None),
+        "Terreno": _flag((res.get("terreno") or {}).get("ok") if res.get("terreno") else None),
+        "Escada": _flag(res.get("escada_ok") if "escada_ok" in res else None),
+        "Plataforma": _flag(res.get("plataforma_ok") if "plataforma_ok" in res else None),
+    }
+    spec.setdefault("estrutura", {})["resultados"] = resultados
+    spec["estrutura"]["estados"] = {k: v for k, v in estados.items() if v is not None}
     return res
 
 

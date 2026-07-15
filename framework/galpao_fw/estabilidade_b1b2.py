@@ -17,11 +17,27 @@ H_STORY = gp.EAVE
 RS = 0.85
 E = gp.E
 
+# True quando as secoes por coluna sao definidas EXTERNAMENTE (redimensionamento
+# multi-perfil, colunas com perfis distintos): sincronizar() NAO deve sobrescreve-
+# las com a secao unica gp.A_COL/I_COL (senao o B1 por-coluna usaria o Ne errado).
+SEC_COLS_EXTERNO = False
+
 # Secoes: dict por grupo. Inicializado com uma coluna e uma viga (1 vao).
 # Para N vaos: cols = [sec0, sec1, ...] (N+1), vigas = [sec0, ...] (N*2)
 SEC_COLS = [{"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE}]
 SEC_VIGAS = [{"A": gp.A_RAF, "I": gp.I_RAF,
               "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)}]
+
+
+def reset():
+    global SEC_COLS_EXTERNO, SEC_COLS, SEC_VIGAS
+    SEC_COLS_EXTERNO = False
+    SEC_COLS.clear()
+    SEC_COLS.append({"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE})
+    SEC_VIGAS.clear()
+    SEC_VIGAS.append({"A": gp.A_RAF, "I": gp.I_RAF,
+                      "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)})
+
 
 _L_RAF = SEC_VIGAS[0]["L"]
 GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF * gp.N_VAOS
@@ -38,7 +54,10 @@ def sincronizar():
     while len(SEC_COLS) < nv + 1:
         SEC_COLS.append({"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE})
     for i in range(nv + 1):
-        SEC_COLS[i].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
+        if SEC_COLS_EXTERNO:
+            SEC_COLS[i]["L"] = gp.EAVE       # preserva A/I por-coluna (multi-perfil)
+        else:
+            SEC_COLS[i].update(A=gp.A_COL, I=gp.I_COL, L=gp.EAVE)
     # Replicar secoes das vigas (2 por vao)
     L_raf = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
     while len(SEC_VIGAS) < nv * 2:
@@ -111,7 +130,14 @@ def _combina_grupo(mf_nt, mf_lt, elems, B2, sec, Efac=1.0):
             if Nint < Nsd1: Nsd1 = Nint
     Ne = math.pi ** 2 * (E * Efac) * sec["I"] / sec["L"] ** 2
     Cm = 1.0
-    B1 = max(Cm / (1.0 - abs(Nsd1) / Ne), 1.0) if Nsd1 < 0 else 1.0
+    # B1 (amplificacao local P-delta). Se Nsd1 (compressao) >= Ne (carga critica de
+    # Euler), denom<=0 -> flambagem LOCAL elastica (colapso): B1=inf (nao mascarar
+    # com max(...,1)). Salvaguarda identica a do B2 (bug 8.16).
+    if Nsd1 < 0:
+        denom_b1 = 1.0 - abs(Nsd1) / Ne
+        B1 = float("inf") if denom_b1 <= 0.0 else max(Cm / denom_b1, 1.0)
+    else:
+        B1 = 1.0
     Msd = Nsd = Vsd = Mnt = Mlt = 0.0
     for e in elems:
         for im, iN, iV, sgn in ((2, 0, 1, -1.0), (5, 3, 4, +1.0)):
@@ -162,7 +188,13 @@ def _analisa_combo(nome, combo, Efac=1.0):
     if sumH < 1e-9:
         B2 = 1.0
     else:
-        B2 = 1.0 / (1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH))
+        # denom = 1 - (1/Rs)*(dh*sumN)/(H*sumH). A parcela subtraida e a razao
+        # entre a carga gravitacional do andar e a carga critica de flambagem
+        # lateral global. Se denom <= 0, a carga vertical atingiu/superou a
+        # critica -> INSTABILIDADE GLOBAL (colapso por P-Delta). B2 e sempre >= 1,0
+        # (o efeito P-Delta so amplifica; nunca alivia).
+        denom = 1.0 - (1.0 / RS) * (dh * sumN) / (H_STORY * sumH)
+        B2 = float("inf") if denom <= 0.0 else max(1.0 / denom, 1.0)
     out = {"nome": nome, "B2": B2, "dh": dh, "sumN": sumN, "sumH": sumH, "Fn": Fn}
     # ---- esforcos amplificados por GRUPO ------------------------------------
     # Colunas: cada linha de coluna e um grupo (secao pode variar)
@@ -210,8 +242,15 @@ def analyse():
     Efac = 0.8 if reduziu else 1.0
     final = [_analisa_combo(n, c, Efac) for n, c in combos.items()] if reduziu else base
     B2max_f = max(r["B2"] for r in final)
+    # Limite de validade do MAES (NBR 8800 4.9.7 / Anexo D): 1,40 com rigidez
+    # ORIGINAL (B2max0) ou 1,55 com rigidez REDUZIDA (B2max_f). Acima disso a
+    # estrutura e de GRANDE deslocabilidade e o metodo aproximado nao e valido
+    # (exige analise rigorosa de 2a ordem). B2 infinito = instabilidade global.
+    maes_valido = (math.isfinite(B2max0) and math.isfinite(B2max_f)
+                   and B2max0 <= 1.40 and B2max_f <= 1.55)
     return {"combos": final, "B2max": B2max_f, "B2max0": B2max0,
-            "classe": classe, "reduziu": reduziu, "Efac": Efac}
+            "classe": classe, "reduziu": reduziu, "Efac": Efac,
+            "maes_valido": maes_valido}
 
 
 def memoria_pt(a):
@@ -234,6 +273,12 @@ def memoria_pt(a):
     L += ["", f"Deslocabilidade: B2max = {a['B2max0']:.3f} -> {a['classe']}"]
     if a["reduziu"]:
         L += [f"  Rigidez reduzida 80% ; B2max final = {a['B2max']:.3f}"]
+    if not a.get("maes_valido", True):
+        L += ["", "*** ATENCAO: MAES INVALIDO (NBR 8800 4.9.7) ***",
+              "  B2 excede o limite (1,40 rigidez original / 1,55 reduzida) OU e",
+              "  infinito (instabilidade global P-Delta). Estrutura de GRANDE",
+              "  deslocabilidade: EXIGE analise rigorosa de 2a ordem e/ou enrijecer",
+              "  o portico (aumentar secoes / adicionar contraventamento)."]
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 

@@ -53,6 +53,7 @@ import enrijecedor_painel as enp
 import fogo_nbr14323 as fogo
 import escada as esc
 import plataforma
+import terreno
 
 # --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
@@ -127,6 +128,12 @@ def rodar(params, out_dir):
         return txt
 
     gp.reset(); vento.reset()          # estado limpo (sem vazamento entre projetos)
+    try:
+        import estabilidade_b1b2 as est
+        est.reset()
+    except Exception:
+        pass
+
     g = params["geometria"]
     sc = params["secoes"]
     # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)
@@ -170,6 +177,9 @@ def rodar(params, out_dir):
                              "Hvr": pcfg["Hvr"]})
         res["ponte_R_vert"] = round(reac["R_vertical_kN"], 1)
         res["ponte_viga_inter"] = round(viga["inter"], 2)
+        # viga["OK"] engloba flexao biaxial + FADIGA (Anexo K) + FLECHA (L/600..1000):
+        # sem isto, uma reprovacao de fadiga/flecha (inter < 1) passaria silenciosa.
+        res["ponte_viga_ok"] = bool(viga.get("OK", True))
         # Ligacao do CONSOLE a coluna (chapa+solda que recebe a viga de
         # rolamento excentrica). Dimensiona a perna do filete. L = altura de
         # solda ~ misula do console (build BRACKET 450mm); chapa 16mm (build).
@@ -353,14 +363,29 @@ def rodar(params, out_dir):
     Fp = vl["Fa_por_lado_kN"]
     Ndp, Ldp = ctv.n_diagonal(Fp, g["bay"], g["eave"])           # parede
     Ndc, Ldc = ctv.n_diagonal(Fp, g["bay"], g["span"] / 2.0)     # cobertura
-    Nmf = ctv.forca_estabilizacao_2pct(abs(cbm["viga"]["Msd"]), sc["d_raf"])
+    Nmf = ctv.forca_estabilizacao_2pct(abs(cbm_v["Msd"]), sc["d_raf"])
+    # Nsd do TIRANTE DE COBERTURA (sag rod): componente TANGENCIAL (down-slope) do
+    # peso da cobertura (telhas + tercas G + sobrecarga Q), acumulada nas tercas de
+    # uma agua ate a linha de tirante (NBR 8800 / Manual CBCA). A soma das
+    # componentes das n_terca tercas equivale a:
+    #   T_d = (1,25 G + 1,5 Q) * w_agua * sin(theta) * trib_tir
+    # e w_agua*sin(theta) = (span/2)*tan(theta) = (ridge - eave). Assim a tracao
+    # ESCALA com a inclinacao e o vao (nao mais fixa em 8 kN, que subestimava
+    # telhados ingremes/longos). Mantem-se o valor da config como piso pratico
+    # (pre-tensao de montagem). NAO inclui o peso proprio do rafter (self).
+    n_tir_cob = max(int(sp["longarina"].get("n_tirantes", 2)), 1)
+    trib_tir = g["bay"] / (n_tir_cob + 1)
+    N_tir_d = ((1.25 * params["cargas"]["G"] + 1.5 * params["cargas"]["Q"])
+               * (g["ridge"] - g["eave"]) * trib_tir)
+    Nsd_tirante = max(N_tir_d, float(cb.get("Nsd_tirante", 0.0)))
+    res["Nsd_tirante_kN"] = round(Nsd_tirante, 2)
     barras = [
         ctv.verifica_barra("Contravento de parede (d20)", cb["d_contrav"], fyb, fub,
                            Ndp, Ldp, pretensionada=True),
         ctv.verifica_barra("Contravento de cobertura (d20)", cb["d_contrav"], fyb, fub,
                            Ndc, Ldc, pretensionada=True),
         ctv.verifica_barra("Tirante de cobertura (d16)", cb["d_tirante"], fyb, fub,
-                           cb["Nsd_tirante"], g["bay"] / 2.0, pretensionada=True),
+                           Nsd_tirante, g["bay"] / 2.0, pretensionada=True),
         ctv.verifica_barra("Mao-francesa (d16)", cb["d_tirante"], fyb, fub, Nmf, 0.40)]
     save("gate7-contraventamento.txt", ctv.relatorio_pt(barras))
     res["barras_ok"] = all(x["OK"] for x in barras)
@@ -514,20 +539,63 @@ def rodar(params, out_dir):
         Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
         esp = (ecfg.get("bloco") or {}).get("espacamento", 3.0 * Dp)
         h_bloco = (re_.get("bloco") or {}).get("h", max(0.40, 1.2 * Dp))
+        # OK/util consolidado da fundacao profunda (grupo + tracao + bloco), p/ o
+        # QUADRO DE VERIFICACOES global (senao falha de fundacao passa silenciosa).
+        _g = re_["grupo"]
+        _ok_grupo = _g.get("OK")
+        if _ok_grupo is None:
+            _ok_grupo = (_g.get("util") or 0.0) <= 1.0
+        _ok_est = bool(_ok_grupo and re_.get("tracao", {}).get("OK", True)
+                       and re_.get("bloco", {}).get("OK", True))
         res["estaca"] = {"tipo": re_["capacidade"]["tipo_estaca"],
                          "P_adm_kN": re_["capacidade"]["P_adm_kN"],
                          "n_estacas": re_["grupo"]["n"], "N_pilar_kN": round(N_pilar, 1),
                          # geometria p/ o build 3D (tudo do calculo / envelope)
                          "D": Dp, "L": ecfg["L"], "espacamento": esp,
                          "bloco_h": h_bloco, "bloco_a": a_pil,
-                         "uplift": bool(N_tr > 1e-6)}
+                         "uplift": bool(N_tr > 1e-6),
+                         "util": _g.get("util"), "ok": _ok_est}
+
+        # NBR 6122 8.5.6.1: blocos sobre 1 estaca (n=1) ou 1 linha de 2 estacas
+        # (n=2) NAO tem rigidez rotacional na direcao perpendicular a linha das
+        # estacas -> TRAVAMENTO em 2 direcoes ortogonais e OBRIGATORIO. O baldrame
+        # longitudinal (gate7-baldrame) trava a direcao do comprimento; aqui
+        # dimensiona-se a CINTA TRANSVERSAL, para a excentricidade executiva
+        # acidental (>= 10% da carga vertical, NBR 6122 / Alonso).
+        n_est_blk = re_["grupo"]["n"]
+        if n_est_blk <= 2:
+            blk = ecfg.get("bloco") or {}
+            vao_tr = g.get("span") or (g["spans"][0] if g.get("spans") else g["bay"])
+            N_cinta = 0.10 * N_pilar                     # amarracao acidental
+            cfg_cinta = {"vao": vao_tr, "b": 0.20, "h": 0.40, "cobrimento": 0.05,
+                         "q_parede": 0.0, "N_amarracao": round(N_cinta, 2),
+                         "fck": blk.get("fck", 25e3), "fyk": blk.get("fyk", 500e3),
+                         "continuidade": "simples"}
+            rct = vbal.verifica_baldrame(cfg_cinta)
+            save("gate7-travamento-transversal.txt",
+                 f"TRAVAMENTO TRANSVERSAL OBRIGATORIO (NBR 6122 8.5.6 - bloco de "
+                 f"{n_est_blk} estaca(s))\n"
+                 f"Cinta de amarracao dimensionada p/ excentricidade executiva "
+                 f"acidental N = 0,10*N_pilar = {N_cinta:.1f} kN "
+                 f"(vao transversal {vao_tr:.2f} m).\n\n" + vbal.relatorio_pt(rct))
+            res["travamento_transversal"] = {
+                "obrigatorio": True, "n_estacas": n_est_blk,
+                "N_amarracao_kN": round(N_cinta, 2), "vao": round(vao_tr, 2),
+                "secao": f"{rct['b']*100:.0f}x{rct['h']*100:.0f}",
+                "As_inf_cm2": rct["As_inf_cm2"], "ok": rct["OK"],
+                "b": rct["b"], "h": rct["h"]}
 
     # Gate - CALHA (dimensionamento hidraulico, NBR 10844 / Bellei). Roda quando
     # ha calha na cobertura. Area de contribuicao da geometria: comprimento (ao
     # longo da calha) x meia-largura (uma agua) projetada; I pluviometrica do gate.
     if params.get("calha"):
         agua = g["span"] / 2.0 / max(math.cos(math.atan(slope)), 1e-6)
-        rca = calhas.dimensiona(g["comprimento"], agua,
+        # NBR 10844: parede vertical adjacente (platibanda/oitao acima da calha)
+        # contribui com 50% da sua area (chuva com vento). h_elevacao = altura
+        # dessa face vertical (m); 0,0 p/ calha de beiral sem platibanda.
+        _cal = params["calha"]
+        h_elev_calha = _cal.get("h_elevacao", 0.0) if isinstance(_cal, dict) else 0.0
+        rca = calhas.dimensiona(g["comprimento"], agua, h_elevacao=h_elev_calha,
                                 I_mm_h=params.get("chuva_I_mm_h", 150.0))
         save("gate-calha.txt", calhas.relatorio_pt(rca))
         res["calha"] = {"vazao_Lmin": rca["vazao_Lmin"],
@@ -535,6 +603,23 @@ def rodar(params, out_dir):
                         "H_mm": rca["secao"].get("H_max_m", 0) * 1000,
                         "condutor_mm": rca.get("condutor_diam_mm"),
                         "ok": rca["ok"]}
+
+    # Gate - TERRENO (viabilidade urbanistica: TO/CA/TP + recuos, terreno.py). So
+    # roda com params["terreno"] (lote KML/pontos + limites do zoneamento). Antes o
+    # modulo era orfao (nunca importado); agora entra no quadro. Defensivo: qualquer
+    # erro de parsing do lote nao derruba o dimensionamento estrutural.
+    if params.get("terreno"):
+        try:
+            terr = terreno.analisa_terreno(params["terreno"])
+            ver = terreno.verifica_galpao(
+                terr, g["comprimento"], g["span"],
+                n_pav=params["terreno"].get("n_pav", 1),
+                area_pavimentada=params["terreno"].get("area_pavimentada", 0.0))
+            save("gate-terreno.txt", terreno.relatorio_pt(terr, ver))
+            res["terreno"] = {"area_lote_m2": terr["area_lote_m2"],
+                              "footprint_m2": ver["footprint_m2"], "ok": ver["OK"]}
+        except Exception as _e:
+            res["terreno"] = {"erro": str(_e), "ok": None}
 
     # Gate 7 - FUNDACAO DE DIVISA (pilar na linha do lote). Duas variantes:
     #  - RASA  (sem estaca): sapata excentrica + viga alavanca (sapata_divisa).
@@ -558,7 +643,8 @@ def rodar(params, out_dir):
             res["divisa"] = {"tipo": "estaca", "R_kN": rve["divisa"]["R"],
                              "e_m": rve["divisa"]["e"],
                              "n_estacas": rve["divisa"]["n_estacas"],
-                             "viga_As_cm2": rve["viga"]["As_adot_cm2"]}
+                             "viga_As_cm2": rve["viga"]["As_adot_cm2"],
+                             "ok": bool(rve["viga"]["ok"])}
         else:                                                    # variante RASA
             rdv = sd.dimensiona_divisa(
                 P_divisa=round(N_comp_d, 1), P_interno=round(N_comp_d, 1),
@@ -569,7 +655,8 @@ def rodar(params, out_dir):
             res["divisa"] = {"tipo": "sapata", "B": rdv["divisa"]["B"],
                              "L": rdv["divisa"]["L"], "R_kN": rdv["divisa"]["R"],
                              "e_m": rdv["divisa"]["e"],
-                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"]}
+                             "viga_As_cm2": rdv["viga"]["As_adot_cm2"],
+                             "ok": bool(rdv["viga"]["ok"])}
 
     # Gate 6 - PORTICO DE ALMA VARIAVEL (misula tapered). So com tipo_portico=
     # alma_variavel: o portico ja foi resolvido com a secao por segmento (rafter
@@ -611,7 +698,11 @@ def rodar(params, out_dir):
         sent_raf = cta.sentido_haunch(segs_env)
         cme_alivio_max = 0.0                             # maior reserva/acrescimo (kN)
         n_terca = params["terca"].get("n_por_agua", 3)
-        Lb_terca = L_raft / (n_terca + 1)               # mesa sup (gravidade)
+        # n_por_agua = numero de VAOS (espacos) entre tercas na meia-agua, com
+        # travamento tambem no beiral e na cumeeira -> espacamento = L_raft/n_terca
+        # (mesmo divisor do vao da telha na L300 e do modelo em build_galpao). NAO
+        # dividir por n_terca+1 (fencepost): subestimaria Lb e superestimaria a FLT.
+        Lb_terca = L_raft / n_terca                     # mesa sup (gravidade)
         Lb_mf = Lb_raf                                   # mesa inf (succao) - mao-francesa
         # secao mais funda do rafter (governa a FLT do trecho)
         deep = max((s for s in segs_env if s.get("sec_props")),
@@ -990,7 +1081,10 @@ def rodar(params, out_dir):
         res["sapata_util"] = round(max(gv.get("solo", ("", 0))[1], gv.get("compr", ("", 0))[1],
                                        1.0 / gv.get("tomb", ("", 9))[1],
                                        1.0 / gv.get("desl", ("", 9))[1]), 2)
-        res["sapata_ok"] = res["sapata_util"] <= 1.001
+        # OK = geotecnico (solo/tombamento/desliz.) E estrutural do concreto
+        # (flexao B/L, compressao diagonal, puncao) via rB["OK_B"]. Sem o OK_B,
+        # uma ruptura de armadura/puncao passaria com sapata_util<=1 (so solo).
+        res["sapata_ok"] = bool(res["sapata_util"] <= 1.001 and rB.get("OK_B", True))
         # quantitativo (concreto + aco) - n_sapatas = 2 pilares x n_porticos
         n_port = int(round(g["comprimento"] / g["bay"])) + 1
         q = fs.quantitativo(sr, rB, n_sapatas=2 * n_port,
@@ -1035,6 +1129,13 @@ def rodar(params, out_dir):
         res["fogo_theta"] = rf["theta_aco_C"]
         res["fogo_ky"] = rf["ky"]
         res["fogo_TRRF"] = rf["TRRF_min"]
+        # A temperatura (C) NAO e uma utilizacao (bug 8.34: 550 C virava
+        # "util 550 > 1 -> NAO ATENDE" sempre). Verificacao ao fogo: aco abaixo da
+        # temperatura critica no TRRF. theta_critica (NBR 14323, ~550 C p/ mu~0,6,
+        # A CONFIRMAR pelo eng.) configuravel. util = theta/theta_critica.
+        theta_cr = fg.get("theta_critica_C", 550.0)
+        res["fogo_util"] = round(rf["theta_aco_C"] / theta_cr, 2)
+        res["fogo_ok"] = bool(rf["theta_aco_C"] <= theta_cr)
     # Gate 8 - ESCADA INDUSTRIAL
     if params.get("escada"):
         esc_cfg = params["escada"]
@@ -1077,6 +1178,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
+             ("11d. TRAVAMENTO TRANSVERSAL (CINTA)", "gate7-travamento-transversal.txt"),
              ("11g. SAPATA DE DIVISA", "gate7-divisa.txt"),
              ("11d. FOGO NBR 14323", "gate8-fogo.txt"),
              ("11e. ESCADA", "gate8-escada.txt"),
@@ -1093,16 +1195,72 @@ def _consolidar(out_dir, save, g, params, res=None):
          "=" * 70, ""]
     # QUADRO DE VERIFICACOES no topo + ALERTA gritante se algo nao atende.
     if res is not None:
+        # Converte um estado booleano (OK/nao) em "util-like": None se o gate nao
+        # rodou (chave ausente -> pulado no quadro); 0,0 se OK; 1,99 se NAO ATENDE
+        # (>1,0 -> aparece como falha). Antes usava-se "0 if ok else None", que
+        # PULAVA as falhas (None), escondendo-as do quadro.
+        def _bok(key, okfield="ok"):
+            if key not in res:
+                return None
+            d = res[key]
+            ok = d.get(okfield, True) if isinstance(d, dict) else bool(d)
+            return 0.0 if ok else 1.99
+        # util-like a partir de uma util PLANA + flag de OK (chaves separadas em res):
+        # forca >1,0 se o OK reprovar mesmo com util <= 1 (ex.: base sob interacao,
+        # sapata sob puncao, viga de rolamento sob fadiga/flecha).
+        def _uok(util_key, ok_key):
+            u = res.get(util_key)
+            if u is None:
+                return None
+            return u if res.get(ok_key, True) else max(u, 1.99)
+        # idem para util ANINHADA em res[key] (dict com ufield/okfield).
+        def _uokd(key, ufield="u_max", okfield="OK"):
+            d = res.get(key)
+            if not isinstance(d, dict):
+                return None
+            u = d.get(ufield)
+            if u is None:
+                return _bok(key, okfield)
+            return u if d.get(okfield, True) else max(u, 1.99)
+        # Estaca: usa a util real do grupo, forcando >1,0 se qualquer estado (grupo/
+        # tracao/bloco) reprovar mesmo com util <= 1.
+        est = res.get("estaca")
+        u_est = None
+        if est is not None:
+            u_est = est.get("util") or 0.0
+            if not est.get("ok", True):
+                u_est = max(u_est, 1.99)
+        # Junta de dilatacao: "precisa" = excede o comprimento sem junta -> acao
+        # requerida (o modulo trata como nao-OK). Ausente -> pulado.
+        u_junta = None
+        if "junta_dilatacao" in res:
+            u_junta = 1.99 if res["junta_dilatacao"].get("precisa") else 0.0
         checks = [("Coluna", res.get("interacao_col")), ("Viga", res.get("interacao_raf")),
-                  ("Flecha portico", res.get("flecha_util")), ("Base", res.get("base_util")),
-                  ("Sapata (fundacao)", res.get("sapata_util")),
-                  ("Joelho", res.get("joelho_util")), ("Terca", res.get("terca_inter")),
+                  ("Tesoura (trelica)", _uokd("tesoura", "u_max", "OK")),
+                  ("Flecha portico", res.get("flecha_util")),
+                  ("Base (placa+chumbador)", _uok("base_util", "base_ok")),
+                  ("Sapata (fundacao)", _uok("sapata_util", "sapata_ok")),
+                  ("Joelho", res.get("joelho_util")),
+                  ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
+                  ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
-                  ("Viga rolamento", res.get("ponte_viga_inter")),
-                  ("Fogo theta C", res.get("fogo_theta")),
-                  ("Escada", 0 if res.get("escada_ok") else None),
-                  ("Plataforma", 0 if res.get("plataforma_ok") else None)]
+                  ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
+                  ("Gusset contravento", _uok("gusset_u_max", "gusset_ok")),
+                  ("Viga rolamento", _uok("ponte_viga_inter", "ponte_viga_ok")),
+                  ("Console ponte", _uok("console_u_max", "console_ok")),
+                  ("Fogo (theta/theta_cr)", _uok("fogo_util", "fogo_ok")),
+                  # Verificacoes globais antes ausentes do quadro (falha silenciosa):
+                  ("Estaca (fund. profunda)", u_est),
+                  ("Travamento transversal", _bok("travamento_transversal")),
+                  ("Baldrame longitudinal", _bok("baldrame")),
+                  ("Sismo (theta 2a ordem)", _bok("sismo_theta")),
+                  ("Junta de dilatacao", u_junta),
+                  ("Calha (hidraulica)", _bok("calha")),
+                  ("Fundacao de divisa", _bok("divisa")),
+                  ("Terreno (TO/CA/TP)", _bok("terreno")),
+                  ("Escada", None if "escada_ok" not in res else (0.0 if res["escada_ok"] else 1.99)),
+                  ("Plataforma", None if "plataforma_ok" not in res else (0.0 if res["plataforma_ok"] else 1.99))]
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:

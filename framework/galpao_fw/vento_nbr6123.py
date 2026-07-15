@@ -286,7 +286,7 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
              "p_local_cob_kN_m2": sucao_local_fixacao(q, loc_cob["cpe_medio_envoltoria"], cpi_arr),
              "p_local_par_kN_m2": sucao_local_fixacao(q, loc_par["cpe_medio"], cpi_arr)}
     return {"v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
-            "s3": s3, "Fr": Fr, "p": p, "z": z, "theta": theta,
+            "s3": s3, "b": b, "Fr": Fr, "p": p, "z": z, "theta": theta,
             "vk": round(vk, 2), "q_kN_m2": round(q, 3),
             "cpe": cpe, "cpi_cases": cpi, "net": net, "local": local}
 
@@ -296,7 +296,7 @@ def relatorio_pt(r):
     L.append("VENTO (ABNT NBR 6123/1988)")
     L.append(f"  V0 = {r['v0']:.0f} m/s ; Categoria {r['cat']} ; Classe {r['classe']}")
     L.append(f"  S1 = {r['s1']:.2f} (topografia plana) ; S3 = {r['s3']:.2f} (galpao deposito)")
-    L.append(f"  S2 = 1,00*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
+    L.append(f"  S2 = {r['b']:.2f}*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
     L.append(f"  Vk = {r['vk']:.2f} m/s ; q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
     L.append(f"  Telhado theta = {r['theta']:.2f} graus (10%) ; h/b=0,6 ; a/b=2")
     L.append("  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):")
