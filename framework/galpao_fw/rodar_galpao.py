@@ -128,6 +128,12 @@ def rodar(params, out_dir):
         return txt
 
     gp.reset(); vento.reset()          # estado limpo (sem vazamento entre projetos)
+    try:
+        import estabilidade_b1b2 as est
+        est.reset()
+    except Exception:
+        pass
+
     g = params["geometria"]
     sc = params["secoes"]
     # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)

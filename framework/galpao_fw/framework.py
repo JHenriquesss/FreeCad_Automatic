@@ -32,6 +32,11 @@ def reset_tudo():
     import vento_nbr6123 as vento
     gp.reset(); vento.reset()
     try:
+        import estabilidade_b1b2 as est
+        est.reset()
+    except Exception:
+        pass
+    try:
         import build_galpao as bg
         bg.reset()
     except Exception:

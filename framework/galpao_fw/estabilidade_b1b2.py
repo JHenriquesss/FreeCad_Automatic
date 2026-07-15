@@ -28,6 +28,17 @@ SEC_COLS = [{"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE}]
 SEC_VIGAS = [{"A": gp.A_RAF, "I": gp.I_RAF,
               "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)}]
 
+
+def reset():
+    global SEC_COLS_EXTERNO, SEC_COLS, SEC_VIGAS
+    SEC_COLS_EXTERNO = False
+    SEC_COLS.clear()
+    SEC_COLS.append({"A": gp.A_COL, "I": gp.I_COL, "L": gp.EAVE})
+    SEC_VIGAS.clear()
+    SEC_VIGAS.append({"A": gp.A_RAF, "I": gp.I_RAF,
+                      "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)})
+
+
 _L_RAF = SEC_VIGAS[0]["L"]
 GVERT = (gp.G_ROOF * gp.BAY + gp.RAFTER_SELF) * 2 * _L_RAF * gp.N_VAOS
 QVERT = (gp.Q_ROOF * gp.BAY * gp.COS) * 2 * _L_RAF * gp.N_VAOS
