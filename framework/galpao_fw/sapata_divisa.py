@@ -44,15 +44,21 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
     # Alonso: fixa B (perp. a divisa). Estimativa inicial: B ~ 1.5 a 2.0 m
     # para cargas tipicas. B e ajustado para obter L/B ~ 2.
     B_foot = max(b_col_div + 0.30, 1.80)
-    if L_fixo:  # se usuario fixou L, troca B<->L (L vira a dimensao fixa)
-        B_foot, L_fixo = L_fixo, None
-        # Nesse caso a excentricidade atua em L, nao B - precisa ajustar
+    # A excentricidade atua SEMPRE na direcao PERPENDICULAR a divisa (B_foot):
+    # e = (B - b_col)/2. A dimensao PARALELA (L) nao influencia e. Por isso NAO
+    # se troca B<->L quando o usuario fixa L (corrige inversao dimensional).
     e_fixo = max((B_foot - b_col_div) / 2.0, 0.0)
     # Com B_foot fixo, e_fixo e constante. Reacao direta (Alonso):
     e = e_fixo
     R_divisa = P_divisa * dist_eixos / max(dist_eixos - e, 0.01)
-    L = R_divisa / sig / B_foot
     B = B_foot
+    if L_fixo:                     # usuario fixou o comprimento PARALELO a divisa
+        L = L_fixo                 # e continua baseado em B (perpendicular)
+    else:
+        L = R_divisa / sig / B_foot
+    # NBR 6122 7.7.1: nenhuma dimensao de sapata isolada/divisa < 60 cm
+    L = max(L, 0.60)
+    B = max(B, 0.60)
     
     # --- Alivio na sapata interna --------------------------------------------
     delta_P = R_divisa - P_divisa
@@ -74,7 +80,10 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
     # Comprimento da viga = dist_eixos
     # Carga na sapata de divisa: q = R_divisa / B (kN/m)
     q_div = R_divisa / B
-    M_viga = R_divisa * e
+    # Estatica exata (corte no centroide da sapata de divisa): a unica forca a
+    # direita do corte e a carga do pilar P no braco e -> M = P*e (NAO R'*e, que
+    # superestimava por l/(l-e)). Consistente com viga_equilibrio.py.
+    M_viga = P_divisa * e
     V_viga = R_divisa - P_divisa  # cortante = delta_P (diferenca entre R e P)
     # Secao da viga alavanca: h ~ L/6 a L/8 (viga de transicao)
     h_viga = max(dist_eixos / 7.0, 0.50)
@@ -114,7 +123,7 @@ def dimensiona_divisa(P_divisa, P_interno, dist_eixos, dist_divisa,
                  "As_cm2": round(As_viga * 1e4, 2),
                  "As_min_cm2": round(As_viga_min * 1e4, 2),
                  "As_adot_cm2": round(As_viga_final * 1e4, 2),
-                 "arr": arr_viga, "ok_flexao": ok if As_viga else True},
+                 "arr": arr_viga, "ok_flexao": ok},
         "params": {"P_divisa": P_divisa, "P_interno": P_interno,
                    "dist_eixos": dist_eixos, "dist_divisa": dist_divisa,
                    "sigma_solo": sig, "fck": fck, "fyk": fyk}
@@ -134,7 +143,7 @@ def relatorio_pt(r):
          f"   Sapata: {d['B']:.2f} x {d['L']:.2f} m (A={d['A']:.2f} m2)",
          f"   Tensao no solo: {d['sigma']:.1f} kN/m2 <= {r['params']['sigma_solo']:.0f} kN/m2",
          "", "2. VIGA ALAVANCA (tracao na face SUPERIOR):",
-         f"   M_max = R * e = {v['M_max_kNm']:.2f} kN.m ; V_max = R - P = {v['V_max_kN']:.1f} kN",
+         f"   M_max = P * e = {v['M_max_kNm']:.2f} kN.m ; V_max = R - P = {v['V_max_kN']:.1f} kN",
          f"   Secao: {v['b']*100:.0f} x {v['h']*100:.0f} cm (d={v['d']*100:.0f} cm)",
          f"   As,flexao = {v['As_cm2']:.2f} cm2 ; As,min = {v['As_min_cm2']:.2f} cm2",
          f"   Armadura adotada: {v['As_adot_cm2']:.2f} cm2 -> {_arr(v['arr'])}",

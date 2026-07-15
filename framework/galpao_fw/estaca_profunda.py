@@ -141,7 +141,10 @@ def capacidade_decourt_quaresma(perfil, D, L, N_ponta=None, fs_global=FS_GLOBAL)
         if z >= L - 1e-9:
             break
         dz = min(cam["dz"], L - z)
-        somaNz += cam["N"] * dz; somaz += dz; z += dz
+        # Decourt-Quaresma: os limites 3<=N<=50 devem ser aplicados a CADA camada
+        # ANTES da media (uma camada dura com N=80 entra como 50, nao infla a media).
+        N_cam = max(3.0, min(cam["N"], N_LIMITE))
+        somaNz += N_cam * dz; somaz += dz; z += dz
     N_med = somaNz / somaz if somaz > 0 else 0.0
     N_med = max(3.0, min(N_med, N_LIMITE))
     r_l = (N_med / 3.0 + 1.0) * _TF_KPA              # kPa (Tab.12.13 / Eq.12.60)
@@ -386,7 +389,11 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
     fyd = fyk / 1.15
     P_est = N_pilar / n_est                          # carga por estaca (biela)
     braco = espacamento / 2.0 - a_pilar / 4.0        # braco horizontal da biela
-    T = P_est * braco / d
+    # Tirante de CADA direcao (armadura em malha) resiste ao empuxo das estacas
+    # de UM lado da linha neutra = N/2. Blevot: bloco de 4 estacas em malha usa o
+    # MESMO esquema do bloco de 2 estacas -> T = N(2s-a_p)/(8d) = (N/2)*braco/d.
+    # (Usar N/n_est = N/4 subdimensionava o tirante do bloco de 4 estacas em 50%.)
+    T = (N_pilar / 2.0) * braco / d
     n_tirantes = 1 if n_est == 2 else 2
     As = T / fyd
     As_min = fs.rho_min(fck / 1000.0) * a_pilar * (d + 0.05)   # referencia p/ minimo

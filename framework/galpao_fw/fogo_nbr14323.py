@@ -143,13 +143,15 @@ def espessura_protecao(t_min, u_A, tipo="intumescente", temp_critica=550.0):
     """Calcula espessura necessaria de protecao para manter o aco abaixo
     de temp_critica durante t_min minutos. Retorna espessura em mm."""
     if tipo == "intumescente":
-        # Dados da Tab. 6.13 (Fakury / Nullifire): u/A vs espessura
+        # Tab. 6.13 (carta de cobertura) - tinta intumescente Nulifire/S605 (ext.),
+        # temp. limite 550 C, 4 faces expostas. Espessura seca [mm] por (u/A ; TRRF).
+        # Colunas: u/A_limite, 30, 60, 90, 120 min. Monotonica nao-decrescente em u/A
+        # (perfil mais massivo = aquece mais rapido = exige MAIOR espessura).
+        # None = combinacao nao coberta pela tinta -> usar outra protecao.
         tabela = [
             (55,  0.49, 1.27, 1.73, 3.96),
-            (105, 0.32, 0.88, 1.27, 2.31),
-            (155, 0.47, 1.70, 2.31, 5.94),
-            (205, 0.60, 1.25, 2.30, None),
-            (260, 0.67, 2.30, None, None),
+            (240, 0.49, 1.27, 2.31, 5.94),
+            (334, 0.49, 2.23, None, None),
         ]
         col = {30: 1, 60: 2, 90: 3, 120: 4}
         if t_min not in col:
@@ -157,8 +159,8 @@ def espessura_protecao(t_min, u_A, tipo="intumescente", temp_critica=550.0):
         ci = col[t_min]
         for row in tabela:
             if u_A <= row[0]:
-                return row[ci] if row[ci] is not None else row[ci - 1] + 0.5
-        return None
+                return row[ci]      # None => TRRF/massividade fora do escopo da tinta
+        return None                 # u/A acima da tabela -> exige protecao mais robusta
     elif tipo == "spray":
         tab_spray = [
             (30,  10, 10, 10, 17),

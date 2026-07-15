@@ -82,6 +82,8 @@ def Wef_MSE(W, Wc, kl, bw, t, fy):
 def fator_R_anexoF(bw_mm, secao="U", continua=False):
     """Tabela F.1: fator R para mesa comprimida livre (sucao)."""
     if continua:
+        if bw_mm > 292:
+            return None                            # fora do escopo do Anexo F (F.1-b)
         return 0.70 if secao == "Z" else 0.60      # bw <= 292
     if bw_mm <= 165:
         return 0.70

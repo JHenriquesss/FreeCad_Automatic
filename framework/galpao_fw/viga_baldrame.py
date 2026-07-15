@@ -68,6 +68,7 @@ def verifica_baldrame(cfg):
     cob = cfg.get("cobrimento", 0.05)
     phi_est = cfg.get("phi_estribo_mm", 5.0) / 1000.0
     d = h - cob - phi_est - 0.010          # altura util (estimativa: barra ~20 mm)
+    continua = cfg.get("continuidade", "simples") == "continua"
     cM = _COEF_M.get(cfg.get("continuidade", "simples"), 1.0 / 8.0)
 
     # ---- 1) BALDRAME: flexao sob a parede + peso proprio -------------------
@@ -93,7 +94,22 @@ def verifica_baldrame(cfg):
     As_min = rho * b * h
     As_flex = As_flex or 0.0
     As_inf = max(As_flex + As_tie / 2.0, As_min)   # face tracionada por flexao + amarracao
-    As_sup = max(As_tie / 2.0, AS_CONSTRUTIVA_SUP) # face comprimida: amarracao + porta-estribos
+
+    # ---- momento NEGATIVO nos apoios (viga continua) ----------------------
+    # Ao adotar a continuidade (cM=1/10) o modelo passa a acusar tracao na FACE
+    # SUPERIOR sobre os apoios; e obrigatorio dimensionar essa armadura (M- ~ wL2/10).
+    # Na viga biapoiada nao ha M- -> face superior so leva amarracao/construtiva.
+    M_d_neg = GF * (1.0 / 10.0) * w * L ** 2 if continua else 0.0
+    As_flex_neg = 0.0
+    ok_dom_neg = True
+    sec_ok_neg = True
+    if continua:
+        As_flex_neg, _x_neg, _z_neg, ok_dom_neg = fs._armadura_flexao(M_d_neg, b, d, fck, fyk)
+        sec_ok_neg = As_flex_neg is not None
+        As_flex_neg = As_flex_neg or 0.0
+    # face superior: no apoio continuo esta tracionada -> aplica rho_min tambem
+    As_sup_piso = As_min if continua else AS_CONSTRUTIVA_SUP
+    As_sup = max(As_flex_neg + As_tie / 2.0, As_sup_piso)
     arr_inf = fs.detalha_barras(As_inf, b, cob)
     arr_sup = fs.detalha_barras(As_sup, b, cob)
 
@@ -104,8 +120,11 @@ def verifica_baldrame(cfg):
         s_estribo = min(0.3 * d, 0.20)
     b_ok = b >= B_MIN - 1e-9
 
-    OK = sec_ok and ok_dom and b_ok and cort_ok
+    OK = sec_ok and ok_dom and b_ok and cort_ok and sec_ok_neg and ok_dom_neg
     return {"vao": L, "b": b, "h": h, "d": round(d, 3), "M_d": round(M_d, 2),
+            "continua": continua, "M_d_neg": round(M_d_neg, 2),
+            "As_flex_neg_cm2": round(As_flex_neg * 1e4, 2),
+            "ok_dominio_neg": ok_dom_neg, "sec_ok_neg": sec_ok_neg,
             "w": round(w, 3), "w_self": round(w_self, 3), "N_tie": N_tie,
             "Vd": round(Vd, 2),
             "VRd2": round(cr["VRd2"], 1), "VRd3_min": round(cr["VRd3_min"], 1),
@@ -133,6 +152,11 @@ def relatorio_pt(r):
          f"    As,flexao = {r['As_flex_cm2']:.2f} cm2 ; x/d = {r['x_d']:.3f} "
          f"{'OK' if r['ok_dominio'] else 'FORA DO DOMINIO (aumentar secao)'}"
          + ('' if r['sec_ok'] else ' ; SECAO INSUFICIENTE'),
+         *( [f"  APOIO (momento negativo, viga continua): M_d- = {r['M_d_neg']:.2f} kN.m ; "
+            f"As,flexao- (face superior) = {r['As_flex_neg_cm2']:.2f} cm2"
+            + ('' if r['sec_ok_neg'] else ' ; SECAO INSUFICIENTE no apoio')
+            + ('' if r['ok_dominio_neg'] else ' ; FORA DO DOMINIO no apoio')]
+            if r.get('continua') else [] ),
          f"  AMARRACAO (tracao): N_tie = {r['N_tie']:.1f} kN (reacao horiz. da base) ; "
          f"As,amarracao = {r['As_tie_cm2']:.2f} cm2",
          f"  As,min (rho_min*b*h) = {r['As_min_cm2']:.2f} cm2",
