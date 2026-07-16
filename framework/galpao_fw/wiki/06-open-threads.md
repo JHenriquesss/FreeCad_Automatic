@@ -10,9 +10,11 @@ restrição real inclui `scipy<1.13`; a metadata do wheel do pycufsm mente que a
 numpy≥2). `rodar_galpao` **sem ponte** (col 0,65 / viga 0,91) e **com ponte** (col 0,82
 / viga 0,94, R_vert 132,9 kN) OK; selftests `tercas_iteracao`/`distorcional_fsm` (FSM)
 OK. Valores ligeiramente ≠ das refs pré-auditoria (esperado — reflete os fixes).
-`smoke_executivo` (FreeCAD headless): 2/7 casos completos OK (`padrao`, `vao_maior` —
-13 pranchas + memorial PDF, cobertura completa cada) antes de ser interrompido por tempo
-(cada caso ~min); camada executiva íntegra. Rodar os 7 leva ~15 min.
+`smoke_executivo` (FreeCAD headless): **6/7 casos completos OK** (`padrao`, `vao_maior`,
+`baixo_largo`, `ponte`, `estaca`, `alma_var` — 13-14 pranchas + memorial PDF, cobertura
+completa cada). `tesoura`: **cálculo OK** (`atende=True`), mas o passo de desenho executivo
+da treliça excede o budget de tempo do ambiente (~15 min; `rodar_executivo` timeout interno
+900 s) — não verificado aqui, sem indício de falha (só custo). Camada executiva íntegra.
 **pytest `tests/` (não-build): 239 passed** (2026-07-15, ~10 min; requer `pip install
 pytest`) — inclui o frame per-coluna do PR #10 sem regressão. 642k `DeprecationWarning`
 do pycufsm (numpy 1.25+) são o mesmo `np.diff`→escalar que vira ERRO no numpy≥2.
