@@ -78,6 +78,33 @@ def test_pos_notas_nunca_sobrepoe_a_tabela():
             assert topo_notas <= base + 1e-6, (n_verif, n_mat, topo_notas, base)
 
 
+def test_cap_titulo_nunca_estoura_a_celula():
+    # regressao do overflow: todo titulo do carimbo deve caber (<=26) e sem o
+    # prefixo redundante 'DETALHE - ' que empurrava o texto para o 'Created by'.
+    import techdraw_exec as TD
+    titulos = ["PLANTA DE COBERTURA", "PLANTA DE FUNDACOES", "ELEVACOES",
+               "PORTICO TIPICO", "CONTRAVENTAMENTOS", "DETALHE - BASE DE COLUNA",
+               "DETALHE - LIGACAO JOELHO (VIGA-COLUNA)",
+               "FECHAMENTO / TERCAS / MAO-FRANCESA", "QUADROS E NOTAS TECNICAS",
+               "DETALHE - GUSSET CONTRAV. COBERTURA",
+               "DETALHE - GUSSET CONTRAV. PAREDE", "DETALHE - FIXACAO DE GIRT"]
+    for t in titulos:
+        c = TD._cap_titulo(t)
+        assert len(c) <= 26, (t, c, len(c))
+        assert "DETALHE - " not in c
+    # abreviacoes legiveis (nao caem em reticencia)
+    assert TD._cap_titulo("DETALHE - LIGACAO JOELHO (VIGA-COLUNA)") == "LIGACAO JOELHO"
+    assert TD._cap_titulo("FECHAMENTO / TERCAS / MAO-FRANCESA") == "FECHAMENTO / TERCAS"
+
+
+def test_fmt_terca_formatado_legivel():
+    # regressao do callout cru: a terca sai formatada, nao como repr de lista.
+    import techdraw_exec as TD
+    assert TD._fmt_terca((300.0, 85.0, 25.0, 3.35)) == "Ue 300 x 85 x 25 x 3.35 mm"
+    assert TD._fmt_terca([150.0, 60.0, 20.0, 2.0]) == "Ue 150 x 60 x 20 x 2.00 mm"
+    assert isinstance(TD._fmt_terca(None), str)          # entrada invalida nao quebra
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao

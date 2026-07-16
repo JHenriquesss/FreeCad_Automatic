@@ -458,13 +458,40 @@ def _codigo_prancha(page_name, ordem, total):
     return numero, "%02d/%02d" % (ordem, total)
 
 
+def _cap_titulo(t, maxlen=26):
+    """Encurta o titulo do carimbo p/ caber na celula (evita o overflow que
+    invadia o campo 'Created by'). Remove o prefixo redundante 'DETALHE - ' (a
+    prancha ja e um detalhe), abrevia termos longos e, no limite, corta com
+    reticencia. Pura (testavel sem FreeCAD)."""
+    t = str(t or "").strip()
+    t = t.replace("DETALHE - ", "").replace("DETALHE ", "")
+    if len(t) <= maxlen:
+        return t
+    t = (t.replace("CONTRAV.", "CONTR.")
+         .replace(" / MAO-FRANCESA", "")
+         .replace(" (VIGA-COLUNA)", ""))
+    if len(t) <= maxlen:
+        return t
+    return t[:maxlen - 1].rstrip() + "…"
+
+
+def _fmt_terca(tc):
+    """Formata a bitola da terca Ue (bw,bf,D,t em mm) como 'Ue bw x bf x D x t mm'
+    em vez do repr cru da lista/tupla. Pura (testavel sem FreeCAD)."""
+    try:
+        bw, bf, dl, t = (float(x) for x in tc)
+        return "Ue %g x %g x %g x %.2f mm" % (bw, bf, dl, t)
+    except Exception:
+        return str(tc)
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # CARIMBO
 # ─────────────────────────────────────────────────────────────────────────
 def _carimbo(cfg, titulo, numero, escala, folha):
     import datetime
     return {
-        "title": titulo,
+        "title": _cap_titulo(titulo),
         "supplementary_title_1": cfg.get("descricao", ""),
         "supplementary_title_2": "",
         "drawing_number": numero,
@@ -1133,7 +1160,7 @@ def _pr_fechamento(doc, cfg, objs):
     tc = cfg.get("terca")
     linhas = ["FECHAMENTO E TERCAS (VISTA LATERAL)   ESCALA %s" % nome]
     if tc:
-        linhas.append("Terca Ue: %s" % tc)
+        linhas.append("Terca: %s" % _fmt_terca(tc))
     linhas.append("Cotas em metros.")
     _anot(doc, page, "A08", linhas, 200, 80, 5)
     return [page], [c]
