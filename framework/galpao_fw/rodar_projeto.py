@@ -310,8 +310,8 @@ def relatorio_consolidado(spec, res, modelo=None, executivo=None, out_dir=None):
 
 
 def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=True,
-               gerar_pdf=True, host="http://localhost:9875", timeout_3d=180,
-               timeout_exec=1200, verbose=True):
+               gerar_pdf=True, gerar_dossie=True, host="http://localhost:9875",
+               timeout_3d=180, timeout_exec=1200, verbose=True):
     """ENTRADA UNICA: spec -> calculo + memorial PDF + modelo 3D + pranchas 2D +
     RELATORIO-CONSOLIDADO. Portavel (out_dir default = projects/<slug>/saida).
     Cada estagio degrada com gracia: se o FreeCAD (MCP/exe) nao estiver
@@ -389,5 +389,19 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
 
     rel = relatorio_consolidado(spec, res, modelo, executivo, out_dir)
     _log(f"\nRelatorio consolidado -> {out_dir}/RELATORIO-CONSOLIDADO.txt")
-    return {"res": res, "modelo": modelo, "executivo": executivo,
+
+    # 5) DOSSIE unico (capa + relatorio + memorial + pranchas num PDF). Best-effort.
+    dossie = None
+    if gerar_dossie:
+        try:
+            import dossie as _dossie
+            dossie = _dossie.gerar_dossie(out_dir, spec, relatorio=rel)
+            spec.setdefault("estrutura", {})["dossie_pdf"] = dossie["path"]
+            _log(f"[5] Dossie -> {dossie['path']} ({dossie['n_paginas']} paginas"
+                 + (f", faltando: {dossie['faltando']}" if dossie['faltando'] else "") + ")")
+        except Exception as ex:
+            dossie = {"erro": str(ex)}
+            _log(f"[5] Dossie: FALHOU ({ex})")
+
+    return {"res": res, "modelo": modelo, "executivo": executivo, "dossie": dossie,
             "relatorio": rel, "out_dir": out_dir, "atende": bool(res.get("atende"))}

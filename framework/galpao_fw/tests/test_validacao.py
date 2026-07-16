@@ -171,6 +171,24 @@ def test_neve_gate_e_escopo():
     assert any("neve.sk" == p for p, _ in av)
 
 
+def test_dossie_unico(tmp_path):
+    import dossie
+    # dossie so com capa+relatorio (sem FreeCAD): PDF valido, capa com o carimbo ART
+    spec = {"slug": "d1", "descricao": "teste dossie",
+            "geometria": {"comprimento": 30, "span": 10, "spans": [10, 10]}}
+    r = dossie.gerar_dossie(str(tmp_path), spec,
+                            relatorio="VEREDITO DO DIMENSIONAMENTO: ATENDE")
+    assert r["n_paginas"] >= 1 and r["path"].endswith(".pdf")
+    import fitz
+    with fitz.open(r["path"]) as d:
+        cap = d[0].get_text()
+    assert "PROJETO EXECUTIVO ESTRUTURAL" in cap
+    assert "ART/RRT" in cap and "Lei 5194" in cap        # bloco de responsabilidade
+    assert "2 vaos de 10 m" in cap                       # multi-vao no rotulo
+    # sem pranchas/memorial no dir -> registrados como faltando (nao quebra)
+    assert any("prancha" in f for f in r["faltando"])
+
+
 def test_multivao_mappers():
     import wizard as W
     import projeto_spec as PS
