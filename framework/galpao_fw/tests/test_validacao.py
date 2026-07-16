@@ -131,6 +131,24 @@ def test_pos_corte_ligacao_fora_das_notas():
     assert TD._pos_corte_ligacao(False, xpos=410.0)[0] == 410.0
 
 
+def test_callout_bloco_coroamento():
+    # prancha nova do bloco de coroamento: callout legivel a partir do cfg.
+    import techdraw_exec as TD
+    cfg = {"estaca": {"D": 0.30, "L": 10.0, "n": 2, "tipo": "pre_moldada"},
+           "bloco": {"a": 0.60, "h": 0.70}}
+    linhas = TD._callout_bloco(cfg)
+    txt = " | ".join(linhas)
+    assert "Bloco: 60 x 60 x h=70 cm" in txt
+    assert "Estaca: 2 x D=30 cm, L=10.0 m (pre_moldada)" in txt
+    assert "biela-tirante" in txt
+    # override com a geometria REAL desenhada (coroa) tem prioridade sobre o cfg
+    txt2 = " | ".join(TD._callout_bloco(cfg, a_cm=60, h_cm=40))
+    assert "Bloco: 60 x 60 x h=40 cm" in txt2
+    # cfg vazio nao quebra (so a nota de armadura)
+    assert TD._callout_bloco({}) == [
+        "Armadura e ancoragem conforme memoria de calculo (modelo biela-tirante, NBR 6118)."]
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao

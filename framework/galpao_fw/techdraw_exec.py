@@ -524,6 +524,32 @@ def _pos_corte_ligacao(dupla, xpos, x_notas=200.0, larg_notas=360.0):
     return (float(xpos), 120.0)
 
 
+def _callout_bloco(cfg, a_cm=None, h_cm=None):
+    """Linhas de nota do detalhe do bloco de coroamento (fundacao profunda). As
+    dimensoes do bloco (a_cm/h_cm) devem vir da GEOMETRIA REAL desenhada (bbox do
+    bloco 3D, que inclui a coroa) p/ bater com o desenho; None cai no cfg (envoltoria
+    das estacas, menor). Pura (testavel sem FreeCAD)."""
+    e = cfg.get("estaca") or {}
+    b = cfg.get("bloco") or {}
+    if a_cm is None:
+        a_cm = b.get("a", 0) * 100
+    if h_cm is None:
+        h_cm = b.get("h", 0) * 100
+    L = []
+    if a_cm and h_cm:
+        L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck 25 MPa)"
+                 % (a_cm, a_cm, h_cm))
+    if e:
+        n = e.get("n", "") or ""
+        tipo = e.get("tipo") or e.get("tipo_estaca") or ""
+        L.append("Estaca: %s x D=%.0f cm, L=%.1f m%s"
+                 % (n, e.get("D", 0) * 100, e.get("L", 0),
+                    (" (%s)" % tipo if tipo else "")))
+    L.append("Armadura e ancoragem conforme memoria de calculo "
+             "(modelo biela-tirante, NBR 6118).")
+    return L
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # CARIMBO
 # ─────────────────────────────────────────────────────────────────────────
@@ -830,6 +856,79 @@ def _pr_base(doc, cfg, objs, todos):
         linhas += ["Placa %.0f x %.0f x %.0f mm" % (ba["B"], ba["L"], ba["t"]),
                    "%dx chumbadores d %.0f mm" % (ba["n"], ba["db"])]
     _anot(doc, page, "A06", linhas, 200, 90, 5)
+    return [page], [c1, c2]
+
+
+def _pr_bloco(doc, cfg, objs, todos):
+    """Detalhe do BLOCO DE COROAMENTO (so na fundacao PROFUNDA). Recorta a regiao
+    de UM bloco (pedestal acima + bloco + topo das estacas) numa caixa (Part.common,
+    padrao do _detalhe_ligacao) e mostra elevacao + planta + notas do calculo.
+    Sem bloco (fundacao rasa) -> nenhuma prancha (retorna [],[]) - so aparece
+    quando ha fundacao profunda."""
+    import Part
+    import FreeCAD as App
+    blocos = _pref(objs, ("BLOCO",))
+    if not blocos:
+        return [], []
+    fund = _pref(todos, ("BLOCO", "ESTACA", "PEDESTAL"))
+    bbm = _bbox(objs)
+    cx = (bbm.XMin + bbm.XMax) / 2.0
+    cy = (bbm.YMin + bbm.YMax) / 2.0
+    alvo = min(blocos, key=lambda o: abs(o.Shape.BoundBox.Center.x - cx)
+               + abs(o.Shape.BoundBox.Center.y - cy))
+    bc = alvo.Shape.BoundBox
+    W = max(bc.XLength, bc.YLength) * 1.7
+    ztop = bc.ZMax + 900.0             # inclui o pedestal acima do bloco
+    zbot = bc.ZMin - 1100.0            # inclui o embutimento + trecho da estaca
+    caixa = Part.makeBox(W, W, ztop - zbot,
+                         App.Vector(bc.Center.x - W / 2, bc.Center.y - W / 2, zbot))
+    cbb = caixa.BoundBox
+    crops = []
+    for o in fund:
+        try:
+            if not _bb_overlap(o.Shape.BoundBox, cbb):
+                continue
+            com = o.Shape.common(caixa)
+            if com.Edges:
+                crops.append(com)
+        except Exception:
+            pass
+    if not crops:
+        return [], []
+    feat = doc.addObject("Part::Feature", "BLOCO_CROP")
+    feat.Shape = Part.makeCompound(crops)
+    jb = feat.Shape.BoundBox
+    esc, nome = _fit_escala(jb, "y", *AREA_2V)
+    page = _nova_prancha(doc, "PE15_DET_BLOCO",
+                         _carimbo(cfg, "DETALHE - BLOCO DE COROAMENTO", "-", nome, "-"))
+    # elevacao (frontal): pedestal + bloco + estacas descendo
+    v1 = _vista(doc, page, "V15_BLOCO_FR", [feat], (0, -1, 0), (1, 0, 0),
+                esc, 230, 350)
+    hw1, hh1 = _paper_half(jb, esc, "y")
+    c1 = _Cotador(doc, page, v1, hw1, hh1)
+    c1.d((jb.XMin, jb.YMin, jb.ZMin), (jb.XMin, jb.YMin, jb.ZMax),
+         "DistanceY", _fmt_mm(jb.ZLength), "esq")
+    c1.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMax, jb.YMin, jb.ZMax),
+         "DistanceX", _fmt_mm(jb.XLength), "baixo")
+    # planta (topo): contorno do bloco + estacas + pedestal
+    e2, n2 = _fit_escala(jb, "z", *AREA_2V)
+    v2 = _vista(doc, page, "V15_BLOCO_TOP", [feat], (0, 0, 1), (1, 0, 0),
+                e2, 600, 350)
+    hw2, hh2 = _paper_half(jb, e2, "z")
+    c2 = _Cotador(doc, page, v2, hw2, hh2)
+    c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMax, jb.YMin, jb.ZMax),
+         "DistanceX", _fmt_mm(jb.XLength), "baixo")
+    c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMin, jb.YMax, jb.ZMax),
+         "DistanceY", _fmt_mm(jb.YLength), "esq")
+    linhas = ["BLOCO DE COROAMENTO   ESCALA %s" % nome,
+              "Elevacao ESC %s   Planta ESC %s" % (nome, n2)]
+    # dimensoes do bloco DA GEOMETRIA REAL desenhada (inclui a coroa) -> callout
+    # bate com o desenho (nao a envoltoria menor do cfg).
+    a_cm = round(max(bc.XLength, bc.YLength) / 10.0)
+    h_cm = round(bc.ZLength / 10.0)
+    linhas += _callout_bloco(cfg, a_cm=a_cm, h_cm=h_cm)
+    linhas.append("Cotas em milimetros.")
+    _anot(doc, page, "A15", linhas, 200, 95, 5)
     return [page], [c1, c2]
 
 
@@ -1297,10 +1396,11 @@ def gerar_executivo(cfg):
     paginas, cotadores = [], []
     construtores = [_pr_cobertura, _pr_fundacoes, _pr_elevacoes, _pr_portico,
                     _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento,
-                    _pr_ligacoes]
+                    _pr_ligacoes, _pr_bloco]
     for fn in construtores:
         try:
-            if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes):
+            if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes,
+                      _pr_bloco):
                 pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
