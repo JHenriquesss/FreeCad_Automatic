@@ -1443,10 +1443,38 @@ def codigo_fonte():
         return f.read()
 
 
+def _para_nativo(o):
+    """Converte RECURSIVAMENTE escalares/arrays numpy em tipos nativos do Python.
+    Necessario porque o cfg e embutido no script do freecad.exe via repr (%r): no
+    numpy>=2 o repr de um np.float64 e 'np.float64(0.91)', que quebra no freecad
+    com 'name np is not defined' (o freecad nao importa numpy como np). Preserva
+    dict/list/tuple. Sem importar numpy (duck typing por .item()/.tolist())."""
+    if isinstance(o, dict):
+        return {k: _para_nativo(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_para_nativo(v) for v in o]
+    if isinstance(o, tuple):
+        return tuple(_para_nativo(v) for v in o)
+    if isinstance(o, (str, bytes, bool)) or o is None:
+        return o
+    if hasattr(o, "item") and not isinstance(o, (int, float)):   # np.float64/np.int_
+        try:
+            return o.item()
+        except Exception:
+            pass
+    if hasattr(o, "tolist"):                                     # np.ndarray
+        try:
+            return o.tolist()
+        except Exception:
+            pass
+    return o
+
+
 def script_bootstrap(cfg):
     """Monta o script que o freecad.exe roda: injeta cfg + fonte deste modulo
-    e dispara _entry via QTimer (apos o loop de eventos subir)."""
+    e dispara _entry via QTimer (apos o loop de eventos subir). O cfg passa por
+    _para_nativo para nao vazar repr de numpy (np.float64(...)) - ver bug tesoura."""
     return ("# -*- coding: utf-8 -*-\n"
-            "_CFG_ = %r\n" % (cfg,) + codigo_fonte() +
+            "_CFG_ = %r\n" % (_para_nativo(cfg),) + codigo_fonte() +
             "\nfrom PySide import QtCore\n"
             "QtCore.QTimer.singleShot(1500, lambda: _entry(_CFG_))\n")

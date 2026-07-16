@@ -29,6 +29,27 @@ def test_validacao_sistema_cbca():
     assert ok, det
 
 
+def test_bootstrap_executivo_sem_repr_numpy():
+    # regressao do bug da tesoura: o cfg embutido no script do freecad.exe via
+    # repr NAO pode vazar 'np.float64(...)' (numpy>=2), senao o freecad quebra
+    # com 'name np is not defined'. _para_nativo deve limpar tudo.
+    import numpy as np
+    import techdraw_exec as TD
+    cfg = {"resultados": {"Maxima": np.float64(0.91), "Coluna": np.float64(0.65)},
+           "geo": {"span": np.float64(20000.0)}, "n": np.int64(8),
+           "terca": (np.float64(150.0), np.float64(60.0)),
+           "takeoff": [np.float64(1.5), np.float64(2.5)], "descricao": "x"}
+    boot = TD.script_bootstrap(cfg)
+    linha = boot.splitlines()[1]                 # _CFG_ = {...}
+    for tok in ("np.float64(", "np.int", "np.float", "array(", "numpy."):
+        assert tok not in linha, "vazou %r no bootstrap" % tok
+    # e re-executa sem numpy no escopo (como no freecad.exe)
+    ns = {}
+    exec(linha, {"__builtins__": __builtins__}, ns)
+    assert ns["_CFG_"]["resultados"]["Maxima"] == 0.91
+    assert isinstance(ns["_CFG_"]["terca"], tuple)   # preserva tupla
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao
