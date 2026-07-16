@@ -73,6 +73,14 @@ def _regras():
          "FUNDACAO/CONCRETO: quantitativo de aco de ANTEPROJETO (ganchos, arranques "
          "e traspasses de 22.6.4.1 nao detalhados -> ~10-15% a menos). O "
          "detalhamento executivo das armaduras e responsabilidade do projetista."),
+        # neve: o simetrico governa a coberta do portico (Q_efetivo); o caso
+        # ASSIMETRICO (vento varrendo neve) NAO e auto-combinado nas combinacoes.
+        ("neve_assimetrica",
+         lambda s, r: _tem(s, "neve"),
+         "NEVE: caso SIMETRICO integrado (governa a carga de coberta do portico). "
+         "O caso ASSIMETRICO (vento varrendo neve, EN 1991-1-3 5.3.3) e calculado e "
+         "SINALIZADO, mas NAO auto-combinado - o engenheiro inclui a combinacao "
+         "desbalanceada se a regiao (serra do Sul) exigir."),
         # cobertura com mais de 2 aguas: o vento/tesoura e calibrado p/ 1-2 aguas.
         ("aguas",
          lambda s, r: isinstance(s.get("cobertura"), dict)

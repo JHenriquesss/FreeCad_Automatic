@@ -121,6 +121,10 @@ def novo():
                               # theta_critica_C (opc; default 550 flagado),
                               # protecao={tipo, espessura, lambda_p? c_p? rho_p?}
                               # (props termicas opc do BOLETIM; default calibrado flagado)}
+        # neve: None (sem neve, default BR) OU dict {sk (carga no solo kN/m2,
+        # regional - Ask-Do-Not-Invent), Ce, Ct, deslizamento_livre}. So relevante
+        # em regioes serranas do Sul (SC/RS). EN 1991-1-3.
+        "neve": None,
         "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
         "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
         "_a_confirmar": [],
@@ -239,6 +243,12 @@ def validar(spec):
                                "condutividade lambda_p da protecao '%s' ausente -> "
                                "usando valor TIPICO calibrado. CONFIRMAR com o "
                                "BOLETIM tecnico do fabricante." % prot["tipo"]))
+    # neve: carga no solo sk e regional (Ask-Do-Not-Invent). Se ha bloco de neve
+    # sem sk, avisa (nao bloqueia; default = sem neve).
+    nv = spec.get("neve")
+    if isinstance(nv, dict) and not nv.get("sk"):
+        avisos.append(("neve.sk", "bloco de neve sem 'sk' (carga no solo kN/m2) - "
+                       "dado REGIONAL (EN 1991-1-3 / mapa local). Sem sk = sem neve."))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
@@ -350,6 +360,7 @@ def to_rodar_params(spec):
         p["ponte"].setdefault("fy", 250e3)
         p["ponte"].setdefault("E_Ix", pr.ck.E * pr.VS500["Ix"])
     p["fogo"] = spec.get("fogo") if spec.get("fogo") else None
+    p["neve"] = spec.get("neve") if spec.get("neve") else None
     p["escada"] = spec.get("escada") if spec.get("escada") else None
     p["plataforma"] = spec.get("plataforma") if spec.get("plataforma") else None
     return p

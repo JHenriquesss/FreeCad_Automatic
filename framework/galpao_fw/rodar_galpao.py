@@ -136,6 +136,37 @@ def rodar(params, out_dir):
 
     g = params["geometria"]
     sc = params["secoes"]
+    # NEVE (EN 1991-1-3) - acao variavel de coberta, so em regioes serranas do Sul.
+    # O caso SIMETRICO governa a carga gravitacional de coberta (nao age junto com
+    # a sobrecarga de USO -> Q_efetivo = max(Q, neve_sim)); os casos ASSIMETRICOS
+    # (vento varrendo neve) ficam calculados e SINALIZADOS (carga desbalanceada, nao
+    # auto-combinada no portico - o engenheiro inclui a combinacao se a regiao exigir).
+    q_ef = params["cargas"]["Q"]
+    neve_res = None
+    _nv = params.get("neve")
+    if _nv and _nv.get("sk"):
+        import neve as _neve
+        _span0 = g["spans"][0] if "spans" in g else g["span"]
+        _th = math.degrees(math.atan((g["ridge"] - g["eave"]) / (_span0 / 2.0)))
+        _rnv = _neve.carga_neve(sk_kN_m2=_nv.get("sk", 0.0), theta_graus=_th,
+                                Ce=_nv.get("Ce", 1.0), Ct=_nv.get("Ct", 1.0),
+                                deslizamento_livre=_nv.get("deslizamento_livre", True))
+        neve_sim = max(_rnv["simetrico_kN_m2"])
+        neve_assim = max(max(_rnv["assimetrico_1_kN_m2"]),
+                         max(_rnv["assimetrico_2_kN_m2"]))
+        q_ef = max(q_ef, neve_sim)
+        _extra = [
+            "", "  >> Simetrico governante = %.3f kN/m2" % neve_sim,
+            "     Q_efetivo da coberta (portico) = max(Q=%.3f, neve=%.3f) = %.3f kN/m2"
+            % (params["cargas"]["Q"], neve_sim, q_ef),
+            "  >> ASSIMETRICO (max %.3f kN/m2): carga DESBALANCEADA, NAO auto-combinada"
+            % neve_assim,
+            "     no portico - o engenheiro inclui a combinacao se a regiao exigir.",
+            "  >> Tercas/telha usam a sobrecarga padrao; se a neve governar, revisar."]
+        save("gate5-neve.txt", _neve.relatorio_pt(_rnv) + "\n" + "\n".join(_extra))
+        neve_res = {"sk": _nv.get("sk"), "simetrico": neve_sim,
+                    "assimetrico": neve_assim, "q_efetivo": round(q_ef, 3),
+                    "governa": neve_sim > params["cargas"]["Q"]}
     # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)
     if "spans" in g:
         gp.configurar(spans=g["spans"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
@@ -143,7 +174,7 @@ def rodar(params, out_dir):
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                      Q_roof=params["cargas"]["Q"], tapered=params.get("tapered"))
+                      Q_roof=q_ef, tapered=params.get("tapered"))
     else:
         gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
@@ -151,7 +182,7 @@ def rodar(params, out_dir):
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
                       tapered=params.get("tapered"),
-                      Q_roof=params["cargas"]["Q"])
+                      Q_roof=q_ef)
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
                   fy=params["terca"]["fy"])
@@ -162,6 +193,8 @@ def rodar(params, out_dir):
                          theta=math.degrees(gp.THETA))
 
     res = {}
+    if neve_res:
+        res["neve"] = neve_res
     # Ponte rolante (opcional): calcula a acao e injeta a reacao no portico como
     # caso de carga + combinacoes (C4/C5). Sem "ponte" nos params -> galpao SEM
     # ponte, portico identico a referencia.

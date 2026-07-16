@@ -149,6 +149,28 @@ def test_callout_bloco_coroamento():
         "Armadura e ancoragem conforme memoria de calculo (modelo biela-tirante, NBR 6118)."]
 
 
+def test_neve_gate_e_escopo():
+    import wizard as W
+    import projeto_spec as PS
+    import escopo as ESC
+    import neve
+    # neve EN 1991-1-3: theta<30 -> mu=0.8 ; sk=1.5 -> simetrico 1.2
+    assert max(neve.carga_neve(1.5, 10.0)["simetrico_kN_m2"]) == 1.2
+    # wizard: neve_sk>0 monta o bloco de neve; 0 -> sem neve
+    s = W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                              v0=40, sigma_solo=200, fund_tipo="sapata", neve_sk=1.5))
+    assert s["neve"] and s["neve"]["sk"] == 1.5
+    assert PS.validar(s)["ok"]
+    assert W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                                 v0=40, sigma_solo=200, fund_tipo="sapata"))["neve"] is None
+    # escopo: neve acende a fronteira 'neve_assimetrica'
+    ids = {i for i, _ in ESC.avaliar({"cobertura": {"aguas": 2}, "neve": s["neve"]})}
+    assert "neve_assimetrica" in ids
+    # validar avisa quando ha bloco de neve sem sk
+    av = PS.validar({**PS.novo(), "neve": {"Ce": 1.0}})["avisos"]
+    assert any("neve.sk" == p for p, _ in av)
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao

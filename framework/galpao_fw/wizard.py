@@ -71,6 +71,7 @@ FAIXAS = {
     "G": (0.1, 1.0, 0.02, 5.0, "kN/m2"), "Q": (0.15, 1.5, 0.05, 10.0, "kN/m2"),
     "self_peso": (0.1, 1.5, 0.0, 5.0, "kN/m2"),
     "tapamento": (0.0, 2.0, 0.0, 10.0, "kN/m2"),
+    "neve_sk": (0.0, 3.0, 0.0, 10.0, "kN/m2"),
     "sigma_solo": (100.0, 600.0, 30.0, 2000.0, "kN/m2"),
     "est_D": (0.2, 1.2, 0.1, 3.0, "m"), "est_L": (4.0, 30.0, 2.0, 60.0, "m"),
     "est_FS": (2.0, 3.5, 1.2, 6.0, ""),
@@ -175,6 +176,9 @@ PERGUNTAS = [
     ("Q", "Sobrecarga Q (kN/m2)", _f, 0.25, False),
     ("self_peso", "Peso proprio estrutural estimado (kN/m2)", _f, 0.35, False),
     ("tapamento", "Carga de tapamento (kN/m2)", _f, 0.10, False),
+    # neve (so regioes serranas do Sul; 0 = sem neve)
+    ("neve_sk", "Carga de neve no solo sk (kN/m2, 0=sem neve; regional EN 1991-1-3)",
+     _f, 0.0, False),
     # fundacao (Ask-Do-Not-Invent no solo)
     ("sigma_solo", "Tensao admissivel do solo (kN/m2, DA SONDAGEM)", _f, None, True),
     ("fund_tipo", "Tipo de fundacao (sapata=rasa / estaca=profunda)", str, "sapata", False),
@@ -235,6 +239,9 @@ def construir_spec(r, slug="galpao"):
     s["vento"].update(v0=r["v0"], cat=r.get("cat", "II"), classe=r.get("classe", "B"),
                       s3=r.get("s3", 0.95), z=ridge,
                       abertura_dominante=r.get("abertura_dominante", "portao_oitao"))
+    sk = r.get("neve_sk") or 0.0
+    s["neve"] = ({"sk": sk, "Ce": 1.0, "Ct": 1.0, "deslizamento_livre": True}
+                 if sk > 0 else None)
     s["ponte"] = None            # ponte via bloco avancado (nao no wizard base)
     s["cargas"].update(G=r["G"] if "G" in r else 0.27, Q=r.get("Q", 0.25),
                        self=r.get("self_peso", 0.35), tapamento=r.get("tapamento", 0.10))
