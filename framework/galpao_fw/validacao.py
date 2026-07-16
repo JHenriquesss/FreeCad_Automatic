@@ -157,17 +157,89 @@ def rodar(verbose=True):
     return ok_geral, resultados
 
 
-def validacao_referencia():
-    """PLACEHOLDER da validacao de SISTEMA: comparar reacoes/esforcos/perfis
-    adotados contra um projeto real aprovado OU software comercial (mCalc/STRAP/
-    SAP). Requer um caso-referencia EXTERNO (dados + resultados esperados). Ainda
-    nao disponivel - ver tarefa 'Validacao de confianca contra referencia'."""
-    raise NotImplementedError(
-        "Forneca um caso-referencia (geometria + cargas + resultados esperados) "
-        "para a validacao de sistema.")
+# ---------------------------------------------------------------------------
+# VALIDACAO DE SISTEMA - caso-referencia externo (manual CBCA "Galpoes para usos
+# gerais", Cap.2). Galpao real resolvido pela NBR 8800; portico uniforme
+# W310x38,7 (coluna=viga), base rotulada. Reproduzimos a analise do portico sob a
+# combinacao governante Fd1 (1,25G + 1,5Q, SEM vento) e comparamos reacoes e
+# momento com os valores publicados. Fonte: NotebookLM, manual CBCA, secoes
+# 2.2/2.6/2.7/2.12 (consultado 2026-07-16).
+# ---------------------------------------------------------------------------
+REF_CBCA = {
+    "fonte": "Manual CBCA 'Galpoes para usos gerais', Cap.2 (portico W310x38,7)",
+    # geometria
+    "span": 15.0, "comprimento": 54.0, "eave": 6.0, "ridge": 7.32, "bay": 6.0,
+    "base_fixed": False,                 # base rotulada (apoios simples)
+    # secao unica W310x38,7 (coluna = viga): A=49,7 cm2 ; Ix=8581 cm4
+    "A": 49.7e-4, "I": 8581e-8, "fy": 345e3,
+    # cargas de projeto (linhas sobre o portico): G=2,70 kN/m ; Q=1,50 kN/m
+    "G_kN_m": 2.70, "Q_kN_m": 1.50,
+    "Fn_kN": 0.25,                       # forca nocional (0,3% de 5,63 kN/m x 15 m)
+    # RESULTADOS publicados (comb. Fd1 = 1,25G + 1,5Q):
+    "R_vert_kN": 42.77,                  # reacao vertical / coluna (Fd1)
+    "R_horiz_kN": 13.67,                 # reacao horizontal / coluna (Fd1)
+    "M_col_kNm": 82.56,                  # momento fletor max na coluna (topo, Fd1)
+}
+
+
+def check_referencia_cbca():
+    """Reproduz o portico do exemplo CBCA sob Fd1 (1,25G+1,5Q, sem vento) e compara
+    reacoes e momento max da coluna com os valores publicados no manual."""
+    import framework as FW
+    import galpao_portico as gp
+    r = REF_CBCA
+    FW.reset_tudo()
+    gp.configurar(span=r["span"], eave=r["eave"], ridge=r["ridge"], bay=r["bay"],
+                  base_fixed=r["base_fixed"], A_col=r["A"], I_col=r["I"],
+                  A_raf=r["A"], I_raf=r["I"],
+                  G_roof=r["G_kN_m"] / r["bay"], rafter_self=0.0,
+                  Q_roof=r["Q_kN_m"] / r["bay"])
+    fr, ix = gp._frame()
+    # Fd1 = 1,25G + 1,5Q como UDL nas vigas (G_kN_m/Q_kN_m ja sao por metro de
+    # portico -> nao remultiplicar por bay). Sinal negativo = gravitacional.
+    wy = -(1.25 * r["G_kN_m"] + 1.5 * r["Q_kN_m"])
+    for i in range(gp.N_VAOS):
+        for elems in ix["rafts"][i]:
+            for e in elems:
+                fr.add_member_udl(e, wy=wy)
+    fr.add_nodal_load(ix["nEaves"][0], Fx=r["Fn_kN"])     # forca nocional
+    d, mf = fr.solve()
+    R = fr.reactions()
+    V = max(abs(R[3 * b + 1]) for b in ix["nBases"])
+    H = max(abs(R[3 * b + 0]) for b in ix["nBases"])
+    Mcol = 0.0
+    for c in (ix["cols"][0], ix["cols"][1]):
+        for e in c:
+            Mcol = max(Mcol, abs(mf[e][2]), abs(mf[e][5]))
+    ev = abs(V - r["R_vert_kN"]) / r["R_vert_kN"]
+    eh = abs(H - r["R_horiz_kN"]) / r["R_horiz_kN"]
+    em = abs(Mcol - r["M_col_kNm"]) / r["M_col_kNm"]
+    # tolerancia de engenharia: 5% na reacao vertical (quase estatica), 15% no
+    # empuxo/momento (metodo/2a ordem/detalhe de aplicacao da carga diferem).
+    ok = ev < 0.05 and eh < 0.15 and em < 0.15
+    return ("Sistema vs manual CBCA (portico W310x38,7, Fd1)", ok,
+            max(ev, eh, em),
+            f"V={V:.2f}/{r['R_vert_kN']} ({ev*100:.1f}%) ; "
+            f"H={H:.2f}/{r['R_horiz_kN']} ({eh*100:.1f}%) ; "
+            f"Mcol={Mcol:.2f}/{r['M_col_kNm']} ({em*100:.1f}%)")
+
+
+def validacao_referencia(verbose=True):
+    """Validacao de SISTEMA contra o caso-referencia CBCA. Retorna (ok, detalhe)."""
+    nome, ok, err, det = check_referencia_cbca()
+    if verbose:
+        print("=" * 70)
+        print("VALIDACAO DE SISTEMA - " + REF_CBCA["fonte"])
+        print("=" * 70)
+        print(f"[{'PASS' if ok else 'FALHA'}] {nome}")
+        print(f"        {det}")
+        print("=" * 70)
+    return ok, det
 
 
 if __name__ == "__main__":
-    ok, _ = rodar()
     import sys
-    sys.exit(0 if ok else 1)
+    ok1, _ = rodar()
+    print()
+    ok2, _ = validacao_referencia()
+    sys.exit(0 if (ok1 and ok2) else 1)

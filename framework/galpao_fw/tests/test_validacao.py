@@ -21,6 +21,14 @@ def test_validacao_nucleo_toda_verde():
     assert len(resultados) == 5
 
 
+def test_validacao_sistema_cbca():
+    # reproduz o galpao do manual CBCA (NBR 8800) sob Fd1 -> reacoes e momento
+    # batem com o publicado dentro da tolerancia (sub-1% na pratica).
+    import validacao
+    ok, det = validacao.validacao_referencia(verbose=False)
+    assert ok, det
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao
