@@ -13,12 +13,18 @@ OK. Valores ligeiramente ≠ das refs pré-auditoria (esperado — reflete os fi
 `smoke_executivo` (FreeCAD headless): 2/7 casos completos OK (`padrao`, `vao_maior` —
 13 pranchas + memorial PDF, cobertura completa cada) antes de ser interrompido por tempo
 (cada caso ~min); camada executiva íntegra. Rodar os 7 leva ~15 min.
+**pytest `tests/` (não-build): 239 passed** (2026-07-15, ~10 min; requer `pip install
+pytest`) — inclui o frame per-coluna do PR #10 sem regressão. 642k `DeprecationWarning`
+do pycufsm (numpy 1.25+) são o mesmo `np.diff`→escalar que vira ERRO no numpy≥2.
 **Pendências reais (antes de assinar):**
 - **fogo** `θ_crítica` e `λp` da protecão — **RESOLVIDO 2026-07-15 (gate flagado)**: viraram
   input do `ProjetoSpec` (`fogo.theta_critica_C`, `fogo.protecao.lambda_p/c_p/rho_p`).
   Ausentes → default calibrado (550 °C / λp típico) **+ AVISO** em `validar()` e marca
   `[DEFAULT - CONFIRMAR boletim]` no `gate8-fogo.txt` (Ask-Do-Not-Invent). O eng. ainda
   confirma os valores do boletim, mas agora é perguntado/rastreado, não silencioso.
+  **Escopo do fogo (limitação válida, ex-laudo 07):** verifica resistência de **barras
+  isoladas** ao incêndio ISO 834; flambagem GLOBAL do pórtico por dilatação térmica em
+  incêndio NÃO é coberta (fora de escopo p/ galpão regular).
 - **8.21 frame per-coluna** — **RESOLVIDO 2026-07-15**: `galpao_portico._frame()` passou a
   honrar `SEC_COLS_PORTICO` (seção real por coluna); `redimensionamento._aplica` a preenche,
   então a análise 2D **e o B2** (P-Δ) enxergam a rigidez real por coluna, não só o B1 local.
