@@ -117,7 +117,10 @@ def novo():
         # Viga de baldrame / amarracao entre fundacoes (NBR 6118). None = nao ha;
         # dict {b, h, q_parede, continuidade} = dimensiona (vao e N_amarracao do modelo).
         "baldrame": None,
-        "fogo": None,         # None (sem verificacao) ou dict {TRRF_min, protecao}
+        "fogo": None,         # None (sem verificacao) ou dict {TRRF_min, protecao,
+                              # theta_critica_C (opc; default 550 flagado),
+                              # protecao={tipo, espessura, lambda_p? c_p? rho_p?}
+                              # (props termicas opc do BOLETIM; default calibrado flagado)}
         "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
         "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
         "_a_confirmar": [],
@@ -218,6 +221,24 @@ def validar(spec):
                 faltando.append(("ponte." + k, desc))
         if ponte.get("phi") in (None, PENDENTE) and not ponte.get("classe_hc"):
             faltando.append(("ponte.phi", "impacto phi OU classe de elevacao HC (NBR 8400)"))
+    # fogo: theta_critica (nivel de carregamento a quente) e as propriedades
+    # termicas da protecao (lambda_p) sao de CATALOGO/BOLETIM do fabricante.
+    # Ausentes -> default calibrado + AVISO (nao bloqueia, mas fica na memoria
+    # p/ o eng. confirmar/ART). Ask-Do-Not-Invent, padrao dos demais gates.
+    fogo = spec.get("fogo")
+    if isinstance(fogo, dict):
+        if fogo.get("theta_critica_C") in (None, PENDENTE):
+            avisos.append(("fogo.theta_critica_C",
+                           "theta_critica ausente -> assumindo 550 C (mu~0,6, NBR "
+                           "14323). CONFIRMAR: depende do nivel de carregamento a "
+                           "quente do perfil."))
+        prot = fogo.get("protecao")
+        if isinstance(prot, dict) and prot.get("tipo") in ("intumescente", "spray"):
+            if prot.get("lambda_p") in (None, PENDENTE):
+                avisos.append(("fogo.protecao.lambda_p",
+                               "condutividade lambda_p da protecao '%s' ausente -> "
+                               "usando valor TIPICO calibrado. CONFIRMAR com o "
+                               "BOLETIM tecnico do fabricante." % prot["tipo"]))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 

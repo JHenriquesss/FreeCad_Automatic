@@ -41,15 +41,23 @@ def _aplica(cols_perfil, raf, fixed=True):
     while len(est.SEC_VIGAS) < nv * 2:
         est.SEC_VIGAS.append({"A": pr["A"], "I": pr["Ix"],
                               "L": math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)})
+    sec_port = []
     for i in range(nv + 1):
         sec = perfis.PERFIS[cols_perfil[i]]
         est.SEC_COLS[i].update(A=sec["A"], I=sec["Ix"], L=gp.EAVE)
+        sec_port.append({"A": sec["A"], "I": sec["Ix"]})
         if i == 0:
             gp.A_COL, gp.I_COL = sec["A"], sec["Ix"]
     # colunas podem ter perfis distintos por linha -> avisa o sincronizar() do
     # estabilidade a NAO sobrescrever as secoes por-coluna com a unica gp.A_COL
     # (senao o B1 por-coluna usaria o Ne da coluna 0 p/ todas). Bug 8.21.
     est.SEC_COLS_EXTERNO = True
+    # ...e o pontos-chave do 8.21: a ANALISE 2D e o B2 (P-Delta) tambem passam a
+    # enxergar a rigidez REAL de cada coluna (nao mais a coluna 0 p/ todas). Como
+    # estabilidade._analisa_combo() reconstroi o frame via gp._frame(), basta
+    # informar as secoes por-coluna ao portico. So relevante em multi-vao com
+    # perfis distintos; em 1 vao (colunas iguais) e no-op.
+    gp.SEC_COLS_PORTICO = sec_port
     Lr = math.hypot(gp.SPANS[0] / 2, gp.RIDGE - gp.EAVE)
     for i in range(nv * 2):
         est.SEC_VIGAS[i].update(A=pr["A"], I=pr["Ix"], L=Lr)

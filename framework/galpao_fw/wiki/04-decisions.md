@@ -342,7 +342,9 @@ de corrigir; verdito verificado contra citação da norma (não de memória). Co
   n_terca` (era `/(n+1)`); 8.16/8.22 travas B2/B1 (`denom≤0→inf`, `≥1,0`; MAES inválido
   se >1,40 rig. original / >1,55 reduzida); 8.17 console `(|M|+|Mz|)/M_Rd` (flexão reta,
   mesmo eixo forte); 8.21 `SEC_COLS_EXTERNO` preserva `I` por-coluna no B1 (frame de
-  `galpao_portico` segue uniforme — refino futuro).
+  `galpao_portico` **e** `SEC_COLS_PORTICO` leva a rigidez real por coluna ao frame →
+análise 2D + B2 (P-Δ) per-coluna, não só o B1 (resolvido 2026-07-15; ref 1 vão
+inalterada; selftest: coluna central rígida atrai mais momento).
 - **Física/unidade**: 8.5 escada peso próprio `(…)/2` (era `×largura` extra); 8.6 `delta`
   morto removido; 8.7 vibração 3 Hz **sempre** (L.1.2, sem isenção L≤4m); 8.12
   `Nsd_tirante` da geometria (componente tangencial acumulada `(1,25G+1,5Q)·(ridge−eave)·

@@ -35,6 +35,13 @@ I_COL = 3692e-8                      # I da coluna [m4]
 A_RAF = 45.3e-4                      # area da secao da viga [m2]  (HEA180)
 I_RAF = 2510e-8                      # I da viga [m4]
 
+# Secoes POR COLUNA (multi-vao com perfis distintos). None = todas as colunas
+# usam A_COL/I_COL (default, retrocompativel). Lista de dicts {"A","I"} com um
+# item por coluna (indice 0..N_VAOS). Preenchida por redimensionamento._aplica
+# para que a analise 2D e o B2 (P-Delta) enxerguem a rigidez REAL de cada coluna
+# (nao so o B1 local). Bug 8.21 (residuo). So o ramo prismatico a honra.
+SEC_COLS_PORTICO = None
+
 BASE_FIXED = False                   # base engastada? (True=engaste, False=rotula)
 
 # Cargas (preenchidas por configurar)
@@ -49,8 +56,8 @@ SISMO = None                         # dict {E: kN} forca sismica total no porti
 
 def reset():
     """Reseta estado mutavel entre projetos."""
-    global PONTE, SISMO, BASE_FIXED
-    PONTE = None; SISMO = None; BASE_FIXED = False
+    global PONTE, SISMO, BASE_FIXED, SEC_COLS_PORTICO
+    PONTE = None; SISMO = None; BASE_FIXED = False; SEC_COLS_PORTICO = None
 
 
 # Alma variavel (tapered): None = rafter prismatico (default). dict = misula
@@ -165,6 +172,16 @@ def _posicoes():
     return x_cols, x_ridges
 
 
+def _sec_coluna(i):
+    """(A, I) da coluna i. Usa SEC_COLS_PORTICO[i] se preenchida (multi-perfil),
+    senao a secao unica A_COL/I_COL (retrocompativel). Bug 8.21."""
+    sp = SEC_COLS_PORTICO
+    if sp is not None and i < len(sp) and sp[i] is not None:
+        s = sp[i]
+        return s.get("A", A_COL), s.get("I", I_COL)
+    return A_COL, I_COL
+
+
 def _frame():
     """Cria o modelo do portico 2D. Retorna (fr, ix). Para 1 vao, mantem
     as chaves antigas (nBaseL/R, nEaveL/R, nRidge, colL/R, rafL/R)."""
@@ -192,9 +209,10 @@ def _frame():
                 sj = secs_col[-1]
                 c += _chain(fr, cons[i], eaves[i], sj["A_m2"], sj["I_m4"], NSEG // 2)
         else:                                       # prismatica (ref)
-            c = _chain(fr, bases[i], topo, A_COL, I_COL, NSEG)
+            Ac, Ic = _sec_coluna(i)                 # per-coluna se disponivel
+            c = _chain(fr, bases[i], topo, Ac, Ic, NSEG)
             if cons[i] is not None:
-                c += _chain(fr, cons[i], eaves[i], A_COL, I_COL, NSEG // 2)
+                c += _chain(fr, cons[i], eaves[i], Ac, Ic, NSEG // 2)
         cols.append(c)
     rafts = []  # rafts[s] = [left_raft_elements, right_raft_elements]
     for i in range(n):
@@ -583,6 +601,26 @@ def _selftest():
     assert len(r2["colunas"]) == 3, len(r2["colunas"])
     assert len(r2["vigas"]) == 2, len(r2["vigas"])
     assert a2["drift"] >= 0
+    # Bug 8.21: o frame deve honrar secoes POR-COLUNA (SEC_COLS_PORTICO). Coluna
+    # central mais rigida atrai mais momento -> reacoes de base mudam.
+    def _mbase():
+        fr, ix = _frame()
+        fr.add_nodal_load(ix["nEaves"][0], Fx=50.0)
+        fr.solve(); R = fr.reactions()
+        return [R[3 * b + 2] for b in ix["nBases"]]
+    global SEC_COLS_PORTICO
+    SEC_COLS_PORTICO = None
+    m_unif = _mbase()
+    SEC_COLS_PORTICO = [{"A": A_COL, "I": I_COL},
+                        {"A": A_COL * 2.0, "I": I_COL * 3.0},
+                        {"A": A_COL, "I": I_COL}]
+    m_pc = _mbase()
+    assert any(abs(a - b) > 1e-6 for a, b in zip(m_unif, m_pc)), \
+        "frame ignora SEC_COLS_PORTICO (bug 8.21)"
+    assert abs(m_pc[1]) > abs(m_unif[1]), \
+        "coluna central rigida deveria atrair mais momento"
+    reset()  # limpa SEC_COLS_PORTICO (nao vazar estado)
+    assert SEC_COLS_PORTICO is None
     print("galpao_portico self-test PASSED")
 
 
