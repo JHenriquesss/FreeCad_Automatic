@@ -18,7 +18,7 @@ def test_validacao_nucleo_toda_verde():
     import validacao
     ok, resultados = validacao.rodar(verbose=False)
     assert ok, [r for r in resultados if not r[1]]
-    assert len(resultados) == 5
+    assert len(resultados) == 7
 
 
 def test_validacao_sistema_cbca():

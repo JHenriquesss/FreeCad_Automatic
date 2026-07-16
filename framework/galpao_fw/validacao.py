@@ -92,6 +92,39 @@ def check_equilibrio_horizontal():
             f"|reacoes|={abs(reacao):.3f} kN ; residuo={err:.2e}")
 
 
+def check_equilibrio_multivao():
+    """Equilibrio vertical de um portico de 2 VAOS (3 colunas) sob G. Valida a
+    montagem multi-vao (base para o escopo multi-vao): soma das reacoes = carga."""
+    import framework as FW
+    import galpao_portico as gp
+    FW.reset_tudo()
+    gp.configurar(spans=[10.0, 10.0], eave=6.0, ridge=6.5, bay=5.0,
+                  base_fixed=False, G_roof=0.27, rafter_self=0.35)
+    aplicado, reacao = _equilibrio_caso(gp.case_G, eixo=1)
+    ref = max(abs(aplicado), 1e-9)
+    err = abs(abs(aplicado) - abs(reacao)) / ref
+    return ("Equilibrio VERTICAL do portico MULTI-VAO (2 vaos, carga G)",
+            err < 1e-6, err,
+            f"|carga|={abs(aplicado):.3f} kN ; |reacoes|={abs(reacao):.3f} kN "
+            f"(3 colunas) ; residuo={err:.2e}")
+
+
+def check_equilibrio_engastada():
+    """Equilibrio vertical com base ENGASTADA (BC diferente da rotulada): a soma
+    das reacoes ainda anula a carga. Confirma o solver p/ o outro tipo de apoio."""
+    import framework as FW
+    import galpao_portico as gp
+    FW.reset_tudo()
+    gp.configurar(span=10.0, eave=6.0, ridge=6.5, bay=5.0, base_fixed=True,
+                  G_roof=0.27, rafter_self=0.35)
+    aplicado, reacao = _equilibrio_caso(gp.case_G, eixo=1)
+    ref = max(abs(aplicado), 1e-9)
+    err = abs(abs(aplicado) - abs(reacao)) / ref
+    return ("Equilibrio VERTICAL com base ENGASTADA (carga G)", err < 1e-6, err,
+            f"|carga|={abs(aplicado):.3f} kN ; |reacoes|={abs(reacao):.3f} kN ; "
+            f"residuo={err:.2e}")
+
+
 def check_vento_formula():
     """Vk = V0*S1*S2*S3 e q = 0,613*Vk^2 (NBR 6123) batem com o modulo."""
     import framework as FW
@@ -129,6 +162,7 @@ def check_b1_amplificacao():
 
 
 CHECKS = [check_frame2d, check_equilibrio_gravidade, check_equilibrio_horizontal,
+          check_equilibrio_multivao, check_equilibrio_engastada,
           check_b1_amplificacao, check_vento_formula]
 
 
