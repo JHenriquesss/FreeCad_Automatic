@@ -1,20 +1,32 @@
 Dependencias do toolkit de calculo (projects/galpao/calc):
 
-  numpy < 2        (OBRIGATORIO: pycufsm 0.2.0 quebra em numpy 2.x -- prop2
-                    do cutwp.py faz x_diffs[i]=np.diff([a,b]); numpy>=2 recusa
-                    atribuir array de len 1 a escalar -> ValueError)
-  scipy < 1.13     (OBRIGATORIO junto do numpy<2: scipy>=1.13 exige numpy>=2 e
-                    usa np.long, removido no numpy 1.26 -> AttributeError)
-  pycufsm >= 0.2   (motor FSM para distorcional_fsm.py)
+  numpy >= 1.23.5   (1.x OU 2.x -- ver nota do shim abaixo)
+  scipy             (casar com o numpy: numpy 1.26 -> scipy<1.13 ; numpy 2 -> scipy>=1.13)
+  pycufsm >= 0.2    (motor FSM para distorcional_fsm.py / tercas_iteracao.py)
 
-Trio validado (smoke fim-a-fim OK): numpy 1.26.4 + scipy 1.12.0 + pycufsm 0.2.0.
-Instalar: pip install "numpy<2" "scipy<1.13" pycufsm
+Instalar (qualquer um dos dois):
+  numpy 2.x:  pip install "numpy>=2" "scipy>=1.13" pycufsm
+  numpy 1.x:  pip install "numpy<2" "scipy<1.13" pycufsm
 
-ATENCAO: a metadata do wheel do pycufsm 0.2.0 declara apenas numpy>=1.23.5 (sem
-teto), entao `pip install pycufsm` num ambiente numpy 2.x NAO acusa conflito mas
-o modulo quebra em runtime. O teto numpy<2 e scipy<1.13 e requisito de fato.
+COMPATIBILIDADE numpy>=2 (pycufsm_compat.py)
+--------------------------------------------
+O pycufsm 0.2.0 foi escrito para numpy 1.x e quebra em numpy>=2 em 2 pontos:
+  (A) pre/cutwp.py (prop2): x_diffs[i]=np.diff([a,b]) -> array de len 1 que o
+      numpy>=2 recusa atribuir a escalar (ValueError).
+  (B) solve/analysis_c (Cython compilado) e analysis_p.py (k_kg_global):
+      int(np.argwhere(...).reshape(1)) -> TypeError no numpy>=2.
+O modulo `pycufsm_compat.py` corrige ambos SEM editar/vendorizar a lib:
+  - troca `np` (so nos namespaces cutwp e analysis_p) por um proxy que
+    desempacota diff() de tamanho 1 e devolve argwhere() como view int()-safe;
+  - forca o seletor a usar o caminho PURO analysis_p (o .pyd compilado nao e
+    patchavel) e repointa os consumidores ja importados (fsm, cfsm, plotters).
+distorcional_fsm.py e tercas_iteracao.py importam pycufsm_compat ANTES do prop2,
+entao o FSM roda identico em numpy 1.x e 2.x (Mdist/Mcrl conferidos). Custo: em
+numpy>=2 usa a analise pura (mais lenta que a compilada), aceitavel (FSM roda
+poucas vezes no dimensionamento de tercas).
 
-Os demais modulos (frame2d, portico, estabilidade, check, tercas, base,
-ligacoes) usam apenas numpy basico e funcionam em numpy 1.x e 2.x. Apenas o
-distorcional_fsm.py e tercas_iteracao.py (prop2) exigem numpy<2 por causa do
-pycufsm. numpy fixado em 1.26.4.
+Validado: FSM selftests + pipeline + pytest (nao-build) GREEN em numpy 1.26.4 E
+numpy 2.5.1. Metadata do wheel do pycufsm declara numpy>=1.23.5 (sem teto).
+
+Os demais modulos (frame2d, portico, estabilidade, check, base, ligacoes) usam
+apenas numpy basico e sempre funcionaram em 1.x e 2.x.

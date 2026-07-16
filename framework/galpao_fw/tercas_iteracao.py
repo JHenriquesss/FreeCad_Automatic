@@ -9,7 +9,7 @@
 #     cortante, flexao obliqua e flecha (ELS).
 # Config do galpao: vao = espacamento de porticos ; linha de corrente no meio ;
 # largura de influencia da agua ; cargas caracteristicas G/Q/W (vento do modulo
-# vento_nbr6123). Requer numpy<2 (pycufsm). Saidas em portugues.
+# vento_nbr6123). Usa pycufsm (numpy 1.x ou 2.x via pycufsm_compat). Saidas em portugues.
 # ============================================================================
 """Iteracao de terças Ue para o galpao. Usa distorcional_fsm + tercas_nbr14762."""
 
@@ -21,6 +21,7 @@ import re
 import distorcional_fsm as fsm
 import tercas_nbr14762 as tc
 import vento_nbr6123 as vento
+import pycufsm_compat  # noqa: F401 (compat numpy>=2 do prop2; aplica na importacao)
 from pycufsm.pre.cutwp import prop2
 
 FY = 250e3          # ZAR-250 (fy=250 MPa) - confirmar o aco
