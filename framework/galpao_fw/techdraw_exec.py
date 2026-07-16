@@ -485,6 +485,45 @@ def _fmt_terca(tc):
         return str(tc)
 
 
+def _quadro_fundacao(cfg, tem_estaca=None):
+    """(titulo, headers, rows, nota) do quadro de fundacao COERENTE com o tipo:
+    fundacao profunda -> 'QUADRO DE ESTACAS / BLOCOS' (nao 'SAPATAS', que vazava
+    na fundacao profunda); rasa -> 'QUADRO DE SAPATAS'. tem_estaca None deduz de
+    cfg. rows vazio => nao desenha quadro. Pura (testavel sem FreeCAD)."""
+    if tem_estaca is None:
+        tem_estaca = bool(cfg.get("estaca"))
+    if tem_estaca:
+        e = cfg.get("estaca") or {}
+        b = cfg.get("bloco") or {}
+        rows = []
+        if e:
+            rows.append(["Estaca", "D=%.0f" % (e.get("D", 0) * 100),
+                         "L=%.0f" % (e.get("L", 0) * 100), "%s" % (e.get("n", "") or "")])
+        if b:
+            rows.append(["Bloco", "a=%.0f" % (b.get("a", 0) * 100),
+                         "h=%.0f" % (b.get("h", 0) * 100), ""])
+        return ("QUADRO DE ESTACAS / BLOCOS", ["ELEM", "DIM1 (cm)", "DIM2 (cm)", "N"],
+                rows, "Cotas em metros; estacas/blocos em cm.")
+    sp = cfg.get("sapata")
+    if sp:
+        rows = [["S1", "%.0f" % (sp["B"] * 100), "%.0f" % (sp["L"] * 100),
+                 "%.0f" % (sp["h"] * 100)]]
+        return ("QUADRO DE SAPATAS", ["TIPO", "B (cm)", "L (cm)", "h (cm)"],
+                rows, "Cotas em metros; sapatas em cm.")
+    return (None, None, [], "Cotas em metros.")
+
+
+def _pos_corte_ligacao(dupla, xpos, x_notas=200.0, larg_notas=360.0):
+    """(x, y) do corte seccionado de um detalhe de ligacao. No caso 'dupla'
+    (elevacao + vista da chapa) o corte vai para a DIREITA (sob a vista da chapa),
+    FORA da faixa horizontal do bloco de notas (canto inf. esquerdo) - que ele
+    invadia na cumeeira (overlap). No caso simples, mantem sob a elevacao (xpos),
+    onde nunca colidiu. Pura (testavel sem FreeCAD)."""
+    if dupla:
+        return (600.0, 140.0)
+    return (float(xpos), 120.0)
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # CARIMBO
 # ─────────────────────────────────────────────────────────────────────────
@@ -579,16 +618,16 @@ def _pr_fundacoes(doc, cfg, objs):
         b1 = sap[0].Shape.BoundBox
         c.d((b1.XMin, b1.YMin, b1.ZMax), (b1.XMax, b1.YMin, b1.ZMax),
             "DistanceX", _fmt_mm(b1.XLength), "cima", nivel=0)
-    sp = cfg.get("sapata")
-    if sp:
-        _anot(doc, page, "A02q", ["QUADRO DE SAPATAS"], 120, 175, 6)
-        _tabela(doc, page, "Q02",
-                ["TIPO", "B (cm)", "L (cm)", "h (cm)"],
-                [["S1", "%.0f" % (sp["B"] * 100), "%.0f" % (sp["L"] * 100),
-                  "%.0f" % (sp["h"] * 100)]],
-                120, 150, tam=6, larguras=[90, 70, 70, 70])
-    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome,
-                             "Cotas em metros; sapatas em cm."], 200, 70, 6)
+    # quadro COERENTE com o tipo de fundacao (estaca/bloco vs sapata) - detecta a
+    # fundacao profunda pelos objetos 3D (ESTACA/BLOCO), nao so pelo cfg.
+    tem_estaca = bool(_pref(fund, ("ESTACA", "BLOCO", "BALDRAME")))
+    titq, hdrq, rowsq, nota = _quadro_fundacao(cfg, tem_estaca)
+    if rowsq:
+        _anot(doc, page, "A02q", [titq], 120, 175, 6)
+        _tabela(doc, page, "Q02", hdrq, rowsq, 120, 150, tam=6,
+                larguras=[90, 70, 70, 70])
+    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome, nota],
+          200, 70, 6)
     return [page], [c]
 
 
@@ -1080,8 +1119,8 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     # CORTE SECCIONADO: hachura a superficie de material cortada (espessura das
     # chapas + secao dos parafusos). Normal do corte = xdir da elevacao (corta
     # perpendicular a ela, pelo centro). Best-effort: se vazio, nao desenha.
-    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc,
-                         (xpos if not dupla else 230.0), 120.0)
+    _sx, _sy = _pos_corte_ligacao(dupla, xpos)
+    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc, _sx, _sy)
     tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
@@ -1499,6 +1538,10 @@ def config_de_spec(spec, fcstd_path, out_dir):
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),
         "sapata": ({"B": sp["B"], "L": sp["L"], "h": sp["h"]} if sp else None),
+        # fundacao PROFUNDA (estaca/bloco) - alimenta o quadro correto na PE02
+        # (nao "QUADRO DE SAPATAS"). Dims em m (o quadro converte p/ cm).
+        "estaca": est.get("estaca_adotada"),
+        "bloco": est.get("bloco_adotado"),
         # ligacoes (para callouts de fabricacao): joelho {n, db, t} do calculo;
         # gusset/console ja em mm/adotado do calculo.
         "joelho": ({"n": jo["n"], "db": jo["db"] * 1000.0, "t": jo["t"] * 1000.0}

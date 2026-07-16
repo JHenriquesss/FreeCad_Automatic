@@ -105,6 +105,32 @@ def test_fmt_terca_formatado_legivel():
     assert isinstance(TD._fmt_terca(None), str)          # entrada invalida nao quebra
 
 
+def test_quadro_fundacao_coerente_com_tipo():
+    # regressao do Defeito 5: fundacao profunda NAO pode usar terminologia de
+    # 'sapatas'. Deep -> ESTACAS/BLOCOS; rasa -> SAPATAS.
+    import techdraw_exec as TD
+    cfg_est = {"estaca": {"D": 0.30, "L": 10.0, "n": 2}, "bloco": {"a": 0.60, "h": 0.60},
+               "sapata": {"B": 1.2, "L": 1.2, "h": 0.4}}   # sapata_adotada tb existe
+    tit, hdr, rows, nota = TD._quadro_fundacao(cfg_est, tem_estaca=True)
+    assert tit == "QUADRO DE ESTACAS / BLOCOS"
+    assert "estacas/blocos" in nota and "sapatas" not in nota
+    assert any(r[0] == "Estaca" for r in rows) and any(r[0] == "Bloco" for r in rows)
+    # rasa -> sapatas
+    tit2, _h, rows2, nota2 = TD._quadro_fundacao({"sapata": {"B": 1.2, "L": 1.2, "h": 0.4}},
+                                                 tem_estaca=False)
+    assert tit2 == "QUADRO DE SAPATAS" and "sapatas em cm" in nota2
+
+
+def test_pos_corte_ligacao_fora_das_notas():
+    # regressao do Defeito 6: no detalhe 'dupla' (cumeeira/joelho) o corte vai
+    # para a direita, fora da faixa horizontal do bloco de notas (x=200, larg 360).
+    import techdraw_exec as TD
+    x, y = TD._pos_corte_ligacao(True, xpos=230.0)
+    assert x >= 200.0 + 360.0, (x,)          # a direita do bloco de notas
+    # caso simples mantem sob a elevacao (nunca colidiu)
+    assert TD._pos_corte_ligacao(False, xpos=410.0)[0] == 410.0
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao
