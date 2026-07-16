@@ -49,6 +49,86 @@ def _dim(v):
     return (_f(a), _f(b))
 
 
+# ---- validacao de faixa (robustez) ------------------------------------------
+# chave: (tipico_lo, tipico_hi, limite_lo, limite_hi, unidade). Fora do TIPICO =
+# aviso (aceita); fora do LIMITE = erro (re-pergunta). Evita entradas absurdas.
+FAIXAS = {
+    "area_lote_m2": (200.0, 50000.0, 50.0, 1e7, "m2"),
+    "to_max": (0.2, 1.0, 0.05, 1.0, ""), "ca_max": (0.2, 8.0, 0.05, 20.0, ""),
+    "tp_min": (0.0, 0.6, 0.0, 1.0, ""),
+    "recuo_frente": (0.0, 20.0, 0.0, 200.0, "m"),
+    "recuo_lateral": (0.0, 15.0, 0.0, 200.0, "m"),
+    "recuo_fundos": (0.0, 15.0, 0.0, 200.0, "m"),
+    "span": (4.0, 50.0, 1.0, 120.0, "m"),
+    "comprimento": (5.0, 200.0, 2.0, 600.0, "m"),
+    "eave": (3.0, 15.0, 2.0, 30.0, "m"), "bay": (3.0, 10.0, 2.0, 15.0, "m"),
+    "aguas": (1, 2, 1, 4, ""), "slope": (0.05, 0.4, 0.005, 1.0, ""),
+    "telha_peso": (0.05, 0.3, 0.01, 2.0, "kN/m2"),
+    "chuva_I_mm_h": (80.0, 250.0, 30.0, 400.0, "mm/h"),
+    "fech_peso": (0.03, 3.0, 0.0, 10.0, "kN/m2"),
+    "n_maos_francesas": (0, 6, 0, 20, ""),
+    "v0": (30.0, 50.0, 20.0, 60.0, "m/s"), "s3": (0.8, 1.1, 0.5, 1.3, ""),
+    "G": (0.1, 1.0, 0.02, 5.0, "kN/m2"), "Q": (0.15, 1.5, 0.05, 10.0, "kN/m2"),
+    "self_peso": (0.1, 1.5, 0.0, 5.0, "kN/m2"),
+    "tapamento": (0.0, 2.0, 0.0, 10.0, "kN/m2"),
+    "sigma_solo": (100.0, 600.0, 30.0, 2000.0, "kN/m2"),
+    "est_D": (0.2, 1.2, 0.1, 3.0, "m"), "est_L": (4.0, 30.0, 2.0, 60.0, "m"),
+    "est_FS": (2.0, 3.5, 1.2, 6.0, ""),
+    "spt_N": (3.0, 50.0, 0.0, 80.0, ""), "spt_dz": (1.0, 30.0, 0.3, 60.0, "m"),
+}
+
+
+def _checa_faixa(chave, v):
+    """None se ok; ('erro'|'aviso', msg) se fora do limite/tipico. Pura."""
+    f = FAIXAS.get(chave)
+    if not f or not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    slo, shi, hlo, hhi, u = f
+    us = (" " + u) if u else ""
+    if v < hlo or v > hhi:
+        return ("erro", "%g%s implausivel (esperado ~[%g, %g]%s)" % (v, us, slo, shi, us))
+    if v < slo or v > shi:
+        return ("aviso", "%g%s incomum (tipico [%g, %g]%s)" % (v, us, slo, shi, us))
+    return None
+
+
+def _avisos_coerencia(r):
+    """Avisos de coerencia ENTRE campos (nao bloqueiam). Pura (testavel)."""
+    av = []
+    span = r.get("span"); comp = r.get("comprimento"); bay = r.get("bay")
+    if isinstance(span, (int, float)) and isinstance(comp, (int, float)) and comp < span:
+        av.append("comprimento (%g) < vao (%g): galpao mais curto que largo (incomum)."
+                  % (comp, span))
+    if isinstance(span, (int, float)) and isinstance(bay, (int, float)) and bay > span:
+        av.append("espacamento de porticos (%g) > vao (%g): revise o esquema." % (bay, span))
+    nmf = r.get("n_maos_francesas") or 0
+    if nmf > 0 and not r.get("mesa_travada"):
+        av.append("informou %d mao(s)-francesa(s) mas mesa_interna_travada=nao: "
+                  "sem travar a mesa interna, elas nao reduzem o Lb." % nmf)
+    if r.get("fund_tipo") == "estaca" and r.get("est_FS", 3.0) < 3.0 \
+            and not r.get("prova_de_carga"):
+        av.append("FS<3,0 na estaca exige prova de carga (NBR 6122) - sera bloqueado.")
+    return av
+
+
+# ---- presets (comecar de um modelo e ajustar) -------------------------------
+PRESETS = {
+    "1": ("Galpao pequeno 10x20 m, sapata",
+          dict(area_lote_m2=600, span=10, comprimento=20, eave=6, bay=5,
+               base_fixed=True, v0=35, sigma_solo=200, fund_tipo="sapata",
+               G=0.27, Q=0.25)),
+    "2": ("Galpao medio 15x40 m, sapata",
+          dict(area_lote_m2=1500, span=15, comprimento=40, eave=7, bay=6,
+               base_fixed=True, v0=40, sigma_solo=250, fund_tipo="sapata",
+               G=0.30, Q=0.25)),
+    "3": ("Galpao 12x30 m com fundacao profunda (estaca)",
+          dict(area_lote_m2=1200, span=12, comprimento=30, eave=6.5, bay=6,
+               base_fixed=True, v0=38, sigma_solo=150, fund_tipo="estaca",
+               spt_tipo="argila_siltosa", spt_N=12, spt_dz=8.0,
+               est_tipo="pre_moldada", est_D=0.30, est_L=12.0, G=0.28, Q=0.25)),
+}
+
+
 # ---- schema de perguntas (dados) --------------------------------------------
 # (chave, prompt, parser, default, obrigatorio). default=None + obrigatorio=True
 # => Ask-Do-Not-Invent (sem Enter). Ordem = ordem do formulario.
@@ -191,27 +271,43 @@ def _ask_one(chave, prompt, parser, default, obrigatorio, entrada, saida):
                 return None
             return default
         try:
-            return parser(raw)
+            val = parser(raw)
         except Exception as ex:
             saida(f"  -> valor invalido ({ex}). Tente de novo.")
+            continue
+        chk = _checa_faixa(chave, val)
+        if chk and chk[0] == "erro":
+            saida(f"  -> {chk[1]}. Informe um valor plausivel.")
+            continue
+        if chk and chk[0] == "aviso":
+            saida(f"  -> AVISO: {chk[1]} (aceito).")
+        return val
 
 
-def perguntar(entrada=input, saida=print, slug=None):
+def perguntar(entrada=input, saida=print, slug=None, preset=None):
     """Roda o formulario interativo e retorna um ProjetoSpec. entrada/saida
-    injetaveis (testes)."""
+    injetaveis (testes). `preset` (dict) pre-preenche os defaults de cada campo
+    (o usuario so ajusta o que quiser); os campos do preset viram o [default]."""
     saida("=" * 64)
     saida("WIZARD DE PROJETO DE GALPAO - responda gate a gate (Enter=default)")
     saida("Campos 'obrigatorio' sao dados de SITIO/FABRICANTE (Ask-Do-Not-Invent).")
+    if preset:
+        saida("** Iniciando de um PRESET - Enter aceita o valor sugerido. **")
     saida("=" * 64)
     if slug is None:
         slug = entrada("Nome/slug do projeto [galpao]: ").strip() or "galpao"
+    pre = dict(preset or {})
     r = {}
     for chave, prompt, parser, default, obr in PERGUNTAS:
-        r[chave] = _ask_one(chave, prompt, parser, default, obr, entrada, saida)
+        dft = pre.get(chave, default)
+        r[chave] = _ask_one(chave, prompt, parser, dft, obr, entrada, saida)
     if r.get("fund_tipo") == "estaca":
         saida("-- Fundacao PROFUNDA (estaca): dados da SONDAGEM --")
         for chave, prompt, parser, default, obr in PERGUNTAS_ESTACA:
-            r[chave] = _ask_one(chave, prompt, parser, default, obr, entrada, saida)
+            dft = pre.get(chave, default)
+            r[chave] = _ask_one(chave, prompt, parser, dft, obr, entrada, saida)
+    for a in _avisos_coerencia(r):
+        saida(f"[COERENCIA] {a}")
     spec = construir_spec(r, slug=slug)
     return spec
 
@@ -236,7 +332,12 @@ def _cli():
         spec = carregar_spec(sys.argv[1])
         print(PS.resumo_pt(spec))
     else:
-        spec = perguntar()
+        print("Presets disponiveis (comece de um modelo e ajuste):")
+        for k, (desc, _kw) in PRESETS.items():
+            print(f"  {k}) {desc}")
+        esc = input("Comecar de um preset? (numero, ou Enter p/ do zero): ").strip()
+        preset = PRESETS.get(esc, (None, None))[1]
+        spec = perguntar(preset=preset)
         print(PS.resumo_pt(spec))
         destino = input("\nSalvar spec em (Enter=spec_<slug>.json): ").strip() \
             or f"spec_{spec['slug']}.json"
@@ -281,6 +382,26 @@ def _selftest():
                      slug=None)
     assert PS.validar(spec)["ok"], PS.validar(spec)["faltando"]
     assert spec["slug"] == "meu_galpao"
+    # --- robustez: faixas ---
+    assert _checa_faixa("span", 10.0) is None
+    assert _checa_faixa("span", 200.0)[0] == "erro"      # implausivel
+    assert _checa_faixa("span", 55.0)[0] == "aviso"      # incomum mas aceita
+    assert _checa_faixa("base_fixed", True) is None      # bool nao entra em faixa
+    # --- robustez: coerencia entre campos ---
+    assert any("mais curto" in a for a in _avisos_coerencia(
+        {"span": 20, "comprimento": 10}))
+    assert any("mao" in a for a in _avisos_coerencia(
+        {"n_maos_francesas": 2, "mesa_travada": False}))
+    assert _avisos_coerencia({"span": 10, "comprimento": 20}) == []
+    # --- robustez: presets constroem specs validos ---
+    for k, (desc, kw) in PRESETS.items():
+        assert PS.validar(construir_spec(kw, slug="preset_%s" % k))["ok"], (k, desc)
+    # preset via perguntar: Enter em tudo (aceita os defaults do preset) -> valido
+    seq = iter(["proj_preset"] + [""] * (len(PERGUNTAS) + len(PERGUNTAS_ESTACA)))
+    sp = perguntar(entrada=lambda _="": next(seq), saida=lambda *_: None,
+                   slug=None, preset=PRESETS["3"][1])   # estaca
+    assert PS.validar(sp)["ok"], PS.validar(sp)["faltando"]
+    assert sp["fundacao"]["tipo"] == "estaca"
     print("wizard self-test PASSED")
     print(f"  perguntas base: {len(PERGUNTAS)} ; estaca: {len(PERGUNTAS_ESTACA)}")
     print(f"  spec sapata valido={PS.validar(construir_spec(r_sapata))['ok']} ; "

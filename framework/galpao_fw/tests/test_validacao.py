@@ -174,6 +174,23 @@ def test_wizard_constroi_spec_valido():
     assert PS.validar(wizard.construir_spec(r_est))["ok"]
 
 
+def test_wizard_robustez_faixa_coerencia_presets():
+    import wizard as W
+    import projeto_spec as PS
+    # faixa: implausivel -> erro; incomum -> aviso; ok -> None
+    assert W._checa_faixa("span", 200.0)[0] == "erro"
+    assert W._checa_faixa("span", 55.0)[0] == "aviso"
+    assert W._checa_faixa("span", 12.0) is None
+    assert W._checa_faixa("base_fixed", True) is None
+    # coerencia entre campos
+    assert any("mais curto" in a for a in W._avisos_coerencia(
+        {"span": 20, "comprimento": 10}))
+    assert W._avisos_coerencia({"span": 10, "comprimento": 20}) == []
+    # todos os presets constroem spec valido
+    for k, (_desc, kw) in W.PRESETS.items():
+        assert PS.validar(W.construir_spec(kw))["ok"], k
+
+
 def test_rodar_tudo_veredito_global(tmp_path):
     import wizard
     import rodar_projeto as RP
