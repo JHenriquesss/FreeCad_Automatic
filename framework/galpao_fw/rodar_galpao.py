@@ -418,8 +418,10 @@ def rodar(params, out_dir):
     res["verga_inter"] = rv.get("inter"); res["verga_ok"] = rv["OK"]
     # Gate 7 - base + ligacoes (esforcos extraidos do portico)
     (bnm, bN, bV, bM), (knm, kN, kV, kM) = _esforcos_base_joelho()
-    res["base_gov"] = (bnm, round(bN, 1), round(bV, 1), round(bM, 1))
-    res["knee_gov"] = (knm, round(kN, 1), round(kV, 1), round(kM, 1))
+    # float() explicito: no numpy>=2 round(np.float64) segue np.float64 (repr
+    # "np.float64(...)" polui prints e quebra json.dump). Coage a float nativo.
+    res["base_gov"] = (bnm, round(float(bN), 1), round(float(bV), 1), round(float(bM), 1))
+    res["knee_gov"] = (knm, round(float(kN), 1), round(float(kV), 1), round(float(kM), 1))
     b = dict(params["base"])
     b.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
              nome=f"Base engastada - {bnm} (M={abs(bM):.1f})")

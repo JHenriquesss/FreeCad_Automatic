@@ -10,12 +10,21 @@ restrição real inclui `scipy<1.13`; a metadata do wheel do pycufsm mente que a
 numpy≥2). `rodar_galpao` **sem ponte** (col 0,65 / viga 0,91) e **com ponte** (col 0,82
 / viga 0,94, R_vert 132,9 kN) OK; selftests `tercas_iteracao`/`distorcional_fsm` (FSM)
 OK. Valores ligeiramente ≠ das refs pré-auditoria (esperado — reflete os fixes).
-`smoke_executivo` (FreeCAD headless): 2/7 casos completos OK (`padrao`, `vao_maior` —
-13 pranchas + memorial PDF, cobertura completa cada) antes de ser interrompido por tempo
-(cada caso ~min); camada executiva íntegra. Rodar os 7 leva ~15 min.
-**pytest `tests/` (não-build): 239 passed** (2026-07-15, ~10 min; requer `pip install
-pytest`) — inclui o frame per-coluna do PR #10 sem regressão. 642k `DeprecationWarning`
-do pycufsm (numpy 1.25+) são o mesmo `np.diff`→escalar que vira ERRO no numpy≥2.
+`smoke_executivo` (FreeCAD headless): **6/7 casos completos OK** (`padrao`, `vao_maior`,
+`baixo_largo`, `ponte`, `estaca`, `alma_var` — 13-14 pranchas + memorial PDF, cobertura
+completa cada). `tesoura`: **cálculo OK** (`atende=True`), mas o passo de desenho executivo
+da treliça excede o budget de tempo do ambiente (~15 min; `rodar_executivo` timeout interno
+900 s) — não verificado aqui, sem indício de falha (só custo). Camada executiva íntegra.
+**pytest `tests/` (não-build): 239 passed** (requer `pip install pytest`) — inclui o
+frame per-coluna do PR #10 sem regressão.
+**numpy 2 DESTRAVADO (2026-07-16, `pycufsm_compat.py`):** o pin `numpy<2` deixou de ser
+obrigatório. O pycufsm 0.2.0 (numpy 1.x) quebrava em numpy≥2 em 2 pontos — (A) `prop2`
+`np.diff([a,b])`→escalar; (B) `k_kg_global` `int(argwhere(...).reshape(1))` no Cython
+compilado. O shim troca `np` por proxy (só em `cutwp`/`analysis_p`) e força o caminho puro
+`analysis_p`, repointando os consumidores já importados. `distorcional_fsm`/`tercas_iteracao`
+importam o shim antes do `prop2`. **Validado em numpy 1.26.4 E 2.5.1: FSM idêntico
+(Mdist 42,8/19,55), pipeline e pytest 239 passed.** Bônus: em numpy 2 as **642k
+DeprecationWarnings sumiram** (0 warnings) e ficou até + rápido (560 s vs 591 s).
 **Pendências reais (antes de assinar):**
 - **fogo** `θ_crítica` e `λp` da protecão — **RESOLVIDO 2026-07-15 (gate flagado)**: viraram
   input do `ProjetoSpec` (`fogo.theta_critica_C`, `fogo.protecao.lambda_p/c_p/rho_p`).

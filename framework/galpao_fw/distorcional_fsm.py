@@ -10,7 +10,8 @@
 #   flexao Mxx, e identifica os minimos LOCAL (menor meia-onda) e DISTORCIONAL
 #   (minimo intermediario). Retorna Mcrl (local) e Mdist (distorcional) para
 #   alimentar chi_distorcional / chi local do modulo tercas_nbr14762.
-# ATENCAO: exige numpy < 2 (pycufsm 0.2.0 nao roda em numpy 2.x). O motor FSM e
+# NOTA: pycufsm 0.2.0 foi escrito p/ numpy 1.x; `pycufsm_compat` (importado abaixo)
+# corrige a incompatibilidade em numpy>=2 -> roda em numpy 1.x E 2.x. O motor FSM e
 # do pycufsm (validado); este script so monta a secao e extrai os minimos.
 # Saidas em portugues. Unidades internas: mm, N, MPa (N/mm2).
 # ============================================================================
@@ -21,6 +22,7 @@ from __future__ import annotations
 import numpy as np
 
 try:
+    import pycufsm_compat  # noqa: F401 (compat numpy>=2 do prop2; aplica na importacao)
     import pycufsm.fsm as _fsm
     from pycufsm.pre.cutwp import prop2 as _prop2
     _HAS_PYCUFSM = True
@@ -50,8 +52,8 @@ def curva_assinatura(bw, bf, D, t, fy=250.0, E=200000.0, nu=0.3,
                      Lmin=20.0, Lmax=4000.0, n=80):
     """Roda a curva assinatura (FSM, flexao Mxx). Retorna lengths, LF, My."""
     if not _HAS_PYCUFSM:
-        raise RuntimeError("pycufsm indisponivel (requer numpy<2). "
-                           "Instale: pip install 'numpy<2' pycufsm")
+        raise RuntimeError("pycufsm indisponivel. "
+                           "Instale: pip install pycufsm (numpy 1.x ou 2.x)")
     G = E / (2 * (1 + nu))
     coord, ends = secao_ue(bw, bf, D, t)
     nn = len(coord)
@@ -129,7 +131,7 @@ def relatorio_pt(bw, bf, D, t, fy=250.0):
 
 def _selftest():
     if not _HAS_PYCUFSM:
-        print("distorcional_fsm: pycufsm indisponivel (requer numpy<2) - SKIP")
+        print("distorcional_fsm: pycufsm indisponivel - SKIP")
         return
     # Ue 200x75x20 t=2.0 : deve achar local + distorcional com Mdist finito
     r = mdist(200.0, 75.0, 20.0, 2.0, fy=250.0)
