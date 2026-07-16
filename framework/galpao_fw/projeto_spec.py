@@ -79,8 +79,10 @@ def novo():
         "slug": P, "descricao": P,
         "terreno": {"kml": P, "area_lote_m2": P, "to_max": P, "ca_max": P,
                     "tp_min": P, "recuos": P, "n_pav": 1, "pts_xy_mm": None},
-        "geometria": {"span": P, "comprimento": P, "eave": P, "ridge": P,
-                      "bay": P, "base_fixed": P},
+        # span = vao transversal (1 vao). Multi-vao: 'spans' = lista de larguras
+        # de vao (m); None/1 item = 1 vao (retro). Cada vao com a mesma inclinacao.
+        "geometria": {"span": P, "spans": None, "comprimento": P, "eave": P,
+                      "ridge": P, "bay": P, "base_fixed": P},
         # chuva_I_mm_h: intensidade pluviometrica local (NBR 10844) p/ dimensionar
         # a calha. Default 150 (A CONFIRMAR regional); nao bloqueia.
         "cobertura": {"aguas": P, "slope": P, "telha_tipo": P, "telha_peso": P,
@@ -289,10 +291,18 @@ def to_rodar_params(spec):
     import rodar_galpao as R
     p = copy.deepcopy(R.PARAMS_REF)
     g = spec["geometria"]
+    # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
+    # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura
+    # transversal do galpao, p/ vento etc.). Sem spans -> 1 vao (retro).
+    spans = g.get("spans") if isinstance(g.get("spans"), (list, tuple)) else None
+    span0 = spans[0] if spans else g["span"]
     ridge = g["ridge"] if g.get("ridge") not in (None, PENDENTE) else \
-        g["eave"] + spec["cobertura"]["slope"] * g["span"] / 2.0
-    p["geometria"] = {"span": g["span"], "comprimento": g["comprimento"],
+        g["eave"] + spec["cobertura"]["slope"] * span0 / 2.0
+    p["geometria"] = {"span": (sum(spans) if spans else g["span"]),
+                      "comprimento": g["comprimento"],
                       "eave": g["eave"], "ridge": ridge, "bay": g["bay"]}
+    if spans and len(spans) > 1:
+        p["geometria"]["spans"] = list(spans)
     p["base_fixed"] = g["base_fixed"]
     c = spec["cargas"]
     p["cargas"] = {"G": c["G"], "self": c.get("self", 0.35), "Q": c["Q"]}
@@ -392,8 +402,11 @@ def to_build_kwargs(spec):
     profunda = tipo_fund == "estaca"
     ea = est.get("estaca_adotada"); bo = est.get("bloco_adotado")
     bl = est.get("baldrame_adotado")
+    _spans = g.get("spans") if isinstance(g.get("spans"), (list, tuple)) else None
     return {
         "length": g["comprimento"] * 1000.0, "span": g["span"] * 1000.0,
+        # multi-vao: passa a lista de vaos (mm) ao build 3D; None -> 1 vao.
+        "spans": ([s * 1000.0 for s in _spans] if _spans and len(_spans) > 1 else None),
         "eave_h": g["eave"] * 1000.0, "slope": spec["cobertura"]["slope"],
         "bay": g["bay"] * 1000.0,
         "aberturas": spec["aberturas"], "fechamento": spec["fechamento"],

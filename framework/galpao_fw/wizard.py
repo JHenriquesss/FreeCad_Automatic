@@ -62,6 +62,7 @@ FAIXAS = {
     "span": (4.0, 50.0, 1.0, 120.0, "m"),
     "comprimento": (5.0, 200.0, 2.0, 600.0, "m"),
     "eave": (3.0, 15.0, 2.0, 30.0, "m"), "bay": (3.0, 10.0, 2.0, 15.0, "m"),
+    "n_vaos": (1, 4, 1, 8, ""),
     "aguas": (1, 2, 1, 4, ""), "slope": (0.05, 0.4, 0.005, 1.0, ""),
     "telha_peso": (0.05, 0.3, 0.01, 2.0, "kN/m2"),
     "chuva_I_mm_h": (80.0, 250.0, 30.0, 400.0, "mm/h"),
@@ -143,7 +144,8 @@ PERGUNTAS = [
     ("recuo_lateral", "Recuo lateral (m)", _f, 1.5, False),
     ("recuo_fundos", "Recuo de fundos (m)", _f, 3.0, False),
     # geometria
-    ("span", "Vao transversal do galpao (m)", _f, None, True),
+    ("span", "Vao transversal (largura de CADA vao, m)", _f, None, True),
+    ("n_vaos", "Numero de vaos transversais (1 = vao unico)", _i, 1, False),
     ("comprimento", "Comprimento (m)", _f, None, True),
     ("eave", "Pe-direito / altura do beiral (m)", _f, None, True),
     ("bay", "Espacamento entre porticos (m)", _f, 5.0, False),
@@ -215,8 +217,10 @@ def construir_spec(r, slug="galpao"):
                 "fundos": r.get("recuo_fundos", 3.0)})
     span, eave, slope = r["span"], r["eave"], r.get("slope", 0.10)
     ridge = eave + slope * span / 2.0
-    s["geometria"].update(span=span, comprimento=r["comprimento"], eave=eave,
-                          ridge=ridge, bay=r.get("bay", 5.0),
+    nvaos = int(r.get("n_vaos") or 1)
+    spans = [span] * nvaos if nvaos > 1 else None       # vaos iguais
+    s["geometria"].update(span=span, spans=spans, comprimento=r["comprimento"],
+                          eave=eave, ridge=ridge, bay=r.get("bay", 5.0),
                           base_fixed=bool(r.get("base_fixed", False)))
     s["cobertura"].update(aguas=r.get("aguas", 2), slope=slope,
                           telha_tipo=r.get("telha_tipo", "trapezoidal"),

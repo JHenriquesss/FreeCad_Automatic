@@ -171,6 +171,23 @@ def test_neve_gate_e_escopo():
     assert any("neve.sk" == p for p, _ in av)
 
 
+def test_multivao_mappers():
+    import wizard as W
+    import projeto_spec as PS
+    # 1 vao (retro): sem spans
+    s1 = W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                               v0=40, sigma_solo=200, fund_tipo="sapata"))
+    assert s1["geometria"]["spans"] is None
+    assert "spans" not in PS.to_rodar_params(s1)["geometria"]
+    # 2 vaos: spans expostos aos mappers (calc + 3D)
+    s2 = W.construir_spec(dict(area_lote_m2=2000, span=10, n_vaos=2, comprimento=30,
+                               eave=6, bay=6, v0=40, sigma_solo=200, fund_tipo="sapata"))
+    assert s2["geometria"]["spans"] == [10, 10]
+    p = PS.to_rodar_params(s2)
+    assert p["geometria"]["spans"] == [10, 10] and p["geometria"]["span"] == 20
+    assert PS.to_build_kwargs(s2)["spans"] == [10000.0, 10000.0]
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao
