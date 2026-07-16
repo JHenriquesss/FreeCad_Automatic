@@ -192,3 +192,202 @@ def rodar_executivo(spec, out_dir, fcstd_path, freecad_exe=None, timeout=1200):
         pass
     spec.setdefault("estrutura", {})["executivo"] = res
     return res
+
+
+def _fmt_quadro(spec):
+    """Quadro de utilizacoes/estados gravado pelo calcular() -> linhas de texto."""
+    est = spec.get("estrutura", {})
+    L = []
+    res_u = est.get("resultados", {}) or {}
+    for nome, u in res_u.items():
+        if u is None:
+            continue
+        tag = "OK" if isinstance(u, (int, float)) and u <= 1.0 else "NAO ATENDE"
+        val = f"{u:.2f}" if isinstance(u, (int, float)) else str(u)
+        L.append(f"    {nome:<24} u={val:>6}  {tag}")
+    for nome, flag in (est.get("estados", {}) or {}).items():
+        L.append(f"    {nome:<24}         {flag}")
+    return L
+
+
+def relatorio_consolidado(spec, res, modelo=None, executivo=None, out_dir=None):
+    """Relatorio unico: VEREDITO + gates (faltando/a_confirmar/avisos) + quadro de
+    verificacoes + escopo + estagios (memorial/3D/executivo) + carimbo ART. Se
+    out_dir, grava RELATORIO-CONSOLIDADO.txt. Retorna o texto."""
+    import projeto_spec as PS
+    import escopo as ESC
+    try:
+        import framework as FW
+        carimbo = FW.carimbo_versao()
+    except Exception:
+        carimbo = "framework galpao_fw"
+    g = spec.get("geometria", {})
+    val = PS.validar(spec)
+    # veredito GLOBAL: agrega TODOS os gates que rodaram (res["atende_global"]),
+    # nao so o portico (res["atende"]). Fallback p/ o do portico se ausente.
+    if isinstance(res, dict) and "atende_global" in res:
+        atende = bool(res["atende_global"])
+    else:
+        atende = bool(res.get("atende")) if isinstance(res, dict) else False
+    falhas = res.get("falhas_verificacao", []) if isinstance(res, dict) else []
+    L = ["=" * 70,
+         f"RELATORIO CONSOLIDADO - {spec.get('slug', '?')} "
+         f"(GALPAO {g.get('comprimento', '?')}x{g.get('span', '?')} m)",
+         carimbo, "=" * 70, "",
+         f"VEREDITO DO DIMENSIONAMENTO: {'ATENDE' if atende else 'NAO ATENDE'}"]
+    if falhas:
+        L.append(f"  ELEMENTOS QUE NAO ATENDEM (util > 1,0) - REVER: "
+                 + "; ".join(f"{n}={u:.2f}" for n, u in falhas))
+        # acoes de reforco que o proprio calculo ja indica (o veredito segue
+        # NAO ATENDE ate o engenheiro adotar o reforco): torna o "reforco exigido"
+        # acionavel em vez de so apontar a falha.
+        acoes = []
+        zp = res.get("zona_painel") if isinstance(res, dict) else None
+        if isinstance(zp, dict) and zp.get("precisa_reforco"):
+            td = zp.get("t_doubler_mm")
+            acoes.append(f"Zona de painel: doubler t={td:.0f} mm (2 lados) OU joelho "
+                         f"misulado (tipo_portico=alma_variavel)"
+                         if td else "Zona de painel: adotar doubler/misula no joelho")
+        if isinstance(zp, dict) and zp.get("precisa_enrijecedor"):
+            a = zp.get("enrij_a_sug_mm")
+            acoes.append(f"Alma do joelho: enrijecedores a cada {a:.0f} mm"
+                         if a else "Alma do joelho: enrijecedores transversais")
+        cal = res.get("calha") if isinstance(res, dict) else None
+        if isinstance(cal, dict) and not cal.get("ok", True):
+            acoes.append("Calha: ampliar secao/condutores ou rever a intensidade "
+                         "pluviometrica (chuva_I_mm_h) - secao default nao fechou")
+        if acoes:
+            L.append("  ACOES DE REFORCO INDICADAS PELO CALCULO:")
+            L += [f"    -> {a}" for a in acoes]
+    L.append("")
+    # gates de entrada
+    if val["faltando"]:
+        L.append(f"PENDENTE (bloqueia) - {len(val['faltando'])}:")
+        L += [f"    - {p} : {d}" for p, d in val["faltando"]]
+    else:
+        L.append("Entradas: COMPLETAS (todos os gates decididos).")
+    if val["a_confirmar"]:
+        L.append(f"A CONFIRMAR (valor provisorio) - {len(val['a_confirmar'])}:")
+        L += [f"    - {p}" for p in val["a_confirmar"]]
+    if val["avisos"]:
+        L.append(f"AVISOS NORMATIVOS (auditoria/ART) - {len(val['avisos'])}:")
+        L += [f"    - {p}: {d}" for p, d in val["avisos"]]
+    # quadro de verificacoes
+    L += ["", "QUADRO DE VERIFICACOES:"]
+    q = _fmt_quadro(spec)
+    L += q if q else ["    (sem quadro - calcular() nao populou resultados)"]
+    # estagios (o que foi de fato gerado)
+    L += ["", "ENTREGAVEIS GERADOS:"]
+    mem = (spec.get("estrutura", {}) or {}).get("memorial_pdf")
+    L.append(f"    Memoriais/PDF : {mem or out_dir or '(ver out_dir)'}")
+    if isinstance(modelo, dict):
+        rm = modelo.get("result") if "result" in modelo else modelo
+        if isinstance(rm, dict) and rm.get("elementos") is not None:
+            L.append(f"    Modelo 3D     : {rm.get('elementos')} objetos, "
+                     f"{rm.get('interferencias', '?')} interf., "
+                     f"{rm.get('massa_aco_kg', '?')} kg de aco -> {rm.get('fcstd')}")
+        else:
+            L.append(f"    Modelo 3D     : NAO GERADO ({modelo.get('erro', modelo)})")
+    else:
+        L.append("    Modelo 3D     : NAO SOLICITADO (com_3d=False)")
+    if isinstance(executivo, dict):
+        if executivo.get("ok"):
+            L.append(f"    Pranchas 2D   : {len(executivo.get('pranchas', []))} pranchas")
+        else:
+            L.append(f"    Pranchas 2D   : NAO GERADO ({executivo.get('erro', executivo)})")
+    else:
+        L.append("    Pranchas 2D   : NAO SOLICITADO (com_executivo=False)")
+    # escopo + carimbo ART
+    L += ["", ESC.relatorio_escopo(spec, res, carimbo)]
+    txt = "\n".join(str(x) for x in L)
+    if out_dir:
+        import os
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(str(out_dir), "RELATORIO-CONSOLIDADO.txt"),
+                  "w", encoding="utf-8") as f:
+            f.write(txt)
+    return txt
+
+
+def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=True,
+               gerar_pdf=True, host="http://localhost:9875", timeout_3d=180,
+               timeout_exec=1200, verbose=True):
+    """ENTRADA UNICA: spec -> calculo + memorial PDF + modelo 3D + pranchas 2D +
+    RELATORIO-CONSOLIDADO. Portavel (out_dir default = projects/<slug>/saida).
+    Cada estagio degrada com gracia: se o FreeCAD (MCP/exe) nao estiver
+    disponivel, o 3D/executivo ficam 'NAO GERADO' e o calculo/relatorio seguem.
+    Retorna {res, modelo, executivo, relatorio, out_dir, atende}."""
+    import os
+    PS_ok = True
+    try:
+        import projeto_spec as PS
+        PS.exigir_completo(spec)
+    except Exception as ex:
+        PS_ok = False
+        if verbose:
+            print(f"[rodar_tudo] spec incompleto: {ex}")
+        raise
+    slug = spec.get("slug") or "galpao"
+    if out_dir is None:
+        out_dir = str(FW.dir_projetos() / slug / "saida")
+    os.makedirs(out_dir, exist_ok=True)
+    doc_name = doc_name or slug
+
+    def _log(m):
+        if verbose:
+            print(m)
+
+    # 1) calculo (Gates 5-11) + memoriais
+    _log(f"[1/4] Calculo -> {out_dir}")
+    res = calcular(spec, out_dir)
+    _log(f"      atende={res.get('atende')}")
+
+    # 2) memorial PDF unico
+    if gerar_pdf:
+        try:
+            import relatorio_calculo as RC
+            g = spec.get("geometria", {})
+            pdf = RC.gerar_pdf(out_dir, titulo="GALPAO %sx%s m"
+                               % (g.get("comprimento", "?"), g.get("span", "?")))
+            spec.setdefault("estrutura", {})["memorial_pdf"] = pdf
+            _log(f"[2/4] Memorial PDF -> {pdf}")
+        except Exception as ex:
+            _log(f"[2/4] Memorial PDF: FALHOU ({ex})")
+
+    # 3) modelo 3D (FreeCAD via MCP) - opcional/gracioso
+    modelo = None
+    if com_3d:
+        try:
+            modelo = montar_modelo(spec, out_dir, doc_name,
+                                   mf_stride=res.get("mf_stride"),
+                                   n_tirante_parede=res.get("n_tirante_parede"),
+                                   host=host, timeout=timeout_3d)
+            rm = modelo.get("result") if isinstance(modelo, dict) else None
+            _log(f"[3/4] Modelo 3D -> {rm.get('elementos') if rm else modelo} objetos")
+        except Exception as ex:
+            modelo = {"erro": f"3D indisponivel ({ex})"}
+            _log(f"[3/4] Modelo 3D: NAO GERADO ({ex})")
+
+    # 4) pranchas executivas 2D - opcional/gracioso (precisa do .FCStd do passo 3)
+    executivo = None
+    if com_executivo:
+        fcstd = None
+        rm = modelo.get("result") if isinstance(modelo, dict) else None
+        if isinstance(rm, dict):
+            fcstd = rm.get("fcstd")
+        fcstd = fcstd or f"{out_dir}/freecad/{doc_name}.FCStd".replace("\\", "/")
+        if os.path.exists(fcstd):
+            try:
+                executivo = rodar_executivo(spec, out_dir, fcstd, timeout=timeout_exec)
+                _log(f"[4/4] Pranchas -> {len(executivo.get('pranchas', [])) if isinstance(executivo, dict) else executivo}")
+            except Exception as ex:
+                executivo = {"erro": f"executivo falhou ({ex})"}
+                _log(f"[4/4] Pranchas: NAO GERADO ({ex})")
+        else:
+            executivo = {"erro": f"FCStd ausente ({fcstd}) - rode o 3D antes"}
+            _log(f"[4/4] Pranchas: NAO GERADO (sem FCStd)")
+
+    rel = relatorio_consolidado(spec, res, modelo, executivo, out_dir)
+    _log(f"\nRelatorio consolidado -> {out_dir}/RELATORIO-CONSOLIDADO.txt")
+    return {"res": res, "modelo": modelo, "executivo": executivo,
+            "relatorio": rel, "out_dir": out_dir, "atende": bool(res.get("atende"))}

@@ -1281,6 +1281,11 @@ def _consolidar(out_dir, save, g, params, res=None):
             L.append(f"  {nome:<16} {u:5.2f}   "
                      f"{'OK' if u <= 1.001 else '*** NAO ATENDE ***'}")
         falhas = [(n, u) for n, u in checks if u is not None and u > 1.001]
+        # veredito GLOBAL agregado (todos os gates que rodaram, nao so o portico):
+        # exposto no res p/ o rodar_tudo/relatorio consolidado. res["atende"] segue
+        # sendo o do redimensionamento do portico (nao quebra chamadores).
+        res["falhas_verificacao"] = [(n, round(float(u), 2)) for n, u in falhas]
+        res["atende_global"] = not falhas
         L.append("")
         if falhas:
             L += ["!" * 70,
