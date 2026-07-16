@@ -50,6 +50,34 @@ def test_bootstrap_executivo_sem_repr_numpy():
     assert isinstance(ns["_CFG_"]["terca"], tuple)   # preserva tupla
 
 
+def test_codigo_prancha_bate_com_nome_do_arquivo():
+    # regressao do defeito de numeracao: o drawing_number do carimbo deve ser o
+    # codigo de TIPO da prancha (PE-11 no arquivo PE11), nao a ordem sequencial.
+    import techdraw_exec as TD
+    assert TD._codigo_prancha("PE11_DET_GUSSET_COB", 9, 12) == ("PE-11", "09/12")
+    assert TD._codigo_prancha("PE01_COBERTURA", 1, 12) == ("PE-01", "01/12")
+    assert TD._codigo_prancha("PE09_QUADROS", 12, 12) == ("PE-09", "12/12")
+    # sem prefixo reconhecivel -> usa a ordem (fallback, nao quebra)
+    assert TD._codigo_prancha("estranho", 3, 5) == ("PE-03", "03/05")
+
+
+def test_pos_notas_nunca_sobrepoe_a_tabela():
+    # regressao do defeito de overlap na PE09: o bloco de NOTAS deve ficar SEMPRE
+    # abaixo da tabela mais baixa, para qualquer contagem de linhas plausivel.
+    import techdraw_exec as TD
+    for n_verif in range(4, 18):
+        for n_mat in (0, 6, 12, 17):
+            y = TD._pos_notas(n_verif, n_mat, n_notas=11)
+            bases = []
+            if n_verif:
+                bases.append((480 - n_verif * 7) - TD._meia_alt_view(n_verif + 1, 1.5))
+            if n_mat:
+                bases.append((480 - n_mat * 7) - TD._meia_alt_view(n_mat + 1, 1.5))
+            base = min(bases)
+            topo_notas = y + TD._meia_alt_view(11, 1.4)      # borda superior do bloco
+            assert topo_notas <= base + 1e-6, (n_verif, n_mat, topo_notas, base)
+
+
 def test_escopo_envelope_e_carimbo():
     import escopo
     # projeto regular: so a fronteira sempre-ativa da fundacao

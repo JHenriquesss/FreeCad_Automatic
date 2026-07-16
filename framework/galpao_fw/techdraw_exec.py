@@ -417,6 +417,48 @@ def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520, escala=1.0
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# LAYOUT DO QUADRO / NUMERACAO (puros e testaveis - sem FreeCAD)
+# ─────────────────────────────────────────────────────────────────────────
+def _meia_alt_view(nlin, escala):
+    """Meia-altura aproximada (mm de papel) de um DrawViewSpreadsheet de nlin
+    linhas (incl. cabecalho) na escala dada. As views sao ancoradas pelo CENTRO
+    (v.X/v.Y), entao a metade importa. Calibrado no fator 7/linha (meia-linha em
+    escala 1,5) que ancora as tabelas do quadro."""
+    return nlin * (7.0 / 1.5) * escala
+
+
+def _pos_notas(n_verif, n_mat, n_notas, y_topo=480.0, dy_por_linha=7.0,
+               esc_tab=1.5, esc_notas=1.4, margem=20.0, piso=70.0):
+    """Y (centro) do bloco de NOTAS TECNICAS, SEMPRE abaixo das tabelas do quadro.
+    As tabelas ancoram o centro em y = y_topo - nrows*dy_por_linha e crescem
+    simetricamente; antes as notas ficavam num y FIXO (240) e colidiam com a
+    tabela quando ela tinha muitas linhas (bug do overlap na PE09). Aqui o y das
+    notas e derivado da base da tabela mais baixa. Pura (testavel sem FreeCAD)."""
+    bases = []
+    if n_verif > 0:
+        yv = y_topo - n_verif * dy_por_linha
+        bases.append(yv - _meia_alt_view(n_verif + 1, esc_tab))     # +1 cabecalho
+    if n_mat > 0:
+        ym = y_topo - n_mat * dy_por_linha
+        bases.append(ym - _meia_alt_view(n_mat + 1, esc_tab))
+    base = min(bases) if bases else (y_topo - 10.0)
+    y = base - margem - _meia_alt_view(n_notas, esc_notas)
+    return max(y, piso)
+
+
+def _codigo_prancha(page_name, ordem, total):
+    """(drawing_number, sheet_number) de uma prancha. drawing_number = codigo de
+    TIPO derivado do nome ('PEnn_...' -> 'PE-nn'), batendo com o nome do arquivo;
+    sheet_number = posicao sequencial 'NN/TOTAL'. Antes o drawing_number era
+    sobrescrito pela ORDEM (arquivo PE11 exibia 'PE-09') - inconsistencia
+    corrigida. Pura (testavel sem FreeCAD)."""
+    import re
+    m = re.match(r"PE0*(\d+)", str(page_name or ""))
+    numero = ("PE-%02d" % int(m.group(1))) if m else ("PE-%02d" % ordem)
+    return numero, "%02d/%02d" % (ordem, total)
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # CARIMBO
 # ─────────────────────────────────────────────────────────────────────────
 def _carimbo(cfg, titulo, numero, escala, folha):
@@ -1105,26 +1147,30 @@ def _pr_quadros(doc, cfg):
     res = [(k, v) for k, v in (cfg.get("resultados") or {}).items()
            if v is not None]
     ESC_Q = 1.5                      # ampliacao dos quadros p/ legibilidade em A1
+    n_verif = 0
     if res:
         _anot(doc, page, "A09v",
               ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 210, 510, 9)
         rows = [[k, "%.2f" % float(v), "OK" if float(v) <= 1.001 else "REVER"]
                 for k, v in res]
+        n_verif = len(rows)
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
-                rows, 210, 480 - len(rows) * 7, tam=6, larguras=[170, 130, 100],
+                rows, 210, 480 - n_verif * 7, tam=6, larguras=[170, 130, 100],
                 escala=ESC_Q)
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
+    n_mat = 0
     if tk:
         tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
-        rows = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
-                for r in tk]
-        rows.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
+        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
+                  for r in tk]
+        rows_m.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
+        n_mat = len(rows_m)
         _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows, 560, 480 - len(rows) * 7, tam=6,
+                rows_m, 560, 480 - n_mat * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
-    # NOTAS TECNICAS
+    # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
@@ -1138,7 +1184,9 @@ def _pr_quadros(doc, cfg):
         "9. Tercas Ue formado a frio (NBR 14762).",
         "10. Projeto executivo sujeito a revisao e ART.",
     ]
-    _bloco_texto(doc, page, "A09n", notas, 210, 240, tam=5, largura=560, escala=1.4)
+    notas_y = _pos_notas(n_verif, n_mat, len(notas))
+    _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
+                 escala=1.4)
     return [page], []
 
 
@@ -1201,18 +1249,21 @@ def gerar_executivo(cfg):
         App.Console.PrintError("Prancha quadros: %s\n" % ex)
 
     # Numeracao dinamica: o total de pranchas varia por projeto (detalhes de
-    # ligacao so saem se o tipo existe). Reescreve drawing_number "PE-NN" e
-    # sheet_number "NN/TOTAL" na ordem final, para o carimbo bater com o
-    # conjunto realmente gerado.
+    # ligacao so saem se o tipo existe). O drawing_number segue o codigo de TIPO
+    # da prancha (do nome 'PEnn_...', batendo com o nome do arquivo); o
+    # sheet_number e a posicao sequencial 'NN/TOTAL'. Antes o drawing_number era
+    # sobrescrito pela ordem (arquivo PE11 exibia 'PE-09') - ver _codigo_prancha.
     total = len(paginas)
     for i, p in enumerate(paginas, 1):
         try:
             tpl = p.Template
             et = tpl.EditableTexts
+            nome_pg = getattr(p, "Name", "") or getattr(p, "Label", "")
+            numero, folha = _codigo_prancha(nome_pg, i, total)
             if "drawing_number" in et:
-                et["drawing_number"] = "PE-%02d" % i
+                et["drawing_number"] = numero
             if "sheet_number" in et:
-                et["sheet_number"] = "%02d/%02d" % (i, total)
+                et["sheet_number"] = folha
             tpl.EditableTexts = et
         except Exception:
             pass
