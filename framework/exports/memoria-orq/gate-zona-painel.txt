@@ -1,0 +1,25 @@
+==================================================================
+ZONA DE PAINEL DO JOELHO (no rigido viga-coluna) - NBR 8800 5.7
+==================================================================
+  Pilar: dc=190 mm ; tw=6.5 mm ; tf=10.0 mm ; bf=200 mm
+  Viga : d=171 mm ; tf=9.5 mm
+  M_Sd=93.8 kN.m ; N_Sd=66.5 kN ; fy=250 MPa
+
+  CISALHAMENTO DO PAINEL (5.7.7):
+    forca das mesas M/dm = 581.0 kN ; V_col (no) = 25.9 kN
+    FSd liquido do painel (M/dm - V_col) = 555.1 kN
+    V_Rd (painel, 5.4.3) = 168.4 kN
+    Npl = Ag.fy = 1345.8 kN ; N_Sd/0,4Npl -> sem reducao
+    F_Rd = 168.4 kN ; u_painel = 3.30
+    >> EXIGE chapa de reforco (doubler): t_total = 15 mm (dois lados, +150 mm alem do painel)
+
+  ESTADOS LOCAIS SOB AS MESAS (forca concentrada = FSd):
+    flexao local da mesa (5.7.2)      = 142.0 kN
+    escoamento local da alma (5.7.3)  = 161.7 kN
+    enrugamento da alma (5.7.4)       = 239.8 kN
+    flambagem da alma compr. (5.7.6)  = 249.2 kN
+    governante = flexao_local_mesa ; u_local = 4.09
+    >> EXIGE enrijecedores transversais (ambos os lados da alma, 5.7.9).
+
+  >> UTILIZACAO MAX DO NO = 4.09
+==================================================================

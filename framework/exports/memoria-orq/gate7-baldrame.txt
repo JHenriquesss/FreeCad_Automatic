@@ -2,11 +2,12 @@ VIGA DE BALDRAME / AMARRACAO (ABNT NBR 6118:2014)
   Vao entre sapatas = 5,00 m ; secao 20x40 cm (d=34 cm) ; b_min 12 cm OK
   BALDRAME (flexao): w = 2,000 kN/m (parede + p.proprio 2,000) ; M_d = 8,75 kN.m
     As,flexao = 0,61 cm2 ; x/d = 0,033 OK
-  AMARRACAO (tracao): N_tie = 32,9 kN (reacao horiz. da base) ; As,amarracao = 1,06 cm2
+  AMARRACAO (tracao): N_tie = 25,9 kN (reacao horiz. da base) ; As,amarracao = 0,83 cm2
   As,min (rho_min*b*h) = 1,20 cm2
   Armadura inferior: As = 1,20 cm2 -> 2 phi 10,0 mm (s=100 mm, As_ef=1,57 cm2)
-  Armadura superior: As = 1,20 cm2 -> 2 phi 10,0 mm (s=100 mm, As_ef=1,57 cm2)
-  Estribos: phi 5,0 mm ; s_max = 0,6d <= 300 mm = 201 mm (18.3.3.2)
+  Armadura superior: As = 0,62 cm2 -> 2 phi 6,3 mm (s=100 mm, As_ef=0,62 cm2) (construtiva 2 phi 6,3 = 0,623 cm2)
+  CORTANTE (17,4): Vd = 7,00 kN ; VRd2 (biela) = 290,7 kN (u=0,024) ; VRd3_min (estribo min) = 78,5 kN (u=0,089) ; OK
+  Estribos: phi 5,0 mm ; s_max = 201 mm (18.3.3.2)
   RESULTADO: APROVADA
   [A CONFIRMAR: carga da parede de fechamento (tipo/altura da alvenaria);
    forca de amarracao (reacao horizontal da base do envelope); secao b x h.]

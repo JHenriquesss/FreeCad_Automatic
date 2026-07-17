@@ -2,16 +2,16 @@
 MAO-FRANCESA (contencao da mesa inferior) - viga (mesa inferior)
 NBR 8800 5.5.1.2 - espacamento por inversao da interacao flexo-compressao
 ====================================================================
-  Esforcos na mesa comprimida . Nsd=22.3 kN ; Msd=59.3 kN.m ; Vsd=38.2 kN
+  Esforcos na mesa comprimida . Nsd=25.5 kN ; Msd=61.3 kN.m ; Vsd=37.6 kN
   Comprimento da meia-agua L .. 5.025 m
   Espacamento das tercas s .... 1.675 m
-  Lp (plastico) ............... 1.668 m
-  Lr (FLT elastico) ........... 5.178 m
-  Interacao totalmente travada. 0.425
-  Lb_max (interacao=1.00) ..... 5.025 m
-  Passo adotado ............... 1 braco a cada 3 terca(s)
-  Lb usado (maior tramo) ...... 5.025 m
-  Interacao em Lb_usado ....... 0.682 (OK)
-  Bracos por meia-agua ........ 0
-  Bracos por portico .......... 0
+  Lp (plastico) ............... 2.250 m
+  Lr (FLT elastico) ........... 8.497 m
+  Interacao totalmente travada. 0.846
+  Lb_max (interacao=1.00) ..... 4.805 m
+  Passo adotado ............... 1 braco a cada 2 terca(s)
+  Lb usado (maior tramo) ...... 3.350 m
+  Interacao em Lb_usado ....... 0.905 (OK)
+  Bracos por meia-agua ........ 1
+  Bracos por portico .......... 2
 ====================================================================

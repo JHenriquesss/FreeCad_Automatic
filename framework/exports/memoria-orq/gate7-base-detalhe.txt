@@ -1,18 +1,18 @@
 LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6,3/6,6 + AISC DG1
-  Base engastada - C2_uplift_W2 (M=57,5)
-  Esforcos: N=+1,7 kN ; V=32,9 kN ; M=57,5 kN.m  (base ENGASTADA)
+  Base engastada - C1_Gdesf_W1 (M=61,4)
+  Esforcos: N=+66,5 kN ; V=25,9 kN ; M=61,4 kN.m  (base ENGASTADA)
   Placa: 400 x 500 mm ; fck=25 MPa ; sigma_c,Rd=17053 kN/m2
   Regime placa: grande excentricidade
   Chumbadores: 4 x d=20 mm ; Ft,Rd=69,8 kN ; Fv,Rd=37,2 kN
-  Tracao total = 129,6 kN -> por chumbador Ft,Sd=64,8 kN ; Fv,Sd=8,2 kN
-  Concreto: sigma_max=17053 kN/m2 (bloco plastificado) -> u=1,00 ; Y=19,3 mm <=L (cabe)
-  Chumbador: tracao u=0,93 ; corte u=0,22 ; interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = 0,91
+  Tracao total = 104,3 kN -> por chumbador Ft,Sd=52,1 kN ; Fv,Sd=6,5 kN
+  Concreto: sigma_max=17053 kN/m2 (bloco plastificado) -> u=1,00 ; Y=25,0 mm <=L (cabe)
+  Chumbador: tracao u=0,75 ; corte u=0,17 ; interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = 0,59
   Ancoragem (NBR 6118 9.4.2): fbd=1282 kN/m2 ; lb=848 mm -> lb,nec=593 mm (alpha=0,7 c/ gancho ; lb,min=254 mm) ; [lb,nec = embutimento reto requerido por aderencia]
-  Placa (AISC DG1): lado comprimido t=28,5 mm (balanco 150 mm) ; lado tracionado t=33,8 mm (braco 100 mm) -> t_req=33,8 mm
+  Placa (AISC DG1): lado comprimido t=32,7 mm (balanco 155 mm) ; lado tracionado t=31,0 mm (braco 105 mm) -> t_req=32,7 mm
   -> OK
   [FLAG] Ancoragem por ADERENCIA verificada (NBR 6118 9.4.2). O CONE DE
          ARRANCAMENTO do concreto e o efeito de GRUPO (ACI 318 Ch.17)
          seguem do projeto de fundacao (passar cone_geom para calcular).
-  Cortante (Fakury cap.11): atrito Vat,Rd=0 kN ; residual Vbc,Sd=33 kN -> chumbador u=0,22 OK
-         Chaveta requerida: bbc=400 mm ; hbc>=60 mm (h_util=30) ; tbc>=8,1 mm ; sigma_bc=2744<=sig_c,Rd=17053 kN/m2
+  Cortante (Fakury cap.11): atrito Vat,Rd=0 kN ; residual Vbc,Sd=26 kN -> chumbador u=0,17 OK
+         Chaveta requerida: bbc=400 mm ; hbc>=60 mm (h_util=30) ; tbc>=7,2 mm ; sigma_bc=2156<=sig_c,Rd=17053 kN/m2
          [FLAG] Edge breakout no cortante (ACI Ch.17): passar cone_geom (ca1,ca2,h_bloco) p/ calcular quando V vai aos chumbadores.
