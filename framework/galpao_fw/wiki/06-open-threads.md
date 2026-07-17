@@ -1,5 +1,62 @@
 # 06 — Open threads
 
+## T15 — Correções + features + validação (2026-07-17) — EM REVISÃO do engenheiro
+Branch `revisao/homologacao-12-modulos`, **COMMITADO** em 6 commits temáticos (`8bd725f` sinal /
+`bb36b9b` vento+bloco+shed / `e4e3468` wizard+pipeline / `63451f1` validação / wiki / regen);
+**não pushado** (gate humano). Suíte cheia **304 passed** verificada (17m53s, exit 0). Relatório
+de revisão do engenheiro em [[07-review-results]] — **FAVORÁVEL**, pareceres 1 (altura de sapata
+NBR rígido) e 2 (terças do shed cosméticas) respondidos e aceitos. Ver
+[[04-decisions#D52]]–[[04-decisions#D57]].
+**FEITO:** fix de sinal `frame2d` [raiz]; vento §2A/§2B/`abertura_dominante`; campos mortos do
+wizard (parede/janela/legislação/tapamento); bugs de pipeline E/C/H/D/J/K (F/G refutados);
+bloco de fundação (NBR 6122 7.8.2); shed 1 água (NBR 6123 Tab.6, 3D limpo); multi-vão
+heterogêneo; VALIDAÇÃO de sistema contra Alonso/Bellei (sapata 0,5%, bloco/vento exatos, pilar
+0,1%). ~40 testes novos em 11 arquivos.
+
+**PARECERES RESPONDIDOS no [[07-review-results]] (engenheiro):**
+1. ✅ **Altura da sapata** — MANTER critério de **rigidez NBR 6118 22.6.1** (`h≥(L−ap)/3`, ex.
+   0,70 vs 0,60 m ACI/Alonso): além de a favor da segurança, dispensa a verificação de punção,
+   deixando o cálculo automatizado mais robusto/padronizado.
+2. ✅ **Terças do shed** — ACEITO que a distribuição espacial das terças no 3D é **cosmética**
+   (verificação NBR 8800 usa vão/espaçamento corretos). Multi-vão shed segue bloqueado no
+   `validar`.
+
+**AINDA SEM MANIFESTAÇÃO do sênior (antes da ART):**
+3. **Coeficientes de vento** que REDUZEM carga — `vedada` (Cpi +0,20/−0,30) e shed (Cpe Tab.6),
+   marcados `[FLAG] A CONFIRMAR` no código; conferência de aplicação (o relatório confronta com a
+   Tab.6 verbatim, mas a assinatura é do sênior).
+4. **Fix de sinal** mudou TODA a fundação (menores/realistas) — validado contra 2 sapatas do
+   Alonso (0,5%) + bloco exato, mas convém o sênior conferir uma sapata à mão para assinar (ART).
+5. **Bloco β≥60° / σt=fck/25** — conferência normativa final (validado contra Alonso, bate exato).
+
+## T14 — Turnkey + escopo ampliado (2026-07-16) — PR #12 aberto; 2º caso-referência RESOLVIDO em T15
+Branch `revisao/homologacao-12-modulos`, PR **#12** (15 commits, `28089aa`→`003f391`),
+**NÃO mergeado** (gate humano). Objetivo do usuário: ferramenta turnkey ("eu digo o que
+preciso + condições do local → ela entrega 3D + 2D + cálculos confiáveis pela NBR"). Ver
+[[04-decisions#D50]], [[04-decisions#D51]].
+**FEITO e verificado (256 passed):** wizard guiado (presets/faixas/coerência), `rodar_tudo`,
+`escopo.py`+ART, `validacao.py` (7 benchmarks + CBCA sistema <1%), neve (EN 1991-1-3),
+multi-vão (`geometria.spans`, 2 vãos→3 colunas 0 interf.), dossiê PDF único (`dossie.py`),
+PE15_DET_BLOCO, varredura visual (6 defeitos de layout corrigidos + renders 3D).
+**ONDE PARAMOS — 2º caso-referência de validação (PENDENTE):**
+- Objetivo: um 2º caso-referência externo além do CBCA (que valida o pórtico de alma cheia).
+- **Achado no NotebookLM:** Pfeil e Bellei NÃO têm 2º pórtico de alma cheia resolvido com
+  reações/momentos. Pfeil 8.7.1 é uma **treliça** (tesoura Pratt 18 m): (a) Tabela 8.1 tem
+  esforços só nas combos C1/C2/C3 que **já incluem vento** (sem gravidade pura); (b)
+  geometria **trapezoidal** (1,0 m no apoio→1,8 m cumeeira, apoios no banzo inferior) ≠
+  tesoura **triangular** do framework (`tesoura.gera_trelica`: y=0 no beiral). NÃO é
+  reprodutível direto.
+- **Plano recomendado (a executar):** `check_trelica_estatica` em `validacao.py` — validar o
+  solver `tesoura.resolve_trelica` (geral, método dos nós via `np.linalg.solve`; apoios nós
+  0 e n_paineis) contra **estática exata (método das seções)** numa tesoura de 18 m (escala
+  Pfeil) sob gravidade nodal: reação=carga/2 + banzo inferior=M/h. Cobre o caminho TRELIÇADO
+  (não exercitado pelo CBCA). Sem vento. Dados Pfeil no NotebookLM (conversation reuso).
+- **Bloqueio momentâneo:** classificador do Bash estava temporariamente indisponível — não
+  deu p/ calibrar/testar o check. Retomar rodando a exploração empírica (montar tesoura
+  pratt L=18,h=2,npn=6, carga F=8,19 kN/nó, comparar `resolve_trelica` com M/h).
+- Alternativas se o usuário preferir: benchmark analítico de pórtico biengastado (forma
+  fechada); ou reproduzir Pfeil C1 modelando o vento V1 (mais trabalhoso, menos limpo).
+
 ## T13 — Auditoria Diretrizes Técnicas (bugs 8.1–8.36) — RESOLVIDO 2026-07-15; PR #8 MERGED; smoke rodado 2026-07-15
 33 bugs reais corrigidos + 3 falsos positivos. Commits `dad7b87`→`0a5e135`, branch
 `revisao/homologacao-12-modulos` → **PR #8 MERGED em `main`** (`20a53a5`). Ver

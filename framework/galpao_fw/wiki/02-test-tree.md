@@ -43,5 +43,28 @@ Cada módulo de cálculo tem `_selftest()`. Rodar: `python <modulo>.py --selftes
 ## Smoke end-to-end — `smoke_executivo.py`
 4 geometrias headless (padrão, vão>comp, baixo-largo, ponte) calc→3D(freecadcmd)→pranchas(freecad.exe)→PDF. Assere por caso: `atende`; **cfg tem joelho+gusset (sempre) e console (só ponte)** = callout rastreia ao cálculo; ≥9 pranchas (13 s/ponte, 14 c/ponte); `cobertura.nao_cobertos`=∅ (todo TIPO de sólido desenhado); `detalhes_edges` todos ≥15 (anti-silhueta) + base_lig presente (cumeeira/gusset_cob/gusset_par/clipe + console p/ ponte); memorial PDF >2KB. Pré-flight sem freecad: carimbo anti-`__PENDENTE__`. **7/7** (casos: padrão, vao_maior, baixo_largo, ponte, estaca, alma_var, tesoura; fase 5 assere `detalhes_secoes`≥1 e nenhuma vazia). Não rodar freecad foreground/`taskkill` durante o smoke em background. Ver [[03-phases#FECHADA — Detalhe de ligação nível fabricação (A+B) — 2026-07-09]].
 
+## Turnkey/validação — `tests/test_validacao.py` (17 testes puros, sem FreeCAD)
+Cobre a camada turnkey (sessão 2026-07-16): `validacao.rodar()` (7 benchmarks núcleo, todos
+PASS) + `validacao_referencia` (CBCA sistema <1%); `escopo` (envelope+ART); `wizard`
+(construir_spec sapata/estaca, faixas, coerência, presets); `rodar_tudo` veredito global +
+`res["atende_global"]`; `dossie` (PDF capa+ART, faltando≠quebra); multi-vão (mappers `spans`);
+neve (gate+escopo+`_quadro`); helpers de pranchas puros (`_codigo_prancha`, `_pos_notas`,
+`_cap_titulo`, `_fmt_terca`, `_quadro_fundacao`, `_pos_corte_ligacao`, `_callout_bloco`) —
+regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 passed**.
+
+## Correções+features+validação — sessão 2026-07-17 (ver [[06-open-threads#T15]])
+| arquivo | assere |
+|---|---|
+| `test_frame2d_sinal.py` | UDL p/ baixo → desloca p/ baixo + reação +10 (não invertida); UDL e nodal equivalente dão MESMA reação; gravidade no pórtico comprime a base (D52) |
+| `test_carga_parede.py` | `cargas_parede`: leve→coluna (`w_col`), alvenaria→fundação/baldrame (`N_masonry_ext`, `w_masonry`), NÃO na coluna; integração build-marked |
+| `test_aberturas_janela.py` | `_janela_band` (L,H)→(z_base,z_topo) altura POSITIVA; mapper converte janela do wizard; portão fica (L,H) |
+| `test_terreno_mapper.py` | mapper passa `params[terreno]`; gate área-only TO/CA/TP; reprova TO excedido; polígono ainda checa recuos |
+| `test_crashes_wiki07.py` | reprovação não crasha (E); ponte sem `Hvr` (C); solo inválido bloqueia no validar (D); rótulo de vão desigual no dossiê (K) |
+| `test_vento_uplift.py` | vento 1 vão SUCÇÃO no telhado (uplift) + equilíbrio; referência detecta uplift de base; `abertura_dominante` muda Cpi (vedada<portão) |
+| `test_multivao_hetero.py` | `_ridge_h(i)` cumeeira por vão, inclinação constante; vãos iguais sem regressão; equilíbrio heterogêneo |
+| `test_bloco_fundacao.py` | β≥60° (NBR 6122 7.8.2); `fund_tipo='bloco'` válido; 3D bloco alto; pipeline build-marked |
+| `test_shed.py` | `cpe_telhado_1agua` sucção; frame shed 2 colunas alturas diferentes/sem cumeeira; gravidade+vento equilíbrio+uplift; 1 vão valida / multi-vão bloqueia; pipeline 2 colunas distintas |
+| `test_validacao_alonso.py` | **VALIDAÇÃO DE SISTEMA**: sapata σ_solo 0,5% (Alonso 18º); B×L exato (cap.9); bloco h/β/σt exato; pilar NBR 8800 N_Rd 0,1% (Bellei A.6); vento q exato (D57) |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).

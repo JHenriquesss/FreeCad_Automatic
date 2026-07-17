@@ -368,5 +368,101 @@ errados (`viga_ponte.py`→`ponte_rolante.py`; `placa_base.py`→`base_chumbador
 uplift **1,00** (não 0,90); combos `C1_uplift_*` (não `C2_`); "sem regressão" depende do
 smoke com pycufsm ([[06-open-threads#T13]]).
 
+## D50 — 2026-07-16 — Turnkey: entrada única + orquestrador + escopo/ART + validação
+Produtização "eu digo → ele entrega" na branch `revisao/homologacao-12-modulos` (PR #12).
+Novos módulos: **`wizard.py`** (formulário guiado → `ProjetoSpec`; `_checa_faixa` valida
+faixa por campo, `_avisos_coerencia` cruza campos, `PRESETS` 3 modelos; commit `09fe54f`);
+**`rodar_projeto.rodar_tudo(spec)`** (entrada ÚNICA portável: calc + memorial PDF + 3D +
+pranchas + `RELATORIO-CONSOLIDADO.txt`; degrada com graça sem FreeCAD); **veredito GLOBAL**
+`res["atende_global"]`/`res["falhas_verificacao"]` exposto pelo `rodar_galpao` (antes o
+`res["atende"]` só refletia o pórtico e escondia sub-gates reprovando); **`escopo.py`**
+(envelope coberto + detecção fora-de-escopo — fogo global, sismo modal, fadiga ponte,
+>2 águas, neve assimétrica — + carimbo ART/CREA); **`validacao.py`** (7 benchmarks
+independentes: forma fechada, equilíbrio V/H, multi-vão, base engastada, MAES B1, vento;
++ **validação de SISTEMA `validacao_referencia`** reproduz o galpão do **manual CBCA "Galpões
+para usos gerais" Cap.2** (pórtico W310x38,7, vão 15 m, base rotulada) sob Fd1 (1,25G+1,5Q,
+sem vento) → reações/momento **<1%**: V 42,94/42,77, H 13,68/13,67, M 82,06/82,56).
+Dados do CBCA extraídos do NotebookLM. Porquê: fecha a experiência turnkey + dá selo de
+confiança. Commits `65d05a7`→`c86576d`. Ver [[06-open-threads#T14]].
+
+## D51 — 2026-07-16 — Escopo ampliado (neve, multi-vão) + dossiê PDF + varredura visual
+**Neve** (EN 1991-1-3, `neve.py` integrado): gate `neve` opcional no ProjetoSpec (`sk`
+regional Ask-Do-Not-Invent); `rodar_galpao` usa o caso SIMÉTRICO como `Q_efetivo=max(Q,
+neve_sim)` no pórtico; ASSIMÉTRICO calculado, `gate5-neve.txt`, sinalizado (fronteira de
+escopo). **Multi-vão** exposto via `geometria.spans` (motor `galpao_portico`/`rodar_galpao`
+e build 3D `build_galpao` JÁ suportavam; faltava ProjetoSpec/wizard `n_vaos` + mappers).
+Verificado: 2 vãos → 3 colunas, **0 interferências**, pórtico/render 3D corretos.
+**Dossiê PDF único** (`dossie.py`, PyMuPDF/fitz): mescla capa+relatório+memorial+pranchas;
+`rodar_tudo` passo 5. **Prancha PE15_DET_BLOCO** de coroamento (só fundação profunda;
+dims do bbox real do bloco, inclui coroa). **Varredura visual completa** das pranchas
+(tesoura + estaca + ponte + alma_var + multi-vão + renders 3D): **6 defeitos de layout
+corrigidos** — overlap notas×tabela PE09 (`_pos_notas`), numeração carimbo≠arquivo
+(`_codigo_prancha` usa código de tipo do nome), overflow de título (`_cap_titulo` tira
+"DETALHE - " + abrevia), callout terça cru (`_fmt_terca`), terminologia "sapatas" em
+fundação profunda (`_quadro_fundacao`), corte da cumeeira sobre notas (`_pos_corte_ligacao`).
+**Render 3D headless**: precisa `mw.showNormal()` + forçar `Visibility=True` + `ViewFit`
+(senão saveImage sai BRANCO — GL offscreen). Suíte completa **256 passed**; test_validacao
+17 puros. Commits `4f8696a`, `2f5af9b`, `714cbda`, `003f391` + fixes de pranchas. Ver [[06-open-threads#T14]].
+
+## D52 — fix de sinal da UDL no frame2d (2026-07-17, BUG-RAIZ, contra-segurança)
+`frame2d.solve()` aplicava a carga nodal equivalente da UDL com `F -= F_eq` (deveria `+=`;
+`_fef_local` já retorna a carga equivalente = -{engastamento}) e o esforço de barra usava
+`+ fef` (deveria `- fef`). Os DOIS erros se cancelavam em MAGNITUDE → selftests (asserts em
+|valor|) e CBCA (compara módulo) nunca pegaram, mas **toda carga distribuída (gravidade)
+entrava invertida**: deslocamento p/ cima, reação de base negativa → a sapata recebia a
+gravidade como **uplift** → footings superdimensionadas (ref 2,5×3,0×0,9 → 1,5×2,0×0,6 m) E
+uplift de vento mascarado. **Fix:** `F +=` na montagem; `f = k·d − fef` no esforço de barra.
+Coluna/viga (envelope de |M|,|N|) inalteradas; CBCA e 7 benchmarks seguem verdes. Regressão
+`tests/test_frame2d_sinal.py`. **Alternativa rejeitada:** negar N só na fronteira fundação
+(quebra a consistência UDL×nodal nas combos G+W). Ver [[06-open-threads#T15]].
+
+## D53 — vento correto: uplift, Cpe e Cpi por abertura (2026-07-17)
+- **§2A** `galpao_portico._wind_unico` (1 vão) aplicava o telhado p/ BAIXO com `q` cru **sem
+  Cpe** → anulava o arrancamento. Reescrito com pressão líquida `(Cpe−Cpi)·q` (Tab.4 paredes,
+  Tab.5 telhado), = modelo do `_wind_multi`. Telhado a baixa inclinação vira sucção → **uplift
+  real** (referência passa a detectar tração de base). Depende de [[04-decisions#D52]].
+- **§2B** peso de alvenaria era somado na coluna de aço (conservador). Agora `cargas_parede`
+  separa: leve → UDL na coluna; alvenaria autoportante → fundação (envelope, compressão +
+  estabiliza uplift) + baldrame `q_parede`. Perfil de coluna igual telha×alvenaria.
+- **`abertura_dominante`** (NBR 6123 6.2.5): `vento.cpi_por_abertura` — vedada usa Cpi
+  +0,20/−0,30 (era sempre portão ±0,8/−0,6). Fio spec→mapper→pórtico.
+
+## D54 — campos do wizard que eram coletados e IGNORADOS (2026-07-17)
+Padrão recorrente: mapper (`to_rodar_params`/`to_build_kwargs`) não repassava o campo →
+"dado morto". Corrigidos: (a) **peso de parede** (D53 §2B); (b) **janela lateral** (wizard
+`(L,H)` × build faixa `(z_base,z_topo)` — quebrava o 3D; `_janela_band` converte com peitoril);
+(c) **legislação/terreno** (mapper não passava `params[terreno]` + `analisa_terreno` exigia
+polígono → gate SEMPRE pulado; agora mapeado + modo **área-only** TO/CA/TP, recuos pendentes
+sem o lote); (d) **`cargas.tapamento`** morto/redundante removido do wizard. Testes
+`test_carga_parede`, `test_aberturas_janela`, `test_terreno_mapper`.
+
+## D55 — triagem da revisão externa de pipeline (2026-07-17)
+Revisão (fuzzing Monte Carlo, ex-wiki/07) tinha acertos e **falsos positivos** — cada
+alegação conferida no código. **REAIS corrigidos:** E IndexError na reprovação
+(`["HEA200"]*(N_VAOS+1)`), C KeyError `Hvr` (`setdefault`), H cumeeira no global `RIDGE_Y`
+estático (passa `ry/rh` por vão; verificado 3D y=10000), D solo SPT sem validação
+(`estaca_profunda.TIPOS_SOLO` + gate), J `reportlab`/`pymupdf` ausentes, K rótulo de vão
+desigual no dossiê. **FALSOS refutados:** F/G (build usa `SPAN` LOCAL correto — build de 20 m
+0 interferências). Testes `test_crashes_wiki07`.
+
+## D56 — features novas: bloco de fundação + telhado de 1 água (2026-07-17)
+Normas extraídas verbatim do NotebookLM (memória `normas-bloco-shed`).
+- **Bloco de fundação** (`fund_tipo='bloco'`): NBR 6122:2022 **7.8.2** — concreto simples,
+  altura por **β≥60°** (`h≥tan60·(dim−pilar)/2`), sem armadura; σt≈fck/25≤0,8 MPa (Alonso).
+  `fundacao_sapata.dimensiona_bloco_env` reusa o bearing da sapata; 3D = bloco alto.
+- **Telhado de 1 água (shed)**, só 1 vão: pórtico assimétrico (2 colunas de alturas diferentes,
+  1 rafter, sem cumeeira) em `_frame_shed`; vento **NBR 6123 Tabela 6** (`cpe_telhado_1agua`,
+  metades H/L, sucção → uplift); build 3D `AGUAS==1` (rafter_z uma água), **0 interferências**.
+  Multi-vão shed (dente-de-serra) **bloqueado**. Multi-vão heterogêneo: cumeeira por vão
+  (`_ridge_h(i)`, 2D=3D). Testes `test_bloco_fundacao`, `test_shed`, `test_multivao_hetero`.
+
+## D57 — VALIDAÇÃO DE SISTEMA contra livros resolvidos (2026-07-17)
+Fecha o 2º caso-referência (pendência de [[06-open-threads#T14]]). Exemplos reais (NotebookLM,
+Alonso "Exercícios de Fundações" + Bellei "Edifícios de Múltiplos Andares em Aço"):
+sapata σ_solo **0,5%** e B×L **exato** (2,50×2,50); bloco h/β/σt **exato** (β=60°); pilar
+NBR 8800 N_Rd **0,1%** (2503→2506 kN); vento q **exato** (0,787 kN/m²). Confirma a cadeia do
+fix de sinal (N>0=compressão chega correto na fundação). `tests/test_validacao_alonso.py`;
+memória `validacao-sistema-alonso`.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
