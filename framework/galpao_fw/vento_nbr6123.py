@@ -110,6 +110,46 @@ def cpi_cases():
     return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
 
 
+def cpe_telhado_1agua(theta_graus=5.71):
+    """NBR 6123 Tabela 6 - telhado de UMA AGUA (shed), h/b < 2. Coef. de FORMA Ce
+    (para o portico principal) por metade do telhado: H (metade BAIXA) e L (metade
+    ALTA), nas duas direcoes de vento perpendicular a cumeeira:
+      'vento90'  = vento sobe (atinge a fachada BAIXA): H barlavento, L sotavento;
+      'vento_90' = vento desce (atinge a fachada ALTA): L barlavento, H sotavento.
+    Todos os valores sao de SUCCAO (negativos) -> uplift. Interpola theta em
+    5/10/15 graus (valores lidos da Tabela 6). Barlavento sempre -0,9 a -1,0."""
+    pts = [5.0, 10.0, 15.0]
+    H90 = [-1.0, -1.0, -0.9]; L90 = [-0.5, -0.5, -0.5]      # vento 90 (sobe)
+    Hm90 = [-0.5, -0.4, -0.3]; Lm90 = [-1.0, -1.0, -1.0]    # vento -90 (desce)
+
+    def _ip(ys):
+        t = min(max(theta_graus, pts[0]), pts[-1])
+        for k in range(len(pts) - 1):
+            if t <= pts[k + 1] + 1e-9:
+                f = (t - pts[k]) / (pts[k + 1] - pts[k])
+                return round(ys[k] + (ys[k + 1] - ys[k]) * f, 3)
+        return ys[-1]
+    return {"vento90": {"H": _ip(H90), "L": _ip(L90)},
+            "vento_90": {"H": _ip(Hm90), "L": _ip(Lm90)}}
+
+
+def cpi_por_abertura(abertura_dominante="portao_oitao"):
+    """Cpi (NBR 6123 item 6.2.5) conforme a configuracao de abertura. Retorna os
+    DOIS casos usados no envelope de vento (mesma chave de cpi_cases):
+      - 'portao_oitao' / 'portao_lateral' -> ABERTURA DOMINANTE (6.2.5-c):
+        +0,80 (portao a barlavento) / -0,60 (portao a sotavento).
+      - 'vedada' -> SEM abertura dominante, permeabilidade baixa/uniforme
+        (6.2.5-a/b): +0,20 / -0,30 (conservador; A CONFIRMAR com a permeabilidade
+        real do galpao - reboco, esquadrias, telha com costura).
+    Antes o Cpi era SEMPRE o de portao (+0,80/-0,60), ignorando a escolha do
+    usuario -> galpao vedado ficava com pressao interna de portao (superestimava
+    o uplift). Ver wizard 'abertura_dominante'."""
+    a = (abertura_dominante or "portao_oitao").strip().lower()
+    if a in ("vedada", "vedado", "sem", "sem_abertura"):
+        return {"portao_barlavento": +0.20, "portao_sotavento": -0.30}
+    return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
+
+
 # ============================================================================
 # Cpe MEDIO / LOCAL (alta succao de borda e canto) - Tabelas 4 e 5, coluna
 # "cpe medio" (zonas hachuradas). NAO governa o portico (que usa o Cpe global

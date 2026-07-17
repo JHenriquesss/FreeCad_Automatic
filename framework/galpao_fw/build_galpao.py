@@ -24,6 +24,8 @@ LENGTH = 20000.0           # comprimento (X)
 EAVE_H = 6000.0            # pe-direito (do topo do concreto)
 SLOPE = 0.10               # inclinacao 10%
 BAY = 5000.0               # espacamento entre porticos
+AGUAS = 2                  # 2=duas aguas (cumeeira central) ; 1=uma agua (shed:
+                           # telhado sobe monotonicamente de Y=0 ate Y=SPAN)
 GROUT_GAP = 30.0
 
 TOTAL_Y = sum(SPANS)
@@ -40,8 +42,13 @@ def _ridge_ys():
 
 
 def rafter_z(y):
-    """Cota Z no plano do telhado para um dado Y. Suporta N vaos."""
-    cols = _col_ys(); ridges = _ridge_ys()
+    """Cota Z no plano do telhado para um dado Y. Suporta N vaos (2 aguas) e o
+    telhado de UMA AGUA (shed: sobe de EAVE_H em Y=0 ate EAVE_H+SLOPE*SPAN em Y=SPAN;
+    a cota da coluna alta segue esta funcao)."""
+    cols = _col_ys()
+    if AGUAS == 1:                         # shed: uma agua monotonica
+        return EAVE_H + SLOPE * (y - cols[0])
+    ridges = _ridge_ys()
     for i in range(len(SPANS)):
         c0, c1 = cols[i], cols[i + 1]
         if c0 - 1e-6 <= y <= c1 + 1e-6:
@@ -78,18 +85,20 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
                longarina=None, longarina_nome=None, sapata=None,
                estaca=None, bloco=None, baldrame=None,
-               tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None):
+               tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None,
+               aguas=None):
     """Define a geometria (mm) e o destino do projeto (do gate) e RECOMPUTA os
     derivados. Nao muda a modelagem - so os parametros. Chamar antes de run().
     mf_stride vem do calc/mao_francesa.py (1 braco a cada N tercas).
     perfil_col/perfil_raf (h,b,tw,tf em mm) vem do redimensionamento (perfil
     ADOTADO); default = referencia."""
-    global LENGTH, SPANS, EAVE_H, SLOPE, BAY, EXPORT_DIR, DOC_NAME
+    global LENGTH, SPANS, EAVE_H, SLOPE, BAY, EXPORT_DIR, DOC_NAME, AGUAS
     global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
     global REFORCO_JOELHO
+    if aguas is not None: AGUAS = int(aguas)
     if reforco_joelho is not None:
         REFORCO_JOELHO = dict(reforco_joelho) if reforco_joelho else None
     if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
@@ -639,16 +648,22 @@ def joelho(doc, node, rdir, tag):
                   wx, t_lado, painel_h, f"CONEX_JOELHO_{tag}_DOUBLER_{nm}")
 
 
-def cumeeira_conn(doc, x, tag):
+def cumeeira_conn(doc, x, tag, ry=None, rh=None):
     """Ligacao de momento no APICE (cumeeira): CHAPA DE TOPO no encontro das duas
     vigas + parafusos, no plano vertical do portico (normal em Y). Conceitual -
     dimensionamento/parafusamento sao detalhe do eng. responsavel. Fecha a lacuna
-    de as duas vigas se encontrarem no apice sem ligacao modelada."""
+    de as duas vigas se encontrarem no apice sem ligacao modelada.
+
+    ry/rh: posicao (Y,Z) da cumeeira DESTE vao. Sem eles caia no global estatico
+    RIDGE_Y/RIDGE_H (=5000/6500), desenhando a ligacao fora do apice em vaos !=10m
+    e sobrepondo todos os vaos no mesmo ponto em multi-vao (wiki 07 item H)."""
+    ry = RIDGE_Y if ry is None else ry
+    rh = RIDGE_H if rh is None else rh
     jt, jdb = JOELHO_CFG["t"], JOELHO_CFG["db"]
     dep = RAF_SEC[0]                       # altura da viga (Z)
     wid = RAF_SEC[1]                       # largura da mesa (X)
     # chapa de topo: fina em Y, cobre a secao da viga (+ folga vertical p/ mesas).
-    plate(doc, (x, RIDGE_Y, RIDGE_H), wid, jt, dep + 140.0, f"CONEX_CUMEEIRA_{tag}_CHAPA")
+    plate(doc, (x, ry, rh), wid, jt, dep + 140.0, f"CONEX_CUMEEIRA_{tag}_CHAPA")
     # 4 parafusos passando pela chapa (2 por mesa), ao longo de Y.
     bx = wid / 2.0 - 35.0
     bz = dep / 2.0 - 25.0
@@ -656,8 +671,8 @@ def cumeeira_conn(doc, x, tag):
     for sz in (-1.0, 1.0):
         for sx in (-1.0, 1.0):
             b += 1
-            rod(doc, (x + sx * bx, RIDGE_Y - 70.0, RIDGE_H + sz * bz),
-                     (x + sx * bx, RIDGE_Y + 70.0, RIDGE_H + sz * bz),
+            rod(doc, (x + sx * bx, ry - 70.0, rh + sz * bz),
+                     (x + sx * bx, ry + 70.0, rh + sz * bz),
                 jdb, f"CONEX_CUMEEIRA_{tag}_M{int(jdb)}_{b:02d}")
 
 
@@ -680,6 +695,13 @@ def build(doc):
     for i, x in enumerate(axes, start=1):
         t = f"PORTICO_{i:02d}"
         col_tap = bool(TAPERED_MODEL) and TAPERED_MODEL.get("h_col_base") is not None
+        if AGUAS == 1:                          # SHED: 2 colunas de alturas diferentes + 1 rafter
+            y_lo, y_hi = cols_y[0], cols_y[-1]
+            z_lo, z_hi = rafter_z(y_lo), rafter_z(y_hi)
+            i_member(doc, (x, y_lo, Z0), (x, y_lo, z_lo), COL_SEC, f"{t}_C00")
+            i_member(doc, (x, y_hi, Z0), (x, y_hi, z_hi), COL_SEC, f"{t}_C01")
+            i_member(doc, (x, y_lo, z_lo), (x, y_hi, z_hi), RAF_SEC, f"{t}_V00")
+            continue
         for j in range(nv + 1):
             yc = cols_y[j]
             if col_tap:                              # alma variavel: coluna afina
@@ -789,7 +811,7 @@ def build(doc):
     # Tesoura: a trelica e biapoiada (rotulada) no topo dos pilares -> sem joelho
     # de momento nem chapa de cumeeira (nao ha rafter solido).
     for i, x in enumerate(axes, start=1):
-        if TRELICA_MODEL:
+        if TRELICA_MODEL or AGUAS == 1:    # tesoura/shed: sem joelho+cumeeira de 2 aguas
             break
         for j in range(nv + 1):
             yc = cols_y[j]
@@ -807,19 +829,24 @@ def build(doc):
                 _rr = rafter_z(ridges_y[j]) - EAVE_H
                 joelho(doc, (x, yc, EAVE_H), (0.0, ridges_y[j] - yc, _rr), f"{i:02d}_C{j:02d}_D")
         for j in range(nv):
-            cumeeira_conn(doc, x, f"{i:02d}_S{j:02d}")
+            ry = ridges_y[j]                        # cumeeira DESTE vao (nao o global)
+            cumeeira_conn(doc, x, f"{i:02d}_S{j:02d}", ry=ry, rh=rafter_z(ry))
 
-    # Escoras de beiral + viga de cumeeira (perfil I, por vao)
+    # Escoras de beiral + viga de cumeeira (perfil I, por vao). No SHED as escoras
+    # de beiral seguem a cota REAL do topo de cada coluna (a alta e mais alta) e NAO
+    # ha viga de cumeeira (uma agua so).
     for b in range(len(axes) - 1):
         x0, x1 = axes[b], axes[b + 1]
         t = f"VAO_{b + 1:02d}"
-        i_member(doc, (x0, cols_y[0], EAVE_H), (x1, cols_y[0], EAVE_H), HEA_ESC,
+        z_e = rafter_z(cols_y[0]); z_d = rafter_z(cols_y[-1])
+        i_member(doc, (x0, cols_y[0], z_e), (x1, cols_y[0], z_e), HEA_ESC,
                  f"{t}_ESCORA_BEIRAL_E")
-        i_member(doc, (x0, cols_y[-1], EAVE_H), (x1, cols_y[-1], EAVE_H), HEA_ESC,
+        i_member(doc, (x0, cols_y[-1], z_d), (x1, cols_y[-1], z_d), HEA_ESC,
                  f"{t}_ESCORA_BEIRAL_D")
-        for j in range(nv):
-            yr = ridges_y[j]; zh = rafter_z(yr)
-            i_member(doc, (x0, yr, zh), (x1, yr, zh), HEA_ESC, f"{t}_CUMEEIRA_S{j:02d}")
+        if AGUAS != 1:
+            for j in range(nv):
+                yr = ridges_y[j]; zh = rafter_z(yr)
+                i_member(doc, (x0, yr, zh), (x1, yr, zh), HEA_ESC, f"{t}_CUMEEIRA_S{j:02d}")
 
     # Tercas: perfil U com face aberta para o BEIRAL (regra CBCA). ASSENTAM SOBRE a
     # mesa superior da VIGA (nao penetram). A viga e INCLINADA: o topo real em Z do

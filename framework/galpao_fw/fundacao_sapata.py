@@ -271,6 +271,78 @@ def dimensiona_sapata_env(caso_base, casos, escada=None):
             "tabela": _tabela_env(linhas, aprovado, casos, gov, rB_ad, caso_base)}
 
 
+BETA_MIN_BLOCO = 60.0      # NBR 6122:2022 item 7.8.2: angulo minimo do bloco (graus)
+
+
+def dimensiona_bloco_env(caso_base, casos):
+    """BLOCO DE FUNDACAO (NBR 6122:2022 item 7.8.2) pelo ENVELOPE de combinacoes.
+    Fundacao rasa de CONCRETO SIMPLES (sem armadura de flexao) - difere da sapata.
+    - Base B x L: atende a tensao no solo + estabilidade (Parte A, = sapata).
+    - Altura h: do angulo beta >= 60 graus -> h >= tan(60)*(dim_bloco - dim_pilar)/2
+      nas duas direcoes (o maior balanco governa). Garante que a tracao no concreto
+      e resistida sem armadura (biela de compressao).
+    - Informa sigma_t,adm ~ fck/25 <= 0,8 MPa (Alonso; Velloso&Lopes) como FLAG.
+    NAO ha Parte B armada (nenhuma As): eis a diferenca essencial p/ a sapata."""
+    ap_L = caso_base.get("d_ped") or caso_base.get("ap_L") or 0.30
+    ap_B = caso_base.get("b_ped") or caso_base.get("ap_B") or 0.30
+    fck = caso_base.get("fck", 20e3)                       # kN/m2
+    sigma_t_adm = min(fck / 25.0, 800.0)                  # 0,8 MPa = 800 kN/m2
+    tan_beta = math.tan(math.radians(BETA_MIN_BLOCO))
+    linhas, aprovado, gov = [], None, {}
+    for (B, L, _h0) in ESCADA_SAPATA:
+        bal = max((B - ap_B) / 2.0, (L - ap_L) / 2.0)     # maior balanco (m)
+        h = math.ceil(tan_beta * bal / 0.05) * 0.05 if bal > 1e-9 else 0.30
+        beta = math.degrees(math.atan(h / bal)) if bal > 1e-9 else 90.0
+        u_solo = fs_tomb = fs_desl = None
+        todosA = True
+        for (nm, N, V, M) in casos:
+            c = dict(caso_base); c.update(N=N, V=V, M=M, B=B, L=L, h=h)
+            rA = verifica_sapata_A(c)
+            todosA = todosA and rA["OK_A"]
+            if u_solo is None or rA["u_solo"] > u_solo:
+                u_solo = rA["u_solo"]; gov["solo"] = (nm, rA["u_solo"])
+            if fs_tomb is None or rA["fs_tomb"] < fs_tomb:
+                fs_tomb = rA["fs_tomb"]; gov["tomb"] = (nm, rA["fs_tomb"])
+            if fs_desl is None or rA["fs_desl"] < fs_desl:
+                fs_desl = rA["fs_desl"]; gov["desl"] = (nm, rA["fs_desl"])
+        okbeta = beta >= BETA_MIN_BLOCO - 1e-6
+        linha = {"B": B, "L": L, "h": h, "u_solo": u_solo, "fs_tomb": fs_tomb,
+                 "fs_desl": fs_desl, "beta": beta, "OK": todosA and okbeta}
+        linhas.append(linha)
+        if linha["OK"] and aprovado is None:
+            aprovado = (B, L, h, beta)
+    return {"aprovado": aprovado, "linhas": linhas, "governantes": gov,
+            "sigma_t_adm": sigma_t_adm, "beta_min": BETA_MIN_BLOCO,
+            "tabela": _tabela_bloco(linhas, aprovado, casos, gov, caso_base, sigma_t_adm)}
+
+
+def _tabela_bloco(linhas, aprovado, casos, gov, caso_base, sigma_t_adm):
+    L = ["=" * 82, "DIMENSIONAMENTO DO BLOCO DE FUNDACAO - CONCRETO SIMPLES (NBR 6122 7.8.2)",
+         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 82, "",
+         f"sigma_solo,adm = {caso_base['sigma_solo_adm']:.0f} kN/m2  [INPUT sondagem - A CONFIRMAR]",
+         f"angulo minimo beta = {BETA_MIN_BLOCO:.0f} graus (dispensa armadura de tracao)",
+         f"sigma_t,adm concreto ~ fck/25 = {sigma_t_adm:.0f} kN/m2 (<= 0,8 MPa)  [FLAG]",
+         f"Combinacoes ELU consideradas: {len(casos)}", "",
+         f"{'BxLxh (m)':>16} | {'u_solo':>6} {'FS_tmb':>6} {'FS_dsl':>6} {'beta(o)':>7} | res",
+         "-" * 82]
+    for r in linhas:
+        tag = "PASSA" if r["OK"] else "nao"
+        L.append(f"{r['B']:.2f}x{r['L']:.2f}x{r['h']:.2f} | {r['u_solo']:6.2f} "
+                 f"{r['fs_tomb']:6.2f} {r['fs_desl']:6.2f} {r['beta']:7.1f} | {tag}")
+    L += ["-" * 82, ""]
+    if aprovado:
+        B, Lm, h, beta = aprovado
+        L += [f"ADOTADO (menor bloco que passa): {B:.2f} x {Lm:.2f} x {h:.2f} m (beta={beta:.1f} graus)",
+              "  Concreto SIMPLES (sem armadura de flexao) - biela de compressao.",
+              f"  Governantes: solo={gov.get('solo',('-',0))[0]} (u={gov.get('solo',('-',0))[1]:.2f}) ;"
+              f" tombamento={gov.get('tomb',('-',0))[0]} (FS={gov.get('tomb',('-',0))[1]:.2f})"]
+    else:
+        L += ["NENHUM bloco da escada passou - ampliar a escada / usar estaca."]
+    L += ["", "[FLAG] sigma_solo,adm e parametros do solo: sondagem (geotecnia).",
+          "[FLAG] Concreto simples: confirmar fck e a tensao de tracao (Alonso)."]
+    return _pt("\n".join(L))
+
+
 def _tabela_env(linhas, aprovado, casos, gov, rB, caso_base):
     L = ["=" * 82, "DIMENSIONAMENTO DA SAPATA - ENVELOPE DE COMBINACOES (NBR 6118)",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 82, "",
