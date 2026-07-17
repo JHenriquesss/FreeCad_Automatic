@@ -21,8 +21,13 @@ def _linhas_capa(spec, carimbo="framework galpao_fw"):
     g = spec.get("geometria", {})
     spans = g.get("spans") if isinstance(g.get("spans"), (list, tuple)) else None
     if spans and len(spans) > 1:
-        dim = "Galpao %sx%.0f m (%d vaos de %g m)" % (
-            g.get("comprimento", "?"), sum(spans), len(spans), spans[0])
+        # vaos iguais -> "N vaos de X m"; DESIGUAIS -> lista real (wiki 07 item K:
+        # antes multiplicava spans[0] e rotulava heterogeneo como se fosse igual).
+        if len(set(spans)) == 1:
+            vaos = "%d vaos de %g m" % (len(spans), spans[0])
+        else:
+            vaos = "%d vaos: %s m" % (len(spans), "+".join("%g" % s for s in spans))
+        dim = "Galpao %sx%.0f m (%s)" % (g.get("comprimento", "?"), sum(spans), vaos)
     else:
         dim = "Galpao %sx%s m" % (g.get("comprimento", "?"), g.get("span", "?"))
     L = ["", "=" * 68, "",

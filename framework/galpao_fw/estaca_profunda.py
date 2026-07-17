@@ -43,6 +43,11 @@ _K_ALPHA = {
     "argila":              (200.0, 6.0),
 }
 
+# Tipos de solo aceitos pelo motor (Aoki-Velloso, gate estrito em _solo). Exposto
+# para o gate do ProjetoSpec validar a sondagem ANTES de rodar (wiki 07 item D:
+# tipo invalido passava no validar e so quebrava no meio da orquestracao).
+TIPOS_SOLO = frozenset(_K_ALPHA)
+
 # --- Tabela 12.7 (Aoki-Velloso, 1975) - F1, F2 por tipo de estaca --------------
 _F1_F2 = {
     "franki":       (2.5, 5.0),

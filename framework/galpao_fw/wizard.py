@@ -159,7 +159,10 @@ PERGUNTAS = [
     ("chuva_I_mm_h", "Intensidade pluviometrica local (mm/h, NBR 10844)", _f, 150.0, False),
     # fechamento
     ("fech_tipo", "Fechamento das paredes (telha/alvenaria/alvenaria_telha)", str, "telha", False),
-    ("fech_peso", "Peso do fechamento (kN/m2)", _f, 0.10, False),
+    ("fech_peso", "Peso do fechamento + revestimento das paredes (kN/m2; alvenaria "
+     "revestida ~1,5-2,5, telha ~0,10)", _f, 0.10, False),
+    ("altura_alvenaria", "Altura da alvenaria (m; so p/ alvenaria_telha; 0=parede "
+     "cheia ate o beiral)", _f, 0.0, False),
     ("mesa_travada", "Ha mao-francesa travando a mesa interna da viga? (sim/nao)", _b, False, False),
     ("n_maos_francesas", "Quantas maos-francesas por agua? (0 se nenhuma)", _i, 0, False),
     # aberturas (simplificado)
@@ -177,13 +180,16 @@ PERGUNTAS = [
     ("G", "Carga permanente de cobertura G (kN/m2)", _f, 0.27, False),
     ("Q", "Sobrecarga Q (kN/m2)", _f, 0.25, False),
     ("self_peso", "Peso proprio estrutural estimado (kN/m2)", _f, 0.35, False),
-    ("tapamento", "Carga de tapamento (kN/m2)", _f, 0.10, False),
+    # (removido: 'tapamento' era campo MORTO - nao chegava ao calculo e duplicava
+    #  o peso da parede, ja tratado por 'fech_peso' -> cargas_parede. O peso do
+    #  fechamento das paredes vem de 'fech_peso'; o da cobertura, de G/telha_peso.)
     # neve (so regioes serranas do Sul; 0 = sem neve)
     ("neve_sk", "Carga de neve no solo sk (kN/m2, 0=sem neve; regional EN 1991-1-3)",
      _f, 0.0, False),
     # fundacao (Ask-Do-Not-Invent no solo)
     ("sigma_solo", "Tensao admissivel do solo (kN/m2, DA SONDAGEM)", _f, None, True),
-    ("fund_tipo", "Tipo de fundacao (sapata=rasa / estaca=profunda)", str, "sapata", False),
+    ("fund_tipo", "Tipo de fundacao (sapata=rasa armada / bloco=rasa concreto simples "
+     "/ estaca=profunda)", str, "sapata", False),
 ]
 
 # perguntas da fundacao PROFUNDA (so quando fund_tipo == 'estaca')
@@ -229,7 +235,8 @@ def construir_spec(r, slug="galpao"):
                           chuva_I_mm_h=r.get("chuva_I_mm_h", 150.0))
     nmf = r.get("n_maos_francesas", 0) or 0
     s["fechamento"].update(tipo=r.get("fech_tipo", "telha"),
-                           altura_alvenaria=0, peso=r.get("fech_peso", 0.10),
+                           altura_alvenaria=r.get("altura_alvenaria", 0) or 0,
+                           peso=r.get("fech_peso", 0.10),
                            mesa_interna_travada=bool(r.get("mesa_travada", False)),
                            n_maos_francesas=(nmf if nmf > 0 else None))
     ab = {}

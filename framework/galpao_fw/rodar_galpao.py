@@ -103,18 +103,28 @@ def _esforcos_base_joelho():
     return base_best, knee_best
 
 
-def _casos_base_envelope():
+def _casos_base_envelope(n_wall_perm_ext=0.0):
     """Todos os casos de base (por combinacao ELU) como lista (nome, N, V, M) -
-    para o ENVELOPE da sapata. Para N>1, retorna o PIOR caso entre as colunas."""
+    para o ENVELOPE da sapata. Para N>1, retorna o PIOR caso entre as colunas.
+
+    O fechamento LEVE ja entra na reacao de base via UDL das colunas no case_G
+    (galpao_portico.W_WALL_COL). n_wall_perm_ext: reacao vertical PERMANENTE da
+    ALVENARIA autoportante (kN, COMPRESSAO=+ apos o conserto do sinal do frame2d),
+    que desce direto na fundacao (nao pela coluna de aco); aplicada nas colunas
+    EXTERNAS e fatorada como acao permanente (fator 'G' de cada combinacao ->
+    desfavoravel na gravidade, favoravel/estabilizante no uplift)."""
     casos = _casos_mf_reac()
     _, _, ix = casos["G"]
     bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
+    externas = {bases[0], bases[-1]}
     combos = gp._combos_elu(gp.PONTE, gp.SISMO)
     out = []
     for nm, c in combos.items():
         for nb in bases:
             R = sum(fac * casos[cs][1] for cs, fac in c.items())
             N, V, M = R[3 * nb + 1], R[3 * nb], R[3 * nb + 2]
+            if n_wall_perm_ext and nb in externas:
+                N += c.get("G", 0.0) * n_wall_perm_ext   # alvenaria: permanente (compressao +)
             out.append((nm, N, V, M))
     return out
 
@@ -168,13 +178,20 @@ def rodar(params, out_dir):
                     "assimetrico": neve_assim, "q_efetivo": round(q_ef, 3),
                     "governa": neve_sim > params["cargas"]["Q"]}
     # Multi-vao: se 'spans' existir, usa lista; senao, usa 'span' (retro)
+    # peso da parede de fechamento como UDL vertical nas colunas externas (kN/m de
+    # altura de coluna). Antes: coletado e IGNORADO (contra-seguranca). 0 = sem parede.
+    _par = params.get("parede") or {}
+    _w_wall_col = _par.get("w_col_kN_m", 0.0)
+    _abert = (params.get("vento") or {}).get("abertura_dominante", "portao_oitao")
+    _aguas = int(params.get("aguas", 2))
     if "spans" in g:
         gp.configurar(spans=g["spans"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
-                      Q_roof=q_ef, tapered=params.get("tapered"))
+                      Q_roof=q_ef, tapered=params.get("tapered"), w_wall_col=_w_wall_col,
+                      abertura_dominante=_abert, aguas=_aguas)
     else:
         gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
@@ -182,7 +199,8 @@ def rodar(params, out_dir):
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
                       tapered=params.get("tapered"),
-                      Q_roof=q_ef)
+                      Q_roof=q_ef, w_wall_col=_w_wall_col, abertura_dominante=_abert,
+                      aguas=_aguas)
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
                   fy=params["terca"]["fy"])
@@ -201,6 +219,7 @@ def rodar(params, out_dir):
     if params.get("ponte"):
         pcfg = dict(params["ponte"]); pcfg.setdefault("vao_viga", g["bay"])
         pcfg.setdefault("vao_ponte", g["span"] - pcfg.get("folga_trilho", 0.5))
+        pcfg.setdefault("Hvr", 4.5)      # altura do trilho: opcional -> default (wiki 07 C)
         esf, viga, reac = pr.analisa(pcfg)
         save("gate5-ponte.txt", pr.relatorio_pt(esf, viga, reac))
         gp.configurar(ponte={"R_vert": reac["R_vertical_kN"],
@@ -279,7 +298,10 @@ def rodar(params, out_dir):
     else:
         sc["perfil_col"] = perfis.PERFIS["HEA200"]
         sc["perfil_raf"] = perfis.PERFIS["HEA180"]
-        res["perfil_colunas"] = ["HEA200"] * gp.N_VAOS
+        # N_VAOS+1 colunas (o loop de verificacao percorre range(nv+1)). Com
+        # N_VAOS o acesso cols_prof[nv] estourava (IndexError) na REPROVACAO, em
+        # vez de retornar o veredito atende=False. Ver wiki 07 item E.
+        res["perfil_colunas"] = ["HEA200"] * (gp.N_VAOS + 1)
         res["perfil_raf"] = "HEA180"
         res["atende"] = False
     # Gate 7 - mao-francesa
@@ -534,9 +556,27 @@ def rodar(params, out_dir):
         pc = perfis.PERFIS[res["perfil_col"]]
         sap["b_ped"] = max(sap.get("b_ped", 0.30), round(pc["bf"] + 0.10, 2))
         sap["d_ped"] = max(sap.get("d_ped", 0.30), round(pc["d"] + 0.10, 2))
-    casos_base = _casos_base_envelope()
-    dims = fs.dimensiona_sapata_env(sap, casos_base)
+    # alvenaria autoportante: desce direto na fundacao (nao pela coluna de aco) ->
+    # entra no envelope como permanente nas colunas externas (compressao + estabiliza
+    # o uplift). Fechamento leve ja veio pela reacao de base (UDL no case_G).
+    _N_mas = (params.get("parede") or {}).get("N_masonry_ext_kN", 0.0)
+    casos_base = _casos_base_envelope(n_wall_perm_ext=_N_mas)
+    _fund_tipo = params.get("fundacao", {}).get("tipo", "sapata")
+    if _fund_tipo == "bloco":              # bloco de concreto simples (NBR 6122 7.8.2)
+        dims = fs.dimensiona_bloco_env(sap, casos_base)
+    else:
+        dims = fs.dimensiona_sapata_env(sap, casos_base)
     save("gate7-fundacao.txt", dims["tabela"])
+
+    # Alvenaria: a viga de baldrame sob a parede e dimensionada p/ o peso da alvenaria.
+    _w_mas = (params.get("parede") or {}).get("w_masonry_kN_m", 0.0)
+    if _w_mas > 0:
+        params = dict(params)
+        params["baldrame"] = dict(params.get("baldrame") or
+                                  {"b": 0.20, "h": 0.40, "cobrimento": 0.05,
+                                   "continuidade": "simples"})
+        # sobrescreve (o default do PARAMS_REF traz q_parede=0.0 -> setdefault falharia)
+        params["baldrame"]["q_parede"] = round(_w_mas, 3)
 
     # Gate 7 - VIGA DE BALDRAME / AMARRACAO entre sapatas (NBR 6118). Amarra as
     # sapatas e absorve a reacao HORIZONTAL da base (empuxo do portico) como tracao;
@@ -1102,7 +1142,19 @@ def rodar(params, out_dir):
     res["sismo"] = {"zona": rs["zona"], "categoria": rs["categoria"],
                     "dispensado": rs.get("dispensado"), "H_kN": rs.get("H"),
                     "Cs": rs.get("Cs"), "E_portico_kN": round(E_frame, 2)}
-    if dims["aprovado"]:
+    if _fund_tipo == "bloco":              # bloco: concreto simples, sem armadura
+        if dims["aprovado"]:
+            bB, bL, bh, beta = dims["aprovado"]; gv = dims["governantes"]
+            res["sapata_adotada"] = {"B": bB, "L": bL, "h": bh, "tipo": "bloco",
+                                     "beta": round(beta, 1), "As_L": 0.0, "As_B": 0.0,
+                                     "rigida": True, "arm_L": None, "arm_B": None}
+            res["sapata_util"] = round(max(gv.get("solo", ("", 0))[1],
+                                           1.0 / gv.get("tomb", ("", 9))[1],
+                                           1.0 / gv.get("desl", ("", 9))[1]), 2)
+            res["sapata_ok"] = bool(res["sapata_util"] <= 1.001)
+        else:
+            res["sapata_adotada"] = None; res["sapata_ok"] = False
+    elif dims["aprovado"]:
         sB, sL, sh, sr, _ = dims["aprovado"]
         rB = dims["parte_B"]; gv = dims["governantes"]
         def _arm(f):
