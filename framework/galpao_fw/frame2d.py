@@ -133,12 +133,15 @@ class Frame2D:
             for a in range(6):
                 for b in range(6):
                     K[dofs[a], dofs[b]] += k_glob[a, b]
-            # equivalent nodal loads from member UDL
+            # cargas nodais equivalentes da UDL do membro. _fef_local ja retorna a
+            # CARGA NODAL EQUIVALENTE (= -{forcas de engastamento}), no sentido da
+            # carga: entao SOMA no vetor de forcas global (bug historico: era -=,
+            # que aplicava a UDL invertida - deslocamento/reacao com sinal trocado).
             fef = self._fef_local(e, L, cs, sn)
             fef_store[self._eidx(e)] = (fef, T, k_loc, dofs)
             F_eq_global = T.T @ fef
             for a in range(6):
-                F[dofs[a]] -= F_eq_global[a]
+                F[dofs[a]] += F_eq_global[a]
 
         # boundary conditions
         fixed = []
@@ -159,14 +162,18 @@ class Frame2D:
         # store for reactions(): R = K*d - F (nonzero at supported DOFs)
         self._K, self._F, self._d = K, F, d
 
-        # member end forces (local): f = k_loc*T*d + fef
+        # member end forces (local): f = k_loc*T*d + {forcas de engastamento}.
+        # fef = _fef_local = CARGA equivalente (= -{engastamento}), logo entra com
+        # sinal NEGATIVO aqui (par do += na montagem acima). Antes era +fef, que
+        # so batia porque o deslocamento tambem estava invertido (dois erros que se
+        # cancelavam em magnitude - mascarado pelos asserts em valor absoluto).
         # Convention: [N_i, V_i, M_i, N_j, V_j, M_j], forces the ELEMENT exerts on
         # its end nodes. To plot internal-force diagrams (traction positive), flip
         # the sign of the i-end (N_i, V_i, M_i).
         member_forces = {}
         for idx, (fef, T, k_loc, dofs) in fef_store.items():
             d_e = d[dofs]
-            f_loc = k_loc @ (T @ d_e) + fef
+            f_loc = k_loc @ (T @ d_e) - fef
             member_forces[idx] = f_loc
         return d, member_forces
 
