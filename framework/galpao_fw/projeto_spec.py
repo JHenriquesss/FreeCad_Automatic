@@ -214,6 +214,17 @@ def validar(spec):
                 faltando.append(("estrutura.trelica.n_paineis",
                                  "n_paineis=%d deve ser PAR (cumeeira em no; impar "
                                  "reintroduz flexao na tesoura)" % npn))
+            # n_paineis >= 2 (0 e par mas degenera a trelica -> ZeroDivisionError) e
+            # altura h > 0 (h=0 -> matriz singular; h<0 -> trelica INVERTIDA que
+            # passava com OK=True). Caca sessao 14.
+            if isinstance(npn, (int, float)) and not isinstance(npn, bool) and npn < 2:
+                faltando.append(("estrutura.trelica.n_paineis",
+                                 "n_paineis=%s deve ser >= 2 (trelica minima)" % npn))
+            _ht = tr.get("h")
+            if isinstance(_ht, (int, float)) and not isinstance(_ht, bool) and _ht <= 0:
+                faltando.append(("estrutura.trelica.h",
+                                 "altura da tesoura h=%g deve ser > 0 (h<=0 = trelica "
+                                 "degenerada/invertida)" % _ht))
     # coluna de alma variavel (tapered): h_col_base opcional (rasa na base, funda
     # no joelho). Deve ser < h_joelho (senao a coluna nao afina) e > 2*tf (secao I
     # valida). Fora disso -> AVISO (nao bloqueia; alerta de geometria incoerente).

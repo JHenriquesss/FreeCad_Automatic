@@ -196,3 +196,36 @@ def test_ponte_fracoes_fora_de_faixa_bloqueiam():
 def test_ponte_phi_menor_que_um_bloqueia():
     s = _base_ponte(); s["ponte"]["phi"] = 0.8
     assert _bloqueado_em(s, "ponte.phi")
+
+
+# --- coerencia da tesoura (trelica) ------------------------------------------
+def _base_tesoura():
+    s = _base()
+    s["estrutura"]["tipo_portico"] = "tesoura"
+    s["estrutura"]["trelica"] = {
+        "h": 2.5, "n_paineis": 8, "tipo": "warren",
+        "perfil_banzo": [0.20, 0.10, 0.006, 0.008],
+        "perfil_diagonal": [0.15, 0.075, 0.005, 0.006]}
+    return s
+
+
+def test_tesoura_valida_passa():
+    r = PS.validar(_base_tesoura())
+    assert r["ok"], r["faltando"]
+
+
+def test_tesoura_h_nao_positiva_bloqueia():
+    for h in (0.0, -2.5):
+        s = _base_tesoura(); s["estrutura"]["trelica"]["h"] = h
+        assert _bloqueado_em(s, "estrutura.trelica.h"), h
+
+
+def test_tesoura_n_paineis_impar_bloqueia():
+    s = _base_tesoura(); s["estrutura"]["trelica"]["n_paineis"] = 7
+    assert _bloqueado_em(s, "estrutura.trelica.n_paineis")
+
+
+def test_tesoura_n_paineis_zero_bloqueia():
+    # 0 e PAR mas degenera a trelica (ZeroDivisionError no motor)
+    s = _base_tesoura(); s["estrutura"]["trelica"]["n_paineis"] = 0
+    assert _bloqueado_em(s, "estrutura.trelica.n_paineis")
