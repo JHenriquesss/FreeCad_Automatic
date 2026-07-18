@@ -78,8 +78,11 @@ def _build_3d(spec, out, doc_name):
     bk = PS.to_build_kwargs(spec)
     bk['export_dir'] = str(out).replace('\\', '/')
     bk['doc_name'] = doc_name
-    src = (FW.raiz_repo() / 'framework' / 'galpao_fw' / 'build_galpao.py'
-           ).read_text(encoding='utf-8').replace('_result_ = run()', '')
+    import rodar_projeto as _RP
+    _bgp = FW.raiz_repo() / 'framework' / 'galpao_fw' / 'build_galpao.py'
+    # build_galpao vai como FONTE p/ o FreeCAD -> seus imports de irmaos
+    # (mao_francesa_geom) exigem o dir no sys.path (senao ModuleNotFound). Helper unico.
+    src = _RP._ship_build_src(_bgp)
     stf = os.path.join(str(out), '_build.json').replace('\\', '/')
     boot = (src + "\nimport json\nreset()\nconfigurar(**%r)\n_r = run()\n"
             "open(%r, 'w', encoding='utf-8').write(json.dumps(_r, default=str))\n"

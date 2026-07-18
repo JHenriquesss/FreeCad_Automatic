@@ -106,6 +106,19 @@ def calcular(spec, out_dir):
     return res
 
 
+def _ship_build_src(src_path):
+    """Fonte de build_galpao.py PRONTA p/ enviar ao FreeCAD (execute), com o dir do
+    galpao_fw prependado no sys.path. build_galpao vai como FONTE (nao importado);
+    seus imports de MODULOS IRMAOS (ex. mao_francesa_geom) so resolvem se o dir
+    estiver no sys.path do FreeCAD - senao ModuleNotFoundError no build 3D. Helper
+    testavel (test_ship_build_src) p/ a regressao nao voltar silenciosa. Caca sessao 14."""
+    from pathlib import Path
+    src_path = Path(src_path)
+    gdir = str(src_path.parent).replace("\\", "/")
+    boot = "import sys\nif %r not in sys.path: sys.path.insert(0, %r)\n" % (gdir, gdir)
+    return boot + src_path.read_text(encoding="utf-8").replace("_result_ = run()", "")
+
+
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
                   host="http://localhost:9875", timeout=180):
     """Desenha o modelo 3D via MCP (FreeCAD)."""
@@ -119,7 +132,7 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     bk["export_dir"] = str(out_dir).replace("\\", "/")
     bk["doc_name"] = doc_name
     src_path = FW.raiz_repo() / "framework" / "galpao_fw" / "build_galpao.py"
-    src = src_path.read_text(encoding="utf-8").replace("_result_ = run()", "")
+    src = _ship_build_src(src_path)
     call = "reset()\nconfigurar(**%r)\n_result_ = run()\n" % (bk,)
     socket.setdefaulttimeout(timeout)
     srv = xmlrpc.client.ServerProxy(host)
