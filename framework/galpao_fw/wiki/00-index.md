@@ -115,6 +115,11 @@ bugs de pipeline E/C/H/D/J/K [F/G refutados]; bloco de fundação NBR 6122; shed
 6123 Tab.6; multi-vão heterogêneo; VALIDAÇÃO DE SISTEMA contra Alonso/Bellei — sapata 0,5%,
 bloco/vento exatos, pilar 0,1%; SEM COMMIT, aberto p/ revisão — ver [[06-open-threads#T15]].
 wiki/07 removido, consolidado aqui)
+last-consolidated: 2026-07-18, sessions: 13 (+ CAÇA DE BUGS sessão 14: motor correto
+[frame2d/B1B2/mão-francesa-Bellei/ponte-NBR8800/tesoura, cruzados NotebookLM]; bugs só na
+periferia → mão-francesa geometria 3D [#15], validação de entrada COMPLETA [#13/#16/#18],
+pistas baixa-prob [#19]; PRs #12–#19 MERGED. Aberto: verificação VISUAL do executivo bloqueada
+por 3 freecad.exe TRAVADOS na 9875 [reboot]; ver [[06-open-threads#T16]], [[04-decisions#D58]]–[[04-decisions#D62]])
 former: 2026-07-16, sessions: 12 (+ sessão TURNKEY: wizard/rodar_tudo/escopo/
 validacao CBCA <1% + neve + multi-vão + dossiê PDF + PE15 bloco + varredura visual 6
 defeitos; PR #12; 2º caso-referência PENDENTE — ver [[06-open-threads#T14]])

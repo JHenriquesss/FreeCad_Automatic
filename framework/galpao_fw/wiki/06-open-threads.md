@@ -1,6 +1,42 @@
 # 06 — Open threads
 
-## T15 — Correções + features + validação (2026-07-17) — EM REVISÃO do engenheiro
+## T16 — Caça de bugs sessão 14 (2026-07-18) — MERGED (#15–#19); só resta verificação visual
+Todos os PRs de T15/T14 (#12) e da caça (#15–#19) **MERGED em `main`**. Conclusão central:
+**o motor de engenharia está correto** (frame2d, B1/B2, mão-francesa/Bellei, ponte/NBR 8800
+K.1-K.4-B.7.3.4, tesoura isostático — vários cruzados no NotebookLM). **100% dos bugs estavam
+na periferia** — geometria de desenho e validação de entrada. Ver [[04-decisions#D58]]–[[04-decisions#D62]].
+
+**FECHADO (MERGED):**
+- **Mão-francesa 3D** (#15): geometria estava no PLANO DO PÓRTICO (X constante), sem tocar a
+  terça → não travava a mesa inferior fora do plano. Cálculo (`mao_francesa.py`) sempre correto.
+  Extraída p/ módulo PURO `mao_francesa_geom.py` (mesa inf → terça, offset longitudinal X);
+  guarda `test_mao_francesa_geom` exige componente X≠0.
+- **Validação de entrada COMPLETA** (#13/#16/#18): `projeto_spec.validar` agora tem coerência de
+  **todos** os campos de input (geometria, física, wizard, ponte, tesoura, fundação, vento-enums,
+  estaca, baldrame, cargas, terreno, opcionais). O caminho spec-direto não certifica lixo nem
+  crasha. `test_validacao_coerencia` (49). Ver [[04-decisions#D58]].
+- **Wizard** (#13): `_ask_one` não trava mais em entrada exaurida (cap+EOFError); `construir_spec`
+  dá ValueError claro. `test_wizard_robustez` (6).
+- **Pistas baixa prob** (#19): `_CFG` global vento = não-bug (reset por projeto); `z<ridge` = AVISO
+  transparente; **tesoura banzo INFERIOR sob uplift** exposto `Lb_y_inf` (default otimista assume
+  cada nó travado; demo Lb_y_inf=8m → util 0,52→3,18). `test_tesoura_lby_inf`.
+
+**AINDA ABERTO:**
+- **Verificação VISUAL do executivo + PNG da mão-francesa** — BLOQUEADA pelo bridge FreeCAD (9875).
+  Script `verificar_amostra.py` (no `main`) roda tudo quando o bridge subir. **BLOQUEIO REAL
+  (2026-07-18):** 3 `freecad.exe`/`_exec.py` TRAVADOS (estado ininterruptível — `taskkill /F` e
+  `Stop-Process` não matam) squatam a 9875 num estado quebrado (netstat LISTENING mas connect
+  RECUSADO). **Só um REBOOT libera.** Depois: abrir FreeCAD + workbench `RobustMCPBridge` (não
+  autostart) → `verificar_amostra.py`.
+- **GAP de robustez do executivo (achado real):** os 3 zumbis são prova de que `rodar_executivo`
+  ainda deixa `freecad.exe` pendurado no timeout (mesmo pós-fix do repr numpy [[04-decisions#D53?]]).
+  Falta watchdog/kill do subprocesso freecad.exe no timeout.
+- **Latentes de FEATURE (não bug):** `cobertura.telha_tipo` só rótulo/takeoff (não dimensiona a
+  telha); multi-vão heterogêneo achata vãos maiores (2D cumeeira única) — wizard só gera vãos iguais.
+- **Fuzz interno dos motores** (base_chumbador, tapered, sismo, fogo, estaca, gusset, ligações,
+  calhas): não feito. Cobertos por 12/12 self-tests + integração pipeline (8 opcionais, 0 crash/NaN).
+
+## T15 — Correções + features + validação (2026-07-17) — MERGED (via #12→#14, ver [[#T16]])
 Branch `revisao/homologacao-12-modulos`, **COMMITADO** em 6 commits temáticos (`8bd725f` sinal /
 `bb36b9b` vento+bloco+shed / `e4e3468` wizard+pipeline / `63451f1` validação / wiki / regen);
 **não pushado** (gate humano). Suíte cheia **304 passed** verificada (17m53s, exit 0). Relatório
