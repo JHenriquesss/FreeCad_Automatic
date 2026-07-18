@@ -437,6 +437,15 @@ def validar(spec):
         _v = _num(_p)
         if _v is not None and _v <= 0:
             faltando.append((_p, "fator estatistico deve ser > 0 (recebido %g)" % _v))
+    # z do vento (cota de referencia do S2) deve acompanhar a cumeeira. O wizard faz
+    # z=ridge; no caminho spec-direto um z < ridge desincronizado SUB-representa o
+    # vento (S2 cresce com z) -> NAO-conservador. AVISO (nao bloqueia; fica na
+    # memoria de calculo p/ o eng. confirmar). Ver caca sessao 14.
+    _zw = _num("vento.z")
+    if _zw is not None and _ridge is not None and _zw < _ridge - 0.05:
+        avisos.append(("vento.z", "z=%.2f m < cumeeira=%.2f m: cota de referencia do "
+                       "vento abaixo do topo SUB-representa o S2 (nao-conservador). "
+                       "Confirme z (o wizard usa z=ridge)." % (_zw, _ridge)))
     # --- MATERIAIS da fundacao: resistencias > 0 (fck/fyk=0 dividiam por zero /
     # davam armadura absurda CERTIFICADA); coeficientes fisicos coerentes.
     for _p, _desc in (("fundacao.fck", "fck (resistencia do concreto)"),

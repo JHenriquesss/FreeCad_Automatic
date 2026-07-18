@@ -264,6 +264,11 @@ def verifica_tesoura(cfg):
     # travamento fora do plano do banzo superior (default: cada no travado ->
     # maior segmento inclinado adjacente)
     Lby_sup = cfg.get("Lb_y_sup", max(seg))
+    # Lb_y_inf: travamento FORA do plano do banzo INFERIOR (mao-francesa/escora ->
+    # so importa quando o banzo inf COMPRIME, i.e. sob uplift). None = default
+    # otimista (cada no travado, = comprimento da barra). O eng. informa o
+    # espacamento real dos travamentos p/ ser conservador (parecer/caca sessao 14).
+    Lby_inf = cfg.get("Lb_y_inf")
 
     def _cargas(w):
         return {i: (0.0, -w * trib[i]) for i in range(n_p + 1)}   # w>0 p/ baixo
@@ -286,6 +291,7 @@ def verifica_tesoura(cfg):
     sol0 = resolve_trelica(t, _cargas(1.0))
     diag_idx = set(sol0["idx_diagonais"] + sol0["idx_montantes"])
     sup_idx = set(sol0["idx_banzo_sup"])
+    inf_idx = set(sol0["idx_banzo_inf"])
     u_max = 0.0; gov = None; Nsup = 0.0; Ninf = 0.0
     for nome, P in load_cases:
         sol = resolve_trelica(t, P)
@@ -293,7 +299,17 @@ def verifica_tesoura(cfg):
             sec = sd if bi in diag_idx else sb
             Lbar = sol["comprimentos"][bi]
             if N < 0:                                        # COMPRESSAO (2 eixos)
-                Lfora = Lby_sup if bi in sup_idx else Lbar   # so o banzo sup usa Lby
+                # banzo sup: travado pelas tercas (Lby_sup). banzo INF: sob uplift
+                # ele COMPRIME e so e travado fora do plano onde ha mao-francesa
+                # ligando o no a escora (Bellei Fig 5.9). Default Lbar assume TODO
+                # no travado (otimista); Lb_y_inf permite o espacamento REAL dos
+                # travamentos (conservador). Caca sessao 14.
+                if bi in sup_idx:
+                    Lfora = Lby_sup
+                elif bi in inf_idx and Lby_inf:
+                    Lfora = Lby_inf
+                else:
+                    Lfora = Lbar
                 Nrd = _nc_rd(sec, fy, Lbar, Lfora)
             else:                                            # TRACAO (escoam + ruptura)
                 Nrd = _nt_rd(sec, fy, fu, Ct, area_furos)
@@ -308,7 +324,9 @@ def verifica_tesoura(cfg):
     return {"tipo": t["tipo"], "n_paineis": n_p, "h_m": cfg["h"], "L_m": cfg["L"],
             "u_max": round(u_max, 3), "barra_governante": gov,
             "N_banzo_sup_max": round(Nsup, 1), "N_banzo_inf_max": round(Ninf, 1),
-            "Lb_y_sup_m": round(Lby_sup, 3), "OK": u_max <= 1.0, "trelica": t}
+            "Lb_y_sup_m": round(Lby_sup, 3),
+            "Lb_y_inf_m": (round(Lby_inf, 3) if Lby_inf else None),
+            "OK": u_max <= 1.0, "trelica": t}
 
 
 def relatorio_tesoura_pt(r):
@@ -324,6 +342,10 @@ def relatorio_tesoura_pt(r):
          f"  Barra governante: {g.get('grupo')} N={g.get('N_kN')} kN "
          f"({g.get('estado')}, combo {g.get('combo')}, u={g.get('u')})",
          f"  Travamento fora do plano do banzo sup Lb_y = {r.get('Lb_y_sup_m')} m",
+         (f"  Travamento fora do plano do banzo INF Lb_y = {r.get('Lb_y_inf_m')} m "
+          "(sob uplift)" if r.get("Lb_y_inf_m") else
+          "  Banzo INF: sob uplift assume-se travado a CADA no (mao-francesa em "
+          "todos). Se nao, informar Lb_y_inf (espacamento real) - pode reprovar."),
          "  Banzo sup RETO em duas aguas (tercas apoiam nos nos); metodo dos nos",
          "  (isostatica). Tracao = escoam.(bruta)+ruptura(liquida); compressao = 2 eixos.",
          "  Perfis, Ct(shear lag), area de furos e Lb_y = A CONFIRMAR (gate).", "=" * 66]
