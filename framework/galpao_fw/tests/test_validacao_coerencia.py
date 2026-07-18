@@ -143,3 +143,56 @@ def test_cargas_absurdas_bloqueiam():
 def test_slope_teto():
     s = _base(); s["cobertura"]["slope"] = 1.5
     assert _bloqueado_em(s, "cobertura.slope")
+
+
+# --- coerencia dos dados de fabricante da ponte rolante ----------------------
+def _base_ponte():
+    s = _base()
+    s["ponte"] = {"Q": 100.0, "peso_ponte": 60.0, "peso_trole": 15.0,
+                  "aprox_min": 1.0, "n_rodas_lado": 2, "n_rodas_motoras": 2,
+                  "frac_lateral": 0.10, "frac_long": 0.10, "phi": 1.10,
+                  "vao_ponte": 9.5, "vao_viga": 5.7}
+    return s
+
+
+def test_ponte_valida_passa():
+    r = PS.validar(_base_ponte())
+    assert r["ok"], r["faltando"]
+
+
+def test_ponte_vao_zero_bloqueia():
+    s = _base_ponte(); s["ponte"]["vao_ponte"] = 0.0
+    assert _bloqueado_em(s, "ponte.vao_ponte")
+
+
+def test_ponte_aprox_min_alem_do_trilho_bloqueia():
+    # aprox_min > vao_ponte gerava reacao de roda NEGATIVA com OK=True
+    s = _base_ponte(); s["ponte"]["aprox_min"] = 12.0
+    assert _bloqueado_em(s, "ponte.aprox_min")
+
+
+def test_ponte_Q_negativo_bloqueia():
+    s = _base_ponte(); s["ponte"]["Q"] = -100.0
+    assert _bloqueado_em(s, "ponte.Q")
+
+
+def test_ponte_n_rodas_lado_zero_bloqueia():
+    s = _base_ponte(); s["ponte"]["n_rodas_lado"] = 0
+    assert _bloqueado_em(s, "ponte.n_rodas_lado")
+
+
+def test_ponte_motoras_acima_do_lado_bloqueia():
+    s = _base_ponte(); s["ponte"]["n_rodas_motoras"] = 5
+    assert _bloqueado_em(s, "ponte.n_rodas_motoras")
+
+
+def test_ponte_fracoes_fora_de_faixa_bloqueiam():
+    s = _base_ponte(); s["ponte"]["frac_lateral"] = 2.0
+    assert _bloqueado_em(s, "ponte.frac_lateral")
+    s = _base_ponte(); s["ponte"]["frac_long"] = 0.0
+    assert _bloqueado_em(s, "ponte.frac_long")
+
+
+def test_ponte_phi_menor_que_um_bloqueia():
+    s = _base_ponte(); s["ponte"]["phi"] = 0.8
+    assert _bloqueado_em(s, "ponte.phi")

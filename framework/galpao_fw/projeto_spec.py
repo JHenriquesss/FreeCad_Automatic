@@ -240,6 +240,39 @@ def validar(spec):
                 faltando.append(("ponte." + k, desc))
         if ponte.get("phi") in (None, PENDENTE) and not ponte.get("classe_hc"):
             faltando.append(("ponte.phi", "impacto phi OU classe de elevacao HC (NBR 8400)"))
+        # COERENCIA dos dados de fabricante (caca sessao 14): sem isto, entradas
+        # degeneradas ou crashavam (vao_ponte=0, n_rodas_lado=0 -> ZeroDivisionError)
+        # ou geravam reacao de roda NEGATIVA com OK=True (aprox_min>vao_ponte, Q<0)
+        # -> certificava viga de rolamento impossivel.
+        def _pnum(k):
+            v = ponte.get(k)
+            return v if (isinstance(v, (int, float)) and not isinstance(v, bool)) else None
+        _vp = _pnum("vao_ponte"); _ap = _pnum("aprox_min"); _nl = _pnum("n_rodas_lado")
+        _nm = _pnum("n_rodas_motoras")
+        for k in ("Q", "vao_ponte", "vao_viga"):
+            v = _pnum(k)
+            if v is not None and v <= 0:
+                faltando.append(("ponte." + k, "%s deve ser > 0 (recebido %g)" % (k, v)))
+        for k in ("peso_ponte", "peso_trole"):
+            v = _pnum(k)
+            if v is not None and v < 0:
+                faltando.append(("ponte." + k, "%s nao pode ser negativo (recebido %g)" % (k, v)))
+        if _ap is not None and _vp is not None and not (0.0 <= _ap < _vp):
+            faltando.append(("ponte.aprox_min", "aproximacao minima (%g) deve estar em "
+                             "[0, vao_ponte=%g): trole nao pode passar do trilho oposto"
+                             % (_ap, _vp)))
+        if _nl is not None and _nl < 1:
+            faltando.append(("ponte.n_rodas_lado", "n_rodas_lado deve ser >= 1 (recebido %g)" % _nl))
+        if _nm is not None and _nl is not None and not (0 <= _nm <= _nl):
+            faltando.append(("ponte.n_rodas_motoras", "n_rodas_motoras (%g) deve estar em "
+                             "[0, n_rodas_lado=%g]" % (_nm, _nl)))
+        for k in ("frac_lateral", "frac_long"):
+            v = _pnum(k)
+            if v is not None and not (0.0 < v <= 1.0):
+                faltando.append(("ponte." + k, "%s deve estar em (0, 1] (recebido %g)" % (k, v)))
+        _phi = _pnum("phi")
+        if _phi is not None and _phi < 1.0:
+            faltando.append(("ponte.phi", "coef. de impacto phi deve ser >= 1,0 (recebido %g)" % _phi))
     # fogo: theta_critica (nivel de carregamento a quente) e as propriedades
     # termicas da protecao (lambda_p) sao de CATALOGO/BOLETIM do fabricante.
     # Ausentes -> default calibrado + AVISO (nao bloqueia, mas fica na memoria
