@@ -41,6 +41,10 @@ projects/galpao-cert/
 
 # Generated artifacts
 framework/galpao_fw/exports/
+framework/exports/
+framework/galpao_fw/saida_amostra/
+framework/galpao_fw/saida_shed/
+framework/galpao_fw/saida_*/
 *.bak
 __pycache__/
 *.pyc

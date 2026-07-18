@@ -17,6 +17,7 @@
 import os
 import re
 import sys
+import math
 import datetime
 
 from reportlab.lib.pagesizes import A4
@@ -119,6 +120,13 @@ METODOS = {
         "tensao no solo <= admissivel, seguranca ao tombamento e ao "
         "deslizamento (fatores FS), puncao (22.6.2.2) e armadura de flexao das "
         "duas direcoes. sigma_solo,adm e parametro de sondagem (geotecnia)."),
+    "11. BLOCO": (
+        "NBR 6122:2022 item 7.8.2 (fundacao rasa de concreto SIMPLES, sem armadura). "
+        "O bloco resiste por bielas de compressao: a altura garante o angulo da face "
+        "beta >= 60 graus com a horizontal (h >= tan(60).(dim_bloco - dim_pilar)/2), "
+        "dispensando armadura de tracao. Envelope ELU: tensao no solo <= admissivel, "
+        "seguranca ao tombamento e deslizamento, e tensao de tracao no concreto "
+        "limitada a ~fck/25 (Alonso). sigma_solo,adm e parametro de sondagem."),
     "11b. VIGA DE BALDRAME": (
         "NBR 6118:2014. Viga de baldrame sob o fechamento: flexao e cisalhamento "
         "para a carga de parede/pe-direito, apoiada nos blocos/sapatas."),
@@ -232,10 +240,20 @@ def _estilos():
                           fontName="Helvetica-Bold", spaceAfter=1))
     ss.add(ParagraphStyle("Metodo", parent=ss["Normal"], fontSize=9,
                           leading=12, alignment=TA_LEFT))
-    ss.add(ParagraphStyle("Mono", parent=ss["Code"], fontSize=6.7, leading=7.8,
+    ss.add(ParagraphStyle("Mono", parent=ss["Code"], fontSize=7.2, leading=8.6,
                           fontName="Courier"))
     ss.add(ParagraphStyle("Nota", parent=ss["Normal"], fontSize=8,
                           leading=10, textColor=colors.grey))
+    ss.add(ParagraphStyle("Intro", parent=ss["Normal"], fontSize=9.5, leading=13,
+                          alignment=TA_LEFT, spaceAfter=4))
+    ss.add(ParagraphStyle("H2", parent=ss["Heading2"], fontSize=11, leading=14,
+                          textColor=colors.HexColor("#12395b"), spaceBefore=8,
+                          spaceAfter=3))
+    ss.add(ParagraphStyle("Cell", parent=ss["Normal"], fontSize=8.3, leading=10))
+    ss.add(ParagraphStyle("CellB", parent=ss["Normal"], fontSize=8.3, leading=10,
+                          fontName="Helvetica-Bold"))
+    ss.add(ParagraphStyle("CellHead", parent=ss["Normal"], fontSize=8.3, leading=10,
+                          fontName="Helvetica-Bold", textColor=colors.white))
     return ss
 
 
@@ -250,9 +268,211 @@ def _cabecalho_rodape(canvas, doc):
     canvas.restoreState()
 
 
-def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO"):
-    """Le out_dir/MEMORIAL-CONSOLIDADO.txt e escreve um PDF com METODO+memorial
-    por modulo. Retorna o caminho do PDF."""
+# ----------------------------------------------------------------------------
+# Blocos DIDATICOS (a partir do spec): premissas, levantamento de cargas e quadro
+# de verificacoes colorido. Objetivo: um leitor entende de onde vem cada numero
+# antes de chegar ao memorial de cada modulo.
+# ----------------------------------------------------------------------------
+def _vg(s):
+    """Ponto decimal -> virgula (padrao BR) em textos ja formatados."""
+    return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", str(s))
+
+
+def _n(x, casas=2, suf=""):
+    try:
+        return _vg(("%%.%df" % casas) % float(x)) + suf
+    except (TypeError, ValueError):
+        return str(x)
+
+
+def _tab(rows, widths, ss, header=None, destaque_ultima=False):
+    """Table estilizada (zebra, cabecalho azul). rows = lista de listas de str."""
+    data = []
+    if header:
+        data.append([Paragraph(str(c), ss["CellHead"]) for c in header])
+    for r in rows:
+        data.append([Paragraph(str(c), ss["Cell"]) for c in r])
+    tb = Table(data, colWidths=widths, hAlign="LEFT")
+    st = [("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+          ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+          ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+          ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.HexColor("#cdd6df")),
+          ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#9fb2c4"))]
+    r0 = 0
+    if header:
+        st += [("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#12395b"))]
+        r0 = 1
+    for i in range(r0, len(data)):
+        if (i - r0) % 2 == 1:
+            st.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#eef2f6")))
+    tb.setStyle(TableStyle(st))
+    return tb
+
+
+def _dados_entrada_flow(spec, ss):
+    g = spec.get("geometria", {}); cob = spec.get("cobertura", {})
+    ven = spec.get("vento", {}); car = spec.get("cargas", {})
+    fec = spec.get("fechamento", {}); fun = spec.get("fundacao", {})
+    slope = cob.get("slope"); incl = ("%s%%" % _n(slope * 100, 0)) if slope else "-"
+    rows = [
+        ["Geometria", "Vao transversal", _n(g.get("span"), 1, " m")],
+        ["", "Comprimento total", _n(g.get("comprimento"), 1, " m")],
+        ["", "Pe-direito (beiral)", _n(g.get("eave"), 2, " m")],
+        ["", "Altura da cumeeira", _n(g.get("ridge"), 2, " m")],
+        ["", "Inclinacao do telhado", incl],
+        ["", "Vinculacao da base", "Engastada" if g.get("base_fixed") else "Rotulada"],
+        ["Cobertura", "N de aguas", str(cob.get("aguas", 2))],
+        ["", "Telha", str(cob.get("telha_tipo", "-"))],
+        ["", "Calha de agua pluvial", "Sim" if cob.get("calha") else "Nao"],
+        ["Vento", "V0 (velocidade basica)", _n(ven.get("v0"), 0, " m/s")],
+        ["", "Categoria / Classe", "%s / %s" % (ven.get("cat", "-"), ven.get("classe", "-"))],
+        ["", "S1 / S3", "%s / %s" % (_n(ven.get("s1"), 2), _n(ven.get("s3"), 2))],
+        ["", "Abertura dominante (Cpi)",
+         "Vedada" if str(ven.get("abertura_dominante", "")).startswith("veda") else "Portao"],
+        ["Cargas", "Permanente cobertura G", _n(car.get("G"), 2, " kN/m2")],
+        ["", "Sobrecarga Q", _n(car.get("Q"), 2, " kN/m2")],
+        ["", "Peso proprio estrutura", _n(car.get("self"), 2, " kN/m2")],
+        ["Fechamento", "Tipo", str(fec.get("tipo", "-"))],
+        ["", "Peso do fechamento", _n(fec.get("peso"), 2, " kN/m2")],
+        ["Fundacao", "Tipo", str(fun.get("tipo", "-"))],
+        ["", "Tensao adm. do solo", _n(fun.get("sigma_solo_adm"), 0, " kN/m2")],
+        ["", "fck do concreto", _n((fun.get("fck") or 0) / 1000.0, 0, " MPa")],
+    ]
+    return [Paragraph("Premissas e dados de entrada", ss["Secao"]),
+            Paragraph("Todos os resultados deste memorial partem dos dados abaixo, "
+                      "informados no projeto. Os itens marcados como dado de sitio "
+                      "(solo, vento local) sao de responsabilidade de quem os forneceu.",
+                      ss["Intro"]),
+            _tab(rows, [70, 210, 130], ss,
+                 header=["Grupo", "Dado", "Valor"]), Spacer(1, 5 * mm)]
+
+
+def _cargas_flow(spec, out_dir, ss):
+    """Levantamento de cargas DIDATICO: cada acao com valor, origem e destino, mais
+    o vento (Vk, q) e a filosofia das combinacoes."""
+    car = spec.get("cargas", {}); cob = spec.get("cobertura", {})
+    fec = spec.get("fechamento", {}); ven = spec.get("vento", {})
+    flow = [Paragraph("Levantamento de cargas", ss["Secao"]),
+            Paragraph("O caminho das cargas segue a hierarquia da estrutura: a "
+                      "cobertura carrega as <b>tercas</b>, que apoiam nos <b>porticos</b>; "
+                      "os porticos descem para a <b>base</b> e a <b>fundacao</b>. O vento "
+                      "atua nas superficies (paredes e telhado) e o fechamento pendura "
+                      "na coluna (leve) ou desce pela <b>viga de baldrame</b> (alvenaria).",
+                      ss["Intro"])]
+    # --- Acoes permanentes e variaveis (verticais) ---
+    perm = [
+        ["Permanente", "Cobertura (telha + tercas + acessorios)", _n(car.get("G"), 2, " kN/m2"),
+         "NBR 8800", "tercas -> portico"],
+        ["Permanente", "Peso proprio da estrutura", _n(car.get("self"), 2, " kN/m2"),
+         "perfis adotados", "portico -> base"],
+        ["Permanente", "Fechamento (%s)" % fec.get("tipo", "-"), _n(fec.get("peso"), 2, " kN/m2"),
+         "parede", "coluna / baldrame"],
+        ["Variavel", "Sobrecarga de cobertura Q", _n(car.get("Q"), 2, " kN/m2"),
+         "NBR 8800 (manutencao)", "tercas -> portico"],
+    ]
+    if (spec.get("neve") or {}).get("sk"):
+        perm.append(["Variavel", "Neve", _n(spec["neve"]["sk"], 2, " kN/m2"),
+                     "EN 1991-1-3", "tercas -> portico"])
+    flow += [Paragraph("Acoes verticais", ss["H2"]),
+             _tab(perm, [58, 190, 78, 88, 96], ss,
+                  header=["Tipo", "Acao", "Valor", "Norma/Origem", "Destino"]),
+             Spacer(1, 3 * mm)]
+    # --- Vento (recomputa Vk, q para explicar) ---
+    try:
+        import vento_nbr6123 as V
+        g = spec.get("geometria", {})
+        r = V.compute(v0=ven.get("v0"), cat=ven.get("cat"), classe=ven.get("classe"),
+                      s1=ven.get("s1"), s3=ven.get("s3"), z=ven.get("z"),
+                      theta=math.degrees(math.atan((g.get("ridge", 0) - g.get("eave", 0)) /
+                                                    max(g.get("span", 1) / 2.0, 1e-6))),
+                      larg_b=g.get("span", 10), alt_h=g.get("eave", 6),
+                      comp_a=g.get("comprimento", 20),
+                      abertura_dominante=ven.get("abertura_dominante", "portao_oitao"))
+        vrows = [
+            ["Velocidade basica V0", _n(r["v0"], 0, " m/s"), "dado de sitio (NBR 6123 Anexo A)"],
+            ["Fator S2 (rugosidade/altura)", _n(r["s2"], 3), "Cat. %s, Classe %s, z=%s m"
+             % (r["cat"], r["classe"], _n(r["z"], 1))],
+            ["Velocidade caract. Vk = V0.S1.S2.S3", _n(r["vk"], 2, " m/s"), "S1=%s ; S3=%s"
+             % (_n(r["s1"], 2), _n(r["s3"], 2))],
+            ["Pressao dinamica q = 0,613.Vk2", _n(r["q_kN_m2"], 3, " kN/m2"), "base do vento"],
+        ]
+        # pior sobrepressao e pior succao liquidas no telhado (Cpe-Cpi)
+        cob_vals = [v for c in r["net"] for s, v in r["net"][c].items() if s.startswith("cobertura")]
+        if cob_vals:
+            vrows.append(["Sucao liquida max no telhado (Cpe-Cpi).q",
+                          _n(min(cob_vals) * r["q_kN_m2"], 3, " kN/m2"),
+                          "arranque (uplift) - governa terca/telha/fundacao"])
+        flow += [Paragraph("Vento (NBR 6123) &mdash; passo a passo", ss["H2"]),
+                 _tab(vrows, [200, 90, 220], ss, header=["Grandeza", "Valor", "Observacao"]),
+                 Spacer(1, 3 * mm)]
+    except Exception:
+        pass
+    # --- Combinacoes ---
+    flow += [Paragraph("Combinacoes de acoes", ss["H2"]),
+             Paragraph("<b>ELU</b> (estados-limite ultimos, resistencia): as acoes sao "
+                       "majoradas &mdash; permanente x1,25 (desfavoravel) ou x1,00 (favoravel, "
+                       "quando o vento alivia), sobrecarga x1,50 e vento x1,40. O envelope "
+                       "toma a pior combinacao por elemento. <b>ELS</b> (servico, "
+                       "deslocamentos): acoes caracteristicas (sem majorar), limitando o "
+                       "drift lateral a H/300 e a flecha vertical da cobertura.", ss["Intro"]),
+             Spacer(1, 4 * mm)]
+    return flow
+
+
+def _quadro_flow(preamb, ss):
+    """Converte o QUADRO DE VERIFICACOES (texto do memorial) numa tabela colorida
+    (verde=OK, vermelho=NAO ATENDE)."""
+    linhas = [l for l in preamb.splitlines()
+              if l.strip() and ("OK" in l or "NAO ATENDE" in l) and "util" not in l.lower()]
+    if not linhas:
+        return []
+    rows, flags = [], []
+    for l in linhas:
+        ok = "OK" in l and "NAO" not in l
+        txt = l.replace("*** NAO ATENDE ***", "").replace("NAO ATENDE", "").replace("OK", "")
+        m = re.search(r"(.+?)\s+([0-9]+[.,][0-9]+)\s*$", txt.strip())
+        if m:
+            nome, u = m.group(1).strip(), m.group(2)
+        else:
+            nome, u = txt.strip(), "-"
+        rows.append([nome, _vg(u), "ATENDE" if ok else "NAO ATENDE"])
+        flags.append(ok)
+    tb = _tab(rows, [220, 70, 110], ss, header=["Elemento", "Utilizacao", "Situacao"])
+    st = list(tb.getStyle()._cmds) if hasattr(tb, "getStyle") else []
+    # colore a coluna 'Situacao' por linha
+    extra = []
+    for i, ok in enumerate(flags):
+        r = i + 1  # +1 pelo cabecalho
+        extra.append(("TEXTCOLOR", (2, r), (2, r),
+                      colors.HexColor("#1a7a3a") if ok else colors.HexColor("#b3261e")))
+        extra.append(("FONTNAME", (2, r), (2, r), "Helvetica-Bold"))
+    tb.setStyle(TableStyle(extra))
+    return [Paragraph("Quadro de verificacoes", ss["Secao"]),
+            Paragraph("Utilizacao = solicitacao / resistencia. Um elemento ATENDE quando "
+                      "util &le; 1,0. Este quadro e a sintese; o memorial de cada modulo "
+                      "detalha o calculo que produziu cada numero.", ss["Intro"]),
+            tb, Spacer(1, 5 * mm)]
+
+
+def _resultado_modulo(corpo):
+    """Extrai um destaque de RESULTADO do corpo do memorial de um modulo (a ultima
+    utilizacao/veredito que aparecer), para o cabecalho didatico da secao."""
+    m = re.findall(r"(u(?:tilizacao|_max|til)?|interacao)\s*[=:]?\s*([0-9]+[.,][0-9]+)",
+                   corpo, flags=re.IGNORECASE)
+    veredito = None
+    if re.search(r"NAO ATENDE|REPROVA|NAO PASSA", corpo):
+        veredito = "requer atencao"
+    elif re.search(r"\bOK\b|ATENDE|PASSA|APROVAD", corpo):
+        veredito = "atende"
+    if m:
+        return "utilizacao ~ %s%s" % (_vg(m[-1][1]), " (%s)" % veredito if veredito else "")
+    return veredito or ""
+
+
+def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO", spec=None):
+    """Le out_dir/MEMORIAL-CONSOLIDADO.txt e escreve um PDF DIDATICO: capa, premissas,
+    levantamento de cargas, quadro de verificacoes e, por modulo, METODO + memorial.
+    Se `spec` for dado, inclui as secoes de premissas e cargas. Retorna o path."""
     cons = os.path.join(out_dir, "MEMORIAL-CONSOLIDADO.txt")
     if not os.path.exists(cons):
         raise FileNotFoundError("MEMORIAL-CONSOLIDADO.txt nao encontrado em %s "
@@ -293,19 +513,41 @@ def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO"):
                         "conferencia.", ss["Nota"]),
               PageBreak()]
 
-    # ---- PREAMBULO / QUADRO DE VERIFICACOES ----
-    if preamb:
+    # ---- COMO LER ESTE MEMORIAL ----
+    fluxo += [Paragraph("Como ler este memorial", ss["Secao"]),
+              Paragraph("Este documento e organizado do geral para o detalhe: (1) as "
+                        "<b>premissas</b> e os dados de entrada; (2) o <b>levantamento de "
+                        "cargas</b>, mostrando de onde vem cada acao e por onde ela desce "
+                        "na estrutura; (3) o <b>quadro de verificacoes</b>, a sintese do "
+                        "que atende; e (4) o <b>memorial por modulo</b>, cada um com o "
+                        "METODO (norma e procedimento, passo a passo) seguido do CALCULO "
+                        "com os numeros. A utilizacao (util) e sempre solicitacao dividida "
+                        "por resistencia: <b>util &le; 1,0 = ATENDE</b>.", ss["Intro"]),
+              Spacer(1, 4 * mm)]
+
+    # ---- PREMISSAS + LEVANTAMENTO DE CARGAS (didaticos; exigem o spec) ----
+    if spec:
+        try:
+            fluxo += _dados_entrada_flow(spec, ss)
+            fluxo += _cargas_flow(spec, out_dir, ss)
+            fluxo.append(PageBreak())
+        except Exception:
+            pass
+
+    # ---- QUADRO DE VERIFICACOES (colorido) ----
+    q = _quadro_flow(preamb, ss) if preamb else []
+    if q:
+        fluxo += q
+    elif preamb:
         fluxo += [Paragraph("Resumo e quadro de verificacoes", ss["Secao"]),
-                  Preformatted(preamb, ss["Mono"]),
-                  Spacer(1, 4 * mm)]
+                  Preformatted(preamb, ss["Mono"]), Spacer(1, 4 * mm)]
 
     # ---- INDICE ----
     if secoes:
         fluxo += [Paragraph("Indice dos modulos", ss["Secao"])]
-        linhas_idx = [[t] for t, _ in secoes]
+        linhas_idx = [[Paragraph(t, ss["Cell"])] for t, _ in secoes]
         tb = Table(linhas_idx, colWidths=[170 * mm])
         tb.setStyle(TableStyle([
-            ("FONT", (0, 0), (-1, -1), "Helvetica", 9),
             ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#12395b")),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ("TOPPADDING", (0, 0), (-1, -1), 2),
@@ -315,13 +557,17 @@ def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO"):
 
     # ---- SECOES: METODO + MEMORIAL ----
     for titulo_sec, corpo in secoes:
-        bloco = [Paragraph(titulo_sec, ss["Secao"]),
-                 Paragraph("METODO", ss["MetodoTit"]),
-                 Paragraph(_metodo_para(titulo_sec), ss["Metodo"]),
-                 Spacer(1, 2 * mm),
-                 Paragraph("CALCULO (memorial)", ss["MetodoTit"])]
+        res_hl = _resultado_modulo(corpo or "")
+        cab = [Paragraph(titulo_sec, ss["Secao"])]
+        if res_hl:
+            cab.append(Paragraph("Resultado: %s" % res_hl, ss["Nota"]))
+        cab += [Paragraph("METODO (norma e procedimento)", ss["MetodoTit"]),
+                Paragraph(_metodo_para(titulo_sec), ss["Metodo"]),
+                Spacer(1, 2 * mm),
+                Paragraph("CALCULO (memorial &mdash; numeros do dimensionamento)",
+                          ss["MetodoTit"])]
         # KeepTogether so no cabecalho+metodo; corpo pode quebrar de pagina
-        fluxo.append(KeepTogether(bloco))
+        fluxo.append(KeepTogether(cab))
         fluxo.append(Preformatted(corpo or "(sem conteudo)", ss["Mono"]))
         fluxo.append(Spacer(1, 5 * mm))
 
@@ -338,7 +584,7 @@ def gerar_de_spec(spec, out_dir, pdf_path=None, titulo=None):
     g = spec.get("geometria", {})
     if titulo is None:
         titulo = "GALPAO %sx%s m" % (g.get("comprimento", "?"), g.get("span", "?"))
-    return gerar_pdf(out_dir, pdf_path, titulo=titulo)
+    return gerar_pdf(out_dir, pdf_path, titulo=titulo, spec=spec)
 
 
 if __name__ == "__main__":

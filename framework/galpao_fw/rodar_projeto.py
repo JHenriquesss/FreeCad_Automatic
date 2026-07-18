@@ -348,7 +348,8 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
             import relatorio_calculo as RC
             g = spec.get("geometria", {})
             pdf = RC.gerar_pdf(out_dir, titulo="GALPAO %sx%s m"
-                               % (g.get("comprimento", "?"), g.get("span", "?")))
+                               % (g.get("comprimento", "?"), g.get("span", "?")),
+                               spec=spec)
             spec.setdefault("estrutura", {})["memorial_pdf"] = pdf
             _log(f"[2/4] Memorial PDF -> {pdf}")
         except Exception as ex:

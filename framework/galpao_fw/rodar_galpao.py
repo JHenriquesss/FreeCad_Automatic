@@ -260,7 +260,8 @@ def rodar(params, out_dir):
     res["sismo_E_portico_kN"] = round(E_frame, 2)
     # Gate 5 - vento (transversal + longitudinal)
     save("gate5-vento.txt", vento.relatorio_pt(vento.compute(
-        larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]))))
+        larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]),
+        abertura_dominante=_abert)))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
                                     ca=params.get("ca_arrasto", 1.2))
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
@@ -295,6 +296,16 @@ def rodar(params, out_dir):
         res["atende"] = True
         if ap.get("lim_flecha"):
             res["flecha_util"] = round(ap["drift"] / ap["lim_flecha"], 2)
+        # REGENERA o memorial do portico com as SECOES ADOTADAS. Os gates gate6-*
+        # foram salvos ANTES do redimensionamento (secoes-semente), reportando um
+        # drift/esforcos do frame que NAO e o adotado (ex.: drift 182 mm da semente
+        # vs 26 mm do adotado). Apos a adocao, gp/est estao nas secoes que ATENDEM.
+        # So no caminho prismatico (tapered mantem o memorial do rafter de alma
+        # variavel capturado antes do reset do redim).
+        if not segs_tapered and not segs_col_tapered:
+            a_gp = gp.analyse()
+            save("gate6-portico.txt", gp.memoria_pt(a_gp))
+            save("gate6-2a-ordem.txt", est.memoria_pt(a))
     else:
         sc["perfil_col"] = perfis.PERFIS["HEA200"]
         sc["perfil_raf"] = perfis.PERFIS["HEA180"]
@@ -307,6 +318,22 @@ def rodar(params, out_dir):
     # Gate 7 - mao-francesa
     slope = (g["ridge"] - g["eave"]) / (g["span"] / 2.0)
     n_terca = params["terca"].get("n_por_agua", 3)
+    # AUTO-DIMENSIONA o n de tercas/agua: o espacamento das tercas e o VAO da telha;
+    # sob a sucao local de vento a telha exige vao <= vao_max. Sobe n_terca ate
+    # esp_terca <= vao_max (cap 12). Propaga em params -> terca, telha, Lb do rafter e 3D.
+    if params.get("telha"):
+        _w_agua = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])
+        _vt = vento.compute(larg_b=g["span"], alt_h=g["eave"],
+                            comp_a=g.get("comprimento", 2 * g["span"]))
+        _tc = dict(params["telha"].get("cfg", {}))
+        _tc["W_sucao"] = _vt["local"]["p_local_cob_kN_m2"]
+        _tc["Q"] = params["cargas"].get("Q", 0.25)
+        _vmax = telha.vao_max(params["telha"]["perfil"], _tc)["vao_max_m"]
+        if _vmax and _vmax > 0:
+            _need = int(math.ceil(_w_agua / _vmax - 1e-6))
+            if _need > n_terca:
+                n_terca = min(_need, 12)
+                params["terca"] = dict(params["terca"]); params["terca"]["n_por_agua"] = n_terca
     cbm = max(a["combos"], key=lambda r: abs(r.get("viga", {}).get("Msd", 0) or
                   max(r.get(f"viga_{j}_{s}", {}).get("Msd", 0) for j in range(gp.N_VAOS) for s in ("E","D"))))
     cbm_v = cbm.get("viga", cbm.get("viga_0_E", cbm.get("viga_0_D", {"Nsd":0,"Msd":0,"Vsd":0})))
@@ -434,10 +461,29 @@ def rodar(params, out_dir):
                * (g["ridge"] - g["eave"]) * trib_tir)
     Nsd_tirante = max(N_tir_d, float(cb.get("Nsd_tirante", 0.0)))
     res["Nsd_tirante_kN"] = round(Nsd_tirante, 2)
+    # AUTO-DIMENSIONA a bitola do contravento (parede+cobertura): menor diametro
+    # padrao de barra redonda (mm) que faz AMBAS as diagonais passarem a tracao.
+    # Antes era fixo em d20 e reprovava sob vento alto -> agora sobe a escada.
+    _ROSCAS_MM = [20, 22, 25, 27, 32, 36, 40, 45, 50]
+    _d0 = cb["d_contrav"] * 1000.0
+    d_ctv = cb["d_contrav"]
+    for _dmm in _ROSCAS_MM:
+        if _dmm < _d0:
+            continue
+        _d = _dmm / 1000.0
+        _bp = ctv.verifica_barra("_", _d, fyb, fub, Ndp, Ldp, pretensionada=True)
+        _bc = ctv.verifica_barra("_", _d, fyb, fub, Ndc, Ldc, pretensionada=True)
+        if _bp["OK"] and _bc["OK"]:
+            d_ctv = _d
+            break
+    else:
+        d_ctv = _ROSCAS_MM[-1] / 1000.0            # esgotou a escada: adota a maior
+    cb["d_contrav"] = d_ctv                          # propaga p/ o gusset e o build
+    _dtxt = "d%.0f" % (d_ctv * 1000.0)
     barras = [
-        ctv.verifica_barra("Contravento de parede (d20)", cb["d_contrav"], fyb, fub,
+        ctv.verifica_barra("Contravento de parede (%s)" % _dtxt, d_ctv, fyb, fub,
                            Ndp, Ldp, pretensionada=True),
-        ctv.verifica_barra("Contravento de cobertura (d20)", cb["d_contrav"], fyb, fub,
+        ctv.verifica_barra("Contravento de cobertura (%s)" % _dtxt, d_ctv, fyb, fub,
                            Ndc, Ldc, pretensionada=True),
         ctv.verifica_barra("Tirante de cobertura (d16)", cb["d_tirante"], fyb, fub,
                            Nsd_tirante, g["bay"] / 2.0, pretensionada=True),
@@ -670,8 +716,24 @@ def rodar(params, out_dir):
         # dessa face vertical (m); 0,0 p/ calha de beiral sem platibanda.
         _cal = params["calha"]
         h_elev_calha = _cal.get("h_elevacao", 0.0) if isinstance(_cal, dict) else 0.0
-        rca = calhas.dimensiona(g["comprimento"], agua, h_elevacao=h_elev_calha,
-                                I_mm_h=params.get("chuva_I_mm_h", 150.0))
+        # AUTO-DIMENSIONA a secao da calha (B x H): sobe a secao ate drenar a vazao
+        # de projeto (hidraulica + borda livre 25% + regra de Bellei 1 cm2/m2 de
+        # telhado). Antes era fixa 100x80 mm e reprovava sob area/chuva grandes.
+        _cand_bh = [(0.10, 0.08), (0.15, 0.10), (0.20, 0.12), (0.20, 0.15),
+                    (0.25, 0.15), (0.25, 0.20), (0.30, 0.20), (0.30, 0.25),
+                    (0.35, 0.25), (0.40, 0.30)]
+        rca = None
+        for _bb, _hh in _cand_bh:
+            _r = calhas.dimensiona(g["comprimento"], agua, h_elevacao=h_elev_calha,
+                                   I_mm_h=params.get("chuva_I_mm_h", 150.0),
+                                   B_base=_bb, H_calha=_hh)
+            if _r["ok"]:
+                rca = _r
+                break
+        if rca is None:                                   # esgotou a escada de secoes
+            rca = calhas.dimensiona(g["comprimento"], agua, h_elevacao=h_elev_calha,
+                                    I_mm_h=params.get("chuva_I_mm_h", 150.0),
+                                    B_base=0.40, H_calha=0.30)
         save("gate-calha.txt", calhas.relatorio_pt(rca))
         res["calha"] = {"vazao_Lmin": rca["vazao_Lmin"],
                         "B_mm": rca["secao"].get("B_base_m", 0) * 1000,
@@ -1273,7 +1335,10 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("8. CONTRAVENTAMENTO", "gate7-contraventamento.txt"),
              ("8b. GUSSET DE CONTRAVENTO", "gate7-gusset.txt"),
              ("9. VERGA DA PORTA", "gate7-verga.txt"),
-             ("10. BASE", "gate7-base.txt"), ("11. SAPATA (FUNDACAO)", "gate7-fundacao.txt"),
+             ("10. BASE", "gate7-base.txt"),
+             ("11. %s (FUNDACAO)" % ("BLOCO DE CONCRETO SIMPLES"
+                 if params.get("fundacao", {}).get("tipo") == "bloco" else "SAPATA"),
+              "gate7-fundacao.txt"),
              ("11b. VIGA DE BALDRAME", "gate7-baldrame.txt"),
              ("11c. FUNDACAO PROFUNDA (ESTACA)", "gate7-estaca.txt"),
              ("11d. TRAVAMENTO TRANSVERSAL (CINTA)", "gate7-travamento-transversal.txt"),
@@ -1337,7 +1402,9 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Tesoura (trelica)", _uokd("tesoura", "u_max", "OK")),
                   ("Flecha portico", res.get("flecha_util")),
                   ("Base (placa+chumbador)", _uok("base_util", "base_ok")),
-                  ("Sapata (fundacao)", _uok("sapata_util", "sapata_ok")),
+                  ("Bloco (fundacao)" if (res.get("sapata_adotada") or {}).get("tipo")
+                   == "bloco" else "Sapata (fundacao)",
+                   _uok("sapata_util", "sapata_ok")),
                   ("Joelho", res.get("joelho_util")),
                   ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
                   ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
