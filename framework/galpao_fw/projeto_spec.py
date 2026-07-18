@@ -274,6 +274,63 @@ def validar(spec):
         faltando.append(("cobertura.aguas",
                          "telhado de 1 agua (shed) MULTI-VAO (dente-de-serra) ainda "
                          "nao suportado; use 1 vao ou 2 aguas."))
+    # --- COERENCIA geometrica / fisica. O wizard deriva e faz faixa (caminho
+    # guiado seguro), mas o caminho SPEC-DIRETO (carregar_spec/JSON editado) so
+    # checava PENDENTE: geometria degenerada (span<0, ridge<=eave, slope<=0,
+    # V0=0, aguas invalido, abertura > fachada) era CERTIFICADA como ATENDE - o
+    # pior modo de falha de uma ferramenta de certificacao. Bloqueia aqui. So
+    # valida valores JA decididos (concretos); PENDENTE fica com a checagem acima.
+    def _num(path):
+        v = _get(spec, path)
+        return v if (isinstance(v, (int, float)) and not isinstance(v, bool)) else None
+    for path, desc in (("geometria.span", "vao transversal"),
+                       ("geometria.comprimento", "comprimento"),
+                       ("geometria.eave", "pe-direito/beiral"),
+                       ("geometria.bay", "espacamento de porticos")):
+        v = _num(path)
+        if v is not None and v <= 0:
+            faltando.append((path, "%s deve ser > 0 (recebido %g)" % (desc, v)))
+    if isinstance(_sp, (list, tuple)):
+        for i, sv in enumerate(_sp):
+            if not (isinstance(sv, (int, float)) and not isinstance(sv, bool)) or sv <= 0:
+                faltando.append(("geometria.spans[%d]" % i,
+                                 "largura de cada vao deve ser > 0 (recebido %r)" % (sv,)))
+    _slope = _num("cobertura.slope")
+    if _slope is not None and _slope <= 0:
+        faltando.append(("cobertura.slope",
+                         "inclinacao deve ser > 0: telhado plano nao drena e invalida "
+                         "o vento de cobertura NBR 6123 (recebido %g)" % _slope))
+    _ridge = _num("geometria.ridge"); _eave = _num("geometria.eave")
+    if _ridge is not None and _eave is not None and _ridge <= _eave:
+        faltando.append(("geometria.ridge",
+                         "cumeeira (%.2f m) deve ser > beiral (%.2f m); ridge<=eave = "
+                         "telhado plano/invertido (geometria impossivel)" % (_ridge, _eave)))
+    if isinstance(aguas, int) and aguas not in (1, 2):
+        faltando.append(("cobertura.aguas",
+                         "numero de aguas=%d invalido (use 1=shed ou 2=simetrico)" % aguas))
+    _v0 = _num("vento.v0")
+    if _v0 is not None and _v0 < 30.0:
+        faltando.append(("vento.v0",
+                         "V0=%g m/s abaixo do minimo do mapa de isopletas NBR 6123 "
+                         "(~30 m/s); confira o dado de sitio" % _v0))
+    # aberturas nao podem exceder a envoltoria (portao/janela > fachada e Cpi de
+    # abertura dominante sem sentido fisico). Dims em mm; envelope generoso
+    # (largura <= maior dim em planta; altura <= cumeeira) p/ nao vetar projeto real.
+    _ab = spec.get("aberturas")
+    if isinstance(_ab, dict) and _ridge and (_eave or _num("geometria.span")):
+        _wmax_mm = max(_num("geometria.span") or 0.0,
+                       _num("geometria.comprimento") or 0.0) * 1000.0
+        _hmax_mm = _ridge * 1000.0
+        for _k, _v in _ab.items():
+            if isinstance(_v, (list, tuple)) and len(_v) >= 2 \
+                    and all(isinstance(x, (int, float)) for x in _v[:2]):
+                _w, _h = _v[0], _v[1]
+                if _wmax_mm and _w > _wmax_mm:
+                    faltando.append(("aberturas." + _k,
+                                     "largura %.0f mm excede a fachada (%.0f mm)" % (_w, _wmax_mm)))
+                if _hmax_mm and _h > _hmax_mm:
+                    faltando.append(("aberturas." + _k,
+                                     "altura %.0f mm excede a cumeeira (%.0f mm)" % (_h, _hmax_mm)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
