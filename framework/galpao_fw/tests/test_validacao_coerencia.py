@@ -342,6 +342,22 @@ def test_plataforma_dims_nao_positivas_bloqueiam():
     assert _bloqueado_em(s, "plataforma.q_perm")
 
 
+def test_z_abaixo_da_cumeeira_avisa_nao_bloqueia():
+    # z do vento abaixo da cumeeira SUB-representa o S2 (nao-conservador) -> AVISO,
+    # nao bloqueio. O wizard usa z=ridge; so o spec-direto desincroniza.
+    s = _base()
+    s["vento"]["z"] = s["geometria"]["eave"]     # 8 m < ridge 9,5 m
+    r = PS.validar(s)
+    assert r["ok"], r["faltando"]
+    assert any(p == "vento.z" for p, _ in r["avisos"]), r["avisos"]
+
+
+def test_z_igual_ridge_nao_avisa():
+    s = _base()                                  # amostra ja tem z = ridge = 9,5
+    r = PS.validar(s)
+    assert not any(p == "vento.z" for p, _ in r["avisos"])
+
+
 def test_opcionais_validos_passam():
     s = _base()
     s["neve"] = {"sk": 0.5, "Ce": 1.0, "Ct": 1.0}
