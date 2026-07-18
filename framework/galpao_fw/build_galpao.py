@@ -962,18 +962,17 @@ def build(doc):
                 rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz),
                     16, f"TIRANTE_S{j:02d}_D_{t}_{s:02d}")
 
-    # Maos-francesas: contencao da mesa inferior da viga (sob succao de vento).
+    # Maos-francesas: contencao LATERAL da mesa inferior da viga (sob succao de
+    # vento). A geometria (mesa inferior -> terca, com offset LONGITUDINAL em X que
+    # trava a mesa FORA do plano do portico) esta no modulo PURO mao_francesa_geom,
+    # testado sem FreeCAD. Bug historico: o braco ficava em X CONSTANTE (plano do
+    # portico), apontando p/ baixo sem tocar a terca -> nao travava a FLT. Ver
+    # Bellei Fig 8.16/8.17 e test_mao_francesa_geom.
+    import mao_francesa_geom as mfg
     brace_k = [k for k in range(1, n_terca) if k % MF_STRIDE == 0]
-    for x in axes:
-        c = 0
-        for j in range(nv):
-            y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]
-            for k in brace_k:
-                for y, sgn in ((y0 + (yrj - y0) * k / n_terca, +1),
-                               (y1 - (y1 - yrj) * k / n_terca, -1)):
-                    c += 1; zt = rafter_z(y)
-                    rod(doc, (x, y, zt - 90), (x, y + sgn * 300, zt - 250), 16,
-                        f"MAO_FRANCESA_S{j:02d}_{int(x)//1000:02d}_{c:02d}")
+    for p1, p2, nm in mfg.segmentos(axes, cols_y, ridges_y, n_terca, brace_k,
+                                    RAF_SEC[0], POFF, rafter_z, theta=_theta):
+        rod(doc, p1, p2, 16, nm)
 
     # Contraventamento so-tracao (barras redondas) nos vaos de extremidade. Cada
     # diagonal recebe um ESTICADOR (lanterna) no meio; cada canto do painel recebe
