@@ -66,5 +66,13 @@ regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 pas
 | `test_shed.py` | `cpe_telhado_1agua` sucção; frame shed 2 colunas alturas diferentes/sem cumeeira; gravidade+vento equilíbrio+uplift; 1 vão valida / multi-vão bloqueia; pipeline 2 colunas distintas |
 | `test_validacao_alonso.py` | **VALIDAÇÃO DE SISTEMA**: sapata σ_solo 0,5% (Alonso 18º); B×L exato (cap.9); bloco h/β/σt exato; pilar NBR 8800 N_Rd 0,1% (Bellei A.6); vento q exato (D57) |
 
+## Caça de bugs — sessão 2026-07-18 (ver [[06-open-threads#T16]])
+| arquivo | assere |
+|---|---|
+| `test_validacao_coerencia.py` (49) | `validar` BLOQUEIA todo input degenerado: span<0, ridge≤eave, slope≤0, aguas∉{1,2}, V0<30/>60, abertura>fachada, sigma_solo∉[30,2000], span>120, ponte (Q/vão>0, aprox_min<vão, n_rodas, frações, phi≥1), tesoura (h>0, n_paineis par&≥2), fundação (fck/fyk>0, mu≥0, gamma_f≥1), vento-enums (cat I-V, classe A/B/C), estaca (tipo AokiVelloso, D/L>0, SPT N≥0/dz>0), baldrame b/h>0, terreno frações [0,1], opcionais (neve/fogo/escada/plataforma); **AVISO** z<ridge (não bloqueia) (D58/D61) |
+| `test_wizard_robustez.py` (6) | `_ask_one` não trava em entrada vazia/EOF (RuntimeError, cap 100); `construir_spec` ValueError claro p/ obrigatório faltando |
+| `test_mao_francesa_geom.py` (5) | **guarda permanente**: `mao_francesa_geom.segmentos` liga mesa inf→terça com componente X≠0 (fora do plano); Y constante; sobe da mesa inf à terça; ângulo 20–70° (D59) |
+| `test_tesoura_lby_inf.py` (3) | `Lb_y_inf=None` back-compat; espaçamento real do travamento do banzo inferior PENALIZA a util sob uplift (0,52→3,18) (D60) |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).

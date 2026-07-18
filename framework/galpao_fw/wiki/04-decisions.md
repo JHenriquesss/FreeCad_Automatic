@@ -464,5 +464,46 @@ NBR 8800 N_Rd **0,1%** (2503→2506 kN); vento q **exato** (0,787 kN/m²). Confi
 fix de sinal (N>0=compressão chega correto na fundação). `tests/test_validacao_alonso.py`;
 memória `validacao-sistema-alonso`.
 
+## D58 — validação de coerência no GATE, não só no wizard (2026-07-18)
+Caça sessão 14 achou que `projeto_spec.validar` só checava PENDENTE/enums, não coerência física.
+O caminho SPEC-DIRETO (`carregar_spec`/JSON) CERTIFICAVA lixo como `atende_global=True` (span<0,
+ridge≤eave, slope≤0, V0=0, sigma_solo=5000→fundação subdimensionada) ou crashava (eave=0, vao_ponte=0).
+As faixas duras do wizard (`_checa_faixa` banda "erro") só rodavam no terminal → assimetria
+contra-segurança. **Decisão:** mover TODA a coerência/plausibilidade p/ `validar` (o gate que ambos
+os caminhos atravessam). Cobre geometria, física, ponte, tesoura, fundação (fck/fyk/mu/gamma_f),
+vento-enums (cat I-V, classe A/B/C), estaca (tipo AokiVelloso, D/L, SPT), baldrame, cargas, terreno,
+opcionais. Bloqueia (não avisa) valores impossíveis. `tests/test_validacao_coerencia.py` (49).
+PRs #13/#16/#18. Ver [[06-open-threads#T16]].
+
+## D59 — mão-francesa: geometria 3D estava no plano ERRADO (2026-07-18)
+A mão-francesa (flange brace) deve travar a mesa INFERIOR do rafter LATERALMENTE (fora do plano do
+pórtico) sob sucção — o movimento da FLT (Bellei Fig 8.16/8.17, confirmado NotebookLM). O desenho
+em `build_galpao` a punha em X CONSTANTE (plano do pórtico), apontando p/ baixo sem tocar a terça:
+não travava nada. **Cálculo (`mao_francesa.py`) sempre correto** (inversão da interação); só a
+geometria 3D errada. **Decisão:** extrair a geometria p/ módulo PURO `mao_francesa_geom.py`
+(mesa inf → terça, offset LONGITUDINAL X, ~45°), testável sem FreeCAD. Guarda permanente
+`test_mao_francesa_geom` exige `dx=|p2.x−p1.x|>0`. Executivo 2D projeta/recorta o 3D → herda o fix.
+PR #15.
+
+## D60 — tesoura: banzo INFERIOR sob uplift + Lb_y_inf (2026-07-18)
+Sob uplift o banzo inferior COMPRIME e só trava fora do plano onde há mão-francesa (Bellei Fig 5.9).
+`verifica_tesoura` usava `Lbar` (1 painel) = assume TODO nó travado (OTIMISTA, possível
+não-conservador). **Decisão:** expor `cfg["Lb_y_inf"]` (espaçamento REAL dos travamentos);
+back-compat (`None`=comportamento antigo) + o relatório DECLARA a premissa. Demo: `Lb_y_inf=8m` →
+util do banzo inferior 0,52→3,18. `test_tesoura_lby_inf`. PR #19.
+
+## D61 — z do vento < cumeeira: aviso, não bloqueio (2026-07-18)
+`to_rodar_params` usa `v.get("z", ridge)`; spec-direto pode setar z<ridge (S2 cresce com z →
+sub-representa o vento, não-conservador). **Decisão:** AVISO em `validar` (não bloqueia; vai p/ a
+memória de cálculo/ART) quando z<ridge−0,05. Wizard sempre usa z=ridge. `_CFG` global do vento
+NÃO é bug (`rodar_galpao:140` faz `vento.reset()` por projeto). PR #19.
+
+## D62 — ponte/fadiga Anexo K verificado; escopo K.4b (2026-07-18)
+NotebookLM confirmou verbatim vs NBR 8800: fadiga K.4a `σ_SR=(327·Cf/N)^0,333` (327=6,89476³ ksi→MPa),
+toda a Tabela K.1 (Cf/σ_TH A..E'), B.7.3.4 (vertical+impacto + 50% horizontal). **Nada a mudar no
+motor da ponte.** Exceção K.4b (parafuso/barra rosqueada: Cf=E'(3,9e8) mas σ_TH=D(48)) é cláusula
+separada, fora do escopo da viga de rolamento — não coberta, documentada. Gap era só coerência de
+entrada (ver [[#D58]]). PR #16.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
