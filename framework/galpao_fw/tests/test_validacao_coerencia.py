@@ -229,3 +229,74 @@ def test_tesoura_n_paineis_zero_bloqueia():
     # 0 e PAR mas degenera a trelica (ZeroDivisionError no motor)
     s = _base_tesoura(); s["estrutura"]["trelica"]["n_paineis"] = 0
     assert _bloqueado_em(s, "estrutura.trelica.n_paineis")
+
+
+# --- varredura consolidada: materiais de fundacao, enums de vento, estaca ----
+def test_fundacao_materiais_nao_positivos_bloqueiam():
+    for campo in ("fck", "fyk", "cobrimento", "phi_barra"):
+        s = _base(); s["fundacao"][campo] = 0.0
+        assert _bloqueado_em(s, "fundacao." + campo), campo
+
+
+def test_fundacao_gamma_f_menor_que_um_bloqueia():
+    s = _base(); s["fundacao"]["gamma_f"] = 0.9
+    assert _bloqueado_em(s, "fundacao.gamma_f")
+
+
+def test_fundacao_mu_negativo_bloqueia():
+    s = _base(); s["fundacao"]["mu"] = -0.5
+    assert _bloqueado_em(s, "fundacao.mu")
+
+
+def test_vento_cat_invalida_bloqueia():
+    s = _base(); s["vento"]["cat"] = "X"
+    assert _bloqueado_em(s, "vento.cat")
+
+
+def test_vento_classe_invalida_bloqueia():
+    s = _base(); s["vento"]["classe"] = "Z"
+    assert _bloqueado_em(s, "vento.classe")
+
+
+def test_vento_enums_validos_passam():
+    for cat in ("I", "II", "III", "IV", "V"):
+        s = _base(); s["vento"]["cat"] = cat
+        assert PS.validar(s)["ok"], cat
+
+
+def test_baldrame_secao_nao_positiva_bloqueia():
+    s = _base(); s["baldrame"] = {"b": 0.0, "h": 0.4, "q_parede": 5.0}
+    assert _bloqueado_em(s, "baldrame.b")
+
+
+# --- estaca (fundacao profunda) ----------------------------------------------
+def _base_estaca():
+    s = _base()
+    s["fundacao"]["tipo"] = "estaca"
+    s["fundacao"]["estaca"] = {
+        "perfil_spt": [{"tipo": "argila_siltosa", "N": 12, "dz": 8.0}],
+        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 10.0, "FS": 3.0}
+    return s
+
+
+def test_estaca_valida_passa():
+    r = PS.validar(_base_estaca())
+    assert r["ok"], r["faltando"]
+
+
+def test_estaca_tipo_invalido_bloqueia():
+    s = _base_estaca(); s["fundacao"]["estaca"]["tipo_estaca"] = "inventada"
+    assert _bloqueado_em(s, "fundacao.estaca.tipo_estaca")
+
+
+def test_estaca_D_L_nao_positivos_bloqueiam():
+    for k in ("D", "L"):
+        s = _base_estaca(); s["fundacao"]["estaca"][k] = 0.0
+        assert _bloqueado_em(s, "fundacao.estaca." + k), k
+
+
+def test_estaca_spt_degenerado_bloqueia():
+    s = _base_estaca(); s["fundacao"]["estaca"]["perfil_spt"][0]["dz"] = 0.0
+    assert _bloqueado_em(s, "fundacao.estaca.perfil_spt")
+    s = _base_estaca(); s["fundacao"]["estaca"]["perfil_spt"][0]["N"] = -5
+    assert _bloqueado_em(s, "fundacao.estaca.perfil_spt")

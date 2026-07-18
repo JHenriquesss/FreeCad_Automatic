@@ -199,6 +199,30 @@ def validar(spec):
                             ("fundacao.estaca.perfil_spt",
                              "tipo de solo '%s' invalido; use um de: %s"
                              % (t, ", ".join(sorted(_ep.TIPOS_SOLO)))))
+                    # SPT: N >= 0 (golpes) e dz > 0 (espessura da camada). dz<=0
+                    # zera o fuste / N<0 e fisicamente impossivel (caca sessao 14).
+                    if isinstance(camada, dict):
+                        _N = camada.get("N"); _dz = camada.get("dz")
+                        if isinstance(_N, (int, float)) and not isinstance(_N, bool) and _N < 0:
+                            faltando.append(("fundacao.estaca.perfil_spt",
+                                             "N-SPT nao pode ser negativo (recebido %g)" % _N))
+                        if isinstance(_dz, (int, float)) and not isinstance(_dz, bool) and _dz <= 0:
+                            faltando.append(("fundacao.estaca.perfil_spt",
+                                             "espessura de camada dz deve ser > 0 (recebido %g)" % _dz))
+            # tipo de estaca: o motor Aoki-Velloso so aceita a lista fechada (F1/F2).
+            _te = _get(spec, "fundacao.estaca.tipo_estaca")
+            if _te not in (KeyError, None, PENDENTE):
+                import estaca_profunda as _ep2
+                if _te not in _ep2._F1_F2:
+                    faltando.append(("fundacao.estaca.tipo_estaca",
+                                     "tipo de estaca '%s' invalido; use um de: %s"
+                                     % (_te, ", ".join(sorted(_ep2._F1_F2)))))
+            # geometria da estaca: D (diametro) e L (comprimento) > 0.
+            for _k in ("D", "L"):
+                _v = _get(spec, "fundacao.estaca." + _k)
+                if isinstance(_v, (int, float)) and not isinstance(_v, bool) and _v <= 0:
+                    faltando.append(("fundacao.estaca." + _k,
+                                     "%s da estaca deve ser > 0 (recebido %g)" % (_k, _v)))
     # tipo de portico invalido bloqueia (prismatico|alma_variavel)
     tp = _get(spec, "estrutura.tipo_portico")
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
@@ -401,6 +425,41 @@ def validar(spec):
                      (">= %g%s" % (lo, us) if hi is None else "[%g, %g]%s" % (lo, hi, us)))
             faltando.append((path, "%g%s fora da faixa plausivel (%s); confira o dado "
                              "de sitio/projeto" % (v, us, faixa)))
+    # --- ENUMS de vento (NBR 6123 Tabela 1). cat/classe invalidos crashavam o
+    # s2_factor no MEIO do calculo (ValueError/KeyError) em vez de bloquear limpo.
+    _cat = _get(spec, "vento.cat")
+    if _cat not in (KeyError, None, PENDENTE) and str(_cat) not in ("I", "II", "III", "IV", "V"):
+        faltando.append(("vento.cat", "categoria de rugosidade '%s' invalida (use I..V)" % _cat))
+    _cls = _get(spec, "vento.classe")
+    if _cls not in (KeyError, None, PENDENTE) and str(_cls) not in ("A", "B", "C"):
+        faltando.append(("vento.classe", "classe da edificacao '%s' invalida (use A/B/C)" % _cls))
+    for _p in ("vento.s1", "vento.s3"):
+        _v = _num(_p)
+        if _v is not None and _v <= 0:
+            faltando.append((_p, "fator estatistico deve ser > 0 (recebido %g)" % _v))
+    # --- MATERIAIS da fundacao: resistencias > 0 (fck/fyk=0 dividiam por zero /
+    # davam armadura absurda CERTIFICADA); coeficientes fisicos coerentes.
+    for _p, _desc in (("fundacao.fck", "fck (resistencia do concreto)"),
+                      ("fundacao.fyk", "fyk (escoamento do aco)"),
+                      ("fundacao.cobrimento", "cobrimento"),
+                      ("fundacao.phi_barra", "diametro da barra")):
+        _v = _num(_p)
+        if _v is not None and _v <= 0:
+            faltando.append((_p, "%s deve ser > 0 (recebido %g)" % (_desc, _v)))
+    _mu = _num("fundacao.mu")
+    if _mu is not None and _mu < 0:
+        faltando.append(("fundacao.mu", "coef. de atrito solo-fundacao nao pode ser < 0 (recebido %g)" % _mu))
+    _gf = _num("fundacao.gamma_f")
+    if _gf is not None and _gf < 1.0:
+        faltando.append(("fundacao.gamma_f", "gamma_f (majoracao) deve ser >= 1,0 (recebido %g)" % _gf))
+    # --- BALDRAME (viga de amarracao NBR 6118): secao > 0.
+    _bd = spec.get("baldrame")
+    if isinstance(_bd, dict):
+        for _k in ("b", "h"):
+            _v = _bd.get(_k)
+            if isinstance(_v, (int, float)) and not isinstance(_v, bool) and _v <= 0:
+                faltando.append(("baldrame." + _k,
+                                 "%s do baldrame deve ser > 0 (recebido %g)" % (_k, _v)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
