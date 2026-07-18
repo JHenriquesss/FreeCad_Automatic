@@ -55,7 +55,7 @@ REQUERIDOS_ESTACA = [
     ("fundacao.estaca.perfil_spt", "perfil SPT da sondagem (camadas tipo/N/dz)"),
     ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
 ]
-TIPOS_FUNDACAO = ("sapata", "estaca")
+TIPOS_FUNDACAO = ("sapata", "estaca", "bloco")
 TIPOS_PORTICO = ("prismatico", "alma_variavel", "tesoura")
 
 # Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.
@@ -79,8 +79,10 @@ def novo():
         "slug": P, "descricao": P,
         "terreno": {"kml": P, "area_lote_m2": P, "to_max": P, "ca_max": P,
                     "tp_min": P, "recuos": P, "n_pav": 1, "pts_xy_mm": None},
-        "geometria": {"span": P, "comprimento": P, "eave": P, "ridge": P,
-                      "bay": P, "base_fixed": P},
+        # span = vao transversal (1 vao). Multi-vao: 'spans' = lista de larguras
+        # de vao (m); None/1 item = 1 vao (retro). Cada vao com a mesma inclinacao.
+        "geometria": {"span": P, "spans": None, "comprimento": P, "eave": P,
+                      "ridge": P, "bay": P, "base_fixed": P},
         # chuva_I_mm_h: intensidade pluviometrica local (NBR 10844) p/ dimensionar
         # a calha. Default 150 (A CONFIRMAR regional); nao bloqueia.
         "cobertura": {"aguas": P, "slope": P, "telha_tipo": P, "telha_peso": P,
@@ -121,6 +123,10 @@ def novo():
                               # theta_critica_C (opc; default 550 flagado),
                               # protecao={tipo, espessura, lambda_p? c_p? rho_p?}
                               # (props termicas opc do BOLETIM; default calibrado flagado)}
+        # neve: None (sem neve, default BR) OU dict {sk (carga no solo kN/m2,
+        # regional - Ask-Do-Not-Invent), Ce, Ct, deslizamento_livre}. So relevante
+        # em regioes serranas do Sul (SC/RS). EN 1991-1-3.
+        "neve": None,
         "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
         "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
         "_a_confirmar": [],
@@ -180,6 +186,19 @@ def validar(spec):
                          "FS=%.2f < 3,0 liberado por PROVA DE CARGA estatica (NBR 6122). "
                          "Validade do dimensionamento condicionada a execucao das provas "
                          "na obra - responsabilidade do engenheiro." % fs_est))
+            # tipo de solo da sondagem: o motor (Aoki-Velloso) so aceita a lista
+            # fechada NBR 6122. String invalida passava no validar e so quebrava no
+            # meio da orquestracao (ValueError). Bloqueia aqui. Ver wiki 07 item D.
+            perfil = _get(spec, "fundacao.estaca.perfil_spt")
+            if isinstance(perfil, list):
+                import estaca_profunda as _ep
+                for camada in perfil:
+                    t = isinstance(camada, dict) and camada.get("tipo")
+                    if t and t not in _ep.TIPOS_SOLO:
+                        faltando.append(
+                            ("fundacao.estaca.perfil_spt",
+                             "tipo de solo '%s' invalido; use um de: %s"
+                             % (t, ", ".join(sorted(_ep.TIPOS_SOLO)))))
     # tipo de portico invalido bloqueia (prismatico|alma_variavel)
     tp = _get(spec, "estrutura.tipo_portico")
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
@@ -239,6 +258,22 @@ def validar(spec):
                                "condutividade lambda_p da protecao '%s' ausente -> "
                                "usando valor TIPICO calibrado. CONFIRMAR com o "
                                "BOLETIM tecnico do fabricante." % prot["tipo"]))
+    # neve: carga no solo sk e regional (Ask-Do-Not-Invent). Se ha bloco de neve
+    # sem sk, avisa (nao bloqueia; default = sem neve).
+    nv = spec.get("neve")
+    if isinstance(nv, dict) and not nv.get("sk"):
+        avisos.append(("neve.sk", "bloco de neve sem 'sk' (carga no solo kN/m2) - "
+                       "dado REGIONAL (EN 1991-1-3 / mapa local). Sem sk = sem neve."))
+    # cobertura de 1 agua (shed): suportada para 1 VAO (portico assimetrico, colunas
+    # de alturas diferentes). Multi-vao de 1 agua (dente-de-serra) ainda NAO -> so
+    # esse caso bloqueia (evita modelo errado).
+    aguas = _get(spec, "cobertura.aguas")
+    _sp = _get(spec, "geometria.spans")
+    _nv = len(_sp) if isinstance(_sp, (list, tuple)) else 1
+    if aguas == 1 and _nv > 1:
+        faltando.append(("cobertura.aguas",
+                         "telhado de 1 agua (shed) MULTI-VAO (dente-de-serra) ainda "
+                         "nao suportado; use 1 vao ou 2 aguas."))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
@@ -270,6 +305,78 @@ def resumo_pt(spec):
     return "\n".join(L)
 
 
+# ---- carga de parede (caminho de carga fisico) ------------------------------
+def cargas_parede(fechamento, eave, bay, telha_peso=0.10):
+    """Peso da parede de fechamento no caminho de carga FISICO. Pura (testavel).
+    eave/bay em m; peso em kN/m2. Retorna kN:
+      w_col_kN_m        fechamento LEVE (telha/painel) pendurado nas longarinas ->
+                        UDL vertical na coluna externa [kN/m de altura de coluna]
+      w_masonry_kN_m    ALVENARIA autoportante -> carga linear no baldrame [kN/m]
+      N_masonry_ext_kN  ALVENARIA -> reacao vertical na fundacao por coluna externa [kN]
+
+    Caminhos SEPARADOS (fisicamente corretos):
+    - telha/painel leve: pendura na estrutura -> coluna de aco -> base -> fundacao.
+    - alvenaria autoportante: desce pela viga de BALDRAME -> sapatas; NAO carrega a
+      coluna de aco (so estabiliza a fundacao contra uplift).
+    - alvenaria_telha: alvenaria (ate altura_alvenaria) -> baldrame/fundacao; telha
+      acima -> coluna.
+    As paredes longitudinais descarregam nos DOIS pilares externos (tributaria =
+    'bay'). Antes o peso era coletado e IGNORADO (contra-seguranca); o passo anterior
+    somava tudo na coluna (conservador); aqui rota-se corretamente, ja que o sinal
+    de reacao do frame2d foi consertado."""
+    fe = fechamento or {}
+    tipo = fe.get("tipo", "telha")
+    peso = fe.get("peso") or 0.0
+    h_alv = fe.get("altura_alvenaria") or 0.0
+    P_light = 0.0                                     # leve por coluna externa [kN]
+    w_mas = 0.0                                       # alvenaria linear [kN/m]
+    if tipo in ("telha", "aberto", None):
+        P_light = (peso * eave) * bay                 # leve em toda a altura -> coluna
+    elif tipo == "alvenaria":
+        h = h_alv if h_alv > 0 else eave              # alvenaria cheia ate o beiral
+        w_mas = peso * h                              # -> baldrame/fundacao (nao coluna)
+    elif tipo == "alvenaria_telha":
+        h = h_alv if h_alv > 0 else eave / 2.0        # meia-parede (default)
+        w_mas = peso * h                              # alvenaria -> fundacao
+        h_telha = max(0.0, eave - h)
+        P_light = (telha_peso * h_telha) * bay        # telha acima -> coluna
+    else:
+        P_light = (peso * eave) * bay                 # tipo desconhecido: conservador
+    w_col = (P_light / eave) if eave > 0 else 0.0
+    return {"w_col_kN_m": round(w_col, 4),
+            "w_masonry_kN_m": round(w_mas, 3),
+            "N_masonry_ext_kN": round(w_mas * bay, 3)}
+
+
+# ---- aberturas: convencao do spec (L,H) -> convencao do build 3D ------------
+def _janela_band(janela, eave_mm, peitoril_mm=1100.0):
+    """Converte a janela do wizard (largura, altura[, peitoril]) em mm para a
+    FAIXA de elevacao (z_base, z_topo) que o build_galpao espera para
+    'janelas_laterais'. Pura. Sem a conversao o build recebia (L,H) e montava um
+    box de altura negativa -> 'height of box too small' (ver bug-janela-lateral)."""
+    if not janela:
+        return None
+    vals = list(janela)
+    H = vals[1] if len(vals) >= 2 else 0.0
+    peit = vals[2] if len(vals) >= 3 else peitoril_mm
+    z_base = max(0.0, peit)
+    z_topo = z_base + max(0.0, H)
+    if eave_mm:                                   # nao atravessar o beiral
+        z_topo = min(z_topo, eave_mm - 100.0)
+        z_base = min(z_base, max(0.0, z_topo - 100.0))
+    return (round(z_base, 1), round(z_topo, 1))
+
+
+def aberturas_para_build(aberturas, eave_mm):
+    """Traduz o dict de aberturas do spec (janela = L,H) para a convencao do
+    build_galpao (janela = faixa z_base,z_topo). Portao/porta ficam (L,H). Pura."""
+    ab = dict(aberturas or {})
+    for chave in ("janelas_laterais", "janelas_frontais"):
+        if ab.get(chave):
+            ab[chave] = _janela_band(ab[chave], eave_mm)
+    return ab
+
+
 # ---- mappers: spec -> modulos ----------------------------------------------
 def to_rodar_params(spec):
     """Traduz o spec para os params do orquestrador (rodar_galpao). Parte do
@@ -279,26 +386,57 @@ def to_rodar_params(spec):
     import rodar_galpao as R
     p = copy.deepcopy(R.PARAMS_REF)
     g = spec["geometria"]
+    # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
+    # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura
+    # transversal do galpao, p/ vento etc.). Sem spans -> 1 vao (retro).
+    spans = g.get("spans") if isinstance(g.get("spans"), (list, tuple)) else None
+    span0 = spans[0] if spans else g["span"]
     ridge = g["ridge"] if g.get("ridge") not in (None, PENDENTE) else \
-        g["eave"] + spec["cobertura"]["slope"] * g["span"] / 2.0
-    p["geometria"] = {"span": g["span"], "comprimento": g["comprimento"],
+        g["eave"] + spec["cobertura"]["slope"] * span0 / 2.0
+    p["geometria"] = {"span": (sum(spans) if spans else g["span"]),
+                      "comprimento": g["comprimento"],
                       "eave": g["eave"], "ridge": ridge, "bay": g["bay"]}
+    if spans and len(spans) > 1:
+        p["geometria"]["spans"] = list(spans)
     p["base_fixed"] = g["base_fixed"]
     c = spec["cargas"]
     p["cargas"] = {"G": c["G"], "self": c.get("self", 0.35), "Q": c["Q"]}
     v = spec["vento"]
     p["vento"] = {"v0": v["v0"], "cat": v["cat"], "classe": v.get("classe", "B"),
-                  "s1": v.get("s1", 1.0), "s3": v["s3"], "z": v.get("z", ridge)}
+                  "s1": v.get("s1", 1.0), "s3": v["s3"], "z": v.get("z", ridge),
+                  "abertura_dominante": v.get("abertura_dominante", "portao_oitao")}
+    p["aguas"] = spec.get("cobertura", {}).get("aguas", 2)   # 1=shed, 2=simetrico
     fe = spec.get("fechamento", {})     # longarina: travamento da mesa interna
     lg = p.setdefault("secundarios", {}).setdefault("longarina", {})
     lg["mesa_interna_travada"] = bool(fe.get("mesa_interna_travada", False))
     if fe.get("n_maos_francesas") not in (None, PENDENTE):
         lg["n_maos_francesas"] = fe["n_maos_francesas"]
+    # peso da parede de fechamento no caminho de carga (antes: coletado e ignorado).
+    p["parede"] = cargas_parede(fe, g["eave"], g["bay"],
+                                telha_peso=spec.get("cobertura", {}).get("telha_peso", 0.10))
+    # viabilidade urbanistica (TO/CA/TP + recuos): mapeia o terreno p/ o gate rodar
+    # (antes: coletado no wizard e IGNORADO - o gate nunca recebia params[terreno]).
+    tr = spec.get("terreno") or {}
+    if tr.get("area_lote_m2") not in (None, PENDENTE):
+        rc = tr.get("recuos") or {}
+        p["terreno"] = {"area_lote_m2": tr["area_lote_m2"],
+                        "to_max": tr.get("to_max", 0.6), "ca_max": tr.get("ca_max", 1.0),
+                        "tp_min": tr.get("tp_min", 0.2),
+                        "recuo_frente": rc.get("frente", 0.0),
+                        "recuo_lateral": rc.get("lateral", 0.0),
+                        "recuo_fundos": rc.get("fundos", 0.0),
+                        "n_pav": tr.get("n_pav", 1)}
+        if tr.get("pts_xy_mm"):     # com o poligono do lote, checa tambem os recuos
+            p["terreno"]["pts_xy"] = [(x / 1000.0, y / 1000.0)
+                                      for x, y in tr["pts_xy_mm"]]
     fu = spec.get("fundacao") or {}     # sapata: sobrescreve os defaults do solo
     if fu:
         p.setdefault("fundacao", {}).update(
             {k: v for k, v in fu.items()
              if k not in ("tipo", "estaca") and v not in (None, PENDENTE)})
+        # tipo de fundacao rasa: sapata (armada) x bloco (concreto simples, NBR 6122
+        # 7.8.2). O rodar_galpao escolhe dimensiona_sapata_env vs dimensiona_bloco_env.
+        p.setdefault("fundacao", {})["tipo"] = fu.get("tipo", "sapata")
     # fundacao PROFUNDA: monta o cfg da estaca (perfil SPT da sondagem) que o
     # rodar_galpao consome (verifica_estaca). SO quando tipo=="estaca" (exclusivo
     # da sapata). Nada de dado geometrico inventado: tudo vem do bloco 'estaca'.
@@ -350,6 +488,7 @@ def to_rodar_params(spec):
         p["ponte"].setdefault("fy", 250e3)
         p["ponte"].setdefault("E_Ix", pr.ck.E * pr.VS500["Ix"])
     p["fogo"] = spec.get("fogo") if spec.get("fogo") else None
+    p["neve"] = spec.get("neve") if spec.get("neve") else None
     p["escada"] = spec.get("escada") if spec.get("escada") else None
     p["plataforma"] = spec.get("plataforma") if spec.get("plataforma") else None
     return p
@@ -381,11 +520,15 @@ def to_build_kwargs(spec):
     profunda = tipo_fund == "estaca"
     ea = est.get("estaca_adotada"); bo = est.get("bloco_adotado")
     bl = est.get("baldrame_adotado")
+    _spans = g.get("spans") if isinstance(g.get("spans"), (list, tuple)) else None
     return {
         "length": g["comprimento"] * 1000.0, "span": g["span"] * 1000.0,
+        # multi-vao: passa a lista de vaos (mm) ao build 3D; None -> 1 vao.
+        "spans": ([s * 1000.0 for s in _spans] if _spans and len(_spans) > 1 else None),
         "eave_h": g["eave"] * 1000.0, "slope": spec["cobertura"]["slope"],
-        "bay": g["bay"] * 1000.0,
-        "aberturas": spec["aberturas"], "fechamento": spec["fechamento"],
+        "bay": g["bay"] * 1000.0, "aguas": spec.get("cobertura", {}).get("aguas", 2),
+        "aberturas": aberturas_para_build(spec["aberturas"], g["eave"] * 1000.0),
+        "fechamento": spec["fechamento"],
         "terreno_pts": spec["terreno"].get("pts_xy_mm"),
         "perfil_col": _sec(col_nome), "perfil_raf": _sec(raf_nome),
         "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,

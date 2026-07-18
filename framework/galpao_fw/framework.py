@@ -61,7 +61,8 @@ def novo_projeto(slug, base=None):
     (dest / "notes" / "FRAMEWORK.txt").write_text(
         f"framework galpao_fw versao {VERSAO}\n"
         f"projeto criado por novo_projeto('{slug}')\n"
-        "Dependencia: numpy < 2 (pycufsm). Ver framework/galpao_fw/REQUISITOS.txt\n",
+        "Dependencia: numpy 1.x ou 2.x (pycufsm + pycufsm_compat). "
+        "Ver framework/galpao_fw/REQUISITOS.txt\n",
         encoding="utf-8")
     return dest
 

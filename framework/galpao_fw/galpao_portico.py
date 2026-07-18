@@ -48,6 +48,18 @@ BASE_FIXED = False                   # base engastada? (True=engaste, False=rotu
 G_ROOF = 0.27                        # carga perm. na cobertura [kN/m2 de telhado]
 RAFTER_SELF = 0.35                   # peso proprio da viga [kN/m]
 Q_ROOF = 0.25                        # sobrecarga [kN/m2 de projecao horizontal]
+ABERTURA_DOMINANTE = "portao_oitao"  # config de abertura p/ Cpi (NBR 6123 6.2.5);
+                                     # 'vedada' usa Cpi pequeno em vez do de portao.
+AGUAS = 2                            # nº de aguas do telhado: 2 (simetrico) ou 1
+                                     # (shed/uma agua: colunas de alturas diferentes,
+                                     # 1 rafter, sem cumeeira). Shed so p/ 1 vao.
+W_WALL_COL = 0.0                     # peso do fechamento de parede como UDL vertical
+                                     # [kN/m] em CADA coluna externa (paredes
+                                     # longitudinais descarregam nos beirais de
+                                     # extremidade). Aplicado como UDL axial (mesmo
+                                     # caminho/convencao da carga de cobertura) - NAO
+                                     # usar carga nodal (frame2d tem sinal de reacao
+                                     # diferente p/ nodal x UDL: mistura corrompe o G).
 
 # Cargas opcionais (None = ausente)
 PONTE = None                         # dict de reacao da ponte rolante
@@ -56,8 +68,12 @@ SISMO = None                         # dict {E: kN} forca sismica total no porti
 
 def reset():
     """Reseta estado mutavel entre projetos."""
-    global PONTE, SISMO, BASE_FIXED, SEC_COLS_PORTICO
+    global PONTE, SISMO, BASE_FIXED, SEC_COLS_PORTICO, W_WALL_COL, ABERTURA_DOMINANTE, AGUAS, TAPERED
     PONTE = None; SISMO = None; BASE_FIXED = False; SEC_COLS_PORTICO = None
+    W_WALL_COL = 0.0
+    ABERTURA_DOMINANTE = "portao_oitao"
+    AGUAS = 2
+    TAPERED = None
 
 
 # Alma variavel (tapered): None = rafter prismatico (default). dict = misula
@@ -71,12 +87,14 @@ def configurar(span=None, spans=None, eave=None, ridge=None, bay=None,
                base_fixed=None,
                A_col=None, I_col=None, A_raf=None, I_raf=None,
                G_roof=None, rafter_self=None, Q_roof=None,
-               ponte=None, sismo=None, tapered=_UNSET):
+               ponte=None, sismo=None, tapered=_UNSET, w_wall_col=None,
+               abertura_dominante=None, aguas=None):
     """Configura a geometria/secoes/cargas do portico. Aceita tanto 'span'
     (1 vao, retrocompativel) quanto 'spans' (lista p/ N vaos)."""
     global SPANS, N_VAOS, EAVE, RIDGE, BAY, THETA, COS, SIN
     global A_COL, I_COL, A_RAF, I_RAF
-    global BASE_FIXED, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO, TAPERED
+    global BASE_FIXED, G_ROOF, RAFTER_SELF, Q_ROOF, PONTE, SISMO, TAPERED, W_WALL_COL
+    global ABERTURA_DOMINANTE, AGUAS
     if tapered is not _UNSET:
         TAPERED = dict(tapered) if tapered else None
     if spans is not None:
@@ -102,6 +120,9 @@ def configurar(span=None, spans=None, eave=None, ridge=None, bay=None,
     if Q_roof is not None: Q_ROOF = Q_roof
     if ponte is not None: PONTE = ponte if ponte else None
     if sismo is not None: SISMO = sismo if sismo else None
+    if w_wall_col is not None: W_WALL_COL = w_wall_col
+    if abertura_dominante is not None: ABERTURA_DOMINANTE = abertura_dominante
+    if aguas is not None: AGUAS = int(aguas)
 
 
 def _chain(fr, na, nb, Asec, Isec, nseg):
@@ -172,6 +193,17 @@ def _posicoes():
     return x_cols, x_ridges
 
 
+def _ridge_h(i):
+    """Altura da cumeeira do vao i mantendo a INCLINACAO constante (a do 1o vao,
+    embutida em RIDGE/THETA). Vaos IGUAIS -> = RIDGE (retrocompativel, sem mudanca
+    no caminho do wizard). Vaos DESIGUAIS -> cumeeira mais ALTA no vao mais largo,
+    consistente com o 3D (build_galpao mantem a inclinacao) - antes o 2D usava
+    RIDGE unico e ACHATAVA os vaos maiores (wiki 07 item I)."""
+    if not SPANS or SPANS[0] <= 0:
+        return RIDGE
+    return EAVE + (RIDGE - EAVE) * (SPANS[i] / SPANS[0])
+
+
 def _sec_coluna(i):
     """(A, I) da coluna i. Usa SEC_COLS_PORTICO[i] se preenchida (multi-perfil),
     senao a secao unica A_COL/I_COL (retrocompativel). Bug 8.21."""
@@ -182,16 +214,44 @@ def _sec_coluna(i):
     return A_COL, I_COL
 
 
+def _frame_shed():
+    """Portico de UMA AGUA (shed): coluna BAIXA (x=0, z=EAVE) + coluna ALTA
+    (x=SPAN, z=EAVE+slope*SPAN) + 1 rafter unico, sem cumeeira. So 1 vao,
+    prismatico. Retorna (fr, ix) compativel com case_G/Q/analyse (rafts[0]=
+    [rafter, []]; cols=[baixa, alta])."""
+    fr = f2d.Frame2D()
+    S = SPANS[0]
+    slope = math.tan(THETA)                 # inclinacao (= (RIDGE-EAVE)/(SPAN/2))
+    h_high = EAVE + slope * S               # topo da coluna alta
+    b0 = fr.add_node(0.0, 0.0); b1 = fr.add_node(S, 0.0)
+    e_low = fr.add_node(0.0, EAVE); e_high = fr.add_node(S, h_high)
+    Ac0, Ic0 = _sec_coluna(0); Ac1, Ic1 = _sec_coluna(1)
+    col_low = _chain(fr, b0, e_low, Ac0, Ic0, NSEG)
+    col_high = _chain(fr, b1, e_high, Ac1, Ic1, NSEG)
+    rafter = _chain(fr, e_low, e_high, A_RAF, I_RAF, NSEG)   # a unica agua
+    for b in (b0, b1):
+        fr.add_support(b, u=True, v=True, rot=BASE_FIXED)
+    ix = {"nBases": [b0, b1], "nEaves": [e_low, e_high], "nRidges": [],
+          "nCons": [None, None], "cols": [col_low, col_high],
+          "rafts": [[rafter, []]], "n_nodes": len(fr.nodes), "shed": True,
+          "nBaseL": b0, "nBaseR": b1, "nEaveL": e_low, "nEaveR": e_high,
+          "nRidge": e_high, "nConsL": None, "colL": col_low, "colR": col_high,
+          "rafL": rafter, "rafR": []}
+    return fr, ix
+
+
 def _frame():
     """Cria o modelo do portico 2D. Retorna (fr, ix). Para 1 vao, mantem
     as chaves antigas (nBaseL/R, nEaveL/R, nRidge, colL/R, rafL/R)."""
+    if AGUAS == 1 and len(SPANS) == 1:
+        return _frame_shed()
     fr = f2d.Frame2D()
     xc, xr = _posicoes(); n = len(SPANS)
     # --- nos ---
     bases = [fr.add_node(x, 0.0) for x in xc]          # N+1 bases
     eaves = [fr.add_node(x, EAVE) for x in xc]          # N+1 beirais
     cons  = [None] * (n + 1)                             # consoles (opcional)
-    ridges = [fr.add_node(xr[i], RIDGE) for i in range(n)]  # N cumeeiras
+    ridges = [fr.add_node(xr[i], _ridge_h(i)) for i in range(n)]  # N cumeeiras (h por vao)
     # console da ponte (so na 1a coluna por enquanto)
     if PONTE:
         cons[0] = fr.add_node(xc[0], PONTE.get("Hvr", EAVE))
@@ -260,8 +320,17 @@ def _carrega_udl(fr, ix, wy):
 
 
 def case_G(fr, ix):
-    """Carga permanente na cobertura (G)."""
+    """Carga permanente na cobertura (G) + peso da parede de fechamento."""
     _carrega_udl(fr, ix, wy=-(G_ROOF * BAY + RAFTER_SELF))
+    # Peso da parede de fechamento (telha/painel/alvenaria) como UDL vertical AXIAL
+    # nas DUAS colunas externas (as paredes longitudinais descarregam nos pilares de
+    # extremidade). UDL (nao nodal) para casar a convencao de sinal da reacao com a
+    # carga de cobertura - assim o esforco chega correto na coluna E na fundacao.
+    if W_WALL_COL:
+        cols = ix["cols"]
+        for c in (cols[0], cols[-1]):
+            for e in c:
+                fr.add_member_udl(e, wy=-W_WALL_COL)
 
 
 def case_Q(fr, ix):
@@ -302,7 +371,7 @@ def _wind_multi(cpi_key, fr=None, ix=None):
     n = N_VAOS
     wr = vi.compute(larg_b=SPANS[0], alt_h=EAVE,
                     comp_a=max(xc) - min(xc), theta=math.degrees(THETA))
-    cpi = 0.80 if cpi_key == "portao_barlavento" else -0.60
+    cpi = vi.cpi_por_abertura(ABERTURA_DOMINANTE)[cpi_key]
     q = wr["q_kN_m2"]
     # Coeficientes Cpe por tramo (Tabela 7)
     tramos = vi.cpe_telhado_multiplo(n, math.degrees(THETA))
@@ -330,38 +399,68 @@ def _wind_multi(cpi_key, fr=None, ix=None):
     return apply, wr
 
 
+def _wind_shed(cpi_key):
+    """Vento no telhado de UMA AGUA (NBR 6123 Tabela 6). Pressao liquida
+    (Ce - Cpi)*q por metade do rafter (H baixa, L alta) + paredes (Tabela 4).
+    cpi_key W1 -> vento sobe (fachada baixa a barlavento); W2 -> vento desce."""
+    import vento_nbr6123 as vi
+    wr = vi.compute(larg_b=SPANS[0], alt_h=EAVE, comp_a=SPANS[0] * 2,
+                    theta=math.degrees(THETA))
+    q = wr["q_kN_m2"]
+    cpi = vi.cpi_por_abertura(ABERTURA_DOMINANTE)[cpi_key]
+    cw = vi.cpe_paredes()
+    ct = vi.cpe_telhado_1agua(math.degrees(THETA))
+    caso = ct["vento90"] if cpi_key == "portao_barlavento" else ct["vento_90"]
+
+    def apply(fr, ix):
+        raft = ix["rafts"][0][0]
+        nlow = len(raft) // 2                      # metade BAIXA (H) x metade ALTA (L)
+        for j, e in enumerate(raft):
+            Ce = caso["H"] if j < nlow else caso["L"]
+            p = (Ce - cpi) * q                     # succao (p<0) -> wy>0 (uplift)
+            fr.add_member_udl(e, wx=-p * BAY * SIN, wy=-p * BAY * COS)
+        # paredes: baixa (x=0) e alta (x=SPAN); forca horizontal liquida no beiral,
+        # proporcional a altura de cada coluna.
+        z_low = fr.nodes[ix["nEaves"][0]][1]; z_high = fr.nodes[ix["nEaves"][1]][1]
+        fr.add_nodal_load(ix["nEaves"][0], Fx=(cw["parede_barlavento"] - cpi) * q * z_low / 2.0)
+        fr.add_nodal_load(ix["nEaves"][1], Fx=(cw["parede_sotavento"] - cpi) * q * z_high / 2.0)
+    return apply, wr
+
+
 def _wind(cpi_key):
     """Vento para 1 vao (retrocompativel). Usa os coeficientes tabulados."""
+    if AGUAS == 1 and N_VAOS == 1:
+        return _wind_shed(cpi_key)
     return _wind_unico(cpi_key) if N_VAOS == 1 else _wind_multi(cpi_key)
 
 
 def _wind_unico(cpi_key):
-    """Vento para 1 vao (codigo original adaptado para frame2d)."""
+    """Vento para 1 vao (NBR 6123). Pressao LIQUIDA (Cpe - Cpi)*q por superficie:
+    paredes Tabela 4, telhado Tabela 5. O telhado a baixa inclinacao e SUCCAO nas
+    duas aguas -> uplift. (Corrige o modelo antigo, que aplicava q p/ BAIXO sem o
+    Cpe de telhado e anulava o arrancamento - wiki 07 §2A; mesmo modelo do
+    _wind_multi.)"""
     import vento_nbr6123 as vi
     wr = vi.compute(larg_b=SPANS[0], alt_h=EAVE,
                     comp_a=SPANS[0] * 2,  # comprimento aproximado
                     theta=math.degrees(THETA))
-    cpi = 0.80 if cpi_key == "portao_barlavento" else -0.60
+    cpi = vi.cpi_por_abertura(ABERTURA_DOMINANTE)[cpi_key]
     q = wr["q_kN_m2"]
+    cw = vi.cpe_paredes()                 # Tabela 4 (barlavento +0,70 / sotavento -0,60)
+    ct = vi.cpe_telhado(math.degrees(THETA))   # Tabela 5 (sucao nas duas aguas)
     def apply(fr, ix):
-        # UDL nas colunas -> concentrado nos beirais
-        Fw = q * EAVE / 2.0
-        fr.add_nodal_load(ix["nEaveL"], Fx=0.7 * Fw)
-        fr.add_nodal_load(ix["nEaveR"], Fx=-0.5 * Fw)
-        # UDL normal nas vigas (componentes wx, wy)
-        wy_udl = q * BAY * COS; wx_udl = q * BAY * SIN
+        # Paredes: forca horizontal liquida (cpe - cpi) concentrada no beiral.
+        F_wall = q * EAVE / 2.0
+        fr.add_nodal_load(ix["nEaveL"], Fx=(cw["parede_barlavento"] - cpi) * F_wall)
+        fr.add_nodal_load(ix["nEaveR"], Fx=(cw["parede_sotavento"] - cpi) * F_wall)
+        # Telhado: pressao liquida normal a agua, componentes (wx, wy). Sucao
+        # (cpe<0) com cpi>0 -> p<0 -> wy>0 (para CIMA) = arrancamento.
+        p_b = (ct["cobertura_barlavento"] - cpi) * q     # agua barlavento (rafL)
+        p_s = (ct["cobertura_sotavento"] - cpi) * q      # agua sotavento (rafR)
         for e in ix["rafL"]:
-            fr.add_member_udl(e, wx=-wx_udl, wy=-wy_udl)
+            fr.add_member_udl(e, wx=-p_b * BAY * SIN, wy=-p_b * BAY * COS)
         for e in ix["rafR"]:
-            fr.add_member_udl(e, wx=wx_udl, wy=-wy_udl)
-        # Cpi: componente vertical (pressao interna) ajuda ou atrapalha
-        cpi_wy = -cpi * q * BAY * COS
-        for e in ix["rafL"] + ix["rafR"]:
-            fr.add_member_udl(e, wy=cpi_wy)
-        # Vento nas paredes internas (Cpi)
-        cpi_wall = -cpi * q * EAVE
-        fr.add_nodal_load(ix["nEaveL"], Fx=-cpi_wall / 2)
-        fr.add_nodal_load(ix["nEaveR"], Fx=-cpi_wall / 2)
+            fr.add_member_udl(e, wx=p_s * BAY * SIN, wy=-p_s * BAY * COS)
     return apply, wr
 
 
@@ -507,8 +606,10 @@ def analyse():
         return max(abs(d[3 * ne]) for ne in ix["nEaves"]) if d is not None else 0.0
     drift = max(eave_drift(dW1), eave_drift(dW2))
     drift_sismo = eave_drift(cases_d.get("SISMO")) if SISMO else 0.0
-    # flecha vertical na cumeeira (G+Q caracteristico)
-    ridge_v = max(abs(dG[3 * rn + 1] + dQ[3 * rn + 1]) for rn in ix["nRidges"]) \
+    # flecha vertical na cumeeira (G+Q caracteristico). Shed (1 agua) nao tem
+    # cumeeira -> usa o beiral ALTO (default=0 evita max() de sequencia vazia).
+    _vnodes = ix["nRidges"] if ix["nRidges"] else ([ix["nEaves"][-1]] if ix.get("shed") else [])
+    ridge_v = max((abs(dG[3 * rn + 1] + dQ[3 * rn + 1]) for rn in _vnodes), default=0.0) \
         if "SISMO" not in cases_d else 0.0
     # lista ordenada dos segmentos do rafter com esforco enveloped + secao (tapered)
     rafter_segmentos = []
@@ -517,7 +618,7 @@ def analyse():
             secs = (_secoes_rafter("eave2ridge" if side == 0 else "ridge2eave")
                     if TAPERED else None)
             elems = ix["rafts"][i][side]
-            L_raft = math.hypot(SPANS[i] / 2.0, RIDGE - EAVE)   # meia-agua (m)
+            L_raft = math.hypot(SPANS[i] / 2.0, _ridge_h(i) - EAVE)   # meia-agua (m) por vao
             Lseg = L_raft / len(elems) if elems else None
             for k, e in enumerate(elems):
                 se = raft_seg_env[e]

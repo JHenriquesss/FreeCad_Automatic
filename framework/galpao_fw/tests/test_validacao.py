@@ -1,0 +1,263 @@
+# ============================================================================
+# test_validacao.py - integra ao pytest os novos modulos de entrada/validacao:
+#   - validacao.rodar(): benchmarks independentes do nucleo (forma fechada,
+#     equilibrio V/H, MAES B1, formula de vento) -> todos PASS.
+#   - escopo: envelope + deteccao de fora-de-escopo + carimbo ART.
+#   - wizard: construir_spec (sapata/estaca) + laco simulado -> spec valido.
+#   - rodar_projeto.rodar_tudo (calc-only): veredito global honesto.
+# ============================================================================
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+GALPAO = os.path.dirname(HERE)
+sys.path.insert(0, GALPAO)
+
+
+def test_validacao_nucleo_toda_verde():
+    import validacao
+    ok, resultados = validacao.rodar(verbose=False)
+    assert ok, [r for r in resultados if not r[1]]
+    assert len(resultados) == 7
+
+
+def test_validacao_sistema_cbca():
+    # reproduz o galpao do manual CBCA (NBR 8800) sob Fd1 -> reacoes e momento
+    # batem com o publicado dentro da tolerancia (sub-1% na pratica).
+    import validacao
+    ok, det = validacao.validacao_referencia(verbose=False)
+    assert ok, det
+
+
+def test_bootstrap_executivo_sem_repr_numpy():
+    # regressao do bug da tesoura: o cfg embutido no script do freecad.exe via
+    # repr NAO pode vazar 'np.float64(...)' (numpy>=2), senao o freecad quebra
+    # com 'name np is not defined'. _para_nativo deve limpar tudo.
+    import numpy as np
+    import techdraw_exec as TD
+    cfg = {"resultados": {"Maxima": np.float64(0.91), "Coluna": np.float64(0.65)},
+           "geo": {"span": np.float64(20000.0)}, "n": np.int64(8),
+           "terca": (np.float64(150.0), np.float64(60.0)),
+           "takeoff": [np.float64(1.5), np.float64(2.5)], "descricao": "x"}
+    boot = TD.script_bootstrap(cfg)
+    linha = boot.splitlines()[1]                 # _CFG_ = {...}
+    for tok in ("np.float64(", "np.int", "np.float", "array(", "numpy."):
+        assert tok not in linha, "vazou %r no bootstrap" % tok
+    # e re-executa sem numpy no escopo (como no freecad.exe)
+    ns = {}
+    exec(linha, {"__builtins__": __builtins__}, ns)
+    assert ns["_CFG_"]["resultados"]["Maxima"] == 0.91
+    assert isinstance(ns["_CFG_"]["terca"], tuple)   # preserva tupla
+
+
+def test_codigo_prancha_bate_com_nome_do_arquivo():
+    # regressao do defeito de numeracao: o drawing_number do carimbo deve ser o
+    # codigo de TIPO da prancha (PE-11 no arquivo PE11), nao a ordem sequencial.
+    import techdraw_exec as TD
+    assert TD._codigo_prancha("PE11_DET_GUSSET_COB", 9, 12) == ("PE-11", "09/12")
+    assert TD._codigo_prancha("PE01_COBERTURA", 1, 12) == ("PE-01", "01/12")
+    assert TD._codigo_prancha("PE09_QUADROS", 12, 12) == ("PE-09", "12/12")
+    # sem prefixo reconhecivel -> usa a ordem (fallback, nao quebra)
+    assert TD._codigo_prancha("estranho", 3, 5) == ("PE-03", "03/05")
+
+
+def test_pos_notas_nunca_sobrepoe_a_tabela():
+    # regressao do defeito de overlap na PE09: o bloco de NOTAS deve ficar SEMPRE
+    # abaixo da tabela mais baixa, para qualquer contagem de linhas plausivel.
+    import techdraw_exec as TD
+    for n_verif in range(4, 18):
+        for n_mat in (0, 6, 12, 17):
+            y = TD._pos_notas(n_verif, n_mat, n_notas=11)
+            bases = []
+            if n_verif:
+                bases.append((480 - n_verif * 7) - TD._meia_alt_view(n_verif + 1, 1.5))
+            if n_mat:
+                bases.append((480 - n_mat * 7) - TD._meia_alt_view(n_mat + 1, 1.5))
+            base = min(bases)
+            topo_notas = y + TD._meia_alt_view(11, 1.4)      # borda superior do bloco
+            assert topo_notas <= base + 1e-6, (n_verif, n_mat, topo_notas, base)
+
+
+def test_cap_titulo_nunca_estoura_a_celula():
+    # regressao do overflow: todo titulo do carimbo deve caber (<=26) e sem o
+    # prefixo redundante 'DETALHE - ' que empurrava o texto para o 'Created by'.
+    import techdraw_exec as TD
+    titulos = ["PLANTA DE COBERTURA", "PLANTA DE FUNDACOES", "ELEVACOES",
+               "PORTICO TIPICO", "CONTRAVENTAMENTOS", "DETALHE - BASE DE COLUNA",
+               "DETALHE - LIGACAO JOELHO (VIGA-COLUNA)",
+               "FECHAMENTO / TERCAS / MAO-FRANCESA", "QUADROS E NOTAS TECNICAS",
+               "DETALHE - GUSSET CONTRAV. COBERTURA",
+               "DETALHE - GUSSET CONTRAV. PAREDE", "DETALHE - FIXACAO DE GIRT"]
+    for t in titulos:
+        c = TD._cap_titulo(t)
+        assert len(c) <= 26, (t, c, len(c))
+        assert "DETALHE - " not in c
+    # abreviacoes legiveis (nao caem em reticencia)
+    assert TD._cap_titulo("DETALHE - LIGACAO JOELHO (VIGA-COLUNA)") == "LIGACAO JOELHO"
+    assert TD._cap_titulo("FECHAMENTO / TERCAS / MAO-FRANCESA") == "FECHAMENTO / TERCAS"
+
+
+def test_fmt_terca_formatado_legivel():
+    # regressao do callout cru: a terca sai formatada, nao como repr de lista.
+    import techdraw_exec as TD
+    assert TD._fmt_terca((300.0, 85.0, 25.0, 3.35)) == "Ue 300 x 85 x 25 x 3.35 mm"
+    assert TD._fmt_terca([150.0, 60.0, 20.0, 2.0]) == "Ue 150 x 60 x 20 x 2.00 mm"
+    assert isinstance(TD._fmt_terca(None), str)          # entrada invalida nao quebra
+
+
+def test_quadro_fundacao_coerente_com_tipo():
+    # regressao do Defeito 5: fundacao profunda NAO pode usar terminologia de
+    # 'sapatas'. Deep -> ESTACAS/BLOCOS; rasa -> SAPATAS.
+    import techdraw_exec as TD
+    cfg_est = {"estaca": {"D": 0.30, "L": 10.0, "n": 2}, "bloco": {"a": 0.60, "h": 0.60},
+               "sapata": {"B": 1.2, "L": 1.2, "h": 0.4}}   # sapata_adotada tb existe
+    tit, hdr, rows, nota = TD._quadro_fundacao(cfg_est, tem_estaca=True)
+    assert tit == "QUADRO DE ESTACAS / BLOCOS"
+    assert "estacas/blocos" in nota and "sapatas" not in nota
+    assert any(r[0] == "Estaca" for r in rows) and any(r[0] == "Bloco" for r in rows)
+    # rasa -> sapatas
+    tit2, _h, rows2, nota2 = TD._quadro_fundacao({"sapata": {"B": 1.2, "L": 1.2, "h": 0.4}},
+                                                 tem_estaca=False)
+    assert tit2 == "QUADRO DE SAPATAS" and "sapatas em cm" in nota2
+
+
+def test_pos_corte_ligacao_fora_das_notas():
+    # regressao do Defeito 6: no detalhe 'dupla' (cumeeira/joelho) o corte vai
+    # para a direita, fora da faixa horizontal do bloco de notas (x=200, larg 360).
+    import techdraw_exec as TD
+    x, y = TD._pos_corte_ligacao(True, xpos=230.0)
+    assert x >= 200.0 + 360.0, (x,)          # a direita do bloco de notas
+    # caso simples mantem sob a elevacao (nunca colidiu)
+    assert TD._pos_corte_ligacao(False, xpos=410.0)[0] == 410.0
+
+
+def test_callout_bloco_coroamento():
+    # prancha nova do bloco de coroamento: callout legivel a partir do cfg.
+    import techdraw_exec as TD
+    cfg = {"estaca": {"D": 0.30, "L": 10.0, "n": 2, "tipo": "pre_moldada"},
+           "bloco": {"a": 0.60, "h": 0.70}}
+    linhas = TD._callout_bloco(cfg)
+    txt = " | ".join(linhas)
+    assert "Bloco: 60 x 60 x h=70 cm" in txt
+    assert "Estaca: 2 x D=30 cm, L=10.0 m (pre_moldada)" in txt
+    assert "biela-tirante" in txt
+    # override com a geometria REAL desenhada (coroa) tem prioridade sobre o cfg
+    txt2 = " | ".join(TD._callout_bloco(cfg, a_cm=60, h_cm=40))
+    assert "Bloco: 60 x 60 x h=40 cm" in txt2
+    # cfg vazio nao quebra (so a nota de armadura)
+    assert TD._callout_bloco({}) == [
+        "Armadura e ancoragem conforme memoria de calculo (modelo biela-tirante, NBR 6118)."]
+
+
+def test_neve_gate_e_escopo():
+    import wizard as W
+    import projeto_spec as PS
+    import escopo as ESC
+    import neve
+    # neve EN 1991-1-3: theta<30 -> mu=0.8 ; sk=1.5 -> simetrico 1.2
+    assert max(neve.carga_neve(1.5, 10.0)["simetrico_kN_m2"]) == 1.2
+    # wizard: neve_sk>0 monta o bloco de neve; 0 -> sem neve
+    s = W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                              v0=40, sigma_solo=200, fund_tipo="sapata", neve_sk=1.5))
+    assert s["neve"] and s["neve"]["sk"] == 1.5
+    assert PS.validar(s)["ok"]
+    assert W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                                 v0=40, sigma_solo=200, fund_tipo="sapata"))["neve"] is None
+    # escopo: neve acende a fronteira 'neve_assimetrica'
+    ids = {i for i, _ in ESC.avaliar({"cobertura": {"aguas": 2}, "neve": s["neve"]})}
+    assert "neve_assimetrica" in ids
+    # validar avisa quando ha bloco de neve sem sk
+    av = PS.validar({**PS.novo(), "neve": {"Ce": 1.0}})["avisos"]
+    assert any("neve.sk" == p for p, _ in av)
+
+
+def test_dossie_unico(tmp_path):
+    import dossie
+    # dossie so com capa+relatorio (sem FreeCAD): PDF valido, capa com o carimbo ART
+    spec = {"slug": "d1", "descricao": "teste dossie",
+            "geometria": {"comprimento": 30, "span": 10, "spans": [10, 10]}}
+    r = dossie.gerar_dossie(str(tmp_path), spec,
+                            relatorio="VEREDITO DO DIMENSIONAMENTO: ATENDE")
+    assert r["n_paginas"] >= 1 and r["path"].endswith(".pdf")
+    import fitz
+    with fitz.open(r["path"]) as d:
+        cap = d[0].get_text()
+    assert "PROJETO EXECUTIVO ESTRUTURAL" in cap
+    assert "ART/RRT" in cap and "Lei 5194" in cap        # bloco de responsabilidade
+    assert "2 vaos de 10 m" in cap                       # multi-vao no rotulo
+    # sem pranchas/memorial no dir -> registrados como faltando (nao quebra)
+    assert any("prancha" in f for f in r["faltando"])
+
+
+def test_multivao_mappers():
+    import wizard as W
+    import projeto_spec as PS
+    # 1 vao (retro): sem spans
+    s1 = W.construir_spec(dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
+                               v0=40, sigma_solo=200, fund_tipo="sapata"))
+    assert s1["geometria"]["spans"] is None
+    assert "spans" not in PS.to_rodar_params(s1)["geometria"]
+    # 2 vaos: spans expostos aos mappers (calc + 3D)
+    s2 = W.construir_spec(dict(area_lote_m2=2000, span=10, n_vaos=2, comprimento=30,
+                               eave=6, bay=6, v0=40, sigma_solo=200, fund_tipo="sapata"))
+    assert s2["geometria"]["spans"] == [10, 10]
+    p = PS.to_rodar_params(s2)
+    assert p["geometria"]["spans"] == [10, 10] and p["geometria"]["span"] == 20
+    assert PS.to_build_kwargs(s2)["spans"] == [10000.0, 10000.0]
+
+
+def test_escopo_envelope_e_carimbo():
+    import escopo
+    # projeto regular: so a fronteira sempre-ativa da fundacao
+    ids = {i for i, _ in escopo.avaliar({"cobertura": {"aguas": 2}})}
+    assert ids == {"fundacao_detalhe"}
+    # fogo+ponte+sismo acendem as fronteiras
+    s = {"cobertura": {"aguas": 2}, "fogo": {"TRRF_min": 30}, "ponte": {"Q": 50}}
+    ids = {i for i, _ in escopo.avaliar(s, {"sismo_theta": {"ok": True}})}
+    assert {"fogo_global", "ponte_fadiga", "sismo_modal"} <= ids
+    assert any("ART" in ln for ln in escopo.carimbo_art())
+
+
+def test_wizard_constroi_spec_valido():
+    import wizard
+    import projeto_spec as PS
+    r = dict(area_lote_m2=1200, span=10, comprimento=20, eave=6, v0=40,
+             sigma_solo=200, fund_tipo="sapata")
+    assert PS.validar(wizard.construir_spec(r))["ok"]
+    # estaca sem sondagem bloqueia; com sondagem valida
+    r_est = dict(r, fund_tipo="estaca")
+    assert PS.validar(wizard.construir_spec(r_est))["ok"] is False
+    r_est.update(spt_tipo="areia_siltosa", spt_N=20, spt_dz=8.0)
+    assert PS.validar(wizard.construir_spec(r_est))["ok"]
+
+
+def test_wizard_robustez_faixa_coerencia_presets():
+    import wizard as W
+    import projeto_spec as PS
+    # faixa: implausivel -> erro; incomum -> aviso; ok -> None
+    assert W._checa_faixa("span", 200.0)[0] == "erro"
+    assert W._checa_faixa("span", 55.0)[0] == "aviso"
+    assert W._checa_faixa("span", 12.0) is None
+    assert W._checa_faixa("base_fixed", True) is None
+    # coerencia entre campos
+    assert any("mais curto" in a for a in W._avisos_coerencia(
+        {"span": 20, "comprimento": 10}))
+    assert W._avisos_coerencia({"span": 10, "comprimento": 20}) == []
+    # todos os presets constroem spec valido
+    for k, (_desc, kw) in W.PRESETS.items():
+        assert PS.validar(W.construir_spec(kw))["ok"], k
+
+
+def test_rodar_tudo_veredito_global(tmp_path):
+    import wizard
+    import rodar_projeto as RP
+    # geometria que atende globalmente (12x30) -> veredito ATENDE
+    r = dict(area_lote_m2=1500, span=12, comprimento=30, eave=7, bay=6,
+             base_fixed=True, v0=42, sigma_solo=250, fund_tipo="sapata")
+    spec = wizard.construir_spec(r, slug="t_veredito")
+    out = RP.rodar_tudo(spec, str(tmp_path), com_3d=False, com_executivo=False,
+                        gerar_pdf=False, verbose=False)
+    assert "atende" in out
+    assert os.path.exists(os.path.join(str(tmp_path), "RELATORIO-CONSOLIDADO.txt"))
+    # o veredito global expoe atende_global + falhas_verificacao no res
+    assert "atende_global" in out["res"]

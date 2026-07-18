@@ -4,3 +4,5 @@
 numpy==1.26.4
 pycufsm>=0.2,<0.3
 ezdxf>=1.3,<2       # gerador de vistas DXF (dxf_vistas.py) - puro-python
+reportlab>=4,<5    # memorial de calculo em PDF (relatorio_calculo.gerar_pdf)
+pymupdf>=1.24,<2   # fitz: monta o dossie unico (dossie.py) + merge de pranchas

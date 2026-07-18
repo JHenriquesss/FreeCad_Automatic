@@ -1,0 +1,27 @@
+==========================================================================
+Gusset de contravento - PAREDE - CONCEITUAL, PENDENTE REVISAO E ART DO ENG.
+NBR 8800 (estados-limite) + largura de Whitmore (AISC, FLAG 30 graus)
+==========================================================================
+
+Gusset: t = 12,00 mm ; largura de Whitmore bw = 193,21 mm
+
+  Tracao escoam. (Whitmore) 5.2.2    Rd =   526,92 kN   util = 0,09 OK
+  Solda de filete 6.2.5              Rd =   228,60 kN   util = 0,20 OK
+
+Governa: solda (util = 0,20)
+RESULTADO: ATENDE
+
+
+==========================================================================
+Gusset de contravento - COBERTURA - CONCEITUAL, PENDENTE REVISAO E ART DO ENG.
+NBR 8800 (estados-limite) + largura de Whitmore (AISC, FLAG 30 graus)
+==========================================================================
+
+Gusset: t = 12,00 mm ; largura de Whitmore bw = 193,21 mm
+
+  Tracao escoam. (Whitmore) 5.2.2    Rd =   526,92 kN   util = 0,08 OK
+  Solda de filete 6.2.5              Rd =   228,60 kN   util = 0,18 OK
+
+Governa: solda (util = 0,18)
+RESULTADO: ATENDE
+

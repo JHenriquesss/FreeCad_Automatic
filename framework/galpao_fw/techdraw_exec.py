@@ -417,12 +417,146 @@ def _bloco_texto(doc, page, nome, linhas, x, y, tam=5.0, largura=520, escala=1.0
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# LAYOUT DO QUADRO / NUMERACAO (puros e testaveis - sem FreeCAD)
+# ─────────────────────────────────────────────────────────────────────────
+def _meia_alt_view(nlin, escala):
+    """Meia-altura aproximada (mm de papel) de um DrawViewSpreadsheet de nlin
+    linhas (incl. cabecalho) na escala dada. As views sao ancoradas pelo CENTRO
+    (v.X/v.Y), entao a metade importa. Calibrado no fator 7/linha (meia-linha em
+    escala 1,5) que ancora as tabelas do quadro."""
+    return nlin * (7.0 / 1.5) * escala
+
+
+def _pos_notas(n_verif, n_mat, n_notas, y_topo=480.0, dy_por_linha=7.0,
+               esc_tab=1.5, esc_notas=1.4, margem=20.0, piso=70.0):
+    """Y (centro) do bloco de NOTAS TECNICAS, SEMPRE abaixo das tabelas do quadro.
+    As tabelas ancoram o centro em y = y_topo - nrows*dy_por_linha e crescem
+    simetricamente; antes as notas ficavam num y FIXO (240) e colidiam com a
+    tabela quando ela tinha muitas linhas (bug do overlap na PE09). Aqui o y das
+    notas e derivado da base da tabela mais baixa. Pura (testavel sem FreeCAD)."""
+    bases = []
+    if n_verif > 0:
+        yv = y_topo - n_verif * dy_por_linha
+        bases.append(yv - _meia_alt_view(n_verif + 1, esc_tab))     # +1 cabecalho
+    if n_mat > 0:
+        ym = y_topo - n_mat * dy_por_linha
+        bases.append(ym - _meia_alt_view(n_mat + 1, esc_tab))
+    base = min(bases) if bases else (y_topo - 10.0)
+    y = base - margem - _meia_alt_view(n_notas, esc_notas)
+    return max(y, piso)
+
+
+def _codigo_prancha(page_name, ordem, total):
+    """(drawing_number, sheet_number) de uma prancha. drawing_number = codigo de
+    TIPO derivado do nome ('PEnn_...' -> 'PE-nn'), batendo com o nome do arquivo;
+    sheet_number = posicao sequencial 'NN/TOTAL'. Antes o drawing_number era
+    sobrescrito pela ORDEM (arquivo PE11 exibia 'PE-09') - inconsistencia
+    corrigida. Pura (testavel sem FreeCAD)."""
+    import re
+    m = re.match(r"PE0*(\d+)", str(page_name or ""))
+    numero = ("PE-%02d" % int(m.group(1))) if m else ("PE-%02d" % ordem)
+    return numero, "%02d/%02d" % (ordem, total)
+
+
+def _cap_titulo(t, maxlen=26):
+    """Encurta o titulo do carimbo p/ caber na celula (evita o overflow que
+    invadia o campo 'Created by'). Remove o prefixo redundante 'DETALHE - ' (a
+    prancha ja e um detalhe), abrevia termos longos e, no limite, corta com
+    reticencia. Pura (testavel sem FreeCAD)."""
+    t = str(t or "").strip()
+    t = t.replace("DETALHE - ", "").replace("DETALHE ", "")
+    if len(t) <= maxlen:
+        return t
+    t = (t.replace("CONTRAV.", "CONTR.")
+         .replace(" / MAO-FRANCESA", "")
+         .replace(" (VIGA-COLUNA)", ""))
+    if len(t) <= maxlen:
+        return t
+    return t[:maxlen - 1].rstrip() + "…"
+
+
+def _fmt_terca(tc):
+    """Formata a bitola da terca Ue (bw,bf,D,t em mm) como 'Ue bw x bf x D x t mm'
+    em vez do repr cru da lista/tupla. Pura (testavel sem FreeCAD)."""
+    try:
+        bw, bf, dl, t = (float(x) for x in tc)
+        return "Ue %g x %g x %g x %.2f mm" % (bw, bf, dl, t)
+    except Exception:
+        return str(tc)
+
+
+def _quadro_fundacao(cfg, tem_estaca=None):
+    """(titulo, headers, rows, nota) do quadro de fundacao COERENTE com o tipo:
+    fundacao profunda -> 'QUADRO DE ESTACAS / BLOCOS' (nao 'SAPATAS', que vazava
+    na fundacao profunda); rasa -> 'QUADRO DE SAPATAS'. tem_estaca None deduz de
+    cfg. rows vazio => nao desenha quadro. Pura (testavel sem FreeCAD)."""
+    if tem_estaca is None:
+        tem_estaca = bool(cfg.get("estaca"))
+    if tem_estaca:
+        e = cfg.get("estaca") or {}
+        b = cfg.get("bloco") or {}
+        rows = []
+        if e:
+            rows.append(["Estaca", "D=%.0f" % (e.get("D", 0) * 100),
+                         "L=%.0f" % (e.get("L", 0) * 100), "%s" % (e.get("n", "") or "")])
+        if b:
+            rows.append(["Bloco", "a=%.0f" % (b.get("a", 0) * 100),
+                         "h=%.0f" % (b.get("h", 0) * 100), ""])
+        return ("QUADRO DE ESTACAS / BLOCOS", ["ELEM", "DIM1 (cm)", "DIM2 (cm)", "N"],
+                rows, "Cotas em metros; estacas/blocos em cm.")
+    sp = cfg.get("sapata")
+    if sp:
+        rows = [["S1", "%.0f" % (sp["B"] * 100), "%.0f" % (sp["L"] * 100),
+                 "%.0f" % (sp["h"] * 100)]]
+        return ("QUADRO DE SAPATAS", ["TIPO", "B (cm)", "L (cm)", "h (cm)"],
+                rows, "Cotas em metros; sapatas em cm.")
+    return (None, None, [], "Cotas em metros.")
+
+
+def _pos_corte_ligacao(dupla, xpos, x_notas=200.0, larg_notas=360.0):
+    """(x, y) do corte seccionado de um detalhe de ligacao. No caso 'dupla'
+    (elevacao + vista da chapa) o corte vai para a DIREITA (sob a vista da chapa),
+    FORA da faixa horizontal do bloco de notas (canto inf. esquerdo) - que ele
+    invadia na cumeeira (overlap). No caso simples, mantem sob a elevacao (xpos),
+    onde nunca colidiu. Pura (testavel sem FreeCAD)."""
+    if dupla:
+        return (600.0, 140.0)
+    return (float(xpos), 120.0)
+
+
+def _callout_bloco(cfg, a_cm=None, h_cm=None):
+    """Linhas de nota do detalhe do bloco de coroamento (fundacao profunda). As
+    dimensoes do bloco (a_cm/h_cm) devem vir da GEOMETRIA REAL desenhada (bbox do
+    bloco 3D, que inclui a coroa) p/ bater com o desenho; None cai no cfg (envoltoria
+    das estacas, menor). Pura (testavel sem FreeCAD)."""
+    e = cfg.get("estaca") or {}
+    b = cfg.get("bloco") or {}
+    if a_cm is None:
+        a_cm = b.get("a", 0) * 100
+    if h_cm is None:
+        h_cm = b.get("h", 0) * 100
+    L = []
+    if a_cm and h_cm:
+        L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck 25 MPa)"
+                 % (a_cm, a_cm, h_cm))
+    if e:
+        n = e.get("n", "") or ""
+        tipo = e.get("tipo") or e.get("tipo_estaca") or ""
+        L.append("Estaca: %s x D=%.0f cm, L=%.1f m%s"
+                 % (n, e.get("D", 0) * 100, e.get("L", 0),
+                    (" (%s)" % tipo if tipo else "")))
+    L.append("Armadura e ancoragem conforme memoria de calculo "
+             "(modelo biela-tirante, NBR 6118).")
+    return L
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # CARIMBO
 # ─────────────────────────────────────────────────────────────────────────
 def _carimbo(cfg, titulo, numero, escala, folha):
     import datetime
     return {
-        "title": titulo,
+        "title": _cap_titulo(titulo),
         "supplementary_title_1": cfg.get("descricao", ""),
         "supplementary_title_2": "",
         "drawing_number": numero,
@@ -510,16 +644,16 @@ def _pr_fundacoes(doc, cfg, objs):
         b1 = sap[0].Shape.BoundBox
         c.d((b1.XMin, b1.YMin, b1.ZMax), (b1.XMax, b1.YMin, b1.ZMax),
             "DistanceX", _fmt_mm(b1.XLength), "cima", nivel=0)
-    sp = cfg.get("sapata")
-    if sp:
-        _anot(doc, page, "A02q", ["QUADRO DE SAPATAS"], 120, 175, 6)
-        _tabela(doc, page, "Q02",
-                ["TIPO", "B (cm)", "L (cm)", "h (cm)"],
-                [["S1", "%.0f" % (sp["B"] * 100), "%.0f" % (sp["L"] * 100),
-                  "%.0f" % (sp["h"] * 100)]],
-                120, 150, tam=6, larguras=[90, 70, 70, 70])
-    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome,
-                             "Cotas em metros; sapatas em cm."], 200, 70, 6)
+    # quadro COERENTE com o tipo de fundacao (estaca/bloco vs sapata) - detecta a
+    # fundacao profunda pelos objetos 3D (ESTACA/BLOCO), nao so pelo cfg.
+    tem_estaca = bool(_pref(fund, ("ESTACA", "BLOCO", "BALDRAME")))
+    titq, hdrq, rowsq, nota = _quadro_fundacao(cfg, tem_estaca)
+    if rowsq:
+        _anot(doc, page, "A02q", [titq], 120, 175, 6)
+        _tabela(doc, page, "Q02", hdrq, rowsq, 120, 150, tam=6,
+                larguras=[90, 70, 70, 70])
+    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome, nota],
+          200, 70, 6)
     return [page], [c]
 
 
@@ -722,6 +856,79 @@ def _pr_base(doc, cfg, objs, todos):
         linhas += ["Placa %.0f x %.0f x %.0f mm" % (ba["B"], ba["L"], ba["t"]),
                    "%dx chumbadores d %.0f mm" % (ba["n"], ba["db"])]
     _anot(doc, page, "A06", linhas, 200, 90, 5)
+    return [page], [c1, c2]
+
+
+def _pr_bloco(doc, cfg, objs, todos):
+    """Detalhe do BLOCO DE COROAMENTO (so na fundacao PROFUNDA). Recorta a regiao
+    de UM bloco (pedestal acima + bloco + topo das estacas) numa caixa (Part.common,
+    padrao do _detalhe_ligacao) e mostra elevacao + planta + notas do calculo.
+    Sem bloco (fundacao rasa) -> nenhuma prancha (retorna [],[]) - so aparece
+    quando ha fundacao profunda."""
+    import Part
+    import FreeCAD as App
+    blocos = _pref(objs, ("BLOCO",))
+    if not blocos:
+        return [], []
+    fund = _pref(todos, ("BLOCO", "ESTACA", "PEDESTAL"))
+    bbm = _bbox(objs)
+    cx = (bbm.XMin + bbm.XMax) / 2.0
+    cy = (bbm.YMin + bbm.YMax) / 2.0
+    alvo = min(blocos, key=lambda o: abs(o.Shape.BoundBox.Center.x - cx)
+               + abs(o.Shape.BoundBox.Center.y - cy))
+    bc = alvo.Shape.BoundBox
+    W = max(bc.XLength, bc.YLength) * 1.7
+    ztop = bc.ZMax + 900.0             # inclui o pedestal acima do bloco
+    zbot = bc.ZMin - 1100.0            # inclui o embutimento + trecho da estaca
+    caixa = Part.makeBox(W, W, ztop - zbot,
+                         App.Vector(bc.Center.x - W / 2, bc.Center.y - W / 2, zbot))
+    cbb = caixa.BoundBox
+    crops = []
+    for o in fund:
+        try:
+            if not _bb_overlap(o.Shape.BoundBox, cbb):
+                continue
+            com = o.Shape.common(caixa)
+            if com.Edges:
+                crops.append(com)
+        except Exception:
+            pass
+    if not crops:
+        return [], []
+    feat = doc.addObject("Part::Feature", "BLOCO_CROP")
+    feat.Shape = Part.makeCompound(crops)
+    jb = feat.Shape.BoundBox
+    esc, nome = _fit_escala(jb, "y", *AREA_2V)
+    page = _nova_prancha(doc, "PE15_DET_BLOCO",
+                         _carimbo(cfg, "DETALHE - BLOCO DE COROAMENTO", "-", nome, "-"))
+    # elevacao (frontal): pedestal + bloco + estacas descendo
+    v1 = _vista(doc, page, "V15_BLOCO_FR", [feat], (0, -1, 0), (1, 0, 0),
+                esc, 230, 350)
+    hw1, hh1 = _paper_half(jb, esc, "y")
+    c1 = _Cotador(doc, page, v1, hw1, hh1)
+    c1.d((jb.XMin, jb.YMin, jb.ZMin), (jb.XMin, jb.YMin, jb.ZMax),
+         "DistanceY", _fmt_mm(jb.ZLength), "esq")
+    c1.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMax, jb.YMin, jb.ZMax),
+         "DistanceX", _fmt_mm(jb.XLength), "baixo")
+    # planta (topo): contorno do bloco + estacas + pedestal
+    e2, n2 = _fit_escala(jb, "z", *AREA_2V)
+    v2 = _vista(doc, page, "V15_BLOCO_TOP", [feat], (0, 0, 1), (1, 0, 0),
+                e2, 600, 350)
+    hw2, hh2 = _paper_half(jb, e2, "z")
+    c2 = _Cotador(doc, page, v2, hw2, hh2)
+    c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMax, jb.YMin, jb.ZMax),
+         "DistanceX", _fmt_mm(jb.XLength), "baixo")
+    c2.d((jb.XMin, jb.YMin, jb.ZMax), (jb.XMin, jb.YMax, jb.ZMax),
+         "DistanceY", _fmt_mm(jb.YLength), "esq")
+    linhas = ["BLOCO DE COROAMENTO   ESCALA %s" % nome,
+              "Elevacao ESC %s   Planta ESC %s" % (nome, n2)]
+    # dimensoes do bloco DA GEOMETRIA REAL desenhada (inclui a coroa) -> callout
+    # bate com o desenho (nao a envoltoria menor do cfg).
+    a_cm = round(max(bc.XLength, bc.YLength) / 10.0)
+    h_cm = round(bc.ZLength / 10.0)
+    linhas += _callout_bloco(cfg, a_cm=a_cm, h_cm=h_cm)
+    linhas.append("Cotas em milimetros.")
+    _anot(doc, page, "A15", linhas, 200, 95, 5)
     return [page], [c1, c2]
 
 
@@ -1011,8 +1218,8 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     # CORTE SECCIONADO: hachura a superficie de material cortada (espessura das
     # chapas + secao dos parafusos). Normal do corte = xdir da elevacao (corta
     # perpendicular a ela, pelo centro). Best-effort: se vazio, nao desenha.
-    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc,
-                         (xpos if not dupla else 230.0), 120.0)
+    _sx, _sy = _pos_corte_ligacao(dupla, xpos)
+    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc, _sx, _sy)
     tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
@@ -1091,7 +1298,7 @@ def _pr_fechamento(doc, cfg, objs):
     tc = cfg.get("terca")
     linhas = ["FECHAMENTO E TERCAS (VISTA LATERAL)   ESCALA %s" % nome]
     if tc:
-        linhas.append("Terca Ue: %s" % tc)
+        linhas.append("Terca: %s" % _fmt_terca(tc))
     linhas.append("Cotas em metros.")
     _anot(doc, page, "A08", linhas, 200, 80, 5)
     return [page], [c]
@@ -1105,26 +1312,30 @@ def _pr_quadros(doc, cfg):
     res = [(k, v) for k, v in (cfg.get("resultados") or {}).items()
            if v is not None]
     ESC_Q = 1.5                      # ampliacao dos quadros p/ legibilidade em A1
+    n_verif = 0
     if res:
         _anot(doc, page, "A09v",
               ["QUADRO DE VERIFICACOES ESTRUTURAIS (NBR 8800)"], 210, 510, 9)
         rows = [[k, "%.2f" % float(v), "OK" if float(v) <= 1.001 else "REVER"]
                 for k, v in res]
+        n_verif = len(rows)
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
-                rows, 210, 480 - len(rows) * 7, tam=6, larguras=[170, 130, 100],
+                rows, 210, 480 - n_verif * 7, tam=6, larguras=[170, 130, 100],
                 escala=ESC_Q)
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
+    n_mat = 0
     if tk:
         tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
-        rows = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
-                for r in tk]
-        rows.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
+        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
+                  for r in tk]
+        rows_m.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
+        n_mat = len(rows_m)
         _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows, 560, 480 - len(rows) * 7, tam=6,
+                rows_m, 560, 480 - n_mat * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
-    # NOTAS TECNICAS
+    # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
@@ -1138,7 +1349,9 @@ def _pr_quadros(doc, cfg):
         "9. Tercas Ue formado a frio (NBR 14762).",
         "10. Projeto executivo sujeito a revisao e ART.",
     ]
-    _bloco_texto(doc, page, "A09n", notas, 210, 240, tam=5, largura=560, escala=1.4)
+    notas_y = _pos_notas(n_verif, n_mat, len(notas))
+    _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
+                 escala=1.4)
     return [page], []
 
 
@@ -1183,10 +1396,11 @@ def gerar_executivo(cfg):
     paginas, cotadores = [], []
     construtores = [_pr_cobertura, _pr_fundacoes, _pr_elevacoes, _pr_portico,
                     _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento,
-                    _pr_ligacoes]
+                    _pr_ligacoes, _pr_bloco]
     for fn in construtores:
         try:
-            if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes):
+            if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes,
+                      _pr_bloco):
                 pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
@@ -1201,18 +1415,21 @@ def gerar_executivo(cfg):
         App.Console.PrintError("Prancha quadros: %s\n" % ex)
 
     # Numeracao dinamica: o total de pranchas varia por projeto (detalhes de
-    # ligacao so saem se o tipo existe). Reescreve drawing_number "PE-NN" e
-    # sheet_number "NN/TOTAL" na ordem final, para o carimbo bater com o
-    # conjunto realmente gerado.
+    # ligacao so saem se o tipo existe). O drawing_number segue o codigo de TIPO
+    # da prancha (do nome 'PEnn_...', batendo com o nome do arquivo); o
+    # sheet_number e a posicao sequencial 'NN/TOTAL'. Antes o drawing_number era
+    # sobrescrito pela ordem (arquivo PE11 exibia 'PE-09') - ver _codigo_prancha.
     total = len(paginas)
     for i, p in enumerate(paginas, 1):
         try:
             tpl = p.Template
             et = tpl.EditableTexts
+            nome_pg = getattr(p, "Name", "") or getattr(p, "Label", "")
+            numero, folha = _codigo_prancha(nome_pg, i, total)
             if "drawing_number" in et:
-                et["drawing_number"] = "PE-%02d" % i
+                et["drawing_number"] = numero
             if "sheet_number" in et:
-                et["sheet_number"] = "%02d/%02d" % (i, total)
+                et["sheet_number"] = folha
             tpl.EditableTexts = et
         except Exception:
             pass
@@ -1421,6 +1638,10 @@ def config_de_spec(spec, fcstd_path, out_dir):
                   "t": ba["t"] * 1000.0, "db": ba["db"] * 1000.0,
                   "n": ba["n"]} if ba else None),
         "sapata": ({"B": sp["B"], "L": sp["L"], "h": sp["h"]} if sp else None),
+        # fundacao PROFUNDA (estaca/bloco) - alimenta o quadro correto na PE02
+        # (nao "QUADRO DE SAPATAS"). Dims em m (o quadro converte p/ cm).
+        "estaca": est.get("estaca_adotada"),
+        "bloco": est.get("bloco_adotado"),
         # ligacoes (para callouts de fabricacao): joelho {n, db, t} do calculo;
         # gusset/console ja em mm/adotado do calculo.
         "joelho": ({"n": jo["n"], "db": jo["db"] * 1000.0, "t": jo["t"] * 1000.0}
@@ -1443,10 +1664,38 @@ def codigo_fonte():
         return f.read()
 
 
+def _para_nativo(o):
+    """Converte RECURSIVAMENTE escalares/arrays numpy em tipos nativos do Python.
+    Necessario porque o cfg e embutido no script do freecad.exe via repr (%r): no
+    numpy>=2 o repr de um np.float64 e 'np.float64(0.91)', que quebra no freecad
+    com 'name np is not defined' (o freecad nao importa numpy como np). Preserva
+    dict/list/tuple. Sem importar numpy (duck typing por .item()/.tolist())."""
+    if isinstance(o, dict):
+        return {k: _para_nativo(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_para_nativo(v) for v in o]
+    if isinstance(o, tuple):
+        return tuple(_para_nativo(v) for v in o)
+    if isinstance(o, (str, bytes, bool)) or o is None:
+        return o
+    if hasattr(o, "item") and not isinstance(o, (int, float)):   # np.float64/np.int_
+        try:
+            return o.item()
+        except Exception:
+            pass
+    if hasattr(o, "tolist"):                                     # np.ndarray
+        try:
+            return o.tolist()
+        except Exception:
+            pass
+    return o
+
+
 def script_bootstrap(cfg):
     """Monta o script que o freecad.exe roda: injeta cfg + fonte deste modulo
-    e dispara _entry via QTimer (apos o loop de eventos subir)."""
+    e dispara _entry via QTimer (apos o loop de eventos subir). O cfg passa por
+    _para_nativo para nao vazar repr de numpy (np.float64(...)) - ver bug tesoura."""
     return ("# -*- coding: utf-8 -*-\n"
-            "_CFG_ = %r\n" % (cfg,) + codigo_fonte() +
+            "_CFG_ = %r\n" % (_para_nativo(cfg),) + codigo_fonte() +
             "\nfrom PySide import QtCore\n"
             "QtCore.QTimer.singleShot(1500, lambda: _entry(_CFG_))\n")

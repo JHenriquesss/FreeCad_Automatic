@@ -4,43 +4,51 @@ CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL
 ==================================================================================
 
 sigma_solo,adm = 200 kN/m2  [INPUT sondagem - A CONFIRMAR]
-Combinacoes ELU consideradas: 8
+Combinacoes ELU consideradas: 16
 
-    C1_grav_W1           N=    +9,2  V=   +5,2  M=   -19,3 kN,kN.m
-    C2_uplift_W1         N=   +40,3  V=  +16,1  M=   -47,9 kN,kN.m
-    C3_Gdesf_W1          N=   +30,7  V=  +13,2  M=   -41,9 kN,kN.m
-    C3_Gfav_W1           N=   +40,3  V=  +16,1  M=   -47,9 kN,kN.m
-    C1_grav_W2           N=   -13,9  V=  +15,3  M=   -25,1 kN,kN.m
-    C2_uplift_W2         N=    +1,7  V=  +32,9  M=   -57,5 kN,kN.m
-    C3_Gdesf_W2          N=    -7,9  V=  +30,1  M=   -51,4 kN,kN.m
-    C3_Gfav_W2           N=    +1,7  V=  +32,9  M=   -57,5 kN,kN.m
+    C1_grav_W1           N=   +49,0  V=  +15,7  M=   -31,2 kN,kN.m
+    C1_grav_W1           N=   +50,6  V=  -19,3  M=   +45,0 kN,kN.m
+    C1_grav_W2           N=   +27,1  V=  +10,3  M=   -24,2 kN,kN.m
+    C1_grav_W2           N=   +26,2  V=   -8,4  M=   +16,5 kN,kN.m
+    C1_uplift_W1         N=   +56,9  V=  +17,4  M=   -32,9 kN,kN.m
+    C1_uplift_W1         N=   +59,4  V=  -23,4  M=   +56,0 kN,kN.m
+    C1_uplift_W2         N=   +20,3  V=   +8,5  M=   -21,3 kN,kN.m
+    C1_uplift_W2         N=   +18,9  V=   -5,2  M=    +8,5 kN,kN.m
+    C1_Gdesf_W1          N=   +64,0  V=  +19,9  M=   -38,4 kN,kN.m
+    C1_Gdesf_W1          N=   +66,5  V=  -25,9  M=   +61,4 kN,kN.m
+    C1_Gdesf_W2          N=   +27,4  V=  +11,0  M=   -26,7 kN,kN.m
+    C1_Gdesf_W2          N=   +26,0  V=   -7,7  M=   +13,9 kN,kN.m
+    C1_Gfav_W1           N=   +56,9  V=  +17,4  M=   -32,9 kN,kN.m
+    C1_Gfav_W1           N=   +59,4  V=  -23,4  M=   +56,0 kN,kN.m
+    C1_Gfav_W2           N=   +20,3  V=   +8,5  M=   -21,3 kN,kN.m
+    C1_Gfav_W2           N=   +18,9  V=   -5,2  M=    +8,5 kN,kN.m
 
        BxLxh (m) | u_solo FS_tmb FS_dsl  u_cd   As_L   As_B | res
 ----------------------------------------------------------------------------------
-1,20x1,20x0,35 |    inf   0,14   0,30  0,29   6,3c   6,3c | nao
-1,50x1,50x0,40 |    inf   0,34   0,58  0,25   9,0c   9,0c | nao
-1,50x2,00x0,60 |   0,74   0,76   1,07  0,15  13,5c  18,0c | nao
-2,00x2,00x0,60 |   0,40   1,05   1,47  0,15  18,0c  18,0c | nao
-2,00x2,50x0,75 |   0,29   1,78   2,14  0,12  22,5c  28,1c | PASSA
-2,50x2,50x0,75 |   0,26   2,22   2,66  0,12  28,1c  28,1c | PASSA
-2,50x3,00x0,90 |   0,25   3,45   3,62  0,10  33,8c  40,5c | PASSA
-3,00x3,00x0,90 |   0,23   4,13   4,34  0,10  40,5c  40,5c | PASSA
+1,20x1,20x0,35 |    inf   0,66   1,79  0,37  22,3c  22,3c | nao
+1,50x1,50x0,40 |   1,29   0,97   2,12  0,31   9,0c   9,0c | nao
+1,50x2,00x0,60 |   0,55   1,54   2,68  0,20  17,0c  18,0c | PASSA
+2,00x2,00x0,60 |   0,44   1,81   3,15  0,20  18,0c  18,0c | PASSA
+2,00x2,50x0,75 |   0,35   2,74   3,97  0,15  22,5c  28,1c | PASSA
+2,50x2,50x0,75 |   0,31   3,20   4,64  0,15  28,1c  28,1c | PASSA
+2,50x3,00x0,90 |   0,28   4,66   5,86  0,13  33,8c  40,5c | PASSA
+3,00x3,00x0,90 |   0,26   5,38   6,77  0,13  40,5c  40,5c | PASSA
 ----------------------------------------------------------------------------------
 
-ADOTADA (menor que passa o envelope): 2,00 x 2,50 x 0,75 m
-  Governantes: solo=C2_uplift_W1 (u=0,23) ; tombamento=C2_uplift_W2 (FS=4,13) ;
-               deslizamento=C2_uplift_W2 (FS=4,34) ; compr.diagonal=C2_uplift_W2 (u=0,10)
+ADOTADA (menor que passa o envelope): 1,50 x 2,00 x 0,60 m
+  Governantes: solo=C1_Gdesf_W1 (u=0,26) ; tombamento=C1_Gdesf_W1 (FS=5,38) ;
+               deslizamento=C1_Gdesf_W1 (FS=6,77) ; compr.diagonal=C1_Gdesf_W1 (u=0,13)
 
 SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
-  Geometria: 2,00 x 2,50 x 0,75 m ; d(util)=68,8 cm ; pilar 30x30 cm
+  Geometria: 1,50 x 2,00 x 0,60 m ; d(util)=53,8 cm ; pilar 30x30 cm
   RIGIDEZ (22.6.1): h>= (a-ap)/3 -> dir.L OK ; dir.B OK -> RIGIDA (sem puncao)
   fck=25 MPa ; fyk=500 MPa ; cobrimento=5 cm ; gamma_f=1,4
-  Pressao de calculo (flexao) sigma_d=0 kN/m2
-  Flexao dir.L (barras // L): balanco=110 cm ; M_d=0,6 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=22,5 -> As,adot=22,5 cm2
-      -> 19 barras phi 12,5 mm c/ 11 cm (As,ef=23,3 cm2)
-  Flexao dir.B (barras // B): balanco=85 cm ; M_d=0,4 kN.m ; x/d=0,00 (OK) ; As=0,0 cm2 ; As,min=28,1 -> As,adot=28,1 cm2
-      -> 23 barras phi 12,5 mm c/ 11 cm (As,ef=28,2 cm2)
-  Compressao diagonal (19.5.3.1): tau_Sd=523 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,12 OK
+  Pressao de calculo (flexao) sigma_d=540 kN/m2
+  Flexao dir.L (barras // L): balanco=85 cm ; M_d=292,5 kN.m ; x/d=0,06 (OK) ; As=12,8 cm2 ; As,min=13,5 -> As,adot=17,0 cm2
+      -> 14 barras phi 12,5 mm c/ 11 cm (As,ef=17,2 cm2)
+  Flexao dir.B (barras // B): balanco=60 cm ; M_d=194,3 kN.m ; x/d=0,03 (OK) ; As=8,4 cm2 ; As,min=18,0 -> As,adot=18,0 cm2
+      -> 15 barras phi 12,5 mm c/ 14 cm (As,ef=18,4 cm2)
+  Compressao diagonal (19.5.3.1): tau_Sd=855 <= tau_Rd2=4339 kN/m2 (alpha_v=0,90 ; K=0,60) -> u=0,20 OK
   -> PARTE B OK
   [FLAG] As,min=0,15% (17.3.5.2) - confirmar p/ fck adotado.
   [FLAG] Ancoragem da armadura de arranque (22.6.4.1.2) e detalhamento
@@ -50,5 +58,5 @@ SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014
 [FLAG] Detalhamento/ancoragem da armadura (22.6.4): projeto executivo.
 
 QUANTITATIVO (10 sapatas = 2 pilares x 5 porticos):
-  Concreto: 3,79 m3/sapata  ->  TOTAL 38,0 m3
-  Aco (flexao): 86,5 kg/sapata (taxa 23 kg/m3)  ->  TOTAL 865 kg
+  Concreto: 1,85 m3/sapata  ->  TOTAL 18,5 m3
+  Aco (flexao): 45,6 kg/sapata (taxa 25 kg/m3)  ->  TOTAL 456 kg

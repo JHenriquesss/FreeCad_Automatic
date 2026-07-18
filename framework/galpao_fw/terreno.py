@@ -129,25 +129,35 @@ def analisa_terreno(cfg):
       to_max, ca_max, tp_min (fracoes 0..1) ;
       recuo_frente, recuo_lateral, recuo_fundos (m) ; n_pav (opcional, p/ CA).
     """
-    if "pts_xy" in cfg:
-        xy = cfg["pts_xy"]
-    else:
-        pts = cfg["pts_lonlat"] if "pts_lonlat" in cfg else parse_kml(cfg["kml"])
-        xy = projeta_metros(pts)
-    A = area_poligono_m2(xy)
-    W, D = _bbox(xy)                              # AABB (N-S/L-O) - informativo
-    lado_maior, lado_menor, ang = _obb(xy)       # OBB (eixos do lote) - correto
     rf = cfg.get("recuo_frente", 0.0); rl = cfg.get("recuo_lateral", 0.0)
     rfu = cfg.get("recuo_fundos", 0.0)
-    # Retangulo construivel medido pelos eixos do lote (OBB): lado MENOR = frente
-    # (recuos frente+fundos) ; lado MAIOR = profundidade (recuos laterais). Ajuste
-    # a orientacao no gate se a testada nao for o lado menor.
-    Dc = max(0.0, lado_menor - rf - rfu)         # sentido da testada (frente)
-    Wc = max(0.0, lado_maior - 2 * rl)           # sentido das laterais
+    tem_poligono = any(k in cfg for k in ("pts_xy", "pts_lonlat", "kml"))
+    if tem_poligono:
+        if "pts_xy" in cfg:
+            xy = cfg["pts_xy"]
+        else:
+            pts = cfg["pts_lonlat"] if "pts_lonlat" in cfg else parse_kml(cfg["kml"])
+            xy = projeta_metros(pts)
+        A = area_poligono_m2(xy)
+        W, D = _bbox(xy)                          # AABB (N-S/L-O) - informativo
+        lado_maior, lado_menor, ang = _obb(xy)   # OBB (eixos do lote) - correto
+        # Retangulo construivel pelos eixos do lote (OBB): lado MENOR = frente
+        # (recuos frente+fundos) ; lado MAIOR = profundidade (recuos laterais).
+        Dc = max(0.0, lado_menor - rf - rfu)     # sentido da testada (frente)
+        Wc = max(0.0, lado_maior - 2 * rl)       # sentido das laterais
+        bbox = (W, D); obb = (lado_maior, lado_menor)
+        angg = round(math.degrees(ang), 1); rect = (Wc, Dc)
+    else:
+        # modo AREA-ONLY (wizard sem poligono do lote): TO/CA/TP saem da area;
+        # os recuos NAO sao verificaveis sem a geometria do lote (rect=None).
+        A = cfg.get("area_lote_m2")
+        if A is None:
+            raise KeyError("terreno: informe o poligono (pts_xy/kml) ou area_lote_m2")
+        bbox = obb = None; angg = None; rect = None
     to, ca, tp = cfg["to_max"], cfg["ca_max"], cfg["tp_min"]
-    return {"area_lote_m2": A, "bbox_m": (W, D), "obb_m": (lado_maior, lado_menor),
-            "obb_angulo_graus": round(math.degrees(ang), 1),
-            "retangulo_construivel_m": (Wc, Dc),
+    return {"area_lote_m2": A, "bbox_m": bbox, "obb_m": obb,
+            "obb_angulo_graus": angg,
+            "retangulo_construivel_m": rect,
             "footprint_max_TO_m2": to * A, "area_construida_max_CA_m2": ca * A,
             "area_permeavel_min_TP_m2": tp * A, "area_impermeavel_max_m2": (1 - tp) * A,
             "to_max": to, "ca_max": ca, "tp_min": tp,
@@ -160,33 +170,44 @@ def verifica_galpao(terr, comprimento, largura, n_pav=1, area_pavimentada=0.0):
     footprint = comprimento * largura
     area_construida = footprint * n_pav
     impermeavel = footprint + area_pavimentada
-    (Wc, Dc) = terr["retangulo_construivel_m"]
-    cabe = ((comprimento <= Wc + 1e-6 and largura <= Dc + 1e-6) or
-            (comprimento <= Dc + 1e-6 and largura <= Wc + 1e-6))
+    rect = terr["retangulo_construivel_m"]
     checks = {
         "TO (footprint)": (footprint, terr["footprint_max_TO_m2"], footprint <= terr["footprint_max_TO_m2"]),
         "CA (area construida)": (area_construida, terr["area_construida_max_CA_m2"],
                                  area_construida <= terr["area_construida_max_CA_m2"]),
         "TP (impermeavel)": (impermeavel, terr["area_impermeavel_max_m2"],
-                             impermeavel <= terr["area_impermeavel_max_m2"]),
-        "Recuos (cabe no retangulo)": (footprint, Wc * Dc, cabe)}
+                             impermeavel <= terr["area_impermeavel_max_m2"])}
+    # recuos so sao verificaveis com a GEOMETRIA do lote (poligono). No modo
+    # area-only (wizard) rect=None -> recuos ficam PENDENTES (nao reprovam).
+    if rect is not None:
+        (Wc, Dc) = rect
+        cabe = ((comprimento <= Wc + 1e-6 and largura <= Dc + 1e-6) or
+                (comprimento <= Dc + 1e-6 and largura <= Wc + 1e-6))
+        checks["Recuos (cabe no retangulo)"] = (footprint, Wc * Dc, cabe)
+    else:
+        cabe = None
     ok = all(v[2] for v in checks.values())
     return {"footprint_m2": footprint, "area_construida_m2": area_construida,
             "impermeavel_m2": impermeavel, "cabe_no_retangulo": cabe,
-            "checks": checks, "OK": ok}
+            "recuos_pendentes": rect is None, "checks": checks, "OK": ok}
 
 
 def relatorio_pt(terr, ver=None):
     L = ["=" * 70, "VIABILIDADE DO TERRENO (parametros urbanisticos - lei de uso do solo)",
          "=" * 70,
-         f"  Area do lote ................ {terr['area_lote_m2']:.1f} m2",
-         f"  AABB (N-S x L-O, informativo) {terr['bbox_m'][0]:.1f} x {terr['bbox_m'][1]:.1f} m",
-         f"  OBB (eixos do lote) ......... {terr['obb_m'][0]:.1f} x {terr['obb_m'][1]:.1f} m "
-         f"(girado {terr['obb_angulo_graus']} graus do Norte)",
-         f"  Recuos (frente/lat/fundos) .. {terr['recuos_m']} m",
-         f"  Retangulo construivel ....... {terr['retangulo_construivel_m'][0]:.1f} x "
-         f"{terr['retangulo_construivel_m'][1]:.1f} m",
-         f"  TO max ({terr['to_max']*100:.0f}%) footprint .... <= {terr['footprint_max_TO_m2']:.1f} m2",
+         f"  Area do lote ................ {terr['area_lote_m2']:.1f} m2"]
+    if terr.get("bbox_m") is not None:
+        L += [f"  AABB (N-S x L-O, informativo) {terr['bbox_m'][0]:.1f} x {terr['bbox_m'][1]:.1f} m",
+              f"  OBB (eixos do lote) ......... {terr['obb_m'][0]:.1f} x {terr['obb_m'][1]:.1f} m "
+              f"(girado {terr['obb_angulo_graus']} graus do Norte)",
+              f"  Recuos (frente/lat/fundos) .. {terr['recuos_m']} m",
+              f"  Retangulo construivel ....... {terr['retangulo_construivel_m'][0]:.1f} x "
+              f"{terr['retangulo_construivel_m'][1]:.1f} m"]
+    else:
+        L += [f"  Recuos (frente/lat/fundos) .. {terr['recuos_m']} m",
+              "  [sem poligono do lote: TO/CA/TP verificados pela AREA ; recuos PENDENTES"
+              " - informe o contorno do lote (KML/coordenadas) p/ checar o retangulo construivel]"]
+    L += [f"  TO max ({terr['to_max']*100:.0f}%) footprint .... <= {terr['footprint_max_TO_m2']:.1f} m2",
          f"  CA max ({terr['ca_max']:.2f}) area constr. .. <= {terr['area_construida_max_CA_m2']:.1f} m2",
          f"  TP min ({terr['tp_min']*100:.0f}%) permeavel ..... >= {terr['area_permeavel_min_TP_m2']:.1f} m2 "
          f"(impermeavel <= {terr['area_impermeavel_max_m2']:.1f} m2)"]

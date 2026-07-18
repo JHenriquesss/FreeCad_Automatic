@@ -1,7 +1,7 @@
 VENTO (ABNT NBR 6123/1988)
   V0 = 40 m/s ; Categoria II ; Classe B
   S1 = 1.00 (topografia plana) ; S3 = 0.95 (galpao deposito)
-  S2 = 1,00*0.98*(6.5/10)^0.090 = 0.943
+  S2 = 1.00*0.98*(6.5/10)^0.090 = 0.943
   Vk = 35.82 m/s ; q = 0,613*Vk^2 = 0.787 kN/m2
   Telhado theta = 5.71 graus (10%) ; h/b=0,6 ; a/b=2
   Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):

@@ -100,13 +100,51 @@ def cpe_telhado_longitudinal(theta_graus=5.71):
     return {"cobertura_long_EG": round(eg, 2), "cobertura_long_FH": round(fh, 2)}
 
 
-def cpi_cases():
-    """NBR 6123 item 6.2.5-c: PORTAO = abertura dominante no oitao.
-    - Portao a barlavento (vento no oitao): Cpi = +0,1 a +0,8 conforme a razao
-      (area do portao / area das demais aberturas sob succao). Adotado +0,8
-      (conservador, razao >=6) - A CONFIRMAR com a razao real das aberturas.
-    - Portao a sotavento: Cpi = Cpe da face de sotavento (Tabela 4) = -0,6.
-    Consideram-se ambos; o engenheiro escolhe/refina."""
+def cpi_cases(abertura_dominante="portao_oitao"):
+    """Cpi (NBR 6123 item 6.2.5) conforme a abertura dominante do galpao. Delega
+    a cpi_por_abertura para que o MEMORIAL de vento use a MESMA premissa da analise
+    do portico (antes fixava sempre portao +0,80/-0,60, ignorando a escolha do
+    usuario -> memorial e analise divergiam quando o galpao era 'vedada')."""
+    return cpi_por_abertura(abertura_dominante)
+
+
+def cpe_telhado_1agua(theta_graus=5.71):
+    """NBR 6123 Tabela 6 - telhado de UMA AGUA (shed), h/b < 2. Coef. de FORMA Ce
+    (para o portico principal) por metade do telhado: H (metade BAIXA) e L (metade
+    ALTA), nas duas direcoes de vento perpendicular a cumeeira:
+      'vento90'  = vento sobe (atinge a fachada BAIXA): H barlavento, L sotavento;
+      'vento_90' = vento desce (atinge a fachada ALTA): L barlavento, H sotavento.
+    Todos os valores sao de SUCCAO (negativos) -> uplift. Interpola theta em
+    5/10/15 graus (valores lidos da Tabela 6). Barlavento sempre -0,9 a -1,0."""
+    pts = [5.0, 10.0, 15.0]
+    H90 = [-1.0, -1.0, -0.9]; L90 = [-0.5, -0.5, -0.5]      # vento 90 (sobe)
+    Hm90 = [-0.5, -0.4, -0.3]; Lm90 = [-1.0, -1.0, -1.0]    # vento -90 (desce)
+
+    def _ip(ys):
+        t = min(max(theta_graus, pts[0]), pts[-1])
+        for k in range(len(pts) - 1):
+            if t <= pts[k + 1] + 1e-9:
+                f = (t - pts[k]) / (pts[k + 1] - pts[k])
+                return round(ys[k] + (ys[k + 1] - ys[k]) * f, 3)
+        return ys[-1]
+    return {"vento90": {"H": _ip(H90), "L": _ip(L90)},
+            "vento_90": {"H": _ip(Hm90), "L": _ip(Lm90)}}
+
+
+def cpi_por_abertura(abertura_dominante="portao_oitao"):
+    """Cpi (NBR 6123 item 6.2.5) conforme a configuracao de abertura. Retorna os
+    DOIS casos usados no envelope de vento (mesma chave de cpi_cases):
+      - 'portao_oitao' / 'portao_lateral' -> ABERTURA DOMINANTE (6.2.5-c):
+        +0,80 (portao a barlavento) / -0,60 (portao a sotavento).
+      - 'vedada' -> SEM abertura dominante, permeabilidade baixa/uniforme
+        (6.2.5-a/b): +0,20 / -0,30 (conservador; A CONFIRMAR com a permeabilidade
+        real do galpao - reboco, esquadrias, telha com costura).
+    Antes o Cpi era SEMPRE o de portao (+0,80/-0,60), ignorando a escolha do
+    usuario -> galpao vedado ficava com pressao interna de portao (superestimava
+    o uplift). Ver wizard 'abertura_dominante'."""
+    a = (abertura_dominante or "portao_oitao").strip().lower()
+    if a in ("vedada", "vedado", "sem", "sem_abertura"):
+        return {"portao_barlavento": +0.20, "portao_sotavento": -0.30}
     return {"portao_barlavento": +0.80, "portao_sotavento": -0.60}
 
 
@@ -262,7 +300,7 @@ def sucao_local_fixacao(q_kN_m2, cpe_medio, cpi=+0.80):
 
 
 def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None,
-            larg_b=10.0, alt_h=6.0, comp_a=20.0):
+            larg_b=10.0, alt_h=6.0, comp_a=20.0, abertura_dominante="portao_oitao"):
     v0 = _CFG["v0"] if v0 is None else v0
     cat = _CFG["cat"] if cat is None else cat
     classe = _CFG["classe"] if classe is None else classe
@@ -274,7 +312,7 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
     cpe = {**cpe_paredes(), **cpe_telhado(theta)}
-    cpi = cpi_cases()
+    cpi = cpi_cases(abertura_dominante)
     net = {}
     for cname, cpiv in cpi.items():
         net[cname] = {s: round(cpe[s] - cpiv, 2) for s in cpe}
@@ -288,6 +326,7 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     return {"v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
             "s3": s3, "b": b, "Fr": Fr, "p": p, "z": z, "theta": theta,
             "vk": round(vk, 2), "q_kN_m2": round(q, 3),
+            "abertura_dominante": abertura_dominante,
             "cpe": cpe, "cpi_cases": cpi, "net": net, "local": local}
 
 
@@ -302,7 +341,10 @@ def relatorio_pt(r):
     L.append("  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):")
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
-    L.append("  Cpi (item 6.2.5-c, PORTAO como abertura dominante):")
+    _ad = str(r.get("abertura_dominante", "portao_oitao")).lower()
+    _lbl = ("VEDADA (sem abertura dominante, item 6.2.5-a/b)"
+            if _ad.startswith("veda") else "PORTAO como abertura dominante, item 6.2.5-c")
+    L.append("  Cpi (%s):" % _lbl)
     for k, v in r["cpi_cases"].items():
         L.append(f"    {k.replace('_',' ')}: {v:+.2f}")
     L.append("  Cp liquido = Cpe - Cpi e pressao (kN/m2):")

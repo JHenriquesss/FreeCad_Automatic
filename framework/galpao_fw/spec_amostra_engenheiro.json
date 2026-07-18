@@ -1,0 +1,96 @@
+{
+  "slug": "amostra_engenheiro",
+  "descricao": "amostra_engenheiro",
+  "terreno": {
+    "kml": "__PENDENTE__",
+    "area_lote_m2": 957,
+    "to_max": 0.6,
+    "ca_max": 1.0,
+    "tp_min": 0.2,
+    "recuos": {
+      "frente": 8,
+      "lateral": 1.5,
+      "fundos": 0
+    },
+    "n_pav": 1,
+    "pts_xy_mm": null
+  },
+  "geometria": {
+    "span": 20,
+    "spans": null,
+    "comprimento": 28.5,
+    "eave": 8,
+    "ridge": 9.5,
+    "bay": 5.7,
+    "base_fixed": true
+  },
+  "cobertura": {
+    "aguas": 2,
+    "slope": 0.15,
+    "telha_tipo": "trapezoidal",
+    "telha_peso": 0.1,
+    "calha": true,
+    "chuva_I_mm_h": 150.0
+  },
+  "fechamento": {
+    "tipo": "alvenaria",
+    "altura_alvenaria": 0,
+    "peso": 1.5,
+    "mesa_interna_travada": true,
+    "n_maos_francesas": 9
+  },
+  "aberturas": {
+    "portao_frente": [
+      4500.0,
+      2500.0
+    ],
+    "janelas_laterais": [
+      3000.0,
+      1000.0
+    ]
+  },
+  "estrutura": {
+    "perfil_col": "__PENDENTE__",
+    "perfil_raf": "__PENDENTE__",
+    "contraventamento": "__PENDENTE__",
+    "tipo_portico": "prismatico",
+    "tapered": null,
+    "trelica": null
+  },
+  "vento": {
+    "v0": 45,
+    "cat": "II",
+    "classe": "B",
+    "s1": 1.0,
+    "s3": 0.95,
+    "z": 9.5,
+    "abertura_dominante": "portao_oitao"
+  },
+  "ponte": null,
+  "cargas": {
+    "G": 0.27,
+    "Q": 0.5,
+    "self": 0.35,
+    "tapamento": 0.1
+  },
+  "fundacao": {
+    "tipo": "bloco",
+    "sigma_solo_adm": 150,
+    "mu": 0.5,
+    "coesao": 0.0,
+    "h_reaterro": 0.5,
+    "fck": 25000.0,
+    "fyk": 500000.0,
+    "cobrimento": 0.05,
+    "phi_barra": 0.0125,
+    "gamma_f": 1.4,
+    "estaca": null,
+    "divisa": null
+  },
+  "baldrame": null,
+  "fogo": null,
+  "neve": null,
+  "escada": null,
+  "plataforma": null,
+  "_a_confirmar": []
+}

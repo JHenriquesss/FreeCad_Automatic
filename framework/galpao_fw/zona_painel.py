@@ -108,6 +108,47 @@ def dimensiona_doubler(FSd, F_Rd, dc, fy):
     return math.ceil(max(t_forca, t_esbeltez) * 1000.0)       # mm, arredonda p/ cima
 
 
+def dimensiona_enrijecedor(FSd, caso):
+    """Enrijecedores transversais (par, ambos os lados da alma) sob a mesa da viga -
+    NBR 8800 5.7.9. Quando os estados locais da alma NUA (5.7.2/5.7.3/5.7.6) nao
+    atendem, provem-se um par de chapas ajustadas ao contato que recebem a forca das
+    mesas por CONTATO (escoamento) e a resistem como PECA COMPRIMIDA (par + trecho
+    efetivo da alma, 25 tw). Auto-dimensiona a espessura t_st na escada de chapas.
+    Retorna t_st/b_st (mm), F_Rd (min contato/compressao), u e ok."""
+    fy = caso["fy"]; tw = caso["tw_col"]; bf = caso["bf_col"]
+    dc = caso["dc"]; tf = caso["tf_col"]
+    b_st = max((bf - tw) / 2.0 - 0.010, 0.04)      # largura da chapa (desconta folga)
+    h = max(dc - 2.0 * tf, 1e-6)
+    lam_bt = 0.56 * math.sqrt(E / fy)              # limite b/t da chapa (Tab. F.1, AA)
+    Lc = 0.75 * h                                  # compr. de flambagem (5.7.9)
+    lw = min(25.0 * tw, h)                          # trecho efetivo da alma (interior)
+    best = None
+    for t_mm in (8.0, 9.5, 12.5, 16.0, 19.0, 22.4, 25.0, 31.5):
+        t_st = t_mm / 1000.0
+        if b_st / t_st > lam_bt:                    # chapa localmente esbelta -> engrossa
+            continue
+        A_pb = 2.0 * b_st * t_st                     # area de contato do par
+        F_bear = fy * A_pb / GA1                     # escoamento por contato (5.7.9)
+        A_ef = A_pb + lw * tw                        # secao da peca comprimida
+        e = tw / 2.0 + b_st / 2.0                    # braco da chapa ao eixo da alma
+        I_st = 2.0 * (t_st * b_st ** 3 / 12.0 + b_st * t_st * e ** 2) + lw * tw ** 3 / 12.0
+        Ne = math.pi ** 2 * E * I_st / Lc ** 2       # carga critica de Euler
+        lam0 = math.sqrt(A_ef * fy / Ne)
+        chi = ck.chi_compressao(lam0)
+        F_comp = chi * A_ef * fy / GA1               # compressao (5.3)
+        F_Rd = min(F_bear, F_comp)
+        cand = {"t_st_mm": t_mm, "b_st_mm": round(b_st * 1000, 0),
+                "F_bearing_kN": round(F_bear, 1), "F_comp_kN": round(F_comp, 1),
+                "F_Rd_kN": round(F_Rd, 1), "chi": round(chi, 3),
+                "u_enrij": round(FSd / F_Rd, 2) if F_Rd > 0 else float("inf"),
+                "ok": F_Rd >= FSd}
+        best = cand
+        if cand["ok"]:
+            return cand
+    return best or {"t_st_mm": 31.5, "b_st_mm": round(b_st * 1000, 0),
+                    "F_Rd_kN": 0.0, "u_enrij": float("inf"), "ok": False}
+
+
 def estados_locais(caso):
     """Estados-limites locais sob as mesas da viga (forcas concentradas na mesa
     do pilar). Retorna dict por estado + precisa_enrijecedor.
@@ -159,11 +200,24 @@ def verifica_painel(caso):
     precisa_reforco = cis["u_painel"] > 1.0
     t_dob = dimensiona_doubler(cis["FSd"], cis["F_Rd"], caso["dc"], caso["fy"]) \
         if precisa_reforco else 0.0
-    u_max = max(cis["u_painel"], loc["u_local"])
+    # Estados locais da alma NUA reprovam -> ADOTA enrijecedores transversais (5.7.9)
+    # dimensionados a forca das mesas; a utilizacao local do no passa a ser a do
+    # enrijecedor (a alma nua deixa de governar quando ha enrijecedor ajustado).
+    enrij = None
+    u_local_efetivo = loc["u_local"]
+    if loc["precisa_enrijecedor"]:
+        enrij = dimensiona_enrijecedor(loc["FSd"], caso)
+        u_local_efetivo = enrij["u_enrij"]
+    # utilizacao do painel: com doubler adotado, o cisalhamento passa a atender
+    # (a chapa cobre o excesso por construcao); senao e o u_painel da alma nua.
+    u_painel_efetivo = min(cis["u_painel"], 1.0) if (precisa_reforco and t_dob > 0) \
+        else cis["u_painel"]
+    u_max = max(u_painel_efetivo, u_local_efetivo)
     return {**cis, "local": loc,
             "precisa_reforco": precisa_reforco, "t_doubler_mm": t_dob,
-            "precisa_enrijecedor": loc["precisa_enrijecedor"],
-            "u_local": loc["u_local"], "u_max": u_max}
+            "precisa_enrijecedor": loc["precisa_enrijecedor"], "enrijecedor": enrij,
+            "u_local_nua": loc["u_local"], "u_local": u_local_efetivo,
+            "u_painel_efetivo": u_painel_efetivo, "u_max": u_max}
 
 
 def relatorio_pt(r, caso):
@@ -199,10 +253,22 @@ def relatorio_pt(r, caso):
           "    flambagem da alma compr. (5.7.6)  = %.1f kN" % loc["estados"]["flambagem_alma_compressao"],
           "    governante = %s ; u_local = %.2f" % (loc["governa"], loc["u_local"])]
     if loc["precisa_enrijecedor"]:
-        L.append("    >> EXIGE enrijecedores transversais (ambos os lados da alma, 5.7.9).")
+        en = r.get("enrijecedor")
+        if en:
+            L.append("    >> alma nua NAO atende (u=%.2f) -> ADOTA enrijecedores "
+                     "transversais (par, 5.7.9):" % r.get("u_local_nua", loc["u_local"]))
+            L.append("       2 chapas %.0fx%.1f mm (b x t) ; F_Rd=%.1f kN "
+                     "(contato %.1f / compr. %.1f, chi=%.2f) ; u=%.2f -> %s" % (
+                         en["b_st_mm"], en["t_st_mm"], en["F_Rd_kN"],
+                         en.get("F_bearing_kN", 0.0), en.get("F_comp_kN", 0.0),
+                         en.get("chi", 0.0), en["u_enrij"],
+                         "OK" if en["ok"] else "NAO"))
+        else:
+            L.append("    >> EXIGE enrijecedores transversais (ambos os lados da alma, 5.7.9).")
     else:
         L.append("    >> estados locais OK sem enrijecedor.")
-    L += ["", "  >> UTILIZACAO MAX DO NO = %.2f" % r["u_max"], "=" * 66]
+    L += ["", "  >> UTILIZACAO MAX DO NO (com reforcos adotados) = %.2f" % r["u_max"],
+          "=" * 66]
     return "\n".join(L)
 
 

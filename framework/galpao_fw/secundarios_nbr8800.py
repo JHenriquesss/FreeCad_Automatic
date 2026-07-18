@@ -207,9 +207,12 @@ def dimensiona_secundarios(fy, cfg_long, cfg_esc, cfg_mont,
                 break
         if achou:
             break
-    # --- escora / montante: escada HEA (160 -> 220) ---
+    # --- escora / montante: escada HEA->HEB (160 -> HEB300). Postes de oitao altos
+    # (empena de galpao alto) sob vento exigem secoes maiores; a escada sobe ate a
+    # HEB300 antes de esgotar. ---
     HEA = [("HEA160", HEA160)] + [(nm, perfis.PERFIS[nm])
-                                  for nm in ("HEA180", "HEA200", "HEA220")
+                                  for nm in ("HEA180", "HEA200", "HEA220", "HEA240",
+                                             "HEB240", "HEB260", "HEB280", "HEB300")
                                   if nm in perfis.PERFIS]
 
     def _sobe(verif, cfg):
