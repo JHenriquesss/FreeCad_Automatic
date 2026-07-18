@@ -212,6 +212,13 @@ def _pergunta_map():
 def construir_spec(r, slug="galpao"):
     """Monta um ProjetoSpec a partir do dict de respostas 'r' (ja com os tipos
     certos). Nao faz I/O. Retorna o spec (pode estar incompleto -> validar())."""
+    # obrigatorios sem default (dado de SITIO/projeto). Ausentes davam KeyError cru
+    # no meio da montagem; erro claro e mais util p/ quem chama construir_spec direto.
+    _faltam = [k for k in ("area_lote_m2", "span", "comprimento", "eave", "v0",
+                           "sigma_solo") if r.get(k) in (None, "")]
+    if _faltam:
+        raise ValueError("construir_spec: respostas obrigatorias faltando (sem default, "
+                         "dado de sitio/projeto): %s" % ", ".join(_faltam))
     s = PS.novo()
     s["slug"] = slug
     s["descricao"] = r.get("descricao", slug)
@@ -278,9 +285,24 @@ def _ask_one(chave, prompt, parser, default, obrigatorio, entrada, saida):
         "sim" if default is True else "nao" if default is False else str(default))
     sufixo = "" if default is None else f" [{dflt}]"
     marca = "  (obrigatorio)" if obrigatorio and default is None else ""
+    # Guarda de robustez: sem isto, entrada nao-interativa que sempre devolve ""
+    # (ou exaurida) fazia o laco RE-PERGUNTAR para sempre em campo obrigatorio
+    # (trava). Cap de tentativas + EOFError explicito. Uso programatico deve usar
+    # construir_spec(dict), nao dirigir o laco.
+    tentativas = 0
     while True:
+        tentativas += 1
+        if tentativas > 100:
+            raise RuntimeError(
+                "campo '%s': 100 tentativas sem valor valido - entrada nao-interativa "
+                "ou exaurida? Para automacao use wizard.construir_spec(dict)." % chave)
         saida(f"{prompt}{sufixo}{marca}")
-        raw = entrada("> ").strip()
+        try:
+            raw = entrada("> ").strip()
+        except EOFError:
+            raise RuntimeError(
+                "fim inesperado da entrada no campo '%s' (stdin exaurido). Para "
+                "automacao use wizard.construir_spec(dict)." % chave)
         if raw == "":
             if obrigatorio and default is None:
                 saida("  -> campo obrigatorio (dado de sitio/projeto). Informe um valor.")
