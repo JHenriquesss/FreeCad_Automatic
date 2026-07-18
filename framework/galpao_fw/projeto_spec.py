@@ -331,6 +331,32 @@ def validar(spec):
                 if _hmax_mm and _h > _hmax_mm:
                     faltando.append(("aberturas." + _k,
                                      "altura %.0f mm excede a cumeeira (%.0f mm)" % (_h, _hmax_mm)))
+    # --- PLAUSIBILIDADE fisica (limites DUROS, iguais aos do wizard _checa_faixa
+    # banda "erro", agora aplicados NO GATE e nao so no terminal interativo. A
+    # assimetria era contra-seguranca: um typo no JSON - ex. sigma_solo=5000 em vez
+    # de 500 - passava e gerava FUNDACAO SUBDIMENSIONADA CERTIFICADA). Os limites
+    # INFERIORES de dimensao/slope/V0 ja tem mensagem especifica acima; aqui vao os
+    # TETOS e os campos ainda sem faixa (sigma_solo, G, Q). Valores na banda "aviso"
+    # (incomum mas aceito) NAO bloqueiam - so a banda implausivel.
+    for path, lo, hi, u in (
+            ("geometria.span", None, 120.0, "m"),
+            ("geometria.comprimento", None, 600.0, "m"),
+            ("geometria.eave", None, 30.0, "m"),
+            ("geometria.bay", None, 15.0, "m"),
+            ("cobertura.slope", None, 1.0, ""),
+            ("vento.v0", None, 60.0, "m/s"),
+            ("fundacao.sigma_solo_adm", 30.0, 2000.0, "kN/m2"),
+            ("cargas.G", 0.02, 5.0, "kN/m2"),
+            ("cargas.Q", 0.05, 10.0, "kN/m2")):
+        v = _num(path)
+        if v is None:
+            continue
+        if (lo is not None and v < lo) or (hi is not None and v > hi):
+            us = (" " + u) if u else ""
+            faixa = ("<= %g%s" % (hi, us) if lo is None else
+                     (">= %g%s" % (lo, us) if hi is None else "[%g, %g]%s" % (lo, hi, us)))
+            faltando.append((path, "%g%s fora da faixa plausivel (%s); confira o dado "
+                             "de sitio/projeto" % (v, us, faixa)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 

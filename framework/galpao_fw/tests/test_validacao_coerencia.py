@@ -97,3 +97,49 @@ def test_abertura_normal_nao_bloqueia():
     # a amostra ja tem portao 4,5x2,5 e janela 3,0x1,0 - devem passar
     r = PS.validar(_base())
     assert not any(p.startswith("aberturas.") for p, _ in r["faltando"])
+
+
+# --- plausibilidade fisica (limites duros no gate, nao so no wizard) ---------
+def test_sigma_solo_absurdo_bloqueia():
+    # typo classico: 5000 em vez de 500 kPa -> fundacao subdimensionada. CRITICO.
+    s = _base(); s["fundacao"]["sigma_solo_adm"] = 5000.0
+    assert _bloqueado_em(s, "fundacao.sigma_solo_adm")
+    # limite inferior tambem (solo ridiculamente fraco / typo)
+    s = _base(); s["fundacao"]["sigma_solo_adm"] = 5.0
+    assert _bloqueado_em(s, "fundacao.sigma_solo_adm")
+
+
+def test_sigma_solo_normal_passa():
+    for sig in (150.0, 500.0, 1500.0):
+        s = _base(); s["fundacao"]["sigma_solo_adm"] = sig
+        assert PS.validar(s)["ok"], sig
+
+
+def test_span_implausivel_bloqueia():
+    s = _base(); s["geometria"]["span"] = 200.0
+    assert _bloqueado_em(s, "geometria.span")
+
+
+def test_eave_incomum_mas_aceito_nao_bloqueia():
+    # eave=25 m e banda "aviso" (tipico ate 15, duro ate 30): NAO bloqueia.
+    s = _base(); s["geometria"]["eave"] = 25.0; s["geometria"]["ridge"] = 26.5
+    assert PS.validar(s)["ok"], PS.validar(s)["faltando"]
+
+
+def test_v0_teto():
+    s = _base(); s["vento"]["v0"] = 59.0   # aviso, aceito
+    assert PS.validar(s)["ok"], PS.validar(s)["faltando"]
+    s = _base(); s["vento"]["v0"] = 65.0   # implausivel
+    assert _bloqueado_em(s, "vento.v0")
+
+
+def test_cargas_absurdas_bloqueiam():
+    s = _base(); s["cargas"]["G"] = 10.0
+    assert _bloqueado_em(s, "cargas.G")
+    s = _base(); s["cargas"]["Q"] = 20.0
+    assert _bloqueado_em(s, "cargas.Q")
+
+
+def test_slope_teto():
+    s = _base(); s["cobertura"]["slope"] = 1.5
+    assert _bloqueado_em(s, "cobertura.slope")
