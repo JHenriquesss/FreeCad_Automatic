@@ -460,6 +460,57 @@ def validar(spec):
             if isinstance(_v, (int, float)) and not isinstance(_v, bool) and _v <= 0:
                 faltando.append(("baldrame." + _k,
                                  "%s do baldrame deve ser > 0 (recebido %g)" % (_k, _v)))
+    # --- COMPLETA a varredura: campos de menor risco (cargas, cobertura,
+    # fechamento, terreno) e os modulos opcionais escada/plataforma/fogo/neve.
+    # Positividade fisica (>0 onde exigido, >=0 onde carga pode ser nula).
+    def _pos(path, desc, estrito=True):
+        v = _num(path)
+        if v is None:
+            return
+        if (estrito and v <= 0) or (not estrito and v < 0):
+            faltando.append((path, "%s %s (recebido %g)"
+                             % (desc, "deve ser > 0" if estrito else "nao pode ser < 0", v)))
+    _pos("cobertura.telha_peso", "peso da telha")
+    _pos("cobertura.chuva_I_mm_h", "intensidade pluviometrica")
+    _pos("cargas.self", "peso proprio estimado", estrito=False)
+    _pos("cargas.tapamento", "tapamento", estrito=False)
+    _pos("fechamento.peso", "peso do fechamento", estrito=False)
+    _pos("fechamento.altura_alvenaria", "altura da alvenaria", estrito=False)
+    _pos("terreno.area_lote_m2", "area do lote")
+    _pos("terreno.ca_max", "coef. de aproveitamento")
+    for _p in ("terreno.to_max", "terreno.tp_min"):
+        _v = _num(_p)
+        if _v is not None and not (0.0 <= _v <= 1.0):
+            faltando.append((_p, "%s deve estar em [0, 1] (recebido %g)"
+                             % (_p.split(".")[-1], _v)))
+    _dnum = lambda d, k: (d.get(k) if isinstance(d.get(k), (int, float))
+                          and not isinstance(d.get(k), bool) else None)
+    _nv2 = spec.get("neve")
+    if isinstance(_nv2, dict):
+        _sk = _dnum(_nv2, "sk")
+        if _sk is not None and _sk < 0:
+            faltando.append(("neve.sk", "carga de neve sk nao pode ser < 0 (recebido %g)" % _sk))
+    _fg = spec.get("fogo")
+    if isinstance(_fg, dict):
+        _trrf = _dnum(_fg, "TRRF_min")
+        if _trrf is not None and _trrf <= 0:
+            faltando.append(("fogo.TRRF_min", "TRRF deve ser > 0 min (recebido %g)" % _trrf))
+    _esc = spec.get("escada")
+    if isinstance(_esc, dict):
+        for _k in ("desnivel", "projecao", "largura"):
+            _v = _dnum(_esc, _k)
+            if _v is not None and _v <= 0:
+                faltando.append(("escada." + _k, "%s da escada deve ser > 0 (recebido %g)" % (_k, _v)))
+    _pl = spec.get("plataforma")
+    if isinstance(_pl, dict):
+        for _k in ("L", "b_trib"):
+            _v = _dnum(_pl, _k)
+            if _v is not None and _v <= 0:
+                faltando.append(("plataforma." + _k, "%s da plataforma deve ser > 0 (recebido %g)" % (_k, _v)))
+        for _k in ("q_perm", "q_acidental"):
+            _v = _dnum(_pl, _k)
+            if _v is not None and _v < 0:
+                faltando.append(("plataforma." + _k, "%s nao pode ser < 0 (recebido %g)" % (_k, _v)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 

@@ -300,3 +300,52 @@ def test_estaca_spt_degenerado_bloqueia():
     assert _bloqueado_em(s, "fundacao.estaca.perfil_spt")
     s = _base_estaca(); s["fundacao"]["estaca"]["perfil_spt"][0]["N"] = -5
     assert _bloqueado_em(s, "fundacao.estaca.perfil_spt")
+
+
+# --- campos de menor risco + modulos opcionais (completa a varredura) --------
+def test_telha_peso_nao_positivo_bloqueia():
+    s = _base(); s["cobertura"]["telha_peso"] = 0.0
+    assert _bloqueado_em(s, "cobertura.telha_peso")
+
+
+def test_cargas_negativas_bloqueiam():
+    s = _base(); s["cargas"]["self"] = -0.35
+    assert _bloqueado_em(s, "cargas.self")
+
+
+def test_terreno_fracoes_fora_de_faixa_bloqueiam():
+    s = _base(); s["terreno"]["to_max"] = 1.5
+    assert _bloqueado_em(s, "terreno.to_max")
+    s = _base(); s["terreno"]["area_lote_m2"] = 0.0
+    assert _bloqueado_em(s, "terreno.area_lote_m2")
+
+
+def test_neve_negativa_bloqueia():
+    s = _base(); s["neve"] = {"sk": -1.0, "Ce": 1.0, "Ct": 1.0}
+    assert _bloqueado_em(s, "neve.sk")
+
+
+def test_fogo_trrf_nao_positivo_bloqueia():
+    s = _base(); s["fogo"] = {"TRRF_min": 0}
+    assert _bloqueado_em(s, "fogo.TRRF_min")
+
+
+def test_escada_dims_nao_positivas_bloqueiam():
+    s = _base(); s["escada"] = {"desnivel": 0.0, "projecao": 4.0, "largura": 1.2}
+    assert _bloqueado_em(s, "escada.desnivel")
+
+
+def test_plataforma_dims_nao_positivas_bloqueiam():
+    s = _base(); s["plataforma"] = {"L": 0.0, "b_trib": 2.0, "q_perm": 1.0, "q_acidental": 3.0}
+    assert _bloqueado_em(s, "plataforma.L")
+    s = _base(); s["plataforma"] = {"L": 5.0, "b_trib": 2.0, "q_perm": -1.0, "q_acidental": 3.0}
+    assert _bloqueado_em(s, "plataforma.q_perm")
+
+
+def test_opcionais_validos_passam():
+    s = _base()
+    s["neve"] = {"sk": 0.5, "Ce": 1.0, "Ct": 1.0}
+    s["fogo"] = {"TRRF_min": 30}
+    s["escada"] = {"desnivel": 3.0, "projecao": 4.0, "largura": 1.2}
+    s["plataforma"] = {"L": 5.0, "b_trib": 2.0, "q_perm": 1.0, "q_acidental": 3.0}
+    assert PS.validar(s)["ok"], PS.validar(s)["faltando"]
