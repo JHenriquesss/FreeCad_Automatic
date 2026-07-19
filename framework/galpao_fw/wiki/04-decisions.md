@@ -505,5 +505,38 @@ motor da ponte.** Exceção K.4b (parafuso/barra rosqueada: Cf=E'(3,9e8) mas σ_
 separada, fora do escopo da viga de rolamento — não coberta, documentada. Gap era só coerência de
 entrada (ver [[#D58]]). PR #16.
 
+## D63 — estaca: resistência de ponta na profundidade L, não na última camada (2026-07-19)
+Revisão de `estaca_profunda`. Os 3 métodos (Aoki-Velloso/Décourt-Quaresma/Teixeira) usavam
+`perfil[-1]` (ÚLTIMA camada do SPT) para a resistência de PONTA (N + tipo de solo), ignorando
+a profundidade da ponta L. Perfil descendo ALÉM de L com camada mais forte (areia densa sob
+argila mole) → ponta "via" a camada de baixo → R_ponta/P_adm SUPERESTIMADOS → estaca
+subdimensionada CERTIFICADA (contra-segurança). Demo: D=0,40 L=5m (ponta argila N=3) dava
+R_ponta=2872 kN (N=40 da areia a 15m) vs 43 kN correto. **Fix:** `_camada_na_ponta(perfil, L)`
+(camada que contém L; boundary→camada de cima; L além→última) nos 3 métodos. `N_ponta`
+explícito ainda prevalece. `test_estaca_ponta` (5). PR #23. Ver [[06-open-threads#T16]].
+
+## D64 — executivo sempre encerra o freecad.exe (2026-07-19)
+`rodar_executivo` só matava o subprocesso NO TIMEOUT, via `proc.kill()` (TerminateProcess) —
+que NÃO derruba freecad.exe TRAVADO nem filhos. No sucesso nunca matava. → freecad.exe pendurado
+segurando a porta 9875 (os zumbis que bloquearam o bridge). **Fix:** bloco `finally` +
+`_matar_processo_freecad` (escalona `kill()`→`taskkill /F /T`→**WMI Terminate**, único que derruba
+travado). Best-effort. `test_executivo_cleanup` (3). PR #22. Bridge sobe sozinho com a porta livre
+(o "não autostart" era contaminação dos zumbis).
+
+## D65 — build_galpao shipado como fonte precisa do sys.path (2026-07-19)
+`build_galpao` é ENVIADO como texto p/ dentro do FreeCAD (não importado); imports de módulos
+IRMÃOS (`mao_francesa_geom`, extraído em [[#D59]]) só resolvem com o dir no `sys.path` do FreeCAD.
+Sem isso: ModuleNotFoundError, 3D success=False. Regressão do PR #15 invisível pq testes `build`
+são deselecionados no CI; achada na verificação VISUAL (bridge). **Fix:** helper único
+`rodar_projeto._ship_build_src` (montar_modelo + smoke + 5 build-tests fase3/64/65/6b/6c).
+`test_ship_build_src` (3) guarda sem bridge. PRs #20, #24.
+
+## D66 — PE07 crop do joelho menor (2026-07-19)
+Varredura visual do executivo (bridge). O crop do nó do joelho era cubo 3×3×3 m (KW=1500) →
+pegava ~1,5 m de coluna abaixo do beiral → recorte alto-e-fino → `_fit_escala` reduzia a escala
+(1:10) e a ligação renderizava minúscula, ao contrário de base/cumeeira (1:5). **Fix:** janela
+vertical menor/assimétrica (0,7 m abaixo, 1,0 m acima do beiral). 1:10→1:5, legível. PR #25.
+Cosmético. `techdraw_exec` ~956.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
