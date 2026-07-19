@@ -717,6 +717,15 @@ def _pr_portico(doc, cfg, objs):
     eixo = "x" if comp_x else "y"
     meio = (bb.XMin + bb.XMax) / 2 if comp_x else (bb.YMin + bb.YMax) / 2
     bay = g.get("bay") or 5000.0
+    # SNAP do 'meio' para o eixo do PORTICO mais proximo. Com numero PAR de vaos o
+    # meio do comprimento cai EXATAMENTE entre dois porticos e a janela +-0,45*bay
+    # (< meio-vao) NAO pega nenhum -> caia no fallback 'frame=objs' (predio inteiro)
+    # e a escala/enquadramento do PE04 quebravam (portico transbordava a folha).
+    _pcx = sorted({(_cx(o) if comp_x else _cy(o))
+                   for o in _pref(objs, ("PORTICO",))
+                   if hasattr(o, "Shape") and not o.Shape.isNull()})
+    if _pcx:
+        meio = min(_pcx, key=lambda x: abs(x - meio))
     # inclui console e viga de rolamento da ponte (quando houver) no portico
     frame = _faixa(_pref(objs, ("PORTICO", "NERVURA", "MAO", "PLACA",
                                 "PEDESTAL", "SAPATA", "CONSOLE_PONTE",

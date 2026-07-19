@@ -712,6 +712,23 @@ def to_rodar_params(spec):
     ci = cob.get("chuva_I_mm_h")
     if ci not in (None, PENDENTE):
         p["chuva_I_mm_h"] = ci
+    # telha: liga o TIPO (cobertura.telha_tipo) ao perfil verificado no gate 7
+    # (antes o gate rodava SEMPRE com TELHA_EXEMPLO trapezoidal, ignorando o tipo
+    # escolhido -> "ondulada"/"sanduiche" davam a mesma verificacao e o mesmo n de
+    # tercas; uma telha mais fraca ficaria sub-provida). Wef/Ief ilustrativos por
+    # tipo (flag "A CONFIRMAR"); um perfil explicito do fabricante em cobertura.
+    # telha_perfil (Wef/Ief/peso reais) SOBRESCREVE. telha_peso do usuario -> peso.
+    tt = cob.get("telha_tipo")
+    if tt not in (None, PENDENTE):
+        import telha_cobertura as _tlh
+        tp = cob.get("telha_peso")
+        tp = None if tp in (None, PENDENTE) else tp
+        perfil_cat = _tlh.catalogo_por_tipo(tt, peso_override=tp)
+        perfil_forn = cob.get("telha_perfil")   # catalogo real do fabricante (opt-in)
+        if isinstance(perfil_forn, dict) and perfil_forn.get("Wef"):
+            perfil_cat = {**perfil_cat, **perfil_forn, "ilustrativo": False}
+        p.setdefault("telha", {})["perfil"] = perfil_cat
+        p["telha"].setdefault("cfg", {"continuidade": "simples"})
     # sapata de divisa: so quando o gate fundacao.divisa e informado.
     dv = fu.get("divisa")
     if isinstance(dv, dict):

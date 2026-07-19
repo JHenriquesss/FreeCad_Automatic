@@ -116,7 +116,8 @@ def verifica_telha(perfil, cfg):
     ok = (util_elu <= 1.0) and els["ok_grav"] and els["ok_vento"]
     return {"perfil": perfil.get("nome", "telha"), "vao": L, "M_Rd": round(MRd, 4),
             "elu": elu, "util_elu": util_elu, "els": els, "OK": ok,
-            "vao_max": vao_max(perfil, cfg)}
+            "ilustrativo": bool(perfil.get("ilustrativo", False)),
+            "tipo": perfil.get("tipo"), "vao_max": vao_max(perfil, cfg)}
 
 
 def relatorio_pt(r):
@@ -136,8 +137,11 @@ def relatorio_pt(r):
     vm = r["vao_max"]
     L += [f"  VAO MAXIMO admissivel = {vm['vao_max_m']:.3f} m (governa {vm['governa']}: "
           f"ELU={vm['L_elu']:.2f} / ELS_g={vm['L_els_grav']:.2f} / ELS_v={vm['L_els_vento']:.2f})",
-          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'} (util ELU {r['util_elu']:.3f})",
-          "  [A CONFIRMAR: Wef, Ief e peso do CATALOGO do fabricante da telha; a",
+          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'} (util ELU {r['util_elu']:.3f})"]
+    if r.get("ilustrativo"):
+        L += [f"  [!] PERFIL ILUSTRATIVO por tipo '{r.get('tipo','?')}' (Wef/Ief NAO",
+              "      sao de catalogo real) - informe as props do fabricante no spec"]
+    L += ["  [A CONFIRMAR: Wef, Ief e peso do CATALOGO do fabricante da telha; a",
           "   continuidade (n de vaos); a sobrecarga Q e a sucao local W do vento.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
@@ -147,6 +151,39 @@ def relatorio_pt(r):
 # A CONFIRMAR com o catalogo do fabricante. NAO sao valores normativos.
 TELHA_EXEMPLO = {"nome": "Trapezoidal 40/0,65 (exemplo)", "Wef": 7.5, "Ief": 18.0,
                  "peso": 0.06, "fy": 280.0, "t": 0.65}
+
+# Catalogo ILUSTRATIVO por TIPO de telha (o campo cobertura.telha_tipo do wizard).
+# Ordem fisica de rigidez: ondulada (perfil raso) < trapezoidal < sanduiche (peles
+# separadas pelo nucleo). VALORES ILUSTRATIVOS, NAO normativos e NAO de fabricante:
+# servem para o gate DIFERENCIAR os tipos (uma telha mais fraca exige tercas mais
+# proximas) enquanto o eng nao informa Wef/Ief/peso do CATALOGO real. Todos marcados
+# `ilustrativo=True` -> o relatorio flag "A CONFIRMAR". Conservador de proposito
+# (Wef/Ief da ondulada baixos) para NAO sub-prover tercas. Sobrescrever com o
+# catalogo do fabricante via spec (fundacao.telha.perfil) sempre que disponivel.
+_CATALOGO_TELHA = {
+    "ondulada":    {"nome": "Ondulada 17/0,50 (ilustrativo)", "Wef": 3.0, "Ief": 5.0,
+                    "peso": 0.05, "fy": 250.0, "t": 0.50},
+    "trapezoidal": {"nome": "Trapezoidal 40/0,65 (ilustrativo)", "Wef": 7.5, "Ief": 18.0,
+                    "peso": 0.06, "fy": 280.0, "t": 0.65},
+    "sanduiche":   {"nome": "Sanduiche 30/0,50 (ilustrativo)", "Wef": 15.0, "Ief": 50.0,
+                    "peso": 0.11, "fy": 280.0, "t": 0.50},
+}
+
+
+def catalogo_por_tipo(telha_tipo, peso_override=None):
+    """Perfil ILUSTRATIVO da telha a partir do tipo (cobertura.telha_tipo). Se
+    `peso_override` (kN/m2) vier do spec (cobertura.telha_peso, dado real do
+    usuario), ele SUBSTITUI o peso ilustrativo. Retorna dict com `ilustrativo=True`
+    (o gate deixa claro que Wef/Ief sao a CONFIRMAR com o catalogo do fabricante).
+    Tipo desconhecido -> trapezoidal (default do wizard)."""
+    base = _CATALOGO_TELHA.get(str(telha_tipo).strip().lower(),
+                               _CATALOGO_TELHA["trapezoidal"])
+    perfil = dict(base)
+    perfil["ilustrativo"] = True
+    perfil["tipo"] = str(telha_tipo)
+    if peso_override not in (None, 0) and peso_override > 0:
+        perfil["peso"] = float(peso_override)
+    return perfil
 
 
 def _selftest():

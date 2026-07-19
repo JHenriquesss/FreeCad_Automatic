@@ -93,9 +93,10 @@ class Frame2D:
         T[3:6, 3:6] = R
         return T
 
-    def _fef_local(self, e, L, cs, sn):
-        """Fixed-end forces (local) from a global UDL (wx, wy)."""
-        wx, wy = self.member_udl.get(self._eidx(e), (0.0, 0.0))
+    def _fef_local(self, idx, L, cs, sn):
+        """Fixed-end forces (local) from a global UDL (wx, wy). `idx` = indice do
+        elemento (chave de member_udl)."""
+        wx, wy = self.member_udl.get(idx, (0.0, 0.0))
         if wx == 0 and wy == 0:
             return np.zeros(6)
         # rotate global load into local axes
@@ -109,7 +110,13 @@ class Frame2D:
         return f
 
     def _eidx(self, e):
-        return self.elements.index(e)
+        # identidade (is), NAO igualdade: dois membros com (i,j,E,A,I) identicos
+        # sao dicts IGUAIS -> list.index() devolvia o indice do PRIMEIRO e o UDL do
+        # segundo era perdido (lixo silencioso). Compara por objeto e e O(n).
+        for idx, el in enumerate(self.elements):
+            if el is e:
+                return idx
+        raise ValueError("elemento nao pertence a este frame")
 
     # --- solve ---------------------------------------------------------------
     def solve(self):
@@ -123,7 +130,7 @@ class Frame2D:
             F[3 * nd:3 * nd + 3] += [fx, fy, m]
 
         fef_store = {}
-        for e in self.elements:
+        for idx, e in enumerate(self.elements):
             L, cs, sn = self._geom(e)
             k_loc = self._k_local(e, L)
             T = self._T(cs, sn)
@@ -137,8 +144,8 @@ class Frame2D:
             # CARGA NODAL EQUIVALENTE (= -{forcas de engastamento}), no sentido da
             # carga: entao SOMA no vetor de forcas global (bug historico: era -=,
             # que aplicava a UDL invertida - deslocamento/reacao com sinal trocado).
-            fef = self._fef_local(e, L, cs, sn)
-            fef_store[self._eidx(e)] = (fef, T, k_loc, dofs)
+            fef = self._fef_local(idx, L, cs, sn)
+            fef_store[idx] = (fef, T, k_loc, dofs)
             F_eq_global = T.T @ fef
             for a in range(6):
                 F[dofs[a]] += F_eq_global[a]
@@ -158,6 +165,15 @@ class Frame2D:
         Kff = K[np.ix_(free, free)]
         Ff = F[free]
         d[free] = np.linalg.solve(Kff, Ff)
+
+        # Guarda de finitude: matriz numericamente mal-condicionada (quase-singular,
+        # que nao dispara LinAlgError) ou carga NaN/inf produzem deslocamento
+        # NaN/inf. FALHAR ALTO - nunca devolver lixo silencioso que a jusante
+        # viraria esforco/reacao "valido" (contra-seguranca). O caller trata.
+        if not np.all(np.isfinite(d)):
+            raise ValueError(
+                "solucao nao-finita (NaN/inf): matriz de rigidez mal-condicionada "
+                "ou carga nao-finita. Verifique geometria/secoes/cargas.")
 
         # store for reactions(): R = K*d - F (nonzero at supported DOFs)
         self._K, self._F, self._d = K, F, d
