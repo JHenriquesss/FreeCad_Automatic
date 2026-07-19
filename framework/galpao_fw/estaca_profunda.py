@@ -79,9 +79,10 @@ def capacidade_aoki_velloso(perfil, D, L, tipo_estaca="pre_moldada",
     A_ponta = math.pi * D ** 2 / 4.0
     U = math.pi * D                                  # perimetro do fuste
     # resistencia de ponta
-    Np = N_ponta if N_ponta is not None else perfil[-1]["N"]
+    _cam_p = _camada_na_ponta(perfil, L)
+    Np = N_ponta if N_ponta is not None else _cam_p["N"]
     Np = min(Np, N_LIMITE)
-    K_p, _ = _solo(perfil[-1]["tipo"])
+    K_p, _ = _solo(_cam_p["tipo"])
     R_ponta = (K_p * Np / F1) * A_ponta
     # atrito lateral (soma das camadas ao longo do fuste, ate L)
     R_lat = 0.0; z = 0.0; detalhe = []
@@ -112,6 +113,22 @@ def _solo(tipo):
     return _K_ALPHA[tipo]
 
 
+def _camada_na_ponta(perfil, L):
+    """Camada do perfil SPT que contem a profundidade da PONTA da estaca (L). O
+    default antigo (perfil[-1]) usava a ULTIMA camada mesmo quando L < profundidade
+    total do perfil -> a ponta 'via' uma camada ABAIXO da estaca; se mais forte
+    (ex.: areia densa sob argila mole), SUPERESTIMAVA a resistencia de ponta ->
+    P_adm inflado, estaca subdimensionada CERTIFICADA (contra-seguranca; caca
+    sessao 14). Camada i cobre (z_{i-1}, z_i]; L no boundary fica na camada de CIMA
+    (conservador). L alem do perfil -> ultima camada (melhor dado disponivel)."""
+    z = 0.0
+    for cam in perfil:
+        z += cam.get("dz", 0.0)
+        if L <= z + 1e-9:
+            return cam
+    return perfil[-1]
+
+
 # --- Decourt-Quaresma (1978) - Tab.12.12 C [tf/m2] por grupo de solo ------------
 # LIDO do PDF (Veloso & Lopes 2012, pag.281). q_ponta = C*N (tf/m2); em kPa = x10.
 _C_DECOURT = {"argila": 12.0, "silte_argiloso": 20.0, "silte_arenoso": 25.0,
@@ -135,9 +152,10 @@ def capacidade_decourt_quaresma(perfil, D, L, N_ponta=None, fs_global=FS_GLOBAL)
     P_adm = R_ult/FS. Unidades: kN. (A 2a versao 1996 com alpha/beta e FLAG futuro.)"""
     A_ponta = math.pi * D ** 2 / 4.0
     U = math.pi * D
-    Np = N_ponta if N_ponta is not None else perfil[-1]["N"]
+    _cam_p = _camada_na_ponta(perfil, L)
+    Np = N_ponta if N_ponta is not None else _cam_p["N"]
     Np = max(3.0, min(Np, N_LIMITE))
-    C = _C_DECOURT[_grupo_decourt(perfil[-1]["tipo"])]
+    C = _C_DECOURT[_grupo_decourt(_cam_p["tipo"])]
     q_p = C * Np * _TF_KPA                            # kPa
     R_ponta = q_p * A_ponta
     # media de N ao longo do fuste embutido (ponderada por dz)
@@ -203,10 +221,11 @@ def capacidade_teixeira(perfil, D, L, tipo_estaca="pre_moldada", N_ponta=None):
     col = _TEIX_TIPO.get(tipo_estaca, "I")
     A_ponta = math.pi * D ** 2 / 4.0
     U = math.pi * D
-    Np = N_ponta if N_ponta is not None else perfil[-1]["N"]
+    _cam_p = _camada_na_ponta(perfil, L)
+    Np = N_ponta if N_ponta is not None else _cam_p["N"]
     Np = max(4.0, min(Np, 40.0))
     idx = {"I": 0, "II": 1, "III": 2, "IV": 3}[col]
-    alpha = _TEIX_ALPHA[_grupo_teixeira(perfil[-1]["tipo"])][idx]
+    alpha = _TEIX_ALPHA[_grupo_teixeira(_cam_p["tipo"])][idx]
     beta = _TEIX_BETA[col]
     R_ponta = alpha * Np * _TF_KPA * A_ponta
     # N medio ao longo do fuste
