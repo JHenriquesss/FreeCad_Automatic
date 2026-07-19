@@ -178,33 +178,70 @@ def rodar_executivo(spec, out_dir, fcstd_path, freecad_exe=None, timeout=1200):
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t0 = time.time()
     res = None
-    while time.time() - t0 < timeout:
-        if os.path.exists(status):
-            time.sleep(0.5)
-            with open(status, encoding="utf-8") as f:
-                res = json.load(f)
-            break
-        if proc.poll() is not None and not os.path.exists(status):
-            time.sleep(2)  # processo saiu; da uma ultima chance ao arquivo
+    try:
+        while time.time() - t0 < timeout:
             if os.path.exists(status):
+                time.sleep(0.5)
                 with open(status, encoding="utf-8") as f:
                     res = json.load(f)
-            else:
-                res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
-            break
-        time.sleep(2)
-    if res is None:
-        res = {"erro": f"timeout {timeout}s aguardando pranchas"}
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)  # processo saiu; da uma ultima chance ao arquivo
+                if os.path.exists(status):
+                    with open(status, encoding="utf-8") as f:
+                        res = json.load(f)
+                else:
+                    res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": f"timeout {timeout}s aguardando pranchas"}
+    finally:
+        # SEMPRE encerra o freecad.exe (sucesso, erro, timeout). Antes so matava no
+        # timeout, e via proc.kill() (TerminateProcess), que NAO derruba um freecad.exe
+        # TRAVADO (estado ininterruptivel) nem processos-filho -> ficava pendurado
+        # segurando a porta 9875 (zumbis - ver memoria freecad-zumbis-wmi-kill). Agora
+        # mata a ARVORE de forma forcada em qualquer saida.
+        _matar_processo_freecad(proc)
         try:
-            proc.kill()
-        except Exception:
+            os.unlink(boot.name)
+        except OSError:
             pass
-    try:
-        os.unlink(boot.name)
-    except OSError:
-        pass
     spec.setdefault("estrutura", {})["executivo"] = res
     return res
+
+
+def _matar_processo_freecad(proc):
+    """Encerra o freecad.exe do executivo e seus filhos, com escalonamento: kill()
+    -> taskkill /F /T -> (Windows) WMI Terminate (unico que derruba freecad.exe
+    travado em estado ininterruptivel). Best-effort, nunca levanta."""
+    import subprocess, sys, time
+    if proc.poll() is not None:
+        return
+    try:
+        proc.kill()
+    except Exception:
+        pass
+    time.sleep(1.0)
+    if proc.poll() is not None:
+        return
+    if sys.platform == "win32":
+        pid = proc.pid
+        try:                                    # arvore inteira (freecad + filhos)
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+        except Exception:
+            pass
+        time.sleep(1.0)
+        if proc.poll() is None:                 # travado: WMI Terminate (NtTerminateProcess)
+            try:
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%d\";"
+                     "if($p){Invoke-CimMethod -InputObject $p -MethodName Terminate|Out-Null}" % pid],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+            except Exception:
+                pass
 
 
 def _fmt_quadro(spec):
