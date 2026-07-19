@@ -136,8 +136,10 @@ def test_build_tesoura_barras(tmp_path):
         "build_kwargs sem tesoura"
     bk["export_dir"] = str(tmp_path).replace("\\", "/")
     bk["doc_name"] = "t6c_tes"
-    src = (FW.raiz_repo() / "framework" / "galpao_fw" / "build_galpao.py"
-           ).read_text(encoding="utf-8").replace("_result_ = run()", "")
+    import rodar_projeto as _RP   # _ship_build_src prepende o dir no sys.path do
+    # FreeCAD p/ build_galpao importar os modulos irmaos (mao_francesa_geom) - senao
+    # ModuleNotFoundError no headless (regressao PR #15; ver test_ship_build_src).
+    src = _RP._ship_build_src(FW.raiz_repo() / "framework" / "galpao_fw" / "build_galpao.py")
     stf = os.path.join(str(tmp_path), "_b.json").replace("\\", "/")
     boot = (src + "\nimport json\nreset()\nconfigurar(**%r)\n_r = run()\n"
             "open(%r,'w',encoding='utf-8').write(json.dumps(_r, default=str))\n"
