@@ -21,8 +21,23 @@ na periferia** — geometria de desenho e validação de entrada. Ver [[04-decis
   transparente; **tesoura banzo INFERIOR sob uplift** exposto `Lb_y_inf` (default otimista assume
   cada nó travado; demo Lb_y_inf=8m → util 0,52→3,18). `test_tesoura_lby_inf`.
 
+**VERIFICAÇÃO VISUAL FEITA (2026-07-19) — bridge destravado, +4 fixes:** o bridge não subia por
+3 `freecad.exe` TRAVADOS (executivo pendurado) squatando a 9875 (netstat LISTENING mas connect
+recusado); `taskkill`/`Stop-Process` não matam, **WMI Terminate** mata (sem reboot). Com a porta
+livre o bridge AUTOSTARTA. A varredura visual pegou/gerou:
+- **Regressão CRÍTICA (3D quebrado no main):** `build_galpao` importava `mao_francesa_geom` (irmão)
+  mas é shipado como fonte sem o `sys.path` → ModuleNotFound → PR #20 ([[04-decisions#D65]]) +
+  #24 (5 build-tests idem, ponto cego do CI).
+- **Estaca ponta (contra-segurança):** [[04-decisions#D63]], PR #23. O achado mais grave da rodada.
+- **rodar_executivo deixava zumbis:** [[04-decisions#D64]], PR #22 (causa raiz da 9875 travada).
+- **PE07 joelho minúsculo:** [[04-decisions#D66]], PR #25 (cosmético).
+- **Mão-francesa confirmada** no modelo (dX=294 mm, fora do plano) e executivo (13 pranchas, layout
+  bom PE01/04/06/10). `base_chumbador`/`ligacoes`/estaca revisados = corretos.
+
 **AINDA ABERTO:**
-- **Verificação VISUAL do executivo + PNG da mão-francesa** — BLOQUEADA pelo bridge FreeCAD (9875).
+- ~~Verificação VISUAL~~ FEITA (acima). Restam latentes de feature (telha_tipo, multi-vão heterogêneo)
+  e fuzz-interno dos motores (self-tests+integração cobrem). Historico do bloqueio antigo abaixo:
+- **(hist.) PNG da mão-francesa** — BLOQUEADA pelo bridge FreeCAD (9875).
   Script `verificar_amostra.py` (no `main`) roda tudo quando o bridge subir. **BLOQUEIO REAL
   (2026-07-18):** 3 `freecad.exe`/`_exec.py` TRAVADOS (estado ininterruptível — `taskkill /F` e
   `Stop-Process` não matam) squatam a 9875 num estado quebrado (netstat LISTENING mas connect

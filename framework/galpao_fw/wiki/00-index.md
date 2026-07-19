@@ -115,7 +115,12 @@ bugs de pipeline E/C/H/D/J/K [F/G refutados]; bloco de fundação NBR 6122; shed
 6123 Tab.6; multi-vão heterogêneo; VALIDAÇÃO DE SISTEMA contra Alonso/Bellei — sapata 0,5%,
 bloco/vento exatos, pilar 0,1%; SEM COMMIT, aberto p/ revisão — ver [[06-open-threads#T15]].
 wiki/07 removido, consolidado aqui)
-last-consolidated: 2026-07-18, sessions: 13 (+ CAÇA DE BUGS sessão 14: motor correto
+last-consolidated: 2026-07-19, sessions: 14 (+ REVISÃO CONTINUADA + VERIFICAÇÃO VISUAL:
+bridge destravado [WMI mata freecad.exe travado; autostart era contaminação dos zumbis]; achou
+regressão do 3D no main [#20/#24], estaca ponta contra-segurança [#23, o mais grave], executivo
+deixava zumbis [#22], PE07 crop [#25]; mão-francesa confirmada no modelo dX=294mm. D63–D66;
+ver [[06-open-threads#T16]])
+former: 2026-07-18, sessions: 13 (+ CAÇA DE BUGS sessão 14: motor correto
 [frame2d/B1B2/mão-francesa-Bellei/ponte-NBR8800/tesoura, cruzados NotebookLM]; bugs só na
 periferia → mão-francesa geometria 3D [#15], validação de entrada COMPLETA [#13/#16/#18],
 pistas baixa-prob [#19]; PRs #12–#19 MERGED. Aberto: verificação VISUAL do executivo bloqueada

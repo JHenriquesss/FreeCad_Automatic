@@ -74,5 +74,12 @@ regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 pas
 | `test_mao_francesa_geom.py` (5) | **guarda permanente**: `mao_francesa_geom.segmentos` liga mesa inf→terça com componente X≠0 (fora do plano); Y constante; sobe da mesa inf à terça; ângulo 20–70° (D59) |
 | `test_tesoura_lby_inf.py` (3) | `Lb_y_inf=None` back-compat; espaçamento real do travamento do banzo inferior PENALIZA a util sob uplift (0,52→3,18) (D60) |
 
+## Revisão continuada — sessão 2026-07-19 (ver [[06-open-threads#T16]])
+| arquivo | assere |
+|---|---|
+| `test_estaca_ponta.py` (5) | `_camada_na_ponta` (camada de L, boundary→cima, além→última); Aoki/Décourt/Teixeira usam N da ponta a L (estaca curta na argila << estaca longa na areia); `N_ponta` override; L=profundidade sem regressão (D63) |
+| `test_executivo_cleanup.py` (3) | `_matar_processo_freecad`: proc morto=no-op; kill resolve sem escalar; nunca propaga exceção (D64) |
+| `test_ship_build_src.py` (3) | fonte shipada de build_galpao prepende `sys.path` com o dir; todo irmão importado existe no dir; `_result_ = run()` removido (D65) |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).
