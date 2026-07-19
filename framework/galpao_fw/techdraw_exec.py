@@ -953,9 +953,15 @@ def _pr_joelho(doc, cfg, objs, todos):
         cx0, cy0, cz0 = meio, bb.YMin + 100.0, g["eave"]
     else:
         cx0, cy0, cz0 = bb.XMin + 100.0, meio, g["eave"]
-    KW = 1500.0                                       # meia-janela do no (mm)
-    caixa = Part.makeBox(2 * KW, 2 * KW, 2 * KW,
-                         App.Vector(cx0 - KW, cy0 - KW, cz0 - KW))
+    KW = 1500.0                                       # meia-janela horizontal (mm)
+    # janela VERTICAL menor e assimetrica: o no do joelho e compacto em Z. Uma caixa
+    # cubica (2KW=3 m) pegava ~1,5 m de coluna ABAIXO do beiral -> recorte alto-e-fino
+    # -> _fit_escala reduzia a escala e a ligacao renderizava MINUSCULA (PE07). Agora
+    # pega ~0,7 m de coluna (end plate + toco) abaixo e ~1,0 m de rafter acima do
+    # beiral -> aspecto proximo do quadrado, ligacao grande. Caca sessao 14.
+    Z_BELOW, Z_ABOVE = 700.0, 1000.0
+    caixa = Part.makeBox(2 * KW, 2 * KW, Z_BELOW + Z_ABOVE,
+                         App.Vector(cx0 - KW, cy0 - KW, cz0 - Z_BELOW))
     crops = []
     mao_bb = None
     for o in frame:
