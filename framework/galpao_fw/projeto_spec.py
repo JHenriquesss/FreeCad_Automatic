@@ -835,6 +835,10 @@ def to_build_kwargs(spec):
         "calha": ([ca["B_mm"], ca["H_mm"]]
                   if (ca := est.get("calha_adotada")) and ca.get("H_mm") else None),
         "condutor_d": (est.get("calha_adotada") or {}).get("condutor_mm"),
+        # espessura da chapa de gusset do contraventamento, DIMENSIONADA
+        # (Whitmore / escoamento / bloco de cisalhamento). Sem isto o build usava
+        # o default fixo de 12 mm do _gusset_tri.
+        "gusset_t": (est.get("gusset_adotado") or {}).get("t_mm"),
         "longarina": est.get("longarina_dims"),
         "longarina_nome": est.get("longarina_perfil"),
         "n_tirante_parede": est.get("n_tirante_parede"),

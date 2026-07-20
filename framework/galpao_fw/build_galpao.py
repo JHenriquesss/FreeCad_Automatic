@@ -83,7 +83,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
-               calha=None, condutor_d=None,
+               calha=None, condutor_d=None, gusset_t=None,
                longarina=None, longarina_nome=None, sapata=None,
                estaca=None, bloco=None, baldrame=None,
                tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None,
@@ -98,12 +98,13 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO, CALHA_SEC, CONDUTOR_D, VR_SEC
+    global REFORCO_JOELHO, CALHA_SEC, CONDUTOR_D, VR_SEC, GUSSET_T
     if calha is not None:
         # (B_mm, H_mm) do calc -> (h=largura, b=ALTURA, tw, tf); a calha e rolada 90.
         _b, _h = float(calha[0]), float(calha[1])
         CALHA_SEC = (_b, _h, CALHA_SEC[2], CALHA_SEC[3])
     if condutor_d is not None: CONDUTOR_D = float(condutor_d)
+    if gusset_t is not None: GUSSET_T = float(gusset_t)
     if aguas is not None: AGUAS = int(aguas)
     if n_terca is not None: N_TERCA = max(1, int(n_terca))
     if reforco_joelho is not None:
@@ -202,6 +203,11 @@ CALHA_SEC = (200.0, 300.0, 5.0, 5.0)
 # Diametro do condutor (mm) - do calc (NBR 10844, por vazao); default so p/ o
 # modulo rodar isolado.
 CONDUTOR_D = 100.0
+# Espessura da chapa de GUSSET do contraventamento (mm). Do calc
+# (gusset_adotado.t_mm, dimensionado por Whitmore/escoamento/bloco de cisalhamento).
+# Era o default `thick=12.0` do _gusset_tri: coincidia na amostra e divergiria em
+# qualquer projeto com contravento mais carregado.
+GUSSET_T = 12.0
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
@@ -1022,7 +1028,8 @@ def build(doc):
                                  (x0, SPAN, (1, 0, 0), (0, -1, 0)),
                                  (x1, SPAN, (-1, 0, 0), (0, -1, 0))):
             _gusset_tri(doc, (nx, ny, EAVE_H), d1, d2,
-                        f"CONEX_GUSSET_COB_{j:02d}_{int(nx)//1000:02d}_{int(ny)//1000:02d}")
+                        f"CONEX_GUSSET_COB_{j:02d}_{int(nx)//1000:02d}_{int(ny)//1000:02d}",
+                        thick=GUSSET_T)
         # paredes (plano X-Z em cada lado)
         for yw, lado in ((0, "E"), (SPAN, "D")):
             wa = ((x0, yw, Z0), (x1, yw, EAVE_H))
@@ -1037,7 +1044,7 @@ def build(doc):
                                      (x1, EAVE_H, (-1, 0, 0), (0, 0, -1))):
                 _gusset_tri(doc, (nx, yw, nz), d1, d2,
                             f"CONEX_GUSSET_PAR_{lado}_{j:02d}_{int(nx)//1000:02d}_"
-                            f"{'B' if nz < EAVE_H else 'T'}")
+                            f"{'B' if nz < EAVE_H else 'T'}", thick=GUSSET_T)
 
     # Ponte rolante (geometria): viga de rolamento sobre consoles (misulas) nos
     # pilares, no nivel do trilho Hvr, excentrica ao eixo do pilar.
@@ -1661,7 +1668,7 @@ def _classifica(n):
     if "CONEX_CONSOLE" in n and "BRACKET" in n:
         return "Mao-francesa do console (ponte)", "chapa-12"
     if "GUSSET" in n:
-        return "Chapas gusset (contravento)", "chapa-12"
+        return "Chapas gusset (contravento)", "chapa-%.0f" % GUSSET_T
     if n.startswith("ESTICADOR"):
         return "Esticadores (contravento)", "esticador-M20"
     if n.startswith("CALHA"):
@@ -1815,7 +1822,7 @@ def reset():
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO, N_TERCA, CALHA_SEC, CONDUTOR_D, VR_SEC
+    global REFORCO_JOELHO, N_TERCA, CALHA_SEC, CONDUTOR_D, VR_SEC, GUSSET_T
     # N_TERCA/CALHA_SEC/CONDUTOR_D/VR_SEC sao decididos pelo CALC: sem reset, um 2o
     # projeto na mesma sessao do FreeCAD herdaria os valores do 1o (a armadilha do
     # _CFG global do vento).
@@ -1823,6 +1830,7 @@ def reset():
     CALHA_SEC = (200.0, 300.0, 5.0, 5.0)
     CONDUTOR_D = 100.0
     VR_SEC = (500.0, 250.0, 8.0, 16.0)
+    GUSSET_T = 12.0
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
     TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
