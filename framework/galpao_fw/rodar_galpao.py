@@ -345,6 +345,10 @@ def rodar(params, out_dir):
     Lb_raf = plano_mf["Lb_usado"] if plano_mf.get("ok") else params["Lb"]["raf"]
     res["mf_bracos_portico"] = plano_mf.get("n_bracos_portico")
     res["mf_stride"] = plano_mf.get("stride")
+    # EXPOE o n de tercas/agua auto-dimensionado: e o VAO DA TELHA, e o 3D precisa
+    # construir com o MESMO valor que a memoria certificou (antes o build usava 3
+    # hardcoded -> modelo/pranchas/takeoff com menos terca que o calculo exige).
+    res["n_terca"] = n_terca
     res["Lb_raf"] = round(Lb_raf, 3)
     # Gate 7 - perfis (verifica por grupo)
     finais = []

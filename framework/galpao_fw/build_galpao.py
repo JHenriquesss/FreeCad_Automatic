@@ -77,7 +77,7 @@ DOC_NAME = "galpao"
 
 
 def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=None,
-               export_dir=None, doc_name=None, mf_stride=None,
+               export_dir=None, doc_name=None, mf_stride=None, n_terca=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
                fechamento=None, ponte_modelo=None,
                perfil_col=None, perfil_raf=None,
@@ -93,12 +93,13 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     perfil_col/perfil_raf (h,b,tw,tf em mm) vem do redimensionamento (perfil
     ADOTADO); default = referencia."""
     global LENGTH, SPANS, EAVE_H, SLOPE, BAY, EXPORT_DIR, DOC_NAME, AGUAS
-    global MF_STRIDE, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
+    global MF_STRIDE, N_TERCA, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
     global REFORCO_JOELHO
     if aguas is not None: AGUAS = int(aguas)
+    if n_terca is not None: N_TERCA = max(1, int(n_terca))
     if reforco_joelho is not None:
         REFORCO_JOELHO = dict(reforco_joelho) if reforco_joelho else None
     if tapered is not None: TAPERED_MODEL = dict(tapered) if tapered else None
@@ -186,6 +187,14 @@ CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
 MF_STRIDE = 2
+# Nº de TERCAS por agua (= nº de espacos entre terca de beiral e cumeeira). NAO e
+# escolha de modelagem: o espacamento das tercas E O VAO DA TELHA, e o calc
+# (rodar_galpao gate 7) sobe n_terca ate esp_terca <= vao_max da telha (NBR 14762).
+# Ficava HARDCODED em 3 aqui dentro, entao o modelo/pranchas/takeoff saiam com 3
+# enquanto a memoria certificava 5: na amostra o vao real ia a 3,37 m contra um
+# vao_max de 2,14 m (+57%) - o montador compraria e instalaria terca de menos.
+# Default 3 so p/ o modulo rodar isolado; o pipeline SEMPRE passa o valor do calc.
+N_TERCA = 3
 # Linhas de tirante de PAREDE por vao (do calc: longarina UPE100 exige 2 -> 0,99).
 N_TIRANTE_PAREDE = 2
 
@@ -861,7 +870,7 @@ def build(doc):
     _rise = (RAF_SEC[0] / 2.0) * math.cos(_theta) + (RAF_SEC[1] / 2.0) * math.sin(_theta)
     POFF = _rise + UE_SEC[0] / 2.0
     vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
-    n_terca = 3
+    n_terca = N_TERCA                      # do calc (gate 7), nao hardcoded
     terca_ys = []
     terca_objs = []
     for j in range(nv):

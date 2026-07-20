@@ -333,15 +333,27 @@ def validar(spec):
         avisos.append(("neve.sk", "bloco de neve sem 'sk' (carga no solo kN/m2) - "
                        "dado REGIONAL (EN 1991-1-3 / mapa local). Sem sk = sem neve."))
     # cobertura de 1 agua (shed): suportada para 1 VAO (portico assimetrico, colunas
-    # de alturas diferentes). Multi-vao de 1 agua (dente-de-serra) ainda NAO -> so
-    # esse caso bloqueia (evita modelo errado).
+    # de alturas diferentes). Multi-vao de 1 agua (dente-de-serra) NAO -> bloqueia.
+    #
+    # NAO e so falta de implementacao: a NBR 6123:1988 nao da base para o caso geral.
+    # Os Cpe de telhados multiplos ASSIMETRICOS estao na Tabela 8, que vale so para
+    # "tramos iguais, com agua menor inclinada de 60 graus e com h <= a'". E a nota (b)
+    # das Tabelas 7 e 8 diz textualmente: "Informacoes sobre telhados multiplos sao
+    # ainda incompletas. Casos diferentes dos considerados nas Tabelas 7 e 8 e no
+    # Anexo F devem ser especificamente estudados."
+    # Ou seja: fora dessa geometria a propria norma exige ESTUDO ESPECIFICO (tunel de
+    # vento / analise dedicada). Liberar aqui com coeficiente generico produziria um
+    # dimensionamento CERTIFICADO sem respaldo normativo - o pior modo de falhar.
     aguas = _get(spec, "cobertura.aguas")
     _sp = _get(spec, "geometria.spans")
     _nv = len(_sp) if isinstance(_sp, (list, tuple)) else 1
     if aguas == 1 and _nv > 1:
         faltando.append(("cobertura.aguas",
-                         "telhado de 1 agua (shed) MULTI-VAO (dente-de-serra) ainda "
-                         "nao suportado; use 1 vao ou 2 aguas."))
+                         "telhado de 1 agua (shed) MULTI-VAO (dente-de-serra) nao "
+                         "suportado: os Cpe da NBR 6123 Tabela 8 valem so para tramos "
+                         "iguais com agua menor a 60 graus e h <= a', e a nota (b) "
+                         "manda estudar especificamente os demais casos. Use 1 vao, "
+                         "ou 2 aguas, ou contrate estudo de vento especifico."))
     # --- COERENCIA geometrica / fisica. O wizard deriva e faz faixa (caminho
     # guiado seguro), mas o caminho SPEC-DIRETO (carregar_spec/JSON editado) so
     # checava PENDENTE: geometria degenerada (span<0, ridge<=eave, slope<=0,
