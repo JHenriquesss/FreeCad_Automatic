@@ -1617,7 +1617,7 @@ def _classifica(n):
     if n.startswith("MONTANTE_OITAO"):
         return "Montantes de oitao", ESC_NOME
     if n.startswith("VIGA_ROLAMENTO"):
-        return "Viga de rolamento (ponte)", "VS500"
+        return "Viga de rolamento (ponte)", "VS%.0fx%.0f" % (VR_SEC[0], VR_SEC[1])
     if n.startswith("CONSOLE_PONTE"):
         return "Consoles de ponte", "HEA160"
     if n.startswith("TRELICA"):
@@ -1649,9 +1649,9 @@ def _classifica(n):
     if n.startswith("ARRUELA"):
         return "Arruelas", "chapa-10"
     if n.startswith("PORCA_NIVEL"):
-        return "Porcas de nivel", "porca-M20"
+        return "Porcas de nivel", "porca-M%.0f" % BASE_PLATE["db"]
     if n.startswith("PORCA"):
-        return "Porcas", "porca-M20"
+        return "Porcas", "porca-M%.0f" % BASE_PLATE["db"]
     if n.startswith("NERVURA_BASE"):
         return "Nervuras da base", "chapa-12"
     if "CONEX_CONSOLE" in n and "CHAPA" in n:
@@ -1665,11 +1665,12 @@ def _classifica(n):
     if n.startswith("ESTICADOR"):
         return "Esticadores (contravento)", "esticador-M20"
     if n.startswith("CALHA"):
-        return "Calhas", "U300x200x5"
+        # U{altura}x{largura}x{esp}: a calha e rolada 90, entao CALHA_SEC[1]=altura.
+        return "Calhas", "U%.0fx%.0fx%.0f" % (CALHA_SEC[1], CALHA_SEC[0], CALHA_SEC[2])
     if n.startswith("CONDUTOR"):
-        return "Condutores", "tubo-100x3"
+        return "Condutores", "tubo-%.0fx3" % CONDUTOR_D
     if n.startswith("BOCAL"):
-        return "Bocais (coletores calha->condutor)", "tubo-130x3"
+        return "Bocais (coletores calha->condutor)", "tubo-%.0fx3" % (CONDUTOR_D + 30.0)
     if "ALVENARIA" in n:
         return "Alvenaria (meia-parede)", "bloco-19"
     if n.startswith("TELHA"):
