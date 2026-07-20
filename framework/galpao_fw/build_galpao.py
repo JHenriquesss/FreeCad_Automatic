@@ -97,7 +97,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO
+    global REFORCO_JOELHO, VR_SEC
     if aguas is not None: AGUAS = int(aguas)
     if n_terca is not None: N_TERCA = max(1, int(n_terca))
     if reforco_joelho is not None:
@@ -124,6 +124,11 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     if fechamento is not None: FECHAMENTO = dict(FECHAMENTO, **fechamento)
     if ponte_modelo is not None:
         PONTE_MODELO = ponte_modelo if ponte_modelo else None
+        # perfil da VIGA DE ROLAMENTO verificado pelo calculo (d,bf,tw,tf em mm).
+        # Sem ele, VR_SEC fica no de referencia (VS500) - ver comentario do global.
+        _pv = (PONTE_MODELO or {}).get("perfil_viga")
+        if _pv:
+            VR_SEC = tuple(float(v) for v in _pv)
     if length is not None: LENGTH = float(length)
     if spans is not None:
         SPANS = [float(s) for s in spans]
@@ -224,7 +229,11 @@ FECHAMENTO = {"tipo": "telha", "altura_alvenaria": None}
 # Ponte rolante - GEOMETRIA (se houver). None = sem ponte no desenho.
 #   Hvr = altura do trilho (mm) ; excentricidade = trilho fora do eixo do pilar (mm).
 PONTE_MODELO = None
-VR_SEC = (500.0, 250.0, 8.0, 16.0)   # viga de rolamento (I soldado) - placeholder
+# Viga de rolamento (I soldado): (d, bf, tw, tf) em mm. Espelha o VS500 de
+# REFERENCIA do ponte_rolante.py; o valor real vem do calculo via
+# configurar(ponte_modelo={"perfil_viga": ...}). Era fixo aqui, entao um projeto
+# com viga de catalogo diferente tinha modelo/prancha/takeoff com outra viga.
+VR_SEC = (500.0, 250.0, 8.0, 16.0)
 
 # Registro de nos: nome -> extremidades (para o check de interferencia)
 REG = {}
@@ -1788,7 +1797,8 @@ def reset():
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO
+    global REFORCO_JOELHO, VR_SEC
+    VR_SEC = (500.0, 250.0, 8.0, 16.0)
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
     TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
