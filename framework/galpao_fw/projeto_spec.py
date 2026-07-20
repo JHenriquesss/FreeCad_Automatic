@@ -875,8 +875,16 @@ def to_build_kwargs(spec):
                      "d_diag": max(tr["perfil_diagonal"][0], tr["perfil_diagonal"][1]) * 1000}
                     if (est.get("tipo_portico") == "tesoura"
                         and isinstance(tr := est.get("trelica"), dict)) else None),
+        # ponte: alem da geometria, leva o PERFIL DA VIGA DE ROLAMENTO verificado
+        # pelo calculo (m -> mm). Sem isto o build desenhava VR_SEC=500x250x8x16
+        # FIXO (espelho do VS500 de referencia): um projeto com viga de catalogo
+        # diferente tinha modelo, prancha e takeoff mostrando outra viga.
         "ponte_modelo": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
-                          "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0}
+                          "excentricidade": spec["ponte"].get("excentricidade", 0.3) * 1000.0,
+                          **({"perfil_viga": [pv["d"] * 1000.0, pv["bf"] * 1000.0,
+                                              pv["tw"] * 1000.0, pv["tf"] * 1000.0]}
+                             if isinstance(pv := spec["ponte"].get("perfil_viga"), dict)
+                             and all(k in pv for k in ("d", "bf", "tw", "tf")) else {})}
                          if spec["ponte"] else None),
         # reforco da zona de painel do joelho (doubler/enrijecedor) - so quando o
         # calculo exigiu (zona_painel_adotado.precisa_*). Espessuras em mm.
