@@ -1732,9 +1732,13 @@ def _descreve_perfis(est):
     return col, raf
 
 
-# Nome comercial do aco por fy (MPa). Fora da tabela -> so "fy=XXX MPa" (nao
-# inventa designacao). NBR 7007 / ASTM.
-_ACO_POR_FY = {250: "MR250", 300: "AR300", 345: "A572 G50", 350: "AR350"}
+def _nome_aco(spec, fy_kPa):
+    """Designacao do aco p/ o carimbo. Prefere a CLASSE escolhida no spec; sem
+    ela, deriva do fy pela tabela de `acos` (fonte: Pfeil/NBR 8800 Cap.1).
+    Nao inventa designacao: fy sem correspondencia sai como "fy=XXX MPa"."""
+    import acos
+    esc = (spec.get("estrutura", {}) or {}).get("aco")
+    return acos.normaliza(esc) or acos.nome_por_fy(fy_kPa)
 
 
 def _materiais_de_spec(spec):
@@ -1747,10 +1751,10 @@ def _materiais_de_spec(spec):
 
     def _cm(v):                        # spec guarda em m
         return round(v * 100.0, 1) if isinstance(v, (int, float)) and v else None
-    # fy do aco estrutural NAO e campo do spec (vem do PARAMS_REF do calculo, MR250
-    # p/ todo projeto). Enquanto for assim, declara o valor EFETIVO, nao um nome fixo.
-    fy = _mpa((spec.get("estrutura", {}) or {}).get("aco_fy")) or 250
-    return {"fy_MPa": fy, "aco": _ACO_POR_FY.get(fy, "fy=%d MPa" % fy),
+    import acos
+    est = spec.get("estrutura", {}) or {}
+    fy_kPa = acos.propriedades(est.get("aco") or acos.PADRAO)[0]
+    return {"fy_MPa": round(fy_kPa / 1000.0), "aco": _nome_aco(spec, fy_kPa),
             "fck_MPa": _mpa(fu.get("fck")), "fyk_MPa": _mpa(fu.get("fyk")),
             "cobrimento_cm": _cm(fu.get("cobrimento"))}
 

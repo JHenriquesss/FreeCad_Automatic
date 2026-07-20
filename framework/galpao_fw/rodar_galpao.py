@@ -238,7 +238,7 @@ def rodar(params, out_dir):
         rc = cons.verifica_console({
             "Rv": reac["R_vertical_kN"], "Ht": reac.get("H_transversal_kN", 0.0),
             "ecc": pcfg.get("excentricidade", 0.30), "t": 0.016, "L": 0.45,
-            "fy": params["fy"], "fu": 400e3})
+            "fy": params["fy"], "fu": params.get("fu", 400e3)})
         save("gate7-console.txt", cons.relatorio_pt(rc))
         res["console_adotado"] = rc["adotado"]
         res["console_u_max"] = rc["u_max"]
@@ -504,7 +504,7 @@ def rodar(params, out_dir):
     gres, gtxt = [], []
     for gnome, gN in gcasos:
         rg = gus.verifica_gusset({"N": gN, "t": G_T, "d_barra": cb["d_contrav"],
-                                  "Lc": G_LC, "fy": params["fy"], "fu": 400e3,
+                                  "Lc": G_LC, "fy": params["fy"], "fu": params.get("fu", 400e3),
                                   "Lsolda": 2.0 * G_LC})
         gres.append(rg)
         gtxt.append(gus.relatorio_pt(rg, gnome))

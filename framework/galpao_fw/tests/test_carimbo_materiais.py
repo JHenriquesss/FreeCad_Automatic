@@ -53,16 +53,19 @@ def test_carimbo_da_amostra_intacto(spec):
     assert car["part_material"] == "ACO MR250 / CONCRETO fck 25 MPa"
 
 
-@pytest.mark.parametrize("fy,nome", [(250, "MR250"), (345, "A572 G50"),
-                                     (300, "AR300")])
+@pytest.mark.parametrize("fy,nome", [(250e3, "MR250"), (345e3, "A572-G50"),
+                                     (350e3, "AR350"), (415e3, "AR-COR415")])
 def test_nome_do_aco_por_fy(fy, nome):
-    assert TD._ACO_POR_FY[fy] == nome
+    """Designacoes conferidas no PDF (Pfeil Cap.1), nao de memoria. A 1a versao
+    desta tabela trazia um 'AR300' que NAO existe nas categorias ABNT."""
+    import acos
+    assert acos.nome_por_fy(fy) == nome
 
 
 def test_aco_fora_da_tabela_nao_inventa_designacao():
     """fy sem nome comercial conhecido -> declara o valor, nao um nome errado."""
-    mat = TD._materiais_de_spec({"estrutura": {"aco_fy": 420e3}, "fundacao": {}})
-    assert mat["aco"] == "fy=420 MPa"
+    import acos
+    assert acos.nome_por_fy(420e3) == "fy=420 MPa"
 
 
 def test_cobrimento_do_projeto_vai_para_a_nota(spec):
