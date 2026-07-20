@@ -206,8 +206,15 @@ def rodar():
             # nenhuma secao vazia (corte com arestas reais).
             secoes = ex.get('detalhes_secoes', {})
             assert secoes, "nenhum corte seccionado gerado (VLIG_SEC_*)"
-            vazias = {k: v for k, v in secoes.items() if v <= 0}
-            assert not vazias, "corte seccionado vazio: %s" % vazias
+            # LIMIAR proprio p/ os cortes. Antes exigia so >0, MUITO mais fraco que
+            # o das elevacoes (15) -> o corte do clipe de girt saia com 10 arestas
+            # (um retangulo quase vazio, SEM hachura) e passava, enquanto o texto da
+            # prancha prometia "material hachurado". Calibrado na amostra pos-fix do
+            # SectionOrigin: 22 (clipe, o menor) x 39/66/74 (cumeeira/gussets).
+            LIMIAR_SEC = 15
+            pobres = {k: v for k, v in secoes.items() if v < LIMIAR_SEC}
+            assert not pobres, ("corte seccionado sem material cortado (poucas "
+                               "arestas): %s" % pobres)
             if kw.get('ponte'):
                 assert 'VLIG_ELEV_CONSOLE' in edges, "falta detalhe do console"
             # PDF do memorial de calculo: gera sem erro e sai um arquivo != vazio

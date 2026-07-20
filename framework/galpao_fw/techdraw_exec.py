@@ -862,16 +862,45 @@ def _pr_base(doc, cfg, objs, todos):
                              _carimbo(cfg, "DETALHE - BASE DE COLUNA", "PE-06",
                                       "-", "06/09"))
         return [page], []
+    import Part
+    import FreeCAD as App
     b0 = base[0].Shape.BoundBox
     cx, cy = (b0.XMin + b0.XMax) / 2, (b0.YMin + b0.YMax) / 2
     um = _faixa(_faixa(base, "x", cx, 500), "y", cy, 500) or base[:6]
     db = _bbox(um)
+    # TOCO DA COLUNA: sem ele o "detalhe da base de coluna" mostrava placa +
+    # chumbadores + pedestal e NAO mostrava a coluna nem a solda coluna-placa -
+    # justamente o que o montador precisa ver. A coluna INTEIRA estouraria a
+    # escala, entao recorta-se so o trecho logo acima da placa (como no joelho).
+    Z_TOCO = 600.0
+    fonte = list(um)
+    cxt = Part.makeBox(db.XLength + 400.0, db.YLength + 400.0,
+                       (db.ZMax + Z_TOCO) - db.ZMin,
+                       App.Vector(db.XMin - 200.0, db.YMin - 200.0, db.ZMin))
+    toco = []
+    for o in _pref(todos, ("PORTICO",)):
+        try:
+            if not _bb_overlap(o.Shape.BoundBox, cxt.BoundBox):
+                continue
+            com = o.Shape.common(cxt)
+            if com.Edges:
+                toco.append(com)
+        except Exception:
+            pass
+    if toco:
+        ft = doc.addObject("Part::Feature", "COLUNA_BASE_CROP")
+        ft.Shape = Part.makeCompound(toco)
+        fonte.append(ft)
+    else:
+        _aviso_prancha("PE06_DET_BASE", "sem toco de coluna no detalhe da base "
+                       "(solda coluna-placa nao representada)")
+    db = _bbox(fonte)
     esc, nome = _fit_escala(db, "y", *AREA_2V)
     page = _nova_prancha(doc, "PE06_DET_BASE",
                          _carimbo(cfg, "DETALHE - BASE DE COLUNA", "PE-06",
                                   nome, "06/09"))
-    # vista frontal
-    v1 = _vista(doc, page, "V06_BASE_FR", um, (0, -1, 0), (1, 0, 0),
+    # vista frontal (placa + chumbadores + pedestal + toco da coluna)
+    v1 = _vista(doc, page, "V06_BASE_FR", fonte, (0, -1, 0), (1, 0, 0),
                 esc, 230, 350)
     hw1, hh1 = _paper_half(db, esc, "y")
     c1 = _Cotador(doc, page, v1, hw1, hh1)
@@ -1171,11 +1200,19 @@ def _callout_fab(cfg, key):
     return []
 
 
-def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y):
+def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y,
+                   origem=None):
     """Corte SECCIONADO (TechDraw::DrawViewSection) do detalhe de ligacao: plano de
-    corte pelo CENTRO do compound, normal = normal_corte, superficie cortada
-    HACHURADA. Revela a espessura das chapas e a secao dos parafusos. Retorna a
-    view, ou None se o corte nao produzir arestas (vazio -> nao engana o guard).
+    corte por `origem`, normal = normal_corte, superficie cortada HACHURADA.
+    Revela a espessura das chapas e a secao dos parafusos. Retorna a view, ou None
+    se o corte nao produzir arestas (vazio -> nao engana o guard).
+
+    `origem` = ponto por onde o plano passa; default = centro do bbox do compound.
+    PASSE O CENTRO DA PECA DETALHADA: o compound inclui os perfis conectados
+    (coluna, terca), que dominam o bbox e puxam o centro para FORA do conector.
+    Foi o que quebrou o PE13 (clipe de girt): o plano passava ao lado do clipe e
+    o "corte hachurado" saia um retangulo vazio (10 arestas vs 39/66/74 dos
+    outros cortes) - texto prometia hachura e o desenho nao tinha nenhuma.
 
     NOTA: o blocker historico (T6, 'failed to create section CS' headless) foi
     resolvido no FreeCAD 1.1 - a secao constroi via freecadcmd/freecad.exe."""
@@ -1186,7 +1223,7 @@ def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y)
         sec = doc.addObject("TechDraw::DrawViewSection", "VLIG_SEC_" + base)
         sec.BaseView = base_view
         sec.Source = [feat]
-        c = feat.Shape.BoundBox.Center
+        c = origem if origem is not None else feat.Shape.BoundBox.Center
         sec.SectionOrigin = App.Vector(c.x, c.y, c.z)
         sec.SectionNormal = App.Vector(*normal_corte)
         sec.SectionDirection = "Right"
@@ -1285,7 +1322,9 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     # chapas + secao dos parafusos). Normal do corte = xdir da elevacao (corta
     # perpendicular a ela, pelo centro). Best-effort: se vazio, nao desenha.
     _sx, _sy = _pos_corte_ligacao(dupla, xpos)
-    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc, _sx, _sy)
+    # corta pelo centro da PECA detalhada (c0 = o conector alvo), nao pelo centro
+    # do compound - este ultimo e puxado pelos perfis conectados. Ver _secao_ligacao.
+    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc, _sx, _sy, origem=c0)
     tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
