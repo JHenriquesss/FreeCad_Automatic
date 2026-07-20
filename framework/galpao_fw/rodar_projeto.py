@@ -67,6 +67,13 @@ def calcular(spec, out_dir):
     if res.get("longarina_dims"):
         spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
+    # DRENAGEM: a secao da calha e o diametro do condutor sao DIMENSIONADOS
+    # (calhas.dimensiona: escada de secoes ate drenar a vazao + borda livre +
+    # Bellei; condutor por vazao, NBR 10844). Ficavam fixos no build (200x300 e
+    # d100) -> o 3D/prancha/takeoff desenhavam calha de 300 mm de altura enquanto
+    # a memoria dizia 150. Grava p/ o to_build_kwargs levar ao modelo.
+    if res.get("calha"):
+        spec.setdefault("estrutura", {})["calha_adotada"] = res["calha"]
     # quadro de verificacoes (utilizacoes/resultados) para as pranchas. Inclui os
     # sub-sistemas novos (tesoura, telha, contravento/gusset, console, fogo,
     # estaca/baldrame/travamento, sismo, junta, calha, divisa, escada, plataforma,

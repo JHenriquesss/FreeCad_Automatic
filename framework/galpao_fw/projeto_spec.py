@@ -809,6 +809,11 @@ def to_build_kwargs(spec):
         "perfil_col_nome": col_nome, "perfil_raf_nome": raf_nome,
         "perfil_esc": _sec(esc_nome), "perfil_esc_nome": esc_nome,
         "terca": est.get("terca_dims"),
+        # drenagem DIMENSIONADA (calhas.dimensiona): (B_mm, H_mm) da calha e
+        # diametro do condutor. Sem isto o build usa a secao fixa 200x300/d100.
+        "calha": ([ca["B_mm"], ca["H_mm"]]
+                  if (ca := est.get("calha_adotada")) and ca.get("H_mm") else None),
+        "condutor_d": (est.get("calha_adotada") or {}).get("condutor_mm"),
         "longarina": est.get("longarina_dims"),
         "longarina_nome": est.get("longarina_perfil"),
         "n_tirante_parede": est.get("n_tirante_parede"),

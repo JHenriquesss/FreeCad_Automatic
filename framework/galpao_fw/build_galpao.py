@@ -83,6 +83,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
+               calha=None, condutor_d=None,
                longarina=None, longarina_nome=None, sapata=None,
                estaca=None, bloco=None, baldrame=None,
                tipo_portico=None, tapered=None, trelica=None, reforco_joelho=None,
@@ -97,7 +98,12 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO
+    global REFORCO_JOELHO, CALHA_SEC, CONDUTOR_D
+    if calha is not None:
+        # (B_mm, H_mm) do calc -> (h=largura, b=ALTURA, tw, tf); a calha e rolada 90.
+        _b, _h = float(calha[0]), float(calha[1])
+        CALHA_SEC = (_b, _h, CALHA_SEC[2], CALHA_SEC[3])
+    if condutor_d is not None: CONDUTOR_D = float(condutor_d)
     if aguas is not None: AGUAS = int(aguas)
     if n_terca is not None: N_TERCA = max(1, int(n_terca))
     if reforco_joelho is not None:
@@ -182,7 +188,15 @@ UE_TERCA = (200.0, 75.0, 25.0, 2.65)
 UE_SEC = UE_TERCA          # secao da terca de cobertura (parametrizavel pelo calc)
 UPE_LONG = UPE100          # secao da longarina de parede (parametrizavel pelo calc)
 LONG_NOME = "UPE100"
-CALHA_SEC = (200.0, 300.0, 5.0, 5.0)   # calha autoportante, chapa 5 mm
+# Calha autoportante (h, b, tw, tf) em mm, chapa 5 mm. ATENCAO a orientacao: a
+# calha e desenhada rolada 90 graus, entao CALHA_SEC[1] (=b) e a ALTURA e
+# CALHA_SEC[0] (=h) e a LARGURA da boca. B/H vem do calc (calhas.dimensiona sobe
+# a escada de secoes ate drenar a vazao + borda livre + regra de Bellei); ficavam
+# fixos aqui e o modelo desenhava 200x300 enquanto a memoria dizia 200x150.
+CALHA_SEC = (200.0, 300.0, 5.0, 5.0)
+# Diametro do condutor (mm) - do calc (NBR 10844, por vazao); default so p/ o
+# modulo rodar isolado.
+CONDUTOR_D = 100.0
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
@@ -1061,9 +1075,12 @@ def build(doc):
             tag = f"{lado}_{int(x)//1000:02d}"
             # bocal/coletor: colar curto ABAIXO do fundo da calha, abracando o topo
             # do condutor -> boca de saida + emenda, sem furar para dentro da calha.
-            tube(doc, (x, y, GUT_BOTTOM), (x, y, GUT_BOTTOM - 120.0), 130.0, 3.0,
-                 f"BOCAL_{tag}")
-            tube(doc, (x, y, GUT_BOTTOM), (x, y, 0.0), 100.0, 3.0, f"CONDUTOR_{tag}")
+            # colar = condutor + 30 mm (folga da emenda). DERIVADO, nao fixo: com o
+            # condutor vindo do calc, um 130 fixo ficaria MENOR que um tubo de 150.
+            tube(doc, (x, y, GUT_BOTTOM), (x, y, GUT_BOTTOM - 120.0),
+                 CONDUTOR_D + 30.0, 3.0, f"BOCAL_{tag}")
+            tube(doc, (x, y, GUT_BOTTOM), (x, y, 0.0), CONDUTOR_D, 3.0,
+                 f"CONDUTOR_{tag}")
 
     # Envelope (Gate 3): telha trapezoidal + tapamento metalico. Pele fina.
     # A telha ASSENTA SOBRE o topo das tercas (nao as atravessa): offset = topo da
@@ -1788,7 +1805,12 @@ def reset():
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
-    global REFORCO_JOELHO
+    global REFORCO_JOELHO, N_TERCA, CALHA_SEC, CONDUTOR_D
+    # N_TERCA/CALHA_SEC/CONDUTOR_D sao decididos pelo CALC: sem reset, um 2o projeto
+    # na mesma sessao do FreeCAD herdaria os valores do 1o (a armadilha do _CFG do vento).
+    N_TERCA = 3
+    CALHA_SEC = (200.0, 300.0, 5.0, 5.0)
+    CONDUTOR_D = 100.0
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
     TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
