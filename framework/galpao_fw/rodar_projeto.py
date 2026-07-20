@@ -120,13 +120,19 @@ def _ship_build_src(src_path):
 
 
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
-                  host="http://localhost:9875", timeout=180):
-    """Desenha o modelo 3D via MCP (FreeCAD)."""
+                  n_terca=None, host="http://localhost:9875", timeout=180):
+    """Desenha o modelo 3D via MCP (FreeCAD).
+
+    mf_stride/n_terca vem do CALC (nao do spec): sao auto-dimensionados pelo gate 7.
+    n_terca em especial define o VAO DA TELHA - se o 3D usar outro valor, o modelo,
+    as pranchas e o takeoff contradizem a memoria de calculo."""
     import xmlrpc.client, socket
     PS.exigir_completo(spec)
     bk = PS.to_build_kwargs(spec)
     if mf_stride is not None:
         bk["mf_stride"] = mf_stride
+    if n_terca is not None:
+        bk["n_terca"] = n_terca
     if n_tirante_parede is not None:
         bk["n_tirante_parede"] = n_tirante_parede
     bk["export_dir"] = str(out_dir).replace("\\", "/")
@@ -412,6 +418,7 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
             modelo = montar_modelo(spec, out_dir, doc_name,
                                    mf_stride=res.get("mf_stride"),
                                    n_tirante_parede=res.get("n_tirante_parede"),
+                                   n_terca=res.get("n_terca"),
                                    host=host, timeout=timeout_3d)
             rm = modelo.get("result") if isinstance(modelo, dict) else None
             _log(f"[3/4] Modelo 3D -> {rm.get('elementos') if rm else modelo} objetos")
