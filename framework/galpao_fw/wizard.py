@@ -180,6 +180,10 @@ PERGUNTAS = [
     ("G", "Carga permanente de cobertura G (kN/m2)", _f, 0.27, False),
     ("Q", "Sobrecarga Q (kN/m2)", _f, 0.25, False),
     ("self_peso", "Peso proprio estrutural estimado (kN/m2)", _f, 0.35, False),
+    # Classe do aco: carrega fy E fu (ver acos.py, fonte Pfeil/NBR 8800 Cap.1).
+    # Antes era MR250 fixo p/ todo projeto, sem o eng. poder pedir alta resistencia.
+    ("aco", "Classe do aco estrutural (MR250/A572-G50/AR350/AR-COR415)",
+     str, "MR250", False),
     # (removido: 'tapamento' era campo MORTO - nao chegava ao calculo e duplicava
     #  o peso da parede, ja tratado por 'fech_peso' -> cargas_parede. O peso do
     #  fechamento das paredes vem de 'fech_peso'; o da cobertura, de G/telha_peso.)
@@ -240,6 +244,9 @@ def construir_spec(r, slug="galpao"):
                           telha_peso=r.get("telha_peso", 0.10),
                           calha=bool(r.get("calha", True)),
                           chuva_I_mm_h=r.get("chuva_I_mm_h", 150.0))
+    # aco: guarda o valor CRU (nao normaliza aqui). Assim um erro de digitacao
+    # ('AR300') e BLOQUEADO pelo validar em vez de cair calado no MR250 default.
+    s["estrutura"]["aco"] = r.get("aco") or "MR250"
     nmf = r.get("n_maos_francesas", 0) or 0
     s["fechamento"].update(tipo=r.get("fech_tipo", "telha"),
                            altura_alvenaria=r.get("altura_alvenaria", 0) or 0,

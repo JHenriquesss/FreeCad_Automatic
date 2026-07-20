@@ -95,7 +95,11 @@ def novo():
         "aberturas": P,     # dict {portao_frente, portao_fundo, porta_*, janelas_*}
         # tipo_portico: prismatico (default) | alma_variavel (misula tapered).
         # tapered = None p/ prismatico; dict {h_joelho,h_cumeeira,bf,tw,tf} (m).
+        # aco: CLASSE estrutural (acos.ACOS: MR250/A572-G50/AR350/AR-COR415).
+        # Carrega fy E fu - so fy deixaria as ligacoes com o fu errado. Default
+        # MR250 (comportamento historico); nao bloqueia, mas agora e ESCOLHIVEL.
         "estrutura": {"perfil_col": P, "perfil_raf": P, "contraventamento": P,
+                      "aco": "MR250",
                       "tipo_portico": "prismatico", "tapered": None,
                       # trelica: None p/ nao-tesoura; dict {h,n_paineis,tipo,
                       # perfil_banzo,perfil_diagonal} quando tipo_portico=tesoura.
@@ -228,6 +232,16 @@ def validar(spec):
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
         faltando.append(("estrutura.tipo_portico",
                          "valor invalido '%s' (use %s)" % (tp, "/".join(TIPOS_PORTICO))))
+    # classe de aco desconhecida BLOQUEIA: um aco errado muda a resistencia de TODA
+    # a estrutura, e adivinhar (ou cair no default calado) esconderia o erro de
+    # digitacao. Aceita variacao de escrita ('ar 350', 'A572 G50') via normaliza.
+    _ac_nome = _get(spec, "estrutura.aco")
+    if _ac_nome not in (KeyError, None, PENDENTE):
+        import acos as _ac
+        if _ac.normaliza(_ac_nome) is None:
+            faltando.append(("estrutura.aco",
+                             "classe de aco desconhecida '%s' (use %s)"
+                             % (_ac_nome, "/".join(sorted(_ac.ACOS)))))
     # tesoura: n_paineis deve ser PAR (cumeeira em no; impar poe o apice no meio da
     # barra do banzo superior e reintroduz flexao -> invalida o metodo dos nos).
     if tp == "tesoura":
@@ -642,7 +656,14 @@ def to_rodar_params(spec):
     SOBRESCREVE tudo que e decisao do projeto (geometria, vento, cargas, ponte)."""
     exigir_completo(spec)
     import rodar_galpao as R
+    import acos as _ac
     p = copy.deepcopy(R.PARAMS_REF)
+    # ACO ESTRUTURAL: PARAMS_REF traz fy=250e3 (MR250) e o rodar_galpao usava
+    # fu=400e3 LITERAL -> todo projeto saia em MR250 sem escolha. A classe carrega
+    # o PAR (fy, fu): so fy deixaria as ligacoes (ruptura da secao liquida, block
+    # shear, pressao de contato) com o fu do MR250 sob um aco mais resistente.
+    p["fy"], p["fu"] = _ac.propriedades(
+        (spec.get("estrutura", {}) or {}).get("aco") or _ac.PADRAO)
     g = spec["geometria"]
     # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
     # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura
