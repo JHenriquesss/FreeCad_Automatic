@@ -11,6 +11,14 @@ import math
 
 
 def area_contribuicao(comp_telhado, larg_agua, h_elevacao=0.0):
+    # area NEGATIVA gerava vazao negativa -> a 1a lamina d'agua ja "atendia" e a
+    # calha saia com ok=True (contra-seguranca classica: numero sem sentido
+    # apresentado como aprovado). O pipeline passa comprimento/vao, que o validar
+    # ja forca > 0; esta guarda protege quem chama o modulo direto.
+    if comp_telhado < 0 or larg_agua < 0 or h_elevacao < 0:
+        raise ValueError("dimensoes de telhado/agua nao podem ser negativas: "
+                         "comp=%r larg=%r h_elev=%r"
+                         % (comp_telhado, larg_agua, h_elevacao))
     return comp_telhado * (larg_agua + h_elevacao / 2.0)
 
 
@@ -22,8 +30,19 @@ def secao_calha(Q_req, B_base=0.10, i=0.005, n=0.011, H_max=0.08):
     """Retorna a altura d'agua necessaria, com borda livre de 25%.
     H_max = altura total da calha (m). A lamina d'agua maxima e 0.75*H_max.
     Se não couber com borda livre, retorna ok=False."""
+    # H_max fora de faixa fisica: FALHA ALTO. Antes o passo de 1 mm era
+    # materializado numa LISTA de int(0,75*H_max*1000) elementos - com um H_max
+    # absurdo (erro de unidade: metros digitados como mm, ou dado corrompido) isso
+    # vira bilhoes de floats: o processo TRAVA/estoura memoria em vez de acusar.
+    # Num pipeline que ja teve "a tesoura executiva nunca termina" diagnosticado
+    # errado como lentidao, travar silenciosamente e o pior modo de falhar.
+    if not (0.0 < H_max <= 5.0) or not math.isfinite(H_max):
+        raise ValueError(
+            "H_max da calha fora de faixa (0 < H_max <= 5 m): %r. "
+            "Verifique a unidade (metros, nao milimetros)." % (H_max,))
     h_limite = 0.75 * H_max
-    for h_agua in [a / 1000.0 for a in range(5, int(h_limite * 1000) + 1)]:
+    # gerador (nao lista): passo de 1 mm sem materializar a faixa inteira
+    for h_agua in (a / 1000.0 for a in range(5, int(h_limite * 1000) + 1)):
         As = B_base * h_agua
         Pm = B_base + 2.0 * h_agua
         Rh = As / Pm if Pm > 0 else 0.0
