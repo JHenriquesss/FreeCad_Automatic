@@ -609,7 +609,8 @@ def _carimbo(cfg, titulo, numero, escala, folha):
         "responsible_department": "ESTRUTURAS",
         # compacto p/ caber na celula estreita do ISO5457 (evita colisao com scale)
         "general_tolerances": "NBR 8800/6118",
-        "part_material": "ACO MR250 / CONCRETO fck 25 MPa",
+        # DO PROJETO (nao literal): ver _materiais_de_spec.
+        "part_material": _txt_material(cfg.get("materiais")),
     }
 
 
@@ -1441,12 +1442,22 @@ def _pr_quadros(doc, cfg):
                 rows_m, 560, 480 - n_mat * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
+    _mt = cfg.get("materiais") or {}
+    # notas 3 e 4 DO PROJETO. Sem o dado, a nota diz "conforme memorial" em vez de
+    # imprimir um numero fixo que pode contradizer o calculo (o desenho vai p/ a obra).
+    _n3 = "3. Aco estrutural %s (NBR 8800). Armadura CA-%d." % (
+        _mt.get("aco", "MR250"), round((_mt.get("fyk_MPa") or 500) / 10.0))
+    _cob = _mt.get("cobrimento_cm") or 5
+    _n4 = ("4. Concreto fck %d MPa. Cobrimento %s cm (fund.), 3 cm (sup.)."
+           % (_mt["fck_MPa"], ("%g" % _cob).replace(".", ","))
+           if _mt.get("fck_MPa") else
+           "4. Concreto e cobrimento conforme memorial de calculo.")
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
         "2. RN +0,00 = topo do concreto (base das placas).",
-        "3. Aco estrutural MR250 (NBR 8800). Armadura CA-50.",
-        "4. Concreto fck 25 MPa. Cobrimento 5 cm (fund.), 3 cm (sup.).",
+        _n3,
+        _n4,
         "5. Parafusos A325 (fub 825 MPa) ou A307 conforme ligacao.",
         "6. Soldas E70XX (fw 485 MPa). Filete minimo 6 mm.",
         "7. Chumbadores ASTM A36 com gancho 180 mm.",
@@ -1721,6 +1732,38 @@ def _descreve_perfis(est):
     return col, raf
 
 
+# Nome comercial do aco por fy (MPa). Fora da tabela -> so "fy=XXX MPa" (nao
+# inventa designacao). NBR 7007 / ASTM.
+_ACO_POR_FY = {250: "MR250", 300: "AR300", 345: "A572 G50", 350: "AR350"}
+
+
+def _materiais_de_spec(spec):
+    """Materiais do projeto p/ o carimbo e as notas (MPa / cm). Le do spec; sem o
+    campo, devolve None no item -> o texto omite em vez de MENTIR um valor."""
+    fu = spec.get("fundacao", {}) or {}
+
+    def _mpa(v):                       # spec guarda em kPa
+        return round(v / 1000.0) if isinstance(v, (int, float)) and v else None
+
+    def _cm(v):                        # spec guarda em m
+        return round(v * 100.0, 1) if isinstance(v, (int, float)) and v else None
+    # fy do aco estrutural NAO e campo do spec (vem do PARAMS_REF do calculo, MR250
+    # p/ todo projeto). Enquanto for assim, declara o valor EFETIVO, nao um nome fixo.
+    fy = _mpa((spec.get("estrutura", {}) or {}).get("aco_fy")) or 250
+    return {"fy_MPa": fy, "aco": _ACO_POR_FY.get(fy, "fy=%d MPa" % fy),
+            "fck_MPa": _mpa(fu.get("fck")), "fyk_MPa": _mpa(fu.get("fyk")),
+            "cobrimento_cm": _cm(fu.get("cobrimento"))}
+
+
+def _txt_material(mat):
+    """Linha compacta do carimbo (celula estreita do ISO5457)."""
+    mat = mat or {}
+    p = ["ACO %s" % mat.get("aco", "MR250")]
+    if mat.get("fck_MPa"):
+        p.append("CONCRETO fck %d MPa" % mat["fck_MPa"])
+    return " / ".join(p)
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
@@ -1762,6 +1805,11 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "ponte": ({"Hvr": spec["ponte"].get("Hvr", 4.5) * 1000.0,
                    "Q": spec["ponte"].get("Q")}
                   if spec.get("ponte") else None),
+        # MATERIAIS do projeto (MPa / cm). O carimbo e as notas tecnicas imprimiam
+        # "ACO MR250 / CONCRETO fck 25 MPa" e "Cobrimento 5 cm" FIXOS: um projeto
+        # com fck 40 e cobrimento 7,5 cm (classe de agressividade mais severa)
+        # recebia prancha mandando executar 25 MPa e 5 cm. O desenho vai p/ a OBRA.
+        "materiais": _materiais_de_spec(spec),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
     }
