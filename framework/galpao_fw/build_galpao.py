@@ -213,6 +213,10 @@ GUSSET_T = 12.0
 # modelagem, mas UNICA: o rotulo do takeoff sai daqui, nao de um "chapa-8" cravado
 # que passaria a mentir na primeira vez que a chapa mudasse.
 T_CLIPE = 8.0
+# Posicao do esticador ao longo da diagonal. As duas diagonais de um X se cruzam
+# no MEIO: com os dois em 0,5 as mangas ficavam no mesmo espaco (bbox identica,
+# 40,3% de volume comum). Cada uma vai para um lado do cruzamento.
+FRAC_ESTIC = 0.35
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
@@ -436,7 +440,7 @@ def _estaca_offsets(n, esp):
     return [((k - (n - 1) / 2.0) * esp, 0.0) for k in range(n)]
 
 
-def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
+def _desenha_estaca(doc, x, yw, z_conc_top, pdim, lado, i):
     """Fundacao profunda em um pe: pedestal + bloco de coroamento (concreto) e as
     n estacas (cilindros) descendo do bloco. Dims (mm) do ESTACA_MODEL/BLOCO_MODEL,
     que vem do calculo (estaca_profunda). O bloco em planta cobre o grupo + coroa."""
@@ -453,7 +457,7 @@ def _desenha_estaca(doc, x, yw, pbot, pdim, lado, i):
     # pedestal (pescoco) do pilar ate o bloco = cota de arrasamento da sondagem
     # (Q4): parametro do modelo, default 500 mm A CONFIRMAR pela topografia.
     ped = (BLOCO_MODEL or {}).get("ped", ESTACA_MODEL.get("ped", 500.0))
-    z_ped_top = pbot; z_ped_bot = z_ped_top - ped
+    z_ped_top = z_conc_top; z_ped_bot = z_ped_top - ped
     z_blk_top = z_ped_bot; z_blk_bot = z_blk_top - bh
     plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
           f"PEDESTAL_{lado}_{i:02d}")
@@ -544,15 +548,19 @@ def plate_basis(doc, center, ex, ey, ez, wx, wy, wz, name):
     return obj
 
 
-def _esticador(doc, p1, p2, name, od=45.0, ln=180.0):
-    """Esticador (lanterna/turnbuckle) no meio de uma barra: manga cilindrica de
-    maior diametro, alinhada a barra, centrada no meio."""
+def _esticador(doc, p1, p2, name, od=45.0, ln=180.0, frac=0.5):
+    """Esticador (lanterna/turnbuckle) sobre uma barra: manga cilindrica de maior
+    diametro, alinhada a barra, centrada em `frac` do comprimento.
+
+    `frac` existe porque as DUAS diagonais de um X se cruzam exatamente no meio:
+    com os dois esticadores em frac=0,5 as mangas ocupavam o MESMO espaco (bbox
+    identica, 40,3% de volume comum) - impossivel de montar. Cada diagonal leva o
+    seu esticador deslocado para um lado do cruzamento."""
     a, b = App.Vector(*p1), App.Vector(*p2)
     d = b.sub(a)
     u = App.Vector(d)
     u.normalize()
-    mid = App.Vector((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0,
-                     (p1[2] + p2[2]) / 2.0)
+    mid = a.add(App.Vector(u).multiply(d.Length * frac))
     start = mid.sub(App.Vector(u).multiply(ln / 2.0))
     cyl = Part.makeCylinder(od / 2.0, ln)
     rot = App.Rotation(App.Vector(0, 0, 1), d)
@@ -829,12 +837,18 @@ def build(doc):
                 ob.Shape = g
                 _reg(ob.Name, (x, yw, ptop), (x, yw, ptop))
             pdim = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
+            # TOPO DO CONCRETO = face inferior da placa MENOS o gap de graute. O
+            # gap estava DECLARADO (GROUT_GAP) mas nao realizado: o concreto subia
+            # ate pbot, encostando na placa, e a PORCA DE NIVEL (28 mm, dimensionada
+            # justamente para caber nos 30 mm do gap) ficava 100% ENTERRADA no
+            # concreto - impossivel de regular e errada na prancha de base.
+            z_conc_top = pbot - GROUT_GAP
             if ESTACA_MODEL:                        # fundacao PROFUNDA (exclusiva)
-                _desenha_estaca(doc, x, yw, pbot, pdim, lado, i)
+                _desenha_estaca(doc, x, yw, z_conc_top, pdim, lado, i)
             elif SAPATA_MODEL:                       # fundacao RASA
                 sB = SAPATA_MODEL["B"]; sL = SAPATA_MODEL["L"]; sh = SAPATA_MODEL["h"]
                 ped = SAPATA_MODEL.get("ped", 500.0)
-                z_ped_top = pbot; z_ped_bot = z_ped_top - ped; z_blk_bot = z_ped_bot - sh
+                z_ped_top = z_conc_top; z_ped_bot = z_ped_top - ped; z_blk_bot = z_ped_bot - sh
                 plate(doc, (x, yw, (z_ped_top + z_ped_bot) / 2.0), pdim, pdim, ped,
                       f"PEDESTAL_{lado}_{i:02d}")
                 plate(doc, (x, yw, (z_ped_bot + z_blk_bot) / 2.0), sB, sL, sh,
@@ -847,7 +861,7 @@ def build(doc):
     # de concreto no take-off, sem clash espurio).
     if BALDRAME_MODEL:
         bb = BALDRAME_MODEL["b"]; bh = BALDRAME_MODEL["h"]
-        z_bal_top = pbot; z_bal_c = z_bal_top - bh / 2.0
+        z_bal_top = pbot - GROUT_GAP; z_bal_c = z_bal_top - bh / 2.0
         pdim_b = max(COL_SEC[0] + 120.0, COL_SEC[1] + 120.0, 300.0)
         # (1) LONGITUDINAL: ao longo das baias, uma por linha de coluna.
         for j, yw in enumerate(cols_y):
@@ -1087,8 +1101,8 @@ def build(doc):
         cb = ((x1, 0, EAVE_H), (x0, SPAN, EAVE_H))
         rod(doc, *ca, 20, f"CONTRAV_COBERTURA_{j:02d}_A")
         rod(doc, *cb, 20, f"CONTRAV_COBERTURA_{j:02d}_B")
-        _esticador(doc, *ca, f"ESTICADOR_COBERTURA_{j:02d}_A")
-        _esticador(doc, *cb, f"ESTICADOR_COBERTURA_{j:02d}_B")
+        _esticador(doc, *ca, f"ESTICADOR_COBERTURA_{j:02d}_A", frac=FRAC_ESTIC)
+        _esticador(doc, *cb, f"ESTICADOR_COBERTURA_{j:02d}_B", frac=1.0 - FRAC_ESTIC)
         for (nx, ny, d1, d2) in ((x0, 0.0, (1, 0, 0), (0, 1, 0)),
                                  (x1, 0.0, (-1, 0, 0), (0, 1, 0)),
                                  (x0, SPAN, (1, 0, 0), (0, -1, 0)),
@@ -1102,15 +1116,20 @@ def build(doc):
             wb = ((x1, yw, Z0), (x0, yw, EAVE_H))
             rod(doc, *wa, 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_A")
             rod(doc, *wb, 20, f"CONTRAV_PAREDE_{lado}_{j:02d}_B")
-            _esticador(doc, *wa, f"ESTICADOR_PAREDE_{lado}_{j:02d}_A")
-            _esticador(doc, *wb, f"ESTICADOR_PAREDE_{lado}_{j:02d}_B")
-            for (nx, nz, d1, d2) in ((x0, Z0, (1, 0, 0), (0, 0, 1)),
-                                     (x1, Z0, (-1, 0, 0), (0, 0, 1)),
-                                     (x0, EAVE_H, (1, 0, 0), (0, 0, -1)),
-                                     (x1, EAVE_H, (-1, 0, 0), (0, 0, -1))):
+            _esticador(doc, *wa, f"ESTICADOR_PAREDE_{lado}_{j:02d}_A", frac=FRAC_ESTIC)
+            _esticador(doc, *wb, f"ESTICADOR_PAREDE_{lado}_{j:02d}_B", frac=1.0 - FRAC_ESTIC)
+            # O gusset SUPERIOR nasce abaixo da ESCORA DE BEIRAL, nao no no do
+            # beiral: a escora (HEA_ESC) e centrada em EAVE_H, entao uma chapa que
+            # descia a partir do no ficava 60,7% dentro dela (medido). A chapa tem
+            # de encostar na face inferior da escora, nao atravessa-la.
+            z_top_gus = EAVE_H - HEA_ESC[0] / 2.0
+            for (nx, nz, d1, d2, tag) in ((x0, Z0, (1, 0, 0), (0, 0, 1), "B"),
+                                          (x1, Z0, (-1, 0, 0), (0, 0, 1), "B"),
+                                          (x0, z_top_gus, (1, 0, 0), (0, 0, -1), "T"),
+                                          (x1, z_top_gus, (-1, 0, 0), (0, 0, -1), "T")):
                 _gusset_tri(doc, (nx, yw, nz), d1, d2,
                             f"CONEX_GUSSET_PAR_{lado}_{j:02d}_{int(nx)//1000:02d}_"
-                            f"{'B' if nz < EAVE_H else 'T'}", thick=GUSSET_T)
+                            f"{tag}", thick=GUSSET_T)
 
     # Ponte rolante (geometria): viga de rolamento sobre consoles (misulas) nos
     # pilares, no nivel do trilho Hvr, excentrica ao eixo do pilar.
