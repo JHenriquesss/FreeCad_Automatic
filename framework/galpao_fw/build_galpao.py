@@ -213,6 +213,9 @@ GUSSET_T = 12.0
 # modelagem, mas UNICA: o rotulo do takeoff sai daqui, nao de um "chapa-8" cravado
 # que passaria a mentir na primeira vez que a chapa mudasse.
 T_CLIPE = 8.0
+# Espessura da arruela do chumbador. O rotulo do takeoff sai daqui: estava
+# cravado "chapa-10" enquanto a peca era desenhada com 12 mm.
+T_ARRUELA = 12.0
 # Posicao do esticador ao longo da diagonal. As duas diagonais de um X se cruzam
 # no MEIO: com os dois em 0,5 as mangas ficavam no mesmo espaco (bbox identica,
 # 40,3% de volume comum). Cada uma vai para um lado do cruzamento.
@@ -656,14 +659,42 @@ def joelho(doc, node, rdir, tag):
     # Misula (haunch) SOLDADA: triangulo no plano do portico, pendurado sob a viga.
     # Fundo no beiral (A face inf da viga -> B, hdep abaixo) e afina ate a viga a
     # hlen (C na face inf). +v aponta para BAIXO (perpendicular a viga).
+    # A misula e FABRICADA em chapas soldadas: ALMA (triangulo) + MESA INFERIOR
+    # propria ao longo da aresta inclinada. Era um BLOCO MACICO de 180 mm - o
+    # takeoff computa massa = volume x 7850, entao cada misula pesava 254,3 kg
+    # (3.052 kg no total, 6,2% de todo o aco do galpao) contra ~42 kg reais.
+    # A mesa inferior nao e detalhe estetico: e o elemento COMPRIMIDO sob momento
+    # negativo no joelho (e a mesa que governa a FLT ali). O caminho
+    # `alma_variavel` deste mesmo framework ja modela o joelho como I duplamente
+    # simetrico (alma + 2 mesas) - o caminho prismatico e que estava fora de passo.
     A = _p(node, hhalf, v)                                   # face inf da viga no no
     B = _p(A, hdep, v)                                       # fundo da misula no beiral
     ncenter = _p(node, hlen, dirn)                           # eixo da viga a hlen
     C = _p(ncenter, hhalf, v)                                # face inf da viga a hlen
-    sol = Part.Face(Part.makePolygon([App.Vector(*A), App.Vector(*B),
-                                      App.Vector(*C), App.Vector(*A)])).extrude(
-        App.Vector(180.0, 0, 0))
-    sol.translate(App.Vector(-90.0, 0, 0))
+    _bf, _tw, _tf = RAF_SEC[1], RAF_SEC[2], RAF_SEC[3]
+    alma = Part.Face(Part.makePolygon([App.Vector(*A), App.Vector(*B),
+                                       App.Vector(*C), App.Vector(*A)])).extrude(
+        App.Vector(_tw, 0, 0))
+    alma.translate(App.Vector(-_tw / 2.0, 0, 0))
+    # MESA INFERIOR ao longo de B->C, para FORA do triangulo (lado oposto a A).
+    _Bv, _Cv, _Av = App.Vector(*B), App.Vector(*C), App.Vector(*A)
+    _u = _Cv.sub(_Bv)
+    _Lf = _u.Length
+    _u.normalize()
+    _n = App.Vector(0.0, -_u.z, _u.y)                        # perpendicular no plano
+    if _Av.sub(_Bv).dot(_n) > 0.0:
+        _n = _n.negative()
+    _mid = _Bv.add(App.Vector(_u).multiply(_Lf / 2.0)).add(
+        App.Vector(_n).multiply(_tf / 2.0))
+    _box = Part.makeBox(_bf, _Lf, _tf)
+    _box.translate(App.Vector(-_bf / 2.0, -_Lf / 2.0, -_tf / 2.0))
+    _m = App.Matrix()
+    _m.A11, _m.A21, _m.A31 = 1.0, 0.0, 0.0
+    _m.A12, _m.A22, _m.A32 = 0.0, _u.y, _u.z
+    _m.A13, _m.A23, _m.A33 = 0.0, _n.y, _n.z
+    _box = _box.transformGeometry(_m)
+    _box.translate(_mid)
+    sol = alma.fuse(_box).removeSplitter()
     ob = doc.addObject("Part::Feature", f"CONEX_JOELHO_{tag}_MISULA")
     ob.Shape = sol
     _reg(ob.Name, (cx, cy, cz), (cx, cy, cz))
@@ -805,7 +836,8 @@ def build(doc):
     gx, gy = Bp / 2.0 - edge, Lp / 2.0 - edge
     ys = [-gy, 0.0, gy] if npc >= 6 else [-gy, gy]      # straddle em Y (+ meia p/ n=6)
     ancoras = [(dx, dy) for dx in (-gx, gx) for dy in ys]
-    wsz = 2.0 * dbp + 40.0                              # arruela
+    wsz = 2.0 * dbp + 40.0                              # arruela (lado)
+    wt = T_ARRUELA                                      # espessura (rotulo sai daqui)
     pod = 1.7 * dbp + 8.0                               # diametro da porca
     for i, x in enumerate(axes, start=1):
         for j, yw in enumerate(cols_y):
@@ -817,7 +849,7 @@ def build(doc):
                     dbp, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
                 rod(doc, (ax, ay, -300), (ax, ay - 60, -300),
                     dbp, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
-                plate(doc, (ax, ay, ptop + 6.0), wsz, wsz, 12,
+                plate(doc, (ax, ay, ptop + wt / 2.0), wsz, wsz, wt,
                       f"ARRUELA_{lado}_{i:02d}_{sfx}")
                 rod(doc, (ax, ay, ptop + 12.0), (ax, ay, ptop + 30.0), pod,
                     f"PORCA_{lado}_{i:02d}_{sfx}")
@@ -1761,7 +1793,8 @@ def _classifica(n):
     if n.startswith("PLACA_BASE"):
         return "Placas de base", "chapa-%.0f" % BASE_PLATE["t"]
     if n.startswith("ARRUELA"):
-        return "Arruelas", "chapa-10"
+        # era "chapa-10" cravado com a arruela DESENHADA com 12 mm
+        return "Arruelas", "chapa-%.0f" % T_ARRUELA
     if n.startswith("PORCA_NIVEL"):
         return "Porcas de nivel", "porca-M%.0f" % BASE_PLATE["db"]
     if n.startswith("PORCA"):
@@ -1796,7 +1829,9 @@ def _classifica(n):
     if n.startswith("CLIPE"):
         return "Clipes de apoio (conexao)", "chapa-%.0f" % T_CLIPE
     if "JOELHO" in n and "MISULA" in n:
-        return "Misulas (joelho)", "chapa-9.5"
+        # chapas soldadas, derivadas do rafter (era "chapa-9.5" cravado, que nem
+        # correspondia ao bloco macico de 180 mm que estava desenhado)
+        return "Misulas (joelho)", "alma-%.1f/mesa-%.0f" % (RAF_SEC[2], RAF_SEC[3])
     if "JOELHO" in n and "CHAPA" in n:
         return "Chapa de topo (joelho)", "chapa-%.0f" % JOELHO_CFG["t"]
     if "JOELHO" in n and "M24" in n:
