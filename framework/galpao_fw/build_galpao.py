@@ -668,7 +668,10 @@ def joelho(doc, node, rdir, tag):
                 jdb, f"CONEX_JOELHO_{tag}_M24_{b:02d}")
     # Enrijecedores de continuidade no pilar (preenchem a secao entre as mesas).
     for dz, nm in ((-95.0, "INF"), (-15.0, "SUP")):
-        plate(doc, (cx, cy, cz + dz), COL_SEC[0], COL_SEC[1], 12.0,
+        # X = largura (bf), Y = altura (d): com a coluna de alma NO PLANO do
+        # portico (roll=90) e o d que fica ao longo de Y. Estava (d, bf) - correto
+        # so enquanto a coluna estava girada errada.
+        plate(doc, (cx, cy, cz + dz), COL_SEC[1], COL_SEC[0], 12.0,
               f"CONEX_JOELHO_{tag}_ENRIJ_{nm}")
     # CHAPA DE REFORCO DE ALMA (doubler, NBR 8800 5.7.7.2) - SO quando o calculo da
     # zona de painel exigiu (REFORCO_JOELHO.t_doubler > 0). Duas chapas, uma de cada
@@ -679,11 +682,13 @@ def joelho(doc, node, rdir, tag):
         t_lado = max(td / 2.0, 4.0)
         tw_col = COL_SEC[2]
         painel_h = RAF_SEC[0] + 300.0               # altura do painel + 150 mm cada lado
-        wx = COL_SEC[0] * 0.7                        # dentro da altura da alma do pilar
-        for sy, nm in ((-1.0, "L"), (1.0, "R")):
-            offy = sy * (tw_col / 2.0 + t_lado / 2.0)
-            plate(doc, (cx, cy + offy, cz - RAF_SEC[0] / 2.0),
-                  wx, t_lado, painel_h, f"CONEX_JOELHO_{tag}_DOUBLER_{nm}")
+        # A alma do pilar esta no plano Y-Z (roll=90), entao as chapas ficam uma de
+        # cada lado dela deslocadas em X, e a extensao "dentro da alma" e em Y.
+        wy = COL_SEC[0] * 0.7                        # dentro da altura da alma do pilar
+        for sx, nm in ((-1.0, "L"), (1.0, "R")):
+            offx = sx * (tw_col / 2.0 + t_lado / 2.0)
+            plate(doc, (cx + offx, cy, cz - RAF_SEC[0] / 2.0),
+                  t_lado, wy, painel_h, f"CONEX_JOELHO_{tag}_DOUBLER_{nm}")
 
 
 def cumeeira_conn(doc, x, tag, ry=None, rh=None):
@@ -806,7 +811,9 @@ def build(doc):
                 rod(doc, (ax, ay, pbot - 28.0), (ax, ay, pbot), pod,
                     f"PORCA_NIVEL_{lado}_{i:02d}_{sfx}")
             for sgn, nm in ((1.0, "P"), (-1.0, "N")):
-                ftip = COL_SEC[1] / 2.0
+                # face da coluna em Y = d/2 (alma no plano do portico). Era bf/2:
+                # a nervura comecava 150 mm DENTRO da coluna (85% embutida).
+                ftip = COL_SEC[0] / 2.0
                 V1 = App.Vector(x, yw + sgn * ftip, ptop)
                 V2 = App.Vector(x, yw + sgn * min(ftip + 140.0, gy + edge), ptop)
                 V3 = App.Vector(x, yw + sgn * ftip, ptop + 300.0)
@@ -960,7 +967,9 @@ def build(doc):
     # Longarina (girt) assenta CONTRA a face externa da mesa do pilar (nao penetra):
     # GOFF = meia-largura do pilar + meia-altura da girt -> face interna da girt no
     # plano da mesa. Clipe (cantoneira) em cada pilar. Verificado por verifica_conexoes.
-    GOFF = COL_SEC[1] / 2.0 + UPE_LONG[0] / 2.0       # girt contra a mesa do pilar
+    # face externa do pilar em Y = d/2 (alma no plano do portico). Era bf/2 -> a
+    # girt ficava DENTRO do envelope da coluna em vez de encostada nela.
+    GOFF = COL_SEC[0] / 2.0 + UPE_LONG[0] / 2.0       # girt contra a mesa do pilar
     GIRT_Z = (2000.0, 4000.0)
     DOOR_X = ABERTURAS.get("porta_lateral")         # None se nao ha porta lateral
     for lvl, z in enumerate(GIRT_Z, start=1):
@@ -1116,7 +1125,11 @@ def build(doc):
     # calha + folga. Era 340 fixo, calibrado para a coluna girada errada (que
     # ocupava so bf/2=100 em Y); com o eixo forte no plano, 340 fazia a calha
     # invadir a coluna em 10 mm (12 interferencias CALHA x PORTICO).
-    GUT_Y = COL_SEC[0] / 2.0 + CALHA_SEC[0] / 2.0 + 30.0
+    # A calha tem que livrar a peca MAIS EXTERNA da parede, que e a GIRT (e os
+    # tirantes presos nela), nao a coluna: face externa da girt = d/2 + altura da
+    # girt. Derivar so da coluna deixava a calha sobre a linha dos tirantes
+    # (20 interferencias CALHA x TIRANTE).
+    GUT_Y = COL_SEC[0] / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0 + 30.0
     # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
     DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha

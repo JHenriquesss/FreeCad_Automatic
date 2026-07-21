@@ -86,12 +86,17 @@ def test_rafter_continua_sem_roll(src):
         assert roll is None or getattr(roll, "value", None) in (0, 0.0)
 
 
-def test_calha_afastada_da_coluna_por_derivacao(src):
+def test_calha_afastada_por_derivacao(src):
     """Com o eixo forte no plano, a coluna ocupa d/2 em Y (era bf/2). O GUT_Y
-    fixo de 340 fazia a calha invadir a coluna (12 interferencias). Tem que ser
-    DERIVADO, senao volta a colidir no proximo perfil mais alto."""
+    fixo de 340 fazia a calha invadir a coluna. Tem que ser DERIVADO, senao volta
+    a colidir no proximo perfil mais alto.
+
+    NOTA: a formula ficou mais completa depois (a calha precisa livrar a GIRT, que
+    e a peca mais externa da parede - ver test_ligacoes_pos_rotacao). Este teste
+    guarda a INTENCAO (derivado da coluna, sem numero magico); a formula exata e
+    verificada la, para nao travar duas vezes a mesma linha."""
     assert "GUT_Y = 340.0" not in src
-    assert "GUT_Y = COL_SEC[0] / 2.0 + CALHA_SEC[0] / 2.0" in src
+    assert "GUT_Y = COL_SEC[0] / 2.0" in src
 
 
 def test_fonte_compila(src):
