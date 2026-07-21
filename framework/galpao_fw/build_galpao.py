@@ -917,6 +917,12 @@ def build(doc):
     POFF = _rise + UE_SEC[0] / 2.0
     vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
     n_terca = N_TERCA                      # do calc (gate 7), nao hardcoded
+    # ALMA NORMAL AO TELHADO: o gate (tercas_nbr14762) decompoe a gravidade em
+    # qx=G*cos(theta) (normal ao telhado, eixo FORTE) e qy=G*sin(theta) (paralela,
+    # eixo fraco) - decomposicao que so vale se a alma for PERPENDICULAR ao plano do
+    # telhado. O modelo desenhava a alma VERTICAL (sem inclinacao), contradizendo a
+    # memoria e fazendo a terca apoiar de canto na mesa inclinada do rafter.
+    _terca_tilt = math.degrees(math.atan(SLOPE))
     terca_ys = []
     terca_objs = []
     for j in range(nv):
@@ -926,12 +932,12 @@ def build(doc):
             terca_ys.append(yl)
             terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
                               (LENGTH, yl, rafter_z(yl) + POFF), UE_SEC,
-                              f"TERCA_S{j:02d}_E_{k:02d}", roll=180)))
+                              f"TERCA_S{j:02d}_E_{k:02d}", roll=180 + _terca_tilt)))
             yr = y1 - (y1 - yrj) * k / n_terca
             terca_ys.append(yr)
             terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
                               (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
-                              f"TERCA_S{j:02d}_D_{k:02d}", roll=0)))
+                              f"TERCA_S{j:02d}_D_{k:02d}", roll=-_terca_tilt)))
     # Assenta cada terca INTERMEDIARIA sobre a viga MEDINDO a penetracao (robusto a
     # inclinacao). Terças de beiral ficam SEM _assenta (apoiam no pilar, nao na viga).
     terca_seats = []                    # (y, z_face_inferior) p/ clipes
