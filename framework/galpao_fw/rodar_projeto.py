@@ -92,6 +92,10 @@ def calcular(spec, out_dir):
         "Longarina": res.get("longarina_inter"), "Escora": res.get("escora_inter"),
         "Montante": res.get("montante_inter"), "Verga": res.get("verga_inter"),
         "Contrav./tirantes": res.get("barras_u_max"), "Gusset": res.get("gusset_u_max"),
+        # A peca da mao-francesa (gate 7b, NBR 8800 4.11.3.4). Estava SO na linha
+        # de resumo "ELEMENTOS QUE NAO ATENDEM": o quadro que o engenheiro le item
+        # a item omitia justamente o elemento que reprovava.
+        "Mao-francesa (peca)": res.get("mf_peca_u"),
         "Viga rolamento": res.get("ponte_viga_inter"), "Console": res.get("console_u_max"),
         "Fogo (theta/theta_cr)": res.get("fogo_util"),
     }
@@ -479,5 +483,14 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
             dossie = {"erro": str(ex)}
             _log(f"[5] Dossie: FALHOU ({ex})")
 
+    # "atende" e o veredito GLOBAL (todos os gates), o mesmo que o RELATORIO
+    # imprime. Era res["atende"] - so o portico: `rodar_tudo` devolvia True num
+    # projeto cujo relatorio dizia NAO ATENDE, e quem consome a API por script
+    # (CI, outro programa) aprovaria o projeto sem ver a falha. O veredito do
+    # portico continua acessivel em res["atende"] e agora tambem aqui, nomeado.
+    _global = (res.get("atende_global") if isinstance(res, dict)
+               and "atende_global" in res else res.get("atende"))
     return {"res": res, "modelo": modelo, "executivo": executivo, "dossie": dossie,
-            "relatorio": rel, "out_dir": out_dir, "atende": bool(res.get("atende"))}
+            "relatorio": rel, "out_dir": out_dir, "atende": bool(_global),
+            "atende_portico": bool(res.get("atende")) if isinstance(res, dict) else False,
+            "falhas": (res.get("falhas_verificacao") or []) if isinstance(res, dict) else []}
