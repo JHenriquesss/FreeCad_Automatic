@@ -137,18 +137,59 @@ def secao_cantoneira(b_mm, t_mm, fy):
     import perfis
     c = perfis.cantoneira(b_mm, t_mm)
     return {"A": c["A"], "r": c["r_min"], "Q": qs_cantoneira_simples(c["b_t"], fy),
-            "b_t": c["b_t"], "nome": c["nome"]}
+            "b_t": c["b_t"], "nome": c["nome"],
+            # rx1 = eixo PARALELO A ABA CONECTADA -> dispara E.1.4.2 (excentricidade
+            # da ligacao por uma aba). Ver esbeltez_equivalente_E14.
+            "rx1": c["r_x"]}
+
+
+def esbeltez_equivalente_E14(L, rx1):
+    """NBR 8800 E.1.4.2 - CANTONEIRA SIMPLES CONECTADA POR UMA ABA.
+
+    Texto literal de E.1.4.1: os efeitos da EXCENTRICIDADE da forca de compressao
+    podem ser considerados por um comprimento de flambagem equivalente, desde que
+    a cantoneira "a) seja carregada nas extremidades atraves da mesma aba;
+    b) seja conectada por solda ou por pelo menos dois parafusos na direcao da
+    solicitacao; c) nao esteja solicitada por acoes transversais intermediarias."
+    E.1.4.2 vale para "barras INDIVIDUAIS ou diagonais ou montantes de trelicas
+    PLANAS" - a mao-francesa e barra individual, entao e este o item (E.1.4.3 e
+    para trelica ESPACIAL).
+
+        L/rx1 <= 80 :  Kx1.Lx1 = 72.rx1 + 0,75.Lx1   ->  KL/r = 72 + 0,75 L/rx1
+        L/rx1 >  80 :  Kx1.Lx1 = 32.rx1 + 1,25.Lx1   ->  KL/r = 32 + 1,25 L/rx1
+
+    rx1 = raio de giracao no eixo PARALELO A ABA CONECTADA (nao o r_min).
+
+    ATENCAO - EU TINHA ISSO AO CONTRARIO: registrei que E.1.4 seria "menos
+    conservador que o r_min, entao omitir esta a favor da seguranca". MEDIDO para
+    o braco de 0,9324 m: L50x50x5 da 94,9 por r_min e 117,4 por E.1.4;
+    L63x63x6 da 75,2 contra 108,0. E.1.4 e MAIS conservador aqui - o termo
+    constante 72.rx1 embute a excentricidade da ligacao por uma aba e domina em
+    barra curta. Omitir NAO estava a favor da seguranca.
+    """
+    lr = L / rx1
+    return (72.0 + 0.75 * lr) if lr <= 80.0 else (32.0 + 1.25 * lr)
 
 
 def compressao_resistente(sec, fy, L, K=1.0):
-    """NBR 8800 5.3.2: Nc,Rd = chi.Q.Ag.fy/gamma_a1, com chi de 5.3.3."""
+    """NBR 8800 5.3.2: Nc,Rd = chi.Q.Ag.fy/gamma_a1, com chi de 5.3.3.
+
+    Se a secao traz `rx1` (cantoneira ligada por UMA aba), a esbeltez vem de
+    E.1.4.2 em vez de KL/r_min. Barra redonda nao tem aba: segue em KL/r.
+    """
     A, r, Q = sec["A"], sec["r"], sec.get("Q", 1.0)
-    esb = K * L / r
-    Ne = math.pi ** 2 * E * (A * r ** 2) / (K * L) ** 2      # I = A.r^2
+    if sec.get("rx1"):
+        esb = esbeltez_equivalente_E14(K * L, sec["rx1"])
+        criterio = "E.1.4.2 (cantoneira ligada por uma aba)"
+    else:
+        esb = K * L / r
+        criterio = "KL/r (5.3.3)"
+    # Ne = pi^2.E.A/esbeltez^2 (equivale a pi^2.E.I/(KL)^2 com I = A.r^2)
+    Ne = math.pi ** 2 * E * A / esb ** 2
     lambda0 = math.sqrt(Q * A * fy / Ne)
     chi = ck.chi_compressao(lambda0)
     return {"esbeltez": esb, "Ne": Ne, "lambda0": lambda0, "chi": chi,
-            "Nc_Rd": chi * Q * A * fy / GA1}
+            "criterio_esbeltez": criterio, "Nc_Rd": chi * Q * A * fy / GA1}
 
 
 def verifica_braco(Msd, h0, Lbb, L_braco, ang_graus, sec, fy, Cd=1.0, K=1.0):

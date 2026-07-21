@@ -93,6 +93,52 @@ def test_qs_usa_a_linha_da_cantoneira_simples():
 
 
 # ---- secao para o gate ----------------------------------------------------
+# ---- E.1.4: excentricidade da ligacao por UMA aba -------------------------
+def test_E14_formula_das_duas_faixas():
+    """NBR 8800 E.1.4.2 (barras INDIVIDUAIS ou diagonais de trelica PLANA):
+        L/rx1 <= 80 -> KL/r = 72 + 0,75 L/rx1
+        L/rx1 >  80 -> KL/r = 32 + 1,25 L/rx1"""
+    rx1 = 0.01
+    assert CL.esbeltez_equivalente_E14(0.50, rx1) == pytest.approx(72 + 0.75 * 50)
+    assert CL.esbeltez_equivalente_E14(1.00, rx1) == pytest.approx(32 + 1.25 * 100)
+
+
+def test_E14_e_continuo_na_transicao():
+    """Em L/rx1 = 80 as duas faixas tem que dar o mesmo (72+60 = 32+100 = 132)."""
+    rx1 = 0.01
+    assert CL.esbeltez_equivalente_E14(0.80, rx1) == pytest.approx(132.0)
+    assert CL.esbeltez_equivalente_E14(0.8000001, rx1) == pytest.approx(132.0, abs=1e-4)
+
+
+def test_E14_e_MAIS_conservador_que_r_min_no_braco_curto():
+    """EU TINHA ISSO AO CONTRARIO na memoria do projeto: registrei que E.1.4
+    seria menos conservador e que omiti-lo estava 'a favor da seguranca'.
+    MEDIDO: para L=0,9324 m, L50x50x5 da 94,9 por r_min e 117,4 por E.1.4. O
+    termo 72.rx1 embute a excentricidade e domina em barra curta."""
+    import perfis
+    c = perfis.cantoneira(50, 5)
+    L = 0.9324
+    assert CL.esbeltez_equivalente_E14(L, c["r_x"]) > L / c["r_min"]
+
+
+def test_E14_dispara_pela_secao_da_cantoneira():
+    """Cantoneira traz rx1 -> criterio E.1.4.2. Barra redonda nao tem aba -> KL/r."""
+    cant = CL.compressao_resistente(CL.secao_cantoneira(50, 5, 250e3), 250e3, 0.9324)
+    barra = CL.compressao_resistente(CL.secao_barra_redonda(0.016), 250e3, 0.9324)
+    assert "E.1.4.2" in cant["criterio_esbeltez"]
+    assert "KL/r" in barra["criterio_esbeltez"]
+
+
+def test_E14_usa_rx1_e_nao_r_min():
+    """rx1 = eixo PARALELO A ABA CONECTADA. Usar r_min aqui daria esbeltez menor
+    (menos conservadora) e contrariaria o item."""
+    import perfis
+    s = CL.secao_cantoneira(63, 6, 250e3)
+    c = perfis.cantoneira(63, 6)
+    assert s["rx1"] == c["r_x"]
+    assert s["rx1"] > s["r"]
+
+
 def test_secao_cantoneira_usa_r_min():
     """O que governa a flambagem da cantoneira simples e o eixo principal FRACO."""
     s = CL.secao_cantoneira(50, 5, 250e3)
@@ -113,6 +159,10 @@ def test_cantoneira_atende_onde_a_barra_redonda_reprova():
 
 # ---- spec: o engenheiro escolhe -------------------------------------------
 def test_spec_sem_cantoneira_fica_none(spec):
+    """Sem o campo, mf_sec e None (barra redonda historica). A amostra AGORA traz
+    a cantoneira escolhida (L50x50x5, marcada 'A CONFIRMAR'), entao removo o campo
+    para exercitar o caso 'sem escolha'."""
+    spec.get("estrutura", {}).pop("mao_francesa", None)
     assert PS.to_build_kwargs(spec)["mf_sec"] is None
 
 
