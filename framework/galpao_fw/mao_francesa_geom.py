@@ -45,6 +45,9 @@ def segmentos(axes, cols_y, ridges_y, n_terca, brace_k, raf_h, poff, rafter_z,
     segs = []
     nv = len(cols_y) - 1
     ct = math.cos(theta)
+    # Dominio LONGITUDINAL onde existe terca para o braco alcancar. As tercas
+    # correm de ponta a ponta do galpao, ou seja, de axes[0] ate axes[-1].
+    x_min, x_max = min(axes), max(axes)
     for x in axes:
         c = 0
         for j in range(nv):
@@ -60,8 +63,19 @@ def segmentos(axes, cols_y, ridges_y, n_terca, brace_k, raf_h, poff, rafter_z,
                     z_bot = za - (raf_h / 2.0) * ct       # mesa inferior do rafter
                     z_ter = za + poff                      # terca (corre em X, acima)
                     off_x = z_ter - z_bot                  # componente LONGITUDINAL
+                    # Nos porticos de EXTREMIDADE o braco so pode apontar para
+                    # DENTRO: fora deles nao existe terca para travar. Com o sgn
+                    # alternado CEGO, o braco da agua D no portico x=0 mirava
+                    # x=-665 (fora do galpao) e nao tocava terca nenhuma - medido
+                    # no modelo: 4 de 24 bracos a 361,83 mm da terca mais proxima,
+                    # sempre nas duas pontas, justamente os porticos mais
+                    # solicitados por vento.
+                    s = sgn
+                    if not (x_min <= x + s * off_x <= x_max):
+                        if x_min <= x - s * off_x <= x_max:
+                            s = -s                         # o outro lado alcanca
                     p1 = (x, y, z_bot)
-                    p2 = (x + sgn * off_x, y, z_ter)
+                    p2 = (x + s * off_x, y, z_ter)
                     segs.append((p1, p2,
                                  "MAO_FRANCESA_S%02d_%02d_%02d" % (j, int(x) // 1000, c)))
     return segs
