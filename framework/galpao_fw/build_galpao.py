@@ -80,7 +80,7 @@ DOC_NAME = "galpao"
 def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=None,
                export_dir=None, doc_name=None, mf_stride=None, n_terca=None,
                n_tirante_parede=None, aberturas=None, terreno_pts=None,
-               fechamento=None, ponte_modelo=None,
+               fechamento=None, ponte_modelo=None, mf_sec=None,
                perfil_col=None, perfil_raf=None,
                perfil_col_nome=None, perfil_raf_nome=None, base=None,
                perfil_esc=None, perfil_esc_nome=None, joelho=None, terca=None,
@@ -96,9 +96,11 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     ADOTADO); default = referencia."""
     global LENGTH, SPANS, EAVE_H, SLOPE, BAY, EXPORT_DIR, DOC_NAME, AGUAS
     global MF_STRIDE, N_TERCA, N_TIRANTE_PAREDE, ABERTURAS, TERRENO_PTS, FECHAMENTO
+    global MF_SEC
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global MF_SEC
     global REFORCO_JOELHO, CALHA_SEC, CONDUTOR_D, VR_SEC, GUSSET_T
     if calha is not None:
         # (B_mm, H_mm) do calc -> (h=largura, b=ALTURA, tw, tf); a calha e rolada 90.
@@ -130,6 +132,7 @@ def configurar(length=None, spans=None, span=None, eave_h=None, slope=None, bay=
     if aberturas is not None: ABERTURAS = dict(ABERTURAS, **aberturas)
     if terreno_pts is not None: TERRENO_PTS = terreno_pts
     if fechamento is not None: FECHAMENTO = dict(FECHAMENTO, **fechamento)
+    if mf_sec is not None: MF_SEC = tuple(float(v) for v in mf_sec) if mf_sec else None
     if ponte_modelo is not None:
         PONTE_MODELO = ponte_modelo if ponte_modelo else None
         # perfil da VIGA DE ROLAMENTO verificado pelo calculo (d,bf,tw,tf em mm).
@@ -213,6 +216,16 @@ GUSSET_T = 12.0
 # modelagem, mas UNICA: o rotulo do takeoff sai daqui, nao de um "chapa-8" cravado
 # que passaria a mentir na primeira vez que a chapa mudasse.
 T_CLIPE = 8.0
+# Espessura da arruela do chumbador. O rotulo do takeoff sai daqui: estava
+# cravado "chapa-10" enquanto a peca era desenhada com 12 mm.
+T_ARRUELA = 12.0
+# Secao da MAO-FRANCESA: None = barra redonda DIAM_BRACO (o historico, que o
+# gate 4.11.3.4 REPROVA); (b, t) = cantoneira de abas iguais escolhida pelo
+# engenheiro. O 3D desenha o que o gate verifica - nunca um pelo outro.
+MF_SEC = None
+# Diametro (mm) do tirante (cobertura e parede). O rotulo do takeoff sai daqui;
+# estava cravado "barra-16" e AGRUPADO com a mao-francesa, que agora e outra peca.
+D_TIRANTE = 16.0
 # Posicao do esticador ao longo da diagonal. As duas diagonais de um X se cruzam
 # no MEIO: com os dois em 0,5 as mangas ficavam no mesmo espaco (bbox identica,
 # 40,3% de volume comum). Cada uma vai para um lado do cruzamento.
@@ -384,6 +397,23 @@ def ue_section_pts(sec):
 
 def ue_member(doc, p1, p2, sec, name, roll=0.0):
     return _sweep(ue_section_pts(sec), p1, p2, roll, name, doc)
+
+
+def l_section_pts(sec):
+    """CANTONEIRA de ABAS IGUAIS (b, t), centrada no CENTROIDE - o eixo do membro
+    passa pelo centroide, como nos demais perfis deste modulo. O centroide de um
+    L NAO esta no meio da aba: fica deslocado para o canto (cg ~ 0,29 b)."""
+    b, t = float(sec[0]), float(sec[1])
+    a1, a2 = b * t, t * (b - t)
+    A = a1 + a2
+    cgz = (a1 * (t / 2.0) + a2 * (t + (b - t) / 2.0)) / A
+    cgy = (a1 * (b / 2.0) + a2 * (t / 2.0)) / A
+    P = [(0.0, 0.0), (b, 0.0), (b, t), (t, t), (t, b), (0.0, b)]
+    return [(y - cgy, z - cgz) for (y, z) in P]
+
+
+def l_member(doc, p1, p2, sec, name, roll=0.0):
+    return _sweep(l_section_pts(sec), p1, p2, roll, name, doc)
 
 
 def rod(doc, p1, p2, dia, name):
@@ -656,14 +686,42 @@ def joelho(doc, node, rdir, tag):
     # Misula (haunch) SOLDADA: triangulo no plano do portico, pendurado sob a viga.
     # Fundo no beiral (A face inf da viga -> B, hdep abaixo) e afina ate a viga a
     # hlen (C na face inf). +v aponta para BAIXO (perpendicular a viga).
+    # A misula e FABRICADA em chapas soldadas: ALMA (triangulo) + MESA INFERIOR
+    # propria ao longo da aresta inclinada. Era um BLOCO MACICO de 180 mm - o
+    # takeoff computa massa = volume x 7850, entao cada misula pesava 254,3 kg
+    # (3.052 kg no total, 6,2% de todo o aco do galpao) contra ~42 kg reais.
+    # A mesa inferior nao e detalhe estetico: e o elemento COMPRIMIDO sob momento
+    # negativo no joelho (e a mesa que governa a FLT ali). O caminho
+    # `alma_variavel` deste mesmo framework ja modela o joelho como I duplamente
+    # simetrico (alma + 2 mesas) - o caminho prismatico e que estava fora de passo.
     A = _p(node, hhalf, v)                                   # face inf da viga no no
     B = _p(A, hdep, v)                                       # fundo da misula no beiral
     ncenter = _p(node, hlen, dirn)                           # eixo da viga a hlen
     C = _p(ncenter, hhalf, v)                                # face inf da viga a hlen
-    sol = Part.Face(Part.makePolygon([App.Vector(*A), App.Vector(*B),
-                                      App.Vector(*C), App.Vector(*A)])).extrude(
-        App.Vector(180.0, 0, 0))
-    sol.translate(App.Vector(-90.0, 0, 0))
+    _bf, _tw, _tf = RAF_SEC[1], RAF_SEC[2], RAF_SEC[3]
+    alma = Part.Face(Part.makePolygon([App.Vector(*A), App.Vector(*B),
+                                       App.Vector(*C), App.Vector(*A)])).extrude(
+        App.Vector(_tw, 0, 0))
+    alma.translate(App.Vector(-_tw / 2.0, 0, 0))
+    # MESA INFERIOR ao longo de B->C, para FORA do triangulo (lado oposto a A).
+    _Bv, _Cv, _Av = App.Vector(*B), App.Vector(*C), App.Vector(*A)
+    _u = _Cv.sub(_Bv)
+    _Lf = _u.Length
+    _u.normalize()
+    _n = App.Vector(0.0, -_u.z, _u.y)                        # perpendicular no plano
+    if _Av.sub(_Bv).dot(_n) > 0.0:
+        _n = _n.negative()
+    _mid = _Bv.add(App.Vector(_u).multiply(_Lf / 2.0)).add(
+        App.Vector(_n).multiply(_tf / 2.0))
+    _box = Part.makeBox(_bf, _Lf, _tf)
+    _box.translate(App.Vector(-_bf / 2.0, -_Lf / 2.0, -_tf / 2.0))
+    _m = App.Matrix()
+    _m.A11, _m.A21, _m.A31 = 1.0, 0.0, 0.0
+    _m.A12, _m.A22, _m.A32 = 0.0, _u.y, _u.z
+    _m.A13, _m.A23, _m.A33 = 0.0, _n.y, _n.z
+    _box = _box.transformGeometry(_m)
+    _box.translate(_mid)
+    sol = alma.fuse(_box).removeSplitter()
     ob = doc.addObject("Part::Feature", f"CONEX_JOELHO_{tag}_MISULA")
     ob.Shape = sol
     _reg(ob.Name, (cx, cy, cz), (cx, cy, cz))
@@ -805,7 +863,8 @@ def build(doc):
     gx, gy = Bp / 2.0 - edge, Lp / 2.0 - edge
     ys = [-gy, 0.0, gy] if npc >= 6 else [-gy, gy]      # straddle em Y (+ meia p/ n=6)
     ancoras = [(dx, dy) for dx in (-gx, gx) for dy in ys]
-    wsz = 2.0 * dbp + 40.0                              # arruela
+    wsz = 2.0 * dbp + 40.0                              # arruela (lado)
+    wt = T_ARRUELA                                      # espessura (rotulo sai daqui)
     pod = 1.7 * dbp + 8.0                               # diametro da porca
     for i, x in enumerate(axes, start=1):
         for j, yw in enumerate(cols_y):
@@ -817,7 +876,7 @@ def build(doc):
                     dbp, f"CHUMBADOR_{lado}_{i:02d}_{sfx}")
                 rod(doc, (ax, ay, -300), (ax, ay - 60, -300),
                     dbp, f"CHUMBADOR_GANCHO_{lado}_{i:02d}_{sfx}")
-                plate(doc, (ax, ay, ptop + 6.0), wsz, wsz, 12,
+                plate(doc, (ax, ay, ptop + wt / 2.0), wsz, wsz, wt,
                       f"ARRUELA_{lado}_{i:02d}_{sfx}")
                 rod(doc, (ax, ay, ptop + 12.0), (ax, ay, ptop + 30.0), pod,
                     f"PORCA_{lado}_{i:02d}_{sfx}")
@@ -1043,7 +1102,7 @@ def build(doc):
         for k in range(1, N_TIRANTE_PAREDE + 1):
             xk = x0 + BAY * k / (N_TIRANTE_PAREDE + 1)
             for y, lado in ((-GOFF, "E"), (cols_y[-1] + GOFF, "D")):
-                rod(doc, (xk, y, Z0), (xk, y, EAVE_H), 16,
+                rod(doc, (xk, y, Z0), (xk, y, EAVE_H), D_TIRANTE,
                     f"TIRANTE_PAREDE_{lado}_{b + 1:02d}_{k:02d}")
 
     # Montantes de oitao. Se ha portao de veiculos no oitao, os montantes ficam
@@ -1072,13 +1131,13 @@ def build(doc):
             for s in range(len(pts_e) - 1):
                 ya, yb = pts_e[s], pts_e[s + 1]
                 rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz),
-                    16, f"TIRANTE_S{j:02d}_E_{t}_{s:02d}")
+                    D_TIRANTE, f"TIRANTE_S{j:02d}_E_{t}_{s:02d}")
             pts_d = sorted([y for y in terca_ys if yrj < y <= y1], reverse=True) + [yrj]
             pts_d = [y1] + [p for p in pts_d if p not in (y1,)]
             for s in range(len(pts_d) - 1):
                 ya, yb = pts_d[s], pts_d[s + 1]
                 rod(doc, (xm, ya, rafter_z(ya) + pz), (xm, yb, rafter_z(yb) + pz),
-                    16, f"TIRANTE_S{j:02d}_D_{t}_{s:02d}")
+                    D_TIRANTE, f"TIRANTE_S{j:02d}_D_{t}_{s:02d}")
 
     # Maos-francesas: contencao LATERAL da mesa inferior da viga (sob succao de
     # vento). A geometria (mesa inferior -> terca, com offset LONGITUDINAL em X que
@@ -1086,11 +1145,16 @@ def build(doc):
     # testado sem FreeCAD. Bug historico: o braco ficava em X CONSTANTE (plano do
     # portico), apontando p/ baixo sem tocar a terca -> nao travava a FLT. Ver
     # Bellei Fig 8.16/8.17 e test_mao_francesa_geom.
+    # (o cache de modulo irmao do freecad.exe e limpo no bootstrap de
+    # _ship_build_src - sem isso este import traria a versao ANTIGA do disco)
     import mao_francesa_geom as mfg
     brace_k = [k for k in range(1, n_terca) if k % MF_STRIDE == 0]
     for p1, p2, nm in mfg.segmentos(axes, cols_y, ridges_y, n_terca, brace_k,
                                     RAF_SEC[0], POFF, rafter_z, theta=_theta):
-        rod(doc, p1, p2, 16, nm)
+        if MF_SEC:
+            l_member(doc, p1, p2, MF_SEC, nm)      # cantoneira escolhida pelo eng.
+        else:
+            rod(doc, p1, p2, mfg.DIAM_BRACO, nm)   # mesma constante que o gate verifica
 
     # Contraventamento so-tracao (barras redondas) nos vaos de extremidade. Cada
     # diagonal recebe um ESTICADOR (lanterna) no meio; cada canto do painel recebe
@@ -1719,6 +1783,13 @@ def verificar_geometria(doc):
 DENSIDADE_ACO = 7.85e-6   # kg/mm^3
 
 
+def _diam_braco():
+    """Diametro da barra da mao-francesa. Import LOCAL: build_galpao e enviado
+    como FONTE e o dir so entra no sys.path no bootstrap de _ship_build_src."""
+    import mao_francesa_geom as _m
+    return _m.DIAM_BRACO
+
+
 def _classifica(n):
     if n.startswith("PORTICO_") and "_C" in n:
         return "Colunas", COL_NOME
@@ -1738,8 +1809,14 @@ def _classifica(n):
         return "Tercas de parede", LONG_NOME
     if n.startswith("TERCA"):
         return "Tercas", "Ue%.0fx%.0fx%.0fx%.2f" % (UE_SEC[0],UE_SEC[1],UE_SEC[2],UE_SEC[3])
-    if n.startswith("TIRANTE") or n.startswith("MAO_FRANCESA"):
-        return "Tirantes / maos-francesas", "barra-16"
+    if n.startswith("MAO_FRANCESA"):
+        # peca PROPRIA: pode ser cantoneira (escolha do eng.) ou a barra redonda
+        # historica. Era agrupada com os tirantes sob "barra-16" cravado.
+        return ("Maos-francesas",
+                ("L%.0fx%.0fx%.0f" % (MF_SEC[0], MF_SEC[0], MF_SEC[1])) if MF_SEC
+                else ("barra-%.0f" % _diam_braco()))
+    if n.startswith("TIRANTE"):
+        return "Tirantes", "barra-%.0f" % D_TIRANTE
     if n.startswith("CONTRAV"):
         return "Contraventamento", "barra-20"
     if n.startswith("SAPATA"):
@@ -1759,7 +1836,8 @@ def _classifica(n):
     if n.startswith("PLACA_BASE"):
         return "Placas de base", "chapa-%.0f" % BASE_PLATE["t"]
     if n.startswith("ARRUELA"):
-        return "Arruelas", "chapa-10"
+        # era "chapa-10" cravado com a arruela DESENHADA com 12 mm
+        return "Arruelas", "chapa-%.0f" % T_ARRUELA
     if n.startswith("PORCA_NIVEL"):
         return "Porcas de nivel", "porca-M%.0f" % BASE_PLATE["db"]
     if n.startswith("PORCA"):
@@ -1794,7 +1872,9 @@ def _classifica(n):
     if n.startswith("CLIPE"):
         return "Clipes de apoio (conexao)", "chapa-%.0f" % T_CLIPE
     if "JOELHO" in n and "MISULA" in n:
-        return "Misulas (joelho)", "chapa-9.5"
+        # chapas soldadas, derivadas do rafter (era "chapa-9.5" cravado, que nem
+        # correspondia ao bloco macico de 180 mm que estava desenhado)
+        return "Misulas (joelho)", "alma-%.1f/mesa-%.0f" % (RAF_SEC[2], RAF_SEC[3])
     if "JOELHO" in n and "CHAPA" in n:
         return "Chapa de topo (joelho)", "chapa-%.0f" % JOELHO_CFG["t"]
     if "JOELHO" in n and "M24" in n:
@@ -1927,6 +2007,7 @@ def reset():
     global PONTE_MODELO, COL_SEC, RAF_SEC, COL_NOME, RAF_NOME, BASE_PLATE
     global HEA_ESC, ESC_NOME, JOELHO_CFG, UE_SEC, UPE_LONG, LONG_NOME, SAPATA_MODEL
     global ESTACA_MODEL, BLOCO_MODEL, BALDRAME_MODEL, TAPERED_MODEL, TRELICA_MODEL
+    global MF_SEC
     global REFORCO_JOELHO, N_TERCA, CALHA_SEC, CONDUTOR_D, VR_SEC, GUSSET_T
     # N_TERCA/CALHA_SEC/CONDUTOR_D/VR_SEC sao decididos pelo CALC: sem reset, um 2o
     # projeto na mesma sessao do FreeCAD herdaria os valores do 1o (a armadilha do
@@ -1937,6 +2018,7 @@ def reset():
     VR_SEC = (500.0, 250.0, 8.0, 16.0)
     GUSSET_T = 12.0
     ESTACA_MODEL = None; BLOCO_MODEL = None; BALDRAME_MODEL = None
+    MF_SEC = None
     TAPERED_MODEL = None; TRELICA_MODEL = None; REFORCO_JOELHO = None
     UE_SEC = UE_TERCA
     UPE_LONG = UPE100

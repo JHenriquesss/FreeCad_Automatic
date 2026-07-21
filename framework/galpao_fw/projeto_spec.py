@@ -664,6 +664,8 @@ def to_rodar_params(spec):
     # shear, pressao de contato) com o fu do MR250 sob um aco mais resistente.
     p["fy"], p["fu"] = _ac.propriedades(
         (spec.get("estrutura", {}) or {}).get("aco") or _ac.PADRAO)
+    # cantoneira da mao-francesa (gate 4.11.3.4 verifica a peca DESENHADA)
+    p["mf_sec"] = _mf_sec(spec.get("estrutura", {}))
     g = spec["geometria"]
     # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
     # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura
@@ -790,6 +792,17 @@ def to_rodar_params(spec):
     return p
 
 
+def _mf_sec(est):
+    """(b_mm, t_mm) da cantoneira da mao-francesa, ou None."""
+    mf = est.get("mao_francesa") or {}
+    b, t = mf.get("b_mm"), mf.get("t_mm")
+    if b is None or t is None:
+        return None
+    if not (0 < float(t) < float(b)):
+        raise ValueError("mao_francesa: exige 0 < t_mm < b_mm (b=%r, t=%r)" % (b, t))
+    return (float(b), float(t))
+
+
 def to_build_kwargs(spec):
     """Traduz o spec para os kwargs de build_galpao.configurar (geometria +
     aberturas + fechamento + terreno). NADA vem de default hardcoded."""
@@ -839,6 +852,10 @@ def to_build_kwargs(spec):
         # (Whitmore / escoamento / bloco de cisalhamento). Sem isto o build usava
         # o default fixo de 12 mm do _gusset_tri.
         "gusset_t": (est.get("gusset_adotado") or {}).get("t_mm"),
+        # Cantoneira da MAO-FRANCESA escolhida pelo eng. (b_mm, t_mm). Ausente =
+        # barra redonda historica, que o gate 4.11.3.4 REPROVA. O 3D desenha o
+        # que o gate verifica.
+        "mf_sec": _mf_sec(est),
         "longarina": est.get("longarina_dims"),
         "longarina_nome": est.get("longarina_perfil"),
         "n_tirante_parede": est.get("n_tirante_parede"),

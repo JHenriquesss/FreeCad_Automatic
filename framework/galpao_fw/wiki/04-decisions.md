@@ -538,5 +538,54 @@ pegava ~1,5 m de coluna abaixo do beiral → recorte alto-e-fino → `_fit_escal
 vertical menor/assimétrica (0,7 m abaixo, 1,0 m acima do beiral). 1:10→1:5, legível. PR #25.
 Cosmético. `techdraw_exec` ~956.
 
+## D67 — Sessão 16: mão-francesa completa + 4 varreduras sistemáticas (2026-07-21, PRs #40–#44)
+Tema: **"o cálculo/modelo decide, o entregável não vê"**. 8+ defeitos, todos na periferia; motor OK.
+
+**Mão-francesa (contenção da mesa inf., #41–#44):**
+- **Pontas p/ fora** (#41): `sgn` alternava o lado longitudinal por água CEGO → no pórtico de
+  oitão o braço mirava X<0 (fora do galpão), 4/24 a 361,8 mm da terça, sem travar nada. Fix em
+  `mao_francesa_geom.segmentos`: nas extremidades aponta p/ DENTRO; interior mantém alternância.
+- **Peça errada** (#43–#44): era barra redonda Ø16 (**tirante**, só tração); Fakury Fig. 5.22 exige
+  a contenção **como de tração E compressão**. KL/r=233>200 (5.3.4.1) e N=19,7 kN > Nc,Rd=5,8 kN.
+  Novo `contencao_lateral.py`: **NBR 8800 4.11.3.4** (NODAL: `Fbr=0,02·Msd·Cd/h0`, `Sbr=10·Msd·Cd·γr/
+  (Lbb·h0)`, γr=1,35 — CUIDADO: 4.11.3.3 relativa usa 0,008 e 4, 2,5× menor) + **5.3.2** (Nc,Rd)
+  + **E.1.4.2** (esbeltez equivalente da cantoneira ligada por 1 aba: `72+0,75·L/rx1` até 80, senão
+  `32+1,25·L/rx1`; rx1 = eixo ∥ à aba). **E.1.4 é MAIS conservador** em braço curto (o termo 72·rx1
+  embute a excentricidade) — eu havia registrado o inverso na memória; só corrigi MEDINDO.
+- **Cantoneira do engenheiro:** `estrutura.mao_francesa={b_mm,t_mm}` (marcada `_a_confirmar`).
+  Propriedades por **forma fechada** `perfis.cantoneira` (A=t(2b−t), I_min=Ix−|Ixy|, r_min), fillet
+  desprezado (conservador), validada por **integração de polígono (Green) a 1e-9** — sem inventar
+  catálogo (evita o erro "AR300"). Qs: Tab. F.1 **Grupo 3** (0,45√(E/fy)) — não "Grupo 2" (numeração
+  do livro Fakury). Mesmo (b,t) vai p/ 3D (`l_member`) e gate. **Amostra L50x50x5 → u=0,59 → ATENDE.**
+
+**4 varreduras (padrão: onde há 2 descrições da mesma coisa, uma envelhece):**
+1. **Interpenetração de conexões** (#42) — `checa_interferencia` EXCLUI conexões (ponto cego).
+   Medir volume comum peça-a-peça: porca de nível 100% no pedestal (gap de graute declarado
+   `GROUT_GAP=30` mas não realizado); 2 esticadores com bbox IDÊNTICA no cruzamento do X
+   (`frac`); gusset de parede 60,7% dentro da escora de beiral. Triagem: gancho-no-pedestal etc.
+   são embutidos DE PROPÓSITO.
+2. **Rótulo do takeoff × geometria** (#44) — **mísula era BLOCO MACIÇO** de 180 mm rotulado
+   "chapa-9,5": 254 kg/peça → 3.052 kg = 6,2% do aço. Vira chapas soldadas (alma+mesa inf., a mesa
+   comprimida que governa a FLT); **aço 49.140 → 46.538 kg (−2,6 t)**. + arruela chapa-10 vs 12 mm.
+3. **Relatório × cálculo** (#44) — quadro de verificações OMITIA a mão-francesa (2 listas, 1
+   atualizada); `rodar_tudo` devolvia `atende`=pórtico enquanto o relatório usava o global →
+   CI aprovaria projeto que reprova. Agora `atende`=global + `atende_portico`/`falhas` nomeados.
+4. **Notas da prancha × modelo** (#44) — datum "RN+0,00=topo do concreto" ERRADO (concreto −100,
+   placa −70..+30; erro de 100 mm p/ quem loca cotas); gancho "180 mm" vs 60 real. Viram MEDIDAS
+   (`_notas_do_modelo`, ⌀ por Volume/eixo). + quadro de materiais SUMIA em silêncio no
+   `rodar_executivo` standalone (takeoff só gravado por `montar_modelo`) → agora emite aviso.
+
+**Infra:** (a) **filtro de vigas MORTO** (#40): `"_VIGA_" in o.Name` nunca casava (nome real
+`PORTICO_xx_Vyy`) → `vigas=[]` → `_assenta` no-op silencioso, terças/clipes penetrando 60%; fix
+`re.match(r"^PORTICO_\d+_V\d+")` + assenta chapa→terça na ordem certa. (b) **cache de módulo
+irmão** (#44): freecad.exe da ponte PERSISTE entre execuções; módulo irmão fica em `sys.modules`
+e o 3D roda a versão ANTIGA — o fix das pontas (#41) ficou FORA do modelo (20/24) até o reload.
+Fix no bootstrap `_ship_build_src`: descarta os irmãos do cache. Só apareceu por uma constante
+NOVA (`DIAM_BRACO`) estourar AttributeError.
+
+**Método:** medir o modelo e comparar com o gate — não raciocinar do código. Erros meus da sessão,
+todos por AFIRMAR sem medir: bbox×eixo ("11 mm" que eram d·sen45); E.1.4 "menos conservador";
+grupo da Tab. F.1. Testes novos travam a LIGAÇÃO entre as duas descrições, não o valor.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.

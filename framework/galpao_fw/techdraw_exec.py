@@ -1426,6 +1426,61 @@ def _pr_fechamento(doc, cfg, objs):
     return [page], [c]
 
 
+def _notas_do_modelo(doc):
+    """Notas tecnicas cujos numeros sao MEDIDOS no modelo, nao afirmados.
+
+    Estas notas vao para a OBRA. Duas estavam erradas por serem texto fixo:
+      - "RN +0,00 = topo do concreto (base das placas)": Z=0 nao e nem um nem
+        outro. Medido: topo do concreto -100, base da placa -70, topo +30. Quem
+        locasse cotas por essa nota erraria 100 mm.
+      - "Chumbadores ... com gancho 180 mm": o gancho do modelo tem 60 mm.
+    Retorna {"niveis":..., "chumbador":..., "contrav":...} (None se ausente).
+    """
+    out = {}
+    try:
+        alvo = {}
+        for o in doc.Objects:
+            if not hasattr(o, "Shape") or o.Shape.isNull() or o.Shape.Volume <= 0:
+                continue
+            for pref in ("PLACA_BASE", "PEDESTAL", "BLOCO", "SAPATA",
+                         "CHUMBADOR_GANCHO", "CONTRAV"):
+                if o.Name.startswith(pref) and pref not in alvo:
+                    alvo[pref] = o.Shape.BoundBox
+        pl = alvo.get("PLACA_BASE")
+        conc = alvo.get("PEDESTAL") or alvo.get("BLOCO") or alvo.get("SAPATA")
+        if pl is not None and conc is not None:
+            out["niveis"] = (
+                "2. RN +0,00 = referencia do modelo. Topo do concreto %+.0f mm; "
+                "face inf. da placa %+.0f mm (graute %.0f mm); face sup. %+.0f mm."
+                % (conc.ZMax, pl.ZMin, pl.ZMin - conc.ZMax, pl.ZMax))
+        g = alvo.get("CHUMBADOR_GANCHO")
+        if g is not None:
+            out["chumbador"] = ("7. Chumbadores ASTM A36, gancho %.0f mm."
+                                % max(g.XLength, g.YLength, g.ZLength))
+        c = alvo.get("CONTRAV")
+        if c is not None:
+            import math as _m
+            _L = _m.sqrt(c.XLength ** 2 + c.YLength ** 2 + c.ZLength ** 2)
+            _d = 2.0 * (_area_barra(doc, "CONTRAV") / _m.pi) ** 0.5 if _L else 0.0
+            if _d > 0:
+                out["contrav"] = ("8. Contraventamento: barras d%.0f "
+                                  "pretensionadas c/ esticador." % _d)
+    except Exception:
+        pass
+    return out
+
+
+def _area_barra(doc, pref):
+    """Area da secao de uma barra redonda = Volume / comprimento do eixo."""
+    import math as _m
+    for o in doc.Objects:
+        if o.Name.startswith(pref) and hasattr(o, "Shape") and o.Shape.Volume > 0:
+            b = o.Shape.BoundBox
+            L = _m.sqrt(b.XLength ** 2 + b.YLength ** 2 + b.ZLength ** 2)
+            return o.Shape.Volume / L if L > 1e-6 else 0.0
+    return 0.0
+
+
 def _pr_quadros(doc, cfg):
     page = _nova_prancha(doc, "PE09_QUADROS",
                          _carimbo(cfg, "QUADROS E NOTAS TECNICAS", "PE-09",
@@ -1447,6 +1502,20 @@ def _pr_quadros(doc, cfg):
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     n_mat = 0
+    if not tk:
+        # O takeoff vem de spec["estrutura"]["takeoff"], que SO o montar_modelo
+        # grava. Mas `rodar_executivo` e projetado para rodar SOZINHO sobre um
+        # FCStd ja salvo - e nesse caminho o QUADRO DE MATERIAIS sumia da prancha
+        # em SILENCIO, deixando meia folha em branco numa prancha intitulada
+        # "QUADROS E NOTAS TECNICAS". A guarda por prancha reportava 0 avisos.
+        _aviso_prancha("PE09_QUADROS",
+                       "QUADRO DE MATERIAIS ausente: cfg['takeoff'] vazio (rode "
+                       "montar_modelo antes, ou use rodar_tudo)")
+        _anot(doc, page, "A09m",
+              ["QUADRO DE MATERIAIS - ACO",
+               "NAO DISPONIVEL NESTA EXECUCAO",
+               "(quantitativo sai do modelo 3D - ver takeoff/*.csv)"],
+              560, 510, 9)
     if tk:
         tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
         rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
@@ -1468,16 +1537,20 @@ def _pr_quadros(doc, cfg):
            % (_mt["fck_MPa"], ("%g" % _cob).replace(".", ","))
            if _mt.get("fck_MPa") else
            "4. Concreto e cobrimento conforme memorial de calculo.")
+    # notas com numero: MEDIDAS no modelo (ver _notas_do_modelo). O texto fixo
+    # dizia "RN +0,00 = topo do concreto (base das placas)" - falso nos dois lados
+    # - e "gancho 180 mm" contra 60 mm reais.
+    _nm = _notas_do_modelo(doc)
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
-        "2. RN +0,00 = topo do concreto (base das placas).",
+        _nm.get("niveis", "2. Niveis conforme memorial de calculo."),
         _n3,
         _n4,
         "5. Parafusos A325 (fub 825 MPa) ou A307 conforme ligacao.",
         "6. Soldas E70XX (fw 485 MPa). Filete minimo 6 mm.",
-        "7. Chumbadores ASTM A36 com gancho 180 mm.",
-        "8. Contraventamento: barras d20 pretensionadas c/ esticador.",
+        _nm.get("chumbador", "7. Chumbadores ASTM A36 conforme detalhe da base."),
+        _nm.get("contrav", "8. Contraventamento pretensionado c/ esticador."),
         "9. Tercas Ue formado a frio (NBR 14762).",
         "10. Projeto executivo sujeito a revisao e ART.",
     ]

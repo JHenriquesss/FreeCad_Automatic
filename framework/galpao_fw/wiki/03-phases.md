@@ -263,5 +263,22 @@ parecer**. Não-regressão: `a=None`⇒kv=5 byte-idêntico; `cross_check_flt` in
 - PR #1 ainda aberto, aguarda merge do usuário. [[06-open-threads#T1]]
 - Continuação em outro chat: ver [[06-open-threads#HANDOFF]].
 
+## FECHADA — Revisão técnica PR #44 (Sessão 16) — 2026-07-21
+Parecer externo do PR #44 (`fix/gate-mao-francesa-e-cache-de-modulo`), **reconciliado** com o
+estado final (7 commits, 643 testes; o parecer original dizia 5/622, escrito antes de `c5c73d9`/
+`a406012`; diffstat 18 arq./+1544/−129 confere). Amalgamado aqui; markdown `PR_44_Review` removido.
+- **Resultado: APROVADO SEM RESSALVAS.** Fórmulas de cantoneira, esbeltez equivalente (E.1.4.2),
+  capacidade de compressão e rigidez nodal validadas contra NBR 8800 e por método independente
+  (Green a 1e-9). Sem regressões.
+- Verificado por mim contra o código: E.1.4 "mais conservador", Grupo 3 da Tab. F.1, mísula −2,6 t,
+  cache de módulo, API `atende_global` — todos conferem. Detalhe em [[04-decisions#D67]].
+- **Pendente (do usuário, não código):** merge do #44; confirmar a bitola da cantoneira
+  (`_a_confirmar`). Ver [[06-open-threads#T17]].
+
+## FECHADA — Revisão técnica T15 (correções+features+validação) — 2026-07-17
+Consolidada em [[04-decisions#D52]]–[[04-decisions#D57]] e [[00-index]]. Markdown de trabalho
+`07-review-results` removido (mesmo precedente de 2026-07-15). Núcleo: fix de sinal do frame2d
+(UDL), state-leak no `reset()`, validação CBCA <1%.
+
 ## Status — 17 módulos matemáticos + features (todos com selftest verde)
-12 r2 (Pórtico·Perfil·Vento·Terças·Secundários·Base·Ligações·Ponte·Mão-francesa·Contravento·Fundação·Redim) + Junta + Sismo + **Telha** + **Baldrame** + **Estaca profunda**.
+12 r2 (Pórtico·Perfil·Vento·Terças·Secundários·Base·Ligações·Ponte·Mão-francesa·Contravento·Fundação·Redim) + Junta + Sismo + **Telha** + **Baldrame** + **Estaca profunda** + **Contenção lateral** (mão-francesa, NBR 8800 4.11.3.4).

@@ -41,3 +41,52 @@ PERFIS = {
     "IPE500": _mk(115.5, 48200, 2142, 1928, 2194, 4.31, 500, 200, 16.0, 10.2),
     "IPE550": _mk(134.4, 67120, 2668, 2441, 2787, 4.45, 550, 210, 17.2, 11.1),
 }
+
+
+# ---------------------------------------------------------------------------
+# CANTONEIRA DE ABAS IGUAIS - propriedades DERIVADAS DA GEOMETRIA, nao tabeladas.
+#
+# POR QUE ASSIM: nao ha tabela de perfis L nas fontes do projeto (o Apendice A do
+# Fakury lista os NOMES das variaveis e o trecho e cortado antes dos valores).
+# Inventar bitolas de catalogo de memoria e exatamente o erro do "AR300". Mas as
+# propriedades de uma cantoneira de abas iguais tem FORMA FECHADA exata a partir
+# de b e t - derivar geometria NAO e inventar dado.
+#
+# A secao e a uniao de dois retangulos: aba horizontal (b x t) e aba vertical
+# (t x (b-t)) apoiada sobre ela. Como as abas sao iguais, a secao e simetrica em
+# relacao a diagonal a 45 graus, logo Ix = Iy e os EIXOS PRINCIPAIS estao a 45:
+#     I_max = Ix + |Ixy|   e   I_min = Ix - |Ixy|
+# O que governa a flambagem da cantoneira simples e r_min = raiz(I_min/A).
+#
+# RAIO DE CONCORDANCIA (fillet) DESPREZADO. O fillet ACRESCENTA area e inercia,
+# entao desprezar da A e I MENORES que o catalogo -> conservador para resistencia.
+# Para o projeto executivo, confirmar no catalogo do fornecedor (mesma ressalva
+# que o cabecalho deste arquivo ja faz para os perfis I).
+# ---------------------------------------------------------------------------
+def cantoneira(b_mm, t_mm):
+    """Propriedades (SI) de uma cantoneira de ABAS IGUAIS L b x b x t.
+
+    Retorna A, Ix (=Iy, eixos paralelos as abas pelo centroide), Ixy, I_min,
+    I_max, r_min, r_x, cg (distancia do centroide a face externa) e b/t.
+    """
+    b = b_mm * 1e-3
+    t = t_mm * 1e-3
+    if not (0.0 < t < b):
+        raise ValueError("cantoneira: exige 0 < t < b (b=%r, t=%r)" % (b_mm, t_mm))
+    a1, a2 = b * t, t * (b - t)              # aba horizontal, aba vertical
+    A = a1 + a2                              # = t(2b - t)
+    # centroide (origem no canto externo); simetrico -> xg = yg
+    cg = (a1 * (t / 2.0) + a2 * (t + (b - t) / 2.0)) / A
+    cgx = (a1 * (b / 2.0) + a2 * (t / 2.0)) / A
+    # inercia em relacao ao eixo x centroidal (paralelo a aba horizontal)
+    Ix = (b * t ** 3 / 12.0 + a1 * (t / 2.0 - cg) ** 2
+          + t * (b - t) ** 3 / 12.0 + a2 * (t + (b - t) / 2.0 - cg) ** 2)
+    # produto de inercia (retangulos tem Ixy proprio nulo nos seus eixos)
+    Ixy = (a1 * (b / 2.0 - cgx) * (t / 2.0 - cg)
+           + a2 * (t / 2.0 - cgx) * (t + (b - t) / 2.0 - cg))
+    I_min = Ix - abs(Ixy)
+    I_max = Ix + abs(Ixy)
+    return {"A": A, "Ix": Ix, "Iy": Ix, "Ixy": Ixy, "I_min": I_min, "I_max": I_max,
+            "r_min": (I_min / A) ** 0.5, "r_x": (Ix / A) ** 0.5,
+            "cg": cg, "b": b, "t": t, "b_t": b / t,
+            "nome": "L%.0fx%.0fx%.0f" % (b_mm, b_mm, t_mm)}

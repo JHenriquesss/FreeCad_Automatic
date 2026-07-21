@@ -92,6 +92,10 @@ def calcular(spec, out_dir):
         "Longarina": res.get("longarina_inter"), "Escora": res.get("escora_inter"),
         "Montante": res.get("montante_inter"), "Verga": res.get("verga_inter"),
         "Contrav./tirantes": res.get("barras_u_max"), "Gusset": res.get("gusset_u_max"),
+        # A peca da mao-francesa (gate 7b, NBR 8800 4.11.3.4). Estava SO na linha
+        # de resumo "ELEMENTOS QUE NAO ATENDEM": o quadro que o engenheiro le item
+        # a item omitia justamente o elemento que reprovava.
+        "Mao-francesa (peca)": res.get("mf_peca_u"),
         "Viga rolamento": res.get("ponte_viga_inter"), "Console": res.get("console_u_max"),
         "Fogo (theta/theta_cr)": res.get("fogo_util"),
     }
@@ -118,11 +122,22 @@ def _ship_build_src(src_path):
     galpao_fw prependado no sys.path. build_galpao vai como FONTE (nao importado);
     seus imports de MODULOS IRMAOS (ex. mao_francesa_geom) so resolvem se o dir
     estiver no sys.path do FreeCAD - senao ModuleNotFoundError no build 3D. Helper
-    testavel (test_ship_build_src) p/ a regressao nao voltar silenciosa. Caca sessao 14."""
+    testavel (test_ship_build_src) p/ a regressao nao voltar silenciosa. Caca sessao 14.
+
+    O processo do freecad.exe da ponte PERSISTE entre execucoes: um modulo irmao
+    ja importado fica em sys.modules e o build continuaria rodando a versao ANTIGA
+    ate reiniciar o FreeCAD. Isso mascara em SILENCIO correcoes ja mergeadas - o
+    fix das pontas da mao-francesa (PR #41) ficou fora do modelo por isso, com o
+    3D mostrando 20/24 bracos tocando a terca enquanto o codigo ja dizia 24/24.
+    Por isso o bootstrap DESCARTA os modulos irmaos do cache antes de rodar."""
     from pathlib import Path
     src_path = Path(src_path)
     gdir = str(src_path.parent).replace("\\", "/")
-    boot = "import sys\nif %r not in sys.path: sys.path.insert(0, %r)\n" % (gdir, gdir)
+    irmaos = tuple(sorted(p.stem for p in src_path.parent.glob("*.py")))
+    boot = ("import sys\n"
+            "if %r not in sys.path: sys.path.insert(0, %r)\n"
+            "for _m in [n for n in list(sys.modules) if n in %r]:\n"
+            "    del sys.modules[_m]\n" % (gdir, gdir, irmaos))
     return boot + src_path.read_text(encoding="utf-8").replace("_result_ = run()", "")
 
 
@@ -468,5 +483,14 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
             dossie = {"erro": str(ex)}
             _log(f"[5] Dossie: FALHOU ({ex})")
 
+    # "atende" e o veredito GLOBAL (todos os gates), o mesmo que o RELATORIO
+    # imprime. Era res["atende"] - so o portico: `rodar_tudo` devolvia True num
+    # projeto cujo relatorio dizia NAO ATENDE, e quem consome a API por script
+    # (CI, outro programa) aprovaria o projeto sem ver a falha. O veredito do
+    # portico continua acessivel em res["atende"] e agora tambem aqui, nomeado.
+    _global = (res.get("atende_global") if isinstance(res, dict)
+               and "atende_global" in res else res.get("atende"))
     return {"res": res, "modelo": modelo, "executivo": executivo, "dossie": dossie,
-            "relatorio": rel, "out_dir": out_dir, "atende": bool(res.get("atende"))}
+            "relatorio": rel, "out_dir": out_dir, "atende": bool(_global),
+            "atende_portico": bool(res.get("atende")) if isinstance(res, dict) else False,
+            "falhas": (res.get("falhas_verificacao") or []) if isinstance(res, dict) else []}

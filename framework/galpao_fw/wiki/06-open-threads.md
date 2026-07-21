@@ -1,5 +1,28 @@
 # 06 — Open threads
 
+## T17 — Sessão 16 (2026-07-21): mão-francesa completa + 4 varreduras — REVISÃO #44 APROVADA
+PRs #40–#44. Detalhe técnico em [[04-decisions#D67]]. **643 testes** (652 − 9 `build`).
+
+**FECHADO nesta sessão:**
+- Mão-francesa: pontas p/ fora [#41], barra redonda→cantoneira verificada (4.11.3.4+E.1.4.2+5.3.2)
+  escolhida pelo eng. [#43/#44], amostra **ATENDE** [#44].
+- 4 varreduras: interpenetração [#42], mísula maciça −2,6 t [#44], relatório×cálculo [#44], notas
+  da prancha + quadro de materiais [#44].
+- Infra: filtro de vigas morto [#40], cache de módulo irmão no freecad.exe [#44].
+- **Revisão técnica externa do PR #44: APROVADO SEM RESSALVAS** (reconciliado p/ 7 commits/643
+  testes; verdito e análise preservados; ver [[03-phases]]).
+
+**ABERTO (decisão do usuário, não código pendente):**
+- **Cantoneira L50x50x5 da amostra** está marcada `_a_confirmar` — o eng. confirma a bitola no
+  catálogo do fornecedor (folga larga: u=0,59). O framework GUIA (mínimo normativo r≥4,7 mm,
+  Ag≥5,02 cm²) e deixa decidir.
+- **Revisão de engenharia dos 7 commits do #44** muda geometria (mísula, mão-francesa, arruela),
+  tonelagem (−2,6 t) e o veredito global — parecer externo aprovou, mas o merge é do usuário.
+- **NÃO implementado (a favor da segurança):** E.1.4.4 (cantoneira com relação de abas >1,7 ou
+  ligações fora de E.1.4.2/3 → flexo-compressão) — a mão-francesa usa abas iguais, não se aplica.
+- **Fontes que faltam** (pedir ao usuário): detalhamento de fabricação (mísula, pórtico de oitão)
+  e tabela de cantoneiras — as fontes atuais cobrem norma/cálculo, não detalhamento.
+
 ## T16 — Caça de bugs sessão 14 (2026-07-18) — MERGED (#15–#19); só resta verificação visual
 Todos os PRs de T15/T14 (#12) e da caça (#15–#19) **MERGED em `main`**. Conclusão central:
 **o motor de engenharia está correto** (frame2d, B1/B2, mão-francesa/Bellei, ponte/NBR 8800
@@ -55,7 +78,7 @@ livre o bridge AUTOSTARTA. A varredura visual pegou/gerou:
 Branch `revisao/homologacao-12-modulos`, **COMMITADO** em 6 commits temáticos (`8bd725f` sinal /
 `bb36b9b` vento+bloco+shed / `e4e3468` wizard+pipeline / `63451f1` validação / wiki / regen);
 **não pushado** (gate humano). Suíte cheia **304 passed** verificada (17m53s, exit 0). Relatório
-de revisão do engenheiro em [[07-review-results]] — **FAVORÁVEL**, pareceres 1 (altura de sapata
+de revisão do engenheiro (consolidado em [[03-phases#FECHADA — Revisão técnica T15 (correções+features+validação) — 2026-07-17]]) — **FAVORÁVEL**, pareceres 1 (altura de sapata
 NBR rígido) e 2 (terças do shed cosméticas) respondidos e aceitos. Ver
 [[04-decisions#D52]]–[[04-decisions#D57]].
 **FEITO:** fix de sinal `frame2d` [raiz]; vento §2A/§2B/`abertura_dominante`; campos mortos do
@@ -64,7 +87,7 @@ bloco de fundação (NBR 6122 7.8.2); shed 1 água (NBR 6123 Tab.6, 3D limpo); m
 heterogêneo; VALIDAÇÃO de sistema contra Alonso/Bellei (sapata 0,5%, bloco/vento exatos, pilar
 0,1%). ~40 testes novos em 11 arquivos.
 
-**PARECERES RESPONDIDOS no [[07-review-results]] (engenheiro):**
+**PARECERES RESPONDIDOS (engenheiro, T15 — consolidado em [[03-phases]]):**
 1. ✅ **Altura da sapata** — MANTER critério de **rigidez NBR 6118 22.6.1** (`h≥(L−ap)/3`, ex.
    0,70 vs 0,60 m ACI/Alonso): além de a favor da segurança, dispensa a verificação de punção,
    deixando o cálculo automatizado mais robusto/padronizado.

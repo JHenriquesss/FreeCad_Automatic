@@ -23,6 +23,40 @@ from __future__ import annotations
 import math
 
 
+# Diametro (mm) da barra da mao-francesa COMO DESENHADA hoje. Fica aqui, no
+# modulo puro, para o CALC e o BUILD nao divergirem: o gate 4.11.3.4 verifica
+# exatamente a peca que o 3D desenha. NOTA: barra redonda e TIRANTE - a norma
+# exige que a contencao resista a tracao E compressao. Ver contencao_lateral.
+DIAM_BRACO = 16.0
+
+
+def offset_terca(raf_h, raf_bf, ue_h, theta):
+    """POFF do build: quanto o EIXO da terca fica acima do EIXO do rafter.
+
+    O perfil inclinado sobe (h/2).cos + (b/2).sen acima do eixo (canto da mesa),
+    nao so h/2; soma-se meia-altura da terca. Mesma formula do build_galpao - esta
+    aqui para o CALC e o BUILD nao derivarem geometria cada um por conta."""
+    return ((raf_h / 2.0) * math.cos(theta) + (raf_bf / 2.0) * math.sin(theta)
+            + ue_h / 2.0)
+
+
+def comprimento_braco(raf_h, raf_bf, ue_h, theta):
+    """Comprimento do EIXO da mao-francesa (mesma unidade da entrada).
+
+    O braco vai da mesa inferior (z = -h/2.cos abaixo do eixo do rafter) ate a
+    terca (z = +poff), com deslocamento LONGITUDINAL igual ao desnivel -> 45 graus:
+        off_x = poff + (h/2).cos = h.cos + (b/2).sen + ue_h/2
+        L     = off_x . raiz(2)
+
+    CUIDADO ao conferir contra o modelo: o braco e desenhado como CILINDRO de
+    diametro d, entao o BOUNDING BOX mede off_x + d.sen(45), nao off_x. Comparar
+    bbox com eixo custou-me um "residuo" de 11,3 mm que nao existia (era
+    16.sen45 = 11,31). Ver test_mao_francesa_geom.
+    """
+    off_x = offset_terca(raf_h, raf_bf, ue_h, theta) + (raf_h / 2.0) * math.cos(theta)
+    return off_x * math.sqrt(2.0), off_x
+
+
 def segmentos(axes, cols_y, ridges_y, n_terca, brace_k, raf_h, poff, rafter_z,
               theta=0.0):
     """Lista de (p1, p2, nome) - uma mao-francesa por (portico x, terca travada).

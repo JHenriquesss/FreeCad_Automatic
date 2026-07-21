@@ -97,15 +97,99 @@ def secao_barra_redonda(d):
     return {"A": A, "r": d / 4.0, "Q": 1.0, "nome": "barra redonda D%.0f" % (d * 1000)}
 
 
+def qs_cantoneira_simples(b_t, fy):
+    """Anexo F / Tabela F.1 - ABA DE CANTONEIRA SIMPLES (elemento AL):
+        (b/t)lim = 0,45.raiz(E/fy) ; (b/t)sup = 0,91.raiz(E/fy)
+        Qs = 1,0                                   se b/t <= lim
+        Qs = 1,340 - 0,76 (b/t) raiz(fy/E)         se lim < b/t <= sup
+        Qs = 0,53 E / ((b/t)^2 fy)                 se b/t > sup
+
+    GRUPO - CUIDADO COM AS DUAS NUMERACOES (me confundiu uma vez):
+      NBR 8800 Tabela F.1, GRUPO 3 (texto literal): "Abas de cantoneiras simples
+      ou multiplas providas de chapas de travejamento" -> 0,45.raiz(E/fy).
+      O livro do Fakury chama o MESMO caso de "Grupo 2 da Tabela 7.3". Numeracoes
+      diferentes, mesmo valor.
+
+    A linha VIZINHA (NBR Tabela F.1 GRUPO 4) - "Abas de cantoneiras ligadas
+    CONTINUAMENTE ou projetadas de secoes I, H, T ou U" - usa 0,56.raiz(E/fy),
+    MAIOR/menos restritiva. Nao e o caso: a mao-francesa e cantoneira SIMPLES.
+    """
+    rE = math.sqrt(E / fy)
+    lim, sup = 0.45 * rE, 0.91 * rE
+    if b_t <= lim:
+        return 1.0
+    if b_t <= sup:
+        return 1.340 - 0.76 * b_t * math.sqrt(fy / E)
+    return 0.53 * E / (b_t ** 2 * fy)
+
+
+def secao_cantoneira(b_mm, t_mm, fy):
+    """Cantoneira de abas iguais para a mao-francesa. Propriedades DERIVADAS da
+    geometria (perfis.cantoneira) - nao ha tabela de perfis L nas fontes, e
+    inventar bitola de catalogo de memoria e o erro que se quer evitar.
+
+    r = r_min (eixo principal fraco, o que governa a flambagem da cantoneira
+    simples). ATENCAO: a NBR 8800 E.1.4 permite usar Ix1 (eixo paralelo a aba
+    conectada) quando a cantoneira e ligada por UMA aba, soldada ou com >= 2
+    parafusos e sem acoes transversais intermediarias - isso e MENOS conservador
+    e NAO esta implementado aqui. Ficamos no r_min.
+    """
+    import perfis
+    c = perfis.cantoneira(b_mm, t_mm)
+    return {"A": c["A"], "r": c["r_min"], "Q": qs_cantoneira_simples(c["b_t"], fy),
+            "b_t": c["b_t"], "nome": c["nome"],
+            # rx1 = eixo PARALELO A ABA CONECTADA -> dispara E.1.4.2 (excentricidade
+            # da ligacao por uma aba). Ver esbeltez_equivalente_E14.
+            "rx1": c["r_x"]}
+
+
+def esbeltez_equivalente_E14(L, rx1):
+    """NBR 8800 E.1.4.2 - CANTONEIRA SIMPLES CONECTADA POR UMA ABA.
+
+    Texto literal de E.1.4.1: os efeitos da EXCENTRICIDADE da forca de compressao
+    podem ser considerados por um comprimento de flambagem equivalente, desde que
+    a cantoneira "a) seja carregada nas extremidades atraves da mesma aba;
+    b) seja conectada por solda ou por pelo menos dois parafusos na direcao da
+    solicitacao; c) nao esteja solicitada por acoes transversais intermediarias."
+    E.1.4.2 vale para "barras INDIVIDUAIS ou diagonais ou montantes de trelicas
+    PLANAS" - a mao-francesa e barra individual, entao e este o item (E.1.4.3 e
+    para trelica ESPACIAL).
+
+        L/rx1 <= 80 :  Kx1.Lx1 = 72.rx1 + 0,75.Lx1   ->  KL/r = 72 + 0,75 L/rx1
+        L/rx1 >  80 :  Kx1.Lx1 = 32.rx1 + 1,25.Lx1   ->  KL/r = 32 + 1,25 L/rx1
+
+    rx1 = raio de giracao no eixo PARALELO A ABA CONECTADA (nao o r_min).
+
+    ATENCAO - EU TINHA ISSO AO CONTRARIO: registrei que E.1.4 seria "menos
+    conservador que o r_min, entao omitir esta a favor da seguranca". MEDIDO para
+    o braco de 0,9324 m: L50x50x5 da 94,9 por r_min e 117,4 por E.1.4;
+    L63x63x6 da 75,2 contra 108,0. E.1.4 e MAIS conservador aqui - o termo
+    constante 72.rx1 embute a excentricidade da ligacao por uma aba e domina em
+    barra curta. Omitir NAO estava a favor da seguranca.
+    """
+    lr = L / rx1
+    return (72.0 + 0.75 * lr) if lr <= 80.0 else (32.0 + 1.25 * lr)
+
+
 def compressao_resistente(sec, fy, L, K=1.0):
-    """NBR 8800 5.3.2: Nc,Rd = chi.Q.Ag.fy/gamma_a1, com chi de 5.3.3."""
+    """NBR 8800 5.3.2: Nc,Rd = chi.Q.Ag.fy/gamma_a1, com chi de 5.3.3.
+
+    Se a secao traz `rx1` (cantoneira ligada por UMA aba), a esbeltez vem de
+    E.1.4.2 em vez de KL/r_min. Barra redonda nao tem aba: segue em KL/r.
+    """
     A, r, Q = sec["A"], sec["r"], sec.get("Q", 1.0)
-    esb = K * L / r
-    Ne = math.pi ** 2 * E * (A * r ** 2) / (K * L) ** 2      # I = A.r^2
+    if sec.get("rx1"):
+        esb = esbeltez_equivalente_E14(K * L, sec["rx1"])
+        criterio = "E.1.4.2 (cantoneira ligada por uma aba)"
+    else:
+        esb = K * L / r
+        criterio = "KL/r (5.3.3)"
+    # Ne = pi^2.E.A/esbeltez^2 (equivale a pi^2.E.I/(KL)^2 com I = A.r^2)
+    Ne = math.pi ** 2 * E * A / esb ** 2
     lambda0 = math.sqrt(Q * A * fy / Ne)
     chi = ck.chi_compressao(lambda0)
     return {"esbeltez": esb, "Ne": Ne, "lambda0": lambda0, "chi": chi,
-            "Nc_Rd": chi * Q * A * fy / GA1}
+            "criterio_esbeltez": criterio, "Nc_Rd": chi * Q * A * fy / GA1}
 
 
 def verifica_braco(Msd, h0, Lbb, L_braco, ang_graus, sec, fy, Cd=1.0, K=1.0):
@@ -137,7 +221,30 @@ def verifica_braco(Msd, h0, Lbb, L_braco, ang_graus, sec, fy, Cd=1.0, K=1.0):
     if not r["ok_rigidez"]:
         faltas.append("S=%.0f < Sbr,Sd=%.0f kN/m (4.11.3.4)" % (S_braco, Sbr))
     r["motivo"] = "; ".join(faltas)
+    if not r["ok"]:
+        r["minimo"] = secao_minima(Msd, h0, Lbb, L_braco, ang_graus, fy, Cd, K,
+                                   sec.get("Q", 1.0))
     return r
+
+
+def secao_minima(Msd, h0, Lbb, L_braco, ang_graus, fy, Cd=1.0, K=1.0, Q=1.0):
+    """O que a peca precisa TER para atender - para o gate GUIAR, nao so reprovar.
+
+    r_min: direto de 5.3.4.1 (KL/r <= 200).
+    A_min: no limite de esbeltez, lambda0 = (KL/r).raiz(Q.fy/(pi^2.E)) NAO depende
+           de A, entao chi fica fixo e A_min = N.gamma_a1/(chi.Q.fy).
+    A_rig: da rigidez (4.11.3.4): (E.A/L).cos^2 >= Sbr,Sd.
+    """
+    Fbr, Sbr = requisitos_nodal(Msd, h0, Lbb, Cd)
+    ca = math.cos(math.radians(ang_graus))
+    N = Fbr / ca
+    r_min = K * L_braco / ESBELTEZ_MAX
+    lambda0 = ESBELTEZ_MAX * math.sqrt(Q * fy / (math.pi ** 2 * E))
+    chi = ck.chi_compressao(lambda0)
+    A_res = N * GA1 / (chi * Q * fy)
+    A_rig = Sbr * L_braco / (E * ca ** 2)
+    return {"r_min": r_min, "A_min": max(A_res, A_rig), "A_resistencia": A_res,
+            "A_rigidez": A_rig, "chi_no_limite": chi, "N_exigido": N}
 
 
 def relatorio_pt(r):
@@ -166,18 +273,35 @@ def relatorio_pt(r):
         L.append("  >> ATENDE")
     else:
         L.append("  >> NAO ATENDE - REFORCO EXIGIDO: " + r["motivo"])
+        m = r.get("minimo")
+        if m:
+            L += ["  MINIMO NORMATIVO calculado (o eng. escolhe no catalogo):",
+                  f"    raio de giracao r >= {m['r_min']*1000:.1f} mm "
+                  f"(5.3.4.1: KL/r <= {ESBELTEZ_MAX:.0f})",
+                  f"    area bruta Ag >= {m['A_min']*1e4:.2f} cm2 "
+                  f"(resistencia {m['A_resistencia']*1e4:.2f} ; "
+                  f"rigidez {m['A_rigidez']*1e4:.2f})",
+                  "  BOA PRATICA (Bellei/Fakury Fig. 8.16-8.17 e 5.22): usar",
+                  "    CANTONEIRA. Atencao: uma barra redonda de diametro maior",
+                  "    ATENDERIA a conta acima, mas a literatura reserva a barra",
+                  "    redonda para TIRANTE (so tracao) e manda a contencao lateral",
+                  "    resistir 'como de tracao E de compressao'. A conta nao",
+                  "    captura isso - a escolha do perfil e do eng. responsavel."]
     L.append("=" * 68)
     return "\n".join(L)
 
 
 def _selftest():
-    # Barra redonda D16 (o que o modelo desenhava), braco de 0,9484 m a 45 graus
-    # (MEDIDO no modelo da amostra: dX=dZ=670,6 mm), aco MR250.
+    # Barra redonda D16 (o que o modelo desenhava). L do EIXO = 0,9324 m a 45
+    # graus, obtido de mao_francesa_geom.comprimento_braco (rafter 500x200, terca
+    # Ue300x85, i=15%). ATENCAO: o bbox do cilindro no modelo mede 948,4 mm - ele
+    # inclui d.sen(45)=11,3 mm de raio. Usar o bbox como comprimento de flambagem
+    # superestima a esbeltez (237 em vez de 233); o correto e o EIXO.
     sec = secao_barra_redonda(0.016)
-    r = verifica_braco(Msd=61.3, h0=0.1615, Lbb=3.35, L_braco=0.9484,
+    r = verifica_braco(Msd=61.3, h0=0.1615, Lbb=3.35, L_braco=0.9324,
                        ang_graus=45.0, sec=sec, fy=250e3)
     print(relatorio_pt(r))
-    assert not r["ok_esbeltez"], "D16 a 0,95 m tem KL/r=237 > 200: tem que reprovar"
+    assert not r["ok_esbeltez"], "D16 a 0,93 m tem KL/r=233 > 200: tem que reprovar"
     assert not r["ok"]
     # coerencia: 4.11.3.3 (relativa) da valores MENORES - nao confundir os itens
     fn, sn = requisitos_nodal(61.3, 0.1615, 3.35)

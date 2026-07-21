@@ -81,5 +81,19 @@ regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 pas
 | `test_executivo_cleanup.py` (3) | `_matar_processo_freecad`: proc morto=no-op; kill resolve sem escalar; nunca propaga exceção (D64) |
 | `test_ship_build_src.py` (3) | fonte shipada de build_galpao prepende `sys.path` com o dir; todo irmão importado existe no dir; `_result_ = run()` removido (D65) |
 
+## Sessão 16 — mão-francesa + 4 varreduras (2026-07-21, ver [[06-open-threads#T17]], [[04-decisions#D67]])
+| arquivo | assere |
+|---|---|
+| `test_contencao_lateral.py` | 4.11.3.4 nodal (0,02/10) ≠ relativa 4.11.3.3 (0,008/4); γr=1,35; Cd dobra; D16 reprova (esbeltez+resistência); força/rigidez pelo ângulo; gate ligado ao `rodar_galpao`; sem numpy no `res` |
+| `test_cantoneira_geom.py` | `perfis.cantoneira` (A=t(2b−t); Ix=Iy; eixos 45°) vs **integração de polígono (Green) a 1e-9**; r_min governa; razão r_min/b estável; geometria inválida levanta |
+| `test_mao_francesa_cantoneira.py` | Qs Tab. F.1 Grupo 3 (0,45); degrau 0,2% é da NORMA; **E.1.4.2 MAIS conservador** que r_min; secao dispara E.1.4 por rx1; eng. escolhe (b,t) → 3D+gate mesmo par; L50x50x5 8 faces, área 475=t(2b−t) |
+| `test_terca_assento_3d.py` | filtro de vigas casa `PORTICO_\d+_V\d+` (não `"_VIGA_"` morto); beiral não afirma EAVE_H; chapa segue inclinação; ordem chapa→terça; T_CLIPE única |
+| `test_ship_cache_modulo.py` | bootstrap DESCARTA módulos irmãos do cache (antes do `build`); cobre irmãos reais; não derruba `os`/`FreeCAD`; DIAM_BRACO compartilhado |
+| `test_pecas_conexao_encaixe.py` | gap de graute realizado (pbot−GROUT_GAP); porca cabe no gap; esticadores `FRAC_ESTIC`≠0,5; gusset nasce abaixo da escora |
+| `test_takeoff_x_modelo.py` | mísula = chapas soldadas (alma+mesa inf.), não bloco; rótulo deriva do rafter; sem vírgula (é CSV); arruela T_ARRUELA; teto de espessuras cravadas |
+| `test_relatorio_x_calculo.py` | quadro inclui a mão-francesa; API `atende`=global (não pórtico); expõe `atende_portico`/`falhas`; massa vem do modelo |
+| `test_notas_prancha_x_modelo.py` | notas MEDIDAS (`_notas_do_modelo`); nenhuma medida cravada em mm; ⌀ por Volume/eixo; fallback sem número |
+| `test_quadro_materiais_prancha.py` | takeoff vazio → aviso + "NÃO DISPONÍVEL" na folha (era meia folha em branco silenciosa) |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).
