@@ -10,10 +10,31 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **T15 correções+features+validação de sistema (aberto p/ revisão)**, T14 turnkey, backlog
-- [[07-review-results]] — **Relatório de Revisão Técnica (T15) das novas implementações**
+- [[06-open-threads]] — **T17 sessão 16 (revisão do #44 APROVADA)**, T16 caça, T15 correções, backlog
 
-## Estado atual (2026-07-17) — correções de segurança + features + VALIDAÇÃO DE SISTEMA
+> Wiki mantida na estrutura do skill (00–06). Relatórios de trabalho (`07-review-results`, `PR_44_Review`) foram **consolidados aqui e removidos** — precedente: 2026-07-15 (07-/08-/review_completo).
+
+## Estado atual (2026-07-21) — Sessão 16: mão-francesa fecha, 4 varreduras sistemáticas
+Trabalho em `main` via PRs. **PRs #40–#44 abertos/mergeados** (S16). **643 testes** (652 − 9 `build`).
+Tema central: **"o cálculo/modelo decide, o entregável não vê"** — 4 varreduras sistemáticas
+acharam 8+ defeitos, todos na periferia (geometria de desenho, rótulos, textos), motor OK.
+- **Mão-francesa completa** (#41–#44): (a) pontas apontavam p/ FORA do galpão [#41]; (b) era
+  barra redonda Ø16 [tirante] onde a norma exige tração+compressão → **cantoneira escolhida
+  pelo eng.** (`estrutura.mao_francesa={b,t}`), verificada por **NBR 8800 4.11.3.4 + E.1.4.2 +
+  5.3.2**; (c) propriedades da cantoneira **derivadas por forma fechada** (`perfis.cantoneira`,
+  validada por Green a 1e-9), sem inventar catálogo; (d) **amostra passa a ATENDER**. [[04-decisions#D67]]
+- **4 varreduras** (o padrão "duas descrições da mesma coisa, uma envelhece"): interpenetração
+  de conexões [#42: porca no pedestal, 2 esticadores no mesmo ponto, gusset na escora]; rótulo
+  do takeoff [#44: **mísula maciça inflava o aço em 2,6 t**]; relatório×cálculo [#44: quadro
+  omitia a peça que reprova; API `atende` mentia]; notas da prancha [#44: datum errado em 100 mm,
+  gancho 180 vs 60 mm; **quadro de materiais sumia em silêncio**]. [[04-decisions#D67]], [[06-open-threads#T17]]
+- **Bugs de infra corrigidos** (#40, #44): filtro de vigas MORTO (`"_VIGA_"` nunca casava →
+  `_assenta` era no-op, terças penetrando 60%); **cache de módulo irmão no freecad.exe** escondia
+  fix já mergeado (#41 fora do 3D até o reload). [[04-decisions#D67]]
+- **Revisão técnica do PR #44: APROVADO SEM RESSALVAS** (parecer externo, reconciliado —
+  7 commits, 643 testes; verdito e análise preservados). [[03-phases]], [[06-open-threads#T17]]
+
+## Estado (2026-07-17) — correções de segurança + features + VALIDAÇÃO DE SISTEMA
 Sessão longa na branch `revisao/homologacao-12-modulos` (**sem commit — árvore de trabalho**).
 Disparada por uma amostra ao engenheiro que expôs bugs e campos mortos. **Tudo testado**
 (subsuítes verdes; 2 águas sem regressão: 7 benchmarks + CBCA <1%). Ver [[04-decisions#D52]]–
@@ -109,6 +130,12 @@ zero pendente.** 8 alegações de erro grave refutadas com o PDF (imagens via Se
 1 bug real acolhido. **21 módulos matemáticos.** **PENDENTE gate humano:** merge PR #1+#4;
 **push da branch** (bloqueado p/ assistente → usuário roda `git push`). [[06-open-threads]].
 
+last-consolidated: 2026-07-21, sessions: 16 (+ SESSÃO 16: mão-francesa completa [pontas p/ fora
+#41; barra redonda→cantoneira do eng. verificada NBR 8800 4.11.3.4+E.1.4.2+5.3.2; propriedades
+por forma fechada validada Green 1e-9; amostra ATENDE]; 4 varreduras sistemáticas [interpenetração
+#42, rótulo takeoff/mísula −2,6t #44, relatório×cálculo #44, notas da prancha #44]; filtro de vigas
+morto #40; cache de módulo irmão no freecad.exe escondia fix mergeado #44; revisão PR #44 APROVADA.
+D67; T17. wiki/07 + PR_44_Review consolidados aqui e removidos)
 last-consolidated: 2026-07-17, sessions: 13 (+ sessão CORREÇÕES+FEATURES+VALIDAÇÃO: fix de
 sinal frame2d [raiz]; vento uplift/Cpe §2A/§2B/abertura_dominante; campos mortos do wizard;
 bugs de pipeline E/C/H/D/J/K [F/G refutados]; bloco de fundação NBR 6122; shed 1 água NBR
