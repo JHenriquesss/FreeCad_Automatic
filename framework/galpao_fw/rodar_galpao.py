@@ -380,6 +380,15 @@ def rodar(params, out_dir):
     res["interacao_raf"] = max(f["interacao"] for f in raf_f) if raf_f else 0
     # Gate 7 - tercas: adota a Ue mais leve que passa (ELU + ELS); o modelo desenha
     # a ADOTADA (terca_dims).
+    # LARGURA DE INFLUENCIA = ESPACAMENTO REAL das tercas. O `ti.configurar` la em
+    # cima roda ANTES da auto-dimensao do n_terca e usava params["terca"]["trib"],
+    # que e o 1,675 m do galpao de REFERENCIA (vao 10 m, agua 5,025, n=3). No
+    # galpao real a agua tem outro comprimento e o n_terca sobe ate a telha passar
+    # -> a terca era verificada com carga MENOR do que recebe (na amostra 1,675
+    # contra 2,022 m = 21% a menos). Reconfigura aqui, com o n_terca ja final.
+    _w_agua_t = math.hypot(g["span"] / 2.0, g["ridge"] - g["eave"])
+    _trib_real = _w_agua_t / max(n_terca, 1)
+    ti.configurar(trib=_trib_real)
     save("gate7-tercas.txt", ti.memoria_pt())
     _rt = ti.melhor()
     res["terca_inter"] = round(_rt["interacao"], 2)
