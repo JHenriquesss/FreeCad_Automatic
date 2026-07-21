@@ -14,6 +14,7 @@ Unidades: mm. Z = 0 no topo do concreto; aco sobe pelo gap de graute.
 
 import math
 import os
+import re
 
 import FreeCAD as App
 import Part
@@ -208,6 +209,10 @@ CONDUTOR_D = 100.0
 # Era o default `thick=12.0` do _gusset_tri: coincidia na amostra e divergiria em
 # qualquer projeto com contravento mais carregado.
 GUSSET_T = 12.0
+# Espessura da chapa de assento da terca (e do clipe de girt). Constante de
+# modelagem, mas UNICA: o rotulo do takeoff sai daqui, nao de um "chapa-8" cravado
+# que passaria a mentir na primeira vez que a chapa mudasse.
+T_CLIPE = 8.0
 # Passo da mao-francesa: 1 braco a cada MF_STRIDE tercas. NAO e chute - vem da
 # inversao da interacao flexo-compressao no calc/mao_francesa.py (Lb da viga).
 # Ref 20x10: stride=2 -> 2 bracos/portico (Lb=3,35 m, interacao 0,93).
@@ -922,7 +927,12 @@ def build(doc):
     _theta = math.atan(SLOPE)
     _rise = (RAF_SEC[0] / 2.0) * math.cos(_theta) + (RAF_SEC[1] / 2.0) * math.sin(_theta)
     POFF = _rise + UE_SEC[0] / 2.0
-    vigas = [o for o in doc.Objects if "_VIGA_" in o.Name and hasattr(o, "Shape")]
+    # As vigas do portico chamam-se PORTICO_xx_Vyy[_E|_D] - NAO "_VIGA_". O filtro
+    # antigo ("_VIGA_" in o.Name) nunca casava: `vigas` saia VAZIA e todo _assenta()
+    # abaixo era no-op. As tercas ficavam na estimativa POFF (penetrando a mesa) e o
+    # comentario acima prometia um assentamento MEDIDO que nunca acontecia.
+    vigas = [o for o in doc.Objects
+             if re.match(r"^PORTICO_\d+_V\d+", o.Name) and hasattr(o, "Shape")]
     n_terca = N_TERCA                      # do calc (gate 7), nao hardcoded
     # ALMA NORMAL AO TELHADO: o gate (tercas_nbr14762) decompoe a gravidade em
     # qx=G*cos(theta) (normal ao telhado, eixo FORTE) e qy=G*sin(theta) (paralela,
@@ -932,6 +942,7 @@ def build(doc):
     _terca_tilt = math.degrees(math.atan(SLOPE))
     terca_ys = []
     terca_objs = []
+    _terca_angs = []                   # inclinacao da face inferior (agua E: +, D: -)
     for j in range(nv):
         y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]
         for k in range(1, n_terca):
@@ -940,27 +951,48 @@ def build(doc):
             terca_objs.append((yl, ue_member(doc, (0, yl, rafter_z(yl) + POFF),
                               (LENGTH, yl, rafter_z(yl) + POFF), UE_SEC,
                               f"TERCA_S{j:02d}_E_{k:02d}", roll=180 + _terca_tilt)))
+            _terca_angs.append(_theta)
             yr = y1 - (y1 - yrj) * k / n_terca
             terca_ys.append(yr)
             terca_objs.append((yr, ue_member(doc, (0, yr, rafter_z(yr) + POFF),
                               (LENGTH, yr, rafter_z(yr) + POFF), UE_SEC,
                               f"TERCA_S{j:02d}_D_{k:02d}", roll=-_terca_tilt)))
-    # Assenta cada terca INTERMEDIARIA sobre a viga MEDINDO a penetracao (robusto a
-    # inclinacao). Terças de beiral ficam SEM _assenta (apoiam no pilar, nao na viga).
-    terca_seats = []                    # (y, z_face_inferior) p/ clipes
-    for y, o in terca_objs:
-        ub = _assenta(o, vigas)
-        terca_seats.append((y, ub))
+            _terca_angs.append(-_theta)
+    # Assenta cada terca sobre a viga MEDINDO a penetracao (robusto a inclinacao).
+    # terca_seats guarda o OBJETO e a inclinacao, nao so um Z: a chapa de assento
+    # entra DEPOIS, entre a mesa da viga e a terca, e ai a terca sobe de novo.
+    # `ang` = inclinacao da face inferior da terca (0 no beiral, que fica na horiz.).
+    terca_seats = []                    # [y, z_face_inf, obj, apoios, ang, chapas]
+    for (y, o), ang in zip(terca_objs, _terca_angs):
+        terca_seats.append([y, _assenta(o, vigas), o, vigas, ang, []])
+    # Terca de BEIRAL: quem a apoia e a VIGA (que passa por cima do pilar) junto com
+    # a escora - NAO a cota EAVE_H. O `EAVE_H` afirmado aqui punha o clipe 262 mm
+    # abaixo da face inferior real da terca, enterrado na cabeca do pilar e sem
+    # apoiar nada. Agora e MEDIDO como todas as outras.
+    _ap_beiral = vigas + [o for o in doc.Objects
+                          if "ESCORA_BEIRAL" in o.Name and hasattr(o, "Shape")]
     for y, lado, rl in ((cols_y[0], "E", 180), (cols_y[-1], "D", 0)):
-        terca_objs.append((y, ue_member(doc, (0, y, EAVE_H + POFF),
-                          (LENGTH, y, EAVE_H + POFF), UE_SEC,
-                          f"TERCA_BEIRAL_{lado}", roll=rl)))
-        terca_seats.append((y, EAVE_H))
+        _ob = ue_member(doc, (0, y, EAVE_H + POFF), (LENGTH, y, EAVE_H + POFF),
+                        UE_SEC, f"TERCA_BEIRAL_{lado}", roll=rl)
+        terca_objs.append((y, _ob))
+        terca_seats.append([y, _assenta(_ob, _ap_beiral), _ob, _ap_beiral, 0.0, []])
     # Clipes de apoio da terca sobre a mesa da viga/escora (chapa de assento sob a
     # terca em cada portico) - excluidos do clash (conexao), nome CLIPE_.
+    # A chapa segue a INCLINACAO da terca que ela apoia (mesa da viga e a terca sao
+    # paralelas ao plano do telhado; uma chapa horizontal entre as duas cunharia).
     for ci, x in enumerate(axes, start=1):
-        for cj, (y, ztop) in enumerate(terca_seats, start=1):
-            plate(doc, (x, y, ztop - 4.0), 90.0, 120.0, 8.0, f"CLIPE_TERCA_{ci:02d}_{cj:02d}")
+        for cj, st in enumerate(terca_seats, start=1):
+            y, ztop, _t, apoios, ang, chapas = st
+            _c, _s = math.cos(ang), math.sin(ang)
+            cl = plate_basis(doc, (x, y, ztop - T_CLIPE / 2.0),
+                             (1.0, 0.0, 0.0), (0.0, _c, _s), (0.0, -_s, _c),
+                             90.0, 120.0, T_CLIPE, f"CLIPE_TERCA_{ci:02d}_{cj:02d}")
+            _assenta(cl, apoios)        # chapa sobe ate apoiar na mesa da viga
+            chapas.append(cl)
+    # ...e SO ENTAO a terca sobe e senta SOBRE as chapas (antes ela apoiava direto na
+    # viga e a chapa ficava 60% enterrada, sem folga onde existir).
+    for st in terca_seats:
+        st[1] = _assenta(st[2], st[5])
 
     # Tercas de parede (girts): apoiadas na face externa das colunas. Se ha porta
     # LATERAL, a girt inferior esquerda e interrompida sobre ela com uma verga.
@@ -984,8 +1016,10 @@ def build(doc):
     # Clipes da longarina no pilar (chapa contra a face da mesa) - conexao, CLIPE_.
     for ci, x in enumerate(axes, start=1):
         for lj, z in enumerate(GIRT_Z, start=1):
-            plate(doc, (x, -100.0 - 4.0, z), 90.0, 8.0, 120.0, f"CLIPE_GIRT_E_{ci:02d}_{lj:02d}")
-            plate(doc, (x, SPAN + 100.0 + 4.0, z), 90.0, 8.0, 120.0, f"CLIPE_GIRT_D_{ci:02d}_{lj:02d}")
+            plate(doc, (x, -100.0 - T_CLIPE / 2.0, z), 90.0, T_CLIPE, 120.0,
+                  f"CLIPE_GIRT_E_{ci:02d}_{lj:02d}")
+            plate(doc, (x, SPAN + 100.0 + T_CLIPE / 2.0, z), 90.0, T_CLIPE, 120.0,
+                  f"CLIPE_GIRT_D_{ci:02d}_{lj:02d}")
 
     # Tirantes de PAREDE (barras redondas verticais): N_TIRANTE_PAREDE linhas por
     # vao, dividem o vao da longarina no eixo fraco -> Lb = bay/(n+1). Exigencia
@@ -1162,7 +1196,7 @@ def build(doc):
                             # aba aflora pela casca (le como "terca acima da telha").
     # offset acima do eixo da viga = topo da terca MAIS ALTA, MEDIDO apos _assenta
     # (POFF e so a estimativa inicial; o assentamento levanta a terca alguns mm).
-    _off = max((zb + UE_SEC[0] - rafter_z(y)) for (y, zb) in terca_seats)
+    _off = max((st[1] + UE_SEC[0] - rafter_z(st[0])) for st in terca_seats)
     zr = EAVE_H + _off + TELHA_GAP + TCL / 2.0
     for j in range(nv):
         y0, y1 = cols_y[j], cols_y[j + 1]; yrj = ridges_y[j]; zrrj = rafter_z(yrj) + _off + TELHA_GAP + TCL / 2.0
@@ -1739,7 +1773,7 @@ def _classifica(n):
     if n.startswith("VERGA"):
         return "Vergas", "UPE100"
     if n.startswith("CLIPE"):
-        return "Clipes de apoio (conexao)", "chapa-8"
+        return "Clipes de apoio (conexao)", "chapa-%.0f" % T_CLIPE
     if "JOELHO" in n and "MISULA" in n:
         return "Misulas (joelho)", "chapa-9.5"
     if "JOELHO" in n and "CHAPA" in n:
