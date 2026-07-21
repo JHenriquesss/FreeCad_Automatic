@@ -137,7 +137,30 @@ def verifica_braco(Msd, h0, Lbb, L_braco, ang_graus, sec, fy, Cd=1.0, K=1.0):
     if not r["ok_rigidez"]:
         faltas.append("S=%.0f < Sbr,Sd=%.0f kN/m (4.11.3.4)" % (S_braco, Sbr))
     r["motivo"] = "; ".join(faltas)
+    if not r["ok"]:
+        r["minimo"] = secao_minima(Msd, h0, Lbb, L_braco, ang_graus, fy, Cd, K,
+                                   sec.get("Q", 1.0))
     return r
+
+
+def secao_minima(Msd, h0, Lbb, L_braco, ang_graus, fy, Cd=1.0, K=1.0, Q=1.0):
+    """O que a peca precisa TER para atender - para o gate GUIAR, nao so reprovar.
+
+    r_min: direto de 5.3.4.1 (KL/r <= 200).
+    A_min: no limite de esbeltez, lambda0 = (KL/r).raiz(Q.fy/(pi^2.E)) NAO depende
+           de A, entao chi fica fixo e A_min = N.gamma_a1/(chi.Q.fy).
+    A_rig: da rigidez (4.11.3.4): (E.A/L).cos^2 >= Sbr,Sd.
+    """
+    Fbr, Sbr = requisitos_nodal(Msd, h0, Lbb, Cd)
+    ca = math.cos(math.radians(ang_graus))
+    N = Fbr / ca
+    r_min = K * L_braco / ESBELTEZ_MAX
+    lambda0 = ESBELTEZ_MAX * math.sqrt(Q * fy / (math.pi ** 2 * E))
+    chi = ck.chi_compressao(lambda0)
+    A_res = N * GA1 / (chi * Q * fy)
+    A_rig = Sbr * L_braco / (E * ca ** 2)
+    return {"r_min": r_min, "A_min": max(A_res, A_rig), "A_resistencia": A_res,
+            "A_rigidez": A_rig, "chi_no_limite": chi, "N_exigido": N}
 
 
 def relatorio_pt(r):
@@ -166,18 +189,35 @@ def relatorio_pt(r):
         L.append("  >> ATENDE")
     else:
         L.append("  >> NAO ATENDE - REFORCO EXIGIDO: " + r["motivo"])
+        m = r.get("minimo")
+        if m:
+            L += ["  MINIMO NORMATIVO calculado (o eng. escolhe no catalogo):",
+                  f"    raio de giracao r >= {m['r_min']*1000:.1f} mm "
+                  f"(5.3.4.1: KL/r <= {ESBELTEZ_MAX:.0f})",
+                  f"    area bruta Ag >= {m['A_min']*1e4:.2f} cm2 "
+                  f"(resistencia {m['A_resistencia']*1e4:.2f} ; "
+                  f"rigidez {m['A_rigidez']*1e4:.2f})",
+                  "  BOA PRATICA (Bellei/Fakury Fig. 8.16-8.17 e 5.22): usar",
+                  "    CANTONEIRA. Atencao: uma barra redonda de diametro maior",
+                  "    ATENDERIA a conta acima, mas a literatura reserva a barra",
+                  "    redonda para TIRANTE (so tracao) e manda a contencao lateral",
+                  "    resistir 'como de tracao E de compressao'. A conta nao",
+                  "    captura isso - a escolha do perfil e do eng. responsavel."]
     L.append("=" * 68)
     return "\n".join(L)
 
 
 def _selftest():
-    # Barra redonda D16 (o que o modelo desenhava), braco de 0,9484 m a 45 graus
-    # (MEDIDO no modelo da amostra: dX=dZ=670,6 mm), aco MR250.
+    # Barra redonda D16 (o que o modelo desenhava). L do EIXO = 0,9324 m a 45
+    # graus, obtido de mao_francesa_geom.comprimento_braco (rafter 500x200, terca
+    # Ue300x85, i=15%). ATENCAO: o bbox do cilindro no modelo mede 948,4 mm - ele
+    # inclui d.sen(45)=11,3 mm de raio. Usar o bbox como comprimento de flambagem
+    # superestima a esbeltez (237 em vez de 233); o correto e o EIXO.
     sec = secao_barra_redonda(0.016)
-    r = verifica_braco(Msd=61.3, h0=0.1615, Lbb=3.35, L_braco=0.9484,
+    r = verifica_braco(Msd=61.3, h0=0.1615, Lbb=3.35, L_braco=0.9324,
                        ang_graus=45.0, sec=sec, fy=250e3)
     print(relatorio_pt(r))
-    assert not r["ok_esbeltez"], "D16 a 0,95 m tem KL/r=237 > 200: tem que reprovar"
+    assert not r["ok_esbeltez"], "D16 a 0,93 m tem KL/r=233 > 200: tem que reprovar"
     assert not r["ok"]
     # coerencia: 4.11.3.3 (relativa) da valores MENORES - nao confundir os itens
     fn, sn = requisitos_nodal(61.3, 0.1615, 3.35)

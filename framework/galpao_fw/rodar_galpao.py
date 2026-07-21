@@ -396,6 +396,38 @@ def rodar(params, out_dir):
     res["terca_ok"] = bool(_rt.get("OK"))
     res["terca_dims"] = list(_rt.get("_dims", (200.0, 75.0, 25.0, 2.65)))
     res["terca_perfil"] = _rt.get("perfil")
+    # Gate 7b - a PECA da mao-francesa (NBR 8800 4.11.3.4 + 5.3.2 + 5.3.4.1).
+    # O gate 7 acima decide ONDE por o braco (stride); este decide se a peca
+    # DESENHADA aguenta. Precisa da terca dimensionada (acima) para saber a
+    # geometria do braco, por isso vem depois.
+    try:
+        import contencao_lateral as cl
+        import mao_francesa_geom as mfg
+        _raf = sc["perfil_raf"]
+        _h0 = _raf["d"] - _raf["tf"]                       # centros das mesas (m)
+        _ue_h = res["terca_dims"][0] / 1000.0              # terca dimensionada (m)
+        _Lbr, _ = mfg.comprimento_braco(_raf["d"], _raf["bf"], _ue_h,
+                                        math.atan(slope))
+        _mf = cl.verifica_braco(
+            Msd=abs(cbm_v["Msd"]), h0=_h0, Lbb=Lb_raf, L_braco=_Lbr,
+            ang_graus=45.0, fy=params["fy"],
+            sec=cl.secao_barra_redonda(mfg.DIAM_BRACO / 1000.0))
+        save("gate7b-mao-francesa-peca.txt", cl.relatorio_pt(_mf))
+        res["mf_peca_ok"] = bool(_mf["ok"])
+        # float() explicito: Msd pode vir como np.float64 do frame2d e o repr de
+        # numpy>=2 e "np.float64(5.02)" - literal invalido dentro do freecad, que
+        # nao importa numpy. Foi exatamente isso que travou a tesoura executiva.
+        res["mf_peca_u"] = round(float(max(
+            _mf["N_braco"] / max(_mf["Nc_Rd"], 1e-9),
+            _mf["esbeltez"] / cl.ESBELTEZ_MAX,
+            _mf["Sbr_Sd"] / max(_mf["S_braco"], 1e-9))), 2)
+        res["mf_peca_motivo"] = str(_mf["motivo"])
+        if _mf.get("minimo"):
+            res["mf_peca_minimo"] = {
+                "r_min_mm": round(float(_mf["minimo"]["r_min"]) * 1000.0, 1),
+                "Ag_min_cm2": round(float(_mf["minimo"]["A_min"]) * 1e4, 2)}
+    except Exception as _ex:                               # gate opcional/gracioso
+        res["mf_peca_erro"] = str(_ex)
     # Gate 7 - TELHA: verifica a telha vencendo o espacamento das tercas sob a
     # sucao LOCAL de borda/canto (vento §8). Perfil da telha = catalogo (params).
     if params.get("telha"):
@@ -1425,6 +1457,7 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
                   ("Gusset contravento", _uok("gusset_u_max", "gusset_ok")),
+                  ("Mao-francesa (peca)", res.get("mf_peca_u")),
                   ("Viga rolamento", _uok("ponte_viga_inter", "ponte_viga_ok")),
                   ("Console ponte", _uok("console_u_max", "console_ok")),
                   ("Fogo (theta/theta_cr)", _uok("fogo_util", "fogo_ok")),

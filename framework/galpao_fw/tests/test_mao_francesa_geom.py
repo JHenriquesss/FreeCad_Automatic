@@ -126,6 +126,51 @@ def test_portico_interior_mantem_a_alternancia():
     assert lados == [-1, 1], "portico interior deveria ter um braco de cada lado"
 
 
+# ---------------------------------------------------------------------------
+# GEOMETRIA COMPARTILHADA calc <-> build. `comprimento_braco` existe para o gate
+# 4.11.3.4 (contencao_lateral) verificar EXATAMENTE a peca que o 3D desenha.
+#
+# ARMADILHA QUE ME CUSTOU UMA ENTREGA PARCIAL: comparei o comprimento do EIXO
+# (derivado, 659,3 mm) com o BOUNDING BOX medido no modelo (670,6 mm), concluí
+# que havia 11,3 mm inexplicados e me RECUSEI a ligar o gate por isso. Nao havia
+# discrepancia: o braco e um CILINDRO de diametro 16, e o bbox mede
+# off_x + d.sen(45) = 659,3 + 11,31 = 670,6. Residuo real: 0,016 mm.
+# ---------------------------------------------------------------------------
+def test_comprimento_braco_bate_com_segmentos():
+    """A formula fechada e os endpoints desenhados tem que dar o MESMO valor."""
+    RAF_H, RAF_BF, UE_H = 500.0, 200.0, 300.0
+    th = math.atan(0.15)
+    L, offx = MFG.comprimento_braco(RAF_H, RAF_BF, UE_H, th)
+    poff = MFG.offset_terca(RAF_H, RAF_BF, UE_H, th)
+
+    def rz(y):
+        return 8000.0 + 0.15 * min(y, 20000.0 - y)
+
+    segs = MFG.segmentos(axes=[5700.0], cols_y=[0.0, 20000.0], ridges_y=[10000.0],
+                         n_terca=5, brace_k=[2], raf_h=RAF_H, poff=poff,
+                         rafter_z=rz, theta=th)
+    p1, p2, _ = segs[0]
+    assert abs(math.dist(p1, p2) - L) < 1e-9
+    assert abs(abs(p2[0] - p1[0]) - offx) < 1e-9
+
+
+def test_bbox_do_cilindro_explica_os_11mm():
+    """REGRESSAO DO MEU ERRO: bbox = eixo + d.sen(45). Conferir contra o modelo
+    exige somar isso, senao 'sobra' um residuo que nao existe."""
+    RAF_H, RAF_BF, UE_H = 500.0, 200.0, 300.0
+    _, offx = MFG.comprimento_braco(RAF_H, RAF_BF, UE_H, math.atan(0.15))
+    bbox_previsto = offx + MFG.DIAM_BRACO * math.sin(math.radians(45.0))
+    assert abs(bbox_previsto - 670.60) < 0.05, bbox_previsto   # MEDIDO no modelo
+
+
+def test_diametro_e_constante_compartilhada():
+    """O build desenha com MFG.DIAM_BRACO e o gate verifica com o mesmo valor -
+    se divergirem, o calculo aprova/reprova uma peca que nao e a desenhada."""
+    src = open(os.path.join(GALPAO, "build_galpao.py"), encoding="utf-8").read()
+    assert "mfg.DIAM_BRACO" in src
+    assert "rod(doc, p1, p2, 16, nm)" not in src
+
+
 def test_comprimento_do_braco_nao_muda_ao_inverter():
     """Inverter o lado nao pode encurtar o braco (a peca e a mesma, so espelhada)."""
     esperado = None

@@ -118,11 +118,22 @@ def _ship_build_src(src_path):
     galpao_fw prependado no sys.path. build_galpao vai como FONTE (nao importado);
     seus imports de MODULOS IRMAOS (ex. mao_francesa_geom) so resolvem se o dir
     estiver no sys.path do FreeCAD - senao ModuleNotFoundError no build 3D. Helper
-    testavel (test_ship_build_src) p/ a regressao nao voltar silenciosa. Caca sessao 14."""
+    testavel (test_ship_build_src) p/ a regressao nao voltar silenciosa. Caca sessao 14.
+
+    O processo do freecad.exe da ponte PERSISTE entre execucoes: um modulo irmao
+    ja importado fica em sys.modules e o build continuaria rodando a versao ANTIGA
+    ate reiniciar o FreeCAD. Isso mascara em SILENCIO correcoes ja mergeadas - o
+    fix das pontas da mao-francesa (PR #41) ficou fora do modelo por isso, com o
+    3D mostrando 20/24 bracos tocando a terca enquanto o codigo ja dizia 24/24.
+    Por isso o bootstrap DESCARTA os modulos irmaos do cache antes de rodar."""
     from pathlib import Path
     src_path = Path(src_path)
     gdir = str(src_path.parent).replace("\\", "/")
-    boot = "import sys\nif %r not in sys.path: sys.path.insert(0, %r)\n" % (gdir, gdir)
+    irmaos = tuple(sorted(p.stem for p in src_path.parent.glob("*.py")))
+    boot = ("import sys\n"
+            "if %r not in sys.path: sys.path.insert(0, %r)\n"
+            "for _m in [n for n in list(sys.modules) if n in %r]:\n"
+            "    del sys.modules[_m]\n" % (gdir, gdir, irmaos))
     return boot + src_path.read_text(encoding="utf-8").replace("_result_ = run()", "")
 
 

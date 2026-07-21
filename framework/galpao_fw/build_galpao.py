@@ -1086,11 +1086,13 @@ def build(doc):
     # testado sem FreeCAD. Bug historico: o braco ficava em X CONSTANTE (plano do
     # portico), apontando p/ baixo sem tocar a terca -> nao travava a FLT. Ver
     # Bellei Fig 8.16/8.17 e test_mao_francesa_geom.
+    # (o cache de modulo irmao do freecad.exe e limpo no bootstrap de
+    # _ship_build_src - sem isso este import traria a versao ANTIGA do disco)
     import mao_francesa_geom as mfg
     brace_k = [k for k in range(1, n_terca) if k % MF_STRIDE == 0]
     for p1, p2, nm in mfg.segmentos(axes, cols_y, ridges_y, n_terca, brace_k,
                                     RAF_SEC[0], POFF, rafter_z, theta=_theta):
-        rod(doc, p1, p2, 16, nm)
+        rod(doc, p1, p2, mfg.DIAM_BRACO, nm)   # mesma constante que o gate verifica
 
     # Contraventamento so-tracao (barras redondas) nos vaos de extremidade. Cada
     # diagonal recebe um ESTICADOR (lanterna) no meio; cada canto do painel recebe
