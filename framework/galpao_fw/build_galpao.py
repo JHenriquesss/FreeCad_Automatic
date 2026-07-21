@@ -1082,7 +1082,12 @@ def build(doc):
                 # coluna. HEA200 (d190/bf200) errava 5 mm e a chapa de 16 mm ainda
                 # encostava; IPE500 (d500/bf200) erra 150 mm -> chapa flutuando a
                 # 182 mm do pilar, sem nada em que soldar.
-                cface = COL_SEC[1] / 2.0
+                # meia-extensao da coluna em Y = d/2 = COL_SEC[0]/2, porque com o
+                # eixo forte NO PLANO do portico (roll=90) e a ALTURA d que fica ao
+                # longo de Y. Cheguei a trocar por COL_SEC[1]/2 (bf/2) quando a
+                # coluna ainda estava girada errada; com a orientacao corrigida isso
+                # enterraria a chapa 150 mm DENTRO da coluna.
+                cface = COL_SEC[0] / 2.0
                 # chapa de ligacao console->pilar (face do pilar, perpendicular ao console)
                 plate(doc, (x, yw + sgn * cface, hvr), 240.0, 16.0, 240.0,
                       f"CONEX_CONSOLE_{tg}_CHAPA")
