@@ -75,3 +75,62 @@ def test_offset_x_da_inclinacao_razoavel():
         assert 100.0 < dx < 2000.0, (nm, dx)
         ang = math.degrees(math.atan2(dz, dx))
         assert 20.0 < ang < 70.0, (nm, ang)
+
+
+# ---------------------------------------------------------------------------
+# BRACO APONTANDO PARA FORA DO GALPAO (medido no modelo em 2026-07-21)
+# Das 24 maos-francesas da amostra, 4 ficavam a 361,83 mm da terca mais proxima -
+# nao tocavam terca NENHUMA, logo nao travavam a mesa inferior contra FLT.
+# Sempre nos porticos de EXTREMIDADE: MAO_FRANCESA_S00_00_02 ia de X=-665,0 a
+# X=+5,7, ou seja, para FORA do galpao (que comeca em X=0). Causa: `sgn`
+# alternava o lado longitudinal por agua sem olhar ONDE o portico estava.
+# Agrava: os porticos de ponta sao os mais solicitados por vento.
+# ---------------------------------------------------------------------------
+def _segs_3_porticos():
+    """3 porticos: 0 e 10000 sao extremidades, 5000 e interior."""
+    return MFG.segmentos(axes=[0.0, 5000.0, 10000.0], cols_y=[0.0, 15000.0],
+                         ridges_y=[7500.0], n_terca=4, brace_k=[2],
+                         raf_h=RAF_H, poff=POFF, rafter_z=_rafter_z,
+                         theta=math.atan(SLOPE))
+
+
+def test_nenhum_braco_aponta_para_fora_do_galpao():
+    """A GUARDA: fora de [axes[0], axes[-1]] nao existe terca para travar."""
+    for axes, segs in (([0.0, 5000.0], _segs()),
+                       ([0.0, 5000.0, 10000.0], _segs_3_porticos())):
+        lo, hi = min(axes), max(axes)
+        for p1, p2, nm in segs:
+            assert lo - 1e-6 <= p2[0] <= hi + 1e-6, (
+                nm, "braco mira x=%.1f, fora de [%.1f, %.1f] - nao toca terca"
+                % (p2[0], lo, hi))
+
+
+def test_portico_de_ponta_aponta_para_dentro():
+    """No primeiro portico os dois bracos vao para +X; no ultimo, para -X."""
+    segs = _segs_3_porticos()
+    prim = [s for s in segs if abs(s[0][0] - 0.0) < 1e-6]
+    ult = [s for s in segs if abs(s[0][0] - 10000.0) < 1e-6]
+    assert prim and ult
+    for p1, p2, nm in prim:
+        assert p2[0] > p1[0], (nm, "braco do primeiro portico deveria ir para +X")
+    for p1, p2, nm in ult:
+        assert p2[0] < p1[0], (nm, "braco do ultimo portico deveria ir para -X")
+
+
+def test_portico_interior_mantem_a_alternancia():
+    """A inversao vale SO nas pontas - no meio o lado continua alternando por
+    agua (distribui o travamento em vez de enviesar tudo para um lado)."""
+    meio = [s for s in _segs_3_porticos() if abs(s[0][0] - 5000.0) < 1e-6]
+    assert len(meio) == 2, len(meio)
+    lados = sorted(1 if p2[0] > p1[0] else -1 for p1, p2, _ in meio)
+    assert lados == [-1, 1], "portico interior deveria ter um braco de cada lado"
+
+
+def test_comprimento_do_braco_nao_muda_ao_inverter():
+    """Inverter o lado nao pode encurtar o braco (a peca e a mesma, so espelhada)."""
+    esperado = None
+    for p1, p2, nm in _segs_3_porticos():
+        L = math.dist(p1, p2)
+        if esperado is None:
+            esperado = L
+        assert abs(L - esperado) < 1e-6, (nm, L, esperado)
