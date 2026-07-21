@@ -736,16 +736,33 @@ def build(doc):
         if AGUAS == 1:                          # SHED: 2 colunas de alturas diferentes + 1 rafter
             y_lo, y_hi = cols_y[0], cols_y[-1]
             z_lo, z_hi = rafter_z(y_lo), rafter_z(y_hi)
-            i_member(doc, (x, y_lo, Z0), (x, y_lo, z_lo), COL_SEC, f"{t}_C00")
-            i_member(doc, (x, y_hi, Z0), (x, y_hi, z_hi), COL_SEC, f"{t}_C01")
+            # roll=90 tambem no SHED (mesma razao do portico de 2 aguas: eixo
+            # forte da coluna no plano do portico). Ramo nao exercitado pela
+            # amostra - so apareceu na guarda de AST.
+            i_member(doc, (x, y_lo, Z0), (x, y_lo, z_lo), COL_SEC, f"{t}_C00",
+                     roll=90.0)
+            i_member(doc, (x, y_hi, Z0), (x, y_hi, z_hi), COL_SEC, f"{t}_C01",
+                     roll=90.0)
             i_member(doc, (x, y_lo, z_lo), (x, y_hi, z_hi), RAF_SEC, f"{t}_V00")
             continue
         for j in range(nv + 1):
             yc = cols_y[j]
+            # ROLL=90: a alma da coluna tem que ficar NO PLANO DO PORTICO (Y-Z),
+            # ou seja, a altura d do perfil ao longo de Y. O _sweep gira X->direcao
+            # pela rotacao MINIMA; para uma coluna vertical isso mandava a altura
+            # para X (comprimento do galpao) -> eixo FRACO no plano do portico,
+            # enquanto o calculo dimensiona com Ix (eixo forte). Os rafters ja
+            # saiam certos (eixo no plano Y-Z), o que denunciava a assimetria.
+            # Fonte: Fakury, "Dimensionamento de Elementos Estruturais de Aco e
+            # Mistos", Cap. 9 secao 9.1 e Fig. 9.1a: pilar de portico plano fleti-
+            # do "em relacao ao eixo de maior momento de inercia"; o eixo fraco
+            # aponta para o comprimento, onde quem estabiliza e o contraventamento.
             if col_tap:                              # alma variavel: coluna afina
-                tapered_column(doc, (x, yc, Z0), (x, yc, EAVE_H), f"{t}_C{j:02d}")
+                tapered_column(doc, (x, yc, Z0), (x, yc, EAVE_H), f"{t}_C{j:02d}",
+                               roll=90.0)
             else:
-                i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC, f"{t}_C{j:02d}")
+                i_member(doc, (x, yc, Z0), (x, yc, EAVE_H), COL_SEC,
+                         f"{t}_C{j:02d}", roll=90.0)
         for j in range(nv):
             yr = ridges_y[j]; y0 = cols_y[j]; y1 = cols_y[j + 1]
             zh = rafter_z(yr)
@@ -1059,7 +1076,13 @@ def build(doc):
                 i_member(doc, (x, yw, hvr), (x, yr, hvr), HEA160,
                          f"CONSOLE_PONTE_{lado}_{int(x)//1000:02d}")
                 tg = f"{lado}_{int(x)//1000:02d}"
-                cface = COL_SEC[0] / 2.0                  # face do pilar (h/2)
+                # meia-largura da coluna NO EIXO Y (direcao em que o console se
+                # afasta) = bf/2 = COL_SEC[1]/2. Era COL_SEC[0]/2 (=d/2, a ALTURA do
+                # perfil): com d != bf a chapa de ligacao e a misula ficavam FORA da
+                # coluna. HEA200 (d190/bf200) errava 5 mm e a chapa de 16 mm ainda
+                # encostava; IPE500 (d500/bf200) erra 150 mm -> chapa flutuando a
+                # 182 mm do pilar, sem nada em que soldar.
+                cface = COL_SEC[1] / 2.0
                 # chapa de ligacao console->pilar (face do pilar, perpendicular ao console)
                 plate(doc, (x, yw + sgn * cface, hvr), 240.0, 16.0, 240.0,
                       f"CONEX_CONSOLE_{tg}_CHAPA")
@@ -1077,7 +1100,12 @@ def build(doc):
     # EAVE_H e abrindo para cima -> a boca de saida (fundo) esta em EAVE_H-150.
     # O condutor DESCE a partir dessa boca (nao do centro/beiral); um bocal curto
     # de maior diametro envolve a juncao calha->tubo (conexao real, nao topo solto).
-    GUT_Y = 340.0
+    # afastamento da calha ao eixo da coluna: DERIVADO da meia-altura da coluna em
+    # Y (COL_SEC[0]/2, agora que a alma esta no plano do portico) + meia-largura da
+    # calha + folga. Era 340 fixo, calibrado para a coluna girada errada (que
+    # ocupava so bf/2=100 em Y); com o eixo forte no plano, 340 fazia a calha
+    # invadir a coluna em 10 mm (12 interferencias CALHA x PORTICO).
+    GUT_Y = COL_SEC[0] / 2.0 + CALHA_SEC[0] / 2.0 + 30.0
     # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
     DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
