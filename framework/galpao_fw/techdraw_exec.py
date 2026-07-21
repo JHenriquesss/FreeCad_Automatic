@@ -1119,13 +1119,23 @@ _EXCLUI_LIGACAO = ("TELHA", "TAPAMENTO", "CALHA")
 # como no joelho. `chapa` = eixo da 2a vista (face da chapa) ou None.
 # (prefixo, titulo, base_pagina, KW_mm, elev_axis, chapa_axis)
 LIGACOES = [
-    # (prefixo, titulo, base, KW, elev, chapa, callout) - callout = chave do cfg
-    # com a spec de fabricacao (do CALCULO); None => so "conforme memorial".
-    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y", "joelho"),
-    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None, "gusset"),
-    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None, "gusset"),
-    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y", None),
-    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None, "console"),
+    # (prefixo, titulo, base, KW, elev, chapa, callout, sec_normal) - callout =
+    # chave do cfg com a spec de fabricacao (do CALCULO); None => so "conforme
+    # memorial". sec_normal = eixo da NORMAL do corte A-A; None = perpendicular a
+    # elevacao (comportamento historico, bom quando a peca e uma CHAPA).
+    # Para a FIXACAO DE GIRT o corte informativo e HORIZONTAL (normal z) = corte em
+    # PLANTA na altura do clipe: mostra a secao do pilar, o clipe e a girt em planta,
+    # que e como esse detalhe e desenhado na pratica. MEDIDO com o harness
+    # scratchpad/probe_pe13.py (gera so este detalhe dentro do freecad.exe, onde a
+    # cena grafica existe e getEdgeByIndex popula):
+    #     normal y (historico) 14 arestas  -> abaixo do LIMIAR_SEC=15
+    #     normal x (transversal a girt) 15 -> passava por UMA aresta
+    #     normal z (planta)             25 -> corte de fato informativo
+    ("CONEX_CUMEEIRA",   "DETALHE - LIGACAO DE CUMEEIRA",       "CUMEEIRA",   700, "x", "y", "joelho", None),
+    ("CONEX_GUSSET_COB", "DETALHE - GUSSET CONTRAV. COBERTURA", "GUSSET_COB", 350, "z", None, "gusset", None),
+    ("CONEX_GUSSET_PAR", "DETALHE - GUSSET CONTRAV. PAREDE",    "GUSSET_PAR", 350, "y", None, "gusset", None),
+    ("CLIPE_GIRT",       "DETALHE - FIXACAO DE GIRT",           "CLIPE_GIRT", 400, "x", "y", None, "z"),
+    ("CONEX_CONSOLE",    "DETALHE - CONSOLE DA PONTE ROLANTE",  "CONSOLE",    900, "x", None, "console", None),
 ]
 
 
@@ -1254,7 +1264,7 @@ def _secao_ligacao(doc, page, base, feat, base_view, normal_corte, escala, x, y,
 
 
 def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
-                     page_name, callout=None):
+                     page_name, callout=None, sec_normal=None):
     """Uma prancha de detalhe de ligacao: elevacao (perfis edge-on = linhas)
     + opcional vista da chapa (face), recortando UMA instancia representativa
     (a mais proxima do centro do galpao) numa janela. Espelha o padrao do
@@ -1325,7 +1335,12 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     _sx, _sy = _pos_corte_ligacao(dupla, xpos)
     # corta pelo centro da PECA detalhada (c0 = o conector alvo), nao pelo centro
     # do compound - este ultimo e puxado pelos perfis conectados. Ver _secao_ligacao.
-    sec = _secao_ligacao(doc, page, base, feat, v, xv, esc, _sx, _sy, origem=c0)
+    _nrm = _AXES[sec_normal][0] if sec_normal else xv
+    # NAO deslocar a origem do plano de corte: tentei desloca-la 25% para fora do
+    # plano medio da peca (hipotese: plano tangente a alma da coluna gerava corte
+    # degenerado) e o TechDraw TRAVOU - o executivo estourou 1200 s sem gerar
+    # nenhuma prancha. Origem = centro da peca alvo, como antes.
+    sec = _secao_ligacao(doc, page, base, feat, v, _nrm, esc, _sx, _sy, origem=c0)
     tem_sec = sec is not None
     linhas = ["%s   ESCALA %s" % (titulo, nome)]
     if n2:
@@ -1354,11 +1369,12 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
 def _pr_ligacoes(doc, cfg, objs, todos):
     """Uma prancha de detalhe por tipo de ligacao presente no modelo."""
     paginas, cotadores = [], []
-    for i, (pref, titulo, base, KW, elev, chapa, callout) in enumerate(LIGACOES):
+    for i, (pref, titulo, base, KW, elev, chapa, callout, sec_n) in enumerate(LIGACOES):
         pg_name = "PE%02d_DET_%s" % (10 + i, base)
         try:
             pg, cts = _detalhe_ligacao(doc, cfg, todos, pref, titulo, base,
-                                       KW, elev, chapa, pg_name, callout)
+                                       KW, elev, chapa, pg_name, callout,
+                                       sec_normal=sec_n)
         except Exception as ex:
             import FreeCAD as App
             App.Console.PrintError("Detalhe ligacao %s: %s\n" % (pref, ex))
