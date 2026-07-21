@@ -97,6 +97,44 @@ def secao_barra_redonda(d):
     return {"A": A, "r": d / 4.0, "Q": 1.0, "nome": "barra redonda D%.0f" % (d * 1000)}
 
 
+def qs_cantoneira_simples(b_t, fy):
+    """Anexo F / Tabela F.1 - ABA DE CANTONEIRA SIMPLES (elemento AL, Grupo 2):
+        (b/t)lim = 0,45.raiz(E/fy) ; (b/t)sup = 0,91.raiz(E/fy)
+        Qs = 1,0                                   se b/t <= lim
+        Qs = 1,340 - 0,76 (b/t) raiz(fy/E)         se lim < b/t <= sup
+        Qs = 0,53 E / ((b/t)^2 fy)                 se b/t > sup
+    Fonte: citacao literal "Grupo 2 da Tabela 7.3 (aba de cantoneira simples ou
+    cantoneiras multiplas com chapas espacadoras)". Ha uma linha VIZINHA para
+    "abas de cantoneiras ligadas continuamente" com limite 0,56 - MAIOR, logo
+    menos restritiva. Usar 0,45 e a escolha CONSERVADORA e e a que corresponde a
+    cantoneira simples ligada por uma aba, que e o caso da mao-francesa.
+    """
+    rE = math.sqrt(E / fy)
+    lim, sup = 0.45 * rE, 0.91 * rE
+    if b_t <= lim:
+        return 1.0
+    if b_t <= sup:
+        return 1.340 - 0.76 * b_t * math.sqrt(fy / E)
+    return 0.53 * E / (b_t ** 2 * fy)
+
+
+def secao_cantoneira(b_mm, t_mm, fy):
+    """Cantoneira de abas iguais para a mao-francesa. Propriedades DERIVADAS da
+    geometria (perfis.cantoneira) - nao ha tabela de perfis L nas fontes, e
+    inventar bitola de catalogo de memoria e o erro que se quer evitar.
+
+    r = r_min (eixo principal fraco, o que governa a flambagem da cantoneira
+    simples). ATENCAO: a NBR 8800 E.1.4 permite usar Ix1 (eixo paralelo a aba
+    conectada) quando a cantoneira e ligada por UMA aba, soldada ou com >= 2
+    parafusos e sem acoes transversais intermediarias - isso e MENOS conservador
+    e NAO esta implementado aqui. Ficamos no r_min.
+    """
+    import perfis
+    c = perfis.cantoneira(b_mm, t_mm)
+    return {"A": c["A"], "r": c["r_min"], "Q": qs_cantoneira_simples(c["b_t"], fy),
+            "b_t": c["b_t"], "nome": c["nome"]}
+
+
 def compressao_resistente(sec, fy, L, K=1.0):
     """NBR 8800 5.3.2: Nc,Rd = chi.Q.Ag.fy/gamma_a1, com chi de 5.3.3."""
     A, r, Q = sec["A"], sec["r"], sec.get("Q", 1.0)

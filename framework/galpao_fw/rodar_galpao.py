@@ -408,10 +408,15 @@ def rodar(params, out_dir):
         _ue_h = res["terca_dims"][0] / 1000.0              # terca dimensionada (m)
         _Lbr, _ = mfg.comprimento_braco(_raf["d"], _raf["bf"], _ue_h,
                                         math.atan(slope))
+        # A SECAO e escolha do engenheiro: cantoneira (b,t) pelo spec, ou a barra
+        # redonda historica. O gate verifica EXATAMENTE a peca que o 3D desenha.
+        _mfs = params.get("mf_sec")
+        _sec_br = (cl.secao_cantoneira(_mfs[0], _mfs[1], params["fy"]) if _mfs
+                   else cl.secao_barra_redonda(mfg.DIAM_BRACO / 1000.0))
         _mf = cl.verifica_braco(
             Msd=abs(cbm_v["Msd"]), h0=_h0, Lbb=Lb_raf, L_braco=_Lbr,
-            ang_graus=45.0, fy=params["fy"],
-            sec=cl.secao_barra_redonda(mfg.DIAM_BRACO / 1000.0))
+            ang_graus=45.0, fy=params["fy"], sec=_sec_br)
+        res["mf_peca_secao"] = _sec_br["nome"]
         save("gate7b-mao-francesa-peca.txt", cl.relatorio_pt(_mf))
         res["mf_peca_ok"] = bool(_mf["ok"])
         # float() explicito: Msd pode vir como np.float64 do frame2d e o repr de
