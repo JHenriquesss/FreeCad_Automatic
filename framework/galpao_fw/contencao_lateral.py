@@ -98,16 +98,21 @@ def secao_barra_redonda(d):
 
 
 def qs_cantoneira_simples(b_t, fy):
-    """Anexo F / Tabela F.1 - ABA DE CANTONEIRA SIMPLES (elemento AL, Grupo 2):
+    """Anexo F / Tabela F.1 - ABA DE CANTONEIRA SIMPLES (elemento AL):
         (b/t)lim = 0,45.raiz(E/fy) ; (b/t)sup = 0,91.raiz(E/fy)
         Qs = 1,0                                   se b/t <= lim
         Qs = 1,340 - 0,76 (b/t) raiz(fy/E)         se lim < b/t <= sup
         Qs = 0,53 E / ((b/t)^2 fy)                 se b/t > sup
-    Fonte: citacao literal "Grupo 2 da Tabela 7.3 (aba de cantoneira simples ou
-    cantoneiras multiplas com chapas espacadoras)". Ha uma linha VIZINHA para
-    "abas de cantoneiras ligadas continuamente" com limite 0,56 - MAIOR, logo
-    menos restritiva. Usar 0,45 e a escolha CONSERVADORA e e a que corresponde a
-    cantoneira simples ligada por uma aba, que e o caso da mao-francesa.
+
+    GRUPO - CUIDADO COM AS DUAS NUMERACOES (me confundiu uma vez):
+      NBR 8800 Tabela F.1, GRUPO 3 (texto literal): "Abas de cantoneiras simples
+      ou multiplas providas de chapas de travejamento" -> 0,45.raiz(E/fy).
+      O livro do Fakury chama o MESMO caso de "Grupo 2 da Tabela 7.3". Numeracoes
+      diferentes, mesmo valor.
+
+    A linha VIZINHA (NBR Tabela F.1 GRUPO 4) - "Abas de cantoneiras ligadas
+    CONTINUAMENTE ou projetadas de secoes I, H, T ou U" - usa 0,56.raiz(E/fy),
+    MAIOR/menos restritiva. Nao e o caso: a mao-francesa e cantoneira SIMPLES.
     """
     rE = math.sqrt(E / fy)
     lim, sup = 0.45 * rE, 0.91 * rE

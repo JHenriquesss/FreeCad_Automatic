@@ -75,12 +75,21 @@ def test_degrau_no_limite_e_da_norma_nao_da_implementacao():
     assert logo_acima < 1.0                      # o degrau e para BAIXO (a favor)
 
 
-def test_qs_usa_o_limite_conservador():
-    """Ha uma linha VIZINHA na Tabela F.1 para 'abas ligadas continuamente' com
-    0,56 (MAIOR = menos restritiva). Cantoneira simples usa 0,45."""
+def test_qs_usa_a_linha_da_cantoneira_simples():
+    """NBR 8800 Tabela F.1 GRUPO 3, literal: 'Abas de cantoneiras simples ou
+    multiplas providas de chapas de travejamento' -> 0,45.raiz(E/fy).
+    A linha VIZINHA (GRUPO 4) e 'abas ligadas CONTINUAMENTE' -> 0,56, menos
+    restritiva, e NAO se aplica a mao-francesa.
+
+    ARMADILHA DAS DUAS NUMERACOES: o livro do Fakury chama o mesmo caso de
+    'Grupo 2 da Tabela 7.3'. Cheguei a documentar 'Grupo 2' citando a NBR, o que
+    apontaria para 'almas de secoes I, H ou U' (1,49) - outro elemento. O VALOR
+    estava certo; a referencia e que estava trocada."""
     src_cl = open(os.path.join(GALPAO, "contencao_lateral.py"), encoding="utf-8").read()
     assert "0.45 * rE" in src_cl
     assert "0.91 * rE" in src_cl
+    assert "GRUPO 3" in src_cl, "a referencia normativa do grupo se perdeu"
+    assert "1.49" not in src_cl.split("def qs_cantoneira_simples")[1].split("def ")[0]
 
 
 # ---- secao para o gate ----------------------------------------------------
