@@ -38,10 +38,16 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     RP.calcular(spec, str(tmp_path))
     est = spec["estrutura"]
     g = spec["geometria"]
-    # modelo PURO: contagem de tercas de cobertura
+    # modelo PURO: contagem de tercas de cobertura + girts de parede
     geo = {"span": g["span"], "spans": g.get("spans"), "comprimento": g["comprimento"],
            "eave": g["eave"], "ridge": g["ridge"], "bay": g["bay"], "raf_d": 0.3}
     n_puro = len(MN.tercas(geo, est["n_terca"], _terca_sec(est)))
+    ld = est.get("longarina_dims")
+    import perfis
+    col_d = (perfis.PERFIS.get(est.get("perfil_col_adotado"), {}) or {}).get("d", 0.0)
+    gsec = ({"nome": "U", "forma": "U", "d": ld[0] / 1000.0, "bf": ld[1] / 1000.0,
+             "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0} if ld else None)
+    n_girt_puro = len(MN.girts(geo, gsec, col_d)) if gsec else 0
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -55,7 +61,8 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "doc=App.ActiveDocument\n"
             "nt=sum(1 for o in doc.Objects if o.Name.startswith('TERCA_S') "
             "or o.Name.startswith('TERCA_BEIRAL'))\n"
-            "open(%r,'w').write(json.dumps({'nt':nt}))\n" % (bk, stf))
+            "ng=sum(1 for o in doc.Objects if o.Name.startswith('TERCA_PAREDE'))\n"
+            "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng}))\n" % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
     bp.write(boot); bp.close()
@@ -63,8 +70,13 @@ def test_terca_puro_bate_com_o_build(tmp_path):
                    stderr=subprocess.DEVNULL, timeout=600)
     os.unlink(bp.name)
     assert os.path.exists(stf), "build nao gerou o cross-check"
-    n_build = json.load(open(stf))["nt"]
+    d = json.load(open(stf))
 
-    assert n_puro == n_build, (
+    assert n_puro == d["nt"], (
         "tercas do modelo_neutro (%d) divergem do build_galpao (%d) - a logica de "
-        "colocacao das tercas mudou num lado so" % (n_puro, n_build))
+        "colocacao das tercas mudou num lado so" % (n_puro, d["nt"]))
+    # girts: valido so sem porta lateral (que segmentaria a parede no build)
+    if not spec.get("aberturas", {}).get("porta_lateral"):
+        assert n_girt_puro == d["ng"], (
+            "girts do modelo_neutro (%d) divergem do build_galpao (%d)"
+            % (n_girt_puro, d["ng"]))

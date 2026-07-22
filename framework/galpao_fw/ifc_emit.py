@@ -68,12 +68,17 @@ def _perfil_ifc(m, nome, s, esc):
     forma = str(s.get("forma", "")).upper()
     h = float(s.get("d") or s.get("h") or 0.0) * esc
     bf = float(s.get("bf") or 0.0) * esc
-    if forma == "C" or s.get("lip") is not None:
+    if forma == "C" or s.get("lip") is not None:      # formado a frio Ue (com labio)
         t = float(s.get("t") or s.get("tw") or 0.0) * esc
         lip = float(s.get("lip") or 0.0) * esc
         return m.create_entity("IfcCShapeProfileDef", ProfileType="AREA",
                                ProfileName=nome, Depth=h, Width=bf, WallThickness=t,
                                Girth=lip)
+    if forma == "U":                                  # perfil U / canaleta (UPE) girt
+        return m.create_entity("IfcUShapeProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Depth=h, FlangeWidth=bf,
+                               WebThickness=float(s.get("tw") or 0.0) * esc,
+                               FlangeThickness=float(s.get("tf") or 0.0) * esc)
     return m.create_entity("IfcIShapeProfileDef", ProfileType="AREA", ProfileName=nome,
                            OverallWidth=bf, OverallDepth=h,
                            WebThickness=float(s.get("tw") or 0.0) * esc,
@@ -156,8 +161,16 @@ def emitir_ifc_do_spec(spec, path):
         terca_sec = {"nome": est.get("terca_perfil") or "Terca", "forma": "C",
                      "d": td[0] / 1000.0, "bf": td[1] / 1000.0,
                      "lip": td[2] / 1000.0, "t": td[3] / 1000.0}
+    # girts de parede (longarina U), se o calculo forneceu longarina_dims
+    ld = est.get("longarina_dims")                    # [h, bf, tw, tf] em mm
+    girt_sec = None
+    if ld and len(ld) >= 4:
+        girt_sec = {"nome": est.get("longarina_perfil") or "Girt", "forma": "U",
+                    "d": ld[0] / 1000.0, "bf": ld[1] / 1000.0,
+                    "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0}
     membros = MN.frame_completo(geo, {"col": col, "raf": raf},
-                                n_terca=n_terca, terca_sec=terca_sec)
+                                n_terca=n_terca, terca_sec=terca_sec,
+                                girt_sec=girt_sec, col_d=col.get("d"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 

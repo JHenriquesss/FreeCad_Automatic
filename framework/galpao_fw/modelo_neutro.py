@@ -104,16 +104,49 @@ def tercas(geometria, n_terca, terca_sec):
     return ms
 
 
-def frame_completo(geometria, secoes, n_terca=None, terca_sec=None):
+GIRT_Z_MM = (2000.0, 4000.0)                          # niveis dos girts (mm) - espelha o build
+
+
+def girts(geometria, girt_sec, col_d=0.0):
+    """Girts de parede (longarinas): U LONGITUDINAIS em 2 niveis (GIRT_Z_MM), nas 2
+    paredes longitudinais (y = -GOFF e y = SPAN + GOFF, GOFF = col_d/2 + girt_d/2 =
+    girt contra a mesa do pilar). Perfil U (UPE). Espelha o build_galpao
+    (TERCA_PAREDE), caso comum sem porta lateral (que segmentaria a parede). Niveis
+    acima do beiral sao descartados. col_d e a altura do pilar (m)."""
+    if not girt_sec:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"])
+    eave = float(geometria["eave"])
+    span_tot = sum(spans)
+    girt_d = float(girt_sec.get("d") or girt_sec.get("h") or 0.0)
+    goff = col_d / 2.0 + girt_d / 2.0
+    nome = girt_sec.get("nome", "Girt")
+    ms = []
+    for z_mm in GIRT_Z_MM:
+        if z_mm > eave * MM:                          # girt acima do beiral -> nao existe
+            continue
+        for y in (-goff, span_tot + goff):
+            ms.append({"marca": "G1", "perfil": nome, "tipo": "Member",
+                       "p1": (0.0, y * MM, z_mm), "p2": (comp * MM, y * MM, z_mm),
+                       "secao": girt_sec})
+    return ms
+
+
+def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
+                   girt_sec=None, col_d=None):
     """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
-    terca_sec). Secundarios restantes (tirantes, contraventamento, chapas) e escopo
-    das proximas iteracoes."""
+    terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
+    escopo das proximas iteracoes."""
     ms = frame_primario(geometria, secoes)
     if n_terca and terca_sec:
-        # a altura do rafter alimenta o assento das tercas
-        geo = dict(geometria)
+        geo = dict(geometria)                         # altura do rafter -> assento
         geo.setdefault("raf_d", (secoes.get("raf") or {}).get("d", 0.0))
         ms += tercas(geo, n_terca, terca_sec)
+    if girt_sec:
+        cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
+        ms += girts(geometria, girt_sec, cd)
     return ms
 
 

@@ -95,5 +95,33 @@ def test_frame_completo_sem_terca_igual_primario():
     assert MN.resumo(MN.frame_completo(geo, _SEC)) == MN.resumo(MN.frame_primario(geo, _SEC))
 
 
+_GIRT = {"nome": "UPE140", "forma": "U", "d": 0.140, "bf": 0.065, "tw": 0.005, "tf": 0.009}
+
+
+def test_girts_dois_niveis_duas_paredes():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    g = MN.girts(geo, _GIRT, col_d=0.5)
+    assert len(g) == 2 * 2                              # 2 niveis (2/4 m) x 2 paredes
+    assert all(m["tipo"] == "Member" for m in g)
+    # longitudinais (X 0->comp), Y = -GOFF e SPAN+GOFF
+    ys = sorted({round(m["p1"][1], 1) for m in g})
+    goff = (0.5 / 2 + 0.140 / 2) * 1000.0
+    assert abs(ys[0] + goff) < 1e-3 and abs(ys[-1] - (20000.0 + goff)) < 1e-3
+
+
+def test_girts_descarta_nivel_acima_do_beiral():
+    # beiral 3 m: o nivel de 4 m nao existe -> so o de 2 m (x2 paredes)
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 3.0, "ridge": 4.0, "bay": 5.0}
+    assert len(MN.girts(geo, _GIRT, col_d=0.5)) == 2
+
+
+def test_frame_completo_com_girts():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, n_terca=5, terca_sec=_TERCA, girt_sec=_GIRT,
+                          col_d=0.5)
+    r = MN.resumo(M)
+    assert r["Member"] == 10 + 4                        # 10 tercas + 4 girts
+
+
 def test_selftest_modulo():
     MN._selftest()
