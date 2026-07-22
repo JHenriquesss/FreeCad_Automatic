@@ -1990,6 +1990,54 @@ def takeoff(doc):
             "elementos": len(rows), "por_grupo": resumo, "por_marca": por_marca}
 
 
+def _export_ifc(doc):
+    """Exporta o modelo em IFC4 (BIM) reusando o exportador NATIVO do FreeCAD
+    (`exportIFC`) + `ifcopenshell`, ambos EMBUTIDOS no FreeCAD 1.1. Tipa cada peca
+    pelo nome (_ifc_tipo) -> abre no Revit/Eberick com a categoria correta e a
+    marca no nome. O modulo do BIM nao esta no sys.path do freecadcmd/bridge
+    headless, entao prependa o dir. Best-effort: sem BIM disponivel -> None (nao
+    quebra o build). Item 1 do roteiro de interoperabilidade: IFC de graca reusando
+    o 3D ja construido."""
+    import sys
+    os.makedirs(f"{EXPORT_DIR}/ifc", exist_ok=True)
+    ifc = f"{EXPORT_DIR}/ifc/{DOC_NAME}.ifc"
+    home = App.getHomePath()
+    for sub in ("Mod/BIM/importers", "Mod/BIM", "Mod"):
+        p = os.path.join(home, *sub.split("/"))
+        if os.path.isdir(p) and p not in sys.path:
+            sys.path.insert(0, p)
+    try:
+        import exportIFC
+        import ifc_map                              # mapa puro nome->IfcType (irmao)
+    except Exception as e:
+        App.Console.PrintWarning("IFC indisponivel (BIM ausente): %s\n" % e)
+        return None
+    # forca esquema IFC4 (evita prompt e garante tipos modernos)
+    try:
+        App.ParamGet("User parameter:BaseApp/Preferences/Mod/BIM").SetString(
+            "IfcVersion", "IFC4")
+    except Exception:
+        pass
+    objs = [o for o in doc.Objects if hasattr(o, "Shape")
+            and not o.Shape.isNull() and o.Shape.Volume > 0]
+    for o in objs:                                 # tipa cada peca p/ o Revit
+        t = ifc_map.ifc_tipo(o.Name)
+        if not t:
+            continue
+        try:
+            if not hasattr(o, "IfcType"):
+                o.addProperty("App::PropertyString", "IfcType", "IFC")
+            o.IfcType = t
+        except Exception:
+            pass
+    try:
+        exportIFC.export(objs, ifc)
+        return ifc if (os.path.exists(ifc) and os.path.getsize(ifc) > 0) else None
+    except Exception as e:
+        App.Console.PrintWarning("IFC export falhou: %s\n" % e)
+        return None
+
+
 def export(doc):
     os.makedirs(f"{EXPORT_DIR}/freecad", exist_ok=True)
     os.makedirs(f"{EXPORT_DIR}/step", exist_ok=True)
@@ -1997,7 +2045,8 @@ def export(doc):
     step = f"{EXPORT_DIR}/step/{DOC_NAME}.step"
     doc.saveAs(fcstd)
     Part.export([o for o in doc.Objects if hasattr(o, "Shape")], step)
-    return fcstd, step
+    ifc = _export_ifc(doc)                         # IFC4 BIM (best-effort)
+    return fcstd, step, ifc
 
 
 def capturar_vistas(doc):
@@ -2094,7 +2143,7 @@ def run():
     if TERRENO_PTS:                                 # lote depois do takeoff/clash
         desenha_terreno(doc, TERRENO_PTS)
         doc.recompute()
-    fcstd, step = export(doc)
+    fcstd, step, ifc = export(doc)
     count = len([o for o in doc.Objects if hasattr(o, "Shape")])
     geo = verificar_geometria(doc)
     vistas = capturar_vistas(doc)
@@ -2108,7 +2157,7 @@ def run():
             "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
              "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
              "por_grupo": tk["por_grupo"], "por_marca": tk["por_marca"], "csv": tk["csv"],
-             "fcstd": fcstd, "step": step,
+             "fcstd": fcstd, "step": step, "ifc": ifc,
              "geometria": geo}
 
 

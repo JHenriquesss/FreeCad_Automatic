@@ -171,6 +171,8 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
     if isinstance(resm, dict) and resm.get("por_marca"):
         spec.setdefault("estrutura", {})["por_marca"] = resm["por_marca"]  # lista de corte/marcas
+    if isinstance(resm, dict) and resm.get("ifc"):
+        spec.setdefault("estrutura", {})["ifc"] = resm["ifc"]  # entregavel BIM (IFC4 p/ Revit)
     return r
 
 
