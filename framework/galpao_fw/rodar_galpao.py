@@ -238,7 +238,8 @@ def rodar(params, out_dir):
         rc = cons.verifica_console({
             "Rv": reac["R_vertical_kN"], "Ht": reac.get("H_transversal_kN", 0.0),
             "ecc": pcfg.get("excentricidade", 0.30), "t": 0.016, "L": 0.45,
-            "fy": params["fy"], "fu": params.get("fu", 400e3)})
+            "fy": params["fy"], "fu": params.get("fu", 400e3),
+            "n_ciclos": reac.get("n_ciclos")})     # fadiga da solda (Anexo K cat.F)
         save("gate7-console.txt", cons.relatorio_pt(rc))
         res["console_adotado"] = rc["adotado"]
         res["console_u_max"] = rc["u_max"]

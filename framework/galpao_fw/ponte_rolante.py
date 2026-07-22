@@ -116,19 +116,30 @@ def limite_flecha_vertical(cap_kN, siderurgica):
 
 
 # NBR 8800 Tabela K.1 - parametros de fadiga (valores lidos do PDF, nao de
-# memoria): (Cf [x10^8], sigma_TH [MPa]). Categorias tipicas da viga de rolamento
+# memoria): (Cf, sigma_TH [MPa]). Categorias tipicas da viga de rolamento
 # soldada: B = metal-base junto a solda longitudinal continua (mesa-alma);
 # C = enrijecedores/ligacoes transversais soldadas; A = metal-base sem solda.
+# F = CISALHAMENTO na garganta de filetes (Tab.K.1 item 8.2; Cf=150e10,
+#     sigma_TH=55): usa a formula K.4b (expoente 0,167), nao a K.4a.
 _FADIGA_K1 = {
     "A": (250e8, 165.0), "B": (120e8, 110.0), "B'": (61e8, 83.0),
     "C": (44e8, 69.0), "D": (22e8, 48.0), "E": (11e8, 31.0), "E'": (3.9e8, 18.0),
+    "F": (150e10, 55.0),
 }
 
 
 def faixa_admissivel_fadiga(cat, N):
-    """NBR 8800 K.4a: sigma_SR = (327*Cf/N)^0,333 >= sigma_TH [MPa].
-    Cf e sigma_TH da Tabela K.1 ; N = numero de ciclos na vida util."""
+    """Faixa admissivel de variacao de tensoes (NBR 8800 Anexo K, Tabela K.1):
+      K.4a (cat A..E'): sigma_SR = (327*Cf/N)^0,333 >= sigma_TH [MPa]
+      K.4b (cat F, cisalhamento na garganta de filete): sigma_SR =
+            (11e4*Cf/N)^0,167 >= sigma_TH [MPa]
+    Cf e sigma_TH da Tabela K.1 ; N = numero de ciclos na vida util. Cat.F tem
+    crossover ~6e6 ciclos: N<6e6 a parte inclinada governa (>55); N>=~6e6 o piso
+    sigma_TH=55 MPa. O fator 11e4 e consistente com o 327 da K.4a (327^2~=1,07e5,
+    pois o expoente F 0,167 e ~metade do 0,333)."""
     Cf, sTH = _FADIGA_K1[cat]
+    if cat == "F":                                   # K.4b: cisalhamento (filete)
+        return max((11.0e4 * Cf / N) ** 0.167, sTH)
     return max((327.0 * Cf / N) ** (1.0 / 3.0), sTH)
 
 
@@ -302,6 +313,11 @@ def analisa(cfg):
     viga = verifica_viga_rolamento(cfg["perfil_viga"], cfg["fy"], vcfg)
     reac = reacao_no_portico(Rmx, cfg["n_rodas_lado"], Ht, Hl,
                              cfg.get("excentricidade", 0.30), R_roda_min=Rmn)
+    # n de ciclos para a FADIGA da solda do CONSOLE (mesma classe B da viga; NBR
+    # 8400 Tab.9). R_vertical_kN ja e a reacao de SERVICO (sem impacto phi) -> serve
+    # de faixa de variacao para o Anexo K (a reacao vai de ~0 a Rv quando a ponte
+    # passa). Propagado no reac p/ o console_ponte fechar a fadiga da ligacao.
+    reac["n_ciclos"] = n_ciclos_fad
     return esf, viga, reac
 
 
