@@ -463,6 +463,24 @@ def rodar(params, out_dir):
     save("gate7-empocamento.txt", emp.relatorio_pt(r_emp))
     res["empocamento_incl_pct"] = round(r_emp["incl_pct"], 2)
     res["empocamento_ok"] = r_emp["OK"]
+    # Gate 7 - TORCAO da coluna externa (NBR 8800 5.5.2.3): a fachada de fechamento
+    # pendura nas mesas externas das colunas -> carga vertical EXCENTRICA -> torque.
+    # e = d_col/2 (revestimento na mesa externa); Tsd ~ torque_dist * eave (coluna
+    # com base que restringe a torcao, conservador). Perfil aberto -> verifica por
+    # tensoes; se nao desprezivel, exige analise de flexo-torcao (empenamento).
+    import torcao_nbr8800 as tor
+    _wc = (params.get("parede") or {}).get("w_col_kN_m", 0.0)
+    _pc = sc.get("perfil_col") or {}
+    if _wc and _pc:
+        _e = _pc["d"] / 2.0                          # excentricidade ~ meia altura da coluna
+        _Tsd = tor.torque_carga_excentrica(_wc, _e) * g["eave"]    # kN.m (base restringe)
+        _J, _tmax = tor.J_perfil_I(_pc["bf"], _pc["tf"], _pc["d"], _pc["tw"])
+        r_tor = tor.verifica_torcao_aberta(_Tsd, _J, _tmax, params["fy"])
+        save("gate7-torcao.txt", "TORCAO COLUNA EXTERNA (fachada excentrica, "
+             "NBR 8800 5.5.2.3)\n  Tsd=%.2f kN.m ; %s\n  RESULTADO: %s"
+             % (_Tsd, r_tor["flag"], "ATENDE" if r_tor["OK"] else "NAO ATENDE"))
+        res["torcao_col_Tsd"] = round(_Tsd, 2)
+        res["torcao_col_ok"] = r_tor["OK"]
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
                        comp_a=g.get("comprimento", 2 * g["span"]))
@@ -1473,6 +1491,8 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
                   ("Empocamento (9.3)", None if "empocamento_ok" not in res
                    else (0.0 if res["empocamento_ok"] else 1.99)),
+                  ("Torcao col. (5.5.2)", None if "torcao_col_ok" not in res
+                   else (0.0 if res["torcao_col_ok"] else 1.99)),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
