@@ -1246,9 +1246,22 @@ def build(doc):
     # tirantes presos nela), nao a coluna: face externa da girt = d/2 + altura da
     # girt. Derivar so da coluna deixava a calha sobre a linha dos tirantes
     # (20 interferencias CALHA x TIRANTE).
-    GUT_Y = COL_SEC[0] / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0 + 30.0
+    # COLUNA TAPERED (alma variavel): e MAIS FUNDA no joelho (h_joelho, no beiral,
+    # em Y apos o fix do eixo forte) do que a secao nominal COL_SEC. A calha fica em
+    # EAVE_H, exatamente onde a coluna e mais funda: usar COL_SEC[0]/2 deixava a
+    # calha/bocal/condutor sobre o topo da coluna (22 interferencias CALHA/BOCAL/
+    # CONDUTOR x PORTICO). Derivar da meia-altura MAIS FUNDA no beiral.
+    _col_d_beiral = COL_SEC[0]
+    if TAPERED_MODEL and TAPERED_MODEL.get("h_col_base") is not None:
+        _col_d_beiral = max(_col_d_beiral, float(TAPERED_MODEL["h_joelho"]))
+    GUT_Y = _col_d_beiral / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0 + 30.0
     # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
-    DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
+    # O EIXO do tubo tem que ficar alem da borda da chapa (L/2) por pelo menos o
+    # RAIO do tubo (CONDUTOR_D/2) + folga - senao a parede do condutor invade a
+    # chapa. O 70 fixo anterior cobria o raio de um Ø100 (r=50) mas NAO de um Ø150
+    # do calc (r=75): a parede penetrava a chapa em 5 mm (6 interferencias
+    # PLACA_BASE x CONDUTOR nas bases sob os 3 condutores).
+    DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + CONDUTOR_D / 2.0 + 40.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
     # AMBAS as calhas abrem PARA CIMA (boca +Z) -> roll=+90 nos dois lados. roll=-90
     # invertia a calha do lado D (boca para baixo); o boundbox e simetrico, entao o
