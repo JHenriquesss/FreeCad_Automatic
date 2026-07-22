@@ -10,11 +10,59 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **T17 sessão 16 (revisão do #44 APROVADA)**, T16 caça, T15 correções, backlog
+- [[06-open-threads]] — **T20 sessão 18 (revisão do PR #49 APROVADA)**, T19 sessão 18 (PR #47), T18 sessão 17, backlog
 
-> Wiki mantida na estrutura do skill (00–06). Relatórios de trabalho (`07-review-results`, `PR_44_Review`) foram **consolidados aqui e removidos** — precedente: 2026-07-15 (07-/08-/review_completo).
+> Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 
-## Estado atual (2026-07-21) — Sessão 16: mão-francesa fecha, 4 varreduras sistemáticas
+
+## Estado atual (2026-07-22) — Sessão 18: Guarda de Build 3D Agendada (PR #49) e Fix de Interferência 3D (PR #48)
+Automação de processo CI local e correção de interferência 3D. **PR #49 REVISADO E APROVADO COM LOUVOR** (S18). **714 testes verdes** (incluindo os 9 testes de build 3D com a suíte completa).
+Tema central: **"guarda periódica da suíte de build 3D contra regressões silenciosas de interferência de peças"**.
+- **PR #48 (fix de interferência 3D calha/condutor):**
+  - **`CONDUTOR × PLACA_BASE` (tesoura):** afastamento dinâmico $DOWN\_Y = L/2 + CONDUTOR\_D/2 + 40$ mm (raio do tubo + folga) corrigindo invasão do tubo Ø150 (NBR 10844). [[04-decisions#D71]]
+  - **`CALHA/BOCAL/CONDUTOR × COLUNA` (tapered):** $GUT\_Y$ derivado de $\max(COL\_SEC[0], TAPERED\_MODEL[\text{"h\_joelho"}])$ evitando sobreposição no beiral. [[04-decisions#D71]]
+  - **Resultado:** `pytest -m build` passa de 7 passed + 2 failed para **9 passed em 9**.
+- **PR #49 (job periódico da suíte de build 3D):**
+  - **`tools/run_build_suite.ps1`:** runner PowerShell que executa `pytest -m build`, grava logs em `tools/build-logs/build_stamp.log` e atualiza `LATEST.txt`. Isolado via `freecadcmd.exe` sem interferir na sessão GUI/bridge. [[04-decisions#D72]]
+  - **`tools/register_build_task.ps1`:** registra a tarefa agendada do Windows `GalpaoFW-BuildSuite` (Weekly, Domingo 03:00 default) idempotente com suporte a `-Remover`. [[04-decisions#D72]]
+  - **`tools/README.md` & `.gitignore`:** documentação e exclusão de logs locais. [[04-decisions#D72]]
+- **Revisão técnica do PR #49: APROVADO COM LOUVOR** (executado e verificado ao vivo; detectou falha sem o fix do #48 e passou verde com o fix). [[03-phases]], [[06-open-threads#T20]]
+
+
+## Estado anterior (2026-07-22) — Sessão 18: Plano de Montagem e Escoramento (PR #47)
+Último item do turnkey (fase de OBRA). **PR #47 REVISADO E APROVADO COM LOUVOR** (S18). **714 testes verdes**.
+- **Módulo puro `montagem.py` (SI, headless) + Gate 8 + Prancha PE16_MONTAGEM:**
+  - Sequência de 10 passos (Bellei 7.6.4), guindaste $\gamma_{imp}=1,10$ (4.2.6), estai provisório $T=F/(n\cos\alpha)$, $\gamma_{f3}=1,30$ (4.9.6.5), prumo $\max(H/500, 5\text{ mm})$. Prancha PE16. [[04-decisions#D70]]
+
+  - **Guindaste e içamento (`guindaste_requerido`):** peça mais pesada $\times$ coef. de impacto $\gamma_{imp}=1,10$ (NBR 8800 4.2.6) $\rightarrow$ momento de carga ($t\cdot m$). Considera rafter **pré-montado no solo** (2 meias-águas), que governa a tonelagem. [[04-decisions#D70]]
+  - **Estai provisório (`estai_provisorio`):** tração no cabo $T = F / (n \cdot \cos\alpha)$, compressão adicional na coluna e força de ancoragem na fundação $N = T \cdot \sin\alpha$. [[04-decisions#D70]]
+  - **Vento de montagem (`forca_lateral_montagem`):** aplica fator de combinação de construção $\gamma_{f3} = 1,30$ (NBR 8800 4.9.6.5). [[04-decisions#D70]]
+  - **Prumo de montagem (`tolerancia_prumo_montagem`):** $\max(H/500, 5\text{ mm})$ por coluna, teto $25\text{ mm}$ global (NBR 8800 12.3.3.1.1). [[04-decisions#D70]]
+  - **Graceful degradation (Ask-do-not-invent):** parâmetros de canteiro ausentes degradam para "A CONFIRMAR" sem inventar dados. [[04-decisions#D70]]
+  - **Prancha PE16_MONTAGEM:** apêndice de procedimento com 4 quadros estruturados (Sequência, Guindaste, Estaiamento, Prumo) e notas NBR 8800. [[04-decisions#D70]]
+- **Revisão técnica do PR #47: APROVADO COM LOUVOR** (verificado contra NBR 8800 1.10/4.2.6/4.4/4.9.6.5/12.3/AISC 303 via NotebookLM; 12 novos testes verdes em `test_montagem.py`). [[03-phases]], [[06-open-threads#T19]]
+
+
+## Estado anterior (2026-07-22) — Sessão 17: Gaps Nível A/C + Bloco de Fabricação 3D/2D + Diafragma (PRs #45 e #46 MERGED)
+Trabalho via PRs empilhados. **PRs #45 e #46 REVISADOS, APROVADOS E MERGEADOS em `main`** (S17). **702 testes verdes**.
+Tema central: **"gaps normativos contra-segurança + entregáveis de fabricação 3D/2D"**.
+- **PR #45 (gaps Nível A/C + wizard + romaneio):**
+  - **Fadiga da solda do console** (NBR 8800 Anexo K cat. F / NBR 8400 Tab. 9): adicionada cat. F ($C_f=150\times 10^{10}, \sigma_{TH}=55\text{ MPa}$, eq. K.4b $\Delta\sigma=(11\times 10^4 C_f/N)^{0,167}$). Perna da solda dimensionada por estática **E** fadiga simultaneamente. [[04-decisions#D68]]
+  - **Força de atrito do vento** (NBR 6123 6.4): $F'_{at}$ no telhado + 2 paredes longitudinais ($L_{ef}$ descontando a 1ª faixa) soma no contraventamento longitudinal. [[04-decisions#D68]]
+  - **Pattern loading / carga em xadrez** (NBR 8681): cargas alternadas $Q_a/Q_b$ e combos $C2_{xadrez}$ capturam momento de desequilíbrio na coluna interna de pórticos multi-vão. [[04-decisions#D68]]
+  - **Empocamento progressivo** (NBR 8800 9.3): gate geométrico ($\ge 3\%$ dispensa, $<3\%$ reprova exigindo análise incremental). [[04-decisions#D68]]
+  - **Torção e efeitos combinados** (NBR 8800 5.5.2): tubular retangular (3 regimes $T_{rd}$ + interação quadrtica 5.5.2.2); perfil aberto I/U por tensões de Saint-Venant (gate de empenamento/flexo-torção se $\tau_t > 0,20\tau_{Rd}$). [[04-decisions#D68]]
+  - **Wizard tipo de ligação + Romaneio:** pergunta soldada/parafusada (default soldada, normalizada e validada), nota técnica 5/6 da PE09 atualizada; romaneio preliminar com marcas de peça ($C1, V1..Vn$) do cálculo. [[04-decisions#D68]]
+- **PR #46 (fabricação 3D/2D + diafragma NBR 15421):**
+  - **Piece marks 3D (`marcas_peca.py`):** grava propriedade `Marca` no FCStd/BIM por categoria/perfil ($C1, V1, T1, TP1, PB1...$); `por_marca` extrai comprimento de CORTE unitário. [[04-decisions#D69]]
+  - **Quadro unificado de materiais / Lista de corte na PE09:** tabela única `Q09M` (MARCA | ELEMENTO | PERFIL | QTD | CORTE(m) | MASSA(kg)) com cadeia de fallback sem sobreposição. [[04-decisions#D69]]
+  - **Quadro de tolerâncias (`tolerancias_fabricacao.py`):** tabela `Q09T` na PE09 com tolerâncias de fabricação/montagem (NBR 8800 / Bellei) e folga do furo-padrão ($d_b<24\text{ mm}\rightarrow +1,5\text{ mm}$; $d_b\ge 24\text{ mm}\rightarrow +2,0\text{ mm}$). [[04-decisions#D69]]
+  - **Shop drawings por peça (PE14 CROQUIS DE FABRICAÇÃO):** nova 14ª prancha com vistas projetadas em 3 colunas A1 por peça principal ($C1, V1, MI1$), rótulo com corte e notas AWS. [[04-decisions#D69]]
+  - **Efeito de diafragma da cobertura (`diafragma.py`):** classificação NBR 15421 8.3.2 (deflexão no plano $>2\times\text{drift}_{médio}\rightarrow$ FLEXÍVEL), validando a distribuição tributária que o 2D adota; suporte a diafragma RÍGIDO (rigidez + torção). [[04-decisions#D69]]
+- **Revisão técnica dos PRs #45 e #46: APROVADOS E MERGEADOS** (702 testes verdes, zero erros normativos ou de métodos). [[03-phases]], [[06-open-threads#T18]]
+
+
+## Estado anterior (2026-07-21) — Sessão 16: mão-francesa fecha, 4 varreduras sistemáticas
 Trabalho em `main` via PRs. **PRs #40–#44 abertos/mergeados** (S16). **643 testes** (652 − 9 `build`).
 Tema central: **"o cálculo/modelo decide, o entregável não vê"** — 4 varreduras sistemáticas
 acharam 8+ defeitos, todos na periferia (geometria de desenho, rótulos, textos), motor OK.
@@ -130,6 +178,13 @@ zero pendente.** 8 alegações de erro grave refutadas com o PDF (imagens via Se
 1 bug real acolhido. **21 módulos matemáticos.** **PENDENTE gate humano:** merge PR #1+#4;
 **push da branch** (bloqueado p/ assistente → usuário roda `git push`). [[06-open-threads]].
 
+last-consolidated: 2026-07-22, sessions: 18 (+ SESSÃO 17: gaps normativos Nível A/C [fadiga
+console/atrito vento/pattern loading/empoçamento/torção, D68 PR #45] + wizard soldada/parafusada +
+FABRICAÇÃO 3D/2D [piece marks, lista de corte, tolerâncias, PE14 croquis, D69 PR #46] + diafragma
+NBR 15421 [D69]; SESSÃO 18: plano de montagem/escoramento [montagem.py, gate8, PE16, NBR 8800
+12.3+AISC 303, D70 PR #47] + FIX interferência 3D calha/condutor×chapa e coluna tapered [28 interf.
+pré-existentes que os testes `build` DESELECTED escondiam, D71 PR #48] + guarda de build agendada
+[tools/, tarefa Windows semanal, D72 PR #49]. 714 testes [705 non-build + 9 build]. T19/T20)
 last-consolidated: 2026-07-21, sessions: 16 (+ SESSÃO 16: mão-francesa completa [pontas p/ fora
 #41; barra redonda→cantoneira do eng. verificada NBR 8800 4.11.3.4+E.1.4.2+5.3.2; propriedades
 por forma fechada validada Green 1e-9; amostra ATENDE]; 4 varreduras sistemáticas [interpenetração

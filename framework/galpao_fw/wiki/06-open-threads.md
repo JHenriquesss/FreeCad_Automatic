@@ -1,7 +1,58 @@
 # 06 — Open threads
 
+## T20 — Sessão 18 (2026-07-22): Job Periódico da Suíte de Build 3D — REVISÃO PR #49 APROVADA
+PR #49 (`chore/ci-build-suite-agendada`). Detalhe técnico em [[04-decisions#D72]]. **714 testes verdes** (incluindo os 9 de build 3D).
+
+**FECHADO nesta sessão:**
+- **Job de build agendado (guarda de geometria 3D):**
+  - Runner `tools/run_build_suite.ps1` (isola `freecadcmd`, executa `pytest -m build`, gera log com timestamp em `tools/build-logs/` e `LATEST.txt`).
+  - Agendador `tools/register_build_task.ps1` (registra a tarefa agendada do Windows `GalpaoFW-BuildSuite`, Weekly Domingo 03:00 default).
+  - Documentação em `tools/README.md` e exclusão no `.gitignore`.
+- **Revisão técnica do PR #49: APROVADO COM LOUVOR** (testado e exercitado ao vivo; detectou falha corretamente antes do fix do PR #48 e rodou 100% verde após o fix).
+
+**ABERTO (decisão do usuário):**
+- **Merge no GitHub:** realizar o merge do PR #49 na `main`.
+
+## T19 — Sessão 18 (2026-07-22): Plano de Montagem e Escoramento — REVISÃO PR #47 APROVADA
+PR #47 (`feat/plano-montagem-escoramento`). Detalhe técnico em [[04-decisions#D70]]. **714 testes verdes** (705 pytest + 9 deselected `build`).
+
+**FECHADO nesta sessão:**
+- **Plano de montagem e escoramento (fase de OBRA):**
+  - Módulo puro `montagem.py` (SI, headless).
+  - Sequência de montagem (10 passos Bellei 7.6.4), exigindo estaiamento prévio do 1º pórtico antes de desacoplar o guindaste.
+  - Içamento e guindaste: rafter pré-montado no solo (2 meias-águas) governa a tonelagem; coef. de impacto $\gamma_{imp}=1,10$ (NBR 8800 4.2.6); momento de carga em $t\cdot m$.
+  - Estaiamento provisório: tração no cabo $T = F / (n \cdot \cos\alpha)$, compressão na coluna e arrancamento $N = T \cdot \sin\alpha$.
+  - Vento de montagem: $\gamma_{f3} = 1,30$ (NBR 8800 4.9.6.5).
+  - Tolerância de prumo: $\max(H/500, 5\text{ mm})$, teto $25\text{ mm}$ global (NBR 8800 12.3.3.1.1).
+  - Graceful degradation: dados de canteiro ausentes degradam para "A CONFIRMAR" sem inventar parâmetros.
+  - Prancha nova **PE16_MONTAGEM** (última folha 15/15) com 4 quadros + notas NBR 8800 / AISC 303.
+- **Revisão técnica do PR #47: APROVADO COM LOUVOR** (verificado no NotebookLM contra os PDFs NBR 8800 1.10/4.2.6/4.4/4.9.6.5/12.3 e AISC 303; 12 novos testes verdes em `test_montagem.py`).
+
+**ABERTO (decisão do usuário):**
+- **Merge no GitHub:** realizar o merge do PR #47 na `main`.
+
+## T18 — Sessão 17 (2026-07-22): Gaps Nível A/C + Fabricação 3D/2D — REVISÃO E MERGE DOS PRs #45 E #46
+PRs #45 e #46 **MERGED em `main`**. Detalhe tcnico em [[04-decisions#D68]] e [[04-decisions#D69]]. **702 testes verdes**.
+
+**FECHADO nesta sessão (MERGED):**
+- **PR #45 (gaps Nvel A/C + wizard + romaneio):**
+  - Fadiga solda console (NBR 8800 Anexo K cat. F / NBR 8400 Tab. 9, eq. K.4b).
+  - Atrito do vento longitudinal (NBR 6123 6.4.2, $F'_{at}$ no telhado + 2 paredes longitudinais).
+  - Carga em xadrez / pattern loading (NBR 8681 multi-vo $Q_a/Q_b$ + combos $C2_{xadrez}$).
+  - Gate de empocamento (NBR 8800 9.3 declividade $\ge 3\%$).
+  - Toro e efeitos combinados (NBR 8800 5.5.2 tubular 3 faixas $T_{rd}$ + interao; perfil aberto tenso Saint-Venant).
+  - Wizard pergunta ligao soldada/parafusada + romaneio preliminar do clculo.
+- **PR #46 (fabricao 3D/2D + diafragma NBR 15421):**
+  - Piece marks no 3D (`marcas_peca.py`, propriedade `Marca` no FCStd/BIM, $C1, V1, T1...$).
+  - Tabela unificada de materiais / Lista de corte `Q09M` na PE09.
+  - Tabela de tolerncias de fabricao/montagem `Q09T` na PE09 com folga do furo-padro (NBR 8800/Bellei).
+  - Shop drawings por pea (`PE14_CROQUIS`) com 3 vistas projetadas A1 ($C1, V1, MI1$) e notas AWS.
+  - Efeito de diafragma da cobertura (NBR 15421 8.3.2 critrio 2:1 flexvel vs rgido).
+- **Reviso tcnica e Merge:** PRs #45 e #46 revisados, aprovados e mergeados com sucesso em `main`.
+
 ## T17 — Sessão 16 (2026-07-21): mão-francesa completa + 4 varreduras — REVISÃO #44 APROVADA
 PRs #40–#44. Detalhe técnico em [[04-decisions#D67]]. **643 testes** (652 − 9 `build`).
+
 
 **FECHADO nesta sessão:**
 - Mão-francesa: pontas p/ fora [#41], barra redonda→cantoneira verificada (4.11.3.4+E.1.4.2+5.3.2)

@@ -263,6 +263,47 @@ parecer**. Não-regressão: `a=None`⇒kv=5 byte-idêntico; `cross_check_flt` in
 - PR #1 ainda aberto, aguarda merge do usuário. [[06-open-threads#T1]]
 - Continuação em outro chat: ver [[06-open-threads#HANDOFF]].
 
+## FECHADA — Job periódico da suíte de build 3D (PR #49, Sessão 18) — 2026-07-22
+Revisão técnica e auditoria do PR **#49** (`chore/ci-build-suite-agendada`).
+- **Escopo:** Automação do runner periódico para a suíte de testes de build 3D (os 9 testes marcados `@pytest.mark.build` que constroem o modelo 3D no `freecadcmd` e verificam a interpenetração de peças via `checa_interferencia`).
+- **Problema resolvido:** Como os testes de build 3D são mais lentos (~5 min), eles ficam deselecionados no regresso diário padrão (`-m "not build"`). Isso permitia que regressões de geometria 3D passassem em silêncio.
+- **Componentes:**
+  - `tools/run_build_suite.ps1`: Runner PowerShell headless que executa `pytest -m build`, gera logs em `tools/build-logs/build_stamp.log` e atualiza `LATEST.txt`. Não afeta instâncias abertas do FreeCAD GUI/bridge.
+  - `tools/register_build_task.ps1`: Script PowerShell idempotente para registrar/remover a tarefa agendada do Windows `GalpaoFW-BuildSuite` (Weekly Domingo 03:00 por padrão, com suporte ao parâmetro `-Remover`).
+  - `tools/README.md` e `.gitignore`: documentação de uso e exclusão dos arquivos de log.
+- **Resultado:** **APROVADO COM LOUVOR (APPROVED FOR MERGE)**. Exercitado e validado ao vivo: reprovou corretamente antes do fix do PR #48 (exit 1) e passou 100% verde com o fix (9 passed, exit 0).
+
+## FECHADA — Plano de montagem e escoramento (PR #47, Sessão 18) — 2026-07-22
+Revisão técnica completa e auditoria do PR **#47** (`feat/plano-montagem-escoramento`).
+- **Escopo:** Plano de montagem e escoramento (última etapa turnkey, fase de OBRA). Módulo puro `montagem.py` + Gate 8 + prancha nova **PE16_MONTAGEM**.
+- **Normas consultadas no NotebookLM:** NBR 8800 item 1.10 (casos omissos $\rightarrow$ AISC 303), 4.2.6 (içamento / impactos), 4.4 / 4.3.2 (desenhos de montagem e sequência), 4.9.6.5 ($\gamma_{f3}=1,30$), 12.3.2.1 (contraventamento temporário), 12.3.2.2 (estabilidade parcial permanente + vento + montagem), 12.3.3.1.1 (prumo $\max(H/500, 5\text{ mm})$) e 4.12.6 (escoramento). Bellei 7.6.4.
+- **Componentes:**
+  - **Sequência de montagem (10 passos):** nivelamento de base $\rightarrow$ 1º pórtico $\rightarrow$ **estaiamento prévio** $\rightarrow$ interligação com terças e contravento $\rightarrow$ contraventamento definitivo $\rightarrow$ só então remoção de estais provisórios $\rightarrow$ prumo/esquadro $\rightarrow$ aperto/solda.
+  - **Guindaste e içamento:** peça mais pesada $\times$ $\gamma_{imp}=1,10$ (NBR 8800 4.2.6) $\rightarrow$ momento de carga ($t\cdot m$). Rafter considerado pré-montado no solo (2 meias-águas), governando o içamento.
+  - **Estai provisório:** $T = F / (n \cdot \cos\alpha)$, compressão adicional na coluna e ancoragem na fundação $N = T \cdot \sin\alpha$.
+  - **Vento de montagem:** $\gamma_{f3}=1,30$ (NBR 8800 4.9.6.5).
+  - **Prumo:** $\max(H/500, 5\text{ mm})$, teto $25\text{ mm}$ global (NBR 8800 12.3.3.1.1).
+  - **Prancha PE16_MONTAGEM:** 4 tabelas estruturadas + notas NBR 8800.
+- **Resultado:** **APROVADO COM LOUVOR (APPROVED FOR MERGE)**. 12 novos testes verdes em `test_montagem.py`. Suíte não-build com 705 passed.
+
+## FECHADA — Revisão técnica dos PRs #45 e #46 (Sessão 17) — 2026-07-22
+Revisão técnica completa e auditoria dos PRs empilhados **#45** (`feat/gaps-nivel-a-contra-seguranca`) e **#46** (`feat/fabricacao-shop-drawings`).
+- **PR #45 (gaps Nível A/C + wizard + romaneio):**
+  - **Fadiga da solda do console:** NBR 8800 Anexo K Tabela K.1 item 8.2 (cat. F, $C_f=150\times 10^{10}$, $\sigma_{TH}=55\text{ MPa}$). Equação K.4b $\Delta\sigma = (11\times 10^4 C_f/N)^{0,167}$. Verificação de variaço de tensão na garganta $\tau_{SR}$ sob $N$ ciclos NBR 8400.
+  - **Atrito do vento longitudinal:** NBR 6123 6.4.2 $F'_{at}$ no telhado + 2 paredes longitudinais com $L_{ef}$ descontando faixa descolada. Somado ao arrasto $F_a$ para dimensionamento do contraventamento longitudinal.
+  - **Pattern loading / Carga em xadrez:** NBR 8681 em pórticos multi-vão ($N_{VAOS}\ge 2$). Casos $Q_a/Q_b$ e combinações $C2_{xadrez}$ amplificam momento de desequilíbrio na coluna interna.
+  - **Gate de empocamento:** NBR 8800 9.3 declividade $\ge 3\%$ dispensa ($OK=True$), $<3\%$ reprova ($OK=False$, exige análise adicional).
+  - **Torção e efeitos combinados:** NBR 8800 5.5.2. Tubo retangular (3 faixas $T_{rd}$ + interação 5.5.2.2). Perfil aberto I/U por tensões de Saint-Venant $\tau_t$ (gate de empenamento/flexo-torção se $\tau_t>0,20\tau_{Rd}$).
+  - **Wizard tipo de ligação:** pergunta soldada/parafusada (default soldada), validação estrita no spec, notas 5/6 da PE09 atualizadas.
+  - **Romaneio preliminar:** agrupa peças primárias ($C1, V1..Vn$) com marca, quantidade e peso por perfil adotado no clculo.
+- **PR #46 (fabricação 3D/2D + diafragma NBR 15421):**
+  - **Piece marks 3D (`marcas_peca.py`):** grava propriedade `Marca` nos objetos 3D no FreeCAD por categoria/perfil; `por_marca` extrai comprimento de CORTE unitário.
+  - **Quadro unificado de materiais / Lista de corte:** tabela `Q09M` na PE09 com colunas MARCA | ELEMENTO | PERFIL | QTD | CORTE(m) | MASSA(kg). Fallback sem sobreposição.
+  - **Quadro de tolerâncias (`tolerancias_fabricacao.py`):** tabela `Q09T` na PE09 com tolerâncias de fabricação/montagem (NBR 8800 12.2/12.3 + Bellei Ap. C) e folga do furo-padrão.
+  - **Shop drawings por peça (PE14 CROQUIS DE FABRICAÇÃO):** prancha `PE14_CROQUIS` com 3 vistas projetadas A1 por peça principal ($C1, V1, MI1$), rótulo com corte e nota de solda AWS.
+  - **Efeito de diafragma da cobertura (`diafragma.py`):** classificação NBR 15421 8.3.2 (deflexão no plano $>2\times\text{drift}_{médio}\rightarrow$ FLEXÍVEL), validando a distribuição tributária; suporte a diafragma RÍGIDO (rigidez + torção).
+- **Resultado:** **APROVADOS COM LOUVOR (APPROVED FOR MERGE)**. Suíte completa de 702 testes verdes. Consolidados aqui e em [[04-decisions#D68]] / [[04-decisions#D69]].
+
 ## FECHADA — Revisão técnica PR #44 (Sessão 16) — 2026-07-21
 Parecer externo do PR #44 (`fix/gate-mao-francesa-e-cache-de-modulo`), **reconciliado** com o
 estado final (7 commits, 643 testes; o parecer original dizia 5/622, escrito antes de `c5c73d9`/
@@ -282,3 +323,4 @@ Consolidada em [[04-decisions#D52]]–[[04-decisions#D57]] e [[00-index]]. Markd
 
 ## Status — 17 módulos matemáticos + features (todos com selftest verde)
 12 r2 (Pórtico·Perfil·Vento·Terças·Secundários·Base·Ligações·Ponte·Mão-francesa·Contravento·Fundação·Redim) + Junta + Sismo + **Telha** + **Baldrame** + **Estaca profunda** + **Contenção lateral** (mão-francesa, NBR 8800 4.11.3.4).
+
