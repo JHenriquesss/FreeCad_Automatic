@@ -64,7 +64,9 @@ def test_doubler_desloca_em_X(src):
 
 def test_calha_livra_a_girt_nao_so_a_coluna(src):
     """A peca mais externa da parede e a GIRT (e os tirantes nela), nao a coluna."""
-    assert "GUT_Y = COL_SEC[0] / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0" in src
+    # A formula preserva UPE_LONG (girt) + meia-largura da calha; a meia-altura da
+    # coluna virou _col_d_beiral (max(COL_SEC[0], h_joelho) do fix de interferencia).
+    assert "GUT_Y = _col_d_beiral / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0" in src
 
 
 def test_nenhum_offset_em_Y_usa_bf(src):

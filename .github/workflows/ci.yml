@@ -1,0 +1,38 @@
+name: CI (suite non-build)
+
+# Roda a suite de testes NAO-build do galpao_fw em cada push/PR. NAO inclui os
+# testes marcados `build` (constroem o modelo 3D no FreeCAD/freecadcmd, que nao
+# esta disponivel em runner de nuvem) - esses ficam com a guarda LOCAL agendada
+# (tools/run_build_suite.ps1). Aqui garantimos que o motor de calculo, o wiring e
+# os entregaveis 2D nao regridam antes do merge.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: framework/galpao_fw
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: framework/galpao_fw/requirements.txt
+
+      - name: Instala dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Suite non-build (pytest -m "not build")
+        run: pytest tests/ -m "not build" -q -p no:cacheprovider

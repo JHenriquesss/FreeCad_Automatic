@@ -96,7 +96,11 @@ def test_calha_afastada_por_derivacao(src):
     guarda a INTENCAO (derivado da coluna, sem numero magico); a formula exata e
     verificada la, para nao travar duas vezes a mesma linha."""
     assert "GUT_Y = 340.0" not in src
-    assert "GUT_Y = COL_SEC[0] / 2.0" in src
+    # DERIVADO da coluna (sem numero magico). O afastamento passou a usar a
+    # meia-altura MAIS FUNDA no beiral (_col_d_beiral = max(COL_SEC[0], h_joelho
+    # do tapered) - ver o fix de interferencia do bloco tapered).
+    assert "_col_d_beiral = COL_SEC[0]" in src
+    assert "GUT_Y = _col_d_beiral / 2.0" in src
 
 
 def test_fonte_compila(src):
