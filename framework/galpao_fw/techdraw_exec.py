@@ -1603,6 +1603,60 @@ def _pr_quadros(doc, cfg):
     return [page], []
 
 
+def _pr_croquis(doc, cfg, objs, todos):
+    """CROQUIS DE FABRICACAO (shop drawings): uma vista projetada por MARCA de peca
+    principal (coluna, viga/rafter, misula soldada), com rotulo (marca, perfil,
+    comprimento de corte, qtd) e nota de fabricacao (furacao / simbolo de solda).
+    A peca e localizada pela propriedade `Marca` gravada no modelo 3D. E um
+    detalhe de FABRICACAO por peca, complementando os detalhes de LIGACAO
+    (PE06/07/10-13). Escala automatica p/ preencher a folha."""
+    page = _nova_prancha(doc, "PE14_CROQUIS",
+                         _carimbo(cfg, "CROQUIS DE FABRICACAO (pecas principais)",
+                                  "PE-14", "-", "14/14"))
+    # info por marca (comp_unit_m, qtd, perfil) do por_marca -> rotulo
+    info = {t[0]: (t[5], t[3], t[2]) for t in (cfg.get("por_marca") or [])}
+    alvos = ["C1", "V1", "MI1"]                    # coluna, viga/rafter, misula soldada
+    notas_marca = {
+        "C1": "Furacao: base (chumbadores) + chapa de topo no joelho.",
+        "V1": "Chapa de topo no joelho (parafusos). Mesa travada (mao-francesa).",
+        "MI1": "Misula SOLDADA (alma+mesa). Solda de filete conforme memorial (AWS).",
+    }
+    reps = {}
+    for o in todos:
+        mk = getattr(o, "Marca", None)
+        if mk in alvos and mk not in reps and hasattr(o, "Shape"):
+            try:
+                if o.Shape.Volume > 0:
+                    reps[mk] = o
+            except Exception:
+                pass
+    presentes = [m for m in alvos if m in reps]
+    if not presentes:
+        _aviso_prancha("PE14_CROQUIS",
+                       "sem pecas com propriedade Marca no modelo (rode montar_modelo "
+                       "com a versao que grava piece marks)")
+        _anot(doc, page, "C14v", ["CROQUIS DE FABRICACAO",
+                                  "NAO DISPONIVEL: modelo sem marcas de peca"], 400, 400, 9)
+        return [page], []
+    xs = [190.0, 470.0, 750.0]                    # 3 colunas dentro da area util A1
+    for i, mk in enumerate(presentes):
+        o = reps[mk]
+        bb = o.Shape.BoundBox
+        esc, escn = _fit_escala(bb, "y", 240.0, 330.0)   # projeta olhando em Y (plano XZ)
+        _vista(doc, page, "CROQ_%s" % mk, [o], (0, -1, 0), (1, 0, 0), esc, xs[i], 310)
+        cu, qt, perf = info.get(mk, (None, None, "-"))
+        L_txt = _fmt_m(cu * 1000.0) if cu else _fmt_m(max(abs(bb.XLength), abs(bb.ZLength)))
+        _anot(doc, page, "TIT_%s" % mk,
+              ["MARCA %s (%s)" % (mk, str(perf)[:18]),
+               "L(corte) ~ %s  qtd %s  esc %s" % (L_txt, qt if qt else "-", escn),
+               notas_marca.get(mk, "")], xs[i] - 55, 500, 7)
+    _anot(doc, page, "C14n",
+          ["Croquis de fabricacao por peca (marca). Cotas de fabricacao e furacao",
+           "conforme o modelo 3D e o memorial. Simbolo de solda: filete, memorial."],
+          250, 130, 6)
+    return [page], []
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # ORQUESTRACAO (roda dentro do freecad.exe, disparada por QTimer)
 # ─────────────────────────────────────────────────────────────────────────
@@ -1648,11 +1702,11 @@ def gerar_executivo(cfg):
     paginas, cotadores = [], []
     construtores = [_pr_cobertura, _pr_fundacoes, _pr_elevacoes, _pr_portico,
                     _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento,
-                    _pr_ligacoes, _pr_bloco]
+                    _pr_ligacoes, _pr_bloco, _pr_croquis]
     for fn in construtores:
         try:
             if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes,
-                      _pr_bloco):
+                      _pr_bloco, _pr_croquis):
                 pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
