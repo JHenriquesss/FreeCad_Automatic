@@ -1541,14 +1541,23 @@ def _pr_quadros(doc, cfg):
     # dizia "RN +0,00 = topo do concreto (base das placas)" - falso nos dois lados
     # - e "gancho 180 mm" contra 60 mm reais.
     _nm = _notas_do_modelo(doc)
+    # ligacoes de campo: soldadas (padrao dos galpoes) ou parafusadas (escolha do
+    # eng. no wizard). O desenho vai p/ a obra -> a nota indica o metodo adotado.
+    _lig = (_mt.get("tipo_ligacao") or "soldada").lower()
+    if _lig == "parafusada":
+        _n5 = "5. LIGACOES DE CAMPO PARAFUSADAS. Parafusos A325 (fub 825 MPa) protendidos."
+        _n6 = "6. Soldas E70XX (fw 485 MPa) nas ligacoes de fabrica; filete minimo 6 mm."
+    else:
+        _n5 = "5. LIGACOES DE CAMPO SOLDADAS. Soldas E70XX (fw 485 MPa), filete minimo 6 mm."
+        _n6 = "6. Parafusos A325 (fub 825 MPa) apenas nas ligacoes de montagem indicadas."
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
         _nm.get("niveis", "2. Niveis conforme memorial de calculo."),
         _n3,
         _n4,
-        "5. Parafusos A325 (fub 825 MPa) ou A307 conforme ligacao.",
-        "6. Soldas E70XX (fw 485 MPa). Filete minimo 6 mm.",
+        _n5,
+        _n6,
         _nm.get("chumbador", "7. Chumbadores ASTM A36 conforme detalhe da base."),
         _nm.get("contrav", "8. Contraventamento pretensionado c/ esticador."),
         "9. Tercas Ue formado a frio (NBR 14762).",
@@ -1845,7 +1854,8 @@ def _materiais_de_spec(spec):
     fy_kPa = acos.propriedades(est.get("aco") or acos.PADRAO)[0]
     return {"fy_MPa": round(fy_kPa / 1000.0), "aco": _nome_aco(spec, fy_kPa),
             "fck_MPa": _mpa(fu.get("fck")), "fyk_MPa": _mpa(fu.get("fyk")),
-            "cobrimento_cm": _cm(fu.get("cobrimento"))}
+            "cobrimento_cm": _cm(fu.get("cobrimento")),
+            "tipo_ligacao": (est.get("tipo_ligacao") or "soldada").lower()}
 
 
 def _txt_material(mat):
@@ -1854,6 +1864,8 @@ def _txt_material(mat):
     p = ["ACO %s" % mat.get("aco", "MR250")]
     if mat.get("fck_MPa"):
         p.append("CONCRETO fck %d MPa" % mat["fck_MPa"])
+    # tipo de ligacao NAO entra aqui (celula estreita do ISO5457 estoura); vai na
+    # nota tecnica 5 da PE09 (lugar canonico das notas gerais).
     return " / ".join(p)
 
 
