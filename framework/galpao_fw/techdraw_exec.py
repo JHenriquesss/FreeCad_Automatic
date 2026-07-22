@@ -1589,6 +1589,17 @@ def _pr_quadros(doc, cfg):
     notas_y = _pos_notas(n_verif, n_mat, len(notas))
     _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
                  escala=1.4)
+    # QUADRO DE TOLERANCIAS de fabricacao/montagem (NBR 8800 + Bellei), computado
+    # no lado lancador (cfg['tolerancias']). Valores com FONTE; o desenho vai p/ a
+    # obra. Zona inferior-direita, abaixo dos materiais/lista de corte.
+    tol = cfg.get("tolerancias") or []
+    if tol:
+        rows_t = [[str(g), str(it)[:34], str(tl)[:34], str(f)] for (g, it, tl, f) in tol]
+        _anot(doc, page, "A09t",
+              ["QUADRO DE TOLERANCIAS (fabricacao / montagem)"], 560, 205, 9)
+        _tabela(doc, page, "Q09T", ["GRUPO", "ITEM", "TOLERANCIA", "FONTE"],
+                rows_t, 560, 140, tam=5,
+                larguras=[90, 200, 210, 150], escala=ESC_Q)
     return [page], []
 
 
@@ -1892,6 +1903,18 @@ def _txt_material(mat):
     return " / ".join(p)
 
 
+def _tolerancias_linhas(ba):
+    """Linhas do QUADRO DE TOLERANCIAS (fabricacao/montagem), computadas no lado
+    LANCADOR (o techdraw nao importa irmaos dentro do freecad). db do furo-padrao
+    = parafuso da base (ba['db'] em m -> mm), se houver."""
+    try:
+        import tolerancias_fabricacao as _tol
+        db_mm = float(ba["db"]) * 1000.0 if (ba and ba.get("db")) else None
+        return [list(t) for t in _tol.linhas_quadro(db_mm=db_mm)]
+    except Exception:
+        return []
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
@@ -1942,6 +1965,10 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "takeoff": est.get("takeoff", []),
         "romaneio": est.get("romaneio") or [],
         "por_marca": est.get("por_marca") or [],     # lista de corte (3D): marca+comp_unit
+        # QUADRO DE TOLERANCIAS: computado AQUI (lado lancador) e passado via cfg -
+        # o techdraw roda DENTRO do freecad SEM o galpao_fw no sys.path (nao pode
+        # importar irmaos la). db do furo-padrao = parafuso da base, se houver.
+        "tolerancias": _tolerancias_linhas(ba),
     }
 
 
