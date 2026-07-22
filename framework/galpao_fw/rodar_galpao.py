@@ -521,6 +521,18 @@ def rodar(params, out_dir):
     res["n_tirante_parede"] = dsec["longarina"]["n_tirantes"]
     res["perfil_escora"] = dsec["escora"]["perfil"]
     res["perfil_montante"] = dsec["montante"]["perfil"]
+    # ROMANEIO PRELIMINAR com marcas de peca (entregavel de fabricacao a partir do
+    # calculo): pecas primarias (colunas + rafters) com marca/qtd/peso. O romaneio
+    # DEFINITIVO (secundarios, chapas, furacao) sai do modelo 3D/takeoff.
+    import romaneio as _rom
+    _rr = _rom.romaneio_primario(
+        {"spans": list(gp.SPANS), "comprimento": g.get("comprimento", 2 * g["span"]),
+         "eave": g["eave"], "ridge": g["ridge"], "bay": g["bay"]},
+        {"col": {"nome": res.get("perfil_colunas", ["HEA200"])[0], "A": sc["perfil_col"]["A"]},
+         "raf": {"nome": res.get("perfil_raf", "HEA180"), "A": sc["perfil_raf"]["A"]}})
+    save("romaneio-preliminar.txt", _rom.relatorio_pt(_rr))
+    res["romaneio_peso_primario_kg"] = _rr["peso_total_kg"]
+    res["romaneio_n_porticos"] = _rr["n_porticos"]
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
