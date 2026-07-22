@@ -179,6 +179,74 @@ def emitir_ifc_do_spec(spec, path):
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 
+def emitir_ifc_analitico(modelo, path, nome="Galpao"):
+    """Emite o MODELO ANALITICO (do modelo_neutro.analitico_do_spec) em IFC4-Structural
+    (IfcStructuralAnalysisModel): nos = IfcStructuralPointConnection (com coord),
+    barras = IfcStructuralCurveMember (topologia de aresta ligada aos 2 nos por
+    IfcRelConnectsStructuralMember), apoios = IfcBoundaryNodeCondition. Importavel no
+    modelo ANALITICO do Revit. Coords 2D (x transversal, y vertical) -> 3D (x,y,0) mm.
+    Item 2: o intercambio analitico, sem FreeCAD."""
+    import ifcopenshell
+    from ifcopenshell.api import run
+    from ifcopenshell.guid import new as guid
+
+    m = ifcopenshell.file(schema="IFC4")
+    run("root.create_entity", m, ifc_class="IfcProject", name=nome)
+    run("unit.assign_unit", m)
+    ctx = run("context.add_context", m, context_type="Model")
+    sam = m.create_entity("IfcStructuralAnalysisModel", GlobalId=guid(),
+                          Name=nome, PredefinedType="LOADING_3D")
+
+    def _pc(nm, x, y):
+        p = m.create_entity("IfcCartesianPoint",
+                            Coordinates=(float(x) * 1000.0, float(y) * 1000.0, 0.0))
+        v = m.create_entity("IfcVertexPoint", VertexGeometry=p)
+        top = m.create_entity("IfcTopologyRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Reference",
+                              RepresentationType="Vertex", Items=[v])
+        pdef = m.create_entity("IfcProductDefinitionShape", Representations=[top])
+        return m.create_entity("IfcStructuralPointConnection", GlobalId=guid(),
+                               Name=nm, Representation=pdef), v
+
+    conn, vert = {}, {}
+    apoio_nos = {a["no"]: a for a in modelo.get("apoios", [])}
+    for no in modelo["nos"]:
+        pc, v = _pc("N%d" % no["id"], no["x"], no["y"])
+        conn[no["id"]], vert[no["id"]] = pc, v
+        a = apoio_nos.get(no["id"])
+        if a:                                          # apoio -> condicao de contorno
+            pc.AppliedCondition = m.create_entity("IfcBoundaryNodeCondition",
+                                                   Name=a.get("tipo", "apoio"))
+    membros = []
+    for k, b in enumerate(modelo["barras"], 1):
+        vi, vj = vert[b["no_i"]], vert[b["no_j"]]
+        edge = m.create_entity("IfcEdge", EdgeStart=vi, EdgeEnd=vj)
+        top = m.create_entity("IfcTopologyRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Reference",
+                              RepresentationType="Edge", Items=[edge])
+        pdef = m.create_entity("IfcProductDefinitionShape", Representations=[top])
+        cm = m.create_entity("IfcStructuralCurveMember", GlobalId=guid(),
+                             Name="%s%d" % (b["grupo"][:3].upper(), k),
+                             PredefinedType="RIGID_JOINED_MEMBER", Representation=pdef)
+        for nd in (conn[b["no_i"]], conn[b["no_j"]]):
+            m.create_entity("IfcRelConnectsStructuralMember", GlobalId=guid(),
+                            RelatingStructuralMember=cm, RelatedStructuralConnection=nd)
+        membros.append(cm)
+    m.create_entity("IfcRelAssignsToGroup", GlobalId=guid(),
+                    RelatedObjects=list(conn.values()) + membros, RelatingGroup=sam)
+    m.write(path)
+    return path
+
+
+def emitir_ifc_analitico_do_spec(spec, path):
+    """Emite o IFC4-Structural direto do calculo (spec). None se perfil nao-laminado."""
+    import modelo_neutro as MN
+    mod = MN.analitico_do_spec(spec)
+    if not mod:
+        return None
+    return emitir_ifc_analitico(mod, path, nome=spec.get("slug") or "Galpao")
+
+
 def _selftest():
     if not disponivel():
         print("ifc_emit _selftest SKIP (ifcopenshell ausente)")
