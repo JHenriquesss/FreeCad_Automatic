@@ -454,6 +454,14 @@ def rodar(params, out_dir):
         res["telha_vao"] = rt_telha["vao"]
         res["telha_vao_max"] = rt_telha["vao_max"]["vao_max_m"]
         res["telha_ok"] = rt_telha["OK"]
+    # Gate 7 - EMPOCAMENTO progressivo (NBR 8800 9.3): declividade < 3% exige
+    # verificacao adicional do peso da agua acumulada. Cobre shed/aguas rasas,
+    # que antes passavam sem qualquer verificacao de empocamento.
+    import empocamento_nbr8800 as emp
+    r_emp = emp.verifica_empocamento(emp.incl_pct_de_theta(gp.THETA))
+    save("gate7-empocamento.txt", emp.relatorio_pt(r_emp))
+    res["empocamento_incl_pct"] = round(r_emp["incl_pct"], 2)
+    res["empocamento_ok"] = r_emp["OK"]
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
                        comp_a=g.get("comprimento", 2 * g["span"]))
@@ -1462,6 +1470,8 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Joelho", res.get("joelho_util")),
                   ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
                   ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
+                  ("Empocamento (9.3)", None if "empocamento_ok" not in res
+                   else (0.0 if res["empocamento_ok"] else 1.99)),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
