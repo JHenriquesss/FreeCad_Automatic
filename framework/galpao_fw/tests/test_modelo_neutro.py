@@ -54,5 +54,46 @@ def test_secao_preservada_no_membro():
     assert c["secao"]["nome"] == "HEA200" and c["perfil"] == "HEA200"
 
 
+_TERCA = {"nome": "Ue300", "forma": "C", "d": 0.300, "bf": 0.085, "lip": 0.025, "t": 0.00335}
+
+
+def test_tercas_contagem_por_agua_e_vao():
+    # n_terca-1 tercas intermediarias por AGUA, 2 aguas por vao (1 vao aqui)
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0,
+           "raf_d": 0.171}
+    t = MN.tercas(geo, n_terca=5, terca_sec=_TERCA)
+    assert len(t) == 2 * (5 - 1) + 2                   # 8 interm. + 2 beiral = 10
+    assert all(m["tipo"] == "Member" for m in t)
+
+
+def test_tercas_sao_longitudinais():
+    # terca corre em X (0->comprimento) a Y e Z fixos
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0,
+           "raf_d": 0.171}
+    t = MN.tercas(geo, 5, _TERCA)[0]
+    assert t["p1"][0] == 0.0 and abs(t["p2"][0] - 40000.0) < 1e-6
+    assert abs(t["p1"][1] - t["p2"][1]) < 1e-9 and abs(t["p1"][2] - t["p2"][2]) < 1e-9
+
+
+def test_tercas_multivao_escalam():
+    geo = {"spans": [10.0, 10.0], "comprimento": 30.0, "eave": 6.0, "ridge": 7.5,
+           "bay": 6.0, "raf_d": 0.171}
+    t = MN.tercas(geo, 4, _TERCA)
+    assert len(t) == 2 * (4 - 1) * 2 + 2                # interm. 12 + 2 beiral = 14
+
+
+def test_frame_completo_soma_primario_e_tercas():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    sec = _SEC
+    M = MN.frame_completo(geo, sec, n_terca=5, terca_sec=_TERCA)
+    r = MN.resumo(M)
+    assert r["Column"] == 18 and r["Beam"] == 18 and r["Member"] == 10
+
+
+def test_frame_completo_sem_terca_igual_primario():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    assert MN.resumo(MN.frame_completo(geo, _SEC)) == MN.resumo(MN.frame_primario(geo, _SEC))
+
+
 def test_selftest_modulo():
     MN._selftest()

@@ -60,6 +60,63 @@ def frame_primario(geometria, secoes):
     return membros
 
 
+def tercas(geometria, n_terca, terca_sec):
+    """Terças (purlins) LONGITUDINAIS do modelo neutro: barras X=0->comprimento na
+    altura do rafter, `n_terca-1` posicoes INTERMEDIARIAS por agua (eave e cumeeira
+    ficam com as tercas de beiral/cumeeira, fora deste conjunto), nas duas aguas de
+    cada vao. Replica a convencao do build_galpao (loop das tercas, k=1..n_terca-1,
+    yl interpolado eave->ridge; ver terca_ys la) - guardado por cross-check de
+    contagem em test_modelo_neutro. terca_sec: {nome, h/d, bf, t, lip} (m), forma C.
+    Assenta no TOPO do rafter (z = rafter + meia-alma do rafter + meia-alma da terca)."""
+    if not n_terca or n_terca < 2 or not terca_sec:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"])
+    eave = float(geometria["eave"])
+    ridge = float(geometria.get("ridge", eave))
+    raf_d = float(geometria.get("raf_d", 0.0))       # altura do rafter (m), p/ o assento
+    t_h = float(terca_sec.get("d") or terca_sec.get("h") or 0.0)
+    off = (raf_d / 2.0 + t_h / 2.0)                  # terca no topo do rafter
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    nome = terca_sec.get("nome", "Terca")
+
+    def _terca(yl, zl):
+        ms.append({"marca": "T1", "perfil": nome, "tipo": "Member",
+                   "p1": (0.0, yl * MM, zl * MM),
+                   "p2": (comp * MM, yl * MM, zl * MM), "secao": terca_sec})
+
+    ms = []
+    for j in range(len(spans)):
+        y0, y1 = cols_y[j], cols_y[j + 1]
+        yr = (y0 + y1) / 2.0                          # cumeeira do vao
+        for k in range(1, int(n_terca)):
+            for (ya, yb) in ((y0, yr), (y1, yr)):     # agua E (sobe ate cumeeira) e D
+                yl = ya + (yb - ya) * k / n_terca
+                zl = eave + (ridge - eave) * (yl - ya) / (yb - ya) + off
+                _terca(yl, zl)
+    # tercas de BEIRAL: uma em cada lado externo do galpao (cols_y[0] e cols_y[-1]),
+    # na cota do beiral (mesma convencao do build_galpao, TERCA_BEIRAL_E/D).
+    _terca(cols_y[0], eave + off)
+    _terca(cols_y[-1], eave + off)
+    return ms
+
+
+def frame_completo(geometria, secoes, n_terca=None, terca_sec=None):
+    """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
+    terca_sec). Secundarios restantes (tirantes, contraventamento, chapas) e escopo
+    das proximas iteracoes."""
+    ms = frame_primario(geometria, secoes)
+    if n_terca and terca_sec:
+        # a altura do rafter alimenta o assento das tercas
+        geo = dict(geometria)
+        geo.setdefault("raf_d", (secoes.get("raf") or {}).get("d", 0.0))
+        ms += tercas(geo, n_terca, terca_sec)
+    return ms
+
+
 def resumo(membros):
     """Contagem por tipo (p/ testes/relatorio)."""
     from collections import Counter

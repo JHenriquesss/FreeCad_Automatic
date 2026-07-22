@@ -64,6 +64,9 @@ def calcular(spec, out_dir):
         spec.setdefault("estrutura", {})["console_adotado"] = res["console_adotado"]
     if res.get("terca_dims"):
         spec.setdefault("estrutura", {})["terca_dims"] = res["terca_dims"]
+        # n_terca + perfil da terca -> o emissor IFC puro (ifc_emit) coloca as tercas
+        spec["estrutura"]["n_terca"] = res.get("n_terca")
+        spec["estrutura"]["terca_perfil"] = res.get("terca_perfil")
     if res.get("longarina_dims"):
         spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")
