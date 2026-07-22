@@ -1657,6 +1657,96 @@ def _pr_croquis(doc, cfg, objs, todos):
     return [page], []
 
 
+def _wrap(txt, n=74):
+    """Quebra uma linha longa em varias com <= n caracteres (sem cortar palavra).
+    O DrawViewSpreadsheet nao faz wrap; a sequencia de montagem tem passos longos."""
+    palavras, linhas, cur = str(txt).split(), [], ""
+    for w in palavras:
+        if len(cur) + len(w) + 1 > n:
+            linhas.append(cur)
+            cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    if cur:
+        linhas.append(cur)
+    return linhas or [""]
+
+
+def _pr_montagem(doc, cfg, objs):
+    """PLANO DE MONTAGEM E ESCORAMENTO (NBR 8800 12.3 + AISC 303 + Bellei): a fase
+    de OBRA que o dimensionamento de peca nao cobre. Sequencia de icamento,
+    requisito do guindaste (peca mais pesada + coef. de impacto 4.2.6) e estai
+    provisorio (12.3.2.1) + tolerancia de prumo (12.3.3.1.1). Prancha de
+    PROCEDIMENTO (texto/tabelas). Parametros de canteiro sao A CONFIRMAR."""
+    page = _nova_prancha(doc, "PE16_MONTAGEM",
+                         _carimbo(cfg, "PLANO DE MONTAGEM E ESCORAMENTO",
+                                  "PE-16", "-", "16/16"))
+    pl = cfg.get("montagem")
+    if not pl:
+        _aviso_prancha("PE16_MONTAGEM", "plano de montagem indisponivel (sem romaneio)")
+        _anot(doc, page, "C16v", ["PLANO DE MONTAGEM", "NAO DISPONIVEL"], 400, 400, 9)
+        return [page], []
+
+    # SEQUENCIA (coluna esquerda) - passos longos quebrados p/ caber na celula
+    seq_lin = ["SEQUENCIA DE MONTAGEM (NBR 8800 12.3.2 + Bellei 7.6.4):", ""]
+    for s in pl["sequencia"]:
+        w = _wrap(s, 78)
+        seq_lin.append(w[0])
+        seq_lin += ["      " + x for x in w[1:]]
+    _bloco_texto(doc, page, "SEQ_MONT", seq_lin, 250, 300, tam=5.5, largura=650)
+
+    # ICAMENTO / GUINDASTE (coluna direita superior)
+    p, gd = pl["peca_mais_pesada"], pl["guindaste"]
+    rows_g = [["Peca mais pesada", "%s = %.0f kg" % (p["marca"], p["peso_kg"])],
+              ["Condicao", p["descricao"][:34]],
+              ["Coef. impacto (4.2.6)", "%.2f" % gd["coef_impacto"]],
+              ["Peso de icamento", "%.0f kg (%.2f t)"
+               % (gd["peso_icamento_kg"], gd["peso_icamento_t"])],
+              ["Altura de icamento", "%.1f m" % gd["altura_icamento_m"]],
+              ["Raio de operacao", ("%.1f m" % gd["raio_m"]) if gd.get("raio_m") else "A CONFIRMAR"],
+              ["Momento de carga", ("%.1f t.m" % gd["momento_carga_tm"])
+               if gd.get("momento_carga_tm") else "A CONFIRMAR"]]
+    _tabela(doc, page, "TAB_GUIND", ["ICAMENTO / GUINDASTE", ""], rows_g,
+            660, 470, tam=6.0, larguras=[220, 130], escala=1.2)
+
+    # ESTAIAMENTO PROVISORIO (coluna direita inferior)
+    e = pl["estai"]
+    if e.get("tracao_cabo_kN") is not None:
+        rows_e = [["Forca lateral (calc)", "%.1f kN" % e["F_lateral_kN"]],
+                  ["Angulo / n cabos", "%.0f / %d" % (e["angulo_graus"], e["n_estais"])],
+                  ["Tracao por cabo", "%.1f kN" % e["tracao_cabo_kN"]],
+                  ["Comp. na coluna", "%.1f kN" % e["comp_adicional_coluna_kN"]],
+                  ["Arrancamento ancor.", "%.1f kN" % e["forca_ancoragem_kN"]],
+                  ["Resist. cabo (fs %.1f)" % e["fs_cabo"], "%.1f kN" % e["resistencia_cabo_req_kN"]]]
+    else:
+        rows_e = [["Estai provisorio", "A CONFIRMAR"],
+                  ["Vento de montagem (q)", "A CONFIRMAR"],
+                  ["Area exposta do portico", "A CONFIRMAR"],
+                  ["Base normativa", "12.3.2.1 + gamma 1,30 (4.9.6.5)"]]
+    _tabela(doc, page, "TAB_ESTAI", ["ESTAIAMENTO PROVISORIO (12.3.2.1)", ""], rows_e,
+            660, 250, tam=6.0, larguras=[220, 130], escala=1.2)
+
+    # PRUMO + notas gerais (rodape)
+    pr = pl.get("prumo") or {}
+    notas = [
+        "TOLERANCIA DE PRUMO NA MONTAGEM (12.3.3.1.1): <= %s mm por coluna (%s); "
+        "desvio global da estrutura <= %.0f mm."
+        % (pr.get("tol_mm", "-"), pr.get("criterio", "-"), pr.get("global_mm", 25.0)),
+        "O conjunto PARCIALMENTE montado deve resistir a acao permanente + vento + "
+        "acoes de montagem ANTES de soltar do guindaste (12.3.2.2).",
+        "Contraventamento temporario/estais permanecem ate os contraventamentos "
+        "DEFINITIVOS de parede e cobertura estarem concluidos (12.3.2.1).",
+        "Itens 'A CONFIRMAR' dependem do metodo/equipamento/canteiro: vento de "
+        "montagem (NBR 6123 periodo reduzido), raio e modelo do guindaste, bitola "
+        "e ancoragem do cabo. Ref.: " + pl["ref_norma"] + ".",
+    ]
+    nn = []
+    for t in notas:
+        nn += _wrap(t, 118)
+    _bloco_texto(doc, page, "NOTAS_MONT", nn, 420, 90, tam=5.0, largura=1150)
+    return [page], []
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # ORQUESTRACAO (roda dentro do freecad.exe, disparada por QTimer)
 # ─────────────────────────────────────────────────────────────────────────
@@ -1719,6 +1809,12 @@ def gerar_executivo(cfg):
         paginas += pgs
     except Exception as ex:
         App.Console.PrintError("Prancha quadros: %s\n" % ex)
+    # PLANO DE MONTAGEM por ultimo (apendice de PROCEDIMENTO, apos os quadros).
+    try:
+        pgs, _ = _pr_montagem(doc, cfg, objs)
+        paginas += pgs
+    except Exception as ex:
+        App.Console.PrintError("Prancha montagem: %s\n" % ex)
 
     # Numeracao dinamica: o total de pranchas varia por projeto (detalhes de
     # ligacao so saem se o tipo existe). O drawing_number segue o codigo de TIPO
@@ -1969,6 +2065,33 @@ def _tolerancias_linhas(ba):
         return []
 
 
+def _montagem_plano(spec):
+    """Plano de montagem/escoramento (NBR 8800 12.3) computado no lado LANCADOR (o
+    techdraw nao importa irmaos dentro do freecad). Usa geometria + romaneio (peso
+    das pecas). Parametros de canteiro (mont_*) A CONFIRMAR se ausentes."""
+    try:
+        import montagem as _mont
+        g = spec["geometria"]
+        est = spec.get("estrutura", {}) or {}
+        rom = est.get("romaneio") or []
+        pecas = [{"marca": it.get("marca"), "peso_unit_kg": it.get("peso_unit_kg")}
+                 for it in rom]
+        mp = est.get("montagem_params", {}) or {}
+        return _mont.plano_montagem(
+            {"span": g.get("span"), "spans": g.get("spans"),
+             "comprimento": g.get("comprimento", 2 * g.get("span", 0)),
+             "eave": g.get("eave"), "ridge": g.get("ridge", g.get("eave")),
+             "bay": g.get("bay")},
+            pecas,
+            q_kNm2=mp.get("mont_q_kNm2"),
+            area_exposta_m2=mp.get("mont_area_exposta_m2"),
+            raio_m=mp.get("mont_raio_guindaste_m"),
+            angulo_estai=mp.get("mont_angulo_estai", 45.0),
+            n_estais=mp.get("mont_n_estais", 1))
+    except Exception:
+        return None
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
@@ -2023,6 +2146,9 @@ def config_de_spec(spec, fcstd_path, out_dir):
         # o techdraw roda DENTRO do freecad SEM o galpao_fw no sys.path (nao pode
         # importar irmaos la). db do furo-padrao = parafuso da base, se houver.
         "tolerancias": _tolerancias_linhas(ba),
+        # PLANO DE MONTAGEM/ESCORAMENTO (PE16): sequencia + guindaste + estai +
+        # prumo. Computado no lado lancador (o techdraw nao importa irmaos no freecad).
+        "montagem": _montagem_plano(spec),
     }
 
 
