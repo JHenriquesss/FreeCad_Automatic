@@ -1914,6 +1914,26 @@ def takeoff(doc):
         g[1] += comp
         g[2] += massa
 
+    # MARCAS DE PECA (piece marks): 1 marca por grupo (cat, perfil). Escreve a
+    # propriedade `Marca` em CADA objeto 3D (fica no FCStd/BIM) e agrega por marca.
+    import marcas_peca as _mp
+    marcas = _mp.mapa_marcas(grupos)
+    for o in doc.Objects:
+        if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
+            continue
+        mk = marcas.get(_classifica(o.Name))
+        if mk:
+            if not hasattr(o, "Marca"):
+                try:
+                    o.addProperty("App::PropertyString", "Marca", "Fabricacao",
+                                  "Marca de peca (piece mark)")
+                except Exception:
+                    pass
+            try:
+                o.Marca = mk
+            except Exception:
+                pass
+
     tdir = f"{EXPORT_DIR}/takeoff"
     os.makedirs(tdir, exist_ok=True)
     csv_path = f"{tdir}/galpao_levantamento_material.csv"
@@ -1943,11 +1963,18 @@ def takeoff(doc):
     resumo = sorted([(cat, prof, cnt, round(comp / 1000, 2), round(massa, 1))
                      for (cat, prof), (cnt, comp, massa) in grupos.items()],
                     key=lambda r: -r[4])
+    # LISTA DE CORTE / romaneio por MARCA: (marca, cat, perfil, qtd, comp_total_m,
+    # comp_unit_m, massa_kg). comp_unit = comprimento de corte de cada peca.
+    por_marca = sorted([
+        (marcas[(cat, prof)], cat, prof, cnt, round(comp / 1000.0, 2),
+         round(comp / 1000.0 / cnt, 3) if cnt else 0.0, round(massa, 1))
+        for (cat, prof), (cnt, comp, massa) in grupos.items()],
+        key=lambda r: (r[0][:2], r[0]))
     return {"csv": csv_path, "massa_aco_kg": round(massa_aco, 1),
             "massa_alvenaria_kg": round(massa_alv, 1),
             "massa_concreto_kg": round(massa_conc, 1),
             "massa_total_kg": round(massa_aco + massa_alv, 1),
-            "elementos": len(rows), "por_grupo": resumo}
+            "elementos": len(rows), "por_grupo": resumo, "por_marca": por_marca}
 
 
 def export(doc):
@@ -2067,7 +2094,7 @@ def run():
             "estrutura_em_aberturas": est_ab,
             "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
              "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
-             "por_grupo": tk["por_grupo"], "csv": tk["csv"],
+             "por_grupo": tk["por_grupo"], "por_marca": tk["por_marca"], "csv": tk["csv"],
              "fcstd": fcstd, "step": step,
              "geometria": geo}
 
