@@ -264,9 +264,12 @@ def rodar(params, out_dir):
         larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]),
         abertura_dominante=_abert)))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
-                                    ca=params.get("ca_arrasto", 1.2))
+                                    ca=params.get("ca_arrasto", 1.2),
+                                    comp=g.get("comprimento", 2 * g["span"]),
+                                    cf_atrito=params.get("cf_atrito", 0.04))
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
     res["Fa_long_kN"] = vl["Fa_kN"]; res["Fa_por_lado_kN"] = vl["Fa_por_lado_kN"]
+    res["F_atrito_long_kN"] = vl["F_atrito_kN"]     # atrito 6.4 (soma no contravent.)
     # Gate 6 - analise
     a_gp = gp.analyse()                               # 1a ordem (tem os segmentos)
     save("gate6-portico.txt", gp.memoria_pt(a_gp))

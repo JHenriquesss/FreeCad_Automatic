@@ -394,11 +394,42 @@ def forca_arrasto(q, area_frontal, ca):
     return ca * q * area_frontal
 
 
+def forca_atrito(q, l1, l2, h, cf_telhado=0.04, cf_parede=0.04):
+    """FORCA DE ATRITO do vento (NBR 6123 item 6.4.2), na direcao do vento,
+    sobre as superficies PARALELAS ao fluxo (telhado + 2 paredes longitudinais).
+    So se aplica a edificacao COMPRIDA: l2/h > 4 OU l2/l1 > 4 (senao F'=0).
+      l1 = dimensao horizontal PERPENDICULAR ao vento (largura/vao do galpao)
+      l2 = dimensao PARALELA ao vento (comprimento do galpao)
+      h  = altura (parede/beiral)
+    Formula (6.4.2), descontando a 1a faixa (escoamento descolado):
+      se h <= l1:  F' = Cf'*q*l1*(l2-4h)  +  Cf'*q*2h*(l2-4h)
+      se h  > l1:  F' = Cf'*q*l1*(l2-4l1) +  Cf'*q*2h*(l2-4l1)
+      1o termo = telhado (area l1 x Lef) ; 2o termo = 2 paredes (2h x Lef).
+    Cf' (6.4.3): 0,01 liso ; 0,02 nervura arredondada ; 0,04 nervura retangular
+    (telha trapezoidal transversal). Default 0,04 = mais conservador (A CONFIRMAR
+    o perfil da telha/tapamento e sua orientacao vs. o vento longitudinal).
+    Retorna dict com F_telhado, F_parede, F_at (kN) e o Lef adotado."""
+    aplica = (l2 / h > 4.0) or (l2 / l1 > 4.0) if (h > 0 and l1 > 0) else False
+    if not aplica:
+        return {"aplica": False, "Lef": 0.0, "F_telhado": 0.0, "F_parede": 0.0,
+                "F_at": 0.0, "l1": l1, "l2": l2, "h": h}
+    Lef = max(l2 - 4.0 * h, 0.0) if h <= l1 else max(l2 - 4.0 * l1, 0.0)
+    F_telhado = cf_telhado * q * l1 * Lef          # telhado (superficie superior)
+    F_parede = cf_parede * q * 2.0 * h * Lef       # 2 paredes longitudinais
+    return {"aplica": True, "Lef": Lef, "F_telhado": F_telhado, "F_parede": F_parede,
+            "F_at": F_telhado + F_parede, "l1": l1, "l2": l2, "h": h,
+            "cf_telhado": cf_telhado, "cf_parede": cf_parede}
+
+
 def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=None,
-                         b=10.0, eave=6.0, ridge=6.5, ca=1.2):
+                         b=10.0, eave=6.0, ridge=6.5, ca=1.2, comp=None,
+                         cf_atrito=0.04):
     """Vento longitudinal (alpha=0). q reaproveitado (independe da direcao).
     b = largura do oitao ; area frontal = retangulo + triangulo da empena.
-    ca = coeficiente de arrasto (Figura 4, baixa turbulencia) - A CONFIRMAR."""
+    ca = coeficiente de arrasto (Figura 4, baixa turbulencia) - A CONFIRMAR.
+    comp = comprimento do galpao (m) -> ativa a FORCA DE ATRITO (6.4) no telhado
+    e nas 2 paredes longitudinais, que se SOMA ao arrasto no contraventamento
+    longitudinal. cf_atrito = Cf' (6.4.3; 0,04 = telha trapezoidal, conservador)."""
     v0 = _CFG["v0"] if v0 is None else v0
     cat = _CFG["cat"] if cat is None else cat
     classe = _CFG["classe"] if classe is None else classe
@@ -413,9 +444,18 @@ def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=Non
     cpi = cpi_cases()
     net = {c: {s: round(cpe[s] - civ, 2) for s in cpe} for c, civ in cpi.items()}
     Fa = forca_arrasto(q, area, ca)
+    # Forca de ATRITO (6.4): l1=vao (perp. ao vento long.), l2=comprimento, h=beiral.
+    atr = (forca_atrito(q, l1=b, l2=comp, h=eave, cf_telhado=cf_atrito,
+                        cf_parede=cf_atrito) if comp else
+           {"aplica": False, "F_at": 0.0, "F_telhado": 0.0, "F_parede": 0.0, "Lef": 0.0})
+    F_at = atr["F_at"]
+    Ftot = Fa + F_at                               # o contraventamento resiste a soma
     return {"v0": v0, "vk": round(vk, 2), "q_kN_m2": round(q, 3), "b": b,
             "eave": eave, "ridge": ridge, "area_frontal": round(area, 2),
-            "ca": ca, "Fa_kN": round(Fa, 1), "Fa_por_lado_kN": round(Fa / 2.0, 1),
+            "ca": ca, "Fa_kN": round(Fa, 1), "atrito": atr,
+            "F_atrito_kN": round(F_at, 1), "Ftot_long_kN": round(Ftot, 1),
+            "Fa_por_lado_kN": round(Ftot / 2.0, 1),   # arrasto + atrito, por painel
+            "Fa_arrasto_por_lado_kN": round(Fa / 2.0, 1),
             "cpe": cpe, "cpi_cases": cpi, "net": net}
 
 
@@ -431,10 +471,18 @@ def relatorio_longitudinal_pt(r):
         L.append(f"    {caso.replace('_',' ')}: " +
                  " ; ".join(f"{s.split('_')[-1]}={v:+.2f}" for s, v in d.items()))
     L += [f"  Forca de arrasto Fa = Ca*q*Ae = {r['ca']:.2f}*{r['q_kN_m2']:.3f}*"
-          f"{r['area_frontal']:.2f} = {r['Fa_kN']:.1f} kN",
-          f"  Fa por lado (2 paineis de contraventamento) = {r['Fa_por_lado_kN']:.1f} kN",
-          "  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da",
-          "   empena; fracao de Fa por escora conforme o arranjo do contraventamento.]"]
+          f"{r['area_frontal']:.2f} = {r['Fa_kN']:.1f} kN"]
+    atr = r.get("atrito", {})
+    if atr.get("aplica"):
+        L += [f"  Forca de atrito F' (6.4, l2/h>4 ou l2/l1>4): Lef={atr['Lef']:.1f} m",
+              f"    telhado = {atr['F_telhado']:.1f} kN ; 2 paredes = {atr['F_parede']:.1f} kN"
+              f"  ->  F' = {r['F_atrito_kN']:.1f} kN (Cf'={atr.get('cf_telhado',0):.2f})",
+              f"  TOTAL longitudinal = Fa + F' = {r['Ftot_long_kN']:.1f} kN"]
+    else:
+        L += ["  Forca de atrito F' (6.4): NAO se aplica (l2/h<=4 e l2/l1<=4) ou comprimento nao informado"]
+    L += [f"  Por lado (2 paineis de contraventamento) = {r['Fa_por_lado_kN']:.1f} kN",
+          "  [A CONFIRMAR: Ca da Figura 4 (baixa turbulencia); area frontal da empena;",
+          "   Cf' conforme perfil/orientacao da telha (6.4.3); fracao por escora.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
@@ -459,6 +507,28 @@ def _selftest():
     # compute integra local sem quebrar
     r = compute()
     assert "local" in r and r["local"]["cobertura"]["cpe_medio_envoltoria"] == -2.0
+    # FORCA DE ATRITO (6.4.2): galpao comprido 20x60, h=6 -> l2/h=10>4 aplica.
+    # h(6) <= l1(20) -> Lef = l2-4h = 60-24 = 36. F_telh=Cf'*q*l1*Lef ;
+    # F_par=Cf'*q*2h*Lef. Total = Cf'*q*Lef*(l1+2h).
+    qv = 0.613 * (compute_longitudinal(comp=60.0)["vk"]) ** 2 / 1000.0
+    fa = forca_atrito(qv, l1=20.0, l2=60.0, h=6.0, cf_telhado=0.04, cf_parede=0.04)
+    assert fa["aplica"] and abs(fa["Lef"] - 36.0) < 1e-9
+    assert abs(fa["F_telhado"] - 0.04 * qv * 20.0 * 36.0) < 1e-9
+    assert abs(fa["F_parede"] - 0.04 * qv * 2 * 6.0 * 36.0) < 1e-9
+    assert abs(fa["F_at"] - 0.04 * qv * 36.0 * (20.0 + 12.0)) < 1e-9
+    # galpao curto (l2/h<=4 e l2/l1<=4): NAO aplica -> F'=0
+    fc = forca_atrito(qv, l1=20.0, l2=20.0, h=6.0)
+    assert not fc["aplica"] and fc["F_at"] == 0.0
+    # h > l1 (torre alta e estreita): desconta 4*l1
+    ft = forca_atrito(qv, l1=4.0, l2=30.0, h=10.0)
+    assert abs(ft["Lef"] - (30.0 - 4.0 * 4.0)) < 1e-9
+    # compute_longitudinal com comp: Fa_por_lado inclui o atrito (Ftot/2)
+    rl = compute_longitudinal(b=20.0, eave=6.0, ridge=7.0, comp=60.0)
+    assert rl["F_atrito_kN"] > 0 and abs(rl["Ftot_long_kN"] - (rl["Fa_kN"] + rl["F_atrito_kN"])) < 0.11
+    assert abs(rl["Fa_por_lado_kN"] - rl["Ftot_long_kN"] / 2.0) < 0.06
+    # sem comp: atrito nao entra (compat. retro) -> Fa_por_lado = Fa/2
+    rl0 = compute_longitudinal(b=20.0, eave=6.0, ridge=7.0)
+    assert rl0["F_atrito_kN"] == 0.0 and abs(rl0["Fa_por_lado_kN"] - rl0["Fa_kN"] / 2.0) < 0.06
     print("vento self-test PASSED")
 
 
