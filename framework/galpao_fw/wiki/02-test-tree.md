@@ -95,5 +95,24 @@ regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 pas
 | `test_notas_prancha_x_modelo.py` | notas MEDIDAS (`_notas_do_modelo`); nenhuma medida cravada em mm; ⌀ por Volume/eixo; fallback sem número |
 | `test_quadro_materiais_prancha.py` | takeoff vazio → aviso + "NÃO DISPONÍVEL" na folha (era meia folha em branco silenciosa) |
 
+## Sessão 17 — Gaps Nível A/C + Fabricação 3D/2D + Diafragma (2026-07-22, PRs #45 e #46)
+| arquivo | assere |
+|---|---|
+| `test_empocamento.py` (5) | declividade $\ge 3\%$ dispensa ($OK=True$); $<3\%$ reprova exigindo análise adicional ($OK=False$, flag "9.3"); limite exato inclusivo; `incl_pct_de_theta` converte $\theta$ rad |
+| `test_romaneio.py` (7) | agrupa peças primárias $C1, V1..Vn$; quantidade $(n_{vãos}+1) \times n_{pórticos}$ colunas; massa linear $A \cdot 7850$; multi-vão com vãos diferentes gera marcas $V1, V2$ distintas |
+| `test_tipo_ligacao.py` (6) | `wizard` pergunta `tipo_ligacao` (default soldada); normaliza para minúsculas; `projeto_spec.validar` rejeita tipo inválido (ex. `solda`); propaga para `rodar_params` |
+| `test_torcao.py` (7) | $J$ de perfil I duplo-simétrico; torção nula $\rightarrow$ desprezível; $\tau_t > 0,20\tau_{Rd} \rightarrow$ exige análise de flexo-torção ($OK=False$); tubo retangular $T_{rd}$ 3 regimes + interação quadrtica |
+| `test_marcas_peca.py` (6) | prefixos determinsticos por categoria ($C, V, T, TP, PB, CH...$); 1 marca por perfil distinto; mesmo grupo mesma marca; determinstico na ordenação |
+| `test_tolerancias.py` (5) | folga do furo-padrão $d_b<24\rightarrow +1,5\text{ mm}$, $d_b\ge 24\rightarrow +2,0\text{ mm}$ (NBR 8800 Tab. 12); linhas contêm grupos FABRICAÇÃO/MONTAGEM/FURAÇÃO com fontes |
+| `test_croquis_fabricacao.py` (5) | `_pr_croquis` registrada no pipeline de executivo (PE14); localiza peças no 3D pela propriedade `Marca`; projeta vistas em 3 colunas A1; rotula $C1, V1, MI1$ |
+| `test_diafragma.py` (8) | classifica diafragma (deflexão no plano $>2\times\text{drift}_{médio}\rightarrow$ FLEXÍVEL); distribuição flexível por largura tributária; distribuição rígida por rigidez + torção por excentricidade |
+
+## Sessão 18 — Plano de Montagem e Escoramento (2026-07-22, PR #47)
+| arquivo | assere |
+|---|---|
+| `test_montagem.py` (12) | tolerância de prumo $\max(H/500, 5\text{ mm})$ com teto 25 mm; peça mais pesada considera rafter pré-montado no solo (2 meias-águas); guindaste momento de carga $M_{carga} = \text{peso}\cdot\gamma_{imp}\cdot\text{raio}$ ($t\cdot m$) cita 4.2.6; estaiamento tração $T=F/(n\cdot\cos\alpha)$, compressão na coluna e arrancamento $T\cdot\sin\alpha$; $\gamma$ de construção 1,30 (4.9.6.5); sequência 10 passos estaiia antes de desacoplar guindaste; fallback gracioso "A CONFIRMAR"; pórtico multi-vão considera colunas internas |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).
+
+

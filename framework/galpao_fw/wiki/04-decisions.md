@@ -587,5 +587,46 @@ NOVA (`DIAM_BRACO`) estourar AttributeError.
 todos por AFIRMAR sem medir: bbox×eixo ("11 mm" que eram d·sen45); E.1.4 "menos conservador";
 grupo da Tab. F.1. Testes novos travam a LIGAÇÃO entre as duas descrições, não o valor.
 
+## D68 — PR #45: Gaps normativos Nível A/C + wizard tipo ligação + romaneio (2026-07-22)
+Revisão técnica do PR #45 (`feat/gaps-nivel-a-contra-seguranca`). **Resultado: APROVADO.**
+- **Fadiga da solda do console:** NBR 8800 Anexo K Tabela K.1 item 8.2 (categoria F, $C_f=150\times 10^{10}$, $\sigma_{TH}=55\text{ MPa}$). Frmula K.4b $\Delta\sigma = (11\times 10^4 C_f/N)^{0,167}$. `console_ponte.py` dimensiona a perna do filete cobrindo esttica e fadiga.
+- **Força de atrito do vento:** NBR 6123 6.4.2 $F'_{at}$ no telhado + 2 paredes longitudinais descontando $4h$ ou $4l_1$ ($L_{ef}$). Soma no contraventamento longitudinal em `compute_longitudinal()`.
+- **Pattern loading / carga em xadrez:** NBR 8681 em pórticos multi-vão ($N_{VAOS}\ge 2$). Casos $Q_a$ (vos pares) e $Q_b$ (vos mpares) com combos ELU $C2_{xadrez}$ amplificam momento de desequilbrio da coluna interna.
+- **Gate de empocamento:** NBR 8800 9.3 declividade $\ge 3\%$ dispensa ($OK=True$); $<3\%$ reprova ($OK=False$) sinalizando anlise adicional do peso da gua acumulada.
+- **Torção e efeitos combinados:** NBR 8800 5.5.2. Tubo retangular com 3 regimes $T_{rd}$ (5.5.2.1.3) e interao quadrtica 5.5.2.2. Perfil aberto I/U avaliado por tenso de Saint-Venant $\tau_t$ (se $>0,20\tau_{Rd}$, exige anlise de flexo-toro).
+- **Wizard ligação e romaneio:** pergunta `tipo_ligacao` (`soldada`/`parafusada`, default `soldada`), valida via enum; `romaneio.py` agrupa peas primrias ($C1, V1..Vn$) com marca, quantidade e peso por perfil do clculo.
+
+## D69 — PR #46: Bloco de Fabricação (piece marks 3D, lista de corte, tolerâncias, shop drawings PE14) e diafragma NBR 15421 (2026-07-22)
+Revisão técnica do PR #46 (`feat/fabricacao-shop-drawings`). **Resultado: APROVADO.**
+- **Piece marks 3D (`marcas_peca.py`):** atribui marca determinstica por categoria/perfil ($C1, V1, T1, TP1, PB1...$); grava a propriedade `Marca` no FCStd/BIM em `build_galpao.takeoff()`.
+- **Quadro unificado de materiais / Lista de corte:** tabela nica `Q09M` na PE09 com colunas MARCA | ELEMENTO | PERFIL | QTD | CORTE(m) | MASSA(kg). Fallback limpo.
+- **Quadro de tolerâncias (`tolerancias_fabricacao.py`):** tabela `Q09T` na PE09 com tolerncias de fabricao/montagem (NBR 8800 12.2/12.3 + Bellei Ap. C) e folga do furo-padro ($d_b<24\rightarrow +1,5\text{ mm}$, $d_b\ge 24\rightarrow +2,0\text{ mm}$).
+- **Shop drawings por peça (PE14 CROQUIS DE FABRICAÇÃO):** prancha `PE14_CROQUIS` com 3 vistas projetadas A1 por pea principal ($C1, V1, MI1$), rtulo com corte e nota de solda AWS.
+- **Efeito de diafragma da cobertura (`diafragma.py`):** classificao NBR 15421 8.3.2 (deflexo no plano $>2\times\text{drift}_{mdio}\rightarrow$ FLEXVEL), validando a distribuio tributria do 2D; suporte a diafragma RGIDO (rigidez + toro).
+
+## D70 — PR #47: Plano de Montagem e Escoramento (NBR 8800 12.3 + AISC 303 + Bellei 7.6.4) (2026-07-22)
+Revisão técnica do PR #47 (`feat/plano-montagem-escoramento`). **Resultado: APROVADO.**
+- **Sequência de montagem:** 10 passos adaptados ao pórtico (Bellei 7.6.4), exigindo estaiamento prévio do 1º pórtico antes de desacoplar o guindaste, mantendo estais provisórios até a conclusão do contraventamento definitivo.
+- **Guindaste e içamento (`guindaste_requerido`):** considera rafter pré-montado no solo (2 meias-águas), aplicando coeficiente de impacto de montagem $\gamma_{imp}=1,10$ (NBR 8800 4.2.6) e calculando o momento de carga em $t\cdot m$.
+- **Estai provisório (`estai_provisorio`):** tração $T = F / (n \cdot \cos\alpha)$, compressão adicional na coluna e força de ancoragem de arrancamento $N = T \cdot \sin\alpha$.
+- **Vento de montagem (`forca_lateral_montagem`):** fator de combinação de construção $\gamma_{f3} = 1,30$ (NBR 8800 4.9.6.5).
+- **Tolerância de prumo (`tolerancia_prumo_montagem`):** $\max(H/500, 5\text{ mm})$ por coluna, teto $25\text{ mm}$ global (NBR 8800 12.3.3.1.1).
+- **Graceful degradation:** dados de canteiro ausentes degradam para "A CONFIRMAR" sem inventar parâmetros. Prancha nova `PE16_MONTAGEM` com 4 quadros estruturados + notas NBR 8800.
+
+## D71 — PR #48: Fix de interferência 3D calha/condutor x placa de base e coluna tapered (2026-07-22)
+Revisão técnica do PR #48 (`fix/build-tesoura-tapered-interferencia`). **Resultado: APROVADO.**
+- **CONDUTOR × PLACA_BASE (tesoura):** a folga fixa de 70 mm sobre a borda da chapa invadia a parede do tubo Ø150 (raio 75 mm > 70 mm). Fix: $DOWN\_Y = L/2 + CONDUTOR\_D/2 + 40$ (raio + folga).
+- **CALHA/BOCAL/CONDUTOR × COLUNA (tapered):** $GUT\_Y$ derivava da seção nominal `COL_SEC[0]`, mas a coluna tapered é mais funda no joelho ($h_{joelho}$, no beiral). Fix: $GUT\_Y = \max(COL\_SEC[0], TAPERED\_MODEL[\text{"h\_joelho"}])$.
+- **Resultado:** elimina 28 interferências pré-existentes; suíte de build 3D passa de 7 passed + 2 failed para **9 passed**.
+
+## D72 — PR #49: Job periódico da suíte de build 3D (2026-07-22)
+Revisão técnica do PR #49 (`chore/ci-build-suite-agendada`). **Resultado: APROVADO.**
+- **Guarda de build 3D:** runner PowerShell `tools/run_build_suite.ps1` roda `pytest -m build`, gera logs em `tools/build-logs/` e atualiza `LATEST.txt`.
+- **Agendador Windows:** `tools/register_build_task.ps1` cria a tarefa agendada local `GalpaoFW-BuildSuite` (Weekly, Domingo 03:00 default) idempotente com suporte a `-Remover`.
+- **Uso:** previne que regressões silenciosas de geometria 3D (como as corrigidas no PR #48) ocorram no futuro.
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
+
+
+
