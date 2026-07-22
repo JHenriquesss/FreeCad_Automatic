@@ -1,5 +1,15 @@
 # 06 — Open threads
 
+## T21 — Sessão 18 (2026-07-22): 2ª auditoria de gaps no NLM + Gaps A3/C5 — PR #54
+2ª passada de auditoria no NotebookLM (wiki S17/S18 re-subida). Detalhe técnico em [[04-decisions#D73]]. **723 testes non-build verdes** (+18). Padrão "o NLM lê a wiki, não o código": 5 candidatos → **2 gaps REAIS** (verificados no fonte), **3 falsos-positivos** já cobertos (Ief das terças, breakout da base ACI 318 no `base_chumbador`, bloco raso `dimensiona_bloco_env`) + 1 de economia (ponderação espacial do vento, conservador aceito).
+
+**FECHADO nesta sessão (PR #54, `feat/gaps-console-flt-escada-patamar`):**
+- **A3 (contra-segurança) — FLT do console** (NBR 8800 Anexo G, Tab. G.1): o console é chapa retangular maciça em balanço; o bordo comprimido tomba (FLT) antes de plastificar. Antes só flagado (M_Rd = W·fy elástico). Agora `console_ponte.mrd_flt_chapa` (Lb=2·ecc, Cb=1, λp=0,13E√(JA)/Mpl, λr=2E√(JA)/Mr, Mcr=2CbE√(JA)/λ). Validado contra exemplo resolvido (Pfeil) via NLM. `test_console_flt.py` (8).
+- **C5 (completude) — patamar de escada**: `escada.py` antes ABORTAVA para desnível > 3,2 m (galpão pé-direito > 6 m → escada reprovada). Agora `_dimensiona_multi` divide em N lances + (N−1) patamares, projeção do lance derivada de Blondel; `limite_lance` parametrizável (3,20 NBR 9050 / 2,90 NR-18); sinaliza `espaco_suficiente`. Patamar = largura (A CONFIRMAR, não consta na base). `test_escada_patamar.py` (10).
+- **Conclusão da auditoria: o poço secou** — sem lacuna real de cálculo/contra-segurança remanescente nas normas da base.
+
+**ABERTO (decisão do usuário):** merge do PR #54 (gaps) na `main` — chegou órfão via branch do CI, trazido por este PR.
+
 ## T20 — Sessão 18 (2026-07-22): Job Periódico da Suíte de Build 3D — REVISÃO PR #49 APROVADA
 PR #49 (`chore/ci-build-suite-agendada`). Detalhe técnico em [[04-decisions#D72]]. **714 testes verdes** (incluindo os 9 de build 3D).
 

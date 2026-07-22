@@ -21,16 +21,19 @@ Mesmo `R` para redim/fundação/base → consistência; M do engaste não é rec
 ## Módulos
 | Grupo | Módulos | Norma |
 |---|---|---|
-| Análise | `galpao_portico`, `estabilidade_b1b2`, `frame2d` (solver genérico) | NBR 8800 An. D |
-| Verificação | `check_nbr8800`, `perfis` (tabela) | NBR 8800 |
-| Ações | `vento_nbr6123` (+§8 Cpe local borda/canto), `ponte_rolante`, `sismo_nbr15421` | NBR 6123, 8800/8400, **15421** |
-| Secundários | `tercas_iteracao` (+distorcional FSM), secundários, `mao_francesa`, `contraventamento`, **`telha_cobertura`** | NBR 14762, 8800 |
+| Análise | `galpao_portico`, `estabilidade_b1b2`, `frame2d` (solver genérico), **`diafragma`** (rigidez de cobertura) | NBR 8800 An. D, NBR 15421 §8.3.2 |
+| Verificação | `check_nbr8800`, `perfis` (tabela), **`torcao_nbr8800`**, **`empocamento_nbr8800`** | NBR 8800 §5.5.2 / §9.3 |
+| Ações | `vento_nbr6123` (+§8 Cpe local borda/canto + atrito §6.4), `ponte_rolante`, `sismo_nbr15421` | NBR 6123, 8800/8400, **15421** |
+| Secundários | `tercas_iteracao` (+distorcional FSM), secundários, `mao_francesa`, `contraventamento`, **`telha_cobertura`**, **`escada`** (patamares Blondel) | NBR 14762, 8800, NBR 9050 |
 | Ligações/base | `ligacoes` (joelho/parafusos + furos/Tab.14/block shear/T-stub), `base_chumbador` | NBR 8800 + AISC DG1 + ACI 318 + EN 1993-1-8 |
-| Fundação | `fundacao_sapata` (rasa), `sapata_divisa` (divisa rasa), **`viga_equilibrio`** (divisa sobre estacas: R'=P·l/(l−e), viga alavanca M=P·e + cisalhamento + pele), **`viga_baldrame`** (amarração), **`estaca_profunda`** (profunda) | NBR 6118, 6122 + Aoki/Décourt/Teixeira |
-| Verif. flexão avançada | **`props_I_mono`** (perfil I monossimétrico), **`dg25_ltb`** (DG25 FLT + envelope FLB/TFY/ruptura, INFORMATIVO), **`forcas_localizadas`** (NBR 8800 §5.7 + enrijecedor de apoio) | AISC DG25 + NBR 8800 §5.7 |
+| Fundação | `fundacao_sapata` (rasa), `sapata_divisa` (divisa rasa), **`viga_equilibrio`** (divisa sobre estacas), **`viga_baldrame`** (amarração), **`estaca_profunda`** (profunda) | NBR 6118, 6122 + Aoki/Décourt/Teixeira |
+| Montagem/Obra | **`montagem`** (sequência 10 passos, guindaste, estai, prumo H/500) | NBR 8800 §12.3 + AISC 303 + Bellei 7.6.4 |
+| Fabricação 3D/2D | **`marcas_peca`** (takeoff/corte 3D), **`tolerancias_fabricacao`** (tabela 2D Q09T) | NBR 8800 §12.2/12.3 + Bellei Ap. C |
+| Verif. flexão avançada | **`props_I_mono`** (perfil I monossimétrico), **`dg25_ltb`** (DG25 FLT + envelope), **`forcas_localizadas`** (NBR 8800 §5.7), **`console_ponte`** (FLT Anexo G Tab G.1) | AISC DG25 + NBR 8800 Anexo G / §5.7 |
 | Auto-sizing | `redimensionamento` | usa check |
-| Orquestração | `rodar_galpao`, `rodar_projeto`, `framework`, `projeto_spec` | — |
+| Orquestração | `rodar_galpao`, `rodar_projeto`, `framework`, `projeto_spec`, **`romaneio`** | — |
 | Geometria/saída | `build_galpao`, `dxf_vistas`, `terreno` (KML) | — |
+
 
 **Sismo no envelope:** `galpao_portico`/`estabilidade_b1b2` têm caso `SISMO` (global `gp.SISMO`, `case_sismo` no beiral) + combos excepcionais C6 (1,2G±E / 1,0G±E, sem vento/Q, NBR 15421 §5.4) — entram no envelope do pórtico, base e joelho. `rodar_galpao` computa `E = H·(vão/comprimento)` e θ/P-Δ. Zona 0 (default) → E=0 → nada muda.
 
