@@ -1531,16 +1531,17 @@ def _pr_quadros(doc, cfg):
     # chapas, furacao) sai do modelo 3D. Renderizado abaixo do quadro de materiais.
     rom = cfg.get("romaneio") or []
     if rom:
-        # abaixo do quadro de materiais (se houve takeoff) ou no topo da area de
-        # materiais (quando nao houve takeoff -> o romaneio E a lista de materiais).
-        y0 = (480 - n_mat * 7) - 60 if tk else 480
-        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
-              560, y0 + 24, 9)
         rows_r = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
                    str(it["qtd"]), "%.0f" % float(it["peso_total_kg"])] for it in rom]
         rows_r.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
+        # posicao FIXA na zona inferior-direita vazia da folha (limpa tanto com
+        # quadro de materiais longo quanto sem ele) -> nunca sobrepoe. _tabela
+        # posiciona pelo CENTRO da view; cabecalho logo acima.
+        rom_centro = 210.0
+        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
+              560, rom_centro + (len(rows_r) + 1) * 7 + 10, 9)
         _tabela(doc, page, "Q09R", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
-                rows_r, 560, y0 - len(rows_r) * 7, tam=6,
+                rows_r, 560, rom_centro, tam=6,
                 larguras=[70, 180, 100, 50, 100], escala=ESC_Q)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     _mt = cfg.get("materiais") or {}
