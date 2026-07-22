@@ -20,7 +20,8 @@
 # Este metodo elastico do grupo de solda e MECANICA/AISC (nao e item da NBR) -
 # documentado como FLAG, analogo ao T-stub (EN 1993) ja aceito no joelho.
 # Verifica a chapa do console como VIGA EM BALANCO: cisalhamento (5.4) E flexao
-# na raiz (M_Sd=Rv*ecc; W=t*L^2/6). Saidas em portugues. Unidades SI: m, kN.
+# na raiz COM FLT da chapa retangular macica (NBR 8800 Anexo G / Tab. G.1: o bordo
+# comprimido tomba antes de plastificar). Saidas em portugues. Unidades SI: m, kN.
 # ============================================================================
 """Verificacao da ligacao do console da ponte rolante (compoe ligacoes.py)."""
 
@@ -29,9 +30,54 @@ from __future__ import annotations
 import math
 
 import ligacoes as LG
-from check_nbr8800 import GA1
+from check_nbr8800 import GA1, E
 
 GA2 = LG.GA2
+
+
+def mrd_flt_chapa(t, L, ecc, fy, Cb=1.0):
+    """Momento fletor resistente da CHAPA RETANGULAR MACICA do console por FLT
+    (flambagem lateral com torcao) - NBR 8800:2008 Anexo G, Tabela G.1, linha
+    "secoes solidas retangulares fletidas em relacao ao eixo de maior momento de
+    inercia". Seccao macica NAO tem flambagem LOCAL (nao ha elementos esbeltos,
+    G.1.2) -> o unico estado-limite e a FLT: o bordo comprimido "tomba" (gira
+    lateralmente) antes de plastificar. Fecha o FLAG de flambagem do bordo.
+
+    Chapa: espessura t, altura (eixo forte, no plano de carga) L, em balanco de
+    projecao `ecc`. Extremidade livre nao contida -> Lb = 2*ecc (K=2); balanco ->
+    Cb = 1 (conservador). Propriedades da seccao t x L:
+      A=t*L ; W=t*L^2/6 ; Z=t*L^2/4 ; ry=t/sqrt(12) ; Cw~0 ;
+      J = L*t^3/3 * (1 - 0,63*t/L)  (Saint-Venant c/ correcao de placa).
+    Tabela G.1 (secao solida retangular, FLT):
+      lambda   = Lb/ry
+      lambda_p = 0,13*E*sqrt(J*A)/Mpl     (Mpl = Z*fy)
+      lambda_r = 2,00*E*sqrt(J*A)/Mr      (Mr  = W*fy ; solido: sem sigma_r)
+      Mcr      = 2,00*Cb*E*sqrt(J*A)/lambda
+    e G.2.2: Mrd = Mpl/ga1 (l<=lp) ; interpola (lp<l<=lr) ; Mcr/ga1 (l>lr); teto Mpl.
+    Validado contra o exemplo resolvido (Pfeil) via NotebookLM. Tudo SI (m, kN)."""
+    A = t * L
+    W = t * L ** 2 / 6.0
+    Z = t * L ** 2 / 4.0
+    ry = t / math.sqrt(12.0)                       # sqrt(Iy/A), Iy = L*t^3/12
+    J = (L * t ** 3 / 3.0) * (1.0 - 0.63 * t / L)  # Saint-Venant (correcao de placa)
+    Lb = 2.0 * max(ecc, 0.0)                       # balanco livre -> Lb = 2x projecao
+    Mpl = Z * fy
+    Mr = W * fy                                    # secao solida: sem reducao por sigma_r
+    raizJA = math.sqrt(J * A)
+    lam = Lb / ry if ry > 0 else 0.0
+    lam_p = 0.13 * E * raizJA / Mpl if Mpl else float("inf")
+    lam_r = 2.00 * E * raizJA / Mr if Mr else float("inf")
+    if lam <= lam_p:
+        Mn, regime = Mpl, "plastificacao"
+    elif lam <= lam_r:
+        Mn = Cb * (Mpl - (Mpl - Mr) * (lam - lam_p) / (lam_r - lam_p))
+        Mn, regime = min(Mn, Mpl), "inelastico (FLT)"
+    else:
+        Mcr = 2.00 * Cb * E * raizJA / lam
+        Mn, regime = min(Mcr, Mpl), "elastico (FLT)"
+    return {"Mrd": Mn / GA1, "Mn": Mn, "Mpl": Mpl, "Mr": Mr, "W": W, "Z": Z,
+            "lam": lam, "lam_p": lam_p, "lam_r": lam_r, "Lb": Lb, "J": J,
+            "regime": regime}
 
 
 def verifica_console(caso):
@@ -125,15 +171,16 @@ def verifica_console(caso):
     Aw = t * L
     V_pl_Rd = 0.6 * fy * Aw / GA1
     u_cis = (Rv / V_pl_Rd) if V_pl_Rd else float("inf")
-    # (b) flexao na raiz (elastico, conservador): W = t*L^2/6 ; M_Rd = W*fy/ga1.
-    #     M_Sd = |M| + |Mz|: M=Rv*ecc e Mz=Ht*(L/2+h_trilho) fletem a chapa em torno
-    #     do MESMO eixo forte (ambos no plano da chapa) -> tensoes normais colineares
-    #     que SOMAM (flexao reta, nao obliqua). Consistente com o grupo de solda, que
-    #     ja soma f_bV+f_bH. Z=t*L^2/4 disponivel mas fica flagado (flambagem local
-    #     do bordo comprimido - ver FLAG).
+    # (b) flexao na raiz COM FLT da chapa retangular macica (NBR 8800 Anexo G,
+    #     Tabela G.1). M_Sd = |M| + |Mz|: M=Rv*ecc e Mz=Ht*(L/2+h_trilho) fletem a
+    #     chapa em torno do MESMO eixo forte -> tensoes normais colineares que SOMAM.
+    #     O M_Rd NAO e mais W*fy elastico: o bordo comprimido pode TOMBAR (FLT) antes
+    #     de plastificar -> Mrd pela curva do Anexo G (Lb=2*ecc, Cb=1). Fecha o FLAG
+    #     de flambagem do bordo comprimido (era so flagado antes).
     M_Sd_chapa = abs(M) + abs(Mz)
-    W = t * (L ** 2) / 6.0
-    M_Rd = W * fy / GA1
+    flt = mrd_flt_chapa(t, L, ecc, fy)
+    M_Rd = flt["Mrd"]
+    W = flt["W"]
     u_flex = (M_Sd_chapa / M_Rd) if M_Rd else float("inf")
 
     res = {
@@ -144,7 +191,10 @@ def verifica_console(caso):
                   "f_bH": f_bH, "L_ef": L_ef},
         "chapa_cisalhamento": {"V_Rd": V_pl_Rd, "u": u_cis, "OK": u_cis <= 1.0},
         "chapa_flexao": {"M_Sd": M_Sd_chapa, "M": M, "Mz": Mz, "M_Rd": M_Rd,
-                         "W": W, "u": u_flex, "OK": u_flex <= 1.0},
+                         "W": W, "u": u_flex, "OK": u_flex <= 1.0,
+                         "flt_regime": flt["regime"], "lam": flt["lam"],
+                         "lam_p": flt["lam_p"], "lam_r": flt["lam_r"],
+                         "Mpl": flt["Mpl"], "Lb": flt["Lb"]},
         "fadiga": fad,
     }
     us = {"solda": u_solda, "chapa_cis": u_cis, "chapa_flex": u_flex}
@@ -176,8 +226,9 @@ def relatorio_pt(res, titulo="CONSOLE DA PONTE ROLANTE"):
         % (_pt(s["f_v"]), _pt(s["f_horiz"])),
         "  Chapa cisalhamento 5.4   V_Rd = %s kN            util = %s %s"
         % (_pt(c["V_Rd"]), _pt(c["u"]), "OK" if c["OK"] else "*** NAO ATENDE ***"),
-        "  Chapa flexao (balanco)   M_Rd = %s kN.m          util = %s %s"
-        % (_pt(f["M_Rd"]), _pt(f["u"]), "OK" if f["OK"] else "*** NAO ATENDE ***"),
+        "  Chapa flexao+FLT (Anexo G) M_Rd = %s kN.m  util = %s %s   [%s]"
+        % (_pt(f["M_Rd"]), _pt(f["u"]), "OK" if f["OK"] else "*** NAO ATENDE ***",
+           f.get("flt_regime", "-")),
     ] + ([
         "  Fadiga solda (Anexo K, cat.F, N=%.0e)  tau_SR = %s <= %s MPa  util = %s %s"
         % (res["fadiga"]["N"], _pt(res["fadiga"]["tau_sr"]), _pt(res["fadiga"]["sigma_rd"]),
@@ -217,8 +268,13 @@ def _selftest():
     assert rh["solda"]["f_dem"] > r["solda"]["f_dem"]
     # chapa em balanco: cisalhamento V_Rd=0,6*fy*t*L/ga1 ; flexao M_Rd=W*fy/ga1
     assert abs(r["chapa_cisalhamento"]["V_Rd"] - 0.6 * 250e3 * 0.016 * L / GA1) < 1e-6
-    W = 0.016 * L**2 / 6.0
-    assert abs(r["chapa_flexao"]["M_Rd"] - W * 250e3 / GA1) < 1e-6
+    # flexao COM FLT (Anexo G, Tab. G.1): M_Rd = Mrd da chapa retangular macica,
+    # nunca superior ao PLASTICO Mpl/ga1 (teto G.2.2). Para chapa robusta a FLT
+    # entrega a reserva plastica (Mpl = 1,5*W*fy > elastico); para chapa esbelta,
+    # REDUZ abaixo disso (FLT governa) - o que fecha o FLAG.
+    flt_b = mrd_flt_chapa(0.016, L, ecc, 250e3)
+    assert abs(r["chapa_flexao"]["M_Rd"] - flt_b["Mrd"]) < 1e-12
+    assert flt_b["Mrd"] <= flt_b["Mpl"] / GA1 + 1e-9
     # M_Sd da chapa = |M| + |Mz| (flexao reta aditiva, mesmo eixo forte)
     assert abs(r["chapa_flexao"]["M_Sd"] - (abs(M) + abs(Mz))) < 1e-9
     # console curto/fino sob carga enorme: nem 12mm basta -> adota 12 e NAO ATENDE
@@ -249,6 +305,34 @@ def _selftest():
     rf2 = verifica_console({"Rv": 800.0, "Ht": 80.0, "ecc": 0.40, "t": 0.016,
                             "L": 0.15, "fy": 250e3, "fu": 400e3, "n_ciclos": 2.0e6})
     assert rf2["fadiga"]["u"] > 1.0 and not rf2["fadiga"]["OK"] and not rf2["OK"]
+
+    # ---- FLT da chapa retangular macica (NBR 8800 Anexo G, Tab. G.1) ----------
+    # Reproduz o exemplo resolvido (Pfeil, via NotebookLM): chapa t=12,5mm x
+    # L=270mm, balanco ecc=145mm, fy=250 MPa. Regime INELASTICO (lp<lam<lr);
+    # Md=15,95 kN.m << Mrd -> ATENDE.
+    ex = mrd_flt_chapa(0.0125, 0.27, 0.145, 250e3)
+    assert ex["regime"] == "inelastico (FLT)"
+    assert abs(ex["lam_p"] - 10.96) < 0.2 and abs(ex["lam_r"] - 252.9) < 2.0
+    assert abs(ex["lam"] - 80.4) < 0.5
+    assert 44.0 < ex["Mrd"] < 49.0                     # ~46,8 kN.m (com ga1)
+    assert ex["Mrd"] < ex["Mpl"] / GA1                 # FLT reduz abaixo de Mpl/ga1
+    # balanco CURTO -> lam<=lp -> plastificacao (Mrd = Mpl/ga1, sem reducao FLT)
+    curto = mrd_flt_chapa(0.0125, 0.27, 0.002, 250e3)
+    assert curto["regime"] == "plastificacao"
+    assert abs(curto["Mrd"] - curto["Mpl"] / GA1) < 1e-9
+    # balanco LONGO e chapa fina -> regime ELASTICO (lam>lr), Mrd cai bastante
+    longo = mrd_flt_chapa(0.008, 0.30, 1.20, 250e3)
+    assert longo["regime"] == "elastico (FLT)"
+    assert longo["Mrd"] < longo["Mpl"] / GA1
+    # monotonia: quanto maior o balanco, menor o Mrd (mais FLT)
+    a1 = mrd_flt_chapa(0.016, 0.45, 0.15, 250e3)["Mrd"]
+    a2 = mrd_flt_chapa(0.016, 0.45, 0.60, 250e3)["Mrd"]
+    assert a2 < a1
+    # o console (verifica_console) usa a FLT: chapa DEEP fina em balanco longo
+    # reprova por flexao (FLT), nao passaria pelo elastico ingenuo.
+    rflt = verifica_console({"Rv": 200.0, "Ht": 0.0, "ecc": 0.9, "t": 0.008,
+                             "L": 0.30, "fy": 250e3, "fu": 400e3})
+    assert rflt["chapa_flexao"]["flt_regime"] in ("inelastico (FLT)", "elastico (FLT)")
     print("console_ponte _selftest PASSED")
 
 

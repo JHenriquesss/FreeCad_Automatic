@@ -1437,10 +1437,12 @@ def rodar(params, out_dir):
         esc_cfg = params["escada"]
         re = esc.dimensiona(esc_cfg["desnivel"], esc_cfg["projecao"],
                             esc_cfg.get("largura", 1.20),
-                            q_acidental=esc_cfg.get("q_acidental", 3.0))
+                            q_acidental=esc_cfg.get("q_acidental", 3.0),
+                            limite_lance=esc_cfg.get("limite_lance", 3.20))
         save("gate8-escada.txt", esc.relatorio_pt(re))
         res["escada_ok"] = re.get("ok", False)
         res["escada_perfil"] = re.get("perfil")
+        res["escada_n_lances"] = re.get("n_lances", 1)   # >1 quando ha patamar
     # Gate 8 - PLATAFORMA / PASSARELA
     if params.get("plataforma"):
         plt_cfg = params["plataforma"]
