@@ -150,6 +150,10 @@ PERGUNTAS = [
     ("eave", "Pe-direito / altura do beiral (m)", _f, None, True),
     ("bay", "Espacamento entre porticos (m)", _f, 5.0, False),
     ("base_fixed", "Base engastada? (sim=engastada / nao=rotulada)", _b, False, False),
+    # Tipo de ligacao das ligacoes de campo (montagem): soldada ou parafusada. A
+    # esmagadora maioria dos galpoes metalicos usa ligacoes SOLDADAS de campo ->
+    # default 'soldada'. Guia o detalhamento (joelho/base/emendas) e as notas.
+    ("tipo_ligacao", "Tipo de ligacao da estrutura (soldada/parafusada)", str, "soldada", False),
     # cobertura
     ("aguas", "Numero de aguas da cobertura (1 ou 2)", _i, 2, False),
     ("slope", "Inclinacao da cobertura (fracao, ex 0.10 = 10%)", _f, 0.10, False),
@@ -247,6 +251,8 @@ def construir_spec(r, slug="galpao"):
     # aco: guarda o valor CRU (nao normaliza aqui). Assim um erro de digitacao
     # ('AR300') e BLOQUEADO pelo validar em vez de cair calado no MR250 default.
     s["estrutura"]["aco"] = r.get("aco") or "MR250"
+    # tipo de ligacao (soldada/parafusada): normaliza e guarda cru p/ validar().
+    s["estrutura"]["tipo_ligacao"] = (r.get("tipo_ligacao") or "soldada").strip().lower()
     nmf = r.get("n_maos_francesas", 0) or 0
     s["fechamento"].update(tipo=r.get("fech_tipo", "telha"),
                            altura_alvenaria=r.get("altura_alvenaria", 0) or 0,

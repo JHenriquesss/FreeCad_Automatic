@@ -211,6 +211,7 @@ def rodar(params, out_dir):
                          theta=math.degrees(gp.THETA))
 
     res = {}
+    res["tipo_ligacao"] = params.get("tipo_ligacao", "soldada")   # soldada/parafusada
     if neve_res:
         res["neve"] = neve_res
     # Ponte rolante (opcional): calcula a acao e injeta a reacao no portico como
@@ -1491,6 +1492,8 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Terreno (TO/CA/TP)", _bok("terreno")),
                   ("Escada", None if "escada_ok" not in res else (0.0 if res["escada_ok"] else 1.99)),
                   ("Plataforma", None if "plataforma_ok" not in res else (0.0 if res["plataforma_ok"] else 1.99))]
+        L.append("Ligacoes de campo (montagem): %s" %
+                 res.get("tipo_ligacao", "soldada").upper())
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:
