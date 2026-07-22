@@ -231,6 +231,20 @@ def emitir_ifc_analitico(modelo, path, nome="Galpao"):
         for nd in (conn[b["no_i"]], conn[b["no_j"]]):
             m.create_entity("IfcRelConnectsStructuralMember", GlobalId=guid(),
                             RelatingStructuralMember=cm, RelatedStructuralConnection=nd)
+        # propriedades da SECAO na barra (A, I, grupo) - o membro analitico carrega a
+        # secao (Revit/analise leem). Pset custom.
+        props = [
+            m.create_entity("IfcPropertySingleValue", Name="Grupo",
+                            NominalValue=m.create_entity("IfcLabel", b["grupo"])),
+            m.create_entity("IfcPropertySingleValue", Name="Area_m2",
+                            NominalValue=m.create_entity("IfcReal", float(b["A"]))),
+            m.create_entity("IfcPropertySingleValue", Name="Inercia_m4",
+                            NominalValue=m.create_entity("IfcReal", float(b["I"]))),
+        ]
+        pset = m.create_entity("IfcPropertySet", GlobalId=guid(),
+                               Name="Pset_SecaoAnalitica", HasProperties=props)
+        m.create_entity("IfcRelDefinesByProperties", GlobalId=guid(),
+                        RelatedObjects=[cm], RelatingPropertyDefinition=pset)
         membros.append(cm)
     m.create_entity("IfcRelAssignsToGroup", GlobalId=guid(),
                     RelatedObjects=list(conn.values()) + membros, RelatingGroup=sam)

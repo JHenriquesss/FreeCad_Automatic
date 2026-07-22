@@ -127,6 +127,11 @@ def test_emitir_ifc_analitico_structural(tmp_path):
     # todos os nos e barras num unico grupo (o SAM)
     grp = m.by_type("IfcRelAssignsToGroup")[0]
     assert len(grp.RelatedObjects) == 5 + 4
+    # cada barra carrega a secao (A, I, grupo) num Pset
+    assert len(m.by_type("IfcPropertySet")) == 4
+    ps = m.by_type("IfcPropertySet")[0]
+    nomes = {p.Name for p in ps.HasProperties}
+    assert {"Grupo", "Area_m2", "Inercia_m4"} <= nomes
 
 
 def test_analitico_structural_rotula(tmp_path):
