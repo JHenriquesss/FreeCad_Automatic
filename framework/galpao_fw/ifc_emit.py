@@ -66,6 +66,9 @@ def _perfil_ifc(m, nome, s, esc):
     'lip') -> IfcCShapeProfileDef (canaleta enrijecida). Laminado -> IfcIShapeProfileDef.
     Dims em m * esc (mm). `d`/`h` = altura, `bf` = largura, `tw`/`t` = espessura."""
     forma = str(s.get("forma", "")).upper()
+    if forma == "ROUND":                              # barra redonda (tirante/contrav)
+        return m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Radius=float(s.get("D") or 0.0) * esc / 2.0)
     h = float(s.get("d") or s.get("h") or 0.0) * esc
     bf = float(s.get("bf") or 0.0) * esc
     if forma == "C" or s.get("lip") is not None:      # formado a frio Ue (com labio)
@@ -170,7 +173,9 @@ def emitir_ifc_do_spec(spec, path):
                     "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0}
     membros = MN.frame_completo(geo, {"col": col, "raf": raf},
                                 n_terca=n_terca, terca_sec=terca_sec,
-                                girt_sec=girt_sec, col_d=col.get("d"))
+                                girt_sec=girt_sec, col_d=col.get("d"),
+                                n_tirante_parede=est.get("n_tirante_parede"),
+                                d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0)
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 

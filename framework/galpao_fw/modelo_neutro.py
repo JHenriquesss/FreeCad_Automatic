@@ -134,19 +134,80 @@ def girts(geometria, girt_sec, col_d=0.0):
     return ms
 
 
+def _xs(geometria):
+    """Posicoes X dos porticos (m)."""
+    comp = float(geometria["comprimento"])
+    bay = float(geometria["bay"])
+    np_ = _n_porticos(comp, bay)
+    return [comp * i / (np_ - 1) for i in range(np_)] if np_ > 1 else [0.0]
+
+
+def tirantes_parede(geometria, n_tirante, d_mm, col_d=0.0, girt_d=0.0):
+    """Tirantes de parede: barras redondas VERTICAIS (Z0->beiral), n_tirante por vao
+    (xk = x0 + bay*k/(n+1)), nas 2 paredes (y=-GOFF e SPAN+GOFF). Espelha o
+    build_galpao (TIRANTE_PAREDE). d_mm = diametro (mm)."""
+    if not n_tirante or n_tirante < 1:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    span_tot = sum(float(s) for s in spans if s)
+    eave = float(geometria["eave"])
+    goff = col_d / 2.0 + girt_d / 2.0
+    xs = _xs(geometria)
+    sec = {"nome": "R%.0f" % d_mm, "forma": "round", "D": d_mm / 1000.0}
+    ms = []
+    for b in range(len(xs) - 1):
+        bay = xs[b + 1] - xs[b]
+        for k in range(1, int(n_tirante) + 1):
+            xk = xs[b] + bay * k / (n_tirante + 1)
+            for y in (-goff, span_tot + goff):
+                ms.append({"marca": "TR1", "perfil": sec["nome"], "tipo": "Member",
+                           "p1": (xk * MM, y * MM, 0.0),
+                           "p2": (xk * MM, y * MM, eave * MM), "secao": sec})
+    return ms
+
+
+def contrav_cobertura(geometria, d_mm=20.0):
+    """Contraventamento de cobertura: 2 diagonais cruzadas (so-tracao) no plano do
+    beiral, nos vaos de EXTREMIDADE (1o e ultimo). Espelha o build_galpao
+    (CONTRAV_COBERTURA). Barras redondas d_mm."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    span_tot = sum(float(s) for s in spans if s)
+    eave = float(geometria["eave"])
+    xs = _xs(geometria)
+    if len(xs) < 2:
+        return []
+    pares = [(xs[0], xs[1])]
+    if len(xs) >= 3:
+        pares.append((xs[-2], xs[-1]))
+    sec = {"nome": "R%.0f" % d_mm, "forma": "round", "D": d_mm / 1000.0}
+    ms = []
+    for (x0, x1) in pares:
+        for (xa, xb) in ((x0, x1), (x1, x0)):         # A e B (cruzadas)
+            ms.append({"marca": "CV1", "perfil": sec["nome"], "tipo": "Member",
+                       "p1": (xa * MM, 0.0, eave * MM),
+                       "p2": (xb * MM, span_tot * MM, eave * MM), "secao": sec})
+    return ms
+
+
 def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
-                   girt_sec=None, col_d=None):
+                   girt_sec=None, col_d=None, n_tirante_parede=None,
+                   d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0):
     """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
     terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
     escopo das proximas iteracoes."""
+    cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
     ms = frame_primario(geometria, secoes)
     if n_terca and terca_sec:
         geo = dict(geometria)                         # altura do rafter -> assento
         geo.setdefault("raf_d", (secoes.get("raf") or {}).get("d", 0.0))
         ms += tercas(geo, n_terca, terca_sec)
+    girt_d = (girt_sec or {}).get("d", 0.0) if girt_sec else 0.0
     if girt_sec:
-        cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
         ms += girts(geometria, girt_sec, cd)
+    if n_tirante_parede:
+        ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
+    if contrav:
+        ms += contrav_cobertura(geometria, d_contrav_mm)
     return ms
 
 

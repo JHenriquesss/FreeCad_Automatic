@@ -123,5 +123,40 @@ def test_frame_completo_com_girts():
     assert r["Member"] == 10 + 4                        # 10 tercas + 4 girts
 
 
+def test_tirantes_parede_bays_x_n_x_2paredes():
+    # 40/5=8 -> 9 porticos -> 8 vaos ; n=2 ; 2 paredes -> 8*2*2 = 32
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    t = MN.tirantes_parede(geo, n_tirante=2, d_mm=16.0, col_d=0.5, girt_d=0.14)
+    assert len(t) == 8 * 2 * 2
+    # verticais (mesmo X e Y, Z 0->eave), redondas
+    assert t[0]["p1"][0] == t[0]["p2"][0] and t[0]["p1"][1] == t[0]["p2"][1]
+    assert t[0]["p1"][2] == 0.0 and abs(t[0]["p2"][2] - 6000.0) < 1e-6
+    assert t[0]["secao"]["forma"] == "round"
+
+
+def test_contrav_cobertura_vaos_de_extremidade():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    c = MN.contrav_cobertura(geo, 20.0)
+    assert len(c) == 4                                 # 2 vaos extremos x 2 diagonais
+    # diagonal cruza o beiral (Y 0 <-> span) no plano do eave
+    assert abs(c[0]["p1"][2] - 6000.0) < 1e-6 and abs(c[0]["p2"][2] - 6000.0) < 1e-6
+    assert c[0]["p1"][1] == 0.0 and abs(c[0]["p2"][1] - 20000.0) < 1e-6
+
+
+def test_contrav_um_vao_so_duas_diagonais():
+    # comprimento = bay -> 2 porticos -> 1 vao -> so 2 diagonais (nao duplica)
+    geo = {"span": 20.0, "comprimento": 5.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    assert len(MN.contrav_cobertura(geo, 20.0)) == 2
+
+
+def test_frame_completo_com_tirantes_e_contrav():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, n_terca=5, terca_sec=_TERCA, girt_sec=_GIRT,
+                          col_d=0.5, n_tirante_parede=2, contrav=True)
+    r = MN.resumo(M)
+    # 10 tercas + 4 girts + 8*2*2 tirantes + 4 contrav
+    assert r["Member"] == 10 + 4 + 8 * 2 * 2 + 4
+
+
 def test_selftest_modulo():
     MN._selftest()

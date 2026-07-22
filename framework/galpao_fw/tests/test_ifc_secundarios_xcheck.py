@@ -48,6 +48,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     gsec = ({"nome": "U", "forma": "U", "d": ld[0] / 1000.0, "bf": ld[1] / 1000.0,
              "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0} if ld else None)
     n_girt_puro = len(MN.girts(geo, gsec, col_d)) if gsec else 0
+    girt_d = ld[0] / 1000.0 if ld else 0.0
+    n_tir_puro = len(MN.tirantes_parede(geo, est.get("n_tirante_parede"), 16.0,
+                                        col_d, girt_d)) if est.get("n_tirante_parede") else 0
+    n_cv_puro = len(MN.contrav_cobertura(geo, 20.0))
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -62,7 +66,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "nt=sum(1 for o in doc.Objects if o.Name.startswith('TERCA_S') "
             "or o.Name.startswith('TERCA_BEIRAL'))\n"
             "ng=sum(1 for o in doc.Objects if o.Name.startswith('TERCA_PAREDE'))\n"
-            "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng}))\n" % (bk, stf))
+            "ntir=sum(1 for o in doc.Objects if o.Name.startswith('TIRANTE_PAREDE'))\n"
+            "ncv=sum(1 for o in doc.Objects if o.Name.startswith('CONTRAV_COBERTURA'))\n"
+            "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv}))\n"
+            % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
     bp.write(boot); bp.close()
@@ -80,3 +87,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
         assert n_girt_puro == d["ng"], (
             "girts do modelo_neutro (%d) divergem do build_galpao (%d)"
             % (n_girt_puro, d["ng"]))
+    assert n_tir_puro == d["ntir"], (
+        "tirantes de parede do modelo_neutro (%d) divergem do build (%d)"
+        % (n_tir_puro, d["ntir"]))
+    assert n_cv_puro == d["ncv"], (
+        "contraventamento do modelo_neutro (%d) diverge do build (%d)"
+        % (n_cv_puro, d["ncv"]))
