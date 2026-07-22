@@ -53,3 +53,6 @@ __pycache__/
 # Saidas de entrega geradas (pranchas, memoriais, PDF de calculo, FCStd de saida)
 ENTREGA_PRANCHAS/
 *.FCStd1
+
+# Logs do job periodico da suite de build (tools/run_build_suite.ps1)
+tools/build-logs/
