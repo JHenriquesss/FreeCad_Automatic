@@ -19,17 +19,71 @@ LIM_FECHA = 300.0        # L/300
 DESNIVEL_MAX_SEM_PATAMAR = 3.20  # m
 
 
+def _dimensiona_multi(desnivel, projecao_horizontal, largura, q_acidental, fy,
+                      limite_lance, patamar_comp=None):
+    """Escada de VARIOS LANCES com patamar(es) de descanso (desnivel > limite_lance).
+    Divide o desnivel em N lances iguais (cada um <= limite_lance) separados por
+    (N-1) patamares. Comprimento do patamar = largura do lance (pratica; NBR
+    9050/9077 NAO consta na base de normas -> A CONFIRMAR, sobrescrivivel por
+    patamar_comp). Cada lance e dimensionado pelo nucleo de lance unico (h<=3,2 m,
+    sem recursao). O patamar consome parte da projecao em planta."""
+    n_lances = max(2, math.ceil(desnivel / limite_lance))
+    p_len = patamar_comp if patamar_comp else largura
+    h_lance = desnivel / n_lances
+    # Projecao do lance DERIVADA de Blondel (nao fatiada da entrada): dado o espelho
+    # (<=18 cm), o piso segue de 2e + p = 63 cm (centro de [62;64]). Fatiar uma
+    # projecao fixa quebraria o Blondel de cada lance.
+    n_esp = max(2, math.ceil(h_lance / 0.18))
+    espelho_cm = (h_lance / n_esp) * 100.0
+    piso_cm = 63.0 - 2.0 * espelho_cm                 # Blondel alvo 63
+    if not (24.0 <= piso_cm <= 32.0):                 # piso fora da faixa ergonomica
+        return {"ok": False, "erro": f"Lance {h_lance:.2f}m: piso Blondel {piso_cm:.1f}cm "
+                f"fora de [24;32] (revisar limite_lance/geometria)"}
+    proj_lance = (n_esp - 1) * (piso_cm / 100.0)
+    lance = dimensiona(h_lance, proj_lance, largura, q_acidental, fy, limite_lance)
+    if not lance.get("ok"):
+        return {"ok": False, "erro": f"Lance ({h_lance:.2f}m x {proj_lance:.2f}m): "
+                f"{lance.get('erro')}"}
+    # projecao TOTAL necessaria em planta = N lances + (N-1) patamares; a entrada
+    # `projecao_horizontal` e o espaco DISPONIVEL (informa se cabe).
+    proj_necessaria = n_lances * proj_lance + (n_lances - 1) * p_len
+    L_total = n_lances * lance["L"] + (n_lances - 1) * p_len   # desenvolvimento total
+    espaco_ok = (projecao_horizontal <= 0) or (proj_necessaria <= projecao_horizontal + 1e-9)
+    return {
+        "ok": True, "multi": True,
+        "n_lances": n_lances, "n_patamares": n_lances - 1,
+        "desnivel_total_m": round(desnivel, 3),
+        "desnivel_por_lance_m": round(h_lance, 3),
+        "projecao_necessaria_m": round(proj_necessaria, 3),
+        "projecao_disponivel_m": round(projecao_horizontal, 3),
+        "espaco_suficiente": bool(espaco_ok),
+        "patamar_comprimento_m": round(p_len, 3), "patamar_largura_m": largura,
+        "limite_lance_m": limite_lance,
+        "perfil": lance["perfil"],              # mesmo perfil em todos (lances iguais)
+        "L_desenvolvimento_m": round(L_total, 2),
+        "lance": lance,
+        "obs_patamar": "Comprimento do patamar = largura do lance (pratica de "
+                       "engenharia; a dimensao exata NBR 9050/9077 NAO consta na "
+                       "base de normas -> A CONFIRMAR). Patamar como plataforma: "
+                       "vigas/piso pelo modulo de plataforma.",
+    }
+
+
 def dimensiona(desnivel, projecao_horizontal, largura=1.20,
                q_acidental=Q_ESCADA, fy=250e3, limite_lance=3.20):
     """Dimensiona longarina de escada reta.
     desnivel: altura a vencer (m)
     projecao_horizontal: comprimento em planta (m)
     largura: largura util da escada (m)
-    Retorna dict com resultados."""
-    # Patamar obrigatorio para desnivel > 3.2 m
+    limite_lance: desnivel maximo de um lance CONTINUO (m); acima disso a escada e
+                  dividida em lances com PATAMAR intermediario (NBR 9050/bombeiros
+                  3,20 m; NR-18 pode exigir 2,90 m -> parametrizavel).
+    Retorna dict com resultados (single-flight) OU, se desnivel > limite_lance,
+    dict COMPOSTO (multi=True) com N lances + (N-1) patamares."""
+    # Desnivel alto -> divide em lances com patamar de descanso (nao mais aborta).
     if desnivel > limite_lance:
-        return {"ok": False, "erro": f"Desnivel {desnivel:.1f}m > {DESNIVEL_MAX_SEM_PATAMAR}m: "
-                "exige patamar intermediario (fora do escopo deste modulo)"}
+        return _dimensiona_multi(desnivel, projecao_horizontal, largura,
+                                 q_acidental, fy, limite_lance)
     # Numero de espelhos (arredondar para CIMA para respeitar espelho max 18cm)
     n_espelhos = max(2, math.ceil(desnivel / 0.18))
     espelho = desnivel / n_espelhos
@@ -86,6 +140,25 @@ def dimensiona(desnivel, projecao_horizontal, largura=1.20,
 def relatorio_pt(r):
     if not r.get("ok"):
         return f"ESCADA - {r.get('erro', 'Erro desconhecido')}"
+    if r.get("multi"):
+        lc = r["lance"]
+        L = ["ESCADA INDUSTRIAL METALICA (MULTI-LANCE com PATAMAR)",
+             f"  Desnivel total: {r['desnivel_total_m']:.2f} m em {r['n_lances']} "
+             f"lances de {r['desnivel_por_lance_m']:.2f} m (limite {r['limite_lance_m']:.2f} m/lance)",
+             f"  Patamares: {r['n_patamares']} x {r['patamar_comprimento_m']:.2f} m "
+             f"(comprimento) x {r['patamar_largura_m']:.2f} m (largura)",
+             f"  Projecao necessaria: {r['projecao_necessaria_m']:.1f} m "
+             f"(disponivel {r['projecao_disponivel_m']:.1f} m -> "
+             f"{'CABE' if r['espaco_suficiente'] else '*** NAO CABE no espaco ***'})",
+             f"  Desenvolvimento total ~ {r['L_desenvolvimento_m']:.1f} m",
+             f"  Longarina (por lance): {lc['perfil']} (L={lc['L']:.2f} m)",
+             f"  Por lance: {lc['n_espelhos']} espelhos x {lc['espelho_mm']:.0f} mm ; "
+             f"{lc['n_pisos']} pisos x {lc['piso_mm']:.0f} mm ; Blondel {lc['blondel_cm']:.1f} cm",
+             f"  M_max = {lc['M_max']:.1f} kN.m ; V_max = {lc['V_max']:.1f} kN ; "
+             f"interacao {lc['interacao']:.3f} ; flecha {lc['delta_mm']:.1f} mm",
+             f"  [{r['obs_patamar']}]"]
+        import re
+        return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
     L = ["ESCADA INDUSTRIAL METALICA",
          f"  Desnivel: {r['espelho_mm']*r['n_espelhos']/1000:.2f} m ; "
          f"Projecao: {r['piso_mm']*r['n_pisos']/1000:.1f} m",
@@ -110,9 +183,34 @@ def _selftest():
     assert r["espelho_mm"] <= 180, f"espelho {r['espelho_mm']} > 180mm"
     assert r["n_espelhos"] == r["n_pisos"] + 1
     assert 62 <= r["blondel_cm"] <= 64, f"Blondel {r['blondel_cm']} fora"
+    # MULTI-LANCE: desnivel 4,0 m > 3,2 m -> 2 lances de 2,0 m + 1 patamar (nao aborta)
+    rm = dimensiona(desnivel=4.0, projecao_horizontal=6.0, largura=1.20)
+    assert rm.get("ok") and rm.get("multi"), f"multi falhou: {rm.get('erro')}"
+    assert rm["n_lances"] == 2 and rm["n_patamares"] == 1
+    assert abs(rm["desnivel_por_lance_m"] - 2.0) < 1e-9
+    assert abs(rm["desnivel_total_m"] - 4.0) < 1e-9
+    assert rm["perfil"]                                  # dimensionou a longarina do lance
+    # cada lance <= limite_lance
+    assert rm["desnivel_por_lance_m"] <= 3.20 + 1e-9
+    # desnivel altissimo -> mais lances (7 m -> 3 lances)
+    r7 = dimensiona(desnivel=7.0, projecao_horizontal=12.0, largura=1.20)
+    assert r7.get("ok") and r7["n_lances"] == 3 and r7["n_patamares"] == 2
+    # a geometria e valida (Blondel derivado), mas o espaco em planta e curto ->
+    # dimensiona a escada e sinaliza que NAO CABE (nao inventa que cabe).
+    rbad = dimensiona(desnivel=6.5, projecao_horizontal=1.0, largura=1.20)
+    assert rbad.get("ok") and rbad.get("multi")
+    assert rbad["espaco_suficiente"] is False
+    assert rbad["projecao_necessaria_m"] > rbad["projecao_disponivel_m"]
+    # com espaco folgado -> cabe
+    rok = dimensiona(desnivel=6.5, projecao_horizontal=20.0, largura=1.20)
+    assert rok["espaco_suficiente"] is True
+    # limite_lance parametrizavel (NR-18 2,90 m): desnivel 3,0 m passa a exigir patamar
+    r29 = dimensiona(desnivel=3.0, projecao_horizontal=6.0, largura=1.20, limite_lance=2.90)
+    assert r29.get("multi") and r29["n_lances"] == 2
     print(f"escada self-test PASSED: {r['n_espelhos']} espelhos, "
           f"espelho={r['espelho_mm']:.0f}mm, piso={r['piso_mm']:.0f}mm, "
-          f"Blondel={r['blondel_cm']:.1f}cm, perfil={r['perfil']}")
+          f"Blondel={r['blondel_cm']:.1f}cm, perfil={r['perfil']} ; "
+          f"multi: {rm['n_lances']} lances + {rm['n_patamares']} patamar OK")
 
 
 if __name__ == "__main__":
