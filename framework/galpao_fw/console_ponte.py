@@ -75,9 +75,26 @@ def verifica_console(caso):
     def _L_ef(perna_m):
         return max(L - 2.0 * perna_m, 1e-6)
 
-    # DIMENSIONA a perna do filete: menor perna-padrao (>= minimo Tab.9) cuja
-    # capacidade por comprimento cubra a demanda do grupo (first-fit, com L_ef da
-    # propria perna). Se nem 12 mm bastar, adota 12 e sinaliza (penetracao/redesenho).
+    # FADIGA da solda (NBR 8800 Anexo K, Tab.K.1 item 8.2 = categoria F, cisalha-
+    # mento na garganta do filete). A ponte passa e a reacao vai de ~0 a Rv -> a
+    # faixa de variacao de tensao na garganta e tau_SR = f_dem_servico/garganta.
+    # f_dem vem das cargas de SERVICO (Rv/Ht sao a reacao sem impacto). garganta =
+    # 0,707*perna. So verifica se N informado (n_ciclos do regime, NBR 8400).
+    N = caso.get("n_ciclos")
+    sig_rd_F = None
+    if N:
+        from ponte_rolante import faixa_admissivel_fadiga
+        sig_rd_F = faixa_admissivel_fadiga("F", N)   # MPa (piso sigma_TH=55)
+
+    def _tau_sr(perna_m):
+        """Faixa de variacao de tensao na garganta (MPa) p/ uma perna dada."""
+        fd = _grupo_solda(_L_ef(perna_m))[0]
+        return (fd / (0.707 * perna_m)) / 1000.0     # kN/m2 -> MPa
+
+    # DIMENSIONA a perna do filete: menor perna-padrao (>= minimo Tab.9) que
+    # satisfaz ESTATICA (capacidade do grupo >= demanda) E FADIGA (tau_SR <=
+    # faixa cat.F) simultaneamente. A fadiga costuma governar em ponte pesada e
+    # exige perna maior. Se nem 12 mm bastar, adota 12 e sinaliza (redesenho).
     p_min = LG.solda_filete_minimo(t * 1000.0)
     pernas = [p for p in (6.0, 8.0, 10.0, 12.0) if p >= p_min] or [p_min]
     perna = caso.get("perna") and caso["perna"] * 1000.0
@@ -85,7 +102,9 @@ def verifica_console(caso):
         perna = pernas[-1]
         for p in pernas:
             fdem_p = _grupo_solda(_L_ef(p / 1000.0))[0]
-            if LG.fw_rd_filete(p / 1000.0, 1.0, fw)[0] >= fdem_p:
+            estatica_ok = LG.fw_rd_filete(p / 1000.0, 1.0, fw)[0] >= fdem_p
+            fadiga_ok = (sig_rd_F is None) or (_tau_sr(p / 1000.0) <= sig_rd_F + 1e-9)
+            if estatica_ok and fadiga_ok:
                 perna = p
                 break
     perna = perna / 1000.0
@@ -93,6 +112,13 @@ def verifica_console(caso):
     f_dem, f_v, f_h, f_bV, f_bH, f_horiz = _grupo_solda(L_ef)
     f_cap = LG.fw_rd_filete(perna, 1.0, fw)[0]   # capacidade por comprimento (kN/m)
     u_solda = f_dem / f_cap if f_cap else float("inf")
+
+    fad = None
+    if N:
+        tau_sr = _tau_sr(perna)                      # com a perna adotada
+        fad = {"cat": "F", "N": N, "tau_sr": tau_sr, "sigma_rd": sig_rd_F,
+               "u": tau_sr / sig_rd_F if sig_rd_F else float("inf"),
+               "OK": tau_sr <= sig_rd_F + 1e-9}
 
     # chapa do console como VIGA EM BALANCO (secao t x L na raiz, junto a coluna):
     # (a) cisalhamento (escoamento 5.4): V_Rd = 0,6*fy*Aw/ga1 ; Aw = t*L
@@ -119,12 +145,15 @@ def verifica_console(caso):
         "chapa_cisalhamento": {"V_Rd": V_pl_Rd, "u": u_cis, "OK": u_cis <= 1.0},
         "chapa_flexao": {"M_Sd": M_Sd_chapa, "M": M, "Mz": Mz, "M_Rd": M_Rd,
                          "W": W, "u": u_flex, "OK": u_flex <= 1.0},
+        "fadiga": fad,
     }
     us = {"solda": u_solda, "chapa_cis": u_cis, "chapa_flex": u_flex}
+    if fad:
+        us["fadiga"] = fad["u"]
     res["u_max"] = max(us.values())
     res["governa"] = max(us, key=us.get)
     res["OK"] = all(v["OK"] for v in (res["solda"], res["chapa_cisalhamento"],
-                                      res["chapa_flexao"]))
+                                      res["chapa_flexao"])) and (fad is None or fad["OK"])
     res["adotado"] = {"t_mm": round(t * 1000.0, 1), "perna_solda_mm": res["perna_mm"]}
     return res
 
@@ -149,6 +178,11 @@ def relatorio_pt(res, titulo="CONSOLE DA PONTE ROLANTE"):
         % (_pt(c["V_Rd"]), _pt(c["u"]), "OK" if c["OK"] else "*** NAO ATENDE ***"),
         "  Chapa flexao (balanco)   M_Rd = %s kN.m          util = %s %s"
         % (_pt(f["M_Rd"]), _pt(f["u"]), "OK" if f["OK"] else "*** NAO ATENDE ***"),
+    ] + ([
+        "  Fadiga solda (Anexo K, cat.F, N=%.0e)  tau_SR = %s <= %s MPa  util = %s %s"
+        % (res["fadiga"]["N"], _pt(res["fadiga"]["tau_sr"]), _pt(res["fadiga"]["sigma_rd"]),
+           _pt(res["fadiga"]["u"]), "OK" if res["fadiga"]["OK"] else "*** NAO ATENDE ***")
+    ] if res.get("fadiga") else []) + [
         "", "Governa: %s (util = %s)" % (res["governa"], _pt(res["u_max"])),
         "RESULTADO: %s" % ("ATENDE" if res["OK"] else "NAO ATENDE"), ""])
 
@@ -195,6 +229,26 @@ def _selftest():
     r3 = verifica_console({"Rv": 100.0, "Ht": 0.0, "ecc": 0.0, "t": 0.016,
                            "L": 0.45, "fy": 250e3, "fu": 400e3})
     assert abs(r3["solda"]["f_horiz"]) < 1e-12
+    # FADIGA da solda (Anexo K cat.F): sem n_ciclos -> nao verifica (None)
+    assert r["fadiga"] is None
+    # com n_ciclos: tau_SR = f_dem/garganta vs faixa admissivel K.4b (cat.F).
+    from ponte_rolante import faixa_admissivel_fadiga
+    rf = verifica_console({"Rv": Rv, "Ht": Ht, "ecc": ecc, "t": 0.016, "L": L,
+                           "fy": 250e3, "fu": 400e3, "n_ciclos": 2.0e6})
+    fd = rf["fadiga"]
+    garg = 0.707 * rf["perna_mm"] / 1000.0
+    assert abs(fd["tau_sr"] - (rf["solda"]["f_dem"] / garg) / 1000.0) < 1e-6
+    assert abs(fd["sigma_rd"] - faixa_admissivel_fadiga("F", 2.0e6)) < 1e-9
+    # K.4b (cat.F): crossover em ~6e6 ciclos. N=2e6 (ponte B7) -> parte inclinada
+    # governa (>55); N>=~6e6 (B9/B10) -> piso sigma_TH=55 MPa. Monotona decrescente.
+    assert faixa_admissivel_fadiga("F", 2.0e6) > 55.0
+    assert abs(faixa_admissivel_fadiga("F", 8.0e6) - 55.0) < 1e-9
+    assert faixa_admissivel_fadiga("F", 2.0e6) > faixa_admissivel_fadiga("F", 4.0e6)
+    assert fd["OK"] and rf["OK"]                     # console bem-proporcionado passa
+    # console curtissimo sob carga enorme e muitos ciclos -> fadiga REPROVA e OK=False
+    rf2 = verifica_console({"Rv": 800.0, "Ht": 80.0, "ecc": 0.40, "t": 0.016,
+                            "L": 0.15, "fy": 250e3, "fu": 400e3, "n_ciclos": 2.0e6})
+    assert rf2["fadiga"]["u"] > 1.0 and not rf2["fadiga"]["OK"] and not rf2["OK"]
     print("console_ponte _selftest PASSED")
 
 

@@ -1502,7 +1502,7 @@ def _pr_quadros(doc, cfg):
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     n_mat = 0
-    if not tk:
+    if not tk and not (cfg.get("romaneio")):
         # O takeoff vem de spec["estrutura"]["takeoff"], que SO o montar_modelo
         # grava. Mas `rodar_executivo` e projetado para rodar SOZINHO sobre um
         # FCStd ja salvo - e nesse caminho o QUADRO DE MATERIAIS sumia da prancha
@@ -1526,6 +1526,23 @@ def _pr_quadros(doc, cfg):
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
                 rows_m, 560, 480 - n_mat * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
+    # ROMANEIO - MARCAS DE PECA (entregavel de fabricacao, do calculo). Lista as
+    # pecas PRIMARIAS com marca (C1, V1..) / qtd / peso. Definitivo (secundarios,
+    # chapas, furacao) sai do modelo 3D. Renderizado abaixo do quadro de materiais.
+    rom = cfg.get("romaneio") or []
+    if rom:
+        rows_r = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
+                   str(it["qtd"]), "%.0f" % float(it["peso_total_kg"])] for it in rom]
+        rows_r.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
+        # posicao FIXA na zona inferior-direita vazia da folha (limpa tanto com
+        # quadro de materiais longo quanto sem ele) -> nunca sobrepoe. _tabela
+        # posiciona pelo CENTRO da view; cabecalho logo acima.
+        rom_centro = 210.0
+        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
+              560, rom_centro + (len(rows_r) + 1) * 7 + 10, 9)
+        _tabela(doc, page, "Q09R", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
+                rows_r, 560, rom_centro, tam=6,
+                larguras=[70, 180, 100, 50, 100], escala=ESC_Q)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     _mt = cfg.get("materiais") or {}
     # notas 3 e 4 DO PROJETO. Sem o dado, a nota diz "conforme memorial" em vez de
@@ -1541,14 +1558,23 @@ def _pr_quadros(doc, cfg):
     # dizia "RN +0,00 = topo do concreto (base das placas)" - falso nos dois lados
     # - e "gancho 180 mm" contra 60 mm reais.
     _nm = _notas_do_modelo(doc)
+    # ligacoes de campo: soldadas (padrao dos galpoes) ou parafusadas (escolha do
+    # eng. no wizard). O desenho vai p/ a obra -> a nota indica o metodo adotado.
+    _lig = (_mt.get("tipo_ligacao") or "soldada").lower()
+    if _lig == "parafusada":
+        _n5 = "5. LIGACOES DE CAMPO PARAFUSADAS. Parafusos A325 (fub 825 MPa) protendidos."
+        _n6 = "6. Soldas E70XX (fw 485 MPa) nas ligacoes de fabrica; filete minimo 6 mm."
+    else:
+        _n5 = "5. LIGACOES DE CAMPO SOLDADAS. Soldas E70XX (fw 485 MPa), filete minimo 6 mm."
+        _n6 = "6. Parafusos A325 (fub 825 MPa) apenas nas ligacoes de montagem indicadas."
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
         _nm.get("niveis", "2. Niveis conforme memorial de calculo."),
         _n3,
         _n4,
-        "5. Parafusos A325 (fub 825 MPa) ou A307 conforme ligacao.",
-        "6. Soldas E70XX (fw 485 MPa). Filete minimo 6 mm.",
+        _n5,
+        _n6,
         _nm.get("chumbador", "7. Chumbadores ASTM A36 conforme detalhe da base."),
         _nm.get("contrav", "8. Contraventamento pretensionado c/ esticador."),
         "9. Tercas Ue formado a frio (NBR 14762).",
@@ -1845,7 +1871,8 @@ def _materiais_de_spec(spec):
     fy_kPa = acos.propriedades(est.get("aco") or acos.PADRAO)[0]
     return {"fy_MPa": round(fy_kPa / 1000.0), "aco": _nome_aco(spec, fy_kPa),
             "fck_MPa": _mpa(fu.get("fck")), "fyk_MPa": _mpa(fu.get("fyk")),
-            "cobrimento_cm": _cm(fu.get("cobrimento"))}
+            "cobrimento_cm": _cm(fu.get("cobrimento")),
+            "tipo_ligacao": (est.get("tipo_ligacao") or "soldada").lower()}
 
 
 def _txt_material(mat):
@@ -1854,6 +1881,8 @@ def _txt_material(mat):
     p = ["ACO %s" % mat.get("aco", "MR250")]
     if mat.get("fck_MPa"):
         p.append("CONCRETO fck %d MPa" % mat["fck_MPa"])
+    # tipo de ligacao NAO entra aqui (celula estreita do ISO5457 estoura); vai na
+    # nota tecnica 5 da PE09 (lugar canonico das notas gerais).
     return " / ".join(p)
 
 
@@ -1905,6 +1934,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "materiais": _materiais_de_spec(spec),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
+        "romaneio": est.get("romaneio") or [],
     }
 
 

@@ -211,6 +211,7 @@ def rodar(params, out_dir):
                          theta=math.degrees(gp.THETA))
 
     res = {}
+    res["tipo_ligacao"] = params.get("tipo_ligacao", "soldada")   # soldada/parafusada
     if neve_res:
         res["neve"] = neve_res
     # Ponte rolante (opcional): calcula a acao e injeta a reacao no portico como
@@ -238,7 +239,8 @@ def rodar(params, out_dir):
         rc = cons.verifica_console({
             "Rv": reac["R_vertical_kN"], "Ht": reac.get("H_transversal_kN", 0.0),
             "ecc": pcfg.get("excentricidade", 0.30), "t": 0.016, "L": 0.45,
-            "fy": params["fy"], "fu": params.get("fu", 400e3)})
+            "fy": params["fy"], "fu": params.get("fu", 400e3),
+            "n_ciclos": reac.get("n_ciclos")})     # fadiga da solda (Anexo K cat.F)
         save("gate7-console.txt", cons.relatorio_pt(rc))
         res["console_adotado"] = rc["adotado"]
         res["console_u_max"] = rc["u_max"]
@@ -263,9 +265,12 @@ def rodar(params, out_dir):
         larg_b=g["span"], alt_h=g["eave"], comp_a=g.get("comprimento", 2 * g["span"]),
         abertura_dominante=_abert)))
     vl = vento.compute_longitudinal(b=g["span"], eave=g["eave"], ridge=g["ridge"],
-                                    ca=params.get("ca_arrasto", 1.2))
+                                    ca=params.get("ca_arrasto", 1.2),
+                                    comp=g.get("comprimento", 2 * g["span"]),
+                                    cf_atrito=params.get("cf_atrito", 0.04))
     save("gate5-vento-longitudinal.txt", vento.relatorio_longitudinal_pt(vl))
     res["Fa_long_kN"] = vl["Fa_kN"]; res["Fa_por_lado_kN"] = vl["Fa_por_lado_kN"]
+    res["F_atrito_long_kN"] = vl["F_atrito_kN"]     # atrito 6.4 (soma no contravent.)
     # Gate 6 - analise
     a_gp = gp.analyse()                               # 1a ordem (tem os segmentos)
     save("gate6-portico.txt", gp.memoria_pt(a_gp))
@@ -450,6 +455,32 @@ def rodar(params, out_dir):
         res["telha_vao"] = rt_telha["vao"]
         res["telha_vao_max"] = rt_telha["vao_max"]["vao_max_m"]
         res["telha_ok"] = rt_telha["OK"]
+    # Gate 7 - EMPOCAMENTO progressivo (NBR 8800 9.3): declividade < 3% exige
+    # verificacao adicional do peso da agua acumulada. Cobre shed/aguas rasas,
+    # que antes passavam sem qualquer verificacao de empocamento.
+    import empocamento_nbr8800 as emp
+    r_emp = emp.verifica_empocamento(emp.incl_pct_de_theta(gp.THETA))
+    save("gate7-empocamento.txt", emp.relatorio_pt(r_emp))
+    res["empocamento_incl_pct"] = round(r_emp["incl_pct"], 2)
+    res["empocamento_ok"] = r_emp["OK"]
+    # Gate 7 - TORCAO da coluna externa (NBR 8800 5.5.2.3): a fachada de fechamento
+    # pendura nas mesas externas das colunas -> carga vertical EXCENTRICA -> torque.
+    # e = d_col/2 (revestimento na mesa externa); Tsd ~ torque_dist * eave (coluna
+    # com base que restringe a torcao, conservador). Perfil aberto -> verifica por
+    # tensoes; se nao desprezivel, exige analise de flexo-torcao (empenamento).
+    import torcao_nbr8800 as tor
+    _wc = (params.get("parede") or {}).get("w_col_kN_m", 0.0)
+    _pc = sc.get("perfil_col") or {}
+    if _wc and _pc:
+        _e = _pc["d"] / 2.0                          # excentricidade ~ meia altura da coluna
+        _Tsd = tor.torque_carga_excentrica(_wc, _e) * g["eave"]    # kN.m (base restringe)
+        _J, _tmax = tor.J_perfil_I(_pc["bf"], _pc["tf"], _pc["d"], _pc["tw"])
+        r_tor = tor.verifica_torcao_aberta(_Tsd, _J, _tmax, params["fy"])
+        save("gate7-torcao.txt", "TORCAO COLUNA EXTERNA (fachada excentrica, "
+             "NBR 8800 5.5.2.3)\n  Tsd=%.2f kN.m ; %s\n  RESULTADO: %s"
+             % (_Tsd, r_tor["flag"], "ATENDE" if r_tor["OK"] else "NAO ATENDE"))
+        res["torcao_col_Tsd"] = round(_Tsd, 2)
+        res["torcao_col_ok"] = r_tor["OK"]
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
                        comp_a=g.get("comprimento", 2 * g["span"]))
@@ -490,6 +521,19 @@ def rodar(params, out_dir):
     res["n_tirante_parede"] = dsec["longarina"]["n_tirantes"]
     res["perfil_escora"] = dsec["escora"]["perfil"]
     res["perfil_montante"] = dsec["montante"]["perfil"]
+    # ROMANEIO PRELIMINAR com marcas de peca (entregavel de fabricacao a partir do
+    # calculo): pecas primarias (colunas + rafters) com marca/qtd/peso. O romaneio
+    # DEFINITIVO (secundarios, chapas, furacao) sai do modelo 3D/takeoff.
+    import romaneio as _rom
+    _rr = _rom.romaneio_primario(
+        {"spans": list(gp.SPANS), "comprimento": g.get("comprimento", 2 * g["span"]),
+         "eave": g["eave"], "ridge": g["ridge"], "bay": g["bay"]},
+        {"col": {"nome": res.get("perfil_colunas", ["HEA200"])[0], "A": sc["perfil_col"]["A"]},
+         "raf": {"nome": res.get("perfil_raf", "HEA180"), "A": sc["perfil_raf"]["A"]}})
+    save("romaneio-preliminar.txt", _rom.relatorio_pt(_rr))
+    res["romaneio_peso_primario_kg"] = _rr["peso_total_kg"]
+    res["romaneio_n_porticos"] = _rr["n_porticos"]
+    res["romaneio_itens"] = _rr["itens"]           # p/ renderizar na prancha (PE09)
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
@@ -1458,6 +1502,10 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Joelho", res.get("joelho_util")),
                   ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
                   ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
+                  ("Empocamento (9.3)", None if "empocamento_ok" not in res
+                   else (0.0 if res["empocamento_ok"] else 1.99)),
+                  ("Torcao col. (5.5.2)", None if "torcao_col_ok" not in res
+                   else (0.0 if res["torcao_col_ok"] else 1.99)),
                   ("Longarina", res.get("longarina_inter")), ("Escora", res.get("escora_inter")),
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
@@ -1477,6 +1525,8 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Terreno (TO/CA/TP)", _bok("terreno")),
                   ("Escada", None if "escada_ok" not in res else (0.0 if res["escada_ok"] else 1.99)),
                   ("Plataforma", None if "plataforma_ok" not in res else (0.0 if res["plataforma_ok"] else 1.99))]
+        L.append("Ligacoes de campo (montagem): %s" %
+                 res.get("tipo_ligacao", "soldada").upper())
         L.append("QUADRO DE VERIFICACOES (util = solicitacao/resistencia <= 1,0):")
         for nome, u in checks:
             if u is None:

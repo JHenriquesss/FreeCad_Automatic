@@ -242,6 +242,13 @@ def validar(spec):
             faltando.append(("estrutura.aco",
                              "classe de aco desconhecida '%s' (use %s)"
                              % (_ac_nome, "/".join(sorted(_ac.ACOS)))))
+    # tipo de ligacao (soldada/parafusada): so aceita esses dois. Erro de digitacao
+    # (ex 'solda', 'parafuso') BLOQUEIA em vez de virar detalhamento errado calado.
+    _lig = _get(spec, "estrutura.tipo_ligacao")
+    if _lig not in (KeyError, None, PENDENTE) and str(_lig).strip().lower() not in (
+            "soldada", "parafusada"):
+        faltando.append(("estrutura.tipo_ligacao",
+                         "tipo de ligacao invalido '%s' (use soldada/parafusada)" % _lig))
     # tesoura: n_paineis deve ser PAR (cumeeira em no; impar poe o apice no meio da
     # barra do banzo superior e reintroduz flexao -> invalida o metodo dos nos).
     if tp == "tesoura":
@@ -666,6 +673,10 @@ def to_rodar_params(spec):
         (spec.get("estrutura", {}) or {}).get("aco") or _ac.PADRAO)
     # cantoneira da mao-francesa (gate 4.11.3.4 verifica a peca DESENHADA)
     p["mf_sec"] = _mf_sec(spec.get("estrutura", {}))
+    # tipo de ligacao (soldada/parafusada): guia o detalhamento e as notas. Default
+    # soldada (maioria dos galpoes). Vai ao relatorio e as notas das pranchas.
+    p["tipo_ligacao"] = ((spec.get("estrutura", {}) or {}).get("tipo_ligacao")
+                         or "soldada").strip().lower()
     g = spec["geometria"]
     # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
     # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura

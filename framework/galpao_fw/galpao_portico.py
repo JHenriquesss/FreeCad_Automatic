@@ -319,6 +319,16 @@ def _carrega_udl(fr, ix, wy):
                 fr.add_member_udl(e, wy=wy)
 
 
+def _carrega_udl_spans(fr, ix, wy, spans):
+    """Aplica UDL gravitacional (wy) so nas vigas dos VAOS em `spans` (indices).
+    Usado no pattern loading (carga em xadrez, NBR 8681) para maximizar o momento
+    de desequilibrio nas colunas internas de porticos multi-vao."""
+    for i in spans:
+        for elems in ix["rafts"][i]:
+            for e in elems:
+                fr.add_member_udl(e, wy=wy)
+
+
 def case_G(fr, ix):
     """Carga permanente na cobertura (G) + peso da parede de fechamento."""
     _carrega_udl(fr, ix, wy=-(G_ROOF * BAY + RAFTER_SELF))
@@ -493,6 +503,14 @@ def _combos_elu(ponte=None, sismo=None):
         for sgn, tag in ((1.0, "P"), (-1.0, "N")):
             combos[f"C6_sismo_Gdesf_{tag}"] = {"G": 1.20, "SISMO": sgn}
             combos[f"C6_sismo_Gfav_{tag}"] = {"G": 1.00, "SISMO": sgn}
+    # PATTERN LOADING / carga em xadrez (NBR 8681): em portico multi-vao a
+    # sobrecarga alternada (vaos pares x impares) maximiza o momento de deseque-
+    # librio nas COLUNAS INTERNAS - carregar todos os vaos por igual o mascara.
+    # Gravidade pura (G desfavoravel + Q em subconjunto de vaos), sem vento.
+    # Qa = vaos de indice par ; Qb = vaos de indice impar (ver analyse()).
+    if N_VAOS >= 2:
+        combos["C2_xadrez_A"] = {"G": 1.25, "Qa": 1.50}
+        combos["C2_xadrez_B"] = {"G": 1.25, "Qb": 1.50}
     return combos
 
 
@@ -513,6 +531,16 @@ def analyse():
     # --- casos base ---
     dG, mfG, ix, _ = _run(case_G)
     dQ, mfQ, _, _ = _run(case_Q)
+    # casos de PATTERN LOADING (xadrez): sobrecarga so nos vaos pares (Qa) e so
+    # nos impares (Qb). So faz sentido em multi-vao; alimenta os combos C2_xadrez.
+    cases_pattern = {}
+    if N_VAOS >= 2:
+        wyQ = -(Q_ROOF * BAY * COS)
+        spans_a = [i for i in range(N_VAOS) if i % 2 == 0]
+        spans_b = [i for i in range(N_VAOS) if i % 2 == 1]
+        dQa, mfQa, _, _ = _run(lambda f, i: _carrega_udl_spans(f, i, wyQ, spans_a))
+        dQb, mfQb, _, _ = _run(lambda f, i: _carrega_udl_spans(f, i, wyQ, spans_b))
+        cases_pattern = {"Qa": (dQa, mfQa), "Qb": (dQb, mfQb)}
     # vento
     def run_wind(key):
         apply_fn, wr = _wind(key)
@@ -522,6 +550,8 @@ def analyse():
     dW2, mfW2, wr2 = run_wind("portao_sotavento")
     cases_d = {"G": dG, "Q": dQ, "W1": dW1, "W2": dW2}
     cases_mf = {"G": mfG, "Q": mfQ, "W1": mfW1, "W2": mfW2}
+    for k, (dk, mfk) in cases_pattern.items():         # Qa/Qb (pattern loading)
+        cases_d[k] = dk; cases_mf[k] = mfk
     wind_result = wr1  # wind data p/ relatorio (W1)
     # opcionais
     if PONTE:
