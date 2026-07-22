@@ -1502,7 +1502,7 @@ def _pr_quadros(doc, cfg):
     # QUADRO DE MATERIAIS (takeoff do modelo 3D)
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
     n_mat = 0
-    if not tk:
+    if not tk and not (cfg.get("romaneio")):
         # O takeoff vem de spec["estrutura"]["takeoff"], que SO o montar_modelo
         # grava. Mas `rodar_executivo` e projetado para rodar SOZINHO sobre um
         # FCStd ja salvo - e nesse caminho o QUADRO DE MATERIAIS sumia da prancha
@@ -1526,6 +1526,22 @@ def _pr_quadros(doc, cfg):
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
                 rows_m, 560, 480 - n_mat * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
+    # ROMANEIO - MARCAS DE PECA (entregavel de fabricacao, do calculo). Lista as
+    # pecas PRIMARIAS com marca (C1, V1..) / qtd / peso. Definitivo (secundarios,
+    # chapas, furacao) sai do modelo 3D. Renderizado abaixo do quadro de materiais.
+    rom = cfg.get("romaneio") or []
+    if rom:
+        # abaixo do quadro de materiais (se houve takeoff) ou no topo da area de
+        # materiais (quando nao houve takeoff -> o romaneio E a lista de materiais).
+        y0 = (480 - n_mat * 7) - 60 if tk else 480
+        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
+              560, y0 + 24, 9)
+        rows_r = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
+                   str(it["qtd"]), "%.0f" % float(it["peso_total_kg"])] for it in rom]
+        rows_r.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
+        _tabela(doc, page, "Q09R", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
+                rows_r, 560, y0 - len(rows_r) * 7, tam=6,
+                larguras=[70, 180, 100, 50, 100], escala=ESC_Q)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     _mt = cfg.get("materiais") or {}
     # notas 3 e 4 DO PROJETO. Sem o dado, a nota diz "conforme memorial" em vez de
@@ -1917,6 +1933,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "materiais": _materiais_de_spec(spec),
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
+        "romaneio": est.get("romaneio") or [],
     }
 
 

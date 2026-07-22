@@ -114,6 +114,7 @@ def calcular(spec, out_dir):
     }
     spec.setdefault("estrutura", {})["resultados"] = resultados
     spec["estrutura"]["estados"] = {k: v for k, v in estados.items() if v is not None}
+    spec["estrutura"]["romaneio"] = res.get("romaneio_itens")   # marcas de peca -> PE09
     return res
 
 

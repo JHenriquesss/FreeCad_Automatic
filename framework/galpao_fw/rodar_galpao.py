@@ -533,6 +533,7 @@ def rodar(params, out_dir):
     save("romaneio-preliminar.txt", _rom.relatorio_pt(_rr))
     res["romaneio_peso_primario_kg"] = _rr["peso_total_kg"]
     res["romaneio_n_porticos"] = _rr["n_porticos"]
+    res["romaneio_itens"] = _rr["itens"]           # p/ renderizar na prancha (PE09)
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
