@@ -557,6 +557,25 @@ def rodar(params, out_dir):
     res["romaneio_peso_primario_kg"] = _rr["peso_total_kg"]
     res["romaneio_n_porticos"] = _rr["n_porticos"]
     res["romaneio_itens"] = _rr["itens"]           # p/ renderizar na prancha (PE09)
+    # PLANO DE MONTAGEM / ESCORAMENTO (NBR 8800 12.3 + AISC 303 + Bellei): sequencia
+    # de icamento, guindaste (peca mais pesada + coef. de impacto 4.2.6) e estai
+    # provisorio (12.3.2.1). Fase de OBRA que o dimensionamento de peca nao cobre.
+    # Vento de montagem e raio de guindaste dependem de canteiro -> A CONFIRMAR
+    # (parametros mont_*); a estrutura do plano e sempre emitida. INFORMATIVO
+    # (nao reprova o dimensionamento; e o roteiro de execucao).
+    import montagem as _mont
+    _plano = _mont.plano_montagem(
+        {"spans": list(gp.SPANS), "comprimento": g.get("comprimento", 2 * g["span"]),
+         "eave": g["eave"], "ridge": g["ridge"], "bay": g["bay"]},
+        [{"marca": it["marca"], "peso_unit_kg": it["peso_unit_kg"]} for it in _rr["itens"]],
+        q_kNm2=params.get("mont_q_kNm2"),
+        area_exposta_m2=params.get("mont_area_exposta_m2"),
+        raio_m=params.get("mont_raio_guindaste_m"),
+        angulo_estai=params.get("mont_angulo_estai", 45.0),
+        n_estais=params.get("mont_n_estais", 1))
+    save("gate8-montagem.txt", _mont.relatorio_pt(_plano))
+    res["montagem_peca_mais_pesada_kg"] = _plano["peca_mais_pesada"]["peso_kg"]
+    res["montagem_prumo_mm"] = (_plano["prumo"] or {}).get("tol_mm")
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
@@ -1464,7 +1483,8 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("11e. ESCADA", "gate8-escada.txt"),
              ("11f. PLATAFORMA", "gate8-plataforma.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt"),
-             ("13. CALHAS E CONDUTORES", "gate-calha.txt")]
+             ("13. CALHAS E CONDUTORES", "gate-calha.txt"),
+             ("14. PLANO DE MONTAGEM/ESCORAMENTO", "gate8-montagem.txt")]
     try:
         import framework as FW
         carimbo = FW.carimbo_versao()

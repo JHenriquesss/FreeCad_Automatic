@@ -677,6 +677,13 @@ def to_rodar_params(spec):
     # soldada (maioria dos galpoes). Vai ao relatorio e as notas das pranchas.
     p["tipo_ligacao"] = ((spec.get("estrutura", {}) or {}).get("tipo_ligacao")
                          or "soldada").strip().lower()
+    # PLANO DE MONTAGEM (opcional): dados de CANTEIRO para dimensionar o estai e o
+    # guindaste. Ausentes -> A CONFIRMAR (o plano/sequencia sai mesmo assim).
+    _mp = (spec.get("estrutura", {}) or {}).get("montagem_params") or {}
+    for _k in ("mont_q_kNm2", "mont_area_exposta_m2", "mont_raio_guindaste_m",
+               "mont_angulo_estai", "mont_n_estais"):
+        if _mp.get(_k) is not None:
+            p[_k] = _mp[_k]
     g = spec["geometria"]
     # multi-vao: geometria.spans (lista de larguras de vao, m). span0 = 1o vao
     # (define a inclinacao/ridge, iguais por vao); span "total" = soma (largura
