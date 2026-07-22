@@ -169,6 +169,8 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     resm = r.get("result") if isinstance(r, dict) else None
     if isinstance(resm, dict) and resm.get("por_grupo"):
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
+    if isinstance(resm, dict) and resm.get("por_marca"):
+        spec.setdefault("estrutura", {})["por_marca"] = resm["por_marca"]  # lista de corte/marcas
     return r
 
 

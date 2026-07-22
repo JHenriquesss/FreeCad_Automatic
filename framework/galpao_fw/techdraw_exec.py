@@ -1499,50 +1499,56 @@ def _pr_quadros(doc, cfg):
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
                 rows, 210, 480 - n_verif * 7, tam=6, larguras=[170, 130, 100],
                 escala=ESC_Q)
-    # QUADRO DE MATERIAIS (takeoff do modelo 3D)
+    # QUADRO DE MATERIAIS / LISTA DE CORTE (uma tabela). Preferencia: por_marca do
+    # MODELO 3D (todos os grupos com MARCA de peca + comprimento de CORTE unitario +
+    # massa). Fallback: takeoff sem marcas; depois romaneio do calculo (primarias);
+    # por fim o aviso "NAO DISPONIVEL". Uma so tabela -> nunca sobrepoe.
+    por_marca = cfg.get("por_marca") or []
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
-    n_mat = 0
-    if not tk and not (cfg.get("romaneio")):
-        # O takeoff vem de spec["estrutura"]["takeoff"], que SO o montar_modelo
-        # grava. Mas `rodar_executivo` e projetado para rodar SOZINHO sobre um
-        # FCStd ja salvo - e nesse caminho o QUADRO DE MATERIAIS sumia da prancha
-        # em SILENCIO, deixando meia folha em branco numa prancha intitulada
-        # "QUADROS E NOTAS TECNICAS". A guarda por prancha reportava 0 avisos.
-        _aviso_prancha("PE09_QUADROS",
-                       "QUADRO DE MATERIAIS ausente: cfg['takeoff'] vazio (rode "
-                       "montar_modelo antes, ou use rodar_tudo)")
+    rom = cfg.get("romaneio") or []
+    n_mat = 0                                 # nº de linhas da tabela (posiciona as notas)
+    if por_marca:                             # (marca,cat,perfil,qtd,ctot,cunit,massa)
+        total = sum(float(t[6]) for t in por_marca)
+        pm = sorted(por_marca, key=lambda t: -float(t[6]))[:18]
+        rows_m = [[str(t[0]), str(t[1])[:20], str(t[2]), str(t[3]),
+                   ("%.2f" % float(t[5]) if float(t[5]) > 0 else "-"), "%.0f" % float(t[6])]
+                  for t in pm]
+        rows_m.append(["TOTAL", "", "", "", "", "%.0f" % total])
+        n_mat = len(rows_m)
         _anot(doc, page, "A09m",
-              ["QUADRO DE MATERIAIS - ACO",
-               "NAO DISPONIVEL NESTA EXECUCAO",
-               "(quantitativo sai do modelo 3D - ver takeoff/*.csv)"],
-              560, 510, 9)
-    if tk:
+              ["QUADRO DE MATERIAIS / LISTA DE CORTE (marcas de peca, do modelo 3D)"],
+              560, 515, 9)
+        _tabela(doc, page, "Q09M",
+                ["MARCA", "ELEMENTO", "PERFIL", "QTD", "CORTE (m)", "MASSA (kg)"],
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
+                larguras=[55, 140, 100, 45, 70, 95], escala=ESC_Q)
+    elif tk:                                  # takeoff sem marcas (compat.)
         tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
-        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
-                  for r in tk]
+        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])] for r in tk]
         rows_m.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
         n_mat = len(rows_m)
-        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
+        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 515, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows_m, 560, 480 - n_mat * 7, tam=6,
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
-    # ROMANEIO - MARCAS DE PECA (entregavel de fabricacao, do calculo). Lista as
-    # pecas PRIMARIAS com marca (C1, V1..) / qtd / peso. Definitivo (secundarios,
-    # chapas, furacao) sai do modelo 3D. Renderizado abaixo do quadro de materiais.
-    rom = cfg.get("romaneio") or []
-    if rom:
-        rows_r = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
+    elif rom:                                 # romaneio do calculo (primarias)
+        rows_m = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
                    str(it["qtd"]), "%.0f" % float(it["peso_total_kg"])] for it in rom]
-        rows_r.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
-        # posicao FIXA na zona inferior-direita vazia da folha (limpa tanto com
-        # quadro de materiais longo quanto sem ele) -> nunca sobrepoe. _tabela
-        # posiciona pelo CENTRO da view; cabecalho logo acima.
-        rom_centro = 210.0
-        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
-              560, rom_centro + (len(rows_r) + 1) * 7 + 10, 9)
-        _tabela(doc, page, "Q09R", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
-                rows_r, 560, rom_centro, tam=6,
+        rows_m.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
+        n_mat = len(rows_m)
+        _anot(doc, page, "A09m",
+              ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"], 560, 515, 9)
+        _tabela(doc, page, "Q09M", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
                 larguras=[70, 180, 100, 50, 100], escala=ESC_Q)
+    else:
+        _aviso_prancha("PE09_QUADROS",
+                       "QUADRO DE MATERIAIS ausente: sem takeoff/por_marca/romaneio "
+                       "(rode montar_modelo/calcular, ou use rodar_tudo)")
+        _anot(doc, page, "A09m",
+              ["QUADRO DE MATERIAIS / LISTA DE CORTE",
+               "NAO DISPONIVEL NESTA EXECUCAO",
+               "(sai do modelo 3D/calculo - ver takeoff/*.csv)"], 560, 510, 9)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     _mt = cfg.get("materiais") or {}
     # notas 3 e 4 DO PROJETO. Sem o dado, a nota diz "conforme memorial" em vez de
@@ -1583,6 +1589,161 @@ def _pr_quadros(doc, cfg):
     notas_y = _pos_notas(n_verif, n_mat, len(notas))
     _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
                  escala=1.4)
+    # QUADRO DE TOLERANCIAS de fabricacao/montagem (NBR 8800 + Bellei), computado
+    # no lado lancador (cfg['tolerancias']). Valores com FONTE; o desenho vai p/ a
+    # obra. Zona inferior-direita, abaixo dos materiais/lista de corte.
+    tol = cfg.get("tolerancias") or []
+    if tol:
+        rows_t = [[str(g), str(it)[:34], str(tl)[:34], str(f)] for (g, it, tl, f) in tol]
+        _anot(doc, page, "A09t",
+              ["QUADRO DE TOLERANCIAS (fabricacao / montagem)"], 560, 205, 9)
+        _tabela(doc, page, "Q09T", ["GRUPO", "ITEM", "TOLERANCIA", "FONTE"],
+                rows_t, 560, 140, tam=5,
+                larguras=[90, 200, 210, 150], escala=ESC_Q)
+    return [page], []
+
+
+def _pr_croquis(doc, cfg, objs, todos):
+    """CROQUIS DE FABRICACAO (shop drawings): uma vista projetada por MARCA de peca
+    principal (coluna, viga/rafter, misula soldada), com rotulo (marca, perfil,
+    comprimento de corte, qtd) e nota de fabricacao (furacao / simbolo de solda).
+    A peca e localizada pela propriedade `Marca` gravada no modelo 3D. E um
+    detalhe de FABRICACAO por peca, complementando os detalhes de LIGACAO
+    (PE06/07/10-13). Escala automatica p/ preencher a folha."""
+    page = _nova_prancha(doc, "PE14_CROQUIS",
+                         _carimbo(cfg, "CROQUIS DE FABRICACAO (pecas principais)",
+                                  "PE-14", "-", "14/14"))
+    # info por marca (comp_unit_m, qtd, perfil) do por_marca -> rotulo
+    info = {t[0]: (t[5], t[3], t[2]) for t in (cfg.get("por_marca") or [])}
+    alvos = ["C1", "V1", "MI1"]                    # coluna, viga/rafter, misula soldada
+    notas_marca = {
+        "C1": "Furacao: base (chumbadores) + chapa de topo no joelho.",
+        "V1": "Chapa de topo no joelho (parafusos). Mesa travada (mao-francesa).",
+        "MI1": "Misula SOLDADA (alma+mesa). Solda de filete conforme memorial (AWS).",
+    }
+    reps = {}
+    for o in todos:
+        mk = getattr(o, "Marca", None)
+        if mk in alvos and mk not in reps and hasattr(o, "Shape"):
+            try:
+                if o.Shape.Volume > 0:
+                    reps[mk] = o
+            except Exception:
+                pass
+    presentes = [m for m in alvos if m in reps]
+    if not presentes:
+        _aviso_prancha("PE14_CROQUIS",
+                       "sem pecas com propriedade Marca no modelo (rode montar_modelo "
+                       "com a versao que grava piece marks)")
+        _anot(doc, page, "C14v", ["CROQUIS DE FABRICACAO",
+                                  "NAO DISPONIVEL: modelo sem marcas de peca"], 400, 400, 9)
+        return [page], []
+    xs = [190.0, 470.0, 750.0]                    # 3 colunas dentro da area util A1
+    for i, mk in enumerate(presentes):
+        o = reps[mk]
+        bb = o.Shape.BoundBox
+        esc, escn = _fit_escala(bb, "y", 240.0, 330.0)   # projeta olhando em Y (plano XZ)
+        _vista(doc, page, "CROQ_%s" % mk, [o], (0, -1, 0), (1, 0, 0), esc, xs[i], 310)
+        cu, qt, perf = info.get(mk, (None, None, "-"))
+        L_txt = _fmt_m(cu * 1000.0) if cu else _fmt_m(max(abs(bb.XLength), abs(bb.ZLength)))
+        _anot(doc, page, "TIT_%s" % mk,
+              ["MARCA %s (%s)" % (mk, str(perf)[:18]),
+               "L(corte) ~ %s  qtd %s  esc %s" % (L_txt, qt if qt else "-", escn),
+               notas_marca.get(mk, "")], xs[i] - 55, 500, 7)
+    _anot(doc, page, "C14n",
+          ["Croquis de fabricacao por peca (marca). Cotas de fabricacao e furacao",
+           "conforme o modelo 3D e o memorial. Simbolo de solda: filete, memorial."],
+          250, 130, 6)
+    return [page], []
+
+
+def _wrap(txt, n=74):
+    """Quebra uma linha longa em varias com <= n caracteres (sem cortar palavra).
+    O DrawViewSpreadsheet nao faz wrap; a sequencia de montagem tem passos longos."""
+    palavras, linhas, cur = str(txt).split(), [], ""
+    for w in palavras:
+        if len(cur) + len(w) + 1 > n:
+            linhas.append(cur)
+            cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    if cur:
+        linhas.append(cur)
+    return linhas or [""]
+
+
+def _pr_montagem(doc, cfg, objs):
+    """PLANO DE MONTAGEM E ESCORAMENTO (NBR 8800 12.3 + AISC 303 + Bellei): a fase
+    de OBRA que o dimensionamento de peca nao cobre. Sequencia de icamento,
+    requisito do guindaste (peca mais pesada + coef. de impacto 4.2.6) e estai
+    provisorio (12.3.2.1) + tolerancia de prumo (12.3.3.1.1). Prancha de
+    PROCEDIMENTO (texto/tabelas). Parametros de canteiro sao A CONFIRMAR."""
+    page = _nova_prancha(doc, "PE16_MONTAGEM",
+                         _carimbo(cfg, "PLANO DE MONTAGEM E ESCORAMENTO",
+                                  "PE-16", "-", "16/16"))
+    pl = cfg.get("montagem")
+    if not pl:
+        _aviso_prancha("PE16_MONTAGEM", "plano de montagem indisponivel (sem romaneio)")
+        _anot(doc, page, "C16v", ["PLANO DE MONTAGEM", "NAO DISPONIVEL"], 400, 400, 9)
+        return [page], []
+
+    # SEQUENCIA (coluna esquerda) - passos longos quebrados p/ caber na celula
+    seq_lin = ["SEQUENCIA DE MONTAGEM (NBR 8800 12.3.2 + Bellei 7.6.4):", ""]
+    for s in pl["sequencia"]:
+        w = _wrap(s, 78)
+        seq_lin.append(w[0])
+        seq_lin += ["      " + x for x in w[1:]]
+    _bloco_texto(doc, page, "SEQ_MONT", seq_lin, 250, 300, tam=5.5, largura=650)
+
+    # ICAMENTO / GUINDASTE (coluna direita superior)
+    p, gd = pl["peca_mais_pesada"], pl["guindaste"]
+    rows_g = [["Peca mais pesada", "%s = %.0f kg" % (p["marca"], p["peso_kg"])],
+              ["Condicao", p["descricao"][:34]],
+              ["Coef. impacto (4.2.6)", "%.2f" % gd["coef_impacto"]],
+              ["Peso de icamento", "%.0f kg (%.2f t)"
+               % (gd["peso_icamento_kg"], gd["peso_icamento_t"])],
+              ["Altura de icamento", "%.1f m" % gd["altura_icamento_m"]],
+              ["Raio de operacao", ("%.1f m" % gd["raio_m"]) if gd.get("raio_m") else "A CONFIRMAR"],
+              ["Momento de carga", ("%.1f t.m" % gd["momento_carga_tm"])
+               if gd.get("momento_carga_tm") else "A CONFIRMAR"]]
+    _tabela(doc, page, "TAB_GUIND", ["ICAMENTO / GUINDASTE", ""], rows_g,
+            660, 470, tam=6.0, larguras=[220, 130], escala=1.2)
+
+    # ESTAIAMENTO PROVISORIO (coluna direita inferior)
+    e = pl["estai"]
+    if e.get("tracao_cabo_kN") is not None:
+        rows_e = [["Forca lateral (calc)", "%.1f kN" % e["F_lateral_kN"]],
+                  ["Angulo / n cabos", "%.0f / %d" % (e["angulo_graus"], e["n_estais"])],
+                  ["Tracao por cabo", "%.1f kN" % e["tracao_cabo_kN"]],
+                  ["Comp. na coluna", "%.1f kN" % e["comp_adicional_coluna_kN"]],
+                  ["Arrancamento ancor.", "%.1f kN" % e["forca_ancoragem_kN"]],
+                  ["Resist. cabo (fs %.1f)" % e["fs_cabo"], "%.1f kN" % e["resistencia_cabo_req_kN"]]]
+    else:
+        rows_e = [["Estai provisorio", "A CONFIRMAR"],
+                  ["Vento de montagem (q)", "A CONFIRMAR"],
+                  ["Area exposta do portico", "A CONFIRMAR"],
+                  ["Base normativa", "12.3.2.1 + gamma 1,30 (4.9.6.5)"]]
+    _tabela(doc, page, "TAB_ESTAI", ["ESTAIAMENTO PROVISORIO (12.3.2.1)", ""], rows_e,
+            660, 250, tam=6.0, larguras=[220, 130], escala=1.2)
+
+    # PRUMO + notas gerais (rodape)
+    pr = pl.get("prumo") or {}
+    notas = [
+        "TOLERANCIA DE PRUMO NA MONTAGEM (12.3.3.1.1): <= %s mm por coluna (%s); "
+        "desvio global da estrutura <= %.0f mm."
+        % (pr.get("tol_mm", "-"), pr.get("criterio", "-"), pr.get("global_mm", 25.0)),
+        "O conjunto PARCIALMENTE montado deve resistir a acao permanente + vento + "
+        "acoes de montagem ANTES de soltar do guindaste (12.3.2.2).",
+        "Contraventamento temporario/estais permanecem ate os contraventamentos "
+        "DEFINITIVOS de parede e cobertura estarem concluidos (12.3.2.1).",
+        "Itens 'A CONFIRMAR' dependem do metodo/equipamento/canteiro: vento de "
+        "montagem (NBR 6123 periodo reduzido), raio e modelo do guindaste, bitola "
+        "e ancoragem do cabo. Ref.: " + pl["ref_norma"] + ".",
+    ]
+    nn = []
+    for t in notas:
+        nn += _wrap(t, 118)
+    _bloco_texto(doc, page, "NOTAS_MONT", nn, 420, 90, tam=5.0, largura=1150)
     return [page], []
 
 
@@ -1631,11 +1792,11 @@ def gerar_executivo(cfg):
     paginas, cotadores = [], []
     construtores = [_pr_cobertura, _pr_fundacoes, _pr_elevacoes, _pr_portico,
                     _pr_contravent, _pr_base, _pr_joelho, _pr_fechamento,
-                    _pr_ligacoes, _pr_bloco]
+                    _pr_ligacoes, _pr_bloco, _pr_croquis]
     for fn in construtores:
         try:
             if fn in (_pr_base, _pr_joelho, _pr_contravent, _pr_ligacoes,
-                      _pr_bloco):
+                      _pr_bloco, _pr_croquis):
                 pgs, cts = fn(doc, cfg, objs, todos)  # precisam de miudezas
             else:
                 pgs, cts = fn(doc, cfg, objs)
@@ -1648,6 +1809,12 @@ def gerar_executivo(cfg):
         paginas += pgs
     except Exception as ex:
         App.Console.PrintError("Prancha quadros: %s\n" % ex)
+    # PLANO DE MONTAGEM por ultimo (apendice de PROCEDIMENTO, apos os quadros).
+    try:
+        pgs, _ = _pr_montagem(doc, cfg, objs)
+        paginas += pgs
+    except Exception as ex:
+        App.Console.PrintError("Prancha montagem: %s\n" % ex)
 
     # Numeracao dinamica: o total de pranchas varia por projeto (detalhes de
     # ligacao so saem se o tipo existe). O drawing_number segue o codigo de TIPO
@@ -1886,6 +2053,45 @@ def _txt_material(mat):
     return " / ".join(p)
 
 
+def _tolerancias_linhas(ba):
+    """Linhas do QUADRO DE TOLERANCIAS (fabricacao/montagem), computadas no lado
+    LANCADOR (o techdraw nao importa irmaos dentro do freecad). db do furo-padrao
+    = parafuso da base (ba['db'] em m -> mm), se houver."""
+    try:
+        import tolerancias_fabricacao as _tol
+        db_mm = float(ba["db"]) * 1000.0 if (ba and ba.get("db")) else None
+        return [list(t) for t in _tol.linhas_quadro(db_mm=db_mm)]
+    except Exception:
+        return []
+
+
+def _montagem_plano(spec):
+    """Plano de montagem/escoramento (NBR 8800 12.3) computado no lado LANCADOR (o
+    techdraw nao importa irmaos dentro do freecad). Usa geometria + romaneio (peso
+    das pecas). Parametros de canteiro (mont_*) A CONFIRMAR se ausentes."""
+    try:
+        import montagem as _mont
+        g = spec["geometria"]
+        est = spec.get("estrutura", {}) or {}
+        rom = est.get("romaneio") or []
+        pecas = [{"marca": it.get("marca"), "peso_unit_kg": it.get("peso_unit_kg")}
+                 for it in rom]
+        mp = est.get("montagem_params", {}) or {}
+        return _mont.plano_montagem(
+            {"span": g.get("span"), "spans": g.get("spans"),
+             "comprimento": g.get("comprimento", 2 * g.get("span", 0)),
+             "eave": g.get("eave"), "ridge": g.get("ridge", g.get("eave")),
+             "bay": g.get("bay")},
+            pecas,
+            q_kNm2=mp.get("mont_q_kNm2"),
+            area_exposta_m2=mp.get("mont_area_exposta_m2"),
+            raio_m=mp.get("mont_raio_guindaste_m"),
+            angulo_estai=mp.get("mont_angulo_estai", 45.0),
+            n_estais=mp.get("mont_n_estais", 1))
+    except Exception:
+        return None
+
+
 def config_de_spec(spec, fcstd_path, out_dir):
     g = spec["geometria"]
     est = spec.get("estrutura", {})
@@ -1935,6 +2141,14 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
         "romaneio": est.get("romaneio") or [],
+        "por_marca": est.get("por_marca") or [],     # lista de corte (3D): marca+comp_unit
+        # QUADRO DE TOLERANCIAS: computado AQUI (lado lancador) e passado via cfg -
+        # o techdraw roda DENTRO do freecad SEM o galpao_fw no sys.path (nao pode
+        # importar irmaos la). db do furo-padrao = parafuso da base, se houver.
+        "tolerancias": _tolerancias_linhas(ba),
+        # PLANO DE MONTAGEM/ESCORAMENTO (PE16): sequencia + guindaste + estai +
+        # prumo. Computado no lado lancador (o techdraw nao importa irmaos no freecad).
+        "montagem": _montagem_plano(spec),
     }
 
 

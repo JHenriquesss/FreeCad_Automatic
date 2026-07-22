@@ -1246,9 +1246,22 @@ def build(doc):
     # tirantes presos nela), nao a coluna: face externa da girt = d/2 + altura da
     # girt. Derivar so da coluna deixava a calha sobre a linha dos tirantes
     # (20 interferencias CALHA x TIRANTE).
-    GUT_Y = COL_SEC[0] / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0 + 30.0
+    # COLUNA TAPERED (alma variavel): e MAIS FUNDA no joelho (h_joelho, no beiral,
+    # em Y apos o fix do eixo forte) do que a secao nominal COL_SEC. A calha fica em
+    # EAVE_H, exatamente onde a coluna e mais funda: usar COL_SEC[0]/2 deixava a
+    # calha/bocal/condutor sobre o topo da coluna (22 interferencias CALHA/BOCAL/
+    # CONDUTOR x PORTICO). Derivar da meia-altura MAIS FUNDA no beiral.
+    _col_d_beiral = COL_SEC[0]
+    if TAPERED_MODEL and TAPERED_MODEL.get("h_col_base") is not None:
+        _col_d_beiral = max(_col_d_beiral, float(TAPERED_MODEL["h_joelho"]))
+    GUT_Y = _col_d_beiral / 2.0 + UPE_LONG[0] + CALHA_SEC[0] / 2.0 + 30.0
     # condutor livra a placa de base (Y = L/2): afasta conforme a base ADOTADA.
-    DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + 70.0)
+    # O EIXO do tubo tem que ficar alem da borda da chapa (L/2) por pelo menos o
+    # RAIO do tubo (CONDUTOR_D/2) + folga - senao a parede do condutor invade a
+    # chapa. O 70 fixo anterior cobria o raio de um Ø100 (r=50) mas NAO de um Ø150
+    # do calc (r=75): a parede penetrava a chapa em 5 mm (6 interferencias
+    # PLACA_BASE x CONDUTOR nas bases sob os 3 condutores).
+    DOWN_Y = max(GUT_Y, BASE_PLATE["L"] / 2.0 + CONDUTOR_D / 2.0 + 40.0)
     GUT_BOTTOM = EAVE_H - CALHA_SEC[1] / 2.0        # boca de saida da calha
     # AMBAS as calhas abrem PARA CIMA (boca +Z) -> roll=+90 nos dois lados. roll=-90
     # invertia a calha do lado D (boca para baixo); o boundbox e simetrico, entao o
@@ -1914,6 +1927,26 @@ def takeoff(doc):
         g[1] += comp
         g[2] += massa
 
+    # MARCAS DE PECA (piece marks): 1 marca por grupo (cat, perfil). Escreve a
+    # propriedade `Marca` em CADA objeto 3D (fica no FCStd/BIM) e agrega por marca.
+    import marcas_peca as _mp
+    marcas = _mp.mapa_marcas(grupos)
+    for o in doc.Objects:
+        if not hasattr(o, "Shape") or o.Shape.Volume <= 0:
+            continue
+        mk = marcas.get(_classifica(o.Name))
+        if mk:
+            if not hasattr(o, "Marca"):
+                try:
+                    o.addProperty("App::PropertyString", "Marca", "Fabricacao",
+                                  "Marca de peca (piece mark)")
+                except Exception:
+                    pass
+            try:
+                o.Marca = mk
+            except Exception:
+                pass
+
     tdir = f"{EXPORT_DIR}/takeoff"
     os.makedirs(tdir, exist_ok=True)
     csv_path = f"{tdir}/galpao_levantamento_material.csv"
@@ -1943,11 +1976,18 @@ def takeoff(doc):
     resumo = sorted([(cat, prof, cnt, round(comp / 1000, 2), round(massa, 1))
                      for (cat, prof), (cnt, comp, massa) in grupos.items()],
                     key=lambda r: -r[4])
+    # LISTA DE CORTE / romaneio por MARCA: (marca, cat, perfil, qtd, comp_total_m,
+    # comp_unit_m, massa_kg). comp_unit = comprimento de corte de cada peca.
+    por_marca = sorted([
+        (marcas[(cat, prof)], cat, prof, cnt, round(comp / 1000.0, 2),
+         round(comp / 1000.0 / cnt, 3) if cnt else 0.0, round(massa, 1))
+        for (cat, prof), (cnt, comp, massa) in grupos.items()],
+        key=lambda r: (r[0][:2], r[0]))
     return {"csv": csv_path, "massa_aco_kg": round(massa_aco, 1),
             "massa_alvenaria_kg": round(massa_alv, 1),
             "massa_concreto_kg": round(massa_conc, 1),
             "massa_total_kg": round(massa_aco + massa_alv, 1),
-            "elementos": len(rows), "por_grupo": resumo}
+            "elementos": len(rows), "por_grupo": resumo, "por_marca": por_marca}
 
 
 def export(doc):
@@ -2067,7 +2107,7 @@ def run():
             "estrutura_em_aberturas": est_ab,
             "massa_aco_kg": tk["massa_aco_kg"], "massa_alvenaria_kg": tk["massa_alvenaria_kg"],
              "massa_total_kg": tk["massa_total_kg"], "elementos_takeoff": tk["elementos"],
-             "por_grupo": tk["por_grupo"], "csv": tk["csv"],
+             "por_grupo": tk["por_grupo"], "por_marca": tk["por_marca"], "csv": tk["csv"],
              "fcstd": fcstd, "step": step,
              "geometria": geo}
 

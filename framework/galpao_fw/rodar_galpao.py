@@ -481,6 +481,29 @@ def rodar(params, out_dir):
              % (_Tsd, r_tor["flag"], "ATENDE" if r_tor["OK"] else "NAO ATENDE"))
         res["torcao_col_Tsd"] = round(_Tsd, 2)
         res["torcao_col_ok"] = r_tor["OK"]
+    # Gate 7 - EFEITO DE DIAFRAGMA da cobertura (NBR 15421 8.3.2): torna EXPLICITA
+    # a hipotese antes implicita no 2D. Telha metalica sem contraventamento rigido
+    # no plano = diafragma FLEXIVEL -> distribuicao TRIBUTARIA (a que o portico ja
+    # usa) e a mais fiel (nao ha economia real a extrair). Se o eng. declara
+    # contraventamento longitudinal de cobertura (diafragma_rigido=True), o modulo
+    # classifica como rigido e redistribui por rigidez (a economia fica a criterio
+    # do eng.; este gate NAO reduz secoes -> permanece do lado seguro).
+    import diafragma as diaf
+    _np_diaf = int(round(g.get("comprimento", 2 * g["span"]) / g["bay"])) + 1
+    if bool(params.get("diafragma_rigido", False)):
+        _cinfo = {"classe": "rigido", "razao": None,
+                  "motivo": "contraventamento longitudinal de cobertura declarado -> "
+                            "diafragma rigido (8.3.2); redistribuir a forca lateral por rigidez"}
+        _fdist = diaf.distribui_rigido(1.0, [1.0] * _np_diaf)   # fracao/portico (rigidez igual)
+        _mtd = "rigidez (fracao por portico, %d porticos)" % _np_diaf
+    else:
+        _cinfo = {"classe": "flexivel", "razao": None,
+                  "motivo": "telha metalica sem contravento rigido no plano -> FLEXIVEL "
+                            "(8.3.2); a distribuicao tributaria do portico e a fiel"}
+        _fdist, _mtd = None, None
+    save("gate7-diafragma.txt", diaf.relatorio_pt(_cinfo, _fdist, _mtd))
+    res["diafragma_classe"] = _cinfo["classe"]
+    res["diafragma_n_porticos"] = _np_diaf
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
                        comp_a=g.get("comprimento", 2 * g["span"]))
@@ -534,6 +557,25 @@ def rodar(params, out_dir):
     res["romaneio_peso_primario_kg"] = _rr["peso_total_kg"]
     res["romaneio_n_porticos"] = _rr["n_porticos"]
     res["romaneio_itens"] = _rr["itens"]           # p/ renderizar na prancha (PE09)
+    # PLANO DE MONTAGEM / ESCORAMENTO (NBR 8800 12.3 + AISC 303 + Bellei): sequencia
+    # de icamento, guindaste (peca mais pesada + coef. de impacto 4.2.6) e estai
+    # provisorio (12.3.2.1). Fase de OBRA que o dimensionamento de peca nao cobre.
+    # Vento de montagem e raio de guindaste dependem de canteiro -> A CONFIRMAR
+    # (parametros mont_*); a estrutura do plano e sempre emitida. INFORMATIVO
+    # (nao reprova o dimensionamento; e o roteiro de execucao).
+    import montagem as _mont
+    _plano = _mont.plano_montagem(
+        {"spans": list(gp.SPANS), "comprimento": g.get("comprimento", 2 * g["span"]),
+         "eave": g["eave"], "ridge": g["ridge"], "bay": g["bay"]},
+        [{"marca": it["marca"], "peso_unit_kg": it["peso_unit_kg"]} for it in _rr["itens"]],
+        q_kNm2=params.get("mont_q_kNm2"),
+        area_exposta_m2=params.get("mont_area_exposta_m2"),
+        raio_m=params.get("mont_raio_guindaste_m"),
+        angulo_estai=params.get("mont_angulo_estai", 45.0),
+        n_estais=params.get("mont_n_estais", 1))
+    save("gate8-montagem.txt", _mont.relatorio_pt(_plano))
+    res["montagem_peca_mais_pesada_kg"] = _plano["peca_mais_pesada"]["peso_kg"]
+    res["montagem_prumo_mm"] = (_plano["prumo"] or {}).get("tol_mm")
     # Gate 7 - barras tracionadas (contraventamento + mao-francesa), forca do Fa
     cb = params["barras"]; fyb, fub = cb["fy"], cb["fu"]
     Fp = vl["Fa_por_lado_kN"]
@@ -1441,7 +1483,8 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("11e. ESCADA", "gate8-escada.txt"),
              ("11f. PLATAFORMA", "gate8-plataforma.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt"),
-             ("13. CALHAS E CONDUTORES", "gate-calha.txt")]
+             ("13. CALHAS E CONDUTORES", "gate-calha.txt"),
+             ("14. PLANO DE MONTAGEM/ESCORAMENTO", "gate8-montagem.txt")]
     try:
         import framework as FW
         carimbo = FW.carimbo_versao()
