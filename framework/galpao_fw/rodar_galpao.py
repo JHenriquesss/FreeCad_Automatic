@@ -481,6 +481,29 @@ def rodar(params, out_dir):
              % (_Tsd, r_tor["flag"], "ATENDE" if r_tor["OK"] else "NAO ATENDE"))
         res["torcao_col_Tsd"] = round(_Tsd, 2)
         res["torcao_col_ok"] = r_tor["OK"]
+    # Gate 7 - EFEITO DE DIAFRAGMA da cobertura (NBR 15421 8.3.2): torna EXPLICITA
+    # a hipotese antes implicita no 2D. Telha metalica sem contraventamento rigido
+    # no plano = diafragma FLEXIVEL -> distribuicao TRIBUTARIA (a que o portico ja
+    # usa) e a mais fiel (nao ha economia real a extrair). Se o eng. declara
+    # contraventamento longitudinal de cobertura (diafragma_rigido=True), o modulo
+    # classifica como rigido e redistribui por rigidez (a economia fica a criterio
+    # do eng.; este gate NAO reduz secoes -> permanece do lado seguro).
+    import diafragma as diaf
+    _np_diaf = int(round(g.get("comprimento", 2 * g["span"]) / g["bay"])) + 1
+    if bool(params.get("diafragma_rigido", False)):
+        _cinfo = {"classe": "rigido", "razao": None,
+                  "motivo": "contraventamento longitudinal de cobertura declarado -> "
+                            "diafragma rigido (8.3.2); redistribuir a forca lateral por rigidez"}
+        _fdist = diaf.distribui_rigido(1.0, [1.0] * _np_diaf)   # fracao/portico (rigidez igual)
+        _mtd = "rigidez (fracao por portico, %d porticos)" % _np_diaf
+    else:
+        _cinfo = {"classe": "flexivel", "razao": None,
+                  "motivo": "telha metalica sem contravento rigido no plano -> FLEXIVEL "
+                            "(8.3.2); a distribuicao tributaria do portico e a fiel"}
+        _fdist, _mtd = None, None
+    save("gate7-diafragma.txt", diaf.relatorio_pt(_cinfo, _fdist, _mtd))
+    res["diafragma_classe"] = _cinfo["classe"]
+    res["diafragma_n_porticos"] = _np_diaf
     # Gate 7 - pecas secundarias (longarina de parede U + escora/cumeeira I)
     vr = vento.compute(larg_b=g["span"], alt_h=g["eave"],
                        comp_a=g.get("comprimento", 2 * g["span"]))
