@@ -82,5 +82,6 @@ Gate 9 — Memorial Consolidado (PDF) + Pranchas executivas 2D (TechDraw headles
 ## Docs
 
 - `wiki/` — LLM-oriented wiki (architecture, phases, decisions).
-- `framework/galpao_fw/REVISAO-*.md` — per-module senior review docs.
+- `framework/galpao_fw/wiki/revisoes/REVISAO-*.md` — per-module senior review docs.
 - `skills/build-warehouse/` — AI skill with 10-gate workflow.
+

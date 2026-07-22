@@ -625,6 +625,13 @@ Revisão técnica do PR #49 (`chore/ci-build-suite-agendada`). **Resultado: APRO
 - **Agendador Windows:** `tools/register_build_task.ps1` cria a tarefa agendada local `GalpaoFW-BuildSuite` (Weekly, Domingo 03:00 default) idempotente com suporte a `-Remover`.
 - **Uso:** previne que regressões silenciosas de geometria 3D (como as corrigidas no PR #48) ocorram no futuro.
 
+## D73 — PR #54: Gaps A3 (FLT do console) e C5 (patamar de escada) — 2ª auditoria NLM (2026-07-22)
+2ª auditoria de gaps no NotebookLM (wiki S17/S18 re-subida): 5 candidatos → **2 reais** (verificados no fonte), 3 falsos-positivos já cobertos. **Resultado: APROVADO.**
+- **A3 (contra-segurança): FLT da chapa do console** (NBR 8800 Anexo G, Tabela G.1, "seções sólidas retangulares fletidas em relação ao eixo de maior momento de inércia"). Seção maciça NÃO tem flambagem local (G.1.2) → o bordo comprimido tomba por **flambagem lateral com torção**. Antes o `M_Rd` era $W f_y$ elástico ingênuo (instabilidade só flagada). `console_ponte.mrd_flt_chapa`: $L_b = 2\,ecc$ (balanço), $C_b=1$, $Z=t L^2/4$, $J=L t^3/3\,(1-0,63\,t/L)$, $r_y=t/\sqrt{12}$, $C_w\approx0$; $\lambda_p=0,13 E\sqrt{JA}/M_{pl}$, $\lambda_r=2,0 E\sqrt{JA}/M_r$, $M_{cr}=2,0 C_b E\sqrt{JA}/\lambda$ (G.2.2). **Validado contra exemplo resolvido (Pfeil) via NLM.** Chapa robusta → reserva plástica ($M_{pl}>W f_y$); chapa esbelta → reduz (FLT governa).
+- **C5 (completude): patamar de escada** (`escada.py`). Antes ABORTAVA para desnível $>3,2$ m; galpão com pé-direito $>6$ m → escada de acesso reprovada. `_dimensiona_multi`: divide em $N$ lances $\le$ `limite_lance` + $(N-1)$ patamares; projeção do lance **derivada de Blondel** ($2e+p=63$ cm; fatiar a projeção fixa quebrava o Blondel); `limite_lance` parametrizável (3,20 NBR 9050 / 2,90 NR-18); sinaliza `espaco_suficiente`. Comprimento do patamar = largura do lance (**A CONFIRMAR** — NBR 9050/9077 não consta na base).
+- **Falsos-positivos confirmados no código** (não reimplementar): Ief no ELS das terças (`tercas_nbr14762` já usa Ief/fallback), breakout/pullout/hairpin da base (`base_chumbador` já faz ACI 318 Ch.17), bloco raso (`fundacao_sapata.dimensiona_bloco_env`). Ponderação espacial do vento = economia (conservador aceito).
+- Nota de processo: **os PRs #51 (tools) e #54 (gaps) chegaram órfãos da `main`** por artefato de merge de PRs empilhados (base mergeada antes do filho) — trazidos por cherry-pick em PR próprio. [[06-open-threads#T21]]
+
 ## D0 — política permanente
 Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. Assistente não pode se auto-conceder permissão (escrever allow-rule = bypass, bloqueado). Usuário roda via `!` ou adiciona regra manualmente.
 

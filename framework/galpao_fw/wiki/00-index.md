@@ -184,7 +184,10 @@ FABRICAÇÃO 3D/2D [piece marks, lista de corte, tolerâncias, PE14 croquis, D69
 NBR 15421 [D69]; SESSÃO 18: plano de montagem/escoramento [montagem.py, gate8, PE16, NBR 8800
 12.3+AISC 303, D70 PR #47] + FIX interferência 3D calha/condutor×chapa e coluna tapered [28 interf.
 pré-existentes que os testes `build` DESELECTED escondiam, D71 PR #48] + guarda de build agendada
-[tools/, tarefa Windows semanal, D72 PR #49]. 714 testes [705 non-build + 9 build]. T19/T20)
+[tools/, tarefa Windows semanal, D72 PR #49] + CI GitHub Actions non-build [pegou de 1ª uma regressão
+do #48 nos testes de string do GUT_Y, D72/PR #53] + 2ª auditoria NLM: GAPS A3 [FLT do console, NBR
+8800 Anexo G, D73 PR #54] e C5 [patamar de escada Blondel, D73] — "o poço secou" (3 falsos-positivos
+refutados). 723 testes non-build + 9 build. T19/T20/T21)
 last-consolidated: 2026-07-21, sessions: 16 (+ SESSÃO 16: mão-francesa completa [pontas p/ fora
 #41; barra redonda→cantoneira do eng. verificada NBR 8800 4.11.3.4+E.1.4.2+5.3.2; propriedades
 por forma fechada validada Green 1e-9; amostra ATENDE]; 4 varreduras sistemáticas [interpenetração
