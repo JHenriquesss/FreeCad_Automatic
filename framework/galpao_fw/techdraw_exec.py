@@ -1499,50 +1499,56 @@ def _pr_quadros(doc, cfg):
         _tabela(doc, page, "Q09V", ["ELEMENTO", "UTILIZACAO n/Rd", "SITUACAO"],
                 rows, 210, 480 - n_verif * 7, tam=6, larguras=[170, 130, 100],
                 escala=ESC_Q)
-    # QUADRO DE MATERIAIS (takeoff do modelo 3D)
+    # QUADRO DE MATERIAIS / LISTA DE CORTE (uma tabela). Preferencia: por_marca do
+    # MODELO 3D (todos os grupos com MARCA de peca + comprimento de CORTE unitario +
+    # massa). Fallback: takeoff sem marcas; depois romaneio do calculo (primarias);
+    # por fim o aviso "NAO DISPONIVEL". Uma so tabela -> nunca sobrepoe.
+    por_marca = cfg.get("por_marca") or []
     tk = [r for r in (cfg.get("takeoff") or []) if "Alvenaria" not in str(r[0])]
-    n_mat = 0
-    if not tk and not (cfg.get("romaneio")):
-        # O takeoff vem de spec["estrutura"]["takeoff"], que SO o montar_modelo
-        # grava. Mas `rodar_executivo` e projetado para rodar SOZINHO sobre um
-        # FCStd ja salvo - e nesse caminho o QUADRO DE MATERIAIS sumia da prancha
-        # em SILENCIO, deixando meia folha em branco numa prancha intitulada
-        # "QUADROS E NOTAS TECNICAS". A guarda por prancha reportava 0 avisos.
-        _aviso_prancha("PE09_QUADROS",
-                       "QUADRO DE MATERIAIS ausente: cfg['takeoff'] vazio (rode "
-                       "montar_modelo antes, ou use rodar_tudo)")
+    rom = cfg.get("romaneio") or []
+    n_mat = 0                                 # nº de linhas da tabela (posiciona as notas)
+    if por_marca:                             # (marca,cat,perfil,qtd,ctot,cunit,massa)
+        total = sum(float(t[6]) for t in por_marca)
+        pm = sorted(por_marca, key=lambda t: -float(t[6]))[:18]
+        rows_m = [[str(t[0]), str(t[1])[:20], str(t[2]), str(t[3]),
+                   ("%.2f" % float(t[5]) if float(t[5]) > 0 else "-"), "%.0f" % float(t[6])]
+                  for t in pm]
+        rows_m.append(["TOTAL", "", "", "", "", "%.0f" % total])
+        n_mat = len(rows_m)
         _anot(doc, page, "A09m",
-              ["QUADRO DE MATERIAIS - ACO",
-               "NAO DISPONIVEL NESTA EXECUCAO",
-               "(quantitativo sai do modelo 3D - ver takeoff/*.csv)"],
-              560, 510, 9)
-    if tk:
+              ["QUADRO DE MATERIAIS / LISTA DE CORTE (marcas de peca, do modelo 3D)"],
+              560, 515, 9)
+        _tabela(doc, page, "Q09M",
+                ["MARCA", "ELEMENTO", "PERFIL", "QTD", "CORTE (m)", "MASSA (kg)"],
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
+                larguras=[55, 140, 100, 45, 70, 95], escala=ESC_Q)
+    elif tk:                                  # takeoff sem marcas (compat.)
         tk = sorted(tk, key=lambda r: -float(r[4]))[:16]
-        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])]
-                  for r in tk]
+        rows_m = [[str(r[0]), str(r[1]), str(r[2]), "%.0f" % float(r[4])] for r in tk]
         rows_m.append(["TOTAL", "", "", "%.0f" % sum(float(r[4]) for r in tk)])
         n_mat = len(rows_m)
-        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 510, 9)
+        _anot(doc, page, "A09m", ["QUADRO DE MATERIAIS - ACO"], 560, 515, 9)
         _tabela(doc, page, "Q09M", ["ELEMENTO", "PERFIL", "QTD", "MASSA (kg)"],
-                rows_m, 560, 480 - n_mat * 7, tam=6,
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
                 larguras=[150, 130, 60, 110], escala=ESC_Q)
-    # ROMANEIO - MARCAS DE PECA (entregavel de fabricacao, do calculo). Lista as
-    # pecas PRIMARIAS com marca (C1, V1..) / qtd / peso. Definitivo (secundarios,
-    # chapas, furacao) sai do modelo 3D. Renderizado abaixo do quadro de materiais.
-    rom = cfg.get("romaneio") or []
-    if rom:
-        rows_r = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
+    elif rom:                                 # romaneio do calculo (primarias)
+        rows_m = [[str(it["marca"]), str(it["descricao"])[:20], str(it["perfil"]),
                    str(it["qtd"]), "%.0f" % float(it["peso_total_kg"])] for it in rom]
-        rows_r.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
-        # posicao FIXA na zona inferior-direita vazia da folha (limpa tanto com
-        # quadro de materiais longo quanto sem ele) -> nunca sobrepoe. _tabela
-        # posiciona pelo CENTRO da view; cabecalho logo acima.
-        rom_centro = 210.0
-        _anot(doc, page, "A09r", ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"],
-              560, rom_centro + (len(rows_r) + 1) * 7 + 10, 9)
-        _tabela(doc, page, "Q09R", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
-                rows_r, 560, rom_centro, tam=6,
+        rows_m.append(["TOTAL", "", "", "", "%.0f" % sum(float(i["peso_total_kg"]) for i in rom)])
+        n_mat = len(rows_m)
+        _anot(doc, page, "A09m",
+              ["ROMANEIO - MARCAS DE PECA (primarias; do calculo)"], 560, 515, 9)
+        _tabela(doc, page, "Q09M", ["MARCA", "DESCRICAO", "PERFIL", "QTD", "PESO (kg)"],
+                rows_m, 560, 495 - len(rows_m) * 7, tam=6,
                 larguras=[70, 180, 100, 50, 100], escala=ESC_Q)
+    else:
+        _aviso_prancha("PE09_QUADROS",
+                       "QUADRO DE MATERIAIS ausente: sem takeoff/por_marca/romaneio "
+                       "(rode montar_modelo/calcular, ou use rodar_tudo)")
+        _anot(doc, page, "A09m",
+              ["QUADRO DE MATERIAIS / LISTA DE CORTE",
+               "NAO DISPONIVEL NESTA EXECUCAO",
+               "(sai do modelo 3D/calculo - ver takeoff/*.csv)"], 560, 510, 9)
     # NOTAS TECNICAS - posicionadas SEMPRE abaixo das tabelas (evita o overlap)
     _mt = cfg.get("materiais") or {}
     # notas 3 e 4 DO PROJETO. Sem o dado, a nota diz "conforme memorial" em vez de
@@ -1935,6 +1941,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
         "resultados": est.get("resultados", {}),
         "takeoff": est.get("takeoff", []),
         "romaneio": est.get("romaneio") or [],
+        "por_marca": est.get("por_marca") or [],     # lista de corte (3D): marca+comp_unit
     }
 
 

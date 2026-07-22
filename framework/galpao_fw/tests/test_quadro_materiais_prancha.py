@@ -50,20 +50,20 @@ def _fonte_de(src, nome):
 
 def test_takeoff_vazio_gera_aviso(src):
     """Silencio era o problema: ok=True e 0 avisos com meia prancha em branco.
-    Agora o aviso so aparece quando NAO ha takeoff NEM romaneio (se ha romaneio,
-    ele preenche a area de materiais - dupla guarda contra a meia folha vazia)."""
+    O aviso so aparece no ULTIMO caso (sem por_marca, sem takeoff, sem romaneio);
+    havendo qualquer um deles, a tabela unica de materiais/corte preenche a area."""
     fn = _fonte_de(src, "_pr_quadros")
-    assert "if not tk and not (cfg.get(\"romaneio\")):" in fn
+    assert "elif tk:" in fn and "elif rom:" in fn      # cadeia de fallback
     assert '_aviso_prancha("PE09_QUADROS"' in fn
 
 
-def test_romaneio_preenche_area_de_materiais(src):
-    """O romaneio (marcas de peca, do calculo) e renderizado na PE09 - entregavel
-    de fabricacao e segunda guarda contra a area de materiais vazia."""
+def test_marcas_e_lista_de_corte_na_prancha(src):
+    """Entregavel de fabricacao: uma tabela unica com MARCA de peca + CORTE (m)
+    a partir do por_marca do modelo 3D (sem tabela separada -> sem sobreposicao)."""
     fn = _fonte_de(src, "_pr_quadros")
-    assert 'cfg.get("romaneio")' in fn
-    assert '_tabela(doc, page, "Q09R"' in fn
-    assert "MARCA" in fn
+    assert 'cfg.get("por_marca")' in fn
+    assert '_tabela(doc, page, "Q09M"' in fn
+    assert "MARCA" in fn and "CORTE (m)" in fn
 
 
 def test_takeoff_vazio_imprime_o_motivo_na_prancha(src):
