@@ -57,6 +57,8 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             if sa and all(k in sa for k in ("B", "L", "h")) else None)
     n_fund_puro = len(MN.fundacoes(geo, fsec)) if fsec else 0
     n_telha_puro = len(MN.telhas(geo))
+    n_tap_puro = len(MN.tapamentos(geo, fechamento=spec.get("fechamento"),
+                                   aberturas=spec.get("aberturas")))
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -76,8 +78,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "nf=sum(1 for o in doc.Objects if o.Name.startswith('SAPATA_') "
             "or o.Name.startswith('BLOCO_'))\n"
             "ntel=sum(1 for o in doc.Objects if o.Name.startswith('TELHA_S'))\n"
+            "ntap=sum(1 for o in doc.Objects if o.Name.startswith('TAPAMENTO'))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
-            "'nf':nf,'ntel':ntel}))\n"
+            "'nf':nf,'ntel':ntel,'ntap':ntap}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -108,3 +111,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_telha_puro == d["ntel"], (
         "telhas do modelo_neutro (%d) divergem do build (%d)"
         % (n_telha_puro, d["ntel"]))
+    assert n_tap_puro == d["ntap"], (
+        "tapamentos do modelo_neutro (%d) divergem do build (%d) - a logica de "
+        "fechamento de parede mudou num lado so" % (n_tap_puro, d["ntap"]))

@@ -239,10 +239,113 @@ def telhas(geometria, telha_t=0.0007):
     return ms
 
 
+def tapamentos(geometria, fechamento=None, aberturas=None, z0_mm=30.0, tcl_mm=0.65):
+    """Tapamento (fechamento de PAREDE) do modelo neutro: 2 paineis laterais (longos)
+    + 2 oitoes (empenas), cada um um POLIGONO com espessura fina (pele metalica), com
+    ABERTURAS (portas/janelas/portoes) recortadas. Espelha TAPAMENTO_LATERAL_/_OITAO_
+    do build_galpao (yw=195, Z0=grout, recorte por caixa). Painel != barra: e definido
+    por `poligono` (cantos 3D, mm) + `esp` (mm) + `aberturas` (caixas 3D a recortar);
+    o emissor IFC extruda o perfil-com-vazios pela espessura. Tipo 'Cladding'
+    (IfcCovering CLADDING). fechamento {tipo, altura_alvenaria}; tipo 'aberto' -> [].
+
+    Contagem guardada por cross-check contra o build (TAPAMENTO_*)."""
+    fech = fechamento or {}
+    ftipo = fech.get("tipo", "telha")
+    if ftipo == "aberto":
+        return []
+    ab = aberturas or {}
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"])
+    eave = float(geometria["eave"])
+    ridge = float(geometria.get("ridge", eave))
+    L = comp * MM
+    EAVE = eave * MM
+    yw = 195.0
+    Z0 = float(z0_mm)
+    h_alv = float(fech.get("altura_alvenaria") or 0.0) * MM
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    cols_y = [c * MM for c in cols_y]
+    ridges_y = [(cols_y[i] + cols_y[i + 1]) / 2.0 for i in range(len(spans))]
+    SPAN = cols_y[-1]
+
+    def _rafz(y):
+        for i in range(len(spans)):
+            c0, c1 = cols_y[i], cols_y[i + 1]
+            if c0 - 1e-6 <= y <= c1 + 1e-6:
+                ym = ridges_y[i]
+                if y <= ym:
+                    return EAVE + (ridge - eave) * MM * (y - c0) / (ym - c0)
+                return EAVE + (ridge - eave) * MM * (c1 - y) / (c1 - ym)
+        return EAVE
+
+    PORTA_PESSOA = (900.0, 2130.0)
+    ms = []
+
+    def _painel(nome, poligono, esp, ops):
+        ms.append({"marca": "TP1", "perfil": "Tapamento", "tipo": "Cladding",
+                   "poligono": [tuple(float(v) for v in p) for p in poligono],
+                   "esp": float(esp), "aberturas": [tuple(map(tuple, o)) for o in ops],
+                   "secao": {"forma": "poly"}})
+
+    # --- aberturas das paredes laterais (espelha build: janelas centrais + porta) ---
+    lat_ops = {"E": [], "D": []}
+    pl = ab.get("porta_lateral")
+    if pl:
+        lat_ops["E"].append(((pl[0], pl[1]), (-yw - 60, -yw + 60),
+                             (Z0, Z0 + PORTA_PESSOA[1])))
+    jl = ab.get("janelas_laterais")
+    if jl:
+        win_x = (float(geometria.get("bay", 0.0)) * MM, L - float(geometria.get("bay", 0.0)) * MM)
+        lat_ops["E"].append((win_x, (-yw - 60, -yw + 60), (jl[0], jl[1])))
+        lat_ops["D"].append((win_x, (SPAN + yw - 60, SPAN + yw + 60), (jl[0], jl[1])))
+
+    def _parede_lateral(y, nome, ops):
+        if ftipo == "alvenaria_telha" and h_alv > Z0:
+            # meia-parede de alvenaria (caixa) + tapamento acima
+            _painel(nome + "_ALVENARIA",
+                    [(0, y - 95, Z0), (L, y - 95, Z0), (L, y - 95, h_alv), (0, y - 95, h_alv)],
+                    190.0, [])
+            zb = h_alv
+            ops_sup = [o for o in ops if o[2][1] > zb]
+        else:
+            zb, ops_sup = Z0, ops
+        _painel(nome, [(0, y, zb), (L, y, zb), (L, y, EAVE), (0, y, EAVE)],
+                tcl_mm, ops_sup)
+
+    _parede_lateral(-yw, "TAPAMENTO_LATERAL_E", lat_ops["E"])
+    _parede_lateral(SPAN + yw, "TAPAMENTO_LATERAL_D", lat_ops["D"])
+
+    # --- oitoes (empenas): poligono seguindo a linha do telhado + portao/porta ---
+    for xc, lbl in ((-yw, "FRENTE"), (L + yw, "FUNDO")):
+        ops = []
+        portao = ab.get("portao_%s" % lbl.lower())
+        porta = ab.get("porta_%s" % lbl.lower())
+        if portao:
+            gw, gh = portao
+            yr = (SPAN / 2.0 - gw / 2.0 + 80.0, SPAN / 2.0 + gw / 2.0 - 80.0)
+            ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + gh)))
+        if porta:
+            pw, ph = porta
+            yr = (SPAN / 2.0 - pw / 2.0, SPAN / 2.0 + pw / 2.0)
+            ops.append(((xc - 300, xc + 300), yr, (Z0, Z0 + ph)))
+        pts = [(xc, cols_y[0], Z0), (xc, cols_y[-1], Z0), (xc, cols_y[-1], EAVE)]
+        for j in range(len(spans) - 1, -1, -1):
+            pts.append((xc, ridges_y[j], _rafz(ridges_y[j])))
+            if j > 0:
+                pts.append((xc, cols_y[j], EAVE))
+        pts.append((xc, cols_y[0], EAVE))
+        _painel("TAPAMENTO_OITAO_%s" % lbl, pts, tcl_mm, ops)
+    return ms
+
+
 def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
-                   fund_sec=None, telha=False, telha_t=0.0007):
+                   fund_sec=None, telha=False, telha_t=0.0007,
+                   fechamento=None, aberturas=None):
     """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
     terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
     escopo das proximas iteracoes."""
@@ -263,6 +366,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += fundacoes(geometria, fund_sec)
     if telha:
         ms += telhas(geometria, telha_t)
+    if fechamento is not None or aberturas is not None:
+        ms += tapamentos(geometria, fechamento=fechamento, aberturas=aberturas)
     return ms
 
 

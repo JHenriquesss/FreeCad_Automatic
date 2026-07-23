@@ -59,7 +59,103 @@ def _matriz(p1, p2):
 
 _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET"),
-              "Covering": ("IfcCovering", "ROOFING")}
+              "Covering": ("IfcCovering", "ROOFING"),
+              "Cladding": ("IfcCovering", "CLADDING")}
+
+
+def _dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _sub(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0])
+
+
+def _norm3(a):
+    n = math.sqrt(a[0] ** 2 + a[1] ** 2 + a[2] ** 2)
+    return (a[0] / n, a[1] / n, a[2] / n) if n > 1e-9 else (1.0, 0.0, 0.0)
+
+
+def _plano_local(corners):
+    """Eixos locais (u, v, n) do plano do poligono: n = normal (1a aresta x 1a nao
+    colinear), u = 1a aresta normalizada, v = n x u. origem = corners[0]."""
+    o = corners[0]
+    e1 = _norm3(_sub(corners[1], o))
+    n = None
+    for k in range(2, len(corners)):
+        c = _cross(e1, _sub(corners[k], o))
+        if math.sqrt(c[0] ** 2 + c[1] ** 2 + c[2] ** 2) > 1e-6:
+            n = _norm3(c)
+            break
+    if n is None:
+        n = (0.0, 1.0, 0.0)
+    u = e1
+    v = _norm3(_cross(n, u))
+    return o, u, v, n
+
+
+def _painel_ifc(m, body, sto, mb, guid):
+    """Emite um PAINEL poligonal (tapamento/pele) como IfcCovering com o perfil
+    (poligono + vazios das aberturas) extrudado pela espessura ao longo da normal.
+    mb: {poligono (3D mm), esp (mm), aberturas [((x0,x1),(y0,y1),(z0,z1)), ...], tipo}."""
+    import numpy as np
+    corners = mb["poligono"]
+    o, u, v, n = _plano_local(corners)
+
+    def _uv(p):
+        d = _sub(p, o)
+        return (_dot(d, u), _dot(d, v))
+
+    def _polyline(pts2d):
+        cpts = [m.create_entity("IfcCartesianPoint", Coordinates=(float(a), float(b)))
+                for (a, b) in pts2d]
+        cpts.append(cpts[0])                          # fecha o contorno
+        return m.create_entity("IfcPolyline", Points=cpts)
+
+    outer = _polyline([_uv(c) for c in corners])
+    voids = []
+    for (xr, yr, zr) in mb.get("aberturas", []):
+        # projeta os 8 cantos da caixa no plano (u,v) e toma o retangulo min/max
+        us, vs = [], []
+        for x in xr:
+            for y in yr:
+                for z in zr:
+                    a, b = _uv((x, y, z))
+                    us.append(a); vs.append(b)
+        u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+        voids.append(_polyline([(u0, v0), (u1, v0), (u1, v1), (u0, v1)]))
+    if voids:
+        prof = m.create_entity("IfcArbitraryProfileDefWithVoids", ProfileType="AREA",
+                               ProfileName=mb.get("perfil"), OuterCurve=outer,
+                               InnerCurves=voids)
+    else:
+        prof = m.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA",
+                               ProfileName=mb.get("perfil"), OuterCurve=outer)
+    pos = m.create_entity(
+        "IfcAxis2Placement3D",
+        Location=m.create_entity("IfcCartesianPoint", Coordinates=tuple(float(c) for c in o)),
+        Axis=m.create_entity("IfcDirection", DirectionRatios=tuple(float(c) for c in n)),
+        RefDirection=m.create_entity("IfcDirection", DirectionRatios=tuple(float(c) for c in u)))
+    solid = m.create_entity("IfcExtrudedAreaSolid", SweptArea=prof, Position=pos,
+                            ExtrudedDirection=m.create_entity("IfcDirection",
+                                                              DirectionRatios=(0.0, 0.0, 1.0)),
+                            Depth=float(mb["esp"]))
+    shp = m.create_entity("IfcShapeRepresentation", ContextOfItems=body,
+                          RepresentationIdentifier="Body", RepresentationType="SweptSolid",
+                          Items=[solid])
+    cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcCovering", "CLADDING"))
+    from ifcopenshell.api import run
+    el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
+             name=mb.get("marca") or mb["perfil"])
+    el.Representation = m.create_entity("IfcProductDefinitionShape", Representations=[shp])
+    run("geometry.edit_object_placement", m, product=el, matrix=np.eye(4))
+    run("spatial.assign_container", m, relating_structure=sto, products=[el])
+    return el
 
 
 def _perfil_ifc(m, nome, s, esc):
@@ -115,8 +211,12 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     run("aggregate.assign_object", m, relating_object=site, products=[bld])
     run("aggregate.assign_object", m, relating_object=bld, products=[sto])
 
+    from ifcopenshell.guid import new as _guid
     perfis_ifc = {}                                   # cache de perfil IFC por nome
     for mb in membros:
+        if "poligono" in mb:                          # painel (tapamento): poligono+vazios
+            _painel_ifc(m, body, sto, mb, _guid)
+            continue
         if mb["tipo"] == "Footing":                   # sapata/bloco: CAIXA num ponto
             import numpy as np
             B, L, h = mb["dims"]
@@ -202,7 +302,9 @@ def emitir_ifc_do_spec(spec, path):
                                 girt_sec=girt_sec, col_d=col.get("d"),
                                 n_tirante_parede=est.get("n_tirante_parede"),
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
-                                fund_sec=fund_sec, telha=True)
+                                fund_sec=fund_sec, telha=True,
+                                fechamento=spec.get("fechamento"),
+                                aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 
