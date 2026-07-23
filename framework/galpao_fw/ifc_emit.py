@@ -189,6 +189,35 @@ def _perfil_ifc(m, nome, s, esc):
                            FlangeThickness=float(s.get("tf") or 0.0) * esc)
 
 
+def _tapered_ifc(m, body, sto, mb, esc):
+    """Emite uma barra de ALMA VARIÁVEL (tapered): perfil I que interpola da seção de
+    início (`secao`) à de fim (`secao2`) ao longo do eixo -> IfcExtrudedAreaSolidTapered
+    (loft entre dois IfcIShapeProfileDef de mesma mesa, alturas diferentes). Mesma
+    orientação/posicionamento do caminho prismático (matriz do eixo)."""
+    import numpy as np
+    from ifcopenshell.api import run
+    p_ini = _perfil_ifc(m, (mb.get("perfil") or "") + "_i", mb["secao"], esc)
+    p_fim = _perfil_ifc(m, (mb.get("perfil") or "") + "_j", mb["secao2"], esc)
+    mat, L = _matriz(mb["p1"], mb["p2"])
+    pos = m.create_entity(
+        "IfcAxis2Placement3D",
+        Location=m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0, 0.0)))
+    solid = m.create_entity(
+        "IfcExtrudedAreaSolidTapered", SweptArea=p_ini, Position=pos, Depth=float(L),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)),
+        EndSweptArea=p_fim)
+    shp = m.create_entity("IfcShapeRepresentation", ContextOfItems=body,
+                          RepresentationIdentifier="Body", RepresentationType="SweptSolid",
+                          Items=[solid])
+    cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcMember", "MEMBER"))
+    el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
+             name=mb.get("marca") or mb.get("perfil"))
+    el.Representation = m.create_entity("IfcProductDefinitionShape", Representations=[shp])
+    run("geometry.edit_object_placement", m, product=el, matrix=mat)
+    run("spatial.assign_container", m, relating_structure=sto, products=[el])
+    return el
+
+
 def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     """Escreve um IFC4 com os `membros` (do modelo_neutro) em `path`. Cada barra ->
     IfcColumn/IfcBeam com perfil I extrudado ao longo do eixo. Retorna o path (ou
@@ -216,6 +245,9 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
             _painel_ifc(m, body, sto, mb, _guid)
+            continue
+        if "secao2" in mb:                            # barra de ALMA VARIÁVEL (tapered)
+            _tapered_ifc(m, body, sto, mb, esc)
             continue
         if mb["tipo"] == "Footing":                   # sapata/bloco: CAIXA num ponto
             import numpy as np
@@ -253,10 +285,10 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
 
 
 def emitir_ifc_do_spec(spec, path):
-    """Emite o IFC4 da estrutura PRIMARIA direto do CALCULO (spec), SEM FreeCAD.
-    Usa os perfis laminados adotados (perfil_col_adotado/perfil_raf_adotado) +
-    catalogo `perfis`. Portico tapered/tesoura (perfil nao-laminado/soldado) ->
-    retorna None (esses seguem pelo export via FreeCAD, build_galpao, por ora).
+    """Emite o IFC4 da estrutura direto do CALCULO (spec), SEM FreeCAD. Pórtico de
+    perfil laminado (perfil_col_adotado/perfil_raf_adotado + catalogo `perfis`) OU de
+    ALMA VARIÁVEL (tipo_portico=alma_variavel + tapered, I soldado de altura variável)
+    -> ambos no caminho puro. Tesoura (treliça) -> retorna None (segue via FreeCAD).
     Retorna o path ou None. Entrada BIM FreeCAD-free do roteiro (item 2)."""
     import modelo_neutro as MN
     import perfis
@@ -269,10 +301,13 @@ def emitir_ifc_do_spec(spec, path):
             return None
         return {"nome": nome, "d": p["d"], "bf": p["bf"], "tw": p["tw"], "tf": p["tf"]}
 
+    # pórtico de alma variável (tapered): dims (m) do spec.estrutura.tapered
+    tapered = (est.get("tapered") if est.get("tipo_portico") == "alma_variavel"
+               and isinstance(est.get("tapered"), dict) else None)
     col = _sec(est.get("perfil_col_adotado"))
     raf = _sec(est.get("perfil_raf_adotado"))
-    if not col or not raf:
-        return None                                   # tapered/tesoura -> via FreeCAD
+    if not tapered and (not col or not raf):
+        return None                                   # tesoura/prismático sem perfil -> FreeCAD
     geo = {"span": g.get("span"), "spans": g.get("spans"),
            "comprimento": g.get("comprimento", 2 * (g.get("span") or 0)),
            "eave": g.get("eave"), "ridge": g.get("ridge", g.get("eave")),
@@ -297,9 +332,12 @@ def emitir_ifc_do_spec(spec, path):
     sa = est.get("sapata_adotada")
     if sa and all(k in sa for k in ("B", "L", "h")):
         fund_sec = {"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
-    membros = MN.frame_completo(geo, {"col": col, "raf": raf},
+    # col_d (recuo dos girts/altura no joelho): perfil laminado -> d; tapered -> h_joelho
+    col_d = tapered.get("h_joelho") if tapered else col.get("d")
+    secoes = None if tapered else {"col": col, "raf": raf}
+    membros = MN.frame_completo(geo, secoes, tapered=tapered,
                                 n_terca=n_terca, terca_sec=terca_sec,
-                                girt_sec=girt_sec, col_d=col.get("d"),
+                                girt_sec=girt_sec, col_d=col_d,
                                 n_tirante_parede=est.get("n_tirante_parede"),
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
                                 fund_sec=fund_sec, telha=True,

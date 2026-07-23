@@ -129,6 +129,50 @@ def test_emitir_tapamento_como_cladding(tmp_path):
     assert len(somente_fechados) == 1
 
 
+def test_emitir_tapered_do_spec(tmp_path):
+    # pórtico de alma variável: emitir_ifc_do_spec NAO retorna None (antes retornava)
+    # e os rafters viram IfcExtrudedAreaSolidTapered (loft joelho->cumeeira)
+    spec = {"slug": "tap", "geometria": {"span": 30.0, "comprimento": 40.0, "eave": 7.0,
+                                         "ridge": 9.0, "bay": 5.0},
+            "estrutura": {"tipo_portico": "alma_variavel",
+                          "tapered": {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25,
+                                      "tw": 0.008, "tf": 0.0125, "h_col_base": 0.45}}}
+    f = str(tmp_path / "tap.ifc")
+    out = EM.emitir_ifc_do_spec(spec, f)
+    assert out == f and os.path.exists(f)
+    m = ifcopenshell.open(f)
+    assert len(m.by_type("IfcColumn")) == 18 and len(m.by_type("IfcBeam")) == 18
+    # 18 colunas (afinam) + 18 rafters (afinam) = 36 solidos tapered
+    assert len(m.by_type("IfcExtrudedAreaSolidTapered")) == 36
+    # rafter: funda no joelho (900) -> rasa na cumeeira (400)
+    rep = m.by_type("IfcBeam")[0].Representation.Representations[0].Items[0]
+    assert abs(rep.SweptArea.OverallDepth - 900.0) < 1e-6
+    assert abs(rep.EndSweptArea.OverallDepth - 400.0) < 1e-6
+
+
+def test_tapered_sem_h_col_base_coluna_prismatica(tmp_path):
+    spec = {"slug": "tap2", "geometria": {"span": 30.0, "comprimento": 40.0, "eave": 7.0,
+                                          "ridge": 9.0, "bay": 5.0},
+            "estrutura": {"tipo_portico": "alma_variavel",
+                          "tapered": {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25,
+                                      "tw": 0.008, "tf": 0.0125}}}
+    f = str(tmp_path / "tap2.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    # só os 18 rafters afinam; colunas prismáticas (IfcExtrudedAreaSolid comum)
+    assert len(m.by_type("IfcExtrudedAreaSolidTapered")) == 18
+    col_solid = m.by_type("IfcColumn")[0].Representation.Representations[0].Items[0]
+    assert col_solid.is_a() == "IfcExtrudedAreaSolid"
+
+
+def test_tesoura_ainda_retorna_none(tmp_path):
+    # treliça (tesoura) segue sem caminho puro -> None (via FreeCAD)
+    spec = {"geometria": _GEO, "estrutura": {"tipo_portico": "tesoura",
+                                             "perfil_col_adotado": None,
+                                             "perfil_raf_adotado": None}}
+    assert EM.emitir_ifc_do_spec(spec, str(tmp_path / "x.ifc")) is None
+
+
 def test_emitir_ifc_analitico_structural(tmp_path):
     # modelo ANALITICO -> IFC4-Structural (nos + barras + apoios + conectividade)
     spec = {"slug": "a", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
