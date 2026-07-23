@@ -207,5 +207,39 @@ def test_frame_completo_com_telha():
     assert MN.resumo(M)["Covering"] == 2
 
 
+def test_tapamentos_quatro_paineis():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    tp = MN.tapamentos(geo, fechamento={"tipo": "alvenaria"},
+                       aberturas={"portao_frente": [4500.0, 2500.0],
+                                  "janelas_laterais": [3000.0, 1000.0]})
+    assert len(tp) == 4                                # 2 laterais + 2 oitoes
+    assert all(m["tipo"] == "Cladding" and "poligono" in m for m in tp)
+    # laterais = retangulo (4 cantos); oitoes = poligono com cumeeira (>=5 cantos)
+    ncantos = sorted(len(m["poligono"]) for m in tp)
+    assert ncantos == [4, 4, 5, 5]
+    # aberturas recortadas: janela E, janela D, portao FRENTE -> 3 no total
+    assert sum(len(m["aberturas"]) for m in tp) == 3
+
+
+def test_tapamento_aberto_nao_gera_paineis():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    assert MN.tapamentos(geo, fechamento={"tipo": "aberto"}) == []
+
+
+def test_tapamento_alvenaria_telha_divide_a_lateral():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    tp = MN.tapamentos(geo, fechamento={"tipo": "alvenaria_telha",
+                                        "altura_alvenaria": 3.0})
+    # cada lateral vira 2 objetos (alvenaria + tapamento) -> 2*2 + 2 oitoes = 6
+    assert len(tp) == 6
+    assert sum(1 for m in tp if m["perfil"] == "Tapamento") == 6
+
+
+def test_frame_completo_com_tapamento():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, fechamento={"tipo": "alvenaria"})
+    assert sum(1 for m in M if m.get("tipo") == "Cladding") == 4
+
+
 def test_selftest_modulo():
     MN._selftest()

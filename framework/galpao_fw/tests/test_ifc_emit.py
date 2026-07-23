@@ -107,6 +107,28 @@ def test_emitir_do_spec_com_tercas(tmp_path):
     assert len(m.by_type("IfcCircleProfileDef")) == 1        # contrav 20 mm
 
 
+def test_emitir_tapamento_como_cladding(tmp_path):
+    # tapamento de parede -> IfcCovering CLADDING com perfil poligonal;
+    # aberturas viram vazios (IfcArbitraryProfileDefWithVoids)
+    membros = MN.tapamentos(
+        _GEO, fechamento={"tipo": "alvenaria"},
+        aberturas={"portao_frente": [4500.0, 2500.0],
+                   "janelas_laterais": [3000.0, 1000.0]})
+    f = str(tmp_path / "tap.ifc")
+    EM.emitir_ifc(membros, f, nome="Amostra")
+    m = ifcopenshell.open(f)
+    cov = m.by_type("IfcCovering")
+    assert len(cov) == 4 and all(c.PredefinedType == "CLADDING" for c in cov)
+    # extrusao de perfil (chapa) -> IfcExtrudedAreaSolid, um por painel
+    assert len(m.by_type("IfcExtrudedAreaSolid")) == 4
+    # 3 paineis com abertura (janela E, janela D, portao FRENTE) -> perfil com vazio
+    assert len(m.by_type("IfcArbitraryProfileDefWithVoids")) == 3
+    # o 4o (oitao FUNDO, sem abertura) -> perfil fechado simples (sem vazio)
+    somente_fechados = [p for p in m.by_type("IfcArbitraryClosedProfileDef")
+                        if not p.is_a("IfcArbitraryProfileDefWithVoids")]
+    assert len(somente_fechados) == 1
+
+
 def test_emitir_ifc_analitico_structural(tmp_path):
     # modelo ANALITICO -> IFC4-Structural (nos + barras + apoios + conectividade)
     spec = {"slug": "a", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
