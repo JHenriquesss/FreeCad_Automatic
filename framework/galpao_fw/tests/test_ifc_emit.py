@@ -71,6 +71,36 @@ def test_hierarquia_espacial(ifc_model):
     assert len(ifc_model.by_type("IfcRelContainedInSpatialStructure")) >= 1
 
 
+def test_escala_real_mm_nao_1000x(ifc_model):
+    # GUARDA de escala: o modelo IFC usa unidade MILIMETRO; os helpers do ifcopenshell
+    # esperam METROS e reconvertem. Sem converter, um pilar de 6 m saía com 6.000.000 mm
+    # (1000x) e o modelo abria gigante/inconsistente no Revit. Aqui: pilar de eave=6 m
+    # -> extrusao 6000 mm e beiral em z=6000 mm (nao 6e6).
+    col = ifc_model.by_type("IfcColumn")[0]
+    depth = col.Representation.Representations[0].Items[0].Depth
+    assert abs(depth - 6000.0) < 1.0, depth               # 6 m = 6000 mm (nao 6e6)
+    import ifcopenshell.util.placement as up
+    beam = ifc_model.by_type("IfcBeam")[0]
+    zo = up.get_local_placement(beam.ObjectPlacement)[2, 3]
+    assert abs(zo - 6000.0) < 1.0, zo                     # beiral em 6000 mm
+
+
+def test_placa_base_como_ifcplate(tmp_path):
+    # placa de base (chapa B x L x t por coluna) -> IfcPlate, espessura real em mm
+    spec = {"slug": "pb", "geometria": _GEO,
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "base_adotada": {"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6}}}
+    f = str(tmp_path / "pb.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    pl = m.by_type("IfcPlate")
+    # 1 placa por base de coluna: 9 porticos x 2 colunas = 18
+    assert len(pl) == 18 and all(p.PredefinedType == "SHEET" for p in pl)
+    sld = pl[0].Representation.Representations[0].Items[0]
+    assert abs(sld.SweptArea.XDim - 600.0) < 1e-6 and abs(sld.SweptArea.YDim - 800.0) < 1e-6
+    assert abs(sld.Depth - 100.0) < 1e-6                  # t = 100 mm (nao 100000)
+
+
 def test_emitir_do_spec_frame_laminado(tmp_path):
     spec = {"slug": "amostra", "geometria": _GEO,
             "estrutura": {"perfil_col_adotado": "HEA200",

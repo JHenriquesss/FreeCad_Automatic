@@ -265,6 +265,29 @@ def fundacoes(geometria, fund_sec):
     return ms
 
 
+def placas_base(geometria, base_sec, z0_mm=30.0):
+    """Placas de base das colunas: uma CAIXA B x L x t por base, com o TOPO no nível
+    do grout (Z0) descendo -t. Espelha PLACA_BASE_ do build (plate B x L x t centrada
+    em Z0-t/2). base_sec {B, L, t} em m (do base_adotada). Membro tipo 'Plate' (chapa)
+    definido por CENTRO + dims -> IfcPlate. Uma por base de coluna."""
+    if not base_sec or not all(k in base_sec for k in ("B", "L", "t")):
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    B, L, t = float(base_sec["B"]), float(base_sec["L"]), float(base_sec["t"])
+    Z0 = float(z0_mm)
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    ms = []
+    for x in _xs(geometria):
+        for y in cols_y:
+            ms.append({"marca": "PB1", "perfil": "PlacaBase", "tipo": "Plate",
+                       "centro": (x * MM, y * MM, Z0 - t * MM / 2.0),
+                       "dims": (B * MM, L * MM, t * MM), "secao": base_sec})
+    return ms
+
+
 def telhas(geometria, telha_t=0.0007):
     """Telhas de cobertura: 2 paineis por vao (aguas E e D), do beiral a cumeeira,
     ao longo de todo o comprimento. Espelha TELHA_S do build. Cada painel = laje
@@ -398,10 +421,10 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
                    fund_sec=None, telha=False, telha_t=0.0007,
-                   fechamento=None, aberturas=None, tapered=None):
+                   fechamento=None, aberturas=None, tapered=None, base_sec=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
-    terças/girts/tirantes/contrav + fundações + telha + tapamento. `tapered` (dict,
-    m) -> primário de alma variável (secoes pode ser None nesse caso)."""
+    terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
+    `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
     if tapered:
         ms = frame_primario_tapered(geometria, tapered)
         raf_d = float(tapered.get("h_joelho", 0.0))   # seção mais funda (beiral)
@@ -423,6 +446,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += contrav_cobertura(geometria, d_contrav_mm)
     if fund_sec:
         ms += fundacoes(geometria, fund_sec)
+    if base_sec:
+        ms += placas_base(geometria, base_sec)
     if telha:
         ms += telhas(geometria, telha_t)
     if fechamento is not None or aberturas is not None:
