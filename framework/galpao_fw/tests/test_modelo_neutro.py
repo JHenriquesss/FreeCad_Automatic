@@ -265,6 +265,17 @@ def test_frame_completo_com_placas_base():
 _ESC = {"nome": "HEA160", "d": 0.152, "bf": 0.16, "tw": 0.006, "tf": 0.009}
 
 
+def test_drenagem_calhas_condutores_bocais():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    dr = MN.drenagem(geo, (200.0, 150.0), 150, 0.5, 0.14, 0.8)
+    # 2 calhas + 3 posicoes x 2 paredes x (condutor + bocal) = 2 + 12 = 14
+    assert len(dr) == 14
+    calhas = [m for m in dr if m["secao"]["forma"] == "U"]
+    assert len(calhas) == 2 and all(abs(m["p2"][0] - m["p1"][0]) > 1 for m in calhas)  # longitudinais
+    tubos = [m for m in dr if m["secao"]["forma"] == "round"]
+    assert len(tubos) == 12 and all(abs(m["p1"][0] - m["p2"][0]) < 1e-6 for m in tubos)  # verticais
+
+
 def test_tirantes_cobertura_segmentados():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     # 9 porticos -> 8 vaos; n_terca=5 -> 4 tercas/agua -> 5 segmentos/agua
