@@ -786,7 +786,10 @@ def rodar(params, out_dir):
         bd.setdefault("vao", g["bay"])
         bd.setdefault("N_amarracao", round(V_base_max, 2))
         bd.setdefault("fck", sap.get("fck", 25e3)); bd.setdefault("fyk", sap.get("fyk", 500e3))
-        rbd = vbal.verifica_baldrame(bd)
+        # sob alvenaria, adota a altura que tambem atende a FLECHA (ELS, Tab 13.3):
+        # um baldrame esbelto passa na resistencia mas fissura a parede.
+        rbd = (vbal.dimensiona_baldrame(bd) if bd.get("q_parede", 0.0) > 0.0
+               else vbal.verifica_baldrame(bd))
         save("gate7-baldrame.txt", vbal.relatorio_pt(rbd))
         res["baldrame"] = {"secao": f"{rbd['b']*100:.0f}x{rbd['h']*100:.0f}",
                            "As_inf_cm2": rbd["As_inf_cm2"], "N_tie_kN": rbd["N_tie"],
