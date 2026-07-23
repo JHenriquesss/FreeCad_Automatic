@@ -288,6 +288,47 @@ def placas_base(geometria, base_sec, z0_mm=30.0):
     return ms
 
 
+def gussets_contrav(geometria, gusset_t=12.0, esc_d=0.152, L=150.0, z0_mm=30.0):
+    """Gussets (chapas triangulares) dos cantos dos painéis de contraventamento, nos
+    vãos de EXTREMIDADE. Cobertura: 4 cantos/vão (plano X-Y no beiral). Parede: 4/vão
+    por parede (plano X-Z), o superior nasce sob a escora (z=eave-esc_d/2). Espelha
+    CONEX_GUSSET_COB_/CONEX_GUSSET_PAR_ do build (_gusset_tri: nó + d1,d2 x L). gusset_t
+    (mm), esc_d = altura da escora (m). Poligono triangular tipo 'Plate' -> IfcPlate."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    EAVE = float(geometria["eave"]) * MM
+    SPAN = sum(spans) * MM
+    Z0 = float(z0_mm)
+    z_top = EAVE - float(esc_d) * MM / 2.0
+    xs = [x * MM for x in _xs(geometria)]
+    if len(xs) < 2:
+        return []
+    end_bays = [(xs[0], xs[1]), (xs[-2], xs[-1])]
+    ms = []
+
+    def _tri(node, d1, d2):
+        A = node
+        B = (A[0] + d1[0] * L, A[1] + d1[1] * L, A[2] + d1[2] * L)
+        C = (A[0] + d2[0] * L, A[1] + d2[1] * L, A[2] + d2[2] * L)
+        ms.append({"marca": "GC1", "perfil": "GussetContrav", "tipo": "Plate",
+                   "poligono": [A, B, C], "esp": float(gusset_t), "aberturas": [],
+                   "secao": {"forma": "poly"}})
+
+    for (x0, x1) in end_bays:
+        for (nx, ny, d1, d2) in ((x0, 0.0, (1, 0, 0), (0, 1, 0)),
+                                 (x1, 0.0, (-1, 0, 0), (0, 1, 0)),
+                                 (x0, SPAN, (1, 0, 0), (0, -1, 0)),
+                                 (x1, SPAN, (-1, 0, 0), (0, -1, 0))):
+            _tri((nx, ny, EAVE), d1, d2)
+        for yw in (0.0, SPAN):
+            for (nx, nz, d1, d2) in ((x0, Z0, (1, 0, 0), (0, 0, 1)),
+                                     (x1, Z0, (-1, 0, 0), (0, 0, 1)),
+                                     (x0, z_top, (1, 0, 0), (0, 0, -1)),
+                                     (x1, z_top, (-1, 0, 0), (0, 0, -1))):
+                _tri((nx, yw, nz), d1, d2)
+    return ms
+
+
 def conectores_base(geometria, base_full, z0_mm=30.0):
     """Conectores da base: por ancoragem, chumbador (barra) + gancho + arruela (chapa)
     + porca + porca de nível. Espelha CHUMBADOR_/PORCA_/ARRUELA_ do build. base_full
@@ -747,7 +788,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
                    mao_francesa=None, esc_sec=None, montante_ab=None,
                    tirante_cob=False, d_tirante_cob_mm=16.0, base_full=None,
-                   drenagem_cfg=None):
+                   drenagem_cfg=None, gusset_contrav=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -788,6 +829,9 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:
         ms += contrav_cobertura(geometria, d_contrav_mm)
+    if gusset_contrav:                                 # chapas dos cantos do contravento
+        ms += gussets_contrav(geometria, gusset_contrav.get("t", 12.0),
+                              gusset_contrav.get("esc_d", 0.152))
     if fund_sec:
         ms += fundacoes(geometria, fund_sec)
     if base_sec:
