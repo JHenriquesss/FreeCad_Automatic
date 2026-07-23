@@ -84,6 +84,12 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     bfull = ({"B": ba["B"], "L": ba["L"], "t": ba["t"], "db": ba["db"], "n": ba["n"]}
              if ba and all(k in ba for k in ("B", "L", "t", "db", "n")) else None)
     n_conn_puro = len(MN.conectores_base(geo, bfull)) if bfull else 0
+    ca = est.get("calha_adotada")
+    n_dren_puro = (len(MN.drenagem(geo, (ca["B_mm"], ca["H_mm"]), ca["condutor_mm"],
+                                   (perfis.PERFIS.get(est.get("perfil_col_adotado")) or {}).get("d", 0.3),
+                                   (est.get("longarina_dims") or [140])[0] / 1000.0,
+                                   (ba or {}).get("L", 0.6)))
+                   if ca and ca.get("B_mm") and ca.get("condutor_mm") else 0)
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -114,9 +120,12 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "ntcob=sum(1 for o in doc.Objects if o.Name.startswith('TIRANTE_S'))\n"
             "nconn=sum(1 for o in doc.Objects if o.Name.startswith(('CHUMBADOR',"
             "'PORCA','ARRUELA')))\n"
+            "ndren=sum(1 for o in doc.Objects if o.Name.startswith(('CALHA_',"
+            "'CONDUTOR_','BOCAL_')))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
             "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip,"
-            "'nmf':nmf,'nescum':nescum,'nmont':nmont,'ntcob':ntcob,'nconn':nconn}))\n"
+            "'nmf':nmf,'nescum':nescum,'nmont':nmont,'ntcob':ntcob,'nconn':nconn,"
+            "'ndren':ndren}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -174,3 +183,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_conn_puro == d["nconn"], (
         "conectores (chumbador/porca/arruela) do modelo_neutro (%d) divergem do "
         "build (%d)" % (n_conn_puro, d["nconn"]))
+    assert n_dren_puro == d["ndren"], (
+        "drenagem (calha/condutor/bocal) do modelo_neutro (%d) diverge do build (%d)"
+        % (n_dren_puro, d["ndren"]))

@@ -368,6 +368,17 @@ def emitir_ifc_do_spec(spec, path):
         if all(k in ba for k in ("db", "n")):         # conectores (chumbador/porca/arruela)
             base_full = {"B": ba["B"], "L": ba["L"], "t": ba["t"],
                          "db": ba["db"], "n": ba["n"]}
+    # drenagem: calha (B/H) + condutor (mm) do calha_adotada; col_d/girt_h/base_L p/
+    # posicionar. raf tapered = joelho p/ col_d beiral (aprox.).
+    dren = None
+    ca = est.get("calha_adotada")
+    if ca and ca.get("B_mm") and ca.get("H_mm") and ca.get("condutor_mm"):
+        cold = (tapered.get("h_joelho") if tapered else (col or {}).get("d"))
+        girth = (ld[0] / 1000.0) if (ld and len(ld) >= 1) else 0.14
+        basel = ba["L"] if (ba and ba.get("L")) else 0.6
+        if cold:
+            dren = {"calha_bh": (ca["B_mm"], ca["H_mm"]), "condutor_d": ca["condutor_mm"],
+                    "col_d": cold, "girt_h": girth, "base_L": basel}
     # maos-francesas (trava da mesa inferior): mf_stride (calc) + secao do rafter +
     # altura da terca + cantoneira do eng. (mao_francesa b_mm/t_mm). raf tapered = joelho.
     mao_franc = None
@@ -395,6 +406,7 @@ def emitir_ifc_do_spec(spec, path):
                                 mao_francesa=mao_franc, esc_sec=esc,
                                 montante_ab=spec.get("aberturas"), tirante_cob=True,
                                 d_tirante_cob_mm=16.0, base_full=base_full,
+                                drenagem_cfg=dren,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
