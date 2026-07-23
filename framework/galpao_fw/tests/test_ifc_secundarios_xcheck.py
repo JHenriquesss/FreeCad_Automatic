@@ -52,6 +52,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     n_tir_puro = len(MN.tirantes_parede(geo, est.get("n_tirante_parede"), 16.0,
                                         col_d, girt_d)) if est.get("n_tirante_parede") else 0
     n_cv_puro = len(MN.contrav_cobertura(geo, 20.0))
+    sa = est.get("sapata_adotada")
+    fsec = ({"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
+            if sa and all(k in sa for k in ("B", "L", "h")) else None)
+    n_fund_puro = len(MN.fundacoes(geo, fsec)) if fsec else 0
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -68,7 +72,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "ng=sum(1 for o in doc.Objects if o.Name.startswith('TERCA_PAREDE'))\n"
             "ntir=sum(1 for o in doc.Objects if o.Name.startswith('TIRANTE_PAREDE'))\n"
             "ncv=sum(1 for o in doc.Objects if o.Name.startswith('CONTRAV_COBERTURA'))\n"
-            "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv}))\n"
+            "nf=sum(1 for o in doc.Objects if o.Name.startswith('SAPATA_') "
+            "or o.Name.startswith('BLOCO_'))\n"
+            "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,'nf':nf}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -93,3 +99,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_cv_puro == d["ncv"], (
         "contraventamento do modelo_neutro (%d) diverge do build (%d)"
         % (n_cv_puro, d["ncv"]))
+    assert n_fund_puro == d["nf"], (
+        "fundacoes do modelo_neutro (%d) divergem do build (%d)"
+        % (n_fund_puro, d["nf"]))

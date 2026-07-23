@@ -112,6 +112,22 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
 
     perfis_ifc = {}                                   # cache de perfil IFC por nome
     for mb in membros:
+        if mb["tipo"] == "Footing":                   # sapata/bloco: CAIXA num ponto
+            import numpy as np
+            B, L, h = mb["dims"]
+            cx, cy, cz = mb["centro"]
+            prof = m.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
+                                   ProfileName=mb["perfil"], XDim=float(B), YDim=float(L))
+            fo = run("root.create_entity", m, ifc_class="IfcFooting",
+                     predefined_type="PAD_FOOTING", name=mb.get("marca") or mb["perfil"])
+            rep = run("geometry.add_profile_representation", m, context=body,
+                      profile=prof, depth=float(h))
+            run("geometry.assign_representation", m, product=fo, representation=rep)
+            mat = np.eye(4)
+            mat[:3, 3] = [cx, cy, cz - h / 2.0]        # origem no fundo da caixa
+            run("geometry.edit_object_placement", m, product=fo, matrix=mat)
+            run("spatial.assign_container", m, relating_structure=sto, products=[fo])
+            continue
         s = mb["secao"]
         key = mb["perfil"]
         prof = perfis_ifc.get(key)
@@ -171,11 +187,17 @@ def emitir_ifc_do_spec(spec, path):
         girt_sec = {"nome": est.get("longarina_perfil") or "Girt", "forma": "U",
                     "d": ld[0] / 1000.0, "bf": ld[1] / 1000.0,
                     "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0}
+    # fundacao rasa (sapata/bloco): caixa B x L x h por base, do sapata_adotada
+    fund_sec = None
+    sa = est.get("sapata_adotada")
+    if sa and all(k in sa for k in ("B", "L", "h")):
+        fund_sec = {"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
     membros = MN.frame_completo(geo, {"col": col, "raf": raf},
                                 n_terca=n_terca, terca_sec=terca_sec,
                                 girt_sec=girt_sec, col_d=col.get("d"),
                                 n_tirante_parede=est.get("n_tirante_parede"),
-                                d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0)
+                                d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
+                                fund_sec=fund_sec)
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 
