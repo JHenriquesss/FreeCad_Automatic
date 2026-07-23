@@ -82,6 +82,29 @@ def test_analitico_do_spec_e_json():
     assert m2["barras"] == m["barras"] and m2["nos"] == m["nos"]
 
 
+def test_analitico_do_spec_anexa_esforcos():
+    # esforcos de projeto (do calculo) no spec -> anexados a cada barra por grupo
+    spec = {"geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0,
+                          "bay": 5.0, "base_fixed": True},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "esf_coluna": {"M_kNm": 120.0, "N_kN": 50.0, "V_kN": 20.0, "combo": "C1"},
+                          "esf_rafter": {"M_kNm": 90.0, "N_kN": 40.0, "V_kN": 35.0, "combo": "C2"}}}
+    m = MN.analitico_do_spec(spec)
+    col = [b for b in m["barras"] if b["grupo"] == "coluna"][0]
+    raf = [b for b in m["barras"] if b["grupo"] == "rafter"][0]
+    assert col["esforcos"]["M_kNm"] == 120.0 and col["esforcos"]["combo"] == "C1"
+    assert raf["esforcos"]["M_kNm"] == 90.0 and raf["esforcos"]["V_kN"] == 35.0
+
+
+def test_analitico_do_spec_sem_esforcos_ok():
+    # sem esf no spec -> barras sem 'esforcos' (so geometria), nao quebra
+    spec = {"geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0,
+                          "bay": 5.0, "base_fixed": True},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180"}}
+    m = MN.analitico_do_spec(spec)
+    assert all("esforcos" not in b for b in m["barras"])
+
+
 def test_analitico_do_spec_tapered_none():
     spec = {"geometria": {"span": 20.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0},
             "estrutura": {"perfil_col_adotado": None, "perfil_raf_adotado": None}}

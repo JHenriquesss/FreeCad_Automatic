@@ -238,6 +238,13 @@ def analitico_do_spec(spec):
     m["n_porticos"] = int(round(comp / bay)) + 1 if (comp and bay) else None
     m["secoes"] = {"coluna": est.get("perfil_col_adotado"),
                    "rafter": est.get("perfil_raf_adotado")}
+    # esforcos de PROJETO (2a ordem, do calculo) por grupo -> anexa a cada barra.
+    # Fonte unica: rodar_galpao capturou o envelope do mesmo a["combos"] da verificacao.
+    esf = {"coluna": est.get("esf_coluna"), "rafter": est.get("esf_rafter")}
+    for bar in m["barras"]:
+        e = esf.get(bar["grupo"])
+        if e:
+            bar["esforcos"] = dict(e)
     return m
 
 

@@ -350,6 +350,10 @@ def modelo_analitico():
             u, v, rot = fr.supports[b]
             apoios.append({"no": b, "u": bool(u), "v": bool(v), "rot": bool(rot),
                            "tipo": "engaste" if rot else "rotula"})
+
+    # OBS: os esforcos de projeto (N/V/M por grupo) NAO sao anexados aqui - vem da
+    # 2a ordem do CALCULO (rodar_galpao -> res.esf_coluna/esf_rafter -> spec), fonte
+    # unica. modelo_neutro.analitico_do_spec os anexa.
     return {"nos": nos, "barras": barras, "apoios": apoios, "unidade": "m",
             "n_porticos": None}
 
