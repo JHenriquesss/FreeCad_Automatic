@@ -556,6 +556,32 @@ def tirantes_cobertura(geometria, n_terca, d_mm=16.0):
     return ms
 
 
+def ponte_rolante(geometria, hvr, ecc, vr_sec, console_sec):
+    """Ponte rolante: 2 vigas de rolamento (perfil I, longitudinais, no nível do
+    trilho Hvr, excêntricas ao pilar) + 1 console (mísula) por pórtico x parede.
+    Espelha VIGA_ROLAMENTO_/CONSOLE_PONTE_ do build. As chapas/enrijecedor do console
+    (CONEX_CONSOLE_*) são detalhe de fabricação. hvr/ecc (mm); vr_sec/console_sec (m).
+    Tipo 'Beam' -> IfcBeam. Coords em mm."""
+    if not vr_sec or not console_sec:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"]) * MM
+    SPAN = sum(spans) * MM
+    xs = [x * MM for x in _xs(geometria)]
+    ms = []
+    for yw, sgn in ((0.0, 1.0), (SPAN, -1.0)):
+        yr = yw + sgn * float(ecc)
+        ms.append({"marca": "VR1", "perfil": vr_sec["nome"], "tipo": "Beam",
+                   "p1": (0.0, yr, float(hvr)), "p2": (comp, yr, float(hvr)),
+                   "secao": vr_sec})
+        for x in xs:                                   # console em cada pórtico
+            ms.append({"marca": "CP1", "perfil": console_sec["nome"], "tipo": "Beam",
+                       "p1": (x, yw, float(hvr)), "p2": (x, yr, float(hvr)),
+                       "secao": console_sec})
+    return ms
+
+
 def escoras_cumeeiras(geometria, esc_sec):
     """Escoras de beiral + vigas de cumeeira: barras LONGITUDINAIS (X) entre pórticos
     adjacentes. Escora de beiral: 2 por vão (paredes y=cols[0] e cols[-1], no beiral).
@@ -702,6 +728,66 @@ def clipes_girt(geometria, t_mm=8.0):
     return ms
 
 
+def _estaca_offsets(n, esp):
+    """Posições (dx,dy) das n estacas sob o bloco (mm). Espelha _estaca_offsets do
+    build: 1=central, 2=linha em X, 4=malha 2x2, demais=fileira em X centrada."""
+    if n <= 1:
+        return [(0.0, 0.0)]
+    if n == 2:
+        return [(-esp / 2.0, 0.0), (esp / 2.0, 0.0)]
+    if n == 4:
+        return [(sx * esp / 2.0, sy * esp / 2.0) for sx in (-1, 1) for sy in (-1, 1)]
+    return [((k - (n - 1) / 2.0) * esp, 0.0) for k in range(int(n))]
+
+
+def fundacoes_profundas(geometria, estaca_model, bloco_h=None, col_d=0.3, col_bf=0.3,
+                        base_t=0.1, z0_mm=30.0, grout_mm=30.0):
+    """Fundação PROFUNDA por base de coluna: pedestal + bloco de coroamento (caixas de
+    concreto) + n estacas (cilindros descendo do bloco). Espelha PEDESTAL_/BLOCO_/
+    ESTACA_ do build (_desenha_estaca). estaca_model {D, L, n, espacamento?, ped?} em
+    mm. Pedestal/bloco tipo 'Footing' (caixa); estaca tipo 'Pile' (barra redonda ->
+    IfcPile). col_d/col_bf/base_t (m). NOTA: requer estaca do CÁLCULO (sondagem SPT,
+    Ask-Do-Not-Invent) - sem cross-check contra a amostra (que usa sapata)."""
+    if not estaca_model or "D" not in estaca_model or "L" not in estaca_model:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    D = float(estaca_model["D"]); L = float(estaca_model["L"])
+    n = int(estaca_model.get("n", 1))
+    esp = float(estaca_model.get("espacamento", 3.0 * D))
+    bh = float(bloco_h) if bloco_h else max(400.0, 1.2 * D)
+    ped = float(estaca_model.get("ped", 500.0))
+    coroa = max(150.0, D / 2.0)
+    offs = _estaca_offsets(n, esp)
+    xs_o = [o[0] for o in offs]; ys_o = [o[1] for o in offs]
+    Bx = (max(xs_o) - min(xs_o)) + D + 2.0 * coroa
+    Ly = (max(ys_o) - min(ys_o)) + D + 2.0 * coroa
+    pdim = max(col_d * MM + 120.0, col_bf * MM + 120.0, 300.0)
+    z_conc_top = float(z0_mm) - base_t * MM - float(grout_mm)
+    z_ped_bot = z_conc_top - ped
+    z_blk_top = z_ped_bot
+    z_blk_bot = z_blk_top - bh
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    esec = {"nome": "Est%g" % D, "forma": "round", "D": D / MM}
+    ms = []
+    for x in _xs(geometria):
+        for y in cols_y:
+            xm, ym = x * MM, y * MM
+            ms.append({"marca": "PD1", "perfil": "Pedestal", "tipo": "Footing",
+                       "centro": (xm, ym, (z_conc_top + z_ped_bot) / 2.0),
+                       "dims": (pdim, pdim, ped), "secao": {"forma": "box"}})
+            ms.append({"marca": "BL1", "perfil": "Bloco", "tipo": "Footing",
+                       "centro": (xm, ym, (z_blk_top + z_blk_bot) / 2.0),
+                       "dims": (Bx, Ly, bh), "secao": {"forma": "box"}})
+            for (dx, dy) in offs:
+                ms.append({"marca": "ES1", "perfil": esec["nome"], "tipo": "Pile",
+                           "p1": (xm + dx, ym + dy, z_blk_bot - L),
+                           "p2": (xm + dx, ym + dy, z_blk_bot), "secao": esec})
+    return ms
+
+
 def telhas(geometria, telha_t=0.0007):
     """Telhas de cobertura: 2 paineis por vao (aguas E e D), do beiral a cumeeira,
     ao longo de todo o comprimento. Espelha TELHA_S do build. Cada painel = laje
@@ -839,7 +925,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
                    mao_francesa=None, esc_sec=None, montante_ab=None,
                    tirante_cob=False, d_tirante_cob_mm=16.0, base_full=None,
-                   drenagem_cfg=None, gusset_contrav=None, misula=None):
+                   drenagem_cfg=None, gusset_contrav=None, misula=None,
+                   fund_profunda=None, ponte=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -885,8 +972,16 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                               gusset_contrav.get("esc_d", 0.152))
     if misula:                                         # mísula (haunch) do joelho
         ms += misulas_joelho(geometria, misula.get("raf_d"), misula.get("raf_tw"))
+    if ponte:                                          # ponte rolante (viga + consoles)
+        ms += ponte_rolante(geometria, ponte.get("hvr"), ponte.get("ecc"),
+                            ponte.get("vr_sec"), ponte.get("console_sec"))
     if fund_sec:
         ms += fundacoes(geometria, fund_sec)
+    if fund_profunda:                                  # estaca + bloco + pedestal
+        fp = fund_profunda
+        ms += fundacoes_profundas(geometria, fp.get("estaca"), fp.get("bloco_h"),
+                                  col_d=fp.get("col_d", cd), col_bf=fp.get("col_bf", 0.3),
+                                  base_t=fp.get("base_t", 0.1))
     if base_sec:
         ms += placas_base(geometria, base_sec)
     if nervura_base and base_sec:

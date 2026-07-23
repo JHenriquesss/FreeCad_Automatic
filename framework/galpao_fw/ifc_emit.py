@@ -78,7 +78,8 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET"),
               "Covering": ("IfcCovering", "ROOFING"),
               "Cladding": ("IfcCovering", "CLADDING"),
-              "Fastener": ("IfcMechanicalFastener", "ANCHORBOLT")}
+              "Fastener": ("IfcMechanicalFastener", "ANCHORBOLT"),
+              "Pile": ("IfcPile", "BORED")}
 
 
 def _dot(a, b):
@@ -372,6 +373,30 @@ def emitir_ifc_do_spec(spec, path):
     sa = est.get("sapata_adotada")
     if sa and all(k in sa for k in ("B", "L", "h")):
         fund_sec = {"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
+    # fundação PROFUNDA (estaca + bloco + pedestal), do estaca_adotada (m -> mm).
+    # Requer sondagem (Ask-Do-Not-Invent) -> só emite quando o cálculo forneceu.
+    fund_prof = None
+    ea = est.get("estaca_adotada")
+    if ea and ea.get("D") and ea.get("L"):
+        bo = est.get("bloco_adotado") or {}
+        fund_prof = {"estaca": {"D": ea["D"] * 1000.0, "L": ea["L"] * 1000.0,
+                                "n": ea.get("n", 1),
+                                "espacamento": (ea.get("espacamento") or 3.0 * ea["D"]) * 1000.0},
+                     "bloco_h": (bo.get("h") or 0.0) * 1000.0 or None,
+                     "col_d": (col or {}).get("d", 0.3),
+                     "col_bf": (col or {}).get("bf", 0.3),
+                     "base_t": (est.get("base_adotada") or {}).get("t", 0.1)}
+    # ponte rolante: viga de rolamento + consoles. Do spec.ponte (Hvr, excentricidade,
+    # perfil_viga [d,bf,tw,tf] mm). Console = perfil_escora (HEA160), como no build.
+    ponte = None
+    pm = spec.get("ponte")
+    if pm and pm.get("Hvr") and pm.get("excentricidade"):
+        pv = pm.get("perfil_viga") or [500.0, 250.0, 8.0, 16.0]
+        vr = {"nome": "VR", "forma": "I", "d": pv[0] / 1000.0, "bf": pv[1] / 1000.0,
+              "tw": pv[2] / 1000.0, "tf": pv[3] / 1000.0}
+        cons = esc or {"nome": "HEA160", "d": 0.152, "bf": 0.16, "tw": 0.006, "tf": 0.009}
+        ponte = {"hvr": pm["Hvr"], "ecc": pm["excentricidade"], "vr_sec": vr,
+                 "console_sec": cons}
     # placa de base (chapa B x L x t por coluna), do base_adotada (m)
     base_sec = None
     base_full = None
@@ -420,7 +445,7 @@ def emitir_ifc_do_spec(spec, path):
                                 montante_ab=spec.get("aberturas"), tirante_cob=True,
                                 d_tirante_cob_mm=16.0, base_full=base_full,
                                 drenagem_cfg=dren, gusset_contrav=gusset_c,
-                                misula=misula,
+                                misula=misula, fund_profunda=fund_prof, ponte=ponte,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

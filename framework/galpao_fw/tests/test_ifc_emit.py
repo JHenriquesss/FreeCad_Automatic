@@ -225,6 +225,38 @@ def test_tesoura_ainda_retorna_none(tmp_path):
     assert EM.emitir_ifc_do_spec(spec, str(tmp_path / "x.ifc")) is None
 
 
+def test_ponte_rolante_viga_e_consoles(tmp_path):
+    # ponte rolante: viga de rolamento (I) + consoles -> IfcBeam
+    spec = {"slug": "p", "geometria": _GEO,
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "perfil_escora": "HEA160"},
+            "ponte": {"Hvr": 4500.0, "excentricidade": 300.0,
+                      "perfil_viga": [500.0, 250.0, 8.0, 16.0]}}
+    f = str(tmp_path / "p.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    assert len([b for b in m.by_type("IfcBeam") if b.Name == "VR1"]) == 2      # 2 vigas
+    assert len([b for b in m.by_type("IfcBeam") if b.Name == "CP1"]) == 18     # 9x2 consoles
+
+
+def test_fundacao_profunda_como_ifcpile(tmp_path):
+    # fundacao profunda: estaca_adotada -> IfcPile (barra) + pedestal/bloco IfcFooting
+    spec = {"slug": "est", "geometria": _GEO,
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "estaca_adotada": {"D": 0.4, "L": 9.0, "n": 2, "espacamento": 1.2},
+                          "bloco_adotado": {"h": 0.8}}}
+    f = str(tmp_path / "est.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    # 18 bases x 2 estacas = 36 IfcPile ; 18 pedestais + 18 blocos = 36 IfcFooting
+    assert len(m.by_type("IfcPile")) == 36
+    assert len(m.by_type("IfcFooting")) == 36
+    # estaca com secao circular D=400 mm
+    pile = m.by_type("IfcPile")[0]
+    prof = pile.Representation.Representations[0].Items[0].SweptArea
+    assert prof.is_a() == "IfcCircleProfileDef" and abs(prof.Radius - 200.0) < 1e-6
+
+
 def test_emitir_ifc_analitico_structural(tmp_path):
     # modelo ANALITICO -> IFC4-Structural (nos + barras + apoios + conectividade)
     spec = {"slug": "a", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
