@@ -265,6 +265,16 @@ def test_frame_completo_com_placas_base():
 _ESC = {"nome": "HEA160", "d": 0.152, "bf": 0.16, "tw": 0.006, "tf": 0.009}
 
 
+def test_tirantes_cobertura_segmentados():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    # 9 porticos -> 8 vaos; n_terca=5 -> 4 tercas/agua -> 5 segmentos/agua
+    tc = MN.tirantes_cobertura(geo, 5)
+    assert len(tc) == 8 * 2 * 5
+    assert all(m["tipo"] == "Member" and m["secao"]["forma"] == "round" for m in tc)
+    # a meio-vao (X constante em cada barra), variando em Y
+    assert all(abs(m["p1"][0] - m["p2"][0]) < 1e-6 for m in tc)
+
+
 def test_escoras_cumeeiras_por_vao():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     ec = MN.escoras_cumeeiras(geo, _ESC)

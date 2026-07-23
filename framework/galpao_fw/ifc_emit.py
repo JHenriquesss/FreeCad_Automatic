@@ -388,7 +388,8 @@ def emitir_ifc_do_spec(spec, path):
                                 fund_sec=fund_sec, base_sec=base_sec,
                                 nervura_base=bool(base_sec), clipes=True, telha=True,
                                 mao_francesa=mao_franc, esc_sec=esc,
-                                montante_ab=spec.get("aberturas"),
+                                montante_ab=spec.get("aberturas"), tirante_cob=True,
+                                d_tirante_cob_mm=16.0,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

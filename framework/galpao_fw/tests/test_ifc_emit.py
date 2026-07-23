@@ -146,16 +146,16 @@ def test_emitir_do_spec_com_tercas(tmp_path):
     EM.emitir_ifc_do_spec(spec, f)
     m = ifcopenshell.open(f)
     assert len(m.by_type("IfcColumn")) == 18 and len(m.by_type("IfcBeam")) == 18
-    # 10 tercas + 4 girts + 0 tirantes (sem n_tirante) + 4 contrav (2 vaos extremos
-    # x 2 diagonais; comprimento 40/bay 5 -> 9 porticos) = 18
-    assert len(m.by_type("IfcMember")) == (2 * (5 - 1) + 2) + 4 + 4
+    # membros IfcMember: 10 tercas + 4 girts + 4 contrav (2 vaos extremos x 2) +
+    # 80 tirantes de cobertura (8 vaos x 2 aguas x 5 segmentos) = 98
+    assert len(m.by_type("IfcMember")) == (2 * (5 - 1) + 2) + 4 + 4 + (8 * 2 * 5)
     # perfil formado a frio -> IfcCShapeProfileDef ; girt U -> IfcUShapeProfileDef ;
-    # contrav barra redonda -> IfcCircleProfileDef
+    # barras redondas -> IfcCircleProfileDef (contrav Ø20 + tirante cobertura Ø16)
     cs = m.by_type("IfcCShapeProfileDef")
     assert len(cs) == 1 and abs(cs[0].Depth - 300.0) < 1e-6 and abs(cs[0].Girth - 25.0) < 1e-6
     us = m.by_type("IfcUShapeProfileDef")
     assert len(us) == 1 and abs(us[0].Depth - 140.0) < 1e-6
-    assert len(m.by_type("IfcCircleProfileDef")) == 1        # contrav 20 mm
+    assert len(m.by_type("IfcCircleProfileDef")) == 2        # contrav 20 + tirante cob 16
 
 
 def test_emitir_tapamento_como_cladding(tmp_path):

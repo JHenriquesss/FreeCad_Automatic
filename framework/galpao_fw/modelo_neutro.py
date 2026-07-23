@@ -342,6 +342,41 @@ def _rafz_mm(geometria):
     return _f, cols, rid
 
 
+def tirantes_cobertura(geometria, n_terca, d_mm=16.0):
+    """Tirantes de cobertura (barras redondas): uma linha por vão/água a meio-vão
+    entre pórticos (X), SEGMENTADA em cada terça (fecha na cumeeira). Espelha
+    TIRANTE_S do build (pts entre y0/y1 e a cumeeira, cortados nas terças). Tipo
+    'Member' -> IfcMember (barra redonda). Coords em mm."""
+    if not n_terca or int(n_terca) < 2:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    rafz, cols, rid = _rafz_mm(geometria)
+    xs = [x * MM for x in _xs(geometria)]
+    sec = {"nome": "Ø%g" % d_mm, "forma": "round", "D": float(d_mm) / MM}
+    ms = []
+
+    def _rod(xm, ya, yb):
+        ms.append({"marca": "TC1", "perfil": sec["nome"], "tipo": "Member",
+                   "p1": (xm, ya, rafz(ya)), "p2": (xm, yb, rafz(yb)), "secao": sec})
+
+    for b in range(len(xs) - 1):
+        xm = (xs[b] + xs[b + 1]) / 2.0
+        for j in range(len(spans)):
+            y0, y1, yrj = cols[j], cols[j + 1], rid[j]
+            tys = []
+            for k in range(1, int(n_terca)):
+                tys.append(y0 + (yrj - y0) * k / n_terca)      # água E
+                tys.append(y1 - (y1 - yrj) * k / n_terca)      # água D
+            pts_e = [y0] + [p for p in sorted(y for y in tys if y0 <= y < yrj) if p != y0] + [yrj]
+            for s in range(len(pts_e) - 1):
+                _rod(xm, pts_e[s], pts_e[s + 1])
+            pts_d = [y1] + [p for p in sorted((y for y in tys if yrj < y <= y1), reverse=True) if p != y1] + [yrj]
+            for s in range(len(pts_d) - 1):
+                _rod(xm, pts_d[s], pts_d[s + 1])
+    return ms
+
+
 def escoras_cumeeiras(geometria, esc_sec):
     """Escoras de beiral + vigas de cumeeira: barras LONGITUDINAIS (X) entre pórticos
     adjacentes. Escora de beiral: 2 por vão (paredes y=cols[0] e cols[-1], no beiral).
@@ -623,7 +658,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    fund_sec=None, telha=False, telha_t=0.0007,
                    fechamento=None, aberturas=None, tapered=None, base_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
-                   mao_francesa=None, esc_sec=None, montante_ab=None):
+                   mao_francesa=None, esc_sec=None, montante_ab=None,
+                   tirante_cob=False, d_tirante_cob_mm=16.0):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -654,6 +690,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
     if esc_sec:                                        # escoras/cumeeiras + montantes
         ms += escoras_cumeeiras(geometria, esc_sec)
         ms += montantes_oitao(geometria, esc_sec, aberturas=montante_ab)
+    if tirante_cob and n_terca:                        # tirantes de cobertura segmentados
+        ms += tirantes_cobertura(geometria, n_terca, d_tirante_cob_mm)
     if n_tirante_parede:
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:
