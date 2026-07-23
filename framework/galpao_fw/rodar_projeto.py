@@ -142,14 +142,74 @@ def _ship_build_src(src_path):
     return boot + src_path.read_text(encoding="utf-8").replace("_result_ = run()", "")
 
 
+def _montar_bridge(src, bk, host, timeout):
+    """Constroi o 3D no FreeCAD JA ABERTO (bridge XMLRPC, porta 9875). Rapido
+    (reusa um FreeCAD quente), mas exige o FreeCAD aberto com o addon. Levanta se a
+    conexao falhar (-> o chamador cai p/ headless)."""
+    import xmlrpc.client, socket
+    call = "reset()\nconfigurar(**%r)\n_result_ = run()\n" % (bk,)
+    socket.setdefaulttimeout(timeout)
+    srv = xmlrpc.client.ServerProxy(host)
+    return srv.execute(src + call)
+
+
+def _montar_headless(src, bk, out_dir, timeout, exe=None):
+    """Constroi o 3D via freecadcmd HEADLESS (subprocesso proprio, SEM depender do
+    FreeCAD estar aberto nem do bridge da 9875). Ship do source + run() que grava o
+    resultado em JSON; le de volta. Mesmo padrao do rodar_executivo/dos probes.
+    Item 3 do roteiro: parar de depender do FreeCAD ficar aberto."""
+    import os, json, tempfile, subprocess
+    exe = exe or os.environ.get("FREECADCMD")
+    if not exe or not os.path.exists(exe):
+        cand = [r"C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe",
+                r"C:\Program Files\FreeCAD 1.0\bin\freecadcmd.exe"]
+        fe = os.environ.get("FREECAD_EXE")
+        if fe:
+            cand.insert(0, os.path.join(os.path.dirname(fe), "freecadcmd.exe"))
+        exe = next((c for c in cand if os.path.exists(c)), None)
+    if not exe:
+        return {"erro": "freecadcmd.exe nao encontrado (headless indisponivel)"}
+    resf = os.path.join(str(out_dir), "_montar_result.json").replace("\\", "/")
+    try:
+        os.remove(resf)
+    except OSError:
+        pass
+    boot = (src + "\nimport json\nreset()\nconfigurar(**%r)\n_r = run()\n"
+            "open(%r,'w',encoding='utf-8').write(json.dumps(_r, default=str))\n"
+            % (bk, resf))
+    bp = tempfile.NamedTemporaryFile(mode="w", suffix="_montar.py", delete=False,
+                                     encoding="utf-8")
+    bp.write(boot); bp.close()
+    try:
+        subprocess.run([exe, bp.name], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"erro": "freecadcmd headless excedeu o timeout do modelo 3D"}
+    finally:
+        try:
+            os.unlink(bp.name)
+        except OSError:
+            pass
+    if os.path.exists(resf):
+        with open(resf, encoding="utf-8") as f:
+            return {"result": json.load(f)}       # mesma forma do retorno do bridge
+    return {"erro": "freecadcmd headless nao gerou o resultado do modelo 3D"}
+
+
 def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None,
-                  n_terca=None, host="http://localhost:9875", timeout=180):
-    """Desenha o modelo 3D via MCP (FreeCAD).
+                  n_terca=None, host="http://localhost:9875", timeout=180,
+                  headless=None):
+    """Desenha o modelo 3D via FreeCAD.
+
+    headless: None (default) tenta o BRIDGE (FreeCAD aberto) e, se ele nao responder,
+    cai automaticamente para o FREECADCMD HEADLESS (nao depende do FreeCAD aberto).
+    True forca headless; False forca bridge. Tambem forca headless via env
+    FREECAD_HEADLESS=1.
 
     mf_stride/n_terca vem do CALC (nao do spec): sao auto-dimensionados pelo gate 7.
     n_terca em especial define o VAO DA TELHA - se o 3D usar outro valor, o modelo,
     as pranchas e o takeoff contradizem a memoria de calculo."""
-    import xmlrpc.client, socket
+    import os
     PS.exigir_completo(spec)
     bk = PS.to_build_kwargs(spec)
     if mf_stride is not None:
@@ -162,10 +222,23 @@ def montar_modelo(spec, out_dir, doc_name, mf_stride=None, n_tirante_parede=None
     bk["doc_name"] = doc_name
     src_path = FW.raiz_repo() / "framework" / "galpao_fw" / "build_galpao.py"
     src = _ship_build_src(src_path)
-    call = "reset()\nconfigurar(**%r)\n_result_ = run()\n" % (bk,)
-    socket.setdefaulttimeout(timeout)
-    srv = xmlrpc.client.ServerProxy(host)
-    r = srv.execute(src + call)
+
+    if headless is None:
+        headless = os.environ.get("FREECAD_HEADLESS", "").strip() in ("1", "true", "True")
+    if headless:
+        r = _montar_headless(src, bk, out_dir, timeout)
+    else:
+        import xmlrpc.client
+        try:
+            r = _montar_bridge(src, bk, host, timeout)
+        except (OSError, xmlrpc.client.ProtocolError) as e:
+            # bridge fora do ar (FreeCAD nao aberto / porta 9875 muda / conexao
+            # recusada) -> headless. Erro REAL de build volta como dict (nao excecao)
+            # e NAO aciona o fallback.
+            import sys
+            print("[montar_modelo] bridge indisponivel (%s); caindo p/ headless" % e,
+                  file=sys.stderr)
+            r = _montar_headless(src, bk, out_dir, timeout)
     resm = r.get("result") if isinstance(r, dict) else None
     if isinstance(resm, dict) and resm.get("por_grupo"):
         spec.setdefault("estrutura", {})["takeoff"] = resm["por_grupo"]
