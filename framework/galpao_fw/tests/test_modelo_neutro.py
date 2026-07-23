@@ -343,6 +343,14 @@ def test_clipes_girt_por_portico_x_nivel_x_parede():
     assert all(m["tipo"] == "Plate" for m in cg)
 
 
+def test_gussets_contrav_cantos_dos_vaos_extremos():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    gc = MN.gussets_contrav(geo, 12.0, 0.152)
+    # 2 vaos extremos x (4 cobertura + 4x2 paredes) = 2 x 12 = 24
+    assert len(gc) == 24
+    assert all(m["tipo"] == "Plate" and len(m["poligono"]) == 3 for m in gc)
+
+
 def test_conectores_base_por_ancoragem():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     cn = MN.conectores_base(geo, {"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6})
