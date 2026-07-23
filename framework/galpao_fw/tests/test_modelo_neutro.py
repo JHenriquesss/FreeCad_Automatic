@@ -262,6 +262,31 @@ def test_frame_completo_com_placas_base():
     assert sum(1 for m in M if m.get("tipo") == "Plate") == 18
 
 
+_ESC = {"nome": "HEA160", "d": 0.152, "bf": 0.16, "tw": 0.006, "tf": 0.009}
+
+
+def test_escoras_cumeeiras_por_vao():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    ec = MN.escoras_cumeeiras(geo, _ESC)
+    # 9 porticos -> 8 vaos; escora 8x2 + cumeeira 8x1 = 24
+    assert len(ec) == 8 * 2 + 8 * 1
+    assert all(m["tipo"] == "Beam" for m in ec)
+    # longitudinais: variam em X, constantes em Y
+    assert all(abs(m["p1"][1] - m["p2"][1]) < 1e-6 and abs(m["p2"][0] - m["p1"][0]) > 1 for m in ec)
+
+
+def test_montantes_oitao_nos_tercos_ou_batentes():
+    geo = {"span": 30.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.5, "bay": 5.0}
+    mo = MN.montantes_oitao(geo, _ESC)                 # sem portao -> tercos
+    assert len(mo) == 4 and all(m["tipo"] == "Member" for m in mo)
+    ys = sorted({round(m["p1"][1]) for m in mo})
+    assert ys == [10000, 20000]                        # SPAN/3, 2SPAN/3 (mm)
+    # com portao de 6 m -> batentes (SPAN/2 ∓ 3 m)
+    mo2 = MN.montantes_oitao(geo, _ESC, aberturas={"portao_frente": [6000.0, 4000.0]})
+    yf = sorted({round(m["p1"][1]) for m in mo2 if abs(m["p1"][0]) < 1})
+    assert yf == [12000, 18000]
+
+
 def test_maos_francesas_reusa_geom_puro():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     # n_terca=5, stride=2 -> brace_k=[2,4]; 9 porticos x 2 aguas x 2 = 36

@@ -74,6 +74,12 @@ def test_terca_puro_bate_com_o_build(tmp_path):
                                        rp.get("d"), rp.get("bf"),
                                        est["terca_dims"][0] / 1000.0, mf_sec))
                  if est.get("mf_stride") and rp.get("d") else 0)
+    pe = perfis.PERFIS.get(est.get("perfil_escora")) or {}
+    esec = ({"nome": est.get("perfil_escora"), "d": pe["d"], "bf": pe["bf"],
+             "tw": pe["tw"], "tf": pe["tf"]} if pe.get("d") else None)
+    n_escum_puro = len(MN.escoras_cumeeiras(geo, esec)) if esec else 0
+    n_mont_puro = (len(MN.montantes_oitao(geo, esec, aberturas=spec.get("aberturas")))
+                   if esec else 0)
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -98,9 +104,12 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "nnerv=sum(1 for o in doc.Objects if o.Name.startswith('NERVURA_BASE'))\n"
             "nclip=sum(1 for o in doc.Objects if o.Name.startswith('CLIPE'))\n"
             "nmf=sum(1 for o in doc.Objects if o.Name.startswith('MAO_FRANCESA'))\n"
+            "nescum=sum(1 for o in doc.Objects if 'ESCORA_BEIRAL' in o.Name "
+            "or '_CUMEEIRA_S' in o.Name)\n"
+            "nmont=sum(1 for o in doc.Objects if 'MONTANTE_OITAO' in o.Name)\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
             "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip,"
-            "'nmf':nmf}))\n"
+            "'nmf':nmf,'nescum':nescum,'nmont':nmont}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -146,3 +155,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_mf_puro == d["nmf"], (
         "maos-francesas do modelo_neutro (%d) divergem do build (%d)"
         % (n_mf_puro, d["nmf"]))
+    assert n_escum_puro == d["nescum"], (
+        "escoras+cumeeiras do modelo_neutro (%d) divergem do build (%d)"
+        % (n_escum_puro, d["nescum"]))
+    assert n_mont_puro == d["nmont"], (
+        "montantes de oitao do modelo_neutro (%d) divergem do build (%d)"
+        % (n_mont_puro, d["nmont"]))

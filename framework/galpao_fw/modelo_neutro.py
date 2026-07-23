@@ -319,6 +319,84 @@ def nervuras_base(geometria, col_d, base_L, z0_mm=30.0, esp_mm=12.0):
     return ms
 
 
+def _rafz_mm(geometria):
+    """Fábrica de rafter_z(y_mm)->z_mm a partir de eave/ridge (m). Cume no meio do vão,
+    linear eave->ridge->eave; multi-vão por span."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    eave = float(geometria["eave"]); ridge = float(geometria.get("ridge", eave))
+    cols = [0.0]
+    for s in spans:
+        cols.append(cols[-1] + s)
+    cols = [c * MM for c in cols]
+    rid = [(cols[i] + cols[i + 1]) / 2.0 for i in range(len(spans))]
+    E = eave * MM; dR = (ridge - eave) * MM
+
+    def _f(y):
+        for i in range(len(spans)):
+            c0, c1 = cols[i], cols[i + 1]
+            if c0 - 1e-6 <= y <= c1 + 1e-6:
+                ym = rid[i]
+                return E + dR * ((y - c0) / (ym - c0) if y <= ym else (c1 - y) / (c1 - ym))
+        return E
+    return _f, cols, rid
+
+
+def escoras_cumeeiras(geometria, esc_sec):
+    """Escoras de beiral + vigas de cumeeira: barras LONGITUDINAIS (X) entre pórticos
+    adjacentes. Escora de beiral: 2 por vão (paredes y=cols[0] e cols[-1], no beiral).
+    Cumeeira: 1 por vão por água (y=cumeeira). Espelha ESCORA_BEIRAL_/CUMEEIRA_S do
+    build (perfil_escora). Tipo 'Beam' -> IfcBeam. Coords em mm."""
+    if not esc_sec:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    rafz, cols, rid = _rafz_mm(geometria)
+    xs = [x * MM for x in _xs(geometria)]
+    ms = []
+    for b in range(len(xs) - 1):
+        x0, x1 = xs[b], xs[b + 1]
+        for y in (cols[0], cols[-1]):                  # escoras de beiral (2 paredes)
+            z = rafz(y)
+            ms.append({"marca": "EB1", "perfil": esc_sec["nome"], "tipo": "Beam",
+                       "p1": (x0, y, z), "p2": (x1, y, z), "secao": esc_sec})
+        for yr in rid:                                 # cumeeiras (1 por água)
+            z = rafz(yr)
+            ms.append({"marca": "CM1", "perfil": esc_sec["nome"], "tipo": "Beam",
+                       "p1": (x0, yr, z), "p2": (x1, yr, z), "secao": esc_sec})
+    return ms
+
+
+def montantes_oitao(geometria, esc_sec, aberturas=None, z0_mm=30.0):
+    """Montantes de oitão: colunetas VERTICAIS nas empenas (pórticos de extremidade).
+    Se há portão no oitão, ficam nos batentes; senão, nos terços do vão. Espelha
+    MONTANTE_OITAO_ do build (perfil_escora, do Z0 até rafter_z(y)-95). 2 por oitão x
+    2 oitões = 4. Tipo 'Member' -> IfcMember. Coords em mm."""
+    if not esc_sec:
+        return []
+    ab = aberturas or {}
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    rafz, cols, _rid = _rafz_mm(geometria)
+    SPAN = cols[-1]
+    Z0 = float(z0_mm)
+    xs = [x * MM for x in _xs(geometria)]
+
+    def _ys(portao):
+        if portao:
+            gw = float(portao[0]) if isinstance(portao, (list, tuple)) else float(portao)
+            return (SPAN / 2.0 - gw / 2.0, SPAN / 2.0 + gw / 2.0)
+        return (SPAN / 3.0, 2.0 * SPAN / 3.0)
+
+    ms = []
+    for x, lbl in ((xs[0], "frente"), (xs[-1], "fundo")):
+        for yg in _ys(ab.get("portao_%s" % lbl)):
+            ms.append({"marca": "MO1", "perfil": esc_sec["nome"], "tipo": "Member",
+                       "p1": (x, yg, Z0), "p2": (x, yg, rafz(yg) - 95.0),
+                       "secao": esc_sec})
+    return ms
+
+
 def maos_francesas(geometria, n_terca, mf_stride, raf_d, raf_bf, ue_h, mf_sec=None):
     """Mãos-francesas (flange brace): trava lateral da mesa inferior do rafter (FLT
     sob sucção). REUSA o módulo PURO mao_francesa_geom (mfg.segmentos) - exatamente a
@@ -545,7 +623,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    fund_sec=None, telha=False, telha_t=0.0007,
                    fechamento=None, aberturas=None, tapered=None, base_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
-                   mao_francesa=None):
+                   mao_francesa=None, esc_sec=None, montante_ab=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -573,6 +651,9 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += maos_francesas(geometria, n_terca, mao_francesa.get("mf_stride"),
                              mao_francesa.get("raf_d"), mao_francesa.get("raf_bf"),
                              mao_francesa.get("ue_h"), mao_francesa.get("mf_sec"))
+    if esc_sec:                                        # escoras/cumeeiras + montantes
+        ms += escoras_cumeeiras(geometria, esc_sec)
+        ms += montantes_oitao(geometria, esc_sec, aberturas=montante_ab)
     if n_tirante_parede:
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:
