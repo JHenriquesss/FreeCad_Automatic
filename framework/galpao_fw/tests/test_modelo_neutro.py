@@ -241,5 +241,46 @@ def test_frame_completo_com_tapamento():
     assert sum(1 for m in M if m.get("tipo") == "Cladding") == 4
 
 
+_TAP = {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25, "tw": 0.008,
+        "tf": 0.0125, "h_col_base": 0.45}
+
+
+def test_tapered_rafter_funda_no_joelho_rasa_na_cumeeira():
+    geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_primario_tapered(geo, _TAP)
+    rafters = [m for m in M if m["tipo"] == "Beam"]
+    assert rafters and all("secao2" in m for m in rafters)      # todos tapered
+    r = rafters[0]
+    assert abs(r["secao"]["d"] - 0.90) < 1e-9                   # inicio = joelho (fundo)
+    assert abs(r["secao2"]["d"] - 0.40) < 1e-9                  # fim = cumeeira (raso)
+    # mesa constante ao longo do loft
+    assert r["secao"]["bf"] == r["secao2"]["bf"] == 0.25
+
+
+def test_tapered_coluna_afina_com_h_col_base():
+    geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
+    cols = [m for m in MN.frame_primario_tapered(geo, _TAP) if m["tipo"] == "Column"]
+    assert cols and all("secao2" in m for m in cols)
+    c = cols[0]
+    assert abs(c["secao"]["d"] - 0.45) < 1e-9                   # base
+    assert abs(c["secao2"]["d"] - 0.90) < 1e-9                  # joelho
+
+
+def test_tapered_coluna_prismatica_sem_h_col_base():
+    geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
+    tap = {k: v for k, v in _TAP.items() if k != "h_col_base"}
+    cols = [m for m in MN.frame_primario_tapered(geo, tap) if m["tipo"] == "Column"]
+    assert cols and all("secao2" not in m for m in cols)       # prismática
+    assert abs(cols[0]["secao"]["d"] - 0.90) < 1e-9            # altura do joelho
+
+
+def test_frame_completo_tapered_com_secundarios():
+    geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
+    terca = {"nome": "Ue", "forma": "C", "d": 0.3, "bf": 0.085, "lip": 0.025, "t": 0.00335}
+    M = MN.frame_completo(geo, None, tapered=_TAP, n_terca=5, terca_sec=terca)
+    assert sum(1 for m in M if "secao2" in m) > 0             # tem barras tapered
+    assert sum(1 for m in M if m["tipo"] == "Member") > 0     # terças emitidas
+
+
 def test_selftest_modulo():
     MN._selftest()

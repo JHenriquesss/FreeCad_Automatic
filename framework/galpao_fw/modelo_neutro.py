@@ -60,6 +60,59 @@ def frame_primario(geometria, secoes):
     return membros
 
 
+def frame_primario_tapered(geometria, tapered):
+    """Pórtico de ALMA VARIÁVEL (tapered): colunas + rafters como I de ALTURA
+    VARIÁVEL (loft entre 2 seções I de mesma mesa, alturas diferentes nas pontas).
+    Espelha tapered_column/tapered_rafter do build_galpao:
+      - rafter: funda no joelho (h_joelho, no beiral) -> rasa na cumeeira (h_cumeeira);
+      - coluna: h_col_base (base) -> h_joelho (joelho, no beiral). Sem h_col_base a
+        coluna é PRISMÁTICA na altura do joelho (o build usa COL_SEC prismático ali).
+    tapered {h_joelho, h_cumeeira, bf, tw, tf, h_col_base?} em METROS. Membro tapered
+    carrega `secao` (início) + `secao2` (fim); prismático carrega só `secao`. O eixo
+    forte (altura d) fica no plano do pórtico (mesma orientação do frame_primario)."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"])
+    bay = float(geometria["bay"])
+    eave = float(geometria["eave"])
+    ridge = float(geometria.get("ridge", eave))
+    np_ = _n_porticos(comp, bay)
+    xs = [comp * i / (np_ - 1) for i in range(np_)] if np_ > 1 else [0.0]
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    hj = float(tapered["h_joelho"])
+    hc = float(tapered["h_cumeeira"])
+    bf = float(tapered.get("bf", 0.20))
+    tw = float(tapered.get("tw", 0.008))
+    tf = float(tapered.get("tf", 0.0125))
+    hcb = tapered.get("h_col_base")
+    hcb = float(hcb) if hcb is not None else None
+
+    def _I(h):
+        return {"nome": "I%d" % int(round(h * 1000)), "forma": "I",
+                "d": float(h), "bf": bf, "tw": tw, "tf": tf}
+
+    membros = []
+    for x in xs:
+        for y in cols_y:
+            col = {"marca": "C1", "perfil": "COL-VAR", "tipo": "Column",
+                   "p1": (x * MM, y * MM, 0.0), "p2": (x * MM, y * MM, eave * MM),
+                   "secao": _I(hcb if hcb is not None else hj)}
+            if hcb is not None:                       # coluna afina: base -> joelho
+                col["secao2"] = _I(hj)
+            membros.append(col)
+        for j in range(len(spans)):                   # rafters: joelho -> cumeeira
+            yr = (cols_y[j] + cols_y[j + 1]) / 2.0
+            for ya in (cols_y[j], cols_y[j + 1]):
+                membros.append({"marca": "V%d" % (j + 1), "perfil": "RAF-VAR",
+                                "tipo": "Beam",
+                                "p1": (x * MM, ya * MM, eave * MM),
+                                "p2": (x * MM, yr * MM, ridge * MM),
+                                "secao": _I(hj), "secao2": _I(hc)})
+    return membros
+
+
 def tercas(geometria, n_terca, terca_sec):
     """Terças (purlins) LONGITUDINAIS do modelo neutro: barras X=0->comprimento na
     altura do rafter, `n_terca-1` posicoes INTERMEDIARIAS por agua (eave e cumeeira
@@ -345,15 +398,21 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
                    fund_sec=None, telha=False, telha_t=0.0007,
-                   fechamento=None, aberturas=None):
-    """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
-    terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
-    escopo das proximas iteracoes."""
-    cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
-    ms = frame_primario(geometria, secoes)
+                   fechamento=None, aberturas=None, tapered=None):
+    """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
+    terças/girts/tirantes/contrav + fundações + telha + tapamento. `tapered` (dict,
+    m) -> primário de alma variável (secoes pode ser None nesse caso)."""
+    if tapered:
+        ms = frame_primario_tapered(geometria, tapered)
+        raf_d = float(tapered.get("h_joelho", 0.0))   # seção mais funda (beiral)
+        cd = col_d if col_d is not None else float(tapered.get("h_joelho", 0.0))
+    else:
+        cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
+        ms = frame_primario(geometria, secoes)
+        raf_d = (secoes.get("raf") or {}).get("d", 0.0) if secoes else 0.0
     if n_terca and terca_sec:
         geo = dict(geometria)                         # altura do rafter -> assento
-        geo.setdefault("raf_d", (secoes.get("raf") or {}).get("d", 0.0))
+        geo.setdefault("raf_d", raf_d)
         ms += tercas(geo, n_terca, terca_sec)
     girt_d = (girt_sec or {}).get("d", 0.0) if girt_sec else 0.0
     if girt_sec:
