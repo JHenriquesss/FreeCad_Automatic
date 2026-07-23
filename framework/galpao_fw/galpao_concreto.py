@@ -42,14 +42,20 @@ _SECOES_VIGA = [(0.20, 0.40), (0.20, 0.50), (0.20, 0.60), (0.25, 0.60),
 def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk):
     """Adota a MENOR secao de pilar que atende as 2 combinacoes ELU. hx (=h) e a
     dimensao no plano do vento (resiste ao momento de base). Retorna dict."""
+    # Biaxial (17.2.5): o vento transversal atua numa direcao (x, plano do portico)
+    # e o momento MINIMO (11.3.3.4.3) coexiste na direcao perpendicular (y). Ventos
+    # perpendiculares NAO se somam (NBR 6123, um por vez) -> a envoltoria biaxial e
+    # Mx_vento + My_min. forcar_biaxial ativa a interacao obliqua com o My minimo.
     for (hy, hx) in _SECOES_PILAR:
         # comb 1 (gravidade principal): Nd=1,4(G+Q), M=1,4*0,6*M_w
         c1 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_gq, "le_x": 2 * H,
             "le_y": 2 * H, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": GF,
+            "forcar_biaxial": True,
             "M1d_x": {"tipo": "balanco", "Ma": GF * PSI0_VENTO * M_w_k}})
         # comb 2 (vento principal): Nd=1,0*G (minimo), M=1,4*M_w
         c2 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_g, "le_x": 2 * H,
             "le_y": 2 * H, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": 1.0,
+            "forcar_biaxial": True,
             "M1d_x": {"tipo": "balanco", "Ma": GF * M_w_k}})
         gov = c1 if c1["As_cm2"] >= c2["As_cm2"] else c2
         gov = gov if (c1["OK"] and c2["OK"]) else dict(gov, OK=(c1["OK"] and c2["OK"]))
