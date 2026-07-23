@@ -332,6 +332,23 @@ def test_clipes_girt_por_portico_x_nivel_x_parede():
     assert all(m["tipo"] == "Plate" for m in cg)
 
 
+def test_conectores_base_por_ancoragem():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    cn = MN.conectores_base(geo, {"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6})
+    # 9 porticos x 2 colunas = 18 bases; n=6 -> 6 ancoras; 5 pecas/ancora = 540
+    assert len(cn) == 18 * 6 * 5
+    assert all(m["tipo"] == "Fastener" for m in cn)
+    # mistura barra (chumbador/porca) e caixa (arruela)
+    assert any("p1" in m for m in cn) and any("dims" in m for m in cn)
+
+
+def test_conectores_base_n_menor_que_6():
+    geo = {"span": 20.0, "comprimento": 10.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    cn = MN.conectores_base(geo, {"B": 0.5, "L": 0.5, "t": 0.1, "db": 0.025, "n": 4})
+    # n<6 -> 4 ancoras (2x2); 3 porticos x 2 = 6 bases; 5 pecas = 120
+    assert len(cn) == 6 * 4 * 5
+
+
 def test_nervuras_base_duas_por_coluna():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     nv = MN.nervuras_base(geo, 0.19, 0.8)              # col_d=190mm, base_L=800mm
