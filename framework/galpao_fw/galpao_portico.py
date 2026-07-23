@@ -302,6 +302,58 @@ def _frame():
     return fr, ix
 
 
+def modelo_analitico():
+    """Extrai o MODELO ANALITICO 2D do portico (nivel de MEMBRO, nao os NSEG
+    sub-elementos) a partir do frame ja configurado (chamar apos configurar()).
+    Retorna {nos, barras, apoios, unidade} - o modelo estrutural como DADOS, base
+    do intercambio analitico (IFC-structural / SAF) e do modelo_neutro. Item 2:
+    esse e o intercambio mais rico p/ uma ferramenta de calculo (nos+barras+
+    apoios+secoes, nao so geometria). Coordenadas 2D no plano do portico (x
+    transversal, y vertical), em metros."""
+    fr, ix = _frame()
+    bases, eaves, ridges = ix["nBases"], ix["nEaves"], ix["nRidges"]
+    nos = []
+    _vistos = set()
+
+    def _no(idx, papel):
+        if idx is None or idx in _vistos:
+            return
+        _vistos.add(idx)
+        x, y = fr.nodes[idx]
+        nos.append({"id": idx, "x": round(x, 4), "y": round(y, 4), "papel": papel})
+
+    for b in bases:
+        _no(b, "base")
+    for e in eaves:
+        _no(e, "beiral")
+    for r in ridges:
+        _no(r, "cumeeira")
+
+    def _AI(elem_idx):
+        el = fr.elements[elem_idx]
+        return el["A"], el["I"]
+
+    barras = []
+    for i in range(len(bases)):                       # colunas: base -> beiral
+        A, I = _AI(ix["cols"][i][0])
+        barras.append({"no_i": bases[i], "no_j": eaves[i], "grupo": "coluna",
+                       "A": A, "I": I})
+    for s in range(len(ridges)):                      # rafters: beiral->cumeeira->beiral
+        A, I = _AI(ix["rafts"][s][0][0])
+        barras.append({"no_i": eaves[s], "no_j": ridges[s], "grupo": "rafter", "A": A, "I": I})
+        A, I = _AI(ix["rafts"][s][1][0])
+        barras.append({"no_i": ridges[s], "no_j": eaves[s + 1], "grupo": "rafter", "A": A, "I": I})
+
+    apoios = []
+    for b in bases:
+        if b in fr.supports:
+            u, v, rot = fr.supports[b]
+            apoios.append({"no": b, "u": bool(u), "v": bool(v), "rot": bool(rot),
+                           "tipo": "engaste" if rot else "rotula"})
+    return {"nos": nos, "barras": barras, "apoios": apoios, "unidade": "m",
+            "n_porticos": None}
+
+
 def _run(load_fn):
     """Constroi o frame, aplica o caso de carga, resolve."""
     fr, ix = _frame()

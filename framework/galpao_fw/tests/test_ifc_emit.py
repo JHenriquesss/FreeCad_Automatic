@@ -107,6 +107,50 @@ def test_emitir_do_spec_com_tercas(tmp_path):
     assert len(m.by_type("IfcCircleProfileDef")) == 1        # contrav 20 mm
 
 
+def test_emitir_ifc_analitico_structural(tmp_path):
+    # modelo ANALITICO -> IFC4-Structural (nos + barras + apoios + conectividade)
+    spec = {"slug": "a", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
+                                       "ridge": 7.0, "bay": 5.0, "base_fixed": True},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180"}}
+    f = str(tmp_path / "an.ifc")
+    out = EM.emitir_ifc_analitico_do_spec(spec, f)
+    assert out == f
+    m = ifcopenshell.open(f)
+    assert len(m.by_type("IfcStructuralAnalysisModel")) == 1
+    assert len(m.by_type("IfcStructuralPointConnection")) == 5      # 2+2+1
+    assert len(m.by_type("IfcStructuralCurveMember")) == 4          # 2 col + 2 raf
+    # cada barra liga aos 2 nos (4*2 = 8 relacoes)
+    assert len(m.by_type("IfcRelConnectsStructuralMember")) == 8
+    # base_fixed -> 2 condicoes de contorno "engaste"
+    bc = m.by_type("IfcBoundaryNodeCondition")
+    assert len(bc) == 2 and all(b.Name == "engaste" for b in bc)
+    # todos os nos e barras num unico grupo (o SAM)
+    grp = m.by_type("IfcRelAssignsToGroup")[0]
+    assert len(grp.RelatedObjects) == 5 + 4
+    # cada barra carrega a secao (A, I, grupo) num Pset
+    assert len(m.by_type("IfcPropertySet")) == 4
+    ps = m.by_type("IfcPropertySet")[0]
+    nomes = {p.Name for p in ps.HasProperties}
+    assert {"Grupo", "Area_m2", "Inercia_m4"} <= nomes
+
+
+def test_analitico_structural_rotula(tmp_path):
+    spec = {"geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0,
+                          "bay": 5.0, "base_fixed": False},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180"}}
+    f = str(tmp_path / "an2.ifc")
+    EM.emitir_ifc_analitico_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    bc = m.by_type("IfcBoundaryNodeCondition")
+    assert len(bc) == 2 and all(b.Name == "rotula" for b in bc)
+
+
+def test_analitico_structural_tapered_none(tmp_path):
+    spec = {"geometria": {"span": 20.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0},
+            "estrutura": {"perfil_col_adotado": None, "perfil_raf_adotado": None}}
+    assert EM.emitir_ifc_analitico_do_spec(spec, str(tmp_path / "x.ifc")) is None
+
+
 def test_emitir_do_spec_tapered_retorna_none(tmp_path):
     # portico tapered (sem perfil laminado) -> None (segue via FreeCAD)
     spec = {"geometria": _GEO, "estrutura": {"perfil_col_adotado": None,

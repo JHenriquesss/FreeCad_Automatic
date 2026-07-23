@@ -514,6 +514,24 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
         except Exception as ex:
             _log(f"[2/4] Memorial PDF: FALHOU ({ex})")
 
+    # 2b) BIM IFC (FreeCAD-free): fisico (Revit fisico) + analitico (IFC-structural,
+    # Revit analitico), direto do CALCULO via ifc_emit/modelo_neutro. Nao depende do
+    # FreeCAD. Degrada com gracia (sem ifcopenshell / perfil nao-laminado -> pula).
+    try:
+        import ifc_emit as EM
+        if EM.disponivel():
+            idir = os.path.join(out_dir, "ifc")
+            os.makedirs(idir, exist_ok=True)
+            fis = EM.emitir_ifc_do_spec(spec, os.path.join(idir, f"{slug}.ifc"))
+            ana = EM.emitir_ifc_analitico_do_spec(
+                spec, os.path.join(idir, f"{slug}_analitico.ifc"))
+            spec.setdefault("estrutura", {})["ifc_bim"] = {"fisico": fis, "analitico": ana}
+            _log(f"[2b] BIM IFC (sem FreeCAD) -> fisico={bool(fis)} analitico={bool(ana)}")
+        else:
+            _log("[2b] BIM IFC: ifcopenshell ausente (pip install ifcopenshell)")
+    except Exception as ex:
+        _log(f"[2b] BIM IFC: FALHOU ({ex})")
+
     # 3) modelo 3D (FreeCAD via MCP) - opcional/gracioso
     modelo = None
     if com_3d:

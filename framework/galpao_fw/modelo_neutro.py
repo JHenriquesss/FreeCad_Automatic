@@ -211,6 +211,44 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
     return ms
 
 
+def analitico_do_spec(spec):
+    """Modelo ANALITICO 2D do portico a partir do CALCULO (spec): nos + barras (com
+    secao A/I) + apoios. Configura o galpao_portico com a geometria + secoes
+    adotadas e extrai (nivel de membro). Retorna dict {nos, barras, apoios,
+    unidade, n_porticos} ou None (perfil nao-laminado). E o intercambio ANALITICO -
+    o mais rico p/ ferramenta de calculo (alimenta IFC-structural / SAF / outro
+    software estrutural). Puro (sem FreeCAD)."""
+    import galpao_portico as gp
+    import perfis
+    g = spec["geometria"]
+    est = spec.get("estrutura", {}) or {}
+    pc = perfis.PERFIS.get(est.get("perfil_col_adotado"))
+    pr = perfis.PERFIS.get(est.get("perfil_raf_adotado"))
+    if not pc or not pr:
+        return None                                   # tapered/tesoura: sem A/I laminado
+    icol = pc.get("Ix", pc.get("I"))
+    iraf = pr.get("Ix", pr.get("I"))
+    gp.reset()                                        # limpa estado (SEC_COLS_PORTICO etc.)
+    gp.configurar(span=g.get("span"), spans=g.get("spans"), eave=g["eave"],
+                  ridge=g.get("ridge", g["eave"]), bay=g["bay"],
+                  base_fixed=bool(g.get("base_fixed", False)),
+                  A_col=pc["A"], I_col=icol, A_raf=pr["A"], I_raf=iraf)
+    m = gp.modelo_analitico()
+    comp, bay = g.get("comprimento"), g.get("bay")
+    m["n_porticos"] = int(round(comp / bay)) + 1 if (comp and bay) else None
+    m["secoes"] = {"coluna": est.get("perfil_col_adotado"),
+                   "rafter": est.get("perfil_raf_adotado")}
+    return m
+
+
+def analitico_json(modelo, path):
+    """Grava o modelo analitico em JSON (intercambio neutro, sempre disponivel)."""
+    import json
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(modelo, f, ensure_ascii=False, indent=2)
+    return path
+
+
 def resumo(membros):
     """Contagem por tipo (p/ testes/relatorio)."""
     from collections import Counter
