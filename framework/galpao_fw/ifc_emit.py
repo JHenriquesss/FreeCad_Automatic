@@ -265,6 +265,22 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
 
     from ifcopenshell.guid import new as _guid
     perfis_ifc = {}                                   # cache de perfil IFC por nome
+    mats_ifc = {}                                     # cache de IfcMaterial por nome
+
+    def _assoc_mat(el, mb):
+        """Associa um IfcMaterial ao elemento se o membro declarar 'material'
+        (ex.: 'Concreto C30', 'Aco ASTM A572'). Backward-compatible: sem a chave,
+        nao faz nada (o BIM de aco existente segue identico)."""
+        nome_mat = mb.get("material")
+        if not nome_mat:
+            return
+        mat = mats_ifc.get(nome_mat)
+        if mat is None:
+            mat = m.create_entity("IfcMaterial", Name=nome_mat)
+            mats_ifc[nome_mat] = mat
+        m.create_entity("IfcRelAssociatesMaterial", GlobalId=_guid(),
+                        RelatedObjects=[el], RelatingMaterial=mat)
+
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
             _painel_ifc(m, body, sto, mb, _guid)
@@ -291,6 +307,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
             mat[:3, 3] = [cx, cy, cz - h / 2.0]        # origem no fundo da caixa (mm)
             run("geometry.edit_object_placement", m, product=fo, matrix=_mat_m(mat))
             run("spatial.assign_container", m, relating_structure=sto, products=[fo])
+            _assoc_mat(fo, mb)
             continue
         s = mb["secao"]
         key = mb["perfil"]
@@ -307,6 +324,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
         run("geometry.assign_representation", m, product=el, representation=rep)
         run("geometry.edit_object_placement", m, product=el, matrix=_mat_m(mat))
         run("spatial.assign_container", m, relating_structure=sto, products=[el])
+        _assoc_mat(el, mb)
     m.write(path)
     return path
 

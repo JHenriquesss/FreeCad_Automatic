@@ -143,6 +143,53 @@ def rodar(spec):
             "ATENDE": len(reprovados) == 0}
 
 
+def membros_bim(r):
+    """Constroi a lista de membros BIM (para ifc_emit.emitir_ifc) a partir do
+    resultado de rodar(). Convencao do emissor: COORDENADAS em mm, dims de secao em
+    m. Eixos: X = vao (largura), Y = comprimento, Z = altura. Pilares (RECT, do
+    fundo z=0 ao topo z=H), viga de cobertura (RECT, no topo) por portico, e sapata
+    (caixa) sob cada pilar. Material 'Concreto Cxx' -> IfcMaterial no IFC."""
+    sp = r["spec"]
+    vao = sp["vao"]; comp = sp["comprimento"]; H = sp["H"]; n = sp["n_porticos"]
+    fckM = sp["fck_MPa"]
+    mat_conc = f"Concreto C{fckM:.0f}"
+    hx = r["pilar"]["hx"]; hy = r["pilar"]["hy"]                 # secao do pilar (m)
+    vb = r["viga"]["b"]; vh = r["viga"]["h"]                     # secao da viga (m)
+    s = comp / (n - 1)
+    xL, xR = -vao / 2.0 * 1000.0, vao / 2.0 * 1000.0            # mm
+    zt = H * 1000.0
+    sec_pil = {"forma": "RECT", "bf": hy, "d": hx}
+    sec_vig = {"forma": "RECT", "bf": vb, "d": vh}
+    membros = []
+    sap = r["sapata"]["aprovado"]
+    B = L = hf = None
+    if sap:
+        B, L, hf = sap[0], sap[1], sap[2]
+    for j in range(n):
+        y = j * s * 1000.0                                      # mm
+        for k, x in enumerate((xL, xR)):
+            lado = "E" if k == 0 else "D"
+            membros.append({"tipo": "Column", "perfil": f"P{hy*100:.0f}x{hx*100:.0f}",
+                            "marca": f"P{j+1}{lado}", "secao": sec_pil,
+                            "p1": [x, y, 0.0], "p2": [x, y, zt], "material": mat_conc})
+            if sap:
+                membros.append({"tipo": "Footing", "perfil": f"S{B:.1f}x{L:.1f}",
+                                "marca": f"SAP{j+1}{lado}", "dims": [B, L, hf],
+                                "centro": [x, y, -hf / 2.0 * 1000.0],
+                                "material": mat_conc})
+        membros.append({"tipo": "Beam", "perfil": f"V{vb*100:.0f}x{vh*100:.0f}",
+                        "marca": f"VC{j+1}", "secao": sec_vig,
+                        "p1": [xL, y, zt], "p2": [xR, y, zt], "material": mat_conc})
+    return membros
+
+
+def emitir_bim(r, path):
+    """Emite o IFC4 do galpao de concreto (FreeCAD-free) via ifc_emit.emitir_ifc.
+    Retorna o path. Requer ifcopenshell (ifc_emit.disponivel())."""
+    import ifc_emit
+    return ifc_emit.emitir_ifc(membros_bim(r), path, nome="GalpaoConcreto")
+
+
 def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
