@@ -67,6 +67,10 @@ def calcular(spec, out_dir):
         # n_terca + perfil da terca -> o emissor IFC puro (ifc_emit) coloca as tercas
         spec["estrutura"]["n_terca"] = res.get("n_terca")
         spec["estrutura"]["terca_perfil"] = res.get("terca_perfil")
+    # mf_stride (1 braco a cada N tercas) do gate 7 -> o emissor IFC puro coloca as
+    # maos-francesas (senao ficava so no build). Fora do if (independe de terca_dims).
+    if res.get("mf_stride") is not None:
+        spec.setdefault("estrutura", {})["mf_stride"] = res.get("mf_stride")
     if res.get("longarina_dims"):
         spec.setdefault("estrutura", {})["longarina_dims"] = res["longarina_dims"]
         spec["estrutura"]["longarina_perfil"] = res.get("longarina_perfil")

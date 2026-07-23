@@ -200,6 +200,10 @@ def _perfil_ifc(m, nome, s, esc):
                                ProfileName=nome, Depth=h, FlangeWidth=bf,
                                WebThickness=float(s.get("tw") or 0.0) * esc,
                                FlangeThickness=float(s.get("tf") or 0.0) * esc)
+    if forma == "L":                                  # cantoneira (mao-francesa)
+        return m.create_entity("IfcLShapeProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Depth=h, Width=bf,
+                               Thickness=float(s.get("t") or 0.0) * esc)
     return m.create_entity("IfcIShapeProfileDef", ProfileType="AREA", ProfileName=nome,
                            OverallWidth=bf, OverallDepth=h,
                            WebThickness=float(s.get("tw") or 0.0) * esc,
@@ -358,6 +362,20 @@ def emitir_ifc_do_spec(spec, path):
     ba = est.get("base_adotada")
     if ba and all(k in ba for k in ("B", "L", "t")):
         base_sec = {"B": ba["B"], "L": ba["L"], "t": ba["t"]}
+    # maos-francesas (trava da mesa inferior): mf_stride (calc) + secao do rafter +
+    # altura da terca + cantoneira do eng. (mao_francesa b_mm/t_mm). raf tapered = joelho.
+    mao_franc = None
+    mfstr = est.get("mf_stride")
+    if mfstr and n_terca:
+        raf_d = (tapered.get("h_joelho") if tapered else (raf or {}).get("d"))
+        raf_bf = (tapered.get("bf") if tapered else (raf or {}).get("bf"))
+        ue_h = (td[0] / 1000.0) if (td and len(td) >= 1) else None
+        mfd = est.get("mao_francesa") or {}
+        mf_sec = ((mfd["b_mm"], mfd["t_mm"])
+                  if mfd.get("b_mm") and mfd.get("t_mm") else None)
+        if raf_d and raf_bf and ue_h:
+            mao_franc = {"mf_stride": mfstr, "raf_d": raf_d, "raf_bf": raf_bf,
+                         "ue_h": ue_h, "mf_sec": mf_sec}
     # col_d (recuo dos girts/altura no joelho): perfil laminado -> d; tapered -> h_joelho
     col_d = tapered.get("h_joelho") if tapered else col.get("d")
     secoes = None if tapered else {"col": col, "raf": raf}
@@ -368,6 +386,7 @@ def emitir_ifc_do_spec(spec, path):
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
                                 fund_sec=fund_sec, base_sec=base_sec,
                                 nervura_base=bool(base_sec), clipes=True, telha=True,
+                                mao_francesa=mao_franc,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

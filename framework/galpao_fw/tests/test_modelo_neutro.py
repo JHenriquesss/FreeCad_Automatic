@@ -262,6 +262,22 @@ def test_frame_completo_com_placas_base():
     assert sum(1 for m in M if m.get("tipo") == "Plate") == 18
 
 
+def test_maos_francesas_reusa_geom_puro():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    # n_terca=5, stride=2 -> brace_k=[2,4]; 9 porticos x 2 aguas x 2 = 36
+    mf = MN.maos_francesas(geo, 5, 2, 0.5, 0.2, 0.3, mf_sec=(50.0, 5.0))
+    assert len(mf) == 9 * 2 * 2
+    assert all(m["tipo"] == "Member" and m["secao"]["forma"] == "L" for m in mf)
+    # cada braço tem componente LONGITUDINAL (X) - trava a mesa FORA do plano do portico
+    assert all(abs(m["p2"][0] - m["p1"][0]) > 1e-6 for m in mf)
+
+
+def test_maos_francesas_barra_redonda_sem_cantoneira():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    mf = MN.maos_francesas(geo, 5, 2, 0.5, 0.2, 0.3, mf_sec=None)
+    assert mf and all(m["secao"]["forma"] == "round" for m in mf)
+
+
 def test_clipes_terca_por_portico_x_terca():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0,
            "raf_d": 0.3}
