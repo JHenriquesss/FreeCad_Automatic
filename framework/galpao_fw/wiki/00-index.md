@@ -10,13 +10,29 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **T20 sessão 18 (revisão do PR #49 APROVADA)**, T19 sessão 18 (PR #47), T18 sessão 17, backlog
+- [[06-open-threads]] — **T22 sessão 19 (PRs #55–#61 MERGED em main)**, T21 sessão 18 (gaps A3/C5), T20 (build 3D), T19 (montagem), backlog
 
-> Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
+> Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 
 
-## Estado atual (2026-07-22) — Sessão 18: Guarda de Build 3D Agendada (PR #49) e Fix de Interferência 3D (PR #48)
-Automação de processo CI local e correção de interferência 3D. **PR #49 REVISADO E APROVADO COM LOUVOR** (S18). **714 testes verdes** (incluindo os 9 testes de build 3D com a suíte completa).
+## Estado atual (2026-07-22) — Sessão 19: Interoperabilidade BIM e IFC4 Físico/Estrutural (PRs #55 a #61 MERGED)
+Revisão e integração completas. **TODOS OS PRS DA SESSÃO 19 (#55 A #61) FORAM REVISADOS, APROVADOS E MERGEADOS EM `main`**. **763 testes verdes** (suíte non-build).
+Tema central: **"interoperabilidade BIM / IFC4 físico e analítico direto do cálculo, sem dependência do FreeCAD GUI"**.
+- **PR #55 (`feat/gaps-e-wiki-para-main`):** cherry-pick dos Gaps A3/C5 e da wiki da Sessão 18 para a `main`. [[04-decisions#D74]]
+- **PR #56 (`feat/ifc-export-bim`):** exportador IFC4 (BIM) no `build_galpao.export()` consumindo o `ifc_map.py` (mapeamento semântico de marcas $C1, V1...$ para categorias `IfcColumn`, `IfcBeam`, `IfcMember`, `IfcPlate`, `IfcFooting`, `IfcPile`, `IfcCovering`, `IfcMechanicalFastener`). Gerou IFC4 de 1,67 MB com 789 elementos no modelo real. [[04-decisions#D75]]
+- **PR #57 / PR #59 (`feat/bridge-headless`):** `montar_modelo` com auto-fallback headless (`bridge` $\rightarrow$ `freecadcmd`). Elimina a necessidade de manter o FreeCAD GUI aberto com o bridge na porta 9875. [[04-decisions#D76]]
+- **PR #58 (`feat/ifc-emissor-puro`):** modelo neutro de dados (`modelo_neutro.py`) + emissor IFC4 **puro-Python** (`ifc_emit.py` via `ifcopenshell`). Emite o arquivo IFC4 BIM da estrutura primária direto do cálculo, sem invocar o FreeCAD. [[04-decisions#D77]]
+- **PR #60 (`feat/ifc-secundarios`):** estende o modelo neutro (`secundarios_lineares`) e o emissor puro para incluir terças, girts de parede, tirantes e contraventamento como `IfcMember` com perfil/marca reais no IFC puro. [[04-decisions#D78]]
+- **PR #61 (`feat/modelo-analitico`):** modelo analítico estrutural (`modelo_analitico`) + emissor IFC4 Structural (`IfcStructuralAnalysisModel`, `IfcStructuralPointConnection`, `IfcStructuralCurveMember`, `IfcStructuralBoundaryNodeCondition`, `IfcStructuralLoadCase`). Gera automaticamente `galpao.ifc` (BIM físico) e `galpao_analitico.ifc` (BIM estrutural p/ SAP2000/Eberick/Robot) em `EXPORT_DIR/ifc/`. [[04-decisions#D79]]
+- **Revisão técnica de todos os PRs (#55–#61): MERGEADOS EM `main` COM SUCESSO** (763 testes non-build verdes). [[03-phases]], [[06-open-threads#T22]]
+
+
+## Estado anterior (2026-07-22) — Sessão 18: Gaps A3/C5 + CI GitHub Actions + Tooling (PRs #51, #52, #53, #54)
+Revisão completa dos PRs abertos. **PRs #51, #52, #53, #54 REVISADOS E MERGEADOS** (S18). **723 testes verdes**.
+- **PR #51 & #52:** cherry-pick da tooling `tools/` e consolidação da wiki.
+- **PR #53:** GitHub Actions `.github/workflows/ci.yml`.
+- **PR #54:** Gap A3 (FLT do console Anexo G Tab. G.1) + Gap C5 (patamar de escada Blondel).
+a 3D. **PR #49 REVISADO E APROVADO COM LOUVOR** (S18). **714 testes verdes** (incluindo os 9 testes de build 3D com a suíte completa).
 Tema central: **"guarda periódica da suíte de build 3D contra regressões silenciosas de interferência de peças"**.
 - **PR #48 (fix de interferência 3D calha/condutor):**
   - **`CONDUTOR × PLACA_BASE` (tesoura):** afastamento dinâmico $DOWN\_Y = L/2 + CONDUTOR\_D/2 + 40$ mm (raio do tubo + folga) corrigindo invasão do tubo Ø150 (NBR 10844). [[04-decisions#D71]]
