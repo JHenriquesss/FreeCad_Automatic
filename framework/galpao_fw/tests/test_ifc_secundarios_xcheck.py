@@ -65,6 +65,8 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     n_base_puro = len(MN.placas_base(geo, bsec)) if bsec else 0
     n_nerv_puro = (len(MN.nervuras_base(geo, col_d, bsec["L"]))
                    if bsec and col_d else 0)
+    n_clip_puro = (len(MN.clipes_terca(geo, est["n_terca"], _terca_sec(est)))
+                   + (len(MN.clipes_girt(geo)) if gsec else 0))
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -87,8 +89,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "ntap=sum(1 for o in doc.Objects if o.Name.startswith('TAPAMENTO'))\n"
             "nbase=sum(1 for o in doc.Objects if o.Name.startswith('PLACA_BASE'))\n"
             "nnerv=sum(1 for o in doc.Objects if o.Name.startswith('NERVURA_BASE'))\n"
+            "nclip=sum(1 for o in doc.Objects if o.Name.startswith('CLIPE'))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
-            "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv}))\n"
+            "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -128,3 +131,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_nerv_puro == d["nnerv"], (
         "nervuras de base do modelo_neutro (%d) divergem do build (%d)"
         % (n_nerv_puro, d["nnerv"]))
+    assert n_clip_puro == d["nclip"], (
+        "clipes (terça+girt) do modelo_neutro (%d) divergem do build (%d)"
+        % (n_clip_puro, d["nclip"]))

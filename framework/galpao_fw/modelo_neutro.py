@@ -319,6 +319,46 @@ def nervuras_base(geometria, col_d, base_L, z0_mm=30.0, esp_mm=12.0):
     return ms
 
 
+def clipes_terca(geometria, n_terca, terca_sec, t_mm=8.0):
+    """Clipes de apoio da terça: uma chapa de assento em cada cruzamento
+    PÓRTICO x LINHA DE TERÇA (sob a terça, na mesa da viga). Espelha CLIPE_TERCA_ do
+    build (plate 90x120xT por axis x terça_seat). Caixa 90x120xT tipo 'Plate' ->
+    IfcPlate. Contagem = n_porticos x n_linhas_de_terça."""
+    ts = tercas(geometria, n_terca, terca_sec)
+    if not ts:
+        return []
+    t = float(t_mm)
+    ms = []
+    for x in _xs(geometria):
+        xm = x * MM
+        for tm in ts:
+            yl, zl = tm["p1"][1], tm["p1"][2]
+            ms.append({"marca": "CT1", "perfil": "ClipeTerca", "tipo": "Plate",
+                       "centro": (xm, yl, zl - t / 2.0),
+                       "dims": (90.0, 120.0, t), "secao": {"forma": "box"}})
+    return ms
+
+
+def clipes_girt(geometria, t_mm=8.0):
+    """Clipes da longarina (girt) no pilar: uma chapa contra a face da mesa em cada
+    cruzamento PÓRTICO x NÍVEL DE GIRT, nas 2 paredes. Espelha CLIPE_GIRT_E/D_ do
+    build (plate 90xTx120 em y=∓(100+T/2)). Caixa tipo 'Plate' -> IfcPlate.
+    Contagem = n_porticos x n_niveis(2) x 2 paredes."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    SPAN = sum(spans) * MM
+    t = float(t_mm)
+    ms = []
+    for x in _xs(geometria):
+        xm = x * MM
+        for z in GIRT_Z_MM:
+            for y in (-100.0 - t / 2.0, SPAN + 100.0 + t / 2.0):
+                ms.append({"marca": "CG1", "perfil": "ClipeGirt", "tipo": "Plate",
+                           "centro": (xm, y, z), "dims": (90.0, t, 120.0),
+                           "secao": {"forma": "box"}})
+    return ms
+
+
 def telhas(geometria, telha_t=0.0007):
     """Telhas de cobertura: 2 paineis por vao (aguas E e D), do beiral a cumeeira,
     ao longo de todo o comprimento. Espelha TELHA_S do build. Cada painel = laje
@@ -453,7 +493,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
                    fund_sec=None, telha=False, telha_t=0.0007,
                    fechamento=None, aberturas=None, tapered=None, base_sec=None,
-                   nervura_base=False, esp_nervura_mm=12.0):
+                   nervura_base=False, esp_nervura_mm=12.0, clipes=False):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -465,13 +505,18 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
         ms = frame_primario(geometria, secoes)
         raf_d = (secoes.get("raf") or {}).get("d", 0.0) if secoes else 0.0
+    geo = dict(geometria)                             # altura do rafter -> assento
+    geo.setdefault("raf_d", raf_d)
     if n_terca and terca_sec:
-        geo = dict(geometria)                         # altura do rafter -> assento
-        geo.setdefault("raf_d", raf_d)
         ms += tercas(geo, n_terca, terca_sec)
     girt_d = (girt_sec or {}).get("d", 0.0) if girt_sec else 0.0
     if girt_sec:
         ms += girts(geometria, girt_sec, cd)
+    if clipes:                                        # chapas de assento/ligação
+        if n_terca and terca_sec:
+            ms += clipes_terca(geo, n_terca, terca_sec)
+        if girt_sec:
+            ms += clipes_girt(geometria)
     if n_tirante_parede:
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:

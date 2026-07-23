@@ -262,6 +262,25 @@ def test_frame_completo_com_placas_base():
     assert sum(1 for m in M if m.get("tipo") == "Plate") == 18
 
 
+def test_clipes_terca_por_portico_x_terca():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0,
+           "raf_d": 0.3}
+    terca = {"nome": "Ue", "forma": "C", "d": 0.3, "bf": 0.085, "lip": 0.025, "t": 0.00335}
+    nt = len(MN.tercas(geo, 5, terca))                 # linhas de terça
+    ct = MN.clipes_terca(geo, 5, terca)
+    # 9 porticos x nt linhas de terça
+    assert len(ct) == 9 * nt
+    assert all(m["tipo"] == "Plate" and "centro" in m for m in ct)
+
+
+def test_clipes_girt_por_portico_x_nivel_x_parede():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    cg = MN.clipes_girt(geo)
+    # 9 porticos x 2 niveis x 2 paredes = 36
+    assert len(cg) == 36
+    assert all(m["tipo"] == "Plate" for m in cg)
+
+
 def test_nervuras_base_duas_por_coluna():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     nv = MN.nervuras_base(geo, 0.19, 0.8)              # col_d=190mm, base_L=800mm
