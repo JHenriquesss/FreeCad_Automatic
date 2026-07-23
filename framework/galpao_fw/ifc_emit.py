@@ -61,6 +61,33 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET")}
 
 
+def _perfil_ifc(m, nome, s, esc):
+    """Cria o perfil IFC da secao. Perfil formado a frio (terca: forma 'C' ou tem
+    'lip') -> IfcCShapeProfileDef (canaleta enrijecida). Laminado -> IfcIShapeProfileDef.
+    Dims em m * esc (mm). `d`/`h` = altura, `bf` = largura, `tw`/`t` = espessura."""
+    forma = str(s.get("forma", "")).upper()
+    if forma == "ROUND":                              # barra redonda (tirante/contrav)
+        return m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Radius=float(s.get("D") or 0.0) * esc / 2.0)
+    h = float(s.get("d") or s.get("h") or 0.0) * esc
+    bf = float(s.get("bf") or 0.0) * esc
+    if forma == "C" or s.get("lip") is not None:      # formado a frio Ue (com labio)
+        t = float(s.get("t") or s.get("tw") or 0.0) * esc
+        lip = float(s.get("lip") or 0.0) * esc
+        return m.create_entity("IfcCShapeProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Depth=h, Width=bf, WallThickness=t,
+                               Girth=lip)
+    if forma == "U":                                  # perfil U / canaleta (UPE) girt
+        return m.create_entity("IfcUShapeProfileDef", ProfileType="AREA",
+                               ProfileName=nome, Depth=h, FlangeWidth=bf,
+                               WebThickness=float(s.get("tw") or 0.0) * esc,
+                               FlangeThickness=float(s.get("tf") or 0.0) * esc)
+    return m.create_entity("IfcIShapeProfileDef", ProfileType="AREA", ProfileName=nome,
+                           OverallWidth=bf, OverallDepth=h,
+                           WebThickness=float(s.get("tw") or 0.0) * esc,
+                           FlangeThickness=float(s.get("tf") or 0.0) * esc)
+
+
 def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     """Escreve um IFC4 com os `membros` (do modelo_neutro) em `path`. Cada barra ->
     IfcColumn/IfcBeam com perfil I extrudado ao longo do eixo. Retorna o path (ou
@@ -83,16 +110,13 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     run("aggregate.assign_object", m, relating_object=site, products=[bld])
     run("aggregate.assign_object", m, relating_object=bld, products=[sto])
 
-    perfis_ifc = {}                                   # cache de IfcIShapeProfileDef
+    perfis_ifc = {}                                   # cache de perfil IFC por nome
     for mb in membros:
         s = mb["secao"]
         key = mb["perfil"]
         prof = perfis_ifc.get(key)
         if prof is None:
-            prof = m.create_entity(
-                "IfcIShapeProfileDef", ProfileType="AREA", ProfileName=key,
-                OverallWidth=float(s["bf"]) * esc, OverallDepth=float(s["d"]) * esc,
-                WebThickness=float(s["tw"]) * esc, FlangeThickness=float(s["tf"]) * esc)
+            prof = _perfil_ifc(m, key, s, esc)
             perfis_ifc[key] = prof
         cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcMember", "MEMBER"))
         el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
@@ -132,7 +156,26 @@ def emitir_ifc_do_spec(spec, path):
            "comprimento": g.get("comprimento", 2 * (g.get("span") or 0)),
            "eave": g.get("eave"), "ridge": g.get("ridge", g.get("eave")),
            "bay": g.get("bay")}
-    membros = MN.frame_primario(geo, {"col": col, "raf": raf})
+    # terças (perfil formado a frio C/Ue), se o calculo forneceu n_terca+terca_dims
+    n_terca = est.get("n_terca")
+    td = est.get("terca_dims")                         # [h, bf, lip, t] em mm
+    terca_sec = None
+    if td and len(td) >= 4:
+        terca_sec = {"nome": est.get("terca_perfil") or "Terca", "forma": "C",
+                     "d": td[0] / 1000.0, "bf": td[1] / 1000.0,
+                     "lip": td[2] / 1000.0, "t": td[3] / 1000.0}
+    # girts de parede (longarina U), se o calculo forneceu longarina_dims
+    ld = est.get("longarina_dims")                    # [h, bf, tw, tf] em mm
+    girt_sec = None
+    if ld and len(ld) >= 4:
+        girt_sec = {"nome": est.get("longarina_perfil") or "Girt", "forma": "U",
+                    "d": ld[0] / 1000.0, "bf": ld[1] / 1000.0,
+                    "tw": ld[2] / 1000.0, "tf": ld[3] / 1000.0}
+    membros = MN.frame_completo(geo, {"col": col, "raf": raf},
+                                n_terca=n_terca, terca_sec=terca_sec,
+                                girt_sec=girt_sec, col_d=col.get("d"),
+                                n_tirante_parede=est.get("n_tirante_parede"),
+                                d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0)
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 

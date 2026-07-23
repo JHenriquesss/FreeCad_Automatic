@@ -82,6 +82,31 @@ def test_emitir_do_spec_frame_laminado(tmp_path):
     assert len(m.by_type("IfcColumn")) == 18 and len(m.by_type("IfcBeam")) == 18
 
 
+def test_emitir_do_spec_com_tercas(tmp_path):
+    # terca_dims [h,bf,lip,t] mm + n_terca -> IfcMember (perfil C) alem do primario
+    spec = {"slug": "amostra", "geometria": _GEO,
+            "estrutura": {"perfil_col_adotado": "HEA200",
+                          "perfil_raf_adotado": "HEA180",
+                          "n_terca": 5, "terca_perfil": "Ue300",
+                          "terca_dims": [300.0, 85.0, 25.0, 3.35],
+                          "longarina_perfil": "UPE140",
+                          "longarina_dims": [140.0, 65.0, 5.0, 9.0]}}
+    f = str(tmp_path / "spec_t.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    assert len(m.by_type("IfcColumn")) == 18 and len(m.by_type("IfcBeam")) == 18
+    # 10 tercas + 4 girts + 0 tirantes (sem n_tirante) + 4 contrav (2 vaos extremos
+    # x 2 diagonais; comprimento 40/bay 5 -> 9 porticos) = 18
+    assert len(m.by_type("IfcMember")) == (2 * (5 - 1) + 2) + 4 + 4
+    # perfil formado a frio -> IfcCShapeProfileDef ; girt U -> IfcUShapeProfileDef ;
+    # contrav barra redonda -> IfcCircleProfileDef
+    cs = m.by_type("IfcCShapeProfileDef")
+    assert len(cs) == 1 and abs(cs[0].Depth - 300.0) < 1e-6 and abs(cs[0].Girth - 25.0) < 1e-6
+    us = m.by_type("IfcUShapeProfileDef")
+    assert len(us) == 1 and abs(us[0].Depth - 140.0) < 1e-6
+    assert len(m.by_type("IfcCircleProfileDef")) == 1        # contrav 20 mm
+
+
 def test_emitir_do_spec_tapered_retorna_none(tmp_path):
     # portico tapered (sem perfil laminado) -> None (segue via FreeCAD)
     spec = {"geometria": _GEO, "estrutura": {"perfil_col_adotado": None,
