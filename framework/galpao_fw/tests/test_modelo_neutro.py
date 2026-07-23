@@ -186,6 +186,25 @@ def test_frame_completo_com_fundacoes():
     assert r["Footing"] == 9 * 2 and r["Column"] == 18
 
 
+def test_fundacoes_profundas_pedestal_bloco_estacas():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    fp = MN.fundacoes_profundas(geo, {"D": 400.0, "L": 9000.0, "n": 2, "espacamento": 1200.0},
+                                bloco_h=800.0, col_d=0.5, col_bf=0.2, base_t=0.1)
+    # 18 bases x (1 pedestal + 1 bloco + 2 estacas) = 72
+    assert len(fp) == 18 * (1 + 1 + 2)
+    tipos = [m["tipo"] for m in fp]
+    assert tipos.count("Footing") == 36 and tipos.count("Pile") == 36
+    # estaca = barra redonda VERTICAL descendo do bloco
+    est = [m for m in fp if m["tipo"] == "Pile"]
+    assert all(m["secao"]["forma"] == "round" and m["p1"][2] < m["p2"][2] for m in est)
+
+
+def test_estaca_offsets_grupos():
+    assert MN._estaca_offsets(1, 1200) == [(0.0, 0.0)]
+    assert len(MN._estaca_offsets(4, 1200)) == 4          # malha 2x2
+    assert len(MN._estaca_offsets(3, 1200)) == 3          # fileira em X
+
+
 def test_telhas_duas_por_vao():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     t = MN.telhas(geo)
@@ -284,6 +303,20 @@ def test_tirantes_cobertura_segmentados():
     assert all(m["tipo"] == "Member" and m["secao"]["forma"] == "round" for m in tc)
     # a meio-vao (X constante em cada barra), variando em Y
     assert all(abs(m["p1"][0] - m["p2"][0]) < 1e-6 for m in tc)
+
+
+def test_ponte_rolante_vigas_e_consoles():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    vr = {"nome": "VR", "forma": "I", "d": 0.5, "bf": 0.25, "tw": 0.008, "tf": 0.016}
+    pr = MN.ponte_rolante(geo, 4500.0, 300.0, vr, _ESC)
+    # 2 vigas de rolamento (longitudinais) + 9 porticos x 2 consoles = 20
+    assert len(pr) == 2 + 9 * 2
+    vigas = [m for m in pr if m["marca"] == "VR1"]
+    consoles = [m for m in pr if m["marca"] == "CP1"]
+    assert len(vigas) == 2 and len(consoles) == 18
+    # viga longitudinal (varia em X), console transversal (varia em Y)
+    assert all(abs(m["p2"][0] - m["p1"][0]) > 1 for m in vigas)
+    assert all(abs(m["p1"][0] - m["p2"][0]) < 1e-6 for m in consoles)
 
 
 def test_escoras_cumeeiras_por_vao():
