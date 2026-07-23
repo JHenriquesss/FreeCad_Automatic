@@ -319,6 +319,57 @@ def nervuras_base(geometria, col_d, base_L, z0_mm=30.0, esp_mm=12.0):
     return ms
 
 
+def maos_francesas(geometria, n_terca, mf_stride, raf_d, raf_bf, ue_h, mf_sec=None):
+    """Mãos-francesas (flange brace): trava lateral da mesa inferior do rafter (FLT
+    sob sucção). REUSA o módulo PURO mao_francesa_geom (mfg.segmentos) - exatamente a
+    geometria do build. raf_d/raf_bf = altura/mesa do rafter (m); ue_h = altura da
+    terça (m); mf_stride = 1 braço a cada N terças; mf_sec (b_mm, t_mm) -> cantoneira
+    (perfil L); sem mf_sec -> barra redonda DIAM_BRACO. Tipo 'Member' -> IfcMember."""
+    import math
+    import mao_francesa_geom as mfg
+    if not n_terca or int(n_terca) < 2 or not mf_stride:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    eave = float(geometria["eave"])
+    ridge = float(geometria.get("ridge", eave))
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    cols_y_mm = [c * MM for c in cols_y]
+    ridges_mm = [(cols_y_mm[i] + cols_y_mm[i + 1]) / 2.0 for i in range(len(spans))]
+    slope = (ridge - eave) / (spans[0] / 2.0) if spans else 0.0
+    theta = math.atan(slope)
+    raf_h = float(raf_d) * MM
+    poff = mfg.offset_terca(raf_h, float(raf_bf) * MM, float(ue_h) * MM, theta)
+    EAVE = eave * MM
+
+    def _rafz(y):
+        for i in range(len(spans)):
+            c0, c1 = cols_y_mm[i], cols_y_mm[i + 1]
+            if c0 - 1e-6 <= y <= c1 + 1e-6:
+                ym = ridges_mm[i]
+                if y <= ym:
+                    return EAVE + (ridge - eave) * MM * (y - c0) / (ym - c0)
+                return EAVE + (ridge - eave) * MM * (c1 - y) / (c1 - ym)
+        return EAVE
+
+    xs_mm = [x * MM for x in _xs(geometria)]
+    brace_k = [k for k in range(1, int(n_terca)) if k % int(mf_stride) == 0]
+    if mf_sec:
+        b, t = float(mf_sec[0]), float(mf_sec[1])
+        sec = {"nome": "L%gx%g" % (b, t), "forma": "L",
+               "d": b / MM, "bf": b / MM, "t": t / MM}
+    else:
+        sec = {"nome": "Ø%g" % mfg.DIAM_BRACO, "forma": "round", "D": mfg.DIAM_BRACO / MM}
+    ms = []
+    for (p1, p2, _nm) in mfg.segmentos(xs_mm, cols_y_mm, ridges_mm, int(n_terca),
+                                       brace_k, raf_h, poff, _rafz, theta=theta):
+        ms.append({"marca": "MF1", "perfil": sec["nome"], "tipo": "Member",
+                   "p1": p1, "p2": p2, "secao": sec})
+    return ms
+
+
 def clipes_terca(geometria, n_terca, terca_sec, t_mm=8.0):
     """Clipes de apoio da terça: uma chapa de assento em cada cruzamento
     PÓRTICO x LINHA DE TERÇA (sob a terça, na mesa da viga). Espelha CLIPE_TERCA_ do
@@ -493,7 +544,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
                    fund_sec=None, telha=False, telha_t=0.0007,
                    fechamento=None, aberturas=None, tapered=None, base_sec=None,
-                   nervura_base=False, esp_nervura_mm=12.0, clipes=False):
+                   nervura_base=False, esp_nervura_mm=12.0, clipes=False,
+                   mao_francesa=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -517,6 +569,10 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
             ms += clipes_terca(geo, n_terca, terca_sec)
         if girt_sec:
             ms += clipes_girt(geometria)
+    if mao_francesa and n_terca:                      # travas da mesa inferior (FLT)
+        ms += maos_francesas(geometria, n_terca, mao_francesa.get("mf_stride"),
+                             mao_francesa.get("raf_d"), mao_francesa.get("raf_bf"),
+                             mao_francesa.get("ue_h"), mao_francesa.get("mf_sec"))
     if n_tirante_parede:
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:

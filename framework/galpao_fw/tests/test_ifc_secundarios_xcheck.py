@@ -67,6 +67,13 @@ def test_terca_puro_bate_com_o_build(tmp_path):
                    if bsec and col_d else 0)
     n_clip_puro = (len(MN.clipes_terca(geo, est["n_terca"], _terca_sec(est)))
                    + (len(MN.clipes_girt(geo)) if gsec else 0))
+    rp = perfis.PERFIS.get(est.get("perfil_raf_adotado")) or {}
+    mfd = est.get("mao_francesa") or {}
+    mf_sec = ((mfd["b_mm"], mfd["t_mm"]) if mfd.get("b_mm") and mfd.get("t_mm") else None)
+    n_mf_puro = (len(MN.maos_francesas(geo, est["n_terca"], est.get("mf_stride"),
+                                       rp.get("d"), rp.get("bf"),
+                                       est["terca_dims"][0] / 1000.0, mf_sec))
+                 if est.get("mf_stride") and rp.get("d") else 0)
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -90,8 +97,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "nbase=sum(1 for o in doc.Objects if o.Name.startswith('PLACA_BASE'))\n"
             "nnerv=sum(1 for o in doc.Objects if o.Name.startswith('NERVURA_BASE'))\n"
             "nclip=sum(1 for o in doc.Objects if o.Name.startswith('CLIPE'))\n"
+            "nmf=sum(1 for o in doc.Objects if o.Name.startswith('MAO_FRANCESA'))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
-            "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip}))\n"
+            "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip,"
+            "'nmf':nmf}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -134,3 +143,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_clip_puro == d["nclip"], (
         "clipes (terça+girt) do modelo_neutro (%d) divergem do build (%d)"
         % (n_clip_puro, d["nclip"]))
+    assert n_mf_puro == d["nmf"], (
+        "maos-francesas do modelo_neutro (%d) divergem do build (%d)"
+        % (n_mf_puro, d["nmf"]))
