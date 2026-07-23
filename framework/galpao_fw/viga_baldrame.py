@@ -55,6 +55,63 @@ def _verifica_cortante(Vd, b, d, fck, fyk):
             "ok_biela": Vd <= VRd2 + 1e-9, "ok_min": Vd <= VRd3_min + 1e-9}
 
 
+ES_ACO = 210e6             # modulo do aco (kN/m2), NBR 6118
+ALPHA_F = 2.0              # fluencia (t->inf, sem armadura de compressao): 1+af=3
+
+
+def _flecha_alvenaria(b, h, d, L, w, fck, As_tracao, continua):
+    """Flecha DIFERIDA (imediata x fluencia) de uma viga de concreto sob parede de
+    alvenaria - NBR 6118 17.3.2 (rigidez equivalente de Branson) + 17.3.2.1.2
+    (fluencia) e Tabela 13.3 (limite p/ nao fissurar alvenaria: L/500 ou 10 mm, o
+    menor). Cargas de servico (a parede e permanente). Retorna dict com a flecha
+    total diferida, o limite e o veredito."""
+    fck_MPa = fck / 1000.0
+    E_ci = 5600.0 * math.sqrt(fck_MPa) * 1000.0        # kN/m2 (alpha_E=1, granito)
+    E_cs = min(0.8 + 0.2 * fck_MPa / 80.0, 1.0) * E_ci
+    fctm = 0.3 * fck_MPa ** (2.0 / 3.0) * 1000.0        # kN/m2
+    Ic = b * h ** 3 / 12.0
+    Mr = 1.5 * fctm * Ic / (h / 2.0)                    # momento de fissuracao (kN.m)
+    cM = _COEF_M.get("continua" if continua else "simples", 1.0 / 8.0)
+    Ma = cM * w * L ** 2                                # momento de servico (kN.m)
+    # secao fissurada (estadio II): linha neutra x de b*x^2/2 = ae*As*(d-x)
+    ae = ES_ACO / E_cs
+    disc = (ae * As_tracao) ** 2 + 2.0 * b * ae * As_tracao * d
+    x = (-ae * As_tracao + math.sqrt(disc)) / b if b > 0 else d
+    I_II = b * x ** 3 / 3.0 + ae * As_tracao * (d - x) ** 2
+    if Ma <= Mr or As_tracao <= 0:
+        I_eq = Ic                                      # nao fissura
+    else:
+        r = (Mr / Ma) ** 3
+        I_eq = min(r * Ic + (1.0 - r) * I_II, Ic)
+    cD = 5.0 / 384.0 if not continua else 2.6 / 384.0
+    d_im = cD * w * L ** 4 / (E_cs * I_eq)             # flecha imediata (m)
+    d_tot = d_im * (1.0 + ALPHA_F)                     # total diferida (t->inf)
+    # Tab 13.3 conta o deslocamento APOS a construcao da parede. Como o baldrame
+    # carrega essencialmente a parede, a flecha IMEDIATA ocorre durante o
+    # levantamento (nao danifica); so a FLUENCIA (af*d_im) age sobre a alvenaria ja
+    # pronta -> e ela que se compara ao limite L/500 ou 10 mm.
+    d_pos = d_im * ALPHA_F
+    lim = min(L / 500.0, 0.010)                        # Tab 13.3 (alvenaria)
+    return {"d_imediata_mm": round(d_im * 1000, 2), "d_total_mm": round(d_tot * 1000, 2),
+            "d_pos_parede_mm": round(d_pos * 1000, 2), "lim_mm": round(lim * 1000, 2),
+            "Mr": round(Mr, 2), "Ma": round(Ma, 2),
+            "fissura": Ma > Mr, "ok": d_pos <= lim}
+
+
+def dimensiona_baldrame(cfg, alturas=(0.40, 0.45, 0.50, 0.55, 0.60, 0.70, 0.80)):
+    """Adota a MENOR altura h que atende ELU + ELS (flecha sob alvenaria, Tab 13.3).
+    Sob parede, um baldrame esbelto (L/h alto) fissura a alvenaria - a checagem so de
+    resistencia (verifica_baldrame isolado) nao pega. Parte da altura do cfg (nao
+    reduz abaixo do pedido). Retorna o dict do 1o que passa (ou o ultimo tentado)."""
+    h0 = cfg.get("h", 0.40)
+    r = None
+    for h in [a for a in alturas if a >= h0 - 1e-9] or [h0]:
+        r = verifica_baldrame(dict(cfg, h=h))
+        if r["OK"]:
+            return r
+    return r
+
+
 def verifica_baldrame(cfg):
     """Dimensiona a viga de baldrame/amarracao.
     cfg: {vao [m], b [m], h [m], fck, fyk [kN/m2], cobrimento [m],
@@ -120,8 +177,19 @@ def verifica_baldrame(cfg):
         s_estribo = min(0.3 * d, 0.20)
     b_ok = b >= B_MIN - 1e-9
 
-    OK = sec_ok and ok_dom and b_ok and cort_ok and sec_ok_neg and ok_dom_neg
+    # ---- ELS: flecha sob a alvenaria (NBR 6118 Tab 13.3) ------------------
+    # So quando ha parede de alvenaria (q_parede>0); a flecha diferida nao pode
+    # fissurar a parede. Usa a armadura de tracao ADOTADA (As_inf).
+    els = None
+    els_ok = True
+    if cfg.get("q_parede", 0.0) > 0.0:
+        els = _flecha_alvenaria(b, h, d, L, w, fck, As_inf, continua)
+        els_ok = els["ok"]
+
+    OK = (sec_ok and ok_dom and b_ok and cort_ok and sec_ok_neg and ok_dom_neg
+          and els_ok)
     return {"vao": L, "b": b, "h": h, "d": round(d, 3), "M_d": round(M_d, 2),
+            "els": els, "els_ok": els_ok,
             "continua": continua, "M_d_neg": round(M_d_neg, 2),
             "As_flex_neg_cm2": round(As_flex_neg * 1e4, 2),
             "ok_dominio_neg": ok_dom_neg, "sec_ok_neg": sec_ok_neg,
@@ -168,6 +236,12 @@ def relatorio_pt(r):
          f"(u={r['u_cort']:.3f}) ; {'OK' if r['cort_ok'] else 'REPROVA'}",
          f"  Estribos: phi {r['phi_estribo_mm']:.1f} mm ; s_max = "
          f"{r['s_estribo_max']*1000:.0f} mm (18.3.3.2)",
+         *( [f"  FLECHA sob alvenaria (ELS, 17.3.2 Branson + fluencia ; Tab 13.3): "
+            f"delta_pos-parede (fluencia) = {r['els']['d_pos_parede_mm']:.1f} mm <= "
+            f"min(L/500;10) = {r['els']['lim_mm']:.1f} mm ; "
+            f"{'OK' if r['els']['ok'] else 'REPROVA (alvenaria fissura - aumentar h)'}"
+            + (' ; secao FISSURADA (estadio II)' if r['els']['fissura'] else '')]
+            if r.get('els') else [] ),
          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
          "  [A CONFIRMAR: carga da parede de fechamento (tipo/altura da alvenaria);",
          "   forca de amarracao (reacao horizontal da base do envelope); secao b x h.]"]
@@ -186,8 +260,18 @@ def _selftest():
     assert abs(r["M_d"] - 1.4 * w * 25.0 / 8.0) < 1e-6, r["M_d"]
     # amarracao: As = 1,4*30/(500e3/1,15) = 42/434782,6 m2 = 0,966 cm2
     assert abs(r["As_tie_cm2"] - 1.4 * 30.0 / (500e3 / 1.15) * 1e4) < 1e-2, r
-    # dominio ok e secao suficiente
+    # dominio ok e secao suficiente (ELU) E ELS: 20x40/5m sob 6 kN/m passa (flecha
+    # de fluencia pos-parede 7,9 mm <= 10 mm). OK reflete ELU E ELS.
     assert r["ok_dominio"] and r["sec_ok"] and r["b_ok"] and r["cort_ok"] and r["OK"], r
+    assert r["els"] is not None and r["els_ok"], r["els"]
+    # Vao maior + parede pesada: 20x40 REPROVA no ELS (fissura a alvenaria) mesmo
+    # passando na resistencia -> dimensiona_baldrame SOBE a altura ate atender.
+    cfg2 = {**cfg, "vao": 5.7, "q_parede": 12.0}
+    r2 = verifica_baldrame(cfg2)
+    assert not r2["els_ok"] and not r2["OK"], r2["els"]
+    assert r2["els"]["d_pos_parede_mm"] > r2["els"]["lim_mm"], r2["els"]
+    rd = dimensiona_baldrame(cfg2)
+    assert rd["OK"] and rd["els_ok"] and rd["h"] > 0.40, rd
     # As_inf >= As_min e >= As_flex + As_tie/2
     assert r["As_inf_cm2"] >= r["As_min_cm2"] - 1e-9
     assert r["As_inf_cm2"] >= r["As_flex_cm2"] + r["As_tie_cm2"] / 2.0 - 0.02

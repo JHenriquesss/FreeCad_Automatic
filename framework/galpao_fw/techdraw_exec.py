@@ -1587,6 +1587,12 @@ def _pr_quadros(doc, cfg):
     _n11 = ("11. Contraflecha (NBR 8800 4.2.8/10.2.1): aplicar em tesouras com vao "
             ">= 24 m e vigas de rolamento >= 20 m (peso proprio + 50% da carga movel); "
             "valores conforme memorial. Demais elementos sem contraflecha.")
+    # FUROS DE DRENO/RESPIRO (NBR 8800 N.4.4/N.4.5): condicional - so ha seco fechada
+    # se o projeto usar perfil tubular/caixao ou galvanizacao a fogo. Perfis I abertos
+    # e barras macicas (padrao do framework) nao retem agua -> nota so instrui o caso.
+    _n12 = ("12. Perfis tubulares/caixao ou galvanizacao a fogo: prever furos de "
+            "dreno e respiro conforme NBR 8800 N.4.4/N.4.5 (evita retencao de agua e "
+            "explosao no banho de zinco). Nao se aplica a perfis abertos.")
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
@@ -1600,7 +1606,8 @@ def _pr_quadros(doc, cfg):
         "9. Tercas Ue formado a frio (NBR 14762).",
         _n10,
         _n11,
-        "12. Projeto executivo sujeito a revisao e ART.",
+        _n12,
+        "13. Projeto executivo sujeito a revisao e ART.",
     ]
     notas_y = _pos_notas(n_verif, n_mat, len(notas))
     _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
