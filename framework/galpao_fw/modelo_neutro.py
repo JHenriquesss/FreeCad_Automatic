@@ -212,10 +212,37 @@ def fundacoes(geometria, fund_sec):
     return ms
 
 
+def telhas(geometria, telha_t=0.0007):
+    """Telhas de cobertura: 2 paineis por vao (aguas E e D), do beiral a cumeeira,
+    ao longo de todo o comprimento. Espelha TELHA_S do build. Cada painel = laje
+    retangular (largura = comprimento do galpao, comprimida na inclinacao),
+    representada como 'Covering' de perfil retangular (bf=comprimento, d=espessura)
+    extrudado ao longo da INCLINACAO (beiral->cumeeira). telha_t = espessura (m)."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    comp = float(geometria["comprimento"])
+    eave = float(geometria["eave"])
+    ridge = float(geometria.get("ridge", eave))
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    sec = {"forma": "rect", "bf": comp, "d": telha_t}
+    xm = comp / 2.0
+    ms = []
+    for j in range(len(spans)):
+        y0, y1 = cols_y[j], cols_y[j + 1]
+        yr = (y0 + y1) / 2.0
+        for ya in (y0, y1):                            # agua E (do beiral y0) e D (y1)
+            ms.append({"marca": "TL1", "perfil": "Telha", "tipo": "Covering",
+                       "p1": (xm * MM, ya * MM, eave * MM),
+                       "p2": (xm * MM, yr * MM, ridge * MM), "secao": sec})
+    return ms
+
+
 def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
-                   fund_sec=None):
+                   fund_sec=None, telha=False, telha_t=0.0007):
     """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
     terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
     escopo das proximas iteracoes."""
@@ -234,6 +261,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += contrav_cobertura(geometria, d_contrav_mm)
     if fund_sec:
         ms += fundacoes(geometria, fund_sec)
+    if telha:
+        ms += telhas(geometria, telha_t)
     return ms
 
 

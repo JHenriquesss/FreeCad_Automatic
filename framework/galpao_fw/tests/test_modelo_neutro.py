@@ -186,5 +186,26 @@ def test_frame_completo_com_fundacoes():
     assert r["Footing"] == 9 * 2 and r["Column"] == 18
 
 
+def test_telhas_duas_por_vao():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    t = MN.telhas(geo)
+    assert len(t) == 2                                 # 1 vao -> 2 aguas
+    assert all(m["tipo"] == "Covering" and m["secao"]["forma"] == "rect" for m in t)
+    # painel do beiral (z=eave) a cumeeira (z=ridge), largura = comprimento
+    assert abs(t[0]["p1"][2] - 6000.0) < 1e-6 and abs(t[0]["p2"][2] - 7000.0) < 1e-6
+    assert abs(t[0]["secao"]["bf"] - 40.0) < 1e-9      # largura = comprimento
+
+
+def test_telhas_multivao():
+    geo = {"spans": [10.0, 12.0], "comprimento": 30.0, "eave": 6.0, "ridge": 7.5, "bay": 6.0}
+    assert len(MN.telhas(geo)) == 2 * 2                # 2 vaos -> 4 aguas
+
+
+def test_frame_completo_com_telha():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, telha=True)
+    assert MN.resumo(M)["Covering"] == 2
+
+
 def test_selftest_modulo():
     MN._selftest()
