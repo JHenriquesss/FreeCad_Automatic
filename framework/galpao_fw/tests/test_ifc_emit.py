@@ -94,11 +94,32 @@ def test_placa_base_como_ifcplate(tmp_path):
     EM.emitir_ifc_do_spec(spec, f)
     m = ifcopenshell.open(f)
     pl = m.by_type("IfcPlate")
-    # 1 placa por base de coluna: 9 porticos x 2 colunas = 18
-    assert len(pl) == 18 and all(p.PredefinedType == "SHEET" for p in pl)
-    sld = pl[0].Representation.Representations[0].Items[0]
+    assert all(p.PredefinedType == "SHEET" for p in pl)
+    # placas de base = perfil retangular (box); 1 por base: 9 porticos x 2 = 18
+    box = [p for p in pl if p.Representation.Representations[0].Items[0].SweptArea.is_a()
+           == "IfcRectangleProfileDef"]
+    assert len(box) == 18
+    sld = box[0].Representation.Representations[0].Items[0]
     assert abs(sld.SweptArea.XDim - 600.0) < 1e-6 and abs(sld.SweptArea.YDim - 800.0) < 1e-6
     assert abs(sld.Depth - 100.0) < 1e-6                  # t = 100 mm (nao 100000)
+
+
+def test_nervuras_base_como_ifcplate_poligonal(tmp_path):
+    # nervura da base = chapa triangular (poligono) -> IfcPlate, perfil arbitrario
+    spec = {"slug": "nb", "geometria": _GEO,
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "base_adotada": {"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6}}}
+    f = str(tmp_path / "nb.ifc")
+    EM.emitir_ifc_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    pl = m.by_type("IfcPlate")
+    # 18 placas base (box) + 36 nervuras (2 x 18 bases) = 54
+    assert len(pl) == 54
+    poly = [p for p in pl
+            if p.Representation.Representations[0].Items[0].SweptArea.is_a().startswith("IfcArbitrary")]
+    assert len(poly) == 36                                # nervuras triangulares
+    tri = poly[0].Representation.Representations[0].Items[0].SweptArea.OuterCurve
+    assert len(tri.Points) == 4                           # 3 vertices + fechamento
 
 
 def test_emitir_do_spec_frame_laminado(tmp_path):

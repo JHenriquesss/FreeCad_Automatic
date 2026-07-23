@@ -366,7 +366,8 @@ def emitir_ifc_do_spec(spec, path):
                                 girt_sec=girt_sec, col_d=col_d,
                                 n_tirante_parede=est.get("n_tirante_parede"),
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
-                                fund_sec=fund_sec, base_sec=base_sec, telha=True,
+                                fund_sec=fund_sec, base_sec=base_sec,
+                                nervura_base=bool(base_sec), telha=True,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

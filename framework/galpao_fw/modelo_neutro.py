@@ -288,6 +288,37 @@ def placas_base(geometria, base_sec, z0_mm=30.0):
     return ms
 
 
+def nervuras_base(geometria, col_d, base_L, z0_mm=30.0, esp_mm=12.0):
+    """Nervuras (enrijecedores) da placa de base: 2 chapas triangulares por base, no
+    plano do pórtico (Y-Z, X constante), uma p/ cada lado da coluna (+Y e -Y). Espelha
+    NERVURA_BASE_ do build (triangulo V1-V2-V3, extrudado 12mm em X, centrado). col_d =
+    altura do perfil da coluna (m); base_L = comprimento da placa (m). Membro poligonal
+    tipo 'Plate' -> IfcPlate. Uma nervura sobe do topo do grout (Z0) 300mm."""
+    if not col_d or not base_L:
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    Z0 = float(z0_mm)
+    ftip = float(col_d) * MM / 2.0                     # face da coluna em Y = d/2
+    yb2 = min(ftip + 140.0, float(base_L) * MM / 2.0)  # base da nervura sobre a placa
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    ms = []
+    for x in _xs(geometria):
+        xm = x * MM
+        for y in cols_y:
+            ym = y * MM
+            for sgn in (1.0, -1.0):
+                poly = [(xm, ym + sgn * ftip, Z0),
+                        (xm, ym + sgn * yb2, Z0),
+                        (xm, ym + sgn * ftip, Z0 + 300.0)]
+                ms.append({"marca": "NB1", "perfil": "NervuraBase", "tipo": "Plate",
+                           "poligono": poly, "esp": float(esp_mm),
+                           "aberturas": [], "secao": {"forma": "poly"}})
+    return ms
+
+
 def telhas(geometria, telha_t=0.0007):
     """Telhas de cobertura: 2 paineis por vao (aguas E e D), do beiral a cumeeira,
     ao longo de todo o comprimento. Espelha TELHA_S do build. Cada painel = laje
@@ -421,7 +452,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
                    fund_sec=None, telha=False, telha_t=0.0007,
-                   fechamento=None, aberturas=None, tapered=None, base_sec=None):
+                   fechamento=None, aberturas=None, tapered=None, base_sec=None,
+                   nervura_base=False, esp_nervura_mm=12.0):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -448,6 +480,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += fundacoes(geometria, fund_sec)
     if base_sec:
         ms += placas_base(geometria, base_sec)
+    if nervura_base and base_sec:
+        ms += nervuras_base(geometria, cd, base_sec.get("L"), esp_mm=esp_nervura_mm)
     if telha:
         ms += telhas(geometria, telha_t)
     if fechamento is not None or aberturas is not None:
