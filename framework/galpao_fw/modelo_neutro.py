@@ -189,9 +189,33 @@ def contrav_cobertura(geometria, d_mm=20.0):
     return ms
 
 
+def fundacoes(geometria, fund_sec):
+    """Fundacoes rasas (sapata/bloco): uma CAIXA B x L x h por base de coluna, com o
+    TOPO no nivel do solo (Z0=0) descendo -h. Espelha SAPATA_ do build (o bloco raso
+    tambem sai como caixa). fund_sec {B,L,h} em m. Membro tipo 'Footing' definido por
+    CENTRO + dims (nao por eixo)."""
+    if not fund_sec or not all(k in fund_sec for k in ("B", "L", "h")):
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    B, L, h = float(fund_sec["B"]), float(fund_sec["L"]), float(fund_sec["h"])
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    nome = "Bloco" if str(fund_sec.get("tipo")) == "bloco" else "Sapata"
+    ms = []
+    for x in _xs(geometria):
+        for y in cols_y:
+            ms.append({"marca": nome[:3].upper() + "1", "perfil": nome, "tipo": "Footing",
+                       "centro": (x * MM, y * MM, -h / 2.0 * MM),
+                       "dims": (B * MM, L * MM, h * MM), "secao": fund_sec})
+    return ms
+
+
 def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
-                   d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0):
+                   d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
+                   fund_sec=None):
     """Modelo neutro fisico = primario (colunas + rafters) + terças (se n_terca +
     terca_sec) + girts de parede (se girt_sec). Tirantes/contraventamento/chapas e
     escopo das proximas iteracoes."""
@@ -208,6 +232,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:
         ms += contrav_cobertura(geometria, d_contrav_mm)
+    if fund_sec:
+        ms += fundacoes(geometria, fund_sec)
     return ms
 
 

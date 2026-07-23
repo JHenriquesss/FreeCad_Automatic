@@ -158,5 +158,33 @@ def test_frame_completo_com_tirantes_e_contrav():
     assert r["Member"] == 10 + 4 + 8 * 2 * 2 + 4
 
 
+_FUND = {"B": 2.5, "L": 3.0, "h": 2.35, "tipo": "bloco"}
+
+
+def test_fundacoes_uma_por_base():
+    # 40/5=8 -> 9 porticos ; 2 linhas de coluna (1 vao) -> 18 fundacoes
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    fs = MN.fundacoes(geo, _FUND)
+    assert len(fs) == 9 * 2
+    f0 = fs[0]
+    assert f0["tipo"] == "Footing" and f0["perfil"] == "Bloco"
+    assert f0["dims"] == (2500.0, 3000.0, 2350.0)      # mm
+    # topo no solo (Z0=0), centro em -h/2
+    assert abs(f0["centro"][2] + 2350.0 / 2.0) < 1e-6
+
+
+def test_fundacoes_multivao():
+    geo = {"spans": [10.0, 12.0], "comprimento": 30.0, "eave": 6.0, "ridge": 7.5, "bay": 6.0}
+    # 30/6=5 -> 6 porticos ; 3 linhas -> 18
+    assert len(MN.fundacoes(geo, _FUND)) == 6 * 3
+
+
+def test_frame_completo_com_fundacoes():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, fund_sec=_FUND)
+    r = MN.resumo(M)
+    assert r["Footing"] == 9 * 2 and r["Column"] == 18
+
+
 def test_selftest_modulo():
     MN._selftest()
