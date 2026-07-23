@@ -105,7 +105,43 @@ def test_analitico_do_spec_sem_esforcos_ok():
     assert all("esforcos" not in b for b in m["barras"])
 
 
-def test_analitico_do_spec_tapered_none():
+def test_analitico_do_spec_sem_perfil_none():
+    # prismático SEM perfil laminado e SEM tapered -> None (via FreeCAD)
     spec = {"geometria": {"span": 20.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0},
             "estrutura": {"perfil_col_adotado": None, "perfil_raf_adotado": None}}
     assert MN.analitico_do_spec(spec) is None
+
+
+_TAP = {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25, "tw": 0.008,
+        "tf": 0.0125, "h_col_base": 0.45}
+
+
+def test_analitico_tapered_nao_none_e_secao_variavel():
+    # alma variável: agora tem analítico (antes None). A/I das seções soldadas
+    # (av.props_I); cada barra carrega a seção de ponta em 'secao_var'.
+    spec = {"geometria": {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0,
+                          "bay": 5.0, "base_fixed": True},
+            "estrutura": {"tipo_portico": "alma_variavel", "tapered": _TAP}}
+    m = MN.analitico_do_spec(spec)
+    assert m and len(m["nos"]) == 5 and len(m["barras"]) == 4
+    assert m["secoes"]["coluna"].startswith("VAR")
+    col = [b for b in m["barras"] if b["grupo"] == "coluna"][0]
+    raf = [b for b in m["barras"] if b["grupo"] == "rafter"][0]
+    # coluna afina 450 -> 900 mm; rafter funda no joelho 900 -> rasa 400 mm
+    assert abs(col["secao_var"]["d_i"] - 0.45) < 1e-9 and abs(col["secao_var"]["d_j"] - 0.90) < 1e-9
+    assert abs(raf["secao_var"]["d_i"] - 0.90) < 1e-9 and abs(raf["secao_var"]["d_j"] - 0.40) < 1e-9
+    # A/I representativos (barra) = seção do joelho (a mais funda)
+    import alma_variavel as av
+    pj = av.props_I(0.90, 0.25, 0.008, 0.0125)
+    assert abs(col["A"] - pj["A"]) < 1e-9 and abs(col["I"] - pj["Ix"]) < 1e-12
+
+
+def test_analitico_tapered_sem_h_col_base_coluna_constante():
+    tap = {k: v for k, v in _TAP.items() if k != "h_col_base"}
+    spec = {"geometria": {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0,
+                          "bay": 5.0, "base_fixed": True},
+            "estrutura": {"tipo_portico": "alma_variavel", "tapered": tap}}
+    m = MN.analitico_do_spec(spec)
+    col = [b for b in m["barras"] if b["grupo"] == "coluna"][0]
+    # sem h_col_base -> coluna constante na altura do joelho (d_i == d_j)
+    assert abs(col["secao_var"]["d_i"] - 0.90) < 1e-9 and abs(col["secao_var"]["d_j"] - 0.90) < 1e-9

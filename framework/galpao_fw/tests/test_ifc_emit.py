@@ -219,6 +219,31 @@ def test_analitico_carrega_esforcos_no_pset(tmp_path):
     assert props["Combo_governante"] == "C1_gov"
 
 
+def test_analitico_tapered_pset_secao_variavel(tmp_path):
+    # alma variável: o IFC4-Structural agora sai (antes None) e o Pset da barra
+    # traz Variavel + Altura_i/j + Inercia_i/j das seções de ponta
+    spec = {"slug": "tapan", "geometria": {"span": 30.0, "comprimento": 40.0, "eave": 7.0,
+                                           "ridge": 9.0, "bay": 5.0, "base_fixed": True},
+            "estrutura": {"tipo_portico": "alma_variavel",
+                          "tapered": {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25,
+                                      "tw": 0.008, "tf": 0.0125, "h_col_base": 0.45}}}
+    f = str(tmp_path / "tapan.ifc")
+    out = EM.emitir_ifc_analitico_do_spec(spec, f)
+    assert out == f
+    m = ifcopenshell.open(f)
+    assert len(m.by_type("IfcStructuralCurveMember")) == 4
+    ps = m.by_type("IfcPropertySet")[0]
+    props = {p.Name: p.NominalValue.wrappedValue for p in ps.HasProperties}
+    assert props["Variavel"] is True
+    assert {"Altura_i_m", "Altura_j_m", "Inercia_i_m4", "Inercia_j_m4"} <= set(props)
+    # coluna: 450 -> 900 mm (0.45 -> 0.90 m)
+    col_ps = [p for p in m.by_type("IfcPropertySet")
+              if any(x.Name == "Grupo" and x.NominalValue.wrappedValue == "coluna"
+                     for x in p.HasProperties)][0]
+    cprops = {p.Name: p.NominalValue.wrappedValue for p in col_ps.HasProperties}
+    assert abs(cprops["Altura_i_m"] - 0.45) < 1e-9 and abs(cprops["Altura_j_m"] - 0.90) < 1e-9
+
+
 def test_analitico_structural_rotula(tmp_path):
     spec = {"geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0,
                           "bay": 5.0, "base_fixed": False},
