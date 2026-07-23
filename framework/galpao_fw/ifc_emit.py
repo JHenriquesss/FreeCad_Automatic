@@ -420,6 +420,20 @@ def emitir_ifc_analitico(modelo, path, nome="Galpao"):
                 m.create_entity("IfcPropertySingleValue", Name="Combo_governante",
                                 NominalValue=m.create_entity("IfcLabel", str(esf.get("combo") or "-"))),
             ]
+        sv = b.get("secao_var")                        # barra de ALMA VARIÁVEL (tapered)
+        if sv:
+            props += [
+                m.create_entity("IfcPropertySingleValue", Name="Variavel",
+                                NominalValue=m.create_entity("IfcBoolean", True)),
+                m.create_entity("IfcPropertySingleValue", Name="Altura_i_m",
+                                NominalValue=m.create_entity("IfcReal", float(sv["d_i"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Altura_j_m",
+                                NominalValue=m.create_entity("IfcReal", float(sv["d_j"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Inercia_i_m4",
+                                NominalValue=m.create_entity("IfcReal", float(sv["I_i"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Inercia_j_m4",
+                                NominalValue=m.create_entity("IfcReal", float(sv["I_j"]))),
+            ]
         pset = m.create_entity("IfcPropertySet", GlobalId=guid(),
                                Name="Pset_SecaoAnalitica", HasProperties=props)
         m.create_entity("IfcRelDefinesByProperties", GlobalId=guid(),

@@ -441,22 +441,42 @@ def analitico_do_spec(spec):
     import perfis
     g = spec["geometria"]
     est = spec.get("estrutura", {}) or {}
-    pc = perfis.PERFIS.get(est.get("perfil_col_adotado"))
-    pr = perfis.PERFIS.get(est.get("perfil_raf_adotado"))
-    if not pc or not pr:
-        return None                                   # tapered/tesoura: sem A/I laminado
-    icol = pc.get("Ix", pc.get("I"))
-    iraf = pr.get("Ix", pr.get("I"))
+    tap = (est.get("tapered") if est.get("tipo_portico") == "alma_variavel"
+           and isinstance(est.get("tapered"), dict) else None)
+    secao_var = None                                  # por grupo: (d_i, d_j, props_i, props_j)
+    if tap:
+        # ALMA VARIÁVEL: A/I das seções SOLDADAS (av.props_I). A topologia (nós/barras)
+        # é section-agnostic; a barra recebe a seção REPRESENTATIVA do joelho (a mais
+        # funda) + as duas seções de ponta anexadas p/ o downstream saber que varia.
+        import alma_variavel as av
+        hj = float(tap["h_joelho"]); hc = float(tap["h_cumeeira"])
+        bf = float(tap.get("bf", 0.20)); tw = float(tap.get("tw", 0.008))
+        tf = float(tap.get("tf", 0.0125))
+        hcb = float(tap["h_col_base"]) if tap.get("h_col_base") is not None else hj
+        pj = av.props_I(hj, bf, tw, tf)               # joelho: representa coluna e rafter
+        acol = araf = pj["A"]; icol = iraf = pj["Ix"]
+        secao_var = {"coluna": (hcb, hj, av.props_I(hcb, bf, tw, tf), pj),
+                     "rafter": (hj, hc, pj, av.props_I(hc, bf, tw, tf))}
+        sec_nomes = {"coluna": "VAR %d-%d" % (round(hcb * 1000), round(hj * 1000)),
+                     "rafter": "VAR %d-%d" % (round(hj * 1000), round(hc * 1000))}
+    else:
+        pc = perfis.PERFIS.get(est.get("perfil_col_adotado"))
+        pr = perfis.PERFIS.get(est.get("perfil_raf_adotado"))
+        if not pc or not pr:
+            return None                               # tesoura/prismático sem A/I -> None
+        acol, icol = pc["A"], pc.get("Ix", pc.get("I"))
+        araf, iraf = pr["A"], pr.get("Ix", pr.get("I"))
+        sec_nomes = {"coluna": est.get("perfil_col_adotado"),
+                     "rafter": est.get("perfil_raf_adotado")}
     gp.reset()                                        # limpa estado (SEC_COLS_PORTICO etc.)
     gp.configurar(span=g.get("span"), spans=g.get("spans"), eave=g["eave"],
                   ridge=g.get("ridge", g["eave"]), bay=g["bay"],
                   base_fixed=bool(g.get("base_fixed", False)),
-                  A_col=pc["A"], I_col=icol, A_raf=pr["A"], I_raf=iraf)
+                  A_col=acol, I_col=icol, A_raf=araf, I_raf=iraf)
     m = gp.modelo_analitico()
     comp, bay = g.get("comprimento"), g.get("bay")
     m["n_porticos"] = int(round(comp / bay)) + 1 if (comp and bay) else None
-    m["secoes"] = {"coluna": est.get("perfil_col_adotado"),
-                   "rafter": est.get("perfil_raf_adotado")}
+    m["secoes"] = sec_nomes
     # esforcos de PROJETO (2a ordem, do calculo) por grupo -> anexa a cada barra.
     # Fonte unica: rodar_galpao capturou o envelope do mesmo a["combos"] da verificacao.
     esf = {"coluna": est.get("esf_coluna"), "rafter": est.get("esf_rafter")}
@@ -464,6 +484,10 @@ def analitico_do_spec(spec):
         e = esf.get(bar["grupo"])
         if e:
             bar["esforcos"] = dict(e)
+        if secao_var and bar["grupo"] in secao_var:   # barra de alma variável
+            di, dj, pi, pj_ = secao_var[bar["grupo"]]
+            bar["secao_var"] = {"d_i": di, "d_j": dj, "A_i": pi["A"], "I_i": pi["Ix"],
+                                "A_j": pj_["A"], "I_j": pj_["Ix"]}
     return m
 
 
