@@ -338,6 +338,14 @@ def emitir_ifc_do_spec(spec, path):
     gt = (est.get("gusset_adotado") or {}).get("t_mm")
     if gt:
         gusset_c = {"t": gt, "esc_d": (esc or {}).get("d", 0.152)}
+    # mísula (haunch) do joelho: seção do rafter no beiral (tapered = joelho). Só em
+    # pórtico de 2 águas (tesoura/shed não têm joelho de momento).
+    misula = None
+    if est.get("tipo_portico") not in ("tesoura",):
+        m_d = (tapered.get("h_joelho") if tapered else (raf or {}).get("d"))
+        m_tw = (tapered.get("tw") if tapered else (raf or {}).get("tw"))
+        if m_d and m_tw:
+            misula = {"raf_d": m_d, "raf_tw": m_tw}
     if not tapered and (not col or not raf):
         return None                                   # tesoura/prismático sem perfil -> FreeCAD
     geo = {"span": g.get("span"), "spans": g.get("spans"),
@@ -412,6 +420,7 @@ def emitir_ifc_do_spec(spec, path):
                                 montante_ab=spec.get("aberturas"), tirante_cob=True,
                                 d_tirante_cob_mm=16.0, base_full=base_full,
                                 drenagem_cfg=dren, gusset_contrav=gusset_c,
+                                misula=misula,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

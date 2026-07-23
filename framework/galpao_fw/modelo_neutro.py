@@ -288,6 +288,57 @@ def placas_base(geometria, base_sec, z0_mm=30.0):
     return ms
 
 
+def misulas_joelho(geometria, raf_d, raf_tw, hlen=800.0, hdep=450.0):
+    """Mísulas (haunch) do joelho viga-coluna: chapa triangular soldada sob a viga no
+    beiral, no plano do pórtico. Espelha CONEX_JOELHO_*_MISULA do build (alma A-B-C).
+    O restante do joelho (chapa de topo, enrijecedores, parafusos) é DETALHE de
+    fabricação (shop drawing PE14), fora do intercâmbio estrutural. Uma mísula por
+    joelho: colunas externas 1, internas 2 (E+D). raf_d/raf_tw (m). Poligono tipo
+    'Plate' -> IfcPlate. Coords em mm."""
+    import math
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    rafz, cols, rid = _rafz_mm(geometria)
+    EAVE = float(geometria["eave"]) * MM
+    xs = [x * MM for x in _xs(geometria)]
+    hhalf = float(raf_d) * MM / 2.0
+    esp = float(raf_tw) * MM
+    nv = len(spans)
+    ms = []
+
+    def _misula(node, rdir):
+        L = math.sqrt(sum(c * c for c in rdir))
+        if L < 1e-9:
+            return
+        dirn = (rdir[0] / L, rdir[1] / L, rdir[2] / L)
+        # u = X; v = dirn x u, forçado para BAIXO (a mísula pende sob a viga)
+        v = (dirn[1] * 0.0 - dirn[2] * 0.0, dirn[2] * 1.0 - dirn[0] * 0.0,
+             dirn[0] * 0.0 - dirn[1] * 1.0)
+        nv_ = math.sqrt(sum(c * c for c in v)) or 1.0
+        v = (v[0] / nv_, v[1] / nv_, v[2] / nv_)
+        if v[2] > 0.0:
+            v = (-v[0], -v[1], -v[2])
+        A = (node[0] + hhalf * v[0], node[1] + hhalf * v[1], node[2] + hhalf * v[2])
+        B = (A[0] + hdep * v[0], A[1] + hdep * v[1], A[2] + hdep * v[2])
+        nc = (node[0] + hlen * dirn[0], node[1] + hlen * dirn[1], node[2] + hlen * dirn[2])
+        C = (nc[0] + hhalf * v[0], nc[1] + hhalf * v[1], nc[2] + hhalf * v[2])
+        ms.append({"marca": "MI1", "perfil": "Misula", "tipo": "Plate",
+                   "poligono": [A, B, C], "esp": esp, "aberturas": [],
+                   "secao": {"forma": "poly"}})
+
+    for x in xs:
+        for j in range(nv + 1):
+            yc = cols[j]
+            if j == 0:
+                _misula((x, yc, EAVE), (0.0, rid[0] - yc, rafz(rid[0]) - EAVE))
+            elif j == nv:
+                _misula((x, yc, EAVE), (0.0, rid[-1] - yc, rafz(rid[-1]) - EAVE))
+            else:
+                _misula((x, yc, EAVE), (0.0, rid[j - 1] - yc, rafz(rid[j - 1]) - EAVE))
+                _misula((x, yc, EAVE), (0.0, rid[j] - yc, rafz(rid[j]) - EAVE))
+    return ms
+
+
 def gussets_contrav(geometria, gusset_t=12.0, esc_d=0.152, L=150.0, z0_mm=30.0):
     """Gussets (chapas triangulares) dos cantos dos painéis de contraventamento, nos
     vãos de EXTREMIDADE. Cobertura: 4 cantos/vão (plano X-Y no beiral). Parede: 4/vão
@@ -788,7 +839,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
                    mao_francesa=None, esc_sec=None, montante_ab=None,
                    tirante_cob=False, d_tirante_cob_mm=16.0, base_full=None,
-                   drenagem_cfg=None, gusset_contrav=None):
+                   drenagem_cfg=None, gusset_contrav=None, misula=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -832,6 +883,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
     if gusset_contrav:                                 # chapas dos cantos do contravento
         ms += gussets_contrav(geometria, gusset_contrav.get("t", 12.0),
                               gusset_contrav.get("esc_d", 0.152))
+    if misula:                                         # mísula (haunch) do joelho
+        ms += misulas_joelho(geometria, misula.get("raf_d"), misula.get("raf_tw"))
     if fund_sec:
         ms += fundacoes(geometria, fund_sec)
     if base_sec:
