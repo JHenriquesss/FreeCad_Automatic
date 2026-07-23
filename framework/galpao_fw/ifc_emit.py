@@ -241,6 +241,18 @@ def emitir_ifc_analitico(modelo, path, nome="Galpao"):
             m.create_entity("IfcPropertySingleValue", Name="Inercia_m4",
                             NominalValue=m.create_entity("IfcReal", float(b["I"]))),
         ]
+        esf = b.get("esforcos")                        # esforcos de calculo (envelope ELU)
+        if esf:
+            props += [
+                m.create_entity("IfcPropertySingleValue", Name="Nsd_kN",
+                                NominalValue=m.create_entity("IfcReal", float(esf["N_kN"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Vsd_kN",
+                                NominalValue=m.create_entity("IfcReal", float(esf["V_kN"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Msd_kNm",
+                                NominalValue=m.create_entity("IfcReal", float(esf["M_kNm"]))),
+                m.create_entity("IfcPropertySingleValue", Name="Combo_governante",
+                                NominalValue=m.create_entity("IfcLabel", str(esf.get("combo") or "-"))),
+            ]
         pset = m.create_entity("IfcPropertySet", GlobalId=guid(),
                                Name="Pset_SecaoAnalitica", HasProperties=props)
         m.create_entity("IfcRelDefinesByProperties", GlobalId=guid(),

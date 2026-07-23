@@ -378,6 +378,23 @@ def rodar(params, out_dir):
             finais.append(max(cands, key=lambda x: x["interacao"]))
     save("gate7-check-perfis.txt", chk.relatorio_pt(finais, params["fy"]))
     res["interacao_max"] = max(f["interacao"] for f in finais) if finais else 0
+    # ESFORCOS de projeto (2a ordem MAES) por grupo -> modelo analitico BIM. Envelope
+    # governante (max |Msd| sobre os combos, N/V concomitantes). Fonte UNICA (o mesmo
+    # a["combos"] da verificacao). kN / kN.m.
+    def _env_grupo(gnames):
+        best = {"M_kNm": 0.0, "N_kN": 0.0, "V_kN": 0.0, "combo": None}
+        for r in a["combos"]:
+            for gn in gnames:
+                g = r.get(gn)
+                if not g:
+                    continue
+                if abs(g.get("Msd", 0.0)) > abs(best["M_kNm"]):
+                    best = {"M_kNm": float(round(abs(g["Msd"]), 2)),
+                            "N_kN": float(round(abs(g["Nsd"]), 2)),
+                            "V_kN": float(round(abs(g["Vsd"]), 2)), "combo": r.get("nome")}
+        return best
+    res["esf_coluna"] = _env_grupo([f"col_{i}" for i in range(nv + 1)])
+    res["esf_rafter"] = _env_grupo([f"viga_{i}_{s}" for i in range(nv) for s in ("E", "D")])
     n_col = nv + 1
     col_f = finais[:n_col]
     raf_f = finais[n_col:]

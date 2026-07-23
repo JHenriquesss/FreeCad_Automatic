@@ -134,6 +134,25 @@ def test_emitir_ifc_analitico_structural(tmp_path):
     assert {"Grupo", "Area_m2", "Inercia_m4"} <= nomes
 
 
+def test_analitico_carrega_esforcos_no_pset(tmp_path):
+    # esforcos de projeto (do calculo) no spec -> Nsd/Vsd/Msd/Combo no Pset da barra
+    spec = {"slug": "a", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
+                                       "ridge": 7.0, "bay": 5.0, "base_fixed": True},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "esf_coluna": {"M_kNm": 120.0, "N_kN": 50.0, "V_kN": 20.0, "combo": "C1_gov"},
+                          "esf_rafter": {"M_kNm": 90.0, "N_kN": 40.0, "V_kN": 35.0, "combo": "C2_gov"}}}
+    f = str(tmp_path / "esf.ifc")
+    EM.emitir_ifc_analitico_do_spec(spec, f)
+    m = ifcopenshell.open(f)
+    # acha o Pset de uma barra de coluna (Grupo=coluna) e confere os esforcos
+    psets = m.by_type("IfcPropertySet")
+    col_ps = [ps for ps in psets if any(p.Name == "Grupo" and p.NominalValue.wrappedValue == "coluna"
+                                        for p in ps.HasProperties)][0]
+    props = {p.Name: p.NominalValue.wrappedValue for p in col_ps.HasProperties}
+    assert props["Msd_kNm"] == 120.0 and props["Nsd_kN"] == 50.0
+    assert props["Combo_governante"] == "C1_gov"
+
+
 def test_analitico_structural_rotula(tmp_path):
     spec = {"geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0,
                           "bay": 5.0, "base_fixed": False},

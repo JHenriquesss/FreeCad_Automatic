@@ -117,6 +117,10 @@ def calcular(spec, out_dir):
     }
     spec.setdefault("estrutura", {})["resultados"] = resultados
     spec["estrutura"]["estados"] = {k: v for k, v in estados.items() if v is not None}
+    # esforcos de projeto (2a ordem) por grupo -> modelo analitico BIM (ifc_emit)
+    if res.get("esf_coluna"):
+        spec["estrutura"]["esf_coluna"] = res["esf_coluna"]
+        spec["estrutura"]["esf_rafter"] = res.get("esf_rafter")
     spec["estrutura"]["romaneio"] = res.get("romaneio_itens")   # marcas de peca -> PE09
     return res
 
