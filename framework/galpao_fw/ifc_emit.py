@@ -58,7 +58,8 @@ def _matriz(p1, p2):
 
 
 _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
-              "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET")}
+              "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET"),
+              "Covering": ("IfcCovering", "ROOFING")}
 
 
 def _perfil_ifc(m, nome, s, esc):
@@ -69,6 +70,10 @@ def _perfil_ifc(m, nome, s, esc):
     if forma == "ROUND":                              # barra redonda (tirante/contrav)
         return m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
                                ProfileName=nome, Radius=float(s.get("D") or 0.0) * esc / 2.0)
+    if forma == "RECT":                               # laje/painel (telha): bf x d (t)
+        return m.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
+                               ProfileName=nome, XDim=float(s.get("bf") or 0.0) * esc,
+                               YDim=float(s.get("d") or 0.0) * esc)
     h = float(s.get("d") or s.get("h") or 0.0) * esc
     bf = float(s.get("bf") or 0.0) * esc
     if forma == "C" or s.get("lip") is not None:      # formado a frio Ue (com labio)
@@ -197,7 +202,7 @@ def emitir_ifc_do_spec(spec, path):
                                 girt_sec=girt_sec, col_d=col.get("d"),
                                 n_tirante_parede=est.get("n_tirante_parede"),
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
-                                fund_sec=fund_sec)
+                                fund_sec=fund_sec, telha=True)
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 
