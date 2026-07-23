@@ -262,6 +262,25 @@ def test_frame_completo_com_placas_base():
     assert sum(1 for m in M if m.get("tipo") == "Plate") == 18
 
 
+def test_nervuras_base_duas_por_coluna():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    nv = MN.nervuras_base(geo, 0.19, 0.8)              # col_d=190mm, base_L=800mm
+    # 9 porticos x 2 colunas x 2 nervuras (+Y/-Y) = 36
+    assert len(nv) == 36
+    assert all(m["tipo"] == "Plate" and len(m["poligono"]) == 3 for m in nv)
+    # triangulo no plano do portico (X constante em cada nervura)
+    xs = {m["poligono"][0][0] for m in nv}
+    assert all(all(abs(v[0] - m["poligono"][0][0]) < 1e-9 for v in m["poligono"]) for m in nv)
+
+
+def test_frame_completo_com_nervuras():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, base_sec={"B": 0.6, "L": 0.8, "t": 0.1},
+                          nervura_base=True)
+    # 18 placas base (box) + 36 nervuras (poligono) = 54 chapas
+    assert sum(1 for m in M if m.get("tipo") == "Plate") == 54
+
+
 def test_tapered_rafter_funda_no_joelho_rasa_na_cumeeira():
     geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
     M = MN.frame_primario_tapered(geo, _TAP)
