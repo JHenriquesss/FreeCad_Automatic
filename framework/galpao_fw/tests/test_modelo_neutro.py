@@ -343,6 +343,22 @@ def test_clipes_girt_por_portico_x_nivel_x_parede():
     assert all(m["tipo"] == "Plate" for m in cg)
 
 
+def test_misulas_joelho_uma_ou_duas_por_coluna():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    mi = MN.misulas_joelho(geo, 0.5, 0.0102)
+    # 9 porticos x 2 joelhos (colunas externas de 1 vao) = 18
+    assert len(mi) == 18
+    assert all(m["tipo"] == "Plate" and len(m["poligono"]) == 3 for m in mi)
+    # a misula pende SOB a viga (algum vertice abaixo do beiral z=6000)
+    assert all(min(v[2] for v in m["poligono"]) < 6000.0 for m in mi)
+
+
+def test_misulas_joelho_multivao_internas_tem_duas():
+    geo = {"spans": [10.0, 12.0], "comprimento": 30.0, "eave": 6.0, "ridge": 7.5, "bay": 6.0}
+    # 6 porticos; por portico: externas 1+1 + interna 2 = 4 -> 24
+    assert len(MN.misulas_joelho(geo, 0.5, 0.0102)) == 6 * 4
+
+
 def test_gussets_contrav_cantos_dos_vaos_extremos():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     gc = MN.gussets_contrav(geo, 12.0, 0.152)

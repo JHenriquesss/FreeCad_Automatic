@@ -113,9 +113,10 @@ def test_nervuras_base_como_ifcplate_poligonal(tmp_path):
     EM.emitir_ifc_do_spec(spec, f)
     m = ifcopenshell.open(f)
     pl = m.by_type("IfcPlate")
-    # 18 placas base (box) + 36 nervuras (2 x 18 bases) = 54
-    assert len(pl) == 54
-    poly = [p for p in pl
+    # nervuras = chapas com marca NB1 (2 x 18 bases = 36), perfil arbitrario triangular
+    nerv = [p for p in pl if p.Name == "NB1"]
+    assert len(nerv) == 36
+    poly = [p for p in nerv
             if p.Representation.Representations[0].Items[0].SweptArea.is_a().startswith("IfcArbitrary")]
     assert len(poly) == 36                                # nervuras triangulares
     tri = poly[0].Representation.Representations[0].Items[0].SweptArea.OuterCurve
