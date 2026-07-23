@@ -1573,6 +1573,20 @@ def _pr_quadros(doc, cfg):
     else:
         _n5 = "5. LIGACOES DE CAMPO SOLDADAS. Soldas E70XX (fw 485 MPa), filete minimo 6 mm."
         _n6 = "6. Parafusos A325 (fub 825 MPa) apenas nas ligacoes de montagem indicadas."
+    # PROTECAO CONTRA CORROSAO (NBR 8800 Anexo N, item 10.1): o projeto DEVE prescrever
+    # o esquema de pintura. Sem o dado no spec, remete ao memorial + classe de
+    # agressividade (nao inventa preparo/primer/EPS fixos que iriam para a obra).
+    _prot = _mt.get("protecao_corrosao")
+    _n10 = ("10. Protecao contra corrosao (NBR 8800 Anexo N): %s." % _prot
+            if _prot else
+            "10. Protecao contra corrosao conforme NBR 8800 Anexo N: preparo de "
+            "superficie, primer, acabamento e espessura de pelicula seca conforme "
+            "memorial e classe de agressividade ambiental.")
+    # CONTRAFLECHA (NBR 8800 4.2.8 imperativo + 10.2.1): deve ser indicada nos
+    # desenhos. Obrigatoria em tesoura >= 24 m e viga de rolamento >= 20 m.
+    _n11 = ("11. Contraflecha (NBR 8800 4.2.8/10.2.1): aplicar em tesouras com vao "
+            ">= 24 m e vigas de rolamento >= 20 m (peso proprio + 50% da carga movel); "
+            "valores conforme memorial. Demais elementos sem contraflecha.")
     notas = cfg.get("notas") or [
         "NOTAS TECNICAS GERAIS",
         "1. Cotas em metros nas vistas gerais; em mm nos detalhes.",
@@ -1584,7 +1598,9 @@ def _pr_quadros(doc, cfg):
         _nm.get("chumbador", "7. Chumbadores ASTM A36 conforme detalhe da base."),
         _nm.get("contrav", "8. Contraventamento pretensionado c/ esticador."),
         "9. Tercas Ue formado a frio (NBR 14762).",
-        "10. Projeto executivo sujeito a revisao e ART.",
+        _n10,
+        _n11,
+        "12. Projeto executivo sujeito a revisao e ART.",
     ]
     notas_y = _pos_notas(n_verif, n_mat, len(notas))
     _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
@@ -2039,7 +2055,9 @@ def _materiais_de_spec(spec):
     return {"fy_MPa": round(fy_kPa / 1000.0), "aco": _nome_aco(spec, fy_kPa),
             "fck_MPa": _mpa(fu.get("fck")), "fyk_MPa": _mpa(fu.get("fyk")),
             "cobrimento_cm": _cm(fu.get("cobrimento")),
-            "tipo_ligacao": (est.get("tipo_ligacao") or "soldada").lower()}
+            "tipo_ligacao": (est.get("tipo_ligacao") or "soldada").lower(),
+            # esquema de pintura/protecao (NBR 8800 Anexo N), se o eng. especificou
+            "protecao_corrosao": est.get("protecao_corrosao")}
 
 
 def _txt_material(mat):
