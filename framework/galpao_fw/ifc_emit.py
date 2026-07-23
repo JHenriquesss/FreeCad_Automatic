@@ -331,6 +331,7 @@ def emitir_ifc_do_spec(spec, path):
                and isinstance(est.get("tapered"), dict) else None)
     col = _sec(est.get("perfil_col_adotado"))
     raf = _sec(est.get("perfil_raf_adotado"))
+    esc = _sec(est.get("perfil_escora"))              # escoras/cumeeiras/montantes
     if not tapered and (not col or not raf):
         return None                                   # tesoura/prismático sem perfil -> FreeCAD
     geo = {"span": g.get("span"), "spans": g.get("spans"),
@@ -386,7 +387,8 @@ def emitir_ifc_do_spec(spec, path):
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
                                 fund_sec=fund_sec, base_sec=base_sec,
                                 nervura_base=bool(base_sec), clipes=True, telha=True,
-                                mao_francesa=mao_franc,
+                                mao_francesa=mao_franc, esc_sec=esc,
+                                montante_ab=spec.get("aberturas"),
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
