@@ -80,6 +80,7 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     n_escum_puro = len(MN.escoras_cumeeiras(geo, esec)) if esec else 0
     n_mont_puro = (len(MN.montantes_oitao(geo, esec, aberturas=spec.get("aberturas")))
                    if esec else 0)
+    n_tcob_puro = len(MN.tirantes_cobertura(geo, est["n_terca"]))
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -107,9 +108,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "nescum=sum(1 for o in doc.Objects if 'ESCORA_BEIRAL' in o.Name "
             "or '_CUMEEIRA_S' in o.Name)\n"
             "nmont=sum(1 for o in doc.Objects if 'MONTANTE_OITAO' in o.Name)\n"
+            "ntcob=sum(1 for o in doc.Objects if o.Name.startswith('TIRANTE_S'))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
             "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase,'nnerv':nnerv,'nclip':nclip,"
-            "'nmf':nmf,'nescum':nescum,'nmont':nmont}))\n"
+            "'nmf':nmf,'nescum':nescum,'nmont':nmont,'ntcob':ntcob}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -161,3 +163,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_mont_puro == d["nmont"], (
         "montantes de oitao do modelo_neutro (%d) divergem do build (%d)"
         % (n_mont_puro, d["nmont"]))
+    assert n_tcob_puro == d["ntcob"], (
+        "tirantes de cobertura do modelo_neutro (%d) divergem do build (%d)"
+        % (n_tcob_puro, d["ntcob"]))
