@@ -224,6 +224,48 @@ def armadura_flexao_composta(Nd, Md, b, h, dl, fck, fyk, As_max=None):
 
 
 # ---------------------------------------------------------------------------
+# Flexao composta OBLIQUA (biaxial) - NBR 6118 17.2.5 / 15.8.3.3.5
+# ---------------------------------------------------------------------------
+ALPHA_BIAXIAL_RECT = 1.2   # expoente da interacao (17.2.5, secao retangular); 1,0 geral
+
+
+def verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha=ALPHA_BIAXIAL_RECT):
+    """Verificacao de flexao composta OBLIQUA (NBR 6118 17.2.5):
+        (Mx/Mrd,xx)^alpha + (My/Mrd,yy)^alpha <= 1
+    Mrd,xx e Mrd,yy = momentos resistentes UNIAXIAIS (flexao composta normal) em cada
+    eixo, para o MESMO Nd, calculados com a armadura em estudo. Mx = momento na dir x
+    (profundidade hx); My = dir y (profundidade hy). Armadura nos 4 CANTOS -> cada
+    capacidade uniaxial usa o As TOTAL (As/2 por face perpendicular ao eixo, exatamente
+    o solver aferido). Retorna dict com util e ok."""
+    Mrd_xx = MRd_para_Nd(Nd, As, hy, hx, dl, fck, fyk)   # dir x: profundidade hx, largura hy
+    Mrd_yy = MRd_para_Nd(Nd, As, hx, hy, dl, fck, fyk)   # dir y: profundidade hy, largura hx
+    ix = (Mx / Mrd_xx) ** alpha if Mrd_xx > 1e-9 else float("inf")
+    iy = (My / Mrd_yy) ** alpha if Mrd_yy > 1e-9 else float("inf")
+    util = ix + iy
+    return {"Mrd_xx": Mrd_xx, "Mrd_yy": Mrd_yy, "util": util, "alpha": alpha,
+            "ok": util <= 1.0 + 1e-6}
+
+
+def armadura_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As_max, alpha=ALPHA_BIAXIAL_RECT):
+    """Menor As total (armadura nos 4 cantos) que satisfaz a interacao obliqua (17.2.5)
+    <= 1. util e monotona decrescente em As -> bisseccao. Retorna (As, ok)."""
+    def _u(As):
+        return verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha)["util"]
+    if _u(0.0) <= 1.0:
+        return 0.0, True
+    if _u(As_max) > 1.0:
+        return As_max, False
+    lo, hi = 0.0, As_max
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        if _u(mid) > 1.0:
+            lo = mid
+        else:
+            hi = mid
+    return hi, True
+
+
+# ---------------------------------------------------------------------------
 # Orquestrador: dimensionamento completo do pilar
 # ---------------------------------------------------------------------------
 def dimensiona_pilar(caso):
@@ -256,6 +298,8 @@ def dimensiona_pilar(caso):
 
     Md_gov = 0.0
     dep_gov, wid_gov = hx, hy                     # geometria do solver na dir. critica
+    mtot = {}                                     # Md,tot por direcao
+    m1real = {}                                   # momento de 1a ordem REAL (pre-minimo)
     # Para flexao na direcao d, a PROFUNDIDADE da secao (onde varia a deformacao) e a
     # dimensao NAQUELA direcao (hcol) e a LARGURA e a dimensao ortogonal (houtro); o
     # aco vai nas duas faces perpendiculares a excentricidade.
@@ -289,15 +333,25 @@ def dimensiona_pilar(caso):
             "considera_2a": lam > l1, "e2_cm": round(e2 * 100, 2),
             "M2d": round(M2, 2), "Md_tot": round(Mtot, 2),
         }
+        mtot[dirn] = Mtot
+        m1real[dirn] = M1dA
         if Mtot > Md_gov:
             Md_gov = Mtot
             dep_gov, wid_gov = hcol, houtro       # profundidade/largura desta direcao
 
-    # armadura pela direcao critica (maior Md_tot) - secao retangular, aco nas duas
-    # faces perpendiculares a excentricidade (pratica de Bastos p/ pilar retangular).
+    # BIAXIAL (flexao composta obliqua, 17.2.5) quando ha momento de 1a ordem REAL nas
+    # DUAS direcoes (pilar de canto) ou forcado; senao, uniaxial pela direcao critica
+    # (pilar intermediario/extremidade - preserva a pratica de Bastos p/ retangular).
     As_max = 0.08 * Ac
-    As, ok_res = armadura_flexao_composta(Nd, Md_gov, wid_gov, dep_gov, dl,
-                                          fck, fyk, As_max=As_max)
+    biaxial = caso.get("forcar_biaxial", False) or (m1real["x"] > 1e-9 and m1real["y"] > 1e-9)
+    bx = None
+    if biaxial:
+        As, ok_res = armadura_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_max)
+        modo = "biaxial"
+    else:
+        As, ok_res = armadura_flexao_composta(Nd, Md_gov, wid_gov, dep_gov, dl,
+                                              fck, fyk, As_max=As_max)
+        modo = "uniaxial"
     As_min = max(0.15 * Nd / fyd, 0.004 * Ac)
     As_ad = max(As, As_min)
     taxa = As_ad / Ac
@@ -305,7 +359,16 @@ def dimensiona_pilar(caso):
     ok_max = As_ad <= 0.04 * Ac + 1e-12
     OK = ok_res and ok_max and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9
 
+    # verificacao da interacao obliqua com o As ADOTADO (para o relatorio/gate)
+    if biaxial:
+        bx = verifica_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_ad)
+        res["biaxial"] = {"util": round(bx["util"], 3), "alpha": bx["alpha"],
+                          "Mrd_xx": round(bx["Mrd_xx"], 1), "Mrd_yy": round(bx["Mrd_yy"], 1),
+                          "Md_x": round(mtot["x"], 1), "Md_y": round(mtot["y"], 1),
+                          "ok": bx["ok"]}
+
     res.update({
+        "modo": modo,
         "Md_gov": round(Md_gov, 2), "As_calc_cm2": round(As * 1e4, 2),
         "As_min_cm2": round(As_min * 1e4, 2), "As_cm2": round(As_ad * 1e4, 2),
         "taxa_pct": round(taxa * 100, 2), "As_max_cm2": round(0.04 * Ac * 1e4, 2),
@@ -327,7 +390,13 @@ def relatorio_pt(r):
         L.append(f"     M1d,min = {d['M1d_min']:.1f} ; M1d,A = {d['M1d_A']:.1f} ; "
                  f"e2 = {d['e2_cm']:.2f} cm ; M2d = {d['M2d']:.1f} ; "
                  f"Md,tot = {d['Md_tot']:.1f} kN.m")
-    L += [f"  Direcao critica: Md,tot = {r['Md_gov']:.1f} kN.m",
+    if r.get("biaxial"):
+        b = r["biaxial"]
+        L.append(f"  FLEXAO OBLIQUA (17.2.5, alpha={b['alpha']:.1f}): "
+                 f"(Mx/Mrd,xx)^a + (My/Mrd,yy)^a = ({b['Md_x']:.1f}/{b['Mrd_xx']:.1f})^a"
+                 f" + ({b['Md_y']:.1f}/{b['Mrd_yy']:.1f})^a = {b['util']:.3f} "
+                 f"{'<= 1 OK' if b['ok'] else '> 1 REPROVA'} (armadura nos 4 cantos)")
+    L += [f"  Direcao critica: Md,tot = {r['Md_gov']:.1f} kN.m ({r.get('modo','uniaxial')})",
           f"  As (flexo-compressao) = {r['As_calc_cm2']:.2f} cm2 ; "
           f"As,min = {r['As_min_cm2']:.2f} cm2 -> As adotado = {r['As_cm2']:.2f} cm2 "
           f"(taxa {r['taxa_pct']:.2f} %) "
