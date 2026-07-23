@@ -57,6 +57,23 @@ def _matriz(p1, p2):
     return m, L
 
 
+# As coords do modelo_neutro estão em MM, mas o modelo IFC usa unidade MILÍMETRO e os
+# helpers do ifcopenshell (edit_object_placement / add_profile_representation) esperam
+# o INPUT em METROS (SI) e reconvertem p/ a unidade do modelo (x1000). Sem converter, um
+# pilar de 6 m saía com 6.000.000 mm (1000x). _MM_M leva a TRANSLAÇÃO da matriz (e o
+# comprimento de extrusão) de mm p/ m antes de passar a esses helpers.
+_MM_M = 1000.0
+
+
+def _mat_m(mat):
+    """Matriz 4x4 (mm) -> cópia com a TRANSLAÇÃO em metros (rotação intacta), p/ o
+    edit_object_placement do ifcopenshell (que espera SI e reconverte p/ a unidade)."""
+    import numpy as np
+    out = np.array(mat, dtype=float).copy()
+    out[:3, 3] = out[:3, 3] / _MM_M
+    return out
+
+
 _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET"),
               "Covering": ("IfcCovering", "ROOFING"),
@@ -213,7 +230,7 @@ def _tapered_ifc(m, body, sto, mb, esc):
     el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
              name=mb.get("marca") or mb.get("perfil"))
     el.Representation = m.create_entity("IfcProductDefinitionShape", Representations=[shp])
-    run("geometry.edit_object_placement", m, product=el, matrix=mat)
+    run("geometry.edit_object_placement", m, product=el, matrix=_mat_m(mat))
     run("spatial.assign_container", m, relating_structure=sto, products=[el])
     return el
 
@@ -249,20 +266,24 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
         if "secao2" in mb:                            # barra de ALMA VARIÁVEL (tapered)
             _tapered_ifc(m, body, sto, mb, esc)
             continue
-        if mb["tipo"] == "Footing":                   # sapata/bloco: CAIXA num ponto
+        if "dims" in mb and "centro" in mb:           # CAIXA num ponto (fundação/chapa)
             import numpy as np
             B, L, h = mb["dims"]
             cx, cy, cz = mb["centro"]
+            if mb["tipo"] == "Footing":                # sapata/bloco -> IfcFooting
+                cls, pdt = "IfcFooting", "PAD_FOOTING"
+            else:                                      # placa de base etc. -> IfcPlate
+                cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcPlate", "SHEET"))
             prof = m.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
                                    ProfileName=mb["perfil"], XDim=float(B), YDim=float(L))
-            fo = run("root.create_entity", m, ifc_class="IfcFooting",
-                     predefined_type="PAD_FOOTING", name=mb.get("marca") or mb["perfil"])
+            fo = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
+                     name=mb.get("marca") or mb["perfil"])
             rep = run("geometry.add_profile_representation", m, context=body,
-                      profile=prof, depth=float(h))
+                      profile=prof, depth=float(h) / _MM_M)   # depth em METROS (helper SI)
             run("geometry.assign_representation", m, product=fo, representation=rep)
             mat = np.eye(4)
-            mat[:3, 3] = [cx, cy, cz - h / 2.0]        # origem no fundo da caixa
-            run("geometry.edit_object_placement", m, product=fo, matrix=mat)
+            mat[:3, 3] = [cx, cy, cz - h / 2.0]        # origem no fundo da caixa (mm)
+            run("geometry.edit_object_placement", m, product=fo, matrix=_mat_m(mat))
             run("spatial.assign_container", m, relating_structure=sto, products=[fo])
             continue
         s = mb["secao"]
@@ -276,9 +297,9 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
                  name=mb.get("marca") or mb["perfil"])
         mat, L = _matriz(mb["p1"], mb["p2"])
         rep = run("geometry.add_profile_representation", m, context=body,
-                  profile=prof, depth=L)
+                  profile=prof, depth=L / _MM_M)              # depth em METROS (helper SI)
         run("geometry.assign_representation", m, product=el, representation=rep)
-        run("geometry.edit_object_placement", m, product=el, matrix=mat)
+        run("geometry.edit_object_placement", m, product=el, matrix=_mat_m(mat))
         run("spatial.assign_container", m, relating_structure=sto, products=[el])
     m.write(path)
     return path
@@ -332,6 +353,11 @@ def emitir_ifc_do_spec(spec, path):
     sa = est.get("sapata_adotada")
     if sa and all(k in sa for k in ("B", "L", "h")):
         fund_sec = {"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
+    # placa de base (chapa B x L x t por coluna), do base_adotada (m)
+    base_sec = None
+    ba = est.get("base_adotada")
+    if ba and all(k in ba for k in ("B", "L", "t")):
+        base_sec = {"B": ba["B"], "L": ba["L"], "t": ba["t"]}
     # col_d (recuo dos girts/altura no joelho): perfil laminado -> d; tapered -> h_joelho
     col_d = tapered.get("h_joelho") if tapered else col.get("d")
     secoes = None if tapered else {"col": col, "raf": raf}
@@ -340,7 +366,7 @@ def emitir_ifc_do_spec(spec, path):
                                 girt_sec=girt_sec, col_d=col_d,
                                 n_tirante_parede=est.get("n_tirante_parede"),
                                 d_tirante_mm=16.0, contrav=True, d_contrav_mm=20.0,
-                                fund_sec=fund_sec, telha=True,
+                                fund_sec=fund_sec, base_sec=base_sec, telha=True,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

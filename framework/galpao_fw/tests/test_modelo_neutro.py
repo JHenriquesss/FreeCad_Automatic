@@ -245,6 +245,23 @@ _TAP = {"h_joelho": 0.90, "h_cumeeira": 0.40, "bf": 0.25, "tw": 0.008,
         "tf": 0.0125, "h_col_base": 0.45}
 
 
+def test_placas_base_uma_por_coluna():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    pb = MN.placas_base(geo, {"B": 0.6, "L": 0.8, "t": 0.1})
+    # 9 porticos (40/5+1) x 2 colunas (1 vao) = 18
+    assert len(pb) == 18
+    assert all(m["tipo"] == "Plate" and "dims" in m and "centro" in m for m in pb)
+    # topo da placa no grout (Z0=30) -> centro em Z0 - t/2 = 30 - 50 = -20 mm
+    assert abs(pb[0]["centro"][2] - (-20.0)) < 1e-9
+    assert pb[0]["dims"] == (600.0, 800.0, 100.0)
+
+
+def test_frame_completo_com_placas_base():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
+    M = MN.frame_completo(geo, _SEC, base_sec={"B": 0.6, "L": 0.8, "t": 0.1})
+    assert sum(1 for m in M if m.get("tipo") == "Plate") == 18
+
+
 def test_tapered_rafter_funda_no_joelho_rasa_na_cumeeira():
     geo = {"span": 30.0, "comprimento": 40.0, "eave": 7.0, "ridge": 9.0, "bay": 5.0}
     M = MN.frame_primario_tapered(geo, _TAP)

@@ -59,6 +59,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     n_telha_puro = len(MN.telhas(geo))
     n_tap_puro = len(MN.tapamentos(geo, fechamento=spec.get("fechamento"),
                                    aberturas=spec.get("aberturas")))
+    ba = est.get("base_adotada")
+    bsec = ({"B": ba["B"], "L": ba["L"], "t": ba["t"]}
+            if ba and all(k in ba for k in ("B", "L", "t")) else None)
+    n_base_puro = len(MN.placas_base(geo, bsec)) if bsec else 0
 
     # BUILD (FreeCAD): conta TERCA de COBERTURA (S* intermediarias + BEIRAL),
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
@@ -79,8 +83,9 @@ def test_terca_puro_bate_com_o_build(tmp_path):
             "or o.Name.startswith('BLOCO_'))\n"
             "ntel=sum(1 for o in doc.Objects if o.Name.startswith('TELHA_S'))\n"
             "ntap=sum(1 for o in doc.Objects if o.Name.startswith('TAPAMENTO'))\n"
+            "nbase=sum(1 for o in doc.Objects if o.Name.startswith('PLACA_BASE'))\n"
             "open(%r,'w').write(json.dumps({'nt':nt,'ng':ng,'ntir':ntir,'ncv':ncv,"
-            "'nf':nf,'ntel':ntel,'ntap':ntap}))\n"
+            "'nf':nf,'ntel':ntel,'ntap':ntap,'nbase':nbase}))\n"
             % (bk, stf))
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
@@ -114,3 +119,6 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     assert n_tap_puro == d["ntap"], (
         "tapamentos do modelo_neutro (%d) divergem do build (%d) - a logica de "
         "fechamento de parede mudou num lado so" % (n_tap_puro, d["ntap"]))
+    assert n_base_puro == d["nbase"], (
+        "placas de base do modelo_neutro (%d) divergem do build (%d)"
+        % (n_base_puro, d["nbase"]))
