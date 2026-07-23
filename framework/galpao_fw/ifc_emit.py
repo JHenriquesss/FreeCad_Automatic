@@ -77,7 +77,8 @@ def _mat_m(mat):
 _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Member": ("IfcMember", "MEMBER"), "Plate": ("IfcPlate", "SHEET"),
               "Covering": ("IfcCovering", "ROOFING"),
-              "Cladding": ("IfcCovering", "CLADDING")}
+              "Cladding": ("IfcCovering", "CLADDING"),
+              "Fastener": ("IfcMechanicalFastener", "ANCHORBOLT")}
 
 
 def _dot(a, b):
@@ -360,9 +361,13 @@ def emitir_ifc_do_spec(spec, path):
         fund_sec = {"B": sa["B"], "L": sa["L"], "h": sa["h"], "tipo": sa.get("tipo")}
     # placa de base (chapa B x L x t por coluna), do base_adotada (m)
     base_sec = None
+    base_full = None
     ba = est.get("base_adotada")
     if ba and all(k in ba for k in ("B", "L", "t")):
         base_sec = {"B": ba["B"], "L": ba["L"], "t": ba["t"]}
+        if all(k in ba for k in ("db", "n")):         # conectores (chumbador/porca/arruela)
+            base_full = {"B": ba["B"], "L": ba["L"], "t": ba["t"],
+                         "db": ba["db"], "n": ba["n"]}
     # maos-francesas (trava da mesa inferior): mf_stride (calc) + secao do rafter +
     # altura da terca + cantoneira do eng. (mao_francesa b_mm/t_mm). raf tapered = joelho.
     mao_franc = None
@@ -389,7 +394,7 @@ def emitir_ifc_do_spec(spec, path):
                                 nervura_base=bool(base_sec), clipes=True, telha=True,
                                 mao_francesa=mao_franc, esc_sec=esc,
                                 montante_ab=spec.get("aberturas"), tirante_cob=True,
-                                d_tirante_cob_mm=16.0,
+                                d_tirante_cob_mm=16.0, base_full=base_full,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")

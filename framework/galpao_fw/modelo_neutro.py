@@ -288,6 +288,52 @@ def placas_base(geometria, base_sec, z0_mm=30.0):
     return ms
 
 
+def conectores_base(geometria, base_full, z0_mm=30.0):
+    """Conectores da base: por ancoragem, chumbador (barra) + gancho + arruela (chapa)
+    + porca + porca de nível. Espelha CHUMBADOR_/PORCA_/ARRUELA_ do build. base_full
+    {B, L, t, db, n} em m (base_adotada). Tipo 'Fastener' -> IfcMechanicalFastener.
+    Ancoragens: malha (-gx,gx) x (ys), ys = [-gy,0,gy] se n>=6 senão [-gy,gy]."""
+    if not base_full or not all(k in base_full for k in ("B", "L", "t", "db", "n")):
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    Bp, Lp = float(base_full["B"]) * MM, float(base_full["L"]) * MM
+    tp, dbp, npc = float(base_full["t"]) * MM, float(base_full["db"]) * MM, int(base_full["n"])
+    Z0 = float(z0_mm)
+    ptop, pbot = Z0, Z0 - tp
+    edge = 60.0
+    gx, gy = Bp / 2.0 - edge, Lp / 2.0 - edge
+    ys = [-gy, 0.0, gy] if npc >= 6 else [-gy, gy]
+    ancoras = [(dx, dy) for dx in (-gx, gx) for dy in ys]
+    wsz, wt, pod = 2.0 * dbp + 40.0, float(T_ARRUELA), 1.7 * dbp + 8.0
+    cols_y = [0.0]
+    for s in spans:
+        cols_y.append(cols_y[-1] + s)
+    rb = {"nome": "Ø%g" % dbp, "forma": "round", "D": dbp / MM}    # chumbador
+    rp = {"nome": "Ø%gp" % pod, "forma": "round", "D": pod / MM}   # porca
+    ms = []
+    for x in _xs(geometria):
+        for y in cols_y:
+            xm, ym = x * MM, y * MM
+            for (dx, dy) in ancoras:
+                ax, ay = xm + dx, ym + dy
+                ms.append({"marca": "CB1", "perfil": rb["nome"], "tipo": "Fastener",
+                           "p1": (ax, ay, -300.0), "p2": (ax, ay, ptop + 55.0), "secao": rb})
+                ms.append({"marca": "CG1", "perfil": rb["nome"], "tipo": "Fastener",
+                           "p1": (ax, ay, -300.0), "p2": (ax, ay - 60.0, -300.0), "secao": rb})
+                ms.append({"marca": "AR1", "perfil": "Arruela", "tipo": "Fastener",
+                           "centro": (ax, ay, ptop + wt / 2.0),
+                           "dims": (wsz, wsz, wt), "secao": {"forma": "box"}})
+                ms.append({"marca": "PC1", "perfil": rp["nome"], "tipo": "Fastener",
+                           "p1": (ax, ay, ptop + 12.0), "p2": (ax, ay, ptop + 30.0), "secao": rp})
+                ms.append({"marca": "PN1", "perfil": rp["nome"], "tipo": "Fastener",
+                           "p1": (ax, ay, pbot - 28.0), "p2": (ax, ay, pbot), "secao": rp})
+    return ms
+
+
+T_ARRUELA = 12.0                                      # espessura da arruela (mm), = build
+
+
 def nervuras_base(geometria, col_d, base_L, z0_mm=30.0, esp_mm=12.0):
     """Nervuras (enrijecedores) da placa de base: 2 chapas triangulares por base, no
     plano do pórtico (Y-Z, X constante), uma p/ cada lado da coluna (+Y e -Y). Espelha
@@ -659,7 +705,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    fechamento=None, aberturas=None, tapered=None, base_sec=None,
                    nervura_base=False, esp_nervura_mm=12.0, clipes=False,
                    mao_francesa=None, esc_sec=None, montante_ab=None,
-                   tirante_cob=False, d_tirante_cob_mm=16.0):
+                   tirante_cob=False, d_tirante_cob_mm=16.0, base_full=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -702,6 +748,8 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += placas_base(geometria, base_sec)
     if nervura_base and base_sec:
         ms += nervuras_base(geometria, cd, base_sec.get("L"), esp_mm=esp_nervura_mm)
+    if base_full:
+        ms += conectores_base(geometria, base_full)
     if telha:
         ms += telhas(geometria, telha_t)
     if fechamento is not None or aberturas is not None:
