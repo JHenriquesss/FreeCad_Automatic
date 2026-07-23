@@ -83,6 +83,20 @@ def test_armadura_segue_o_fyk(spec):
     assert mat["fyk_MPa"] == 600          # -> "CA-60" na nota 3
 
 
+def test_protecao_corrosao_do_spec_vai_para_os_materiais(spec):
+    # NBR 8800 Anexo N: se o eng. especifica o esquema de pintura, ele chega a nota.
+    s = copy.deepcopy(spec)
+    s["estrutura"]["protecao_corrosao"] = "jateamento Sa 2 1/2 + epoxi 240 um"
+    mat = TD._materiais_de_spec(s)
+    assert mat["protecao_corrosao"] == "jateamento Sa 2 1/2 + epoxi 240 um"
+
+
+def test_sem_protecao_corrosao_omite_valor(spec):
+    # sem o dado, o item fica None (a nota remete ao memorial, nao inventa esquema).
+    mat = TD._materiais_de_spec(spec)
+    assert mat.get("protecao_corrosao") is None
+
+
 def test_sem_fck_a_nota_remete_ao_memorial_em_vez_de_mentir():
     """Sem o dado, omitir e correto; imprimir 25 MPa fixo nao e."""
     mat = TD._materiais_de_spec({"fundacao": {}})

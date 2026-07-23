@@ -169,7 +169,21 @@ def verifica_longarina(sec, fy, cfg):
         r.update(inter=None, OK=False)
         return r
     inter = Msdx / Mrdx + Msdy / Mrdy               # 5.5.1 biaxial (N=0)
-    r.update(inter=inter, u_x=Msdx / Mrdx, u_y=Msdy / Mrdy, OK=inter <= 1.0)
+    r.update(inter=inter, u_x=Msdx / Mrdx, u_y=Msdy / Mrdy)
+    # ELS (Anexo C, Tabela C.1 - travessa de fechamento): a resistencia (ELU) nao
+    # basta; a norma limita o DESLOCAMENTO. Duas linhas da tabela:
+    #   - PERPENDICULAR ao plano (vento no fechamento): delta <= vao/120 (nota c/f);
+    #   - PARALELO ao plano (peso, ENTRE linhas de tirante): delta <= Ly/180 (nota b).
+    # Cargas CARACTERISTICAS (qx/qy, sem gamma). Viga biapoiada (5qL^4/384EI),
+    # conservador; o momento ELU ja usa a continuidade quando informada.
+    dx = 5.0 * qx * vao ** 4 / (384.0 * E * sec["Ix"])       # perp. (vento, eixo forte)
+    dy = 5.0 * qy * Ly ** 4 / (384.0 * E * sec["Iy"])        # paral. (peso, entre tirantes)
+    lim_x, lim_y = vao / 120.0, Ly / 180.0
+    els_ok = dx <= lim_x and dy <= lim_y
+    r.update(flecha_vento_mm=round(dx * 1000, 2), lim_vento_mm=round(lim_x * 1000, 2),
+             flecha_peso_mm=round(dy * 1000, 2), lim_peso_mm=round(lim_y * 1000, 2),
+             els_ok=els_ok)
+    r["OK"] = inter <= 1.0 and els_ok               # ELU E ELS
     return r
 
 
@@ -300,7 +314,15 @@ def relatorio_pt(r):
             L += [f"  Mrd,x ({r['modo_x']}) = {r['Mrdx']:.2f} kN.m",
                   f"  Mrd,y (min(Zy;1,5Wy)*fy) .... {r['Mrdy']:.2f} kN.m",
                   f"  Interacao Mx/Mrdx+My/Mrdy ... {r['u_x']:.2f}+{r['u_y']:.2f}="
-                  f"{r['inter']:.2f} -> {'OK' if r['OK'] else 'NAO PASSA'}"]
+                  f"{r['inter']:.2f} -> {'OK' if r['inter'] <= 1.0 else 'NAO PASSA'}"]
+            if "els_ok" in r:                          # ELS (Tab C.1)
+                L += [f"  ELS flecha vento (perp.) .... {r['flecha_vento_mm']:.1f} mm "
+                      f"<= vao/120={r['lim_vento_mm']:.1f} mm",
+                      f"  ELS flecha peso (paral.) .... {r['flecha_peso_mm']:.1f} mm "
+                      f"<= Ly/180={r['lim_peso_mm']:.1f} mm",
+                      f"  >> ELU {'OK' if r['inter'] <= 1.0 else 'NAO'} + ELS "
+                      f"{'OK' if r['els_ok'] else 'NAO'} -> "
+                      f"{'ATENDE' if r['OK'] else 'NAO ATENDE'}"]
         L += ["  PREMISSA: interacao biaxial valida so se o tapamento (telha",
               "  parafusada) TRAVAR o giro do U (centro de cisalhamento fora da",
               "  secao induz torcao). Flexao no eixo Y traciona as abas (sem FLM)."]
