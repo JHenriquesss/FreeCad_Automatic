@@ -118,6 +118,17 @@ def verifica_viga(cfg):
            "criterio": "alvenaria (L/500;10mm, pos-parede)" if suporta_alv
                        else "visual (L/250, total)", "ok": els_ok}
 
+    # ---- TORCAO (17.5, opcional: so quando ha momento torsor de projeto) ---
+    T_d = cfg.get("T_d", 0.0)
+    torcao = None; tor_ok = True
+    if T_d > 0:
+        import torcao_nbr6118 as tor
+        c1_tor = cob + phi_est                     # eixo da barra de canto ~ cob+estribo
+        torcao = tor.verifica_torcao(T_d, b, h, c1_tor, fck, fyk)
+        torcao["interacao"] = tor.interacao_torcao_cortante(V_d, cr["VRd2"], T_d,
+                                                            torcao["TRd2"])
+        tor_ok = torcao["biela_ok"] and torcao["interacao"]["OK"]
+
     # ---- ELS-W: abertura de fissuras (17.3.3.2) ---------------------------
     # momento de servico ~ combinacao frequente; usa o caracteristico (sem gamma_f),
     # conservador para wk. CAA default II (urbana) - A CONFIRMAR pela obra.
@@ -142,7 +153,7 @@ def verifica_viga(cfg):
     b_ok = b >= B_MIN - 1e-9
 
     OK = (sec_ok and ok_dom and b_ok and cort_ok and sec_ok_neg and ok_dom_neg
-          and els_ok and fissu_ok)
+          and els_ok and fissu_ok and tor_ok)
     return {"vao": L, "b": b, "h": h, "d": round(d, 3), "w": round(w, 3),
             "w_self": round(w_self, 3), "M_d": round(M_d, 2),
             "As_flex_cm2": round(As_flex * 1e4, 2), "As_min_cm2": round(As_min * 1e4, 2),
@@ -158,6 +169,7 @@ def verifica_viga(cfg):
             "arr_inf": arr_inf, "arr_sup": arr_sup, "ancoragem": anc,
             "els": els, "els_ok": els_ok,
             "fissuracao": fissu, "fissu_ok": fissu_ok,
+            "torcao": torcao, "tor_ok": tor_ok,
             "ok_dominio": ok_dom, "sec_ok": sec_ok, "b_ok": b_ok, "cort_ok": cort_ok,
             "OK": OK}
 
@@ -189,6 +201,10 @@ def relatorio_pt(r):
          f"  FISSURA (ELS-W, CAA {r['fissuracao']['CAA']}): wk = {r['fissuracao']['wk_mm']:.3f} mm <= "
          f"{r['fissuracao']['wk_lim_mm']:.1f} mm (sigma_s {r['fissuracao']['sigma_s_MPa']:.0f} MPa) ; "
          f"{'OK' if r['fissu_ok'] else 'REPROVA (reduzir phi / +As)'}",
+         *( [f"  TORCAO (17.5): Td={r['torcao']['Td']:.1f} <= TRd2={r['torcao']['TRd2']:.1f} kN.m ; "
+            f"estribo {r['torcao']['A90_s_cm2_m']:.2f} cm2/m + long {r['torcao']['Asl_cm2']:.2f} cm2 ; "
+            f"V+T {r['torcao']['interacao']['razao']:.2f}<=1 -> "
+            f"{'OK' if r['tor_ok'] else 'REPROVA'}"] if r.get('torcao') else [] ),
          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
          "  [A CONFIRMAR: carga da viga (cobertura/parede) e vao do modelo.]"]
     import re
