@@ -111,5 +111,43 @@ def test_galpao_trrf_pilar_multiface_requer_anexo_E():
     assert "Anexo E" in r["gates"]["fogo"]["nota"]
 
 
+_PERFIL_SPT = [{"tipo": "argila", "N": 5, "dz": 3.0},
+               {"tipo": "argila_arenosa", "N": 12, "dz": 4.0},
+               {"tipo": "areia", "N": 25, "dz": 6.0}]
+
+
+def test_fundacao_default_e_sapata():
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["tipo_fundacao"] == "sapata" and r["gates"]["fundacao"]["tipo"] == "sapata"
+    assert r["sapata"] is not None and r["estaca"] is None
+
+
+def test_fundacao_estaca_wired():
+    # fundacao profunda: reusa estaca_profunda (Aoki-Velloso) sob o pilar do galpao
+    r = gc.rodar(_spec(vao=10.0, tipo_fundacao="estaca", perfil_spt=_PERFIL_SPT,
+                       D_estaca=0.30, L_estaca=10.0))
+    assert r["tipo_fundacao"] == "estaca" and r["estaca"] is not None
+    assert r["gates"]["fundacao"]["OK"]
+    assert r["estaca"]["grupo"]["n"] >= 1
+
+
+def test_estaca_sem_perfil_spt_exige_sondagem():
+    # sem perfil SPT nao inventa solo -> erro explicito (A CONFIRMAR)
+    try:
+        gc.rodar(_spec(vao=10.0, tipo_fundacao="estaca"))
+        assert False, "deveria exigir perfil_spt"
+    except ValueError as e:
+        assert "perfil_spt" in str(e)
+
+
+def test_bim_estaca_omite_footing():
+    # com estaca, o emissor simplificado nao gera caixa de sapata (bloco tem geom propria)
+    r = gc.rodar(_spec(vao=10.0, tipo_fundacao="estaca", perfil_spt=_PERFIL_SPT,
+                       D_estaca=0.30, L_estaca=10.0))
+    membros = gc.membros_bim(r)
+    assert not any(m["tipo"] == "Footing" for m in membros)
+    assert any(m["tipo"] == "Column" for m in membros)
+
+
 def test_selftest_roda():
     gc._selftest()
