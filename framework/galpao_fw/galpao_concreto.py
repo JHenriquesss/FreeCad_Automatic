@@ -29,6 +29,7 @@ import pilar_concreto as pc
 import fundacao_sapata as fs
 import premoldado_nbr9062 as pm
 import fogo_nbr15200 as fogo
+import estabilidade_global_nbr6118 as eg
 
 GF = 1.4
 PSI0_VENTO = 0.6                    # fator de combinacao do vento (NBR 8681 Tab.1)
@@ -135,6 +136,13 @@ def rodar(spec):
     # peso proprio do pilar (soma na reacao de fundacao)
     peso_pilar = GAMMA_CONC * pilar["hx"] * pilar["hy"] * H
 
+    # ------------------------------------- ESTABILIDADE GLOBAL (NBR 6118 15.5)
+    # portico = 2 pilares em balanco; deslocamento no plano do vento (hx). n=1
+    # pavimento -> criterio e o parametro alpha (gamma_z so vale >= 4 andares).
+    estab = eg.verifica_estabilidade_galpao(H=H, Nk=2.0 * (Nk_gq + peso_pilar),
+                                            b_col=pilar["hy"], h_col=pilar["hx"],
+                                            n_col=2, fck=fck, n_andares=1)
+
     # ------------------------------------------- LIGACAO PRE-MOLDADA (NBR 9062)
     # calice/colarinho: liga o pilar engastado a fundacao. hx = // ao momento do
     # vento. Esforcos de projeto da base: N (perm+sobrec), M e V do vento (ELU).
@@ -203,13 +211,15 @@ def rodar(spec):
                      "OK": icamento["OK"]},
         "fogo": {"TRRF": TRRF, "nota": fogo_nota, "viga": fg_viga, "pilar": fg_pilar,
                  "OK": fogo_ok},
+        "estab_global": {"alpha": estab["alpha"], "alpha1": estab["alpha1"],
+                         "nos": estab["nos"], "OK": estab["OK"]},
     }
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                      "s": round(s, 2), "fck_MPa": fck / 1000.0},
             "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
             "pilar": pilar, "sapata": sap, "calice": calice, "icamento": icamento,
-            "fogo": gates["fogo"],
+            "fogo": gates["fogo"], "estab_global": estab,
             "gates": gates, "reprovados": reprovados,
             "ATENDE": len(reprovados) == 0}
 
@@ -277,6 +287,9 @@ def relatorio_pt(r):
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
          f"  FUNDACAO (sapata): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
+         f"  ESTABILIDADE GLOBAL (NBR 6118 15.5): alpha {g['estab_global']['alpha']:.3f} "
+         f"{'<=' if g['estab_global']['nos']=='fixos' else '>'} {g['estab_global']['alpha1']:.2f} "
+         f"-> nos {g['estab_global']['nos']}",
          f"  CALICE (NBR 9062, interface {g['calice']['interface']}): Lemb {g['calice']['Lemb']:.2f} m ; "
          f"As_h {g['calice']['As_h_cm2']:.2f} cm2 ; compressao {g['calice']['sigma_c']:.0f}<={g['calice']['lim_comp']:.0f} "
          f"-> {'ATENDE' if g['calice']['OK'] else 'REPROVA'}",

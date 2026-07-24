@@ -85,6 +85,14 @@ def test_calice_interface_chaves_reduz_embutimento():
     assert r_cha["calice"]["Lemb"] <= r_rug["calice"]["Lemb"]
 
 
+def test_galpao_estabilidade_global_alpha():
+    # galpao leve terreo: parametro alpha <= alpha1=0,3 -> nos fixos (2a ordem global dispensavel)
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["gates"]["estab_global"]["alpha1"] == 0.3   # n=1 andar
+    assert r["gates"]["estab_global"]["nos"] == "fixos"
+    assert r["gates"]["estab_global"]["OK"]
+
+
 def test_galpao_sem_trrf_isento_com_nota():
     r = gc.rodar(_spec(vao=10.0))
     assert r["gates"]["fogo"]["OK"] and r["gates"]["fogo"]["TRRF"] is None
