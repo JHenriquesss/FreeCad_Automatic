@@ -118,6 +118,22 @@ def verifica_viga(cfg):
            "criterio": "alvenaria (L/500;10mm, pos-parede)" if suporta_alv
                        else "visual (L/250, total)", "ok": els_ok}
 
+    # ---- ELS-W: abertura de fissuras (17.3.3.2) ---------------------------
+    # momento de servico ~ combinacao frequente; usa o caracteristico (sem gamma_f),
+    # conservador para wk. CAA default II (urbana) - A CONFIRMAR pela obra.
+    import fissuracao_nbr6118 as fis
+    M_serv = cfg.get("M_serv", cM * w * L ** 2)
+    phi_fis = cfg.get("phi_barra_mm", 16.0)
+    if phi_fis > 0 and As_inf > 0:
+        fissu = fis.verifica_fissuracao({"Ms": M_serv, "b": b, "h": h, "d": d, "As": As_inf,
+                                         "fck": fck, "phi_mm": phi_fis,
+                                         "CAA": cfg.get("CAA", "II")})
+        fissu_ok = fissu["OK"]
+    else:               # aferições com phi=0 (d=h-cob exato): ELS-W nao aplicavel
+        fissu = {"CAA": cfg.get("CAA", "II"), "wk_mm": 0.0, "wk_lim_mm": 0.3,
+                 "sigma_s_MPa": 0.0, "OK": True, "n_a": True}
+        fissu_ok = True
+
     # ---- detalhamento -----------------------------------------------------
     arr_inf = fs.detalha_barras(As_inf, b, cob)
     arr_sup = fs.detalha_barras(As_sup, b, cob)
@@ -126,7 +142,7 @@ def verifica_viga(cfg):
     b_ok = b >= B_MIN - 1e-9
 
     OK = (sec_ok and ok_dom and b_ok and cort_ok and sec_ok_neg and ok_dom_neg
-          and els_ok)
+          and els_ok and fissu_ok)
     return {"vao": L, "b": b, "h": h, "d": round(d, 3), "w": round(w, 3),
             "w_self": round(w_self, 3), "M_d": round(M_d, 2),
             "As_flex_cm2": round(As_flex * 1e4, 2), "As_min_cm2": round(As_min * 1e4, 2),
@@ -141,6 +157,7 @@ def verifica_viga(cfg):
             "phi_estribo_mm": cfg.get("phi_estribo_mm", 5.0),
             "arr_inf": arr_inf, "arr_sup": arr_sup, "ancoragem": anc,
             "els": els, "els_ok": els_ok,
+            "fissuracao": fissu, "fissu_ok": fissu_ok,
             "ok_dominio": ok_dom, "sec_ok": sec_ok, "b_ok": b_ok, "cort_ok": cort_ok,
             "OK": OK}
 
@@ -169,6 +186,9 @@ def relatorio_pt(r):
          f"  FLECHA (ELS, {r['els']['criterio']}): {r['els']['d_comparado_mm']:.1f} mm <= "
          f"{r['els']['lim_mm']:.1f} mm ; {'OK' if r['els']['ok'] else 'REPROVA (aumentar h)'}"
          + (' ; secao fissurada' if r['els']['fissura'] else ''),
+         f"  FISSURA (ELS-W, CAA {r['fissuracao']['CAA']}): wk = {r['fissuracao']['wk_mm']:.3f} mm <= "
+         f"{r['fissuracao']['wk_lim_mm']:.1f} mm (sigma_s {r['fissuracao']['sigma_s_MPa']:.0f} MPa) ; "
+         f"{'OK' if r['fissu_ok'] else 'REPROVA (reduzir phi / +As)'}",
          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
          "  [A CONFIRMAR: carga da viga (cobertura/parede) e vao do modelo.]"]
     import re
