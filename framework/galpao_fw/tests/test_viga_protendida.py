@@ -70,5 +70,33 @@ def test_pouca_protensao_reprova_elu_ou_servico():
     assert not r["OK"]
 
 
+def test_cortante_protendida_biela_e_majoracao():
+    r = vp.verifica_viga_protendida({"vao": 14.0, "b": 0.20, "h": 0.60, "fck": 40e3,
+                                     "q": 4.0, "n_cordoalhas": 6})
+    c = r["cortante"]
+    # VRd2 = 0,27 (1-fck/250) fcd bw d
+    fcd = 40e3 / 1.4; av2 = 1 - 40.0 / 250.0; d = 0.60 - 0.05
+    assert abs(c["VRd2"] - 0.27 * av2 * fcd * 0.20 * d) < 1.0
+    # protensao majora Vc: Vc0 < Vc <= 2 Vc0
+    assert c["Vc0"] < c["Vc"] <= 2.0 * c["Vc0"] + 1e-6
+    assert c["biela_ok"]
+
+
+def test_cortante_estribo_minimo_170():
+    # armadura minima de cisalhamento: rho_sw,min = 0,2 fctm/fywk (17.4.1.1.1)
+    r = vp.verifica_viga_protendida({"vao": 12.0, "b": 0.20, "h": 0.50, "fck": 40e3,
+                                     "q": 2.0, "n_cordoalhas": 4})
+    c = r["cortante"]
+    assert c["Asw_s_cm2_m"] >= c["Asw_s_min_cm2_m"]
+    assert c["Asw_s_min_cm2_m"] > 0
+
+
+def test_cortante_alma_fina_reprova_biela():
+    # alma muito fina + carga alta -> estoura a biela comprimida (nao mascara)
+    c = vp.verifica_cortante_protendida(Pinf=600, ep=0.20, b=0.10, h=0.50, dp=0.45,
+                                        fck=30e3, Msd_max=200.0, Vsd=900.0)
+    assert not c["biela_ok"] and not c["ok"]
+
+
 def test_selftest_roda():
     vp._selftest()
