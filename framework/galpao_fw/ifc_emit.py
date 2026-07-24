@@ -281,6 +281,29 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
         m.create_entity("IfcRelAssociatesMaterial", GlobalId=_guid(),
                         RelatedObjects=[el], RelatingMaterial=mat)
 
+    def _assoc_armadura(el, mb):
+        """Anexa um Pset_Armadura ao elemento com o quantitativo de ferragem
+        (As, nº de barras, phi, estribos...) quando o membro declara 'armadura'.
+        Backward-compatible: sem a chave, nao faz nada (BIM de aco intacto). Assim o
+        modelo IFC carrega a armadura calculada (Revit/visualizadores leem o Pset)."""
+        arm = mb.get("armadura")
+        if not arm:
+            return
+        props = []
+        for k, v in arm.items():
+            if isinstance(v, str):
+                nv = m.create_entity("IfcLabel", v)
+            elif isinstance(v, bool):
+                nv = m.create_entity("IfcBoolean", v)
+            else:
+                nv = m.create_entity("IfcReal", float(v))
+            props.append(m.create_entity("IfcPropertySingleValue", Name=str(k),
+                                         NominalValue=nv))
+        pset = m.create_entity("IfcPropertySet", GlobalId=_guid(), Name="Pset_Armadura",
+                               HasProperties=props)
+        m.create_entity("IfcRelDefinesByProperties", GlobalId=_guid(),
+                        RelatedObjects=[el], RelatingPropertyDefinition=pset)
+
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
             _painel_ifc(m, body, sto, mb, _guid)
@@ -308,6 +331,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
             run("geometry.edit_object_placement", m, product=fo, matrix=_mat_m(mat))
             run("spatial.assign_container", m, relating_structure=sto, products=[fo])
             _assoc_mat(fo, mb)
+            _assoc_armadura(fo, mb)
             continue
         s = mb["secao"]
         key = mb["perfil"]
@@ -325,6 +349,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
         run("geometry.edit_object_placement", m, product=el, matrix=_mat_m(mat))
         run("spatial.assign_container", m, relating_structure=sto, products=[el])
         _assoc_mat(el, mb)
+        _assoc_armadura(el, mb)
     m.write(path)
     return path
 
