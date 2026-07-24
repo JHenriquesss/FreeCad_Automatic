@@ -159,6 +159,88 @@ def _svg_sapata(cx, cy, B, L, hf, esc, r):
     return "\n".join(s)
 
 
+def planta_formas_svg(r):
+    """Planta de FORMAS (vista de topo) do galpao de concreto em SVG puro-Python:
+    malha de pilares (2 por portico), sapatas sob cada pilar, vigas de cobertura
+    como linhas entre os topos, eixos numerados (porticos 1..n) e letreados (A/B
+    das duas linhas de pilar) e cotas (vao, comprimento, espacamento). Convencao
+    do papel: X = vao (horizontal), Y = comprimento (vertical)."""
+    sp = r["spec"]
+    vao = sp["vao"]; comp = sp["comprimento"]; n = sp["n_porticos"]; s = sp["s"]
+    hy = r["pilar"]["hy"]; hx = r["pilar"]["hx"]           # secao do pilar (m)
+    sap = (r.get("sapata") or {}).get("aprovado") if r.get("sapata") else None
+    B = sap[0] if sap else None; Ls = sap[1] if sap else None
+
+    margem = 108.0
+    escala = min(560.0 / max(vao, 1e-6), 640.0 / max(comp, 1e-6))   # px por metro
+    W = max(vao * escala + 2 * margem, 560.0)          # min p/ o titulo nao estourar
+    H = comp * escala + 2 * margem
+
+    def X(x_m):   # x_m em [-vao/2, vao/2] -> px
+        return margem + (x_m + vao / 2.0) * escala
+
+    def Y(y_m):   # y_m em [0, comp] -> px (topo = portico 1)
+        return margem + y_m * escala
+
+    s_svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.0f}" height="{H:.0f}" '
+             f'viewBox="0 0 {W:.0f} {H:.0f}" font-family="sans-serif">',
+             f'<rect x="0" y="0" width="{W:.0f}" height="{H:.0f}" fill="white"/>',
+             f'<text x="{margem}" y="{margem-64:.0f}" font-size="14" font-weight="bold">'
+             f'PLANTA DE FORMAS - GALPAO DE CONCRETO</text>',
+             f'<text x="{margem}" y="{margem-48:.0f}" font-size="11" fill="#444">'
+             f'vao {vao:.1f} x comp {comp:.1f} m ; {n} porticos @ {s:.2f} m ; '
+             f'pilar {hy*100:.0f}x{hx*100:.0f} cm</text>']
+    # contorno do galpao
+    s_svg.append(f'<rect x="{X(-vao/2):.1f}" y="{Y(0):.1f}" width="{vao*escala:.1f}" '
+                 f'height="{comp*escala:.1f}" fill="none" stroke="#bbb" stroke-dasharray="4 3"/>')
+    x_lados = [(-vao / 2.0, "A"), (vao / 2.0, "B")]
+    # eixos + letras das linhas de pilar
+    for xm, letra in x_lados:
+        s_svg.append(f'<line x1="{X(xm):.1f}" y1="{Y(0)-20:.1f}" x2="{X(xm):.1f}" '
+                     f'y2="{Y(comp)+10:.1f}" stroke="#e0e0e0"/>')
+        s_svg.append(f'<circle cx="{X(xm):.1f}" cy="{Y(0)-30:.1f}" r="11" fill="white" '
+                     f'stroke="#333"/><text x="{X(xm):.1f}" y="{Y(0)-26:.1f}" '
+                     f'font-size="12" text-anchor="middle">{letra}</text>')
+    # sapatas (por baixo), pilares (por cima), vigas (linhas), eixos numerados
+    for j in range(n):
+        ym = j * s
+        # eixo numerado do portico (numero a esquerda)
+        s_svg.append(f'<text x="{X(-vao/2)-30:.1f}" y="{Y(ym)+4:.1f}" font-size="12" '
+                     f'text-anchor="middle">{j+1}</text>')
+        # viga de cobertura ligando os dois pilares
+        s_svg.append(f'<line x1="{X(-vao/2):.1f}" y1="{Y(ym):.1f}" x2="{X(vao/2):.1f}" '
+                     f'y2="{Y(ym):.1f}" stroke="#888" stroke-width="1.5"/>')
+        for xm, _ in x_lados:
+            if B and Ls:                                   # sapata
+                s_svg.append(f'<rect x="{X(xm)-B/2*escala:.1f}" y="{Y(ym)-Ls/2*escala:.1f}" '
+                             f'width="{B*escala:.1f}" height="{Ls*escala:.1f}" fill="#f0f0f0" '
+                             f'stroke="#999"/>')
+            # pilar (hy no eixo X do papel, hx no eixo Y)
+            s_svg.append(f'<rect x="{X(xm)-hy/2*escala:.1f}" y="{Y(ym)-hx/2*escala:.1f}" '
+                         f'width="{hy*escala:.1f}" height="{hx*escala:.1f}" fill="#555" '
+                         f'stroke="black"/>')
+    # cota do vao (embaixo) e do comprimento (esquerda)
+    yb = Y(comp) + 35
+    s_svg.append(f'<line x1="{X(-vao/2):.1f}" y1="{yb:.1f}" x2="{X(vao/2):.1f}" y2="{yb:.1f}" '
+                 f'stroke="#333"/><text x="{X(0):.1f}" y="{yb-5:.1f}" font-size="12" '
+                 f'text-anchor="middle">{vao:.2f} m</text>')
+    xl = X(-vao / 2) - 48
+    s_svg.append(f'<line x1="{xl:.1f}" y1="{Y(0):.1f}" x2="{xl:.1f}" y2="{Y(comp):.1f}" '
+                 f'stroke="#333"/><text x="{xl-6:.1f}" y="{Y(comp/2):.1f}" font-size="12" '
+                 f'text-anchor="middle" transform="rotate(-90 {xl-6:.1f} {Y(comp/2):.1f})">'
+                 f'{comp:.2f} m</text>')
+    s_svg.append('</svg>')
+    return "\n".join(x for x in s_svg if x)
+
+
+def gerar_planta_formas(r, path):
+    """Escreve a planta de formas (SVG) em `path`. Retorna o path."""
+    svg = planta_formas_svg(r)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(svg)
+    return path
+
+
 def gerar_prancha(r, path):
     """Escreve a prancha de armacao (SVG) em `path`. Retorna o path."""
     svg = prancha_armacao_svg(r)

@@ -57,5 +57,37 @@ def test_gera_arquivo_svg(tmp_path):
     md.parse(p)                                     # abre e valida como XML
 
 
+def test_planta_formas_bem_formada_e_completa():
+    r = _r()
+    svg = dc.planta_formas_svg(r)
+    dom = md.parseString(svg)
+    assert dom.documentElement.tagName == "svg"
+    assert "PLANTA DE FORMAS" in svg
+    # 2 pilares por portico -> 14 pilares (rects escuros) + 14 sapatas + contorno
+    n_port = r["spec"]["n_porticos"]
+    assert svg.count("<rect") >= 2 * n_port          # ao menos 1 rect por pilar
+    # 1 viga (linha) por portico
+    assert svg.count('stroke="#888"') >= n_port
+
+
+def test_planta_cabe_no_canvas():
+    svg = dc.planta_formas_svg(_r())
+    W = int(re.search(r'width="(\d+)"', svg).group(1))
+    H = int(re.search(r'height="(\d+)"', svg).group(1))
+    xs = [float(v) for v in re.findall(r'[ (]x="([-\d.]+)"', svg)]
+    xs += [float(v) for v in re.findall(r'cx="([-\d.]+)"', svg)]
+    ys = [float(v) for v in re.findall(r'[ (]y="([-\d.]+)"', svg)]
+    ys += [float(v) for v in re.findall(r'cy="([-\d.]+)"', svg)]
+    assert min(xs) >= -1 and max(xs) <= W + 5
+    assert min(ys) >= -1 and max(ys) <= H + 5
+
+
+def test_gera_planta_formas_arquivo(tmp_path):
+    p = str(tmp_path / "planta.svg")
+    dc.gerar_planta_formas(_r(), p)
+    assert os.path.getsize(p) > 500
+    md.parse(p)
+
+
 def test_selftest_roda():
     dc._selftest()
