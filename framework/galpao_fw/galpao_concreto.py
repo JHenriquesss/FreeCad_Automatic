@@ -27,6 +27,7 @@ import viga_concreto as vc
 import viga_protendida as vp
 import pilar_concreto as pc
 import fundacao_sapata as fs
+import estaca_profunda as estp
 import premoldado_nbr9062 as pm
 import fogo_nbr15200 as fogo
 import estabilidade_global_nbr6118 as eg
@@ -159,14 +160,37 @@ def rodar(spec):
 
     # ------------------------------------------------------------ FUNDACAO
     # reacao de base de projeto: N (permanente+sobrecarga+p.proprio) e M/V do vento.
+    # tipo_fundacao: 'sapata' (default, solo competente raso) ou 'estaca' (fundacao
+    # profunda; exige perfil SPT da sondagem - A CONFIRMAR).
     N_base = Nk_gq + peso_pilar
-    caso_sap = {"nome": "Pilar galpao concreto", "N": N_base, "V": V_w_k, "M": M_w_k,
-                "sigma_solo_adm": spec.get("sigma_solo_adm", 200.0),
-                "mu": spec.get("mu_solo", 0.5), "coesao": 0.0, "h_reaterro": 0.5,
-                "d_ped": pilar["hx"], "b_ped": pilar["hy"], "h_ped": 0.6,
-                "fck": min(fck, 25e3), "fyk": fyk, "cobrimento": 0.04}
-    sap = fs.dimensiona_sapata(caso_sap)
-    sap_ok = sap["aprovado"] is not None
+    tipo_fund = spec.get("tipo_fundacao", "sapata")
+    sap = None; estaca = None
+    if tipo_fund == "estaca":
+        if not spec.get("perfil_spt"):
+            raise ValueError("tipo_fundacao='estaca' exige 'perfil_spt' (sondagem SPT) "
+                             "- A CONFIRMAR, nao inventado")
+        D_e = spec.get("D_estaca", 0.30); L_e = spec.get("L_estaca", 8.0)
+        estaca = estp.verifica_estaca({
+            "perfil": spec["perfil_spt"], "D": D_e, "L": L_e,
+            "tipo_estaca": spec.get("tipo_estaca", "pre_moldada"),
+            "N_pilar": N_base, "Mx": M_w_k,
+            "bloco": {"a_pilar": pilar["hx"], "fck": min(fck, 25e3), "fyk": fyk,
+                      "cobrimento": 0.05}})
+        fund_ok = (estaca["grupo"]["util"] <= 1.0
+                   and estaca.get("grupo_momento", {}).get("OK", True))
+        fund_geom = (f"{estaca['grupo']['n']} estacas D{D_e*100:.0f} L{L_e:.0f} "
+                     f"(util {estaca['grupo']['util']:.2f})")
+    else:
+        caso_sap = {"nome": "Pilar galpao concreto", "N": N_base, "V": V_w_k, "M": M_w_k,
+                    "sigma_solo_adm": spec.get("sigma_solo_adm", 200.0),
+                    "mu": spec.get("mu_solo", 0.5), "coesao": 0.0, "h_reaterro": 0.5,
+                    "d_ped": pilar["hx"], "b_ped": pilar["hy"], "h_ped": 0.6,
+                    "fck": min(fck, 25e3), "fyk": fyk, "cobrimento": 0.04}
+        sap = fs.dimensiona_sapata(caso_sap)
+        fund_ok = sap["aprovado"] is not None
+        fund_geom = (f"{sap['aprovado'][0]:.1f}x{sap['aprovado'][1]:.1f}x"
+                     f"{sap['aprovado'][2]:.2f}" if fund_ok else "REPROVA")
+    sap_ok = fund_ok
 
     # ------------------------------------------ INCENDIO (NBR 15200, tabular)
     # TRRF vem da NBR 14432/legislacao (A CONFIRMAR). Galpao terreo de pequena
@@ -199,9 +223,7 @@ def rodar(spec):
         "pilar": {"secao": f"{pilar['hy']*100:.0f}x{pilar['hx']*100:.0f}",
                   "Nd": pilar["Nd"], "Md_gov": pilar["Md_gov"], "As_cm2": pilar["As_cm2"],
                   "taxa_pct": pilar["taxa_pct"], "OK": pilar["OK"]},
-        "fundacao": {"OK": sap_ok,
-                     "geom": (f"{sap['aprovado'][0]:.1f}x{sap['aprovado'][1]:.1f}x"
-                              f"{sap['aprovado'][2]:.2f}" if sap_ok else "REPROVA")},
+        "fundacao": {"OK": fund_ok, "tipo": tipo_fund, "geom": fund_geom},
         "calice": {"interface": calice["interface"], "Lemb": calice["Lemb"],
                    "Hsfd": calice.get("Hsfd"), "As_h_cm2": calice["As_horizontal_cm2"],
                    "sigma_c": calice["sigma_c_kN_m2"], "lim_comp": calice["lim_comp"],
@@ -218,7 +240,8 @@ def rodar(spec):
     return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                      "s": round(s, 2), "fck_MPa": fck / 1000.0},
             "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
-            "pilar": pilar, "sapata": sap, "calice": calice, "icamento": icamento,
+            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
+            "calice": calice, "icamento": icamento,
             "fogo": gates["fogo"], "estab_global": estab,
             "gates": gates, "reprovados": reprovados,
             "ATENDE": len(reprovados) == 0}
@@ -242,7 +265,9 @@ def membros_bim(r):
     sec_pil = {"forma": "RECT", "bf": hy, "d": hx}
     sec_vig = {"forma": "RECT", "bf": vb, "d": vh}
     membros = []
-    sap = r["sapata"]["aprovado"]
+    # so a sapata vira caixa no BIM; estaca/bloco tem geometria propria (fora deste
+    # emissor simplificado) -> quando a fundacao e profunda, omite o footing.
+    sap = r["sapata"]["aprovado"] if r.get("sapata") else None
     B = L = hf = None
     if sap:
         B, L, hf = sap[0], sap[1], sap[2]
@@ -286,7 +311,7 @@ def relatorio_pt(r):
          f"  PILAR (balanco): secao {g['pilar']['secao']} cm ; Nd {g['pilar']['Nd']:.0f} kN ; "
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
-         f"  FUNDACAO (sapata): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
+         f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
          f"  ESTABILIDADE GLOBAL (NBR 6118 15.5): alpha {g['estab_global']['alpha']:.3f} "
          f"{'<=' if g['estab_global']['nos']=='fixos' else '>'} {g['estab_global']['alpha1']:.2f} "
          f"-> nos {g['estab_global']['nos']}",
