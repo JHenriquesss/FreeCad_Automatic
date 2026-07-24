@@ -24,6 +24,7 @@ import math
 
 import vento_nbr6123 as vento
 import viga_concreto as vc
+import viga_protendida as vp
 import pilar_concreto as pc
 import fundacao_sapata as fs
 
@@ -96,6 +97,8 @@ def rodar(spec):
     V_w_k = w_h * H                                # cortante de base caracteristica
 
     # ---------------------------------------------------- VIGA DE COBERTURA
+    # Tenta CONCRETO ARMADO; se o vao nao vence (> ~12 m), roteia p/ PROTENDIDA
+    # (pre-tracao) em vez de so reprovar. tipo_viga registra a solucao adotada.
     w_beam = (G_roof + Q_roof) * s                 # kN/m (biapoiada, vao=vao)
     viga = None
     for (bb, hh) in _SECOES_VIGA:
@@ -103,6 +106,19 @@ def rodar(spec):
                                  "q": w_beam})
         if viga["OK"]:
             break
+    tipo_viga = "concreto armado"
+    viga_prot = None
+    if not viga["OK"]:
+        viga_prot = vp.dimensiona_viga_protendida(
+            {"vao": vao, "fck": max(fck, 40e3), "q": w_beam})
+        if viga_prot and viga_prot["OK"]:
+            tipo_viga = "protendida"
+            # adapta ao pipeline downstream (b/h + guards; ferragem = cordoalhas)
+            viga = {"b": viga_prot["b"], "h": viga_prot["h"], "OK": True,
+                    "arr_inf": None, "arr_sup": None, "As_inf_cm2": 0.0,
+                    "s_estribo_max": 0.20, "phi_estribo_mm": 5.0, "protendida": True,
+                    "n_cordoalhas": viga_prot["n_cordoalhas"],
+                    "phi_cord": viga_prot["phi_cord"]}
 
     # ------------------------------------------------------------- PILARES
     # reacao vertical em cada pilar = meia reacao da viga + peso da viga + parede
@@ -133,7 +149,8 @@ def rodar(spec):
         "vento": {"q_kN_m2": q, "w_h": round(w_h, 2), "M_base_k": round(M_w_k, 1),
                   "V_base_k": round(V_w_k, 1), "OK": True},
         "viga_cobertura": {"secao": f"{viga['b']*100:.0f}x{viga['h']*100:.0f}",
-                           "As_cm2": viga["As_inf_cm2"], "OK": viga["OK"]},
+                           "As_cm2": viga.get("As_inf_cm2", 0.0), "tipo": tipo_viga,
+                           "OK": viga["OK"]},
         "pilar": {"secao": f"{pilar['hy']*100:.0f}x{pilar['hx']*100:.0f}",
                   "Nd": pilar["Nd"], "Md_gov": pilar["Md_gov"], "As_cm2": pilar["As_cm2"],
                   "taxa_pct": pilar["taxa_pct"], "OK": pilar["OK"]},
@@ -144,7 +161,8 @@ def rodar(spec):
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                      "s": round(s, 2), "fck_MPa": fck / 1000.0},
-            "vento": v, "viga": viga, "pilar": pilar, "sapata": sap,
+            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
+            "pilar": pilar, "sapata": sap,
             "gates": gates, "reprovados": reprovados,
             "ATENDE": len(reprovados) == 0}
 
@@ -203,8 +221,11 @@ def relatorio_pt(r):
          f"pe-direito {sp['H']:.1f} m ; {sp['n_porticos']} porticos (s={sp['s']:.2f} m) ; C{sp['fck_MPa']:.0f}",
          f"  VENTO: q = {g['vento']['q_kN_m2']:.3f} kN/m2 ; w_h = {g['vento']['w_h']:.2f} kN/m ; "
          f"M_base = {g['vento']['M_base_k']:.1f} kN.m ; V_base = {g['vento']['V_base_k']:.1f} kN",
-         f"  VIGA DE COBERTURA: secao {g['viga_cobertura']['secao']} cm ; "
-         f"As {g['viga_cobertura']['As_cm2']:.2f} cm2 -> {'ATENDE' if g['viga_cobertura']['OK'] else 'REPROVA'}",
+         f"  VIGA DE COBERTURA ({g['viga_cobertura']['tipo']}): secao "
+         f"{g['viga_cobertura']['secao']} cm"
+         + (f" ; {r['viga_prot']['n_cordoalhas']} cordoalhas Ø{r['viga_prot']['phi_cord']}"
+            if r.get("viga_prot") else f" ; As {g['viga_cobertura']['As_cm2']:.2f} cm2")
+         + f" -> {'ATENDE' if g['viga_cobertura']['OK'] else 'REPROVA'}",
          f"  PILAR (balanco): secao {g['pilar']['secao']} cm ; Nd {g['pilar']['Nd']:.0f} kN ; "
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
@@ -229,11 +250,11 @@ def _selftest():
     assert r["pilar"]["OK"], ("pilar", r["pilar"]["As_cm2"], r["pilar"]["taxa_pct"])
     assert r["gates"]["pilar"]["secao"], r["gates"]["pilar"]
     assert r["ATENDE"], r["reprovados"]
-    # vao grande (15 m): a viga de cobertura RC NAO fecha -> o gate REPROVA (honesto)
+    # vao grande (15 m): o RC nao vence -> roteia p/ viga PROTENDIDA e ATENDE
     r15 = rodar({"vao": 15.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                  "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
                  "fck": 30e3, "sigma_solo_adm": 250.0})
-    assert not r15["viga"]["OK"] and not r15["ATENDE"], "15 m RC deveria reprovar a viga"
+    assert r15["tipo_viga"] == "protendida" and r15["ATENDE"], "15 m deveria ir p/ protensao"
     print("galpao_concreto self-test PASSED:", relatorio_pt(r).splitlines()[-3].strip())
 
 

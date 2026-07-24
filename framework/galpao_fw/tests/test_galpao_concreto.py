@@ -42,11 +42,17 @@ def test_pilar_e_balanco_le_2H():
     assert abs(r["pilar"]["dir"]["x"]["le"] - 2 * r["spec"]["H"]) < 1e-9
 
 
-def test_vao_grande_reprova_viga_rc():
-    # 15 m biapoiado em concreto armado nao fecha -> gate da viga REPROVA (honesto)
+def test_vao_grande_roteia_para_protensao():
+    # 15 m: o concreto armado nao vence -> o sistema roteia p/ viga PROTENDIDA e ATENDE
     r = gc.rodar(_spec(vao=15.0))
-    assert not r["gates"]["viga_cobertura"]["OK"]
-    assert not r["ATENDE"] and "viga_cobertura" in r["reprovados"]
+    assert r["tipo_viga"] == "protendida"
+    assert r["viga_prot"] is not None and r["viga_prot"]["OK"]
+    assert r["gates"]["viga_cobertura"]["OK"] and r["ATENDE"]
+
+
+def test_vao_pequeno_fica_em_concreto_armado():
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["tipo_viga"] == "concreto armado" and r["viga_prot"] is None
 
 
 def test_solo_fraco_reprova_fundacao_ou_cresce():
