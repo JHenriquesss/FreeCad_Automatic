@@ -125,17 +125,30 @@ def verifica_viga_protendida(cfg):
     Ap = ncord * AP_CORDOALHA[phi]
     dp = h - cob                                   # cordoalha junto a face tracionada
     ep = dp - h / 2.0                              # excentricidade abaixo do CG
-    perdas = cfg.get("perdas", 0.20)               # 9.6.3.4.3 (estimativa) A CONFIRMAR
     fckj = cfg.get("fckj", fck)
-
     sigma_pi = SIGMA_PI_MAX                        # estiramento no limite (9.6.1.2.1)
-    P0 = Ap * sigma_pi * (1.0 - 0.5 * perdas)      # no ato: metade das perdas ja ocorreu
-    Pinf = Ap * sigma_pi * (1.0 - perdas)          # em servico (perdas totais)
 
     # cargas: peso proprio + sobrecarga/permanente adicional
     g = 25.0 * b * h                               # p.proprio (kN/m)
     Mg = g * L ** 2 / 8.0
     Mq = cfg.get("q", 0.0) * L ** 2 / 8.0
+
+    # PERDAS (9.6.3): calculadas por procedencia (encurtamento elastico + processo
+    # aproximado 9.6.3.4.3 RB). Se cfg["perdas"] for dado explicito, usa a estimativa.
+    perdas_in = cfg.get("perdas")
+    if perdas_in is None:
+        import perdas_protensao_nbr6118 as pp
+        pr = pp.perdas_pretracao(sigma_pi, Ap, ep, Mg, b, h, fckj,
+                                 cfg.get("phi_fluencia", pp.PHI_FLUENCIA_PADRAO))
+        perdas = pr["perda_total_frac"]
+        sigma_p0 = sigma_pi * (1.0 - pr["perda_imediata_pct"] / 100.0)  # apos perda imediata
+        perdas_info = pr
+    else:
+        perdas = perdas_in
+        sigma_p0 = sigma_pi * (1.0 - 0.5 * perdas)   # aprox.: metade das perdas no ato
+        perdas_info = {"perda_total_frac": perdas, "estimativa": True}
+    P0 = Ap * sigma_p0                              # no ato (apos perda imediata)
+    Pinf = Ap * sigma_pi * (1.0 - perdas)          # em servico (perdas totais)
 
     ato = verifica_ato(P0, ep, Mg, b, h, fckj)
     serv = verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, cfg.get("nivel", 2))
@@ -145,7 +158,8 @@ def verifica_viga_protendida(cfg):
             "Ap_cm2": round(Ap * 1e4, 2), "ep_cm": round(ep * 100, 1),
             "P0": round(P0, 1), "Pinf": round(Pinf, 1), "sigma_pi_MPa": round(sigma_pi / 1000, 0),
             "Mg": round(Mg, 1), "Mq": round(Mq, 1), "g": round(g, 2),
-            "ato": ato, "servico": serv, "elu": elu, "perdas": perdas, "OK": OK}
+            "ato": ato, "servico": serv, "elu": elu, "perdas": perdas,
+            "perdas_info": perdas_info, "OK": OK}
 
 
 def dimensiona_viga_protendida(cfg, secoes=None, max_cord=24):
@@ -169,7 +183,10 @@ def relatorio_pt(r):
          f"{r['n_cordoalhas']} cordoalhas Ø{r['phi_cord']} (Ap={r['Ap_cm2']:.2f} cm2, "
          f"ep={r['ep_cm']:.1f} cm)",
          f"  Protensao: sigma_pi={r['sigma_pi_MPa']:.0f} MPa ; P0={r['P0']:.0f} kN ; "
-         f"Pinf={r['Pinf']:.0f} kN (perdas {r['perdas']*100:.0f}%)",
+         f"Pinf={r['Pinf']:.0f} kN (perdas {r['perdas']*100:.0f}%"
+         + (f": imediata {r['perdas_info']['perda_imediata_pct']:.1f}% + "
+            f"progressiva {r['perdas_info']['prog_pct']:.1f}%, phi={r['perdas_info']['phi']:.1f}"
+            if not r['perdas_info'].get('estimativa') else " estimativa") + ")",
          f"  ATO (17.2.4.3.2): topo {a['s_topo']/1000:.2f} , base {a['s_base']/1000:.2f} MPa ; "
          f"comp<={-a['lim_comp']/1000:.1f} {'OK' if a['comp_ok'] else 'REPROVA'} ; "
          f"trac<={a['lim_trac']/1000:.2f} {'OK' if a['trac_ok'] else 'REPROVA'}",
