@@ -28,6 +28,7 @@ import viga_protendida as vp
 import pilar_concreto as pc
 import fundacao_sapata as fs
 import premoldado_nbr9062 as pm
+import fogo_nbr15200 as fogo
 
 GF = 1.4
 PSI0_VENTO = 0.6                    # fator de combinacao do vento (NBR 8681 Tab.1)
@@ -159,6 +160,27 @@ def rodar(spec):
     sap = fs.dimensiona_sapata(caso_sap)
     sap_ok = sap["aprovado"] is not None
 
+    # ------------------------------------------ INCENDIO (NBR 15200, tabular)
+    # TRRF vem da NBR 14432/legislacao (A CONFIRMAR). Galpao terreo de pequena
+    # area/carga de incendio pode ser ISENTO -> sem TRRF, o gate passa com nota.
+    TRRF = spec.get("TRRF")
+    cob_mm = spec.get("cobrimento_mm", 30.0)
+    if TRRF:
+        c1_viga = fogo.c1_efetivo(cob_mm, 5.0, 16.0)
+        fg_viga = fogo.verifica_viga_fogo(viga["b"] * 1000.0, c1_viga, TRRF,
+                                          protendida=(tipo_viga == "protendida"))
+        c1_pil = fogo.c1_efetivo(cob_mm, 5.0, 20.0)
+        fg_pilar = fogo.verifica_pilar_fogo(pilar["hy"] * 1000.0, c1_pil, TRRF,
+                                            faces_expostas=spec.get("faces_fogo_pilar", 4))
+        pilar_fogo_ok = bool(fg_pilar.get("OK")) if fg_pilar.get("OK") is not None else False
+        fogo_ok = bool(fg_viga["OK"]) and pilar_fogo_ok
+        fogo_nota = ("pilar requer Anexo E (multi-face)" if fg_pilar.get("requer_anexo_E")
+                     else "")
+    else:
+        fg_viga = fg_pilar = None
+        fogo_ok = True
+        fogo_nota = "sem TRRF: galpao terreo pode ser ISENTO (NBR 14432) - A CONFIRMAR"
+
     # --------------------------------------------------------------- GATES
     gates = {
         "vento": {"q_kN_m2": q, "w_h": round(w_h, 2), "M_base_k": round(M_w_k, 1),
@@ -179,12 +201,15 @@ def rodar(spec):
         "icamento": {"Md": icamento["Md_kN_m"], "Mr_05fyk": icamento["Mr_0.5fyk_kN_m"],
                      "fckj_MPa": icamento["fckj_MPa"], "a_pega": icamento["a_pega"],
                      "OK": icamento["OK"]},
+        "fogo": {"TRRF": TRRF, "nota": fogo_nota, "viga": fg_viga, "pilar": fg_pilar,
+                 "OK": fogo_ok},
     }
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                      "s": round(s, 2), "fck_MPa": fck / 1000.0},
             "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
             "pilar": pilar, "sapata": sap, "calice": calice, "icamento": icamento,
+            "fogo": gates["fogo"],
             "gates": gates, "reprovados": reprovados,
             "ATENDE": len(reprovados) == 0}
 
@@ -257,6 +282,10 @@ def relatorio_pt(r):
          f"-> {'ATENDE' if g['calice']['OK'] else 'REPROVA'}",
          f"  ICAMENTO (NBR 9062 5.3.2): Md {g['icamento']['Md']:.1f} <= Mr(0,5fyk) {g['icamento']['Mr_05fyk']:.1f} kN.m "
          f"(fckj {g['icamento']['fckj_MPa']:.0f} MPa) -> {'ATENDE' if g['icamento']['OK'] else 'REPROVA'}",
+         f"  INCENDIO (NBR 15200): " + (f"TRRF {g['fogo']['TRRF']} min -> "
+             f"{'ATENDE' if g['fogo']['OK'] else 'REPROVA/verificar'}"
+             + (f" [{g['fogo']['nota']}]" if g['fogo']['nota'] else "")
+             if g['fogo']['TRRF'] else g['fogo']['nota']),
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVADO em ' + ', '.join(r['reprovados'])}",
          "  [A CONFIRMAR: v0 do vento (mapa NBR 6123), sigma do solo (sondagem SPT),",
          "   cargas da telha/cobertura (catalogo). Nao inventados.]"]

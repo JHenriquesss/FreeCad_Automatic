@@ -85,5 +85,23 @@ def test_calice_interface_chaves_reduz_embutimento():
     assert r_cha["calice"]["Lemb"] <= r_rug["calice"]["Lemb"]
 
 
+def test_galpao_sem_trrf_isento_com_nota():
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["gates"]["fogo"]["OK"] and r["gates"]["fogo"]["TRRF"] is None
+    assert "ISENTO" in r["gates"]["fogo"]["nota"]
+
+
+def test_galpao_trrf_pilar_1face_atende():
+    r = gc.rodar(_spec(vao=10.0, TRRF=60, faces_fogo_pilar=1))
+    assert r["gates"]["fogo"]["OK"]
+
+
+def test_galpao_trrf_pilar_multiface_requer_anexo_E():
+    # pilar exposto em 4 faces + TRRF -> tabular nao cobre, gate acusa (nao finge)
+    r = gc.rodar(_spec(vao=10.0, TRRF=90, faces_fogo_pilar=4))
+    assert not r["gates"]["fogo"]["OK"]
+    assert "Anexo E" in r["gates"]["fogo"]["nota"]
+
+
 def test_selftest_roda():
     gc._selftest()
