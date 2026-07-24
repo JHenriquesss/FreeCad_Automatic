@@ -27,6 +27,7 @@ import viga_concreto as vc
 import viga_protendida as vp
 import pilar_concreto as pc
 import fundacao_sapata as fs
+import premoldado_nbr9062 as pm
 
 GF = 1.4
 PSI0_VENTO = 0.6                    # fator de combinacao do vento (NBR 8681 Tab.1)
@@ -133,6 +134,20 @@ def rodar(spec):
     # peso proprio do pilar (soma na reacao de fundacao)
     peso_pilar = GAMMA_CONC * pilar["hx"] * pilar["hy"] * H
 
+    # ------------------------------------------- LIGACAO PRE-MOLDADA (NBR 9062)
+    # calice/colarinho: liga o pilar engastado a fundacao. hx = // ao momento do
+    # vento. Esforcos de projeto da base: N (perm+sobrec), M e V do vento (ELU).
+    interface_cal = spec.get("interface_calice", "rugosa")
+    calice = pm.dimensiona_calice({"Nd": Nk_gq, "Md": GF * M_w_k, "Vd": GF * V_w_k,
+                                   "h": pilar["hx"], "b": pilar["hy"],
+                                   "fck": min(fck, 25e3), "fyk": fyk,
+                                   "interface": interface_cal})
+    # situacao transitoria: icamento do pilar pre-moldado (peso proprio, 2 pegas)
+    icamento = pm.verifica_icamento_pilar({"L": H, "b": pilar["hy"], "h": pilar["hx"],
+                                           "As": pilar["As_cm2"], "fck": fck, "fyk": fyk,
+                                           "t_dias": spec.get("t_saque_dias", 3),
+                                           "cimento": spec.get("cimento", "CPV")})
+
     # ------------------------------------------------------------ FUNDACAO
     # reacao de base de projeto: N (permanente+sobrecarga+p.proprio) e M/V do vento.
     N_base = Nk_gq + peso_pilar
@@ -157,12 +172,19 @@ def rodar(spec):
         "fundacao": {"OK": sap_ok,
                      "geom": (f"{sap['aprovado'][0]:.1f}x{sap['aprovado'][1]:.1f}x"
                               f"{sap['aprovado'][2]:.2f}" if sap_ok else "REPROVA")},
+        "calice": {"interface": calice["interface"], "Lemb": calice["Lemb"],
+                   "Hsfd": calice.get("Hsfd"), "As_h_cm2": calice["As_horizontal_cm2"],
+                   "sigma_c": calice["sigma_c_kN_m2"], "lim_comp": calice["lim_comp"],
+                   "OK": calice["OK"]},
+        "icamento": {"Md": icamento["Md_kN_m"], "Mr_05fyk": icamento["Mr_0.5fyk_kN_m"],
+                     "fckj_MPa": icamento["fckj_MPa"], "a_pega": icamento["a_pega"],
+                     "OK": icamento["OK"]},
     }
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                      "s": round(s, 2), "fck_MPa": fck / 1000.0},
             "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
-            "pilar": pilar, "sapata": sap,
+            "pilar": pilar, "sapata": sap, "calice": calice, "icamento": icamento,
             "gates": gates, "reprovados": reprovados,
             "ATENDE": len(reprovados) == 0}
 
@@ -230,6 +252,11 @@ def relatorio_pt(r):
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
          f"  FUNDACAO (sapata): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
+         f"  CALICE (NBR 9062, interface {g['calice']['interface']}): Lemb {g['calice']['Lemb']:.2f} m ; "
+         f"As_h {g['calice']['As_h_cm2']:.2f} cm2 ; compressao {g['calice']['sigma_c']:.0f}<={g['calice']['lim_comp']:.0f} "
+         f"-> {'ATENDE' if g['calice']['OK'] else 'REPROVA'}",
+         f"  ICAMENTO (NBR 9062 5.3.2): Md {g['icamento']['Md']:.1f} <= Mr(0,5fyk) {g['icamento']['Mr_05fyk']:.1f} kN.m "
+         f"(fckj {g['icamento']['fckj_MPa']:.0f} MPa) -> {'ATENDE' if g['icamento']['OK'] else 'REPROVA'}",
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVADO em ' + ', '.join(r['reprovados'])}",
          "  [A CONFIRMAR: v0 do vento (mapa NBR 6123), sigma do solo (sondagem SPT),",
          "   cargas da telha/cobertura (catalogo). Nao inventados.]"]
@@ -249,6 +276,10 @@ def _selftest():
     assert r["viga"]["OK"], "viga de cobertura deveria atender"
     assert r["pilar"]["OK"], ("pilar", r["pilar"]["As_cm2"], r["pilar"]["taxa_pct"])
     assert r["gates"]["pilar"]["secao"], r["gates"]["pilar"]
+    # ligacao pre-moldada (NBR 9062): calice e icamento entram nos gates
+    assert r["gates"]["calice"]["OK"], ("calice", r["calice"])
+    assert r["gates"]["icamento"]["OK"], ("icamento", r["icamento"])
+    assert r["calice"]["Lemb"] >= pm.LEMB_MIN
     assert r["ATENDE"], r["reprovados"]
     # vao grande (15 m): o RC nao vence -> roteia p/ viga PROTENDIDA e ATENDE
     r15 = rodar({"vao": 15.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
