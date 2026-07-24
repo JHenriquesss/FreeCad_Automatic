@@ -43,4 +43,5 @@
 - **Guarda de Build 3D (`tools/`)** — Runner PowerShell `run_build_suite.ps1` e tarefa agendada do Windows Task Scheduler `GalpaoFW-BuildSuite` que executa `pytest -m build` periodicamente para evitar regressões silenciosas de interpenetração 3D.
 - **FLT de Seção Sólida Retangular (NBR 8800 Anexo G Tab. G.1)** — Flambagem lateral com torção em chapas retangulares maciças (console em balanço $L_b = 2\cdot ecc, C_b = 1,0$). Equações fechadas para $\lambda_p = 0,13 E\sqrt{JA}/M_{pl}$, $\lambda_r = 2,0 E\sqrt{JA}/M_r$ e $M_{cr} = 2,0 C_b E\sqrt{JA}/\lambda$.
 - **Patamar de Escada (Blondel)** — Fracionamento de lances de escada com desnível $> 3,20\text{ m}$ (ou $2,90\text{ m}$ NR-18) em $N$ lances com $(N-1)$ patamares intermediários em `escada.py`, recalculando o degrau por Blondel ($2e + p = 63\text{ cm}$).
-
+- **Interoperabilidade BIM / IFC4 Físico & Analítico** — Modelo neutro de dados (`modelo_neutro.py`) + emissor IFC4 puro-Python (`ifc_emit.py` via `ifcopenshell`) e mapeamento semântico (`ifc_map.py`), gerando `galpao.ifc` (BIM físico) e `galpao_analitico.ifc` (`modelo_analitico.py`, `IfcStructuralAnalysisModel` para SAP2000/Eberick/Robot) direto do cálculo sem GUI.
+- **pycufsm_compat** — Shim de compatibilidade para suporte a `numpy 2.x` no módulo de flambagem distorcional FSM (`distorcional_fsm.py` / `pycufsm`).

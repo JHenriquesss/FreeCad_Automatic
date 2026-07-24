@@ -69,5 +69,21 @@ def test_stateless_dois_specs_nao_interferem():
     assert r1["viga"]["h"] <= r2["viga"]["h"]      # vao maior -> viga maior/igual
 
 
+def test_galpao_tem_gate_calice_e_icamento():
+    # ligacao pre-moldada (NBR 9062): o galpao ganha calice + situacao transitoria
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["gates"]["calice"]["OK"] and r["gates"]["icamento"]["OK"]
+    # Lemb respeita o piso de 40 cm e a interface default e rugosa
+    assert r["calice"]["Lemb"] >= 0.40
+    assert r["gates"]["calice"]["interface"] == "rugosa"
+
+
+def test_calice_interface_chaves_reduz_embutimento():
+    # chaves de cisalhamento (1,2h->1,6h) exigem embutimento MENOR que rugosa (1,5h->2,0h)
+    r_rug = gc.rodar(_spec(vao=10.0, interface_calice="rugosa"))
+    r_cha = gc.rodar(_spec(vao=10.0, interface_calice="chaves"))
+    assert r_cha["calice"]["Lemb"] <= r_rug["calice"]["Lemb"]
+
+
 def test_selftest_roda():
     gc._selftest()

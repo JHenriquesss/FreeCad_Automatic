@@ -112,7 +112,18 @@ regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **256 pas
 |---|---|
 | `test_montagem.py` (12) | tolerância de prumo $\max(H/500, 5\text{ mm})$ com teto 25 mm; peça mais pesada considera rafter pré-montado no solo (2 meias-águas); guindaste momento de carga $M_{carga} = \text{peso}\cdot\gamma_{imp}\cdot\text{raio}$ ($t\cdot m$) cita 4.2.6; estaiamento tração $T=F/(n\cdot\cos\alpha)$, compressão na coluna e arrancamento $T\cdot\sin\alpha$; $\gamma$ de construção 1,30 (4.9.6.5); sequência 10 passos estaiia antes de desacoplar guindaste; fallback gracioso "A CONFIRMAR"; pórtico multi-vão considera colunas internas |
 
+## Sessão 19 — Interoperabilidade BIM & IFC4 (2026-07-23, PRs #55–#61)
+| arquivo | assere |
+|---|---|
+| `test_modelo_neutro.py` | constrói modelo neutro de dados (`modelo_neutro.py`); valida hierarquia de edifícios, pórticos, membros primários e secundários sem dependência de FreeCAD |
+| `test_ifc_emit.py` | emissor IFC4 puro-Python (`ifc_emit.py` via `ifcopenshell`); emite arquivo IFC4 físico com schemas `IfcColumn`, `IfcBeam`, `IfcMember`, `IfcPlate`, `IfcFooting` |
+| `test_ifc_map.py` | mapeamento semântico `ifc_map.py` (marcas $C1, V1... \rightarrow$ entidades IFC4 correspondentes); valida propriedades e materiais |
+| `test_ifc_secundarios_xcheck.py` | cross-check entre membros secundários (terças, girts, tirantes, contraventamento) e entidades `IfcMember` no modelo IFC puro |
+| `test_modelo_analitico.py` | gerador de BIM estrutural (`modelo_analitico.py`); valida emissão de `IfcStructuralAnalysisModel`, `IfcStructuralPointConnection`, `IfcStructuralCurveMember`, condições de contorno e casos de carga |
+| `test_pipeline_bim.py` | pipeline fim-a-fim de emissão BIM (integração entre cálculo, `build_galpao.export()` e arquivo `galpao.ifc`) |
+| `test_montar_headless.py` | auto-fallback headless (`montar_modelo` $\rightarrow$ `freecadcmd`) se o bridge da porta 9875 não estiver ativo |
+| `test_fase69` a `test_fase614` | suítes de validação de tensão pontual (§5.5.2.3), cortante tapered, vento por zona, cross-check DG25, enrijecedor de painel (§5.4.3.1) e DG25 envelope full |
+| `test_calha_calc_3d.py`, `test_viga_rolamento_3d.py` | integridade geométrica 3D e validações pontuais de folgas em calhas e vigas de rolamento |
+
 ## Convenção de não-regressão
 Selftest imprime valores de referência; alteração de código deve manter os valores do galpão de referência salvo quando a mudança normativa os corrige de propósito (ex.: redim H/300 muda perfil adotado — mudança intencional, documentada [[04-decisions#D5]]).
-
-
