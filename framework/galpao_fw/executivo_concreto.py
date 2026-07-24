@@ -170,12 +170,18 @@ def memorial(r):
     import viga_concreto as vc
     import pilar_concreto as pc
     import galpao_concreto as gc
+    # a viga pode ser CA ou PROTENDIDA (vao grande) - usa o relatorio correspondente
+    if r.get("viga_prot"):
+        import viga_protendida as vp
+        viga_rel = vp.relatorio_pt(r["viga_prot"])
+    else:
+        viga_rel = vc.relatorio_pt(r["viga"])
     partes = ["=" * 66,
               "MEMORIAL DE CALCULO - GALPAO DE CONCRETO PRE-MOLDADO",
               "=" * 66, "",
               gc.relatorio_pt(r), "",
               "-- VENTO " + "-" * 57, vento.relatorio_pt(r["vento"]), "",
-              "-- VIGA DE COBERTURA " + "-" * 45, vc.relatorio_pt(r["viga"]), "",
+              "-- VIGA DE COBERTURA " + "-" * 45, viga_rel, "",
               "-- PILAR " + "-" * 57, pc.relatorio_pt(r["pilar"]), "",
               "-- QUADRO DE ACO " + "-" * 49, relatorio_quadro_pt(r)]
     return "\n".join(partes)
