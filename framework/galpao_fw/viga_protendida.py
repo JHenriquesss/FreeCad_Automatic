@@ -113,6 +113,33 @@ def verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck, gamma_f=1.4):
             "u": Md / Mrd if Mrd > 0 else float("inf"), "ok": Md <= Mrd + 1e-6}
 
 
+def verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, Msd_max, Vsd, fywk=500e3):
+    """Cortante ELU da viga protendida (NBR 6118 17.4.2.2, Modelo I).
+      VRd2 = 0,27 alpha_v2 fcd bw d ; alpha_v2 = 1 - fck/250 (biela);
+      Vc0 = 0,6 fctd bw d ; fctd = fctk,inf/gamma_c ; fctk,inf = 0,7 fctm;
+      FLEXO-COMPRESSAO (protensao): Vc = Vc0(1 + M0/Msd,max) <= 2 Vc0, com M0 =
+      momento que anula a compressao na borda tracionada = 0,9 Pinf (Wb/Ac + ep);
+      Vsw = (Asw/s) 0,9 d fywd (estribo vertical). fywd <= 435 MPa.
+    Retorna VRd2, Vc, Asw/s necessario e minimo, e OK (biela)."""
+    fcd = fck / 1.4
+    av2 = 1.0 - (fck / 1000.0) / 250.0
+    VRd2 = 0.27 * av2 * fcd * b * dp
+    fctmv = _fctm(fck)                              # kN/m2
+    fctd = 0.7 * fctmv / 1.4                        # fctk,inf/gamma_c
+    Vc0 = 0.6 * fctd * b * dp
+    pr = props_retangular(b, h)
+    M0 = 0.9 * Pinf * (pr["Wb"] / pr["Ac"] + ep)    # momento de descompressao da borda
+    Vc = min(Vc0 * (1.0 + M0 / Msd_max), 2.0 * Vc0) if Msd_max > 1e-9 else 2.0 * Vc0
+    fywd = min(fywk / GAMMA_S, 435e3)
+    Asw_s_req = max(Vsd - Vc, 0.0) / (0.9 * dp * fywd)          # m2/m
+    rho_sw_min = 0.2 * (fctmv / 1000.0) / (fywk / 1000.0)       # 17.4.1.1.1
+    Asw_s_min = rho_sw_min * b
+    Asw_s = max(Asw_s_req, Asw_s_min)
+    return {"VRd2": VRd2, "Vc0": Vc0, "Vc": Vc, "M0": M0, "Vsd": Vsd,
+            "biela_ok": Vsd <= VRd2 + 1e-6, "Asw_s_cm2_m": round(Asw_s * 1e4, 2),
+            "Asw_s_min_cm2_m": round(Asw_s_min * 1e4, 2), "ok": Vsd <= VRd2 + 1e-6}
+
+
 def verifica_viga_protendida(cfg):
     """Verifica uma viga de cobertura pre-tracionada retangular.
     cfg: {vao, b, h, fck [kN/m2], q [kN/m sobrecarga+perm exceto p.proprio],
@@ -153,12 +180,16 @@ def verifica_viga_protendida(cfg):
     ato = verifica_ato(P0, ep, Mg, b, h, fckj)
     serv = verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, cfg.get("nivel", 2))
     elu = verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck)
-    OK = ato["ok"] and serv["ok"] and elu["ok"]
+    # cortante ELU (17.4.2.2): Vsd no apoio ; Msd,max = momento de calculo no meio
+    Vsd = 1.4 * (g + cfg.get("q", 0.0)) * L / 2.0
+    cort = verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, elu["Md"], Vsd,
+                                        fywk=cfg.get("fyk", 500e3))
+    OK = ato["ok"] and serv["ok"] and elu["ok"] and cort["ok"]
     return {"vao": L, "b": b, "h": h, "n_cordoalhas": ncord, "phi_cord": phi,
             "Ap_cm2": round(Ap * 1e4, 2), "ep_cm": round(ep * 100, 1),
             "P0": round(P0, 1), "Pinf": round(Pinf, 1), "sigma_pi_MPa": round(sigma_pi / 1000, 0),
             "Mg": round(Mg, 1), "Mq": round(Mq, 1), "g": round(g, 2),
-            "ato": ato, "servico": serv, "elu": elu, "perdas": perdas,
+            "ato": ato, "servico": serv, "elu": elu, "cortante": cort, "perdas": perdas,
             "perdas_info": perdas_info, "OK": OK}
 
 
@@ -195,6 +226,10 @@ def relatorio_pt(r):
          f"ELS-D base {s['s_base_qp']/1000:.2f} <= 0 {'OK' if s['els_d_ok'] else 'REPROVA'}",
          f"  ELU flexao: Md={e['Md']:.0f} <= Mrd={e['Mrd']:.0f} kN.m (u={e['u']:.2f}) "
          f"{'OK' if e['ok'] else 'REPROVA'}",
+         f"  ELU cortante (17.4.2): Vsd={r['cortante']['Vsd']:.0f} <= VRd2={r['cortante']['VRd2']:.0f} kN "
+         f"{'OK' if r['cortante']['biela_ok'] else 'REPROVA (biela)'} ; Vc={r['cortante']['Vc']:.0f} kN "
+         f"(protensao) ; Asw/s={r['cortante']['Asw_s_cm2_m']:.2f} cm2/m "
+         f"(min {r['cortante']['Asw_s_min_cm2_m']:.2f})",
          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
          "  [A CONFIRMAR: fckj na idade da protensao, perdas (9.6.3), classe de agressividade.]"]
     import re
