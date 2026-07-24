@@ -264,6 +264,14 @@ def membros_bim(r):
     zt = H * 1000.0
     sec_pil = {"forma": "RECT", "bf": hy, "d": hx}
     sec_vig = {"forma": "RECT", "bf": vb, "d": vh}
+    # quantitativo de armadura (vira Pset_Armadura no IFC) por tipo de peca
+    arm_pil = {"As_long_cm2": r["pilar"].get("As_cm2", 0.0),
+               "taxa_pct": r["pilar"].get("taxa_pct", 0.0)}
+    if r.get("tipo_viga") == "protendida" and r.get("viga_prot"):
+        arm_vig = {"protendida": True, "n_cordoalhas": float(r["viga_prot"]["n_cordoalhas"]),
+                   "phi_cordoalha_mm": float(r["viga_prot"]["phi_cord"])}
+    else:
+        arm_vig = {"protendida": False, "As_inf_cm2": r["viga"].get("As_inf_cm2", 0.0)}
     membros = []
     # so a sapata vira caixa no BIM; estaca/bloco tem geometria propria (fora deste
     # emissor simplificado) -> quando a fundacao e profunda, omite o footing.
@@ -277,7 +285,8 @@ def membros_bim(r):
             lado = "E" if k == 0 else "D"
             membros.append({"tipo": "Column", "perfil": f"P{hy*100:.0f}x{hx*100:.0f}",
                             "marca": f"P{j+1}{lado}", "secao": sec_pil,
-                            "p1": [x, y, 0.0], "p2": [x, y, zt], "material": mat_conc})
+                            "p1": [x, y, 0.0], "p2": [x, y, zt], "material": mat_conc,
+                            "armadura": arm_pil})
             if sap:
                 membros.append({"tipo": "Footing", "perfil": f"S{B:.1f}x{L:.1f}",
                                 "marca": f"SAP{j+1}{lado}", "dims": [B, L, hf],
@@ -285,7 +294,8 @@ def membros_bim(r):
                                 "material": mat_conc})
         membros.append({"tipo": "Beam", "perfil": f"V{vb*100:.0f}x{vh*100:.0f}",
                         "marca": f"VC{j+1}", "secao": sec_vig,
-                        "p1": [xL, y, zt], "p2": [xR, y, zt], "material": mat_conc})
+                        "p1": [xL, y, zt], "p2": [xR, y, zt], "material": mat_conc,
+                        "armadura": arm_vig})
     return membros
 
 

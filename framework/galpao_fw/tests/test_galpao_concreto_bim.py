@@ -45,6 +45,29 @@ def test_membros_carregam_material_concreto():
         assert m["material"] == "Concreto C30"
 
 
+def test_membros_carregam_armadura():
+    r = _r()
+    ms = gc.membros_bim(r)
+    col = next(m for m in ms if m["tipo"] == "Column")
+    beam = next(m for m in ms if m["tipo"] == "Beam")
+    assert col["armadura"]["As_long_cm2"] > 0 and "taxa_pct" in col["armadura"]
+    assert "As_inf_cm2" in beam["armadura"] or beam["armadura"].get("protendida")
+
+
+@pytest.mark.skipif(not ifc_emit.disponivel(), reason="ifcopenshell ausente")
+def test_ifc_carrega_pset_armadura(tmp_path):
+    # o IFC precisa carregar o quantitativo de armadura como Pset (Revit le)
+    import ifcopenshell
+    r = _r(n=3)
+    p = str(tmp_path / "g_arm.ifc")
+    gc.emitir_bim(r, p)
+    m = ifcopenshell.open(p)
+    psets = [ps for ps in m.by_type("IfcPropertySet") if ps.Name == "Pset_Armadura"]
+    assert len(psets) == 3 * 3                        # 3 porticos x (2 pilares + 1 viga)
+    nomes = {pr.Name for ps in psets for pr in ps.HasProperties}
+    assert "As_long_cm2" in nomes and "taxa_pct" in nomes
+
+
 @pytest.mark.skipif(not ifc_emit.disponivel(), reason="ifcopenshell ausente")
 def test_emite_ifc_com_entidades_e_material(tmp_path):
     import ifcopenshell
