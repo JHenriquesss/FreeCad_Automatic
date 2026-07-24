@@ -236,15 +236,21 @@ def rodar(spec):
         "estab_global": {"alpha": estab["alpha"], "alpha1": estab["alpha1"],
                          "nos": estab["nos"], "OK": estab["OK"]},
     }
+    res = {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
+                    "s": round(s, 2), "fck_MPa": fck / 1000.0},
+           "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
+           "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
+           "calice": calice, "icamento": icamento,
+           "fogo": gates["fogo"], "estab_global": estab, "gates": gates}
+    # varredura de interpenetracao no modelo 3D (pega sapatas sobrepostas p/ s < L)
+    interf = checa_interferencia(res)
+    gates["interferencia"] = {"conflitos": len(interf["conflitos"]),
+                              "detalhe": interf["conflitos"][:5], "OK": interf["OK"]}
+    res["interferencia"] = interf
     reprovados = [k for k, g in gates.items() if not g["OK"]]
-    return {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
-                     "s": round(s, 2), "fck_MPa": fck / 1000.0},
-            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
-            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
-            "calice": calice, "icamento": icamento,
-            "fogo": gates["fogo"], "estab_global": estab,
-            "gates": gates, "reprovados": reprovados,
-            "ATENDE": len(reprovados) == 0}
+    res["reprovados"] = reprovados
+    res["ATENDE"] = len(reprovados) == 0
+    return res
 
 
 def membros_bim(r):
@@ -299,6 +305,49 @@ def membros_bim(r):
     return membros
 
 
+def _aabb(mb):
+    """Caixa envolvente (AABB) de um membro do membros_bim, em mm:
+    (x0,x1,y0,y1,z0,z1). Barra (p1/p2 + secao RECT) ou caixa (dims/centro)."""
+    if "dims" in mb and "centro" in mb:                # footing (caixa, dims em m)
+        B, L, h = [d * 1000.0 for d in mb["dims"]]
+        cx, cy, cz = mb["centro"]
+        return (cx - B / 2, cx + B / 2, cy - L / 2, cy + L / 2, cz - h / 2, cz + h / 2)
+    p1, p2 = mb["p1"], mb["p2"]                         # barra (secao RECT em m)
+    bf = mb["secao"]["bf"] * 1000.0; d = mb["secao"]["d"] * 1000.0
+    x0, x1 = sorted((p1[0], p2[0])); y0, y1 = sorted((p1[1], p2[1]))
+    z0, z1 = sorted((p1[2], p2[2]))
+    # engorda pela secao (bf no plano X, d no plano Y) - conservador
+    return (x0 - bf / 2, x1 + bf / 2, y0 - d / 2, y1 + d / 2, z0, z1)
+
+
+def _overlap_vol(a, b, folga=1.0):
+    """Volume de interpenetracao de dois AABB (mm3). folga (mm) ignora toques.
+    Peças que compartilham face (viga sobre pilar) tocam mas nao interpenetram."""
+    dx = min(a[1], b[1]) - max(a[0], b[0]) - folga
+    dy = min(a[3], b[3]) - max(a[2], b[2]) - folga
+    dz = min(a[5], b[5]) - max(a[4], b[4]) - folga
+    return dx * dy * dz if (dx > 0 and dy > 0 and dz > 0) else 0.0
+
+
+def checa_interferencia(r):
+    """Varredura de interpenetracao (AABB) nos membros do galpao de concreto -
+    analogo puro-Python do checa_interferencia do 3D FreeCAD. Pega o caso REAL de
+    SAPATAS que se sobrepoem quando os porticos ficam proximos (s < L da sapata) e
+    pilares que colidem. Ignora toques de face (viga sobre pilar). Retorna dict com
+    a lista de conflitos e OK."""
+    ms = membros_bim(r)
+    boxes = [(mb.get("marca", mb["tipo"]), mb["tipo"], _aabb(mb)) for mb in ms]
+    conflitos = []
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            (mi, ti, ai), (mj, tj, aj) = boxes[i], boxes[j]
+            v = _overlap_vol(ai, aj)
+            if v > 1.0:                                # > 1 mm3 -> interpenetracao real
+                conflitos.append({"a": mi, "b": mj, "tipos": f"{ti}x{tj}",
+                                  "vol_mm3": round(v, 0)})
+    return {"n_membros": len(ms), "conflitos": conflitos, "OK": not conflitos}
+
+
 def emitir_bim(r, path):
     """Emite o IFC4 do galpao de concreto (FreeCAD-free) via ifc_emit.emitir_ifc.
     Retorna o path. Requer ifcopenshell (ifc_emit.disponivel())."""
@@ -334,6 +383,8 @@ def relatorio_pt(r):
              f"{'ATENDE' if g['fogo']['OK'] else 'REPROVA/verificar'}"
              + (f" [{g['fogo']['nota']}]" if g['fogo']['nota'] else "")
              if g['fogo']['TRRF'] else g['fogo']['nota']),
+         f"  INTERFERENCIA 3D: {r['gates']['interferencia']['conflitos']} conflito(s) "
+         f"-> {'OK' if r['gates']['interferencia']['OK'] else 'REVISAR (pecas se interpenetram)'}",
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVADO em ' + ', '.join(r['reprovados'])}",
          "  [A CONFIRMAR: v0 do vento (mapa NBR 6123), sigma do solo (sondagem SPT),",
          "   cargas da telha/cobertura (catalogo). Nao inventados.]"]

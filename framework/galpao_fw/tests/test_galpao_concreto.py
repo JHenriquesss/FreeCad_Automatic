@@ -149,5 +149,28 @@ def test_bim_estaca_omite_footing():
     assert any(m["tipo"] == "Column" for m in membros)
 
 
+def test_interferencia_galpao_normal_limpo():
+    # galpao tipico: nenhuma peca se interpenetra (sapatas espacadas, viga sobre pilar)
+    r = gc.rodar(_spec(vao=10.0))
+    assert r["gates"]["interferencia"]["OK"]
+    assert r["gates"]["interferencia"]["conflitos"] == 0
+
+
+def test_interferencia_pega_sapatas_sobrepostas():
+    # porticos MUITO proximos (s < L da sapata) -> as sapatas se interpenetram
+    r = gc.rodar(_spec(vao=12.0, comprimento=4.0, pe_direito=7.0, n_porticos=4,
+                       sigma_solo_adm=100.0))
+    assert r["spec"]["s"] < r["sapata"]["aprovado"][1]     # s < L (condicao do conflito)
+    assert not r["gates"]["interferencia"]["OK"]
+    assert r["gates"]["interferencia"]["conflitos"] > 0
+    assert any("Footing" in c["tipos"] for c in r["interferencia"]["conflitos"])
+
+
+def test_overlap_vol_ignora_toque_de_face():
+    a = (0, 1000, 0, 2000, 0, 500)
+    assert gc._overlap_vol(a, (0, 1000, 1500, 3500, 0, 500)) > 0   # sobrepoe em y
+    assert gc._overlap_vol(a, (0, 1000, 2001, 4000, 0, 500)) == 0  # so encosta (folga)
+
+
 def test_selftest_roda():
     gc._selftest()
