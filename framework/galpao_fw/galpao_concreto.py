@@ -391,6 +391,73 @@ def montar_3d(r, out_dir, doc_name="galpao_concreto", headless=None,
         return RP._montar_headless(src, bk, out_dir, timeout)
 
 
+def montar_pranchas(r, out_dir, fcstd_path, spec=None, freecad_exe=None,
+                    timeout=1200):
+    """Gera o PROJETO EXECUTIVO (pranchas A1 TechDraw) do galpao de concreto a
+    partir do modelo 3D ja salvo (fcstd_path, do montar_3d/build_concreto). Roda o
+    freecad.exe em modo grafico HEADLESS (GUI disponivel p/ exportar PDF, sem
+    interacao: job por QTimer, janela fecha sozinha). Exporta PDF + SVG + PNG por
+    prancha em out_dir/pranchas. Le o resultado de out_dir/pranchas/_status.json.
+
+    Mesma mecanica do rodar_projeto.rodar_executivo do aco (freecad.exe novo a cada
+    projeto -> import de irmao em processo LIMPO; kill de zumbi garantido na saida).
+    Retorna {ok, pranchas, arquivos, fcstd} | {erro}."""
+    import os, json, time, tempfile, subprocess
+    import techdraw_concreto as TDC
+    import rodar_projeto as RP
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": f"freecad.exe nao encontrado: {exe}"}
+    if not os.path.exists(fcstd_path):
+        return {"erro": f"FCStd ausente ({fcstd_path}) - rode montar_3d antes"}
+
+    cfg = TDC.config_de_spec(r, fcstd_path, str(out_dir), spec)
+    prdir = os.path.join(str(out_dir), "pranchas")
+    os.makedirs(prdir, exist_ok=True)
+    status = os.path.join(prdir, "_status.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = tempfile.NamedTemporaryFile(mode="w", suffix="_exec_conc.py",
+                                       delete=False, encoding="utf-8")
+    boot.write(TDC.script_bootstrap(cfg))
+    boot.close()
+
+    proc = subprocess.Popen([exe, boot.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                if os.path.exists(status):
+                    with open(status, encoding="utf-8") as f:
+                        res = json.load(f)
+                else:
+                    res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": f"timeout {timeout}s aguardando pranchas"}
+    finally:
+        RP._matar_processo_freecad(proc)          # reusa o kill escalonado (WMI)
+        try:
+            os.unlink(boot.name)
+        except OSError:
+            pass
+    return res
+
+
 def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
