@@ -323,6 +323,41 @@ def emitir_bim(r, path, nome="GalpaoEletrico"):
     return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
 
 
+def montar_3d(r, out_dir, doc_name="galpao_eletrico", headless=None,
+              host="http://localhost:9875", timeout=180):
+    """Constroi o MODELO 3D SOLIDO (FreeCAD) do projeto eletrico: quadros/trafo e
+    eletrocalha viram Part::Box; condutores (aterramento, hastes, captacao SPDA,
+    descidas) viram Part::Cylinder. Exporta FCStd + STEP + IFC4 e roda a varredura
+    de interferencia sobre os solidos REAIS (OCCT common(), nao AABB).
+
+    Envia build_eletrico.py como FONTE + o membros_bim como PAYLOAD DE DADOS - reusa
+    o despacho bridge/headless do rodar_projeto (fallback + kill de zumbi). Como o
+    payload e plain data, NAO ha modulo irmao para o freecad.exe cachear.
+    Retorna o dict de rodar_projeto._montar_* ({result:{...}} | {erro}).
+
+    headless: None tenta o bridge (9875) e cai p/ freecadcmd; True forca headless."""
+    import os
+    import rodar_projeto as RP
+    import framework as FW
+    bk = {"membros": membros_bim(r),
+          "export_dir": str(out_dir).replace("\\", "/"),
+          "doc_name": doc_name}
+    src_path = FW.raiz_repo() / "framework" / "galpao_fw" / "build_eletrico.py"
+    src = RP._ship_build_src(src_path)
+    if headless is None:
+        headless = os.environ.get("FREECAD_HEADLESS", "").strip() in ("1", "true", "True")
+    if headless:
+        return RP._montar_headless(src, bk, out_dir, timeout)
+    import xmlrpc.client
+    try:
+        return RP._montar_bridge(src, bk, host, timeout)
+    except (OSError, xmlrpc.client.ProtocolError) as e:
+        import sys
+        print("[montar_3d] bridge indisponivel (%s); caindo p/ headless" % e,
+              file=sys.stderr)
+        return RP._montar_headless(src, bk, out_dir, timeout)
+
+
 def _selftest():
     """Roda um galpao industrial de exemplo (motores + iluminacao) e confere o
     encadeamento cargas -> alimentador -> protecao -> FP."""
