@@ -43,6 +43,10 @@ OCUPACAO_M2 = {"escritorio": 8.0, "reuniao": 1.75, "galpao": 20.0, "comercial": 
 # calor total dissipado por pessoa (W) por atividade (Tab.C.1)
 CALOR_PESSOA_W = {"leve": 235.0, "moderado": 295.0, "pesado": 440.0}
 
+# coeficiente de desempenho (entrada eletrica = capacidade termica / COP). Aferido
+# contra Creder Tab.3.5 (24000 BTU/h = 7,03 kW term / 1990 W elet -> COP ~ 3,5).
+COP_PADRAO = 3.5
+
 # condicoes de projeto (NBR 16401-2)
 T_INTERNA_VERAO_C = (23.0, 25.0)
 UR_CONFORTO_PCT = (40.0, 60.0)
@@ -140,9 +144,13 @@ def dimensiona_climatizacao(caso):
         cap["metodo"] = "estimativa"
 
     V_ar = vazao_ar_exterior(n, area)
+    cop = float(caso.get("COP", COP_PADRAO))
+    P_eletrica_kW = cap["kW"] / cop                   # entrada eletrica do equipamento
     return {"area_m2": area, "tipo": tipo, "metodo": metodo, "n_pessoas": n,
             "capacidade_TR": cap["TR"], "capacidade_kW": cap["kW"],
-            "capacidade_BTU_h": cap["BTU_h"], "vazao_ar_exterior_m3h": round(V_ar, 1),
+            "capacidade_BTU_h": cap["BTU_h"], "COP": cop,
+            "potencia_eletrica_kW": round(P_eletrica_kW, 2),
+            "vazao_ar_exterior_m3h": round(V_ar, 1),
             "t_interna_C": T_INTERNA_VERAO_C, "UR_pct": UR_CONFORTO_PCT,
             "vel_ar_max_ms": VEL_AR_MAX_MS, "detalhe": cap,
             "OK": cap["TR"] > 0}
@@ -166,6 +174,9 @@ def _selftest():
     assert abs(r["capacidade_TR"] - 33.33) < 0.1
     assert r["vazao_ar_exterior_m3h"] == vazao_ar_exterior(r["n_pessoas"], 800.0)
     assert r["t_interna_C"] == (23.0, 25.0) and r["vel_ar_max_ms"] == 0.20 and r["OK"]
+    # potencia eletrica = capacidade / COP (33,33 TR = 117,2 kW term / 3,5 = 33,5 kW elet)
+    assert abs(r["potencia_eletrica_kW"] - r["capacidade_kW"] / 3.5) < 0.01
+    assert r["potencia_eletrica_kW"] < r["capacidade_kW"]
     # metodo detalhado: envoltoria + pessoas + iluminacao + equipamentos + ar ext
     d = dimensiona_climatizacao({"area_m2": 100.0, "tipo": "escritorio",
                                  "metodo": "detalhado", "n_pessoas": 10,

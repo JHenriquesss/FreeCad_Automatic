@@ -210,8 +210,13 @@ def dimensiona_condutor(circ):
     _fct = fct(temp, isol)
     _fca = fca(n_agr)
     IC = IB / (_fct * _fca)
+    # coordenacao com a protecao (5.3.4.1): a capacidade IZ deve comportar a corrente
+    # nominal do disjuntor IN (>= IB). Se dado I_protecao (=IN), dimensiona a ampacidade
+    # p/ IN, garantindo IB <= IN <= IZ (evita o vao entre degraus de disjuntor).
+    I_prot = float(circ.get("I_protecao", 0.0) or 0.0)
+    IC_amp = max(IC, I_prot / (_fct * _fca))
 
-    s_amp, Iz = secao_por_ampacidade(IC, isol, metodo, n_cond)
+    s_amp, Iz = secao_por_ampacidade(IC_amp, isol, metodo, n_cond)
     # CONDUTORES EM PARALELO (NBR 5410 6.2.5.7): se IC excede o Iz da MAIOR secao
     # tabelada, usa N condutores iguais por fase (mesma secao/material/comprimento).
     n_par = 1
@@ -219,7 +224,7 @@ def dimensiona_condutor(circ):
         tab = AMPACIDADE[isol][metodo][n_cond]
         s_max = max(tab)                              # maior secao com Iz nesta tabela
         iz_max = tab[s_max]
-        n_par = max(2, math.ceil(IC / iz_max))
+        n_par = max(2, math.ceil(IC_amp / iz_max))
         s_amp = s_max
         Iz = iz_max * n_par                           # capacidade equivalente do grupo
 
