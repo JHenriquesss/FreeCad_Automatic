@@ -11,6 +11,7 @@ sys.path.insert(0, GALPAO)
 import iluminacao_emergencia_nbr10898 as ie
 import sinalizacao_nbr16820 as sn
 import deteccao_alarme_nbr17240 as da
+import proteccao_sprinklers_nbr10897 as sp
 import galpao_seguranca_incendio as si
 
 
@@ -18,6 +19,7 @@ def test_selftests_dos_modulos():
     ie._selftest()
     sn._selftest()
     da._selftest()
+    sp._selftest()
 
 
 # --------------------------- iluminacao de emergencia ------------------------
@@ -69,11 +71,34 @@ def test_deteccao_exemplo_nbr_12x23():
     assert da.numero_detectores_pontuais(12.0 * 23.0, 6.0) == 4
 
 
+# --------------------------------- sprinklers --------------------------------
+def test_sprinkler_classifica_risco():
+    assert sp.classifica_risco(3.0, "producao") == "ordinario_II"
+    assert sp.classifica_risco(2.0) == "ordinario_I"
+    import pytest
+    with pytest.raises(ValueError):
+        sp.classifica_risco(5.0)                          # > 3,7 m -> NBR 13792
+
+
+def test_sprinkler_projeto_galpao():
+    r = sp.dimensiona_sprinklers({"C": 40.0, "L": 20.0, "altura_estoque_m": 3.0})
+    assert r["risco"] == "ordinario_II" and r["cobertura_m2"] == 12.1
+    assert r["N_chuveiros_total"] == 67 and r["N_chuveiros_operacao"] == 31
+    assert abs(r["reserva_incendio_m3"] - 192.4) < 0.5
+    assert r["duracao_min"] == 60 and r["OK"]
+
+
+def test_sprinkler_vazao_pressao():
+    assert sp.vazao_chuveiro(80.0, 1.0) == 80.0
+    assert abs(sp.pressao_de_vazao(113.0, 80.0) - 1.9954) < 0.001
+
+
 # --------------------------------- orquestrador ------------------------------
 def _spec(**kw):
     base = {"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
             "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
-            "deteccao": {"viga_m": 0.0}}
+            "deteccao": {"viga_m": 0.0},
+            "sprinklers": {"altura_estoque_m": 3.0}}
     base.update(kw)
     return base
 
@@ -81,12 +106,21 @@ def _spec(**kw):
 def test_rodar_gates_completos():
     r = si.rodar(_spec())
     g = r["gates"]
-    for k in ("iluminacao_emergencia", "sinalizacao", "deteccao_alarme"):
+    for k in ("iluminacao_emergencia", "sinalizacao", "deteccao_alarme", "sprinklers"):
         assert k in g and "OK" in g[k]
     assert r["ATENDE"] is True
     assert g["deteccao_alarme"]["N_detectores"] == 10
     assert g["iluminacao_emergencia"]["N_aclaramento"] == 6
     assert g["sinalizacao"]["placa_lado_mm"] == 600
+    assert g["sprinklers"]["risco"] == "ordinario_II" and g["sprinklers"]["N_chuveiros"] == 67
+
+
+def test_sem_sprinklers_gate_informativo():
+    sp_spec = _spec()
+    sp_spec.pop("sprinklers")
+    r = si.rodar(sp_spec)
+    assert r["gates"]["sprinklers"]["risco"] is None
+    assert r["gates"]["sprinklers"]["OK"] and "nao" in r["gates"]["sprinklers"]["nota"]
 
 
 def test_galpao_alto_usa_detector_linear():

@@ -4,7 +4,8 @@
 # de saida/abandono seguro, exigidos p/ o AVCB), reaproveitando os modulos:
 #   - iluminacao_emergencia_nbr10898 (NBR 10898): aclaramento + balizamento;
 #   - sinalizacao_nbr16820           (NBR 16820): placas de rota de fuga;
-#   - deteccao_alarme_nbr17240       (NBR 17240): detectores + acionadores + central.
+#   - deteccao_alarme_nbr17240       (NBR 17240): detectores + acionadores + central;
+#   - proteccao_sprinklers_nbr10897  (NBR 10897): chuveiros automaticos + reserva.
 # STATELESS: rodar(spec) recebe um dict explicito (sem estado global). Dados de leiaute
 # (rotas de fuga, saidas, altura de viga) marcados A CONFIRMAR quando ausentes.
 # Complementa o vertical eletrico (a iluminacao de emergencia e alimentada por bloco
@@ -19,6 +20,7 @@ from __future__ import annotations
 import iluminacao_emergencia_nbr10898 as ie
 import sinalizacao_nbr16820 as sn
 import deteccao_alarme_nbr17240 as da
+import proteccao_sprinklers_nbr10897 as sp
 
 
 def rodar(spec):
@@ -54,6 +56,14 @@ def rodar(spec):
     da_spec.setdefault("altura_teto", H)
     alarme = da.dimensiona_deteccao_alarme(da_spec)
 
+    # -------------------------------------------- CHUVEIROS AUTOMATICOS (opc)
+    # protecao ativa por agua (NBR 10897); exigida por area/altura conforme legislacao.
+    sprk = None
+    if spec.get("sprinklers"):
+        sp_spec = dict(spec["sprinklers"])
+        sp_spec.update({"C": C, "L": L})
+        sprk = sp.dimensiona_sprinklers(sp_spec)
+
     # --------------------------------------------------------------- GATES
     gates = {
         "iluminacao_emergencia": {"E_min_lux": emerg["E_min_lux"],
@@ -72,9 +82,16 @@ def rodar(spec):
                             "tensao_Vcc": alarme["tensao_Vcc"],
                             "autonomia_supervisao_h": alarme["autonomia_supervisao_h"],
                             "OK": alarme["OK"]},
+        "sprinklers": {"risco": sprk["risco"] if sprk else None,
+                       "N_chuveiros": sprk["N_chuveiros_total"] if sprk else None,
+                       "reserva_m3": sprk["reserva_incendio_m3"] if sprk else None,
+                       "pressao_bar": sprk["pressao_bar"] if sprk else None,
+                       "nota": "" if sprk else "chuveiros automaticos nao exigidos/nao informados (verificar legislacao/IT)",
+                       "OK": sprk["OK"] if sprk else True},
     }
     res = {"spec": {"C": C, "L": L, "H": H}, "iluminacao_emergencia": emerg,
-           "sinalizacao": sinal, "deteccao_alarme": alarme, "gates": gates}
+           "sinalizacao": sinal, "deteccao_alarme": alarme, "sprinklers": sprk,
+           "gates": gates}
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     res["reprovados"] = reprovados
     res["ATENDE"] = len(reprovados) == 0
@@ -97,6 +114,10 @@ def relatorio_pt(r):
          f"({g['deteccao_alarme']['tipo_detector']}) + {g['deteccao_alarme']['N_acionadores']} acionadores ; "
          f"{g['deteccao_alarme']['tensao_Vcc']:.0f} Vcc ; autonomia supervisao "
          f"{g['deteccao_alarme']['autonomia_supervisao_h']:.0f} h",
+         (f"  Sprinklers (NBR 10897): risco {g['sprinklers']['risco']} ; "
+          f"{g['sprinklers']['N_chuveiros']} chuveiros ; reserva {g['sprinklers']['reserva_m3']} m3 ; "
+          f"pressao {g['sprinklers']['pressao_bar']} bar"
+          if g['sprinklers']['risco'] else "  Sprinklers: " + g['sprinklers']['nota']),
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVA - ' + ', '.join(r['reprovados'])}"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
@@ -105,7 +126,8 @@ def relatorio_pt(r):
 def _selftest():
     spec = {"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
             "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
-            "deteccao": {"viga_m": 0.0}}
+            "deteccao": {"viga_m": 0.0},
+            "sprinklers": {"altura_estoque_m": 3.0}}
     r = rodar(spec)
     g = r["gates"]
     assert g["iluminacao_emergencia"]["N_aclaramento"] == 6
@@ -113,6 +135,7 @@ def _selftest():
     assert g["sinalizacao"]["placa_lado_mm"] == 600
     assert g["deteccao_alarme"]["N_detectores"] == 10
     assert g["deteccao_alarme"]["tensao_Vcc"] == 24.0
+    assert g["sprinklers"]["risco"] == "ordinario_II" and g["sprinklers"]["N_chuveiros"] == 67
     assert r["ATENDE"] is True
     print(relatorio_pt(r))
     print("galpao_seguranca_incendio self-test PASSED")
