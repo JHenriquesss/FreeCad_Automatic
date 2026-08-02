@@ -64,10 +64,36 @@ def test_planta_desenha_contagem_exata():
     assert spr == g["sprinklers"]["N_chuveiros"], (spr, g["sprinklers"]["N_chuveiros"])
 
 
+def test_planta_iluminacao_emergencia_count_driven():
+    # BUG (drawing != data): a grade de blocos era FIXA 2x2 (=4), divergindo de
+    # N_aclaramento (=6) e ignorando N_balizamento. Agora ambos EXATAMENTE == resumo.
+    r = _r()
+    g = r["gates"]
+    svg = di.planta_seguranca_svg(r)
+    acl = svg.count('fill="#f2c200" stroke="#7a6300" stroke-width="1"') - 1   # -1 legenda
+    bal = svg.count('fill="#f2c200" stroke="#7a6300" stroke-width="0.8"') - 1  # -1 legenda
+    assert acl == g["iluminacao_emergencia"]["N_aclaramento"], acl
+    assert bal == g["iluminacao_emergencia"]["N_balizamento"], bal
+    # o resumo tambem cita as duas contagens separadamente
+    assert "Aclaramento: %d" % g["iluminacao_emergencia"]["N_aclaramento"] in svg
+    assert "Balizamento: %d" % g["iluminacao_emergencia"]["N_balizamento"] in svg
+
+
 def test_pontos_exatos_corta_em_n():
     assert len(di._pontos_exatos(10, 0, 0, 640, 480, 40.0, 20.0)) == 10
     assert len(di._pontos_exatos(67, 0, 0, 640, 480, 40.0, 20.0)) == 67
     assert di._pontos_exatos(0, 0, 0, 640, 480, 40.0, 20.0) == []
+
+
+def test_pontos_perimetro_conta_exata_e_fecha():
+    pts = di._pontos_perimetro(31, 0.0, 0.0, 640.0, 480.0)
+    assert len(pts) == 31                                    # EXATAMENTE n
+    assert di._pontos_perimetro(0, 0, 0, 640, 480) == []
+    # todos os pontos ficam sobre o perimetro recuado (nenhum no miolo)
+    for (px, py) in pts:
+        na_borda = (abs(px - 8) < 1 or abs(px - 632) < 1 or
+                    abs(py - 8) < 1 or abs(py - 472) < 1)
+        assert na_borda, (px, py)
 
 
 def test_planta_sem_sprinklers_nao_quebra():
