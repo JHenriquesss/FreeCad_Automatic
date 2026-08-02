@@ -285,6 +285,113 @@ def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
             "nota_aco": nota_aco}
 
 
+# ============================ CLASH DETECTION FEDERADO =======================
+# Interferencia ENTRE disciplinas sobre o modelo federado (frame comum). Cada vertical
+# ja checa a interferencia DENTRO de si (checa_interferencia/AABB); aqui pegamos os
+# conflitos ENTRE disciplinas - o payload de engenharia do BIM federado: eletrocalha
+# cruzando rafter, chuveiro dentro de viga, hidrante batendo em pilar, descida SPDA na
+# terca. Puro-Python (AABB), testavel em CI. Convencao de dims por disciplina:
+# ESTRUTURAL (concreto/aco) em metros (x1000); INSTALACOES (eletrico/incendio) em mm.
+# Secao de BARRA sempre em metros (x1000) em todas. Sao CANDIDATOS p/ o coordenador
+# triar: alguns conflitos sao montagem intencional (ex.: descida SPDA rente ao pilar).
+
+_ESCALA_M = {"concreto": 1000.0, "aco": 1000.0, "eletrico": 1.0, "incendio": 1.0}
+_DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco"}
+_TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
+
+
+def _disc_de_membro(mb):
+    """Disciplina de um membro federado pela marca prefixada (C-/E-/I-/A-)."""
+    return _DISC_DE_MARCA.get(str(mb.get("marca", ""))[:1])
+
+
+def _aabb_federado(mb, disc):
+    """AABB (x0,x1,y0,y1,z0,z1) em mm de um membro federado. Caixa: dims escaladas
+    pela convencao da disciplina (estrutural m, instalacoes mm). Barra: segmento
+    engordado pela secao (sempre m). None p/ painel (poligono) ou membro sem geometria."""
+    if "poligono" in mb:
+        return None                                     # painel de fechamento: ignorado
+    if "dims" in mb and "centro" in mb:
+        sc = _ESCALA_M.get(disc, 1.0)
+        B, L, h = (mb["dims"][0] * sc, mb["dims"][1] * sc, mb["dims"][2] * sc)
+        cx, cy, cz = mb["centro"]
+        return (cx - B / 2, cx + B / 2, cy - L / 2, cy + L / 2, cz - h / 2, cz + h / 2)
+    if "p1" in mb and "p2" in mb and "secao" in mb:
+        s = mb["secao"]
+        bf = s.get("bf", s.get("D", 0.02)) * 1000.0     # ROUND usa D; engorda em X
+        d = s.get("d", s.get("D", 0.02)) * 1000.0       # e em Y (conservador)
+        p1, p2 = mb["p1"], mb["p2"]
+        x0, x1 = sorted((p1[0], p2[0])); y0, y1 = sorted((p1[1], p2[1]))
+        z0, z1 = sorted((p1[2], p2[2]))
+        return (x0 - bf / 2, x1 + bf / 2, y0 - d / 2, y1 + d / 2, z0, z1)
+    return None
+
+
+def _overlap_vol(a, b, folga=1.0):
+    """Volume de interpenetracao de dois AABB (mm3). folga (mm) ignora toques de face."""
+    dx = min(a[1], b[1]) - max(a[0], b[0]) - folga
+    dy = min(a[3], b[3]) - max(a[2], b[2]) - folga
+    dz = min(a[5], b[5]) - max(a[4], b[4]) - folga
+    return dx * dy * dz if (dx > 0 and dy > 0 and dz > 0) else 0.0
+
+
+def checa_interferencia_federada(R, spec=None, folga=1.0, vol_min=1000.0):
+    """Varredura de interferencia ENTRE disciplinas no modelo federado.
+    R = rodar(spec); spec (opc) traz o aco. folga (mm) ignora toques; vol_min (mm3)
+    despreza grazes triviais. So pares de disciplinas DIFERENTES (o intra-disciplina e'
+    responsabilidade de cada vertical). Retorna {n_membros, n_clashes, clashes:[{a,b,
+    disciplinas,tipos,vol_mm3}], por_par, OK}. OK=True se nenhum clash > vol_min - mas
+    os clashes sao CANDIDATOS (alguns sao montagem intencional), nao reprovacao de
+    calculo (nao entra no ATENDE do rodar)."""
+    membros, _ = _membros_federados(R, spec)
+    caixas = []
+    for mb in membros:
+        disc = _disc_de_membro(mb)
+        if disc is None or mb.get("tipo") in _TIPOS_IGNORADOS_CLASH:
+            continue
+        box = _aabb_federado(mb, disc)
+        if box is not None:
+            caixas.append((mb.get("marca", mb.get("tipo")), disc, mb.get("tipo"), box))
+    clashes = []
+    por_par = {}
+    for i in range(len(caixas)):
+        ma, da, ta, ba = caixas[i]
+        for j in range(i + 1, len(caixas)):
+            mb_, db, tb, bb = caixas[j]
+            if da == db:                                # intra-disciplina: fora do escopo
+                continue
+            v = _overlap_vol(ba, bb, folga)
+            if v > vol_min:
+                par = "x".join(sorted((da, db)))
+                por_par[par] = por_par.get(par, 0) + 1
+                clashes.append({"a": ma, "b": mb_, "disciplinas": par,
+                                "tipos": "%sx%s" % (ta, tb), "vol_mm3": round(v, 0)})
+    clashes.sort(key=lambda c: -c["vol_mm3"])
+    return {"n_membros": len(caixas), "n_clashes": len(clashes),
+            "clashes": clashes, "por_par": por_par, "OK": not clashes}
+
+
+def relatorio_clash_pt(rep):
+    """Relatorio pt-BR do clash federado (candidatos de coordenacao BIM)."""
+    L = ["CLASH FEDERADO - INTERFERENCIA ENTRE DISCIPLINAS (candidatos p/ coordenacao)",
+         "  %d membros analisados ; %d conflitos entre disciplinas" %
+         (rep["n_membros"], rep["n_clashes"])]
+    if rep["por_par"]:
+        L.append("  Por par de disciplinas: " +
+                 " ; ".join("%s=%d" % (k, v) for k, v in sorted(rep["por_par"].items())))
+    for c in rep["clashes"][:30]:
+        L.append("   - %-14s x %-14s [%s] %s : %.0f mm3"
+                 % (c["a"], c["b"], c["disciplinas"], c["tipos"], c["vol_mm3"]))
+    if rep["n_clashes"] > 30:
+        L.append("   ... (+%d)" % (rep["n_clashes"] - 30))
+    if rep["OK"]:
+        L.append("  RESULTADO: nenhuma interferencia entre disciplinas > limite")
+    else:
+        L.append("  RESULTADO: %d candidatos - REVISAR (alguns podem ser montagem "
+                 "intencional, ex. descida SPDA rente ao pilar)" % rep["n_clashes"])
+    return "\n".join(L)
+
+
 def relatorio_pt(R):
     """Quadro-resumo consolidado das disciplinas do galpao turnkey."""
     geo = R["geometria"]
