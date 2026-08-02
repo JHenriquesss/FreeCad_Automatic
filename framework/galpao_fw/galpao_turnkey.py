@@ -5,12 +5,13 @@
 # saida. Nao recalcula nada - apenas DESPACHA para os orquestradores de cada
 # disciplina e AGREGA os gates/ATENDE:
 #   - "concreto"  -> galpao_concreto.rodar(spec)          (NBR 6118/6123/6122)
-#   - "aco"       -> rodar_galpao.rodar(params, out_dir)  (NBR 8800/6123) *
+#   - "aco"       -> rodar_projeto.calcular(spec, out_dir) (NBR 8800/6123) *
 #   - "eletrico"  -> galpao_eletrico.rodar(spec)          (NBR 5410/14039/5419)
 #   - "incendio"  -> galpao_seguranca_incendio.rodar(spec)(NBR 10898/16820/17240/10897)
-#   * o vertical de aco ESCREVE arquivos e usa spec proprio (geometria.spans /
-#     secoes / cargas); so roda quando um out_dir e' fornecido; senao e' pulado
-#     com nota (nunca inventa um veredito).
+#   * o vertical de aco usa spec de PROJETO proprio (geometria.spans / secoes /
+#     cargas) e ESCREVE arquivos; so roda quando um out_dir e' fornecido; senao e'
+#     pulado com nota (nunca inventa um veredito). O MESMO shape de spec alimenta o
+#     caderno_turnkey (rodar_tudo -> pranchas A1).
 # PRINCIPIOS (herdados dos verticais): STATELESS (spec explicito, sem estado
 # global); imports PREGUICOSOS dentro de cada adaptador -> o modulo-mestre nao
 # carrega FreeCAD nem nada pesado, e uma disciplina que quebre NAO derruba as
@@ -76,16 +77,19 @@ def _run_incendio(sub, geo, out_dir):
 
 
 def _run_aco(sub, geo, out_dir):
-    """Vertical de aco: usa spec proprio (geometria.spans/secoes/cargas) e ESCREVE
-    arquivos -> so roda com out_dir. Sem out_dir, e' pulado com nota (nao inventa)."""
+    """Vertical de aco: usa spec de PROJETO proprio (geometria.spans/secoes/cargas) e
+    ESCREVE arquivos -> so roda com out_dir. Sem out_dir, e' pulado com nota (nao
+    inventa). Usa rodar_projeto.calcular (que valida via exigir_completo, converte com
+    to_rodar_params e chama rodar_galpao) -> MESMO shape de spec que o caderno usa p/
+    gerar as pranchas (rodar_tudo). O res traz atende_global/falhas_verificacao."""
     if not out_dir:
         return {"rodou": False, "ATENDE": None, "reprovados": [], "gates": {},
                 "nota": "vertical de aco requer out_dir (gera arquivos) - nao executado"}
     import os
-    import rodar_galpao as rg
-    res = rg.rodar(sub, os.path.join(out_dir, "aco"))
+    import rodar_projeto as RP
+    res = RP.calcular(dict(sub), os.path.join(out_dir, "aco"))
     falhas = res.get("falhas_verificacao", [])            # [(nome, util), ...]
-    atende = res.get("atende_global")
+    atende = res.get("atende_global", res.get("atende"))
     gates = {nome: {"util": float(u), "OK": float(u) <= 1.001} for nome, u in falhas}
     return {"rodou": True, "ATENDE": bool(atende) if atende is not None else None,
             "reprovados": [nome for nome, u in falhas if float(u) > 1.001],
@@ -114,7 +118,7 @@ def rodar(spec, out_dir=None):
       'geometria': {comprimento/L, vao/W, pe_direito/H} (m) - comum a todas as
                    disciplinas; cada uma usa o que precisa,
       'concreto' : sub-spec de galpao_concreto.rodar   (opc),
-      'aco'      : sub-spec de rodar_galpao.rodar       (opc; requer out_dir),
+      'aco'      : spec de PROJETO de aco (rodar_projeto)(opc; requer out_dir),
       'eletrico' : sub-spec de galpao_eletrico.rodar    (opc),
       'incendio' : sub-spec de galpao_seguranca_incendio.rodar (opc),
     }

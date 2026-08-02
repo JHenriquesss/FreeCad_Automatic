@@ -101,6 +101,27 @@ def test_caderno_vazio_reporta_faltando(tmp_path):
     assert os.path.exists(res["path"])                        # ainda gera capa+indice
 
 
+def test_aco_dispatch_existe_e_roteia_p_rodar_projeto():
+    # o dispatch do aco deve existir e chamar rodar_projeto.rodar_tudo (nao o
+    # placeholder antigo). Checa a fonte (sem FreeCAD).
+    import inspect
+    src = inspect.getsource(ct._dispatch_pranchas)
+    assert 'nome == "aco"' in src and "rodar_projeto" in src and "rodar_tudo" in src
+    assert "aco emite as pranchas no proprio" not in src        # placeholder removido
+
+
+def test_aco_incompleto_degrada_sem_crash(tmp_path):
+    # aco com spec INCOMPLETO: calcular/exigir_completo levanta -> tk ISOLA -> aco nao
+    # executa -> o caderno ainda monta (capa+indice), 0 pranchas, sem crash e sem FreeCAD.
+    import galpao_turnkey as tk
+    sp = {"geometria": {"comprimento": 40, "vao": 20, "pe_direito": 6},
+          "aco": {"incompleto": True}, "slug": "t"}
+    R = tk.rodar(sp, str(tmp_path))
+    assert R["disciplinas"]["aco"]["rodou"] is False and "erro" in R["disciplinas"]["aco"]
+    res = ct.montar_caderno(sp, str(tmp_path), disciplinas=["aco"], timeout=5)
+    assert res["n_pranchas"] == 0 and os.path.exists(res["path"])   # capa+indice mesmo assim
+
+
 def test_coletar_pdfs_ordenado(tmp_path):
     tmp = str(tmp_path)
     _prancha(tmp, "eletrico", ["PE-EL-03", "PE-EL-01", "PE-EL-02"])
