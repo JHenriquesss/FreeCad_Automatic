@@ -7,6 +7,7 @@
 #   - curto_circuito        (Mamede Cap.5): Icc presumida na barra do QGF;
 #   - protecao_nbr5410      (NBR 5410): disjuntor geral (IB<=IN<=IZ) + DR/DPS;
 #   - fator_potencia        (Mamede Cap.4): banco de capacitores p/ FP>=0,92;
+#   - subestacao_nbr14039   (NBR 14039): entrada/subestacao em MT (se > 75 kW);
 #   - aterramento_nbr15749  (NBR 15749): resistividade/resistencia do aterramento;
 #   - spda_nbr5419          (NBR 5419): gerenciamento de risco e projeto do SPDA.
 # STATELESS por design: rodar(spec) recebe um dict explicito (sem estado global -
@@ -29,6 +30,7 @@ import protecao_nbr5410 as pr
 import fator_potencia as fp
 import aterramento_nbr15749 as at
 import spda_nbr5419 as spda
+import subestacao_nbr14039 as se
 
 # serie comercial de transformadores de distribuicao ABNT (kVA)
 TRAFOS_KVA = [45, 75, 112.5, 150, 225, 300, 500, 750, 1000, 1500, 2000]
@@ -82,10 +84,23 @@ def rodar(spec):
                "origem": origem}
     alimentador = cd.dimensiona_condutor(circ_al)
 
+    # ------------------------------------------- 2b) SUBESTACAO / ENTRADA MT
+    # aciona quando a carga instalada/demanda supera 75 kW (NBR 14039 / concessionaria).
+    subest = None
+    if qc["P_inst_kW"] > se.LIMITE_BT_KW or D_kVA * 0.92 > se.LIMITE_BT_KW:
+        subest = se.dimensiona_subestacao({
+            "D_kVA": D_kVA, "carga_inst_kW": qc["P_inst_kW"],
+            "V_primaria_kV": spec.get("V_primaria_kV", se.V_PRIMARIA_USUAL_KV),
+            "V_secundaria_V": V})
+
     # -------------------------------------------------- 3) CURTO na barra QGF
+    # usa o trafo explicito; se ausente, cai no trafo escolhido pela subestacao.
     trafo = spec.get("transformador")
     if trafo and trafo.get("Sn_kVA") and trafo.get("z_pct"):
         icc = cc.icc_simetrica(float(trafo["Sn_kVA"]), V / 1000.0, float(trafo["z_pct"]))
+        Icc_barra = icc["Ik3"]
+    elif subest and subest.get("z_pct"):
+        icc = cc.icc_simetrica(subest["Sn_kVA"], V / 1000.0, subest["z_pct"])
         Icc_barra = icc["Ik3"]
     else:
         icc = None
@@ -161,6 +176,11 @@ def rodar(spec):
                         "limite_ohm": aterr["limite_ohm"] if aterr else at.R_MAX_SPDA,
                         "nota": "" if aterr else "A CONFIRMAR: exige rho medido (Wenner/NBR 15749)",
                         "OK": aterr["OK"] if aterr else True},
+        "subestacao": {"necessaria": bool(subest), "Sn_kVA": subest["Sn_kVA"] if subest else None,
+                       "Inp_A": round(subest["Inp_A"], 2) if subest else None,
+                       "protecao": subest["protecao"]["tipo"] if subest else None,
+                       "nota": "" if subest else "carga <= 75 kW: atendimento em BT",
+                       "OK": subest["OK"] if subest else True},
         "spda": {"NP": spda_res["NP"] if spda_res else None,
                  "n_descidas": spda_res["n_descidas"] if spda_res else None,
                  "Nd_ano": round(spda_res["Nd_ano"], 5) if (spda_res and spda_res["Nd_ano"]) else None,
@@ -170,7 +190,7 @@ def rodar(spec):
     res = {"spec": {"tensao_V": V, "sistema": sistema, "origem": origem},
            "cargas": qc, "alimentador": alimentador, "curto": icc,
            "protecao": prot, "fator_potencia": corr_fp, "circuitos": circuitos,
-           "aterramento": aterr, "spda": spda_res,
+           "subestacao": subest, "aterramento": aterr, "spda": spda_res,
            "trafo_sugerido_kVA": trafo_sugerido, "gates": gates}
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     res["reprovados"] = reprovados
@@ -197,6 +217,10 @@ def relatorio_pt(r):
          f"  Fator de potencia: {g['fator_potencia']['fp_atual']} -> "
          f"{g['fator_potencia']['fp_alvo']} ; banco = {g['fator_potencia']['Qc_kVAr']} kVAr "
          + ("(necessario)" if g['fator_potencia']['precisa_corrigir'] else "(dispensavel)"),
+         f"  Subestacao: "
+         + (f"trafo {g['subestacao']['Sn_kVA']} kVA ; Inp = {g['subestacao']['Inp_A']} A "
+            f"(13,8 kV) ; protecao {g['subestacao']['protecao']}"
+            if g['subestacao']['necessaria'] else g['subestacao']['nota']),
          f"  Aterramento: "
          + (f"R = {g['aterramento']['R_ohm']} ohm (limite {g['aterramento']['limite_ohm']})"
             if g['aterramento']['R_ohm'] is not None else g['aterramento']['nota']),
@@ -232,6 +256,7 @@ def _selftest():
     assert g["protecao"]["dps_classe"] == "II"            # exposicao default 'indireta'
     assert g["spda"]["NP"] == "III" and g["spda"]["n_descidas"] == 8
     assert g["aterramento"]["R_ohm"] is not None
+    assert g["subestacao"]["necessaria"] and g["subestacao"]["Sn_kVA"] == 225
     assert isinstance(r["ATENDE"], bool)
     print(relatorio_pt(r))
     print("galpao_eletrico self-test PASSED")

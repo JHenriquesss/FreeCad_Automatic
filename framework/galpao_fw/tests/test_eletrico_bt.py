@@ -15,6 +15,7 @@ import protecao_nbr5410 as pr
 import fator_potencia as fp
 import aterramento_nbr15749 as at
 import spda_nbr5419 as spda
+import subestacao_nbr14039 as se
 import galpao_eletrico as ge
 
 
@@ -27,6 +28,7 @@ def test_selftests_dos_modulos():
     fp._selftest()
     at._selftest()
     spda._selftest()
+    se._selftest()
 
 
 # ------------------------------- cargas --------------------------------------
@@ -140,6 +142,26 @@ def test_spda_niveis_e_descidas():
     assert r["protecao_necessaria"] is True
 
 
+# ------------------------------- subestacao MT -------------------------------
+def test_subestacao_mamede_225kva():
+    r = se.dimensiona_subestacao({"D_kVA": 210.0, "V_primaria_kV": 13.8,
+                                  "V_secundaria_V": 380.0})
+    assert r["Sn_kVA"] == 225 and abs(r["Inp_A"] - 9.41) < 0.02
+    assert abs(r["Ins_A"] - 341.8) < 0.2
+    assert r["protecao"]["tipo"] == "chave_fusivel_HH" and r["protecao"]["fusivel_HH_A"] == 16
+
+
+def test_subestacao_acima_300_exige_disjuntor():
+    r = se.dimensiona_subestacao({"D_kVA": 450.0})
+    assert r["Sn_kVA"] == 500 and r["protecao"]["tipo"] == "disjuntor_rele"
+
+
+def test_criterio_media_tensao():
+    assert not se.exige_media_tensao(60.0)["media_tensao"]
+    assert se.exige_media_tensao(200.0)["media_tensao"]
+    assert se.exige_media_tensao(3000.0)["alta_tensao"]
+
+
 # ------------------------------- orquestrador --------------------------------
 def _spec(**kw):
     base = {"tensao_V": 380.0, "sistema": "trifasico", "origem": "subestacao_propria",
@@ -168,15 +190,27 @@ def test_rodar_gates_completos():
     assert g["fator_potencia"]["precisa_corrigir"] is True   # FP resultante < 0,92
     assert g["spda"]["NP"] == "III" and g["spda"]["n_descidas"] == 8
     assert g["aterramento"]["R_ohm"] is not None and g["aterramento"]["OK"]
+    assert g["subestacao"]["necessaria"] and g["subestacao"]["Sn_kVA"] == 225
 
 
-def test_sem_trafo_icc_a_confirmar():
+def test_sem_trafo_usa_trafo_da_subestacao():
+    # sem transformador explicito, o curto cai no trafo escolhido pela subestacao
     sp = _spec()
     sp.pop("transformador")
     r = ge.rodar(sp)
+    assert r["gates"]["curto"]["Icc_kA"] is not None          # veio da subestacao (225 kVA)
+    assert r["gates"]["subestacao"]["Sn_kVA"] == 225
+
+
+def test_carga_bt_sem_subestacao_icc_a_confirmar():
+    # carga pequena (<= 75 kW): atendimento em BT, sem subestacao nem trafo -> Icc A CONFIRMAR
+    sp = _spec(cargas={"iluminacao_kW": 10.0, "ilum_fp": 0.92, "ocupacao": "industrial"},
+               circuitos=[])
+    sp.pop("transformador")
+    r = ge.rodar(sp)
+    assert r["gates"]["subestacao"]["necessaria"] is False
     assert r["gates"]["curto"]["Icc_kA"] is None
-    assert "A CONFIRMAR" in r["gates"]["curto"]["nota"]
-    assert r["gates"]["curto"]["OK"]                          # informativo, nao reprova
+    assert "A CONFIRMAR" in r["gates"]["curto"]["nota"] and r["gates"]["curto"]["OK"]
 
 
 def test_circuitos_terminais():
