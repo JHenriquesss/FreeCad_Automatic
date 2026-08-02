@@ -49,7 +49,8 @@ def test_transform_concreto_para_frame_comum():
 
 def test_membros_federados_reune_as_tres_disciplinas():
     R = tk.rodar(_spec())
-    membros = tk._membros_federados(R)
+    membros, disc = tk._membros_federados(R)
+    assert set(disc) == {"concreto", "eletrico", "incendio"}      # sem aco no _spec()
     marcas = [m["marca"][0] for m in membros]
     assert "C" in marcas and "E" in marcas and "I" in marcas      # concreto/eletrico/incendio
     # federado = soma dos membros_bim das tres disciplinas executadas
@@ -64,7 +65,7 @@ def test_membros_federados_reune_as_tres_disciplinas():
 def test_federado_footprint_coerente():
     # apos a transformacao, concreto e instalacoes ocupam o MESMO footprint XY [0..comp]x[0..vao]
     R = tk.rodar(_spec())
-    membros = tk._membros_federados(R)
+    membros, _ = tk._membros_federados(R)
     def _xy(m):
         pts = [m["p1"], m["p2"]] if "p1" in m else [m["centro"]]
         return pts
@@ -101,6 +102,46 @@ def test_emitir_bim_sem_spec_aco_nota(tmp_path):
     R = tk.rodar(spec)                                       # aco pulado (sem out_dir no rodar)
     man = tk.emitir_bim(R, str(tmp_path))                    # sem spec -> nao emite aco.ifc
     assert man["nota_aco"] and "aco.ifc nao gerado" in man["nota_aco"]
+
+
+# spec de aco JA ENRIQUECIDO (perfis adotados) -> membros_do_spec funciona sem calculo,
+# entao o federado inclui o aco pelo fallback spec['aco'] (mesmo frame, sem transformar).
+_ACO_ENRIQUECIDO = {
+    "slug": "aco_fed", "geometria": {"span": 20.0, "comprimento": 28.5, "eave": 8.0,
+                                     "ridge": 9.5, "bay": 5.7},
+    "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180"},
+}
+
+
+def test_aco_federa_no_frame_comum_via_spec_enriquecido():
+    spec = dict(_spec()); spec["aco"] = _ACO_ENRIQUECIDO
+    R = tk.rodar(spec)                                   # aco pulado (sem out_dir), mas...
+    membros, disc = tk._membros_federados(R, spec)       # ...federa pelo spec['aco'] enriquecido
+    assert "aco" in disc
+    aco = [m for m in membros if m["marca"].startswith("A-")]
+    assert aco, "aco deveria contribuir membros ao federado"
+    # aco ja no frame comum (modelo_neutro X=comprimento[0..], Y=vao[0..]): X e Y >= 0.
+    # (paineis de fechamento usam 'poligono' e nao entram nesta checagem de eixo.)
+    checou = 0
+    for m in aco:
+        pts = [m["p1"], m["p2"]] if "p1" in m else ([m["centro"]] if "centro" in m else [])
+        for (x, y, z) in pts:
+            assert x >= -1 and y >= -1, (x, y)           # sem centrar em 0 (nao e' concreto)
+            checou += 1
+    assert checou > 0
+
+
+@pytest.mark.skipif(not ifc_emit.disponivel(), reason="ifcopenshell ausente")
+def test_federado_com_aco_tem_estrutura_de_aco(tmp_path):
+    spec = dict(_spec()); spec["aco"] = _ACO_ENRIQUECIDO
+    man = tk.emitir_bim(tk.rodar(spec), str(tmp_path), spec=spec)
+    assert "aco" in man["disciplinas_federadas"]
+    import ifcopenshell
+    m = ifcopenshell.open(man["federado"])
+    # portico de aco: colunas + rafters (IfcColumn/IfcBeam/IfcMember) no MESMO arquivo
+    assert len(m.by_type("IfcColumn")) >= 2
+    assert len(m.by_type("IfcBeam")) + len(m.by_type("IfcMember")) >= 2
+    assert os.path.exists(man["arquivos"]["aco"])       # e o aco.ifc standalone tambem
 
 
 def test_emitir_bim_sem_ifcopenshell(monkeypatch, tmp_path):

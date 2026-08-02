@@ -21,8 +21,10 @@
 # verticais (A CONFIRMAR nos proprios modulos) - o mestre nao preenche premissa.
 # Veredito GLOBAL = todas as disciplinas EXECUTADAS atendem.
 # CONSOLIDACAO BIM: emitir_bim(R, out_dir, spec) escreve um IFC por disciplina
-# (frame nativo) + turnkey_federado.ifc (concreto transformado + eletrico + incendio
-# num frame comum); o aco sai por pipeline proprio como arquivo separado.
+# (frame nativo) + turnkey_federado.ifc com AS 4 DISCIPLINAS num frame comum
+# (X=comprimento, Y=largura, Z=altura): concreto TRANSFORMADO (X=vao centrado ->
+# comum) e eletrico/incendio/aco ja no frame comum (aco via ifc_emit.membros_do_spec,
+# modelo_neutro X=comprimento/Y=vao). Tesoura/prismatico sem perfil -> aco so via FreeCAD.
 # Unidades: as de cada vertical (sem conversao aqui).
 # ============================================================================
 """Orquestrador-mestre turnkey do galpao: um rodar(spec) despacha todos os
@@ -90,14 +92,16 @@ def _run_aco(sub, geo, out_dir):
         return {"rodou": False, "ATENDE": None, "reprovados": [], "gates": {},
                 "nota": "vertical de aco requer out_dir (gera arquivos) - nao executado"}
     import os
+    import copy
     import rodar_projeto as RP
-    res = RP.calcular(dict(sub), os.path.join(out_dir, "aco"))
+    s_enr = copy.deepcopy(sub)                            # calcular ENRIQUECE s_enr in-place
+    res = RP.calcular(s_enr, os.path.join(out_dir, "aco"))  # grava estrutura.perfil_*_adotado
     falhas = res.get("falhas_verificacao", [])            # [(nome, util), ...]
     atende = res.get("atende_global", res.get("atende"))
     gates = {nome: {"util": float(u), "OK": float(u) <= 1.001} for nome, u in falhas}
     return {"rodou": True, "ATENDE": bool(atende) if atende is not None else None,
             "reprovados": [nome for nome, u in falhas if float(u) > 1.001],
-            "gates": gates, "raw": res}
+            "gates": gates, "raw": res, "spec_enriquecido": s_enr}
 
 
 def _com_geometria_LWH(s, geo):
@@ -182,25 +186,43 @@ def _concreto_no_frame_comum(membros, vao_concreto_m):
     return out
 
 
-def _membros_federados(R):
-    """Reune os membros das disciplinas de contrato membros_bim(raw) no frame comum.
-    concreto (transformado) + eletrico + incendio. Marca prefixada por disciplina."""
+def _membros_federados(R, spec=None):
+    """Reune os membros das disciplinas no frame comum (X=comprimento, Y=largura, Z=
+    altura). concreto (TRANSFORMADO) + eletrico + incendio + aco. Aco vem de
+    ifc_emit.membros_do_spec(spec['aco']) e ja esta no frame comum (modelo_neutro:
+    X=comprimento, Y=vao) -> sem transformacao. Marca prefixada por disciplina
+    (C-/E-/I-/A-). Retorna (membros, disciplinas_contribuintes)."""
     membros = []
+    disc = []
     d = R["disciplinas"]
     if d.get("concreto", {}).get("rodou"):
         import galpao_concreto as gc
         raw = d["concreto"]["raw"]
-        vao_c = raw["spec"]["vao"]
-        membros += _concreto_no_frame_comum(gc.membros_bim(raw), vao_c)
+        membros += _concreto_no_frame_comum(gc.membros_bim(raw), raw["spec"]["vao"])
+        disc.append("concreto")
     if d.get("eletrico", {}).get("rodou"):
         import galpao_eletrico as ge
         for m in ge.membros_bim(d["eletrico"]["raw"]):
             m = dict(m); m["marca"] = "E-" + str(m.get("marca", "")); membros.append(m)
+        disc.append("eletrico")
     if d.get("incendio", {}).get("rodou"):
         import galpao_seguranca_incendio as gi
         for m in gi.membros_bim(d["incendio"]["raw"]):
             m = dict(m); m["marca"] = "I-" + str(m.get("marca", "")); membros.append(m)
-    return membros
+        disc.append("incendio")
+    # aco: mesmo frame (modelo_neutro X=comprimento, Y=vao) -> sem transformar. Prefere o
+    # spec ENRIQUECIDO pelo calculo (perfil_col/raf_adotado); senao o spec['aco'] cru (so
+    # federa se o usuario ja o enriqueceu). None se tesoura/prismatico sem perfil.
+    spec_aco = ((d.get("aco") or {}).get("spec_enriquecido")
+                or (spec.get("aco") if spec else None))
+    if spec_aco:
+        import ifc_emit
+        mem_aco = ifc_emit.membros_do_spec(spec_aco)
+        if mem_aco:
+            for m in mem_aco:
+                m = dict(m); m["marca"] = "A-" + str(m.get("marca", "")); membros.append(m)
+            disc.append("aco")
+    return membros, disc
 
 
 def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
@@ -233,25 +255,27 @@ def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
         except Exception as e:
             arquivos[nome_d] = "ERRO: %s: %s" % (type(e).__name__, e)
 
-    # 2) aco: pipeline proprio (spec de projeto -> IFC puro), arquivo separado
+    # 2) aco: pipeline proprio (spec de projeto -> IFC puro), tambem como arquivo proprio.
+    # Prefere o spec ENRIQUECIDO pelo calculo (perfis adotados); senao o spec['aco'] cru.
     nota_aco = None
-    if spec and spec.get("aco"):
+    spec_aco = ((d.get("aco") or {}).get("spec_enriquecido")
+                or (spec.get("aco") if spec else None))
+    if spec_aco:
         try:
             p = os.path.join(bimdir, "aco.ifc")
-            if ifc_emit.emitir_ifc_do_spec(spec["aco"], p):
+            if ifc_emit.emitir_ifc_do_spec(spec_aco, p):
                 arquivos["aco"] = p
             else:
-                nota_aco = "aco nao emitido pelo caminho puro (ex.: tesoura/trelica -> requer FreeCAD)"
+                nota_aco = ("aco nao emitido pelo caminho puro (tesoura/prismatico sem perfil "
+                            "adotado -> requer FreeCAD; ou spec['aco'] cru sem calculo)")
         except Exception as e:
             nota_aco = "aco: %s: %s" % (type(e).__name__, e)
     elif "aco" in d:
         nota_aco = "spec['aco'] nao fornecido a emitir_bim -> aco.ifc nao gerado"
 
-    # 3) modelo FEDERADO (frame comum) das disciplinas de contrato membros_bim
+    # 3) modelo FEDERADO (frame comum) - todas as disciplinas com membros no frame comum
     federado = None
-    disc_fed = [n for n in ("concreto", "eletrico", "incendio")
-                if d.get(n, {}).get("rodou")]
-    membros = _membros_federados(R)
+    membros, disc_fed = _membros_federados(R, spec)
     if membros:
         federado = os.path.join(bimdir, "turnkey_federado.ifc")
         ifc_emit.emitir_ifc(membros, federado, nome=nome, secao_em_metros=True)

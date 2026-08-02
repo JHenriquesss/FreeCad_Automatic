@@ -371,12 +371,14 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
     return path
 
 
-def emitir_ifc_do_spec(spec, path):
-    """Emite o IFC4 da estrutura direto do CALCULO (spec), SEM FreeCAD. Pórtico de
-    perfil laminado (perfil_col_adotado/perfil_raf_adotado + catalogo `perfis`) OU de
-    ALMA VARIÁVEL (tipo_portico=alma_variavel + tapered, I soldado de altura variável)
-    -> ambos no caminho puro. Tesoura (treliça) -> retorna None (segue via FreeCAD).
-    Retorna o path ou None. Entrada BIM FreeCAD-free do roteiro (item 2)."""
+def membros_do_spec(spec):
+    """Constroi a LISTA DE MEMBROS (modelo neutro do ifc_emit) da estrutura de aco
+    direto do CALCULO (spec), SEM FreeCAD. Pórtico de perfil laminado (perfil_col_
+    adotado/perfil_raf_adotado + catalogo `perfis`) OU de ALMA VARIÁVEL (tipo_portico=
+    alma_variavel + tapered, I soldado de altura variável) -> ambos no caminho puro.
+    Tesoura (treliça) / prismático sem perfil -> retorna None (segue via FreeCAD).
+    Convencao (modelo_neutro): mm, X=comprimento[0..], Y=vao transversal[0..], Z=altura
+    -> MESMO frame de eletrico/incendio (federavel sem transformacao)."""
     import modelo_neutro as MN
     import perfis
     est = spec.get("estrutura", {}) or {}
@@ -508,6 +510,16 @@ def emitir_ifc_do_spec(spec, path):
                                 misula=misula, fund_profunda=fund_prof, ponte=ponte,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
+    return membros
+
+
+def emitir_ifc_do_spec(spec, path):
+    """Emite o IFC4 da estrutura de aco direto do spec, SEM FreeCAD (thin wrapper de
+    membros_do_spec + emitir_ifc). Retorna o path, ou None quando o caminho puro nao
+    cobre a estrutura (tesoura/prismático sem perfil -> segue via FreeCAD)."""
+    membros = membros_do_spec(spec)
+    if membros is None:
+        return None
     return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
 
 
