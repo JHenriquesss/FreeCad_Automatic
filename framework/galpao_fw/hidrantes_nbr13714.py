@@ -91,21 +91,29 @@ def reserva_incendio(tipo, vazao_override=None):
     return Q * t, Q, t
 
 
+def jatos_por_ponto(tipo):
+    """Nº de esguichos que devem alcancar CADA ponto da area (5.3.2): 1 (tipo 1) ou
+    2 (tipos 2 e 3). E' o nº de saidas do tipo (Tabela 1)."""
+    return 1 if int(tipo) == 1 else 2
+
+
 def numero_hidrantes(C, L, tipo):
     """Numero de hidrantes/mangotinhos p/ cobrir o galpao C x L (m). Regra 5.3.2:
-    qualquer ponto alcancado por 1 (tipo 1) ou 2 (tipos 2/3) esguichos pelo trajeto
-    REAL da mangueira (<= comp_max, desconsiderando o jato). ESTIMATIVA: raio de
-    cobertura = comprimento da mangueira; tipos 2/3 exigem cobertura DUPLA -> area
-    efetiva por hidrante = pi*R^2/2 e minimo 2 (dois jatos). Piso por dimensao
-    (ceil(lado/R)) garante o comprimento. Verificar o leiaute real (obstaculos)."""
+    "qualquer ponto da area a ser protegida seja alcancado por UM (tipo 1) ou DOIS
+    (tipos 2 e 3) esguichos, considerando-se o comprimento da(s) mangueira(s) e seu
+    TRAJETO REAL e DESCONSIDERANDO-SE o alcance do jato de agua". Portanto o passo da
+    malha e' o comprimento da mangueira (Tabela 1 = 30 m), NAO o alcance do jato (8 m,
+    4.4.1 - excluido de proposito). ESTIMATIVA por MALHA retangular: uma tomada por
+    celula R x R (ceil(C/R) x ceil(L/R)) cobre cada ponto com UM jato; tipos 2/3
+    exigem DOIS jatos por ponto -> multiplica a malha por 2. R e' o alcance em linha
+    reta (limite superior do trajeto real, que serpenteia): confirmar o leiaute real
+    (portas <=5 m, obstaculos, 5.2.1) - a malha pode subir. Minimo = nº de saidas."""
     R = float(TIPO_SISTEMA[tipo]["comp_max_m"])
-    dupla = TIPO_SISTEMA[tipo]["saidas"] >= 2
-    area = C * L
-    area_efetiva = math.pi * R ** 2 / (2.0 if dupla else 1.0)
-    por_area = math.ceil(area / area_efetiva)
-    por_dim = max(math.ceil(C / R), math.ceil(L / R))    # cobre o comprimento
-    minimo = 2 if dupla else 1
-    return max(minimo, por_area, por_dim)
+    n_jatos = jatos_por_ponto(tipo)
+    celulas = math.ceil(C / R) * math.ceil(L / R)        # malha, nao o maior lado
+    n = celulas * n_jatos                                 # 2 jatos por ponto nos tipos 2/3
+    minimo = TIPO_SISTEMA[tipo]["saidas"]
+    return max(minimo, n)
 
 
 def dimensiona_hidrantes(caso):
@@ -168,11 +176,22 @@ def _selftest():
     assert V3 == 54000.0 and Q3 == 1800.0 and t3 == 30
     #  Tipo 1 (grupo A, 80 L/min): 2*80*60 = 9 600 L
     assert reserva_incendio(1, 80)[0] == 9600.0
-    # galpao 40x20 industrial medio -> Tipo 2, reserva 36 m3, >= 2 hidrantes
+    # cobertura 5.3.2 por MALHA (passo = mangueira 30 m; jato de 8 m NAO conta):
+    #  - tipo 1 (1 jato/ponto): malha ceil(C/30)*ceil(L/30), sem duplicar
+    assert jatos_por_ponto(1) == 1 and jatos_por_ponto(2) == 2 and jatos_por_ponto(3) == 2
+    assert numero_hidrantes(40.0, 20.0, 1) == 2      # ceil(40/30)*ceil(20/30)=2*1
+    #  - tipo 2/3 (2 jatos/ponto): DOBRA a malha -> 40x20 = 2*1*2 = 4
+    assert numero_hidrantes(40.0, 20.0, 2) == 4 and numero_hidrantes(40.0, 20.0, 3) == 4
+    #  - galpao ALONGADO 200x12 (o caso que a heuristica de maior-lado subdimensionava):
+    #    malha ceil(200/30)*ceil(12/30)=7*1=7 ; tipo 2 dobra -> 14 (antes: max(7,..)=7)
+    assert numero_hidrantes(200.0, 12.0, 2) == 14
+    #  - quadrado grande 60x60 tipo 2: malha 2*2=4, dobra -> 8 (o "max de lado" daria 2)
+    assert numero_hidrantes(60.0, 60.0, 2) == 8
+    # galpao 40x20 industrial medio -> Tipo 2, reserva 36 m3, 4 hidrantes (2 jatos/malha)
     r = dimensiona_hidrantes({"C": 40.0, "L": 20.0, "altura_m": 6.0})
     assert r["tipo"] == 2 and r["sistema"] == "hidrante"
     assert r["reserva_incendio_m3"] == 36.0 and r["vazao_total_Lmin"] == 600.0
-    assert r["N_hidrantes"] >= 2 and r["esguicho"].startswith("jato compacto 16")
+    assert r["N_hidrantes"] == 4 and r["esguicho"].startswith("jato compacto 16")
     assert r["exige_sistema"] and r["n_jatos_simultaneos"] == 2 and r["OK"]
     # alto risco (I-3) -> Tipo 3, mangueira 65 mm, reserva 54 m3
     r3 = dimensiona_hidrantes({"C": 40.0, "L": 20.0, "altura_m": 6.0,
