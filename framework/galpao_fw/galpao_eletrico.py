@@ -71,6 +71,8 @@ def rodar(spec):
                      no formato de condutores_nbr5410.dimensiona_condutor + protecao).
     }"""
     V = float(spec.get("tensao_V", 380.0))
+    if V <= 0:
+        raise ValueError("[A CONFIRMAR] tensao_V invalida: %g V (deve ser > 0)." % V)
     sistema = spec.get("sistema", "trifasico")
     origem = spec.get("origem", "rede_publica")
 

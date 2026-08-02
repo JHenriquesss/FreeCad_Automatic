@@ -35,6 +35,9 @@ def rodar(spec):
     }"""
     geo = spec.get("geometria") or {}
     C = float(geo.get("L", 40.0)); L = float(geo.get("W", 20.0)); H = float(geo.get("H", 6.0))
+    if C <= 0 or L <= 0 or H <= 0:
+        raise ValueError("[A CONFIRMAR] geometria do galpao invalida: comprimento=%g, "
+                         "largura=%g, pe-direito=%g (devem ser > 0)." % (C, L, H))
     rota = spec.get("rota_fuga_m")
 
     # -------------------------------------------- ILUMINACAO DE EMERGENCIA

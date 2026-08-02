@@ -82,6 +82,12 @@ def test_tipo_override():
     assert r["tipo"] == 1 and r["reserva_incendio_L"] == 9600.0
 
 
+def test_tipo_override_invalido_e_ValueError():
+    # BUG achado na revisao: tipo fora de {1,2,3} dava KeyError cru -> agora ValueError
+    with pytest.raises(ValueError):
+        hd.dimensiona_hidrantes({"C": 40.0, "L": 20.0, "tipo": 9})
+
+
 # ------------------------------ integracao no orquestrador -------------------
 def test_gate_hidrantes_no_orquestrador():
     r = gsi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},

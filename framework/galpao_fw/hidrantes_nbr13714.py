@@ -118,6 +118,9 @@ def dimensiona_hidrantes(caso):
     ocup = caso.get("ocupacao", "industrial_I2")
     if caso.get("tipo") is not None:
         tipo, vaz_over = int(caso["tipo"]), caso.get("vazao_saida")
+        if tipo not in TIPO_SISTEMA:
+            raise ValueError("[A CONFIRMAR] tipo de sistema '%s' inexistente na NBR 13714 "
+                             "(use 1, 2 ou 3)." % tipo)
     else:
         tipo, vaz_over = tipo_por_ocupacao(ocup)
     ts = TIPO_SISTEMA[tipo]

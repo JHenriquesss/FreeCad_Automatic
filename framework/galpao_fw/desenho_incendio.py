@@ -132,6 +132,16 @@ def _pontos_grade(x0, y0, w, h, cols, rows):
     return pts
 
 
+def _pontos_exatos(n, x0, y0, w, h, C, L):
+    """EXATAMENTE n pontos numa grade proporcional (cols*rows >= n, cortado em n).
+    Sem isso, cols*rows > n desenharia MAIS simbolos do que a contagem do resumo
+    (drawing != data). Ver [[varredura-rotulo-takeoff]]."""
+    if n <= 0:
+        return []
+    cols, rows = _grade(n, C, L)
+    return _pontos_grade(x0, y0, w, h, cols, rows)[:n]
+
+
 def planta_seguranca_svg(r):
     """Planta de seguranca contra incendio a partir de r=rodar(). String SVG.
     Escala o contorno do galpao ao canvas e posiciona os simbolos por contagem."""
@@ -161,18 +171,16 @@ def planta_seguranca_svg(r):
     s.append(_t(x0 + gw / 2, y0 - 8, "%.0f m" % C, 12))
     s.append(_t(x0 - 30, y0 + gh / 2, "%.0f m" % L, 12))
 
-    # --- CHUVEIROS (grade vermelha) - so se houver sprinklers
+    # --- CHUVEIROS (grade vermelha) - EXATAMENTE N_chuveiros (== resumo)
     if g["sprinklers"]["N_chuveiros"]:
         nc = int(g["sprinklers"]["N_chuveiros"])
-        cols, rows = _grade(min(nc, 60), C, L)          # limita a densidade do desenho
-        for (px, py) in _pontos_grade(x0, y0, gw, gh, cols, rows):
+        for (px, py) in _pontos_exatos(nc, x0, y0, gw, gh, C, L):
             s.append(_sym_sprinkler(px, py))
 
-    # --- DETECTORES (grade preta, deslocada) - so pontual (linear = feixes de borda)
+    # --- DETECTORES (grade preta) - EXATAMENTE N_detectores ; so pontual (linear = feixes)
     nd = int(g["deteccao_alarme"]["N_detectores"])
     if g["deteccao_alarme"]["tipo_detector"] == "pontual":
-        cols, rows = _grade(min(nd, 40), C, L)
-        for (px, py) in _pontos_grade(x0, y0, gw, gh, cols, rows):
+        for (px, py) in _pontos_exatos(nd, x0, y0, gw, gh, C, L):
             s.append(_sym_detector(px, py))
     else:
         # detector linear: feixes horizontais ao longo do comprimento
@@ -198,11 +206,10 @@ def planta_seguranca_svg(r):
     fracs_ac = [0.0, 1.0] + [k / (na + 1.0) for k in range(1, max(0, na - 2) + 1)]
     for k in range(na):
         s.append(_sym_acionador(x0 + gw * fracs_ac[k], ys - 26))
-    # PLACAS de sinalizacao: N_placas (limitado no desenho) ao longo da rota central.
+    # PLACAS de sinalizacao: EXATAMENTE N_placas ao longo da rota central (== resumo).
     np = int(g["sinalizacao"]["N_placas"])
-    n_draw = min(np, 12)
-    for k in range(n_draw):
-        frac = (k + 0.5) / n_draw
+    for k in range(max(np, 0)):
+        frac = (k + 0.5) / np
         s.append(_sym_placa(x0 + gw * frac, ys - 40))
     # extintores nos cantos
     for (fx, fy) in ((0.06, 0.10), (0.94, 0.10), (0.06, 0.90), (0.94, 0.90)):
