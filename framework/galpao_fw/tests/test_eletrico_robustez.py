@@ -110,6 +110,36 @@ def test_varredura_nao_quebra():
             assert al["secao_mm2"] is None or al["secao_mm2"] >= 25, (nome, al["secao_mm2"])
 
 
+def test_iluminacao_externa_e_climatizacao_viram_carga():
+    # o loop fechado: iluminacao externa (NBR 5101) e climatizacao (NBR 16401) entram
+    # como cargas do QGF e sobem a demanda.
+    sp = _base(iluminacao_externa={"comprimento_m": 100.0, "Lp": 8.0, "H": 10.0,
+                                   "area_tipo": "estacionamento",
+                                   "luminaria": {"fluxo_lm": 15000.0, "P_W": 100.0}},
+               climatizacao={"tipo": "galpao"})
+    r = ge.rodar(sp)
+    pg = r["cargas"]["por_grupo"]
+    assert "iluminacao_externa" in pg and "climatizacao" in pg
+    assert r["gates"]["climatizacao"]["capacidade_TR"] > 0
+    assert r["gates"]["iluminacao_externa"]["N_postes"] > 0
+    # a climatizacao entra pela POTENCIA ELETRICA (< capacidade termica)
+    assert pg["climatizacao"]["D_kW"] < r["gates"]["climatizacao"]["capacidade_TR"] * 3.517
+
+
+def test_coordenacao_disjuntor_upsize_condutor():
+    # IB entre degraus de disjuntor + condutor marginal: o alimentador e dimensionado
+    # p/ o disjuntor (IB <= IN <= IZ), nao so p/ IB -> protecao ATENDE.
+    sp = _base(cargas={"motores": [{"P_cv": 75.0, "eta": 0.92, "Fp": 0.86, "n": 2}]},
+               climatizacao={"tipo": "galpao"},
+               iluminacao_externa={"comprimento_m": 100.0, "Lp": 8.0, "H": 10.0,
+                                   "area_tipo": "estacionamento",
+                                   "luminaria": {"fluxo_lm": 15000.0, "P_W": 100.0}})
+    r = ge.rodar(sp)
+    al = r["gates"]["alimentador"]; pr_g = r["gates"]["protecao"]
+    assert al["OK"] and pr_g["OK"] and pr_g["IN_geral_A"] is not None
+    assert pr_g["IN_geral_A"] <= al["Iz"]                  # IN <= IZ (coordenado)
+
+
 def test_alim_longo_queda_governa():
     r = ge.rodar(_base(alimentador={"L_km": 0.30, "metodo": "F", "isolacao": "EPR"},
                        transformador={"Sn_kVA": 300.0, "z_pct": 4.5}))
