@@ -131,8 +131,17 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec):
 # ------------------------------------------------------------- orquestracao VIVA
 def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
     """Dispara o montar_pranchas da disciplina (freecad.exe). eletrico/concreto
-    precisam do montar_3d antes (a prancha e' vista do 3D); incendio nao (esquema).
-    aco ja emitiu suas PE*.pdf no proprio rodar_galpao. Retorna o dict de status."""
+    precisam do montar_3d antes (a prancha e' vista do 3D); incendio nao (esquema);
+    aco vai pelo pipeline proprio (rodar_projeto.rodar_tudo: calc + 3D + executivo)
+    que escreve as PE*.pdf em disc_out/pranchas. Retorna o dict de status."""
+    if nome == "aco":
+        import rodar_projeto as RP
+        r = RP.rodar_tudo(dict(sub_spec or {}), out_dir=disc_out, com_3d=True,
+                          com_executivo=True, gerar_pdf=True, gerar_dossie=False,
+                          verbose=False, timeout_exec=timeout)
+        ex = (r.get("executivo") if isinstance(r, dict) else None) or {}
+        return {"ok": bool(ex.get("ok")), "executivo": ex,
+                "atende": (r.get("atende") if isinstance(r, dict) else None)}
     if nome == "incendio":
         import galpao_seguranca_incendio as gsi
         return gsi.montar_pranchas(r_disc, disc_out, spec=sub_spec,
@@ -153,8 +162,6 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
             return {"erro": "montar_3d concreto nao gerou FCStd", "detalhe": m}
         return gc.montar_pranchas(r_disc, disc_out, fcstd, spec=sub_spec,
                                   freecad_exe=freecad_exe, timeout=timeout)
-    if nome == "aco":
-        return {"ok": True, "nota": "aco emite as pranchas no proprio rodar_galpao"}
     return {"erro": "disciplina sem dispatch de pranchas: %s" % nome}
 
 
