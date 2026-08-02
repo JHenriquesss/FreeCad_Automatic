@@ -91,6 +91,9 @@ def dimensiona_iluminacao_externa(caso):
     Retorna Em, S (limitado a 5H), disposicao, N de postes e potencia."""
     comp = float(caso["comprimento_m"]); Lp = float(caso["Lp"])
     H = float(caso.get("H", 8.0))
+    if Lp <= 0.0 or H <= 0.0:
+        raise ValueError("[A CONFIRMAR] largura da via Lp (%s) e altura do poste H "
+                         "(%s) devem ser > 0." % (Lp, H))
     Em = float(caso["Em"]) if caso.get("Em") is not None else nivel_externo(caso["area_tipo"])
     Fu = float(caso.get("Fu", FU_DEFAULT)); Fm = float(caso.get("Fm", FM_DEFAULT))
     lum = caso.get("luminaria", {"fluxo_lm": 15000.0, "P_W": 100.0, "n_lampadas": 1})
