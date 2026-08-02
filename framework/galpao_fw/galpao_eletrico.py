@@ -188,7 +188,7 @@ def rodar(spec):
                  "OK": spda_res["OK"] if spda_res else True},
     }
     res = {"spec": {"tensao_V": V, "sistema": sistema, "origem": origem},
-           "cargas": qc, "alimentador": alimentador, "curto": icc,
+           "geometria": geo, "cargas": qc, "alimentador": alimentador, "curto": icc,
            "protecao": prot, "fator_potencia": corr_fp, "circuitos": circuitos,
            "subestacao": subest, "aterramento": aterr, "spda": spda_res,
            "trafo_sugerido_kVA": trafo_sugerido, "gates": gates}
@@ -230,6 +230,97 @@ def relatorio_pt(r):
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVA - ' + ', '.join(r['reprovados'])}"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
+
+
+def _pontos_perimetro(L, W, n):
+    """n pontos igualmente espacados ao longo do perimetro do retangulo LxW (mm),
+    comecando no canto (0,0). Usado p/ posicionar as descidas do SPDA."""
+    P = 2.0 * (L + W)
+    passo = P / n
+    pts = []
+    for i in range(n):
+        d = i * passo
+        if d <= L:
+            pts.append((d, 0.0))
+        elif d <= L + W:
+            pts.append((L, d - L))
+        elif d <= 2 * L + W:
+            pts.append((L - (d - L - W), W))
+        else:
+            pts.append((0.0, W - (d - 2 * L - W)))
+    return pts
+
+
+def membros_bim(r):
+    """Modelo neutro dos elementos FISICOS do projeto eletrico para ifc_emit.
+    Convencao (igual aos demais verticais): COORDENADAS em mm; secao de BARRA em m;
+    dims de CAIXA em mm. Eixos: X = comprimento (L), Y = largura/vao (W), Z = altura.
+    Requer r['geometria'] {L,W,H} (m). Emite: QGF e transformador (caixas), eletrocalha
+    principal (bandeja), anel de aterramento + hastes de canto, captacao SPDA no
+    perimetro do telhado + descidas. Mapeamento IFC via ifc_emit._IFC_CLASS
+    (IfcCableCarrierSegment / IfcCableSegment / IfcDistributionBoard / IfcTransformer)."""
+    geo = r.get("geometria")
+    if not geo or not all(k in geo for k in ("L", "W", "H")):
+        return []
+    L = geo["L"] * 1000.0; W = geo["W"] * 1000.0; H = geo["H"] * 1000.0   # mm
+    CU = "Cobre"; ACO = "Aco galvanizado"
+    membros = []
+
+    # QGF (quadro geral de forca): caixa no piso, junto a uma parede
+    membros.append({"tipo": "Board", "perfil": "QGF", "marca": "QGF",
+                    "dims": [800.0, 300.0, 2000.0], "centro": [1000.0, 300.0, 1000.0],
+                    "material": "Aco"})
+    # transformador da subestacao (se houver)
+    if r.get("subestacao"):
+        Sn = r["subestacao"]["Sn_kVA"]
+        membros.append({"tipo": "Transformer", "perfil": "TRAFO %gkVA" % Sn,
+                        "marca": "TR1", "dims": [1500.0, 1300.0, 1700.0],
+                        "centro": [-1500.0, 700.0, 850.0], "material": "Aco"})
+    # eletrocalha principal: corre no comprimento, sob o beiral (z = H - 500 mm)
+    ze = H - 500.0
+    membros.append({"tipo": "CableCarrier", "perfil": "Bandeja 100x50", "marca": "CALHA-P",
+                    "secao": {"forma": "RECT", "bf": 0.10, "d": 0.05},
+                    "p1": [0.0, W / 2.0, ze], "p2": [L, W / 2.0, ze], "material": "Aco"})
+
+    # --- ATERRAMENTO: anel no perimetro, enterrado (z = -500 mm) + hastes de canto ---
+    zg = -500.0
+    anel = [([0.0, 0.0, zg], [L, 0.0, zg]), ([L, 0.0, zg], [L, W, zg]),
+            ([L, W, zg], [0.0, W, zg]), ([0.0, W, zg], [0.0, 0.0, zg])]
+    for i, (a, b) in enumerate(anel, 1):
+        membros.append({"tipo": "Earthing", "perfil": "Cabo terra 50mm2",
+                        "marca": "MALHA%d" % i, "secao": {"forma": "ROUND", "D": 0.008},
+                        "p1": a, "p2": b, "material": CU})
+    for i, (x, y) in enumerate([(0.0, 0.0), (L, 0.0), (L, W), (0.0, W)], 1):
+        membros.append({"tipo": "Earthing", "perfil": "Haste 3m", "marca": "HASTE%d" % i,
+                        "secao": {"forma": "ROUND", "D": 0.016},
+                        "p1": [x, y, zg], "p2": [x, y, zg - 3000.0], "material": ACO})
+
+    # --- SPDA: captacao no perimetro do telhado (z = H) + descidas nas colunas ---
+    spda_res = r.get("spda")
+    if spda_res and spda_res.get("n_descidas"):
+        capt = [([0.0, 0.0, H], [L, 0.0, H]), ([L, 0.0, H], [L, W, H]),
+                ([L, W, H], [0.0, W, H]), ([0.0, W, H], [0.0, 0.0, H])]
+        for i, (a, b) in enumerate(capt, 1):
+            membros.append({"tipo": "Cable", "perfil": "Captor 35mm2", "marca": "CAPT%d" % i,
+                            "secao": {"forma": "ROUND", "D": 0.008},
+                            "p1": a, "p2": b, "material": CU})
+        for i, (x, y) in enumerate(_pontos_perimetro(L, W, spda_res["n_descidas"]), 1):
+            membros.append({"tipo": "Cable", "perfil": "Descida 16mm2", "marca": "DESC%d" % i,
+                            "secao": {"forma": "ROUND", "D": 0.016},
+                            "p1": [x, y, H], "p2": [x, y, zg], "material": CU})
+    return membros
+
+
+def emitir_bim(r, path, nome="GalpaoEletrico"):
+    """Emite o IFC4 dos elementos eletricos (via ifc_emit puro). None se sem geometria
+    ou sem ifcopenshell."""
+    import ifc_emit
+    if not ifc_emit.disponivel():
+        return None
+    membros = membros_bim(r)
+    if not membros:
+        return None
+    return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
 
 
 def _selftest():

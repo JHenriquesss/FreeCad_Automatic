@@ -79,7 +79,14 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Covering": ("IfcCovering", "ROOFING"),
               "Cladding": ("IfcCovering", "CLADDING"),
               "Fastener": ("IfcMechanicalFastener", "ANCHORBOLT"),
-              "Pile": ("IfcPile", "BORED")}
+              "Pile": ("IfcPile", "BORED"),
+              # --- eletrico (vertical do projeto eletrico) ---------------------
+              "CableCarrier": ("IfcCableCarrierSegment", "CABLETRAYSEGMENT"),
+              "Conduit": ("IfcCableCarrierSegment", "CONDUITSEGMENT"),
+              "Cable": ("IfcCableSegment", "CABLESEGMENT"),
+              "Earthing": ("IfcCableSegment", "CONDUCTORSEGMENT"),
+              "Board": ("IfcElectricDistributionBoard", "DISTRIBUTIONBOARD"),
+              "Transformer": ("IfcTransformer", "VOLTAGE")}
 
 
 def _dot(a, b):
