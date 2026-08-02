@@ -12,6 +12,9 @@
 #   3) SECAO MINIMA DE CURTO (5.3.5 / 6.3.4.3): S >= IC_cc*raiz(t)/k, k da Tab.30
 #      (Cu/PVC=115, Cu/EPR=143). E a SECAO MINIMA absoluta da Tab.47 (iluminacao
 #      1,5mm2; forca 2,5mm2). A secao final e o MAIOR entre os quatro criterios.
+#   4) CONDUTORES EM PARALELO (6.2.5.7): se IC excede o Iz da maior secao tabelada
+#      (300mm2), usa N condutores IGUAIS por fase (mesma secao/material/comprimento);
+#      corrente e queda por condutor caem p/ 1/N. Tabela estendida ate 300 mm2.
 # Todas as tabelas (36/37/38/39, 40, 42, 47, 30 e queda unitaria) LIDAS do PDF da
 # NBR 5410 e de Cotrim/Creder via NotebookLM - NAO de memoria. Solver aferido
 # contra o exercicio resolvido do chuveiro 6000W/220V (Creder/pratico) -> 6 mm2.
@@ -25,30 +28,36 @@ from __future__ import annotations
 import math
 
 # secoes nominais comerciais cobertas pelas tabelas (mm2)
-SECOES = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120]
+SECOES = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
 
 # --- Ampacidade (A): AMPACIDADE[isol][metodo][n_cond] = {secao: Iz} -----------
 # Cobre. PVC 70C: Tab.36 (B1) / Tab.38 (F). EPR/XLPE 90C: Tab.37 (B1) / Tab.39 (F).
+# secoes grandes (150-300 mm2) so p/ 3 condutores carregados (trifasico) e p/ B1 2cond
+# (Tab.36-39; valores lidos via NotebookLM). F 2cond grande nao tabelado aqui.
 AMPACIDADE = {
     "PVC": {
         "B1": {2: {2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101, 35: 125,
-                   50: 151, 70: 192, 95: 232, 120: 269},
+                   50: 151, 70: 192, 95: 232, 120: 269, 150: 309, 185: 353, 240: 415},
                3: {2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89, 35: 110,
-                   50: 134, 70: 171, 95: 207, 120: 239}},
+                   50: 134, 70: 171, 95: 207, 120: 239, 150: 275, 185: 314, 240: 370,
+                   300: 426}},
         "F":  {2: {2.5: 31, 4: 41, 6: 53, 10: 73, 16: 99, 25: 131, 35: 162,
                    50: 196, 70: 251, 95: 304, 120: 352},
                3: {2.5: 24, 4: 33, 6: 43, 10: 60, 16: 82, 25: 110, 35: 137,
-                   50: 167, 70: 216, 95: 264, 120: 308}},
+                   50: 167, 70: 216, 95: 264, 120: 308, 150: 356, 185: 409, 240: 485,
+                   300: 561}},
     },
     "EPR": {
         "B1": {2: {2.5: 31, 4: 42, 6: 54, 10: 75, 16: 100, 25: 133, 35: 164,
-                   50: 198, 70: 253, 95: 306, 120: 354},
+                   50: 198, 70: 253, 95: 306, 120: 354, 150: 407, 185: 464, 240: 546},
                3: {2.5: 28, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117, 35: 144,
-                   50: 175, 70: 222, 95: 269, 120: 312}},
+                   50: 175, 70: 222, 95: 269, 120: 312, 150: 358, 185: 408, 240: 481,
+                   300: 553}},
         "F":  {2: {2.5: 37, 4: 50, 6: 65, 10: 90, 16: 121, 25: 161, 35: 200,
                    50: 242, 70: 310, 95: 377, 120: 437},
                3: {2.5: 29, 4: 40, 6: 53, 10: 74, 16: 101, 25: 135, 35: 169,
-                   50: 207, 70: 268, 95: 328, 120: 383}},
+                   50: 207, 70: 268, 95: 328, 120: 383, 150: 469, 185: 538, 240: 637,
+                   300: 736}},
     },
 }
 # XLPE compartilha a tabela do EPR (mesma temperatura de 90C)
@@ -75,12 +84,14 @@ K_CURTO = {"PVC": 115, "EPR": 143, "XLPE": 143}
 QUEDA_UNITARIA = {
     "trifasico": {
         0.80: {2.5: 12.4, 4: 7.79, 6: 5.25, 10: 3.17, 16: 2.03, 25: 1.33,
-               35: 0.98, 50: 0.76, 70: 0.55, 95: 0.43, 120: 0.36},
+               35: 0.98, 50: 0.76, 70: 0.55, 95: 0.43, 120: 0.36,
+               150: 0.31, 185: 0.27, 240: 0.23, 300: 0.21},
         0.95: {2.5: 14.7, 4: 9.15, 6: 6.14, 10: 3.67, 16: 2.33, 25: 1.49, 35: 1.09},
     },
     "monofasico": {
         0.80: {2.5: 14.3, 4: 8.96, 6: 6.03, 10: 3.63, 16: 2.32, 25: 1.51,
-               35: 1.12, 50: 0.86, 70: 0.62, 95: 0.48, 120: 0.40},
+               35: 1.12, 50: 0.86, 70: 0.62, 95: 0.48, 120: 0.40,
+               150: 0.35, 185: 0.30, 240: 0.26},
         0.95: {2.5: 16.9, 4: 10.6, 6: 7.07, 10: 4.23, 16: 2.68, 25: 1.71, 35: 1.25},
     },
 }
@@ -201,25 +212,38 @@ def dimensiona_condutor(circ):
     IC = IB / (_fct * _fca)
 
     s_amp, Iz = secao_por_ampacidade(IC, isol, metodo, n_cond)
+    # CONDUTORES EM PARALELO (NBR 5410 6.2.5.7): se IC excede o Iz da MAIOR secao
+    # tabelada, usa N condutores iguais por fase (mesma secao/material/comprimento).
+    n_par = 1
+    if s_amp is None:
+        tab = AMPACIDADE[isol][metodo][n_cond]
+        s_max = max(tab)                              # maior secao com Iz nesta tabela
+        iz_max = tab[s_max]
+        n_par = max(2, math.ceil(IC / iz_max))
+        s_amp = s_max
+        Iz = iz_max * n_par                           # capacidade equivalente do grupo
+
     s_min = SECAO_MINIMA.get(uso, 2.5)
     s_min = s_min if s_min in SECOES else min(SECOES)   # ampacidade comeca em 2,5
-    s_qda, dv = secao_por_queda(IB, L, V, sistema, fp, dv_max)
+    # queda: com N condutores em paralelo a corrente por condutor cai p/ IB/N,
+    # entao a queda tambem cai p/ 1/N (resistencia equivalente /N).
+    s_qda, dv = secao_por_queda(IB / n_par, L, V, sistema, fp, dv_max)
     s_cc, s_cc_calc = (None, None)
     if circ.get("Icc") and circ.get("t_curto_s"):
-        s_cc, s_cc_calc = secao_por_curto(float(circ["Icc"]), float(circ["t_curto_s"]), isol)
+        s_cc, s_cc_calc = secao_por_curto(float(circ["Icc"]) / n_par,
+                                          float(circ["t_curto_s"]), isol)
 
     candidatas = [c for c in (s_amp, s_min, s_qda, s_cc) if c is not None]
     secao = max(candidatas) if candidatas else None
-    # governante = qual criterio ditou a secao final
     gov = "ampacidade" if secao == s_amp else ("queda" if secao == s_qda else
           ("curto" if secao == s_cc else "secao_minima"))
 
-    dv_final = queda_pct(secao, IB, L, V, sistema, fp) if secao else None
-    Iz_final = AMPACIDADE[isol][metodo][n_cond].get(secao) if secao else None
-    ok = (secao is not None and s_amp is not None
+    dv_final = queda_pct(secao, IB / n_par, L, V, sistema, fp) if secao else None
+    Iz_final = (AMPACIDADE[isol][metodo][n_cond].get(secao) or 0) * n_par if secao else None
+    ok = (secao is not None
           and (dv_final is not None and dv_final <= dv_max))
     return {"IB": IB, "IC": IC, "FCT": _fct, "FCA": _fca,
-            "secao_mm2": secao, "governante": gov,
+            "secao_mm2": secao, "n_paralelo": n_par, "governante": gov,
             "secao_ampacidade": s_amp, "Iz": Iz_final, "Iz_ampacidade": Iz,
             "secao_minima": s_min, "secao_queda": s_qda, "dv_pct": dv_final,
             "dv_max": dv_max, "secao_curto": s_cc, "s_curto_calc_mm2": s_cc_calc,
@@ -254,7 +278,20 @@ def _selftest():
     assert abs(fct(37, "PVC") - (0.94 + 0.4 * (0.87 - 0.94))) < 1e-9   # interpola
     assert fca(3) == 0.70 and fca(1) == 1.0
     assert fca(5) == 0.57                                  # n=5 -> usa coluna 6 (conserv.)
-    print("condutores_nbr5410 self-test PASSED (Creder chuveiro 6mm2 + curto/FCT/FCA)")
+    # CONDUTORES EM PARALELO: alimentador de 900 A (EPR F 3cond, Iz max 300mm2=736A)
+    # -> IC=900 excede 736 -> 2 condutores de 300mm2 por fase.
+    rp = dimensiona_condutor({"IB": 900.0, "V": 380.0, "L_km": 0.05,
+                              "sistema": "trifasico", "n_cond": 3, "isolacao": "EPR",
+                              "metodo": "F", "fp": 0.85, "temp_amb": 30.0,
+                              "n_agrupados": 1, "uso": "forca", "dv_max": 7.0})
+    assert rp["n_paralelo"] == 2 and rp["secao_mm2"] == 300, (rp["n_paralelo"], rp["secao_mm2"])
+    assert rp["Iz"] == 736 * 2 and rp["OK"]
+    # secao unica ainda vale p/ 300 A (nao vira paralelo)
+    r300 = dimensiona_condutor({"IB": 300.0, "V": 380.0, "L_km": 0.05,
+                                "sistema": "trifasico", "n_cond": 3, "isolacao": "EPR",
+                                "metodo": "F", "fp": 0.85, "dv_max": 7.0})
+    assert r300["n_paralelo"] == 1 and r300["secao_mm2"] == 95, r300["secao_mm2"]
+    print("condutores_nbr5410 self-test PASSED (Creder 6mm2 + curto/FCT/FCA + paralelo)")
 
 
 if __name__ == "__main__":

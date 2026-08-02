@@ -9,7 +9,8 @@
 #   - fator_potencia        (Mamede Cap.4): banco de capacitores p/ FP>=0,92;
 #   - subestacao_nbr14039   (NBR 14039): entrada/subestacao em MT (se > 75 kW);
 #   - aterramento_nbr15749  (NBR 15749): resistividade/resistencia do aterramento;
-#   - spda_nbr5419          (NBR 5419): gerenciamento de risco e projeto do SPDA.
+#   - spda_nbr5419          (NBR 5419): gerenciamento de risco e projeto do SPDA;
+#   - luminotecnica_nbr8995 (NBR 8995): metodo dos lumens -> carga de iluminacao.
 # STATELESS por design: rodar(spec) recebe um dict explicito (sem estado global -
 # evita a classe de bug _CFG). Dados de concessionaria/trafo (Sn, z%, demanda
 # contratada) e comprimentos de alimentador marcados A CONFIRMAR - nunca inventados.
@@ -31,6 +32,7 @@ import fator_potencia as fp
 import aterramento_nbr15749 as at
 import spda_nbr5419 as spda
 import subestacao_nbr14039 as se
+import luminotecnica_nbr8995 as lt
 
 # serie comercial de transformadores de distribuicao ABNT (kVA)
 TRAFOS_KVA = [45, 75, 112.5, 150, 225, 300, 500, 750, 1000, 1500, 2000]
@@ -67,6 +69,23 @@ def rodar(spec):
     V = float(spec.get("tensao_V", 380.0))
     sistema = spec.get("sistema", "trifasico")
     origem = spec.get("origem", "rede_publica")
+
+    # ---------------------------------------- 0) LUMINOTECNICA (opcional)
+    # metodo dos lumens (NBR 8995): calcula a carga de iluminacao e injeta em
+    # cargas.iluminacao_kW (soma a uma iluminacao ja informada, se houver).
+    lumino = None
+    if spec.get("luminotecnica"):
+        geo = spec.get("geometria") or {}
+        lc = dict(spec["luminotecnica"])
+        lc.setdefault("C", geo.get("L")); lc.setdefault("L", geo.get("W"))
+        lc.setdefault("pe_direito", geo.get("H"))
+        lumino = lt.projeto_luminotecnico(lc)
+        spec = dict(spec)
+        cargas_l = dict(spec.get("cargas", {}))
+        cargas_l["iluminacao_kW"] = float(cargas_l.get("iluminacao_kW", 0.0)) + lumino["P_total_kW"]
+        cargas_l.setdefault("ilum_fp", 0.92)
+        cargas_l.setdefault("ocupacao", "industrial")
+        spec["cargas"] = cargas_l
 
     # -------------------------------------------------- 1) CARGAS / DEMANDA
     qc = ce.quadro_de_cargas(spec)
@@ -156,7 +175,14 @@ def rodar(spec):
         "cargas": {"P_inst_kW": round(qc["P_inst_kW"], 1), "D_kW": round(D_kW, 1),
                    "D_kVA": round(D_kVA, 1), "fp_resultante": round(fp_result, 3),
                    "trafo_sugerido_kVA": trafo_sugerido, "OK": qc["OK"]},
+        "luminotecnica": {"E_lux": lumino["E_lux"] if lumino else None,
+                          "N_luminarias": lumino["N_luminarias"] if lumino else None,
+                          "P_kW": round(lumino["P_total_kW"], 2) if lumino else None,
+                          "densidade_W_m2": round(lumino["densidade_W_m2"], 1) if lumino else None,
+                          "nota": "" if lumino else "iluminacao informada diretamente (sem metodo dos lumens)",
+                          "OK": True},
         "alimentador": {"secao_mm2": alimentador["secao_mm2"],
+                        "n_paralelo": alimentador.get("n_paralelo", 1),
                         "IB": round(IB, 1), "Iz": alimentador["Iz"],
                         "governante": alimentador["governante"],
                         "dv_pct": round(alimentador["dv_pct"], 2) if alimentador["dv_pct"] else None,
@@ -188,7 +214,8 @@ def rodar(spec):
                  "OK": spda_res["OK"] if spda_res else True},
     }
     res = {"spec": {"tensao_V": V, "sistema": sistema, "origem": origem},
-           "geometria": geo, "cargas": qc, "alimentador": alimentador, "curto": icc,
+           "geometria": geo, "luminotecnica": lumino,
+           "cargas": qc, "alimentador": alimentador, "curto": icc,
            "protecao": prot, "fator_potencia": corr_fp, "circuitos": circuitos,
            "subestacao": subest, "aterramento": aterr, "spda": spda_res,
            "trafo_sugerido_kVA": trafo_sugerido, "gates": gates}
@@ -206,7 +233,13 @@ def relatorio_pt(r):
          f"Demanda = {g['cargas']['D_kW']} kW / {g['cargas']['D_kVA']} kVA ; "
          f"FP = {g['cargas']['fp_resultante']} ; trafo sugerido "
          f"{g['cargas']['trafo_sugerido_kVA']} kVA [A CONFIRMAR demanda/concessionaria]",
-         f"  Alimentador QGF: {g['alimentador']['secao_mm2']} mm2 "
+         (f"  Luminotecnica (metodo dos lumens, NBR 8995): E = {g['luminotecnica']['E_lux']} lux ; "
+          f"{g['luminotecnica']['N_luminarias']} luminarias ; {g['luminotecnica']['P_kW']} kW "
+          f"({g['luminotecnica']['densidade_W_m2']} W/m2)"
+          if g['luminotecnica']['E_lux'] else "  Luminotecnica: " + g['luminotecnica']['nota']),
+         f"  Alimentador QGF: "
+         + (f"{g['alimentador']['n_paralelo']}x " if g['alimentador'].get('n_paralelo', 1) > 1 else "")
+         + f"{g['alimentador']['secao_mm2']} mm2 "
          f"({g['alimentador']['isolacao']}, metodo {g['alimentador']['metodo']}) ; "
          f"IB = {g['alimentador']['IB']} A ; Iz = {g['alimentador']['Iz']} A ; "
          f"queda = {g['alimentador']['dv_pct']}% ; governa: {g['alimentador']['governante']}",

@@ -264,6 +264,11 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         notas.append("5. Subestacao: trafo %g kVA %g/%g kV ; protecao %s (NBR 14039)." % (
             r["subestacao"]["Sn_kVA"], r["subestacao"]["V_primaria_kV"],
             V / 1000.0, r["subestacao"]["protecao"]["tipo"].replace("_", " ")))
+    if g["luminotecnica"]["E_lux"]:
+        notas.append("5b. Iluminacao (metodo dos lumens, NBR ISO/CIE 8995-1): "
+                     "E = %s lux ; %s luminarias ; %s kW (%s W/m2)." % (
+                         g["luminotecnica"]["E_lux"], g["luminotecnica"]["N_luminarias"],
+                         g["luminotecnica"]["P_kW"], g["luminotecnica"]["densidade_W_m2"]))
     notas += [
         "6. Aterramento: resistencia de terra = %s (limite 10 ohm, NBR 5419)." % at_txt,
         "7. SPDA: %s (NBR 5419-1/2/3)." % (
