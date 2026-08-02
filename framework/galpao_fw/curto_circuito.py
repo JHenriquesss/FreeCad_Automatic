@@ -25,12 +25,18 @@ T_QUARTO_CICLO = 1.0 / 240.0   # 1/4 de ciclo em 60 Hz = 0,004166... s
 
 def corrente_nominal(Sn_kVA, Vn_kV):
     """Corrente nominal (linha): In = Sn/(raiz(3)*Vn). Sn kVA, Vn kV -> A."""
+    if Vn_kV <= 0:
+        raise ValueError("[A CONFIRMAR] tensao nominal Vn_kV deve ser > 0 "
+                         "(recebido %r kV)." % (Vn_kV,))
     return Sn_kVA / (math.sqrt(3.0) * Vn_kV)
 
 
 def icc_simetrica(Sn_kVA, Vn_kV, z_pct):
     """Corrente de curto-circuito simetrica trifasica presumida no secundario:
     Ik3 = In*100/z%. Retorna dict {In, Ik3, Sn, Vn, z_pct}."""
+    if z_pct <= 0:
+        raise ValueError("[A CONFIRMAR] impedancia z_pct do trafo deve ser > 0 "
+                         "(recebido %r %%)." % (z_pct,))
     In = corrente_nominal(Sn_kVA, Vn_kV)
     Ik3 = In * 100.0 / z_pct
     return {"In": In, "Ik3": Ik3, "Sn_kVA": Sn_kVA, "Vn_kV": Vn_kV, "z_pct": z_pct}
@@ -39,6 +45,9 @@ def icc_simetrica(Sn_kVA, Vn_kV, z_pct):
 def fator_assimetria(x_sobre_r, t_s=T_QUARTO_CICLO):
     """Fator de assimetria Fa = raiz(1 + 2*e^(-2*t/Ct)), Ct = (X/R)/377 (Mamede
     5.5.3.8). x_sobre_r = X/R do ponto. Tende a raiz(3) quando X/R -> inf."""
+    if x_sobre_r <= 0:
+        raise ValueError("[A CONFIRMAR] relacao X/R deve ser > 0 "
+                         "(recebido %r)." % (x_sobre_r,))
     Ct = x_sobre_r / OMEGA_60HZ
     return math.sqrt(1.0 + 2.0 * math.exp(-2.0 * t_s / Ct))
 

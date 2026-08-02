@@ -22,6 +22,9 @@ FP_MINIMO = 0.92          # limite regulamentar (indutivo/capacitivo)
 
 def _tan_de_fp(fp):
     """tan(phi) a partir do fator de potencia FP = cos(phi)."""
+    if not 0.0 < fp <= 1.0:
+        raise ValueError("[A CONFIRMAR] fator de potencia fora de (0, 1]: %r "
+                         "(FP = cos(phi), 0 < FP <= 1)." % (fp,))
     return math.tan(math.acos(fp))
 
 
@@ -33,6 +36,10 @@ def potencia_reativa_capacitiva(P_kW, fp1, fp2=FP_MINIMO):
 def corrige_fator_potencia(P_kW, fp_atual, fp_alvo=FP_MINIMO):
     """Dimensiona o banco de capacitores. Retorna {Qc_kVAr, fp_atual, fp_alvo,
     precisa_corrigir, OK}. precisa_corrigir=True se fp_atual < 0,92."""
+    for nome, fp in (("fp_atual", fp_atual), ("fp_alvo", fp_alvo)):
+        if not 0.0 < fp <= 1.0:
+            raise ValueError("[A CONFIRMAR] %s fora de (0, 1]: %r (FP = cos(phi))."
+                             % (nome, fp))
     precisa = fp_atual < FP_MINIMO
     Qc = potencia_reativa_capacitiva(P_kW, fp_atual, fp_alvo) if precisa else 0.0
     return {"P_kW": P_kW, "fp_atual": fp_atual, "fp_alvo": fp_alvo,

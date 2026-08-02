@@ -36,18 +36,27 @@ def resistividade_wenner(a, R_medido):
 def resistencia_haste(rho, L, d):
     """Resistencia de uma haste vertical isolada: R = rho/(2*pi*L)*ln(4L/d).
     rho ohm.m; L comprimento (m); d diametro (m)."""
+    if L <= 0 or d <= 0:
+        raise ValueError("[A CONFIRMAR] comprimento L e diametro d da haste devem ser "
+                         "> 0 (recebido L=%r, d=%r m)." % (L, d))
     return rho / (2.0 * math.pi * L) * math.log(4.0 * L / d)
 
 
 def resistencia_hastes_paralelo(R1, n, K):
     """Resistencia de n hastes em paralelo: Rn = R1/(n*K). K = fator de
     aproveitamento (rendimento) do agrupamento, 0 < K <= 1."""
+    if n <= 0 or not 0.0 < K <= 1.0:
+        raise ValueError("[A CONFIRMAR] n de hastes deve ser >= 1 e K em (0, 1] "
+                         "(recebido n=%r, K=%r)." % (n, K))
     return R1 / (n * K)
 
 
 def resistencia_malha(rho, A, L):
     """Resistencia de malha de aterramento (Sverak): Rm = rho/4*raiz(pi/A) + rho/L.
     rho ohm.m; A area da malha (m2); L comprimento total de condutor enterrado (m)."""
+    if A <= 0 or L <= 0:
+        raise ValueError("[A CONFIRMAR] area A e comprimento L da malha devem ser > 0 "
+                         "(recebido A=%r m2, L=%r m)." % (A, L))
     return rho / 4.0 * math.sqrt(math.pi / A) + rho / L
 
 

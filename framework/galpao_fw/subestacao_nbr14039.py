@@ -62,6 +62,9 @@ def escolhe_transformador(D_kVA):
 
 def corrente_nominal(Sn_kVA, V_kV):
     """Corrente nominal de linha: In = Sn/(raiz(3)*V). Sn kVA, V kV -> A."""
+    if V_kV <= 0:
+        raise ValueError("[A CONFIRMAR] tensao V_kV deve ser > 0 (recebido %r kV)."
+                         % (V_kV,))
     return Sn_kVA / (math.sqrt(3.0) * V_kV)
 
 
