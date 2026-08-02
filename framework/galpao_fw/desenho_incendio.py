@@ -94,6 +94,13 @@ def _sym_extintor(cx, cy):
             f'stroke-width="1"/>')
 
 
+def _sym_hidrante(cx, cy, r=7):
+    """Hidrante/mangotinho: quadrado vermelho com H (abrigo de mangueira)."""
+    return (f'<rect x="{cx - r:.1f}" y="{cy - r:.1f}" width="{2 * r}" height="{2 * r}" '
+            f'fill="white" stroke="{VERMELHO}" stroke-width="2"/>'
+            + _t(cx, cy + 4, "H", 11, weight="bold", color=VERMELHO))
+
+
 def _sym_placa(cx, cy, r=6):
     """Placa de sinalizacao de rota: losango verde."""
     return (f'<path d="M{cx:.1f} {cy - r:.1f} L{cx + r:.1f} {cy:.1f} '
@@ -200,6 +207,12 @@ def planta_seguranca_svg(r):
     # extintores nos cantos
     for (fx, fy) in ((0.06, 0.10), (0.94, 0.10), (0.06, 0.90), (0.94, 0.90)):
         s.append(_sym_extintor(x0 + gw * fx, y0 + gh * fy))
+    # HIDRANTES (NBR 13714): N_hidrantes distribuidos junto ao perimetro (<= 5 m das
+    # portas, 5.2.1). count-driven -> a planta acompanha o resumo.
+    nh = int(g["hidrantes"]["N_hidrantes"] or 0)
+    for k in range(nh):
+        frac = (k + 0.5) / nh
+        s.append(_sym_hidrante(x0 + gw * frac, y0 + gh - 14))     # rente a parede inferior
 
     # --------------------------------------------------------- LEGENDA
     lx, ly = 730, 70
@@ -208,24 +221,22 @@ def planta_seguranca_svg(r):
     s.append(_t(lx + 115, ly + 22, "LEGENDA", 14, weight="bold"))
     itens = [
         (_sym_saida(lx + 20, ly + 48, 11), "Saida de emergencia"),
-        (_sym_seta_rota(lx + 12, ly + 78, 1, 0, 20), "Rota de fuga"),
-        (_sym_detector(lx + 20, ly + 108), "Detector de fumaca"),
-        (_sym_sprinkler(lx + 20, ly + 138), "Chuveiro automatico"),
-        (_sym_bloco(lx + 20, ly + 168), "Ilum. de emergencia"),
-        (_sym_acionador(lx + 20, ly + 198), "Acionador manual"),
-        (_sym_placa(lx + 20, ly + 228), "Sinalizacao de rota"),
-        (_sym_extintor(lx + 20, ly + 258), "Extintor"),
+        (_sym_seta_rota(lx + 12, ly + 76, 1, 0, 20), "Rota de fuga"),
+        (_sym_detector(lx + 20, ly + 104), "Detector de fumaca"),
+        (_sym_sprinkler(lx + 20, ly + 132), "Chuveiro automatico"),
+        (_sym_hidrante(lx + 20, ly + 160), "Hidrante (NBR 13714)"),
+        (_sym_bloco(lx + 20, ly + 188), "Ilum. de emergencia"),
+        (_sym_acionador(lx + 20, ly + 216), "Acionador manual"),
+        (_sym_placa(lx + 20, ly + 244), "Sinalizacao de rota"),
+        (_sym_extintor(lx + 20, ly + 272), "Extintor"),
     ]
-    ys_leg = [48, 78, 108, 138, 168, 198, 228, 258]
+    ys_leg = [48, 76, 104, 132, 160, 188, 216, 244, 272]
     for (sym, txt), yy in zip(itens, ys_leg):
         s.append(sym)
         s.append(_t(lx + 40, ly + yy + 4, txt, 12, anchor="start"))
 
     # --------------------------------------------------------- QUADRO-RESUMO
-    qx, qy = 730, 420
-    s.append(f'<rect x="{qx}" y="{qy}" width="230" height="150" fill="white" '
-             f'stroke="#111" stroke-width="1"/>')
-    s.append(_t(qx + 115, qy + 20, "RESUMO", 14, weight="bold"))
+    qx, qy = 730, 415
     linhas = [
         "Detectores: %d (%s)" % (nd, g["deteccao_alarme"]["tipo_detector"]),
         "Acionadores: %d" % g["deteccao_alarme"]["N_acionadores"],
@@ -235,9 +246,17 @@ def planta_seguranca_svg(r):
     if g["sprinklers"]["N_chuveiros"]:
         linhas.append("Chuveiros: %d (%s)" % (g["sprinklers"]["N_chuveiros"],
                                               g["sprinklers"]["risco"]))
-        linhas.append("Reserva: %.0f m3" % g["sprinklers"]["reserva_m3"])
+        linhas.append("Reserva chuv.: %.0f m3" % g["sprinklers"]["reserva_m3"])
+    if g["hidrantes"]["tipo"]:
+        linhas.append("Hidrantes: %d (tipo %d)" % (g["hidrantes"]["N_hidrantes"],
+                                                   g["hidrantes"]["tipo"]))
+        linhas.append("Reserva hidr.: %.0f m3" % g["hidrantes"]["reserva_m3"])
+    box_h = 34 + len(linhas) * 17
+    s.append(f'<rect x="{qx}" y="{qy}" width="230" height="{box_h}" fill="white" '
+             f'stroke="#111" stroke-width="1"/>')
+    s.append(_t(qx + 115, qy + 20, "RESUMO", 14, weight="bold"))
     for i, ln in enumerate(linhas):
-        s.append(_t(qx + 14, qy + 44 + i * 18, ln, 12, anchor="start"))
+        s.append(_t(qx + 14, qy + 40 + i * 17, ln, 12, anchor="start"))
 
     s.append('</svg>')
     return "\n".join(s)

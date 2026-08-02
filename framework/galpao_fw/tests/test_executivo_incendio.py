@@ -50,7 +50,7 @@ def test_planta_desenha_contagens_da_norma():
     # o resumo cita os numeros calculados
     assert "%d (pontual)" % g["deteccao_alarme"]["N_detectores"] in svg
     assert "Chuveiros: %d" % g["sprinklers"]["N_chuveiros"] in svg
-    assert "Reserva: %.0f m3" % g["sprinklers"]["reserva_m3"] in svg
+    assert "Reserva chuv.: %.0f m3" % g["sprinklers"]["reserva_m3"] in svg
 
 
 def test_planta_sem_sprinklers_nao_quebra():

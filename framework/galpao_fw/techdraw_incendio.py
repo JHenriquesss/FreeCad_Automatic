@@ -205,8 +205,13 @@ def config_de_spec(r, out_dir, spec=None):
     if g["sprinklers"]["N_chuveiros"]:
         resumo.append(["Chuveiros automaticos (%s)" % g["sprinklers"]["risco"],
                        "%d unidades" % g["sprinklers"]["N_chuveiros"], "NBR 10897"])
-        resumo.append(["Reserva de incendio",
+        resumo.append(["Reserva de incendio (chuveiros)",
                        "%.0f m3" % g["sprinklers"]["reserva_m3"], "NBR 10897"])
+    if g["hidrantes"]["tipo"]:
+        resumo.append(["Hidrantes/mangotinhos (tipo %d)" % g["hidrantes"]["tipo"],
+                       "%d hidrantes" % g["hidrantes"]["N_hidrantes"], "NBR 13714"])
+        resumo.append(["Reserva de incendio (hidrantes)",
+                       "%.0f m3" % g["hidrantes"]["reserva_m3"], "NBR 13714"])
 
     e = g["iluminacao_emergencia"]; a = g["deteccao_alarme"]; sn = g["sinalizacao"]
     notas = [
@@ -232,9 +237,18 @@ def config_de_spec(r, out_dir, spec=None):
     else:
         notas.append("4. Chuveiros automaticos: nao exigidos/nao informados - verificar a "
                      "IT do Corpo de Bombeiros por area/altura/ocupacao.")
+    if g["hidrantes"]["tipo"]:
+        h = g["hidrantes"]
+        notas.append("5. Sistema de hidrantes/mangotinhos (NBR 13714): sistema tipo %d (%s) ; "
+                     "%d hidrantes ; 2 jatos simultaneos = %.0f L/min ; reserva %.0f m3 "
+                     "(V = 2 saidas x tempo, 5.4.2)." % (
+                         h["tipo"], h["sistema"], h["N_hidrantes"],
+                         h["vazao_total_Lmin"], h["reserva_m3"]))
+    else:
+        notas.append("5. Sistema de hidrantes (NBR 13714): exigido se area > 750 m2 e/ou "
+                     "> 12 m; a demanda de hidrantes tambem integra a reserva de incendio "
+                     "dos chuveiros (NBR 10897 Tab.24).")
     notas += [
-        "5. Sistema de hidrantes (NBR 13714): projeto especifico; a demanda de "
-        "hidrantes ja integra a reserva de incendio (NBR 10897 Tab.24).",
         "6. Simbologia conforme NBR 13434. Posicoes esquematicas - ajustar ao leiaute real.",
         "7. Documentacao para o AVCB (Auto de Vistoria do Corpo de Bombeiros).",
     ]

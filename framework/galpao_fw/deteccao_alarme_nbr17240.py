@@ -33,7 +33,7 @@ LINEAR_PAREDE_MAX_M = 7.5
 LINEAR_ALCANCE_MAX_M = 100.0
 
 ACIONADOR_DIST_MAX_M = 30.0      # caminhada max ate o acionador (5.5.3)
-ACIONADOR_ALTURA_M = (0.90, 1.40)
+ACIONADOR_ALTURA_M = (0.90, 1.35)   # altura de instalacao do piso acabado (5.5.2)
 
 TENSAO_SISTEMA_VCC = 24.0        # 24 Vcc (escopo)
 AFASTAMENTO_CABO_ENERGIA_M = 0.50   # 50 cm de 127/220 Vca (6.8.17)
