@@ -72,11 +72,20 @@ def numero_detectores_lineares(C, L):
 
 
 def numero_acionadores(C, L):
-    """Numero de acionadores manuais: caminhada <= 30 m de qualquer ponto. Aproxima
-    por cobertura circular de raio 30 m (area 30 m -> pi*30^2), minimo 1."""
+    """Numero de acionadores manuais: distancia a percorrer <= 30 m de qualquer ponto
+    (5.5.3). A cobertura por AREA (circulo de raio 30 m) sozinha SUBcontava em galpao
+    ALONGADO (ex.: 200 x 12 m -> area/pi*30^2 = 1, mas a ponta fica a ~100 m do centro).
+    Corrigido com um PISO por dimensao: ao longo de cada lado os acionadores distam
+    <= 2*30 m entre si (cada um alcanca 30 m p/ cada lado) -> ceil(lado / 60). Toma-se
+    o MAX (nunca reduz a contagem; so eleva o piso p/ vencer o comprimento). O valor
+    de norma (30 m) e' o mesmo ja citado - muda so a geometria de aplicacao."""
     area = C * L
     cob = math.pi * ACIONADOR_DIST_MAX_M ** 2
-    return max(1, math.ceil(area / cob))
+    por_area = math.ceil(area / cob)
+    passo = 2.0 * ACIONADOR_DIST_MAX_M                 # 60 m entre acionadores num eixo
+    por_comprimento = math.ceil(C / passo)
+    por_largura = math.ceil(L / passo)
+    return max(1, por_area, por_comprimento, por_largura)
 
 
 def dimensiona_deteccao_alarme(caso):
@@ -119,9 +128,13 @@ def _selftest():
     # teto alto 12 m: linear -> feixes 20/15=2 x trechos 40/100=1 = 2
     d = dimensiona_deteccao_alarme({"C": 40.0, "L": 20.0, "altura_teto": 12.0})
     assert d["tipo_detector"] == "linear" and d["N_detectores"] == 2
-    # acionadores: 800 m2 / (pi*30^2=2827) -> 1
+    # acionadores: 800 m2 / (pi*30^2=2827) -> 1 (40x20 curto: 1 basta, <= 30 m)
     assert numero_acionadores(40.0, 20.0) == 1
     assert numero_acionadores(200.0, 60.0) >= 2       # galpao grande -> mais de 1
+    # PISO por comprimento: galpao ALONGADO 200 x 12 m -> a area sozinha daria 1, mas
+    # ceil(200/60) = 4 (a ponta a 100 m do centro violaria os 30 m). Correcao contra-seguranca.
+    assert numero_acionadores(200.0, 12.0) == 4, numero_acionadores(200.0, 12.0)
+    assert numero_acionadores(12.0, 200.0) == 4       # simetrico (largura longa)
     # central: 24 Vcc, autonomia 24h + 15min
     dd = dimensiona_deteccao_alarme({"C": 40.0, "L": 20.0, "altura_teto": 6.0})
     assert dd["tensao_Vcc"] == 24.0 and dd["autonomia_supervisao_h"] == 24.0
