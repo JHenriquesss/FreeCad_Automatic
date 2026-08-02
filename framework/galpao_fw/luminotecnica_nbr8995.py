@@ -112,6 +112,8 @@ def projeto_luminotecnico(caso):
     Retorna E, A, K, Fu, Fdl, fluxo_total, N_luminarias, P_total_kW, densidade_W_m2."""
     C = float(caso["C"]); L = float(caso["L"])
     A = C * L
+    if A <= 0:
+        raise ValueError("[A CONFIRMAR] area do recinto invalida: C=%g x L=%g (deve ser > 0)." % (C, L))
     h_plano = float(caso.get("h_plano", 0.85))
     if "Hlp" in caso:
         Hlp = float(caso["Hlp"])
@@ -121,6 +123,8 @@ def projeto_luminotecnico(caso):
     E = float(caso["E"]) if caso.get("E") is not None else iluminancia_recomendada(caso["atividade"])
     Fdl = fator_manutencao(caso.get("ambiente", "medio"))
     Fu = float(caso["Fu"]) if caso.get("Fu") is not None else fator_utilizacao_tms(K)
+    if Fu <= 0 or Fdl <= 0:
+        raise ValueError("[A CONFIRMAR] fatores invalidos: Fu=%g, Fdl=%g (devem ser > 0)." % (Fu, Fdl))
 
     lum = caso.get("luminaria", "high_bay_led_100W")
     lum = LUMINARIAS[lum] if isinstance(lum, str) else lum

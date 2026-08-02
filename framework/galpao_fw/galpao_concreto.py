@@ -84,6 +84,9 @@ def rodar(spec):
       'fck','fyk'   : (default C30 / CA-50). 'sigma_solo_adm' (kN/m2) [A CONFIRMAR sondagem].
     }"""
     vao = spec["vao"]; comp = spec["comprimento"]; H = spec["pe_direito"]
+    if vao <= 0 or comp <= 0 or H <= 0:
+        raise ValueError("[A CONFIRMAR] geometria invalida: vao=%g, comprimento=%g, "
+                         "pe_direito=%g (devem ser > 0)." % (vao, comp, H))
     n_port = spec.get("n_porticos", max(2, round(comp / 6.0) + 1))
     s = comp / (n_port - 1)                        # espacamento (tributaria interna)
     theta = spec.get("theta_graus", 5.71)

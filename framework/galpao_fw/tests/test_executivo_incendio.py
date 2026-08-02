@@ -53,6 +53,23 @@ def test_planta_desenha_contagens_da_norma():
     assert "Reserva chuv.: %.0f m3" % g["sprinklers"]["reserva_m3"] in svg
 
 
+def test_planta_desenha_contagem_exata():
+    # BUG achado na revisao: a grade desenhava cols*rows (>= N), nao EXATAMENTE N.
+    r = _r()
+    g = r["gates"]
+    svg = di.planta_seguranca_svg(r)
+    det = svg.count('r="2" fill="#111"') - 1                 # -1 do simbolo da legenda
+    spr = svg.count('stroke="#c02128" stroke-width="1.4"') - 1
+    assert det == g["deteccao_alarme"]["N_detectores"], (det, g["deteccao_alarme"]["N_detectores"])
+    assert spr == g["sprinklers"]["N_chuveiros"], (spr, g["sprinklers"]["N_chuveiros"])
+
+
+def test_pontos_exatos_corta_em_n():
+    assert len(di._pontos_exatos(10, 0, 0, 640, 480, 40.0, 20.0)) == 10
+    assert len(di._pontos_exatos(67, 0, 0, 640, 480, 40.0, 20.0)) == 67
+    assert di._pontos_exatos(0, 0, 0, 640, 480, 40.0, 20.0) == []
+
+
 def test_planta_sem_sprinklers_nao_quebra():
     r = gsi.rodar({"geometria": {"L": 30.0, "W": 15.0, "H": 5.0},
                    "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0}})
