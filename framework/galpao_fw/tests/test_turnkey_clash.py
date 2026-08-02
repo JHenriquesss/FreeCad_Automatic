@@ -43,11 +43,24 @@ def test_aabb_caixa_instalacao_em_mm():
     assert a == (-60.0, 60.0, -60.0, 60.0, -30.0, 30.0)
 
 
-def test_aabb_barra_engorda_pela_secao():
+def test_aabb_barra_orientada_nao_engorda_o_eixo():
+    # AABB ORIENTADO: barra horizontal ao longo de X NAO engorda em X (e' o eixo);
+    # a secao (bf,d) engorda os DOIS eixos perpendiculares (Y e Z), nao X/Y fixos.
     mb = {"marca": "E-CALHA", "p1": [0.0, 0.0, 0.0], "p2": [1000.0, 0.0, 0.0],
           "secao": {"bf": 0.10, "d": 0.05}}
     x0, x1, y0, y1, z0, z1 = tk._aabb_federado(mb, "eletrico")
-    assert (x0, x1) == (-50.0, 1050.0) and (y0, y1) == (-25.0, 25.0)
+    assert (x0, x1) == (0.0, 1000.0)                     # eixo X: comprimento puro
+    assert {round(y1 - y0), round(z1 - z0)} == {100, 50}  # perpendiculares = bf e d
+
+
+def test_aabb_viga_horizontal_tem_espessura_em_z():
+    # o BUG que o build OCCT revelou: viga horizontal (ao longo de Y) precisa de
+    # espessura em Z (altura d), nao zero -> senao esconde clash viga x luminaria/calha.
+    mb = {"marca": "C-VC", "p1": [0.0, 0.0, 6000.0], "p2": [0.0, 20000.0, 6000.0],
+          "secao": {"forma": "RECT", "bf": 0.2, "d": 0.6}}
+    x0, x1, y0, y1, z0, z1 = tk._aabb_federado(mb, "concreto")
+    assert (z0, z1) == (5700.0, 6300.0)                  # d=600 centrado em 6000
+    assert (x1 - x0) == 200.0                            # bf=200 em X
 
 
 def test_aabb_barra_round_usa_D():

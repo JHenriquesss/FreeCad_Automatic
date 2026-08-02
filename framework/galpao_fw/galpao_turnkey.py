@@ -33,6 +33,8 @@ modelo BIM/IFC federado (emitir_bim)."""
 
 from __future__ import annotations
 
+import math
+
 
 # ordem canonica de apresentacao das disciplinas no relatorio consolidado
 DISCIPLINAS = ("concreto", "aco", "eletrico", "incendio")
@@ -285,6 +287,38 @@ def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
             "nota_aco": nota_aco}
 
 
+def montar_3d_federado(R, out_dir, spec=None, doc_name="galpao_federado",
+                       headless=None, host="http://localhost:9875", timeout=600):
+    """Constroi o MODELO 3D SOLIDO FEDERADO (FreeCAD) das disciplinas num UNICO doc e
+    roda a interferencia REAL (OCCT) ENTRE disciplinas. Envia build_federado.py como
+    FONTE + os membros federados (frame comum) como PAYLOAD DE DADOS - reusa o despacho
+    bridge/headless do rodar_projeto (fallback automatico + kill de zumbi). Exporta
+    FCStd+STEP+IFC. Retorna o dict de rodar_projeto._montar_* ({result:{...}} | {erro}).
+    None-membros -> {erro}. headless: None tenta bridge e cai p/ freecadcmd."""
+    import os
+    import rodar_projeto as RP
+    import framework as FW
+    membros, _ = _membros_federados(R, spec)
+    if not membros:
+        return {"erro": "sem membros federados (nenhuma disciplina com membros_bim)"}
+    bk = {"membros": membros, "export_dir": str(out_dir).replace("\\", "/"),
+          "doc_name": doc_name}
+    src_path = FW.raiz_repo() / "framework" / "galpao_fw" / "build_federado.py"
+    src = RP._ship_build_src(src_path)
+    if headless is None:
+        headless = os.environ.get("FREECAD_HEADLESS", "").strip() in ("1", "true", "True")
+    if headless:
+        return RP._montar_headless(src, bk, out_dir, timeout)
+    import xmlrpc.client
+    try:
+        return RP._montar_bridge(src, bk, host, timeout)
+    except (OSError, xmlrpc.client.ProtocolError) as e:
+        import sys
+        print("[montar_3d_federado] bridge indisponivel (%s); caindo p/ headless" % e,
+              file=sys.stderr)
+        return RP._montar_headless(src, bk, out_dir, timeout)
+
+
 # ============================ CLASH DETECTION FEDERADO =======================
 # Interferencia ENTRE disciplinas sobre o modelo federado (frame comum). Cada vertical
 # ja checa a interferencia DENTRO de si (checa_interferencia/AABB); aqui pegamos os
@@ -305,10 +339,40 @@ def _disc_de_membro(mb):
     return _DISC_DE_MARCA.get(str(mb.get("marca", ""))[:1])
 
 
+def _aabb_barra(p1, p2, bf, d):
+    """AABB (mm) da CAIXA ORIENTADA de uma barra: prisma de secao bf x d ao longo de
+    p1->p2. Engorda a secao nos DOIS eixos PERPENDICULARES a direcao (nao em X/Y fixos)
+    -> viga horizontal ganha espessura em Z, nao zero. Consistente com o solido do
+    build_federado (OCCT). Pure-Python."""
+    L = math.dist(p1, p2)
+    if L <= 0:
+        return None
+    u = tuple((b - a) / L for a, b in zip(p1, p2))         # direcao
+    helper = (0.0, 0.0, 1.0) if abs(u[2]) < 0.9 else (1.0, 0.0, 0.0)
+
+    def _cross(a, b):
+        return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0])
+
+    def _norm(a):
+        n = math.sqrt(sum(c * c for c in a)) or 1.0
+        return tuple(c / n for c in a)
+
+    v = _norm(_cross(u, helper))                           # 1o eixo da secao
+    w = _norm(_cross(u, v))                                # 2o eixo da secao
+    xs, ys, zs = [], [], []
+    for s in (0.0, L):
+        for a in (-bf / 2.0, bf / 2.0):
+            for b in (-d / 2.0, d / 2.0):
+                pt = tuple(p1[k] + s * u[k] + a * v[k] + b * w[k] for k in range(3))
+                xs.append(pt[0]); ys.append(pt[1]); zs.append(pt[2])
+    return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
+
+
 def _aabb_federado(mb, disc):
-    """AABB (x0,x1,y0,y1,z0,z1) em mm de um membro federado. Caixa: dims escaladas
-    pela convencao da disciplina (estrutural m, instalacoes mm). Barra: segmento
-    engordado pela secao (sempre m). None p/ painel (poligono) ou membro sem geometria."""
+    """AABB (x0,x1,y0,y1,z0,z1) em mm de um membro federado. Caixa: dims escaladas pela
+    convencao da disciplina (estrutural m, instalacoes mm). Barra: caixa ORIENTADA
+    (secao perpendicular a p1->p2). None p/ painel (poligono) ou membro sem geometria."""
     if "poligono" in mb:
         return None                                     # painel de fechamento: ignorado
     if "dims" in mb and "centro" in mb:
@@ -318,12 +382,9 @@ def _aabb_federado(mb, disc):
         return (cx - B / 2, cx + B / 2, cy - L / 2, cy + L / 2, cz - h / 2, cz + h / 2)
     if "p1" in mb and "p2" in mb and "secao" in mb:
         s = mb["secao"]
-        bf = s.get("bf", s.get("D", 0.02)) * 1000.0     # ROUND usa D; engorda em X
-        d = s.get("d", s.get("D", 0.02)) * 1000.0       # e em Y (conservador)
-        p1, p2 = mb["p1"], mb["p2"]
-        x0, x1 = sorted((p1[0], p2[0])); y0, y1 = sorted((p1[1], p2[1]))
-        z0, z1 = sorted((p1[2], p2[2]))
-        return (x0 - bf / 2, x1 + bf / 2, y0 - d / 2, y1 + d / 2, z0, z1)
+        bf = s.get("bf", s.get("D", 0.02)) * 1000.0     # ROUND usa D nos dois eixos
+        d = s.get("d", s.get("D", 0.02)) * 1000.0
+        return _aabb_barra(mb["p1"], mb["p2"], bf, d)
     return None
 
 
