@@ -149,6 +149,8 @@ def queda_unitaria(secao, sistema, fp):
 
 def queda_pct(secao, IB, L_km, V, sistema, fp):
     """Queda de tensao percentual pelo metodo da queda unitaria (Creder 16.3.3)."""
+    if V <= 0:
+        raise ValueError("[A CONFIRMAR] tensao V deve ser > 0 (recebido %r V)." % (V,))
     return queda_unitaria(secao, sistema, fp) * IB * L_km * 100.0 / V
 
 

@@ -139,6 +139,9 @@ def demanda_motor(caso):
     Fp = float(caso["Fp"])
     Fu = float(caso["Fu"]) if caso.get("Fu") is not None else fator_utilizacao_motor(cv)
     Fs = float(caso["Fs"]) if caso.get("Fs") is not None else fator_simultaneidade(n, cv=cv)
+    if eta <= 0 or Fp <= 0:
+        raise ValueError("[A CONFIRMAR] rendimento eta e fator de potencia Fp do motor "
+                         "devem ser > 0 (recebido eta=%r, Fp=%r)." % (eta, Fp))
     p_eixo_cv = cv * Fu                       # potencia no eixo de 1 motor (cv)
     d_kW_1 = p_eixo_cv * CV_KW / eta          # demanda de 1 motor (kW)
     d_kW = d_kW_1 * n * Fs                     # demanda do grupo (kW)
@@ -184,6 +187,9 @@ def fator_demanda_ocupacao(P_kW, ocupacao):
 def demanda_iluminacao(P_inst_kW, fp=0.92, ocupacao="industrial"):
     """Demanda de iluminacao/tomadas: aplica o fator de demanda de ocupacao
     (industrial=1,0) e converte a kVA pelo fator de potencia das luminarias."""
+    if fp <= 0:
+        raise ValueError("[A CONFIRMAR] fator de potencia fp deve ser > 0 "
+                         "(recebido %r)." % (fp,))
     d_kW = fator_demanda_ocupacao(P_inst_kW, ocupacao)
     d_kVA = d_kW / fp
     return {"D_kW": d_kW, "D_kVA": d_kVA, "P_inst_kW": P_inst_kW, "fp": fp}

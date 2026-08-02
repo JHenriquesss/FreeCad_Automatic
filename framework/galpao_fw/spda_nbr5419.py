@@ -76,10 +76,19 @@ def nivel_por_eficiencia(E):
     return None if E > 0.98 else "I"
 
 
+def _npd(NP):
+    """Linha da tabela do nivel de protecao, com erro limpo se NP invalido."""
+    try:
+        return NIVEL_PROTECAO[NP]
+    except KeyError:
+        raise ValueError("[A CONFIRMAR] nivel de protecao '%s' inexistente "
+                         "(use I, II, III ou IV)." % (NP,))
+
+
 def numero_descidas(perimetro, NP):
     """Numero minimo de descidas = perimetro / espacamento medio (Tab.5),
     arredondado p/ cima; minimo de 2 (parte 3, 5.4.3)."""
-    espac = NIVEL_PROTECAO[NP]["descida_m"]
+    espac = _npd(NP)["descida_m"]
     return max(2, math.ceil(perimetro / espac))
 
 
@@ -106,7 +115,7 @@ def dimensiona_spda(caso):
         NP = nivel_por_eficiencia(E_req)
     NP = NP or "III"                        # default conservador se nao especificado
 
-    npd = NIVEL_PROTECAO[NP]
+    npd = _npd(NP)
     perimetro = 2.0 * (L + W)
     return {"Ad_m2": Ad, "Nd_ano": Nd, "R1": R1, "protecao_necessaria": necessario,
             "NP": NP, "esfera_m": npd["esfera_m"], "malha_m": npd["malha_m"],
