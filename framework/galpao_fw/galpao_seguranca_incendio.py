@@ -21,6 +21,7 @@ import iluminacao_emergencia_nbr10898 as ie
 import sinalizacao_nbr16820 as sn
 import deteccao_alarme_nbr17240 as da
 import proteccao_sprinklers_nbr10897 as sp
+import hidrantes_nbr13714 as hd
 
 
 def rodar(spec):
@@ -64,6 +65,16 @@ def rodar(spec):
         sp_spec.update({"C": C, "L": L})
         sprk = sp.dimensiona_sprinklers(sp_spec)
 
+    # -------------------------------------- HIDRANTES E MANGOTINHOS (NBR 13714)
+    # protecao ativa por agua operada por pessoas; exigida se area > 750 m2 e/ou > 12 m.
+    # spec['hidrantes'] = {ocupacao(='industrial_I2'), tipo(opc)}. Sem o spec o gate e'
+    # informativo (verificar a exigencia pela legislacao/IT do Corpo de Bombeiros).
+    hidr = None
+    if spec.get("hidrantes"):
+        hd_spec = dict(spec["hidrantes"])
+        hd_spec.update({"C": C, "L": L, "altura_m": hd_spec.get("altura_m", H)})
+        hidr = hd.dimensiona_hidrantes(hd_spec)
+
     # --------------------------------------------------------------- GATES
     gates = {
         "iluminacao_emergencia": {"E_min_lux": emerg["E_min_lux"],
@@ -88,10 +99,17 @@ def rodar(spec):
                        "pressao_bar": sprk["pressao_bar"] if sprk else None,
                        "nota": "" if sprk else "chuveiros automaticos nao exigidos/nao informados (verificar legislacao/IT)",
                        "OK": sprk["OK"] if sprk else True},
+        "hidrantes": {"tipo": hidr["tipo"] if hidr else None,
+                      "sistema": hidr["sistema"] if hidr else None,
+                      "N_hidrantes": hidr["N_hidrantes"] if hidr else None,
+                      "vazao_total_Lmin": hidr["vazao_total_Lmin"] if hidr else None,
+                      "reserva_m3": hidr["reserva_incendio_m3"] if hidr else None,
+                      "nota": "" if hidr else "hidrantes nao informados (exigido se area > 750 m2 e/ou > 12 m - verificar legislacao/IT)",
+                      "OK": hidr["OK"] if hidr else True},
     }
     res = {"spec": {"C": C, "L": L, "H": H}, "iluminacao_emergencia": emerg,
            "sinalizacao": sinal, "deteccao_alarme": alarme, "sprinklers": sprk,
-           "gates": gates}
+           "hidrantes": hidr, "gates": gates}
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     res["reprovados"] = reprovados
     res["ATENDE"] = len(reprovados) == 0
@@ -181,6 +199,11 @@ def relatorio_pt(r):
           f"{g['sprinklers']['N_chuveiros']} chuveiros ; reserva {g['sprinklers']['reserva_m3']} m3 ; "
           f"pressao {g['sprinklers']['pressao_bar']} bar"
           if g['sprinklers']['risco'] else "  Sprinklers: " + g['sprinklers']['nota']),
+         (f"  Hidrantes (NBR 13714): sistema tipo {g['hidrantes']['tipo']} "
+          f"({g['hidrantes']['sistema']}) ; {g['hidrantes']['N_hidrantes']} hidrantes ; "
+          f"vazao {g['hidrantes']['vazao_total_Lmin']:.0f} L/min (2 jatos) ; "
+          f"reserva {g['hidrantes']['reserva_m3']} m3"
+          if g['hidrantes']['tipo'] else "  Hidrantes: " + g['hidrantes']['nota']),
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVA - ' + ', '.join(r['reprovados'])}"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
@@ -190,7 +213,8 @@ def _selftest():
     spec = {"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
             "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
             "deteccao": {"viga_m": 0.0},
-            "sprinklers": {"altura_estoque_m": 3.0}}
+            "sprinklers": {"altura_estoque_m": 3.0},
+            "hidrantes": {"ocupacao": "industrial_I2"}}
     r = rodar(spec)
     g = r["gates"]
     assert g["iluminacao_emergencia"]["N_aclaramento"] == 6
@@ -199,6 +223,7 @@ def _selftest():
     assert g["deteccao_alarme"]["N_detectores"] == 10
     assert g["deteccao_alarme"]["tensao_Vcc"] == 24.0
     assert g["sprinklers"]["risco"] == "ordinario_II" and g["sprinklers"]["N_chuveiros"] == 67
+    assert g["hidrantes"]["tipo"] == 2 and g["hidrantes"]["reserva_m3"] == 36.0
     assert r["ATENDE"] is True
     print(relatorio_pt(r))
     print("galpao_seguranca_incendio self-test PASSED")
