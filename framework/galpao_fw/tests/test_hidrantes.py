@@ -70,6 +70,33 @@ def test_numero_hidrantes_min_dois_p_hidrante():
     assert hd.numero_hidrantes(120.0, 60.0, 2) > hd.numero_hidrantes(40.0, 20.0, 2)
 
 
+def test_cobertura_por_malha_5_3_2():
+    # 5.3.2: passo = comprimento da mangueira (30 m, Tab.1); jato de 8 m (4.4.1) NAO conta.
+    # tipo 1 = 1 jato/ponto (malha simples); tipos 2/3 = 2 jatos/ponto (malha DOBRADA).
+    assert hd.jatos_por_ponto(1) == 1 and hd.jatos_por_ponto(2) == 2 and hd.jatos_por_ponto(3) == 2
+    assert hd.numero_hidrantes(40.0, 20.0, 1) == 2        # ceil(40/30)*ceil(20/30)=2*1
+    assert hd.numero_hidrantes(40.0, 20.0, 2) == 4        # x2 jatos
+    # o tipo 2 nunca cobre com MENOS tomadas que o tipo 1 na mesma planta (2 jatos/ponto)
+    for (C, L) in ((40, 20), (100, 12), (60, 60), (200, 30)):
+        assert hd.numero_hidrantes(C, L, 2) >= 2 * hd.numero_hidrantes(C, L, 1) or \
+               hd.numero_hidrantes(C, L, 2) >= hd.numero_hidrantes(C, L, 1)
+
+
+def test_regressao_canto_galpao_alongado():
+    # CLASSE DE BUG (contra-seguranca): a heuristica antiga usava max(ceil(C/R),ceil(L/R))
+    # -> pegava so o MAIOR lado e ignorava a malha + os 2 jatos, subdimensionando os
+    # cantos de galpoes alongados. 200x12 tipo 2: malha ceil(200/30)*ceil(12/30)=7*1=7,
+    # dobrada = 14 (a antiga daria max(7,1)=7). A nova NUNCA fica abaixo da malha*jatos.
+    import math
+    for (C, L, tipo) in ((200.0, 12.0, 2), (150.0, 25.0, 3), (300.0, 40.0, 2)):
+        malha = math.ceil(C / 30.0) * math.ceil(L / 30.0)
+        jatos = hd.jatos_por_ponto(tipo)
+        minimo = hd.TIPO_SISTEMA[tipo]["saidas"]
+        assert hd.numero_hidrantes(C, L, tipo) == max(minimo, malha * jatos)
+    # e o alongado supera com folga o "maior-lado" antigo (7) -> agora 14
+    assert hd.numero_hidrantes(200.0, 12.0, 2) == 14
+
+
 def test_alto_risco_tipo3_mangueira_65():
     r = hd.dimensiona_hidrantes({"C": 40.0, "L": 20.0, "altura_m": 6.0,
                                  "ocupacao": "industrial_I3"})
