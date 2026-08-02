@@ -145,6 +145,9 @@ def dimensiona_climatizacao(caso):
 
     V_ar = vazao_ar_exterior(n, area)
     cop = float(caso.get("COP", COP_PADRAO))
+    if cop <= 0.0:
+        raise ValueError("[A CONFIRMAR] COP deve ser > 0 (entrada eletrica = "
+                         "capacidade / COP); recebido COP=%s." % cop)
     P_eletrica_kW = cap["kW"] / cop                   # entrada eletrica do equipamento
     return {"area_m2": area, "tipo": tipo, "metodo": metodo, "n_pessoas": n,
             "capacidade_TR": cap["TR"], "capacidade_kW": cap["kW"],
