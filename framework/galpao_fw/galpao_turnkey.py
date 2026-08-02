@@ -20,10 +20,14 @@
 # incendio usam geometria={L,W,H}). Dados de projeto ausentes seguem a regra dos
 # verticais (A CONFIRMAR nos proprios modulos) - o mestre nao preenche premissa.
 # Veredito GLOBAL = todas as disciplinas EXECUTADAS atendem.
+# CONSOLIDACAO BIM: emitir_bim(R, out_dir, spec) escreve um IFC por disciplina
+# (frame nativo) + turnkey_federado.ifc (concreto transformado + eletrico + incendio
+# num frame comum); o aco sai por pipeline proprio como arquivo separado.
 # Unidades: as de cada vertical (sem conversao aqui).
 # ============================================================================
 """Orquestrador-mestre turnkey do galpao: um rodar(spec) despacha todos os
-verticais (concreto/aco/eletrico/incendio) e consolida gates + ATENDE global."""
+verticais (concreto/aco/eletrico/incendio) e consolida gates + ATENDE global +
+modelo BIM/IFC federado (emitir_bim)."""
 
 from __future__ import annotations
 
@@ -146,6 +150,115 @@ def rodar(spec, out_dir=None):
          "puladas": puladas, "reprovados": reprovados,
          "ATENDE": len(executadas) > 0 and len(reprovados) == 0}
     return R
+
+
+# ============================== BIM / IFC FEDERADO ===========================
+# Consolida os modelos BIM das disciplinas apos rodar(): (1) um IFC por disciplina
+# no frame NATIVO de cada uma (garantidamente correto) e (2) um IFC FEDERADO com
+# concreto+eletrico+incendio num frame COMUM. Frame comum = X=comprimento[0..],
+# Y=largura[0..vao], Z=altura (o de eletrico/incendio). O concreto usa X=vao(centrado
+# em 0), Y=comprimento -> e' transformado p/ o comum: [x,y,z] -> [y, x+vao/2, z] (e as
+# dims de caixa trocam B<->L, rotacao de 90). O aco vem de outro pipeline (spec de
+# projeto -> ifc puro FreeCAD-free) e sai como arquivo SEPARADO (nao entra no federado,
+# que exige o contrato membros_bim(raw)) - declarado no manifesto, nunca fingido.
+
+def _concreto_no_frame_comum(membros, vao_concreto_m):
+    """Transforma membros do concreto (X=vao centrado, Y=comprimento) p/ o frame comum
+    (X=comprimento, Y=largura>=0). Ponto [x,y,z]->[y, x+vao/2*1000, z]; caixa troca as
+    dims de planta B<->L (a rotacao de 90 leva a extensao em X para Y)."""
+    dy = vao_concreto_m / 2.0 * 1000.0
+    out = []
+    for m in membros:
+        mm = dict(m)
+        for chave in ("p1", "p2", "centro"):
+            if chave in mm:
+                x, y, z = mm[chave]
+                mm[chave] = [y, x + dy, z]
+        if "dims" in mm:
+            B, Lp, h = mm["dims"]
+            mm["dims"] = [Lp, B, h]
+        mm["marca"] = "C-" + str(mm.get("marca", ""))
+        out.append(mm)
+    return out
+
+
+def _membros_federados(R):
+    """Reune os membros das disciplinas de contrato membros_bim(raw) no frame comum.
+    concreto (transformado) + eletrico + incendio. Marca prefixada por disciplina."""
+    membros = []
+    d = R["disciplinas"]
+    if d.get("concreto", {}).get("rodou"):
+        import galpao_concreto as gc
+        raw = d["concreto"]["raw"]
+        vao_c = raw["spec"]["vao"]
+        membros += _concreto_no_frame_comum(gc.membros_bim(raw), vao_c)
+    if d.get("eletrico", {}).get("rodou"):
+        import galpao_eletrico as ge
+        for m in ge.membros_bim(d["eletrico"]["raw"]):
+            m = dict(m); m["marca"] = "E-" + str(m.get("marca", "")); membros.append(m)
+    if d.get("incendio", {}).get("rodou"):
+        import galpao_seguranca_incendio as gi
+        for m in gi.membros_bim(d["incendio"]["raw"]):
+            m = dict(m); m["marca"] = "I-" + str(m.get("marca", "")); membros.append(m)
+    return membros
+
+
+def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
+    """Emite os modelos BIM/IFC do projeto turnkey a partir de rodar(spec)=R.
+    Escreve em out_dir/bim/: um IFC por disciplina (frame nativo) + turnkey_federado.ifc
+    (concreto+eletrico+incendio no frame comum). O aco (se spec['aco'] dado) sai como
+    aco.ifc por seu proprio pipeline (nao entra no federado). Retorna um MANIFESTO
+    {dir, arquivos:{disc->path}, federado, disciplinas_federadas, nota_aco}. Sem
+    ifcopenshell -> {erro}. Nao levanta por disciplina: registra o que saiu."""
+    import os
+    import ifc_emit
+    if not ifc_emit.disponivel():
+        return {"erro": "ifcopenshell ausente - IFC nao emitido"}
+    bimdir = os.path.join(str(out_dir), "bim")
+    os.makedirs(bimdir, exist_ok=True)
+    arquivos = {}
+    d = R["disciplinas"]
+
+    # 1) um IFC por disciplina no frame NATIVO (via o emitir_bim de cada vertical)
+    _mods = {"concreto": "galpao_concreto", "eletrico": "galpao_eletrico",
+             "incendio": "galpao_seguranca_incendio"}
+    for nome_d, modname in _mods.items():
+        if not d.get(nome_d, {}).get("rodou"):
+            continue
+        try:
+            mod = __import__(modname)
+            p = os.path.join(bimdir, "%s.ifc" % nome_d)
+            if mod.emitir_bim(d[nome_d]["raw"], p):
+                arquivos[nome_d] = p
+        except Exception as e:
+            arquivos[nome_d] = "ERRO: %s: %s" % (type(e).__name__, e)
+
+    # 2) aco: pipeline proprio (spec de projeto -> IFC puro), arquivo separado
+    nota_aco = None
+    if spec and spec.get("aco"):
+        try:
+            p = os.path.join(bimdir, "aco.ifc")
+            if ifc_emit.emitir_ifc_do_spec(spec["aco"], p):
+                arquivos["aco"] = p
+            else:
+                nota_aco = "aco nao emitido pelo caminho puro (ex.: tesoura/trelica -> requer FreeCAD)"
+        except Exception as e:
+            nota_aco = "aco: %s: %s" % (type(e).__name__, e)
+    elif "aco" in d:
+        nota_aco = "spec['aco'] nao fornecido a emitir_bim -> aco.ifc nao gerado"
+
+    # 3) modelo FEDERADO (frame comum) das disciplinas de contrato membros_bim
+    federado = None
+    disc_fed = [n for n in ("concreto", "eletrico", "incendio")
+                if d.get(n, {}).get("rodou")]
+    membros = _membros_federados(R)
+    if membros:
+        federado = os.path.join(bimdir, "turnkey_federado.ifc")
+        ifc_emit.emitir_ifc(membros, federado, nome=nome, secao_em_metros=True)
+
+    return {"dir": bimdir, "arquivos": arquivos, "federado": federado,
+            "disciplinas_federadas": disc_fed, "n_membros_federados": len(membros),
+            "nota_aco": nota_aco}
 
 
 def relatorio_pt(R):
