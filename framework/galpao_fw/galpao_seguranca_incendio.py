@@ -182,6 +182,148 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200):
     return res
 
 
+# ============================== BIM / IFC ====================================
+# Modelo neutro dos EQUIPAMENTOS de seguranca contra incendio para o ifc_emit puro
+# (mesma forma dos verticais de concreto/eletrico). Cada equipamento e' uma CAIXA
+# (dims+centro, em mm) num ponto; o ifc_emit mapeia o 'tipo' -> classe IFC4 via
+# _IFC_CLASS (IfcFireSuppressionTerminal / IfcSensor / IfcAlarm / IfcLightFixture /
+# IfcTank / IfcBuildingElementProxy). COUNT-DRIVEN: usa as MESMAS contagens do resumo
+# (N_chuveiros, N_detectores, N_acionadores, N_placas, N_hidrantes, N_aclaramento,
+# N_balizamento) -> o modelo BIM bate com as pranchas. Eixos: X=C, Y=L, Z=altura.
+
+def _pts_grade_real(n, C, L):
+    """n pontos numa grade proporcional a C x L (metros -> mm), cortada em n. Usa a
+    MESMA grade do desenho (desenho_incendio._grade) p/ BIM e planta coincidirem."""
+    if n <= 0:
+        return []
+    from desenho_incendio import _grade
+    cols, rows = _grade(n, C, L)
+    pts = [((i + 0.5) * C / cols * 1000.0, (j + 0.5) * L / rows * 1000.0)
+           for j in range(rows) for i in range(cols)]
+    return pts[:n]
+
+
+def _pts_perimetro_real(n, C, L, inset=0.5):
+    """n pontos igualmente espacados no perimetro do retangulo recuado de `inset` (m),
+    em mm. Para hidrantes/balizamento junto as paredes."""
+    if n <= 0:
+        return []
+    x0, y0, x1, y1 = inset, inset, C - inset, L - inset
+    w, h = max(x1 - x0, 0.0), max(y1 - y0, 0.0)
+    per = 2.0 * (w + h) or 1.0
+    pts = []
+    for k in range(n):
+        d = (k + 0.5) * per / n
+        if d <= w:                              # parede inferior (y=y0)
+            x, y = x0 + d, y0
+        elif d <= w + h:                        # parede direita (x=x1)
+            x, y = x1, y0 + (d - w)
+        elif d <= 2.0 * w + h:                  # parede superior (y=y1)
+            x, y = x1 - (d - w - h), y1
+        else:                                   # parede esquerda (x=x0)
+            x, y = x0, y1 - (d - 2.0 * w - h)
+        pts.append((x * 1000.0, y * 1000.0))
+    return pts
+
+
+def _eq(tipo, marca, perfil, dims, centro, material):
+    return {"tipo": tipo, "marca": marca, "perfil": perfil,
+            "dims": [float(dims[0]), float(dims[1]), float(dims[2])],
+            "centro": [float(centro[0]), float(centro[1]), float(centro[2])],
+            "material": material}
+
+
+def membros_bim(r):
+    """Modelo neutro dos equipamentos de seguranca contra incendio (para ifc_emit).
+    Requer r['spec'] {C,L,H} (m). Emite chuveiros e detectores no teto, luminarias de
+    aclaramento (teto) e balizamento (perimetro), acionadores e placas nas paredes,
+    hidrantes/mangotinhos no perimetro, extintores nos cantos e o reservatorio de
+    incendio. COORDENADAS em mm. Lista vazia se faltar geometria."""
+    sp = r.get("spec") or {}
+    if not all(k in sp for k in ("C", "L", "H")):
+        return []
+    C, L, H = float(sp["C"]), float(sp["L"]), float(sp["H"])
+    Hmm = H * 1000.0
+    g = r["gates"]
+    M = []
+
+    # CHUVEIROS AUTOMATICOS (NBR 10897) - grade no teto
+    nc = int(g["sprinklers"]["N_chuveiros"] or 0)
+    for i, (x, y) in enumerate(_pts_grade_real(nc, C, L), 1):
+        M.append(_eq("Sprinkler", "SPK%d" % i, "Chuveiro automatico",
+                     [100, 100, 100], [x, y, Hmm - 200.0], "Latao"))
+
+    # DETECTORES DE FUMACA pontuais (NBR 17240) - grade no teto
+    if g["deteccao_alarme"]["tipo_detector"] == "pontual":
+        nd = int(g["deteccao_alarme"]["N_detectores"] or 0)
+        for i, (x, y) in enumerate(_pts_grade_real(nd, C, L), 1):
+            M.append(_eq("SmokeSensor", "DET%d" % i, "Detector de fumaca",
+                         [120, 120, 60], [x, y, Hmm - 150.0], "Plastico"))
+
+    # ILUMINACAO DE EMERGENCIA (NBR 10898): aclaramento no teto + balizamento no perimetro
+    na = int(g["iluminacao_emergencia"]["N_aclaramento"] or 0)
+    for i, (x, y) in enumerate(_pts_grade_real(na, C, L), 1):
+        M.append(_eq("EmergencyLight", "ACL%d" % i, "Luminaria de aclaramento",
+                     [300, 120, 120], [x, y, Hmm - 500.0], "Aluminio"))
+    nb = int(g["iluminacao_emergencia"]["N_balizamento"] or 0)
+    for i, (x, y) in enumerate(_pts_perimetro_real(nb, C, L), 1):
+        M.append(_eq("EmergencyLight", "BAL%d" % i, "Balizamento de rota",
+                     [200, 100, 100], [x, y, 500.0], "Aluminio"))
+
+    # ACIONADORES MANUAIS (NBR 17240 5.5.2: 0,90-1,35 m do piso) - parede inferior
+    nac = int(g["deteccao_alarme"]["N_acionadores"] or 0)
+    for i in range(nac):
+        x = (i + 0.5) * C / max(nac, 1) * 1000.0
+        M.append(_eq("ManualCall", "ACN%d" % (i + 1), "Acionador manual",
+                     [120, 120, 60], [x, 300.0, 1200.0], "Plastico"))
+
+    # PLACAS DE SINALIZACAO (NBR 16820) - eixo longitudinal central, z=2,1 m
+    npl = int(g["sinalizacao"]["N_placas"] or 0)
+    for i in range(npl):
+        x = (i + 0.5) * C / max(npl, 1) * 1000.0
+        M.append(_eq("Sign", "PLC%d" % (i + 1), "Placa de rota de fuga",
+                     [300, 20, 200], [x, L * 500.0, 2100.0], "Fotoluminescente"))
+
+    # HIDRANTES / MANGOTINHOS (NBR 13714) - perimetro, abrigo a 0,9 m
+    hid = r.get("hidrantes")
+    nh = int(g["hidrantes"]["N_hidrantes"] or 0)
+    if hid and nh:
+        eh_mangotinho = int(hid.get("tipo", 2)) == 1
+        classe = "HoseReel" if eh_mangotinho else "Hydrant"
+        nome = hid.get("sistema", "hidrante")
+        for i, (x, y) in enumerate(_pts_perimetro_real(nh, C, L, inset=0.3), 1):
+            M.append(_eq(classe, "HID%d" % i, nome.capitalize(),
+                         [500, 250, 900], [x, y, 900.0], "Aco"))
+
+    # EXTINTORES - 4 cantos (recuo 1 m), a 1,0 m
+    for i, (fx, fy) in enumerate(((0.06, 0.06), (0.94, 0.06), (0.06, 0.94), (0.94, 0.94)), 1):
+        M.append(_eq("Extinguisher", "EXT%d" % i, "Extintor portatil",
+                     [200, 200, 600], [fx * C * 1000.0, fy * L * 1000.0, 1000.0], "Aco"))
+
+    # RESERVATORIO DE INCENDIO (maior reserva entre hidrantes e sprinklers) fora da planta
+    reservas = [g[k]["reserva_m3"] for k in ("hidrantes", "sprinklers")
+                if g[k].get("reserva_m3")]
+    if reservas:
+        V = max(reservas)                        # m3
+        lado = 3000.0                            # 3 x 3 m em planta
+        alt = max(1000.0, V / 9.0 * 1000.0)      # altura p/ conter o volume (mm)
+        M.append(_eq("WaterTank", "RTI", "Reserva de incendio %.0f m3" % V,
+                     [lado, lado, alt], [-3000.0, L * 500.0, alt / 2.0], "Concreto"))
+    return M
+
+
+def emitir_bim(r, path, nome="GalpaoSegurancaIncendio"):
+    """Emite o IFC4 dos equipamentos de seguranca contra incendio (via ifc_emit puro).
+    None se faltar geometria ou o ifcopenshell."""
+    import ifc_emit
+    if not ifc_emit.disponivel():
+        return None
+    membros = membros_bim(r)
+    if not membros:
+        return None
+    return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
+
+
 def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
     L = ["SEGURANCA CONTRA INCENDIO - GALPAO (NBR 10898/16820/17240)",

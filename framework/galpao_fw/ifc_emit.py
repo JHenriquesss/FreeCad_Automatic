@@ -86,7 +86,17 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Cable": ("IfcCableSegment", "CABLESEGMENT"),
               "Earthing": ("IfcCableSegment", "CONDUCTORSEGMENT"),
               "Board": ("IfcElectricDistributionBoard", "DISTRIBUTIONBOARD"),
-              "Transformer": ("IfcTransformer", "VOLTAGE")}
+              "Transformer": ("IfcTransformer", "VOLTAGE"),
+              # --- seguranca contra incendio (vertical de seg. incendio) --------
+              "Sprinkler": ("IfcFireSuppressionTerminal", "SPRINKLER"),
+              "Hydrant": ("IfcFireSuppressionTerminal", "FIREHYDRANT"),
+              "HoseReel": ("IfcFireSuppressionTerminal", "HOSEREEL"),
+              "SmokeSensor": ("IfcSensor", "SMOKESENSOR"),
+              "ManualCall": ("IfcAlarm", "MANUALPULLBOX"),
+              "EmergencyLight": ("IfcLightFixture", "SECURITYLIGHTING"),
+              "Sign": ("IfcBuildingElementProxy", "ELEMENT"),
+              "Extinguisher": ("IfcBuildingElementProxy", "ELEMENT"),
+              "WaterTank": ("IfcTank", "STORAGE")}
 
 
 def _dot(a, b):
