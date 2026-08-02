@@ -232,6 +232,71 @@ def relatorio_pt(r):
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
+def montar_pranchas(r, out_dir, fcstd_path, spec=None, freecad_exe=None, timeout=1200):
+    """Gera o PROJETO EXECUTIVO (pranchas A1 TechDraw) do projeto eletrico a partir
+    do modelo 3D ja salvo (fcstd_path, do montar_3d/build_eletrico). Roda o
+    freecad.exe em modo grafico HEADLESS (GUI disponivel p/ exportar PDF, job por
+    QTimer, janela fecha sozinha). Exporta PDF+SVG+PNG por prancha em out_dir/pranchas.
+
+    Mesma mecanica de galpao_concreto.montar_pranchas (freecad.exe NOVO a cada
+    projeto -> import de irmao em processo LIMPO; kill de zumbi garantido na saida).
+    Retorna {ok, pranchas, arquivos, fcstd} | {erro}."""
+    import os, json, time, tempfile, subprocess
+    import techdraw_eletrico as TDE
+    import rodar_projeto as RP
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": f"freecad.exe nao encontrado: {exe}"}
+    if not os.path.exists(fcstd_path):
+        return {"erro": f"FCStd ausente ({fcstd_path}) - rode montar_3d antes"}
+
+    cfg = TDE.config_de_spec(r, fcstd_path, str(out_dir), spec)
+    prdir = os.path.join(str(out_dir), "pranchas")
+    os.makedirs(prdir, exist_ok=True)
+    status = os.path.join(prdir, "_status.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = tempfile.NamedTemporaryFile(mode="w", suffix="_exec_elet.py",
+                                       delete=False, encoding="utf-8")
+    boot.write(TDE.script_bootstrap(cfg))
+    boot.close()
+
+    proc = subprocess.Popen([exe, boot.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                if os.path.exists(status):
+                    with open(status, encoding="utf-8") as f:
+                        res = json.load(f)
+                else:
+                    res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": f"timeout {timeout}s aguardando pranchas"}
+    finally:
+        RP._matar_processo_freecad(proc)
+        try:
+            os.unlink(boot.name)
+        except OSError:
+            pass
+    return res
+
+
 def _pontos_perimetro(L, W, n):
     """n pontos igualmente espacados ao longo do perimetro do retangulo LxW (mm),
     comecando no canto (0,0). Usado p/ posicionar as descidas do SPDA."""
@@ -321,6 +386,41 @@ def emitir_bim(r, path, nome="GalpaoEletrico"):
     if not membros:
         return None
     return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
+
+
+def montar_3d(r, out_dir, doc_name="galpao_eletrico", headless=None,
+              host="http://localhost:9875", timeout=180):
+    """Constroi o MODELO 3D SOLIDO (FreeCAD) do projeto eletrico: quadros/trafo e
+    eletrocalha viram Part::Box; condutores (aterramento, hastes, captacao SPDA,
+    descidas) viram Part::Cylinder. Exporta FCStd + STEP + IFC4 e roda a varredura
+    de interferencia sobre os solidos REAIS (OCCT common(), nao AABB).
+
+    Envia build_eletrico.py como FONTE + o membros_bim como PAYLOAD DE DADOS - reusa
+    o despacho bridge/headless do rodar_projeto (fallback + kill de zumbi). Como o
+    payload e plain data, NAO ha modulo irmao para o freecad.exe cachear.
+    Retorna o dict de rodar_projeto._montar_* ({result:{...}} | {erro}).
+
+    headless: None tenta o bridge (9875) e cai p/ freecadcmd; True forca headless."""
+    import os
+    import rodar_projeto as RP
+    import framework as FW
+    bk = {"membros": membros_bim(r),
+          "export_dir": str(out_dir).replace("\\", "/"),
+          "doc_name": doc_name}
+    src_path = FW.raiz_repo() / "framework" / "galpao_fw" / "build_eletrico.py"
+    src = RP._ship_build_src(src_path)
+    if headless is None:
+        headless = os.environ.get("FREECAD_HEADLESS", "").strip() in ("1", "true", "True")
+    if headless:
+        return RP._montar_headless(src, bk, out_dir, timeout)
+    import xmlrpc.client
+    try:
+        return RP._montar_bridge(src, bk, host, timeout)
+    except (OSError, xmlrpc.client.ProtocolError) as e:
+        import sys
+        print("[montar_3d] bridge indisponivel (%s); caindo p/ headless" % e,
+              file=sys.stderr)
+        return RP._montar_headless(src, bk, out_dir, timeout)
 
 
 def _selftest():
