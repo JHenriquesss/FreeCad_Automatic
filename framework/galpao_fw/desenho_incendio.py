@@ -75,9 +75,16 @@ def _sym_sprinkler(cx, cy, r=6):
 
 
 def _sym_bloco(cx, cy, r=6):
-    """Bloco autonomo de iluminacao de emergencia: quadradinho amarelo com raios."""
+    """Bloco autonomo de iluminacao de emergencia / aclaramento: quadradinho amarelo."""
     return (f'<rect x="{cx - r:.1f}" y="{cy - r:.1f}" width="{2 * r}" height="{2 * r}" '
             f'fill="#f2c200" stroke="#7a6300" stroke-width="1"/>')
+
+
+def _sym_baliz(cx, cy, r=3):
+    """Balizamento de rota (luminaria de sinalizacao rente ao piso): ponto amarelo
+    pequeno, junto as paredes."""
+    return (f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r}" fill="#f2c200" '
+            f'stroke="#7a6300" stroke-width="0.8"/>')
 
 
 def _sym_acionador(cx, cy, r=7):
@@ -142,6 +149,29 @@ def _pontos_exatos(n, x0, y0, w, h, C, L):
     return _pontos_grade(x0, y0, w, h, cols, rows)[:n]
 
 
+def _pontos_perimetro(n, x0, y0, w, h, inset=8.0):
+    """EXATAMENTE n pontos igualmente espacados no perimetro do retangulo (recuado de
+    `inset` px), para elementos rente as paredes (balizamento)."""
+    if n <= 0:
+        return []
+    ax, ay, bx, by = x0 + inset, y0 + inset, x0 + w - inset, y0 + h - inset
+    pw, ph = max(bx - ax, 0.0), max(by - ay, 0.0)
+    per = 2.0 * (pw + ph) or 1.0
+    pts = []
+    for k in range(n):
+        d = (k + 0.5) * per / n
+        if d <= pw:
+            px, py = ax + d, ay
+        elif d <= pw + ph:
+            px, py = bx, ay + (d - pw)
+        elif d <= 2.0 * pw + ph:
+            px, py = bx - (d - pw - ph), by
+        else:
+            px, py = ax, by - (d - 2.0 * pw - ph)
+        pts.append((px, py))
+    return pts
+
+
 def planta_seguranca_svg(r):
     """Planta de seguranca contra incendio a partir de r=rodar(). String SVG.
     Escala o contorno do galpao ao canvas e posiciona os simbolos por contagem."""
@@ -188,11 +218,17 @@ def planta_seguranca_svg(r):
             yy = y0 + (j + 0.5) * gh / min(nd, 6)
             s.append(_line(x0 + 6, yy, x0 + gw - 6, yy, 1.2, "#111", dash="6 4"))
 
-    # --- BLOCOS de iluminacao de emergencia (grade da propria norma)
-    grade = g["iluminacao_emergencia"].get("grade") or (2, 2)
-    cols, rows = int(grade[0]), int(grade[1])
-    for (px, py) in _pontos_grade(x0, y0, gw, gh, cols, rows):
-        s.append(_sym_bloco(px + 10, py + 10))
+    # --- ILUMINACAO DE EMERGENCIA (NBR 10898): count-driven (== resumo/BIM).
+    # ACLARAMENTO: EXATAMENTE N_aclaramento no teto (grade proporcional). Antes usava
+    # uma grade FIXA 2x2 (chave 'grade' inexistente -> sempre 4), divergindo do resumo
+    # (N_aclaramento=6). Ver [[varredura-rotulo-takeoff]].
+    nac_l = int(g["iluminacao_emergencia"]["N_aclaramento"] or 0)
+    for (px, py) in _pontos_exatos(nac_l, x0, y0, gw, gh, C, L):
+        s.append(_sym_bloco(px, py))
+    # BALIZAMENTO: EXATAMENTE N_balizamento rente as paredes (perimetro).
+    nbal = int(g["iluminacao_emergencia"]["N_balizamento"] or 0)
+    for (px, py) in _pontos_perimetro(nbal, x0, y0, gw, gh):
+        s.append(_sym_baliz(px, py))
 
     # --- SAIDAS de emergencia nos dois topos (comprimento) + setas de rota
     ys = y0 + gh / 2
@@ -223,21 +259,22 @@ def planta_seguranca_svg(r):
 
     # --------------------------------------------------------- LEGENDA
     lx, ly = 730, 70
-    s.append(f'<rect x="{lx}" y="{ly}" width="230" height="330" fill="white" '
-             f'stroke="#111" stroke-width="1"/>')
+    ys_leg = [48, 74, 100, 126, 152, 178, 204, 230, 256, 282]
+    s.append(f'<rect x="{lx}" y="{ly}" width="230" height="{ys_leg[-1] + 32}" '
+             f'fill="white" stroke="#111" stroke-width="1"/>')
     s.append(_t(lx + 115, ly + 22, "LEGENDA", 14, weight="bold"))
     itens = [
-        (_sym_saida(lx + 20, ly + 48, 11), "Saida de emergencia"),
-        (_sym_seta_rota(lx + 12, ly + 76, 1, 0, 20), "Rota de fuga"),
-        (_sym_detector(lx + 20, ly + 104), "Detector de fumaca"),
-        (_sym_sprinkler(lx + 20, ly + 132), "Chuveiro automatico"),
-        (_sym_hidrante(lx + 20, ly + 160), "Hidrante (NBR 13714)"),
-        (_sym_bloco(lx + 20, ly + 188), "Ilum. de emergencia"),
-        (_sym_acionador(lx + 20, ly + 216), "Acionador manual"),
-        (_sym_placa(lx + 20, ly + 244), "Sinalizacao de rota"),
-        (_sym_extintor(lx + 20, ly + 272), "Extintor"),
+        (_sym_saida(lx + 20, ly + ys_leg[0], 11), "Saida de emergencia"),
+        (_sym_seta_rota(lx + 12, ly + ys_leg[1], 1, 0, 20), "Rota de fuga"),
+        (_sym_detector(lx + 20, ly + ys_leg[2]), "Detector de fumaca"),
+        (_sym_sprinkler(lx + 20, ly + ys_leg[3]), "Chuveiro automatico"),
+        (_sym_hidrante(lx + 20, ly + ys_leg[4]), "Hidrante (NBR 13714)"),
+        (_sym_bloco(lx + 20, ly + ys_leg[5]), "Aclaramento (teto)"),
+        (_sym_baliz(lx + 20, ly + ys_leg[6]), "Balizamento (rota)"),
+        (_sym_acionador(lx + 20, ly + ys_leg[7]), "Acionador manual"),
+        (_sym_placa(lx + 20, ly + ys_leg[8]), "Sinalizacao de rota"),
+        (_sym_extintor(lx + 20, ly + ys_leg[9]), "Extintor"),
     ]
-    ys_leg = [48, 76, 104, 132, 160, 188, 216, 244, 272]
     for (sym, txt), yy in zip(itens, ys_leg):
         s.append(sym)
         s.append(_t(lx + 40, ly + yy + 4, txt, 12, anchor="start"))
@@ -248,7 +285,8 @@ def planta_seguranca_svg(r):
         "Detectores: %d (%s)" % (nd, g["deteccao_alarme"]["tipo_detector"]),
         "Acionadores: %d" % g["deteccao_alarme"]["N_acionadores"],
         "Placas de rota: %d" % g["sinalizacao"]["N_placas"],
-        "Ilum. emerg.: %d pts" % g["iluminacao_emergencia"]["N_aclaramento"],
+        "Aclaramento: %d pts" % g["iluminacao_emergencia"]["N_aclaramento"],
+        "Balizamento: %d pts" % g["iluminacao_emergencia"]["N_balizamento"],
     ]
     if g["sprinklers"]["N_chuveiros"]:
         linhas.append("Chuveiros: %d (%s)" % (g["sprinklers"]["N_chuveiros"],
