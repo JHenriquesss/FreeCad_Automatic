@@ -101,6 +101,42 @@ def test_caderno_vazio_reporta_faltando(tmp_path):
     assert os.path.exists(res["path"])                        # ainda gera capa+indice
 
 
+def test_caderno_apendice_de_clash(tmp_path):
+    # apendice de coordenacao: o clash federado vira paginas de texto no caderno
+    tmp = str(tmp_path)
+    pdfs = {"incendio": _prancha(tmp, "incendio", ["PE-INC-01"])}
+    clash = {"n_membros": 188, "n_clashes": 2, "por_par": {"concretoxeletrico": 2},
+             "clashes": [{"a": "C-P1E", "b": "E-DESC1", "disciplinas": "concretoxeletrico",
+                          "tipos": "ColumnxCable", "vol_mm3": 1349775.0},
+                         {"a": "C-SAP1E", "b": "E-HASTE1", "disciplinas": "concretoxeletrico",
+                          "tipos": "FootingxEarthing", "vol_mm3": 44775.0}]}
+    res = ct.montar_caderno_de_pdfs(pdfs, os.path.join(tmp, "CAD.pdf"), _R(), {"slug": "g"},
+                                    clash=clash)
+    assert res["n_clashes"] == 2
+    with fitz.open(res["path"]) as d:
+        txt = "".join(p.get_text() for p in d)
+    assert "CLASH FEDERADO" in txt and "candidatos de conflito" in txt
+    assert "concretoxeletrico" in txt and "C-P1E" in txt and "E-DESC1" in txt
+    assert "montagem intencional" in txt                 # nota de triagem
+
+
+def test_caderno_sem_clash_backward_compat(tmp_path):
+    # sem o arg clash: nenhum apendice, n_clashes None (comportamento anterior)
+    tmp = str(tmp_path)
+    pdfs = {"incendio": _prancha(tmp, "incendio", ["PE-INC-01"])}
+    res = ct.montar_caderno_de_pdfs(pdfs, os.path.join(tmp, "CAD.pdf"), _R(), {"slug": "g"})
+    assert res["n_clashes"] is None
+    with fitz.open(res["path"]) as d:
+        txt = "".join(p.get_text() for p in d)
+    assert "CLASH FEDERADO" not in txt
+
+
+def test_linhas_clash_sem_conflitos():
+    L = "\n".join(ct._linhas_clash({"n_membros": 10, "n_clashes": 0, "por_par": {},
+                                    "clashes": []}))
+    assert "Nenhuma interferencia entre disciplinas" in L
+
+
 def test_aco_dispatch_existe_e_roteia_p_rodar_projeto():
     # o dispatch do aco deve existir e chamar rodar_projeto.rodar_tudo (nao o
     # placeholder antigo). Checa a fonte (sem FreeCAD).
