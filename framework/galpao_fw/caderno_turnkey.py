@@ -84,15 +84,50 @@ def _linhas_indice(pdfs_por_disciplina):
     return L
 
 
+def _linhas_clash(rep):
+    """Texto do APENDICE DE COORDENACAO: interferencia ENTRE disciplinas (clash federado
+    de galpao_turnkey.checa_interferencia_federada). Lista completa (o _add_paginas_texto
+    pagina sozinho). Os conflitos sao CANDIDATOS a triagem, nao reprovacao de calculo."""
+    L = ["", "=" * 68,
+         "  COORDENACAO - INTERFERENCIA ENTRE DISCIPLINAS (CLASH FEDERADO)",
+         "=" * 68, "",
+         "  %d elementos analisados ; %d candidatos de conflito entre disciplinas"
+         % (rep.get("n_membros", 0), rep.get("n_clashes", 0)), ""]
+    por = rep.get("por_par") or {}
+    if por:
+        L.append("  Por par de disciplinas:")
+        for k, v in sorted(por.items()):
+            L.append("    - %-30s %d" % (k, v))
+        L.append("")
+    L += ["  NOTA: os conflitos sao CANDIDATOS para o coordenador triar; alguns sao",
+          "        montagem intencional (ex.: descida de SPDA rente ao pilar, haste de",
+          "        aterramento no canto da sapata). Verificar o leiaute real.", ""]
+    clashes = rep.get("clashes") or []
+    if clashes:
+        L.append("  %-16s %-16s %-24s %11s" %
+                 ("PECA A", "PECA B", "DISCIPLINAS / TIPOS", "VOL (mm3)"))
+        L.append("  " + "-" * 66)
+        for c in clashes:
+            rot = ("%s %s" % (c.get("disciplinas", ""), c.get("tipos", "")))[:24]
+            L.append("  %-16s %-16s %-24s %11.0f" %
+                     (str(c.get("a", ""))[:16], str(c.get("b", ""))[:16], rot,
+                      c.get("vol_mm3", 0.0)))
+    else:
+        L.append("  Nenhuma interferencia entre disciplinas acima do limite.")
+    L.append("")
+    return _virgula(L)
+
+
 def _virgula(linhas):
     import re
     return [re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", str(x)) for x in linhas]
 
 
-def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec):
+def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None):
     """PURO (so fitz): monta o caderno unico a partir de PDFs de pranchas JA gerados.
-    capa + indice + (por disciplina: divisoria + pranchas). Retorna {path, n_paginas,
-    n_pranchas, disciplinas, faltando}."""
+    capa + indice + [apendice de CLASH federado] + (por disciplina: divisoria + pranchas).
+    `clash` (opc) = dict de galpao_turnkey.checa_interferencia_federada -> vira o apendice
+    de coordenacao. Retorna {path, n_paginas, n_pranchas, disciplinas, faltando, n_clashes}."""
     import fitz
     from dossie import _add_paginas_texto
 
@@ -100,6 +135,8 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec):
     doc = fitz.open()
     _add_paginas_texto(doc, _linhas_capa(R, spec))
     _add_paginas_texto(doc, _linhas_indice(pdfs_por_disciplina))
+    if clash is not None:
+        _add_paginas_texto(doc, _linhas_clash(clash))
 
     total = 0
     por_disc = {}
@@ -125,7 +162,8 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec):
     doc.save(out_pdf, garbage=3, deflate=True)
     doc.close()
     return {"path": out_pdf, "n_paginas": n_pag, "n_pranchas": total,
-            "disciplinas": por_disc, "faltando": faltando}
+            "disciplinas": por_disc, "faltando": faltando,
+            "n_clashes": (clash or {}).get("n_clashes")}
 
 
 # ------------------------------------------------------------- orquestracao VIVA
@@ -173,6 +211,15 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     R = tk.rodar(spec, out_dir)
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
 
+    # apendice de coordenacao: interferencia ENTRE disciplinas no modelo federado. So
+    # faz sentido com >= 2 disciplinas; falha isolada nao derruba o caderno.
+    clash = None
+    if len(R["executadas"]) >= 2:
+        try:
+            clash = tk.checa_interferencia_federada(R, spec)
+        except Exception:
+            clash = None
+
     status = {}
     pdfs_por_disciplina = {}
     for nome in alvo:
@@ -187,7 +234,7 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
         pdfs_por_disciplina[nome] = _coletar_pdfs(out_dir, nome)
 
     out_pdf = os.path.join(out_dir, "CADERNO-EXECUTIVO-%s.pdf" % spec.get("slug", "galpao"))
-    res = montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec)
+    res = montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=clash)
     res["status"] = status
     res["ATENDE"] = R["ATENDE"]
     return res
