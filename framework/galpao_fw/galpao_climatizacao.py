@@ -115,6 +115,62 @@ def emitir_bim(r, path, nome="GalpaoClimatizacao"):
     return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
 
 
+def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200):
+    """Gera o PROJETO EXECUTIVO (pranchas A1 TechDraw) da climatizacao a partir de rodar(r).
+    NAO precisa de FCStd (o esquema e' SVG do desenho_climatizacao). Mesma mecanica dos
+    demais montar_pranchas (freecad.exe grafico + status json + kill de zumbi)."""
+    import os, json, time, tempfile, subprocess
+    import techdraw_climatizacao as TDC
+    import rodar_projeto as RP
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": "freecad.exe nao encontrado: %s" % exe}
+
+    cfg = TDC.config_de_spec(r, str(out_dir), spec)
+    prdir = os.path.join(str(out_dir), "pranchas")
+    os.makedirs(prdir, exist_ok=True)
+    status = os.path.join(prdir, "_status_cli.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = tempfile.NamedTemporaryFile(mode="w", suffix="_exec_cli.py",
+                                       delete=False, encoding="utf-8")
+    boot.write(TDC.script_bootstrap(cfg))
+    boot.close()
+
+    proc = subprocess.Popen([exe, boot.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                res = ({"erro": "freecad.exe encerrou sem status"}
+                       if not os.path.exists(status)
+                       else json.load(open(status, encoding="utf-8")))
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": "timeout %ss aguardando pranchas de climatizacao" % timeout}
+    finally:
+        RP._matar_processo_freecad(proc)
+        try:
+            os.unlink(boot.name)
+        except OSError:
+            pass
+    return res
+
+
 def relatorio_pt(r):
     g = r["gates"]
     cap = g["capacidade"]; dp = g["duto_principal"]
