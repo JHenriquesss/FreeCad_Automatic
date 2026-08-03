@@ -1,7 +1,8 @@
-"""Vertical de HIDRAULICA PREDIAL (coordenacao) do galpao: rodar (rede roteada, SEM
-dimensionamento - NBR 5626/8160/10844 indisponiveis) + membros_bim (tubos pluvial/esgoto/
-agua) + integracao no turnkey (6a disciplina) e no clash (tubo x estrutura/duto/cabo).
-Regra AR300: os diametros vem do spec ou de default FLAGADO, nunca de norma inventada."""
+"""Vertical de HIDRAULICA PREDIAL do galpao: rodar (DIMENSIONA pela NBR 5626:2020/8160/
+10844 via hidraulica_predial + roteia) + membros_bim (tubos pluvial/esgoto/agua) +
+integracao no turnkey (6a disciplina) e no clash (tubo x estrutura/duto/cabo).
+Regra AR300: os valores de norma vem dos PDFs; sem aparelhos, agua/esgoto caem em
+default comercial FLAGADO [A CONFIRMAR], nunca norma inventada."""
 import os
 import sys
 
@@ -20,18 +21,45 @@ def test_selftest():
     ghi._selftest()
 
 
-def test_dimensionamento_e_flagado_nao_inventado():
-    # sem diametros no spec -> defaults COMERCIAIS explicitamente A CONFIRMAR (norma
-    # indisponivel); NUNCA um valor de norma "calculado" de memoria.
+def test_pluvial_dimensionado_pela_geometria():
+    # pluvial e' SEMPRE calculado (NBR 10844) a partir da area de telhado; i local
+    # (dado de sitio) fica flagado [A CONFIRMAR]. 40x20=800 m2, i=150 -> Q=2000 L/min
+    # -> Tab.4 1%: DN250.
     r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0}})
-    assert "A CONFIRMAR" in r["dimensionamento"]
-    assert r["redes"]["pluvial"]["default"] and r["redes"]["esgoto"]["default"]
-    # com diametros informados no spec -> sem flag de default
-    r2 = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
-                    "hidraulica": {"D_pluvial_mm": 150.0, "D_esgoto_mm": 100.0,
-                                   "D_agua_mm": 60.0}})
-    assert not r2["redes"]["pluvial"]["default"]
-    assert "informados no spec" in r2["dimensionamento"]
+    assert r["redes"]["pluvial"]["fonte"] == "NBR 10844"
+    assert r["redes"]["pluvial"]["D_mm"] == 250.0
+    assert r["redes"]["pluvial"]["i_default"] is True
+    assert "[A CONFIRMAR i local]" in r["dimensionamento"]
+
+
+def test_agua_esgoto_default_flagado_sem_aparelhos():
+    # sem aparelhos, agua/esgoto caem em default comercial explicitamente A CONFIRMAR
+    # (NUNCA norma inventada); dimensionamento fica INCOMPLETO.
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0}})
+    assert r["redes"]["agua_fria"]["default"] and r["redes"]["esgoto"]["default"]
+    assert r["dimensionamento_completo"] is False
+    assert "A CONFIRMAR - informe aparelhos" in r["dimensionamento"]
+
+
+def test_agua_esgoto_calculados_com_aparelhos():
+    # com aparelhos informados, agua (NBR 5626:2020) e esgoto (NBR 8160) sao CALCULADOS
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"aparelhos_agua": {"bacia_caixa": 1, "lavatorio": 1,
+                                                     "chuveiro": 1},
+                                  "aparelhos_esgoto": {"bacia": 1, "lavatorio": 1,
+                                                       "chuveiro": 1}}})
+    assert r["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020"
+    assert r["redes"]["agua_fria"]["D_mm"] == 25.0        # Q=1,31 L/s, v<=3 -> DN25
+    assert r["redes"]["esgoto"]["fonte"] == "NBR 8160"    # UHC=9 -> coletor DN100 (min)
+    assert r["dimensionamento_completo"] is True
+
+
+def test_override_diametro_no_spec_vence():
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"D_pluvial_mm": 150.0, "D_esgoto_mm": 100.0,
+                                  "D_agua_mm": 60.0}})
+    assert r["redes"]["pluvial"]["fonte"] == "spec" and r["redes"]["pluvial"]["D_mm"] == 150.0
+    assert r["redes"]["agua_fria"]["fonte"] == "spec"
 
 
 def test_rodar_geometria_invalida():
