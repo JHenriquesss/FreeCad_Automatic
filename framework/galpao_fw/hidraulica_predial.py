@@ -3,14 +3,16 @@
 # DIMENSIONAMENTO HIDRAULICO PREDIAL (modulo de calculo stateless, CI), lido
 # LITERALMENTE dos PDFs no NotebookLM (regra AR300 - nunca de memoria):
 #
-#   AGUA FRIA (ABNT NBR 5626:2020):
-#     - vazao de projeto por aparelho = Tab.B.4 (vazoes unitarias; a 5626:2020
-#       REMOVEU o metodo dos pesos Q=0,3*raiz(SP), entao NAO se usa a tabela de
-#       pesos de 1998 - somam-se as vazoes de projeto, conservador, sem simultaneidade);
-#     - diametro por velocidade: D = raiz(4Q/(pi*v)), v_max = 3 m/s (Sec.6.8.3 NOTA:
-#       "limite maximo de velocidade media da agua de 3 m/s");
-#     - pressoes (Sec.6.9): dinamica minima 10 kPa no ponto / 5 kPa em qq ponto;
-#       estatica maxima 400 kPa.
+#   AGUA FRIA (ABNT NBR 5626:2020 + metodo dos pesos de 1998) - DOIS metodos de vazao,
+#   ambos aceitos pela 2020 Sec.6.14.2 ("metodo reconhecido ou devidamente fundamentado,
+#   seja ele empirico ou probabilistico"); o projetista escolhe e justifica:
+#     - "soma": soma das vazoes de projeto Tab.B.4 (conservador, sem simultaneidade). A 2020
+#       tirou a tabela de pesos do texto (migrou p/ norma de DESEMPENHO: vazao do fabricante
+#       Q=K*raiz(P) Sec.6.9.2 + perda de carga pela eq. universal Sec.6.14.4);
+#     - "pesos": pesos relativos da NBR 5626:1998 (Anexo A + Tab.A.1), Q=0,3*raiz(SP), com a
+#       demanda simultanea provavel embutida (menor, economico).
+#     Em ambos o diametro sai da velocidade <= 3 m/s (2020 Sec.6.8.3 NOTA); pressoes (Sec.6.9):
+#     dinamica min 10 kPa no ponto / 5 kPa em qq ponto; estatica max 400 kPa.
 #
 #   ESGOTO SANITARIO (ABNT NBR 8160:1999) - Unidades Hunter de Contribuicao (UHC):
 #     - Tab.3 UHC + DN minimo do ramal de descarga por aparelho;
@@ -55,45 +57,92 @@ P_EST_MAX_KPA = 400.0        # Sec.6.9.5 (pressao estatica maxima)
 # serie comercial de DN de agua (mm) - PVC soldavel
 DN_AGUA_MM = [20, 25, 32, 40, 50, 60, 75, 85, 110]
 
+# --- DOIS METODOS DE VAZAO DE AGUA (ambos aceitos pela NBR 5626:2020 Sec.6.14.2:
+#     "metodo reconhecido ou devidamente fundamentado, seja ele empirico ou probabilistico"):
+#  - "soma": soma das vazoes de projeto (Tab.B.4), conservador, SEM simultaneidade;
+#  - "pesos": metodo dos pesos relativos da NBR 5626:1998 (Anexo A + Tab.A.1) -> Q=0,3*raiz(SP),
+#             com a demanda simultanea provavel embutida (menor, economico).
+# Em ambos, o DIAMETRO sai da velocidade <= 3 m/s (2020 Sec.6.8.3).
+C_PESOS = 0.3                # coeficiente da formula Q = C*raiz(SP) (NBR 5626:1998 Anexo A)
+# Tab.A.1 (NBR 5626:1998): peso relativo P por aparelho/peca de utilizacao. cited_text:
+# "Bacia sanitaria Caixa de descarga 0,15 0,3 / Valvula de descarga 1,70 32 / Banheira 0,30 1,0
+# / Bebedouro 0,10 0,1 / Bide 0,10 0,1 / Chuveiro ou ducha 0,20 0,4 / Chuveiro eletrico 0,10 0,1
+# / Lavadora de pratos ou de roupas 0,30 1,0 / Lavatorio 0,15 0,3 / Mictorio c/ sifao 0,15 0,3 /
+# Mictorio s/ sifao (valvula) 0,50 2,8 / Mictorio calha 0,15/m 0,3 / Pia 0,25 0,7 / Pia
+# torneira eletrica 0,10 0,1 / Tanque 0,25 0,7 / Torneira jardim/lavagem 0,20 0,4".
+PESO_RELATIVO = {
+    "bacia_caixa": 0.3, "bacia_valvula": 32.0, "banheira": 1.0, "bebedouro": 0.1,
+    "bide": 0.1, "chuveiro": 0.4, "chuveiro_eletrico": 0.1, "maquina_lavar": 1.0,
+    "lavatorio": 0.3, "mictorio_sifao": 0.3, "mictorio": 2.8, "mictorio_calha": 0.3,
+    "pia": 0.7, "pia_eletrica": 0.1, "tanque": 0.7, "torneira_jardim": 0.4,
+}
+METODOS_AGUA = ("soma", "pesos")
 
-def vazao_agua(aparelhos, simultaneidade=1.0):
-    """Vazao de projeto (L/s) de um conjunto de aparelhos de agua fria.
-    aparelhos: dict {tipo: quantidade} (tipos em VAZAO_PROJETO_LS).
-    A NBR 5626:2020 removeu o metodo dos pesos; por padrao soma-se a vazao de
-    projeto de todos os aparelhos (simultaneidade=1,0, conservador). Um fator < 1
-    so deve ser usado com criterio de projeto justificado."""
+
+def _valida_aparelhos(aparelhos, tabela, rotulo):
+    """Valida o dict {tipo: qtd} contra a tabela do metodo (nao vazio, tipo conhecido,
+    qtd >= 0). Levanta ValueError com mensagem clara."""
     if not aparelhos:
         raise ValueError("[A CONFIRMAR] informe os aparelhos de agua fria (dict tipo->qtd).")
-    if not (0 < simultaneidade <= 1.0):
-        raise ValueError("simultaneidade deve estar em (0, 1]; recebido %s." % simultaneidade)
-    q = 0.0
     for tipo, n in aparelhos.items():
-        if tipo not in VAZAO_PROJETO_LS:
-            raise ValueError("aparelho de agua desconhecido: %r (validos: %s)."
-                             % (tipo, sorted(VAZAO_PROJETO_LS)))
+        if tipo not in tabela:
+            raise ValueError("aparelho de agua desconhecido p/ %s: %r (validos: %s)."
+                             % (rotulo, tipo, sorted(tabela)))
         if n < 0:
             raise ValueError("quantidade negativa para %r." % tipo)
-        q += VAZAO_PROJETO_LS[tipo] * n
+
+
+def vazao_agua(aparelhos, simultaneidade=1.0):
+    """Vazao de projeto (L/s) pela SOMA das vazoes de projeto (Tab.B.4), conservador
+    (sem simultaneidade por padrao). aparelhos: dict {tipo: quantidade}. Um fator de
+    simultaneidade < 1 so deve ser usado com criterio de projeto justificado."""
+    if not (0 < simultaneidade <= 1.0):
+        raise ValueError("simultaneidade deve estar em (0, 1]; recebido %s." % simultaneidade)
+    _valida_aparelhos(aparelhos, VAZAO_PROJETO_LS, "metodo soma")
+    q = sum(VAZAO_PROJETO_LS[tipo] * n for tipo, n in aparelhos.items())
     return q * simultaneidade
 
 
-def diametro_agua(aparelhos, v_max=V_MAX_AGUA_MS, simultaneidade=1.0):
-    """Dimensiona o tubo de agua fria por velocidade (NBR 5626:2020 Sec.6.8.3).
-    D_calc = raiz(4Q/(pi*v)); adota o proximo DN comercial >= D_calc.
-    Retorna {Q_Ls, D_calc_mm, DN_mm, v_real_ms, v_max_ms, OK, pressoes...}."""
+def soma_pesos(aparelhos):
+    """Somatorio dos pesos relativos SP (NBR 5626:1998 Tab.A.1). aparelhos: {tipo: qtd}."""
+    _valida_aparelhos(aparelhos, PESO_RELATIVO, "metodo pesos")
+    return sum(PESO_RELATIVO[tipo] * n for tipo, n in aparelhos.items())
+
+
+def vazao_agua_pesos(aparelhos):
+    """Vazao ESTIMADA (demanda simultanea provavel, L/s) pelo METODO DOS PESOS
+    RELATIVOS (NBR 5626:1998 Anexo A): Q = 0,3 * raiz(SP)."""
+    return C_PESOS * math.sqrt(soma_pesos(aparelhos))
+
+
+def diametro_agua(aparelhos, v_max=V_MAX_AGUA_MS, simultaneidade=1.0, metodo="soma"):
+    """Dimensiona o tubo de agua fria por velocidade (NBR 5626:2020 Sec.6.8.3):
+    D_calc = raiz(4Q/(pi*v)); adota o proximo DN comercial >= D_calc. A VAZAO Q vem
+    do metodo escolhido (ambos aceitos pela 2020 Sec.6.14.2):
+      - metodo="soma"  : soma das vazoes de projeto (Tab.B.4), conservador (default);
+      - metodo="pesos" : metodo dos pesos NBR 5626:1998 (Q=0,3*raiz(SP), simultaneo).
+    Retorna {metodo, Q_Ls, [soma_P], D_calc_mm, DN_mm, v_real_ms, v_max_ms, OK, pressoes}."""
     if v_max <= 0:
         raise ValueError("v_max deve ser > 0; recebido %s." % v_max)
-    q_ls = vazao_agua(aparelhos, simultaneidade)
+    if metodo not in METODOS_AGUA:
+        raise ValueError("metodo de agua invalido: %r (validos: %s)." % (metodo, METODOS_AGUA))
+    extra = {}
+    if metodo == "pesos":
+        sp = soma_pesos(aparelhos)
+        q_ls = C_PESOS * math.sqrt(sp)
+        extra["soma_P"] = round(sp, 2)
+    else:
+        q_ls = vazao_agua(aparelhos, simultaneidade)
     q_m3s = q_ls / 1000.0
     d_calc_m = math.sqrt(4.0 * q_m3s / (math.pi * v_max)) if q_m3s > 0 else 0.0
     d_calc_mm = d_calc_m * 1000.0
     dn = next((d for d in DN_AGUA_MM if d >= d_calc_mm), DN_AGUA_MM[-1])
     v_real = q_m3s / (math.pi * (dn / 1000.0) ** 2 / 4.0) if dn > 0 else 0.0
     return {
-        "Q_Ls": round(q_ls, 3), "D_calc_mm": round(d_calc_mm, 1), "DN_mm": dn,
-        "v_real_ms": round(v_real, 2), "v_max_ms": v_max,
+        "metodo": metodo, "Q_Ls": round(q_ls, 3), "D_calc_mm": round(d_calc_mm, 1),
+        "DN_mm": dn, "v_real_ms": round(v_real, 2), "v_max_ms": v_max,
         "p_din_min_ponto_kPa": P_DIN_MIN_PONTO_KPA, "p_est_max_kPa": P_EST_MAX_KPA,
-        "OK": v_real <= v_max + 1e-9,
+        "OK": v_real <= v_max + 1e-9, **extra,
     }
 
 
@@ -264,12 +313,25 @@ def diametro_pluvial(area_m2, i_mm_h=I_PLUVIAL_PADRAO_MM_H, declividade_pct=1.0)
 
 def _selftest():
     import pytest
-    # --- AGUA FRIA (NBR 5626:2020): banheiro simples ---
+    # --- AGUA FRIA metodo "soma" (NBR 5626:2020): banheiro simples ---
     # bacia c/ caixa 0,96 + lavatorio 0,15 + chuveiro 0,20 = 1,31 L/s
-    a = diametro_agua({"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1})
-    assert abs(a["Q_Ls"] - 1.31) < 1e-6, a
+    banheiro = {"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1}
+    a = diametro_agua(banheiro)
+    assert a["metodo"] == "soma" and abs(a["Q_Ls"] - 1.31) < 1e-6, a
     # D_calc = raiz(4*0,00131/(pi*3)) = 23,6 mm -> DN25
     assert 23.0 < a["D_calc_mm"] < 24.0 and a["DN_mm"] == 25, a
+    # --- AGUA FRIA metodo "pesos" (NBR 5626:1998 Anexo A): mesmo banheiro ---
+    # P: bacia caixa 0,3 + lavatorio 0,3 + chuveiro 0,4 = SP=1,0 -> Q=0,3*raiz(1)=0,30 L/s
+    assert abs(soma_pesos(banheiro) - 1.0) < 1e-9
+    ap = diametro_agua(banheiro, metodo="pesos")
+    assert ap["metodo"] == "pesos" and ap["soma_P"] == 1.0
+    assert abs(ap["Q_Ls"] - 0.30) < 1e-6, ap        # simultaneo << soma (1,31)
+    assert ap["Q_Ls"] < a["Q_Ls"] and ap["DN_mm"] <= a["DN_mm"]
+    assert abs(vazao_agua_pesos(banheiro) - 0.30) < 1e-6
+    # bacia com VALVULA de descarga domina (P=32): SP=32 -> Q=0,3*raiz(32)=1,70 L/s
+    assert abs(vazao_agua_pesos({"bacia_valvula": 1}) - 1.697) < 1e-3
+    with pytest.raises(ValueError):
+        diametro_agua(banheiro, metodo="xyz")
     assert a["v_real_ms"] <= 3.0 and a["OK"], a
     # --- ESGOTO (NBR 8160): mesmo banheiro ---
     uhc, dn_desc = uhc_de_aparelhos({"bacia": 1, "lavatorio": 1, "chuveiro": 1})

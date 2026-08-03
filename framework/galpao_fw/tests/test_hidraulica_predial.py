@@ -38,6 +38,40 @@ def test_agua_aparelho_invalido_e_vazio():
         hp.diametro_agua({})
 
 
+# ------------------------------ AGUA FRIA metodo dos pesos (NBR 5626:1998) ---
+def test_pesos_tabela_A1():
+    # Tab.A.1 (valores literais): bacia caixa 0,3 ; bacia valvula 32 ; chuveiro 0,4 ;
+    # lavatorio 0,3 ; pia 0,7 ; tanque 0,7 ; mictorio s/ sifao 2,8
+    assert hp.PESO_RELATIVO["bacia_caixa"] == 0.3
+    assert hp.PESO_RELATIVO["bacia_valvula"] == 32.0
+    assert hp.PESO_RELATIVO["mictorio"] == 2.8
+    assert hp.soma_pesos({"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1}) == 1.0
+
+
+def test_vazao_pesos_formula():
+    # Q = 0,3*raiz(SP). SP=1,0 -> 0,30 L/s ; SP=32 (bacia valvula) -> 0,3*raiz(32)=1,697 L/s
+    assert abs(hp.vazao_agua_pesos({"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1})
+               - 0.30) < 1e-6
+    assert abs(hp.vazao_agua_pesos({"bacia_valvula": 1}) - 1.697) < 1e-3
+
+
+def test_pesos_menor_que_soma():
+    # o metodo dos pesos (simultaneo) da vazao MENOR que a soma (conservador)
+    banheiro = {"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1}
+    soma = hp.diametro_agua(banheiro, metodo="soma")
+    pesos = hp.diametro_agua(banheiro, metodo="pesos")
+    assert pesos["metodo"] == "pesos" and pesos["soma_P"] == 1.0
+    assert pesos["Q_Ls"] < soma["Q_Ls"] and pesos["DN_mm"] <= soma["DN_mm"]
+    assert pesos["v_real_ms"] <= 3.0 and pesos["OK"]
+
+
+def test_metodo_agua_invalido():
+    with pytest.raises(ValueError):
+        hp.diametro_agua({"bacia_caixa": 1}, metodo="xyz")
+    with pytest.raises(ValueError):
+        hp.soma_pesos({"desconhecido": 1})
+
+
 # ------------------------------ ESGOTO (NBR 8160) ---------------------------
 def test_uhc_e_dn_descarga():
     uhc, dn = hp.uhc_de_aparelhos({"bacia": 1, "chuveiro": 1})
