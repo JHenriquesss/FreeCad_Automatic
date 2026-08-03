@@ -112,6 +112,28 @@ def rodar(spec):
     else:
         agua = {"D_mm": D_AGUA_DEFAULT_MM, "fonte": "default", "default": True}
 
+    # --- AGUA QUENTE (NBR 5626:2020): a norma UNIFICOU agua fria e quente (SPAFAQ) - as
+    # vazoes de projeto, o limite de velocidade (3 m/s, Sec.6.8.3) e as pressoes (Sec.6.9)
+    # aplicam-se IDENTICAMENTE. So dimensiona se 'aparelhos_agua_quente' informado (o
+    # subconjunto de pecas com ponto quente: misturadores/chuveiro/banheira/pia). Material
+    # liso (CPVC/cobre) -> mesmo Fair-Whipple-Hsiao. Reusa as mesmas ferramentas da fria. ---
+    apar_aq = hid.get("aparelhos_agua_quente")
+    agua_quente = None
+    if apar_aq:
+        aqc = hp.diametro_agua(apar_aq, metodo=metodo_ag)
+        agua_quente = {"D_mm": float(aqc["DN_mm"]), "fonte": "NBR 5626:2020 (quente)",
+                       "metodo": aqc["metodo"], "Q_Ls": aqc["Q_Ls"],
+                       "v_real_ms": aqc["v_real_ms"]}
+        if "soma_P" in aqc:
+            agua_quente["soma_P"] = aqc["soma_P"]
+        tipo_q = "valvula_descarga" if "bacia_valvula" in apar_aq else "geral"
+        vpq = hp.verifica_pressao(aqc["Q_Ls"], aqc["DN_mm"], L + H,
+                                  float(hid.get("p_alim_kPa", 100.0)),
+                                  conexoes={"cotovelo_90": 3, "te_direta": 1},
+                                  dcota_m=H - 1.0, tipo_ponto=tipo_q)
+        vpq["p_alim_default"] = "p_alim_kPa" not in hid
+        agua_quente["pressao"] = vpq
+
     # --- ESGOTO: dimensionado se aparelhos informados (NBR 8160) ---
     apar_es = hid.get("aparelhos_esgoto")
     if hid.get("D_esgoto_mm") is not None:
@@ -132,6 +154,8 @@ def rodar(spec):
         esgoto = {"D_mm": D_ESGOTO_DEFAULT_MM, "fonte": "default", "default": True}
 
     redes = {"pluvial": pluv, "esgoto": esgoto, "agua_fria": agua}
+    if agua_quente:
+        redes["agua_quente"] = agua_quente
 
     # mensagem de dimensionamento: o que foi calculado e o que ficou [A CONFIRMAR]
     partes = []
@@ -165,6 +189,13 @@ def rodar(spec):
         partes.append("pressao residual %.0f kPa (min %.0f, %s%s)"
                       % (vp["p_residual_kPa"], vp["p_min_kPa"],
                          "OK" if vp["OK"] else "INSUF.", cav))
+    if agua_quente:
+        aq = agua_quente; vpq = aq["pressao"]
+        cavq = " [A CONFIRMAR p_alim]" if vpq.get("p_alim_default") else ""
+        partes.append("agua quente DN%.0f calculado NBR 5626:2020 SPAFAQ (Q=%.2f L/s; "
+                      "v=%.1f m/s; p.res %.0f kPa %s%s)"
+                      % (aq["D_mm"], aq["Q_Ls"], aq["v_real_ms"], vpq["p_residual_kPa"],
+                         "OK" if vpq["OK"] else "INSUF.", cavq))
     if esgoto["fonte"] == "NBR 8160":
         partes.append("esgoto DN%.0f (ventilacao ramal DN%.0f/coluna DN%.0f) calculado "
                       "NBR 8160 (UHC=%.1f)"
@@ -191,6 +222,12 @@ def rodar(spec):
             "p_residual_kPa": vp["p_residual_kPa"], "p_min_kPa": vp["p_min_kPa"],
             "perda_kPa": vp["perda_kPa"], "p_alim_assumida": vp.get("p_alim_default", False),
             "OK": vp["OK"] or vp.get("p_alim_default", False)}
+    if agua_quente:
+        vpq = agua_quente["pressao"]
+        gates["pressao_agua_quente"] = {
+            "p_residual_kPa": vpq["p_residual_kPa"], "p_min_kPa": vpq["p_min_kPa"],
+            "perda_kPa": vpq["perda_kPa"], "p_alim_assumida": vpq.get("p_alim_default", False),
+            "OK": vpq["OK"] or vpq.get("p_alim_default", False)}
     r = {"geometria": {"L": L, "W": W, "H": H}, "redes": redes,
          "dimensionamento": dimensionamento, "dimensionamento_completo": completo,
          "gates": gates}
@@ -230,6 +267,14 @@ def membros_bim(r):
               "marca": "AGUA-B", "secao": {"forma": "ROUND", "D": Dag},
               "p1": [0.0, W / 4.0, H - 300.0], "p2": [L, W / 4.0, H - 300.0],
               "material": "PVC"})
+    # AGUA QUENTE: barrilete paralelo ao de agua fria (y = W/4 + 200 mm), no forro. So
+    # existe se a rede de agua quente foi dimensionada (aparelhos_agua_quente).
+    if redes.get("agua_quente"):
+        Daq = redes["agua_quente"]["D_mm"] / 1000.0
+        M.append({"tipo": "Pipe", "perfil": "Barrilete agua quente D%.0f" % (Daq * 1000),
+                  "marca": "AGUA-Q", "secao": {"forma": "ROUND", "D": Daq},
+                  "p1": [0.0, W / 4.0 + 200.0, H - 300.0],
+                  "p2": [L, W / 4.0 + 200.0, H - 300.0], "material": "CPVC"})
     # CALHA pluvial no beiral (z = H), ao longo do comprimento numa agua (y = 0). Cruza
     # a ponta das tercas/beiral -> clash de coordenacao.
     if redes["pluvial"].get("calha_mm"):
@@ -362,6 +407,18 @@ def _selftest():
     assert r2["redes"]["esgoto"]["fonte"] == "NBR 8160"
     assert r2["dimensionamento_completo"] is True
     assert "A CONFIRMAR - informe" not in r2["dimensionamento"]
+
+    # AGUA QUENTE (SPAFAQ): reusa as ferramentas da fria nos pontos de agua quente
+    rq = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                "hidraulica": {"aparelhos_agua": {"lavatorio": 3, "chuveiro": 2},
+                               "aparelhos_agua_quente": {"lavatorio": 3, "chuveiro": 2}}})
+    aq = rq["redes"]["agua_quente"]
+    assert aq["fonte"] == "NBR 5626:2020 (quente)" and aq["D_mm"] > 0
+    assert "pressao" in aq and "pressao_agua_quente" in rq["gates"]
+    assert "agua quente" in rq["dimensionamento"] and "SPAFAQ" in rq["dimensionamento"]
+    assert any(m["marca"] == "AGUA-Q" for m in membros_bim(rq))
+    # sem aparelhos_agua_quente -> nao ha rede quente
+    assert "agua_quente" not in r2["redes"]
 
     # metodo dos pesos (NBR 5626:1998): mesmo conjunto -> vazao simultanea MENOR que a soma
     rp = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
