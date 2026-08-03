@@ -173,6 +173,7 @@ PERGUNTAS = [
     ("ab_portao_frente", "Portao na frente LxH (mm, ex 4000x4500; vazio=nao)", _dim, "", False),
     ("ab_porta_fundo", "Porta nos fundos LxH (mm; vazio=nao)", _dim, "", False),
     ("ab_janelas_lat", "Janelas laterais LxH (mm; vazio=nao)", _dim, "", False),
+    ("janela_peitoril", "Peitoril das janelas laterais (mm; altura da base)", _f, 1000.0, False),
     # vento
     ("v0", "Velocidade basica do vento V0 (m/s, NBR 6123 Fig.1)", _f, None, True),
     ("cat", "Categoria de rugosidade (I..V)", str, "II", False),
@@ -261,11 +262,20 @@ def construir_spec(r, slug="galpao"):
                            n_maos_francesas=(nmf if nmf > 0 else None))
     ab = {}
     for chave, campo in (("ab_portao_frente", "portao_frente"),
-                         ("ab_porta_fundo", "porta_fundo"),
-                         ("ab_janelas_lat", "janelas_laterais")):
+                         ("ab_porta_fundo", "porta_fundo")):
         v = r.get(chave)
         if v not in (None, "", ()):
             ab[campo] = v
+    # janelas laterais: o usuario informa L x H (largura x altura); o build espera a
+    # FAIXA (z_base, z_topo) da janela nas paredes longas. Converte via peitoril (altura
+    # da base): z_base=peitoril, z_topo=peitoril+H. Sem isso o build recebia (L,H) e
+    # tratava L como z_base -> altura z_topo-z_base negativa -> quebrava o 3D. A largura
+    # L nao e' modelada (o build desenha faixa continua entre os vaos) - fica informativa.
+    jv = r.get("ab_janelas_lat")
+    if jv not in (None, "", ()):
+        _, h_jan = float(jv[0]), float(jv[1])
+        peitoril = float(r.get("janela_peitoril", 1000.0) or 1000.0)
+        ab["janelas_laterais"] = (peitoril, peitoril + h_jan)
     s["aberturas"] = ab if ab else {"vedada": True}
     s["vento"].update(v0=r["v0"], cat=r.get("cat", "II"), classe=r.get("classe", "B"),
                       s3=r.get("s3", 0.95), z=ridge,
