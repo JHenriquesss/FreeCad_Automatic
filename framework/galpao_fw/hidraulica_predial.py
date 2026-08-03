@@ -147,6 +147,90 @@ def diametro_agua(aparelhos, v_max=V_MAX_AGUA_MS, simultaneidade=1.0, metodo="so
 
 
 # ---------------------------------------------------------------------------
+# AGUA FRIA - VERIFICACAO DE PRESSAO / PERDA DE CARGA (NBR 5626:1998 Anexo A.2)
+# ---------------------------------------------------------------------------
+# Fair-Whipple-Hsiao (A.2.1): perda de carga unitaria J (kPa/m). cited_text:
+# "Para tubos rugosos (aco-carbono, galvanizado): J = 20,2 x 106 x Q^1,88 x d^-4,88 /
+#  Para tubos lisos (plastico, cobre): J = 8,69 x 106 x Q^1,75 x d^-4,75 / J perda de
+#  carga unitaria kPa/m; Q vazao L/s; d diametro interno mm".
+_FWH = {"liso": (8.69e6, 1.75, -4.75), "rugoso": (20.2e6, 1.88, -4.88)}
+# Tab.A.3: comprimento equivalente (m) de conexoes p/ tubo LISO, por DN. cited_text:
+# "Cotovelo 90 45 / Curva 90 45 / Te passagem direta lateral: 15 1,1 0,4 0,4 0,2 0,7 2,3 /
+#  20 1,2 0,5 0,5 0,3 0,8 2,4 / 25 1,5 0,7 0,6 0,4 0,9 3,1 / 32 2,0 1,0 0,7 0,5 1,5 4,6 /
+#  40 3,2 1,0 1,2 0,6 2,2 7,3 / 50 3,4 1,3 1,3 0,7 2,3 7,6 / 65 3,7 1,7 1,4 0,8 2,4 7,8 /
+#  80 3,9 1,8 1,5 0,9 2,5 8,0 / 100 4,3 1,9 1,6 1,0 2,6 8,3 / 125 4,9 2,4 1,9 1,1 3,3 10,0 /
+#  150 5,4 2,6 2,1 1,2 3,8 11,1". Colunas: cotovelo_90/cotovelo_45/curva_90/curva_45/te_direta/te_lateral.
+_CONEXOES = ("cotovelo_90", "cotovelo_45", "curva_90", "curva_45", "te_direta", "te_lateral")
+COMPRIMENTO_EQUIV_M = {
+    15: (1.1, 0.4, 0.4, 0.2, 0.7, 2.3), 20: (1.2, 0.5, 0.5, 0.3, 0.8, 2.4),
+    25: (1.5, 0.7, 0.6, 0.4, 0.9, 3.1), 32: (2.0, 1.0, 0.7, 0.5, 1.5, 4.6),
+    40: (3.2, 1.0, 1.2, 0.6, 2.2, 7.3), 50: (3.4, 1.3, 1.3, 0.7, 2.3, 7.6),
+    65: (3.7, 1.7, 1.4, 0.8, 2.4, 7.8), 80: (3.9, 1.8, 1.5, 0.9, 2.5, 8.0),
+    100: (4.3, 1.9, 1.6, 1.0, 2.6, 8.3), 125: (4.9, 2.4, 1.9, 1.1, 3.3, 10.0),
+    150: (5.4, 2.6, 2.1, 1.2, 3.8, 11.1),
+}
+# Pressao dinamica minima no ponto (NBR 5626:1998 Sec.5.3.5.1): 10 kPa geral; 5 kPa na
+# caixa de descarga; 15 kPa na valvula de descarga p/ bacia sanitaria.
+P_MIN_PONTO_KPA = {"geral": 10.0, "caixa_descarga": 5.0, "valvula_descarga": 15.0}
+PESO_ESPEC_AGUA_KPA_M = 10.0    # peso especifico da agua (10 kN/m3 = 10 kPa/m) - A.4.2
+
+
+def perda_carga_unitaria(Q_ls, d_mm, material="liso"):
+    """Perda de carga unitaria J (kPa/m) por Fair-Whipple-Hsiao (NBR 5626:1998 A.2.1).
+    material: 'liso' (plastico/cobre) ou 'rugoso' (aco). Q em L/s, d interno em mm."""
+    if material not in _FWH:
+        raise ValueError("material invalido: %r (validos: %s)." % (material, tuple(_FWH)))
+    if Q_ls < 0 or d_mm <= 0:
+        raise ValueError("Q >= 0 e d > 0; recebido Q=%s d=%s." % (Q_ls, d_mm))
+    k, eq, ed = _FWH[material]
+    return k * (Q_ls ** eq) * (d_mm ** ed) if Q_ls > 0 else 0.0
+
+
+def _dn_equiv(dn_mm):
+    """DN tabelado (Tab.A.3) mais proximo do dn dado (a serie comercial de agua tem
+    DN 60/85/110 que nao constam na tabela -> usa o tabelado mais proximo)."""
+    return min(COMPRIMENTO_EQUIV_M, key=lambda d: abs(d - dn_mm))
+
+
+def comprimento_equivalente(dn_mm, conexoes):
+    """Somatorio dos comprimentos equivalentes (m) das conexoes (NBR 5626:1998 Tab.A.3).
+    conexoes: dict {tipo: quantidade} (tipos em _CONEXOES). Registros de passagem plena
+    tem perda desprezivel (A.2.3) e nao entram na tabela."""
+    tab = COMPRIMENTO_EQUIV_M[_dn_equiv(dn_mm)]
+    leq = 0.0
+    for tipo, n in (conexoes or {}).items():
+        if tipo not in _CONEXOES:
+            raise ValueError("conexao desconhecida: %r (validas: %s)." % (tipo, _CONEXOES))
+        if n < 0:
+            raise ValueError("quantidade negativa para %r." % tipo)
+        leq += tab[_CONEXOES.index(tipo)] * n
+    return leq
+
+
+def verifica_pressao(Q_ls, d_mm, L_real_m, p_entrada_kPa, conexoes=None, dcota_m=0.0,
+                     material="liso", tipo_ponto="geral", perda_singular_kPa=0.0):
+    """Verifica a pressao no ponto de utilizacao (NBR 5626:1998 Anexo A.2/A.4 + Sec.5.3.5.1).
+    p_disponivel = p_entrada + dcota*10 (dcota>0 = ponto ABAIXO da entrada -> ganho);
+    p_residual = p_disponivel - J*(L_real+Leq) - perdas singulares. OK se p_residual >=
+    minimo do ponto (10 geral / 5 caixa / 15 valvula). Retorna o balanco completo."""
+    if tipo_ponto not in P_MIN_PONTO_KPA:
+        raise ValueError("tipo_ponto invalido: %r (validos: %s)."
+                         % (tipo_ponto, tuple(P_MIN_PONTO_KPA)))
+    if L_real_m < 0:
+        raise ValueError("comprimento real deve ser >= 0.")
+    J = perda_carga_unitaria(Q_ls, d_mm, material)
+    leq = comprimento_equivalente(d_mm, conexoes)
+    perda = J * (L_real_m + leq) + perda_singular_kPa
+    p_disp = p_entrada_kPa + dcota_m * PESO_ESPEC_AGUA_KPA_M
+    p_res = p_disp - perda
+    p_min = P_MIN_PONTO_KPA[tipo_ponto]
+    return {"J_kPa_m": round(J, 4), "Leq_m": round(leq, 2),
+            "L_total_m": round(L_real_m + leq, 2), "perda_kPa": round(perda, 2),
+            "p_disponivel_kPa": round(p_disp, 2), "p_residual_kPa": round(p_res, 2),
+            "p_min_kPa": p_min, "tipo_ponto": tipo_ponto, "OK": p_res >= p_min - 1e-9}
+
+
+# ---------------------------------------------------------------------------
 # ESGOTO SANITARIO - NBR 8160:1999 (Unidades Hunter de Contribuicao)
 # ---------------------------------------------------------------------------
 # Tab.3 (UHC e DN minimo do ramal de descarga). cited_text: "Bacia sanitaria 6 100 /
@@ -332,6 +416,23 @@ def _selftest():
     assert abs(vazao_agua_pesos({"bacia_valvula": 1}) - 1.697) < 1e-3
     with pytest.raises(ValueError):
         diametro_agua(banheiro, metodo="xyz")
+    # --- VERIFICACAO DE PRESSAO (NBR 5626:1998 Anexo A.2, Fair-Whipple-Hsiao) ---
+    # J = 8,69e6 * Q^1,75 * d^-4,75. Q=0,30 L/s, d=25 mm -> J ~ 0,24 kPa/m
+    J = perda_carga_unitaria(0.30, 25.0, "liso")
+    assert abs(J - 0.241) < 0.01, J
+    assert perda_carga_unitaria(0.30, 25.0, "rugoso") > J     # aco perde mais que plastico
+    # Leq (Tab.A.3, DN25): 2 cotovelos 90 (1,5) + 1 te direta (0,9) = 3,9 m
+    assert abs(comprimento_equivalente(25.0, {"cotovelo_90": 2, "te_direta": 1}) - 3.9) < 1e-6
+    # trecho: L=20 m, Leq=3,9 -> perda=0,241*23,9=5,76 kPa; p_ent=100, ponto 3 m ABAIXO
+    # (ganho +30) -> disp=130; residual=124,2 kPa >= 10 -> OK
+    vp = verifica_pressao(0.30, 25.0, 20.0, 100.0,
+                          conexoes={"cotovelo_90": 2, "te_direta": 1},
+                          dcota_m=3.0, tipo_ponto="geral")
+    assert abs(vp["Leq_m"] - 3.9) < 1e-6 and abs(vp["perda_kPa"] - 5.76) < 0.05, vp
+    assert abs(vp["p_disponivel_kPa"] - 130.0) < 1e-6 and vp["OK"], vp
+    # pressao insuficiente -> reprova; valvula de descarga exige >= 15 kPa
+    ruim = verifica_pressao(0.30, 25.0, 5.0, 12.0, tipo_ponto="valvula_descarga")
+    assert ruim["p_min_kPa"] == 15.0 and not ruim["OK"]
     assert a["v_real_ms"] <= 3.0 and a["OK"], a
     # --- ESGOTO (NBR 8160): mesmo banheiro ---
     uhc, dn_desc = uhc_de_aparelhos({"bacia": 1, "lavatorio": 1, "chuveiro": 1})

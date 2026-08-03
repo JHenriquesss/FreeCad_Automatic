@@ -72,6 +72,45 @@ def test_metodo_agua_invalido():
         hp.soma_pesos({"desconhecido": 1})
 
 
+# ------------------------------ VERIFICACAO DE PRESSAO (NBR 5626:1998 A.2) ---
+def test_fair_whipple_hsiao():
+    # J = 8,69e6 * Q^1,75 * d^-4,75 (lisos). Q=0,30 L/s, d=25 mm -> ~0,241 kPa/m
+    assert abs(hp.perda_carga_unitaria(0.30, 25.0, "liso") - 0.241) < 0.01
+    # aco (rugoso) perde mais que plastico (liso) no mesmo Q/d
+    assert hp.perda_carga_unitaria(0.30, 25.0, "rugoso") > hp.perda_carga_unitaria(0.30, 25.0)
+    assert hp.perda_carga_unitaria(0.0, 25.0) == 0.0            # sem vazao, sem perda
+    with pytest.raises(ValueError):
+        hp.perda_carga_unitaria(0.3, 0.0)
+
+
+def test_comprimento_equivalente_tabela_A3():
+    # DN25: cotovelo 90 = 1,5 ; te direta = 0,9 -> 2*1,5 + 0,9 = 3,9 m
+    assert abs(hp.comprimento_equivalente(25.0, {"cotovelo_90": 2, "te_direta": 1}) - 3.9) < 1e-9
+    # DN comercial 60 (fora da Tab.A.3) -> usa o tabelado mais proximo (65)
+    assert hp.comprimento_equivalente(60.0, {"cotovelo_90": 1}) == hp.COMPRIMENTO_EQUIV_M[65][0]
+    with pytest.raises(ValueError):
+        hp.comprimento_equivalente(25.0, {"gambiarra": 1})
+
+
+def test_verifica_pressao_balanco():
+    # trecho: Q=0,30, d=25, L=20 m, 2 cotovelos + te (Leq 3,9) -> perda ~5,76 kPa
+    # p_ent=100, ponto 3 m ABAIXO (ganho +30) -> disp=130 ; residual ~124 kPa >= 10 -> OK
+    vp = hp.verifica_pressao(0.30, 25.0, 20.0, 100.0,
+                             conexoes={"cotovelo_90": 2, "te_direta": 1},
+                             dcota_m=3.0, tipo_ponto="geral")
+    assert abs(vp["p_disponivel_kPa"] - 130.0) < 1e-6
+    assert abs(vp["perda_kPa"] - 5.76) < 0.05 and vp["OK"] and vp["p_min_kPa"] == 10.0
+
+
+def test_verifica_pressao_reprova_e_tipos_de_ponto():
+    # pressao baixa -> reprova ; valvula de descarga exige 15 kPa, caixa aceita 5 kPa
+    assert not hp.verifica_pressao(0.30, 25.0, 5.0, 12.0, tipo_ponto="valvula_descarga")["OK"]
+    assert hp.P_MIN_PONTO_KPA["caixa_descarga"] == 5.0
+    assert hp.P_MIN_PONTO_KPA["valvula_descarga"] == 15.0
+    with pytest.raises(ValueError):
+        hp.verifica_pressao(0.30, 25.0, 5.0, 100.0, tipo_ponto="inexistente")
+
+
 # ------------------------------ ESGOTO (NBR 8160) ---------------------------
 def test_uhc_e_dn_descarga():
     uhc, dn = hp.uhc_de_aparelhos({"bacia": 1, "chuveiro": 1})
