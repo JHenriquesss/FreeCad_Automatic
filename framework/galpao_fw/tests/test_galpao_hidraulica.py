@@ -21,15 +21,36 @@ def test_selftest():
     ghi._selftest()
 
 
-def test_pluvial_dimensionado_pela_geometria():
-    # pluvial e' SEMPRE calculado (NBR 10844) a partir da area de telhado; i local
-    # (dado de sitio) fica flagado [A CONFIRMAR]. 40x20=800 m2, i=150 -> Q=2000 L/min
-    # -> Tab.4 1%: DN250.
+def test_pluvial_dimensionado_por_ponto_de_drenagem():
+    # cada condutor drena area/n_condutores (nao o telhado inteiro): 800/4 = 200 m2/ponto
+    # -> Q=500 L/min -> Tab.4 1%: DN125. i local (dado de sitio) fica flagado.
     r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0}})
     assert r["redes"]["pluvial"]["fonte"] == "NBR 10844"
-    assert r["redes"]["pluvial"]["D_mm"] == 250.0
+    assert r["redes"]["pluvial"]["D_mm"] == 125.0
+    assert r["redes"]["pluvial"]["area_por_ponto_m2"] == 200.0
+    assert r["redes"]["pluvial"]["saturado"] is False
     assert r["redes"]["pluvial"]["i_default"] is True
     assert "[A CONFIRMAR i local]" in r["dimensionamento"]
+
+
+def test_pluvial_saturacao_e_sinalizada():
+    # telhado enorme com 1 unico condutor -> a vazao excede a maior secao tabelada:
+    # o dimensionamento NAO pode saturar em silencio, tem de FLAGAR.
+    r = ghi.rodar({"geometria": {"L": 200.0, "W": 60.0, "H": 8.0},
+                   "hidraulica": {"n_condutores": 1, "i_pluvial_mm_h": 150.0}})
+    assert r["gates"]["rede"]["pluvial_saturado"] is True
+    assert "SATURADO" in r["dimensionamento"]
+
+
+def test_pressao_valvula_descarga_exige_15kPa():
+    # conjunto com valvula de descarga -> o ponto mais exigente governa 15 kPa (nao 10)
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"aparelhos_agua": {"bacia_valvula": 1, "lavatorio": 2}}})
+    assert r["redes"]["agua_fria"]["pressao"]["p_min_kPa"] == 15.0
+    # sem valvula -> 10 kPa (geral)
+    r2 = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                    "hidraulica": {"aparelhos_agua": {"bacia_caixa": 1, "lavatorio": 2}}})
+    assert r2["redes"]["agua_fria"]["pressao"]["p_min_kPa"] == 10.0
 
 
 def test_agua_esgoto_default_flagado_sem_aparelhos():
