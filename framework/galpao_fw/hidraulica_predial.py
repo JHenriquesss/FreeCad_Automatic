@@ -177,11 +177,22 @@ def diametro_tubo_queda(uhc, pavimentos=3):
     return _menor_dn([(row[0], row[idx]) for row in _TAB6_QUEDA], uhc)
 
 
+def declividade_minima_pct(dn_mm):
+    """Declividade minima de trecho horizontal de esgoto (NBR 8160 Sec.4.2.3.2):
+    2 % p/ DN <= 75, 1 % p/ DN >= 100."""
+    return 2.0 if dn_mm <= 75 else 1.0
+
+
 def diametro_coletor(uhc, declividade_pct=1.0):
     """DN do subcoletor/coletor predial (NBR 8160 Tab.7) para a declividade dada
-    (0,5/1/2/4 %). Coletor predial tem DN minimo 100 (Sec.5.1.4.1)."""
+    (0,5/1/2/4 %). Coletor predial tem DN minimo 100 (Sec.5.1.4.1) e, por ser DN >= 100,
+    exige declividade minima de 1 % (Sec.4.2.3.2)."""
     if uhc < 0:
         raise ValueError("UHC nao pode ser negativo.")
+    # coletor predial e' sempre >= DN100 -> declividade minima obrigatoria 1 % (Sec.4.2.3.2)
+    if declividade_pct < 1.0:
+        raise ValueError("declividade %s%% < minima 1%% para coletor DN>=100 "
+                         "(NBR 8160 Sec.4.2.3.2)." % declividade_pct)
     if declividade_pct not in _DECLIV_COL:
         # adota a declividade tabelada imediatamente inferior (mais conservadora)
         menores = [d for d in _DECLIV_COL if d <= declividade_pct]
@@ -210,6 +221,8 @@ _TAB4_CONDUTOR_N011 = {   # n = 0,011 ; DN -> [0,5%, 1%, 2%, 4%]  (L/min)
 }
 I_PLUVIAL_PADRAO_MM_H = 150.0   # [A CONFIRMAR] intensidade de projeto (DADO DE SITIO;
 #                                 NBR 10844 Tab.5 lista i por cidade/periodo de retorno).
+DN_MIN_PLUVIAL_MM = 75          # NBR 10844 Sec.5.6.3: diametro INTERNO minimo 70 mm do
+#                                 condutor vertical -> DN75 comercial (interno >= 70 mm).
 
 
 def vazao_pluvial(area_m2, i_mm_h=I_PLUVIAL_PADRAO_MM_H):
@@ -244,12 +257,13 @@ def diametro_pluvial(area_m2, i_mm_h=I_PLUVIAL_PADRAO_MM_H, declividade_pct=1.0)
         declividade_pct = max(menores)
     col = _DECLIV_PLUV.index(declividade_pct)
     tabela = [(dn, caps[col]) for dn, caps in sorted(_TAB4_CONDUTOR_N011.items())]
-    dn = _menor_dn(tabela, q)
+    dn = max(_menor_dn(tabela, q), DN_MIN_PLUVIAL_MM)      # Sec.5.6.3: DN vertical >= 75
     return {"Q_Lmin": round(q, 1), "DN_mm": dn, "i_mm_h": i_mm_h,
             "declividade_pct": declividade_pct, "i_default": i_mm_h == I_PLUVIAL_PADRAO_MM_H}
 
 
 def _selftest():
+    import pytest
     # --- AGUA FRIA (NBR 5626:2020): banheiro simples ---
     # bacia c/ caixa 0,96 + lavatorio 0,15 + chuveiro 0,20 = 1,31 L/s
     a = diametro_agua({"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1})
@@ -265,16 +279,21 @@ def _selftest():
     assert diametro_tubo_queda(300, pavimentos=3) == 150        # 300 UHC -> DN150 (240<300<=960)
     assert diametro_coletor(9, declividade_pct=1.0) == 100      # Tab.7 + minimo coletor DN100
     assert diametro_coletor(900, declividade_pct=2.0) == 200    # 840<900<=1920 -> DN200
+    assert declividade_minima_pct(75) == 2.0 and declividade_minima_pct(100) == 1.0
     # --- PLUVIAL (NBR 10844): telhado 100 m2, i=150 mm/h ---
     q = vazao_pluvial(100.0, 150.0)
     assert abs(q - 250.0) < 1e-9, q                             # 150*100/60 = 250 L/min
     p = diametro_pluvial(100.0, 150.0, declividade_pct=1.0)
     assert p["Q_Lmin"] == 250.0 and p["DN_mm"] == 100, p        # Tab.4 1%: 287>=250 -> DN100
     assert p["i_default"] is True                               # i default -> flag de sitio
+    # area pequena: Tab.4 daria DN50, mas o condutor vertical tem DN minimo 75 (Sec.5.6.3)
+    assert diametro_pluvial(5.0, 150.0, declividade_pct=1.0)["DN_mm"] == 75
+    # coletor com declividade < 1% (DN>=100) e' violacao (Sec.4.2.3.2)
+    with pytest.raises(ValueError):
+        diametro_coletor(180, declividade_pct=0.5)
     # area de contribuicao com inclinacao
     assert abs(area_contribuicao(10.0, 20.0, altura_incl_m=2.0) - (10 + 1) * 20) < 1e-9
     # guardas de entrada degenerada
-    import pytest
     for bad in (lambda: vazao_pluvial(0, 150), lambda: diametro_agua({}),
                 lambda: uhc_de_aparelhos({}), lambda: vazao_pluvial(100, 0)):
         with pytest.raises(ValueError):
