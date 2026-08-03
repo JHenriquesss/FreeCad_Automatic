@@ -201,6 +201,36 @@ def _interferencias_cross(doc, disc_de, vol_min=1000.0):
     return itf
 
 
+def _capturar_vistas(doc):
+    """Screenshots (isometrica/frontal/superior) do modelo federado - SO com GUI
+    (freecad.exe grafico; freecadcmd nao tem). Best-effort: sem GUI retorna []."""
+    import time
+    out = []
+    try:
+        import FreeCAD
+        if not FreeCAD.GuiUp:
+            return out
+        import FreeCADGui as Gui
+        vdir = "%s/vistas" % EXPORT_DIR
+        os.makedirs(vdir, exist_ok=True)
+        Gui.setActiveDocument(doc.Name)
+        view = Gui.ActiveDocument.ActiveView
+        for nome, metodo in (("federado_isometrica", "viewIsometric"),
+                             ("federado_frontal", "viewFront"),
+                             ("federado_superior", "viewTop")):
+            getattr(view, metodo)()
+            view.fitAll()
+            time.sleep(0.3)
+            Gui.updateGui()
+            path = "%s/%s.png" % (vdir, nome)
+            view.saveImage(path, 1600, 1000, "#FFFFFF")
+            if os.path.exists(path):
+                out.append(path)
+    except Exception:
+        pass
+    return out
+
+
 def _export(doc):
     """Grava FCStd + STEP + IFC4 (exportador nativo do FreeCAD). Best-effort no IFC."""
     import FreeCAD as App
@@ -234,8 +264,10 @@ def run():
     doc, disc_de = _monta_doc(sols)
     arquivos = _export(doc)
     itf = _interferencias_cross(doc, disc_de)
+    vistas = _capturar_vistas(doc)                       # PNG so com GUI (best-effort)
     return {"n_solidos": len(sols), "por_disciplina": _por_disciplina(sols),
-            "n_interferencias_cross": len(itf), "interferencias_cross": itf, **arquivos}
+            "n_interferencias_cross": len(itf), "interferencias_cross": itf,
+            "vistas": vistas, **arquivos}
 
 
 if __name__ == "__main__":
