@@ -331,6 +331,89 @@ def montar_3d_federado(R, out_dir, spec=None, doc_name="galpao_federado",
         return RP._montar_headless(src, bk, out_dir, timeout)
 
 
+def render_federado(R, out_dir, spec=None, doc_name="galpao_federado",
+                    freecad_exe=None, timeout=600):
+    """RENDER-AND-LOOK do modelo federado: lanca o freecad.exe GRAFICO (GuiUp) sobre os
+    membros federados e salva PNGs (isometrica/frontal/superior) em out_dir/vistas via
+    build_federado._capturar_vistas. Diferente do montar_3d_federado (freecadcmd headless,
+    sem GUI -> sem imagem). Retorna {vistas:[png...], n_solidos, ...} | {erro}. Mesma
+    mecanica de montar_pranchas (freecad.exe destacado + status json + kill de zumbi)."""
+    import os
+    import json
+    import time
+    import tempfile
+    import subprocess
+    import rodar_projeto as RP
+    import framework as FW
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": "freecad.exe nao encontrado: %s" % exe}
+    membros, _ = _membros_federados(R, spec)
+    if not membros:
+        return {"erro": "sem membros federados"}
+
+    outp = str(out_dir).replace("\\", "/")
+    os.makedirs(str(out_dir), exist_ok=True)
+    galpao = str(FW.raiz_repo() / "framework" / "galpao_fw").replace("\\", "/")
+    memf = os.path.join(str(out_dir), "_fed_membros.json")
+    with open(memf, "w", encoding="utf-8") as f:
+        json.dump(membros, f)
+    status = os.path.join(str(out_dir), "_fed_render_status.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = (
+        "# -*- coding: utf-8 -*-\n"
+        "import sys, os, json\n"
+        "sys.path.insert(0, r'%s')\n" % galpao +
+        "import build_federado as B\n"
+        "B.reset()\n"
+        "mem = json.load(open(r'%s', encoding='utf-8'))\n" % memf.replace("\\", "/") +
+        "B.configurar(membros=mem, export_dir=r'%s', doc_name='%s')\n" % (outp, doc_name) +
+        "res = B.run()\n"
+        "json.dump(res, open(r'%s', 'w', encoding='utf-8'), default=str)\n" % status.replace("\\", "/") +
+        "try:\n    import FreeCADGui as G; G.getMainWindow().close()\nexcept Exception: pass\n"
+    )
+    bf = tempfile.NamedTemporaryFile(mode="w", suffix="_fedrender.py",
+                                     delete=False, encoding="utf-8")
+    bf.write(boot)
+    bf.close()
+
+    proc = subprocess.Popen([exe, bf.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                if os.path.exists(status):
+                    with open(status, encoding="utf-8") as f:
+                        res = json.load(f)
+                else:
+                    res = {"erro": "freecad.exe encerrou sem status"}
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": "timeout %ss no render federado" % timeout}
+    finally:
+        RP._matar_processo_freecad(proc)
+        try:
+            os.unlink(bf.name)
+        except OSError:
+            pass
+    return res
+
+
 # ============================ CLASH DETECTION FEDERADO =======================
 # Interferencia ENTRE disciplinas sobre o modelo federado (frame comum). Cada vertical
 # ja checa a interferencia DENTRO de si (checa_interferencia/AABB); aqui pegamos os

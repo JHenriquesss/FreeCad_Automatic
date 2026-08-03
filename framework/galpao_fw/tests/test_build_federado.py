@@ -102,3 +102,19 @@ def test_montar_3d_federado_vivo_e_consistente_com_aabb(tmp_path):
     # o OCCT (solido real) deve ser SUBSET do AABB (bounding) -> <= n_clashes do AABB
     aabb = tk.checa_interferencia_federada(R, _spec())
     assert r["n_interferencias_cross"] <= aabb["n_clashes"]
+
+
+FCEXE = os.environ.get("FREECAD_EXE", r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe")
+
+
+@pytest.mark.build
+@pytest.mark.skipif(not os.path.exists(FCEXE), reason="freecad.exe (GUI) ausente")
+def test_render_federado_gera_pngs(tmp_path):
+    # render-and-look: freecad.exe GRAFICO -> PNGs isometrica/frontal/superior
+    R = tk.rodar(_spec())
+    res = tk.render_federado(R, str(tmp_path), spec=_spec(), timeout=420)
+    assert res.get("erro") is None, res
+    vistas = res.get("vistas") or []
+    assert any("isometrica" in v for v in vistas)
+    for v in vistas:
+        assert os.path.exists(v) and os.path.getsize(v) > 0
