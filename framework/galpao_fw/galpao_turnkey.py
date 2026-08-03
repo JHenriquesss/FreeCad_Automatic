@@ -329,7 +329,9 @@ def montar_3d_federado(R, out_dir, spec=None, doc_name="galpao_federado",
 # Secao de BARRA sempre em metros (x1000) em todas. Sao CANDIDATOS p/ o coordenador
 # triar: alguns conflitos sao montagem intencional (ex.: descida SPDA rente ao pilar).
 
-_ESCALA_M = {"concreto": 1000.0, "aco": 1000.0, "eletrico": 1.0, "incendio": 1.0}
+# escala das dims de CAIXA por disciplina p/ mm: concreto guarda em METROS (x1000); aco
+# (modelo_neutro), eletrico e incendio ja em MM (x1). Secao de BARRA e' sempre m (a parte).
+_ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0}
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco"}
 _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
 

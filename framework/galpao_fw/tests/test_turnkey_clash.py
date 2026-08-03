@@ -36,6 +36,20 @@ def test_aabb_caixa_estrutural_em_metros():
     assert a == (-1000.0, 1000.0, -1250.0, 1250.0, -350.0, 350.0)
 
 
+def test_aabb_caixa_aco_em_mm_nao_metros():
+    # REGRESSAO (item 3): dims de caixa do ACO (modelo_neutro) ja vem em MM -> escala x1,
+    # nao x1000 como o concreto. O bug x1000 inflava a sapata/bloco p/ ~km e inundava o
+    # clash (aco Footing/Plate/Fastener sobrepondo todos os equipamentos).
+    bloco = {"marca": "A-BLO1", "tipo": "Footing", "dims": [2500.0, 3000.0, 2350.0],
+             "centro": [0.0, 0.0, -1175.0]}
+    x0, x1, y0, y1, z0, z1 = tk._aabb_federado(bloco, "aco")
+    assert (x1 - x0, y1 - y0, z1 - z0) == (2500.0, 3000.0, 2350.0)   # ~2.5 m, nao 2.5 km
+    # concreto (metros) continua x1000
+    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2.0, 2.5, 0.7], "centro": [0, 0, -350]}
+    xc0, xc1, *_ = tk._aabb_federado(sap, "concreto")
+    assert (xc1 - xc0) == 2000.0
+
+
 def test_aabb_caixa_instalacao_em_mm():
     # eletrico/incendio: dims de caixa em MM -> x1
     mb = {"marca": "I-DET1", "dims": [120.0, 120.0, 60.0], "centro": [0.0, 0.0, 0.0]}
