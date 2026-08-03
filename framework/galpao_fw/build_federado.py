@@ -25,7 +25,9 @@ MEMBROS = []
 EXPORT_DIR = "exports"
 DOC_NAME = "galpao_federado"
 
-_ESCALA_M = {"concreto": 1000.0, "aco": 1000.0, "eletrico": 1.0, "incendio": 1.0}
+# dims de CAIXA -> mm: concreto em METROS (x1000); aco (modelo_neutro), eletrico e
+# incendio ja em MM (x1). Secao de BARRA e' sempre metros (tratada a parte).
+_ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0}
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco"}
 _TIPOS_IGNORADOS = {"Covering", "Cladding"}          # fechamento/telha: fora do clash
 

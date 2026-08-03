@@ -68,6 +68,20 @@ def test_por_disciplina_conta_e_soma():
     assert all(v["n"] > 0 and v["vol_m3"] >= 0 for v in por.values())
 
 
+def test_caixa_aco_em_mm_nao_metros():
+    # REGRESSAO (item 3): caixa do aco (Footing/Plate) ja em MM -> escala x1. O bug x1000
+    # dava um bloco de km e um solido gigante que interferia com tudo no build federado.
+    bloco = {"marca": "A-BLO1", "tipo": "Footing", "dims": [2500.0, 3000.0, 2350.0],
+             "centro": [0.0, 0.0, -1175.0]}
+    s = bf.solidos([bloco])[0]
+    assert s["kind"] == "box" and s["dims"] == (2500.0, 3000.0, 2350.0)
+    assert abs(s["vol_m3"] - (2.5 * 3.0 * 2.35)) < 1e-6         # ~17.6 m3, nao 1e9 m3
+    # concreto continua em metros (x1000)
+    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2.0, 2.5, 0.7], "centro": [0, 0, -350]}
+    sc = bf.solidos([sap])[0]
+    assert sc["dims"] == (2000.0, 2500.0, 700.0)
+
+
 def test_barra_comprimento_zero_ignorada():
     assert bf.solidos([{"marca": "E-X", "tipo": "Cable", "p1": [1, 2, 3],
                         "p2": [1, 2, 3], "secao": {"bf": 0.05, "d": 0.05}}]) == []
