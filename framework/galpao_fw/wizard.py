@@ -266,16 +266,18 @@ def construir_spec(r, slug="galpao"):
         v = r.get(chave)
         if v not in (None, "", ()):
             ab[campo] = v
-    # janelas laterais: o usuario informa L x H (largura x altura); o build espera a
-    # FAIXA (z_base, z_topo) da janela nas paredes longas. Converte via peitoril (altura
-    # da base): z_base=peitoril, z_topo=peitoril+H. Sem isso o build recebia (L,H) e
-    # tratava L como z_base -> altura z_topo-z_base negativa -> quebrava o 3D. A largura
-    # L nao e' modelada (o build desenha faixa continua entre os vaos) - fica informativa.
+    # janelas laterais: o usuario informa L x H (largura x altura); o spec (convencao
+    # CANONICA) guarda a FAIXA (z_base, z_topo) da janela nas paredes longas, que e o
+    # que build/IFC/modelo_neutro consomem. A conversao acontece AQUI, no boundary de
+    # entrada, por PS._janela_band (unico ponto de conversao, com peitoril + clamp no
+    # beiral). A largura L nao e' modelada (o build desenha faixa continua entre os
+    # vaos) - fica informativa. NAO reconverter downstream (aberturas_para_build e
+    # pass-through); ver bug de dupla-conversao T40.
     jv = r.get("ab_janelas_lat")
     if jv not in (None, "", ()):
-        _, h_jan = float(jv[0]), float(jv[1])
         peitoril = float(r.get("janela_peitoril", 1000.0) or 1000.0)
-        ab["janelas_laterais"] = (peitoril, peitoril + h_jan)
+        ab["janelas_laterais"] = PS._janela_band(
+            (float(jv[0]), float(jv[1]), peitoril), eave * 1000.0)
     s["aberturas"] = ab if ab else {"vedada": True}
     s["vento"].update(v0=r["v0"], cat=r.get("cat", "II"), classe=r.get("classe", "B"),
                       s3=r.get("s3", 0.95), z=ridge,

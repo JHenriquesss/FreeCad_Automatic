@@ -647,13 +647,14 @@ def _janela_band(janela, eave_mm, peitoril_mm=1100.0):
 
 
 def aberturas_para_build(aberturas, eave_mm):
-    """Traduz o dict de aberturas do spec (janela = L,H) para a convencao do
-    build_galpao (janela = faixa z_base,z_topo). Portao/porta ficam (L,H). Pura."""
-    ab = dict(aberturas or {})
-    for chave in ("janelas_laterais", "janelas_frontais"):
-        if ab.get(chave):
-            ab[chave] = _janela_band(ab[chave], eave_mm)
-    return ab
+    """Pass-through das aberturas do spec para o build. A convencao CANONICA do spec
+    ja e a FAIXA (z_base, z_topo) para as janelas (produzida no boundary de entrada:
+    wizard.construir_spec -> _janela_band; specs montados a mao ja usam faixa, igual
+    ao default do build). Portao/porta ficam (L,H). NAO reconverter aqui: fazer isso
+    reinterpretava a faixa pronta como (L,H) e a convertia DE NOVO (dupla-conversao,
+    bug T40). A conversao (L,H)->faixa vive so em _janela_band, chamado UMA vez na
+    entrada. `eave_mm` mantido na assinatura por estabilidade de API. Pura."""
+    return dict(aberturas or {})
 
 
 # ---- mappers: spec -> modulos ----------------------------------------------
