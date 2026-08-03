@@ -92,6 +92,30 @@ def test_agua_metodo_pesos_selecionavel():
     assert "metodo dos pesos" in r_pesos["dimensionamento"]
 
 
+def test_agua_quente_spafaq():
+    # NBR 5626:2020 unificou fria+quente (SPAFAQ): a rede quente reusa as ferramentas da
+    # fria (vazao, velocidade <=3 m/s, pressao Fair-Whipple-Hsiao) nos pontos quentes.
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"aparelhos_agua": {"lavatorio": 3, "chuveiro": 2},
+                                  "aparelhos_agua_quente": {"lavatorio": 3, "chuveiro": 2},
+                                  "p_alim_kPa": 300.0}})
+    aq = r["redes"]["agua_quente"]
+    assert aq["fonte"] == "NBR 5626:2020 (quente)" and aq["D_mm"] > 0
+    assert aq["v_real_ms"] <= 3.0                          # limite de velocidade aplicado
+    assert "pressao" in aq and r["gates"]["pressao_agua_quente"]["p_min_kPa"] == 10.0
+    assert "agua quente" in r["dimensionamento"]
+    mb = ghi.membros_bim(r)
+    aqm = next(m for m in mb if m["marca"] == "AGUA-Q")
+    assert aqm["material"] == "CPVC" and aqm["secao"]["forma"] == "ROUND"
+
+
+def test_sem_agua_quente_nao_cria_rede():
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"aparelhos_agua": {"lavatorio": 2}}})
+    assert "agua_quente" not in r["redes"]
+    assert not any(m["marca"] == "AGUA-Q" for m in ghi.membros_bim(r))
+
+
 def test_override_diametro_no_spec_vence():
     r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
                    "hidraulica": {"D_pluvial_mm": 150.0, "D_esgoto_mm": 100.0,
