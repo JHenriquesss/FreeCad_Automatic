@@ -88,32 +88,48 @@ def _linhas_clash(rep):
     """Texto do APENDICE DE COORDENACAO: interferencia ENTRE disciplinas (clash federado
     de galpao_turnkey.checa_interferencia_federada). Lista completa (o _add_paginas_texto
     pagina sozinho). Os conflitos sao CANDIDATOS a triagem, nao reprovacao de calculo."""
+    n_rev = rep.get("n_revisar")
+    n_esp = rep.get("n_esperado")
+    clashes = rep.get("clashes") or []
+    if n_rev is None:                                    # rep antigo sem triagem
+        rev = [c for c in clashes if not c.get("esperado")]
+        esp = [c for c in clashes if c.get("esperado")]
+        n_rev, n_esp = len(rev), len(esp)
+    else:
+        rev = rep.get("revisar") or [c for c in clashes if not c.get("esperado")]
+        esp = rep.get("esperados") or [c for c in clashes if c.get("esperado")]
     L = ["", "=" * 68,
          "  COORDENACAO - INTERFERENCIA ENTRE DISCIPLINAS (CLASH FEDERADO)",
          "=" * 68, "",
-         "  %d elementos analisados ; %d candidatos de conflito entre disciplinas"
-         % (rep.get("n_membros", 0), rep.get("n_clashes", 0)), ""]
+         "  %d elementos analisados ; %d conflitos entre disciplinas" %
+         (rep.get("n_membros", 0), rep.get("n_clashes", 0)),
+         "     -> %d A REVISAR (coordenacao real) + %d esperados (montagem)" %
+         (n_rev, n_esp), ""]
     por = rep.get("por_par") or {}
     if por:
         L.append("  Por par de disciplinas:")
         for k, v in sorted(por.items()):
             L.append("    - %-30s %d" % (k, v))
         L.append("")
-    L += ["  NOTA: os conflitos sao CANDIDATOS para o coordenador triar; alguns sao",
-          "        montagem intencional (ex.: descida de SPDA rente ao pilar, haste de",
-          "        aterramento no canto da sapata). Verificar o leiaute real.", ""]
-    clashes = rep.get("clashes") or []
-    if clashes:
-        L.append("  %-16s %-16s %-24s %11s" %
-                 ("PECA A", "PECA B", "DISCIPLINAS / TIPOS", "VOL (mm3)"))
-        L.append("  " + "-" * 66)
-        for c in clashes:
+
+    def _tab(itens):
+        out = ["  %-16s %-16s %-24s %11s" %
+               ("PECA A", "PECA B", "DISCIPLINAS / TIPOS", "VOL (mm3)"),
+               "  " + "-" * 66]
+        for c in itens:
             rot = ("%s %s" % (c.get("disciplinas", ""), c.get("tipos", "")))[:24]
-            L.append("  %-16s %-16s %-24s %11.0f" %
-                     (str(c.get("a", ""))[:16], str(c.get("b", ""))[:16], rot,
-                      c.get("vol_mm3", 0.0)))
-    else:
-        L.append("  Nenhuma interferencia entre disciplinas acima do limite.")
+            out.append("  %-16s %-16s %-24s %11.0f" %
+                       (str(c.get("a", ""))[:16], str(c.get("b", ""))[:16], rot,
+                        c.get("vol_mm3", 0.0)))
+        return out
+
+    L.append("  [A REVISAR] conflitos de coordenacao real (eletrocalha/equipamento x")
+    L.append("  estrutura). Verificar o leiaute e reposicionar:")
+    L += _tab(rev) if rev else ["    (nenhum - nada a revisar)"]
+    L.append("")
+    L.append("  [ESPERADOS] montagem INTENCIONAL: aterramento/SPDA fixado a estrutura")
+    L.append("  (NBR 5419 - descidas nas colunas, malha/hastes junto as fundacoes):")
+    L += _tab(esp) if esp else ["    (nenhum)"]
     L.append("")
     return _virgula(L)
 
