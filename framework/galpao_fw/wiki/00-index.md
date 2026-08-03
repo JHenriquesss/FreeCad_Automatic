@@ -10,7 +10,7 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **T40 janela dupla-conversão (ABERTO)**, T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
+- [[06-open-threads]] — T40 janela dupla-conversão (✅ resolvido #150), T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
 
 > Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 
@@ -46,11 +46,14 @@ Arco consolidado das memórias `memory/*.md` (o registro fino de S16→S40 vive 
   `rodar_galpao`) e placa de sinalização (incêndio); concreto verificado limpo. **1ª auditoria NLM
   formal de concreto/aço** (notebook Diretrizes bf7feaa3): As_max pilar, flecha terça L/180-L/120,
   drift H/300, flexo-compressão 5.5.1.2 — TODOS batem. `saturacao-silenciosa-padrao`,
-  `auditoria-nlm-concreto-aco-s40`. **Bug ABERTO:** dupla-conversão de janela (ver [[06-open-threads]]).
+  `auditoria-nlm-concreto-aco-s40`.
+- **S40 — Janela dupla-conversão (PR #150):** fechou a T40 — `janelas_laterais` unificada na
+  convenção **FAIXA** (canônica); conversão (L,H)→faixa só no wizard via `_janela_band`;
+  `aberturas_para_build` virou pass-through (matou a reconversão que #144 abrira). Suíte 100% verde.
 
 **Validado ao vivo (S40):** caderno turnkey completo no freecad.exe — 6 disciplinas + coordenação,
-26 páginas, 14 pranchas A1, render 3D, render-and-look confirmando HID/CLI/COORD. Regressão: metade
-m-z 511 green; metade a-l 768 green (1 falha pré-existente = janela, ver open-threads).
+26 páginas, 14 pranchas A1, render 3D, render-and-look confirmando HID/CLI/COORD. **Regressão pós-#150:
+suíte completa VERDE — a-l 770, m-z 511** (a falha pré-existente da janela eliminada).
 
 ---
 
