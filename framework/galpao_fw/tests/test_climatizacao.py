@@ -57,3 +57,25 @@ def test_dimensiona_detalhado():
     esperado = 1600 + 2350 + 1000 + 1500 + 0.335 * V * 8
     assert abs(d["detalhe"]["carga_total_W"] - esperado) < 1.0
     assert d["capacidade_TR"] > 0
+
+
+# --- DUTOS (geometria de coordenacao) ---
+import math
+
+
+def test_vazao_insuflamento_da_fisica_do_ar():
+    # V = Q/(0,335*dT). 117200 W / (0,335*10) = 34985 m3/h
+    assert abs(cl.vazao_insuflamento(117200.0, 10.0) - 34985.07) < 1.0
+    import pytest
+    with pytest.raises(ValueError):
+        cl.vazao_insuflamento(1000.0, 0.0)
+
+
+def test_dimensiona_duto_secao_e_aspecto():
+    du = cl.dimensiona_duto(34985.07, 6.0, aspecto=2.0)
+    assert abs(du["area_m2"] - 1.62) < 0.02              # A = V/3600/v
+    assert abs(du["largura_m"] / du["altura_m"] - 2.0) < 1e-6
+    assert abs(du["largura_m"] * du["altura_m"] - du["area_m2"]) < 1e-3
+    import pytest
+    with pytest.raises(ValueError):
+        cl.dimensiona_duto(1000.0, 0.0)
