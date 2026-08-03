@@ -48,10 +48,27 @@ def test_agua_esgoto_calculados_com_aparelhos():
                                                      "chuveiro": 1},
                                   "aparelhos_esgoto": {"bacia": 1, "lavatorio": 1,
                                                        "chuveiro": 1}}})
-    assert r["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020"
+    assert r["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020 (soma)"   # default = soma
     assert r["redes"]["agua_fria"]["D_mm"] == 25.0        # Q=1,31 L/s, v<=3 -> DN25
     assert r["redes"]["esgoto"]["fonte"] == "NBR 8160"    # UHC=9 -> coletor DN100 (min)
     assert r["dimensionamento_completo"] is True
+
+
+def test_agua_metodo_pesos_selecionavel():
+    # metodo dos pesos (NBR 5626:1998) selecionavel via spec -> vazao simultanea menor
+    base = {"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+            "hidraulica": {"aparelhos_agua": {"bacia_caixa": 2, "lavatorio": 2,
+                                              "chuveiro": 2}}}
+    r_soma = ghi.rodar(base)                                  # default = soma
+    base_p = {"geometria": base["geometria"],
+              "hidraulica": dict(base["hidraulica"], metodo_agua="pesos")}
+    r_pesos = ghi.rodar(base_p)
+    assert r_soma["redes"]["agua_fria"]["metodo"] == "soma"
+    ap = r_pesos["redes"]["agua_fria"]
+    assert ap["metodo"] == "pesos" and ap["fonte"] == "NBR 5626:1998 (pesos)"
+    assert ap["soma_P"] == 2.0
+    assert ap["Q_Ls"] < r_soma["redes"]["agua_fria"]["Q_Ls"]   # simultaneo < soma
+    assert "metodo dos pesos" in r_pesos["dimensionamento"]
 
 
 def test_override_diametro_no_spec_vence():

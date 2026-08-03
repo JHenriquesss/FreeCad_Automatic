@@ -69,14 +69,20 @@ def rodar(spec):
     pluv["n_condutores"] = n_cond
     pluv["default"] = False        # pluvial e' sempre dimensionado (geometria) ou do spec
 
-    # --- AGUA FRIA: dimensionada se aparelhos informados (NBR 5626:2020) ---
+    # --- AGUA FRIA: dimensionada se aparelhos informados. Metodo de vazao selecionavel
+    # (ambos aceitos pela NBR 5626:2020 Sec.6.14.2): "soma" (Tab.B.4, conservador; default)
+    # ou "pesos" (NBR 5626:1998 Anexo A, Q=0,3*raiz(SP), simultaneo). ---
     apar_ag = hid.get("aparelhos_agua")
+    metodo_ag = hid.get("metodo_agua", "soma")
     if hid.get("D_agua_mm") is not None:
         agua = {"D_mm": float(hid["D_agua_mm"]), "fonte": "spec", "default": False}
     elif apar_ag:
-        agc = hp.diametro_agua(apar_ag)
-        agua = {"D_mm": float(agc["DN_mm"]), "fonte": "NBR 5626:2020", "default": False,
-                "Q_Ls": agc["Q_Ls"], "v_real_ms": agc["v_real_ms"]}
+        agc = hp.diametro_agua(apar_ag, metodo=metodo_ag)
+        fonte = "NBR 5626:1998 (pesos)" if metodo_ag == "pesos" else "NBR 5626:2020 (soma)"
+        agua = {"D_mm": float(agc["DN_mm"]), "fonte": fonte, "default": False,
+                "metodo": agc["metodo"], "Q_Ls": agc["Q_Ls"], "v_real_ms": agc["v_real_ms"]}
+        if "soma_P" in agc:
+            agua["soma_P"] = agc["soma_P"]
     else:
         agua = {"D_mm": D_AGUA_DEFAULT_MM, "fonte": "default", "default": True}
 
@@ -103,8 +109,14 @@ def rodar(spec):
                       % (pluv["D_mm"], pluv["Q_Lmin"], pluv["i_mm_h"], cav))
     else:
         partes.append("pluvial DN%.0f (spec)" % pluv["D_mm"])
-    if agua["fonte"] == "NBR 5626:2020":
-        partes.append("agua fria DN%.0f calculado NBR 5626:2020 (Q=%.2f L/s; v=%.1f m/s)"
+    if agua.get("metodo") == "pesos":
+        partes.append("agua fria DN%.0f calculado NBR 5626:1998 metodo dos pesos "
+                      "(ΣP=%.1f; Q=%.2f L/s; v=%.1f m/s)"
+                      % (agua["D_mm"], agua.get("soma_P", 0.0), agua["Q_Ls"],
+                         agua["v_real_ms"]))
+    elif agua.get("metodo") == "soma":
+        partes.append("agua fria DN%.0f calculado NBR 5626:2020 metodo da soma "
+                      "(Q=%.2f L/s; v=%.1f m/s)"
                       % (agua["D_mm"], agua["Q_Ls"], agua["v_real_ms"]))
     elif agua["fonte"] == "spec":
         partes.append("agua fria DN%.0f (spec)" % agua["D_mm"])
@@ -211,10 +223,21 @@ def _selftest():
     r2 = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
                 "hidraulica": {"aparelhos_agua": {"bacia_caixa": 2, "lavatorio": 2, "chuveiro": 2},
                                "aparelhos_esgoto": {"bacia": 2, "lavatorio": 2, "chuveiro": 2}}})
-    assert r2["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020"
+    assert r2["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020 (soma)"    # default = soma
+    assert r2["redes"]["agua_fria"]["metodo"] == "soma"
     assert r2["redes"]["esgoto"]["fonte"] == "NBR 8160"
     assert r2["dimensionamento_completo"] is True
     assert "A CONFIRMAR - informe" not in r2["dimensionamento"]
+
+    # metodo dos pesos (NBR 5626:1998): mesmo conjunto -> vazao simultanea MENOR que a soma
+    rp = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                "hidraulica": {"metodo_agua": "pesos",
+                               "aparelhos_agua": {"bacia_caixa": 2, "lavatorio": 2,
+                                                  "chuveiro": 2}}})
+    ap = rp["redes"]["agua_fria"]
+    assert ap["fonte"] == "NBR 5626:1998 (pesos)" and ap["metodo"] == "pesos"
+    assert ap["soma_P"] == 2.0 and ap["Q_Ls"] < r2["redes"]["agua_fria"]["Q_Ls"]
+    assert "metodo dos pesos" in rp["dimensionamento"]
 
     # override por diametro no spec vence o calculo
     r3 = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
