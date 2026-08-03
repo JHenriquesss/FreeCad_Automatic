@@ -425,6 +425,71 @@ def render_federado(R, out_dir, spec=None, doc_name="galpao_federado",
     return res
 
 
+def montar_prancha_coordenacao(R, out_dir, spec=None, clash=None,
+                               freecad_exe=None, timeout=600):
+    """Gera a PRANCHA A1 TechDraw de COORDENACAO (modelo federado: planta+elevacao
+    coloridas por disciplina + quadro de clash), via techdraw_coordenacao no freecad.exe
+    GRAFICO. Mesma mecanica de render_federado (processo destacado + status json + kill
+    de zumbi). Retorna o status de techdraw_coordenacao | {erro}. So faz sentido com
+    >= 2 disciplinas federadas."""
+    import os
+    import json
+    import time
+    import tempfile
+    import subprocess
+    import rodar_projeto as RP
+    import techdraw_coordenacao as TC
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": "freecad.exe nao encontrado: %s" % exe}
+    membros, disc = _membros_federados(R, spec)
+    if len(disc) < 2:
+        return {"erro": "coordenacao requer >= 2 disciplinas federadas (tem %d)" % len(disc)}
+
+    cfg = TC.config_de_spec(R, out_dir, spec=spec, clash=clash)
+    os.makedirs(os.path.join(str(out_dir), "pranchas"), exist_ok=True)
+    status = os.path.join(str(out_dir), "pranchas", "_status_coord.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    bf = tempfile.NamedTemporaryFile(mode="w", suffix="_coord.py", delete=False,
+                                     encoding="utf-8")
+    bf.write(TC.script_bootstrap(cfg))
+    bf.close()
+
+    proc = subprocess.Popen([exe, bf.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                res = ({"erro": "freecad.exe encerrou sem status"}
+                       if not os.path.exists(status)
+                       else json.load(open(status, encoding="utf-8")))
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": "timeout %ss na prancha de coordenacao" % timeout}
+    finally:
+        RP._matar_processo_freecad(proc)
+        try:
+            os.unlink(bf.name)
+        except OSError:
+            pass
+    return res
+
+
 # ============================ CLASH DETECTION FEDERADO =======================
 # Interferencia ENTRE disciplinas sobre o modelo federado (frame comum). Cada vertical
 # ja checa a interferencia DENTRO de si (checa_interferencia/AABB); aqui pegamos os
