@@ -1324,6 +1324,11 @@ def build(doc):
             CONFLITOS_ABERTURA_CONTRAV.append("porta_lateral")
     jl = ABERTURAS.get("janelas_laterais")
     if jl:                                          # faixa (z_base, z_topo) nos vaos centrais
+        if not (len(jl) == 2 and jl[1] > jl[0]):    # guard: (z_base, z_topo) crescente
+            raise ValueError(
+                "janelas_laterais deve ser a faixa (z_base, z_topo) crescente em mm; "
+                "recebido %r. O wizard converte L x H em faixa via peitoril - se voce "
+                "passou (largura, altura) direto, informe (z_base, z_topo)." % (jl,))
         win_x = (BAY, LENGTH - BAY)
         lat_ops["E"].append((win_x, (-yw - 60, -yw + 60), jl))
         lat_ops["D"].append((win_x, (SPAN + yw - 60, SPAN + yw + 60), jl))
