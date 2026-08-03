@@ -226,6 +226,11 @@ def _pts_perimetro_real(n, C, L, inset=0.5):
     return pts
 
 
+# reservatorio elevado (torre / caixa d'agua): base do tanque e altura do pedestal.
+LADO_TANQUE_MM = 6000.0     # base 6 x 6 m do tanque (proporcao realista p/ reservas grandes)
+H_PEDESTAL_MM = 15000.0     # pedestal eleva o tanque (torre ~ pedestal + altura do tanque)
+
+
 def _eq(tipo, marca, perfil, dims, centro, material):
     return {"tipo": tipo, "marca": marca, "perfil": perfil,
             "dims": [float(dims[0]), float(dims[1]), float(dims[2])],
@@ -300,15 +305,25 @@ def membros_bim(r):
         M.append(_eq("Extinguisher", "EXT%d" % i, "Extintor portatil",
                      [200, 200, 600], [fx * C * 1000.0, fy * L * 1000.0, 1000.0], "Aco"))
 
-    # RESERVATORIO DE INCENDIO (maior reserva entre hidrantes e sprinklers) fora da planta
+    # RESERVATORIO DE INCENDIO ELEVADO (torre / caixa d'agua) fora da planta, com a maior
+    # reserva entre hidrantes e sprinklers. Antes era um bloco monolitico 3x3 m esticado
+    # ate ~21 m (uma AGULHA, geometria irreal): agora e' um TANQUE de base realista
+    # (LADO_TANQUE) contendo V, ELEVADO num PEDESTAL de apoio -> le no render como caixa
+    # d'agua elevada (a forma real de uma torre de reserva ~20 m).
     reservas = [g[k]["reserva_m3"] for k in ("hidrantes", "sprinklers")
                 if g[k].get("reserva_m3")]
     if reservas:
-        V = max(reservas)                        # m3
-        lado = 3000.0                            # 3 x 3 m em planta
-        alt = max(1000.0, V / 9.0 * 1000.0)      # altura p/ conter o volume (mm)
+        V = max(reservas)                                        # m3
+        lado_t = LADO_TANQUE_MM                                  # base do tanque (mm)
+        ht = max(1500.0, V / ((lado_t / 1000.0) ** 2) * 1000.0)  # altura p/ conter V (mm)
+        x0, y0 = -4000.0, L * 500.0                              # fora da planta, no eixo
+        # pedestal de apoio (estrutura que eleva o tanque)
+        M.append(_eq("Member", "RTI-SUP", "Pedestal do reservatorio elevado",
+                     [2500.0, 2500.0, H_PEDESTAL_MM],
+                     [x0, y0, H_PEDESTAL_MM / 2.0], "Concreto"))
+        # tanque elevado (contem V), assentado no topo do pedestal
         M.append(_eq("WaterTank", "RTI", "Reserva de incendio %.0f m3" % V,
-                     [lado, lado, alt], [-3000.0, L * 500.0, alt / 2.0], "Concreto"))
+                     [lado_t, lado_t, ht], [x0, y0, H_PEDESTAL_MM + ht / 2.0], "Concreto"))
     return M
 
 
