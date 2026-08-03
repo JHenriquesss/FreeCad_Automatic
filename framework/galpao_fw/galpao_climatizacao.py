@@ -49,14 +49,18 @@ def rodar(spec):
 
     V_ins = cl.vazao_insuflamento(clm["capacidade_kW"] * 1000.0,
                                   float(spec.get("dT_ins", cl.DT_INSUFLAMENTO_K)))
-    duto = cl.dimensiona_duto(V_ins, float(spec.get("vel_duto", cl.VEL_DUTO_PRINCIPAL_MS)))
+    duto = cl.dimensiona_duto(V_ins, float(spec.get("vel_duto", cl.VEL_DUTO_PRINCIPAL_MS)),
+                              classe_pa=int(spec.get("classe_pressao_pa",
+                                                     cl.CLASSE_PRESSAO_PADRAO_PA)))
 
     gates = {
         "capacidade": {"TR": clm["capacidade_TR"], "kW": clm["capacidade_kW"],
                        "BTU_h": clm["capacidade_BTU_h"], "OK": clm["OK"]},
         "duto_principal": {"largura_m": duto["largura_m"], "altura_m": duto["altura_m"],
-                           "vel_ms": duto["vel_ms"], "vazao_m3h": round(V_ins, 1),
-                           "OK": duto["area_m2"] > 0},
+                           "vel_ms": duto["vel_ms"], "vel_max_ms": duto["vel_max_ms"],
+                           "classe_pa": duto["classe_pa"], "vazao_m3h": round(V_ins, 1),
+                           # OK: secao valida E velocidade <= max da classe (NBR 16401-1 Tab.1)
+                           "OK": duto["area_m2"] > 0 and duto["vel_OK"]},
     }
     r = {"geometria": {"L": L, "W": W, "H": H}, "climatizacao": clm, "duto": duto,
          "V_insuflamento_m3h": round(V_ins, 1), "n_ramais": int(spec.get("n_ramais",
@@ -118,9 +122,10 @@ def relatorio_pt(r):
          "  Capacidade: %.1f TR (%.1f kW ; %.0f BTU/h)" % (cap["TR"], cap["kW"],
                                                            cap["BTU_h"]),
          "  Vazao de insuflamento: %.0f m3/h" % dp["vazao_m3h"],
-         "  Duto principal: %.2f x %.2f m @ %.1f m/s (%d ramais) [geometria de "
-         "coordenacao - dT/vel A CONFIRMAR NBR 16401-1]" % (dp["largura_m"],
-         dp["altura_m"], dp["vel_ms"], r.get("n_ramais", N_RAMAIS_PADRAO)),
+         "  Duto principal: %.2f x %.2f m @ %.1f m/s (max %.1f m/s classe %d Pa, "
+         "NBR 16401-1 Tab.1) ; %d ramais" % (dp["largura_m"], dp["altura_m"],
+         dp["vel_ms"], dp["vel_max_ms"], dp["classe_pa"], r.get("n_ramais",
+                                                                N_RAMAIS_PADRAO)),
          "  RESULTADO: %s" % ("ATENDE" if r["ATENDE"] else "REPROVA -> "
                               + ", ".join(r["reprovados"]))]
     import re

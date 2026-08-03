@@ -79,3 +79,31 @@ def test_dimensiona_duto_secao_e_aspecto():
     import pytest
     with pytest.raises(ValueError):
         cl.dimensiona_duto(1000.0, 0.0)
+
+
+def test_velocidade_duto_nbr16401_tab1():
+    # NBR 16401-1:2024 Tab.1 (classes de pressao): max de velocidade por classe
+    assert cl.velocidade_max_duto(250) == 12.5      # classe default
+    assert cl.velocidade_max_duto(125) == 10.0 and cl.velocidade_max_duto(750) == 20.0
+    import pytest
+    with pytest.raises(ValueError):
+        cl.velocidade_max_duto(300)                 # fora da Tab.1 -> nao inventa
+
+
+def test_dimensiona_duto_verifica_velocidade():
+    Vi = cl.vazao_insuflamento(117200.0, 10.0)
+    assert cl.dimensiona_duto(Vi, 6.0)["vel_OK"] is True        # 6 < 12,5 (classe 250)
+    assert cl.dimensiona_duto(Vi, 15.0)["vel_OK"] is False      # 15 > 12,5
+    assert cl.dimensiona_duto(Vi, 15.0, classe_pa=750)["vel_OK"] is True  # 15 < 20
+
+
+def test_galpao_climatizacao_reprova_velocidade_excessiva():
+    import galpao_climatizacao as gcl
+    # vel de projeto acima do max da classe 250 -> gate do duto reprova
+    r = gcl.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0}, "vel_duto": 15.0})
+    assert r["gates"]["duto_principal"]["OK"] is False
+    assert r["gates"]["duto_principal"]["vel_max_ms"] == 12.5
+    # subindo a classe de pressao (mais robusta) volta a atender
+    r2 = gcl.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0}, "vel_duto": 15.0,
+                    "classe_pressao_pa": 750})
+    assert r2["gates"]["duto_principal"]["OK"] is True

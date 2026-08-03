@@ -159,35 +159,56 @@ def dimensiona_climatizacao(caso):
             "OK": cap["TR"] > 0}
 
 
-# --- DUTOS (geometria p/ o MODELO DE COORDENACAO, nao dimensionamento hidraulico) ---
+# --- DUTOS (secao p/ o modelo de coordenacao) ---
 # A vazao de insuflamento sai da fisica do ar (CP_AR_SENSIVEL, ja no modulo): V = Q/(
-# 0,335*dT). Os DOIS parametros de projeto abaixo sao [A CONFIRMAR] contra a NBR 16401-1
-# (velocidades recomendadas em duto) - default tipico, sobrescrivivel pelo spec.
-DT_INSUFLAMENTO_K = 10.0          # [A CONFIRMAR] dif. temp. insuflamento-ambiente (tipico)
-VEL_DUTO_PRINCIPAL_MS = 6.0       # [A CONFIRMAR] velocidade no duto principal (NBR 16401-1)
+# 0,335*dT). A VELOCIDADE tem limite de NORMA: NBR 16401-1:2024, Secao 10.4.1.2 + Tabela 1
+# (Classes de pressao) - velocidade MAXIMA do ar no duto por classe de pressao estatica.
+# LIDO do PDF via NotebookLM (c5934f22) - NAO de memoria. A norma NAO especifica velocidade
+# de projeto, so o MAXIMO; adota-se um valor de projeto ABAIXO do maximo.
+# O dT de insuflamento NBR 16401-1 NAO fixa (Secao 6.3.4, depende de psicrometria/vazao) ->
+# fica como parametro de PROJETO (nao ha valor de norma a citar; default tipico).
+VEL_MAX_CLASSE_PA = {125: 10.0, 250: 12.5, 500: 12.5, 750: 20.0, 1000: 20.0}  # Tab.1, m/s
+CLASSE_PRESSAO_PADRAO_PA = 250    # NBR 16401-1: na ausencia de projeto, assumir classe 250
+DT_INSUFLAMENTO_K = 10.0          # parametro de PROJETO (NBR 16401-1 6.3.4 nao fixa - psicro)
+VEL_DUTO_PRINCIPAL_MS = 6.0       # velocidade de projeto (< max 12,5 da classe 250, Tab.1)
+
+
+def velocidade_max_duto(classe_pa=CLASSE_PRESSAO_PADRAO_PA):
+    """Velocidade MAXIMA do ar no duto (m/s) pela classe de pressao (NBR 16401-1 Tab.1).
+    classe_pa fora da tabela -> erro (nao inventar)."""
+    try:
+        return VEL_MAX_CLASSE_PA[classe_pa]
+    except KeyError:
+        raise ValueError("[A CONFIRMAR] classe de pressao %s Pa fora da Tab.1 da NBR "
+                         "16401-1 (use 125/250/500/750/1000)." % (classe_pa,))
 
 
 def vazao_insuflamento(carga_W, dT_ins=DT_INSUFLAMENTO_K):
     """Vazao de ar de insuflamento (m3/h) para remover a carga: V = Q/(0,335*dT_ins).
-    Usa a carga TOTAL como limite superior (conservador p/ coordenacao/duto maior).
-    [A CONFIRMAR] dT_ins (NBR 16401)."""
+    Usa a carga TOTAL como limite superior (conservador p/ duto maior). dT_ins e'
+    parametro de projeto (a NBR 16401-1 6.3.4 nao fixa - depende de psicrometria)."""
     if dT_ins <= 0:
         raise ValueError("[A CONFIRMAR] dT_ins deve ser > 0 (recebido %s)." % (dT_ins,))
     return carga_W / (CP_AR_SENSIVEL * dT_ins)
 
 
-def dimensiona_duto(vazao_m3h, vel_ms=VEL_DUTO_PRINCIPAL_MS, aspecto=2.0):
+def dimensiona_duto(vazao_m3h, vel_ms=VEL_DUTO_PRINCIPAL_MS, aspecto=2.0,
+                    classe_pa=CLASSE_PRESSAO_PADRAO_PA):
     """Secao do duto RETANGULAR pela vazao: A = V/(3600*v); lados na razao `aspecto`
-    (largura/altura). Retorna {area_m2, largura_m, altura_m, vel_ms}. E' geometria de
-    COORDENACAO (rota/interferencia), nao o dimensionamento aeraulico. [A CONFIRMAR] vel."""
+    (largura/altura). VERIFICA a velocidade contra o MAXIMO da classe de pressao (NBR
+    16401-1 Tab.1). Retorna {area_m2, largura_m, altura_m, vel_ms, vel_max_ms,
+    classe_pa, vel_OK}. vel_OK=False -> velocidade acima do maximo da classe (duto
+    subdimensionado / classe de pressao maior)."""
     if vel_ms <= 0 or aspecto <= 0:
         raise ValueError("[A CONFIRMAR] velocidade e aspecto do duto devem ser > 0 "
                          "(recebido vel=%s, aspecto=%s)." % (vel_ms, aspecto))
+    vmax = velocidade_max_duto(classe_pa)
     A = vazao_m3h / 3600.0 / vel_ms                    # m2
     h = math.sqrt(A / aspecto)
     w = aspecto * h
     return {"area_m2": round(A, 4), "largura_m": round(w, 3), "altura_m": round(h, 3),
-            "vel_ms": vel_ms}
+            "vel_ms": vel_ms, "vel_max_ms": vmax, "classe_pa": classe_pa,
+            "vel_OK": vel_ms <= vmax}
 
 
 def _selftest():
@@ -229,12 +250,20 @@ def _selftest():
     assert abs(du["area_m2"] - 1.62) < 0.02, du["area_m2"]
     assert abs(du["largura_m"] / du["altura_m"] - 2.0) < 1e-6      # razao de aspecto
     assert abs(du["largura_m"] * du["altura_m"] - du["area_m2"]) < 1e-3
+    # VELOCIDADE x NORMA (NBR 16401-1 Tab.1): classe 250 Pa -> max 12,5 m/s
+    assert velocidade_max_duto(250) == 12.5 and velocidade_max_duto(125) == 10.0
+    assert du["vel_max_ms"] == 12.5 and du["classe_pa"] == 250 and du["vel_OK"]  # 6 < 12,5
+    # velocidade acima do maximo da classe -> vel_OK False (nao levanta; e' aviso)
+    assert dimensiona_duto(Vi, 15.0)["vel_OK"] is False            # 15 > 12,5 (classe 250)
+    assert dimensiona_duto(Vi, 15.0, classe_pa=750)["vel_OK"]      # 15 < 20 (classe 750)
     import pytest
     with pytest.raises(ValueError):
         vazao_insuflamento(1000.0, 0.0)                            # dT <= 0
     with pytest.raises(ValueError):
         dimensiona_duto(1000.0, 0.0)                              # vel <= 0
-    print("climatizacao_nbr16401 self-test PASSED (NBR 16401 + Creder + dutos)")
+    with pytest.raises(ValueError):
+        velocidade_max_duto(300)                                  # classe fora da Tab.1
+    print("climatizacao_nbr16401 self-test PASSED (NBR 16401 Tab.1 velocidade + dutos)")
 
 
 if __name__ == "__main__":
