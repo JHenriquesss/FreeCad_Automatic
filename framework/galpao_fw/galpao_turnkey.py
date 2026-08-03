@@ -37,7 +37,7 @@ import math
 
 
 # ordem canonica de apresentacao das disciplinas no relatorio consolidado
-DISCIPLINAS = ("concreto", "aco", "eletrico", "incendio", "climatizacao")
+DISCIPLINAS = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica")
 
 
 def _geometria(g):
@@ -90,6 +90,12 @@ def _run_climatizacao(sub, geo, out_dir):
     return _norm(gcl.rodar(_com_geometria_LWH(s, geo)))
 
 
+def _run_hidraulica(sub, geo, out_dir):
+    import galpao_hidraulica as ghi
+    s = dict(sub)
+    return _norm(ghi.rodar(_com_geometria_LWH(s, geo)))
+
+
 def _run_aco(sub, geo, out_dir):
     """Vertical de aco: usa spec de PROJETO proprio (geometria.spans/secoes/cargas) e
     ESCREVE arquivos -> so roda com out_dir. Sem out_dir, e' pulado com nota (nao
@@ -125,7 +131,7 @@ def _com_geometria_LWH(s, geo):
 
 _ADAPTADORES = {"concreto": _run_concreto, "aco": _run_aco,
                 "eletrico": _run_eletrico, "incendio": _run_incendio,
-                "climatizacao": _run_climatizacao}
+                "climatizacao": _run_climatizacao, "hidraulica": _run_hidraulica}
 
 
 # ------------------------------------------------------------------- mestre
@@ -224,6 +230,11 @@ def _membros_federados(R, spec=None):
         for m in gcl.membros_bim(d["climatizacao"]["raw"]):
             m = dict(m); m["marca"] = "H-" + str(m.get("marca", "")); membros.append(m)
         disc.append("climatizacao")
+    if d.get("hidraulica", {}).get("rodou"):
+        import galpao_hidraulica as ghi
+        for m in ghi.membros_bim(d["hidraulica"]["raw"]):
+            m = dict(m); m["marca"] = "P-" + str(m.get("marca", "")); membros.append(m)
+        disc.append("hidraulica")
     # aco: mesmo frame (modelo_neutro X=comprimento, Y=vao) -> sem transformar. Prefere o
     # spec ENRIQUECIDO pelo calculo (perfil_col/raf_adotado); senao o spec['aco'] cru (so
     # federa se o usuario ja o enriqueceu). None se tesoura/prismatico sem perfil.
@@ -428,9 +439,9 @@ def render_federado(R, out_dir, spec=None, doc_name="galpao_federado",
 # (modelo_neutro), eletrico, incendio e climatizacao ja em MM (x1). Secao de BARRA e'
 # sempre m (a parte).
 _ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0,
-             "climatizacao": 1.0}
+             "climatizacao": 1.0, "hidraulica": 1.0}
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
-                  "H": "climatizacao"}
+                  "H": "climatizacao", "P": "hidraulica"}
 _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
 
 # Triagem esperado x revisar: o aterramento e o SPDA (cabo de aterramento/anel, descida,
@@ -600,7 +611,8 @@ def relatorio_pt(R):
               "aco": "Estrutura de aco (NBR 8800/6123)",
               "eletrico": "Instalacoes eletricas (NBR 5410/14039/5419)",
               "incendio": "Seguranca contra incendio (NBR 10898/16820/17240/10897)",
-              "climatizacao": "Climatizacao / HVAC (NBR 16401)"}
+              "climatizacao": "Climatizacao / HVAC (NBR 16401)",
+              "hidraulica": "Hidraulica predial (coordenacao; sizing pendente)"}
     for nome in DISCIPLINAS:
         d = R["disciplinas"].get(nome)
         if d is None:

@@ -28,8 +28,9 @@ ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
           "aco": "ESTRUTURA DE ACO (NBR 8800/6123)",
           "eletrico": "INSTALACOES ELETRICAS (NBR 5410/14039/5419)",
           "incendio": "SEGURANCA CONTRA INCENDIO (NBR 10898/16820/17240/10897)",
-          "climatizacao": "CLIMATIZACAO / HVAC (NBR 16401)"}
-ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao")
+          "climatizacao": "CLIMATIZACAO / HVAC (NBR 16401)",
+          "hidraulica": "HIDRAULICA PREDIAL (coordenacao; dimensionamento pendente)"}
+ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica")
 
 
 def _coletar_pdfs(out_dir, nome):

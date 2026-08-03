@@ -99,7 +99,9 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "WaterTank": ("IfcTank", "STORAGE"),
               # --- climatizacao / HVAC (vertical de climatizacao) --------------
               "Duct": ("IfcDuctSegment", "RIGIDSEGMENT"),
-              "AirHandler": ("IfcUnitaryEquipment", "AIRHANDLER")}
+              "AirHandler": ("IfcUnitaryEquipment", "AIRHANDLER"),
+              # --- hidraulica predial (vertical de hidraulica) -----------------
+              "Pipe": ("IfcPipeSegment", "RIGIDSEGMENT")}
 
 
 def _dot(a, b):
