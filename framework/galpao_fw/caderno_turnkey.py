@@ -29,8 +29,10 @@ ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
           "eletrico": "INSTALACOES ELETRICAS (NBR 5410/14039/5419)",
           "incendio": "SEGURANCA CONTRA INCENDIO (NBR 10898/16820/17240/10897)",
           "climatizacao": "CLIMATIZACAO / HVAC (NBR 16401)",
-          "hidraulica": "HIDRAULICA PREDIAL (coordenacao; dimensionamento pendente)"}
-ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica")
+          "hidraulica": "HIDRAULICA PREDIAL (NBR 5626:2020/8160/10844)",
+          "coordenacao": "COORDENACAO - MODELO FEDERADO (BIM/IFC4)"}
+ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica",
+         "coordenacao")
 
 
 def _coletar_pdfs(out_dir, nome):
@@ -267,8 +269,12 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     R = tk.rodar(spec, out_dir)
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
 
+    status = {}
+    pdfs_por_disciplina = {}
+
     # PRANCHA DE COORDENACAO: clash (interferencia entre disciplinas) + RENDER isometrico
-    # do modelo federado. So com >= 2 disciplinas; falha isolada nao derruba o caderno.
+    # do modelo federado + PRANCHA A1 TechDraw formal (planta/elevacao + quadro de clash).
+    # So com >= 2 disciplinas; falha isolada nao derruba o caderno.
     clash = None
     render_png = None
     if len(R["executadas"]) >= 2:
@@ -283,9 +289,18 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
             render_png = next((v for v in vistas if "isometrica" in v), None)
         except Exception:
             render_png = None
+        if disciplinas is None:                           # prancha A1 formal de coordenacao
+            try:
+                coord_out = os.path.join(out_dir, "coordenacao")
+                status["coordenacao"] = tk.montar_prancha_coordenacao(
+                    R, coord_out, spec=spec, clash=clash,
+                    freecad_exe=freecad_exe, timeout=min(timeout, 600))
+                pdfs_coord = _coletar_pdfs(out_dir, "coordenacao")
+                if pdfs_coord:
+                    pdfs_por_disciplina["coordenacao"] = pdfs_coord
+            except Exception as ex:
+                status["coordenacao"] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
 
-    status = {}
-    pdfs_por_disciplina = {}
     for nome in alvo:
         disc_out = os.path.join(out_dir, nome)
         os.makedirs(disc_out, exist_ok=True)
