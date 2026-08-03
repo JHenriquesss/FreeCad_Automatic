@@ -147,11 +147,24 @@ def test_ventilacao_tab8_e_tabD1():
 
 def test_calha_tab3():
     # area 100 m2, i=150 -> Q=250 L/min. 0,5%: DN150 (384>=250) ; 1%: DN125 (333>=250)
-    assert hp.diametro_calha(100.0, 150.0, declividade_pct=0.5)["DN_mm"] == 150
+    c = hp.diametro_calha(100.0, 150.0, declividade_pct=0.5)
+    assert c["DN_mm"] == 150 and c["saturado"] is False
     assert hp.diametro_calha(100.0, 150.0, declividade_pct=1.0)["DN_mm"] == 125
     # declividade abaixo do minimo de calha (0,5%) -> ValueError
     with pytest.raises(ValueError):
         hp.diametro_calha(100.0, 150.0, declividade_pct=0.2)
+
+
+def test_saturacao_flagada_nunca_silenciosa():
+    # vazao que excede a maior secao tabelada -> satura no maior DN E marca saturado=True.
+    # calha: Tab.3 max (DN150, 2%) = 757 L/min -> area 1000 m2 i=150 -> Q=2500 > 757.
+    cal = hp.diametro_calha(1000.0, 150.0, declividade_pct=2.0)
+    assert cal["DN_mm"] == 150 and cal["saturado"] is True
+    # condutor: Tab.4 max (DN300, 4%) = 10800 -> area 5000 m2 i=150 -> Q=12500 > 10800.
+    pl = hp.diametro_pluvial(5000.0, 150.0, declividade_pct=4.0)
+    assert pl["DN_mm"] == 300 and pl["saturado"] is True
+    # caso normal nao satura
+    assert hp.diametro_pluvial(100.0, 150.0, 1.0)["saturado"] is False
 
 
 def test_esgoto_declividade_minima_obrigatoria():

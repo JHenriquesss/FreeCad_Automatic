@@ -61,15 +61,22 @@ def rodar(spec):
         i_pl = float(hid.get("i_pluvial_mm_h", hp.I_PLUVIAL_PADRAO_MM_H))
         decl_pl = float(hid.get("decl_pluvial_pct", 1.0))
         area_tel = float(hid.get("area_telhado_m2", L * W))     # projecao horizontal
-        plc = hp.diametro_pluvial(area_tel, i_pl, decl_pl)
+        # cada CONDUTOR/CALHA drena uma FRACAO do telhado (area / n de pontos de descida),
+        # nao o telhado inteiro. Sem isso o condutor era superdimensionado e a calha
+        # SATURAVA em silencio (Q do telhado todo numa unica calha).
+        area_ponto = area_tel / max(1, n_cond)
+        plc = hp.diametro_pluvial(area_ponto, i_pl, decl_pl)
         d_pl = float(plc["DN_mm"])
         pluv = {"D_mm": d_pl, "fonte": "NBR 10844", "Q_Lmin": plc["Q_Lmin"],
                 "i_mm_h": plc["i_mm_h"], "i_default": plc["i_default"],
-                "area_m2": round(area_tel, 1)}
-        # CALHA semicircular (NBR 10844 Tab.3): dimensionada pela area de contribuicao
-        cal = hp.diametro_calha(area_tel, plc["i_mm_h"],
-                                declividade_pct=float(hid.get("decl_calha_pct", 0.5)))
+                "area_m2": round(area_tel, 1), "area_por_ponto_m2": round(area_ponto, 1),
+                "saturado": plc["saturado"]}
+        # CALHA semicircular (NBR 10844 Tab.3): pela area por ponto de drenagem. Default de
+        # declividade 1% (o minimo da norma e' 0,5%, Sec.5.7.1, mas 1% e' a pratica usual).
+        cal = hp.diametro_calha(area_ponto, plc["i_mm_h"],
+                                declividade_pct=float(hid.get("decl_calha_pct", 1.0)))
         pluv["calha_mm"] = cal["DN_mm"]
+        pluv["calha_saturada"] = cal["saturado"]
     pluv["n_condutores"] = n_cond
     pluv["default"] = False        # pluvial e' sempre dimensionado (geometria) ou do spec
 
@@ -94,9 +101,12 @@ def rodar(spec):
         p_alim = float(hid.get("p_alim_kPa", 100.0))       # [A CONFIRMAR] rede/reservatorio
         L_real = L + H                                     # barrilete + queda ao ponto (m)
         dcota = H - 1.0                                    # barrilete (~forro) ao ponto (~1 m)
+        # ponto de utilizacao mais EXIGENTE do conjunto governa o minimo (Sec.5.3.5.1):
+        # valvula de descarga de bacia -> 15 kPa; senao 10 kPa (geral).
+        tipo_ponto = "valvula_descarga" if "bacia_valvula" in (apar_ag or {}) else "geral"
         vp = hp.verifica_pressao(agc["Q_Ls"], agc["DN_mm"], L_real, p_alim,
                                  conexoes={"cotovelo_90": 3, "te_direta": 1, "te_lateral": 1},
-                                 dcota_m=dcota, tipo_ponto="geral")
+                                 dcota_m=dcota, tipo_ponto=tipo_ponto)
         vp["p_alim_default"] = "p_alim_kPa" not in hid
         agua["pressao"] = vp
     else:
@@ -128,8 +138,11 @@ def rodar(spec):
     if pluv["fonte"] == "NBR 10844":
         cav = " [A CONFIRMAR i local]" if pluv.get("i_default") else ""
         cal = (" + calha DN%.0f" % pluv["calha_mm"]) if pluv.get("calha_mm") else ""
-        partes.append("pluvial DN%.0f%s calculado NBR 10844 (Q=%.0f L/min; i=%.0f mm/h%s)"
-                      % (pluv["D_mm"], cal, pluv["Q_Lmin"], pluv["i_mm_h"], cav))
+        sat = (" [SATURADO - aumentar declividade ou n condutores]"
+               if pluv.get("saturado") or pluv.get("calha_saturada") else "")
+        partes.append("pluvial DN%.0f%s calculado NBR 10844 (Q=%.0f L/min/ponto; "
+                      "i=%.0f mm/h%s)%s"
+                      % (pluv["D_mm"], cal, pluv["Q_Lmin"], pluv["i_mm_h"], cav, sat))
     else:
         partes.append("pluvial DN%.0f (spec)" % pluv["D_mm"])
     if agua.get("metodo") == "pesos":
@@ -165,9 +178,10 @@ def rodar(spec):
     dimensionamento = "; ".join(partes)
     completo = not (agua["default"] or esgoto["default"])
 
+    pluvial_sat = bool(pluv.get("saturado") or pluv.get("calha_saturada"))
     gates = {"rede": {"n_condutores_pluvial": n_cond, "D_pluvial_mm": pluv["D_mm"],
                       "D_esgoto_mm": esgoto["D_mm"], "D_agua_mm": agua["D_mm"],
-                      "dimensionamento": dimensionamento,
+                      "dimensionamento": dimensionamento, "pluvial_saturado": pluvial_sat,
                       "dimensionamento_completo": completo, "OK": n_cond >= 1}}
     if agua.get("pressao"):
         vp = agua["pressao"]
@@ -327,8 +341,12 @@ def _selftest():
     assert r["redes"]["agua_fria"]["default"] and r["redes"]["esgoto"]["default"]
     assert r["dimensionamento_completo"] is False
     assert "A CONFIRMAR" in r["dimensionamento"]
-    # telhado 40x20 = 800 m2, i=150 -> Q = 150*800/60 = 2000 L/min -> Tab.4 1%: DN250 (1820<2000<=3310)
-    assert r["redes"]["pluvial"]["D_mm"] == 250.0, r["redes"]["pluvial"]
+    # telhado 800 m2 / 4 condutores = 200 m2/ponto ; Q = 150*200/60 = 500 L/min -> Tab.4
+    # 1%: DN125 (521>=500). Nao satura (cada condutor drena so a sua fracao do telhado).
+    assert r["redes"]["pluvial"]["D_mm"] == 125.0, r["redes"]["pluvial"]
+    assert r["redes"]["pluvial"]["area_por_ponto_m2"] == 200.0
+    assert r["redes"]["pluvial"]["saturado"] is False
+    assert r["gates"]["rede"]["pluvial_saturado"] is False
 
     # com aparelhos: agua+esgoto CALCULADOS pela norma -> dimensionamento completo
     r2 = rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},

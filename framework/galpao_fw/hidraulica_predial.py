@@ -287,10 +287,17 @@ def uhc_de_aparelhos(aparelhos):
 
 def _menor_dn(tabela_dn_cap, uhc):
     """Menor DN de uma lista [(DN, cap), ...] cuja capacidade >= uhc (ordenada)."""
+    return _menor_dn_sat(tabela_dn_cap, uhc)[0]
+
+
+def _menor_dn_sat(tabela_dn_cap, q):
+    """(dn, saturado): menor DN cuja capacidade >= q; se NENHUM atende, satura no maior
+    DN da tabela e marca saturado=True (a vazao excede a maior secao tabelada -> a peca
+    NAO comporta o fluxo, precisa de mais pontos/declividade). Nunca silencioso."""
     for dn, cap in tabela_dn_cap:
-        if cap is not None and cap >= uhc:
-            return dn
-    return tabela_dn_cap[-1][0]   # satura no maior DN da tabela
+        if cap is not None and cap >= q:
+            return dn, False
+    return tabela_dn_cap[-1][0], True
 
 
 def diametro_ramal_esgoto(uhc, dn_min_descarga=40):
@@ -388,9 +395,9 @@ def diametro_calha(area_m2, i_mm_h=None, declividade_pct=0.5):
         declividade_pct = max(menores)
     col = _DECLIV_CALHA.index(declividade_pct)
     tabela = [(dn, caps[col]) for dn, caps in sorted(_TAB3_CALHA_N011.items())]
-    dn = _menor_dn(tabela, q)
+    dn, sat = _menor_dn_sat(tabela, q)
     return {"Q_Lmin": round(q, 1), "DN_mm": dn, "declividade_pct": declividade_pct,
-            "i_mm_h": i, "i_default": i == I_PLUVIAL_PADRAO_MM_H}
+            "i_mm_h": i, "i_default": i == I_PLUVIAL_PADRAO_MM_H, "saturado": sat}
 
 
 # ---------------------------------------------------------------------------
@@ -445,8 +452,9 @@ def diametro_pluvial(area_m2, i_mm_h=I_PLUVIAL_PADRAO_MM_H, declividade_pct=1.0)
         declividade_pct = max(menores)
     col = _DECLIV_PLUV.index(declividade_pct)
     tabela = [(dn, caps[col]) for dn, caps in sorted(_TAB4_CONDUTOR_N011.items())]
-    dn = max(_menor_dn(tabela, q), DN_MIN_PLUVIAL_MM)      # Sec.5.6.3: DN vertical >= 75
-    return {"Q_Lmin": round(q, 1), "DN_mm": dn, "i_mm_h": i_mm_h,
+    dn0, sat = _menor_dn_sat(tabela, q)
+    dn = max(dn0, DN_MIN_PLUVIAL_MM)                       # Sec.5.6.3: DN vertical >= 75
+    return {"Q_Lmin": round(q, 1), "DN_mm": dn, "i_mm_h": i_mm_h, "saturado": sat,
             "declividade_pct": declividade_pct, "i_default": i_mm_h == I_PLUVIAL_PADRAO_MM_H}
 
 
