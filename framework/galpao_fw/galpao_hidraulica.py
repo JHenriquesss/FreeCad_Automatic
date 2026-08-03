@@ -83,6 +83,18 @@ def rodar(spec):
                 "metodo": agc["metodo"], "Q_Ls": agc["Q_Ls"], "v_real_ms": agc["v_real_ms"]}
         if "soma_P" in agc:
             agua["soma_P"] = agc["soma_P"]
+        # VERIFICACAO DE PRESSAO do barrilete (NBR 5626:1998 Anexo A.2, Fair-Whipple-Hsiao)
+        # ate o ponto mais desfavoravel. Traçado a partir da geometria: barrilete corre no
+        # comprimento (L) e desce ao ponto; queda = pe-direito. p_alim (pressao disponivel no
+        # inicio) e' DADO DE SITIO -> default flagado. Conexoes representativas do trecho.
+        p_alim = float(hid.get("p_alim_kPa", 100.0))       # [A CONFIRMAR] rede/reservatorio
+        L_real = L + H                                     # barrilete + queda ao ponto (m)
+        dcota = H - 1.0                                    # barrilete (~forro) ao ponto (~1 m)
+        vp = hp.verifica_pressao(agc["Q_Ls"], agc["DN_mm"], L_real, p_alim,
+                                 conexoes={"cotovelo_90": 3, "te_direta": 1, "te_lateral": 1},
+                                 dcota_m=dcota, tipo_ponto="geral")
+        vp["p_alim_default"] = "p_alim_kPa" not in hid
+        agua["pressao"] = vp
     else:
         agua = {"D_mm": D_AGUA_DEFAULT_MM, "fonte": "default", "default": True}
 
@@ -123,6 +135,12 @@ def rodar(spec):
     else:
         partes.append("agua fria DN%.0f default comercial [A CONFIRMAR - informe "
                       "aparelhos_agua]" % agua["D_mm"])
+    if agua.get("pressao"):     # verificacao de pressao do barrilete (Fair-Whipple-Hsiao)
+        vp = agua["pressao"]
+        cav = " [A CONFIRMAR p_alim]" if vp.get("p_alim_default") else ""
+        partes.append("pressao residual %.0f kPa (min %.0f, %s%s)"
+                      % (vp["p_residual_kPa"], vp["p_min_kPa"],
+                         "OK" if vp["OK"] else "INSUF.", cav))
     if esgoto["fonte"] == "NBR 8160":
         partes.append("esgoto DN%.0f calculado NBR 8160 (UHC=%.1f)"
                       % (esgoto["D_mm"], esgoto["uhc"]))
@@ -138,6 +156,14 @@ def rodar(spec):
                       "D_esgoto_mm": esgoto["D_mm"], "D_agua_mm": agua["D_mm"],
                       "dimensionamento": dimensionamento,
                       "dimensionamento_completo": completo, "OK": n_cond >= 1}}
+    if agua.get("pressao"):
+        vp = agua["pressao"]
+        # gate INFORMATIVO se p_alim foi assumido (dado de sitio); EFETIVO se informado
+        # no spec (ai a pressao insuficiente reprova de verdade).
+        gates["pressao_agua"] = {
+            "p_residual_kPa": vp["p_residual_kPa"], "p_min_kPa": vp["p_min_kPa"],
+            "perda_kPa": vp["perda_kPa"], "p_alim_assumida": vp.get("p_alim_default", False),
+            "OK": vp["OK"] or vp.get("p_alim_default", False)}
     r = {"geometria": {"L": L, "W": W, "H": H}, "redes": redes,
          "dimensionamento": dimensionamento, "dimensionamento_completo": completo,
          "gates": gates}
@@ -225,6 +251,11 @@ def _selftest():
                                "aparelhos_esgoto": {"bacia": 2, "lavatorio": 2, "chuveiro": 2}}})
     assert r2["redes"]["agua_fria"]["fonte"] == "NBR 5626:2020 (soma)"    # default = soma
     assert r2["redes"]["agua_fria"]["metodo"] == "soma"
+    # verificacao de pressao do barrilete (Fair-Whipple-Hsiao) presente e coerente
+    vp = r2["redes"]["agua_fria"]["pressao"]
+    assert vp["J_kPa_m"] > 0 and vp["p_residual_kPa"] < vp["p_disponivel_kPa"]
+    assert vp["p_alim_default"] is True and "pressao_agua" in r2["gates"]
+    assert "pressao residual" in r2["dimensionamento"]
     assert r2["redes"]["esgoto"]["fonte"] == "NBR 8160"
     assert r2["dimensionamento_completo"] is True
     assert "A CONFIRMAR - informe" not in r2["dimensionamento"]
