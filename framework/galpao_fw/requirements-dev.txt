@@ -1,0 +1,10 @@
+# Toolchain de DESENVOLVIMENTO/TESTE do framework (framework/galpao_fw).
+# Runtime esta em requirements.txt; estes sao so p/ rodar a suite.
+#   pip install -r requirements.txt -r requirements-dev.txt
+-r requirements.txt
+pytest>=8,<10
+# paralelismo da suite: -n auto usa os N nucleos (1281 testes non-build ~5 min em 8
+# nucleos vs ~15 min sequencial). Sem ele, tools/run_tests.py cai p/ lanes sequenciais.
+# A suite E xdist-safe (verificado S40: 1281 passed com -n auto). Ver tools/run_tests.py.
+pytest-xdist>=3,<4
+svglib>=1.5,<2     # rasteriza SVG p/ render-and-look das pranchas (revisao visual)
