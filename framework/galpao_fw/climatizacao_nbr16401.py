@@ -159,6 +159,37 @@ def dimensiona_climatizacao(caso):
             "OK": cap["TR"] > 0}
 
 
+# --- DUTOS (geometria p/ o MODELO DE COORDENACAO, nao dimensionamento hidraulico) ---
+# A vazao de insuflamento sai da fisica do ar (CP_AR_SENSIVEL, ja no modulo): V = Q/(
+# 0,335*dT). Os DOIS parametros de projeto abaixo sao [A CONFIRMAR] contra a NBR 16401-1
+# (velocidades recomendadas em duto) - default tipico, sobrescrivivel pelo spec.
+DT_INSUFLAMENTO_K = 10.0          # [A CONFIRMAR] dif. temp. insuflamento-ambiente (tipico)
+VEL_DUTO_PRINCIPAL_MS = 6.0       # [A CONFIRMAR] velocidade no duto principal (NBR 16401-1)
+
+
+def vazao_insuflamento(carga_W, dT_ins=DT_INSUFLAMENTO_K):
+    """Vazao de ar de insuflamento (m3/h) para remover a carga: V = Q/(0,335*dT_ins).
+    Usa a carga TOTAL como limite superior (conservador p/ coordenacao/duto maior).
+    [A CONFIRMAR] dT_ins (NBR 16401)."""
+    if dT_ins <= 0:
+        raise ValueError("[A CONFIRMAR] dT_ins deve ser > 0 (recebido %s)." % (dT_ins,))
+    return carga_W / (CP_AR_SENSIVEL * dT_ins)
+
+
+def dimensiona_duto(vazao_m3h, vel_ms=VEL_DUTO_PRINCIPAL_MS, aspecto=2.0):
+    """Secao do duto RETANGULAR pela vazao: A = V/(3600*v); lados na razao `aspecto`
+    (largura/altura). Retorna {area_m2, largura_m, altura_m, vel_ms}. E' geometria de
+    COORDENACAO (rota/interferencia), nao o dimensionamento aeraulico. [A CONFIRMAR] vel."""
+    if vel_ms <= 0 or aspecto <= 0:
+        raise ValueError("[A CONFIRMAR] velocidade e aspecto do duto devem ser > 0 "
+                         "(recebido vel=%s, aspecto=%s)." % (vel_ms, aspecto))
+    A = vazao_m3h / 3600.0 / vel_ms                    # m2
+    h = math.sqrt(A / aspecto)
+    w = aspecto * h
+    return {"area_m2": round(A, 4), "largura_m": round(w, 3), "altura_m": round(h, 3),
+            "vel_ms": vel_ms}
+
+
 def _selftest():
     """Afere contra a NBR 16401 + Creder (conversoes, estimativa, Q=U*A*dT)."""
     # conversoes: 1 TR = 3,517 kW = 12000 BTU/h
@@ -190,7 +221,20 @@ def _selftest():
     V = vazao_ar_exterior(10, 100.0)                       # 270+150=420
     esperado = 1600 + 2350 + 1000 + 1500 + 0.335 * V * 8
     assert abs(d["detalhe"]["carga_total_W"] - esperado) < 1.0, d["detalhe"]["carga_total_W"]
-    print("climatizacao_nbr16401 self-test PASSED (NBR 16401 + Creder)")
+    # DUTOS (coordenacao): V = Q/(0,335*dT). 117200 W / (0,335*10) = 34985 m3/h
+    Vi = vazao_insuflamento(117200.0, 10.0)
+    assert abs(Vi - 34985.07) < 1.0, Vi
+    # secao a 6 m/s: A = 34985/3600/6 = 1,62 m2 ; aspecto 2 -> h=0,90 w=1,80
+    du = dimensiona_duto(Vi, 6.0, aspecto=2.0)
+    assert abs(du["area_m2"] - 1.62) < 0.02, du["area_m2"]
+    assert abs(du["largura_m"] / du["altura_m"] - 2.0) < 1e-6      # razao de aspecto
+    assert abs(du["largura_m"] * du["altura_m"] - du["area_m2"]) < 1e-3
+    import pytest
+    with pytest.raises(ValueError):
+        vazao_insuflamento(1000.0, 0.0)                            # dT <= 0
+    with pytest.raises(ValueError):
+        dimensiona_duto(1000.0, 0.0)                              # vel <= 0
+    print("climatizacao_nbr16401 self-test PASSED (NBR 16401 + Creder + dutos)")
 
 
 if __name__ == "__main__":

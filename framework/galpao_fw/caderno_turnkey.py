@@ -27,8 +27,9 @@ import os
 ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
           "aco": "ESTRUTURA DE ACO (NBR 8800/6123)",
           "eletrico": "INSTALACOES ELETRICAS (NBR 5410/14039/5419)",
-          "incendio": "SEGURANCA CONTRA INCENDIO (NBR 10898/16820/17240/10897)"}
-ORDEM = ("concreto", "aco", "eletrico", "incendio")
+          "incendio": "SEGURANCA CONTRA INCENDIO (NBR 10898/16820/17240/10897)",
+          "climatizacao": "CLIMATIZACAO / HVAC (NBR 16401)"}
+ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao")
 
 
 def _coletar_pdfs(out_dir, nome):

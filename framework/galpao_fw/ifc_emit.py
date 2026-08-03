@@ -96,7 +96,10 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "EmergencyLight": ("IfcLightFixture", "SECURITYLIGHTING"),
               "Sign": ("IfcBuildingElementProxy", "ELEMENT"),
               "Extinguisher": ("IfcBuildingElementProxy", "ELEMENT"),
-              "WaterTank": ("IfcTank", "STORAGE")}
+              "WaterTank": ("IfcTank", "STORAGE"),
+              # --- climatizacao / HVAC (vertical de climatizacao) --------------
+              "Duct": ("IfcDuctSegment", "RIGIDSEGMENT"),
+              "AirHandler": ("IfcUnitaryEquipment", "AIRHANDLER")}
 
 
 def _dot(a, b):
