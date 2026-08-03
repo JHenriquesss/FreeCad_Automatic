@@ -60,6 +60,13 @@ def test_esgoto_declividade_nao_tabelada_usa_inferior():
     assert hp.diametro_coletor(181, declividade_pct=1.5) == 150
 
 
+def test_esgoto_declividade_minima_obrigatoria():
+    # NBR 8160 Sec.4.2.3.2: DN>=100 exige >= 1% -> 0,5% e' violacao
+    assert hp.declividade_minima_pct(75) == 2.0 and hp.declividade_minima_pct(100) == 1.0
+    with pytest.raises(ValueError):
+        hp.diametro_coletor(200, declividade_pct=0.5)
+
+
 # ------------------------------ PLUVIAL (NBR 10844) -------------------------
 def test_vazao_pluvial_formula():
     assert abs(hp.vazao_pluvial(120.0, 150.0) - 300.0) < 1e-9       # 150*120/60
@@ -76,6 +83,13 @@ def test_area_contribuicao_inclinacao():
     # (b + h/2)*a  (Sec.5.2.1) + paredes
     assert abs(hp.area_contribuicao(10.0, 20.0, altura_incl_m=2.0, parede_m2=5.0)
                - ((10 + 1) * 20 + 5)) < 1e-9
+
+
+def test_pluvial_dn_minimo_vertical():
+    # NBR 10844 Sec.5.6.3: condutor vertical DN interno minimo 70 mm -> DN75 comercial.
+    # area pequena (Q baixo) que a Tab.4 dimensionaria como DN50 sobe p/ DN75.
+    p = hp.diametro_pluvial(5.0, 150.0, declividade_pct=1.0)
+    assert p["Q_Lmin"] == 12.5 and p["DN_mm"] == 75
 
 
 def test_pluvial_i_default_flagado():
