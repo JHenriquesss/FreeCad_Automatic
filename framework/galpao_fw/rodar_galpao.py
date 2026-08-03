@@ -1566,7 +1566,13 @@ def _consolidar(out_dir, save, g, params, res=None):
                    _uok("sapata_util", "sapata_ok")),
                   ("Joelho", res.get("joelho_util")),
                   ("Zona de painel (joelho)", _uokd("zona_painel", "u_max", "OK")),
-                  ("Terca", res.get("terca_inter")), ("Telha", _uok("telha_util", "telha_ok")),
+                  ("Terca", res.get("terca_inter")),
+                  # a interacao (ELU) acima NAO cobre flecha (ELS) nem distorcional:
+                  # a iteracao satura no perfil mais pesado (menor interacao) e pode
+                  # falhar por FLECHA com terca_inter <= 1 -> reprova pelo terca_ok.
+                  ("Terca (ELS/dist.)", None if "terca_ok" not in res
+                   else (0.0 if res["terca_ok"] else 1.99)),
+                  ("Telha", _uok("telha_util", "telha_ok")),
                   ("Empocamento (9.3)", None if "empocamento_ok" not in res
                    else (0.0 if res["empocamento_ok"] else 1.99)),
                   ("Torcao col. (5.5.2)", None if "torcao_col_ok" not in res

@@ -79,13 +79,17 @@ def dimensiona_sinalizacao(caso):
     continua = bool(caso.get("rota_continuada", False))
     n_placas = numero_placas_orientacao(rota, rota_continuada=continua)
     n_saidas = int(caso.get("n_saidas", 2))
+    # placa_minima satura no maior lado padronizado (600 mm) quando NENHUM cobre
+    # L_vis; sem esta checagem a placa sairia subdimensionada com OK=True (rota longa
+    # em galpao grande, L_vis > 24 m). O OK exige que a placa ADOTADA cubra L_vis.
+    satura = distancia_visualizacao(lado) < L_vis - 1e-9
     return {"dist_visualizacao_m": L_vis, "placa_lado_mm": lado,
             "placa_area_min_m2": round(area_minima_placa(L_vis), 3),
             "letra_min_mm": round(altura_letra_minima_mm(L_vis), 1),
             "espacamento_m": ESPACO_ROTA_CONTINUA_M if continua else ESPACO_PLACAS_M,
             "N_placas_orientacao": n_placas, "N_placas_saida": n_saidas,
-            "nivel_instalacao_m": NIVEL_SUPERIOR_MIN_M,
-            "N_total": n_placas + n_saidas, "OK": lado >= 100}
+            "nivel_instalacao_m": NIVEL_SUPERIOR_MIN_M, "placa_satura": satura,
+            "N_total": n_placas + n_saidas, "OK": lado >= 100 and not satura}
 
 
 def _selftest():
@@ -105,8 +109,12 @@ def _selftest():
     assert numero_placas_orientacao(60.0, rota_continuada=True) == 21
     # projeto do galpao 40x20 (diagonal ~44,7 -> L_vis ~22,4 -> placa 600mm)
     r = dimensiona_sinalizacao({"C": 40.0, "L": 20.0})
-    assert r["placa_lado_mm"] == 600 and r["OK"]
+    assert r["placa_lado_mm"] == 600 and r["OK"] and not r["placa_satura"]
     assert r["nivel_instalacao_m"] == 1.80
+    # galpao grande: L_vis > 24 m (dist. da maior placa 600mm) -> satura e REPROVA
+    # em vez de entregar placa subdimensionada com OK=True (contra-seguranca).
+    rg = dimensiona_sinalizacao({"C": 100.0, "L": 60.0})   # diag ~116,6 -> L_vis ~58,3
+    assert rg["placa_lado_mm"] == 600 and rg["placa_satura"] and not rg["OK"]
     print("sinalizacao_nbr16820 self-test PASSED (NBR 16820:2020 Tab.1 + 5.1)")
 
 
