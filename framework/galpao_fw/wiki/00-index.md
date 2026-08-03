@@ -1,8 +1,8 @@
 # galpao_fw — LLM wiki
 
-**Pitch:** Framework Python que dimensiona/verifica galpão de aço (steel warehouse) fim-a-fim: pórtico 2D → 2ª ordem (MAES) → verificação NBR 8800 por peça → secundários/terças/ligações/base/fundação → modelo 3D FreeCAD + DXF + memorial PT. Engenheiro roda a skill; sênior revisa e assina (ART). Saídas em português. Unidades SI (m, kN).
+**Pitch:** Framework Python que projeta um galpão industrial **turnkey multi-disciplina** fim-a-fim. Começou como galpão de aço (pórtico 2D → 2ª ordem MAES → NBR 8800 por peça → secundários/base/fundação → 3D FreeCAD + IFC + memorial PT) e cresceu para **6 verticais** — concreto (NBR 6118/9062, pré-moldado+protensão), aço (NBR 8800/14762), elétrico (NBR 5410/14039/5419), incêndio/AVCB (NBR 10898/16820/17240/10897/13714), hidráulica predial (NBR 5626/8160/10844) e climatização (NBR 16401) — orquestrados por um **`galpao_turnkey.rodar(spec)`** que consolida gates, monta o **modelo federado** (IFC + 3D + clash) e um **caderno executivo único** (pranchas A1 TechDraw de todas as disciplinas). Cada vertical é stateless: `rodar/membros_bim/emitir_bim/montar_pranchas` + `_selftest` aferido contra livro/norma. Engenheiro roda; sênior revisa e assina (ART). Saídas PT, SI (m, kN).
 
-Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev\FreeCad_Automatic`. Norma-fonte: PDFs em `pesquisa/aço/` (nunca de memória).
+Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: um nível acima. Norma-fonte: PDFs no NotebookLM (via `nlm` CLI) — **nunca de memória** (regra AR300). Push a `main` bloqueado → sempre branch+PR+merge.
 
 ## TOC
 - [[01-architecture]] — spec-driven, cadeia de módulos, envelope, MAES, calc/model split
@@ -10,12 +10,51 @@ Cwd primário: `D:\dev\FreeCad_Automatic\framework\galpao_fw`. Git root: `D:\dev
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
 - [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
-- [[06-open-threads]] — **T22 sessão 19 (PRs #55–#61 MERGED em main)**, T21 sessão 18 (gaps A3/C5), T20 (build 3D), T19 (montagem), backlog
+- [[06-open-threads]] — **T40 janela dupla-conversão (ABERTO)**, T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
 
 > Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 
 
-## Estado atual (2026-07-23) — Sessão 19: Interoperabilidade BIM e IFC4 Físico/Estrutural (PRs #55 a #61 MERGED)
+## Estado atual (2026-08-03) — Sessões 20–40: os 6 verticais + turnkey federado + hardening
+
+Arco consolidado das memórias `memory/*.md` (o registro fino de S16→S40 vive lá, não em
+`sessions/`, que só tem 2 logs antigos). **De galpão-de-aço para turnkey multi-disciplina.**
+
+- **S20 — Vertical de CONCRETO (PRs #81–#101):** galpão pré-moldado engastado. Pilar em
+  flexão composta reta+**oblíqua/biaxial** (17.2.5, α=1,2) → viga CA → sistema stateless →
+  BIM IFC4 → executivo (quadro+memorial+SVG) → **PROTENSÃO** (pré-tração vãos >12 m). 60 testes,
+  fixtures Bastos/Araújo/Carvalho. 3D SÓLIDO + pranchas A1 TechDraw. Ver [[../memory]] `vertical-concreto`.
+- **S21–26 — Vertical ELÉTRICO (PRs #102–#106):** notebook próprio (c5934f22). 9 módulos
+  (cargas/condutores/curto/proteção/FP/subestação MT/aterramento/SPDA/**luminotécnica NBR 8995**)
+  + BIM + 3D + executivo A1. Condutores até 300 mm² + paralelo. Suíte 1040 green. `vertical-eletrico`.
+- **S27–30 — Vertical INCÊNDIO/AVCB (PRs #107–#110):** emergência (10898) + sinalização (16820)
+  + alarme (17240) + sprinklers (10897) + hidrantes (13714), orquestrados; + iluminação externa
+  (5101) e climatização (16401) standalone. `vertical-seguranca-incendio`.
+- **S32 — TURNKEY (PR #112):** `galpao_turnkey.rodar(spec)` despacha TODOS os verticais,
+  consolida gates + ATENDE global; falha isolada por disciplina; **modelo federado** (IFC + 3D +
+  clash AABB com triagem esperado×revisar). `galpao-turnkey-orquestrador`.
+- **S36 — CADERNO ÚNICO (PR #116):** `caderno_turnkey` (capa+índice+pranchas A1 de todas as
+  disciplinas num PDF, via fitz), montado ao vivo no freecad.exe.
+- **S38 — Revisão total (PR #118):** drawing-vs-data na planta de incêndio + guards de entrada
+  degenerada (geometria/tensão/área/Fu=0 → ValueError) em 4 orquestradores. `revisao-total-s38`.
+- **S39 — HIDRÁULICA + COORDENAÇÃO (PRs #136–#147):** destravou o dimensionamento hidráulico
+  (NBR 5626:2020 SEM método dos pesos → v≤3 m/s; 8160 UHC; 10844 Q=i·A/60) + água quente SPAFAQ
+  + prancha A1 de coordenação do federado + reservatório vira torre elevada no render. Revisão NLM
+  achou 2 gaps (DN75 vertical, declividade mín). `hidraulica-e-coordenacao-s39`.
+- **S40 — HARDENING (PR #148 + auditoria):** caça à **saturação silenciosa** (tabela satura no
+  maior valor + gate que não reprova + OK=True): fechou terça-ELS/flecha (aço, veredito global de
+  `rodar_galpao`) e placa de sinalização (incêndio); concreto verificado limpo. **1ª auditoria NLM
+  formal de concreto/aço** (notebook Diretrizes bf7feaa3): As_max pilar, flecha terça L/180-L/120,
+  drift H/300, flexo-compressão 5.5.1.2 — TODOS batem. `saturacao-silenciosa-padrao`,
+  `auditoria-nlm-concreto-aco-s40`. **Bug ABERTO:** dupla-conversão de janela (ver [[06-open-threads]]).
+
+**Validado ao vivo (S40):** caderno turnkey completo no freecad.exe — 6 disciplinas + coordenação,
+26 páginas, 14 pranchas A1, render 3D, render-and-look confirmando HID/CLI/COORD. Regressão: metade
+m-z 511 green; metade a-l 768 green (1 falha pré-existente = janela, ver open-threads).
+
+---
+
+## Estado anterior (2026-07-23) — Sessão 19: Interoperabilidade BIM e IFC4 Físico/Estrutural (PRs #55 a #61 MERGED)
 Revisão e integração completas. **TODOS OS PRS DA SESSÃO 19 (#55 A #61) FORAM REVISADOS, APROVADOS E MERGEADOS EM `main`**. **831 testes verdes** (suíte completa).
 Tema central: **"interoperabilidade BIM / IFC4 físico e analítico direto do cálculo, sem dependência do FreeCAD GUI"**.
 - **PR #55 (`feat/gaps-e-wiki-para-main`):** cherry-pick dos Gaps A3/C5 e da wiki da Sessão 18 para a `main`. [[04-decisions#D74]]
@@ -194,6 +233,11 @@ zero pendente.** 8 alegações de erro grave refutadas com o PDF (imagens via Se
 1 bug real acolhido. **21 módulos matemáticos.** **PENDENTE gate humano:** merge PR #1+#4;
 **push da branch** (bloqueado p/ assistente → usuário roda `git push`). [[06-open-threads]].
 
+last-consolidated: 2026-08-03, sessions: 40 (+ SESSÕES 20–40: os 6 verticais [concreto
+#81–101 / elétrico #102–106 / incêndio #107–110 / hidráulica #136–147] + TURNKEY federado
+#112 + caderno único #116 + revisão total #118 + hardening/saturação #148 + 1ª auditoria NLM
+concreto/aço; arco detalhado no bloco "Estado atual 2026-08-03" acima e em memory/*.md;
+bugs abertos T40/T40b). Fonte do arco S20–40 = auto-memória (sessions/ tem só 2 logs antigos).
 last-consolidated: 2026-07-22, sessions: 18 (+ SESSÃO 17: gaps normativos Nível A/C [fadiga
 console/atrito vento/pattern loading/empoçamento/torção, D68 PR #45] + wizard soldada/parafusada +
 FABRICAÇÃO 3D/2D [piece marks, lista de corte, tolerâncias, PE14 croquis, D69 PR #46] + diafragma
