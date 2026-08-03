@@ -101,23 +101,31 @@ def test_caderno_vazio_reporta_faltando(tmp_path):
     assert os.path.exists(res["path"])                        # ainda gera capa+indice
 
 
+def _clash_fixture():
+    # 1 REVISAR (eletrocalha x viga) + 1 ESPERADO (aterramento x sapata)
+    rev = {"a": "E-CALHA-P", "b": "C-VC2", "disciplinas": "concretoxeletrico",
+           "tipos": "CableCarrierxBeam", "vol_mm3": 1000000.0, "esperado": False}
+    esp = {"a": "C-SAP1E", "b": "E-HASTE1", "disciplinas": "concretoxeletrico",
+           "tipos": "FootingxEarthing", "vol_mm3": 44775.0, "esperado": True}
+    return {"n_membros": 188, "n_clashes": 2, "n_revisar": 1, "n_esperado": 1,
+            "clashes": [rev, esp], "revisar": [rev], "esperados": [esp],
+            "por_par": {"concretoxeletrico": 2}, "OK": False, "OK_revisar": False}
+
+
 def test_caderno_apendice_de_clash(tmp_path):
-    # apendice de coordenacao: o clash federado vira paginas de texto no caderno
+    # apendice de coordenacao: o clash federado vira paginas de texto no caderno, com
+    # a TRIAGEM esperado x revisar.
     tmp = str(tmp_path)
     pdfs = {"incendio": _prancha(tmp, "incendio", ["PE-INC-01"])}
-    clash = {"n_membros": 188, "n_clashes": 2, "por_par": {"concretoxeletrico": 2},
-             "clashes": [{"a": "C-P1E", "b": "E-DESC1", "disciplinas": "concretoxeletrico",
-                          "tipos": "ColumnxCable", "vol_mm3": 1349775.0},
-                         {"a": "C-SAP1E", "b": "E-HASTE1", "disciplinas": "concretoxeletrico",
-                          "tipos": "FootingxEarthing", "vol_mm3": 44775.0}]}
     res = ct.montar_caderno_de_pdfs(pdfs, os.path.join(tmp, "CAD.pdf"), _R(), {"slug": "g"},
-                                    clash=clash)
+                                    clash=_clash_fixture())
     assert res["n_clashes"] == 2
     with fitz.open(res["path"]) as d:
         txt = "".join(p.get_text() for p in d)
-    assert "CLASH FEDERADO" in txt and "candidatos de conflito" in txt
-    assert "concretoxeletrico" in txt and "C-P1E" in txt and "E-DESC1" in txt
-    assert "montagem intencional" in txt                 # nota de triagem
+    assert "CLASH FEDERADO" in txt and "A REVISAR" in txt and "ESPERADOS" in txt
+    assert "E-CALHA-P" in txt and "C-VC2" in txt          # o item a revisar aparece
+    assert "E-HASTE1" in txt                              # o esperado tambem
+    assert "NBR 5419" in txt                              # justificativa dos esperados
 
 
 def test_caderno_sem_clash_backward_compat(tmp_path):
@@ -132,9 +140,10 @@ def test_caderno_sem_clash_backward_compat(tmp_path):
 
 
 def test_linhas_clash_sem_conflitos():
-    L = "\n".join(ct._linhas_clash({"n_membros": 10, "n_clashes": 0, "por_par": {},
-                                    "clashes": []}))
-    assert "Nenhuma interferencia entre disciplinas" in L
+    L = "\n".join(ct._linhas_clash({"n_membros": 10, "n_clashes": 0, "n_revisar": 0,
+                                    "n_esperado": 0, "por_par": {}, "clashes": [],
+                                    "revisar": [], "esperados": []}))
+    assert "nada a revisar" in L and "(nenhum)" in L
 
 
 def test_aco_dispatch_existe_e_roteia_p_rodar_projeto():

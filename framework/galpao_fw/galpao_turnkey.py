@@ -333,6 +333,21 @@ _ESCALA_M = {"concreto": 1000.0, "aco": 1000.0, "eletrico": 1.0, "incendio": 1.0
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco"}
 _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
 
+# Triagem esperado x revisar: o aterramento e o SPDA (cabo de aterramento/anel, descida,
+# captacao) sao MONTADOS na estrutura POR NORMA (NBR 5419: descidas nas colunas, malha/
+# hastes junto as fundacoes) -> interferencia com pilar/viga/sapata e' montagem
+# INTENCIONAL, nao conflito a resolver. Ja eletrocalha (CableCarrier) e equipamentos
+# (chuveiro/detector/luminaria/hidrante) sobre a estrutura sao coordenacao REAL.
+_TIPOS_ESTRUTURA = {"Column", "Beam", "Member", "Footing", "Pile", "Plate"}
+_TIPOS_ATERR_SPDA = {"Cable", "Earthing"}
+
+
+def _clash_esperado(ta, tb):
+    """True se o par de tipos e' montagem INTENCIONAL: aterramento/SPDA fixado a
+    estrutura (NBR 5419). Caso contrario e' candidato a REVISAR."""
+    s = {ta, tb}
+    return bool(s & _TIPOS_ATERR_SPDA) and bool(s & _TIPOS_ESTRUTURA)
+
 
 def _disc_de_membro(mb):
     """Disciplina de um membro federado pela marca prefixada (C-/E-/I-/A-)."""
@@ -426,30 +441,51 @@ def checa_interferencia_federada(R, spec=None, folga=1.0, vol_min=1000.0):
                 par = "x".join(sorted((da, db)))
                 por_par[par] = por_par.get(par, 0) + 1
                 clashes.append({"a": ma, "b": mb_, "disciplinas": par,
-                                "tipos": "%sx%s" % (ta, tb), "vol_mm3": round(v, 0)})
-    clashes.sort(key=lambda c: -c["vol_mm3"])
+                                "tipos": "%sx%s" % (ta, tb), "vol_mm3": round(v, 0),
+                                "esperado": _clash_esperado(ta, tb)})
+    clashes.sort(key=lambda c: (c["esperado"], -c["vol_mm3"]))   # revisar primeiro
+    revisar = [c for c in clashes if not c["esperado"]]
+    esperados = [c for c in clashes if c["esperado"]]
     return {"n_membros": len(caixas), "n_clashes": len(clashes),
-            "clashes": clashes, "por_par": por_par, "OK": not clashes}
+            "n_revisar": len(revisar), "n_esperado": len(esperados),
+            "clashes": clashes, "revisar": revisar, "esperados": esperados,
+            "por_par": por_par, "OK": not clashes, "OK_revisar": not revisar}
 
 
 def relatorio_clash_pt(rep):
-    """Relatorio pt-BR do clash federado (candidatos de coordenacao BIM)."""
-    L = ["CLASH FEDERADO - INTERFERENCIA ENTRE DISCIPLINAS (candidatos p/ coordenacao)",
-         "  %d membros analisados ; %d conflitos entre disciplinas" %
-         (rep["n_membros"], rep["n_clashes"])]
+    """Relatorio pt-BR do clash federado com TRIAGEM esperado x revisar."""
+    L = ["CLASH FEDERADO - INTERFERENCIA ENTRE DISCIPLINAS (coordenacao)",
+         "  %d membros ; %d conflitos = %d A REVISAR + %d esperados (montagem)" %
+         (rep["n_membros"], rep["n_clashes"], rep.get("n_revisar", 0),
+          rep.get("n_esperado", 0))]
     if rep["por_par"]:
         L.append("  Por par de disciplinas: " +
                  " ; ".join("%s=%d" % (k, v) for k, v in sorted(rep["por_par"].items())))
-    for c in rep["clashes"][:30]:
-        L.append("   - %-14s x %-14s [%s] %s : %.0f mm3"
-                 % (c["a"], c["b"], c["disciplinas"], c["tipos"], c["vol_mm3"]))
-    if rep["n_clashes"] > 30:
-        L.append("   ... (+%d)" % (rep["n_clashes"] - 30))
-    if rep["OK"]:
+    rev = rep.get("revisar", [c for c in rep["clashes"] if not c.get("esperado")])
+    if rev:
+        L.append("  --- A REVISAR (coordenacao real): ---")
+        for c in rev[:30]:
+            L.append("   ! %-14s x %-14s [%s] %s : %.0f mm3"
+                     % (c["a"], c["b"], c["disciplinas"], c["tipos"], c["vol_mm3"]))
+        if len(rev) > 30:
+            L.append("   ... (+%d a revisar)" % (len(rev) - 30))
+    esp = rep.get("esperados", [c for c in rep["clashes"] if c.get("esperado")])
+    if esp:
+        L.append("  --- ESPERADOS (aterramento/SPDA na estrutura, NBR 5419 - %d): ---"
+                 % len(esp))
+        for c in esp[:10]:
+            L.append("   . %-14s x %-14s %s : %.0f mm3"
+                     % (c["a"], c["b"], c["tipos"], c["vol_mm3"]))
+        if len(esp) > 10:
+            L.append("   ... (+%d esperados)" % (len(esp) - 10))
+    if not rep["n_clashes"]:
         L.append("  RESULTADO: nenhuma interferencia entre disciplinas > limite")
+    elif not rev:
+        L.append("  RESULTADO: %d conflitos, TODOS montagem intencional - nada a revisar"
+                 % rep["n_clashes"])
     else:
-        L.append("  RESULTADO: %d candidatos - REVISAR (alguns podem ser montagem "
-                 "intencional, ex. descida SPDA rente ao pilar)" % rep["n_clashes"])
+        L.append("  RESULTADO: %d A REVISAR (+%d esperados) - triar o leiaute real"
+                 % (len(rev), len(esp)))
     return "\n".join(L)
 
 

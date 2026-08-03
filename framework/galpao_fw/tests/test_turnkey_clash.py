@@ -117,11 +117,27 @@ def test_vol_min_filtra_grazes():
     assert alto["n_clashes"] == 0                         # 1e9 mm3 = 1 m3, nada tao grande
 
 
-def test_relatorio_clash_pt_cita_candidatos():
+def test_relatorio_clash_pt_cita_triagem():
     rep = tk.checa_interferencia_federada(tk.rodar(_spec()), _spec())
     txt = tk.relatorio_clash_pt(rep)
-    assert "CLASH FEDERADO" in txt and "candidatos" in txt
-    assert "concretoxeletrico" in txt
+    assert "CLASH FEDERADO" in txt and "concretoxeletrico" in txt
+    assert "A REVISAR" in txt and "esperados" in txt
+
+
+def test_triagem_esperado_x_revisar():
+    # o galpao concreto+eletrico so tem SPDA/aterramento x estrutura -> TODOS esperados
+    rep = tk.checa_interferencia_federada(tk.rodar(_spec()), _spec())
+    assert rep["n_clashes"] == rep["n_esperado"] + rep["n_revisar"]
+    assert rep["n_revisar"] == 0 and rep["n_esperado"] == rep["n_clashes"]
+    assert rep["OK_revisar"] is True and all(c["esperado"] for c in rep["clashes"])
+    # a classificacao: aterramento/SPDA (Cable/Earthing) x estrutura = esperado
+    assert tk._clash_esperado("Column", "Cable") and tk._clash_esperado("Footing", "Earthing")
+    # eletrocalha (CableCarrier) e equipamento x estrutura = REVISAR
+    assert not tk._clash_esperado("Beam", "CableCarrier")
+    assert not tk._clash_esperado("Beam", "Sprinkler")
+    # revisar vem ANTES dos esperados na lista ordenada
+    ordem = [c["esperado"] for c in rep["clashes"]]
+    assert ordem == sorted(ordem)                        # False (revisar) antes de True
 
 
 def test_clash_sem_disciplinas_vazio():
