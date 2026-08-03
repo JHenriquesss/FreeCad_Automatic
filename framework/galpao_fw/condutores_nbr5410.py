@@ -232,13 +232,21 @@ def dimensiona_condutor(circ):
 
     s_min = SECAO_MINIMA.get(uso, 2.5)
     s_min = s_min if s_min in SECOES else min(SECOES)   # ampacidade comeca em 2,5
+    # CURTO-CIRCUITO: a secao de curto por condutor escala com 1/n_par (a corrente de
+    # curto se reparte nos condutores em paralelo, NBR 5410 6.2.5.7). Se 1 condutor da
+    # maior secao tabelada NAO comporta o curto, EXIGE mais paralelo - senao a secao
+    # saturava e o OK mascarava a insuficiencia (contra-seguranca).
+    s_cc, s_cc_calc = (None, None)
+    if circ.get("Icc") and circ.get("t_curto_s"):
+        Icc = float(circ["Icc"]); t_cc = float(circ["t_curto_s"])
+        s_cc_1 = Icc * math.sqrt(t_cc) / K_CURTO[isol]     # secao de curto p/ 1 condutor
+        s_max_tab = max(SECOES)
+        if s_cc_1 > s_max_tab:                             # 1 condutor nao comporta o curto
+            n_par = max(n_par, math.ceil(s_cc_1 / s_max_tab))
+        s_cc, s_cc_calc = secao_por_curto(Icc / n_par, t_cc, isol)
     # queda: com N condutores em paralelo a corrente por condutor cai p/ IB/N,
     # entao a queda tambem cai p/ 1/N (resistencia equivalente /N).
     s_qda, dv = secao_por_queda(IB / n_par, L, V, sistema, fp, dv_max)
-    s_cc, s_cc_calc = (None, None)
-    if circ.get("Icc") and circ.get("t_curto_s"):
-        s_cc, s_cc_calc = secao_por_curto(float(circ["Icc"]) / n_par,
-                                          float(circ["t_curto_s"]), isol)
 
     candidatas = [c for c in (s_amp, s_min, s_qda, s_cc) if c is not None]
     secao = max(candidatas) if candidatas else None
@@ -247,13 +255,17 @@ def dimensiona_condutor(circ):
 
     dv_final = queda_pct(secao, IB / n_par, L, V, sistema, fp) if secao else None
     Iz_final = (AMPACIDADE[isol][metodo][n_cond].get(secao) or 0) * n_par if secao else None
+    # curto coberto: a secao final (por condutor) tem de ser >= a secao de curto exigida
+    curto_ok = (s_cc_calc is None) or (secao is not None and secao >= s_cc_calc - 1e-9)
     ok = (secao is not None
-          and (dv_final is not None and dv_final <= dv_max))
+          and (dv_final is not None and dv_final <= dv_max)
+          and curto_ok)
     return {"IB": IB, "IC": IC, "FCT": _fct, "FCA": _fca,
             "secao_mm2": secao, "n_paralelo": n_par, "governante": gov,
             "secao_ampacidade": s_amp, "Iz": Iz_final, "Iz_ampacidade": Iz,
             "secao_minima": s_min, "secao_queda": s_qda, "dv_pct": dv_final,
             "dv_max": dv_max, "secao_curto": s_cc, "s_curto_calc_mm2": s_cc_calc,
+            "curto_ok": curto_ok,
             "isolacao": isol, "metodo": metodo, "n_cond": n_cond, "OK": ok}
 
 

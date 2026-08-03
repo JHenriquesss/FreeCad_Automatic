@@ -74,6 +74,20 @@ def test_condutor_curto_governa_secao():
     assert r["secao_mm2"] >= r["secao_curto"]
 
 
+def test_curto_severo_exige_paralelo_nao_satura_em_silencio():
+    # Icc=60 kA / 1 s, PVC (k=115) -> S>=522 mm2 > maior secao tabelada (300). Antes a
+    # secao SATURAVA em 300 com OK=True (contra-seguranca). Agora exige N condutores em
+    # paralelo (6.2.5.7) e o OK so passa se a secao por condutor cobrir o curto.
+    r = cd.dimensiona_condutor({"IB": 100.0, "V": 380.0, "L_km": 0.02,
+                                "sistema": "trifasico", "n_cond": 3, "isolacao": "PVC",
+                                "metodo": "F", "fp": 0.8, "Icc": 60000.0, "t_curto_s": 1.0})
+    assert r["n_paralelo"] >= 2                       # 1 condutor nao comporta -> paralelo
+    assert r["secao_mm2"] >= r["s_curto_calc_mm2"]    # cobre o curto por condutor
+    assert r["curto_ok"] is True and r["OK"] is True
+    # capacidade equivalente do grupo cobre a secao de curto de 1 condutor (522 mm2)
+    assert r["secao_mm2"] * r["n_paralelo"] >= 522.0
+
+
 def test_fatores_correcao_tabelas():
     assert cd.fct(40, "PVC") == 0.87 and cd.fct(40, "EPR") == 0.91
     assert cd.fca(3) == 0.70 and cd.fca(6) == 0.57
