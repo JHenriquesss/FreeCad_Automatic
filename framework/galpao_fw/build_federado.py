@@ -28,9 +28,9 @@ DOC_NAME = "galpao_federado"
 # dims de CAIXA -> mm: concreto em METROS (x1000); aco (modelo_neutro), eletrico,
 # incendio e climatizacao ja em MM (x1). Secao de BARRA e' sempre metros (a parte).
 _ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0,
-             "climatizacao": 1.0}
+             "climatizacao": 1.0, "hidraulica": 1.0}
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
-                  "H": "climatizacao"}
+                  "H": "climatizacao", "P": "hidraulica"}
 _TIPOS_IGNORADOS = {"Covering", "Cladding"}          # fechamento/telha: fora do clash
 
 
