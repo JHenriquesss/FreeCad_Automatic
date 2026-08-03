@@ -242,6 +242,14 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
         import galpao_seguranca_incendio as gsi
         return gsi.montar_pranchas(r_disc, disc_out, spec=sub_spec,
                                    freecad_exe=freecad_exe, timeout=timeout)
+    if nome == "hidraulica":
+        import galpao_hidraulica as ghi
+        return ghi.montar_pranchas(r_disc, disc_out, spec=sub_spec,
+                                   freecad_exe=freecad_exe, timeout=timeout)
+    if nome == "climatizacao":
+        import galpao_climatizacao as gcl
+        return gcl.montar_pranchas(r_disc, disc_out, spec=sub_spec,
+                                   freecad_exe=freecad_exe, timeout=timeout)
     if nome == "eletrico":
         import galpao_eletrico as ge
         m = ge.montar_3d(r_disc, disc_out, headless=True, timeout=min(timeout, 600))
