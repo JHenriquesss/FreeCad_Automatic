@@ -141,11 +141,41 @@ def _virgula(linhas):
     return [re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", str(x)) for x in linhas]
 
 
-def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None):
+def _add_pagina_imagem(doc, png_path, titulo, subtitulo=""):
+    """Adiciona uma pagina LANDSCAPE (A3) com um titulo no topo e a imagem PNG escalada
+    p/ caber, preservando a proporcao. Best-effort: PNG ausente/invalido -> nao faz nada
+    e retorna False. Usa PyMuPDF (fitz.insert_image)."""
+    import fitz
+    if not png_path or not os.path.exists(png_path):
+        return False
+    W, H = 1191.0, 842.0                                   # A3 paisagem (pt)
+    margem, topo = 36.0, 90.0
+    try:
+        page = doc.new_page(width=W, height=H)
+        page.insert_text((margem, 42), titulo, fontname="helv", fontsize=16)
+        if subtitulo:
+            page.insert_text((margem, 66), subtitulo, fontname="helv", fontsize=10)
+        pix = fitz.Pixmap(png_path)
+        iw, ih = float(pix.width), float(pix.height)
+        aw, ah = W - 2 * margem, H - topo - margem
+        esc = min(aw / iw, ah / ih) if iw and ih else 1.0
+        w, h = iw * esc, ih * esc
+        x0 = margem + (aw - w) / 2.0
+        y0 = topo + (ah - h) / 2.0
+        page.insert_image(fitz.Rect(x0, y0, x0 + w, y0 + h), filename=png_path)
+        return True
+    except Exception:
+        return False
+
+
+def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None,
+                           render_png=None):
     """PURO (so fitz): monta o caderno unico a partir de PDFs de pranchas JA gerados.
-    capa + indice + [apendice de CLASH federado] + (por disciplina: divisoria + pranchas).
-    `clash` (opc) = dict de galpao_turnkey.checa_interferencia_federada -> vira o apendice
-    de coordenacao. Retorna {path, n_paginas, n_pranchas, disciplinas, faltando, n_clashes}."""
+    capa + indice + [PRANCHA DE COORDENACAO: render do federado + apendice de clash] +
+    (por disciplina: divisoria + pranchas). `clash` (opc) = dict de
+    galpao_turnkey.checa_interferencia_federada; `render_png` (opc) = PNG isometrico do
+    modelo federado (render_federado). Retorna {path, n_paginas, n_pranchas, disciplinas,
+    faltando, n_clashes, render}."""
     import fitz
     from dossie import _add_paginas_texto
 
@@ -153,6 +183,14 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None):
     doc = fitz.open()
     _add_paginas_texto(doc, _linhas_capa(R, spec))
     _add_paginas_texto(doc, _linhas_indice(pdfs_por_disciplina))
+    # PRANCHA DE COORDENACAO: a imagem do modelo federado (se houver) + a tabela de clash
+    tem_render = False
+    if render_png is not None:
+        nrev = (clash or {}).get("n_revisar")
+        sub = ("Modelo federado das disciplinas ; %s conflitos a revisar"
+               % nrev if nrev is not None else "Modelo federado das disciplinas")
+        tem_render = _add_pagina_imagem(
+            doc, render_png, "PRANCHA DE COORDENACAO - MODELO FEDERADO", sub)
     if clash is not None:
         _add_paginas_texto(doc, _linhas_clash(clash))
 
@@ -181,7 +219,7 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None):
     doc.close()
     return {"path": out_pdf, "n_paginas": n_pag, "n_pranchas": total,
             "disciplinas": por_disc, "faltando": faltando,
-            "n_clashes": (clash or {}).get("n_clashes")}
+            "n_clashes": (clash or {}).get("n_clashes"), "render": tem_render}
 
 
 # ------------------------------------------------------------- orquestracao VIVA
@@ -229,14 +267,22 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     R = tk.rodar(spec, out_dir)
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
 
-    # apendice de coordenacao: interferencia ENTRE disciplinas no modelo federado. So
-    # faz sentido com >= 2 disciplinas; falha isolada nao derruba o caderno.
+    # PRANCHA DE COORDENACAO: clash (interferencia entre disciplinas) + RENDER isometrico
+    # do modelo federado. So com >= 2 disciplinas; falha isolada nao derruba o caderno.
     clash = None
+    render_png = None
     if len(R["executadas"]) >= 2:
         try:
             clash = tk.checa_interferencia_federada(R, spec)
         except Exception:
             clash = None
+        try:                                              # render 3D (freecad.exe grafico)
+            rr = tk.render_federado(R, out_dir, spec=spec,
+                                    freecad_exe=freecad_exe, timeout=min(timeout, 600))
+            vistas = (rr or {}).get("vistas") or []
+            render_png = next((v for v in vistas if "isometrica" in v), None)
+        except Exception:
+            render_png = None
 
     status = {}
     pdfs_por_disciplina = {}
@@ -252,7 +298,8 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
         pdfs_por_disciplina[nome] = _coletar_pdfs(out_dir, nome)
 
     out_pdf = os.path.join(out_dir, "CADERNO-EXECUTIVO-%s.pdf" % spec.get("slug", "galpao"))
-    res = montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=clash)
+    res = montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=clash,
+                                 render_png=render_png)
     res["status"] = status
     res["ATENDE"] = R["ATENDE"]
     return res

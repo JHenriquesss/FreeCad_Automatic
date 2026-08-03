@@ -128,6 +128,52 @@ def test_caderno_apendice_de_clash(tmp_path):
     assert "NBR 5419" in txt                              # justificativa dos esperados
 
 
+def _png_dummy(path):
+    """PNG de verdade (via pixmap) p/ testar a pagina-imagem de coordenacao."""
+    d = fitz.open()
+    pg = d.new_page(width=800, height=500)
+    pg.draw_rect(fitz.Rect(40, 40, 760, 460), fill=(0.85, 0.85, 0.92))
+    pg.insert_text((100, 250), "MODELO 3D FEDERADO", fontsize=28)
+    pg.get_pixmap().save(path)
+    d.close()
+    return path
+
+
+def test_caderno_prancha_de_coordenacao_com_render(tmp_path):
+    # a PRANCHA DE COORDENACAO embute o RENDER isometrico do federado + a tabela de clash
+    tmp = str(tmp_path)
+    pdfs = {"incendio": _prancha(tmp, "incendio", ["PE-INC-01"])}
+    png = _png_dummy(os.path.join(tmp, "iso.png"))
+    res = ct.montar_caderno_de_pdfs(pdfs, os.path.join(tmp, "CAD.pdf"), _R(), {"slug": "g"},
+                                    clash=_clash_fixture(), render_png=png)
+    assert res["render"] is True
+    with fitz.open(res["path"]) as d:
+        n_imgs = sum(len(p.get_images()) for p in d)
+        txt = "".join(p.get_text() for p in d)
+    assert n_imgs >= 1                                    # a imagem foi embutida
+    assert "PRANCHA DE COORDENACAO" in txt               # titulo da prancha
+    assert "CLASH FEDERADO" in txt                       # a tabela de clash tambem
+
+
+def test_caderno_render_png_invalido_degrada(tmp_path):
+    # PNG ausente/invalido -> render False, caderno ainda monta (best-effort)
+    tmp = str(tmp_path)
+    pdfs = {"incendio": _prancha(tmp, "incendio", ["PE-INC-01"])}
+    res = ct.montar_caderno_de_pdfs(pdfs, os.path.join(tmp, "CAD.pdf"), _R(), {"slug": "g"},
+                                    clash=_clash_fixture(),
+                                    render_png=os.path.join(tmp, "nao_existe.png"))
+    assert res["render"] is False and os.path.exists(res["path"])
+
+
+def test_add_pagina_imagem_png_ausente_retorna_false(tmp_path):
+    import fitz as _f
+    doc = _f.open()
+    assert ct._add_pagina_imagem(doc, None, "t") is False
+    assert ct._add_pagina_imagem(doc, os.path.join(str(tmp_path), "x.png"), "t") is False
+    png = _png_dummy(os.path.join(str(tmp_path), "ok.png"))
+    assert ct._add_pagina_imagem(doc, png, "titulo") is True
+
+
 def test_caderno_sem_clash_backward_compat(tmp_path):
     # sem o arg clash: nenhum apendice, n_clashes None (comportamento anterior)
     tmp = str(tmp_path)
