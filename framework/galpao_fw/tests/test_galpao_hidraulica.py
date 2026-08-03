@@ -91,12 +91,30 @@ def test_membros_bim_tubos():
                    "hidraulica": {"n_condutores": 4}})
     mb = ghi.membros_bim(r)
     tubos = [m for m in mb if m["tipo"] == "Pipe"]
-    assert len(tubos) == 4 + 2                            # condutores pluviais + esgoto + agua
+    # condutores pluviais + esgoto + agua + calha (sem aparelhos_esgoto -> sem ventilacao)
+    assert len(tubos) == 4 + 3
+    assert any(m["marca"] == "CALHA" for m in mb)         # calha no beiral (NBR 10844 Tab.3)
     pluv = next(m for m in mb if m["marca"] == "PLUV1")
     assert pluv["p1"][2] == 6000.0 and pluv["p2"][2] == 0.0   # desce do beiral ao solo
     assert pluv["secao"]["forma"] == "ROUND"
     esg = next(m for m in mb if m["marca"] == "ESG-C")
     assert esg["p1"][2] == -300.0                         # coletor sob o piso
+
+
+def test_ventilacao_e_calha_dimensionadas():
+    # com aparelhos_esgoto (com bacia) -> ventilacao (NBR 8160 Tab.8/D.1) + coluna no 3D;
+    # pluvial sempre tem calha (NBR 10844 Tab.3).
+    r = ghi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "hidraulica": {"aparelhos_esgoto": {"bacia": 2, "lavatorio": 2}}})
+    esg = r["redes"]["esgoto"]
+    assert esg["uhc"] == 14                              # bacia 6*2 + lavatorio 1*2
+    assert esg["ventilacao_ramal_mm"] == 50              # com bacia, ate 17 UHC -> DN50 (Tab.8)
+    assert esg["ventilacao_coluna_mm"] == 50             # Tab.D.1: esgoto DN100 -> vent DN50
+    assert r["redes"]["pluvial"]["calha_mm"] in (100, 125, 150)
+    assert "ventilacao" in r["dimensionamento"] and "calha" in r["dimensionamento"]
+    mb = ghi.membros_bim(r)
+    vent = next(m for m in mb if m["marca"] == "VENT-C")
+    assert vent["p2"][2] > r["geometria"]["H"] * 1000.0  # sobe acima do telhado
 
 
 def test_membros_bim_sem_geometria_vazio():
@@ -150,4 +168,4 @@ def test_emite_ifc_tubos(tmp_path):
     assert ghi.emitir_bim(r, f) and os.path.getsize(f) > 0
     import ifcopenshell
     m = ifcopenshell.open(f)
-    assert len(m.by_type("IfcPipeSegment")) == 6                # 4 pluvial + esgoto + agua
+    assert len(m.by_type("IfcPipeSegment")) == 7                # 4 pluvial + esgoto + agua + calha

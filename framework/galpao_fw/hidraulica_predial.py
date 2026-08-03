@@ -338,6 +338,61 @@ def diametro_coletor(uhc, declividade_pct=1.0):
     return max(_menor_dn(tabela, uhc), 100)   # coletor predial >= DN100
 
 
+# --- VENTILACAO do esgoto (NBR 8160 Sec.5.2.2) ---
+# Tab.8 (ramal de ventilacao por UHC): (limite_UHC, DN). cited_text: "sem bacias: Ate 12 40
+# / 13 a 18 50 / 19 a 36 75 ; com bacias: Ate 17 50 / 18 a 60 75".
+_TAB8_VENT_SEM = [(12, 40), (18, 50), (36, 75)]
+_TAB8_VENT_COM = [(17, 50), (60, 75)]
+# Tab.D.1 (ramal/coluna de ventilacao pelo DN do ramal de descarga/esgoto). cited_text:
+# "DN 40 -> 40 / DN 50 -> 40 / DN 75 -> 50 / DN 100 -> 50".
+_TABD1_VENT = {40: 40, 50: 40, 75: 50, 100: 50}
+
+
+def diametro_ramal_ventilacao(uhc, com_bacia=True):
+    """DN do ramal de ventilacao (NBR 8160 Tab.8) por UHC ventilada. com_bacia=True usa a
+    coluna 'com bacias sanitarias'. Satura no maior DN da tabela acima do limite."""
+    if uhc < 0:
+        raise ValueError("UHC nao pode ser negativo.")
+    tab = _TAB8_VENT_COM if com_bacia else _TAB8_VENT_SEM
+    for lim, dn in tab:
+        if uhc <= lim:
+            return dn
+    return tab[-1][1]
+
+
+def diametro_coluna_ventilacao(dn_esgoto_mm):
+    """DN da coluna/ramal de ventilacao pelo DN do ramal de esgoto (NBR 8160 Tab.D.1).
+    Alternativa simples ao metodo por UHC+comprimento (Tab.2)."""
+    dn = min(_TABD1_VENT, key=lambda d: abs(d - dn_esgoto_mm))   # DN tabelado mais proximo
+    return _TABD1_VENT[dn]
+
+
+# --- CALHAS pluviais (NBR 10844 Tab.3, semicirculares n=0,011) ---
+# Tab.3 (capacidade de calhas semicirculares, L/min) por DN e declividade 0,5/1/2 %.
+# cited_text: "100 130 183 256 / 125 236 333 466 / 150 384 541 757".
+_DECLIV_CALHA = [0.5, 1.0, 2.0]
+_TAB3_CALHA_N011 = {100: [130, 183, 256], 125: [236, 333, 466], 150: [384, 541, 757]}
+
+
+def diametro_calha(area_m2, i_mm_h=None, declividade_pct=0.5):
+    """DN da calha semicircular (NBR 10844 Tab.3). Q = i*A/60 (Sec.5.3.1); adota a menor
+    calha cuja capacidade >= Q na declividade dada (0,5/1/2 %). declividade minima de
+    calha/condutor horizontal = 0,5 % (Sec.5.7.1)."""
+    i = I_PLUVIAL_PADRAO_MM_H if i_mm_h is None else i_mm_h
+    q = vazao_pluvial(area_m2, i)
+    if declividade_pct not in _DECLIV_CALHA:
+        menores = [d for d in _DECLIV_CALHA if d <= declividade_pct]
+        if not menores:
+            raise ValueError("declividade de calha %s%% < minima 0,5%% (Sec.5.7.1)."
+                             % declividade_pct)
+        declividade_pct = max(menores)
+    col = _DECLIV_CALHA.index(declividade_pct)
+    tabela = [(dn, caps[col]) for dn, caps in sorted(_TAB3_CALHA_N011.items())]
+    dn = _menor_dn(tabela, q)
+    return {"Q_Lmin": round(q, 1), "DN_mm": dn, "declividade_pct": declividade_pct,
+            "i_mm_h": i, "i_default": i == I_PLUVIAL_PADRAO_MM_H}
+
+
 # ---------------------------------------------------------------------------
 # AGUAS PLUVIAIS - NBR 10844:1989
 # ---------------------------------------------------------------------------
@@ -443,6 +498,11 @@ def _selftest():
     assert diametro_coletor(9, declividade_pct=1.0) == 100      # Tab.7 + minimo coletor DN100
     assert diametro_coletor(900, declividade_pct=2.0) == 200    # 840<900<=1920 -> DN200
     assert declividade_minima_pct(75) == 2.0 and declividade_minima_pct(100) == 1.0
+    # --- VENTILACAO (NBR 8160 Tab.8 / Tab.D.1) ---
+    assert diametro_ramal_ventilacao(9, com_bacia=True) == 50    # com bacia, ate 17 UHC -> DN50
+    assert diametro_ramal_ventilacao(9, com_bacia=False) == 40   # sem bacia, ate 12 UHC -> DN40
+    assert diametro_ramal_ventilacao(40, com_bacia=True) == 75   # 18 a 60 -> DN75
+    assert diametro_coluna_ventilacao(100) == 50                 # Tab.D.1: esgoto DN100 -> vent DN50
     # --- PLUVIAL (NBR 10844): telhado 100 m2, i=150 mm/h ---
     q = vazao_pluvial(100.0, 150.0)
     assert abs(q - 250.0) < 1e-9, q                             # 150*100/60 = 250 L/min
@@ -451,6 +511,9 @@ def _selftest():
     assert p["i_default"] is True                               # i default -> flag de sitio
     # area pequena: Tab.4 daria DN50, mas o condutor vertical tem DN minimo 75 (Sec.5.6.3)
     assert diametro_pluvial(5.0, 150.0, declividade_pct=1.0)["DN_mm"] == 75
+    # CALHA (Tab.3): area 100 m2, i=150 -> Q=250 L/min. 0,5%: DN150 (384>=250); 1%: DN125 (333>=250)
+    assert diametro_calha(100.0, 150.0, declividade_pct=0.5)["DN_mm"] == 150
+    assert diametro_calha(100.0, 150.0, declividade_pct=1.0)["DN_mm"] == 125
     # coletor com declividade < 1% (DN>=100) e' violacao (Sec.4.2.3.2)
     with pytest.raises(ValueError):
         diametro_coletor(180, declividade_pct=0.5)

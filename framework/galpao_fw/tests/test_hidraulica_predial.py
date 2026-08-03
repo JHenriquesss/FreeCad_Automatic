@@ -133,6 +133,27 @@ def test_esgoto_declividade_nao_tabelada_usa_inferior():
     assert hp.diametro_coletor(181, declividade_pct=1.5) == 150
 
 
+def test_ventilacao_tab8_e_tabD1():
+    # Tab.8: com bacia ate 17 UHC -> DN50 ; 18 a 60 -> DN75 ; sem bacia ate 12 -> DN40
+    assert hp.diametro_ramal_ventilacao(10, com_bacia=True) == 50
+    assert hp.diametro_ramal_ventilacao(30, com_bacia=True) == 75
+    assert hp.diametro_ramal_ventilacao(10, com_bacia=False) == 40
+    assert hp.diametro_ramal_ventilacao(25, com_bacia=False) == 75
+    # Tab.D.1: coluna de ventilacao pelo DN do esgoto
+    assert hp.diametro_coluna_ventilacao(100) == 50 and hp.diametro_coluna_ventilacao(40) == 40
+    with pytest.raises(ValueError):
+        hp.diametro_ramal_ventilacao(-1)
+
+
+def test_calha_tab3():
+    # area 100 m2, i=150 -> Q=250 L/min. 0,5%: DN150 (384>=250) ; 1%: DN125 (333>=250)
+    assert hp.diametro_calha(100.0, 150.0, declividade_pct=0.5)["DN_mm"] == 150
+    assert hp.diametro_calha(100.0, 150.0, declividade_pct=1.0)["DN_mm"] == 125
+    # declividade abaixo do minimo de calha (0,5%) -> ValueError
+    with pytest.raises(ValueError):
+        hp.diametro_calha(100.0, 150.0, declividade_pct=0.2)
+
+
 def test_esgoto_declividade_minima_obrigatoria():
     # NBR 8160 Sec.4.2.3.2: DN>=100 exige >= 1% -> 0,5% e' violacao
     assert hp.declividade_minima_pct(75) == 2.0 and hp.declividade_minima_pct(100) == 1.0

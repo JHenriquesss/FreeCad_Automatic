@@ -66,6 +66,10 @@ def rodar(spec):
         pluv = {"D_mm": d_pl, "fonte": "NBR 10844", "Q_Lmin": plc["Q_Lmin"],
                 "i_mm_h": plc["i_mm_h"], "i_default": plc["i_default"],
                 "area_m2": round(area_tel, 1)}
+        # CALHA semicircular (NBR 10844 Tab.3): dimensionada pela area de contribuicao
+        cal = hp.diametro_calha(area_tel, plc["i_mm_h"],
+                                declividade_pct=float(hid.get("decl_calha_pct", 0.5)))
+        pluv["calha_mm"] = cal["DN_mm"]
     pluv["n_condutores"] = n_cond
     pluv["default"] = False        # pluvial e' sempre dimensionado (geometria) ou do spec
 
@@ -106,8 +110,14 @@ def rodar(spec):
         decl_es = float(hid.get("decl_esgoto_pct", 1.0))
         uhc, dn_desc = hp.uhc_de_aparelhos(apar_es)
         d_es = float(hp.diametro_coletor(uhc, decl_es))
+        # VENTILACAO (NBR 8160 Sec.5.2.2): ramal de ventilacao por UHC (Tab.8; com bacia se
+        # ha bacia sanitaria no conjunto) + coluna pelo DN do esgoto (Tab.D.1).
+        com_bacia = "bacia" in apar_es
+        vent = float(hp.diametro_ramal_ventilacao(uhc, com_bacia=com_bacia))
+        vent_col = float(hp.diametro_coluna_ventilacao(d_es))
         esgoto = {"D_mm": d_es, "fonte": "NBR 8160", "default": False,
-                  "uhc": uhc, "dn_ramal_min_mm": dn_desc}
+                  "uhc": uhc, "dn_ramal_min_mm": dn_desc,
+                  "ventilacao_ramal_mm": vent, "ventilacao_coluna_mm": vent_col}
     else:
         esgoto = {"D_mm": D_ESGOTO_DEFAULT_MM, "fonte": "default", "default": True}
 
@@ -117,8 +127,9 @@ def rodar(spec):
     partes = []
     if pluv["fonte"] == "NBR 10844":
         cav = " [A CONFIRMAR i local]" if pluv.get("i_default") else ""
-        partes.append("pluvial DN%.0f calculado NBR 10844 (Q=%.0f L/min; i=%.0f mm/h%s)"
-                      % (pluv["D_mm"], pluv["Q_Lmin"], pluv["i_mm_h"], cav))
+        cal = (" + calha DN%.0f" % pluv["calha_mm"]) if pluv.get("calha_mm") else ""
+        partes.append("pluvial DN%.0f%s calculado NBR 10844 (Q=%.0f L/min; i=%.0f mm/h%s)"
+                      % (pluv["D_mm"], cal, pluv["Q_Lmin"], pluv["i_mm_h"], cav))
     else:
         partes.append("pluvial DN%.0f (spec)" % pluv["D_mm"])
     if agua.get("metodo") == "pesos":
@@ -142,8 +153,10 @@ def rodar(spec):
                       % (vp["p_residual_kPa"], vp["p_min_kPa"],
                          "OK" if vp["OK"] else "INSUF.", cav))
     if esgoto["fonte"] == "NBR 8160":
-        partes.append("esgoto DN%.0f calculado NBR 8160 (UHC=%.1f)"
-                      % (esgoto["D_mm"], esgoto["uhc"]))
+        partes.append("esgoto DN%.0f (ventilacao ramal DN%.0f/coluna DN%.0f) calculado "
+                      "NBR 8160 (UHC=%.1f)"
+                      % (esgoto["D_mm"], esgoto["ventilacao_ramal_mm"],
+                         esgoto["ventilacao_coluna_mm"], esgoto["uhc"]))
     elif esgoto["fonte"] == "spec":
         partes.append("esgoto DN%.0f (spec)" % esgoto["D_mm"])
     else:
@@ -203,6 +216,21 @@ def membros_bim(r):
               "marca": "AGUA-B", "secao": {"forma": "ROUND", "D": Dag},
               "p1": [0.0, W / 4.0, H - 300.0], "p2": [L, W / 4.0, H - 300.0],
               "material": "PVC"})
+    # CALHA pluvial no beiral (z = H), ao longo do comprimento numa agua (y = 0). Cruza
+    # a ponta das tercas/beiral -> clash de coordenacao.
+    if redes["pluvial"].get("calha_mm"):
+        Dcal = redes["pluvial"]["calha_mm"] / 1000.0
+        M.append({"tipo": "Pipe", "perfil": "Calha D%.0f" % (Dcal * 1000),
+                  "marca": "CALHA", "secao": {"forma": "ROUND", "D": Dcal},
+                  "p1": [0.0, 0.0, H], "p2": [L, 0.0, H], "material": "PVC"})
+    # COLUNA DE VENTILACAO: sobe do coletor (z = -300) atravessando o telhado ate 1 m
+    # acima da cumeeira (z = H + 1000) -> cruza terca/telha (clash real).
+    if redes["esgoto"].get("ventilacao_coluna_mm"):
+        Dv = redes["esgoto"]["ventilacao_coluna_mm"] / 1000.0
+        M.append({"tipo": "Pipe", "perfil": "Coluna de ventilacao D%.0f" % (Dv * 1000),
+                  "marca": "VENT-C", "secao": {"forma": "ROUND", "D": Dv},
+                  "p1": [L * 0.5, W / 2.0, -300.0], "p2": [L * 0.5, W / 2.0, H + 1000.0],
+                  "material": "PVC"})
     return M
 
 
@@ -277,7 +305,11 @@ def _selftest():
 
     mb = membros_bim(r)
     tubos = [m for m in mb if m["tipo"] == "Pipe"]
-    assert len(tubos) == r["redes"]["pluvial"]["n_condutores"] + 2   # condutores + esgoto + agua
+    # condutores + esgoto + agua + calha (r sem aparelhos_esgoto -> sem coluna de ventilacao)
+    assert len(tubos) == r["redes"]["pluvial"]["n_condutores"] + 3
+    assert any(m["marca"] == "CALHA" for m in mb)                    # calha no beiral
+    # r2 TEM aparelhos_esgoto -> coluna de ventilacao presente
+    assert any(m["marca"] == "VENT-C" for m in membros_bim(r2))
     pluv = next(m for m in mb if m["marca"] == "PLUV1")
     assert pluv["p1"][2] == 6000.0 and pluv["p2"][2] == 0.0          # desce do beiral ao solo
     assert pluv["secao"]["forma"] == "ROUND"
