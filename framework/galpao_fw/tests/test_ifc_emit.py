@@ -165,7 +165,7 @@ def test_emitir_tapamento_como_cladding(tmp_path):
     membros = MN.tapamentos(
         _GEO, fechamento={"tipo": "alvenaria"},
         aberturas={"portao_frente": [4500.0, 2500.0],
-                   "janelas_laterais": [3000.0, 1000.0]})
+                   "janelas_laterais": [1000.0, 3000.0]})   # FAIXA (z_base, z_topo)
     f = str(tmp_path / "tap.ifc")
     EM.emitir_ifc(membros, f, nome="Amostra")
     m = ifcopenshell.open(f)

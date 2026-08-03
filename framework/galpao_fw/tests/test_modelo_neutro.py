@@ -230,7 +230,7 @@ def test_tapamentos_quatro_paineis():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 8.0, "ridge": 9.0, "bay": 5.0}
     tp = MN.tapamentos(geo, fechamento={"tipo": "alvenaria"},
                        aberturas={"portao_frente": [4500.0, 2500.0],
-                                  "janelas_laterais": [3000.0, 1000.0]})
+                                  "janelas_laterais": [1000.0, 3000.0]})   # FAIXA (z_base, z_topo)
     assert len(tp) == 4                                # 2 laterais + 2 oitoes
     assert all(m["tipo"] == "Cladding" and "poligono" in m for m in tp)
     # laterais = retangulo (4 cantos); oitoes = poligono com cumeeira (>=5 cantos)
