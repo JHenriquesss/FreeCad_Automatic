@@ -71,14 +71,24 @@ def test_mangotinho_tipo1_vira_hosereel():
     assert t.get("HoseReel", 0) >= 1 and "Hydrant" not in t
 
 
-def test_tanque_dimensionado_pela_maior_reserva():
+def test_tanque_elevado_dimensionado_pela_maior_reserva():
     r = _r()
-    tanque = next(m for m in gsi.membros_bim(r) if m["tipo"] == "WaterTank")
+    mb = gsi.membros_bim(r)
+    tanque = next(m for m in mb if m["tipo"] == "WaterTank")
     g = r["gates"]
     V = max(g["hidrantes"]["reserva_m3"], g["sprinklers"]["reserva_m3"])
-    # altura do tanque contem o volume (base 3x3 m -> V/9 m de altura, minimo 1 m)
-    assert abs(tanque["dims"][2] - max(1000.0, V / 9.0 * 1000.0)) < 1e-6
+    lado = gsi.LADO_TANQUE_MM
+    # tanque ELEVADO: base realista (6x6 m), altura contem V, assentado no topo do pedestal
+    ht = max(1500.0, V / ((lado / 1000.0) ** 2) * 1000.0)
+    assert abs(tanque["dims"][0] - lado) < 1e-6 and abs(tanque["dims"][2] - ht) < 1e-6
     assert tanque["centro"][0] < 0                               # fora da planta do galpao
+    assert abs(tanque["centro"][2] - (gsi.H_PEDESTAL_MM + ht / 2.0)) < 1e-6   # elevado
+    # pedestal de apoio sob o tanque (torre): 1 Member marcado RTI-SUP, tanque no topo
+    ped = next(m for m in mb if m["marca"] == "RTI-SUP")
+    assert ped["tipo"] == "Member" and ped["centro"][2] < tanque["centro"][2]
+    # topo do pedestal ~ base do tanque (torre continua)
+    assert abs((ped["centro"][2] + ped["dims"][2] / 2.0)
+               - (tanque["centro"][2] - ht / 2.0)) < 1e-6
 
 
 # ------------------------- emissao IFC (gated no ifcopenshell) ---------------
