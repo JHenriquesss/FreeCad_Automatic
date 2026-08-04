@@ -50,6 +50,12 @@ Arco consolidado das memórias `memory/*.md` (o registro fino de S16→S40 vive 
 - **S40 — Janela dupla-conversão (PR #150):** fechou a T40 — `janelas_laterais` unificada na
   convenção **FAIXA** (canônica); conversão (L,H)→faixa só no wizard via `_janela_band`;
   `aberturas_para_build` virou pass-through (matou a reconversão que #144 abrira). Suíte 100% verde.
+- **S40 — Runner de regressão confiável (PR #152):** `tools/run_tests.py` — a suíte non-build
+  (~1281 testes; ~28 pesados `test_fase*`/`test_crashes_wiki07` a ~20 s cada estouravam o limite
+  de foreground do ambiente ao rodar sequencial). PRIMÁRIO: **pytest-xdist `-n auto`** (a suíte é
+  xdist-safe, verificado S40: 1281 passed) → ~5 min, UM comando. FALLBACK sem xdist: 2 lanes
+  (rápidos primeiro, pesados isolados depois). `requirements-dev.txt` + `tools/README.md`.
+  Substitui o antigo "tocados + m-z na mão".
 
 **Validado ao vivo (S40):** caderno turnkey completo no freecad.exe — 6 disciplinas + coordenação,
 26 páginas, 14 pranchas A1, render 3D, render-and-look confirmando HID/CLI/COORD. **Regressão pós-#150:
@@ -236,11 +242,14 @@ zero pendente.** 8 alegações de erro grave refutadas com o PDF (imagens via Se
 1 bug real acolhido. **21 módulos matemáticos.** **PENDENTE gate humano:** merge PR #1+#4;
 **push da branch** (bloqueado p/ assistente → usuário roda `git push`). [[06-open-threads]].
 
-last-consolidated: 2026-08-03, sessions: 40 (+ SESSÕES 20–40: os 6 verticais [concreto
+last-consolidated: 2026-08-04, sessions: 40 (+ SESSÕES 20–40: os 6 verticais [concreto
 #81–101 / elétrico #102–106 / incêndio #107–110 / hidráulica #136–147] + TURNKEY federado
 #112 + caderno único #116 + revisão total #118 + hardening/saturação #148 + 1ª auditoria NLM
-concreto/aço; arco detalhado no bloco "Estado atual 2026-08-03" acima e em memory/*.md;
-bugs abertos T40/T40b). Fonte do arco S20–40 = auto-memória (sessions/ tem só 2 logs antigos).
+concreto/aço + janela dupla-conversão RESOLVIDA #150 [T40, convenção FAIXA canônica] + wiki T40
+#151 + runner de regressão xdist #152; arco detalhado no bloco "Estado atual 2026-08-03" acima e
+em memory/*.md; T40 FECHADO, T40b saturação = padrão parcial). Fonte do arco S20–40 = auto-memória
+(sessions/ tem só 2 logs antigos). Regressão verde reconfirmada 2026-08-04 via tools/run_tests.py:
+1281 passed (-n auto, 11m14s).
 last-consolidated: 2026-07-22, sessions: 18 (+ SESSÃO 17: gaps normativos Nível A/C [fadiga
 console/atrito vento/pattern loading/empoçamento/torção, D68 PR #45] + wizard soldada/parafusada +
 FABRICAÇÃO 3D/2D [piece marks, lista de corte, tolerâncias, PE14 croquis, D69 PR #46] + diafragma
