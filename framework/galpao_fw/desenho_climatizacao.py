@@ -15,9 +15,15 @@ COR_DUTO = "#0891b2"
 COR_UTA = "#7c3aed"
 
 
+def _esc(txt):
+    """Escapa &<> p/ o texto ser XML-valido (SVG e' XML): um '<'/'&' cru quebra o
+    SVG inteiro em renderers estritos (QtSvg/TechDraw DrawViewSymbol)."""
+    return (str(txt).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
 def _t(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
     return (f'<text x="{x:.1f}" y="{y:.1f}" font-family="Arial" font-size="{size}" '
-            f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{txt}</text>')
+            f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{_esc(txt)}</text>')
 
 
 def _line(x1, y1, x2, y2, w=1.5, color="#111"):
