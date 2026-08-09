@@ -112,11 +112,16 @@ def _pr_quadros(doc, cfg):
                                        "PE-EL-04", "-", "04/04"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
     # x=175 (encostado a esquerda, deixando ~2/3 da folha vazios). escala 1,5 p/ legibilidade.
-    _anot(doc, page, "A03q", ["QUADRO DE CARGAS"], 420, 510, 8)
+    _anot(doc, page, "A03q", ["QUADRO DE CARGAS"], 420, 520, 8)
     _tabela(doc, page, "Q03C", cfg["quadro_cargas_hdr"], cfg["quadro_cargas"],
-            420, 460, tam=6, larguras=[190, 150, 110, 100], escala=1.5)
-    _bloco_texto(doc, page, "N03", cfg["notas"], 420, 300, tam=5, largura=580,
-                 escala=1.5)
+            420, 480, tam=6, larguras=[190, 150, 110, 100], escala=1.4)
+    # QDC - Quadro de Distribuicao de Circuitos (por circuito: secao/disjuntor/eletroduto)
+    if cfg.get("qdc_rows"):
+        _anot(doc, page, "A03qdc", ["QUADRO DE DISTRIBUICAO DE CIRCUITOS (QDC)"], 420, 380, 7)
+        _tabela(doc, page, "Q03QDC", cfg["qdc_hdr"], cfg["qdc_rows"],
+                420, 340, tam=5, larguras=[85, 55, 35, 65, 55, 65, 50, 55, 40], escala=1.2)
+    _bloco_texto(doc, page, "N03", cfg["notas"], 420, 150, tam=5, largura=580,
+                 escala=1.35)
     return [page], []
 
 
@@ -255,8 +260,17 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     geo = r.get("geometria") or {"L": 40.0, "W": 20.0, "H": 6.0}
     V = r["spec"]["tensao_V"]
 
+    import instalacao_eletrica as ie
     unifilar_svg = de.diagrama_unifilar_svg(r)
     planta_eletrica_svg = de.planta_eletrica_svg(r)   # leiaute ilum/tomadas (instalacao_eletrica)
+
+    # QDC - Quadro de Distribuicao de Circuitos (dimensionamento por circuito)
+    inst = ie.projeto_instalacao(r)
+    qdc_hdr = ["CIRCUITO", "TIPO", "PTS", "POT (VA)", "IB (A)", "SECAO", "DISJ", "ELETRO.", "dV%"]
+    qdc_rows = [[d["circuito"], d["tipo"][:4].upper(), "%d" % d["n_pontos"],
+                 "%.0f" % d["potencia_VA"], "%.1f" % d["IB_A"], "%s mm2" % d["secao_mm2"],
+                 "%s A" % d["disjuntor_A"], "o%s" % d["eletroduto_mm"],
+                 "%.1f" % (d["queda_pct"] or 0.0)] for d in inst.get("qdc", [])]
 
     quadro_cargas_hdr = ["CIRCUITO", "DEMANDA", "CONDUTOR", "PROTECAO"]
     quadro_cargas = [["Alimentador geral (QGF)", "%.0f kVA" % g["cargas"]["D_kVA"],
@@ -315,6 +329,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "geo": {"L": geo["L"] * 1000.0, "W": geo["W"] * 1000.0, "H": geo["H"] * 1000.0},
         "unifilar_svg": unifilar_svg,
         "planta_eletrica_svg": planta_eletrica_svg,
+        "qdc_hdr": qdc_hdr, "qdc_rows": qdc_rows,
         "quadro_cargas_hdr": quadro_cargas_hdr, "quadro_cargas": quadro_cargas,
         "carimbo_material": carimbo_mat,
         "notas": notas,

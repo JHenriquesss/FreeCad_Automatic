@@ -31,12 +31,17 @@ def _r(**kw):
 
 # ------------------------------ camada PURA ----------------------------------
 def test_caixas_box_e_cilindro():
-    cx = be.caixas(ge.membros_bim(_r()))
+    mb = ge.membros_bim(_r())
+    n_lum = sum(1 for m in mb if m["tipo"] == "Luminaire")
+    n_tug = sum(1 for m in mb if m["tipo"] == "Outlet")
+    cx = be.caixas(mb)
     box = [c for c in cx if c["solido"] == "box"]
     cyl = [c for c in cx if c["solido"] == "cyl"]
-    assert len(box) == 3            # QGF + trafo + eletrocalha
+    # QGF + trafo + eletrocalha (3) + luminarias + tomadas (instalacao, tambem boxes)
+    assert len(box) == 3 + n_lum + n_tug
     assert len(cyl) == 20           # 8 aterramento + 12 SPDA
-    assert len(cx) == 23
+    assert len(cx) == 23 + n_lum + n_tug
+    assert n_lum >= 1 and n_tug >= 1
 
 
 def test_haste_vertical_cilindro():

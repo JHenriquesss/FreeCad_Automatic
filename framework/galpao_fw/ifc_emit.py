@@ -87,6 +87,8 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Earthing": ("IfcCableSegment", "CONDUCTORSEGMENT"),
               "Board": ("IfcElectricDistributionBoard", "DISTRIBUTIONBOARD"),
               "Transformer": ("IfcTransformer", "VOLTAGE"),
+              "Luminaire": ("IfcLightFixture", "POINTSOURCE"),
+              "Outlet": ("IfcOutlet", "POWEROUTLET"),
               # --- seguranca contra incendio (vertical de seg. incendio) --------
               "Sprinkler": ("IfcFireSuppressionTerminal", "SPRINKLER"),
               "Hydrant": ("IfcFireSuppressionTerminal", "FIREHYDRANT"),

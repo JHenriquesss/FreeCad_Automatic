@@ -516,13 +516,18 @@ _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap 
 # (chuveiro/detector/luminaria/hidrante) sobre a estrutura sao coordenacao REAL.
 _TIPOS_ESTRUTURA = {"Column", "Beam", "Member", "Footing", "Pile", "Plate"}
 _TIPOS_ATERR_SPDA = {"Cable", "Earthing"}
+# instalacao FIXADA a estrutura (luminaria no teto, tomada na parede): o contato com a
+# estrutura e' montagem intencional, nao interferencia a revisar (como o aterramento/SPDA).
+_TIPOS_INSTALACAO_FIXA = {"Luminaire", "Outlet"}
 
 
 def _clash_esperado(ta, tb):
-    """True se o par de tipos e' montagem INTENCIONAL: aterramento/SPDA fixado a
-    estrutura (NBR 5419). Caso contrario e' candidato a REVISAR."""
+    """True se o par de tipos e' montagem INTENCIONAL: aterramento/SPDA (NBR 5419) OU
+    instalacao fixada (luminaria/tomada) em contato com a estrutura. Caso contrario e'
+    candidato a REVISAR."""
     s = {ta, tb}
-    return bool(s & _TIPOS_ATERR_SPDA) and bool(s & _TIPOS_ESTRUTURA)
+    montado = _TIPOS_ATERR_SPDA | _TIPOS_INSTALACAO_FIXA
+    return bool(s & montado) and bool(s & _TIPOS_ESTRUTURA)
 
 
 def _disc_de_membro(mb):

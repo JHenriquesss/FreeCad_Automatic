@@ -47,7 +47,11 @@ def grade_iluminacao(L, W, N, P_ponto_va=100.0):
     pts = []
     k = 0
     for j in range(linhas):
-        for i in range(colunas):
+        # ordem SERPENTINA (boustrofedon): inverte as colunas em linhas alternadas p/ que
+        # pontos consecutivos fiquem ADJACENTES -> o roteamento do circuito vira uma "cobra"
+        # sem diagonais longas atravessando a planta (leiaute mais limpo).
+        faixa = range(colunas) if j % 2 == 0 else range(colunas - 1, -1, -1)
+        for i in faixa:
             if k >= N:
                 break
             pts.append({"id": "L%d" % (k + 1), "x": round(sx * (i + 0.5), 2),
@@ -116,6 +120,72 @@ def circuitos(luzes, tomadas, v=V_CIRCUITO_V):
             "tomada": _agrupa(tomadas, "C-TUG-", MAX_PONTOS_TUG, v)}
 
 
+# --- ELETRODUTO (NBR 5410 6.2.11.1.6-a: taxa de ocupacao 53/31/40% p/ 1/2/3+ cond.) ----
+# Selecao SIMPLIFICADA do DN por faixa de secao, p/ circuito tipico de 3-4 condutores a
+# 40% (F+N+PE ou 3F+N+PE). Bitola minima de eletroduto = 16 mm. Os diametros externos dos
+# cabos (base do calculo exato de ocupacao) vem da NBR NM 280 / catalogo; aqui a faixa
+# tabela o resultado usual do criterio de 40%.
+TAXA_OCUPACAO_3MAIS = 0.40      # NBR 5410 6.2.11.1.6-a (3 ou mais condutores)
+_ELETRODUTO_POR_SECAO = [(2.5, 20), (6.0, 25), (16.0, 32), (35.0, 40), (1e9, 50)]
+DN_ELETRODUTO_MIN_MM = 16
+
+
+def eletroduto_dn(secao_mm2):
+    """DN nominal do eletroduto (mm) para o circuito, pela faixa de secao (criterio de
+    ocupacao 40%, NBR 5410 6.2.11.1.6-a; 3-4 condutores)."""
+    for lim, dn in _ELETRODUTO_POR_SECAO:
+        if secao_mm2 <= lim:
+            return max(dn, DN_ELETRODUTO_MIN_MM)
+    return 50
+
+
+def _comprimento_circuito(pids, pos, quadro):
+    """Comprimento estimado do circuito (m): trajeto ligando os pontos na ordem +
+    trecho do 1o ponto ao quadro (QGF). Usado no criterio de QUEDA DE TENSAO."""
+    if not pids:
+        return 0.0
+    pts = [pos[p] for p in pids if p in pos]
+    if not pts:
+        return 0.0
+    d = math.hypot(pts[0]["x"] - quadro["x"], pts[0]["y"] - quadro["y"])
+    for a, b in zip(pts, pts[1:]):
+        d += math.hypot(a["x"] - b["x"], a["y"] - b["y"])
+    return d
+
+
+def dimensiona_circuito(circ, pos, quadro, tipo, v=V_CIRCUITO_V):
+    """Dimensiona 1 circuito terminal (condutor + disjuntor + eletroduto), reusando
+    condutores_nbr5410 e protecao_nbr5410. circ vem de _agrupa (nome, pontos, va, IB_A).
+    tipo: 'iluminacao'|'tomada' (governa o eletroduto e o rotulo). Retorna a linha do QDC."""
+    import condutores_nbr5410 as cd
+    import protecao_nbr5410 as pr
+    L_m = _comprimento_circuito(circ["pontos"], pos, quadro)
+    ib = circ["va"] / v
+    cond = cd.dimensiona_condutor({
+        "IB": ib, "V": v, "L_km": L_m / 1000.0, "sistema": "monofasico", "n_cond": 2,
+        "isolacao": "PVC", "metodo": "B1", "fp": 1.0, "uso": tipo})
+    secao = cond.get("secao_mm2")
+    prot = pr.dimensiona_protecao({"IB": ib, "IZ": cond.get("Iz") or 0.0, "uso": tipo})
+    dn = prot["disjuntor"].get("IN")
+    return {
+        "circuito": circ["nome"], "tipo": tipo, "n_pontos": circ["n_pontos"],
+        "potencia_VA": circ["va"], "IB_A": round(ib, 2), "comprimento_m": round(L_m, 1),
+        "secao_mm2": secao, "disjuntor_A": dn, "eletroduto_mm": eletroduto_dn(secao or 2.5),
+        "queda_pct": cond.get("dv_pct"), "OK": bool(cond.get("OK") and prot.get("OK"))}
+
+
+def quadro_de_circuitos(circs, pos, quadro, v=V_CIRCUITO_V):
+    """QDC - Quadro de Distribuicao de Circuitos: dimensiona TODOS os circuitos (ilum e
+    tomada) e retorna a lista de linhas [{circuito,tipo,n_pontos,potencia_VA,IB_A,
+    secao_mm2,disjuntor_A,eletroduto_mm,queda_pct,OK}]."""
+    linhas = []
+    for c in circs["iluminacao"]:
+        linhas.append(dimensiona_circuito(c, pos, quadro, "iluminacao", v))
+    for c in circs["tomada"]:
+        linhas.append(dimensiona_circuito(c, pos, quadro, "tomada", v))
+    return linhas
+
+
 def projeto_instalacao(r, espac_tug_m=ESPAC_TUG_PERIM_M, pot_tug_va=POT_TUG_VA):
     """Leiaute completo a partir do resultado de galpao_eletrico.rodar(r): posiciona
     luminarias (grade da luminotecnica), tomadas (perimetro), interruptores e o QGF,
@@ -134,9 +204,18 @@ def projeto_instalacao(r, espac_tug_m=ESPAC_TUG_PERIM_M, pot_tug_va=POT_TUG_VA):
     ints = interruptores(L, W)
     circs = circuitos(luzes, tomadas)
     quadro = {"id": "QGF", "x": round(0.02 * L, 2), "y": round(0.02 * W, 2)}
+    pos = {p["id"]: p for p in luzes + tomadas}
+    qdc = quadro_de_circuitos(circs, pos, quadro)      # dimensiona cada circuito (QDC)
+    # anexa o dimensionamento a cada circuito (p/ rotular na planta)
+    dim_por_nome = {d["circuito"]: d for d in qdc}
+    for grupo in (circs["iluminacao"] + circs["tomada"]):
+        d = dim_por_nome.get(grupo["nome"], {})
+        grupo["secao_mm2"] = d.get("secao_mm2")
+        grupo["disjuntor_A"] = d.get("disjuntor_A")
+        grupo["eletroduto_mm"] = d.get("eletroduto_mm")
     return {
         "luzes": luzes, "tomadas": tomadas, "interruptores": ints, "quadro": quadro,
-        "circuitos": circs,
+        "circuitos": circs, "qdc": qdc,
         "quantitativos": {
             "n_pontos_luz": len(luzes), "n_tomadas": len(tomadas),
             "n_interruptores": len(ints),
