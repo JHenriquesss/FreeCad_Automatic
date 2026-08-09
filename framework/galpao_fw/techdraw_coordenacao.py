@@ -60,6 +60,11 @@ def _pr_clash(doc, cfg):
     page = _nova_prancha(doc, "COORD02_CLASH",
                          _carimbo_coord(cfg, "QUADRO DE CLASH E NOTAS",
                                         "PE-COORD-02", "-", "02/02"))
+    # NAO centralizar/ampliar aqui: o quadro de clash tem N de linhas VARIAVEL e potencialmente
+    # grande (dezenas de interferencias) -> ampliar a escala estoura o topo da folha e o titulo
+    # colide com as linhas (visto no render-and-look S41). Mantido o layout original (x=175,
+    # escala 1.3), que acomoda a tabela alta. As demais pranchas (poucas linhas fixas) foram
+    # centralizadas; esta e' o caso especial.
     _anot(doc, page, "A02c", ["QUADRO DE INTERFERENCIAS (CLASH) - COORDENACAO"],
           175, 520, 6)
     _tabela(doc, page, "Q02C", cfg["clash_hdr"], cfg["clash_rows"],
