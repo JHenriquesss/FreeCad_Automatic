@@ -65,11 +65,12 @@ def _pr_resumo(doc, cfg):
                                       "PE-INC-02", "-", "02/02"))
     # titulo BEM acima da tabela (a colisao titulo x cabecalho apareceu no
     # render-and-look da 1a versao: titulo tam=7 a 30 mm da tabela invadia as linhas).
-    _anot(doc, page, "A02r", ["QUADRO-RESUMO DOS SISTEMAS DE SEGURANCA"], 175, 520, 6)
+    # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (em vez de x=175 a esquerda)
+    _anot(doc, page, "A02r", ["QUADRO-RESUMO DOS SISTEMAS DE SEGURANCA"], 420, 520, 6)
     _tabela(doc, page, "Q02R", cfg["resumo_hdr"], cfg["resumo"],
-            175, 455, tam=6, larguras=[260, 140, 180], escala=1.3)
-    _bloco_texto(doc, page, "N02", cfg["notas"], 175, 300, tam=5, largura=580,
-                 escala=1.3)
+            420, 455, tam=6, larguras=[260, 140, 180], escala=1.5)
+    _bloco_texto(doc, page, "N02", cfg["notas"], 420, 300, tam=5, largura=580,
+                 escala=1.5)
     return [page]
 
 

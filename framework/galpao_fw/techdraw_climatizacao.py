@@ -41,10 +41,11 @@ def _pr_quadro(doc, cfg):
     page = _nova_prancha(doc, "CLI02_QUADRO",
                          _carimbo_cli(cfg, "QUADRO DE CAPACIDADE E MEMORIAL",
                                       "PE-CLI-02", "-", "02/02"))
-    _anot(doc, page, "A02c", ["QUADRO DE CAPACIDADE - CLIMATIZACAO (HVAC)"], 175, 520, 6)
+    # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (em vez de x=175 a esquerda)
+    _anot(doc, page, "A02c", ["QUADRO DE CAPACIDADE - CLIMATIZACAO (HVAC)"], 420, 520, 6)
     _tabela(doc, page, "Q02C", cfg["dim_hdr"], cfg["dim_rows"],
-            175, 455, tam=6, larguras=[210, 160, 210], escala=1.3)
-    _bloco_texto(doc, page, "N02c", cfg["notas"], 175, 300, tam=5, largura=580, escala=1.3)
+            420, 455, tam=6, larguras=[210, 160, 210], escala=1.5)
+    _bloco_texto(doc, page, "N02c", cfg["notas"], 420, 300, tam=5, largura=580, escala=1.5)
     return [page]
 
 

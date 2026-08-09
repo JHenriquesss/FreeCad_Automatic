@@ -132,21 +132,23 @@ def _pr_quadros(doc, cfg):
     page = _nova_prancha(doc, "PE03_QUADROS",
                          _carimbo_conc(cfg, "QUADROS E ESPECIFICACOES", "PE-03",
                                        "-", "03/03"))
+    # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
+    # x=175 (encostado a esquerda, deixando ~metade da folha vazia).
     # QUADRO DE PILARES
-    _anot(doc, page, "A03p", ["QUADRO DE PILARES"], 175, 500, 7)
+    _anot(doc, page, "A03p", ["QUADRO DE PILARES"], 420, 500, 7)
     _tabela(doc, page, "Q03P", ["MARCA", "SECAO (cm)", "As (cm2)", "TAXA (%)"],
-            cfg["quadro_pilares"], 175, 470, tam=6, larguras=[90, 110, 90, 90],
+            cfg["quadro_pilares"], 420, 470, tam=6, larguras=[90, 110, 90, 90],
             escala=1.4)
     # QUADRO DE VIGAS
-    _anot(doc, page, "A03v", ["QUADRO DE VIGAS DE COBERTURA"], 175, 380, 7)
+    _anot(doc, page, "A03v", ["QUADRO DE VIGAS DE COBERTURA"], 420, 380, 7)
     _tabela(doc, page, "Q03V", cfg["quadro_vigas_hdr"], cfg["quadro_vigas"],
-            175, 350, tam=6, larguras=[90, 110, 160], escala=1.4)
+            420, 350, tam=6, larguras=[90, 110, 160], escala=1.4)
     # QUADRO DE FUNDACAO
-    _anot(doc, page, "A03f", [cfg["quadro_fund_titulo"]], 175, 270, 7)
+    _anot(doc, page, "A03f", [cfg["quadro_fund_titulo"]], 420, 270, 7)
     _tabela(doc, page, "Q03F", cfg["quadro_fund_hdr"], cfg["quadro_fund"],
-            175, 240, tam=6, larguras=[90, 90, 90, 90], escala=1.4)
-    # NOTAS + QUANTITATIVO (bloco de texto a esquerda)
-    _bloco_texto(doc, page, "N03", cfg["notas"], 175, 130, tam=5, largura=560,
+            420, 240, tam=6, larguras=[90, 90, 90, 90], escala=1.4)
+    # NOTAS + QUANTITATIVO (bloco de texto centralizado)
+    _bloco_texto(doc, page, "N03", cfg["notas"], 420, 130, tam=5, largura=560,
                  escala=1.3)
     return [page], []
 
