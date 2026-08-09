@@ -166,7 +166,20 @@ def rodar(spec):
     # tipo_fundacao: 'sapata' (default, solo competente raso) ou 'estaca' (fundacao
     # profunda; exige perfil SPT da sondagem - A CONFIRMAR).
     N_base = Nk_gq + peso_pilar
-    tipo_fund = spec.get("tipo_fundacao", "sapata")
+    # GEOTECNIA (opcional): quando o spec traz 'perfil_spt' (sondagem), o tipo de
+    # fundacao e a tensao admissivel do solo passam a ser DERIVADOS da sondagem
+    # (antes: sigma_solo_adm era dado manual e o tipo escolhido a mao). O explicito
+    # do spec sempre vence a recomendacao.
+    geo = None
+    if spec.get("perfil_spt"):
+        import geotecnia_spt as gspt
+        geo = gspt.recomenda_fundacao(spec["perfil_spt"], N_base,
+                                      cota_apoio_m=spec.get("cota_apoio", 0.5),
+                                      B_max_m=spec.get("B_max_sapata", 2.5))
+    tipo_fund = spec.get("tipo_fundacao")
+    if tipo_fund is None:
+        tipo_fund = (geo["tipo"] if geo and geo["tipo"] in ("sapata", "estaca")
+                     else "sapata")
     sap = None; estaca = None
     if tipo_fund == "estaca":
         if not spec.get("perfil_spt"):
@@ -184,8 +197,14 @@ def rodar(spec):
         fund_geom = (f"{estaca['grupo']['n']} estacas D{D_e*100:.0f} L{L_e:.0f} "
                      f"(util {estaca['grupo']['util']:.2f})")
     else:
+        # sigma_solo: explicito do spec > derivado do SPT (N/50) > default 200
+        sigma_solo = spec.get("sigma_solo_adm")
+        if sigma_solo is None and geo and geo.get("sapata"):
+            sigma_solo = geo["sapata"]["sigma_adm_kNm2"]
+        if sigma_solo is None:
+            sigma_solo = 200.0
         caso_sap = {"nome": "Pilar galpao concreto", "N": N_base, "V": V_w_k, "M": M_w_k,
-                    "sigma_solo_adm": spec.get("sigma_solo_adm", 200.0),
+                    "sigma_solo_adm": sigma_solo,
                     "mu": spec.get("mu_solo", 0.5), "coesao": 0.0, "h_reaterro": 0.5,
                     "d_ped": pilar["hx"], "b_ped": pilar["hy"], "h_ped": 0.6,
                     "fck": min(fck, 25e3), "fyk": fyk, "cobrimento": 0.04}
@@ -266,7 +285,7 @@ def rodar(spec):
                     "s": round(s, 2), "fck_MPa": fck / 1000.0},
            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
-           "calice": calice, "icamento": icamento, "piso": piso,
+           "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
            "fogo": gates["fogo"], "estab_global": estab, "gates": gates}
     # varredura de interpenetracao no modelo 3D (pega sapatas sobrepostas p/ s < L)
     interf = checa_interferencia(res)
@@ -499,7 +518,8 @@ def relatorio_pt(r):
          f"  PILAR (balanco): secao {g['pilar']['secao']} cm ; Nd {g['pilar']['Nd']:.0f} kN ; "
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
-         f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
+         f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}"
+         + (f"\n  GEOTECNIA (SPT): {r['geotecnia']['justificativa']}" if r.get("geotecnia") else ""),
          f"  ESTABILIDADE GLOBAL (NBR 6118 15.5): alpha {g['estab_global']['alpha']:.3f} "
          f"{'<=' if g['estab_global']['nos']=='fixos' else '>'} {g['estab_global']['alpha1']:.2f} "
          f"-> nos {g['estab_global']['nos']}",
