@@ -45,6 +45,11 @@ import math
 # Valvula de descarga 1,70 / Banheira Misturador 0,90 / Bide 0,40 / Chuveiro ou
 # ducha 0,20 / Lavatorio 0,15 / Maquina de lavar roupas ou pratos 0,30 / Mictorio
 # com sifao integrado 0,50 / Mictorio sem sifao 0,15 / Pia 0,25 / Tanque 0,25".
+# AUDITADO S41 (AR300, contra os PDFs no NLM): os valores estaveis conferem. NOTA de
+# PROVENIENCIA sobre bacia_caixa=0,96: vem desta Tab.B.4 (8160, adaptada); a NBR
+# 5626:1998 Tabela 1 da 0,15 L/s p/ caixa de descarga (abastecimento). Adotado o 0,96
+# por ser MAIS CONSERVADOR (tubo maior) - decisao de projeto CONFIRMADA pelo usuario
+# (S41); nao rebaixar sem novo criterio. (mictorio com/sem sifao troca entre edicoes.)
 VAZAO_PROJETO_LS = {
     "bacia_caixa": 0.96, "bacia_valvula": 1.70, "banheira": 0.90, "bide": 0.40,
     "chuveiro": 0.20, "lavatorio": 0.15, "maquina_lavar": 0.30,
