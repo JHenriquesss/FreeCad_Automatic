@@ -58,6 +58,22 @@ def test_quadro_cargas_svg():
     assert "QUADRO DE CARGAS" in qc and "Alimentador geral" in qc
 
 
+def test_svgs_sao_xml_bem_formado():
+    """REGRESSAO: SVG e' XML - tem de fazer PARSE, nao so conter substrings.
+    O bug era 'R <= 10 ohm' (aterramento A CONFIRMAR) com '<' cru -> unifilar
+    inteiro malformado, recusado pelo QtSvg/DrawViewSymbol da prancha A1. O
+    _spec() padrao tem aterramento com R calculado (emite 'R = ...'), desviando
+    do caminho quebrado; aqui forcamos o caminho 'A CONFIRMAR' (sem aterramento)."""
+    from xml.dom.minidom import parseString
+    sp = _spec()
+    sp.pop("aterramento", None)          # -> 'R <= 10 ohm (A CONFIRMAR)'
+    r = ge.rodar(sp)
+    uni = de.diagrama_unifilar_svg(r)
+    assert "&lt;" in uni                 # o '<' do texto foi escapado
+    parseString(uni.encode("utf-8"))     # levanta se malformado
+    parseString(de.quadro_cargas_svg(r).encode("utf-8"))
+
+
 # ------------------------------ techdraw (config puro) -----------------------
 def test_config_de_spec_eletrico():
     cfg = tde.config_de_spec(_r(), "x.FCStd", "/out", _spec())

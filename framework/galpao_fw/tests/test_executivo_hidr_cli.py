@@ -42,6 +42,12 @@ def test_svg_hidraulica_sem_virgula_nas_coordenadas():
         assert "," not in attr, attr
 
 
+def test_svg_hidraulica_e_xml_bem_formado():
+    # REGRESSAO (irmao do bug do unifilar): SVG e' XML -> parse, nao so substring.
+    from xml.dom.minidom import parseString
+    parseString(dh.esquema_hidraulica_svg(_r_hid()).encode("utf-8"))
+
+
 def test_config_hidraulica_monta_cfg():
     cfg = tdh.config_de_spec(_r_hid(), "/tmp/x")
     assert cfg["esquema_svg"].startswith("<svg")
