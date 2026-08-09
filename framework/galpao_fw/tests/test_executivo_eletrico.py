@@ -91,6 +91,11 @@ def test_carimbo_nao_vaza_aco():
     assert "MR250" not in car["part_material"] and "ACO" not in car["part_material"]
     assert "BT 380" in car["part_material"]
     assert car["general_tolerances"] == "NBR 5410/5419"
+    # tipo/depto NAO podem vazar o default ESTRUTURAL do carimbo generico (era o bug
+    # visto no rodape da prancha A1: 'PROJETO EXECUTIVO ESTRUTURAL' / 'ESTRUTURAS')
+    assert "ESTRUTURA" not in car["document_type"] and "ELETRICO" in car["document_type"]
+    assert "ESTRUTURA" not in car["responsible_department"]
+    assert car["responsible_department"] == "ELETRICA"
 
 
 def test_bootstrap_injeta_entry_e_fonte():
