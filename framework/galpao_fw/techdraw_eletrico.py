@@ -90,11 +90,13 @@ def _pr_quadros(doc, cfg):
     page = _nova_prancha(doc, "PE03_QUADROS",
                          _carimbo_elet(cfg, "QUADRO DE CARGAS E ESPECIFICACOES",
                                        "PE-EL-03", "-", "03/03"))
-    _anot(doc, page, "A03q", ["QUADRO DE CARGAS"], 175, 500, 7)
+    # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
+    # x=175 (encostado a esquerda, deixando ~2/3 da folha vazios). escala 1,5 p/ legibilidade.
+    _anot(doc, page, "A03q", ["QUADRO DE CARGAS"], 420, 510, 8)
     _tabela(doc, page, "Q03C", cfg["quadro_cargas_hdr"], cfg["quadro_cargas"],
-            175, 470, tam=6, larguras=[190, 150, 110, 100], escala=1.3)
-    _bloco_texto(doc, page, "N03", cfg["notas"], 175, 300, tam=5, largura=580,
-                 escala=1.3)
+            420, 460, tam=6, larguras=[190, 150, 110, 100], escala=1.5)
+    _bloco_texto(doc, page, "N03", cfg["notas"], 420, 300, tam=5, largura=580,
+                 escala=1.5)
     return [page], []
 
 
