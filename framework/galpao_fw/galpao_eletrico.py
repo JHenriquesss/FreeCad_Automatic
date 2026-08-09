@@ -455,6 +455,24 @@ def membros_bim(r):
             membros.append({"tipo": "Cable", "perfil": "Descida 16mm2", "marca": "DESC%d" % i,
                             "secao": {"forma": "ROUND", "D": 0.016},
                             "p1": [x, y, H], "p2": [x, y, zg], "material": CU})
+
+    # --- INSTALACAO: luminarias (no teto) e tomadas (na parede, ~1,30 m) como objetos
+    # BIM (IfcLightFixture / IfcOutlet). Posicoes de instalacao_eletrica (m -> mm). ---
+    try:
+        import instalacao_eletrica as ie
+        inst = r.get("instalacao") or ie.projeto_instalacao(r)
+        for p in inst.get("luzes", []):
+            membros.append({"tipo": "Luminaire", "perfil": "Luminaria", "marca": p["id"],
+                            "dims": [300.0, 300.0, 200.0],
+                            "centro": [p["x"] * 1000.0, p["y"] * 1000.0, H - 200.0],
+                            "material": "Aluminio"})
+        for p in inst.get("tomadas", []):
+            membros.append({"tipo": "Outlet", "perfil": "TUG", "marca": p["id"],
+                            "dims": [100.0, 60.0, 100.0],
+                            "centro": [p["x"] * 1000.0, p["y"] * 1000.0, 1300.0],
+                            "material": "Termoplastico"})
+    except Exception:
+        pass
     return membros
 
 

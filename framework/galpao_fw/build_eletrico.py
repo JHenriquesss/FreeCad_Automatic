@@ -30,7 +30,8 @@ DOC_NAME = "galpao_eletrico"
 # nome do membro neutro -> tipo IFC (mapa LOCAL; casa com ifc_emit._IFC_CLASS)
 _IFC_TIPO = {"Board": "IfcElectricDistributionBoard", "Transformer": "IfcTransformer",
              "CableCarrier": "IfcCableCarrierSegment", "Cable": "IfcCableSegment",
-             "Earthing": "IfcCableSegment"}
+             "Earthing": "IfcCableSegment",
+             "Luminaire": "IfcLightFixture", "Outlet": "IfcOutlet"}
 
 
 def reset():

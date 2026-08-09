@@ -37,7 +37,9 @@ def test_membros_bim_contagem():
     assert tipos["CableCarrier"] == 1
     assert tipos["Earthing"] == 8              # 4 anel + 4 hastes
     assert tipos["Cable"] == 12                # 4 captor + 8 descidas (NP III)
-    assert len(mb) == 23
+    # INSTALACAO: luminarias (IfcLightFixture) e tomadas (IfcOutlet) posicionadas
+    assert tipos.get("Luminaire", 0) >= 1 and tipos.get("Outlet", 0) >= 1
+    assert len(mb) == 23 + tipos["Luminaire"] + tipos["Outlet"]  # 23 estruturais + instalacao
 
 
 def test_membros_bim_sem_geometria_vazio():

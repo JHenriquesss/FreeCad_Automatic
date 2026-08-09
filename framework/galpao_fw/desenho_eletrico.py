@@ -240,8 +240,8 @@ def planta_eletrica_svg(r):
     inst = r.get("instalacao") or ie.projeto_instalacao(r)
     geo = r.get("geometria") or {}
     L = float(geo.get("L", 40.0)); W = float(geo.get("W", 20.0))
-    Wc, Hh = 1180, 760
-    ax0, ay0, aw, ah = 70, 120, 720, 540
+    Wc, Hh = 1180, 830
+    ax0, ay0, aw, ah = 70, 110, 720, 470
     sc = min(aw / L, ah / W) if L > 0 and W > 0 else 1.0
 
     def px(xm):
@@ -328,6 +328,26 @@ def planta_eletrica_svg(r):
         s.append(_t(rx + (110 if i == 0 else 0), ry + i * 17, ln,
                     13 if i == 0 else 11, anchor="middle" if i == 0 else "start",
                     weight="bold" if i == 0 else "normal"))
+
+    # FAIXA DE CIRCUITOS (bitola + eletroduto por circuito) - QDC resumido, ao pe da planta
+    qdc = inst.get("qdc") or []
+    ty = py(0) + 72
+    s.append(_t(px(0), ty - 16, "CIRCUITOS - BITOLA E ELETRODUTO (QDC)", 12,
+                anchor="start", weight="bold"))
+    colx = [px(0), px(0) + 150, px(0) + 250, px(0) + 350, px(0) + 470]
+    for cx, h in zip(colx, ["CIRCUITO", "PONTOS", "SECAO", "DISJUNTOR", "ELETRODUTO"]):
+        s.append(_t(cx, ty, h, 10, anchor="start", weight="bold", color="#555"))
+    todos_circ = inst["circuitos"]["iluminacao"] + inst["circuitos"]["tomada"]
+    for i, d in enumerate(qdc):
+        yy = ty + 18 + i * 15
+        # cor do circuito (mesma da planta): 1o ponto do circuito correspondente
+        cor = "#111"
+        if i < len(todos_circ) and todos_circ[i]["pontos"]:
+            cor = cor_de.get(todos_circ[i]["pontos"][0], "#111")
+        vals = [d["circuito"], "%d" % d["n_pontos"], "%s mm2" % d["secao_mm2"],
+                "%s A" % d["disjuntor_A"], "ø%s mm" % d["eletroduto_mm"]]
+        for j, (cx, v) in enumerate(zip(colx, vals)):
+            s.append(_t(cx, yy, v, 10, anchor="start", color=cor if j == 0 else "#111"))
     s.append('</svg>')
     return "\n".join(s)
 

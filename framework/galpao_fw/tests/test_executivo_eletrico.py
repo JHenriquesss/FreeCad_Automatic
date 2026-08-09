@@ -105,6 +105,9 @@ def test_config_de_spec_eletrico():
     assert cfg["geo"]["L"] == 40000.0 and cfg["geo"]["W"] == 20000.0
     assert cfg["unifilar_svg"].startswith("<svg")
     assert cfg["planta_eletrica_svg"].startswith("<svg")   # planta de instalacao (ilum/tomadas)
+    # QDC: dimensionamento por circuito (secao/disjuntor/eletroduto)
+    assert cfg["qdc_rows"] and len(cfg["qdc_rows"][0]) == len(cfg["qdc_hdr"])
+    assert any("mm2" in c for c in cfg["qdc_rows"][0])      # tem a secao
     assert cfg["quadro_cargas"][0][0] == "Alimentador geral (QGF)"
     assert any("NBR 5410" in n for n in cfg["notas"])
     assert any("SPDA" in n for n in cfg["notas"])
