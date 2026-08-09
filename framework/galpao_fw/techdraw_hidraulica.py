@@ -47,10 +47,12 @@ def _pr_quadro(doc, cfg):
     page = _nova_prancha(doc, "HID02_QUADRO",
                          _carimbo_hid(cfg, "QUADRO DE DIMENSIONAMENTO E MEMORIAL",
                                       "PE-HID-02", "-", "02/02"))
-    _anot(doc, page, "A02h", ["QUADRO DE DIMENSIONAMENTO - HIDRAULICA PREDIAL"], 175, 520, 6)
+    # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de x=175
+    # (encostado a esquerda, ~2/3 da folha vazios). escala 1,5 p/ legibilidade.
+    _anot(doc, page, "A02h", ["QUADRO DE DIMENSIONAMENTO - HIDRAULICA PREDIAL"], 420, 520, 7)
     _tabela(doc, page, "Q02H", cfg["dim_hdr"], cfg["dim_rows"],
-            175, 455, tam=6, larguras=[210, 150, 220], escala=1.3)
-    _bloco_texto(doc, page, "N02h", cfg["notas"], 175, 290, tam=5, largura=580, escala=1.3)
+            420, 450, tam=6, larguras=[210, 150, 220], escala=1.5)
+    _bloco_texto(doc, page, "N02h", cfg["notas"], 420, 290, tam=5, largura=580, escala=1.5)
     return [page]
 
 
