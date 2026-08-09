@@ -216,6 +216,24 @@ def rodar(spec):
         fogo_ok = True
         fogo_nota = "sem TRRF: galpao terreo pode ser ISENTO (NBR 14432) - A CONFIRMAR"
 
+    # -------------------------------------------- PISO INDUSTRIAL (opcional)
+    # Placa de concreto sobre solo de Winkler (Westergaard + tracao na flexao
+    # NBR 6118 8.2.5). So dimensiona quando o spec traz 'piso' com as cargas de
+    # operacao (roda de empilhadeira, pe de porta-palete); sem isso fica FORA dos
+    # gates - a espessura nunca e' inventada. Cobre a area do galpao por default.
+    piso = None
+    piso_cfg = spec.get("piso")
+    if piso_cfg:
+        import piso_industrial as pisom
+        caso_piso = dict(piso_cfg)
+        caso_piso.setdefault("L", comp)
+        caso_piso.setdefault("W", vao)
+        caso_piso.setdefault("fck_MPa", fck / 1000.0)
+        if ("k_MN_m3" not in caso_piso and "cbr_pct" not in caso_piso
+                and spec.get("cbr_pct")):
+            caso_piso["cbr_pct"] = spec["cbr_pct"]
+        piso = pisom.verifica_piso(caso_piso)
+
     # --------------------------------------------------------------- GATES
     gates = {
         "vento": {"q_kN_m2": q, "w_h": round(w_h, 2), "M_base_k": round(M_w_k, 1),
@@ -239,11 +257,16 @@ def rodar(spec):
         "estab_global": {"alpha": estab["alpha"], "alpha1": estab["alpha1"],
                          "nos": estab["nos"], "OK": estab["OK"]},
     }
+    if piso is not None:
+        gates["piso"] = {"h_cm": piso.get("h_cm"), "fck_MPa": piso.get("fck_MPa"),
+                         "k_MN_m3": piso.get("k_MN_m3"),
+                         "vol_m3": piso.get("volume_concreto_m3"),
+                         "motivo": piso.get("motivo", ""), "OK": bool(piso["OK"])}
     res = {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                     "s": round(s, 2), "fck_MPa": fck / 1000.0},
            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
-           "calice": calice, "icamento": icamento,
+           "calice": calice, "icamento": icamento, "piso": piso,
            "fogo": gates["fogo"], "estab_global": estab, "gates": gates}
     # varredura de interpenetracao no modelo 3D (pega sapatas sobrepostas p/ s < L)
     interf = checa_interferencia(res)
@@ -490,7 +513,14 @@ def relatorio_pt(r):
              + (f" [{g['fogo']['nota']}]" if g['fogo']['nota'] else "")
              if g['fogo']['TRRF'] else g['fogo']['nota']),
          f"  INTERFERENCIA 3D: {r['gates']['interferencia']['conflitos']} conflito(s) "
-         f"-> {'OK' if r['gates']['interferencia']['OK'] else 'REVISAR (pecas se interpenetram)'}",
+         f"-> {'OK' if r['gates']['interferencia']['OK'] else 'REVISAR (pecas se interpenetram)'}",]
+    if g.get("piso"):
+        gp = g["piso"]
+        L.append(f"  PISO INDUSTRIAL (placa sobre solo, Westergaard + NBR 6118 8.2.5): "
+                 + (f"h {gp['h_cm']:.0f} cm ; C{gp['fck_MPa']:.0f} ; k {gp['k_MN_m3']:.0f} MN/m3 ; "
+                    f"vol {gp['vol_m3']:.0f} m3 -> ATENDE" if gp["OK"]
+                    else f"REPROVA [{gp.get('motivo','')}]"))
+    L += [
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVADO em ' + ', '.join(r['reprovados'])}",
          "  [A CONFIRMAR: v0 do vento (mapa NBR 6123), sigma do solo (sondagem SPT),",
          "   cargas da telha/cobertura (catalogo). Nao inventados.]"]
