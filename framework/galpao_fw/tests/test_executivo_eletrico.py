@@ -58,6 +58,30 @@ def test_quadro_cargas_svg():
     assert "QUADRO DE CARGAS" in qc and "Alimentador geral" in qc
 
 
+def test_instalacao_eletrica_selftest():
+    import instalacao_eletrica as ie
+    ie._selftest()
+
+
+def test_planta_eletrica_svg():
+    """A planta de instalacao (ilum/tomadas) e' XML bem formado, tem os pontos e a
+    regra de circuitos separados (NBR 5410 4.2.5.5)."""
+    from xml.dom.minidom import parseString
+    import instalacao_eletrica as ie
+    r = _r()
+    svg = de.planta_eletrica_svg(r)
+    assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
+    parseString(svg.encode("utf-8"))                 # XML valido (parse, nao substring)
+    for tok in ("PLANTA DE ILUMINACAO E TOMADAS", "LEGENDA", "RESUMO",
+                "Ponto de luz", "Tomada (TUG)", "QGF", "4.2.5.5"):
+        assert tok in svg, tok
+    inst = ie.projeto_instalacao(r)
+    # ha pontos desenhados e circuitos ilum/tomada SEPARADOS
+    assert inst["quantitativos"]["n_pontos_luz"] > 0
+    assert inst["quantitativos"]["n_tomadas"] > 0
+    assert inst["circuitos"]["iluminacao"] and inst["circuitos"]["tomada"]
+
+
 def test_svgs_sao_xml_bem_formado():
     """REGRESSAO: SVG e' XML - tem de fazer PARSE, nao so conter substrings.
     O bug era 'R <= 10 ohm' (aterramento A CONFIRMAR) com '<' cru -> unifilar
@@ -80,6 +104,7 @@ def test_config_de_spec_eletrico():
     assert cfg["carimbo_material"].startswith("MT 13.8 kV / BT 380")
     assert cfg["geo"]["L"] == 40000.0 and cfg["geo"]["W"] == 20000.0
     assert cfg["unifilar_svg"].startswith("<svg")
+    assert cfg["planta_eletrica_svg"].startswith("<svg")   # planta de instalacao (ilum/tomadas)
     assert cfg["quadro_cargas"][0][0] == "Alimentador geral (QGF)"
     assert any("NBR 5410" in n for n in cfg["notas"])
     assert any("SPDA" in n for n in cfg["notas"])
@@ -110,7 +135,7 @@ def test_bootstrap_injeta_entry_e_fonte():
 
 def test_codigo_fonte_tem_as_pranchas():
     txt = tde.codigo_fonte()
-    for fn in ("_pr_unifilar", "_pr_planta", "_pr_quadros",
+    for fn in ("_pr_unifilar", "_pr_planta_instalacao", "_pr_planta", "_pr_quadros",
                "gerar_executivo_eletrico", "_entry_eletrico"):
         assert "def %s" % fn in txt
 
@@ -126,7 +151,7 @@ def test_build_gera_pranchas_pdf(tmp_path):
     assert fcstd and os.path.exists(fcstd), m
     res = ge.montar_pranchas(r, out, fcstd, spec=_spec(), timeout=1200)
     assert res.get("ok"), res
-    assert len(res.get("pranchas", [])) == 3
+    assert len(res.get("pranchas", [])) == 4       # unifilar + planta inst + planta infra + quadros
     pdfs = [a for a in res.get("arquivos", []) if a.endswith(".pdf")]
-    assert len(pdfs) == 3 and all(os.path.exists(p) and os.path.getsize(p) > 0
+    assert len(pdfs) == 4 and all(os.path.exists(p) and os.path.getsize(p) > 0
                                   for p in pdfs), res
