@@ -45,7 +45,7 @@ def _pr_unifilar(doc, cfg):
     TechDraw::DrawViewSymbol na prancha A1."""
     page = _nova_prancha(doc, "PE01_UNIFILAR",
                          _carimbo_elet(cfg, "DIAGRAMA UNIFILAR GERAL", "PE-EL-01",
-                                       "S/ESC", "01/03"))
+                                       "S/ESC", "01/04"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "UNIFILAR")
     sym.Symbol = cfg["unifilar_svg"]
     page.addView(sym)
@@ -58,16 +58,36 @@ def _pr_unifilar(doc, cfg):
     return [page], []
 
 
+def _pr_planta_instalacao(doc, cfg):
+    """PE-EL-02 - PLANTA DE ILUMINACAO E TOMADAS: embute o SVG (desenho_eletrico.
+    planta_eletrica_svg) com os pontos de luz, tomadas, interruptores, QGF e os
+    circuitos (ilum/TUG separados, NBR 5410 4.2.5.5). E' a planta de INSTALACAO
+    (leiaute dos pontos), complementar a planta de eletrocalhas/aterramento (PE-EL-03)."""
+    page = _nova_prancha(doc, "PE02_PLANTA_INST",
+                         _carimbo_elet(cfg, "PLANTA DE ILUMINACAO E TOMADAS", "PE-EL-02",
+                                       "S/ESC", "02/04"))
+    sym = doc.addObject("TechDraw::DrawViewSymbol", "PLANTA_INST")
+    sym.Symbol = cfg["planta_eletrica_svg"]
+    page.addView(sym)
+    try:
+        sym.X = 420.0
+        sym.Y = 300.0
+        sym.Scale = 6.5                   # o SVG (1180x760) preenche ~a folha util
+    except Exception:
+        pass
+    return [page], []
+
+
 def _pr_planta(doc, cfg, objs):
-    """PE-EL-02 - PLANTA DE ELETROCALHAS + ATERRAMENTO/SPDA: vista de topo do 3D
+    """PE-EL-03 - PLANTA DE ELETROCALHAS + ATERRAMENTO/SPDA: vista de topo do 3D
     (eletrocalha, anel de aterramento, hastes e descidas), cotada no comprimento
-    e no vao."""
+    e no vao. Complementa a planta de instalacao (PE-EL-02)."""
     g = cfg["geo"]
     bb = _bbox(objs)
     esc, nome = _fit_escala(bb, "z", *AREA_1V)
-    page = _nova_prancha(doc, "PE02_PLANTA",
+    page = _nova_prancha(doc, "PE03_PLANTA_INFRA",
                          _carimbo_elet(cfg, "PLANTA - ELETROCALHAS E ATERRAMENTO",
-                                       "PE-EL-02", nome, "02/03"))
+                                       "PE-EL-03", nome, "03/04"))
     v = _vista(doc, page, "V02_PLANTA", objs, (0, 0, 1), (1, 0, 0),
                esc, 410, 350, coarse=True)
     hw, hh = _paper_half(bb, esc, "z")
@@ -86,10 +106,10 @@ def _pr_planta(doc, cfg, objs):
 
 
 def _pr_quadros(doc, cfg):
-    """PE-EL-03 - QUADRO DE CARGAS + NOTAS."""
-    page = _nova_prancha(doc, "PE03_QUADROS",
+    """PE-EL-04 - QUADRO DE CARGAS + NOTAS."""
+    page = _nova_prancha(doc, "PE04_QUADROS",
                          _carimbo_elet(cfg, "QUADRO DE CARGAS E ESPECIFICACOES",
-                                       "PE-EL-03", "-", "03/03"))
+                                       "PE-EL-04", "-", "04/04"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
     # x=175 (encostado a esquerda, deixando ~2/3 da folha vazios). escala 1,5 p/ legibilidade.
     _anot(doc, page, "A03q", ["QUADRO DE CARGAS"], 420, 510, 8)
@@ -128,7 +148,8 @@ def gerar_executivo_eletrico(cfg):
                 pass
 
     paginas, cotadores = [], []
-    for fn, args in ((_pr_unifilar, ()), (_pr_planta, (objs,)), (_pr_quadros, ())):
+    for fn, args in ((_pr_unifilar, ()), (_pr_planta_instalacao, ()),
+                     (_pr_planta, (objs,)), (_pr_quadros, ())):
         try:
             pgs, cts = fn(doc, cfg, *args)
             paginas += pgs
@@ -235,6 +256,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     V = r["spec"]["tensao_V"]
 
     unifilar_svg = de.diagrama_unifilar_svg(r)
+    planta_eletrica_svg = de.planta_eletrica_svg(r)   # leiaute ilum/tomadas (instalacao_eletrica)
 
     quadro_cargas_hdr = ["CIRCUITO", "DEMANDA", "CONDUTOR", "PROTECAO"]
     quadro_cargas = [["Alimentador geral (QGF)", "%.0f kVA" % g["cargas"]["D_kVA"],
@@ -292,6 +314,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "autor": spec.get("autor", "galpao_fw"),
         "geo": {"L": geo["L"] * 1000.0, "W": geo["W"] * 1000.0, "H": geo["H"] * 1000.0},
         "unifilar_svg": unifilar_svg,
+        "planta_eletrica_svg": planta_eletrica_svg,
         "quadro_cargas_hdr": quadro_cargas_hdr, "quadro_cargas": quadro_cargas,
         "carimbo_material": carimbo_mat,
         "notas": notas,

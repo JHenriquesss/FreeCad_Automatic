@@ -213,6 +213,132 @@ def quadro_cargas_svg(r):
     return "\n".join(s)
 
 
+_PALETA_CIRC = ["#2563eb", "#16a34a", "#dc2626", "#9333ea", "#ea580c",
+                "#0891b2", "#ca8a04", "#4b5563", "#db2777", "#65a30d"]
+
+
+def _lampada_cor(cx, cy, cor, r=9):
+    return (f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{r}" fill="none" '
+            f'stroke="{cor}" stroke-width="1.6"/>'
+            + _line(cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7, 1.1, cor)
+            + _line(cx - r * 0.7, cy + r * 0.7, cx + r * 0.7, cy - r * 0.7, 1.1, cor))
+
+
+def _tomada_cor(cx, cy, cor, r=8):
+    return (f'<path d="M{cx - r:.0f} {cy:.0f} A{r} {r} 0 0 1 {cx + r:.0f} {cy:.0f}" '
+            f'fill="none" stroke="{cor}" stroke-width="1.8"/>'
+            + _line(cx - r, cy, cx + r, cy, 1.8, cor))
+
+
+def planta_eletrica_svg(r):
+    """PLANTA DE ILUMINACAO E TOMADAS (leiaute da instalacao eletrica) em SVG puro.
+    Desenha, sobre o contorno do galpao: os PONTOS DE LUZ (grade da luminotecnica),
+    as TOMADAS (TUG no perimetro), os interruptores e o QGF, coloridos e ligados por
+    CIRCUITO (iluminacao e tomada SEPARADOS, NBR 5410 4.2.5.5). A partir de
+    galpao_eletrico.rodar(r) + instalacao_eletrica.projeto_instalacao."""
+    import instalacao_eletrica as ie
+    inst = r.get("instalacao") or ie.projeto_instalacao(r)
+    geo = r.get("geometria") or {}
+    L = float(geo.get("L", 40.0)); W = float(geo.get("W", 20.0))
+    Wc, Hh = 1180, 760
+    ax0, ay0, aw, ah = 70, 120, 720, 540
+    sc = min(aw / L, ah / W) if L > 0 and W > 0 else 1.0
+
+    def px(xm):
+        return ax0 + xm * sc
+
+    def py(ym):
+        return ay0 + (W - ym) * sc          # y=0 embaixo (flip para o SVG)
+
+    # cor por circuito: cada ponto herda a cor do seu circuito
+    cor_de = {}
+    for i, c in enumerate(inst["circuitos"]["iluminacao"]):
+        for pid in c["pontos"]:
+            cor_de[pid] = _PALETA_CIRC[i % len(_PALETA_CIRC)]
+    for i, c in enumerate(inst["circuitos"]["tomada"]):
+        for pid in c["pontos"]:
+            cor_de[pid] = _PALETA_CIRC[i % len(_PALETA_CIRC)]
+    pos = {p["id"]: p for p in inst["luzes"] + inst["tomadas"]}
+
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{Wc}" height="{Hh}" '
+         f'viewBox="0 0 {Wc} {Hh}" font-family="Arial">',
+         f'<rect x="0" y="0" width="{Wc}" height="{Hh}" fill="white"/>',
+         _t(Wc / 2, 40, "PLANTA DE ILUMINACAO E TOMADAS", 20, weight="bold"),
+         # contorno do galpao
+         f'<rect x="{px(0):.0f}" y="{py(W):.0f}" width="{L * sc:.0f}" height="{W * sc:.0f}" '
+         f'fill="#fafafa" stroke="#111" stroke-width="2"/>',
+         _t(px(L / 2), py(0) + 26, "%.0f m" % L, 13),
+         _t(px(0) - 26, py(W / 2), "%.0f m" % W, 13)]
+
+    # roteamento dos circuitos (polilinha ligando os pontos na ordem, faint)
+    for grupo in inst["circuitos"]["iluminacao"] + inst["circuitos"]["tomada"]:
+        pids = [pid for pid in grupo["pontos"] if pid in pos]
+        if len(pids) < 2:
+            continue
+        cor = cor_de.get(pids[0], "#888")
+        pts = " ".join("%.0f,%.0f" % (px(pos[p]["x"]), py(pos[p]["y"])) for p in pids)
+        s.append(f'<polyline points="{pts}" fill="none" stroke="{cor}" '
+                 f'stroke-width="0.8" stroke-dasharray="4,3" opacity="0.55"/>')
+
+    # QGF
+    q = inst["quadro"]
+    s.append(_sym_disjuntor(px(q["x"]), py(q["y"])))
+    s.append(_t(px(q["x"]) + 16, py(q["y"]) + 4, "QGF", 11, anchor="start", weight="bold"))
+    # pontos de luz
+    for p in inst["luzes"]:
+        s.append(_lampada_cor(px(p["x"]), py(p["y"]), cor_de.get(p["id"], "#111")))
+    # tomadas
+    for p in inst["tomadas"]:
+        s.append(_tomada_cor(px(p["x"]), py(p["y"]), cor_de.get(p["id"], "#111")))
+    # interruptores
+    for p in inst["interruptores"]:
+        s.append(f'<rect x="{px(p["x"]) - 7:.0f}" y="{py(p["y"]) - 7:.0f}" width="14" '
+                 f'height="14" fill="white" stroke="#111" stroke-width="1.3"/>')
+        s.append(_t(px(p["x"]), py(p["y"]) + 4, "S", 10, weight="bold"))
+
+    # LEGENDA (direita)
+    lx, ly = 900, 150
+    s.append(f'<rect x="{lx - 20}" y="{ly - 30}" width="260" height="170" fill="white" '
+             f'stroke="#111" stroke-width="1"/>')
+    s.append(_t(lx + 110, ly - 8, "LEGENDA", 14, weight="bold"))
+    s.append(_lampada_cor(lx, ly + 22, "#111")); s.append(_t(lx + 24, ly + 26, "Ponto de luz", 12, anchor="start"))
+    s.append(_tomada_cor(lx, ly + 52, "#111")); s.append(_t(lx + 24, ly + 56, "Tomada (TUG)", 12, anchor="start"))
+    s.append(f'<rect x="{lx - 7}" y="{ly + 75}" width="14" height="14" fill="white" stroke="#111" stroke-width="1.3"/>')
+    s.append(_t(lx, ly + 86, "S", 10, weight="bold")); s.append(_t(lx + 24, ly + 90, "Interruptor", 12, anchor="start"))
+    s.append(_sym_disjuntor(lx, ly + 116)); s.append(_t(lx + 24, ly + 120, "Quadro (QGF)", 12, anchor="start"))
+
+    # RESUMO (direita, abaixo)
+    q2 = inst["quantitativos"]
+    rx, ry = 900, 360
+    linhas = [
+        "RESUMO", "",
+        "Pontos de luz: %d" % q2["n_pontos_luz"],
+        "Tomadas (TUG): %d" % q2["n_tomadas"],
+        "Interruptores: %d" % q2["n_interruptores"],
+        "Circuitos ilum.: %d" % q2["n_circuitos_ilum"],
+        "Circuitos TUG: %d" % q2["n_circuitos_tug"],
+        "Carga ilum.: %.0f VA" % q2["carga_ilum_va"],
+        "Carga TUG: %.0f VA" % q2["carga_tug_va"],
+        "", "Ilum. e TUG em circuitos",
+        "SEPARADOS (NBR 5410 4.2.5.5)",
+    ]
+    s.append(f'<rect x="{rx - 20}" y="{ry - 24}" width="260" height="230" fill="white" '
+             f'stroke="#111" stroke-width="1"/>')
+    for i, ln in enumerate(linhas):
+        s.append(_t(rx + (110 if i == 0 else 0), ry + i * 17, ln,
+                    13 if i == 0 else 11, anchor="middle" if i == 0 else "start",
+                    weight="bold" if i == 0 else "normal"))
+    s.append('</svg>')
+    return "\n".join(s)
+
+
+def gerar_planta_eletrica(r, path):
+    """Escreve a planta de iluminacao e tomadas SVG em `path`. Retorna o path."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(planta_eletrica_svg(r))
+    return path
+
+
 def gerar_unifilar(r, path):
     """Escreve o diagrama unifilar SVG em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
