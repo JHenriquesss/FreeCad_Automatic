@@ -24,12 +24,16 @@ from techdraw_exec import (
 
 
 def _carimbo_elet(cfg, titulo, numero, escala, folha):
-    """Carimbo do eletrico: corrige os defaults de ACO do carimbo generico
-    (material/norma). Sem isso sairia 'ACO MR250' / 'NBR 8800' numa prancha
-    eletrica (mesma classe de bug do concreto)."""
+    """Carimbo do eletrico: corrige os defaults ESTRUTURAIS do carimbo generico
+    (material/norma/tipo/depto). Sem isso a prancha eletrica sairia com
+    'ACO MR250' / 'NBR 8800' e, no rodape, 'PROJETO EXECUTIVO ESTRUTURAL' /
+    'ESTRUTURAS' (mesma classe do vazamento de material; as demais disciplinas
+    -- hid/inc/cli/coord -- ja sobrescrevem tipo+depto)."""
     car = _carimbo(cfg, titulo, numero, escala, folha)
     car["part_material"] = cfg.get("carimbo_material", "BT 380V")
     car["general_tolerances"] = "NBR 5410/5419"
+    car["document_type"] = "PROJETO ELETRICO"
+    car["responsible_department"] = "ELETRICA"
     return car
 
 
