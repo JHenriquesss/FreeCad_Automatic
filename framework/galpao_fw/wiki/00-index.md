@@ -260,7 +260,7 @@ legível. **5 pareceres → 9 correções reais** (7 bugs contra-segurança + 2 
 cada uma conferida contra PDF/estática: `rt` hc²→hw², `kc` hc→hw, teto `Mp` Sxt→Sxc
 (erratum DG25), M da viga `R'·e→P·e`, +cisalhamento/peso-próprio/pele na viga, glyph
 arrow/other/both. 1 rejeição minha revertida com evidência (Mp Sxc). **REVISAO-INDICE
-itens 45–49 ✅.** pytest **245 passed na época** (1353/1340 em 2026-08-11); `smoke_executivo` **7/7** (casos confirmados, não re-rodado). Ver [[03-phases]],
+itens 45, 47, 48 HOMOLOGADOS; 46 e 49 em PARECER.** pytest **245 passed na época** (1353/1340 em 2026-08-11); `smoke_executivo` **7/7** (casos confirmados, não re-rodado). Ver [[03-phases]],
 [[04-decisions#D48]], [[06-open-threads#T12]]. **PENDENTE gate humano:** push branch +
 merge PR. Commits `12ff107`→`01e14e7`.
 

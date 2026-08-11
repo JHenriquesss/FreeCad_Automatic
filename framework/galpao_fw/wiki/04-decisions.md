@@ -316,7 +316,7 @@ estacas). `dg25_ltb` estendido (envelope FLB/TFY/ruptura §5.4.4–7, mono-aware
 
 **Aceito sem alteração:** inércia `I_par` do enrijecedor (chapa cheia, erro ~0,05%,
 A_eff já inclui a faixa colaborante — parecer endossa, FLAG explícito).
-**REVISAO-INDICE itens 45–49 ✅ HOMOLOGADOS.** Ver [[03-phases#FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14]], [[06-open-threads#T12]].
+**REVISAO-INDICE itens 45, 47, 48 HOMOLOGADOS; 46 e 49 em PARECER.** Ver [[03-phases#FECHADA — Balde 4 (backlog de gaps) fases 6.15–6.19 + homologação 45–49 — 2026-07-13/14]], [[06-open-threads#T12]].
 
 ## D49 — 2026-07-15 — Auditoria "Diretrizes Técnicas" (bugs 8.1–8.36) via NotebookLM
 Auditoria confrontando o código com as normas via MCP NotebookLM. **36 achados triados:

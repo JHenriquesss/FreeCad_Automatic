@@ -38,7 +38,7 @@ Detalhe por fase em [[04-decisions#D48]].
   quadros ampliados via `DrawViewSpreadsheet.Scale`. `test_fase619` (9).
 
 **HOMOLOGAÇÃO (5 pareceres sênior, 2026-07-13/14): 9 correções técnicas reais.**
-REVISAO-INDICE **itens 45–49 ✅**. Cada alegação conferida contra PDF/estática antes de
+REVISAO-INDICE **itens 45, 47, 48 HOMOLOGADOS; 46 e 49 em PARECER**. Cada alegação conferida contra PDF/estática antes de
 aceitar. 7 bugs contra-segurança + 2 omissões normativas; 1 rejeição minha revertida
 com evidência. Correções: (45) `rt` hc²→**hw²** (5.4-11); (46) `kc` hc→**hw** (5.4-24)
 + teto `Mp` do Rpt Sxt→**Sxc** (5.4-28 erratum, remete ao Rpc pág 60); (47) homologado
