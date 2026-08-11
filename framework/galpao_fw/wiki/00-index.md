@@ -8,7 +8,7 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 - [[01-architecture]] — spec-driven, cadeia de módulos, envelope, MAES, calc/model split
 - [[02-test-tree]] — `_selftest()` por módulo, o que cada um assere
 - [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
-- [[04-decisions]] — log de decisões/fixes normativos (D0–D45)
+- [[04-decisions]] — log de decisões/fixes normativos (D0–D79)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
 - [[06-open-threads]] — T41 revisão da wiki (2026-08-11), T40 janela dupla-conversão (✅ resolvido #150), T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
 

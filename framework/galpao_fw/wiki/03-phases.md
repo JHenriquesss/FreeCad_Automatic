@@ -378,7 +378,7 @@ nbr6118` (α, γz — #92), `perdas_protensao_nbr6118` (9.6.3 — #93), estaca (
 protendida 17.4.2 (#95), torção 17.5 (#96), planta de formas SVG (#97), quantitativo de armadura
 IFC Pset (#98), varredura de interpenetração (#99), **build 3D SÓLIDO** (`build_concreto`, #100),
 **pranchas A1 TechDraw** (`techdraw_concreto`/`executivo_concreto`, P1–P20, #101).
-- **Resultado:** 60 testes, fixtures Bastos/Araújo/Carvalho (00-index:23-26 — claim da wiki).
+- **Resultado:** 153 testes no grupo concreto (17 arquivos; protensão estrita 31 — task-8; 00-index:68-70), fixtures Bastos/Araújo/Carvalho.
 
 ## FECHADA — S21–S26: Vertical ELÉTRICO (PRs #102–#106) — 2026-08-01/02
 Merges 2026-08-01T23:56Z → 2026-08-02T02:02Z (5 PRs). Orquestrador **`galpao_eletrico.py`**
@@ -386,7 +386,7 @@ Merges 2026-08-01T23:56Z → 2026-08-02T02:02Z (5 PRs). Orquestrador **`galpao_e
 `fator_potencia` (P21 núcleo BT), `aterramento_nbr15749` + `spda_nbr5419` (P21 aterramento/SPDA),
 `subestacao_nbr14039` (P22 MT, NBR 14039), BIM/IFC elétrico (P23, #104), build 3D + executivo A1
 (P24–P25, #105), `luminotecnica_nbr8995` (P26, NBR 8995 — #106). Notebook próprio c5934f22.
-- **Resultado:** suíte 1040 green (00-index:27-29 — claim da wiki).
+- **Resultado:** suíte atual: 1353 selecionados / 1340 passed / 1 failed (F1 fitz) / 15 skipped (2026-08-11, task-18).
 
 ## FECHADA — S27–S30: Vertical INCÊNDIO/AVCB + climatização standalone (PRs #107–#110) — 2026-08-02
 Merges 2026-08-02T02:35Z → 03:04Z (4 PRs). Orquestrador **`galpao_seguranca_incendio.py`** +
@@ -466,9 +466,10 @@ pass-through (mata a reconversão que #144 abrira). **Suíte 100% verde** (00-in
 Merge 2026-08-03T18:32Z. Docs da wiki marcando o T40 RESOLVIDO.
 
 ## FECHADA — S40: Runner de regressão confiável (PR #152) — 2026-08-03
-Merge 2026-08-03T18:55Z. **`tools/run_tests.py`** — PRIMÁRIO: pytest-xdist `-n auto` (~1281
-testes em ~5 min); FALLBACK sem xdist: 2 lanes (rápidos primeiro, pesados `test_fase*` isolados);
-`requirements-dev.txt` + `tools/README.md` (00-index:53-58).
+Merge 2026-08-03T18:55Z. **`tools/run_tests.py`** — PRIMÁRIO: pytest-xdist `-n auto` (1353
+selecionados em ~5 min, 2026-08-11); FALLBACK sem xdist: 2 lanes (rápidos primeiro, pesados
+isolados — 23 arquivos: 22 `test_fase*` + `test_crashes_wiki07`); `requirements-dev.txt` +
+`tools/README.md` (00-index:98-104).
 
 ## FECHADA — S40: Docs — situação atual (PR #153) — 2026-08-04
 Merge 2026-08-04T13:14Z (último PR antes do hiato). Wiki reflete a situação S40 (T40 fechado +
