@@ -1,12 +1,28 @@
 # 06 — Open threads
 
+## T41 — Revisão da wiki (2026-08-11): memory/ não versionado + status reais + trabalho pós-S40
+Registro da revisão da wiki (2026-08-11, branch `docs/revisao-wiki-2026-08-11`; tasks 1–16 do plano de revisão):
+- **`memory/` NÃO é versionado** — o diretório citado em 06:4/06:7/06:340 e em 00-index não existe no repo; as referências foram marcadas "(memory/ não versionado — arco reconstruído do git em 2026-08-11)" nas próprias linhas.
+- **Wiki revisada (2026-08-11)** — ver 00-index, bloco "Estado atual": status reais das threads T# conferidos contra git/gh (task-9) e glossário ampliado com os verticais/turnkey (task-16).
+- **Trabalho pós-S40 (S41/S42, PRs #154–#171) documentado (2026-08-11)** — arco reconstruído do git (task-3): S41 = fixes de desenho/pranchas + planta elétrica (PRs #154–#161); S42 = dez módulos de engenharia (PRs #162–#171: piso industrial, geotecnia SPT, orçamento, compatibilização, fotovoltaico, saneamento/reuso, terraplenagem, cronograma 4D, caderno de encargos, pacote legal). Todos MERGED em 2026-08-09; HEAD `6358157` = merge do PR #171.
+
 ## T40 — Sessão 40 (2026-08-03): dupla-conversão de janela — ✅ RESOLVIDO (PR #150)
-`aberturas["janelas_laterais"]` tinha **duas convenções conflitantes**: **(L,H)** (dims do usuário) vs **faixa (z_base,z_topo)** (o que build/IFC/neutro esperam). O PR #144 (S39) fez o wizard converter (L,H)→faixa e gravar no spec — MAS `to_build_kwargs`→`aberturas_para_build`→`_janela_band` **ainda reconvertia**, reinterpretando a faixa como (L,H): wizard (1100,2300) → mapper (1100,3400). Janela errada no build (o IFC, que lê o spec cru, ficava certo); um teste seguia vermelho. **FECHADO (PR #150):** convenção CANÔNICA = a **FAIXA**; conversão (L,H)→faixa passou a ter um ponto só — `wizard.construir_spec` via `PS._janela_band((L,H,peitoril), eave_mm)` (entrada, com peitoril + clamp) e `aberturas_para_build` virou **pass-through** (matou a reconversão); `ifc_emit` inalterado. Testes reescritos p/ a convenção-faixa + regressão T40 (mapper idempotente). **Suíte 100% verde: a-l 770, m-z 511.** Detalhe em `memory/janela-dupla-conversao-aberta.md`.
+`aberturas["janelas_laterais"]` tinha **duas convenções conflitantes**: **(L,H)** (dims do usuário) vs **faixa (z_base,z_topo)** (o que build/IFC/neutro esperam). O PR #144 (S39) fez o wizard converter (L,H)→faixa e gravar no spec — MAS `to_build_kwargs`→`aberturas_para_build`→`_janela_band` **ainda reconvertia**, reinterpretando a faixa como (L,H): wizard (1100,2300) → mapper (1100,3400). Janela errada no build (o IFC, que lê o spec cru, ficava certo); um teste seguia vermelho. **FECHADO (PR #150):** convenção CANÔNICA = a **FAIXA**; conversão (L,H)→faixa passou a ter um ponto só — `wizard.construir_spec` via `PS._janela_band((L,H,peitoril), eave_mm)` (entrada, com peitoril + clamp) e `aberturas_para_build` virou **pass-through** (matou a reconversão); `ifc_emit` inalterado. Testes reescritos p/ a convenção-faixa + regressão T40 (mapper idempotente). **Suíte 100% verde: a-l 770, m-z 511.** Detalhe em `memory/janela-dupla-conversao-aberta.md` *(memory/ não versionado — arco reconstruído do git em 2026-08-11)*.
 
 ## T40b — Saturação silenciosa: PADRÃO recorrente (parcialmente fechado)
-Classe de bug em 4 disciplinas: escada/tabela satura no maior valor + gate não reprova + `OK=True` (contra-segurança). **Fechados:** hidráulica/pluvial (#145), elétrico/curto (#146), aço/terça-ELS (#148), incêndio/placa (#148). **Concreto verificado limpo.** Receita de caça + como travar em `memory/saturacao-silenciosa-padrao.md`. Não há suspeita aberta, mas todo dimensionador novo com escada de seções é suspeito.
+Classe de bug em 4 disciplinas: escada/tabela satura no maior valor + gate não reprova + `OK=True` (contra-segurança). **Fechados:** hidráulica/pluvial (#145), elétrico/curto (#146), aço/terça-ELS (#148), incêndio/placa (#148). **Concreto verificado limpo.** Receita de caça + como travar em `memory/saturacao-silenciosa-padrao.md` *(memory/ não versionado — arco reconstruído do git em 2026-08-11)*. Não há suspeita aberta, mas todo dimensionador novo com escada de seções é suspeito.
 
-## T21 — Sessão 18 (2026-07-22): 2ª auditoria de gaps no NLM + Gaps A3/C5 — PR #54
+## T22 — Sessão 19 (2026-07-22/23): IFC/BIM — PRs #55–#61 MERGED
+Arco IFC/BIM da S19 (thread criada em 2026-08-11 — a 00-index já a referenciava como `[[06-open-threads#T22]]`, mas a thread não existia; achado do task-6):
+- **#55** — cherry-pick dos Gaps A3/C5 e da wiki da Sessão 18 para a main (`83570c9`).
+- **#56** — exportador IFC4 no `build_galpao.export()` consumindo `ifc_map.py` (marcas $C1, V1, T1... → IfcColumn/IfcBeam/IfcMember/IfcPlate/IfcFooting/IfcPile/IfcCovering/IfcMechanicalFastener).
+- **#57/#59** — `montar_modelo` com auto-fallback headless (bridge → freecadcmd), porta 9875 (`rodar_projeto.montar_modelo`).
+- **#58** — `modelo_neutro.py` + emissor IFC4 puro-Python (`ifc_emit.py` via ifcopenshell).
+- **#60** — modelo neutro estende secundários lineares como IfcMember: funções reais `tercas()`, `girts()`, `tirantes_parede()`, `contrav_cobertura()` em `modelo_neutro.py` (o nome `secundarios_lineares` NÃO existe no código — task-7).
+- **#61** — modelo ANALÍTICO: função `galpao_portico.modelo_analitico()` + `ifc_emit.emitir_ifc_analitico` (IfcStructuralAnalysisModel/IfcStructuralPointConnection) → `{slug}_analitico.ifc` (NÃO existe módulo `modelo_analitico.py` — task-7/9).
+Todos MERGED 22–23/07/2026; detalhes em 00-index (bloco S19) e tasks 3/9/16.
+
+## T21 — Sessão 18 (2026-07-22): 2ª auditoria de gaps no NLM + Gaps A3/C5 — ✅ RESOLVIDO (PR #54 MERGED; conteúdo na main via #55)
 2ª passada de auditoria no NotebookLM (wiki S17/S18 re-subida). Detalhe técnico em [[04-decisions#D73]]. **723 testes non-build verdes** (+18). Padrão "o NLM lê a wiki, não o código": 5 candidatos → **2 gaps REAIS** (verificados no fonte), **3 falsos-positivos** já cobertos (Ief das terças, breakout da base ACI 318 no `base_chumbador`, bloco raso `dimensiona_bloco_env`) + 1 de economia (ponderação espacial do vento, conservador aceito).
 
 **FECHADO nesta sessão (PR #54, `feat/gaps-console-flt-escada-patamar`):**
@@ -14,9 +30,9 @@ Classe de bug em 4 disciplinas: escada/tabela satura no maior valor + gate não 
 - **C5 (completude) — patamar de escada**: `escada.py` antes ABORTAVA para desnível > 3,2 m (galpão pé-direito > 6 m → escada reprovada). Agora `_dimensiona_multi` divide em N lances + (N−1) patamares, projeção do lance derivada de Blondel; `limite_lance` parametrizável (3,20 NBR 9050 / 2,90 NR-18); sinaliza `espaco_suficiente`. Patamar = largura (A CONFIRMAR, não consta na base). `test_escada_patamar.py` (10).
 - **Conclusão da auditoria: o poço secou** — sem lacuna real de cálculo/contra-segurança remanescente nas normas da base.
 
-**ABERTO (decisão do usuário):** merge do PR #54 (gaps) na `main` — chegou órfão via branch do CI, trazido por este PR.
+**~~ABERTO (decisão do usuário): merge do PR #54 (gaps) na `main` — chegou órfão via branch do CI, trazido por este PR~~ → RESOLVIDO (conferido 2026-08-11, task-9):** PR #54 MERGED em 18:40:36Z de 22/07 (merge `44ad268` numa branch do CI, não ancestral da main); o conteúdo chegou à main via PR #55 (`83570c9`, cherry-pick — `console_ponte.mrd_flt_chapa` e `escada._dimensiona_multi` presentes no main).
 
-## T20 — Sessão 18 (2026-07-22): Job Periódico da Suíte de Build 3D — REVISÃO PR #49 APROVADA
+## T20 — Sessão 18 (2026-07-22): Job Periódico da Suíte de Build 3D — ✅ RESOLVIDO (PR #49 MERGED; conteúdo na main via #51)
 PR #49 (`chore/ci-build-suite-agendada`). Detalhe técnico em [[04-decisions#D72]]. **714 testes verdes** (incluindo os 9 de build 3D).
 
 **FECHADO nesta sessão:**
@@ -26,10 +42,10 @@ PR #49 (`chore/ci-build-suite-agendada`). Detalhe técnico em [[04-decisions#D72
   - Documentação em `tools/README.md` e exclusão no `.gitignore`.
 - **Revisão técnica do PR #49: APROVADO COM LOUVOR** (testado e exercitado ao vivo; detectou falha corretamente antes do fix do PR #48 e rodou 100% verde após o fix).
 
-**ABERTO (decisão do usuário):**
-- **Merge no GitHub:** realizar o merge do PR #49 na `main`.
+**~~ABERTO (decisão do usuário):~~**
+- **~~Merge no GitHub: realizar o merge do PR #49 na `main`~~ → RESOLVIDO (conferido 2026-08-11, task-9):** PR #49 MERGED em 15:57:26Z de 22/07; conteúdo na main via PR #51 (`1f4c38f` — `tools/run_build_suite.ps1`, `tools/register_build_task.ps1` e README presentes no main).
 
-## T19 — Sessão 18 (2026-07-22): Plano de Montagem e Escoramento — REVISÃO PR #47 APROVADA
+## T19 — Sessão 18 (2026-07-22): Plano de Montagem e Escoramento — ✅ RESOLVIDO (PR #47 MERGED)
 PR #47 (`feat/plano-montagem-escoramento`). Detalhe técnico em [[04-decisions#D70]]. **714 testes verdes** (705 pytest + 9 deselected `build`).
 
 **FECHADO nesta sessão:**
@@ -44,8 +60,8 @@ PR #47 (`feat/plano-montagem-escoramento`). Detalhe técnico em [[04-decisions#D
   - Prancha nova **PE16_MONTAGEM** (última folha 15/15) com 4 quadros + notas NBR 8800 / AISC 303.
 - **Revisão técnica do PR #47: APROVADO COM LOUVOR** (verificado no NotebookLM contra os PDFs NBR 8800 1.10/4.2.6/4.4/4.9.6.5/12.3 e AISC 303; 12 novos testes verdes em `test_montagem.py`).
 
-**ABERTO (decisão do usuário):**
-- **Merge no GitHub:** realizar o merge do PR #47 na `main`.
+**~~ABERTO (decisão do usuário):~~**
+- **~~Merge no GitHub: realizar o merge do PR #47 na `main`~~ → RESOLVIDO (conferido 2026-08-11, task-9):** PR #47 MERGED (`4625aed`, 22/07 15:12Z); `montagem.py` e a prancha PE16_MONTAGEM no main.
 
 ## T18 — Sessão 17 (2026-07-22): Gaps Nível A/C + Fabricação 3D/2D — REVISÃO E MERGE DOS PRs #45 E #46
 PRs #45 e #46 **MERGED em `main`**. Detalhe tcnico em [[04-decisions#D68]] e [[04-decisions#D69]]. **702 testes verdes**.
@@ -125,8 +141,10 @@ livre o bridge AUTOSTARTA. A varredura visual pegou/gerou:
   bom PE01/04/06/10). `base_chumbador`/`ligacoes`/estaca revisados = corretos.
 
 **AINDA ABERTO:**
-- ~~Verificação VISUAL~~ FEITA (acima). Restam latentes de feature (telha_tipo, multi-vão heterogêneo)
-  e fuzz-interno dos motores (self-tests+integração cobrem). Historico do bloqueio antigo abaixo:
+- ~~Verificação VISUAL~~ FEITA (acima). ~~Latente `cobertura.telha_tipo`~~ → **RESOLVIDO depois da
+  S14**: `projeto_spec.py:769-775` liga `cobertura.telha_tipo` ao perfil VERIFICADO no gate 7 (não é
+  mais só rótulo/takeoff) (conferido 2026-08-11, task-9). Multi-vão heterogêneo e fuzz-interno dos
+  motores: **não re-verificados** (task-9, 2026-08-11). Histórico do bloqueio antigo abaixo:
 - **(hist.) PNG da mão-francesa** — BLOQUEADA pelo bridge FreeCAD (9875).
   Script `verificar_amostra.py` (no `main`) roda tudo quando o bridge subir. **BLOQUEIO REAL
   (2026-07-18):** 3 `freecad.exe`/`_exec.py` TRAVADOS (estado ininterruptível — `taskkill /F` e
@@ -134,12 +152,14 @@ livre o bridge AUTOSTARTA. A varredura visual pegou/gerou:
   RECUSADO). **Só um REBOOT libera.** Depois: abrir FreeCAD + workbench `RobustMCPBridge` (não
   autostart) → `verificar_amostra.py`.
 - **GAP de robustez do executivo (achado real):** os 3 zumbis são prova de que `rodar_executivo`
-  ainda deixa `freecad.exe` pendurado no timeout (mesmo pós-fix do repr numpy [[04-decisions#D53?]]).
+  ainda deixa `freecad.exe` pendurado no timeout (mesmo pós-fix do repr numpy [[04-decisions#D53]]).
   Falta watchdog/kill do subprocesso freecad.exe no timeout.
-- **Latentes de FEATURE (não bug):** `cobertura.telha_tipo` só rótulo/takeoff (não dimensiona a
-  telha); multi-vão heterogêneo achata vãos maiores (2D cumeeira única) — wizard só gera vãos iguais.
+- **Latentes de FEATURE (não bug):** ~~`cobertura.telha_tipo` só rótulo/takeoff (não dimensiona a
+  telha)~~ — **RESOLVIDO** (projeto_spec.py:769-775 liga tipo→perfil no gate 7); multi-vão
+  heterogêneo achata vãos maiores (2D cumeeira única) — wizard só gera vãos iguais *(não
+  re-verificado — task-9, 2026-08-11)*.
 - **Fuzz interno dos motores** (base_chumbador, tapered, sismo, fogo, estaca, gusset, ligações,
-  calhas): não feito. Cobertos por 12/12 self-tests + integração pipeline (8 opcionais, 0 crash/NaN).
+  calhas): não feito. Cobertos por 12/12 self-tests + integração pipeline (8 opcionais, 0 crash/NaN). *(não re-verificado — task-9, 2026-08-11)*.
 
 ## T15 — Correções + features + validação (2026-07-17) — MERGED (via #12→#14, ver [[#T16]])
 Branch `revisao/homologacao-12-modulos`, **COMMITADO** em 6 commits temáticos (`8bd725f` sinal /
@@ -170,16 +190,16 @@ heterogêneo; VALIDAÇÃO de sistema contra Alonso/Bellei (sapata 0,5%, bloco/ve
    Alonso (0,5%) + bloco exato, mas convém o sênior conferir uma sapata à mão para assinar (ART).
 5. **Bloco β≥60° / σt=fck/25** — conferência normativa final (validado contra Alonso, bate exato).
 
-## T14 — Turnkey + escopo ampliado (2026-07-16) — PR #12 aberto; 2º caso-referência RESOLVIDO em T15
+## T14 — Turnkey + escopo ampliado (2026-07-16) — ✅ PR #12 MERGED; 2º caso-referência RESOLVIDO em T15
 Branch `revisao/homologacao-12-modulos`, PR **#12** (15 commits, `28089aa`→`003f391`),
-**NÃO mergeado** (gate humano). Objetivo do usuário: ferramenta turnkey ("eu digo o que
+~~**NÃO mergeado** (gate humano)~~ → **MERGED `4165652` (18/07)** (conferido 2026-08-11, task-9). Objetivo do usuário: ferramenta turnkey ("eu digo o que
 preciso + condições do local → ela entrega 3D + 2D + cálculos confiáveis pela NBR"). Ver
 [[04-decisions#D50]], [[04-decisions#D51]].
 **FEITO e verificado (256 passed):** wizard guiado (presets/faixas/coerência), `rodar_tudo`,
 `escopo.py`+ART, `validacao.py` (7 benchmarks + CBCA sistema <1%), neve (EN 1991-1-3),
 multi-vão (`geometria.spans`, 2 vãos→3 colunas 0 interf.), dossiê PDF único (`dossie.py`),
 PE15_DET_BLOCO, varredura visual (6 defeitos de layout corrigidos + renders 3D).
-**ONDE PARAMOS — 2º caso-referência de validação (PENDENTE):**
+**ONDE PARAMOS — 2º caso-referência de validação (~~PENDENTE~~ → RESOLVIDO em T15, D57/`validacao_alonso`):**
 - Objetivo: um 2º caso-referência externo além do CBCA (que valida o pórtico de alma cheia).
 - **Achado no NotebookLM:** Pfeil e Bellei NÃO têm 2º pórtico de alma cheia resolvido com
   reações/momentos. Pfeil 8.7.1 é uma **treliça** (tesoura Pratt 18 m): (a) Tabela 8.1 tem
@@ -330,14 +350,14 @@ escolhido.
 ## T7 — pareceres sênior (FECHADO 2026-07-09)
 **Todos homologados.** REVISAO-INDICE.md: itens 1–27 ✅ HOMOLOGADO, zero PENDENTE. Os 5 que faltavam foram homologados em 2026-07-09 (banners atualizados): calhas, sapata de divisa, telha, vento §8 (Cpe médio local), sismo §6 (envelope excepcional). Nada aguarda parecer. **[Superado por [[#T8]]: itens 28–33 também homologados.]**
 
-## T1 — PR #1 aguarda merge
-Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenriquesss/FreeCad_Automatic/pull/1 . Contém 87 commits (origin/main estava 87 atrás do local). Merge sincroniza tudo. Usuário faz merge pelo GitHub.
+## T1 — PR #1 aguarda merge — ✅ RESOLVIDO (MERGED `4fde82b`, 2026-07-07)
+Branch `revisao/homologacao-12-modulos` → `main`. https://github.com/JHenriquesss/FreeCad_Automatic/pull/1 . Contém 87 commits (origin/main estava 87 atrás do local). Merge sincroniza tudo. Usuário faz merge pelo GitHub. **Merge REALIZADO:** PR #1 MERGED em 07/07/2026 (`4fde82b`); a divergência local↔origin foi sincronizada (conferido 2026-08-11, task-9).
 
-## T2 — Divergência local ↔ origin (87 commits)
-`origin/main` estava 87 atrás. PR #1 é o veículo de sync. Se quiser PR enxuto só da revisão (2 commits), rebasear a branch — mas aí o resto do trabalho local não sobe. Decisão do usuário.
+## T2 — Divergência local ↔ origin (87 commits) — ✅ RESOLVIDO
+`origin/main` estava 87 atrás. PR #1 é o veículo de sync. Se quiser PR enxuto só da revisão (2 commits), rebasear a branch — mas aí o resto do trabalho local não sobe. Decisão do usuário. **RESOLVIDO (conferido 2026-08-11, task-9):** o merge do PR #1 (`4fde82b`, 07/07) sincronizou tudo.
 
-## T3 — Backlog: módulo ponte rolante estendido
-Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender após validação (frac_long por rodas motoras, fadiga Anexo K não automatizada — só flag). Ver memory `crane-module-backlog`.
+## T3 — Backlog: módulo ponte rolante estendido — ✅ RESOLVIDO
+Cargas de ponte rolante ainda não totalmente no toolkit; construir/estender após validação (frac_long por rodas motoras, fadiga Anexo K não automatizada — só flag). Ver memory `crane-module-backlog` *(memory/ não versionado — arco reconstruído do git em 2026-08-11)*. **RESOLVIDO (conferido 2026-08-11, task-9):** ponte estendida — rodas motoras (`ponte_rolante.forcas_horizontais(..., n_rodas_motoras)`) + NBR 8400-1:2019 (D39) e fadiga do Anexo K automatizada (D10/D16/D62); crane 100% homologado (itens 9/29/31).
 
 ## Lacunas de escopo estrutural — TODAS FECHADAS (2026-07-08)
 Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "Análise de lacunas" + [[04-decisions]] D8–D32.
@@ -351,18 +371,18 @@ Gap analysis 2026-07-07 → tudo fechado em 2026-07-08. Ver [[03-phases]] fase "
 ## T4 — Flags de projeto executivo (não são bugs — limites de escopo)
 - **Fundação**: quantitativo de aço ~10–15% baixo (sem ganchos/arranques 22.6.4.1) — marcador de anteprojeto. Detalhamento/ancoragem = executivo.
 - ~~**Fundação**: sapata flexível exige punção 19.5~~ — **RESOLVIDO** [[04-decisions#D8]]: `puncao_sapata()` verifica C' a 2d; auto-sizer ainda prefere rígida.
-- **Ponte**: fadiga Anexo K sinalizada, não automatizada (depende da categoria de detalhe de fabricação).
+- **Ponte**: ~~fadiga Anexo K sinalizada, não automatizada (depende da categoria de detalhe de fabricação)~~ → **RESOLVIDO**: fadiga automatizada (D10/D16/D62; a categoria de detalhe do Anexo K é INPUT) (conferido 2026-08-11, task-9).
 - **Redim/mão-francesa**: Lb fixo (col 2,0m / viga 1,67m) é contrato — a mão-francesa deve entregar essa contenção da mesa interna. Premissa de wiring.
 - **σ_solo,adm, μ, coesão, φ (impacto ponte), frações lateral/long** — INPUT de sondagem/fabricante; bloqueia se não informado.
 
 ## T6 — Projeto executivo 2D (FECHADO 2026-07-09)
-2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** aberto.
+2D completo via TechDraw headless: 9 pranchas gerais + PE10–14 detalhes de ligação + memorial PDF, sob `smoke_executivo` (4/4). Ver [[03-phases#FECHADA — Projeto executivo 2D (TechDraw) + memorial PDF + detalhes de ligação — 2026-07-09]], [[04-decisions#D33]]–[[04-decisions#D36]]. **PR #4** ~~aberto~~ → **MERGED** (`aa02180`, 10/07; conferido 2026-08-11, task-9).
 **Nível fabricação (fase 2, 2026-07-09):** callouts de fabricação do CÁLCULO nos detalhes (joelho/cumeeira "N×db, chapa t"; gusset/console "chapa t, solda perna") via `_callout_fab`. 2 módulos de cálculo novos (`gusset_ligacao`, `console_ponte`, PENDENTE sênior). Ver [[04-decisions#D37]].
 **~~Aberto~~ RESOLVIDO (fase 5, 2026-07-10):** **corte seccionado** — o
 `DrawViewSection` **constrói headless no FreeCAD 1.1** (o `failed to create section
 CS` era da versão antiga). `techdraw_exec._secao_ligacao` adiciona um corte
-hachurado (`CutSurfaceDisplay="Hatch"`) a cada detalhe de ligação, sob smoke
-(`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D]].
+hachurado (`CutSurfaceDisplay="SvgHatch"`) a cada detalhe de ligação, sob smoke
+(`detalhes_secoes`, arestas>0). Ver [[03-phases#FECHADA — Corte seccionado 2D (fase 5) — 2026-07-10]].
 **~~Aberto (menor)~~ RESOLVIDO (fase 6.19, 2026-07-13):** símbolo gráfico de solda
 (glyph AWS) — `DrawWeldSymbol` é só-GUI; substituído por `DrawViewSymbol`+SVG inline
 headless (arrow/other/both AWS A2.4). Ver [[06-open-threads#T12]].
@@ -378,7 +398,7 @@ Workstream ativo (usuário reportou defeitos de teto). **Corrigido + confirmado 
 - **Rufos** de cumeeira/beiral (acabamento). Deixado.
 
 ## T5 — settings.local.json não criado
-Tentativa de adicionar allow-rules (`git push`, `rmdir`) bloqueada pelo classifier (auto-mode bypass). Usuário precisa criar manualmente se quiser destravar push permanente. Ver [[04-decisions#D0]].
+Tentativa de adicionar allow-rules (`git push`, `rmdir`) bloqueada pelo classifier (auto-mode bypass). Usuário precisa criar manualmente se quiser destravar push permanente. Ver [[04-decisions#D0]]. **Status (2026-08-11, task-9): NÃO VERIFICADO (fonte ausente)** — configuração local do usuário (`settings.local.json`), sem fonte no repo.
 
 ## Resolvidos nesta sessão
 - ~~`Nova pasta/` duplicata~~ — removida pelo usuário.

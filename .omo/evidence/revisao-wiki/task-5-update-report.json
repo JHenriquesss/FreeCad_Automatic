@@ -1,0 +1,1060 @@
+{
+ "task-7": {
+  "patches": 138,
+  "aplicados": 134,
+  "nao-localizados": [
+   {
+    "patch": [
+     "",
+     "02-test-tree:3",
+     "_selftest por módulo",
+     "ok",
+     "task-7",
+     ""
+    ],
+    "razao": "keyword-ambiguo",
+    "cands": 2
+   }
+  ],
+  "na": [
+   {
+    "patch": [
+     "",
+     "arquivo:linha",
+     "palavra-chave",
+     "veredito",
+     "task-7",
+     "sugestão",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   },
+   {
+    "patch": [
+     "",
+     "arquivo:linha",
+     "palavra-chave",
+     "veredito",
+     "task-7",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   },
+   {
+    "patch": [
+     "",
+     "arquivo:linha",
+     "palavra-chave",
+     "veredito",
+     "task-7",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   }
+  ]
+ },
+ "task-8": {
+  "patches": 123,
+  "aplicados": 41,
+  "nao-localizados": [],
+  "na": [
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_galpao_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_galpao_concreto_bim.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_pilar_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_viga_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_desenho_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_build_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_executivo_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_techdraw_concreto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_viga_protendida.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_premoldado_nbr9062.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_perdas_protensao_nbr6118.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fissuracao_nbr6118.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_estabilidade_global_nbr6118.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_torcao_nbr6118.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_eletrico_bt.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_eletrico_robustez.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_eletrico_bim.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_build_eletrico.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_executivo_eletrico.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_seguranca_incendio.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fogo_nbr15200.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_hidrantes.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_iluminacao_externa.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_incendio_bim.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_incendio_robustez.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_hidraulica_predial.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_esgoto_reuso.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_galpao_hidraulica.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_climatizacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fotovoltaico.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_terraplenagem.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_piso_industrial.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_geotecnia_spt.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_pacote_legal.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_caderno_encargos.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_orcamento.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_cronograma.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_compatibilizacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_guardas_entrada.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_saturacao_verdito.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_turnkey.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_turnkey_bim.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_turnkey_clash.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_caderno_turnkey.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_build_federado.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_executivo_hidr_cli.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_executivo_incendio.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase64_coluna_tapered.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase65_zona_painel.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase66_flt_misula.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase67_vento_tesoura.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase68_alma_esbelta.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase6a_calha_divisa.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase6b_alma_variavel.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase6c_tesoura.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase69_tensao_ponto.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase610_cortante_tapered.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase611_vento_zona_tesoura.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase612_dg25_crosscheck.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase613_enrijecedor_painel.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_fase614_dg25_full.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_calhas_robustez.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_console_flt.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_escada_patamar.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_galpao_climatizacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_gusset_espessura_3d.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_ligacoes_pos_rotacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_longarina_els.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_n_terca_calc_3d.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_pilar_biaxial.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_prancha_selecao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_secao_por_ligacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_takeoff_rotulos.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_telha_tipo_mapper.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_terca_alma_normal.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_terca_trib_real.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_frame2d_hardening.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_carimbo_materiais.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_coordenacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_coluna_orientacao.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_aco_classe.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   },
+   {
+    "patch": [
+     "",
+     "02-test-tree.md:126",
+     "test_baldrame_els.py",
+     "faltante",
+     "task-8",
+     ""
+    ],
+    "razao": "ref-sem-task5-linha"
+   }
+  ]
+ },
+ "task-9": {
+  "patches": 37,
+  "aplicados": 30,
+  "nao-localizados": [
+   {
+    "patch": [
+     "",
+     "03-phases:140",
+     "Commit <fase6a>",
+     "corrigir — commit real 5fd4003 (07-10)",
+     "task-9",
+     ""
+    ],
+    "razao": "sem-claim-com-essa-ref"
+   },
+   {
+    "patch": [
+     "",
+     "00-index:149-153",
+     "\"sem commit — árvore de trabalho\" (2026-07-17)",
+     "corrigir — 6 commits 07-17 existem (8bd725f/bb36b9b/e4e3468/63451f1/…); contradiz 06-open-threads:145",
+     "task-9",
+     ""
+    ],
+    "razao": "sem-claim-com-essa-ref"
+   },
+   {
+    "patch": [
+     "",
+     "00-index:228",
+     "PENDENTE gate humano: merge PR #5",
+     "obsoleto — MERGED 50df273 (07-14)",
+     "task-9",
+     ""
+    ],
+    "razao": "sem-claim-com-essa-ref"
+   },
+   {
+    "patch": [
+     "",
+     "00-index:243",
+     "PENDENTE gate humano: merge PR #1+#4",
+     "obsoleto — MERGED 4fde82b (07-07) / aa02180 (07-10)",
+     "task-9",
+     ""
+    ],
+    "razao": "sem-claim-com-essa-ref"
+   }
+  ],
+  "na": [
+   {
+    "patch": [
+     "",
+     "03-phases:(sem bloco)",
+     "S19 PRs #55–#61",
+     "faltante — nenhum bloco em 03-phases; só 00-index:66-75 (todo 14)",
+     "task-9",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   },
+   {
+    "patch": [
+     "",
+     "03-phases:(sem bloco)",
+     "S20–S42 PRs #81–#171",
+     "faltante — arco pós-S18 sem blocos de fase (todo 14)",
+     "task-9",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   },
+   {
+    "patch": [
+     "",
+     "04-decisions:(sem header)",
+     "D74–D79",
+     "faltante — grep ## D74..D79 vazio; reconstrução no todo 15 (evidência §5)",
+     "task-9",
+     ""
+    ],
+    "razao": "ref-sem-numero"
+   }
+  ]
+ },
+ "final": {
+  "ok": 122,
+  "corrigir": 49,
+  "obsoleto": 13,
+  "faltante": 0,
+  "não verificado": 1,
+  "pendente": 245,
+  "outros": 0
+ },
+ "total_claims": 430
+}

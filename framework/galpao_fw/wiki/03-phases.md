@@ -38,7 +38,7 @@ Detalhe por fase em [[04-decisions#D48]].
   quadros ampliados via `DrawViewSpreadsheet.Scale`. `test_fase619` (9).
 
 **HOMOLOGAÇÃO (5 pareceres sênior, 2026-07-13/14): 9 correções técnicas reais.**
-REVISAO-INDICE **itens 45–49 ✅**. Cada alegação conferida contra PDF/estática antes de
+REVISAO-INDICE **itens 45, 47, 48 HOMOLOGADOS; 46 e 49 em PARECER**. Cada alegação conferida contra PDF/estática antes de
 aceitar. 7 bugs contra-segurança + 2 omissões normativas; 1 rejeição minha revertida
 com evidência. Correções: (45) `rt` hc²→**hw²** (5.4-11); (46) `kc` hc→**hw** (5.4-24)
 + teto `Mp` do Rpt Sxt→**Sxc** (5.4-28 erratum, remete ao Rpc pág 60); (47) homologado
@@ -104,7 +104,7 @@ item em [[04-decisions#D44]]. **Resultado: itens 1–33 todos ✅ HOMOLOGADO.**
   build (self-contained); `numpy` só no solver (lazy). Cobertura PE-04.
 - **Memorial:** `gate6-tesoura.txt` + METODOS `3c`.
 - **Regressão:** smoke 7/7 (caso `tesoura`); prismático/alma_var inalterados.
-  Commit `<6c>`. PENDENTE `REVISA-TESOURA-INTEG.md` Q1–Q5, INDICE 33.
+  Commit `820b0e0`. PENDENTE `REVISA-TESOURA-INTEG.md` Q1–Q5, INDICE 33.
 
 ## FECHADA — Pórtico de alma variável / tapered (fase 6.b) — 2026-07-10
 **Escopo:** integrar o pórtico de mísula de alma variável (calc + 3D). Gerador
@@ -120,7 +120,7 @@ item em [[04-decisions#D44]]. **Resultado: itens 1–33 todos ✅ HOMOLOGADO.**
   entre o I do joelho e o da cumeeira; cai no prismático se h1==h2).
 - **Memorial:** `gate6-alma-variavel.txt` (tabela seção/segmento + peso) +
   METODOS `3b`; a **seção do joelho governa** (verificação por segmento = FLAG).
-- **Regressão:** smoke 6/6 (caso `alma_var`); prismáticos inalterados. Commit `<6b>`.
+- **Regressão:** smoke 6/6 (caso `alma_var`); prismáticos inalterados. Commit `21d9941`.
 - **PENDENTE sênior:** `REVISA-ALMA-VARIAVEL-INTEG.md` Q1–Q4, INDICE 32.
 - **Próxima:** 6.c tesoura (treliça — topologia nova).
 
@@ -137,7 +137,7 @@ divisa** (excêntrica + viga alavanca, Alonso). Cálculo já existia; fase é wi
 - **Memorial:** `relatorio_calculo.METODOS` +`13. CALHAS` (NBR 10844/Bellei) +`11g.
   SAPATA DE DIVISA` (Alonso); estaca já tinha `11c`.
 - **Regressão:** smoke 5/5 (calha no memorial); 9 testes fase6a; divisa só com gate.
-  Commit `<fase6a>`.
+  Commit `5fd4003`.
 - **Órfãos restantes:** `neve` (não escolhido pelo usuário — fica documentado, não
   wired); `alma_variavel`/`tesoura` = Fase 6.b (tipo de pórtico, build 3D novo).
 
@@ -148,7 +148,7 @@ resíduo de polimento 2D de [[06-open-threads#T6]].
   (probe: box → seção com 4 arestas; nenhum `failed to create section CS`). O erro
   histórico era da versão antiga.
 - **`techdraw_exec._secao_ligacao`:** DrawViewSection do crop compound, plano de
-  corte pelo centro, `CutSurfaceDisplay="Hatch"` (material cortado). Descarta a
+  corte pelo centro, `CutSurfaceDisplay="SvgHatch"` (material cortado). Descarta a
   seção se vazia (arestas=0 → não engana o guard, `mne-1`). Wire em
   `_detalhe_ligacao` (view extra `VLIG_SEC_*`, sem mexer na elevação/callouts).
 - **Guard:** resultado expõe `detalhes_secoes` (nome→arestas); `smoke_executivo`
@@ -257,10 +257,10 @@ prismático capacidade 0,951 (curva inelástica White-Kim ≠ Anexo G ~5%), elá
 Ambos INFORMATIVOS (dimensionamento segue NBR). REVISAO-INDICE **itens 43–44 ⏳ aguardam
 parecer**. Não-regressão: `a=None`⇒kv=5 byte-idêntico; `cross_check_flt` intocado.
 
-## ATUAL — Handoff / aguardando pareceres — 2026-07-08
+## FECHADA — Handoff / aguardando pareceres — 2026-07-08 (histórico; superado pelas fases S16–S42 abaixo)
 - **NADA pendente de implementação do lado do assistente.** Todos os gaps + FLAGs corrigíveis fechados.
 - ~~6 pareceres sênior pendentes~~ → **TODOS HOMOLOGADOS 2026-07-09** (calhas, divisa, telha, vento §8, sismo §6; demais já eram). REVISAO-INDICE zero pendente. [[06-open-threads#T7]]
-- PR #1 ainda aberto, aguarda merge do usuário. [[06-open-threads#T1]]
+- PR #1 mergeado (`4fde82b`, 2026-07-07) — o "ainda aberto" deste bloco era falso (task-9). [[06-open-threads#T1]]
 - Continuação em outro chat: ver [[06-open-threads#HANDOFF]].
 
 ## FECHADA — Job periódico da suíte de build 3D (PR #49, Sessão 18) — 2026-07-22
@@ -321,6 +321,175 @@ Consolidada em [[04-decisions#D52]]–[[04-decisions#D57]] e [[00-index]]. Markd
 `07-review-results` removido (mesmo precedente de 2026-07-15). Núcleo: fix de sinal do frame2d
 (UDL), state-leak no `reset()`, validação CBCA <1%.
 
-## Status — 17 módulos matemáticos + features (todos com selftest verde)
+## Status (histórico, 2026-07-08) — 18 módulos matemáticos + features (todos com selftest verde; defasado — ver fases S16–S42 abaixo)
 12 r2 (Pórtico·Perfil·Vento·Terças·Secundários·Base·Ligações·Ponte·Mão-francesa·Contravento·Fundação·Redim) + Junta + Sismo + **Telha** + **Baldrame** + **Estaca profunda** + **Contenção lateral** (mão-francesa, NBR 8800 4.11.3.4).
+
+## FECHADA — S19: Interoperabilidade BIM/IFC4 físico e analítico (PRs #55–#61) — 2026-07-22/23
+Revisão e integração completas (fonte: 00-index:66-75 + git/task-3). **PRs #55–#61 revisados,
+aprovados e mergeados em `main`** (merges 2026-07-22T21:58Z → 2026-07-23T00:15Z; base do commit
+mais antigo `40844a3` authored 2026-07-22T18:19:29Z). Tema: **interoperabilidade BIM / IFC4
+físico e analítico direto do cálculo, sem dependência do FreeCAD GUI**.
+- **#55 (`feat/gaps-e-wiki-para-main`, merge `83570c9`):** cherry-pick dos Gaps A3/C5 e da wiki da
+  S18 para a `main` (mrd_flt_chapa + patamar Blondel — task-9 D74).
+- **#56 (`feat/ifc-export-bim`, `e4a7918`):** exportador IFC4 (BIM) no `build_galpao.export()`
+  consumindo **`ifc_map.py`** (mapeamento semântico de marcas → categorias IfcColumn/Beam/Member/
+  Plate/Footing/Pile/Covering/MechanicalFastener). Gerou IFC4 de 1,67 MB com 789 elementos.
+- **#57 + #59 (`feat/bridge-headless` → main):** `montar_modelo` com **auto-fallback headless**
+  (bridge → `freecadcmd`; `rodar_projeto.py:210-217`). #57 mergeado em branch intermediária
+  `feat/ifc-export-bim`; conteúdo chega à main via #59 (`5863532`).
+- **#58 (`feat/ifc-emissor-puro`, `e2f235c`):** modelo neutro de dados **`modelo_neutro.py`** +
+  emissor IFC4 puro-Python **`ifc_emit.py`** (via `ifcopenshell`), sem invocar o FreeCAD.
+- **#60 (`feat/ifc-secundarios`, `495b594`):** secundários lineares no IFC puro — funções reais
+  `tercas()`, `girts()`, `tirantes_parede()`, `contrav_cobertura()`, `frame_completo()` em
+  `modelo_neutro.py` (correção task-9: o nome `secundarios_lineares` NÃO existe no código).
+- **#61 (`feat/modelo-analitico`, `ea48acf`):** modelo analítico via **função**
+  `galpao_portico.modelo_analitico()` + `ifc_emit.emitir_ifc_analitico`/`emitir_ifc_analitico_do_spec`
+  (IfcStructuralAnalysisModel/IfcStructuralPointConnection; `ifc_emit.py:535-548`) — **NÃO é módulo
+  `modelo_analitico.py`** (correção task-9; módulo inexistente no disco). Gera `galpao.ifc`
+  (físico) + `galpao_analitico.ifc` (estrutural) em `EXPORT_DIR/ifc/` (`rodar_projeto.py:533-534`).
+- **Resultado:** **831 testes verdes** (00-index:67 — claim da wiki; contagem de suíte não
+  re-executada, task-9). Ver [[04-decisions#D74]]–[[04-decisions#D79]] (reconstruídas em 04),
+  [[06-open-threads#T22]].
+
+## FECHADA — S19-ext: IFC físico puro — expansão e fechamento (PRs #62–#80) — 2026-07-23
+**Cluster próprio** (classificação task-3 §3 cluster 2): 19 PRs, merges 2026-07-23T00:53Z →
+17:30Z, todos tocando `modelo_neutro.py`/`ifc_emit.py` (21 commits em cada, 22–23/07). Não
+fundido com S19 (#55–61) porque a wiki já fechou a S19 no review PR_55_61_Review (00-index:66-75);
+não fundido com S20 (#81+, concreto) porque é 100% IFC/estrutura metálica, sem concreto.
+- **Expansão IFC puro (#62–#78):** esforços 2ª ordem por barra no analítico (#62); fundações
+  sapata/bloco (#63); telha IfcCovering (#64); tapamento de parede (#65); pórtico alma variável
+  (tapered) (#66) + seu modelo analítico (#67); fix escala 1000× + placas de base (#68); nervuras
+  (#69); clipes de terça/girt IfcPlate (#70); mãos-francesas IfcMember (#71); escoras/cumeeiras +
+  oitão (#72); tirantes segmentados (#73); conectores da base IfcMechanicalFastener (#74);
+  drenagem calhas/condutores/bocais (#75); gussets IfcPlate triangular (#76); mísula do joelho
+  (#77); IfcPile + ponte rolante (#78).
+- **Auditoria de fechamento do aço (#79–#80):** 3 gaps (ELS girt + corrosão + camber, #79);
+  flecha do baldrame sob alvenaria (NBR 6118 Tab. 13.3) + dreno (#80).
+- **Resultado:** sem contagem de suíte na evidência (não verificado).
+
+## FECHADA — S20: Vertical de CONCRETO (PRs #81–#101) — 2026-07-23/27
+Galpão pré-moldado engastado (merges 2026-07-23T22:52Z → 2026-07-27T20:00Z; 21 PRs).
+Orquestrador stateless **`galpao_concreto.py`** (#83) + módulos: `pilar_concreto` (flexão
+composta reta + oblíqua/biaxial, 17.2.5, α=1,2 — #81/#87), `viga_concreto` (#82), BIM IFC4 do
+concreto + material (#84), executivo quadro+memorial (#85), desenho formas/armação SVG (#86),
+`viga_protendida` (pré-tração vãos >12 m, #88), `premoldado_nbr9062` (ligação pré-moldada, #89),
+`fogo_nbr15200` (situação de incêndio, #90), fissuração ELS-W 17.3.3 (#91), `estabilidade_global_
+nbr6118` (α, γz — #92), `perdas_protensao_nbr6118` (9.6.3 — #93), estaca (#94), cortante
+protendida 17.4.2 (#95), torção 17.5 (#96), planta de formas SVG (#97), quantitativo de armadura
+IFC Pset (#98), varredura de interpenetração (#99), **build 3D SÓLIDO** (`build_concreto`, #100),
+**pranchas A1 TechDraw** (`techdraw_concreto`/`executivo_concreto`, P1–P20, #101).
+- **Resultado:** 153 testes no grupo concreto (17 arquivos; protensão estrita 31 — task-8; 00-index:68-70), fixtures Bastos/Araújo/Carvalho.
+
+## FECHADA — S21–S26: Vertical ELÉTRICO (PRs #102–#106) — 2026-08-01/02
+Merges 2026-08-01T23:56Z → 2026-08-02T02:02Z (5 PRs). Orquestrador **`galpao_eletrico.py`**
+(#102) + 9 módulos: `cargas_eletricas`/`condutores_nbr5410`/`curto_circuito`/`protecao_nbr5410`/
+`fator_potencia` (P21 núcleo BT), `aterramento_nbr15749` + `spda_nbr5419` (P21 aterramento/SPDA),
+`subestacao_nbr14039` (P22 MT, NBR 14039), BIM/IFC elétrico (P23, #104), build 3D + executivo A1
+(P24–P25, #105), `luminotecnica_nbr8995` (P26, NBR 8995 — #106). Notebook próprio c5934f22.
+- **Resultado:** suíte atual: 1353 selecionados / 1340 passed / 1 failed (F1 fitz) / 15 skipped (2026-08-11, task-18).
+
+## FECHADA — S27–S30: Vertical INCÊNDIO/AVCB + climatização standalone (PRs #107–#110) — 2026-08-02
+Merges 2026-08-02T02:35Z → 03:04Z (4 PRs). Orquestrador **`galpao_seguranca_incendio.py`** +
+módulos: `iluminacao_emergencia_nbr10898` (emergência, #107), `sinalizacao_nbr16820` (#107),
+`deteccao_alarme_nbr17240` (alarme, #107), `proteccao_sprinklers_nbr10897` (sprinklers NBR 10897,
+#108), `iluminacao_externa_nbr5101` (iluminação externa NBR 5101, #109), `climatizacao_nbr16401`
+(climatização NBR 16401, #110 — standalone nesta fase).
+- **Resultado:** sem contagem de suíte na evidência (não verificado).
+
+## FECHADA — S31: Loop elétrico (PR #111) — 2026-08-02
+Merge 2026-08-02T03:22Z. P31 fecha o loop: iluminação externa + climatização passam a entrar como
+cargas do QGF.
+- **Resultado:** sem contagem de suíte na evidência (não verificado).
+
+## FECHADA — S32: TURNKEY orquestrador-mestre (PR #112) — 2026-08-02
+Merge 2026-08-02T14:27Z. **`galpao_turnkey.rodar(spec)`** despacha TODOS os verticais, consolida
+gates + ATENDE global; falha isolada por disciplina; **modelo federado** (IFC + 3D + clash AABB
+com triagem esperado×revisar) (00-index:33-35).
+- **Resultado:** sem contagem de suíte na evidência (não verificado).
+
+## FECHADA — P33–P39: Robustez, executivo incêndio, caderno único, hidrantes, revisão total, dispatch (PRs #113–#119) — 2026-08-02
+Merges 2026-08-02T14:37Z → 16:43Z (7 PRs).
+- **P33 (#113):** harness de robustez dos verticais novos.
+- **P34 (#114):** executivo A1 incêndio — rotas de fuga/AVCB (`desenho_incendio`).
+- **P35 (#115):** acionadores para galpão alongado (NBR 17240).
+- **P36 — CADERNO ÚNICO (#116):** `caderno_turnkey` — capa+índice+pranchas A1 de todas as
+  disciplinas num PDF (via fitz), montado ao vivo no freecad.exe (00-index:36-37).
+- **P37 (#117):** hidrantes e mangotinhos (NBR 13714).
+- **P38 — REVISÃO TOTAL (#118):** drawing-vs-data na planta de incêndio + guards de entrada
+  degenerada (geometria/tensão/área/Fu=0 → ValueError) em 4 orquestradores (00-index:38-39).
+- **P39 (#119):** dispatch do aço no caderno turnkey.
+
+## FECHADA — Fixes contra-segurança + BIM incêndio (PRs #120–#123) — 2026-08-02
+Merges 2026-08-02T19:55Z → 20:38Z (4 PRs). Fix hidrantes de cobertura (NBR 13714 5.3.2 por malha +
+2 jatos, #120); fix guards elétrico nos 7 módulos (#121); BIM/IFC dos equipamentos de incêndio
+(#122); fix planta de iluminação de emergência count-driven (#123).
+
+## FECHADA — Turnkey federado BIM/IFC + clash + 3D (PRs #124–#134) — 2026-08-02/03
+Merges 2026-08-02T20:46Z → 2026-08-03T02:42Z (11 PRs). Modelo BIM/IFC federado consolidado
+(#124); aço dentro do federado (#125); clash detection federado (#126); build 3D sólido federado
+(`build_federado`) + fix AABB orientado (#127); apêndice de coordenação no caderno (#128);
+triagem esperado×revisar (#129); fix escala das caixas do aço federado (#130); vertical
+climatização federada (#131); render-and-look PNG federado (#132); **vertical hidráulica
+federada — 6ª disciplina** (`galpao_hidraulica`, #133); prancha de coordenação no caderno
+(`desenho_coordenacao`/`techdraw_coordenacao`, #134).
+
+## FECHADA — HVAC velocidade do duto (PR #135) — 2026-08-03
+Merge 2026-08-03T02:51Z. Velocidade do duto ancorada na NBR 16401-1 Tab.1 (era flagada).
+
+## FECHADA — S39: HIDRÁULICA + COORDENAÇÃO (PRs #136–#147) — 2026-08-03
+Merges 2026-08-03T06:35Z → 15:33Z (12 PRs). **`galpao_hidraulica` + `hidraulica_predial`**
+dimensionam NBR 5626:2020/8160/10844 (#136; sem método dos pesos → v≤3 m/s, 00-index:40-43);
+prancha A1 de coordenação do federado (#137); reservatório de incêndio como torre elevada no
+render (#138); revisão NBR (2 gaps: DN75 vertical, declividade mínima — #139); método dos pesos
+NBR 5626:1998 (#140); verificação de pressão Fair-Whipple-Hsiao (#141); ventilação do esgoto +
+calhas pluviais (#142); executivo A1 hidro/clima (`techdraw_hidraulica`, #143); janela lateral
+wizard (L,H)→faixa (#144); revisão S39 (pressão por ponto, saturação pluvial, área do dreno,
+#145); condutor curto exige paralelo (não satura, #146); água quente (NBR 5626:2020 SPAFAQ,
+#147).
+
+## FECHADA — S40: HARDENING — saturação silenciosa (PR #148) — 2026-08-03
+Merge 2026-08-03T16:17Z. Caça à **saturação silenciosa** (tabela satura no maior valor + gate que
+não reprova + OK=True): fechou terça-ELS/flecha (aço) e placa de sinalização (incêndio); concreto
+verificado limpo. **1ª auditoria NLM formal de concreto/aço** (As_max pilar, flecha terça
+L/180-L/120, drift H/300, flexo-compressão 5.5.1.2 — todos batem) (00-index:44-49).
+
+## FECHADA — S40: Docs — consolidação do arco S20–S40 (PR #149) — 2026-08-03
+Merge 2026-08-03T16:33Z. Docs da wiki consolidando o arco S20–S40.
+
+## FECHADA — S40: Janela dupla-conversão — fecha T40 (PR #150) — 2026-08-03
+Merge 2026-08-03T18:31Z (00-index:50-52). `janelas_laterais` unificada na convenção **FAIXA**
+(canônica); conversão (L,H)→faixa só no wizard via `_janela_band`; `aberturas_para_build` virou
+pass-through (mata a reconversão que #144 abrira). **Suíte 100% verde** (00-index:50-52).
+[[06-open-threads#T40]] ✅.
+
+## FECHADA — S40: Docs — T40 resolvido (PR #151) — 2026-08-03
+Merge 2026-08-03T18:32Z. Docs da wiki marcando o T40 RESOLVIDO.
+
+## FECHADA — S40: Runner de regressão confiável (PR #152) — 2026-08-03
+Merge 2026-08-03T18:55Z. **`tools/run_tests.py`** — PRIMÁRIO: pytest-xdist `-n auto` (1353
+selecionados em ~5 min, 2026-08-11); FALLBACK sem xdist: 2 lanes (rápidos primeiro, pesados
+isolados — 23 arquivos: 22 `test_fase*` + `test_crashes_wiki07`); `requirements-dev.txt` +
+`tools/README.md` (00-index:98-104).
+
+## FECHADA — S40: Docs — situação atual (PR #153) — 2026-08-04
+Merge 2026-08-04T13:14Z (último PR antes do hiato). Wiki reflete a situação S40 (T40 fechado +
+runner #152 + regressão verde).
+
+## FECHADA — S41: Fixes de desenho/pranchas + planta elétrica (PRs #154–#161) — 2026-08-09
+**Trabalho pós-2026-08-04** (hiato 04→09/08; merges 2026-08-09T04:12Z → 06:00Z, 8 PRs — task-3
+§4; a wiki emudeceu nesse período). Escape &<> no SVG (unifilar XML malformado, #154); fix carimbo
+elétrico vazava ESTRUTURAL (#155); docs proveniência `bacia_caixa=0,96` (#156); centraliza quadros
+PE-EL-03/PE-HID-02 (#157); escape &<> em incêndio/clima/coord (#158); centraliza quadros verticais
+(#159); planta de iluminação e tomadas (#160); fecha 4 gaps da planta elétrica (QDC,
+bitola/eletroduto, leiaute, 3D/BIM — #161).
+
+## FECHADA — S42: Dez módulos de engenharia (PRs #162–#171) — 2026-08-09
+**Pós-2026-08-04** (merges 2026-08-09T15:27Z → 16:10Z, 10 PRs — task-3 §4). Um módulo novo por PR
+(todos no main, task-3 §6):
+- `piso_industrial` (placa sobre solo, #162); `geotecnia_spt` (SPT→tensão admissível + escolha de
+  fundação, #163); `orcamento` (5D, curva ABC + BDI, #164); `compatibilizacao` (BCF-like, #165);
+  `fotovoltaico` (GD on-grid, #166); `esgoto_reuso` (fossa NBR 7229 + reuso cisterna Rippl, #167);
+  `terraplenagem` (corte/aterro + greide, #168); `cronograma` (4D, CPM + curva S, #169);
+  `caderno_encargos` (#170); `pacote_legal` (ART, PPCI/LOD/O&M, #171).
+- **Resultado:** sem contagem de suíte na evidência (não verificado).
 
