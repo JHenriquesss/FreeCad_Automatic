@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "loop_id", "mode", "iteration", "phase", "task", "base_commit", "worktree", "evidence", "attempts", "artifacts", "outcome", "last_error"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "loop_id": {"type": "string"},
+    "mode": {"enum": ["dry-run", "supervised", "autonomous"]},
+    "iteration": {"type": "integer", "minimum": 1},
+    "phase": {"enum": ["preflight", "discover", "research", "plan", "red", "implement", "verify", "review", "record", "promote", "park"]},
+    "task": {"type": ["object", "null"]},
+    "base_commit": {"type": "string"},
+    "worktree": {"type": ["string", "null"]},
+    "evidence": {"type": ["object", "null"]},
+    "attempts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "artifacts": {"type": "object", "additionalProperties": {"type": "string"}},
+    "outcome": {"type": ["string", "null"]},
+    "last_error": {"type": ["string", "null"]}
+  }
+}
