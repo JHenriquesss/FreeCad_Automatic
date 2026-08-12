@@ -7,9 +7,9 @@ prismatic / web-tapered / truss) → MAES 2nd order → member check NBR 8800 (+
 eccentric) → fire → stairs → platforms → **FreeCAD 3D model** → **2D executive drawings
 (TechDraw, AWS A2.4 weld symbols)** → DXF → PT memorials.
 
-**Status:** REVISAO itens 1–49: 47 HOMOLOGADO + 2 PARECER (46, 49) · pytest 1353
-selecionados / 1340 passed / 1 failed (`test_dossie_unico`, sem `fitz`) / 15
-skipped · smoke 7/7.
+**Status:** REVISAO itens 1–49: 47 HOMOLOGADO + 2 PARECER (46, 49) · pytest 1393
+coletados / 1357 passed / 0 failed / 14 skipped / 22 deselecionados (2026-08-11,
+pós-instalação do PyMuPDF) · smoke 7/7.
 
 ## Quick Start
 

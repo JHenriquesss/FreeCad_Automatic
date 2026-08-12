@@ -386,7 +386,7 @@ Merges 2026-08-01T23:56Z → 2026-08-02T02:02Z (5 PRs). Orquestrador **`galpao_e
 `fator_potencia` (P21 núcleo BT), `aterramento_nbr15749` + `spda_nbr5419` (P21 aterramento/SPDA),
 `subestacao_nbr14039` (P22 MT, NBR 14039), BIM/IFC elétrico (P23, #104), build 3D + executivo A1
 (P24–P25, #105), `luminotecnica_nbr8995` (P26, NBR 8995 — #106). Notebook próprio c5934f22.
-- **Resultado:** suíte atual: 1353 selecionados / 1340 passed / 1 failed (F1 fitz) / 15 skipped (2026-08-11, task-18).
+- **Resultado:** suíte atual: 1393 coletados / 1357 passed / 0 failed / 14 skipped / 22 deselecionados (2026-08-11 pós-instalação do PyMuPDF; task-18: 1353/1340/1/15).
 
 ## FECHADA — S27–S30: Vertical INCÊNDIO/AVCB + climatização standalone (PRs #107–#110) — 2026-08-02
 Merges 2026-08-02T02:35Z → 03:04Z (4 PRs). Orquestrador **`galpao_seguranca_incendio.py`** +

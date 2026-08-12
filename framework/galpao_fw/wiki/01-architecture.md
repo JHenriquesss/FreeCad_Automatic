@@ -30,6 +30,7 @@ Mesmo `R` para redim/fundação/base → consistência; M do engaste não é rec
 | Montagem/Obra | **`montagem`** (sequência 10 passos, guindaste, estai, prumo H/500) | NBR 8800 §12.3 + AISC 303 + Bellei 7.6.4 |
 | Fabricação 3D/2D | **`marcas_peca`** (takeoff/corte 3D), **`tolerancias_fabricacao`** (tabela 2D Q09T) | NBR 8800 §12.2/12.3 + Bellei Ap. C |
 | Verif. flexão avançada | **`props_I_mono`** (perfil I monossimétrico), **`dg25_ltb`** (DG25 FLT + envelope), **`forcas_localizadas`** (NBR 8800 §5.7), **`console_ponte`** (FLT Anexo G Tab G.1) | AISC DG25 + NBR 8800 Anexo G / §5.7 |
+| Fogo (aço) | **`fogo_nbr14323`** (θ_aço/θ_crítica, ISO 834, proteção intumescente/spray) | NBR 14323 |
 | Interoperabilidade BIM | **`modelo_neutro`**, **`ifc_emit`**, **`ifc_map`** + analítico via `galpao_portico.modelo_analitico()` e `ifc_emit.emitir_ifc_analitico` (não é módulo próprio) | IFC4 Physical (ISO 16739-1) / IFC4 Structural |
 | Auto-sizing | `redimensionamento` | usa check |
 | Orquestração | `rodar_galpao`, `rodar_projeto`, `framework`, `projeto_spec`, **`romaneio`**, `acos` | — |
@@ -64,7 +65,7 @@ linha por elemento (`util = solicitação/resistência ≤ 1,0`) + alerta se alg
 - Helpers `_uok(util,ok)`/`_uokd(dict)` forçam `util>1` quando a flag de OK reprova mesmo
   com `util≤1` (base sob interação T-V, sapata sob punção, viga-rolamento sob fadiga/
   flecha). Elemento não rodado → linha ausente (não conta como falha).
-- `fogo` reporta `θ_aço/θ_crítica` (não °C absoluto). `rodar_projeto` exporta o mesmo
+- `fogo_nbr14323` reporta `θ_aço/θ_crítica` (não °C absoluto). `rodar_projeto` exporta o mesmo
   conjunto (`resultados`+`estados`) para a tabela das pranchas TechDraw.
 
 ## Auditoria geométrica
