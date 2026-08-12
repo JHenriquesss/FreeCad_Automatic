@@ -15,6 +15,7 @@
 # Uso:  python tools/run_tests.py [args extras p/ o pytest]
 #       python tools/run_tests.py -x -k terca          # passa args adiante
 # ============================================================================
+import glob
 import importlib.util
 import os
 import subprocess
@@ -25,9 +26,16 @@ GALPAO = os.path.dirname(HERE)                       # framework/galpao_fw
 BASE = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-m", "not build"]
 EXTRA = sys.argv[1:]
 
-# arquivos PESADOS (isolados no fallback): end-to-end que rodam o pipeline completo
+# arquivos PESADOS (isolados no fallback): end-to-end que rodam o pipeline completo.
+# O glob e' expandido AQUI em Python (glob.glob): passar o padrao literal "tests/test_fase*.py"
+# ao pytest nao funciona no PowerShell do Windows, que nao expande globs p/ comandos nativos
+# (reproduzido 2026-08-11: "ERROR: file or directory not found: tests/test_fase*.py").
 PESADOS_GLOB = "*/test_fase*"
-PESADOS_ALVO = ["tests/test_fase*.py", "tests/test_crashes_wiki07.py"]
+PESADOS_ALVO = sorted(
+    os.path.relpath(p, GALPAO)
+    for p in glob.glob(os.path.join(GALPAO, "tests", "test_fase*.py"))
+)
+PESADOS_ALVO.append("tests/test_crashes_wiki07.py")
 
 
 def _run(args):
