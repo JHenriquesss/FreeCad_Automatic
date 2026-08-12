@@ -118,3 +118,14 @@ def test_git_invalid_loop_id_is_rejected_before_runtime_creation(tmp_path, loop_
         manager.create(loop_id, base_commit)
 
     assert not (repository / ".loop-runtime").exists()
+
+
+def test_git_lock_suffix_loop_id_is_rejected_before_runtime_creation(tmp_path):
+    repository, base_commit = make_repository(tmp_path)
+    manager = WorktreeManager(repository, repository / ".loop-runtime")
+
+    with pytest.raises(ValueError, match="loop_id"):
+        manager.create("a.lock", base_commit)
+
+    assert not (repository / ".loop-runtime").exists()
+    assert not (repository / ".loop-runtime" / "worktrees").exists()

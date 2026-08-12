@@ -44,6 +44,13 @@ class WorktreeManager:
             raise ValueError("worktree path is outside runtime") from error
         return candidate
 
+    def _validate_branch_ref(self, loop_id):
+        self._validate_loop_id(loop_id)
+        try:
+            self._git("check-ref-format", "--branch", f"loop/{loop_id}")
+        except subprocess.CalledProcessError as error:
+            raise ValueError("loop_id must be a valid Git branch name") from error
+
     def _git(self, *args):
         return subprocess.run(
             ["git", *args],
@@ -54,6 +61,7 @@ class WorktreeManager:
         ).stdout.strip()
 
     def create(self, loop_id, base_commit):
+        self._validate_branch_ref(loop_id)
         worktree_path = self._worktree_path(loop_id)
         self.worktrees_dir.mkdir(parents=True, exist_ok=True)
         self._git(

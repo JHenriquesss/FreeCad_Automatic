@@ -92,3 +92,24 @@ Mensagem solicitada: `feat: isolate development loop worktrees`
 - `a..b` e `a.` geram `ValueError` e não criam `.loop-runtime` nem `worktrees` parcial.
 - A alteração mantém o alfabeto seguro existente e não adiciona dependências.
 - Nenhuma lógica de engenharia, regra de `.gitignore`, documentação, `.omo` ou saída não relacionada foi alterada nesta correção.
+
+## Correção final do finding sobre `a.lock`
+
+O revisor identificou que `a.lock` passava pela validação local, mas `git check-ref-format --branch loop/a.lock` rejeita essa branch; como `create()` criava `runtime/worktrees` antes do Git, a falha deixava estado parcial.
+
+### RED
+
+- Foi adicionado `test_git_lock_suffix_loop_id_is_rejected_before_runtime_creation`, verificando `ValueError` e ausência de `.loop-runtime` e `.loop-runtime/worktrees`.
+- A execução de `python -m pytest tools/loops/tests/test_config_worktrees.py -q` falhou com `15 passed, 1 failed`; sem a correção, `git worktree add -b loop/a.lock` levantava `CalledProcessError` depois de `mkdir`.
+
+### GREEN
+
+- `WorktreeManager.create` agora valida `loop/<loop_id>` com `git check-ref-format --branch` e converte a rejeição em `ValueError` antes de criar qualquer diretório.
+- `python -m pytest tools/loops/tests/test_config_worktrees.py -q` passou com `16 passed`.
+
+### Self-review
+
+- `a.lock` é rejeitado sem criar runtime ou worktrees parciais.
+- O suporte existente a SHA abreviado e as rejeições de `a..b`/`a.` permanecem cobertos e preservados.
+- A validação usa argumentos separados de subprocesso, sem shell, e não adiciona dependências.
+- Nenhuma lógica de engenharia, regra de `.gitignore` ou arquivo não relacionado foi alterado.
