@@ -191,3 +191,15 @@ class LoopState:
                       "task": TaskCandidate.from_dict(value["task"]) if value["task"] else None,
                       "evidence": EvidenceBundle.from_dict(value["evidence"]) if value["evidence"] else None,
                       "failure": FailureRecord.from_dict(value["failure"]) if value["failure"] else None})
+
+
+@dataclass(frozen=True)
+class LoopConfig:
+    project_root: str
+    runtime_dir: str
+    mode: str
+    max_iterations: int
+    max_attempts_per_phase: int
+    command_timeout_seconds: int
+    build_timeout_seconds: int
+    executor: str

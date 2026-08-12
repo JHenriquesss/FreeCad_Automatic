@@ -30,6 +30,7 @@ Thumbs.db
 # Local agent/runtime state
 .agents/
 .codex/
+.loop-runtime/
 
 # artefatos de teste / backups do FreeCAD
 *.FCBak
