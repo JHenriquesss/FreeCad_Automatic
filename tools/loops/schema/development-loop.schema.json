@@ -2,20 +2,110 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "loop_id", "mode", "iteration", "phase", "task", "base_commit", "worktree", "evidence", "attempts", "artifacts", "outcome", "last_error"],
+  "required": [
+    "schema_version",
+    "loop_id",
+    "mode",
+    "iteration",
+    "phase",
+    "task",
+    "base_commit",
+    "worktree",
+    "evidence",
+    "attempts",
+    "artifacts",
+    "outcome",
+    "last_error",
+    "failure"
+  ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"type": "integer", "const": 1},
     "loop_id": {"type": "string"},
-    "mode": {"enum": ["dry-run", "supervised", "autonomous"]},
+    "mode": {"type": "string", "enum": ["dry-run", "supervised", "autonomous"]},
     "iteration": {"type": "integer", "minimum": 1},
-    "phase": {"enum": ["preflight", "discover", "research", "plan", "red", "implement", "verify", "review", "record", "promote", "park"]},
-    "task": {"type": ["object", "null"]},
+    "phase": {
+      "type": "string",
+      "enum": ["preflight", "discover", "research", "plan", "red", "implement", "verify", "review", "record", "promote", "park"]
+    },
+    "task": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["id", "title", "discipline", "origin", "priority", "evidence_paths", "suggested_tests"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "discipline": {"type": "string"},
+        "origin": {"type": "string"},
+        "priority": {"type": "integer"},
+        "evidence_paths": {"type": "array", "items": {"type": "string"}},
+        "suggested_tests": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "base_commit": {"type": "string"},
     "worktree": {"type": ["string", "null"]},
-    "evidence": {"type": ["object", "null"]},
-    "attempts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
-    "artifacts": {"type": "object", "additionalProperties": {"type": "string"}},
+    "evidence": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["notebook_id", "source_ids", "sources", "question", "answer", "conversation_id", "citations", "retrieved_at", "manual_request"],
+      "properties": {
+        "notebook_id": {"type": "string"},
+        "source_ids": {"type": "array", "items": {"type": "string"}},
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_id", "title", "status", "notebook_id", "local_path", "local_hash"],
+            "properties": {
+              "source_id": {"type": "string"},
+              "title": {"type": "string"},
+              "status": {"type": "integer"},
+              "notebook_id": {"type": "string"},
+              "local_path": {"type": ["string", "null"]},
+              "local_hash": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "question": {"type": "string"},
+        "answer": {"type": "string"},
+        "conversation_id": {"type": ["string", "null"]},
+        "citations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["number", "source_id", "cited_text"],
+            "properties": {
+              "number": {"type": "string"},
+              "source_id": {"type": "string"},
+              "cited_text": {"type": "string"}
+            }
+          }
+        },
+        "retrieved_at": {"type": "string"},
+        "manual_request": {"type": ["string", "null"]}
+      }
+    },
+    "attempts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
     "outcome": {"type": ["string", "null"]},
-    "last_error": {"type": ["string", "null"]}
+    "last_error": {"type": ["string", "null"]},
+    "failure": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["reason", "command", "artifacts", "detail"],
+      "properties": {
+        "reason": {"type": "string"},
+        "command": {"type": ["array", "null"], "items": {"type": "string"}},
+        "artifacts": {"type": "array", "items": {"type": "string"}},
+        "detail": {"type": ["string", "null"]}
+      }
+    }
   }
 }

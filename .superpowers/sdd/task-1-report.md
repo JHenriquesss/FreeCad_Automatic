@@ -39,3 +39,31 @@ Os quatro testes exigidos foram escritos antes da produção. A execução inici
 
 - A validação implementada cobre as regras essenciais usadas nesta fatia; validação genérica de JSON Schema e contratos dos adaptadores ficam para tarefas posteriores.
 - A suíte global do repositório não foi executada porque esta task delimita a validação ao ledger isolado; a suíte própria `tools/loops` foi executada integralmente e está verde.
+
+## Correção
+
+### Escopo
+
+- Adicionado `FailureRecord` ao contrato, `LoopState.failure` e à estrutura obrigatória do schema.
+- `Ledger.record_failure(reason, command, artifacts, detail)` persiste razão, argv e referências de artefatos sem avançar `phase`.
+- `_validate` agora percorre todo o schema local: tipos, `const`, `enum`, mínimos, coleções, campos obrigatórios, propriedades adicionais e objetos/arrays aninhados.
+- `save` usa `NamedTemporaryFile` exclusivo no diretório do ledger, `os.replace` e só atualiza `self.state` após a substituição bem-sucedida.
+- `record_failure` rejeita coleções escalares; uma transição inválida ou uma falha inválida não altera nem memória nem arquivo.
+- Defaults de modo e sanitização de stdout/stderr não foram alterados; não houve dependências runtime novas.
+
+### RED
+
+- Contra `d3a13fc` em clone temporário, `python -m pytest tools/loops/tests/test_ledger.py -q` falhou na coleta com `ImportError: cannot import name 'FailureRecord'`.
+- Após acrescentar a regressão de coleções escalares, `python -m pytest tools/loops/tests/test_ledger.py -q` falhou como esperado: 2 falhas, pois strings eram convertidas em tuplas de caracteres e persistidas.
+
+### GREEN
+
+- `python -m pytest tools/loops/tests/test_ledger.py -q`: `25 passed in 0.24s`.
+- `python -m pytest tools/loops -q`: `25 passed in 0.49s`.
+
+### Self-review
+
+- Conferidos contrato, schema e serialização de cada objeto aninhado usado por `LoopState`, inclusive `failure`.
+- Conferido que `transition` valida a fase esperada e a transição antes de salvar; em erro, bytes e estado permanecem inalterados.
+- Conferido que a exceção de `os.replace` não altera `self.state`, preserva o arquivo anterior e remove o temporário.
+- Preservadas alterações não relacionadas em `.gitignore`, `.omo/`, `docs/` e diretórios de saída; o commit incluirá apenas os arquivos desta correção e o registro de sessão.

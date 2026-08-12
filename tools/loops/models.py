@@ -45,8 +45,8 @@ class TaskCandidate:
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "title": self.title, "discipline": self.discipline,
                 "origin": self.origin, "priority": self.priority,
-                "evidence_paths": list(self.evidence_paths),
-                "suggested_tests": list(self.suggested_tests)}
+                "evidence_paths": list(self.evidence_paths) if isinstance(self.evidence_paths, tuple) else self.evidence_paths,
+                "suggested_tests": list(self.suggested_tests) if isinstance(self.suggested_tests, tuple) else self.suggested_tests}
 
     @classmethod
     def from_dict(cls, value):
@@ -129,6 +129,32 @@ class CommandResult:
         return cls(**{**value, "argv": tuple(value["argv"])})
 
 
+@dataclass(frozen=True)
+class FailureRecord:
+    reason: str
+    command: tuple[str, ...] | None
+    artifacts: tuple[str, ...]
+    detail: str | None = None
+
+    def to_dict(self):
+        return {
+            "reason": self.reason,
+            "command": list(self.command) if isinstance(self.command, tuple) else self.command,
+            "artifacts": list(self.artifacts) if isinstance(self.artifacts, tuple) else self.artifacts,
+            "detail": self.detail,
+        }
+
+    @classmethod
+    def from_dict(cls, value):
+        return cls(
+            **{
+                **value,
+                "command": tuple(value["command"]) if value["command"] is not None else None,
+                "artifacts": tuple(value["artifacts"]),
+            }
+        )
+
+
 @dataclass
 class LoopState:
     schema_version: int
@@ -144,19 +170,24 @@ class LoopState:
     artifacts: dict[str, str]
     outcome: str | None
     last_error: str | None
+    failure: FailureRecord | None = None
 
     def to_dict(self):
+        phase = self.phase.value if isinstance(self.phase, LoopPhase) else self.phase
         return {"schema_version": self.schema_version, "loop_id": self.loop_id,
                 "mode": self.mode, "iteration": self.iteration,
-                "phase": self.phase.value,
-                "task": self.task.to_dict() if self.task else None,
+                "phase": phase,
+                "task": self.task.to_dict() if isinstance(self.task, TaskCandidate) else self.task,
                 "base_commit": self.base_commit, "worktree": self.worktree,
-                "evidence": self.evidence.to_dict() if self.evidence else None,
-                "attempts": dict(self.attempts), "artifacts": dict(self.artifacts),
-                "outcome": self.outcome, "last_error": self.last_error}
+                "evidence": self.evidence.to_dict() if isinstance(self.evidence, EvidenceBundle) else self.evidence,
+                "attempts": dict(self.attempts) if isinstance(self.attempts, dict) else self.attempts,
+                "artifacts": dict(self.artifacts) if isinstance(self.artifacts, dict) else self.artifacts,
+                "outcome": self.outcome, "last_error": self.last_error,
+                "failure": self.failure.to_dict() if isinstance(self.failure, FailureRecord) else self.failure}
 
     @classmethod
     def from_dict(cls, value):
         return cls(**{**value, "phase": LoopPhase(value["phase"]),
                       "task": TaskCandidate.from_dict(value["task"]) if value["task"] else None,
-                      "evidence": EvidenceBundle.from_dict(value["evidence"]) if value["evidence"] else None})
+                      "evidence": EvidenceBundle.from_dict(value["evidence"]) if value["evidence"] else None,
+                      "failure": FailureRecord.from_dict(value["failure"]) if value["failure"] else None})
