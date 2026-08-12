@@ -18,18 +18,19 @@
 ## Findings corrigidos
 
 1. A sanitização agora percorre dicionários e listas aninhados e substitui por `[REDACTED]` valores em chaves de token, secret, password, credential, authorization, cookie, api-key, csrf, bearer, client-secret, id-token e refresh-token, inclusive com hífen ou underscore. O `EvidenceBundle` é extraído do documento já sanitizado.
-2. `query` aceita `source_metadata` opcional para IDs ausentes da listagem. Um pedido manual usa título, caminho e hash locais quando fornecidos; sem metadados, informa explicitamente que título e caminho local devem ser fornecidos e inclui o `source_id`. Fontes existentes mas não prontas mantêm os metadados obtidos do catálogo.
+2. `query` aceita `source_metadata` opcional para IDs ausentes da listagem. `ManualSourceRequest` preserva `local_hash` e o escreve como `Hash local` na fila Markdown quando fornecido; sem metadados, informa explicitamente que título e caminho local devem ser fornecidos e inclui o `source_id`. Fontes existentes mas não prontas mantêm os metadados obtidos do catálogo.
 3. O caminho padrão de pedidos manuais é `.loop-runtime/manual-source-requests.md`; o supervisor ainda pode sobrescrevê-lo por execução.
 4. `NotebookMap.notebook_id_for_path` seleciona o prefixo de pasta mais específico, incluindo `fontes/_NOTEBOOKLM_COMPLEMENTAR/01_CONCRETO_DIGITALIZADO`.
 5. `_run` rejeita `CommandResult` e `CompletedProcess` com `returncode` não zero, incluindo o `stderr` no erro antes de qualquer parse JSON.
+6. O runner padrão usa `subprocess.run(check=False)` e retorna o `CompletedProcess` completo, permitindo que `_run` produza erro explícito com código de retorno e `stderr`, sem deixar `CalledProcessError` escapar.
 
 ## TDD
 
-1. RED: após adicionar as regressões offline, `python -m pytest tools/loops/tests/test_research_nlm.py -q` retornou `7 failed, 6 passed`. As falhas reproduziram todos os findings; as duas últimas foram as variantes parametrizadas de resultado de comando não zero.
-2. GREEN: a implementação mínima preservou status estrito `int` igual a `2`, o comando exato de consulta, citações validadas e runner injetável. Uma expectativa antiga foi atualizada para o novo marcador `[REDACTED]` após o GREEN inicial revelar que ela ainda esperava remover a chave.
+1. RED da correção final: o baseline era `13 passed`; após adicionar a asserção de `local_hash` via `source_metadata` e o teste real com processo não zero, `python -m pytest tools/loops/tests/test_research_nlm.py -q` retornou `2 failed, 12 passed`, reproduzindo os dois findings.
+2. GREEN: a implementação mínima adicionou o hash à estrutura e ao Markdown e fez o runner padrão retornar `CompletedProcess`; o teste focal passou com `14 passed`, preservando status estrito `int` igual a `2`, o comando exato de consulta, citações validadas e suporte injetável.
 3. GREEN final:
-   - `python -m pytest tools/loops/tests/test_research_nlm.py -q` → `13 passed`;
-   - `python -m pytest tools/loops -q` → `54 passed`.
+   - `python -m pytest tools/loops/tests/test_research_nlm.py -q` → `14 passed`;
+   - `python -m pytest tools/loops -q` → `55 passed`.
 
 ## Cobertura dos requisitos
 
@@ -44,6 +45,7 @@
 - test_manual_request_default_is_inside_loop_runtime: garante o default seguro dentro de `.loop-runtime`.
 - test_notebook_map_prefers_the_most_specific_real_path_prefix: cobre a entrada complementar real e o prefixo aninhado.
 - test_run_rejects_nonzero_command_results_and_preserves_stderr: cobre `CommandResult` e `CompletedProcess` não zero.
+- test_default_runner_surfaces_stderr_for_nonzero_process: cobre o runner padrão com processo real não zero, incluindo código de retorno e `stderr`.
 
 ## Smoke NotebookLM
 
@@ -56,6 +58,8 @@ Resultado: passou para o perfil `default`; a CLI encontrou 64 notebooks. Nenhuma
 ## Self-review
 
 - Confirmado: nenhuma alteração em Tasks 1/2, `fontes/` ou dependências.
+- Confirmado: `.gitignore` não foi alterado nesta correção.
 - Confirmado: o comando de consulta segue exatamente `nlm notebook query <notebook_id> <question> --source-ids <ids> --timeout 120 --json`.
 - Confirmado: fontes não prontas não entram no `--source-ids`; citações continuam limitadas aos IDs efetivamente consultados.
 - Confirmado: todos os valores secretos exercitados pelos testes são redigidos recursivamente com marcador seguro, inclusive antes da extração da evidência.
+- Confirmado: o hash de `source_metadata` aparece na fila manual e falhas reais do subprocesso não escapam como `CalledProcessError` sem diagnóstico.

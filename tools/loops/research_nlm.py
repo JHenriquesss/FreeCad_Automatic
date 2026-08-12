@@ -76,6 +76,7 @@ class ManualSourceRequest:
     notebook_id: str
     title: str
     local_path: str | None
+    local_hash: str | None
     reason: str
     suggested_command: str
     source_id: str | None = None
@@ -89,6 +90,7 @@ class ManualSourceRequest:
                 f"- Notebook: `{self.notebook_id}`\n"
                 f"- Source ID: `{self.source_id or 'desconhecido'}`\n"
                 f"- Caminho local: `{self.local_path or 'desconhecido'}`\n"
+                f"- Hash local: `{self.local_hash or 'desconhecido'}`\n"
                 f"- Motivo: {self.reason}\n"
                 f"- Comando manual sugerido: `{self.suggested_command}`\n\n"
             )
@@ -115,10 +117,10 @@ class NlmCliAdapter:
     def _run_subprocess(argv):
         return subprocess.run(
             argv,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
-        ).stdout
+        )
 
     def _run(self, argv):
         result = self.runner(tuple(argv))
@@ -229,6 +231,7 @@ class NlmCliAdapter:
             notebook_id=notebook_id,
             title=source.title,
             local_path=source.local_path,
+            local_hash=source.local_hash,
             reason=reason,
             suggested_command=f"nlm list sources {notebook_id} --full",
             source_id=source.source_id,

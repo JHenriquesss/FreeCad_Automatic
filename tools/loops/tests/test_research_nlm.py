@@ -1,6 +1,7 @@
 import csv
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -233,6 +234,7 @@ def test_missing_source_writes_complete_manual_request_from_local_metadata(tmp_p
     assert "nb-1" in content
     assert "Norma local ainda ausente" in content
     assert "01_TESTE/norma-a-inserir.pdf" in content
+    assert "sha256:metadata" in content
     assert "Fonte ausente da listagem remota" in content
     assert "nlm list sources nb-1 --full" in content
 
@@ -296,3 +298,19 @@ def test_run_rejects_nonzero_command_results_and_preserves_stderr(tmp_path, resu
         adapter._run(("nlm", "list"))
 
     assert "return code" in str(error.value)
+
+
+def test_default_runner_surfaces_stderr_for_nonzero_process(tmp_path):
+    notebook_map, catalog = write_local_sources(tmp_path)
+    adapter = NlmCliAdapter(notebook_map, catalog)
+
+    with pytest.raises(RuntimeError, match="default runner failure") as error:
+        adapter._run(
+            (
+                sys.executable,
+                "-c",
+                "import sys; sys.stderr.write('default runner failure'); sys.exit(3)",
+            )
+        )
+
+    assert "return code 3" in str(error.value)
