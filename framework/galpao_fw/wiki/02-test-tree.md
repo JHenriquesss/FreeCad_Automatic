@@ -1,6 +1,6 @@
 # 02 — Árvore de testes
 
-Cada módulo de cálculo tem `_selftest()`. Rodar: `python <modulo>.py --selftest` (módulos novos) ou `python <modulo>.py` (antigos). Sem framework externo — asserts inline + print de referência. Não-regressão = valores do galpão de referência 20×10 inalterados (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5). Suíte pytest: `python tools/run_tests.py` (lane rápida `tests/` exceto `test_fase*`/`test_crashes_wiki07` + lane pesada `test_fase*.py`/`test_crashes_wiki07.py`; xdist `-n auto` quando instalado, senão fallback 2 lanes sequenciais) — **1353 selecionados / 1340 passed / 1 failed / 15 skipped** (2026-08-11; falha única = `test_validacao::test_dossie_unico`, PyMuPDF `fitz` ausente no venv — dependência de instalação, não regressão).
+Cada módulo de cálculo tem `_selftest()`. Rodar: `python <modulo>.py --selftest` (módulos novos) ou `python <modulo>.py` (antigos). Sem framework externo — asserts inline + print de referência. Não-regressão = valores do galpão de referência 20×10 inalterados (coluna 0,42 / viga 0,68 / base C2_uplift_W2 −57,5). Suíte pytest: `python tools/run_tests.py` (lane rápida `tests/` exceto `test_fase*`/`test_crashes_wiki07` + lane pesada `test_fase*.py`/`test_crashes_wiki07.py`; xdist `-n auto` quando instalado, senão fallback 2 lanes sequenciais) — **1393 coletados / 1357 passed / 0 failed / 14 skipped / 22 deselecionados** (2026-08-11, pós-instalação do PyMuPDF no .venv; task-2 sem fitz: 1353/1340/1/15 — falha única `test_validacao::test_dossie_unico`, dependência de instalação, não regressão).
 
 ## Por módulo (o que assere)
 | Módulo | Asserts-chave |
@@ -50,7 +50,7 @@ PASS) + `validacao_referencia` (CBCA sistema <1%); `escopo` (envelope+ART); `wiz
 `res["atende_global"]`; `dossie` (PDF capa+ART, faltando≠quebra); multi-vão (mappers `spans`);
 neve (gate+escopo+`_quadro`); helpers de pranchas puros (`_codigo_prancha`, `_pos_notas`,
 `_cap_titulo`, `_fmt_terca`, `_quadro_fundacao`, `_pos_corte_ligacao`, `_callout_bloco`) —
-regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **1340 passed / 1 failed / 15 skipped** (1353 selecionados, 2026-08-11; falha = `test_dossie_unico`, fitz ausente — dependência, não regressão).
+regressão dos 6 defeitos de layout. Suíte completa `-m "not build"`: **1357 passed / 0 failed / 14 skipped** (1393 coletados / 22 deselecionados, 2026-08-11 pós-instalação do PyMuPDF; task-2 sem fitz: 1340/1/15).
 
 ## Correções+features+validação — sessão 2026-07-17 (ver [[06-open-threads#T15]])
 | arquivo | assere |

@@ -31,6 +31,10 @@ Thumbs.db
 .agents/
 .codex/
 
+# OpenCode/agent orchestration state (evidencias commitadas permanecem trackeadas)
+.omo/*
+!.omo/evidence/
+
 # artefatos de teste / backups do FreeCAD
 *.FCBak
 projects/galpao-cert/

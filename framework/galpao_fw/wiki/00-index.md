@@ -18,8 +18,10 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 ## Estado atual (2026-08-11) — Revisão da wiki
 
 Revisão completa dos 7 arquivos (00–06) contra o código (135 módulos — task-1), a suíte
-(`tools/run_tests.py`: **1353 selecionados / 1340 passed / 1 failed [F1: test_dossie_unico sem
-fitz] / 15 skipped** — task-2) e git/GitHub (171 PRs MERGED; arqueologia S19→2026-08-11 — task-3).
+(`tools/run_tests.py` — task-2: 1353 selecionados / 1340 passed / 1 failed [F1: test_dossie_unico
+sem fitz] / 15 skipped; **re-rodada 2026-08-11 pós-instalação do PyMuPDF no .venv: 1393 coletados /
+1357 passed / 0 failed / 14 skipped / 22 deselecionados — exit 0**) e git/GitHub (171 PRs MERGED;
+arqueologia S19→2026-08-11 — task-3).
 
 **Discrepâncias corrigidas: 68** (ledger task-5, 430 claims: 123 ok / 49 corrigir / 13 obsoleto /
 1 não verificado / 5 não-localizados registrados no task-5-update). Top 15 por severidade
@@ -43,7 +45,8 @@ fitz] / 15 skipped** — task-2) e git/GitHub (171 PRs MERGED; arqueologia S19�
     módulo separado (via fitz)
 
 Contagens históricas (770+511 / 831 / 723 / 714 / 702 / 643 / 256 / 245 / 1281) atualizadas
-para a suíte real 1353/1340/1/15 (task-2/task-8); D74–D79 criadas em 04-decisions (task-15 —
+para a suíte real 1353/1340/1/15 (task-2/task-8; re-rodada pós-fitz: 1357 passed / 0 failed /
+14 skipped); D74–D79 criadas em 04-decisions (task-15 —
 os links `[[04-decisions#D74]]`..`[[#D79]]` agora resolvem); T22/T41 criadas em 06-open-threads
 (task-16 — `[[06-open-threads#T22]]` resolve).
 
@@ -300,7 +303,9 @@ task-3): ledger 430 claims — 123 ok / 49 corrigir / 13 obsoleto / 1 não verif
 (task-15); T22/T41 criadas em 06-open-threads (task-16); arco pós-S40 reconstruído do git —
 S41 #154–161 + S42 #162–171, MERGED 2026-08-09, HEAD 6358157; memory/ NÃO versionado no repo —
 arco reconstruído do git em 2026-08-11). Suíte real 2026-08-11 via tools/run_tests.py:
-1353 selecionados / 1340 passed / 1 failed (F1 fitz) / 15 skipped.
+1353 selecionados / 1340 passed / 1 failed (F1 fitz) / 15 skipped (task-2); re-rodada pós-
+instalação do PyMuPDF no .venv: 1393 coletados / 1357 passed / 0 failed / 14 skipped /
+22 deselecionados (exit 0; test_caderno_turnkey passou a rodar).
 last-consolidated: 2026-08-04, sessions: 40 (+ SESSÕES 20–40: os 6 verticais [concreto
 #81–101 / elétrico #102–106 / incêndio #107–110 / hidráulica #136–147] + TURNKEY federado
 #112 + caderno único #116 + revisão total #118 + hardening/saturação #148 + 1ª auditoria NLM
@@ -326,12 +331,6 @@ por forma fechada validada Green 1e-9; amostra ATENDE]; 4 varreduras sistemátic
 #42, rótulo takeoff/mísula −2,6t #44, relatório×cálculo #44, notas da prancha #44]; filtro de vigas
 morto #40; cache de módulo irmão no freecad.exe escondia fix mergeado #44; revisão PR #44 APROVADA.
 D67; T17. wiki/07 + PR_44_Review consolidados aqui e removidos)
-last-consolidated: 2026-07-17, sessions: 13 (+ sessão CORREÇÕES+FEATURES+VALIDAÇÃO: fix de
-sinal frame2d [raiz]; vento uplift/Cpe §2A/§2B/abertura_dominante; campos mortos do wizard;
-bugs de pipeline E/C/H/D/J/K [F/G refutados]; bloco de fundação NBR 6122; shed 1 água NBR
-6123 Tab.6; multi-vão heterogêneo; VALIDAÇÃO DE SISTEMA contra Alonso/Bellei — sapata 0,5%,
-bloco/vento exatos, pilar 0,1%; 6 commits reais (8bd725f/bb36b9b/e4e3468/63451f1, 07-17), aberto p/ revisão — ver [[06-open-threads#T15]].
-wiki/07 removido, consolidado aqui)
 last-consolidated: 2026-07-19, sessions: 14 (+ REVISÃO CONTINUADA + VERIFICAÇÃO VISUAL:
 bridge destravado [WMI mata freecad.exe travado; autostart era contaminação dos zumbis]; achou
 regressão do 3D no main [#20/#24], estaca ponta contra-segurança [#23, o mais grave], executivo
@@ -342,6 +341,12 @@ former: 2026-07-18, sessions: 13 (+ CAÇA DE BUGS sessão 14: motor correto
 periferia → mão-francesa geometria 3D [#15], validação de entrada COMPLETA [#13/#16/#18],
 pistas baixa-prob [#19]; PRs #12–#19 MERGED. Aberto: verificação VISUAL do executivo bloqueada
 por 3 freecad.exe TRAVADOS na 9875 [reboot]; ver [[06-open-threads#T16]], [[04-decisions#D58]]–[[04-decisions#D62]])
+last-consolidated: 2026-07-17, sessions: 13 (+ sessão CORREÇÕES+FEATURES+VALIDAÇÃO: fix de
+sinal frame2d [raiz]; vento uplift/Cpe §2A/§2B/abertura_dominante; campos mortos do wizard;
+bugs de pipeline E/C/H/D/J/K [F/G refutados]; bloco de fundação NBR 6122; shed 1 água NBR
+6123 Tab.6; multi-vão heterogêneo; VALIDAÇÃO DE SISTEMA contra Alonso/Bellei — sapata 0,5%,
+bloco/vento exatos, pilar 0,1%; 6 commits reais (8bd725f/bb36b9b/e4e3468/63451f1, 07-17), aberto p/ revisão — ver [[06-open-threads#T15]].
+wiki/07 removido, consolidado aqui)
 former: 2026-07-16, sessions: 12 (+ sessão TURNKEY: wizard/rodar_tudo/escopo/
 validacao CBCA <1% + neve + multi-vão + dossiê PDF + PE15 bloco + varredura visual 6
 defeitos; PR #12; 2º caso-referência PENDENTE — ver [[06-open-threads#T14]])
