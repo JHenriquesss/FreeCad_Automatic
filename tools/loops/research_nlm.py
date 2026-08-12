@@ -3,7 +3,7 @@ import json
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .models import Citation, CommandResult, EvidenceBundle, SourceRecord
 
@@ -24,8 +24,22 @@ class NotebookMap:
         return cls(notebook_ids_by_folder)
 
     def notebook_id_for_path(self, local_path):
-        folder = Path(local_path).parts[0]
-        return self.notebook_ids_by_folder.get(folder)
+        local_parts = self._path_parts(local_path)
+        matches = (
+            (len(folder_parts), notebook_id)
+            for folder, notebook_id in self.notebook_ids_by_folder.items()
+            if (folder_parts := self._path_parts(folder))
+            and local_parts[:len(folder_parts)] == folder_parts
+        )
+        return max(matches, default=(0, None))[1]
+
+    @staticmethod
+    def _path_parts(path):
+        return tuple(
+            part
+            for part in PurePosixPath(str(path).replace("\\", "/")).parts
+            if part not in {".", "/"}
+        )
 
 
 @dataclass(frozen=True)
@@ -64,6 +78,7 @@ class ManualSourceRequest:
     local_path: str | None
     reason: str
     suggested_command: str
+    source_id: str | None = None
 
     def write(self, path):
         request_path = Path(path)
@@ -72,6 +87,7 @@ class ManualSourceRequest:
             handle.write(
                 f"## {self.title}\n\n"
                 f"- Notebook: `{self.notebook_id}`\n"
+                f"- Source ID: `{self.source_id or 'desconhecido'}`\n"
                 f"- Caminho local: `{self.local_path or 'desconhecido'}`\n"
                 f"- Motivo: {self.reason}\n"
                 f"- Comando manual sugerido: `{self.suggested_command}`\n\n"
@@ -86,7 +102,7 @@ class NlmCliAdapter:
         *,
         runner=None,
         artifact_dir=".loop-runtime/artifacts",
-        manual_request_path="manual-source-requests.md",
+        manual_request_path=".loop-runtime/manual-source-requests.md",
     ):
         self.notebook_map = notebook_map
         self.catalog = catalog
@@ -106,9 +122,11 @@ class NlmCliAdapter:
 
     def _run(self, argv):
         result = self.runner(tuple(argv))
-        if isinstance(result, CommandResult):
-            return result.stdout
-        if isinstance(result, subprocess.CompletedProcess):
+        if isinstance(result, (CommandResult, subprocess.CompletedProcess)):
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"nlm command failed with return code {result.returncode}: {result.stderr}"
+                )
             return result.stdout
         if not isinstance(result, str):
             raise TypeError("runner must return stdout text or a command result")
@@ -163,16 +181,32 @@ class NlmCliAdapter:
 
     @staticmethod
     def _without_credentials(value):
-        secret_names = {"token", "access_token", "refresh_token", "api_key", "authorization", "cookie", "password", "credentials"}
         if isinstance(value, list):
             return [NlmCliAdapter._without_credentials(item) for item in value]
         if isinstance(value, dict):
             return {
-                key: NlmCliAdapter._without_credentials(item)
+                key: "[REDACTED]" if NlmCliAdapter._is_secret_key(key) else NlmCliAdapter._without_credentials(item)
                 for key, item in value.items()
-                if key.casefold() not in secret_names
             }
         return value
+
+    @staticmethod
+    def _is_secret_key(key):
+        normalized_key = "".join(character for character in str(key).casefold() if character.isalnum())
+        return any(
+            pattern in normalized_key
+            for pattern in (
+                "token",
+                "secret",
+                "password",
+                "credential",
+                "authorization",
+                "cookie",
+                "apikey",
+                "csrf",
+                "bearer",
+            )
+        )
 
     def _write_response_artifact(self, document):
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -184,13 +218,20 @@ class NlmCliAdapter:
         )
         self.last_artifact_path = str(artifact_path)
 
-    def _write_manual_request(self, source, notebook_id):
+    def _write_manual_request(self, source, notebook_id, *, absent_from_listing=False):
+        reason = (
+            "Fonte ausente da listagem remota; título e caminho local precisam ser fornecidos "
+            f"para source_id {source.source_id!r}."
+            if absent_from_listing
+            else f"Fonte não pronta para consulta (status {source.status!r})."
+        )
         ManualSourceRequest(
             notebook_id=notebook_id,
             title=source.title,
             local_path=source.local_path,
-            reason=f"Fonte não pronta para consulta (status {source.status!r}).",
+            reason=reason,
             suggested_command=f"nlm list sources {notebook_id} --full",
+            source_id=source.source_id,
         ).write(self.manual_request_path)
 
     @staticmethod
@@ -214,7 +255,31 @@ class NlmCliAdapter:
             )
         return tuple(parsed)
 
-    def query(self, notebook_id, question, source_ids):
+    @staticmethod
+    def _source_from_metadata(source_id, notebook_id, source_metadata):
+        metadata = (source_metadata or {}).get(source_id, {})
+        if isinstance(metadata, SourceRecord):
+            return SourceRecord(
+                source_id=source_id,
+                title=metadata.title,
+                status=metadata.status,
+                notebook_id=notebook_id,
+                local_path=metadata.local_path,
+                local_hash=metadata.local_hash,
+            )
+        if not isinstance(metadata, dict):
+            metadata = {}
+        title = metadata.get("title")
+        return SourceRecord(
+            source_id=source_id,
+            title=title if isinstance(title, str) and title else f"source_id {source_id} (título precisa ser informado)",
+            status=metadata.get("status"),
+            notebook_id=notebook_id,
+            local_path=metadata.get("local_path"),
+            local_hash=metadata.get("local_hash"),
+        )
+
+    def query(self, notebook_id, question, source_ids, source_metadata=None):
         requested_source_ids = tuple(dict.fromkeys(source_ids))
         all_sources = self._parse_sources(notebook_id)
         sources_by_id = {source.source_id: source for source in all_sources}
@@ -224,15 +289,17 @@ class NlmCliAdapter:
             if source_id in sources_by_id and self._is_ready(sources_by_id[source_id])
         )
         missing_sources = tuple(
-            sources_by_id.get(
-                source_id,
-                SourceRecord(source_id, source_id, None, notebook_id),
+            (
+                sources_by_id[source_id]
+                if source_id in sources_by_id
+                else self._source_from_metadata(source_id, notebook_id, source_metadata),
+                source_id not in sources_by_id,
             )
             for source_id in requested_source_ids
             if source_id not in sources_by_id or not self._is_ready(sources_by_id[source_id])
         )
-        for source in missing_sources:
-            self._write_manual_request(source, notebook_id)
+        for source, absent_from_listing in missing_sources:
+            self._write_manual_request(source, notebook_id, absent_from_listing=absent_from_listing)
         if not selected_sources:
             raise ValueError("no requested sources are ready")
 
@@ -246,6 +313,7 @@ class NlmCliAdapter:
         document = self._load_json(stdout)
         if not isinstance(document, dict):
             raise ValueError("nlm query JSON must be an object")
+        document = self._without_credentials(document)
         self._write_response_artifact(document)
         return EvidenceBundle(
             notebook_id=notebook_id,

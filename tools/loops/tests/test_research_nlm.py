@@ -1,8 +1,11 @@
 import csv
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 
+from tools.loops.models import CommandResult
 from tools.loops.research_nlm import CatalogIndex, NlmCliAdapter, NotebookMap
 
 
@@ -108,7 +111,44 @@ def test_query_passes_only_requested_source_ids(tmp_path):
     artifact = next((tmp_path / "artifacts").glob("*.json"))
     stored_response = json.loads(artifact.read_text(encoding="utf-8"))
     assert stored_response["answer"] == "A resposta de teste exige verificacao."
-    assert "token" not in stored_response
+    assert stored_response["token"] == "[REDACTED]"
+
+
+def test_query_redacts_nested_secret_key_patterns_from_artifact_and_evidence(tmp_path):
+    secret_values = {
+        "token": "token-secret",
+        "secret": "secret-secret",
+        "password": "password-secret",
+        "credential": "credential-secret",
+        "authorization": "authorization-secret",
+        "cookie": "cookie-secret",
+        "api-key": "api-key-secret",
+        "csrf": "csrf-secret",
+        "bearer": "bearer-secret",
+        "client-secret": "client-secret-secret",
+        "id-token": "id-token-secret",
+        "refresh-token": "refresh-token-secret",
+    }
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": "Resposta segura.",
+            "conversation_id": "conv-1",
+            "citations": [{"source_id": "src-ok", "cited_text": "trecho seguro"}],
+            "metadata": {"nested_values": [secret_values]},
+        },
+    )
+
+    evidence = adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+    artifact = next((tmp_path / "artifacts").glob("*.json"))
+    stored_response = json.loads(artifact.read_text(encoding="utf-8"))
+    redacted = stored_response["metadata"]["nested_values"][0]
+    assert set(redacted) == set(secret_values)
+    assert set(redacted.values()) == {"[REDACTED]"}
+    assert all(value not in json.dumps(stored_response) for value in secret_values.values())
+    assert all(value not in json.dumps(evidence.to_dict()) for value in secret_values.values())
 
 
 @pytest.mark.parametrize(
@@ -167,3 +207,92 @@ def test_missing_source_writes_manual_request(tmp_path):
     assert "Norma pendente" in content
     assert "01_TESTE/norma-pendente.pdf" in content
     assert "nlm list sources nb-1 --full" in content
+
+
+def test_missing_source_writes_complete_manual_request_from_local_metadata(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+    )
+
+    adapter.query(
+        "nb-1",
+        "Qual requisito deve ser verificado?",
+        ("src-ok", "src-missing"),
+        source_metadata={
+            "src-missing": {
+                "title": "Norma local ainda ausente",
+                "local_path": "01_TESTE/norma-a-inserir.pdf",
+                "local_hash": "sha256:metadata",
+            }
+        },
+    )
+
+    content = (tmp_path / "manual-source-requests.md").read_text(encoding="utf-8")
+    assert "src-missing" in content
+    assert "nb-1" in content
+    assert "Norma local ainda ausente" in content
+    assert "01_TESTE/norma-a-inserir.pdf" in content
+    assert "Fonte ausente da listagem remota" in content
+    assert "nlm list sources nb-1 --full" in content
+
+
+def test_missing_source_without_metadata_requests_title_and_path(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+    )
+
+    adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok", "src-missing"))
+
+    content = (tmp_path / "manual-source-requests.md").read_text(encoding="utf-8")
+    assert "src-missing" in content
+    assert "título e caminho local precisam ser fornecidos" in content
+
+
+def test_manual_request_default_is_inside_loop_runtime(tmp_path):
+    notebook_map, catalog = write_local_sources(tmp_path)
+
+    adapter = NlmCliAdapter(notebook_map, catalog, runner=FakeRunner([]))
+
+    assert adapter.manual_request_path == Path(".loop-runtime/manual-source-requests.md")
+
+
+def test_notebook_map_prefers_the_most_specific_real_path_prefix():
+    project_root = Path(__file__).resolve().parents[3]
+    notebook_map = NotebookMap.load(project_root / "fontes" / "notebooklm-mapa.md")
+
+    notebook_id = notebook_map.notebook_id_for_path(
+        "fontes/_NOTEBOOKLM_COMPLEMENTAR/01_CONCRETO_DIGITALIZADO/parte-01.pdf"
+    )
+
+    assert notebook_id == "76235e0c-94f6-44c1-9977-200fe02f2198"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        CommandResult(
+            argv=("nlm", "list"),
+            cwd=".",
+            returncode=7,
+            duration_seconds=0.1,
+            stdout='{"sources": []}',
+            stderr="command-result failure",
+        ),
+        subprocess.CompletedProcess(
+            ("nlm", "list"),
+            9,
+            stdout='{"sources": []}',
+            stderr="completed-process failure",
+        ),
+    ],
+)
+def test_run_rejects_nonzero_command_results_and_preserves_stderr(tmp_path, result):
+    notebook_map, catalog = write_local_sources(tmp_path)
+    adapter = NlmCliAdapter(notebook_map, catalog, runner=lambda argv: result)
+
+    with pytest.raises(RuntimeError, match="failure") as error:
+        adapter._run(("nlm", "list"))
+
+    assert "return code" in str(error.value)
