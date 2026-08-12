@@ -120,6 +120,7 @@ class CommandResult:
     duration_seconds: float
     stdout: str
     stderr: str
+    timed_out: bool = False
 
     def to_dict(self):
         return {**self.__dict__, "argv": list(self.argv)}
