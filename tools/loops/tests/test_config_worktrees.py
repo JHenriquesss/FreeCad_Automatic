@@ -81,6 +81,13 @@ def test_root_head_change_raises_external_change(tmp_path):
         manager.assert_base_unchanged(base_commit)
 
 
+def test_assert_base_unchanged_accepts_abbreviated_commit(tmp_path):
+    repository, base_commit = make_repository(tmp_path)
+    manager = WorktreeManager(repository, repository / ".loop-runtime")
+
+    manager.assert_base_unchanged(base_commit[:8])
+
+
 def test_remove_rejects_path_outside_runtime(tmp_path):
     repository, base_commit = make_repository(tmp_path)
     manager = WorktreeManager(repository, repository / ".loop-runtime")
@@ -100,3 +107,14 @@ def test_invalid_loop_id_is_rejected(tmp_path, loop_id):
 
     with pytest.raises(ValueError, match="loop_id"):
         manager.create(loop_id, base_commit)
+
+
+@pytest.mark.parametrize("loop_id", ["a..b", "a."])
+def test_git_invalid_loop_id_is_rejected_before_runtime_creation(tmp_path, loop_id):
+    repository, base_commit = make_repository(tmp_path)
+    manager = WorktreeManager(repository, repository / ".loop-runtime")
+
+    with pytest.raises(ValueError, match="loop_id"):
+        manager.create(loop_id, base_commit)
+
+    assert not (repository / ".loop-runtime").exists()

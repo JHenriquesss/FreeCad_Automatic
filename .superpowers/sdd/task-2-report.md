@@ -66,3 +66,29 @@ Os testes focados usam repositórios Git temporários reais e verificam resoluç
 ## Commit
 
 Mensagem solicitada: `feat: isolate development loop worktrees`
+
+## Correção dos findings do revisor
+
+### Findings
+
+1. `WorktreeManager.assert_base_unchanged` comparava o HEAD completo diretamente com o texto de `base_commit`, rejeitando abreviações válidas.
+2. `_validate_loop_id` aceitava `a..b` e `a.`, embora as branches `loop/a..b` e `loop/a.` fossem inválidas no Git; a falha posterior ocorria depois de criar o diretório de runtime.
+
+### RED
+
+- Foi adicionado `test_assert_base_unchanged_accepts_abbreviated_commit`; sua execução isolada falhou com `ExternalChangeError` porque o HEAD completo era comparado a `13e0ab77`.
+- Foi adicionado `test_git_invalid_loop_id_is_rejected_before_runtime_creation`, parametrizado para `a..b` e `a.`; a execução isolada falhou duas vezes com `CalledProcessError` do Git, confirmando que a validação anterior era insuficiente.
+
+### GREEN
+
+- `assert_base_unchanged` agora normaliza o argumento com `git rev-parse <base_commit>^{commit}` antes de comparar.
+- `_validate_loop_id` agora rejeita IDs contendo `..` ou terminados em `.`, antes de `mkdir`.
+- `python -m pytest tools/loops/tests/test_config_worktrees.py -q` — `15 passed`.
+- `python -m pytest tools/loops -q` — `40 passed`.
+
+### Self-review
+
+- O commit abreviado é resolvido pelo Git e continua sendo comparado ao HEAD completo.
+- `a..b` e `a.` geram `ValueError` e não criam `.loop-runtime` nem `worktrees` parcial.
+- A alteração mantém o alfabeto seguro existente e não adiciona dependências.
+- Nenhuma lógica de engenharia, regra de `.gitignore`, documentação, `.omo` ou saída não relacionada foi alterada nesta correção.
