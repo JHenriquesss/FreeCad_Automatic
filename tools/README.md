@@ -86,6 +86,14 @@ falha, examine o ledger e o resumo da sessão, corrija a causa ou forneça a fon
 solicitada e use `--resume`. Um ledger ativo deve ser retomado antes de iniciar
 outra rodada.
 
+Cada candidata que reúne uma lacuna de uma disciplina deve declarar `topic` e
+`source_paths` no ledger. `source_paths` usa caminhos relativos à pasta `fontes/`
+e limita a consulta do NotebookLM exatamente a essas fontes; caminhos de pastas
+diferentes não podem ser misturados na mesma candidata. Se uma fonte declarada
+estiver ausente, não pronta ou sem evidência textual auditável, a rodada estaciona
+e grava a solicitação manual. Isso evita que uma pesquisa ampla do notebook seja
+confundida com validação da norma correta.
+
 Os gates têm timeouts separados para comandos e build. O build FreeCAD é uma
 guarda própria e só é obrigatório para tarefas marcadas como build. Todos os
 testes do loop usam fakes e não chamam rede; a primeira execução real deve ser

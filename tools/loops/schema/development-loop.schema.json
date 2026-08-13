@@ -38,7 +38,9 @@
         "origin": {"type": "string"},
         "priority": {"type": "integer"},
         "evidence_paths": {"type": "array", "items": {"type": "string"}},
-        "suggested_tests": {"type": "array", "items": {"type": "string"}}
+        "suggested_tests": {"type": "array", "items": {"type": "string"}},
+        "topic": {"type": "string"},
+        "source_paths": {"type": "array", "items": {"type": "string"}}
       }
     },
     "base_commit": {"type": "string"},

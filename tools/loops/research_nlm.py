@@ -64,23 +64,39 @@ class CatalogEntry:
 @dataclass(frozen=True)
 class CatalogIndex:
     entries_by_title: dict[str, CatalogEntry]
+    entries_by_path: dict[str, CatalogEntry] | None = None
 
     @classmethod
     def load(cls, path):
         entries_by_title = {}
+        entries_by_path = {}
         with Path(path).open(newline="", encoding="utf-8") as handle:
             for row in csv.DictReader(handle):
                 title = row.get("nome_normalizado", "")
                 if title:
-                    entries_by_title[title.casefold()] = CatalogEntry(
+                    entry = CatalogEntry(
                         title=title,
                         local_path=row.get("caminho_relativo", ""),
                         local_hash=row.get("hash_sha256") or None,
                     )
-        return cls(entries_by_title)
+                    entries_by_title[title.casefold()] = entry
+                    if entry.local_path:
+                        entries_by_path[_normalize_local_path(entry.local_path)] = entry
+        return cls(entries_by_title, entries_by_path)
 
     def find(self, title):
         return self.entries_by_title.get(title.casefold())
+
+    def find_path(self, local_path):
+        entries = self.entries_by_path or {}
+        return entries.get(_normalize_local_path(local_path))
+
+
+def _normalize_local_path(value):
+    parts = [part for part in str(value).replace("\\", "/").split("/") if part not in {"", "."}]
+    if parts and parts[0].casefold() == "fontes":
+        parts = parts[1:]
+    return "/".join(parts).casefold()
 
 
 @dataclass(frozen=True)
@@ -204,6 +220,58 @@ class NlmCliAdapter:
 
     def list_ready_sources(self, notebook_id):
         return tuple(source for source in self._parse_sources(notebook_id) if self._is_ready(source))
+
+    def list_ready_sources_for_paths(self, notebook_id, local_paths):
+        """Return only ready sources whose catalogued local paths were declared.
+
+        A scoped task must not silently broaden its evidence to the whole notebook.
+        If any declared path is absent or not ready, write a manual request and stop.
+        """
+        requested_paths = tuple(dict.fromkeys(_normalize_local_path(path) for path in local_paths))
+        if not requested_paths:
+            raise ValueError("source scope must contain at least one local path")
+        for local_path in requested_paths:
+            mapped_notebook = self.notebook_map.notebook_id_for_path(local_path)
+            if mapped_notebook and mapped_notebook != notebook_id:
+                raise ValueError("source scope maps to multiple notebooks")
+
+        all_sources = self._parse_sources(notebook_id)
+        by_path = {}
+        for source in all_sources:
+            if source.local_path:
+                by_path.setdefault(_normalize_local_path(source.local_path), []).append(source)
+
+        selected = []
+        missing = []
+        for local_path in requested_paths:
+            matches = tuple(sorted(by_path.get(local_path, ()), key=lambda item: item.source_id))
+            ready = tuple(source for source in matches if self._is_ready(source))
+            if ready:
+                selected.append(ready[0])
+                continue
+            if matches:
+                source = matches[0]
+                absent_from_listing = False
+            else:
+                entry = self.catalog.find_path(local_path)
+                source = SourceRecord(
+                    source_id=f"local-path:{local_path}",
+                    title=entry.title if entry else Path(local_path).name,
+                    status=None,
+                    notebook_id=notebook_id,
+                    local_path=entry.local_path if entry else local_path,
+                    local_hash=entry.local_hash if entry else None,
+                )
+                absent_from_listing = True
+            self._write_manual_request(source, notebook_id, absent_from_listing=absent_from_listing)
+            missing.append(local_path)
+
+        if missing:
+            raise NlmEvidenceRequired(
+                "source scope is missing or not ready: " + ", ".join(missing),
+                self.manual_request_path,
+            )
+        return tuple(selected)
 
     @staticmethod
     def _without_credentials(value):

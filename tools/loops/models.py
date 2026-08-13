@@ -41,17 +41,23 @@ class TaskCandidate:
     priority: int
     evidence_paths: tuple[str, ...]
     suggested_tests: tuple[str, ...]
+    topic: str = "geral"
+    source_paths: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "title": self.title, "discipline": self.discipline,
                 "origin": self.origin, "priority": self.priority,
                 "evidence_paths": list(self.evidence_paths) if isinstance(self.evidence_paths, tuple) else self.evidence_paths,
-                "suggested_tests": list(self.suggested_tests) if isinstance(self.suggested_tests, tuple) else self.suggested_tests}
+                "suggested_tests": list(self.suggested_tests) if isinstance(self.suggested_tests, tuple) else self.suggested_tests,
+                "topic": self.topic,
+                "source_paths": list(self.source_paths) if isinstance(self.source_paths, tuple) else self.source_paths}
 
     @classmethod
     def from_dict(cls, value):
         return cls(**{**value, "evidence_paths": tuple(value["evidence_paths"]),
-                      "suggested_tests": tuple(value["suggested_tests"])})
+                      "suggested_tests": tuple(value["suggested_tests"]),
+                      "source_paths": tuple(value.get("source_paths", ())),
+                      "topic": value.get("topic", "geral")})
 
 
 @dataclass(frozen=True)

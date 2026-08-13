@@ -99,6 +99,33 @@ def test_list_ready_sources_filters_status_two(tmp_path):
     assert sources[0].local_path == "01_TESTE/norma-teste.pdf"
 
 
+def test_list_ready_sources_for_paths_selects_only_declared_local_scope(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [
+            {"id": "src-ok", "title": "Norma teste", "status": 2},
+            {"id": "src-other", "title": "Outra norma", "status": 2},
+        ],
+    )
+
+    sources = adapter.list_ready_sources_for_paths("nb-1", ("01_TESTE/norma-teste.pdf",))
+
+    assert tuple(source.source_id for source in sources) == ("src-ok",)
+
+
+def test_list_ready_sources_for_paths_parks_when_declared_source_is_missing(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+    )
+
+    with pytest.raises(NlmEvidenceRequired, match="source scope") as error:
+        adapter.list_ready_sources_for_paths("nb-1", ("01_TESTE/norma-pendente.pdf",))
+
+    assert error.value.manual_request_path == str(tmp_path / "manual-source-requests.md")
+    assert "Norma pendente" in (tmp_path / "manual-source-requests.md").read_text(encoding="utf-8")
+
+
 def test_query_passes_only_requested_source_ids(tmp_path):
     adapter, runner = make_adapter(
         tmp_path,

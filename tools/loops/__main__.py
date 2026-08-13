@@ -142,22 +142,35 @@ def _red_gate(test_runner, candidate, worktree, config):
 
 
 def _research_candidate(adapter, candidate):
-    notebook_id = adapter.notebook_map.notebook_id_for_path(candidate.evidence_paths[0])
-    if not notebook_id:
-        notebook_id = _notebook_id_for_candidate(adapter.notebook_map, candidate)
+    notebook_id = _notebook_id_for_candidate(adapter.notebook_map, candidate)
     if not notebook_id:
         raise ValueError("no notebook mapped for candidate discipline")
-    source_ids = tuple(source.source_id for source in adapter.list_ready_sources(notebook_id))
+    if candidate.source_paths:
+        sources = adapter.list_ready_sources_for_paths(notebook_id, candidate.source_paths)
+    else:
+        sources = adapter.list_ready_sources(notebook_id)
+    source_ids = tuple(source.source_id for source in sources)
     if not source_ids:
         raise ValueError("no requested sources are ready")
     question = (
-        f"Para a tarefa '{candidate.title}', identifique apenas requisitos normativos "
+        f"Para a tarefa temática '{candidate.topic}' — '{candidate.title}', identifique apenas requisitos normativos "
         "aplicáveis, lacunas verificáveis e critérios de teste. Cite os source IDs."
     )
     return adapter.query(notebook_id, question, source_ids)
 
 
 def _notebook_id_for_candidate(notebook_map, candidate):
+    declared_paths = tuple(getattr(candidate, "source_paths", ()) or ())
+    if declared_paths:
+        notebook_ids = {
+            notebook_map.notebook_id_for_path(path)
+            for path in declared_paths
+        }
+        if None in notebook_ids:
+            raise ValueError("source scope contains an unmapped local path")
+        if len(notebook_ids) > 1:
+            raise ValueError("source scope maps to multiple notebooks")
+        return next(iter(notebook_ids))
     text = " ".join(
         (
             str(candidate.title),

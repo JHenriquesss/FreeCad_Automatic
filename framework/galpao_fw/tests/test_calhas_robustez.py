@@ -41,6 +41,18 @@ def test_h_max_em_metros_continua_funcionando():
     assert 0 < r["h_agua_m"] <= 0.75 * 0.30
 
 
+@pytest.mark.parametrize("inclinacao", [0.0, 0.004, -0.01, float("nan"), float("inf")])
+def test_declividade_calha_nbr_10844_falha_explicitamente(inclinacao):
+    """A NBR 10844 exige declividade uniforme minima de 0,5% para a calha."""
+    with pytest.raises(ValueError, match="declividade"):
+        calhas.secao_calha(Q_req=500.0, B_base=0.40, i=inclinacao, H_max=0.30)
+
+
+def test_declividade_calha_no_minimo_normativo_continua_funcionando():
+    r = calhas.secao_calha(Q_req=500.0, B_base=0.40, i=0.005, H_max=0.30)
+    assert r["ok"] is True
+
+
 @pytest.mark.parametrize("comp,larg", [(-10.0, 20.0), (30.0, -20.0)])
 def test_dimensao_negativa_falha_alto(comp, larg):
     """Antes devolvia area negativa com ok=True (contra-seguranca)."""

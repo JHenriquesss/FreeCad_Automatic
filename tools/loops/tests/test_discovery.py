@@ -25,11 +25,60 @@ def candidate(**changes):
 def test_discovery_finds_unverified_fuzz_item():
     candidates = discover_candidates(PROJECT_ROOT)
 
-    fuzz = next(item for item in candidates if "Fuzz interno dos motores" in item.title)
+    fuzz = next(item for item in candidates if item.topic == "calhas")
 
-    assert fuzz.discipline == "estrutura"
-    assert fuzz.origin == "framework/galpao_fw/wiki/06-open-threads.md:T16"
+    assert fuzz.discipline == "hidraulica"
+    assert fuzz.origin == "framework/galpao_fw/wiki/06-open-threads.md:T16:calhas"
+    assert fuzz.source_paths == (
+        "08_ESGOTO_PLUVIAL_REUSO/PLUVIAL__NBR__NBR-10844-1989__aguas-pluviais.pdf",
+    )
     assert fuzz.suggested_tests
+    assert fuzz.suggested_tests == (
+        "framework/galpao_fw/tests/test_calha_calc_3d.py",
+        "framework/galpao_fw/tests/test_calhas_robustez.py",
+        "framework/galpao_fw/tests/test_fase6a_calha_divisa.py",
+    )
+
+
+def test_t16_is_decomposed_into_atomic_topics_with_single_source_scope():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    fuzz = [item for item in candidates if ":T16:" in item.origin]
+    assert {item.topic for item in fuzz} == {
+        "base_chumbador",
+        "tapered",
+        "sismo",
+        "fogo",
+        "estaca",
+        "gusset",
+        "ligacoes",
+        "calhas",
+    }
+    assert len(fuzz) == 8
+    assert all(item.source_paths for item in fuzz)
+    assert all(len({path.split("/", 1)[0] for path in item.source_paths}) == 1 for item in fuzz)
+    assert not any(
+        item.origin == "framework/galpao_fw/wiki/06-open-threads.md:T16"
+        and "fuzz interno" in item.title.casefold()
+        for item in candidates
+    )
+
+
+def test_atomic_topics_are_ranked_by_explicit_execution_order():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    fuzz_topics = [item.topic for item in candidates if ":T16:" in item.origin]
+
+    assert fuzz_topics == [
+        "calhas",
+        "tapered",
+        "sismo",
+        "gusset",
+        "ligacoes",
+        "base_chumbador",
+        "fogo",
+        "estaca",
+    ]
 
 
 def test_discovery_ignores_resolved_item():
@@ -65,8 +114,8 @@ def test_candidate_id_is_stable():
     first = discover_candidates(PROJECT_ROOT)
     second = discover_candidates(PROJECT_ROOT)
 
-    first_fuzz = next(item for item in first if "Fuzz interno dos motores" in item.title)
-    second_fuzz = next(item for item in second if "Fuzz interno dos motores" in item.title)
+    first_fuzz = next(item for item in first if item.topic == "calhas")
+    second_fuzz = next(item for item in second if item.topic == "calhas")
 
     assert first_fuzz.id == second_fuzz.id
     assert len(first_fuzz.id) == 12
@@ -210,7 +259,7 @@ def test_completed_revision_statuses_are_ignored(tmp_path):
 
 def test_candidate_id_matches_required_formula():
     candidates = discover_candidates(PROJECT_ROOT)
-    fuzz = next(item for item in candidates if "Fuzz interno dos motores" in item.title)
+    fuzz = next(item for item in candidates if item.topic == "calhas")
 
     expected = sha1(f"{fuzz.origin}\n{fuzz.title}".encode("utf-8")).hexdigest()[:12]
 

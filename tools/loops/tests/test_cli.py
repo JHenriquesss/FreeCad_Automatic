@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.loops.__main__ import _allowed_code_paths, _notebook_id_for_candidate, build_parser, main
 from tools.loops.models import TaskCandidate
 from tools.loops.research_nlm import NotebookMap
@@ -57,6 +59,43 @@ def test_foundation_revision_uses_geotechnical_notebook():
     notebook_map = NotebookMap({"03_FUNDACOES_GEOTECNIA": "nb-fundacoes"})
 
     assert _notebook_id_for_candidate(notebook_map, candidate) == "nb-fundacoes"
+
+
+def test_atomic_candidate_uses_declared_source_scope_for_notebook():
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — calhas",
+        "hidraulica",
+        "framework/galpao_fw/wiki/06-open-threads.md:T16:calhas",
+        1,
+        ("framework/galpao_fw/wiki/06-open-threads.md",),
+        ("framework/galpao_fw/tests/test_calhas_robustez.py",),
+        topic="calhas",
+        source_paths=("08_ESGOTO_PLUVIAL_REUSO/PLUVIAL__NBR__NBR-10844-1989__aguas-pluviais.pdf",),
+    )
+    notebook_map = NotebookMap({"08_ESGOTO_PLUVIAL_REUSO": "nb-pluvial"})
+
+    assert _notebook_id_for_candidate(notebook_map, candidate) == "nb-pluvial"
+
+
+def test_atomic_candidate_rejects_source_scope_spanning_notebooks():
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — mistura",
+        "estrutura",
+        "framework/galpao_fw/wiki/06-open-threads.md:T16:mistura",
+        1,
+        ("framework/galpao_fw/wiki/06-open-threads.md",),
+        (),
+        topic="mistura",
+        source_paths=("02_ACO/aco.pdf", "04_ACOES_EQUIPAMENTOS/sismo.pdf"),
+    )
+    notebook_map = NotebookMap(
+        {"02_ACO": "nb-aco", "04_ACOES_EQUIPAMENTOS": "nb-acoes"}
+    )
+
+    with pytest.raises(ValueError, match="multiple notebooks"):
+        _notebook_id_for_candidate(notebook_map, candidate)
 
 
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):

@@ -62,6 +62,27 @@ _DISCIPLINE_ORDER = {
     "geral": 8,
 }
 
+_T16_UNITS = (
+    ("calhas", "hidraulica", 100, ("08_ESGOTO_PLUVIAL_REUSO/PLUVIAL__NBR__NBR-10844-1989__aguas-pluviais.pdf",)),
+    ("tapered", "estrutura", 90, ("02_ACO/ACO__AISC__AISC-DG25__frame-web-tapered-members.pdf", "02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf")),
+    ("sismo", "estrutura", 80, ("04_ACOES_EQUIPAMENTOS/ACOES__NBR__NBR-15421-2023__estruturas-resistentes-sismos.pdf", "04_ACOES_EQUIPAMENTOS/ACOES__NBR__NBR-8681-2025__acoes-seguranca-estruturas.pdf")),
+    ("gusset", "estrutura", 70, ("02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf",)),
+    ("ligacoes", "estrutura", 60, ("02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf",)),
+    ("base_chumbador", "estrutura", 50, ("02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf",)),
+    ("fogo", "seguranca", 25, ("09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",)),
+    ("estaca", "estrutura", 20, ("03_FUNDACOES_GEOTECNIA/FUNDACOES__NBR__NBR-6122-2022__projeto-fundacoes.pdf",)),
+)
+_T16_TEST_TERMS = {
+    "calhas": ("calha",),
+    "tapered": ("tapered", "dg25", "alma_variavel"),
+    "sismo": ("sismo", "diafragma", "validacao"),
+    "gusset": ("gusset", "pecas_conexao", "ifc_secundarios"),
+    "ligacoes": ("ligacoes", "secao_por_ligacao", "tipo_ligacao"),
+    "base_chumbador": ("base_chumbador", "pecas_conexao", "takeoff"),
+    "fogo": ("fogo", "incendio"),
+    "estaca": ("estaca", "fundacao", "geotec", "validacao"),
+}
+
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
     """Return local, observed task candidates in deterministic priority order.
@@ -157,7 +178,7 @@ def _discover_markdown(
         origin = relative_path.as_posix()
         if thread:
             origin = f"{origin}:{thread}"
-        candidates.append(_candidate(title, origin, relative_path.as_posix(), suggestions))
+        candidates.extend(_candidates_for_item(title, origin, relative_path.as_posix(), suggestions))
 
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         match = _HEADING_RE.match(line)
@@ -198,10 +219,15 @@ def _candidate(
     origin: str,
     evidence_path: str,
     suggestions: tuple[str, ...],
+    *,
+    topic: str = "geral",
+    source_paths: tuple[str, ...] = (),
+    priority: int | None = None,
+    discipline: str | None = None,
 ) -> TaskCandidate:
     context = f"{origin} {evidence_path}"
-    discipline = _discipline_for(title, context)
-    priority = _observed_priority(title, discipline)
+    discipline = _discipline_for(title, context) if discipline is None else discipline
+    priority = _observed_priority(title, discipline) if priority is None else priority
     identifier = sha1(f"{origin}\n{title}".encode("utf-8")).hexdigest()[:12]
     return TaskCandidate(
         id=identifier,
@@ -210,8 +236,33 @@ def _candidate(
         origin=origin,
         priority=priority,
         evidence_paths=(evidence_path,),
-        suggested_tests=_tests_for_candidate(title, discipline, suggestions, context),
+        suggested_tests=_tests_for_candidate(title, discipline, suggestions, context, topic=topic),
+        topic=topic,
+        source_paths=source_paths,
     )
+
+
+def _candidates_for_item(
+    title: str,
+    origin: str,
+    evidence_path: str,
+    suggestions: tuple[str, ...],
+) -> list[TaskCandidate]:
+    if origin.endswith(":T16") and "fuzz interno" in _normalized(title):
+        return [
+            _candidate(
+                f"Fuzz interno — {topic}: verificar invariantes e ausência de crash/NaN.",
+                f"{origin}:{topic}",
+                evidence_path,
+                suggestions,
+                topic=topic,
+                source_paths=source_paths,
+                priority=priority,
+                discipline=_discipline,
+            )
+            for topic, _discipline, priority, source_paths in _T16_UNITS
+        ]
+    return [_candidate(title, origin, evidence_path, suggestions)]
 
 
 def _is_open_item(title: str, context: str = "") -> bool:
@@ -294,9 +345,13 @@ def _tests_for_candidate(
     discipline: str,
     available: tuple[str, ...],
     context: str = "",
+    *,
+    topic: str = "geral",
 ) -> tuple[str, ...]:
     text = _normalized(f"{title} {context}")
-    if any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
+    if topic in _T16_TEST_TERMS:
+        terms = _T16_TEST_TERMS[topic]
+    elif any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
         terms = ("fundacao", "geotec", "bloco", "galpao_concreto", "validacao")
     elif discipline == "eletrica":
         terms = ("eletric", "executivo_eletrico")
