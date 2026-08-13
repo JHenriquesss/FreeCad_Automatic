@@ -361,6 +361,60 @@ def test_research_prompt_focuses_nbr9077_population_and_rounding_gap():
     )
 
 
+def test_fire_prompt_focuses_extintores_without_presuming_edition():
+    source_id = "src-nbr12693"
+    candidate = TaskCandidate(
+        "id",
+        "Validar proteção por extintores conforme NBR 12693 (edição a confirmar).",
+        "seguranca",
+        "fontes/fontes-faltantes.md:P1:nbr12693",
+        55,
+        ("fontes/fontes-faltantes.md",),
+        (),
+        topic="extintores",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert "NBR 12693" in question
+    assert "extintores" in question
+    assert "seção/tabela" in question
+    assert source_id in question
+    assert "202" not in question
+    assert retry is not None
+    assert "NBR 12693" in retry
+    assert "citações textuais" in retry
+    assert source_id in retry
+
+
+def test_fire_prompt_focuses_sinalizacao_without_presuming_edition():
+    source_id = "src-nbr13434"
+    candidate = TaskCandidate(
+        "id",
+        "Validar sinalização de segurança contra incêndio conforme NBR 13434 (edição a confirmar).",
+        "seguranca",
+        "fontes/fontes-faltantes.md:P1:nbr13434",
+        50,
+        ("fontes/fontes-faltantes.md",),
+        (),
+        topic="sinalizacao_incendio",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert "NBR 13434" in question
+    assert "sinalização" in question
+    assert "seção/tabela" in question
+    assert source_id in question
+    assert "202" not in question
+    assert retry is not None
+    assert "NBR 13434" in retry
+    assert "citações textuais" in retry
+    assert source_id in retry
+
+
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
     root = tmp_path / "project"
     (root / ".git").mkdir(parents=True)

@@ -328,6 +328,22 @@ def _research_question(candidate, source_ids):
             "arredondamento. Cite cada item usando o source ID exato entre: "
             f"{authorized_ids}."
         )
+    if candidate.topic == "extintores":
+        return (
+            "Para proteção por extintores na ABNT NBR 12693 (edição da fonte), liste somente requisitos "
+            "verificáveis de seleção, distribuição, capacidade/quantidade, posicionamento e limitações "
+            "expressamente presentes no texto. Informe seção/tabela para cada item, declare quando a norma "
+            "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
+    if candidate.topic == "sinalizacao_incendio":
+        return (
+            "Para sinalização de segurança contra incêndio na ABNT NBR 13434 (edição da fonte), liste somente "
+            "requisitos verificáveis de tipos, finalidade, características, localização e aplicação "
+            "expressamente presentes no texto. Informe seção/tabela para cada item, declare quando a norma "
+            "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -365,6 +381,19 @@ def _research_retry_question(candidate, source_ids):
             "População NBR 9077:2025: cite somente as seções 5.1, 5.1.2, 5.2 e Tabela 4, áreas computáveis, "
             "30 m² por pessoa e a presença ou ausência de regra de arredondamento. Use somente o source ID exato "
             f"{authorized_ids}."
+        )
+    if candidate.topic == "extintores":
+        return (
+            "NBR 12693 para extintores: responda em no máximo 8 itens; informe seção/tabela, requisito "
+            "verificável e limite ou condição; não invente regras fora da fonte e inclua citações textuais. "
+            f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "sinalizacao_incendio":
+        return (
+            "NBR 13434 para sinalização de segurança contra incêndio: responda em no máximo 8 itens; informe "
+            "seção/tabela, requisito verificável e condição de aplicação; não invente regras fora da fonte e "
+            "inclua citações textuais. "
+            f"Use somente o source ID exato {authorized_ids}."
         )
     return None
 

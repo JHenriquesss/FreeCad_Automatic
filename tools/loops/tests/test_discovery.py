@@ -481,3 +481,61 @@ def test_discovery_does_not_decompose_nbr9077_population_from_another_thread(tmp
     candidates = discover_candidates(tmp_path)
 
     assert not any(item.topic == "populacao_saida" for item in candidates)
+
+
+def test_fire_pending_decomposes_into_two_atomic_norm_candidates(tmp_path):
+    source_pending = tmp_path / "fontes"
+    source_pending.mkdir(parents=True)
+    (source_pending / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 — atualizações normativas e segurança industrial\n"
+        "- Proteção contra incêndio: NBR 16981:2021 já cobre áreas de armazenamento e "
+        "substitui a NBR 13792:1997; ainda faltam NBR 12693 e NBR 13434.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_incendio_robustez.py",
+        "test_seguranca_incendio.py",
+        "test_incendio_bim.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
+
+    extinguishers = next(
+        item for item in candidates if item.origin.endswith(":nbr12693")
+    )
+    signage = next(
+        item for item in candidates if item.origin.endswith(":nbr13434")
+    )
+    broad = next(
+        item for item in candidates
+        if item.title.startswith("Proteção contra incêndio:")
+    )
+
+    assert extinguishers.topic == "extintores"
+    assert extinguishers.discipline == "seguranca"
+    assert extinguishers.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-12693__sistemas-extintores.pdf",
+    )
+    assert extinguishers.suggested_tests == (
+        "framework/galpao_fw/tests/test_incendio_robustez.py",
+        "framework/galpao_fw/tests/test_seguranca_incendio.py",
+        "framework/galpao_fw/tests/test_incendio_bim.py",
+    )
+    assert signage.topic == "sinalizacao_incendio"
+    assert signage.discipline == "seguranca"
+    assert signage.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-13434__sinalizacao-seguranca.pdf",
+    )
+    assert signage.suggested_tests == extinguishers.suggested_tests
+    assert broad.source_paths == ()
+
+    first_run = tuple((item.id, item.origin, item.source_paths) for item in candidates)
+    second_run = tuple(
+        (item.id, item.origin, item.source_paths)
+        for item in discover_candidates(tmp_path)
+    )
+    assert first_run == second_run

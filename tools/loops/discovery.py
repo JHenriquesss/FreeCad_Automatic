@@ -105,6 +105,12 @@ _SINALIZACAO_SOURCES = (
 _POPULACAO_NBR9077_SOURCES = (
     "09_INCENDIO/INCENDIO__NBR__NBR-9077-2025__saidas-emergencia.pdf",
 )
+_EXTINTORES_NBR12693_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-12693__sistemas-extintores.pdf",
+)
+_SINALIZACAO_NBR13434_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-13434__sinalizacao-seguranca.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -334,6 +340,33 @@ def _candidates_for_item(
             ),
             _candidate(title, origin, evidence_path, suggestions),
         ]
+    if (
+        all(term in _normalized(title) for term in ("protecao contra incendio", "12693", "13434"))
+        and origin.startswith("fontes/fontes-faltantes.md:P1")
+    ):
+        return [
+            _candidate(
+                "Validar proteção por extintores conforme NBR 12693 (edição a confirmar).",
+                f"{origin}:nbr12693",
+                evidence_path,
+                suggestions,
+                topic="extintores",
+                source_paths=_EXTINTORES_NBR12693_SOURCES,
+                priority=55,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar sinalização de segurança contra incêndio conforme NBR 13434 (edição a confirmar).",
+                f"{origin}:nbr13434",
+                evidence_path,
+                suggestions,
+                topic="sinalizacao_incendio",
+                source_paths=_SINALIZACAO_NBR13434_SOURCES,
+                priority=50,
+                discipline="seguranca",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
     if origin.endswith(":T16") and "fuzz interno" in _normalized(title):
         return [
             _candidate(
@@ -459,6 +492,13 @@ def _tests_for_candidate(
             "framework/galpao_fw/tests/test_saturacao_verdito.py",
             "framework/galpao_fw/tests/test_seguranca_incendio.py",
             "framework/galpao_fw/tests/test_sinalizacao_nbr16820.py",
+        )
+        return tuple(path for path in preferred if path in available)
+    elif topic in {"extintores", "sinalizacao_incendio"}:
+        preferred = (
+            "framework/galpao_fw/tests/test_incendio_robustez.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_incendio_bim.py",
         )
         return tuple(path for path in preferred if path in available)
     elif topic in _T16_TEST_TERMS:
