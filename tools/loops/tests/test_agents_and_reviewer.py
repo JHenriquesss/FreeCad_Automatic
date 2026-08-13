@@ -7,6 +7,7 @@ from tools.loops.agents import (
     AgentRequest,
     ClaudePrintAdapter,
     CodexExecAdapter,
+    build_implementation_prompt,
 )
 from tools.loops.models import Citation, EvidenceBundle, SourceRecord, TaskCandidate
 from tools.loops.reviewer import ReviewAdapter, ReviewerRequest
@@ -149,6 +150,14 @@ def test_implementation_prompt_requires_citations_and_red_test():
     assert "red" in prompt
     assert "escopo" in prompt or "scope" in prompt
     assert "incerteza" in prompt or "uncertainty" in prompt
+
+
+def test_implementation_prompt_does_not_reopen_a_confirmed_red_contract(tmp_path):
+    prompt = build_implementation_prompt(request(tmp_path))
+
+    assert "teste red ja foi confirmado" in prompt.casefold()
+    assert "nao peca nova decisao" in prompt.casefold()
+    assert "conflito nao resolvido" in prompt.casefold()
 
 
 def test_reviewer_rejects_missing_citation(tmp_path):
