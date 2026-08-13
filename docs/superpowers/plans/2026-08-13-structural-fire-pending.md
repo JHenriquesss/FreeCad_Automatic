@@ -29,7 +29,7 @@
 - Consumes: `discover_candidates`, `TaskCandidate`, `_research_question`, and `_research_retry_question`.
 - Produces: regression contracts for the mirror and the three structural-fire atomics.
 
-- [ ] **Step 1: Add the mirror regression test**
+- [x] **Step 1: Add the mirror regression test**
 
 Create a temporary `fontes/fontes-faltantes.md` containing the canonical P1
 protection item and a temporary `fontes/pendencias-atualizacao.md` containing
@@ -37,7 +37,7 @@ the updated mirror line under the exact fire heading. Assert that the canonical
 source produces `:nbr12693` and `:nbr13434`, and that no candidate whose title
 mentions both norms has the `pendencias-atualizacao.md` origin.
 
-- [ ] **Step 2: Run the mirror test and verify RED**
+- [x] **Step 2: Run the mirror test and verify RED**
 
 Run:
 
@@ -47,7 +47,7 @@ python -m pytest -q tools/loops/tests/test_discovery.py -k fire_mirror
 
 Expected: failure because the mirror currently produces a generic candidate.
 
-- [ ] **Step 3: Add the three-norm decomposition test**
+- [x] **Step 3: Add the three-norm decomposition test**
 
 Create a temporary pending document with the exact structural-fire sentence and
 the existing fire test files. Find candidates by origin suffix and assert:
@@ -73,7 +73,7 @@ Assert each atomic discipline is `seguranca`, each source path is a singleton,
 the broad title remains present with empty `source_paths`, and two discovery
 runs produce identical IDs and origins.
 
-- [ ] **Step 4: Run the decomposition test and verify RED**
+- [x] **Step 4: Run the decomposition test and verify RED**
 
 Run:
 
@@ -83,14 +83,14 @@ python -m pytest -q tools/loops/tests/test_discovery.py -k structural_fire
 
 Expected: failure because the current implementation returns one generic item.
 
-- [ ] **Step 5: Add the prompt contract test**
+- [x] **Step 5: Add the prompt contract test**
 
 Parameterize candidates for all three topics and assert each normal prompt
 contains its norm number, subject, `seção/tabela`, and exact source ID; assert
 the retry is not `None`, contains the norm number, `citações textuais`, and the
 source ID; assert no prompt invents a year.
 
-- [ ] **Step 6: Run the prompt test and verify RED**
+- [x] **Step 6: Run the prompt test and verify RED**
 
 Run:
 
@@ -111,12 +111,12 @@ retry prompt.
 - Consumes: the failing contracts from Task 1.
 - Produces: stable atomics `fogo_concreto`, `resistencia_fogo`, and `fogo_aco`.
 
-- [ ] **Step 1: Add source constants**
+- [x] **Step 1: Add source constants**
 
 Add immutable tuples for the three exact canonical paths under the existing fire
 constants. Do not add year suffixes.
 
-- [ ] **Step 2: Add the narrow mirror exclusion**
+- [x] **Step 2: Add the narrow mirror exclusion**
 
 Before the generic return in `_candidates_for_item`, return an empty list only
 when the normalized title starts with the NBR 12693/NBR 13434 mirror wording and
@@ -124,7 +124,7 @@ the origin starts with
 `fontes/pendencias-atualizacao.md:Incêndio, geotecnia e segurança do trabalho`.
 Leave all other items from that file untouched.
 
-- [ ] **Step 3: Add the structural-fire decomposition branch**
+- [x] **Step 3: Add the structural-fire decomposition branch**
 
 Match normalized title terms `15200`, `14432`, `14323`, and `estruturas em
 incendio`, with origin starting with the same fire heading. Return atomics with
@@ -132,7 +132,7 @@ origins `:nbr15200`, `:nbr14432`, and `:nbr14323`, topics and paths from the
 contract, priorities `48`, `46`, and `44`, discipline `seguranca`, followed by
 the broad original candidate.
 
-- [ ] **Step 4: Add topic-specific test selection**
+- [x] **Step 4: Add topic-specific test selection**
 
 For `fogo_concreto`, prefer existing
 `framework/galpao_fw/tests/test_fogo_nbr15200.py`, then
@@ -140,7 +140,7 @@ For `fogo_concreto`, prefer existing
 `test_incendio_bim.py`. For `resistencia_fogo` and `fogo_aco`, use the latter
 three in the same order. Return only existing paths.
 
-- [ ] **Step 5: Add focused normal and retry prompts**
+- [x] **Step 5: Add focused normal and retry prompts**
 
 Add one branch per topic. The normal prompt must name only its NBR, require
 verifiable requirements and section/table references, and use the authorized
@@ -148,7 +148,7 @@ source ID. The retry must cap the answer at eight items, require textual
 citations, forbid invented guards/rules, and request a declaration when the
 source has no coverage.
 
-- [ ] **Step 6: Run focused tests and verify GREEN**
+- [x] **Step 6: Run focused tests and verify GREEN**
 
 Run:
 
@@ -169,12 +169,12 @@ Expected: all new tests pass.
 - Consumes: the atomics and prompts from Task 2.
 - Produces: auditable pending paths and a session record.
 
-- [ ] **Step 1: Record the three canonical paths**
+- [x] **Step 1: Record the three canonical paths**
 
 Append the exact paths to the structural-fire pending line and state that the
 editions remain to be confirmed. Do not mark any source as obtained.
 
-- [ ] **Step 2: Run all automated verification**
+- [x] **Step 2: Run all automated verification**
 
 Run:
 
@@ -187,11 +187,11 @@ git diff --check
 
 Expected: zero test failures and no whitespace errors.
 
-- [ ] **Step 3: Revalidate NotebookLM**
+- [x] **Step 3: Revalidate NotebookLM**
 
 Run `nlm login --check`; if invalid, run `nlm login` and repeat the check.
 
-- [ ] **Step 4: Run one bounded real iteration**
+- [x] **Step 4: Run one bounded real iteration**
 
 Run:
 
@@ -203,7 +203,7 @@ Expected: the first unblocked structural-fire atomic is selected, its missing
 source is recorded in `.loop-runtime/manual-source-requests.md`, and no new
 `nlm-response-*.json` is created for the parked task.
 
-- [ ] **Step 5: Review and commit only phase files**
+- [x] **Step 5: Review and commit only phase files**
 
 Review the staged diff, leave runtime/source/session changes unstaged, then
 commit the code, tests, and two phase documents with:
@@ -211,6 +211,17 @@ commit the code, tests, and two phase documents with:
 ```text
 git commit -m "feat: decompose structural fire source pending work"
 ```
+
+## Phase verification record
+
+- Focused discovery and prompt tests: 5 passed.
+- Discovery plus CLI regression suite: 56 passed.
+- NotebookLM adapter suite: 24 passed.
+- Full loop suite: 203 passed.
+- `py_compile` and `git diff --check`: passed.
+- `nlm login --check`: valid; 64 notebooks visible.
+- Real bounded loop: `manual_source_required` for NBR 15200; no new NLM response artifact.
+- Review: local diff review completed; independent reviewer timed out before returning findings.
 
 ## Next phase seed
 
