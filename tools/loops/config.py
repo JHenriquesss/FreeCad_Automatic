@@ -12,6 +12,7 @@ _DEFAULTS = {
     "command_timeout_seconds": 900,
     "build_timeout_seconds": 1800,
     "executor": "codex",
+    "excluded_task_ids": (),
 }
 
 
@@ -43,6 +44,11 @@ def load_config(path, project_root):
         raise ValueError("mode must be dry-run, supervised, or autonomous")
     if not isinstance(values["executor"], str) or not values["executor"]:
         raise ValueError("executor must be a non-empty string")
+    excluded_task_ids = values["excluded_task_ids"]
+    if not isinstance(excluded_task_ids, (list, tuple)) or any(
+        not isinstance(value, str) or not value for value in excluded_task_ids
+    ):
+        raise ValueError("excluded_task_ids must be a list of non-empty strings")
 
     return LoopConfig(
         project_root=str(root),
@@ -53,4 +59,5 @@ def load_config(path, project_root):
         command_timeout_seconds=values["command_timeout_seconds"],
         build_timeout_seconds=values["build_timeout_seconds"],
         executor=values["executor"],
+        excluded_task_ids=tuple(excluded_task_ids),
     )

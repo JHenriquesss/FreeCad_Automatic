@@ -294,7 +294,8 @@ class DevelopmentSupervisor:
     def _discover(self):
         value = self.deps.discover(self.project_root) if callable(self.deps.discover) else self.deps.discover.discover_candidates(self.project_root)
         completed = self._completed_task_ids()
-        return tuple(candidate for candidate in value if candidate.id not in completed)
+        excluded = completed | frozenset(getattr(self.config, "excluded_task_ids", ()))
+        return tuple(candidate for candidate in value if candidate.id not in excluded)
 
     def _completed_task_ids(self):
         if not self.completed_tasks_path.exists():

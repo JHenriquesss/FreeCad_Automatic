@@ -210,3 +210,4 @@ class LoopConfig:
     command_timeout_seconds: int
     build_timeout_seconds: int
     executor: str
+    excluded_task_ids: tuple[str, ...] = ()

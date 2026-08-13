@@ -16,13 +16,17 @@ from tools.loops.research_nlm import NotebookMap
 
 def test_cli_parser_exposes_required_options():
     args = build_parser().parse_args(
-        ["--mode", "dry-run", "--max-iterations", "1", "--executor", "claude", "--resume", "loop-1"]
+        [
+            "--mode", "dry-run", "--max-iterations", "1", "--executor", "claude",
+            "--resume", "loop-1", "--exclude-task-id", "task-1",
+        ]
     )
 
     assert args.mode == "dry-run"
     assert args.max_iterations == 1
     assert args.executor == "claude"
     assert args.resume == "loop-1"
+    assert args.exclude_task_ids == ["task-1"]
 
 
 def test_cli_invalid_positive_integer_returns_two():

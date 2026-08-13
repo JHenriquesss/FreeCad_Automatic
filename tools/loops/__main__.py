@@ -25,6 +25,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", default=None)
     parser.add_argument("--config", default=None)
     parser.add_argument("--resume", default=None)
+    parser.add_argument(
+        "--exclude-task-id",
+        dest="exclude_task_ids",
+        action="append",
+        default=[],
+        help="adiar um candidato nesta execução; pode ser repetido",
+    )
     parser.add_argument("--max-attempts-per-phase", type=_positive_int, default=3)
     parser.add_argument("--command-timeout", type=_positive_int, default=900)
     parser.add_argument("--build-timeout", type=_positive_int, default=1800)
@@ -77,6 +84,7 @@ def _load_cli_config(args, root):
             command_timeout_seconds=args.command_timeout,
             build_timeout_seconds=args.build_timeout,
             executor=args.executor,
+            excluded_task_ids=tuple(args.exclude_task_ids) or config.excluded_task_ids,
         )
     from .models import LoopConfig
 
@@ -89,6 +97,7 @@ def _load_cli_config(args, root):
         command_timeout_seconds=args.command_timeout,
         build_timeout_seconds=args.build_timeout,
         executor=args.executor,
+        excluded_task_ids=tuple(args.exclude_task_ids),
     )
 
 

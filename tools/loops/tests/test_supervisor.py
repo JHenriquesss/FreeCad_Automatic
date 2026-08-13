@@ -499,6 +499,19 @@ def test_next_run_skips_a_candidate_already_promoted(tmp_path):
     assert second.state.task.id == "task-2"
 
 
+def test_explicitly_excluded_task_is_not_selected(tmp_path):
+    h, cfg = harness(tmp_path)
+    cfg = replace(cfg, excluded_task_ids=(task().id,))
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "no_candidate"
+    assert outcome.phase is LoopPhase.PARK
+    assert outcome.state.task is None
+    assert h.research.calls == 0
+    assert h.agent.calls == 0
+
+
 def test_all_code_gates_use_iteration_worktree(tmp_path):
     h, cfg = harness(tmp_path)
     factory_paths = []
