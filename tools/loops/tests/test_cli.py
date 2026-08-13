@@ -8,6 +8,7 @@ from tools.loops.__main__ import (
     _notebook_id_for_candidate,
     _research_candidate,
     _research_question,
+    _research_retry_question,
     build_parser,
     main,
 )
@@ -170,6 +171,33 @@ def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
         "Para gusset e ligações, liste somente requisitos verificáveis da NBR 8800 "
         "para espessura, furos, bordas, soldas e ausência de valores inválidos. "
         "Cite cada item usando o source ID exato entre: " + source_id + "."
+    )
+
+
+def test_research_prompt_focuses_ligacoes_rules_and_invalid_values():
+    source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — ligacoes",
+        "estrutura",
+        "wiki:T16:ligacoes",
+        60,
+        ("wiki.md",),
+        (),
+        topic="ligacoes",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert question == (
+        "Para ligações, liste somente requisitos verificáveis da NBR 8800 para furos, "
+        "bordas, espaçamentos, block shear e valores inválidos. "
+        "Cite cada item usando o source ID exato entre: " + source_id + "."
+    )
+    assert retry == (
+        "Ligações NBR 8800: cite requisitos verificáveis de furos, bordas, espaçamentos, "
+        "block shear e valores inválidos. Use somente o source ID exato " + source_id + "."
     )
 
 

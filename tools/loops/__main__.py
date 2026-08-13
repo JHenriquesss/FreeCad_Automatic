@@ -189,6 +189,12 @@ def _research_question(candidate, source_ids):
             "para espessura, furos, bordas, soldas e ausência de valores inválidos. "
             f"Cite cada item usando o source ID exato entre: {authorized_ids}."
         )
+    if candidate.topic == "ligacoes":
+        return (
+            "Para ligações, liste somente requisitos verificáveis da NBR 8800 para furos, "
+            "bordas, espaçamentos, block shear e valores inválidos. "
+            f"Cite cada item usando o source ID exato entre: {authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -201,6 +207,12 @@ def _research_retry_question(candidate, source_ids):
         return (
             "Gusset NBR 8800: cite requisitos de espessura, furos, bordas, soldas e valores inválidos. "
             f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "ligacoes":
+        return (
+            "Ligações NBR 8800: cite requisitos verificáveis de furos, bordas, espaçamentos, "
+            "block shear e valores inválidos. Use somente o source ID exato "
+            f"{authorized_ids}."
         )
     return None
 
