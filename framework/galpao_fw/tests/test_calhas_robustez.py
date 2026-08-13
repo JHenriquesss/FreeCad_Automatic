@@ -53,6 +53,18 @@ def test_declividade_calha_no_minimo_normativo_continua_funcionando():
     assert r["ok"] is True
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
+def test_entradas_nao_finitas_falham_sem_crash(bad):
+    chamadas = (
+        lambda: calhas.vazao_projeto(bad),
+        lambda: calhas.secao_calha(100.0, B_base=bad),
+        lambda: calhas.diametro_condutor(100.0, n_condutores=bad),
+    )
+    for chamada in chamadas:
+        with pytest.raises(ValueError):
+            chamada()
+
+
 @pytest.mark.parametrize("comp,larg", [(-10.0, 20.0), (30.0, -20.0)])
 def test_dimensao_negativa_falha_alto(comp, larg):
     """Antes devolvia area negativa com ok=True (contra-seguranca)."""
