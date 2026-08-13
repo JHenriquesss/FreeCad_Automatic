@@ -57,6 +57,15 @@ def test_m_eltb_positivo_e_decresce_com_Lb():
     assert m_curto > m_longo > 0.0, "M_eLTB cresce quando Lb diminui"
 
 
+@pytest.mark.parametrize("function_name", ["f_eltb", "m_eltb", "nbr_mcr"])
+@pytest.mark.parametrize("lb", [0.0, -1.0, float("nan"), float("inf")])
+def test_flt_rejeita_comprimento_destravado_invalido(function_name, lb):
+    import dg25_ltb as dg
+    function = getattr(dg, function_name)
+    with pytest.raises(ValueError, match="Lb"):
+        function(_sec(0.60), FY, Lb=lb, Cb=1.0)
+
+
 def test_selftest_roda():
     import dg25_ltb as dg
     dg._selftest()
