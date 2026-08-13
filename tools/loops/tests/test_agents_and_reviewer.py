@@ -2,6 +2,7 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import tools.loops.agents as agents_module
 from tools.loops.agents import (
     AgentRequest,
     ClaudePrintAdapter,
@@ -103,6 +104,23 @@ def test_agent_output_and_artifact_redact_credentials(tmp_path):
     assert "xyz789" not in safe
     assert '"pw"' not in safe
     assert safe.count("[REDACTED]") >= 3
+
+
+def test_process_resolves_windows_command_shim(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append((tuple(argv), kwargs))
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(agents_module.shutil, "which", lambda value: "C:/bin/codex.cmd")
+    monkeypatch.setattr(agents_module.subprocess, "run", fake_run)
+
+    result = agents_module._run_process(("codex", "--version"), tmp_path, "", 5)
+
+    assert result.returncode == 0
+    assert calls[0][0][0] == "C:/bin/codex.cmd"
+    assert calls[0][0][1] == "--version"
 
 
 def test_claude_command_is_noninteractive_and_scoped(tmp_path):

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 
@@ -214,7 +215,7 @@ def _run_process(argv, cwd, input_text, timeout_seconds):
     started = time.monotonic()
     try:
         completed = subprocess.run(
-            list(argv),
+            _resolve_command(argv),
             cwd=cwd,
             input=input_text or None,
             capture_output=True,
@@ -241,6 +242,20 @@ def _run_process(argv, cwd, input_text, timeout_seconds):
         )
     except OSError as error:
         return _RawProcessResult(-1, "", str(error), time.monotonic() - started, False)
+
+
+def _resolve_command(argv):
+    """Resolve executable shims such as ``codex.cmd`` on Windows.
+
+    The logical argv remains unchanged in ``AgentResult`` for auditability; only
+    the subprocess invocation needs the concrete path accepted by CreateProcess.
+    """
+    command = [str(value) for value in argv]
+    if command:
+        resolved = shutil.which(command[0])
+        if resolved:
+            command[0] = resolved
+    return command
 
 
 @dataclass(frozen=True)
