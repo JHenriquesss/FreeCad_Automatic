@@ -310,6 +310,14 @@ def _research_question(candidate, source_ids):
             "breakout/concreto, declare isso. "
             f"Cite cada item usando o source ID exato entre: {authorized_ids}."
         )
+    if candidate.topic == "populacao_saida":
+        return (
+            "Para população de depósitos, consulte somente a NBR 9077:2025, seções 5.1, 5.1.2, 5.2 e Tabela 4: "
+            "informe quais áreas entram ou saem da área computável, confirme a densidade de 1 pessoa por 30 m² "
+            "para depósitos em geral, calcule sem arredondar e declare explicitamente se a norma define regra de "
+            "arredondamento. Cite cada item usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -335,6 +343,12 @@ def _research_retry_question(candidate, source_ids):
             "Base/chumbador NBR 8800: cite regras de placas de base, chumbadores/parafusos, furos, "
             "esmagamento, tração/cisalhamento e limites inválidos; declare ausência de regra quando aplicável. "
             f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "populacao_saida":
+        return (
+            "População NBR 9077:2025: cite somente as seções 5.1, 5.1.2, 5.2 e Tabela 4, áreas computáveis, "
+            "30 m² por pessoa e a presença ou ausência de regra de arredondamento. Use somente o source ID exato "
+            f"{authorized_ids}."
         )
     return None
 

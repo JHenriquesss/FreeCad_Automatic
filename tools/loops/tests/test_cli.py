@@ -264,6 +264,35 @@ def test_research_prompt_focuses_base_chumbador_rules_and_scope_limits():
     )
 
 
+def test_research_prompt_focuses_nbr9077_population_and_rounding_gap():
+    source_id = "878dc921-2664-43ec-b2c8-14641b3c7641"
+    candidate = TaskCandidate(
+        "id",
+        "Validar a população de depósitos conforme NBR 9077:2025.",
+        "seguranca",
+        "wiki:T43:populacao-nbr9077",
+        80,
+        ("wiki.md",),
+        (),
+        topic="populacao_saida",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert question == (
+        "Para população de depósitos, consulte somente a NBR 9077:2025, seções 5.1, 5.1.2, 5.2 e Tabela 4: "
+        "informe quais áreas entram ou saem da área computável, confirme a densidade de 1 pessoa por 30 m² "
+        "para depósitos em geral, calcule sem arredondar e declare explicitamente se a norma define regra de "
+        "arredondamento. Cite cada item usando o source ID exato entre: " + source_id + "."
+    )
+    assert retry == (
+        "População NBR 9077:2025: cite somente as seções 5.1, 5.1.2, 5.2 e Tabela 4, áreas computáveis, "
+        "30 m² por pessoa e a presença ou ausência de regra de arredondamento. Use somente o source ID exato "
+        + source_id + "."
+    )
+
+
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
     root = tmp_path / "project"
     (root / ".git").mkdir(parents=True)

@@ -425,3 +425,59 @@ def test_discovery_does_not_decompose_area_item_from_another_thread(tmp_path):
     candidates = discover_candidates(tmp_path)
 
     assert not any(item.topic == "sinalizacao" for item in candidates)
+
+
+def test_discovery_creates_atomic_nbr9077_population_candidate(tmp_path):
+    wiki = tmp_path / "framework" / "galpao_fw" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "06-open-threads.md").write_text(
+        "# Threads\n"
+        "## T43 — população de depósitos\n"
+        "- [ ] Calcular a população de projeto de depósitos pela área computável da NBR 9077:2025.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_populacao_nbr9077.py",
+        "test_seguranca_incendio.py",
+        "test_guardas_entrada.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
+
+    population = next(
+        item for item in candidates
+        if item.origin == (
+            "framework/galpao_fw/wiki/06-open-threads.md:T43:populacao-nbr9077"
+        )
+    )
+
+    assert population.title == "Validar a população de depósitos conforme NBR 9077:2025."
+    assert population.topic == "populacao_saida"
+    assert population.discipline == "seguranca"
+    assert population.priority == 80
+    assert population.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-9077-2025__saidas-emergencia.pdf",
+    )
+    assert population.suggested_tests == (
+        "framework/galpao_fw/tests/test_populacao_nbr9077.py",
+        "framework/galpao_fw/tests/test_seguranca_incendio.py",
+        "framework/galpao_fw/tests/test_guardas_entrada.py",
+    )
+
+
+def test_discovery_does_not_decompose_nbr9077_population_from_another_thread(tmp_path):
+    wiki = tmp_path / "framework" / "galpao_fw" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "06-open-threads.md").write_text(
+        "# Threads\n"
+        "## T44 — outra thread\n"
+        "- [ ] Calcular a população de projeto de depósitos pela área computável da NBR 9077:2025.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+
+    assert not any(item.topic == "populacao_saida" for item in candidates)

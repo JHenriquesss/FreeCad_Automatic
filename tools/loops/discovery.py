@@ -102,6 +102,9 @@ _FV_COMMISSIONING_SOURCES = (
 _SINALIZACAO_SOURCES = (
     "09_INCENDIO/INCENDIO__NBR__NBR-16820-2020__sinalizacao-emergencia.pdf",
 )
+_POPULACAO_NBR9077_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-9077-2025__saidas-emergencia.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -287,6 +290,24 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
+        "populacao" in _normalized(title)
+        and "9077" in _normalized(title)
+        and origin == "framework/galpao_fw/wiki/06-open-threads.md:T43"
+    ):
+        return [
+            _candidate(
+                "Validar a população de depósitos conforme NBR 9077:2025.",
+                f"{origin}:populacao-nbr9077",
+                evidence_path,
+                suggestions,
+                topic="populacao_saida",
+                source_paths=_POPULACAO_NBR9077_SOURCES,
+                priority=80,
+                discipline="seguranca",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
+    if (
         "vigencia das normas fotovoltaicas" in _normalized(title)
         and origin.startswith("fontes/pendencias-atualizacao.md:")
     ):
@@ -425,6 +446,13 @@ def _tests_for_candidate(
                 if "comissionamento" in _normalized(Path(path).stem)
             )
         terms = ("fotovoltaico", "eletrico")
+    elif topic == "populacao_saida":
+        preferred = (
+            "framework/galpao_fw/tests/test_populacao_nbr9077.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_guardas_entrada.py",
+        )
+        return tuple(path for path in preferred if path in available)
     elif topic == "sinalizacao":
         preferred = (
             "framework/galpao_fw/tests/test_incendio_robustez.py",

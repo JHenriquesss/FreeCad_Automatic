@@ -22,6 +22,7 @@ import sinalizacao_nbr16820 as sn
 import deteccao_alarme_nbr17240 as da
 import proteccao_sprinklers_nbr10897 as sp
 import hidrantes_nbr13714 as hd
+import populacao_nbr9077 as pop
 
 
 def rodar(spec):
@@ -31,6 +32,7 @@ def rodar(spec):
       'iluminacao_emergencia': {tipo_area, fluxo_bloco_lm, tipo_fonte, fumaca...} (opc),
       'sinalizacao': {rota_continuada, n_saidas, dist_visualizacao_m...} (opc),
       'deteccao': {viga_m, altura_teto...} (opc),
+      'populacao': {area_pavimento_m2, areas_excluidas_m2, areas_incluidas_m2} (opc; deposito),
       'rota_fuga_m' : comprimento das rotas de fuga (opc; default = perimetro).
     }"""
     geo = spec.get("geometria") or {}
@@ -78,6 +80,23 @@ def rodar(spec):
         hd_spec.update({"C": C, "L": L, "altura_m": hd_spec.get("altura_m", H)})
         hidr = hd.dimensiona_hidrantes(hd_spec)
 
+    # ----------------------------------------- POPULACAO DE DEPOSITOS (opc)
+    # A area computavel precisa ser declarada pelo chamador. A NBR 9077:2025 nao
+    # declarou a politica de arredondamento na evidencia consultada; o calculo
+    # fica disponivel, mas o gate de rotas permanece reprovado ate decisao humana.
+    populacao = None
+    if spec.get("populacao") is not None:
+        pop_spec = spec["populacao"]
+        if not isinstance(pop_spec, dict):
+            raise ValueError("populacao deve ser um dicionario de parametros")
+        if "area_pavimento_m2" not in pop_spec:
+            raise ValueError("populacao.area_pavimento_m2 e obrigatoria")
+        populacao = pop.dimensiona_populacao_deposito(
+            pop_spec["area_pavimento_m2"],
+            areas_excluidas_m2=pop_spec.get("areas_excluidas_m2", ()),
+            areas_incluidas_m2=pop_spec.get("areas_incluidas_m2", ()),
+        )
+
     # --------------------------------------------------------------- GATES
     gates = {
         "iluminacao_emergencia": {"E_min_lux": emerg["E_min_lux"],
@@ -110,9 +129,20 @@ def rodar(spec):
                       "nota": "" if hidr else "hidrantes nao informados (exigido se area > 750 m2 e/ou > 12 m - verificar legislacao/IT)",
                       "OK": hidr["OK"] if hidr else True},
     }
+    if populacao is not None:
+        gates["populacao"] = {
+            "area_computavel_m2": populacao["area_computavel_m2"],
+            "populacao_exata": populacao["populacao_exata"],
+            "populacao_inteira": populacao["populacao_inteira"],
+            "calculo_ok": populacao["calculo_ok"],
+            "nota": "populacao inteira e politica de arredondamento A CONFIRMAR antes das rotas",
+            "OK": populacao["pronto_para_rotas"],
+        }
     res = {"spec": {"C": C, "L": L, "H": H}, "iluminacao_emergencia": emerg,
            "sinalizacao": sinal, "deteccao_alarme": alarme, "sprinklers": sprk,
            "hidrantes": hidr, "gates": gates}
+    if populacao is not None:
+        res["populacao"] = populacao
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     res["reprovados"] = reprovados
     res["ATENDE"] = len(reprovados) == 0
@@ -364,6 +394,9 @@ def relatorio_pt(r):
           f"vazao {g['hidrantes']['vazao_total_Lmin']:.0f} L/min (2 jatos) ; "
           f"reserva {g['hidrantes']['reserva_m3']} m3"
           if g['hidrantes']['tipo'] else "  Hidrantes: " + g['hidrantes']['nota']),
+         *([f"  Populacao NBR 9077: {g['populacao']['populacao_exata']:.3f} pessoas; "
+            "populacao inteira/politica: A CONFIRMAR antes das rotas"]
+           if "populacao" in g else []),
          f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVA - ' + ', '.join(r['reprovados'])}"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))

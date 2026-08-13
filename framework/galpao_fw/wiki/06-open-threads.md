@@ -1,5 +1,11 @@
 # 06 — Open threads
 
+## T43 — Sessão 44 (2026-08-13): população de depósitos conforme NBR 9077:2025 — RESOLVIDO (cálculo exato; rotas condicionadas)
+- [x] Calcular a população de projeto de depósitos pela área computável da NBR 9077:2025 e registrar a decisão de arredondamento antes de dimensionar rotas de saída.
+- Implementado em `framework/galpao_fw/populacao_nbr9077.py` e integrado opcionalmente ao vertical de incêndio; a área computável é entrada explícita e não é deduzida de `geometria`.
+- Evidência auditável no dry-run `loop-20260813T213038445349Z`, usando exclusivamente o NotebookLM `09_INCENDIO`, source ID `878dc921-2664-43ec-b2c8-14641b3c7641` e quatro citações persistidas.
+- Testes da unidade e integração: 52 focais; suíte `tools/loops`: 187; total verificado: 239. A política de arredondamento não foi inventada: permanece `A CONFIRMAR`, e o gate de rotas continua reprovado até decisão normativa/humana.
+
 ## T42 — Sessão 43 (2026-08-13): área mínima da sinalização NBR 16820 — RESOLVIDO
 - [x] Validar a área real das placas de emergência pela relação de área mínima da NBR 16820:2020 e integrar o gate ao loop.
 - Implementado em `framework/galpao_fw/sinalizacao_nbr16820.py`; evidência auditável no dry-run `loop-20260813T204227870057Z`, usando exclusivamente o source ID `3510e0c9-f90d-41b5-87ca-42446212c710`.

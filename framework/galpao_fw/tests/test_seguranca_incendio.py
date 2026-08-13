@@ -4,6 +4,8 @@ contra os valores das normas lidos via NotebookLM."""
 import os
 import sys
 
+import pytest
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 GALPAO = os.path.dirname(HERE)
 sys.path.insert(0, GALPAO)
@@ -115,6 +117,39 @@ def test_rodar_gates_completos():
     assert g["sprinklers"]["risco"] == "ordinario_II" and g["sprinklers"]["N_chuveiros"] == 67
 
 
+def test_rodar_integra_populacao_nbr9077_sem_liberar_rotas():
+    r = si.rodar(
+        _spec(
+            populacao={
+                "area_pavimento_m2": 650.0,
+                "areas_excluidas_m2": [50.0],
+            }
+        )
+    )
+
+    assert r["populacao"]["area_computavel_m2"] == 600.0
+    assert r["populacao"]["populacao_exata"] == 20.0
+    assert r["populacao"]["calculo_ok"] is True
+    assert r["populacao"]["pronto_para_rotas"] is False
+    assert r["gates"]["populacao"]["OK"] is False
+    assert r["gates"]["populacao"]["populacao_inteira"] is None
+    assert "populacao" in r["reprovados"]
+    assert r["ATENDE"] is False
+
+
+def test_rodar_sem_populacao_preserva_chamada_antiga():
+    r = si.rodar(_spec())
+
+    assert "populacao" not in r
+    assert "populacao" not in r["gates"]
+    assert r["ATENDE"] is True
+
+
+def test_rodar_rejeita_populacao_sem_area_declarada():
+    with pytest.raises(ValueError, match="area_pavimento_m2"):
+        si.rodar(_spec(populacao={}))
+
+
 def test_sem_sprinklers_gate_informativo():
     sp_spec = _spec()
     sp_spec.pop("sprinklers")
@@ -133,3 +168,12 @@ def test_galpao_alto_usa_detector_linear():
 def test_relatorio_tem_virgula():
     txt = si.relatorio_pt(si.rodar(_spec()))
     assert "SEGURANCA CONTRA INCENDIO" in txt and "," in txt and "ATENDE" in txt
+
+
+def test_relatorio_registra_bloqueio_da_populacao():
+    txt = si.relatorio_pt(
+        si.rodar(_spec(populacao={"area_pavimento_m2": 625.0}))
+    )
+
+    assert "Populacao NBR 9077" in txt
+    assert "A CONFIRMAR" in txt
