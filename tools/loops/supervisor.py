@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
 import subprocess
 
 from .agents import AgentRequest, AgentResult
@@ -290,10 +292,89 @@ class DevelopmentSupervisor:
         )
 
     def _research(self, candidate):
-        value = self.deps.research(candidate) if callable(self.deps.research) else self.deps.research.research(candidate)
+        try:
+            value = self.deps.research(candidate) if callable(self.deps.research) else self.deps.research.research(candidate)
+        except NlmEvidenceRequired:
+            cached = self._cached_evidence(candidate)
+            if cached is None:
+                raise
+            self._research_cache_hit = True
+            return cached
         if getattr(value, "manual_request", None) and not getattr(value, "citations", ()):
             raise MissingSourceRequired(value.manual_request)
         return value
+
+    def _cached_evidence(self, candidate):
+        runs_dir = self.runtime_dir / "runs"
+        if not runs_dir.is_dir():
+            return None
+        for run_dir in sorted(
+            (path for path in runs_dir.iterdir() if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        ):
+            task_path = run_dir / "task.json"
+            evidence_path = run_dir / "evidence.json"
+            if not task_path.is_file() or not evidence_path.is_file():
+                continue
+            try:
+                cached_task = self._load_task(task_path)
+                if cached_task.to_dict() != candidate.to_dict():
+                    continue
+                evidence = self._load_evidence(evidence_path)
+            except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if self._evidence_matches_local_sources(evidence):
+                return evidence
+        return None
+
+    @staticmethod
+    def _load_task(path):
+        from .models import TaskCandidate
+
+        return TaskCandidate.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    @staticmethod
+    def _load_evidence(path):
+        from .models import EvidenceBundle
+
+        return EvidenceBundle.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def _evidence_matches_local_sources(self, evidence):
+        if not evidence.source_ids or not evidence.citations:
+            return False
+        source_by_id = {source.source_id: source for source in evidence.sources}
+        if set(source_by_id) != set(evidence.source_ids):
+            return False
+        if any(
+            citation.source_id not in evidence.source_ids or not citation.cited_text.strip()
+            for citation in evidence.citations
+        ):
+            return False
+        for source in evidence.sources:
+            if type(source.status) is not int or source.status != 2:
+                return False
+            if not source.local_path or not source.local_hash:
+                return False
+            path = self._local_source_path(source.local_path)
+            if path is None or not path.is_file():
+                return False
+            digest = hashlib.sha256(path.read_bytes()).hexdigest().upper()
+            if digest != source.local_hash.upper():
+                return False
+        return True
+
+    def _local_source_path(self, local_path):
+        source_root = (self.project_root / "fontes").resolve()
+        normalized = str(local_path).replace("\\", "/")
+        if normalized.casefold().startswith("fontes/"):
+            normalized = normalized.split("/", 1)[1]
+        candidate = (source_root / Path(*PurePosixPath(normalized).parts)).resolve()
+        try:
+            candidate.relative_to(source_root)
+        except ValueError:
+            return None
+        return candidate
 
     def _plan(self, candidate, evidence):
         if callable(self.deps.planner):

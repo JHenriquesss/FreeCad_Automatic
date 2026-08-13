@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -388,6 +389,47 @@ def test_research_evidence_gap_parks_as_manual_source_required(tmp_path):
     assert outcome.outcome == "manual_source_required"
     assert outcome.state.failure.reason == "missing_source"
     assert "no auditable citations" in Path(outcome.state.artifacts["manual_source_request"]).read_text(encoding="utf-8")
+
+
+def test_research_reuses_matching_audited_evidence_after_nlm_citation_gap(tmp_path):
+    h, cfg = harness(tmp_path)
+    source_path = "02_ACO/dg25.pdf"
+    source_file = h.root / "fontes" / source_path
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"audited source")
+    digest = hashlib.sha256(source_file.read_bytes()).hexdigest().upper()
+    candidate = replace(task(), source_paths=(source_path,))
+    cached_source = replace(evidence().sources[0], local_path=source_path, local_hash=digest)
+    cached_evidence = replace(evidence(), sources=(cached_source,))
+    run_dir = Path(cfg.runtime_dir) / "runs" / "previous"
+    run_dir.mkdir(parents=True)
+    (run_dir / "task.json").write_text(json.dumps(candidate.to_dict()), encoding="utf-8")
+    (run_dir / "evidence.json").write_text(json.dumps(cached_evidence.to_dict()), encoding="utf-8")
+    h.research.error = NlmEvidenceRequired("no auditable citations", Path(cfg.runtime_dir) / "manual.md")
+
+    result = make_supervisor(h, cfg)._research(candidate)
+
+    assert result.source_ids == cached_evidence.source_ids
+    assert result.retrieved_at == cached_evidence.retrieved_at
+
+
+def test_research_does_not_reuse_audited_evidence_when_source_hash_changed(tmp_path):
+    h, cfg = harness(tmp_path)
+    source_path = "02_ACO/dg25.pdf"
+    source_file = h.root / "fontes" / source_path
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"new source content")
+    candidate = replace(task(), source_paths=(source_path,))
+    cached_source = replace(evidence().sources[0], local_path=source_path, local_hash="OLD-HASH")
+    cached_evidence = replace(evidence(), sources=(cached_source,))
+    run_dir = Path(cfg.runtime_dir) / "runs" / "previous"
+    run_dir.mkdir(parents=True)
+    (run_dir / "task.json").write_text(json.dumps(candidate.to_dict()), encoding="utf-8")
+    (run_dir / "evidence.json").write_text(json.dumps(cached_evidence.to_dict()), encoding="utf-8")
+    h.research.error = NlmEvidenceRequired("no auditable citations", Path(cfg.runtime_dir) / "manual.md")
+
+    with pytest.raises(NlmEvidenceRequired):
+        make_supervisor(h, cfg)._research(candidate)
 
 
 def test_required_build_is_executed_and_failure_parks(tmp_path):
