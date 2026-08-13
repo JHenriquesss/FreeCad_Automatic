@@ -19,6 +19,7 @@ visualizacao, espacamento de placas e numero de sinais de rota de fuga."""
 from __future__ import annotations
 
 import math
+from numbers import Real
 
 K_SIMBOLO = 40.0                  # L(m) = 40 * lado(m) p/ orientacao/salvamento (Tab.1)
 K_LETRA = 125.0                   # h > L/125 (5.1.3)
@@ -31,6 +32,20 @@ LADOS_PLACA_MM = [100, 150, 200, 250, 300, 400, 600]
 NIVEL_SUPERIOR_MIN_M = 1.80      # 6.3.2
 NIVEL_INTERMEDIARIO_M = (1.20, 1.60)
 NIVEL_INFERIOR_M = (0.25, 0.50)
+
+
+def _numero_real_finito(nome, valor, *, positivo=True, nao_negativo=False):
+    """Valida entradas numéricas sem aceitar bool, NaN ou infinito."""
+    if isinstance(valor, bool) or not isinstance(valor, Real):
+        raise ValueError(f"{nome} deve ser um número real finito")
+    valor = float(valor)
+    if not math.isfinite(valor):
+        raise ValueError(f"{nome} deve ser um número real finito")
+    if positivo and valor <= 0:
+        raise ValueError(f"{nome} deve ser positivo")
+    if nao_negativo and valor < 0:
+        raise ValueError(f"{nome} não pode ser negativo")
+    return valor
 
 
 def distancia_visualizacao(lado_mm):
@@ -71,9 +86,26 @@ def dimensiona_sinalizacao(caso):
     caso: {C, L, dist_visualizacao_m(opc; default = diagonal/2), rota_fuga_m(opc;
            default perimetro), rota_continuada(bool), n_saidas(=2)}.
     Retorna tamanho de placa, area, altura de letra, espacamento e numero de placas."""
-    C = float(caso["C"]); L = float(caso["L"])
+    C = _numero_real_finito("C", caso["C"])
+    L = _numero_real_finito("L", caso["L"])
     diag = math.hypot(C, L)
-    L_vis = float(caso["dist_visualizacao_m"]) if caso.get("dist_visualizacao_m") else diag / 2.0
+    distancia_explicita = "dist_visualizacao_m" in caso
+    if distancia_explicita:
+        L_vis = _numero_real_finito("dist_visualizacao_m", caso["dist_visualizacao_m"])
+        if L_vis >= 50.0:
+            raise ValueError("dist_visualizacao_m deve ser menor que 50 m")
+    else:
+        L_vis = diag / 2.0
+
+    area_informada = "area_placa_m2" in caso
+    area_placa = (None if not area_informada else
+                  _numero_real_finito("area_placa_m2", caso["area_placa_m2"],
+                                      positivo=False, nao_negativo=True))
+    limite_normativo_excedido = not distancia_explicita and L_vis >= 50.0
+    distancia_calculo = None if limite_normativo_excedido else max(L_vis, DIST_MIN_PROJETO_M)
+    area_minima = (None if distancia_calculo is None else area_minima_placa(distancia_calculo))
+    area_atende = (None if not area_informada or area_minima is None
+                   else area_placa > area_minima)
     lado = placa_minima(L_vis)
     rota = float(caso.get("rota_fuga_m", 2.0 * (C + L)))
     continua = bool(caso.get("rota_continuada", False))
@@ -83,13 +115,19 @@ def dimensiona_sinalizacao(caso):
     # L_vis; sem esta checagem a placa sairia subdimensionada com OK=True (rota longa
     # em galpao grande, L_vis > 24 m). O OK exige que a placa ADOTADA cubra L_vis.
     satura = distancia_visualizacao(lado) < L_vis - 1e-9
+    ok_area = area_atende is not False
     return {"dist_visualizacao_m": L_vis, "placa_lado_mm": lado,
-            "placa_area_min_m2": round(area_minima_placa(L_vis), 3),
+            "placa_area_min_m2": (None if area_minima is None else round(area_minima, 3)),
             "letra_min_mm": round(altura_letra_minima_mm(L_vis), 1),
             "espacamento_m": ESPACO_ROTA_CONTINUA_M if continua else ESPACO_PLACAS_M,
             "N_placas_orientacao": n_placas, "N_placas_saida": n_saidas,
             "nivel_instalacao_m": NIVEL_SUPERIOR_MIN_M, "placa_satura": satura,
-            "N_total": n_placas + n_saidas, "OK": lado >= 100 and not satura}
+            "N_total": n_placas + n_saidas, "OK": lado >= 100 and not satura and ok_area,
+            "distancia_calculo_m": distancia_calculo,
+            "area_minima_m2": area_minima,
+            "area_placa_m2": area_placa,
+            "area_atende": area_atende,
+            "limite_normativo_excedido": limite_normativo_excedido}
 
 
 def _selftest():
