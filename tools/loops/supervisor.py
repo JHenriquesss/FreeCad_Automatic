@@ -224,6 +224,10 @@ class DevelopmentSupervisor:
                 self._transition(LoopPhase.RED, LoopPhase.IMPLEMENT)
                 continue
             if state.phase is LoopPhase.IMPLEMENT:
+                recovered = self._recover_interrupted_implementation(state)
+                if recovered is not None:
+                    self._transition(LoopPhase.IMPLEMENT, LoopPhase.VERIFY)
+                    continue
                 try:
                     result = self._attempt(LoopPhase.IMPLEMENT, self._agent, state.task, state.evidence, self._plan_text(), state.worktree)
                 except Exception as error:
@@ -667,6 +671,28 @@ class DevelopmentSupervisor:
         if tuple(getattr(result, "files_touched", ())):
             return True
         return bool(self._git_diff(worktree) or self._worktree_files(worktree))
+
+    def _recover_interrupted_implementation(self, state):
+        """Rehydrate a change left on disk if the supervisor died before saving the agent result."""
+        if not state.worktree:
+            return None
+        files = self._worktree_files(state.worktree)
+        if not files and not self._git_diff(state.worktree):
+            return None
+        result = AgentResult(
+            executor="recovered-worktree",
+            argv=(),
+            cwd=str(state.worktree),
+            returncode=0,
+            duration_seconds=0.0,
+            stdout="implementation recovered from persisted worktree",
+            stderr="",
+            files_touched=files or _diff_paths(self._git_diff(state.worktree)),
+        )
+        path = self._write_json_artifact("agent-recovered", result.to_dict())
+        self._agent_result = result
+        self._save(replace(self.ledger.state, artifacts={**state.artifacts, "agent": path}))
+        return result
 
     @staticmethod
     def _worktree_files(worktree):

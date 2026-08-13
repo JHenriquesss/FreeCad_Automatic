@@ -555,6 +555,45 @@ def test_resume_restarts_from_persisted_phase(tmp_path):
     assert h.agent.calls == 1
 
 
+def test_resume_recovers_changed_worktree_without_recalling_agent(tmp_path):
+    h, cfg = harness(tmp_path)
+    loop_id = "resume-interrupted-implementation"
+    runtime = Path(cfg.runtime_dir)
+    run_dir = runtime / "runs" / loop_id
+    run_dir.mkdir(parents=True)
+    worktree = h.root / "worktree" / loop_id
+    worktree.mkdir(parents=True)
+    baseline = TestSnapshot(kind="baseline", returncode=0, passed=2)
+    (run_dir / "baseline.json").write_text(json.dumps(baseline.to_dict()), encoding="utf-8")
+    (run_dir / "plan.md").write_text("plano persistido", encoding="utf-8")
+    state = LoopState(
+        schema_version=1,
+        loop_id=loop_id,
+        mode="supervised",
+        iteration=1,
+        phase=LoopPhase.IMPLEMENT,
+        task=task(),
+        base_commit=h.base,
+        worktree=str(worktree),
+        evidence=evidence(),
+        attempts={"implement": 1},
+        artifacts={"baseline": str(run_dir / "baseline.json")},
+        outcome=None,
+        last_error=None,
+        failure=None,
+    )
+    Ledger(runtime / "ledger.json", state).save()
+    supervisor = make_supervisor(h, cfg)
+    supervisor._worktree_files = lambda ignored: ("framework/galpao_fw/dg25_ltb.py",)
+
+    outcome = supervisor.resume(loop_id)
+
+    assert outcome.outcome == "promoted"
+    assert h.agent.calls == 0
+    assert h.tests.calls == ["targeted", "regression"]
+    assert outcome.state.artifacts["agent"].endswith("agent-recovered.json")
+
+
 def test_resume_targeted_failure_without_agent_change_returns_to_implement(tmp_path):
     h, cfg = harness(tmp_path)
     loop_id = "resume-targeted-no-change"
