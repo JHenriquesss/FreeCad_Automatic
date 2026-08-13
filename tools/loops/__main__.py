@@ -156,9 +156,11 @@ def _research_candidate(adapter, candidate):
     source_ids = tuple(source.source_id for source in sources)
     if not source_ids:
         raise ValueError("no requested sources are ready")
+    authorized_ids = ", ".join(source_ids)
     question = (
-        f"Para a tarefa temática '{candidate.topic}' — '{candidate.title}', identifique apenas requisitos normativos "
-        "aplicáveis, lacunas verificáveis e critérios de teste. Cite os source IDs."
+        f"Para a tarefa temática '{candidate.topic}' — '{candidate.title}', use exclusivamente as fontes "
+        f"com estes source IDs: {authorized_ids}. Liste apenas requisitos normativos aplicáveis, lacunas "
+        "verificáveis e critérios de teste; cite cada requisito pelo source ID exato."
     )
     return adapter.query(notebook_id, question, source_ids)
 

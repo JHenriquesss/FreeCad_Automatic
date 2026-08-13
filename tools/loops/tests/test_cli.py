@@ -3,8 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from tools.loops.__main__ import _allowed_code_paths, _notebook_id_for_candidate, build_parser, main
-from tools.loops.models import TaskCandidate
+from tools.loops.__main__ import (
+    _allowed_code_paths,
+    _notebook_id_for_candidate,
+    _research_candidate,
+    build_parser,
+    main,
+)
+from tools.loops.models import SourceRecord, TaskCandidate
 from tools.loops.research_nlm import NotebookMap
 
 
@@ -96,6 +102,45 @@ def test_atomic_candidate_rejects_source_scope_spanning_notebooks():
 
     with pytest.raises(ValueError, match="multiple notebooks"):
         _notebook_id_for_candidate(notebook_map, candidate)
+
+
+def test_research_prompt_names_each_authorized_source_id():
+    source_ids = (
+        "71c7e8de-5c0f-48e7-b5ae-8e266faf6747",
+        "d84e215b-a6bf-49f8-899a-a56ddd9510d8",
+    )
+
+    class Adapter:
+        notebook_map = NotebookMap({"02_ACO": "nb-aco"})
+
+        def list_ready_sources_for_paths(self, notebook_id, paths):
+            return tuple(
+                SourceRecord(source_id, source_id, 2, notebook_id, local_path=path)
+                for source_id, path in zip(source_ids, paths)
+            )
+
+        def query(self, notebook_id, question, selected_ids):
+            self.question = question
+            self.selected_ids = selected_ids
+            return "evidence"
+
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — tapered",
+        "estrutura",
+        "wiki:T16:tapered",
+        90,
+        ("wiki.md",),
+        (),
+        topic="tapered",
+        source_paths=("02_ACO/dg25.pdf", "02_ACO/nbr8800.pdf"),
+    )
+    adapter = Adapter()
+
+    assert _research_candidate(adapter, candidate) == "evidence"
+    assert adapter.selected_ids == source_ids
+    assert all(source_id in adapter.question for source_id in source_ids)
+    assert "cite cada requisito pelo source ID exato" in adapter.question
 
 
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
