@@ -444,6 +444,17 @@ def placa_sob_NM(N, M, B, L, sig_rd, d_anchor):
 
 
 def verifica_base(caso):
+    for campo in ("B", "L", "fck", "db", "n_chumbadores", "fy_placa"):
+        valor = caso[campo]
+        try:
+            valido = math.isfinite(valor) and valor > 0
+        except (TypeError, ValueError):
+            valido = False
+        if not valido:
+            raise ValueError(
+                f"{campo} deve ser finito e > 0 (recebido {valor!r})"
+            )
+
     r = {"nome": caso.get("nome", "base")}
     fck = caso["fck"]
     B, L = caso["B"], caso["L"]           # dimensoes da placa (m)
