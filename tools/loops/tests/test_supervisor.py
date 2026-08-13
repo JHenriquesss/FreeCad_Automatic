@@ -698,6 +698,32 @@ def test_completed_task_with_parallel_branch_commit_is_selected(tmp_path):
     assert outcome.state.task.id == "task-1"
 
 
+@pytest.mark.parametrize("loop_id", [None, "missing-loop", "parallel/evil"])
+def test_completed_task_does_not_follow_unregistered_or_invalid_loop_branch(tmp_path, loop_id):
+    h, cfg = harness(tmp_path)
+    git("checkout", "-b", "parallel", cwd=h.root)
+    (h.root / "parallel.txt").write_text("parallel\n", encoding="utf-8")
+    git("add", "parallel.txt", cwd=h.root)
+    git("commit", "-m", "parallel commit", cwd=h.root)
+    parallel_commit = git("rev-parse", "HEAD", cwd=h.root)
+    git("checkout", "main", cwd=h.root)
+
+    record = {"promoted_commit": parallel_commit}
+    if loop_id is not None:
+        record["loop_id"] = loop_id
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "completed-tasks.json").write_text(
+        json.dumps({"schema_version": 1, "tasks": {"task-1": record}}),
+        encoding="utf-8",
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert outcome.state.task.id == "task-1"
+
+
 @pytest.mark.parametrize(
     "record",
     ({}, {"promoted_commit": "not-a-commit"}, {"promoted_commit": "\0bad"}),

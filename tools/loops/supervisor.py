@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 from pathlib import PurePosixPath
+import re
 import subprocess
 
 from .agents import AgentRequest, AgentResult
@@ -465,10 +466,35 @@ class DevelopmentSupervisor:
             task_id
             for task_id, record in tasks.items()
             if isinstance(record, dict)
-            and self._commit_is_ancestor(record.get("promoted_commit"))
+            and self._completion_commit_is_reachable(record)
         )
 
-    def _commit_is_ancestor(self, commit) -> bool:
+    def _completion_commit_is_reachable(self, record) -> bool:
+        commit = record.get("promoted_commit")
+        if not isinstance(commit, str) or not commit:
+            return False
+        if self._commit_is_ancestor(commit):
+            return True
+
+        loop_id = record.get("loop_id")
+        if not self._is_safe_loop_id(loop_id):
+            return False
+        return self._commit_is_ancestor(commit, f"refs/heads/loop/{loop_id}")
+
+    @staticmethod
+    def _is_safe_loop_id(loop_id) -> bool:
+        return (
+            isinstance(loop_id, str)
+            and bool(loop_id)
+            and loop_id not in {".", ".."}
+            and "/" not in loop_id
+            and "\\" not in loop_id
+            and ".." not in loop_id
+            and not loop_id.endswith(".")
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", loop_id) is not None
+        )
+
+    def _commit_is_ancestor(self, commit, ref="HEAD") -> bool:
         if not isinstance(commit, str) or not commit:
             return False
         try:
@@ -480,7 +506,7 @@ class DevelopmentSupervisor:
                     "merge-base",
                     "--is-ancestor",
                     commit,
-                    "HEAD",
+                    ref,
                 ],
                 capture_output=True,
                 text=True,
