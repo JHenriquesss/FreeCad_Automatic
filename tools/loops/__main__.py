@@ -344,6 +344,30 @@ def _research_question(candidate, source_ids):
             "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
             f"{authorized_ids}."
         )
+    if candidate.topic == "fogo_concreto":
+        return (
+            "Para concreto em situação de incêndio na ABNT NBR 15200 (edição da fonte), liste somente "
+            "requisitos verificáveis de dimensionamento, detalhamento, resistência e critérios de exposição "
+            "expressamente presentes no texto. Informe seção/tabela para cada item, declare quando a norma "
+            "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
+    if candidate.topic == "resistencia_fogo":
+        return (
+            "Para exigências de resistência ao fogo na ABNT NBR 14432 (edição da fonte), liste somente "
+            "requisitos verificáveis de classificação, tempos requeridos, aplicação e critérios de "
+            "resistência expressamente presentes no texto. Informe seção/tabela para cada item, declare "
+            "quando a norma não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
+    if candidate.topic == "fogo_aco":
+        return (
+            "Para estruturas de aço e mistas em situação de incêndio na ABNT NBR 14323 (edição da fonte), "
+            "liste somente requisitos verificáveis de análise, dimensionamento, proteção e resistência "
+            "expressamente presentes no texto. Informe seção/tabela para cada item, declare quando a norma "
+            "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -393,6 +417,27 @@ def _research_retry_question(candidate, source_ids):
             "NBR 13434 para sinalização de segurança contra incêndio: responda em no máximo 8 itens; informe "
             "seção/tabela, requisito verificável e condição de aplicação; não invente regras fora da fonte e "
             "inclua citações textuais. "
+            f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "fogo_concreto":
+        return (
+            "NBR 15200 para concreto em situação de incêndio: responda em no máximo 8 itens; informe "
+            "seção/tabela, requisito verificável e limite ou condição; não invente regras fora da fonte, "
+            "declare lacunas de cobertura e inclua citações textuais. "
+            f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "resistencia_fogo":
+        return (
+            "NBR 14432 para exigências de resistência ao fogo: responda em no máximo 8 itens; informe "
+            "seção/tabela, requisito verificável e classificação/tempo quando a fonte trouxer; não invente "
+            "regras fora da fonte, declare lacunas de cobertura e inclua citações textuais. "
+            f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "fogo_aco":
+        return (
+            "NBR 14323 para estruturas de aço e mistas em situação de incêndio: responda em no máximo 8 itens; "
+            "informe seção/tabela, requisito verificável e limite ou condição; não invente regras fora da fonte, "
+            "declare lacunas de cobertura e inclua citações textuais. "
             f"Use somente o source ID exato {authorized_ids}."
         )
     return None

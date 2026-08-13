@@ -539,3 +539,96 @@ def test_fire_pending_decomposes_into_two_atomic_norm_candidates(tmp_path):
         for item in discover_candidates(tmp_path)
     )
     assert first_run == second_run
+
+
+def test_fire_mirror_does_not_create_duplicate_pending_candidate(tmp_path):
+    source_pending = tmp_path / "fontes"
+    source_pending.mkdir(parents=True)
+    (source_pending / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 — atualizações normativas e segurança industrial\n"
+        "- Proteção contra incêndio: NBR 16981:2021 já cobre áreas de armazenamento e "
+        "substitui a NBR 13792:1997; ainda faltam NBR 12693 e NBR 13434.\n",
+        encoding="utf-8",
+    )
+    (source_pending / "pendencias-atualizacao.md").write_text(
+        "# Pendências\n"
+        "### 4. Incêndio, geotecnia e segurança do trabalho\n"
+        "- [ ] Obter ABNT NBR 12693 e NBR 13434 para proteção contra incêndio. O loop agora "
+        "separa essa lacuna em duas tarefas atômicas.\n"
+        "- [ ] Obter ABNT NBR 15200, NBR 14432 e NBR 14323 para estruturas em situação de incêndio.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+
+    mirror_duplicates = [
+        item for item in candidates
+        if item.origin.startswith(
+            "fontes/pendencias-atualizacao.md:Incêndio, geotecnia e segurança do trabalho"
+        )
+        and "12693" in item.title
+        and "13434" in item.title
+    ]
+
+    assert mirror_duplicates == []
+    assert any(
+        item.origin.endswith(":nbr12693")
+        and item.origin.startswith("fontes/fontes-faltantes.md:P1")
+        for item in candidates
+    )
+
+
+def test_structural_fire_pending_decomposes_into_three_atomic_norm_candidates(tmp_path):
+    source_pending = tmp_path / "fontes"
+    source_pending.mkdir(parents=True)
+    (source_pending / "pendencias-atualizacao.md").write_text(
+        "# Pendências\n"
+        "### 4. Incêndio, geotecnia e segurança do trabalho\n"
+        "- [ ] Obter ABNT NBR 15200, NBR 14432 e NBR 14323 para estruturas em situação de incêndio.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_fogo_nbr15200.py",
+        "test_incendio_robustez.py",
+        "test_seguranca_incendio.py",
+        "test_incendio_bim.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
+    expected = {
+        "nbr15200": (
+            "fogo_concreto",
+            "09_INCENDIO/INCENDIO__NBR__NBR-15200__estruturas-concreto-incendio.pdf",
+        ),
+        "nbr14432": (
+            "resistencia_fogo",
+            "09_INCENDIO/INCENDIO__NBR__NBR-14432__exigencias-resistencia-fogo.pdf",
+        ),
+        "nbr14323": (
+            "fogo_aco",
+            "09_INCENDIO/INCENDIO__NBR__NBR-14323__estruturas-aco-incendio.pdf",
+        ),
+    }
+
+    for suffix, (topic, source_path) in expected.items():
+        atomic = next(item for item in candidates if item.origin.endswith(f":{suffix}"))
+        assert atomic.topic == topic
+        assert atomic.discipline == "seguranca"
+        assert atomic.source_paths == (source_path,)
+        assert atomic.suggested_tests
+
+    broad = next(
+        item for item in candidates
+        if item.title.startswith("Obter ABNT NBR 15200, NBR 14432 e NBR 14323")
+    )
+    assert broad.source_paths == ()
+    first_run = tuple((item.id, item.origin, item.source_paths) for item in candidates)
+    second_run = tuple(
+        (item.id, item.origin, item.source_paths)
+        for item in discover_candidates(tmp_path)
+    )
+    assert first_run == second_run

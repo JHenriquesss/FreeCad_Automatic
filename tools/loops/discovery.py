@@ -111,6 +111,15 @@ _EXTINTORES_NBR12693_SOURCES = (
 _SINALIZACAO_NBR13434_SOURCES = (
     "09_INCENDIO/INCENDIO__NBR__NBR-13434__sinalizacao-seguranca.pdf",
 )
+_FOGO_CONCRETO_NBR15200_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-15200__estruturas-concreto-incendio.pdf",
+)
+_RESISTENCIA_FOGO_NBR14432_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-14432__exigencias-resistencia-fogo.pdf",
+)
+_FOGO_ACO_NBR14323_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-14323__estruturas-aco-incendio.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -277,9 +286,20 @@ def _candidates_for_item(
     evidence_path: str,
     suggestions: tuple[str, ...],
 ) -> list[TaskCandidate]:
+    normalized_title = _normalized(title)
+    normalized_origin = _normalized(origin)
     if (
-        "area minima" in _normalized(title)
-        and "16820" in _normalized(title)
+        normalized_title.startswith(
+            "obter abnt nbr 12693 e nbr 13434 para protecao contra incendio"
+        )
+        and normalized_origin.startswith(
+            "fontes/pendencias-atualizacao.md:incendio, geotecnia e seguranca do trabalho"
+        )
+    ):
+        return []
+    if (
+        "area minima" in normalized_title
+        and "16820" in normalized_title
         and origin == "framework/galpao_fw/wiki/06-open-threads.md:T42"
     ):
         return [
@@ -314,7 +334,49 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
-        "vigencia das normas fotovoltaicas" in _normalized(title)
+        all(
+            term in normalized_title
+            for term in ("15200", "14432", "14323", "estruturas em situacao de incendio")
+        )
+        and normalized_origin.startswith(
+            "fontes/pendencias-atualizacao.md:incendio, geotecnia e seguranca do trabalho"
+        )
+    ):
+        return [
+            _candidate(
+                "Validar concreto em situação de incêndio conforme NBR 15200 (edição a confirmar).",
+                f"{origin}:nbr15200",
+                evidence_path,
+                suggestions,
+                topic="fogo_concreto",
+                source_paths=_FOGO_CONCRETO_NBR15200_SOURCES,
+                priority=48,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar exigências de resistência ao fogo conforme NBR 14432 (edição a confirmar).",
+                f"{origin}:nbr14432",
+                evidence_path,
+                suggestions,
+                topic="resistencia_fogo",
+                source_paths=_RESISTENCIA_FOGO_NBR14432_SOURCES,
+                priority=46,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar estruturas de aço e mistas em situação de incêndio conforme NBR 14323 (edição a confirmar).",
+                f"{origin}:nbr14323",
+                evidence_path,
+                suggestions,
+                topic="fogo_aco",
+                source_paths=_FOGO_ACO_NBR14323_SOURCES,
+                priority=44,
+                discipline="seguranca",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
+    if (
+        "vigencia das normas fotovoltaicas" in normalized_title
         and origin.startswith("fontes/pendencias-atualizacao.md:")
     ):
         return [
@@ -341,7 +403,7 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
-        all(term in _normalized(title) for term in ("protecao contra incendio", "12693", "13434"))
+        all(term in normalized_title for term in ("protecao contra incendio", "12693", "13434"))
         and origin.startswith("fontes/fontes-faltantes.md:P1")
     ):
         return [
@@ -367,7 +429,7 @@ def _candidates_for_item(
             ),
             _candidate(title, origin, evidence_path, suggestions),
         ]
-    if origin.endswith(":T16") and "fuzz interno" in _normalized(title):
+    if origin.endswith(":T16") and "fuzz interno" in normalized_title:
         return [
             _candidate(
                 f"Fuzz interno — {topic}: verificar invariantes e ausência de crash/NaN.",
@@ -495,6 +557,21 @@ def _tests_for_candidate(
         )
         return tuple(path for path in preferred if path in available)
     elif topic in {"extintores", "sinalizacao_incendio"}:
+        preferred = (
+            "framework/galpao_fw/tests/test_incendio_robustez.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_incendio_bim.py",
+        )
+        return tuple(path for path in preferred if path in available)
+    elif topic == "fogo_concreto":
+        preferred = (
+            "framework/galpao_fw/tests/test_fogo_nbr15200.py",
+            "framework/galpao_fw/tests/test_incendio_robustez.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_incendio_bim.py",
+        )
+        return tuple(path for path in preferred if path in available)
+    elif topic in {"resistencia_fogo", "fogo_aco"}:
         preferred = (
             "framework/galpao_fw/tests/test_incendio_robustez.py",
             "framework/galpao_fw/tests/test_seguranca_incendio.py",

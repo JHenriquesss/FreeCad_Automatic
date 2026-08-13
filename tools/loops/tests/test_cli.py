@@ -415,6 +415,43 @@ def test_fire_prompt_focuses_sinalizacao_without_presuming_edition():
     assert source_id in retry
 
 
+@pytest.mark.parametrize(
+    ("topic", "norm", "subject"),
+    (
+        ("fogo_concreto", "NBR 15200", "concreto em situação de incêndio"),
+        ("resistencia_fogo", "NBR 14432", "exigências de resistência ao fogo"),
+        ("fogo_aco", "NBR 14323", "estruturas de aço e mistas em situação de incêndio"),
+    ),
+)
+def test_structural_fire_prompt_is_scoped_and_requires_textual_citations(
+    topic, norm, subject
+):
+    source_id = f"src-{topic}"
+    candidate = TaskCandidate(
+        "id",
+        f"Validar {subject} conforme {norm} (edição a confirmar).",
+        "seguranca",
+        f"fontes/pendencias-atualizacao.md:Incêndio:nbr-{topic}",
+        45,
+        ("fontes/pendencias-atualizacao.md",),
+        (),
+        topic=topic,
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert norm in question
+    assert subject in question
+    assert "seção/tabela" in question
+    assert source_id in question
+    assert "202" not in question
+    assert retry is not None
+    assert norm in retry
+    assert "citações textuais" in retry
+    assert source_id in retry
+
+
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
     root = tmp_path / "project"
     (root / ".git").mkdir(parents=True)
