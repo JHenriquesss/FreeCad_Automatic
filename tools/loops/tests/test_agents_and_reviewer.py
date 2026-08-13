@@ -83,7 +83,8 @@ def test_codex_command_uses_workspace_write_and_no_permission_bypass(tmp_path):
     assert argv[:2] == ("codex", "exec")
     assert "--cd" in argv and fake.calls[0]["cwd"] == str(tmp_path / "worktree")
     assert "--sandbox" in argv and argv[argv.index("--sandbox") + 1] == "workspace-write"
-    assert "--ask-for-approval" in argv and argv[argv.index("--ask-for-approval") + 1] == "never"
+    assert "--approve-for-me" in argv
+    assert "--ask-for-approval" not in argv
     assert "--output-last-message" in argv
     assert argv[-1] == "-"
     assert not any("dangerously" in value or "skip" in value for value in argv)
