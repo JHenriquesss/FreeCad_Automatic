@@ -11,6 +11,7 @@ from tools.loops.ledger import Ledger
 from tools.loops.models import (
     Citation,
     EvidenceBundle,
+    FailureRecord,
     LoopConfig,
     LoopPhase,
     LoopState,
@@ -527,6 +528,65 @@ def test_resume_restarts_from_persisted_phase(tmp_path):
     assert outcome.outcome == "promoted"
     assert h.discover.calls == 0
     assert h.research.calls == 0
+    assert h.agent.calls == 1
+
+
+def test_resume_targeted_failure_without_agent_change_returns_to_implement(tmp_path):
+    h, cfg = harness(tmp_path)
+    loop_id = "resume-targeted-no-change"
+    runtime = Path(cfg.runtime_dir)
+    run_dir = runtime / "runs" / loop_id
+    run_dir.mkdir(parents=True)
+    worktree = h.root / "worktree" / loop_id
+    worktree.mkdir(parents=True)
+    baseline = TestSnapshot(kind="baseline", returncode=0, passed=2)
+    targeted = TestSnapshot(
+        kind="targeted",
+        target_paths=task().suggested_tests,
+        returncode=1,
+        failed=1,
+        failed_tests=("tests/test_modulo.py::test_fail",),
+    )
+    for name, value in (("baseline", baseline), ("targeted", targeted)):
+        (run_dir / f"{name}.json").write_text(json.dumps(value.to_dict()), encoding="utf-8")
+    (run_dir / "plan.md").write_text("plano persistido", encoding="utf-8")
+    agent = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=str(worktree),
+        returncode=0,
+        duration_seconds=0.1,
+        stdout="nenhum arquivo alterado",
+        stderr="",
+        files_touched=(),
+    )
+    agent_path = run_dir / "agent.json"
+    agent_path.write_text(json.dumps(agent.to_dict()), encoding="utf-8")
+    state = LoopState(
+        schema_version=1,
+        loop_id=loop_id,
+        mode="supervised",
+        iteration=1,
+        phase=LoopPhase.PARK,
+        task=task(),
+        base_commit=h.base,
+        worktree=str(worktree),
+        evidence=evidence(),
+        attempts={"verify": 1},
+        artifacts={
+            "baseline": str(run_dir / "baseline.json"),
+            "targeted": str(run_dir / "targeted.json"),
+            "agent": str(agent_path),
+        },
+        outcome="targeted_failed",
+        last_error="target test failed",
+        failure=FailureRecord("targeted_failed", None, (str(run_dir / "targeted.json"),), "target test failed"),
+    )
+    Ledger(runtime / "ledger.json", state).save()
+
+    outcome = make_supervisor(h, cfg).resume(loop_id)
+
+    assert outcome.outcome == "promoted"
     assert h.agent.calls == 1
 
 

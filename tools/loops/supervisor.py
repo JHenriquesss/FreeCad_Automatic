@@ -111,13 +111,27 @@ class DevelopmentSupervisor:
             raise ValueError("requested loop_id does not match persisted ledger")
         state = self.ledger.state
         if state.phase is LoopPhase.PARK and state.failure is not None:
-            phase = _FAILURE_PHASES.get(state.failure.reason)
+            phase = self._resume_phase(state)
             if phase is None:
                 return self._set_outcome("attempt_limit")
             if state.attempts.get(phase.value, 0) >= self.config.max_attempts_per_phase:
                 return self._set_outcome("attempt_limit")
             self._save(replace(state, phase=phase, outcome=None, last_error=None, failure=None))
         return self._advance()
+
+    def _resume_phase(self, state):
+        """Choose a retry phase using the persisted result of the last agent run."""
+        reason = state.failure.reason
+        if reason == "targeted_failed":
+            agent_artifact = state.artifacts.get("agent")
+            if agent_artifact:
+                try:
+                    document = json.loads(Path(agent_artifact).read_text(encoding="utf-8"))
+                except (OSError, TypeError, ValueError):
+                    document = None
+                if document is not None and document.get("files_touched") == []:
+                    return LoopPhase.IMPLEMENT
+        return _FAILURE_PHASES.get(reason)
 
     def _start(self, state: LoopState, *, overwrite=False) -> None:
         self.ledger = Ledger(self.ledger_path, state)
