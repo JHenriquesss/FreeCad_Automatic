@@ -418,6 +418,20 @@ def test_supervised_cycle_promotes_only_local_worktree(tmp_path):
     assert git("status", "--porcelain", cwd=h.root) == ""
 
 
+def test_next_run_skips_a_candidate_already_promoted(tmp_path):
+    h, cfg = harness(tmp_path)
+    next_task = replace(task(), id="task-2", title="Validar segundo modulo")
+
+    first = make_supervisor(h, cfg).run_once()
+    assert first.outcome == "promoted"
+
+    h.discover.candidates = (task(), next_task)
+    second = make_supervisor(h, cfg).run_once()
+
+    assert second.outcome == "promoted"
+    assert second.state.task.id == "task-2"
+
+
 def test_all_code_gates_use_iteration_worktree(tmp_path):
     h, cfg = harness(tmp_path)
     factory_paths = []

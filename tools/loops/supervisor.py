@@ -67,6 +67,7 @@ class DevelopmentSupervisor:
         self.project_root = Path(config.project_root).expanduser().resolve()
         self.runtime_dir = Path(config.runtime_dir).expanduser().resolve()
         self.ledger_path = self.runtime_dir / "ledger.json"
+        self.completed_tasks_path = self.runtime_dir / "completed-tasks.json"
         self.transition_count = 0
         self.run_dir: Path | None = None
         self.ledger: Ledger | None = None
@@ -77,6 +78,8 @@ class DevelopmentSupervisor:
             existing = Ledger.load(self.ledger_path).state
             if existing.phase not in {LoopPhase.PARK, LoopPhase.PROMOTE}:
                 raise RuntimeError("an active loop already exists; resume it before starting another")
+            if existing.phase is LoopPhase.PROMOTE and existing.outcome == "promoted":
+                self._record_completion(existing, existing.artifacts.get("promoted_commit"))
         loop_id = self._new_loop_id()
         base_commit = self._root_head()
         state = LoopState(
@@ -233,6 +236,7 @@ class DevelopmentSupervisor:
                 continue
             if state.phase is LoopPhase.PROMOTE:
                 if state.outcome == "promoted":
+                    self._record_completion(state, state.artifacts.get("promoted_commit"))
                     return self._outcome("promoted")
                 try:
                     self.deps.worktrees.assert_base_unchanged(self.ledger.state.base_commit)
@@ -246,6 +250,7 @@ class DevelopmentSupervisor:
                         artifacts={**self.ledger.state.artifacts, "promoted_commit": commit},
                     )
                 )
+                self._record_completion(self.ledger.state, commit)
                 return self._outcome("promoted")
             if state.phase is LoopPhase.PARK:
                 return self._outcome(state.outcome or "parked")
@@ -253,7 +258,36 @@ class DevelopmentSupervisor:
 
     def _discover(self):
         value = self.deps.discover(self.project_root) if callable(self.deps.discover) else self.deps.discover.discover_candidates(self.project_root)
-        return tuple(value)
+        completed = self._completed_task_ids()
+        return tuple(candidate for candidate in value if candidate.id not in completed)
+
+    def _completed_task_ids(self):
+        if not self.completed_tasks_path.exists():
+            return frozenset()
+        document = json.loads(self.completed_tasks_path.read_text(encoding="utf-8"))
+        tasks = document.get("tasks", {})
+        if not isinstance(tasks, dict):
+            raise ValueError("completed task registry must contain an object at tasks")
+        return frozenset(tasks)
+
+    def _record_completion(self, state, promoted_commit):
+        if state.task is None:
+            return
+        document = {"schema_version": 1, "tasks": {}}
+        if self.completed_tasks_path.exists():
+            document = json.loads(self.completed_tasks_path.read_text(encoding="utf-8"))
+        tasks = document.setdefault("tasks", {})
+        tasks[state.task.id] = {
+            "loop_id": state.loop_id,
+            "title": state.task.title,
+            "topic": state.task.topic,
+            "promoted_commit": promoted_commit,
+        }
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.completed_tasks_path.write_text(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     def _research(self, candidate):
         value = self.deps.research(candidate) if callable(self.deps.research) else self.deps.research.research(candidate)
