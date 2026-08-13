@@ -195,7 +195,21 @@ def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
     return r
 
 
+def _valida_parametro_fisico(campo, valor):
+    try:
+        valido = math.isfinite(valor) and valor > 0
+    except (TypeError, ValueError):
+        valido = False
+    if not valido:
+        raise ValueError(f"{campo} deve ser finito e > 0 (recebido {valor!r})")
+
+
 def parafusos(caso):
+    for campo in ("n", "db", "fub", "t_chapa", "fu_chapa"):
+        _valida_parametro_fisico(campo, caso[campo])
+    if "lf" in caso:
+        _valida_parametro_fisico("lf", caso["lf"])
+
     n = caso["n"]
     db, fub = caso["db"], caso["fub"]
     t, fu = caso["t_chapa"], caso["fu_chapa"]
@@ -208,6 +222,7 @@ def parafusos(caso):
         lf = esp["lf"]
     else:
         lf = caso["lf"]
+    _valida_parametro_fisico("lf", lf)
     Fvrd = fv_rd(db, fub, caso.get("rosca_no_plano", True), caso.get("n_planos", 1))
     Ftrd = ft_rd(db, fub)
     Fcrd = fc_rd(db, t, fu, lf)
