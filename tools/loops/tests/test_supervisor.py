@@ -315,6 +315,83 @@ def test_missing_source_parks_and_writes_manual_request(tmp_path):
     assert h.worktrees.create_calls == 0
 
 
+def test_missing_source_persists_block_and_same_signature_is_skipped(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = MissingSourceRequired("NBR ausente")
+
+    first = make_supervisor(h, cfg).run_once()
+
+    assert first.outcome == "manual_source_required"
+    block_path = Path(cfg.runtime_dir) / "blocked-tasks.json"
+    document = json.loads(block_path.read_text(encoding="utf-8"))
+    assert document["tasks"]["task-1"]["reason"] == "missing_source"
+    assert document["tasks"]["task-1"]["signature"]
+
+    second = make_supervisor(h, cfg).run_once()
+
+    assert second.outcome == "no_candidate"
+    assert h.research.calls == 1
+
+
+def test_changed_declared_source_reopens_blocked_task(tmp_path):
+    h, cfg = harness(tmp_path)
+    source = h.root / "fontes" / "02_ACO" / "norma.pdf"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"versao-1")
+    h.discover.candidates = (replace(task(), source_paths=("02_ACO/norma.pdf",)),)
+    h.research.error = MissingSourceRequired("sem OCR")
+
+    first = make_supervisor(h, cfg).run_once()
+
+    assert first.outcome == "manual_source_required"
+    source.write_bytes(b"versao-2")
+    h.research.error = None
+
+    second = make_supervisor(h, replace(cfg, mode="dry-run")).run_once()
+
+    assert second.outcome == "dry_run"
+    assert h.research.calls == 2
+
+
+def test_retry_blocked_has_no_effect_before_task_3(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = MissingSourceRequired("fonte ausente")
+
+    first = make_supervisor(h, cfg).run_once()
+
+    assert first.outcome == "manual_source_required"
+    retry_cfg = replace(cfg, retry_blocked=True, mode="dry-run")
+    h.research.error = None
+
+    second = make_supervisor(h, retry_cfg).run_once()
+
+    assert second.outcome == "no_candidate"
+    assert h.research.calls == 1
+
+
+def test_malformed_block_registry_fails_explicitly(tmp_path):
+    h, cfg = harness(tmp_path)
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "blocked-tasks.json").write_text('{"schema_version": 1, "tasks": []}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="blocked task registry"):
+        make_supervisor(h, cfg).run_once()
+
+
+def test_block_signature_does_not_read_sources_outside_fontes(tmp_path):
+    h, cfg = harness(tmp_path)
+    outside = tmp_path / "outside-source.txt"
+    outside.write_bytes(b"versao-1")
+    candidate = replace(task(), source_paths=("../outside-source.txt",))
+    supervisor = make_supervisor(h, cfg)
+
+    first = supervisor._blocked_task_signature(candidate)
+    outside.write_bytes(b"versao-2")
+
+    assert supervisor._blocked_task_signature(candidate) == first
+
+
 def test_targeted_failure_parks_loop(tmp_path):
     h, cfg = harness(tmp_path, targeted_failed=True)
 

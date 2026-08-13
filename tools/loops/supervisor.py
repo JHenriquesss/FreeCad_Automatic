@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -71,6 +71,7 @@ class DevelopmentSupervisor:
         self.runtime_dir = Path(config.runtime_dir).expanduser().resolve()
         self.ledger_path = self.runtime_dir / "ledger.json"
         self.completed_tasks_path = self.runtime_dir / "completed-tasks.json"
+        self.blocked_tasks_path = self.runtime_dir / "blocked-tasks.json"
         self.transition_count = 0
         self.run_dir: Path | None = None
         self.ledger: Ledger | None = None
@@ -319,7 +320,128 @@ class DevelopmentSupervisor:
         value = self.deps.discover(self.project_root) if callable(self.deps.discover) else self.deps.discover.discover_candidates(self.project_root)
         completed = self._completed_task_ids()
         excluded = completed | frozenset(getattr(self.config, "excluded_task_ids", ()))
-        return tuple(candidate for candidate in value if candidate.id not in excluded)
+        registry = self._blocked_task_registry()
+        blocked = registry["tasks"]
+        candidates = []
+        reopened = False
+        for candidate in value:
+            if candidate.id in excluded:
+                continue
+            record = blocked.get(candidate.id)
+            if record is not None:
+                if record["signature"] == self._blocked_task_signature(candidate):
+                    continue
+                del blocked[candidate.id]
+                reopened = True
+            candidates.append(candidate)
+        if reopened:
+            self._save_blocked_task_registry(registry)
+        return tuple(candidates)
+
+    def _blocked_task_registry(self):
+        if not self.blocked_tasks_path.exists():
+            return {"schema_version": 1, "tasks": {}}
+        try:
+            document = json.loads(self.blocked_tasks_path.read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError("blocked task registry is invalid") from error
+        self._validate_blocked_task_registry(document)
+        return document
+
+    def _validate_blocked_task_registry(self, document):
+        if (
+            type(document) is not dict
+            or set(document) != {"schema_version", "tasks"}
+            or type(document["schema_version"]) is not int
+            or document["schema_version"] != 1
+            or type(document["tasks"]) is not dict
+        ):
+            raise ValueError("blocked task registry is invalid")
+        required = {
+            "task_id", "title", "topic", "reason", "detail", "signature",
+            "source_paths", "updated_at",
+        }
+        for task_id, record in document["tasks"].items():
+            if (
+                type(task_id) is not str
+                or type(record) is not dict
+                or set(record) != required
+                or any(type(record[name]) is not str for name in required - {"source_paths"})
+                or type(record["source_paths"]) is not list
+                or any(type(path) is not str for path in record["source_paths"])
+                or record["task_id"] != task_id
+                or record["reason"] != "missing_source"
+                or not _is_sha256(record["signature"])
+                or not _is_utc_iso8601(record["updated_at"])
+            ):
+                raise ValueError("blocked task registry is invalid")
+
+    def _save_blocked_task_registry(self, document):
+        self._validate_blocked_task_registry(document)
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.blocked_tasks_path.write_text(
+            json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    def _record_blocked_task(self, candidate, detail):
+        registry = self._blocked_task_registry()
+        registry["tasks"][candidate.id] = {
+            "task_id": candidate.id,
+            "title": candidate.title,
+            "topic": candidate.topic,
+            "reason": "missing_source",
+            "detail": detail,
+            "signature": self._blocked_task_signature(candidate),
+            "source_paths": list(self._normalized_source_paths(candidate.source_paths)),
+            "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        self._save_blocked_task_registry(registry)
+
+    def _blocked_task_signature(self, candidate):
+        source_paths = self._normalized_source_paths(candidate.source_paths)
+        document = {
+            "candidate": candidate.to_dict(),
+            "source_paths": [
+                {"path": path, "state": self._source_signature_state(path)}
+                for path in source_paths
+            ],
+            "supporting_sources": {
+                "catalogo.csv": self._source_signature_state("catalogo.csv"),
+                "notebooklm-mapa.md": self._source_signature_state("notebooklm-mapa.md"),
+            },
+        }
+        payload = json.dumps(
+            document, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    def _normalized_source_paths(self, source_paths):
+        return tuple(sorted({self._normalized_source_path(path) for path in source_paths}))
+
+    def _normalized_source_path(self, source_path):
+        normalized = str(source_path).replace("\\", "/")
+        if normalized.casefold().startswith("fontes/"):
+            normalized = normalized.split("/", 1)[1]
+        return PurePosixPath(normalized).as_posix()
+
+    def _source_signature_state(self, normalized_path):
+        path = self._local_source_path(normalized_path)
+        if path is None:
+            return {"exists": False, "type": "invalid", "size": None, "sha256": None}
+        try:
+            if not path.exists():
+                return {"exists": False, "type": "missing", "size": None, "sha256": None}
+            if not path.is_file():
+                return {"exists": True, "type": "directory" if path.is_dir() else "other", "size": None, "sha256": None}
+            return {
+                "exists": True,
+                "type": "file",
+                "size": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        except OSError:
+            return {"exists": False, "type": "unreadable", "size": None, "sha256": None}
 
     def _completed_task_ids(self):
         if not self.completed_tasks_path.exists():
@@ -600,6 +722,7 @@ class DevelopmentSupervisor:
         path = self._write_text_artifact("manual-source-requests", detail)
         self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "manual_source_request": path}))
         result = self._park("missing_source", detail)
+        self._record_blocked_task(self.ledger.state.task, detail)
         self._save(replace(self.ledger.state, outcome="manual_source_required"))
         return self._outcome("manual_source_required")
 
@@ -814,6 +937,24 @@ def _successful_bool(value):
     if isinstance(value, dict):
         return bool(value.get("successful", False))
     return bool(getattr(value, "successful", False))
+
+
+def _is_sha256(value):
+    if len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_utc_iso8601(value):
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.utcoffset() == timedelta(0)
 
 
 def _diff_paths(diff):
