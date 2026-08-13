@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 
 from tools.loops.models import CommandResult
-from tools.loops.research_nlm import CatalogIndex, NlmCliAdapter, NotebookMap
+from tools.loops.research_nlm import (
+    CatalogIndex,
+    NlmCliAdapter,
+    NlmCommandTimeout,
+    NlmEvidenceRequired,
+    NotebookMap,
+)
 
 
 def write_local_sources(tmp_path):
@@ -150,6 +156,71 @@ def test_query_redacts_nested_secret_key_patterns_from_artifact_and_evidence(tmp
     assert set(redacted.values()) == {"[REDACTED]"}
     assert all(value not in json.dumps(stored_response) for value in secret_values.values())
     assert all(value not in json.dumps(evidence.to_dict()) for value in secret_values.values())
+
+
+def test_query_parses_notebooklm_citation_map_with_references(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": "Resposta real.",
+            "citations": {"1": "src-ok"},
+            "references": [
+                {
+                    "source_id": "src-ok",
+                    "citation_number": 1,
+                    "cited_text": "trecho normativo",
+                }
+            ],
+        },
+    )
+
+    evidence = adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+    assert evidence.citations[0].number == "1"
+    assert evidence.citations[0].source_id == "src-ok"
+    assert evidence.citations[0].cited_text == "trecho normativo"
+
+
+def test_query_rejects_empty_reference_text_for_notebooklm_citation_map(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": "Resposta sem trecho.",
+            "citations": {"1": "src-ok"},
+            "references": [{"source_id": "src-ok", "citation_number": 1}],
+        },
+    )
+
+    with pytest.raises(NlmEvidenceRequired, match="empty citation text") as error:
+        adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+    request = tmp_path / "manual-source-requests.md"
+    assert error.value.manual_request_path == str(request)
+    assert "src-ok" in request.read_text(encoding="utf-8")
+    assert "Fonte retornou citacao sem trecho textual" in request.read_text(encoding="utf-8")
+
+
+def test_query_rejects_response_without_auditable_citations(tmp_path):
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": "Resposta sem citacoes.",
+            "citations": {},
+            "references": [],
+        },
+    )
+
+    with pytest.raises(NlmEvidenceRequired, match="no auditable citations") as error:
+        adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+    request = tmp_path / "manual-source-requests.md"
+    assert error.value.manual_request_path == str(request)
+    content = request.read_text(encoding="utf-8")
+    assert "src-ok" in content
+    assert "Fonte retornou resposta sem citacoes auditaveis" in content
 
 
 @pytest.mark.parametrize(
@@ -314,3 +385,32 @@ def test_default_runner_surfaces_stderr_for_nonzero_process(tmp_path):
         )
 
     assert "return code 3" in str(error.value)
+
+
+def test_default_runner_decodes_nlm_utf8_output_on_windows(tmp_path):
+    notebook_map, catalog = write_local_sources(tmp_path)
+    adapter = NlmCliAdapter(notebook_map, catalog)
+
+    result = adapter.runner(
+        (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write('Fonte: aço — válido'.encode('utf-8'))",
+        )
+    )
+
+    assert result.stdout == "Fonte: aço — válido"
+
+
+def test_default_runner_marks_nlm_timeout(tmp_path):
+    notebook_map, catalog = write_local_sources(tmp_path)
+    adapter = NlmCliAdapter(notebook_map, catalog, timeout_seconds=0.1)
+
+    with pytest.raises(NlmCommandTimeout, match="timed out"):
+        adapter.runner(
+            (
+                sys.executable,
+                "-c",
+                "import time; time.sleep(2)",
+            )
+        )

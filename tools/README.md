@@ -74,6 +74,11 @@ python -m tools.loops --mode supervised --executor codex --max-iterations 1
 python -m tools.loops --mode supervised --executor claude --resume <loop_id>
 ```
 
+O adaptador de pesquisa impõe limite de 180 s para cada comando `nlm`, decodifica
+a saída como UTF-8 e só aceita respostas com citações e trechos textuais
+auditáveis. Formatos incompletos do NotebookLM geram `manual-source-requests.md`
+e estacionam a rodada; não são tratados como evidência normativa.
+
 O estado fica em `.loop-runtime/ledger.json`, com artefatos em
 `.loop-runtime/runs/<loop_id>/`. O root Git não é editado pelo agente; a promoção
 é commit local na worktree e merge/push permanecem manuais. Para recuperar uma

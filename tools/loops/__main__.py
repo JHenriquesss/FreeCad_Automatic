@@ -102,6 +102,7 @@ def _build_deps(args, config, root):
         catalog,
         artifact_dir=Path(config.runtime_dir) / "artifacts",
         manual_request_path=Path(config.runtime_dir) / "manual-source-requests.md",
+        timeout_seconds=min(config.command_timeout_seconds, 180),
     )
     agent_class = CodexExecAdapter if config.executor == "codex" else ClaudePrintAdapter
     test_runner = TestRunner(

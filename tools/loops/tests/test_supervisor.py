@@ -17,6 +17,7 @@ from tools.loops.models import (
     TaskCandidate,
 )
 from tools.loops.reviewer import ReviewResult
+from tools.loops.research_nlm import NlmCommandTimeout, NlmEvidenceRequired
 from tools.loops.supervisor import (
     DevelopmentSupervisor,
     MissingSourceRequired,
@@ -348,6 +349,29 @@ def test_timeout_parks_with_command_timeout_reason(tmp_path):
 
     assert outcome.outcome == "command_timeout"
     assert outcome.state.failure.reason == "command_timeout"
+
+
+def test_research_timeout_parks_with_command_timeout_reason(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = NlmCommandTimeout("nlm command timed out")
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "command_timeout"
+    assert outcome.state.failure.reason == "command_timeout"
+
+
+def test_research_evidence_gap_parks_as_manual_source_required(tmp_path):
+    h, cfg = harness(tmp_path)
+    request = tmp_path / "manual-source-requests.md"
+    request.write_text("fonte sem citacao", encoding="utf-8")
+    h.research.error = NlmEvidenceRequired("no auditable citations", request)
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "manual_source_required"
+    assert outcome.state.failure.reason == "missing_source"
+    assert "no auditable citations" in Path(outcome.state.artifacts["manual_source_request"]).read_text(encoding="utf-8")
 
 
 def test_required_build_is_executed_and_failure_parks(tmp_path):

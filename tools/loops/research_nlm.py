@@ -8,6 +8,18 @@ from pathlib import Path, PurePosixPath
 from .models import Citation, CommandResult, EvidenceBundle, SourceRecord
 
 
+class NlmCommandTimeout(RuntimeError):
+    """NotebookLM CLI did not finish within the bounded research window."""
+
+
+class NlmEvidenceRequired(ValueError):
+    """NotebookLM answered, but its evidence needs manual correction first."""
+
+    def __init__(self, message, manual_request_path):
+        super().__init__(message)
+        self.manual_request_path = str(manual_request_path)
+
+
 @dataclass(frozen=True)
 class NotebookMap:
     notebook_ids_by_folder: dict[str, str]
@@ -105,22 +117,34 @@ class NlmCliAdapter:
         runner=None,
         artifact_dir=".loop-runtime/artifacts",
         manual_request_path=".loop-runtime/manual-source-requests.md",
+        timeout_seconds=180,
     ):
         self.notebook_map = notebook_map
         self.catalog = catalog
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        self.timeout_seconds = timeout_seconds
         self.runner = runner or self._run_subprocess
         self.artifact_dir = Path(artifact_dir)
         self.manual_request_path = Path(manual_request_path)
         self.last_artifact_path = None
 
-    @staticmethod
-    def _run_subprocess(argv):
-        return subprocess.run(
-            argv,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+    def _run_subprocess(self, argv):
+        try:
+            return subprocess.run(
+                argv,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as error:
+            command = " ".join(str(value) for value in argv)
+            raise NlmCommandTimeout(
+                f"nlm command timed out after {self.timeout_seconds:g}s: {command}"
+            ) from error
 
     def _run(self, argv):
         result = self.runner(tuple(argv))
@@ -220,8 +244,8 @@ class NlmCliAdapter:
         )
         self.last_artifact_path = str(artifact_path)
 
-    def _write_manual_request(self, source, notebook_id, *, absent_from_listing=False):
-        reason = (
+    def _write_manual_request(self, source, notebook_id, *, absent_from_listing=False, reason=None):
+        reason = reason or (
             "Fonte ausente da listagem remota; título e caminho local precisam ser fornecidos "
             f"para source_id {source.source_id!r}."
             if absent_from_listing
@@ -240,8 +264,42 @@ class NlmCliAdapter:
     @staticmethod
     def _parse_citations(document, requested_source_ids):
         citations = document.get("citations", [])
+        if isinstance(citations, dict):
+            if not citations:
+                raise ValueError("no auditable citations")
+            references = document.get("references", [])
+            if not isinstance(references, list):
+                raise ValueError("nlm references must be a list")
+            references_by_number = {}
+            for reference in references:
+                if not isinstance(reference, dict):
+                    raise ValueError("nlm reference must be an object")
+                number = reference.get("citation_number", reference.get("number"))
+                if number is not None:
+                    references_by_number[str(number)] = reference
+            parsed = []
+            for number, source_id in citations.items():
+                if not isinstance(source_id, str) or source_id not in requested_source_ids:
+                    raise ValueError("citation references an unrequested source")
+                reference = references_by_number.get(str(number), {})
+                reference_source_id = reference.get("source_id", reference.get("sourceId"))
+                if reference_source_id is not None and reference_source_id != source_id:
+                    raise ValueError("reference source does not match citation")
+                cited_text = str(reference.get("cited_text", reference.get("text", "")))
+                if not cited_text.strip():
+                    raise ValueError(f"empty citation text for source {source_id}")
+                parsed.append(
+                    Citation(
+                        number=str(number),
+                        source_id=source_id,
+                        cited_text=cited_text,
+                    )
+                )
+            return tuple(parsed)
         if not isinstance(citations, list):
-            raise ValueError("nlm citations must be a list")
+            raise ValueError("nlm citations must be a list or map")
+        if not citations:
+            raise ValueError("no auditable citations")
         parsed = []
         for citation in citations:
             if not isinstance(citation, dict):
@@ -249,11 +307,14 @@ class NlmCliAdapter:
             source_id = citation.get("source_id", citation.get("sourceId"))
             if source_id not in requested_source_ids:
                 raise ValueError("citation references an unrequested source")
+            cited_text = str(citation.get("cited_text", citation.get("text", "")))
+            if not cited_text.strip():
+                raise ValueError(f"empty citation text for source {source_id}")
             parsed.append(
                 Citation(
                     number=str(citation.get("number", len(parsed) + 1)),
                     source_id=source_id,
-                    cited_text=str(citation.get("cited_text", citation.get("text", ""))),
+                    cited_text=cited_text,
                 )
             )
         return tuple(parsed)
@@ -318,6 +379,39 @@ class NlmCliAdapter:
             raise ValueError("nlm query JSON must be an object")
         document = self._without_credentials(document)
         self._write_response_artifact(document)
+        try:
+            citations = self._parse_citations(document, selected_source_ids)
+        except ValueError as error:
+            detail = str(error)
+            marker = "empty citation text for source "
+            if marker in detail:
+                source_id = detail.split(marker, 1)[1].strip()
+                source = next(
+                    (item for item in selected_sources if item.source_id == source_id),
+                    None,
+                )
+                if source is not None:
+                    self._write_manual_request(
+                        source,
+                        notebook_id,
+                        reason=(
+                            "Fonte retornou citacao sem trecho textual; recarregar ou corrigir "
+                            "a fonte no NotebookLM antes de usar a evidencia."
+                        ),
+                    )
+            elif detail == "no auditable citations":
+                for source in selected_sources:
+                    self._write_manual_request(
+                        source,
+                        notebook_id,
+                        reason=(
+                            "Fonte retornou resposta sem citacoes auditaveis; repetir a consulta "
+                            "ou corrigir a indexacao no NotebookLM."
+                        ),
+                    )
+            if detail == "no auditable citations" or marker in detail:
+                raise NlmEvidenceRequired(detail, self.manual_request_path) from error
+            raise
         return EvidenceBundle(
             notebook_id=notebook_id,
             source_ids=selected_source_ids,
@@ -325,7 +419,7 @@ class NlmCliAdapter:
             question=question,
             answer=str(document.get("answer", "")),
             conversation_id=document.get("conversation_id", document.get("conversationId")),
-            citations=self._parse_citations(document, selected_source_ids),
+            citations=citations,
             retrieved_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             manual_request=str(self.manual_request_path) if missing_sources else None,
         )

@@ -11,6 +11,7 @@ import subprocess
 from .agents import AgentRequest, AgentResult
 from .ledger import Ledger
 from .models import LoopPhase, LoopState
+from .research_nlm import NlmCommandTimeout, NlmEvidenceRequired
 from .reviewer import ReviewerRequest
 from .tests_runner import compare_snapshots
 
@@ -145,10 +146,15 @@ class DevelopmentSupervisor:
                     evidence = self._attempt(LoopPhase.RESEARCH, self._research, state.task)
                 except MissingSourceRequired as error:
                     return self._park_manual_source(str(error))
+                except NlmEvidenceRequired as error:
+                    return self._park_manual_source(
+                        f"{error}\nArquivo de pendencias: {error.manual_request_path}"
+                    )
                 except Exception as error:
                     if self._looks_like_missing_source(error):
                         return self._park_manual_source(str(error))
-                    return self._park("research_error", str(error))
+                    reason = "command_timeout" if isinstance(error, NlmCommandTimeout) else "research_error"
+                    return self._park(reason, str(error))
                 self._write_json_artifact("evidence", evidence.to_dict())
                 self._save(replace(self.ledger.state, evidence=evidence))
                 self._transition(LoopPhase.RESEARCH, LoopPhase.PLAN)
