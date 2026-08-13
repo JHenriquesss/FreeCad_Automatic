@@ -262,7 +262,7 @@ class DevelopmentSupervisor:
                 summary_path = self._write_session_summary()
                 self._save(replace(self.ledger.state, artifacts={**state.artifacts, "session_summary": summary_path}))
                 try:
-                    self.deps.worktrees.assert_base_unchanged(self.ledger.state.base_commit)
+                    self._assert_root_stable()
                 except Exception as error:
                     if "external" in str(error).casefold():
                         return self._park("external_change", str(error))
@@ -274,7 +274,7 @@ class DevelopmentSupervisor:
                     self._record_completion(state, state.artifacts.get("promoted_commit"))
                     return self._outcome("promoted")
                 try:
-                    self.deps.worktrees.assert_base_unchanged(self.ledger.state.base_commit)
+                    self._assert_root_stable()
                     commit = self._promote()
                 except Exception as error:
                     return self._park("implementation_error", str(error))
@@ -693,6 +693,39 @@ class DevelopmentSupervisor:
         self._agent_result = result
         self._save(replace(self.ledger.state, artifacts={**state.artifacts, "agent": path}))
         return result
+
+    def _assert_root_stable(self):
+        """Allow only audited loop-infrastructure commits made after loop start."""
+        base_commit = self.ledger.state.base_commit
+        try:
+            self.deps.worktrees.assert_base_unchanged(base_commit)
+            return
+        except Exception as error:
+            if "external" not in str(error).casefold():
+                raise
+        current_head = self._root_head()
+        changed_paths = self._root_changed_paths(base_commit, current_head)
+        if not changed_paths or any(not path.startswith("tools/loops/") for path in changed_paths):
+            raise RuntimeError(
+                f"external change: root advanced outside loop infrastructure ({', '.join(changed_paths)})"
+            )
+        self._save(replace(self.ledger.state, base_commit=current_head))
+
+    def _root_changed_paths(self, base_commit, current_head):
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.project_root), "diff", "--name-only", f"{base_commit}..{current_head}"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError:
+            return ()
+        if result.returncode != 0:
+            return ()
+        return tuple(path.replace("\\", "/") for path in result.stdout.splitlines() if path)
 
     @staticmethod
     def _worktree_files(worktree):

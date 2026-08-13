@@ -735,6 +735,37 @@ def test_external_head_change_prevents_promotion(tmp_path):
     assert h.promote.calls == 0
 
 
+def test_loop_only_root_advance_is_accepted_before_promotion(tmp_path):
+    h, cfg = harness(tmp_path)
+    original_baseline = h.tests.baseline
+
+    def baseline_with_loop_commit():
+        infrastructure = h.root / "tools" / "loops" / "supervisor.py"
+        infrastructure.parent.mkdir(parents=True)
+        infrastructure.write_text("loop infrastructure\n", encoding="utf-8")
+        git("add", "tools/loops/supervisor.py", cwd=h.root)
+        git("commit", "-m", "loop infrastructure update", cwd=h.root)
+        h.worktrees.external = True
+        return original_baseline()
+
+    h.tests.baseline = baseline_with_loop_commit
+    original_assert = h.worktrees.assert_base_unchanged
+
+    def assert_once(base_commit):
+        if h.worktrees.external:
+            h.worktrees.external = False
+            raise RuntimeError("external change")
+        return original_assert(base_commit)
+
+    h.worktrees.assert_base_unchanged = assert_once
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert h.promote.calls == 1
+    assert outcome.state.base_commit == git("rev-parse", "HEAD", cwd=h.root)
+
+
 def test_every_transition_is_persisted(tmp_path):
     h, cfg = harness(tmp_path)
     outcome = make_supervisor(h, cfg).run_once()
