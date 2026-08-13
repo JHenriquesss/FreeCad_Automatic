@@ -325,3 +325,37 @@ def test_atomic_photovoltaic_candidate_precedes_broad_validity_pending_item():
     assert fv_index < broad_index
     assert candidates[broad_index].topic == "geral"
     assert candidates[broad_index].source_paths == ()
+
+
+def test_discovery_creates_atomic_photovoltaic_commissioning_candidate_with_one_source():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    commissioning = next(
+        item for item in candidates
+        if item.origin.endswith(":fv-commissioning-checklist")
+    )
+
+    assert commissioning.topic == "fotovoltaico"
+    assert commissioning.discipline == "eletrica"
+    assert commissioning.priority == 65
+    assert commissioning.source_paths == (
+        "05_ELETRICA/ELETRICA__NBR__NBR-16274-2014__documentacao-comissionamento-fv.pdf",
+    )
+    assert commissioning.suggested_tests == (
+        "framework/galpao_fw/tests/test_comissionamento_fv.py",
+    )
+
+
+def test_photovoltaic_commissioning_candidate_is_before_broad_pending_item():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    commissioning_index = next(
+        index for index, item in enumerate(candidates)
+        if item.origin.endswith(":fv-commissioning-checklist")
+    )
+    broad_index = next(
+        index for index, item in enumerate(candidates)
+        if "vigência das normas fotovoltaicas" in item.title
+    )
+
+    assert commissioning_index < broad_index

@@ -96,6 +96,9 @@ _FV_VALIDATOR_SOURCES = (
     "05_ELETRICA/ELETRICA__NBR__NBR-16690-2019__instalacoes-arranjos-fotovoltaicos.pdf",
     "05_ELETRICA/ELETRICA__NBR__NBR-16149-2013__interface-fv-rede-distribuicao.pdf",
 )
+_FV_COMMISSIONING_SOURCES = (
+    "05_ELETRICA/ELETRICA__NBR__NBR-16274-2014__documentacao-comissionamento-fv.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -277,6 +280,16 @@ def _candidates_for_item(
                 priority=70,
                 discipline="eletrica",
             ),
+            _candidate(
+                "Validar checklist de comissionamento fotovoltaico conforme NBR 16274.",
+                f"{origin}:fv-commissioning-checklist",
+                evidence_path,
+                suggestions,
+                topic="fotovoltaico",
+                source_paths=_FV_COMMISSIONING_SOURCES,
+                priority=65,
+                discipline="eletrica",
+            ),
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if origin.endswith(":T16") and "fuzz interno" in _normalized(title):
@@ -385,6 +398,11 @@ def _tests_for_candidate(
 ) -> tuple[str, ...]:
     text = _normalized(f"{title} {context}")
     if topic == "fotovoltaico":
+        if "comissionamento" in text:
+            return tuple(
+                path for path in available
+                if "comissionamento" in _normalized(Path(path).stem)
+            )
         terms = ("fotovoltaico", "eletrico")
     elif topic in _T16_TEST_TERMS:
         terms = _T16_TEST_TERMS[topic]
