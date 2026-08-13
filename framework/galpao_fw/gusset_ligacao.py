@@ -95,6 +95,15 @@ def verifica_gusset(caso):
       # opcionais p/ ligação PARAFUSADA da barra ao gusset:
       n, db, s_furos, e_long, e_transv, Cts, n_furos_transv (ruptura líquida)
     Retorna dict com util por estado, governante e o gusset adotado."""
+    try:
+        n_finito = math.isfinite(caso["N"])
+    except (TypeError, ValueError):
+        n_finito = False
+    if not n_finito:
+        raise ValueError(f"N deve ser finito (recebido {caso['N']!r})")
+    for campo in ("t", "Lc", "fy", "fu"):
+        LG._valida_parametro_fisico(campo, caso[campo])
+
     N = abs(caso["N"])
     t = caso["t"]
     fy, fu = caso["fy"], caso["fu"]
