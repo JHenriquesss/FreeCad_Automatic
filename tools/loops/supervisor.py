@@ -329,7 +329,10 @@ class DevelopmentSupervisor:
                 continue
             record = blocked.get(candidate.id)
             if record is not None:
-                if record["signature"] == self._blocked_task_signature(candidate):
+                if (
+                    record["signature"] == self._blocked_task_signature(candidate)
+                    and not getattr(self.config, "retry_blocked", False)
+                ):
                     continue
                 del blocked[candidate.id]
                 reopened = True
@@ -397,6 +400,14 @@ class DevelopmentSupervisor:
             "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
         self._save_blocked_task_registry(registry)
+
+    def _remove_blocked_task(self, task_id):
+        if not self.blocked_tasks_path.exists():
+            return
+        registry = self._blocked_task_registry()
+        if task_id in registry["tasks"]:
+            del registry["tasks"][task_id]
+            self._save_blocked_task_registry(registry)
 
     def _blocked_task_signature(self, candidate):
         source_paths = self._normalized_source_paths(candidate.source_paths)
@@ -470,6 +481,7 @@ class DevelopmentSupervisor:
             json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        self._remove_blocked_task(state.task.id)
 
     def _research(self, candidate):
         try:

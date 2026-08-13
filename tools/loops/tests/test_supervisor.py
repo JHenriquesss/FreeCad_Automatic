@@ -353,7 +353,7 @@ def test_changed_declared_source_reopens_blocked_task(tmp_path):
     assert h.research.calls == 2
 
 
-def test_retry_blocked_has_no_effect_before_task_3(tmp_path):
+def test_retry_blocked_retries_only_this_invocation(tmp_path):
     h, cfg = harness(tmp_path)
     h.research.error = MissingSourceRequired("fonte ausente")
 
@@ -361,12 +361,68 @@ def test_retry_blocked_has_no_effect_before_task_3(tmp_path):
 
     assert first.outcome == "manual_source_required"
     retry_cfg = replace(cfg, retry_blocked=True, mode="dry-run")
-    h.research.error = None
+    h.research.error = MissingSourceRequired("fonte continua ausente")
 
     second = make_supervisor(h, retry_cfg).run_once()
 
-    assert second.outcome == "no_candidate"
-    assert h.research.calls == 1
+    assert second.outcome == "manual_source_required"
+    h.research.error = MissingSourceRequired("não deve consultar")
+    third = make_supervisor(h, cfg).run_once()
+
+    assert third.outcome == "no_candidate"
+    assert h.research.calls == 2
+
+
+def test_successful_promotion_removes_block_record(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = MissingSourceRequired("fonte ausente")
+
+    blocked = make_supervisor(h, cfg).run_once()
+
+    assert blocked.outcome == "manual_source_required"
+    block_path = Path(cfg.runtime_dir) / "blocked-tasks.json"
+    h.research.error = None
+    promoted = make_supervisor(h, replace(cfg, retry_blocked=True)).run_once()
+
+    assert promoted.outcome == "promoted"
+    document = json.loads(block_path.read_text(encoding="utf-8"))
+    assert "task-1" not in document["tasks"]
+
+
+def test_persisted_promotion_removes_block_record(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = MissingSourceRequired("fonte ausente")
+
+    blocked = make_supervisor(h, cfg).run_once()
+
+    assert blocked.outcome == "manual_source_required"
+    Ledger(
+        Path(cfg.runtime_dir) / "ledger.json",
+        replace(blocked.state, phase=LoopPhase.PROMOTE, outcome="promoted"),
+    ).save()
+
+    make_supervisor(h, cfg).run_once()
+
+    document = json.loads((Path(cfg.runtime_dir) / "blocked-tasks.json").read_text(encoding="utf-8"))
+    assert "task-1" not in document["tasks"]
+
+
+def test_retry_does_not_bypass_completed_task_filter(tmp_path):
+    h, cfg = harness(tmp_path)
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "completed-tasks.json").write_text(
+        json.dumps({"schema_version": 1, "tasks": {"task-1": {"promoted_commit": "c"}}}),
+        encoding="utf-8",
+    )
+    (runtime / "blocked-tasks.json").write_text(
+        json.dumps({"schema_version": 1, "tasks": {}}), encoding="utf-8"
+    )
+
+    outcome = make_supervisor(h, replace(cfg, retry_blocked=True)).run_once()
+
+    assert outcome.outcome == "no_candidate"
+    assert h.research.calls == 0
 
 
 def test_malformed_block_registry_fails_explicitly(tmp_path):
