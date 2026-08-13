@@ -120,10 +120,32 @@ def test_resolved_status_markers_are_ignored(tmp_path):
 def test_open_source_checkbox_is_discovered_and_checked_checkbox_is_ignored():
     candidates = discover_candidates(PROJECT_ROOT)
 
-    open_item = next(item for item in candidates if "NBR 6118" in item.title)
+    open_item = next(
+        item
+        for item in candidates
+        if "NBR 6118" in item.title
+        and item.origin.startswith("fontes/pendencias-atualizacao.md:")
+    )
 
     assert open_item.origin.startswith("fontes/pendencias-atualizacao.md:")
     assert not any("Organizar a" in item.title for item in candidates)
+
+
+def test_foundation_pending_item_is_structural_and_uses_relevant_tests():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    foundation = next(item for item in candidates if "Fatores de segurança 1,5" in item.title)
+
+    assert foundation.discipline == "estrutura"
+    assert foundation.suggested_tests
+    assert all(
+        not any(term in path.casefold() for term in ("eletrico", "incendio", "calha"))
+        for path in foundation.suggested_tests
+    )
+    assert any(
+        any(term in path.casefold() for term in ("fundacao", "geotec", "validacao"))
+        for path in foundation.suggested_tests
+    )
 
 
 def test_normative_prose_is_not_discovered():

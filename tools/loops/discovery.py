@@ -199,7 +199,7 @@ def _candidate(
     evidence_path: str,
     suggestions: tuple[str, ...],
 ) -> TaskCandidate:
-    discipline = _discipline_for(title)
+    discipline = _discipline_for(title, f"{origin} {evidence_path}")
     priority = _observed_priority(title, discipline)
     identifier = sha1(f"{origin}\n{title}".encode("utf-8")).hexdigest()[:12]
     return TaskCandidate(
@@ -209,7 +209,7 @@ def _candidate(
         origin=origin,
         priority=priority,
         evidence_paths=(evidence_path,),
-        suggested_tests=suggestions,
+        suggested_tests=_tests_for_candidate(title, discipline, suggestions),
     )
 
 
@@ -285,12 +285,40 @@ def _suggested_tests(root: Path) -> tuple[str, ...]:
     return tuple(
         path.relative_to(root).as_posix()
         for path in sorted(test_root.glob("test_*.py"))
-        if any(term in _normalized(path.stem) for term in ("robustez", "integracao"))
     )
 
 
-def _discipline_for(title: str) -> str:
+def _tests_for_candidate(title: str, discipline: str, available: tuple[str, ...]) -> tuple[str, ...]:
     text = _normalized(title)
+    if any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
+        terms = ("fundacao", "geotec", "bloco", "galpao_concreto", "validacao")
+    elif discipline == "eletrica":
+        terms = ("eletric", "executivo_eletrico")
+    elif discipline == "hidraulica":
+        terms = ("hidraulic", "calha", "drenagem", "pluvial")
+    elif discipline == "esgoto":
+        terms = ("esgoto", "reuso")
+    elif discipline == "seguranca":
+        terms = ("incendio", "seguranca")
+    elif discipline == "bim_ifc":
+        terms = ("bim", "ifc", "federado", "clash")
+    else:
+        terms = ("robustez", "integracao", "validacao", "galpao_concreto")
+    selected = tuple(
+        path for path in available if any(term in _normalized(Path(path).stem) for term in terms)
+    )
+    if selected:
+        return selected
+    return tuple(
+        path for path in available
+        if any(term in _normalized(Path(path).stem) for term in ("robustez", "integracao"))
+    )
+
+
+def _discipline_for(title: str, context: str = "") -> str:
+    text = _normalized(f"{title} {context}")
+    if any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento")):
+        return "estrutura"
     if any(term in text for term in ("seguranca", "incendio", "contra-seguranca")):
         return "seguranca"
     if "eletric" in text:
