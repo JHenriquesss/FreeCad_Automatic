@@ -13,6 +13,7 @@ _DEFAULTS = {
     "build_timeout_seconds": 1800,
     "executor": "codex",
     "excluded_task_ids": (),
+    "retry_blocked": False,
 }
 
 
@@ -44,6 +45,8 @@ def load_config(path, project_root):
         raise ValueError("mode must be dry-run, supervised, or autonomous")
     if not isinstance(values["executor"], str) or not values["executor"]:
         raise ValueError("executor must be a non-empty string")
+    if not isinstance(values["retry_blocked"], bool):
+        raise ValueError("retry_blocked must be a boolean")
     excluded_task_ids = values["excluded_task_ids"]
     if not isinstance(excluded_task_ids, (list, tuple)) or any(
         not isinstance(value, str) or not value for value in excluded_task_ids
@@ -60,4 +63,5 @@ def load_config(path, project_root):
         build_timeout_seconds=values["build_timeout_seconds"],
         executor=values["executor"],
         excluded_task_ids=tuple(excluded_task_ids),
+        retry_blocked=values["retry_blocked"],
     )

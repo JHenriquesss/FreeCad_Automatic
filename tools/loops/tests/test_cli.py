@@ -31,6 +31,12 @@ def test_cli_parser_exposes_required_options():
     assert args.exclude_task_ids == ["task-1"]
 
 
+def test_cli_parser_exposes_retry_blocked():
+    args = build_parser().parse_args(["--retry-blocked"])
+
+    assert args.retry_blocked is True
+
+
 def test_cli_invalid_positive_integer_returns_two():
     assert main(["--max-iterations", "0"]) == 2
 

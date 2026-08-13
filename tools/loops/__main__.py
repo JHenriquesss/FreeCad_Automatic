@@ -28,6 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None)
     parser.add_argument("--resume", default=None)
     parser.add_argument(
+        "--retry-blocked",
+        action="store_true",
+        help="reconsiderar nesta execu\u00e7\u00e3o tarefas bloqueadas por fontes",
+    )
+    parser.add_argument(
         "--recover-orphan",
         action="store_true",
         help="estacionar explicitamente um ledger ativo deixado por processo interrompido",
@@ -186,6 +191,7 @@ def _load_cli_config(args, root):
             build_timeout_seconds=args.build_timeout,
             executor=args.executor,
             excluded_task_ids=tuple(args.exclude_task_ids) or config.excluded_task_ids,
+            retry_blocked=args.retry_blocked or config.retry_blocked,
         )
     from .models import LoopConfig
 
@@ -199,6 +205,7 @@ def _load_cli_config(args, root):
         build_timeout_seconds=args.build_timeout,
         executor=args.executor,
         excluded_task_ids=tuple(args.exclude_task_ids),
+        retry_blocked=args.retry_blocked,
     )
 
 

@@ -47,6 +47,15 @@ def test_load_config_uses_project_root_for_relative_paths(tmp_path):
     assert config.max_attempts_per_phase == 3
     assert config.command_timeout_seconds == 900
     assert config.build_timeout_seconds == 1800
+    assert config.retry_blocked is False
+
+
+def test_load_config_rejects_non_boolean_retry_blocked(tmp_path):
+    config_path = tmp_path / "loop.json"
+    config_path.write_text(json.dumps({"retry_blocked": "yes"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="retry_blocked"):
+        load_config(config_path, tmp_path)
 
 
 def test_worktree_creation_is_based_on_exact_commit(tmp_path):

@@ -211,3 +211,4 @@ class LoopConfig:
     build_timeout_seconds: int
     executor: str
     excluded_task_ids: tuple[str, ...] = ()
+    retry_blocked: bool = False
