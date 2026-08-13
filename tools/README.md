@@ -72,6 +72,7 @@ Comandos:
 python -m tools.loops --mode dry-run --max-iterations 1
 python -m tools.loops --mode supervised --executor codex --max-iterations 1
 python -m tools.loops --mode supervised --executor claude --resume <loop_id>
+python -m tools.loops --mode supervised --recover-orphan
 ```
 
 Em `supervised` e `autonomous`, `--max-iterations N` permite encadear até N
@@ -80,6 +81,9 @@ tarefas independentes na mesma execução. Uma tarefa estacionada por
 falhas de implementação, testes, revisão ou timeout interrompem o scheduler para
 diagnóstico humano. `dry-run` sempre executa uma única simulação. O resumo da fila
 fica em `.loop-runtime/scheduler-last.json`.
+Se um executor morrer antes de persistir sua fase, `--recover-orphan` estaciona
+explicitamente o ledger ativo como `orphaned_loop`, preservando worktree e
+artefatos; a execução seguinte deve ser iniciada em um comando separado.
 
 O adaptador de pesquisa impõe limite de 180 s para cada comando `nlm`, decodifica
 a saída como UTF-8 e só aceita respostas com citações e trechos textuais

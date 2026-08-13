@@ -120,6 +120,30 @@ class DevelopmentSupervisor:
             self._save(replace(state, phase=phase, outcome=None, last_error=None, failure=None))
         return self._advance()
 
+    def recover_orphan(self) -> RunOutcome:
+        """Explicitly park an active ledger left by an interrupted process."""
+        if not self.ledger_path.exists():
+            raise FileNotFoundError(self.ledger_path)
+        ledger = Ledger.load(self.ledger_path)
+        if ledger.state.phase in {LoopPhase.PARK, LoopPhase.PROMOTE}:
+            raise RuntimeError("ledger is not active and cannot be recovered as orphan")
+
+        self._start(ledger.state)
+        previous_phase = self.ledger.state.phase.value
+        self._transition(self.ledger.state.phase, LoopPhase.PARK)
+        detail = (
+            "explicit orphan recovery: process ended before the phase completed; "
+            f"previous phase={previous_phase}; worktree and artifacts preserved"
+        )
+        self.ledger.record_failure(
+            "orphaned_loop",
+            None,
+            tuple(self.ledger.state.artifacts.values()),
+            detail,
+        )
+        self._save(replace(self.ledger.state, outcome="orphaned_loop", last_error=detail))
+        return self._outcome("orphaned_loop")
+
     def _resume_phase(self, state):
         """Choose a retry phase using the persisted result of the last agent run."""
         reason = state.failure.reason

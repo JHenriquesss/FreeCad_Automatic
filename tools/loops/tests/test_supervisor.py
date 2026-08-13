@@ -816,3 +816,51 @@ def test_active_ledger_must_be_resumed_before_new_run(tmp_path):
 
     with pytest.raises(RuntimeError, match="active loop"):
         make_supervisor(h, cfg).run_once()
+
+
+def test_recover_orphan_parks_active_ledger_and_preserves_artifacts(tmp_path):
+    h, cfg = harness(tmp_path)
+    first = make_supervisor(h, cfg).run_once()
+    active = replace(
+        first.state,
+        phase=LoopPhase.IMPLEMENT,
+        outcome=None,
+        last_error=None,
+        failure=None,
+    )
+    ledger_path = Path(cfg.runtime_dir) / "ledger.json"
+    Ledger(ledger_path, active).save()
+    task_artifact = Path(first.state.artifacts["task"])
+    worktree = Path(first.state.worktree)
+
+    recovered = make_supervisor(h, cfg).recover_orphan()
+
+    assert recovered.outcome == "orphaned_loop"
+    assert recovered.phase is LoopPhase.PARK
+    assert recovered.state.failure.reason == "orphaned_loop"
+    assert recovered.state.worktree == str(worktree)
+    assert task_artifact.exists()
+    assert worktree.exists()
+
+
+def test_recover_orphan_allows_new_iteration_after_explicit_parking(tmp_path):
+    h, cfg = harness(tmp_path)
+    first = make_supervisor(h, cfg).run_once()
+    active = replace(first.state, phase=LoopPhase.IMPLEMENT, outcome=None, failure=None)
+    Ledger(Path(cfg.runtime_dir) / "ledger.json", active).save()
+    h.discover.candidates = (replace(task(), id="task-2", title="Validar segundo modulo"),)
+
+    recovered = make_supervisor(h, cfg).recover_orphan()
+    next_outcome = make_supervisor(h, cfg).run_once()
+
+    assert recovered.outcome == "orphaned_loop"
+    assert next_outcome.outcome == "promoted"
+    assert next_outcome.loop_id != recovered.loop_id
+
+
+def test_recover_orphan_rejects_terminal_ledger(tmp_path):
+    h, cfg = harness(tmp_path)
+    make_supervisor(h, cfg).run_once()
+
+    with pytest.raises(RuntimeError, match="not active"):
+        make_supervisor(h, cfg).recover_orphan()

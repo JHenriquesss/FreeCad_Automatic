@@ -28,6 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None)
     parser.add_argument("--resume", default=None)
     parser.add_argument(
+        "--recover-orphan",
+        action="store_true",
+        help="estacionar explicitamente um ledger ativo deixado por processo interrompido",
+    )
+    parser.add_argument(
         "--exclude-task-id",
         dest="exclude_task_ids",
         action="append",
@@ -49,6 +54,12 @@ def main(argv=None) -> int:
     except SystemExit as error:
         return int(error.code)
     try:
+        if args.recover_orphan and args.resume:
+            print(
+                "configuração inválida: --recover-orphan cannot be combined with --resume",
+                file=sys.stderr,
+            )
+            return 2
         root = _detect_root(args.project_root)
         config = _load_cli_config(args, root)
 
@@ -57,6 +68,17 @@ def main(argv=None) -> int:
                 iteration_config,
                 _build_deps(args, iteration_config, root),
             )
+
+        if args.recover_orphan:
+            outcome = supervisor_factory(config).recover_orphan()
+            _write_scheduler_summary(
+                config,
+                [outcome],
+                config.excluded_task_ids,
+                "orphan_recovered",
+            )
+            print(f"loop_id={outcome.loop_id} outcome={outcome.outcome} phase={outcome.phase.value}")
+            return 0
 
         outcomes = _run_iterations(config, supervisor_factory, resume=args.resume)
         outcome = outcomes[-1]

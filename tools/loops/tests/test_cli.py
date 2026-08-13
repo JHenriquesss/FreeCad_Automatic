@@ -39,6 +39,13 @@ def test_cli_invalid_mode_is_rejected():
     assert main(["--mode", "invalid"]) == 2
 
 
+def test_cli_rejects_recover_orphan_with_resume(capsys):
+    result = main(["--recover-orphan", "--resume", "loop-1"])
+
+    assert result == 2
+    assert "cannot be combined" in capsys.readouterr().err
+
+
 def test_cli_missing_project_root_returns_one_or_two_without_network(tmp_path):
     assert main(["--project-root", str(tmp_path), "--mode", "dry-run"]) in {1, 2}
 
