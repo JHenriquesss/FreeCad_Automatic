@@ -361,8 +361,26 @@ def test_photovoltaic_commissioning_candidate_is_before_broad_pending_item():
     assert commissioning_index < broad_index
 
 
-def test_discovery_creates_atomic_emergency_sign_area_candidate():
-    candidates = discover_candidates(PROJECT_ROOT)
+def test_discovery_creates_atomic_emergency_sign_area_candidate(tmp_path):
+    wiki = tmp_path / "framework" / "galpao_fw" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "06-open-threads.md").write_text(
+        "# Threads\n"
+        "## T42 — sinalização\n"
+        "- [ ] Validar a área mínima das placas de emergência conforme NBR 16820:2020.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_incendio_robustez.py",
+        "test_saturacao_verdito.py",
+        "test_seguranca_incendio.py",
+        "test_sinalizacao_nbr16820.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
 
     signage = next(
         item for item in candidates
@@ -386,6 +404,12 @@ def test_discovery_creates_atomic_emergency_sign_area_candidate():
         "framework/galpao_fw/tests/test_seguranca_incendio.py",
         "framework/galpao_fw/tests/test_sinalizacao_nbr16820.py",
     )
+
+
+def test_closed_emergency_sign_thread_is_not_discovered():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    assert not any(item.topic == "sinalizacao" for item in candidates)
 
 
 def test_discovery_does_not_decompose_area_item_from_another_thread(tmp_path):
