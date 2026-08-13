@@ -675,7 +675,10 @@ def test_completed_task_with_parallel_branch_commit_is_selected(tmp_path):
     assert outcome.state.task.id == "task-1"
 
 
-@pytest.mark.parametrize("record", ({}, {"promoted_commit": "not-a-commit"}))
+@pytest.mark.parametrize(
+    "record",
+    ({}, {"promoted_commit": "not-a-commit"}, {"promoted_commit": "\0bad"}),
+)
 def test_completed_task_without_reachable_commit_is_selected(tmp_path, record):
     h, cfg = harness(tmp_path)
     runtime = Path(cfg.runtime_dir)

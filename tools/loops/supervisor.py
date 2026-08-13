@@ -488,7 +488,7 @@ class DevelopmentSupervisor:
                 errors="replace",
                 check=False,
             )
-        except OSError:
+        except (OSError, ValueError, UnicodeError):
             return False
         return result.returncode == 0
 
