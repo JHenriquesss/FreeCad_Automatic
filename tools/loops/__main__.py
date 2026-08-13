@@ -292,6 +292,14 @@ def _research_candidate(adapter, candidate):
 
 def _research_question(candidate, source_ids):
     authorized_ids = ", ".join(source_ids)
+    if candidate.topic == "estaca":
+        return (
+            "Para estacas na ABNT NBR 6122:2022, liste somente requisitos verificaveis para invariantes de entrada, "
+            "limites geometricos/executivos, ausencia de valores invalidos e criterios de teste. "
+            "Separe o que a norma exige do que e apenas uma guarda de software. Informe a secao/tabela da norma "
+            "para cada item e cite cada requisito usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     if candidate.topic == "gusset":
         return (
             "Para gusset e ligações, liste somente requisitos verificáveis da NBR 8800 "
@@ -327,6 +335,12 @@ def _research_question(candidate, source_ids):
 
 def _research_retry_question(candidate, source_ids):
     authorized_ids = ", ".join(source_ids)
+    if candidate.topic == "estaca":
+        return (
+            "NBR 6122:2022 para estacas: responda em no maximo 8 itens; para cada item, informe secao/tabela, "
+            "requisito verificavel e valor/limite; nao invente guardas de software; use somente o source ID exato "
+            f"{authorized_ids} e inclua citacoes textuais."
+        )
     if candidate.topic == "gusset":
         return (
             "Gusset na NBR 8800: cite somente requisitos verificáveis para tração, compressão, "

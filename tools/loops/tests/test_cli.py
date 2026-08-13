@@ -188,6 +188,51 @@ def test_research_prompt_names_each_authorized_source_id():
     )
 
 
+def test_research_prompt_focuses_estaca_on_nbr6122_and_separates_guards():
+    source_id = "fbbdff0f-de66-4c13-a414-284aaf8b8fb9"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno - estaca",
+        "estrutura",
+        "wiki:T16:estaca",
+        20,
+        ("wiki.md",),
+        (),
+        topic="estaca",
+    )
+
+    question = _research_question(candidate, (source_id,))
+
+    assert question == (
+        "Para estacas na ABNT NBR 6122:2022, liste somente requisitos verificaveis para invariantes de entrada, "
+        "limites geometricos/executivos, ausencia de valores invalidos e criterios de teste. "
+        "Separe o que a norma exige do que e apenas uma guarda de software. Informe a secao/tabela da norma "
+        "para cada item e cite cada requisito usando o source ID exato entre: " + source_id + "."
+    )
+
+
+def test_estaca_retry_prompt_requires_compact_nbr6122_citations():
+    source_id = "fbbdff0f-de66-4c13-a414-284aaf8b8fb9"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno - estaca",
+        "estrutura",
+        "wiki:T16:estaca",
+        20,
+        ("wiki.md",),
+        (),
+        topic="estaca",
+    )
+
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert retry == (
+        "NBR 6122:2022 para estacas: responda em no maximo 8 itens; para cada item, informe secao/tabela, "
+        "requisito verificavel e valor/limite; nao invente guardas de software; use somente o source ID exato "
+        + source_id + " e inclua citacoes textuais."
+    )
+
+
 def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
     source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
     candidate = TaskCandidate(
