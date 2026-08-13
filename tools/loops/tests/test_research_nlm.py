@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import fitz
 import pytest
 
 from tools.loops.models import CommandResult
@@ -45,6 +46,12 @@ def write_local_sources(tmp_path):
                 "hash_sha256": "sha256:pending",
             }
         )
+    source_path = tmp_path / "01_TESTE" / "norma-teste.pdf"
+    source_path.parent.mkdir(exist_ok=True)
+    document = fitz.open()
+    document.new_page().insert_text((72, 72), "Norma teste com texto extraivel")
+    document.save(source_path)
+    document.close()
     return NotebookMap.load(map_path), CatalogIndex.load(catalog_path)
 
 
@@ -80,6 +87,7 @@ def make_adapter(tmp_path, sources, response=None):
         runner=runner,
         artifact_dir=tmp_path / "artifacts",
         manual_request_path=tmp_path / "manual-source-requests.md",
+        source_root=tmp_path,
     )
     return adapter, runner
 
@@ -125,6 +133,30 @@ def test_list_ready_sources_for_paths_parks_when_declared_source_is_missing(tmp_
 
     assert error.value.manual_request_path == str(tmp_path / "manual-source-requests.md")
     assert "Norma pendente" in (tmp_path / "manual-source-requests.md").read_text(encoding="utf-8")
+
+
+def test_scoped_image_only_pdf_parks_before_notebook_query(tmp_path):
+    adapter, runner = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+    )
+    image_path = tmp_path / "01_TESTE" / "norma-teste.pdf"
+    image_path.parent.mkdir(exist_ok=True)
+    document = fitz.open()
+    document.new_page()
+    document.save(image_path)
+    document.close()
+    adapter.source_root = tmp_path
+
+    with pytest.raises(NlmEvidenceRequired, match="texto extraível") as error:
+        adapter.list_ready_sources_for_paths("nb-1", ("01_TESTE/norma-teste.pdf",))
+
+    request = tmp_path / "manual-source-requests.md"
+    assert error.value.manual_request_path == str(request)
+    content = request.read_text(encoding="utf-8")
+    assert "páginas=1" in content
+    assert "caracteres=0" in content
+    assert not any(call[:3] == ("nlm", "notebook", "query") for call in runner.calls)
 
 
 def test_query_passes_only_requested_source_ids(tmp_path):

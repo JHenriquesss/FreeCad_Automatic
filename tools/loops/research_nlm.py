@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from .models import Citation, CommandResult, EvidenceBundle, SourceRecord
+from .source_quality import inspect_pdf_text
 
 
 class NlmCommandTimeout(RuntimeError):
@@ -178,6 +179,7 @@ class NlmCliAdapter:
         artifact_dir=".loop-runtime/artifacts",
         manual_request_path=".loop-runtime/manual-source-requests.md",
         timeout_seconds=180,
+        source_root="fontes",
     ):
         self.notebook_map = notebook_map
         self.catalog = catalog
@@ -187,6 +189,7 @@ class NlmCliAdapter:
         self.runner = runner or self._run_subprocess
         self.artifact_dir = Path(artifact_dir)
         self.manual_request_path = Path(manual_request_path)
+        self.source_root = Path(source_root)
         self.last_artifact_path = None
 
     def _run_subprocess(self, argv):
@@ -300,7 +303,9 @@ class NlmCliAdapter:
             matches = tuple(sorted(by_path.get(local_path, ()), key=lambda item: item.source_id))
             ready = tuple(source for source in matches if self._is_ready(source))
             if ready:
-                selected.append(ready[0])
+                source = ready[0]
+                self._validate_local_source(source)
+                selected.append(source)
                 continue
             if matches:
                 source = matches[0]
@@ -325,6 +330,43 @@ class NlmCliAdapter:
                 self.manual_request_path,
             )
         return tuple(selected)
+
+    def _validate_local_source(self, source):
+        if not source.local_path:
+            return
+        path = self._local_source_path(source.local_path)
+        if path is None or not path.is_file():
+            reason = f"Arquivo local ausente ou inválido: {source.local_path}."
+            self._write_manual_request(source, source.notebook_id, reason=reason)
+            raise NlmEvidenceRequired(reason, self.manual_request_path)
+        if path.suffix.casefold() != ".pdf":
+            return
+        try:
+            report = inspect_pdf_text(path)
+        except ValueError as error:
+            reason = str(error)
+            self._write_manual_request(source, source.notebook_id, reason=reason)
+            raise NlmEvidenceRequired(reason, self.manual_request_path) from error
+        if report.usable:
+            return
+        reason = (
+            f"Fonte PDF sem texto extraível auditável: {report.summary()}. "
+            "Reprocessar com OCR/texto antes de consultar o NotebookLM."
+        )
+        self._write_manual_request(source, source.notebook_id, reason=reason)
+        raise NlmEvidenceRequired(reason, self.manual_request_path)
+
+    def _local_source_path(self, local_path):
+        source_root = self.source_root.resolve()
+        normalized = str(local_path).replace("\\", "/")
+        if normalized.casefold().startswith("fontes/"):
+            normalized = normalized.split("/", 1)[1]
+        candidate = (source_root / Path(*PurePosixPath(normalized).parts)).resolve()
+        try:
+            candidate.relative_to(source_root)
+        except ValueError:
+            return None
+        return candidate
 
     @staticmethod
     def _without_credentials(value):

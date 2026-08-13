@@ -220,6 +220,7 @@ def _build_deps(args, config, root):
         artifact_dir=Path(config.runtime_dir) / "artifacts",
         manual_request_path=Path(config.runtime_dir) / "manual-source-requests.md",
         timeout_seconds=min(config.command_timeout_seconds, 180),
+        source_root=root / "fontes",
     )
     agent_class = CodexExecAdapter if config.executor == "codex" else ClaudePrintAdapter
     def tests_factory(worktree):

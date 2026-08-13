@@ -98,8 +98,12 @@ evidência normativa e não substitui o `manual-source-requests.md`.
 
 O adaptador de pesquisa impõe limite de 180 s para cada comando `nlm`, decodifica
 a saída como UTF-8 e só aceita respostas com citações e trechos textuais
-auditáveis. Formatos incompletos do NotebookLM geram `manual-source-requests.md`
-e estacionam a rodada; não são tratados como evidência normativa.
+auditáveis. Para fontes PDF, o status remoto `2` não é suficiente: antes de
+`nlm notebook query`, o arquivo local é inspecionado com PyMuPDF. Um PDF sem
+texto extraível gera `manual-source-requests.md` com páginas e contagem de
+caracteres e estaciona a rodada; OCR não é executado automaticamente. Formatos
+incompletos do NotebookLM também são estacionados e não são tratados como
+evidência normativa.
 
 O estado fica em `.loop-runtime/ledger.json`, com artefatos em
 `.loop-runtime/runs/<loop_id>/`. O root Git não é editado pelo agente; a promoção

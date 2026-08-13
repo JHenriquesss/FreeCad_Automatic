@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces `PdfTextReport` and `inspect_pdf_text(path: Path) -> PdfTextReport` for Task 2.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 from pathlib import Path
@@ -79,13 +79,13 @@ def test_inspect_pdf_text_reports_missing_file(tmp_path):
         inspect_pdf_text(tmp_path / "missing.pdf")
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest -q tools/loops/tests/test_source_quality.py`
 
 Expected: FAIL during import because `tools.loops.source_quality` does not exist.
 
-- [ ] **Step 3: Implement the minimal inspector**
+- [x] **Step 3: Implement the minimal inspector**
 
 ```python
 from dataclasses import dataclass
@@ -132,13 +132,13 @@ def inspect_pdf_text(path: Path):
     )
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest -q tools/loops/tests/test_source_quality.py`
 
 Expected: 3 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/loops/source_quality.py tools/loops/tests/test_source_quality.py
@@ -156,7 +156,7 @@ git commit -m "feat: inspect local pdf text quality"
 - `NlmCliAdapter(..., source_root=Path(...))` uses `source_root` to resolve catalog paths.
 - `NlmCliAdapter.list_ready_sources_for_paths()` raises `NlmEvidenceRequired` for a non-usable PDF before `query()` is called.
 
-- [ ] **Step 1: Write the failing integration tests**
+- [x] **Step 1: Write the failing integration tests**
 
 Add a catalog PDF path and create a one-page image-only PDF in the test fixture. Add:
 
@@ -179,33 +179,33 @@ def test_scoped_image_only_pdf_parks_before_notebook_query(tmp_path):
     assert not any(call[:3] == ("nlm", "notebook", "query") for call in runner.calls)
 ```
 
-Also update the fixture catalog hash for test-only files as needed; do not alter production catalog data.
+The test adapter uses the temporary directory as `source_root`; production catalog data remains unchanged.
 
-- [ ] **Step 2: Run the focused test to verify it fails**
+- [x] **Step 2: Run the focused test to verify it fails**
 
 Run: `python -m pytest -q tools/loops/tests/test_research_nlm.py -k image_only`
 
 Expected: FAIL because `NlmCliAdapter` does not inspect the selected PDF or expose `source_root`.
 
-- [ ] **Step 3: Implement the source-root resolution and gate**
+- [x] **Step 3: Implement the source-root resolution and gate**
 
 Add `source_root=Path("fontes")` to the adapter constructor. Resolve only normalized catalog paths below that root. After matching a ready source, for each PDF call `inspect_pdf_text`; if unusable, write a manual request whose reason includes the report summary and raise `NlmEvidenceRequired`. If inspection raises, write the same request with the error and raise. Keep non-PDF selection unchanged.
 
 Update `_build_deps()` to pass `source_root=root / "fontes"`.
 
-- [ ] **Step 4: Run the focused integration tests**
+- [x] **Step 4: Run the focused integration tests**
 
 Run: `python -m pytest -q tools/loops/tests/test_research_nlm.py -k "image_only or list_ready_sources_for_paths or query_passes_only"`
 
 Expected: all selected tests pass and no query call is recorded for the image-only PDF.
 
-- [ ] **Step 5: Run the complete loop suite**
+- [x] **Step 5: Run the complete loop suite**
 
 Run: `python -m pytest -q tools/loops/tests`
 
 Expected: all tests pass with no new warnings.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add tools/loops/research_nlm.py tools/loops/__main__.py tools/loops/tests/test_research_nlm.py
@@ -222,11 +222,11 @@ git commit -m "feat: park pdf sources without extractable text"
 **Interfaces:**
 - Documentation states that PDF quality is checked before NotebookLM query.
 
-- [ ] **Step 1: Add the README contract**
+- [x] **Step 1: Add the README contract**
 
 Document that status `2` is not sufficient: PDF sources must also contain extractable text locally, and the loop parks the candidate with page/character metrics otherwise.
 
-- [ ] **Step 2: Run the real diagnostic**
+- [x] **Step 2: Run the real diagnostic**
 
 Run:
 
@@ -236,13 +236,13 @@ python -c "from pathlib import Path; from tools.loops.source_quality import insp
 
 Expected: 120 pages, 0 pages with text, 0 characters, and a non-usable diagnosis.
 
-- [ ] **Step 3: Re-run the real dry-run with valid login**
+- [x] **Step 3: Re-run the real dry-run with valid login**
 
 Run `nlm login --check`, then the same scoped dry-run for task `4389afbe93fb` with `--retry-blocked` and broad candidates excluded.
 
 Expected: `manual_source_required` without a new NotebookLM query artifact for the NBR 6122 source.
 
-- [ ] **Step 4: Run final verification**
+- [x] **Step 4: Run final verification**
 
 Run `python -m pytest -q tools/loops/tests`, `python -m py_compile tools/loops/source_quality.py tools/loops/research_nlm.py tools/loops/__main__.py`, and `git diff --check`.
 
