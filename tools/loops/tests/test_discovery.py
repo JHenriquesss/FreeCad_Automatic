@@ -137,7 +137,18 @@ def test_same_repository_state_has_same_order():
     second = discover_candidates(PROJECT_ROOT)
 
     assert first == second
+
     assert first == rank_candidates(first)
+
+
+def test_conditional_future_backlog_item_is_not_discovered():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    assert not any(
+        "monossimétricas extremas" in item.title.casefold()
+        or "monossimetria" in item.title.casefold()
+        for item in candidates
+    )
 
 
 def test_resolved_status_markers_are_ignored(tmp_path):

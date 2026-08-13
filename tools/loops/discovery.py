@@ -46,6 +46,12 @@ _HISTORICAL_RE = re.compile(
     re.IGNORECASE,
 )
 _NON_ACTIONABLE_RE = re.compile(r"\bnao\s+se\s+aplica\b|\bnao\s+e\s+aplicavel\b", re.IGNORECASE)
+_CONDITIONAL_FUTURE_RE = re.compile(
+    r"(?:\bplanejad[oa]\s+para\s+quando\b|\brefino\s+futuro\b|"
+    r"\bse\s+o\s+senior\s+quiser\b|\bfora\s+do\s+escopo\b|"
+    r"\blimita(?:cao|coes)\s+de\s+escopo\b|\bnao\s+bug\b)",
+    re.IGNORECASE,
+)
 _HEADING_RE = re.compile(r"^#{1,6}\s+(?P<name>.+?)\s*$")
 _THREAD_RE = re.compile(r"\b(T\d+[a-z]?)\b", re.IGNORECASE)
 _MARKDOWN_RE = re.compile(r"[`*_~]")
@@ -273,6 +279,8 @@ def _is_open_item(title: str, context: str = "") -> bool:
         return False
     cleaned_normalized = _normalized(_clean_title(title))
     if _is_explicit_historical(cleaned_normalized) or _NON_ACTIONABLE_RE.search(normalized):
+        return False
+    if _CONDITIONAL_FUTURE_RE.search(normalized) and not _STRONG_PENDING_RE.search(normalized):
         return False
     if any(
         phrase in normalized
