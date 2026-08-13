@@ -489,7 +489,7 @@ class DevelopmentSupervisor:
     def _write_session_summary(self):
         return self._write_text_artifact(
             "session-summary",
-            f"# Loop {self.ledger.state.loop_id}\n\n- outcome: {self.ledger.state.outcome or 'pending'}\n- task: {self.ledger.state.task.title}\n",
+            f"# Loop {self.ledger.state.loop_id}\n\n- outcome: {self.ledger.state.outcome or 'ready_for_promotion'}\n- task: {self.ledger.state.task.title}\n",
         )
 
     def _git_diff(self, worktree):

@@ -533,6 +533,8 @@ def test_every_transition_is_persisted(tmp_path):
     assert document["phase"] == "promote"
     assert outcome.transition_count >= 9
     assert outcome.state.artifacts["session_summary"]
+    summary = Path(outcome.state.artifacts["session_summary"]).read_text(encoding="utf-8")
+    assert "outcome: ready_for_promotion" in summary
 
 
 def test_attempt_limit_prevents_infinite_retry(tmp_path):
