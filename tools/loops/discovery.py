@@ -52,6 +52,10 @@ _CONDITIONAL_FUTURE_RE = re.compile(
     r"\blimita(?:cao|coes)\s+de\s+escopo\b|\bnao\s+bug\b)",
     re.IGNORECASE,
 )
+_IMPLEMENTED_INPUT_GATE_RE = re.compile(
+    r"\bpassa\s+a\s+bloquear\b.*\bcontinua\s+valido\b",
+    re.IGNORECASE,
+)
 _HEADING_RE = re.compile(r"^#{1,6}\s+(?P<name>.+?)\s*$")
 _THREAD_RE = re.compile(r"\b(T\d+[a-z]?)\b", re.IGNORECASE)
 _MARKDOWN_RE = re.compile(r"[`*_~]")
@@ -281,6 +285,8 @@ def _is_open_item(title: str, context: str = "") -> bool:
     if _is_explicit_historical(cleaned_normalized) or _NON_ACTIONABLE_RE.search(normalized):
         return False
     if _CONDITIONAL_FUTURE_RE.search(normalized) and not _STRONG_PENDING_RE.search(normalized):
+        return False
+    if _IMPLEMENTED_INPUT_GATE_RE.search(cleaned_normalized) and not _STRONG_PENDING_RE.search(cleaned_normalized):
         return False
     if any(
         phrase in normalized

@@ -151,6 +151,15 @@ def test_conditional_future_backlog_item_is_not_discovered():
     )
 
 
+def test_implemented_input_gate_is_not_discovered():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    assert not any(
+        "validar() passa a bloquear quando spec[\"ponte\"]" in item.title
+        for item in candidates
+    )
+
+
 def test_resolved_status_markers_are_ignored(tmp_path):
     wiki = tmp_path / "framework" / "galpao_fw" / "wiki"
     wiki.mkdir(parents=True)
