@@ -109,9 +109,11 @@ solicitada e use `--resume`. Um ledger ativo deve ser retomado antes de iniciar
 outra rodada.
 
 Um registro em `.loop-runtime/completed-tasks.json` só considera a candidata
-concluída enquanto seu `promoted_commit` for ancestral do `HEAD`. Registros
-históricos permanecem no arquivo; se o commit não estiver mais alcançável, a
-candidata volta à fila.
+concluída enquanto seu `promoted_commit` for ancestral do `HEAD` raiz ou da
+branch de promoção `loop/<loop_id>` registrada no próprio item. Registros
+históricos permanecem no arquivo; se o commit não estiver mais alcançável por
+essas referências, a candidata volta à fila. O scheduler não procura o commit
+em branches paralelas sem relação com o registro.
 
 Cada candidata que reúne uma lacuna de uma disciplina deve declarar `topic` e
 `source_paths` no ledger. `source_paths` usa caminhos relativos à pasta `fontes/`
