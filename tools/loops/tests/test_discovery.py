@@ -359,3 +359,25 @@ def test_photovoltaic_commissioning_candidate_is_before_broad_pending_item():
     )
 
     assert commissioning_index < broad_index
+
+
+def test_discovery_creates_atomic_emergency_sign_area_candidate():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    signage = next(
+        item for item in candidates
+        if item.origin.endswith(":sinalizacao-area-minima")
+    )
+
+    assert signage.topic == "sinalizacao"
+    assert signage.discipline == "seguranca"
+    assert signage.priority == 75
+    assert signage.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2020__sinalizacao-emergencia.pdf",
+    )
+    assert signage.suggested_tests == (
+        "framework/galpao_fw/tests/test_incendio_robustez.py",
+        "framework/galpao_fw/tests/test_saturacao_verdito.py",
+        "framework/galpao_fw/tests/test_seguranca_incendio.py",
+        "framework/galpao_fw/tests/test_sinalizacao_nbr16820.py",
+    )

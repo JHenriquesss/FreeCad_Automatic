@@ -99,6 +99,9 @@ _FV_VALIDATOR_SOURCES = (
 _FV_COMMISSIONING_SOURCES = (
     "05_ELETRICA/ELETRICA__NBR__NBR-16274-2014__documentacao-comissionamento-fv.pdf",
 )
+_SINALIZACAO_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-16820-2020__sinalizacao-emergencia.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -266,6 +269,24 @@ def _candidates_for_item(
     suggestions: tuple[str, ...],
 ) -> list[TaskCandidate]:
     if (
+        "area minima" in _normalized(title)
+        and "16820" in _normalized(title)
+        and origin.startswith("framework/galpao_fw/wiki/06-open-threads.md:")
+    ):
+        return [
+            _candidate(
+                "Validar a área mínima das placas de emergência conforme NBR 16820:2020.",
+                f"{origin}:sinalizacao-area-minima",
+                evidence_path,
+                suggestions,
+                topic="sinalizacao",
+                source_paths=_SINALIZACAO_SOURCES,
+                priority=75,
+                discipline="seguranca",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
+    if (
         "vigencia das normas fotovoltaicas" in _normalized(title)
         and origin.startswith("fontes/pendencias-atualizacao.md:")
     ):
@@ -404,6 +425,14 @@ def _tests_for_candidate(
                 if "comissionamento" in _normalized(Path(path).stem)
             )
         terms = ("fotovoltaico", "eletrico")
+    elif topic == "sinalizacao":
+        preferred = (
+            "framework/galpao_fw/tests/test_incendio_robustez.py",
+            "framework/galpao_fw/tests/test_saturacao_verdito.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_sinalizacao_nbr16820.py",
+        )
+        return tuple(path for path in preferred if path in available)
     elif topic in _T16_TEST_TERMS:
         terms = _T16_TEST_TERMS[topic]
     elif any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
