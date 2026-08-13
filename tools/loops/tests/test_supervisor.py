@@ -26,6 +26,7 @@ from tools.loops.supervisor import (
     SupervisorDeps,
 )
 from tools.loops.tests_runner import TestSnapshot
+from tools.loops.worktrees import WorktreeManager
 
 TestSnapshot.__test__ = False
 
@@ -152,6 +153,28 @@ class FakeAgent:
     def run(self, request):
         self.calls += 1
         return self.value
+
+
+class RealWorktreeAgent:
+    def __init__(self):
+        self.calls = 0
+
+    def run(self, request):
+        self.calls += 1
+        worktree = Path(request.worktree)
+        (worktree / "promoted.txt").write_text(
+            f"implementation {self.calls}\n", encoding="utf-8"
+        )
+        return AgentResult(
+            executor="real-test-agent",
+            argv=("real-test-agent",),
+            cwd=str(worktree),
+            returncode=0,
+            duration_seconds=0.1,
+            stdout="implemented in real worktree",
+            stderr="",
+            files_touched=("promoted.txt",),
+        )
 
 
 class FakeTests:
@@ -691,6 +714,32 @@ def test_completed_task_without_reachable_commit_is_selected(tmp_path, record):
 
     assert outcome.outcome == "promoted"
     assert outcome.state.task.id == "task-1"
+
+
+def test_real_promotion_branch_blocks_second_discovery(tmp_path):
+    h, cfg = harness(tmp_path)
+    agent = RealWorktreeAgent()
+    worktrees = WorktreeManager(h.root, cfg.runtime_dir)
+    h.deps = replace(h.deps, agent=agent, worktrees=worktrees, promote=None)
+
+    first = make_supervisor(h, cfg).run_once()
+    assert first.outcome == "promoted"
+    record = json.loads(
+        (Path(cfg.runtime_dir) / "completed-tasks.json").read_text(encoding="utf-8")
+    )["tasks"]["task-1"]
+    assert git("rev-parse", "HEAD", cwd=h.root) == h.base
+    assert git(
+        "rev-parse", f"refs/heads/loop/{record['loop_id']}", cwd=h.root
+    ) == record["promoted_commit"]
+
+    try:
+        second = make_supervisor(h, cfg).run_once()
+    finally:
+        worktrees.remove(first.state.loop_id)
+
+    assert second.outcome == "no_candidate"
+    assert second.phase is LoopPhase.PARK
+    assert agent.calls == 1
 
 
 def test_explicitly_excluded_task_is_not_selected(tmp_path):
