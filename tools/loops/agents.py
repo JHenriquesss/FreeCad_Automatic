@@ -169,6 +169,8 @@ def build_implementation_prompt(request: AgentRequest) -> str:
         f"Source IDs autorizados: {source_ids}\n"
         f"Citations NotebookLM (citacoes): {citation_text}\n\n"
         "Obrigatorio: consultar e usar somente as citacoes fornecidas para a decisao normativa; "
+        "o plano pode conter orientacao generica ou legada; o resultado do gate RED e as instrucoes "
+        "explicitas deste prompt prevalecem sobre qualquer pedido generico de decisao humana; "
         "o teste RED ja foi confirmado pelo supervisor, portanto nao peca nova decisao sobre o contrato "
         "demonstrado; se houver conflito nao resolvido entre evidencia e teste, pare e registre-o; "
         "implemente a menor mudanca em escopo; "

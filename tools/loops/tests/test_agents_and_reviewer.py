@@ -42,13 +42,13 @@ def evidence(*, citations=True):
     )
 
 
-def request(tmp_path, *, evidence_bundle=None, artifact_path=None):
+def request(tmp_path, *, evidence_bundle=None, artifact_path=None, plan=None):
     worktree = tmp_path / "worktree"
     worktree.mkdir()
     return AgentRequest(
         task=task(),
         evidence=evidence_bundle or evidence(),
-        plan="Implementar a menor mudanca e registrar a incerteza.",
+        plan=plan or "Implementar a menor mudanca e registrar a incerteza.",
         worktree=str(worktree),
         test_paths=("tests/test_validacao.py",),
         artifact_path=str(artifact_path) if artifact_path else None,
@@ -158,6 +158,19 @@ def test_implementation_prompt_does_not_reopen_a_confirmed_red_contract(tmp_path
     assert "teste red ja foi confirmado" in prompt.casefold()
     assert "nao peca nova decisao" in prompt.casefold()
     assert "conflito nao resolvido" in prompt.casefold()
+
+
+def test_implementation_prompt_overrides_legacy_plan_decision_request(tmp_path):
+    prompt = build_implementation_prompt(
+        request(
+            tmp_path,
+            plan="O plano legado diz: pedir decisao humana para esta incerteza antes de alterar o codigo.",
+        )
+    ).casefold()
+
+    assert "plano pode conter orientacao generica ou legada" in prompt
+    assert "nao peca nova decisao" in prompt
+    assert "resultado do gate red" in prompt
 
 
 def test_reviewer_rejects_missing_citation(tmp_path):
