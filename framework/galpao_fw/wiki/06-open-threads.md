@@ -1,5 +1,8 @@
 # 06 — Open threads
 
+## T42 — Sessão 43 (2026-08-13): área mínima da sinalização NBR 16820 — ABERTO
+- [ ] Validar a área real das placas de emergência pela relação de área mínima da NBR 16820:2020 e integrar o gate ao loop.
+
 ## T41 — Revisão da wiki (2026-08-11): memory/ não versionado + status reais + trabalho pós-S40
 Registro da revisão da wiki (2026-08-11, branch `docs/revisao-wiki-2026-08-11`; tasks 1–16 do plano de revisão):
 - **`memory/` NÃO é versionado** — o diretório citado em 06:4/06:7/06:340 e em 00-index não existe no repo; as referências foram marcadas "(memory/ não versionado — arco reconstruído do git em 2026-08-11)" nas próprias linhas.
