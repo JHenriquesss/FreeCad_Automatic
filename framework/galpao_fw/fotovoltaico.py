@@ -25,6 +25,7 @@ compensacao do consumo. HSP e catalogo A CONFIRMAR. STATELESS."""
 from __future__ import annotations
 
 import math
+from decimal import Decimal, InvalidOperation
 
 DENS_KWP_M2 = 0.18              # densidade de potencia (kWp por m2 de modulo, ~550 Wp)
 APROVEITAMENTO = 0.70          # fracao util do telhado (sombra/caminhos/orientacao)
@@ -33,6 +34,448 @@ P_MODULO_WP = 550.0            # potencia do modulo (Wp) - CATALOGO (A CONFIRMAR
 AREA_MODULO_M2 = 2.6           # area de um modulo de ~550 Wp (~2,3 x 1,13 m)
 FDI = 0.85                     # fator de dimensionamento do inversor (Pinv/Pfv)
 DIAS_MES = 30.4                # dias medios por mes
+
+_NBR16690_SOURCE_ID = "1d06923f-04d7-4b39-afbd-da6ab91567a9"
+_NBR16149_SOURCE_ID = "7f85f8f0-9ff2-492a-9188-bf345529f2b6"
+_TIPOS_PROTECAO_CC = frozenset({
+    "gPV",
+    "disjuntor_cc_60947-2",
+    "disjuntor_cc_60898-2",
+})
+
+
+def _tipo_protecao_cc_valido(value):
+    return isinstance(value, str) and value in _TIPOS_PROTECAO_CC
+
+
+def _referencia_fv(secao, source_id=_NBR16690_SOURCE_ID):
+    norma = "ABNT NBR 16149:2013" if source_id == _NBR16149_SOURCE_ID else "ABNT NBR 16690:2019"
+    return {"norma": norma, "secao": secao, "source_id": source_id}
+
+
+def _falha_fv(codigo, mensagem, secao="6.1.1", source_id=_NBR16690_SOURCE_ID):
+    return {
+        "codigo": codigo,
+        "mensagem": mensagem,
+        "referencia": _referencia_fv(secao, source_id),
+    }
+
+
+def _numero_fv(value):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, TypeError):
+        return False
+
+
+def _produto_fv(*values):
+    if not values:
+        return None
+    try:
+        resultado = values[0]
+        for value in values[1:]:
+            resultado *= value
+    except (OverflowError, TypeError):
+        return None
+    return resultado if _numero_fv(resultado) else None
+
+
+def _subtracao_fv(left, right):
+    try:
+        resultado = left - right
+    except (OverflowError, TypeError):
+        return None
+    return resultado if _numero_fv(resultado) else None
+
+
+def _decimal_fv(value):
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def _comparar_limite_individual_fv(corrente, isc_modulo, imod_max_ocpr):
+    corrente_decimal = _decimal_fv(corrente)
+    isc_decimal = _decimal_fv(isc_modulo)
+    imod_decimal = _decimal_fv(imod_max_ocpr)
+    if corrente_decimal is None or isc_decimal is None or imod_decimal is None:
+        return None
+    return (
+        corrente_decimal > Decimal("1.5") * isc_decimal
+        and corrente_decimal < Decimal("2.4") * isc_decimal
+        and corrente_decimal <= imod_decimal
+    )
+
+
+def _comparar_limite_grupo_fv(corrente, series_grupo, isc_modulo, imod_max_ocpr):
+    corrente_decimal = _decimal_fv(corrente)
+    grupo_decimal = _decimal_fv(series_grupo)
+    isc_decimal = _decimal_fv(isc_modulo)
+    imod_decimal = _decimal_fv(imod_max_ocpr)
+    if (
+        corrente_decimal is None
+        or grupo_decimal is None
+        or isc_decimal is None
+        or imod_decimal is None
+    ):
+        return None
+    return (
+        corrente_decimal > Decimal("1.5") * grupo_decimal * isc_decimal
+        and corrente_decimal < imod_decimal - ((grupo_decimal - 1) * isc_decimal)
+    )
+
+
+def _registrar_calculo_invalido(falhas, mensagem, secao="6.1.1"):
+    falhas.append(_falha_fv("NUMERO_INVALIDO", mensagem, secao))
+
+
+def _validar_numero_fv(caso, nome, falhas, *, inteiro=False):
+    if nome not in caso:
+        falhas.append(_falha_fv("ENTRADA_AUSENTE", "campo obrigatório ausente: %s" % nome))
+        return None
+    value = caso[nome]
+    valido = _numero_fv(value) and value > 0
+    if inteiro:
+        valido = valido and isinstance(value, int)
+    if not valido:
+        falhas.append(_falha_fv("NUMERO_INVALIDO", "campo numérico inválido: %s" % nome))
+        return None
+    return value
+
+
+def validar_compatibilidade_arranjo_fv(caso):
+    """Valida limites elétricos básicos de um arranjo FV em corrente contínua.
+
+    As regras implementadas são as citadas na ABNT NBR 16690:2019. A função é
+    deliberadamente pura: não escolhe dados de catálogo, fatores térmicos ou
+    parâmetros da distribuidora.
+    """
+    if not isinstance(caso, dict):
+        return {
+            "ok": False,
+            "falhas": [_falha_fv("ENTRADA_AUSENTE", "caso deve ser um dicionário")],
+            "avisos": [],
+            "valores_calculados": {},
+            "referencias": [_referencia_fv("6.1.1")],
+        }
+
+    falhas = []
+    avisos = []
+    voc_modulo = _validar_numero_fv(caso, "voc_modulo_v", falhas)
+    modulos_serie = _validar_numero_fv(caso, "modulos_serie", falhas, inteiro=True)
+    isc_modulo = _validar_numero_fv(caso, "isc_modulo_a", falhas)
+    series_paralelo = _validar_numero_fv(caso, "series_paralelo", falhas, inteiro=True)
+
+    tem_fator = caso.get("fator_correcao_tensao") is not None
+    tem_vmax = caso.get("v_max_arranjo_v") is not None
+    if tem_fator == tem_vmax:
+        falhas.append(_falha_fv(
+            "TENSAO_MAXIMA_AMBIGUA",
+            "forneça exatamente fator_correcao_tensao ou v_max_arranjo_v",
+            "6.1.3",
+        ))
+
+    fator = None
+    v_max_fornecida = None
+    if tem_fator:
+        fator = _validar_numero_fv(caso, "fator_correcao_tensao", falhas)
+    elif tem_vmax:
+        v_max_fornecida = _validar_numero_fv(caso, "v_max_arranjo_v", falhas)
+
+    componentes = caso.get("componentes_cc")
+    if not isinstance(componentes, list) or not componentes:
+        falhas.append(_falha_fv("ENTRADA_AUSENTE", "componentes_cc deve ser lista não vazia"))
+        componentes = []
+
+    valores = {
+        "voc_arranjo_v": None,
+        "v_max_arranjo_v": None,
+        "isc_arranjo_a": None,
+        "corrente_minima_arranjo_a": None,
+        "corrente_referencia_componentes_a": None,
+        "protecao_series_requerida": False,
+    }
+    if voc_modulo is not None and modulos_serie is not None:
+        voc_arranjo = _produto_fv(voc_modulo, modulos_serie)
+        if voc_arranjo is None:
+            _registrar_calculo_invalido(falhas, "VOC_ARRANJO excede o limite numérico", "3.1.42")
+        else:
+            valores["voc_arranjo_v"] = voc_arranjo
+            if fator is not None:
+                v_max_arranjo = _produto_fv(voc_arranjo, fator)
+                if v_max_arranjo is None:
+                    _registrar_calculo_invalido(falhas, "V_MAX_ARRANJO excede o limite numérico", "6.1.3")
+                else:
+                    valores["v_max_arranjo_v"] = v_max_arranjo
+            elif v_max_fornecida is not None:
+                valores["v_max_arranjo_v"] = v_max_fornecida
+    if isc_modulo is not None and series_paralelo is not None:
+        isc_arranjo = _produto_fv(isc_modulo, series_paralelo)
+        if isc_arranjo is None:
+            _registrar_calculo_invalido(falhas, "ISC_ARRANJO excede o limite numérico", "3.1.42")
+        else:
+            corrente_minima = _produto_fv(1.25, isc_arranjo)
+            if corrente_minima is None:
+                _registrar_calculo_invalido(falhas, "corrente mínima do arranjo excede o limite numérico", "6.1.1")
+            else:
+                valores["isc_arranjo_a"] = isc_arranjo
+                valores["corrente_minima_arranjo_a"] = corrente_minima
+                valores["corrente_referencia_componentes_a"] = corrente_minima
+
+    if isinstance(caso.get("usa_conectores"), bool) is False:
+        falhas.append(_falha_fv("ENTRADA_AUSENTE", "usa_conectores deve ser booleano"))
+
+    imod_max_ocpr = None
+    if "imod_max_ocpr_a" in caso:
+        imod_max_ocpr = _validar_numero_fv(caso, "imod_max_ocpr_a", falhas)
+
+    if (
+        series_paralelo is not None
+        and series_paralelo > 1
+        and "imod_max_ocpr_a" not in caso
+    ):
+        falhas.append(_falha_fv(
+            "ENTRADA_AUSENTE",
+            "imod_max_ocpr_a é obrigatório para séries em paralelo",
+            "5.3.9",
+        ))
+    elif "protecao_series" in caso and caso.get("protecao_series") is not None:
+        if "imod_max_ocpr_a" not in caso:
+            falhas.append(_falha_fv(
+                "ENTRADA_AUSENTE",
+                "imod_max_ocpr_a é obrigatório quando protecao_series é declarada",
+                "5.3.11.1",
+            ))
+
+    protecao_arranjo = caso.get("protecao_arranjo")
+    if protecao_arranjo is not None:
+        if not isinstance(protecao_arranjo, dict):
+            falhas.append(_falha_fv("TIPO_PROTECAO_CC_INVALIDO", "protecao_arranjo deve ser um dicionário", "5.3.9"))
+        else:
+            tipo_arranjo = protecao_arranjo.get("tipo")
+            corrente_arranjo = protecao_arranjo.get("corrente_nominal_a")
+            if not _tipo_protecao_cc_valido(tipo_arranjo):
+                falhas.append(_falha_fv(
+                    "TIPO_PROTECAO_CC_INVALIDO",
+                    f"tipo de proteção do arranjo não é autorizado: {tipo_arranjo!r}",
+                    "5.3.9",
+                ))
+            if not _numero_fv(corrente_arranjo) or corrente_arranjo <= 0:
+                falhas.append(_falha_fv(
+                    "NUMERO_INVALIDO",
+                    "corrente nominal da proteção do arranjo inválida",
+                    "5.3.9",
+                ))
+            else:
+                valores["corrente_referencia_componentes_a"] = corrente_arranjo
+
+    protecao_series = caso.get("protecao_series")
+    protecao_requerida = False
+    if (
+        isc_modulo is not None
+        and series_paralelo is not None
+        and series_paralelo > 1
+        and imod_max_ocpr is not None
+    ):
+        corrente_reversa = _produto_fv(series_paralelo - 1, isc_modulo)
+        if corrente_reversa is None:
+            _registrar_calculo_invalido(
+                falhas,
+                "corrente reversa das séries excede o limite numérico",
+                "5.3.9",
+            )
+        else:
+            protecao_requerida = corrente_reversa > imod_max_ocpr
+            valores["protecao_series_requerida"] = protecao_requerida
+            if protecao_requerida and protecao_series is None:
+                falhas.append(_falha_fv(
+                    "PROTECAO_SERIE_AUSENTE",
+                    "proteção contra sobrecorrente da série é obrigatória",
+                    "5.3.9",
+                ))
+    if protecao_series is not None:
+        if not isinstance(protecao_series, dict):
+            falhas.append(_falha_fv("TIPO_PROTECAO_CC_INVALIDO", "protecao_series deve ser um dicionário", "5.3.11.1"))
+        else:
+            modo = protecao_series.get("modo")
+            tipo = protecao_series.get("tipo")
+            corrente = protecao_series.get("corrente_nominal_a")
+            if not _tipo_protecao_cc_valido(tipo):
+                falhas.append(_falha_fv(
+                    "TIPO_PROTECAO_CC_INVALIDO",
+                    f"tipo de proteção da série não é autorizado: {tipo!r}",
+                    "5.3.9",
+                ))
+            if not _numero_fv(corrente) or corrente <= 0:
+                falhas.append(_falha_fv(
+                    "NUMERO_INVALIDO",
+                    "corrente nominal da proteção da série inválida",
+                    "5.3.11.1",
+                ))
+            elif modo == "individual" and _numero_fv(isc_modulo) and imod_max_ocpr is not None:
+                limite_inferior = _produto_fv(1.5, isc_modulo)
+                limite_superior = _produto_fv(2.4, isc_modulo)
+                faixa_individual_valida = _comparar_limite_individual_fv(
+                    corrente,
+                    isc_modulo,
+                    imod_max_ocpr,
+                )
+                if limite_inferior is None or limite_superior is None or faixa_individual_valida is None:
+                    _registrar_calculo_invalido(
+                        falhas,
+                        "limites da proteção individual excedem o limite numérico",
+                        "5.3.11.1",
+                    )
+                elif not faixa_individual_valida:
+                    falhas.append(_falha_fv(
+                        "PROTECAO_INDIVIDUAL_FORA_DA_FAIXA",
+                        "corrente individual fora das desigualdades de 5.3.11.1",
+                        "5.3.11.1",
+                    ))
+            elif modo == "grupo" and _numero_fv(isc_modulo) and imod_max_ocpr is not None:
+                series_grupo = protecao_series.get("series_grupo")
+                faixa_grupo_valida = False
+                calculo_grupo_invalido = False
+                if (
+                    isinstance(series_grupo, int)
+                    and not isinstance(series_grupo, bool)
+                    and series_grupo >= 1
+                    and series_paralelo is not None
+                    and series_grupo <= series_paralelo
+                ):
+                    limite_inferior = _produto_fv(1.5, series_grupo, isc_modulo)
+                    offset_superior = _produto_fv(series_grupo - 1, isc_modulo)
+                    limite_superior = (
+                        _subtracao_fv(imod_max_ocpr, offset_superior)
+                        if offset_superior is not None
+                        else None
+                    )
+                    if limite_inferior is None or limite_superior is None:
+                        calculo_grupo_invalido = True
+                        _registrar_calculo_invalido(
+                            falhas,
+                            "limites da proteção agrupada excedem o limite numérico",
+                            "5.3.11.1",
+                        )
+                    else:
+                        faixa_grupo_valida = _comparar_limite_grupo_fv(
+                            corrente,
+                            series_grupo,
+                            isc_modulo,
+                            imod_max_ocpr,
+                        ) is True
+                if not faixa_grupo_valida and not calculo_grupo_invalido:
+                    falhas.append(_falha_fv(
+                        "PROTECAO_GRUPO_FORA_DA_FAIXA",
+                        "proteção agrupada fora das desigualdades de 5.3.11.1",
+                        "5.3.11.1",
+                    ))
+            elif modo not in ("individual", "grupo"):
+                falhas.append(_falha_fv(
+                    "TIPO_PROTECAO_CC_INVALIDO",
+                    f"modo de proteção de série inválido: {modo!r}",
+                    "5.3.11.1",
+                ))
+
+    if caso.get("usa_conectores") is True:
+        conectores = caso.get("conectores")
+        if not isinstance(conectores, dict):
+            falhas.append(_falha_fv(
+                "ENTRADA_AUSENTE",
+                "conectores deve conter macho e femea",
+                "6.2.8.1",
+            ))
+        else:
+            macho = conectores.get("macho")
+            femea = conectores.get("femea")
+            if not isinstance(macho, dict) or not isinstance(femea, dict):
+                falhas.append(_falha_fv(
+                    "ENTRADA_AUSENTE",
+                    "conectores deve conter macho e femea",
+                    "6.2.8.1",
+                ))
+            else:
+                campos_conectores_validos = True
+                for conector_nome, conector in (("macho", macho), ("femea", femea)):
+                    for campo in ("fabricante", "tipo"):
+                        valor = conector.get(campo)
+                        if not isinstance(valor, str) or not valor.strip():
+                            campos_conectores_validos = False
+                            falhas.append(_falha_fv(
+                                "ENTRADA_AUSENTE",
+                                "conector %s deve ter %s não vazio" % (conector_nome, campo),
+                                "6.2.8.1",
+                            ))
+                if campos_conectores_validos and macho.get("fabricante") != femea.get("fabricante"):
+                    falhas.append(_falha_fv(
+                        "CONECTOR_FABRICANTE_INCOMPATIVEL",
+                        "conectores da mesma conexão devem ter o mesmo fabricante",
+                        "6.2.8.1",
+                    ))
+                if campos_conectores_validos and macho.get("tipo") != femea.get("tipo"):
+                    falhas.append(_falha_fv(
+                        "CONECTOR_TIPO_INCOMPATIVEL",
+                        "conectores da mesma conexão devem ter o mesmo tipo",
+                        "6.2.8.1",
+                    ))
+
+    corrente_referencia = valores["corrente_referencia_componentes_a"]
+    v_max = valores["v_max_arranjo_v"]
+    for componente in componentes:
+        if not isinstance(componente, dict):
+            falhas.append(_falha_fv("NUMERO_INVALIDO", "componente CC deve ser um dicionário"))
+            continue
+        nome = componente.get("nome")
+        if not isinstance(nome, str) or not nome.strip():
+            falhas.append(_falha_fv(
+                "ENTRADA_AUSENTE",
+                "componente CC deve ter nome não vazio",
+            ))
+            nome = "componente"
+        if componente.get("adequado_cc") is not True:
+            falhas.append(_falha_fv(
+                "COMPONENTE_NAO_CC",
+                "%s não foi declarado apropriado para corrente contínua" % nome,
+            ))
+        tensao = componente.get("tensao_nominal_v")
+        if not _numero_fv(tensao) or tensao <= 0:
+            falhas.append(_falha_fv("NUMERO_INVALIDO", "tensão nominal inválida: %s" % nome))
+        elif v_max is not None and tensao < v_max:
+            falhas.append(_falha_fv(
+                "TENSAO_COMPONENTE_INSUFICIENTE",
+                "%s: %.3f V < Vmax %.3f V" % (nome, tensao, v_max),
+            ))
+        corrente = componente.get("corrente_nominal_a")
+        if not _numero_fv(corrente) or corrente <= 0:
+            falhas.append(_falha_fv("NUMERO_INVALIDO", "corrente nominal inválida: %s" % nome))
+        elif corrente_referencia is not None and corrente < corrente_referencia:
+            falhas.append(_falha_fv(
+                "CORRENTE_COMPONENTE_INSUFICIENTE",
+                "%s: %.3f A < referência %.3f A"
+                % (nome, corrente, corrente_referencia),
+            ))
+
+    referencias = [
+        _referencia_fv("3.1.42"),
+        _referencia_fv("5.3.9"),
+        _referencia_fv("5.3.11.1"),
+        _referencia_fv("6.1.1"),
+        _referencia_fv("6.1.3"),
+        _referencia_fv("6.2.5"),
+        _referencia_fv("6.2.8.1"),
+        _referencia_fv("6.2.8.2"),
+        _referencia_fv("5.5-5.7", _NBR16149_SOURCE_ID),
+    ]
+    return {
+        "ok": not falhas,
+        "falhas": falhas,
+        "avisos": avisos,
+        "valores_calculados": valores,
+        "referencias": referencias,
+    }
 
 
 def potencia_instalavel(area_m2, aproveitamento=APROVEITAMENTO, densidade=DENS_KWP_M2):
