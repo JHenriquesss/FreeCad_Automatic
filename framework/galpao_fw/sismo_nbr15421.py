@@ -129,6 +129,18 @@ def _k_distribuicao(T):
     return 2.0
 
 
+def _valida_finito_positivo(campo, valor, permite_zero=False):
+    """Rejeita entradas fisicas que contaminariam o calculo com NaN/inf."""
+    try:
+        limite = valor >= 0 if permite_zero else valor > 0
+        valido = not isinstance(valor, bool) and math.isfinite(valor) and limite
+    except (TypeError, ValueError, OverflowError):
+        valido = False
+    if not valido:
+        operador = ">=" if permite_zero else ">"
+        raise ValueError(f"{campo} deve ser finito e {operador} 0 (recebido {valor!r})")
+
+
 def verifica_sismo(W, zona, classe="C", sistema="aco_momento", I=1.0,
                    hn=None, ag=None, R=None, pesos_niveis=None, alturas=None):
     """Acao sismica pelo metodo das forcas horizontais equivalentes (NBR 15421).
@@ -142,8 +154,24 @@ def verifica_sismo(W, zona, classe="C", sistema="aco_momento", I=1.0,
 
     Categoria (Tab.5): zona 0 -> dispensado ; zona 1 (cat.A) -> Fx=0,01*wx ;
     zonas 2-4 (cat.B/C) -> metodo completo."""
+    if (isinstance(zona, bool) or not isinstance(zona, int)
+            or zona not in ZONA_CATEGORIA):
+        raise ValueError(f"zona deve ser um inteiro entre 0 e 4 (recebido {zona!r})")
+    if not isinstance(classe, str) or classe not in _CA:
+        raise ValueError(f"classe do terreno desconhecida (recebido {classe!r})")
+    if not isinstance(sistema, str) or sistema not in SISTEMA_R:
+        raise ValueError(f"sistema sismorresistente desconhecido (recebido {sistema!r})")
+
+    _valida_finito_positivo("W", W, permite_zero=zona == 0)
+    _valida_finito_positivo("I", I)
+    if ag is None:
+        ag = ZONA_AG[zona]
+    else:
+        _valida_finito_positivo("ag", ag)
+    if R is not None:
+        _valida_finito_positivo("R", R)
+
     cat = ZONA_CATEGORIA[zona]
-    ag = ag if ag is not None else ZONA_AG[zona]
     r = {"zona": zona, "categoria": cat, "ag": ag, "classe": classe,
          "sistema": sistema, "I": I, "W": W, "hn": hn}
 
@@ -162,6 +190,7 @@ def verifica_sismo(W, zona, classe="C", sistema="aco_momento", I=1.0,
         R = SISTEMA_R[sistema][0]
     if hn is None:
         raise ValueError("hn (altura) obrigatorio para o metodo da Secao 9")
+    _valida_finito_positivo("hn", hn)
     T = periodo_aproximado(hn, sistema, zona)
     Cs, Cs_cap = coef_resposta_cs(ag, classe, R, I, T)
     H = Cs * W
