@@ -92,6 +92,10 @@ _T16_TEST_TERMS = {
     "fogo": ("fogo", "incendio"),
     "estaca": ("estaca", "fundacao", "geotec", "validacao"),
 }
+_FV_VALIDATOR_SOURCES = (
+    "05_ELETRICA/ELETRICA__NBR__NBR-16690-2019__instalacoes-arranjos-fotovoltaicos.pdf",
+    "05_ELETRICA/ELETRICA__NBR__NBR-16149-2013__interface-fv-rede-distribuicao.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -258,6 +262,23 @@ def _candidates_for_item(
     evidence_path: str,
     suggestions: tuple[str, ...],
 ) -> list[TaskCandidate]:
+    if (
+        "vigencia das normas fotovoltaicas" in _normalized(title)
+        and origin.startswith("fontes/pendencias-atualizacao.md:")
+    ):
+        return [
+            _candidate(
+                "Validar compatibilidade elétrica de strings fotovoltaicas conforme NBR 16690.",
+                f"{origin}:fv-string-validator",
+                evidence_path,
+                suggestions,
+                topic="fotovoltaico",
+                source_paths=_FV_VALIDATOR_SOURCES,
+                priority=70,
+                discipline="eletrica",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
     if origin.endswith(":T16") and "fuzz interno" in _normalized(title):
         return [
             _candidate(
@@ -363,7 +384,9 @@ def _tests_for_candidate(
     topic: str = "geral",
 ) -> tuple[str, ...]:
     text = _normalized(f"{title} {context}")
-    if topic in _T16_TEST_TERMS:
+    if topic == "fotovoltaico":
+        terms = ("fotovoltaico", "eletrico")
+    elif topic in _T16_TEST_TERMS:
         terms = _T16_TEST_TERMS[topic]
     elif any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
         terms = ("fundacao", "geotec", "bloco", "galpao_concreto", "validacao")

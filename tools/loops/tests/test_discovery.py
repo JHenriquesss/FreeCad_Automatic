@@ -296,3 +296,32 @@ def test_candidate_id_matches_required_formula():
     expected = sha1(f"{fuzz.origin}\n{fuzz.title}".encode("utf-8")).hexdigest()[:12]
 
     assert fuzz.id == expected
+
+
+def test_discovery_creates_atomic_photovoltaic_validator_with_two_normative_sources():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    fv = next(item for item in candidates if item.topic == "fotovoltaico")
+
+    assert fv.discipline == "eletrica"
+    assert fv.origin.endswith(":fv-string-validator")
+    assert fv.source_paths == (
+        "05_ELETRICA/ELETRICA__NBR__NBR-16690-2019__instalacoes-arranjos-fotovoltaicos.pdf",
+        "05_ELETRICA/ELETRICA__NBR__NBR-16149-2013__interface-fv-rede-distribuicao.pdf",
+    )
+    assert "framework/galpao_fw/tests/test_fotovoltaico.py" in fv.suggested_tests
+
+
+def test_atomic_photovoltaic_candidate_precedes_broad_validity_pending_item():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    fv_index = next(index for index, item in enumerate(candidates) if item.topic == "fotovoltaico")
+    broad_index = next(
+        index
+        for index, item in enumerate(candidates)
+        if "vigência das normas fotovoltaicas" in item.title
+    )
+
+    assert fv_index < broad_index
+    assert candidates[broad_index].topic == "geral"
+    assert candidates[broad_index].source_paths == ()
