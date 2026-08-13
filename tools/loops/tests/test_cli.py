@@ -140,7 +140,10 @@ def test_research_prompt_names_each_authorized_source_id():
     assert _research_candidate(adapter, candidate) == "evidence"
     assert adapter.selected_ids == source_ids
     assert all(source_id in adapter.question for source_id in source_ids)
-    assert "cite cada requisito pelo source ID exato" in adapter.question
+    assert adapter.question == (
+        "Para tapered, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
+        "Cite cada requisito com o source ID exato entre: " + ", ".join(source_ids) + "."
+    )
 
 
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
