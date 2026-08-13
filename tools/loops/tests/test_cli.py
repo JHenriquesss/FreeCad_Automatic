@@ -7,6 +7,7 @@ from tools.loops.__main__ import (
     _allowed_code_paths,
     _notebook_id_for_candidate,
     _research_candidate,
+    _research_question,
     build_parser,
     main,
 )
@@ -147,6 +148,28 @@ def test_research_prompt_names_each_authorized_source_id():
     assert adapter.question == (
         "Para tapered, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         "Cite cada requisito com o source ID exato entre: " + ", ".join(source_ids) + "."
+    )
+
+
+def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
+    source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — gusset",
+        "estrutura",
+        "wiki:T16:gusset",
+        70,
+        ("wiki.md",),
+        (),
+        topic="gusset",
+    )
+
+    question = _research_question(candidate, (source_id,))
+
+    assert question == (
+        "Para gusset e ligações, liste somente requisitos verificáveis da NBR 8800 "
+        "para espessura, furos, bordas, soldas e ausência de valores inválidos. "
+        "Cite cada item usando o source ID exato entre: " + source_id + "."
     )
 
 

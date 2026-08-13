@@ -174,12 +174,22 @@ def _research_candidate(adapter, candidate):
     source_ids = tuple(source.source_id for source in sources)
     if not source_ids:
         raise ValueError("no requested sources are ready")
+    question = _research_question(candidate, source_ids)
+    return adapter.query(notebook_id, question, source_ids)
+
+
+def _research_question(candidate, source_ids):
     authorized_ids = ", ".join(source_ids)
-    question = (
+    if candidate.topic == "gusset":
+        return (
+            "Para gusset e ligações, liste somente requisitos verificáveis da NBR 8800 "
+            "para espessura, furos, bordas, soldas e ausência de valores inválidos. "
+            f"Cite cada item usando o source ID exato entre: {authorized_ids}."
+        )
+    return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
     )
-    return adapter.query(notebook_id, question, source_ids)
 
 
 def _notebook_id_for_candidate(notebook_map, candidate):
