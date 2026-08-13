@@ -123,6 +123,11 @@ estiver ausente, não pronta ou sem evidência textual auditável, a rodada esta
 e grava a solicitação manual. Isso evita que uma pesquisa ampla do notebook seja
 confundida com validação da norma correta.
 
+Uma candidata ampla com `source_paths=()` também é estacionada antes da pesquisa
+como `manual_source_required`: a ausência de escopo significa que a pendência deve
+ser decomposta em uma unidade atômica, nunca que todas as fontes prontas do notebook
+podem ser consultadas. A listagem ampla de fontes não é fallback do scheduler.
+
 Os gates têm timeouts separados para comandos e build. O build FreeCAD é uma
 guarda própria e só é obrigatório para tarefas marcadas como build. Todos os
 testes do loop usam fakes e não chamam rede; a primeira execução real deve ser

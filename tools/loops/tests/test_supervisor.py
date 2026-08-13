@@ -339,6 +339,23 @@ def test_missing_source_parks_and_writes_manual_request(tmp_path):
     assert h.worktrees.create_calls == 0
 
 
+def test_unscoped_candidate_parks_before_research_as_manual_source_required(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.research.error = ValueError(
+        "candidate source scope is required; declare source_paths before querying NotebookLM"
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "manual_source_required"
+    assert outcome.state.failure.reason == "missing_source"
+    assert h.research.calls == 1
+    assert h.worktrees.create_calls == 0
+    block_path = Path(cfg.runtime_dir) / "blocked-tasks.json"
+    document = json.loads(block_path.read_text(encoding="utf-8"))
+    assert document["tasks"]["task-1"]["source_paths"] == []
+
+
 def test_missing_source_persists_block_and_same_signature_is_skipped(tmp_path):
     h, cfg = harness(tmp_path)
     h.research.error = MissingSourceRequired("NBR ausente")

@@ -275,10 +275,11 @@ def _research_candidate(adapter, candidate):
     notebook_id = _notebook_id_for_candidate(adapter.notebook_map, candidate)
     if not notebook_id:
         raise ValueError("no notebook mapped for candidate discipline")
-    if candidate.source_paths:
-        sources = adapter.list_ready_sources_for_paths(notebook_id, candidate.source_paths)
-    else:
-        sources = adapter.list_ready_sources(notebook_id)
+    if not candidate.source_paths:
+        raise ValueError(
+            "candidate source scope is required; declare source_paths before querying NotebookLM"
+        )
+    sources = adapter.list_ready_sources_for_paths(notebook_id, candidate.source_paths)
     source_ids = tuple(source.source_id for source in sources)
     if not source_ids:
         raise ValueError("no requested sources are ready")

@@ -967,7 +967,12 @@ class DevelopmentSupervisor:
 
     def _looks_like_missing_source(self, error):
         message = str(error).casefold()
-        if "no requested sources are ready" in message or "source" in message and "ready" in message:
+        if (
+            "no requested sources are ready" in message
+            or "source" in message and "ready" in message
+            or "source scope" in message
+            or "source_paths" in message
+        ):
             return True
         path = getattr(self.deps.research, "manual_request_path", None)
         return bool(path and Path(path).exists())

@@ -123,6 +123,29 @@ def test_atomic_candidate_rejects_source_scope_spanning_notebooks():
         _notebook_id_for_candidate(notebook_map, candidate)
 
 
+def test_research_candidate_rejects_empty_source_scope_before_notebook_query():
+    class Adapter:
+        notebook_map = NotebookMap({"09_INCENDIO": "nb-incendio"})
+
+        def list_ready_sources(self, notebook_id):
+            raise AssertionError("broad source listing must not run")
+
+    candidate = TaskCandidate(
+        "id",
+        "Pendência ampla",
+        "seguranca",
+        "wiki:T1",
+        1,
+        ("wiki.md",),
+        (),
+        topic="geral",
+        source_paths=(),
+    )
+
+    with pytest.raises(ValueError, match="source_paths"):
+        _research_candidate(Adapter(), candidate)
+
+
 def test_research_prompt_names_each_authorized_source_id():
     source_ids = (
         "71c7e8de-5c0f-48e7-b5ae-8e266faf6747",
