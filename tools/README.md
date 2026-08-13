@@ -71,6 +71,7 @@ Comandos:
 ```powershell
 python -m tools.loops --mode dry-run --max-iterations 1
 python -m tools.loops --mode supervised --executor codex --max-iterations 1
+python -m tools.loops --mode supervised --executor codex --max-iterations 3 --retry-blocked
 python -m tools.loops --mode supervised --executor claude --resume <loop_id>
 python -m tools.loops --mode supervised --recover-orphan
 ```
@@ -84,6 +85,16 @@ fica em `.loop-runtime/scheduler-last.json`.
 Se um executor morrer antes de persistir sua fase, `--recover-orphan` estaciona
 explicitamente o ledger ativo como `orphaned_loop`, preservando worktree e
 artefatos; a execução seguinte deve ser iniciada em um comando separado.
+
+Quando a pesquisa estaciona uma tarefa por `manual_source_required`, o loop
+registra a tarefa e a assinatura local das fontes em
+`.loop-runtime/blocked-tasks.json`. Nas execuções seguintes, uma assinatura
+inalterada é ignorada para que a mesma lacuna não seja consultada repetidamente.
+Substituir uma fonte declarada, ou alterar o catálogo/mapa local, reabre a tarefa
+automaticamente. Para testar novamente sem alteração local, use
+`--retry-blocked`; essa reabertura vale apenas para a invocação atual e uma nova
+falha documental recria o bloqueio. O arquivo não deve ser editado para incluir
+evidência normativa e não substitui o `manual-source-requests.md`.
 
 O adaptador de pesquisa impõe limite de 180 s para cada comando `nlm`, decodifica
 a saída como UTF-8 e só aceita respostas com citações e trechos textuais
