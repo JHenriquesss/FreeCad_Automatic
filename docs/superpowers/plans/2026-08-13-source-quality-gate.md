@@ -246,7 +246,7 @@ Expected: `manual_source_required` without a new NotebookLM query artifact for t
 
 Run `python -m pytest -q tools/loops/tests`, `python -m py_compile tools/loops/source_quality.py tools/loops/research_nlm.py tools/loops/__main__.py`, and `git diff --check`.
 
-- [ ] **Step 5: Commit documentation and record the phase**
+- [x] **Step 5: Commit documentation and record the phase**
 
 ```powershell
 git add tools/README.md
