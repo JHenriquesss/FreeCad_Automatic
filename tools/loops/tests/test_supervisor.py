@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 import subprocess
@@ -400,6 +400,24 @@ def test_supervised_cycle_promotes_only_local_worktree(tmp_path):
     assert h.worktrees.assert_calls >= 1
     assert outcome.state.artifacts["promoted_commit"] == "local-commit"
     assert git("status", "--porcelain", cwd=h.root) == ""
+
+
+def test_all_code_gates_use_iteration_worktree(tmp_path):
+    h, cfg = harness(tmp_path)
+    factory_paths = []
+
+    def tests_factory(worktree):
+        factory_paths.append(str(worktree))
+        return h.tests
+
+    h.deps = replace(h.deps, tests_factory=tests_factory)
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert factory_paths
+    assert all(path == outcome.state.worktree for path in factory_paths)
+    assert str(h.root) not in factory_paths
 
 
 def test_resume_restarts_from_persisted_phase(tmp_path):

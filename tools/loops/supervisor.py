@@ -30,6 +30,7 @@ class SupervisorDeps:
     tests: object
     reviewer: object
     worktrees: object
+    tests_factory: object | None = None
     promote: object | None = None
     allowed_paths: tuple[str, ...] = ()
     build_required: bool = False
@@ -170,6 +171,7 @@ class DevelopmentSupervisor:
                     return self._finish_park("dry_run")
                 try:
                     worktree = self._create_worktree()
+                    self._save(replace(self.ledger.state, worktree=worktree))
                     baseline = self._tests_baseline()
                     baseline_path = self._write_json_artifact("baseline", baseline.to_dict())
                     self._save(
@@ -282,20 +284,31 @@ class DevelopmentSupervisor:
         return self.deps.agent.run(request) if hasattr(self.deps.agent, "run") else self.deps.agent(request)
 
     def _tests_baseline(self):
-        return self.deps.tests.baseline()
+        return self._tests_adapter().baseline()
+
+    def _tests_adapter(self):
+        factory = self.deps.tests_factory
+        if factory is None:
+            return self.deps.tests
+        if callable(factory):
+            return factory(self.ledger.state.worktree)
+        if hasattr(factory, "for_worktree"):
+            return factory.for_worktree(self.ledger.state.worktree)
+        raise TypeError("tests_factory must be callable or expose for_worktree")
 
     def _verify(self):
         state = self.ledger.state
+        tests = self._tests_adapter()
         try:
             self._save(state)
-            targeted = self.deps.tests.targeted(state.task.suggested_tests)
+            targeted = tests.targeted(state.task.suggested_tests)
             targeted_path = self._write_json_artifact("targeted", targeted.to_dict())
             self._save(replace(self.ledger.state, artifacts={**state.artifacts, "targeted": targeted_path}))
             if targeted.timed_out:
                 return self._park("command_timeout", "targeted test gate timed out")
             if not targeted.successful:
                 return self._park("targeted_failed", "targeted test gate failed")
-            regression = self.deps.tests.regression()
+            regression = tests.regression()
             regression_path = self._write_json_artifact("regression", regression.to_dict())
             self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "regression": regression_path}))
             baseline = self._load_snapshot("baseline")
@@ -308,7 +321,7 @@ class DevelopmentSupervisor:
             if not delta.promotion_allowed:
                 return self._park("regression_failed", "regression gate failed")
             if self.deps.build_required or getattr(state.task, "requires_build", False):
-                build = self.deps.tests.build()
+                build = tests.build()
                 build_path = self._write_json_artifact("build", build.to_dict())
                 self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "build": build_path}))
                 self._verify_build = build

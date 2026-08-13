@@ -105,12 +105,15 @@ def _build_deps(args, config, root):
         timeout_seconds=min(config.command_timeout_seconds, 180),
     )
     agent_class = CodexExecAdapter if config.executor == "codex" else ClaudePrintAdapter
-    test_runner = TestRunner(
-        root,
-        artifact_dir=Path(config.runtime_dir) / "test-results",
-        command_timeout_seconds=config.command_timeout_seconds,
-        build_timeout_seconds=config.build_timeout_seconds,
-    )
+    def tests_factory(worktree):
+        return TestRunner(
+            worktree,
+            artifact_dir=Path(config.runtime_dir) / "test-results",
+            command_timeout_seconds=config.command_timeout_seconds,
+            build_timeout_seconds=config.build_timeout_seconds,
+        )
+
+    test_runner = tests_factory(root)
     return SupervisorDeps(
         discover=discover_candidates,
         research=lambda candidate: _research_candidate(research, candidate),
@@ -120,6 +123,7 @@ def _build_deps(args, config, root):
         ),
         agent=agent_class(timeout_seconds=config.command_timeout_seconds),
         tests=test_runner,
+        tests_factory=tests_factory,
         reviewer=ReviewAdapter(),
         worktrees=WorktreeManager(root, config.runtime_dir),
         allowed_paths=_allowed_code_paths(root),
