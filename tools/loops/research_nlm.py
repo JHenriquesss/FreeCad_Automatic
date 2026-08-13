@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -99,6 +100,41 @@ def _normalize_local_path(value):
     return "/".join(parts).casefold()
 
 
+def _stop_process_tree(process):
+    """Stop an NLM CLI process and its descendants after a timeout."""
+    if process is None:
+        return
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if result.returncode == 0:
+                return
+        except OSError:
+            pass
+    try:
+        process.terminate()
+    except (AttributeError, OSError):
+        try:
+            process.kill()
+        except (AttributeError, OSError):
+            pass
+    try:
+        process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+        except (AttributeError, OSError):
+            pass
+        process.communicate()
+
+
 @dataclass(frozen=True)
 class ManualSourceRequest:
     notebook_id: str
@@ -146,17 +182,26 @@ class NlmCliAdapter:
         self.last_artifact_path = None
 
     def _run_subprocess(self, argv):
+        process = None
         try:
-            return subprocess.run(
+            process = subprocess.Popen(
                 argv,
-                check=False,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=self.timeout_seconds,
+            )
+            stdout, stderr = process.communicate(timeout=self.timeout_seconds)
+            return subprocess.CompletedProcess(
+                argv,
+                process.returncode,
+                stdout or "",
+                stderr or "",
             )
         except subprocess.TimeoutExpired as error:
+            _stop_process_tree(process)
             command = " ".join(str(value) for value in argv)
             raise NlmCommandTimeout(
                 f"nlm command timed out after {self.timeout_seconds:g}s: {command}"

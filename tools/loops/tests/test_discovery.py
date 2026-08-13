@@ -88,6 +88,7 @@ def test_gusset_unit_does_not_inherit_broad_terca_build_crosscheck():
 
     assert gusset.suggested_tests == (
         "framework/galpao_fw/tests/test_gusset_espessura_3d.py",
+        "framework/galpao_fw/tests/test_gusset_robustez.py",
         "framework/galpao_fw/tests/test_pecas_conexao_encaixe.py",
     )
 

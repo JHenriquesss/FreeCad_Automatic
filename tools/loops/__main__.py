@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
+import json
 from pathlib import Path
 import sys
 import subprocess
@@ -49,9 +51,15 @@ def main(argv=None) -> int:
     try:
         root = _detect_root(args.project_root)
         config = _load_cli_config(args, root)
-        deps = _build_deps(args, config, root)
-        supervisor = DevelopmentSupervisor(config, deps)
-        outcome = supervisor.resume(args.resume) if args.resume else supervisor.run_once()
+
+        def supervisor_factory(iteration_config):
+            return DevelopmentSupervisor(
+                iteration_config,
+                _build_deps(args, iteration_config, root),
+            )
+
+        outcomes = _run_iterations(config, supervisor_factory, resume=args.resume)
+        outcome = outcomes[-1]
         print(f"loop_id={outcome.loop_id} outcome={outcome.outcome} phase={outcome.phase.value}")
         return 0
     except (ValueError, FileNotFoundError, argparse.ArgumentError) as error:
@@ -60,6 +68,77 @@ def main(argv=None) -> int:
     except Exception as error:
         print(f"erro do loop: {error}", file=sys.stderr)
         return 1
+
+
+def _run_iterations(config, supervisor_factory, *, resume=None):
+    """Run independent iterations, skipping only tasks blocked by sources.
+
+    A source gap is local to one candidate: it is recorded by that candidate's
+    ledger and the scheduler may try another candidate. Any implementation,
+    test, review, or timeout failure stops the scheduler for human diagnosis.
+    ``dry-run`` deliberately remains one iteration even when the configured
+    limit is larger.
+    """
+    outcomes = []
+    excluded = list(config.excluded_task_ids)
+    next_resume = resume
+    stop_reason = None
+
+    max_iterations = 1 if config.mode == "dry-run" else config.max_iterations
+    for _ in range(max_iterations):
+        iteration_config = replace(config, excluded_task_ids=tuple(excluded))
+        supervisor = supervisor_factory(iteration_config)
+        outcome = supervisor.resume(next_resume) if next_resume else supervisor.run_once()
+        next_resume = None
+        outcomes.append(outcome)
+
+        if outcome.outcome == "manual_source_required":
+            task = getattr(getattr(outcome, "state", None), "task", None)
+            task_id = getattr(task, "id", None)
+            if not task_id or task_id in excluded:
+                stop_reason = "manual_source_required_repeated"
+                break
+            excluded.append(task_id)
+            continue
+
+        if outcome.outcome == "promoted":
+            continue
+
+        stop_reason = outcome.outcome
+        break
+    else:
+        stop_reason = "max_iterations"
+
+    _write_scheduler_summary(config, outcomes, excluded, stop_reason)
+    return outcomes
+
+
+def _write_scheduler_summary(config, outcomes, excluded, stop_reason):
+    runtime_dir = Path(config.runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for outcome in outcomes:
+        task = getattr(getattr(outcome, "state", None), "task", None)
+        rows.append(
+            {
+                "loop_id": getattr(outcome, "loop_id", None),
+                "outcome": getattr(outcome, "outcome", None),
+                "phase": getattr(getattr(outcome, "phase", None), "value", None),
+                "task_id": getattr(task, "id", None),
+            }
+        )
+    payload = {
+        "mode": config.mode,
+        "max_iterations": config.max_iterations,
+        "iterations_run": len(rows),
+        "excluded_task_ids": list(excluded),
+        "stop_reason": stop_reason,
+        "outcomes": rows,
+    }
+    (runtime_dir / "scheduler-last.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _detect_root(value):

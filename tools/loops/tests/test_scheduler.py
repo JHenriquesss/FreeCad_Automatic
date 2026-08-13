@@ -96,3 +96,24 @@ def test_scheduler_dry_run_executa_somente_uma_iteracao(tmp_path):
 
     assert [item.outcome for item in result] == ["dry_run"]
     assert calls == ["run_once"]
+
+
+def test_scheduler_para_em_timeout_e_nao_tenta_proxima_tarefa(tmp_path):
+    primeira = _task("primeira")
+    outcomes = iter((_outcome("loop-1", "command_timeout", primeira),))
+    calls = []
+
+    class FakeSupervisor:
+        def run_once(self):
+            calls.append("run_once")
+            return next(outcomes)
+
+        def resume(self, loop_id):
+            raise AssertionError(f"resume inesperado: {loop_id}")
+
+    result = _run_iterations(_config(tmp_path), lambda config: FakeSupervisor())
+
+    assert [item.outcome for item in result] == ["command_timeout"]
+    assert calls == ["run_once"]
+    summary = Path(_config(tmp_path).runtime_dir) / "scheduler-last.json"
+    assert '"stop_reason": "command_timeout"' in summary.read_text(encoding="utf-8")

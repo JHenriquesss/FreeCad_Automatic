@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import re
 import shutil
@@ -241,35 +242,105 @@ def _write_safe_artifact(path: Path, content: str) -> None:
 
 def _run_process(argv, cwd, input_text, timeout_seconds):
     started = time.monotonic()
+    process = None
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             _resolve_command(argv),
             cwd=cwd,
-            input=input_text or None,
-            capture_output=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=timeout_seconds,
-            check=False,
         )
+        stdout, stderr = process.communicate(input=input_text or None, timeout=timeout_seconds)
         return _RawProcessResult(
-            completed.returncode,
-            completed.stdout or "",
-            completed.stderr or "",
+            process.returncode,
+            stdout or "",
+            stderr or "",
             time.monotonic() - started,
             False,
         )
     except subprocess.TimeoutExpired as error:
+        stdout, stderr = _stop_after_timeout(process, error)
         return _RawProcessResult(
             -1,
-            _text(error.stdout),
-            _text(error.stderr),
+            stdout,
+            stderr,
             time.monotonic() - started,
             True,
         )
     except OSError as error:
         return _RawProcessResult(-1, "", str(error), time.monotonic() - started, False)
+
+
+def _stop_after_timeout(process, timeout_error):
+    """Stop an executor and collect all output already emitted.
+
+    On Windows, Codex is normally launched through ``codex.cmd`` and a Node
+    child. Terminating only the shim leaves that child alive and can keep the
+    scheduler blocked indefinitely, so the whole process tree is killed.
+    """
+    partial_stdout = _text(timeout_error.stdout)
+    partial_stderr = _text(timeout_error.stderr)
+    if process is None:
+        return partial_stdout, partial_stderr
+
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if result.returncode == 0:
+                return _collect_after_timeout(process, partial_stdout, partial_stderr)
+        except OSError:
+            pass
+        _terminate_process(process)
+    else:
+        _terminate_process(process)
+
+    return _collect_after_timeout(process, partial_stdout, partial_stderr)
+
+
+def _collect_after_timeout(process, partial_stdout, partial_stderr):
+    try:
+        stdout, stderr = process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        _kill_process(process)
+        stdout, stderr = process.communicate()
+    return _merge_output(partial_stdout, stdout), _merge_output(partial_stderr, stderr)
+
+
+def _terminate_process(process):
+    try:
+        process.terminate()
+    except (AttributeError, OSError):
+        _kill_process(process)
+
+
+def _kill_process(process):
+    try:
+        process.kill()
+    except (AttributeError, OSError):
+        pass
+
+
+def _merge_output(partial, complete):
+    partial_text = _text(partial)
+    complete_text = _text(complete)
+    if not partial_text:
+        return complete_text
+    if not complete_text:
+        return partial_text
+    if partial_text in complete_text:
+        return complete_text
+    return partial_text + complete_text
 
 
 def _resolve_command(argv):

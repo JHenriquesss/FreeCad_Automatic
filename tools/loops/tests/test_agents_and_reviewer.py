@@ -1,6 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+import subprocess
 
 import tools.loops.agents as agents_module
 from tools.loops.agents import (
@@ -112,18 +113,76 @@ def test_agent_output_and_artifact_redact_credentials(tmp_path):
 def test_process_resolves_windows_command_shim(monkeypatch, tmp_path):
     calls = []
 
-    def fake_run(argv, **kwargs):
+    class FinishedProcess:
+        returncode = 0
+
+        def communicate(self, input=None, timeout=None):
+            calls.append(("communicate", input, timeout))
+            return "ok", ""
+
+    def fake_popen(argv, **kwargs):
         calls.append((tuple(argv), kwargs))
-        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+        return FinishedProcess()
 
     monkeypatch.setattr(agents_module.shutil, "which", lambda value: "C:/bin/codex.cmd")
-    monkeypatch.setattr(agents_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(agents_module.subprocess, "Popen", fake_popen)
 
     result = agents_module._run_process(("codex", "--version"), tmp_path, "", 5)
 
     assert result.returncode == 0
     assert calls[0][0][0] == "C:/bin/codex.cmd"
     assert calls[0][0][1] == "--version"
+    assert calls[1] == ("communicate", None, 5)
+
+
+def test_process_timeout_terminates_windows_executor_tree(monkeypatch, tmp_path):
+    calls = []
+
+    class HangingProcess:
+        pid = 9876
+        returncode = None
+
+        def communicate(self, input=None, timeout=None):
+            calls.append(("communicate", input, timeout))
+            if len([item for item in calls if item[0] == "communicate"]) == 1:
+                raise subprocess.TimeoutExpired(
+                    ["codex"], timeout, output="partial", stderr="warning"
+                )
+            self.returncode = -9
+            return "tail", ""
+
+        def terminate(self):
+            calls.append(("terminate",))
+
+        def kill(self):
+            calls.append(("kill",))
+
+    process = HangingProcess()
+    taskkill_calls = []
+
+    def fake_popen(argv, **kwargs):
+        calls.append(("popen", tuple(argv), kwargs))
+        return process
+
+    def fake_run(argv, **kwargs):
+        taskkill_calls.append((tuple(argv), kwargs))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(agents_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(agents_module.subprocess, "run", fake_run)
+
+    result = agents_module._run_process(("codex", "exec"), tmp_path, "prompt", 3)
+
+    assert result.returncode == -1
+    assert result.timed_out is True
+    assert "partial" in result.stdout
+    assert "tail" in result.stdout
+    assert calls[1] == ("communicate", "prompt", 3)
+    assert calls[-1] == ("communicate", None, 1)
+    if agents_module.os.name == "nt":
+        assert taskkill_calls[0][0] == ("taskkill", "/PID", "9876", "/T", "/F")
+    else:
+        assert ("terminate",) in calls or ("kill",) in calls
 
 
 def test_claude_command_is_noninteractive_and_scoped(tmp_path):

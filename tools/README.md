@@ -74,6 +74,13 @@ python -m tools.loops --mode supervised --executor codex --max-iterations 1
 python -m tools.loops --mode supervised --executor claude --resume <loop_id>
 ```
 
+Em `supervised` e `autonomous`, `--max-iterations N` permite encadear até N
+tarefas independentes na mesma execução. Uma tarefa estacionada por
+`manual_source_required` é adiada somente naquela execução e a fila continua;
+falhas de implementação, testes, revisão ou timeout interrompem o scheduler para
+diagnóstico humano. `dry-run` sempre executa uma única simulação. O resumo da fila
+fica em `.loop-runtime/scheduler-last.json`.
+
 O adaptador de pesquisa impõe limite de 180 s para cada comando `nlm`, decodifica
 a saída como UTF-8 e só aceita respostas com citações e trechos textuais
 auditáveis. Formatos incompletos do NotebookLM geram `manual-source-requests.md`

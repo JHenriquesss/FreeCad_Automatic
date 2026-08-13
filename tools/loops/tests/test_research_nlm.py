@@ -482,3 +482,39 @@ def test_default_runner_marks_nlm_timeout(tmp_path):
                 "import time; time.sleep(2)",
             )
         )
+
+
+def test_default_runner_timeout_kills_process_tree(monkeypatch, tmp_path):
+    class HangingProcess:
+        pid = 4242
+
+        def communicate(self, input=None, timeout=None):
+            if timeout == 0.1:
+                raise subprocess.TimeoutExpired(["nlm"], timeout, output="partial")
+            return "", ""
+
+        def terminate(self):
+            raise AssertionError("Windows path must kill the complete tree")
+
+        def kill(self):
+            raise AssertionError("Windows path must kill the complete tree")
+
+    taskkill_calls = []
+
+    def fake_popen(argv, **kwargs):
+        return HangingProcess()
+
+    def fake_run(argv, **kwargs):
+        taskkill_calls.append((tuple(argv), kwargs))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr("tools.loops.research_nlm.os.name", "nt")
+    monkeypatch.setattr("tools.loops.research_nlm.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("tools.loops.research_nlm.subprocess.run", fake_run)
+    notebook_map, catalog = write_local_sources(tmp_path)
+    adapter = NlmCliAdapter(notebook_map, catalog, timeout_seconds=0.1)
+
+    with pytest.raises(NlmCommandTimeout):
+        adapter.runner((sys.executable, "-c", "pass"))
+
+    assert taskkill_calls[0][0] == ("taskkill", "/PID", "4242", "/T", "/F")
