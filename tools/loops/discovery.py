@@ -76,7 +76,7 @@ _T16_TEST_TERMS = {
     "calhas": ("calha",),
     "tapered": ("tapered", "dg25", "alma_variavel"),
     "sismo": ("sismo", "diafragma", "validacao"),
-    "gusset": ("gusset", "pecas_conexao", "ifc_secundarios"),
+    "gusset": ("gusset", "pecas_conexao"),
     "ligacoes": ("ligacoes", "secao_por_ligacao", "tipo_ligacao"),
     "base_chumbador": ("base_chumbador", "pecas_conexao", "takeoff"),
     "fogo": ("fogo", "incendio"),

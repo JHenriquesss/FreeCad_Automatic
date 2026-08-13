@@ -81,6 +81,17 @@ def test_atomic_topics_are_ranked_by_explicit_execution_order():
     ]
 
 
+def test_gusset_unit_does_not_inherit_broad_terca_build_crosscheck():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    gusset = next(item for item in candidates if item.topic == "gusset")
+
+    assert gusset.suggested_tests == (
+        "framework/galpao_fw/tests/test_gusset_espessura_3d.py",
+        "framework/galpao_fw/tests/test_pecas_conexao_encaixe.py",
+    )
+
+
 def test_discovery_ignores_resolved_item():
     candidates = discover_candidates(PROJECT_ROOT)
 
