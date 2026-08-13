@@ -229,12 +229,13 @@ class FakeWorktrees:
 
 
 class FakePromote:
-    def __init__(self):
+    def __init__(self, promoted_commit):
         self.calls = 0
+        self.promoted_commit = promoted_commit
 
     def __call__(self, worktree, loop_id):
         self.calls += 1
-        return "local-commit"
+        return self.promoted_commit
 
 
 @dataclass
@@ -263,7 +264,7 @@ def harness(tmp_path, *, mode="supervised", targeted_failed=False, regression_fa
     tests = FakeTests(targeted_failed=targeted_failed, regression_failed=regression_failed)
     reviewer = FakeReviewer()
     worktrees = FakeWorktrees(root, base, external=external)
-    promote = FakePromote()
+    promote = FakePromote(base)
     deps = SupervisorDeps(
         discover=discover,
         research=research,
@@ -398,7 +399,12 @@ def test_persisted_promotion_removes_block_record(tmp_path):
     assert blocked.outcome == "manual_source_required"
     Ledger(
         Path(cfg.runtime_dir) / "ledger.json",
-        replace(blocked.state, phase=LoopPhase.PROMOTE, outcome="promoted"),
+        replace(
+            blocked.state,
+            phase=LoopPhase.PROMOTE,
+            outcome="promoted",
+            artifacts={**blocked.state.artifacts, "promoted_commit": h.base},
+        ),
     ).save()
 
     make_supervisor(h, cfg).run_once()
@@ -412,7 +418,7 @@ def test_retry_does_not_bypass_completed_task_filter(tmp_path):
     runtime = Path(cfg.runtime_dir)
     runtime.mkdir(parents=True)
     (runtime / "completed-tasks.json").write_text(
-        json.dumps({"schema_version": 1, "tasks": {"task-1": {"promoted_commit": "c"}}}),
+        json.dumps({"schema_version": 1, "tasks": {"task-1": {"promoted_commit": h.base}}}),
         encoding="utf-8",
     )
     (runtime / "blocked-tasks.json").write_text(
@@ -614,7 +620,7 @@ def test_supervised_cycle_promotes_only_local_worktree(tmp_path):
     assert outcome.phase is LoopPhase.PROMOTE
     assert h.promote.calls == 1
     assert h.worktrees.assert_calls >= 1
-    assert outcome.state.artifacts["promoted_commit"] == "local-commit"
+    assert outcome.state.artifacts["promoted_commit"] == h.base
     assert git("status", "--porcelain", cwd=h.root) == ""
 
 
@@ -630,6 +636,58 @@ def test_next_run_skips_a_candidate_already_promoted(tmp_path):
 
     assert second.outcome == "promoted"
     assert second.state.task.id == "task-2"
+
+
+def test_completed_task_with_ancestor_commit_is_not_selected(tmp_path):
+    h, cfg = harness(tmp_path)
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "completed-tasks.json").write_text(
+        json.dumps({"schema_version": 1, "tasks": {"task-1": {"promoted_commit": h.base}}}),
+        encoding="utf-8",
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "no_candidate"
+
+
+def test_completed_task_with_parallel_branch_commit_is_selected(tmp_path):
+    h, cfg = harness(tmp_path)
+    git("checkout", "-b", "parallel", cwd=h.root)
+    (h.root / "parallel.txt").write_text("parallel\n", encoding="utf-8")
+    git("add", "parallel.txt", cwd=h.root)
+    git("commit", "-m", "parallel commit", cwd=h.root)
+    parallel_commit = git("rev-parse", "HEAD", cwd=h.root)
+    git("checkout", "main", cwd=h.root)
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "completed-tasks.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "tasks": {"task-1": {"promoted_commit": parallel_commit}}}
+        ),
+        encoding="utf-8",
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert outcome.state.task.id == "task-1"
+
+
+@pytest.mark.parametrize("record", ({}, {"promoted_commit": "not-a-commit"}))
+def test_completed_task_without_reachable_commit_is_selected(tmp_path, record):
+    h, cfg = harness(tmp_path)
+    runtime = Path(cfg.runtime_dir)
+    runtime.mkdir(parents=True)
+    (runtime / "completed-tasks.json").write_text(
+        json.dumps({"schema_version": 1, "tasks": {"task-1": record}}), encoding="utf-8"
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert outcome.state.task.id == "task-1"
 
 
 def test_explicitly_excluded_task_is_not_selected(tmp_path):

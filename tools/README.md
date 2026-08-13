@@ -108,6 +108,11 @@ falha, examine o ledger e o resumo da sessão, corrija a causa ou forneça a fon
 solicitada e use `--resume`. Um ledger ativo deve ser retomado antes de iniciar
 outra rodada.
 
+Um registro em `.loop-runtime/completed-tasks.json` só considera a candidata
+concluída enquanto seu `promoted_commit` for ancestral do `HEAD`. Registros
+históricos permanecem no arquivo; se o commit não estiver mais alcançável, a
+candidata volta à fila.
+
 Cada candidata que reúne uma lacuna de uma disciplina deve declarar `topic` e
 `source_paths` no ledger. `source_paths` usa caminhos relativos à pasta `fontes/`
 e limita a consulta do NotebookLM exatamente a essas fontes; caminhos de pastas

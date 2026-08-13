@@ -454,14 +454,43 @@ class DevelopmentSupervisor:
         except OSError:
             return {"exists": False, "type": "unreadable", "size": None, "sha256": None}
 
-    def _completed_task_ids(self):
+    def _completed_task_ids(self) -> frozenset[str]:
         if not self.completed_tasks_path.exists():
             return frozenset()
         document = json.loads(self.completed_tasks_path.read_text(encoding="utf-8"))
         tasks = document.get("tasks", {})
         if not isinstance(tasks, dict):
             raise ValueError("completed task registry must contain an object at tasks")
-        return frozenset(tasks)
+        return frozenset(
+            task_id
+            for task_id, record in tasks.items()
+            if isinstance(record, dict)
+            and self._commit_is_ancestor(record.get("promoted_commit"))
+        )
+
+    def _commit_is_ancestor(self, commit) -> bool:
+        if not isinstance(commit, str) or not commit:
+            return False
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(self.project_root),
+                    "merge-base",
+                    "--is-ancestor",
+                    commit,
+                    "HEAD",
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except OSError:
+            return False
+        return result.returncode == 0
 
     def _record_completion(self, state, promoted_commit):
         if state.task is None:
