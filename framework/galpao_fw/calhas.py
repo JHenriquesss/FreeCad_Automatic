@@ -10,43 +10,87 @@ from __future__ import annotations
 import math
 
 
+def _exigir_finito(nome, valor):
+    try:
+        finito = math.isfinite(valor)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{nome} deve ser um numero finito: {valor!r}") from exc
+    if not finito:
+        raise ValueError(f"{nome} deve ser um numero finito: {valor!r}")
+    return valor
+
+
+def _exigir_nao_negativo(nome, valor):
+    valor = _exigir_finito(nome, valor)
+    try:
+        negativo = valor < 0
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{nome} deve ser um numero nao negativo: {valor!r}") from exc
+    if negativo:
+        raise ValueError(f"{nome} deve ser um numero nao negativo: {valor!r}")
+    return valor
+
+
+def _exigir_positivo(nome, valor):
+    valor = _exigir_finito(nome, valor)
+    try:
+        nao_positivo = valor <= 0
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{nome} deve ser um numero positivo: {valor!r}") from exc
+    if nao_positivo:
+        raise ValueError(f"{nome} deve ser um numero positivo: {valor!r}")
+    return valor
+
+
 def area_contribuicao(comp_telhado, larg_agua, h_elevacao=0.0):
     # area NEGATIVA gerava vazao negativa -> a 1a lamina d'agua ja "atendia" e a
     # calha saia com ok=True (contra-seguranca classica: numero sem sentido
     # apresentado como aprovado). O pipeline passa comprimento/vao, que o validar
     # ja forca > 0; esta guarda protege quem chama o modulo direto.
-    if comp_telhado < 0 or larg_agua < 0 or h_elevacao < 0:
-        raise ValueError("dimensoes de telhado/agua nao podem ser negativas: "
-                         "comp=%r larg=%r h_elev=%r"
-                         % (comp_telhado, larg_agua, h_elevacao))
-    return comp_telhado * (larg_agua + h_elevacao / 2.0)
+    comp_telhado = _exigir_nao_negativo("comp_telhado", comp_telhado)
+    larg_agua = _exigir_nao_negativo("larg_agua", larg_agua)
+    h_elevacao = _exigir_nao_negativo("h_elevacao", h_elevacao)
+    area = comp_telhado * (larg_agua + h_elevacao / 2.0)
+    return _exigir_finito("area de contribuicao", area)
 
 
 def vazao_projeto(A_contrib, I_mm_h=150.0):
-    return I_mm_h * A_contrib / 60.0
+    A_contrib = _exigir_nao_negativo("A_contrib", A_contrib)
+    I_mm_h = _exigir_nao_negativo("I_mm_h", I_mm_h)
+    vazao = I_mm_h * A_contrib / 60.0
+    return _exigir_finito("vazao de projeto", vazao)
 
 
 def secao_calha(Q_req, B_base=0.10, i=0.005, n=0.011, H_max=0.08):
     """Retorna a altura d'agua necessaria, com borda livre de 25%.
     H_max = altura total da calha (m). A lamina d'agua maxima e 0.75*H_max.
     Se não couber com borda livre, retorna ok=False."""
+    i = _exigir_finito("declividade", i)
+    if i < 0.005:
+        raise ValueError("declividade da calha deve ser >= 0,005 m/m")
+    Q_req = _exigir_nao_negativo("Q_req", Q_req)
+    B_base = _exigir_positivo("B_base", B_base)
+    n = _exigir_positivo("n", n)
+    H_max = _exigir_positivo("H_max", H_max)
     # H_max fora de faixa fisica: FALHA ALTO. Antes o passo de 1 mm era
     # materializado numa LISTA de int(0,75*H_max*1000) elementos - com um H_max
     # absurdo (erro de unidade: metros digitados como mm, ou dado corrompido) isso
     # vira bilhoes de floats: o processo TRAVA/estoura memoria em vez de acusar.
     # Num pipeline que ja teve "a tesoura executiva nunca termina" diagnosticado
     # errado como lentidao, travar silenciosamente e o pior modo de falhar.
-    if not (0.0 < H_max <= 5.0) or not math.isfinite(H_max):
+    if H_max > 5.0:
         raise ValueError(
             "H_max da calha fora de faixa (0 < H_max <= 5 m): %r. "
             "Verifique a unidade (metros, nao milimetros)." % (H_max,))
-    h_limite = 0.75 * H_max
+    h_limite = _exigir_finito("limite de altura da calha", 0.75 * H_max)
     # gerador (nao lista): passo de 1 mm sem materializar a faixa inteira
     for h_agua in (a / 1000.0 for a in range(5, int(h_limite * 1000) + 1)):
-        As = B_base * h_agua
-        Pm = B_base + 2.0 * h_agua
-        Rh = As / Pm if Pm > 0 else 0.0
-        Q_calc = 60000.0 * As * (Rh ** (2.0 / 3.0)) * (i ** 0.5) / n
+        As = _exigir_finito("area da secao", B_base * h_agua)
+        Pm = _exigir_finito("perimetro molhado", B_base + 2.0 * h_agua)
+        Rh = _exigir_finito("raio hidraulico", As / Pm if Pm > 0 else 0.0)
+        Q_calc = _exigir_finito(
+            "vazao calculada", 60000.0 * As * (Rh ** (2.0 / 3.0))
+            * (i ** 0.5) / n)
         if Q_calc >= Q_req:
             return {"h_agua_m": round(h_agua, 3), "As_cm2": round(As * 10000, 1),
                     "Q_calc_Lmin": round(Q_calc, 1), "Q_req_Lmin": round(Q_req, 1),
@@ -57,7 +101,10 @@ def secao_calha(Q_req, B_base=0.10, i=0.005, n=0.011, H_max=0.08):
 
 
 def diametro_condutor(Q_Lmin, n_condutores=1):
+    Q_Lmin = _exigir_nao_negativo("Q_Lmin", Q_Lmin)
+    n_condutores = _exigir_positivo("n_condutores", n_condutores)
     Q_por = Q_Lmin / max(n_condutores, 1)
+    Q_por = _exigir_finito("vazao por condutor", Q_por)
     if Q_por <= 90:   return 75
     elif Q_por <= 180: return 100
     elif Q_por <= 320: return 125
@@ -67,6 +114,16 @@ def diametro_condutor(Q_Lmin, n_condutores=1):
 
 def dimensiona(comp_telhado, larg_agua, h_elevacao=0.0, I_mm_h=150.0,
                inclinacao=0.005, n_condutores=2, B_base=0.10, H_calha=0.08):
+    comp_telhado = _exigir_nao_negativo("comp_telhado", comp_telhado)
+    larg_agua = _exigir_nao_negativo("larg_agua", larg_agua)
+    h_elevacao = _exigir_nao_negativo("h_elevacao", h_elevacao)
+    I_mm_h = _exigir_nao_negativo("I_mm_h", I_mm_h)
+    inclinacao = _exigir_finito("declividade", inclinacao)
+    if inclinacao < 0.005:
+        raise ValueError("declividade da calha deve ser >= 0,005 m/m")
+    n_condutores = _exigir_positivo("n_condutores", n_condutores)
+    B_base = _exigir_positivo("B_base", B_base)
+    H_calha = _exigir_positivo("H_calha", H_calha)
     A = area_contribuicao(comp_telhado, larg_agua, h_elevacao)
     Q = vazao_projeto(A, I_mm_h)
     secao = secao_calha(Q, B_base, inclinacao, H_max=H_calha)
@@ -74,9 +131,12 @@ def dimensiona(comp_telhado, larg_agua, h_elevacao=0.0, I_mm_h=150.0,
         return {"area_contrib_m2": round(A, 1), "vazao_Lmin": round(Q, 1),
                 "secao": secao, "ok": False}
     d_cond = diametro_condutor(Q, n_condutores)
-    ok_bellei = (secao["B_base_m"] * secao["H_max_m"]) * 10000 >= A  # 1 cm2/m2 (Bellei, secao total)
+    area_secao_total = _exigir_finito(
+        "area total da secao", secao["B_base_m"] * secao["H_max_m"])
+    ok_bellei = area_secao_total * 10000 >= A  # 1 cm2/m2 (Bellei, secao total)
     Vol = (secao["As_cm2"] / 10000) * comp_telhado
-    peso_agua = Vol * 10.0
+    Vol = _exigir_finito("volume de agua", Vol)
+    peso_agua = _exigir_finito("peso da agua", Vol * 10.0)
     return {
         "area_contrib_m2": round(A, 1), "vazao_Lmin": round(Q, 1),
         "secao": {**secao, "ok_bellei": ok_bellei,
