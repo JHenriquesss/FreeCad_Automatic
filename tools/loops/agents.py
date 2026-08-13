@@ -77,8 +77,6 @@ class CodexExecAdapter:
             "exec",
             "--cd",
             worktree,
-            "--sandbox",
-            "workspace-write",
             "--approve-for-me",
             "--output-last-message",
             str(artifact),
