@@ -1,7 +1,9 @@
 # 06 — Open threads
 
-## T42 — Sessão 43 (2026-08-13): área mínima da sinalização NBR 16820 — ABERTO
-- [ ] Validar a área real das placas de emergência pela relação de área mínima da NBR 16820:2020 e integrar o gate ao loop.
+## T42 — Sessão 43 (2026-08-13): área mínima da sinalização NBR 16820 — RESOLVIDO
+- [x] Validar a área real das placas de emergência pela relação de área mínima da NBR 16820:2020 e integrar o gate ao loop.
+- Implementado em `framework/galpao_fw/sinalizacao_nbr16820.py`; evidência auditável no dry-run `loop-20260813T204227870057Z`, usando exclusivamente o source ID `3510e0c9-f90d-41b5-87ca-42446212c710`.
+- Testes da unidade e regressões de incêndio: 56 passados; descoberta: 26; suíte do loop: 184; `nlm login --check` válido.
 
 ## T41 — Revisão da wiki (2026-08-11): memory/ não versionado + status reais + trabalho pós-S40
 Registro da revisão da wiki (2026-08-11, branch `docs/revisao-wiki-2026-08-11`; tasks 1–16 do plano de revisão):
