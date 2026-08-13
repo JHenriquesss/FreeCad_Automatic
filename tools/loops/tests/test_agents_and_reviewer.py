@@ -161,6 +161,14 @@ def test_implementation_prompt_does_not_reopen_a_confirmed_red_contract(tmp_path
     assert "conflito nao resolvido" in prompt.casefold()
 
 
+def test_implementation_prompt_keeps_approved_phase_in_execution_mode(tmp_path):
+    prompt = build_implementation_prompt(request(tmp_path)).casefold()
+
+    assert "fase e o desenho ja foram aprovados" in prompt
+    assert "nao invoque brainstorming" in prompt
+    assert "nao faca perguntas de aprovacao" in prompt
+
+
 def test_implementation_prompt_overrides_legacy_plan_decision_request(tmp_path):
     prompt = build_implementation_prompt(
         request(
