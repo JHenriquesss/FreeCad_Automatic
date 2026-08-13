@@ -115,6 +115,14 @@ def _stop_process_tree(process):
                 check=False,
             )
             if result.returncode == 0:
+                try:
+                    process.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    try:
+                        process.kill()
+                    except (AttributeError, OSError):
+                        pass
+                    process.communicate()
                 return
         except OSError:
             pass
