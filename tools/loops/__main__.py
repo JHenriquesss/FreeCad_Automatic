@@ -138,11 +138,20 @@ def _red_gate(test_runner, candidate, worktree, config):
         build_timeout_seconds=config.build_timeout_seconds,
     )
     snapshot = runner.targeted(candidate.suggested_tests)
-    return (
-        not snapshot.timed_out
-        and snapshot.returncode != 0
-        and (snapshot.failed > 0 or snapshot.errors > 0)
-    )
+    return {
+        "kind": "red",
+        "successful": (
+            not snapshot.timed_out
+            and snapshot.returncode != 0
+            and (snapshot.failed > 0 or snapshot.errors > 0)
+        ),
+        "returncode": snapshot.returncode,
+        "failed": snapshot.failed,
+        "errors": snapshot.errors,
+        "failed_tests": list(snapshot.failed_tests),
+        "error_tests": list(snapshot.error_tests),
+        "target_paths": list(snapshot.target_paths),
+    }
 
 
 def _research_candidate(adapter, candidate):
@@ -240,7 +249,8 @@ def _default_plan(candidate, evidence):
         f"Tarefa: {candidate.title}\n"
         f"Origem: {candidate.origin}\n"
         f"Testes sugeridos: {', '.join(candidate.suggested_tests) or 'definir teste local'}\n"
-        "Usar somente as citações registradas e pedir decisão humana para incerteza."
+        "Usar somente as citações registradas; se houver conflito normativo real não resolvido, "
+        "estacionar para decisão humana sem reabrir contrato já demonstrado pelos testes."
     )
 
 

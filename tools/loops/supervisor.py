@@ -53,6 +53,7 @@ _FAILURE_PHASES = {
     "research_error": LoopPhase.RESEARCH,
     "red_failed": LoopPhase.RED,
     "implementation_error": LoopPhase.IMPLEMENT,
+    "implementation_no_change": LoopPhase.IMPLEMENT,
     "targeted_failed": LoopPhase.VERIFY,
     "regression_failed": LoopPhase.VERIFY,
     "build_failed": LoopPhase.VERIFY,
@@ -209,6 +210,15 @@ class DevelopmentSupervisor:
                     red_result = self._attempt(LoopPhase.RED, self._red, state.task, state.evidence, self._plan_text())
                 except Exception as error:
                     return self._park("red_failed", str(error))
+                self._red_result = red_result
+                red_document = red_result.to_dict() if hasattr(red_result, "to_dict") else (
+                    red_result if isinstance(red_result, dict) else {
+                        "kind": "red",
+                        "successful": _successful_bool(red_result),
+                    }
+                )
+                red_path = self._write_json_artifact("red", red_document)
+                self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "red": red_path}))
                 if not _successful_bool(red_result):
                     return self._park("red_failed", "target test did not fail before implementation")
                 self._transition(LoopPhase.RED, LoopPhase.IMPLEMENT)
@@ -224,6 +234,11 @@ class DevelopmentSupervisor:
                     return self._park("command_timeout", "implementation agent timed out")
                 if not _successful_bool(result):
                     return self._park("implementation_error", "implementation agent failed")
+                if not self._implementation_changed(result, state.worktree):
+                    return self._park(
+                        "implementation_no_change",
+                        "implementation agent completed without changing the worktree",
+                    )
                 self._transition(LoopPhase.IMPLEMENT, LoopPhase.VERIFY)
                 continue
             if state.phase is LoopPhase.VERIFY:
@@ -401,6 +416,9 @@ class DevelopmentSupervisor:
         return self.deps.red.run(candidate, evidence, plan, self.ledger.state.worktree)
 
     def _agent(self, candidate, evidence, plan, worktree):
+        red_result = getattr(self, "_red_result", None)
+        if red_result is None:
+            red_result = self._load_json_artifact("red") or self._load_json_artifact("targeted")
         request = AgentRequest(
             task=candidate,
             evidence=evidence,
@@ -409,6 +427,7 @@ class DevelopmentSupervisor:
             test_paths=tuple(candidate.suggested_tests),
             artifact_path=str(self.run_dir / "agent-last-message.txt"),
             timeout_seconds=self.config.command_timeout_seconds,
+            red_result=red_result,
         )
         return self.deps.agent.run(request) if hasattr(self.deps.agent, "run") else self.deps.agent(request)
 
@@ -590,6 +609,16 @@ class DevelopmentSupervisor:
 
         return TestSnapshot(**json.loads((self.run_dir / f"{name}.json").read_text(encoding="utf-8")))
 
+    def _load_json_artifact(self, name):
+        artifact = self.ledger.state.artifacts.get(name) if self.ledger is not None else None
+        path = Path(artifact) if artifact else self.run_dir / f"{name}.json"
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError):
+            return None
+
     def _load_delta(self):
         from .tests_runner import TestDelta
 
@@ -633,6 +662,11 @@ class DevelopmentSupervisor:
             ).stdout
         except OSError:
             return ""
+
+    def _implementation_changed(self, result, worktree):
+        if tuple(getattr(result, "files_touched", ())):
+            return True
+        return bool(self._git_diff(worktree) or self._worktree_files(worktree))
 
     @staticmethod
     def _worktree_files(worktree):
@@ -693,6 +727,8 @@ class DevelopmentSupervisor:
 def _successful_bool(value):
     if isinstance(value, bool):
         return value
+    if isinstance(value, dict):
+        return bool(value.get("successful", False))
     return bool(getattr(value, "successful", False))
 
 

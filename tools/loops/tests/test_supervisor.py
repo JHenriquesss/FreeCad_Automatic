@@ -327,6 +327,30 @@ def test_targeted_failure_parks_loop(tmp_path):
     assert h.promote.calls == 0
 
 
+def test_successful_implementation_without_changes_parks_before_targeted_gate(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.agent.value = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=".",
+        returncode=0,
+        duration_seconds=0.1,
+        stdout="proposta sem alteracao",
+        stderr="",
+        files_touched=(),
+    )
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "implementation_no_change"
+    assert outcome.phase is LoopPhase.PARK
+    assert outcome.state.failure.reason == "implementation_no_change"
+    assert h.agent.calls == 1
+    assert h.tests.calls == ["baseline"]
+    assert h.reviewer.calls == 0
+    assert h.promote.calls == 0
+
+
 def test_regression_failure_parks_loop(tmp_path):
     h, cfg = harness(tmp_path, regression_failed=True)
 

@@ -19,6 +19,7 @@ class AgentRequest:
     test_paths: tuple[str, ...]
     artifact_path: str | None = None
     timeout_seconds: int = 1800
+    red_result: object | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "test_paths", tuple(str(path) for path in self.test_paths))
@@ -160,11 +161,16 @@ def build_implementation_prompt(request: AgentRequest) -> str:
         f"[{item.number}] {item.source_id}: {item.cited_text}" for item in citations
     ) or "nenhuma citacao registrada"
     tests = ", ".join(request.test_paths) or "teste alvo a definir"
+    red_contract = _red_contract(request.red_result)
     return (
         "Implementar a tarefa abaixo na worktree delimitada.\n\n"
         f"Tarefa: {getattr(task, 'title', task)}\n"
         f"ID/origem: {getattr(task, 'id', '')} / {getattr(task, 'origin', '')}\n"
         f"Plano: {request.plan}\n"
+        "Contrato executavel do RED (prioridade maxima): abra os testes alvo e trate cada assercao "
+        "observavel, inclusive pytest.raises, como requisito ja decidido; nao peca aprovacao para "
+        "interpretar um contrato demonstrado pelo teste.\n"
+        f"Resultado RED: {red_contract}\n"
         f"Testes alvo: {tests}\n"
         f"Source IDs autorizados: {source_ids}\n"
         f"Citations NotebookLM (citacoes): {citation_text}\n\n"
@@ -177,6 +183,24 @@ def build_implementation_prompt(request: AgentRequest) -> str:
         "preservar arquivos fora da tarefa; registrar qualquer incerteza ou premissa. "
         "Nao buscar fontes remotas, nao alterar fontes, nao fazer push/merge/reset destrutivo "
         "e nao ocultar uma falha de teste. Ao terminar, informe arquivos tocados, comandos e resultado."
+    )
+
+
+def _red_contract(result) -> str:
+    if result is None:
+        return "RED confirmado; os testes alvo contem o contrato executavel."
+    if isinstance(result, dict):
+        get = result.get
+    else:
+        get = lambda name, default=None: getattr(result, name, default)
+    failed_tests = tuple(get("failed_tests", ()) or ())
+    error_tests = tuple(get("error_tests", ()) or ())
+    identifiers = failed_tests + error_tests
+    listed = ", ".join(str(item) for item in identifiers[:30]) or "ids nao persistidos; abrir os testes alvo"
+    return (
+        f"kind={get('kind', 'red')}, returncode={get('returncode', 'n/a')}, "
+        f"failed={get('failed', 'n/a')}, errors={get('errors', 'n/a')}; "
+        f"falhas observadas: {listed}"
     )
 
 

@@ -42,7 +42,7 @@ def evidence(*, citations=True):
     )
 
 
-def request(tmp_path, *, evidence_bundle=None, artifact_path=None, plan=None):
+def request(tmp_path, *, evidence_bundle=None, artifact_path=None, plan=None, red_result=None):
     worktree = tmp_path / "worktree"
     worktree.mkdir()
     return AgentRequest(
@@ -52,6 +52,7 @@ def request(tmp_path, *, evidence_bundle=None, artifact_path=None, plan=None):
         worktree=str(worktree),
         test_paths=("tests/test_validacao.py",),
         artifact_path=str(artifact_path) if artifact_path else None,
+        red_result=red_result,
     )
 
 
@@ -171,6 +172,26 @@ def test_implementation_prompt_overrides_legacy_plan_decision_request(tmp_path):
     assert "plano pode conter orientacao generica ou legada" in prompt
     assert "nao peca nova decisao" in prompt
     assert "resultado do gate red" in prompt
+
+
+def test_implementation_prompt_includes_observed_red_contract(tmp_path):
+    prompt = build_implementation_prompt(
+        request(
+            tmp_path,
+            red_result={
+                "kind": "red",
+                "returncode": 1,
+                "failed": 2,
+                "errors": 0,
+                "failed_tests": ["tests/test_validacao.py::test_lb_zero", "tests/test_validacao.py::test_lb_nan"],
+            },
+        )
+    ).casefold()
+
+    assert "contrato executavel do red" in prompt
+    assert "pytest.raises" in prompt
+    assert "test_lb_zero" in prompt
+    assert "test_lb_nan" in prompt
 
 
 def test_reviewer_rejects_missing_citation(tmp_path):
