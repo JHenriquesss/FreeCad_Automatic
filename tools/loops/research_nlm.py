@@ -411,7 +411,7 @@ class NlmCliAdapter:
             local_hash=metadata.get("local_hash"),
         )
 
-    def query(self, notebook_id, question, source_ids, source_metadata=None):
+    def query(self, notebook_id, question, source_ids, source_metadata=None, retry_question=None):
         requested_source_ids = tuple(dict.fromkeys(source_ids))
         all_sources = self._parse_sources(notebook_id)
         sources_by_id = {source.source_id: source for source in all_sources}
@@ -436,58 +436,72 @@ class NlmCliAdapter:
             raise ValueError("no requested sources are ready")
 
         selected_source_ids = tuple(source.source_id for source in selected_sources)
-        stdout = self._run(
-            (
-                "nlm", "notebook", "query", notebook_id, question,
-                "--source-ids", ",".join(selected_source_ids), "--timeout", "120", "--json",
-            )
-        )
-        document = self._load_json(stdout)
-        if not isinstance(document, dict):
-            raise ValueError("nlm query JSON must be an object")
-        document = self._without_credentials(document)
-        self._write_response_artifact(document)
-        try:
-            citations = self._parse_citations(document, selected_source_ids)
-        except ValueError as error:
-            detail = str(error)
-            marker = "empty citation text for source "
-            if marker in detail:
-                source_id = detail.split(marker, 1)[1].strip()
-                source = next(
-                    (item for item in selected_sources if item.source_id == source_id),
-                    None,
+        questions = tuple(dict.fromkeys(value for value in (question, retry_question) if value))
+        last_error = None
+        for current_question in questions:
+            stdout = self._run(
+                (
+                    "nlm", "notebook", "query", notebook_id, current_question,
+                    "--source-ids", ",".join(selected_source_ids), "--timeout", "120", "--json",
                 )
-                if source is not None:
-                    self._write_manual_request(
-                        source,
-                        notebook_id,
-                        reason=(
-                            "Fonte retornou citacao sem trecho textual; recarregar ou corrigir "
-                            "a fonte no NotebookLM antes de usar a evidencia."
-                        ),
-                    )
-            elif detail == "no auditable citations":
-                for source in selected_sources:
-                    self._write_manual_request(
-                        source,
-                        notebook_id,
-                        reason=(
-                            "Fonte retornou resposta sem citacoes auditaveis; repetir a consulta "
-                            "ou corrigir a indexacao no NotebookLM."
-                        ),
-                    )
-            if detail == "no auditable citations" or marker in detail:
-                raise NlmEvidenceRequired(detail, self.manual_request_path) from error
-            raise
-        return EvidenceBundle(
-            notebook_id=notebook_id,
-            source_ids=selected_source_ids,
-            sources=selected_sources,
-            question=question,
-            answer=str(document.get("answer", "")),
-            conversation_id=document.get("conversation_id", document.get("conversationId")),
-            citations=citations,
-            retrieved_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            manual_request=str(self.manual_request_path) if missing_sources else None,
-        )
+            )
+            document = self._load_json(stdout)
+            if not isinstance(document, dict):
+                raise ValueError("nlm query JSON must be an object")
+            document = self._without_credentials(document)
+            self._write_response_artifact(document)
+            try:
+                citations = self._parse_citations(document, selected_source_ids)
+            except ValueError as error:
+                last_error = error
+                if str(error) == "no auditable citations" and current_question != questions[-1]:
+                    continue
+                detail = str(error)
+                if detail == "no auditable citations" or "empty citation text for source " in detail:
+                    self._record_evidence_error(selected_sources, notebook_id, error)
+                    raise NlmEvidenceRequired(detail, self.manual_request_path) from error
+                raise
+            return EvidenceBundle(
+                notebook_id=notebook_id,
+                source_ids=selected_source_ids,
+                sources=selected_sources,
+                question=current_question,
+                answer=str(document.get("answer", "")),
+                conversation_id=document.get("conversation_id", document.get("conversationId")),
+                citations=citations,
+                retrieved_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                manual_request=str(self.manual_request_path) if missing_sources else None,
+            )
+        if last_error is not None:
+            self._record_evidence_error(selected_sources, notebook_id, last_error)
+            raise NlmEvidenceRequired(str(last_error), self.manual_request_path) from last_error
+        raise ValueError("no query question provided")
+
+    def _record_evidence_error(self, selected_sources, notebook_id, error):
+        detail = str(error)
+        marker = "empty citation text for source "
+        if marker in detail:
+            source_id = detail.split(marker, 1)[1].strip()
+            source = next(
+                (item for item in selected_sources if item.source_id == source_id),
+                None,
+            )
+            if source is not None:
+                self._write_manual_request(
+                    source,
+                    notebook_id,
+                    reason=(
+                        "Fonte retornou citacao sem trecho textual; recarregar ou corrigir "
+                        "a fonte no NotebookLM antes de usar a evidencia."
+                    ),
+                )
+        elif detail == "no auditable citations":
+            for source in selected_sources:
+                self._write_manual_request(
+                    source,
+                    notebook_id,
+                    reason=(
+                        "Fonte retornou resposta sem citacoes auditaveis; repetir a consulta "
+                        "ou corrigir a indexacao no NotebookLM."
+                    ),
+                )

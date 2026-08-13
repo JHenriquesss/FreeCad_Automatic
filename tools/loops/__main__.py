@@ -175,7 +175,10 @@ def _research_candidate(adapter, candidate):
     if not source_ids:
         raise ValueError("no requested sources are ready")
     question = _research_question(candidate, source_ids)
-    return adapter.query(notebook_id, question, source_ids)
+    retry_question = _research_retry_question(candidate, source_ids)
+    if retry_question is None:
+        return adapter.query(notebook_id, question, source_ids)
+    return adapter.query(notebook_id, question, source_ids, retry_question=retry_question)
 
 
 def _research_question(candidate, source_ids):
@@ -190,6 +193,16 @@ def _research_question(candidate, source_ids):
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
     )
+
+
+def _research_retry_question(candidate, source_ids):
+    authorized_ids = ", ".join(source_ids)
+    if candidate.topic == "gusset":
+        return (
+            "Gusset NBR 8800: cite requisitos de espessura, furos, bordas, soldas e valores inválidos. "
+            f"Use somente o source ID exato {authorized_ids}."
+        )
+    return None
 
 
 def _notebook_id_for_candidate(notebook_map, candidate):

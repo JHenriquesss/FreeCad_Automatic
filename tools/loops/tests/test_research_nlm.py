@@ -51,7 +51,7 @@ def write_local_sources(tmp_path):
 class FakeRunner:
     def __init__(self, sources, response=None):
         self.sources = sources
-        self.response = response or {
+        default_response = {
             "answer": "A resposta de teste exige verificacao.",
             "conversation_id": "conv-1",
             "citations": [
@@ -59,6 +59,7 @@ class FakeRunner:
             ],
             "token": "credential-that-must-not-be-written",
         }
+        self.responses = list(response) if isinstance(response, (list, tuple)) else [response or default_response]
         self.calls = []
 
     def __call__(self, argv):
@@ -66,7 +67,7 @@ class FakeRunner:
         if tuple(argv[:3]) == ("nlm", "list", "sources"):
             return json.dumps(self.sources)
         if tuple(argv[:3]) == ("nlm", "notebook", "query"):
-            return json.dumps(self.response)
+            return json.dumps(self.responses.pop(0))
         raise AssertionError(f"unexpected command: {argv}")
 
 
@@ -248,6 +249,46 @@ def test_query_rejects_response_without_auditable_citations(tmp_path):
     content = request.read_text(encoding="utf-8")
     assert "src-ok" in content
     assert "Fonte retornou resposta sem citacoes auditaveis" in content
+
+
+def test_query_retries_once_with_compact_question_after_empty_citations(tmp_path):
+    adapter, runner = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response=[
+            {
+                "answer": "Resposta sem citacoes.",
+                "citations": {},
+                "references": [],
+            },
+            {
+                "answer": "Resposta auditavel.",
+                "conversation_id": "conv-2",
+                "citations": {"1": "src-ok"},
+                "references": [
+                    {
+                        "source_id": "src-ok",
+                        "citation_number": 1,
+                        "cited_text": "trecho normativo",
+                    }
+                ],
+            },
+        ],
+    )
+
+    evidence = adapter.query(
+        "nb-1",
+        "Pergunta detalhada com contexto amplo.",
+        ("src-ok",),
+        retry_question="Pergunta compacta: cite o requisito.",
+    )
+
+    query_calls = [call for call in runner.calls if call[:3] == ("nlm", "notebook", "query")]
+    assert len(query_calls) == 2
+    assert query_calls[0][4] == "Pergunta detalhada com contexto amplo."
+    assert query_calls[1][4] == "Pergunta compacta: cite o requisito."
+    assert evidence.question == "Pergunta compacta: cite o requisito."
+    assert evidence.citations[0].cited_text == "trecho normativo"
 
 
 @pytest.mark.parametrize(
