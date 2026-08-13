@@ -235,6 +235,11 @@ class TestRunner:
                 return path.resolve().relative_to(self.framework_root).as_posix()
             except ValueError:
                 return str(path)
+        project_relative = self.project_root / path
+        try:
+            return project_relative.resolve().relative_to(self.framework_root).as_posix()
+        except ValueError:
+            pass
         return path.as_posix()
 
     def _save_output(self, kind: str, result: CommandResult) -> tuple[str, ...]:

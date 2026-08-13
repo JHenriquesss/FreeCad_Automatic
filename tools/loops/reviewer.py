@@ -72,8 +72,8 @@ class ReviewAdapter:
         if not regression_ok:
             reasons.append("nova regressao, erro, timeout ou falha de execucao")
 
-        remote_sources_ok = not _remote_source_change(request.diff)
-        if not remote_sources_ok and "fonte remota alterada" not in reasons[-1:]:
+        remote_sources_ok = not _remote_source_change(request.diff, request.files_touched)
+        if not remote_sources_ok and not any("fonte remota" in reason for reason in reasons):
             reasons.append("mudanca em fonte remota proibida")
 
         return ReviewResult(
@@ -143,11 +143,9 @@ def _diff_paths(diff: str) -> tuple[str, ...]:
     return tuple(paths)
 
 
-def _remote_source_change(diff: str) -> bool:
-    return any(
-        path.casefold().startswith(("fontes/", "sources/", "source/"))
-        for path in _diff_paths(diff)
-    )
+def _remote_source_change(diff: str, files_touched=()) -> bool:
+    paths = set(_diff_paths(diff)) | set(files_touched)
+    return any(path.casefold().startswith(("fontes/", "sources/", "source/")) for path in paths)
 
 
 def _same_path(expected: str, actual: str) -> bool:

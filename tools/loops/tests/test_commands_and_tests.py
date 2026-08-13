@@ -154,3 +154,15 @@ def test_runner_preserves_full_output_as_artifacts(tmp_path):
 
     assert "full stdout" in Path(snapshot.artifacts[0]).read_text(encoding="utf-8")
     assert "full stderr" in Path(snapshot.artifacts[1]).read_text(encoding="utf-8")
+
+
+def test_targeted_runner_normalizes_project_relative_framework_path(tmp_path):
+    test_file = tmp_path / "framework" / "galpao_fw" / "tests" / "test_modulo.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("", encoding="utf-8")
+    fake = FakeCommandRunner([result(stdout="===== 1 passed in 0.01s =====\n")])
+    runner = LoopTestRunner(tmp_path, command_runner=fake)
+
+    runner.targeted(("framework/galpao_fw/tests/test_modulo.py",))
+
+    assert fake.calls[0][0][-1] == "tests/test_modulo.py"
