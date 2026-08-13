@@ -45,3 +45,44 @@ Get-Content tools\build-logs\LATEST.txt
 
 Se `freecadcmd.exe` não estiver no caminho padrão, passe `-FreeCadCmd <path>` ao
 runner (ou defina a variável de ambiente `FREECADCMD`).
+
+## Loop supervisionado de desenvolvimento
+
+O loop descobre uma lacuna observável, consulta o NotebookLM com fontes prontas,
+planeja uma tarefa pequena, cria uma worktree isolada, executa RED/targeted/
+regressão/build quando aplicável, revisa e registra o resultado. O modo padrão
+de trabalho deve ser `supervised`; `dry-run` não edita código e `autonomous`
+continua sujeito aos limites e proibições do supervisor.
+
+Pré-requisitos:
+
+```powershell
+nlm login --check
+python -m pytest tools/loops -q
+```
+
+O mapa `fontes/notebooklm-mapa.md` escolhe o notebook pela pasta local e
+`fontes/catalogo.csv` identifica título, caminho e hash das fontes. Uma fonte
+ausente ou não pronta gera `.loop-runtime/manual-source-requests.md` e estaciona
+a rodada; não se deve inventar conteúdo normativo.
+
+Comandos:
+
+```powershell
+python -m tools.loops --mode dry-run --max-iterations 1
+python -m tools.loops --mode supervised --executor codex --max-iterations 1
+python -m tools.loops --mode supervised --executor claude --resume <loop_id>
+```
+
+O estado fica em `.loop-runtime/ledger.json`, com artefatos em
+`.loop-runtime/runs/<loop_id>/`. O root Git não é editado pelo agente; a promoção
+é commit local na worktree e merge/push permanecem manuais. Para recuperar uma
+falha, examine o ledger e o resumo da sessão, corrija a causa ou forneça a fonte
+solicitada e use `--resume`. Um ledger ativo deve ser retomado antes de iniciar
+outra rodada.
+
+Os gates têm timeouts separados para comandos e build. O build FreeCAD é uma
+guarda própria e só é obrigatório para tarefas marcadas como build. Todos os
+testes do loop usam fakes e não chamam rede; a primeira execução real deve ser
+precedida por `nlm login --check` e revisão manual da candidata, pergunta e
+source IDs.
