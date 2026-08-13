@@ -201,6 +201,34 @@ def test_research_prompt_focuses_ligacoes_rules_and_invalid_values():
     )
 
 
+def test_research_prompt_focuses_base_chumbador_rules_and_scope_limits():
+    source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — base_chumbador",
+        "estrutura",
+        "wiki:T16:base_chumbador",
+        50,
+        ("wiki.md",),
+        (),
+        topic="base_chumbador",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert question == (
+        "Para base_chumbador, liste somente requisitos verificáveis da NBR 8800 para placas de base, "
+        "chumbadores/parafusos, furos, esmagamento, tração e cisalhamento; se a norma não cobrir "
+        "breakout/concreto, declare isso. Cite cada item usando o source ID exato entre: " + source_id + "."
+    )
+    assert retry == (
+        "Base/chumbador NBR 8800: cite regras de placas de base, chumbadores/parafusos, furos, "
+        "esmagamento, tração/cisalhamento e limites inválidos; declare ausência de regra quando aplicável. "
+        "Use somente o source ID exato " + source_id + "."
+    )
+
+
 def test_cli_allowlist_excludes_sources_and_includes_code(tmp_path):
     root = tmp_path / "project"
     (root / ".git").mkdir(parents=True)

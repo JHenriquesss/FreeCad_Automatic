@@ -195,6 +195,13 @@ def _research_question(candidate, source_ids):
             "bordas, espaçamentos, block shear e valores inválidos. "
             f"Cite cada item usando o source ID exato entre: {authorized_ids}."
         )
+    if candidate.topic == "base_chumbador":
+        return (
+            "Para base_chumbador, liste somente requisitos verificáveis da NBR 8800 para placas de base, "
+            "chumbadores/parafusos, furos, esmagamento, tração e cisalhamento; se a norma não cobrir "
+            "breakout/concreto, declare isso. "
+            f"Cite cada item usando o source ID exato entre: {authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -213,6 +220,12 @@ def _research_retry_question(candidate, source_ids):
             "Ligações NBR 8800: cite requisitos verificáveis de furos, bordas, espaçamentos, "
             "block shear e valores inválidos. Use somente o source ID exato "
             f"{authorized_ids}."
+        )
+    if candidate.topic == "base_chumbador":
+        return (
+            "Base/chumbador NBR 8800: cite regras de placas de base, chumbadores/parafusos, furos, "
+            "esmagamento, tração/cisalhamento e limites inválidos; declare ausência de regra quando aplicável. "
+            f"Use somente o source ID exato {authorized_ids}."
         )
     return None
 
