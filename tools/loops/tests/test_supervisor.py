@@ -336,6 +336,22 @@ def test_regression_failure_parks_loop(tmp_path):
     assert h.reviewer.calls == 0
 
 
+def test_regression_timeout_parks_as_command_timeout(tmp_path):
+    h, cfg = harness(tmp_path)
+
+    def timed_out_regression():
+        h.tests.calls.append("regression")
+        return TestSnapshot(kind="regression", returncode=-1, timed_out=True)
+
+    h.tests.regression = timed_out_regression
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "command_timeout"
+    assert outcome.state.failure.reason == "command_timeout"
+    assert h.reviewer.calls == 0
+
+
 def test_timeout_parks_with_command_timeout_reason(tmp_path):
     h, cfg = harness(tmp_path)
     h.tests.targeted_failed = True

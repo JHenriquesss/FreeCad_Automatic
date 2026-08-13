@@ -311,6 +311,8 @@ class DevelopmentSupervisor:
             regression = tests.regression()
             regression_path = self._write_json_artifact("regression", regression.to_dict())
             self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "regression": regression_path}))
+            if regression.timed_out:
+                return self._park("command_timeout", "regression gate timed out")
             baseline = self._load_snapshot("baseline")
             delta = compare_snapshots(baseline, regression)
             delta_path = self._write_json_artifact("test-delta", delta.to_dict())
