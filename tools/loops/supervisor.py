@@ -173,7 +173,7 @@ class DevelopmentSupervisor:
                 if self.config.mode == "dry-run":
                     return self._finish_park("dry_run")
                 try:
-                    worktree = self._create_worktree()
+                    worktree = self.ledger.state.worktree or self._create_worktree()
                     self._save(replace(self.ledger.state, worktree=worktree))
                     baseline = self._tests_baseline()
                     baseline_path = self._write_json_artifact("baseline", baseline.to_dict())

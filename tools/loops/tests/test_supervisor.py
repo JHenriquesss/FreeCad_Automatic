@@ -488,6 +488,37 @@ def test_resume_restarts_from_persisted_phase(tmp_path):
     assert h.agent.calls == 1
 
 
+def test_resume_from_plan_reuses_persisted_worktree(tmp_path):
+    h, cfg = harness(tmp_path)
+    loop_id = "resume-plan"
+    runtime = Path(cfg.runtime_dir)
+    worktree = h.root / "worktree" / loop_id
+    worktree.mkdir(parents=True)
+    state = LoopState(
+        schema_version=1,
+        loop_id=loop_id,
+        mode="supervised",
+        iteration=1,
+        phase=LoopPhase.PLAN,
+        task=task(),
+        base_commit=h.base,
+        worktree=str(worktree),
+        evidence=evidence(),
+        attempts={"plan": 0},
+        artifacts={},
+        outcome=None,
+        last_error=None,
+        failure=None,
+    )
+    Ledger(runtime / "ledger.json", state).save()
+
+    outcome = make_supervisor(h, cfg).resume(loop_id)
+
+    assert outcome.outcome == "promoted"
+    assert h.worktrees.create_calls == 0
+    assert outcome.state.worktree == str(worktree)
+
+
 def test_resume_from_review_rehydrates_persisted_verification(tmp_path):
     h, cfg = harness(tmp_path)
     loop_id = "resume-review"
