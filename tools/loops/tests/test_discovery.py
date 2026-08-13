@@ -366,9 +366,14 @@ def test_discovery_creates_atomic_emergency_sign_area_candidate():
 
     signage = next(
         item for item in candidates
-        if item.origin.endswith(":sinalizacao-area-minima")
+        if item.origin == (
+            "framework/galpao_fw/wiki/06-open-threads.md:T42:sinalizacao-area-minima"
+        )
     )
 
+    assert signage.origin == (
+        "framework/galpao_fw/wiki/06-open-threads.md:T42:sinalizacao-area-minima"
+    )
     assert signage.topic == "sinalizacao"
     assert signage.discipline == "seguranca"
     assert signage.priority == 75
@@ -381,3 +386,18 @@ def test_discovery_creates_atomic_emergency_sign_area_candidate():
         "framework/galpao_fw/tests/test_seguranca_incendio.py",
         "framework/galpao_fw/tests/test_sinalizacao_nbr16820.py",
     )
+
+
+def test_discovery_does_not_decompose_area_item_from_another_thread(tmp_path):
+    wiki = tmp_path / "framework" / "galpao_fw" / "wiki"
+    wiki.mkdir(parents=True)
+    (wiki / "06-open-threads.md").write_text(
+        "# Threads\n"
+        "## T43 — outra thread\n"
+        "- [ ] Validar a área mínima das placas de emergência conforme NBR 16820:2020.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+
+    assert not any(item.topic == "sinalizacao" for item in candidates)

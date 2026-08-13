@@ -271,7 +271,7 @@ def _candidates_for_item(
     if (
         "area minima" in _normalized(title)
         and "16820" in _normalized(title)
-        and origin.startswith("framework/galpao_fw/wiki/06-open-threads.md:")
+        and origin == "framework/galpao_fw/wiki/06-open-threads.md:T42"
     ):
         return [
             _candidate(
