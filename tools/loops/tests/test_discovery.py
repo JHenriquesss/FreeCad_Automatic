@@ -148,6 +148,23 @@ def test_foundation_pending_item_is_structural_and_uses_relevant_tests():
     )
 
 
+def test_pile_foundation_context_does_not_inherit_cross_discipline_tests():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    pile = next(item for item in candidates if "FS = 2,0" in item.title)
+
+    assert pile.discipline == "estrutura"
+    assert pile.suggested_tests
+    assert all(
+        not any(term in path.casefold() for term in ("eletrico", "incendio", "calha"))
+        for path in pile.suggested_tests
+    )
+    assert any(
+        any(term in path.casefold() for term in ("estaca", "fundacao", "geotec", "validacao"))
+        for path in pile.suggested_tests
+    )
+
+
 def test_normative_prose_is_not_discovered():
     candidates = discover_candidates(PROJECT_ROOT)
 

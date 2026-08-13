@@ -199,7 +199,8 @@ def _candidate(
     evidence_path: str,
     suggestions: tuple[str, ...],
 ) -> TaskCandidate:
-    discipline = _discipline_for(title, f"{origin} {evidence_path}")
+    context = f"{origin} {evidence_path}"
+    discipline = _discipline_for(title, context)
     priority = _observed_priority(title, discipline)
     identifier = sha1(f"{origin}\n{title}".encode("utf-8")).hexdigest()[:12]
     return TaskCandidate(
@@ -209,7 +210,7 @@ def _candidate(
         origin=origin,
         priority=priority,
         evidence_paths=(evidence_path,),
-        suggested_tests=_tests_for_candidate(title, discipline, suggestions),
+        suggested_tests=_tests_for_candidate(title, discipline, suggestions, context),
     )
 
 
@@ -288,8 +289,13 @@ def _suggested_tests(root: Path) -> tuple[str, ...]:
     )
 
 
-def _tests_for_candidate(title: str, discipline: str, available: tuple[str, ...]) -> tuple[str, ...]:
-    text = _normalized(title)
+def _tests_for_candidate(
+    title: str,
+    discipline: str,
+    available: tuple[str, ...],
+    context: str = "",
+) -> tuple[str, ...]:
+    text = _normalized(f"{title} {context}")
     if any(term in text for term in ("fundacao", "sapata", "estaca", "geotec", "tombamento", "deslizamento", "solo")):
         terms = ("fundacao", "geotec", "bloco", "galpao_concreto", "validacao")
     elif discipline == "eletrica":
