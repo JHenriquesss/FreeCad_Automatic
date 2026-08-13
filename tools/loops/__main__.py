@@ -212,7 +212,8 @@ def _research_retry_question(candidate, source_ids):
     authorized_ids = ", ".join(source_ids)
     if candidate.topic == "gusset":
         return (
-            "Gusset NBR 8800: cite requisitos de espessura, furos, bordas, soldas e valores inválidos. "
+            "Gusset na NBR 8800: cite somente requisitos verificáveis para tração, compressão, "
+            "solda, furos e block shear; informe limites físicos inválidos. "
             f"Use somente o source ID exato {authorized_ids}."
         )
     if candidate.topic == "ligacoes":

@@ -174,6 +174,28 @@ def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
     )
 
 
+def test_gusset_retry_prompt_is_compact_for_auditable_citations():
+    source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
+    candidate = TaskCandidate(
+        "id",
+        "Fuzz interno — gusset",
+        "estrutura",
+        "wiki:T16:gusset",
+        70,
+        ("wiki.md",),
+        (),
+        topic="gusset",
+    )
+
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert retry == (
+        "Gusset na NBR 8800: cite somente requisitos verificáveis para tração, compressão, "
+        "solda, furos e block shear; informe limites físicos inválidos. "
+        "Use somente o source ID exato " + source_id + "."
+    )
+
+
 def test_research_prompt_focuses_ligacoes_rules_and_invalid_values():
     source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
     candidate = TaskCandidate(
