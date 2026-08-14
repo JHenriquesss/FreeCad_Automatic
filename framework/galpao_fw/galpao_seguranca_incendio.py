@@ -24,6 +24,7 @@ import proteccao_sprinklers_nbr10897 as sp
 import hidrantes_nbr13714 as hd
 import populacao_nbr9077 as pop
 import armazenamento_nbr16981 as ar
+import extintores_nbr12693 as ex
 
 
 def rodar(spec):
@@ -140,6 +141,13 @@ def rodar(spec):
             "OK": populacao["pronto_para_rotas"],
         }
 
+    extintores = None
+    if spec.get("extintores_nbr12693") is not None:
+        extintores = ex.verifica_extintores_nbr12693(
+            spec["extintores_nbr12693"]
+        )
+        gates["extintores_nbr12693"] = extintores
+
     armazenamento = None
     if spec.get("armazenamento_nbr16981") is not None:
         armazenamento = ar.verifica_armazenamento_nbr16981(
@@ -151,6 +159,8 @@ def rodar(spec):
            "hidrantes": hidr, "gates": gates}
     if armazenamento is not None:
         res["armazenamento_nbr16981"] = armazenamento
+    if extintores is not None:
+        res["extintores_nbr12693"] = extintores
     if populacao is not None:
         res["populacao"] = populacao
     reprovados = [k for k, g in gates.items() if not g["OK"]]

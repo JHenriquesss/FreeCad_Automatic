@@ -116,6 +116,21 @@ def _armazenamento_case(**changes):
     return case
 
 
+def _extintores_case(**changes):
+    case = {
+        "risco": "medio",
+        "classes_fogo": ["A", "B", "C"],
+        "extintores": [
+            {"carga": "po_abc", "capacidade_extintora": "3-A:40-B:C"},
+            {"carga": "po_abc", "capacidade_extintora": "3-A:40-B:C"},
+        ],
+        "distancia_caminhamento_m": 15.0,
+        "condutividade_eletrica": True,
+    }
+    case.update(changes)
+    return case
+
+
 def test_rodar_gates_completos():
     r = si.rodar(_spec())
     g = r["gates"]
@@ -174,6 +189,36 @@ def test_rodar_reprova_bloco_de_armazenamento_vazio_por_inconclusividade():
     assert gate["inconclusivo"] is True
     assert "armazenamento_nbr16981" in r["reprovados"]
     assert r["ATENDE"] is False
+
+
+def test_rodar_integra_protecao_por_extintores_nbr12693():
+    r = si.rodar(_spec(extintores_nbr12693=_extintores_case()))
+
+    gate = r["gates"]["extintores_nbr12693"]
+    assert gate["OK"] is True
+    assert gate["N_extintores"] == 2
+    assert r["ATENDE"] is True
+
+
+def test_extintores_nao_somam_capacidades_menores_para_risco_a():
+    caso = _extintores_case(
+        extintores=[
+            {"carga": "po_abc", "capacidade_extintora": "2-A:20-B:C"},
+            {"carga": "po_abc", "capacidade_extintora": "2-A:20-B:C"},
+        ]
+    )
+    gate = si.rodar(_spec(extintores_nbr12693=caso))["gates"]["extintores_nbr12693"]
+
+    assert gate["OK"] is False
+    assert gate["violacoes"]
+
+
+def test_extintores_abc_sao_reprovados_em_area_com_oxidantes():
+    caso = _extintores_case(oxidantes=True)
+    gate = si.rodar(_spec(extintores_nbr12693=caso))["gates"]["extintores_nbr12693"]
+
+    assert gate["OK"] is False
+    assert any("oxidante" in item.casefold() for item in gate["violacoes"])
 
 
 def test_rodar_rejeita_populacao_sem_area_declarada():
