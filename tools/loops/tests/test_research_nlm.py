@@ -242,6 +242,85 @@ def test_query_parses_notebooklm_citation_map_with_references(tmp_path):
     assert evidence.citations[0].cited_text == "trecho normativo"
 
 
+def test_query_parses_auditable_json_nested_in_answer(tmp_path):
+    nested = {
+        "sources_used": ["src-ok"],
+        "citations": [
+            {"number": 1, "source_id": "src-ok", "cited_text": "trecho da resposta"}
+        ],
+        "references": [
+            {
+                "source_id": "src-ok",
+                "citation_number": 1,
+                "secao": "Subcláusula 5.2.2.4",
+                "cited_text": "trecho normativo auditável",
+            }
+        ],
+    }
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": json.dumps(nested, ensure_ascii=False),
+            "citations": {},
+            "references": [],
+        },
+    )
+
+    evidence = adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+    assert evidence.source_ids == ("src-ok",)
+    assert evidence.citations[0].source_id == "src-ok"
+    assert evidence.citations[0].number == "1"
+    assert evidence.citations[0].cited_text == (
+        "Subcláusula 5.2.2.4: trecho normativo auditável"
+    )
+
+
+def test_query_rejects_nested_answer_with_unrequested_source(tmp_path):
+    nested = {
+        "sources_used": ["src-other"],
+        "citations": [
+            {"number": 1, "source_id": "src-other", "cited_text": "fora do escopo"}
+        ],
+        "references": [
+            {"source_id": "src-other", "citation_number": 1, "secao": "4.1", "cited_text": "fora"}
+        ],
+    }
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": json.dumps(nested),
+            "citations": {},
+            "references": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="unrequested source"):
+        adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+
+def test_query_rejects_nested_answer_without_section_or_text(tmp_path):
+    nested = {
+        "sources_used": ["src-ok"],
+        "citations": [{"number": 1, "source_id": "src-ok", "cited_text": "resumo"}],
+        "references": [{"source_id": "src-ok", "citation_number": 1}],
+    }
+    adapter, _ = make_adapter(
+        tmp_path,
+        [{"id": "src-ok", "title": "Norma teste", "status": 2}],
+        response={
+            "answer": json.dumps(nested),
+            "citations": {},
+            "references": [],
+        },
+    )
+
+    with pytest.raises(NlmEvidenceRequired, match="nested citation"):
+        adapter.query("nb-1", "Qual requisito deve ser verificado?", ("src-ok",))
+
+
 def test_query_rejects_empty_reference_text_for_notebooklm_citation_map(tmp_path):
     adapter, _ = make_adapter(
         tmp_path,

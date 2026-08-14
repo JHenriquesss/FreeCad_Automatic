@@ -425,7 +425,97 @@ class NlmCliAdapter:
         ).write(self.manual_request_path)
 
     @staticmethod
+    def _parse_nested_answer_citations(document, requested_source_ids):
+        """Parse the structured JSON sometimes returned inside ``answer``.
+
+        The NotebookLM CLI normally exposes ``citations`` and ``references``
+        as top-level fields, but some responses serialize the same structure
+        as a JSON object inside the answer string.  That representation is
+        accepted only when its source scope and textual references are
+        independently validated.
+        """
+        answer = document.get("answer")
+        if isinstance(answer, dict):
+            nested = answer
+        elif isinstance(answer, str):
+            text = answer.strip()
+            if text.startswith("```") and text.endswith("```"):
+                lines = text.splitlines()
+                text = "\n".join(lines[1:-1]).strip()
+            try:
+                nested = json.loads(text)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return None
+        else:
+            return None
+
+        if not isinstance(nested, dict) or not any(
+            key in nested for key in ("sources_used", "citations", "references")
+        ):
+            return None
+
+        used = nested.get("sources_used")
+        if not isinstance(used, list) or not used:
+            raise ValueError("nested citation missing sources_used")
+        for item in used:
+            source_id = item.get("source_id") if isinstance(item, dict) else item
+            if source_id not in requested_source_ids:
+                raise ValueError("nested citation references an unrequested source")
+
+        raw_citations = nested.get("citations")
+        citation_sources = {}
+        if isinstance(raw_citations, list):
+            for index, citation in enumerate(raw_citations, start=1):
+                if not isinstance(citation, dict):
+                    raise ValueError("nested citation must be an object")
+                number = str(citation.get("number", index))
+                source_id = citation.get("source_id", citation.get("sourceId"))
+                if source_id not in requested_source_ids:
+                    raise ValueError("nested citation references an unrequested source")
+                citation_sources[number] = source_id
+        elif isinstance(raw_citations, dict):
+            for number, source_id in raw_citations.items():
+                if source_id not in requested_source_ids:
+                    raise ValueError("nested citation references an unrequested source")
+                citation_sources[str(number)] = source_id
+        else:
+            raise ValueError("nested citation missing citations")
+
+        references = nested.get("references")
+        if not isinstance(references, list) or not references:
+            raise ValueError("nested citation missing references")
+
+        parsed = []
+        for index, reference in enumerate(references, start=1):
+            if not isinstance(reference, dict):
+                raise ValueError("nested citation reference must be an object")
+            number = str(reference.get("citation_number", reference.get("number", index)))
+            source_id = reference.get("source_id", reference.get("sourceId"))
+            if source_id not in requested_source_ids:
+                raise ValueError("nested citation references an unrequested source")
+            citation_source = citation_sources.get(number)
+            if citation_source is not None and citation_source != source_id:
+                raise ValueError("nested citation source does not match reference")
+            section = reference.get("secao", reference.get("section"))
+            cited_text = reference.get("cited_text", reference.get("text"))
+            if not isinstance(section, str) or not section.strip():
+                raise ValueError("nested citation missing section")
+            if not isinstance(cited_text, str) or not cited_text.strip():
+                raise ValueError("nested citation missing cited_text")
+            parsed.append(
+                Citation(
+                    number=number,
+                    source_id=source_id,
+                    cited_text=f"{section.strip()}: {cited_text.strip()}",
+                )
+            )
+        return tuple(parsed)
+
+    @staticmethod
     def _parse_citations(document, requested_source_ids):
+        nested = NlmCliAdapter._parse_nested_answer_citations(document, requested_source_ids)
+        if nested is not None:
+            return nested
         citations = document.get("citations", [])
         if isinstance(citations, dict):
             if not citations:
@@ -552,7 +642,11 @@ class NlmCliAdapter:
                 if str(error) == "no auditable citations" and current_question != questions[-1]:
                     continue
                 detail = str(error)
-                if detail == "no auditable citations" or "empty citation text for source " in detail:
+                if (
+                    detail == "no auditable citations"
+                    or "empty citation text for source " in detail
+                    or detail.startswith("nested citation")
+                ):
                     self._record_evidence_error(selected_sources, notebook_id, error)
                     raise NlmEvidenceRequired(detail, self.manual_request_path) from error
                 raise
@@ -598,5 +692,15 @@ class NlmCliAdapter:
                     reason=(
                         "Fonte retornou resposta sem citacoes auditaveis; repetir a consulta "
                         "ou corrigir a indexacao no NotebookLM."
+                    ),
+                )
+        elif detail.startswith("nested citation"):
+            for source in selected_sources:
+                self._write_manual_request(
+                    source,
+                    notebook_id,
+                    reason=(
+                        "Fonte retornou JSON aninhado em answer sem estrutura de citacao "
+                        "auditavel; repetir a consulta ou corrigir a indexacao no NotebookLM."
                     ),
                 )
