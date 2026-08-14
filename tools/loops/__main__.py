@@ -296,11 +296,10 @@ def _research_question(candidate, source_ids):
     if candidate.topic == "fogo_armazenamento":
         return (
             "Para armazenamento protegido por chuveiros na ABNT NBR 16981:2021, consulte somente as secoes "
-            "4.1.1, 4.6.1, 5.2.2.4, 6.3.1.2.1, 8.3.2.3, 8.3.3.3, 9.1.4.1.4, 9.1.4.1.5, B.2.2.1 e B.4.3.1 "
+            "4.1.1, 4.6.1, 5.2.2.4, 6.3.1.2.1, 6.3.4.3.1, 8.3.2.3, 8.3.3.3, 9.1.4.1.4, 9.1.4.1.5, B.2.2.1 e B.4.3.1 "
             "da fonte autorizada. Liste requisitos verificaveis para risco da mercadoria, "
             "altura, densidade, area de operacao, encapsulamento, ESFR, chuveiros intraprateleiras, bobinas de papel "
-            "e a lacuna de papel tissue. Verifique tambem se o limite de 115 L/min acima de 7,6 m e determinado; "
-            "se nao estiver na fonte, declare a lacuna. Informe secao/tabela, condicao e limite quando a fonte trouxer. Dados "
+            "e a lacuna de papel tissue. Verifique o limite de 115 L/min acima de 7,6 m. Informe secao/tabela, condicao e limite quando a fonte trouxer. Dados "
             "ausentes, tabelas nao citadas e criterios nao determinados devem retornar como lacuna; nao invente "
             "defaults, nao use NBR 10897, NBR 13792, instrucao estadual ou fabricante, e cite cada item usando "
             f"o source ID exato entre: {authorized_ids}."
@@ -400,8 +399,8 @@ def _research_retry_question(candidate, source_ids):
     if candidate.topic == "fogo_armazenamento":
         return (
             "NBR 16981:2021 para armazenamento: responda em no maximo 12 itens; cite somente as secoes 4.1.1, "
-            "4.6.1, 5.2.2.4, 6.3.1.2.1, 8.3.2.3, 8.3.3.3, 9.1.4.1.4, 9.1.4.1.5, B.2.2.1 e B.4.3.1, "
-            "verifique o alegado limite de 115 L/min acima de 7,6 m e declare lacuna se ausente, informe requisito e limite/condicao, declare lacunas sem criterio na fonte, nao invente "
+            "4.6.1, 5.2.2.4, 6.3.1.2.1, 6.3.4.3.1, 8.3.2.3, 8.3.3.3, 9.1.4.1.4, 9.1.4.1.5, B.2.2.1 e B.4.3.1, "
+            "informe requisito e limite/condicao, declare lacunas sem criterio na fonte, nao invente "
             "defaults nem use outra norma, inclua citacoes textuais e use somente o source ID exato "
             f"{authorized_ids}."
         )

@@ -135,11 +135,12 @@ def test_esfr_requires_smoke_condition_twelve_sprinklers_and_three_branches():
     assert len(rejected["violacoes"]) >= 2
 
 
-def test_intrarack_storage_checks_area_without_inventing_undetermined_flow_limit():
+def test_intrarack_storage_checks_area_and_high_storage_flow():
     result = ar.verifica_armazenamento_nbr16981(
         _high(
             chuveiros_intraprateleiras=True,
             area_porta_paletes_m2=3700.0,
+            vazao_intraprateleira_Lmin=115.0,
         )
     )
     assert result["OK"] is True
@@ -148,11 +149,12 @@ def test_intrarack_storage_checks_area_without_inventing_undetermined_flow_limit
         _high(
             chuveiros_intraprateleiras=True,
             area_porta_paletes_m2=3700.1,
+            vazao_intraprateleira_Lmin=114.9,
         )
     )
     assert rejected["OK"] is False
     assert rejected["inconclusivo"] is False
-    assert rejected["violacoes"]
+    assert len(rejected["violacoes"]) >= 2
 
 
 def test_paper_coils_require_high_temperature_and_area_density_range():

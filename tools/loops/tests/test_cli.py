@@ -282,7 +282,7 @@ def test_storage_fire_prompt_is_scoped_to_nbr16981_and_declares_lacunas():
     retry = _research_retry_question(candidate, (source_id,))
 
     assert "NBR 16981:2021" in question
-    assert all(section in question for section in ("4.1.1", "5.2.2.4", "6.3.1.2.1", "8.3.3.3", "9.1.4.1.4", "B.2.2.1"))
+    assert all(section in question for section in ("4.1.1", "5.2.2.4", "6.3.1.2.1", "6.3.4.3.1", "8.3.3.3", "9.1.4.1.4", "B.2.2.1"))
     assert source_id in question
     assert "lacuna" in question.casefold()
     assert "nao invente" in question.casefold()
