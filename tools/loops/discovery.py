@@ -123,6 +123,9 @@ _FOGO_ACO_NBR14323_SOURCES = (
 _AGUA_QUENTE_SEGURANCA_SOURCES = (
     "07_HIDRAULICA/HIDRAULICA__NBR__NBR-5626-2020__agua-fria-quente.pdf",
 )
+_ARMAZENAMENTO_NBR16981_SOURCES = (
+    "09_INCENDIO/INCENDIO__NBR__NBR-16981-2021__sprinklers-areas-armazenamento.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -332,6 +335,23 @@ def _candidates_for_item(
                 topic="populacao_saida",
                 source_paths=_POPULACAO_NBR9077_SOURCES,
                 priority=80,
+                discipline="seguranca",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
+    if (
+        all(term in normalized_title for term in ("protecao contra incendio", "16981", "armazenamento"))
+        and normalized_origin.startswith("fontes/fontes-faltantes.md:p1")
+    ):
+        return [
+            _candidate(
+                "Validar requisitos de armazenamento protegido por chuveiros conforme NBR 16981:2021.",
+                f"{origin}:nbr16981-armazenamento",
+                evidence_path,
+                suggestions,
+                topic="fogo_armazenamento",
+                source_paths=_ARMAZENAMENTO_NBR16981_SOURCES,
+                priority=55,
                 discipline="seguranca",
             ),
             _candidate(title, origin, evidence_path, suggestions),
@@ -613,6 +633,14 @@ def _tests_for_candidate(
             "framework/galpao_fw/tests/test_agua_quente_seguranca.py",
             "framework/galpao_fw/tests/test_galpao_hidraulica.py",
             "framework/galpao_fw/tests/test_hidraulica_predial.py",
+        )
+        return tuple(path for path in preferred if path in available)
+    elif topic == "fogo_armazenamento":
+        preferred = (
+            "framework/galpao_fw/tests/test_armazenamento_nbr16981.py",
+            "framework/galpao_fw/tests/test_seguranca_incendio.py",
+            "framework/galpao_fw/tests/test_incendio_robustez.py",
+            "framework/galpao_fw/tests/test_incendio_bim.py",
         )
         return tuple(path for path in preferred if path in available)
     elif topic in _T16_TEST_TERMS:

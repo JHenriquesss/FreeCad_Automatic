@@ -44,7 +44,7 @@ Adicionar o gate puro da NBR 16981:2021 para armazenamento e integrá-lo ao vert
 - [ ] Caso acima de 3,7 m com densidade 6,1, área 186 e não interpolação passa.
 - [ ] Caso encapsulado com densidade de projeto igual a 1,25 vezes a base passa.
 - [ ] Caso ESFR com 12 chuveiros, 3 ramais e ausência de extração/barreira passa.
-- [ ] Caso intraprateleiras dentro de 3.700 m² e vazão de 115 L/min quando aplicável passa.
+- [ ] Caso intraprateleiras dentro de 3.700 m² passa sem inventar limite de vazão ausente.
 - [ ] Caso de bobinas de papel com chuveiro de alta temperatura e área por chuveiro entre 6,5 m² e 9,3 m² passa.
 
 ### Negative
@@ -52,7 +52,7 @@ Adicionar o gate puro da NBR 16981:2021 para armazenamento e integrá-lo ao vert
 - [ ] Configuração vazia ou campo condicional ausente retorna `OK=False`, `inconclusivo=True`.
 - [ ] Densidade abaixo de 6,1 L/min/m² ou área abaixo de 186 m² reprova.
 - [ ] Encapsulamento sem aumento de 25%, interpolação verdadeira ou ESFR com quantidade/ramais incompatíveis reprova.
-- [ ] Área intraprateleiras acima de 3.700 m² ou vazão aplicável abaixo de 115 L/min reprova.
+- [ ] Área intraprateleiras acima de 3.700 m² reprova; a vazão de 115 L/min permanece lacuna não decisória.
 - [ ] Bobina de papel alta sem chuveiro de alta temperatura reprova.
 - [ ] Tissue acima de 6,1 m marca lacuna inconclusiva, sem inventar critério.
 - [ ] Integração sem o bloco de armazenamento preserva os gates históricos; integração com bloco vazio reprova por inconclusividade.
@@ -81,7 +81,7 @@ Após a promoção, iniciar a NBR 14323 quando o PDF for carregado, ou separar r
 ## Global Constraints
 
 - Fonte autorizada: source ID `ce183de0-750c-4330-bf4d-a5a67a15f012`.
-- Limites normativos usados: 3,7 m; 6,1 L/min/m²; 186 m²; 25%; 12 chuveiros; 3 ramais; 3.700 m²; 115 L/min; 4,6 m; 6,5–9,3 m²; 6,1 m para a lacuna tissue.
+- Limites normativos usados: 3,7 m; 6,1 L/min/m²; 186 m²; 25%; 12 chuveiros; 3 ramais; 3.700 m²; 4,6 m; 6,5–9,3 m²; 6,1 m para a lacuna tissue. O alegado limite de 115 L/min acima de 7,6 m não foi determinado pela fonte e fica fora do gate.
 - Nenhum valor ausente recebe default.
 - A NBR 10897 existente continua inalterada.
 

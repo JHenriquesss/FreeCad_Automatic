@@ -541,6 +541,42 @@ def test_fire_pending_decomposes_into_two_atomic_norm_candidates(tmp_path):
     assert first_run == second_run
 
 
+def test_storage_fire_pending_creates_nbr16981_atomic_candidate(tmp_path):
+    source_pending = tmp_path / "fontes"
+    source_pending.mkdir(parents=True)
+    (source_pending / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 - atualizacoes normativas e seguranca industrial\n"
+        "- Protecao contra incendio: NBR 16981:2021 ja cobre areas de armazenamento e "
+        "substitui a NBR 13792:1997; ainda faltam NBR 12693 e NBR 13434.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_armazenamento_nbr16981.py",
+        "test_seguranca_incendio.py",
+        "test_incendio_robustez.py",
+        "test_incendio_bim.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
+    storage = next(item for item in candidates if item.topic == "fogo_armazenamento")
+
+    assert storage.discipline == "seguranca"
+    assert storage.origin.endswith(":nbr16981-armazenamento")
+    assert storage.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-16981-2021__sprinklers-areas-armazenamento.pdf",
+    )
+    assert storage.suggested_tests == (
+        "framework/galpao_fw/tests/test_armazenamento_nbr16981.py",
+        "framework/galpao_fw/tests/test_seguranca_incendio.py",
+        "framework/galpao_fw/tests/test_incendio_robustez.py",
+        "framework/galpao_fw/tests/test_incendio_bim.py",
+    )
+
+
 def test_fire_mirror_does_not_create_duplicate_pending_candidate(tmp_path):
     source_pending = tmp_path / "fontes"
     source_pending.mkdir(parents=True)

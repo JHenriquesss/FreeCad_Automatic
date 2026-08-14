@@ -40,7 +40,7 @@ Quando `armazenamento_encapsulado` for `True`, exigir `densidade_base_Lmin_m2` e
 
 Quando `sistema_esfr` for `True`, exigir `sem_extracao_ou_barreira_fumaca == True`, `n_chuveiros_operacao == 12` e `n_ramais_operacao == 3`, conforme 4.1.1 e 8.3.3.3. A ausência de qualquer campo é inconclusiva; valor incompatível reprova.
 
-Quando `chuveiros_intraprateleiras` for `True`, exigir `area_porta_paletes_m2 <= 3700`. Para altura de armazenamento superior a 7,6 m, exigir `vazao_intraprateleira_Lmin >= 115`, conforme 4.6.1 e 6.3.4.3.1.
+Quando `chuveiros_intraprateleiras` for `True`, exigir `area_porta_paletes_m2 <= 3700`, conforme 4.6.1. A consulta específica não determinou um limite de 115 L/min para altura superior a 7,6 m; esse critério permanece lacuna e não será implementado nesta fase.
 
 Quando `bobinas_papel` for `True` e a altura de armazenamento for pelo menos 4,6 m, exigir `chuveiro_temperatura_alta == True`, conforme 9.1.4.1.4. Se `metodo_area_densidade` for `True`, verificar `6.5 <= area_por_chuveiro_m2 <= 9.3`, conforme 9.1.4.1.5.
 

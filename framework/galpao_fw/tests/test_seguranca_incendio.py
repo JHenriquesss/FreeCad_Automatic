@@ -105,6 +105,17 @@ def _spec(**kw):
     return base
 
 
+def _armazenamento_case(**changes):
+    case = {
+        "mercadoria_risco_mais_grave_declarada": True,
+        "altura_armazenamento_m": 3.7,
+        "altura_teto_m": 6.0,
+        "interpolacao_densidade_area": False,
+    }
+    case.update(changes)
+    return case
+
+
 def test_rodar_gates_completos():
     r = si.rodar(_spec())
     g = r["gates"]
@@ -143,6 +154,26 @@ def test_rodar_sem_populacao_preserva_chamada_antiga():
     assert "populacao" not in r
     assert "populacao" not in r["gates"]
     assert r["ATENDE"] is True
+
+
+def test_rodar_integra_gate_de_armazenamento_nbr16981_quando_informado():
+    r = si.rodar(_spec(armazenamento_nbr16981=_armazenamento_case()))
+
+    gate = r["gates"]["armazenamento_nbr16981"]
+    assert gate["OK"] is True
+    assert gate["inconclusivo"] is False
+    assert "armazenamento_nbr16981" not in r["reprovados"]
+    assert r["ATENDE"] is True
+
+
+def test_rodar_reprova_bloco_de_armazenamento_vazio_por_inconclusividade():
+    r = si.rodar(_spec(armazenamento_nbr16981={}))
+
+    gate = r["gates"]["armazenamento_nbr16981"]
+    assert gate["OK"] is False
+    assert gate["inconclusivo"] is True
+    assert "armazenamento_nbr16981" in r["reprovados"]
+    assert r["ATENDE"] is False
 
 
 def test_rodar_rejeita_populacao_sem_area_declarada():

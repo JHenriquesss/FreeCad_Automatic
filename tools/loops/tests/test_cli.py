@@ -262,6 +262,37 @@ def test_hot_water_prompt_is_scoped_to_nbr5626_and_requires_auditable_citations(
     assert source_id in retry
 
 
+def test_storage_fire_prompt_is_scoped_to_nbr16981_and_declares_lacunas():
+    source_id = "ce183de0-750c-4330-bf4d-a5a67a15f012"
+    candidate = TaskCandidate(
+        "id",
+        "Validar armazenamento conforme NBR 16981:2021",
+        "seguranca",
+        "fontes/fontes-faltantes.md:P1:nbr16981-armazenamento",
+        55,
+        ("fontes/fontes-faltantes.md",),
+        ("framework/galpao_fw/tests/test_armazenamento_nbr16981.py",),
+        topic="fogo_armazenamento",
+        source_paths=(
+            "09_INCENDIO/INCENDIO__NBR__NBR-16981-2021__sprinklers-areas-armazenamento.pdf",
+        ),
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert "NBR 16981:2021" in question
+    assert all(section in question for section in ("4.1.1", "5.2.2.4", "6.3.1.2.1", "8.3.3.3", "9.1.4.1.4", "B.2.2.1"))
+    assert source_id in question
+    assert "lacuna" in question.casefold()
+    assert "nao invente" in question.casefold()
+    assert retry is not None
+    assert "NBR 16981:2021" in retry
+    assert source_id in retry
+    assert "cita" in retry.casefold()
+    assert "lacuna" in retry.casefold()
+
+
 def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
     source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
     candidate = TaskCandidate(
