@@ -23,6 +23,7 @@ import deteccao_alarme_nbr17240 as da
 import proteccao_sprinklers_nbr10897 as sp
 import hidrantes_nbr13714 as hd
 import populacao_nbr9077 as pop
+import armazenamento_nbr16981 as ar
 
 
 def rodar(spec):
@@ -138,9 +139,18 @@ def rodar(spec):
             "nota": "populacao inteira e politica de arredondamento A CONFIRMAR antes das rotas",
             "OK": populacao["pronto_para_rotas"],
         }
+
+    armazenamento = None
+    if spec.get("armazenamento_nbr16981") is not None:
+        armazenamento = ar.verifica_armazenamento_nbr16981(
+            spec["armazenamento_nbr16981"]
+        )
+        gates["armazenamento_nbr16981"] = armazenamento
     res = {"spec": {"C": C, "L": L, "H": H}, "iluminacao_emergencia": emerg,
            "sinalizacao": sinal, "deteccao_alarme": alarme, "sprinklers": sprk,
            "hidrantes": hidr, "gates": gates}
+    if armazenamento is not None:
+        res["armazenamento_nbr16981"] = armazenamento
     if populacao is not None:
         res["populacao"] = populacao
     reprovados = [k for k, g in gates.items() if not g["OK"]]
