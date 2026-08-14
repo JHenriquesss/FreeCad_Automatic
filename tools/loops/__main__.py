@@ -368,6 +368,15 @@ def _research_question(candidate, source_ids):
             "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
             f"{authorized_ids}."
         )
+    if candidate.topic == "agua_quente_segura":
+        return (
+            "Para a segurança da rede predial de água quente na ABNT NBR 5626:2020, liste somente requisitos "
+            "verificáveis das seções 6.7, 6.9, 6.10, 6.11, 6.12 e 6.13 para vazões explicitadas, pressões, "
+            "temperatura, prevenção de escaldamento, superfícies, dilatação, perdas térmicas e dispositivos de "
+            "segurança. Informe a seção/condição de cada requisito, declare lacunas sem parâmetros universais, "
+            "não invente limites nem use outra norma, e cite cada item usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     return (
         f"Para {candidate.topic}, liste somente invariantes normativas, riscos de crash/NaN e critérios de teste. "
         f"Cite cada requisito com o source ID exato entre: {authorized_ids}."
@@ -439,6 +448,13 @@ def _research_retry_question(candidate, source_ids):
             "informe seção/tabela, requisito verificável e limite ou condição; não invente regras fora da fonte, "
             "declare lacunas de cobertura e inclua citações textuais. "
             f"Use somente o source ID exato {authorized_ids}."
+        )
+    if candidate.topic == "agua_quente_segura":
+        return (
+            "NBR 5626:2020 para segurança de água quente: responda em no máximo 10 itens; informe seção/condição, "
+            "requisito verificável e condição de aplicação para as seções 6.7, 6.9, 6.10, 6.11, 6.12 e 6.13; "
+            "inclua citações textuais, declare lacunas sem valor universal, não invente regras e use somente o source ID exato "
+            f"{authorized_ids}."
         )
     return None
 

@@ -233,6 +233,35 @@ def test_estaca_retry_prompt_requires_compact_nbr6122_citations():
     )
 
 
+def test_hot_water_prompt_is_scoped_to_nbr5626_and_requires_auditable_citations():
+    source_id = "88bbe8c0-cab9-44e4-bfe6-8b895d8d6fc2"
+    candidate = TaskCandidate(
+        "id",
+        "Validar segurança da água quente conforme NBR 5626:2020",
+        "hidraulica",
+        "fontes/pendencias-atualizacao.md:Expansão do framework:agua-quente-segura",
+        60,
+        ("fontes/pendencias-atualizacao.md",),
+        ("framework/galpao_fw/tests/test_agua_quente_seguranca.py",),
+        topic="agua_quente_segura",
+        source_paths=(
+            "07_HIDRAULICA/HIDRAULICA__NBR__NBR-5626-2020__agua-fria-quente.pdf",
+        ),
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert "NBR 5626:2020" in question
+    assert all(section in question for section in ("6.7", "6.9", "6.10", "6.11", "6.12", "6.13"))
+    assert source_id in question
+    assert "não invente" in question
+    assert retry is not None
+    assert "NBR 5626:2020" in retry
+    assert "citações textuais" in retry
+    assert source_id in retry
+
+
 def test_research_prompt_focuses_gusset_geometry_and_invalid_values():
     source_id = "d84e215b-a6bf-49f8-899a-a56ddd9510d8"
     candidate = TaskCandidate(

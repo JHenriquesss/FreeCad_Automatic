@@ -632,3 +632,45 @@ def test_structural_fire_pending_decomposes_into_three_atomic_norm_candidates(tm
         for item in discover_candidates(tmp_path)
     )
     assert first_run == second_run
+
+
+def test_hot_water_pending_decomposes_into_source_scoped_atomic_candidate(tmp_path):
+    source_pending = tmp_path / "fontes"
+    source_pending.mkdir(parents=True)
+    (source_pending / "pendencias-atualizacao.md").write_text(
+        "# Pendências\n"
+        "### 5. Expansão do framework\n"
+        "- [ ] Completar fontes de água quente, reservatórios, bombas e componentes hidráulicos.\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    tests.mkdir(parents=True)
+    for name in (
+        "test_agua_quente_seguranca.py",
+        "test_galpao_hidraulica.py",
+        "test_hidraulica_predial.py",
+    ):
+        (tests / name).write_text("", encoding="utf-8")
+
+    candidates = discover_candidates(tmp_path)
+
+    atomic = next(item for item in candidates if item.origin.endswith(":agua-quente-segura"))
+    broad = next(
+        item for item in candidates
+        if item.title.startswith("Completar fontes de água quente")
+    )
+
+    assert atomic.topic == "agua_quente_segura"
+    assert atomic.discipline == "hidraulica"
+    assert atomic.source_paths == (
+        "07_HIDRAULICA/HIDRAULICA__NBR__NBR-5626-2020__agua-fria-quente.pdf",
+    )
+    assert atomic.suggested_tests == (
+        "framework/galpao_fw/tests/test_agua_quente_seguranca.py",
+        "framework/galpao_fw/tests/test_galpao_hidraulica.py",
+        "framework/galpao_fw/tests/test_hidraulica_predial.py",
+    )
+    assert broad.source_paths == ()
+    assert tuple((item.id, item.origin) for item in candidates) == tuple(
+        (item.id, item.origin) for item in discover_candidates(tmp_path)
+    )

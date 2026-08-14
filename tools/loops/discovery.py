@@ -120,6 +120,9 @@ _RESISTENCIA_FOGO_NBR14432_SOURCES = (
 _FOGO_ACO_NBR14323_SOURCES = (
     "09_INCENDIO/INCENDIO__NBR__NBR-14323__estruturas-aco-incendio.pdf",
 )
+_AGUA_QUENTE_SEGURANCA_SOURCES = (
+    "07_HIDRAULICA/HIDRAULICA__NBR__NBR-5626-2020__agua-fria-quente.pdf",
+)
 
 
 def discover_candidates(project_root) -> tuple[TaskCandidate, ...]:
@@ -429,6 +432,33 @@ def _candidates_for_item(
             ),
             _candidate(title, origin, evidence_path, suggestions),
         ]
+    if (
+        all(
+            term in normalized_title
+            for term in (
+                "completar fontes de agua quente",
+                "reservatorios",
+                "bombas",
+                "componentes hidraulicos",
+            )
+        )
+        and normalized_origin.startswith(
+            "fontes/pendencias-atualizacao.md:expansao do framework"
+        )
+    ):
+        return [
+            _candidate(
+                "Validar segurança da rede de água quente conforme NBR 5626:2020.",
+                f"{origin}:agua-quente-segura",
+                evidence_path,
+                suggestions,
+                topic="agua_quente_segura",
+                source_paths=_AGUA_QUENTE_SEGURANCA_SOURCES,
+                priority=65,
+                discipline="hidraulica",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
     if origin.endswith(":T16") and "fuzz interno" in normalized_title:
         return [
             _candidate(
@@ -576,6 +606,13 @@ def _tests_for_candidate(
             "framework/galpao_fw/tests/test_incendio_robustez.py",
             "framework/galpao_fw/tests/test_seguranca_incendio.py",
             "framework/galpao_fw/tests/test_incendio_bim.py",
+        )
+        return tuple(path for path in preferred if path in available)
+    elif topic == "agua_quente_segura":
+        preferred = (
+            "framework/galpao_fw/tests/test_agua_quente_seguranca.py",
+            "framework/galpao_fw/tests/test_galpao_hidraulica.py",
+            "framework/galpao_fw/tests/test_hidraulica_predial.py",
         )
         return tuple(path for path in preferred if path in available)
     elif topic in _T16_TEST_TERMS:
