@@ -354,6 +354,27 @@ def test_reviewer_accepts_verified_in_scope_change(tmp_path):
     assert review.regression_ok
 
 
+def test_reviewer_accepts_new_python_module_inside_code_root(tmp_path):
+    baseline = TestSnapshot(kind="baseline", returncode=0, passed=2)
+    targeted = TestSnapshot(kind="targeted", target_paths=("tests/test_validacao.py",), returncode=0, passed=1)
+    delta = compare_snapshots(baseline, targeted)
+
+    review = ReviewAdapter().review(
+        ReviewerRequest(
+            task=task(),
+            evidence=evidence(),
+            test_delta=delta,
+            diff="diff --git a/framework/galpao_fw/novo_modulo.py b/framework/galpao_fw/novo_modulo.py\n+++ b/framework/galpao_fw/novo_modulo.py",
+            worktree=str(tmp_path),
+            allowed_paths=("framework/galpao_fw/galpao_seguranca_incendio.py",),
+            test_paths=("tests/test_validacao.py",),
+        )
+    )
+
+    assert review.approved
+    assert review.scope_ok
+
+
 def test_reviewer_uses_task_suggested_test_when_path_not_explicit(tmp_path):
     baseline = TestSnapshot(kind="baseline", returncode=0)
     targeted = TestSnapshot(kind="targeted", target_paths=("tests/test_validacao.py",), returncode=0, passed=1)

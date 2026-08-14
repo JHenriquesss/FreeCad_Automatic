@@ -6,6 +6,9 @@ from dataclasses import dataclass
 import re
 
 
+_NEW_CODE_ROOTS = ("framework/galpao_fw/", "tools/")
+
+
 @dataclass(frozen=True)
 class ReviewerRequest:
     task: object
@@ -129,7 +132,7 @@ class ReviewAdapter:
             return False
         if not allowed:
             return False
-        return all(path in allowed for path in paths)
+        return all(path in allowed or _is_new_code_path(path) for path in paths)
 
 
 def _diff_paths(diff: str) -> tuple[str, ...]:
@@ -146,6 +149,11 @@ def _diff_paths(diff: str) -> tuple[str, ...]:
 def _remote_source_change(diff: str, files_touched=()) -> bool:
     paths = set(_diff_paths(diff)) | set(files_touched)
     return any(path.casefold().startswith(("fontes/", "sources/", "source/")) for path in paths)
+
+
+def _is_new_code_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lstrip("./")
+    return normalized.endswith(".py") and normalized.startswith(_NEW_CODE_ROOTS)
 
 
 def _same_path(expected: str, actual: str) -> bool:
