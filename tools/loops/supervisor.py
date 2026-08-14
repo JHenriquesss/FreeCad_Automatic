@@ -54,6 +54,7 @@ _FAILURE_PHASES = {
     "research_error": LoopPhase.RESEARCH,
     "red_failed": LoopPhase.RED,
     "implementation_error": LoopPhase.IMPLEMENT,
+    "implementation_timeout": LoopPhase.IMPLEMENT,
     "implementation_no_change": LoopPhase.IMPLEMENT,
     "targeted_failed": LoopPhase.VERIFY,
     "regression_failed": LoopPhase.VERIFY,
@@ -149,6 +150,8 @@ class DevelopmentSupervisor:
     def _resume_phase(self, state):
         """Choose a retry phase using the persisted result of the last agent run."""
         reason = state.failure.reason
+        if reason == "command_timeout" and self._persisted_agent_timed_out(state):
+            return LoopPhase.IMPLEMENT
         if reason == "targeted_failed":
             agent_artifact = state.artifacts.get("agent")
             if agent_artifact:
@@ -159,6 +162,17 @@ class DevelopmentSupervisor:
                 if document is not None and document.get("files_touched") == []:
                     return LoopPhase.IMPLEMENT
         return _FAILURE_PHASES.get(reason)
+
+    @staticmethod
+    def _persisted_agent_timed_out(state):
+        agent_artifact = state.artifacts.get("agent")
+        if not agent_artifact:
+            return False
+        try:
+            document = json.loads(Path(agent_artifact).read_text(encoding="utf-8"))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            return False
+        return document.get("timed_out") is True
 
     def _start(self, state: LoopState, *, overwrite=False) -> None:
         self.ledger = Ledger(self.ledger_path, state)
@@ -261,7 +275,7 @@ class DevelopmentSupervisor:
                 result_path = self._write_json_artifact("agent", result.to_dict())
                 self._save(replace(self.ledger.state, artifacts={**state.artifacts, "agent": result_path}))
                 if getattr(result, "timed_out", False):
-                    return self._park("command_timeout", "implementation agent timed out")
+                    return self._park("implementation_timeout", "implementation agent timed out")
                 if not _successful_bool(result):
                     return self._park("implementation_error", "implementation agent failed")
                 if not self._implementation_changed(result, state.worktree):

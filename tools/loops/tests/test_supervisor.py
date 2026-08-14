@@ -572,6 +572,87 @@ def test_timeout_parks_with_command_timeout_reason(tmp_path):
     assert outcome.state.failure.reason == "command_timeout"
 
 
+def test_implementation_timeout_resumes_from_implementation_phase(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.agent.value = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=".",
+        returncode=-1,
+        duration_seconds=10.0,
+        stdout="",
+        stderr="timeout",
+        files_touched=(),
+        timed_out=True,
+    )
+
+    first = make_supervisor(h, cfg).run_once()
+
+    assert first.outcome == "implementation_timeout"
+    assert first.state.failure.reason == "implementation_timeout"
+    assert h.tests.calls == ["baseline"]
+
+    h.agent.value = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=".",
+        returncode=0,
+        duration_seconds=0.1,
+        stdout="ok",
+        stderr="",
+        files_touched=("tools/fix.py",),
+    )
+    second = make_supervisor(h, cfg).resume(first.loop_id)
+
+    assert second.outcome == "promoted"
+    assert h.agent.calls == 2
+    assert h.tests.calls == ["baseline", "targeted", "regression"]
+
+
+def test_legacy_command_timeout_with_timed_out_agent_resumes_implementation(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.agent.value = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=".",
+        returncode=-1,
+        duration_seconds=10.0,
+        stdout="",
+        stderr="timeout",
+        files_touched=(),
+        timed_out=True,
+    )
+    first = make_supervisor(h, cfg).run_once()
+    legacy = replace(
+        first.state,
+        outcome="command_timeout",
+        last_error="implementation agent timed out",
+        failure=FailureRecord(
+            "command_timeout",
+            None,
+            tuple(first.state.artifacts.values()),
+            "implementation agent timed out",
+        ),
+    )
+    Ledger(Path(cfg.runtime_dir) / "ledger.json", legacy).save()
+
+    h.agent.value = AgentResult(
+        executor="fake",
+        argv=("fake",),
+        cwd=".",
+        returncode=0,
+        duration_seconds=0.1,
+        stdout="ok",
+        stderr="",
+        files_touched=("tools/fix.py",),
+    )
+    second = make_supervisor(h, cfg).resume(first.loop_id)
+
+    assert second.outcome == "promoted"
+    assert h.agent.calls == 2
+    assert h.tests.calls == ["baseline", "targeted", "regression"]
+
+
 def test_research_timeout_parks_with_command_timeout_reason(tmp_path):
     h, cfg = harness(tmp_path)
     h.research.error = NlmCommandTimeout("nlm command timed out")
