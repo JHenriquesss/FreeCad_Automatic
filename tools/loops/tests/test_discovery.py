@@ -575,6 +575,11 @@ def test_storage_fire_pending_creates_nbr16981_atomic_candidate(tmp_path):
         "framework/galpao_fw/tests/test_incendio_robustez.py",
         "framework/galpao_fw/tests/test_incendio_bim.py",
     )
+    assert {item.topic for item in candidates} >= {
+        "fogo_armazenamento",
+        "extintores",
+        "sinalizacao_incendio",
+    }
 
 
 def test_fire_mirror_does_not_create_duplicate_pending_candidate(tmp_path):

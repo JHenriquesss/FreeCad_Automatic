@@ -343,19 +343,42 @@ def _candidates_for_item(
         all(term in normalized_title for term in ("protecao contra incendio", "16981", "armazenamento"))
         and normalized_origin.startswith("fontes/fontes-faltantes.md:p1")
     ):
-        return [
-            _candidate(
-                "Validar requisitos de armazenamento protegido por chuveiros conforme NBR 16981:2021.",
-                f"{origin}:nbr16981-armazenamento",
-                evidence_path,
-                suggestions,
-                topic="fogo_armazenamento",
-                source_paths=_ARMAZENAMENTO_NBR16981_SOURCES,
-                priority=55,
-                discipline="seguranca",
-            ),
-            _candidate(title, origin, evidence_path, suggestions),
-        ]
+        storage = _candidate(
+            "Validar requisitos de armazenamento protegido por chuveiros conforme NBR 16981:2021.",
+            f"{origin}:nbr16981-armazenamento",
+            evidence_path,
+            suggestions,
+            topic="fogo_armazenamento",
+            source_paths=_ARMAZENAMENTO_NBR16981_SOURCES,
+            priority=55,
+            discipline="seguranca",
+        )
+        if all(term in normalized_title for term in ("12693", "13434")):
+            return [
+                storage,
+                _candidate(
+                    "Validar proteÃ§Ã£o por extintores conforme NBR 12693 (ediÃ§Ã£o a confirmar).",
+                    f"{origin}:nbr12693",
+                    evidence_path,
+                    suggestions,
+                    topic="extintores",
+                    source_paths=_EXTINTORES_NBR12693_SOURCES,
+                    priority=55,
+                    discipline="seguranca",
+                ),
+                _candidate(
+                    "Validar sinalizaÃ§Ã£o de seguranÃ§a contra incÃªndio conforme NBR 13434 (ediÃ§Ã£o a confirmar).",
+                    f"{origin}:nbr13434",
+                    evidence_path,
+                    suggestions,
+                    topic="sinalizacao_incendio",
+                    source_paths=_SINALIZACAO_NBR13434_SOURCES,
+                    priority=50,
+                    discipline="seguranca",
+                ),
+                _candidate(title, origin, evidence_path, suggestions),
+            ]
+        return [storage, _candidate(title, origin, evidence_path, suggestions)]
     if (
         all(
             term in normalized_title
