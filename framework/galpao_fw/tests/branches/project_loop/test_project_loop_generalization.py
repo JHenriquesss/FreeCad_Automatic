@@ -10,11 +10,35 @@ from project_loop import (describe_adapters, run_project, run_project_file,
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = (ROOT.parent.parent / "projects" / "casa-residencial-sintetica"
         / "project-spec.json")
+GENERIC_ARTIFACT_PATHS = {
+    "input/spec.json",
+    "reports/preflight.json",
+    "reports/disciplinas.json",
+    "reports/adapter-result.json",
+}
+FORBIDDEN_ARTIFACT_MARKERS = (".ifc", ".fcstd", ".pdf", ".svg", ".dxf",
+                              "freecad")
+DISCIPLINE_STATUSES = {
+    "passed", "needs_review", "blocked", "failed", "not_requested",
+    "not_available",
+}
+DELIVERABLE_STATUSES = {
+    "generated", "not_requested", "not_available", "blocked", "failed",
+}
+COORDINATION_STATUSES = {
+    "generated", "not_run", "not_available", "blocked", "failed",
+}
 
 
 def test_residential_adapter_is_registered_with_declared_capabilities():
-    capability = next(item for item in describe_adapters()
-                      if item["name"] == "casa-residencial-sintetica")
+    capabilities = [item for item in describe_adapters()
+                    if item["name"] == "casa-residencial-sintetica"]
+    assert capabilities, (
+        "adaptador casa-residencial-sintetica nao registrado; "
+        "adaptadores registrados: %r"
+        % [item.get("name") for item in describe_adapters()]
+    )
+    capability = capabilities[0]
     assert capability["project_types"] == ["residencial"]
     assert capability["disciplines"] == ["arquitetura", "eletrico", "hidraulica"]
     assert capability["deliverables"] == ["report"]
@@ -75,8 +99,16 @@ def test_residential_missing_hooks_are_not_available_when_requested(tmp_path):
     assert result["deliverables"]["ifc"]["status"] == "not_available"
     assert result["deliverables"]["model_3d"]["status"] == "not_available"
     assert result["deliverables"]["drawings"]["status"] == "not_available"
-    assert all(not item["path"].startswith(("bim/", "model/", "drawings/"))
-               for item in result["artifacts"])
+    paths = {item["path"] for item in result["artifacts"]}
+    assert paths <= GENERIC_ARTIFACT_PATHS, (
+        "hooks ausentes nao podem produzir artefatos fora do conjunto "
+        "generico esperado: %r" % sorted(paths - GENERIC_ARTIFACT_PATHS)
+    )
+    assert all(
+        not any(marker in path.casefold()
+                for marker in FORBIDDEN_ARTIFACT_MARKERS)
+        for path in paths
+    ), "artefato de IFC/FreeCAD/PDF/SVG/DXF encontrado: %r" % sorted(paths)
 
 
 def test_residential_type_mismatch_is_blocked(tmp_path):
@@ -106,10 +138,8 @@ def test_residential_manifest_matches_universal_contract(
     galpao_dir = tmp_path / "galpao"
     galpao = run_project(turnkey_fixture(), galpao_dir,
                          options={"generate_ifc": False})
-    universal = {"schema", "adapter", "adapter_capabilities", "disciplines",
-                 "deliverables", "coordination", "artifacts", "verification"}
-    assert universal <= house.keys()
-    assert universal <= galpao.keys()
+    _assert_universal_manifest_contract(house)
+    _assert_universal_manifest_contract(galpao)
     assert verify_project_run(house_dir)["ok"] is True
     assert verify_project_run(galpao_dir)["ok"] is True
 
@@ -117,11 +147,61 @@ def test_residential_manifest_matches_universal_contract(
 def test_residential_artifact_tampering_is_detected(tmp_path):
     result = run_project_file(SPEC, tmp_path,
                               options={"generate_ifc": False})
-    artifact = next(item for item in result["artifacts"]
-                    if item["path"] == "reports/adapter-result.json")
+    matching = [item for item in result["artifacts"]
+                if item["path"] == "reports/adapter-result.json"]
+    assert matching, (
+        "artefato de resultado do adaptador nao foi registrado; artefatos: %r"
+        % result["artifacts"]
+    )
+    artifact = matching[0]
     (tmp_path / artifact["path"]).write_text("adulterado", encoding="utf-8")
     verification = verify_project_run(tmp_path)
     assert verification["ok"] is False
     assert any(item["code"] == "artifact_hash_mismatch"
                and item["path"] == artifact["path"]
                for item in verification["errors"])
+
+
+def _assert_universal_manifest_contract(manifest):
+    expected = {"schema", "adapter", "adapter_capabilities", "disciplines",
+                "deliverables", "coordination", "artifacts", "verification"}
+    assert expected <= manifest.keys()
+    assert isinstance(manifest["schema"], str)
+    assert isinstance(manifest["adapter"], str)
+    assert isinstance(manifest["project_type"], str)
+
+    capabilities = manifest["adapter_capabilities"]
+    assert isinstance(capabilities, dict)
+    assert isinstance(capabilities["project_types"], list)
+    assert isinstance(capabilities["disciplines"], list)
+    assert isinstance(capabilities["deliverables"], list)
+
+    disciplines = manifest["disciplines"]
+    assert isinstance(disciplines, dict)
+    assert all(isinstance(name, str) for name in disciplines)
+    assert all(isinstance(record, dict) for record in disciplines.values())
+    assert all(record["status"] in DISCIPLINE_STATUSES
+               for record in disciplines.values())
+
+    deliverables = manifest["deliverables"]
+    assert isinstance(deliverables, dict)
+    assert all(isinstance(name, str) for name in deliverables)
+    assert all(isinstance(record, dict) for record in deliverables.values())
+    assert all(record["status"] in DELIVERABLE_STATUSES
+               for record in deliverables.values())
+
+    coordination = manifest["coordination"]
+    assert isinstance(coordination, dict)
+    assert coordination["status"] in COORDINATION_STATUSES
+
+    artifacts = manifest["artifacts"]
+    assert isinstance(artifacts, list)
+    assert all(isinstance(record, dict) for record in artifacts)
+    assert all(isinstance(record["path"], str)
+               and not Path(record["path"]).is_absolute()
+               for record in artifacts)
+
+    verification = manifest["verification"]
+    assert isinstance(verification, dict)
+    assert isinstance(verification["ok"], bool)
+    assert isinstance(verification["errors"], list)
