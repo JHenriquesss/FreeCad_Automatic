@@ -37,6 +37,22 @@ def test_universal_core_has_no_direct_galpao_engine_import():
     assert "reports/turnkey.txt" not in source
 
 
+def test_galpao_adapter_is_directly_importable_in_a_fresh_process():
+    script = r'''
+import sys
+
+sys.path.insert(0, sys.argv[1])
+import galpao_adapter
+
+assert callable(galpao_adapter.register_galpao_adapter)
+'''
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(ROOT)],
+        capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
 def test_residential_adapter_is_registered_with_declared_capabilities():
     capabilities = [item for item in describe_adapters()
                     if item["name"] == "casa-residencial-sintetica"]

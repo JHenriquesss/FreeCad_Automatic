@@ -373,3 +373,6 @@ def register_galpao_adapter() -> None:
             "drawings": _emit_drawings,
         },
     )
+
+
+register_galpao_adapter()

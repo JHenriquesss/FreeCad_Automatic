@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import project_loop as project_loop_module
@@ -124,4 +125,6 @@ def test_galpao_report_is_registered_as_a_native_hook(tmp_path, turnkey_fixture)
     artifact = next(item for item in result["artifacts"]
                     if item["path"] == "reports/turnkey.txt")
     assert artifact["kind"] == "turnkey-report"
-    assert len(artifact["sha256"]) == 64
+    report_path = tmp_path / "reports" / "turnkey.txt"
+    assert artifact["sha256"] == hashlib.sha256(
+        report_path.read_bytes()).hexdigest()
