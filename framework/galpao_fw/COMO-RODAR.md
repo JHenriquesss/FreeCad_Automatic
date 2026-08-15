@@ -106,3 +106,22 @@ runtime por `framework.novo_projeto`; não fica no repositório).
   **A CONFIRMAR** no catálogo do fornecedor — confirmar antes do executivo.
 - Métodos extraídos das normas — lidos verbatim do PDF, não de memória (ex.:
   `estaca_profunda.py` registra "LIDO do PDF").
+
+### 9.1 Fixture residencial sintética
+
+Para exercitar a entrada por arquivo e o adaptador residencial sintético:
+
+```powershell
+python framework/galpao_fw/project_loop_cli.py `
+  --spec projects/casa-residencial-sintetica/project-spec.json `
+  --out-dir .loop-runtime/project-loop/casa-residencial-sintetica `
+  --no-ifc
+
+python framework/galpao_fw/project_loop_cli.py `
+  --verify-run .loop-runtime/project-loop/casa-residencial-sintetica
+```
+
+Para esta fixture, `needs_review` é o resultado esperado. A saída `ok: true`
+do segundo comando significa somente integridade dos artefatos persistidos e
+dos hashes; não representa cálculo, validação normativa, aprovação técnica ou
+projeto para obra. A fixture não gera IFC, modelo 3D, desenhos nem caderno.

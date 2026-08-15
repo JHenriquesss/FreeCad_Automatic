@@ -1,0 +1,42 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "adapter": "casa-residencial-sintetica",
+  "project": {
+    "slug": "casa-residencial-sintetica",
+    "type": "residencial",
+    "description": "fixture de contrato; não é projeto para obra"
+  },
+  "site": {
+    "synthetic_fixture": true,
+    "city": "São João da Barra",
+    "state": "RJ",
+    "utility": "ENEL"
+  },
+  "source_refs": {
+    "arquitetura": [],
+    "eletrico": [],
+    "hidraulica": []
+  },
+  "turnkey": {
+    "geometria": {
+      "comprimento": 10.0,
+      "vao": 8.0,
+      "pe_direito": 3.0
+    },
+    "arquitetura": {
+      "synthetic_fixture": true,
+      "ambientes": ["sala", "cozinha", "banheiro", "quarto"]
+    },
+    "eletrico": {
+      "synthetic_fixture": true,
+      "tensao_V": 220.0,
+      "pontos": 8
+    },
+    "hidraulica": {
+      "synthetic_fixture": true,
+      "pontos_consumo": 4,
+      "pontos_esgoto": 3
+    }
+  }
+}
