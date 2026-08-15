@@ -3,8 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from project_loop import (describe_adapters, run_project, run_project_file,
-                          verify_project_run)
+from project_loop import (__file__ as PROJECT_LOOP_FILE, describe_adapters,
+                          run_project, run_project_file, verify_project_run)
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -28,6 +28,13 @@ DELIVERABLE_STATUSES = {
 COORDINATION_STATUSES = {
     "generated", "not_run", "not_available", "blocked", "failed",
 }
+
+
+def test_universal_core_has_no_direct_galpao_engine_import():
+    source = Path(PROJECT_LOOP_FILE).read_text(encoding="utf-8")
+    assert "import galpao_turnkey" not in source
+    assert "from galpao_turnkey" not in source
+    assert "reports/turnkey.txt" not in source
 
 
 def test_residential_adapter_is_registered_with_declared_capabilities():
