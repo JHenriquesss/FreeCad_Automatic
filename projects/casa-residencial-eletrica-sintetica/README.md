@@ -19,5 +19,10 @@ A cobertura de motores desta fase é deliberadamente limitada à combinação
 fora dessa linha exigem revisão explícita e não são interpolados.
 
 Use uma pasta de saída nova para cada execução. O resultado esperado da
-fixture é `needs_review`: a vertical ainda não dimensiona condutores e
-proteções nem emite entregáveis executivos.
+fixture é `needs_review`: `circuits.points` declara as cargas e
+`circuits.designs` declara as entradas de engenharia sem defaults. Nesta fase
+a vertical dimensiona condutor/proteção e indica DR/DPS, mas a ausência de
+`short_circuit` mantém `short_circuit_evaluation: not_evaluated` e o status
+geral em `needs_review`. Ainda não há IFC, FCStd, DXF, SVG, PDF, unifilar ou
+prancha executiva. O fixture continua sendo apenas integração; não representa
+aprovação da Enel, ART, vistoria ou liberação para obra.

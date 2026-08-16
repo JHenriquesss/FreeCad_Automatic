@@ -79,12 +79,39 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
 
     repository_root = (Path(__file__).resolve().parents[3].parent.parent /
                        Path(__file__).resolve().parents[4].name)
-    house_spec = (repository_root / "projects" /
-                  "casa-residencial-sintetica" / "project-spec.json")
-    house = run_project_file(
-        house_spec, tmp_path / "residencial",
-        options={"generate_ifc": False},
+    electrical_spec = (repository_root / "projects" /
+                       "casa-residencial-eletrica-sintetica" /
+                       "project-spec.json")
+    electrical_out = tmp_path / "residencial-eletrica"
+    electrical = run_project_file(
+        electrical_spec, electrical_out,
+        options={"generate_ifc": False, "require_source_refs": True},
     )
-    assert house["adapter"] == "casa-residencial-sintetica"
-    assert house["status"] == "needs_review"
-    assert verify_project_run(tmp_path / "residencial")["ok"] is True
+    assert electrical["adapter"] == "casa-residencial-eletrica"
+    assert electrical["status"] == "needs_review"
+    assert (electrical_out / "project-run.json").exists()
+    assert electrical["disciplines"]["eletrico"]["circuits"]["scope"][
+        "conductor_sizing"] == "implemented"
+    assert len(electrical["disciplines"]["eletrico"]["circuits"][
+        "designs"]) == 3
+    assert electrical["disciplines"]["eletrico"]["circuits"]["scope"][
+        "short_circuit_evaluation"] == "not_evaluated"
+
+    persisted_electrical = json.loads(
+        (electrical_out / "project-run.json").read_text(encoding="utf-8"))
+    persisted_adapter = json.loads(
+        (electrical_out / "reports" / "adapter-result.json").read_text(
+            encoding="utf-8"))
+    assert persisted_electrical["adapter"] == "casa-residencial-eletrica"
+    assert persisted_electrical["status"] == "needs_review"
+    assert persisted_electrical["disciplines"]["eletrico"]["circuits"][
+        "scope"]["conductor_sizing"] == "implemented"
+    assert len(persisted_electrical["disciplines"]["eletrico"]["circuits"][
+        "designs"]) == 3
+    assert persisted_adapter["scope"]["short_circuit_evaluation"] == (
+        "not_evaluated")
+    assert len(persisted_adapter["circuits"]["designs"]) == 3
+    assert "reports/adapter-result.json" in {
+        artifact["path"] for artifact in persisted_electrical["artifacts"]
+    }
+    assert verify_project_run(electrical)["ok"] is True
