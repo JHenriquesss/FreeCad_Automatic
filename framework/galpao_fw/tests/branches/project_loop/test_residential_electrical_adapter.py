@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 REPO_ROOT = ROOT.parents[1]
 PERSISTED_SPEC = (REPO_ROOT / "projects" / "casa-residencial-eletrica-sintetica"
                   / "project-spec.json")
+PERSISTED_README = PERSISTED_SPEC.with_name("README.md")
 
 
 SOURCE_REFS = [
@@ -128,6 +129,31 @@ def test_persisted_residential_electrical_fixture_runs_through_universal_loop(tm
         "input/spec.json", "reports/adapter-result.json",
         "reports/disciplinas.json", "reports/preflight.json",
     }
+
+
+def test_persisted_fixture_readme_documents_live_source_verification():
+    readme = PERSISTED_README.read_text(encoding="utf-8")
+    assert "python framework/galpao_fw/project_loop_cli.py" in readme
+    assert "--verify-source-refs --preflight-only --require-source-refs" in readme
+    assert "python -m framework.galpao_fw.project_loop_cli" not in readme
+
+
+def test_builtin_loader_registers_residential_adapters_after_early_galpao_import():
+    script = r'''
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+import galpao_adapter
+from project_loop import describe_adapters
+names = {item["name"] for item in describe_adapters()}
+assert {"galpao", "casa-residencial-sintetica", "casa-residencial-eletrica"} <= names, names
+'''
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(ROOT)],
+        capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
 def test_missing_required_electrical_source_blocks_discipline(tmp_path):
