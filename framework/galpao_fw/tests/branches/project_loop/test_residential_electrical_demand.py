@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from demanda_residencial_enel import calculate_residential_demand
@@ -64,12 +66,12 @@ def test_heating_table_uses_power_band_and_quantity():
     result = calculate_residential_demand(payload)
     heating = result["calculation"]["heating"]
     assert heating["items"][0]["factor_percent"] == pytest.approx(65.0)
-    assert heating["demand_kw"] == pytest.approx(2 * 4.0 * 0.65)
+    assert heating["demand_kva"] == pytest.approx(2 * 4.0 * 0.65)
 
 
 def test_final_demand_combines_a_major_group_and_remaining_groups():
     payload = _payload()
-    payload["loads"]["special_lighting"] = [{"power_kw": 4.0, "factor": 1.0}]
+    payload["loads"]["special_lighting"] = [{"power_kw": 4.0, "kind": "incandescent"}]
     payload["loads"]["heating"] = [{"quantity": 2, "power_kw": 4.0}]
     payload["loads"]["motors"] = [{"quantity": 1, "power_cv": 1.0,
                                       "connection": "trifasica"}]
@@ -80,13 +82,16 @@ def test_final_demand_combines_a_major_group_and_remaining_groups():
     assert demand["b"] == pytest.approx(5.2)
     assert demand["c"] == pytest.approx(1.52)
     assert demand["d"] == pytest.approx(4.0)
+    assert result["calculation"]["heating"]["demand_kva"] == pytest.approx(5.2)
+    assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(1.52)
+    assert result["calculation"]["special_lighting"]["demand_kva"] == pytest.approx(4.0)
     assert demand["final_kva"] == pytest.approx(17.6473333333)
 
 
 def test_final_demand_applies_seventy_percent_to_tied_second_major_group():
     payload = _payload()
     payload["loads"]["heating"] = [{"quantity": 1, "power_kw": 12.5}]
-    payload["loads"]["special_lighting"] = [{"power_kw": 10.0, "factor": 1.0}]
+    payload["loads"]["special_lighting"] = [{"power_kw": 10.0, "kind": "incandescent"}]
     result = calculate_residential_demand(payload)
     assert result["ok"] is True
     demand = result["calculation"]["demand"]
@@ -128,3 +133,196 @@ def test_boolean_location_factor_returns_structured_invalid_factor_error():
     assert result["ok"] is False
     assert any(error["code"] == "invalid_location_factor"
                for error in result["errors"])
+
+
+def test_non_finite_location_factor_is_rejected_without_non_finite_output():
+    payload = _payload()
+    payload["network"]["location_factor"] = math.nan
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_location_factor"
+               for error in result["errors"])
+    assert not _contains_non_finite(result)
+
+
+def test_unhashable_special_lighting_kind_returns_structured_error():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 1.0, "kind": []},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_special_lighting_kind"
+               for error in result["errors"])
+
+
+def test_overflowing_room_count_is_blocked_without_non_finite_output():
+    payload = _payload()
+    payload["rooms"]["quarto"] = 10**400
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_room_count"
+               for error in result["errors"])
+    assert not _contains_non_finite(result)
+
+
+def test_overflowing_heating_calculation_is_blocked_without_non_finite_output():
+    payload = _payload()
+    payload["loads"]["heating"] = [{"quantity": 10**307, "power_kw": 4.0}]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "non_finite_calculation"
+               for error in result["errors"])
+    assert not _contains_non_finite(result)
+
+
+def test_incandescent_special_lighting_is_normalized_to_kva():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 3.0, "kind": "incandescent"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is True
+    special = result["calculation"]["special_lighting"]
+    assert special["items"][0]["kind"] == "incandescent"
+    assert special["items"][0]["demand_kva"] == pytest.approx(3.0)
+    assert special["demand_kva"] == pytest.approx(3.0)
+
+
+def test_vapor_special_lighting_uses_point_nine_power_factor_conversion():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 0.9, "kind": "vapor_mercury"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is True
+    assert result["calculation"]["special_lighting"]["demand_kva"] == pytest.approx(1.0)
+
+
+def test_non_finite_heating_power_is_blocked_with_structured_error():
+    payload = _payload()
+    payload["loads"]["heating"] = [{"quantity": 1, "power_kw": math.nan}]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_load_value"
+               for error in result["errors"])
+
+
+def test_non_finite_special_lighting_power_is_blocked_with_structured_error():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": math.inf, "kind": "incandescent"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_load_value"
+               for error in result["errors"])
+
+
+def test_boolean_motor_values_are_not_coerced_into_the_motor_table():
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": True,
+        "power_cv": True,
+        "connection": "trifasica",
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_load_value"
+               for error in result["errors"])
+
+
+def test_missing_room_count_is_blocked_instead_of_defaulting_to_zero():
+    payload = _payload()
+    del payload["rooms"]["sala"]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "missing_room_count"
+               for error in result["errors"])
+
+
+def test_zero_bedrooms_are_blocked_instead_of_using_the_two_bedroom_divisor():
+    payload = _payload()
+    payload["rooms"]["quarto"] = 0
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_room_count"
+               for error in result["errors"])
+
+
+def test_special_lighting_rejects_legacy_arbitrary_factor_without_kind():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 1.0, "factor": 2.5},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "missing_special_lighting_kind"
+               for error in result["errors"])
+
+
+@pytest.mark.parametrize(
+    ("group", "item"),
+    [
+        ("heating", {"quantity": 0, "power_kw": 1.0}),
+        ("motors", {"quantity": 0, "power_cv": 1.0, "connection": "trifasica"}),
+        ("motors", {"quantity": 1, "power_cv": 0, "connection": "trifasica"}),
+        ("special_lighting", {"power_kw": 0, "kind": "incandescent"}),
+    ],
+)
+def test_non_positive_load_values_are_blocked(group, item):
+    payload = _payload()
+    payload["loads"][group] = [item]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_load_value"
+               for error in result["errors"])
+
+
+def test_special_lighting_rejects_arbitrary_factor_even_with_a_valid_kind():
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 1.0, "kind": "incandescent", "factor": 2.5},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "unsupported_special_lighting_factor"
+               for error in result["errors"])
+
+
+def _contains_non_finite(value):
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        return any(_contains_non_finite(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_non_finite(item) for item in value)
+    return False

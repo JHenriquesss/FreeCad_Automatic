@@ -9,6 +9,7 @@ deliberadamente não altera este cálculo de demanda.
 
 from __future__ import annotations
 
+import math
 from numbers import Real
 from typing import Any
 
@@ -66,6 +67,19 @@ _MOTOR_TABLE_KVA = {
     ("trifasica", 1.0, 1): 1.52,
 }
 
+_ROOM_NAMES = (
+    "quarto", "sala", "banheiro", "cozinha", "area_servico", "outros",
+)
+
+# WKI 6.2.3.3: lâmpadas incandescentes são kW=kVA; lâmpadas a vapor são
+# convertidas dividindo a potência ativa por cos(phi)=0,9.
+_SPECIAL_LIGHTING_POWER_FACTORS = {
+    "incandescent": 1.0,
+    "vapor_mercury": 0.9,
+    "vapor_sodium": 0.9,
+    "vapor_metallic": 0.9,
+}
+
 
 def calculate_residential_demand(payload: dict[str, Any]) -> dict[str, Any]:
     """Calcula a demanda residencial e retorna um envelope estável e auditável."""
@@ -83,11 +97,24 @@ def calculate_residential_demand(payload: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "errors": [_error("invalid_load", str(exc))],
                 "warnings": [], "calculation": {}}
     errors = motors.pop("errors", [])
-    return _compose_result(rooms, heating, motors, special, errors, location_factor)
+    result = _compose_result(rooms, heating, motors, special, errors, location_factor)
+    if not _is_finite_structure(result["calculation"]):
+        return {
+            "ok": False,
+            "errors": [_error("non_finite_calculation", "cálculo produziu valor não finito")],
+            "warnings": [],
+            "calculation": {},
+        }
+    return result
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, Real) and not isinstance(value, bool)
+    if not isinstance(value, Real) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, TypeError, ValueError):
+        return False
 
 
 def _error(code: str, message: str, **context: Any) -> dict[str, Any]:
@@ -95,6 +122,16 @@ def _error(code: str, message: str, **context: Any) -> dict[str, Any]:
     if context:
         result["context"] = context
     return result
+
+
+def _is_finite_structure(value: Any) -> bool:
+    if isinstance(value, Real):
+        return _is_number(value)
+    if isinstance(value, dict):
+        return all(_is_finite_structure(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return all(_is_finite_structure(item) for item in value)
+    return True
 
 
 def _validate_payload(payload: Any) -> list[dict[str, Any]]:
@@ -109,20 +146,27 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
         errors.append(_error("missing_network", "network deve ser informado"))
     elif "location_factor" not in network:
         errors.append(_error("missing_location_factor", "fator locacional é obrigatório"))
-    elif (isinstance(network["location_factor"], bool)
+    elif (not _is_number(network["location_factor"])
           or network["location_factor"] not in LOCATION_FACTORS):
-        errors.append(_error("invalid_location_factor", "fator locacional fora da tabela",
-                             value=network["location_factor"]))
+        errors.append(_error("invalid_location_factor", "fator locacional fora da tabela"))
 
     if not isinstance(rooms, dict):
         errors.append(_error("missing_rooms", "rooms deve ser informado"))
     else:
+        for name in _ROOM_NAMES:
+            if name not in rooms:
+                errors.append(_error("missing_room_count", "contagem de cômodo é obrigatória",
+                                     room=name))
         for name, count in rooms.items():
-            if name not in {"quarto", "sala", "banheiro", "cozinha", "area_servico", "outros"}:
+            if name not in _ROOM_NAMES:
                 errors.append(_error("unknown_room", "cômodo fora do contrato", room=name))
-            elif not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            elif (not isinstance(count, int) or isinstance(count, bool)
+                  or not _is_number(count) or count < 0):
                 errors.append(_error("invalid_room_count", "quantidade de cômodo deve ser inteiro não negativo",
-                                     room=name, value=count))
+                                     room=name))
+            elif name == "quarto" and count < 1:
+                errors.append(_error("invalid_room_count", "deve existir pelo menos um quarto",
+                                     room=name))
 
     if not isinstance(loads, dict):
         errors.append(_error("missing_loads", "loads deve ser informado"))
@@ -136,19 +180,64 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                 if not isinstance(item, dict):
                     errors.append(_error("invalid_load_item", "item de carga deve ser um objeto",
                                          group=key, index=index))
+                    continue
+                if key == "heating":
+                    _validate_positive_integer(errors, key, index, item, "quantity")
+                    _validate_positive_number(errors, key, index, item, "power_kw")
+                elif key == "motors":
+                    _validate_positive_integer(errors, key, index, item, "quantity")
+                    _validate_positive_number(errors, key, index, item, "power_cv")
+                else:
+                    _validate_positive_number(errors, key, index, item, "power_kw")
+                    if "factor" in item:
+                        errors.append(_error(
+                            "unsupported_special_lighting_factor",
+                            "factor arbitrário não faz parte do contrato",
+                            group=key, index=index,
+                        ))
+                    if "kind" not in item:
+                        errors.append(_error(
+                            "missing_special_lighting_kind",
+                            "tipo de iluminação especial é obrigatório",
+                            group=key, index=index,
+                        ))
+                    elif (not isinstance(item["kind"], str)
+                          or item["kind"] not in _SPECIAL_LIGHTING_POWER_FACTORS):
+                        errors.append(_error(
+                            "invalid_special_lighting_kind",
+                            "tipo de iluminação especial fora do contrato",
+                            group=key, index=index,
+                        ))
     return errors
 
 
+def _validate_positive_integer(errors: list[dict[str, Any]], group: str,
+                               index: int, item: dict[str, Any], field: str) -> None:
+    value = item.get(field)
+    if (not isinstance(value, int) or isinstance(value, bool)
+            or not _is_number(value) or value < 1):
+        errors.append(_error("invalid_load_value", "carga deve informar inteiro positivo",
+                             group=group, index=index, field=field))
+
+
+def _validate_positive_number(errors: list[dict[str, Any]], group: str,
+                              index: int, item: dict[str, Any], field: str) -> None:
+    value = item.get(field)
+    if not _is_number(value) or value <= 0:
+        errors.append(_error("invalid_load_value", "carga deve informar número finito positivo",
+                             group=group, index=index, field=field))
+
+
 def _calculate_rooms(rooms: dict[str, int], location_factor: float) -> dict[str, Any]:
-    bedrooms = rooms.get("quarto", 0)
+    bedrooms = rooms["quarto"]
     kitchen_module = 1.50 if bedrooms <= 2 else 2.10
     modules = {
         "quarto": bedrooms * ROOM_MODULES_KVA["quarto"],
-        "sala": rooms.get("sala", 0) * ROOM_MODULES_KVA["sala"],
-        "banheiro": rooms.get("banheiro", 0) * ROOM_MODULES_KVA["banheiro"],
-        "cozinha": rooms.get("cozinha", 0) * kitchen_module,
-        "area_servico": rooms.get("area_servico", 0) * ROOM_MODULES_KVA["area_servico"],
-        "outros": rooms.get("outros", 0) * ROOM_MODULES_KVA["outros"],
+        "sala": rooms["sala"] * ROOM_MODULES_KVA["sala"],
+        "banheiro": rooms["banheiro"] * ROOM_MODULES_KVA["banheiro"],
+        "cozinha": rooms["cozinha"] * kitchen_module,
+        "area_servico": rooms["area_servico"] * ROOM_MODULES_KVA["area_servico"],
+        "outros": rooms["outros"] * ROOM_MODULES_KVA["outros"],
     }
     subtotal = sum(modules.values())
     divisor = 1.40 if bedrooms == 1 else 1.20
@@ -185,8 +274,8 @@ def _calculate_heating(items: list[dict[str, Any]]) -> dict[str, Any]:
         installed += quantity * float(power_kw)
         demand += item_demand
         result_items.append({"quantity": quantity, "power_kw": float(power_kw),
-                             "factor_percent": factor, "demand_kw": item_demand})
-    return {"items": result_items, "installed_kw": installed, "demand_kw": demand}
+                             "factor_percent": factor, "demand_kva": item_demand})
+    return {"items": result_items, "installed_kw": installed, "demand_kva": demand}
 
 
 def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
@@ -210,34 +299,34 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
         demand += item_demand
         result_items.append({"quantity": quantity, "power_cv": float(power_cv),
                              "connection": connection, "demand_kva": item_demand})
-    return {"items": result_items, "installed_kw": installed, "demand_kw": demand,
+    return {"items": result_items, "installed_kw": installed, "demand_kva": demand,
             "errors": errors}
 
 
 def _calculate_special_lighting(items: list[dict[str, Any]]) -> dict[str, Any]:
     result_items = []
-    demand = 0.0
+    demand_kva = 0.0
     for index, item in enumerate(items):
         power_kw = item.get("power_kw")
-        factor = item.get("factor")
-        if not _is_number(power_kw) or power_kw < 0:
+        kind = item.get("kind")
+        if not _is_number(power_kw) or power_kw <= 0:
             raise ValueError(f"special_lighting[{index}].power_kw inválido")
-        if not _is_number(factor) or factor < 0:
-            raise ValueError(f"special_lighting[{index}].factor inválido")
-        item_demand = float(power_kw) * float(factor)
-        demand += item_demand
-        result_items.append({"power_kw": float(power_kw), "factor": float(factor),
-                             "demand_kw": item_demand})
-    return {"items": result_items, "demand_kw": demand}
+        power_factor = _SPECIAL_LIGHTING_POWER_FACTORS[kind]
+        item_demand = float(power_kw) / power_factor
+        demand_kva += item_demand
+        result_items.append({"power_kw": float(power_kw), "kind": kind,
+                             "power_factor": power_factor,
+                             "demand_kva": item_demand})
+    return {"items": result_items, "demand_kva": demand_kva}
 
 
 def _compose_result(rooms: dict[str, Any], heating: dict[str, Any],
                     motors: dict[str, Any], special: dict[str, Any],
                     errors: list[dict[str, Any]], location_factor: float) -> dict[str, Any]:
     a = rooms["demand_kva"]
-    b = heating["demand_kw"]
-    c = motors["demand_kw"]
-    d = special["demand_kw"]
+    b = heating["demand_kva"]
+    c = motors["demand_kva"]
+    d = special["demand_kva"]
     accessory_groups = [b, c, d]
     major_index = max(range(len(accessory_groups)),
                       key=lambda index: accessory_groups[index])
