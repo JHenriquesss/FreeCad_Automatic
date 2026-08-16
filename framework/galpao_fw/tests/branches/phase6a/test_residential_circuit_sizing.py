@@ -54,15 +54,44 @@ def _circuits(point=None, design=None, *, points=None, designs=None):
     return {"points": points, "routes": [], "designs": designs}
 
 
-def test_chuveiro_residencial_dimensiona_6mm2_e_disjuntor_32a():
+def test_chuveiro_residencial_dimensiona_resultado_final_coordenado():
     result = calculate_residential_circuit_designs(_circuits(), SOURCE_REFS)
 
     item = result["designs"][0]
     assert result["ok"] is True
     assert item["load"]["current_a"] == pytest.approx(6000 / 220)
-    assert item["conductor"]["secao_mm2"] == 6
+    assert item["conductor"]["secao_mm2"] == 10
+    assert item["base_conductor"]["secao_mm2"] == 6
     assert item["protection"]["disjuntor"]["IN"] == 32
     assert item["protection"]["OK"] is True
+
+
+def test_publica_o_resultado_da_segunda_passagem_coordenada():
+    result = calculate_residential_circuit_designs(_circuits(), SOURCE_REFS)
+    item = result["designs"][0]
+    assert item["base_conductor"]["secao_mm2"] == 6
+    assert item["conductor"]["secao_mm2"] == 10
+    assert item["protection"]["disjuntor"]["IN"] == 32
+    assert item["conductor"]["Iz"] >= item["protection"]["disjuntor"]["IN"]
+
+
+def test_ponto_malformado_nao_gera_excecao():
+    circuits = _circuits()
+    circuits["points"].append({"id": "P-INVALIDO", "room": "sala"})
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_circuit_point"
+               for error in result["errors"])
+
+
+@pytest.mark.parametrize("field", ["room", "kind"])
+def test_campo_estrutural_de_ponto_e_obrigatorio(field):
+    circuits = _circuits()
+    circuits["points"][0].pop(field)
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_circuit_point"
+               and error.get("field") == field for error in result["errors"])
 
 
 def test_queda_de_tensao_pode_ser_o_criterio_governante():

@@ -34,6 +34,7 @@ _CONDUCTORS_LOADED = {2, 3}
 _INSULATIONS = {"PVC", "EPR", "XLPE"}
 _REFERENCE_METHODS = {"B1", "F"}
 _USES = {"iluminacao", "forca"}
+_POINT_KINDS = {"lighting", "tug", "tue"}
 _LOCATIONS = {"seco", "molhado", "banheiro", "cozinha", "externo", "area_externa"}
 _EXPOSURES = {"direta", "rede_aerea", "indireta", "quadro", "equipamento_sensivel"}
 _NORMATIVE_REFERENCES = ["5.3.4.1", "5.3.5", "6.2.5", "6.2.6.1.1", "6.2.7"]
@@ -46,7 +47,7 @@ def calculate_residential_circuit_designs(circuits: dict, source_refs: list[dict
     if errors:
         return _result(False, errors, [], _scope("not_evaluated"))
 
-    points = {point["id"]: point for point in circuits["points"]}
+    points = {point["id"]: point for point in circuits.get("points", [])}
     designs = []
     any_short_circuit = False
     calculation_errors = []
@@ -95,12 +96,12 @@ def _calculate_design(design, points, source_ids):
         conductor_input["Icc"] = float(short_circuit["Icc_A"])
         conductor_input["t_curto_s"] = float(short_circuit["t_s"])
 
-    conductor = cd.dimensiona_condutor(conductor_input)
-    protection_input = _protection_input(design, current_a, conductor, short_circuit)
-    protection = pr.dimensiona_protecao(protection_input)
+    base_conductor = cd.dimensiona_condutor(conductor_input)
+    protection_input = _protection_input(design, current_a, base_conductor, short_circuit)
+    base_protection = pr.dimensiona_protecao(protection_input)
 
     coordination = None
-    candidate = protection["disjuntor"].get("IN")
+    candidate = base_protection["disjuntor"].get("IN")
     if candidate is not None:
         coordination_input = dict(conductor_input)
         coordination_input["I_protecao"] = candidate
@@ -113,8 +114,11 @@ def _calculate_design(design, points, source_ids):
             "protection": coordination_protection,
         }
 
-    if not _coordinated(conductor, protection, coordination):
+    if not _coordinated(base_conductor, base_protection, coordination):
         return None, {"code": "no_protection_candidate", "design_id": design["id"]}
+
+    conductor = coordination["conductor"]
+    protection = coordination["protection"]
 
     return {
         "id": design["id"],
@@ -124,6 +128,8 @@ def _calculate_design(design, points, source_ids):
             "voltage_v": voltage_v,
             "current_a": current_a,
         },
+        "base_conductor": base_conductor,
+        "base_protection": base_protection,
         "conductor": conductor,
         "protection": protection,
         "short_circuit": _short_circuit_result(short_circuit, conductor, protection),
@@ -189,11 +195,10 @@ def _validate_circuits(circuits):
     points = circuits.get("points")
     if not isinstance(points, list):
         points = []
-    point_map = {
-        point.get("id"): point
-        for point in points
-        if isinstance(point, dict) and isinstance(point.get("id"), str)
-    }
+
+    point_map, point_errors = _validate_points(points)
+    if point_errors:
+        return point_errors
 
     design_ids = set()
     used_points = {}
@@ -220,6 +225,42 @@ def _validate_circuits(circuits):
         _validate_short_circuit(design, errors)
 
     return errors
+
+
+def _validate_points(points):
+    errors = []
+    point_map = {}
+    for index, point in enumerate(points):
+        if not isinstance(point, dict):
+            errors.append({"code": "invalid_circuit_point", "index": index})
+            continue
+
+        for field in ("id", "room", "kind", "power_va", "voltage_v"):
+            if field not in point:
+                errors.append({"code": "invalid_circuit_point", "index": index, "field": field})
+
+        point_id = point.get("id")
+        if "id" in point and (not isinstance(point_id, str) or not point_id.strip()):
+            errors.append({"code": "invalid_circuit_point", "index": index, "field": "id"})
+        elif isinstance(point_id, str) and point_id.strip():
+            if point_id in point_map:
+                errors.append({"code": "invalid_circuit_point", "index": index, "field": "id"})
+            else:
+                point_map[point_id] = point
+
+        if "room" in point and (not isinstance(point["room"], str) or not point["room"].strip()):
+            errors.append({"code": "invalid_circuit_point", "index": index, "field": "room"})
+
+        if "kind" in point and point["kind"] not in _POINT_KINDS:
+            errors.append({"code": "invalid_circuit_point", "index": index, "field": "kind"})
+
+        if "power_va" in point and (not _finite_number(point["power_va"]) or float(point["power_va"]) <= 0):
+            errors.append({"code": "invalid_circuit_point", "index": index, "field": "power_va"})
+
+        if "voltage_v" in point and (not _finite_number(point["voltage_v"]) or float(point["voltage_v"]) <= 0):
+            errors.append({"code": "invalid_circuit_point", "index": index, "field": "voltage_v"})
+
+    return point_map, errors
 
 
 def _validate_design_values(design, errors):
