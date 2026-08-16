@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from project_io import run_project_file
 from project_loop import describe_adapters, normalize_spec, run_project, verify_project_run
 from residencial_eletrica import run_residential_electrical
@@ -264,6 +266,28 @@ def test_malformed_turnkey_spec_blocks_runner_without_exception(tmp_path):
     record = records["eletrico"]
     assert record["status"] == "blocked"
     assert any(error["code"] == "invalid_electrical_payload"
+               for error in record["errors"])
+
+
+def test_preflight_with_non_list_errors_blocks_runner_without_exception(tmp_path):
+    result, records = run_residential_electrical(
+        normalize_spec(_spec()), tmp_path, preflight={"errors": None})
+
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "invalid_preflight_errors"
+               for error in record["errors"])
+
+
+@pytest.mark.parametrize("normalized", [None, [], "invalid"])
+def test_non_object_normalized_input_returns_blocked_envelope_without_exception(
+        normalized, tmp_path):
+    result, records = run_residential_electrical(normalized, tmp_path)
+
+    record = records["eletrico"]
+    assert result["status"] == "blocked"
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "invalid_normalized_spec"
                for error in record["errors"])
 
 

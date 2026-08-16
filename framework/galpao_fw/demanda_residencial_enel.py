@@ -207,7 +207,7 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                             "tipo de iluminação especial é obrigatório",
                             group=key, index=index,
                         ))
-                    elif (not isinstance(item["kind"], str)
+                    elif (not _is_concrete_hashable_string(item["kind"])
                           or item["kind"] not in _SPECIAL_LIGHTING_POWER_FACTORS):
                         errors.append(_error(
                             "invalid_special_lighting_kind",

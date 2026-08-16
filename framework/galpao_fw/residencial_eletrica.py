@@ -156,7 +156,11 @@ def _required_source_errors(source_refs: list[dict[str, Any]]) -> list[dict[str,
 def _preflight_electrical_errors(preflight: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(preflight, dict):
         return []
-    return [copy.deepcopy(item) for item in preflight.get("errors", [])
+    preflight_errors = preflight.get("errors", [])
+    if not isinstance(preflight_errors, list):
+        return [_error("invalid_preflight_errors",
+                        "preflight.errors deve ser uma lista")]
+    return [copy.deepcopy(item) for item in preflight_errors
             if isinstance(item, dict) and item.get("discipline") == "eletrico"]
 
 
@@ -186,9 +190,61 @@ def _warning(code: str, **fields: Any) -> dict[str, Any]:
     return {"code": code, **fields}
 
 
+def _blocked_result(error: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    errors = [copy.deepcopy(error)]
+    circuits = {"ok": False, "errors": [], "warnings": [],
+                "points": [], "routes": []}
+    service_entry = {"ok": False, "entry": None,
+                     "errors": [], "warnings": []}
+    scope = {
+        "conductor_sizing": "not_implemented",
+        "protection_sizing": "not_implemented",
+        "executive_deliverables": "not_implemented",
+        "enel_approval": "not_claimed",
+        "construction_readiness": "not_claimed",
+        "motor_table_coverage": copy.deepcopy(MOTOR_TABLE_COVERAGE),
+    }
+    record = {
+        "status": "blocked",
+        "native_atende": None,
+        "reprovados": [],
+        "warnings": [],
+        "errors": errors,
+        "gates": {
+            "required_sources_declared": False,
+            "explicit_network_inputs": False,
+            "explicit_circuit_points": False,
+        },
+        "calculation": {},
+        "service_entry": service_entry,
+        "circuits": circuits,
+        "source_refs": [],
+        "scope": copy.deepcopy(scope),
+        "artifacts": [],
+    }
+    result = {
+        "schema": "freecad-automatic/residential-electrical-result",
+        "schema_version": 1,
+        "adapter": ADAPTER_NAME,
+        "project_id": None,
+        "status": "blocked",
+        "errors": errors,
+        "source_refs": [],
+        "calculation": {},
+        "service_entry": service_entry,
+        "circuits": circuits,
+        "scope": scope,
+    }
+    return result, {"eletrico": record}
+
+
 def run_residential_electrical(normalized, run_dir, preflight=None):
     """Executa a vertical elétrica residencial sem efeitos externos."""
     del run_dir
+    if not isinstance(normalized, dict):
+        return _blocked_result(_error(
+            "invalid_normalized_spec",
+            "normalized deve ser um objeto"))
     source_refs = _electrical_source_refs(normalized)
     turnkey_spec = normalized.get("turnkey_spec")
     payload = turnkey_spec.get("eletrico") if isinstance(turnkey_spec, dict) else None

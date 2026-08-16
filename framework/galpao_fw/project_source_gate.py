@@ -33,6 +33,16 @@ def _source_document(source_refs):
     raise ValueError("source_refs deve ser um objeto ou lista JSON")
 
 
+def _is_concrete_hashable_string(value):
+    if type(value) is not str:
+        return False
+    try:
+        hash(value)
+    except TypeError:
+        return False
+    return True
+
+
 def _declared_refs(source_refs):
     document = _source_document(source_refs)
     if isinstance(document, list):
@@ -85,7 +95,7 @@ def _parse_remote_sources(stdout):
         if not isinstance(item, dict):
             raise ValueError("nlm source deve ser um objeto")
         source_id = item.get("source_id") or item.get("id")
-        if not isinstance(source_id, str) or not source_id.strip():
+        if not _is_concrete_hashable_string(source_id) or not source_id.strip():
             raise ValueError("nlm source requer id textual")
         result[source_id] = item
     return result
@@ -127,12 +137,14 @@ def verify_project_source_refs(spec, *, runner=None, timeout_seconds=120):
             continue
         notebook_id = ref.get("notebook_id")
         source_id = ref.get("source_id") or ref.get("id")
-        if not isinstance(notebook_id, str) or not notebook_id.strip():
+        if (not _is_concrete_hashable_string(notebook_id)
+                or not notebook_id.strip()):
             errors.append(_error(
                 "invalid_source_ref", discipline, ref,
                 "referência requer notebook_id"))
             continue
-        if not isinstance(source_id, str) or not source_id.strip():
+        if (not _is_concrete_hashable_string(source_id)
+                or not source_id.strip()):
             errors.append(_error(
                 "invalid_source_ref", discipline, ref,
                 "referência requer source_id ou id"))

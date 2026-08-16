@@ -160,6 +160,22 @@ def test_unhashable_special_lighting_kind_returns_structured_error():
                for error in result["errors"])
 
 
+def test_unhashable_string_special_lighting_kind_returns_structured_error():
+    class UnhashableString(str):
+        __hash__ = None
+
+    payload = _payload()
+    payload["loads"]["special_lighting"] = [
+        {"power_kw": 1.0, "kind": UnhashableString("incandescent")},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_special_lighting_kind"
+               for error in result["errors"])
+
+
 def test_overflowing_room_count_is_blocked_without_non_finite_output():
     payload = _payload()
     payload["rooms"]["quarto"] = 10**400
