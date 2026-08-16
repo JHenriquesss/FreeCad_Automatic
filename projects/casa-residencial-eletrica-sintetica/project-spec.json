@@ -1,0 +1,101 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "adapter": "casa-residencial-eletrica",
+  "project": {
+    "slug": "casa-residencial-eletrica-sintetica",
+    "type": "residencial",
+    "date": "2026-08-15"
+  },
+  "geometry": {
+    "comprimento": 10.0,
+    "vao": 8.0,
+    "pe_direito": 3.0
+  },
+  "turnkey": {
+    "eletrico": {
+      "network": {
+        "voltage_system": "127/220",
+        "supply_type": "B",
+        "network_kind": "aerea",
+        "location_factor": 1.0
+      },
+      "rooms": {
+        "quarto": 2,
+        "sala": 1,
+        "banheiro": 1,
+        "cozinha": 1,
+        "area_servico": 1,
+        "outros": 0
+      },
+      "loads": {
+        "installed_load_kw": 7.5,
+        "heating": [],
+        "motors": [],
+        "special_lighting": []
+      },
+      "circuits": {
+        "points": [
+          {
+            "id": "L-01",
+            "room": "sala",
+            "kind": "lighting",
+            "power_va": 100,
+            "voltage_v": 127
+          },
+          {
+            "id": "T-01",
+            "room": "cozinha",
+            "kind": "tug",
+            "power_va": 600,
+            "voltage_v": 127
+          },
+          {
+            "id": "TUE-01",
+            "room": "banheiro",
+            "kind": "tue",
+            "power_va": 4400,
+            "voltage_v": 220
+          }
+        ],
+        "routes": []
+      }
+    }
+  },
+  "source_refs": {
+    "eletrico": [
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+        "title": "ABNT NBR 5410:2004",
+        "edition": "2004",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "5129118d-2ff6-4187-a9d2-d1828d61afdf",
+        "title": "Enel BT individual",
+        "edition": "R02/2025",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "5bc6c2f1-c8b8-4a04-8b82-be0e937b4749",
+        "title": "Enel Rio WKI cálculo de demanda BT",
+        "edition": "R01/2018",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8",
+        "title": "ANEEL PRODIST Módulo 3",
+        "edition": "vigente no snapshot",
+        "status": 2,
+        "is_stale": false
+      }
+    ]
+  }
+}

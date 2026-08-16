@@ -3,11 +3,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from project_loop import describe_adapters, normalize_spec, run_project
+from project_io import run_project_file
+from project_loop import describe_adapters, normalize_spec, run_project, verify_project_run
 from residencial_eletrica import run_residential_electrical
 
 
 ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = ROOT.parents[1]
+PERSISTED_SPEC = (REPO_ROOT / "projects" / "casa-residencial-eletrica-sintetica"
+                  / "project-spec.json")
 
 
 SOURCE_REFS = [
@@ -105,6 +109,25 @@ def test_residential_electrical_run_is_needs_review_and_traceable(tmp_path):
     assert record["calculation"]["demand"]["final_kva"] > 0
     assert record["service_entry"]["entry"]["row"] == "B1"
     assert (tmp_path / "reports" / "adapter-result.json").is_file()
+
+
+def test_persisted_residential_electrical_fixture_runs_through_universal_loop(tmp_path):
+    result = run_project_file(PERSISTED_SPEC, tmp_path, options={
+        "generate_ifc": False, "require_source_refs": True,
+    })
+    assert result["status"] == "needs_review"
+    assert result["disciplines"]["eletrico"]["status"] == "needs_review"
+    assert result["disciplines"]["eletrico"]["service_entry"]["entry"]["row"] == "B1"
+    verification = verify_project_run(result)
+    assert verification["ok"] is True
+    artifacts = result["artifacts"]
+    assert artifacts
+    assert all(artifact["path"].endswith(".json") for artifact in artifacts)
+    assert all(artifact.get("sha256") for artifact in artifacts)
+    assert {artifact["path"] for artifact in artifacts} == {
+        "input/spec.json", "reports/adapter-result.json",
+        "reports/disciplinas.json", "reports/preflight.json",
+    }
 
 
 def test_missing_required_electrical_source_blocks_discipline(tmp_path):
