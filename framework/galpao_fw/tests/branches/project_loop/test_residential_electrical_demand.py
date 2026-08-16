@@ -250,6 +250,25 @@ def test_boolean_motor_values_are_not_coerced_into_the_motor_table():
                for error in result["errors"])
 
 
+@pytest.mark.parametrize("connection", [[], {}, True])
+def test_non_string_motor_connection_returns_structured_error(connection):
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 1,
+        "power_cv": 1.0,
+        "connection": connection,
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(
+        error["code"] == "invalid_load_value"
+        and error.get("context", {}).get("field") == "connection"
+        for error in result["errors"]
+    )
+
+
 def test_missing_room_count_is_blocked_instead_of_defaulting_to_zero():
     payload = _payload()
     del payload["rooms"]["sala"]

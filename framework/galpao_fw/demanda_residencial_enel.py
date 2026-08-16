@@ -187,6 +187,12 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                 elif key == "motors":
                     _validate_positive_integer(errors, key, index, item, "quantity")
                     _validate_positive_number(errors, key, index, item, "power_cv")
+                    if not isinstance(item.get("connection"), str):
+                        errors.append(_error(
+                            "invalid_load_value",
+                            "conexão do motor deve ser texto",
+                            group=key, index=index, field="connection",
+                        ))
                 else:
                     _validate_positive_number(errors, key, index, item, "power_kw")
                     if "factor" in item:
