@@ -131,3 +131,87 @@ exit 0; apenas warnings de normalização LF/CRLF do Git
 - O worktree já tinha muitas alterações sujas não relacionadas antes do início; foram preservadas.
 - O commit de implementação inclui os dois testes RED pré-existentes no arquivo de generalização, porque eles estavam no escopo do Task 6 e ainda não estavam commitados.
 - O Git emitiu avisos LF/CRLF ao checar/stagear os arquivos tocados; `git diff --check` não encontrou erro de whitespace.
+
+## Correcao Task 6 strict JSON (2026-08-16)
+
+### Defeito corrigido
+
+- Raiz: `_json_safe` mantinha `float("nan")` como `float`, e `_write_json` usava o encoder padrao do Python, que persiste `NaN` nao padrao.
+- Correcao: `_json_safe` converte floats nao finitos para marcador textual JSON-safe e `_write_json` agora usa `allow_nan=False` como guarda centralizada.
+- O bloqueio de preflight nao foi mascarado: a execucao continua com `status=blocked` e erro `invalid_coordination_policy`.
+
+### RED evidence
+
+```powershell
+python -m pytest framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py::test_non_finite_coordination_policy_is_persisted_as_strict_json -q
+```
+
+```text
+F                                                                        [100%]
+FAILED framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py::test_non_finite_coordination_policy_is_persisted_as_strict_json
+ValueError: non-finite JSON constant: NaN
+1 failed in 0.47s
+```
+
+### GREEN evidence
+
+Foco:
+
+```powershell
+python -m pytest framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py::test_non_finite_coordination_policy_is_persisted_as_strict_json -q
+```
+
+```text
+.                                                                        [100%]
+1 passed in 0.24s
+```
+
+Verificacao direta de persistencia estrita e bloqueio:
+
+```text
+status=blocked
+reports/preflight.json:strict=ok
+preflight.ok=False
+preflight.error.value='nan'
+project-run.json:strict=ok
+manifest.status=blocked
+manifest.input.folga_mm='nan'
+manifest.error.code=invalid_coordination_policy
+input/spec.json:strict=ok
+```
+
+Arquivo de generalizacao:
+
+```powershell
+python -m pytest -q framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py
+```
+
+```text
+..............                                                           [100%]
+14 passed in 3.75s
+```
+
+Suite de branches `project_loop`:
+
+```powershell
+python -m pytest -q framework/galpao_fw/tests/branches/project_loop
+```
+
+```text
+........................................................................ [ 33%]
+........................................................................ [ 67%]
+....................................................................     [100%]
+212 passed in 63.62s (0:01:03)
+```
+
+### Self-review
+
+- A protecao ficou centralizada no caminho de serializacao usado pelos artefatos auditaveis.
+- Valores numericos finitos continuam sendo persistidos como numeros.
+- Valores nao finitos rejeitados continuam visiveis como marcador textual, sem se tornarem parametro valido.
+- `allow_nan=False` impede regressao silenciosa caso outro caminho deixe passar float nao finito.
+- Nenhuma regra de engenharia ou resolucao automatica foi adicionada.
+
+### Preocupacoes
+
+- O worktree ja estava amplamente sujo antes da correcao; o commit deve ser seletivo para `project_loop.py`, o teste RED e este relatorio.

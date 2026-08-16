@@ -232,6 +232,23 @@ def test_invalid_project_coordination_policy_is_blocked_before_runner(tmp_path):
                for item in result["preflight"]["errors"])
 
 
+def test_non_finite_coordination_policy_is_persisted_as_strict_json(tmp_path):
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    spec["coordination_policy"] = {"folga_mm": float("nan")}
+
+    result = run_project(spec, tmp_path, options={"generate_ifc": False})
+
+    assert result["status"] == "blocked"
+
+    def reject_non_finite(token):
+        raise ValueError("non-finite JSON constant: %s" % token)
+
+    for path in (tmp_path / "reports" / "preflight.json",
+                 tmp_path / "project-run.json"):
+        json.loads(path.read_text(encoding="utf-8"),
+                   parse_constant=reject_non_finite)
+
+
 def test_disabled_project_coordination_policy_skips_clash_artifacts(
         tmp_path, turnkey_fixture):
     spec = {

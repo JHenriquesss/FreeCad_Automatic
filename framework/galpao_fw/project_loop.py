@@ -165,6 +165,8 @@ class ProjectLoopOptions:
 
 def _json_safe(value):
     """Converte resultados de motores em uma estrutura JSON sem os alterar."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, Path):
@@ -179,7 +181,8 @@ def _json_safe(value):
 def _write_json(path: Path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_json_safe(value), ensure_ascii=False, indent=2,
-                               sort_keys=True) + "\n", encoding="utf-8")
+                               sort_keys=True, allow_nan=False) + "\n",
+                    encoding="utf-8")
 
 
 def _ensure_run_dir_available(run_dir):
