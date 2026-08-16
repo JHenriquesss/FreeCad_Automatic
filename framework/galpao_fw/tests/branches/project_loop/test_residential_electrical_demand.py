@@ -74,13 +74,13 @@ def test_final_demand_combines_a_major_group_and_remaining_groups():
     payload["loads"]["motors"] = [{"quantity": 1, "power_cv": 1.0,
                                       "connection": "trifasica"}]
     result = calculate_residential_demand(payload)
+    assert result["ok"] is True
     demand = result["calculation"]["demand"]
     assert demand["a"] == pytest.approx(10.30 / 1.20)
-    assert demand["final_kva"] == pytest.approx(
-        demand["a"] + max(demand["b"], demand["c"], demand["d"])
-        + 0.70 * (sum((demand["b"], demand["c"], demand["d"]))
-                  - max(demand["b"], demand["c"], demand["d"]))
-    )
+    assert demand["b"] == pytest.approx(5.2)
+    assert demand["c"] == pytest.approx(1.52)
+    assert demand["d"] == pytest.approx(4.0)
+    assert demand["final_kva"] == pytest.approx(17.6473333333)
 
 
 def test_unknown_room_count_and_out_of_table_motor_are_blocked():

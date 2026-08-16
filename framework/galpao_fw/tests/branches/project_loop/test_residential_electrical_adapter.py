@@ -144,7 +144,11 @@ def guarded_import(name, *args, **kwargs):
     return real_import(name, *args, **kwargs)
 builtins.__import__ = guarded_import
 from project_io import run_project_file
-run_project_file(spec_path, out_path, options={"generate_ifc": False})
+result = run_project_file(spec_path, out_path, options={"generate_ifc": False})
+assert result["adapter"] == "casa-residencial-eletrica"
+assert result["status"] == "needs_review"
+assert result["disciplines"]["eletrico"]["status"] == "needs_review"
+assert (out_path / "reports" / "adapter-result.json").is_file()
 '''
     completed = subprocess.run(
         [sys.executable, "-c", script, str(ROOT), str(spec_path), str(tmp_path / "run")],
