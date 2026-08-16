@@ -1,0 +1,196 @@
+import copy
+import math
+
+import pytest
+
+from dimensionamento_eletrico_residencial import (
+    calculate_residential_circuit_designs,
+)
+
+
+SOURCE_REFS = [
+    {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+        "title": "ABNT NBR 5410:2004",
+        "edition": "2004",
+        "status": 2,
+        "is_stale": False,
+    }
+]
+
+
+def _design(point_id="TUE-01", design_id=None, **overrides):
+    design = {
+        "id": design_id or f"C-{point_id}",
+        "point_ids": [point_id],
+        "length_m": 18.0,
+        "system": "monofasico",
+        "conductors_loaded": 2,
+        "insulation": "PVC",
+        "reference_method": "B1",
+        "ambient_temperature_C": 30.0,
+        "grouping_count": 3,
+        "power_factor": 1.0,
+        "voltage_drop_limit_pct": 4.0,
+        "use": "forca",
+        "protection": {"location": "banheiro", "exposure": "quadro"},
+    }
+    design.update(overrides)
+    return design
+
+
+def _circuits(point=None, design=None, *, points=None, designs=None):
+    if points is None:
+        points = [point or {
+            "id": "TUE-01",
+            "room": "banheiro",
+            "kind": "tue",
+            "power_va": 6000,
+            "voltage_v": 220,
+        }]
+    if designs is None:
+        designs = [design or _design(points[0]["id"])]
+    return {"points": points, "routes": [], "designs": designs}
+
+
+def test_chuveiro_residencial_dimensiona_6mm2_e_disjuntor_32a():
+    result = calculate_residential_circuit_designs(_circuits(), SOURCE_REFS)
+
+    item = result["designs"][0]
+    assert result["ok"] is True
+    assert item["load"]["current_a"] == pytest.approx(6000 / 220)
+    assert item["conductor"]["secao_mm2"] == 6
+    assert item["protection"]["disjuntor"]["IN"] == 32
+    assert item["protection"]["OK"] is True
+
+
+def test_queda_de_tensao_pode_ser_o_criterio_governante():
+    circuits = _circuits(
+        point={"id": "TUG-01", "room": "sala", "kind": "tug",
+               "power_va": 2000, "voltage_v": 127},
+        design=_design("TUG-01", length_m=80.0, use="forca",
+                       protection={"location": "seco", "exposure": "quadro"},
+                       power_factor=0.8),
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is True
+    assert result["designs"][0]["conductor"]["governante"] == "queda"
+
+
+def test_sem_curto_explica_revisao_sem_inventar_icc():
+    circuits = _circuits(
+        point={"id": "L-01", "room": "sala", "kind": "lighting",
+               "power_va": 100, "voltage_v": 127},
+        design=_design("L-01", length_m=10.0, use="iluminacao",
+                       protection={"location": "seco", "exposure": "quadro"}),
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is True
+    assert result["designs"][0]["short_circuit"] == {"status": "not_evaluated"}
+    assert result["scope"]["short_circuit_evaluation"] == "not_evaluated"
+
+
+@pytest.mark.parametrize("mutator, code", [
+    (lambda c: c.pop("designs"), "missing_circuit_designs"),
+    (lambda c: c["designs"][0].pop("length_m"), "missing_design_field"),
+    (lambda c: c["designs"][0].update({"point_ids": ["UNKNOWN"]}),
+     "unknown_design_point"),
+    (lambda c: c["designs"].append(copy.deepcopy(c["designs"][0])),
+     "duplicate_design_id"),
+    (lambda c: c["designs"][0].update({
+        "short_circuit": {"Icc_A": 5000}
+    }), "invalid_short_circuit"),
+])
+def test_contrato_invalido_bloqueia_sem_heuristica(mutator, code):
+    circuits = _circuits()
+    mutator(circuits)
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert isinstance(result["errors"], list)
+    assert any(error["code"] == code for error in result["errors"])
+
+
+def test_tensao_inconsistente_no_mesmo_design_e_rejeitada():
+    points = [
+        {"id": "TUG-01", "room": "sala", "kind": "tug",
+         "power_va": 1000, "voltage_v": 127},
+        {"id": "TUE-01", "room": "cozinha", "kind": "tue",
+         "power_va": 2000, "voltage_v": 220},
+    ]
+    circuits = _circuits(
+        points=points,
+        designs=[_design("TUG-01", point_ids=["TUG-01", "TUE-01"],
+                         protection={"location": "seco", "exposure": "quadro"})],
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "inconsistent_design_voltage"
+               for error in result["errors"])
+
+
+def test_mesmo_ponto_em_dois_designs_e_rejeitado():
+    circuits = _circuits(designs=[
+        _design("TUE-01", design_id="C-01"),
+        _design("TUE-01", design_id="C-02"),
+    ])
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "duplicate_design_point"
+               for error in result["errors"])
+
+
+@pytest.mark.parametrize("field, value", [
+    ("reference_method", "desconhecido"),
+    ("insulation", "desconhecida"),
+])
+def test_metodo_ou_isolacao_desconhecidos_geram_erro_estruturado(field, value):
+    circuits = _circuits()
+    circuits["designs"][0][field] = value
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert isinstance(result["errors"], list)
+    assert any(error["code"] in {"invalid_design_field", "invalid_design_value"}
+               for error in result["errors"])
+
+
+@pytest.mark.parametrize("field, value", [
+    ("length_m", math.nan),
+    ("ambient_temperature_C", math.inf),
+    ("power_factor", -math.inf),
+])
+def test_numeros_nao_finitos_geram_erro_estruturado_sem_excecao(field, value):
+    circuits = _circuits()
+    circuits["designs"][0][field] = value
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert isinstance(result["errors"], list)
+    assert any(error["code"] in {"invalid_design_field", "invalid_design_value"}
+               for error in result["errors"])
+
+
+def test_carga_sem_candidato_de_protecao_bloqueia_dimensionamento():
+    circuits = _circuits(
+        point={"id": "TUE-01", "room": "banheiro", "kind": "tue",
+               "power_va": 100000, "voltage_v": 220},
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "no_protection_candidate"
+               for error in result["errors"])
