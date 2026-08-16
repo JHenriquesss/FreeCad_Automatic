@@ -14,15 +14,28 @@ from typing import Any
 
 from demanda_residencial_enel import calculate_residential_demand
 from entrada_enel_bt import select_enel_bt_entry
-from project_loop import register_adapter
 
 
 ADAPTER_NAME = "casa-residencial-eletrica"
+ELECTRICAL_NOTEBOOK_ID = "78cd2efd-0652-484e-b312-c5c5a7648962"
 REQUIRED_SOURCE_IDS = frozenset({
     "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
     "5129118d-2ff6-4187-a9d2-d1828d61afdf",
     "5bc6c2f1-c8b8-4a04-8b82-be0e937b4749",
+    "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8",
 })
+REQUIRED_SOURCE_REFS = frozenset(
+    (ELECTRICAL_NOTEBOOK_ID, source_id) for source_id in REQUIRED_SOURCE_IDS
+)
+MOTOR_TABLE_COVERAGE = {
+    "status": "limited",
+    "supported": [{
+        "connection": "trifasica",
+        "power_cv": 1.0,
+        "quantity": 1,
+    }],
+    "demand_field": "demand_kva",
+}
 
 
 def _error(code: str, detail: str, **context: Any) -> dict[str, Any]:
@@ -118,11 +131,20 @@ def _electrical_source_refs(normalized: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _required_source_errors(source_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    declared = {item.get("source_id") for item in source_refs
-                if isinstance(item, dict)}
-    return [_error("missing_required_source", "fonte normativa obrigatória ausente",
-                   source_id=source_id)
-            for source_id in sorted(REQUIRED_SOURCE_IDS - declared)]
+    declared = {
+        (item.get("notebook_id"), item.get("source_id"))
+        for item in source_refs if isinstance(item, dict)
+    }
+    return [
+        _error(
+            "missing_required_source",
+            "fonte normativa obrigatória ausente no notebook elétrico",
+            notebook_id=notebook_id,
+            source_id=source_id,
+        )
+        for notebook_id, source_id in sorted(REQUIRED_SOURCE_REFS)
+        if (notebook_id, source_id) not in declared
+    ]
 
 
 def _preflight_electrical_errors(preflight: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -211,6 +233,14 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         warnings.extend(copy.deepcopy(calculate_residential_demand(payload).get("warnings", []))
                         if has_calculation_sections else [])
 
+    scope = {
+        "conductor_sizing": "not_implemented",
+        "protection_sizing": "not_implemented",
+        "executive_deliverables": "not_implemented",
+        "enel_approval": "not_claimed",
+        "construction_readiness": "not_claimed",
+        "motor_table_coverage": copy.deepcopy(MOTOR_TABLE_COVERAGE),
+    }
     status = "needs_review" if not errors else "blocked"
     record = {
         "status": status,
@@ -227,6 +257,7 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         "service_entry": service_entry,
         "circuits": circuit_result,
         "source_refs": source_refs,
+        "scope": copy.deepcopy(scope),
         "artifacts": [],
     }
     result = {
@@ -238,19 +269,15 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         "calculation": calculation,
         "service_entry": service_entry,
         "circuits": circuit_result,
-        "scope": {
-            "conductor_sizing": "not_implemented",
-            "protection_sizing": "not_implemented",
-            "executive_deliverables": "not_implemented",
-            "enel_approval": "not_claimed",
-            "construction_readiness": "not_claimed",
-        },
+        "scope": scope,
     }
     return result, {"eletrico": record}
 
 
 def register_residential_electrical_adapter() -> None:
     """Registra o adaptador; o carregamento global ocorre em tarefa própria."""
+    from project_loop import register_adapter
+
     register_adapter(
         ADAPTER_NAME,
         run_residential_electrical,

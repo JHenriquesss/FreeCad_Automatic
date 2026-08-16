@@ -18,7 +18,7 @@ _EDITION = "R02/2025"
 # connection conductors, entry conductors, grounding, conduit, connection point
 ANNEX_A_127_220 = (
     ("A1", "A", None, 5.0, 40, "1x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
-    ("A2", "A", 5.1, 8.0, 63, "1x16 (10)", "16 (10)", 16, 50, "medidor", "direct_table_7"),
+    ("A2", "A", 5.0, 8.0, 63, "1x16 (10)", "16 (10)", 16, 50, "medidor", "direct_table_7"),
     ("B1", "B", 0.0, 11.0, 50, "2x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
     ("B2", "B", 11.1, 14.0, 63, "2x16 (10)", "16 (10)", 16, 60, "medidor", "direct_table_7"),
     ("C1", "C", 10.0, 15.0, 40, "3x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),

@@ -86,7 +86,7 @@ def _spec():
                 },
             },
         },
-        "source_refs": {"eletrico": list(SOURCE_REFS)},
+        "source_refs": {"eletrico": [dict(ref) for ref in SOURCE_REFS]},
     }
 
 
@@ -166,6 +166,52 @@ def test_missing_required_electrical_source_blocks_discipline(tmp_path):
     assert result["status"] == "blocked"
     assert any(error["code"] == "missing_required_source"
                for error in result["disciplines"]["eletrico"]["errors"])
+
+
+def test_required_electrical_source_must_match_notebook_id(tmp_path):
+    spec = _spec()
+    spec["source_refs"]["eletrico"][0]["notebook_id"] = "wrong-notebook"
+    result = run_project(spec, tmp_path, options={"generate_ifc": False})
+    errors = result["disciplines"]["eletrico"]["errors"]
+    assert result["status"] == "blocked"
+    assert any(
+        error["code"] == "missing_required_source"
+        and error.get("context", {}).get("source_id")
+            == "d213019d-6e5c-4f18-8151-bf5a74c11b5d"
+        and error.get("context", {}).get("notebook_id")
+            == "78cd2efd-0652-484e-b312-c5c5a7648962"
+        for error in errors
+    )
+
+
+def test_direct_residential_electrical_import_works_in_fresh_process():
+    script = r'''
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root))
+import residencial_eletrica
+assert callable(residencial_eletrica.run_residential_electrical)
+assert callable(residencial_eletrica.register_residential_electrical_adapter)
+'''
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(ROOT)],
+        capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_runner_exposes_limited_motor_table_scope_and_kva_field(tmp_path):
+    result, records = run_residential_electrical(normalize_spec(_spec()), tmp_path)
+    coverage = result["scope"]["motor_table_coverage"]
+    assert coverage["status"] == "limited"
+    assert coverage["supported"] == [{
+        "connection": "trifasica",
+        "power_cv": 1.0,
+        "quantity": 1,
+    }]
+    assert coverage["demand_field"] == "demand_kva"
+    assert records["eletrico"]["calculation"]["motors"]["demand_kva"] == 0.0
 
 
 def test_invalid_circuit_point_blocks_without_heuristic_repair(tmp_path):

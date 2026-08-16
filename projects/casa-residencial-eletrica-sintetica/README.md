@@ -14,6 +14,10 @@ python framework/galpao_fw/project_loop_cli.py --spec projects/casa-residencial-
 python framework/galpao_fw/project_loop_cli.py --spec projects/casa-residencial-eletrica-sintetica/project-spec.json --out-dir projects/casa-residencial-eletrica-sintetica/run --readiness projects/casa-residencial-eletrica-sintetica/readiness --require-source-refs --no-ifc
 ```
 
+A cobertura de motores desta fase é deliberadamente limitada à combinação
+`1 CV trifásico, quantidade 1`. O resultado usa o campo `demand_kva`; motores
+fora dessa linha exigem revisão explícita e não são interpolados.
+
 Use uma pasta de saída nova para cada execução. O resultado esperado da
 fixture é `needs_review`: a vertical ainda não dimensiona condutores e
 proteções nem emite entregáveis executivos.

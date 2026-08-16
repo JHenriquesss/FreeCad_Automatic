@@ -109,6 +109,18 @@ def test_annex_a_type_c_published_boundaries(load_kw, expected_row):
 
 
 @pytest.mark.parametrize(
+    ("load_kw", "expected_row"),
+    [(5.0, "A1"), (5.01, "A2"), (5.05, "A2")],
+)
+def test_annex_a_type_a_uses_published_exclusive_lower_boundary(load_kw, expected_row):
+    result = select_enel_bt_entry(
+        voltage_system="127/220", supply_type="A", installed_load_kw=load_kw
+    )
+    assert result["ok"] is True
+    assert result["entry"]["row"] == expected_row
+
+
+@pytest.mark.parametrize(
     ("supply_type", "load_kw", "expected_row"),
     [
         ("A", 5.0, "A1"),
