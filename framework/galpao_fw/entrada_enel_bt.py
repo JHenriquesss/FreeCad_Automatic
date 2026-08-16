@@ -84,7 +84,7 @@ def select_enel_bt_entry(
 
     if supply_type is None or supply_type == "":
         errors.append(_error("missing_supply_type", "Tipo de fornecimento é obrigatório"))
-    elif not isinstance(supply_type, str) or supply_type not in {"A", "B", "C"}:
+    elif type(supply_type) is not str or supply_type not in {"A", "B", "C"}:
         errors.append(_error("invalid_supply_type", "Tipo de fornecimento deve ser A, B ou C"))
 
     valid_load = isinstance(installed_load_kw, Real) and not isinstance(

@@ -3,6 +3,10 @@ import pytest
 from entrada_enel_bt import select_enel_bt_entry
 
 
+class _UnhashableString(str):
+    __hash__ = None
+
+
 def test_annex_a_selects_b1_for_127_220_and_7_5_kw():
     result = select_enel_bt_entry(
         voltage_system="127/220", supply_type="B", installed_load_kw=7.5
@@ -19,6 +23,17 @@ def test_annex_a_requires_type_when_ranges_overlap():
     )
     assert result["ok"] is False
     assert any(error["code"] == "missing_supply_type"
+               for error in result["errors"])
+
+
+def test_unhashable_supply_type_is_blocked_without_exception():
+    result = select_enel_bt_entry(
+        voltage_system="127/220",
+        supply_type=_UnhashableString("A"),
+        installed_load_kw=5.0,
+    )
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_supply_type"
                for error in result["errors"])
 
 

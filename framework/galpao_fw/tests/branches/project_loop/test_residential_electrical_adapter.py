@@ -267,6 +267,30 @@ def test_malformed_turnkey_spec_blocks_runner_without_exception(tmp_path):
                for error in record["errors"])
 
 
+def test_list_network_kind_blocks_runner_without_exception(tmp_path):
+    spec = _spec()
+    spec["turnkey"]["eletrico"]["network"]["network_kind"] = []
+
+    _, records = run_residential_electrical(normalize_spec(spec), tmp_path)
+
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "invalid_network_kind"
+               for error in record["errors"])
+
+
+def test_object_circuit_kind_blocks_runner_without_exception(tmp_path):
+    spec = _spec()
+    spec["turnkey"]["eletrico"]["circuits"]["points"][0]["kind"] = {}
+
+    _, records = run_residential_electrical(normalize_spec(spec), tmp_path)
+
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "unsupported_circuit_kind"
+               for error in record["errors"])
+
+
 def test_residential_electrical_path_does_not_import_galpao_modules(tmp_path):
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(_spec()), encoding="utf-8")

@@ -87,7 +87,7 @@ def validate_circuit_points(circuits: dict) -> dict[str, Any]:
         power_va = point.get("power_va")
         voltage_v = point.get("voltage_v")
         valid = True
-        if not isinstance(point_id, str) or not point_id.strip():
+        if type(point_id) is not str or not point_id.strip():
             errors.append(_error("missing_circuit_id", "ponto requer id não vazio",
                                  index=index))
             valid = False
@@ -97,11 +97,11 @@ def validate_circuit_points(circuits: dict) -> dict[str, Any]:
             valid = False
         else:
             identifiers.add(point_id)
-        if not isinstance(room, str) or not room.strip():
+        if type(room) is not str or not room.strip():
             errors.append(_error("missing_circuit_room", "ponto requer room não vazio",
                                  index=index))
             valid = False
-        if kind not in {"lighting", "tug", "tue"}:
+        if type(kind) is not str or kind not in {"lighting", "tug", "tue"}:
             errors.append(_error("unsupported_circuit_kind",
                                  "kind deve ser lighting, tug ou tue", index=index))
             valid = False
@@ -171,7 +171,8 @@ def _payload_errors(payload: Any) -> list[dict[str, Any]]:
         value = network.get(field)
         if value is None or (isinstance(value, str) and not value.strip()):
             errors.append(_error("missing_" + field, f"network.{field} é obrigatório"))
-    if network.get("network_kind") not in {"aerea", "subterranea"}:
+    network_kind = network.get("network_kind")
+    if type(network_kind) is not str or network_kind not in {"aerea", "subterranea"}:
         errors.append(_error("invalid_network_kind",
                              "network_kind deve ser aerea ou subterranea"))
     if not isinstance(payload.get("rooms"), dict):
