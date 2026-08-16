@@ -13,6 +13,7 @@ from numbers import Real
 from typing import Any
 
 from demanda_residencial_enel import calculate_residential_demand
+from dimensionamento_eletrico_residencial import calculate_residential_circuit_designs
 from entrada_enel_bt import select_enel_bt_entry
 
 
@@ -190,20 +191,27 @@ def _warning(code: str, **fields: Any) -> dict[str, Any]:
     return {"code": code, **fields}
 
 
-def _blocked_result(error: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    errors = [copy.deepcopy(error)]
-    circuits = {"ok": False, "errors": [], "warnings": [],
-                "points": [], "routes": []}
-    service_entry = {"ok": False, "entry": None,
-                     "errors": [], "warnings": []}
-    scope = {
-        "conductor_sizing": "not_implemented",
-        "protection_sizing": "not_implemented",
+def _residential_sizing_scope(short_circuit_evaluation: str = "not_evaluated") -> dict[str, Any]:
+    return {
+        "conductor_sizing": "implemented",
+        "protection_sizing": "implemented",
+        "short_circuit_evaluation": short_circuit_evaluation,
         "executive_deliverables": "not_implemented",
         "enel_approval": "not_claimed",
         "construction_readiness": "not_claimed",
         "motor_table_coverage": copy.deepcopy(MOTOR_TABLE_COVERAGE),
     }
+
+
+def _blocked_result(error: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    errors = [copy.deepcopy(error)]
+    scope = _residential_sizing_scope()
+    circuits = {"ok": False, "errors": [], "warnings": [],
+                "points": [], "routes": [], "designs": [],
+                "scope": {key: value for key, value in scope.items()
+                          if key != "motor_table_coverage"}}
+    service_entry = {"ok": False, "entry": None,
+                     "errors": [], "warnings": []}
     record = {
         "status": "blocked",
         "native_atende": None,
@@ -252,9 +260,37 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
     errors.extend(_preflight_electrical_errors(preflight))
     errors.extend(_payload_errors(payload))
 
-    circuit_result = validate_circuit_points(
-        payload.get("circuits") if isinstance(payload, dict) else {})
-    errors.extend(circuit_result["errors"])
+    circuit_payload = payload.get("circuits") if isinstance(payload, dict) else {}
+    point_result = validate_circuit_points(circuit_payload)
+    try:
+        design_result = calculate_residential_circuit_designs(
+            payload.get("circuits") if isinstance(payload, dict) else {},
+            source_refs,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        design_result = {
+            "ok": False,
+            "errors": [_error(
+                "circuit_design_calculation_failed",
+                "dimensionamento de circuitos falhou para entrada invalida",
+                exception=type(exc).__name__,
+            )],
+            "warnings": [],
+            "designs": [],
+            "scope": {
+                "conductor_sizing": "implemented",
+                "protection_sizing": "implemented",
+                "short_circuit_evaluation": "not_evaluated",
+                "executive_deliverables": "not_implemented",
+                "enel_approval": "not_claimed",
+                "construction_readiness": "not_claimed",
+            },
+        }
+    circuit_errors = (
+        copy.deepcopy(point_result["errors"]) +
+        copy.deepcopy(design_result.get("errors", []))
+    )
+    errors.extend(circuit_errors)
     calculation: dict[str, Any] = {}
     service_entry: dict[str, Any] = {"ok": False, "entry": None,
                                       "errors": [], "warnings": []}
@@ -290,19 +326,29 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         _warning("source_snapshot_requires_readiness"),
         _warning("executive_deliverables_not_implemented"),
     ]
-    warnings.extend(copy.deepcopy(circuit_result["warnings"]))
+    circuit_warnings = (
+        copy.deepcopy(point_result["warnings"]) +
+        copy.deepcopy(design_result.get("warnings", []))
+    )
+    if design_result.get("scope", {}).get("short_circuit_evaluation") == "not_evaluated":
+        circuit_warnings.append(_warning("short_circuit_not_evaluated"))
+    warnings.extend(copy.deepcopy(circuit_warnings))
     warnings.extend(copy.deepcopy(service_entry.get("warnings", [])))
     if isinstance(payload, dict):
         warnings.extend(copy.deepcopy(calculate_residential_demand(payload).get("warnings", []))
                         if has_calculation_sections else [])
 
-    scope = {
-        "conductor_sizing": "not_implemented",
-        "protection_sizing": "not_implemented",
-        "executive_deliverables": "not_implemented",
-        "enel_approval": "not_claimed",
-        "construction_readiness": "not_claimed",
-        "motor_table_coverage": copy.deepcopy(MOTOR_TABLE_COVERAGE),
+    design_scope = copy.deepcopy(design_result.get("scope", {}))
+    scope = _residential_sizing_scope(
+        design_scope.get("short_circuit_evaluation", "not_evaluated"))
+    circuits = {
+        "ok": bool(point_result["ok"] and design_result.get("ok")),
+        "errors": circuit_errors,
+        "warnings": circuit_warnings,
+        "points": copy.deepcopy(point_result["points"]),
+        "routes": copy.deepcopy(point_result["routes"]),
+        "designs": copy.deepcopy(design_result.get("designs", [])),
+        "scope": design_scope,
     }
     status = "needs_review" if not errors else "blocked"
     record = {
@@ -314,11 +360,11 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         "gates": {
             "required_sources_declared": not _required_source_errors(source_refs),
             "explicit_network_inputs": not _payload_errors(payload),
-            "explicit_circuit_points": circuit_result["ok"],
+            "explicit_circuit_points": point_result["ok"],
         },
         "calculation": calculation,
         "service_entry": service_entry,
-        "circuits": circuit_result,
+        "circuits": circuits,
         "source_refs": source_refs,
         "scope": copy.deepcopy(scope),
         "artifacts": [],
@@ -328,10 +374,13 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         "schema_version": 1,
         "adapter": ADAPTER_NAME,
         "project_id": normalized.get("project_id"),
+        "status": status,
+        "errors": copy.deepcopy(errors),
+        "warnings": copy.deepcopy(warnings),
         "source_refs": source_refs,
         "calculation": calculation,
         "service_entry": service_entry,
-        "circuits": circuit_result,
+        "circuits": circuits,
         "scope": scope,
     }
     return result, {"eletrico": record}

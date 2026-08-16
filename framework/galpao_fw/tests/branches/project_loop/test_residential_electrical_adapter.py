@@ -53,6 +53,56 @@ SOURCE_REFS = [
 ]
 
 
+def _synthetic_designs():
+    return [
+        {
+            "id": "C-L-01",
+            "point_ids": ["L-01"],
+            "length_m": 10.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "iluminacao",
+            "protection": {"location": "seco", "exposure": "quadro"},
+        },
+        {
+            "id": "C-T-01",
+            "point_ids": ["T-01"],
+            "length_m": 12.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {"location": "cozinha", "exposure": "quadro"},
+        },
+        {
+            "id": "C-TUE-01",
+            "point_ids": ["TUE-01"],
+            "length_m": 18.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {"location": "banheiro", "exposure": "quadro"},
+        },
+    ]
+
+
 def _spec():
     return {
         "schema": "freecad-automatic/project-spec",
@@ -83,8 +133,11 @@ def _spec():
                          "power_va": 100, "voltage_v": 127},
                         {"id": "T-01", "room": "cozinha", "kind": "tug",
                          "power_va": 600, "voltage_v": 127},
+                        {"id": "TUE-01", "room": "banheiro", "kind": "tue",
+                         "power_va": 4400, "voltage_v": 220},
                     ],
                     "routes": [],
+                    "designs": _synthetic_designs(),
                 },
             },
         },
@@ -111,6 +164,26 @@ def test_residential_electrical_run_is_needs_review_and_traceable(tmp_path):
     assert record["status"] == "needs_review"
     assert record["calculation"]["demand"]["final_kva"] > 0
     assert record["service_entry"]["entry"]["row"] == "B1"
+    assert record["scope"]["conductor_sizing"] == "implemented"
+    assert record["scope"]["protection_sizing"] == "implemented"
+    assert record["scope"]["short_circuit_evaluation"] == "not_evaluated"
+    adapter_result = json.loads(
+        (tmp_path / "reports" / "adapter-result.json").read_text(encoding="utf-8"))
+    assert adapter_result["scope"] == record["scope"]
+    circuits = record["circuits"]
+    assert set(circuits) >= {
+        "points", "routes", "designs", "errors", "warnings", "ok", "scope",
+    }
+    assert circuits["ok"] is True
+    assert circuits["scope"]["short_circuit_evaluation"] == "not_evaluated"
+    assert [item["id"] for item in circuits["designs"]] == [
+        "C-L-01", "C-T-01", "C-TUE-01",
+    ]
+    assert all(item["short_circuit"] == {"status": "not_evaluated"}
+               for item in circuits["designs"])
+    assert all(item["conductor"]["secao_mm2"] > 0 for item in circuits["designs"])
+    assert all(item["protection"]["disjuntor"]["IN"] > 0
+               for item in circuits["designs"])
     assert (tmp_path / "reports" / "adapter-result.json").is_file()
 
 
@@ -121,12 +194,17 @@ def test_persisted_residential_electrical_fixture_runs_through_universal_loop(tm
     assert result["status"] == "needs_review"
     assert result["disciplines"]["eletrico"]["status"] == "needs_review"
     assert result["disciplines"]["eletrico"]["service_entry"]["entry"]["row"] == "B1"
+    circuits = result["disciplines"]["eletrico"]["circuits"]
+    assert [item["id"] for item in circuits["designs"]] == [
+        "C-L-01", "C-T-01", "C-TUE-01",
+    ]
+    assert circuits["scope"]["short_circuit_evaluation"] == "not_evaluated"
     verification = verify_project_run(result)
     assert verification["ok"] is True
     artifacts = result["artifacts"]
     assert artifacts
     assert all(artifact["path"].endswith(".json") for artifact in artifacts)
-    assert all(artifact.get("sha256") for artifact in artifacts)
+    assert all(len(artifact.get("sha256", "")) == 64 for artifact in artifacts)
     assert {artifact["path"] for artifact in artifacts} == {
         "input/spec.json", "reports/adapter-result.json",
         "reports/disciplinas.json", "reports/preflight.json",
@@ -247,6 +325,26 @@ def test_invalid_circuit_point_blocks_without_heuristic_repair(tmp_path):
     assert result["status"] == "blocked"
     assert any(error["code"] == "missing_circuit_voltage"
                for error in result["disciplines"]["eletrico"]["errors"])
+
+
+@pytest.mark.parametrize("mutator, code", [
+    (lambda circuits: circuits.pop("designs"), "missing_circuit_designs"),
+    (lambda circuits: circuits["designs"][0].update({"power_factor": 0}),
+     "invalid_design_value"),
+])
+def test_invalid_or_missing_design_blocks_runner_with_structured_error(
+        mutator, code, tmp_path):
+    spec = _spec()
+    circuits = spec["turnkey"]["eletrico"]["circuits"]
+    mutator(circuits)
+
+    result = run_project(spec, tmp_path, options={"generate_ifc": False})
+
+    record = result["disciplines"]["eletrico"]
+    assert result["status"] == "blocked"
+    assert record["status"] == "blocked"
+    assert any(error["code"] == code for error in record["errors"])
+    assert any(error["code"] == code for error in record["circuits"]["errors"])
 
 
 def test_subterranean_network_blocks_aerial_enel_entry_selection(tmp_path):

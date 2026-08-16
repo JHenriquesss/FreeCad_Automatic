@@ -58,7 +58,69 @@
             "voltage_v": 220
           }
         ],
-        "routes": []
+        "routes": [],
+        "designs": [
+          {
+            "id": "C-L-01",
+            "point_ids": [
+              "L-01"
+            ],
+            "length_m": 10.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "iluminacao",
+            "protection": {
+              "location": "seco",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C-T-01",
+            "point_ids": [
+              "T-01"
+            ],
+            "length_m": 12.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "cozinha",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C-TUE-01",
+            "point_ids": [
+              "TUE-01"
+            ],
+            "length_m": 18.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "banheiro",
+              "exposure": "quadro"
+            }
+          }
+        ]
       }
     }
   },
