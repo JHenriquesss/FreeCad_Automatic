@@ -331,7 +331,14 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         copy.deepcopy(point_result["warnings"]) +
         copy.deepcopy(design_result.get("warnings", []))
     )
-    if design_result.get("scope", {}).get("short_circuit_evaluation") == "not_evaluated":
+    if (
+        design_result.get("scope", {}).get("short_circuit_evaluation") == "not_evaluated"
+        and not any(
+            isinstance(item, dict)
+            and item.get("code") == "short_circuit_not_evaluated"
+            for item in circuit_warnings
+        )
+    ):
         circuit_warnings.append(_warning("short_circuit_not_evaluated"))
     warnings.extend(copy.deepcopy(circuit_warnings))
     warnings.extend(copy.deepcopy(service_entry.get("warnings", [])))

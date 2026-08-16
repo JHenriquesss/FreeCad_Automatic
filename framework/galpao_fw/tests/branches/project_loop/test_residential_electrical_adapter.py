@@ -176,6 +176,8 @@ def test_residential_electrical_run_is_needs_review_and_traceable(tmp_path):
     }
     assert circuits["ok"] is True
     assert circuits["scope"]["short_circuit_evaluation"] == "not_evaluated"
+    assert sum(item["code"] == "short_circuit_not_evaluated"
+               for item in circuits["warnings"]) == 1
     assert [item["id"] for item in circuits["designs"]] == [
         "C-L-01", "C-T-01", "C-TUE-01",
     ]
