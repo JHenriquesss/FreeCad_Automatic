@@ -159,7 +159,13 @@ def test_residential_manifest_matches_universal_contract(
     house = run_project_file(SPEC, house_dir,
                              options={"generate_ifc": False})
     galpao_dir = tmp_path / "galpao"
-    galpao = run_project(turnkey_fixture(), galpao_dir,
+    galpao_spec = {
+        "schema": "freecad-automatic/project-spec",
+        "schema_version": 1,
+        "project": {"slug": "galpao-fixture", "type": "galpao"},
+        "turnkey": turnkey_fixture(),
+    }
+    galpao = run_project(galpao_spec, galpao_dir,
                          options={"generate_ifc": False})
     _assert_universal_manifest_contract(house)
     _assert_universal_manifest_contract(galpao)
