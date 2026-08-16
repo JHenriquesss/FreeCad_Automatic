@@ -3,7 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from project_loop import describe_adapters, run_project
+from project_loop import describe_adapters, normalize_spec, run_project
+from residencial_eletrica import run_residential_electrical
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -125,6 +126,26 @@ def test_invalid_circuit_point_blocks_without_heuristic_repair(tmp_path):
     assert result["status"] == "blocked"
     assert any(error["code"] == "missing_circuit_voltage"
                for error in result["disciplines"]["eletrico"]["errors"])
+
+
+def test_subterranean_network_blocks_aerial_enel_entry_selection(tmp_path):
+    spec = _spec()
+    spec["turnkey"]["eletrico"]["network"]["network_kind"] = "subterranea"
+    _, records = run_residential_electrical(normalize_spec(spec), tmp_path)
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "unsupported_network_kind_for_entry"
+               for error in record["errors"])
+
+
+def test_malformed_turnkey_spec_blocks_runner_without_exception(tmp_path):
+    normalized = normalize_spec(_spec())
+    normalized["turnkey_spec"] = None
+    _, records = run_residential_electrical(normalized, tmp_path)
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "invalid_electrical_payload"
+               for error in record["errors"])
 
 
 def test_residential_electrical_path_does_not_import_galpao_modules(tmp_path):

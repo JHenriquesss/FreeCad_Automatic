@@ -83,6 +83,18 @@ def test_final_demand_combines_a_major_group_and_remaining_groups():
     assert demand["final_kva"] == pytest.approx(17.6473333333)
 
 
+def test_final_demand_applies_seventy_percent_to_tied_second_major_group():
+    payload = _payload()
+    payload["loads"]["heating"] = [{"quantity": 1, "power_kw": 12.5}]
+    payload["loads"]["special_lighting"] = [{"power_kw": 10.0, "factor": 1.0}]
+    result = calculate_residential_demand(payload)
+    assert result["ok"] is True
+    demand = result["calculation"]["demand"]
+    assert demand["b"] == pytest.approx(10.0)
+    assert demand["d"] == pytest.approx(10.0)
+    assert demand["final_kva"] == pytest.approx(10.30 / 1.20 + 10.0 + 0.70 * 10.0)
+
+
 def test_unknown_room_count_and_out_of_table_motor_are_blocked():
     payload = _payload()
     payload["rooms"]["varanda"] = 1

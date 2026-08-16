@@ -161,7 +161,8 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
     """Executa a vertical elétrica residencial sem efeitos externos."""
     del run_dir
     source_refs = _electrical_source_refs(normalized)
-    payload = normalized.get("turnkey_spec", {}).get("eletrico")
+    turnkey_spec = normalized.get("turnkey_spec")
+    payload = turnkey_spec.get("eletrico") if isinstance(turnkey_spec, dict) else None
     errors = _required_source_errors(source_refs)
     errors.extend(_preflight_electrical_errors(preflight))
     errors.extend(_payload_errors(payload))
@@ -181,7 +182,14 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
         demand_result = calculate_residential_demand(payload)
         calculation = copy.deepcopy(demand_result.get("calculation", {}))
         errors.extend(copy.deepcopy(demand_result.get("errors", [])))
-        if demand_result.get("ok") and _finite_positive(
+        network_kind = payload["network"].get("network_kind")
+        if network_kind != "aerea":
+            errors.append(_error(
+                "unsupported_network_kind_for_entry",
+                "as tabelas Enel transcritas nesta vertical são somente para rede aérea",
+                network_kind=network_kind,
+            ))
+        elif demand_result.get("ok") and _finite_positive(
                 payload["loads"].get("installed_load_kw")):
             service_entry = select_enel_bt_entry(
                 voltage_system=payload["network"].get("voltage_system"),

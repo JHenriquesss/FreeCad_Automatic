@@ -239,8 +239,13 @@ def _compose_result(rooms: dict[str, Any], heating: dict[str, Any],
     c = motors["demand_kw"]
     d = special["demand_kw"]
     accessory_groups = [b, c, d]
-    major = max(accessory_groups, default=0.0)
-    final = a + major + sum(value * 0.70 for value in accessory_groups if value != major)
+    major_index = max(range(len(accessory_groups)),
+                      key=lambda index: accessory_groups[index])
+    major = accessory_groups[major_index]
+    final = a + major + sum(
+        value * 0.70 for index, value in enumerate(accessory_groups)
+        if index != major_index
+    )
     calculation = {
         "location_factor": location_factor,
         "rooms": rooms,
