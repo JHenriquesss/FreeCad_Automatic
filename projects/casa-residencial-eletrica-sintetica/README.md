@@ -20,7 +20,9 @@ fora dessa linha exigem revisão explícita e não são interpolados.
 
 Use uma pasta de saída nova para cada execução. O resultado esperado da
 fixture é `needs_review`: `circuits.points` declara as cargas e
-`circuits.designs` declara as entradas de engenharia sem defaults. Nesta fase
+`circuits.designs` declara as entradas de engenharia sem defaults.
+`circuits.designs` é obrigatório para executar o dimensionamento; quando
+faltar, a disciplina fica `blocked` com `missing_circuit_designs`. Nesta fase
 a vertical dimensiona condutor/proteção e indica DR/DPS, mas a ausência de
 `short_circuit` mantém `short_circuit_evaluation: not_evaluated` e o status
 geral em `needs_review`. Ainda não há IFC, FCStd, DXF, SVG, PDF, unifilar ou

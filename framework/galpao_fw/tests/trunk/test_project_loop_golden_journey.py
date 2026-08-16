@@ -114,4 +114,4 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
     assert "reports/adapter-result.json" in {
         artifact["path"] for artifact in persisted_electrical["artifacts"]
     }
-    assert verify_project_run(electrical)["ok"] is True
+    assert verify_project_run(electrical_out)["ok"] is True

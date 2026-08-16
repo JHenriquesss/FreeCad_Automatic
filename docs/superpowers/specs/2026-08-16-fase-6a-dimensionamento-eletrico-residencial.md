@@ -1,6 +1,6 @@
 # Fase 6A — Dimensionamento elétrico residencial auditável
 
-**Status:** aprovado pelo usuário em 2026-08-16  
+**Status:** aprovado pelo usuário em 2026-08-16
 **Base normativa consultada:** NotebookLM `78cd2efd-0652-484e-b312-c5c5a7648962`, fonte `d213019d-6e5c-4f18-8151-bf5a74c11b5d` (ABNT NBR 5410:2004), consulta validada em 2026-08-16.
 
 ## 1. Contexto e objetivo
