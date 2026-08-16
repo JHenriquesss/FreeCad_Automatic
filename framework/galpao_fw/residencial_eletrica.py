@@ -131,10 +131,16 @@ def _electrical_source_refs(normalized: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _required_source_errors(source_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    declared = {
-        (item.get("notebook_id"), item.get("source_id"))
-        for item in source_refs if isinstance(item, dict)
-    }
+    declared = set()
+    for item in source_refs:
+        if not isinstance(item, dict):
+            continue
+        notebook_id = item.get("notebook_id")
+        source_id = item.get("source_id")
+        if (type(notebook_id) is not str or not notebook_id.strip()
+                or type(source_id) is not str or not source_id.strip()):
+            continue
+        declared.add((notebook_id, source_id))
     return [
         _error(
             "missing_required_source",

@@ -184,6 +184,30 @@ def test_required_electrical_source_must_match_notebook_id(tmp_path):
     )
 
 
+def test_malformed_required_source_id_blocks_without_exception(tmp_path):
+    spec = _spec()
+    spec["source_refs"]["eletrico"][0]["source_id"] = []
+
+    _, records = run_residential_electrical(normalize_spec(spec), tmp_path)
+
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "missing_required_source"
+               for error in record["errors"])
+
+
+def test_malformed_required_notebook_id_blocks_without_exception(tmp_path):
+    spec = _spec()
+    spec["source_refs"]["eletrico"][0]["notebook_id"] = {}
+
+    _, records = run_residential_electrical(normalize_spec(spec), tmp_path)
+
+    record = records["eletrico"]
+    assert record["status"] == "blocked"
+    assert any(error["code"] == "missing_required_source"
+               for error in record["errors"])
+
+
 def test_direct_residential_electrical_import_works_in_fresh_process():
     script = r'''
 import sys
