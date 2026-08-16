@@ -28,7 +28,7 @@ def test_annex_a_selects_c3_without_silently_changing_type():
     )
     assert result["ok"] is True
     assert result["entry"]["row"] == "C3"
-    assert result["entry"]["point_of_connection"] == "poste"
+    assert result["entry"]["point_of_connection"] == "medidor"
 
 
 def test_annex_c_selects_b1_for_120_240():
