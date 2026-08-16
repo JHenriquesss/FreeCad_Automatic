@@ -269,6 +269,27 @@ def test_non_string_motor_connection_returns_structured_error(connection):
     )
 
 
+def test_unhashable_string_motor_connection_returns_structured_error():
+    class UnhashableString(str):
+        __hash__ = None
+
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 1,
+        "power_cv": 1.0,
+        "connection": UnhashableString("trifasica"),
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(
+        error["code"] == "invalid_load_value"
+        and error.get("context", {}).get("field") == "connection"
+        for error in result["errors"]
+    )
+
+
 def test_missing_room_count_is_blocked_instead_of_defaulting_to_zero():
     payload = _payload()
     del payload["rooms"]["sala"]

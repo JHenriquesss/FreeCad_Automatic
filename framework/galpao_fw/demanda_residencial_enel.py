@@ -187,7 +187,7 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                 elif key == "motors":
                     _validate_positive_integer(errors, key, index, item, "quantity")
                     _validate_positive_number(errors, key, index, item, "power_cv")
-                    if not isinstance(item.get("connection"), str):
+                    if not _is_concrete_hashable_string(item.get("connection")):
                         errors.append(_error(
                             "invalid_load_value",
                             "conexão do motor deve ser texto",
@@ -232,6 +232,16 @@ def _validate_positive_number(errors: list[dict[str, Any]], group: str,
     if not _is_number(value) or value <= 0:
         errors.append(_error("invalid_load_value", "carga deve informar número finito positivo",
                              group=group, index=index, field=field))
+
+
+def _is_concrete_hashable_string(value: Any) -> bool:
+    if type(value) is not str:
+        return False
+    try:
+        hash(value)
+    except TypeError:
+        return False
+    return True
 
 
 def _calculate_rooms(rooms: dict[str, int], location_factor: float) -> dict[str, Any]:
