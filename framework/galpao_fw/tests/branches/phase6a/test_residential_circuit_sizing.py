@@ -64,6 +64,7 @@ def test_chuveiro_residencial_dimensiona_resultado_final_coordenado():
     assert item["base_conductor"]["secao_mm2"] == 6
     assert item["protection"]["disjuntor"]["IN"] == 32
     assert item["protection"]["OK"] is True
+    assert item["voltage_drop_reference_fp"] == 0.95
 
 
 def test_publica_o_resultado_da_segunda_passagem_coordenada():
@@ -223,3 +224,124 @@ def test_carga_sem_candidato_de_protecao_bloqueia_dimensionamento():
     assert result["ok"] is False
     assert any(error["code"] == "no_protection_candidate"
                for error in result["errors"])
+
+
+def test_power_va_nao_divide_novamente_pelo_fator_de_potencia():
+    circuits = _circuits(
+        point={"id": "TUG-01", "room": "sala", "kind": "tug",
+               "power_va": 1000, "voltage_v": 127},
+        design=_design("TUG-01", power_factor=0.8,
+                       protection={"location": "seco", "exposure": "quadro"}),
+    )
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["designs"][0]["load"]["current_a"] == pytest.approx(1000 / 127)
+
+
+@pytest.mark.parametrize("field, value", [
+    ("grouping_count", 5),
+    ("grouping_count", 100),
+    ("power_factor", 0.85),
+])
+def test_dominios_sem_coluna_tabelada_bloqueiam(field, value):
+    circuits = _circuits()
+    circuits["designs"][0][field] = value
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["ok"] is False
+    assert any(error["code"] == "unsupported_design_domain"
+               for error in result["errors"])
+
+
+@pytest.mark.parametrize("mutator", [
+    lambda c: c["points"][0].update({"kind": []}),
+    lambda c: c["designs"][0].update({"reference_method": []}),
+    lambda c: c["designs"][0]["protection"].update({"location": []}),
+])
+def test_valores_nao_hashable_bloqueiam_sem_typeerror(mutator):
+    circuits = _circuits()
+    mutator(circuits)
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["ok"] is False
+    assert result["errors"]
+
+
+def test_falha_de_dominio_da_tabela_vira_erro_estruturado():
+    circuits = _circuits(design=_design("TUE-01", length_m=1e9))
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["ok"] is False
+    assert any(error["code"] == "circuit_design_calculation_failed"
+               for error in result["errors"])
+
+
+def test_curto_completo_e_rastreabilidade_por_id_sem_titulo():
+    refs = [{"notebook_id": SOURCE_REFS[0]["notebook_id"],
+             "source_id": SOURCE_REFS[0]["source_id"]}]
+    circuits = _circuits(design=_design("TUE-01", grouping_count=1,
+        short_circuit={"Icc_A": 5000.0, "t_s": 0.1, "Icu_A": 6000.0}))
+    result = calculate_residential_circuit_designs(circuits, refs)
+    assert result["ok"] is True
+    assert result["scope"]["short_circuit_evaluation"] == "implemented"
+    assert result["designs"][0]["short_circuit"]["status"] == "evaluated"
+    assert result["designs"][0]["traceability"]["source_ids"] == [
+        SOURCE_REFS[0]["source_id"]]
+
+
+def test_rastreabilidade_nao_usa_fallback_por_titulo_ou_source_id_malformado():
+    refs = [
+        {"source_id": "outro-id", "title": "ABNT NBR 5410:2004"},
+        {"source_id": None, "title": "ABNT NBR 5410:2004"},
+    ]
+    result = calculate_residential_circuit_designs(_circuits(), refs)
+    assert result["ok"] is True
+    assert result["designs"][0]["traceability"]["source_ids"] == []
+
+
+def test_curto_misto_permanece_nao_avaliado_com_aviso():
+    points = [
+        {"id": "TUE-01", "room": "banheiro", "kind": "tue",
+         "power_va": 6000, "voltage_v": 220},
+        {"id": "L-01", "room": "sala", "kind": "lighting",
+         "power_va": 100, "voltage_v": 127},
+    ]
+    designs = [
+        _design("TUE-01", design_id="C-TUE", grouping_count=1,
+                short_circuit={"Icc_A": 5000.0, "t_s": 0.1, "Icu_A": 6000.0}),
+        _design("L-01", design_id="C-L", grouping_count=1,
+                use="iluminacao",
+                protection={"location": "seco", "exposure": "quadro"}),
+    ]
+    result = calculate_residential_circuit_designs(
+        _circuits(points=points, designs=designs), SOURCE_REFS)
+    assert result["ok"] is True
+    assert result["scope"]["short_circuit_evaluation"] == "not_evaluated"
+    assert any(item["code"] == "short_circuit_not_evaluated"
+               for item in result["warnings"])
+
+
+def test_curto_nao_implementado_quando_ha_erro_de_calculo_em_design_elegivel():
+    points = [
+        {"id": "TUE-01", "room": "banheiro", "kind": "tue",
+         "power_va": 6000, "voltage_v": 220},
+        {"id": "L-01", "room": "sala", "kind": "lighting",
+         "power_va": 100, "voltage_v": 127},
+    ]
+    designs = [
+        _design("TUE-01", design_id="C-TUE", grouping_count=1,
+                short_circuit={"Icc_A": 5000.0, "t_s": 0.1, "Icu_A": 6000.0}),
+        _design("L-01", design_id="C-L", grouping_count=1,
+                length_m=1e9, use="iluminacao",
+                protection={"location": "seco", "exposure": "quadro"},
+                short_circuit={"Icc_A": 5000.0, "t_s": 0.1, "Icu_A": 6000.0}),
+    ]
+    result = calculate_residential_circuit_designs(
+        _circuits(points=points, designs=designs), SOURCE_REFS)
+    assert result["ok"] is False
+    assert result["scope"]["short_circuit_evaluation"] == "not_evaluated"
+    assert any(error["code"] == "circuit_design_calculation_failed"
+               for error in result["errors"])
+
+
+def test_envelope_direto_preserva_points_e_routes():
+    circuits = _circuits()
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+    assert result["points"] == circuits["points"]
+    assert result["routes"] == circuits["routes"]
