@@ -71,6 +71,20 @@ Gate 9 — Memorial Consolidado (PDF) + Pranchas executivas 2D (TechDraw headles
 - **3D Model**: FreeCAD headless (`freecadcmd`) + MCP, auditoria de interferências.
 - **2D Executive drawings**: TechDraw headless (`freecad.exe`) — pranchas A1, cortes
   seccionados hachurados, símbolos de solda AWS A2.4 (arrow/other/both-side).
+- **Residential electrical vertical (Phase 6A)**: the explicit circuit contract
+  sizes conductors and overload protection with an auditable result. For
+  `power_va` (apparent power), the design current is `IB = S/V` for
+  monophase and `IB = S/(sqrt(3)*V)` for three-phase. The power factor is not
+  divided into a load already expressed in VA; it is retained for the active
+  power interpretation and the supported voltage-drop table column.
+- The residential wrapper accepts `grouping_count` values `1, 2, 3, 4, 6, 9`
+  and `power_factor` values `0.8, 0.95, 1.0`. For `fp=1.0`, the voltage-drop
+  reference is the `0.95` column. In the 6000 VA / 220 V / PVC / B1 / grouping
+  3 case, the audit preserves a 6 mm2 base conductor and publishes the
+  coordinated 10 mm2 conductor with a 32 A breaker.
+- This phase does not claim short-circuit evaluation when its inputs are
+  absent, Enel approval, construction readiness, ART, IFC/FCStd, DXF, PDF,
+  2D drawings or complete executive deliverables.
 - **Zero-erro-de-método**: todo valor de norma lido verbatim dos PDFs das normas
   (nunca de memória; PDFs no repo: `Framework_Galpao_Modulos.pdf` na raiz,
   `libraries/standards/gerdau/`); tabelas/equações ambíguas lidas por imagem de página.

@@ -5,7 +5,7 @@
 
 ## 1. Contexto e objetivo
 
-O adaptador `casa-residencial-eletrica` já valida demanda, entrada BT da Enel e pontos de carga, mas ainda não dimensiona os circuitos. Esta fase adiciona o primeiro cálculo elétrico executivo do framework: corrente de projeto, seção do condutor, proteção contra sobrecarga, indicação de DR/DPS e rastreabilidade normativa.
+O adaptador `casa-residencial-eletrica` já valida demanda, entrada BT da Enel e pontos de carga, mas ainda não dimensiona os circuitos. Esta fase adiciona o primeiro cálculo elétrico auditável do framework: corrente de projeto, seção do condutor, proteção contra sobrecarga, indicação de DR/DPS e rastreabilidade normativa. Ela não promete pranchas, modelos BIM, aprovação de concessionária ou liberação para obra.
 
 O projeto residencial sintético continua sendo apenas fixture de integração. O núcleo não receberá regras específicas de galpão, São João da Barra ou de uma única casa.
 
@@ -85,8 +85,8 @@ Campos obrigatórios por design:
 | `insulation` | `PVC`, `EPR` ou `XLPE` |
 | `reference_method` | `B1` ou `F` |
 | `ambient_temperature_C` | finito e dentro da faixa tabelada de 10 a 60 °C |
-| `grouping_count` | inteiro maior que zero |
-| `power_factor` | finito, maior que zero e menor ou igual a 1 |
+| `grouping_count` | inteiro em `1`, `2`, `3`, `4`, `6` ou `9` |
+| `power_factor` | exatamente `0.8`, `0.95` ou `1.0`; para `1.0`, a queda usa a coluna `0.95` |
 | `voltage_drop_limit_pct` | finito, maior que zero e no máximo 4% para circuito terminal |
 | `use` | `iluminacao` ou `forca` |
 | `protection.location` | `seco`, `molhado`, `banheiro`, `cozinha`, `externo` ou `area_externa` |
@@ -106,14 +106,20 @@ Para cada design:
 
 1. `S_total = sum(point.power_va)`.
 2. Todos os pontos referenciados devem ter a mesma tensão.
-3. Para `monofasico`, `IB = S_total / (V * fp)`.
-4. Para `trifasico`, `IB = S_total / (sqrt(3) * V * fp)`; neste contrato `V` é a tensão linha-linha dos pontos referenciados.
+3. Para `monofasico`, `IB = S_total / V`.
+4. Para `trifasico`, `IB = S_total / (sqrt(3) * V)`; neste contrato `V` é a tensão linha-linha dos pontos referenciados.
+   Como `power_va` já é potência aparente, `fp` não divide novamente a corrente; ele permanece disponível para a interpretação de potência ativa e para a coluna de queda de tensão suportada.
 5. O calculador chama `dimensiona_condutor` com todos os dados explícitos, convertendo `length_m` para `L_km` e os nomes do contrato para a API genérica.
 6. O calculador chama `dimensiona_protecao` com `IB`, `IZ`, uso, local e exposição.
 7. Quando há disjuntor candidato, o condutor é recalculado com `I_protecao = In`; a proteção é conferida novamente contra o `IZ` final.
 8. O design só é calculado como válido se a coordenação `IB <= In <= IZ` e as verificações de queda/seção retornarem verdadeiras.
 
 Os dados de curto, quando completos, são enviados como `Icc`, `t_curto_s` e `Icu`. Sem eles, o resultado distingue claramente “não avaliado” de “aprovado”.
+
+`short_circuit_evaluation` só é `implemented` quando todos os designs
+publicados possuem dados completos e foram avaliados. Se houver designs
+mistos, o escopo permanece `not_evaluated` e o resultado inclui o aviso
+`short_circuit_not_evaluated`.
 
 Nota de decisão da revisão coordenada: para o caso de 6000 VA/220 V com
 PVC/B1 e agrupamento 3, a primeira passagem pode indicar 6 mm²; após

@@ -54,7 +54,7 @@
             "id": "TUE-01",
             "room": "banheiro",
             "kind": "tue",
-            "power_va": 4400,
+            "power_va": 6000,
             "voltage_v": 220
           }
         ],

@@ -79,6 +79,16 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
 
     repository_root = (Path(__file__).resolve().parents[3].parent.parent /
                        Path(__file__).resolve().parents[4].name)
+    house_spec = (repository_root / "projects" /
+                  "casa-residencial-sintetica" / "project-spec.json")
+    house = run_project_file(
+        house_spec, tmp_path / "residencial",
+        options={"generate_ifc": False},
+    )
+    assert house["adapter"] == "casa-residencial-sintetica"
+    assert house["status"] == "needs_review"
+    assert verify_project_run(tmp_path / "residencial")["ok"] is True
+
     electrical_spec = (repository_root / "projects" /
                        "casa-residencial-eletrica-sintetica" /
                        "project-spec.json")
@@ -96,6 +106,16 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
         "designs"]) == 3
     assert electrical["disciplines"]["eletrico"]["circuits"]["scope"][
         "short_circuit_evaluation"] == "not_evaluated"
+    electrical_tue = next(
+        item for item in electrical["disciplines"]["eletrico"]["circuits"][
+            "designs"] if item["id"] == "C-TUE-01")
+    assert electrical_tue["load"]["power_va"] == 6000.0
+    assert electrical_tue["base_conductor"]["secao_mm2"] == 6
+    assert electrical_tue["conductor"]["secao_mm2"] == 10
+    assert electrical_tue["protection"]["disjuntor"]["IN"] == 32
+    assert electrical_tue["traceability"]["source_ids"] == [
+        "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+    ]
 
     persisted_electrical = json.loads(
         (electrical_out / "project-run.json").read_text(encoding="utf-8"))
@@ -111,6 +131,15 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
     assert persisted_adapter["scope"]["short_circuit_evaluation"] == (
         "not_evaluated")
     assert len(persisted_adapter["circuits"]["designs"]) == 3
+    persisted_electrical_tue = next(
+        item for item in persisted_adapter["circuits"]["designs"]
+        if item["id"] == "C-TUE-01")
+    assert persisted_electrical_tue["base_conductor"]["secao_mm2"] == 6
+    assert persisted_electrical_tue["conductor"]["secao_mm2"] == 10
+    assert persisted_electrical_tue["protection"]["disjuntor"]["IN"] == 32
+    assert persisted_electrical_tue["traceability"]["source_ids"] == [
+        "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+    ]
     assert "reports/adapter-result.json" in {
         artifact["path"] for artifact in persisted_electrical["artifacts"]
     }

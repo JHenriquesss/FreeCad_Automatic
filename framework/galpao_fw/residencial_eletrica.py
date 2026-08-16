@@ -1,8 +1,9 @@
 """Runner auditável da primeira vertical elétrica residencial BT/Enel.
 
-O módulo apenas compõe entradas explícitas, cálculo de demanda e seleção do
-padrão de entrada. Não consulta NotebookLM, não cria pontos a partir de
-cômodos e não dimensiona condutores ou proteções nesta fatia.
+O módulo compõe entradas explícitas, cálculo de demanda, seleção do padrão de
+entrada e chama o calculador de condutores e proteções. Não consulta NotebookLM
+em runtime, não cria pontos a partir de cômodos e não promete entregáveis
+executivos completos nesta fatia.
 """
 
 from __future__ import annotations

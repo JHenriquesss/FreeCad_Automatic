@@ -134,7 +134,7 @@ def _spec():
                         {"id": "T-01", "room": "cozinha", "kind": "tug",
                          "power_va": 600, "voltage_v": 127},
                         {"id": "TUE-01", "room": "banheiro", "kind": "tue",
-                         "power_va": 4400, "voltage_v": 220},
+                         "power_va": 6000, "voltage_v": 220},
                     ],
                     "routes": [],
                     "designs": _synthetic_designs(),
@@ -179,6 +179,15 @@ def test_residential_electrical_run_is_needs_review_and_traceable(tmp_path):
     assert [item["id"] for item in circuits["designs"]] == [
         "C-L-01", "C-T-01", "C-TUE-01",
     ]
+    tue_design = next(item for item in circuits["designs"]
+                      if item["id"] == "C-TUE-01")
+    assert tue_design["load"]["power_va"] == pytest.approx(6000.0)
+    assert tue_design["base_conductor"]["secao_mm2"] == 6
+    assert tue_design["conductor"]["secao_mm2"] == 10
+    assert tue_design["protection"]["disjuntor"]["IN"] == 32
+    assert tue_design["traceability"]["source_ids"] == [
+        "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+    ]
     assert all(item["short_circuit"] == {"status": "not_evaluated"}
                for item in circuits["designs"])
     assert all(item["conductor"]["secao_mm2"] > 0 for item in circuits["designs"])
@@ -197,6 +206,24 @@ def test_persisted_residential_electrical_fixture_runs_through_universal_loop(tm
     circuits = result["disciplines"]["eletrico"]["circuits"]
     assert [item["id"] for item in circuits["designs"]] == [
         "C-L-01", "C-T-01", "C-TUE-01",
+    ]
+    tue_design = next(item for item in circuits["designs"]
+                      if item["id"] == "C-TUE-01")
+    assert tue_design["load"]["power_va"] == pytest.approx(6000.0)
+    assert tue_design["base_conductor"]["secao_mm2"] == 6
+    assert tue_design["conductor"]["secao_mm2"] == 10
+    assert tue_design["protection"]["disjuntor"]["IN"] == 32
+    persisted_adapter = json.loads(
+        (tmp_path / "reports" / "adapter-result.json").read_text(
+            encoding="utf-8"))
+    persisted_tue = next(
+        item for item in persisted_adapter["circuits"]["designs"]
+        if item["id"] == "C-TUE-01")
+    assert persisted_tue["base_conductor"]["secao_mm2"] == 6
+    assert persisted_tue["conductor"]["secao_mm2"] == 10
+    assert persisted_tue["protection"]["disjuntor"]["IN"] == 32
+    assert persisted_tue["traceability"]["source_ids"] == [
+        "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
     ]
     assert circuits["scope"]["short_circuit_evaluation"] == "not_evaluated"
     verification = verify_project_run(result)
