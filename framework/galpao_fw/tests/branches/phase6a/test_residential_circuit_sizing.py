@@ -237,6 +237,26 @@ def test_power_va_nao_divide_novamente_pelo_fator_de_potencia():
     assert result["designs"][0]["load"]["current_a"] == pytest.approx(1000 / 127)
 
 
+def test_power_va_trifasica_nao_divide_novamente_pelo_fator_de_potencia():
+    circuits = _circuits(
+        point={"id": "TUE-TRI-01", "room": "oficina", "kind": "tue",
+               "power_va": 6000, "voltage_v": 380},
+        design=_design(
+            "TUE-TRI-01",
+            system="trifasico",
+            conductors_loaded=3,
+            power_factor=0.8,
+            protection={"location": "seco", "exposure": "quadro"},
+        ),
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    assert result["designs"][0]["load"]["current_a"] == pytest.approx(
+        6000 / (math.sqrt(3) * 380)
+    )
+
+
 @pytest.mark.parametrize("field, value", [
     ("grouping_count", 5),
     ("grouping_count", 100),
