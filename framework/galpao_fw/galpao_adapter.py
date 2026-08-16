@@ -19,14 +19,32 @@ from project_loop import (
 
 
 def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
+    policy = copy.deepcopy(manifest.get("coordination_policy") or {
+        "enabled": True,
+        "folga_mm": options.folga_mm,
+        "vol_min_mm3": options.vol_min_mm3,
+        "resolution_mode": "manual_approval",
+    })
+    if policy.get("enabled") is False:
+        manifest["coordination"] = {
+            "status": "disabled",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": manifest["coordination"].get(
+                "resolution_requests", []),
+        }
+        return
+
     import compatibilizacao as cp
     import galpao_turnkey as tk
 
     coordination_dir = Path(run_dir) / "coordination"
     coordination_dir.mkdir(parents=True, exist_ok=True)
     report = tk.checa_interferencia_federada(
-        turnkey_result, _selected_turnkey_spec(normalized), folga=options.folga_mm,
-        vol_min=options.vol_min_mm3)
+        turnkey_result, _selected_turnkey_spec(normalized),
+        folga=policy["folga_mm"], vol_min=policy["vol_min_mm3"])
     pendencias = cp.gerar_pendencias(report)
     summary = cp.resumo(pendencias)
     _write_json(coordination_dir / "clash.json", report)
@@ -46,6 +64,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         "open": summary.get("abertas", 0),
         "OK": report.get("OK"),
         "OK_revisar": report.get("OK_revisar"),
+        "policy": policy,
         "resolution_requests": manifest["coordination"].get(
             "resolution_requests", []),
     }

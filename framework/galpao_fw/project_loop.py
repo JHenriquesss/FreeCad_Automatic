@@ -12,6 +12,7 @@ import copy
 import hashlib
 import inspect
 import json
+import math
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
@@ -482,6 +483,84 @@ def _pending_paths(value, path):
     return []
 
 
+def _invalid_coordination_policy(path, detail, **extra):
+    return {
+        "code": "invalid_coordination_policy",
+        "path": path,
+        "detail": detail,
+        **extra,
+    }
+
+
+def _effective_coordination_policy(normalized, options):
+    """Resolve a política declarativa de coordenação do projeto."""
+    policy = {
+        "enabled": True,
+        "folga_mm": options.folga_mm,
+        "vol_min_mm3": options.vol_min_mm3,
+        "resolution_mode": "manual_approval",
+    }
+    raw = normalized["raw_spec"].get("coordination_policy")
+    if raw is None:
+        return policy, []
+
+    errors = []
+    if not isinstance(raw, dict):
+        return policy, [_invalid_coordination_policy(
+            "coordination_policy",
+            "coordination_policy deve ser um objeto JSON",
+        )]
+
+    allowed = {"enabled", "folga_mm", "vol_min_mm3", "resolution_mode"}
+    unknown = sorted(set(raw) - allowed)
+    if unknown:
+        errors.append(_invalid_coordination_policy(
+            "coordination_policy",
+            "coordination_policy contém chaves desconhecidas",
+            keys=unknown,
+        ))
+
+    if "enabled" in raw:
+        value = raw["enabled"]
+        if not isinstance(value, bool):
+            errors.append(_invalid_coordination_policy(
+                "coordination_policy.enabled",
+                "enabled deve ser booleano",
+                value=value,
+            ))
+        else:
+            policy["enabled"] = value
+
+    for key in ("folga_mm", "vol_min_mm3"):
+        if key not in raw:
+            continue
+        value = raw[key]
+        if (isinstance(value, bool) or
+                not isinstance(value, (int, float)) or
+                not math.isfinite(float(value)) or
+                float(value) < 0):
+            errors.append(_invalid_coordination_policy(
+                "coordination_policy.%s" % key,
+                "%s deve ser número finito >= 0" % key,
+                value=value,
+            ))
+        else:
+            policy[key] = float(value)
+
+    if "resolution_mode" in raw:
+        value = raw["resolution_mode"]
+        if value != "manual_approval":
+            errors.append(_invalid_coordination_policy(
+                "coordination_policy.resolution_mode",
+                "resolution_mode deve ser manual_approval",
+                value=value,
+            ))
+        else:
+            policy["resolution_mode"] = value
+
+    return policy, errors
+
+
 def _preflight(normalized, options, *, validate_discipline_shapes=False):
     turnkey = normalized["turnkey_spec"]
     structure = normalized["structure_spec"]
@@ -490,6 +569,9 @@ def _preflight(normalized, options, *, validate_discipline_shapes=False):
     requested = list(dict.fromkeys(requested))
     errors = []
     warnings = []
+    coordination_policy, coordination_policy_errors = (
+        _effective_coordination_policy(normalized, options))
+    errors.extend(coordination_policy_errors)
     adapter_capabilities = _adapter_capabilities(normalized["adapter"])
     declared_project_type = normalized.get("project_type")
     supported_project_types = adapter_capabilities.get("project_types") or []
@@ -613,6 +695,7 @@ def _preflight(normalized, options, *, validate_discipline_shapes=False):
         "missing_sources": missing_sources,
         "source_issues": source_issues,
         "pending_inputs": pending_inputs,
+        "coordination_policy": coordination_policy,
         "adapter_capabilities": adapter_capabilities,
         "structure": structural,
         "derivations": list(normalized["derivations"]),
@@ -667,6 +750,8 @@ def preflight_project(spec, out_dir=None, options=None):
         "site": normalized["site"],
         "sources": normalized["source_refs"],
         "requested_disciplines": list(preflight["requested_disciplines"]),
+        "coordination_policy": copy.deepcopy(
+            preflight["coordination_policy"]),
         "preflight": preflight,
         "status": status,
         "can_start_project_loop": status == "ready",
@@ -789,6 +874,8 @@ def _project_status(records, preflight, deliverables=None, coordination=None):
         return "needs_review"
     if coordination.get("status") == "not_available":
         return "needs_review"
+    if coordination.get("status") == "disabled":
+        return "needs_review"
     if coordination.get("n_revisar", 0) or coordination.get("open", 0):
         return "needs_review"
     return "passed" if statuses else "blocked"
@@ -815,11 +902,15 @@ def _base_manifest(normalized, options, run_dir, preflight, *, iteration,
         "input_sha256": (_sha256_file(input_path) if input_path.is_file() else None),
         "site": normalized["site"],
         "sources": normalized["source_refs"],
+        "coordination_policy": copy.deepcopy(
+            preflight["coordination_policy"]),
         "preflight": preflight,
         "disciplines": {},
         "deliverables": {},
         "coordination": {"status": "not_run", "open": 0,
                           "n_clashes": 0, "n_revisar": 0,
+                          "policy": copy.deepcopy(
+                              preflight["coordination_policy"]),
                           "resolution_requests": list(resolutions or [])},
         "artifacts": [],
         "errors": [],
@@ -865,6 +956,7 @@ def _finish_blocked_manifest(run_dir, normalized, options, preflight, iteration,
     manifest["deliverables"]["ifc"] = {"status": "blocked"}
     manifest["coordination"] = {
         "status": "blocked", "open": 0, "n_clashes": 0, "n_revisar": 0,
+        "policy": copy.deepcopy(preflight["coordination_policy"]),
         "resolution_requests": list(resolutions or []),
     }
     _record_standard_artifacts(manifest, run_dir)
@@ -896,6 +988,7 @@ def _finish_failed_manifest(run_dir, normalized, options, preflight, iteration,
     }
     manifest["coordination"] = {
         "status": "failed", "open": 0, "n_clashes": 0, "n_revisar": 0,
+        "policy": copy.deepcopy(preflight["coordination_policy"]),
         "resolution_requests": list(resolutions or []),
         "error": error["detail"],
     }
@@ -958,12 +1051,14 @@ def _execute_and_persist(run_dir, normalized, options, preflight, iteration,
             manifest["coordination"] = {
                 "status": "not_available", "open": 0, "n_clashes": 0,
                 "n_revisar": 0,
+                "policy": copy.deepcopy(preflight["coordination_policy"]),
                 "detail": "adaptador não fornece hook de coordenação",
                 "resolution_requests": list(resolutions or []),
             }
     except Exception as exc:
         manifest["coordination"] = {
             "status": "failed", "open": 0, "n_clashes": 0, "n_revisar": 0,
+            "policy": copy.deepcopy(preflight["coordination_policy"]),
             "error": "%s: %s" % (type(exc).__name__, exc),
             "resolution_requests": list(resolutions or []),
         }

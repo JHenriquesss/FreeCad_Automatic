@@ -26,7 +26,7 @@ DELIVERABLE_STATUSES = {
     "generated", "not_requested", "not_available", "blocked", "failed",
 }
 COORDINATION_STATUSES = {
-    "generated", "not_run", "not_available", "blocked", "failed",
+    "generated", "not_run", "not_available", "blocked", "failed", "disabled",
 }
 
 
@@ -189,6 +189,80 @@ def test_residential_artifact_tampering_is_detected(tmp_path):
     assert any(item["code"] == "artifact_hash_mismatch"
                and item["path"] == artifact["path"]
                for item in verification["errors"])
+
+
+def test_project_coordination_policy_overrides_execution_defaults(
+        tmp_path, turnkey_fixture):
+    spec = {
+        "schema": "freecad-automatic/project-spec",
+        "schema_version": 1,
+        "project": {"slug": "policy-fixture", "type": "galpao"},
+        "coordination_policy": {
+            "folga_mm": 7.5,
+            "vol_min_mm3": 4321.0,
+        },
+        "turnkey": turnkey_fixture(),
+    }
+
+    result = run_project(
+        spec, tmp_path,
+        options={"generate_ifc": False, "folga_mm": 0.2,
+                 "vol_min_mm3": 1.0},
+    )
+
+    expected = {
+        "enabled": True,
+        "folga_mm": 7.5,
+        "vol_min_mm3": 4321.0,
+        "resolution_mode": "manual_approval",
+    }
+    assert result["coordination_policy"] == expected
+    assert result["preflight"]["coordination_policy"] == expected
+    assert result["coordination"]["policy"] == expected
+
+
+def test_invalid_project_coordination_policy_is_blocked_before_runner(tmp_path):
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    spec["coordination_policy"] = {"folga_mm": -1.0}
+
+    result = run_project(spec, tmp_path, options={"generate_ifc": False})
+
+    assert result["status"] == "blocked"
+    assert any(item["code"] == "invalid_coordination_policy"
+               for item in result["preflight"]["errors"])
+
+
+def test_disabled_project_coordination_policy_skips_clash_artifacts(
+        tmp_path, turnkey_fixture):
+    spec = {
+        "schema": "freecad-automatic/project-spec",
+        "schema_version": 1,
+        "project": {"slug": "policy-disabled", "type": "galpao"},
+        "coordination_policy": {"enabled": False},
+        "turnkey": turnkey_fixture(),
+    }
+
+    result = run_project(spec, tmp_path, options={"generate_ifc": False})
+
+    expected = {
+        "enabled": False,
+        "folga_mm": 1.0,
+        "vol_min_mm3": 1000.0,
+        "resolution_mode": "manual_approval",
+    }
+    assert result["status"] == "needs_review"
+    assert result["coordination_policy"] == expected
+    assert result["coordination"] == {
+        "status": "disabled",
+        "open": 0,
+        "n_clashes": 0,
+        "n_revisar": 0,
+        "policy": expected,
+        "resolution_requests": [],
+    }
+    assert not (tmp_path / "coordination").exists()
+    assert not any(item["path"].startswith("coordination/")
+                   for item in result["artifacts"])
 
 
 def _assert_universal_manifest_contract(manifest):
