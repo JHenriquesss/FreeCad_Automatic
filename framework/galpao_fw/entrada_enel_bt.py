@@ -17,25 +17,25 @@ _EDITION = "R02/2025"
 # row, supply type, lower bound (exclusive), upper bound (inclusive), breaker,
 # connection conductors, entry conductors, grounding, conduit, connection point
 ANNEX_A_127_220 = (
-    ("A1", "A", None, 5.0, 40, "1x10 (10)", "10 (10)", 10, 50, "medidor"),
-    ("A2", "A", 5.0, 8.0, 63, "1x16 (10)", "16 (10)", 16, 50, "medidor"),
-    ("B1", "B", 0.0, 11.0, 50, "2x10 (10)", "10 (10)", 10, 50, "medidor"),
-    ("B2", "B", 11.0, 14.0, 63, "2x16 (10)", "16 (10)", 16, 60, "medidor"),
-    ("C1", "C", 10.0, 15.0, 40, "3x10 (10)", "10 (10)", 10, 50, "medidor"),
-    ("C2", "C", 15.0, 19.1, 50, "3x10 (10)", "10 (10)", None, 50, "medidor"),
-    ("C3", "C", 19.1, 24.0, 63, "3x16 (16)", "25 (25)", 16, 60, "medidor"),
-    ("C4", "C", 24.0, 30.0, 80, "3x35 (54.6)", None, None, 40, "poste"),
-    ("C5", "C", 30.0, 38.0, 100, "3x35 (54.6)", "35 (25)", None, 40, "poste"),
-    ("C6", "C", 38.0, 48.0, 125, "3x35 (54.6)", "50 (25)", 25, 50, "poste"),
-    ("C7", "C", 48.0, 57.1, 150, "3x50 (54.6)", "70 (35)", 35, None, "poste"),
-    ("C8", "C", 57.1, 67.0, 175, "3x50 (54.6)", "95 (50)", 50, None, "poste"),
-    ("C9", "C", 67.0, 75.0, 200, "3x95 (54.6)", "95 (50)", 25, None, "poste"),
+    ("A1", "A", None, 5.0, 40, "1x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
+    ("A2", "A", 5.1, 8.0, 63, "1x16 (10)", "16 (10)", 16, 50, "medidor", "direct_table_7"),
+    ("B1", "B", 0.0, 11.0, 50, "2x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
+    ("B2", "B", 11.1, 14.0, 63, "2x16 (10)", "16 (10)", 16, 60, "medidor", "direct_table_7"),
+    ("C1", "C", 10.0, 15.0, 40, "3x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
+    ("C2", "C", 15.1, 19.1, 50, "3x10 (10)", "10 (10)", None, 50, "medidor", "direct_table_7"),
+    ("C3", "C", 19.1, 24.0, 63, "3x16 (16)", "25 (25)", 16, 60, "medidor", "direct_table_7"),
+    ("C4", "C", 24.1, 30.0, 80, "3x35 (54.6)", None, None, 40, "poste", "direct_consultation_required"),
+    ("C5", "C", 30.1, 38.0, 100, "3x35 (54.6)", "35 (25)", None, 40, "poste", "direct_consultation_required"),
+    ("C6", "C", 38.1, 48.0, 125, "3x35 (54.6)", "50 (25)", 25, 50, "poste", "direct_consultation_required"),
+    ("C7", "C", 48.1, 57.1, 150, "3x50 (54.6)", "70 (35)", 35, None, "poste", "direct_consultation_required"),
+    ("C8", "C", 57.2, 67.0, 175, "3x50 (54.6)", "95 (50)", 50, None, "poste", "direct_consultation_required"),
+    ("C9", "C", 67.1, 75.0, 200, "3x95 (54.6)", "95 (50)", 25, None, "poste", "direct_consultation_required"),
 )
 
 ANNEX_C_120_240 = (
-    ("A1", "A", None, 5.0, 40, "1x10 (10)", "10 (10)", 10, 50, "medidor"),
-    ("A2", "A", 5.0, 6.0, 50, "1x16 (16)", "16 (16)", 16, 50, "medidor"),
-    ("B1", "B", 6.0, 12.0, 50, "2x16 (16)", "16 (16)", 16, 60, "medidor"),
+    ("A1", "A", None, 5.0, 40, "1x10 (10)", "10 (10)", 10, 50, "medidor", "direct_table_7"),
+    ("A2", "A", 5.1, 6.0, 50, "1x16 (16)", "16 (16)", 16, 50, "medidor", "direct_table_7"),
+    ("B1", "B", 6.1, 12.0, 50, "2x16 (16)", "16 (16)", 16, 60, "medidor", "direct_table_7"),
 )
 
 
@@ -137,6 +137,7 @@ def select_enel_bt_entry(
         grounding_conductor_mm2,
         conduit_mm,
         point_of_connection,
+        metering,
     ) = row
     not_transcribed = (
         ("entry_conductors", entry_conductors),
@@ -166,7 +167,7 @@ def select_enel_bt_entry(
             "grounding_conductor_mm2": grounding_conductor_mm2,
             "conduit_mm": conduit_mm,
             "point_of_connection": point_of_connection,
-            "metering": "medidor",
+            "metering": metering,
             "reference": _reference(annex, page),
         },
         "errors": errors,
