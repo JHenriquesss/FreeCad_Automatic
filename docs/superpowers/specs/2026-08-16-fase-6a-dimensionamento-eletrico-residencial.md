@@ -202,7 +202,7 @@ O golden journey deve executar o fixture persistido e conferir que o manifesto c
 ## 9. Critério de encerramento
 
 A fase estará encerrada quando os testes cobrirem contrato, happy path do
-chuveiro 6000 W/220 V com base 6 mm² / final coordenado 10 mm² e disjuntor
+chuveiro 6000 VA/220 V com base 6 mm² / final coordenado 10 mm² e disjuntor
 32 A, queda governante, coordenação, falta de curto, todos os bloqueios
 listados e o percurso universal persistido. IFC e desenhos ficam
 explicitamente como semente da Fase 6B.

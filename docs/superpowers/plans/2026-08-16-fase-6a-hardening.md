@@ -26,11 +26,11 @@
 - Modify: `framework/galpao_fw/dimensionamento_eletrico_residencial.py`
 - Test: `framework/galpao_fw/tests/branches/phase6a/test_residential_circuit_sizing.py`
 
-- [ ] Escrever testes RED para VA/fp, grouping/fp fora de domínio, tipos não-hashable, comprimento extremo, curto completo/misto, fonte sem título e envelope `points/routes`.
-- [ ] Rodar o teste focal e registrar as falhas esperadas.
-- [ ] Corrigir o calculador com validação explícita, fórmula VA, captura por design, escopo agregado por `all`, rastreabilidade por ID e envelope completo.
-- [ ] Rodar a branch inteira e garantir GREEN.
-- [ ] Commitar `feat/fix: harden residential electrical contract` com relatório TDD.
+- [x] Escrever testes RED para VA/fp, grouping/fp fora de domínio, tipos não-hashable, comprimento extremo, curto completo/misto, fonte sem título e envelope `points/routes`.
+- [x] Rodar o teste focal e registrar as falhas esperadas.
+- [x] Corrigir o calculador com validação explícita, fórmula VA, captura por design, escopo agregado por `all`, rastreabilidade por ID e envelope completo.
+- [x] Rodar a branch inteira e garantir GREEN.
+- [x] Commits `e107283` e `6e718e6` registrados com relatórios TDD.
 
 ## Task 5B: fixture, trunk e documentação
 
@@ -39,16 +39,16 @@
 - Modify: `framework/galpao_fw/tests/branches/project_loop/test_residential_electrical_adapter.py`
 - Modify: `framework/galpao_fw/tests/trunk/test_project_loop_golden_journey.py`
 - Modify: `projects/casa-residencial-eletrica-sintetica/project-spec.json`
-- Modify: `projects/casa-residencial-eletrica-sintetica/README.md`
+- Modify: `README.md`
 - Modify: `docs/superpowers/specs/2026-08-16-fase-6a-dimensionamento-eletrico-residencial.md`
-- Modify: `docs/superpowers/plans/2026-08-16-dimensionamento-eletrico-residencial.md`
+- Modify: `docs/superpowers/plans/2026-08-16-fase-6a-hardening.md`
 
-- [ ] Atualizar fixtures de `power_factor` para o domínio explicitamente coberto e manter `power_va` como VA.
-- [ ] Alinhar docstring, README, spec e plan à fórmula e ao resultado coordenado.
-- [ ] Restaurar a execução do fixture `casa-residencial-sintetica` no trunk e manter o fixture elétrico adicional.
-- [ ] Adicionar teste de integração para o curto misto e a rastreabilidade persistida.
-- [ ] Rodar branch, trunk, regressões do adaptador, `compileall` e `git diff --check`.
-- [ ] Commitar `fix: align residential fixtures and golden journey` com relatório.
+- [x] Atualizar fixtures de `power_factor` para o domínio explicitamente coberto e manter `power_va` como VA.
+- [x] Alinhar docstring, README, spec e plan à fórmula e ao resultado coordenado.
+- [x] Restaurar a execução do fixture `casa-residencial-sintetica` no trunk e manter o fixture elétrico adicional.
+- [x] Adicionar teste de integração para o curto misto e a rastreabilidade persistida.
+- [x] Rodar branch, trunk, regressões do adaptador, `compileall` e `git diff --check`.
+- [x] Commit `f071ad9` registrado com relatório.
 
 ## Exit condition
 
@@ -56,8 +56,8 @@ Todos os achados Critical/Important da revisão ampla estão cobertos por teste 
 
 ## Execution record
 
-- Task 5B implementation is complete; independent review is still pending and
-  this record does not mark the phase as approved.
+- Task 5B implementation and independent review are complete; the phase is
+  ready for final broad verification.
 - Task 5A was implemented in `e107283` and completed with the explicit
   three-phase apparent-power test in `6e718e6`.
 - Task 5B keeps the prior `casa-residencial-sintetica` golden journey,
