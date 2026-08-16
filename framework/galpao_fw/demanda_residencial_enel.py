@@ -2,7 +2,9 @@
 
 Este módulo é deliberadamente puro: não conhece FreeCAD, o orquestrador nem
 qualquer adaptador de tipologia. Entradas incompletas ou fora das tabelas são
-erros estruturados, nunca valores padrão silenciosos.
+erros estruturados, nunca valores padrão silenciosos. O campo
+``loads.installed_load_kw`` é consumido pela seleção do padrão de entrada e
+deliberadamente não altera este cálculo de demanda.
 """
 
 from __future__ import annotations
@@ -107,7 +109,8 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
         errors.append(_error("missing_network", "network deve ser informado"))
     elif "location_factor" not in network:
         errors.append(_error("missing_location_factor", "fator locacional é obrigatório"))
-    elif network["location_factor"] not in LOCATION_FACTORS:
+    elif (isinstance(network["location_factor"], bool)
+          or network["location_factor"] not in LOCATION_FACTORS):
         errors.append(_error("invalid_location_factor", "fator locacional fora da tabela",
                              value=network["location_factor"]))
 
@@ -125,8 +128,14 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
         errors.append(_error("missing_loads", "loads deve ser informado"))
     else:
         for key in ("heating", "motors", "special_lighting"):
-            if not isinstance(loads.get(key), list):
+            items = loads.get(key)
+            if not isinstance(items, list):
                 errors.append(_error("invalid_load_group", "grupo de cargas deve ser uma lista", group=key))
+                continue
+            for index, item in enumerate(items):
+                if not isinstance(item, dict):
+                    errors.append(_error("invalid_load_item", "item de carga deve ser um objeto",
+                                         group=key, index=index))
     return errors
 
 

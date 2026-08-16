@@ -98,3 +98,21 @@ def test_unknown_room_count_and_out_of_table_motor_are_blocked():
     assert invalid_motor["ok"] is False
     assert any(error["code"] == "motor_outside_table"
                for error in invalid_motor["errors"])
+
+
+def test_non_object_load_item_returns_structured_invalid_load_item_error():
+    payload = _payload()
+    payload["loads"]["heating"] = [None]
+    result = calculate_residential_demand(payload)
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_load_item"
+               for error in result["errors"])
+
+
+def test_boolean_location_factor_returns_structured_invalid_factor_error():
+    payload = _payload()
+    payload["network"]["location_factor"] = True
+    result = calculate_residential_demand(payload)
+    assert result["ok"] is False
+    assert any(error["code"] == "invalid_location_factor"
+               for error in result["errors"])
