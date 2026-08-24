@@ -1,7 +1,7 @@
 # Loop de generalização do framework
 
-**Data:** 2026-08-15  
-**Status:** aprovado pelo usuário em 2026-08-16  
+**Data:** 2026-08-15
+**Status:** aprovado pelo usuário em 2026-08-16
 **Escopo:** separar o núcleo universal das tipologias e validar o contrato com um segundo projeto sintético
 
 ## Decisão
