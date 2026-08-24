@@ -65,4 +65,3 @@ def register_residential_adapter():
         disciplines=DISCIPLINES,
         deliverables=("report",),
     )
-
