@@ -716,7 +716,7 @@ def _selftest():
         # ATENDE); a geometria comum so preenche o que a disciplina nao informar.
         "concreto": {"vao": 10.0, "n_porticos": 7, "v0": 40.0, "cat": "IV",
                      "classe": "B", "s1": 1.0, "s3": 1.0, "G_roof": 0.30,
-                     "Q_roof": 0.25, "fck": 30e3, "fyk": 500e3, "sigma_solo_adm": 250.0},
+                     "Q_roof": 0.25, "fck": 30e3, "fyk": 500e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"},
         "eletrico": {"tensao_V": 380.0,
                      "cargas": {"motores": [{"P_cv": 75.0, "eta": 0.92, "Fp": 0.86, "n": 2}],
                                 "iluminacao_kW": 20.0, "ilum_fp": 0.92, "ocupacao": "industrial"},

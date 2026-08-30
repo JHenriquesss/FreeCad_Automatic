@@ -137,10 +137,12 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     bp = tempfile.NamedTemporaryFile(mode="w", suffix="_b.py", delete=False,
                                      encoding="utf-8")
     bp.write(boot); bp.close()
-    subprocess.run([FREECADCMD, bp.name], stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL, timeout=600)
+    processo = subprocess.run([FREECADCMD, bp.name], capture_output=True,
+                               text=True, timeout=600)
     os.unlink(bp.name)
-    assert os.path.exists(stf), "build nao gerou o cross-check"
+    assert os.path.exists(stf), (
+        "build nao gerou o cross-check (returncode=%d):\\n%s"
+        % (processo.returncode, (processo.stdout + processo.stderr)[-4000:]))
     d = json.load(open(stf))
 
     assert n_puro == d["nt"], (

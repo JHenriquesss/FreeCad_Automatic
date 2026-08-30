@@ -115,6 +115,19 @@ def novo():
         "fundacao": {"tipo": P, "sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
                      "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
                      "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4,
+                     "verificacao_estabilidade": {
+                         "metodo": "nbr6122_valores_calculo",
+                         "tipo_acoes": "calculo",
+                         "gamma_f": 1.4,
+                         "gamma_peso_favoravel": 1.2,
+                         "gamma_resistencia_solo": 1.4,
+                         "fs_tombamento": None,
+                         "fs_deslizamento": None,
+                         "peso_favoravel_superestrutura_kN": 0.0,
+                         "N_acao_desfavoravel_kN": None,
+                         "empuxo_passivo_kN": 0.0,
+                         "solo_nao_removivel": False,
+                     },
                      "estaca": None,
                      # divisa: None (sem pilar de divisa) OU dict {dist_divisa (m):
                      # distancia do eixo do pilar de divisa a linha do lote}. Dispara
@@ -161,6 +174,71 @@ def validar(spec):
     if tipo not in (KeyError, PENDENTE) and tipo not in TIPOS_FUNDACAO:
         faltando.append(("fundacao.tipo",
                          "valor invalido '%s' (use %s)" % (tipo, "/".join(TIPOS_FUNDACAO))))
+    # Estabilidade da fundacao: a configuracao explicita nao pode chegar ao
+    # motor com metodo/fatores invalidos. Ausencia continua sendo aceita para
+    # specs antigos (o motor registra compatibilidade_legacy); quando o bloco
+    # existe, porem, a validacao deve reproduzir as mesmas restricoes do
+    # normalizador sem deixar uma ValueError aparecer no meio da orquestracao.
+    _ve_path = "fundacao.verificacao_estabilidade"
+    _ve = _get(spec, _ve_path)
+    if _ve == PENDENTE:
+        faltando.append((_ve_path,
+                         "verificacao de estabilidade ainda nao foi decidida"))
+    elif _ve not in (KeyError, None):
+        if not isinstance(_ve, dict):
+            faltando.append((_ve_path, "deve ser um dicionario de verificacao"))
+        else:
+            _met = _ve.get("metodo")
+            _acoes = _ve.get("tipo_acoes", "calculo")
+            _metodos = ("nbr6122_valores_calculo", "fs_global_legacy")
+            _tipos_acoes = ("caracteristicas", "calculo")
+            if _met not in _metodos:
+                faltando.append((_ve_path + ".metodo",
+                                 "metodo invalido; use %s" % "/".join(_metodos)))
+            if _acoes not in _tipos_acoes:
+                faltando.append((_ve_path + ".tipo_acoes",
+                                 "tipo_acoes invalido; use caracteristicas/calculo"))
+            if _met == "fs_global_legacy" and _acoes != "caracteristicas":
+                faltando.append((_ve_path + ".tipo_acoes",
+                                 "fs_global_legacy exige tipo_acoes=caracteristicas"))
+
+            def _ve_num(_key):
+                _value = _ve.get(_key)
+                return (_value if isinstance(_value, (int, float))
+                        and not isinstance(_value, bool) else None)
+
+            if _met == "fs_global_legacy":
+                for _key in ("fs_tombamento", "fs_deslizamento"):
+                    _value = _ve.get(_key)
+                    if _value is None or _ve_num(_key) is None or _value <= 0:
+                        faltando.append((_ve_path + "." + _key,
+                                         "%s deve ser numerico e > 0 no modo legado"
+                                         % _key))
+            elif _met == "nbr6122_valores_calculo":
+                for _key in ("gamma_f", "gamma_peso_favoravel",
+                             "gamma_resistencia_solo"):
+                    if _key in _ve and (_ve_num(_key) is None or _ve[_key] <= 0):
+                        faltando.append((_ve_path + "." + _key,
+                                         "%s deve ser numerico e > 0" % _key))
+                for _key in ("fs_tombamento", "fs_deslizamento"):
+                    if _key in _ve and _ve[_key] is not None:
+                        faltando.append((_ve_path + "." + _key,
+                                         "FS global nao pode ser misturado ao modo NBR"))
+
+            for _key in ("empuxo_passivo_kN",
+                         "peso_favoravel_superestrutura_kN"):
+                if _key in _ve and (_ve_num(_key) is None or _ve[_key] < 0):
+                    faltando.append((_ve_path + "." + _key,
+                                     "%s deve ser numerico e nao negativo" % _key))
+            if ("N_acao_desfavoravel_kN" in _ve
+                    and _ve["N_acao_desfavoravel_kN"] is not None
+                    and _ve_num("N_acao_desfavoravel_kN") is None):
+                faltando.append((_ve_path + ".N_acao_desfavoravel_kN",
+                                 "N_acao_desfavoravel_kN deve ser numerico ou None"))
+            if ("solo_nao_removivel" in _ve
+                    and not isinstance(_ve["solo_nao_removivel"], bool)):
+                faltando.append((_ve_path + ".solo_nao_removivel",
+                                 "solo_nao_removivel deve ser booleano"))
     # fundacao profunda: perfil SPT + tipo de estaca sao da sondagem (bloqueiam)
     if tipo == "estaca":
         est = _get(spec, "fundacao.estaca")
@@ -732,7 +810,7 @@ def to_rodar_params(spec):
     fu = spec.get("fundacao") or {}     # sapata: sobrescreve os defaults do solo
     if fu:
         p.setdefault("fundacao", {}).update(
-            {k: v for k, v in fu.items()
+            {k: copy.deepcopy(v) for k, v in fu.items()
              if k not in ("tipo", "estaca") and v not in (None, PENDENTE)})
         # tipo de fundacao rasa: sapata (armada) x bloco (concreto simples, NBR 6122
         # 7.8.2). O rodar_galpao escolhe dimensiona_sapata_env vs dimensiona_bloco_env.

@@ -398,6 +398,25 @@ def _pontos_perimetro(L, W, n):
     return pts
 
 
+def _recuo_tomada_parede(x, y, L, W, recuo_mm=100.0):
+    """Move a caixa BIM para a face interna da parede.
+
+    As tomadas do leiaute são marcadas na linha do perímetro, enquanto as
+    descidas do SPDA também ocupam essa linha. O recuo evita que o sólido da
+    caixa atravesse o condutor vertical; a posição de projeto em planta não é
+    alterada, apenas a representação 3D recebe a folga construtiva.
+    """
+    if x <= 0.0:
+        x = recuo_mm
+    elif x >= L:
+        x = L - recuo_mm
+    if y <= 0.0:
+        y = recuo_mm
+    elif y >= W:
+        y = W - recuo_mm
+    return x, y
+
+
 def membros_bim(r):
     """Modelo neutro dos elementos FISICOS do projeto eletrico para ifc_emit.
     Convencao (igual aos demais verticais): COORDENADAS em mm; secao de BARRA em m;
@@ -467,9 +486,11 @@ def membros_bim(r):
                             "centro": [p["x"] * 1000.0, p["y"] * 1000.0, H - 200.0],
                             "material": "Aluminio"})
         for p in inst.get("tomadas", []):
+            x_tug, y_tug = _recuo_tomada_parede(
+                p["x"] * 1000.0, p["y"] * 1000.0, L, W)
             membros.append({"tipo": "Outlet", "perfil": "TUG", "marca": p["id"],
                             "dims": [100.0, 60.0, 100.0],
-                            "centro": [p["x"] * 1000.0, p["y"] * 1000.0, 1300.0],
+                            "centro": [x_tug, y_tug, 1300.0],
                             "material": "Termoplastico"})
     except Exception:
         pass

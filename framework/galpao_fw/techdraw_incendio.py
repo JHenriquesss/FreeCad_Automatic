@@ -250,7 +250,7 @@ def config_de_spec(r, out_dir, spec=None):
                      "> 12 m; a demanda de hidrantes tambem integra a reserva de incendio "
                      "dos chuveiros (NBR 10897 Tab.24).")
     notas += [
-        "6. Simbologia conforme NBR 13434. Posicoes esquematicas - ajustar ao leiaute real.",
+        "6. Simbologia conforme NBR 16820. Posicoes esquematicas - ajustar ao leiaute real.",
         "7. Documentacao para o AVCB (Auto de Vistoria do Corpo de Bombeiros).",
     ]
 

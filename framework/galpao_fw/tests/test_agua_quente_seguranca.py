@@ -103,3 +103,23 @@ def test_hot_water_integration_requires_explicit_safety_block():
     assert result["gates"]["seguranca_agua_quente"]["inconclusivo"] is True
     assert result["dimensionamento_completo"] is False
     assert result["ATENDE"] is False
+
+
+def test_hot_water_integration_publishes_completed_safety_gate():
+    result = gh.rodar(
+        {
+            "geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+            "hidraulica": {
+                "aparelhos_agua": {"lavatorio": 2},
+                "aparelhos_agua_quente": {"lavatorio": 2},
+                "aparelhos_esgoto": {"lavatorio": 2},
+                "p_alim_kPa": 300.0,
+                "agua_quente_seguranca": _config(),
+            },
+        }
+    )
+
+    assert result["gates"]["seguranca_agua_quente"]["OK"] is True
+    assert result["redes"]["agua_quente"]["seguranca"]["violacoes"] == []
+    assert result["dimensionamento_completo"] is True
+    assert result["ATENDE"] is True

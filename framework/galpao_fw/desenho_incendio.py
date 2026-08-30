@@ -10,7 +10,7 @@
 #   - BLOCOS de iluminacao de emergencia / aclaramento (NBR 10898);
 #   - ACIONADORES manuais junto as saidas; PLACAS de sinalizacao de rota (NBR 16820);
 #   - EXTINTORES (marcadores de referencia).
-# Simbologia conforme a pratica da NBR 13434 (formas/cores de sinalizacao). As
+# Simbologia conforme a pratica da NBR 16820 (formas/cores de sinalizacao). As
 # CONTAGENS vem do rodar(); as POSICOES sao esquematicas (grade proporcional ao
 # retangulo) - o projetista ajusta ao leiaute real. O SVG abre em navegador/CAD.
 # Unidades do desenho: mm no galpao -> px na tela (escala automatica).
@@ -42,7 +42,7 @@ def _line(x1, y1, x2, y2, w=1.5, color="#111", dash=None):
 
 
 # ------------------------------------------------------------- simbolos
-# cores da pratica NBR 13434: verde = salvamento/rota; vermelho = combate.
+# cores da pratica NBR 16820: verde = salvamento/rota; vermelho = combate.
 VERDE = "#0a7d34"
 VERMELHO = "#c02128"
 

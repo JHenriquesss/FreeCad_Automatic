@@ -89,6 +89,17 @@ def test_takeoff_comp_condutor():
     assert "Cable" in tk["por_tipo"] and "Earthing" in tk["por_tipo"]
 
 
+def test_tomadas_bim_recuam_da_linha_do_spda():
+    membros = ge.membros_bim(_r())
+    L, W = 40_000.0, 20_000.0
+    tomadas = [m for m in membros if m["tipo"] == "Outlet"]
+
+    assert tomadas
+    assert all(min(m["centro"][0], L - m["centro"][0],
+                   m["centro"][1], W - m["centro"][1]) >= 100.0
+               for m in tomadas)
+
+
 # ------------------------------ camada build ---------------------------------
 @pytest.mark.build
 @pytest.mark.skipif(not os.path.exists(FREECADCMD), reason="freecadcmd ausente")
@@ -96,7 +107,7 @@ def test_build_headless_gera_solidos_sem_clash(tmp_path):
     out = str(tmp_path).replace("\\", "/")
     res = ge.montar_3d(_r(), out, doc_name="t_elet_build", headless=True, timeout=400)
     rr = res.get("result") or {}
-    assert rr.get("elementos") == 23, res
+    assert rr.get("elementos") == len(be.caixas(ge.membros_bim(_r()))), res
     assert rr.get("interferencias") == 0, rr.get("interferencias_lista")
     assert rr.get("conexoes", 0) > 0               # a rede bonda nas juncoes
     fc = rr.get("fcstd")

@@ -16,7 +16,10 @@ def turnkey_fixture():
             "concreto": {"vao": 20.0, "n_porticos": 7, "v0": 40.0, "cat": "IV",
                          "classe": "B", "s1": 1.0, "s3": 1.0, "G_roof": 0.30,
                          "Q_roof": 0.25, "fck": 30e3, "fyk": 500e3,
-                         "sigma_solo_adm": 250.0},
+                         "sigma_solo_adm": 250.0,
+                         # galpao com sistema de estabilidade longitudinal: le_y
+                         # segue 15.6 e nao 2H (NBR 6118 15.8.3.3.2 exige lambda<=90)
+                         "travamento_longitudinal": "topo"},
             "eletrico": {"tensao_V": 380.0,
                          "cargas": {"iluminacao_kW": 20.0, "ilum_fp": 0.92,
                                     "ocupacao": "industrial"},

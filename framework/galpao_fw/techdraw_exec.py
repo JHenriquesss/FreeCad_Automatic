@@ -29,6 +29,32 @@ TPL_REL = ("Mod", "TechDraw", "Templates", "ISO",
 # Miudezas: poluem e encarecem as vistas gerais; entram so nos detalhes.
 _MIUDEZAS = ("PORCA", "ARRUELA", "CLIPE", "CONEX", "CHUMBADOR", "ESTICADOR")
 
+# Vistas de contexto (cobertura/elevacoes) nao precisam projetar cada peca de
+# fabricacao. Em modelos reais isso pode significar centenas de solidos e o
+# HLR do TechDraw passa a bloquear o executivo inteiro. Os detalhes, IFC e o
+# modelo 3D continuam usando a lista completa; este recorte vale somente para
+# as vistas gerais que orientam a leitura do conjunto.
+_CONTEXTO_PREFIXOS = (
+    "PORTICO", "VAO_", "TERCA", "TELHA", "TAPAMENTO", "CALHA",
+    "BOCAL", "CONDUTOR",
+    "CONTRAV", "TIRANTE", "ESCORA", "MONTANTE", "VIGA_ROLAMENTO",
+    "CONSOLE_PONTE", "CUMEEIRA", "NERVURA", "BALDRAME", "BLOCO",
+    "SAPATA", "PEDESTAL", "ESTACA", "MAO",
+)
+
+
+def _contexto(objs):
+    """Seleciona os solidos principais para vistas gerais do executivo.
+
+    A lista e deliberadamente conservadora: elementos repetitivos/pequenos
+    aparecem nos detalhes de ligacao, croquis e take-off, mas nao devem tornar
+    a planta/elevacao de contexto um HLR de milhares de arestas.
+    """
+    return [
+        o for o in objs
+        if str(getattr(o, "Label", "")).startswith(_CONTEXTO_PREFIXOS)
+    ]
+
 # Prefixos de solidos que, DE PROPOSITO, nao precisam aparecer desenhados numa
 # vista/detalhe (cobertos por quadros/especificacao ou auxiliares). O guard de
 # cobertura (_cobertura) so aceita como "ok" o que estiver desenhado OU listado
@@ -106,6 +132,11 @@ def _cobertura(doc, todos):
     nao = sorted(p for p in (prefixos_todos - prefixos_ok)
                  if not any(p.startswith(sd) for sd in PREFIXOS_SEM_DESENHO))
     return {"desenhados": sorted(prefixos_ok), "nao_cobertos": nao}
+
+
+def _cobertura_ok(cobertura):
+    """Um executivo só pode ser aprovado quando nenhum tipo ficou sem desenho."""
+    return isinstance(cobertura, dict) and not cobertura.get("nao_cobertos")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -625,12 +656,13 @@ AREA_2V = (330.0, 360.0)     # cada vista quando ha 2 lado a lado
 
 def _pr_cobertura(doc, cfg, objs):
     g = cfg["geo"]
-    bb = _bbox(objs)
+    contexto = _contexto(objs) or objs
+    bb = _bbox(contexto) or _bbox(objs)
     esc, nome = _fit_escala(bb, "z", *AREA_1V)
     page = _nova_prancha(doc, "PE01_COBERTURA",
                          _carimbo(cfg, "PLANTA DE COBERTURA", "PE-01",
                                   nome, "01/09"))
-    v = _vista(doc, page, "V01_COB", objs, (0, 0, 1), (1, 0, 0),
+    v = _vista(doc, page, "V01_COB", contexto, (0, 0, 1), (1, 0, 0),
                esc, 410, 350, coarse=True)
     hw, hh = _paper_half(bb, esc, "z")
     c = _Cotador(doc, page, v, hw, hh)
@@ -695,7 +727,8 @@ def _pr_fundacoes(doc, cfg, objs):
 
 def _pr_elevacoes(doc, cfg, objs):
     g = cfg["geo"]
-    bb = _bbox(objs)
+    contexto = _contexto(objs) or objs
+    bb = _bbox(contexto) or _bbox(objs)
     comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     span, comp, bay = g["span"], g["comprimento"], g.get("bay")
     ax_fr = "x" if comp_x else "y"
@@ -709,7 +742,7 @@ def _pr_elevacoes(doc, cfg, objs):
     # oitao (olha ao longo do comprimento)
     dfr = (-1, 0, 0) if comp_x else (0, -1, 0)
     xfr = (0, -1, 0) if comp_x else (1, 0, 0)
-    v1 = _vista(doc, page, "V03_OITAO", objs, dfr, xfr, esc, 220, 360,
+    v1 = _vista(doc, page, "V03_OITAO", contexto, dfr, xfr, esc, 220, 360,
                 coarse=True)
     hw1, hh1 = _paper_half(bb, esc, ax_fr)
     c1 = _Cotador(doc, page, v1, hw1, hh1)
@@ -722,7 +755,7 @@ def _pr_elevacoes(doc, cfg, objs):
     # lateral
     dlt = (0, -1, 0) if comp_x else (-1, 0, 0)
     xlt = (1, 0, 0) if comp_x else (0, -1, 0)
-    v2 = _vista(doc, page, "V03_LATERAL", objs, dlt, xlt, esc, 590, 360,
+    v2 = _vista(doc, page, "V03_LATERAL", contexto, dlt, xlt, esc, 590, 360,
                 coarse=True)
     hw2, hh2 = _paper_half(bb, esc, ax_lt)
     c2 = _Cotador(doc, page, v2, hw2, hh2)
@@ -1934,7 +1967,9 @@ def gerar_executivo(cfg):
         except Exception:
             pass
 
-    return {"ok": True, "pranchas": [p.Name for p in paginas],
+    cobertura_ok = _cobertura_ok(cob)
+    return {"ok": cobertura_ok, "cobertura_ok": cobertura_ok,
+            "pranchas": [p.Name for p in paginas],
             "arquivos": arquivos, "fcstd": fcstd_out, "cobertura": cob,
             "avisos_prancha": list(AVISOS_PRANCHA),
             "detalhes_edges": edges, "detalhes_secoes": secoes}

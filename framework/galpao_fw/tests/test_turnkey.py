@@ -16,7 +16,8 @@ import galpao_turnkey as tk
 def _spec_concreto_ok():
     return {"vao": 10.0, "n_porticos": 7, "v0": 40.0, "cat": "IV", "classe": "B",
             "s1": 1.0, "s3": 1.0, "G_roof": 0.30, "Q_roof": 0.25,
-            "fck": 30e3, "fyk": 500e3, "sigma_solo_adm": 250.0}
+            "fck": 30e3, "fyk": 500e3, "sigma_solo_adm": 250.0,
+            "travamento_longitudinal": "topo"}
 
 
 def _spec_eletrico():

@@ -151,6 +151,125 @@ def diametro_agua(aparelhos, v_max=V_MAX_AGUA_MS, simultaneidade=1.0, metodo="so
     }
 
 
+def verifica_agua_quente_seguranca(config, vazao_calculada_Ls,
+                                   pressao_dinamica_ponto_kPa):
+    """Verifica o contrato explícito de segurança da água quente.
+
+    A NBR 5626:2020 exige que as condições da rede quente, temperaturas,
+    pressões, dilatação/perdas térmicas e dispositivos de segurança sejam
+    declarados no projeto. Ausência de dado é ``inconclusivo``; uma condição
+    declarada e incompatível é uma violação efetiva. A função não cria valores
+    default de projeto.
+    """
+    faltantes = []
+    violacoes = []
+    cfg = config if isinstance(config, dict) else {}
+    if config is not None and not isinstance(config, dict):
+        faltantes.append("hidraulica.agua_quente_seguranca deve ser um dicionario")
+
+    def _numero(chave, descricao, minimo=None):
+        if chave not in cfg or cfg[chave] is None:
+            faltantes.append(chave)
+            return None
+        valor = cfg[chave]
+        if (isinstance(valor, bool) or not isinstance(valor, (int, float))
+                or not math.isfinite(valor)):
+            violacoes.append("%s deve ser numerico" % descricao)
+            return None
+        if minimo is not None and valor < minimo:
+            violacoes.append("%s deve ser >= %s" % (descricao, minimo))
+            return None
+        return float(valor)
+
+    def _booleano(chave, descricao):
+        if chave not in cfg or cfg[chave] is None:
+            faltantes.append(chave)
+            return None
+        valor = cfg[chave]
+        if not isinstance(valor, bool):
+            violacoes.append("%s deve ser booleano" % descricao)
+            return None
+        return valor
+
+    q_normal = _numero("vazao_normal_Ls", "vazao normal", 0.0)
+    q_maxima = _numero("vazao_maxima_Ls", "vazao maxima", 0.0)
+    p_estatica = _numero("pressao_estatica_kPa", "pressao estatica", 0.0)
+    temperatura = _numero("temperatura_max_C", "temperatura maxima", 0.0)
+    q_calculada = vazao_calculada_Ls
+    if q_calculada is None:
+        faltantes.append("vazao_calculada_Ls")
+    elif (isinstance(q_calculada, bool) or not isinstance(q_calculada, (int, float))
+          or not math.isfinite(q_calculada) or q_calculada < 0.0):
+        violacoes.append("vazao calculada deve ser numerica e nao negativa")
+        q_calculada = None
+    p_dinamica = pressao_dinamica_ponto_kPa
+    if p_dinamica is None:
+        faltantes.append("pressao_dinamica_ponto_kPa")
+    elif (isinstance(p_dinamica, bool) or not isinstance(p_dinamica, (int, float))
+          or not math.isfinite(p_dinamica)):
+        violacoes.append("pressao dinamica no ponto deve ser numerica")
+        p_dinamica = None
+
+    compatibilidade = _booleano(
+        "pressao_fria_quente_compativel", "compatibilidade entre pressoes fria e quente")
+    misturadores = _booleano("misturadores_sanitarios", "misturadores sanitarios")
+    uso_corporal = _booleano("uso_corporal", "uso corporal")
+    limitador_45 = _booleano(
+        "limitador_automatico_45C", "limitador automatico de 45 C")
+    superf_protegidas = _booleano("superficies_protegidas", "protecao das superficies")
+    reducao_perdas = _booleano(
+        "reducao_perdas_termicas", "reducao de perdas termicas")
+    perdas_estimadas = _booleano(
+        "perdas_termicas_estimadas", "estimativa de perdas termicas")
+    dilatacao = _booleano("dilatacao_considerada", "dilatacao")
+    movimentacoes = _booleano("movimentacoes_absorvidas", "absorção de movimentacoes")
+    acumulacao = _booleano("aquecedor_acumulacao", "aquecedor de acumulacao")
+
+    if q_normal is not None and q_maxima is not None and q_maxima < q_normal:
+        violacoes.append("vazao maxima deve ser >= vazao normal")
+    if q_calculada is not None and q_maxima is not None and q_calculada > q_maxima + 1e-12:
+        violacoes.append("vazao calculada excede a vazao maxima declarada")
+    if p_estatica is not None and p_estatica > P_EST_MAX_KPA + 1e-12:
+        violacoes.append("pressao estatica excede 400 kPa")
+    if p_dinamica is not None and p_dinamica < P_DIN_MIN_PONTO_KPA - 1e-12:
+        violacoes.append("pressao dinamica no ponto abaixo do minimo de 10 kPa")
+    if compatibilidade is False:
+        violacoes.append("pressao fria e quente declaradas como incompativeis")
+    if (misturadores is True and temperatura is not None
+            and temperatura > 70.0 + 1e-12):
+        violacoes.append("temperatura maxima excede 70 C em ambiente com misturadores")
+    if (uso_corporal is True and temperatura is not None and temperatura > 45.0 + 1e-12
+            and limitador_45 is False):
+        violacoes.append("uso corporal acima de 45 C exige limitador automatico")
+    if superf_protegidas is False:
+        violacoes.append("superficies expostas da rede quente nao estao protegidas")
+    if reducao_perdas is False or perdas_estimadas is False:
+        violacoes.append("perdas termicas nao foram reduzidas e estimadas")
+    if dilatacao is False or movimentacoes is False:
+        violacoes.append("dilatacao e movimentacoes da rede nao foram consideradas")
+
+    if acumulacao is True:
+        for chave, descricao in (
+                ("limitador_automatico_temperatura",
+                 "limitador automatico de temperatura"),
+                ("valvula_seguranca_temperatura",
+                 "valvula de seguranca de temperatura"),
+                ("limitador_automatico_pressao",
+                 "limitador automatico de pressao")):
+            valor = _booleano(chave, descricao)
+            if valor is False:
+                violacoes.append("aquecedor de acumulacao exige %s" % descricao)
+
+    return {
+        "OK": not faltantes and not violacoes,
+        "inconclusivo": bool(faltantes) and not violacoes,
+        "faltantes": faltantes,
+        "violacoes": violacoes,
+        "vazao_calculada_Ls": q_calculada,
+        "pressao_dinamica_ponto_kPa": p_dinamica,
+    }
+
+
 # ---------------------------------------------------------------------------
 # AGUA FRIA - VERIFICACAO DE PRESSAO / PERDA DE CARGA (NBR 5626:1998 Anexo A.2)
 # ---------------------------------------------------------------------------
@@ -305,21 +424,42 @@ def _menor_dn_sat(tabela_dn_cap, q):
     return tabela_dn_cap[-1][0], True
 
 
-def diametro_ramal_esgoto(uhc, dn_min_descarga=40):
-    """DN do ramal de esgoto (NBR 8160 Tab.5), nunca menor que o DN minimo de
-    descarga do aparelho mais exigente (Tab.3)."""
+def diametro_ramal_esgoto_sat(uhc, dn_min_descarga=40):
+    """{DN_mm, saturado} do ramal de esgoto (NBR 8160 Tab.5), nunca menor que o
+    DN minimo de descarga do aparelho mais exigente (Tab.3).
+
+    saturado=True quando a UHC excede a maior linha da Tab.5 (160 UHC em DN100):
+    a tabela nao cobre o trecho, que precisa ser subdividido. A flag NUNCA e'
+    descartada (saturacao silenciosa)."""
     if uhc < 0:
         raise ValueError("UHC nao pode ser negativo.")
-    dn = _menor_dn(_TAB5_RAMAL, uhc)
-    return max(dn, dn_min_descarga)
+    dn, saturado = _menor_dn_sat(_TAB5_RAMAL, uhc)
+    return {"DN_mm": max(dn, dn_min_descarga), "saturado": saturado,
+            "uhc": uhc, "tabela": "NBR 8160 Tab.5"}
 
 
-def diametro_tubo_queda(uhc, pavimentos=3):
-    """DN do tubo de queda (NBR 8160 Tab.6). Coluna <=3 pav ou >3 pav."""
+def diametro_ramal_esgoto(uhc, dn_min_descarga=40):
+    """DN do ramal de esgoto (NBR 8160 Tab.5), nunca menor que o DN minimo de
+    descarga do aparelho mais exigente (Tab.3). Use ``diametro_ramal_esgoto_sat``
+    quando precisar saber se a tabela saturou."""
+    return diametro_ramal_esgoto_sat(uhc, dn_min_descarga)["DN_mm"]
+
+
+def diametro_tubo_queda_sat(uhc, pavimentos=3):
+    """{DN_mm, saturado} do tubo de queda (NBR 8160 Tab.6). Coluna <=3 pav ou
+    >3 pav. saturado=True quando a UHC excede a maior linha da coluna."""
     if uhc < 0:
         raise ValueError("UHC nao pode ser negativo.")
     idx = 1 if pavimentos <= 3 else 2
-    return _menor_dn([(row[0], row[idx]) for row in _TAB6_QUEDA], uhc)
+    dn, saturado = _menor_dn_sat([(row[0], row[idx]) for row in _TAB6_QUEDA], uhc)
+    return {"DN_mm": dn, "saturado": saturado, "uhc": uhc,
+            "tabela": "NBR 8160 Tab.6"}
+
+
+def diametro_tubo_queda(uhc, pavimentos=3):
+    """DN do tubo de queda (NBR 8160 Tab.6). Coluna <=3 pav ou >3 pav.
+    Use ``diametro_tubo_queda_sat`` para saber se a tabela saturou."""
+    return diametro_tubo_queda_sat(uhc, pavimentos)["DN_mm"]
 
 
 def declividade_minima_pct(dn_mm):
@@ -328,8 +468,8 @@ def declividade_minima_pct(dn_mm):
     return 2.0 if dn_mm <= 75 else 1.0
 
 
-def diametro_coletor(uhc, declividade_pct=1.0):
-    """DN do subcoletor/coletor predial (NBR 8160 Tab.7) para a declividade dada
+def diametro_coletor_sat(uhc, declividade_pct=1.0):
+    """{DN_mm, saturado} do subcoletor/coletor predial (NBR 8160 Tab.7) p/ a declividade
     (0,5/1/2/4 %). Coletor predial tem DN minimo 100 (Sec.5.1.4.1) e, por ser DN >= 100,
     exige declividade minima de 1 % (Sec.4.2.3.2)."""
     if uhc < 0:
@@ -347,7 +487,16 @@ def diametro_coletor(uhc, declividade_pct=1.0):
         declividade_pct = max(menores)
     col = _DECLIV_COL.index(declividade_pct)
     tabela = [(dn, caps[col]) for dn, caps in sorted(_TAB7_COLETOR.items())]
-    return max(_menor_dn(tabela, uhc), 100)   # coletor predial >= DN100
+    dn, saturado = _menor_dn_sat(tabela, uhc)
+    return {"DN_mm": max(dn, 100),          # coletor predial >= DN100
+            "saturado": saturado, "uhc": uhc, "declividade_pct": declividade_pct,
+            "tabela": "NBR 8160 Tab.7"}
+
+
+def diametro_coletor(uhc, declividade_pct=1.0):
+    """DN do subcoletor/coletor predial (NBR 8160 Tab.7). Use
+    ``diametro_coletor_sat`` para saber se a tabela saturou."""
+    return diametro_coletor_sat(uhc, declividade_pct)["DN_mm"]
 
 
 # --- VENTILACAO do esgoto (NBR 8160 Sec.5.2.2) ---
@@ -360,16 +509,28 @@ _TAB8_VENT_COM = [(17, 50), (60, 75)]
 _TABD1_VENT = {40: 40, 50: 40, 75: 50, 100: 50}
 
 
-def diametro_ramal_ventilacao(uhc, com_bacia=True):
-    """DN do ramal de ventilacao (NBR 8160 Tab.8) por UHC ventilada. com_bacia=True usa a
-    coluna 'com bacias sanitarias'. Satura no maior DN da tabela acima do limite."""
+def diametro_ramal_ventilacao_sat(uhc, com_bacia=True):
+    """{DN_mm, saturado} do ramal de ventilacao (NBR 8160 Tab.8) por UHC ventilada.
+
+    com_bacia=True usa a coluna 'com bacias sanitarias'. A Tab.8 termina em DN75
+    (60 UHC com bacias, 36 sem): acima disso a norma NAO cobre o ramal e a peca
+    precisa ser subdividida -> saturado=True. Antes esta saturacao era silenciosa
+    (o DN75 saia igual para 60 e para 600 UHC)."""
     if uhc < 0:
         raise ValueError("UHC nao pode ser negativo.")
     tab = _TAB8_VENT_COM if com_bacia else _TAB8_VENT_SEM
     for lim, dn in tab:
         if uhc <= lim:
-            return dn
-    return tab[-1][1]
+            return {"DN_mm": dn, "saturado": False, "uhc": uhc,
+                    "limite_uhc": lim, "tabela": "NBR 8160 Tab.8"}
+    return {"DN_mm": tab[-1][1], "saturado": True, "uhc": uhc,
+            "limite_uhc": tab[-1][0], "tabela": "NBR 8160 Tab.8"}
+
+
+def diametro_ramal_ventilacao(uhc, com_bacia=True):
+    """DN do ramal de ventilacao (NBR 8160 Tab.8) por UHC ventilada. Use
+    ``diametro_ramal_ventilacao_sat`` para saber se a tabela saturou."""
+    return diametro_ramal_ventilacao_sat(uhc, com_bacia)["DN_mm"]
 
 
 def diametro_coluna_ventilacao(dn_esgoto_mm):

@@ -22,6 +22,7 @@ from __future__ import annotations
 import datetime
 import glob
 import os
+import time
 
 
 ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
@@ -33,6 +34,62 @@ ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
           "coordenacao": "COORDENACAO - MODELO FEDERADO (BIM/IFC4)"}
 ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica",
          "coordenacao")
+
+
+def _monotonic():
+    """Relogio isolado para permitir testes deterministas do prazo global."""
+    return time.monotonic()
+
+
+def _remaining_timeout(deadline):
+    """Retorna o tempo restante ou zero quando o prazo global terminou."""
+    return max(0.0, deadline - _monotonic())
+
+
+_STAGE_WEIGHTS = {
+    # Aco executa calculo, modelo 3D e executivo no mesmo dispatch.
+    "aco": 7.0,
+    "concreto": 2.0,
+    "eletrico": 1.5,
+    "hidraulica": 1.25,
+    "incendio": 1.0,
+    "climatizacao": 1.0,
+    "coordenacao_render": 0.5,
+    "coordenacao": 0.75,
+}
+
+
+def _stage_timeout(deadline, cap, stages_remaining=1, *, weight=1.0,
+                   total_weight=None):
+    """Reserva prazo ponderado para a etapa e as etapas restantes.
+
+    ``total_weight`` opcional preserva o comportamento linear de chamadas
+    antigas; o caderno vivo usa pesos para acomodar dispatches de custo
+    diferente sem alterar o prazo global.
+    """
+    remaining = _remaining_timeout(deadline)
+    if remaining <= 0.0:
+        return None
+    denominator = (float(total_weight) if total_weight is not None
+                   else float(max(1, int(stages_remaining))))
+    denominator = max(denominator, 1e-9)
+    share = remaining * float(weight) / denominator
+    return min(float(cap), share)
+
+
+def _timeout_status(timeout):
+    return {
+        "erro": "timeout global do caderno (%.3gs)" % float(timeout),
+        "timeout": True,
+    }
+
+
+def _contains_timeout(value):
+    if not isinstance(value, dict):
+        return False
+    if value.get("timeout") is True:
+        return True
+    return str(value.get("erro", "")).lower().startswith("timeout")
 
 
 def _coletar_pdfs(out_dir, nome):
@@ -232,9 +289,13 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
     que escreve as PE*.pdf em disc_out/pranchas. Retorna o dict de status."""
     if nome == "aco":
         import rodar_projeto as RP
+        stage_timeout = max(0.01, float(timeout))
+        timeout_3d = stage_timeout / 2.0
+        timeout_exec = stage_timeout - timeout_3d
         r = RP.rodar_tudo(dict(sub_spec or {}), out_dir=disc_out, com_3d=True,
                           com_executivo=True, gerar_pdf=True, gerar_dossie=False,
-                          verbose=False, timeout_exec=timeout)
+                          verbose=False, timeout_3d=timeout_3d,
+                          timeout_exec=timeout_exec)
         ex = (r.get("executivo") if isinstance(r, dict) else None) or {}
         return {"ok": bool(ex.get("ok")), "executivo": ex,
                 "atende": (r.get("atende") if isinstance(r, dict) else None)}
@@ -272,10 +333,32 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
 def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=1200):
     """VIVO: roda o turnkey, dispara as pranchas de cada disciplina executada (freecad)
     e mescla tudo num CADERNO unico. `disciplinas` (opc) restringe o subconjunto (ex.
-    ['incendio']). Retorna {path, n_paginas, n_pranchas, disciplinas, status, faltando}."""
+    ['incendio']). O timeout e um prazo global da montagem: cada etapa recebe
+    somente o tempo restante, e as etapas que nao couberem sao registradas como
+    timeout antes da mesclagem do resultado parcial."""
     import galpao_turnkey as tk
+    timeout = float(timeout)
+    started = _monotonic()
+    deadline = started + max(0.0, timeout)
     R = tk.rodar(spec, out_dir)
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
+    pending_stages = list(alvo)
+    if len(R["executadas"]) >= 2:
+        pending_stages.insert(0, "coordenacao_render")
+        if disciplinas is None:
+            pending_stages.insert(1, "coordenacao")
+
+    def reserve_stage(name, cap):
+        if name not in pending_stages:
+            return None
+        total_weight = sum(_STAGE_WEIGHTS.get(stage, 1.0)
+                           for stage in pending_stages)
+        value = _stage_timeout(
+            deadline, cap, len(pending_stages),
+            weight=_STAGE_WEIGHTS.get(name, 1.0),
+            total_weight=total_weight)
+        pending_stages.remove(name)
+        return value
 
     status = {}
     pdfs_por_disciplina = {}
@@ -291,21 +374,30 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
         except Exception:
             clash = None
         try:                                              # render 3D (freecad.exe grafico)
-            rr = tk.render_federado(R, out_dir, spec=spec,
-                                    freecad_exe=freecad_exe, timeout=min(timeout, 600))
-            vistas = (rr or {}).get("vistas") or []
-            render_png = next((v for v in vistas if "isometrica" in v), None)
+            render_timeout = reserve_stage("coordenacao_render", min(timeout, 600))
+            if render_timeout is None:
+                status["coordenacao_render"] = _timeout_status(timeout)
+            else:
+                rr = tk.render_federado(
+                    R, out_dir, spec=spec, freecad_exe=freecad_exe,
+                    timeout=render_timeout)
+                vistas = (rr or {}).get("vistas") or []
+                render_png = next((v for v in vistas if "isometrica" in v), None)
         except Exception:
             render_png = None
         if disciplinas is None:                           # prancha A1 formal de coordenacao
             try:
                 coord_out = os.path.join(out_dir, "coordenacao")
-                status["coordenacao"] = tk.montar_prancha_coordenacao(
-                    R, coord_out, spec=spec, clash=clash,
-                    freecad_exe=freecad_exe, timeout=min(timeout, 600))
-                pdfs_coord = _coletar_pdfs(out_dir, "coordenacao")
-                if pdfs_coord:
-                    pdfs_por_disciplina["coordenacao"] = pdfs_coord
+                coord_timeout = reserve_stage("coordenacao", min(timeout, 600))
+                if coord_timeout is None:
+                    status["coordenacao"] = _timeout_status(timeout)
+                else:
+                    status["coordenacao"] = tk.montar_prancha_coordenacao(
+                        R, coord_out, spec=spec, clash=clash,
+                        freecad_exe=freecad_exe, timeout=coord_timeout)
+                    pdfs_coord = _coletar_pdfs(out_dir, "coordenacao")
+                    if pdfs_coord:
+                        pdfs_por_disciplina["coordenacao"] = pdfs_coord
             except Exception as ex:
                 status["coordenacao"] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
 
@@ -313,11 +405,16 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
         disc_out = os.path.join(out_dir, nome)
         os.makedirs(disc_out, exist_ok=True)
         r_disc = R["disciplinas"][nome].get("raw")
-        try:
-            status[nome] = _dispatch_pranchas(nome, r_disc, disc_out,
-                                              spec.get(nome), freecad_exe, timeout)
-        except Exception as ex:
-            status[nome] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
+        stage_timeout = reserve_stage(nome, timeout)
+        if stage_timeout is None:
+            status[nome] = _timeout_status(timeout)
+        else:
+            try:
+                status[nome] = _dispatch_pranchas(
+                    nome, r_disc, disc_out, spec.get(nome), freecad_exe,
+                    stage_timeout)
+            except Exception as ex:
+                status[nome] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
         pdfs_por_disciplina[nome] = _coletar_pdfs(out_dir, nome)
 
     out_pdf = os.path.join(out_dir, "CADERNO-EXECUTIVO-%s.pdf" % spec.get("slug", "galpao"))
@@ -325,6 +422,9 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
                                  render_png=render_png)
     res["status"] = status
     res["ATENDE"] = R["ATENDE"]
+    res["timeout_seconds"] = timeout
+    res["elapsed_seconds"] = max(0.0, _monotonic() - started)
+    res["timed_out"] = any(_contains_timeout(item) for item in status.values())
     return res
 
 

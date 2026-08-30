@@ -146,9 +146,23 @@ def _shape_de_solido(c):
         s.Placement = App.Placement(p1, rot)
         return s
     bf, d = c["sec"]                                        # bar_rect
-    # base do box em (-bf/2,-d/2,0) -> secao CENTRADA no eixo p1->p2 (linha do centroide).
-    # Usar o ponto-base do makeBox: translate()+Placement se perde (a secao descia d/2).
-    s = Part.makeBox(bf, d, c["comprimento_mm"], App.Vector(-bf / 2.0, -d / 2.0, 0.0))
+    # base do box CENTRADA no eixo p1->p2 (linha do centroide). Usar o ponto-base do
+    # makeBox: translate()+Placement se perde (a secao descia d/2).
+    #
+    # ORIENTACAO DA SECAO (bug corrigido): a ALTURA d vai no eixo local X e a largura
+    # bf no eixo local Y - nao o contrario. App.Rotation(Vector(0,0,1), dir) leva o
+    # eixo local Z ao eixo da barra, e nessa rotacao o local X cai em -Z para barra
+    # horizontal e permanece em X para barra vertical. Ou seja:
+    #   viga horizontal -> d fica VERTICAL (altura da viga), bf na horizontal;
+    #   pilar vertical   -> d fica no plano do portico (eixo forte), bf no longitudinal.
+    # Com (bf, d) trocados, como estava antes, toda barra retangular saia girada 90
+    # graus em torno do proprio eixo: viga DEITADA DE LADO e pilar com o eixo forte
+    # fora do plano do portico (mesma classe do bug da coluna do galpao de aco).
+    # O erro era invisivel em secao quadrada e no clash de secao pequena; apareceu
+    # quando o pilar do galpao de concreto passou a 0,40x0,90 e o solido OCCT engoliu
+    # inteiro um acionador de incendio que a caixa AABB (que ja usava a convencao
+    # certa, via _aabb_barra) dava como livre.
+    s = Part.makeBox(d, bf, c["comprimento_mm"], App.Vector(-d / 2.0, -bf / 2.0, 0.0))
     s.Placement = App.Placement(p1, rot)
     return s
 

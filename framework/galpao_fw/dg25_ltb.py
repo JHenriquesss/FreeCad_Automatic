@@ -93,8 +93,20 @@ def J_dg(sec, fy):
     return hw * tw ** 3 / 3.0 + termo_c + termo_t
 
 
+def _validar_lb(Lb):
+    """Valida o comprimento destravado usado nas equacoes de FLT."""
+    try:
+        valido = not isinstance(Lb, bool) and math.isfinite(Lb) and Lb > 0.0
+    except (TypeError, ValueError, OverflowError):
+        valido = False
+    if not valido:
+        raise ValueError(f"Lb deve ser finito e > 0 (recebido {Lb!r})")
+    return Lb
+
+
 def f_eltb(sec, fy, Lb, Cb=1.0):
     """Tensao de FLT elastica F_eLTB (5.4-10 / Spec. F4-5)."""
+    _validar_lb(Lb)
     Sxc = sec["Wx"]; ho_ = ho(sec); rt_ = rt(sec); J = J_dg(sec, fy)
     lam = Lb / rt_
     return (Cb * math.pi ** 2 * E / lam ** 2) * \
@@ -103,12 +115,14 @@ def f_eltb(sec, fy, Lb, Cb=1.0):
 
 def m_eltb(sec, fy, Lb, Cb=1.0):
     """Momento de FLT elastico do DG25: M_eLTB = F_eLTB * Sxc (kN.m)."""
+    _validar_lb(Lb)
     return f_eltb(sec, fy, Lb, Cb) * sec["Wx"]
 
 
 def nbr_mcr(sec, fy, Lb, Cb=1.0):
     """Mcr da FLT elastica pelo NBR 8800 (mesma forma do check_nbr8800, Anexo G/F2):
     Mcr = Cb pi^2 E Iy/Lb^2 sqrt(Cw/Iy + 0.039 J Lb^2/Iy)."""
+    _validar_lb(Lb)
     Iy = sec["Iy"]
     Cw, J = ck._cw_j(sec)
     return (Cb * math.pi ** 2 * E * Iy / Lb ** 2) * \

@@ -70,10 +70,11 @@ def _acao_e_responsavel(da, db, esperado):
             "definir prioridade em reuniao de coordenacao.", "coordenacao")
 
 
-def _guid(a, b, tipos):
-    """GUID determinístico (estavel entre execucoes) a partir dos elementos."""
+def _guid(a, b, tipos, ocorrencia=1):
+    """GUID determinístico e único para ocorrências repetidas do mesmo clash."""
     h = hashlib.sha1(("%s|%s|%s" % (a, b, tipos)).encode("utf-8")).hexdigest()
-    return "%s-%s-%s-%s-%s" % (h[:8], h[8:12], h[12:16], h[16:20], h[20:32])
+    guid = "%s-%s-%s-%s-%s" % (h[:8], h[8:12], h[12:16], h[16:20], h[20:32])
+    return guid if ocorrencia == 1 else "%s~%d" % (guid, ocorrencia)
 
 
 def gerar_pendencias(rep_clash, prefixo="CLH"):
@@ -85,13 +86,17 @@ def gerar_pendencias(rep_clash, prefixo="CLH"):
     ordenados = sorted(clashes, key=lambda c: (c.get("esperado", False),
                                                -c.get("vol_mm3", 0)))
     pend = []
+    ocorrencias = {}
     for i, c in enumerate(ordenados, start=1):
         da, db = _disciplinas_do_par(c.get("disciplinas", ""))
         esperado = bool(c.get("esperado"))
         acao, resp = _acao_e_responsavel(da, db, esperado)
+        base_guid = _guid(c.get("a"), c.get("b"), c.get("tipos"))
+        ocorrencia = ocorrencias.get(base_guid, 0) + 1
+        ocorrencias[base_guid] = ocorrencia
         pend.append({
             "id": "%s-%03d" % (prefixo, i),
-            "guid": _guid(c.get("a"), c.get("b"), c.get("tipos")),
+            "guid": _guid(c.get("a"), c.get("b"), c.get("tipos"), ocorrencia),
             "titulo": "Interferencia %s x %s" % (_NOME.get(da, da), _NOME.get(db, db)),
             "disciplina_a": da, "disciplina_b": db,
             "elemento_a": c.get("a"), "elemento_b": c.get("b"),

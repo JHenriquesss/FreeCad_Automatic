@@ -132,6 +132,8 @@ def rodar(spec):
                                   conexoes={"cotovelo_90": 3, "te_direta": 1},
                                   dcota_m=H - 1.0, tipo_ponto=tipo_q)
         vpq["p_alim_default"] = "p_alim_kPa" not in hid
+        agua_quente["seguranca"] = hp.verifica_agua_quente_seguranca(
+            hid.get("agua_quente_seguranca"), aqc["Q_Ls"], vpq["p_residual_kPa"])
         agua_quente["pressao"] = vpq
 
     # --- ESGOTO: dimensionado se aparelhos informados (NBR 8160) ---
@@ -141,15 +143,22 @@ def rodar(spec):
     elif apar_es:
         decl_es = float(hid.get("decl_esgoto_pct", 1.0))
         uhc, dn_desc = hp.uhc_de_aparelhos(apar_es)
-        d_es = float(hp.diametro_coletor(uhc, decl_es))
+        colc = hp.diametro_coletor_sat(uhc, decl_es)
+        d_es = float(colc["DN_mm"])
         # VENTILACAO (NBR 8160 Sec.5.2.2): ramal de ventilacao por UHC (Tab.8; com bacia se
         # ha bacia sanitaria no conjunto) + coluna pelo DN do esgoto (Tab.D.1).
         com_bacia = "bacia" in apar_es
-        vent = float(hp.diametro_ramal_ventilacao(uhc, com_bacia=com_bacia))
+        ventc = hp.diametro_ramal_ventilacao_sat(uhc, com_bacia=com_bacia)
+        vent = float(ventc["DN_mm"])
         vent_col = float(hp.diametro_coluna_ventilacao(d_es))
+        # SATURACAO: a Tab.7 (coletor) e a Tab.8 (ventilacao) tem teto. Quando a UHC
+        # excede a ultima linha, o DN sai igual ao maior tabelado e NAO comporta o
+        # fluxo - antes isso passava em silencio (ver saturacao-silenciosa).
         esgoto = {"D_mm": d_es, "fonte": "NBR 8160", "default": False,
                   "uhc": uhc, "dn_ramal_min_mm": dn_desc,
-                  "ventilacao_ramal_mm": vent, "ventilacao_coluna_mm": vent_col}
+                  "ventilacao_ramal_mm": vent, "ventilacao_coluna_mm": vent_col,
+                  "coletor_saturado": bool(colc["saturado"]),
+                  "ventilacao_saturada": bool(ventc["saturado"])}
     else:
         esgoto = {"D_mm": D_ESGOTO_DEFAULT_MM, "fonte": "default", "default": True}
 
@@ -196,11 +205,16 @@ def rodar(spec):
                       "v=%.1f m/s; p.res %.0f kPa %s%s)"
                       % (aq["D_mm"], aq["Q_Ls"], aq["v_real_ms"], vpq["p_residual_kPa"],
                          "OK" if vpq["OK"] else "INSUF.", cavq))
+        partes.append("seguranca agua quente: %s"
+                      % ("OK" if aq["seguranca"]["OK"] else "INCONCLUSIVA/REPROVA"))
     if esgoto["fonte"] == "NBR 8160":
+        sat_es = (" [SATURADO - subdividir o trecho ou aumentar a declividade]"
+                  if esgoto.get("coletor_saturado") or esgoto.get("ventilacao_saturada")
+                  else "")
         partes.append("esgoto DN%.0f (ventilacao ramal DN%.0f/coluna DN%.0f) calculado "
-                      "NBR 8160 (UHC=%.1f)"
+                      "NBR 8160 (UHC=%.1f)%s"
                       % (esgoto["D_mm"], esgoto["ventilacao_ramal_mm"],
-                         esgoto["ventilacao_coluna_mm"], esgoto["uhc"]))
+                         esgoto["ventilacao_coluna_mm"], esgoto["uhc"], sat_es))
     elif esgoto["fonte"] == "spec":
         partes.append("esgoto DN%.0f (spec)" % esgoto["D_mm"])
     else:
@@ -208,12 +222,22 @@ def rodar(spec):
                       "aparelhos_esgoto]" % esgoto["D_mm"])
     dimensionamento = "; ".join(partes)
     completo = not (agua["default"] or esgoto["default"])
+    if agua_quente and not agua_quente["seguranca"]["OK"]:
+        completo = False
 
     pluvial_sat = bool(pluv.get("saturado") or pluv.get("calha_saturada"))
+    esgoto_sat = bool(esgoto.get("coletor_saturado") or esgoto.get("ventilacao_saturada"))
     gates = {"rede": {"n_condutores_pluvial": n_cond, "D_pluvial_mm": pluv["D_mm"],
                       "D_esgoto_mm": esgoto["D_mm"], "D_agua_mm": agua["D_mm"],
                       "dimensionamento": dimensionamento, "pluvial_saturado": pluvial_sat,
                       "dimensionamento_completo": completo, "OK": n_cond >= 1}}
+    if esgoto["fonte"] == "NBR 8160":
+        # gate EFETIVO: tabela saturada = trecho fora do alcance da norma, REPROVA
+        # (subdividir o coletor/a ventilacao ou aumentar a declividade).
+        gates["esgoto_saturacao"] = {
+            "coletor_saturado": bool(esgoto.get("coletor_saturado")),
+            "ventilacao_saturada": bool(esgoto.get("ventilacao_saturada")),
+            "uhc": esgoto["uhc"], "OK": not esgoto_sat}
     if agua.get("pressao"):
         vp = agua["pressao"]
         # gate INFORMATIVO se p_alim foi assumido (dado de sitio); EFETIVO se informado
@@ -228,6 +252,12 @@ def rodar(spec):
             "p_residual_kPa": vpq["p_residual_kPa"], "p_min_kPa": vpq["p_min_kPa"],
             "perda_kPa": vpq["perda_kPa"], "p_alim_assumida": vpq.get("p_alim_default", False),
             "OK": vpq["OK"] or vpq.get("p_alim_default", False)}
+        seg = agua_quente["seguranca"]
+        gates["seguranca_agua_quente"] = {
+            "OK": seg["OK"], "inconclusivo": seg["inconclusivo"],
+            "faltantes": list(seg["faltantes"]),
+            "violacoes": list(seg["violacoes"]),
+        }
     r = {"geometria": {"L": L, "W": W, "H": H}, "redes": redes,
          "dimensionamento": dimensionamento, "dimensionamento_completo": completo,
          "gates": gates}

@@ -95,7 +95,8 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
     electrical_out = tmp_path / "residencial-eletrica"
     electrical = run_project_file(
         electrical_spec, electrical_out,
-        options={"generate_ifc": False, "require_source_refs": True},
+        options={"generate_ifc": True, "generate_2d": True,
+                 "require_source_refs": True},
     )
     assert electrical["adapter"] == "casa-residencial-eletrica"
     assert electrical["status"] == "needs_review"
@@ -144,3 +145,28 @@ def test_golden_journey_project_to_manifest_coordination_and_iteration(
         artifact["path"] for artifact in persisted_electrical["artifacts"]
     }
     assert verify_project_run(electrical_out)["ok"] is True
+
+    # Fase 6B: os entregáveis graficos e o BIM saem do MESMO JSON validado, com
+    # hash no manifesto; o SVG e' conferido como XML, nao por substring.
+    from xml.etree import ElementTree
+
+    assert electrical["deliverables"]["drawings"]["status"] == "generated"
+    assert electrical["deliverables"]["drawings"]["artifacts"] == [
+        "drawings/unifilar.svg", "drawings/quadro-cargas.svg",
+        "drawings/planta-eletrica.svg",
+    ]
+    assert electrical["disciplines"]["eletrico"]["scope"][
+        "executive_deliverables"] == "implemented"
+    electrical_artifacts = {artifact["path"]: artifact
+                            for artifact in persisted_electrical["artifacts"]}
+    for drawing in electrical["deliverables"]["drawings"]["artifacts"]:
+        assert electrical_artifacts[drawing]["sha256"]
+        assert electrical_artifacts[drawing]["size"] > 0
+        root = ElementTree.fromstring(
+            (electrical_out / drawing).read_text(encoding="utf-8"))
+        assert root.tag == "{http://www.w3.org/2000/svg}svg"
+    ifc_status = electrical["deliverables"]["ifc"]["status"]
+    assert ifc_status in ("generated", "not_available")
+    if ifc_status == "generated":
+        assert electrical["deliverables"]["ifc"]["warnings"] == []
+        assert electrical_artifacts["bim/eletrico-residencial.ifc"]["sha256"]

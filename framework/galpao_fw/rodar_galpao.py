@@ -1672,7 +1672,21 @@ PARAMS_REF = {
     "fundacao": {"sigma_solo_adm": 200.0, "mu": 0.5, "coesao": 0.0,
                  "h_reaterro": 0.5, "d_ped": 0.30, "b_ped": 0.30, "h_ped": 0.50,
                  "fck": 25e3, "fyk": 500e3, "cobrimento": 0.05, "phi_barra": 0.0125,
-                 "gamma_f": 1.4},
+                 "gamma_f": 1.4,
+                 # _casos_base_envelope ja recebe combinacoes fatoradas do portico.
+                 "verificacao_estabilidade": {
+                     "metodo": "nbr6122_valores_calculo",
+                     "tipo_acoes": "calculo",
+                     "gamma_f": 1.4,
+                     "gamma_peso_favoravel": 1.2,
+                     "gamma_resistencia_solo": 1.4,
+                     "fs_tombamento": None,
+                     "fs_deslizamento": None,
+                     "peso_favoravel_superestrutura_kN": 0.0,
+                     "N_acao_desfavoravel_kN": None,
+                     "empuxo_passivo_kN": 0.0,
+                     "solo_nao_removivel": False,
+                 }},
     # Viga de baldrame / amarracao (NBR 6118). vao e N_amarracao (reacao horiz.
     # da base) auto do modelo se omitidos; q_parede = alvenaria de fechamento
     # (0 = so telha). Secao b x h e A CONFIRMAR.

@@ -57,6 +57,20 @@ def test_guid_estavel():
     assert a == b and len(a) > 20
 
 
+def test_guid_unico_para_clashes_identicos_e_estavel():
+    rep = _rep()
+    repetido = dict(rep["clashes"][0])
+    rep["clashes"] = [repetido, dict(repetido)]
+
+    primeira = cp.gerar_pendencias(rep)
+    segunda = cp.gerar_pendencias(rep)
+
+    assert [item["guid"] for item in primeira] == [
+        item["guid"] for item in segunda]
+    assert len({item["guid"] for item in primeira}) == 2
+    assert primeira[0]["guid"] != primeira[1]["guid"]
+
+
 def test_resumo():
     pend = cp.gerar_pendencias(_rep())
     r = cp.resumo(pend)

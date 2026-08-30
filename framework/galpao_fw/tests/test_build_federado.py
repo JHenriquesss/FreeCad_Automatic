@@ -99,7 +99,16 @@ def test_montar_3d_federado_vivo_e_consistente_com_aabb(tmp_path):
     r = res["result"]
     assert os.path.exists(r["fcstd"]) and os.path.exists(r["step"])
     assert r["n_solidos"] > 0
-    # o OCCT (solido real) deve ser SUBSET do AABB (bounding) -> <= n_clashes do AABB
+    # o OCCT (solido real) deve ser SUBSET do AABB (bounding) -> <= n_clashes do AABB.
+    # Este invariante nao e decorativo: foi ele que pegou o prisma retangular girado
+    # 90 graus em torno do proprio eixo no _shape_de_solido (viga deitada de lado,
+    # pilar com o eixo forte fora do plano do portico). O sintoma era OCCT = 86 > 85 =
+    # AABB, com o solido do pilar engolindo inteiro um acionador de incendio que a
+    # caixa dava como livre. O `_spec()` deste arquivo NAO declara
+    # travamento_longitudinal de proposito: sem ele o pilar do galpao de concreto vai
+    # para a maior secao da lista (0,40 x 0,90), e e essa secao bem nao-quadrada que
+    # torna o invariante sensivel a orientacao. Com uma secao quase quadrada o bug
+    # fica invisivel.
     aabb = tk.checa_interferencia_federada(R, _spec())
     assert r["n_interferencias_cross"] <= aabb["n_clashes"]
 
