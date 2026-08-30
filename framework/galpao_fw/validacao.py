@@ -1,5 +1,7 @@
 # ============================================================================
 # validacao.py - SELO DE CONFIABILIDADE (benchmarks independentes)
+# SCRIPT AVULSO: harness de aferição rodado a mao (e pelos testes), nao
+# importado pelo pipeline - de proposito: ele confere o nucleo de fora.
 # Confere o NUCLEO do framework contra solucoes que NAO dependem do proprio
 # framework: formulas fechadas e principios de equilibrio. E o "cross-check"
 # que separa "roda" de "confio": se o solver, o equilibrio e as formulas de

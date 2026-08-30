@@ -27,8 +27,11 @@ DOC_NAME = "galpao_federado"
 
 # dims de CAIXA -> mm: concreto em METROS (x1000); aco (modelo_neutro), eletrico,
 # incendio e climatizacao ja em MM (x1). Secao de BARRA e' sempre metros (a parte).
-_ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0,
-             "climatizacao": 1.0, "hidraulica": 1.0}
+# CONVENCAO UNICA DE `dims` (mm). Havia aqui um mapa de escala por
+# disciplina porque o concreto emitia a caixa da sapata em METROS e as
+# instalacoes em MILIMETROS. Com as duas em mm o mapa deixou de existir:
+# ele era a indireccao que escondia a divergencia, e mante-lo zerado so
+# convidaria o proximo a reintroduzi-la.
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
                   "H": "climatizacao", "P": "hidraulica"}
 _TIPOS_IGNORADOS = {"Covering", "Cladding"}          # fechamento/telha: fora do clash
@@ -72,7 +75,7 @@ def solidos(membros):
         nome = str(mb.get("marca", mb.get("tipo", "PECA")))
         tipo = mb.get("tipo")
         if "dims" in mb and "centro" in mb:                       # CAIXA
-            sc = _ESCALA_M.get(disc, 1.0)
+            sc = 1.0                                   # dims ja em mm
             dx, dy, dz = (mb["dims"][0] * sc, mb["dims"][1] * sc, mb["dims"][2] * sc)
             cx, cy, cz = mb["centro"]
             origem = (cx - dx / 2.0, cy - dy / 2.0, cz - dz / 2.0)

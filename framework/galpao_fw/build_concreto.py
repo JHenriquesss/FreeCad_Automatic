@@ -21,6 +21,7 @@ o layout; a orientacao viga/pilar/sapata e verificada em caixas() no CI, e o bui
 real e conferido por um teste `build` headless com freecadcmd.)
 """
 
+import math
 import os
 
 # ---- estado (restaurado por reset(); povoado por configurar()) --------------
@@ -32,7 +33,13 @@ DENSIDADE_CONCRETO = 2500.0        # kg/m3 (NBR 6118 8.2.2 - concreto armado)
 
 # nome do membro neutro -> tipo IFC (mapa LOCAL: nao depende do ifc_map irmao,
 # que nao esta no sys.path do freecadcmd/bridge). Casa com o emissor puro.
-_IFC_TIPO = {"Column": "IfcColumn", "Beam": "IfcBeam", "Footing": "IfcFooting"}
+_IFC_TIPO = {"Column": "IfcColumn", "Beam": "IfcBeam", "Footing": "IfcFooting",
+             "Slab": "IfcSlab", "Wall": "IfcWall", "Pile": "IfcPile"}
+
+# Tipos que NAO viram solido: IfcSpace e' volume de AMBIENTE, nao peca. Levado ao
+# 3D, cada comodo colidiria com todas as paredes e pisos que o delimitam e a
+# varredura de interferencia viraria ruido. O ambiente existe so no IFC.
+_SEM_SOLIDO = frozenset({"Space"})
 
 
 def reset():
@@ -65,31 +72,65 @@ def caixas(membros):
 
     - Column (vertical, corre em Z): secao bf(X) x d(Y), altura = |z2-z1|. O
       membros_bim usa sec_pil={bf: hy, d: hx} -> hy no plano X, hx no plano Y.
-    - Beam  (horizontal, corre em X): a secao {bf: b, d: h} da viga e LARGURA b e
-      ALTURA h -> mapeadas em Y (largura) e Z (altura), comprimento em X. A viga
-      APOIA no topo do pilar: face inferior em z1 (=topo do pilar), sobe h. Assim
-      compartilha face com o pilar (nao interpenetra).
-    - Footing (caixa): dims=[B,L,hf] (m) em X,Y,Z; centro dado (topo em z=0).
+    - Beam/Wall (horizontal, corre em X ou em Y): a secao {bf: b, d: h} e LARGURA
+      b (no eixo horizontal TRANSVERSAL ao da barra) e ALTURA h (em Z). Onde a
+      linha p1/p2 cai na secao e' declarado pelo membro em `ancoragem`:
+      'base' = face inferior (a viga apoia no topo do pilar e sobe h, sem
+      interpenetrar) ; 'eixo' (padrao) = eixo centroidal. A MESMA chave e' lida
+      pelo emissor IFC - era aqui que as duas descricoes divergiam em h/2.
+    - Footing (caixa): dims=[B,L,hf] (mm) em X,Y,Z; centro dado (topo em z=0).
+      A caixa vem em MILIMETROS, mesma unidade do `dims` que o ifc_emit consome -
+      uma unica convencao para os dois emissores (era m aqui e mm la, e a sapata
+      saia 1000x menor no IFC).
     """
     out = []
     for mb in membros:
         tipo = mb["tipo"]
+        if tipo in _SEM_SOLIDO:
+            continue
         ifc = _IFC_TIPO.get(tipo, "IfcBuildingElementProxy")
         nome = mb.get("marca") or mb.get("perfil") or tipo
-        if "dims" in mb and "centro" in mb:                # FOOTING (caixa)
-            B, L, hf = [d * 1000.0 for d in mb["dims"]]    # m -> mm
+        if "dims" in mb and "centro" in mb:                # FOOTING/SLAB (caixa)
+            B, L, hf = mb["dims"]                          # ja em mm
             cx, cy, cz = mb["centro"]
             origem = (cx - B / 2.0, cy - L / 2.0, cz - hf / 2.0)
             dims = (B, L, hf)
+        elif str((mb.get("secao") or {}).get("forma", "")).upper() == "ROUND":
+            # ESTACA (barra circular): cilindro, nao prisma. Um prisma DxD daria
+            # 4/pi = 27 % a mais de concreto no quantitativo, e o cross-check com
+            # o emissor IFC (que extruda um IfcCircleProfileDef) reprovaria.
+            p1, p2 = mb["p1"], mb["p2"]
+            D = float(mb["secao"]["D"]) * 1000.0            # m -> mm
+            comprimento = math.dist(p1, p2)
+            out.append({"name": nome, "tipo": tipo, "ifc": ifc, "solido": "cyl",
+                        "origem": (p1[0], p1[1], min(p1[2], p2[2])),
+                        "dims": (D, D, comprimento),
+                        "raio_mm": D / 2.0, "altura_mm": comprimento,
+                        "vol_m3": math.pi * (D / 2.0) ** 2 * comprimento / 1e9,
+                        "material": mb.get("material", "Concreto")})
+            continue
         else:
             p1, p2 = mb["p1"], mb["p2"]
             bf = mb["secao"]["bf"] * 1000.0                # m -> mm
             d = mb["secao"]["d"] * 1000.0
-            if tipo == "Beam":                             # corre em X, apoia no topo
-                dx = abs(p2[0] - p1[0])
-                dy = bf                                    # largura b -> Y
-                dz = d                                     # altura h -> Z (sobe do topo)
-                origem = (min(p1[0], p2[0]), p1[1] - dy / 2.0, p1[2])
+            if tipo in ("Beam", "Wall"):                   # barra HORIZONTAL
+                # corre no eixo de maior extensao; a secao fica com a largura bf
+                # no eixo horizontal transversal e a altura d em Z.
+                dx_eixo = abs(p2[0] - p1[0])
+                dy_eixo = abs(p2[1] - p1[1])
+                dz = d                                     # altura -> Z
+                if dx_eixo >= dy_eixo:                     # corre em X
+                    dx, dy = dx_eixo, bf
+                else:                                      # corre em Y
+                    dx, dy = bf, dy_eixo
+                # ANCORAGEM (mesma chave que o ifc_emit le): 'base' = p1/p2 e' a
+                # face inferior e a peca sobe d; 'eixo' (padrao) = a linha e' o
+                # eixo centroidal e a peca fica centrada nela. Os dois emissores
+                # liam a mesma chave de formas diferentes; agora leem igual.
+                z0 = p1[2] if mb.get("ancoragem") == "base" else p1[2] - dz / 2.0
+                origem = (min(p1[0], p2[0]) - (0.0 if dx_eixo >= dy_eixo else dx / 2.0),
+                          min(p1[1], p2[1]) - (dy / 2.0 if dx_eixo >= dy_eixo else 0.0),
+                          z0)
                 dims = (dx, dy, dz)
             else:                                          # COLUMN (corre em Z)
                 dz = abs(p2[2] - p1[2])
@@ -98,8 +139,8 @@ def caixas(membros):
                 origem = (p1[0] - dx / 2.0, p1[1] - dy / 2.0, min(p1[2], p2[2]))
                 dims = (dx, dy, dz)
         vol_m3 = (dims[0] * dims[1] * dims[2]) / 1e9       # mm3 -> m3
-        out.append({"name": nome, "tipo": tipo, "ifc": ifc, "origem": origem,
-                    "dims": dims, "vol_m3": vol_m3,
+        out.append({"name": nome, "tipo": tipo, "ifc": ifc, "solido": "box",
+                    "origem": origem, "dims": dims, "vol_m3": vol_m3,
                     "material": mb.get("material", "Concreto")})
     return out
 
@@ -136,10 +177,13 @@ def _monta_doc(cxs):
             break
     doc = App.newDocument(name)
     for c in cxs:
-        box = Part.makeBox(*c["dims"])
-        box.translate(App.Vector(*c["origem"]))
+        if c.get("solido") == "cyl":                # ESTACA: cilindro real
+            solido = Part.makeCylinder(c["raio_mm"], c["altura_mm"])
+        else:
+            solido = Part.makeBox(*c["dims"])
+        solido.translate(App.Vector(*c["origem"]))
         ob = doc.addObject("Part::Feature", _fc_name(c["name"], doc))
-        ob.Shape = box
+        ob.Shape = solido
         try:                                       # tipa p/ o IFC/Revit
             if not hasattr(ob, "IfcType"):
                 ob.addProperty("App::PropertyString", "IfcType", "IFC")

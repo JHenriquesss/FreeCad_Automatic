@@ -1,3 +1,5 @@
+# tools_probe_pe13.py - SCRIPT AVULSO: ferramenta de medicao rodada a mao
+# dentro do freecad.exe, nao importada por nenhum modulo - de proposito.
 # Harness RAPIDO do PE13: roda dentro do freecad.exe (unico lugar onde a cena
 # grafica existe e getEdgeByIndex popula), gera SO o detalhe do clipe de girt e
 # mede as arestas do corte para VARIAS combinacoes numa unica execucao.

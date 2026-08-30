@@ -1,5 +1,6 @@
 # ============================================================================
 # demo_engenheiro.py - AMOSTRA GUIADA para o engenheiro responsavel.
+# SCRIPT AVULSO: rodado a mao, nao importado por nenhum modulo - de proposito.
 # Roda o wizard COMPLETO (todas as perguntas, gate a gate) e, ao final, gera
 # APENAS a imagem 3D (as pranchas 2D sao puladas nesta amostra - demoram).
 #

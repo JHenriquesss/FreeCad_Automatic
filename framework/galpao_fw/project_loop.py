@@ -40,7 +40,15 @@ DISCIPLINE_STATUSES = ("passed", "needs_review", "blocked", "failed",
 _PROJECT_ADAPTERS = {}
 _PROJECT_CAPABILITIES = {}
 _PROJECT_HOOKS = {}
+_PROJECT_EXTRA_DELIVERABLES = {}
 PENDING_MARKER = "__PENDENTE__"
+
+# Hooks do núcleo: o loop os invoca sempre, com semântica fixa. Um adaptador pode
+# declarar entregáveis ADICIONAIS (orçamento, cronograma, ...); o hook homônimo só
+# é aceito se o nome estiver em ``deliverables``, e roda depois dos do núcleo.
+CORE_HOOKS = ("report", "coordination", "ifc", "model_3d", "drawings")
+CORE_DELIVERABLES = ("ifc", "model_3d", "drawings", "coordination", "iteration",
+                     "adapter_report")
 
 
 def _tokens(values):
@@ -73,10 +81,14 @@ def register_adapter(name, runner, *, project_types=(), disciplines=(),
         hooks = {}
     if not isinstance(hooks, dict):
         raise TypeError("hooks do adaptador devem ser um dicionario")
-    allowed_hooks = {"report", "coordination", "ifc", "model_3d", "drawings"}
+    declared = _tokens(deliverables)
+    allowed_hooks = set(CORE_HOOKS) | set(declared)
     unknown_hooks = sorted(set(hooks) - allowed_hooks)
     if unknown_hooks:
-        raise ValueError("hooks desconhecidos: " + ", ".join(unknown_hooks))
+        raise ValueError(
+            "hooks desconhecidos: %s (um hook fora do nucleo %s so e aceito se o "
+            "mesmo nome estiver declarado em deliverables)"
+            % (", ".join(unknown_hooks), ", ".join(sorted(CORE_HOOKS))))
     for hook_name, hook in hooks.items():
         if not callable(hook):
             raise TypeError("hook %s do adaptador deve ser chamavel" % hook_name)
@@ -86,9 +98,15 @@ def register_adapter(name, runner, *, project_types=(), disciplines=(),
         "name": key,
         "project_types": list(_tokens(project_types)),
         "disciplines": list(_tokens(disciplines)),
-        "deliverables": list(_tokens(deliverables)),
+        "deliverables": list(declared),
     }
     _PROJECT_HOOKS[key] = dict(hooks)
+    # entregáveis extras = os declarados que têm hook próprio e não são do núcleo;
+    # a ordem declarada é a ordem de execução (o cronograma consome o orçamento).
+    _PROJECT_EXTRA_DELIVERABLES[key] = [
+        token for token in declared
+        if token not in CORE_DELIVERABLES and token in hooks
+    ]
 
 
 def describe_adapters(name=None):
@@ -1003,6 +1021,30 @@ def _finish_failed_manifest(run_dir, normalized, options, preflight, iteration,
     return _persist_verified_manifest(run_dir, manifest)
 
 
+def _run_extra_deliverable_hooks(manifest, run_dir, normalized, options, result,
+                                 hooks):
+    """Invoca os entregáveis declarados fora do núcleo, na ordem declarada.
+
+    Cada hook escreve o próprio ``manifest["deliverables"][nome]``; uma exceção
+    vira ``failed`` com o detalhe, sem derrubar os demais entregáveis.
+    """
+    for name in _PROJECT_EXTRA_DELIVERABLES.get(normalized["adapter"], []):
+        hook = hooks.get(name)
+        if hook is None:
+            continue
+        try:
+            hook(manifest, run_dir, normalized, options, result)
+        except Exception as exc:
+            manifest["deliverables"][name] = {
+                "status": "failed",
+                "detail": "%s: %s" % (type(exc).__name__, exc),
+            }
+        manifest["deliverables"].setdefault(name, {
+            "status": "not_available",
+            "detail": "hook do entregavel nao preencheu o manifesto",
+        })
+
+
 def _execute_and_persist(run_dir, normalized, options, preflight, iteration,
                          parent_run_id, changes, resolutions):
     manifest = _base_manifest(normalized, options, run_dir, preflight,
@@ -1088,6 +1130,8 @@ def _execute_and_persist(run_dir, normalized, options, preflight, iteration,
             "status": "not_available" if drawings_requested else "not_requested",
             "detail": "adaptador não fornece hook de desenhos",
         }
+    _run_extra_deliverable_hooks(manifest, run_dir, normalized, options, result,
+                                 hooks)
     _record_standard_artifacts(manifest, run_dir)
     manifest["status"] = _project_status(
         records, preflight, manifest["deliverables"], manifest["coordination"])

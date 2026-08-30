@@ -8,27 +8,25 @@
 """Perfil I alma variavel (duplamente simetrico). Unidades: m, kN."""
 
 from __future__ import annotations
-import math
+
+from props_I_mono import props_I_mono
 
 
 def props_I(h, bf, tw, tf):
     """Propriedades COMPLETAS de um perfil I duplamente simetrico de altura h (m).
     Retorna dict no formato consumido por check_nbr8800 (verifica/momento_resistente/
     cortante/compressao): A, Ix, Iy, Wx, Zx, Wy, Zy, rx, ry, d, bf, tf, tw, Av.
-    Eixo forte = x (flexao no plano da alma)."""
+    Eixo forte = x (flexao no plano da alma).
+
+    DELEGA a props_I_mono (implementacao UNICA das propriedades de perfil I): o
+    duplo-simetrico e o monossimetrico com as duas mesas iguais, e a reducao e
+    exata (conferida chave a chave). Alem das chaves historicas, o dict passa a
+    trazer hc/hp/ho/rt/J/Cw/Wxc/Wxt/Iyc_Iy, que o dg25_ltb consome direto em vez
+    de recair nos defaults de secao simetrica.
+    """
     if h <= 2.0 * tf:
         raise ValueError(f"Altura {h}m menor que 2*tf={2*tf}m (inconsistente)")
-    hw = h - 2.0 * tf                                  # altura livre da alma
-    A = 2.0 * bf * tf + hw * tw
-    Ix = (bf * h ** 3 - (bf - tw) * hw ** 3) / 12.0
-    Iy = (2.0 * tf * bf ** 3) / 12.0 + (hw * tw ** 3) / 12.0
-    Wx = 2.0 * Ix / h
-    Zx = bf * tf * (h - tf) + tw * hw ** 2 / 4.0       # modulo plastico eixo forte
-    Wy = 2.0 * Iy / bf
-    Zy = tf * bf ** 2 / 2.0 + hw * tw ** 2 / 4.0       # modulo plastico eixo fraco
-    return {"A": A, "Ix": Ix, "Iy": Iy, "Wx": Wx, "Zx": Zx, "Wy": Wy, "Zy": Zy,
-            "rx": math.sqrt(Ix / A), "ry": math.sqrt(Iy / A), "d": h,
-            "bf": bf, "tf": tf, "tw": tw, "Av": hw * tw}
+    return props_I_mono(h, bf, tf, bf, tf, tw)
 
 
 def secao_tapered(h1, h2, bf, tw, tf, nseg=8):

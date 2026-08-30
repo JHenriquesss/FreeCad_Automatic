@@ -503,8 +503,11 @@ def montar_prancha_coordenacao(R, out_dir, spec=None, clash=None,
 # escala das dims de CAIXA por disciplina p/ mm: concreto guarda em METROS (x1000); aco
 # (modelo_neutro), eletrico, incendio e climatizacao ja em MM (x1). Secao de BARRA e'
 # sempre m (a parte).
-_ESCALA_M = {"concreto": 1000.0, "aco": 1.0, "eletrico": 1.0, "incendio": 1.0,
-             "climatizacao": 1.0, "hidraulica": 1.0}
+# CONVENCAO UNICA DE `dims` (mm). Havia aqui um mapa de escala por
+# disciplina porque o concreto emitia a caixa da sapata em METROS e as
+# instalacoes em MILIMETROS. Com as duas em mm o mapa deixou de existir:
+# ele era a indireccao que escondia a divergencia, e mante-lo zerado so
+# convidaria o proximo a reintroduzi-la.
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
                   "H": "climatizacao", "P": "hidraulica"}
 _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
@@ -566,13 +569,13 @@ def _aabb_barra(p1, p2, bf, d):
 
 
 def _aabb_federado(mb, disc):
-    """AABB (x0,x1,y0,y1,z0,z1) em mm de um membro federado. Caixa: dims escaladas pela
-    convencao da disciplina (estrutural m, instalacoes mm). Barra: caixa ORIENTADA
-    (secao perpendicular a p1->p2). None p/ painel (poligono) ou membro sem geometria."""
+    """AABB (x0,x1,y0,y1,z0,z1) em mm de um membro federado. Caixa: dims JA em mm
+    (convencao unica das disciplinas). Barra: caixa ORIENTADA (secao perpendicular
+    a p1->p2). None p/ painel (poligono) ou membro sem geometria."""
     if "poligono" in mb:
         return None                                     # painel de fechamento: ignorado
     if "dims" in mb and "centro" in mb:
-        sc = _ESCALA_M.get(disc, 1.0)
+        sc = 1.0                                   # dims ja em mm
         B, L, h = (mb["dims"][0] * sc, mb["dims"][1] * sc, mb["dims"][2] * sc)
         cx, cy, cz = mb["centro"]
         return (cx - B / 2, cx + B / 2, cy - L / 2, cy + L / 2, cz - h / 2, cz + h / 2)

@@ -6,6 +6,7 @@ import copy
 import os
 from pathlib import Path
 
+import entregaveis_projeto as ep
 from project_loop import (
     KNOWN_DISCIPLINES,
     _add_artifact,
@@ -383,13 +384,25 @@ def register_galpao_adapter() -> None:
         "galpao", _run_turnkey,
         project_types=("galpao", "industrial"),
         disciplines=KNOWN_DISCIPLINES,
-        deliverables=("ifc", "model_3d", "drawings", "coordination", "iteration"),
+        # A ordem dos extras e a ordem de execucao: o cronograma custeia as
+        # atividades com a planilha que o orcamento acabou de gravar.
+        deliverables=("ifc", "model_3d", "drawings", "coordination", "iteration",
+                      "desenhos_concreto", "orcamento", "cronograma",
+                      "caderno_encargos", "pacote_legal", "obras_sitio",
+                      "fotovoltaico"),
         hooks={
             "report": _write_turnkey_report,
             "coordination": _write_coordination,
             "ifc": _emit_ifc,
             "model_3d": _emit_model_3d,
             "drawings": _emit_drawings,
+            "desenhos_concreto": ep.emitir_desenhos_concreto,
+            "orcamento": ep.emitir_orcamento,
+            "cronograma": ep.emitir_cronograma,
+            "caderno_encargos": ep.emitir_caderno_encargos,
+            "pacote_legal": ep.emitir_pacote_legal,
+            "obras_sitio": ep.emitir_obras_sitio,
+            "fotovoltaico": ep.emitir_fotovoltaico,
         },
     )
 

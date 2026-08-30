@@ -1,5 +1,6 @@
 # ============================================================================
 # verificar_amostra.py - VERIFICACAO VISUAL da amostra do engenheiro.
+# SCRIPT AVULSO: rodado a mao, nao importado por nenhum modulo - de proposito.
 # Roda o pipeline COMPLETO (3D + pranchas 2D + dossie) sobre o spec de amostra e
 # aponta os artefatos para inspecao. Uso pos-caca sessao 14: confirmar VISUALMENTE
 # (1) a mao-francesa corrigida (mesa inferior -> terca, com offset longitudinal) e

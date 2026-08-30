@@ -295,11 +295,20 @@ def rpt(sec, fy):
     return min(mp_myt - (mp_myt - 1.0) * (lam - lpw) / (lrw - lpw), mp_myt)  # 5.4-27
 
 
+# Ruido de ponto flutuante entre Sxt e Sxc; abaixo disso a secao e simetrica.
+_TOL_SIMETRIA = 1e-9
+
+
 def mn_tfy(sec, fy):
     """§5.4.5 - escoamento da mesa tracionada (TFY). So aplica se Sxt<Sxc (mesa
     tracionada menor). Mn = Rpt Fy Sxt (5.4-25). Retorna {Mn, aplica, Rpt}."""
     Sxt = sec.get("Wxt", sec["Wx"]); Sxc = sec["Wx"]
-    if Sxt >= Sxc:
+    # Sxt e Sxc vem de Ix/ct e Ix/cc: numa secao DUPLAMENTE SIMETRICA sao o mesmo
+    # numero a menos do arredondamento do centroide (~1e-16 relativo). Comparar
+    # com '>=' cru classificava esse ruido como monossimetria e fazia o TFY
+    # "aplicar" numa secao simetrica (Mn identico ao CFY, mas estado espurio no
+    # envelope). A tolerancia abaixo e numerica, nao de engenharia.
+    if Sxt >= Sxc * (1.0 - _TOL_SIMETRIA):
         return {"Mn": None, "aplica": False}
     Rpt = rpt(sec, fy)
     return {"Mn": Rpt * fy * Sxt, "Rpt": Rpt, "aplica": True}

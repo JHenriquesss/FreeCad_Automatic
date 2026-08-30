@@ -222,6 +222,58 @@ def verifica_viga_rolamento(sec, fy, cfg):
                              fad["sigma_sr_y"], fad["sigma_rd"], fad["u_fadiga"]))}
 
 
+# --- NBR 8800 5.7: forcas localizadas na alma da viga de rolamento -----------
+def _apoio_cfg(cfg, sec):
+    """Comprimentos de atuacao (ln) e k = tf + perna do filete.
+
+    Sao geometria do TRILHO e da SOLDA mesa-alma; o modulo NAO os inventa. Sem
+    eles, adota-se o PISO CONSERVADOR (ln=0, k=tf: o filete so acrescenta), que
+    subestima F_Rd - passar nele e passar de verdade; reprovar nele so significa
+    que o trilho/filete precisam ser informados (ou o enrijecedor, colocado).
+    """
+    ap = cfg.get("apoio") or {}
+    piso = ("ln_roda_m" not in ap and "ln_apoio_m" not in ap and "k_m" not in ap)
+    return {"ln_roda": float(ap.get("ln_roda_m", 0.0)),
+            "ln_apoio": float(ap.get("ln_apoio_m", 0.0)),
+            "k": float(ap.get("k_m", sec["tf"])), "piso_conservador": piso}
+
+
+def verifica_forcas_localizadas(sec, fy, P_roda, R_apoio, cfg):
+    """NBR 8800 5.7 na viga de rolamento: a RODA (forca localizada no interior do
+    vao, 5.7.3/5.7.4 ramo interior) e a REACAO NO CONSOLE (extremidade, 5.7.3/
+    5.7.4 ramo extremidade). Se a extremidade nao atende, 5.7.8 exige enrijecedor
+    de apoio - que e DIMENSIONADO aqui (5.7.9), em vez de so reprovar."""
+    import forcas_localizadas as fl
+
+    g = _apoio_cfg(cfg, sec)
+    roda_esc = fl.escoamento_local_alma(sec, fy, g["ln_roda"], g["k"],
+                                        na_extremidade=False)
+    roda_enr = fl.enrugamento_alma(sec, fy, g["ln_roda"], na_extremidade=False)
+    F_Rd_roda = min(roda_esc["F_Rd"], roda_enr["F_Rd"])
+    apoio = fl.reacao_apoio(sec, fy, R_apoio, g["ln_apoio"], g["k"])
+    enrij = None
+    if apoio["precisa_enrijecedor"]:
+        enrij = fl.dimensiona_enrijecedor_apoio(sec, fy, R_apoio, extremidade=True)
+    apoio_ok = apoio["atende"] or bool(enrij and enrij.get("atende"))
+    a_confirmar = []
+    if g["piso_conservador"]:
+        a_confirmar.append(
+            "comprimento de apoio do trilho/console (ln) e perna do filete mesa-alma "
+            "(k) nao informados em cfg['apoio'] - verificado com o piso conservador "
+            "ln=0 e k=tf")
+    return {"roda": {"F_sd": P_roda, "F_Rd": F_Rd_roda,
+                     "escoamento_alma": roda_esc["F_Rd"],
+                     "enrugamento_alma": roda_enr["F_Rd"],
+                     "u": P_roda / F_Rd_roda if F_Rd_roda else None,
+                     "OK": P_roda <= F_Rd_roda},
+            "apoio": apoio, "enrijecedor_apoio": enrij,
+            "ln_roda_m": g["ln_roda"], "ln_apoio_m": g["ln_apoio"], "k_m": g["k"],
+            "OK": (P_roda <= F_Rd_roda) and apoio_ok,
+            "a_confirmar": a_confirmar,
+            "norma": "ABNT NBR 8800:2008 5.7 (forcas localizadas) + 5.7.9 "
+                     "(enrijecedor de apoio)"}
+
+
 def reacao_no_portico(R_roda_max, n_rodas_lado, H_transv_roda, H_long_trilho,
                       excentricidade, R_roda_min=None):
     """Reacoes da ponte no PORTICO (2 colunas do vao). Retorna dict com:
@@ -258,8 +310,33 @@ def relatorio_pt(esf, viga, reac):
         L.append(f"    Flecha vertical (sem impacto) = {viga['flecha_mm']:.1f} mm "
                  f"(limite L/{viga['flecha_lim']:.0f}) -> "
                  f"{'OK' if viga['flecha_ok'] else 'NAO'}")
-    L += [f"    >> {viga['fadiga_flag']}",
-          "-" * 70, "  REACAO NO PORTICO (console/pilar):",
+    L.append(f"    >> {viga['fadiga_flag']}")
+    fl_res = viga.get("forcas_localizadas")
+    if fl_res:
+        roda = fl_res["roda"]; apoio = fl_res["apoio"]
+        # item de 3 niveis de proposito: o pos-processamento de virgula decimal
+        # do relatorio converteria "5.7" em "5,7" (so poupa x.y.z).
+        L += ["    FORCAS LOCALIZADAS NA ALMA (NBR 8800 5.7.3/5.7.4) - "
+              f"ln_roda={fl_res['ln_roda_m']*1000:.0f} mm, "
+              f"ln_apoio={fl_res['ln_apoio_m']*1000:.0f} mm, k={fl_res['k_m']*1000:.1f} mm:",
+              f"      Roda (interior): F_sd={roda['F_sd']:.1f} <= F_Rd="
+              f"{roda['F_Rd']:.1f} kN (escoam. {roda['escoamento_alma']:.1f} / "
+              f"enrug. {roda['enrugamento_alma']:.1f}) -> "
+              f"{'OK' if roda['OK'] else 'NAO PASSA'}",
+              f"      Apoio no console: F_sd={apoio['F_sd']:.1f} <= F_Rd="
+              f"{apoio['F_Rd_min']:.1f} kN ({apoio['governa']}) -> "
+              f"{'OK' if apoio['atende'] else 'EXIGE ENRIJECEDOR (5.7.8)'}"]
+        enr = fl_res.get("enrijecedor_apoio")
+        if enr and enr.get("escolha"):
+            L.append(f"      Enrijecedor de apoio (5.7.9): 2 chapas "
+                     f"{enr['escolha']['b_st']*1000:.0f}x"
+                     f"{enr['escolha']['t_st']*1000:.1f} mm ; N_Rd="
+                     f"{enr['N_Rd']:.1f} kN >= {apoio['F_sd']:.1f} kN")
+        elif enr:
+            L.append(f"      Enrijecedor de apoio: {enr.get('motivo', 'nao atende')}")
+        for aviso in fl_res["a_confirmar"]:
+            L.append(f"      >> A CONFIRMAR: {aviso}")
+    L += ["-" * 70, "  REACAO NO PORTICO (console/pilar):",
           f"    R_vert,max (col 1) = {reac['R_vertical_kN']:.1f} kN ; "
           f"R_vert,min (col 2) = {reac.get('R_vertical_min_kN', reac['R_vertical_kN']):.1f} kN",
           f"    M_excentrico = {reac['M_excentrico_kNm']:.1f} kN.m",
@@ -313,6 +390,13 @@ def analisa(cfg):
     viga = verifica_viga_rolamento(cfg["perfil_viga"], cfg["fy"], vcfg)
     reac = reacao_no_portico(Rmx, cfg["n_rodas_lado"], Ht, Hl,
                              cfg.get("excentricidade", 0.30), R_roda_min=Rmn)
+    # 5.7: a alma sob a RODA e sob a REACAO no console. Sem isto a viga de
+    # rolamento so era verificada a flexao/flecha/fadiga - o modo de ruina mais
+    # classico dessa viga (esmagamento/enrugamento da alma) ficava de fora.
+    fl_res = verifica_forcas_localizadas(cfg["perfil_viga"], cfg["fy"], P,
+                                         reac["R_vertical_kN"], cfg)
+    viga["forcas_localizadas"] = fl_res
+    viga["OK"] = bool(viga["OK"] and fl_res["OK"])
     # n de ciclos para a FADIGA da solda do CONSOLE (mesma classe B da viga; NBR
     # 8400 Tab.9). R_vertical_kN ja e a reacao de SERVICO (sem impacto phi) -> serve
     # de faixa de variacao para o Anexo K (a reacao vai de ~0 a Rv quando a ponte
