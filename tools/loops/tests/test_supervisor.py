@@ -155,6 +155,106 @@ class FakeAgent:
         return self.value
 
 
+class GreenThenRed:
+    def __init__(self, initial_status="green_target"):
+        self.calls = 0
+        self.initial_status = initial_status
+
+    def __call__(self, candidate, evidence_bundle, plan, worktree):
+        self.calls += 1
+        if self.calls == 1:
+            target_paths = () if self.initial_status == "missing_red_test" else candidate.suggested_tests
+            return {
+                "kind": "red",
+                "status": self.initial_status,
+                "successful": False,
+                "returncode": 0,
+                "failed": 0,
+                "errors": 0,
+                "target_paths": list(target_paths),
+                "failed_tests": [],
+                "error_tests": [],
+            }
+        return {
+            "kind": "red",
+            "status": "red_observed",
+            "successful": True,
+            "returncode": 1,
+            "failed": 1,
+            "errors": 0,
+            "target_paths": list(candidate.suggested_tests),
+            "failed_tests": ["tests/test_red.py::test_contract"],
+            "error_tests": [],
+        }
+
+
+class FakeRedAuthor:
+    def __init__(self):
+        self.calls = 0
+
+    def run(self, request):
+        self.calls += 1
+        return AgentResult(
+            executor="fake-red-author",
+            argv=("fake-red-author",),
+            cwd=request.worktree,
+            returncode=0,
+            duration_seconds=0.1,
+            stdout="teste RED criado",
+            stderr="",
+            files_touched=("tests/test_red.py",),
+        )
+
+
+class RealRedAuthor:
+    def __init__(self):
+        self.calls = 0
+
+    def run(self, request):
+        self.calls += 1
+        path = Path(request.worktree) / "framework" / "galpao_fw" / "tests" / "test_red.py"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def test_red_contract():\n    assert False\n", encoding="utf-8")
+        return AgentResult(
+            executor="real-red-author",
+            argv=("real-red-author",),
+            cwd=request.worktree,
+            returncode=0,
+            duration_seconds=0.1,
+            stdout="teste RED criado",
+            stderr="",
+            files_touched=("framework/galpao_fw/tests/test_red.py",),
+        )
+
+
+class UnsafeFoundationRedAuthor:
+    def __init__(self):
+        self.calls = 0
+
+    def run(self, request):
+        self.calls += 1
+        path = Path(request.worktree) / "framework" / "galpao_fw" / "tests" / "test_fs_legacy.py"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            """
+def test_nbr6122_uses_universal_fs_15():
+    caso = {\"fs_tomb_min\": 1.5, \"fs_desl_min\": 1.5}
+    assert caso[\"fs_tomb_min\"] == 1.5
+""",
+            encoding="utf-8",
+        )
+        return AgentResult(
+            executor="unsafe-red-author",
+            argv=("unsafe-red-author",),
+            cwd=request.worktree,
+            returncode=0,
+            duration_seconds=0.1,
+            stdout="teste RED criado",
+            stderr="",
+            files_touched=("framework/galpao_fw/tests/test_fs_legacy.py",),
+        )
+
+
 class RealWorktreeAgent:
     def __init__(self):
         self.calls = 0
@@ -1170,6 +1270,67 @@ def test_attempt_limit_prevents_infinite_retry(tmp_path):
     assert first.outcome == "red_failed"
     assert second.outcome == "attempt_limit"
     assert h.red.calls == 1
+
+
+@pytest.mark.parametrize("initial_status", ["green_target", "missing_red_test"])
+def test_green_or_missing_red_is_reconciled_before_implementation(tmp_path, initial_status):
+    h, cfg = harness(tmp_path)
+    red = GreenThenRed(initial_status)
+    author = FakeRedAuthor()
+    h.deps = replace(h.deps, red=red, red_author=author)
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert red.calls == 2
+    assert author.calls == 1
+    assert "tests/test_red.py" in outcome.state.task.suggested_tests
+    reconciliation = json.loads(
+        Path(outcome.state.artifacts["red_reconciliation"]).read_text(encoding="utf-8")
+    )
+    assert reconciliation["initial"]["status"] == initial_status
+    assert reconciliation["final"]["status"] == "red_observed"
+    assert "tests/test_modulo.py" in reconciliation["removed_missing_test_paths"]
+    assert Path(outcome.state.artifacts["red_initial"]).exists()
+    assert Path(outcome.state.artifacts["red_author"]).exists()
+
+
+def test_red_author_file_is_not_recovered_as_implementation(tmp_path):
+    h, cfg = harness(tmp_path)
+    author = RealRedAuthor()
+    h.deps = replace(h.deps, red=GreenThenRed("green_target"), red_author=author)
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "promoted"
+    assert author.calls == 1
+    assert h.agent.calls == 1
+    assert json.loads(Path(outcome.state.artifacts["agent"]).read_text(encoding="utf-8"))["executor"] == "fake"
+
+
+def test_green_red_without_author_remains_blocked(tmp_path):
+    h, cfg = harness(tmp_path)
+    h.deps = replace(h.deps, red=GreenThenRed("green_target"))
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "red_failed"
+    assert outcome.state.failure.reason == "red_failed"
+
+
+def test_foundation_red_author_cannot_promote_legacy_universal_fs_claim(tmp_path):
+    h, cfg = harness(tmp_path)
+    foundation = replace(task(), id="foundation-1", topic="fundacao_estabilidade")
+    h.discover.candidates = (foundation,)
+    author = UnsafeFoundationRedAuthor()
+    h.deps = replace(h.deps, red=GreenThenRed("green_target"), red_author=author)
+
+    outcome = make_supervisor(h, cfg).run_once()
+
+    assert outcome.outcome == "red_failed"
+    assert "conflita" in outcome.state.failure.detail
+    assert author.calls == 1
+    assert h.agent.calls == 0
 
 
 def test_active_ledger_must_be_resumed_before_new_run(tmp_path):

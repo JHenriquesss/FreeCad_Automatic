@@ -22,6 +22,22 @@ def candidate(**changes):
     return replace(base, **changes)
 
 
+def photovoltaic_project(tmp_path):
+    pending = tmp_path / "fontes"
+    pending.mkdir(parents=True)
+    (pending / "pendencias-atualizacao.md").write_text(
+        "# Pendências\n"
+        "### 3. Elétrica, PRODIST e fotovoltaico\n"
+        "- [ ] Confirmar a vigência das normas fotovoltaicas antes do uso em produção.\n",
+        encoding="utf-8",
+    )
+    test_root = tmp_path / "framework" / "galpao_fw" / "tests"
+    test_root.mkdir(parents=True)
+    for name in ("test_fotovoltaico.py", "test_comissionamento_fv.py"):
+        (test_root / name).write_text("", encoding="utf-8")
+    return tmp_path
+
+
 def test_discovery_finds_unverified_fuzz_item():
     candidates = discover_candidates(PROJECT_ROOT)
 
@@ -212,21 +228,19 @@ def test_open_source_checkbox_is_discovered_and_checked_checkbox_is_ignored():
     assert not any("Organizar a" in item.title for item in candidates)
 
 
-def test_foundation_pending_item_is_structural_and_uses_relevant_tests():
+def test_resolved_foundation_item_is_not_reopened_by_discovery():
     candidates = discover_candidates(PROJECT_ROOT)
 
-    foundation = next(item for item in candidates if "Fatores de segurança 1,5" in item.title)
+    assert not any(
+        "Critério de verificação para tombamento/deslizamento" in item.title
+        for item in candidates
+    )
 
-    assert foundation.discipline == "estrutura"
-    assert foundation.suggested_tests
-    assert all(
-        not any(term in path.casefold() for term in ("eletrico", "incendio", "calha"))
-        for path in foundation.suggested_tests
-    )
-    assert any(
-        any(term in path.casefold() for term in ("fundacao", "geotec", "validacao"))
-        for path in foundation.suggested_tests
-    )
+
+def test_resolved_foundation_stability_is_not_a_candidate():
+    candidates = discover_candidates(PROJECT_ROOT)
+
+    assert not any(item.topic == "fundacao_estabilidade" for item in candidates)
 
 
 def test_pile_foundation_context_does_not_inherit_cross_discipline_tests():
@@ -289,6 +303,31 @@ def test_completed_revision_statuses_are_ignored(tmp_path):
     assert "PENDENTE" in candidates[0].title
 
 
+def test_revision_narrative_bullets_require_explicit_pending_marker(tmp_path):
+    revision_root = tmp_path / "framework" / "galpao_fw"
+    revision_root.mkdir(parents=True)
+    (revision_root / "REVISAO-TESTE.md").write_text(
+        "\n".join(
+            [
+                "# Revisao",
+                "## Parecer",
+                "- `validar()` registra o aviso conforme a norma;",
+                "  a decisao fica A CONFIRMAR no memorial.",
+                "- confirmar o ponto ja analisado - PENDENTE",
+                "- [ ] obter a fonte que falta",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+
+    assert len(candidates) == 2
+    assert all("validar()" not in item.title for item in candidates)
+    assert any("PENDENTE" in item.title for item in candidates)
+    assert any("obter a fonte" in item.title for item in candidates)
+
+
 def test_candidate_id_matches_required_formula():
     candidates = discover_candidates(PROJECT_ROOT)
     fuzz = next(item for item in candidates if item.topic == "calhas")
@@ -298,8 +337,8 @@ def test_candidate_id_matches_required_formula():
     assert fuzz.id == expected
 
 
-def test_discovery_creates_atomic_photovoltaic_validator_with_two_normative_sources():
-    candidates = discover_candidates(PROJECT_ROOT)
+def test_discovery_creates_atomic_photovoltaic_validator_with_two_normative_sources(tmp_path):
+    candidates = discover_candidates(photovoltaic_project(tmp_path))
 
     fv = next(item for item in candidates if item.topic == "fotovoltaico")
 
@@ -312,8 +351,8 @@ def test_discovery_creates_atomic_photovoltaic_validator_with_two_normative_sour
     assert "framework/galpao_fw/tests/test_fotovoltaico.py" in fv.suggested_tests
 
 
-def test_atomic_photovoltaic_candidate_precedes_broad_validity_pending_item():
-    candidates = discover_candidates(PROJECT_ROOT)
+def test_atomic_photovoltaic_candidate_precedes_broad_validity_pending_item(tmp_path):
+    candidates = discover_candidates(photovoltaic_project(tmp_path))
 
     fv_index = next(index for index, item in enumerate(candidates) if item.topic == "fotovoltaico")
     broad_index = next(
@@ -327,8 +366,8 @@ def test_atomic_photovoltaic_candidate_precedes_broad_validity_pending_item():
     assert candidates[broad_index].source_paths == ()
 
 
-def test_discovery_creates_atomic_photovoltaic_commissioning_candidate_with_one_source():
-    candidates = discover_candidates(PROJECT_ROOT)
+def test_discovery_creates_atomic_photovoltaic_commissioning_candidate_with_one_source(tmp_path):
+    candidates = discover_candidates(photovoltaic_project(tmp_path))
 
     commissioning = next(
         item for item in candidates
@@ -346,8 +385,8 @@ def test_discovery_creates_atomic_photovoltaic_commissioning_candidate_with_one_
     )
 
 
-def test_photovoltaic_commissioning_candidate_is_before_broad_pending_item():
-    candidates = discover_candidates(PROJECT_ROOT)
+def test_photovoltaic_commissioning_candidate_is_before_broad_pending_item(tmp_path):
+    candidates = discover_candidates(photovoltaic_project(tmp_path))
 
     commissioning_index = next(
         index for index, item in enumerate(candidates)
@@ -396,7 +435,7 @@ def test_discovery_creates_atomic_emergency_sign_area_candidate(tmp_path):
     assert signage.discipline == "seguranca"
     assert signage.priority == 75
     assert signage.source_paths == (
-        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2020__sinalizacao-emergencia.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
     )
     assert signage.suggested_tests == (
         "framework/galpao_fw/tests/test_incendio_robustez.py",
@@ -518,7 +557,7 @@ def test_fire_pending_decomposes_into_two_atomic_norm_candidates(tmp_path):
     assert extinguishers.topic == "extintores"
     assert extinguishers.discipline == "seguranca"
     assert extinguishers.source_paths == (
-        "09_INCENDIO/INCENDIO__NBR__NBR-12693__sistemas-extintores.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-12693-2021__sistemas-extintores.pdf",
     )
     assert extinguishers.suggested_tests == (
         "framework/galpao_fw/tests/test_incendio_robustez.py",
@@ -528,7 +567,7 @@ def test_fire_pending_decomposes_into_two_atomic_norm_candidates(tmp_path):
     assert signage.topic == "sinalizacao_incendio"
     assert signage.discipline == "seguranca"
     assert signage.source_paths == (
-        "09_INCENDIO/INCENDIO__NBR__NBR-13434__sinalizacao-seguranca.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
     )
     assert signage.suggested_tests == extinguishers.suggested_tests
     assert broad.source_paths == ()
@@ -643,15 +682,15 @@ def test_structural_fire_pending_decomposes_into_three_atomic_norm_candidates(tm
     expected = {
         "nbr15200": (
             "fogo_concreto",
-            "09_INCENDIO/INCENDIO__NBR__NBR-15200__estruturas-concreto-incendio.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",
         ),
         "nbr14432": (
             "resistencia_fogo",
-            "09_INCENDIO/INCENDIO__NBR__NBR-14432__exigencias-resistencia-fogo.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-14432-2000__exigencias-resistencia-fogo.pdf",
         ),
         "nbr14323": (
             "fogo_aco",
-            "09_INCENDIO/INCENDIO__NBR__NBR-14323__estruturas-aco-incendio.pdf",
+        "09_INCENDIO/INCENDIO__NBR__NBR-14323-2013__estruturas-aco-incendio.pdf",
         ),
     }
 
@@ -715,3 +754,118 @@ def test_hot_water_pending_decomposes_into_source_scoped_atomic_candidate(tmp_pa
     assert tuple((item.id, item.origin) for item in candidates) == tuple(
         (item.id, item.origin) for item in discover_candidates(tmp_path)
     )
+
+
+def test_fire_candidates_use_versioned_canonical_source_paths(tmp_path):
+    fontes = tmp_path / "fontes"
+    fontes.mkdir(parents=True)
+    (fontes / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 - atualizacoes normativas e seguranca industrial\n"
+        "- Protecao contra incendio: NBR 16981:2021 cobre armazenamento; ainda faltam NBR 12693 e NBR 13434.\n",
+        encoding="utf-8",
+    )
+    (fontes / "pendencias-atualizacao.md").write_text(
+        "# Pendencias\n"
+        "### 4. Incendio, geotecnia e seguranca do trabalho\n"
+        "- Obter ABNT NBR 15200, NBR 14432 e NBR 14323 para estruturas em situacao de incendio.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+    by_topic = {item.topic: item for item in candidates}
+
+    assert by_topic["extintores"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-12693-2021__sistemas-extintores.pdf",
+    )
+    assert by_topic["sinalizacao_incendio"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
+    )
+    assert by_topic["fogo_concreto"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",
+    )
+    assert by_topic["resistencia_fogo"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-14432-2000__exigencias-resistencia-fogo.pdf",
+    )
+    assert by_topic["fogo_aco"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-14323-2013__estruturas-aco-incendio.pdf",
+    )
+
+
+def test_current_structural_fire_inventory_creates_only_scoped_validation_tasks(tmp_path):
+    fontes = tmp_path / "fontes"
+    fontes.mkdir(parents=True)
+    (fontes / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 - atualizacoes normativas e seguranca industrial\n"
+        "- Concreto e aco em incendio: ABNT NBR 15200:2024, NBR 14432:2000/2001 e "
+        "NBR 14323:2013 ja organizadas; validar os modulos com citacoes do NotebookLM.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+    by_topic = {item.topic: item for item in candidates}
+
+    assert by_topic["fogo_concreto"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",
+    )
+    assert by_topic["resistencia_fogo"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-14432-2000__exigencias-resistencia-fogo.pdf",
+    )
+    assert by_topic["fogo_aco"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-14323-2013__estruturas-aco-incendio.pdf",
+    )
+    assert not any(
+        item.topic == "geral"
+        and item.origin.startswith("fontes/fontes-faltantes.md:P1")
+        for item in candidates
+    )
+
+
+def test_current_extinguisher_inventory_keeps_missing_signage_scoped(tmp_path):
+    fontes = tmp_path / "fontes"
+    fontes.mkdir(parents=True)
+    (fontes / "fontes-faltantes.md").write_text(
+        "# Fontes faltantes\n"
+        "## P1 - atualizacoes normativas e seguranca industrial\n"
+        "- Protecao contra incendio: NBR 16981:2021 cobre armazenamento; NBR 12693:2021 "
+        "ja foi organizada e ainda falta NBR 13434.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+    by_topic = {item.topic: item for item in candidates}
+
+    assert by_topic["extintores"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-12693-2021__sistemas-extintores.pdf",
+    )
+    assert by_topic["sinalizacao_incendio"].source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
+    )
+    assert "fogo_armazenamento" not in by_topic
+    assert not any(
+        item.topic == "geral"
+        and item.origin.startswith("fontes/fontes-faltantes.md:P1")
+        for item in candidates
+    )
+
+
+def test_legacy_nbr13434_pending_migrates_to_current_nbr16820_source(tmp_path):
+    fontes = tmp_path / "fontes"
+    fontes.mkdir(parents=True)
+    (fontes / "pendencias-atualizacao.md").write_text(
+        "# Pendencias\n"
+        "### 4. Incendio, geotecnia e seguranca do trabalho\n"
+        "- [ ] Obter ABNT NBR 13434 para sinalizacao de seguranca contra incendio.\n",
+        encoding="utf-8",
+    )
+
+    candidates = discover_candidates(tmp_path)
+    signage = next(item for item in candidates if item.topic == "sinalizacao_incendio")
+
+    assert signage.source_paths == (
+        "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
+    )
+    assert "NBR 16820:2022" in signage.title
+    assert "NBR 13434" not in signage.title
+    assert not any(item.topic == "geral" for item in candidates)

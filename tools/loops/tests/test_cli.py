@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from tools.loops.__main__ import (
     _allowed_code_paths,
     _notebook_id_for_candidate,
+    _red_gate,
     _research_candidate,
     _research_question,
     _research_retry_question,
@@ -14,6 +16,7 @@ from tools.loops.__main__ import (
 )
 from tools.loops.models import SourceRecord, TaskCandidate
 from tools.loops.research_nlm import NotebookMap
+from tools.loops.tests_runner import TestSnapshot
 
 
 def test_cli_parser_exposes_required_options():
@@ -35,6 +38,34 @@ def test_cli_parser_exposes_retry_blocked():
     args = build_parser().parse_args(["--retry-blocked"])
 
     assert args.retry_blocked is True
+
+
+def test_red_gate_classifies_green_and_missing_targets(monkeypatch, tmp_path):
+    import tools.loops.__main__ as cli
+
+    class FakeRunner:
+        snapshot = TestSnapshot(kind="targeted", returncode=0, passed=1)
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def targeted(self, paths):
+            return self.snapshot
+
+    monkeypatch.setattr(cli, "TestRunner", FakeRunner)
+    framework_tests = tmp_path / "framework" / "galpao_fw" / "tests"
+    framework_tests.mkdir(parents=True)
+    (framework_tests / "existing.py").write_text("# test\n", encoding="utf-8")
+    config = SimpleNamespace(
+        runtime_dir=str(tmp_path / ".loop-runtime"),
+        command_timeout_seconds=10,
+        build_timeout_seconds=10,
+    )
+    green = TaskCandidate("green", "alvo verde", "estrutura", "wiki", 1, (), ("framework/galpao_fw/tests/existing.py",))
+    missing = TaskCandidate("missing", "sem red", "estrutura", "wiki", 1, (), ("framework/galpao_fw/tests/new.py",))
+
+    assert _red_gate(None, green, str(tmp_path), config)["status"] == "green_target"
+    assert _red_gate(None, missing, str(tmp_path), config)["status"] == "missing_red_test"
 
 
 def test_cli_invalid_positive_integer_returns_two():
@@ -209,6 +240,31 @@ def test_research_prompt_focuses_estaca_on_nbr6122_and_separates_guards():
         "Separe o que a norma exige do que e apenas uma guarda de software. Informe a secao/tabela da norma "
         "para cada item e cite cada requisito usando o source ID exato entre: " + source_id + "."
     )
+
+
+def test_foundation_stability_prompt_is_scoped_to_nbr6122():
+    source_id = "fbbdff0f-de66-4c13-a414-284aaf8b8fb9"
+    candidate = TaskCandidate(
+        "id",
+        "Validar fatores de seguranca de fundacoes conforme NBR 6122:2022",
+        "estrutura",
+        "revision:FUNDACAO",
+        55,
+        ("revision.md",),
+        (),
+        topic="fundacao_estabilidade",
+    )
+
+    question = _research_question(candidate, (source_id,))
+    retry = _research_retry_question(candidate, (source_id,))
+
+    assert "NBR 6122:2022" in question
+    assert "tombamento" in question
+    assert "deslizamento" in question
+    assert source_id in question
+    assert retry is not None
+    assert "NBR 6122:2022" in retry
+    assert source_id in retry
 
 
 def test_estaca_retry_prompt_requires_compact_nbr6122_citations():
@@ -448,13 +504,13 @@ def test_fire_prompt_focuses_extintores_without_presuming_edition():
     assert source_id in retry
 
 
-def test_fire_prompt_focuses_sinalizacao_without_presuming_edition():
-    source_id = "src-nbr13434"
+def test_fire_prompt_focuses_current_sinalizacao_source():
+    source_id = "src-nbr16820"
     candidate = TaskCandidate(
         "id",
-        "Validar sinalização de segurança contra incêndio conforme NBR 13434 (edição a confirmar).",
+        "Validar sinalização de segurança contra incêndio conforme NBR 16820:2022.",
         "seguranca",
-        "fontes/fontes-faltantes.md:P1:nbr13434",
+        "fontes/fontes-faltantes.md:P1:nbr16820",
         50,
         ("fontes/fontes-faltantes.md",),
         (),
@@ -464,13 +520,14 @@ def test_fire_prompt_focuses_sinalizacao_without_presuming_edition():
     question = _research_question(candidate, (source_id,))
     retry = _research_retry_question(candidate, (source_id,))
 
-    assert "NBR 13434" in question
+    assert "NBR 16820:2022" in question
+    assert "NBR 13434" not in question
     assert "sinalização" in question
     assert "seção/tabela" in question
     assert source_id in question
-    assert "202" not in question
     assert retry is not None
-    assert "NBR 13434" in retry
+    assert "NBR 16820:2022" in retry
+    assert "NBR 13434" not in retry
     assert "citações textuais" in retry
     assert source_id in retry
 

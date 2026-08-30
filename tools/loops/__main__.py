@@ -232,6 +232,7 @@ def _build_deps(args, config, root):
         )
 
     test_runner = tests_factory(root)
+    agent = agent_class(timeout_seconds=config.command_timeout_seconds)
     return SupervisorDeps(
         discover=discover_candidates,
         research=lambda candidate: _research_candidate(research, candidate),
@@ -239,7 +240,8 @@ def _build_deps(args, config, root):
         red=lambda candidate, evidence, plan, worktree: _red_gate(
             test_runner, candidate, worktree, config
         ),
-        agent=agent_class(timeout_seconds=config.command_timeout_seconds),
+        agent=agent,
+        red_author=agent,
         tests=test_runner,
         tests_factory=tests_factory,
         reviewer=ReviewAdapter(),
@@ -256,8 +258,22 @@ def _red_gate(test_runner, candidate, worktree, config):
         build_timeout_seconds=config.build_timeout_seconds,
     )
     snapshot = runner.targeted(candidate.suggested_tests)
+    missing_test_paths = [
+        path for path in candidate.suggested_tests if not _test_path_exists(worktree, path)
+    ]
+    if missing_test_paths:
+        status = "missing_red_test"
+    elif snapshot.timed_out:
+        status = "timeout"
+    elif snapshot.returncode == 0 and snapshot.failed == 0 and snapshot.errors == 0:
+        status = "green_target"
+    elif snapshot.returncode != 0 and (snapshot.failed > 0 or snapshot.errors > 0):
+        status = "red_observed"
+    else:
+        status = "execution_error"
     return {
         "kind": "red",
+        "status": status,
         "successful": (
             not snapshot.timed_out
             and snapshot.returncode != 0
@@ -269,7 +285,20 @@ def _red_gate(test_runner, candidate, worktree, config):
         "failed_tests": list(snapshot.failed_tests),
         "error_tests": list(snapshot.error_tests),
         "target_paths": list(snapshot.target_paths),
+        "missing_test_paths": missing_test_paths,
+        "timed_out": snapshot.timed_out,
     }
+
+
+def _test_path_exists(worktree, path):
+    value = Path(str(path))
+    if value.is_absolute():
+        return value.exists()
+    candidates = (
+        Path(worktree) / value,
+        Path(worktree) / "framework" / "galpao_fw" / value,
+    )
+    return any(candidate.exists() for candidate in candidates)
 
 
 def _research_candidate(adapter, candidate):
@@ -312,6 +341,14 @@ def _research_question(candidate, source_ids):
             "para cada item e cite cada requisito usando o source ID exato entre: "
             f"{authorized_ids}."
         )
+    if candidate.topic == "fundacao_estabilidade":
+        return (
+            "Para estabilidade geotecnica de fundacoes na ABNT NBR 6122:2022, liste somente requisitos "
+            "verificaveis para fatores de seguranca, tombamento e deslizamento. Separe o que a norma "
+            "define do que e premissa de software, informe secao/tabela, declare lacunas sem valor "
+            "universal e cite cada item usando o source ID exato entre: "
+            f"{authorized_ids}."
+        )
     if candidate.topic == "gusset":
         return (
             "Para gusset e ligações, liste somente requisitos verificáveis da NBR 8800 "
@@ -349,7 +386,7 @@ def _research_question(candidate, source_ids):
         )
     if candidate.topic == "sinalizacao_incendio":
         return (
-            "Para sinalização de segurança contra incêndio na ABNT NBR 13434 (edição da fonte), liste somente "
+            "Para sinalização de segurança contra incêndio na ABNT NBR 16820:2022, liste somente "
             "requisitos verificáveis de tipos, finalidade, características, localização e aplicação "
             "expressamente presentes no texto. Informe seção/tabela para cada item, declare quando a norma "
             "não cobrir o ponto e cite cada requisito usando o source ID exato entre: "
@@ -410,6 +447,13 @@ def _research_retry_question(candidate, source_ids):
             "requisito verificavel e valor/limite; nao invente guardas de software; use somente o source ID exato "
             f"{authorized_ids} e inclua citacoes textuais."
         )
+    if candidate.topic == "fundacao_estabilidade":
+        return (
+            "NBR 6122:2022 para estabilidade de fundacoes: responda em no maximo 8 itens; informe "
+            "secao/tabela, fator ou criterio verificavel, aplicacao a tombamento/deslizamento e lacunas; "
+            "nao invente valores nem use outra norma; use somente o source ID exato "
+            f"{authorized_ids} e inclua citacoes textuais."
+        )
     if candidate.topic == "gusset":
         return (
             "Gusset na NBR 8800: cite somente requisitos verificáveis para tração, compressão, "
@@ -442,7 +486,7 @@ def _research_retry_question(candidate, source_ids):
         )
     if candidate.topic == "sinalizacao_incendio":
         return (
-            "NBR 13434 para sinalização de segurança contra incêndio: responda em no máximo 8 itens; informe "
+            "NBR 16820:2022 para sinalização de segurança contra incêndio: responda em no máximo 8 itens; informe "
             "seção/tabela, requisito verificável e condição de aplicação; não invente regras fora da fonte e "
             "inclua citações textuais. "
             f"Use somente o source ID exato {authorized_ids}."

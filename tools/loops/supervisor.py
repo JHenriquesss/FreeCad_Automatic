@@ -37,6 +37,7 @@ class SupervisorDeps:
     promote: object | None = None
     allowed_paths: tuple[str, ...] = ()
     build_required: bool = False
+    red_author: object | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class DevelopmentSupervisor:
         self.transition_count = 0
         self.run_dir: Path | None = None
         self.ledger: Ledger | None = None
+        self._red_removed_test_paths: tuple[str, ...] = ()
 
     def run_once(self) -> RunOutcome:
         self._validate_config()
@@ -251,16 +253,127 @@ class DevelopmentSupervisor:
                 except Exception as error:
                     return self._park("red_failed", str(error))
                 self._red_result = red_result
-                red_document = red_result.to_dict() if hasattr(red_result, "to_dict") else (
-                    red_result if isinstance(red_result, dict) else {
-                        "kind": "red",
-                        "successful": _successful_bool(red_result),
-                    }
+                red_document = _result_document(red_result)
+                red_initial_path = self._write_json_artifact("red-initial", red_document)
+                self._save(
+                    replace(
+                        self.ledger.state,
+                        artifacts={
+                            **self.ledger.state.artifacts,
+                            "red_initial": red_initial_path,
+                            "red": red_initial_path,
+                        },
+                    )
                 )
-                red_path = self._write_json_artifact("red", red_document)
-                self._save(replace(self.ledger.state, artifacts={**self.ledger.state.artifacts, "red": red_path}))
                 if not _successful_bool(red_result):
-                    return self._park("red_failed", "target test did not fail before implementation")
+                    if not self._red_requires_reconciliation(red_document):
+                        return self._park(
+                            "red_failed", "target test did not fail before implementation"
+                        )
+                    if self.deps.red_author is None:
+                        return self._park(
+                            "red_failed",
+                            "target is green or lacks a RED test and no RED author is configured",
+                        )
+                    try:
+                        author_result = self._attempt_named(
+                            "red_author",
+                            self._red_author,
+                            self.ledger.state.task,
+                            self.ledger.state.evidence,
+                            self._plan_text(),
+                            self.ledger.state.worktree,
+                        )
+                    except Exception as error:
+                        return self._park("red_failed", f"red author: {error}")
+                    author_document = _result_document(author_result)
+                    author_path = self._write_json_artifact("red-author", author_document)
+                    self._save(
+                        replace(
+                            self.ledger.state,
+                            artifacts={
+                                **self.ledger.state.artifacts,
+                                "red_author": author_path,
+                            },
+                        )
+                    )
+                    added_paths, invalid_paths = self._red_author_test_paths(author_result)
+                    if not _successful_bool(author_result) or invalid_paths or not added_paths:
+                        detail = "RED author must add only focused Python test files"
+                        if invalid_paths:
+                            detail += f": invalid files={', '.join(invalid_paths)}"
+                        elif not added_paths:
+                            detail += ": no test file was touched"
+                        return self._park("red_failed", detail)
+                    conflict_paths = self._red_author_conflict_paths(
+                        self.ledger.state.task, added_paths, self.ledger.state.worktree
+                    )
+                    if conflict_paths:
+                        reconciliation_path = self._write_json_artifact(
+                            "red-reconciliation",
+                            {
+                                "initial": red_document,
+                                "author": author_document,
+                                "final": None,
+                                "added_test_paths": list(added_paths),
+                                "removed_missing_test_paths": [],
+                                "rejected_conflict_paths": list(conflict_paths),
+                            },
+                        )
+                        self._save(
+                            replace(
+                                self.ledger.state,
+                                artifacts={
+                                    **self.ledger.state.artifacts,
+                                    "red_reconciliation": reconciliation_path,
+                                },
+                            )
+                        )
+                        return self._park(
+                            "red_failed",
+                            "RED author test conflita com a evidencia normativa: "
+                            + ", ".join(conflict_paths),
+                        )
+                    self._append_red_test_paths(added_paths)
+                    try:
+                        red_result = self._attempt(
+                            LoopPhase.RED,
+                            self._red,
+                            self.ledger.state.task,
+                            self.ledger.state.evidence,
+                            self._plan_text(),
+                        )
+                    except Exception as error:
+                        return self._park("red_failed", f"recheck after red author: {error}")
+                    self._red_result = red_result
+                    final_document = _result_document(red_result)
+                    red_final_path = self._write_json_artifact("red-final", final_document)
+                    reconciliation_path = self._write_json_artifact(
+                        "red-reconciliation",
+                        {
+                            "initial": red_document,
+                            "author": author_document,
+                            "final": final_document,
+                            "added_test_paths": list(added_paths),
+                            "removed_missing_test_paths": list(self._red_removed_test_paths),
+                        },
+                    )
+                    self._save(
+                        replace(
+                            self.ledger.state,
+                            artifacts={
+                                **self.ledger.state.artifacts,
+                                "red": red_final_path,
+                                "red_final": red_final_path,
+                                "red_reconciliation": reconciliation_path,
+                            },
+                        )
+                    )
+                    if not _successful_bool(red_result):
+                        return self._park(
+                            "red_failed",
+                            "RED author did not produce a failing target test",
+                        )
                 self._transition(LoopPhase.RED, LoopPhase.IMPLEMENT)
                 continue
             if state.phase is LoopPhase.IMPLEMENT:
@@ -647,6 +760,138 @@ class DevelopmentSupervisor:
             return self.deps.red(candidate, evidence, plan, self.ledger.state.worktree)
         return self.deps.red.run(candidate, evidence, plan, self.ledger.state.worktree)
 
+    def _red_author(self, candidate, evidence, plan, worktree):
+        request = AgentRequest(
+            task=candidate,
+            evidence=evidence,
+            plan=plan,
+            worktree=worktree,
+            test_paths=tuple(candidate.suggested_tests),
+            artifact_path=str(self.run_dir / "red-author-last-message.txt"),
+            timeout_seconds=self.config.command_timeout_seconds,
+            red_result=getattr(self, "_red_result", None),
+            red_test_only=True,
+        )
+        adapter = self.deps.red_author
+        return adapter.run(request) if hasattr(adapter, "run") else adapter(request)
+
+    def _red_requires_reconciliation(self, document):
+        status = str(document.get("status", "")).casefold()
+        if status in {"green_target", "missing_red_test"}:
+            return True
+        if document.get("timed_out"):
+            return False
+        return (
+            document.get("returncode") == 0
+            and int(document.get("failed", 0) or 0) == 0
+            and int(document.get("errors", 0) or 0) == 0
+            and not document.get("successful", False)
+        )
+
+    def _red_author_test_paths(self, result):
+        paths = tuple(getattr(result, "files_touched", ()) or ())
+        if isinstance(result, dict):
+            paths = tuple(result.get("files_touched", ()) or ())
+        if not paths and self.ledger.state.worktree:
+            paths = self._worktree_files(self.ledger.state.worktree)
+        normalized = []
+        invalid = []
+        worktree = Path(self.ledger.state.worktree).resolve()
+        for raw_path in paths:
+            path = Path(str(raw_path))
+            if path.is_absolute():
+                try:
+                    value = path.resolve().relative_to(worktree).as_posix()
+                except ValueError:
+                    invalid.append(str(raw_path))
+                    continue
+            else:
+                value = path.as_posix()
+            parts = PurePosixPath(value).parts
+            is_test = (
+                value.casefold().endswith(".py")
+                and "tests" in {part.casefold() for part in parts}
+            )
+            if not is_test:
+                invalid.append(value)
+                continue
+            if value not in normalized:
+                normalized.append(value)
+        return tuple(normalized), tuple(invalid)
+
+    def _red_author_conflict_paths(self, candidate, paths, worktree):
+        """Reject a known normative contradiction before implementation starts.
+
+        Foundation stability is deliberately scoped here because the historical
+        task used a universal FS=1.5 premise that the current NBR 6122 evidence
+        does not support. A future generic rule should be added only with its own
+        cited evidence and regression test.
+        """
+        if getattr(candidate, "topic", "") != "fundacao_estabilidade":
+            return ()
+        conflicts = []
+        for value in paths:
+            path = self._worktree_path(worktree, value)
+            if path is None or not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace").casefold()
+            except OSError:
+                continue
+            has_global_fs_fields = "fs_tomb_min" in content or "fs_desl_min" in content
+            has_legacy_value = bool(re.search(r"\b1[.,]5\b", content))
+            mentions_nbr = "nbr6122" in re.sub(r"[^a-z0-9]", "", content)
+            if has_global_fs_fields and has_legacy_value and mentions_nbr:
+                conflicts.append(value)
+        return tuple(conflicts)
+
+    @staticmethod
+    def _worktree_path(worktree, value):
+        if not worktree:
+            return None
+        root = Path(worktree).resolve()
+        path = Path(str(value))
+        if path.is_absolute():
+            try:
+                path.resolve().relative_to(root)
+            except ValueError:
+                return None
+            return path.resolve()
+        normalized = Path(*PurePosixPath(str(value).replace("\\", "/")).parts)
+        candidates = (
+            root / normalized,
+            root / "framework" / "galpao_fw" / normalized,
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate.resolve()
+        return None
+
+    def _test_path_exists_in_worktree(self, worktree, value):
+        path = self._worktree_path(worktree, value)
+        return path is not None and path.is_file()
+
+    def _append_red_test_paths(self, paths):
+        task = self.ledger.state.task
+        existing = tuple(
+            path
+            for path in task.suggested_tests
+            if self._test_path_exists_in_worktree(self.ledger.state.worktree, path)
+        )
+        self._red_removed_test_paths = tuple(
+            path for path in task.suggested_tests if path not in existing
+        )
+        merged = tuple(dict.fromkeys((*existing, *paths)))
+        updated = replace(task, suggested_tests=merged)
+        task_path = self._write_json_artifact("task-after-red", updated.to_dict())
+        self._save(
+            replace(
+                self.ledger.state,
+                task=updated,
+                artifacts={**self.ledger.state.artifacts, "task_after_red": task_path},
+            )
+        )
+
     def _agent(self, candidate, evidence, plan, worktree):
         red_result = getattr(self, "_red_result", None)
         if red_result is None:
@@ -780,7 +1025,9 @@ class DevelopmentSupervisor:
         return _default_promote(self.ledger.state.worktree, self.ledger.state.loop_id)
 
     def _attempt(self, phase, function, *args):
-        name = phase.value
+        return self._attempt_named(phase.value, function, *args)
+
+    def _attempt_named(self, name, function, *args):
         attempts = dict(self.ledger.state.attempts)
         current = attempts.get(name, 0)
         if current >= self.config.max_attempts_per_phase:
@@ -788,7 +1035,7 @@ class DevelopmentSupervisor:
         attempts[name] = current + 1
         self._save(replace(self.ledger.state, attempts=attempts))
         result = function(*args)
-        if phase is LoopPhase.IMPLEMENT:
+        if name == LoopPhase.IMPLEMENT.value:
             self._agent_result = result
         return result
 
@@ -905,8 +1152,14 @@ class DevelopmentSupervisor:
         """Rehydrate a change left on disk if the supervisor died before saving the agent result."""
         if not state.worktree:
             return None
-        files = self._worktree_files(state.worktree)
-        if not files and not self._git_diff(state.worktree):
+        red_author_paths = self._persisted_red_author_paths()
+        files = tuple(
+            path for path in self._worktree_files(state.worktree) if path not in red_author_paths
+        )
+        diff_paths = tuple(
+            path for path in _diff_paths(self._git_diff(state.worktree)) if path not in red_author_paths
+        )
+        if not files and not diff_paths:
             return None
         result = AgentResult(
             executor="recovered-worktree",
@@ -916,12 +1169,21 @@ class DevelopmentSupervisor:
             duration_seconds=0.0,
             stdout="implementation recovered from persisted worktree",
             stderr="",
-            files_touched=files or _diff_paths(self._git_diff(state.worktree)),
+            files_touched=files or diff_paths,
         )
         path = self._write_json_artifact("agent-recovered", result.to_dict())
         self._agent_result = result
         self._save(replace(self.ledger.state, artifacts={**state.artifacts, "agent": path}))
         return result
+
+    def _persisted_red_author_paths(self):
+        if not self.ledger.state.artifacts.get("red_author"):
+            return frozenset()
+        document = self._load_json_artifact("red_author")
+        if not document:
+            return frozenset()
+        paths, _ = self._red_author_test_paths(document)
+        return frozenset(paths)
 
     def _assert_root_stable(self):
         """Allow only audited loop-infrastructure commits made after loop start."""
@@ -1023,6 +1285,17 @@ def _successful_bool(value):
     if isinstance(value, dict):
         return bool(value.get("successful", False))
     return bool(getattr(value, "successful", False))
+
+
+def _result_document(value):
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    if isinstance(value, dict):
+        return value
+    return {
+        "kind": "result",
+        "successful": _successful_bool(value),
+    }
 
 
 def _is_sha256(value):

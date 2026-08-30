@@ -15,6 +15,9 @@ _FRAMEWORK_ROOT = Path("framework/galpao_fw")
 _TEST_ROOT = _FRAMEWORK_ROOT / "tests"
 _SOURCE_ROOT = Path("fontes")
 _SOURCE_PENDING_NAMES = frozenset({"pendencias-atualizacao.md", "fontes-faltantes.md"})
+_FUNDACOES_NBR6122_SOURCES = (
+    "03_FUNDACOES_GEOTECNIA/FUNDACOES__NBR__NBR-6122-2022__projeto-fundacoes-ocr.txt",
+)
 _LIST_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)")
 _CHECKBOX_RE = re.compile(r"^\s*\[(?P<mark>[ xX])\]\s*")
 _PENDING_RE = re.compile(
@@ -80,7 +83,7 @@ _T16_UNITS = (
     ("ligacoes", "estrutura", 60, ("02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf",)),
     ("base_chumbador", "estrutura", 50, ("02_ACO/ACO__NBR__NBR-8800-2008__estruturas-aco-mistas.pdf",)),
     ("fogo", "seguranca", 25, ("09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",)),
-    ("estaca", "estrutura", 20, ("03_FUNDACOES_GEOTECNIA/FUNDACOES__NBR__NBR-6122-2022__projeto-fundacoes.pdf",)),
+    ("estaca", "estrutura", 20, _FUNDACOES_NBR6122_SOURCES),
 )
 _T16_TEST_TERMS = {
     "calhas": ("calha",),
@@ -100,25 +103,25 @@ _FV_COMMISSIONING_SOURCES = (
     "05_ELETRICA/ELETRICA__NBR__NBR-16274-2014__documentacao-comissionamento-fv.pdf",
 )
 _SINALIZACAO_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-16820-2020__sinalizacao-emergencia.pdf",
+    "09_INCENDIO/INCENDIO__NBR__NBR-16820-2022__sinalizacao-emergencia.pdf",
 )
 _POPULACAO_NBR9077_SOURCES = (
     "09_INCENDIO/INCENDIO__NBR__NBR-9077-2025__saidas-emergencia.pdf",
 )
 _EXTINTORES_NBR12693_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-12693__sistemas-extintores.pdf",
+    "09_INCENDIO/INCENDIO__NBR__NBR-12693-2021__sistemas-extintores.pdf",
 )
-_SINALIZACAO_NBR13434_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-13434__sinalizacao-seguranca.pdf",
-)
+# Textos históricos ainda podem mencionar a NBR 13434, mas a fonte autorizada
+# para a tarefa é a edição vigente já catalogada no projeto.
+_SINALIZACAO_LEGACY_SOURCES = _SINALIZACAO_SOURCES
 _FOGO_CONCRETO_NBR15200_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-15200__estruturas-concreto-incendio.pdf",
+    "09_INCENDIO/INCENDIO__NBR__NBR-15200-2024__estruturas-concreto-incendio.pdf",
 )
 _RESISTENCIA_FOGO_NBR14432_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-14432__exigencias-resistencia-fogo.pdf",
+    "09_INCENDIO/INCENDIO__NBR__NBR-14432-2000__exigencias-resistencia-fogo.pdf",
 )
 _FOGO_ACO_NBR14323_SOURCES = (
-    "09_INCENDIO/INCENDIO__NBR__NBR-14323__estruturas-aco-incendio.pdf",
+    "09_INCENDIO/INCENDIO__NBR__NBR-14323-2013__estruturas-aco-incendio.pdf",
 )
 _AGUA_QUENTE_SEGURANCA_SOURCES = (
     "07_HIDRAULICA/HIDRAULICA__NBR__NBR-5626-2020__agua-fria-quente.pdf",
@@ -167,7 +170,11 @@ def _discover_revision_documents(root: Path, suggestions: tuple[str, ...]) -> li
         if path.name.casefold() == "revisao-indice.md":
             continue
         relative = path.relative_to(root)
-        candidates.extend(_discover_markdown(root, relative, suggestions, include_all=False))
+        candidates.extend(
+            _discover_markdown(
+                root, relative, suggestions, include_all=False, strict_revision=True
+            )
+        )
     return candidates
 
 
@@ -193,6 +200,7 @@ def _discover_markdown(
     *,
     include_all: bool,
     list_only: bool = False,
+    strict_revision: bool = False,
 ) -> list[TaskCandidate]:
     path = root / relative_path
     if not path.is_file():
@@ -210,6 +218,7 @@ def _discover_markdown(
         if not item_lines:
             return
         raw_title = " ".join(item_lines)
+        primary_title = item_lines[0]
         title = _clean_title(raw_title)
         was_list = item_is_list
         item_lines.clear()
@@ -217,7 +226,12 @@ def _discover_markdown(
         if not title or (list_only and not was_list):
             return
         context = thread_heading if include_all else heading
-        if not _is_open_item(raw_title, context):
+        if not _is_open_item(
+            raw_title,
+            context,
+            strict_revision=strict_revision,
+            primary_title=primary_title,
+        ):
             return
         origin = relative_path.as_posix()
         if thread:
@@ -304,6 +318,28 @@ def _candidates_for_item(
     ):
         return []
     if (
+        (
+            "fatores de seguranca 1,5" in normalized_title
+            or "criterio de verificacao para tombamento/deslizamento" in normalized_title
+        )
+        and normalized_origin.startswith(
+            "framework/galpao_fw/revisao-fundacao.md:limitacoes / pendencias"
+        )
+    ):
+        return [
+            _candidate(
+                "Validar fatores de seguranca de fundacoes conforme ABNT NBR 6122:2022.",
+                f"{origin}:nbr6122-estabilidade",
+                evidence_path,
+                suggestions,
+                topic="fundacao_estabilidade",
+                source_paths=_FUNDACOES_NBR6122_SOURCES,
+                priority=55,
+                discipline="estrutura",
+            ),
+            _candidate(title, origin, evidence_path, suggestions),
+        ]
+    if (
         "area minima" in normalized_title
         and "16820" in normalized_title
         and origin == "framework/galpao_fw/wiki/06-open-threads.md:T42"
@@ -340,6 +376,36 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
+        all(
+            term in normalized_title
+            for term in ("protecao contra incendio", "16981", "armazenamento", "12693", "13434")
+        )
+        and "ja foi organizada" in normalized_title
+        and normalized_origin.startswith("fontes/fontes-faltantes.md:p1")
+    ):
+        return [
+            _candidate(
+                "Validar prote\u00e7\u00e3o por extintores conforme NBR 12693 (edi\u00e7\u00e3o a confirmar).",
+                f"{origin}:nbr12693",
+                evidence_path,
+                suggestions,
+                topic="extintores",
+                source_paths=_EXTINTORES_NBR12693_SOURCES,
+                priority=55,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar sinaliza\u00e7\u00e3o de seguran\u00e7a contra inc\u00eandio conforme NBR 16820:2022.",
+                f"{origin}:nbr13434",
+                evidence_path,
+                suggestions,
+                topic="sinalizacao_incendio",
+                source_paths=_SINALIZACAO_LEGACY_SOURCES,
+                priority=50,
+                discipline="seguranca",
+            ),
+        ]
+    if (
         all(term in normalized_title for term in ("protecao contra incendio", "16981", "armazenamento"))
         and normalized_origin.startswith("fontes/fontes-faltantes.md:p1")
     ):
@@ -367,12 +433,12 @@ def _candidates_for_item(
                     discipline="seguranca",
                 ),
                 _candidate(
-                    "Validar sinalizaÃ§Ã£o de seguranÃ§a contra incÃªndio conforme NBR 13434 (ediÃ§Ã£o a confirmar).",
+                    "Validar sinaliza\u00e7\u00e3o de seguran\u00e7a contra inc\u00eandio conforme NBR 16820:2022.",
                     f"{origin}:nbr13434",
                     evidence_path,
                     suggestions,
                     topic="sinalizacao_incendio",
-                    source_paths=_SINALIZACAO_NBR13434_SOURCES,
+                    source_paths=_SINALIZACAO_LEGACY_SOURCES,
                     priority=50,
                     discipline="seguranca",
                 ),
@@ -422,6 +488,45 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
+        all(term in normalized_title for term in ("15200", "14432", "14323"))
+        and "concreto e aco em incendio" in normalized_title
+        and "ja organizadas" in normalized_title
+        and "validar os modulos" in normalized_title
+        and normalized_origin.startswith("fontes/fontes-faltantes.md:p1")
+    ):
+        return [
+            _candidate(
+                "Validar concreto em situa\u00e7\u00e3o de inc\u00eandio conforme NBR 15200 (edi\u00e7\u00e3o a confirmar).",
+                f"{origin}:nbr15200",
+                evidence_path,
+                suggestions,
+                topic="fogo_concreto",
+                source_paths=_FOGO_CONCRETO_NBR15200_SOURCES,
+                priority=48,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar exig\u00eancias de resist\u00eancia ao fogo conforme NBR 14432 (edi\u00e7\u00e3o a confirmar).",
+                f"{origin}:nbr14432",
+                evidence_path,
+                suggestions,
+                topic="resistencia_fogo",
+                source_paths=_RESISTENCIA_FOGO_NBR14432_SOURCES,
+                priority=46,
+                discipline="seguranca",
+            ),
+            _candidate(
+                "Validar estruturas de a\u00e7o e mistas em situa\u00e7\u00e3o de inc\u00eandio conforme NBR 14323 (edi\u00e7\u00e3o a confirmar).",
+                f"{origin}:nbr14323",
+                evidence_path,
+                suggestions,
+                topic="fogo_aco",
+                source_paths=_FOGO_ACO_NBR14323_SOURCES,
+                priority=44,
+                discipline="seguranca",
+            ),
+        ]
+    if (
         "vigencia das normas fotovoltaicas" in normalized_title
         and origin.startswith("fontes/pendencias-atualizacao.md:")
     ):
@@ -449,6 +554,25 @@ def _candidates_for_item(
             _candidate(title, origin, evidence_path, suggestions),
         ]
     if (
+        "13434" in normalized_title
+        and "12693" not in normalized_title
+        and normalized_origin.startswith(
+            "fontes/pendencias-atualizacao.md:incendio, geotecnia e seguranca do trabalho"
+        )
+    ):
+        return [
+            _candidate(
+                "Validar sinaliza\u00e7\u00e3o de seguran\u00e7a contra inc\u00eandio conforme NBR 16820:2022.",
+                f"{origin}:nbr13434",
+                evidence_path,
+                suggestions,
+                topic="sinalizacao_incendio",
+                source_paths=_SINALIZACAO_LEGACY_SOURCES,
+                priority=50,
+                discipline="seguranca",
+            ),
+        ]
+    if (
         all(term in normalized_title for term in ("protecao contra incendio", "12693", "13434"))
         and origin.startswith("fontes/fontes-faltantes.md:P1")
     ):
@@ -464,12 +588,12 @@ def _candidates_for_item(
                 discipline="seguranca",
             ),
             _candidate(
-                "Validar sinalização de segurança contra incêndio conforme NBR 13434 (edição a confirmar).",
+                "Validar sinalização de segurança contra incêndio conforme NBR 16820:2022.",
                 f"{origin}:nbr13434",
                 evidence_path,
                 suggestions,
                 topic="sinalizacao_incendio",
-                source_paths=_SINALIZACAO_NBR13434_SOURCES,
+                source_paths=_SINALIZACAO_LEGACY_SOURCES,
                 priority=50,
                 discipline="seguranca",
             ),
@@ -519,8 +643,18 @@ def _candidates_for_item(
     return [_candidate(title, origin, evidence_path, suggestions)]
 
 
-def _is_open_item(title: str, context: str = "") -> bool:
+def _is_open_item(
+    title: str,
+    context: str = "",
+    *,
+    strict_revision: bool = False,
+    primary_title: str | None = None,
+) -> bool:
     normalized = _normalized(title)
+    if strict_revision and not _has_explicit_revision_marker(
+        primary_title or title, title
+    ):
+        return False
     if _checkbox_mark(title) == "x":
         return False
     if _is_status_label(normalized) or not _PENDING_RE.search(normalized):
@@ -556,6 +690,26 @@ def _is_open_item(title: str, context: str = "") -> bool:
     if context_resolved:
         return strong_pending and not _HISTORICAL_RE.search(normalized)
     return True
+
+
+def _has_explicit_revision_marker(primary_title: str, full_title: str) -> bool:
+    """Reject prose bullets whose only pending-looking text is nested detail."""
+    if re.match(r"^\s*(?:[-*+]\s+)?\[\s*\]\s*", primary_title):
+        return True
+    normalized = _normalized(_clean_title(primary_title))
+    if re.search(
+        r"\b(?:pendente|bloquead[oa]|inconclusiv[oa]|faltam?|"
+        r"nao\s+(?:feito|re-?verificado|verificado|implementado)|confirmar)\b",
+        normalized,
+    ):
+        return True
+    full_normalized = _normalized(_clean_title(full_title))
+    if "a confirmar" in full_normalized and re.search(
+        r"\b(?:fs|fator(?:es)?|perfil|criterio|parametro|default|valor|entrada)\b",
+        normalized,
+    ):
+        return True
+    return False
 
 
 def _checkbox_mark(value: str) -> str | None:

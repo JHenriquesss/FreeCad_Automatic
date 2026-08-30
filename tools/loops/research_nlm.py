@@ -29,11 +29,20 @@ class NotebookMap:
     @classmethod
     def load(cls, path):
         notebook_ids_by_folder = {}
+        table_kind = None
         for line in Path(path).read_text(encoding="utf-8").splitlines():
-            if not line.startswith("|") or "---" in line:
+            if line.startswith("| Pasta local | Notebook | Notebook ID |"):
+                table_kind = "folder"
+                continue
+            if line.startswith("| Coleção | Notebook | Notebook ID |"):
+                table_kind = "folder"
+                continue
+            if table_kind and not line.startswith("|"):
+                table_kind = None
+            if table_kind != "folder" or "---" in line:
                 continue
             cells = [cell.strip().strip("`") for cell in line.strip("|").split("|")]
-            if len(cells) >= 3 and cells[0] != "Pasta local":
+            if len(cells) >= 3:
                 notebook_ids_by_folder[cells[0]] = cells[2]
         return cls(notebook_ids_by_folder)
 

@@ -21,6 +21,7 @@ class AgentRequest:
     artifact_path: str | None = None
     timeout_seconds: int = 1800
     red_result: object | None = None
+    red_test_only: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "test_paths", tuple(str(path) for path in self.test_paths))
@@ -84,7 +85,11 @@ class CodexExecAdapter:
             str(artifact),
             "-",
         )
-        prompt = build_implementation_prompt(request)
+        prompt = (
+            build_red_test_prompt(request)
+            if request.red_test_only
+            else build_implementation_prompt(request)
+        )
         return self._execute("codex", argv, worktree, prompt, artifact, request)
 
     def _execute(self, executor, argv, worktree, prompt, artifact, request):
@@ -120,7 +125,11 @@ class ClaudePrintAdapter(CodexExecAdapter):
     def run(self, request: AgentRequest) -> AgentResult:
         worktree = str(Path(request.worktree).expanduser().resolve())
         artifact = _artifact_path(request, worktree)
-        prompt = _redact_text(build_implementation_prompt(request))
+        prompt = _redact_text(
+            build_red_test_prompt(request)
+            if request.red_test_only
+            else build_implementation_prompt(request)
+        )
         argv = (
             "claude",
             "-p",
@@ -187,6 +196,39 @@ def build_implementation_prompt(request: AgentRequest) -> str:
         "preservar arquivos fora da tarefa; registrar qualquer incerteza ou premissa. "
         "Nao buscar fontes remotas, nao alterar fontes, nao fazer push/merge/reset destrutivo "
         "e nao ocultar uma falha de teste. Ao terminar, informe arquivos tocados, comandos e resultado."
+    )
+
+
+def build_red_test_prompt(request: AgentRequest) -> str:
+    task = request.task
+    evidence = request.evidence
+    source_ids = ", ".join(getattr(evidence, "source_ids", ())) or "nenhum"
+    citations = getattr(evidence, "citations", ())
+    citation_text = "; ".join(
+        f"[{item.number}] {item.source_id}: {item.cited_text[:900]}"
+        for item in citations
+    ) or "nenhuma citação auditável registrada"
+    tests = ", ".join(request.test_paths) or "teste alvo a definir"
+    return (
+        "Criar somente o teste RED da tarefa abaixo na worktree delimitada.\n\n"
+        f"Tarefa: {getattr(task, 'title', task)}\n"
+        f"ID/origem: {getattr(task, 'id', '')} / {getattr(task, 'origin', '')}\n"
+        f"Plano: {request.plan}\n"
+        f"Testes alvo existentes ou sugeridos: {tests}\n"
+        f"Source IDs autorizados: {source_ids}\n"
+        f"Citações auditáveis autorizadas: {citation_text}\n"
+        "Esta e uma etapa de reconciliação do Loop 1.5. O objetivo e tornar observavel, por meio de uma "
+        "asserção focada, o comportamento que a tarefa precisa implementar e que ainda nao esta demonstrado. "
+        "Crie um novo teste Python dentro de um diretorio tests, preferencialmente um arquivo dedicado; nao "
+        "altere codigo de produção, nao altere testes existentes, nao implemente a correção e nao remova "
+        "cobertura. O teste deve falhar contra o estado atual por uma razão funcional clara, sem depender de "
+        "rede, NotebookLM ou ambiente externo. Execute o teste criado e deixe o resultado RED reproduzível. "
+        "Use o texto das citações como autoridade normativa: uma pendência, README, plano legado ou premissa "
+        "local nunca pode virar requisito só porque aparece no título da tarefa. Se uma premissa local conflitar "
+        "com a citação, não a codifique; escolha uma asserção diretamente sustentada pelo trecho citado ou "
+        "estacione registrando o conflito. Não busque fontes remotas, não altere fontes, não faça "
+        "push/merge/reset destrutivo e registre premissas. Ao terminar, informe o arquivo criado, a asserção "
+        "demonstrada e o comando executado."
     )
 
 

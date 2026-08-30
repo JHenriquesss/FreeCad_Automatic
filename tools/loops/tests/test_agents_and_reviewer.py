@@ -9,6 +9,7 @@ from tools.loops.agents import (
     ClaudePrintAdapter,
     CodexExecAdapter,
     build_implementation_prompt,
+    build_red_test_prompt,
 )
 from tools.loops.models import Citation, EvidenceBundle, SourceRecord, TaskCandidate
 from tools.loops.reviewer import ReviewAdapter, ReviewerRequest
@@ -259,6 +260,17 @@ def test_implementation_prompt_includes_observed_red_contract(tmp_path):
     assert "pytest.raises" in prompt
     assert "test_lb_zero" in prompt
     assert "test_lb_nan" in prompt
+
+
+def test_red_author_prompt_is_test_only(tmp_path):
+    prompt = build_red_test_prompt(
+        replace(request(tmp_path), red_test_only=True)
+    ).casefold()
+
+    assert "criar somente o teste red" in prompt
+    assert "nao implemente a correção" in prompt
+    assert "nao altere codigo de produção" in prompt
+    assert "execute o teste criado" in prompt
 
 
 def test_reviewer_rejects_missing_citation(tmp_path):

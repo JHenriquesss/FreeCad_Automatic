@@ -55,6 +55,27 @@ def write_local_sources(tmp_path):
     return NotebookMap.load(map_path), CatalogIndex.load(catalog_path)
 
 
+def test_notebook_map_ignores_source_tables_after_collection_table(tmp_path):
+    map_path = tmp_path / "notebooklm-mapa.md"
+    map_path.write_text(
+        "## Coleção disciplinar\n\n"
+        "| Pasta local | Notebook | Notebook ID |\n"
+        "| --- | --- | --- |\n"
+        "| `03_FUNDACOES_GEOTECNIA` | Fundações | `nb-fundacoes` |\n\n"
+        "### Fonte OCR\n\n"
+        "| Fonte ativa | Source ID | Hash local |\n"
+        "| --- | --- | --- |\n"
+        "| `03_FUNDACOES_GEOTECNIA/norma-ocr.txt` | `src-ocr` | `sha256` |\n",
+        encoding="utf-8",
+    )
+
+    notebook_map = NotebookMap.load(map_path)
+
+    assert notebook_map.notebook_id_for_path(
+        "03_FUNDACOES_GEOTECNIA/norma-ocr.txt"
+    ) == "nb-fundacoes"
+
+
 class FakeRunner:
     def __init__(self, sources, response=None):
         self.sources = sources
