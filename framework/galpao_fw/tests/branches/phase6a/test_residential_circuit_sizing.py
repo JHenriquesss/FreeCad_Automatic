@@ -365,3 +365,47 @@ def test_envelope_direto_preserva_points_e_routes():
     result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
     assert result["points"] == circuits["points"]
     assert result["routes"] == circuits["routes"]
+
+
+def test_piso_da_tabela_nao_se_disfarca_de_ampacidade():
+    """Rótulo × cálculo: 0,79 A não é governado por ampacidade.
+
+    A NBR 5410 Tab.47 dá 1,5 mm² de mínimo para iluminação, mas a tabela de
+    ampacidade deste projeto começa em 2,5 mm². A seção adotada sobe até o PISO
+    da tabela — o oposto da saturação silenciosa no teto — e o resultado se
+    rotulava `ampacidade`, escondendo tanto o critério real quanto o mínimo
+    normativo. O piso tem de aparecer com nome próprio.
+    """
+    circuits = _circuits(
+        point={"id": "L-01", "room": "sala", "kind": "lighting",
+               "power_va": 100, "voltage_v": 127},
+        design=_design("L-01", length_m=10.0, use="iluminacao",
+                       protection={"location": "seco", "exposure": "quadro"}),
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    condutor = result["designs"][0]["conductor"]
+    assert condutor["secao_mm2"] == 2.5
+    assert condutor["secao_minima_norma"] == 1.5, "mínimo da Tab.47 sumiu"
+    assert condutor["piso_tabela"] is True
+    assert condutor["governante"] == "piso_tabela", (
+        "ampacidade não governa um circuito de 0,79 A em 2,5 mm² (Iz=24 A)")
+
+
+def test_minimo_da_norma_que_a_tabela_cobre_se_chama_secao_minima():
+    """Força: Tab.47 dá 2,5 mm², que a tabela cobre — não é piso, é mínimo."""
+    circuits = _circuits(
+        point={"id": "TUG-01", "room": "sala", "kind": "tug",
+               "power_va": 100, "voltage_v": 127},
+        design=_design("TUG-01", length_m=10.0, use="forca",
+                       protection={"location": "seco", "exposure": "quadro"}),
+    )
+
+    result = calculate_residential_circuit_designs(circuits, SOURCE_REFS)
+
+    condutor = result["designs"][0]["conductor"]
+    assert condutor["secao_mm2"] == 2.5
+    assert condutor["secao_minima_norma"] == 2.5
+    assert condutor["piso_tabela"] is False
+    assert condutor["governante"] == "secao_minima"

@@ -14,80 +14,22 @@
 from __future__ import annotations
 
 
-def _esc(txt):
-    """Escapa &<> p/ o texto ser XML-valido (SVG e' XML). Sem isso, um '<' cru
-    (ex.: 'R <= 10 ohm') quebra o SVG inteiro em renderers estritos (QtSvg/
-    TechDraw DrawViewSymbol)."""
-    return (str(txt).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-
-
-def _t(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
-    return (f'<text x="{x:.0f}" y="{y:.0f}" font-family="Arial" font-size="{size}" '
-            f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{_esc(txt)}</text>')
-
-
-def _line(x1, y1, x2, y2, w=1.5, color="#111"):
-    return (f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" '
-            f'stroke="{color}" stroke-width="{w}"/>')
-
-
-def _sym_trafo(cx, cy, r=18):
-    """Transformador: dois circulos sobrepostos (Dy)."""
-    return (f'<circle cx="{cx:.0f}" cy="{cy - r * 0.5:.0f}" r="{r}" fill="none" '
-            f'stroke="#111" stroke-width="1.6"/>'
-            f'<circle cx="{cx:.0f}" cy="{cy + r * 0.5:.0f}" r="{r}" fill="none" '
-            f'stroke="#111" stroke-width="1.6"/>')
-
-
-def _sym_disjuntor(cx, cy):
-    """Disjuntor: quadrado com um X (chave)."""
-    return (f'<rect x="{cx - 9:.0f}" y="{cy - 9:.0f}" width="18" height="18" '
-            f'fill="white" stroke="#111" stroke-width="1.4"/>'
-            + _line(cx - 6, cy - 6, cx + 6, cy + 6, 1.2)
-            + _line(cx - 6, cy + 6, cx + 6, cy - 6, 1.2))
-
-
-def _sym_dps(cx, cy):
-    """DPS: retangulo com seta (limitador de tensao)."""
-    return (f'<rect x="{cx - 8:.0f}" y="{cy - 11:.0f}" width="16" height="22" '
-            f'fill="white" stroke="#111" stroke-width="1.3"/>'
-            + _line(cx, cy - 6, cx, cy + 6, 1.2)
-            + f'<path d="M{cx - 4:.0f} {cy:.0f} L{cx + 4:.0f} {cy:.0f} '
-              f'L{cx:.0f} {cy + 6:.0f} Z" fill="#111"/>')
-
-
-def _sym_motor(cx, cy, r=15):
-    """Motor: circulo com M."""
-    return (f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{r}" fill="none" '
-            f'stroke="#111" stroke-width="1.5"/>' + _t(cx, cy + 5, "M", 15, weight="bold"))
-
-
-def _sym_lampada(cx, cy, r=13):
-    """Iluminacao: circulo com X."""
-    return (f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{r}" fill="none" '
-            f'stroke="#111" stroke-width="1.4"/>'
-            + _line(cx - 9, cy - 9, cx + 9, cy + 9, 1.1)
-            + _line(cx - 9, cy + 9, cx + 9, cy - 9, 1.1))
-
-
-def _sym_tomada(cx, cy, r=13):
-    """Tomada: semicirculo."""
-    return (f'<path d="M{cx - r:.0f} {cy:.0f} A{r} {r} 0 0 1 {cx + r:.0f} {cy:.0f}" '
-            f'fill="none" stroke="#111" stroke-width="1.5"/>'
-            + _line(cx - r, cy, cx + r, cy, 1.5))
-
-
-def _sym_capacitor(cx, cy):
-    """Banco de capacitores: duas placas paralelas."""
-    return (_line(cx - 12, cy - 4, cx + 12, cy - 4, 2.0)
-            + _line(cx - 12, cy + 4, cx + 12, cy + 4, 2.0))
-
-
-def _sym_terra(cx, cy):
-    """Aterramento: 3 tracos horizontais decrescentes."""
-    return (_line(cx - 14, cy, cx + 14, cy, 1.8)
-            + _line(cx - 9, cy + 5, cx + 9, cy + 5, 1.6)
-            + _line(cx - 4, cy + 10, cx + 4, cy + 10, 1.4))
+# As primitivas (escape XML + simbologia) vivem em desenho_svg_base para serem
+# compartilhadas com a camada residencial; os aliases privados abaixo preservam
+# os nomes historicos deste modulo. UMA implementacao de _esc, nao duas.
+from desenho_svg_base import (  # noqa: E402
+    esc as _esc,
+    linha as _line,
+    sym_capacitor as _sym_capacitor,
+    sym_disjuntor as _sym_disjuntor,
+    sym_dps as _sym_dps,
+    sym_lampada as _sym_lampada,
+    sym_motor as _sym_motor,
+    sym_terra as _sym_terra,
+    sym_tomada as _sym_tomada,
+    sym_trafo as _sym_trafo,
+    texto as _t,
+)
 
 
 def diagrama_unifilar_svg(r):
@@ -213,21 +155,11 @@ def quadro_cargas_svg(r):
     return "\n".join(s)
 
 
-_PALETA_CIRC = ["#2563eb", "#16a34a", "#dc2626", "#9333ea", "#ea580c",
-                "#0891b2", "#ca8a04", "#4b5563", "#db2777", "#65a30d"]
-
-
-def _lampada_cor(cx, cy, cor, r=9):
-    return (f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="{r}" fill="none" '
-            f'stroke="{cor}" stroke-width="1.6"/>'
-            + _line(cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7, 1.1, cor)
-            + _line(cx - r * 0.7, cy + r * 0.7, cx + r * 0.7, cy - r * 0.7, 1.1, cor))
-
-
-def _tomada_cor(cx, cy, cor, r=8):
-    return (f'<path d="M{cx - r:.0f} {cy:.0f} A{r} {r} 0 0 1 {cx + r:.0f} {cy:.0f}" '
-            f'fill="none" stroke="{cor}" stroke-width="1.8"/>'
-            + _line(cx - r, cy, cx + r, cy, 1.8, cor))
+from desenho_svg_base import (  # noqa: E402
+    PALETA_CIRCUITO as _PALETA_CIRC,
+    sym_lampada_cor as _lampada_cor,
+    sym_tomada_cor as _tomada_cor,
+)
 
 
 def planta_eletrica_svg(r):

@@ -246,3 +246,40 @@ git commit -m "docs: close phase 6a residential electrical scope"
 - Antiobjetivos: IFC/CAD, aprovação Enel e defaults aparecem explicitamente como proibidos.
 - Consistência: o nome público é `calculate_residential_circuit_designs`; `circuits.designs` é a única nova entrada; `scope` usa os seis estados definidos na especificação.
 - Próxima fase: Fase 6B começa a partir dos resultados JSON validados para unifilar, 2D e IFC, sem misturar geração gráfica ao cálculo.
+
+## Fase 6B — FECHADA (2026-08-29)
+
+Entregue em `docs/superpowers/specs/2026-08-29-fase-6b-entregaveis-eletrica-residencial.md`:
+o adaptador passou a declarar `deliverables=("report", "drawings", "ifc")` e emite
+unifilar, quadro de cargas, planta 2D e IFC4 a partir do mesmo JSON já validado.
+A geração gráfica não calcula nada. A geometria entra por `circuits.layout`
+(opcional, sem default); sem ela o escopo fica `schematic_only` e a planta/IFC
+não são inventados.
+
+### Achado do render-and-look sobre a prancha entregue (2026-08-29)
+
+Abrir o quadro de cargas renderizado — não a barra verde — mostrou a coluna
+`GOVERN.` dizendo **ampacidade** para o circuito de iluminação de 0,79 A em
+2,5 mm² (Iz = 24 A). Rótulo × cálculo: ampacidade não governa nada ali.
+
+Causa em `condutores_nbr5410.py`: a `SECAO_MINIMA` da NBR 5410 Tab.47 para
+iluminação é 1,5 mm², mas a tabela de ampacidade deste projeto começa em
+2,5 mm²; o mínimo normativo era substituído em silêncio pelo piso da tabela
+(`s_min if s_min in SECOES else min(SECOES)`) e o resultado ainda se rotulava
+`ampacidade`. É o espelho da saturação silenciosa: em vez de saturar no maior
+valor tabelado, satura no **menor** — e o `OK=True` esconde os dois números.
+
+Fechado: o resultado passa a expor `secao_minima_norma` (o valor da norma) e
+`piso_tabela`; `governante` vira `piso_tabela` quando a seção adotada é o piso
+e nenhum critério real pediu mais, ou `secao_minima` quando o mínimo da norma é
+representável na tabela (força, 2,5 mm²). A prancha escreve
+"piso da tabela (norma 1,5 mm²)" e "seção mínima (Tab.47)".
+
+Aberto (dado, não código): a tabela de ampacidade não tem a linha de 1,5 mm²
+das Tab.36-39. Enquanto não for lida da norma, circuitos de iluminação saem em
+2,5 mm² — conservador, e agora declarado como tal em vez de disfarçado.
+
+Um segundo defeito só visível no render: o rótulo novo transbordava a coluna e
+colidia com a coluna DR. Colisão de texto não é XML malformado — o parser
+aceita. A suíte ganhou um teste geométrico que compara a largura estimada de
+cada texto com o início da coluna seguinte.

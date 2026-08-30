@@ -230,8 +230,15 @@ def dimensiona_condutor(circ):
         s_amp = s_max
         Iz = iz_max * n_par                           # capacidade equivalente do grupo
 
-    s_min = SECAO_MINIMA.get(uso, 2.5)
-    s_min = s_min if s_min in SECOES else min(SECOES)   # ampacidade comeca em 2,5
+    s_min_norma = SECAO_MINIMA.get(uso, 2.5)           # Tab.47, valor da NORMA
+    # A tabela de ampacidade deste projeto comeca em 2,5 mm2: uma secao menor que
+    # a norma admite (iluminacao 1,5; sinalizacao 0,5) NAO e' representavel aqui.
+    # O valor adotado sobe ate o PISO da tabela - o espelho da saturacao
+    # silenciosa no teto - e isso tem de aparecer com nome proprio, nunca virar
+    # um "ampacidade" que o circuito nao tem (rotulo x calculo).
+    piso = min(SECOES)
+    piso_tabela = s_min_norma < piso
+    s_min = s_min_norma if s_min_norma in SECOES else piso
     # CURTO-CIRCUITO: a secao de curto por condutor escala com 1/n_par (a corrente de
     # curto se reparte nos condutores em paralelo, NBR 5410 6.2.5.7). Se 1 condutor da
     # maior secao tabelada NAO comporta o curto, EXIGE mais paralelo - senao a secao
@@ -250,8 +257,19 @@ def dimensiona_condutor(circ):
 
     candidatas = [c for c in (s_amp, s_min, s_qda, s_cc) if c is not None]
     secao = max(candidatas) if candidatas else None
-    gov = "ampacidade" if secao == s_amp else ("queda" if secao == s_qda else
-          ("curto" if secao == s_cc else "secao_minima"))
+    # A ampacidade so GOVERNA se exigiu mais que o piso da tabela; se a secao
+    # adotada e' o proprio piso e nenhum outro criterio pediu mais, quem manda e'
+    # o minimo (da norma, ou o piso quando a norma admite secao menor).
+    amp_governa = s_amp is not None and (n_par > 1 or s_amp > piso)
+    no_piso = (secao == piso
+               and not amp_governa
+               and (s_qda is None or s_qda <= piso)
+               and (s_cc is None or s_cc <= piso))
+    if no_piso:
+        gov = "piso_tabela" if piso_tabela else "secao_minima"
+    else:
+        gov = "ampacidade" if secao == s_amp else ("queda" if secao == s_qda else
+              ("curto" if secao == s_cc else "secao_minima"))
 
     dv_final = queda_pct(secao, IB / n_par, L, V, sistema, fp) if secao else None
     Iz_final = (AMPACIDADE[isol][metodo][n_cond].get(secao) or 0) * n_par if secao else None
@@ -263,7 +281,8 @@ def dimensiona_condutor(circ):
     return {"IB": IB, "IC": IC, "FCT": _fct, "FCA": _fca,
             "secao_mm2": secao, "n_paralelo": n_par, "governante": gov,
             "secao_ampacidade": s_amp, "Iz": Iz_final, "Iz_ampacidade": Iz,
-            "secao_minima": s_min, "secao_queda": s_qda, "dv_pct": dv_final,
+            "secao_minima": s_min, "secao_minima_norma": s_min_norma,
+            "piso_tabela": piso_tabela, "secao_queda": s_qda, "dv_pct": dv_final,
             "dv_max": dv_max, "secao_curto": s_cc, "s_curto_calc_mm2": s_cc_calc,
             "curto_ok": curto_ok,
             "isolacao": isol, "metodo": metodo, "n_cond": n_cond, "OK": ok}

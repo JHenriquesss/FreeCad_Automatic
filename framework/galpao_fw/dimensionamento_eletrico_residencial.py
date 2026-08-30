@@ -138,6 +138,7 @@ def _calculate_design(design, points, source_ids):
     return {
         "id": design["id"],
         "point_ids": list(design["point_ids"]),
+        "declared_length_m": float(design["length_m"]),
         "load": {
             "power_va": power_va,
             "voltage_v": voltage_v,

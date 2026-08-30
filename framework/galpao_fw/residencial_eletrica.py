@@ -16,6 +16,7 @@ from typing import Any
 from demanda_residencial_enel import calculate_residential_demand
 from dimensionamento_eletrico_residencial import calculate_residential_circuit_designs
 from entrada_enel_bt import select_enel_bt_entry
+from layout_eletrico_residencial import validate_electrical_layout
 
 
 ADAPTER_NAME = "casa-residencial-eletrica"
@@ -192,12 +193,13 @@ def _warning(code: str, **fields: Any) -> dict[str, Any]:
     return {"code": code, **fields}
 
 
-def _residential_sizing_scope(short_circuit_evaluation: str = "not_evaluated") -> dict[str, Any]:
+def _residential_sizing_scope(short_circuit_evaluation: str = "not_evaluated",
+                              executive_deliverables: str = "not_implemented") -> dict[str, Any]:
     return {
         "conductor_sizing": "implemented",
         "protection_sizing": "implemented",
         "short_circuit_evaluation": short_circuit_evaluation,
-        "executive_deliverables": "not_implemented",
+        "executive_deliverables": executive_deliverables,
         "enel_approval": "not_claimed",
         "construction_readiness": "not_claimed",
         "motor_table_coverage": copy.deepcopy(MOTOR_TABLE_COVERAGE),
@@ -209,6 +211,8 @@ def _blocked_result(error: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
     scope = _residential_sizing_scope()
     circuits = {"ok": False, "errors": [], "warnings": [],
                 "points": [], "routes": [], "designs": [],
+                "layout_validation": {"declared": False, "ok": False,
+                                      "errors": [], "layout": None},
                 "scope": {key: value for key, value in scope.items()
                           if key != "motor_table_coverage"}}
     service_entry = {"ok": False, "entry": None,
@@ -287,9 +291,11 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
                 "construction_readiness": "not_claimed",
             },
         }
+    layout_result = validate_electrical_layout(circuit_payload)
     circuit_errors = (
         copy.deepcopy(point_result["errors"]) +
-        copy.deepcopy(design_result.get("errors", []))
+        copy.deepcopy(design_result.get("errors", [])) +
+        copy.deepcopy(layout_result["errors"])
     )
     errors.extend(circuit_errors)
     calculation: dict[str, Any] = {}
@@ -347,15 +353,23 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
                         if has_calculation_sections else [])
 
     design_scope = copy.deepcopy(design_result.get("scope", {}))
+    executive = "implemented" if layout_result["ok"] else "schematic_only"
     scope = _residential_sizing_scope(
-        design_scope.get("short_circuit_evaluation", "not_evaluated"))
+        design_scope.get("short_circuit_evaluation", "not_evaluated"),
+        executive)
+    design_scope["executive_deliverables"] = executive
+    if not layout_result["declared"]:
+        circuit_warnings.append(_warning("layout_not_declared"))
+        warnings.append(_warning("layout_not_declared"))
     circuits = {
-        "ok": bool(point_result["ok"] and design_result.get("ok")),
+        "ok": bool(point_result["ok"] and design_result.get("ok")
+                   and not layout_result["errors"]),
         "errors": circuit_errors,
         "warnings": circuit_warnings,
         "points": copy.deepcopy(point_result["points"]),
         "routes": copy.deepcopy(point_result["routes"]),
         "designs": copy.deepcopy(design_result.get("designs", [])),
+        "layout_validation": copy.deepcopy(layout_result),
         "scope": design_scope,
     }
     status = "needs_review" if not errors else "blocked"
@@ -394,6 +408,88 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
     return result, {"eletrico": record}
 
 
+def _deliverable_error(exc: Exception) -> str:
+    return "%s: %s" % (type(exc).__name__, exc)
+
+
+def _emit_residential_drawings(manifest, run_dir, normalized, options, result):
+    """Hook de desenhos: unifilar + quadro de cargas (sempre) e planta (com layout).
+
+    Só depende do JSON já calculado; nada de FreeCAD. A planta ausente vira
+    motivo explícito no manifesto, nunca silêncio.
+    """
+    from pathlib import Path
+
+    import desenho_eletrico_residencial as der
+    from project_loop import _add_artifact
+
+    del normalized
+    if not (options.generate_2d or options.generate_caderno):
+        manifest["deliverables"]["drawings"] = {"status": "not_requested"}
+        return
+    drawings_dir = Path(run_dir) / "drawings"
+    try:
+        emitido = der.gerar_desenhos_residenciais(result, drawings_dir)
+    except Exception as exc:                                # noqa: BLE001
+        manifest["deliverables"]["drawings"] = {
+            "status": "failed", "detail": _deliverable_error(exc)}
+        return
+    for nome in emitido["files"]:
+        _add_artifact(manifest, run_dir, drawings_dir / nome, "drawing")
+    manifest["deliverables"]["drawings"] = {
+        "status": "generated" if emitido["files"] else "not_available",
+        "artifacts": ["drawings/" + nome for nome in emitido["files"]],
+        "skipped": emitido["skipped"],
+    }
+
+
+def _emit_residential_ifc(manifest, run_dir, normalized, options, result):
+    """Hook BIM: IFC4 da instalação, mais a checagem rótulo × geometria."""
+    from pathlib import Path
+
+    import bim_eletrico_residencial as bim
+    from project_loop import _add_artifact
+
+    del normalized
+    if not options.generate_ifc:
+        manifest["deliverables"]["ifc"] = {"status": "not_requested"}
+        return
+    layout_ok = (((result or {}).get("circuits") or {})
+                 .get("layout_validation") or {}).get("ok")
+    if not layout_ok:
+        manifest["deliverables"]["ifc"] = {
+            "status": "not_available",
+            "detail": "layout da instalação não declarado ou inválido",
+        }
+        return
+    try:
+        import ifc_emit
+        if not ifc_emit.disponivel():
+            manifest["deliverables"]["ifc"] = {
+                "status": "not_available", "detail": "ifcopenshell ausente"}
+            return
+        bim_dir = Path(run_dir) / "bim"
+        bim_dir.mkdir(parents=True, exist_ok=True)
+        destino = bim_dir / "eletrico-residencial.ifc"
+        escrito = bim.emitir_bim(result, str(destino))
+        avisos = bim.verificar_comprimentos(result)
+    except Exception as exc:                                # noqa: BLE001
+        manifest["deliverables"]["ifc"] = {
+            "status": "failed", "detail": _deliverable_error(exc)}
+        return
+    if not escrito or not destino.is_file():
+        manifest["deliverables"]["ifc"] = {
+            "status": "not_available", "detail": "nenhum elemento BIM emitido"}
+        return
+    _add_artifact(manifest, run_dir, destino, "ifc")
+    manifest["deliverables"]["ifc"] = {
+        "status": "generated",
+        "artifacts": ["bim/eletrico-residencial.ifc"],
+        "n_elementos": len(bim.membros_bim(result)),
+        "warnings": avisos,
+    }
+
+
 def register_residential_electrical_adapter() -> None:
     """Registra o adaptador; o carregamento global ocorre em tarefa própria."""
     from project_loop import register_adapter
@@ -403,5 +499,9 @@ def register_residential_electrical_adapter() -> None:
         run_residential_electrical,
         project_types=("residencial",),
         disciplines=("eletrico",),
-        deliverables=("report",),
+        deliverables=("report", "drawings", "ifc"),
+        hooks={
+            "drawings": _emit_residential_drawings,
+            "ifc": _emit_residential_ifc,
+        },
     )
