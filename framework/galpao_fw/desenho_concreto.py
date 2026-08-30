@@ -13,6 +13,8 @@ FreeCAD). Seccoes do pilar/viga/sapata com barras, estribos e cotas."""
 
 from __future__ import annotations
 
+import desenho_svg_base as dsb
+
 import math
 
 
@@ -88,7 +90,9 @@ def _svg_secao(cx, cy, w_cm, h_cm, esc, rotulo, barras, estribo=True,
 
 
 def _esc(t):
-    return (t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    """Escape XML - delega para a primitiva compartilhada (uma so implementacao:
+    foi a copia solta de esc() que deixou passar o SVG XML-malformado do S41)."""
+    return dsb.esc(t)
 
 
 def prancha_armacao_svg(r):
@@ -254,7 +258,7 @@ def _selftest():
     import galpao_concreto as gc
     r = gc.rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                   "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
-                  "fck": 30e3, "sigma_solo_adm": 250.0})
+                  "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     svg = prancha_armacao_svg(r)
     dom = md.parseString(svg)                          # tem que ser XML bem-formado
     n_circ = svg.count("<circle")                      # barras longitudinais desenhadas
@@ -269,8 +273,247 @@ if __name__ == "__main__":
     import galpao_concreto as gc
     r = gc.rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                   "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
-                  "fck": 30e3, "sigma_solo_adm": 250.0})
+                  "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     if "--selftest" in sys.argv:
         _selftest()
     else:
         print(gerar_prancha(r, "armacao_galpao_concreto.svg"))
+
+
+# ---------------------------------------------------------------------------
+# PLANTA DE FORMAS + ARMACAO DA LAJE (laje_concreto)
+# ---------------------------------------------------------------------------
+
+def _hachura_engaste(x1, y1, x2, y2, lado, n=14, t=9.0):
+    """Hachura curta indicando borda ENGASTADA (convencao das tabelas de placa:
+    linha simples = apoiada, hachurada = engastada)."""
+    s = []
+    dx, dy = (x2 - x1) / n, (y2 - y1) / n
+    for i in range(n + 1):
+        x, y = x1 + i * dx, y1 + i * dy
+        ox, oy = (t * lado[0], t * lado[1])
+        s.append(f'<line x1="{x:.1f}" y1="{y:.1f}" x2="{x + ox:.1f}" '
+                 f'y2="{y + oy:.1f}" stroke="#666" stroke-width="1"/>')
+    return "".join(s)
+
+
+def planta_laje_svg(r, quadro=None):
+    """Planta de formas + armacao de um painel de laje macica, a partir do dict
+    de laje_concreto.verifica_laje. Mostra o painel na escala, a convencao de
+    vinculacao de cada borda (hachura = engaste), as cotas, as barras positivas
+    das duas direcoes, as negativas sobre as bordas engastadas, o quadro de
+    ferros e o resumo de verificacao (ELU/ELS)."""
+    import laje_concreto as lj
+    if quadro is None:
+        quadro = lj.quadro_de_ferros(r)
+    lx, ly, h = r["lx"], r["ly"], r["h"]
+    eng = set(lj.ENGASTES[r["caso"]]) if r["duas_direcoes"] else set()
+
+    W, H = 1040, 700
+    mx, my = 90, 110                                   # margens do desenho
+    larg, alt = 480.0, 430.0
+    escala = min(larg / lx, alt / ly)                  # px por metro
+    w_px, h_px = lx * escala, ly * escala
+    x0, y0 = mx, my
+    x1, y1 = x0 + w_px, y0 + h_px
+
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
+         f'viewBox="0 0 {W} {H}" font-family="Arial,Helvetica,sans-serif">',
+         f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
+         f'<text x="30" y="34" font-size="16" font-weight="bold" fill="#111">'
+         f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA (NBR 6118)")}</text>',
+         f'<text x="30" y="56" font-size="12" fill="#444">'
+         f'{_esc("painel %.2f x %.2f m (lambda %.2f) ; h = %.0f cm ; d = %.1f cm ; "
+                 "C%.0f ; caso %d ; %s" % (lx, ly, r["lambda"], h * 100, r["d"] * 100, r["fck"] / 1000.0, r["caso"], "armada em 2 direcoes" if r["duas_direcoes"] else "armada em 1 direcao"))}</text>']
+
+    # painel (vigas de apoio como contorno grosso)
+    s.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{w_px:.1f}" height="{h_px:.1f}" '
+             f'fill="#f7f7f5" stroke="#111" stroke-width="3"/>')
+    # convencao de vinculacao: hachura nas bordas engastadas
+    if "x0" in eng:
+        s.append(_hachura_engaste(x0, y0, x0, y1, (-1, 0)))
+    if "x1" in eng:
+        s.append(_hachura_engaste(x1, y0, x1, y1, (1, 0)))
+    if "y0" in eng:
+        s.append(_hachura_engaste(x0, y0, x1, y0, (0, -1)))
+    if "y1" in eng:
+        s.append(_hachura_engaste(x0, y1, x1, y1, (0, 1)))
+
+    # armadura NEGATIVA: faixa de 0,25 lx a partir de cada borda engastada.
+    # Cor SOLIDA clara de proposito: fill-opacity nao e honrado por
+    # renderizadores estritos (QtSvg/TechDraw/svglib) e a faixa vira um bloco
+    # vermelho que apaga a malha - visto ao ABRIR o PNG, nao na barra verde.
+    faixa = lj.FRACAO_NEGATIVA * lx * escala
+    for b in eng:
+        if b == "x0":
+            s.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{faixa:.1f}" '
+                     f'height="{h_px:.1f}" fill="#fbe4e4" '
+                     f'stroke="#dc2626" stroke-dasharray="5 4"/>')
+        elif b == "x1":
+            s.append(f'<rect x="{x1 - faixa:.1f}" y="{y0:.1f}" width="{faixa:.1f}" '
+                     f'height="{h_px:.1f}" fill="#fbe4e4" '
+                     f'stroke="#dc2626" stroke-dasharray="5 4"/>')
+        elif b == "y0":
+            s.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{w_px:.1f}" '
+                     f'height="{faixa:.1f}" fill="#fbe4e4" '
+                     f'stroke="#dc2626" stroke-dasharray="5 4"/>')
+        elif b == "y1":
+            s.append(f'<rect x="{x0:.1f}" y="{y1 - faixa:.1f}" width="{w_px:.1f}" '
+                     f'height="{faixa:.1f}" fill="#fbe4e4" '
+                     f'stroke="#dc2626" stroke-dasharray="5 4"/>')
+
+    # armadura POSITIVA: barras em x (horizontais) e em y (verticais)
+    esquematico = []
+
+    def malha(chave, direcao, cor, dash):
+        a = r["armaduras"].get(chave)
+        if not a or not a["malha"]["phi_mm"]:
+            return
+        passo = a["malha"]["s"] * escala
+        n = max(int((h_px if direcao == "x" else w_px) / max(passo, 1e-6)) - 1, 1)
+        if n > 60:                                      # nao poluir o desenho
+            n = 60
+            esquematico.append(chave)
+        for i in range(1, n + 1):
+            if direcao == "x":
+                yy = y0 + i * (h_px / (n + 1))
+                s.append(f'<line x1="{x0 + 6:.1f}" y1="{yy:.1f}" x2="{x1 - 6:.1f}" '
+                         f'y2="{yy:.1f}" stroke="{cor}" stroke-width="1" '
+                         f'stroke-dasharray="{dash}"/>')
+            else:
+                xx = x0 + i * (w_px / (n + 1))
+                s.append(f'<line x1="{xx:.1f}" y1="{y0 + 6:.1f}" x2="{xx:.1f}" '
+                         f'y2="{y1 - 6:.1f}" stroke="{cor}" stroke-width="1" '
+                         f'stroke-dasharray="{dash}"/>')
+
+    malha("m_x", "x", "#1d4ed8", "none")
+    malha("m_y", "y", "#16a34a", "6 3")
+    nota_malha = (" (malha desenhada em passo reduzido - representacao esquematica)"
+                  if esquematico else "")
+
+    # chamadas das posicoes (ligam o desenho ao quadro de ferros)
+    chamadas = []
+    a_x = r["armaduras"].get("m_x")
+    if a_x and a_x["malha"]["phi_mm"]:
+        chamadas.append((x0 + w_px * 0.55, y0 + h_px * 0.62, "#1d4ed8",
+                         "N1 %.1f c/%.1f" % (a_x["malha"]["phi_mm"],
+                                             a_x["malha"]["s"] * 100)))
+    a_y = r["armaduras"].get("m_y")
+    if a_y and a_y["malha"]["phi_mm"]:
+        chamadas.append((x0 + w_px * 0.55, y0 + h_px * 0.72, "#16a34a",
+                         "N2 %.1f c/%.1f" % (a_y["malha"]["phi_mm"],
+                                             a_y["malha"]["s"] * 100)))
+    pos_neg = {"x0": "N3", "x1": "N3", "y0": "N4", "y1": "N4"}
+    for b in sorted(eng):
+        chave = "x_x" if b in ("x0", "x1") else "x_y"
+        a = r["armaduras"].get(chave)
+        if not a or not a["malha"]["phi_mm"]:
+            continue
+        rot = "%s %.1f c/%.1f" % (pos_neg[b], a["malha"]["phi_mm"],
+                                  a["malha"]["s"] * 100)
+        if b == "x0":
+            chamadas.append((x0 + faixa * 0.5, y0 + h_px * 0.30, "#b91c1c", rot))
+        elif b == "x1":
+            chamadas.append((x1 - faixa * 0.5, y0 + h_px * 0.30, "#b91c1c", rot))
+        elif b == "y0":
+            chamadas.append((x0 + w_px * 0.72, y0 + faixa * 0.5, "#b91c1c", rot))
+        else:
+            chamadas.append((x0 + w_px * 0.72, y1 - faixa * 0.5, "#b91c1c", rot))
+    for cx, cy, cor, rot in chamadas:
+        larg_rot = 7.0 * len(rot)
+        # a chamada nao pode vazar do painel (visto ao abrir o PNG: a de N3 saia
+        # metade fora quando a faixa de 0,25 lx e estreita)
+        cx = min(max(cx, x0 + larg_rot / 2 + 2), x1 - larg_rot / 2 - 2)
+        s.append(f'<rect x="{cx - larg_rot / 2:.1f}" y="{cy - 11:.1f}" '
+                 f'width="{larg_rot:.1f}" height="16" fill="white" stroke="{cor}" '
+                 f'stroke-width="0.8"/>')
+        s.append(f'<text x="{cx:.1f}" y="{cy + 1:.1f}" font-size="11" '
+                 f'text-anchor="middle" fill="{cor}">{_esc(rot)}</text>')
+
+    # cotas
+    yb = y1 + 34
+    s.append(f'<line x1="{x0:.1f}" y1="{yb:.1f}" x2="{x1:.1f}" y2="{yb:.1f}" '
+             f'stroke="#111"/>'
+             f'<text x="{(x0 + x1) / 2:.1f}" y="{yb - 6:.1f}" font-size="12" '
+             f'text-anchor="middle">{_esc("lx = %.2f m" % lx)}</text>')
+    xl = x0 - 40
+    s.append(f'<line x1="{xl:.1f}" y1="{y0:.1f}" x2="{xl:.1f}" y2="{y1:.1f}" '
+             f'stroke="#111"/>'
+             f'<text x="{xl - 6:.1f}" y="{(y0 + y1) / 2:.1f}" font-size="12" '
+             f'text-anchor="middle" transform="rotate(-90 {xl - 6:.1f} '
+             f'{(y0 + y1) / 2:.1f})">{_esc("ly = %.2f m" % ly)}</text>')
+
+    # legenda das bordas
+    s.append(f'<text x="{x0:.1f}" y="{y1 + 58:.1f}" font-size="11" fill="#555" '
+             f'text-anchor="start">'
+             f'{_esc("borda hachurada = engastada ; linha simples = apoiada ; "
+                     "faixa vermelha = armadura negativa (0,25 lx)") + nota_malha}</text>')
+
+    # ---- quadro de ferros ------------------------------------------------
+    qx, qy = 620, 96
+    s.append(f'<text x="{qx}" y="{qy - 12}" font-size="13" font-weight="bold">'
+             f'{_esc("QUADRO DE FERROS")}</text>')
+    cols = [(0, "POS"), (52, "BITOLA"), (128, "ESP."), (186, "COMP."),
+            (250, "QTD"), (300, "PESO")]
+    for dx, nome in cols:
+        s.append(f'<text x="{qx + dx}" y="{qy + 6}" font-size="11" '
+                 f'font-weight="bold">{_esc(nome)}</text>')
+    s.append(f'<line x1="{qx}" y1="{qy + 11}" x2="{qx + 360}" y2="{qy + 11}" '
+             f'stroke="#111"/>')
+    yy = qy + 28
+    for f in quadro:
+        vals = [f["pos"], "%.1f mm" % f["phi_mm"], "c/ %.1f" % f["s_cm"],
+                "%.2f m" % f["comprimento_m"], "%d" % f["n"], "%.1f kg" % f["peso_kg"]]
+        for (dx, _), v in zip(cols, vals):
+            s.append(f'<text x="{qx + dx}" y="{yy}" font-size="11">{_esc(v)}</text>')
+        yy += 19
+    peso = sum(f["peso_kg"] for f in quadro)
+    area = lx * ly
+    s.append(f'<line x1="{qx}" y1="{yy - 13}" x2="{qx + 360}" y2="{yy - 13}" '
+             f'stroke="#999"/>')
+    s.append(f'<text x="{qx}" y="{yy + 4}" font-size="11" font-weight="bold">'
+             f'{_esc("TOTAL %.1f kg  (%.2f kg/m2 em %.1f m2)" % (peso, peso / area, area))}'
+             f'</text>')
+
+    # ---- resumo da verificacao -------------------------------------------
+    ry = yy + 44
+    s.append(f'<text x="{qx}" y="{ry}" font-size="13" font-weight="bold">'
+             f'{_esc("VERIFICACOES")}</text>')
+    fl = r["flecha"]; c = r["cortante"]
+    itens = [("Momentos Md (kN.m/m)", "m_x %.2f | m_y %.2f | X_x %.2f | X_y %.2f"
+              % (r["momentos"]["m_x"], r["momentos"].get("m_y", 0.0),
+                 r["momentos"].get("x_x", 0.0), r["momentos"].get("x_y", 0.0))),
+             ("Cortante 19.4.1", "V_Sd %.1f / V_Rd1 %.1f kN/m -> %s"
+              % (c["V_sd"], c["V_rd1"], "ATENDE" if c["ok"] else "REPROVA")),
+             ("Flecha total", "%.1f mm / limite %.1f mm -> %s"
+              % (fl["f_total"] * 1000, r["lim_flecha"] * 1000,
+                 "ATENDE" if r["ok_flecha"] else "REPROVA")),
+             ("Fissuracao ELS-W", ("wk %.3f / %.1f mm -> %s"
+              % (r["fissuracao"]["wk_mm"], r["fissuracao"]["wk_lim_mm"],
+                 "ATENDE" if r["fissuracao"]["OK"] else "REPROVA"))
+              if r["fissuracao"] else "nao aplicavel")]
+    for i, (rot, val) in enumerate(itens):
+        s.append(f'<text x="{qx}" y="{ry + 20 + i * 18}" font-size="11" '
+                 f'font-weight="bold">{_esc(rot)}</text>')
+        s.append(f'<text x="{qx + 118}" y="{ry + 20 + i * 18}" font-size="11">'
+                 f'{_esc(val)}</text>')
+    if r["reacoes"]:
+        txt = " ; ".join("%s %.1f" % (b, v["v"])
+                         for b, v in sorted(r["reacoes"].items()))
+        s.append(f'<text x="{qx}" y="{ry + 20 + len(itens) * 18}" font-size="11" '
+                 f'font-weight="bold">{_esc("Reacoes (kN/m)")}</text>')
+        s.append(f'<text x="{qx + 118}" y="{ry + 20 + len(itens) * 18}" '
+                 f'font-size="11">{_esc(txt)}</text>')
+    veredito = "ATENDE" if r["OK"] else "NAO ATENDE"
+    cor = "#166534" if r["OK"] else "#b91c1c"
+    s.append(f'<text x="{qx}" y="{H - 40}" font-size="14" font-weight="bold" '
+             f'fill="{cor}">{_esc("RESULTADO: " + veredito)}</text>')
+    s.append('</svg>')
+    return "\n".join(s)
+
+
+def gerar_planta_laje(r, path, quadro=None):
+    """Escreve a planta da laje (SVG) em `path`. Retorna o path."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(planta_laje_svg(r, quadro))
+    return path

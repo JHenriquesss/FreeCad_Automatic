@@ -82,6 +82,72 @@ def gamma_n(b_cm):
     return 1.95 - 0.05 * b_cm
 
 
+# --- limites de esbeltez (15.8.1 / 15.8.3.2 / 15.8.3.3.2 / 15.8.4) ----------
+# Conferidos LITERALMENTE no texto da NBR 6118:2014 (NotebookLM, citacao do texto
+# bruto). Sao FAIXAS DE VALIDADE, nao utilizacoes: nao aparecem como razao
+# solicitante/resistente e por isso "passam" caladas se nao houver gate proprio.
+LAMBDA_MAX = 200.0              # 15.8.1: "os pilares devem ter lambda <= 200"
+LAMBDA_CURVATURA_APROX = 90.0   # 15.8.3.3.2: "pode ser empregado apenas ... lambda <= 90"
+LAMBDA_METODO_GERAL = 140.0     # 15.8.3.2: "o metodo geral e obrigatorio para lambda > 140"
+LAMBDA_FLUENCIA = 90.0          # 15.8.4: fluencia obrigatoria para lambda > 90
+NU_POUCO_COMPRIMIDO = 0.10      # 15.8.1: ressalva de N_d < 0,10 fcd Ac
+
+
+def gamma_n1(lam):
+    """Coeficiente adicional para pilares com lambda > 140 (15.8.1):
+    gamma_n1 = 1 + [0,01*(lambda - 140)/1,4]. Abaixo de 140 vale 1,0."""
+    if lam <= LAMBDA_METODO_GERAL:
+        return 1.0
+    return 1.0 + 0.01 * (lam - LAMBDA_METODO_GERAL) / 1.4
+
+
+def valida_esbeltez(lam, nu):
+    """Faixa de validade do metodo implementado (pilar-padrao com CURVATURA
+    APROXIMADA) e limites absolutos da norma, para UMA direcao.
+
+    lam: indice de esbeltez naquela direcao. nu: N_d/(Ac*fcd) (forca normal
+    adimensional de CALCULO, como pede a Emenda 1 da 15.8.1).
+
+    Devolve {'ok', 'avisos', 'exige_metodo_geral', 'exige_fluencia', 'gamma_n1'}.
+    ok=False significa que o resultado do metodo aproximado NAO pode ser usado -
+    nao que a secao esteja "quase passando". Sem este gate o modulo devolve um As
+    perfeitamente calculado para um pilar que a norma nem admite."""
+    avisos = []
+    ok = True
+    if lam > LAMBDA_MAX:
+        if nu < NU_POUCO_COMPRIMIDO:
+            avisos.append(
+                "lambda = %.1f > 200, admitido apenas porque o elemento e pouco "
+                "comprimido (nu = %.3f < 0,10), ressalva de 15.8.1" % (lam, nu))
+        else:
+            ok = False
+            avisos.append(
+                "REPROVA (15.8.1): lambda = %.1f > 200 e o elemento NAO e pouco "
+                "comprimido (nu = %.3f >= 0,10). A norma nao admite este pilar."
+                % (lam, nu))
+    if lam > LAMBDA_CURVATURA_APROX:
+        ok = False
+        avisos.append(
+            "REPROVA (15.8.3.3.2): lambda = %.1f > 90. O metodo do pilar-padrao com "
+            "curvatura aproximada, que este modulo implementa, 'pode ser empregado "
+            "apenas no calculo de pilares com lambda <= 90'. O resultado abaixo esta "
+            "FORA da faixa de validade do metodo - use o metodo geral (obrigatorio "
+            "acima de 140) ou o pilar-padrao acoplado a diagramas M,N,1/r." % lam)
+    if lam > LAMBDA_FLUENCIA:
+        avisos.append(
+            "15.8.4: lambda = %.1f > 90 -> a consideracao da FLUENCIA e obrigatoria "
+            "(excentricidade adicional e_cc), e nao esta implementada aqui." % lam)
+    if lam > LAMBDA_METODO_GERAL:
+        avisos.append(
+            "15.8.1: lambda = %.1f > 140 -> os esforcos finais de calculo teriam de "
+            "ser majorados por gamma_n1 = %.3f, alem de exigir o metodo geral."
+            % (lam, gamma_n1(lam)))
+    return {"ok": ok, "avisos": avisos,
+            "exige_metodo_geral": lam > LAMBDA_METODO_GERAL,
+            "exige_fluencia": lam > LAMBDA_FLUENCIA,
+            "gamma_n1": round(gamma_n1(lam), 4)}
+
+
 def lambda_1(e1, h, ab):
     """Esbeltez limite lambda1 (15.8.2): (25 + 12,5*e1/h)/alpha_b, com 35<=lambda1<=90.
     e1 e h na mesma direcao (m). e1 = excentricidade de 1a ordem (M1d,A/Nd)."""
@@ -326,7 +392,11 @@ def dimensiona_pilar(caso):
             e2 = le ** 2 / 10.0 * inv_r
             M2 = Nd * e2                          # M2 SOMA-SE a base de 1a ordem
             Mtot = M1d_base + M2
+        val = valida_esbeltez(lam, nu)
         res["dir"][dirn] = {
+            "esbeltez_valida": val["ok"], "avisos_esbeltez": val["avisos"],
+            "exige_metodo_geral": val["exige_metodo_geral"],
+            "exige_fluencia": val["exige_fluencia"], "gamma_n1": val["gamma_n1"],
             "le": le, "lambda": round(lam, 1), "lambda1": round(l1, 1),
             "alpha_b": round(ab, 3), "e1_cm": round(e1 * 100, 2),
             "M1d_min": round(M1min, 2), "M1d_A": round(M1dA, 2),
@@ -357,7 +427,11 @@ def dimensiona_pilar(caso):
     taxa = As_ad / Ac
     # teto por lance (emenda dobra a armadura -> 4% por lance, 17.3.5.3.2)
     ok_max = As_ad <= 0.04 * Ac + 1e-12
-    OK = ok_res and ok_max and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9
+    # faixa de validade do metodo (15.8.1/15.8.3.3.2): REPROVA, nao satura
+    esb_ok = all(res["dir"][d]["esbeltez_valida"] for d in res["dir"])
+    avisos_esb = [a for d in res["dir"] for a in res["dir"][d]["avisos_esbeltez"]]
+    OK = (ok_res and ok_max and esb_ok
+          and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9)
 
     # verificacao da interacao obliqua com o As ADOTADO (para o relatorio/gate)
     if biaxial:
@@ -373,6 +447,7 @@ def dimensiona_pilar(caso):
         "As_min_cm2": round(As_min * 1e4, 2), "As_cm2": round(As_ad * 1e4, 2),
         "taxa_pct": round(taxa * 100, 2), "As_max_cm2": round(0.04 * Ac * 1e4, 2),
         "resiste": ok_res, "ok_taxa_max": ok_max, "OK": OK,
+        "esbeltez_valida": esb_ok, "avisos_esbeltez": avisos_esb,
     })
     return res
 

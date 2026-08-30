@@ -191,7 +191,7 @@ def _selftest():
     import galpao_concreto as gc
     r = gc.rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                   "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
-                  "fck": 30e3, "sigma_solo_adm": 250.0})
+                  "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     q = quadro_de_aco(r)
     assert any(x["elemento"] == "Pilar" for x in q)
     assert any(x["elemento"] == "Viga cob." for x in q)
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     import galpao_concreto as gc
     r = gc.rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                   "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
-                  "fck": 30e3, "sigma_solo_adm": 250.0})
+                  "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     if "--selftest" in sys.argv:
         _selftest()
     elif "--memorial" in sys.argv:

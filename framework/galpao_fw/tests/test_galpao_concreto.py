@@ -16,7 +16,12 @@ def _spec(vao=10.0, **kw):
     base = {"vao": vao, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
             "v0": 40.0, "cat": "IV", "classe": "B", "s1": 1.0, "s3": 1.0,
             "G_roof": 0.30, "Q_roof": 0.25, "fck": 30e3, "fyk": 500e3,
-            "sigma_solo_adm": 250.0}
+            "sigma_solo_adm": 250.0,
+            # o galpao tem sistema de contraventamento longitudinal, e isso agora e
+            # DECLARADO em vez de assumido: sem essa declaracao o pilar e balanco
+            # tambem na direcao longitudinal (le_y = 2H) e a esbeltez estoura o
+            # limite de 15.8.3.3.2 (ver test_sem_travamento_longitudinal_reprova).
+            "travamento_longitudinal": "topo"}
     base.update(kw)
     return base
 
@@ -38,8 +43,40 @@ def test_vento_gera_momento_de_base():
 
 def test_pilar_e_balanco_le_2H():
     r = gc.rodar(_spec())
-    # o pilar do galpao e balanco: le = 2H em ambas direcoes
+    # no plano do portico o pilar e balanco: le_x = 2H (geometria, nao e opcao)
     assert abs(r["pilar"]["dir"]["x"]["le"] - 2 * r["spec"]["H"]) < 1e-9
+
+
+def test_sem_travamento_longitudinal_reprova_por_esbeltez():
+    """SATURACAO SILENCIOSA (NBR 6118 15.8.3.3.2 / 15.8.1): sem sistema longitudinal
+    o pilar e balanco tambem nessa direcao, le_y = 2H, e nenhuma secao da lista fica
+    com lambda <= 90 - faixa unica em que o metodo do pilar-padrao com curvatura
+    aproximada pode ser empregado. Antes do gate, o modulo devolvia um As
+    perfeitamente calculado e OK=True para um pilar 20x40 com lambda_y = 207,8,
+    acima ate do limite absoluto de 200 que a norma nao admite."""
+    r = gc.rodar(_spec(travamento_longitudinal="nenhum"))
+    p = r["pilar"]
+    assert p["OK"] is False
+    assert p["esbeltez_valida"] is False
+    assert p["dir"]["y"]["lambda"] > 90.0
+    assert any("15.8.3.3.2" in a for a in p["avisos_esbeltez"])
+    assert not r["ATENDE"]
+
+
+def test_travamento_longitudinal_declarado_reduz_le_y_e_resolve():
+    """Declarado o travamento, vale a regra de 15.6 (le = min(l0+h ; l)) e a esbeltez
+    volta para dentro da faixa - com uma secao MENOR que a tentada sem travamento."""
+    com = gc.rodar(_spec(travamento_longitudinal="topo"))["pilar"]
+    sem = gc.rodar(_spec(travamento_longitudinal="nenhum"))["pilar"]
+    assert com["dir"]["y"]["lambda"] <= 90.0
+    assert com["OK"] is True
+    assert com["hy"] * com["hx"] < sem["hy"] * sem["hx"]
+
+
+def test_travamento_invalido_levanta():
+    import pytest
+    with pytest.raises(ValueError, match="travamento_longitudinal"):
+        gc.rodar(_spec(travamento_longitudinal="parcial"))
 
 
 def test_vao_grande_roteia_para_protensao():

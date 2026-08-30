@@ -44,7 +44,39 @@ _SECOES_VIGA = [(0.20, 0.40), (0.20, 0.50), (0.20, 0.60), (0.25, 0.60),
                 (0.25, 0.70), (0.30, 0.80), (0.30, 1.00)]
 
 
-def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk):
+TRAVAMENTOS_LONGITUDINAIS = ("nenhum", "topo")
+
+
+def _le_por_direcao(H, hy, travamento):
+    """Comprimentos de flambagem do pilar do galpao, por direcao (m).
+
+    x (plano do portico, // hx): o pilar e um BALANCO engastado na fundacao e livre
+    no topo -> le_x = 2H. Isso e geometria do portico e nao depende de opcao.
+
+    y (longitudinal, // hy): depende de EXISTIR sistema de travamento longitudinal.
+      'nenhum' (default) -> o pilar tambem e balanco nesta direcao: le_y = 2H.
+      'topo'             -> o topo e vinculado pelo sistema longitudinal e vale a
+                            regra de 15.6 para elemento vinculado nas DUAS
+                            extremidades: le = min(l0 + h ; l), com l = H (distancia
+                            entre eixos) e l0 = altura livre.
+
+    Por que isso e explicito e nao um default embutido: com 'nenhum' e H = 6 m,
+    le_y = 12 m leva a lambda_y = 3,46*12/hy > 90 para toda secao usual, e acima de
+    200 para hy <= 0,20 m - faixa que a NBR 6118 15.8.1 nem admite. O modelo atual do
+    galpao de concreto NAO tem sistema de contraventamento longitudinal, entao o
+    default honesto e 'nenhum', que REPROVA. Assumir 'topo' calado seria escolher a
+    hipotese que faz passar."""
+    if travamento not in TRAVAMENTOS_LONGITUDINAIS:
+        raise ValueError("travamento_longitudinal deve ser um de %s (recebido %r)"
+                         % (list(TRAVAMENTOS_LONGITUDINAIS), travamento))
+    le_x = 2.0 * H
+    if travamento == "nenhum":
+        return le_x, 2.0 * H
+    l0 = H                                   # altura livre entre os elementos
+    return le_x, min(l0 + hy, H)
+
+
+def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"):
     """Adota a MENOR secao de pilar que atende as 2 combinacoes ELU. hx (=h) e a
     dimensao no plano do vento (resiste ao momento de base). Retorna dict."""
     # Biaxial (17.2.5): o vento transversal atua numa direcao (x, plano do portico)
@@ -52,22 +84,34 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk):
     # perpendiculares NAO se somam (NBR 6123, um por vez) -> a envoltoria biaxial e
     # Mx_vento + My_min. forcar_biaxial ativa a interacao obliqua com o My minimo.
     for (hy, hx) in _SECOES_PILAR:
+        le_x, le_y = _le_por_direcao(H, hy, travamento)
         # comb 1 (gravidade principal): Nd=1,4(G+Q), M=1,4*0,6*M_w
-        c1 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_gq, "le_x": 2 * H,
-            "le_y": 2 * H, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": GF,
+        c1 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_gq, "le_x": le_x,
+            "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": GF,
             "forcar_biaxial": True,
             "M1d_x": {"tipo": "balanco", "Ma": GF * PSI0_VENTO * M_w_k}})
         # comb 2 (vento principal): Nd=1,0*G (minimo), M=1,4*M_w
-        c2 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_g, "le_x": 2 * H,
-            "le_y": 2 * H, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": 1.0,
+        c2 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_g, "le_x": le_x,
+            "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": 1.0,
             "forcar_biaxial": True,
             "M1d_x": {"tipo": "balanco", "Ma": GF * M_w_k}})
         gov = c1 if c1["As_cm2"] >= c2["As_cm2"] else c2
         gov = gov if (c1["OK"] and c2["OK"]) else dict(gov, OK=(c1["OK"] and c2["OK"]))
         if c1["OK"] and c2["OK"]:
             gov["comb1_As"] = c1["As_cm2"]; gov["comb2_As"] = c2["As_cm2"]
+            gov["travamento_longitudinal"] = travamento
             return gov
     gov["comb1_As"] = c1["As_cm2"]; gov["comb2_As"] = c2["As_cm2"]
+    gov["travamento_longitudinal"] = travamento
+    if not gov.get("esbeltez_valida", True):
+        gov.setdefault("avisos", []).append(
+            "Nenhuma secao da lista atende: com travamento_longitudinal='%s' o "
+            "comprimento de flambagem longitudinal e le_y = %.2f m e a esbeltez sai "
+            "fora da faixa de validade do metodo (NBR 6118 15.8.3.3.2, lambda <= 90). "
+            "Se o galpao tiver sistema de contraventamento longitudinal, declare "
+            "travamento_longitudinal='topo'." % (travamento,
+                                                 _le_por_direcao(H, gov["hy"],
+                                                                 travamento)[1]))
     return gov
 
 
@@ -82,6 +126,10 @@ def rodar(spec):
       'G_roof','Q_roof' : cargas de cobertura (kN/m2) [A CONFIRMAR telha].
       'q_parede'    : peso da parede de fechamento por m2 de fachada (kN/m2, opc.).
       'fck','fyk'   : (default C30 / CA-50). 'sigma_solo_adm' (kN/m2) [A CONFIRMAR sondagem].
+      'travamento_longitudinal' : 'nenhum' (default) | 'topo'. Define o comprimento de
+                      flambagem NA DIRECAO LONGITUDINAL (ver _le_por_direcao). Com
+                      'nenhum' o pilar e balanco tambem nessa direcao (le_y = 2H) e a
+                      esbeltez costuma estourar o limite de 15.8.3.3.2.
     }"""
     vao = spec["vao"]; comp = spec["comprimento"]; H = spec["pe_direito"]
     if vao <= 0 or comp <= 0 or H <= 0:
@@ -135,7 +183,8 @@ def rodar(spec):
     q_par = spec.get("q_parede", 0.0) * H * s      # peso de parede tributaria (se houver)
     Nk_g = R_beam_g + peso_viga + q_par            # permanente (sem sobrecarga)
     Nk_gq = Nk_g + R_beam_q                        # permanente + sobrecarga
-    pilar = _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk)
+    pilar = _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk,
+                                    spec.get("travamento_longitudinal", "nenhum"))
 
     # peso proprio do pilar (soma na reacao de fundacao)
     peso_pilar = GAMMA_CONC * pilar["hx"] * pilar["hy"] * H
@@ -207,7 +256,8 @@ def rodar(spec):
                     "sigma_solo_adm": sigma_solo,
                     "mu": spec.get("mu_solo", 0.5), "coesao": 0.0, "h_reaterro": 0.5,
                     "d_ped": pilar["hx"], "b_ped": pilar["hy"], "h_ped": 0.6,
-                    "fck": min(fck, 25e3), "fyk": fyk, "cobrimento": 0.04}
+                    "fck": min(fck, 25e3), "fyk": fyk, "cobrimento": 0.04,
+                    "verificacao_estabilidade": spec.get("verificacao_estabilidade")}
         sap = fs.dimensiona_sapata(caso_sap)
         fund_ok = sap["aprovado"] is not None
         fund_geom = (f"{sap['aprovado'][0]:.1f}x{sap['aprovado'][1]:.1f}x"
@@ -555,7 +605,7 @@ def _selftest():
     r = rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                "v0": 40.0, "cat": "IV", "classe": "B", "s1": 1.0, "s3": 1.0,
                "G_roof": 0.30, "Q_roof": 0.25, "fck": 30e3, "fyk": 500e3,
-               "sigma_solo_adm": 250.0})
+               "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     assert r["gates"]["vento"]["M_base_k"] > 0
     assert r["viga"]["OK"], "viga de cobertura deveria atender"
     assert r["pilar"]["OK"], ("pilar", r["pilar"]["As_cm2"], r["pilar"]["taxa_pct"])
@@ -568,7 +618,7 @@ def _selftest():
     # vao grande (15 m): o RC nao vence -> roteia p/ viga PROTENDIDA e ATENDE
     r15 = rodar({"vao": 15.0, "comprimento": 40.0, "pe_direito": 6.0, "n_porticos": 7,
                  "v0": 40.0, "cat": "IV", "classe": "B", "G_roof": 0.30, "Q_roof": 0.25,
-                 "fck": 30e3, "sigma_solo_adm": 250.0})
+                 "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})
     assert r15["tipo_viga"] == "protendida" and r15["ATENDE"], "15 m deveria ir p/ protensao"
     print("galpao_concreto self-test PASSED:", relatorio_pt(r).splitlines()[-3].strip())
 
@@ -580,4 +630,4 @@ if __name__ == "__main__":
     else:
         print(relatorio_pt(rodar({"vao": 15.0, "comprimento": 40.0, "pe_direito": 6.0,
               "n_porticos": 7, "v0": 40.0, "cat": "IV", "classe": "B",
-              "G_roof": 0.30, "Q_roof": 0.25, "fck": 30e3, "sigma_solo_adm": 250.0})))
+              "G_roof": 0.30, "Q_roof": 0.25, "fck": 30e3, "sigma_solo_adm": 250.0, "travamento_longitudinal": "topo"})))
