@@ -47,12 +47,15 @@ def test_uma_caixa_por_membro():
 
 
 def test_pilar_orientacao_e_altura():
-    # secao do pilar: bf=hy (plano X), d=hx (plano Y); altura = H; base em z=0
+    # G7: hx e a dimensao NO PLANO DO PORTICO (// vento) e o frame tem X = vao ->
+    # o solido tem hx em X e hy em Y. Estava trocado (eixo forte fora do plano):
+    # ver tests/test_pilar_orientacao_concreto.py.
     r = gc.rodar(_spec())
     col = next(c for c in bc.caixas(gc.membros_bim(r)) if c["tipo"] == "Column")
     hx = r["pilar"]["hx"]; hy = r["pilar"]["hy"]; H = r["spec"]["H"]
-    assert abs(col["dims"][0] - hy * 1000.0) < 1e-6      # X = hy
-    assert abs(col["dims"][1] - hx * 1000.0) < 1e-6      # Y = hx
+    assert hx >= hy                                      # senao o teste nao prova nada
+    assert abs(col["dims"][0] - hx * 1000.0) < 1e-6      # X (vao) = hx
+    assert abs(col["dims"][1] - hy * 1000.0) < 1e-6      # Y (comprimento) = hy
     assert abs(col["dims"][2] - H * 1000.0) < 1e-6       # Z = pe-direito
     assert abs(col["origem"][2] - 0.0) < 1e-6            # base no chao
     assert col["ifc"] == "IfcColumn"

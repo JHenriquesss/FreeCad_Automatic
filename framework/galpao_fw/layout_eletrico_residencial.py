@@ -17,32 +17,23 @@ Nenhuma função aqui desenha ou emite arquivo.
 from __future__ import annotations
 
 import copy
-import math
 
+# A validacao do RETANGULO DE COMODO mora em `layout_ambientes`: o BIM da
+# arquitetura precisa da mesma regra, e duas copias dela acabariam discordando
+# em silencio. Aqui ficam apenas as partes ELETRICAS do layout (quadro, pontos).
+import layout_ambientes as la
 
-_ROOM_FIELDS = ("id", "name", "x_m", "y_m", "width_m", "depth_m")
+_ROOM_FIELDS = la.ROOM_FIELDS
 _POINT_FIELDS = ("id", "x_m", "y_m", "z_m")
 _BOARD_FIELDS = ("id", "x_m", "y_m", "z_m")
 
-
-def _error(code, **context):
-    error = {"code": code}
-    if context:
-        error.update(context)
-    return error
-
-
-def _finite(value):
-    return (not isinstance(value, bool) and isinstance(value, (int, float))
-            and math.isfinite(float(value)))
-
-
-def _finite_positive(value):
-    return _finite(value) and float(value) > 0.0
-
-
-def _non_empty_str(value):
-    return type(value) is str and bool(value.strip())
+_error = la.erro
+_finite = la.finito
+_finite_positive = la.finito_positivo
+_non_empty_str = la.texto_nao_vazio
+_validate_rooms = la.validar_comodos
+_reject_overlaps = la.rejeitar_sobreposicao
+_inside = la.dentro
 
 
 def layout_declared(circuits) -> bool:
@@ -89,54 +80,6 @@ def validate_electrical_layout(circuits) -> dict:
             "points": copy.deepcopy(list(positions.values())),
         },
     }
-
-
-def _validate_rooms(layout, errors):
-    rooms_raw = layout.get("rooms")
-    if not isinstance(rooms_raw, list) or not rooms_raw:
-        errors.append(_error("missing_layout_field", field="rooms",
-                             detail="layout.rooms deve ser uma lista nao vazia"))
-        return {}
-    rooms: dict[str, dict] = {}
-    for index, room in enumerate(rooms_raw):
-        if not isinstance(room, dict):
-            errors.append(_error("invalid_layout_value", field="rooms", index=index))
-            continue
-        missing = [field for field in _ROOM_FIELDS if field not in room]
-        if missing:
-            errors.append(_error("missing_layout_field", field="rooms",
-                                 index=index, missing=sorted(missing)))
-            continue
-        room_id = room["id"]
-        if not _non_empty_str(room_id) or not _non_empty_str(room["name"]):
-            errors.append(_error("invalid_layout_value", field="rooms.id", index=index))
-            continue
-        if not (_finite(room["x_m"]) and _finite(room["y_m"])
-                and _finite_positive(room["width_m"])
-                and _finite_positive(room["depth_m"])):
-            errors.append(_error("invalid_layout_value", field="rooms.geometry",
-                                 index=index, room=room_id))
-            continue
-        if room_id in rooms:
-            errors.append(_error("duplicate_layout_room", room=room_id))
-            continue
-        rooms[room_id] = {field: room[field] for field in _ROOM_FIELDS}
-    _reject_overlaps(rooms, errors)
-    return rooms
-
-
-def _reject_overlaps(rooms, errors):
-    """Dois cômodos não podem ocupar a mesma área: seria planta impossível."""
-    items = list(rooms.values())
-    for i, a in enumerate(items):
-        for b in items[i + 1:]:
-            overlap_x = (min(a["x_m"] + a["width_m"], b["x_m"] + b["width_m"])
-                         - max(a["x_m"], b["x_m"]))
-            overlap_y = (min(a["y_m"] + a["depth_m"], b["y_m"] + b["depth_m"])
-                         - max(a["y_m"], b["y_m"]))
-            if overlap_x > 1e-9 and overlap_y > 1e-9:
-                errors.append(_error("overlapping_layout_rooms",
-                                     rooms=sorted([a["id"], b["id"]])))
 
 
 def _validate_board(layout, errors):
@@ -239,17 +182,6 @@ def _cross_check_board(rooms, board, errors):
                              position=[board["x_m"], board["y_m"]]))
 
 
-def _inside(room, x, y):
-    return (room["x_m"] - 1e-9 <= x <= room["x_m"] + room["width_m"] + 1e-9
-            and room["y_m"] - 1e-9 <= y <= room["y_m"] + room["depth_m"] + 1e-9)
-
-
 def bounds(layout) -> dict:
     """Retângulo envolvente dos cômodos declarados (m). Só para enquadramento."""
-    rooms = layout["rooms"]
-    return {
-        "x_min": min(room["x_m"] for room in rooms),
-        "y_min": min(room["y_m"] for room in rooms),
-        "x_max": max(room["x_m"] + room["width_m"] for room in rooms),
-        "y_max": max(room["y_m"] + room["depth_m"] for room in rooms),
-    }
+    return la.envolvente(layout["rooms"])

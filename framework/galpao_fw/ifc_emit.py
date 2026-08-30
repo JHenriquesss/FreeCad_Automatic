@@ -103,7 +103,12 @@ _IFC_CLASS = {"Column": ("IfcColumn", "COLUMN"), "Beam": ("IfcBeam", "BEAM"),
               "Duct": ("IfcDuctSegment", "RIGIDSEGMENT"),
               "AirHandler": ("IfcUnitaryEquipment", "AIRHANDLER"),
               # --- hidraulica predial (vertical de hidraulica) -----------------
-              "Pipe": ("IfcPipeSegment", "RIGIDSEGMENT")}
+              "Pipe": ("IfcPipeSegment", "RIGIDSEGMENT"),
+              # --- edificacao (edificio multipavimento / casa residencial) ------
+              "Slab": ("IfcSlab", "FLOOR"),
+              "Roof": ("IfcSlab", "ROOF"),
+              "Wall": ("IfcWall", "SOLIDWALL"),
+              "Space": ("IfcSpace", "INTERNAL")}
 
 
 def _dot(a, b):
@@ -265,11 +270,71 @@ def _tapered_ifc(m, body, sto, mb, esc):
     return el
 
 
-def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
+def _ancorar(mat, mb, secao, esc):
+    """Aplica a ANCORAGEM do membro: onde a linha p1->p2 fica na secao.
+
+    'eixo' (padrao, e o que o galpao de aco sempre usou): a linha e' o eixo
+    centroidal, e o perfil fica centrado nela. 'base': a linha e' a FACE
+    INFERIOR da peca, que e' como uma viga apoiada no topo de um pilar e' mais
+    natural de descrever - a peca sobe `d` a partir dali.
+
+    Por que a chave existe: o build FreeCAD (build_concreto) sempre desenhou a
+    viga a partir da face inferior e o emissor IFC sempre a centrou no eixo. As
+    duas descricoes da MESMA viga de cobertura discordavam em d/2 - no galpao de
+    concreto, meia viga (35 cm) enterrada dentro do pilar e o telhado 35 cm mais
+    baixo no IFC do que no 3D. A ancoragem passa a ser DECLARADA pelo membro, em
+    vez de implicita e diferente em cada emissor.
+
+    So se aplica a barra HORIZONTAL (o deslocamento e' em Z global): numa coluna
+    'base' nao tem significado, e o membro segue centrado.
+    """
+    if mb.get("ancoragem") != "base":
+        return mat
+    p1, p2 = mb["p1"], mb["p2"]
+    if abs(p2[2] - p1[2]) > 1e-6:                     # barra inclinada/vertical
+        return mat
+    mat = mat.copy()
+    mat[2, 3] += float(secao.get("d") or 0.0) * esc / 2.0
+    return mat
+
+
+def _espaco_ifc(m, body, sto, mb, run):
+    """Emite um AMBIENTE (comodo) como IfcSpace: caixa `dims` (mm) no `centro` (mm).
+
+    IfcSpace e' elemento da ESTRUTURA ESPACIAL, nao um produto contido nela: entra
+    no pavimento por AGREGACAO (IfcRelAggregates), nao por
+    IfcRelContainedInSpatialStructure. Trocar as duas e' o erro que faz o comodo
+    aparecer no 3D mas nao na arvore de ambientes do visualizador.
+    """
+    import numpy as np
+    B, L, h = mb["dims"]
+    cx, cy, cz = mb["centro"]
+    prof = m.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
+                           ProfileName=mb.get("perfil"), XDim=float(B), YDim=float(L))
+    esp = run("root.create_entity", m, ifc_class="IfcSpace",
+              predefined_type="INTERNAL", name=mb.get("marca") or mb.get("perfil"))
+    rep = run("geometry.add_profile_representation", m, context=body, profile=prof,
+              depth=float(h) / _MM_M)                 # depth em METROS (helper SI)
+    run("geometry.assign_representation", m, product=esp, representation=rep)
+    mat = np.eye(4)
+    mat[:3, 3] = [cx, cy, cz - h / 2.0]               # origem no piso do ambiente
+    run("geometry.edit_object_placement", m, product=esp, matrix=_mat_m(mat))
+    run("aggregate.assign_object", m, relating_object=sto, products=[esp])
+    return esp
+
+
+def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=None):
     """Escreve um IFC4 com os `membros` (do modelo_neutro) em `path`. Cada barra ->
     IfcColumn/IfcBeam com perfil I extrudado ao longo do eixo. Retorna o path (ou
     levanta se o ifcopenshell faltar). secao_em_metros: as dims da secao (d/bf/tw/
-    tf) estao em m (catalogo) e sao convertidas p/ mm."""
+    tf) estao em m (catalogo) e sao convertidas p/ mm.
+
+    pavimentos: (opc) lista [{'nome', 'elevacao_mm'}] - cria um IfcBuildingStorey
+    POR PAVIMENTO e conteineriza cada membro no pavimento que ele declara em
+    `mb['pavimento']`. Sem isso o edificio de 9 pavimentos abriria no visualizador
+    como um unico 'Terreo' com tudo dentro, e a arvore do modelo (o que o
+    projetista navega) nao teria relacao com o predio calculado. Omitido =
+    comportamento historico do galpao: um unico pavimento 'Terreo'."""
     import ifcopenshell
     from ifcopenshell.api import run
 
@@ -282,10 +347,28 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
                context_identifier="Body", target_view="MODEL_VIEW", parent=ctx)
     site = run("root.create_entity", m, ifc_class="IfcSite", name="Sitio")
     bld = run("root.create_entity", m, ifc_class="IfcBuilding", name=nome)
-    sto = run("root.create_entity", m, ifc_class="IfcBuildingStorey", name="Terreo")
     run("aggregate.assign_object", m, relating_object=proj, products=[site])
     run("aggregate.assign_object", m, relating_object=site, products=[bld])
-    run("aggregate.assign_object", m, relating_object=bld, products=[sto])
+    andares = {}
+    if pavimentos:
+        for pv in pavimentos:
+            st = run("root.create_entity", m, ifc_class="IfcBuildingStorey",
+                     name=pv["nome"])
+            st.Elevation = float(pv.get("elevacao_mm", 0.0))   # unidade do modelo: mm
+            andares[pv["nome"]] = st
+        run("aggregate.assign_object", m, relating_object=bld,
+            products=list(andares.values()))
+        sto = andares[pavimentos[0]["nome"]]
+    else:
+        sto = run("root.create_entity", m, ifc_class="IfcBuildingStorey",
+                  name="Terreo")
+        run("aggregate.assign_object", m, relating_object=bld, products=[sto])
+
+    def _sto(mb):
+        """Pavimento do membro. Membro sem 'pavimento' (ou com um nome que nao foi
+        declarado) cai no primeiro - nunca fica FORA da arvore espacial, que e' o
+        que faz um elemento sumir do navegador do visualizador."""
+        return andares.get(mb.get("pavimento"), sto)
 
     from ifcopenshell.guid import new as _guid
     perfis_ifc = {}                                   # cache de perfil IFC por nome
@@ -330,10 +413,10 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
 
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
-            _painel_ifc(m, body, sto, mb, _guid)
+            _painel_ifc(m, body, _sto(mb), mb, _guid)
             continue
         if "secao2" in mb:                            # barra de ALMA VARIÁVEL (tapered)
-            _tapered_ifc(m, body, sto, mb, esc)
+            _tapered_ifc(m, body, _sto(mb), mb, esc)
             continue
         if "dims" in mb and "centro" in mb:           # CAIXA num ponto (fundação/chapa)
             import numpy as np
@@ -343,6 +426,9 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
                 cls, pdt = "IfcFooting", "PAD_FOOTING"
             else:                                      # placa de base etc. -> IfcPlate
                 cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcPlate", "SHEET"))
+            if cls == "IfcSpace":                      # ambiente: AGREGA no pavimento
+                _espaco_ifc(m, body, _sto(mb), mb, run)
+                continue
             prof = m.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
                                    ProfileName=mb["perfil"], XDim=float(B), YDim=float(L))
             fo = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
@@ -353,7 +439,8 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
             mat = np.eye(4)
             mat[:3, 3] = [cx, cy, cz - h / 2.0]        # origem no fundo da caixa (mm)
             run("geometry.edit_object_placement", m, product=fo, matrix=_mat_m(mat))
-            run("spatial.assign_container", m, relating_structure=sto, products=[fo])
+            run("spatial.assign_container", m, relating_structure=_sto(mb),
+                products=[fo])
             _assoc_mat(fo, mb)
             _assoc_armadura(fo, mb)
             continue
@@ -367,11 +454,12 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True):
         el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
                  name=mb.get("marca") or mb["perfil"])
         mat, L = _matriz(mb["p1"], mb["p2"])
+        mat = _ancorar(mat, mb, s, esc)
         rep = run("geometry.add_profile_representation", m, context=body,
                   profile=prof, depth=L / _MM_M)              # depth em METROS (helper SI)
         run("geometry.assign_representation", m, product=el, representation=rep)
         run("geometry.edit_object_placement", m, product=el, matrix=_mat_m(mat))
-        run("spatial.assign_container", m, relating_structure=sto, products=[el])
+        run("spatial.assign_container", m, relating_structure=_sto(mb), products=[el])
         _assoc_mat(el, mb)
         _assoc_armadura(el, mb)
     m.write(path)

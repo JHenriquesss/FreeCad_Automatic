@@ -29,25 +29,29 @@ def _spec():
 
 
 # ------------------------------- AABB por convencao --------------------------
-def test_aabb_caixa_estrutural_em_metros():
-    # concreto/aco: dims de caixa em METROS -> x1000
-    mb = {"marca": "C-SAP1", "dims": [2.0, 2.5, 0.7], "centro": [0.0, 0.0, 0.0]}
+def test_aabb_caixa_estrutural_em_mm_como_toda_disciplina():
+    # CONVENCAO UNICA (G8): `dims` de caixa e' MILIMETRO em toda disciplina. Havia
+    # aqui um mapa de escala com "concreto": 1000 porque `galpao_concreto` emitia a
+    # sapata em METROS - e so o IFC, que le `dims` cru, saia com uma sapata 1000x
+    # menor. Corrigido na origem, o mapa deixou de existir.
+    mb = {"marca": "C-SAP1", "dims": [2000.0, 2500.0, 700.0], "centro": [0.0, 0.0, 0.0]}
     a = tk._aabb_federado(mb, "concreto")
     assert a == (-1000.0, 1000.0, -1250.0, 1250.0, -350.0, 350.0)
 
 
-def test_aabb_caixa_aco_em_mm_nao_metros():
-    # REGRESSAO (item 3): dims de caixa do ACO (modelo_neutro) ja vem em MM -> escala x1,
-    # nao x1000 como o concreto. O bug x1000 inflava a sapata/bloco p/ ~km e inundava o
-    # clash (aco Footing/Plate/Fastener sobrepondo todos os equipamentos).
+def test_aabb_de_caixa_nao_infla_1000x_em_nenhuma_disciplina():
+    # REGRESSAO: as duas metades da divergencia historica. O bug x1000 inflava a
+    # sapata/bloco p/ ~km e inundava o clash (a peca sobrepondo todo equipamento);
+    # a metade oposta encolhia a sapata do concreto p/ milimetros e ela sumia do
+    # clash. As duas disciplinas leem a MESMA unidade agora.
     bloco = {"marca": "A-BLO1", "tipo": "Footing", "dims": [2500.0, 3000.0, 2350.0],
              "centro": [0.0, 0.0, -1175.0]}
     x0, x1, y0, y1, z0, z1 = tk._aabb_federado(bloco, "aco")
     assert (x1 - x0, y1 - y0, z1 - z0) == (2500.0, 3000.0, 2350.0)   # ~2.5 m, nao 2.5 km
-    # concreto (metros) continua x1000
-    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2.0, 2.5, 0.7], "centro": [0, 0, -350]}
+    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2000.0, 2500.0, 700.0],
+           "centro": [0, 0, -350]}
     xc0, xc1, *_ = tk._aabb_federado(sap, "concreto")
-    assert (xc1 - xc0) == 2000.0
+    assert (xc1 - xc0) == 2000.0                                     # 2 m, nao 2 mm
 
 
 def test_aabb_caixa_instalacao_em_mm():
@@ -109,10 +113,17 @@ def test_clash_so_entre_disciplinas_diferentes():
     assert rep["OK"] is (rep["n_clashes"] == 0)
 
 
-def test_clash_ordenado_por_volume_desc():
+def test_clash_ordenado_revisar_primeiro_e_volume_desc_dentro_do_grupo():
+    # a ordenacao do modulo e (esperado, -volume): quem PRECISA de revisao vem
+    # primeiro, e dentro de cada grupo os maiores. O teste antigo checava ordem
+    # global por volume e so passava porque este fixture nunca tinha revisar -
+    # ate G7 endireitar o pilar e o clash real aparecer.
     rep = tk.checa_interferencia_federada(tk.rodar(_spec()), _spec())
-    vols = [c["vol_mm3"] for c in rep["clashes"]]
-    assert vols == sorted(vols, reverse=True)             # maiores primeiro
+    esperados = [c["esperado"] for c in rep["clashes"]]
+    assert esperados == sorted(esperados)                 # False (revisar) antes
+    for grupo in (rep["revisar"], rep["esperados"]):
+        vols = [c["vol_mm3"] for c in grupo]
+        assert vols == sorted(vols, reverse=True)
 
 
 def test_clash_pega_spda_vs_estrutura():
@@ -120,7 +131,10 @@ def test_clash_pega_spda_vs_estrutura():
     rep = tk.checa_interferencia_federada(tk.rodar(_spec()), _spec())
     tipos = {c["tipos"] for c in rep["clashes"]}
     assert any("Cable" in t or "Earthing" in t for t in tipos)
-    assert all(c["disciplinas"] == "concretoxeletrico" for c in rep["clashes"])
+    # o SPDA x estrutura e sempre concretoxeletrico e ESPERADO
+    spda = [c for c in rep["clashes"] if "Cable" in c["tipos"] or "Earthing" in c["tipos"]]
+    assert spda and all(c["disciplinas"] == "concretoxeletrico" and c["esperado"]
+                        for c in spda)
 
 
 def test_vol_min_filtra_grazes():
@@ -139,11 +153,16 @@ def test_relatorio_clash_pt_cita_triagem():
 
 
 def test_triagem_esperado_x_revisar():
-    # o galpao concreto+eletrico so tem SPDA/aterramento x estrutura -> TODOS esperados
     rep = tk.checa_interferencia_federada(tk.rodar(_spec()), _spec())
     assert rep["n_clashes"] == rep["n_esperado"] + rep["n_revisar"]
-    assert rep["n_revisar"] == 0 and rep["n_esperado"] == rep["n_clashes"]
-    assert rep["OK_revisar"] is True and all(c["esperado"] for c in rep["clashes"])
+    assert rep["OK_revisar"] is (rep["n_revisar"] == 0)
+    # G7: com o pilar na orientacao certa (hx = 50 cm no plano do portico, nao 25),
+    # o acionador manual de alarme passa a penetrar o pilar P4E - clash REAL que a
+    # secao girada escondia. E' candidato a REVISAR (nao esta em INSTALACAO_FIXA),
+    # que e exatamente o que a triagem deve fazer com ele.
+    revisar = rep["revisar"]
+    assert len(revisar) == 1 and revisar[0]["tipos"] == "ColumnxManualCall"
+    assert revisar[0]["disciplinas"] == "concretoxincendio"
     # a classificacao: aterramento/SPDA (Cable/Earthing) x estrutura = esperado
     assert tk._clash_esperado("Column", "Cable") and tk._clash_esperado("Footing", "Earthing")
     # eletrocalha (CableCarrier) e equipamento x estrutura = REVISAR

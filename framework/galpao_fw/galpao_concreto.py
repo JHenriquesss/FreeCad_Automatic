@@ -350,8 +350,10 @@ def rodar(spec):
 
 def membros_bim(r):
     """Constroi a lista de membros BIM (para ifc_emit.emitir_ifc) a partir do
-    resultado de rodar(). Convencao do emissor: COORDENADAS em mm, dims de secao em
-    m. Eixos: X = vao (largura), Y = comprimento, Z = altura. Pilares (RECT, do
+    resultado de rodar(). Convencao do emissor (ifc_emit): COORDENADAS em mm, dims
+    de secao (bf/d) em m e dims de CAIXA (sapata) em mm - a caixa vai crua para o
+    IfcRectangleProfileDef, entao emiti-la em metros gerava uma sapata 1000x menor
+    no IFC (achado do G8, medindo a bbox real do IfcFooting). Eixos: X = vao (largura), Y = comprimento, Z = altura. Pilares (RECT, do
     fundo z=0 ao topo z=H), viga de cobertura (RECT, no topo) por portico, e sapata
     (caixa) sob cada pilar. Material 'Concreto Cxx' -> IfcMaterial no IFC."""
     sp = r["spec"]
@@ -363,7 +365,10 @@ def membros_bim(r):
     s = comp / (n - 1)
     xL, xR = -vao / 2.0 * 1000.0, vao / 2.0 * 1000.0            # mm
     zt = H * 1000.0
-    sec_pil = {"forma": "RECT", "bf": hy, "d": hx}
+    # bf ocupa o eixo X global e d o eixo Y (ver _aabb e o emissor IFC). hx e a
+    # dimensao no PLANO DO PORTICO (// vao = X); hy e a longitudinal (Y). Invertido,
+    # o pilar entrava no BIM/3D/clash girado 90 graus - o eixo forte fora do plano.
+    sec_pil = {"forma": "RECT", "bf": hx, "d": hy}
     sec_vig = {"forma": "RECT", "bf": vb, "d": vh}
     # quantitativo de armadura (vira Pset_Armadura no IFC) por tipo de peca
     arm_pil = {"As_long_cm2": r["pilar"].get("As_cm2", 0.0),
@@ -390,11 +395,16 @@ def membros_bim(r):
                             "armadura": arm_pil})
             if sap:
                 membros.append({"tipo": "Footing", "perfil": f"S{B:.1f}x{L:.1f}",
-                                "marca": f"SAP{j+1}{lado}", "dims": [B, L, hf],
+                                "marca": f"SAP{j+1}{lado}",
+                                "dims": [B * 1000.0, L * 1000.0, hf * 1000.0],
                                 "centro": [x, y, -hf / 2.0 * 1000.0],
                                 "material": mat_conc})
+        # ancoragem 'base': p1/p2 e' a FACE INFERIOR da viga, que se apoia no topo
+        # do pilar (z = zt) e sobe vh. Declarado porque o emissor IFC centra o
+        # perfil no eixo por padrao - sem esta chave, o IFC enterrava meia viga
+        # dentro do pilar e discordava do 3D do FreeCAD em vh/2.
         membros.append({"tipo": "Beam", "perfil": f"V{vb*100:.0f}x{vh*100:.0f}",
-                        "marca": f"VC{j+1}", "secao": sec_vig,
+                        "marca": f"VC{j+1}", "secao": sec_vig, "ancoragem": "base",
                         "p1": [xL, y, zt], "p2": [xR, y, zt], "material": mat_conc,
                         "armadura": arm_vig})
     return membros
@@ -403,8 +413,8 @@ def membros_bim(r):
 def _aabb(mb):
     """Caixa envolvente (AABB) de um membro do membros_bim, em mm:
     (x0,x1,y0,y1,z0,z1). Barra (p1/p2 + secao RECT) ou caixa (dims/centro)."""
-    if "dims" in mb and "centro" in mb:                # footing (caixa, dims em m)
-        B, L, h = [d * 1000.0 for d in mb["dims"]]
+    if "dims" in mb and "centro" in mb:               # footing (caixa, dims em mm)
+        B, L, h = mb["dims"]
         cx, cy, cz = mb["centro"]
         return (cx - B / 2, cx + B / 2, cy - L / 2, cy + L / 2, cz - h / 2, cz + h / 2)
     p1, p2 = mb["p1"], mb["p2"]                         # barra (secao RECT em m)

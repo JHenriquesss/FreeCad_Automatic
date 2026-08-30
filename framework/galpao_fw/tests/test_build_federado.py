@@ -38,14 +38,15 @@ def test_solidos_classifica_e_escala():
         {"marca": "E-HASTE", "tipo": "Earthing", "p1": [0, 0, -500], "p2": [0, 0, -3500],
          "secao": {"forma": "ROUND", "D": 0.016}},
         {"marca": "I-SPK", "tipo": "Sprinkler", "dims": [100, 100, 100], "centro": [0, 0, 5800]},
-        {"marca": "C-SAP", "tipo": "Footing", "dims": [2.0, 2.5, 0.7], "centro": [0, 0, -350]},
+        {"marca": "C-SAP", "tipo": "Footing", "dims": [2000.0, 2500.0, 700.0],
+         "centro": [0, 0, -350]},
         {"marca": "A-PANEL", "tipo": "Cladding", "poligono": [(0, 0, 0)]},   # ignorado
     ]
     sols = {s["name"]: s for s in bf.solidos(membros)}
     assert set(sols) == {"C-P1", "E-HASTE", "I-SPK", "C-SAP"}     # painel/cladding fora
     assert sols["C-P1"]["kind"] == "bar_rect" and sols["C-P1"]["comprimento_mm"] == 6000
     assert sols["E-HASTE"]["kind"] == "bar_round"
-    # caixa estrutural em METROS (x1000): sapata 2x2.5x0.7 m -> 3.5 m3
+    # caixa em MM em toda disciplina (G8): sapata 2000x2500x700 mm -> 3.5 m3
     assert sols["C-SAP"]["kind"] == "box"
     assert abs(sols["C-SAP"]["vol_m3"] - 3.5) < 1e-9
     # caixa de instalacao em MM: sprinkler 100^3 mm = 1e-3 m3
@@ -68,18 +69,20 @@ def test_por_disciplina_conta_e_soma():
     assert all(v["n"] > 0 and v["vol_m3"] >= 0 for v in por.values())
 
 
-def test_caixa_aco_em_mm_nao_metros():
-    # REGRESSAO (item 3): caixa do aco (Footing/Plate) ja em MM -> escala x1. O bug x1000
-    # dava um bloco de km e um solido gigante que interferia com tudo no build federado.
+def test_caixa_em_mm_em_toda_disciplina():
+    # REGRESSAO das DUAS metades da divergencia historica de unidade: o bug x1000
+    # dava um bloco de km que interferia com tudo no build federado, e o oposto
+    # encolhia a sapata do concreto para milimetros. Uma unidade so (mm).
     bloco = {"marca": "A-BLO1", "tipo": "Footing", "dims": [2500.0, 3000.0, 2350.0],
              "centro": [0.0, 0.0, -1175.0]}
     s = bf.solidos([bloco])[0]
     assert s["kind"] == "box" and s["dims"] == (2500.0, 3000.0, 2350.0)
     assert abs(s["vol_m3"] - (2.5 * 3.0 * 2.35)) < 1e-6         # ~17.6 m3, nao 1e9 m3
-    # concreto continua em metros (x1000)
-    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2.0, 2.5, 0.7], "centro": [0, 0, -350]}
+    sap = {"marca": "C-SAP", "tipo": "Footing", "dims": [2000.0, 2500.0, 700.0],
+           "centro": [0, 0, -350]}
     sc = bf.solidos([sap])[0]
     assert sc["dims"] == (2000.0, 2500.0, 700.0)
+    assert abs(sc["vol_m3"] - 3.5) < 1e-9                       # 3,5 m3, nao 3,5e-9
 
 
 def test_barra_comprimento_zero_ignorada():

@@ -40,7 +40,7 @@ from residencial_eletrica import run_residential_electrical
 
 ADAPTER_NAME = "casa-residencial"
 DISCIPLINES = ("arquitetura", "eletrico", "hidraulica")
-DELIVERABLES = ("report", "drawings")
+DELIVERABLES = ("report", "drawings", "ifc", "model_3d")
 SCHEMA = "freecad-automatic/residential-house-result"
 SCHEMA_VERSION = 1
 # 'lighting' conta para o ponto de luz de 9.5.2.1.1; 'tug' conta para os pontos
@@ -452,6 +452,208 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     }
 
 
+def layout_arquitetonico(turnkey, result):
+    """De onde sai o layout da casa, e com que PROVENIENCIA.
+
+    Prioridade:
+      1. `turnkey.arquitetura.layout` - a declaracao do proprio arquiteto;
+      2. os comodos do layout ELETRICO ja validado - que a eletrica exige para
+         posicionar pontos de circuito, e que descrevem a MESMA casa.
+
+    A segunda fonte e' reuso, nao invencao: o retangulo veio do projetista, so
+    que declarado noutra secao do spec. Mas a proveniencia viaja junto ate o
+    manifesto, porque um layout que a arquitetura nao declarou nao pode ser
+    lido como se ela o tivesse declarado. Seja qual for a fonte, o retangulo
+    ainda tem de reproduzir area e perimetro do programa (`validar_layout`).
+    """
+    arquitetura = turnkey.get("arquitetura")
+    if isinstance(arquitetura, dict) and arquitetura.get("layout") is not None:
+        return arquitetura["layout"], "arquitetura.layout"
+    validacao = (((result or {}).get("eletrico") or {}).get("circuits")
+                 or {}).get("layout_validation") or {}
+    if validacao.get("ok") and isinstance(validacao.get("layout"), dict):
+        eletrico = validacao["layout"]
+        return {"units": eletrico.get("units"),
+                "rooms": copy.deepcopy(eletrico.get("rooms") or [])}, \
+               "eletrico.circuits.layout"
+    return None, None
+
+
+def _emitir_ifc(manifest, run_dir, normalized, options, result):
+    """Hook BIM: IFC4 da ARQUITETURA (ambientes + piso + paredes declaradas).
+
+    O modelo da casa nunca existiu porque o programa declara area e perimetro,
+    nao posicoes - e desenhar comodos em posicoes inventadas seria pior que nao
+    desenhar. O que destrava o BIM e' o LAYOUT declarado; sem ele o entregavel
+    fica not_available com o motivo escrito, nunca um IFC vazio.
+    """
+    from pathlib import Path
+
+    import bim_casa_residencial as bim
+    from project_loop import _add_artifact
+
+    if not options.generate_ifc:
+        manifest["deliverables"]["ifc"] = {"status": "not_requested"}
+        return
+    arquitetura = result.get("arquitetura") if isinstance(result, dict) else None
+    if not isinstance(arquitetura, dict) or not arquitetura:
+        manifest["deliverables"]["ifc"] = {
+            "status": "not_available",
+            "detail": "arquitetura nao calculada; sem programa para modelar"}
+        return
+    turnkey = normalized.get("turnkey_spec")
+    turnkey = turnkey if isinstance(turnkey, dict) else {}
+    layout, proveniencia = layout_arquitetonico(turnkey, result)
+    if layout is None:
+        manifest["deliverables"]["ifc"] = {
+            "status": "not_available",
+            "detail": "nenhum layout de ambientes declarado (arquitetura.layout "
+                      "ou o layout do projeto eletrico): sem posicao nao ha "
+                      "modelo honesto a emitir"}
+        return
+    try:
+        import ifc_emit
+        if not ifc_emit.disponivel():
+            manifest["deliverables"]["ifc"] = {
+                "status": "not_available", "detail": "ifcopenshell ausente"}
+            return
+        validacao = bim.validar_layout(layout, arquitetura)
+        if not validacao["ok"]:
+            manifest["deliverables"]["ifc"] = {
+                "status": "blocked",
+                "detail": "o layout nao confere com o programa de ambientes",
+                "layout_origem": proveniencia,
+                "errors": validacao["errors"]}
+            return
+        membros = bim.membros_bim(arquitetura, validacao["layout"])
+        conferencia = bim.confere_areas(arquitetura, membros)
+        solidos = bim.confere_solidos(membros)
+        destino = Path(run_dir) / "bim"
+        destino.mkdir(parents=True, exist_ok=True)
+        arquivo = destino / "arquitetura-residencial.ifc"
+        escrito = bim.emitir_bim(arquitetura, validacao["layout"], str(arquivo))
+    except Exception as exc:                                # noqa: BLE001
+        manifest["deliverables"]["ifc"] = {
+            "status": "failed", "detail": _erro_entregavel(exc)}
+        return
+    if not escrito or not arquivo.is_file():
+        manifest["deliverables"]["ifc"] = {
+            "status": "not_available",
+            "detail": "nenhum elemento BIM emitido (pe-direito nao declarado?)"}
+        return
+    _add_artifact(manifest, run_dir, arquivo, "ifc", discipline="arquitetura")
+    registro = {
+        "status": ("generated" if (conferencia["ok"] and solidos["OK"])
+                   else "failed"),
+        "artifacts": ["bim/arquitetura-residencial.ifc"],
+        "layout_origem": proveniencia,
+        "n_elementos": len(membros),
+        "conferencia_areas": conferencia,
+        "interferencias": solidos["conflitos"],
+        # o que o layout NAO declarou fica dito, em vez de sumir
+        "escopo": {
+            "ambientes": "implemented",
+            "piso": ("implemented" if validacao["layout"].get("piso_espessura_m")
+                     else "not_declared"),
+            "paredes": ("implemented" if validacao["layout"].get("paredes")
+                        else "not_declared"),
+            "esquadrias": "not_declared",
+            "estrutura": "not_available",
+        },
+    }
+    if not conferencia["ok"]:
+        registro["detail"] = ("a area dos ambientes emitidos nao reproduz o "
+                              "programa calculado")
+    elif not solidos["OK"]:
+        registro["detail"] = ("pecas declaradas se interpenetram no modelo; "
+                              "veja 'interferencias'")
+    manifest["deliverables"]["ifc"] = registro
+
+
+def _emitir_modelo_3d(manifest, run_dir, normalized, options, result):
+    """Hook 3D: solidos no FreeCAD do que TEM solido (piso e paredes).
+
+    O ambiente (IfcSpace) e' volume de uso, nao peca construida, e nao vai para
+    o 3D. Se o layout so declarou os retangulos dos comodos, nao ha nenhum
+    solido a montar - e o entregavel diz isso, em vez de gerar um FCStd vazio.
+    """
+    from pathlib import Path
+
+    import bim_casa_residencial as bim
+    from project_loop import _add_artifact
+
+    if not options.generate_3d:
+        manifest["deliverables"]["model_3d"] = {"status": "not_requested"}
+        return
+    arquitetura = result.get("arquitetura") if isinstance(result, dict) else None
+    turnkey = normalized.get("turnkey_spec")
+    turnkey = turnkey if isinstance(turnkey, dict) else {}
+    layout, proveniencia = layout_arquitetonico(turnkey, result)
+    if not isinstance(arquitetura, dict) or layout is None:
+        manifest["deliverables"]["model_3d"] = {
+            "status": "not_available",
+            "detail": "sem arquitetura calculada ou sem layout declarado"}
+        return
+    validacao = bim.validar_layout(layout, arquitetura)
+    if not validacao["ok"]:
+        manifest["deliverables"]["model_3d"] = {
+            "status": "blocked",
+            "detail": "o layout nao confere com o programa de ambientes",
+            "layout_origem": proveniencia,
+            "errors": validacao["errors"]}
+        return
+    membros = [m for m in bim.membros_bim(arquitetura, validacao["layout"])
+               if m["tipo"] != "Space"]
+    if not membros:
+        manifest["deliverables"]["model_3d"] = {
+            "status": "not_available",
+            "detail": "o layout declara ambientes mas nenhum solido (piso ou "
+                      "parede); nao ha 3D a montar",
+            "layout_origem": proveniencia}
+        return
+    destino = Path(run_dir) / "model"
+    destino.mkdir(parents=True, exist_ok=True)
+    try:
+        saida = bim.montar_3d(
+            membros, str(destino),
+            doc_name=str(normalized.get("project_id") or "casa"),
+            timeout=options.timeout_seconds)
+    except Exception as exc:                                # noqa: BLE001
+        manifest["deliverables"]["model_3d"] = {
+            "status": "failed", "detail": _erro_entregavel(exc)}
+        return
+    if not isinstance(saida, dict) or saida.get("erro"):
+        motivo = (saida or {}).get("erro", "o build nao devolveu resultado")
+        indisponivel = any(t in str(motivo).lower() for t in
+                           ("nao encontrado", "indisponivel", "ausente"))
+        manifest["deliverables"]["model_3d"] = {
+            "status": "not_available" if indisponivel else "failed",
+            "detail": motivo}
+        return
+    modelo = saida.get("result") or {}
+    artefatos = []
+    for chave, kind in (("fcstd", "model-3d"), ("step", "model-3d"),
+                        ("ifc", "ifc-freecad")):
+        caminho = modelo.get(chave)
+        if caminho and Path(caminho).is_file():
+            artefatos.append(_add_artifact(manifest, run_dir, Path(caminho), kind))
+    registro = {
+        "status": ("generated"
+                   if (artefatos and modelo.get("elementos") == len(membros)
+                       and not modelo.get("interferencias")) else "failed"),
+        "artifacts": [item["path"] for item in artefatos],
+        "layout_origem": proveniencia,
+        "n_pecas_puro": len(membros),
+        "n_pecas_freecad": modelo.get("elementos"),
+        "interferencias": modelo.get("interferencias"),
+        "interferencias_lista": modelo.get("interferencias_lista"),
+    }
+    if registro["status"] == "failed":
+        registro["detail"] = ("o 3D diverge do modelo puro ou acusa "
+                              "interpenetracao entre pecas declaradas")
+    manifest["deliverables"]["model_3d"] = registro
+
+
 def register_casa_residencial_adapter() -> None:
     """Registra o adaptador residencial real no Project Loop."""
     from project_loop import register_adapter
@@ -462,5 +664,7 @@ def register_casa_residencial_adapter() -> None:
         project_types=("residencial",),
         disciplines=DISCIPLINES,
         deliverables=DELIVERABLES,
-        hooks={"drawings": _emitir_desenhos},
+        hooks={"drawings": _emitir_desenhos,
+               "ifc": _emitir_ifc,
+               "model_3d": _emitir_modelo_3d},
     )
