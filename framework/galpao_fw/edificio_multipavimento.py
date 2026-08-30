@@ -146,6 +146,7 @@ def rodar(spec):
     # -------------------------------------------------------------- PILARES
     pilares = {}
     erros_pilar = []
+    secoes_base = []
     for nome in sorted(desc["pilares"]):
         lances = dc.lances_para_pilar(desc, nome)
         escolhidos, erros = dimensiona_pilar_continuo(lances, fck, fyk)
@@ -154,6 +155,7 @@ def rodar(spec):
             r = dict(r, OK=False)
             r["erros"] = list(r["erros"]) + erros
         pilares[nome] = r
+        secoes_base.append((escolhidos[-1]["b"], escolhidos[-1]["h"]))
         if not r["OK"]:
             erros_pilar.append(nome)
 
@@ -188,6 +190,36 @@ def rodar(spec):
             pav, os.path.join(spec["out_dir"], "planta-formas-pavimento-tipo.svg"),
             descida=desc)
 
+    # ------------------------------------------- ESTABILIDADE HORIZONTAL
+    # Fecha os itens 1 e 2 da secao 10 da REVISAO-G3. So roda quando o vento e'
+    # declarado: sem Ca (abaco da Fig.4 da NBR 6123) nao ha o que calcular, e
+    # arbitrar um valor seria inventar acao de projeto.
+    estabilidade = None
+    if spec.get("vento"):
+        import estabilidade_edificio as ee
+        # carga vertical caracteristica de cada pavimento, da BASE para o topo
+        montados = {}
+        for pv in spec["pavimentos"]:
+            uso = pv["uso"]
+            if uso not in montados:
+                montados[uso] = (pav if por_uso[uso] is por_uso[
+                    spec["pavimentos"][-1]["uso"]] else pt.monta(por_uso[uso]))
+        cargas_k = [montados[pv["uso"]]["N_total_k"]
+                    for pv in reversed(spec["pavimentos"])]
+        # Secao do portico global: a MENOR das secoes adotadas no lance da base.
+        # E' a escolha conservadora (menor rigidez -> maior gamma_z e maior
+        # deslocamento); o modelo de portico plano usa uma secao unica.
+        b_min, h_min = min(secoes_base, key=lambda s: s[0] * s[1] ** 3)
+        estabilidade = ee.verifica({
+            "geometria": geo, "n_pavimentos": len(pavs),
+            "materiais": {"fck": fck},
+            "secoes": {"pilar": {"b": b_min, "h": h_min},
+                       "viga": {"b": viga.get("b", 0.20),
+                                "h": viga.get("h", 0.50)}},
+            "cargas_verticais_kN": cargas_k,
+            "lajes_lisas": bool(spec.get("lajes_lisas")),
+            "vento": spec["vento"]})
+
     # ---------------------------------------------------------------- GATES
     gates = {
         "fechamento_carga": {"OK": fech["ok"], "erro_rel": fech["erro_rel"],
@@ -204,12 +236,21 @@ def rodar(spec):
     }
     if r_escada is not None:
         gates["escada"] = {"OK": r_escada["OK"]}
+    if estabilidade is not None:
+        gates["estabilidade_horizontal"] = {
+            "OK": bool(estabilidade["OK"]),
+            "gamma_z": estabilidade["gamma_z"]["gamma_z"],
+            "nos": estabilidade["gamma_z"]["nos"],
+            "direcao_critica": estabilidade["direcao_critica"],
+            "els_OK": estabilidade["els_OK"],
+            "H_sobre_u_topo": estabilidade["els"]["H_sobre_u"]}
 
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
         "laje": r_laje, "vigas": vigas, "escada": r_escada, "planta": planta,
+        "estabilidade": estabilidade,
         "n_pavimentos": len(pavs),
         "N_base_max_k": max(p["N_base_k"] for p in pilares.values()),
         "registro_6120": desc["registro_6120"],
@@ -247,6 +288,12 @@ def relatorio_pt(r):
     if "escada" in g:
         L.append("  ESCADA DE CONCRETO: %s" % ("ATENDE" if g["escada"]["OK"]
                                                else "REPROVA"))
+    if "estabilidade_horizontal" in g:
+        eh = g["estabilidade_horizontal"]
+        L.append("  ESTABILIDADE HORIZONTAL: gamma_z = %.3f (%s, direcao %s) ; "
+                 "ELS topo H/%.0f -> %s"
+                 % (eh["gamma_z"], "nos " + eh["nos"], eh["direcao_critica"],
+                    eh["H_sobre_u_topo"], "ATENDE" if eh["OK"] else "REPROVA"))
     L += ["", "  PILAR MAIS CARREGADO: N = %.1f kN na base" % r["N_base_max_k"], ""]
     L.append("%-8s %-13s %12s %14s" % ("PILAR", "POSICAO", "N_base(kN)", "SECAO BASE"))
     L.append("  " + "-" * 52)
@@ -259,7 +306,10 @@ def relatorio_pt(r):
     if r.get("planta"):
         L += ["", "  Planta de formas: %s" % r["planta"]]
     L += ["", "  RESULTADO GLOBAL: %s"
-          % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"])),
-          "  [A CONFIRMAR: alvenaria ESTRUTURAL nao dimensionada (NBR 16868 ausente",
-          "   do acervo); estabilidade global do multipavimento em aberto.]"]
+          % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"]))]
+    if "estabilidade_horizontal" not in g:
+        L.append("  [ACAO HORIZONTAL NAO AVALIADA: sem 'vento' no spec a descida e'")
+        L.append("   apenas GRAVITACIONAL - vento, desaprumo, gamma_z e ELS ficam de fora.]")
+    L += ["  [A CONFIRMAR: alvenaria ESTRUTURAL nao dimensionada (NBR 16868 ausente",
+          "   do acervo); fundacao e vibracao de piso fora do escopo deste modulo.]"]
     return "\n".join(L)

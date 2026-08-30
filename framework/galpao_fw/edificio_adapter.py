@@ -48,15 +48,23 @@ SCHEMA_VERSION = 1
 # de digitacao do spec, acima e' outro predio.
 TOL_ENVELOPE_M = 0.010
 
-# Itens abertos do G3. Ficam aqui para que o manifesto os PUBLIQUE em vez de
-# omiti-los - ausencia silenciosa e' o que este framework trata como bug.
+# Itens que este adaptador ainda NAO cobre em nenhuma hipotese. Ficam aqui para
+# que o manifesto os PUBLIQUE em vez de omiti-los - ausencia silenciosa e' o que
+# este framework trata como bug.
 ESCOPO_NAO_COBERTO = (
-    "vento",
-    "desaprumo",
-    "estabilidade_global",
     "alvenaria_estrutural",
     "fundacao",
     "vibracao_piso",
+)
+
+# Estes tres dependem do vento estar declarado no spec. Com Ca declarado saem
+# calculados; sem ele continuam not_available, porque o Ca da NBR 6123 e' abaco
+# e arbitrar um valor seria inventar acao de projeto.
+ESCOPO_DEPENDE_DO_VENTO = (
+    "vento",
+    "desaprumo",
+    "estabilidade_global",
+    "deslocamento_lateral_els",
 )
 
 
@@ -67,19 +75,21 @@ def _erro(code: str, detail: str, **ctx: Any) -> dict[str, Any]:
     return registro
 
 
-def _escopo() -> dict[str, str]:
+def _escopo(com_vento: bool = False) -> dict[str, str]:
     escopo = {"superestrutura": "implemented",
               "aprovacao_legal": "not_claimed",
               "construction_readiness": "not_claimed"}
     for chave in ESCOPO_NAO_COBERTO:
         escopo[chave] = "not_available"
+    for chave in ESCOPO_DEPENDE_DO_VENTO:
+        escopo[chave] = "implemented" if com_vento else "not_available"
     return escopo
 
 
-def _registro(status: str, **campos: Any) -> dict[str, Any]:
+def _registro(status: str, com_vento: bool = False, **campos: Any) -> dict[str, Any]:
     registro = {"status": status, "native_atende": None, "reprovados": [],
                 "gates": {}, "warnings": [], "artifacts": [],
-                "scope": _escopo(), "errors": []}
+                "scope": _escopo(com_vento), "errors": []}
     registro.update(campos)
     return registro
 
@@ -186,24 +196,25 @@ def _spec_do_calculo(estrutura: dict) -> dict[str, Any]:
         "materiais": copy.deepcopy(estrutura["materiais"]),
     }
     for opcional in ("laje", "viga", "parede_sobre_vigas",
-                     "parede_sem_posicao_pp", "escada"):
+                     "parede_sem_posicao_pp", "escada", "vento", "lajes_lisas"):
         if estrutura.get(opcional) is not None:
             calculo[opcional] = copy.deepcopy(estrutura[opcional])
     return calculo
 
 
 def _registro_estrutura(estrutura: Any, turnkey: dict):
+    com_vento = isinstance(estrutura, dict) and bool(estrutura.get("vento"))
     erros = _erros_de_forma(estrutura)
     if erros:
-        return _registro("blocked", errors=erros), None
+        return _registro("blocked", com_vento, errors=erros), None
     erros = _erros_de_envelope(estrutura, turnkey)
     if erros:
-        return _registro("blocked", errors=erros), None
+        return _registro("blocked", com_vento, errors=erros), None
 
     try:
         resultado = em.rodar(_spec_do_calculo(estrutura))
     except Exception as exc:                                # noqa: BLE001
-        return _registro("failed", errors=[_erro(
+        return _registro("failed", com_vento, errors=[_erro(
             "structure_run_failed", "%s: %s" % (type(exc).__name__, exc))]), None
 
     avisos = []
@@ -214,9 +225,21 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
                             reprovados=list(resultado["reprovados"])))
     # A reducao de 6.12 e' exigencia normativa de REGISTRO, nao depuracao.
     avisos.append(_erro("reducao_6120_registrada", resultado["registro_6120"]))
+    if not com_vento:
+        avisos.append(_erro(
+            "acao_horizontal_nao_avaliada",
+            "estrutura.vento nao foi declarado: vento, desaprumo, gamma_z e "
+            "deslocamento lateral nao foram avaliados. A descida e' apenas "
+            "GRAVITACIONAL e o resultado nao fecha a estabilidade do edificio"))
+    estab = resultado.get("estabilidade")
+    if estab and estab["por_direcao"]["x"]["desaprumo"]["saturou"]:
+        avisos.append(_erro(
+            "desaprumo_saturou",
+            "theta_1 saturou em %s (11.3.3.4.1)"
+            % estab["por_direcao"]["x"]["desaprumo"]["saturou"]))
 
     registro = _registro(
-        "needs_review",
+        "needs_review", com_vento,
         native_atende=bool(resultado["ATENDE"]),
         reprovados=list(resultado["reprovados"]),
         gates=copy.deepcopy(resultado["gates"]),
@@ -258,7 +281,8 @@ def run_edificio(normalized, run_dir, preflight=None):
         "project_id": normalized.get("project_id"),
         "disciplines": disciplinas,
         "estrutura": copy.deepcopy(resultado_estrutura),
-        "scope": _escopo(),
+        "scope": _escopo(bool(isinstance(turnkey.get("estrutura"), dict)
+                             and turnkey["estrutura"].get("vento"))),
     }
     resultado["status"] = ("blocked" if any(
         r["status"] == "blocked" for r in registros.values()) else "needs_review")

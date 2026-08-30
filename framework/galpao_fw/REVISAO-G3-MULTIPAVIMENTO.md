@@ -274,15 +274,35 @@ ordenando cada par com a borda engastada primeiro.
 
 ## 10. O que fica aberto
 
-1. **Estabilidade global do multipavimento.** `estabilidade_global_nbr6118.alpha_limite`
-   ja trata `n_andares >= 4`, e `galpao_concreto` ja nao passa mais `n_andares=1`
-   por acidente no caminho do galpao - mas NADA alimenta ainda o `gamma_z` com um
-   `dM_tot_d` vindo de uma analise de multiplos pavimentos. O `estabilidade_b1b2`
-   continua amarrado a um pavimento. Este e o proximo item natural.
-2. **Vento no edificio multipavimento**: a descida de cargas implementada e
-   GRAVITACIONAL. Os momentos de 1a ordem que o `pilar_continuo` aceita vem do
-   engastamento parcial das vigas (14.6.6.1-c); falta a parcela de vento por
-   pavimento e o desaprumo (11.3.3.4.1).
+1. ~~**Estabilidade global do multipavimento.**~~ **FECHADO** (2026-08-30,
+   `estabilidade_edificio.py`): o `gamma_z` passa a sair de uma analise de
+   portico plano de 1a ordem com a rigidez de 15.7.3 (0,8 Ec Ic pilares,
+   0,4 Ec Ic vigas, Ec = 1,10 Ecs por 15.5.1). O `estabilidade_b1b2` continua
+   amarrado a um pavimento, mas ja nao e' o caminho do edificio.
+2. ~~**Vento no edificio multipavimento**~~ **FECHADO** (mesma data): vento por
+   pavimento pela NBR 6123 (Fa = Ca q Ae, com q recalculado em cada cota pelo
+   S2) e desaprumo pela 11.3.3.4.1, combinados pela regra a/b/c dos 30 %.
+
+   Tres coisas que a implementacao obrigou a decidir, e que valem registro:
+
+   - **Ca e' ABACO.** As Figuras 4 e 5 da NBR 6123 nao tem tabela de numeros -
+     confirmado no acervo. Digitalizar curva de imagem foi o que produziu as 6
+     celulas erradas nas tabelas de Bares e e' o motivo do shed multi-vao seguir
+     bloqueado. Ca virou ENTRADA declarada, com proveniencia A CONFIRMAR; sem
+     ele o modulo levanta ValueError em vez de arbitrar.
+   - **A comparacao dos 30 % usa theta_a SEM theta_1min.** Sutileza literal da
+     11.3.3.4.1 que passaria batido: o theta_1min entra no dimensionamento do
+     caso (b), nao na comparacao.
+   - **A rigidez de 15.7.3 e' exclusiva do ELU.** 14.6.4.1 manda Ecs com secao
+     BRUTA para o ELS, e 16.2.4 diz que os modelos de ELS "tem rigidez
+     diferente, usualmente maior".
+
+2b. **ELS de deslocamento lateral - gap que nao estava nesta lista.** Com o topo
+   em H/619 no ELU, a verificacao de servico foi conferida e faltava inteira:
+   Tabela 13.3 limita H/1700 no topo e Hi/850 entre pavimentos, na combinacao
+   FREQUENTE (psi_1 = 0,30), com a Nota f mandando excluir a deformacao axial
+   dos pilares. Implementado junto. E' o mesmo padrao do "girt sem ELS": o
+   gamma_z sozinho declararia OK um predio que balanca demais.
 3. **Contraventamento longitudinal do galpao de concreto** (ver secao 5).
 4. **Alvenaria estrutural**: bloqueada por fonte (NBR 16868 ausente do acervo).
 5. **Pilar de transicao**: a descida exige a mesma malha em toda a altura, e reprova

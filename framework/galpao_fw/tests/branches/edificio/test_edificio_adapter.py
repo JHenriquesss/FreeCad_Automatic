@@ -100,12 +100,46 @@ def test_nenhuma_disciplina_e_marcada_passed(execucao):
 
 
 def test_o_escopo_declara_o_que_ainda_nao_e_calculado(execucao):
-    """Os itens abertos do REVISAO-G3 aparecem como estado, nao como silencio."""
+    """O que segue fora do adaptador aparece como estado, nao como silencio."""
+    manifesto, _ = execucao
+    escopo = manifesto["disciplines"]["estrutura"]["scope"]
+    for chave in ("alvenaria_estrutural", "fundacao", "vibracao_piso"):
+        assert escopo[chave] == "not_available", chave
+
+
+def test_com_vento_declarado_a_acao_horizontal_sai_calculada(execucao):
+    """Fecha os itens 1 e 2 da secao 10 do REVISAO-G3."""
     manifesto, _ = execucao
     escopo = manifesto["disciplines"]["estrutura"]["scope"]
     for chave in ("vento", "desaprumo", "estabilidade_global",
-                  "alvenaria_estrutural", "fundacao", "vibracao_piso"):
+                  "deslocamento_lateral_els"):
+        assert escopo[chave] == "implemented", chave
+
+
+def test_sem_vento_a_acao_horizontal_volta_a_not_available(spec):
+    """Sem Ca (abaco da Fig.4) nao se arbitra acao: o escopo tem de recuar, e o
+    resultado tem de DIZER que a descida ficou apenas gravitacional."""
+    sem_vento = json.loads(json.dumps(spec))
+    del sem_vento["turnkey"]["estrutura"]["vento"]
+    normalizado = normalize_spec(sem_vento)
+    normalizado["requested_disciplines"] = ["estrutura"]
+
+    _, registros = ea.run_edificio(normalizado, None)
+
+    escopo = registros["estrutura"]["scope"]
+    for chave in ("vento", "desaprumo", "estabilidade_global"):
         assert escopo[chave] == "not_available", chave
+    assert any(a["code"] == "acao_horizontal_nao_avaliada"
+               for a in registros["estrutura"]["warnings"])
+
+
+def test_o_gate_de_estabilidade_horizontal_chega_ao_manifesto(execucao):
+    manifesto, _ = execucao
+    gate = manifesto["disciplines"]["estrutura"]["gates"]["estabilidade_horizontal"]
+    assert gate["nos"] in ("fixos", "moveis")
+    assert 1.0 < gate["gamma_z"] <= 1.3
+    assert gate["els_OK"] is True
+    assert gate["direcao_critica"] in ("x", "y")
 
 
 def test_os_gates_do_g3_chegam_ao_manifesto(execucao):

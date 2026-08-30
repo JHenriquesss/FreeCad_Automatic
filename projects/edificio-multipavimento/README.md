@@ -47,12 +47,49 @@ manifesto os publique em vez de omiti-los (itens abertos da seção 10 de
 
 | Item | Situação |
 | --- | --- |
-| `vento` | a descida implementada é gravitacional; falta a parcela por pavimento |
-| `desaprumo` | 11.3.3.4.1 não entra nos esforços |
-| `estabilidade_global` | nada alimenta γz com `dM_tot_d` de múltiplos pavimentos |
 | `alvenaria_estrutural` | bloqueada por fonte — NBR 16868 ausente do acervo |
 | `fundacao` | a descida entrega `N_base`; ninguém a dimensiona aqui |
 | `vibracao_piso` | aberto desde a auditoria de gaps do G2 |
+
+## Ação horizontal
+
+`turnkey.estrutura.vento` é opcional, mas sem ele o escopo recua: `vento`,
+`desaprumo`, `estabilidade_global` e `deslocamento_lateral_els` voltam a
+`not_available`, e o resultado emite `acao_horizontal_nao_avaliada` dizendo que
+a descida ficou apenas gravitacional. Declarado, saem calculados:
+
+- **vento por pavimento** (NBR 6123 4.2.3, `Fa = Ca q Ae`), com `q` recalculado
+  em cada cota pelo `S2`, e a faixa tributária do topo valendo meio pé-direito;
+- **desaprumo** (NBR 6118 11.3.3.4.1), `θ1 = 1/(100√H)` limitado a
+  `[1/300, 1/200]`, `θa = θ1·√((1+1/n)/2)`, e a regra a/b/c dos 30 % comparada
+  pelos momentos na base — com `θa` **sem** `θ1mín`, como a norma manda;
+- **γz** (15.5.3) por análise de pórtico plano de 1ª ordem com a rigidez de
+  15.7.3 (0,8 EcIc pilares, 0,4 EcIc vigas, `Ec = 1,10 Ecs` por 15.5.1);
+- **deslocamento lateral em serviço** (Tabela 13.3): `H/1700` no topo e
+  `Hi/850` entre pavimentos, combinação frequente `ψ1 = 0,30`, com `Ecs` e
+  seção **bruta** por 14.6.4.1 — a rigidez reduzida de 15.7.3 é exclusiva do
+  ELU e usá-la aqui dobraria o deslocamento sem amparo normativo.
+
+### `ca` é entrada, não resultado
+
+O coeficiente de arrasto da NBR 6123 para edificação paralelepipédica está na
+norma **apenas como ábaco** (Figuras 4 e 5 — confirmado no acervo; não existe
+tabela de números). Digitalizar curva de imagem foi o que produziu as seis
+células erradas nas tabelas de Bares, e é o mesmo motivo pelo qual o shed
+multi-vão segue bloqueado. Então o projetista lê `Ca` da Figura 4 com `h/l1` e
+`l1/l2` e o declara; o spec marca a proveniência como `A CONFIRMAR`. Sem `Ca`
+declarado o módulo levanta `ValueError` — não arbitra.
+
+### Hipótese de distribuição
+
+O vento total de uma direção é dividido **igualmente** entre os pórticos planos
+paralelos a ela. Vale para diafragma rígido e pórticos iguais, que é o caso da
+malha ortogonal regular. Malha irregular ou núcleo rígido exige distribuição
+por rigidez, e isso não é feito aqui.
+
+O pórtico global usa **a menor** das seções adotadas no lance da base — escolha
+conservadora, já que o modelo de pórtico plano tem uma seção única e menor
+rigidez significa maior γz e maior deslocamento.
 
 Nenhuma disciplina termina `passed`: aprovação para obra exige responsável
 técnico e ART.
