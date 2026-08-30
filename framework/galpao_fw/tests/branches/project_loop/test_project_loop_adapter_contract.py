@@ -115,7 +115,9 @@ def test_galpao_capabilities_are_json_safe_and_descriptive():
         "concreto", "aco", "eletrico", "incendio",
         "climatizacao", "hidraulica"]
     assert galpao["deliverables"] == [
-        "ifc", "model_3d", "drawings", "coordination", "iteration"]
+        "ifc", "model_3d", "drawings", "coordination", "iteration",
+        "desenhos_concreto", "orcamento", "cronograma", "caderno_encargos",
+        "pacote_legal", "obras_sitio", "fotovoltaico"]
 
 
 def test_galpao_report_is_registered_as_a_native_hook(tmp_path, turnkey_fixture):

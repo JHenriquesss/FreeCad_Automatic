@@ -325,3 +325,61 @@ def _assert_universal_manifest_contract(manifest):
     assert isinstance(verification, dict)
     assert isinstance(verification["ok"], bool)
     assert isinstance(verification["errors"], list)
+
+
+# --- Decisao G10: por que a fixture sintetica continua registrada -------------
+# Ver REVISAO-G10-FIXTURE-SINTETICA.md. Ela e' o UNICO adaptador nativo sem
+# hooks, logo o unico que exerce "entregavel pedido, hook ausente ->
+# not_available e zero artefato" (test_residential_missing_hooks_...).
+# Dar-lhe um hook apagaria essa cobertura em silencio, sem quebrar nada mais.
+
+FIXTURE = "casa-residencial-sintetica"
+
+
+def _hooks_dos_adaptadores_nativos():
+    import builtin_adapters
+    import project_loop as modulo
+
+    builtin_adapters.register_builtin_adapters()
+    nativos = {"galpao", "casa-residencial", "casa-residencial-eletrica",
+               "edificio-multipavimento", FIXTURE}
+    registrados = set(modulo._PROJECT_HOOKS)
+    assert nativos <= registrados, (
+        "adaptador nativo deixou de ser registrado: %r"
+        % sorted(nativos - registrados))
+    return {nome: sorted(modulo._PROJECT_HOOKS[nome]) for nome in nativos}
+
+
+def test_a_fixture_sintetica_e_o_unico_adaptador_nativo_sem_hooks():
+    hooks = _hooks_dos_adaptadores_nativos()
+
+    assert hooks[FIXTURE] == [], (
+        "a fixture ganhou hooks %r; isso apaga a unica cobertura do caminho "
+        "sem hook do nucleo. Ver REVISAO-G10-FIXTURE-SINTETICA.md antes de "
+        "mudar." % hooks[FIXTURE])
+
+    sem_hooks = sorted(nome for nome, valor in hooks.items() if not valor)
+    assert sem_hooks == [FIXTURE], (
+        "adaptadores nativos sem hooks: %r. Se um adaptador REAL passou a nao "
+        "declarar hook nenhum, isso e' o defeito a investigar - nao a fixture."
+        % sem_hooks)
+
+
+def test_a_fixture_sintetica_se_declara_como_nao_sendo_projeto_para_obra(
+        tmp_path):
+    resultado = run_project_file(SPEC, tmp_path,
+                                 options={"generate_ifc": False})
+
+    assert resultado["adapter"] == FIXTURE
+    adaptador = json.loads(
+        (tmp_path / "reports" / "adapter-result.json").read_text(
+            encoding="utf-8"))
+    assert adaptador["synthetic_fixture"] is True
+    for registro in resultado["disciplines"].values():
+        assert any(aviso["code"] == "synthetic_fixture"
+                   for aviso in registro["warnings"]), (
+            "a fixture precisa avisar em TODA disciplina que o resultado nao "
+            "e' dimensionamento: %r" % registro["warnings"])
+    spec = json.loads(SPEC.read_text(encoding="utf-8"))
+    assert spec["project"]["description"] == (
+        "fixture de contrato; não é projeto para obra")
