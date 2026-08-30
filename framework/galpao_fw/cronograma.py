@@ -146,6 +146,23 @@ def aplica_custos(atividades, custos_por_id):
     return out
 
 
+def aviso_custeio(crono):
+    """Aviso quando so PARTE das atividades tem custo. A curva S pesa o avanco
+    fisico pelo CUSTO: com custo em poucas atividades ela chega a 100% antes do
+    fim da obra. Verdade sobre o dinheiro conhecido, MENTIRA sobre o fisico - e
+    tem que sair no ARTEFATO que a pessoa le, nao so no manifesto. '' se nao ha."""
+    ats = crono.get("atividades", [])
+    com = sum(1 for a in ats if a.get("custo"))
+    if not ats or com == 0 or com == len(ats):
+        return ""
+    fim = max((a["fim"] for a in ats if a.get("custo")), default=0)
+    return ("ATENCAO - curva S custeada em %d de %d atividades: o avanco e "
+            "ponderado pelo custo, entao ela satura em 100%% no dia %d, antes do "
+            "fim da obra (dia %d). As atividades sem custo no orcamento nao "
+            "aparecem no avanco." % (com, len(ats), fim,
+                                     crono.get("duracao_total_dias", 0)))
+
+
 def relatorio_pt(crono, cs=None):
     """Relatorio-texto do cronograma + curva S."""
     L = ["CRONOGRAMA FISICO-FINANCEIRO (4D)", "=" * 34,
@@ -163,6 +180,9 @@ def relatorio_pt(crono, cs=None):
         for p in cs["periodos"]:
             barra = "#" * int(p["avanco_fisico_pct"] / 5)
             L.append("  dia %4.0f: %5.1f%% %s" % (p["dia"], p["avanco_fisico_pct"], barra))
+        aviso = aviso_custeio(crono)
+        if aviso:
+            L.append(aviso)
     return "\n".join(L)
 
 
@@ -231,6 +251,9 @@ def curva_s_svg(crono, cs=None):
         out.append(_t(ax0 + aw + 8, yy + 4, "%d%%" % pc, 10, anchor="start", color="#999"))
     out.append(_t(W / 2, H - 24, "Custo total: R$ %s | passo %.0f dias" %
                   (f"{crono['custo_total']:,.0f}", cs["passo_dias"]), 11, color="#666"))
+    aviso = aviso_custeio(crono)
+    if aviso:
+        out.append(_t(W / 2, H - 8, aviso[:150], 10, color="#c0392b"))
     out.append("</svg>")
     return "\n".join(out)
 

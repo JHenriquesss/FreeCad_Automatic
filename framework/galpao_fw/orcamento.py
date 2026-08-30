@@ -116,7 +116,14 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT):
                       "quantidade": q, "preco_unitario": pu})
     plan = planilha(itens, bdi_pct)
     abc = curva_abc(plan)
-    return {"planilha": plan, "abc": abc, "sem_preco": sem_preco}
+    # COBERTURA: um orcamento com uma linha so PARECE um orcamento fechado. Os
+    # codigos da tabela que ficaram SEM quantitativo sao declarados - quem le sabe
+    # que o preco de venda nao cobre a obra inteira (custo omitido != custo zero).
+    orcados = {it["codigo"] for it in itens}
+    sem_quantidade = sorted(c for c in tab if c not in orcados)
+    return {"planilha": plan, "abc": abc, "sem_preco": sem_preco,
+            "sem_quantidade": sem_quantidade,
+            "cobertura_pct": round(100.0 * len(orcados) / (len(tab) or 1), 1)}
 
 
 def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):
@@ -136,6 +143,14 @@ def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):
     L.append("Curva ABC: A=%d itens (R$ %.2f) | B=%d | C=%d"
              % (r["A"]["n"], r["A"]["custo"], r["B"]["n"], r["C"]["n"]))
     L.append("[%s]" % plan["nota"])
+    faltando = res.get("sem_quantidade") or []
+    if faltando:
+        L.append("ORCAMENTO PARCIAL - %d insumo(s) da tabela SEM quantitativo nesta "
+                 "rodada (NAO entram no preco de venda): %s"
+                 % (len(faltando), ", ".join(faltando)))
+    if res.get("sem_preco"):
+        L.append("SEM PRECO NA TABELA (ha quantidade, falta custo): %s"
+                 % ", ".join(res["sem_preco"]))
     return "\n".join(L)
 
 
@@ -144,8 +159,8 @@ def _vol_membros_concreto(membros):
     import math
     vol = 0.0
     for m in membros:
-        if "dims" in m:                            # caixa (dims em m)
-            B, L, h = m["dims"]; vol += B * L * h
+        if "dims" in m:                            # caixa (dims em MM, como o emissor)
+            B, L, h = m["dims"]; vol += B * L * h / 1e9
         elif "secao" in m and "p1" in m:           # barra RECT
             bf = m["secao"].get("bf", 0.0); d = m["secao"].get("d", 0.0)
             p1, p2 = m["p1"], m["p2"]
@@ -156,8 +171,9 @@ def _vol_membros_concreto(membros):
 
 def quantitativos_de_turnkey(R):
     """Best-effort: extrai os quantitativos CLARAMENTE disponiveis no resultado de
-    galpao_turnkey.rodar(R) (volume de concreto, area de piso, n de pontos
-    eletricos). O que nao esta pronto o usuario completa. Guardado: nunca quebra.
+    galpao_turnkey.rodar(R). O que nao esta pronto o usuario completa (e o que
+    faltou aparece em ``sem_quantidade`` na saida de compor_orcamento, para o
+    orcamento parcial nao se passar por fechado). Guardado: nunca quebra.
     Retorna {codigo: quantidade}."""
     q = {}
     d = R.get("disciplinas", {})
@@ -169,11 +185,33 @@ def quantitativos_de_turnkey(R):
             q["piso_industrial"] = piso["area_m2"]
         try:
             import galpao_concreto as gc
-            v = _vol_membros_concreto(gc.membros_bim(raw))
-            if v > 0:
-                q["concreto_estrut"] = round(v, 1)
+            membros = gc.membros_bim(raw)
+            # SUPERESTRUTURA e FUNDACAO tem composicao (e preco) diferentes: a
+            # sapata leva escavacao/lastro/forma de fundacao. Somar tudo em
+            # 'concreto_estrut' e o rotulo errado sobre a mesma geometria.
+            sup = [m for m in membros if m.get("tipo") != "Footing"]
+            fund = [m for m in membros if m.get("tipo") == "Footing"]
+            v_sup = _vol_membros_concreto(sup)
+            v_fund = _vol_membros_concreto(fund)
+            if v_sup > 0:
+                q["concreto_estrut"] = round(v_sup, 1)
+            if v_fund > 0:
+                q["fundacao_concreto"] = round(v_fund, 1)
         except Exception:
             pass
+    aco = d.get("aco", {})
+    if aco.get("rodou"):
+        # Peso das pecas PRIMARIAS (colunas + rafters) do romaneio do proprio
+        # vertical - o insumo que domina a curva ABC de um galpao metalico e que
+        # ficava de fora do orcamento inteiro. Secundarias (tercas, longarinas,
+        # contraventamento, ligacoes) NAO estao neste peso: ver 'a_confirmar'.
+        kg = (aco.get("raw") or {}).get("romaneio_peso_primario_kg")
+        try:
+            kg = float(kg)
+        except (TypeError, ValueError):
+            kg = 0.0
+        if kg > 0:
+            q["aco_estrutural"] = round(kg, 1)
     elet = d.get("eletrico", {})
     if elet.get("rodou"):
         try:
@@ -186,6 +224,13 @@ def quantitativos_de_turnkey(R):
         except Exception:
             pass
     return q
+
+
+# O que o peso do romaneio NAO cobre - dito junto com o numero, nao depois.
+NOTA_ACO_PRIMARIO = ("aco_estrutural = pecas PRIMARIAS do romaneio (colunas + "
+                     "rafters); tercas, longarinas, contraventamento, ligacoes e "
+                     "chapas nao estao neste peso - completar com o romaneio do "
+                     "modelo 3D antes de fechar preco")
 
 
 # ----------------------------------- selftest --------------------------------

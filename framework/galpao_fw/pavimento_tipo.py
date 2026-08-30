@@ -222,6 +222,15 @@ def monta(cfg):
         rq = vc._analisa_caso(tramos_ei, list(q_lin), vazio)
         r["reacoes_g"] = rg["reacoes"]
         r["reacoes_q"] = rq["reacoes"]
+        # Carga de cada tramo SEPARADA em permanente e variavel, e a secao. Sao
+        # os dados que faltavam para montar qualquer combinacao de SERVICO por
+        # fora (a analise devolve esforcos, nao o carregamento). O ELS de
+        # vibracao do Anexo L da NBR 8800 precisa exatamente disto: g + psi_1*q
+        # por tramo, com a viga recalculada como BIAPOIADA.
+        r["g_tramos"] = list(g)
+        r["q_tramos"] = list(q_lin)
+        r["b"] = b_v
+        r["h"] = h_v
         return r
 
     for j in range(ny + 1):
@@ -266,6 +275,14 @@ def monta(cfg):
                      "reacoes_unitarias": p.reacoes_unitarias()} for p in paineis],
         "g_kN_m2": round(g_pav, 3), "q_kN_m2": round(q_pav, 3),
         "tab11": tab11, "g_parede_kN_m": round(g_parede, 3),
+        # a SECAO da viga usada na analise. Publicada porque quem monta o modelo
+        # 3D/BIM precisa desenhar a MESMA viga que foi calculada; sem isso o
+        # emissor teria de re-adivinhar b e h a partir do peso proprio.
+        "b_viga": b_v, "h_viga": h_v,
+        # a espessura de laje que gerou a carga permanente deste pavimento. E' o
+        # que permite conferir, depois, que a laje ADOTADA no dimensionamento e'
+        # a mesma que pesou aqui.
+        "h_laje_usada": cfg.get("h_laje", 0.10),
         "peso_viga_kN_m": round(peso_viga, 3),
         "vigas_x": vigas_x, "vigas_y": vigas_y,
         "pilares": pilares,

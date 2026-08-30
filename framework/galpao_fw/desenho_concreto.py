@@ -119,16 +119,31 @@ def prancha_armacao_svg(r):
                             [(phi_l, n_l)], faces="perim"))
 
     # ---- viga de cobertura ----
+    # A viga de cobertura de vao longo sai PROTENDIDA (sem armadura passiva de
+    # tracao): arr_inf/arr_sup ficam None. Desenhar a secao como se fosse armada
+    # rotulava "inf 0 f0.0" E ainda caia num fallback que INVENTAVA 2 f10 que o
+    # calculo nunca produziu - a prancha mostrando aco que nao existe.
     ai = vg["arr_inf"]; asup = vg["arr_sup"]
     barras_v = []
     if ai and ai.get("n"):
         barras_v.append((ai["phi"], ai["n"]))
     if asup and asup.get("n"):
         barras_v.append((asup["phi"], asup["n"]))
-    rot_v = (f'VIGA COB. {vg["b"]*100:.0f}x{vg["h"]*100:.0f} - inf '
-             f'{ai["n"] if ai else 0} f{(ai["phi"] if ai else 0):.1f}')
+    protendida = bool(vg.get("protendida")) and vg.get("n_cordoalhas")
+    if protendida:
+        n_cord = int(vg["n_cordoalhas"]); phi_cord = float(vg["phi_cord"])
+        rot_v = (f'VIGA COB. {vg["b"]*100:.0f}x{vg["h"]*100:.0f} - PROTENDIDA '
+                 f'{n_cord} cord. f{phi_cord:.1f}')
+        barras_v = [(phi_cord, n_cord)]
+    elif barras_v:
+        rot_v = (f'VIGA COB. {vg["b"]*100:.0f}x{vg["h"]*100:.0f} - inf '
+                 f'{ai["n"]} f{ai["phi"]:.1f}')
+    else:
+        # nem passiva nem protensao: a secao sai SEM barra e o rotulo diz isso.
+        rot_v = (f'VIGA COB. {vg["b"]*100:.0f}x{vg["h"]*100:.0f} - '
+                 f'ARMADURA NAO DEFINIDA (ver memorial)')
     parts.append(_svg_secao(460, 210, vg["b"] * 100, vg["h"] * 100, esc, rot_v,
-                            barras_v or [(10.0, 2)], faces="linha"))
+                            barras_v, faces="linha"))
 
     # ---- sapata (planta com malha) ----
     # a sapata e em METROS (ordem de 2-3 m) -> escala PROPRIA p/ caber no slot
@@ -219,9 +234,12 @@ def planta_formas_svg(r):
                 s_svg.append(f'<rect x="{X(xm)-B/2*escala:.1f}" y="{Y(ym)-Ls/2*escala:.1f}" '
                              f'width="{B*escala:.1f}" height="{Ls*escala:.1f}" fill="#f0f0f0" '
                              f'stroke="#999"/>')
-            # pilar (hy no eixo X do papel, hx no eixo Y)
-            s_svg.append(f'<rect x="{X(xm)-hy/2*escala:.1f}" y="{Y(ym)-hx/2*escala:.1f}" '
-                         f'width="{hy*escala:.1f}" height="{hx*escala:.1f}" fill="#555" '
+            # pilar: hx e a dimensao NO PLANO DO PORTICO (// vento, o eixo em que
+            # o pilar foi dimensionado como balanco) e o papel tem X = vao -> hx vai
+            # no eixo X. Trocado, a forma sai girada 90 graus e a obra concreta o
+            # pilar com o eixo FRACO no plano do portico (Ix/Iy = (hx/hy)^2).
+            s_svg.append(f'<rect x="{X(xm)-hx/2*escala:.1f}" y="{Y(ym)-hy/2*escala:.1f}" '
+                         f'width="{hx*escala:.1f}" height="{hy*escala:.1f}" fill="#555" '
                          f'stroke="black"/>')
     # cota do vao (embaixo) e do comprimento (esquerda)
     yb = Y(comp) + 35

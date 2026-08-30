@@ -179,9 +179,17 @@ def caderno_de_turnkey(R):
     execs = set(R.get("executadas", []))
     disc = [d for d in _ORDEM if d in execs]
     if "concreto" in execs:
-        for extra in ("fundacao", "piso"):
-            if extra not in disc:
-                disc.append(extra)
+        # FUNDACAO sempre acompanha o concreto (o vertical sempre dimensiona a
+        # fundacao). PISO so entra se foi DIMENSIONADO: especificar planicidade,
+        # espessura e modulo de reacao do subleito de uma laje que ninguem
+        # projetou e' o caderno prometendo o que o projeto nao entrega (e o
+        # espelho do orcamento que omitia o insumo).
+        if "fundacao" not in disc:
+            disc.append("fundacao")
+        piso = ((R.get("disciplinas", {}).get("concreto", {}) or {})
+                .get("raw", {}) or {}).get("piso")
+        if piso and "piso" not in disc:
+            disc.append("piso")
     return gerar_caderno([d for d in _ORDEM if d in disc]) if disc else gerar_caderno()
 
 
@@ -234,12 +242,19 @@ def _selftest():
     assert md.startswith("# CADERNO DE ENCARGOS") and "## 1." in md
     assert "**Material:**" in md and "NBR 8800" in md
 
-    # caderno_de_turnkey seleciona pelas executadas + acrescenta fundacao/piso
-    R = {"executadas": ["concreto", "eletrico"]}
+    # caderno_de_turnkey seleciona pelas executadas + acrescenta a fundacao
+    R = {"executadas": ["concreto", "eletrico"],
+         "disciplinas": {"concreto": {"raw": {"piso": None}}}}
     ct = caderno_de_turnkey(R)
     discs = {s["disciplina"] for s in ct["secoes"]}
-    assert "concreto" in discs and "fundacao" in discs and "piso" in discs
-    assert "eletrico" in discs
+    assert "concreto" in discs and "fundacao" in discs and "eletrico" in discs
+    # PISO nao dimensionado (raw['piso'] None) NAO pode virar clausula: o caderno
+    # nao especifica o que o projeto nao entregou.
+    assert "piso" not in discs, discs
+    # com piso dimensionado, a clausula entra
+    R2 = {"executadas": ["concreto"],
+          "disciplinas": {"concreto": {"raw": {"piso": {"OK": True, "area_m2": 800.0}}}}}
+    assert "piso" in {s["disciplina"] for s in caderno_de_turnkey(R2)["secoes"]}
     return True
 
 

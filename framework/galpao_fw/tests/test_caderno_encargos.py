@@ -54,8 +54,11 @@ def test_normas_referenciadas_ordenadas_unicas():
     assert normas == sorted(set(normas))
 
 
-def test_caderno_de_turnkey_acrescenta_fundacao_piso():
-    R = {"executadas": ["concreto", "eletrico"]}
+def test_caderno_de_turnkey_acrescenta_fundacao():
+    # a fundacao acompanha o concreto (o vertical sempre a dimensiona); o PISO so
+    # entra se foi dimensionado - ver test_orcamento_cobertura.py (G7).
+    R = {"executadas": ["concreto", "eletrico"],
+         "disciplinas": {"concreto": {"raw": {"piso": {"OK": True, "area_m2": 800.0}}}}}
     discs = {s["disciplina"] for s in ce.caderno_de_turnkey(R)["secoes"]}
     assert {"concreto", "fundacao", "piso", "eletrico"} <= discs
 

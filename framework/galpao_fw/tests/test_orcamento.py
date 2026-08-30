@@ -75,7 +75,8 @@ def test_vol_membros_concreto():
     membros = [
         {"tipo": "Column", "secao": {"bf": 0.3, "d": 0.4},
          "p1": [0, 0, 0], "p2": [0, 0, 6000]},        # 0,3x0,4x6 = 0,72 m3
-        {"tipo": "Footing", "dims": [2.0, 2.0, 0.5]},   # 2 m3
+        # caixa em MILIMETROS, a convencao unica do modelo neutro: 2 x 2 x 0,5 m
+        {"tipo": "Footing", "dims": [2000.0, 2000.0, 500.0]},   # 2 m3
     ]
     v = orc._vol_membros_concreto(membros)
     assert abs(v - (0.72 + 2.0)) < 1e-6

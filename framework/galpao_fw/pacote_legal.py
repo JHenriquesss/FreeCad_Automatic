@@ -95,10 +95,26 @@ def checklist_ppci_avcb():
     ]
 
 
-def checklist_lod_bim():
+# grupo de elementos do checklist LOD -> disciplina que o ENTREGA. Grupo sem
+# disciplina executada nao vai para o pacote: prometer LOD 300 de instalacoes
+# eletricas num projeto que nao tem projeto eletrico e declaracao falsa num
+# documento de aprovacao.
+_LOD_DISCIPLINA = {
+    "Estrutura (pilares/vigas/fundacoes)": ("concreto", "aco"),
+    "Cobertura/fechamento": ("aco",),
+    "Instalacoes eletricas": ("eletrico",),
+    "Instalacoes hidrossanitarias": ("hidraulica",),
+    "Incendio": ("incendio",),
+    "Coordenacao/federado": None,          # sempre entra (o federado e do pacote)
+}
+
+
+def checklist_lod_bim(disciplinas=None):
     """Checklist de LOD (Level of Development / nivel de desenvolvimento) por grupo
-    de elementos na entrega BIM. LOD como referencia (BIM Forum / ABNT 15965)."""
-    return [
+    de elementos na entrega BIM. LOD como referencia (BIM Forum / ABNT 15965).
+    Com ``disciplinas``, mantem so os grupos que as disciplinas EXECUTADAS
+    entregam (sem elas, devolve o checklist completo, como antes)."""
+    itens = [
         {"grupo": "Estrutura (pilares/vigas/fundacoes)", "lod": "LOD 350",
          "entrega": "geometria + ligacoes + armadura/marcas + material"},
         {"grupo": "Cobertura/fechamento", "lod": "LOD 300",
@@ -112,6 +128,12 @@ def checklist_lod_bim():
         {"grupo": "Coordenacao/federado", "lod": "LOD 350",
          "entrega": "modelo federado + relatorio de clash/compatibilizacao (BCF)"},
     ]
+    if disciplinas is None:
+        return itens
+    tem = set(disciplinas)
+    return [it for it in itens
+            if _LOD_DISCIPLINA.get(it["grupo"]) is None
+            or tem.intersection(_LOD_DISCIPLINA[it["grupo"]])]
 
 
 def manual_oem(disciplinas):
@@ -171,7 +193,7 @@ def gerar_pacote(disciplinas=None, R=None, spec=None):
     pac = {"indice_pranchas": indice_de_pranchas(disciplinas + ["coordenacao"]),
            "lista_art": lista_art(disciplinas),
            "checklist_ppci_avcb": checklist_ppci_avcb(),
-           "checklist_lod_bim": checklist_lod_bim(),
+           "checklist_lod_bim": checklist_lod_bim(disciplinas),
            "manual_oem": manual_oem(disciplinas)}
     if R is not None:
         pac["memorial_consolidado"] = memorial_consolidado(R, spec)
