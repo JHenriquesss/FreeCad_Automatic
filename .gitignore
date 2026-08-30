@@ -16,6 +16,7 @@ htmlcov/
 *.log
 sessions/
 pesquisa/
+/fontes/
 
 # Nested upstream git metadata should not be committed in the wrapper repo
 **/.git/
@@ -31,6 +32,7 @@ Thumbs.db
 .agents/
 .codex/
 .loop-runtime/
+.omo/
 
 # artefatos de teste / backups do FreeCAD
 *.FCBak
@@ -46,6 +48,7 @@ framework/exports/
 framework/galpao_fw/saida_amostra/
 framework/galpao_fw/saida_shed/
 framework/galpao_fw/saida_*/
+/saida_*/
 *.bak
 __pycache__/
 *.pyc
