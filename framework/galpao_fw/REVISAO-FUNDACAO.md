@@ -11,7 +11,7 @@ dimensionamento da sapata, com as **citações exatas da NBR 6118:2014**
 Código: `framework/galpao_fw/fundacao_sapata.py`
 Fluxo: `rodar_galpao.py` Gate 7 (`_casos_base_envelope` → `fs.dimensiona_sapata_env`).
 
-Última atualização: 2026-07-07.
+Última atualização: 2026-08-14.
 
 ---
 
@@ -48,14 +48,29 @@ Critério: `σ_max ≤ σ_solo,adm`.
 
 ### 2.2 Estabilidade
 
-N estabilizante inclui o **peso próprio** da sapata + pedestal + reaterro.
+`verifica_sapata_A` normaliza `caso["verificacao_estabilidade"]` antes de
+calcular. Há dois métodos explícitos:
 
-- **Tombamento**: `FS = M_estab / M_tomb`, com
-  `M_estab = N_tot · L/2` e `M_tomb = |V|·h_total + |M|`. Mínimo usual **1,5**.
-- **Deslizamento**: `FS = (N_tot·μ + c·A) / |V|`. Mínimo usual **1,5**.
+- **`nbr6122_valores_calculo`**: usa `gamma_f=1,4` para ações características
+  desfavoráveis, `gamma_m=1,2` para peso favorável e `gamma_m=1,4` para a
+  resistência do solo. Solicitações já de cálculo não recebem nova majoração.
+  A área comprimida mínima é 50% para solicitações de cálculo e 2/3 para
+  solicitações características (NBR 6122:2022, 6.2.1.1.2 e 7.6.2).
+- **`fs_global_legacy`**: usa ações características e exige
+  `fs_tombamento`/`fs_deslizamento` informados no caso. A área comprimida mínima
+  é 2/3. Não há FS global universal de 1,5 atribuído automaticamente.
 
-> Os fatores 1,5 são prática usual (ELU geotécnico) — **confirmar** com o
-> critério adotado no projeto. Ficam como parâmetro do caso.
+O peso próprio da sapata + pedestal + reaterro é calculado separadamente. Se a
+reação vertical da superestrutura vier agregada, o caso deve declarar
+`N_acao_desfavoravel_kN` e `peso_favoravel_superestrutura_kN`; sem essa divisão a
+verificação fica **inconclusiva** e não pode certificar a fundação.
+
+O resultado registra `metodo_verificacao`, `tipo_acoes`, os fatores efetivos,
+`area_comprimida_ratio`, `limite_area_comprimida` e `avisos_verificacao`.
+
+Empuxo passivo só entra quando `solo_nao_removivel=True` e é reduzido por fator
+mínimo 2,0. O FS global 1,1 da NBR 6122:2022, 6.2.1.1.3, é exclusivo de
+flutuação e não é aplicado a tombamento/deslizamento.
 
 ---
 
@@ -193,7 +208,13 @@ Ex. nf982: 10 sapatas, 38,0 m³ de concreto, 865 kg de aço (taxa ~23 kg/m³).
 3. `A_s,min` = `ρ_min(fck)` da Tabela 17.3 (§8) — **resolvido** (era fixo 0,15%).
 4. **Detalhamento/ancoragem** da armadura (gancho face a face 22.6.4.1.1;
    arranque 22.6.4.1.2) — projeto executivo.
-5. Fatores de segurança 1,5 (tombamento/deslizamento) — confirmar critério.
+5. Critério de verificação para tombamento/deslizamento — **resolvido na Fase 49**.
+   A revalidação isolada da NBR 6122:2022 em 2026-08-14 confirmou o enquadramento
+   no ELU (§6.2.1), a área comprimida mínima (§7.6.2) e a condição para empuxo
+   passivo (§7.6.3). O motor agora separa `nbr6122_valores_calculo` de
+   `fs_global_legacy`; FS 1,5 não é inserido como requisito universal. Resta ao
+   adaptador declarar as parcelas da reação vertical quando a ação característica
+   vier agregada.
 
 ---
 
@@ -225,14 +246,16 @@ Validado ao vivo (nf982): 10 sapatas + 10 pedestais, volume 3,75 m³/sapata,
 
 ## 7. Código-fonte das rotinas de cálculo (conferência matemática)
 
-Cópia **verbatim** de `fundacao_sapata.py` (mantida em sincronia a cada
-alteração). Unidades SI: m, kN (fck/fyk/σ em kN/m²). Confira aqui a matemática.
+Resumo das rotinas de `fundacao_sapata.py` para conferência. O contrato completo
+e os fatores efetivamente aplicados aparecem no resultado de cada caso.
+Unidades SI: m, kN (fck/fyk/σ em kN/m²).
 
 ### Constantes
 
 ```python
-FS_TOMB_MIN = 1.5          # tombamento (pratica usual p/ ELU geotecnico)
-FS_DESL_MIN = 1.5          # deslizamento
+# Fallback exclusivo de compatibilidade; não é requisito universal NBR 6122.
+FS_TOMB_MIN = 1.5
+FS_DESL_MIN = 1.5
 GAMMA_C_CONCRETO = 25.0    # peso especifico concreto armado (kN/m3) - NBR 6120
 GAMMA_SOLO = 18.0          # reaterro (kN/m3) - INPUT (sondagem); default flag
 
@@ -306,9 +329,10 @@ def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
             "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot, ...}
 ```
 
-Critérios (em `verifica_sapata_A`): `ok_solo = σ_max ≤ σ_adm` ;
-`ok_tomb = fs_tomb ≥ 1,5` ; `ok_desl = fs_desl ≥ 1,5` ;
-`ok_contato = x_contato ≥ L/3` (resultante no terço médio).
+Critérios (em `verifica_sapata_A`): `ok_solo = σ_max ≤ σ_adm` ; tombamento e
+deslizamento usam FS explícito no modo legado ou razão ≥ 1,0 no modo NBR;
+`ok_contato` usa 50%, 2/3 ou 1/3 conforme o método efetivo. O último limite é
+somente o caminho de compatibilidade sem configuração.
 
 ### Parte B — coeficiente K (Tabela 19.2) e armadura de flexão
 
@@ -480,7 +504,10 @@ método (registrado como margem de orçamento).
 - **Núcleo** `σ = N/A·(1±6e/L)` (e≤L/6) e **borda** triangular `x=3·(L/2−e)`,
   `σ_max=2N/(B·x)` — flexão composta exata (Alonso). ✅
 - **Estabilidade**: braço de tombamento com `h_tot = h + h_ped` (inclui V);
-  FS 1,5 usual (ELU geotécnico / NBR 6122). ✅
+  `nbr6122_valores_calculo` aplica os fatores parciais e usa limite de contato de
+  50% para solicitações de cálculo; `fs_global_legacy` exige FS explícito e usa
+  2/3 para ações características. A NBR 6122:2022 foi revalidada por OCR e não
+  sustenta FS 1,5 como requisito normativo universal.
 - **Rigidez 22.6.1** `h ≥ (a−a_p)/3` → dispensa punção (22.6.2.2). ✅
 - **Bloco retangular 17.2.2** (λ=0,8, α_c=0,85, fck≤50); x/d ≤ 0,45 (14.6.4.3);
   `_armadura_flexao` reversível (selftest #5). ✅

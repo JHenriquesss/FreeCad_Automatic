@@ -21,7 +21,9 @@
 #   ...pdf) - nao de memoria. Detalhamento/ancoragem = executivo (FLAG).
 #
 # Ask, Do Not Invent: sigma_solo,adm, mu, coesao, fck, fyk, cobrimento e os
-# fatores de seguranca sao INPUTS do caso (a skill pergunta). Saidas em PT.
+# fatores de seguranca sao INPUTS do caso (a skill pergunta). Os defaults de FS
+# abaixo sao legados/configuraveis e nao devem ser tratados como requisito
+# normativo universal sem escolher o metodo de verificacao. Saidas em PT.
 # Calcula apenas; CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL.
 # Unidades SI: m, kN (fck/fyk/sigma em kN/m2).
 # ============================================================================
@@ -32,12 +34,111 @@ from __future__ import annotations
 import math
 import re
 
-# Fatores de seguranca USUAIS (o caso pode sobrescrever). Convencao de projeto -
-# o engenheiro confirma. FLAG no relatorio.
+import puncao_nbr6118 as pu
+
+# Limites legados/configuraveis (o caso pode sobrescrever). O engenheiro deve
+# confirmar o criterio de projeto; a NBR 6122:2022 nao foi usada para atribuir
+# automaticamente FS global 1,5 a tombamento/deslizamento.
 FS_TOMB_MIN = 1.5          # tombamento (pratica usual p/ ELU geotecnico)
 FS_DESL_MIN = 1.5          # deslizamento
 GAMMA_C_CONCRETO = 25.0    # peso especifico concreto armado (kN/m3) - NBR 6120
 GAMMA_SOLO = 18.0          # reaterro (kN/m3) - INPUT (sondagem); default flag
+
+
+def normaliza_verificacao(caso):
+    """Normaliza o contrato de estabilidade sem misturar metodos.
+
+    Casos antigos sem ``verificacao_estabilidade`` continuam funcionando apenas
+    no caminho de compatibilidade e recebem aviso no resultado. Casos novos
+    precisam escolher explicitamente NBR 6122 por valores de calculo ou o modo
+    legado por FS global.
+    """
+    cfg = caso.get("verificacao_estabilidade")
+    if cfg is None:
+        return {
+            "metodo": "compatibilidade_legacy",
+            "tipo_acoes": "caracteristicas",
+            "gamma_f": 1.0,
+            "gamma_peso_favoravel": 1.0,
+            "gamma_resistencia_solo": 1.0,
+            "fs_tombamento": caso.get("fs_tomb_min", FS_TOMB_MIN),
+            "fs_deslizamento": caso.get("fs_desl_min", FS_DESL_MIN),
+            "empuxo_passivo_kN": 0.0,
+            "solo_nao_removivel": False,
+            "peso_favoravel_superestrutura_kN": 0.0,
+            "N_acao_desfavoravel_kN": None,
+            "avisos": [
+                "sem verificacao_estabilidade: caminho legado de compatibilidade",
+            ],
+        }
+    if not isinstance(cfg, dict):
+        raise ValueError("verificacao_estabilidade deve ser um dicionario")
+
+    metodo = cfg.get("metodo")
+    tipo = cfg.get("tipo_acoes", "calculo")
+    if metodo not in ("nbr6122_valores_calculo", "fs_global_legacy"):
+        raise ValueError("metodo de verificacao invalido")
+    if tipo not in ("caracteristicas", "calculo"):
+        raise ValueError("tipo_acoes invalido")
+    if metodo == "fs_global_legacy" and tipo != "caracteristicas":
+        raise ValueError("fs_global_legacy exige tipo_acoes=caracteristicas")
+
+    if metodo == "nbr6122_valores_calculo":
+        fatores = {
+            "gamma_f": cfg.get("gamma_f", 1.4),
+            "gamma_peso_favoravel": cfg.get("gamma_peso_favoravel", 1.2),
+            "gamma_resistencia_solo": cfg.get("gamma_resistencia_solo", 1.4),
+        }
+        if any(not isinstance(v, (int, float)) or isinstance(v, bool) or v <= 0
+               for v in fatores.values()):
+            raise ValueError("coeficientes de verificacao devem ser positivos")
+        fs_t = cfg.get("fs_tombamento")
+        fs_d = cfg.get("fs_deslizamento")
+        if fs_t is not None or fs_d is not None:
+            raise ValueError("FS global nao pode ser misturado ao modo NBR")
+    else:
+        fatores = {"gamma_f": 1.0, "gamma_peso_favoravel": 1.0,
+                   "gamma_resistencia_solo": 1.0}
+        fs_t = cfg.get("fs_tombamento")
+        fs_d = cfg.get("fs_deslizamento")
+        if fs_t is None or fs_d is None:
+            raise ValueError("fs_tombamento e fs_deslizamento sao obrigatorios")
+        if any(not isinstance(v, (int, float)) or isinstance(v, bool) or v <= 0
+               for v in (fs_t, fs_d)):
+            raise ValueError("FS global deve ser numerico e positivo")
+
+    empuxo = cfg.get("empuxo_passivo_kN", 0.0)
+    if (not isinstance(empuxo, (int, float)) or isinstance(empuxo, bool)
+            or empuxo < 0):
+        raise ValueError("empuxo_passivo_kN nao pode ser negativo")
+    peso_extra = cfg.get("peso_favoravel_superestrutura_kN", 0.0)
+    n_desf = cfg.get("N_acao_desfavoravel_kN")
+    if (not isinstance(peso_extra, (int, float)) or isinstance(peso_extra, bool)
+            or peso_extra < 0):
+        raise ValueError("peso_favoravel_superestrutura_kN deve ser nao negativo")
+    if n_desf is not None and (not isinstance(n_desf, (int, float))
+                               or isinstance(n_desf, bool)):
+        raise ValueError("N_acao_desfavoravel_kN deve ser numerico")
+    return {
+        "metodo": metodo,
+        "tipo_acoes": tipo,
+        **fatores,
+        "fs_tombamento": fs_t,
+        "fs_deslizamento": fs_d,
+        "empuxo_passivo_kN": float(empuxo),
+        "solo_nao_removivel": bool(cfg.get("solo_nao_removivel", False)),
+        "peso_favoravel_superestrutura_kN": float(peso_extra),
+        "N_acao_desfavoravel_kN": n_desf,
+        "avisos": [],
+    }
+
+
+def _limite_area_comprimida(cfg):
+    if cfg["metodo"] == "compatibilidade_legacy":
+        return 1.0 / 3.0
+    if cfg["metodo"] == "fs_global_legacy":
+        return 2.0 / 3.0
+    return 0.50 if cfg["tipo_acoes"] == "calculo" else 2.0 / 3.0
 
 
 # ---- PARTE A: GEOTECNIA / ESTABILIDADE -------------------------------------
@@ -76,24 +177,76 @@ def peso_proprio(B, L, h, h_reaterro=0.0, d_ped=0.0, b_ped=0.0, h_ped=0.0):
 
 
 def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
-                 d_ped=0.0, b_ped=0.0, h_ped=0.0):
-    """FS ao tombamento e ao deslizamento, com N estabilizante = reacao +
-    peso proprio. M_tombante = V*h_total + M (momento na base da sapata)."""
+                 d_ped=0.0, b_ped=0.0, h_ped=0.0, verificacao=None,
+                 peso_favoravel_superestrutura=0.0,
+                 N_acao_desfavoravel=None):
+    """Verifica tombamento/deslizamento com contrato opcional de ponderacao.
+
+    Sem ``verificacao`` a aritmetica historica e preservada. No modo NBR, o
+    peso proprio e as parcelas verticais declaradas sao separados das acoes;
+    V/M e a parcela vertical desfavoravel recebem gamma_f apenas quando
+    chegaram como valores caracteristicos.
+    """
+    cfg = verificacao or {
+        "metodo": "compatibilidade_legacy", "tipo_acoes": "caracteristicas",
+        "gamma_f": 1.0, "gamma_peso_favoravel": 1.0,
+        "gamma_resistencia_solo": 1.0, "empuxo_passivo_kN": 0.0,
+        "solo_nao_removivel": False,
+    }
     Pp, det = peso_proprio(B, L, h, h_reaterro, d_ped, b_ped, h_ped)
-    N_tot = N + Pp
+    metodo_nbr = cfg["metodo"] == "nbr6122_valores_calculo"
+    caracteristicas = cfg.get("tipo_acoes") == "caracteristicas"
+    peso_gamma = cfg.get("gamma_peso_favoravel", 1.0) if metodo_nbr else 1.0
+    gamma_f = cfg.get("gamma_f", 1.0) if metodo_nbr and caracteristicas else 1.0
+
+    if metodo_nbr:
+        peso_extra = peso_favoravel_superestrutura
+        n_desf = N_acao_desfavoravel
+        if caracteristicas:
+            if n_desf is None:
+                raise ValueError("N_acao_desfavoravel_kN e obrigatorio para acao caracteristica")
+            N_ext = n_desf * gamma_f + peso_extra / peso_gamma
+        elif n_desf is not None:
+            N_ext = n_desf + peso_extra / peso_gamma
+        else:
+            N_ext = N
+        Pp_ver = Pp / peso_gamma
+        V_ver = V * gamma_f
+        M_ver = M * gamma_f
+    else:
+        N_ext = N
+        Pp_ver = Pp
+        V_ver = V
+        M_ver = M
+
+    N_tot = N_ext + Pp_ver
     h_tot = h + h_ped                              # altura ate o topo do pedestal
-    M_tomb = abs(V) * h_tot + abs(M)
+    M_tomb = abs(V_ver) * h_tot + abs(M_ver)
     M_est = N_tot * L / 2.0
     fs_tomb = (M_est / M_tomb) if M_tomb > 0 else float("inf")
     # atrito ~ N_tot (independe da area); ADESAO (coesao) atua so sob a area de
     # contato efetiva: sob levantamento (e>L/6) so B*x toca o solo, nao B*L.
-    e = abs(M) / N_tot if N_tot > 0 else 0.0
+    e = abs(M_ver) / N_tot if N_tot > 0 else 0.0
     x_cont = L if e <= L / 6.0 else max(3.0 * (L / 2.0 - e), 0.0)
     A_ef = B * min(x_cont, L)                       # = B*L com contato total
-    resist = N_tot * mu + coesao * A_ef
-    fs_desl = (resist / abs(V)) if abs(V) > 0 else float("inf")
-    return {"N_tot": N_tot, "Pp": Pp, "Pp_det": det, "M_tomb": M_tomb, "A_ef": A_ef,
-            "M_est": M_est, "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot}
+    empuxo = cfg.get("empuxo_passivo_kN", 0.0)
+    fator_empuxo = max(float(cfg.get("fator_empuxo_passivo", 2.0)), 2.0)
+    empuxo_ver = 0.0
+    if empuxo > 0.0 and cfg.get("solo_nao_removivel"):
+        empuxo_ver = empuxo / fator_empuxo
+    resist_bruta = N_tot * mu + coesao * A_ef + empuxo_ver
+    gamma_res = cfg.get("gamma_resistencia_solo", 1.0) if metodo_nbr else 1.0
+    resist = resist_bruta / gamma_res
+    fs_desl = (resist / abs(V_ver)) if abs(V_ver) > 0 else float("inf")
+    return {"N_tot": N_tot, "Pp": Pp, "Pp_verificacao": Pp_ver,
+            "Pp_det": det, "peso_favoravel_superestrutura_verificacao":
+            (peso_favoravel_superestrutura / peso_gamma if metodo_nbr else 0.0),
+            "N_ext_verificacao": N_ext, "V_verificacao": V_ver,
+            "M_verificacao": M_ver, "M_tomb": M_tomb, "A_ef": A_ef,
+            "M_est": M_est, "resistencia_deslizamento_verificacao": resist,
+            "empuxo_passivo_reduzido_kN": empuxo_ver,
+            "empuxo_passivo_verificacao_kN": empuxo_ver / gamma_res,
+            "fs_tomb": fs_tomb, "fs_desl": fs_desl, "h_tot": h_tot}
 
 
 # Fator de forma Iw (Perloff 1975, meio de espessura infinita; via Veloso & Lopes
@@ -124,24 +277,63 @@ def verifica_sapata_A(caso):
     B, L, h = caso["B"], caso["L"], caso["h"]
     mu = caso.get("mu", 0.5)
     coesao = caso.get("coesao", 0.0)
+    cfg = normaliza_verificacao(caso)
+    cfg_nbr = cfg["metodo"] == "nbr6122_valores_calculo"
+    cfg_extra = cfg.get("peso_favoravel_superestrutura_kN", 0.0)
+    cfg_ndesf = cfg.get("N_acao_desfavoravel_kN")
+    inconclusivo = False
+    if cfg_nbr and cfg["tipo_acoes"] == "caracteristicas":
+        if cfg_ndesf is None:
+            inconclusivo = True
+            cfg["avisos"].append(
+                "decomposicao vertical ausente: N externo nao foi separado")
+            cfg_ndesf = N - cfg_extra
+        elif abs((cfg_ndesf + cfg_extra) - N) > 1e-7:
+            inconclusivo = True
+            cfg["avisos"].append(
+                "decomposicao vertical nao reproduz N externo")
     est = estabilidade(N, V, M, B, L, h, mu, coesao,
                        caso.get("h_reaterro", 0.0),
                        caso.get("d_ped", 0.0), caso.get("b_ped", 0.0),
-                       caso.get("h_ped", 0.0))
-    sig_max, sig_min, regime, xcont = tensoes_solo(est["N_tot"], M, B, L)
+                       caso.get("h_ped", 0.0), verificacao=cfg,
+                       peso_favoravel_superestrutura=cfg_extra,
+                       N_acao_desfavoravel=cfg_ndesf)
+    sig_max, sig_min, regime, xcont = tensoes_solo(
+        est["N_tot"], est["M_verificacao"], B, L)
     sig_adm = caso["sigma_solo_adm"]
     r = {"nome": caso.get("nome", "sapata"), "B": B, "L": L, "h": h,
          "sigma_max": sig_max, "sigma_min": sig_min, "regime": regime,
          "x_contato": xcont, "sigma_adm": sig_adm, **est}
+    r["metodo_verificacao"] = cfg["metodo"]
+    r["tipo_acoes"] = cfg["tipo_acoes"]
+    r["inconclusivo"] = inconclusivo
+    r["fatores_verificacao"] = {
+        "gamma_f": cfg["gamma_f"],
+        "gamma_peso_favoravel": cfg["gamma_peso_favoravel"],
+        "gamma_resistencia_solo": cfg["gamma_resistencia_solo"],
+        "fator_empuxo_passivo": max(float(cfg.get("fator_empuxo_passivo", 2.0)), 2.0),
+    }
+    r["avisos_verificacao"] = list(cfg.get("avisos", []))
+    if cfg.get("empuxo_passivo_kN", 0.0) > 0.0 and not cfg.get("solo_nao_removivel"):
+        r["avisos_verificacao"].append(
+            "empuxo passivo ignorado: solo nao removivel nao foi declarado")
     r["u_solo"] = (sig_max / sig_adm) if (sig_max and sig_adm) else float("inf")
-    r["fs_tomb_min"] = caso.get("fs_tomb_min", FS_TOMB_MIN)
-    r["fs_desl_min"] = caso.get("fs_desl_min", FS_DESL_MIN)
+    if cfg["metodo"] == "nbr6122_valores_calculo":
+        r["fs_tomb_min"] = 1.0
+        r["fs_desl_min"] = 1.0
+    elif cfg["metodo"] == "fs_global_legacy":
+        r["fs_tomb_min"] = cfg["fs_tombamento"]
+        r["fs_desl_min"] = cfg["fs_deslizamento"]
+    else:
+        r["fs_tomb_min"] = caso.get("fs_tomb_min", FS_TOMB_MIN)
+        r["fs_desl_min"] = caso.get("fs_desl_min", FS_DESL_MIN)
     r["ok_solo"] = (sig_max is not None and sig_max <= sig_adm + 1e-9)
     r["ok_tomb"] = est["fs_tomb"] >= r["fs_tomb_min"]
     r["ok_desl"] = est["fs_desl"] >= r["fs_desl_min"]
-    # levantamento: em sapata isolada de galpao aceita-se contato parcial, mas a
-    # resultante deve cair no terco medio para nao ter borda descolando demais.
-    r["ok_contato"] = xcont >= L / 3.0
+    r["area_comprimida_ratio"] = max(0.0, min(xcont / L, 1.0)) if L > 0 else 0.0
+    limite_contato = _limite_area_comprimida(cfg)
+    r["limite_area_comprimida"] = limite_contato
+    r["ok_contato"] = r["area_comprimida_ratio"] >= limite_contato
 
     # RECALQUE (ELS geotecnico, NBR 6122 - teoria da elasticidade). So calcula se
     # Es_solo (deformabilidade, sondagem) for dado. Pressao LIQUIDA de SERVICO:
@@ -162,7 +354,8 @@ def verifica_sapata_A(caso):
         r["recalque_adm_mm"] = caso.get("recalque_adm_mm", 25.0)
         r["ok_recalque"] = None                      # sem Es: nao verifica (FLAG)
 
-    r["OK_A"] = (r["ok_solo"] and r["ok_tomb"] and r["ok_desl"] and r["ok_contato"]
+    r["OK_A"] = (not r["inconclusivo"] and r["ok_solo"] and r["ok_tomb"]
+                 and r["ok_desl"] and r["ok_contato"]
                  and (r["ok_recalque"] is not False))
     return r
 
@@ -317,8 +510,14 @@ def dimensiona_bloco_env(caso_base, casos):
 
 
 def _tabela_bloco(linhas, aprovado, casos, gov, caso_base, sigma_t_adm):
+    cfg = normaliza_verificacao(caso_base)
+    limite_contato = _limite_area_comprimida(cfg)
     L = ["=" * 82, "DIMENSIONAMENTO DO BLOCO DE FUNDACAO - CONCRETO SIMPLES (NBR 6122 7.8.2)",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 82, "",
+         f"Metodo de verificacao: {cfg['metodo']} | acoes: {cfg['tipo_acoes']} | "
+         f"area comprimida >= {limite_contato * 100:.0f}%",
+         f"Fatores: gamma_f={cfg['gamma_f']:.2f} ; peso={cfg['gamma_peso_favoravel']:.2f} ; "
+         f"resistencia_solo={cfg['gamma_resistencia_solo']:.2f}",
          f"sigma_solo,adm = {caso_base['sigma_solo_adm']:.0f} kN/m2  [INPUT sondagem - A CONFIRMAR]",
          f"angulo minimo beta = {BETA_MIN_BLOCO:.0f} graus (dispensa armadura de tracao)",
          f"sigma_t,adm concreto ~ fck/25 = {sigma_t_adm:.0f} kN/m2 (<= 0,8 MPa)  [FLAG]",
@@ -344,8 +543,14 @@ def _tabela_bloco(linhas, aprovado, casos, gov, caso_base, sigma_t_adm):
 
 
 def _tabela_env(linhas, aprovado, casos, gov, rB, caso_base):
+    cfg = normaliza_verificacao(caso_base)
+    limite_contato = _limite_area_comprimida(cfg)
     L = ["=" * 82, "DIMENSIONAMENTO DA SAPATA - ENVELOPE DE COMBINACOES (NBR 6118)",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 82, "",
+         f"Metodo de verificacao: {cfg['metodo']} | acoes: {cfg['tipo_acoes']} | "
+         f"area comprimida >= {limite_contato * 100:.0f}%",
+         f"Fatores: gamma_f={cfg['gamma_f']:.2f} ; peso={cfg['gamma_peso_favoravel']:.2f} ; "
+         f"resistencia_solo={cfg['gamma_resistencia_solo']:.2f}",
          f"sigma_solo,adm = {caso_base['sigma_solo_adm']:.0f} kN/m2  [INPUT sondagem - A CONFIRMAR]",
          f"Combinacoes ELU consideradas: {len(casos)}", ""]
     for (nm, N, V, M) in casos:
@@ -404,13 +609,28 @@ def _pt(s):
 
 
 def _tabela_sapata(linhas, aprovado, caso, rB=None):
+    cfg = normaliza_verificacao(caso)
+    limite_contato = _limite_area_comprimida(cfg)
+    if cfg["metodo"] == "nbr6122_valores_calculo":
+        _criterio_estabilidade = (
+            "Criterio tombamento/deslizamento = valores de calculo (sem FS global)")
+    else:
+        _fs_tomb = (cfg["fs_tombamento"] if cfg["metodo"] == "fs_global_legacy"
+                    else caso.get("fs_tomb_min", FS_TOMB_MIN))
+        _fs_desl = (cfg["fs_deslizamento"] if cfg["metodo"] == "fs_global_legacy"
+                    else caso.get("fs_desl_min", FS_DESL_MIN))
+        _criterio_estabilidade = (f"mu(solo-concreto) = {caso.get('mu', 0.5):.2f} ; "
+                                  f"FS_tomb>={_fs_tomb:.1f} ; FS_desl>={_fs_desl:.1f}")
     L = ["=" * 78, "DIMENSIONAMENTO DA SAPATA ISOLADA - PARTE A (GEOTECNIA/ESTABILIDADE)",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 78, "",
+         f"Metodo de verificacao: {cfg['metodo']} | acoes: {cfg['tipo_acoes']} | "
+         f"area comprimida >= {limite_contato * 100:.0f}%",
+         f"Fatores: gamma_f={cfg['gamma_f']:.2f} ; peso={cfg['gamma_peso_favoravel']:.2f} ; "
+         f"resistencia_solo={cfg['gamma_resistencia_solo']:.2f}",
          f"Reacao de base: N={caso['N']:+.1f} kN ; V={caso['V']:.1f} kN ; M={caso['M']:.1f} kN.m",
          f"sigma_solo,adm = {caso['sigma_solo_adm']:.0f} kN/m2 (= {caso['sigma_solo_adm']/1000:.2f} MPa)"
          f"  [INPUT sondagem - A CONFIRMAR]",
-         f"mu(solo-concreto) = {caso.get('mu', 0.5):.2f} ; FS_tomb>={caso.get('fs_tomb_min', FS_TOMB_MIN):.1f}"
-         f" ; FS_desl>={caso.get('fs_desl_min', FS_DESL_MIN):.1f}", "",
+         _criterio_estabilidade, "",
          f"{'BxLxh (m)':>16} | {'sig_max':>8} {'u_solo':>6} | {'FS_tomb':>7} {'FS_desl':>7}"
          f" {'contato':>7} | resultado", "-" * 78]
     for r in linhas:
@@ -517,19 +737,13 @@ def rho_min(fck_MPa):
     return pts[-1][1]
 
 # Tabela 19.2 - coeficiente K (parcela de M transmitida por cisalhamento).
-_K_TAB = [(0.5, 0.45), (1.0, 0.60), (2.0, 0.70), (3.0, 0.80)]
+# REUSO POR PRIMITIVA: a tabela e as tensoes resistentes de puncao moram em
+# puncao_nbr6118 (uma so implementacao para sapata e para laje lisa).
 
 
 def _K_puncao(c1_c2):
-    """Interpola/limita K da Tabela 19.2 pela relacao C1/C2."""
-    if c1_c2 <= _K_TAB[0][0]:
-        return _K_TAB[0][1]
-    if c1_c2 >= _K_TAB[-1][0]:
-        return _K_TAB[-1][1]
-    for (r0, k0), (r1, k1) in zip(_K_TAB, _K_TAB[1:]):
-        if r0 <= c1_c2 <= r1:
-            return k0 + (k1 - k0) * (c1_c2 - r0) / (r1 - r0)
-    return _K_TAB[-1][1]
+    """Interpola/limita K da Tabela 19.2 pela relacao C1/C2 (puncao_nbr6118)."""
+    return pu.K_puncao(c1_c2)
 
 
 def _armadura_flexao(M_d, b, d, fck, fyk):
@@ -567,12 +781,10 @@ def puncao_sapata(N_d, B, L, ap_L, ap_B, d, fck, As_L, As_B):
     sig = N_d / (B * L)                                  # pressao media (equilibrio)
     F_ef = max(N_d - sig * min(A_cp, B * L), 0.0)        # alivio da reacao dentro de C'
     tau_sd = F_ef / (u * d) if (u * d) > 0 else float("inf")
-    fck_MPa = fck / 1000.0
-    d_cm = d * 100.0
     rho_x = As_L / (B * d) if (B * d) > 0 else 0.0       # As_L distribuido na largura B
     rho_y = As_B / (L * d) if (L * d) > 0 else 0.0
     rho = math.sqrt(max(rho_x, 0.0) * max(rho_y, 0.0))
-    tau_rd1 = 0.13 * (1.0 + math.sqrt(20.0 / d_cm)) * (100.0 * rho * fck_MPa) ** (1.0 / 3.0) * 1000.0
+    tau_rd1 = pu.tau_rd1(d, rho, fck)                     # 19.5.3.2
     return {"tau_sd": tau_sd, "tau_rd1": tau_rd1, "u": u, "A_cp": A_cp, "F_ef": F_ef,
             "rho": rho, "u_punc": (tau_sd / tau_rd1 if tau_rd1 > 0 else float("inf")),
             "ok": tau_sd <= tau_rd1 + 1e-9}
@@ -678,7 +890,7 @@ def dimensiona_sapata_B(caso, r_A):
     # 3) COMPRESSAO DIAGONAL no perimetro do pilar (19.5.3.1)
     fcd = fck / 1.4
     alpha_v = 1.0 - fck_MPa / 250.0
-    tau_rd2 = 0.27 * alpha_v * fcd
+    tau_rd2 = pu.tau_rd2(fck)                            # 19.5.3.1
     u0 = 2.0 * (ap_L + ap_B)                        # perimetro do pilar
     # parcela de momento (19.5.2.2): C1 // excentricidade (= ap_L, plano do M) ;
     # Wp0 = modulo plastico do contorno do pilar (termos com d anulam em u0).
