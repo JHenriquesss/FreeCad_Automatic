@@ -111,4 +111,16 @@ Pipeline: 23 gates, 35 módulos totais (incl. não-matemáticos: frame2d, build,
 rodar, projeto_spec, perfis, framework). Testado end-to-end: galpão 24×12m →
 FreeCAD 669 obj, 0 interferências, 20.156 kg aço.
 
-Última atualização: 2026-07-08.
+---
+
+## Revisões de arquitetura (não-matemáticas)
+
+| Doc | Assunto |
+|-----|---------|
+| [G6-ALCANCABILIDADE](REVISAO-G6-ALCANCABILIDADE.md) | Religar a camada de entrega (orçamento/cronograma/caderno/pacote/sítio/FV/desenhos de concreto) como entregáveis declarados do adaptador; achados: NBR 8800 5.7 ausente na viga de rolamento e TFY espúrio por ruído de ponto flutuante |
+| [G8-BIM-TIPOLOGIAS](REVISAO-G8-BIM-TIPOLOGIAS.md) | IFC4 + 3D para casa-residencial e edifício-multipavimento (as duas só entregavam relatório e prancha); 3 defeitos pré-existentes achados MEDINDO o modelo: sapata 1000× menor no IFC, IFC e 3D discordando em meia altura de viga, e a laje que engrossava sem realimentar a carga |
+| [G9-FUNDACAO-EDIFICIO](REVISAO-G9-FUNDACAO-EDIFICIO.md) | A descida entregava N_base por pilar e ninguem dimensionava: `fundacao` sai de not_available. Sondagem SPT como ENTRADA DECLARADA (sem ela nao ha fundacao e a tensao do solo nunca e' arbitrada), um tipo para a obra e geometria por pilar, tombamento global repartido como binario entre as prumadas; sapata vira IfcFooting enterrada e estaca vira IfcPile cilindrica |
+
+| [G11-VIBRACAO-E-15575](REVISAO-G11-VIBRACAO-E-15575.md) | Fecha os 2 últimos gaps do G2. A 15575 (partes 1 a 6) e o Anexo L da 8800 ESTÃO no acervo — não era bloqueio de fonte como a alvenaria. `vibracao_piso` sai de not_available; a norma NÃO dá fórmula para f_n, então ou o projetista declara ou a via é o deslocamento. Armadilha maior: L.3.2 manda a viga BIAPOIADA mesmo contínua (medido: 2,26× a flecha da contínua, que o framework já tinha à mão). + 2 correções à auditoria do G2 (a 15575 NÃO tem limite entre pavimentos; a Tabela 2 tem 10 linhas, não 4) |
+
+Última atualização: 2026-07-08 (matemática) · 2026-08-30 (arquitetura, G8-G9, G11).

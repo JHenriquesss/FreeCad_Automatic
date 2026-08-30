@@ -28,14 +28,29 @@ from __future__ import annotations
 import os
 
 import descida_cargas as dc
+import desempenho_nbr15575 as des
+import fundacao_edificio as fe
 import laje_concreto as lj
 import pavimento_tipo as pt
 import pilar_continuo as pcn
+import vibracao_piso as vib
+import viga_concreto as vgc
 
 # secoes de pilar tentadas, da menor para a maior (b, h) em m
+# teto de iteracoes do ponto fixo espessura-da-laje x carga (ver `rodar`)
+MAX_ITER_LAJE = 6
+
 SECOES_PILAR = ((0.19, 0.30), (0.19, 0.40), (0.20, 0.50), (0.25, 0.50),
                 (0.25, 0.60), (0.30, 0.60), (0.30, 0.70), (0.35, 0.70),
                 (0.40, 0.80), (0.50, 0.90))
+
+
+def _eixos(vaos):
+    """Coordenadas (m) das linhas de eixo a partir da lista de vaos."""
+    xs = [0.0]
+    for v in vaos:
+        xs.append(xs[-1] + float(v))
+    return xs
 
 
 def _maior_ou_igual(sec, minimo):
@@ -104,6 +119,9 @@ def rodar(spec):
       'parede_sobre_vigas' : opc, ver pavimento_tipo;
       'parede_sem_posicao_pp' : opc (kN/m), Tabela 11;
       'escada'    : opc, sub-spec de escada_concreto.dimensiona;
+      'fundacao'  : opc, sub-spec de fundacao_edificio.dimensiona (perfil_spt da
+                    sondagem e/ou sigma_solo_adm). SEM ele nao ha fundacao - a
+                    tensao do solo nunca e' arbitrada;
       'out_dir'   : opc - se dado, escreve a planta de formas (SVG).
     }"""
     geo = spec["geometria"]
@@ -112,9 +130,9 @@ def rodar(spec):
     viga = spec.get("viga", {})
     fck, fyk = mat["fck"], mat["fyk"]
 
-    def _tipo_para(uso):
+    def _tipo_para(uso, h_laje=None):
         d = {"vaos_x": geo["vaos_x"], "vaos_y": geo["vaos_y"],
-             "h_laje": laje.get("h", 0.10),
+             "h_laje": laje.get("h", 0.10) if h_laje is None else h_laje,
              "revestimento_kN_m2": laje.get("revestimento_kN_m2", 1.0),
              "uso": uso,
              "b_viga": viga.get("b", 0.20), "h_viga": viga.get("h", 0.50),
@@ -125,18 +143,39 @@ def rodar(spec):
             d["parede_sem_posicao_pp"] = spec["parede_sem_posicao_pp"]
         return d
 
-    # um objeto de configuracao POR USO (a descida usa id() para nao remontar)
-    por_uso = {}
-    pavs = []
-    for pv in spec["pavimentos"]:
-        uso = pv["uso"]
-        if uso not in por_uso:
-            por_uso[uso] = _tipo_para(uso)
-        pavs.append({"nome": pv["nome"], "pavimento": por_uso[uso],
-                     "pe_direito": geo["pe_direito"]})
-
-    # ------------------------------------------------------ PAVIMENTO-TIPO
-    pav = pt.monta(por_uso[spec["pavimentos"][-1]["uso"]])
+    # -------------------------------- PAVIMENTO-TIPO + LAJE (ponto fixo em h)
+    # `dimensiona_laje` ADOTA a menor espessura que atende, que pode ser MAIOR
+    # que a declarada. Se a cadeia seguisse com a espessura declarada, vigas,
+    # pilares e fundacao seriam dimensionados para o peso proprio de uma laje
+    # que nao e' a que vai ser construida - carga permanente subestimada em
+    # 25 kN/m3 x delta_h, com todos os gates dizendo OK. Entao a espessura
+    # adotada REALIMENTA a carga, e o laco repete ate a espessura parar de
+    # crescer (`dimensiona_laje` so sobe na lista finita de espessuras, logo o
+    # ponto fixo e' alcancado; MAX_ITER_LAJE e' um teto de seguranca, e nao
+    # atingi-lo vira gate REPROVADO, nunca um resultado dado por bom).
+    h_laje = laje.get("h", 0.10)
+    h_declarada = h_laje
+    iteracoes = 0
+    convergiu = False
+    por_uso, pavs, pav, r_laje = {}, [], None, None
+    for iteracoes in range(1, MAX_ITER_LAJE + 1):
+        por_uso, pavs = {}, []
+        for pv in spec["pavimentos"]:
+            uso = pv["uso"]
+            if uso not in por_uso:
+                por_uso[uso] = _tipo_para(uso, h_laje)
+            pavs.append({"nome": pv["nome"], "pavimento": por_uso[uso],
+                         "pe_direito": geo["pe_direito"]})
+        pav = pt.monta(por_uso[spec["pavimentos"][-1]["uso"]])
+        crit = max(pav["paineis"], key=lambda p: p["lx"] * p["ly"])
+        r_laje = lj.dimensiona_laje({
+            "caso": crit["caso"], "lx": min(crit["lx"], crit["ly"]),
+            "ly": max(crit["lx"], crit["ly"]), "h": h_laje,
+            "g": pav["g_kN_m2"], "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
+        if r_laje["h"] <= h_laje + 1e-9:
+            convergiu = True
+            break
+        h_laje = r_laje["h"]
     fech = pt.verifica_fechamento(pav)
 
     # -------------------------------------------------------- DESCIDA (6.12)
@@ -158,14 +197,6 @@ def rodar(spec):
         secoes_base.append((escolhidos[-1]["b"], escolhidos[-1]["h"]))
         if not r["OK"]:
             erros_pilar.append(nome)
-
-    # ----------------------------------------------------------------- LAJE
-    # painel critico = o de maior area
-    crit = max(pav["paineis"], key=lambda p: p["lx"] * p["ly"])
-    r_laje = lj.dimensiona_laje({
-        "caso": crit["caso"], "lx": min(crit["lx"], crit["ly"]),
-        "ly": max(crit["lx"], crit["ly"]), "h": laje.get("h", 0.10),
-        "g": pav["g_kN_m2"], "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
 
     # ---------------------------------------------------------------- VIGAS
     vigas = list(pav["vigas_x"]) + list(pav["vigas_y"])
@@ -220,6 +251,132 @@ def rodar(spec):
             "lajes_lisas": bool(spec.get("lajes_lisas")),
             "vento": spec["vento"]})
 
+    # ------------------------------------------------------------- FUNDACAO
+    # A descida sempre entregou N_base por pilar e ninguem o dimensionava. Agora
+    # dimensiona - mas SO com sondagem (ou tensao) DECLARADA: sem isso a
+    # fundacao continua ausente e o escopo continua dizendo not_available, em vez
+    # de uma sapata assentada numa tensao de solo arbitrada.
+    fundacao = None
+    erro_fundacao = None
+    if fe.declarada(spec.get("fundacao")):
+        pilares_fund = []
+        for nome in sorted(desc["pilares"]):
+            registro = next(x for x in pav["pilares"] if x["nome"] == nome)
+            lance_base = pilares[nome]["lances"][-1]
+            pilares_fund.append({
+                "nome": nome, "i": registro["i"], "j": registro["j"],
+                "posicao": registro["posicao"],
+                "N_base_k": desc["pilares"][nome]["N_base_k"],
+                # a fundacao recebe a secao do lance da BASE - e' ela que define
+                # o balanco da sapata e a rigidez de 22.6.1
+                "secao": (lance_base["b"], lance_base["h"]),
+            })
+        try:
+            fundacao = fe.dimensiona(spec["fundacao"], {
+                "pilares": pilares_fund,
+                "eixos_x": _eixos(geo["vaos_x"]),
+                "eixos_y": _eixos(geo["vaos_y"]),
+                "materiais": {"fck": fck, "fyk": fyk},
+                "estabilidade": estabilidade})
+        except fe.EntradaFundacao as exc:
+            # entrada declarada que nao permite dimensionar e' REPROVACAO com
+            # motivo, nunca uma fundacao silenciosamente ausente.
+            erro_fundacao = str(exc)
+
+    # ------------------------------------------ ELS DE VIBRACAO (Anexo L)
+    # Fecha o item `vibracao_piso`, aberto desde a auditoria de gaps do G2.
+    # A viga critica NAO e' a de maior vao e sim a de maior w_freq * L^4, que e'
+    # a grandeza a que a flecha biapoiada e' proporcional: com carregamentos
+    # diferentes por linha (as de contorno levam parede), o vao maior nem sempre
+    # e o que mais flecha.
+    uso_tipo = spec["pavimentos"][-1]["uso"]
+    classe_vib, linha_vib = vib.classifica(uso_tipo)
+    viga_vib = None
+    if classe_vib in (None, vib.CLASSE_NAO_APLICAVEL):
+        # sem classe (ou sem criterio aplicavel) nao ha o que calcular; o proprio
+        # modulo devolve o registro nomeado em vez de um OK mudo.
+        vibracao = vib.verifica({"uso": uso_tipo, "fck": fck, "g": pav["g_kN_m2"],
+                                 "q": pav["q_kN_m2"], "laje": {}, "viga": {}})
+    else:
+        p1 = vib.psi_1(linha_vib)
+        crit_v, crit_k, crit_sev = None, 0, -1.0
+        for v in list(pav["vigas_x"]) + list(pav["vigas_y"]):
+            for k, Lk in enumerate(v["vaos"]):
+                sev = (v["g_tramos"][k] + p1 * v["q_tramos"][k]) * Lk ** 4
+                if sev > crit_sev:
+                    crit_sev, crit_v, crit_k = sev, v, k
+        L_v = crit_v["vaos"][crit_k]
+        # a armadura REAL do tramo critico: sem ela a flecha so poderia sair de
+        # secao bruta, que subestima assim que a viga fissura. M_positivo da
+        # analise e CARACTERISTICO (viga_continua nao pondera), dai o gamma_f.
+        rv = vgc.verifica_viga({"vao": L_v, "b": crit_v["b"], "h": crit_v["h"],
+                                "fck": fck, "fyk": fyk,
+                                "M_d": 1.4 * crit_v["M_positivo"][crit_k],
+                                "V_d": 1.4 * crit_v["V_max"][crit_k]})
+        viga_vib = {"linha": crit_v["nome"], "tramo": crit_k + 1, "L": L_v,
+                    "As_cm2": rv["As_inf_cm2"]}
+        gn_l, p_k_l = r_laje["gamma_n"], r_laje["p_k"]
+        M_k_laje = abs(r_laje["momentos"]["m_x"]) / (1.4 * gn_l)
+        p_freq_laje = pav["g_kN_m2"] + p1 * pav["q_kN_m2"]
+        vibracao = vib.verifica({
+            "uso": uso_tipo, "fck": fck,
+            "g": pav["g_kN_m2"], "q": pav["q_kN_m2"],
+            "laje": {"caso": r_laje["caso"], "lx": r_laje["lx"],
+                     "ly": r_laje["ly"], "h": r_laje["h"], "d": r_laje["d"],
+                     "As_m2": r_laje["armaduras"]["m_x"]["As_adotada"],
+                     "M_servico": (M_k_laje * p_freq_laje / p_k_l
+                                   if p_k_l else M_k_laje)},
+            "viga": {"L": L_v, "b": crit_v["b"], "h": crit_v["h"], "d": rv["d"],
+                     "As_m2": rv["As_inf_cm2"] * 1e-4,
+                     "g_kN_m": crit_v["g_tramos"][crit_k],
+                     "q_kN_m": crit_v["q_tramos"][crit_k]},
+            "f_n_Hz": (spec.get("vibracao") or {}).get("f_n_Hz")})
+    if viga_vib:
+        vibracao["viga_critica"] = viga_vib
+
+    # ------------------------------------------- DESEMPENHO NBR 15575
+    # A 15575 so e' exigivel para edificacao HABITACIONAL, e ela traz limites
+    # MAIS RESTRITIVOS que a 6118 em varios pontos - um predio residencial
+    # passava em todos os gates deste framework e reprovaria na 15575.
+    # `habitacional` e deduzido dos usos da Tabela 10 da NBR 6120 (que sao dado
+    # declarado, nao arbitrado) e pode ser sobreposto no spec.
+    habitacional = spec.get("habitacional")
+    if habitacional is None:
+        habitacional = any(pv["uso"].startswith("residencial_") or pv["uso"] == "sotao"
+                           for pv in spec["pavimentos"])
+    cfg15575 = {"habitacional": bool(habitacional)}
+    H_total = len(pavs) * geo["pe_direito"]
+    if estabilidade is not None:
+        cfg15575["topo"] = {"u_m": estabilidade["els"]["u_topo_m"],
+                            "H_total_m": H_total,
+                            "u_norma_m": estabilidade["els"]["limite_topo_m"]}
+    if r_laje.get("fissuracao"):
+        cfg15575["fissura"] = {"wk_mm": r_laje["fissuracao"]["wk_mm"],
+                               "wk_lim_norma_mm": r_laje["fissuracao"]["wk_lim_mm"]}
+    linha_fl = (spec.get("desempenho") or {}).get("linha_flecha")
+    if linha_fl:
+        # A Tabela 2 tem combinacao PROPRIA (Sgk + 0,7 Sqk) e convencao PROPRIA
+        # de flecha final (rigidez pela metade, nota c) - nenhuma das duas e a
+        # que a laje ja calculou para a Tabela 13.3 da 6118. Recalcular e o que
+        # impede comparar a flecha de uma combinacao com o limite de outra.
+        p_155 = pav["g_kN_m2"] + des.PSI_TAB2 * pav["q_kN_m2"]
+        gn_l, p_k_l = r_laje["gamma_n"], r_laje["p_k"]
+        M_k_laje = abs(r_laje["momentos"]["m_x"]) / (1.4 * gn_l)
+        fl155 = lj.flecha_laje(
+            r_laje["caso"], r_laje["lx"], r_laje["ly"], p_155, r_laje["h"], fck,
+            As_tracao=r_laje["armaduras"]["m_x"]["As_adotada"],
+            M_servico=(M_k_laje * p_155 / p_k_l if p_k_l else M_k_laje),
+            d=r_laje["d"])
+        cfg15575["flechas"] = [
+            {"nome": "laje do pavimento-tipo (imediata)", "linha": linha_fl,
+             "coluna": "Sgk+0,7Sqk", "L": r_laje["lx"],
+             "flecha_m": fl155["f_imediata"]},
+            {"nome": "laje do pavimento-tipo (final)", "linha": linha_fl,
+             "coluna": "final", "L": r_laje["lx"],
+             "flecha_m": des.flecha_final(fl155["f_imediata"]),
+             "lim_norma_m": r_laje["lim_flecha"]}]
+    desempenho = des.verifica(cfg15575)
+
     # ---------------------------------------------------------------- GATES
     gates = {
         "fechamento_carga": {"OK": fech["ok"], "erro_rel": fech["erro_rel"],
@@ -231,9 +388,39 @@ def rodar(spec):
         "pilares": {"OK": not erros_pilar, "reprovados": erros_pilar,
                     "n": len(pilares)},
         "laje": {"OK": bool(r_laje.get("OK")), "h_cm": r_laje.get("h", 0) * 100},
+        # a carga que desceu foi calculada com a espessura que a laje ADOTOU
+        "laje_compatibilizada": {
+            "OK": convergiu and abs(pav["h_laje_usada"] - r_laje["h"]) <= 1e-9,
+            "h_declarada_cm": h_declarada * 100,
+            "h_adotada_cm": r_laje["h"] * 100,
+            "h_na_carga_cm": pav["h_laje_usada"] * 100,
+            "iteracoes": iteracoes},
         "vigas": {"OK": vigas_ok, "n": len(vigas),
                   "reprovadas": [v["nome"] for v in vigas if not v["OK"]]},
+        # ELS de vibracao (NBR 8800 Anexo L). `aplicavel` False (cobertura, forro)
+        # sai OK - nao ha criterio - mas fica NOMEADO no gate, nunca omitido.
+        "vibracao_piso": {
+            "OK": bool(vibracao["OK"]), "classe": vibracao.get("classe"),
+            "aplicavel": vibracao.get("aplicavel"),
+            "avaliacao": vibracao.get("avaliacao"),
+            "d_total_mm": vibracao.get("d_total_mm"),
+            "d_lim_mm": vibracao.get("d_lim_mm"),
+            "f_n_Hz": vibracao.get("f_n_Hz"),
+            "motivo": vibracao.get("motivo")},
+        # Desempenho NBR 15575. `nao_verificados` viaja no gate porque a 15575
+        # exige mais do que este framework calcula (carga concentrada de 1 kN da
+        # parte 3, fachada da parte 4): o que nao foi verificado tem de aparecer
+        # em vez de ser confundido com aprovado.
+        "desempenho_15575": {
+            "OK": bool(desempenho["OK"]), "aplicavel": desempenho["aplicavel"],
+            "completo": desempenho["completo"],
+            "reprovados": desempenho["reprovados"],
+            "nao_verificados": desempenho["nao_verificados"]},
     }
+    if fundacao is not None:
+        gates["fundacao"] = dict(fundacao["gate"])
+    elif erro_fundacao is not None:
+        gates["fundacao"] = {"OK": False, "erro": erro_fundacao}
     if r_escada is not None:
         gates["escada"] = {"OK": r_escada["OK"]}
     if estabilidade is not None:
@@ -250,8 +437,12 @@ def rodar(spec):
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
         "laje": r_laje, "vigas": vigas, "escada": r_escada, "planta": planta,
+        "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "estabilidade": estabilidade,
+        "vibracao": vibracao, "desempenho": desempenho,
+        "H_total_m": H_total,
         "n_pavimentos": len(pavs),
+        "h_laje_adotada": r_laje["h"], "h_laje_declarada": h_declarada,
         "N_base_max_k": max(p["N_base_k"] for p in pilares.values()),
         "registro_6120": desc["registro_6120"],
     }
@@ -294,6 +485,26 @@ def relatorio_pt(r):
                  "ELS topo H/%.0f -> %s"
                  % (eh["gamma_z"], "nos " + eh["nos"], eh["direcao_critica"],
                     eh["H_sobre_u_topo"], "ATENDE" if eh["OK"] else "REPROVA"))
+    vb_ = g["vibracao_piso"]
+    if not vb_.get("aplicavel"):
+        L.append("  VIBRACAO DE PISO: criterio do Anexo L nao aplicavel a este uso")
+    elif vb_.get("d_total_mm") is None:
+        # uso sem classe do Anexo L: nao ha limite a aplicar e, portanto, nao ha
+        # deslocamento a exibir - imprimir 0,0 mm sugeriria um piso rigidissimo.
+        L.append("  VIBRACAO DE PISO: uso NAO CLASSIFICADO no Anexo L -> REPROVA")
+    else:
+        L.append("  VIBRACAO DE PISO (NBR 8800 Anexo L, %s): %.1f mm <= %.0f mm "
+                 "-> %s" % (vb_["classe"], vb_["d_total_mm"], vb_["d_lim_mm"],
+                            "ATENDE" if vb_["OK"] else "REPROVA"))
+    d15_ = g["desempenho_15575"]
+    if d15_["aplicavel"]:
+        L.append("  DESEMPENHO NBR 15575: %s%s"
+                 % ("ATENDE" if d15_["OK"] else
+                    "REPROVA em " + ", ".join(d15_["reprovados"]),
+                    "" if d15_["completo"] else
+                    " (NAO verificados: %s)" % ", ".join(d15_["nao_verificados"])))
+    else:
+        L.append("  DESEMPENHO NBR 15575: nao aplicavel (edificacao nao habitacional)")
     L += ["", "  PILAR MAIS CARREGADO: N = %.1f kN na base" % r["N_base_max_k"], ""]
     L.append("%-8s %-13s %12s %14s" % ("PILAR", "POSICAO", "N_base(kN)", "SECAO BASE"))
     L.append("  " + "-" * 52)
@@ -311,5 +522,7 @@ def relatorio_pt(r):
         L.append("  [ACAO HORIZONTAL NAO AVALIADA: sem 'vento' no spec a descida e'")
         L.append("   apenas GRAVITACIONAL - vento, desaprumo, gamma_z e ELS ficam de fora.]")
     L += ["  [A CONFIRMAR: alvenaria ESTRUTURAL nao dimensionada (NBR 16868 ausente",
-          "   do acervo); fundacao e vibracao de piso fora do escopo deste modulo.]"]
+          "   do acervo). Os requisitos da NBR 15575 que se verificam por ENSAIO",
+          "   (impacto de corpo mole/duro, carga concentrada de 1 kN da parte 3 e",
+          "   deslocamento residual de fachada da parte 4) nao sao calculados aqui.]"]
     return "\n".join(L)

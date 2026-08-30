@@ -6,7 +6,7 @@
     "slug": "edificio-multipavimento",
     "type": "edificio",
     "date": "2026-08-29",
-    "description": "edificio residencial de 8 pavimentos-tipo + cobertura; exercita a cadeia carga NBR 6120 -> laje -> viga continua -> pilar -> descida. NAO e' projeto liberado para obra: falta vento, desaprumo, estabilidade global e fundacao"
+    "description": "edificio residencial de 8 pavimentos-tipo + cobertura; exercita a cadeia carga NBR 6120 -> laje -> viga continua -> pilar -> descida. NAO e' projeto liberado para obra: o perfil SPT e' A CONFIRMAR e o momento na base de cada pilar nao e' avaliado"
   },
   "site": {
     "city": "Sao Joao da Barra",
@@ -92,6 +92,34 @@
           "y": 1.3
         },
         "ca_proveniencia": "A CONFIRMAR - lido da NBR 6123 Figura 4 (abaco) com h/l1 e l1/l2; nao derivado pelo framework"
+      },
+      "fundacao": {
+        "perfil_spt": [
+          {
+            "tipo": "argila_arenosa",
+            "N": 6,
+            "dz": 2.0
+          },
+          {
+            "tipo": "areia_siltosa",
+            "N": 14,
+            "dz": 3.0
+          },
+          {
+            "tipo": "areia",
+            "N": 28,
+            "dz": 4.0
+          },
+          {
+            "tipo": "areia",
+            "N": 40,
+            "dz": 6.0
+          }
+        ],
+        "perfil_spt_proveniencia": "A CONFIRMAR - perfil de sondagem SPT do terreno; sem laudo real este e' o dado que o projetista tem de substituir. A tensao admissivel do solo e' DERIVADA dele (N/50), nunca arbitrada",
+        "cota_apoio_m": 1.5,
+        "mu_solo": 0.5,
+        "h_pedestal_m": 0.5
       }
     }
   },

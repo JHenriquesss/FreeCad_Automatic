@@ -232,7 +232,18 @@ def rodar(params, out_dir):
         res["ponte_viga_inter"] = round(viga["inter"], 2)
         # viga["OK"] engloba flexao biaxial + FADIGA (Anexo K) + FLECHA (L/600..1000):
         # sem isto, uma reprovacao de fadiga/flecha (inter < 1) passaria silenciosa.
+        # viga["OK"] tambem engloba as FORCAS LOCALIZADAS na alma (NBR 8800 5.7.3/
+        # 5.7.4) sob a roda e na reacao do console - o quadro-resumo ja as cobre
+        # via "Viga rolamento"; as chaves abaixo tornam o enrijecedor exigido
+        # visivel para a fabricacao.
         res["ponte_viga_ok"] = bool(viga.get("OK", True))
+        _flr = viga.get("forcas_localizadas") or {}
+        if _flr:
+            res["ponte_forcas_localizadas_ok"] = bool(_flr["OK"])
+            res["ponte_roda_u"] = (round(_flr["roda"]["u"], 2)
+                                   if _flr["roda"].get("u") else None)
+            _enr = _flr.get("enrijecedor_apoio") or {}
+            res["ponte_enrijecedor_apoio"] = _enr.get("escolha")
         # Ligacao do CONSOLE a coluna (chapa+solda que recebe a viga de
         # rolamento excentrica). Dimensiona a perna do filete. L = altura de
         # solda ~ misula do console (build BRACKET 450mm); chapa 16mm (build).

@@ -100,11 +100,28 @@ def test_nenhuma_disciplina_e_marcada_passed(execucao):
 
 
 def test_o_escopo_declara_o_que_ainda_nao_e_calculado(execucao):
-    """O que segue fora do adaptador aparece como estado, nao como silencio."""
+    """O que segue fora do adaptador aparece como estado, nao como silencio.
+
+    `fundacao` saiu desta lista no G9 - ela e' calculada quando a sondagem esta
+    declarada, e o projeto persistido a declara. O que ficou aberto DENTRO da
+    fundacao continua publicado (momento na base do pilar, baldrame, recalque).
+
+    `vibracao_piso` saiu no G11 (NBR 8800 11.4/Anexo L), junto com o desempenho
+    da NBR 15575. O que a 15575 verifica por ENSAIO e nao por conta entrou no
+    lugar - e tem de continuar publicado, senao um 'desempenho: implemented'
+    passaria a cobrir requisitos que ninguem verificou.
+    """
     manifesto, _ = execucao
     escopo = manifesto["disciplines"]["estrutura"]["scope"]
-    for chave in ("alvenaria_estrutural", "fundacao", "vibracao_piso"):
+    for chave in ("alvenaria_estrutural", "momento_base_pilar",
+                  "viga_baldrame", "recalque_diferencial",
+                  "desempenho_15575_impacto_corpo_mole_duro",
+                  "desempenho_15575_carga_concentrada_piso",
+                  "desempenho_15575_fachada"):
         assert escopo[chave] == "not_available", chave
+    assert escopo["fundacao"] == "implemented"
+    assert escopo["vibracao_piso"] == "implemented"
+    assert escopo["desempenho_15575"] == "implemented"
 
 
 def test_com_vento_declarado_a_acao_horizontal_sai_calculada(execucao):
@@ -187,6 +204,21 @@ def test_a_planta_de_formas_sai_e_e_xml_valido(execucao):
         ET.parse(caminho)
 
 
+def test_a_planta_de_laje_sai_junto_com_a_de_formas(execucao):
+    """A laje era dimensionada e so existia como numero: sem prancha, o
+    resultado nao chegava a obra. Alcancabilidade, nao calculo."""
+    manifesto, destino = execucao
+    entregavel = manifesto["deliverables"]["drawings"]
+    assert "drawings/planta-laje-pavimento-tipo.svg" in entregavel["artifacts"]
+    assert entregavel["skipped"] == []
+    caminho = Path(destino) / "drawings" / "planta-laje-pavimento-tipo.svg"
+    raiz = ET.parse(caminho).getroot()
+    textos = " ".join(no.text for no in raiz.iter()
+                      if no.tag.endswith("text") and no.text)
+    # a prancha tem de trazer o veredito da laje, nao so a geometria
+    assert "ATENDE" in textos
+
+
 def test_a_planta_desenha_todos_os_pilares_calculados(execucao):
     """Desenho x dado: a grade pode desenhar um numero que nao e' o calculado.
     Foi assim que a planta de incendio desenhava cols*rows != N."""
@@ -216,3 +248,44 @@ def test_sem_2d_o_entregavel_e_not_requested(spec, tmp_path):
                             {"generate_2d": False, "generate_caderno": False,
                              "generate_ifc": False})
     assert manifesto["deliverables"]["drawings"]["status"] == "not_requested"
+
+
+# --- G11: vibracao de piso e desempenho NBR 15575 --------------------------
+
+def test_o_manifesto_publica_a_ressalva_de_L31_da_via_simplificada(execucao):
+    """L.3.1 e' explicito: a avaliacao simplificada "pode nao constituir uma
+    solucao adequada para o problema". Atender 20/9/5 mm nao e' certificado de
+    conforto, e o manifesto nao pode deixar parecer que e'."""
+    manifesto, _ = execucao
+    avisos = manifesto["disciplines"]["estrutura"]["warnings"]
+    aviso = next((a for a in avisos
+                  if a["code"] == "vibracao_avaliacao_simplificada"), None)
+    assert aviso is not None
+    assert "L.3.1" in aviso["detail"]
+    assert "biapoiadas" in aviso["detail"]
+    assert aviso["d_total_mm"] is not None and aviso["d_lim_mm"] is not None
+
+
+def test_o_manifesto_publica_o_que_a_15575_exige_e_ninguem_verificou(execucao):
+    """A 15575 exige mais do que este framework calcula. O que ficou de fora tem
+    de aparecer nomeado - confundir 'nao verificado' com 'aprovado' e' o bug que
+    este framework persegue desde a saturacao silenciosa."""
+    manifesto, _ = execucao
+    avisos = manifesto["disciplines"]["estrutura"]["warnings"]
+    aviso = next((a for a in avisos
+                  if a["code"] == "desempenho_15575_incompleto"), None)
+    if aviso is None:                     # spec nao habitacional: nada a exigir
+        gates = manifesto["disciplines"]["estrutura"]["gates"]
+        assert gates["desempenho_15575"]["aplicavel"] is False
+    else:
+        assert aviso["nao_verificados"]
+        assert "HABITACIONAL" in aviso["detail"]
+
+
+def test_os_gates_do_g11_viajam_no_manifesto(execucao):
+    manifesto, _ = execucao
+    gates = manifesto["disciplines"]["estrutura"]["gates"]
+    assert "vibracao_piso" in gates
+    assert "desempenho_15575" in gates
+    # `nao_verificados` faz parte do gate, nao de um comentario solto
+    assert "nao_verificados" in gates["desempenho_15575"]
