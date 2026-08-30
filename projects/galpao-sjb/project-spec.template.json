@@ -1,0 +1,73 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "project": {
+    "slug": "galpao-sjb",
+    "type": "galpao",
+    "description": "Preencher dados reais do empreendimento antes da execução"
+  },
+  "site": {
+    "city": "São João da Barra",
+    "state": "RJ",
+    "utility": "ENEL"
+  },
+  "source_refs": {
+    "concreto": [
+      {"notebook_id": "6949283a-500d-4eb0-8e94-0cdad964aa69", "source_id": "b1df9923-5edc-4390-b4a9-a1f57a61af81", "status": 2}
+    ],
+    "aco": [
+      {"notebook_id": "cad0c145-8b7e-4857-a59e-cfd4cb25a4bf", "source_id": "a82e9b46-086f-4310-889e-916aef7dcbc7", "status": 2},
+      {"notebook_id": "cad0c145-8b7e-4857-a59e-cfd4cb25a4bf", "source_id": "8502de80-a3d0-445d-be15-c922ff69287f", "status": 2}
+    ],
+    "eletrico": [
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "d213019d-6e5c-4f18-8151-bf5a74c11b5d", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "97c49e21-2885-45cb-9226-3893fda4f3c2", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "c58e3863-7942-4149-a179-b216e02cd931", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8", "status": 2}
+    ],
+    "incendio": [
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "54adb5b2-86c7-4f9c-83ff-ec12102d5095", "status": 2},
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "878dc921-2664-43ec-b2c8-14641b3c7641", "status": 2},
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "95be4628-2223-4b11-bd05-c64a812064d0", "status": 2}
+    ],
+    "climatizacao": [
+      {"notebook_id": "a1c10ac4-71a5-4596-9e0e-b32df73e9f2c", "source_id": "4f5d6256-aac8-44e1-af6f-37c7a329f045", "status": 2}
+    ],
+    "hidraulica": [
+      {"notebook_id": "bb341fae-e220-4ab8-bf6d-0a5ae8f8e413", "source_id": "88bbe8c0-cab9-44e4-bfe6-8b895d8d6fc2", "status": 2},
+      {"notebook_id": "8ccc440c-1e37-4089-b008-2fc667c03f2c", "source_id": "13de5b91-1b37-4a17-ae5e-77acc5479341", "status": 2},
+      {"notebook_id": "8ccc440c-1e37-4089-b008-2fc667c03f2c", "source_id": "6a4def7b-b788-4ee8-9441-433081a98c84", "status": 2}
+    ]
+  },
+  "turnkey": {
+    "geometria": {
+      "comprimento": "__PENDENTE__",
+      "vao": "__PENDENTE__",
+      "pe_direito": "__PENDENTE__"
+    },
+    "concreto": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["sub-spec completo da disciplina"]
+    },
+    "aco": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["spec estrutural completo e validado"]
+    },
+    "eletrico": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["cargas, tensão, alimentação e dados da concessionária"]
+    },
+    "incendio": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["ocupação, risco, medidas e dados do Corpo de Bombeiros"]
+    },
+    "climatizacao": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["carga térmica e requisitos do ambiente"]
+    },
+    "hidraulica": {
+      "_status": "__PENDENTE__",
+      "_campos_pendentes": ["consumos, aparelhos, reservação e esgoto"]
+    }
+  }
+}

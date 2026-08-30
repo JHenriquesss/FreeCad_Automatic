@@ -151,7 +151,7 @@ def test_real_residential_adapter_is_registered_with_only_electrical_capability(
     assert capabilities
     assert capabilities[0]["project_types"] == ["residencial"]
     assert capabilities[0]["disciplines"] == ["eletrico"]
-    assert capabilities[0]["deliverables"] == ["report"]
+    assert capabilities[0]["deliverables"] == ["report", "drawings", "ifc"]
 
 
 def test_residential_electrical_run_is_needs_review_and_traceable(tmp_path):

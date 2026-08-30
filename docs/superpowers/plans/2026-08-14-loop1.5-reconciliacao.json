@@ -1,0 +1,46 @@
+{
+  "date": "2026-08-14",
+  "baseline_reconciliation": {
+    "completed_tasks": 14,
+    "blocked_raw": 15,
+    "blocked_canonical": 12,
+    "aliases_preserved": {
+      "36d620f48245": ["04bae867847a", "4e817ec77df0"],
+      "8b7e5b9e642f": ["ef1de64b8b1f"]
+    }
+  },
+  "after_bounded_batch": {
+    "completed_tasks": 14,
+    "blocked_raw": 18,
+    "blocked_canonical": 15,
+    "max_iterations": 3,
+    "iterations_run": 3,
+    "stop_reason": "max_iterations",
+    "outcomes": [
+      {"loop_id": "loop-20260814T192223898678Z", "outcome": "manual_source_required", "task_id": "19523f5854c3"},
+      {"loop_id": "loop-20260814T192225605217Z", "outcome": "manual_source_required", "task_id": "34e64be815c6"},
+      {"loop_id": "loop-20260814T192227189568Z", "outcome": "manual_source_required", "task_id": "fb364e117730"}
+    ]
+  },
+  "resume_validation": {
+    "loop_id": "loop-20260814T192227189568Z",
+    "outcome": "manual_source_required",
+    "phase": "park",
+    "attempts_research": 2,
+    "failure_reason": "missing_source"
+  },
+  "foundation_reconciliation": {
+    "task_id": "f730b44d6a75",
+    "loop_id": "loop-20260814T182055273676Z",
+    "source_id": "64bfaba4-6af8-4605-8977-4ea31d8c19c0",
+    "promoted_commit": "95ee4342bfd8ce0cd43f2cdedce8e108c3eafe0c",
+    "targeted_passed": 137,
+    "regression_passed": 1574,
+    "regression_preexisting_failures": 18,
+    "regression_new_failures": 0,
+    "review_approved": true,
+    "worktree_branch": "loop/loop-20260814T182055273676Z",
+    "root_head_before_and_after": "05f75f6361fd59ea597af9b26ec5fd18f56bbbed",
+    "artifacts_run": ".loop-runtime/foundation-reconciliation/runs/loop-20260814T182055273676Z"
+  }
+}

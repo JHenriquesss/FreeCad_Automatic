@@ -1,69 +1,53 @@
-# Task 1 — contrato de estado, schema e ledger
+# Task 1 — RED: testes de generalização do `project_loop`
 
-## Implementação
+## Escopo executado
 
-- Criado `tools/loops/models.py` com `LoopPhase`, `VALID_TRANSITIONS` e os dataclasses do contrato (`TaskCandidate`, `SourceRecord`, `Citation`, `EvidenceBundle`, `CommandResult`, `LoopState`).
-- Implementada serialização explícita `to_dict`/`from_dict`, preservando enums e coleções vazias.
-- Criado `tools/loops/ledger.py` com `Ledger.load`, `Ledger.save` e `Ledger.transition`.
-- O ledger valida campos essenciais, modos e fases na entrada e na saída, sem dependências runtime novas.
-- A persistência escreve em temporário no mesmo diretório e usa `os.replace`; transições inválidas são rejeitadas antes da persistência.
-- Criado `tools/loops/schema/development-loop.schema.json` com campos obrigatórios, enumeração de modos/fases e tipos essenciais.
+- Criado somente o teste `framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py`.
+- Não foram criados arquivos de produção.
+- Não foi criado o spec persistido `projects/casa-residencial-sintetica/project-spec.json`.
+- Alterações preexistentes do checkout foram preservadas.
 
-## Arquivos
+## Comando RED
 
-- `tools/loops/models.py`
-- `tools/loops/ledger.py`
-- `tools/loops/schema/development-loop.schema.json`
-- `tools/loops/tests/test_ledger.py`
+```powershell
+python -m pytest -q framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py
+```
 
-## Comandos e resultados
+## Resultado RED
 
-- `python -m pytest tools/loops/tests/test_ledger.py -q` antes da produção: RED na coleta, `ModuleNotFoundError: No module named 'tools.loops.ledger'`.
-- `python -m pytest tools/loops/tests/test_ledger.py -q` depois da produção: `4 passed in 0.07s`.
-- `python -m pytest tools/loops -q`: `4 passed in 0.09s`.
-- `git diff --check`: sem erros de whitespace nos arquivos versionados já rastreados; os arquivos novos foram revisados no diff final.
+O comando terminou com código de saída `1`:
 
-## Evidência RED/GREEN
+```text
+FFFFFFFF                                                                 [100%]
+8 failed in 0.87s
+```
 
-Os quatro testes exigidos foram escritos antes da produção. A execução inicial falhou durante a coleta pela ausência do módulo de ledger. Após a implementação mínima, os quatro testes passaram, cobrindo round-trip, fase esperada, JSON válido após replacement e não mutação em transição inválida.
+As falhas são as esperadas para esta etapa:
 
-## Self-review
+1. `test_residential_adapter_is_registered_with_declared_capabilities` falhou com `StopIteration`, pois `casa-residencial-sintetica` ainda não está registrada.
+2. Os testes de execução e verificação falharam ao carregar o fixture ausente com `project_io.ProjectSpecFileError: arquivo de spec nao encontrado: ...\projects\casa-residencial-sintetica\project-spec.json`.
+3. `test_residential_execution_does_not_import_galpao_turnkey` falhou no subprocesso pelo mesmo fixture ausente, com retorno `1`.
 
-- Escopo limitado aos artefatos da Task 1 e ao relatório solicitado; alterações existentes em `.gitignore`, `.omo/`, `docs/` e saídas foram preservadas fora do commit.
-- Não foram adicionadas dependências runtime.
-- A transição verifica fase esperada e whitelist antes de salvar.
-- `save` remove o temporário remanescente em caso de erro; `os.replace` mantém a substituição atômica no mesmo diretório.
-- Testes exercitam o objeto real e validam regras essenciais do schema com `json`/stdlib.
+Não houve erro de coleta, erro de sintaxe, erro de importação do módulo de teste ou falha causada por caminho incorreto do teste. O teste do galpão não foi alterado nem executado nesta Task 1.
 
-## Preocupações
+## Cobertura definida
 
-- A validação implementada cobre as regras essenciais usadas nesta fatia; validação genérica de JSON Schema e contratos dos adaptadores ficam para tarefas posteriores.
-- A suíte global do repositório não foi executada porque esta task delimita a validação ao ledger isolado; a suíte própria `tools/loops` foi executada integralmente e está verde.
+O teste RED define o contrato para:
 
-## Correção
+- registro do adaptador residencial e suas capacidades;
+- execução pelo caminho real `run_project_file`;
+- estados honestos de hooks opcionais;
+- isolamento de importação de `galpao_turnkey`;
+- bloqueios de tipo e geometria;
+- chaves universais do manifesto entre casa e galpão;
+- detecção de adulteração por hash.
 
-### Escopo
+## Verificação de escopo
 
-- Adicionado `FailureRecord` ao contrato, `LoopState.failure` e à estrutura obrigatória do schema.
-- `Ledger.record_failure(reason, command, artifacts, detail)` persiste razão, argv e referências de artefatos sem avançar `phase`.
-- `_validate` agora percorre todo o schema local: tipos, `const`, `enum`, mínimos, coleções, campos obrigatórios, propriedades adicionais e objetos/arrays aninhados.
-- `save` usa `NamedTemporaryFile` exclusivo no diretório do ledger, `os.replace` e só atualiza `self.state` após a substituição bem-sucedida.
-- `record_failure` rejeita coleções escalares; uma transição inválida ou uma falha inválida não altera nem memória nem arquivo.
-- Defaults de modo e sanitização de stdout/stderr não foram alterados; não houve dependências runtime novas.
+O único arquivo destinado ao commit desta Task 1 é:
 
-### RED
+```text
+framework/galpao_fw/tests/branches/project_loop/test_project_loop_generalization.py
+```
 
-- Contra `d3a13fc` em clone temporário, `python -m pytest tools/loops/tests/test_ledger.py -q` falhou na coleta com `ImportError: cannot import name 'FailureRecord'`.
-- Após acrescentar a regressão de coleções escalares, `python -m pytest tools/loops/tests/test_ledger.py -q` falhou como esperado: 2 falhas, pois strings eram convertidas em tuplas de caracteres e persistidas.
-
-### GREEN
-
-- `python -m pytest tools/loops/tests/test_ledger.py -q`: `25 passed in 0.24s`.
-- `python -m pytest tools/loops -q`: `25 passed in 0.49s`.
-
-### Self-review
-
-- Conferidos contrato, schema e serialização de cada objeto aninhado usado por `LoopState`, inclusive `failure`.
-- Conferido que `transition` valida a fase esperada e a transição antes de salvar; em erro, bytes e estado permanecem inalterados.
-- Conferido que a exceção de `os.replace` não altera `self.state`, preserva o arquivo anterior e remove o temporário.
-- Preservadas alterações não relacionadas em `.gitignore`, `.omo/`, `docs/` e diretórios de saída; o commit incluirá apenas os arquivos desta correção e o registro de sessão.
+O relatório foi atualizado no caminho solicitado, mas não será incluído no commit da Task 1.

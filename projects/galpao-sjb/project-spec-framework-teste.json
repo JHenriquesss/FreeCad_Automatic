@@ -1,0 +1,298 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "project": {
+    "slug": "galpao-sjb-framework-teste",
+    "type": "galpao",
+    "description": "Copia de teste preenchida pelo agente para validar o framework BIM, IFC, modelo 3D, pranchas 2D e caderno. Nao usar como projeto executivo nem como dado de obra."
+  },
+  "site": {
+    "city": "Sao Joao da Barra",
+    "state": "RJ",
+    "utility": "ENEL"
+  },
+  "test_assumptions": {
+    "mode": "framework_capability_test",
+    "status": "not_real_engineering_input",
+    "source": "agent_assumed_values",
+    "warning": "Todos os campos preenchidos nesta copia sao premissas coerentes para exercitar o pipeline e ainda precisam ser substituidos ou confirmados pelo responsavel tecnico."
+  },
+  "source_refs": {
+    "concreto": [
+      {"notebook_id": "6949283a-500d-4eb0-8e94-0cdad964aa69", "source_id": "b1df9923-5edc-4390-b4a9-a1f57a61af81", "status": 2}
+    ],
+    "aco": [
+      {"notebook_id": "cad0c145-8b7e-4857-a59e-cfd4cb25a4bf", "source_id": "a82e9b46-086f-4310-889e-916aef7dcbc7", "status": 2},
+      {"notebook_id": "cad0c145-8b7e-4857-a59e-cfd4cb25a4bf", "source_id": "8502de80-a3d0-445d-be15-c922ff69287f", "status": 2}
+    ],
+    "eletrico": [
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "d213019d-6e5c-4f18-8151-bf5a74c11b5d", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "97c49e21-2885-45cb-9226-3893fda4f3c2", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "c58e3863-7942-4149-a179-b216e02cd931", "status": 2},
+      {"notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962", "source_id": "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8", "status": 2}
+    ],
+    "incendio": [
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "54adb5b2-86c7-4f9c-83ff-ec12102d5095", "status": 2},
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "878dc921-2664-43ec-b2c8-14641b3c7641", "status": 2},
+      {"notebook_id": "a7e4b5d9-4e07-401b-970e-e973bae3aada", "source_id": "95be4628-2223-4b11-bd05-c64a812064d0", "status": 2}
+    ],
+    "climatizacao": [
+      {"notebook_id": "a1c10ac4-71a5-4596-9e0e-b32df73e9f2c", "source_id": "4f5d6256-aac8-44e1-af6f-37c7a329f045", "status": 2}
+    ],
+    "hidraulica": [
+      {"notebook_id": "bb341fae-e220-4ab8-bf6d-0a5ae8f8e413", "source_id": "88bbe8c0-cab9-44e4-bfe6-8b895d8d6fc2", "status": 2},
+      {"notebook_id": "8ccc440c-1e37-4089-b008-2fc667c03f2c", "source_id": "13de5b91-1b37-4a17-ae5e-77acc5479341", "status": 2},
+      {"notebook_id": "8ccc440c-1e37-4089-b008-2fc667c03f2c", "source_id": "6a4def7b-b788-4ee8-9441-433081a98c84", "status": 2}
+    ]
+  },
+  "structure": {
+    "aberturas": {
+      "janelas_laterais": [1100.0, 2100.0],
+      "portao_frente": [4500.0, 2500.0]
+    },
+    "baldrame": null,
+    "cargas": {"G": 0.3, "Q": 0.25, "self": 0.35, "tapamento": 0.1},
+    "cobertura": {
+      "aguas": 2,
+      "calha": true,
+      "chuva_I_mm_h": 150.0,
+      "slope": 0.15,
+      "telha_peso": 0.1,
+      "telha_tipo": "trapezoidal"
+    },
+    "descricao": "galpao industrial de teste do framework",
+    "escada": null,
+    "estrutura": {
+      "contraventamento": "d20",
+      "mao_francesa": {"b_mm": 50.0, "t_mm": 5.0},
+      "montagem_params": {
+        "mont_angulo_estai": 45.0,
+        "mont_area_exposta_m2": 15.0,
+        "mont_n_estais": 2,
+        "mont_q_kNm2": 0.7,
+        "mont_raio_guindaste_m": 10.0
+      },
+      "perfil_col": "HEA200",
+      "perfil_raf": "HEA180",
+      "tapered": null,
+      "tipo_portico": "prismatico",
+      "trelica": null
+    },
+    "fechamento": {
+      "altura_alvenaria": 0,
+      "mesa_interna_travada": true,
+      "n_maos_francesas": 9,
+      "peso": 1.5,
+      "tipo": "alvenaria"
+    },
+    "fogo": null,
+    "fundacao": {
+      "cobrimento": 0.05,
+      "coesao": 0.0,
+      "divisa": null,
+      "estaca": null,
+      "fck": 25000.0,
+      "fyk": 500000.0,
+      "gamma_f": 1.4,
+      "h_reaterro": 0.5,
+      "mu": 0.5,
+      "phi_barra": 0.0125,
+      "sigma_solo_adm": 250.0,
+      "tipo": "bloco"
+    },
+    "geometria": {
+      "base_fixed": true,
+      "bay": 5.714285714285714,
+      "comprimento": 40.0,
+      "eave": 6.0,
+      "ridge": 7.0,
+      "span": 20.0,
+      "spans": null
+    },
+    "neve": null,
+    "plataforma": null,
+    "ponte": null,
+    "slug": "galpao-sjb-framework-teste",
+    "terreno": {
+      "area_lote_m2": 5000.0,
+      "ca_max": 1.0,
+      "kml": null,
+      "n_pav": 1,
+      "pts_xy_mm": null,
+      "recuos": {"frente": 8.0, "fundos": 0.0, "lateral": 1.5},
+      "to_max": 0.6,
+      "tp_min": 0.2
+    },
+    "vento": {
+      "abertura_dominante": "portao_oitao",
+      "cat": "IV",
+      "classe": "B",
+      "s1": 1.0,
+      "s3": 1.0,
+      "v0": 40.0,
+      "z": 7.0
+    }
+  },
+  "turnkey": {
+    "geometria": {"comprimento": 40.0, "vao": 20.0, "pe_direito": 6.0},
+    "concreto": {
+      "G_roof": 0.3,
+      "Q_roof": 0.25,
+      "cat": "IV",
+      "classe": "B",
+      "fck": 30000.0,
+      "fyk": 500000.0,
+      "n_porticos": 7,
+      "s1": 1.0,
+      "s3": 1.0,
+      "sigma_solo_adm": 250.0,
+      "v0": 40.0,
+      "vao": 20.0
+    },
+    "aco": {
+      "aberturas": {
+        "janelas_laterais": [1100.0, 2100.0],
+        "portao_frente": [4500.0, 2500.0]
+      },
+      "baldrame": null,
+      "cargas": {"G": 0.3, "Q": 0.25, "self": 0.35, "tapamento": 0.1},
+      "cobertura": {
+        "aguas": 2,
+        "calha": true,
+        "chuva_I_mm_h": 150.0,
+        "slope": 0.15,
+        "telha_peso": 0.1,
+        "telha_tipo": "trapezoidal"
+      },
+      "descricao": "galpao industrial de teste do framework",
+      "escada": null,
+      "estrutura": {
+        "contraventamento": "d20",
+        "mao_francesa": {"b_mm": 50.0, "t_mm": 5.0},
+        "montagem_params": {
+          "mont_angulo_estai": 45.0,
+          "mont_area_exposta_m2": 15.0,
+          "mont_n_estais": 2,
+          "mont_q_kNm2": 0.7,
+          "mont_raio_guindaste_m": 10.0
+        },
+        "perfil_col": "HEA200",
+        "perfil_raf": "HEA180",
+        "tapered": null,
+        "tipo_portico": "prismatico",
+        "trelica": null
+      },
+      "fechamento": {
+        "altura_alvenaria": 0,
+        "mesa_interna_travada": true,
+        "n_maos_francesas": 9,
+        "peso": 1.5,
+        "tipo": "alvenaria"
+      },
+      "fogo": null,
+      "fundacao": {
+        "cobrimento": 0.05,
+        "coesao": 0.0,
+        "divisa": null,
+        "estaca": null,
+        "fck": 25000.0,
+        "fyk": 500000.0,
+        "gamma_f": 1.4,
+        "h_reaterro": 0.5,
+        "mu": 0.5,
+        "phi_barra": 0.0125,
+        "sigma_solo_adm": 250.0,
+        "tipo": "bloco"
+      },
+      "geometria": {
+        "base_fixed": true,
+        "bay": 5.714285714285714,
+        "comprimento": 40.0,
+        "eave": 6.0,
+        "ridge": 7.0,
+        "span": 20.0,
+        "spans": null
+      },
+      "neve": null,
+      "plataforma": null,
+      "ponte": null,
+      "slug": "galpao-sjb-framework-teste",
+      "terreno": {
+        "area_lote_m2": 5000.0,
+        "ca_max": 1.0,
+        "kml": null,
+        "n_pav": 1,
+        "pts_xy_mm": null,
+        "recuos": {"frente": 8.0, "fundos": 0.0, "lateral": 1.5},
+        "to_max": 0.6,
+        "tp_min": 0.2
+      },
+      "vento": {
+        "abertura_dominante": "portao_oitao",
+        "cat": "IV",
+        "classe": "B",
+        "s1": 1.0,
+        "s3": 1.0,
+        "v0": 40.0,
+        "z": 7.0
+      }
+    },
+    "eletrico": {
+      "alimentador": {"L_km": 0.05, "isolacao": "EPR", "metodo": "F"},
+      "cargas": {
+        "ilum_fp": 0.92,
+        "iluminacao_kW": 20.0,
+        "motores": [{"P_cv": 75.0, "eta": 0.92, "Fp": 0.86, "n": 2}],
+        "ocupacao": "industrial"
+      },
+      "concessionaria": {
+        "nome": "ENEL",
+        "modalidade": "BT_trifasica",
+        "tensao_entrega_V": 380.0,
+        "protocolo": "TESTE_NAO_PROTOCOLADO"
+      },
+      "tensao_V": 380.0
+    },
+    "incendio": {
+      "ocupacao": "industrial_I2",
+      "risco": "ordinario_II",
+      "rota_fuga_m": 60.0,
+      "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
+      "deteccao": {"viga_m": 0.0},
+      "sprinklers": {"altura_estoque_m": 3.0, "tipo": "producao", "risco": "ordinario_II"},
+      "hidrantes": {"ocupacao": "industrial_I2"},
+      "corpo_bombeiros": {
+        "estado": "RJ",
+        "orgao": "CBMERJ",
+        "protocolo": "TESTE_NAO_PROTOCOLADO"
+      }
+    },
+    "climatizacao": {
+      "tipo": "galpao",
+      "metodo": "detalhado",
+      "n_pessoas": 20,
+      "atividade": "moderado",
+      "envoltoria": [{"U": 0.6, "A": 800.0, "dT": 8.0}],
+      "P_iluminacao_W": 20000.0,
+      "P_equipamentos_W": 5000.0,
+      "dT_ar_ext": 8.0,
+      "n_ramais": 4
+    },
+    "hidraulica": {
+      "n_condutores": 4,
+      "i_pluvial_mm_h": 150.0,
+      "decl_pluvial_pct": 1.0,
+      "decl_calha_pct": 1.0,
+      "decl_esgoto_pct": 1.0,
+      "area_telhado_m2": 800.0,
+      "aparelhos_agua": {"bacia_caixa": 2, "lavatorio": 2, "chuveiro": 2},
+      "aparelhos_esgoto": {"bacia": 2, "lavatorio": 2, "chuveiro": 2},
+      "p_alim_kPa": 100.0,
+      "reservacao": {
+        "agua_potavel_m3": 5.0,
+        "reserva_incendio_m3": 192.4,
+        "proveniencia": "premissa de teste; confirmar por consumo, ocupacao e exigencias locais"
+      }
+    }
+  }
+}

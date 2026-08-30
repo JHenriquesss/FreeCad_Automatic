@@ -107,8 +107,10 @@ Cada iteração executa no máximo uma tarefa e percorre estes estados:
 10. `promote` ou `park` — `promote` deixa o commit na branch da tarefa para revisão
     humana; `park` retorna o motivo e a próxima ação sem fingir conclusão.
 
-Transições inválidas, erro de infraestrutura ou encerramento do processo devem deixar
-o ledger em um estado recuperável, com `last_completed_state` e `resume_token`.
+Uma chamada inválida à API de transição deve falhar sem modificar o estado persistido.
+Erros operacionais do loop devem deixar o ledger em um estado recuperável, com uma
+falha classificada contendo motivo, comando e referências aos artefatos. O supervisor
+usará essa informação para estacionar e retomar a partir da última fase persistida.
 
 ## Estado persistente
 
@@ -134,6 +136,7 @@ O ledger deve conter, no mínimo:
   "tests": {"baseline": {}, "targeted": {}, "regression": {}, "build": {}},
   "artifacts": [],
   "outcome": null,
+  "failure": null,
   "updated_at": "..."
 }
 ```
