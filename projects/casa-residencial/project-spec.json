@@ -1,0 +1,735 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "adapter": "casa-residencial",
+  "project": {
+    "slug": "casa-residencial",
+    "type": "residencial",
+    "date": "2026-08-29",
+    "description": "casa terrea de 2 dormitorios; contrato exercitado com calculo real de arquitetura, eletrica e hidraulica - NAO e' projeto liberado para obra"
+  },
+  "site": {
+    "city": "Sao Joao da Barra",
+    "state": "RJ",
+    "utility": "ENEL",
+    "i_pluvial_mm_h": "A CONFIRMAR (NBR 10844 Tab.5)"
+  },
+  "geometry": {
+    "comprimento": 10.4,
+    "vao": 8.0,
+    "pe_direito": 2.7
+  },
+  "turnkey": {
+    "arquitetura": {
+      "ambientes": [
+        {
+          "nome": "Sala",
+          "tipo": "sala",
+          "largura_m": 5.0,
+          "comprimento_m": 4.0
+        },
+        {
+          "nome": "Cozinha",
+          "tipo": "cozinha",
+          "largura_m": 3.6,
+          "comprimento_m": 2.5
+        },
+        {
+          "nome": "Banheiro",
+          "tipo": "banheiro",
+          "largura_m": 2.4,
+          "comprimento_m": 1.5
+        },
+        {
+          "nome": "Area de servico",
+          "tipo": "area_servico",
+          "largura_m": 3.0,
+          "comprimento_m": 2.0
+        },
+        {
+          "nome": "Circulacao",
+          "tipo": "circulacao",
+          "largura_m": 4.0,
+          "comprimento_m": 1.0
+        },
+        {
+          "nome": "Dormitorio 01",
+          "tipo": "dormitorio",
+          "largura_m": 3.5,
+          "comprimento_m": 3.0
+        },
+        {
+          "nome": "Dormitorio 02",
+          "tipo": "dormitorio",
+          "largura_m": 3.0,
+          "comprimento_m": 3.0
+        }
+      ],
+      "pe_direito_m": 2.7
+    },
+    "eletrico": {
+      "network": {
+        "voltage_system": "127/220",
+        "supply_type": "B",
+        "network_kind": "aerea",
+        "location_factor": 1.0
+      },
+      "rooms": {
+        "quarto": 2,
+        "sala": 1,
+        "banheiro": 1,
+        "cozinha": 1,
+        "area_servico": 1,
+        "outros": 1
+      },
+      "loads": {
+        "installed_load_kw": 11.74,
+        "heating": [],
+        "motors": [],
+        "special_lighting": []
+      },
+      "circuits": {
+        "points": [
+          {
+            "id": "L-SALA",
+            "room": "Sala",
+            "kind": "lighting",
+            "power_va": 280.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-SALA-01",
+            "room": "Sala",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-SALA-02",
+            "room": "Sala",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-SALA-03",
+            "room": "Sala",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-SALA-04",
+            "room": "Sala",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-COZ",
+            "room": "Cozinha",
+            "kind": "lighting",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-COZ-01",
+            "room": "Cozinha",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-COZ-02",
+            "room": "Cozinha",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-COZ-03",
+            "room": "Cozinha",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-COZ-04",
+            "room": "Cozinha",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-BAN",
+            "room": "Banheiro",
+            "kind": "lighting",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-BAN-01",
+            "room": "Banheiro",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-AS",
+            "room": "Area de servico",
+            "kind": "lighting",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-AS-01",
+            "room": "Area de servico",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-AS-02",
+            "room": "Area de servico",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-AS-03",
+            "room": "Area de servico",
+            "kind": "tug",
+            "power_va": 600.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-CIRC",
+            "room": "Circulacao",
+            "kind": "lighting",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-CIRC-01",
+            "room": "Circulacao",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-DOR1",
+            "room": "Dormitorio 01",
+            "kind": "lighting",
+            "power_va": 160.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR1-01",
+            "room": "Dormitorio 01",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR1-02",
+            "room": "Dormitorio 01",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR1-03",
+            "room": "Dormitorio 01",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "L-DOR2",
+            "room": "Dormitorio 02",
+            "kind": "lighting",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR2-01",
+            "room": "Dormitorio 02",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR2-02",
+            "room": "Dormitorio 02",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "T-DOR2-03",
+            "room": "Dormitorio 02",
+            "kind": "tug",
+            "power_va": 100.0,
+            "voltage_v": 127.0
+          },
+          {
+            "id": "TUE-CHUV",
+            "room": "Banheiro",
+            "kind": "tue",
+            "power_va": 5400.0,
+            "voltage_v": 220.0
+          }
+        ],
+        "routes": [],
+        "designs": [
+          {
+            "id": "C1-ILUM",
+            "point_ids": [
+              "L-SALA",
+              "L-COZ",
+              "L-BAN",
+              "L-AS",
+              "L-CIRC",
+              "L-DOR1",
+              "L-DOR2"
+            ],
+            "length_m": 32.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "iluminacao",
+            "protection": {
+              "location": "seco",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C2-TUG-COZ",
+            "point_ids": [
+              "T-COZ-01",
+              "T-COZ-02",
+              "T-COZ-03",
+              "T-COZ-04"
+            ],
+            "length_m": 14.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "cozinha",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C3-TUG-AS",
+            "point_ids": [
+              "T-AS-01",
+              "T-AS-02",
+              "T-AS-03"
+            ],
+            "length_m": 18.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "molhado",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C4-TUG-BAN",
+            "point_ids": [
+              "T-BAN-01"
+            ],
+            "length_m": 12.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "banheiro",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C5-TUG-SECO",
+            "point_ids": [
+              "T-SALA-01",
+              "T-SALA-02",
+              "T-SALA-03",
+              "T-SALA-04",
+              "T-CIRC-01",
+              "T-DOR1-01",
+              "T-DOR1-02",
+              "T-DOR1-03",
+              "T-DOR2-01",
+              "T-DOR2-02",
+              "T-DOR2-03"
+            ],
+            "length_m": 26.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 0.8,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "seco",
+              "exposure": "quadro"
+            }
+          },
+          {
+            "id": "C6-TUE-CHUV",
+            "point_ids": [
+              "TUE-CHUV"
+            ],
+            "length_m": 9.0,
+            "system": "monofasico",
+            "conductors_loaded": 2,
+            "insulation": "PVC",
+            "reference_method": "B1",
+            "ambient_temperature_C": 30.0,
+            "grouping_count": 3,
+            "power_factor": 1.0,
+            "voltage_drop_limit_pct": 4.0,
+            "use": "forca",
+            "protection": {
+              "location": "banheiro",
+              "exposure": "quadro"
+            }
+          }
+        ],
+        "layout": {
+          "units": "m",
+          "board": {
+            "id": "QD-01",
+            "x_m": 2.0,
+            "y_m": 4.5,
+            "z_m": 1.6
+          },
+          "rooms": [
+            {
+              "id": "Sala",
+              "name": "Sala",
+              "x_m": 0.0,
+              "y_m": 0.0,
+              "width_m": 5.0,
+              "depth_m": 4.0
+            },
+            {
+              "id": "Cozinha",
+              "name": "Cozinha",
+              "x_m": 5.0,
+              "y_m": 0.0,
+              "width_m": 3.6,
+              "depth_m": 2.5
+            },
+            {
+              "id": "Banheiro",
+              "name": "Banheiro",
+              "x_m": 5.0,
+              "y_m": 2.5,
+              "width_m": 2.4,
+              "depth_m": 1.5
+            },
+            {
+              "id": "Area de servico",
+              "name": "Area de servico",
+              "x_m": 7.4,
+              "y_m": 2.5,
+              "width_m": 3.0,
+              "depth_m": 2.0
+            },
+            {
+              "id": "Circulacao",
+              "name": "Circulacao",
+              "x_m": 0.0,
+              "y_m": 4.0,
+              "width_m": 4.0,
+              "depth_m": 1.0
+            },
+            {
+              "id": "Dormitorio 01",
+              "name": "Dormitorio 01",
+              "x_m": 0.0,
+              "y_m": 5.0,
+              "width_m": 3.5,
+              "depth_m": 3.0
+            },
+            {
+              "id": "Dormitorio 02",
+              "name": "Dormitorio 02",
+              "x_m": 3.5,
+              "y_m": 5.0,
+              "width_m": 3.0,
+              "depth_m": 3.0
+            }
+          ],
+          "points": [
+            {
+              "id": "L-SALA",
+              "x_m": 2.5,
+              "y_m": 2.0,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-SALA-01",
+              "x_m": 0.85,
+              "y_m": 2.0,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-SALA-02",
+              "x_m": 1.95,
+              "y_m": 2.0,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-SALA-03",
+              "x_m": 3.05,
+              "y_m": 2.0,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-SALA-04",
+              "x_m": 4.15,
+              "y_m": 2.0,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-COZ",
+              "x_m": 6.8,
+              "y_m": 1.25,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-COZ-01",
+              "x_m": 5.67,
+              "y_m": 1.25,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-COZ-02",
+              "x_m": 6.42,
+              "y_m": 1.25,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-COZ-03",
+              "x_m": 7.17,
+              "y_m": 1.25,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-COZ-04",
+              "x_m": 7.92,
+              "y_m": 1.25,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-BAN",
+              "x_m": 6.2,
+              "y_m": 3.25,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-BAN-01",
+              "x_m": 6.2,
+              "y_m": 3.25,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-AS",
+              "x_m": 8.9,
+              "y_m": 3.5,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-AS-01",
+              "x_m": 8.1,
+              "y_m": 3.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-AS-02",
+              "x_m": 8.9,
+              "y_m": 3.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-AS-03",
+              "x_m": 9.7,
+              "y_m": 3.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-CIRC",
+              "x_m": 2.0,
+              "y_m": 4.5,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-CIRC-01",
+              "x_m": 2.0,
+              "y_m": 4.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-DOR1",
+              "x_m": 1.75,
+              "y_m": 6.5,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-DOR1-01",
+              "x_m": 0.78,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-DOR1-02",
+              "x_m": 1.75,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-DOR1-03",
+              "x_m": 2.72,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "L-DOR2",
+              "x_m": 5.0,
+              "y_m": 6.5,
+              "z_m": 2.7
+            },
+            {
+              "id": "T-DOR2-01",
+              "x_m": 4.2,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-DOR2-02",
+              "x_m": 5.0,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "T-DOR2-03",
+              "x_m": 5.8,
+              "y_m": 6.5,
+              "z_m": 1.1
+            },
+            {
+              "id": "TUE-CHUV",
+              "x_m": 6.2,
+              "y_m": 3.25,
+              "z_m": 2.2
+            }
+          ]
+        }
+      }
+    },
+    "hidraulica": {
+      "aparelhos_agua": {
+        "bacia_caixa": 1,
+        "chuveiro": 1,
+        "lavatorio": 1,
+        "pia": 1,
+        "tanque": 1,
+        "maquina_lavar": 1
+      },
+      "aparelhos_esgoto": {
+        "bacia": 1,
+        "chuveiro": 1,
+        "lavatorio": 1,
+        "pia": 1,
+        "tanque": 1,
+        "maquina_roupas": 1
+      },
+      "metodo_agua": "soma",
+      "decl_esgoto_pct": 2.0,
+      "pavimentos": 1,
+      "agua": {
+        "p_alim_kPa": 120.0,
+        "L_real_m": 22.0,
+        "dcota_m": 2.0,
+        "conexoes": {
+          "cotovelo_90": 8,
+          "te_direta": 3,
+          "te_lateral": 2
+        }
+      },
+      "cobertura": {
+        "area_m2": 83.2,
+        "n_condutores": 2,
+        "i_mm_h": 150.0,
+        "decl_calha_pct": 1.0,
+        "decl_pluvial_pct": 1.0
+      }
+    }
+  },
+  "source_refs": {
+    "eletrico": [
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "d213019d-6e5c-4f18-8151-bf5a74c11b5d",
+        "title": "ABNT NBR 5410:2004",
+        "edition": "2004",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "5129118d-2ff6-4187-a9d2-d1828d61afdf",
+        "title": "Enel BT individual",
+        "edition": "R02/2025",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "5bc6c2f1-c8b8-4a04-8b82-be0e937b4749",
+        "title": "Enel Rio WKI cálculo de demanda BT",
+        "edition": "R01/2018",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "78cd2efd-0652-484e-b312-c5c5a7648962",
+        "source_id": "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8",
+        "title": "ANEEL PRODIST Módulo 3",
+        "edition": "vigente no snapshot",
+        "status": 2,
+        "is_stale": false
+      }
+    ]
+  }
+}
