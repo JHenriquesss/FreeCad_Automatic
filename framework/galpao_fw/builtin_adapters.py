@@ -12,8 +12,10 @@ def register_builtin_adapters() -> None:
     if callable(register_galpao_adapter):
         register_galpao_adapter()
     from casa_residencial import register_casa_residencial_adapter
+    from edificio_adapter import register_edificio_adapter
     from casa_residencial_sintetica import register_residential_adapter
     from residencial_eletrica import register_residential_electrical_adapter
     register_residential_adapter()
     register_residential_electrical_adapter()
     register_casa_residencial_adapter()
+    register_edificio_adapter()

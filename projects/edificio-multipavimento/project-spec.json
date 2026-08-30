@@ -1,0 +1,71 @@
+{
+  "schema": "freecad-automatic/project-spec",
+  "schema_version": 1,
+  "adapter": "edificio-multipavimento",
+  "project": {
+    "slug": "edificio-multipavimento",
+    "type": "edificio",
+    "date": "2026-08-29",
+    "description": "edificio residencial de 8 pavimentos-tipo + cobertura; exercita a cadeia carga NBR 6120 -> laje -> viga continua -> pilar -> descida. NAO e' projeto liberado para obra: falta vento, desaprumo, estabilidade global e fundacao"
+  },
+  "site": {
+    "city": "Sao Joao da Barra",
+    "state": "RJ"
+  },
+  "turnkey": {
+    "geometria": {
+      "comprimento": 14.0,
+      "vao": 9.0,
+      "pe_direito": 2.9
+    },
+    "estrutura": {
+      "geometria": {
+        "vaos_x": [5.0, 4.0, 5.0],
+        "vaos_y": [4.5, 4.5],
+        "pe_direito": 2.9
+      },
+      "pavimentos": [
+        {"nome": "Cobertura", "uso": "cobertura_manutencao"},
+        {"nome": "Tipo 8", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 7", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 6", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 5", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 4", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 3", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 2", "uso": "residencial_dormitorio"},
+        {"nome": "Tipo 1", "uso": "residencial_dormitorio"}
+      ],
+      "laje": {"h": 0.10, "revestimento_kN_m2": 1.0},
+      "viga": {"b": 0.20, "h": 0.50},
+      "materiais": {"fck": 30000.0, "fyk": 500000.0}
+    }
+  },
+  "source_refs": {
+    "estrutura": [
+      {
+        "notebook_id": "6949283a-500d-4eb0-8e94-0cdad964aa69",
+        "source_id": "b1df9923-5edc-4390-b4a9-a1f57a61af81",
+        "title": "ABNT NBR 6118:2023 Emenda 1:2026",
+        "edition": "2023/EM1:2026",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "261e7432-e86f-4c00-857a-ef641e1dbb35",
+        "source_id": "f5927656-18db-4f63-87a6-8a72e85f8a37",
+        "title": "ABNT NBR 6120:2019 - acoes para o calculo de estruturas de edificacoes",
+        "edition": "2019",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "261e7432-e86f-4c00-857a-ef641e1dbb35",
+        "source_id": "b9a4b73e-63b4-4ce4-852d-ebf1f4168651",
+        "title": "ABNT NBR 8681:2025 - acoes e seguranca nas estruturas",
+        "edition": "2025",
+        "status": 2,
+        "is_stale": false
+      }
+    ]
+  }
+}
