@@ -120,6 +120,31 @@ def vazao_agua_pesos(aparelhos):
     return C_PESOS * math.sqrt(soma_pesos(aparelhos))
 
 
+def dn_por_vazao(Q_ls, v_max=V_MAX_AGUA_MS):
+    """DN comercial para uma VAZAO ja conhecida, por velocidade (Sec.6.8.3 NOTA).
+
+    `diametro_agua` parte de uma lista de aparelhos; ha trechos em que a vazao NAO
+    vem de aparelhos - o alimentador predial, por exemplo, cuja vazao sai do volume
+    de reservacao a repor em 6 h (6.7.2). Esta e' a primitiva comum: uma unica
+    implementacao de D = raiz(4Q/(pi*v)) + adocao do proximo DN comercial.
+    """
+    if v_max <= 0:
+        raise ValueError("v_max deve ser > 0; recebido %s." % v_max)
+    if Q_ls < 0:
+        raise ValueError("vazao nao pode ser negativa; recebido %s." % Q_ls)
+    q_m3s = Q_ls / 1000.0
+    d_calc_mm = (math.sqrt(4.0 * q_m3s / (math.pi * v_max)) * 1000.0
+                 if q_m3s > 0 else 0.0)
+    dn = next((d for d in DN_AGUA_MM if d >= d_calc_mm), DN_AGUA_MM[-1])
+    v_real = q_m3s / (math.pi * (dn / 1000.0) ** 2 / 4.0) if dn > 0 else 0.0
+    # a lista de DN comerciais TEM teto (110 mm): acima dele o DN sai igual para
+    # qualquer vazao e a velocidade estoura em silencio. `saturado` diz isso.
+    return {"Q_Ls": round(Q_ls, 3), "D_calc_mm": round(d_calc_mm, 1), "DN_mm": dn,
+            "v_real_ms": round(v_real, 2), "v_max_ms": v_max,
+            "saturado": d_calc_mm > DN_AGUA_MM[-1] + 1e-9,
+            "OK": v_real <= v_max + 1e-9}
+
+
 def diametro_agua(aparelhos, v_max=V_MAX_AGUA_MS, simultaneidade=1.0, metodo="soma"):
     """Dimensiona o tubo de agua fria por velocidade (NBR 5626:2020 Sec.6.8.3):
     D_calc = raiz(4Q/(pi*v)); adota o proximo DN comercial >= D_calc. A VAZAO Q vem

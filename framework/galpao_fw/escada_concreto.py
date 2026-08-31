@@ -28,8 +28,14 @@
 # esse ponto; o detalhe fica declarado no relatorio.
 #
 # PROVENIENCIA: a relacao de Blondel e as dimensoes de patamar vem da pratica de
-# engenharia e da NBR 9050/9077, que NAO constam do acervo de normas do projeto
-# (mesma limitacao ja declarada em `escada.py`) -> A CONFIRMAR. Tudo o que e de
+# engenharia. A NBR 9050:2020 e a NBR 9077:2025 ENTRARAM no acervo depois deste
+# modulo (G12) e sao MAIS ESTREITAS que a faixa usada aqui: 6.8.2 exige piso
+# 0,28-0,32 m (aqui PISO_MIN e' 0,25) e espelho 0,16-0,18 m, e 6.8.3 fixa a
+# largura minima de 1,20 m para rota acessivel. A faixa deste modulo NAO foi
+# apertada para nao mexer na afericao existente; quem exige a faixa da 9050 e' o
+# gate `escada_geometria` de `incendio_edificio`, porque quem precisa dela e' a
+# escada de EMERGENCIA (rota acessivel de saida). Uma escada pode passar aqui e
+# REPROVAR la, e e' isso que aquele gate diz em voz alta. Tudo o que e de
 # concreto (13.2.4.1, 17.2.2, 19.3.3/19.4.1, 20.1, 13.3, 17.3.2) vem da NBR 6118 e
 # esta implementado nos modulos ja aferidos que este aqui consome. As cargas de uso
 # vem da Tabela 10 da NBR 6120, transcrita em `cargas_nbr6120`.
@@ -140,6 +146,13 @@ def verifica(cfg):
                          % (list(VINCULACOES), vinc))
 
     avisos = []
+    # --- largura util (declaracao unica do projeto) -----------------------
+    largura = cfg.get("largura")
+    if largura is not None:
+        largura = float(largura)
+        if not (largura > 0 and math.isfinite(largura)):
+            raise ValueError("largura da escada deve ser > 0 (m)")
+
     # --- vao de calculo ---------------------------------------------------
     patamar = cfg.get("patamar", 0.0)
     L = cfg.get("vao", geo["projecao_m"] + patamar)
@@ -213,6 +226,12 @@ def verifica(cfg):
 
     return {
         "OK": bool(ok), "geometria": geo, "vinculacao": vinc,
+        # a largura ERA um campo morto: documentada na cfg e lida por ninguem.
+        # Ela e' a UNICA declaracao da largura da escada do projeto, e quem
+        # verifica o fluxo de pessoas (NBR 9077 Tab.10, em incendio_edificio)
+        # precisa ler ESTE valor - nao dimensionar uma segunda escada. Por isso
+        # ela atravessa o resultado, e nao morre na entrada.
+        "largura_m": largura,
         "vao_calculo_m": round(L, 4), "patamar_m": patamar,
         "uso": uso, "g_kN_m2": round(g, 3), "q_kN_m2": round(q, 3),
         "detalhe_g": det_g,

@@ -51,7 +51,10 @@ def test_a_tipologia_edificio_existe_no_loop():
     assert "edificio-multipavimento" in capacidades
     real = capacidades["edificio-multipavimento"]
     assert real["project_types"] == ["edificio"]
-    assert set(real["disciplines"]) == {"estrutura"}
+    # G12: incendio, hidraulica e eletrico deixaram de ser ausentes. Cada uma
+    # entra por uma fronteira propria e so quando o spec a declara.
+    assert set(real["disciplines"]) == {"estrutura", "incendio", "hidraulica",
+                                        "eletrico"}
     assert "drawings" in real["deliverables"]
 
 

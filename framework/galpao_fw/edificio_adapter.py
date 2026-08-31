@@ -49,7 +49,14 @@ import edificio_multipavimento as em
 
 ADAPTER_NAME = "edificio-multipavimento"
 PROJECT_TYPES = ("edificio",)
-DISCIPLINES = ("estrutura",)
+# G12: o predio saia calculado, desenhado e modelado - e legalmente inocupavel,
+# porque nenhuma rota de abandono, nenhuma coluna de agua e nenhuma prumada
+# eletrica eram dimensionadas. Cada disciplina nova entra por uma FRONTEIRA
+# (incendio_edificio / hidraulica_edificio / eletrica_edificio) no mesmo formato
+# do G9, e so aparece no resultado quando o spec a declara: turnkey.incendio,
+# turnkey.hidraulica, turnkey.eletrico. Disciplina nao declarada e'
+# not_requested, nunca um projeto inventado a partir do envelope.
+DISCIPLINES = ("estrutura", "incendio", "hidraulica", "eletrico")
 DELIVERABLES = ("report", "drawings", "ifc", "model_3d")
 SCHEMA = "freecad-automatic/building-result"
 SCHEMA_VERSION = 1
@@ -100,10 +107,17 @@ def _erro(code: str, detail: str, **ctx: Any) -> dict[str, Any]:
     return registro
 
 
-def _escopo(com_vento: bool = False, com_fundacao: bool = False) -> dict[str, str]:
+def _escopo(com_vento: bool = False, com_fundacao: bool = False,
+            instalacoes: dict | None = None) -> dict[str, str]:
     escopo = {"superestrutura": "implemented",
               "aprovacao_legal": "not_claimed",
               "construction_readiness": "not_claimed"}
+    # G12: as tres disciplinas de instalacoes. Declarada no spec = implemented
+    # (a fronteira roda e publica os seus proprios gates); nao declarada =
+    # not_available, dito em voz alta em vez de omitido do escopo.
+    for nome, _executor, _motor in _DISCIPLINAS_INSTALACOES:
+        escopo[nome] = ("implemented" if (instalacoes or {}).get(nome)
+                        else "not_available")
     for chave in ESCOPO_NAO_COBERTO:
         escopo[chave] = "not_available"
     # G11: ELS de vibracao (NBR 8800 11.4/Anexo L) e desempenho NBR 15575.
@@ -356,6 +370,214 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
     return registro, resultado
 
 
+def _registro_disciplina(status: str, escopo: dict, **campos: Any) -> dict[str, Any]:
+    """Registro de uma disciplina nao-estrutural, com o ESCOPO da propria.
+
+    O escopo do registro da estrutura descreve o que a estrutura cobre; publicar
+    o mesmo escopo em incendio, hidraulica e eletrica faria o manifesto dizer
+    'fundacao: implemented' num registro eletrico. Cada fronteira publica o seu.
+    """
+    registro = {"status": status, "native_atende": None, "reprovados": [],
+                "gates": {}, "warnings": [], "artifacts": [],
+                "scope": copy.deepcopy(escopo), "errors": []}
+    registro.update(campos)
+    return registro
+
+
+def _contexto_predio(estrutura: dict, resultado,
+                     instalacoes: dict | None = None) -> dict[str, Any]:
+    """O predio como as disciplinas de instalacoes o enxergam.
+
+    UMA leitura da geometria para as tres fronteiras: o envelope do pavimento, o
+    pe-direito, a lista de pavimentos do topo para a base e a ESCADA como a
+    estrutura a dimensionou. A escada viaja no contexto justamente para que a
+    9077 verifique a largura DECLARADA em vez de propor outra.
+    """
+    geo = estrutura["geometria"]
+    comprimento = float(sum(geo["vaos_x"]))
+    largura = float(sum(geo["vaos_y"]))
+    return {
+        "pavimentos": [{"nome": pav["nome"], "uso": pav.get("uso")}
+                       for pav in estrutura["pavimentos"]],
+        "C": comprimento, "L": largura,
+        "area_pavimento_m2": comprimento * largura,
+        "pe_direito": float(geo["pe_direito"]),
+        "escada": (resultado or {}).get("escada"),
+        "H_total_m": (resultado or {}).get("H_total_m"),
+        # a populacao do predio e' UMA: quando a NBR 9077 ja a calculou sobre os
+        # dormitorios declarados, a hidraulica LE a mesma em vez de pedir uma
+        # segunda declaracao que poderia divergir em silencio.
+        "populacao_por_pavimento": (
+            ((instalacoes or {}).get("incendio") or {})
+            .get("populacao_por_pavimento")),
+    }
+
+
+def _sem_estrutura(disciplina: str, escopo: dict) -> dict[str, Any]:
+    return _registro_disciplina("blocked", escopo, errors=[_erro(
+        "structure_result_required",
+        "a disciplina %s do edificio le a geometria, os pavimentos e a escada do "
+        "resultado da estrutura; sem estrutura calculada nao ha predio a servir"
+        % disciplina)])
+
+
+def _registro_incendio(payload: Any, estrutura: Any, resultado, instalacoes=None):
+    """Saidas de emergencia (NBR 9077:2025) sobre o predio ja calculado."""
+    import incendio_edificio as ie
+
+    escopo_vazio = {"populacao_nbr9077": "not_available",
+                    "aprovacao_legal": "not_claimed",
+                    "avcb": "not_claimed",
+                    "construction_readiness": "not_claimed"}
+    if not isinstance(estrutura, dict) or resultado is None:
+        return _sem_estrutura("incendio", escopo_vazio), None
+    if not ie.declarada(payload):
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "fire_input_not_declared",
+            "turnkey.incendio precisa declarar 'pavimentos' (a atividade da "
+            "Tabela 4 de cada pavimento) e 'velocidade_incendio' (Tabela 2). "
+            "Nenhum dos dois tem default: sao classificacao de responsavel "
+            "tecnico, e sem eles nao ha perfil de risco nem rota de saida")]), None
+    contexto = _contexto_predio(estrutura, resultado)
+    try:
+        saida = ie.dimensiona(payload, contexto)
+    except ie.EntradaIncendio as exc:
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "fire_input_rejected", str(exc))]), None
+    except Exception as exc:                                # noqa: BLE001
+        return _registro_disciplina("failed", escopo_vazio, errors=[_erro(
+            "fire_run_failed", "%s: %s" % (type(exc).__name__, exc))]), None
+
+    avisos = [_erro(item["code"], item["detail"]) for item in saida["avisos"]]
+    if saida["reprovados"]:
+        avisos.insert(0, _erro(
+            "fire_gates_failed",
+            "gates reprovados: %s" % ", ".join(saida["reprovados"]),
+            reprovados=list(saida["reprovados"])))
+    registro = _registro_disciplina(
+        "needs_review", saida["escopo"],
+        native_atende=bool(saida["ATENDE"]),
+        reprovados=list(saida["reprovados"]),
+        gates=copy.deepcopy(saida["gates"]),
+        warnings=avisos)
+    registro["fire"] = {
+        "perfil_risco": saida["perfil_risco"],
+        "ocupante": saida["ocupante"],
+        "altura_edificacao_m": saida["altura_edificacao_m"],
+        "populacao_total": saida["populacao_total"],
+        "estrategia_abandono": saida["estrategia_abandono"],
+    }
+    return registro, saida
+
+
+def _registro_hidraulica(payload: Any, estrutura: Any, resultado,
+                         instalacoes=None):
+    """Agua fria, esgoto e pluvial do predio (NBR 5626:2020 / 8160 / 10844)."""
+    import hidraulica_edificio as he
+
+    escopo_vazio = {"agua_fria_reservacao": "not_available",
+                    "coluna_de_distribuicao": "not_available",
+                    "aprovacao_legal": "not_claimed",
+                    "construction_readiness": "not_claimed"}
+    if not isinstance(estrutura, dict) or resultado is None:
+        return _sem_estrutura("hidraulica", escopo_vazio), None
+    if not he.declarada(payload):
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "hydraulic_input_not_declared",
+            "turnkey.hidraulica precisa declarar 'consumo_per_capita_L_dia' e os "
+            "aparelhos de uma unidade em 'unidade.aparelhos_agua'. A NBR "
+            "5626:2020 6.5.4 NAO tabela consumo (ele vem de referencia tecnica, "
+            "manual da concessionaria ou dado historico), e sem aparelhos nao ha "
+            "vazao - um DN comercial plausivel nao e' projeto")]), None
+    contexto = _contexto_predio(estrutura, resultado, instalacoes)
+    try:
+        saida = he.dimensiona(payload, contexto)
+    except he.EntradaHidraulica as exc:
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "hydraulic_input_rejected", str(exc))]), None
+    except Exception as exc:                                # noqa: BLE001
+        return _registro_disciplina("failed", escopo_vazio, errors=[_erro(
+            "hydraulic_run_failed", "%s: %s" % (type(exc).__name__, exc))]), None
+
+    avisos = [_erro(item["code"], item["detail"]) for item in saida["avisos"]]
+    if saida["reprovados"]:
+        avisos.insert(0, _erro(
+            "hydraulic_gates_failed",
+            "gates reprovados: %s" % ", ".join(saida["reprovados"]),
+            reprovados=list(saida["reprovados"])))
+    registro = _registro_disciplina(
+        "needs_review", saida["escopo"],
+        native_atende=bool(saida["ATENDE"]),
+        reprovados=list(saida["reprovados"]),
+        gates=copy.deepcopy(saida["gates"]),
+        warnings=avisos)
+    registro["hydraulics"] = {
+        "populacao": saida["populacao"],
+        "populacao_proveniencia": saida["populacao_proveniencia"],
+        "reservacao_total_L": saida["reservacao"]["total_L"],
+        "consumo_diario_L": saida["reservacao"]["consumo_diario_L"],
+        "coluna_DN_mm": saida["coluna"]["dn"]["DN_mm"],
+    }
+    return registro, saida
+
+
+def _registro_eletrico(payload: Any, estrutura: Any, resultado, instalacoes=None):
+    """Carga por unidade, quadro por pavimento, prumada e entrada (NBR 5410)."""
+    import eletrica_edificio as ee
+
+    escopo_vazio = {"previsao_de_carga_9_5_2": "not_available",
+                    "prumada": "not_available",
+                    "aprovacao_legal": "not_claimed",
+                    "construction_readiness": "not_claimed"}
+    if not isinstance(estrutura, dict) or resultado is None:
+        return _sem_estrutura("eletrico", escopo_vazio), None
+    if not ee.declarada(payload):
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "electrical_input_not_declared",
+            "turnkey.eletrico precisa declarar a unidade-tipo "
+            "('unidade.ambientes' para a previsao de carga da NBR 5410 9.5.2, ou "
+            "'unidade.carga_VA') e a tensao ('tensao.sistema' e 'tensao.V'). A "
+            "carga de um apartamento nao e' estimavel pela area do envelope "
+            "estrutural")]), None
+    contexto = _contexto_predio(estrutura, resultado, instalacoes)
+    try:
+        saida = ee.dimensiona(payload, contexto)
+    except ee.EntradaEletrica as exc:
+        return _registro_disciplina("blocked", escopo_vazio, errors=[_erro(
+            "electrical_input_rejected", str(exc))]), None
+    except Exception as exc:                                # noqa: BLE001
+        return _registro_disciplina("failed", escopo_vazio, errors=[_erro(
+            "electrical_run_failed", "%s: %s" % (type(exc).__name__, exc))]), None
+
+    avisos = [_erro(item["code"], item["detail"]) for item in saida["avisos"]]
+    if saida["reprovados"]:
+        avisos.insert(0, _erro(
+            "electrical_gates_failed",
+            "gates reprovados: %s" % ", ".join(saida["reprovados"]),
+            reprovados=list(saida["reprovados"])))
+    registro = _registro_disciplina(
+        "needs_review", saida["escopo"],
+        native_atende=bool(saida["ATENDE"]),
+        reprovados=list(saida["reprovados"]),
+        gates=copy.deepcopy(saida["gates"]),
+        warnings=avisos)
+    registro["electrical"] = {
+        "carga_por_unidade_VA": round(saida["carga_por_unidade"]["carga_VA"], 1),
+        "carga_total_VA": saida["entrada"]["carga_total_VA"],
+        "prumada_secao_mm2": saida["prumada"]["secao_mm2"],
+        "dv_critica_pct": saida["prumada"]["dv_critica_pct"],
+    }
+    return registro, saida
+
+
+# nome da disciplina no spec -> (funcao de registro, motor)
+_DISCIPLINAS_INSTALACOES = (
+    ("incendio", _registro_incendio, "incendio_edificio"),
+    ("hidraulica", _registro_hidraulica, "hidraulica_edificio"),
+    ("eletrico", _registro_eletrico, "eletrica_edificio"),
+)
+
+
 def run_edificio(normalized, run_dir, preflight=None):
     """Executa a estrutura do edificio e devolve (resultado, registros)."""
     del run_dir, preflight
@@ -382,6 +604,26 @@ def run_edificio(normalized, run_dir, preflight=None):
             "engine": "edificio_multipavimento",
             "status": registros["estrutura"]["status"]}
 
+    # --- instalacoes: incendio, hidraulica e eletrica ----------------------
+    # Cada uma so entra quando o spec a declara. Declarada e ausente do spec =
+    # blocked com motivo nomeado; nao declarada = fora do resultado (o Loop ja
+    # a marca not_requested). Falha de uma NAO derruba as outras.
+    instalacoes = {}
+    for nome, executor, motor in _DISCIPLINAS_INSTALACOES:
+        if nome not in solicitadas:
+            continue
+        payload = turnkey.get(nome)
+        if payload is None:
+            registros[nome] = _registro_disciplina(
+                "blocked", {"aprovacao_legal": "not_claimed"},
+                errors=[_erro("missing_%s_input" % nome,
+                              "turnkey.%s nao foi declarado" % nome)])
+        else:
+            registros[nome], instalacoes[nome] = executor(
+                payload, turnkey.get("estrutura"), resultado_estrutura,
+                instalacoes)
+        disciplinas[nome] = {"engine": motor, "status": registros[nome]["status"]}
+
     resultado = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
@@ -390,10 +632,12 @@ def run_edificio(normalized, run_dir, preflight=None):
         "project_id": normalized.get("project_id"),
         "disciplines": disciplinas,
         "estrutura": copy.deepcopy(resultado_estrutura),
+        "instalacoes": copy.deepcopy(instalacoes),
         "scope": _escopo(
             bool(isinstance(turnkey.get("estrutura"), dict)
                  and turnkey["estrutura"].get("vento")),
-            _fundacao_declarada(turnkey.get("estrutura"))),
+            _fundacao_declarada(turnkey.get("estrutura")),
+            instalacoes),
     }
     resultado["status"] = ("blocked" if any(
         r["status"] == "blocked" for r in registros.values()) else "needs_review")
@@ -422,9 +666,8 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         return
     estrutura = result.get("estrutura") if isinstance(result, dict) else None
     if not isinstance(estrutura, dict):
-        manifest["deliverables"]["drawings"] = {
-            "status": "not_available",
-            "detail": "estrutura nao calculada; sem pavimento para desenhar"}
+        manifest["deliverables"]["drawings"] = _sem_geometria(
+            result, "estrutura nao calculada; sem pavimento para desenhar")
         return
     destino = Path(run_dir) / "drawings"
     destino.mkdir(parents=True, exist_ok=True)
@@ -468,6 +711,25 @@ def _estrutura_calculada(result):
     return estrutura if isinstance(estrutura, dict) and estrutura else None
 
 
+def _sem_geometria(result, detalhe: str) -> dict[str, Any]:
+    """Registro de entregavel quando nao ha estrutura para desenhar/modelar.
+
+    `blocked` e `not_available` NAO sao sinonimos neste framework: bloqueado e'
+    entrada recusada, indisponivel e' capacidade que nao existe. Enquanto a
+    tipologia so tinha a disciplina estrutura, uma rodada sem estrutura era
+    curto-circuitada pelo Loop antes dos hooks e o entregavel saia `blocked` por
+    tabela. Com o G12 a rodada CHEGA aos hooks (as instalacoes foram pedidas),
+    e sem esta distincao o mesmo caso passaria a se anunciar como mera
+    indisponibilidade - amaciando o estado de uma rodada recusada.
+    """
+    bloqueada = (isinstance(result, dict)
+                 and (result.get("status") == "blocked"
+                      or (result.get("disciplines") or {})
+                      .get("estrutura", {}).get("status") in ("blocked", "failed")))
+    return {"status": "blocked" if bloqueada else "not_available",
+            "detail": detalhe}
+
+
 def _emitir_ifc(manifest, run_dir, normalized, options, result):
     """Hook BIM: IFC4 do edificio, um IfcBuildingStorey por pavimento.
 
@@ -489,9 +751,8 @@ def _emitir_ifc(manifest, run_dir, normalized, options, result):
         return
     estrutura = _estrutura_calculada(result)
     if estrutura is None:
-        manifest["deliverables"]["ifc"] = {
-            "status": "not_available",
-            "detail": "estrutura nao calculada; sem geometria para o modelo"}
+        manifest["deliverables"]["ifc"] = _sem_geometria(
+            result, "estrutura nao calculada; sem geometria para o modelo")
         return
     try:
         import ifc_emit
@@ -552,9 +813,8 @@ def _emitir_modelo_3d(manifest, run_dir, normalized, options, result):
         return
     estrutura = _estrutura_calculada(result)
     if estrutura is None:
-        manifest["deliverables"]["model_3d"] = {
-            "status": "not_available",
-            "detail": "estrutura nao calculada; sem geometria para o modelo"}
+        manifest["deliverables"]["model_3d"] = _sem_geometria(
+            result, "estrutura nao calculada; sem geometria para o modelo")
         return
     destino = Path(run_dir) / "model"
     destino.mkdir(parents=True, exist_ok=True)

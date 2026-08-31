@@ -17,14 +17,19 @@ python framework/galpao_fw/project_loop_cli.py `
 
 ## O que sai
 
-- `project-run.json` — manifesto com o estado da disciplina `estrutura`, os
-  cinco gates do G3 (`fechamento_carga`, `reducao_6120`, `pilares`, `laje`,
-  `vigas`) e o registro da redução da NBR 6120 §6.12;
+- `project-run.json` — manifesto com o estado de **cada disciplina declarada**
+  (`estrutura`, `incendio`, `hidraulica`, `eletrico`), os gates de cada uma e o
+  `scope` que cada uma publica por si. O registro da redução da NBR 6120 §6.12
+  sai como aviso da estrutura, porque a norma exige que ele seja registrado;
 - `drawings/planta-formas-pavimento-tipo.svg` — planta de formas do
-  pavimento-tipo com os 12 pilares e a descida de cargas.
+  pavimento-tipo com os 12 pilares e a descida de cargas;
+- `drawings/planta-laje-pavimento-tipo.svg` — formas, armadura e quadro de
+  ferros da laje;
+- `bim/edificio-estrutura.ifc` e `model/` — com `--ifc` / `--3d` (G8).
 
-Não há IFC nem modelo 3D: o adaptador declara apenas `report` e `drawings`.
-Capacidade não declarada é capacidade que não existe.
+Os entregáveis das instalações são o **relatório**: as três disciplinas novas
+entram como cálculo e gates, não como prancha. Capacidade não declarada é
+capacidade que não existe.
 
 ## O contrato de entrada
 
@@ -48,8 +53,87 @@ manifesto os publique em vez de omiti-los (itens abertos da seção 10 de
 | Item | Situação |
 | --- | --- |
 | `alvenaria_estrutural` | bloqueada por fonte — NBR 16868 ausente do acervo |
-| `fundacao` | a descida entrega `N_base`; ninguém a dimensiona aqui |
-| `vibracao_piso` | aberto desde a auditoria de gaps do G2 |
+| `momento_base_pilar` | o pórtico global dá γz e ELS, não esforço por barra |
+| `viga_baldrame`, `recalque_diferencial` | fronteiras do que o G9 entrega |
+| `desempenho_15575_*` (3 itens) | verificados por **ensaio**, não por conta |
+
+`fundacao` (G9), `vibracao_piso` e `desempenho_15575` (G11) **deixaram** essa
+lista. E, com o G12, `incendio`, `hidraulica` e `eletrico` também.
+
+## As três disciplinas de instalações (G12)
+
+O adaptador declarava `DISCIPLINES = ("estrutura",)`: o prédio saía calculado,
+desenhado e modelado — e legalmente inocupável. Cada disciplina entra por uma
+fronteira própria e **só quando o spec a declara**; ausente do spec, ela é
+`not_requested`, nunca um projeto inventado a partir do envelope.
+
+| Disciplina | Fronteira | Normas |
+| --- | --- | --- |
+| `incendio` | `incendio_edificio` | NBR 9077:2025 + 9050 + 10898/16820/17240/13714 |
+| `hidraulica` | `hidraulica_edificio` | NBR 5626:2020 + 8160 + 10844 |
+| `eletrico` | `eletrica_edificio` | NBR 5410:2004 |
+
+### A escada é uma só
+
+É o ponto em que o projeto podia se partir em dois. A estrutura dimensiona uma
+escada de concreto (`escada_concreto`, via `estrutura.escada`) e a NBR 9077
+exige uma largura mínima pelo fluxo de pessoas (Tabela 10) e pela NBR 9050
+6.8.3 (1,20 m em rota acessível). Se o vertical de incêndio dimensionasse a
+**sua** escada, o prédio teria duas — o mesmo defeito que o G8 achou na
+ancoragem viga-pilar, em que cada emissor tinha a sua.
+
+`estrutura.escada.largura` é a **declaração única**. Era um campo morto —
+documentado na entrada de `escada_concreto` e lido por ninguém, nem no
+resultado aparecia. Agora ele atravessa o resultado e é o valor que o gate
+`escada_largura` confere. Escada estreita **reprova**; não é alargada por conta
+própria. Escada não declarada vira erro nomeado; não vira largura arbitrada.
+Testado em `tests/branches/g12/test_incendio_edificio.py`.
+
+### O que cada fronteira NÃO faz
+
+- **incêndio**: as distâncias a percorrer e as larguras de corredor são
+  *medidas* na planta de arquitetura, que o framework não tem para o edifício —
+  aqui são declaradas e **verificadas**. Ventilação/pressurização da escada à
+  prova de fumaça (NBR 14880), compartimentação e TRRF, área de refúgio e o
+  plano de gestão do Anexo A ficam `not_available`;
+- **hidráulica**: água quente, reservatório inferior + recalque, zonas de
+  pressão e válvulas redutoras. O gate de 400 kPa (6.9.5) diz *quando* elas
+  passam a ser necessárias; não as dimensiona. A reserva de incêndio **não** é
+  somada ao volume potável — 6.5.6.2 só a soma quando armazenada junto;
+- **elétrica**: os circuitos terminais dentro da unidade, o curto-circuito
+  calculado (a `Icc` presumida é dado da concessionária), a subestação própria
+  e o SPDA.
+
+### Dados declarados, e por quê
+
+| Dado | Por que não tem default |
+| --- | --- |
+| `incendio.velocidade_incendio` (Tab.2) | depende da carga de incêndio e dos materiais |
+| `incendio.pavimentos[].atividade` (Tab.4) | classificação de responsável técnico |
+| `hidraulica.consumo_per_capita_L_dia` | a NBR 5626:2020 **6.5.4 não tabela consumo** |
+| `hidraulica.reservacao.superior_L` | volume é projeto de arquitetura/estrutura; aqui é *verificado* |
+| `eletrico.fator_demanda_entre_unidades` | dado da concessionária (Enel CNC-NDBR-DBR-25-1580) |
+| `eletrico.areas_comuns_VA` | elevador, bomba e iluminação comum não são presumidos |
+
+Sem o fator de demanda, a elétrica **soma todas as unidades sem diversidade
+nenhuma** — o teto da demanda — e publica
+`fator_de_demanda_entre_unidades: not_available` com aviso. Caro é o lado certo
+de errar, mas o projeto precisa saber que a redução existe e não foi aplicada.
+
+### Achado: este prédio não é atendível em baixa tensão
+
+Somadas as unidades sem diversidade, a carga instalada passa de **200 kW**,
+contra o limite de 75 kW da conexão coletiva BT. O gate
+`limite_de_baixa_tensao` **reprova** e nomeia a subestação própria em vez de
+esconder o problema numa bitola maior. É resultado correto, não defeito do
+caso: um prédio de nove pavimentos com essas cargas é atendido em média tensão.
+
+### Duas populações seriam o mesmo defeito
+
+O prédio tem **uma** população. A hidráulica lê a mesma que a NBR 9077 calculou
+sobre `incendio.pavimentos` (Tabela 4: *duas pessoas por dormitório*). Declarar
+`hidraulica.populacao` divergente é **erro de entrada**, não uma escolha
+silenciosa entre as duas.
 
 ## Ação horizontal
 

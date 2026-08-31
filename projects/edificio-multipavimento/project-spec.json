@@ -6,7 +6,7 @@
     "slug": "edificio-multipavimento",
     "type": "edificio",
     "date": "2026-08-29",
-    "description": "edificio residencial de 8 pavimentos-tipo + cobertura; exercita a cadeia carga NBR 6120 -> laje -> viga continua -> pilar -> descida. NAO e' projeto liberado para obra: o perfil SPT e' A CONFIRMAR e o momento na base de cada pilar nao e' avaliado"
+    "description": "edificio residencial de 8 pavimentos-tipo + cobertura; exercita a cadeia carga NBR 6120 -> laje -> viga continua -> pilar -> descida. NAO e' projeto liberado para obra: o perfil SPT e' A CONFIRMAR e o momento na base de cada pilar nao e' avaliado; G12 acrescenta o vertical de saidas de emergencia (NBR 9077:2025) sobre a MESMA escada que a estrutura dimensiona; e o vertical hidraulico (reservacao superior, coluna de distribuicao e tubo de queda dos nove pavimentos); e o vertical eletrico (carga NBR 5410 9.5.2 por unidade, quadro por pavimento, prumada verificada trecho a trecho e entrada)"
   },
   "site": {
     "city": "Sao Joao da Barra",
@@ -120,6 +120,222 @@
         "cota_apoio_m": 1.5,
         "mu_solo": 0.5,
         "h_pedestal_m": 0.5
+      },
+      "escada": {
+        "largura": 1.3,
+        "largura_proveniencia": "DECLARACAO UNICA da largura da escada do predio: a estrutura (escada_concreto) dimensiona com ela e o vertical de incendio (NBR 9077 Tab.10 + NBR 9050 6.8.3) verifica o fluxo de pessoas contra ela. Nao ha uma segunda escada em lugar nenhum do projeto",
+        "h_laje": 0.12,
+        "patamar": 1.2,
+        "uso": "escada_residencial_comum",
+        "vinculacao": "apoiada"
+      }
+    },
+    "incendio": {
+      "velocidade_incendio": 1,
+      "velocidade_proveniencia": "A CONFIRMAR - Tabela 2 da NBR 9077:2025: adotada 'lenta' (qf <= 300 MJ/m2). A carga de incendio especifica do uso residencial tem de ser confirmada pelo responsavel tecnico; ela NAO e' derivada pelo framework",
+      "estrategia_abandono": "simultaneo",
+      "pavimentos": {
+        "Cobertura": {
+          "sem_ocupacao": true,
+          "motivo": "cobertura de manutencao: area tecnica, sem ocupacao humana permanente. NOTA 2 de 3.3 da NBR 9077 - nao entra na altura da edificacao"
+        },
+        "Tipo 8": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 7": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 6": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 5": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 4": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 3": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 2": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        },
+        "Tipo 1": {
+          "atividade": "habitacao_multifamiliar",
+          "dormitorios": 4,
+          "areas_excluidas_m2": [
+            18.0
+          ]
+        }
+      },
+      "escada": {
+        "tipo": "protegida",
+        "n_rotas_verticais": 1
+      },
+      "caminhamento": {
+        "unica_direcao_m": 12.0,
+        "leiaute_definido": true,
+        "deteccao_automatica": false,
+        "proveniencia": "A CONFIRMAR - distancia MEDIDA na planta de arquitetura, que este framework nao gera para o edificio"
+      },
+      "rotas_horizontais": {
+        "largura_declarada_m": 1.2,
+        "extensao_m": 10.0,
+        "uso_publico": false
+      },
+      "hidrantes": {
+        "ocupacao": "residencial_A",
+        "proveniencia": "NBR 13714 Anexo D.2 (residencial): o TIPO e a vazao de 80 L/min por saida vem da tabela, nao sao declarados aqui"
+      }
+    },
+    "hidraulica": {
+      "consumo_per_capita_L_dia": 150.0,
+      "consumo_proveniencia": "A CONFIRMAR - a NBR 5626:2020 6.5.4 NAO tabela consumo: manda considerar as peculiaridades da instalacao, o clima, a utilizacao, a tipologia e a populacao, e a NOTA remete a referencias tecnicas, manuais de concessionaria e dados historicos. 150 L/hab.dia e' o valor usual de apartamento e tem de ser confirmado pelo responsavel tecnico",
+      "reservacao": {
+        "superior_L": 12000.0,
+        "compartimentos_superior": 2,
+        "proveniencia": "volume ADOTADO em projeto (a caixa d'agua pesa sobre a laje da cobertura): aqui ele e' VERIFICADO contra as 24 h de 6.5.6.2, nunca arbitrado pelo framework"
+      },
+      "unidade": {
+        "unidades_por_pavimento": 2,
+        "aparelhos_agua": {
+          "bacia_caixa": 1,
+          "chuveiro": 1,
+          "lavatorio": 1,
+          "pia": 1,
+          "tanque": 1,
+          "maquina_lavar": 1
+        },
+        "aparelhos_esgoto": {
+          "bacia": 1,
+          "chuveiro": 1,
+          "lavatorio": 1,
+          "pia": 1,
+          "tanque": 1,
+          "maquina_roupas": 1
+        }
+      },
+      "coluna": {
+        "altura_na_sobre_cobertura_m": 3.0,
+        "comprimento_ramal_m": 8.0,
+        "metodo_vazao": "pesos",
+        "metodo_proveniencia": "5626:2020 6.14.2 aceita metodo empirico ou probabilistico DESDE QUE justificado: adotado o metodo dos pesos da 5626:1998 (Q=0,3*raiz(SP)), que embute a demanda simultanea provavel - a soma pura das vazoes de projeto de 48 unidades nao ocorre simultaneamente",
+        "conexoes": {
+          "cotovelo_90": 4,
+          "te_lateral": 2
+        }
+      },
+      "pluvial": {
+        "i_mm_h": 150.0,
+        "i_proveniencia": "A CONFIRMAR - DADO DE SITIO (NBR 10844 Tab.5 lista i por cidade e periodo de retorno); Sao Joao da Barra/RJ nao conferido",
+        "n_descidas": 4,
+        "declividade_calha_pct": 0.5
+      }
+    },
+    "eletrico": {
+      "tensao": {
+        "sistema": "trifasico",
+        "V": 220.0,
+        "proveniencia": "Enel/RJ: BT 220/127 V; tensao de referencia da queda e' a de FASE-FASE do sistema trifasico da prumada"
+      },
+      "fp": 0.92,
+      "unidade": {
+        "unidades_por_pavimento": 2,
+        "ambientes": [
+          {
+            "nome": "Sala",
+            "tipo": "sala",
+            "area_m2": 16.0,
+            "perimetro_m": 16.4
+          },
+          {
+            "nome": "Dormitorio 1",
+            "tipo": "dormitorio",
+            "area_m2": 11.0,
+            "perimetro_m": 13.4
+          },
+          {
+            "nome": "Dormitorio 2",
+            "tipo": "dormitorio",
+            "area_m2": 9.0,
+            "perimetro_m": 12.2
+          },
+          {
+            "nome": "Cozinha",
+            "tipo": "cozinha",
+            "area_m2": 7.5,
+            "perimetro_m": 11.0
+          },
+          {
+            "nome": "Banheiro",
+            "tipo": "banheiro",
+            "area_m2": 3.6,
+            "perimetro_m": 7.8
+          },
+          {
+            "nome": "Area de servico",
+            "tipo": "area_servico",
+            "area_m2": 3.0,
+            "perimetro_m": 7.0
+          },
+          {
+            "nome": "Circulacao",
+            "tipo": "circulacao",
+            "area_m2": 4.0,
+            "perimetro_m": 9.0
+          }
+        ],
+        "cargas_especiais_VA": {
+          "chuveiro_eletrico": 5400.0,
+          "ar_condicionado_dormitorio": 1400.0
+        },
+        "cargas_especiais_proveniencia": "DECLARADAS: 9.5.2 preve as cargas MINIMAS de iluminacao e tomadas; as cargas de aquecimento e climatizacao entram pela potencia nominal do equipamento previsto [A CONFIRMAR com o memorial de arquitetura]"
+      },
+      "areas_comuns_VA": 24000.0,
+      "areas_comuns_proveniencia": "DECLARADA: elevador, bomba de recalque e iluminacao das areas comuns. [A CONFIRMAR] - nao e' presumida pelo framework",
+      "prumada": {
+        "comprimento_por_pavimento_m": 3.2,
+        "comprimento_ate_o_primeiro_quadro_m": 8.0,
+        "isolacao": "EPR",
+        "metodo": "B1",
+        "n_agrupados": 1
+      },
+      "ramal_de_pavimento": {
+        "comprimento_m": 6.0,
+        "isolacao": "EPR",
+        "metodo": "B1"
+      },
+      "entrada": {
+        "origem": "rede_publica",
+        "exposicao_dps": "rede_aerea"
       }
     }
   },
