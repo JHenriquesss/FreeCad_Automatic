@@ -323,6 +323,23 @@ def gerar_desenhos_casa(result, out_dir) -> dict:
     else:
         ignorados["esquema-hidraulico.svg"] = "rede_hidraulica_nao_dimensionada"
 
+    # PLANTA DE FORMAS (G13): sai do MESMO desenhista do pavimento-tipo do
+    # edificio - a malha de pilares, vigas e paineis de laje de uma casa e a de
+    # um predio tem o mesmo desenho, e um segundo desenhista para a mesma planta
+    # seria a segunda descricao que envelhece.
+    estrutura = resultado.get("estrutura")
+    if isinstance(estrutura, dict) and estrutura.get("pavimento"):
+        import desenho_pavimento as dp
+
+        caminho = destino / "planta-formas.svg"
+        dp.gerar_planta_formas(
+            estrutura["pavimento"], str(caminho),
+            descida=estrutura.get("descida"),
+            titulo="PLANTA DE FORMAS - CASA RESIDENCIAL")
+        gerados.append("planta-formas.svg")
+    else:
+        ignorados["planta-formas.svg"] = "estrutura_nao_calculada"
+
     # planta baixa: o programa declara area e perimetro, nao posicoes
     ignorados["planta-baixa.svg"] = "posicoes_dos_ambientes_nao_declaradas"
     return {"files": gerados, "skipped": ignorados}

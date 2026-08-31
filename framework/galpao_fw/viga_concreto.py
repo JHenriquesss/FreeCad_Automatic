@@ -84,8 +84,15 @@ def verifica_viga(cfg):
     As_min = rho * b * h
     As_inf = max(As_flex, As_min)
 
-    # momento negativo no apoio (viga continua) -> face superior
-    M_d_neg = gf * (1.0 / 10.0) * w * L ** 2 if continua else 0.0
+    # momento negativo no apoio (viga continua) -> face superior.
+    # O coeficiente 1/10 e' o valor classico de tabela e serve enquanto a viga e'
+    # olhada isolada. Quem tem a ENVOLTORIA de uma analise de viga continua
+    # (`viga_continua`, com as correcoes de 14.6.6.1) declara `M_d_neg` e a
+    # armadura superior sai do esforco real: num apoio interno de dois vaos o
+    # momento e' w.L2/8, MAIOR que w.L2/10, e dimensionar pelo coeficiente
+    # deixaria a face superior abaixo do que a analise pede.
+    M_d_neg = (float(cfg["M_d_neg"]) if continua and cfg.get("M_d_neg") is not None
+               else (gf * (1.0 / 10.0) * w * L ** 2 if continua else 0.0))
     As_neg = 0.0; ok_dom_neg = True; sec_ok_neg = True
     if continua:
         As_neg, _xn, _zn, ok_dom_neg = fs._armadura_flexao(M_d_neg, b, d, fck, fyk)

@@ -45,6 +45,7 @@ import copy
 from typing import Any
 
 import edificio_multipavimento as em
+import gestao_edificio as ge
 
 
 ADAPTER_NAME = "edificio-multipavimento"
@@ -57,7 +58,10 @@ PROJECT_TYPES = ("edificio",)
 # turnkey.hidraulica, turnkey.eletrico. Disciplina nao declarada e'
 # not_requested, nunca um projeto inventado a partir do envelope.
 DISCIPLINES = ("estrutura", "incendio", "hidraulica", "eletrico")
-DELIVERABLES = ("report", "drawings", "ifc", "model_3d")
+# A ordem dos extras e a ordem de execucao: o cronograma custeia as suas
+# atividades com a planilha que o orcamento acabou de gravar (G14).
+DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "orcamento",
+                "cronograma", "caderno_encargos", "pacote_legal")
 SCHEMA = "freecad-automatic/building-result"
 SCHEMA_VERSION = 1
 
@@ -899,5 +903,9 @@ def register_edificio_adapter() -> None:
         deliverables=DELIVERABLES,
         hooks={"drawings": _emitir_desenhos,
                "ifc": _emitir_ifc,
-               "model_3d": _emitir_modelo_3d},
+               "model_3d": _emitir_modelo_3d,
+               "orcamento": ge.emitir_orcamento,
+               "cronograma": ge.emitir_cronograma,
+               "caderno_encargos": ge.emitir_caderno_encargos,
+               "pacote_legal": ge.emitir_pacote_legal},
     )

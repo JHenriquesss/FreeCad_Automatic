@@ -184,9 +184,15 @@ def memorial_consolidado(R, spec=None):
             "puladas": R.get("puladas", [])}
 
 
-def gerar_pacote(disciplinas=None, R=None, spec=None):
+def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None):
     """Monta o pacote legal completo. disciplinas: chaves (default: as de _ART); se
-    R (turnkey) for dado, usa as executadas e inclui o memorial consolidado."""
+    R (turnkey) for dado, usa as executadas e inclui o memorial consolidado.
+
+    `memorial`: memorial JA consolidado, para as tipologias que nao passam por
+    `galpao_turnkey` (o edificio multipavimento monta o seu em
+    `gestao_edificio.memorial`). Ter as duas portas evita que um segundo
+    orquestrador tenha de se disfarcar de resultado de turnkey so para
+    atravessar esta funcao."""
     if disciplinas is None:
         disciplinas = (R.get("executadas") if R else None) or list(_ART.keys())
     disciplinas = [d for d in _ORDEM_DISC if d in disciplinas] or list(_ART.keys())
@@ -197,6 +203,8 @@ def gerar_pacote(disciplinas=None, R=None, spec=None):
            "manual_oem": manual_oem(disciplinas)}
     if R is not None:
         pac["memorial_consolidado"] = memorial_consolidado(R, spec)
+    elif memorial is not None:
+        pac["memorial_consolidado"] = memorial
     return pac
 
 

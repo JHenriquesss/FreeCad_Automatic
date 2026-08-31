@@ -231,6 +231,12 @@ def monta(cfg):
         r["q_tramos"] = list(q_lin)
         r["b"] = b_v
         r["h"] = h_v
+        # a linha e' de CONTORNO? E' o que decide se ela leva a alvenaria de
+        # fechamento - e, com ela, qual limite de flecha da Tabela 13.3 se
+        # aplica (L/500 sob parede x L/250 visual). Sem publicar isso, quem
+        # verifica a secao depois teria de re-deduzir a condicao a partir do
+        # nome da viga, que e' rotulo, nao geometria.
+        r["contorno"] = bool(contorno)
         return r
 
     for j in range(ny + 1):

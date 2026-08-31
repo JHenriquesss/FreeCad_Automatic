@@ -26,6 +26,11 @@ python framework/galpao_fw/project_loop_cli.py `
 - `drawings/planta-laje-pavimento-tipo.svg` — formas, armadura e quadro de
   ferros da laje;
 - `bim/edificio-estrutura.ifc` e `model/` — com `--ifc` / `--3d` (G8).
+- `orcamento/` — planilha 5D, curva ABC e relatório (G14);
+- `cronograma/` — rede CPM, curva S (JSON + SVG) e relatório (G14);
+- `documentos/caderno-encargos.md` e `documentos/pacote-legal.md` — especificações
+  técnicas das disciplinas executadas e índice de pranchas/ART/PPCI/LOD/O&M com o
+  memorial consolidado do prédio (G14).
 
 Os entregáveis das instalações são o **relatório**: as três disciplinas novas
 entram como cálculo e gates, não como prancha. Capacidade não declarada é
@@ -59,6 +64,45 @@ manifesto os publique em vez de omiti-los (itens abertos da seção 10 de
 
 `fundacao` (G9), `vibracao_piso` e `desempenho_15575` (G11) **deixaram** essa
 lista. E, com o G12, `incendio`, `hidraulica` e `eletrico` também.
+
+## A gestão do prédio (G14)
+
+O prédio passou a ter orçamento, cronograma, caderno de encargos e pacote legal.
+O mecanismo já era o do G6; o que o G14 escreveu foi a **derivação de
+quantitativos de um edifício de concreto**, em `framework/galpao_fw/gestao_edificio.py`.
+
+O orçamento desta rodada **é parcial e diz que é** — o defeito nº 3 do G7 (um
+orçamento parcial se apresentando como fechado) é exatamente o que as três
+guardas abaixo existem para impedir:
+
+| Guarda | O que ela impede |
+| --- | --- |
+| armadura por **elemento** (`armadura_laje`, `armadura_pilar`, `armadura_fundacao`, `armadura_viga`) | as vigas do edifício são analisadas e nunca verificadas: não há `As` para elas. Num código `armadura` único, o peso sairia 30-40% abaixo com cara de completo |
+| `aplicaveis` (escopo da tipologia) | um prédio de concreto não tem aço estrutural, telha nem piso industrial; declará-los "sem quantitativo" seria ruído escondendo a falta que importa. Eles saem em `nao_aplicaveis` |
+| insumos **fora da tabela** de preços | revestimento, esquadria, elevador, louça, impermeabilização e o combate a incêndio não têm preço de referência: são nomeados em `a_confirmar`, e o preço de venda não passa por preço da obra |
+
+Duas ausências que a derivação **encontrou** neste spec, e que são do spec, não
+do módulo:
+
+- não há `estrutura.parede_sobre_vigas`: o prédio foi calculado **sem alvenaria
+  de fachada**, então não há área de vedação a orçar (derivar do perímetro seria
+  orçar uma parede que não pesou em viga nenhuma);
+- a carga das áreas comuns é declarada em VA, sem discriminação de pontos: os
+  pontos elétricos das áreas comuns não estão na contagem.
+
+Convenção de medição do concreto, declarada porque sem ela o encontro
+viga-pilar é contado duas vezes ou nenhuma: **laje** cheia (área × espessura
+adotada), **viga** com a alma (`h - h_laje`) medida eixo a eixo, **pilar** entre
+as vigas (`pé-direito - h_viga`). O nó pertence à viga.
+
+O cronograma é a rede do **prédio**, não a do galpão: a estrutura leva
+`n_pavimentos` ciclos de forma/armadura/concretagem, e as frentes seguintes
+entram em série (a rede CPM não sobrepõe vedação a pavimentos já concretados),
+o que torna o prazo conservador — dito no `a_confirmar`.
+
+O índice de pranchas do pacote legal é o escopo do **executivo**, não o conteúdo
+da pasta: o manifesto publica `pranchas_emitidas_na_rodada` e avisa quando o
+índice lista mais folhas do que a rodada desenhou.
 
 ## As três disciplinas de instalações (G12)
 

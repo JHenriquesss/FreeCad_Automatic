@@ -67,6 +67,79 @@
       ],
       "pe_direito_m": 2.7
     },
+    "estrutura": {
+      "geometria": {
+        "vaos_x": [
+          3.5,
+          3.5,
+          3.4
+        ],
+        "vaos_y": [
+          4.0,
+          4.0
+        ],
+        "pe_direito": 2.7
+      },
+      "pavimentos": [
+        {
+          "nome": "Cobertura",
+          "uso": "cobertura_manutencao"
+        }
+      ],
+      "laje": {
+        "h": 0.1,
+        "revestimento_kN_m2": 1.0
+      },
+      "viga": {
+        "b": 0.2,
+        "h": 0.45
+      },
+      "materiais": {
+        "fck": 25000.0,
+        "fyk": 500000.0
+      },
+      "parede_sobre_vigas": {
+        "tipo": "bloco_ceramico_furo_horizontal",
+        "espessura_cm": 14,
+        "altura": 2.7,
+        "revestimento_cm": 2.0
+      },
+      "baldrame": {
+        "b": 0.15,
+        "h": 0.4,
+        "parede": {
+          "tipo": "bloco_ceramico_furo_horizontal",
+          "espessura_cm": 14,
+          "altura": 2.7,
+          "revestimento_cm": 2.0
+        },
+        "linhas": "contorno",
+        "parede_proveniencia": "alvenaria de vedacao do terreo, Tabela 2 da NBR 6120. O baldrame e' o que leva esse peso para a sapata: ele NAO passa pelos pilares"
+      },
+      "fundacao": {
+        "perfil_spt": [
+          {
+            "tipo": "argila_arenosa",
+            "N": 8,
+            "dz": 2.0
+          },
+          {
+            "tipo": "areia_siltosa",
+            "N": 16,
+            "dz": 3.0
+          },
+          {
+            "tipo": "areia",
+            "N": 25,
+            "dz": 4.0
+          }
+        ],
+        "perfil_spt_proveniencia": "A CONFIRMAR - perfil de sondagem SPT do terreno; sem laudo real este e' o dado que o projetista tem de substituir. A tensao admissivel do solo e' DERIVADA dele (N/50), nunca arbitrada",
+        "cota_apoio_m": 1.0,
+        "mu_solo": 0.5,
+        "h_pedestal_m": 0.4
+      }
+    },
     "eletrico": {
       "network": {
         "voltage_system": "127/220",
@@ -727,6 +800,32 @@
         "source_id": "4c71daf6-ff91-44d1-a5e7-d7f881ab66f8",
         "title": "ANEEL PRODIST Módulo 3",
         "edition": "vigente no snapshot",
+        "status": 2,
+        "is_stale": false
+      }
+    ],
+    "estrutura": [
+      {
+        "notebook_id": "6949283a-500d-4eb0-8e94-0cdad964aa69",
+        "source_id": "b1df9923-5edc-4390-b4a9-a1f57a61af81",
+        "title": "ABNT NBR 6118:2023 Emenda 1:2026",
+        "edition": "2023/EM1:2026",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "261e7432-e86f-4c00-857a-ef641e1dbb35",
+        "source_id": "f5927656-18db-4f63-87a6-8a72e85f8a37",
+        "title": "ABNT NBR 6120:2019 - acoes para o calculo de estruturas de edificacoes",
+        "edition": "2019",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "261e7432-e86f-4c00-857a-ef641e1dbb35",
+        "source_id": "b9a4b73e-63b4-4ce4-852d-ebf1f4168651",
+        "title": "ABNT NBR 8681:2025 - acoes e seguranca nas estruturas",
+        "edition": "2025",
         "status": 2,
         "is_stale": false
       }

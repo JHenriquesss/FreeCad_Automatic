@@ -38,12 +38,17 @@ def execucao(spec, tmp_path_factory):
 
 # --- contrato do adaptador -------------------------------------------------
 
-def test_adaptador_declara_as_tres_disciplinas():
+DISCIPLINAS = {"arquitetura", "estrutura", "eletrico", "hidraulica"}
+
+
+def test_adaptador_declara_as_quatro_disciplinas():
+    """G13: 'estrutura' entrou. Era a disciplina que faltava - a casa tinha
+    instalacoes e nao tinha laje, viga, pilar nem fundacao."""
     capacidades = {item["name"]: item for item in describe_adapters()}
     assert "casa-residencial" in capacidades
     real = capacidades["casa-residencial"]
     assert real["project_types"] == ["residencial"]
-    assert set(real["disciplines"]) == {"arquitetura", "eletrico", "hidraulica"}
+    assert set(real["disciplines"]) == DISCIPLINAS
     assert "drawings" in real["deliverables"]
 
 
@@ -75,18 +80,21 @@ def test_nao_importa_o_turnkey_do_galpao():
     assert not any(nome.startswith("galpao") for nome in importados), importados
 
 
-# --- as tres disciplinas calculam de verdade -------------------------------
+# --- as quatro disciplinas calculam de verdade -----------------------------
 
-def test_as_tres_disciplinas_produzem_numero(execucao):
+def test_as_quatro_disciplinas_produzem_numero(execucao):
     manifesto, _ = execucao
     disciplinas = manifesto["disciplines"]
-    assert set(disciplinas) == {"arquitetura", "eletrico", "hidraulica"}
+    assert set(disciplinas) == DISCIPLINAS
     for registro in disciplinas.values():
         assert registro["status"] == "needs_review", registro.get("errors")
         assert registro["gates"], "disciplina sem gate nao calculou nada"
     assert disciplinas["arquitetura"]["gates"]["previsao_carga"][
         "carga_iluminacao_va"] > 0
     assert disciplinas["hidraulica"]["gates"]["agua_velocidade"]["DN_mm"] > 0
+    # a estrutura so calculou de verdade se a carga chegou ao chao: o gate da
+    # fundacao existe e nomeia o tipo dimensionado
+    assert disciplinas["estrutura"]["gates"]["fundacao"]["n_pilares"] > 0
 
 
 def test_nenhuma_disciplina_e_marcada_passed(execucao):
@@ -281,7 +289,7 @@ def test_pranchas_sao_xml_valido(execucao):
     svgs = sorted((destino / "drawings").glob("*.svg"))
     assert [s.name for s in svgs] == [
         "conferencia-nbr5410.svg", "esquema-hidraulico.svg",
-        "quadro-ambientes.svg"]
+        "planta-formas.svg", "quadro-ambientes.svg"]
     for svg in svgs:
         raiz = ET.fromstring(svg.read_text(encoding="utf-8"))
         assert raiz.tag.endswith("svg")

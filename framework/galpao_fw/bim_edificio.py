@@ -46,9 +46,15 @@
 # fundacao calculada, nenhuma peca de fundacao e' emitida: um IFC com uma sapata
 # inventada e' pior que um IFC sem sapata nenhuma.
 #
+# A VIGA BALDRAME entra pelo mesmo criterio (G13): o edificio nao a dimensiona e
+# nada e' emitido, mas a CASA a dimensiona (`estrutura_casa`) e ela vira IfcBeam
+# no andar de fundacao, com o topo na cota zero. O emissor e' um so porque uma
+# casa e um predio de concreto sao a mesma geometria com alturas diferentes -
+# duplicar o modulo criaria a segunda descricao que envelhece.
+#
 # O QUE ESTE MODULO NAO EMITE, e por que: escada (nao ha posicao declarada na
-# malha), alvenaria (bloqueada por fonte), viga baldrame (nao dimensionada).
-# Peca que nao foi calculada nao entra no modelo.
+# malha), alvenaria (bloqueada por fonte). Peca que nao foi calculada nao entra
+# no modelo.
 # ============================================================================
 """Modelo neutro e IFC4 do edificio multipavimento, puro-Python (sem FreeCAD)."""
 
@@ -254,8 +260,72 @@ def membros_bim(estrutura, pe_direito=None):
                 membro["armadura"] = _armadura_laje(laje)
             membros.append(membro)
 
+    membros.extend(membros_baldrame(estrutura, xs, ys, material))
     membros.extend(membros_fundacao(estrutura, xs, ys, material))
     return membros
+
+
+def membros_baldrame(estrutura, xs, ys, material):
+    """Vigas de baldrame, quando a estrutura as DIMENSIONOU (casa do G13).
+
+    O edificio nao as tem (`viga_baldrame: not_available` no escopo do G9) e
+    entao nada e' emitido - a mesma regra do resto do modulo: peca que ninguem
+    calculou nao aparece no modelo. A casa as tem porque a alvenaria terrea
+    nasce nelas.
+
+    EMPILHAMENTO: o baldrame tem o TOPO na cota zero (a base do primeiro lance
+    de pilar) e desce `h`; ele compartilha FACE com o pilar, nunca volume. Se a
+    altura do baldrame chegasse a cota de apoio da sapata, as duas pecas
+    ocupariam o mesmo concreto - e isso e' recusado como geometria incoerente,
+    nao acomodado com uma folga inventada.
+    """
+    baldrame = estrutura.get("baldrame")
+    if not isinstance(baldrame, dict) or not baldrame.get("por_linha"):
+        return []
+    b = float(baldrame["secao"]["b"])
+    h = float(baldrame["secao"]["h"])
+    fundacao = estrutura.get("fundacao")
+    if isinstance(fundacao, dict) and fundacao.get("por_pilar"):
+        cota = float(fundacao.get("cota_apoio_m")
+                     if fundacao.get("cota_apoio_m") is not None else 1.0)
+        if h >= cota - 1e-9:
+            raise GeometriaIncoerente(
+                "a viga baldrame (h=%.3f m) desce ate ou abaixo da cota de apoio "
+                "da fundacao (%.3f m): o baldrame e a sapata ocupariam o mesmo "
+                "volume" % (h, cota))
+    perfil = "VB%.0fx%.0f" % (b * 100, h * 100)
+    secao = {"forma": "RECT", "bf": b, "d": h}
+    membros = []
+    for linha in baldrame["por_linha"]:
+        eixo, indice, vaos = linha["eixo"], int(linha["indice"]), linha["vaos"]
+        acumulado = 0.0
+        for k, L in enumerate(vaos):
+            if eixo == "x":
+                p1 = [(xs[0] + acumulado) * MM, ys[indice] * MM, -h * MM]
+                p2 = [(xs[0] + acumulado + float(L)) * MM, ys[indice] * MM,
+                      -h * MM]
+            else:
+                # recuo de b/2 nas pontas, onde a linha em Y encontra a linha em
+                # X: sem ele o mesmo concreto entraria duas vezes no quantitativo
+                y0 = (ys[0] + acumulado + b / 2.0) * MM
+                y1 = (ys[0] + acumulado + float(L) - b / 2.0) * MM
+                p1 = [xs[indice] * MM, y0, -h * MM]
+                p2 = [xs[indice] * MM, y1, -h * MM]
+            membros.append({
+                "tipo": "Beam", "marca": "%s-%d" % (linha["nome"], k + 1),
+                "perfil": perfil, "secao": dict(secao), "ancoragem": "base",
+                "p1": p1, "p2": p2,
+                "material": material, "pavimento": "Fundacao"})
+            acumulado += float(L)
+    return membros
+
+
+def n_baldrames(estrutura):
+    """Quantos tramos de baldrame o CALCULO produziu (para a conferencia)."""
+    baldrame = estrutura.get("baldrame")
+    if not isinstance(baldrame, dict) or not baldrame.get("por_linha"):
+        return 0
+    return sum(len(linha["vaos"]) for linha in baldrame["por_linha"])
 
 
 def membros_fundacao(estrutura, xs, ys, material):
@@ -415,10 +485,14 @@ def confere_modelo(estrutura, membros):
     por_tipo = {}
     for m in membros:
         por_tipo[m["tipo"]] = por_tipo.get(m["tipo"], 0) + 1
+    # os tramos de BALDRAME entram na conta de IfcBeam: eles sao vigas, e sem
+    # soma-los aqui a conferencia acusaria excesso de pecas justamente na casa
+    # que os dimensionou.
+    n_bald = n_baldrames(estrutura)
     esperado = {
         "Column": n_pilares * n_niveis,
         # vigas: (ny+1) linhas em X x nx tramos + (nx+1) linhas em Y x ny tramos
-        "Beam": ((ny + 1) * nx + (nx + 1) * ny) * n_niveis,
+        "Beam": ((ny + 1) * nx + (nx + 1) * ny) * n_niveis + n_bald,
         "Slab": pav["n_paineis"] * n_niveis,
     }
     # FUNDACAO: uma peca por pilar APROVADO (sapata/bloco) ou um bloco + n
@@ -443,7 +517,7 @@ def confere_modelo(estrutura, membros):
         esperado["Pile"] = n_pile
 
     pavimentos_modelo = {m["pavimento"] for m in membros}
-    n_andares = n_niveis + (1 if (n_footing or n_pile) else 0)
+    n_andares = n_niveis + (1 if (n_footing or n_pile or n_bald) else 0)
     return {
         "ok": por_tipo == esperado and len(pavimentos_modelo) == n_andares,
         "por_tipo": por_tipo, "esperado": esperado,
@@ -480,9 +554,15 @@ def pavimentos_ifc(estrutura, pe_direito):
     """
     andares = niveis(estrutura, pe_direito)
     fundacao = estrutura.get("fundacao")
+    cota = None
     if isinstance(fundacao, dict) and fundacao.get("por_pilar"):
         cota = float(fundacao.get("cota_apoio_m")
                      if fundacao.get("cota_apoio_m") is not None else 1.0)
+    elif n_baldrames(estrutura):
+        # baldrame sem fundacao dimensionada: o andar existe assim mesmo, senao
+        # as vigas de baldrame cairiam dentro do primeiro pavimento no navegador
+        cota = float(estrutura["baldrame"]["secao"]["h"])
+    if cota is not None:
         andares = [{"nome": "Fundacao", "elevacao_mm": -cota * MM}] + andares
     return andares
 

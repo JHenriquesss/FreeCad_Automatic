@@ -77,30 +77,43 @@ _CUSTO_POR_ATIVIDADE = {
 }
 
 
-def emitir_orcamento(manifest, run_dir, normalized, options, turnkey_result):
-    """Planilha orcamentaria + curva ABC a partir dos quantitativos da rodada.
+def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
+                           aplicaveis=None, precos_extra=None, notas=(),
+                           extras=None, detalhe_vazio=None):
+    """Grava a planilha 5D no manifesto a partir de quantitativos JA derivados.
 
-    Quantitativos derivados do turnkey; o que o usuario declarar em
-    ``gestao.orcamento.quantitativos`` SOBREPOE o derivado (ele conhece a obra).
-    Precos: tabela de REFERENCIA (A CONFIRMAR) salvo override em ``precos``.
+    A DERIVACAO e' de quem conhece a tipologia (um galpao metalico e um
+    edificio de concreto nao tem os mesmos insumos); daqui para baixo o
+    tratamento e' o mesmo para os dois: override do usuario, precos, BDI,
+    cobertura e as notas de A CONFIRMAR.
+
+    `aplicaveis` : codigos que a TIPOLOGIA pode ter (None = a tabela inteira).
+    `precos_extra`: insumos que a tabela de referencia nao nomeia (o usuario
+                   ainda sobrepoe qualquer um deles em gestao.orcamento.precos).
+    `notas`      : A CONFIRMAR que a derivacao produziu (o que o numero NAO
+                   cobre viaja junto do numero, nao depois).
     """
     import orcamento as orc
 
     cfg = _bloco(normalized, "gestao", "orcamento")
-    quantitativos = orc.quantitativos_de_turnkey(turnkey_result)
+    quantitativos = dict(derivados or {})
     declarados = cfg.get("quantitativos")
     if isinstance(declarados, dict):
         quantitativos.update(declarados)
     if not quantitativos:
         _nao_solicitado(
             manifest, "orcamento",
+            detalhe_vazio or
             "sem quantitativos: nada derivavel das disciplinas executadas e nada "
             "declarado em gestao.orcamento.quantitativos")
         return
 
-    precos = cfg.get("precos") if isinstance(cfg.get("precos"), dict) else None
+    precos_usuario = cfg.get("precos") if isinstance(cfg.get("precos"), dict) else None
+    tabela = dict(precos_extra or {})
+    tabela.update(precos_usuario or {})
     bdi = float(cfg.get("bdi_pct", orc.BDI_PADRAO_PCT))
-    resultado = orc.compor_orcamento(quantitativos, precos, bdi)
+    resultado = orc.compor_orcamento(quantitativos, tabela or None, bdi,
+                                     aplicaveis=aplicaveis)
 
     pasta = _dir(run_dir, "orcamento")
     artefatos = [
@@ -111,7 +124,7 @@ def emitir_orcamento(manifest, run_dir, normalized, options, turnkey_result):
         _texto(manifest, run_dir, pasta / "relatorio.txt",
                orc.relatorio_pt(resultado) + "\n", "budget-report"),
     ]
-    a_confirmar = [] if precos else [
+    a_confirmar = [] if precos_usuario else [
         "precos unitarios da tabela de REFERENCIA - substituir pela SINAPI vigente "
         "(UF, data-base, regime de desoneracao)"]
     if "bdi_pct" not in cfg:
@@ -126,9 +139,8 @@ def emitir_orcamento(manifest, run_dir, normalized, options, turnkey_result):
             "orcamento PARCIAL: %d insumo(s) da tabela sem quantitativo derivavel "
             "(%s) - completar em gestao.orcamento.quantitativos antes de usar o "
             "preco de venda" % (len(faltando), ", ".join(faltando)))
-    if "aco_estrutural" in quantitativos and "aco_estrutural" not in (declarados or {}):
-        a_confirmar.append(orc.NOTA_ACO_PRIMARIO)
-    manifest["deliverables"]["orcamento"] = {
+    a_confirmar.extend(notas or [])
+    registro = {
         "status": "generated",
         "artifacts": [item["path"] for item in artefatos],
         "custo_direto": resultado["planilha"]["custo_direto"],
@@ -137,18 +149,44 @@ def emitir_orcamento(manifest, run_dir, normalized, options, turnkey_result):
         "codigos": sorted(quantitativos),
         "sem_preco": resultado["sem_preco"],
         "sem_quantidade": faltando,
+        "nao_aplicaveis": resultado.get("nao_aplicaveis", []),
         "cobertura_pct": resultado.get("cobertura_pct"),
         "a_confirmar": a_confirmar,
     }
+    registro.update(extras or {})
+    manifest["deliverables"]["orcamento"] = registro
+
+
+def emitir_orcamento(manifest, run_dir, normalized, options, turnkey_result):
+    """Planilha orcamentaria + curva ABC a partir dos quantitativos da rodada.
+
+    Quantitativos derivados do turnkey; o que o usuario declarar em
+    ``gestao.orcamento.quantitativos`` SOBREPOE o derivado (ele conhece a obra).
+    Precos: tabela de REFERENCIA (A CONFIRMAR) salvo override em ``precos``.
+    """
+    del options
+    import orcamento as orc
+
+    derivados = orc.quantitativos_de_turnkey(turnkey_result)
+    declarados = _bloco(normalized, "gestao", "orcamento").get("quantitativos")
+    notas = ([orc.NOTA_ACO_PRIMARIO]
+             if "aco_estrutural" in derivados
+             and "aco_estrutural" not in (declarados or {}) else [])
+    orcamento_no_manifesto(manifest, run_dir, normalized, derivados, notas=notas)
 
 
 # --------------------------------- cronograma --------------------------------
-def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
+def cronograma_no_manifesto(manifest, run_dir, normalized, wbs_padrao,
+                            mapa_custo, nota_padrao):
     """Rede CPM (caminho critico) + curva S, custeada pelo orcamento da rodada.
 
     Roda DEPOIS do orcamento (ordem declarada em ``deliverables``): quando a
     planilha existe, cada item entra na atividade que o executa; sem planilha o
     cronograma sai so fisico (custo zero), o que o manifesto declara.
+
+    `wbs_padrao` e `mapa_custo` sao da TIPOLOGIA: um edificio sobe pavimento a
+    pavimento e um galpao nao, e o insumo que paga a conta de cada atividade
+    muda com eles.
     """
     import cronograma as cr
 
@@ -157,7 +195,7 @@ def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
     if atividades is not None and not isinstance(atividades, list):
         raise TypeError("gestao.cronograma.atividades deve ser uma lista")
     if atividades is None:
-        atividades = [dict(item) for item in cr._WBS_GALPAO]
+        atividades = [dict(item) for item in wbs_padrao]
 
     custos = {}
     orcado = manifest["deliverables"].get("orcamento") or {}
@@ -165,7 +203,7 @@ def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
     if orcado.get("status") == "generated" and planilha.is_file():
         dados = json.loads(planilha.read_text(encoding="utf-8"))
         for linha in dados.get("linhas", []):
-            atividade = _CUSTO_POR_ATIVIDADE.get(linha.get("codigo"))
+            atividade = mapa_custo.get(linha.get("codigo"))
             if atividade:
                 custos[atividade] = custos.get(atividade, 0.0) + linha["custo"]
     if custos:
@@ -188,9 +226,7 @@ def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
     # (nem se inventa custo para as atividades que o orcamento nao cobre).
     com_custo = sum(1 for item in crono["atividades"] if item["custo"])
     total = len(crono["atividades"])
-    avisos = ([] if cfg.get("atividades") else
-              ["duracoes do WBS-esqueleto do modulo - confirmar com o "
-               "planejamento da obra"])
+    avisos = [] if cfg.get("atividades") else [nota_padrao]
     if 0 < com_custo < total:
         avisos.append(
             "curva S custeada em %d de %d atividades: o avanco fisico e ponderado "
@@ -209,15 +245,28 @@ def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
     }
 
 
+def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
+    """Cronograma do galpao: WBS-esqueleto do modulo `cronograma`."""
+    del options, turnkey_result
+    import cronograma as cr
+
+    cronograma_no_manifesto(
+        manifest, run_dir, normalized, cr._WBS_GALPAO, _CUSTO_POR_ATIVIDADE,
+        "duracoes do WBS-esqueleto do modulo - confirmar com o planejamento "
+        "da obra")
+
+
 # ------------------------------ caderno de encargos --------------------------
-def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_result):
-    """Especificacoes tecnicas das disciplinas efetivamente executadas."""
+def caderno_no_manifesto(manifest, run_dir, normalized, disciplinas):
+    """Caderno de encargos das disciplinas dadas (vazio = todas as da biblioteca).
+
+    `gestao.caderno_encargos.disciplinas` do usuario vence a derivacao.
+    """
     import caderno_encargos as ce
 
     cfg = _bloco(normalized, "gestao", "caderno_encargos")
-    disciplinas = cfg.get("disciplinas")
-    caderno = (ce.gerar_caderno(list(disciplinas)) if disciplinas
-               else ce.caderno_de_turnkey(turnkey_result))
+    escolhidas = cfg.get("disciplinas") or disciplinas
+    caderno = ce.gerar_caderno(list(escolhidas)) if escolhidas else ce.gerar_caderno()
     pasta = _dir(run_dir, "documentos")
     artefatos = [
         _texto(manifest, run_dir, pasta / "caderno-encargos.md",
@@ -234,12 +283,26 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
     }
 
 
+def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_result):
+    """Especificacoes tecnicas das disciplinas efetivamente executadas."""
+    del options
+    import caderno_encargos as ce
+
+    cfg = _bloco(normalized, "gestao", "caderno_encargos")
+    if cfg.get("disciplinas"):
+        derivadas = list(cfg["disciplinas"])
+    else:
+        derivadas = [secao["disciplina"]
+                     for secao in ce.caderno_de_turnkey(turnkey_result)["secoes"]]
+    caderno_no_manifesto(manifest, run_dir, normalized, derivadas)
+
+
 # --------------------------------- pacote legal ------------------------------
-def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
+def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial."""
     import pacote_legal as pl
 
-    pacote = pl.gerar_pacote(R=turnkey_result, spec=normalized.get("turnkey_spec"))
+    pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial)
     pasta = _dir(run_dir, "documentos")
     artefatos = [
         _texto(manifest, run_dir, pasta / "pacote-legal.md",
@@ -247,14 +310,38 @@ def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
         _json(manifest, run_dir, pasta / "pacote-legal.json", pacote,
               "legal-package-data"),
     ]
+    # INDICE x PASTA. O indice de pranchas e' o que o projeto executivo DEVE
+    # conter, nao o que esta rodada desenhou. Sem confrontar os dois, um pacote
+    # que lista treze folhas ao lado de uma pasta com duas passaria por completo
+    # - a mesma falha do orcamento parcial, na forma de prancha.
+    emitidas = sum(1 for item in manifest.get("artifacts", [])
+                   if item.get("kind") == "drawing")
+    a_confirmar = ["responsavel tecnico (nome, CREA/CAU, numero da ART) nao e "
+                   "inventado pelo modulo - preencher antes de protocolar"]
+    if emitidas < len(pacote["indice_pranchas"]):
+        a_confirmar.append(
+            "o indice lista %d prancha(s) do projeto executivo e esta rodada "
+            "emitiu %d: as demais ainda tem de ser desenhadas (o indice e' o "
+            "escopo do executivo, nao o conteudo da pasta desta rodada)"
+            % (len(pacote["indice_pranchas"]), emitidas))
     manifest["deliverables"]["pacote_legal"] = {
         "status": "generated",
         "artifacts": [item["path"] for item in artefatos],
         "n_pranchas": len(pacote["indice_pranchas"]),
+        "pranchas_emitidas_na_rodada": emitidas,
         "n_art": len(pacote["lista_art"]),
-        "a_confirmar": ["responsavel tecnico (nome, CREA/CAU, numero da ART) nao e "
-                        "inventado pelo modulo - preencher antes de protocolar"],
+        "a_confirmar": a_confirmar,
     }
+
+
+def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
+    """Pacote legal do galpao, com o memorial consolidado do turnkey."""
+    del options
+    import pacote_legal as pl
+
+    pacote_no_manifesto(
+        manifest, run_dir, turnkey_result.get("executadas"),
+        pl.memorial_consolidado(turnkey_result, normalized.get("turnkey_spec")))
 
 
 # --------------------------------- obras do sitio ----------------------------

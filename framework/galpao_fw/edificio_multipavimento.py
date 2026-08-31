@@ -36,13 +36,15 @@ import pilar_continuo as pcn
 import vibracao_piso as vib
 import viga_concreto as vgc
 
-# secoes de pilar tentadas, da menor para a maior (b, h) em m
 # teto de iteracoes do ponto fixo espessura-da-laje x carga (ver `rodar`)
 MAX_ITER_LAJE = 6
 
-SECOES_PILAR = ((0.19, 0.30), (0.19, 0.40), (0.20, 0.50), (0.25, 0.50),
-                (0.25, 0.60), (0.30, 0.60), (0.30, 0.70), (0.35, 0.70),
-                (0.40, 0.80), (0.50, 0.90))
+# A selecao da secao lance a lance mora em `pilar_continuo` (e' regra de pilar,
+# nao de edificio) desde que a CASA do G13 passou a usar a mesma com outra lista
+# de secoes. Re-exportadas aqui porque este modulo e' a porta por onde o G3
+# sempre as ofereceu.
+SECOES_PILAR = pcn.SECOES_PILAR
+dimensiona_pilar_continuo = pcn.dimensiona_pilar_continuo
 
 
 def _eixos(vaos):
@@ -51,58 +53,6 @@ def _eixos(vaos):
     for v in vaos:
         xs.append(xs[-1] + float(v))
     return xs
-
-
-def _maior_ou_igual(sec, minimo):
-    """True se `sec` nao e menor que `minimo` em nenhuma das duas dimensoes."""
-    return sec[0] >= minimo[0] - 1e-9 and sec[1] >= minimo[1] - 1e-9
-
-
-def dimensiona_pilar_continuo(lances, fck, fyk, secoes=SECOES_PILAR):
-    """Percorre os lances do topo para a base adotando, em cada um, a MENOR secao
-    que atende e que nao seja menor que a do lance de cima.
-
-    Devolve (lances_com_secao, erros). `erros` nomeia os lances em que nenhuma secao
-    da lista serviu - o resultado desses lances traz a MAIOR secao tentada, marcada
-    como reprovada, e nunca e apresentado como bom."""
-    escolhidos = []
-    erros = []
-    minimo = (0.0, 0.0)
-    N_acum = 0.0                 # N que CHEGA ao topo do lance
-    for lc in lances:
-        N_topo = N_acum + lc["N_aplicado"]
-        adotada = None
-        peso = 0.0
-        for sec in secoes:
-            if not _maior_ou_igual(sec, minimo):
-                continue
-            # o lance e verificado ISOLADO com o N ja acumulado ate aqui. O
-            # `peso_proprio=True` faz o proprio pcn somar o peso DESTE lance, igual
-            # ao que a verificacao final da pilha fara - se a selecao usasse um N
-            # menor que a verificacao, ela poderia adotar uma secao que a
-            # verificacao final reprova, e o pilar sairia reprovado sem que nenhuma
-            # secao maior chegasse a ser tentada.
-            r = pcn.dimensiona({"lances": [dict(lc, b=sec[0], h=sec[1],
-                                                N_aplicado=N_topo)],
-                                "fck": fck, "fyk": fyk, "peso_proprio": True})
-            if r["OK"]:
-                adotada = sec
-                peso = r["lances"][0]["peso_proprio_k"]
-                break
-        if adotada is None:
-            adotada = secoes[-1]
-            r = pcn.dimensiona({"lances": [dict(lc, b=adotada[0], h=adotada[1],
-                                                N_aplicado=N_topo)],
-                                "fck": fck, "fyk": fyk, "peso_proprio": True})
-            peso = r["lances"][0]["peso_proprio_k"]
-            erros.append("lance '%s': nenhuma secao da lista atende (a maior tentada "
-                         "foi %.2f x %.2f m)" % (lc.get("nome"), adotada[0], adotada[1]))
-        minimo = adotada
-        escolhidos.append(dict(lc, b=adotada[0], h=adotada[1]))
-        # o acumulado que desce carrega tambem o PESO PROPRIO do lance, exatamente
-        # como faz pilar_continuo.dimensiona ao percorrer a pilha
-        N_acum = N_topo + peso
-    return escolhidos, erros
 
 
 def rodar(spec):

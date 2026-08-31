@@ -170,6 +170,74 @@ def dimensiona(cfg):
             "reprovados": [x["nome"] for x in saida if not x["OK"]]}
 
 
+# ---------------------------------------------------------------------------
+# SELECAO AUTOMATICA DA SECAO, LANCE A LANCE
+# ---------------------------------------------------------------------------
+# Estava dentro de `edificio_multipavimento`; veio para ca quando a CASA (G13)
+# passou a precisar da mesma selecao com outra lista de secoes. Duas copias da
+# regra "adota a menor secao que atende e nao encolhe ao descer" seriam duas
+# descricoes do mesmo criterio, e uma delas envelheceria - o anti-padrao que
+# este projeto persegue. A lista de secoes e' PARAMETRO: um edificio nao tenta
+# pilar de 14 cm e uma casa nao precisa comecar em 19 x 30.
+
+# secoes tentadas num EDIFICIO, da menor para a maior (b, h) em m
+SECOES_PILAR = ((0.19, 0.30), (0.19, 0.40), (0.20, 0.50), (0.25, 0.50),
+                (0.25, 0.60), (0.30, 0.60), (0.30, 0.70), (0.35, 0.70),
+                (0.40, 0.80), (0.50, 0.90))
+
+
+def _maior_ou_igual(sec, minimo):
+    """True se `sec` nao e menor que `minimo` em nenhuma das duas dimensoes."""
+    return sec[0] >= minimo[0] - 1e-9 and sec[1] >= minimo[1] - 1e-9
+
+
+def dimensiona_pilar_continuo(lances, fck, fyk, secoes=SECOES_PILAR):
+    """Percorre os lances do topo para a base adotando, em cada um, a MENOR secao
+    que atende e que nao seja menor que a do lance de cima.
+
+    Devolve (lances_com_secao, erros). `erros` nomeia os lances em que nenhuma secao
+    da lista serviu - o resultado desses lances traz a MAIOR secao tentada, marcada
+    como reprovada, e nunca e apresentado como bom."""
+    escolhidos = []
+    erros = []
+    minimo = (0.0, 0.0)
+    N_acum = 0.0                 # N que CHEGA ao topo do lance
+    for lc in lances:
+        N_topo = N_acum + lc["N_aplicado"]
+        adotada = None
+        peso = 0.0
+        for sec in secoes:
+            if not _maior_ou_igual(sec, minimo):
+                continue
+            # o lance e verificado ISOLADO com o N ja acumulado ate aqui. O
+            # `peso_proprio=True` faz o proprio modulo somar o peso DESTE lance,
+            # igual ao que a verificacao final da pilha fara - se a selecao usasse
+            # um N menor que a verificacao, ela poderia adotar uma secao que a
+            # verificacao final reprova, e o pilar sairia reprovado sem que nenhuma
+            # secao maior chegasse a ser tentada.
+            r = dimensiona({"lances": [dict(lc, b=sec[0], h=sec[1],
+                                            N_aplicado=N_topo)],
+                            "fck": fck, "fyk": fyk, "peso_proprio": True})
+            if r["OK"]:
+                adotada = sec
+                peso = r["lances"][0]["peso_proprio_k"]
+                break
+        if adotada is None:
+            adotada = secoes[-1]
+            r = dimensiona({"lances": [dict(lc, b=adotada[0], h=adotada[1],
+                                            N_aplicado=N_topo)],
+                            "fck": fck, "fyk": fyk, "peso_proprio": True})
+            peso = r["lances"][0]["peso_proprio_k"]
+            erros.append("lance '%s': nenhuma secao da lista atende (a maior tentada "
+                         "foi %.2f x %.2f m)" % (lc.get("nome"), adotada[0], adotada[1]))
+        minimo = adotada
+        escolhidos.append(dict(lc, b=adotada[0], h=adotada[1]))
+        # o acumulado que desce carrega tambem o PESO PROPRIO do lance, exatamente
+        # como faz `dimensiona` ao percorrer a pilha
+        N_acum = N_topo + peso
+    return escolhidos, erros
+
+
 def relatorio(r):
     """Memoria de calculo da descida do pilar continuo."""
     L = ["PILAR CONTINUO - ABNT NBR 6118:2014 (le de 15.6 ; 2a ordem local de 15.8)",

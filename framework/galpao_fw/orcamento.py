@@ -98,10 +98,18 @@ def curva_abc(plan, corte_a=50.0, corte_b=80.0):
     return {"itens": out, "resumo": resumo, "corte_a": corte_a, "corte_b": corte_b}
 
 
-def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT):
+def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
+                     aplicaveis=None):
     """Mapeia um dict de quantitativos {codigo: quantidade} nos itens da planilha,
     usando a tabela de precos (default: referencia). Ignora quantidade 0/None e
-    codigos sem preco (registrando em 'sem_preco'). Retorna planilha + curva ABC."""
+    codigos sem preco (registrando em 'sem_preco'). Retorna planilha + curva ABC.
+
+    `aplicaveis`: os codigos que a TIPOLOGIA da obra pode ter (None = a tabela
+    inteira). Um edificio de concreto nao tem aco estrutural, telha metalica nem
+    piso industrial: sem esta lista, esses tres apareceriam em 'sem_quantidade' e
+    o orcamento se declararia PARCIAL por insumos que a obra NAO TEM - ruido que
+    esconde a falta que importa. O que fica fora do escopo volta em
+    'nao_aplicaveis', publicado, nunca omitido."""
     tab = dict(_PRECOS_REF)
     if precos:
         tab.update(precos)              # override do usuario (SINAPI real)
@@ -120,10 +128,15 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT):
     # codigos da tabela que ficaram SEM quantitativo sao declarados - quem le sabe
     # que o preco de venda nao cobre a obra inteira (custo omitido != custo zero).
     orcados = {it["codigo"] for it in itens}
-    sem_quantidade = sorted(c for c in tab if c not in orcados)
+    escopo = set(tab) if aplicaveis is None else set(aplicaveis)
+    sem_quantidade = sorted(c for c in tab if c in escopo and c not in orcados)
+    nao_aplicaveis = sorted(c for c in tab if c not in escopo and c not in orcados)
+    no_escopo = escopo & set(tab)
     return {"planilha": plan, "abc": abc, "sem_preco": sem_preco,
             "sem_quantidade": sem_quantidade,
-            "cobertura_pct": round(100.0 * len(orcados) / (len(tab) or 1), 1)}
+            "nao_aplicaveis": nao_aplicaveis,
+            "cobertura_pct": round(
+                100.0 * len(orcados & no_escopo) / (len(no_escopo) or 1), 1)}
 
 
 def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):

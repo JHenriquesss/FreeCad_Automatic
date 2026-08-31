@@ -121,35 +121,63 @@ def test_o_hook_sem_estrutura_calculada_diz_o_motivo(tmp_path):
 
 # --------------------------------- casa -------------------------------------
 
+# Desde o G13 a casa emite DOIS modelos - arquitetura e estrutura - e o
+# entregavel `ifc`/`model_3d` agrega os dois em `partes`. O que estes testes
+# guardam continua sendo a honestidade da parte de ARQUITETURA (proveniencia do
+# layout, escopo do que nao foi declarado, recusa com motivo escrito); o que
+# mudou e' onde ela mora no manifesto.
+
+def _parte(entregavel, nome):
+    return entregavel["partes"][nome]
+
+
 def test_a_casa_entrega_o_ifc_e_diz_de_onde_veio_o_layout(rodada_casa):
     """A proveniencia viaja: um layout que a arquitetura nao declarou nao pode
     ser lido no manifesto como se ela o tivesse declarado."""
     manifesto, destino = rodada_casa
     entregavel = manifesto["deliverables"]["ifc"]
     assert entregavel["status"] == "generated", entregavel
-    assert entregavel["layout_origem"] == "eletrico.circuits.layout"
-    assert entregavel["conferencia_areas"]["ok"]
+    arquitetura = _parte(entregavel, "arquitetura")
+    assert arquitetura["status"] == "generated", arquitetura
+    assert arquitetura["layout_origem"] == "eletrico.circuits.layout"
+    assert arquitetura["conferencia_areas"]["ok"]
     for relativo in entregavel["artifacts"]:
         assert (Path(destino) / relativo).is_file()
     assert verify_project_run(destino)["ok"] is True
 
 
+def test_a_casa_entrega_tambem_o_ifc_da_estrutura(rodada_casa):
+    """G13: o IFC da casa deixou de ser so arquitetura."""
+    manifesto, destino = rodada_casa
+    entregavel = manifesto["deliverables"]["ifc"]
+    assert "bim/estrutura-residencial.ifc" in entregavel["artifacts"]
+    estrutura = _parte(entregavel, "estrutura")
+    assert estrutura["status"] == "generated", estrutura
+    assert estrutura["conferencia_modelo"]["por_tipo"]["Footing"] > 0
+    assert (Path(destino) / "bim" / "estrutura-residencial.ifc").is_file()
+
+
 def test_o_escopo_publica_o_que_o_layout_nao_declarou(rodada_casa):
     manifesto, _ = rodada_casa
-    escopo = manifesto["deliverables"]["ifc"]["escopo"]
+    escopo = _parte(manifesto["deliverables"]["ifc"], "arquitetura")["escopo"]
     assert escopo["ambientes"] == "implemented"
     assert escopo["paredes"] == "not_declared"
     assert escopo["esquadrias"] == "not_declared"
 
 
-def test_sem_layout_nenhum_a_casa_declara_indisponivel(tmp_path):
+def test_sem_layout_nenhum_a_arquitetura_declara_indisponivel(tmp_path):
+    """Sem posicao declarada nao ha modelo de ambientes honesto a emitir. A
+    ESTRUTURA nao depende do layout (a malha e' declarada) e continua saindo -
+    por isso a indisponibilidade agora e' da parte, nao do entregavel."""
     spec = copy.deepcopy(_spec("casa-residencial"))
     spec["turnkey"]["eletrico"]["circuits"].pop("layout")
     manifesto = run_project(spec, tmp_path / "run",
                             {"generate_2d": False, "generate_ifc": True})
     entregavel = manifesto["deliverables"]["ifc"]
-    assert entregavel["status"] == "not_available"
-    assert "layout" in entregavel["detail"]
+    arquitetura = _parte(entregavel, "arquitetura")
+    assert arquitetura["status"] == "not_available"
+    assert "layout" in arquitetura["detail"]
+    assert "bim/arquitetura-residencial.ifc" not in entregavel["artifacts"]
 
 
 def test_layout_que_nao_bate_com_o_programa_bloqueia(tmp_path):
@@ -163,17 +191,22 @@ def test_layout_que_nao_bate_com_o_programa_bloqueia(tmp_path):
     }
     manifesto = run_project(spec, tmp_path / "run",
                             {"generate_2d": False, "generate_ifc": True})
-    entregavel = manifesto["deliverables"]["ifc"]
-    assert entregavel["status"] == "blocked"
-    assert entregavel["layout_origem"] == "arquitetura.layout"
-    assert "layout_area_mismatch" in {e["code"] for e in entregavel["errors"]}
+    arquitetura = _parte(manifesto["deliverables"]["ifc"], "arquitetura")
+    assert arquitetura["status"] == "blocked"
+    assert arquitetura["layout_origem"] == "arquitetura.layout"
+    assert "layout_area_mismatch" in {e["code"] for e in arquitetura["errors"]}
+    # nenhum IFC de arquitetura foi publicado a partir do layout recusado
+    assert "bim/arquitetura-residencial.ifc" not in manifesto[
+        "deliverables"]["ifc"]["artifacts"]
 
 
-def test_o_3d_da_casa_sem_solido_declarado_e_indisponivel(tmp_path):
-    """So ambientes declarados: nao ha peca construida a montar no 3D."""
+def test_o_3d_da_arquitetura_sem_solido_declarado_e_indisponivel(tmp_path):
+    """So ambientes declarados: nao ha peca construida de ARQUITETURA a montar.
+    A estrutura tem solidos proprios e monta o seu modelo em separado."""
     manifesto = run_project(_spec("casa-residencial"), tmp_path / "run",
                             {"generate_2d": False, "generate_ifc": False,
                              "generate_3d": True})
     entregavel = manifesto["deliverables"]["model_3d"]
-    assert entregavel["status"] == "not_available"
-    assert "solido" in entregavel["detail"]
+    arquitetura = _parte(entregavel, "arquitetura")
+    assert arquitetura["status"] == "not_available"
+    assert "solido" in arquitetura["detail"]
