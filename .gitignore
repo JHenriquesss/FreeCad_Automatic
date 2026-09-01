@@ -60,3 +60,4 @@ ENTREGA_PRANCHAS/
 
 # Logs do job periodico da suite de build (tools/run_build_suite.ps1)
 tools/build-logs/
+framework/galpao_fw/out_g15_*/
