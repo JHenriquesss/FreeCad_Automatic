@@ -176,6 +176,7 @@ def rodar(spec):
     # declarado: sem Ca (abaco da Fig.4 da NBR 6123) nao ha o que calcular, e
     # arbitrar um valor seria inventar acao de projeto.
     estabilidade = None
+    momentos_base = None
     if spec.get("vento"):
         import estabilidade_edificio as ee
         # carga vertical caracteristica de cada pavimento, da BASE para o topo
@@ -200,6 +201,34 @@ def rodar(spec):
             "cargas_verticais_kN": cargas_k,
             "lajes_lisas": bool(spec.get("lajes_lisas")),
             "vento": spec["vento"]})
+        # G17 - momento na base por prumada (heterogeneo, secao bruta).
+        # Nao reusa o modelo uniforme/reduzido de gamma_z para M_base: vide
+        # estabilidade_edificio._portico_plano_heterogeneo docstring.
+        try:
+            pilares_mom = []
+            for nome in sorted(desc["pilares"]):
+                registro = next(x for x in pav["pilares"] if x["nome"] == nome)
+                lance_base = pilares[nome]["lances"][-1]
+                pilares_mom.append({
+                    "nome": nome, "i": registro["i"], "j": registro["j"],
+                    "posicao": registro["posicao"],
+                    "secao": (lance_base["b"], lance_base["h"]),
+                })
+            spec_mom = {
+                "geometria": geo, "n_pavimentos": len(pavs),
+                "materiais": {"fck": fck},
+                "secoes": {"viga": {"b": viga.get("b", 0.20),
+                                    "h": viga.get("h", 0.50)}},
+                "cargas_verticais_kN": cargas_k,
+                "vento": spec["vento"],
+                "lajes_lisas": bool(spec.get("lajes_lisas")),
+            }
+            momentos_base = ee.momentos_base_por_pilar(spec_mom, pilares_mom,
+                                                       estabilidade)
+            estabilidade["momentos_base"] = momentos_base
+        except Exception as exc:  # noqa: BLE001
+            # momento nao extraido nao derruba estabilidade; vira erro nomeado
+            estabilidade["momentos_base_erro"] = "%s: %s" % (type(exc).__name__, exc)
 
     # ------------------------------------------------------------- FUNDACAO
     # A descida sempre entregou N_base por pilar e ninguem o dimensionava. Agora
@@ -227,7 +256,8 @@ def rodar(spec):
                 "eixos_x": _eixos(geo["vaos_x"]),
                 "eixos_y": _eixos(geo["vaos_y"]),
                 "materiais": {"fck": fck, "fyk": fyk},
-                "estabilidade": estabilidade})
+                "estabilidade": estabilidade,
+                "momentos_base": momentos_base})
         except fe.EntradaFundacao as exc:
             # entrada declarada que nao permite dimensionar e' REPROVACAO com
             # motivo, nunca uma fundacao silenciosamente ausente.
@@ -389,6 +419,7 @@ def rodar(spec):
         "laje": r_laje, "vigas": vigas, "escada": r_escada, "planta": planta,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "estabilidade": estabilidade,
+        "momentos_base": momentos_base,
         "vibracao": vibracao, "desempenho": desempenho,
         "H_total_m": H_total,
         "n_pavimentos": len(pavs),

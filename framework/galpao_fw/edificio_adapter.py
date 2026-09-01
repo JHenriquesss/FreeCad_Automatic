@@ -112,6 +112,7 @@ def _erro(code: str, detail: str, **ctx: Any) -> dict[str, Any]:
 
 
 def _escopo(com_vento: bool = False, com_fundacao: bool = False,
+            com_momento: bool = False,
             instalacoes: dict | None = None) -> dict[str, str]:
     escopo = {"superestrutura": "implemented",
               "aprovacao_legal": "not_claimed",
@@ -135,17 +136,24 @@ def _escopo(com_vento: bool = False, com_fundacao: bool = False,
         escopo[chave] = "implemented" if com_fundacao else "not_available"
     for chave in ESCOPO_FUNDACAO_ABERTO:
         escopo[chave] = "not_available"
-    # o momento fletor na base de CADA pilar nao sai do modelo global de
-    # estabilidade; a fundacao e' verificada sem ele e isso e' dito, nao calado.
-    escopo["momento_base_pilar"] = "not_available"
+    # G17: momento na base por pilar deixa de ser not_available quando ha vento
+    # (portico heterogeneo, secao bruta) – alimenta a fundacao com M_x/M_y por
+    # prumada e distingue canto vs centro. Sem vento, segue not_available.
+    escopo["momento_base_pilar"] = "implemented" if com_momento else "not_available"
+    # G17: sapata de divisa / viga de equilibrio deixam de ser ignoradas – o
+    # criterio e' a posicao do pilar (canto/extremidade vs interno) quando ha
+    # momento. Publica a capacidade quando o momento existe.
+    escopo["sapata_divisa"] = "implemented" if com_momento else "not_available"
+    escopo["viga_equilibrio"] = "implemented" if com_momento else "not_available"
     return escopo
 
 
 def _registro(status: str, com_vento: bool = False, com_fundacao: bool = False,
+              com_momento: bool = False,
               **campos: Any) -> dict[str, Any]:
     registro = {"status": status, "native_atende": None, "reprovados": [],
                 "gates": {}, "warnings": [], "artifacts": [],
-                "scope": _escopo(com_vento, com_fundacao), "errors": []}
+                "scope": _escopo(com_vento, com_fundacao, com_momento), "errors": []}
     registro.update(campos)
     return registro
 
@@ -340,13 +348,18 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
             "sigma_solo_adm): a carga desce ate N_base e para ali. A tensao "
             "admissivel do solo nao e' arbitrada por este framework"))
     fundacao = resultado.get("fundacao")
+    # G17: momento por pilar disponivel quando ha vento e o portico heterogeneo rodou
+    momentos = resultado.get("momentos_base")
+    com_momento = bool(com_vento and isinstance(momentos, dict)
+                       and any(not k.startswith("_") for k in momentos)
+                       and not momentos.get("_erro"))
     if resultado.get("fundacao_erro"):
         # entrada declarada que nao permite dimensionar: erro nomeado, nunca
         # uma fundacao que some do resultado sem explicacao.
         erros_fund = [_erro("foundation_input_rejected",
                             resultado["fundacao_erro"])]
         return _registro(
-            "blocked", com_vento, com_fundacao,
+            "blocked", com_vento, com_fundacao, com_momento,
             native_atende=bool(resultado["ATENDE"]),
             reprovados=list(resultado["reprovados"]),
             gates=copy.deepcopy(resultado["gates"]),
@@ -354,9 +367,13 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
     if fundacao:
         avisos.extend(_erro(item["code"], item["detail"])
                       for item in fundacao["avisos"])
+        # se a fundacao ja trouxe momento, garante que o escopo do registro
+        # reflita – o _avisos de fundacao ja publicou momento_base_pilar
+        if fundacao.get("escopo", {}).get("momento_base_pilar") == "implemented":
+            com_momento = True
 
     registro = _registro(
-        "needs_review", com_vento, com_fundacao,
+        "needs_review", com_vento, com_fundacao, com_momento,
         native_atende=bool(resultado["ATENDE"]),
         reprovados=list(resultado["reprovados"]),
         gates=copy.deepcopy(resultado["gates"]),
@@ -367,10 +384,24 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
             "sigma_solo_adm_kNm2": fundacao["sigma_solo_adm"],
             "proveniencia_sigma": fundacao["proveniencia_sigma"],
             "por_pilar": {nome: {"N_dimensionamento_kN": r["N_dimensionamento_kN"],
-                                 "geometria": r["geometria"], "OK": r["OK"]}
+                                 "geometria": r["geometria"], "OK": r["OK"],
+                                 "subtipo": r.get("subtipo"),
+                                 "M_base_kNm": r.get("M_base_kNm"),
+                                 "V_base_kN": r.get("V_base_kN"),
+                                 "combinacoes": r.get("combinacoes")}
                           for nome, r in fundacao["por_pilar"].items()},
             "scope": copy.deepcopy(fundacao["escopo"]),
+            "momentos_base": copy.deepcopy(momentos) if momentos else None,
         }
+    # exposicao de momentos no registro da estrutura para auditoria
+    if momentos and not momentos.get("_erro"):
+        # resume por pilar para o manifesto (Mx, My, M_res)
+        resumo = {nome: {"Mx_kNm": v.get("Mx_abs_kNm"),
+                         "My_kNm": v.get("My_abs_kNm"),
+                         "M_res_kNm": v.get("M_resultante_kNm"),
+                         "posicao": v.get("posicao")}
+                  for nome, v in momentos.items() if not nome.startswith("_")}
+        registro["momentos_base_por_pilar"] = resumo
     return registro, resultado
 
 
@@ -628,6 +659,14 @@ def run_edificio(normalized, run_dir, preflight=None):
                 instalacoes)
         disciplinas[nome] = {"engine": motor, "status": registros[nome]["status"]}
 
+    com_vento_global = bool(isinstance(turnkey.get("estrutura"), dict)
+                              and turnkey["estrutura"].get("vento"))
+    com_fund_global = _fundacao_declarada(turnkey.get("estrutura"))
+    com_momento_global = bool(
+        com_vento_global and isinstance(resultado_estrutura, dict)
+        and isinstance(resultado_estrutura.get("momentos_base"), dict)
+        and any(not k.startswith("_") for k in resultado_estrutura["momentos_base"])
+        and not resultado_estrutura["momentos_base"].get("_erro"))
     resultado = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
@@ -637,11 +676,8 @@ def run_edificio(normalized, run_dir, preflight=None):
         "disciplines": disciplinas,
         "estrutura": copy.deepcopy(resultado_estrutura),
         "instalacoes": copy.deepcopy(instalacoes),
-        "scope": _escopo(
-            bool(isinstance(turnkey.get("estrutura"), dict)
-                 and turnkey["estrutura"].get("vento")),
-            _fundacao_declarada(turnkey.get("estrutura")),
-            instalacoes),
+        "scope": _escopo(com_vento_global, com_fund_global, com_momento_global,
+                         instalacoes),
     }
     resultado["status"] = ("blocked" if any(
         r["status"] == "blocked" for r in registros.values()) else "needs_review")

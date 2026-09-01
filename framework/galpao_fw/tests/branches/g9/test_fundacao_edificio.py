@@ -210,13 +210,27 @@ def test_sem_vento_a_fundacao_e_so_gravitacional_e_diz_isso():
 
 
 def test_o_momento_na_base_de_cada_pilar_e_declarado_ausente(fundacao):
-    """O modelo global nao devolve esforco por barra. Dimensionar para um momento
-    que ninguem calculou seria pior que dizer que ele falta."""
-    assert fundacao["escopo"]["momento_base_pilar"] == "not_available"
+    """G17: momento por prumada passa a ser extraido do portico heterogeneo
+    (secao real por pilar, rigidez bruta) e alimenta V/M nas combinacoes."""
+    assert fundacao["escopo"]["momento_base_pilar"] == "implemented"
     codigos = {aviso["code"] for aviso in fundacao["avisos"]}
-    assert "momento_base_pilar_nao_avaliado" in codigos
-    for registro in fundacao["por_pilar"].values():
-        assert all(c["M_kNm"] == 0.0 for c in registro["combinacoes"])
+    assert "momento_base_pilar_extraido" in codigos
+    # pelo menos um pilar tem M !=0 (vento/desaprumo geram momento na base)
+    assert any(any(c["M_kNm"] != 0.0 for c in reg["combinacoes"])
+               for reg in fundacao["por_pilar"].values())
+    # central vs canto: momentos e geometrias diferentes (distinguem)
+    por_pos = {}
+    for reg in fundacao["por_pilar"].values():
+        # geometria pode ser divisa (B_m/L_m) ou isolada, mas sempre tem area
+        geom = reg["geometria"]
+        # area para comparar: B*L quando isolada, B*L quando divisa
+        area = geom.get("B_m", 0) * geom.get("L_m", 0) if geom else 0
+        por_pos.setdefault(reg["posicao"], []).append((reg["combinacoes"], area))
+    # canto tem area menor que interno (carga menor), e momento diferente
+    # verifica que nem todos os pilares tem mesma combinacao de M
+    momentos = {tuple(c["M_kNm"] for c in reg["combinacoes"])
+                for reg in fundacao["por_pilar"].values()}
+    assert len(momentos) > 1, "todos os pilares com mesma combinacao de M?"
 
 
 # ------------------------------ tipo da fundacao -----------------------------

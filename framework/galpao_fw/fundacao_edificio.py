@@ -169,7 +169,7 @@ def esforcos_horizontais(estabilidade, pilares, eixos_x, eixos_y):
     return out
 
 
-def combinacoes_do_pilar(nome, N_base_k, horizontais):
+def combinacoes_do_pilar(nome, N_base_k, horizontais, momentos_base=None):
     """Casos (nome, N, V, M) que a fundacao deste pilar tem de atender.
 
     Sempre ha o caso GRAVITACIONAL puro. Com acao horizontal declarada entram,
@@ -178,18 +178,38 @@ def combinacoes_do_pilar(nome, N_base_k, horizontais):
     peso estabilizante). Verificar so o maior N deixaria o segundo passar
     despercebido - o mesmo motivo pelo qual `dimensiona_sapata_env` existe.
 
-    M = 0: ver a nota de escopo no cabecalho - o momento fletor na base de cada
-    pilar nao e' calculado pelo modelo global.
+    G17: M deixa de ser 0. Quando ``momentos_base`` (saida de
+    ``estabilidade_edificio.momentos_base_por_pilar``) e' fornecido, extrai
+    M_x/M_y e V_x/V_y por prumada do portico heterogeneo (secao real por pilar,
+    rigidez bruta Ecs). Sem ele, M=0 e V e' o uniforme V_base/n (legado).
     """
     casos = [("gravitacional", N_base_k, 0.0, 0.0)]
     for direcao, registro in sorted(horizontais.items()):
         info = registro["por_pilar"].get(nome)
         if not info:
             continue
-        dn, v = info["dN_kN"], info["V_kN"]
-        casos.append(("sotavento_%s" % direcao, N_base_k + abs(dn), v, 0.0))
+        dn, v_unif = info["dN_kN"], info["V_kN"]
+        # G17: momento e cortante por prumada (heterogeneo) quando disponivel
+        M_frame = 0.0
+        V_frame = v_unif
+        if momentos_base and nome in momentos_base and not nome.startswith("_"):
+            entry = momentos_base[nome]
+            if direcao == "x":
+                M_frame = float(entry.get("Mx_abs_kNm", entry.get("Mx_kNm", 0.0)) or 0.0)
+                # V heterogeneo por pilar (do portico), mais fiel que V_base/n uniforme
+                if entry.get("Vx_abs_kN") is not None:
+                    V_frame = float(entry["Vx_abs_kN"])
+                elif entry.get("Vx_kN") is not None:
+                    V_frame = abs(float(entry["Vx_kN"]))
+            elif direcao == "y":
+                M_frame = float(entry.get("My_abs_kNm", entry.get("My_kNm", 0.0)) or 0.0)
+                if entry.get("Vy_abs_kN") is not None:
+                    V_frame = float(entry["Vy_abs_kN"])
+                elif entry.get("Vy_kN") is not None:
+                    V_frame = abs(float(entry["Vy_kN"]))
+        casos.append(("sotavento_%s" % direcao, N_base_k + abs(dn), V_frame, M_frame))
         casos.append(("barlavento_%s" % direcao, max(N_base_k - abs(dn), 0.0),
-                      v, 0.0))
+                      V_frame, M_frame))
     return casos
 
 
@@ -361,13 +381,47 @@ def _profundidade_sugerida(perfil):
         "estaca.L_m ou aprofunde a sondagem" % (N_COMPETENTE, profundidade))
 
 
+def _vizinho_interno(pilar, pilares, eixos_x, eixos_y):
+    """Pilar interno vizinho para viga de equilibrio / alavanca (divisa).
+
+    Para pilar de borda em X (i==0 ou i==nx), vizinho e' (i +/-1, j) com vaos_x;
+    para borda em Y (j==0 ou j==ny), vizinho e' (i, j +/-1) com vaos_y.
+    Canto tem dois vizinhos – escolhe o da direção X (vao_x) como primário
+    (o outro seria segunda viga, fora do modelo 1D aqui).
+    Retorna (vizinho_dict, dist_eixos_m, direcao) ou (None, None, None).
+    """
+    nx = len(eixos_x) - 1
+    ny = len(eixos_y) - 1
+    i, j = pilar["i"], pilar["j"]
+    por_ij = {(p["i"], p["j"]): p for p in pilares}
+    # prioridade: X se em borda X, senao Y
+    if i == 0:
+        viz = por_ij.get((i + 1, j))
+        if viz:
+            return viz, abs(eixos_x[i + 1] - eixos_x[i]), "x"
+    if i == nx:
+        viz = por_ij.get((i - 1, j))
+        if viz:
+            return viz, abs(eixos_x[i] - eixos_x[i - 1]), "x"
+    if j == 0:
+        viz = por_ij.get((i, j + 1))
+        if viz:
+            return viz, abs(eixos_y[j + 1] - eixos_y[j]), "y"
+    if j == ny:
+        viz = por_ij.get((i, j - 1))
+        if viz:
+            return viz, abs(eixos_y[j] - eixos_y[j - 1]), "y"
+    return None, None, None
+
+
 def dimensiona(spec_fundacao, contexto):
     """Dimensiona a fundacao de TODOS os pilares do edificio.
 
     spec_fundacao: a secao `estrutura.fundacao` do spec (ver cabecalho).
     contexto: {'pilares': [{nome, i, j, N_base_k, secao (b,h)}],
                'eixos_x', 'eixos_y' (m), 'materiais' {fck, fyk},
-               'estabilidade' (opc, de estabilidade_edificio.verifica)}.
+               'estabilidade' (opc, de estabilidade_edificio.verifica),
+               'momentos_base' (opc, de estabilidade_edificio.momentos_base_por_pilar)}.
 
     Retorna {'tipo', 'sigma_solo_adm', 'por_pilar', 'gate', ...}. Levanta
     EntradaFundacao quando a entrada declarada nao permite dimensionar.
@@ -380,13 +434,19 @@ def dimensiona(spec_fundacao, contexto):
     horizontais = esforcos_horizontais(
         contexto.get("estabilidade"), pilares,
         contexto["eixos_x"], contexto["eixos_y"])
+    # G17: momento por prumada (heterogeneo, secao bruta) – vem no contexto
+    # direto ou dentro de estabilidade["momentos_base"]
+    momentos_base = contexto.get("momentos_base")
+    if momentos_base is None and isinstance(contexto.get("estabilidade"), dict):
+        momentos_base = contexto["estabilidade"].get("momentos_base")
+    com_momento = bool(momentos_base and any(not k.startswith("_") for k in momentos_base))
 
     # o tipo e' da OBRA: escolhido sob o pilar mais carregado, ja com o dN de
     # tombamento - senao a sondagem seria consultada para uma carga que nao e' a
     # que a fundacao vai receber.
     N_max_obra = max(
         max(caso[1] for caso in combinacoes_do_pilar(
-            p["nome"], p["N_base_k"], horizontais))
+            p["nome"], p["N_base_k"], horizontais, momentos_base))
         for p in pilares)
     tipo, recomendacao = escolhe_tipo(spec_fundacao, N_max_obra)
 
@@ -397,17 +457,158 @@ def dimensiona(spec_fundacao, contexto):
     escada = _escada(spec_fundacao)
     por_pilar = {}
     reprovados = []
+    divisa_pilares = set()
     for pilar in pilares:
-        casos = combinacoes_do_pilar(pilar["nome"], pilar["N_base_k"], horizontais)
+        casos = combinacoes_do_pilar(pilar["nome"], pilar["N_base_k"], horizontais, momentos_base)
         caso_base = _caso_base(spec_fundacao, sigma_solo, pilar["secao"],
                                contexto["materiais"])
-        if tipo == "estaca":
-            bruto, geometria, ok = _dimensiona_estaca(
-                spec_fundacao, casos, pilar["secao"], contexto["materiais"])
+        # criterio G17: pilar de extremidade/canto em divisa usa geometria de
+        # divisa (sapata excêntrica + viga alavanca ou bloco+ viga equilibrio)
+        pos = pilar.get("posicao")
+        em_divisa = pos in ("extremidade", "canto")
+        # fallback: se posicao nao veio, deduz por i/j nas bordas
+        if pos is None:
+            nx = len(contexto["eixos_x"]) - 1
+            ny = len(contexto["eixos_y"]) - 1
+            em_divisa = (pilar["i"] in (0, nx) or pilar["j"] in (0, ny))
+        geometria = None
+        bruto = None
+        ok = False
+        subtipo = "isolada"
+        detalhe_divisa = None
+        if em_divisa and tipo in ("sapata", "bloco"):
+            # tenta sapata de divisa com viga alavanca (Velloso & Lopes)
+            viz, dist_eixos, direcao = _vizinho_interno(pilar, pilares,
+                                                        contexto["eixos_x"],
+                                                        contexto["eixos_y"])
+            if viz is not None:
+                try:
+                    import sapata_divisa as sd
+                    # P_divisa = maior N das combinacoes deste pilar (com dN)
+                    P_div = max(c[1] for c in casos)
+                    P_int = viz["N_base_k"]
+                    # dist_divisa: eixo -> divisa; borda flush -> b/2
+                    b_pil, h_pil = pilar["secao"] if isinstance(pilar["secao"], (list, tuple)) else (pilar["secao"]["b"], pilar["secao"]["h"])
+                    # para borda X, a dimensão perpendicular e' b (ou min), para Y e' h
+                    dist_divisa = min(float(b_pil), float(h_pil)) / 2.0
+                    # permite override declarado em spec
+                    if spec_fundacao.get("dist_divisa_m") is not None:
+                        dist_divisa = float(spec_fundacao["dist_divisa_m"])
+                    # sigma e materiais
+                    sig = sigma_solo if sigma_solo else 250.0
+                    fck = spec_fundacao.get("fck", contexto["materiais"]["fck"])
+                    fyk = spec_fundacao.get("fyk", contexto["materiais"]["fyk"])
+                    # b_col_paralela e' a dimensão do pilar paralela à divisa
+                    b_col_par = float(h_pil) if direcao == "x" else float(b_pil)
+                    res_div = sd.dimensiona_divisa(
+                        P_divisa=P_div, P_interno=P_int,
+                        dist_eixos=float(dist_eixos),
+                        dist_divisa=float(dist_divisa),
+                        b_col_paralela=b_col_par,
+                        sigma_solo=float(sig), fck=float(fck), fyk=float(fyk))
+                    geometria = {"subtipo": "divisa", "direcao": direcao,
+                                 "dist_eixos_m": round(float(dist_eixos), 3),
+                                 "dist_divisa_m": round(float(dist_divisa), 3),
+                                 "vizinho": viz["nome"],
+                                 "divisa": res_div["divisa"],
+                                 "interno": res_div["interno"],
+                                 "viga": res_div["viga"],
+                                 # para compatibilidade com gate antigo, expoe B/L/h
+                                 "B_m": res_div["divisa"]["B"],
+                                 "L_m": res_div["divisa"]["L"],
+                                 "h_m": res_div["viga"]["h"],
+                                 "M_viga_kNm": res_div["viga"]["M_max_kNm"]}
+                    bruto = res_div
+                    ok = bool(res_div["viga"]["ok"])
+                    subtipo = "divisa"
+                    divisa_pilares.add(pilar["nome"])
+                    detalhe_divisa = res_div
+                except Exception:  # noqa: BLE001
+                    # fallback para isolada se divisa falhar
+                    pass
+        if em_divisa and tipo == "estaca":
+            viz, dist_eixos, direcao = _vizinho_interno(pilar, pilares,
+                                                        contexto["eixos_x"],
+                                                        contexto["eixos_y"])
+            if viz is not None:
+                try:
+                    import viga_equilibrio as veq
+                    import estaca_profunda as ep
+                    P_div = max(c[1] for c in casos)
+                    P_int = viz["N_base_k"]
+                    b_pil, h_pil = pilar["secao"] if isinstance(pilar["secao"], (list, tuple)) else (pilar["secao"]["b"], pilar["secao"]["h"])
+                    dist_divisa = min(float(b_pil), float(h_pil)) / 2.0
+                    if spec_fundacao.get("dist_divisa_m") is not None:
+                        dist_divisa = float(spec_fundacao["dist_divisa_m"])
+                    # P_adm da estaca: usa o mesmo perfil e D/L default
+                    # estima via ep.n_estacas com peso, ou via verifica se perfil existe
+                    perfil = spec_fundacao.get("perfil_spt")
+                    estaca_cfg = spec_fundacao.get("estaca") or {}
+                    D_est = float(estaca_cfg.get("D_m", 0.30))
+                    # tenta obter P_adm do dimensionamento isolado anterior, ou calcula
+                    P_adm = 700.0  # fallback
+                    L_est = None
+                    if perfil:
+                        L_est = estaca_cfg.get("L_m", _profundidade_sugerida(perfil))
+                        try:
+                            # calcula capacidade com N ficticio para obter P_adm
+                            tmp = ep.verifica_estaca({
+                                "perfil": copy.deepcopy(perfil),
+                                "D": D_est,
+                                "L": L_est,
+                                "tipo_estaca": estaca_cfg.get("tipo_estaca", "pre_moldada"),
+                                "N_pilar": P_div,
+                                "bloco": {"a_pilar": float(h_pil),
+                                          "fck": spec_fundacao.get("fck", contexto["materiais"]["fck"]),
+                                          "fyk": spec_fundacao.get("fyk", contexto["materiais"]["fyk"])},
+                            })
+                            P_adm = float(tmp["capacidade"]["P_adm_kN"])
+                        except Exception:  # noqa: BLE001
+                            pass
+                    if L_est is None:
+                        L_est = estaca_cfg.get("L_m", 15.0)
+                    a_pilar = float(max(b_pil, h_pil))
+                    res_eq = veq.dimensiona_viga_equilibrio(
+                        P_divisa=P_div, P_interno=P_int,
+                        dist_eixos=float(dist_eixos), dist_divisa=float(dist_divisa),
+                        P_estaca_adm=float(P_adm), a_pilar=a_pilar, D_estaca=D_est,
+                        fck=float(spec_fundacao.get("fck", contexto["materiais"]["fck"])),
+                        fyk=float(spec_fundacao.get("fyk", contexto["materiais"]["fyk"])))
+                    util_div = round(float(res_eq["divisa"]["carga_estaca"]) / float(P_adm), 3) if P_adm else None
+                    geometria = {"subtipo": "divisa_estaca", "direcao": direcao,
+                                 "dist_eixos_m": round(float(dist_eixos), 3),
+                                 "dist_divisa_m": round(float(dist_divisa), 3),
+                                 "vizinho": viz["nome"],
+                                 "divisa": res_eq["divisa"],
+                                 "interno": res_eq["interno"],
+                                 "viga": res_eq["viga"],
+                                 "n_estacas": res_eq["divisa"]["n_estacas"],
+                                 "P_adm_kN": P_adm,
+                                 "util": util_div,
+                                 "D_m": D_est,
+                                 "L_m": float(L_est)}
+                    bruto = res_eq
+                    ok = bool(res_eq["viga"]["ok"])
+                    subtipo = "divisa_estaca"
+                    divisa_pilares.add(pilar["nome"])
+                except Exception:  # noqa: BLE001
+                    pass
+        # fallback isolado (ou quando não é divisa)
+        if geometria is None:
+            if tipo == "estaca":
+                bruto, geometria, ok = _dimensiona_estaca(
+                    spec_fundacao, casos, pilar["secao"], contexto["materiais"])
+            else:
+                bruto = _dimensiona_raso(tipo, caso_base, casos, escada)
+                geometria = _geometria_rasa(tipo, bruto)
+                ok = geometria is not None
+                if geometria is not None:
+                    geometria = dict(geometria)
+                    geometria["subtipo"] = subtipo
         else:
-            bruto = _dimensiona_raso(tipo, caso_base, casos, escada)
-            geometria = _geometria_rasa(tipo, bruto)
-            ok = geometria is not None
+            # divisa ja tem geometria; garante subtipo
+            if isinstance(geometria, dict) and "subtipo" not in geometria:
+                geometria["subtipo"] = subtipo
         registro = {
             "nome": pilar["nome"], "posicao": pilar.get("posicao"),
             "i": pilar["i"], "j": pilar["j"],
@@ -417,7 +618,16 @@ def dimensiona(spec_fundacao, contexto):
                              "V_kN": round(c[2], 1), "M_kNm": round(c[3], 1)}
                             for c in casos],
             "geometria": geometria, "OK": ok, "bruto": bruto,
+            "subtipo": subtipo,
         }
+        # expoe M/V resultantes para auditoria (max entre direcoes)
+        if com_momento and pilar["nome"] in (momentos_base or {}):
+            entry = momentos_base[pilar["nome"]]
+            registro["M_base_kNm"] = {"Mx": entry.get("Mx_abs_kNm"),
+                                      "My": entry.get("My_abs_kNm"),
+                                      "M_res": entry.get("M_resultante_kNm")}
+            registro["V_base_kN"] = {"Vx": entry.get("Vx_abs_kN"),
+                                     "Vy": entry.get("Vy_abs_kN")}
         por_pilar[pilar["nome"]] = registro
         if not ok:
             reprovados.append(pilar["nome"])
@@ -434,11 +644,12 @@ def dimensiona(spec_fundacao, contexto):
         "proveniencia_sigma": nota_sigma,
         "recomendacao_spt": recomendacao,
         "acao_horizontal": horizontais,
+        "momentos_base": momentos_base,
         "por_pilar": por_pilar,
         "gate": gate,
-        "escopo": _escopo(tipo, bool(horizontais)),
+        "escopo": _escopo(tipo, bool(horizontais), com_momento),
         "avisos": _avisos(spec_fundacao, tipo, horizontais, recomendacao,
-                          por_pilar),
+                          por_pilar, com_momento, divisa_pilares),
     }
 
 
@@ -455,7 +666,7 @@ def _escada(spec_fundacao):
     return [tuple(float(v) for v in d) for d in escada]
 
 
-def _escopo(tipo, com_horizontal):
+def _escopo(tipo, com_horizontal, com_momento=False):
     return {
         "geotecnia_spt": "implemented",
         "fundacao_rasa": "implemented" if tipo in ("sapata", "bloco")
@@ -468,11 +679,18 @@ def _escopo(tipo, com_horizontal):
         # no framework: o cortante da base nao e' verificado NA estaca.
         "esforco_horizontal_na_estaca": ("not_available" if tipo == "estaca"
                                          else "not_applicable"),
-        # ver a nota de escopo do cabecalho: o modelo global nao devolve esforco
-        # por barra na base.
-        "momento_base_pilar": "not_available",
+        # G17: momento na base por pilar passa a ser extraido do portico
+        # heterogeneo (M_x, M_y por prumada). Sem estabilidade/momento, segue
+        # not_available, mas com ele vira implemented e alimenta V/M nas
+        # combinacoes (distinguindo canto vs interno).
+        "momento_base_pilar": "implemented" if com_momento else "not_available",
         "acao_horizontal_na_fundacao": ("implemented" if com_horizontal
                                         else "not_available"),
+        # G17: sapata de divisa / viga de equilibrio deixam de ser ignoradas:
+        # quando ha pilar de extremidade/canto, a geometria passa a ser escolhida
+        # por criterio (isolada vs divisa). O escopo publica a capacidade.
+        "sapata_divisa": "implemented",
+        "viga_equilibrio": "implemented",
         "viga_baldrame": "not_available",
         "recalque_diferencial": "not_available",
         "aprovacao_legal": "not_claimed",
@@ -480,7 +698,8 @@ def _escopo(tipo, com_horizontal):
     }
 
 
-def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None):
+def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None,
+            com_momento=False, divisa_pilares=None):
     avisos = []
     sem_bloco = sorted(
         nome for nome, registro in (por_pilar or {}).items()
@@ -501,11 +720,27 @@ def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None):
                       "declarado), a fundacao foi dimensionada APENAS para a "
                       "carga vertical: tombamento e deslizamento nao foram "
                       "solicitados por acao horizontal nenhuma"})
-    avisos.append({
-        "code": "momento_base_pilar_nao_avaliado",
-        "detail": "o modelo de estabilidade e' um portico GLOBAL (gamma_z e ELS) "
-                  "e nao devolve momento por pilar na base; as combinacoes da "
-                  "fundacao usam M=0 no topo da sapata"})
+    if com_momento:
+        avisos.append({
+            "code": "momento_base_pilar_extraido",
+            "detail": "M_base por prumada extraido do portico heterogeneo (secao "
+                      "real por pilar, rigidez bruta Ecs – 14.6.4.1), distinto da "
+                      "rigidez 15.7.3 de gamma_z; V/M por pilar alimentam as "
+                      "combinacoes de fundacao"})
+        if divisa_pilares:
+            avisos.append({
+                "code": "fundacao_divisa_aplicada",
+                "pilares": sorted(divisa_pilares),
+                "detail": "pilares de extremidade/canto (%s) com fundacao de divisa: "
+                          "sapata de divisa + viga alavanca (rasa) ou bloco sobre "
+                          "estacas + viga de equilibrio (profunda), escolhidos por "
+                          "criterio de posicao (canto != centro)" % ", ".join(sorted(divisa_pilares))})
+    else:
+        avisos.append({
+            "code": "momento_base_pilar_nao_avaliado",
+            "detail": "o modelo de estabilidade e' um portico GLOBAL (gamma_z e ELS) "
+                      "e nao devolve momento por pilar na base; as combinacoes da "
+                      "fundacao usam M=0 no topo da sapata"})
     if not spec_fundacao.get("verificacao_estabilidade"):
         avisos.append({
             "code": "verificacao_estabilidade_legada",

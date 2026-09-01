@@ -261,6 +261,62 @@ def _portico_plano(vaos, n_pav, pe, secoes, Ec, rig_pilar=RIG_PILAR,
     return fr, no, n_col
 
 
+def _portico_plano_heterogeneo(vaos, n_pav, pe, secoes_pilares, secao_viga, Ec,
+                               rig_pilar=1.0, rig_viga=1.0,
+                               pilar_axial_rigido=False):
+    """Portico plano com secao DIFERENCIADA por prumada (G17).
+
+    ``secoes_pilares``: lista de {b,h} com tamanho n_col = len(vaos)+1, na ordem
+    das colunas da esquerda para a direita. Cada pilar tem sua inercia/area
+    propria, ao contrario de ``_portico_plano`` que usa uma secao unica (a menor
+    do lance da base).
+
+    Por que heterogeneo? O _portico_plano uniforme usa a MENOR secao do lance
+    da base: conservador para gamma_z (menor rigidez -> maior deslocamento) mas
+    NAO conservador para esforcos – um pilar interno robusto atrai mais momento
+    que um canto esbelto e fica subestimado por um modelo uniforme. Para M_base
+    por pilar a prumada individual importa.
+
+    ``rig_pilar=rig_viga=1.0`` com ``Ec=Ecs`` (14.6.4.1, secao bruta) e' a rigidez
+    do ELS/fundacao, DISTINTA da rigidez 15.7.3 (0,8/0,4 com 1,10*Ecs) usada para
+    gamma_z no ELU. Reusar o mesmo modelo repetiria o erro que o G11 pegou
+    (reusar rigidez de ELU no ELS dobrando deslocamento). G17 documenta a
+    separacao.
+    """
+    fr = Frame2D()
+    n_col = len(vaos) + 1
+    if len(secoes_pilares) != n_col:
+        raise ValueError("secoes_pilares deve ter n_col = len(vaos)+1 elementos")
+    xs = [0.0]
+    for v in vaos:
+        xs.append(xs[-1] + v)
+
+    def no(nivel, col):
+        return nivel * n_col + col
+
+    for nivel in range(n_pav + 1):
+        for x in xs:
+            fr.add_node(x, nivel * pe)
+
+    # vigas: uniformes
+    I_vig = rig_viga * eg.inercia_retangular(secao_viga["b"], secao_viga["h"])
+    A_vig = secao_viga["b"] * secao_viga["h"]
+
+    # pilares: um por coluna, com inercia propria
+    for nivel in range(n_pav):
+        for col in range(n_col):
+            pil = secoes_pilares[col]
+            I_pil = rig_pilar * eg.inercia_retangular(pil["b"], pil["h"])
+            A_pil = pil["b"] * pil["h"] * (1e6 if pilar_axial_rigido else 1.0)
+            fr.add_element(no(nivel, col), no(nivel + 1, col), Ec, A_pil, I_pil)
+    for nivel in range(1, n_pav + 1):
+        for col in range(n_col - 1):
+            fr.add_element(no(nivel, col), no(nivel, col + 1), Ec, A_vig, I_vig)
+    for col in range(n_col):
+        fr.add_support(no(0, col), u=True, v=True, rot=True)
+    return fr, no, n_col
+
+
 def gamma_z_direcao(spec, direcao, forcas_horizontais_kN, cargas_verticais_kN):
     """gamma_z de uma direcao a partir de uma analise de portico de 1a ordem.
 
@@ -436,6 +492,201 @@ def verifica(spec):
             "OK": (bool(detalhe["OK"]) and
                    all(por_direcao[d]["els"]["OK"] for d in ("x", "y")))
                   if aplicavel else None}
+
+
+# ---------------------------------------------------------------------------
+# G17 - momento na base por prumada (extrai M_base por pilar das duas direcoes)
+# ---------------------------------------------------------------------------
+def _momentos_linha(vaos, n_pav, pe, secoes_pilares_linha, secao_viga, Ecs,
+                    cargas_verticais_kN, forcas_horizontais_kN, n_porticos):
+    """Resolve UM alinhamento (uma linha de portico) e extrai M/V na base.
+
+    Usa secao BRUTA (Ecs, rig=1,0) por prumada – distinta da rigidez reduzida
+    15.7.3 usada para gamma_z. Heterogeneo: cada coluna tem sua secao real.
+    Devolve lista de {M_kNm, V_kN} por coluna (ordem esquerda->direita), em
+    valores CARACTERISTICOS (sem gamma_f).
+    """
+    fr, no, n_col = _portico_plano_heterogeneo(
+        vaos, n_pav, pe, secoes_pilares_linha, secao_viga, Ecs,
+        rig_pilar=1.0, rig_viga=1.0)
+    # cargas caracteristicas por portico
+    for nivel in range(1, n_pav + 1):
+        h_k = forcas_horizontais_kN[nivel - 1] / n_porticos
+        p_k = cargas_verticais_kN[nivel - 1] / n_porticos
+        fr.add_nodal_load(no(nivel, 0), Fx=h_k)
+        for col in range(n_col):
+            fr.add_nodal_load(no(nivel, col), Fy=-p_k / n_col)
+    _, mf = fr.solve()
+    out = []
+    for col in range(n_col):
+        idx = col  # pilar da base, nivel 0
+        f = mf[idx]
+        # f = [N_i, V_i, M_i, N_j, V_j, M_j] local – M_i e' o momento na base
+        # (sinal depende da convencao do elemento; para dimensionamento o modulo
+        # governa a excentricidade e = |M|/N)
+        out.append({"M_kNm": float(f[2]), "M_abs_kNm": abs(float(f[2])),
+                    "V_kN": float(f[1]), "V_abs_kN": abs(float(f[1])),
+                    "N_kN": float(f[0])})
+    return out
+
+
+def momentos_base_por_pilar(spec, pilares, estabilidade=None):
+    """M_base caracteristico por pilar nas duas direcoes (G17).
+
+    Extrai o momento fletor na base de CADA prumada a partir do mesmo modelo
+    de portico plano que alimenta gamma_z, mas com duas correcoes que o G17
+    exige:
+
+    * SECAO POR PRUMADA (heterogeneo): o modelo de gamma_z usa a MENOR secao
+      do lance da base para TODOS os pilares (conservador para deslocamento).
+      Para esforcos isso subestima o pilar central robusto em ~2x e superestima
+      o canto esbelto (ver comparativo G17). Aqui cada linha monta com as secoes
+      REAIS daquela prumada.
+
+    * RIGIDEZ BRUTA (Ecs, 1,0) em vez de 0,8/0,4 com 1,10*Ecs (15.7.3): 15.7.3 e'
+      exclusiva da analise global de 2a ordem no ELU; 14.6.4.1 manda Ecs com secao
+      bruta no ELS. Reusar a rigidez de ELU para extrair momento caracteristico
+      repete o erro que o G11 pegou (deslocamento ELS dobrado). A escolha fica
+      documentada no retorno (``rigidez_momento``).
+
+    ``spec``: {geometria{vaos_x,vaos_y,pe_direito}, n_pavimentos, materiais{fck},
+              secoes{viga{b,h}}, cargas_verticais_kN, vento, lajes_lisas?}
+              – as secoes de pilar individuais vêm de ``pilares``, nao de spec.
+    ``pilares``: lista de {nome, i, j, secao(b,h)} – ``secao`` e' a do lance da
+                BASE (que define o balanco da sapata). i=indice em vaos_x (0..nx),
+                j=indice em vaos_y (0..ny).
+    ``estabilidade``: (opc) retorno de ``verifica(spec)`` – reusado para nao
+                      recalcular vento/desaprumo; se None, recalcula internamente.
+
+    Retorna {nome: {Mx_kNm, Mx_abs_kNm, My_kNm, My_abs_kNm, Vx_kN, Vy_kN,
+                     posicao, i, j}, ...}  com ``_proveniencia`` e ``_rigidez``.
+    """
+    geo = spec["geometria"]
+    n_pav = int(spec["n_pavimentos"])
+    pe = float(geo["pe_direito"])
+    fck = spec["materiais"]["fck"]
+    Ecs = fis.modulo_secante(fck)
+    cargas = list(spec["cargas_verticais_kN"])
+    if len(cargas) != n_pav:
+        raise ValueError("cargas_verticais_kN deve ter um valor por pavimento")
+    # indexa pilares por coordenada (i,j)
+    por_coord = {(p["i"], p["j"]): p for p in pilares}
+    # horizontais por direcao (reusa estabilidade quando possivel)
+    horizontais = {}
+    if estabilidade is not None:
+        for d in ("x", "y"):
+            blk = (estabilidade.get("por_direcao") or {}).get(d)
+            if blk is not None and "forcas_horizontais_kN" in blk:
+                horizontais[d] = list(blk["forcas_horizontais_kN"])
+    if "x" not in horizontais or "y" not in horizontais:
+        # recalcula vento+desaprumo+combinacao (mesma regra de verifica)
+        H = n_pav * pe
+        n_prumadas = (len(geo["vaos_x"]) + 1) * (len(geo["vaos_y"]) + 1)
+        for direcao in ("x", "y"):
+            if direcao in horizontais:
+                continue
+            vento = vento_por_pavimento(spec, direcao)
+            desap = desaprumo(H, n_prumadas, cargas,
+                              lajes_lisas=bool(spec.get("lajes_lisas")))
+            m_desap = sum(f * ((idx + 1) * pe) for idx, f in enumerate(desap["forcas_kN"]))
+            razao = desap["theta_a_comparacao"] / desap["theta_a"]
+            comb = combina_vento_desaprumo(vento["M_base_kNm"], m_desap * razao)
+            if comb["usar"] == "vento":
+                horizontais[direcao] = [p["Fa_kN"] for p in vento["pavimentos"]]
+            elif comb["usar"] == "desaprumo":
+                horizontais[direcao] = list(desap["forcas_kN"])
+            else:
+                horizontais[direcao] = [p["Fa_kN"] + f for p, f
+                                        in zip(vento["pavimentos"], desap["forcas_kN"])]
+    # secao da viga (uniforme no predio)
+    sec_viga = spec["secoes"]["viga"] if "secoes" in spec and "viga" in spec["secoes"] else {"b": 0.20, "h": 0.50}
+    # prepara saida zerada
+    resultado = {}
+    for p in pilares:
+        resultado[p["nome"]] = {"nome": p["nome"], "i": p["i"], "j": p["j"],
+                                "posicao": p.get("posicao"),
+                                "Mx_kNm": 0.0, "Mx_abs_kNm": 0.0,
+                                "My_kNm": 0.0, "My_abs_kNm": 0.0,
+                                "Vx_kN": 0.0, "Vy_kN": 0.0,
+                                "secao": p.get("secao")}
+
+    # --- direcao X: porticos paralelos a X, varrem j (linhas em Y) -----------
+    vaos_x = list(geo["vaos_x"])
+    n_porticos_x = len(geo["vaos_y"]) + 1
+    for j in range(n_porticos_x):
+        # secoes desta linha j, ordenadas por i
+        linha_secoes = []
+        linha_nomes = []
+        for i in range(len(vaos_x) + 1):
+            chave = (i, j)
+            pil = por_coord.get(chave)
+            if pil is None:
+                raise ValueError("pilar (%d,%d) nao encontrado para direcao x linha %d" % (i, j, j))
+            sec = pil.get("secao")
+            if sec is None:
+                # fallback: usa a primeira secao de pilares se nao houver
+                raise ValueError("pilar %s sem secao" % pil["nome"])
+            # secao vem como (b,h) tupla ou dict
+            if isinstance(sec, (list, tuple)) and len(sec) == 2:
+                b, h = float(sec[0]), float(sec[1])
+            elif isinstance(sec, dict) and "b" in sec and "h" in sec:
+                b, h = float(sec["b"]), float(sec["h"])
+            else:
+                raise ValueError("secao do pilar %s invalida: %r" % (pil["nome"], sec))
+            linha_secoes.append({"b": b, "h": h})
+            linha_nomes.append(pil["nome"])
+        momentos_linha = _momentos_linha(
+            vaos_x, n_pav, pe, linha_secoes, sec_viga, Ecs,
+            cargas, horizontais["x"], n_porticos_x)
+        for nome, vals in zip(linha_nomes, momentos_linha):
+            resultado[nome]["Mx_kNm"] = round(vals["M_kNm"], 3)
+            resultado[nome]["Mx_abs_kNm"] = round(vals["M_abs_kNm"], 3)
+            resultado[nome]["Vx_kN"] = round(vals["V_kN"], 3)
+            resultado[nome]["Vx_abs_kN"] = round(vals["V_abs_kN"], 3)
+
+    # --- direcao Y: porticos paralelos a Y, varrem i (linhas em X) -----------
+    vaos_y = list(geo["vaos_y"])
+    n_porticos_y = len(geo["vaos_x"]) + 1
+    for i in range(n_porticos_y):
+        linha_secoes = []
+        linha_nomes = []
+        for j in range(len(vaos_y) + 1):
+            chave = (i, j)
+            pil = por_coord.get(chave)
+            if pil is None:
+                raise ValueError("pilar (%d,%d) nao encontrado para direcao y linha %d" % (i, j, i))
+            sec = pil.get("secao")
+            if isinstance(sec, (list, tuple)) and len(sec) == 2:
+                b, h = float(sec[0]), float(sec[1])
+            elif isinstance(sec, dict) and "b" in sec and "h" in sec:
+                b, h = float(sec["b"]), float(sec["h"])
+            else:
+                raise ValueError("secao do pilar %s invalida: %r" % (pil["nome"], sec))
+            linha_secoes.append({"b": b, "h": h})
+            linha_nomes.append(pil["nome"])
+        momentos_linha = _momentos_linha(
+            vaos_y, n_pav, pe, linha_secoes, sec_viga, Ecs,
+            cargas, horizontais["y"], n_porticos_y)
+        for nome, vals in zip(linha_nomes, momentos_linha):
+            resultado[nome]["My_kNm"] = round(vals["M_kNm"], 3)
+            resultado[nome]["My_abs_kNm"] = round(vals["M_abs_kNm"], 3)
+            resultado[nome]["Vy_kN"] = round(vals["V_kN"], 3)
+            resultado[nome]["Vy_abs_kN"] = round(vals["V_abs_kN"], 3)
+
+    # anexa metadados
+    for nome in resultado:
+        resultado[nome]["M_resultante_kNm"] = round(
+            math.hypot(resultado[nome]["Mx_abs_kNm"], resultado[nome]["My_abs_kNm"]), 3)
+    resultado["_proveniencia"] = (
+        "M_base por prumada extraido do portico plano heterogeneo (secao real por "
+        "pilar), rigidez BRUTA Ecs (14.6.4.1), CARGAS caracteristicas (sem gamma_f) "
+        "divididas igualmente entre porticos paralelos (hipotese diafragma rigido)")
+    resultado["_rigidez_momento"] = {"Ecs_kN_m2": Ecs, "rig_pilar": 1.0,
+                                     "rig_viga": 1.0, "secao": "bruta",
+                                     "heterogeneo": True,
+                                     "nota": "distinta da rigidez 15.7.3 (0,8/0,4 com 1,10*Ecs) usada para gamma_z"}
+    resultado["_horizontais_kN"] = {d: list(horizontais[d]) for d in ("x", "y")}
+    return resultado
 
 
 def relatorio_pt(r):

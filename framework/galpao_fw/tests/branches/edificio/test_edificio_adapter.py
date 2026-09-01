@@ -116,12 +116,16 @@ def test_o_escopo_declara_o_que_ainda_nao_e_calculado(execucao):
     """
     manifesto, _ = execucao
     escopo = manifesto["disciplines"]["estrutura"]["scope"]
-    for chave in ("alvenaria_estrutural", "momento_base_pilar",
+    for chave in ("alvenaria_estrutural",
                   "viga_baldrame", "recalque_diferencial",
                   "desempenho_15575_impacto_corpo_mole_duro",
                   "desempenho_15575_carga_concentrada_piso",
                   "desempenho_15575_fachada"):
         assert escopo[chave] == "not_available", chave
+    # G17: momento na base por pilar deixa de ser not_available quando ha vento
+    assert escopo["momento_base_pilar"] == "implemented"
+    assert escopo["sapata_divisa"] == "implemented"
+    assert escopo["viga_equilibrio"] == "implemented"
     assert escopo["fundacao"] == "implemented"
     assert escopo["vibracao_piso"] == "implemented"
     assert escopo["desempenho_15575"] == "implemented"
