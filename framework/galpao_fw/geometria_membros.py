@@ -10,13 +10,20 @@ Convencao (a mesma do `ifc_emit` e do `build_concreto`):
   coordenadas em MILIMETROS; `dims` de caixa em MILIMETROS; secao de barra
   (`bf`, `d`) em METROS; `bf` = largura transversal ao eixo, `d` = altura;
   `ancoragem` diz onde a linha p1->p2 cai na secao ('eixo', padrao, ou 'base').
+  Contrato explicito em `fronteiras.F01_sapata_dims_mm` / F03 / F04 / F05.
 """
 
 from __future__ import annotations
 
 import math
 
+import fronteiras as _FR  # contrato explicito de unidade (F01/F03/F04/F05)
+
 MM = 1000.0
+# Re-exporta as unidades canonicas para quem importa deste modulo
+UNIDADE_DIMS = _FR.UNIDADE_DIMS_MM  # mm
+UNIDADE_SECAO = _FR.UNIDADE_SECAO_M  # m
+ANCORAGEM_PADRAO = _FR.UNIDADE_ANCORAGEM_ENUM[0]  # "eixo"
 
 # tolerancia geometrica (mm). Abaixo disso e' arredondamento de ponto flutuante;
 # acima, peca dentro de peca.

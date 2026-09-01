@@ -355,7 +355,8 @@ def membros_bim(r):
     IfcRectangleProfileDef, entao emiti-la em metros gerava uma sapata 1000x menor
     no IFC (achado do G8, medindo a bbox real do IfcFooting). Eixos: X = vao (largura), Y = comprimento, Z = altura. Pilares (RECT, do
     fundo z=0 ao topo z=H), viga de cobertura (RECT, no topo) por portico, e sapata
-    (caixa) sob cada pilar. Material 'Concreto Cxx' -> IfcMaterial no IFC."""
+    (caixa) sob cada pilar. Material 'Concreto Cxx' -> IfcMaterial no IFC.
+    Contratos: fronteiras.F01 (dims mm), F03 (p1/p2 mm), F04 (secao m), F05 (ancoragem base)."""
     sp = r["spec"]
     vao = sp["vao"]; comp = sp["comprimento"]; H = sp["H"]; n = sp["n_porticos"]
     fckM = sp["fck_MPa"]

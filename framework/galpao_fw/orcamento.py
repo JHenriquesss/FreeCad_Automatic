@@ -168,8 +168,13 @@ def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):
 
 
 def _vol_membros_concreto(membros):
-    """Volume de concreto (m3) de uma lista membros_bim (barras RECT + caixas)."""
+    """Volume de concreto (m3) de uma lista membros_bim (barras RECT + caixas).
+    Fronteiras F01/F04/F15: dims em mm (F01), secao bf/d em m (F04), volume mm3->m3/1e9 (F15).
+    """
     import math
+    import fronteiras as _FR  # contrato explicito F01/F04/F15
+    _ = _FR.UNIDADE_DIMS_MM  # mm
+    _ = _FR.UNIDADE_SECAO_M  # m
     vol = 0.0
     for m in membros:
         if "dims" in m:                            # caixa (dims em MM, como o emissor)

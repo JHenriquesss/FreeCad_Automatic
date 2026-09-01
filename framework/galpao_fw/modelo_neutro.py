@@ -13,11 +13,17 @@
 # altura. As secoes (d, bf, tw, tf) chegam em METROS (catalogo perfis) e o membro
 # guarda-as como estao; o emissor converte p/ mm.
 # ============================================================================
-"""Modelo neutro (puro) do portico primario: barras com perfil + extremidades."""
+"""Modelo neutro (puro) do portico primario: barras com perfil + extremidades.
+Contratos de fronteira: fronteiras.F01 (dims mm), F03 (p1/p2 mm), F04 (secao m), F07 (poligono mm).
+"""
 
 from __future__ import annotations
 
+import fronteiras as _FR  # F01/F03/F04/F07: dims/coord mm, secao m, poligono mm
+
 MM = 1000.0
+UNIDADE_DIMS = _FR.UNIDADE_DIMS_MM
+UNIDADE_SECAO = _FR.UNIDADE_SECAO_M
 
 
 def _n_porticos(comprimento, bay):

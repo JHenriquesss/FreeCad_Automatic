@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import math
 
+import fronteiras as _FR  # contratos F01/F03/F04/F05 (dims mm, secao m, ancoragem)
+
 
 def disponivel():
     """True se o ifcopenshell estiver instalado (emissor puro utilizavel)."""
@@ -287,8 +289,10 @@ def _ancorar(mat, mb, secao, esc):
 
     So se aplica a barra HORIZONTAL (o deslocamento e' em Z global): numa coluna
     'base' nao tem significado, e o membro segue centrado.
+    Contrato F05: default e' _FR.UNIDADE_ANCORAGEM_ENUM[0]=="eixo".
     """
-    if mb.get("ancoragem") != "base":
+    _ancoragem_padrao = _FR.UNIDADE_ANCORAGEM_ENUM[0]
+    if mb.get("ancoragem", _ancoragem_padrao) != "base":
         return mat
     p1, p2 = mb["p1"], mb["p2"]
     if abs(p2[2] - p1[2]) > 1e-6:                     # barra inclinada/vertical
