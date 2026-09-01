@@ -75,9 +75,19 @@ def test_sem_sondagem_o_escopo_volta_a_dizer_not_available(tmp_path):
 
 
 def test_o_que_a_fundacao_nao_cobre_continua_publicado(rodada):
+    """G17 levantou o momento na base; o resto da lista continua publicado.
+
+    Este teste guardava `momento_base_pilar` como ausente, que era a verdade
+    ate o G17 extrair os esforcos de extremidade do Frame2D por prumada. A
+    assercao passa a cobrir a REGRA (com momento, a excentricidade alcanca a
+    sapata de divisa e a viga de equilibrio) em vez do valor congelado.
+    """
     _manifesto, destino = rodada
     escopo = _resultado_adaptador(destino)["scope"]
-    assert escopo["momento_base_pilar"] == "not_available"
+    assert escopo["momento_base_pilar"] == "implemented"
+    assert escopo["sapata_divisa"] == "implemented"
+    assert escopo["viga_equilibrio"] == "implemented"
+    # Estes seguem abertos: sao o escopo do G18, nao do G17.
     assert escopo["viga_baldrame"] == "not_available"
     assert escopo["recalque_diferencial"] == "not_available"
 

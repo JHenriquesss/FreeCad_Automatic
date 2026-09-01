@@ -464,6 +464,11 @@ def dimensiona(spec_fundacao, contexto):
                                contexto["materiais"])
         # criterio G17: pilar de extremidade/canto em divisa usa geometria de
         # divisa (sapata excêntrica + viga alavanca ou bloco+ viga equilibrio)
+        # Bloco de concreto simples fica SEMPRE isolado: ele resiste por bielas
+        # comprimidas (beta >= 60 graus, NBR 6122 7.8.2) e nao leva armadura de
+        # flexao, entao nao existe modelo de divisa excentrica para ele. Rotea-lo
+        # pela sapata de divisa produziria geometria com armadura que a peca nao
+        # tem - o teste de bloco do G9 pegou isso; a razao e' normativa, nao o teste.
         pos = pilar.get("posicao")
         em_divisa = pos in ("extremidade", "canto")
         # fallback: se posicao nao veio, deduz por i/j nas bordas
@@ -476,7 +481,7 @@ def dimensiona(spec_fundacao, contexto):
         ok = False
         subtipo = "isolada"
         detalhe_divisa = None
-        if em_divisa and tipo in ("sapata", "bloco"):
+        if em_divisa and tipo == "sapata":
             # tenta sapata de divisa com viga alavanca (Velloso & Lopes)
             viz, dist_eixos, direcao = _vizinho_interno(pilar, pilares,
                                                         contexto["eixos_x"],
