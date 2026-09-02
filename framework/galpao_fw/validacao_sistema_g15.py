@@ -219,7 +219,8 @@ def check_secoes_amostra():
     try:
         import wizard, rodar_projeto, pathlib as pl, tempfile, shutil
         # Roda o calculo fresco (stateless) para extrair interacao_max real
-        spec = wizard.carregar_spec("spec_amostra_engenheiro.json")
+        _spec_path = pl.Path(__file__).parent / "spec_amostra_engenheiro.json"
+        spec = wizard.carregar_spec(str(_spec_path))
         tmp = pl.Path(tempfile.mkdtemp(prefix="g15_secoes_"))
         try:
             res = rodar_projeto.calcular(spec, str(tmp))

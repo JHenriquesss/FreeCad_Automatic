@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import sys
 
 import projeto_spec as PS
@@ -384,7 +385,12 @@ def salvar_spec(spec, path):
 
 
 def carregar_spec(path):
-    with open(path, encoding="utf-8") as f:
+    p = pathlib.Path(path)
+    if not p.is_file():
+        alt = pathlib.Path(__file__).parent / path
+        if alt.is_file():
+            p = alt
+    with open(p, encoding="utf-8") as f:
         return json.load(f)
 
 
