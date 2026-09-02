@@ -263,6 +263,64 @@ def rodar(spec):
             # motivo, nunca uma fundacao silenciosamente ausente.
             erro_fundacao = str(exc)
 
+    # ------------------------------------------------- G18: VIGA BALDRAME + RECALQUE
+    # Fronteiras dentro da fundacao (ESCOPO_FUNDACAO_ABERTO). O G9 entregou a
+    # sapata/bloco/estaca mas deixou baldrame e recalque como not_available.
+    # O G18 fecha a fronteira: quando a parede (q_parede/parede) e a secao sao
+    # declaradas, o baldrame e' verificado via viga_baldrame.py (ELU + ELS
+    # Tab 13.3); quando Es e' declarado, o recalque elastico por pilar e o
+    # diferencial max-min sao calculados via geotecnia_spt / fundacao_sapata.
+    # N_amarracao vem da fundacao (max|V| das combinacoes, G23); recalque usa
+    # N_dimensionamento caracteristico (G23 pode alimentar N_serv distinto).
+    baldrame = None
+    baldrame_erro = None
+    recalque = None
+    recalque_erro = None
+    # baldrame
+    try:
+        import viga_baldrame_edificio as vbe
+        if vbe.declarada(spec.get("fundacao")):
+            if fundacao is None:
+                # Declarado mas sem fundacao dimensionada: nao ha base a amarrar.
+                # Erro nomeado, nunca baldrame inventado sem chao.
+                raise vbe.EntradaBaldrame(
+                    "viga_baldrame declarada mas fundacao nao dimensionada (sem sondagem/tensao): sem fundacao nao ha baldrame a amarrar")
+            # Contexto para o baldrame: malha e fundacao (para N_amarracao)
+            baldrame = vbe.dimensiona(spec["fundacao"], {
+                "vaos_x": geo["vaos_x"], "vaos_y": geo["vaos_y"],
+                "eixos_x": _eixos(geo["vaos_x"]), "eixos_y": _eixos(geo["vaos_y"]),
+                "pilares": pilares_fund,
+                "fundacao": fundacao,
+                "materiais": {"fck": fck, "fyk": fyk},
+                "estabilidade": estabilidade,
+                "momentos_base": momentos_base})
+    except Exception as exc:  # noqa: BLE001
+        # So registra erro se baldrame foi declarado; caso contrario e' not_available silencioso.
+        try:
+            import viga_baldrame_edificio as vbe2
+            if vbe2.declarada(spec.get("fundacao")):
+                baldrame_erro = "%s: %s" % (type(exc).__name__, exc)
+        except Exception:  # noqa: BLE001
+            pass
+    # recalque diferencial
+    try:
+        import recalque_edificio as rce
+        if rce.declarada(spec.get("fundacao")):
+            if fundacao is None:
+                raise rce.EntradaRecalque(
+                    "recalque declarado mas fundacao nao dimensionada (sem sondagem/tensao): sem fundacao nao ha recalque a calcular")
+            recalque = rce.calcula(spec["fundacao"], fundacao, {
+                "eixos_x": _eixos(geo["vaos_x"]), "eixos_y": _eixos(geo["vaos_y"]),
+                "vaos_x": geo["vaos_x"], "vaos_y": geo["vaos_y"],
+                "pilares": pilares_fund})
+    except Exception as exc:  # noqa: BLE001
+        try:
+            import recalque_edificio as rce2
+            if rce2.declarada(spec.get("fundacao")):
+                recalque_erro = "%s: %s" % (type(exc).__name__, exc)
+        except Exception:  # noqa: BLE001
+            pass
+
     # ------------------------------------------ ELS DE VIBRACAO (Anexo L)
     # Fecha o item `vibracao_piso`, aberto desde a auditoria de gaps do G2.
     # A viga critica NAO e' a de maior vao e sim a de maior w_freq * L^4, que e'
@@ -401,6 +459,21 @@ def rodar(spec):
         gates["fundacao"] = dict(fundacao["gate"])
     elif erro_fundacao is not None:
         gates["fundacao"] = {"OK": False, "erro": erro_fundacao}
+    # G18: baldrame e recalque entram como gates proprios quando declarados
+    if baldrame is not None:
+        gates["viga_baldrame"] = {"OK": bool(baldrame["gate"]["OK"]),
+                                  "secao": baldrame["secao"],
+                                  "fechamento_ok": baldrame["gate"]["fechamento_ok"],
+                                  "N_amarracao_kN": baldrame["N_amarracao_kN"]}
+    elif baldrame_erro is not None:
+        gates["viga_baldrame"] = {"OK": False, "erro": baldrame_erro}
+    if recalque is not None:
+        gates["recalque_diferencial"] = {"OK": bool(recalque["gate"]["OK"]),
+                                         "recalque_max_mm": recalque.get("recalque_max_mm"),
+                                         "diferencial_mm": recalque.get("diferencial_mm"),
+                                         "distorcao_L": recalque.get("distorcao_L")}
+    elif recalque_erro is not None:
+        gates["recalque_diferencial"] = {"OK": False, "erro": recalque_erro}
     if r_escada is not None:
         gates["escada"] = {"OK": r_escada["OK"]}
     if estabilidade is not None:
@@ -426,6 +499,10 @@ def rodar(spec):
         "h_laje_adotada": r_laje["h"], "h_laje_declarada": h_declarada,
         "N_base_max_k": max(p["N_base_k"] for p in pilares.values()),
         "registro_6120": desc["registro_6120"],
+        "viga_baldrame": baldrame,
+        "viga_baldrame_erro": baldrame_erro,
+        "recalque_diferencial": recalque,
+        "recalque_erro": recalque_erro,
     }
 
 

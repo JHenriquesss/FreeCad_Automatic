@@ -113,7 +113,9 @@ def _erro(code: str, detail: str, **ctx: Any) -> dict[str, Any]:
 
 def _escopo(com_vento: bool = False, com_fundacao: bool = False,
             com_momento: bool = False,
-            instalacoes: dict | None = None) -> dict[str, str]:
+            instalacoes: dict | None = None,
+            com_baldrame: bool = False,
+            com_recalque: bool = False) -> dict[str, str]:
     escopo = {"superestrutura": "implemented",
               "aprovacao_legal": "not_claimed",
               "construction_readiness": "not_claimed"}
@@ -134,8 +136,11 @@ def _escopo(com_vento: bool = False, com_fundacao: bool = False,
         escopo[chave] = "implemented" if com_vento else "not_available"
     for chave in ESCOPO_FUNDACAO_DEPENDENTE:
         escopo[chave] = "implemented" if com_fundacao else "not_available"
-    for chave in ESCOPO_FUNDACAO_ABERTO:
-        escopo[chave] = "not_available"
+    # G18: viga baldrame e recalque deixam de ser not_available quando declarados.
+    # Declarados = implemented (fronteira calculada); nao declarados = not_available
+    # (capacidade publicada, mas nao calculada). Mesmo formato do G9/G12.
+    escopo["viga_baldrame"] = "implemented" if com_baldrame else "not_available"
+    escopo["recalque_diferencial"] = "implemented" if com_recalque else "not_available"
     # G17: momento na base por pilar deixa de ser not_available quando ha vento
     # (portico heterogeneo, secao bruta) – alimenta a fundacao com M_x/M_y por
     # prumada e distingue canto vs centro. Sem vento, segue not_available.
@@ -150,10 +155,12 @@ def _escopo(com_vento: bool = False, com_fundacao: bool = False,
 
 def _registro(status: str, com_vento: bool = False, com_fundacao: bool = False,
               com_momento: bool = False,
+              com_baldrame: bool = False, com_recalque: bool = False,
               **campos: Any) -> dict[str, Any]:
     registro = {"status": status, "native_atende": None, "reprovados": [],
                 "gates": {}, "warnings": [], "artifacts": [],
-                "scope": _escopo(com_vento, com_fundacao, com_momento), "errors": []}
+                "scope": _escopo(com_vento, com_fundacao, com_momento, None,
+                                 com_baldrame, com_recalque), "errors": []}
     registro.update(campos)
     return registro
 
@@ -284,20 +291,56 @@ def _fundacao_declarada(estrutura: Any) -> bool:
     return isinstance(estrutura, dict) and fe.declarada(estrutura.get("fundacao"))
 
 
+def _baldrame_declarada(estrutura: Any) -> bool:
+    """Viga baldrame declarada? Delega a `viga_baldrame_edificio.declarada`."""
+    if not isinstance(estrutura, dict):
+        return False
+    try:
+        import viga_baldrame_edificio as vbe
+        return vbe.declarada(estrutura.get("fundacao"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _recalque_declarada(estrutura: Any) -> bool:
+    """Recalque diferencial declarado? Delega a `recalque_edificio.declarada`."""
+    if not isinstance(estrutura, dict):
+        return False
+    try:
+        import recalque_edificio as rce
+        return rce.declarada(estrutura.get("fundacao"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _registro_estrutura(estrutura: Any, turnkey: dict):
     com_vento = isinstance(estrutura, dict) and bool(estrutura.get("vento"))
     com_fundacao = _fundacao_declarada(estrutura)
+    com_baldrame_decl = _baldrame_declarada(estrutura)
+    com_recalque_decl = _recalque_declarada(estrutura)
     erros = _erros_de_forma(estrutura)
     if erros:
-        return _registro("blocked", com_vento, com_fundacao, errors=erros), None
+        return _registro("blocked", com_vento, com_fundacao,
+                         com_momento=False,
+                         com_baldrame=com_baldrame_decl,
+                         com_recalque=com_recalque_decl,
+                         errors=erros), None
     erros = _erros_de_envelope(estrutura, turnkey)
     if erros:
-        return _registro("blocked", com_vento, com_fundacao, errors=erros), None
+        return _registro("blocked", com_vento, com_fundacao,
+                         com_momento=False,
+                         com_baldrame=com_baldrame_decl,
+                         com_recalque=com_recalque_decl,
+                         errors=erros), None
 
     try:
         resultado = em.rodar(_spec_do_calculo(estrutura))
     except Exception as exc:                                # noqa: BLE001
-        return _registro("failed", com_vento, com_fundacao, errors=[_erro(
+        return _registro("failed", com_vento, com_fundacao,
+                         com_momento=False,
+                         com_baldrame=com_baldrame_decl,
+                         com_recalque=com_recalque_decl,
+                         errors=[_erro(
             "structure_run_failed", "%s: %s" % (type(exc).__name__, exc))]), None
 
     avisos = []
@@ -348,11 +391,32 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
             "sigma_solo_adm): a carga desce ate N_base e para ali. A tensao "
             "admissivel do solo nao e' arbitrada por este framework"))
     fundacao = resultado.get("fundacao")
+    baldrame = resultado.get("viga_baldrame")
+    recalque = resultado.get("recalque_diferencial")
+    baldrame_erro = resultado.get("viga_baldrame_erro")
+    recalque_erro = resultado.get("recalque_erro")
     # G17: momento por pilar disponivel quando ha vento e o portico heterogeneo rodou
     momentos = resultado.get("momentos_base")
     com_momento = bool(com_vento and isinstance(momentos, dict)
                        and any(not k.startswith("_") for k in momentos)
                        and not momentos.get("_erro"))
+    # G18: baldrame e recalque viram implemented quando declarados e calculados
+    # (ou quando ha erro nomeado, o scope ja diz implemented mas o status e' blocked)
+    com_baldrame = bool(com_baldrame_decl and (baldrame is not None or baldrame_erro is not None))
+    # Se nao ha erro nomeado, mas foi declarado e o calculo nao rodou (fundacao ausente),
+    # ainda publica implemented para nao esconder a capacidade declarada que falhou.
+    if com_baldrame_decl and not com_baldrame and fundacao is None:
+        com_baldrame = True
+    com_recalque = bool(com_recalque_decl and (recalque is not None or recalque_erro is not None))
+    if com_recalque_decl and not com_recalque and fundacao is None:
+        com_recalque = True
+    # Se recalque foi calculado mas Es nao declarado, o modulo devolve gate com
+    # motivo mas ainda conta como implemented (fronteira honesta: dado pedido, nao inventado)
+    if recalque is not None and recalque.get("Es_kNm2") is None:
+        # Es nao declarado: nao deveria contar como implemented, mas avisado
+        # Mantem com_recalque como True para publicar not_available? Na verdade
+        # recalque_declarada so e' True quando Es declarado, entao este ramo nao deve ocorrer.
+        pass
     if resultado.get("fundacao_erro"):
         # entrada declarada que nao permite dimensionar: erro nomeado, nunca
         # uma fundacao que some do resultado sem explicacao.
@@ -360,10 +424,29 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
                             resultado["fundacao_erro"])]
         return _registro(
             "blocked", com_vento, com_fundacao, com_momento,
+            com_baldrame=com_baldrame, com_recalque=com_recalque,
             native_atende=bool(resultado["ATENDE"]),
             reprovados=list(resultado["reprovados"]),
             gates=copy.deepcopy(resultado["gates"]),
             warnings=avisos, errors=erros_fund), resultado
+    if baldrame_erro:
+        erros_bld = [_erro("baldrame_input_rejected", baldrame_erro)]
+        return _registro(
+            "blocked", com_vento, com_fundacao, com_momento,
+            com_baldrame=com_baldrame, com_recalque=com_recalque,
+            native_atende=bool(resultado["ATENDE"]),
+            reprovados=list(resultado["reprovados"]),
+            gates=copy.deepcopy(resultado["gates"]),
+            warnings=avisos, errors=erros_bld), resultado
+    if recalque_erro:
+        erros_rec = [_erro("recalque_input_rejected", recalque_erro)]
+        return _registro(
+            "blocked", com_vento, com_fundacao, com_momento,
+            com_baldrame=com_baldrame, com_recalque=com_recalque,
+            native_atende=bool(resultado["ATENDE"]),
+            reprovados=list(resultado["reprovados"]),
+            gates=copy.deepcopy(resultado["gates"]),
+            warnings=avisos, errors=erros_rec), resultado
     if fundacao:
         avisos.extend(_erro(item["code"], item["detail"])
                       for item in fundacao["avisos"])
@@ -371,9 +454,17 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
         # reflita – o _avisos de fundacao ja publicou momento_base_pilar
         if fundacao.get("escopo", {}).get("momento_base_pilar") == "implemented":
             com_momento = True
+    # Avisos de baldrame e recalque (quando calculados)
+    if baldrame:
+        avisos.extend(_erro(item["code"], item["detail"])
+                      for item in baldrame.get("avisos") or [])
+    if recalque:
+        avisos.extend(_erro(item["code"], item["detail"])
+                      for item in recalque.get("avisos") or [])
 
     registro = _registro(
         "needs_review", com_vento, com_fundacao, com_momento,
+        com_baldrame=com_baldrame, com_recalque=com_recalque,
         native_atende=bool(resultado["ATENDE"]),
         reprovados=list(resultado["reprovados"]),
         gates=copy.deepcopy(resultado["gates"]),
@@ -392,6 +483,27 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
                           for nome, r in fundacao["por_pilar"].items()},
             "scope": copy.deepcopy(fundacao["escopo"]),
             "momentos_base": copy.deepcopy(momentos) if momentos else None,
+        }
+    if baldrame:
+        registro["viga_baldrame"] = {
+            "secao": baldrame["secao"],
+            "q_parede_kN_m": baldrame["q_parede_kN_m"],
+            "N_amarracao_kN": baldrame["N_amarracao_kN"],
+            "por_pilar": copy.deepcopy(baldrame["por_pilar"]),
+            "verificacao": copy.deepcopy(baldrame["verificacao"]),
+            "gate": copy.deepcopy(baldrame["gate"]),
+            "scope": copy.deepcopy(baldrame["escopo"]),
+        }
+    if recalque:
+        registro["recalque_diferencial"] = {
+            "por_pilar": copy.deepcopy(recalque["por_pilar"]),
+            "recalque_max_mm": recalque.get("recalque_max_mm"),
+            "recalque_min_mm": recalque.get("recalque_min_mm"),
+            "diferencial_mm": recalque.get("diferencial_mm"),
+            "distorcao_L": recalque.get("distorcao_L"),
+            "Es_kNm2": recalque.get("Es_kNm2"),
+            "gate": copy.deepcopy(recalque["gate"]),
+            "scope": copy.deepcopy(recalque["escopo"]),
         }
     # exposicao de momentos no registro da estrutura para auditoria
     if momentos and not momentos.get("_erro"):
@@ -667,6 +779,30 @@ def run_edificio(normalized, run_dir, preflight=None):
         and isinstance(resultado_estrutura.get("momentos_base"), dict)
         and any(not k.startswith("_") for k in resultado_estrutura["momentos_base"])
         and not resultado_estrutura["momentos_base"].get("_erro"))
+    # G18: baldrame e recalque declarados no spec? O scope global publica o que foi
+    # pedido, mas o registro da estrutura ja reflete o que foi CALCULADO (com
+    # sucesso ou com erro nomeado). Para o manifesto global, usamos a declaracao.
+    com_baldrame_global = _baldrame_declarada(turnkey.get("estrutura"))
+    com_recalque_global = _recalque_declarada(turnkey.get("estrutura"))
+    # Se a fundacao nao foi calculada, o baldrame/recalque nao tem como ser
+    # implementado (falta base), mas o scope global ainda diz not_available
+    # quando nao ha fundacao - capacidade declarada sem chao nao e' fundacao.
+    if not com_fund_global:
+        com_baldrame_global = False
+        com_recalque_global = False
+    # Se o resultado da estrutura ja tem o calculo, usa o estado REAL (implemented
+    # vs blocked) para o scope global, em vez da mera declaracao.
+    if isinstance(resultado_estrutura, dict):
+        # baldrame: considera implemented quando ha resultado ou erro nomeado
+        if resultado_estrutura.get("viga_baldrame") is not None or resultado_estrutura.get("viga_baldrame_erro"):
+            com_baldrame_global = True
+        elif com_baldrame_global and resultado_estrutura.get("viga_baldrame") is None and not resultado_estrutura.get("viga_baldrame_erro"):
+            # declarado mas nao calculado (ex.: fundacao ausente) -> not_available
+            com_baldrame_global = False
+        if resultado_estrutura.get("recalque_diferencial") is not None or resultado_estrutura.get("recalque_erro"):
+            com_recalque_global = True
+        elif com_recalque_global and resultado_estrutura.get("recalque_diferencial") is None and not resultado_estrutura.get("recalque_erro"):
+            com_recalque_global = False
     resultado = {
         "schema": SCHEMA,
         "schema_version": SCHEMA_VERSION,
@@ -677,7 +813,7 @@ def run_edificio(normalized, run_dir, preflight=None):
         "estrutura": copy.deepcopy(resultado_estrutura),
         "instalacoes": copy.deepcopy(instalacoes),
         "scope": _escopo(com_vento_global, com_fund_global, com_momento_global,
-                         instalacoes),
+                         instalacoes, com_baldrame_global, com_recalque_global),
     }
     resultado["status"] = ("blocked" if any(
         r["status"] == "blocked" for r in registros.values()) else "needs_review")

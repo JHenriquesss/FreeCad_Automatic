@@ -33,7 +33,7 @@ DOC_NAME = "galpao_federado"
 # ele era a indireccao que escondia a divergencia, e mante-lo zerado so
 # convidaria o proximo a reintroduzi-la.
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
-                  "H": "climatizacao", "P": "hidraulica"}
+                  "H": "climatizacao", "P": "hidraulica", "M": "mezanino"}
 _TIPOS_IGNORADOS = {"Covering", "Cladding"}          # fechamento/telha: fora do clash
 
 

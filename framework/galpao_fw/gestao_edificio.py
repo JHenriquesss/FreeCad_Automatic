@@ -286,6 +286,12 @@ def _fundacao(est, notas, nao_derivados, escopo):
     Uma obra sobre sapatas nao tem metro de estaca, e cobrar dela um
     quantitativo de estaca faria o orcamento se declarar parcial por um insumo
     que a obra nao tem - o ruido que a guarda 2 do cabecalho existe para evitar.
+
+    VEREDITO G23 – quantitativo/ORCAMENTO: USA M_base INDIRETAMENTE via
+    geometria ja dimensionada com M (sapata/bloco isolado: bearing com N+M;
+    estaca n=4 com grupo_momento). Para divisa (sapata_divisa/viga_equilibrio)
+    IGNORA M_portico com razao declarada (ver fundacao_edificio cabecalho);
+    volume = B*L*h da geometria aprovada (sem armadura ficticia para bloco).
     """
     fund = est.get("fundacao")
     if not isinstance(fund, dict) or not fund.get("por_pilar"):

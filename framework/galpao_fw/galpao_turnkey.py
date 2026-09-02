@@ -37,7 +37,8 @@ import math
 
 
 # ordem canonica de apresentacao das disciplinas no relatorio consolidado
-DISCIPLINAS = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica")
+# G20: mezanino (concreto dentro do envelope metalico) — costura concreto x metalico
+DISCIPLINAS = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica", "mezanino")
 
 
 def _geometria(g):
@@ -96,6 +97,25 @@ def _run_hidraulica(sub, geo, out_dir):
     return _norm(ghi.rodar(_com_geometria_LWH(s, geo)))
 
 
+def _run_mezanino(sub, geo, out_dir):
+    """G20: mezanino de concreto dentro do envelope metalico (laje+viga+pilar).
+    Despacha para galpao_mezanino.rodar — STATELESS, puro, sem out_dir.
+    A geometria do galpao (envelope validado) e' injetada como 'geometria'."""
+    import galpao_mezanino as gmz
+    s = dict(sub)
+    # geo canonica -> geometria do envelope (aceita os dois dialetos)
+    s.setdefault("geometria", geo)
+    # tambem garante que o sub-spec nao perca a geometria se ja a trouxer aninhada
+    if "geometria" in sub and isinstance(sub["geometria"], dict):
+        # sub ja tem geometria: mantem, mas preenche faltantes com geo
+        g = dict(sub["geometria"])
+        g.setdefault("comprimento", geo["comprimento"])
+        g.setdefault("vao", geo["vao"])
+        g.setdefault("pe_direito", geo["pe_direito"])
+        s["geometria"] = g
+    return _norm(gmz.rodar(s))
+
+
 def _run_aco(sub, geo, out_dir):
     """Vertical de aco: usa spec de PROJETO proprio (geometria.spans/secoes/cargas) e
     ESCREVE arquivos -> so roda com out_dir. Sem out_dir, e' pulado com nota (nao
@@ -131,7 +151,8 @@ def _com_geometria_LWH(s, geo):
 
 _ADAPTADORES = {"concreto": _run_concreto, "aco": _run_aco,
                 "eletrico": _run_eletrico, "incendio": _run_incendio,
-                "climatizacao": _run_climatizacao, "hidraulica": _run_hidraulica}
+                "climatizacao": _run_climatizacao, "hidraulica": _run_hidraulica,
+                "mezanino": _run_mezanino}
 
 
 # ------------------------------------------------------------------- mestre
@@ -203,10 +224,11 @@ def _concreto_no_frame_comum(membros, vao_concreto_m):
 
 def _membros_federados(R, spec=None):
     """Reune os membros das disciplinas no frame comum (X=comprimento, Y=largura, Z=
-    altura). concreto (TRANSFORMADO) + eletrico + incendio + aco. Aco vem de
+    altura). concreto (TRANSFORMADO) + eletrico + incendio + mezanino (concreto
+    dentro do envelope, ja no frame comum) + aco. Aco vem de
     ifc_emit.membros_do_spec(spec['aco']) e ja esta no frame comum (modelo_neutro:
     X=comprimento, Y=vao) -> sem transformacao. Marca prefixada por disciplina
-    (C-/E-/I-/A-). Retorna (membros, disciplinas_contribuintes)."""
+    (C-/E-/I-/A-/M-). Retorna (membros, disciplinas_contribuintes)."""
     membros = []
     disc = []
     d = R["disciplinas"]
@@ -215,6 +237,11 @@ def _membros_federados(R, spec=None):
         raw = d["concreto"]["raw"]
         membros += _concreto_no_frame_comum(gc.membros_bim(raw), raw["spec"]["vao"])
         disc.append("concreto")
+    if d.get("mezanino", {}).get("rodou"):
+        import galpao_mezanino as gmz
+        for m in gmz.membros_bim(d["mezanino"]["raw"]):
+            m = dict(m); m["marca"] = "M-" + str(m.get("marca", "")); membros.append(m)
+        disc.append("mezanino")
     if d.get("eletrico", {}).get("rodou"):
         import galpao_eletrico as ge
         for m in ge.membros_bim(d["eletrico"]["raw"]):
@@ -268,7 +295,7 @@ def emitir_bim(R, out_dir, spec=None, nome="GalpaoTurnkey"):
 
     # 1) um IFC por disciplina no frame NATIVO (via o emitir_bim de cada vertical)
     _mods = {"concreto": "galpao_concreto", "eletrico": "galpao_eletrico",
-             "incendio": "galpao_seguranca_incendio"}
+             "incendio": "galpao_seguranca_incendio", "mezanino": "galpao_mezanino"}
     for nome_d, modname in _mods.items():
         if not d.get(nome_d, {}).get("rodou"):
             continue
@@ -509,7 +536,7 @@ def montar_prancha_coordenacao(R, out_dir, spec=None, clash=None,
 # ele era a indireccao que escondia a divergencia, e mante-lo zerado so
 # convidaria o proximo a reintroduzi-la.
 _DISC_DE_MARCA = {"C": "concreto", "E": "eletrico", "I": "incendio", "A": "aco",
-                  "H": "climatizacao", "P": "hidraulica"}
+                  "H": "climatizacao", "P": "hidraulica", "M": "mezanino"}
 _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap esperado
 
 # Triagem esperado x revisar: o aterramento e o SPDA (cabo de aterramento/anel, descida,
@@ -517,7 +544,7 @@ _TIPOS_IGNORADOS_CLASH = {"Covering", "Cladding"}   # fechamento/telha: overlap 
 # hastes junto as fundacoes) -> interferencia com pilar/viga/sapata e' montagem
 # INTENCIONAL, nao conflito a resolver. Ja eletrocalha (CableCarrier) e equipamentos
 # (chuveiro/detector/luminaria/hidrante) sobre a estrutura sao coordenacao REAL.
-_TIPOS_ESTRUTURA = {"Column", "Beam", "Member", "Footing", "Pile", "Plate"}
+_TIPOS_ESTRUTURA = {"Column", "Beam", "Member", "Footing", "Pile", "Plate", "Slab"}
 _TIPOS_ATERR_SPDA = {"Cable", "Earthing"}
 # instalacao FIXADA a estrutura (luminaria no teto, tomada na parede): o contato com a
 # estrutura e' montagem intencional, nao interferencia a revisar (como o aterramento/SPDA).
@@ -685,7 +712,8 @@ def relatorio_pt(R):
               "eletrico": "Instalacoes eletricas (NBR 5410/14039/5419)",
               "incendio": "Seguranca contra incendio (NBR 10898/16820/17240/10897)",
               "climatizacao": "Climatizacao / HVAC (NBR 16401)",
-              "hidraulica": "Hidraulica predial (coordenacao; sizing pendente)"}
+              "hidraulica": "Hidraulica predial (coordenacao; sizing pendente)",
+              "mezanino": "Mezanino de concreto dentro do galpao (NBR 6118) — G20"}
     for nome in DISCIPLINAS:
         d = R["disciplinas"].get(nome)
         if d is None:

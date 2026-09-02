@@ -1,0 +1,55 @@
+{
+  "_aviso": "EXEMPLO SINTETICO - NAO E OBRA REAL - Gerado automaticamente a partir de projects/galpao-sjb/project-spec-framework-teste.json (framework_capability_test, not_real_engineering_input). Usar apenas para demonstrar o formato do sidecar G19 e para testar o harness em modo demo. A validacao real G19 exige docs/validacao_g15/galpao-sjb-memorial.pdf + galpao-sjb-valores-referencia.json com dados de obra construida e ART.",
+  "fonte": "EXEMPLO SINTETICO - project-spec-framework-teste.json (galpao 40x20m, 8 porticos, HEA240/IPE330), run em 2026-09-02 via project_loop.run_project (manifest status=failed por pilar esbeltez lambda=103.9 >90, eletrica/hidraulica needs_review por A CONFIRMAR)",
+  "proveniencia": "Trecho: framework/galpao_fw/tests + out demo_sjb2/reports/disciplinas.json - romaneio_peso_primario_kg=13693.7, sapata adotada 2.0x2.0x0.55, vento V0=40 cat IV B",
+  "gerado_por": "python -c \"import project_loop, builtin_adapters; builtin_adapters.register_builtin_adapters(); manifest=project_loop.run_project(spec, tmp)\"  com project-spec-framework-teste.json",
+  "geometria": {
+    "comprimento": 40.0,
+    "vao": 20.0,
+    "pe_direito": 6.0,
+    "bay": 5.714285714285714,
+    "observacao": "bay = comprimento / (n_porticos-1) = 40 / 7"
+  },
+  "valores_referencia": {
+    "_guarda_d_sen45": "L_rafter inclinado = 10.05 m (meia-agua sqrt((10)^2+(1)^2)), nao projecao 10.0 m - delta 50 mm",
+    "_unidades": "V/H em kN, M em kN.m, pesos em kg/t, concreto m3, DN mm, secao mm2, demanda kVA",
+    "V_kN": null,
+    "H_kN": null,
+    "Mcol_kNm": 158.87,
+    "Mviga_kNm": 158.87,
+    "peso_aco_primario_kg": 13693.7,
+    "peso_aco_t": 13.694,
+    "perfis": {
+      "coluna": "HEA240",
+      "viga": "IPE330",
+      "terca": "Ue 300x85x25x3.35"
+    },
+    "fundacao": {
+      "tipologia": "bloco/sapata 2.0x2.0x0.55 (beta=60.6, bloco simples)",
+      "dimensoes_m": [2.0, 2.0, 0.55],
+      "sigma_solo_kPa": 250.0,
+      "As_cm2": null,
+      "status": "ATENDE geotecnia (u_solo=0.51, FS_tomb=1.65, FS_desl=3.43) mas pilar concreto reprovado por esbeltez lambda_y=103.9 >90 fora da faixa NBR 6118 15.8.3.3.2 - ver manifest disciplinas concreto.failed"
+    },
+    "eletrica": {
+      "demanda_kVA": 131.0,
+      "alimentador_secao_mm2": 50,
+      "trafo_kVA": 150,
+      "status": "needs_review por A CONFIRMAR rho solo"
+    },
+    "hidraulica": {
+      "DN_agua_fria": 40,
+      "DN_esgoto_ramal": 100,
+      "DN_pluvial_condutor": 125,
+      "calha_mm": 150,
+      "status": "needs_review por i_pluvial A CONFIRMAR"
+    },
+    "observacoes": "Valores da combinacao governante C1_Gfav_W1 (vento). Tol G19: V 5% H/M 15% quant 10% eletrica 2%. Este exemplo e util para rodar tools/demo_g19_4o_caso.py que prova o caminho de comparacao numero-a-numero sem afirmar que e obra real."
+  },
+  "anexo_pdf": null,
+  "checklist_demo": [
+    "Este arquivo NAO destrava o G19 - o harness real so considera docs/validacao_g15/galpao-sjb-valores-referencia.json (sem prefixo exemplo-)",
+    "Para ver o harness em modo demo: python tools/demo_g19_4o_caso.py",
+    "Para validacao real: copiar galpao-sjb-valores-referencia.json.template -> galpao-sjb-valores-referencia.json e preencher com memorial de obra construida"
+  ]
+}

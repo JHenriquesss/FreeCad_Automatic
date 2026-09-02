@@ -1,0 +1,22 @@
+{
+  "_aviso": "PROPOSTA 36x24 - NAO E OBRA REAL - sidecar sintetico gerado do run da proposta-AGENTE-36x24.json para demonstrar que harness compara 0.00% quando memorial e framework coincidem. Substituir por memorial real para G19.",
+  "fonte": "PROPOSTA SINTETICA - galpao 36x24x7m, 6m bay, 7 porticos, proposta-obra-conhecida-AGENTE-36x24.json, run 2026-09-02",
+  "proveniencia": "reports/disciplinas.json aco.native.raw - romaneio_peso_primario_kg=23206, esf_coluna.M_kNm=235.99, perfil_colunas HEB280/HEB260, perfil_raf IPE450 (proposta 36x24x7)",
+  "geometria": {
+    "comprimento": 36.0,
+    "vao": 24.0,
+    "pe_direito": 7.0,
+    "bay": 6.0
+  },
+  "valores_referencia": {
+    "Mcol_kNm": 235.99,
+    "peso_aco_primario_kg": 23206.0,
+    "peso_aco_t": 23.206,
+    "perfis": {
+      "coluna": "HEB280/HEB260",
+      "viga": "IPE450",
+      "terca": "Ue 300x85x25x3.35"
+    },
+    "observacoes": "Tol G19: peso 10% M 15% - este sidecar coincide 0.00% com framework da proposta, prova caminho"
+  }
+}

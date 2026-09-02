@@ -26,7 +26,7 @@
 # interno, e uma sapata unica dimensionada pelo pior caso seria desperdicio em
 # 8 das 12 posicoes.
 #
-# ACAO HORIZONTAL - o que entra e o que NAO entra:
+# ACAO HORIZONTAL - o que entra e o que NAO entra (G17-G23):
 #   ENTRA  o momento GLOBAL de tombamento (vento/desaprumo, de
 #          estabilidade_edificio), distribuido entre as prumadas como um binario:
 #          dN_i = M * x_i / sum(x_j^2), pelo modulo de resistencia da malha de
@@ -35,13 +35,47 @@
 #          usual de uma primeira aproximacao), que alimenta o FS ao deslizamento
 #          da fundacao RASA. Na ESTACA ele nao e' verificado: estaca carregada
 #          transversalmente (Broms / Matlock-Reese) nao existe neste framework,
-#          e o escopo diz `esforco_horizontal_na_estaca: not_available`.
-#   NAO ENTRA o MOMENTO FLETOR na base de CADA pilar: o modelo de estabilidade e'
-#          um portico plano GLOBAL para gamma_z e ELS, e nao devolve esforco por
-#          barra. As combinacoes vao com M=0 no topo da sapata, e o escopo
-#          publica `momento_base_pilar: not_available` em vez de calar. Dimensionar
-#          uma sapata para um momento que ninguem calculou seria pior que dizer
-#          que ele falta.
+#          e o escopo diz `esforco_horizontal_na_estaca: not_available` (G23: V
+#          ignorado com razao declarada, nao verificado em silencio).
+#   ENTRA  o MOMENTO FLETOR na base por pilar (G17): extraido do portico
+#          heterogeneo (secao real por prumada, rigidez BRUTA Ecs 14.6.4.1,
+#          distinta de 0,8/0,4+1,10Ecs de 15.7.3) via
+#          estabilidade_edificio.momentos_base_por_pilar. Alimenta M nas
+#          combinacoes (sotavento/barlavento) e V heterogeneo por pilar.
+#          Sem vento/momento, M=0 e escopo publica not_available em vez de calar.
+#
+#   CONSUMIDORES DE M_base e VEREDITOS G23 (sem terceira opcao: usa ou ignora
+#   com razao declarada; nenhum caminho onde excentricidade chegue por acidente):
+#     - sapata isolada (fundacao_sapata.dimensiona_sapata_env): USA M via
+#       Parte A (tensoes_solo N+M, regime nucleo/borda, FS tomb/desl com
+#       excentricidade e=M/N) – ver combinacoes_do_pilar + verifica_sapata_A.
+#     - bloco simples (dimensiona_bloco_env): USA M para bearing (mesma Parte A)
+#       mas NAO gera armadura de flexao: beta >= 60 graus (NBR 6122 7.8.2) –
+#       trabalha por bielas comprimidas. E SEMPRE isolado (nunca divisa): o G17
+#       roteou bloco pela divisa e gerou geometria excentrica com armadura que a
+#       peca nao tem; corrigido em 29acc18 – guarda normativa, nao teste.
+#     - estaca isolada (estaca_profunda.verifica_estaca): USA M quando o GRUPO
+#       tem braco (n=4, Sxx/Syy>0) via carga_estaca_grupo (Navier, flexo-
+#       compressao); para n=1-2, S=0 no eixo do momento, o grupo NAO resiste e o
+#       momento vai para TIRANTES DE BALDRAME (viga_baldrame: not_available –
+#       fronteira nomeada, nao verificacao esquecida). V e sempre ignorado
+#       (Broms/Matlock-Reese nao existe).
+#     - sapata de divisa (sapata_divisa) e viga equilibrio (viga_equilibrio):
+#       IGNORAM M_portico com razao declarada – a excentricidade GEOMETRICA da
+#       divisa (e = (B-b)/2 ~0,6-0,8 m) domina: P*e ~ 800-1500 kNm vs M_portico
+#       tipico 10-40 kNm (2-5%); modelo de divisa com M fletor adicional nao
+#       existe na NBR 6122/Velloso-Lopes e nao e' inventado; momento adicional
+#       seria absorvido pelo travamento (viga_baldrame). Gate e quantitativo da
+#       divisa refletem apenas P*e (limitacao nomeada).
+#     - gate ATENDE: reflete M via Parte A (rasa) e via grupo_momento (estaca
+#       n=4); para divisa reflete apenas P*e (sem M) – ver acima.
+#     - IFC/3D (bim_edificio.membros_fundacao): IGNORA M na geometria com razao
+#       – sapata isolada permanece CENTRADA (M vira pressao trapezoidal, nao
+#       geometria excentrica); divisa ja e' excentrica por lote, nao por M.
+#     - quantitativo (gestao_edificio._fundacao): USA M indiretamente via
+#       geometria ja dimensionada com M (isolada/bloco) ou IGNORA para divisa
+#       (mesma razao); volume = B*L*h da geometria aprovada, sem peso de
+#       armadura ficticia.
 #
 # Unidades: m, kN (fck/fyk/sigma em kN/m2). STATELESS.
 # CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL.
@@ -182,6 +216,11 @@ def combinacoes_do_pilar(nome, N_base_k, horizontais, momentos_base=None):
     ``estabilidade_edificio.momentos_base_por_pilar``) e' fornecido, extrai
     M_x/M_y e V_x/V_y por prumada do portico heterogeneo (secao real por pilar,
     rigidez bruta Ecs). Sem ele, M=0 e V e' o uniforme V_base/n (legado).
+
+    G23 VEREDITO: Esta funcao e' o PONTO UNICO onde M_base entra nas
+    combinacoes; todos os consumidores a jusante (sapata isolada/bloco,
+    estaca, divisa, gate) leem daqui. Sapata/bloco USAM M via Parte A;
+    estaca USA quando n=4 com braco; divisa IGNORA com razao declarada.
     """
     casos = [("gravitacional", N_base_k, 0.0, 0.0)]
     for direcao, registro in sorted(horizontais.items()):
@@ -308,11 +347,15 @@ def _geometria_rasa(tipo, resultado):
 def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
     """Estaca + bloco de coroamento pelo pior N das combinacoes.
 
-    O CORTANTE das combinacoes nao e' usado aqui: verificar a estaca a esforco
-    horizontal exige um metodo de estaca carregada transversalmente (Broms,
-    Matlock-Reese) que este framework nao tem. O escopo publica
-    `esforco_horizontal_na_estaca: not_available` - e' fronteira nomeada, nao
-    verificacao esquecida.
+    VEREDITO G23:
+      - V (cortante) IGNORADO com razao declarada: estaca carregada
+        transversalmente (Broms / Matlock-Reese) nao existe neste framework;
+        escopo publica `esforco_horizontal_na_estaca: not_available`.
+      - M (momento) USADO quando o GRUPO tem braco (n=4, Sxx/Syy>0) via
+        estaca_profunda.carga_estaca_grupo (Navier, flexo-compressao);
+        para n=1-2, S=0 no eixo do momento, o grupo NAO resiste e o momento
+        vai para TIRANTES DE BALDRAME (viga_baldrame: not_available –
+        fronteira nomeada, REVISAO-FUNDACAO-PROFUNDA-INTEG Q5).
     """
     estaca_cfg = spec_fundacao.get("estaca") or {}
     perfil = spec_fundacao["perfil_spt"]
@@ -322,8 +365,18 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
                 "o perfil SPT precisa do TIPO DE SOLO de cada camada para o "
                 "metodo de Aoki-Velloso (K e alpha da Tab.12.6 dependem dele)")
     N_max = max(caso[1] for caso in casos)
+    # G23: extrai Mx/My maximos das combinacoes para alimentar o grupo.
+    # Casos sao (nome, N, V, M) com nome = gravitacional | sotavento_x etc.
+    # Mx vem dos casos _x, My dos _y; gravitacional tem M=0.
+    Mx_max = max((abs(caso[3]) for caso in casos if "_x" in caso[0]), default=0.0)
+    My_max = max((abs(caso[3]) for caso in casos if "_y" in caso[0]), default=0.0)
+    # Se nao ha direcao no nome (so gravitacional), usa o max global
+    if Mx_max == 0.0 and My_max == 0.0:
+        M_global = max((abs(caso[3]) for caso in casos), default=0.0)
+        # Conservador: poe o max nos dois eixos quando nao ha direcao
+        Mx_max = My_max = M_global
     _b, h = secao_pilar
-    resultado = ep.verifica_estaca({
+    cfg_estaca = {
         "perfil": copy.deepcopy(perfil),
         "D": estaca_cfg.get("D_m", 0.30),
         "L": estaca_cfg.get("L_m", _profundidade_sugerida(perfil)),
@@ -332,9 +385,25 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
         "bloco": {"a_pilar": h, "fck": spec_fundacao.get("fck", materiais["fck"]),
                   "fyk": spec_fundacao.get("fyk", materiais["fyk"]),
                   "cobrimento": spec_fundacao.get("cobrimento", 0.05)},
-    })
+    }
+    # G23: alimenta Mx/My quando ha momento; verifica_estaca monta grupo_momento
+    if Mx_max > 1e-9 or My_max > 1e-9:
+        cfg_estaca["Mx"] = Mx_max
+        cfg_estaca["My"] = My_max
+    resultado = ep.verifica_estaca(cfg_estaca)
     grupo = resultado["grupo"]
     ok = grupo["util"] is not None and grupo["util"] <= 1.0
+    # G23: se o grupo tem momento, verifica tambem a distribuicao por estaca
+    gm = resultado.get("grupo_momento")
+    if gm is not None:
+        # So reprova por momento quando o grupo TEM braco nesse eixo; se
+        # S=0, o momento nao e' resistido no grupo e vai para baldrame
+        # (not_available) – nao reprova a estaca por falta de braco.
+        if gm.get("resiste_no_grupo"):
+            ok = ok and bool(gm.get("OK"))
+        # Se ha tracao por momento, reprova apenas quando o grupo resiste;
+        # caso contrario, a tracao seria absorvida pelo baldrame (nao existe)
+        # e deve ser sinalizada via aviso, nao gate (ver _avisos).
     geometria = {"n_estacas": grupo["n"],
                  "D_m": resultado["capacidade"]["D"],
                  "L_m": resultado["capacidade"]["L"],
@@ -482,7 +551,13 @@ def dimensiona(spec_fundacao, contexto):
         subtipo = "isolada"
         detalhe_divisa = None
         if em_divisa and tipo == "sapata":
-            # tenta sapata de divisa com viga alavanca (Velloso & Lopes)
+            # VEREDITO G23 – sapata_divisa: IGNORA M_portico com razao declarada.
+            # A excentricidade GEOMETRICA da divisa (e = (B-b)/2, ~0,6-0,8 m)
+            # domina: P*e ~ 800-1500 kNm vs M_portico tipico 10-40 kNm (2-5%).
+            # Modelo de divisa com momento fletor adicional nao existe na
+            # NBR 6122 / Velloso & Lopes e nao e' inventado; momento adicional
+            # seria absorvido pelo travamento (viga_baldrame: not_available –
+            # fronteira nomeada). Por isso a divisa dimensiona para P*e apenas.
             viz, dist_eixos, direcao = _vizinho_interno(pilar, pilares,
                                                         contexto["eixos_x"],
                                                         contexto["eixos_y"])
@@ -490,6 +565,8 @@ def dimensiona(spec_fundacao, contexto):
                 try:
                     import sapata_divisa as sd
                     # P_divisa = maior N das combinacoes deste pilar (com dN)
+                    # G23: M_portico extraido em casos[3] e' IGNORADO aqui com
+                    # razao acima – nao alimenta R_divisa nem M_viga.
                     P_div = max(c[1] for c in casos)
                     P_int = viz["N_base_k"]
                     # dist_divisa: eixo -> divisa; borda flush -> b/2
@@ -532,6 +609,11 @@ def dimensiona(spec_fundacao, contexto):
                     # fallback para isolada se divisa falhar
                     pass
         if em_divisa and tipo == "estaca":
+            # VEREDITO G23 – viga_equilibrio (divisa profunda): IGNORA
+            # M_portico com razao declarada (idem sapata_divisa). A viga de
+            # equilibrio dimensiona para P*e; M_portico vai para baldrame
+            # (not_available). Se um dia houver modelo de estaca de divisa
+            # com momento, R_divisa = (P*l+M)/(l-e) e M_viga = P*e+M.
             viz, dist_eixos, direcao = _vizinho_interno(pilar, pilares,
                                                         contexto["eixos_x"],
                                                         contexto["eixos_y"])
@@ -539,6 +621,7 @@ def dimensiona(spec_fundacao, contexto):
                 try:
                     import viga_equilibrio as veq
                     import estaca_profunda as ep
+                    # G23: M_portico em casos[3] IGNORADO com razao acima
                     P_div = max(c[1] for c in casos)
                     P_int = viz["N_base_k"]
                     b_pil, h_pil = pilar["secao"] if isinstance(pilar["secao"], (list, tuple)) else (pilar["secao"]["b"], pilar["secao"]["h"])
@@ -637,6 +720,9 @@ def dimensiona(spec_fundacao, contexto):
         if not ok:
             reprovados.append(pilar["nome"])
 
+    # VEREDITO G23 – gate ATENDE: reflete M quando o dimensionamento
+    # usou M (sapata/bloco via Parte A, estaca n=4 via grupo_momento); para
+    # divisa reflete apenas P*e (M ignorado com razao) – limitacao nomeada.
     gate = {"OK": not reprovados, "tipo": tipo, "n_pilares": len(pilares),
             "reprovados": reprovados,
             "N_max_kN": round(N_max_obra, 1)}
@@ -672,6 +758,13 @@ def _escada(spec_fundacao):
 
 
 def _escopo(tipo, com_horizontal, com_momento=False):
+    # G23 vereditos: cada consumidor de M_base tem estado explicito.
+    # - momento_base_pilar: implemented quando ha vento (heterogeneo bruta)
+    # - momento_em_sapata_isolada: usa M (implementado) – parte do bearing
+    # - momento_em_bloco: usa M para bearing, mas sem armadura (beta>=60)
+    # - momento_em_estaca_grupo: implemented quando n=4 com braco, senao vai p/ baldrame
+    # - momento_em_divisa: not_available com razao (P*e domina, vai p/ baldrame)
+    # - esforco_horizontal_na_estaca: not_available (Broms nao existe)
     return {
         "geotecnia_spt": "implemented",
         "fundacao_rasa": "implemented" if tipo in ("sapata", "bloco")
@@ -680,10 +773,13 @@ def _escopo(tipo, com_horizontal, com_momento=False):
                              else "not_applicable",
         "bloco_de_coroamento": ("partial" if tipo == "estaca"
                                 else "not_applicable"),
-        # estaca carregada transversalmente (Broms / Matlock-Reese) nao existe
-        # no framework: o cortante da base nao e' verificado NA estaca.
+        # G23: V (cortante) IGNORADO na estaca com razao declarada.
         "esforco_horizontal_na_estaca": ("not_available" if tipo == "estaca"
                                          else "not_applicable"),
+        # G23: M em estaca – grupo resiste se n=4 com braco; senao vai p/ baldrame
+        "momento_na_estaca_grupo": ("implemented" if (tipo == "estaca" and com_momento)
+                                   else ("not_available" if tipo == "estaca" else "not_applicable")),
+        "viga_baldrame_travamento": "not_available",  # G23: recebe momento de estaca 1-2/divisa
         # G17: momento na base por pilar passa a ser extraido do portico
         # heterogeneo (M_x, M_y por prumada). Sem estabilidade/momento, segue
         # not_available, mas com ele vira implemented e alimenta V/M nas
@@ -740,6 +836,72 @@ def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None,
                           "sapata de divisa + viga alavanca (rasa) ou bloco sobre "
                           "estacas + viga de equilibrio (profunda), escolhidos por "
                           "criterio de posicao (canto != centro)" % ", ".join(sorted(divisa_pilares))})
+            # G23: divisa IGNORA M_portico com razao declarada (ver cabecalho e
+            # comentario no dimensiona). Avisa explicitamente para auditoria.
+            avisos.append({
+                "code": "momento_na_divisa_ignorado_com_razao",
+                "pilares": sorted(divisa_pilares),
+                "detail": "M_portico nos pilares de divisa (%s) foi IGNORADO no "
+                          "dimensionamento da viga alavanca/equilibrio com razao "
+                          "declarada: excentricidade geometrica P*e (~800-1500 kNm) "
+                          "domina sobre M_portico (10-40 kNm); modelo com momento "
+                          "adicional nao existe na NBR 6122 e seria absorvido pelo "
+                          "travamento (viga_baldrame: not_available)" % ", ".join(sorted(divisa_pilares))})
+        # G23: vereditos por tipo – sapata/bloco USAM M, estaca USA quando ha braco
+        if tipo in ("sapata", "bloco"):
+            avisos.append({
+                "code": "momento_em_sapata_isolada_usado",
+                "detail": "M_base alimenta sapata/bloco isolado via Parte A "
+                          "(tensoes_solo N+M, regime nucleo/borda, FS tomb/desl) – "
+                          "ver fundacao_sapata.verifica_sapata_A; bloco com beta>=60 "
+                          "graus (NBR 6122 7.8.2) sem armadura de flexao, sempre isolado"})
+        elif tipo == "estaca":
+            # coleta pilares onde momento existe mas grupo nao tem braco
+            sem_braco = []
+            com_braco_ok = []
+            for nome, reg in (por_pilar or {}).items():
+                if reg.get("bruto") and isinstance(reg["bruto"], dict) and reg["bruto"].get("grupo_momento"):
+                    gm = reg["bruto"]["grupo_momento"]
+                    if gm.get("Mx") or gm.get("My"):
+                        if gm.get("resiste_no_grupo"):
+                            com_braco_ok.append(nome)
+                        else:
+                            sem_braco.append(nome)
+                elif reg.get("M_base_kNm"):
+                    # fallback: tem M mas sem grupo_momento (n=1-2 sem braco)
+                    mres = reg["M_base_kNm"].get("M_res") or 0
+                    if mres and mres > 1e-9:
+                        # verifica se n_estacas <=2 (sem braco)
+                        geo = reg.get("geometria") or {}
+                        if geo.get("n_estacas", 0) <= 2:
+                            sem_braco.append(nome)
+            if com_braco_ok:
+                avisos.append({
+                    "code": "momento_no_grupo_de_estacas_usado",
+                    "pilares": sorted(com_braco_ok),
+                    "detail": "M_base nos pilares %s foi USADO no grupo de estacas "
+                              "(n=4, Sxx/Syy>0) via carga_estaca_grupo (Navier); "
+                              "N_max inclui M*y/Syy e M*x/Sxx" % ", ".join(sorted(com_braco_ok))})
+            if sem_braco:
+                avisos.append({
+                    "code": "momento_na_estaca_vai_para_baldrame",
+                    "pilares": sorted(sem_braco),
+                    "detail": "M_base nos pilares %s (n=1-2, S=0 no eixo do momento) "
+                              "NAO e' resistido no grupo e vai para TIRANTES DE "
+                              "BALDRAME (viga_baldrame: not_available – fronteira "
+                              "nomeada, REVISAO-FUNDACAO-PROFUNDA-INTEG Q5)" % ", ".join(sorted(sem_braco))})
+            if not com_braco_ok and not sem_braco:
+                avisos.append({
+                    "code": "momento_em_estaca_sem_demanda",
+                    "detail": "M_base existe mas nenhum pilar de estaca tem "
+                              "momento relevante ou grupo com braco; nenhuma acao "
+                              "adicional alem da carga vertical"})
+            # V sempre ignorado
+            avisos.append({
+                "code": "cortante_na_estaca_nao_verificado",
+                "detail": "V_base (cortante) IGNORADO na estaca com razao declarada: "
+                          "estaca carregada transversalmente (Broms/Matlock-Reese) "
+                          "nao existe neste framework; escopo esforco_horizontal_na_estaca: not_available"})
     else:
         avisos.append({
             "code": "momento_base_pilar_nao_avaliado",

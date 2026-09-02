@@ -23,6 +23,10 @@
 # Ask-Do-Not-Invent: capacidade da estaca (P_adm) vem da SONDAGEM (estaca_profunda);
 # a excentricidade depende do arranjo/diametro (default geometrico, A CONFIRMAR).
 # Unidades SI: m, kN.
+#
+# VEREDITO G23 – MOMENTO: IGNORA M_portico com razao declarada (idem sapata_divisa).
+# P*e domina vs M_portico; travamento (viga_baldrame: not_available) absorveria
+# momento adicional; modelo com M nao existe e nao e' inventado.
 # ============================================================================
 """Bloco de divisa sobre estacas + viga de equilibrio. Saidas PT. m, kN."""
 

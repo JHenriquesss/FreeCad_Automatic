@@ -337,6 +337,13 @@ def membros_fundacao(estrutura, xs, ys, material):
 
     Fundacao nao dimensionada devolve lista vazia - e' a mesma regra do resto do
     modulo: peca que ninguem calculou nao aparece.
+
+    VEREDITO G23 – IFC/3D da fundacao: IGNORA M_base na GEOMETRIA com razao
+    declarada. Sapata isolada permanece CENTRADA mesmo com M (M vira pressao
+    trapezoidal e verifica FS tomb/desl, nao geometria excentrica); divisa ja
+    e' excentrica por LOTE (e = (B-b)/2), nao por M. Momento nao desloca o
+    centro da sapata no modelo; a verificacao ja ocorreu em
+    fundacao_edificio/fundacao_sapata.
     """
     fundacao = estrutura.get("fundacao")
     if not isinstance(fundacao, dict) or not fundacao.get("por_pilar"):

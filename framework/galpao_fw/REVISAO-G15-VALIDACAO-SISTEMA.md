@@ -318,8 +318,8 @@ G15 não achou bug novo. Para registro, os bugs que G15 **teria** achado se não
 
 ## 7. Artefatos e rastreabilidade
 
-* Harness: `framework/galpao_fw/validacao_sistema_g15.py` (19 checks, `CHECKS`, `rodar()` — `framework/galpao_fw/validacao_sistema_g15.py:508`)
-* Suíte: `framework/galpao_fw/tests/branches/g15/test_validacao_sistema.py` (trunk + branches)
+* Harness: `framework/galpao_fw/validacao_sistema_g15.py` (23 checks, `CHECKS`, `rodar()` — `framework/galpao_fw/validacao_sistema_g15.py:508`; G19 estende de 19 para 23 com 2 guardas SJB + 1 obra conhecida agente 36x24 + 1 generica)
+* Suíte: `framework/galpao_fw/tests/branches/g15/test_validacao_sistema.py` (trunk + branches; G19: `test_g15_todos_passam` espera 23, `test_g19_sjb_guards` cobre AGUARDANDO vs READY, `test_g19_obra_conhecida_agente_36x24` cobre proposta, `test_g19_obras_genericas` cobre qualquer projects/*/)
 * Saídas: `framework/galpao_fw/out_g15_amostra/` (gates 5–8, romaneio, memorial), `framework/galpao_fw/out_g15_casa/` (adapter-result, disciplinas)
 * Specs: `spec_amostra_engenheiro.json` (20×28,5 V0=45), `projects/casa-residencial/project-spec.json` (62,1 m²), `projects/casa-residencial-eletrica-sintetica/project-spec.json` (Fase 6A fixture)
 * Normas verbatim: `Framework_Galpao_Modulos.pdf`, `libraries/standards/gerdau/`, NotebookLM via `nlm` (validado 2026-08-14 `blocked` por falta de geometria SJB, não por fonte)
@@ -328,7 +328,21 @@ G15 não achou bug novo. Para registro, os bugs que G15 **teria** achado se não
 **Reproduzir a validação em um comando:**
 
 ```powershell
-python -m validacao_sistema_g15  # 19/19 PASS
+python -m validacao_sistema_g15  # 23/23 PASS (19 G15 + 2 SJB guards SKIP "AGUARDANDO OBRA REAL" + 1 proposta agente 36x24 0.0% + 1 generica SKIP)
+pytest framework/galpao_fw/tests/branches/g15/test_validacao_sistema.py -v
 ```
 
 Próximo passo (fora de G15): quando `projects/galpao-sjb` tiver geometria + sondagem reais e o Loop 2 rodar `ready`, reaplicar este harness como 4º caso (galpão construído) e anexar o memorial externo como `docs/validacao_g15/galpao-sjb-memorial.pdf` — sem inventar dado de obra.
+
+### 7.1 G19 — quarto caso (galpao SJB real) ja cabeado
+
+G19 nao cria valor novo de engenharia enquanto nao houver obra real no repo — prova isso mantendo o harness verde sem falsificar validacao contra concreto.
+
+* **Harness G19:** `validacao_sistema_g15.py:check_galpao_sjb_preflight_comportamento` + `check_galpao_sjb_memorial_comparacao` + `check_obra_conhecida_agente_36x24` + `check_obras_genericas_prontas` (`framework/galpao_fw/validacao_sistema_g15.py:530`).
+  - `blocked` com 9 erros (3 geometria + 6 disciplinas) => `[PASS] Galpao SJB preflight bloqueado corretamente (9 campos, G19 guard)` + `SKIP - SJB ainda blocked` no memorial. Estado atual verificado em `2026-09-03`: 23/23 PASS (inclui proposta agente + generica SKIP).
+  - `ready` + `docs/validacao_g15/galpao-sjb-memorial.pdf` + `galpao-sjb-valores-referencia.json` (sidecar do template `galpao-sjb-valores-referencia.json.template`) => comparacao numero-a-numero com tolerancias G15 (5% V, 15% H/M, 10% quantitativo, 2% eletrica).
+  - **Obra conhecida do agente (proposta 36x24):** `projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json` (`ready`) + `docs/validacao_g15/proposta-36x24-exemplo-valores-referencia.json` (`peso 23206` `Mcol 235.99` `HEB280/HEB260 IPE450`) => `[PASS] Obra conhecida agente 36x24` com `0.0%` — demonstra 4º caso ponta-a-ponta sem afirmar que proposta é obra real (`PROPOSTA NAO E OBRA REAL`).
+  - **Obras genéricas:** `check_obras_genericas_prontas` escaneia `projects/*/project-spec.json` `ready` (exceto SJB/proposta/teste) e valida `docs/validacao_g15/<slug>-valores-referencia.json` automaticamente — para qualquer obra que você conheça, basta `projects/<slug>/project-spec.json` + sidecar.
+* **Ingestao:** `docs/validacao_g15/README.md` (passo-a-passo do Loop 2 + formato do sidecar), `projects/galpao-sjb/README.md` e `projects/galpao-sjb/ENTRADAS-PENDENTES.md` (os 9 campos que destravam o Loop 2).
+* **Guard `d*sen45` reaplicado:** o sidecar exige declarar se cada comprimento do memorial e inclinado ou projecao, evitando a falsa divergencia de 29% (`validacao_sistema_g15.py:484`).
+* **Um comando quando a obra chegar:** `python -m validacao_sistema_g15` detecta automaticamente `ready` + memorial e vira validacao real contra obra construida sem mudar codigo.

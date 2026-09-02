@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "G19 - 9 campos que destravam projects/galpao-sjb (Loop 2)",
+  "description": "Esquema mínimo para project-spec.json sair de blocked (9 erros) para ready. Ver CHECKLIST-9-CAMPOS.md e ENTRADAS-PENDENTES.md. O gate real é framework/galpao_fw/project_loop.py:584 preflight_project(..., require_source_refs=True) — este esquema é documentação auditável, não substitui o gate.",
+  "type": "object",
+  "required": ["turnkey"],
+  "properties": {
+    "turnkey": {
+      "type": "object",
+      "required": ["geometria", "concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica"],
+      "properties": {
+        "geometria": {
+          "type": "object",
+          "description": "3 campos comuns - números >0 em metros",
+          "required": ["comprimento", "vao", "pe_direito"],
+          "properties": {
+            "comprimento": {"type": "number", "exclusiveMinimum": 0, "description": "comprimento do galpão em metros"},
+            "vao": {"type": "number", "exclusiveMinimum": 0, "description": "vão do pórtico em metros"},
+            "pe_direito": {"type": "number", "exclusiveMinimum": 0, "description": "pé-direito (eave) em metros"}
+          },
+          "additionalProperties": true,
+          "not": {"properties": {"comprimento": {"enum": ["__PENDENTE__"]}}}
+        },
+        "concreto": {
+          "type": "object",
+          "description": "sub-spec concreto/fundações - deve ser objeto, não string __PENDENTE__",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}},
+          "properties": {
+            "_status": {"not": {"enum": ["__PENDENTE__"]}}
+          }
+        },
+        "aco": {
+          "type": "object",
+          "description": "sub-spec aço - deve ser objeto com spec estrutural (ver spec_amostra_engenheiro.json)",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}}
+        },
+        "eletrico": {
+          "type": "object",
+          "description": "sub-spec elétrica/ENEL - deve ser objeto com cargas, tensão, concessionaria.protocolo",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}}
+        },
+        "incendio": {
+          "type": "object",
+          "description": "sub-spec incêndio/CBMERJ",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}}
+        },
+        "climatizacao": {
+          "type": "object",
+          "description": "sub-spec climatização",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}}
+        },
+        "hidraulica": {
+          "type": "object",
+          "description": "sub-spec hidráulica/esgoto/pluvial",
+          "not": {"properties": {"_status": {"enum": ["__PENDENTE__"]}}}
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "examples": [
+    {
+      "turnkey": {
+        "geometria": {"comprimento": 36.0, "vao": 24.0, "pe_direito": 7.0},
+        "concreto": {"fck": 25000000, "sigma_solo_adm": 250},
+        "aco": {"geometria": {"span": 24, "comprimento": 36}},
+        "eletrico": {"tensao_V": 380},
+        "incendio": {"ocupacao": "industrial_I2"},
+        "climatizacao": {"tipo": "galpao"},
+        "hidraulica": {"DN_agua": 40}
+      }
+    }
+  ]
+}

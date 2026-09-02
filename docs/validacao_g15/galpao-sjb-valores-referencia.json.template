@@ -1,0 +1,57 @@
+{
+  "_comentario": "Template do sidecar G19. Copie para galpao-sjb-valores-referencia.json e preencha com valores REAIS do memorial de obra construida. Nao estime. Chaves ausentes ou null sao ignoradas (SKIP). Ver docs/validacao_g15/README.md",
+  "fonte": "Memorial Galpao SJB - Obra [NOME], Eng. [NOME] CREA [NUM], data [AAAA-MM-DD], paginas [NN-MM]",
+  "proveniencia": "Trecho do memorial - ex: Memorial de calculo, combinacao Fd1 = 1.25G+1.5Q, reacoes na base",
+  "geometria": {
+    "comprimento": null,
+    "vao": null,
+    "pe_direito": null,
+    "bay": null,
+    "observacao": "usar metros; pe_direito = altura do beiral (eave); bay = distancia entre porticos"
+  },
+  "valores_referencia": {
+    "_guarda_d_sen45": "Sempre declarar se o comprimento e inclinado (L_rafter = sqrt((span/2)^2 + deltaH^2)) ou projecao horizontal (span/2). Delta 112 mm em 10 m gera 1.1% falsa",
+    "_unidades": "V_kN, H_kN, Mcol_kNm em kN e kN.m; pesos em kg/t; concreto em m3; DN em mm; secao eletrica em mm2; demanda em kVA",
+    "V_kN": null,
+    "H_kN": null,
+    "Mcol_kNm": null,
+    "Mviga_kNm": null,
+    "peso_aco_t": null,
+    "peso_aco_primario_kg": null,
+    "concreto_m3": null,
+    "perfis": {
+      "coluna": null,
+      "viga": null,
+      "terca": null
+    },
+    "fundacao": {
+      "tipologia": null,
+      "dimensoes_m": null,
+      "sigma_solo_kPa": null,
+      "As_cm2": null
+    },
+    "eletrica": {
+      "demanda_kVA": null,
+      "circuito_governante": {
+        "id": null,
+        "secao_mm2": null,
+        "IN_A": null,
+        "queda_pct": null
+      }
+    },
+    "hidraulica": {
+      "DN_agua_fria": null,
+      "DN_esgoto_ramal": null,
+      "DN_pluvial_condutor": null,
+      "p_residual_kPa": null
+    },
+    "observacoes": "Usar valores da combinacao governante do memorial, com a MESMA definicao do framework. Ex: carga por metro de portico = kN/m2 * bay. Perfil IPE500 = 90.66 kg/m. Tol G15: V 5% H/M 15% quant 10% eletrica 2%."
+  },
+  "anexo_pdf": "docs/validacao_g15/galpao-sjb-memorial.pdf",
+  "checklist_antes_de_preencher": [
+    "Nao inventar dado de obra — deixar null se o memorial nao contem",
+    "Anexar o PDF original do memorial (fonte de auditoria)",
+    "Rodar preflight do SJB e confirmar status=ready antes de comparar",
+    "Informar pagina/tabela do memorial de onde cada valor foi extraido"
+  ]
+}

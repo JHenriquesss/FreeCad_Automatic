@@ -6,6 +6,11 @@
 # METODO: iterativo - arbitra R', calcula B, L, e, R_real, converge.
 # Alivio na sapata interna = metade de Delta_P (praxe de projeto).
 # Reaproveita fundacao_sapata para o concreto (flexao, puncao, compressao diagonal).
+#
+# VEREDITO G23 – MOMENTO: IGNORA M_portico de estab. com razao declarada
+# (ver fundacao_edificio cabecalho). Excentricidade GEOMETRICA P*e domina
+# (800-1500 kNm) vs M_portico (10-40 kNm); modelo com M adicional nao existe
+# na NBR 6122 e seria absorvido pelo travamento (viga_baldrame: not_available).
 # ============================================================================
 """Sapata de divisa + viga alavanca. Saidas PT. Unidades: m, kN."""
 

@@ -241,6 +241,22 @@ def quantitativos_de_turnkey(R):
                 q["eletrica_ponto"] = n
         except Exception:
             pass
+    mez = d.get("mezanino", {})
+    if mez.get("rodou"):
+        try:
+            import galpao_mezanino as gmz
+            membros = gmz.membros_bim(mez["raw"])
+            sup = [m for m in membros if m.get("tipo") != "Footing"]
+            fund = [m for m in membros if m.get("tipo") == "Footing"]
+            v_sup = _vol_membros_concreto(sup)
+            v_fund = _vol_membros_concreto(fund)
+            # soma ao que ja existe (galpao de concreto externo + mezanino)
+            if v_sup > 0:
+                q["concreto_estrut"] = round(q.get("concreto_estrut", 0.0) + v_sup, 1)
+            if v_fund > 0:
+                q["fundacao_concreto"] = round(q.get("fundacao_concreto", 0.0) + v_fund, 1)
+        except Exception:
+            pass
     return q
 
 

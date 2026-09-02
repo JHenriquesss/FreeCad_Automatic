@@ -55,7 +55,8 @@ FRONTEIRAS = {
         "unidade_esperada": UNIDADE_DIMS_MM,
         "escreve": ["galpao_concreto.membros_bim", "modelo_neutro.fundacoes",
                     "modelo_neutro.placas_base", "galpao_eletrico.membros_bim",
-                    "galpao_climatizacao.membros_bim", "bim_edificio.membros_bim"],
+                    "galpao_climatizacao.membros_bim", "bim_edificio.membros_bim",
+                    "galpao_mezanino.membros_bim"],
         "le": ["geometria_membros.aabb", "geometria_membros.volume",
                "ifc_emit.emitir_ifc", "orcamento._vol_membros_concreto",
                "galpao_turnkey._aabb_federado", "build_concreto", "build_federado"],
@@ -77,7 +78,7 @@ FRONTEIRAS = {
         "unidade_esperada": UNIDADE_P1P2_MM,
         "escreve": ["galpao_concreto.membros_bim", "modelo_neutro.frame_primario",
                     "modelo_neutro.tercas", "galpao_eletrico.membros_bim",
-                    "modelo_neutro.tirantes_parede"],
+                    "modelo_neutro.tirantes_parede", "galpao_mezanino.membros_bim"],
         "le": ["geometria_membros.aabb", "ifc_emit.emitir_ifc", "galpao_turnkey._aabb_federado"],
         "nota": "coordenadas em mm; modelo_neutro.*MM = 1000.0",
     },
@@ -87,7 +88,7 @@ FRONTEIRAS = {
         "unidade_esperada": UNIDADE_SECAO_M,
         "escreve": ["perfis.PERFIS", "galpao_concreto.membros_bim (hx,hy,b,h)",
                     "modelo_neutro._I / tercas / girts ( /1000 )",
-                    "ifc_emit.membros_do_spec (td/1000)"],
+                    "ifc_emit.membros_do_spec (td/1000)", "galpao_mezanino.membros_bim (hx,hy,b,h)"],
         "le": ["geometria_membros.aabb ( *MM )", "geometria_membros.volume",
                "ifc_emit.emitir_ifc ( * esc )", "orcamento._vol_membros_concreto"],
         "conversao": "produtor guarda m; leitor faz bf*1000.0 p/ mm (aabb) ou esc=1000.0 p/ IFC",
@@ -97,7 +98,7 @@ FRONTEIRAS = {
         "chave": 'membro["ancoragem"]',
         "unidade_declarada": "enum eixo|base",
         "unidade_esperada": "enum eixo|base",
-        "escreve": ["galpao_concreto.membros_bim", "modelo_neutro"],
+        "escreve": ["galpao_concreto.membros_bim", "modelo_neutro", "galpao_mezanino.membros_bim"],
         "le": ["geometria_membros.aabb", "ifc_emit._ancorar"],
         "default": "eixo",
         "nota": "G8: build_concreto usava base, ifc_emit usava eixo -> viga 35 cm enterrada; hoje declarado por membro (base p/ viga, omite=eixo)",
@@ -106,7 +107,8 @@ FRONTEIRAS = {
         "chave": 'membro["tipo"]',
         "unidade_declarada": "enum Footing/Column/Beam/... ",
         "unidade_esperada": "enum Footing/Column/Beam/... ",
-        "escreve": ["galpao_concreto.membros_bim", "modelo_neutro.*", "galpao_eletrico.membros_bim"],
+        "escreve": ["galpao_concreto.membros_bim", "modelo_neutro.*", "galpao_eletrico.membros_bim",
+                    "galpao_mezanino.membros_bim"],
         "le": ["geometria_membros.quantitativo (por_tipo)", "geometria_membros.interpenetracoes",
                "orcamento (Footing separa fundacao)", "ifc_emit (tipo->Ifc*)",
                "galpao_turnkey._disc_de_membro (marca prefixo)"],
@@ -187,7 +189,8 @@ FRONTEIRAS = {
         "chave": 'membro["dims"] mm -> volume m3',
         "unidade_declarada": "mm (dims) -> m3",
         "unidade_esperada": "m3",
-        "escreve": ["galpao_concreto.membros_bim (dims mm)", "modelo_neutro.* (dims mm)"],
+        "escreve": ["galpao_concreto.membros_bim (dims mm)", "modelo_neutro.* (dims mm)",
+                    "galpao_mezanino.membros_bim (Slab dims mm)"],
         "le": ["orcamento._vol_membros_concreto (B*L*h/1e9)", "geometria_membros.volume (aabb/1e9)",
                "geometria_membros.quantitativo (vol_m3)"],
         "conversao": "/1e9",
@@ -209,6 +212,38 @@ FRONTEIRAS = {
         "escreve": ["galpao_concreto.rodar", "pilar_concreto"],
         "le": ["galpao_concreto.membros_bim", "desenho_concreto", "geometria_membros.aabb"],
         "nota": "G7: pilar 25x50 aparecia 25 na direcao do vao -> eixo fraco no portico (Ix/Iy=4x); hoje bf=hx (X) e d=hy (Y)",
+    },
+    # ── G20 — MEZANINO NO GALPAO (costura concreto x metalico dentro do envelope) ─
+    "F18_mezanino_geometria_m": {
+        "chave": 'spec["mezanino"]["x0"/"y0"/"Lx"/"Ly"/"h"] m',
+        "unidade_declarada": "m",
+        "unidade_esperada": "m (fronteira m->mm no modelo)",
+        "escreve": ["galpao_mezanino.rodar (spec mezanino em m)", "galpao_turnkey._run_mezanino"],
+        "le": ["galpao_mezanino.membros_bim ( *MM -> mm )", "geometria_membros.aabb",
+               "ifc_emit.emitir_ifc", "galpao_turnkey._aabb_federado", "build_concreto"],
+        "conversao": "produtor guarda m; leitor faz x*MM (1000.0) p/ mm (p1/p2/dims/centro)",
+        "nota": "G20: mezanino DENTRO do envelope do galpao metalico (X=compr, Y=vao, Z=altura) em m; valida posicao x0+Lx<=comp etc.",
+    },
+    "F19_mezanino_laje_h_cm": {
+        "chave": 'mezanino laje["h"] cm (h_m*100) // laje.h m -> slab dims mm',
+        "unidade_declarada": "cm",
+        "unidade_esperada": "cm",
+        "conversao": "h_m*100 = h_cm; realimenta carga g_kN_m2 via laje_concreto",
+        "escreve": ["laje_concreto.dimensiona_laje", "galpao_mezanino.rodar (h_adotada)"],
+        "le": ["galpao_mezanino.membros_bim (dims mm: h_laje*MM)", "orcamento._vol_membros_concreto",
+               "geometria_membros.aabb", "geometria_membros.volume"],
+        "nota": "G20: mesma realimentacao de F16 mas no mezanino (concreto sobre vigas de concreto, dentro do galpao metalico)",
+    },
+    "F20_mezanino_viga_pilar_secao_m": {
+        "chave": 'membro mezanino ["secao"]["bf"/"d"] m (viga/pilar)',
+        "unidade_declarada": UNIDADE_SECAO_M,
+        "unidade_esperada": UNIDADE_SECAO_M,
+        "escreve": ["galpao_mezanino.rodar (b_viga/h_viga/hx/hy m)", "viga_concreto.verifica_viga",
+                     "pilar_concreto.dimensiona_pilar", "galpao_mezanino.membros_bim (bf/hx, d/hy)"],
+        "le": ["geometria_membros.aabb ( *MM )", "geometria_membros.volume",
+               "ifc_emit.emitir_ifc ( *MM )", "orcamento._vol_membros_concreto"],
+        "conversao": "produtor guarda m; leitor faz bf*MM p/ mm",
+        "nota": "G20: secao de viga/pilar de concreto do mezanino (bf transversal, d vertical) em m; orientacao hx//X, hy//Y como F17",
     },
 }
 
@@ -232,13 +267,36 @@ def validar_unidade(fronteira_id, valor, unidade_informada=None):
         if 0 < abs(v) < 10:
             return False, "valor %.3f parece estar em m, esperado mm (x1000)" % v
         return True, "fora de faixa tipica mas nao conclusivo"
-    if fronteira_id == "F04_secao_bf_d_m":
+    if fronteira_id in ("F04_secao_bf_d_m", "F20_mezanino_viga_pilar_secao_m"):
         # m: tipicos 0.1 .. 1.5
         v = float(valor) if isinstance(valor, (int, float)) else 0.0
         if 0.05 < abs(v) < 5.0:
             return True, "magnitude compativel com m"
         if abs(v) > 100:
             return False, "valor %.1f parece estar em mm, esperado m (/1000)" % v
+        return True, "fora de faixa"
+    if fronteira_id == "F18_mezanino_geometria_m":
+        # m: envelope 1..50 m tipico
+        try:
+            v = float(valor) if isinstance(valor, (int, float)) else float(valor[0]) if isinstance(valor, (list, tuple)) else 0.0
+        except Exception:
+            return True, "nao numerico"
+        if 0.5 < abs(v) < 100.0:
+            return True, "magnitude compativel com m (mezanino dentro do galpao)"
+        if abs(v) > 500:
+            return False, "valor %.1f parece estar em mm, esperado m (/1000)" % v
+        return True, "fora de faixa"
+    if fronteira_id == "F19_mezanino_laje_h_cm":
+        try:
+            v = float(valor) if isinstance(valor, (int, float)) else 0.0
+        except Exception:
+            return True, "nao numerico"
+        if 5 < abs(v) < 50:
+            return True, "magnitude compativel com cm (laje mezanino)"
+        if 0 < abs(v) < 0.5:
+            return False, "valor %.3f parece estar em m, esperado cm (x100)" % v
+        if abs(v) > 500:
+            return False, "valor %.1f parece estar em mm, esperado cm (/10)" % v
         return True, "fora de faixa"
     return True, "sem heuristica"
 
