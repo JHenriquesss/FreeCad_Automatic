@@ -1,0 +1,21 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - resultado de comparacao framework vs fonte externa. Nao rotular como validado contra obra real.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em diretorio, JSON, README e relatorio",
+  "fonte_id": "tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "data_comparacao": "2026-09-03",
+  "versao_framework": "G24-protocolo",
+  "veredito": "hipotese_divergente",
+  "citacao_normativa": "",
+  "mudou_framework": false,
+  "justificativa": "EXEMPLO SINTETICO - fonte e framework adotam premissas diferentes (ex. base rotulada vs engastada). Ambas defensáveis. Nao mexe no framework. Guarda d*sen45 verificada: L_rafter inclinado vs projecao explicita em fixture.json.",
+  "detalhes_por_valor": {
+    "Mcol_kNm": {
+      "fonte_valor": 235.9,
+      "framework_valor": 235.99,
+      "erro_relativo_pct": 0.04,
+      "veredito": "hipotese_divergente",
+      "observacao": "Diferenca dentro da tolerancia de premissa; nao e erro de norma"
+    }
+  },
+  "relatorio_txt": "fontes_externas/tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/relatorio.txt"
+}

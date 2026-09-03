@@ -1,0 +1,28 @@
+================================================================================
+RELATORIO DE CONCORDANCIA ENTRE CALCULISTAS — NAO E OBRA CONSTRUIDA
+Protocolo G24 — Fonte Externa (bloqueia todos os outros)
+================================================================================
+AVISO: CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA
+Este relatorio compara o framework contra literatura/TCC/licitação, jamais
+contra obra edificada. Não afirmar "validado contra obra real".
+Este aviso replica-se em (1) nome do diretório, (2) JSON, (3) README e (4)
+este relatório — padrão de quatro lugares da proposta 36×24.
+
+Fonte: tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL
+  URL: file://fontes_externas/exemplo_dummy.pdf
+  SHA256: dba5e05e91c7c73189cb7b31fd283559dd3bbe5d13a51d7b8a0dab5cfb5456cd
+  Autor: Exemplo Sintetico - Silva, J. - UFMG TCC 2023
+  Classe: tcc_academico (hierarquia: licitacao_executada > projeto_licitado > livro_exemplo_resolvido > tcc_academico > material_comercial)
+  Coleta: 2026-09-03
+  Paginas auditadas: fixture.json com pagina + trecho_literal por valor
+
+Comparacao:
+  Mcol_kNm  fonte 235.9 (p.1 "Exemplo TCC Galpao 24x36 - momento ... 235,9 kNm")  vs  framework 235.99  err 0.04%
+  Veredito: hipotese_divergente (ambas defensáveis, premissas diferentes - base rotulada vs engastada)
+  Citacao normativa: (nao se aplica - nao e framework_errado)
+  Mudou framework: false (regra G24: só framework_errado com citacao normativa autoriza mudar framework)
+
+Guarda d·sen(45): verificada — fixture define L_rafter inclinado vs projeção explicitamente.
+
+Conclusão: CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA. Divergencia fechada sem alteracao no framework.
+================================================================================

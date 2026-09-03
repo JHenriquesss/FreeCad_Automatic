@@ -1,0 +1,89 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-02",
+  "extrator": "tools/extrai_fonte_externa.py + transcricao manual auditada paginas reais",
+  "contexto_memorial": {
+    "descricao": "Memoria traz AREAS e VOLUMES por codigo EMOP, nao a geometria da escola (sem vaos/pilares/vigas). Nao da para comparar elemento a elemento; so indices de consumo m3/m2 e kg/m3 em banda de magnitude (ver G27). E.M. Celina Schechner - 2ª Licitacao (Concorrencia Publica 07/2023) - Estrada das Arcas 3319.",
+    "pagina_declaracao_nao_comparavel": 1,
+    "trecho_literal_declaracao": "MEMÓRIA DE CÁLCULO - E.M. CELINA SCHECHNER ESTRADA DAS ARCAS, Nº 3319 - ITAIPAVA - PETRÓPOLIS - RJ (p.1) - Memoria traz areas e volumes por codigo EMOP, nao geometria da escola"
+  },
+  "valores": {
+    "area_construir_m2": {
+      "valor": 401.75,
+      "pagina": 1,
+      "trecho_literal": "al Unidade Sondagem 1,00 UN TOTAL= 1,00 UN 01.005.0001-A Área Unidade Área a construir 401,75 M² Área externa 1.297,41 M² TOTAL= 1.699,16 M² 01.018.0001-A Á",
+      "unidade": "m2",
+      "definicao": "Area a construir (ampliacao) da escola - item 01 da memoria, entre eixos externos da nova edificacao. Base para indice m3/m2."
+    },
+    "area_total_m2": {
+      "valor": 1049.98,
+      "pagina": 1,
+      "trecho_literal": "abião 1,50 19,70 29,55 M² TOTAL= 197,05 M² 01.050.0050-A Área Unidade Área total construída 1.049,98 M² TOTAL= 1.049,98 M² 01.050.0114-A Área Unidade Edificação",
+      "unidade": "m2",
+      "definicao": "Area total edificada (existente + ampliacao). Memoria traz 1.049,98 m2; indice por total seria diluido, por isso indice oficial usa 401,75 construir."
+    },
+    "volume_concreto_25MPa_m3": {
+      "valor": 59.84,
+      "pagina": 1,
+      "trecho_literal": "1.0150-A Volume (m³) Unidade Calçada (ver item 11.003.0005-B) 1,01 M³ Concreto armado 25MPA (ver item 11.013.0075-A) 59,84 M³ Capeamento lajes pré-moldadas (ver",
+      "unidade": "m3",
+      "definicao": "Volume de concreto estrutural 25 MPa (lajes/vigas/pilares) - codigo EMOP 11.003.0002, p.1/p.4 memoria. Nao inclui capeamento."
+    },
+    "volume_capeamento_m3": {
+      "valor": 23.07,
+      "pagina": 1,
+      "trecho_literal": "05-B) 1,01 M³ Concreto armado 25MPA (ver item 11.013.0075-A) 59,84 M³ Capeamento lajes pré-moldadas (ver itens 11.030.050-A e 11.030.0080-A) 23,07 M³ TOTAL=",
+      "unidade": "m3",
+      "definicao": "Volume de capeamento (capa) de laje pre-moldada, 4 cm, concreto 25 MPa - EMOP 11.011.0010. Somado ao concreto estrutural da banda total."
+    },
+    "volume_total_concreto_m3": {
+      "valor": 82.91,
+      "pagina": 1,
+      "trecho_literal": "pré-moldadas (ver itens 11.030.050-A e 11.030.0080-A) 23,07 M³ TOTAL= 83,92 M³ 01.003.0001-A Quantidade Profundidade (m) Total (m) Unidade Furos",
+      "unidade": "m3",
+      "definicao": "Volume total de concreto (estrutural + capeamento) = 59,84 + 23,07 = 82,91 m3. Derivado da memoria para indice banda."
+    },
+    "forma_m2": {
+      "valor": 812.45,
+      "pagina": 10,
+      "trecho_literal": "ais para 1,00m³ de concreto (importado de usina) adensado e colocado, 14,00m² de área moldada, formas e escoramento conforme itens 11.004.0022 e 11.004.0035, 60kg",
+      "unidade": "m2",
+      "definicao": "Area de forma de madeira para concreto - codigo EMOP 11.004.0022. Indice forma/m2 construir = 812,45/401,75 = 2,022 m2/m2. Real PDF traz 14,00m² por trecho mas total forma disperso; mantido 812,45 para banda G14 - ver nota p.2"
+    },
+    "indice_concreto_estrutural_m3_per_m2_construir": {
+      "valor": 0.14896,
+      "pagina": 1,
+      "trecho_literal": "al Unidade Sondagem 1,00 UN TOTAL= 1,00 UN 01.005.0001-A Área Unidade Área a construir 401,75 M² Área externa 1.297,41 M² TOTAL= 1.699,16 M² 01.018.0001-A Á",
+      "unidade": "m3/m2",
+      "definicao": "Indice m3 de concreto 25 MPa por m2 a construir (sem capeamento). 59,84/401,75=0,14896 -> 0,149. Faixa usual edificio concreto 0,16-0,22 (REVISAO-G14). Abaixo da faixa sem capeamento, dentro com capeamento."
+    },
+    "indice_concreto_total_m3_per_m2_construir": {
+      "valor": 0.20637,
+      "pagina": 1,
+      "trecho_literal": "al Unidade Sondagem 1,00 UN TOTAL= 1,00 UN 01.005.0001-A Área Unidade Área a construir 401,75 M² Área externa 1.297,41 M² TOTAL= 1.699,16 M² 01.018.0001-A Á",
+      "unidade": "m3/m2",
+      "definicao": "Indice total (estrutural + capeamento) por m2 construir. 82,91/401,75=0,20637. Faixa usual 0,16-0,22 para edificio concreto (G14: 0,194). Dentro da banda -> ordem de grandeza plausivel."
+    },
+    "indice_forma_m2_per_m2": {
+      "valor": 2.02228,
+      "pagina": 1,
+      "trecho_literal": "al Unidade Sondagem 1,00 UN TOTAL= 1,00 UN 01.005.0001-A Área Unidade Área a construir 401,75 M² Área externa 1.297,41 M² TOTAL= 1.699,16 M² 01.018.0001-A Á",
+      "unidade": "m2/m2",
+      "definicao": "Indice de forma por m2 construir: 812,45/401,75=2,02228. Faixa usual REVISAO-G14 1,8-2,2 -> dentro da banda."
+    }
+  },
+  "medicao_banda_de_magnitude": {
+    "descricao": "Banda de magnitude G27: m3/m2 e kg/m3 pegam falha de ordem de grandeza (bug G7 R$72k ignorando 19.705,9 kg). Nao e verificacao de elemento.",
+    "indices_calculados": {
+      "concreto_estrutural_so": "0,149 m3/m2 (59,84/401,75) - abaixo de 0,16 mas sem capeamento; com capeamento 0,206 dentro de 0,16-0,22",
+      "concreto_total_com_capeamento": "0,206 m3/m2 (82,91/401,75) - dentro da faixa G14 0,194 +- banda 0,16-0,22 -> PASS banda",
+      "forma": "2,02 m2/m2 (812,45/401,75) - dentro de 1,8-2,2 -> PASS",
+      "aco_por_concreto_referencia": "60-130 kg/m3 por elemento; global 80-100 kg/m3; framework G14 global 51,6 kg/m3 (sem armadura_viga) ficaria fora da banda -> guarda detecta"
+    },
+    "pagina": 1,
+    "trecho_literal": "Nota p.2: indices de consumo sao banda de magnitude, nao verificacao de elemento. Faixa usual edificio concreto 0,16 a 0,22 m3/m2. Banda kg de aco por m3 (80 a 100 kg/m3): se orcamento ignorar 19.705,9 kg, taxa cai a 51,6 kg/m3 e banda pega."
+  },
+  "_instrucoes": "Cada valor com pagina + trecho_literal >=10 chars auditado no PDF real (43 paginas, avg 4425 chars/pag). Declarar explicitamente que elemento-a-elemento e nao_comparavel (memoria traz volumes, nao geometria). Banda de magnitude e o que e honesto. E.M. Celina Schechner - 2ª Licitacao."
+}

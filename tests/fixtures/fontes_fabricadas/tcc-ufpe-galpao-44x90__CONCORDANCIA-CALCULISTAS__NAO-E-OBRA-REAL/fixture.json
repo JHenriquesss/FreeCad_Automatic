@@ -1,0 +1,84 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-02",
+  "extrator": "tools/extrai_fonte_externa.py",
+  "geometria_entradas": {
+    "descricao": "Entradas declaradas e completas do caso UFPE G25 - usadas para rodar o vertical de aco. Cada valor com pagina+trecho da fonte quando disponivel; quando nao houver pagina explicita, usa pagina da descricao geral da geometria.",
+    "valores": {}
+  },
+  "valores": {
+    "perfil_pilar_lateral": {
+      "valor": "W150x29,8",
+      "pagina": 45,
+      "trecho_literal": "Pilares laterais W150x29,8 - Tabela 4.1 lista pilares laterais W150x29,8 (p.45, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Perfil do pilar lateral (coluna externa do portico), altura 7,0 m, vaos 22 m, base engastada - vide travamento 7,5 m em p.48 que pode confundir com viga de tapamento"
+    },
+    "perfil_pilar_central": {
+      "valor": "W150x29,8",
+      "pagina": 45,
+      "trecho_literal": "Pilares centrais W150x29,8 - Tabela 4.1 lista pilares centrais W150x29,8 (p.45, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Perfil do pilar central (coluna interna entre os 2 vaos de 22 m), mesma notacao que lateral - investigar se W150x29,8 refere-se a pilar ou a viga de tapamento 7,5 m"
+    },
+    "perfil_viga_cobertura": {
+      "valor": "W310x39",
+      "pagina": 46,
+      "trecho_literal": "Vigas da cobertura W310x39 - Tabela 4.2 lista vigas principais da cobertura W310x39 (p.46, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Perfil da viga/rafter principal da cobertura, vao 22 m, telha zipada, aco A572 G50"
+    },
+    "perfil_terca": {
+      "valor": "U 200x60x20x3,0",
+      "pagina": 47,
+      "trecho_literal": "Tercas U 200x60x20x3,0 - Tabela 4.3 lista tercas U 200x60x20x3,0 espacadas a 1,85 m (p.47, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Perfil da terca de cobertura (perfil formado a frio U enrijecido), vao 7,5 m (bay), telha zipada, aco A36"
+    },
+    "perfil_viga_tapamento": {
+      "valor": "W150x13",
+      "pagina": 48,
+      "trecho_literal": "Vigas de tapamento 7,5 m W150x13 - Tabela 4.4 lista vigas de tapamento laterais 7,5 m W150x13 (p.48, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Perfil da viga de tapamento / longarina de fechamento lateral, vao 7,5 m entre porticos, peso tapamento 0,07 kN/m2 - distingue do pilar W150x29,8 (mesma familia W150)"
+    },
+    "perfil_contraventamento": {
+      "valor": "barra redonda d16",
+      "pagina": 49,
+      "trecho_literal": "Contraventamento barra redonda 16 mm - Tabela 4.5 lista contraventamento em X com barra redonda 16 mm (p.49, memorial UFPE)",
+      "unidade": "perfil",
+      "definicao": "Diametro da barra redonda do contraventamento em X (parede e cobertura), aco A36, barra roscada"
+    },
+    "travamento_pilar": {
+      "valor": 7.5,
+      "pagina": 48,
+      "trecho_literal": "Travamento a cada 7,5 m - texto p.48: travamento lateral dos pilares a cada 7,5 m (altura total 7,0 m, um nivel)",
+      "unidade": "m",
+      "definicao": "Distancia de travamento lateral do pilar (comprimento destravado Lb para FLT), medir sob mesma definicao: Lb para verificacao NBR 8800 5.4.3"
+    },
+    "bay_porticos": {
+      "valor": 7.5,
+      "pagina": 45,
+      "trecho_literal": "espacamento entre porticos 7,5 m - texto p.45: galpao 90 m de comprimento com 12 modulos de 7,5 m (13 porticos)",
+      "unidade": "m",
+      "definicao": "Vao entre porticos (bay) - 90 m / 12 = 7,5 m, usado como comprimento de vigas de tapamento e vao das tercas"
+    },
+    "vao_livre": {
+      "valor": 22.0,
+      "pagina": 1,
+      "trecho_literal": "Galpao UFPE 44x90 - 2 vaos de 22 m, 90 m comprimento, pe-direito 7 m, 4 aguas - descricao p.1 (capa/resumo), categoria III classe C",
+      "unidade": "m",
+      "definicao": "Vao livre transversal de cada nave (2x22 = 44 m largura total), 4 aguas (2 por vao), comprimento 90 m"
+    },
+    "aco_classe": {
+      "valor": "A572-G50 + MR250 (A36)",
+      "pagina": 1,
+      "trecho_literal": "Categoria III classe C, A36 + A572 G50, telha zipada, parafuso A325-F - descricao p.1 resumo e p.12 materiais (ACO A36 para terca/contravento, G50 para pilares/vigas)",
+      "unidade": "classe",
+      "definicao": "Classes de aco: perfis laminados principais em A572 G50 (fy 345 MPa), secundarios/tercas em A36 (fy 250 MPa), parafusos A325-F"
+    }
+  },
+  "_instrucoes": "Cada valor com pagina + trecho_literal >=10 chars. Investigar W150x29,8: medir Lb e solicitacoes sob mesma definicao (NBR 8800) antes de veredito. Guarda d*sen45: declarar L_rafter inclinado (11,055 m) vs projecao (11,0 m) para peso/romaneio."
+}

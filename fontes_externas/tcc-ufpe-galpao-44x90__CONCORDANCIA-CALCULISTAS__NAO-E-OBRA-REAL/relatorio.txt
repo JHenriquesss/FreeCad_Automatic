@@ -1,0 +1,87 @@
+================================================================================
+RELATORIO DE CONCORDANCIA ENTRE CALCULISTAS — NAO E OBRA CONSTRUIDA
+Protocolo G24 — Fonte Externa (G25 caso aço UFPE 44x90) — VERTICAL MADURO
+================================================================================
+AVISO: CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA
+Este relatorio compara o framework contra literatura/TCC/licitacao, jamais
+contra obra edificada. Nao afirmar "validado contra obra real".
+Este aviso replica-se em (1) nome do diretorio, (2) JSON, (3) README e (4)
+este relatorio — padrao de quatro lugares da proposta 36x24 e do G24.
+
+Fonte: tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL
+  URL: https://attena.ufpe.br/bitstream/123456789/45569/1/MAR%C3%8DLIA%20FRAZAO%20CASTRO%20-%20PROJETO%20BASICO%20EM%20UM%20GALPAO%20EM%20ESTRUTURA%20METALICA.pdf
+  SHA256: 225795923384d8e45210cf330eaa2da8b8b1b89dcaa9fb3000e3fc71c3b2e436
+  Autor: Castro, Marília Frazão - UFPE TCC 2012 - Projeto Básico de um Galpão em Estrutura Metálica - attena.ufpe.br
+  Classe: tcc_academico (hierarquia: licitacao_executada > projeto_licitado > livro_exemplo_resolvido > tcc_academico > material_comercial)
+  Titulo: Projeto Básico de um Galpão em Estrutura Metálica - UFPE 2012
+  Coleta: 2026-09-02
+  Paginas auditadas: fixture.json com pagina + trecho_literal por valor (guarda contra fabricacao)
+
+Entradas G25 (declaradas e completas):
+  - 2 vãos de 22 m (44 m largura total), 90 m comprimento, pe-direito 7 m
+  - 4 aguas (2 por vao), telha zipada (0,07 kN/m2), slope 0,10 → ridge 8,1 m
+  - bay 7,5 m (13 porticos), travamento a 7,5 m (longitudinal), categoria III classe C
+  - V0=30 m/s, cat III C, S1=1,0 S3=1,0, abertura portao_oitao
+  - Aco A572 G50 (fy 345) principais + A36 (250) secundarios, parafuso A325-F
+  - Cargas G=0,20 Q=0,25 self=0,30 kN/m2
+
+Vertical de aco: ja aferido contra Fakury & Pfeil (maduro). Divergencia e interpretavel.
+Framework rodou com: rodar_projeto.calcular(spec UFPE 44x90) + rodar_galpao (multi-vao Qa/Qb pattern)
+
+Comparacao perfil a perfil (mesma definicao NBR 8800):
+  perfil_pilar_lateral
+    fonte W150x29,8 (p.45 "Pilares laterais W150x29,8 - Tabela 4.1 (p.45)...")  vs  framework HEA240 (HEA240 massa 60,3 kg/m Wx 675 cm3 - pilar lateral 7,0 m, interacao 1.08 (gov C1_...)
+    definicao: Perfil designado + massa linear (kg/m) e modulo Wx sob mesma definicao NBR 8800 5.4.3 (FLT com Lb=altura total). Ambas m...
+    veredito: nao_conclusivo — ITEM A INVESTIGAR (G25): W150x29,8 parece leve para 7 m / vao 22 m (HEA240 tem 2x massa). Mas documento fala em travamento a 7,5 m (p.48) e vigas de tapamento 7,5 m W150x13 (p.48) ...
+
+  perfil_pilar_central
+    fonte W150x29,8 (p.45 "Pilares centrais W150x29,8 - Tabela 4.1 (p.45)...")  vs  framework HEA200 (HEA200 massa 42,3 kg/m Wx 389 cm3 - pilar central 7,0 m (coluna interna entre 2 ...)
+    definicao: Mesma definicao que lateral: perfil + massa/Wx para coluna central 7 m entre vaos 22 m....
+    veredito: nao_conclusivo — MESMA INVESTIGACAO que lateral: W150x29,8 repetido para central suspeito. Coluna central em portico 2-vaos tem diagrama diferente (momento menor por simetria, mas axial maior), ain...
+
+  perfil_viga_cobertura
+    fonte W310x39 (p.46 "Vigas da cobertura W310x39 - Tabela 4.2 (p.46)...")  vs  framework IPE400 (IPE400 massa 66,3 kg/m Wx 1156 cm3 - viga/rafter 11,055 m inclinado (vao 11 m pr...)
+    definicao: Perfil da viga principal da cobertura (rafter) por vão de 22 m (meia-agua 11,055 m inclinado). Comparado por massa linea...
+    veredito: hipotese_divergente — Ambas defensaveis com premissas diferentes: framework V0=30 cat III C, G=0,20 Q=0,25, base engastada, B2=~1,05, Lb_raf 5,507 m (6 maos-francesas). Fonte pode usar V0 diferente (Rec...
+
+  perfil_terca
+    fonte U 200x60x20x3,0 (p.47 "Tercas U 200x60x20x3,0 - Tabela 4.3 (p.47)...")  vs  framework Ue 300x85x25x3,35 (Ue 300x85x25x3,35 - terca 7,5 m vao, interacao 0,50, flecha  ~L/200, carga G 0,2...)
+    definicao: Perfil formado a frio da terca - mesma definicao: U enrijecido (Ue/CF) com vaos 7,5 m (bay) e espacamento ~1,84 m (11,05...
+    veredito: hipotese_divergente — Divergencia de premissa: framework auto-dimensiona n_terca=6 por agua para telha zipada (vao_max telha gov), fonte pode usar n=8 ou telha com Wef maior (tabela fornecedor). Aco MR2...
+
+  perfil_viga_tapamento
+    fonte W150x13 (p.48 "Vigas de tapamento 7,5 m W150x13 - Tabela 4.4 (p.48)...")  vs  framework UPE140 (UPE140 sec 140x65 - longarina parede 7,5 m vao, vento net parede max, interacao ...)
+    definicao: Longarina / viga de tapamento lateral - mesma definicao: viga horizontal entre porticos 7,5 m que recebe vento de fachad...
+    veredito: concorda — G31 7,7% <= 10% massa_linear (G15 peso 10%). Concordancia proxima (13 vs ~14 kg/m) - diferenca de catalogo (W laminado vs UPE) dentro da tolerancia. Regra declarada em fontes_externas_protocolo.py:TOLERANCIA_CONCORDA_PCT antes de reclassificar.
+
+  perfil_contraventamento
+    fonte barra redonda d16 (p.49 "Contraventamento barra redonda 16 mm - Tabela 4.5 (p.49)...")  vs  framework barra redonda d45 (d45 mm parede e cobertura - diametro auto-dimensionado (escada d20..d50) para Fa...)
+    definicao: Diametro da barra do contraventamento em X - mesma definicao: barra redonda tracionada pre-tensionada, verificada NBR 88...
+    veredito: hipotese_divergente — Grande divergencia (16 vs 45 mm) interpretavel: framework Fa_long para 44x90 e grande (vento longitudinal V0 30 cat III C, Ca 1,2 + atrito) e bay 7,5 gera diagonal cobertura L 23,2...
+
+  travamento_pilar
+    fonte 7.5 (p.48 "Travamento a cada 7,5 m - texto p.48...")  vs  framework 7.0 (Lb col 7,0 m (altura total) - sem travamento intermediario, base engastada; Lb_r...)
+    definicao: Comprimento destravado Lb para FLT do pilar - mesma definicao NBR 8800 5.4.3 (distancia entre pontos travados lateralmen...
+    veredito: nao_comparavel — NAO_COMPARAVEL - guarda do protocolo (d*sen45 analogo): 7,5 m da fonte e ESPACAMENTO LONGITUDINAL entre porticos (bay) ou nivel de viga de tapamento, NAO e Lb do pilar (altura 7,0 ...
+
+  bay_porticos
+    fonte 7.5 (p.45 "espacamento entre porticos 7,5 m - texto p.45...")  vs  framework 7.5 (bay 7,5 m (90/12) - entrada declarada G25...)
+    definicao: Vao entre porticos (bay) - mesma definicao geometrica (distancia entre eixos de porticos)....
+    veredito: concorda — G31 0% <= 2% geometria. CONCORDANCIA EXATA (7,5 m) - valida a entrada. Antes era hipotese_divergente por enum incompleto; corrigido com tolerancia declarada.
+
+
+Investigacao aberta W150x29,8:
+  Texto atribui W150x29,8 a pilares laterais e centrais (p.45) — parece leve para 7 m / 22 m.
+  Mesmo documento fala em travamento a 7,5 m (p.48) e vigas de tapamento 7,5 m W150x13 (p.48) — pode ser outra peca.
+  Protocolo: medir as duas grandezas sob mesma definicao (Msd/Nsd concomitantes, Lb para FLT NBR 8800 5.4.3, peso linear)
+  antes de falar em divergencia. Veredito dos pilares = nao_conclusivo (investigar), nao fonte_errada prematuro.
+  Travamento 7,5 m classificado como nao_comparavel (bay vs Lb col) — guarda d·sen45 analoga.
+
+Guarda d·sen(45): verificada — fixture declara L_rafter inclinado 11,055 m vs projecao 11,0 m (delta 55 mm) e Lb_raf 5,507 m com 6 maos-francesas vs bay 7,5 m.
+
+Conclusao:
+  CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
+  Caso UFPE 44x90 entra como caso permanente do harness (fixture sem rede).
+  Overall: nao_conclusivo (dois pilares inconclusivos pendentes) — nao autoriza mexer no framework.
+  Divergencias fechadas como hipotese_divergente (premissas vento/carga/base) ou nao_comparavel (definicoes) — regra G24: so framework_errado + citacao normativa autoriza mudar framework.
+================================================================================

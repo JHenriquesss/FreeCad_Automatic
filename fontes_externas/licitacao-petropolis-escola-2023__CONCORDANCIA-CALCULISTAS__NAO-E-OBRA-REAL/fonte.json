@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "https://web3.petropolis.rj.gov.br/e-gov/sad/licitacoes_contratos/files/anexo_licitacao//3341/MEM%C3%93RIA%20DE%20C%C3%81LCULO%20E.M.%20CELINA%20SCHECHNER%20-%202%C2%AA%20LICITA%C3%87%C3%83O%20-%20FINAL-2.pdf",
+  "sha256": "d9ff34890aade16924a65fd58581bb12d9f58fb49a6d48cb19075983587f76dd",
+  "data_coleta": "2026-09-02",
+  "autor": "Prefeitura Municipal de Petrópolis - Secretaria de Obras - Concorrência Pública 07/2023 - E.M. Celina Schechner - 2ª Licitação",
+  "classe_autoridade": "licitacao_executada",
+  "titulo_obra": "Reforma e Ampliação da Escola Municipal Celina Schechner - Estrada das Arcas 3319 - Itaipava - 2ª Licitação - Memória de Cálculo",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 1823898 bytes, SHA-256 d9ff34890aad... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Coletado de https://web3.petropolis.rj.gov.br/e-gov/sad/licitacoes_contratos/files/anexo_licitacao//3341/MEM%C3%93RIA%20DE%20C%C3%81LCULO%20E.M.%20CELINA%20SCHECHNER%20-%202%C2%AA%20LICITA%C3%87%C3%83O%20-%20FINAL-2.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+}

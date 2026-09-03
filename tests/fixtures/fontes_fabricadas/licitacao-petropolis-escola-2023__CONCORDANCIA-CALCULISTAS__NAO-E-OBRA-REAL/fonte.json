@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "file://fontes_externas/licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf",
+  "sha256": "f9a260c704b64b85f0ad94cdbdd326154a762822f7351504ac760c53ac8d8dbd",
+  "data_coleta": "2026-09-02",
+  "autor": "Prefeitura Municipal de Petropolis - Secretaria de Obras - Licitacao 014/2023 - Escola Municipal Quitandinha",
+  "classe_autoridade": "licitacao_executada",
+  "titulo_obra": "Escola Municipal - Ampliacao 401,75 m2 - Memoria de calculo com quantitativos EMOP (concreto 59,84 m3, capeamento 23,07 m3)",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 2959 bytes, SHA-256 f9a260c704b6... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Area a construir: 401,75 m2 (p.1) - Escola Municipal Quitandinha - Memoria de Calculo Licitacao Petropolis 014/2023"
+}

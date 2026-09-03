@@ -217,6 +217,16 @@ def combinacoes_do_pilar(nome, N_base_k, horizontais, momentos_base=None):
     M_x/M_y e V_x/V_y por prumada do portico heterogeneo (secao real por pilar,
     rigidez bruta Ecs). Sem ele, M=0 e V e' o uniforme V_base/n (legado).
 
+    G32 (pattern loading / NBR 8681 xadrez): em multi-vao a sobrecarga em
+    xadrez (Qa/Qb) maximiza o momento de desequilibrio no pilar interno mesmo
+    sem vento. Medicao galpao 2026-09-02: pilar interno 2 vaos 10+10 simetrico
+    M 0 -> 6,9 kNm; 8+12 hetero Mmax 13,1 -> 17,4 (+32,8%) - material. Para o
+    edificio, enquanto o portico heterogeneo nao extrai Qa/Qb vertical
+    explicitamente, o envelope da fundacao ganha um caso
+    "gravitacional_xadrez" para pilares internos (posicao == "interno") com
+    M = max(|Mx|,|My|) caracteristico, para que o efeito nao seja mascarado
+    pelo carregamento uniforme.
+
     G23 VEREDITO: Esta funcao e' o PONTO UNICO onde M_base entra nas
     combinacoes; todos os consumidores a jusante (sapata isolada/bloco,
     estaca, divisa, gate) leem daqui. Sapata/bloco USAM M via Parte A;
@@ -249,6 +259,14 @@ def combinacoes_do_pilar(nome, N_base_k, horizontais, momentos_base=None):
         casos.append(("sotavento_%s" % direcao, N_base_k + abs(dn), V_frame, M_frame))
         casos.append(("barlavento_%s" % direcao, max(N_base_k - abs(dn), 0.0),
                       V_frame, M_frame))
+    # G32: pattern xadrez para pilar interno - ganha um caso quando ha momento
+    if momentos_base and nome in momentos_base and not nome.startswith("_"):
+        entry = momentos_base[nome]
+        if entry.get("posicao") == "interno":
+            M_pat = max(float(entry.get("Mx_abs_kNm") or 0.0),
+                        float(entry.get("My_abs_kNm") or 0.0))
+            if M_pat > 1e-9 and not any("xadrez" in c[0] for c in casos):
+                casos.append(("gravitacional_xadrez", N_base_k, 0.0, M_pat))
     return casos
 
 

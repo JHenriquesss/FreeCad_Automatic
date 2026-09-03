@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "file://fontes_externas/tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf",
+  "sha256": "1c7334f60d81a6ed4a24affa8b1f6eaa90b56434bc072d3988f4096e674c6a09",
+  "data_coleta": "2026-09-02",
+  "autor": "UFPE - Laboratorio de Estruturas - Dissertacao Galpao 44x90 (Recife 2018)",
+  "classe_autoridade": "tcc_academico",
+  "titulo_obra": "Galpao metalico 44x90 m - 2 vaos de 22 m - Dimensionamento segundo NBR 8800 (UFPE 2018)",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 1393 bytes, SHA-256 1c7334f60d81... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Coletado de file://fontes_externas/tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+}

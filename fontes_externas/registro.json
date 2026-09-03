@@ -1,0 +1,74 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - este registro compara o framework contra literatura/TCC/licitacao, jamais contra obra edificada. Nao rotular como 'validado contra obra real'.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio fontes_externas/<id__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL>/, (2) este JSON, (3) fontes_externas/README.md e (4) relatorios em fontes_externas/<id>/comparacao.json e relatorio*.txt",
+  "_protocolo_versao": "1.0",
+  "_hierarquia_autoridade": [
+    "licitacao_executada",
+    "projeto_licitado",
+    "livro_exemplo_resolvido",
+    "tcc_academico",
+    "material_comercial"
+  ],
+  "_vereditos_enum": [
+    "concorda",
+    "framework_errado",
+    "fonte_errada",
+    "hipotese_divergente",
+    "nao_comparavel",
+    "nao_conclusivo"
+  ],
+  "fontes": [
+    {
+      "id": "licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+      "url": "https://web3.petropolis.rj.gov.br/e-gov/sad/licitacoes_contratos/files/anexo_licitacao//3341/MEM%C3%93RIA%20DE%20C%C3%81LCULO%20E.M.%20CELINA%20SCHECHNER%20-%202%C2%AA%20LICITA%C3%87%C3%83O%20-%20FINAL-2.pdf",
+      "sha256": "d9ff34890aade16924a65fd58581bb12d9f58fb49a6d48cb19075983587f76dd",
+      "data_coleta": "2026-09-02",
+      "autor": "Prefeitura Municipal de Petrópolis - Secretaria de Obras - Concorrência Pública 07/2023 - E.M. Celina Schechner - 2ª Licitação",
+      "classe_autoridade": "licitacao_executada",
+      "titulo_obra": "Reforma e Ampliação da Escola Municipal Celina Schechner - Estrada das Arcas 3319 - Itaipava - 2ª Licitação - Memória de Cálculo",
+      "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+      "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 1823898 bytes, SHA-256 d9ff34890aad... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+      "pagina_exemplo_referencia": 1,
+      "trecho_literal_exemplo": "Coletado de https://web3.petropolis.rj.gov.br/e-gov/sad/licitacoes_contratos/files/anexo_licitacao//3341/MEM%C3%93RIA%20DE%20C%C3%81LCULO%20E.M.%20CELINA%20SCHECHNER%20-%202%C2%AA%20LICITA%C3%87%C3%83O%20-%20FINAL-2.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+    },
+    {
+      "id": "tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+      "url": "https://example.com/tcc-exemplo-ufmg-2023-galpao-24x36.pdf",
+      "sha256": "72b9fb0633247c9a71cabf69dc9a502a6fa838dbc8b65ee5aabce52811d180a4",
+      "data_coleta": "2026-09-03",
+      "autor": "Exemplo Sintetico - Silva, J. - UFMG TCC 2023",
+      "classe_autoridade": "tcc_academico",
+      "titulo_obra": "Galpao metalico 24x36m - Dimensionamento segundo NBR 8800 (exemplo sintetico para demonstracao do protocolo G24)",
+      "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+      "observacao_coleta": "EXEMPLO SINTETICO - demonstra preenchimento do registro. Hash corresponde a fontes_externas/exemplo_dummy.pdf e fontes_externas/tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf (PDF minimo gerado localmente, 1 pagina, 4 trechos). G30 guarda abre PDF p.1 e confirma trecho_literal. Substituir por coleta real via tools/extrai_fonte_externa.py para fonte externa verdadeira.",
+      "pagina_exemplo_referencia": 1,
+      "trecho_literal_exemplo": "Exemplo TCC Galpao 24x36 - momento fletor maximo no topo do pilar: 235,9 kNm (p.1, Tab. 4.2)"
+    },
+    {
+      "id": "tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+      "url": "https://attena.ufpe.br/bitstream/123456789/45569/1/MAR%C3%8DLIA%20FRAZAO%20CASTRO%20-%20PROJETO%20BASICO%20EM%20UM%20GALPAO%20EM%20ESTRUTURA%20METALICA.pdf",
+      "sha256": "225795923384d8e45210cf330eaa2da8b8b1b89dcaa9fb3000e3fc71c3b2e436",
+      "data_coleta": "2026-09-02",
+      "autor": "Castro, Marília Frazão - UFPE TCC 2012 - Projeto Básico de um Galpão em Estrutura Metálica - attena.ufpe.br",
+      "classe_autoridade": "tcc_academico",
+      "titulo_obra": "Projeto Básico de um Galpão em Estrutura Metálica - UFPE 2012",
+      "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+      "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 1217648 bytes, SHA-256 225795923384... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+      "pagina_exemplo_referencia": 1,
+      "trecho_literal_exemplo": "Coletado de https://attena.ufpe.br/bitstream/123456789/45569/1/MAR%C3%8DLIA%20FRAZAO%20CASTRO%20-%20PROJETO%20BASICO%20EM%20UM%20GALPAO%20EM%20ESTRUTURA%20METALICA.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+    },
+    {
+      "id": "tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+      "url": "https://calculistadeaco.com.br/wp-content/uploads/2017/03/C%C3%A1lculo-do-galp%C3%A3o-treli%C3%A7ado-Final.pdf",
+      "sha256": "5f28b67e3e630368eb1ab84da75adf663a2d634d053f0b4580bf0cd5d46304da",
+      "data_coleta": "2026-09-02",
+      "autor": "Moraes Pereira, Felipe Jacob - O Calculista de Aço - calculistadeaco.com.br",
+      "classe_autoridade": "material_comercial",
+      "titulo_obra": "Cálculo de um Galpão 25m X 54m Treliçado - O Calculista de Aço",
+      "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+      "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 4016241 bytes, SHA-256 5f28b67e3e63... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+      "pagina_exemplo_referencia": 1,
+      "trecho_literal_exemplo": "Coletado de https://calculistadeaco.com.br/wp-content/uploads/2017/03/C%C3%A1lculo-do-galp%C3%A3o-treli%C3%A7ado-Final.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+    }
+  ]
+}

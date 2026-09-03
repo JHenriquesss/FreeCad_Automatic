@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "file://fontes_externas/tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf",
+  "sha256": "1fe6f59af568de6d485744d37e8b9a0d69d94ffe5a6a29bbd1cf747a79a7745c",
+  "data_coleta": "2026-09-02",
+  "autor": "UFSM - Engenharia Civil - TCC Galpao 25x54 trelicado (Santa Maria 2021)",
+  "classe_autoridade": "tcc_academico",
+  "titulo_obra": "Galpao metalico 25x54 m trelicado - Dimensionamento segundo NBR 8800 (UFSM 2021)",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 7083 bytes, 4 paginas, 625 chars total, avg 156 chars/pag (vs UFPE 696 chars/pag) - baixa densidade texto, saida de software CYPE 3D com tabelas vetoriais nao extraiveis. SHA-256 1fe6f59af568... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)"
+}

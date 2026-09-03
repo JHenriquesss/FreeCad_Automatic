@@ -1,5 +1,42 @@
 # 06 — Open threads
 
+## T44 — G28 Fundação: BLOQUEADO — sem caso externo com laudo SPT (2026-09-03)
+
+O vertical de fundação é o que **mais evoluiu** (G9 `fundacao_edificio.py`/`geotecnia_spt.py`,
+G17 momento por pilar, G18 baldrame+recalque — `REVISAO-G9`, `edificio_adapter.py:139-148`)
+e o **único sem caso externo com laudo de sondagem**. G28 caça ou declara.
+
+- [x] **Auditar as 3 fontes existentes** — nenhuma traz laudo: Petrópolis tem
+  `Sondagem, 3 furos × 10 m` só como **item de serviço** (o serviço, não o laudo)
+  — `fontes_externas/licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/fixture.json`
+  sem `N_SPT`; UFPE 44×90 e 25×54 treliçado idem — só perfis/galpão, sem `N_SPT`,
+  `N.A.` ou perfil NBR 6484 (`tcc-ufpe/.../fixture.json`, `tcc-externo2/.../fixture.json`).
+- [x] **Caçar FNDE (replicado e completo):** 8 buscas / 30+ PDFs em `gov.br/fnde`:
+  padrão ProInfância B/C (download 1298/1254/1295) traz só *Fundação Típica hipotética*
+  para estimar repasse e item `SDG — Sondagem (furo)` NBR 6484/8036 (280 furos RP
+  009/2013; 7 Tipo B / 4 Tipo C SIMEC) — "Somente após a sondagem ... será elaborado
+  o Projeto Executivo de Fundações" (`PE-009-2013 §5.1`, Encarte E, Volume V);
+  Creche Tipo 1 R03/CQG35 Tipo B: "O FNDE fornece projeto básico ... o ente deve
+  providenciar ensaios geotécnicos ... desenvolver executivo" (`Memorial §4.1.2`);
+  `CIT FNDE 4/2025 §3.1/3.3` exige laudo com planta furos + perfis + `N` + `N.A.` + ART.
+  O laudo, quando existe, é **anexo municipal** (Leopoldina ETP: "relatório da sondagem ...
+  anexo a este processo" — `leopoldina.mg.gov.br/...189862...`), não peça central.
+  Serviços avulsos achados (Peritiba 24 furos/168 m, Terra Areia 3 furos, UENP 3×15 m,
+  MPMG SPT 15 m, GO FEMBOM 2 furos `N` 13/29/40 `N.A. 8,45 m`, Boa Vista UBS 3 furos
+  `N.A. 2,62 m` RT CAU A122866-8) são laudos reais dispersos, sem pacote obra FNDE
+  completo replicável.
+- [x] **Declarar BLOQUEADO honesto** — precedente alvenaria estrutural
+  (`REVISAO-GAPS-G2:130-144` NBR 16868 ausente, `REVISAO-G3:64-70`,
+  `REVISAO-G11:247`, `edificio_adapter.py:16,76`, `estrutura_casa.py:630,713`).
+  Documentos: `framework/galpao_fw/REVISAO-G28-FUNDACAO-FONTE-BLOQUEADA.md`
+  (caça completa, citações verbatim, critério de desbloqueio auditável) +
+  `fontes_externas/BLOQUEIO-G28-FUNDACAO-SPT.md` (sumário 4 lugares) +
+  esta thread T44. Framework segue sem arbitrar `σ_adm`; caso externo da fundação
+  permanece sem validação **com motivo escrito** — o que G28 proíbe é ficar sem
+  caso e sem registro. Critério de desbloqueio: pacote obra FNDE padrão com
+  **laudo SPT anexado ao próprio edital da obra** via `tools/extrai_fonte_externa.py`
+  + `pagina`+`trecho_literal` por `N_SPT` + enum G24 só `framework_errado`+`citacao`.
+
 ## T43 — Sessão 44 (2026-08-13): população de depósitos conforme NBR 9077:2025 — RESOLVIDO (cálculo exato; rotas condicionadas)
 - [x] Calcular a população de projeto de depósitos pela área computável da NBR 9077:2025 e registrar a decisão de arredondamento antes de dimensionar rotas de saída.
 - Implementado em `framework/galpao_fw/populacao_nbr9077.py` e integrado opcionalmente ao vertical de incêndio; a área computável é entrada explícita e não é deduzida de `geometria`.

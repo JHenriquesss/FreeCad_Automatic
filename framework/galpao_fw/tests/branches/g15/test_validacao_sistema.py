@@ -22,8 +22,24 @@ def test_g15_checks_pass(fn):
 
 def test_g15_todos_passam():
     ok, resultados = G15.rodar(verbose=False)
-    assert ok, "Nem todos os 23 checks G15+G19 passaram"
-    assert len(resultados) == 23, f"esperado 23 checks (19 G15 + 2 SJB G19 + 1 proposta agente 36x24 + 1 generica), veio {len(resultados)}"
+    assert ok, f"Nem todos os {len(G15.INVENTARIO_CHECKS)} checks passaram: {[n for n,ok,_ ,_ in resultados if not ok]}"
+    # G30: inventário nomeado — acrescentar check é ato explícito, não subir número
+    assert len(resultados) == len(G15.INVENTARIO_CHECKS), f"inventario {len(G15.INVENTARIO_CHECKS)} vs resultados {len(resultados)}"
+    nomes = sorted(fn.__name__ for fn in G15.CHECKS)
+    inv = sorted(G15.INVENTARIO_CHECKS)
+    assert nomes == inv, f"CHECKS diverge do INVENTARIO: missing={set(inv)-set(nomes)} extra={set(nomes)-set(inv)}"
+
+
+def test_g15_inventario_explicito():
+    """G30: CHECKS deve ser exatamente o INVENTARIO nomeado — número não sobe sozinho."""
+    assert hasattr(G15, "INVENTARIO_CHECKS"), "G30: validacao_sistema_g15 deve expor INVENTARIO_CHECKS"
+    assert isinstance(G15.INVENTARIO_CHECKS, list) and len(G15.INVENTARIO_CHECKS) >= 27
+    # cada nome deve corresponder a uma função em CHECKS
+    check_names = {fn.__name__ for fn in G15.CHECKS}
+    for nome in G15.INVENTARIO_CHECKS:
+        assert nome in check_names, f"inventario {nome} sem funcao correspondente em CHECKS"
+    # e não pode haver função fora do inventario
+    assert check_names == set(G15.INVENTARIO_CHECKS), "CHECKS tem funcao fora do INVENTARIO ou vice-versa"
 
 
 def test_g15_sem_falsa_divergencia_d_sen45():
@@ -237,17 +253,19 @@ def test_g19_gerar_sidecar_extraido_do_framework():
 def test_g19_quarto_caso_1_comando_output():
     """G19: python -m validacao_sistema_g15 deve imprimir G19 quarto caso em 1 comando (promessa da REVISAO)."""
     import subprocess, sys, pathlib
-    # roda o harness como documentado em QUARTO-CASO-1-COMANDO.md (22 checks)
+    # roda o harness como documentado em QUARTO-CASO-1-COMANDO.md (inventario nomeado G30)
     res = subprocess.run([sys.executable, "-m", "validacao_sistema_g15"],
                          cwd="framework/galpao_fw",
                          capture_output=True, text=False, timeout=180)
     stdout = res.stdout.decode("utf-8", errors="replace")
     stderr = res.stderr.decode("utf-8", errors="replace")
     assert res.returncode == 0, f"validacao_sistema_g15 falhou: {stdout[:1000]} {stderr[:500]}"
-    # deve conter 22 checks e o resumo G19
+    # deve conter resumo G19/G30 e TODOS PASSARAM (inventario nomeado)
     assert "G19 quarto caso" in stdout, f"output deve conter 'G19 quarto caso', veio: {stdout[-2000:]}"
     assert "G19: AGUARDANDO OBRA REAL" in stdout or "G19: SJB READY" in stdout
-    assert "22/22" in stdout or "TODOS PASSARAM" in stdout
+    assert "TODOS PASSARAM" in stdout
+    # G30: deve conter procedencia completa
+    assert "G30" in stdout or "procedencia" in stdout.lower()
     # verificar que QUARTO-CASO-1-COMANDO.md existe e documenta o comando
     qcaso = pathlib.Path("docs/validacao_g15/QUARTO-CASO-1-COMANDO.md")
     assert qcaso.is_file()

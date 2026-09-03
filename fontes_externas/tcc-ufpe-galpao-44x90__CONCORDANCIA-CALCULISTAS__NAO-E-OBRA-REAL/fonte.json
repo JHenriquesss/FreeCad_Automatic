@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "https://attena.ufpe.br/bitstream/123456789/45569/1/MAR%C3%8DLIA%20FRAZAO%20CASTRO%20-%20PROJETO%20BASICO%20EM%20UM%20GALPAO%20EM%20ESTRUTURA%20METALICA.pdf",
+  "sha256": "225795923384d8e45210cf330eaa2da8b8b1b89dcaa9fb3000e3fc71c3b2e436",
+  "data_coleta": "2026-09-02",
+  "autor": "Castro, Marília Frazão - UFPE TCC 2012 - Projeto Básico de um Galpão em Estrutura Metálica - attena.ufpe.br",
+  "classe_autoridade": "tcc_academico",
+  "titulo_obra": "Projeto Básico de um Galpão em Estrutura Metálica - UFPE 2012",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 1217648 bytes, SHA-256 225795923384... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Coletado de https://attena.ufpe.br/bitstream/123456789/45569/1/MAR%C3%8DLIA%20FRAZAO%20CASTRO%20-%20PROJETO%20BASICO%20EM%20UM%20GALPAO%20EM%20ESTRUTURA%20METALICA.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+}

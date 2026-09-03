@@ -58,6 +58,7 @@ manifesto os publique em vez de omiti-los (itens abertos da seção 10 de
 | Item | Situação |
 | --- | --- |
 | `alvenaria_estrutural` | bloqueada por fonte — NBR 16868 ausente do acervo |
+| `caso_externo_fundacao_SPT` | **bloqueado por fonte — G28**: sem laudo SPT anexo em pacote obra FNDE (ver `REVISAO-G28-FUNDACAO-FONTE-BLOQUEADA.md`, `fontes_externas/BLOQUEIO-G28-FUNDACAO-SPT.md`, `wiki/06-open-threads.md#T44`) — só `Sondagem, 3 furos × 10 m` como item de serviço (Petrópolis) |
 | `momento_base_pilar` | o pórtico global dá γz e ELS, não esforço por barra |
 | `viga_baldrame`, `recalque_diferencial` | fronteiras do que o G9 entrega |
 | `desempenho_15575_*` (3 itens) | verificados por **ensaio**, não por conta |

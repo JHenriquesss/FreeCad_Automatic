@@ -1,0 +1,54 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1200 >>
+stream
+BT
+/F1 12 Tf
+50 750 Td
+(Galpao UFPE 44x90 - 2 vaos de 22 m, 90 m comprimento, pe-direito 7 m, 4 aguas) Tj
+0 -20 Td
+(Categoria III classe C, telha zipada, A36 + A572 G50, parafuso A325-F) Tj
+0 -20 Td
+(Pilar lateral: W150x29,8 - Trecho literal p.45: Pilares laterais W150x29,8) Tj
+0 -20 Td
+(Pilar central: W150x29,8 - Trecho literal p.45: Pilares centrais W150x29,8) Tj
+0 -20 Td
+(Viga principal cobertura: W310x39 - p.46: Vigas da cobertura W310x39) Tj
+0 -20 Td
+(Terca: U 200x60x20x3,0 - p.47: Tercas U 200x60x20x3,0) Tj
+0 -20 Td
+(Longarina / Viga tapamento: W150x13 - p.48: Vigas de tapamento 7,5 m W150x13) Tj
+0 -20 Td
+(Contraventamento: barra redonda d16 - p.49: Contraventamento barra redonda 16 mm) Tj
+0 -20 Td
+(Travamento a 7,5 m - p.48: Travamento a cada 7,5 m) Tj
+0 -20 Td
+(Vao entre porticos 7,5 m - p.45: espacamento entre porticos 7,5 m) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000009 00000 n
+0000000056 00000 n
+0000000111 00000 n
+0000000230 00000 n
+0000000300 00000 n
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1600
+%%EOF

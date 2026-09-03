@@ -1,0 +1,14 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - copia espelhada de registro.json para auditoria local da obra. Nao afirmar 'validado contra obra real'.",
+  "id": "tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "https://calculistadeaco.com.br/wp-content/uploads/2017/03/C%C3%A1lculo-do-galp%C3%A3o-treli%C3%A7ado-Final.pdf",
+  "sha256": "5f28b67e3e630368eb1ab84da75adf663a2d634d053f0b4580bf0cd5d46304da",
+  "data_coleta": "2026-09-02",
+  "autor": "Moraes Pereira, Felipe Jacob - O Calculista de Aço - calculistadeaco.com.br",
+  "classe_autoridade": "material_comercial",
+  "titulo_obra": "Cálculo de um Galpão 25m X 54m Treliçado - O Calculista de Aço",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "Coletado via tools/extrai_fonte_externa.py em 2026-09-02. PDF 4016241 bytes, SHA-256 5f28b67e3e63... Verificar pagina+trecho_literal em fixture.json antes de comparar.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Coletado de https://calculistadeaco.com.br/wp-content/uploads/2017/03/C%C3%A1lculo-do-galp%C3%A3o-treli%C3%A7ado-Final.pdf - pagina 1 (verificar trecho literal no PDF, ex. captar tabela de perfis / reacoes)"
+}

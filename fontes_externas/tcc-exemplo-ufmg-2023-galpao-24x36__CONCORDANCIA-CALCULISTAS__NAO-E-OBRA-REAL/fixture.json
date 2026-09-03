@@ -1,0 +1,30 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-03",
+  "extrator": "tools/extrai_fonte_externa.py",
+  "valores": {
+    "Mcol_kNm": {
+      "valor": 235.9,
+      "pagina": 1,
+      "trecho_literal": "Exemplo TCC Galpao 24x36 - momento fletor maximo no topo do pilar: 235,9 kNm (p.1, Tab. 4.2)",
+      "unidade": "kN.m",
+      "definicao": "M no topo da coluna, combinacao Fd1 1.25G+1.5Q, portico 24m, base engastada - EXEMPLO SINTETICO demonstra proveniencia"
+    },
+    "peso_aco_primario_kg": {
+      "valor": 23206.0,
+      "pagina": 1,
+      "trecho_literal": "Exemplo TCC Galpao 24x36 - peso de aco primario: 23206 kg (p.1, romaneio)",
+      "unidade": "kg",
+      "definicao": "Peso de pilares + vigas principais (primario), sem secundarios - EXEMPLO SINTETICO"
+    },
+    "perfil_coluna": {
+      "valor": "W310x158",
+      "pagina": 1,
+      "trecho_literal": "Exemplo TCC Galpao 24x36 - perfil adotado para pilar: W310x158 (p.1, texto)",
+      "unidade": "perfil",
+      "definicao": "Perfil da coluna principal - EXEMPLO SINTETICO"
+    }
+  }
+}

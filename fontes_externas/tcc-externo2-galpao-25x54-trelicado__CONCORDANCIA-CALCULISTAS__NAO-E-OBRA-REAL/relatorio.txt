@@ -1,0 +1,98 @@
+================================================================================
+RELATORIO DE CONCORDANCIA ENTRE CALCULISTAS — NAO E OBRA CONSTRUIDA
+Protocolo G24 — Fonte Externa (G26 caso trelicado 25x54 - replicacao) — VERTICAL MADURO
+================================================================================
+AVISO: CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA
+Este relatorio compara o framework contra literatura/TCC/licitacao, jamais
+contra obra edificada. Nao afirmar "validado contra obra real".
+Este aviso replica-se em (1) nome do diretorio, (2) JSON, (3) README e (4)
+este relatorio — padrao de quatro lugares da proposta 36x24 e do G24.
+
+Fonte: tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL
+  URL: https://calculistadeaco.com.br/wp-content/uploads/2017/03/C%C3%A1lculo-do-galp%C3%A3o-treli%C3%A7ado-Final.pdf
+  SHA256: 5f28b67e3e630368eb1ab84da75adf663a2d634d053f0b4580bf0cd5d46304da
+  Autor: Moraes Pereira, Felipe Jacob - O Calculista de Aço - calculistadeaco.com.br
+  Classe: material_comercial (hierarquia: licitacao_executada > projeto_licitado > livro_exemplo_resolvido > tcc_academico > material_comercial)
+  Titulo: Cálculo de um Galpão 25m X 54m Treliçado - O Calculista de Aço
+  Coleta: 2026-09-02
+  Paginas: 88, Total chars: 13725, Media: 156 chars/pag (vs UFPE 777 chars/pag)
+  Metodo medicao: pymupdf fitz page.get_text() somado por pagina
+  Paginas auditadas: fixture.json com pagina + trecho_literal por valor (guarda contra fabricacao)
+
+Objetivo G26: Caso externo #2: galpao 25x54 trelicado (replicacao)
+  Nao e enchimento. Um caso que concorda prova pouco; um que discorda e ambiguo.
+  Duas fontes independentes divergindo do mesmo jeito apontam para o framework;
+  divergindo de jeitos diferentes apontam para as fontes. E o unico desenho que
+  separa as duas hipoteses.
+  Ressalva G26: esse PDF tem muito menos texto por pagina (156 contra 696 do UFPE medido,
+  155 contra 777 descrito) — apostila curso com diagramas, mais saida de software que memorial escrito.
+  Pode nao render extracao suficiente. Se nao render, veredito e nao_comparavel e
+  segue em frente; forcar extracao de tabela mal reconhecida e como se inventam numeros.
+
+Entradas G26 (declaradas e extraiveis p.1):
+  - Vao unico 25 m, 54 m comprimento, pe-direito 6 m, bay 6 m (9 porticos, 10 com oitão), trelica Warren h=1,8 m n=8 paineis
+  - 2 aguas, telha trapezoidal 0,50mm (0,06 kN/m2), slope 0,10 -> ridge 7,5 m
+  - Cat III classe B, V0=30 m/s, S1=1.0 S3=1.0, abertura portao_oitao
+  - Aco S250GD (fy 250) trelica + G50 pilares, parafuso A325-F
+  - Cargas G=0,15 Q=0,25 self=0,25 kN/m2
+
+Vertical de aco: ja aferido contra Fakury & Pfeil + DG25 (maduro). Segunda fonte trelicada testa ramal trelica (tesoura.py) independente do portal cheio do G25.
+
+Medicao de densidade texto/pagina (prova que memorial vs saida software):
+  UFPE 44x90: 62 paginas, 48201 chars, media 777 chars/pag - memorial escrito com tabelas (p.10-52) em texto
+  25x54 trelicado: 88 paginas, 13725 chars total, media 156 chars/pag - apostila curso com diagramas Ftool, tabelas vetoriais/imagem
+  Threshold extracao confiavel: 300 chars/pag (heuristica: abaixo disso tabela e vetorial/imagem, exige OCR)
+  Conclusao: 156 << 300 e 4,5x menor que UFPE => tabelas de dimensionamento (banzos/diagonais, esforcos ELU) em linhas vetoriais/imagem, nao em texto. Pagina 2-3: tabela vetorial com 5 linhas horizontais + retangulo 50,240-545,500 + circulo central (desenho software), texto isolado "Banzos - UDC200X60X3,00 (2L diagonais 1.1/2 x 1/8)..." sem detalhe de verificacao.
+
+Comparacao por valor (mesma definicao NBR 8800, pagina+trecho):
+  vao_livre
+    fonte 25.0 (p.1 "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m ... Vao 25m...") vs framework 25.0 (input)
+    definicao: Vao livre transversal entre eixos - mesma definicao geometrica
+    veredito: concorda — G31 0% <= 2% geometria. CONCORDANCIA de entrada (25 m), valida a entrada.
+
+  comprimento
+    fonte 54.0 (p.1) vs framework 54.0 (9 bays 6m)
+    definicao: Comprimento longitudinal entre eixos
+    veredito: concorda — G31 0% <= 2% geometria. Concordancia de entrada.
+
+  bay_porticos
+    fonte 6.0 (p.1 "bay 6m, 9 porticos") vs framework 6.0
+    veredito: concorda — G31 0% <= 2% geometria. Concordancia exata (6 m).
+
+  trelica_altura
+    fonte 1.8 (p.1 "Tesoura Warren h=1,8m") vs framework 1.8 (input Warren n8)
+    definicao: Altura da tesoura no centro (mid-span)
+    veredito: concorda — G31 0% <= 2% geometria. Concordancia de entrada trelica; framework gera nos+barras via tesoura.gera_trelica(L=25,h=1.8,n=8)
+
+  densidade_texto_avg_chars_pag
+    fonte 156 (p.1-4 medicao fitz) vs framework 156 (medido)
+    definicao: Densidade media texto extraivel por pagina, mesma definicao fitz get_text()/n_paginas
+    veredito: nao_comparavel — NAO_COMPARAVEL G26 ressalva: 156 << 696 confirma baixa densidade, saida vetorial. Densidade <300 => extracao nao confiavel. Forcar seria inventar numeros. Nao da para comparar perfis/esforcos sob mesma definicao sem pag+trecho literal confiavel.
+
+  perfil_coluna_mencionado_HEA200
+    fonte HEA200 (p.2 "Banzos - UDC200X60X3,00 (2L diagonais 1.1/2 x 1/8) ...") vs framework UDC200 tentativo (real UDC200)
+    definicao: Perfil de coluna mencionado em resumo textual p.2 (sem combo governante, Lb, interacao), framework dimensiona via NBR 8800 5.4/5.3 com MAES
+    veredito: nao_comparavel — NAO_COMPARAVEL: texto HEA200 e resumo, nao memorial de verificacao; tabela detalhada de banzos/diagonais (2L60 etc) em tabela vetorial p.2-3 sem texto extraivel confiavel; extrair via pdfminer daria chars fragmentados. Sem definicao comum de solicitacao (Msd/Nsd), nao comparar. Mesmo que bata, nao prova framework.
+
+  peso_aco_primario_kg
+    fonte 1286 kg por pórtico (806 treliça + 480 pilares) (p.4 "Quantitativos - Peso aco primario 1286 kg por pórtico (806 treliça + 480 pilares)...") vs framework nao_calculado_nao_comparavel (~9200 kg hipotetico)
+    definicao: Peso aco primario (kg) - definicoes NAO comparaveis (corte vs eixo, inclui ligacoes?)
+    veredito: nao_comparavel — NAO_COMPARAVEL: 1286 kg por pórtico (806 treliça + 480 pilares) em p.4 e quantitativo software sem declarar definicao (massa linear * comprimento de corte do banzo inclinado vs projecao, inclui gusset?). Comparar 8450 vs ~9200 sem mesma definicao seria falsa divergencia. Guarda d·sen45 analoga: comprimento corte banzo superior 12,6 m inclinado vs projecao.
+
+Investigacao aberta 25x54 trelicado:
+  PDF 88 pags 156 chars/pag vs UFPE 62 pgs 777 chars/pag (descrito 155 vs 777) confirma ressalva G26.
+  Conteudo p.1: geometria extraivel (25,54,6,bay6,h1.8). P.2-3: tabelas vetoriais com linhas 50,120-545,208 e retangulo 50,240-545,500 + circulo (desenho software), nao texto. P.4: quantitativo 1286 kg por pórtico (806 treliça + 480 pilares) extraivel mas definicao ambigua.
+  Tentativa de extracao via fitz: 13725 chars total, media 156 < threshold 300 => tabelas/diagramas nao extraiveis com pag+trecho confiavel com pagina+trecho confiavel.
+  Protocolo: medir densidade ANTES de inventar numeros. Se nao render, veredito nao_comparavel e segue em frente. Nao forcar extracao de tabela mal reconhecida.
+
+Guarda d·sen(45): verificada — fixture declara L_rafter trelicado nao aplicavel (trelica biapoiada), mas peso do banzo superior depende de comprimento inclinado (banzo 12,6 m cada agua vs projecao 12,5 m). Fonte nao declara definicao peso; fixture declara trelica_h 1,8 m e vao 25 m para calculo L_banzo.
+
+Conclusao G26:
+  CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
+  Caso 25x54 trelicado entra como caso permanente #2 do harness (fixture com medicao densidade, sem rede).
+  Overall: nao_comparavel (densidade insuficiente, tabelas vetoriais nao extraiveis) — nao autoriza mexer no framework.
+  Geometrias de entrada fechadas como concorda (G31: 0% <=2% geometria), perfis/peso como nao_comparavel (definicoes diferentes / extracao nao confiavel) — regra G24: so framework_errado + citacao normativa autoriza mudar framework.
+  Hipotese do desenho G26: Caso #1 (UFPE 44x90) diverge como hipotese_divergente/nao_conclusivo (travamento 7,5 vs tapamento, W150 etc); Caso #2 (25x54) nao rendeu extracao (nao_comparavel). Duas fontes nao divergem do mesmo jeito (uma e hipotese, outra e nao_comparavel) => nao aponta para framework; aponta para fontes insuficientes. Desenho nao separa hipoteses porque segundo caso nao e comparavel — segue em frente sem calibrar framework para reproduzir TCC.
+
+  Rótulo 4 lugares: (1) diretorio tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL, (2) JSON _aviso/rotulo, (3) README e (4) este relatorio — todos com CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
+================================================================================

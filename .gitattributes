@@ -1,0 +1,2 @@
+# PDFs de fonte externa: bytes intactos (o guarda G30 confere SHA-256 do arquivo)
+*.pdf binary

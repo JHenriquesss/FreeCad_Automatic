@@ -55,19 +55,46 @@ import escada as esc
 import plataforma
 import terreno
 
-# --- combinacoes (mesmas do portico/estabilidade) para extrair reacoes -------
+# --- combinacoes ELU de referencia (espelha galpao_portico._combos_elu para
+# documentacao; o envelope REAL usado em _esforcos_base_joelho/_casos_base_envelope
+# vem de gp._combos_elu, que cruza vento W1/W2 e, em multi-vao, inclui C2_xadrez).
+# _COMB e' mantido para rastreabilidade do custo dos dois solves Qa/Qb: cada Qa/Qb
+# tem consumidor em gp._combos_elu::C2_xadrez_* e aqui em _COMB::C2_xadrez_*.
+# Medicao 2026-09-02 (2 vaos 10+10 simetrico): M_base interno 0 -> 6,9 kNm;
+# 2 vaos 8+12 hetero: Mmax 13,1 -> 17,4 kNm (+32,8%) - material, mantido.
 _COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
          "C2_uplift": {"G": 1.00, "W1": 1.40},
          "C3_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-         "C3_Gfav": {"G": 1.00, "W2": 1.40}}
+         "C3_Gfav": {"G": 1.00, "W2": 1.40},
+         "C2_xadrez_A": {"G": 1.25, "Qa": 1.50},
+         "C2_xadrez_B": {"G": 1.25, "Qb": 1.50}}
 
 
 def _casos_mf_reac():
-    """member-forces e reacoes por caso base (G, Q, W1, W2)."""
+    """member-forces e reacoes por caso base (G, Q, Qa/Qb pattern, W1, W2)."""
     out = {}
     for nm, fn in (("G", gp.case_G), ("Q", gp.case_Q)):
         fr, ix = gp._frame(); fn(fr, ix); _, mf = fr.solve()
         out[nm] = (mf, fr.reactions(), ix)
+    # pattern loading Qa/Qb em multi-vao (NBR 8681 xadrez) - NBR 8681 C2_xadrez
+    # Consome em gp._combos_elu::C2_xadrez_A/B e em _COMB::C2_xadrez_A/B (acima).
+    # Medicao 2026-09-02: multi-vao simetrico 10+10, pilar interno M 0 -> 6,9 kNm;
+    # hetero 8+12, Mmax 13,1 -> 17,4 (+33%) - material, mantido. Custo: 2 solves.
+    # Sem try/except generico: falha de frame deve falhar alto, nao silenciar.
+    if getattr(gp, "N_VAOS", 1) >= 2:
+        wyQ = -(gp.Q_ROOF * gp.BAY * gp.COS)
+        spans_a = [i for i in range(gp.N_VAOS) if i % 2 == 0]
+        spans_b = [i for i in range(gp.N_VAOS) if i % 2 == 1]
+        # Qa: so vaos pares
+        fr, ix = gp._frame()
+        gp._carrega_udl_spans(fr, ix, wyQ, spans_a)
+        _, mf = fr.solve()
+        out["Qa"] = (mf, fr.reactions(), ix)
+        # Qb: so vaos impares
+        fr, ix = gp._frame()
+        gp._carrega_udl_spans(fr, ix, wyQ, spans_b)
+        _, mf = fr.solve()
+        out["Qb"] = (mf, fr.reactions(), ix)
     for nm, key in (("W1", "portao_barlavento"), ("W2", "portao_sotavento")):
         apply, _ = gp._wind(key)
         fr, ix = gp._frame(); apply(fr, ix); _, mf = fr.solve()

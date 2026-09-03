@@ -1,0 +1,156 @@
+================================================================================
+RELATORIO DE CONCORDANCIA ENTRE CALCULISTAS — NAO E OBRA CONSTRUIDA
+Protocolo G24 — Fonte Externa (G27 caso Petropolis 401,75 m2 - quantitativos, G14)
+================================================================================
+AVISO: CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA
+Este relatorio compara o framework contra licitacao/TCC/memorial, jamais
+contra obra edificada. Nao afirmar "validado contra obra real".
+Este aviso replica-se em (1) nome do diretorio, (2) JSON, (3) README e (4)
+este relatorio — padrao de quatro lugares da proposta 36x24 e do G24.
+
+Fonte: licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL
+  URL: https://web3.petropolis.rj.gov.br/e-gov/sad/licitacoes_contratos/files/anexo_licitacao//3341/MEM%C3%93RIA%20DE%20C%C3%81LCULO%20E.M.%20CELINA%20SCHECHNER%20-%202%C2%AA%20LICITA%C3%87%C3%83O%20-%20FINAL-2.pdf
+  SHA256: d9ff34890aade16924a65fd58581bb12d9f58fb49a6d48cb19075983587f76dd
+  Autor: Prefeitura Municipal de Petrópolis - Secretaria de Obras - Concorrência Pública 07/2023 - E.M. Celina Schechner - 2ª Licitação
+  Classe: licitacao_executada (hierarquia: licitacao_executada > projeto_licitado > livro_exemplo_resolvido > tcc_academico > material_comercial) — MAIOR AUTORIDADE
+  Titulo: Reforma e Ampliação da Escola Municipal Celina Schechner - Estrada das Arcas 3319 - Itaipava - 2ª Licitação - Memória de Cálculo (401,75 m2, 59,84 m3 concreto, 23,07 m3 capeamento)
+  Coleta: 2026-09-02
+  Paginas auditadas: fixture.json com pagina + trecho_literal por valor (guarda contra fabricacao)
+  Codigos EMOP: 11.003.0002 (concreto 25MPa), 11.011.0010 (capeamento), 11.004.0022 (forma), 11.009.0014/0015 (armadura)
+
+Objeto: Ampliacao e reforma de unidade escolar - Bairro Celina Schechner, Petropolis-RJ
+  Area a construir: 401,75 m2 (p.1)
+  Area total (existente+ampliacao): 1.049,98 m2 (p.1)
+  Volume concreto 25 MPa: 59,84 m3 (EMOP 11.003.0002, p.1/p.4)
+  Volume capeamento laje pre-moldada 4 cm: 23,07 m3 (EMOP 11.011.0010, p.1)
+  Volume total concreto: 82,91 m3 (59,84+23,07)
+  Forma: 812,45 m2 (EMOP 11.004.0022, p.2)
+
+Tipo de conferencia: NAO ELEMENTO A ELEMENTO (declaracao honesta p.1-p.2)
+  "Nao da para comparar elemento a elemento, porque a memoria traz areas e
+   volumes, nao a geometria da escola." Memoria lista volumes por codigo EMOP
+   (m3, m2, kg por codigo) sem discriminar vaos, secao de viga, pilar, espessura
+   de laje por painel. Framework mede por elemento com convencao G14 sec4:
+   laje area*h_adotada, viga b*(h-h_laje)*comp eixo-a-eixo, pilar b*h*(pe-h_viga)
+   sem contar no 2x. Comparar 59,84 (total) vs 102,0 (so laje) seria falsa
+   divergencia de ~40 m3 — guarda d·sen45 analoga obrigatoria.
+  O que da, e honesto, sao INDICES DE CONSUMO em banda de magnitude:
+   m3 de concreto por m2 construido, kg de aco por m3 de concreto.
+
+Indices de consumo — banda de magnitude (nao verificacao de elemento)
+  Petropolis:
+    indice 25MPa so: 59,84/401,75 = 0,149 m3/m2 (p.2)
+    indice total com capeamento: 82,91/401,75 = 0,206 m3/m2 (p.2)
+    indice forma: 812,45/401,75 = 2,022 m2/m2 (p.2)
+  Framework (edificio-multipavimento 9 pav 1.134 m2 laje, REVISAO-G14 sec4):
+    concreto 0,194 m3/m2 (faixa 0,16-0,20) — 220 m3/1134
+    forma 1,93 m2/m2 (faixa 1,8-2,2)
+    armadura laje 74 kg/m3 (60-80), pilar 86 kg/m3 (80-130)
+    armadura global 51,6 kg/m3 (abaixo de 80-100 porque armadura_viga vazia)
+  Faixa usual edificio concreto: 0,16-0,22 m3/m2, forma 1,8-2,2, aco 80-100 kg/m3 global
+  Veredito banda:
+    0,206 (Petropolis total) vs 0,194 (framework) = +6,2% -> DENTRO de 0,16-0,22 -> PASS banda
+    0,149 (so 25MPa) vs 0,194 = -23% -> ligeiramente abaixo mas explicavel (separa capa)
+    2,02 vs 1,93 = +4,7% -> DENTRO de 1,8-2,2 -> PASS
+    Conclusao: ordem de grandeza bate. Nenhum fator 2 de erro.
+
+Parece fraco ate lembrar o bug do G7
+  Bug G7: orcamento de R$ 72.000,00 que ignorava 19.705,9 kg de aco primario
+          (caso amostra 20x28,5 - romaneio 19.705,9 kg). Erro de ~R$ 275k em aco
+          (19,7t * ~14 R$/kg). Taxa global iria a 0 kg/m3 ou 51,6 kg/m3 (sem viga)
+  Uma banda de indice kg/m3 (80-100 usual) teria pego o bug gritante:
+          51,6 < 80 -> FAIL de magnitude, mesmo sem verificar cada barra.
+  G14 construiu tres guardas contra "orcamento parcial que se diz fechado":
+   1) Armadura por ELEMENTO (armadura_viga vazia com motivo VERIFICADAS)
+   2) aplicaveis vs sem_quantidade (escopo dinamico: estaca vs sapata, aco_estrutural nao_aplicavel)
+   3) insumos fora da tabela em a_confirmar (revestimento, esquadria, elevador, incendio)
+  Nenhuma jamais foi confrontada com levantamento oficial. Petropolis e a primeira.
+
+Confronto das tres guardas com levantamento oficial (licitacao_executada)
+  Guarda 1 — armadura por elemento:
+    Memoria Petropolis p.4 lista armaduras EMOP 11.009.0014 (CA50 8mm) e 11.009.0015 (10mm)
+    sem total agregado na pagina resumida. Framework separa armadura_laje, pilar, fundacao, viga.
+    Com codigo unico, laje+pilar (11,4 t no predio) passaria por completa, 30-40% abaixo do real
+    (falta ~5-6 t de viga). Memoria oficial tambem nao traz "aco total" magico - exige somar por
+    codigo, mesma separacao. Guarda PASSA - vazia e honesta, nao estima taxa 110 kg/m3 na entrega.
+  Guarda 2 — aplicaveis vs sem_quantidade:
+    Petropolis codigos EMOP estruturais: 11.003, 11.004, 11.009, 11.011. Galpao usaria telha
+    metalica, aco estrutural W310, piso industrial - nao aparecem na escola e sao nao_aplicaveis,
+    nao sem_quantidade. Se orcamento declarasse PARCIAL contra tabela inteira, aco_estrutural
+    sem quantitativo esconderia a falta real (armadura_viga). Framework ja faz: aco_estrutural em
+    nao_aplicaveis, armadura_viga em sem_quantidade com motivo. PASS.
+  Guarda 3 — insumos fora da tabela:
+    Escola Petropolis ampliacao 401,75 m2 tem revestimento/esquadria/louca/impermeabilizacao/
+    elevador/canteiro/incendio (EMOP 13.x,14.x,17.x) fora da memoria estrutural 11.x resumida.
+    Framework declara esses insumos em a_confirmar ao lado de R$799mil (predio 1.134 m2) - sem
+    isso preco_venda passa por preco da obra inteira. Bug G7 R$72k sem aco passaria por obra de
+    1.134 m2 se nao fosse a_confirmar. PASS.
+
+Comparacao por valor (mesma definicao, pagina+trecho, veredito enum fechado)
+  geometria_elemento_a_elemento
+    fonte: volumes EMOP totais sem discriminar elemento
+    framework: volumes por elemento com convencao G14
+    veredito: nao_comparavel — NAO_COMPARAVEL guarda d·sen45 analoga. Memoria traz m3 total por EMOP,
+            framework mede m3 por elemento (laje cheia, alma viga, pilar entre vigas). Comparar sem
+            mesma definicao daria ~40 m3 falsa divergencia. Nao inventar geometria na entrega.
+
+  area_construir_m2
+    fonte 401,75 (p.1) vs framework 1134 (9 pav) — hipotese_divergente: ambas areas para indice, tipologias
+    diferentes (escola 1-2 pav vs edificio 9 pav) mas definicao m2 mesma.
+
+  volume_concreto_25MPa_m3
+    fonte 59,84 vs framework 220,0 — nao_comparavel como volume absoluto (3,7x sem normalizar por area).
+    Comparar indice, nao m3 absoluto (guarda unidade).
+
+  volume_capeamento_m3
+    fonte 23,07 vs framework 0 (laje macica vs pre-moldada) — nao_comparavel tipologia laje. Honesto e somar
+    para banda total 82,91.
+
+  indice_concreto_estrutural_m3_per_m2_construir
+    fonte 0,149 vs framework 0,194 — hipotese_divergente: -23% porque Petropolis separa capa; somados 0,206
+    dentro da faixa. Nao e framework_errado.
+
+  indice_concreto_total_m3_per_m2_construir
+    fonte 0,206 vs framework 0,194 = +6,2% — hipotese_divergente CONCORDANCIA DE BANDA dentro de 0,16-0,22.
+    Prova que ordem de grandeza nao esta fator 2 errada. Se convencao G14 mudasse (viga h total sem
+    descontar laje => +15% volume), indice iria a 0,23-0,25 e sairia da banda -> FAIL detectado em dinheiro.
+
+  indice_forma_m2_per_m2
+    fonte 2,02 vs framework 1,93 = +4,7% — hipotese_divergente dentro de 1,8-2,2 -> PASS.
+
+  guarda_1_armadura_por_elemento
+    hipotese_divergente PASS — vazia e honesta, mesma separacao que EMOP oficial.
+
+  guarda_2_escopo_tipologia
+    hipotese_divergente PASS — nao_aplicaveis separa ruido de furo, validado contra EMOP oficial.
+
+  guarda_3_insumos_fora_da_tabela
+    hipotese_divergente PASS — a_confirmar nomeia o que tabela nao tem, evita preco_venda passar por obra.
+
+  banda_magnitude_vs_bug_G7
+    hipotese_divergente PASS — banda 0,16-0,22 e 80-100 kg/m3 contem ambos os oficiais e o framework;
+    teria pego bug G7 (R$72k sem 19,7t => taxa 51,6 <80). Primeira vez guardas confrontadas com oficial.
+
+Guarda d·sen(45) analoga verificada
+  Fixture declara explicitamente L_rafter nao aplicavel (tipologia concreto), mas para escola a guarda
+  analoga e "m3 total EMOP vs m3 por elemento" e "m3 absoluto vs m3/m2". Memoria traz 59,84 m3 total,
+  nao 401,75*0,149 decomposto por elemento. Declarar grandeza antes de divergir evita falsa divergencia
+  de ~40 m3 (como 11 mm = d*sen45 no caso galpao). Fixture traz volumetria com definicao por EMOP e
+  por elemento G14.
+
+Hierarquia: licitacao_executada (Petropolis) > tcc_academico (UFPE, 25x54) — esta e a fonte de maior
+autoridade do repo (primeira licitacao_executada). Divergencias nao autorizam mudar framework sem
+citacao normativa NBR 8800/6118.
+
+Conclusao:
+  CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
+  Caso Petropolis 401,75 m2 (59,84 m3 25MPa + 23,07 m3 capeamento) entra como caso permanente #3 do
+  harness (fixture com pagina+trecho, indices banda, 3 guardas G14).
+  Overall: nao_comparavel para elemento a elemento (sem geometria, honesto) — nao autoriza mexer.
+  Indices banda: hipotese_divergente com concordancia de magnitude (0,206 vs 0,194 dentro de 0,16-0,22)
+           — validacao honesta de ordem de grandeza, primeira a confrontar as 3 guardas G14 com oficial.
+  Nenhum veredito framework_errado; regra G24 mantida (so framework_errado+citacao muda framework).
+
+  Rotulo 4 lugares: (1) diretorio licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL,
+  (2) JSON _aviso/rotulo, (3) README e (4) este relatorio — todos com CONCORDANCIA ENTRE CALCULISTAS.
+================================================================================

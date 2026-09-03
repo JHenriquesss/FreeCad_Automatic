@@ -1,0 +1,84 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "tcc-ufpe-galpao-44x90__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-02",
+  "extrator": "tools/extrai_fonte_externa.py + transcricao manual auditada paginas reais",
+  "geometria_entradas": {
+    "descricao": "Entradas declaradas e completas do caso UFPE G25 - usadas para rodar o vertical de aco. Cada valor com pagina+trecho da fonte quando disponivel; quando nao houver pagina explicita, usa pagina da descricao geral da geometria.",
+    "valores": {}
+  },
+  "valores": {
+    "perfil_pilar_lateral": {
+      "valor": "W150x29,8",
+      "pagina": 22,
+      "trecho_literal": "47 pilares. Nos pilares laterais e centrais do galpão serão utilizados perfis W150x29,8, com 7 metros de altura. Os pilares do tapamento terão altura de 5,95 metros e",
+      "unidade": "perfil",
+      "definicao": "Perfil do pilar lateral (coluna externa do portico), altura 7,0 m, vaos 22 m, base engastada - vide travamento 7,5 m em p.48 que pode confundir com viga de tapamento"
+    },
+    "perfil_pilar_central": {
+      "valor": "W150x29,8",
+      "pagina": 22,
+      "trecho_literal": "47 pilares. Nos pilares laterais e centrais do galpão serão utilizados perfis W150x29,8, com 7 metros de altura. Os pilares do tapamento terão altura de 5,95 metros e",
+      "unidade": "perfil",
+      "definicao": "Perfil do pilar central (coluna interna entre os 2 vaos de 22 m), mesma notacao que lateral - investigar se W150x29,8 refere-se a pilar ou a viga de tapamento 7,5 m"
+    },
+    "perfil_viga_cobertura": {
+      "valor": "W310x38,7",
+      "pagina": 34,
+      "trecho_literal": "7. VIGAS DE TRAVAMENTO Para as vigas de travamento serão utilizados perfis W310x38,7 e a única carga atuante será o peso próprio para o qual será calculado se o pe",
+      "unidade": "perfil",
+      "definicao": "Perfil da viga de travamento (vão 7,5 m), conforme p.34 - W310x38,7 - distingue de W310x31,3 do pilar tapamento"
+    },
+    "perfil_terca": {
+      "valor": "U152x15,6",
+      "pagina": 50,
+      "trecho_literal": "KN/cm Mx2 qx2 Lx 2 ⋅ 8 293 − = := KN.cm My2 qy2 Ly 2 ⋅ 8 2.2 = := KN.cm Seja U152x15,6kg/m: ASTM A36 Fy 25 := KN/cm2 Ix 632 := cm4 Fb 15 := KN/cm2 Wx 83 := cm3 Fbs",
+      "unidade": "perfil",
+      "definicao": "Perfil da terca de cobertura (perfil formado a frio U enrijecido), vao 7,5 m (bay), telha zipada, aco A36"
+    },
+    "perfil_viga_tapamento": {
+      "valor": "W200x31,3",
+      "pagina": 22,
+      "trecho_literal": "Os pilares do tapamento terão altura de 5,95 metros e serão utilizados perfis W200x31,3. Os pilares laterais e centrais serão travados lateralmente na altura de 7,5 m",
+      "unidade": "perfil",
+      "definicao": "Perfil da viga de tapamento / longarina de fechamento lateral, vao 7,5 m entre porticos, peso tapamento 0,07 kN/m2 - distingue do pilar W150x29,8 (mesma familia W150)"
+    },
+    "perfil_contraventamento": {
+      "valor": "12,5 mm",
+      "pagina": 52,
+      "trecho_literal": "iais em aço). Foram utilizados espaçadores a cada 2,5 metros com o diâmetro de 12,5 mm. Segue cálculo: Diâmetro: ϕ 1.25 := cm Resistência a ruptura do materi",
+      "unidade": "mm",
+      "definicao": "Diametro da barra redonda do contraventamento em X (parede e cobertura), aco A36, barra roscada"
+    },
+    "travamento_pilar": {
+      "valor": 7.5,
+      "pagina": 22,
+      "trecho_literal": "ros e serão utilizados perfis W200x31,3. Os pilares laterais e centrais serão travados lateralmente na altura de 7,5 metros, ou seja, no topo. Logo para a consideração da flambagem temos: Figura 4:",
+      "unidade": "m",
+      "definicao": "Distancia de travamento lateral do pilar (comprimento destravado Lb para FLT), medir sob mesma definicao: Lb para verificacao NBR 8800 5.4.3"
+    },
+    "bay_porticos": {
+      "valor": 7.5,
+      "pagina": 10,
+      "trecho_literal": "as serão engastadas nos pilares formando os pórticos (Figura 3), que terão uma modulação de 7,5 m.",
+      "unidade": "m",
+      "definicao": "Vao entre porticos (bay) - 90 m / 12 = 7,5 m, usado como comprimento de vigas de tapamento e vao das tercas"
+    },
+    "vao_livre": {
+      "valor": 22.0,
+      "pagina": 10,
+      "trecho_literal": "1 1. INTRODUÇÃO Neste trabalho será dimensionado um galpão, com dimensões de 44 m por 90 m, sendo dois vãos de 22 m. O galpão será todo em estrutura metálica (Figura 1).",
+      "unidade": "m",
+      "definicao": "Vao livre transversal de cada nave (2x22 = 44 m largura total), 4 aguas (2 por vao), comprimento 90 m"
+    },
+    "aco_classe": {
+      "valor": "A572-G50 + A36",
+      "pagina": 12,
+      "trecho_literal": "rísticas: • Estrutura metálica; • A estrutura apresentará alguns elementos em aço ASTM A36 e outros em aço ASTM A572; • Ligações Parafusadas; • Fechamento lateral com telha trapezoidal TP-40; •",
+      "unidade": "classe",
+      "definicao": "Classes de aco: perfis laminados principais em A572 G50 (fy 345 MPa), secundarios/tercas em A36 (fy 250 MPa), parafusos A325-F"
+    }
+  },
+  "_instrucoes": "Cada valor com pagina + trecho_literal >=10 chars auditado no PDF real (62 paginas, avg 777 chars/pag). W150x29,8 pilares laterais/centrais p.22, W310x38,7 vigas travamento p.34, U152x15,6 tercas p.50, travamento 7,5 m p.22, bay 7,5 m p.10, vao 44x90 p.10, aco A36/A572 p.12. Guarda d*sen45: L_rafter inclinado vs projecao declarado."
+}

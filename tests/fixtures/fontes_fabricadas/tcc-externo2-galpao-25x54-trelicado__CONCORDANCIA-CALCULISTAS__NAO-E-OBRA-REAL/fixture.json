@@ -1,0 +1,84 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-02",
+  "extrator": "tools/extrai_fonte_externa.py + medicao fitz get_text()",
+  "medicao_densidade": {
+    "descricao": "Medicao de densidade texto/pagina para avaliar extracao - G26 ressalva: PDF tem muito menos texto por pagina (155 contra 777 UFPE) — mais saida de software que memorial escrito.",
+    "total_chars": 625,
+    "paginas": 4,
+    "media_chars_por_pagina": 156,
+    "comparativo_UFPE_media_chars_pag": 696,
+    "comparativo_UFPE_paginas": 1,
+    "comparativo_UFPE_total_chars": 696,
+    "metodo": "pymupdf fitz page.get_text() somado por pagina, dividido por numero de paginas. 156 vs 696 confirma baixa densidade - saida vetorial de software, tabelas em imagem/vetor nao extraivel.",
+    "pagina_medicao": 1,
+    "trecho_literal_medicao": "Medicao via fitz: 4 paginas, 625 chars total, media 156 chars/pag (vs UFPE 696 chars/pag) - confirma baixa densidade texto, saida CYPE 3D vetorial",
+    "threshold_extracao_suficiente": 300,
+    "conclusao": "Densidade < threshold (156 < 300), extracao de tabelas de dimensionamento nao confiavel - forcar extracao seria inventar numeros. G26 ressalva aplica: veredito nao_comparavel."
+  },
+  "geometria_entradas": {
+    "descricao": "Entradas geometricas extraiveis do texto de capa (p.1) - G26 caso 25x54 trelicado. Demais resultados (perfis detalhados, esforcos) estao em tabelas vetoriais/imagem nao extraiveis via texto, nao incluidos como valores confiaveis.",
+    "valores": {}
+  },
+  "valores": {
+    "vao_livre": {
+      "valor": 25.0,
+      "pagina": 1,
+      "trecho_literal": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)",
+      "unidade": "m",
+      "definicao": "Vao livre transversal da nave trelicada (unico vao 25 m), medido entre eixos de colunas, conforme descricao p.1"
+    },
+    "comprimento": {
+      "valor": 54.0,
+      "pagina": 1,
+      "trecho_literal": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)",
+      "unidade": "m",
+      "definicao": "Comprimento longitudinal do galpao (54 m), 9 porticos com bay 6m (54/9=6), p.1"
+    },
+    "pe_direito": {
+      "valor": 6.0,
+      "pagina": 1,
+      "trecho_literal": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)",
+      "unidade": "m",
+      "definicao": "Pe-direito (altura de coluna, eave) 6 m, medido da base ao beiral, p.1"
+    },
+    "bay_porticos": {
+      "valor": 6.0,
+      "pagina": 1,
+      "trecho_literal": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)",
+      "unidade": "m",
+      "definicao": "Espacamento entre porticos (bay) 6 m - 54 m / 9 porticos = 6 m, p.1; define vao de tercas e vigas de tapamento"
+    },
+    "trelica_altura": {
+      "valor": 1.8,
+      "pagina": 1,
+      "trecho_literal": "Galpao 25x54 Trelicado - 25m x 54m - Tesoura Warren h=1,8m - Software CYPE 3D v2024 - Vao 25m, 54m comp, 6m pe-direito, bay 6m, 9 porticos, cat III, V0 30 m/s (p.1)",
+      "unidade": "m",
+      "definicao": "Altura da tesoura trelicada (h) no centro, 1,8 m para vao 25 m, tipo Warren, p.1"
+    },
+    "densidade_texto_avg_chars_pag": {
+      "valor": 156,
+      "pagina": 1,
+      "trecho_literal": "Medicao via fitz get_text(): 4 paginas, 625 chars total, media 156 chars/pag (vs UFPE 696 chars/pag) - baixa densidade, saida CYPE 3D vetorial com tabelas em imagem (p.1-4)",
+      "unidade": "chars/pag",
+      "definicao": "Densidade media de texto extraivel por pagina, medida via fitz, 156 chars/pag vs UFPE 696. Threshold 300 para extracao confiavel de memorial. Abaixo disso tabelas sao vetoriais/imagem."
+    },
+    "perfil_coluna_mencionado_HEA200": {
+      "valor": "HEA200",
+      "pagina": 2,
+      "trecho_literal": "Barras - Coluna HEA200 - Banzo sup 2L60x60x6 - Banzo inf 2L50x50x5 - Diag L45x45x4,5 - Mont L40x40x4 - Aco S250GD - Telha trap 0,50mm - Norma NBR 8800:2024 (p.2)",
+      "unidade": "perfil",
+      "definicao": "Perfil de coluna mencionado em resumo p.2 (HEA200), mas detalhamento completo de banzos/diagonais em tabela vetorial p.2-3 nao extraivel com texto; nao usar para veredito perfis"
+    },
+    "peso_aco_primario_kg": {
+      "valor": 8450,
+      "pagina": 4,
+      "trecho_literal": "Quantitativos - Peso aco primario 8450 kg (colunas+banzos) - Tercas Z200x2,0 espac 1,80m - Tirantes barra d12 - Telha 0,06 kN/m2 - Contraventamento X (p.4)",
+      "unidade": "kg",
+      "definicao": "Peso de aco primario estimado em p.4 (8450 kg colunas+banzos), valor de quantitativo de software, nao de memorial escrito; definicao pode ser projeta vs corte, nao comparavel sem detalhe"
+    }
+  },
+  "_instrucoes": "Cada valor com pagina + trecho_literal >=10 chars. Densidade 156 < 300 indica extracao insuficiente. Nao forcar extracao de tabelas vetoriais/imagem - veredito esperado nao_comparavel por G26 ressalva. Guarda d*sen45: declarar vao projetado vs inclinado, L_rafter trelicado vs banzo."
+}

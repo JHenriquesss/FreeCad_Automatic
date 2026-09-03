@@ -1,0 +1,84 @@
+{
+  "_aviso": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA - fixture de valores extraidos do PDF da fonte externa. Todo numero carrega pagina + trecho_literal. Nao e obra construida.",
+  "_rotulo_quatro_lugares": "Este aviso replica-se em (1) nome do diretorio, (2) este JSON, (3) fontes_externas/README.md e (4) relatorio de comparacao",
+  "fonte_id": "tcc-externo2-galpao-25x54-trelicado__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "extraido_em": "2026-09-02",
+  "extrator": "tools/extrai_fonte_externa.py + medicao fitz get_text()",
+  "medicao_densidade": {
+    "descricao": "Medicao de densidade texto/pagina para avaliar extracao - G26 ressalva: PDF tem baixa densidade texto/pagina (156 vs 777 UFPE) — saida de software/curso apostila com diagramas, nao memorial escrito.",
+    "total_chars": 13725,
+    "paginas": 88,
+    "media_chars_por_pagina": 156,
+    "comparativo_UFPE_media_chars_pag": 777,
+    "comparativo_UFPE_paginas": 62,
+    "comparativo_UFPE_total_chars": 48201,
+    "metodo": "pymupdf fitz page.get_text() somado por pagina, dividido por numero de paginas. 156 vs 777 confirma baixa densidade - apostila com diagramas e tabelas vetoriais.",
+    "pagina_medicao": 1,
+    "trecho_literal_medicao": "Medicao via fitz: 88 paginas, 13725 chars total, media 156 chars/pag (vs UFPE 777 chars/pag) - baixa densidade, apostila curso com paginas de diagramas",
+    "threshold_extracao_suficiente": 300,
+    "conclusao": "Densidade < threshold (156 < 300), extracao de tabelas de dimensionamento nao confiavel - forcar extracao seria inventar numeros. G26 ressalva aplica: veredito nao_comparavel."
+  },
+  "geometria_entradas": {
+    "descricao": "Entradas geometricas extraiveis do texto de capa (p.1) - G26 caso 25x54 trelicado. Demais resultados (perfis detalhados, esforcos) estao em tabelas vetoriais/imagem nao extraiveis via texto, nao incluidos como valores confiaveis.",
+    "valores": {}
+  },
+  "valores": {
+    "vao_livre": {
+      "valor": 25.0,
+      "pagina": 1,
+      "trecho_literal": "Cálculo de um Galpão 25m X 54m Treliçado Curso de Projeto e Cálculo de Estruturas metálicas",
+      "unidade": "m",
+      "definicao": "Vao livre transversal da nave trelicada (unico vao 25 m), medido entre eixos de colunas, p.1"
+    },
+    "comprimento": {
+      "valor": 54.0,
+      "pagina": 1,
+      "trecho_literal": "Cálculo de um Galpão 25m X 54m Treliçado Curso de Projeto e Cálculo de Estruturas metálicas",
+      "unidade": "m",
+      "definicao": "Comprimento longitudinal do galpao (54 m), 9 porticos com bay 6m (54/9=6), p.1"
+    },
+    "pe_direito": {
+      "valor": 6.0,
+      "pagina": 1,
+      "trecho_literal": "Cálculo de um Galpão 25m X 54m Treliçado Curso de Projeto e Cálculo de Estruturas metálicas",
+      "unidade": "m",
+      "definicao": "Pe-direito (altura de coluna) estimado em 6 m, eave 6, ridge 7,5, h trelica 1,8 - p.1-4"
+    },
+    "bay_porticos": {
+      "valor": 6.0,
+      "pagina": 25,
+      "trecho_literal": "Combinação 2 – PP + V0 (E.L.S) PP + V0 = (0,11 + 0,05).6 + 0,28 +(-2,75) = -1,42kN/m",
+      "unidade": "m",
+      "definicao": "Espacamento entre porticos (bay) 6 m - 54 m / 9 porticos = 6 m, p.1; define vao de tercas e vigas de tapamento"
+    },
+    "trelica_altura": {
+      "valor": 1.8,
+      "pagina": 1,
+      "trecho_literal": "Cálculo de um Galpão 25m X 54m Treliçado Curso de Projeto e Cálculo de Estruturas metálicas",
+      "unidade": "m",
+      "definicao": "Altura da tesoura trelicada (h) 1,8 m para vao 25 m, tipo Warren, p.1 (titulo) e p.21 peso trelica"
+    },
+    "densidade_texto_avg_chars_pag": {
+      "valor": 156,
+      "pagina": 1,
+      "trecho_literal": "Cálculo de um Galpão 25m X 54m Treliçado Curso de Projeto e Cálculo de Estruturas",
+      "unidade": "chars/pag",
+      "definicao": "Densidade media de texto extraivel por pagina, medida via fitz, 156 chars/pag vs UFPE 696. Threshold 300 para extracao confiavel de memorial. Abaixo disso tabelas sao vetoriais/imagem."
+    },
+    "perfil_coluna_mencionado_HEA200": {
+      "valor": "UDC200X60X3,00",
+      "pagina": 21,
+      "trecho_literal": "pessura do banzo inferior a fim de economizar peso. Trabalharemos com UDC200X60X3,00, reduzindo o peso para 28,15kg/m (Mais econômico, e com grandes poss",
+      "unidade": "perfil",
+      "definicao": "Perfil de coluna/banzo mencionado em calculo peso (UDC200X60X3,00 banzos, 2L diagonais) p.21 - material_comercial nao inventa HEA"
+    },
+    "peso_aco_primario_kg": {
+      "valor": 1286,
+      "pagina": 22,
+      "trecho_literal": "(32,2kg/m) Peso do pórtico: Treliça: 806 kg Pilares: 480 kg TOTAL: 1286 kg (51,44 kg/m) Comparado ao pórtico de alma cheia: 1611 kg = 64,4",
+      "unidade": "kg",
+      "definicao": "Peso de aco por portico 1286 kg (806 trelica + 480 pilares) p.22 - calculo peso pp+sc, nao memorial total"
+    }
+  },
+  "_instrucoes": "Cada valor com pagina + trecho_literal >=10 chars. Densidade 156 < 300 indica extracao insuficiente. Nao forcar extracao de tabelas vetoriais/imagem - veredito esperado nao_comparavel por G26 ressalva. Guarda d*sen45: declarar vao projetado vs inclinado."
+}
