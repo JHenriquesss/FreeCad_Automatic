@@ -88,6 +88,9 @@ def main():
     ref_peso = sidecar["valores_referencia"]["peso_aco_primario_kg"]
     ref_mcol = sidecar["valores_referencia"]["Mcol_kNm"]
     print(f"    sidecar peso_aco_primario_kg: {ref_peso} | Mcol: {ref_mcol}")
+    print("    AVISO (G23/G36, circular por construcao): o sidecar foi gerado PELO")
+    print("    PROPRIO framework — 0.00% PASS prova que o harness compara numero-a-")
+    print("    numero, NAO que o calculo esta certo. Validacao real exige memorial externo.")
     # comparar com tolerancias G19
     def rel_err(a,b):
         return abs(a-b)/max(abs(b),1e-9)
@@ -107,6 +110,7 @@ def main():
     print("      + anexar docs/validacao_g15/galpao-sjb-memorial.pdf + sidecar do template.")
     print("="*70)
     print("Demo OK — nao afirma que exemplo sintetico e obra. G19 continua AGUARDANDO OBRA REAL.")
+    print("AVISO: numeros acima sao CIRCULARES (framework x framework) — o PASS valida o harness, nao a engenharia.")
     return 0
 
 if __name__ == "__main__":

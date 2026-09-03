@@ -78,7 +78,7 @@ guardas abaixo existem para impedir:
 
 | Guarda | O que ela impede |
 | --- | --- |
-| armadura por **elemento** (`armadura_laje`, `armadura_pilar`, `armadura_fundacao`, `armadura_viga`) | as vigas do edifício são analisadas e nunca verificadas: não há `As` para elas. Num código `armadura` único, o peso sairia 30-40% abaixo com cara de completo |
+| armadura por **elemento** (`armadura_laje`, `armadura_pilar`, `armadura_fundacao`, `armadura_viga`) | até o G33 as vigas eram analisadas e nunca verificadas (sem `As`); o G34 FECHOU: toda viga, todo tramo verificado e `armadura_viga` com peso. Sem código próprio, o peso parcial sairia 30-40% abaixo com cara de completo |
 | `aplicaveis` (escopo da tipologia) | um prédio de concreto não tem aço estrutural, telha nem piso industrial; declará-los "sem quantitativo" seria ruído escondendo a falta que importa. Eles saem em `nao_aplicaveis` |
 | insumos **fora da tabela** de preços | revestimento, esquadria, elevador, louça, impermeabilização e o combate a incêndio não têm preço de referência: são nomeados em `a_confirmar`, e o preço de venda não passa por preço da obra |
 

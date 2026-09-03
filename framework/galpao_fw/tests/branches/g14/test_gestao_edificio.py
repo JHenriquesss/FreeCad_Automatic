@@ -141,21 +141,27 @@ def test_taxas_de_concreto_e_forma_ficam_na_ordem_de_grandeza_de_um_predio(deriv
     assert 1.5 <= q["forma"] / area_total <= 2.6
 
 
-def test_armadura_e_publicada_por_ELEMENTO_e_a_da_viga_nunca_e_derivada(derivado):
-    """O buraco tem de ter nome proprio.
+def test_armadura_e_publicada_por_ELEMENTO_e_a_da_viga_agora_e_derivada(derivado):
+    """O buraco tem nome proprio -- e o G34 FECHOU ele.
 
-    Nao existe As dimensionada para as vigas do edificio (elas sao analisadas e
-    nunca verificadas). Se a armadura fosse UM codigo so, o peso da laje mais o
-    do pilar sairiam com cara de armadura completa - 30-40% abaixo do real.
+    Ate o G33 nao existia As dimensionada para as vigas (analisadas e nunca
+    verificadas). Se a armadura fosse UM codigo so, o peso da laje mais o do
+    pilar sairiam com cara de completa - 30-40% abaixo do real. O codigo
+    separado continua, mas agora com peso: toda viga, todo tramo verificado.
     """
-    dados, _resultado = derivado
+    dados, resultado = derivado
     q = dados["quantitativos"]
     assert q["armadura_laje"] > 0 and q["armadura_pilar"] > 0
-    assert "armadura_viga" not in q
+    assert q["armadura_viga"] > 0, "G34 desfeito: armadura_viga voltou a vazia"
     assert "armadura" not in q                       # o codigo generico nao e usado
     motivos = {item["item"]: item["motivo"] for item in dados["nao_derivados"]}
-    assert "armadura_viga" in motivos
-    assert "VERIFICADAS" in motivos["armadura_viga"]
+    assert "armadura_viga" not in motivos, motivos.get("armadura_viga")
+    # o peso vem da verificacao tramo a tramo, nunca de taxa inventada
+    vv = resultado["estrutura"]["vigas_verificacao"]
+    assert vv["n_tramos"] > 0 and vv["OK"]
+    # ordem de grandeza de viga de edificio (kg/m3 de viga)
+    taxa_viga = q["armadura_viga"] / dados["composicao"]["viga_m3"]
+    assert 20.0 <= taxa_viga <= 200.0, taxa_viga
 
 
 def test_armadura_da_laje_sai_do_quadro_de_ferros_e_nao_de_taxa_inventada(derivado):
@@ -201,8 +207,12 @@ def test_pontos_eletricos_e_hidraulicos_vem_das_instalacoes(derivado):
 
 # ------------------- o orcamento nao pode se dizer fechado --------------------
 def test_orcamento_parcial_e_declarado_com_os_insumos_que_faltam(manifesto):
+    # G34: armadura_viga SAIU de sem_quantidade (tem peso); o parcial que resta
+    # e' o fechamento_lateral nao declarado -- e continua dito em voz alta.
     orcamento = manifesto["deliverables"]["orcamento"]
-    assert "armadura_viga" in orcamento["sem_quantidade"]
+    assert "armadura_viga" not in orcamento["sem_quantidade"]
+    assert "armadura_viga" in orcamento["codigos"]
+    assert "fechamento_lateral" in orcamento["sem_quantidade"]
     assert any("orcamento PARCIAL" in aviso for aviso in orcamento["a_confirmar"])
     assert 0 < orcamento["cobertura_pct"] < 100
 

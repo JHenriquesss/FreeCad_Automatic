@@ -7,13 +7,18 @@ fontes_externas/registro.json e grava esqueleto com proveniência
 pagina + trecho_literal obrigatórios.
 
 Uso:
-    python tools/extrai_fonte_externa.py --url https://example.com/tcc.pdf --autor "Silva, J. - UFMG 2023" --classe tcc_academico --id tcc-ufmg-2023-galpao-24x36 --titulo "Galpao 24x36 - TCC UFMG 2023"
+    python tools/extrai_fonte_externa.py --url https://repositorio.universidade.br/tcc.pdf --autor "Silva, J. - UFMG 2023" --classe tcc_academico --id tcc-ufmg-2023-galpao-24x36 --titulo "Galpao 24x36 - TCC UFMG 2023"
 
     python tools/extrai_fonte_externa.py --pdf-local /caminho/para/tcc.pdf --autor "Silva, J." --classe tcc_academico --id meu-tcc --titulo "Titulo literal da obra"
 
     python tools/extrai_fonte_externa.py --check --id tcc-ufmg-2023-galpao-24x36
 
-    python tools/extrai_fonte_externa.py --url file://fontes_externas/exemplo_dummy.pdf --autor "Exemplo" --classe tcc_academico --id teste-local --titulo "Teste local"
+    python tools/extrai_fonte_externa.py --check-remote --id tcc-ufpe-galpao-44x90
+    (G35: rebusca a URL ao vivo e compara o SHA-256 com o registrado; prova que
+    o PDF guardado e o que a URL serve sao o mesmo. --check so confere o
+    arquivo LOCAL contra o registro.)
+
+    python tools/extrai_fonte_externa.py --url file://tests/fixtures/fonte_exemplo_sintetica/exemplo_dummy.pdf --autor "Exemplo" --classe tcc_academico --id teste-local --titulo "Teste local"
 
 Saídas (por obra):
     fontes_externas/registro.json  (entrada acrescentada/atualizada)
@@ -84,7 +89,7 @@ def _download(url: str) -> tuple[bytes, str]:
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme == "file":
-        # file://fontes_externas/exemplo_dummy.pdf  ou file:///C:/...
+        # file://tests/fixtures/fonte_exemplo_sintetica/exemplo_dummy.pdf  ou file:///C:/...
         # urllib decodifica, mas fazemos manual
         raw_path = urllib.parse.unquote(parsed.path)
         # Windows: file://fontes_externas/... -> path = /fontes_externas/... (sem drive)
@@ -416,8 +421,8 @@ def cmd_check(args):
     obra_dir = REPO / "fontes_externas" / id_full
     pdf_path = obra_dir / "original.pdf"
     if not pdf_path.is_file():
-        # fallback para dummy legado
-        alt = REPO / "fontes_externas" / "exemplo_dummy.pdf"
+        # fallback para o exemplo sintetico (G35: movido para tests/fixtures)
+        alt = REPO / "tests" / "fixtures" / "fonte_exemplo_sintetica" / "exemplo_dummy.pdf"
         if alt.is_file() and "exemplo" in id_full:
             pdf_path = alt
     if pdf_path.is_file() and PROTO is not None:
@@ -479,6 +484,63 @@ def cmd_check(args):
     return 0
 
 
+def cmd_check_remote(args):
+    """G35 --check-remote: rebusca a URL ao vivo e compara o hash com o registrado.
+
+    E o que foi feito a mao no G29 (rebusca ao vivo contra os servidores de
+    origem) refeito pela maquina: baixa a URL declarada no registro, calcula o
+    SHA-256 do que a URL SERVE agora e compara com o sha256 registrado na coleta.
+    Diverge => o PDF guardado nao e (mais) o que a URL serve: FAIL.
+
+    Limite que fecha: o G30 confere fixture contra o PDF LOCAL, nunca que o PDF
+    local e o que a URL serve. Uma entrada sintetica com URL que da 404 (ex.
+    https://example.com/...) PASSA no G30 por construcao e FALHA aqui.
+
+    Somente leitura: nao toca em registro.json nem nos arquivos guardados.
+    file:// nao faz sentido remoto (nao ha servidor de origem) => erro de uso.
+    """
+    id_raw = args.id
+    if not id_raw:
+        print("ERRO: --check-remote exige --id <slug>", file=sys.stderr)
+        return 2
+    id_full = _id_com_sufixo(id_raw.strip())
+    if not REGISTRO.is_file():
+        print(f"ERRO: registro não existe: {REGISTRO}", file=sys.stderr)
+        return 1
+    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    entry = None
+    for f in registro.get("fontes", []):
+        if f.get("id") == id_full or f.get("id") == id_raw:
+            entry = f
+            break
+    if entry is None:
+        print(f"ERRO: id não encontrado no registro: {id_raw} (tentado {id_full})", file=sys.stderr)
+        print(f"IDs no registro: {[e.get('id') for e in registro.get('fontes',[])][:5]}", file=sys.stderr)
+        return 1
+    url = entry["url"]
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https":
+        if parsed.scheme == "file":
+            print(f"[FALHA] --check-remote exige URL https:// com servidor de origem; entrada usa file://: {url}", file=sys.stderr)
+        else:
+            print(f"[FALHA] --check-remote exige URL https://, veio '{url}'", file=sys.stderr)
+        return 1
+    print(f"[G35] Rebuscando ao vivo: {url}")
+    try:
+        pdf_bytes, sha_vivo = _download(url)
+    except Exception as ex:
+        print(f"[FALHA] nao foi possivel rebuscar a URL (servidor fora, 404, timeout?): {ex}", file=sys.stderr)
+        return 1
+    sha_reg = entry["sha256"]
+    print(f"  Registrado: {sha_reg} ({entry['data_coleta']})")
+    print(f"  Servido:    {sha_vivo} ({len(pdf_bytes)} bytes)")
+    if sha_vivo.lower() != sha_reg.lower():
+        print(f"[FALHA] SHA-256 diverge: o que a URL serve NAO e o PDF guardado (registrado {sha_reg[:12]}... vs servido {sha_vivo[:12]}...)", file=sys.stderr)
+        return 1
+    print(f"[G35] Check-remote PASS: a URL serve o mesmo PDF guardado ({sha_vivo[:12]}...)")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="G24 - Extrator de Fonte Externa (protocolo de fonte externa)")
     ap.add_argument("--url", type=str, default="", help="URL do PDF (https:// ou file://)")
@@ -487,9 +549,12 @@ def main():
     ap.add_argument("--classe", type=str, default="", choices=CLASSES, help="classe de autoridade: " + " > ".join(CLASSES))
     ap.add_argument("--id", type=str, default="", help="slug único da obra (sem sufixo; o sufixo de concordancia é adicionado automaticamente)")
     ap.add_argument("--titulo", type=str, default="", help="titulo literal da obra")
-    ap.add_argument("--check", action="store_true", help="verifica entrada existente por --id")
+    ap.add_argument("--check", action="store_true", help="verifica entrada existente por --id (só arquivo local, sem rede)")
+    ap.add_argument("--check-remote", action="store_true", help="G35: rebusca a URL ao vivo e compara SHA-256 com o registrado (exige --id)")
     args = ap.parse_args()
 
+    if args.check_remote:
+        return cmd_check_remote(args)
     if args.check:
         return cmd_check(args)
     # modo extração: exige autor/classe/id/titulo + url ou pdf-local

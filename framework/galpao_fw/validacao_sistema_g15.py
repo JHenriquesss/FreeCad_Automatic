@@ -1328,14 +1328,17 @@ def check_licitacao_petropolis_escola():
         spec = _js.loads(spec_path.read_text(encoding="utf-8"))
         resultado, _regs = _ea.run_edificio(normalize_spec(_cp.deepcopy(spec)), None)
         dados = _ge.derivacao(resultado)
-        # guarda 1
-        if "armadura_viga" in dados["quantitativos"]:
+        # guarda 1 (G34: FECHADA -- armadura_viga AGORA TEM peso, por elemento).
+        # A guarda continua: sem codigo generico `armadura`, e sem taxa inventada.
+        if "armadura_viga" not in dados["quantitativos"]:
             return ("Petropolis Escola (guarda1)", False, float("nan"),
-                    "armadura_viga deve permanecer VAZIA (gap G3)")
-        motivos = {item["item"]: item["motivo"] for item in dados["nao_derivados"]}
-        if "armadura_viga" not in motivos or "VERIFICADAS" not in motivos["armadura_viga"]:
-            return ("Petropolis Escola (guarda1 motivo)", False, float("nan"),
-                    "armadura_viga motivo VERIFICADAS ausente")
+                    "G34 fechou o gap: armadura_viga deve TER peso (vigas verificadas)")
+        if float(dados["quantitativos"]["armadura_viga"]) <= 0:
+            return ("Petropolis Escola (guarda1 peso)", False, float("nan"),
+                    "armadura_viga com peso nao positivo")
+        if "armadura" in dados["quantitativos"]:
+            return ("Petropolis Escola (guarda1 generico)", False, float("nan"),
+                    "codigo generico `armadura` nao deve existir (por elemento)")
         # banda framework vs petropolis dentro de 15%
         area_fw = resultado["estrutura"]["pavimento"]["area_m2"] * resultado["estrutura"]["n_pavimentos"]
         conc_fw = dados["quantitativos"]["concreto_estrut"]
@@ -1363,8 +1366,8 @@ def check_licitacao_petropolis_escola():
                 f"401,75 m2 construir, 1.049,98 total, 59,84 m3 25MPa + 23,07 capeamento = 82,91 m3 -> "
                 f"indice 0,149 so / 0,206 total vs framework 0,194 (delta 6% dentro de 0,16-0,22) e forma 2,02 vs 1,93 (4,7%). "
                 f"Elemento a elemento nao_comparavel (sem geometria, honesto). "
-                f"3 guardas G14 confrontadas com oficial pela 1a vez e PASSAM (armadura_viga vazia, aplicaveis vs sem_quantidade, a_confirmar). "
-                f"Banda 80-100 kg/m3 teria pego bug G7 19.705,9 kg (51,6 <80).")
+                f"3 guardas G14 confrontadas com oficial e PASSAM (armadura_viga COM peso por elemento G34, aplicaveis vs sem_quantidade, a_confirmar). "
+                f"Banda 80-100 kg/m3 teria pego bug G7 19.705,9 kg (51,6 <80 sem viga).")
     except Exception as ex:
         import traceback as _tb
         return ("Petropolis Escola (G27)", False, float("nan"),

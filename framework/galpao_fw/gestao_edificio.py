@@ -27,12 +27,15 @@
 # orcamento com uma linha parece um orcamento. Tres guardas evitam isso aqui:
 #
 #   1. ARMADURA POR ELEMENTO. `armadura_laje`, `armadura_pilar`,
-#      `armadura_fundacao` e `armadura_viga` sao codigos SEPARADOS. As vigas do
-#      edificio sao ANALISADAS e nunca VERIFICADAS (gap aberto do G3), logo nao
-#      existe As dimensionada para elas - e sem codigo proprio esse buraco
+#      `armadura_fundacao` e `armadura_viga` sao codigos SEPARADOS. Ate o G33 as
+#      vigas do edificio eram ANALISADAS e nunca VERIFICADAS (gap do G3), logo
+#      nao existia As dimensionada para elas - e sem codigo proprio esse buraco
 #      entraria dentro de um `armadura` unico, que exibiria um peso 30-40%
-#      menor com cara de completo. Rotulo tem de descrever a geometria que
-#      cobre (a licao da varredura de rotulo do takeoff).
+#      menor com cara de completo. O G34 FECHOU o gap (toda viga, todo tramo
+#      verificado em `edificio_multipavimento.vigas_verificacao` e peso derivado
+#      em `_armadura_das_vigas`); o codigo separado CONTINUA, porque e' ele que
+#      impede o peso parcial de passar por completo. Rotulo tem de descrever a
+#      geometria que cobre (a licao da varredura de rotulo do takeoff).
 #   2. ESCOPO DA TIPOLOGIA. `compor_orcamento` passou a aceitar `aplicaveis`:
 #      um predio de concreto nao tem aco estrutural, telha metalica nem piso
 #      industrial, e declara-los "sem quantitativo" seria ruido escondendo a
@@ -279,6 +282,67 @@ def _armadura_dos_pilares(est):
     return peso
 
 
+def _armadura_das_vigas(est, notas):
+    """Peso de aco das VIGAS (kg), da verificacao tramo a tramo (G34).
+
+    Cada tramo verificado em `edificio_multipavimento.vigas_verificacao` traz
+    As_inf/As_sup (flexao M+/M-, ja com As_min), s_estribo_max (cortante 17.4.2)
+    e lb_nec (ancoragem 9.4). O peso soma, por tramo:
+
+      - longitudinal: (As_inf + As_sup) x (L + 2*lb_nec) -- a barra passa o vao
+        e ancora nas duas extremidades;
+      - transversal: estribos phi_est a cada s_max (n = ceil(L/s_max)+1), com
+        comprimento do retangulo interno + 2 ganchos de 10*phi (18.3.3).
+
+    O pavimento-tipo se repete em todos os pavimentos, entao o peso de um
+    pavimento e' multiplicado por n_pavimentos. Traspasses, perdas de corte e
+    armadura de montagem alem da minima nao estao no peso -- dito, como nos
+    demais elementos.
+    """
+    vv = (est or {}).get("vigas_verificacao")
+    if not isinstance(vv, dict) or not vv.get("por_linha"):
+        return 0.0
+    peso_por_pav = 0.0
+    n_tramos = 0
+    for linha in vv["por_linha"]:
+        b_lin = _num(linha.get("b"))
+        h_lin = _num(linha.get("h"))
+        for tramo in linha.get("tramos") or []:
+            L = _num(tramo.get("L"))
+            if L <= 0:
+                continue
+            n_tramos += 1
+            As_inf = _num(tramo.get("As_inf_cm2")) * 1e-4
+            As_sup = _num(tramo.get("As_sup_cm2")) * 1e-4
+            ver = tramo.get("verificacao") or {}
+            anc = ver.get("ancoragem") or {}
+            lb = _num(anc.get("lb_nec_mm")) / 1000.0
+            comp_long = L + 2.0 * max(lb, 0.0)
+            peso_por_pav += (As_inf + As_sup) * comp_long * RHO_ACO_KG_M3
+            s_max = _num(ver.get("s_estribo_max")) or 0.20
+            phi_est = _num(ver.get("phi_estribo_mm")) or 5.0
+            b = b_lin or _num(ver.get("b")) or 0.20
+            h = h_lin or _num(ver.get("h")) or 0.50
+            cob = 0.03
+            n_est = math.ceil(L / s_max) + 1 if s_max > 0 else 1
+            Le = 2.0 * ((b - 2.0 * cob) + (h - 2.0 * cob)) + 2.0 * 10.0 * phi_est / 1000.0
+            if Le < 0:
+                Le = 0.0
+            peso_por_pav += n_est * max(Le, 0.0) * 0.00617 * phi_est ** 2
+    if n_tramos == 0 or peso_por_pav <= 0:
+        return 0.0
+    n_pav = int((est or {}).get("n_pavimentos") or 1)
+    total = peso_por_pav * max(n_pav, 1)
+    notas.append(
+        "armadura_viga: %.1f kg = (As_inf+As_sup) x (L+2*lb_nec) + estribos "
+        "phi %%(phi)s s_max por tramo, %d tramos do pavimento-tipo x %d "
+        "pavimentos. Traspasses, perdas de corte e armadura alem da minima "
+        "nao incluidos" % (total, n_tramos, max(n_pav, 1)))
+    # o phi varia por tramo; a nota registra o criterio, nao um valor unico
+    notas[-1] = notas[-1].replace("phi %(phi)s", "phi por tramo")
+    return total
+
+
 def _fundacao(est, notas, nao_derivados, escopo):
     """Concreto, armadura e metros de estaca da fundacao ja dimensionada.
 
@@ -465,17 +529,20 @@ def derivacao(result):
         notas.append(
             "armadura_pilar: so a armadura LONGITUDINAL (As adotada x altura do "
             "lance). Estribos, traspasses e arranques nao estao no peso")
-    # A VIGA NAO TEM As. `pavimento_tipo` entrega a envoltoria de esforcos e o
-    # edificio nunca verifica a secao (gap aberto do G3), entao nao existe
-    # armadura dimensionada para as vigas. O codigo fica VAZIO de proposito:
-    # somar zero dentro de um `armadura` unico seria o orcamento parcial se
-    # passando por fechado.
-    nao_derivados.append({
-        "item": "armadura_viga",
-        "motivo": "as vigas do edificio sao ANALISADAS (envoltoria de esforcos) "
-                  "e nao VERIFICADAS: nao ha As dimensionada para derivar peso. "
-                  "Declarar em gestao.orcamento.quantitativos.armadura_viga "
-                  "antes de usar o preco de venda"})
+    # G34: A VIGA TEM As -- toda viga, todo tramo verificado em
+    # `edificio_multipavimento.vigas_verificacao` (flexao M+/M-, cortante,
+    # ancoragem, ELS). O peso sai da armadura dimensionada, nunca de taxa.
+    # Sem verificacao (resultado antigo), o codigo continua VAZIO de proposito.
+    peso_viga = _armadura_das_vigas(est, notas)
+    if peso_viga:
+        q["armadura_viga"] = round(peso_viga, 1)
+    else:
+        nao_derivados.append({
+            "item": "armadura_viga",
+            "motivo": "as vigas do edificio sao ANALISADAS (envoltoria de esforcos) "
+                      "e nao VERIFICADAS: nao ha As dimensionada para derivar peso. "
+                      "Declarar em gestao.orcamento.quantitativos.armadura_viga "
+                      "antes de usar o preco de venda"})
 
     escopo = set(CODIGOS_APLICAVEIS)
     q.update(_fundacao(est, notas, nao_derivados, escopo))

@@ -370,8 +370,10 @@ def localizar_pdf_fonte(fonte_id: str, repo_root: pathlib.Path | None = None) ->
         repo_root = pathlib.Path(__file__).resolve().parents[2]
     candidatos = [
         repo_root / "fontes_externas" / fonte_id / "original.pdf",
-        # fallback para dummy legado (exemplo_dummy.pdf na raiz de fontes_externas)
-        repo_root / "fontes_externas" / "exemplo_dummy.pdf",
+        # G35: exemplo sintetico movido para tests/fixtures (nao e fonte real)
+        repo_root / "tests" / "fixtures" / "fonte_exemplo_sintetica" / fonte_id / "original.pdf",
+        # fallback para dummy legado (exemplo_dummy.pdf)
+        repo_root / "tests" / "fixtures" / "fonte_exemplo_sintetica" / "exemplo_dummy.pdf",
     ]
     for cand in candidatos:
         if cand.is_file():
@@ -381,7 +383,7 @@ def localizar_pdf_fonte(fonte_id: str, repo_root: pathlib.Path | None = None) ->
             return cand
     # tenta diretamente o path do dummy se for o id de exemplo
     if "exemplo" in fonte_id:
-        p = repo_root / "fontes_externas" / "exemplo_dummy.pdf"
+        p = repo_root / "tests" / "fixtures" / "fonte_exemplo_sintetica" / "exemplo_dummy.pdf"
         if p.is_file():
             return p
     return None

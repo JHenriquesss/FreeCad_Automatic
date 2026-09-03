@@ -29,6 +29,7 @@ import os
 
 import descida_cargas as dc
 import desempenho_nbr15575 as des
+import estrutura_casa as ec_vigas
 import fundacao_edificio as fe
 import laje_concreto as lj
 import pavimento_tipo as pt
@@ -149,8 +150,18 @@ def rodar(spec):
             erros_pilar.append(nome)
 
     # ---------------------------------------------------------------- VIGAS
+    # G34: TODA viga, TODO tramo VERIFICADO (nao so analisado). `pavimento_tipo`
+    # entrega a envoltoria (14.6.6) mas nao confere a secao. Aqui cada tramo
+    # passa por `viga_concreto.verifica_viga` com M_d/M_d_neg/V_d da envoltoria
+    # (o mesmo padrao da casa em `estrutura_casa.verifica_vigas`): flexao M+/M-,
+    # cortante, ancoragem, flecha Tab.13.3 e fissuracao. O M- da envoltoria e'
+    # passado explicitamente porque o w.L2/10 de tabela e' MENOR que o w.L2/8 de
+    # um apoio interno de dois vaos.
     vigas = list(pav["vigas_x"]) + list(pav["vigas_y"])
-    vigas_ok = all(v["OK"] for v in vigas)
+    vigas_ok_env = all(v["OK"] for v in vigas)
+    r_vigas = ec_vigas.verifica_vigas(pav, fck, fyk,
+                                      com_alvenaria=pav["g_parede_kN_m"] > 0)
+    vigas_ok = bool(r_vigas["OK"] and vigas_ok_env)
 
     # --------------------------------------------------------------- ESCADA
     r_escada = None
@@ -434,7 +445,10 @@ def rodar(spec):
             "h_na_carga_cm": pav["h_laje_usada"] * 100,
             "iteracoes": iteracoes},
         "vigas": {"OK": vigas_ok, "n": len(vigas),
-                  "reprovadas": [v["nome"] for v in vigas if not v["OK"]]},
+                  "n_linhas": len(r_vigas["por_linha"]),
+                  "n_tramos": r_vigas["n_tramos"],
+                  "reprovadas": ([v["nome"] for v in vigas if not v["OK"]]
+                                  + list(r_vigas["reprovados"]))},
         # ELS de vibracao (NBR 8800 Anexo L). `aplicavel` False (cobertura, forro)
         # sai OK - nao ha criterio - mas fica NOMEADO no gate, nunca omitido.
         "vibracao_piso": {
@@ -489,7 +503,8 @@ def rodar(spec):
     return {
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
-        "laje": r_laje, "vigas": vigas, "escada": r_escada, "planta": planta,
+        "laje": r_laje, "vigas": vigas, "vigas_verificacao": r_vigas,
+        "escada": r_escada, "planta": planta,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "estabilidade": estabilidade,
         "momentos_base": momentos_base,
@@ -528,8 +543,9 @@ def relatorio_pt(r):
                      "OK" if g["reducao_6120"]["OK"] else "REPROVA"),
           "  LAJE: h = %.0f cm -> %s" % (g["laje"]["h_cm"],
                                          "ATENDE" if g["laje"]["OK"] else "REPROVA"),
-          "  VIGAS CONTINUAS: %d linhas -> %s"
-          % (g["vigas"]["n"], "ATENDE" if g["vigas"]["OK"]
+          "  VIGAS CONTINUAS: %d linhas / %d tramos VERIFICADOS -> %s"
+          % (g["vigas"]["n"], g["vigas"].get("n_tramos", 0),
+             "ATENDE" if g["vigas"]["OK"]
              else "REPROVA em " + ", ".join(g["vigas"]["reprovadas"])),
           "  PILARES CONTINUOS: %d -> %s"
           % (g["pilares"]["n"], "ATENDE" if g["pilares"]["OK"]

@@ -224,20 +224,34 @@ def test_g24_fixture_com_procedencia_passa():
 
 
 def test_g24_fixture_exemplo_tem_procedencia():
-    # o fixture exemplo que shipamos deve passar
-    exemplo = REPO / "fontes_externas" / f"tcc-exemplo-ufmg-2023-galpao-24x36{PROTO.SUFIXO_DIRETORIO}" / "fixture.json"
+    # G35: o fixture-exemplo sintetico mora em tests/fixtures (nao e fonte real)
+    exemplo = REPO / "tests" / "fixtures" / "fonte_exemplo_sintetica" / f"tcc-exemplo-ufmg-2023-galpao-24x36{PROTO.SUFIXO_DIRETORIO}" / "fixture.json"
     assert exemplo.is_file(), f"fixture exemplo não encontrado: {exemplo}"
     data = json.loads(exemplo.read_text(encoding="utf-8"))
     erros = PROTO.validar_fixture(data)
     assert not erros, f"fixture exemplo deveria passar, veio {erros}"
 
 
+def test_g35_registro_sem_entrada_sintetica_example_com():
+    # G35: a entrada sintetica do example.com saiu do registro — registro so tem fontes reais
+    data = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    for entry in data["fontes"]:
+        assert "example.com" not in entry.get("url", ""), f"registro ainda contem URL sintetica: {entry['id']}"
+        assert "tcc-exemplo-ufmg" not in entry.get("id", ""), f"registro ainda contem entrada sintetica: {entry['id']}"
+    assert len(data["fontes"]) == 3, f"registro deve ter as 3 fontes reais, veio {len(data['fontes'])}"
+    # a entrada removida esta preservada como auditoria em tests/fixtures
+    entry_path = REPO / "tests" / "fixtures" / "fonte_exemplo_sintetica" / "registro_entry.json"
+    assert entry_path.is_file(), f"entrada sintetica preservada ausente: {entry_path}"
+    entry = json.loads(entry_path.read_text(encoding="utf-8"))
+    assert "example.com" in entry["url"]
+
+
 # ---------------------------------------------------------------------------
 # Rótulo em 4 lugares
 # ---------------------------------------------------------------------------
 def test_g24_rotulo_quatro_lugares():
-    # 1) nome do diretório
-    exemplo_dir = REPO / "fontes_externas" / f"tcc-exemplo-ufmg-2023-galpao-24x36{PROTO.SUFIXO_DIRETORIO}"
+    # 1) nome do diretório — G35: usa fonte REAL (o exemplo sintetico mudou para tests/fixtures)
+    exemplo_dir = REPO / "fontes_externas" / f"tcc-ufpe-galpao-44x90{PROTO.SUFIXO_DIRETORIO}"
     assert exemplo_dir.is_dir(), f"diretório exemplo não existe: {exemplo_dir}"
     assert PROTO.SUFIXO_DIRETORIO in exemplo_dir.name
 

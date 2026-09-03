@@ -256,7 +256,11 @@ def test_g19_quarto_caso_1_comando_output():
     # roda o harness como documentado em QUARTO-CASO-1-COMANDO.md (inventario nomeado G30)
     res = subprocess.run([sys.executable, "-m", "validacao_sistema_g15"],
                          cwd="framework/galpao_fw",
-                         capture_output=True, text=False, timeout=180)
+                         # D80: o harness sozinho leva ~123 s; sob `-n 4` da suite
+                         # completa passava de 180 s e o teste reprovava por CARGA
+                         # DE MAQUINA, nao por defeito. Veredito que depende de
+                         # quem mais esta rodando corroi a regra da suite verde.
+                         capture_output=True, text=False, timeout=900)
     stdout = res.stdout.decode("utf-8", errors="replace")
     stderr = res.stderr.decode("utf-8", errors="replace")
     assert res.returncode == 0, f"validacao_sistema_g15 falhou: {stdout[:1000]} {stderr[:500]}"

@@ -201,7 +201,7 @@ considerada `BLOQUEADO - rotulagem incompleta`.
 
 ```powershell
 # coleta por URL (ou --pdf-local para arquivo já baixado)
-python tools/extrai_fonte_externa.py --url https://example.com/tcc.pdf --autor "Silva, J. - UFMG 2023" --classe tcc_academico --id tcc-ufmg-2023-galpao-24x36 --titulo "Galpão 24x36 - TCC UFMG 2023"
+python tools/extrai_fonte_externa.py --url https://repositorio.universidade.br/tcc-galpao.pdf --autor "Silva, J. - UFMG 2023" --classe tcc_academico --id tcc-ufmg-2023-galpao-24x36 --titulo "Galpão 24x36 - TCC UFMG 2023"
 
 # saídas:
 # - fontes_externas/registro.json  (entrada acrescentada/atualizada)
@@ -210,8 +210,12 @@ python tools/extrai_fonte_externa.py --url https://example.com/tcc.pdf --autor "
 # - fontes_externas/<id>/comparacao.json  (esqueleto veredito = nao_conclusivo)
 # - PDF salvo em fontes_externas/<id>/original.pdf  (para auditoria, .gitignore opcional)
 
-# verificar
-python tools/extrai_fonte_externa.py --check --id tcc-ufmg-2023-galpao-24x36
+# verificar (só arquivo local, sem rede)
+python tools/extrai_fonte_externa.py --check --id tcc-ufpe-galpao-44x90
+
+# G35: rebuscar a URL ao vivo e comparar SHA-256 com o registrado (prova que o
+# PDF guardado é o que a URL serve; o --check só confere o arquivo local)
+python tools/extrai_fonte_externa.py --check-remote --id tcc-ufpe-galpao-44x90
 
 # validar procedência de um fixture
 python -m pytest framework/galpao_fw/tests/test_fontes_externas_protocolo.py -v

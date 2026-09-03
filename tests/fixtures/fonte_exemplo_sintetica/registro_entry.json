@@ -1,0 +1,13 @@
+{
+  "id": "tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
+  "url": "https://example.com/tcc-exemplo-ufmg-2023-galpao-24x36.pdf",
+  "sha256": "72b9fb0633247c9a71cabf69dc9a502a6fa838dbc8b65ee5aabce52811d180a4",
+  "data_coleta": "2026-09-03",
+  "autor": "Exemplo Sintetico - Silva, J. - UFMG TCC 2023",
+  "classe_autoridade": "tcc_academico",
+  "titulo_obra": "Galpao metalico 24x36m - Dimensionamento segundo NBR 8800 (exemplo sintetico para demonstracao do protocolo G24)",
+  "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
+  "observacao_coleta": "EXEMPLO SINTETICO - demonstra preenchimento do registro. Hash corresponde a fontes_externas/exemplo_dummy.pdf e fontes_externas/tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/original.pdf (PDF minimo gerado localmente, 1 pagina, 4 trechos). G30 guarda abre PDF p.1 e confirma trecho_literal. Substituir por coleta real via tools/extrai_fonte_externa.py para fonte externa verdadeira.",
+  "pagina_exemplo_referencia": 1,
+  "trecho_literal_exemplo": "Exemplo TCC Galpao 24x36 - momento fletor maximo no topo do pilar: 235,9 kNm (p.1, Tab. 4.2)"
+}

@@ -874,6 +874,23 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     else:
         puladas.append({"prancha": nome_laje,
                         "motivo": "laje nao dimensionada nesta rodada"})
+    # Prancha de ARMACAO DE VIGAS (G34). Toda viga, todo tramo verificado, com
+    # As_inf/As_sup, estribos, ancoragem e flecha -- o executivo que faltava
+    # para a armadura_viga sair do papel e ir para a obra.
+    nome_vigas = "armacao-vigas-pavimento-tipo.svg"
+    vv = estrutura.get("vigas_verificacao")
+    if isinstance(vv, dict) and vv.get("por_linha"):
+        try:
+            dp.gerar_prancha_armacao_vigas(vv, str(destino / nome_vigas))
+        except Exception as exc:                            # noqa: BLE001
+            puladas.append({"prancha": nome_vigas, "motivo": _erro_entregavel(exc)})
+        else:
+            _add_artifact(manifest, run_dir, destino / nome_vigas, "drawing")
+            emitidas.append("drawings/" + nome_vigas)
+    else:
+        puladas.append({"prancha": nome_vigas,
+                        "motivo": "vigas nao verificadas nesta rodada "
+                                  "(sem vigas_verificacao tramo a tramo)"})
     manifest["deliverables"]["drawings"] = {
         "status": "generated",
         "artifacts": emitidas,

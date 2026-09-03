@@ -8,7 +8,7 @@
   "classe_autoridade": "tcc_academico",
   "titulo_obra": "Galpao metalico 24x36m - Dimensionamento segundo NBR 8800 (exemplo sintetico para demonstracao do protocolo G24)",
   "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
-  "observacao_coleta": "EXEMPLO SINTETICO - demonstra preenchimento do registro. Hash corresponde a fontes_externas/exemplo_dummy.pdf e original.pdf (PDF minimo 1 pagina, 4 trechos, G30 guarda renderizar-e-olhar).",
+  "observacao_coleta": "EXEMPLO SINTETICO - demonstra preenchimento do registro. Hash corresponde a tests/fixtures/fonte_exemplo_sintetica/exemplo_dummy.pdf e original.pdf (PDF minimo 1 pagina, 4 trechos, G30 guarda renderizar-e-olhar). Movido de fontes_externas/ em G35: URL example.com da 404, nao e fonte real.",
   "pagina_exemplo_referencia": 1,
   "trecho_literal_exemplo": "Exemplo TCC Galpao 24x36 - momento fletor maximo no topo do pilar: 235,9 kNm (p.1, Tab. 4.2)"
 }

@@ -193,10 +193,13 @@ def test_g27_roda_gestao_edificio_banda_nao_muda_framework():
     # spec deve ser valido
     resultado, _regs = ea.run_edificio(normalize_spec(copy.deepcopy(spec)), None)
     dados = ge.derivacao(resultado)
-    # guarda 1: armadura_viga vazia
-    assert "armadura_viga" not in dados["quantitativos"]
+    # G34: armadura_viga AGORA TEM peso (toda viga, todo tramo verificado).
+    # A guarda 1 continua: armadura por ELEMENTO, sem codigo generico.
+    assert "armadura_viga" in dados["quantitativos"]
+    assert dados["quantitativos"]["armadura_viga"] > 0
+    assert "armadura" not in dados["quantitativos"]
     motivos = {item["item"]: item["motivo"] for item in dados["nao_derivados"]}
-    assert "armadura_viga" in motivos and "VERIFICADAS" in motivos["armadura_viga"]
+    assert "armadura_viga" not in motivos
     # guarda banda m3/m2 dentro de faixa
     area_total = resultado["estrutura"]["pavimento"]["area_m2"] * resultado["estrutura"]["n_pavimentos"]
     conc = dados["quantitativos"]["concreto_estrut"]
@@ -209,10 +212,12 @@ def test_g27_roda_gestao_edificio_banda_nao_muda_framework():
     fixture = _js.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     idx_petro = fixture["valores"]["indice_concreto_total_m3_per_m2_construir"]["valor"]
     assert abs(idx_conc - idx_petro) / idx_petro < 0.25, "framework idx vs petropolis idx ordem de grandeza deve bater (<25%)"
-    # guarda 3: taxa aco global 51,6 propositalmente baixa (sem viga) deve ser <80
-    taxa_armadura_global = (dados["quantitativos"].get("armadura_laje", 0) + dados["quantitativos"].get("armadura_pilar", 0)) / conc if conc else 0
-    # REVISAO-G14 global 51,6
-    assert 45 < taxa_armadura_global < 65, f"taxa global {taxa_armadura_global:.1f} deve ser ~51,6 e abaixo de 80 -> banda pegaria"
+    # guarda 3: taxa aco global COM viga (G34 fechou o buraco). Antes 51,6 sem
+    # viga (propositalmente abaixo de 80 para a banda pegar); agora sobe com
+    # os ~3 t de viga, mas continua na ordem de grandeza de predio.
+    taxa_armadura_global = (dados["quantitativos"].get("armadura_laje", 0) + dados["quantitativos"].get("armadura_pilar", 0) + dados["quantitativos"].get("armadura_viga", 0)) / conc if conc else 0
+    # REVISAO-G14 global 51,6 sem viga; G34 ~65 com viga
+    assert 55 < taxa_armadura_global < 80, f"taxa global {taxa_armadura_global:.1f} deve subir com a viga e seguir em banda de predio"
     # verifica que comparacao nao autoriza mudar framework
     comp = _js.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
     assert comp["mudou_framework"] is False

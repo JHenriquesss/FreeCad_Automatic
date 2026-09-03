@@ -252,3 +252,117 @@ def gerar_planta_formas(pav, path, descida=None, titulo=None):
     with open(path, "w", encoding="utf-8") as f:
         f.write(planta_formas_svg(pav, descida, titulo))
     return path
+
+
+# ---------------------------------------------------------------------------
+# PRANCHA DE ARMACAO DE VIGAS (G34) - o executivo que faltava
+# ---------------------------------------------------------------------------
+def _arr_rotulo(arr):
+    """Rotulo curto do arranjo: '2 f10.0' ou '-' quando sem barra."""
+    if not isinstance(arr, dict) or not arr.get("n"):
+        return "-"
+    try:
+        return "%d f%.1f" % (int(arr["n"]), float(arr["phi"]))
+    except (TypeError, ValueError):
+        return "-"
+
+
+def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
+    """Prancha de armacao das vigas do pavimento-tipo (SVG puro-Python).
+
+    Le `edificio_multipavimento.vigas_verificacao` (o `por_linha` de
+    `estrutura_casa.verifica_vigas`): TODA viga, TODO tramo, com As de flexao
+    M+/M-, cortante (estribo), ancoragem e ELS de flecha. Uma linha da tabela
+    por tramo; a contagem desenhada tem de bater com `n_tramos` (drawing-vs-data,
+    o mesmo padrao da planta de formas).
+    """
+    por_linha = (vigas_verificacao or {}).get("por_linha") or []
+    n_tramos = int((vigas_verificacao or {}).get("n_tramos") or 0)
+    linhas = []
+    for linha in por_linha:
+        for tramo in linha.get("tramos") or []:
+            linhas.append((linha, tramo))
+    W = 1420
+    H = 170 + max(len(linhas), 1) * 22 + 110
+    tit = titulo or ("ARMACAO DE VIGAS - PAVIMENTO-TIPO "
+                     "(%d linhas / %d tramos VERIFICADOS)" % (len(por_linha), n_tramos))
+    P = sb.abre_svg(W, H, tit)
+    P.append(sb.texto(W / 2, 58,
+                      "flexao M+/M- (17.2.2) + cortante (17.4.2) + ancoragem (9.4) + "
+                      "flecha Tab.13.3 + fissuracao -- por tramo, da envoltoria 14.6.6",
+                      11, color="#444"))
+    # cabecalho
+    cols = [("VIGA", 30), ("TR", 130), ("L(m)", 175), ("SECAO", 235),
+            ("M+(kNm)", 330), ("M-(kNm)", 420), ("As_inf", 510), ("As_sup", 590),
+            ("ARR INF", 670), ("ARR SUP", 780), ("ESTRIBO", 890),
+            ("LB(mm)", 1020), ("FLECHA", 1090), ("OK", 1310)]
+    y0 = 92
+    for nome, x in cols:
+        P.append(sb.texto(x, y0, nome, 11, anchor="start", weight="bold"))
+    P.append(sb.linha(24, y0 + 8, W - 24, y0 + 8, 1.0, "#999"))
+    yy = y0 + 28
+    for linha, tramo in linhas:
+        ver = tramo.get("verificacao") or {}
+        els = tramo.get("els") or ver.get("els") or {}
+        anc = ver.get("ancoragem") or {}
+        sec = "%dx%d" % (round(float(linha.get("b", 0)) * 100),
+                         round(float(linha.get("h", 0)) * 100))
+        flecha = ("%.1f/%.1f" % (float(els.get("d_comparado_mm", 0)),
+                                 float(els.get("lim_mm", 0)))
+                  if els else "-")
+        estribo = ("f%.1f c/%d" % (float(ver.get("phi_estribo_mm", 5.0)),
+                                   round(float(ver.get("s_estribo_max", 0.2)) * 100))
+                   if ver else "-")
+        vals = [
+            str(linha.get("nome", "")),
+            str(tramo.get("tramo", "")),
+            "%.2f" % float(tramo.get("L", 0)),
+            sec,
+            "%.1f" % float(tramo.get("M_d_kNm", 0)),
+            "%.1f" % float(tramo.get("M_d_neg_envoltoria_kNm", 0)),
+            "%.2f" % float(tramo.get("As_inf_cm2", 0)),
+            "%.2f" % float(tramo.get("As_sup_cm2", 0)),
+            _arr_rotulo(ver.get("arr_inf")),
+            _arr_rotulo(ver.get("arr_sup")),
+            estribo,
+            "%d" % int(anc.get("lb_nec_mm", 0)) if anc else "-",
+            flecha,
+            "OK" if tramo.get("OK") else "REPROVA",
+        ]
+        for ( _nome, x), val in zip(cols, vals):
+            cor = "#b91c1c" if (val == "REPROVA") else "#111"
+            peso = "bold" if val in ("REPROVA",) else "normal"
+            P.append(sb.texto(x, yy, val, 11, anchor="start", weight=peso,
+                              color=cor))
+        yy += 22
+    P.append(sb.texto(30, yy + 18,
+                      "As em cm2 ; M_d/M_d_neg de projeto (envelopes x 1,4) ; "
+                      "LB = lb,nec com gancho (9.4) ; flecha comparada/limite Tab.13.3",
+                      11, anchor="start", color="#444"))
+    P.append(sb.texto(30, yy + 36,
+                      "longitudinal (L+2*LB) + estribos contam no quantitativo "
+                      "armadura_viga ; traspasses e perdas nao incluidos",
+                      11, anchor="start", color="#444"))
+    P.append(sb.texto(30, yy + 54,
+                      "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+                      11, anchor="start", weight="bold", color="#444"))
+    P.append("</svg>")
+    return "\n".join(P)
+
+
+def confere_armacao_vigas(vigas_verificacao, svg):
+    """Drawing-vs-data da prancha de vigas: todo tramo tem de estar desenhado."""
+    por_linha = (vigas_verificacao or {}).get("por_linha") or []
+    nomes = []
+    for linha in por_linha:
+        for tramo in linha.get("tramos") or []:
+            nomes.append("%s tramo %d" % (linha.get("nome"), tramo.get("tramo")))
+    faltando = [n for n in nomes if n.split()[0] not in svg]
+    return {"n_tramos": len(nomes), "faltando": faltando, "ok": not faltando}
+
+
+def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None):
+    """Escreve a prancha de armacao de vigas (SVG) em `path`. Retorna o path."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(prancha_armacao_vigas_svg(vigas_verificacao, titulo))
+    return path

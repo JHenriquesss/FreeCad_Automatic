@@ -39,7 +39,7 @@ import fontes_externas_protocolo as PROTO
 # 1) file:// recusado
 # ---------------------------------------------------------------------------
 def test_g30_url_file_recusado():
-    ok, msg = PROTO.validar_url("file://fontes_externas/exemplo_dummy.pdf")
+    ok, msg = PROTO.validar_url("file://tests/fixtures/fonte_exemplo_sintetica/exemplo_dummy.pdf")
     assert not ok, "G30: file:// deveria ser recusado"
     assert "file://" in msg and "https://" in msg
 
@@ -166,18 +166,26 @@ def test_g30_fixture_com_pdf_real_pass_fabricada_fail():
 
 
 def test_g30_dummy_sintetico_pass():
-    # dummy agora é https e PDF contém trechos
-    pdf_dummy = REPO / "fontes_externas" / "exemplo_dummy.pdf"
-    fixture_dummy = json.loads((REPO / "fontes_externas" / "tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL" / "fixture.json").read_text(encoding="utf-8"))
+    # G35: dummy sintetico mora em tests/fixtures/fonte_exemplo_sintetica (nao e fonte real).
+    # Passa no G30 LOCAL por construcao (PDF contem os trechos) — e exatamente esse
+    # o limite que o --check-remote fecha: a URL example.com da 404, o PDF local nao
+    # e o que a URL serve (ver test_g35_check_remote_*).
+    base = REPO / "tests" / "fixtures" / "fonte_exemplo_sintetica"
+    obra = f"tcc-exemplo-ufmg-2023-galpao-24x36{PROTO.SUFIXO_DIRETORIO}"
+    pdf_dummy = base / "exemplo_dummy.pdf"
+    fixture_dummy = json.loads((base / obra / "fixture.json").read_text(encoding="utf-8"))
     erros = PROTO.validar_fixture_com_pdf(fixture_dummy, pdf_dummy)
     assert not erros, f"dummy sintetico deveria passar G30, veio {erros}"
-    # também hash deve bater com registro
-    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-    entry = next(e for e in registro["fontes"] if "tcc-exemplo-ufmg" in e["id"])
+    # entrada preservada como auditoria (saiu do registro em G35)
+    entry = json.loads((base / "registro_entry.json").read_text(encoding="utf-8"))
     ok, msg = PROTO.validar_hash_arquivo(entry["sha256"], pdf_dummy)
     assert ok, msg
     ok_url, _ = PROTO.validar_url(entry["url"])
     assert ok_url, "dummy agora deve ser https e passar"
+    # localizar_pdf_fonte ainda acha o original movido (fallback G35)
+    pdf_loc = PROTO.localizar_pdf_fonte(entry["id"], REPO)
+    assert pdf_loc is not None and pdf_loc.is_file(), f"original movido nao localizado: {entry['id']}"
+    assert "fonte_exemplo_sintetica" in pdf_loc.as_posix(), f"localizado no lugar antigo? {pdf_loc}"
 
 
 # ---------------------------------------------------------------------------

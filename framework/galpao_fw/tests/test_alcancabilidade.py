@@ -41,7 +41,8 @@ CARREGADOS_COMO_FONTE = {
 }
 
 SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
-                   "validacao", "verificar_amostra", "validacao_sistema_g15"]
+                   "validacao", "verificar_amostra", "validacao_sistema_g15",
+                   "varredura_nao_verificados"]
 
 
 def _modulos():
@@ -59,9 +60,10 @@ def _imports(caminho, modulos):
     return {m for m in nomes if m in modulos}
 
 
-def _alcancaveis():
+def _alcancaveis(sementes=None):
+    """Fecho transitivo dos imports a partir de `sementes` (default: ENTRADAS)."""
     modulos = _modulos()
-    vistos, fila = set(), list(ENTRADAS)
+    vistos, fila = set(), list(ENTRADAS if sementes is None else sementes)
     while fila:
         nome = fila.pop()
         if nome in vistos or nome not in modulos:
@@ -78,7 +80,14 @@ def test_toda_entrada_existe():
 
 
 def test_nenhuma_ilha_fora_do_declarado():
-    modulos, vistos = _alcancaveis()
+    # G37: um avulso DECLARADO e' ponto de partida legitimo, entao o que ELE
+    # importa nao e' ilha. Sem semear os avulsos, uma biblioteca de consumidor
+    # declarado era acusada de inalcancavel (fontes_externas_protocolo, usada
+    # por validacao_sistema_g15 e por tools/extrai_fonte_externa.py) - e
+    # declara-la avulsa seria mentira: avulso e' script que NINGUEM importa,
+    # e essa e' importada por sete arquivos (o proprio guarda abaixo recusou).
+    # O fecho estrito (so ENTRADAS) continua valendo para os demais testes.
+    modulos, vistos = _alcancaveis(ENTRADAS + SCRIPTS_AVULSOS)
     ilhas = sorted(set(modulos) - vistos
                    - set(CARREGADOS_COMO_FONTE) - set(SCRIPTS_AVULSOS))
     assert not ilhas, (

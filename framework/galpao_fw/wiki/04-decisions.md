@@ -655,3 +655,10 @@ Push direto na `main` bloqueado pelo auto-mode classifier → usar branch + PR. 
 
 
 
+
+## D80 — "terminado" exige suíte completa verde (2026-09-03)
+Um goal só está terminado quando a suíte completa passa, não quando os testes novos passam. **Porquê:** três lotes seguidos (G24–G28, G29–G32, G33–G36) foram entregues como terminados carregando cada um exatamente UMA guarda vermelha disparada pelo próprio lote — a contagem fixa `23 vs 26` do harness do G15, e depois a ilha `fontes_externas_protocolo` na guarda de alcançabilidade do G6. Nos três casos a falha foi achada por amostragem dirigida, e a fatia foi escolhida por palpite sobre o que a mudança ameaçava: nada garantia que houvesse só uma. As guardas estavam funcionando; o que faltava era rodá-las.
+
+**O que tornava isso caro, e não é mais:** `pytest -n N` falhava neste repositório com `EOFError` no bootstrap do `execnet`, por causa do acento em `OneDrive\Área de Trabalho`. Junction sem acento não resolve (o venv reporta o `sys.prefix` real). Resolve invocar o interpretador pelo **nome curto 8.3**: `C:\Users\joseh\OneDrive\READET~1\dev\FREECA~1\FRAMEW~1\GALPAO~1\VENV~1\Scripts\python.exe`. A suíte cai de ~79 min (serial) para ~26 min.
+
+**Alternativa rejeitada:** manter verificação por amostragem dirigida e confiar no revisor para escolher a fatia certa. Foi exatamente o que falhou três vezes seguidas — e o custo de errar cresce, porque cada lote novo herda o vermelho do anterior.

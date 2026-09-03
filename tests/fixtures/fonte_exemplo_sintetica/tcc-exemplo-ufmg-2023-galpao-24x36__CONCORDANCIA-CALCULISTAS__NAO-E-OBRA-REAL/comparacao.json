@@ -17,5 +17,5 @@
       "observacao": "Diferenca dentro da tolerancia de premissa; nao e erro de norma"
     }
   },
-  "relatorio_txt": "fontes_externas/tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/relatorio.txt"
+  "relatorio_txt": "tests/fixtures/fonte_exemplo_sintetica/tcc-exemplo-ufmg-2023-galpao-24x36__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL/relatorio.txt"
 }
