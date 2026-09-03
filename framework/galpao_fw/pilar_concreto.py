@@ -331,6 +331,35 @@ def armadura_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As_max, alpha=ALPHA_BIAXI
     return hi, True
 
 
+def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
+    """Verifica o cortante do fuste (NBR 6118 17.4.2, Modelo I, theta=45°).
+
+    Mesma mecanica de viga_baldrame._verifica_cortante, aplicada a secao do
+    pilar: bw = largura ortogonal ao plano do cortante, d = altura util na
+    direcao do cortante. Vc sem bonus de compressao axial (conservador:
+    flexo-compressao resiste pelo menos o Vc0 da flexao simples).
+    Vd ja majorado (ELU, kN). Retorna dict com VRd2 (biela), VRd3_min
+    (estribo minimo), utilizacoes e ok_biela/ok_min."""
+    fck_MPa = fck / 1000.0
+    fcd = fck / GAMMA_C
+    fywd = fyk / GAMMA_S
+    alpha_v2 = 1.0 - fck_MPa / 250.0
+    VRd2 = 0.27 * alpha_v2 * fcd * bw * d
+    fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
+    fctd_MPa = 0.7 * fctm_MPa / 1.4
+    Vc = 0.6 * fctd_MPa * 1000.0 * bw * d
+    fywk_MPa = fyk / 1000.0
+    rho_sw_min = 0.2 * fctm_MPa / fywk_MPa if fywk_MPa > 0 else 0.0
+    asw_min = rho_sw_min * bw
+    Vsw_min = asw_min * 0.9 * d * fywd
+    VRd3_min = Vc + Vsw_min
+    return {"VRd2": VRd2, "VRd3_min": VRd3_min, "Vc": Vc, "Vsw_min": Vsw_min,
+            "rho_sw_min": rho_sw_min,
+            "u_biela": Vd / VRd2 if VRd2 > 0 else float("inf"),
+            "u_cort": Vd / VRd3_min if VRd3_min > 0 else float("inf"),
+            "ok_biela": Vd <= VRd2 + 1e-9, "ok_min": Vd <= VRd3_min + 1e-9}
+
+
 # ---------------------------------------------------------------------------
 # Orquestrador: dimensionamento completo do pilar
 # ---------------------------------------------------------------------------
@@ -346,6 +375,12 @@ def dimensiona_pilar(caso):
                         os momentos de 1a ordem de CALCULO (kN.m) em cada direcao;
                         ausente -> pilar intermediario (M1=0).
       'gamma_f'       : default 1,4.
+      'Vd'            : (opcional) cortante de CALCULO no fuste (kN, ELU, >=0).
+                        Aceita os apelidos 'Vsd', 'V_d', 'V'. Se ausente, aceita
+                        'Vk' (caracteristico, majorado por gamma_n*gamma_f).
+                        Ausente tudo -> Vd = 0 (compat.: pilar sem vento declarado).
+                        Verificado a cortante pelo Modelo I (17.4.2) via
+                        verifica_cortante_pilar; entra no gate OK.
     }
     hx = dimensao na direcao x (=h) ; hy = dimensao na direcao y (=b). Retorna dict."""
     hx = caso["h"]; hy = caso["b"]
@@ -430,7 +465,32 @@ def dimensiona_pilar(caso):
     # faixa de validade do metodo (15.8.1/15.8.3.3.2): REPROVA, nao satura
     esb_ok = all(res["dir"][d]["esbeltez_valida"] for d in res["dir"])
     avisos_esb = [a for d in res["dir"] for a in res["dir"][d]["avisos_esbeltez"]]
-    OK = (ok_res and ok_max and esb_ok
+
+    # CORTANTE do fuste (NBR 6118 17.4.2, Modelo I): o vento do galpao chega
+    # aqui como Vd de CALCULO (o calice e a sapata ja o recebiam; o fuste nao).
+    # Direcao do vento = plano do portico (x): bw = hy, d = hx - dl.
+    if caso.get("Vd") is not None:
+        Vd = abs(float(caso["Vd"]))
+    elif caso.get("Vsd") is not None:
+        Vd = abs(float(caso["Vsd"]))
+    elif caso.get("V_d") is not None:
+        Vd = abs(float(caso["V_d"]))
+    elif caso.get("V") is not None:
+        Vd = abs(float(caso["V"]))
+    elif caso.get("Vk") is not None:
+        Vd = abs(float(caso["Vk"])) * gn * gf
+    else:
+        Vd = 0.0
+    bw_cort = hy
+    d_cort = max(hx - dl, 0.5 * hx)
+    cr = verifica_cortante_pilar(Vd, bw_cort, d_cort, fck, fyk)
+    cort_ok = bool(cr["ok_biela"] and cr["ok_min"])
+    if Vd <= 0.67 * cr["VRd2"]:
+        s_estribo_max = min(0.6 * d_cort, 0.30)
+    else:
+        s_estribo_max = min(0.3 * d_cort, 0.20)
+
+    OK = (ok_res and ok_max and esb_ok and cort_ok
           and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9)
 
     # verificacao da interacao obliqua com o As ADOTADO (para o relatorio/gate)
@@ -448,6 +508,10 @@ def dimensiona_pilar(caso):
         "taxa_pct": round(taxa * 100, 2), "As_max_cm2": round(0.04 * Ac * 1e4, 2),
         "resiste": ok_res, "ok_taxa_max": ok_max, "OK": OK,
         "esbeltez_valida": esb_ok, "avisos_esbeltez": avisos_esb,
+        "Vd": round(Vd, 2), "VRd2": round(cr["VRd2"], 1),
+        "VRd3_min": round(cr["VRd3_min"], 1),
+        "u_biela": round(cr["u_biela"], 3), "u_cort": round(cr["u_cort"], 3),
+        "cort_ok": cort_ok, "s_estribo_max": round(s_estribo_max, 3),
     })
     return res
 
@@ -477,6 +541,11 @@ def relatorio_pt(r):
           f"(taxa {r['taxa_pct']:.2f} %) "
           + ("" if r["resiste"] else "; SECAO NAO RESISTE (aumentar) ")
           + ("" if r["ok_taxa_max"] else "; TAXA > 4% por lance (aumentar secao)"),
+          f"  CORTANTE (17.4.2, Modelo I): Vd = {r.get('Vd', 0.0):.1f} kN ; "
+          f"VRd2 = {r.get('VRd2', 0.0):.1f} (u={r.get('u_biela', 0.0):.3f}) ; "
+          f"VRd3,min = {r.get('VRd3_min', 0.0):.1f} (u={r.get('u_cort', 0.0):.3f}) ; "
+          f"s_max {r.get('s_estribo_max', 0.0)*1000:.0f} mm -> "
+          f"{'OK' if r.get('cort_ok', True) else 'REPROVA'}",
           f"  RESULTADO: {'APROVADO' if r['OK'] else 'REPROVADO'}",
           "  [A CONFIRMAR: esforcos (Nk, M1d) e comprimentos de flambagem do modelo.]"]
     import re

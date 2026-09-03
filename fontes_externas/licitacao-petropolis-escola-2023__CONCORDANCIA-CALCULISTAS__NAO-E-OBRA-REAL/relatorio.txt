@@ -26,7 +26,14 @@ Objeto: Ampliacao e reforma de unidade escolar - Bairro Celina Schechner, Petrop
   Volume total concreto: 82,91 m3 (59,84+23,07)
   Forma: 812,45 m2 (EMOP 11.004.0022, p.2)
 
-Tipo de conferencia: NAO ELEMENTO A ELEMENTO (declaracao honesta p.1-p.2)
+Tipo de conferencia: NAO ELEMENTO A ELEMENTO (declaracao honesta p.1-p.2, corrigida no G41)
+   G41 corrige um ponto factual do G27: a p.10 (item 11.013.0075-A) DISCRIMINA volumes por
+   elemento com dimensoes - sapatas 0,80x0,80, cintas 0,30x0,20 (175,80+53,80 m), pilares
+   0,15x0,30 (P13-P27, P1-P12), vigas 0,40x0,15 (152,90+53,80 m), lajes macicas 0,10.
+   O elemento-a-elemento continua nao_comparavel, mas pelo motivo certo: (1) tipologia
+   incompativel (escola terrea pre-moldada com capeamento separado vs predio 9 pav macico);
+   (2) escopo misto (o 59,84 inclui fundacao: sapatas 10,08 + cintas 19,71; o concreto_estrut
+   do framework exclui: fundacao 31,27 em codigo separado).
   "Nao da para comparar elemento a elemento, porque a memoria traz areas e
    volumes, nao a geometria da escola." Memoria lista volumes por codigo EMOP
    (m3, m2, kg por codigo) sem discriminar vaos, secao de viga, pilar, espessura
@@ -42,24 +49,32 @@ Indices de consumo — banda de magnitude (nao verificacao de elemento)
     indice 25MPa so: 59,84/401,75 = 0,149 m3/m2 (p.2)
     indice total com capeamento: 82,91/401,75 = 0,206 m3/m2 (p.2)
     indice forma: 812,45/401,75 = 2,022 m2/m2 (p.2)
-  Framework (edificio-multipavimento 9 pav 1.134 m2 laje, REVISAO-G14 sec4):
-    concreto 0,194 m3/m2 (faixa 0,16-0,20) — 220 m3/1134
-    forma 1,93 m2/m2 (faixa 1,8-2,2)
-    armadura laje 74 kg/m3 (60-80), pilar 86 kg/m3 (80-130)
-    armadura global 51,6 kg/m3 (abaixo de 80-100 porque armadura_viga vazia)
+  Framework (edificio-multipavimento 9 pav 1.134 m2 laje, medido 2026-09-03 G41 via gestao_edificio.derivacao):
+    concreto 219,91 m3 = 0,194 m3/m2 (laje 136,08 + viga 53,35 + pilar 15,58 + escada 14,90; fundacao 31,27 em codigo separado)
+    forma 2185,9 m2 = 1,93 m2/m2 (faixa 1,8-2,2)
+    armadura laje 10026,5 kg = 73,7 kg/m3 (8,8 kg/m2 do painel CRITICO estendido - CONSERVADOR declarado)
+    armadura viga 3062,7 kg = 57,4 kg/m3 (G34: toda viga, todo tramo VERIFICADO; sem traspasses/perdas - declarado)
+    armadura pilar 1384,0 kg = 88,8 kg/m3 (so LONGITUDINAL, sem estribos - declarado, subestima o pilar)
+    armadura global superestrutura 14473,2/219,91 = 65,8 kg/m3 (antes do G34: 51,6 sem viga, fora da banda de proposito)
+    armadura global com fundacao 14767,5/251,18 = 58,8 kg/m3 (mesmo escopo do 59,84, que inclui sapatas/cintas)
+    distribuicao do aco: laje 69,3% + viga 21,2% + pilar 9,6% (memorial nao traz kg por elemento -> nao_comparavel, ver G41)
   Faixa usual edificio concreto: 0,16-0,22 m3/m2, forma 1,8-2,2, aco 80-100 kg/m3 global
-  Veredito banda:
-    0,206 (Petropolis total) vs 0,194 (framework) = +6,2% -> DENTRO de 0,16-0,22 -> PASS banda
-    0,149 (so 25MPa) vs 0,194 = -23% -> ligeiramente abaixo mas explicavel (separa capa)
-    2,02 vs 1,93 = +4,7% -> DENTRO de 1,8-2,2 -> PASS
-    Conclusao: ordem de grandeza bate. Nenhum fator 2 de erro.
+   Veredito banda:
+    0,206 (Petropolis total) vs 0,194 (framework) = +6,2% -> CONCORDA (G41: regra G31, tolerancia indice 10%)
+    0,149 (so 25MPa) vs 0,194 = -23% -> hipotese_divergente, explicavel (separa capa; somados 0,206 concordam)
+    2,02 vs 1,93 = +4,7% -> CONCORDA (G41: regra G31)
+    aco 65,8 vs EMOP 60 = +8,8% -> CONCORDA (G41, detalhe novo; com fundacao 58,8 vs 60 = -2,0%)
+    Conclusao: ordem de grandeza bate sob a mesma definicao. Nenhum fator 2 de erro.
 
 Parece fraco ate lembrar o bug do G7
-  Bug G7: orcamento de R$ 72.000,00 que ignorava 19.705,9 kg de aco primario
-          (caso amostra 20x28,5 - romaneio 19.705,9 kg). Erro de ~R$ 275k em aco
-          (19,7t * ~14 R$/kg). Taxa global iria a 0 kg/m3 ou 51,6 kg/m3 (sem viga)
-  Uma banda de indice kg/m3 (80-100 usual) teria pego o bug gritante:
-          51,6 < 80 -> FAIL de magnitude, mesmo sem verificar cada barra.
+   Bug G7: orcamento de R$ 72.000,00 que ignorava 19.705,9 kg de aco primario
+           (caso amostra 20x28,5 - romaneio 19.705,9 kg). Erro de ~R$ 275k em aco
+           (19,7t * ~14 R$/kg). Taxa global ia a 0 kg/m3 ou 51,6 kg/m3 (sem viga, pre-G34)
+   Uma banda de indice kg/m3 (80-100 usual) pegou o bug gritante:
+           51,6 < 80 -> FAIL de magnitude, mesmo sem verificar cada barra.
+   G41: com a viga fechada (3062,7 kg) a taxa foi a 65,8 e a banda continua contendo
+           framework e referencia oficial (65,8 vs EMOP 60 -> concorda) - a guarda detecta
+           falta sem mascarar o fechamento.
   G14 construiu tres guardas contra "orcamento parcial que se diz fechado":
    1) Armadura por ELEMENTO (armadura_viga vazia com motivo VERIFICADAS)
    2) aplicaveis vs sem_quantidade (escopo dinamico: estaca vs sapata, aco_estrutural nao_aplicavel)
@@ -67,12 +82,12 @@ Parece fraco ate lembrar o bug do G7
   Nenhuma jamais foi confrontada com levantamento oficial. Petropolis e a primeira.
 
 Confronto das tres guardas com levantamento oficial (licitacao_executada)
-  Guarda 1 — armadura por elemento:
-    Memoria Petropolis p.4 lista armaduras EMOP 11.009.0014 (CA50 8mm) e 11.009.0015 (10mm)
-    sem total agregado na pagina resumida. Framework separa armadura_laje, pilar, fundacao, viga.
-    Com codigo unico, laje+pilar (11,4 t no predio) passaria por completa, 30-40% abaixo do real
-    (falta ~5-6 t de viga). Memoria oficial tambem nao traz "aco total" magico - exige somar por
-    codigo, mesma separacao. Guarda PASSA - vazia e honesta, nao estima taxa 110 kg/m3 na entrega.
+   Guarda 1 — armadura por elemento (G41: reconfrontada CHEIA -> concorda):
+     Memoria Petropolis separa por codigo EMOP/bitola (11.009.0014 8mm, 11.009.0015 10mm,
+     tela 31,55 kg) e compoe 60 kg/m3 na p.10 - sem "aco total" magico. Framework separa
+     armadura_laje, pilar, fundacao, viga, todas COM peso (viga 3062,7 kg VERIFICADA G34).
+     Com codigo unico, laje+pilar (11,4 t) passaria por completa 30-40% abaixo do real
+     (falta ~3,1 t de viga). Mesma premissa de separacao dos dois lados. Guarda CONCORDA.
   Guarda 2 — aplicaveis vs sem_quantidade:
     Petropolis codigos EMOP estruturais: 11.003, 11.004, 11.009, 11.011. Galpao usaria telha
     metalica, aco estrutural W310, piso industrial - nao aparecem na escola e sao nao_aplicaveis,
@@ -110,16 +125,25 @@ Comparacao por valor (mesma definicao, pagina+trecho, veredito enum fechado)
     fonte 0,149 vs framework 0,194 — hipotese_divergente: -23% porque Petropolis separa capa; somados 0,206
     dentro da faixa. Nao e framework_errado.
 
-  indice_concreto_total_m3_per_m2_construir
-    fonte 0,206 vs framework 0,194 = +6,2% — hipotese_divergente CONCORDANCIA DE BANDA dentro de 0,16-0,22.
-    Prova que ordem de grandeza nao esta fator 2 errada. Se convencao G14 mudasse (viga h total sem
-    descontar laje => +15% volume), indice iria a 0,23-0,25 e sairia da banda -> FAIL detectado em dinheiro.
+   indice_concreto_total_m3_per_m2_construir
+     fonte 0,206 vs framework 0,194 = +6,2% — G41: CONCORDA (regra G31, tolerancia indice 10%).
+     Prova que ordem de grandeza nao esta fator 2 errada. Se convencao G14 mudasse (viga h total sem
+     descontar laje => +15% volume), indice iria a 0,23-0,25 e sairia da banda -> FAIL detectado em dinheiro.
 
-  indice_forma_m2_per_m2
-    fonte 2,02 vs framework 1,93 = +4,7% — hipotese_divergente dentro de 1,8-2,2 -> PASS.
+   indice_forma_m2_per_m2
+     fonte 2,02 vs framework 1,93 = +4,7% — G41: CONCORDA (regra G31) dentro de 1,8-2,2 -> PASS.
 
-  guarda_1_armadura_por_elemento
-    hipotese_divergente PASS — vazia e honesta, mesma separacao que EMOP oficial.
+   indice_aco_global_kg_per_m3 (NOVO G41)
+     framework 65,8 vs composicao EMOP 60 = +8,8% -> CONCORDA (tolerancia indice G31 10%);
+     com fundacao no mesmo escopo 58,8 vs 60 = -2,0%. Antes do G34: 51,6 sem viga, fora da banda de proposito.
+
+   distribuicao_aco_por_elemento (NOVO G41)
+     framework laje 69,3% + viga 21,2% + pilar 9,6% vs memorial SEM kg por elemento -> NAO_COMPARAVEL.
+     Nenhuma divergencia declarada: a torta-para-laje tem a direcao das convencoes declaradas
+     (laje conservadora painel-critico; pilar so longitudinal; viga sem traspasses/perdas).
+
+   guarda_1_armadura_por_elemento
+     G41: CONCORDA - reconfrontada cheia (viga 3062,7 kg VERIFICADA), mesma separacao que EMOP oficial.
 
   guarda_2_escopo_tipologia
     hipotese_divergente PASS — nao_aplicaveis separa ruido de furo, validado contra EMOP oficial.
@@ -127,9 +151,10 @@ Comparacao por valor (mesma definicao, pagina+trecho, veredito enum fechado)
   guarda_3_insumos_fora_da_tabela
     hipotese_divergente PASS — a_confirmar nomeia o que tabela nao tem, evita preco_venda passar por obra.
 
-  banda_magnitude_vs_bug_G7
-    hipotese_divergente PASS — banda 0,16-0,22 e 80-100 kg/m3 contem ambos os oficiais e o framework;
-    teria pego bug G7 (R$72k sem 19,7t => taxa 51,6 <80). Primeira vez guardas confrontadas com oficial.
+   banda_magnitude_vs_bug_G7
+     hipotese_divergente PASS — banda 0,16-0,22 e 80-100 kg/m3 contem oficiais e framework pre-G34
+     (51,6 <80 pegaria o bug G7 de R$72k sem 19,7t); G41: com a viga, 65,8 vs EMOP 60 concorda -
+     a guarda detecta falta sem mascarar o fechamento. Primeira vez guardas reconfrontadas com peso cheio.
 
 Guarda d·sen(45) analoga verificada
   Fixture declara explicitamente L_rafter nao aplicavel (tipologia concreto), mas para escola a guarda
@@ -142,14 +167,15 @@ Hierarquia: licitacao_executada (Petropolis) > tcc_academico (UFPE, 25x54) — e
 autoridade do repo (primeira licitacao_executada). Divergencias nao autorizam mudar framework sem
 citacao normativa NBR 8800/6118.
 
-Conclusao:
-  CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
-  Caso Petropolis 401,75 m2 (59,84 m3 25MPa + 23,07 m3 capeamento) entra como caso permanente #3 do
-  harness (fixture com pagina+trecho, indices banda, 3 guardas G14).
-  Overall: nao_comparavel para elemento a elemento (sem geometria, honesto) — nao autoriza mexer.
-  Indices banda: hipotese_divergente com concordancia de magnitude (0,206 vs 0,194 dentro de 0,16-0,22)
-           — validacao honesta de ordem de grandeza, primeira a confrontar as 3 guardas G14 com oficial.
-  Nenhum veredito framework_errado; regra G24 mantida (so framework_errado+citacao muda framework).
+ Conclusao (G41 re-veredito, 2026-09-03):
+   CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA.
+   Caso Petropolis 401,75 m2 (59,84 m3 25MPa + 23,07 m3 capeamento) permanece caso permanente #3 do
+   harness (fixture com pagina+trecho, agora com composicao EMOP 60 kg/m3 p.10; indices banda; 3 guardas G14).
+   Overall: nao_comparavel para elemento a elemento (tipologia incompativel + escopo misto, motivo corrigido) — nao autoriza mexer.
+   Indices: 0,206 vs 0,194 (6,2%), forma 2,02 vs 1,93 (4,7%), aco 65,8 vs EMOP 60 (8,8%; 58,8 vs 60 = 2,0% com fundacao)
+            — todos CONCORDA pela regra G31 (tolerancia indice 10%).
+   Distribuicao 69,3/21,2/9,6: nao_comparavel (sem kg por elemento na fonte), sem divergencia declarada.
+   Nenhum veredito framework_errado; regra G24 mantida (so framework_errado+citacao muda framework).
 
   Rotulo 4 lugares: (1) diretorio licitacao-petropolis-escola-2023__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL,
   (2) JSON _aviso/rotulo, (3) README e (4) este relatorio — todos com CONCORDANCIA ENTRE CALCULISTAS.

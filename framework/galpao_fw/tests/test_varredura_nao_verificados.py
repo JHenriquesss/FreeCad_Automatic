@@ -7,8 +7,9 @@
 #   - test_lista_confere_com_varredura: o coracao (scan == declarado).
 #   - test_toda_ilha_declarada_ainda_existe: filtro de nome morto - se o
 #     arquivo for renomeado ou o trecho sair, a declaracao morre em voz alta.
-#   - test_ilhas_ainda_sem_verificacao: prova em execucao de que a ilha e
-#     real (o esforco existe e o cheque nao roda), nao artefato do parser.
+#   - test_pilar_do_galpao_agora_E_verificado_a_cortante (G39): prova em
+#     execucao de que a ilha do pilar foi corrigida (o esforco existe E o
+#     cheque roda), nao artefato do parser. Trava a transicao.
 #   - test_tipologias_varridas_existem: a cobertura nao pode encolher.
 # ============================================================================
 """Guarda da varredura G33: analisado e nunca verificado."""
@@ -109,19 +110,33 @@ def test_vigas_do_edificio_agora_SAO_verificadas():
     assert ("edificio", "viga", "M_positivo") not in var.chaves_declaradas()
 
 
-def test_ilhas_ainda_sem_verificacao():
-    # Prova em execucao, nao substring: o esforco existe (>0) e o cheque nao
-    # roda (o pilar nao tem chave de cortante). As ilhas de VIGA do edificio
-    # SAIRAM no G34 e tem teste proprio acima -- nao voltam para ca.
+def test_pilar_do_galpao_agora_E_verificado_a_cortante():
+    # G39 FECHOU a ilha do pilar: prova em execucao de que o esforco existe
+    # E o cheque roda (o contrario do que a ilha afirmava). Trava a transicao:
+    # se o repasse de V cair, este teste -- e o test_lista_confere -- ficam
+    # vermelhos, nunca em silencio.
     import galpao_concreto as gc
     rg = gc.rodar({"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0,
                    "n_porticos": 7, "v0": 40.0, "G_roof": 0.30, "Q_roof": 0.25,
                    "fck": 30e3, "sigma_solo_adm": 250.0,
                    "travamento_longitudinal": "topo"})
-    assert rg["gates"]["vento"]["V_base_k"] > 0, "sem V a ilha evaporou"
-    assert not any(k in rg["pilar"] for k in ("VRd2", "u_cort", "cort_ok")), (
-        "pilar do galpao de concreto ganhou verificacao de cortante: a ilha "
-        "foi corrigida e NAO_VERIFICADOS tem que diminuir")
+    assert rg["gates"]["vento"]["V_base_k"] > 0, "sem V a prova evaporou"
+    p = rg["pilar"]
+    assert p.get("Vd_gov", p.get("Vd", 0.0)) > 0, "fuste sem Vd: repasse caiu"
+    assert p.get("VRd2", 0.0) > 0 and p.get("cort_ok") is True, (
+        "fuste sem verificacao de cortante: %r" % ({k: p.get(k) for k in
+        ("Vd", "Vd_gov", "VRd2", "u_cort", "cort_ok")},))
+    # Vd_gov e o vento principal majorado: 1,4 * V_base_k
+    assert p.get("Vd_gov", 0.0) == abs(1.4 * rg["gates"]["vento"]["V_base_k"]) or \
+        abs(p.get("Vd_gov", 0.0) - 1.4 * rg["gates"]["vento"]["V_base_k"]) < 0.2, \
+        (p.get("Vd_gov"), rg["gates"]["vento"]["V_base_k"])
+    assert p["OK"] and rg["gates"]["pilar"]["OK"], (p, rg["gates"]["pilar"])
+    # e a varredura nao lista mais o pilar: se voltar a listar, a lista-guarda
+    # tem que voltar junto (test_lista_confere) -- nunca em silencio.
+    assert ("galpao", "pilar", "V (cortante de base V_w_k do vento)") \
+        not in var.chaves_varridas()
+    assert ("galpao", "pilar", "V (cortante de base V_w_k do vento)") \
+        not in var.chaves_declaradas()
 
 
 def test_tipologias_varridas_existem():

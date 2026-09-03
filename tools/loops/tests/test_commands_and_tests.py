@@ -50,9 +50,16 @@ def test_command_runner_captures_stdout_and_stderr(tmp_path):
 
 
 def test_command_runner_marks_timeout(tmp_path):
+    # D81: o filho precisa de tempo REAL para chegar a imprimir antes de dormir.
+    # Com timeout_seconds=0.1 o teste reprovava sob `pytest -n 4` porque a
+    # partida do interpretador no Windows (~0,15 s medidos) ja estourava o
+    # prazo: 'before' nunca era escrito e o assert de saida parcial caia por
+    # CARGA DE MAQUINA, nao por defeito. 2,0 s fica bem acima da partida e bem
+    # abaixo do sleep de 10 s, entao o caminho de timeout continua sendo o
+    # exercitado - a semantica do teste nao muda, so deixa de ser corrida.
     command = (sys.executable, "-c", "import time; print('before', flush=True); time.sleep(10)")
 
-    captured = CommandRunner().run(command, tmp_path, timeout_seconds=0.1)
+    captured = CommandRunner().run(command, tmp_path, timeout_seconds=2.0)
 
     assert captured.returncode == -1
     assert captured.timed_out is True

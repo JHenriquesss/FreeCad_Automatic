@@ -55,11 +55,11 @@ TIPOLOGIAS = {
 # por viga_concreto.verifica_viga por tramo via estrutura_casa.verifica_vigas,
 # com M_d_neg da envoltoria). Elas SAIRAM da lista e NAO podem voltar em
 # silencio: o teste-guia G34 trava a transicao.
+# G39 FECHOU a ilha do pilar do galpao (V_w_k passa ao fuste como Vd por
+# combinacao e pilar_concreto.dimensiona_pilar verifica a cortante pelo
+# Modelo I, com VRd2/u_cort/cort_ok no gate). Lista vazia: nenhuma ilha
+# conhecida restante. NAO readicionar em silencio (teste-guia G39 trava).
 NAO_VERIFICADOS = [
-    {"tipologia": "galpao", "elemento": "pilar", "esforco": "V (cortante de base V_w_k do vento)",
-     "onde_calculado": "galpao_concreto.rodar (V_w_k = w_h * H)",
-     "trecho": "V_w_k",
-     "cheque_ausente": "pilar_concreto.dimensiona_pilar nao recebe V (so N + M1d); o V chega ao calice e a sapata, nunca ao fuste"},
 ]
 
 ESFORCOS_VIGA_EDIFICIO = ("M_positivo", "M_apoios", "V_max")

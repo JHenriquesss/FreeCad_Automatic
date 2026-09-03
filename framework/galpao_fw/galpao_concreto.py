@@ -76,32 +76,44 @@ def _le_por_direcao(H, hy, travamento):
     return le_x, min(l0 + hy, H)
 
 
-def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"):
+def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum",
+                          V_w_k=0.0):
     """Adota a MENOR secao de pilar que atende as 2 combinacoes ELU. hx (=h) e a
-    dimensao no plano do vento (resiste ao momento de base). Retorna dict."""
+    dimensao no plano do vento (resiste ao momento de base). Retorna dict.
+    V_w_k = cortante de base caracteristico do vento (kN); chega ao fuste como
+    Vd de CALCULO por combinacao (NBR 8681): comb1 Vd=1,4*0,6*V_w_k (gravidade
+    principal), comb2 Vd=1,4*V_w_k (vento principal, governa o cortante)."""
     # Biaxial (17.2.5): o vento transversal atua numa direcao (x, plano do portico)
     # e o momento MINIMO (11.3.3.4.3) coexiste na direcao perpendicular (y). Ventos
     # perpendiculares NAO se somam (NBR 6123, um por vez) -> a envoltoria biaxial e
     # Mx_vento + My_min. forcar_biaxial ativa a interacao obliqua com o My minimo.
     for (hy, hx) in _SECOES_PILAR:
         le_x, le_y = _le_por_direcao(H, hy, travamento)
-        # comb 1 (gravidade principal): Nd=1,4(G+Q), M=1,4*0,6*M_w
+        # comb 1 (gravidade principal): Nd=1,4(G+Q), M=1,4*0,6*M_w, V=1,4*0,6*V_w_k
         c1 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_gq, "le_x": le_x,
             "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": GF,
-            "forcar_biaxial": True,
+            "forcar_biaxial": True, "Vd": GF * PSI0_VENTO * abs(V_w_k),
             "M1d_x": {"tipo": "balanco", "Ma": GF * PSI0_VENTO * M_w_k}})
-        # comb 2 (vento principal): Nd=1,0*G (minimo), M=1,4*M_w
+        # comb 2 (vento principal): Nd=1,0*G (minimo), M=1,4*M_w, V=1,4*V_w_k
         c2 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_g, "le_x": le_x,
             "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": 1.0,
-            "forcar_biaxial": True,
+            "forcar_biaxial": True, "Vd": GF * abs(V_w_k),
             "M1d_x": {"tipo": "balanco", "Ma": GF * M_w_k}})
         gov = c1 if c1["As_cm2"] >= c2["As_cm2"] else c2
         gov = gov if (c1["OK"] and c2["OK"]) else dict(gov, OK=(c1["OK"] and c2["OK"]))
         if c1["OK"] and c2["OK"]:
             gov["comb1_As"] = c1["As_cm2"]; gov["comb2_As"] = c2["As_cm2"]
+            gov["comb1_Vd"] = c1["Vd"]; gov["comb2_Vd"] = c2["Vd"]
+            gov["Vd_gov"] = max(c1["Vd"], c2["Vd"])
+            gov["u_cort"] = max(c1["u_cort"], c2["u_cort"])
+            gov["cort_ok"] = bool(c1["cort_ok"] and c2["cort_ok"])
             gov["travamento_longitudinal"] = travamento
             return gov
     gov["comb1_As"] = c1["As_cm2"]; gov["comb2_As"] = c2["As_cm2"]
+    gov["comb1_Vd"] = c1["Vd"]; gov["comb2_Vd"] = c2["Vd"]
+    gov["Vd_gov"] = max(c1["Vd"], c2["Vd"])
+    gov["u_cort"] = max(c1["u_cort"], c2["u_cort"])
+    gov["cort_ok"] = bool(c1["cort_ok"] and c2["cort_ok"])
     gov["travamento_longitudinal"] = travamento
     if not gov.get("esbeltez_valida", True):
         gov.setdefault("avisos", []).append(
@@ -184,7 +196,8 @@ def rodar(spec):
     Nk_g = R_beam_g + peso_viga + q_par            # permanente (sem sobrecarga)
     Nk_gq = Nk_g + R_beam_q                        # permanente + sobrecarga
     pilar = _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk,
-                                    spec.get("travamento_longitudinal", "nenhum"))
+                                    spec.get("travamento_longitudinal", "nenhum"),
+                                    V_w_k)
 
     # peso proprio do pilar (soma na reacao de fundacao)
     peso_pilar = GAMMA_CONC * pilar["hx"] * pilar["hy"] * H
@@ -312,7 +325,11 @@ def rodar(spec):
                            "OK": viga["OK"]},
         "pilar": {"secao": f"{pilar['hy']*100:.0f}x{pilar['hx']*100:.0f}",
                   "Nd": pilar["Nd"], "Md_gov": pilar["Md_gov"], "As_cm2": pilar["As_cm2"],
-                  "taxa_pct": pilar["taxa_pct"], "OK": pilar["OK"]},
+                  "taxa_pct": pilar["taxa_pct"],
+                  "Vd_gov": pilar.get("Vd_gov", pilar.get("Vd", 0.0)),
+                  "VRd2": pilar.get("VRd2", 0.0),
+                  "u_cort": pilar.get("u_cort", 0.0),
+                  "cort_ok": pilar.get("cort_ok", True), "OK": pilar["OK"]},
         "fundacao": {"OK": fund_ok, "tipo": tipo_fund, "geom": fund_geom},
         "calice": {"interface": calice["interface"], "Lemb": calice["Lemb"],
                    "Hsfd": calice.get("Hsfd"), "As_h_cm2": calice["As_horizontal_cm2"],
@@ -578,7 +595,9 @@ def relatorio_pt(r):
          + f" -> {'ATENDE' if g['viga_cobertura']['OK'] else 'REPROVA'}",
          f"  PILAR (balanco): secao {g['pilar']['secao']} cm ; Nd {g['pilar']['Nd']:.0f} kN ; "
          f"Md,tot {g['pilar']['Md_gov']:.1f} kN.m ; As {g['pilar']['As_cm2']:.2f} cm2 "
-         f"(taxa {g['pilar']['taxa_pct']:.2f}%) -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
+         f"(taxa {g['pilar']['taxa_pct']:.2f}%) ; Vd {g['pilar'].get('Vd_gov', 0.0):.1f} <= "
+         f"VRd2 {g['pilar'].get('VRd2', 0.0):.1f} kN (u={g['pilar'].get('u_cort', 0.0):.3f}) -> "
+         f"{'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
          f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}"
          + (f"\n  GEOTECNIA (SPT): {r['geotecnia']['justificativa']}" if r.get("geotecnia") else ""),
          f"  ESTABILIDADE GLOBAL (NBR 6118 15.5): alpha {g['estab_global']['alpha']:.3f} "

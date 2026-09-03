@@ -1263,7 +1263,7 @@ def check_licitacao_petropolis_escola():
                     "comparacao sem ROTULO 4 lugares")
         if comp.get("veredito") != "nao_comparavel":
             return ("Petropolis Escola (veredito)", False, float("nan"),
-                    f"overall veredito deve ser nao_comparavel (elemento sem geometria), veio {comp.get('veredito')}")
+                    f"overall veredito deve ser nao_comparavel (tipologia/escopo G41), veio {comp.get('veredito')}")
         if comp.get("mudou_framework"):
             return ("Petropolis Escola (mudou_framework)", False, float("nan"),
                     "nao_comparavel nao pode ter mudou_framework=True")
@@ -1272,12 +1272,30 @@ def check_licitacao_petropolis_escola():
         if detalhes.get("geometria_elemento_a_elemento", {}).get("veredito") != "nao_comparavel":
             return ("Petropolis Escola (elemento)", False, float("nan"),
                     "geometria_elemento_a_elemento deve ser nao_comparavel")
-        # indices banda devem ser hipotese_divergente
-        if detalhes.get("indice_concreto_total_m3_per_m2_construir", {}).get("veredito") != "hipotese_divergente":
-            return ("Petropolis Escola (indice_total)", False, float("nan"),
-                    "indice_concreto_total deve ser hipotese_divergente (banda)")
-        # tres guardas
-        for gid in ["guarda_1_armadura_por_elemento","guarda_2_escopo_tipologia_aplicaveis_vs_sem_quantidade","guarda_3_insumos_fora_da_tabela_a_confirmar"]:
+        # indices em banda: G41 reclassifica para concorda pela regra G31
+        # (tolerancia indice 10%; 6,2% e 4,7% <= 10%)
+        for gid in ["indice_concreto_total_m3_per_m2_construir", "indice_forma_m2_per_m2"]:
+            if detalhes.get(gid, {}).get("veredito") != "concorda":
+                return ("Petropolis Escola (indice G41)", False, float("nan"),
+                        f"{gid} deve ser concorda (regra G31, G41 re-veredito)")
+        # indice de aco global G41: 65,8 vs EMOP 60 -> concorda, erro dentro da tolerancia
+        det_aco = detalhes.get("indice_aco_global_kg_per_m3", {})
+        if det_aco.get("veredito") != "concorda":
+            return ("Petropolis Escola (indice aco)", False, float("nan"),
+                    "indice_aco_global_kg_per_m3 deve ser concorda (G41: 65,8 vs EMOP 60)")
+        err_aco = _proto.erro_relativo_pct(det_aco.get("fonte_valor"), det_aco.get("framework_valor"))
+        if err_aco is None or err_aco > _proto.tolerancia_concorda_pct("indice"):
+            return ("Petropolis Escola (indice aco tol)", False, float("nan"),
+                    f"erro aco {err_aco} acima da tolerancia indice G31")
+        # distribuicao sem kg por elemento na fonte -> nao_comparavel, sem divergencia
+        if detalhes.get("distribuicao_aco_por_elemento", {}).get("veredito") != "nao_comparavel":
+            return ("Petropolis Escola (distribuicao)", False, float("nan"),
+                    "distribuicao_aco_por_elemento deve ser nao_comparavel (G41)")
+        # tres guardas: G41 reconfronta a guarda 1 cheia (-> concorda); 2 e 3 seguem narrativas
+        if detalhes.get("guarda_1_armadura_por_elemento", {}).get("veredito") != "concorda":
+            return ("Petropolis Escola (guarda1 G41)", False, float("nan"),
+                    "guarda_1 deve ser concorda (G41: viga 3062,7 kg verificada, mesma separacao)")
+        for gid in ["guarda_2_escopo_tipologia_aplicaveis_vs_sem_quantidade","guarda_3_insumos_fora_da_tabela_a_confirmar"]:
             if gid not in detalhes:
                 return ("Petropolis Escola (guardas)", False, float("nan"),
                         f"{gid} ausente em detalhes_por_valor")
@@ -1296,6 +1314,11 @@ def check_licitacao_petropolis_escola():
         if abs(vc - 59.84) > 0.01 or abs(cap - 23.07) > 0.01:
             return ("Petropolis Escola (volumes)", False, float("nan"),
                     f"volumes devem ser 59,84 e 23,07 veio {vc}/{cap}")
+        # G41: composicao EMOP 60 kg/m3 p.10 com procedencia (comparador do indice de aco)
+        ref_aco = vals.get("composicao_emop_aco_kg_per_m3", {})
+        if abs(float(ref_aco.get("valor", 0)) - 60.0) > 0.01 or ref_aco.get("pagina") != 10:
+            return ("Petropolis Escola (emop60)", False, float("nan"),
+                    "fixture deve trazer composicao_emop_aco_kg_per_m3 = 60 p.10 (G41)")
         total = vc + cap
         idx_total = total / area if area else 0
         idx_fixt = vals.get("indice_concreto_total_m3_per_m2_construir", {}).get("valor", 0)
@@ -1365,9 +1388,10 @@ def check_licitacao_petropolis_escola():
                 f"PASS — caso permanente G27 no harness (licitacao_executada, maior autoridade): "
                 f"401,75 m2 construir, 1.049,98 total, 59,84 m3 25MPa + 23,07 capeamento = 82,91 m3 -> "
                 f"indice 0,149 so / 0,206 total vs framework 0,194 (delta 6% dentro de 0,16-0,22) e forma 2,02 vs 1,93 (4,7%). "
-                f"Elemento a elemento nao_comparavel (sem geometria, honesto). "
+                 f"Elemento a elemento nao_comparavel (tipologia/escopo G41, honesto). "
                 f"3 guardas G14 confrontadas com oficial e PASSAM (armadura_viga COM peso por elemento G34, aplicaveis vs sem_quantidade, a_confirmar). "
-                f"Banda 80-100 kg/m3 teria pego bug G7 19.705,9 kg (51,6 <80 sem viga).")
+                 f"Banda 80-100 kg/m3 pegou bug G7 19.705,9 kg (51,6 <80 sem viga, pre-G34); "
+                 f"G41 com a viga (3062,7 kg): 65,8 vs EMOP 60 (p.10) concorda.")
     except Exception as ex:
         import traceback as _tb
         return ("Petropolis Escola (G27)", False, float("nan"),

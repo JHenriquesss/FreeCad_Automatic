@@ -252,17 +252,26 @@ def test_g19_gerar_sidecar_extraido_do_framework():
 
 def test_g19_quarto_caso_1_comando_output():
     """G19: python -m validacao_sistema_g15 deve imprimir G19 quarto caso em 1 comando (promessa da REVISAO)."""
-    import subprocess, sys, pathlib
+    import subprocess, sys, pathlib, tempfile
     # roda o harness como documentado em QUARTO-CASO-1-COMANDO.md (inventario nomeado G30)
-    res = subprocess.run([sys.executable, "-m", "validacao_sistema_g15"],
-                         cwd="framework/galpao_fw",
-                         # D80: o harness sozinho leva ~123 s; sob `-n 4` da suite
-                         # completa passava de 180 s e o teste reprovava por CARGA
-                         # DE MAQUINA, nao por defeito. Veredito que depende de
-                         # quem mais esta rodando corroi a regra da suite verde.
-                         capture_output=True, text=False, timeout=900)
-    stdout = res.stdout.decode("utf-8", errors="replace")
-    stderr = res.stderr.decode("utf-8", errors="replace")
+    #
+    # D81: a saida vai para ARQUIVO, nao para PIPE. Com `capture_output=True` a
+    # suite completa sob `-n 4` travou 900 s aqui: o processo filho JA tinha
+    # saido (returncode 1) e mesmo assim `communicate` ficou preso porque a
+    # ponta de escrita do pipe continuava aberta - a thread leitora nunca via
+    # EOF. Redirecionar para arquivo elimina a dependencia de EOF do pipe, e o
+    # timeout passa a medir o tempo do filho, nao a vida de um handle. O
+    # harness sozinho leva ~123 s; o teto largo cobre carga de maquina, mas o
+    # veredito nao depende mais dela.
+    with tempfile.TemporaryDirectory() as td:
+        fout = pathlib.Path(td) / "harness.out"
+        ferr = pathlib.Path(td) / "harness.err"
+        with open(fout, "wb") as fo, open(ferr, "wb") as fe:
+            res = subprocess.run([sys.executable, "-m", "validacao_sistema_g15"],
+                                 cwd="framework/galpao_fw",
+                                 stdout=fo, stderr=fe, timeout=900)
+        stdout = fout.read_bytes().decode("utf-8", errors="replace")
+        stderr = ferr.read_bytes().decode("utf-8", errors="replace")
     assert res.returncode == 0, f"validacao_sistema_g15 falhou: {stdout[:1000]} {stderr[:500]}"
     # deve conter resumo G19/G30 e TODOS PASSARAM (inventario nomeado)
     assert "G19 quarto caso" in stdout, f"output deve conter 'G19 quarto caso', veio: {stdout[-2000:]}"

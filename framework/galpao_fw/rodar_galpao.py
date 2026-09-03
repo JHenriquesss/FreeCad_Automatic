@@ -1060,7 +1060,6 @@ def rodar(params, out_dir):
         # altura (J.4.2), Cb por analise racional (J.4.1, 5.4.2.3a) do diagrama de M
         # do trecho e demanda na secao de MAIOR tensao M/Wx (nao M_max cego). Dois
         # regimes de Lb (gravidade=tercas / succao=maos-francesas). B2 amplifica M.
-        M_max = max((s["M"] for s in segs_env), default=0.0) * B2_amp
         segs_flt = [{"M": s["M"] * B2_amp, "props": s["sec_props"], "h_m": s["h_m"]}
                     for s in segs_env if s.get("sec_props")]
         flt = {}

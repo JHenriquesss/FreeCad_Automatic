@@ -104,8 +104,9 @@ def test_g27_comparacao_enum_fechado_e_4_lugares():
     # elemento deve ser nao_comparavel explicitamente
     assert comp["detalhes_por_valor"]["geometria_elemento_a_elemento"]["veredito"] == "nao_comparavel"
     assert "nao_comparavel" in comp["detalhes_por_valor"]["geometria_elemento_a_elemento"]["observacao"].lower() or "NAO_COMPARAVEL" in comp["detalhes_por_valor"]["geometria_elemento_a_elemento"]["observacao"]
-    # banda dentro de hipotese_divergente
-    assert comp["detalhes_por_valor"]["indice_concreto_total_m3_per_m2_construir"]["veredito"] == "hipotese_divergente"
+    # banda dentro de concorda pela regra G31 (G41 re-veredito: 6,2% <= 10%)
+    assert comp["detalhes_por_valor"]["indice_concreto_total_m3_per_m2_construir"]["veredito"] == "concorda"
+    assert comp["detalhes_por_valor"]["indice_forma_m2_per_m2"]["veredito"] == "concorda"
 
 
 def test_g27_nao_comparavel_elemento_banda_magnitude():
@@ -150,9 +151,9 @@ def test_g27_banda_contem_petropolis_e_framework():
 
 def test_g27_g14_tres_guardas_confrontadas_com_oficial():
     comp = json.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
-    # Guarda 1: armadura por elemento
+    # Guarda 1: armadura por elemento (G41: reconfrontada CHEIA -> concorda)
     g1 = comp["detalhes_por_valor"]["guarda_1_armadura_por_elemento"]
-    assert g1["veredito"] == "hipotese_divergente"
+    assert g1["veredito"] == "concorda"
     assert "armadura_viga" in g1["observacao"].lower() or "armadura" in g1["observacao"].lower()
     assert "VERIFICADAS" in g1["observacao"] or "vazia" in g1["observacao"].lower() or "vazia" in json.dumps(g1, ensure_ascii=False).lower()
     assert "30-40%" in g1["observacao"] or "30" in g1["observacao"]
@@ -325,3 +326,58 @@ def test_g27_nao_inventa_geometria_e_veredito_nao_framework_errado():
     # texto deve mencionar que nao inventa geometria/taxa
     txt = json.dumps(comp, ensure_ascii=False).lower()
     assert "nao" in txt and ("inventar" in txt or "estimativa por taxa" in txt or "nao ha estimativa" in txt or "sem geometria" in txt)
+
+
+# ---------------------------------------------------------------------------
+# G41 — Re-veredito dos indices do G27 (pos-G34: armadura_viga 3062,7 kg)
+# ---------------------------------------------------------------------------
+def test_g41_indice_aco_global_concorda_vs_emop60():
+    """G41: 65,8 kg/m3 vs composicao EMOP 60 kg/m3 (p.10) -> concorda (tol. indice G31 10%)."""
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    assert "composicao_emop_aco_kg_per_m3" in fixture["valores"]
+    ref = fixture["valores"]["composicao_emop_aco_kg_per_m3"]
+    assert ref["valor"] == pytest.approx(60.0)
+    assert ref["pagina"] == 10
+    assert len(ref["trecho_literal"]) >= 10
+    # trecho deve estar no PDF (G30) quando fitz disponivel
+    try:
+        ok, _ = PROTO.validar_trecho_no_pdf(PDF_PATH, ref["pagina"], ref["trecho_literal"])
+        assert ok, "trecho EMOP 60kg nao encontrado na p.10 do PDF"
+    except ImportError:
+        pass
+    comp = json.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
+    det = comp["detalhes_por_valor"]["indice_aco_global_kg_per_m3"]
+    assert det["veredito"] == "concorda"
+    err = PROTO.erro_relativo_pct(det["fonte_valor"], det["framework_valor"])
+    assert err is not None and err <= PROTO.tolerancia_concorda_pct("indice"), f"erro {err} acima da tolerancia indice"
+
+
+def test_g41_distribuicao_nao_comparavel_sem_divergencia():
+    """G41: 69,3/21,2/9,6 sem kg por elemento na fonte -> nao_comparavel, sem framework_errado."""
+    comp = json.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
+    det = comp["detalhes_por_valor"]["distribuicao_aco_por_elemento"]
+    assert det["veredito"] == "nao_comparavel"
+    assert "69,3" in det["framework_valor"] and "21,2" in det["framework_valor"]
+    # distribuicao fecha ~100% e nenhuma ponta autoriza mexer no framework
+    assert comp["mudou_framework"] is False
+    assert "divergencia declarada" in det["observacao"].lower() or "nenhuma divergencia" in det["observacao"].lower()
+
+
+def test_g41_comparacao_sem_numeros_obsoletos():
+    """G41 trava a transicao: comparacao nao pode mais dizer viga vazia / 51,6 como atual."""
+    comp = json.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
+    assert "3062" in comp["entradas_framework"]["armadura_global"]
+    assert "65,8" in comp["entradas_framework"]["armadura_global"]
+    g1 = comp["detalhes_por_valor"]["guarda_1_armadura_por_elemento"]
+    assert "3062" in g1["framework_valor"]
+    assert "vazia" not in g1["framework_valor"].lower(), "G34 fechou: viga nao e mais vazia"
+    assert g1["veredito"] == "concorda"
+
+
+def test_g41_geometria_motivo_corrigido_mantem_nao_comparavel():
+    """G41 corrige o motivo ('sem geometria' -> tipologia/escopo) sem mudar o veredito."""
+    comp = json.loads(COMPARACAO_PATH.read_text(encoding="utf-8"))
+    det = comp["detalhes_por_valor"]["geometria_elemento_a_elemento"]
+    assert det["veredito"] == "nao_comparavel"
+    txt = json.dumps(det, ensure_ascii=False).lower()
+    assert "p.10" in txt and "tipologia" in txt and "escopo" in txt

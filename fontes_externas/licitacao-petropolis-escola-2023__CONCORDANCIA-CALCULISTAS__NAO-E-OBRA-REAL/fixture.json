@@ -72,6 +72,20 @@
       "trecho_literal": "al Unidade Sondagem 1,00 UN TOTAL= 1,00 UN 01.005.0001-A Área Unidade Área a construir 401,75 M² Área externa 1.297,41 M² TOTAL= 1.699,16 M² 01.018.0001-A Á",
       "unidade": "m2/m2",
       "definicao": "Indice de forma por m2 construir: 812,45/401,75=2,02228. Faixa usual REVISAO-G14 1,8-2,2 -> dentro da banda."
+    },
+    "composicao_emop_aco_kg_per_m3": {
+      "valor": 60.0,
+      "pagina": 10,
+      "trecho_literal": "Concreto armado, fck=25MPa, incluindo materiais para 1,00m",
+      "unidade": "kg/m3",
+      "definicao": "G41 - Taxa de REFERENCIA da composicao EMOP de concreto armado 25 MPa no proprio memorial (p.10): 60 kg de aco CA-50 por 1,00 m3 de concreto (completa: '60kg de aco CA-50, inclusive mao-de-obra para corte, dobragem, montagem e colocacao nas formas'). E referencia de composicao, NAO consumo medido da escola: o memorial nao traz kg de armadura por elemento (so tela 31,55 kg, item 11.023.0005-A). Comparador honesto do indice global do framework (65,8 kg/m3 superestrutura; 58,8 com fundacao)."
+    },
+    "composicao_emop_forma_m2_per_m3": {
+      "valor": 14.0,
+      "pagina": 10,
+      "trecho_literal": "adensado e colocado, 14,00m",
+      "unidade": "m2/m3",
+      "definicao": "G41 - Area moldada + escoramento por m3 na mesma composicao EMOP (itens 11.004.0022/0035). Definicao DIFERENTE da forma lateral G14 (que mede fundo de laje + laterais sem escoramento): framework 2185,9/219,91=9,94 m2/m3 vs 14,00 (-29%). Nao e divergencia sem converter: predio 9 pav de laje macica tem lajes grandes (baixa relacao forma/volume) e escoramento nao entra na medicao G14. Declarado para nao comparar sem converter (guarda d*sen45)."
     }
   },
   "medicao_banda_de_magnitude": {
@@ -80,7 +94,7 @@
       "concreto_estrutural_so": "0,149 m3/m2 (59,84/401,75) - abaixo de 0,16 mas sem capeamento; com capeamento 0,206 dentro de 0,16-0,22",
       "concreto_total_com_capeamento": "0,206 m3/m2 (82,91/401,75) - dentro da faixa G14 0,194 +- banda 0,16-0,22 -> PASS banda",
       "forma": "2,02 m2/m2 (812,45/401,75) - dentro de 1,8-2,2 -> PASS",
-      "aco_por_concreto_referencia": "60-130 kg/m3 por elemento; global 80-100 kg/m3; framework G14 global 51,6 kg/m3 (sem armadura_viga) ficaria fora da banda -> guarda detecta"
+      "aco_por_concreto_referencia": "60 kg/m3 da composicao EMOP p.10 (G41 fixture composicao_emop_aco_kg_per_m3); framework G41 global 65,8 kg/m3 superestrutura (14473,2 kg / 219,91 m3) e 58,8 com fundacao (14767,5 / 251,18) - ambos em banda vs 60 (8,8% e 2,0%, tolerancia indice G31 10% -> concorda). Antes do G34: 51,6 sem viga, abaixo da banda propositalmente."
     },
     "pagina": 1,
     "trecho_literal": "Nota p.2: indices de consumo sao banda de magnitude, nao verificacao de elemento. Faixa usual edificio concreto 0,16 a 0,22 m3/m2. Banda kg de aco por m3 (80 a 100 kg/m3): se orcamento ignorar 19.705,9 kg, taxa cai a 51,6 kg/m3 e banda pega."

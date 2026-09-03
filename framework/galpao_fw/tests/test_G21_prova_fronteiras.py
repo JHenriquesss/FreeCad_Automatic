@@ -314,30 +314,59 @@ def test_G21_B3_string_laje_sem_realimentar_guarda_fica_vermelho(monkeypatch):
 # ===========================================================================
 
 def _mutacao_em_disco_e_prova(test_selector, arquivo, velho, novo):
-    """Helper: muta arquivo em disco, roda pytest no teste, assert vermelho, restaura."""
+    """Muta o modulo numa COPIA do pacote e prova que o guarda fica vermelho.
+
+    A versao anterior reescrevia o modulo no REPOSITORIO VIVO e restaurava no
+    finally. Dois custos, ambos ja conhecidos do projeto:
+      1) se o processo morresse dentro da janela de mutacao (Ctrl+C, kill), o
+         repo ficava com o modulo quebrado - exatamente o que o G22 corrigiu em
+         tools/prova_fronteiras_G21.py, mas que nunca chegou a ESTE arquivo;
+      2) sob `pytest -n N` os outros workers liam o arquivo mutado e ficavam
+         vermelhos por CONTAMINACAO, nao por defeito. Medido em 2026-09-03:
+         A1/A3/C1-C3 falhando de forma nao deterministica (3 execucoes, 3
+         conjuntos diferentes de vermelhos), e reproduzido tambem no commit
+         anterior - logo PRE-EXISTENTE: a suite verde de 44 min tinha sido
+         sorte de escalonamento. Guarda que reprova por vizinhanca nao e guarda.
+
+    A copia leva so os .py da raiz do pacote e de tests/ (~5 MB, menos de 1 s);
+    o pacote inteiro tem 374 MB de saidas e PDFs que a prova nao usa.
+    """
+    import shutil
     import subprocess
+    import tempfile
     p = GALPAO / (arquivo + ".py")
     orig = p.read_text(encoding="utf-8")
     if velho not in orig:
         pytest.skip("string de mutação não encontrada em %s: %r" % (arquivo, velho))
     mutated = orig.replace(velho, novo)
     assert mutated != orig
-    p.write_text(mutated, encoding="utf-8")
-    try:
+    with tempfile.TemporaryDirectory() as td:
+        raiz = pathlib.Path(td)
+        dest = raiz / "framework" / "galpao_fw"
+        (dest / "tests").mkdir(parents=True)
+        for src in GALPAO.glob("*.py"):
+            shutil.copy2(src, dest / src.name)
+        for src in (GALPAO / "tests").glob("*.py"):
+            shutil.copy2(src, dest / "tests" / src.name)
+        ini = GALPAO / "pytest.ini"
+        if ini.is_file():
+            shutil.copy2(ini, dest / "pytest.ini")
+        (dest / (arquivo + ".py")).write_text(mutated, encoding="utf-8")
         result = subprocess.run(
             [sys.executable, "-m", "pytest",
              "framework/galpao_fw/tests/test_fronteiras.py::" + test_selector, "-v"],
-            capture_output=True, text=True,
-            cwd=str(pathlib.Path(__file__).resolve().parents[3])
-        )
-        # Deve falhar (vermelho)
-        assert result.returncode != 0, \
-            "mutacao %s em %s deveria deixar %s vermelho, mas passou:\n%s\n%s" % (
-                velho, arquivo, test_selector, result.stdout[-2000:], result.stderr[-500:])
-        assert "FAILED" in result.stdout or "AssertionError" in result.stdout, \
-            "saída não indica falha: %s" % result.stdout[-2000:]
-    finally:
-        p.write_text(orig, encoding="utf-8")
+            capture_output=True, text=True, cwd=str(raiz))
+    # stdout/stderr podem vir None sob execucao paralela; nunca deixar isso
+    # passar por "defeito de engenharia" (era o TypeError que a suite mostrou).
+    saida = (result.stdout or "") + "\n" + (result.stderr or "")
+    assert result.returncode != 0, \
+        "mutacao %s em %s deveria deixar %s vermelho, mas passou:\n%s" % (
+            velho, arquivo, test_selector, saida[-2000:])
+    assert "FAILED" in saida or "AssertionError" in saida, \
+        "saída não indica falha: %s" % saida[-2000:]
+    # o repositorio vivo nunca foi tocado (o ponto do G22)
+    assert p.read_text(encoding="utf-8") == orig, \
+        "%s foi alterado no repositorio vivo: a prova deve mutar a COPIA" % arquivo
 
 
 def test_G21_C1_disco_dims_em_metros_fica_vermelho():
