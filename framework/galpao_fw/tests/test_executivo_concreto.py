@@ -68,5 +68,26 @@ def test_memorial_compoe_todas_as_disciplinas():
         assert marca in txt, marca
 
 
+def test_g47_quadro_mostra_ramos_e_st_do_fuste():
+    # G47: o s_t adotado tem de aparecer no quadro de aco do executivo,
+    # nao so no dict do dimensionamento; grampos entram no comprimento/peso.
+    import pilar_concreto as pc
+    r = pc.dimensiona_pilar({"b": 0.40, "h": 0.40, "Nk": 900.0, "le": 3.0,
+                             "fck": 30e3, "fyk": 500e3, "Vd": 700.0})
+    assert r["n_ramos_estribo"] == 4
+    base = _r()
+    base["pilar"] = dict(base["pilar"], **{k: r[k] for k in
+        ("phi_estribo_mm", "s_estribo", "s_estribo_max", "n_ramos_estribo",
+         "s_t", "hx", "hy")})
+    q = ex.quadro_de_aco(base)
+    n2 = next(x for x in q if x["pos"].startswith("N2"))
+    assert "4R" in n2["pos"] and "s_t=" in n2["pos"]
+    assert n2["n_ramos"] == 4 and n2["s_t_m"] > 0
+    # com 1 grampo o comprimento por espacamento supera o fechado simples
+    assert n2["comprimento_m"] > ex._estribo_comprimento(0.40, 0.40, 0.03, 10.0)
+    txt = ex.relatorio_quadro_pt(base)
+    assert "s_t=" in txt
+
+
 def test_selftest_roda():
     ex._selftest()

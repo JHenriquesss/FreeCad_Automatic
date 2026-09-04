@@ -122,5 +122,10 @@ def test_varredura_casa_limpa_e_baseline_zerada():
     casa = vd.descobrir_no_arquivo(GALPAO / "estrutura_casa.py")
     assert not any(d["variavel"] in ("r_escada", "stair") for d in casa), \
         "G42 reabriu em silencio: %r" % (casa,)
-    assert vd.chaves_varridas() == [], \
-        "baseline deveria estar zerada apos o G42: %r" % (vd.chaves_varridas(),)
+    # G48: a baseline da lente ampliada tem 3 ilhas declaradas (ver
+    # test_varredura_descoberta_g48.py) - nenhuma e da casa.
+    assert vd.chaves_varridas() == [
+        ("cargas_nbr6120.py", "multiplicadores_pavimentos", "area"),
+        ("galpao_portico.py", "configurar", "W_WALL_COL"),
+        ("galpao_portico.py", "reset", "W_WALL_COL"),
+    ], "baseline G42/G48 mudou: %r" % (vd.chaves_varridas(),)

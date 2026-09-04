@@ -112,7 +112,8 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
             gcorr = c1 if c1["Vd"] >= c2["Vd"] else c2
             for k in ("Asw_s_cm2_m", "Asw_s_req_cm2_m", "Asw_s_min_cm2_m",
                       "Asw_prov_cm2_m", "phi_estribo_mm", "s_estribo",
-                      "s_estribo_max", "VRd3", "Asw_atendido"):
+                      "s_estribo_max", "VRd3", "Asw_atendido",
+                      "n_ramos_estribo", "s_t", "s_t_max", "st_ok"):
                 if k in gcorr:
                     gov[k] = gcorr[k]
             gov["travamento_longitudinal"] = travamento
@@ -125,7 +126,8 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
     gcorr = c1 if c1["Vd"] >= c2["Vd"] else c2
     for k in ("Asw_s_cm2_m", "Asw_s_req_cm2_m", "Asw_s_min_cm2_m",
               "Asw_prov_cm2_m", "phi_estribo_mm", "s_estribo",
-              "s_estribo_max", "VRd3", "Asw_atendido"):
+              "s_estribo_max", "VRd3", "Asw_atendido",
+              "n_ramos_estribo", "s_t", "s_t_max", "st_ok"):
         if k in gcorr:
             gov[k] = gcorr[k]
     gov["travamento_longitudinal"] = travamento
@@ -349,6 +351,9 @@ def rodar(spec):
                                          pilar.get("s_estribo_max", 0.15)),
                   "Asw_prov_cm2_m": pilar.get("Asw_prov_cm2_m", 0.0),
                   "Asw_atendido": pilar.get("Asw_atendido", True),
+                  "n_ramos_estribo": pilar.get("n_ramos_estribo", 2),
+                  "s_t": pilar.get("s_t", 0.0),
+                  "s_t_max": pilar.get("s_t_max", 0.0),
                   "cort_ok": pilar.get("cort_ok", True), "OK": pilar["OK"]},
         "fundacao": {"OK": fund_ok, "tipo": tipo_fund, "geom": fund_geom},
         "calice": {"interface": calice["interface"], "Lemb": calice["Lemb"],

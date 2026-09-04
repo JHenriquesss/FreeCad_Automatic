@@ -98,23 +98,24 @@ def test_descoberta_atual_pina_baseline():
     # para o proximo fix (molde G6->G7). Se um orfao sumir, a baseline tem que
     # diminuir junto - nunca em silencio.
     # G42: a casa saiu da baseline (r_escada curado) - baseline zerada.
-    assert vd.chaves_varridas() == [], \
-        "baseline G40 mudou: %r" % (vd.chaves_varridas(),)
+    # G48: a lente ampliada (rodar()+calculos) declara 3 ilhas - ver triagem
+    # e motivos em test_varredura_descoberta_g48.py; a fonte unica da
+    # baseline e ILHAS_DECLARADAS_G48 de la (aqui, literal + ponteiro).
+    assert vd.chaves_varridas() == [
+        ("cargas_nbr6120.py", "multiplicadores_pavimentos", "area"),
+        ("galpao_portico.py", "configurar", "W_WALL_COL"),
+        ("galpao_portico.py", "reset", "W_WALL_COL"),
+    ], "baseline G40/G48 mudou: %r" % (vd.chaves_varridas(),)
 
 
 def test_permitidos_ainda_validos():
-    # Filtro de nome morto: se o orquestrador for renomeado ou a variavel sair,
+    # Filtro de nome morto NA LENTE AMPLIADA (G48): se o orquestrador for
+    # renomeado ou a variavel sair do rodar() E dos calculos alcancaveis,
     # o allowlist morre em voz alta em vez de virar salvo-conduto vazio.
-    import ast
     for arq, var in vd.PERMITIDOS_TERMINAIS:
-        caminho = GALPAO / arq
-        assert caminho.is_file(), "permitido %s/%s sem arquivo" % (arq, var)
-        arvore = ast.parse(caminho.read_text(encoding="utf-8"))
-        no = vd._rodar_no(arvore)
-        assert no is not None, "%s perdeu o rodar()" % arq
-        nomes = {n.id for n in ast.walk(no) if isinstance(n, ast.Name)}
-        assert var in nomes, \
-            "permitido %s/%s sem variavel no rodar(): virou salvo-conduto vazio" % (arq, var)
+        assert vd.permitido_ainda_valido(arq, var), \
+            "permitido %s/%s sem variavel no rodar() nem nos calculos: " \
+            "virou salvo-conduto vazio" % (arq, var)
 
 
 def test_tipologias_varridas_existem():

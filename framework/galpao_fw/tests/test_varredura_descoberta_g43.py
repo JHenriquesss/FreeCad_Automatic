@@ -204,8 +204,13 @@ def test_descoberta_g43_pina_baseline():
     # orfao novo aparecer, este teste fica vermelho: ou vira verificacao,
     # ou vira ilha declarada para o proximo fix (molde G6->G7). Se um orfao
     # sumir, a baseline diminui junto - nunca em silencio.
-    assert vd.chaves_varridas() == [], \
-        "baseline G43 mudou: %r" % (vd.chaves_varridas(),)
+    # G48: a lente ampliada (rodar()+calculos) declara 3 ilhas - ver triagem
+    # e motivos em test_varredura_descoberta_g48.py.
+    assert vd.chaves_varridas() == [
+        ("cargas_nbr6120.py", "multiplicadores_pavimentos", "area"),
+        ("galpao_portico.py", "configurar", "W_WALL_COL"),
+        ("galpao_portico.py", "reset", "W_WALL_COL"),
+    ], "baseline G43/G48 mudou: %r" % (vd.chaves_varridas(),)
 
 
 def test_tipologias_g43_existem():

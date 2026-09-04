@@ -54,6 +54,14 @@ def _estribo_comprimento(b, h, cob, phi_est_mm):
     return round(perim + ganchos, 3)
 
 
+def _grampo_comprimento(hx, cob, phi_est_mm):
+    """Comprimento de UM grampo suplementar reto do fuste (m): travessa ao longo
+    da profundidade hx + 2 ganchos (10*phi cada, 90-180 graus envolvendo a barra
+    longitudinal, NBR 6118 18.2.4/Fig.18.2). G47: cada par de ramos alem dos 2
+    do estribo fechado consome 1 grampo por espacamento."""
+    return round((hx - 2 * cob) + 2.0 * 10.0 * phi_est_mm / 1000.0, 3)
+
+
 def quadro_de_aco(r):
     """Monta o quadro de aco do galpao (r = galpao_concreto.rodar()). Retorna lista
     de posicoes {elemento, pos, phi_mm, n, comprimento_m, peso_kg} agregadas pela
@@ -78,12 +86,21 @@ def quadro_de_aco(r):
     phi_e = pil.get("phi_estribo_mm", 5.0)
     # G44: o espacamento do fuste vem do dimensionamento do cortante
     # (Asw/s calculado); o 15 cm usual fica como TETO pratico.
+    # G47: o numero de ramos e o s_t transversal vêm do detalhamento
+    # (2R fechado simples, 4R/6R com 1/2 grampos); o comprimento por
+    # espacamento soma o fechado + os grampos, e o s_t vai para o quadro.
     s_e = min(0.15, float(pil.get("s_estribo", pil.get("s_estribo_max", 0.15))))
+    n_r = int(pil.get("n_ramos_estribo", 2))
+    n_gramp = max((n_r - 2) // 2, 0)
+    st_mm = round(float(pil.get("s_t", 0.0)) * 1000.0)
     n_e = (math.ceil(H / s_e) + 1)
     Le = _estribo_comprimento(hy, hx, cob, phi_e)
-    q.append({"elemento": "Pilar", "pos": "N2 (estribo)", "phi_mm": phi_e,
-              "n": n_e * n_pilares, "comprimento_m": Le,
-              "peso_kg": _peso(phi_e, n_e * n_pilares, Le)})
+    L_tot = round(Le + n_gramp * _grampo_comprimento(hx, cob, phi_e), 3)
+    q.append({"elemento": "Pilar", "pos": f"N2 (estribo {n_r}R s_t={st_mm}mm)",
+              "phi_mm": phi_e,
+              "n": n_e * n_pilares, "comprimento_m": L_tot,
+              "peso_kg": _peso(phi_e, n_e * n_pilares, L_tot),
+              "n_ramos": n_r, "s_t_m": float(pil.get("s_t", 0.0))})
 
     # -------- VIGA DE COBERTURA (inf + sup + estribos) --------
     vg = r["viga"]; b = vg["b"]; h = vg["h"]

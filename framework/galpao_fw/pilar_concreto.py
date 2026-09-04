@@ -381,44 +381,106 @@ def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
             "ok_biela": ok_biela, "ok_min": ok_min, "ok": ok_biela}
 
 
-# Bitolas de estribo do fuste (mm) e ramos do estribo fechado simples.
+# Bitolas de estribo do fuste (mm) e ramos do estribo.
+# G47: a lista de bitolas fica CONGELADA em phi <= 10 (a armadilha era
+# acrescentar phi 12,5 e empurrar o teto de 2 ramos de 31,4 para 49,1 cm2/m
+# sem detalhar nada). O ganho de capacidade vem de RAMOS (2 -> 4 -> 6),
+# com a regra do acervo (NBR 6118:2014 lida no PDF local, texto extraivel):
+#   - 18.3.3.2, p.149: st,max = d (<=800 mm) se Vd <= 0,20 VRd2, senao
+#     st,max = 0,6 d (<=350 mm); s,max longitudinal 0,6d/0,3d (<=300/200 mm);
+#   - 18.4.3, p.151-152: o pilar usa estribos + grampos suplementares "quando
+#     for o caso", em toda a altura (inclusive cruzamento com vigas/lajes), e
+#     havendo cortante compara com os limites de 18.3, valendo o menor;
+#   - 18.2.4, p.145-146: o estribo poligonal protege os cantos e as barras a
+#     ate 20*phi_t do canto (max. 2 barras nesse trecho, sem contar o canto);
+#     acima disso ou com barra fora do trecho, ha estribos suplementares.
+# Tentativa de NotebookLM registrada: `nlm login --check` em 2026-09-04
+# retornou autenticacao expirada (sem rede/credencial), sem condicao de
+# reconsultar; como o PDF tem texto extraivel (256/256 pags, 555 mil chars,
+# regra de st em texto, nao em imagem), nao ha caso de "tabela-imagem" que
+# exigisse parar - a regra acima e literal do acervo, nao deduzida.
 _BITOLAS_ESTRIBO_PILAR = (5.0, 6.3, 8.0, 10.0)
-_N_RAMOS_ESTRIBO = 2
+_N_RAMOS_OPCOES = (2, 4, 6)        # fechado simples, +1 grampo, +2 grampos
+_COB_ESTRIBO = 0.03                # cobrimento para o st entre ramos (m)
 _S_MIN_ESTRIBO = 0.05              # espacamento minimo pratico (montagem)
 
 
-def detalha_estribo_pilar(asw, s_max):
-    """Escolhe (phi_mm, s) de estribo fechado simples (2 ramos) tal que
-    A_prov = n_ramos*A_phi/s >= asw (m2/m), com s <= s_max e s >= 5 cm.
+def st_max_transversal(Vd, VRd2, d):
+    """Espacamento transversal maximo entre ramos (NBR 6118:2014, 18.3.3.2):
+    Vd <= 0,20 VRd2 -> min(d, 0,80 m); senao -> min(0,6*d, 0,35 m)."""
+    if Vd <= 0.20 * VRd2:
+        return min(d, 0.80)
+    return min(0.6 * d, 0.35)
 
-    Prefere a MENOR bitola que permite espacamento praticavel (>= 5 cm);
-    o espacamento e arredondado PARA BAIXO ao cm (a favor da seguranca).
-    Retorna (phi_mm, s, Asw_prov_m2m). asw em m2/m ; s em m.
 
-    G44b: a tabela de detalhamento TEM TETO. Com 2 ramos, a maior bitola
-    (phi 10) no menor espacamento (5 cm) provê 31,4 cm2/m — e ha secoes
-    correntes (ex.: 40x40 fck30) cujo Asw necessario passa disso ANTES da
-    biela esmagar. O fallback antigo devolvia esse teto e o chamador
-    reportava OK: estribo 23% abaixo do necessario, em silencio (a
-    saturacao silenciosa de sempre). Agora o teto e devolvido junto com
-    Asw_prov REAL, e quem chama compara prov x req e REPROVA. Cobrir esses
-    casos exige detalhamento que este modulo ainda nao faz (estribo de 4
-    ramos / suplementar) - ate la, fail-closed."""
+def st_entre_ramos(n_ramos, bw, cob=_COB_ESTRIBO):
+    """Distancia transversal entre ramos sucessivos (m): (bw - 2*cob)/(n-1),
+    com bw = largura ortogonal ao cortante e cob = cobrimento."""
+    if n_ramos < 2:
+        raise ValueError("n_ramos >= 2")
+    return max((bw - 2.0 * cob) / (n_ramos - 1), 0.0)
+
+
+def precisa_suplementar_flambagem(n_barras_no_trecho, barra_fora_do_trecho=False):
+    """Regra literal de 18.2.4: ha estribo suplementar quando houver mais de
+    2 barras no trecho de 20*phi_t a partir do canto (sem contar a do canto)
+    ou barra longitudinal fora desse trecho."""
+    return bool(barra_fora_do_trecho or n_barras_no_trecho > 2)
+
+
+def detalha_estribo_pilar(asw, s_max, bw=None, d=None, Vd=None, VRd2=None,
+                          n_barras_trecho=1, phi_min=5.0):
+    """Escolhe (phi_mm, s, n_ramos) tal que A_prov = n_ramos*A_phi/s >= asw
+    (m2/m), com s <= s_max e s >= 5 cm, E com o espacamento transversal
+    entre ramos st = (bw-2*cob)/(n-1) <= st,max (18.3.3.2 via 18.4.3).
+
+    Prefere MENOS ramos e, dentro do ramo, a MENOR bitola com espacamento
+    praticavel (>= 5 cm); o espacamento e arredondado PARA BAIXO ao cm
+    (a favor da seguranca). n_barras_trecho = barras longitudinais no
+    trecho de 20*phi_t a partir do canto (sem contar a do canto, 18.2.4):
+    > 2 impoe n_ramos >= 4 (o fuste dimensionado aqui usa 4 cantos ->
+    default 1, e o cortante/st governa).
+    Retorna (phi_mm, s, Asw_prov_m2m, n_ramos, st_m, st_max_m). asw em
+    m2/m ; s/st em m. Sem geometria (bw/d/Vd/VRd2 ausentes) o st nao e
+    exigido (compatibilidade) e vale 0,0/inf.
+
+    G44b: a tabela TEM TETO e o chamador compara prov x req e REPROVA
+    (fail-closed, nunca satura em silencio). G47 elevou o teto com ramos:
+    2R phi10 c/5 = 31,4 ; 4R = 62,8 ; 6R = 94,2 cm2/m (bitolas congeladas
+    em phi <= 10). Acima do teto de 6R, devolve o teto e o chamador reprova.
+    """
     import math
     s_max = max(min(float(s_max), 0.40), _S_MIN_ESTRIBO)
-    for phi in _BITOLAS_ESTRIBO_PILAR:
-        a_phi = math.pi * (phi / 1000.0) ** 2 / 4.0
-        a_tot = _N_RAMOS_ESTRIBO * a_phi
-        s_req = a_tot / asw if asw > 0 else s_max
-        s_lim = min(s_req, s_max)
-        s = math.floor(s_lim * 100.0 + 1e-9) / 100.0   # cm cheio, para baixo
-        if s >= _S_MIN_ESTRIBO - 1e-9:
-            return phi, round(s, 3), round(a_tot / s, 6)
-    # Teto da tabela: maior bitola no espacamento minimo. NAO cobre todo Vd
-    # <= VRd2 - o chamador confere Asw_prov >= Asw_req e reprova se nao.
+    if bw is not None and d is not None and Vd is not None and VRd2 is not None:
+        st_lim = st_max_transversal(Vd, VRd2, d)
+    else:
+        st_lim = float("inf")
+    n_min = 4 if precisa_suplementar_flambagem(n_barras_trecho) else 2
+    for n_ramos in _N_RAMOS_OPCOES:
+        if n_ramos < n_min:
+            continue
+        st = st_entre_ramos(n_ramos, bw) if bw is not None else 0.0
+        if bw is not None and st > st_lim + 1e-9:
+            continue                               # st estoura: mais ramos
+        for phi in _BITOLAS_ESTRIBO_PILAR:
+            if phi < phi_min - 1e-9:
+                continue                           # 18.4.3: phi_t >= phi_long/4
+            a_phi = math.pi * (phi / 1000.0) ** 2 / 4.0
+            a_tot = n_ramos * a_phi
+            s_req = a_tot / asw if asw > 0 else s_max
+            s_lim = min(s_req, s_max)
+            s = math.floor(s_lim * 100.0 + 1e-9) / 100.0   # cm cheio, p/ baixo
+            if s >= _S_MIN_ESTRIBO - 1e-9:
+                return (phi, round(s, 3), round(a_tot / s, 6), n_ramos,
+                        round(st, 4), round(st_lim, 4) if st_lim != float("inf") else st_lim)
+    # Teto da tabela (6R phi 10 c/5 = 94,2 cm2/m). O chamador confere
+    # Asw_prov >= Asw_req e reprova se nao cobrir.
     phi = _BITOLAS_ESTRIBO_PILAR[-1]
-    a_tot = _N_RAMOS_ESTRIBO * math.pi * (phi / 1000.0) ** 2 / 4.0
-    return phi, _S_MIN_ESTRIBO, round(a_tot / _S_MIN_ESTRIBO, 6)
+    n_ramos = _N_RAMOS_OPCOES[-1]
+    a_tot = n_ramos * math.pi * (phi / 1000.0) ** 2 / 4.0
+    st = st_entre_ramos(n_ramos, bw) if bw is not None else 0.0
+    return (phi, _S_MIN_ESTRIBO, round(a_tot / _S_MIN_ESTRIBO, 6), n_ramos,
+            round(st, 4), round(st_lim, 4) if st_lim != float("inf") else st_lim)
 
 
 # ---------------------------------------------------------------------------
@@ -549,17 +611,45 @@ def dimensiona_pilar(caso):
     # deixa de ser o VRd3,min (G39) e passa a ser a biela MAIS o detalhamento.
     # ok_min/u_cort seguem expostos como diagnostico do minimo (G39).
     if Vd <= 0.67 * cr["VRd2"]:
-        s_estribo_max = min(0.6 * d_cort, 0.30)
+        s_18_3 = min(0.6 * d_cort, 0.30)
     else:
-        s_estribo_max = min(0.3 * d_cort, 0.20)
-    phi_est, s_est, asw_prov = detalha_estribo_pilar(cr["asw"], s_estribo_max)
-    # G44b: a tabela de estribo (2 ramos, ate phi 10 c/5 cm = 31,4 cm2/m) NAO
-    # cobre todo Vd <= VRd2. Sem esta conferencia o modulo devolvia o teto da
-    # tabela e dizia OK - ex.: 40x40 fck30 com Vd = 700 kN pede 40,8 cm2/m,
-    # recebia 31,4 (23% a menos) e passava, onde ANTES do G44 reprovava.
-    # Comparar prov x req e a diferenca entre dimensionar e saturar.
+        s_18_3 = min(0.3 * d_cort, 0.20)
+    # G47b: o s LONGITUDINAL de PILAR nao e' o de viga. A 18.4.3 impoe limites
+    # PROPRIOS - "o menor dos seguintes valores: 200 mm; menor dimensao da
+    # secao; 24 phi para CA-25, 12 phi para CA-50" - e so DEPOIS manda comparar
+    # com os de 18.3 "adotando-se o menor dos limites" (p.152, lido no PDF do
+    # acervo). O modulo aplicava so o lado de viga desde o G39: varredura de
+    # 775 casos achou 87 em que o s ADOTADO passa do teto da 18.4.3 - o pior,
+    # 14x50 com s = 270 mm contra 140 mm permitidos, quase o dobro, e num pilar
+    # esbelto, onde o espacamento do estribo e' justamente o que impede a
+    # flambagem da barra longitudinal. Nao era regressao do G47; era o G47 que
+    # leu a 18.4.3 e implementou so a metade que restringe o st.
+    #
+    # 200 mm e "menor dimensao" saem da geometria. O 12*phi so e' aplicavel se
+    # a bitola longitudinal for DECLARADA ('phi_long_mm'): sem ela, nao ha como
+    # saber, e arbitrar uma bitola para apertar (ou afrouxar) o limite seria
+    # inventar dado. Fica registrado em 's_limite_governante' qual mandou.
+    limites_s = {"18.3 (viga)": s_18_3, "18.4.3 200mm": 0.200,
+                 "18.4.3 menor dimensao": min(hx, hy)}
+    phi_long = caso.get("phi_long_mm")
+    if phi_long is not None:
+        limites_s["18.4.3 12.phi_long"] = 12.0 * float(phi_long) / 1000.0
+    s_estribo_max = min(limites_s.values())
+    s_limite_governante = min(limites_s, key=lambda k: limites_s[k])
+    # 18.4.3: phi_t >= 5 mm e >= phi_long/4 (so verificavel com phi_long dado).
+    phi_t_min = max(5.0, float(phi_long) / 4.0) if phi_long is not None else 5.0
+    # G47: o detalhamento recebe a geometria do cortante para exigir o st
+    # entre ramos (18.3.3.2 via 18.4.3) e abrir 4R/6R com grampo suplementar.
+    phi_est, s_est, asw_prov, n_ramos_est, st_est, st_lim = detalha_estribo_pilar(
+        cr["asw"], s_estribo_max, bw=bw_cort, d=d_cort, Vd=Vd, VRd2=cr["VRd2"],
+        phi_min=phi_t_min)
+    # G44b: a tabela de estribo TEM TETO (G47: 6R phi 10 c/5 = 94,2 cm2/m).
+    # Sem esta conferencia o modulo devolvia o teto e dizia OK - ex. G44:
+    # 40x40 fck30 com Vd = 700 kN pede 40,8 cm2/m, recebia 31,4 (23% a menos)
+    # e passava. Comparar prov x req e a diferenca entre dimensionar e saturar.
     asw_atendido = asw_prov >= cr["asw"] - 1e-9
-    cort_ok = bool(cr["ok"] and asw_atendido)
+    st_ok = bool(st_est <= st_lim + 1e-9)
+    cort_ok = bool(cr["ok"] and asw_atendido and st_ok)
 
     OK = (ok_res and ok_max and esb_ok and cort_ok
           and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9)
@@ -592,6 +682,12 @@ def dimensiona_pilar(caso):
         "phi_estribo_mm": phi_est, "s_estribo": round(s_est, 3),
         "Asw_prov_cm2_m": round(asw_prov * 1e4, 2),
         "Asw_atendido": bool(asw_atendido),
+        "n_ramos_estribo": int(n_ramos_est),
+        "s_t": round(st_est, 4), "s_t_max": round(st_lim, 4),
+        "st_ok": bool(st_ok),
+        "s_limite_governante": s_limite_governante,
+        "phi_t_min_mm": round(phi_t_min, 2),
+        "limites_s_m": {k: round(v, 4) for k, v in limites_s.items()},
     })
     return res
 
@@ -627,8 +723,9 @@ def relatorio_pt(r):
           f"Asw/s = {r.get('Asw_s_cm2_m', 0.0):.2f} cm2/m "
           f"(min {r.get('Asw_s_min_cm2_m', 0.0):.2f}) -> "
           f"phi {r.get('phi_estribo_mm', 5.0):.1f} c/{r.get('s_estribo', r.get('s_estribo_max', 0.0))*1000:.0f} "
-          f"(s_max {r.get('s_estribo_max', 0.0)*1000:.0f} mm) -> "
-          f"{'OK' if r.get('cort_ok', True) else ('REPROVA (biela)' if not r.get('ok_biela', True) else 'REPROVA (Asw excede o estribo de 2 ramos detalhavel: %.2f > %.2f cm2/m)' % (r.get('Asw_s_cm2_m', 0.0), r.get('Asw_prov_cm2_m', 0.0)))}",
+          f"{r.get('n_ramos_estribo', 2)}R (s_max {r.get('s_estribo_max', 0.0)*1000:.0f} mm ; "
+          f"s_t {r.get('s_t', 0.0)*1000:.0f} <= {r.get('s_t_max', 0.0)*1000:.0f} mm) -> "
+          f"{'OK' if r.get('cort_ok', True) else ('REPROVA (biela)' if not r.get('ok_biela', True) else ('REPROVA (st)' if not r.get('st_ok', True) else 'REPROVA (Asw excede o estribo detalhavel (2/4/6R ate phi 10 c/5): %.2f > %.2f cm2/m)' % (r.get('Asw_s_cm2_m', 0.0), r.get('Asw_prov_cm2_m', 0.0))))}",
           f"  RESULTADO: {'APROVADO' if r['OK'] else 'REPROVADO'}",
           "  [A CONFIRMAR: esforcos (Nk, M1d) e comprimentos de flambagem do modelo.]"]
     import re

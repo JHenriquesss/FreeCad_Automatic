@@ -1,9 +1,11 @@
 # ============================================================================
-# varredura_descoberta.py - G40/G43: A VARREDURA PRECISA DESCOBRIR, NAO CONFERIR.
+# varredura_descoberta.py - G40/G43/G48: A VARREDURA PRECISA DESCOBRIR,
+# NAO CONFERIR.
 # SCRIPT AVULSO: ferramenta de descoberta rodada a mao/CI (python
 # varredura_descoberta.py) e pelos testes-guardas
-# tests/test_varredura_descoberta_g40.py (estrutural) e
-# tests/test_varredura_descoberta_g43.py (demais disciplinas).
+# tests/test_varredura_descoberta_g40.py (estrutural),
+# tests/test_varredura_descoberta_g43.py (demais disciplinas) e
+# tests/test_varredura_descoberta_g48.py (lente ampliada aos calculos).
 # Nao e importada por nenhum orquestrador do Loop - e declarada em
 # SCRIPTS_AVULSOS no tests/test_alcancabilidade.py, no mesmo molde de
 # validacao/verificar_amostra.
@@ -34,6 +36,27 @@
 # conhecido em cada linguagem (ver test_varredura_descoberta_g40.py para o
 # estrutural e test_varredura_descoberta_g43.py para as demais disciplinas:
 # um zero so vale depois do vermelho injetado naquela linguagem).
+#
+# G48 - A LENTE SO ENXERGAVA rodar(): nas disciplinas nao estruturais quase
+# todo o calculo mora um nivel abaixo, nos modulos chamados
+# (hidraulica_residencial.rodar(): 12 atribuicoes, 0 candidatos; incendio:
+# 22 e 1; contra 45 e 8 no eletrico, o unico que calcula no rodar).
+# A descoberta agora alcanca as funcoes de calculo chamaveis a partir de
+# cada rodar() - mesmo arquivo ou outro modulo do GALPAO resolvido via
+# import - em transicao com TETO (PROFUNDIDADE_MAX): rodar(0) -> chamados
+# diretos(1) -> chamados-dos-chamados(2). Cada funcao e analisada com o
+# mesmo vocabulario (ESFORCO_RE) e os mesmos sumidouros (VERIF_RE), mas o
+# RETORNO da funcao e FRONTEIRA: valor calculado que alcanca o return
+# atravessou para o chamador (vira responsabilidade dele) e nao e orfao
+# na funcao. Idem a CONFERENCIA INLINE COM VEREDITO: candidata testada num
+# `if` cujo ramo registra veredito (violacoes/faltantes/erros/avisos.append,
+# raise, atribuicao a OK/violacoes) esta conferida - e o idioma das funcoes
+# verificadoras (verifica_extintores, verifica_armazenamento,
+# verifica_agua_quente_seguranca, corrige_fator_potencia). Triagem G48 de
+# tudo que a lente ampliada achou: "vira verificacao" (retorno/veredito,
+# sem tocar producao e sem allowlist) ou "vira ilha declarada" (baseline
+# pinada, nunca silenciada). O vermelho injetado agora mora num MODULO
+# CHAMADO, nao no orquestrador (ver test_varredura_descoberta_g48.py).
 # ============================================================================
 """Varredura G40: descoberta generica de valor calculado sem verificacao."""
 
@@ -130,6 +153,105 @@ def _rodar_no(arvore, nome="rodar"):
         if isinstance(no, ast.FunctionDef) and no.name == nome:
             return no
     return None
+
+
+# G48: teto da lente ampliada. rodar()=0, chamados diretos=1,
+# chamados-dos-chamados=2. Mais fundo que isso e outro goal (a lente
+# declara o teto em vez de varrer o mundo em silencio).
+PROFUNDIDADE_MAX = 2
+MAX_FUNCOES_POR_ORQUESTRADOR = 32
+
+# Ramo que registra veredito: a candidata testada no `if` esta conferida.
+# (violacoes/faltantes/erros/avisos.append|extend, raise, atribuicao a
+# OK/violacoes/faltantes - o idioma das verificadoras.)
+_VEREDITO_NOME_RE = re.compile(r"violac|faltante|erros?|avisos?", re.I)
+_VEREDITO_ATRIB_RE = re.compile(r"^(OK|violac|faltante|reprovad|precisa_)", re.I)
+
+
+def _funcoes_da_arvore(arvore):
+    return {n.name: n for n in ast.walk(arvore)
+            if isinstance(n, ast.FunctionDef)}
+
+
+def _imports_para_modulo(arvore):
+    """Nome local -> modulo de origem (parte alta, arquivos irmaos no GALPAO)."""
+    mapa = {}
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Import):
+            for a in no.names:
+                mapa[(a.asname or a.name).split(".")[0]] = \
+                    a.name.split(".")[0]
+        elif isinstance(no, ast.ImportFrom) and no.module:
+            for a in no.names:
+                mapa[a.asname or a.name] = no.module.split(".")[0]
+    return mapa
+
+
+def _chamadas_de(no_func):
+    """Pares (base_ou_None, nome) chamados no corpo da funcao."""
+    achadas = []
+    for no in ast.walk(no_func):
+        if isinstance(no, ast.Call):
+            fn = no.func
+            if isinstance(fn, ast.Name):
+                achadas.append((None, fn.id))
+            elif (isinstance(fn, ast.Attribute)
+                    and isinstance(fn.value, ast.Name)):
+                achadas.append((fn.value.id, fn.attr))
+    return achadas
+
+
+def _retornos(no_func):
+    """Nomes que escapam pelo return: a fronteira da funcao (G48)."""
+    nomes = set()
+    for no in ast.walk(no_func):
+        if isinstance(no, ast.Return) and no.value is not None:
+            for n in ast.walk(no.value):
+                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+                    nomes.add(n.id)
+    return nomes
+
+
+def _tem_veredito(ramos):
+    """Ha registro de veredito nos corpos do if (body/orelse)?"""
+    for corpo in ramos:
+        for no in ast.walk(ast.Module(body=corpo, type_ignores=[])):
+            if isinstance(no, ast.Raise):
+                return True
+            if isinstance(no, ast.Call) and isinstance(no.func, ast.Attribute):
+                base = no.func.value
+                if (isinstance(base, ast.Name)
+                        and _VEREDITO_NOME_RE.search(base.id)
+                        and no.func.attr in ("append", "extend", "add",
+                                             "update", "setdefault")):
+                    return True
+            if isinstance(no, (ast.Assign, ast.AnnAssign)):
+                alvos = (no.targets if isinstance(no, ast.Assign)
+                         else [no.target])
+                for t in alvos:
+                    for n in ast.walk(t):
+                        if (isinstance(n, ast.Name)
+                                and isinstance(n.ctx, ast.Store)
+                                and _VEREDITO_ATRIB_RE.match(n.id)):
+                            return True
+    return False
+
+
+def _conferidas_inline(no_func):
+    """Candidatas testadas em `if` cujo ramo registra veredito (G48).
+
+    E a conferencia inline das verificadoras: `if area_operacao < MIN:
+    violacoes.append(...)`, `if not 0 < fp <= 1: raise`, etc. So vale com
+    veredito no ramo - um `if x is not None: pass` sozinho nao confere."""
+    conferidas = set()
+    for no in ast.walk(no_func):
+        if not isinstance(no, ast.If):
+            continue
+        teste = {n.id for n in ast.walk(no.test)
+                 if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        if teste and _tem_veredito((no.body, no.orelse)):
+            conferidas.update(teste)
+    return conferidas
 
 
 def _dependencias(no_rodar):
@@ -247,81 +369,276 @@ def _alcancca(var, edges, sumidouros):
     return False
 
 
-def descobrir_no_arquivo(caminho):
-    """Orfaos de UM orquestrador: [{arquivo, variavel, linha, detalhe}]."""
+def _orfaos_em_funcao(nome_arquivo, nome_funcao, no_func, profundidade):
+    """Orfaos de UMA funcao: mesma lente do rodar, com duas fronteiras a
+    mais (G48): o return (valor atravessou para o chamador) e a conferencia
+    inline com veredito (idioma das verificadoras)."""
+    edges, defined = _dependencias(no_func)
+    sumidouros, _ = _sumidouros(no_func)
+    fronteira = set(sumidouros) | _retornos(no_func)
+    conferidas = _conferidas_inline(no_func)
+    orfaos = []
+    for var, linha in sorted(defined.items()):
+        if not ESFORCO_RE.match(var):
+            continue
+        if nome_funcao == "rodar" and \
+                (nome_arquivo, var) in PERMITIDOS_TERMINAIS:
+            continue
+        if _alcancca(var, edges, fronteira):
+            continue
+        if var in conferidas:
+            continue
+        jusante = sorted(edges.get(var, ()))[:4]
+        onde = ("rodar()" if nome_funcao == "rodar"
+                else "%s() a %d salto(s) de rodar()"
+                % (nome_funcao, profundidade))
+        orfaos.append({
+            "arquivo": nome_arquivo,
+            "funcao": nome_funcao,
+            "variavel": var,
+            "linha": linha,
+            "detalhe": ("calculado em %s e nunca alcanca verificacao, "
+                        "retorno ou veredito-inline; jusante=%r"
+                        % (onde, jusante)),
+        })
+    return orfaos
+
+
+def _alcancaveis(arvore, nome_arquivo, resolver_imports=True,
+                 cache=None, profundidade_max=PROFUNDIDADE_MAX):
+    """Fecho rodar() -> calculos: [(arquivo, funcao, no, profundidade)].
+
+    Mesmo arquivo via chamadas diretas; outros modulos do GALPAO via
+    `modulo.funcao` resolvido pelo import (alias inclusive). Transitivo
+    com TETO: alem de profundidade_max a lente declara que nao ve - nao
+    finge que viu."""
+    if cache is None:
+        cache = {}
+    funcoes = _funcoes_da_arvore(arvore)
+    no_rodar = funcoes.get("rodar")
+    if no_rodar is None:
+        return []
+    importados = _imports_para_modulo(arvore) if resolver_imports else {}
+    vistos = set()
+    fila = [(nome_arquivo, "rodar", no_rodar, 0)]
+    ordem = []
+    while fila and len(ordem) < MAX_FUNCOES_POR_ORQUESTRADOR:
+        arq, fname, no, prof = fila.pop(0)
+        if (arq, fname) in vistos:
+            continue
+        vistos.add((arq, fname))
+        ordem.append((arq, fname, no, prof))
+        if prof >= profundidade_max:
+            continue
+        for base, attr in _chamadas_de(no):
+            if base is None:
+                alvo = funcoes.get(attr) if arq == nome_arquivo else None
+                if alvo is None and arq != nome_arquivo:
+                    outra = cache.get(arq)
+                    if outra is not None:
+                        alvo = _funcoes_da_arvore(outra).get(attr)
+                if alvo is not None and (arq, attr) not in vistos:
+                    fila.append((arq, attr, alvo, prof + 1))
+            elif resolver_imports and base in importados:
+                modulo = importados[base]
+                if modulo not in cache:
+                    palvo = GALPAO / (modulo + ".py")
+                    try:
+                        cache[modulo] = (
+                            ast.parse(palvo.read_text(encoding="utf-8"))
+                            if palvo.is_file() else None)
+                    except (OSError, SyntaxError):
+                        cache[modulo] = None
+                outra = cache[modulo]
+                if outra is None:
+                    continue
+                alvo = _funcoes_da_arvore(outra).get(attr)
+                if alvo is not None and \
+                        (modulo + ".py", attr) not in vistos:
+                    fila.append((modulo + ".py", attr, alvo, prof + 1))
+    return ordem
+
+
+def _estado_escrito(no_func):
+    """Globais que a funcao PUBLICA: declarados em `global` e armazenados.
+
+    E a fronteira de estado (G48): configurar()/reset() publicam N_VAOS,
+    Q_ROOF, W_WALL_COL e o solver/rodar consomem via estado do modulo. O
+    fluxo intra-funcao nao ve essa publicacao - o fecho ve (ver abaixo)."""
+    declarados = set()
+    for no in ast.walk(no_func):
+        if isinstance(no, ast.Global):
+            declarados.update(no.names)
+    if not declarados:
+        return set()
+    armazenados = {n.id for n in ast.walk(no_func)
+                   if isinstance(n, ast.Name)
+                   and isinstance(n.ctx, ast.Store)}
+    return declarados & armazenados
+
+
+def _nomes_lidos(no_func):
+    return {n.id for n in ast.walk(no_func)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+
+
+def _descobrir_em_alcance(alcance):
+    """Orfaos do fecho rodar()->calculos, com fluxo de estado (G48).
+
+    Primeiro a prova intra-funcao (_orfaos_em_funcao). O que sobrar como
+    orfao MAS for estado publicado (global) ganha a segunda chance honesta:
+    o grafo combinado do fecho, com arestas escritor->leitor no mesmo
+    modulo. So cobre se, no leitor, o nome alcanca sumidouro, retorno ou
+    veredito - o mesmo barao da prova intra, fim a fim. Referencia passada
+    como callback, mutacao de objeto via parametro e leitura cross-modulo
+    (`gp.N_VAOS`) seguem FORA do alcance declarado (limite documentado,
+    nao silencio: o que ficar de fora aparece como ilha declarada)."""
+    por_func = {}
+    for arq, fname, no, prof in alcance:
+        edges, defined = _dependencias(no)
+        sumidouros, _ = _sumidouros(no)
+        por_func[(arq, fname)] = {
+            "no": no, "prof": prof, "edges": edges, "defined": defined,
+            "sumidouros": sumidouros, "retornos": _retornos(no),
+            "conferidas": _conferidas_inline(no),
+            "escritos": _estado_escrito(no),
+            "lidos": _nomes_lidos(no),
+        }
+    # Grafo combinado com nos qualificados (funcao, variavel).
+    comb_edges = collections.defaultdict(set)
+    comb_alvos = set()
+    for (arq, fname), info in por_func.items():
+        for dep, dsts in info["edges"].items():
+            for dst in dsts:
+                comb_edges[(fname, dep)].add((fname, dst))
+        for s in (info["sumidouros"] | info["retornos"]):
+            comb_alvos.add((fname, s))
+    for (arq_w, fname_w), info_w in por_func.items():
+        for var in info_w["escritos"]:
+            for (arq_r, fname_r), info_r in por_func.items():
+                if arq_r != arq_w or fname_r == fname_w:
+                    continue
+                if var in info_r["lidos"]:
+                    comb_edges[(fname_w, var)].add((fname_r, var))
+    orfaos = []
+    for (arq, fname), info in por_func.items():
+        for var, linha in sorted(info["defined"].items()):
+            if not ESFORCO_RE.match(var):
+                continue
+            if fname == "rodar" and (arq, var) in PERMITIDOS_TERMINAIS:
+                continue
+            if _alcancca(var, info["edges"],
+                         info["sumidouros"] | info["retornos"]):
+                continue
+            if var in info["conferidas"]:
+                continue
+            if var in info["escritos"] and _alcancca(
+                    (fname, var), comb_edges, comb_alvos):
+                continue
+            jusante = sorted(info["edges"].get(var, ()))[:4]
+            onde = ("rodar()" if fname == "rodar"
+                    else "%s() a %d salto(s) de rodar()"
+                    % (fname, info["prof"]))
+            orfaos.append({
+                "arquivo": arq,
+                "funcao": fname,
+                "variavel": var,
+                "linha": linha,
+                "detalhe": ("calculado em %s e nunca alcanca verificacao, "
+                            "retorno, veredito-inline ou leitor de estado; "
+                            "jusante=%r" % (onde, jusante)),
+            })
+    return orfaos
+
+
+def descobrir_no_arquivo(caminho, profundidade=PROFUNDIDADE_MAX):
+    """Orfaos de UM orquestrador e seus calculos (G48).
+
+    [{arquivo, funcao, variavel, linha, detalhe}]. Com profundidade=0 a
+    lente volta a enxergar so o rodar() (comportamento G40/G43)."""
     caminho = pathlib.Path(caminho)
     try:
         arvore = ast.parse(caminho.read_text(encoding="utf-8"))
     except (OSError, SyntaxError):
         return []
-    no = _rodar_no(arvore)
-    if no is None:
-        return []
-    edges, defined = _dependencias(no)
-    sumidouros, _ = _sumidouros(no)
-    orfaos = []
-    for var, linha in sorted(defined.items()):
-        if not ESFORCO_RE.match(var):
-            continue
-        if (caminho.name, var) in PERMITIDOS_TERMINAIS:
-            continue
-        if _alcancca(var, edges, sumidouros):
-            continue
-        jusante = sorted(edges.get(var, ()))[:4]
-        orfaos.append({
-            "arquivo": caminho.name,
-            "variavel": var,
-            "linha": linha,
-            "detalhe": ("calculado em rodar() e nunca alcanca verificacao; "
-                        "jusante=%r" % (jusante,)),
-        })
-    return orfaos
+    return _descobrir_em_alcance(_alcancaveis(
+        arvore, caminho.name, profundidade_max=profundidade))
 
 
-def descobrir_texto(nome_arquivo, fonte):
-    """Variante para prova isolada (G21 espirito): analisa fonte em memoria."""
+def descobrir_texto(nome_arquivo, fonte, profundidade=PROFUNDIDADE_MAX):
+    """Variante para prova isolada (G21 espirito): analisa fonte em memoria,
+    agora com as chamadas internas (G48: o vermelho mora no modulo chamado)."""
     try:
         arvore = ast.parse(fonte)
     except SyntaxError:
         return []
-    no = _rodar_no(arvore)
-    if no is None:
-        return []
-    edges, defined = _dependencias(no)
-    sumidouros, _ = _sumidouros(no)
-    orfaos = []
-    for var, linha in sorted(defined.items()):
-        if not ESFORCO_RE.match(var):
-            continue
-        if _alcancca(var, edges, sumidouros):
-            continue
-        orfaos.append({"arquivo": nome_arquivo, "variavel": var,
-                       "linha": linha, "detalhe": "orfao em fonte sintetica"})
+    orfaos = _descobrir_em_alcance(_alcancaveis(
+        arvore, nome_arquivo, resolver_imports=False,
+        profundidade_max=profundidade))
+    for d in orfaos:
+        d["arquivo"] = nome_arquivo
     return orfaos
 
 
+def permitido_ainda_valido(arq, var, profundidade=PROFUNDIDADE_MAX):
+    """Guarda anti-allowlist de nome morto na lente AMPLIADA (G48).
+
+    O permitido vale enquanto nomear variavel viva no rodar() OU em
+    qualquer calculo alcancavel - com a lista maior a guarda continua
+    valendo; se o orquestrador for renomeado ou a variavel sair de todos
+    os alcances, morre em voz alta em vez de virar salvo-conduto vazio."""
+    caminho = GALPAO / arq
+    if not caminho.is_file():
+        return False
+    try:
+        arvore = ast.parse(caminho.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return False
+    if _rodar_no(arvore) is None:
+        return False
+    for _a, _f, no, _p in _alcancaveis(arvore, arq,
+                                       profundidade_max=profundidade):
+        nomes = {n.id for n in ast.walk(no) if isinstance(n, ast.Name)}
+        if var in nomes:
+            return True
+    return False
+
+
 def varredura():
-    """Todos os orfaos descobertos nos orquestradores (ordem estavel)."""
+    """Todos os orfaos descobertos nos orquestradores (ordem estavel).
+
+    G48: o mesmo calculo pode ser alcancado por dois orquestradores
+    (multiplicadores_pavimentos via casa e via edificio) - a chave
+    (arquivo, funcao, variavel) sai uma vez so."""
     achados = []
+    vistas = set()
     for _tip, arquivos in TIPOLOGIAS.items():
         for arq in arquivos:
-            achados.extend(descobrir_no_arquivo(GALPAO / arq))
-    achados.sort(key=lambda d: (d["arquivo"], d["variavel"]))
+            for d in descobrir_no_arquivo(GALPAO / arq):
+                chave = (d["arquivo"], d["funcao"], d["variavel"])
+                if chave not in vistas:
+                    vistas.add(chave)
+                    achados.append(d)
+    achados.sort(key=lambda d: (d["arquivo"], d["funcao"], d["variavel"]))
     return achados
 
 
 def chaves_varridas():
-    return sorted((d["arquivo"], d["variavel"]) for d in varredura())
+    # G48: a chave ganhou a funcao - a mesma variavel pode viver no rodar()
+    # e num calculo com destinos diferentes.
+    return sorted((d["arquivo"], d["funcao"], d["variavel"])
+                  for d in varredura())
 
 
 def relatorio_pt():
-    linhas = ["VARREDURA G40/G43 - DESCOBERTA GENERICA DE ORFAOS",
-               "arquivo | variavel @linha -> motivo"]
+    linhas = ["VARREDURA G40/G43/G48 - DESCOBERTA GENERICA DE ORFAOS",
+               "arquivo/funcao | variavel @linha -> motivo"]
     for d in varredura():
-        linhas.append("  %-26s | %-14s @%d" % (d["arquivo"], d["variavel"],
-                                               d["linha"]))
+        linhas.append("  %-26s/%-28s | %-20s @%d" % (
+            d["arquivo"], d["funcao"], d["variavel"], d["linha"]))
     if not varredura():
-        linhas.append("  (nenhum orfao: tudo calculado alcanca verificacao)")
+        linhas.append("  (nenhum orfao: tudo calculado alcanca verificacao, "
+                       "retorno ou veredito-inline)")
     return "\n".join(linhas)
 
 
@@ -329,4 +646,4 @@ if __name__ == "__main__":
     print(relatorio_pt())
     print()
     for ilha in varredura():
-        print("  ORFAO: %(arquivo)s/%(variavel)s L%(linha)s" % ilha)
+        print("  ORFAO: %(arquivo)s/%(funcao)s/%(variavel)s L%(linha)s" % ilha)
