@@ -60,4 +60,6 @@ ENTREGA_PRANCHAS/
 
 # Logs do job periodico da suite de build (tools/run_build_suite.ps1)
 tools/build-logs/
+# Logs do job periodico do remote-check G35 (tools/run_remote_check.ps1)
+tools/remote-check-logs/
 framework/galpao_fw/out_g15_*/

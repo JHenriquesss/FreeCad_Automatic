@@ -107,6 +107,14 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
             gov["Vd_gov"] = max(c1["Vd"], c2["Vd"])
             gov["u_cort"] = max(c1["u_cort"], c2["u_cort"])
             gov["cort_ok"] = bool(c1["cort_ok"] and c2["cort_ok"])
+            # G44: o Asw do fuste segue a combinacao que governa o cortante
+            # (vento principal, maior Vd) — nao a que governa a longitudinal.
+            gcorr = c1 if c1["Vd"] >= c2["Vd"] else c2
+            for k in ("Asw_s_cm2_m", "Asw_s_req_cm2_m", "Asw_s_min_cm2_m",
+                      "Asw_prov_cm2_m", "phi_estribo_mm", "s_estribo",
+                      "s_estribo_max", "VRd3", "Asw_atendido"):
+                if k in gcorr:
+                    gov[k] = gcorr[k]
             gov["travamento_longitudinal"] = travamento
             return gov
     gov["comb1_As"] = c1["As_cm2"]; gov["comb2_As"] = c2["As_cm2"]
@@ -114,6 +122,12 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
     gov["Vd_gov"] = max(c1["Vd"], c2["Vd"])
     gov["u_cort"] = max(c1["u_cort"], c2["u_cort"])
     gov["cort_ok"] = bool(c1["cort_ok"] and c2["cort_ok"])
+    gcorr = c1 if c1["Vd"] >= c2["Vd"] else c2
+    for k in ("Asw_s_cm2_m", "Asw_s_req_cm2_m", "Asw_s_min_cm2_m",
+              "Asw_prov_cm2_m", "phi_estribo_mm", "s_estribo",
+              "s_estribo_max", "VRd3", "Asw_atendido"):
+        if k in gcorr:
+            gov[k] = gcorr[k]
     gov["travamento_longitudinal"] = travamento
     if not gov.get("esbeltez_valida", True):
         gov.setdefault("avisos", []).append(
@@ -329,6 +343,12 @@ def rodar(spec):
                   "Vd_gov": pilar.get("Vd_gov", pilar.get("Vd", 0.0)),
                   "VRd2": pilar.get("VRd2", 0.0),
                   "u_cort": pilar.get("u_cort", 0.0),
+                  "Asw_s_cm2_m": pilar.get("Asw_s_cm2_m", 0.0),
+                  "phi_estribo_mm": pilar.get("phi_estribo_mm", 5.0),
+                  "s_estribo": pilar.get("s_estribo",
+                                         pilar.get("s_estribo_max", 0.15)),
+                  "Asw_prov_cm2_m": pilar.get("Asw_prov_cm2_m", 0.0),
+                  "Asw_atendido": pilar.get("Asw_atendido", True),
                   "cort_ok": pilar.get("cort_ok", True), "OK": pilar["OK"]},
         "fundacao": {"OK": fund_ok, "tipo": tipo_fund, "geom": fund_geom},
         "calice": {"interface": calice["interface"], "Lemb": calice["Lemb"],

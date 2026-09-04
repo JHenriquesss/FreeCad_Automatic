@@ -1,10 +1,12 @@
 # ============================================================================
-# varredura_descoberta.py - G40: A VARREDURA PRECISA DESCOBRIR, NAO CONFERIR.
+# varredura_descoberta.py - G40/G43: A VARREDURA PRECISA DESCOBRIR, NAO CONFERIR.
 # SCRIPT AVULSO: ferramenta de descoberta rodada a mao/CI (python
-# varredura_descoberta.py) e pelo teste-guarda
-# tests/test_varredura_descoberta_g40.py. Nao e importada por nenhum
-# orquestrador do Loop - e declarada em SCRIPTS_AVULSOS no
-# tests/test_alcancabilidade.py, no mesmo molde de validacao/verificar_amostra.
+# varredura_descoberta.py) e pelos testes-guardas
+# tests/test_varredura_descoberta_g40.py (estrutural) e
+# tests/test_varredura_descoberta_g43.py (demais disciplinas).
+# Nao e importada por nenhum orquestrador do Loop - e declarada em
+# SCRIPTS_AVULSOS no tests/test_alcancabilidade.py, no mesmo molde de
+# validacao/verificar_amostra.
 #
 # Motivacao (G40): varredura_nao_verificados.NAO_VERIFICADOS e lista curada;
 # o AST valida cada item declarado e confirma que as vigas fecharam. Util -
@@ -29,7 +31,9 @@
 #     reporte, documentados abaixo - nao ilhas estruturais).
 #
 # No espirito do G21, o detector e provado vermelho injetando um caso
-# conhecido (ver test_varredura_descoberta_g40.py).
+# conhecido em cada linguagem (ver test_varredura_descoberta_g40.py para o
+# estrutural e test_varredura_descoberta_g43.py para as demais disciplinas:
+# um zero so vale depois do vermelho injetado naquela linguagem).
 # ============================================================================
 """Varredura G40: descoberta generica de valor calculado sem verificacao."""
 
@@ -42,28 +46,56 @@ import re
 
 GALPAO = pathlib.Path(__file__).resolve().parent
 
-# Orquestradores varridos, por tipologia (mesma cobertura da G33).
+# Orquestradores varridos, por tipologia (G40: estruturais, mesma cobertura
+# da G33; G43: +5 verticais nunca examinados por esta lente).
 TIPOLOGIAS = {
     "galpao": ["rodar_galpao.py", "galpao_concreto.py"],
     "casa": ["estrutura_casa.py"],
     "edificio": ["edificio_multipavimento.py"],
     "mezanino": ["galpao_mezanino.py"],
+    "eletrico": ["galpao_eletrico.py"],
+    "hidraulica": ["galpao_hidraulica.py", "hidraulica_residencial.py"],
+    "incendio": ["galpao_seguranca_incendio.py"],
+    "climatizacao": ["galpao_climatizacao.py"],
+    "residencial": ["arquitetura_residencial.py"],
 }
 
-# Nome com cara de esforco/carga calculado no orquestrador.
+# Nome com cara de grandeza calculada no orquestrador, por disciplina.
+# CASE-SENSITIVE de proposito (G43): o re.I antigo casava N_ com n_cond
+# (n. de condutores pluviais), n_tomadas (n. de tomadas) e n_port/n_col
+# (contagens de porticos/pilares) - dois deles viraram falsos positivos
+# assim que a lente alcançou as outras disciplinas. As formas minusculas
+# legitimas ja estao listadas (r_escada, w_, q_, n_terca, uhc...); o re.I
+# era redundante para elas e caçava contadores.
 ESFORCO_RE = re.compile(
+    # estrutural (G40, inalterado menos a caixa)
     r"^(M_|V_|N_|Q_|W_|R_|F_|Vd|Nd|Md|Vsd|Msd|Nsd|V_w|M_w|N_w|W_g|W_q|"
     r"M_positivo|M_apoios|V_max|N_total|N_acum|N_aplicado|g_kN|q_kN|R_beam|"
     r"Msd_|Vsd_|Nsd_|M_k|N_k|V_k|M_base|M_max|V_base|N_pilar|N_cinta|N_comp|"
-    r"N_tr|r_escada|stair|r_laje|r_vigas|w_|q_|n_terca)",
-    re.I,
+    r"N_tr|r_escada|stair|r_laje|r_vigas|w_|q_|n_terca|"
+    # eletrico (G43: Icc na barra, queda dU, S_/P_ aparentes/ativas,
+    # fp resultante, Iz/IB/IN do alimentador)
+    r"Icc|dU|dv_|S_|P_|fp|IZ|Iz|IB|IN_|D_kW|D_kVA|P_inst|"
+    # hidraulica (G43: vazao Q_, velocidade v_, perda J_, DN, UHC)
+    r"v_|J_|DN|UHC|uhc|soma_P|"
+    # incendio (G43: carga de incendio, populacao, vazao de hidrante)
+    r"carga_|pop_|vazao|N_detectores|N_hidrantes|N_chuveiros|N_acionadores|"
+    r"N_placas|reserva_|"
+    # climatizacao (G43: vazao de insuflamento, TR, capacidade)
+    r"V_ins|TR_|capacidade|vazao_ins|"
+    # residencial/arquitetura (G43: geometria que governa a NBR 5410 9.5.2)
+    r"area|perimetro|carga_iluminacao|carga_tomadas|n_pontos_luz)",
 )
 
 # Chamada que VERIFICA ou DIMENSIONA (sumidouro). Inclui nomes curtos do
-# dominio (vrd, flt, cross_check, ist_req, a_max) que nao contem "verifica".
+# dominio (vrd, flt, cross_check, ist_req, a_max) que nao contem "verifica",
+# mais os verbos de calculo de cada disciplina (G43) que produzem ou
+# consomem as grandezas acima sem dizer "verifica"/"dimensiona".
 VERIF_RE = re.compile(
     r"verifica|dimensiona|vrd|flt|cross_check|ist_req|a_max|forcas_local|"
-    r"empocamento|chec|valid|confer|fecha",
+    r"empocamento|chec|valid|confer|fecha|"
+    r"diametro|uhc_|vazao|quadro_de_cargas|icc|corrige|"
+    r"projeto_luminotecnico|criterio_tomadas|carga_",
     re.I,
 )
 
@@ -88,6 +120,8 @@ PERMITIDOS_TERMINAIS = {
         "saida terminal de verifica_vigas por tramo (G34): E a verificacao",
     ("edificio_multipavimento.py", "N_desc_total"):
         "total de reporte p/ fechamento_carga (comparacao inline, nao sumidouro)",
+    ("estrutura_casa.py", "N_desc_total"):
+        "total de reporte p/ fechamento_carga G42 (comparacao inline, nao sumidouro)",
 }
 
 
@@ -281,7 +315,7 @@ def chaves_varridas():
 
 
 def relatorio_pt():
-    linhas = ["VARREDURA G40 - DESCOBERTA GENERICA DE ORFAOS",
+    linhas = ["VARREDURA G40/G43 - DESCOBERTA GENERICA DE ORFAOS",
                "arquivo | variavel @linha -> motivo"]
     for d in varredura():
         linhas.append("  %-26s | %-14s @%d" % (d["arquivo"], d["variavel"],

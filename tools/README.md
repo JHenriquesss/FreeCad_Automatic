@@ -24,6 +24,15 @@ coluna tapered) sobreviveram várias sessões. Este job é a **guarda periódica
 - **`register_build_task.ps1`** — registra/remove a tarefa agendada do Windows
   `GalpaoFW-BuildSuite` que chama o runner. Local (não CI de nuvem) porque os testes
   exigem o FreeCAD 1.1 instalado.
+- **`run_remote_check.ps1`** — roda o `--check-remote` (G35) para cada fonte de
+  `fontes_externas/registro.json` (`python tools/extrai_fonte_externa.py
+  --check-remote --id <id>` por entrada), grava log com timestamp em
+  `tools/remote-check-logs/` (ignorado no git) e um resumo em
+  `remote-check-logs/LATEST.txt`. Exit code = 0 se todas passam, 1 se alguma
+  diverge/falha, 2 se o registro não existe. Somente leitura (não toca no
+  registro nem nos PDFs). Por que job separado e não CI: depende de rede para
+  os servidores de origem — o CI segue offline e determinístico (os testes G35
+  mockam o download).
 
 ## Uso
 
@@ -41,6 +50,10 @@ powershell -ExecutionPolicy Bypass -File tools\register_build_task.ps1 -Remover
 # disparar a tarefa registrada manualmente / ver o resultado
 Start-ScheduledTask -TaskName GalpaoFW-BuildSuite
 Get-Content tools\build-logs\LATEST.txt
+
+# rodar o remote-check G35 agora (manual, exige rede para os servidores de origem)
+powershell -ExecutionPolicy Bypass -File tools\run_remote_check.ps1
+Get-Content tools\remote-check-logs\LATEST.txt
 ```
 
 Se `freecadcmd.exe` não estiver no caminho padrão, passe `-FreeCadCmd <path>` ao

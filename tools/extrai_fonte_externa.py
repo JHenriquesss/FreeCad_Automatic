@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import sys
 import urllib.request
@@ -50,6 +51,28 @@ from datetime import date
 REPO = pathlib.Path(__file__).resolve().parents[1]
 REGISTRO = REPO / "fontes_externas" / "registro.json"
 FW = REPO / "framework" / "galpao_fw"
+
+
+def _fontes_root() -> pathlib.Path:
+    """D81/G45: raiz isolavel das fontes externas.
+
+    Por padrao e `<repo>/fontes_externas`. Quando a env
+    `FONTES_EXTERNAS_ROOT` aponta para um diretorio, o extrator le/grava
+    o registro e as obras LA — sem tocar no repositorio vivo. E o gancho
+    que permite aos testes de CLI rodarem em paralelo (cada worker no seu
+    tmp), em vez de fazerem read-modify-write concorrente no mesmo
+    `registro.json` (o flake medido: JSON vazio lido no meio da escrita
+    do vizinho). Fora de teste a env nunca e setada: comportamento
+    byte-identico ao anterior.
+    """
+    override = os.environ.get("FONTES_EXTERNAS_ROOT", "").strip()
+    if override:
+        return pathlib.Path(override)
+    return REPO / "fontes_externas"
+
+
+def _registro_path() -> pathlib.Path:
+    return _fontes_root() / "registro.json"
 
 # tenta importar protocolo (fallback inline constants se não existir ainda durante bootstrap)
 try:
@@ -130,7 +153,8 @@ def _download(url: str) -> tuple[bytes, str]:
 
 
 def _load_registro() -> dict:
-    if not REGISTRO.is_file():
+    reg = _registro_path()
+    if not reg.is_file():
         # cria esqueleto se não existir (bootstrap)
         return {
             "_aviso": f"{ROTULO} - este registro compara o framework contra literatura/TCC/licitacao, jamais contra obra edificada. Nao rotular como 'validado contra obra real'.",
@@ -140,12 +164,13 @@ def _load_registro() -> dict:
             "_vereditos_enum": VEREDITOS,
             "fontes": [],
         }
-    return json.loads(REGISTRO.read_text(encoding="utf-8"))
+    return json.loads(reg.read_text(encoding="utf-8"))
 
 
 def _save_registro(data: dict):
-    REGISTRO.parent.mkdir(parents=True, exist_ok=True)
-    REGISTRO.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    reg = _registro_path()
+    reg.parent.mkdir(parents=True, exist_ok=True)
+    reg.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _id_com_sufixo(id_raw: str) -> str:
@@ -258,10 +283,10 @@ def cmd_extrair(args):
     registro["_vereditos_enum"] = VEREDITOS
 
     _save_registro(registro)
-    print(f"[G24] Registro salvo: {REGISTRO} ({len(fontes)} fontes)")
+    print(f"[G24] Registro salvo: {_registro_path()} ({len(fontes)} fontes)")
 
     # criar diretório por obra
-    obra_dir = REPO / "fontes_externas" / id_full
+    obra_dir = _fontes_root() / id_full
     obra_dir.mkdir(parents=True, exist_ok=True)
 
     # salvar PDF (cópia para auditoria)
@@ -376,10 +401,11 @@ def cmd_check(args):
         return 2
     id_full = _id_com_sufixo(id_raw.strip())
     # procurar no registro
-    if not REGISTRO.is_file():
-        print(f"ERRO: registro não existe: {REGISTRO}", file=sys.stderr)
+    reg = _registro_path()
+    if not reg.is_file():
+        print(f"ERRO: registro não existe: {reg}", file=sys.stderr)
         return 1
-    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    registro = json.loads(reg.read_text(encoding="utf-8"))
     entry = None
     for f in registro.get("fontes", []):
         if f.get("id") == id_full or f.get("id") == id_raw:
@@ -418,7 +444,7 @@ def cmd_check(args):
         else:
             print(f"  Protocolo: PASS")
     # G30: recalcular hash do arquivo guardado e verificar pagina+trecho no PDF (renderizar-e-olhar)
-    obra_dir = REPO / "fontes_externas" / id_full
+    obra_dir = _fontes_root() / id_full
     pdf_path = obra_dir / "original.pdf"
     if not pdf_path.is_file():
         # fallback para o exemplo sintetico (G35: movido para tests/fixtures)
@@ -451,7 +477,7 @@ def cmd_check(args):
                 print(f"  [FALHA] G30 fixture com PDF: {ex}", file=sys.stderr)
                 return 1
     # verificar fixture
-    obra_dir = REPO / "fontes_externas" / id_full
+    obra_dir = _fontes_root() / id_full
     fixture_path = obra_dir / "fixture.json"
     if fixture_path.is_file():
         fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
@@ -504,10 +530,11 @@ def cmd_check_remote(args):
         print("ERRO: --check-remote exige --id <slug>", file=sys.stderr)
         return 2
     id_full = _id_com_sufixo(id_raw.strip())
-    if not REGISTRO.is_file():
-        print(f"ERRO: registro não existe: {REGISTRO}", file=sys.stderr)
+    reg = _registro_path()
+    if not reg.is_file():
+        print(f"ERRO: registro não existe: {reg}", file=sys.stderr)
         return 1
-    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    registro = json.loads(reg.read_text(encoding="utf-8"))
     entry = None
     for f in registro.get("fontes", []):
         if f.get("id") == id_full or f.get("id") == id_raw:

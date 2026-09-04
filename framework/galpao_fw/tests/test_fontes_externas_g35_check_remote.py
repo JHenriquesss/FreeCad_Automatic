@@ -45,7 +45,25 @@ def _entrada_real():
 # ---------------------------------------------------------------------------
 # Lógica pura (sem rede): sha do que a URL serve vs registrado
 # ---------------------------------------------------------------------------
-def test_g35_check_remote_pass_quando_hash_bate(monkeypatch):
+def _registro_temporario(monkeypatch, ext, entries, tmp_path):
+    """D81/G45: cmd_check_remote le o registro do disco. A versao anterior
+    reescrevia o REGISTRO VIVO e restaurava no finally — sob `pytest -n 4`
+    outro worker lia o arquivo no meio da escrita (JSON vazio) e ficava
+    vermelho por CONTAMINACAO, nao por defeito (reproduzido: serial 7/7,
+    paralelo 2-3 falhas variando por rodada). O ponto do G22/G21-Parte-C:
+    mutar copia, nunca o repositorio vivo. Aqui a copia e um registro
+    temporario e ext.REGISTRO aponta para ele so neste teste."""
+    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    registro["fontes"] = list(entries)
+    tmp_reg = tmp_path / "registro.json"
+    tmp_reg.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # o extrator resolve o registro via _registro_path() (gancho
+    # FONTES_EXTERNAS_ROOT); apontar para a copia temporaria.
+    monkeypatch.setattr(ext, "_registro_path", lambda: tmp_reg)
+    return tmp_reg
+
+
+def test_g35_check_remote_pass_quando_hash_bate(monkeypatch, tmp_path):
     ext = _load_extrator()
     entry = _entrada_real()
     pdf_bytes = b"%PDF-1.4 remoto ok\n%%EOF\n"
@@ -53,16 +71,12 @@ def test_g35_check_remote_pass_quando_hash_bate(monkeypatch):
     sha = hashlib.sha256(pdf_bytes).hexdigest()
     entry = dict(entry, sha256=sha)
     monkeypatch.setattr(ext, "_download", lambda url: (pdf_bytes, sha))
-    # cmd_check_remote lê o registro do disco; grava temporário de verdade
-    registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-    registro["fontes"] = [entry]
-    original = REGISTRO.read_text(encoding="utf-8")
-    try:
-        REGISTRO.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        rc = ext.cmd_check_remote(_Args(entry["id"]))
-    finally:
-        REGISTRO.write_text(original, encoding="utf-8")
+    # cmd_check_remote lê o registro do disco; usa copia temporaria (D81)
+    _registro_temporario(monkeypatch, ext, [entry], tmp_path)
+    rc = ext.cmd_check_remote(_Args(entry["id"]))
     assert rc == 0
+    # o repositorio vivo nunca foi tocado
+    assert json.loads(REGISTRO.read_text(encoding="utf-8"))["fontes"][0]["id"] == _entrada_real()["id"]
 
 
 def test_g35_check_remote_falha_quando_hash_diverge(monkeypatch):
@@ -85,10 +99,9 @@ def test_g35_check_remote_falha_quando_download_quebra(monkeypatch):
     assert rc == 1
 
 
-def test_g35_check_remote_recusa_file():
+def test_g35_check_remote_recusa_file(monkeypatch, tmp_path):
     ext = _load_extrator()
     registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-    original = REGISTRO.read_text(encoding="utf-8")
     entry = {
         "id": "teste-g35-file__CONCORDANCIA-CALCULISTAS__NAO-E-OBRA-REAL",
         "url": "file://tests/fixtures/fonte_exemplo_sintetica/exemplo_dummy.pdf",
@@ -98,12 +111,9 @@ def test_g35_check_remote_recusa_file():
         "classe_autoridade": "tcc_academico",
         "rotulo": "CONCORDANCIA ENTRE CALCULISTAS - NAO E OBRA CONSTRUIDA",
     }
-    try:
-        registro["fontes"] = registro["fontes"] + [entry]
-        REGISTRO.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        rc = ext.cmd_check_remote(_Args(entry["id"]))
-    finally:
-        REGISTRO.write_text(original, encoding="utf-8")
+    # copia temporaria (D81): nao muta o REGISTRO vivo
+    _registro_temporario(monkeypatch, ext, registro["fontes"] + [entry], tmp_path)
+    rc = ext.cmd_check_remote(_Args(entry["id"]))
     assert rc == 1
 
 
@@ -125,23 +135,30 @@ def test_g35_cli_help_menciona_check_remote():
     assert "--check-remote" in res.stdout
 
 
-def test_g35_check_remote_sintetico_example_com_falha():
+def test_g35_check_remote_sintetico_example_com_falha(monkeypatch, tmp_path, capsys):
     # A prova do limite do G30: a entrada sintética passa no G30 local por
-    # construção, mas a URL example.com dá 404 (ou a rede falha) — o
-    # --check-remote FALHA de qualquer jeito, com ou sem internet.
+    # construção, mas a URL example.com dá 404 (ou a rede falha).
+    #
+    # D81/G45: a versao anterior fazia isso com REDE AO VIVO (timeout 90 s)
+    # + mutacao do REGISTRO VIVO + subprocesso — tres tracos da classe D81
+    # num teste so: veredito dependia de carga/rede/escalonamento e o
+    # read-modify-write no registro vivo contaminava os vizinhos sob -n 4
+    # (JSONDecodeError em testes que nem tocam em rede). O caminho em
+    # processo com _download mockado prova o mesmo limite de forma
+    # deterministica: URL sintetica example.com nunca passa no check-remote,
+    # com ou sem internet — o motivo (404/timeout) e detalhe do transporte,
+    # nao do guarda.
     entry = json.loads((SINT / "registro_entry.json").read_text(encoding="utf-8"))
     assert "example.com" in entry["url"]
-    original = REGISTRO.read_text(encoding="utf-8")
-    try:
-        registro = json.loads(original)
-        registro["fontes"] = registro["fontes"] + [entry]
-        REGISTRO.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        res = subprocess.run(
-            [sys.executable, "tools/extrai_fonte_externa.py", "--check-remote", "--id", entry["id"]],
-            capture_output=True, text=True, cwd=str(REPO), timeout=90,
-        )
-    finally:
-        REGISTRO.write_text(original, encoding="utf-8")
-    assert res.returncode != 0, f"check-remote deveria FALHAR para URL example.com 404: {res.stdout} {res.stderr}"
-    combined = (res.stdout + res.stderr).lower()
+    ext = _load_extrator()
+    _registro_temporario(monkeypatch, ext, [entry], tmp_path)
+
+    def _boom(url):
+        raise OSError("404 Not Found (simulado; equivale ao example.com ao vivo)")
+
+    monkeypatch.setattr(ext, "_download", _boom)
+    rc = ext.cmd_check_remote(_Args(entry["id"]))
+    out = capsys.readouterr()
+    assert rc != 0, f"check-remote deveria FALHAR para URL example.com 404"
+    combined = (out.out + out.err).lower()
     assert "falha" in combined or "404" in combined or "não foi possível" in combined or "nao foi possivel" in combined

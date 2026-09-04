@@ -10,8 +10,18 @@ complementa aferindo o SISTEMA (spec->calculo->quantitativo) contra
 handcalc/memo publicado, com a mesma grandeza dos dois lados.
 """
 import math
+import pathlib as _pl
 import pytest
 import validacao_sistema_g15 as G15
+
+# D81/G45: caminhos ancorados no ARQUIVO, nunca no cwd. A versao anterior
+# usava "docs/...", "projects/...", "tools/..." relativos ao diretorio de
+# invocacao — o veredito mudava com o cwd (verde na raiz do repo, vermelho
+# em framework/galpao_fw; e o quarto-caso com cwd="framework/galpao_fw"
+# relativo falhava no sentido inverso). Veredito que depende de onde o
+# pytest foi chamado e sorteio, nao teste: mesma classe do D81.
+_REPO = _pl.Path(__file__).resolve().parents[5]
+_GALPAO = _pl.Path(__file__).resolve().parents[3]
 
 
 @pytest.mark.parametrize("fn", G15.CHECKS)
@@ -115,60 +125,70 @@ def test_g19_obra_conhecida_agente_36x24():
     assert "PROPOSTA NAO E OBRA REAL" in det
 
 
-def test_g19_guard_rejeita_sidecar_sintetico_como_real():
+def test_g19_guard_rejeita_sidecar_sintetico_como_real(monkeypatch, tmp_path):
     """G19 guard: copiar sidecar sintetico para galpao-sjb-valores-referencia.json deve ser BLOQUEADO, nao PASS."""
     import pathlib, json, shutil
+    # D81/G45: a versao anterior reescrevia o spec VIVO e criava memorial
+    # VIVO, restaurando no finally — sob `pytest -n 4` os vizinhos liam o
+    # spec mutado na janela (contaminacao) e um kill deixava o repo com o
+    # spec trocado. O check le os globais do modulo: apontar para copias
+    # no tmp exercita a mesma logica sem tocar no repositorio vivo.
     sjb_spec = pathlib.Path(G15._SJB_SPEC)
     proposta_spec = pathlib.Path(G15._PROPOSTA_SPEC)
     sintetico = pathlib.Path(G15._PROPOSTA_SIDECAR)
-    real_json = pathlib.Path(G15._SJB_MEMORIAL_JSON)
-    real_pdf = pathlib.Path(G15._SJB_MEMORIAL_PDF)
-    # backup SJB canônico (blocked)
-    backup = sjb_spec.read_text(encoding="utf-8")
-    # tornar SJB ready copiando proposta
-    sjb_spec.write_text(proposta_spec.read_text(encoding="utf-8"), encoding="utf-8")
-    # criar memorial falso com sidecar sintético
-    real_pdf.write_text("%PDF-1.4 dummy", encoding="utf-8")
-    real_json.write_text(sintetico.read_text(encoding="utf-8"), encoding="utf-8")
-    try:
-        nome, ok, err, det = G15.check_galpao_sjb_memorial_comparacao()
-        assert not ok, f"Guard deveria BLOQUEAR sidecar sintético como real, mas retornou PASS: {det}"
-        assert "BLOQUEADO" in nome or "BLOQUEADO" in det
-        assert "PROPOSTA" in det or "EXEMPLO SINTETICO" in det
-    finally:
-        sjb_spec.write_text(backup, encoding="utf-8")
-        if real_json.exists():
-            real_json.unlink()
-        if real_pdf.exists():
-            real_pdf.unlink()
+    vivo_json = pathlib.Path(G15._SJB_MEMORIAL_JSON)
+    vivo_pdf = pathlib.Path(G15._SJB_MEMORIAL_PDF)
+    vivo_spec_texto = sjb_spec.read_text(encoding="utf-8")
+    tmp_sjb = tmp_path / "project-spec.json"
+    tmp_json = tmp_path / "galpao-sjb-valores-referencia.json"
+    tmp_pdf = tmp_path / "galpao-sjb-memorial.pdf"
+    # tornar SJB ready copiando proposta (na copia) + memorial falso sintetico
+    tmp_sjb.write_text(proposta_spec.read_text(encoding="utf-8"), encoding="utf-8")
+    tmp_pdf.write_text("%PDF-1.4 dummy", encoding="utf-8")
+    tmp_json.write_text(sintetico.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(G15, "_SJB_SPEC", tmp_sjb)
+    monkeypatch.setattr(G15, "_SJB_MEMORIAL_JSON", tmp_json)
+    monkeypatch.setattr(G15, "_SJB_MEMORIAL_PDF", tmp_pdf)
+    nome, ok, err, det = G15.check_galpao_sjb_memorial_comparacao()
+    assert not ok, f"Guard deveria BLOQUEAR sidecar sintético como real, mas retornou PASS: {det}"
+    assert "BLOQUEADO" in nome or "BLOQUEADO" in det
+    assert "PROPOSTA" in det or "EXEMPLO SINTETICO" in det
+    # o repositorio vivo nunca foi tocado
+    assert sjb_spec.read_text(encoding="utf-8") == vivo_spec_texto
+    assert not vivo_json.exists() and not vivo_pdf.exists()
 
 
-def test_g19_detecta_divergencia_peso():
+def test_g19_detecta_divergencia_peso(monkeypatch, tmp_path):
     """G19: harness deve FAIL quando sidecar diverge >10% no peso (prova que não é só PASS)."""
     import pathlib, json
+    # D81/G45: a versao anterior reescrevia o sidecar VIVO e restaurava no
+    # finally — vizinhos sob `-n 4` liam o peso mutado na janela e o
+    # check_obra_conhecida deles falhava por contaminacao. Copia no tmp +
+    # monkeypatch no global que o check realmente le.
     sidecar = pathlib.Path(G15._PROPOSTA_SIDECAR)
-    backup = sidecar.read_text(encoding="utf-8")
-    data = json.loads(backup)
+    vivo_texto = sidecar.read_text(encoding="utf-8")
+    data = json.loads(vivo_texto)
     # introduzir divergência de 20% no peso (tol é 10%)
     orig = float(data["valores_referencia"]["peso_aco_primario_kg"])
     data["valores_referencia"]["peso_aco_primario_kg"] = orig * 1.20
     # manter aviso de proposta para não ser confundido com guard de prova, mas ainda é proposta
-    sidecar.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        nome, ok, err, det = G15.check_obra_conhecida_agente_36x24()
-        assert not ok, f"Harness deveria FAIL com 20% de divergência no peso, mas retornou PASS: {det}"
-        assert "peso_aco_primario_kg" in det
-        assert "FAIL" in det
-        assert err > 0.10
-    finally:
-        sidecar.write_text(backup, encoding="utf-8")
+    tmp_sidecar = tmp_path / "proposta-36x24-exemplo-valores-referencia.json"
+    tmp_sidecar.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    monkeypatch.setattr(G15, "_PROPOSTA_SIDECAR", tmp_sidecar)
+    nome, ok, err, det = G15.check_obra_conhecida_agente_36x24()
+    assert not ok, f"Harness deveria FAIL com 20% de divergência no peso, mas retornou PASS: {det}"
+    assert "peso_aco_primario_kg" in det
+    assert "FAIL" in det
+    assert err > 0.10
+    # o sidecar vivo continua byte a byte igual
+    assert sidecar.read_text(encoding="utf-8") == vivo_texto
 
 
 def test_g19_checklist_9_campos_batem_com_preflight():
     """G19: CHECKLIST-9-CAMPOS.md deve listar exatamente os 9 erros que o preflight retorna hoje."""
     import pathlib, json, re
     # 1. contar linhas da checklist (tabela)
-    checklist = pathlib.Path("docs/validacao_g15/CHECKLIST-9-CAMPOS.md")
+    checklist = _REPO / "docs/validacao_g15/CHECKLIST-9-CAMPOS.md"
     assert checklist.is_file(), f"CHECKLIST-9-CAMPOS.md não encontrado: {checklist}"
     texto = checklist.read_text(encoding="utf-8")
     # linhas da tabela que começam com "| 1 |", "| 2 |" ... "| 9 |"
@@ -180,7 +200,7 @@ def test_g19_checklist_9_campos_batem_com_preflight():
     # 2. preflight real do SJB bloqueado
     import project_loop
     # garantir que spec canônico ainda está bloqueado (não foi promovido da proposta)
-    spec = json.loads(pathlib.Path("projects/galpao-sjb/project-spec.json").read_text(encoding="utf-8"))
+    spec = json.loads((_REPO / "projects/galpao-sjb/project-spec.json").read_text(encoding="utf-8"))
     rep = project_loop.preflight_project(spec, options={"require_source_refs": True})
     assert rep["status"] == "blocked", f"SJB canônico deveria estar blocked, veio {rep['status']}"
     errs = rep["preflight"]["errors"]
@@ -190,7 +210,7 @@ def test_g19_checklist_9_campos_batem_com_preflight():
     assert len(geom) == 3, f"esperado 3 invalid_common_geometry, veio {geom}"
     assert len(pend) == 6, f"esperado 6 pending_discipline_input, veio {pend}"
     # 3. proposta deve estar ready (prova que checklist é acionável)
-    proposta = json.loads(pathlib.Path("projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json").read_text(encoding="utf-8"))
+    proposta = json.loads((_REPO / "projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json").read_text(encoding="utf-8"))
     rep2 = project_loop.preflight_project(proposta, options={"require_source_refs": True})
     assert rep2["status"] == "ready", f"proposta 36x24 deveria estar ready, veio {rep2['status']} warnings={rep2['preflight']['warnings']}"
 
@@ -198,12 +218,12 @@ def test_g19_checklist_9_campos_batem_com_preflight():
 def test_g19_esquema_9_campos_valida_blocked_e_ready():
     """G19: ESQUEMA-9-CAMPOS.json + validar_9_campos.py devem bater com o gate real."""
     import pathlib, json, subprocess, sys
-    esquema = pathlib.Path("docs/validacao_g15/ESQUEMA-9-CAMPOS.json")
+    esquema = _REPO / "docs/validacao_g15/ESQUEMA-9-CAMPOS.json"
     assert esquema.is_file(), f"ESQUEMA não encontrado: {esquema}"
     data = json.loads(esquema.read_text(encoding="utf-8"))
     assert "turnkey" in str(data) and "geometria" in str(data)
     # validar_9_campos.py no SJB bloqueado deve reportar 9 faltas (robusto a encoding)
-    res = subprocess.run([sys.executable, "tools/validar_9_campos.py", "--spec", "projects/galpao-sjb/project-spec.json", "--json"],
+    res = subprocess.run([sys.executable, str(_REPO / "tools/validar_9_campos.py"), "--spec", str(_REPO / "projects/galpao-sjb/project-spec.json"), "--json"],
                          capture_output=True, text=False)
     stdout = res.stdout.decode("utf-8", errors="replace")
     assert res.returncode in (0, 1), f"validar_9_campos.py falhou: {res.stderr.decode('utf-8', errors='replace')[:500]}"
@@ -212,7 +232,7 @@ def test_g19_esquema_9_campos_valida_blocked_e_ready():
     assert len(out["faltas_esquema"]) == 9
     assert len(out["gate_errors"]) == 9
     # proposta deve estar OK
-    res2 = subprocess.run([sys.executable, "tools/validar_9_campos.py", "--spec", "projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json", "--json"],
+    res2 = subprocess.run([sys.executable, str(_REPO / "tools/validar_9_campos.py"), "--spec", str(_REPO / "projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json"), "--json"],
                           capture_output=True, text=False)
     stdout2 = res2.stdout.decode("utf-8", errors="replace")
     out2 = json.loads(stdout2)
@@ -228,8 +248,8 @@ def test_g19_gerar_sidecar_extraido_do_framework():
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="test_gerar_sidecar_"))
     out = tmp / "sidecar.json"
     try:
-        res = subprocess.run([sys.executable, "tools/gerar_sidecar.py",
-                              "--spec", "projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json",
+        res = subprocess.run([sys.executable, str(_REPO / "tools/gerar_sidecar.py"),
+                              "--spec", str(_REPO / "projects/galpao-sjb/proposta-obra-conhecida-AGENTE-36x24.json"),
                               "--out", str(out),
                               "--fonte", "Memorial Teste CREA 999 ART pg 1"],
                              capture_output=True, text=False)
@@ -243,8 +263,8 @@ def test_g19_gerar_sidecar_extraido_do_framework():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     # caso blocked deve falhar com código 3
-    res2 = subprocess.run([sys.executable, "tools/gerar_sidecar.py",
-                           "--spec", "projects/galpao-sjb/project-spec.json",
+    res2 = subprocess.run([sys.executable, str(_REPO / "tools/gerar_sidecar.py"),
+                           "--spec", str(_REPO / "projects/galpao-sjb/project-spec.json"),
                            "--out", str(tmp / "should_not_exist.json")],
                           capture_output=True, text=False)
     assert res2.returncode == 3, f"gerar_sidecar.py deveria falhar com blocked (3), veio {res2.returncode}"
@@ -268,7 +288,7 @@ def test_g19_quarto_caso_1_comando_output():
         ferr = pathlib.Path(td) / "harness.err"
         with open(fout, "wb") as fo, open(ferr, "wb") as fe:
             res = subprocess.run([sys.executable, "-m", "validacao_sistema_g15"],
-                                 cwd="framework/galpao_fw",
+                                 cwd=str(_GALPAO),
                                  stdout=fo, stderr=fe, timeout=900)
         stdout = fout.read_bytes().decode("utf-8", errors="replace")
         stderr = ferr.read_bytes().decode("utf-8", errors="replace")
@@ -280,6 +300,6 @@ def test_g19_quarto_caso_1_comando_output():
     # G30: deve conter procedencia completa
     assert "G30" in stdout or "procedencia" in stdout.lower()
     # verificar que QUARTO-CASO-1-COMANDO.md existe e documenta o comando
-    qcaso = pathlib.Path("docs/validacao_g15/QUARTO-CASO-1-COMANDO.md")
+    qcaso = _REPO / "docs/validacao_g15/QUARTO-CASO-1-COMANDO.md"
     assert qcaso.is_file()
     assert "python -m validacao_sistema_g15" in qcaso.read_text(encoding="utf-8")

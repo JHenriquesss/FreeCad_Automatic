@@ -14,6 +14,7 @@ Valida que:
 """
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -305,6 +306,22 @@ def test_g24_registro_nao_diz_validado_contra_obra_real():
 # ---------------------------------------------------------------------------
 # Extrator roda por URL e grava procedência
 # ---------------------------------------------------------------------------
+def _fontes_isoladas(tmp_path):
+    """D81/G45: raiz isolada das fontes para o CLI.
+
+    A versao anterior fazia read-modify-write no `registro.json` VIVO +
+    criava `obra_dir` no repo vivo e restaurava no finally — sob `-n 4`
+    dois workers intercalavam escrita/leitura (JSON vazio no meio da
+    escrita do vizinho) e o vermelho era CONTAMINACAO. Com
+    FONTES_EXTERNAS_ROOT cada worker grava no seu tmp: sem vivo, sem
+    cleanup, sem corrida. O tmp morre sozinho no fim do teste.
+    """
+    root = tmp_path / "fontes_isoladas"
+    root.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "FONTES_EXTERNAS_ROOT": str(root)}
+    return env, root
+
+
 def test_g24_extrator_roda_por_url_e_grava_procedencia(tmp_path):
     # cria PDF temporário mínimo
     pdf_bytes = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
@@ -314,12 +331,13 @@ def test_g24_extrator_roda_por_url_e_grava_procedencia(tmp_path):
     pdf_path = tmp_path / "teste_g24.pdf"
     pdf_path.write_bytes(pdf_bytes)
 
+    # CLI isolado (D81): registro + obra vao para o tmp, nunca para o repo vivo
+    env, fontes_root = _fontes_isoladas(tmp_path)
+    registro_tmp = fontes_root / "registro.json"
+
     # roda extrator via file:// URL com id temporário
     id_teste = "teste-extrator-g24-tmp"
-    # garante que não existe antes
-    obra_dir = REPO / "fontes_externas" / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"
-    if obra_dir.exists():
-        shutil.rmtree(obra_dir)
+    obra_dir = fontes_root / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"
 
     # chama extrator como subprocesso (testa CLI real)
     # usa file:// URL absoluta
@@ -332,77 +350,71 @@ def test_g24_extrator_roda_por_url_e_grava_procedencia(tmp_path):
         "--id", id_teste,
         "--titulo", "Teste Extrator G24 - PDF temporario",
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO), timeout=30)
+    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO), timeout=30, env=env)
     assert res.returncode == 0, f"extrator falhou: stdout={res.stdout}\nstderr={res.stderr}"
 
-    try:
-        # verifica registro
-        registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-        entry = next((e for e in registro["fontes"] if e["id"] == f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"), None)
-        assert entry is not None, f"entrada {id_teste} não encontrada no registro após extração"
-        assert entry["sha256"] == sha_expected, f"sha mismatch: {entry['sha256']} vs {sha_expected}"
-        assert entry["url"] == url
-        assert entry["classe_autoridade"] == "tcc_academico"
-        assert PROTO.ROTULO_CONCORDANCIA in entry["rotulo"]
+    # verifica registro (isolado)
+    registro = json.loads(registro_tmp.read_text(encoding="utf-8"))
+    entry = next((e for e in registro["fontes"] if e["id"] == f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"), None)
+    assert entry is not None, f"entrada {id_teste} não encontrada no registro após extração"
+    assert entry["sha256"] == sha_expected, f"sha mismatch: {entry['sha256']} vs {sha_expected}"
+    assert entry["url"] == url
+    assert entry["classe_autoridade"] == "tcc_academico"
+    assert PROTO.ROTULO_CONCORDANCIA in entry["rotulo"]
 
-        # verifica fonte.json
-        fonte_path = obra_dir / "fonte.json"
-        assert fonte_path.is_file()
-        fonte = json.loads(fonte_path.read_text(encoding="utf-8"))
-        assert fonte["sha256"] == sha_expected
-        assert PROTO.ROTULO_CONCORDANCIA in fonte["_aviso"]
+    # verifica fonte.json
+    fonte_path = obra_dir / "fonte.json"
+    assert fonte_path.is_file()
+    fonte = json.loads(fonte_path.read_text(encoding="utf-8"))
+    assert fonte["sha256"] == sha_expected
+    assert PROTO.ROTULO_CONCORDANCIA in fonte["_aviso"]
 
-        # verifica fixture.json esqueleto tem pagina+trecho como null (BLOQUEADO até preencher, mas estrutura existe)
-        fixture_path = obra_dir / "fixture.json"
-        assert fixture_path.is_file()
-        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-        assert PROTO.ROTULO_CONCORDANCIA in fixture["_aviso"]
-        assert "valores" in fixture
-        # esqueleto deve ter pagina = null para forçar preenchimento
-        for nome, v in fixture["valores"].items():
-            assert "pagina" in v and "trecho_literal" in v, f"{nome} sem pagina/trecho no esqueleto"
+    # verifica fixture.json esqueleto tem pagina+trecho como null (BLOQUEADO até preencher, mas estrutura existe)
+    fixture_path = obra_dir / "fixture.json"
+    assert fixture_path.is_file()
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    assert PROTO.ROTULO_CONCORDANCIA in fixture["_aviso"]
+    assert "valores" in fixture
+    # esqueleto deve ter pagina = null para forçar preenchimento
+    for nome, v in fixture["valores"].items():
+        assert "pagina" in v and "trecho_literal" in v, f"{nome} sem pagina/trecho no esqueleto"
 
-        # valida que fixture esqueleto (com null) reprova - guarda funciona
-        erros = PROTO.validar_fixture(fixture)
-        assert any("pagina" in e or "trecho_literal" in e for e in erros), "fixture esqueleto deveria reprovar até preencher pagina+trecho"
+    # valida que fixture esqueleto (com null) reprova - guarda funciona
+    erros = PROTO.validar_fixture(fixture)
+    assert any("pagina" in e or "trecho_literal" in e for e in erros), "fixture esqueleto deveria reprovar até preencher pagina+trecho"
 
-        # verifica comparacao.json esqueleto com veredito fechado
-        comp_path = obra_dir / "comparacao.json"
-        assert comp_path.is_file()
-        comp = json.loads(comp_path.read_text(encoding="utf-8"))
-        assert comp["veredito"] in PROTO.VEREDITOS
-        assert PROTO.ROTULO_CONCORDANCIA in comp["_aviso"]
+    # verifica comparacao.json esqueleto com veredito fechado
+    comp_path = obra_dir / "comparacao.json"
+    assert comp_path.is_file()
+    comp = json.loads(comp_path.read_text(encoding="utf-8"))
+    assert comp["veredito"] in PROTO.VEREDITOS
+    assert PROTO.ROTULO_CONCORDANCIA in comp["_aviso"]
 
-        # verifica README por obra (4o lugar)
-        readme_obra = obra_dir / "README.md"
-        assert readme_obra.is_file(), f"README por obra não criado pelo extrator: {readme_obra}"
-        assert PROTO.ROTULO_CONCORDANCIA in readme_obra.read_text(encoding="utf-8")
+    # verifica README por obra (4o lugar)
+    readme_obra = obra_dir / "README.md"
+    assert readme_obra.is_file(), f"README por obra não criado pelo extrator: {readme_obra}"
+    assert PROTO.ROTULO_CONCORDANCIA in readme_obra.read_text(encoding="utf-8")
 
-        # G30: --check agora deve FALHAR para file:// (guarda https)
-        # file:// é recusado para fonte externa, mesmo que hash bata
-        ok_url, msg_url = PROTO.validar_url(entry["url"])
-        assert not ok_url and "file://" in msg_url, f"G30: file:// deveria ser recusado, veio ok={ok_url} msg={msg_url}"
-        # guarda completa deve falhar (file:// + fixture esqueleto)
-        # Forca fixture com pagina 1 para testar guarda completa: cria fixture minima valida
-        # mas ainda com file:// deve falhar
-        erros_completa = PROTO.validar_fonte_externa_completa(entry, None, REPO)
-        assert any("file://" in e for e in erros_completa), f"G30 guarda completa deveria falhar por file://, veio {erros_completa}"
-        cmd_check = [sys.executable, "tools/extrai_fonte_externa.py", "--check", "--id", id_teste]
-        res2 = subprocess.run(cmd_check, capture_output=True, text=True, cwd=str(REPO), timeout=15)
-        # G30: check deve agora reportar falha de URL (file://)
-        assert res2.returncode != 0, f"G30: check com file:// deveria falhar, mas retornou 0: {res2.stdout} {res2.stderr}"
-        assert "file://" in res2.stdout.lower() or "file://" in res2.stderr.lower() or "recusado" in res2.stdout.lower() or "recusado" in res2.stderr.lower(), f"check deveria mencionar file:// recusado: {res2.stdout} {res2.stderr}"
+    # G30: --check agora deve FALHAR para file:// (guarda https)
+    # file:// é recusado para fonte externa, mesmo que hash bata
+    ok_url, msg_url = PROTO.validar_url(entry["url"])
+    assert not ok_url and "file://" in msg_url, f"G30: file:// deveria ser recusado, veio ok={ok_url} msg={msg_url}"
+    # guarda completa deve falhar (file:// + fixture esqueleto)
+    # Forca fixture com pagina 1 para testar guarda completa: cria fixture minima valida
+    # mas ainda com file:// deve falhar
+    erros_completa = PROTO.validar_fonte_externa_completa(entry, None, REPO)
+    assert any("file://" in e for e in erros_completa), f"G30 guarda completa deveria falhar por file://, veio {erros_completa}"
+    cmd_check = [sys.executable, "tools/extrai_fonte_externa.py", "--check", "--id", id_teste]
+    res2 = subprocess.run(cmd_check, capture_output=True, text=True, cwd=str(REPO), timeout=15, env=env)
+    # G30: check deve agora reportar falha de URL (file://)
+    assert res2.returncode != 0, f"G30: check com file:// deveria falhar, mas retornou 0: {res2.stdout} {res2.stderr}"
+    assert "file://" in res2.stdout.lower() or "file://" in res2.stderr.lower() or "recusado" in res2.stdout.lower() or "recusado" in res2.stderr.lower(), f"check deveria mencionar file:// recusado: {res2.stdout} {res2.stderr}"
 
-    finally:
-        # cleanup: remover entrada do registro e diretório criado
-        try:
-            registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-            registro["fontes"] = [e for e in registro["fontes"] if e["id"] != f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"]
-            REGISTRO.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        except Exception:
-            pass
-        if obra_dir.exists():
-            shutil.rmtree(obra_dir, ignore_errors=True)
+    # o repositorio vivo nunca foi tocado (D81): sem obra temporaria no repo
+    # e sem entrada temporaria no registro vivo
+    assert not (REPO / "fontes_externas" / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}").exists()
+    registro_vivo = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    assert all(e["id"] != f"{id_teste}{PROTO.SUFIXO_DIRETORIO}" for e in registro_vivo["fontes"])
 
 
 def test_g24_extrator_pdf_local_flag(tmp_path):
@@ -411,9 +423,9 @@ def test_g24_extrator_pdf_local_flag(tmp_path):
     pdf_path = tmp_path / "local.pdf"
     pdf_path.write_bytes(pdf_bytes)
     id_teste = "teste-pdf-local-g24-tmp"
-    obra_dir = REPO / "fontes_externas" / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"
-    if obra_dir.exists():
-        shutil.rmtree(obra_dir)
+    # CLI isolado (D81): nada no repo vivo
+    env, fontes_root = _fontes_isoladas(tmp_path)
+    obra_dir = fontes_root / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"
     cmd = [
         sys.executable, "tools/extrai_fonte_externa.py",
         "--pdf-local", str(pdf_path),
@@ -422,29 +434,20 @@ def test_g24_extrator_pdf_local_flag(tmp_path):
         "--id", id_teste,
         "--titulo", "Teste PDF Local G24",
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO), timeout=15)
+    res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO), timeout=15, env=env)
     assert res.returncode == 0, f"extrator --pdf-local falhou: {res.stdout} {res.stderr}"
-    try:
-        assert obra_dir.is_dir()
-        assert (obra_dir / "original.pdf").is_file()
-        assert (obra_dir / "README.md").is_file()
-        assert PROTO.ROTULO_CONCORDANCIA in (obra_dir / "README.md").read_text(encoding="utf-8")
-        # G30: pdf-local gera file:// que agora é recusado para fonte externa
-        registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-        entry = next((e for e in registro["fontes"] if e["id"] == f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"), None)
-        assert entry is not None
-        ok_url, _ = PROTO.validar_url(entry["url"])
-        assert not ok_url, "G30: file:// de --pdf-local deveria ser recusado"
-    finally:
-        # cleanup
-        try:
-            registro = json.loads(REGISTRO.read_text(encoding="utf-8"))
-            registro["fontes"] = [e for e in registro["fontes"] if e["id"] != f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"]
-            REGISTRO.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        except Exception:
-            pass
-        if obra_dir.exists():
-            shutil.rmtree(obra_dir, ignore_errors=True)
+    assert obra_dir.is_dir()
+    assert (obra_dir / "original.pdf").is_file()
+    assert (obra_dir / "README.md").is_file()
+    assert PROTO.ROTULO_CONCORDANCIA in (obra_dir / "README.md").read_text(encoding="utf-8")
+    # G30: pdf-local gera file:// que agora é recusado para fonte externa
+    registro = json.loads((fontes_root / "registro.json").read_text(encoding="utf-8"))
+    entry = next((e for e in registro["fontes"] if e["id"] == f"{id_teste}{PROTO.SUFIXO_DIRETORIO}"), None)
+    assert entry is not None
+    ok_url, _ = PROTO.validar_url(entry["url"])
+    assert not ok_url, "G30: file:// de --pdf-local deveria ser recusado"
+    # repositorio vivo intacto
+    assert not (REPO / "fontes_externas" / f"{id_teste}{PROTO.SUFIXO_DIRETORIO}").exists()
 
 
 def test_g24_comparacao_valida_enums():

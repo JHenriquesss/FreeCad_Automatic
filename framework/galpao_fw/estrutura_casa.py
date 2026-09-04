@@ -52,6 +52,7 @@ from __future__ import annotations
 import copy
 import os
 
+import cargas_nbr6120 as cg
 import descida_cargas as dc
 import fundacao_edificio as fe
 import laje_concreto as lj
@@ -100,6 +101,105 @@ def _eixos(vaos):
     for v in vaos:
         xs.append(xs[-1] + float(v))
     return xs
+
+
+def _carga_escada_por_pavimento(r_escada, cfg_escada):
+    """Reacao caracteristica da escada, POR pavimento, separada em g e q (kN).
+
+    G42 (gemeo do G38 na casa): a escada era dimensionada DEPOIS da descida e
+    o seu peso jamais chegava a pilar nenhum - carga que some, com todos os
+    gates dizendo OK. A escada agora e' dimensionada ANTES da descida e a sua
+    reacao realimenta os lances, no mesmo remedio do edificio.
+
+    Hipoteses EXPLICITAS (nada arbitrado em silencio):
+      - a escada declarada repete-se em cada pavimento: o peso que desce por
+        nivel e' o de UM lance como dimensionado, vezes 'n_lances_por_pavimento'
+        (default 1);
+      - a reacao total do lance (W = (g+q).L.largura) e' dividida entre os
+        'apoios' declarados (nomes de pilares); sem 'apoios', divide-se
+        uniformemente entre TODOS os pilares e isso fica registrado em
+        'distribuicao';
+      - SEM 'largura' nao ha como calcular W: a carga e' INDEFINIDA, nao zero.
+        Nesse caso devolve 'erro' e quem chama REPROVA o fechamento em vez de
+        seguir com pilares mais leves (fail-closed);
+      - o q da escada so recebe o alpha_n de 6.12 se o uso for REDUTIVEL pela
+        Tabela 10; q explicito ('informado explicitamente') nao reduz."""
+    largura = r_escada.get("largura_m")
+    if largura is None:
+        return {"erro": ("escada sem 'largura' declarada: a reacao "
+                         "(g+q).L.largura e' indefinida e nao pode descer aos "
+                         "pilares; declare a largura para que o peso entre na "
+                         "descida"),
+                "W_g": 0.0, "W_q": 0.0}
+    try:
+        n_lances = int(cfg_escada.get("n_lances_por_pavimento", 1))
+    except (TypeError, ValueError):
+        return {"erro": ("'n_lances_por_pavimento' deve ser inteiro >= 1 "
+                         "(recebido %r)" % (cfg_escada.get("n_lances_por_pavimento"),)),
+                "W_g": 0.0, "W_q": 0.0}
+    if n_lances < 1:
+        return {"erro": "'n_lances_por_pavimento' deve ser >= 1",
+                "W_g": 0.0, "W_q": 0.0}
+    L = float(r_escada["vao_calculo_m"])
+    W_g = float(r_escada["g_kN_m2"]) * L * float(largura) * n_lances
+    W_q = float(r_escada["q_kN_m2"]) * L * float(largura) * n_lances
+    uso = r_escada.get("uso", "")
+    if uso in cg.CARGAS_USO:
+        redutivel = bool(cg.CARGAS_USO[uso].get("redutivel", False))
+    else:
+        redutivel = False
+    apoios = cfg_escada.get("apoios")
+    if apoios is not None:
+        apoios = list(apoios)
+    return {"W_g": round(W_g, 3), "W_q": round(W_q, 3), "uso": uso,
+            "redutivel": redutivel, "largura_m": float(largura),
+            "vao_m": round(L, 4), "n_lances_por_pavimento": n_lances,
+            "apoios": apoios, "erro": None}
+
+
+def _descer_escada(desc, stair):
+    """Soma a reacao da escada aos lances da descida, pavimento a pavimento.
+
+    Devolve o detalhe da distribuicao. A parcela variavel recebe o MESMO alpha_n
+    do pavimento (quando o uso da escada for redutivel); a permanente desce
+    integral. Os acumulados N_acum_k / N_base_* sao recompostos - nunca ajustados
+    por diferenca, para nao carregar arredondamento lance a lance."""
+    nomes = sorted(desc["pilares"])
+    dest = list(stair["apoios"]) if stair["apoios"] else list(nomes)
+    desconhecidos = [n for n in dest if n not in desc["pilares"]]
+    if desconhecidos:
+        raise ValueError("apoios da escada inexistentes na malha de pilares: %s "
+                         "(pilares: %s)" % (", ".join(desconhecidos),
+                                            ", ".join(nomes)))
+    n_dest = len(dest)
+    dg = stair["W_g"] / n_dest
+    dq_bruto = stair["W_q"] / n_dest
+    distribuicao = ("apoios declarados (%d pilares)" % n_dest if stair["apoios"]
+                    else "uniforme entre os %d pilares (sem 'apoios' declarados)" % n_dest)
+    for nome in dest:
+        p = desc["pilares"][nome]
+        acum_g = acum_q = 0.0
+        for lance, pav in zip(p["lances"], desc["pavimentos"]):
+            alpha = pav["alpha_n"] if stair["redutivel"] else 1.0
+            dq = dq_bruto * alpha
+            lance["N_g_pav"] = round(lance["N_g_pav"] + dg, 3)
+            lance["N_q_pav_bruto"] = round(lance["N_q_pav_bruto"] + dq_bruto, 3)
+            lance["N_q_pav_reduzido"] = round(lance["N_q_pav_reduzido"] + dq, 3)
+            lance["N_aplicado"] = round(lance["N_aplicado"] + dg + dq, 3)
+            lance["N_esc_g"] = round(lance.get("N_esc_g", 0.0) + dg, 3)
+            lance["N_esc_q_bruto"] = round(lance.get("N_esc_q_bruto", 0.0) + dq_bruto, 3)
+            lance["N_esc_q"] = round(lance.get("N_esc_q", 0.0) + dq, 3)
+            acum_g += lance["N_g_pav"]
+            acum_q += lance["N_q_pav_reduzido"]
+            lance["N_acum_k"] = round(acum_g + acum_q, 2)
+        bruto = sum(l["N_g_pav"] + l["N_q_pav_bruto"] for l in p["lances"])
+        p["N_base_k"] = round(acum_g + acum_q, 2)
+        p["N_base_g_k"] = round(acum_g, 2)
+        p["N_base_q_k"] = round(acum_q, 2)
+        p["N_base_sem_reducao_k"] = round(bruto, 2)
+    return {"distribuicao": distribuicao, "pilares": dest,
+            "W_g_por_pav_kN": round(stair["W_g"], 3),
+            "W_q_por_pav_kN": round(stair["W_q"], 3)}
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +506,12 @@ def rodar(spec):
       'fundacao'  : opc, sub-spec de fundacao_edificio.dimensiona (perfil_spt
                     e/ou sigma_solo_adm). SEM ele nao ha fundacao - a tensao do
                     solo nunca e' arbitrada;
-      'escada'    : opc, sub-spec de escada_concreto.dimensiona (sobrado);
+      'escada'    : opc, sub-spec de escada_concreto.dimensiona (sobrado) +
+                    chaves proprias: 'largura' OBRIGATORIA para a descida (sem
+                    ela a reacao e' indefinida e o fechamento REPROVA);
+                    'apoios' opc, lista de pilares que recebem a escada (sem
+                    ele, distribuicao uniforme); 'n_lances_por_pavimento' opc,
+                    default 1;
       'out_dir'   : opc - se dado, escreve a planta de formas (SVG).
     }
 
@@ -468,8 +573,31 @@ def rodar(spec):
         h_laje = r_laje["h"]
     fech = pt.verifica_fechamento(pav)
 
+    # --------------------------------------------------------------- ESCADA
+    # G42 (gemeo do G38): a escada e' dimensionada ANTES da descida porque a
+    # sua reacao REALIMENTA os lances. Antes ela era calculada depois (a reacao
+    # so existia la embaixo) e o peso dela jamais descia para pilar nenhum:
+    # entrava no gate 'escada', saia no relatorio, e sumia da estrutura.
+    r_escada = None
+    stair = None
+    escada_erro = None
+    detalhe_escada = None
+    if spec.get("escada"):
+        import escada_concreto as ec
+        e = dict(spec["escada"])
+        e.setdefault("fck", fck)
+        e.setdefault("fyk", fyk)
+        e.setdefault("desnivel", geo["pe_direito"])
+        r_escada = ec.dimensiona(e)
+        stair = _carga_escada_por_pavimento(r_escada, spec["escada"])
+        if stair.get("erro"):
+            escada_erro = stair["erro"]
+            stair = None
+
     # -------------------------------------------------------- DESCIDA (6.12)
     desc = dc.descer({"pavimentos": pavs, "elemento": "pilar"})
+    if stair is not None:
+        detalhe_escada = _descer_escada(desc, stair)
     red = dc.verifica_reducao(desc)
 
     # -------------------------------------------------------------- PILARES
@@ -502,15 +630,7 @@ def rodar(spec):
             erro_baldrame = str(exc)
 
     # --------------------------------------------------------------- ESCADA
-    r_escada = None
-    if spec.get("escada"):
-        import escada_concreto as ec
-        e = dict(spec["escada"])
-        e.setdefault("fck", fck)
-        e.setdefault("fyk", fyk)
-        e.setdefault("desnivel", geo["pe_direito"])
-        r_escada = ec.dimensiona(e)
-
+    # (dimensionada ANTES da descida, em G42 - ver bloco acima)
     # --------------------------------------------------------------- PLANTA
     planta = None
     if spec.get("out_dir"):
@@ -550,11 +670,48 @@ def rodar(spec):
         except fe.EntradaFundacao as exc:
             erro_fundacao = str(exc)
 
+    # ---------------- FECHAMENTO DA CASA CONTRA A CARGA DECLARADA (G42)
+    # O gate antigo fechava o total DO QUE FOI INCLUIDO: `verifica_fechamento`
+    # confere UM pavimento-tipo contra a sua propria carga, entao a escada -
+    # que nunca entrava nem no pavimento nem na descida - era invisivel por
+    # construcao (irmao do G38 no edificio). O fechamento agora confere a BASE
+    # DA DESCIDA (bruta, sem reducao de 6.12) contra a carga DECLARADA: a soma
+    # dos N_total_k de cada pavimento MAIS o peso bruto total da escada. Se a
+    # escada foi declarada sem largura (reacao indefinida), o fechamento
+    # REPROVA em vez de fechar sem ela.
+    montados_fech = {}
+    for _pv in spec["pavimentos"]:
+        _uso = _pv["uso"]
+        if _uso not in montados_fech:
+            montados_fech[_uso] = (
+                pav if por_uso[_uso] is por_uso[spec["pavimentos"][-1]["uso"]]
+                else pt.monta(por_uso[_uso]))
+    esperado_pavs = sum(montados_fech[_pv["uso"]]["N_total_k"]
+                        for _pv in spec["pavimentos"])
+    escada_bruto_total = 0.0
+    if stair is not None:
+        escada_bruto_total = len(pavs) * (stair["W_g"] + stair["W_q"])
+    elif spec.get("escada"):
+        escada_bruto_total = 0.0  # indefinida: o gate reprova abaixo, nao soma zero
+    esperado_total = esperado_pavs + escada_bruto_total
+    N_desc_total = sum(p["N_base_sem_reducao_k"] for p in desc["pilares"].values())
+    erro_total = (abs(N_desc_total - esperado_total) / esperado_total
+                  if esperado_total > 0 else 0.0)
+    fechamento_ok = bool(fech["ok"] and erro_total <= TOL_FECHAMENTO
+                         and escada_erro is None)
+
     # ---------------------------------------------------------------- GATES
     gates = {
-        "fechamento_carga": {"OK": fech["ok"], "erro_rel": fech["erro_rel"],
+        "fechamento_carga": {"OK": fechamento_ok, "erro_rel": fech["erro_rel"],
                              "N_pilares": fech["N_pilares"],
-                             "esperado": fech["carga_esperada"]},
+                             "esperado": fech["carga_esperada"],
+                             "N_desc_total_k": round(N_desc_total, 2),
+                             "esperado_total_k": round(esperado_total, 2),
+                             "erro_total": round(erro_total, 5),
+                             "escada_total_kN": round(escada_bruto_total, 2),
+                             "escada_distribuicao": (detalhe_escada["distribuicao"]
+                                                     if detalhe_escada else None),
+                             "escada_erro": escada_erro},
         "reducao_6120": {"OK": red["ok"], "reduzidos": red["reduzidos"],
                          "alivio_pct": red["alivio_pct_max"],
                          "violacoes": red["violacoes"]},
@@ -588,7 +745,14 @@ def rodar(spec):
     elif erro_fundacao is not None:
         gates["fundacao"] = {"OK": False, "erro": erro_fundacao}
     if r_escada is not None:
-        gates["escada"] = {"OK": r_escada["OK"]}
+        gates["escada"] = {
+            "OK": bool(r_escada["OK"]) and escada_erro is None,
+            "desceu_aos_pilares": detalhe_escada is not None,
+            "W_g_por_pav_kN": (stair["W_g"] if stair is not None else None),
+            "W_q_por_pav_kN": (stair["W_q"] if stair is not None else None),
+            "distribuicao": (detalhe_escada["distribuicao"]
+                             if detalhe_escada else None),
+            "erro": escada_erro}
 
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     N_base = {nome: round(desc["pilares"][nome]["N_base_k"]
@@ -599,7 +763,8 @@ def rodar(spec):
         "pavimento": pav, "descida": desc, "pilares": pilares,
         "laje": r_laje, "vigas": r_vigas, "baldrame": baldrame,
         "baldrame_erro": erro_baldrame,
-        "escada": r_escada, "planta": planta,
+        "escada": r_escada, "escada_descida": detalhe_escada,
+        "escada_erro": escada_erro, "planta": planta,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "n_pavimentos": len(pavs),
         "tipologia": "terrea" if len(pavs) == 1 else "sobrado",
@@ -676,8 +841,20 @@ def relatorio_pt(r):
         L.append("  VIGA BALDRAME: NAO declarada -> o peso da alvenaria do "
                  "terreo NAO entra na fundacao")
     if "escada" in g:
-        L.append("  ESCADA DE CONCRETO: %s" % ("ATENDE" if g["escada"]["OK"]
-                                               else "REPROVA"))
+        if g["escada"].get("desceu_aos_pilares"):
+            L.append("  ESCADA DE CONCRETO: %s (%.1f kN por pav x %d pavs = "
+                     "%.1f kN desceram aos pilares; %s)"
+                     % ("ATENDE" if g["escada"]["OK"] else "REPROVA",
+                        (g["escada"]["W_g_por_pav_kN"] or 0.0)
+                        + (g["escada"]["W_q_por_pav_kN"] or 0.0),
+                        r["n_pavimentos"],
+                        g["fechamento_carga"]["escada_total_kN"],
+                        g["escada"]["distribuicao"]))
+        elif g["escada"].get("erro"):
+            L.append("  ESCADA DE CONCRETO: REPROVA - %s" % g["escada"]["erro"])
+        else:
+            L.append("  ESCADA DE CONCRETO: %s" % ("ATENDE" if g["escada"]["OK"]
+                                                   else "REPROVA"))
     if "fundacao" in g:
         fu = g["fundacao"]
         if fu.get("erro"):

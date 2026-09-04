@@ -76,7 +76,9 @@ def quadro_de_aco(r):
               "n": n_l * n_pilares, "comprimento_m": round(L_bar, 2),
               "peso_kg": _peso(phi_l, n_l * n_pilares, L_bar)})
     phi_e = pil.get("phi_estribo_mm", 5.0)
-    s_e = 0.15                                        # estribo c/15 cm (usual pilar)
+    # G44: o espacamento do fuste vem do dimensionamento do cortante
+    # (Asw/s calculado); o 15 cm usual fica como TETO pratico.
+    s_e = min(0.15, float(pil.get("s_estribo", pil.get("s_estribo_max", 0.15))))
     n_e = (math.ceil(H / s_e) + 1)
     Le = _estribo_comprimento(hy, hx, cob, phi_e)
     q.append({"elemento": "Pilar", "pos": "N2 (estribo)", "phi_mm": phi_e,

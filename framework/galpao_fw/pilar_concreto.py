@@ -332,14 +332,24 @@ def armadura_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As_max, alpha=ALPHA_BIAXI
 
 
 def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
-    """Verifica o cortante do fuste (NBR 6118 17.4.2, Modelo I, theta=45°).
+    """Verifica E DIMENSIONA o cortante do fuste (NBR 6118 17.4.2, Modelo I, theta=45°).
 
     Mesma mecanica de viga_baldrame._verifica_cortante, aplicada a secao do
     pilar: bw = largura ortogonal ao plano do cortante, d = altura util na
     direcao do cortante. Vc sem bonus de compressao axial (conservador:
     flexo-compressao resiste pelo menos o Vc0 da flexao simples).
-    Vd ja majorado (ELU, kN). Retorna dict com VRd2 (biela), VRd3_min
-    (estribo minimo), utilizacoes e ok_biela/ok_min."""
+    Vd ja majorado (ELU, kN).
+
+    G44: alem de verificar a biela e o minimo (G39, fail-closed), DIMENSIONA o
+    estribo quando o minimo nao basta: Asw/s_req = max(Vd-Vc,0)/(0,9*d*fywd)
+    (Vsw = (Asw/s)*0,9*d*fywd, estribo vertical). Com isso, todo Vd <= VRd2 e
+    atendivel por Asw — o gate passa a ser a biela (cort_ok = ok_biela); a
+    biela esmagada (Vd > VRd2) continua reprovando (so aumenta a secao).
+
+    Retorna dict com VRd2 (biela), VRd3_min (estribo minimo, legado), VRd3
+    (com o Asw adotado), Asw/s req/min/adotado (m2/m), utilizacoes e
+    ok_biela/ok_min (legado) + ok (dimensionado = biela)."""
+
     fck_MPa = fck / 1000.0
     fcd = fck / GAMMA_C
     fywd = fyk / GAMMA_S
@@ -353,11 +363,62 @@ def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
     asw_min = rho_sw_min * bw
     Vsw_min = asw_min * 0.9 * d * fywd
     VRd3_min = Vc + Vsw_min
-    return {"VRd2": VRd2, "VRd3_min": VRd3_min, "Vc": Vc, "Vsw_min": Vsw_min,
-            "rho_sw_min": rho_sw_min,
+    # G44: Asw necessario (Modelo I) e adotado (maximo entre req e minimo)
+    denom = 0.9 * d * fywd
+    asw_req = max(Vd - Vc, 0.0) / denom if denom > 0 else 0.0
+    asw = max(asw_req, asw_min)
+    Vsw = asw * 0.9 * d * fywd
+    VRd3 = Vc + Vsw
+    ok_biela = Vd <= VRd2 + 1e-9
+    ok_min = Vd <= VRd3_min + 1e-9
+    return {"VRd2": VRd2, "VRd3_min": VRd3_min, "VRd3": VRd3, "Vc": Vc,
+            "Vsw_min": Vsw_min, "Vsw": Vsw,
+            "rho_sw_min": rho_sw_min, "asw_min": asw_min,
+            "asw_req": asw_req, "asw": asw,
             "u_biela": Vd / VRd2 if VRd2 > 0 else float("inf"),
             "u_cort": Vd / VRd3_min if VRd3_min > 0 else float("inf"),
-            "ok_biela": Vd <= VRd2 + 1e-9, "ok_min": Vd <= VRd3_min + 1e-9}
+            "u_cort_min": Vd / VRd3_min if VRd3_min > 0 else float("inf"),
+            "ok_biela": ok_biela, "ok_min": ok_min, "ok": ok_biela}
+
+
+# Bitolas de estribo do fuste (mm) e ramos do estribo fechado simples.
+_BITOLAS_ESTRIBO_PILAR = (5.0, 6.3, 8.0, 10.0)
+_N_RAMOS_ESTRIBO = 2
+_S_MIN_ESTRIBO = 0.05              # espacamento minimo pratico (montagem)
+
+
+def detalha_estribo_pilar(asw, s_max):
+    """Escolhe (phi_mm, s) de estribo fechado simples (2 ramos) tal que
+    A_prov = n_ramos*A_phi/s >= asw (m2/m), com s <= s_max e s >= 5 cm.
+
+    Prefere a MENOR bitola que permite espacamento praticavel (>= 5 cm);
+    o espacamento e arredondado PARA BAIXO ao cm (a favor da seguranca).
+    Retorna (phi_mm, s, Asw_prov_m2m). asw em m2/m ; s em m.
+
+    G44b: a tabela de detalhamento TEM TETO. Com 2 ramos, a maior bitola
+    (phi 10) no menor espacamento (5 cm) provê 31,4 cm2/m — e ha secoes
+    correntes (ex.: 40x40 fck30) cujo Asw necessario passa disso ANTES da
+    biela esmagar. O fallback antigo devolvia esse teto e o chamador
+    reportava OK: estribo 23% abaixo do necessario, em silencio (a
+    saturacao silenciosa de sempre). Agora o teto e devolvido junto com
+    Asw_prov REAL, e quem chama compara prov x req e REPROVA. Cobrir esses
+    casos exige detalhamento que este modulo ainda nao faz (estribo de 4
+    ramos / suplementar) - ate la, fail-closed."""
+    import math
+    s_max = max(min(float(s_max), 0.40), _S_MIN_ESTRIBO)
+    for phi in _BITOLAS_ESTRIBO_PILAR:
+        a_phi = math.pi * (phi / 1000.0) ** 2 / 4.0
+        a_tot = _N_RAMOS_ESTRIBO * a_phi
+        s_req = a_tot / asw if asw > 0 else s_max
+        s_lim = min(s_req, s_max)
+        s = math.floor(s_lim * 100.0 + 1e-9) / 100.0   # cm cheio, para baixo
+        if s >= _S_MIN_ESTRIBO - 1e-9:
+            return phi, round(s, 3), round(a_tot / s, 6)
+    # Teto da tabela: maior bitola no espacamento minimo. NAO cobre todo Vd
+    # <= VRd2 - o chamador confere Asw_prov >= Asw_req e reprova se nao.
+    phi = _BITOLAS_ESTRIBO_PILAR[-1]
+    a_tot = _N_RAMOS_ESTRIBO * math.pi * (phi / 1000.0) ** 2 / 4.0
+    return phi, _S_MIN_ESTRIBO, round(a_tot / _S_MIN_ESTRIBO, 6)
 
 
 # ---------------------------------------------------------------------------
@@ -484,11 +545,21 @@ def dimensiona_pilar(caso):
     bw_cort = hy
     d_cort = max(hx - dl, 0.5 * hx)
     cr = verifica_cortante_pilar(Vd, bw_cort, d_cort, fck, fyk)
-    cort_ok = bool(cr["ok_biela"] and cr["ok_min"])
+    # G44: o estribo e DIMENSIONADO (Asw/s) quando o minimo nao basta; o gate
+    # deixa de ser o VRd3,min (G39) e passa a ser a biela MAIS o detalhamento.
+    # ok_min/u_cort seguem expostos como diagnostico do minimo (G39).
     if Vd <= 0.67 * cr["VRd2"]:
         s_estribo_max = min(0.6 * d_cort, 0.30)
     else:
         s_estribo_max = min(0.3 * d_cort, 0.20)
+    phi_est, s_est, asw_prov = detalha_estribo_pilar(cr["asw"], s_estribo_max)
+    # G44b: a tabela de estribo (2 ramos, ate phi 10 c/5 cm = 31,4 cm2/m) NAO
+    # cobre todo Vd <= VRd2. Sem esta conferencia o modulo devolvia o teto da
+    # tabela e dizia OK - ex.: 40x40 fck30 com Vd = 700 kN pede 40,8 cm2/m,
+    # recebia 31,4 (23% a menos) e passava, onde ANTES do G44 reprovava.
+    # Comparar prov x req e a diferenca entre dimensionar e saturar.
+    asw_atendido = asw_prov >= cr["asw"] - 1e-9
+    cort_ok = bool(cr["ok"] and asw_atendido)
 
     OK = (ok_res and ok_max and esb_ok and cort_ok
           and min(hx, hy) >= 0.14 - 1e-9 and Ac >= 0.036 - 1e-9)
@@ -510,8 +581,17 @@ def dimensiona_pilar(caso):
         "esbeltez_valida": esb_ok, "avisos_esbeltez": avisos_esb,
         "Vd": round(Vd, 2), "VRd2": round(cr["VRd2"], 1),
         "VRd3_min": round(cr["VRd3_min"], 1),
+        "VRd3": round(cr["VRd3"], 1),
+        "Asw_s_req_cm2_m": round(cr["asw_req"] * 1e4, 2),
+        "Asw_s_min_cm2_m": round(cr["asw_min"] * 1e4, 2),
+        "Asw_s_cm2_m": round(cr["asw"] * 1e4, 2),
         "u_biela": round(cr["u_biela"], 3), "u_cort": round(cr["u_cort"], 3),
+        "u_cort_min": round(cr["u_cort_min"], 3),
+        "ok_biela": bool(cr["ok_biela"]), "ok_min": bool(cr["ok_min"]),
         "cort_ok": cort_ok, "s_estribo_max": round(s_estribo_max, 3),
+        "phi_estribo_mm": phi_est, "s_estribo": round(s_est, 3),
+        "Asw_prov_cm2_m": round(asw_prov * 1e4, 2),
+        "Asw_atendido": bool(asw_atendido),
     })
     return res
 
@@ -544,8 +624,11 @@ def relatorio_pt(r):
           f"  CORTANTE (17.4.2, Modelo I): Vd = {r.get('Vd', 0.0):.1f} kN ; "
           f"VRd2 = {r.get('VRd2', 0.0):.1f} (u={r.get('u_biela', 0.0):.3f}) ; "
           f"VRd3,min = {r.get('VRd3_min', 0.0):.1f} (u={r.get('u_cort', 0.0):.3f}) ; "
-          f"s_max {r.get('s_estribo_max', 0.0)*1000:.0f} mm -> "
-          f"{'OK' if r.get('cort_ok', True) else 'REPROVA'}",
+          f"Asw/s = {r.get('Asw_s_cm2_m', 0.0):.2f} cm2/m "
+          f"(min {r.get('Asw_s_min_cm2_m', 0.0):.2f}) -> "
+          f"phi {r.get('phi_estribo_mm', 5.0):.1f} c/{r.get('s_estribo', r.get('s_estribo_max', 0.0))*1000:.0f} "
+          f"(s_max {r.get('s_estribo_max', 0.0)*1000:.0f} mm) -> "
+          f"{'OK' if r.get('cort_ok', True) else ('REPROVA (biela)' if not r.get('ok_biela', True) else 'REPROVA (Asw excede o estribo de 2 ramos detalhavel: %.2f > %.2f cm2/m)' % (r.get('Asw_s_cm2_m', 0.0), r.get('Asw_prov_cm2_m', 0.0)))}",
           f"  RESULTADO: {'APROVADO' if r['OK'] else 'REPROVADO'}",
           "  [A CONFIRMAR: esforcos (Nk, M1d) e comprimentos de flambagem do modelo.]"]
     import re

@@ -7,8 +7,8 @@
 #   - test_detector_acha_orfao_injetado: injecao sintetica em memoria.
 #   - test_detector_teria_achado_G39: V_w_k pre-fix orfao, pos-fix limpo.
 #   - test_detector_teria_achado_G38: r_escada sem descida orfao; o fix do
-#     edificio (stair -> _descer_escada -> desc -> pilar) limpa; a casa segue
-#     orfa (irmao do G38 descoberto, nao curado).
+#     edificio (stair -> _descer_escada -> desc -> pilar) limpa; a casa foi o
+#     irmao do G38 e o G42 a curou (mesmo caminho) - ambas limpas.
 #   - test_descoberta_atual_pina_baseline: o que a descoberta acha HOJE.
 #   - test_permitidos_ainda_validos: filtro de nome morto no allowlist.
 # ============================================================================
@@ -85,11 +85,11 @@ def test_detector_teria_achado_G38():
     ed = vd.descobrir_no_arquivo(GALPAO / "edificio_multipavimento.py")
     assert not any(d["variavel"] in ("r_escada", "stair") for d in ed), \
         "edificio reabriu o G38 em silencio: %r" % (ed,)
-    # A casa segue orfa: o irmao do G38 que a lista curada chamava de
-    # "omissao fora da guarda". A descoberta acha sem ninguem declarar.
+    # G42 curou a casa pelo mesmo caminho: o irmao do G38 que a descoberta
+    # achou sem ninguem declarar agora desce aos pilares.
     casa = vd.descobrir_no_arquivo(GALPAO / "estrutura_casa.py")
-    assert any(d["variavel"] == "r_escada" for d in casa), \
-        "casa deveria aparecer como irmao do G38 (escada sem descida)"
+    assert not any(d["variavel"] in ("r_escada", "stair") for d in casa), \
+        "casa reabriu o G42 em silencio: %r" % (casa,)
 
 
 def test_descoberta_atual_pina_baseline():
@@ -97,7 +97,8 @@ def test_descoberta_atual_pina_baseline():
     # este teste fica vermelho: ou vira verificacao, ou vira ilha declarada
     # para o proximo fix (molde G6->G7). Se um orfao sumir, a baseline tem que
     # diminuir junto - nunca em silencio.
-    assert vd.chaves_varridas() == [("estrutura_casa.py", "r_escada")], \
+    # G42: a casa saiu da baseline (r_escada curado) - baseline zerada.
+    assert vd.chaves_varridas() == [], \
         "baseline G40 mudou: %r" % (vd.chaves_varridas(),)
 
 

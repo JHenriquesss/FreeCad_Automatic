@@ -114,5 +114,69 @@ def test_secao_insuficiente_reprova():
     assert r["OK"] is False
 
 
+def test_g44_asw_dimensionado_quando_minimo_nao_basta():
+    # G44: biela OK mas VRd3,min insuficiente -> o fuste DIMENSIONA o estribo
+    # (Asw/s) em vez de reprovar sem saida (G39 verificava e reprovava).
+    r = pc.dimensiona_pilar({"b": 0.25, "h": 0.50, "Nk": 800.0, "le_x": 4.0,
+                             "le_y": 4.0, "fck": 30e3, "fyk": 500e3, "dl": 0.04,
+                             "Vd": 250.0,
+                             "M1d_x": {"tipo": "balanco", "Ma": 80.0}})
+    assert r["ok_biela"] is True and r["ok_min"] is False   # minimo nao basta
+    assert r["cort_ok"] is True and r["OK"] is True         # mas o Asw resolve
+    assert r["VRd3"] >= r["Vd"] - 1e-6
+    assert r["Asw_s_cm2_m"] >= r["Asw_s_min_cm2_m"] + 1.0   # acima do minimo
+    assert abs(r["Asw_s_cm2_m"] - 8.34) < 0.15              # (Vd-Vc)/(0,9*d*fywd)
+    assert r["Asw_prov_cm2_m"] >= r["Asw_s_cm2_m"] - 1e-9   # phi c/s entrega
+    assert r["s_estribo"] <= r["s_estribo_max"] + 1e-9
+
+
+def test_g44_biela_esmagada_continua_reprovando():
+    # G44 nao salva biela: Vd > VRd2 -> so aumenta a secao (fail-closed).
+    r = pc.dimensiona_pilar({"b": 0.25, "h": 0.50, "Nk": 800.0, "le_x": 4.0,
+                             "le_y": 4.0, "fck": 30e3, "fyk": 500e3, "dl": 0.04,
+                             "Vd": 700.0,
+                             "M1d_x": {"tipo": "balanco", "Ma": 80.0}})
+    assert r["u_biela"] > 1.0
+    assert r["cort_ok"] is False and r["OK"] is False
+
+
+def test_g44b_asw_acima_do_detalhavel_reprova_em_vez_de_saturar():
+    # G44b (achado na revisao do G44): a tabela de estribo do fuste tem TETO -
+    # 2 ramos, phi 10 c/5 cm = 31,4 cm2/m - e ha secao CORRENTE cujo Asw
+    # necessario passa disso ANTES de a biela esmagar. O fallback devolvia o
+    # teto e `cort_ok` olhava so a biela: estribo 23% abaixo do necessario,
+    # com OK=True e o phi 10 c/5 indo para o quadro de aco. Pior, o caso
+    # REPROVAVA antes do G44 (cort_ok = ok_biela and ok_min): a saturacao
+    # silenciosa transformou um vermelho em verde.
+    r = pc.dimensiona_pilar({"b": 0.40, "h": 0.40, "Nk": 900.0, "le": 3.0,
+                             "fck": 30e3, "fyk": 500e3, "Vd": 700.0})
+    assert r["u_biela"] < 1.0 and r["ok_biela"] is True   # biela AGUENTA
+    assert r["Asw_s_cm2_m"] > r["Asw_prov_cm2_m"]         # detalhamento nao cobre
+    assert r["Asw_atendido"] is False
+    assert r["cort_ok"] is False and r["OK"] is False     # fail-closed
+    assert "excede" in pc.relatorio_pt(r)
+
+
+def test_g44b_prov_nunca_menor_que_req_sem_reprovar():
+    # A guarda generica: varrer secoes/fck e exigir que NENHUM caso saia com
+    # Asw_prov < Asw_req e cort_ok=True. E' a forma de o teto da tabela nunca
+    # mais virar "OK" em silencio quando a lista de bitolas mudar.
+    for fck in (20e3, 25e3, 30e3, 40e3):
+        for (b, h) in ((0.20, 0.40), (0.25, 0.50), (0.30, 0.60), (0.40, 0.40),
+                       (0.50, 0.50)):
+            VRd2 = pc.verifica_cortante_pilar(0.0, b, max(h - 0.04, 0.5 * h),
+                                              fck, 500e3)["VRd2"]
+            for frac in (0.3, 0.6, 0.8, 0.95, 0.999):
+                r = pc.dimensiona_pilar({"b": b, "h": h, "Nk": 500.0, "le": 3.0,
+                                         "fck": fck, "fyk": 500e3,
+                                         "Vd": frac * VRd2})
+                if r["Asw_prov_cm2_m"] < r["Asw_s_cm2_m"] - 1e-9:
+                    assert r["cort_ok"] is False, (
+                        "%.0fx%.0f fck%.0f Vd=%.0f%% VRd2: prov %.2f < req %.2f "
+                        "e cort_ok=True (saturacao silenciosa)"
+                        % (b * 100, h * 100, fck / 1000, frac * 100,
+                           r["Asw_prov_cm2_m"], r["Asw_s_cm2_m"]))
+
+
 def test_selftest_roda():
     pc._selftest()

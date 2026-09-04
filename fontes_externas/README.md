@@ -217,6 +217,9 @@ python tools/extrai_fonte_externa.py --check --id tcc-ufpe-galpao-44x90
 # PDF guardado é o que a URL serve; o --check só confere o arquivo local)
 python tools/extrai_fonte_externa.py --check-remote --id tcc-ufpe-galpao-44x90
 
+# G46: executor periódico de todas as fontes (mesmo molde do job de build)
+powershell -ExecutionPolicy Bypass -File tools\run_remote_check.ps1
+
 # validar procedência de um fixture
 python -m pytest framework/galpao_fw/tests/test_fontes_externas_protocolo.py -v
 ```
