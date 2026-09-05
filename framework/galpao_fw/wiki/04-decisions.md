@@ -727,3 +727,17 @@ gancho, então o gancho vira exigência declarada, não geometria inventada.
 Cobertura: `tests/test_fctm_c60_g49.py` (8 testes por módulo C50×C60 exigindo
 C60 < extrapolação errada + transversal que falha se algum módulo ainda usar
 C50 acima de C50 + teste da NOTA).
+
+## D86/G50 — o resto da família C55–C90 + a asserção tautológica (2026-09-05) — FECHADO
+O G49 fechou **uma** variável da faixa alta (`fctm`, 8.2.5). A revisão mediu que a norma muda mais quatro coisas acima de C50, todas com o valor de C50 no código e **três já com o comentário `(fck<=50)`** — outra vez "o limite era conhecido e não virou guarda". Cláusulas lidas literalmente no PDF do acervo (p. 23, 24, 26, 91, 120), não de memória:
+
+- **17.2.2 + 14.6.4.3** em `fundacao_sapata._armadura_flexao` (primitiva única de sapata/laje/viga): `lambda_bloco(fck)`, `alpha_c(fck)`, `xd_lim(fck)`. **1154 de 5154 casos** em C55–C90 passavam com `ok_dominio=True` e `x/d` acima do permitido; pior `x/d` real **0,695** contra limite 0,35, com o código reportando 0,449 ≤ 0,45. O erro tinha dupla origem: o limite errado **e** o `x/d` calculado com o `λ` errado, que o subestima — corrigir só o limite não fecharia.
+- **8.2.8 `Eci`**: `5600·√fck` vale "de 20 MPa a 50 MPa"; acima superestimava o módulo em +4,2% (C60) a +13,8% (C90) → flecha e perda elástica de protensão subestimadas. Primitiva única `fissuracao_nbr6118.eci`, 6 sítios; sobrou uma só ocorrência de `5600` no repositório, dentro do ramo `fck<=50` da própria primitiva.
+- **8.2.10.1** em `pilar_concreto`: `eps_cu`, `eps_c2` e o expoente `n` do parábola-retângulo por `fck`.
+- **`gancho_135_exigido` sai do dict e entra no ARTEFATO** (quadro de aço + SVG). O D85/G49 dizia "vira exigência declarada"; ela estava declarada num dict que ninguém abria — nem o executivo, nem o desenho, nem o detector do G48 (a escapatória do `_retornos`: campo devolvido é campo "usado"). O teste mede o SVG e o quadro, não o dict.
+
+**Asserção tautológica (bug de teste, achado na revisão).** `test_02_flecha_maior_que_extrapolacao` afirmava `d_pos > d_pos * (Ecs_novo/Ecs_err)` — razão < 1, logo verdade para qualquer implementação. Era o **único** teste do efeito no ELS e passaria com o `5600·√fck` de volta no lugar. Reescrito para **injetar** a extrapolação errada e comparar as duas flechas: 0,8100 mm (certo) × 0,7800 mm (errado) em C60. **REGRA:** asserção cujo lado direito deriva do lado esquerdo não mede nada — o comparativo tem de vir de uma execução independente (fórmula antiga injetada, fixture, ou valor literal aferido). Prima do "teste que checa substring e nunca parseia" e do "green bar não cobre o artefato".
+
+**Continuidade C50 verificada bit-a-bit** (não por amostra): 6804 casos de flexão contra reimplementação com as constantes antigas, `Eci` de 20 a 50 MPa, o diagrama do pilar e `_sigma_c` em 204 pontos — **zero diferenças**. Guardas provadas vermelhas desfazendo os fixes numa cópia.
+
+**Aberto:** `s_limite_governante` é sobrescrito pelo rótulo da NOTA em C55–C90 e perde qual limite foi cortado (rótulo, não cálculo). `LAMBDA_BLOCO`/`ALPHA_C`/`XD_LIM` de `fundacao_sapata` ficaram sem consumidor — armadilha para quem vier depois. **Escopo:** foi varrida a família 8.2.5/8.2.8/8.2.10.1/14.6.4.3/17.2.2; não se afirma exaustividade sobre outras cláusulas com faixa de validade em `fck`.
