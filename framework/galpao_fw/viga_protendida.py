@@ -63,9 +63,11 @@ def tensoes_borda(P, ep, M, b, h):
 
 
 def _fctm(fck):
-    """fctm (kN/m2) = 0,3*fck^(2/3) [fck<=50]."""
+    """fctm (kN/m2) NBR 6118 8.2.5 (G49): ate C50 0,3*fck^(2/3); C55-C90 2,12*ln(1+0,11*fck)."""
     fck_MPa = fck / 1000.0
-    return 0.3 * fck_MPa ** (2.0 / 3.0) * 1000.0
+    if fck_MPa <= 50.0:
+        return 0.3 * fck_MPa ** (2.0 / 3.0) * 1000.0
+    return 2.12 * math.log(1.0 + 0.11 * fck_MPa) * 1000.0
 
 
 def verifica_ato(P0, ep, Mg, b, h, fckj):

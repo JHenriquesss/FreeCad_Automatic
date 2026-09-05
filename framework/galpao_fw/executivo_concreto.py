@@ -178,6 +178,17 @@ def relatorio_quadro_pt(r):
           f"  TAXAS: {res['taxa_kg_m2']:.1f} kg/m2 (area) ; "
           f"consumo {res['consumo_kg_m3']:.1f} kg/m3 de concreto",
           "  [A CONFIRMAR: comprimentos de emenda/arranque conforme detalhamento final.]"]
+    # G50: gancho 135 sai do dict e entra no ARTEFATO (quadro/SVG). C55-C90 exige
+    # estribo com gancho a 135 graus (NBR 6118 18.4.3 NOTA); em C50 nada muda.
+    try:
+        pil = r.get("pilar", {})
+        fck_MPa = float(r.get("spec", {}).get("fck_MPa", 0.0))
+        gancho = bool(pil.get("gancho_135_exigido")) or fck_MPa > 50.0
+    except Exception:
+        gancho = False
+    if gancho:
+        L.append("  NOTA C55-C90 (18.4.3): estribos do pilar com gancho a 135 graus "
+                 "(gancho_135_exigido).")
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 

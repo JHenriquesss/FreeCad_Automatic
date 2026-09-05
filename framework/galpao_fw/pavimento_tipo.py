@@ -38,6 +38,7 @@ cada pilar."""
 from __future__ import annotations
 
 import cargas_nbr6120 as cg
+import fissuracao_nbr6118 as fis
 import laje_concreto as lj
 import viga_continua as vc
 
@@ -215,8 +216,10 @@ def monta(cfg):
         # Para a descida de cargas usa-se o carregamento pleno (a envoltoria de
         # alternancia serve aos esforcos INTERNOS da viga, nao ao normal do pilar).
         vazio = [[] for _ in vaos]
+        # EI p/ reacoes separadas g/q (8.2.8, G50): Eci pela primitiva unica ;
+        # 0,85 legado de rigidez relativa (C50 bit-a-bit inalterado).
         tramos_ei = [{"L": t["L"],
-                      "EI": (0.85 * 5600.0 * (fck / 1000.0) ** 0.5 * 1000.0)
+                      "EI": (0.85 * fis.eci(fck))
                             * b_v * h_v ** 3 / 12.0} for t in tramos]
         rg = vc._analisa_caso(tramos_ei, g, vazio)
         rq = vc._analisa_caso(tramos_ei, list(q_lin), vazio)

@@ -34,12 +34,44 @@ GAMMA_S = 1.15
 GAMMA_F = 1.4
 
 # --- diagrama de deformacoes (fck <= 50 MPa), NBR 6118 8.2.10 / 17.2.2 -------
-EPS_CU = 0.0035        # encurtamento ultimo do concreto (3,5 por mil)
-EPS_C2 = 0.0020        # deformacao no pivo C / dominio 5 (2 por mil)
+EPS_CU = 0.0035        # encurtamento ultimo do concreto (3,5 por mil, C50)
+EPS_C2 = 0.0020        # deformacao no pivo C / dominio 5 (2 por mil, C50)
 EPS_SU = 0.0100        # alongamento maximo do aco (10 por mil), 17.2.2
 ES_ACO = 210e6         # modulo de elasticidade do aco (kN/m2), 8.3.6
 LAMBDA_BLOCO = 0.80    # altura do bloco retangular de tensoes, 17.2.2 (fck<=50)
 ALPHA_C = 0.85         # tensao do bloco = 0,85*fcd, 17.2.2 (fck<=50)
+
+
+def eps_cu(fck_MPa=None):
+    """Encurtamento ultimo (NBR 6118 8.2.10.1 Fig.8.2, G50).
+    C50: 3,5 por mil ; C55-C90: 2,6+35*[(90-fck)/100]^4 por mil."""
+    if fck_MPa is None or fck_MPa <= 50.0:
+        return EPS_CU
+    return (2.6 + 35.0 * ((90.0 - fck_MPa) / 100.0) ** 4) / 1000.0
+
+
+def eps_c2(fck_MPa=None):
+    """Deformacao do pivo C (NBR 6118 8.2.10.1 Fig.8.2, G50).
+    C50: 2,0 por mil ; C55-C90: 2,0+0,085*(fck-50)^0,53 por mil."""
+    if fck_MPa is None or fck_MPa <= 50.0:
+        return EPS_C2
+    return (2.0 + 0.085 * (fck_MPa - 50.0) ** 0.53) / 1000.0
+
+
+def expoente_n(fck_MPa=None):
+    """Expoente n do parabola-retangulo (NBR 6118 8.2.10.1 Fig.8.2, G50).
+    C50: 2,0 ; C55-C90: 1,4+23,4*[(90-fck)/100]^4."""
+    if fck_MPa is None or fck_MPa <= 50.0:
+        return 2.0
+    return 1.4 + 23.4 * ((90.0 - fck_MPa) / 100.0) ** 4
+
+
+def alpha_c_pilar(fck_MPa=None):
+    """Tensao do bloco parabola-retangulo (NBR 6118 17.2.2, G50).
+    C50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200]."""
+    if fck_MPa is None or fck_MPa <= 50.0:
+        return ALPHA_C
+    return 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
 
 
 def esbeltez(le, h):
@@ -171,19 +203,23 @@ def curvatura(h, nu):
 # ---------------------------------------------------------------------------
 # Solver de resistencia: FLEXAO COMPOSTA RETA por compatibilidade de deformacoes
 # ---------------------------------------------------------------------------
-def _eps_fibra(z, x, d, h):
+def _eps_fibra(z, x, d, h, fck=None):
     """Deformacao (COMPRESSAO POSITIVA) na fibra a distancia z da face mais
-    comprimida, para linha neutra a profundidade x. Pivos da NBR 6118 (17.2.2):
-      - x <= 0,259d  -> dominio 2: pivo no aco tracionado (EPS_SU em z=d);
-      - 0,259d < x <= h -> dominios 3/4: pivo no concreto (EPS_CU na face z=0);
-      - x > h -> dominio 5: pivo C (EPS_C2 na fibra z=3h/7)."""
-    x23 = d * EPS_CU / (EPS_CU + EPS_SU)          # 0,259d (fronteira dom.2/3)
+    comprimida, para linha neutra a profundidade x. Pivos da NBR 6118 (17.2.2
+    + 8.2.10.1 Fig.8.2, G50): fck em kN/m2 (None = C50 legado).
+      - x <= x23  -> dominio 2: pivo no aco tracionado (EPS_SU em z=d);
+      - x23 < x <= h -> dominios 3/4: pivo no concreto (eps_cu na face z=0);
+      - x > h -> dominio 5: pivo C (eps_c2 na fibra z=3h/7)."""
+    fck_MPa = fck / 1000.0 if fck is not None else None
+    ecu = eps_cu(fck_MPa)
+    ec2 = eps_c2(fck_MPa)
+    x23 = d * ecu / (ecu + EPS_SU)          # 0,259d em C50 (fronteira dom.2/3)
     if x <= x23:
-        k = EPS_SU / (d - x) if d > x else EPS_CU / max(x, 1e-12)
+        k = EPS_SU / (d - x) if d > x else ecu / max(x, 1e-12)
     elif x <= h:
-        k = EPS_CU / x
+        k = ecu / x
     else:
-        k = EPS_C2 / (x - 3.0 * h / 7.0)
+        k = ec2 / (x - 3.0 * h / 7.0)
     return k * (x - z)
 
 
@@ -192,28 +228,35 @@ def _sigma_s(eps, fyd):
     return max(-fyd, min(fyd, ES_ACO * eps))
 
 
-def _sigma_c(eps, fcd):
-    """Tensao do concreto pelo diagrama PARABOLA-RETANGULO (17.2.2, fck<=50, n=2):
-    0,85fcd*[1-(1-eps/0,002)^2] p/ 0<=eps<0,002 ; 0,85fcd p/ 0,002<=eps<=0,0035.
+def _sigma_c(eps, fcd, fck=None):
+    """Tensao do concreto pelo diagrama PARABOLA-RETANGULO (17.2.2 + 8.2.10.1
+    Fig.8.2, G50): alpha_c*fcd*[1-(1-eps/eps_c2)^n] p/ 0<=eps<eps_c2 ;
+    alpha_c*fcd p/ eps_c2<=eps<=eps_cu. fck em kN/m2 (None = C50 legado:
+    0,85fcd*[1-(1-eps/0,002)^2]).
     Compressao positiva; tracao -> 0. kN/m2. (Diagrama de referencia dos abacos de
     pilar; o bloco retangular equivalente fica na viga/sapata em flexao simples.)"""
+    fck_MPa = fck / 1000.0 if fck is not None else None
+    ec2 = eps_c2(fck_MPa)
+    nn = expoente_n(fck_MPa)
+    ac = alpha_c_pilar(fck_MPa)
     if eps <= 0.0:
         return 0.0
-    if eps >= EPS_C2:
-        return ALPHA_C * fcd
-    return ALPHA_C * fcd * (1.0 - (1.0 - eps / EPS_C2) ** 2)
+    if eps >= ec2:
+        return ac * fcd
+    return ac * fcd * (1.0 - (1.0 - eps / ec2) ** nn)
 
 
 def _resultante_concreto(x, b, h, d, fck, n=60):
     """Integra o diagrama parabola-retangulo na zona comprimida (regra do ponto
-    medio, n faixas): retorna (Rcc [kN], Mcc [kN.m] em relacao ao CG)."""
+    medio, n faixas): retorna (Rcc [kN], Mcc [kN.m] em relacao ao CG).
+    Diagrama 8.2.10.1/17.2.2 por fck (G50)."""
     fcd = fck / GAMMA_C
     dz = h / n
     Rcc = 0.0
     Mcc = 0.0
     for i in range(n):
         z = (i + 0.5) * dz
-        s = _sigma_c(_eps_fibra(z, x, d, h), fcd)
+        s = _sigma_c(_eps_fibra(z, x, d, h, fck), fcd, fck)
         f = s * b * dz
         Rcc += f
         Mcc += f * (h / 2.0 - z)
@@ -228,10 +271,10 @@ def _N_M_resistente(x, As, b, h, dl, fck, fyk):
     fyd = fyk / GAMMA_S
     d = h - dl                                    # aco tracionado (face oposta)
     Rcc, Mcc = _resultante_concreto(x, b, h, d, fck)
-    eps_c = _eps_fibra(dl, x, d, h)               # aco junto a face comprimida
-    eps_t = _eps_fibra(d, x, d, h)                # aco junto a face tracionada
+    eps_c = _eps_fibra(dl, x, d, h, fck)               # aco junto a face comprimida
+    eps_t = _eps_fibra(d, x, d, h, fck)                # aco junto a face tracionada
     # desconta o concreto DESLOCADO pelo aco comprimido (tensao real na fibra)
-    sig_c = _sigma_s(eps_c, fyd) - _sigma_c(eps_c, fcd)
+    sig_c = _sigma_s(eps_c, fyd) - _sigma_c(eps_c, fcd, fck)
     sig_t = _sigma_s(eps_t, fyd)
     Rs_c = (As / 2.0) * sig_c
     Rs_t = (As / 2.0) * sig_t
@@ -355,7 +398,10 @@ def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
     fywd = fyk / GAMMA_S
     alpha_v2 = 1.0 - fck_MPa / 250.0
     VRd2 = 0.27 * alpha_v2 * fcd * bw * d
-    fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
+    if fck_MPa <= 50.0:
+        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)       # 8.2.5 ate C50
+    else:
+        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)  # 8.2.5 C55-C90 (G49)
     fctd_MPa = 0.7 * fctm_MPa / 1.4
     Vc = 0.6 * fctd_MPa * 1000.0 * bw * d
     fywk_MPa = fyk / 1000.0
@@ -636,6 +682,16 @@ def dimensiona_pilar(caso):
         limites_s["18.4.3 12.phi_long"] = 12.0 * float(phi_long) / 1000.0
     s_estribo_max = min(limites_s.values())
     s_limite_governante = min(limites_s, key=lambda k: limites_s[k])
+    # G49/NOTA 18.4.3 C55-C90: "recomenda-se" espacamentos maximos reduzidos em
+    # 50% e ganchos a 135 graus. Decisao registrada (D85/G49): APLICAR o 50%
+    # (conservador, fail-closed) e EXIGIR o gancho 135 como campo de
+    # detalhamento. Nao ignorar em silencio.
+    fck_MPa_pilar = fck / 1000.0
+    nota_duct_C55_C90 = bool(fck_MPa_pilar > 50.0)
+    gancho_135_exigido = bool(nota_duct_C55_C90)
+    if nota_duct_C55_C90:
+        s_estribo_max = 0.5 * s_estribo_max
+        s_limite_governante = "18.4.3 NOTA C55-C90 50% (G49)"
     # 18.4.3: phi_t >= 5 mm e >= phi_long/4 (so verificavel com phi_long dado).
     phi_t_min = max(5.0, float(phi_long) / 4.0) if phi_long is not None else 5.0
     # G47: o detalhamento recebe a geometria do cortante para exigir o st
@@ -688,6 +744,8 @@ def dimensiona_pilar(caso):
         "s_limite_governante": s_limite_governante,
         "phi_t_min_mm": round(phi_t_min, 2),
         "limites_s_m": {k: round(v, 4) for k, v in limites_s.items()},
+        "nota_ductilidade_C55_C90": bool(nota_duct_C55_C90),
+        "gancho_135_exigido": bool(gancho_135_exigido),
     })
     return res
 

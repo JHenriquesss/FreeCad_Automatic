@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import math
 
+import fissuracao_nbr6118 as fis
+
 EP_ACO = 200e6                 # modulo do aco de protensao (kN/m2), 8.4.7
 
 # fluencia/retracao tipicos (Tab.A.1 NBR 6118, ao ar livre ~70% UR)
@@ -29,8 +31,9 @@ EPS_CS_PADRAO = -5.0e-4        # retracao correspondente
 
 
 def _eci(fckj):
-    """Modulo tangente inicial na data da protensao. fckj em kN/m2 -> kN/m2."""
-    return 5600.0 * math.sqrt(fckj / 1000.0) * 1000.0
+    """Modulo tangente inicial na data da protensao (NBR 6118 8.2.8, G50).
+    fckj em kN/m2 -> kN/m2. Primitiva unica em fissuracao_nbr6118.eci."""
+    return fis.eci(fckj)
 
 
 def perdas_pretracao(sigma_pi, Ap, ep, Mg, b, h, fckj, phi=PHI_FLUENCIA_PADRAO):

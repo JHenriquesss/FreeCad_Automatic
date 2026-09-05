@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import fundacao_sapata as fs
+import fissuracao_nbr6118 as fis
 
 GAMMA_C_CONC = 25.0        # peso especifico do concreto armado (kN/m3) - NBR 6118
 GF = 1.4                   # coef. de ponderacao das acoes (ELU, combinacao normal)
@@ -40,7 +41,10 @@ def _verifica_cortante(Vd, b, d, fck, fyk):
     fywd = fyk / 1.15
     alpha_v2 = 1.0 - fck_MPa / 250.0
     VRd2 = 0.27 * alpha_v2 * fcd * b * d
-    fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
+    if fck_MPa <= 50.0:
+        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)       # 8.2.5 ate C50
+    else:
+        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)  # 8.2.5 C55-C90 (G49)
     fctd_MPa = 0.7 * fctm_MPa / 1.4
     Vc = 0.6 * fctd_MPa * 1000.0 * b * d
     fywk_MPa = fyk / 1000.0
@@ -66,9 +70,12 @@ def _flecha_alvenaria(b, h, d, L, w, fck, As_tracao, continua):
     menor). Cargas de servico (a parede e permanente). Retorna dict com a flecha
     total diferida, o limite e o veredito."""
     fck_MPa = fck / 1000.0
-    E_ci = 5600.0 * math.sqrt(fck_MPa) * 1000.0        # kN/m2 (alpha_E=1, granito)
+    E_ci = fis.eci(fck)        # kN/m2 (8.2.8, G50: primitiva unica)
     E_cs = min(0.8 + 0.2 * fck_MPa / 80.0, 1.0) * E_ci
-    fctm = 0.3 * fck_MPa ** (2.0 / 3.0) * 1000.0        # kN/m2
+    if fck_MPa <= 50.0:
+        fctm = 0.3 * fck_MPa ** (2.0 / 3.0) * 1000.0        # kN/m2 (ate C50)
+    else:
+        fctm = 2.12 * math.log(1.0 + 0.11 * fck_MPa) * 1000.0  # kN/m2 (C55-C90, G49)
     Ic = b * h ** 3 / 12.0
     Mr = 1.5 * fctm * Ic / (h / 2.0)                    # momento de fissuracao (kN.m)
     cM = _COEF_M.get("continua" if continua else "simples", 1.0 / 8.0)

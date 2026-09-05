@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import math
 
+import fissuracao_nbr6118 as fis
+
 # limites de 14.6.6.3 para DISPENSAR a alternancia de cargas
 Q_MAX_DISPENSA_ALTERNANCIA = 5.0      # kN/m2
 FRACAO_MAX_DISPENSA = 0.50            # q <= 50% da carga total
@@ -290,9 +292,11 @@ def analisa(cfg):
     q = _por_tramo(cfg.get("q", 0.0))
     pontuais = cfg.get("cargas_pontuais") or [[] for _ in range(n)]
     fck = cfg.get("fck", 25e3)
-    # Ecs estimado (8.2.8) so para a rigidez RELATIVA entre tramos; a analise linear
-    # de viga continua so depende das relacoes EI/L, nao do valor absoluto.
-    Ecs = 0.85 * 5600.0 * math.sqrt(fck / 1000.0) * 1000.0
+    # Ecs estimado (8.2.8, G50) so para a rigidez RELATIVA entre tramos; a analise
+    # linear de viga continua so depende das relacoes EI/L, nao do valor absoluto.
+    # Eci pela primitiva unica (C55-C90 menor -> conservador); o 0,85 e' fator
+    # de rigidez relativa legado (C50 bit-a-bit inalterado).
+    Ecs = 0.85 * fis.eci(fck)
 
     tramos = []
     for tr in tramos_in:

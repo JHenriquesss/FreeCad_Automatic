@@ -672,8 +672,13 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
 def comprimento_ancoragem(phi_mm, fck_MPa=25, fyk_MPa=500, gancho=True,
                            boa_aderencia=True):
     """Comprimento de ancoragem basico (lb) e necessario (lb,nec) (NBR 6118 9.4).
+    NBR 6118 8.2.5 (G49): ate C50 fctm=0,3*fck^(2/3); C55-C90 fctm=2,12*ln(1+0,11*fck).
     Retorna lb, lb_nec, lb_min em mm, fbd em MPa."""
-    fctd = 0.7 * 0.3 * fck_MPa ** (2.0 / 3.0) / 1.4
+    if fck_MPa <= 50.0:
+        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
+    else:
+        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)
+    fctd = 0.7 * fctm_MPa / 1.4
     fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * 1.0 * fctd
     fyd = fyk_MPa / 1.15
     lb = (phi_mm / 4.0) * (fyd / fbd)
@@ -707,9 +712,33 @@ def quadro_dobramento(barras):
 #   - 19.5.3.1: tau_Sd <= tau_Rd2 = 0,27*alpha_v*fcd ; alpha_v=(1-fck/250) [MPa];
 #               tau_Sd = Fd/(u0*d) [+ K*Md/(Wp0*d)] no perimetro do pilar u0
 #               (K da Tabela 19.2 em funcao de C1/C2).
-LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa)
-ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa)
-XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50)
+LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa, legado p/ C50)
+ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa, legado p/ C50)
+XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50, legado)
+
+
+def lambda_bloco(fck_MPa):
+    """Altura relativa do bloco retangular (NBR 6118 17.2.2, G50).
+    fck<=50: 0,80 ; C55-C90: 0,80-(fck-50)/400."""
+    if fck_MPa <= 50.0:
+        return 0.80
+    return 0.80 - (fck_MPa - 50.0) / 400.0
+
+
+def alpha_c(fck_MPa):
+    """Tensao do bloco (NBR 6118 17.2.2, G50).
+    fck<=50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200]."""
+    if fck_MPa <= 50.0:
+        return 0.85
+    return 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
+
+
+def xd_lim(fck_MPa):
+    """Limite de ductilidade x/d (NBR 6118 14.6.4.3, G50).
+    fck<=50: 0,45 ; C55-C90: 0,35."""
+    if fck_MPa <= 50.0:
+        return 0.45
+    return 0.35
 RHO_MIN = 0.0015           # piso absoluto 0,15% (17.3.5.2.1); rho_min(fck) p/ fck>30
 
 # Tabela 17.3 (NBR 6118:2014) - taxa minima de armadura de flexao, secao
@@ -747,20 +776,26 @@ def _K_puncao(c1_c2):
 
 
 def _armadura_flexao(M_d, b, d, fck, fyk):
-    """Armadura de flexao por bloco retangular (17.2.2). Retorna
-    (As, x_d, z, ok_dominio). M_d em kN.m ; b,d em m ; fck,fyk em kN/m2."""
+    """Armadura de flexao por bloco retangular (17.2.2 + 14.6.4.3, G50). Retorna
+    (As, x_d, z, ok_dominio). M_d em kN.m ; b,d em m ; fck,fyk em kN/m2.
+    fck<=50: lambda=0,80 alpha_c=0,85 xd_lim=0,45 ; C55-C90: lambda/alpha_c
+    reduzem e xd_lim=0,35 (mais exigente)."""
     fcd = fck / 1.4
     fyd = fyk / 1.15
     if M_d <= 0:
         return 0.0, 0.0, d, True
-    mu = M_d / (b * d * d * ALPHA_C * fcd)
+    fck_MPa = fck / 1000.0
+    lam = lambda_bloco(fck_MPa)
+    ac = alpha_c(fck_MPa)
+    xlim = xd_lim(fck_MPa)
+    mu = M_d / (b * d * d * ac * fcd)
     disc = 1.0 - 2.0 * mu
     if disc < 0:                                  # secao insuficiente a flexao
-        return None, 1.0 / LAMBDA_BLOCO, 0.0, False
-    x_d = (1.0 - math.sqrt(disc)) / LAMBDA_BLOCO
-    z = d * (1.0 - 0.5 * LAMBDA_BLOCO * x_d)
+        return None, 1.0 / lam, 0.0, False
+    x_d = (1.0 - math.sqrt(disc)) / lam
+    z = d * (1.0 - 0.5 * lam * x_d)
     As = M_d / (fyd * z)
-    return As, x_d, z, (x_d <= XD_LIM + 1e-9)
+    return As, x_d, z, (x_d <= xlim + 1e-9)
 
 
 def puncao_sapata(N_d, B, L, ap_L, ap_B, d, fck, As_L, As_B):

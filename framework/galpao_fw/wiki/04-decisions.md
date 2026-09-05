@@ -703,3 +703,27 @@ Achado no cross-check da 18.4.3 no NotebookLM (a NOTA sobre C55–C90 levou a ol
 **Extensão medida:** 12 ocorrências em 11 módulos usam a expressão de C50 (`base_chumbador` ×2, `estaca_profunda`, `fundacao_sapata`, `laje_concreto`, `pilar_concreto`, `piso_industrial`, `premoldado_nbr9062`, `viga_baldrame` ×2, `viga_protendida`). Só **duas** tratam a faixa alta: `fissuracao_nbr6118.py:45` e `premoldado_nbr9062.py:73` — ou seja, **a fórmula certa já existe no repositório**, em dois lugares, e não foi aplicada nos outros. Três sítios carregam o comentário `# (fck<=50)` / `# (<= C50)`: o limite era conhecido e não virou guarda.
 
 **Não corrigido aqui de propósito.** Não é ajuste de duas linhas: é varredura em 11 módulos com efeito em `Vc`, `ρsw,mín`, ancoragem, punção e fissuração, e cada um precisa de teste. Vira goal (G49), no molde do "método só vale até λ = 90 e `OK` = True" do G3 — a família de defeitos em que o módulo aceita a entrada fora da faixa do método e responde com um número que parece bom.
+
+## D85/G49 — fechamento: fctm C55–C90 + NOTA de ductilidade (2026-09-04) — FECHADO
+G49 aplicou `fctm = 2,12·ln(1+0,11·fck)` para fck > 50 MPa (8.2.5) em 9 sítios
+runtime de 8 módulos: `base_chumbador.ancoragem_chumbador`,
+`estaca_profunda.ancoragem_tirante`, `fundacao_sapata.comprimento_ancoragem`,
+`laje_concreto.cortante_laje`, `pilar_concreto.verifica_cortante_pilar`,
+`piso_industrial.resistencia_flexao_projeto`, `viga_baldrame._verifica_cortante`
++ `_flecha_alvenaria` (Mr), `viga_protendida._fctm`. Referências conferidas, não
+reescritas: `fissuracao_nbr6118.py:45` e `premoldado_nbr9062.py:73` já certas.
+`premoldado` listado no D85 era o ramo `<=50` da função já bipartida — sem
+defeito; selftests com fck=25 fixo e `estaca 671` (C25) não são defeito.
+Rejeitar fck > 50 foi explicitamente rejeitado: trocaria número errado por
+recusa, com a fórmula certa a uma linha de distância.
+
+**NOTA 18.4.3 C55–C90 (ductilidade) — decisão explícita: APLICAR.**
+A NOTA diz "recomenda-se" espaçamentos máximos reduzidos em 50% e ganchos a
+135°. Por ser recomendação, ignorar em silêncio era a falha a evitar. Decisão:
+aplica o 50% como fail-closed (`s_estribo_max *= 0,5` em C55–C90, governante
+`18.4.3 NOTA C55–C90 50% (G49)`) e expõe `nota_ductilidade_C55_C90` +
+`gancho_135_exigido` no dict do pilar — o framework não detalha o ângulo do
+gancho, então o gancho vira exigência declarada, não geometria inventada.
+Cobertura: `tests/test_fctm_c60_g49.py` (8 testes por módulo C50×C60 exigindo
+C60 < extrapolação errada + transversal que falha se algum módulo ainda usar
+C50 acima de C50 + teste da NOTA).

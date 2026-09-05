@@ -152,6 +152,17 @@ def prancha_armacao_svg(r):
         B, Ls, hf = r["sapata"]["aprovado"][:3]
         esc_sap = 150.0 / (max(B, Ls) * 100.0)         # cabe em ~150 px
         parts.append(_svg_sapata(740, 210, B, Ls, hf, esc_sap, r))
+    # G50: gancho 135 no ARTEFATO (SVG), nao so no dict. C55-C90 exige estribo
+    # com gancho a 135 graus (NBR 6118 18.4.3 NOTA); em C50 nada muda.
+    try:
+        _pil = r.get("pilar", {})
+        _fck = float(r.get("spec", {}).get("fck_MPa", 0.0))
+        _gancho = bool(_pil.get("gancho_135_exigido")) or _fck > 50.0
+    except Exception:
+        _gancho = False
+    if _gancho:
+        parts.append(f'<text x="20" y="{Hn - 14:.0f}" font-size="12" font-weight="bold" '
+                     f'fill="#111">{_esc("NOTA C55-C90 (18.4.3): estribos do pilar com gancho a 135 graus")}</text>')
     parts.append('</svg>')
     return "\n".join(parts)
 

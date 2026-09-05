@@ -30,11 +30,25 @@ ES_ACO = 210e6                 # modulo do aco (kN/m2), 8.3.6
 WK_LIM_MM = {"I": 0.4, "II": 0.3, "III": 0.3, "IV": 0.2}
 
 
+def eci_MPa(fck_MPa, alpha_e=1.0):
+    """Eci tangente inicial (NBR 6118 8.2.8, G50). fck em MPa -> MPa.
+    fck<=50: alpha_e*5600*sqrt(fck) ; C55-C90: 21500*alpha_e*(fck/10+1,25)^(1/3).
+    alpha_e do agregado (1,2 basalto; 1,0 granito/gnaisse; 0,9 calcario; 0,7 arenito)."""
+    if fck_MPa <= 50.0:
+        return alpha_e * 5600.0 * math.sqrt(fck_MPa)
+    return alpha_e * 21500.0 * (fck_MPa / 10.0 + 1.25) ** (1.0 / 3.0)
+
+
+def eci(fck, alpha_e=1.0):
+    """Eci (NBR 6118 8.2.8, G50). fck em kN/m2 -> kN/m2. Primitiva unica do Eci."""
+    return eci_MPa(fck / 1000.0, alpha_e) * 1000.0
+
+
 def modulo_secante(fck, alpha_e=1.0):
-    """Ecs (modulo secante) da NBR 6118 8.2.8. fck em kN/m2 -> Ecs em kN/m2.
-    Eci = alpha_e*5600*sqrt(fck[MPa]); Ecs = alpha_i*Eci, alpha_i=0,8+0,2 fck/80<=1."""
+    """Ecs (modulo secante) da NBR 6118 8.2.8 (G50). fck em kN/m2 -> Ecs em kN/m2.
+    Eci pela primitiva eci() ; Ecs = alpha_i*Eci, alpha_i=0,8+0,2 fck/80<=1."""
     fck_MPa = fck / 1000.0
-    Eci = alpha_e * 5600.0 * math.sqrt(fck_MPa)          # MPa
+    Eci = eci_MPa(fck_MPa, alpha_e)          # MPa
     alpha_i = min(0.8 + 0.2 * fck_MPa / 80.0, 1.0)
     return alpha_i * Eci * 1000.0                          # kN/m2
 

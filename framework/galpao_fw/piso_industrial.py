@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import math
 
+import fissuracao_nbr6118 as fis
+
 # --- constantes de material/modelo -----------------------------------------
 NU_CONCRETO = 0.15              # Poisson do concreto p/ Westergaard (classico)
 GAMMA_C = 1.4                   # coef. de minoracao do concreto (NBR 6118)
@@ -46,10 +48,10 @@ _K_POR_CBR = [                  # (CBR_min_%, k_MN_m3)
 
 
 def modulo_elasticidade_concreto(fck_MPa):
-    """Ecs (secante) da NBR 6118, agregado granito/gnaisse (alpha_E=1,0):
-    Eci = 5600.sqrt(fck) ; Ecs = alpha_i.Eci, alpha_i = 0,8+0,2.fck/80 <= 1,0.
-    Retorna MPa."""
-    eci = 5600.0 * math.sqrt(fck_MPa)
+    """Ecs (secante) da NBR 6118 8.2.8 (G50), agregado granito/gnaisse (alpha_E=1,0):
+    Eci pela primitiva fissuracao_nbr6118.eci_MPa ; Ecs = alpha_i.Eci,
+    alpha_i = 0,8+0,2.fck/80 <= 1,0. Retorna MPa."""
+    eci = fis.eci_MPa(fck_MPa)
     alpha_i = min(1.0, 0.8 + 0.2 * fck_MPa / 80.0)
     return alpha_i * eci
 
@@ -58,13 +60,17 @@ def resistencia_flexao_projeto(fck_MPa):
     """Resistencia de projeto a tracao NA FLEXAO (modulo de ruptura) da placa,
     NBR 6118 8.2.5. A placa de piso trabalha a FLEXAO, nao a tracao axial; a norma
     da fct = 0,7.fct,f (a tracao na flexao e' ~1/0,7 = 1,43x a tracao direta):
-      fct,m       = 0,3.fck^(2/3)           (tracao axial media, fck<=50)
+      fct,m       = 0,3.fck^(2/3)           (tracao axial media, ate C50)
+      C55-C90: fct,m = 2,12.ln(1+0,11.fck)  (8.2.5, G49)
       fct,f,m     = fct,m / 0,7             (tracao na flexao media)
       fct,f,k,inf = 0,7.fct,f,m = fct,m     (caracteristico inferior, CV=0,7)
-      fct,f,d     = fct,f,k,inf / gamma_c   = 0,3.fck^(2/3) / 1,4
+      fct,f,d     = fct,f,k,inf / gamma_c
     Retorna MPa. (Contrasta com fundacao_sapata.py, que usa a tracao AXIAL fctd
     para ancoragem/cisalhamento - la o estado-limite e' outro.)"""
-    fctm = 0.3 * fck_MPa ** (2.0 / 3.0)
+    if fck_MPa <= 50.0:
+        fctm = 0.3 * fck_MPa ** (2.0 / 3.0)
+    else:
+        fctm = 2.12 * math.log(1.0 + 0.11 * fck_MPa)
     fct_f_k_inf = fctm                      # = 0,7.(fct,m/0,7)
     return fct_f_k_inf / GAMMA_C
 
