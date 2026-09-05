@@ -712,9 +712,32 @@ def quadro_dobramento(barras):
 #   - 19.5.3.1: tau_Sd <= tau_Rd2 = 0,27*alpha_v*fcd ; alpha_v=(1-fck/250) [MPa];
 #               tau_Sd = Fd/(u0*d) [+ K*Md/(Wp0*d)] no perimetro do pilar u0
 #               (K da Tabela 19.2 em funcao de C1/C2).
-LAMBDA_BLOCO = 0.80        # 17.2.2 (fck<=50 MPa, legado p/ C50)
-ALPHA_C = 0.85             # 17.2.2 (fck<=50 MPa, legado p/ C50)
-XD_LIM = 0.45              # 14.6.4.3 limite de ductilidade x/d (fck<=50, legado)
+LAMBDA_BLOCO_C50 = 0.80   # 17.2.2 legado C50, ORFA (sem consumidor, G51)
+ALPHA_C_C50 = 0.85        # 17.2.2 legado C50, ORFA (sem consumidor, G51)
+XD_LIM_C50 = 0.45         # 14.6.4.3 legado C50, ORFA (sem consumidor, G51)
+# G51: as constantes ORFAS acima ganharam sufixo _C50 (eram LAMBDA_BLOCO/
+# ALPHA_C/XD_LIM sem consumidor: armadilha para quem vier depois, que leria
+# o 0,80/0,85/0,45 como valido em C55-C90). O runtime usa lambda_bloco() /
+# alpha_c() / xd_lim() por fck. Compatibilidade: fs.XD_LIM (e as irmas)
+# ainda devolvem o valor C50 via __getattr__ abaixo, com aviso.
+
+
+def __getattr__(nome):
+    """Compat C50 (G51): fs.XD_LIM -> 0,45 ; fs.LAMBDA_BLOCO -> 0,80 ;
+    fs.ALPHA_C -> 0,85. Sem consumidor interno; quem importar recebe o aviso
+    para usar xd_lim(fck)/lambda_bloco(fck)/alpha_c(fck)."""
+    if nome in ("LAMBDA_BLOCO", "ALPHA_C", "XD_LIM"):
+        import warnings
+        warnings.warn(
+            "%s e legado C50 orfao (G51): usar %s(fck)" % (
+                nome, {"LAMBDA_BLOCO": "lambda_bloco",
+                       "ALPHA_C": "alpha_c",
+                       "XD_LIM": "xd_lim"}[nome]),
+            DeprecationWarning, stacklevel=2)
+        return {"LAMBDA_BLOCO": LAMBDA_BLOCO_C50, "ALPHA_C": ALPHA_C_C50,
+                "XD_LIM": XD_LIM_C50}[nome]
+    raise AttributeError("module %s has no attribute %r"
+                         % (__name__, nome))
 
 
 def lambda_bloco(fck_MPa):

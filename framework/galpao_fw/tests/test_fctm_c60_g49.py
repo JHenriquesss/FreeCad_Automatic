@@ -196,4 +196,7 @@ def test_nota_dutilidade_c55_c90_aplicada():
     assert r60["nota_ductilidade_C55_C90"] is True
     assert r60["gancho_135_exigido"] is True
     assert r60["s_estribo_max"] <= 0.5 * r50["s_estribo_max"] + 1e-9
-    assert r60["s_limite_governante"] == "18.4.3 NOTA C55-C90 50% (G49)"
+    # G51: rotulo composto - diz qual limite foi cortado pela NOTA
+    assert r60["s_limite_governante"] == (
+        r50["s_limite_governante"] + " + NOTA C55-C90 50% (G49/G51)")
+    assert "NOTA C55-C90 50%" in r60["s_limite_governante"]

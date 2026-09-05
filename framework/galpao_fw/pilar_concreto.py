@@ -38,7 +38,10 @@ EPS_CU = 0.0035        # encurtamento ultimo do concreto (3,5 por mil, C50)
 EPS_C2 = 0.0020        # deformacao no pivo C / dominio 5 (2 por mil, C50)
 EPS_SU = 0.0100        # alongamento maximo do aco (10 por mil), 17.2.2
 ES_ACO = 210e6         # modulo de elasticidade do aco (kN/m2), 8.3.6
-LAMBDA_BLOCO = 0.80    # altura do bloco retangular de tensoes, 17.2.2 (fck<=50)
+# G51-rev: LAMBDA_BLOCO (bloco retangular 0,80) SAIU daqui - tinha zero
+# consumidores e o comentario "(fck<=50)" a fazia parecer valida em C55-C90,
+# a mesma armadilha que o G51 tirou de fundacao_sapata. O pilar integra o
+# parabola-retangulo (_sigma_c/eps_cu/expoente_n), nao usa bloco retangular.
 ALPHA_C = 0.85         # tensao do bloco = 0,85*fcd, 17.2.2 (fck<=50)
 
 
@@ -691,7 +694,11 @@ def dimensiona_pilar(caso):
     gancho_135_exigido = bool(nota_duct_C55_C90)
     if nota_duct_C55_C90:
         s_estribo_max = 0.5 * s_estribo_max
-        s_limite_governante = "18.4.3 NOTA C55-C90 50% (G49)"
+        # G51: rotulo COMPOSTO - a NOTA cortou o s pela metade mas o limite
+        # que mandou continua nomeado (antes, o rotulo puro da NOTA perdia
+        # qual limite foi cortado; calculo inalterado, so rotulo).
+        s_limite_governante = ("%s + NOTA C55-C90 50%% (G49/G51)"
+                               % s_limite_governante)
     # 18.4.3: phi_t >= 5 mm e >= phi_long/4 (so verificavel com phi_long dado).
     phi_t_min = max(5.0, float(phi_long) / 4.0) if phi_long is not None else 5.0
     # G47: o detalhamento recebe a geometria do cortante para exigir o st

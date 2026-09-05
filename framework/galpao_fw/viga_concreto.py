@@ -134,7 +134,10 @@ def verifica_viga(cfg):
         torcao = tor.verifica_torcao(T_d, b, h, c1_tor, fck, fyk)
         torcao["interacao"] = tor.interacao_torcao_cortante(V_d, cr["VRd2"], T_d,
                                                             torcao["TRd2"])
-        tor_ok = torcao["biela_ok"] and torcao["interacao"]["OK"]
+        # G51-rev: le OK (biela E theta na faixa 30..45 da 17.5), nao
+        # biela_ok - que voltou a significar so a biela. Ler biela_ok aqui
+        # deixaria um theta fora da faixa atravessar a viga com OK=True.
+        tor_ok = torcao["OK"] and torcao["interacao"]["OK"]
 
     # ---- ELS-W: abertura de fissuras (17.3.3.2) ---------------------------
     # momento de servico ~ combinacao frequente; usa o caracteristico (sem gamma_f),
