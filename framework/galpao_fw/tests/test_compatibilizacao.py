@@ -103,3 +103,49 @@ def test_sem_conflitos():
     assert cp.gerar_pendencias({"clashes": []}) == []
     parseString(cp.matriz_svg({"por_par": {}, "clashes": []}).encode("utf-8"))
     assert "Nenhum conflito" in cp.relatorio_pt([])
+
+
+# ---------------------------------------------------------------------------
+# G54-rev: o nome da disciplina decide a acao, e o federado do EDIFICIO usa
+# "estrutura" (o do galpao separa "concreto"/"aco"). Enquanto "estrutura" nao
+# estava em `_ESTRUTURA`, TODA pendencia instalacao x estrutura do predio caia
+# no ramo "ambas sao instalacoes": responsavel "coordenacao" e a acao errada -
+# 126 de 126 na obra medida. Filtro de nome morto (mesmo formato do PR #40).
+# ---------------------------------------------------------------------------
+def _clash_predio():
+    return {"n_membros": 2, "n_clashes": 1, "n_revisar": 1, "n_esperado": 0,
+            "clashes": [{"a": "C-L11-Tipo 1", "b": "P-H-ESG-PRU",
+                         "disciplinas": "estruturaxhidraulica",
+                         "tipos": "SlabxPipe", "vol_mm3": 970299.0,
+                         "esperado": False}],
+            "por_par": {"estruturaxhidraulica": 1}, "OK": False,
+            "OK_revisar": False}
+
+
+def test_estrutura_do_edificio_e_reconhecida_como_estrutura():
+    """A instalacao cede a estrutura: responsavel e' a INSTALACAO, e a acao tem
+    de oferecer a passagem na estrutura - que e' o proposito do entregavel."""
+    import compatibilizacao as cp
+
+    pend = cp.gerar_pendencias(_clash_predio())
+    assert len(pend) == 1
+    p = pend[0]
+    assert p["responsavel"] == "hidraulica", (
+        "responsavel %r: o par estrutura x instalacao caiu no ramo de duas "
+        "instalacoes - 'estrutura' nao foi reconhecida como estrutura"
+        % p["responsavel"])
+    assert "prever passagem" in p["acao_sugerida"], (
+        "a acao nao oferece a passagem na estrutura: %r" % p["acao_sugerida"])
+    assert "reuniao de coordenacao" not in p["acao_sugerida"]
+
+
+def test_o_par_do_galpao_continua_igual():
+    """A correcao acrescenta um nome, nao muda o galpao (concreto/aco)."""
+    import compatibilizacao as cp
+
+    rep = _clash_predio()
+    rep["clashes"][0]["disciplinas"] = "concretoxhidraulica"
+    rep["por_par"] = {"concretoxhidraulica": 1}
+    p = cp.gerar_pendencias(rep)[0]
+    assert p["responsavel"] == "hidraulica"
+    assert "prever passagem" in p["acao_sugerida"]

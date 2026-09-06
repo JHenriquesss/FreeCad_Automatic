@@ -60,8 +60,8 @@ PROJECT_TYPES = ("edificio",)
 DISCIPLINES = ("estrutura", "incendio", "hidraulica", "eletrico")
 # A ordem dos extras e a ordem de execucao: o cronograma custeia as suas
 # atividades com a planilha que o orcamento acabou de gravar (G14).
-DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "orcamento",
-                "cronograma", "caderno_encargos", "pacote_legal")
+DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "coordination",
+                "orcamento", "cronograma", "caderno_encargos", "pacote_legal")
 SCHEMA = "freecad-automatic/building-result"
 SCHEMA_VERSION = 1
 
@@ -985,6 +985,33 @@ def _emitir_ifc(manifest, run_dir, normalized, options, result):
     if registro["status"] == "failed":
         registro["detail"] = ("o modelo emitido nao reproduz o calculo "
                               "(contagem por tipo ou interpenetracao)")
+    # G53: federado estrutura + instalacoes no MESMO frame + clash. As
+    # instalacoes saem do `result['instalacoes']` que run_edificio ja guarda;
+    # sem elas, o federado e' so a estrutura e o clash sai vazio (honesto).
+    try:
+        import bim_instalacoes_edificio as bie
+
+        inst = (result.get("instalacoes")
+                if isinstance(result, dict) else None) or {}
+        fed, disc_fed = bie.membros_federados_edificio(estrutura, inst)
+        clash = bie.checa_interferencia_edificio(estrutura, inst)
+        fed_path = destino / "edificio-federado.ifc"
+        ifc_emit.emitir_ifc(fed, str(fed_path), nome="EdificioFederado",
+                            pavimentos=bim.pavimentos_ifc(
+                                estrutura, bim._pe_direito(
+                                    estrutura["pilares"])))
+        if fed_path.is_file():
+            _add_artifact(manifest, run_dir, fed_path, "ifc",
+                          discipline="federado")
+            registro["artifacts"].append("bim/edificio-federado.ifc")
+            registro["federado"] = {
+                "n_membros": len(fed), "disciplinas": disc_fed,
+                "n_clashes": clash["n_clashes"],
+                "por_par": clash["por_par"],
+                "clashes": clash["clashes"][:50],
+            }
+    except Exception as exc:                                # noqa: BLE001
+        registro["federado_erro"] = _erro_entregavel(exc)
     manifest["deliverables"]["ifc"] = registro
 
 
@@ -1080,6 +1107,134 @@ def _cruzar_puro_com_freecad(membros, modelo):
     }
 
 
+def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
+    """Hook de compatibilizacao: clash instalacoes x estrutura no mesmo frame.
+
+    Reuso quase total do caminho do galpao (compatibilizacao + matriz/BCF), com
+    o motor do G53 (`bim_instalacoes_edificio.checa_interferencia_edificio`).
+    A guarda e' a diferenca: sem geometria de instalacao nao ha federado para
+    coordenar, e a rodada devolve `not_available` em vez de um relatorio vazio
+    com zero conflitos que pareceria um predio coordenado.
+    """
+    import copy as _copy
+    from pathlib import Path as _Path
+
+    from project_loop import _add_artifact, _write_json
+
+    del normalized
+    policy = _copy.deepcopy(manifest.get("coordination_policy") or {
+        "enabled": True,
+        "folga_mm": options.folga_mm,
+        "vol_min_mm3": options.vol_min_mm3,
+        "resolution_mode": "manual_approval",
+    })
+    if policy.get("enabled") is False:
+        manifest["coordination"] = {
+            "status": "disabled",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+        }
+        return
+
+    estrutura = (turnkey_result.get("estrutura")
+                 if isinstance(turnkey_result, dict) else None)
+    instalacoes = (turnkey_result.get("instalacoes")
+                   if isinstance(turnkey_result, dict) else None)
+    if not isinstance(estrutura, dict) or not estrutura:
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": "estrutura nao calculada; sem geometria para compatibilizar",
+        }
+        return
+    tem_instalacao = (isinstance(instalacoes, dict)
+                      and any(isinstance(v, dict) and v
+                              for v in instalacoes.values()))
+    if not tem_instalacao:
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": ("sem geometria de instalacao; nenhuma disciplina de "
+                       "instalacao calculada nesta rodada"),
+        }
+        return
+
+    import bim_instalacoes_edificio as bie
+    import compatibilizacao as cp
+
+    try:
+        _fed, disc_fed = bie.membros_federados_edificio(
+            estrutura, instalacoes)
+    except Exception:
+        disc_fed = ["estrutura"]
+    if len([d for d in (disc_fed or []) if d != "estrutura"]) == 0:
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": ("sem geometria de instalacao; o federado tem so a "
+                       "estrutura e nao ha par entre disciplinas para o clash"),
+        }
+        return
+
+    coordination_dir = _Path(run_dir) / "coordination"
+    coordination_dir.mkdir(parents=True, exist_ok=True)
+    report = bie.checa_interferencia_edificio(
+        estrutura, instalacoes,
+        folga=policy.get("folga_mm", options.folga_mm),
+        vol_min=policy.get("vol_min_mm3", options.vol_min_mm3))
+    pendencias = cp.gerar_pendencias(report)
+    summary = cp.resumo(pendencias)
+    _write_json(coordination_dir / "clash.json", report)
+    _write_json(coordination_dir / "pendencias.json", pendencias)
+    _write_json(coordination_dir / "pendencias.bcf.json", cp.bcf_topics(pendencias))
+    (coordination_dir / "matriz.svg").write_text(
+        cp.matriz_svg(report, pendencias), encoding="utf-8")
+    (coordination_dir / "relatorio.txt").write_text(
+        bie.relatorio_pt(report) + "\n\n" + cp.relatorio_pt(pendencias, summary),
+        encoding="utf-8")
+    manifest["coordination"] = {
+        "status": "generated",
+        "n_membros": report.get("n_membros", 0),
+        "n_clashes": report.get("n_clashes", 0),
+        "n_revisar": report.get("n_revisar", 0),
+        "n_esperado": report.get("n_esperado", 0),
+        "open": summary.get("abertas", 0),
+        "OK": report.get("OK"),
+        "OK_revisar": report.get("OK_revisar"),
+        "disciplinas": list(disc_fed or []),
+        "policy": policy,
+        "resolution_requests": (manifest.get("coordination") or {}).get(
+            "resolution_requests", []),
+    }
+    for relative, kind in (
+        ("coordination/clash.json", "clash-report"),
+        ("coordination/pendencias.json", "coordination-issues"),
+        ("coordination/pendencias.bcf.json", "bcf-topics"),
+        ("coordination/matriz.svg", "coordination-matrix"),
+        ("coordination/relatorio.txt", "coordination-report"),
+    ):
+        _add_artifact(manifest, run_dir, _Path(run_dir) / relative, kind)
+
+
 def register_edificio_adapter() -> None:
     """Registra a tipologia edificio no Project Loop."""
     from project_loop import register_adapter
@@ -1091,6 +1246,7 @@ def register_edificio_adapter() -> None:
         disciplines=DISCIPLINES,
         deliverables=DELIVERABLES,
         hooks={"drawings": _emitir_desenhos,
+               "coordination": _write_coordination,
                "ifc": _emitir_ifc,
                "model_3d": _emitir_modelo_3d,
                "orcamento": ge.emitir_orcamento,

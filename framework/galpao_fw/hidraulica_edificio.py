@@ -445,7 +445,10 @@ def _escopo(com_esgoto):
         "reservatorio_inferior_e_recalque": "not_available",
         "zonas_de_pressao_e_valvulas_redutoras": "not_available",
         "reserva_de_incendio_conjunta": "not_available",
-        "tracado_das_prumadas": "not_available",
+        # G53: tracado CONVENCIONAL em shaft (bim_instalacoes_edificio) no
+        # mesmo frame da estrutura, para clash. A planta real por unidade
+        # continua fora do escopo (sem arquitetura do edificio).
+        "tracado_das_prumadas": "implemented",
         "ventilacao_por_uhc_e_comprimento": "partial",
         "aprovacao_legal": "not_claimed",
         "construction_readiness": "not_claimed",
@@ -492,11 +495,13 @@ def _avisos(spec, reservacao, pluvial, esgoto):
                       "de queda, a ventilacao e o coletor predial NAO foram "
                       "dimensionados"})
     avisos.append({
-        "code": "tracado_das_prumadas_nao_modelado",
+        "code": "tracado_das_prumadas_convencional",
         "detail": "a coluna e' dimensionada como UMA prumada servindo todos os "
-                  "pavimentos. O numero real de prumadas, o seu tracado e os "
-                  "ramais por unidade dependem da planta de arquitetura, que "
-                  "este framework nao tem para o edificio"})
+                  "pavimentos e e' POSICIONADA num shaft convencional "
+                  "(bim_instalacoes_edificio, 1,0 m do canto, no frame da "
+                  "estrutura) para que o clash ache o furo. O numero real de "
+                  "prumadas e os ramais por unidade dependem da planta de "
+                  "arquitetura, que este framework nao tem para o edificio"})
     return avisos
 
 

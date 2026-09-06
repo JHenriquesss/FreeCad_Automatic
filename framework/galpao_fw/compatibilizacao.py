@@ -21,9 +21,16 @@ from __future__ import annotations
 import hashlib
 
 # disciplinas que sao ESTRUTURA (nao se movem; a instalacao e' que se compatibiliza)
-_ESTRUTURA = {"concreto", "aco"}
+# G54-rev: "estrutura" e o nome que o federado do EDIFICIO emite (o do galpao
+# separa concreto/aco). Sem ele no conjunto, `_acao_e_responsavel` caia no
+# ramo "ambas sao instalacoes" e TODA pendencia estrutura x instalacao saia
+# com "remanejar o tracado ... reuniao de coordenacao" e responsavel
+# "coordenacao" - some justamente a frase que e o proposito do entregavel:
+# "prever passagem (furacao/embutido) na estrutura". Filtro de nome morto.
+_ESTRUTURA = {"concreto", "aco", "estrutura"}
 # nome de exibicao
 _NOME = {"concreto": "Estrutura de concreto", "aco": "Estrutura metalica",
+         "estrutura": "Estrutura",
          "eletrico": "Eletrica", "hidraulica": "Hidraulica",
          "incendio": "Incendio", "climatizacao": "Climatizacao (HVAC)"}
 

@@ -437,7 +437,10 @@ def _escopo(com_fator):
         "spda_nbr5419": "not_available",
         "grupo_gerador_e_alimentacao_de_emergencia": "not_available",
         "recarga_de_veiculos_nbr17019": "not_available",
-        "tracado_e_prumadas_reais": "not_available",
+        # G53: prumada + eletrocalha por pavimento no frame da estrutura
+        # (bim_instalacoes_edificio). O leiaute dentro da unidade continua
+        # fora (planta da unidade).
+        "tracado_e_prumadas_reais": "implemented",
         "aprovacao_legal": "not_claimed",
         "construction_readiness": "not_claimed",
     }
