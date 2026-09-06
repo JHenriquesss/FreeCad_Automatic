@@ -563,10 +563,13 @@ def rodar(spec):
                          "pe_direito": geo["pe_direito"]})
         pav = pt.monta(por_uso[spec["pavimentos"][-1]["uso"]])
         crit = max(pav["paineis"], key=lambda p: p["lx"] * p["ly"])
+        # FRONTEIRA G52: `g` de `dimensiona_laje` e permanente ALEM do peso
+        # proprio (25*h somado por dentro); `pav["g_kN_m2"]` ja o inclui.
         r_laje = lj.dimensiona_laje({
             "caso": crit["caso"], "lx": min(crit["lx"], crit["ly"]),
             "ly": max(crit["lx"], crit["ly"]), "h": h_laje,
-            "g": pav["g_kN_m2"], "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
+            "g": laje.get("revestimento_kN_m2", 1.0),
+            "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
         if r_laje["h"] <= h_laje + 1e-9:
             convergiu = True
             break

@@ -139,8 +139,13 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
                 100.0 * len(orcados & no_escopo) / (len(no_escopo) or 1), 1)}
 
 
-def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):
-    """Relatorio-texto da planilha e da curva ABC."""
+def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC", notas=()):
+    """Relatorio-texto da planilha e da curva ABC.
+
+    `notas`: A CONFIRMAR da derivacao (o que o numero NAO cobre). Vao para o
+    texto, nao so para o manifesto - sem elas o leitor do .txt via
+    "ORCAMENTO PARCIAL - 1 insumo" e perdia os sistemas inteiros fora da
+    tabela (G52 achado 3). Nomear, nunca estimar."""
     plan = res["planilha"]; abc = res["abc"]
     L = [titulo, "=" * len(titulo)]
     L.append("%-38s %-6s %10s %12s %10s" % ("DESCRICAO", "UN", "QUANT", "P.UNIT", "CUSTO"))
@@ -164,6 +169,10 @@ def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC"):
     if res.get("sem_preco"):
         L.append("SEM PRECO NA TABELA (ha quantidade, falta custo): %s"
                  % ", ".join(res["sem_preco"]))
+    if notas:
+        L.append("A CONFIRMAR - fora do preco de venda (nomear, nao estimar):")
+        for nota in notas:
+            L.append("- " + str(nota))
     return "\n".join(L)
 
 

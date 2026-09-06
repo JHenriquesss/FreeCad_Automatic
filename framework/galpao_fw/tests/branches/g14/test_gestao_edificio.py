@@ -123,8 +123,12 @@ def test_concreto_e_a_soma_dos_elementos_medidos_sem_sobreposicao(derivado):
     total = dados["quantitativos"]["concreto_estrut"]
     assert total == pytest.approx(laje + viga + pilar + composicao["escada_m3"],
                                   rel=1e-3)
-    # e a espessura que ENTROU e a ADOTADA pela laje, nao a declarada no spec
-    assert est["h_laje_adotada"] > est["h_laje_declarada"]
+    # e a espessura que ENTROU e a ADOTADA pela laje, nao a declarada no spec.
+    # G52: era `>` porque a carga da laje contava o peso proprio duas vezes e
+    # forçava o engrossamento 0.10 -> 0.12 em qualquer spec. Com a carga certa,
+    # este spec passa com a declarada - o que a guarda exige e que o volume
+    # use a ADOTADA (as tres igualdades acima), nao que ela seja maior.
+    assert est["h_laje_adotada"] >= est["h_laje_declarada"]
 
 
 def test_taxas_de_concreto_e_forma_ficam_na_ordem_de_grandeza_de_um_predio(derivado):

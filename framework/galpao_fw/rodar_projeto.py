@@ -203,7 +203,15 @@ def _montar_headless(src, bk, out_dir, timeout, exe=None):
             pass
     if os.path.exists(resf):
         with open(resf, encoding="utf-8") as f:
-            return {"result": json.load(f)}       # mesma forma do retorno do bridge
+            resultado = json.load(f)       # mesma forma do retorno do bridge
+        # G52: recibo lido, recibo removido. O _montar_result.json e canal
+        # lateral do headless, nao entregavel: deixa-lo em model/ quebra o
+        # laco manifesto <-> arquivos (arquivo em disco fora do manifesto).
+        try:
+            os.remove(resf)
+        except OSError:
+            pass
+        return {"result": resultado}
     return {"erro": "freecadcmd headless nao gerou o resultado do modelo 3D"}
 
 

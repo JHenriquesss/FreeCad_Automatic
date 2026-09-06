@@ -226,10 +226,17 @@ def rodar(spec):
                          "pe_direito": geo["pe_direito"]})
         pav = pt.monta(por_uso[spec["pavimentos"][-1]["uso"]])
         crit = max(pav["paineis"], key=lambda p: p["lx"] * p["ly"])
+        # FRONTEIRA G52: `dimensiona_laje` recebe `g` como permanente ALEM do
+        # peso proprio (ele soma 25*h por dentro). `pav["g_kN_m2"]` JA inclui
+        # 25*h_laje + revestimento - passa-lo aqui contava o peso proprio duas
+        # vezes (a laje saia dimensionada para 8,5 e as vigas carregadas com
+        # 5,5). O extra e so o revestimento; parede sem posicao vai para `q`
+        # dentro de _carga_do_painel, nao para `g`.
         r_laje = lj.dimensiona_laje({
             "caso": crit["caso"], "lx": min(crit["lx"], crit["ly"]),
             "ly": max(crit["lx"], crit["ly"]), "h": h_laje,
-            "g": pav["g_kN_m2"], "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
+            "g": laje.get("revestimento_kN_m2", 1.0),
+            "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
         if r_laje["h"] <= h_laje + 1e-9:
             convergiu = True
             break

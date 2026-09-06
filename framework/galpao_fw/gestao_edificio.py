@@ -555,6 +555,12 @@ def derivacao(result):
         "vazios de escada e shafts NAO sao descontados da area de laje "
         "(a arquitetura do pavimento nao e' modelada)")
     notas.append(
+        "viga medida EIXO A EIXO (o no viga-pilar pertence a viga): o IFC "
+        "descreve a mesma estrutura com as vigas face a face em uma das "
+        "direcoes, entao o volume de viga do orcamento supera o do IFC na "
+        "soma dos nos (nesta obra ~2%). Convencao, nao erro: laje, pilar e "
+        "fundacao batem ao litro")
+    notas.append(
         "insumos que a obra tem e a tabela de referencia NAO tem, portanto FORA "
         "do preco de venda: %s" % "; ".join(INSUMOS_FORA_DA_TABELA))
     composicao = {"laje_m3": round(geo["laje_m3"], 2),

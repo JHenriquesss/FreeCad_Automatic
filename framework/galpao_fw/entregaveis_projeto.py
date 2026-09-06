@@ -122,7 +122,8 @@ def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
         _json(manifest, run_dir, pasta / "curva-abc.json", resultado["abc"],
               "budget-abc"),
         _texto(manifest, run_dir, pasta / "relatorio.txt",
-               orc.relatorio_pt(resultado) + "\n", "budget-report"),
+               orc.relatorio_pt(resultado, notas=notas) + "\n",
+               "budget-report"),
     ]
     a_confirmar = [] if precos_usuario else [
         "precos unitarios da tabela de REFERENCIA - substituir pela SINAPI vigente "
@@ -304,9 +305,13 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
 
     pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial)
     pasta = _dir(run_dir, "documentos")
+    # INDICE x PASTA (contagem ANTES do .md: o aviso vai para o texto, nao so
+    # para o manifesto - G52 achado 1).
+    emitidas = sum(1 for item in manifest.get("artifacts", [])
+                   if item.get("kind") == "drawing")
     artefatos = [
         _texto(manifest, run_dir, pasta / "pacote-legal.md",
-               pl.markdown(pacote) + "\n", "legal-package"),
+               pl.markdown(pacote, emitidas=emitidas) + "\n", "legal-package"),
         _json(manifest, run_dir, pasta / "pacote-legal.json", pacote,
               "legal-package-data"),
     ]
@@ -314,8 +319,6 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
     # conter, nao o que esta rodada desenhou. Sem confrontar os dois, um pacote
     # que lista treze folhas ao lado de uma pasta com duas passaria por completo
     # - a mesma falha do orcamento parcial, na forma de prancha.
-    emitidas = sum(1 for item in manifest.get("artifacts", [])
-                   if item.get("kind") == "drawing")
     a_confirmar = ["responsavel tecnico (nome, CREA/CAU, numero da ART) nao e "
                    "inventado pelo modulo - preencher antes de protocolar"]
     if emitidas < len(pacote["indice_pranchas"]):

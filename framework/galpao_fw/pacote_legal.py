@@ -208,8 +208,14 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None):
     return pac
 
 
-def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO"):
-    """Renderiza o pacote legal em markdown."""
+def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
+             emitidas=None):
+    """Renderiza o pacote legal em markdown.
+
+    `emitidas`: pranchas efetivamente desenhadas nesta rodada (quando dado e
+    menor que o indice, o .md avisa - o indice e o escopo do executivo, nao o
+    conteudo da pasta. Sem isso o .md lista 13 folhas ao lado de 3 arquivos e
+    passa por completo (G52 achado 1 / G14)."""
     L = ["# %s" % titulo, ""]
     if "memorial_consolidado" in pac:
         m = pac["memorial_consolidado"]
@@ -224,6 +230,13 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO")
     L.append("## Indice de pranchas")
     for p in pac["indice_pranchas"]:
         L.append("- %s - %s (%s)" % (p["codigo"], p["titulo"], p["disciplina"]))
+    if emitidas is not None and emitidas < len(pac["indice_pranchas"]):
+        L.append("")
+        L.append("> AVISO: o indice lista %d prancha(s) do projeto executivo e "
+                 "esta rodada emitiu %d: as demais ainda tem de ser desenhadas "
+                 "(o indice e' o escopo do executivo, nao o conteudo da pasta "
+                 "desta rodada)."
+                 % (len(pac["indice_pranchas"]), emitidas))
     L.append("")
     L.append("## Lista de ART/RRT")
     for a in pac["lista_art"]:

@@ -12,8 +12,11 @@ declarado como `not_available` no escopo da disciplina — veja abaixo.
 ```powershell
 python framework/galpao_fw/project_loop_cli.py `
   --spec projects/edificio-multipavimento/project-spec.json `
-  --out-dir exports/edificio --no-ifc
+  --out-dir exports/edificio --generate-2d --generate-caderno --generate-3d
 ```
+
+(IFC sai por padrão; `--no-ifc` o desliga. `--generate-3d` exige o
+FreeCAD — sem ele o entregável fica `not_available`, não inventado.)
 
 ## O que sai
 
@@ -21,16 +24,24 @@ python framework/galpao_fw/project_loop_cli.py `
   (`estrutura`, `incendio`, `hidraulica`, `eletrico`), os gates de cada uma e o
   `scope` que cada uma publica por si. O registro da redução da NBR 6120 §6.12
   sai como aviso da estrutura, porque a norma exige que ele seja registrado;
-- `drawings/planta-formas-pavimento-tipo.svg` — planta de formas do
-  pavimento-tipo com os 12 pilares e a descida de cargas;
-- `drawings/planta-laje-pavimento-tipo.svg` — formas, armadura e quadro de
-  ferros da laje;
-- `bim/edificio-estrutura.ifc` e `model/` — com `--ifc` / `--3d` (G8).
-- `orcamento/` — planilha 5D, curva ABC e relatório (G14);
-- `cronograma/` — rede CPM, curva S (JSON + SVG) e relatório (G14);
-- `documentos/caderno-encargos.md` e `documentos/pacote-legal.md` — especificações
-  técnicas das disciplinas executadas e índice de pranchas/ART/PPCI/LOD/O&M com o
-  memorial consolidado do prédio (G14).
+- `drawings/` — as três pranchas da rodada, todas SVG que parseia:
+  `planta-formas-pavimento-tipo.svg` (12 pilares + descida de cargas),
+  `planta-laje-pavimento-tipo.svg` (formas, armadura e quadro de ferros) e
+  `armacao-vigas-pavimento-tipo.svg` (17 tramos verificados);
+- `bim/edificio-estrutura.ifc` (emissor puro, G8) e `model/` — com `--ifc` /
+  `--generate-3d`: `model/freecad/*.FCStd`, `model/step/*.step` e
+  `model/ifc/*.ifc` (sólidos OCCT, cross-check contra o emissor puro);
+- `orcamento/` — `planilha.json`, `curva-abc.json` e `relatorio.txt` (G14). O
+  relatório inclui a seção A CONFIRMAR com os sistemas fora da tabela;
+- `cronograma/` — `cpm.json`, `curva-s.json`, `curva-s.svg` e `relatorio.txt`
+  (G14). A curva S é custeada em 3 de 7 atividades (fund/estr/inst têm custo;
+  serv/vedação/acab/entrega têm prazo e custo zero) e satura antes do fim;
+- `documentos/` — `caderno-encargos.md` + `caderno-encargos.json` e
+  `pacote-legal.md` + `pacote-legal.json` (G14). O índice lista as 13 pranchas
+  do executivo e o próprio `.md` avisa que a rodada emitiu 3;
+- `input/spec.json` e `reports/` (`preflight.json`, `disciplinas.json`,
+  `adapter-result.json`) — auditoria: entrada congelada e resultado por
+  disciplina. Não são entregáveis de obra, e sim o rastro da rodada.
 
 Os entregáveis das instalações são o **relatório**: as três disciplinas novas
 entram como cálculo e gates, não como prancha. Capacidade não declarada é
