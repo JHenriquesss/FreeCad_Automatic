@@ -23,22 +23,13 @@ from __future__ import annotations
 import math
 
 
-# ------------------------------------------------------------- primitivas
-def _esc(txt):
-    """Escapa &<> p/ o texto ser XML-valido (SVG e' XML): um '<'/'&' cru quebra o
-    SVG inteiro em renderers estritos (QtSvg/TechDraw DrawViewSymbol)."""
-    return (str(txt).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-
-
-def _t(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
-    return (f'<text x="{x:.1f}" y="{y:.1f}" font-family="Arial" font-size="{size}" '
-            f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{_esc(txt)}</text>')
-
-
-def _line(x1, y1, x2, y2, w=1.5, color="#111", dash=None):
-    d = f' stroke-dasharray="{dash}"' if dash else ""
-    return (f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{color}" stroke-width="{w}"{d}/>')
+# Primitivas (escape XML + texto + linha) unificadas em desenho_svg_base (G56):
+# uma copia de _esc por modulo e o berco do bug de dupla-escapa do residencial.
+from desenho_svg_base import (  # noqa: E402
+    esc as _esc,
+    linha as _line,
+    texto as _t,
+)
 
 
 # ------------------------------------------------------------- simbolos
@@ -318,6 +309,143 @@ def gerar_planta(r, path):
     svg = planta_seguranca_svg(r)
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# PRANCHAS DO EDIFICIO (G56) - PPCI por pavimento + detalhes
+# ---------------------------------------------------------------------------
+# O emissor do galpao desenha um pavimento terrio isolado. O predio repete o
+# pavimento N vezes empilhado e a escada vira rota vertical: a planta sai por
+# pavimento-tipo (parametro) e os hidrantes ganham o corte da coluna DN65.
+# Parametro, nao um desenho_incendio_edificio.py paralelo.
+
+def _edificio_C_L(estrutura):
+    pav = (estrutura or {}).get("pavimento") or {}
+    try:
+        return float(sum(pav["vaos_x"])), float(sum(pav["vaos_y"]))
+    except Exception:
+        return 14.0, 9.0
+
+
+def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
+    """PE-IN-01 PPCI do pavimento-tipo: saidas + rotas, hidrantes, detectores,
+    sinalizacao e iluminacao - contagens == sistemas calculados."""
+    C, L = _edificio_C_L(estrutura)
+    sist = inc.get("sistemas") or {}
+    det = sist.get("deteccao_alarme") or {}
+    hid = sist.get("hidrantes") or {}
+    sin = sist.get("sinalizacao") or {}
+    ilu = sist.get("iluminacao_emergencia") or {}
+    n_det = int(det.get("N_detectores") or 0)
+    n_hid = int(hid.get("N_hidrantes") or 0)
+    n_placas = int(sin.get("N_total") or 0)
+    rot = pavimento or "PAVIMENTO-TIPO"
+    W, Hh = 1000, 640
+    mx, my, aw, ah = 50, 90, 620, 460
+    esc = min(aw / C, ah / L)
+    gw, gh = C * esc, L * esc
+    x0 = mx + (aw - gw) / 2.0
+    y0 = my + (ah - gh) / 2.0
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hh}" '
+         f'viewBox="0 0 {W} {Hh}" font-family="Arial">',
+         f'<rect x="0" y="0" width="{W}" height="{Hh}" fill="white"/>',
+         _t(W / 2, 34, "PPCI - PLANTA %s" % rot.upper(), 19, weight="bold"),
+         f'<rect x="{x0:.0f}" y="{y0:.0f}" width="{gw:.0f}" height="{gh:.0f}" '
+         f'fill="#fafafa" stroke="#111" stroke-width="2"/>']
+    # detectores: EXATAMENTE N_detectores (drawing-vs-data)
+    for k, (px, py) in enumerate(_pontos_exatos(n_det, x0, y0, gw, gh, C, L)):
+        s.append(_sym_detector(px, py))
+        s.append(_t(px, py - 12, "DET-%d" % (k + 1), 9, color="#111"))
+    # saidas nos topos + setas de rota
+    ys = y0 + gh / 2
+    s.append(_sym_saida(x0 - 2, ys))
+    s.append(_sym_saida(x0 + gw + 2, ys))
+    s.append(_sym_seta_rota(x0 + gw * 0.30, ys, -1, 0))
+    s.append(_sym_seta_rota(x0 + gw * 0.70, ys, 1, 0))
+    # hidrantes: EXATAMENTE N_hidrantes rente a parede inferior
+    for k in range(n_hid):
+        frac = (k + 0.5) / n_hid
+        s.append(_sym_hidrante(x0 + gw * frac, y0 + gh - 14))
+    # placas de sinalizacao ao longo da rota (simbolo, sem rotulo)
+    for k in range(max(n_placas, 0)):
+        frac = (k + 0.5) / n_placas
+        s.append(_sym_placa(x0 + gw * frac, ys - 40))
+    # aclaramento no teto (simbolo, sem rotulo)
+    for (px, py) in _pontos_exatos(int(ilu.get("N_aclaramento") or 0),
+                                   x0, y0, gw, gh, C, L):
+        s.append(_sym_bloco(px, py))
+    lx, ly = 710, 100
+    s.append(f'<rect x="{lx}" y="{ly}" width="250" height="220" fill="white" '
+             f'stroke="#111" stroke-width="1"/>')
+    s.append(_t(lx + 125, ly + 24, "RESUMO DO PAVIMENTO", 13, weight="bold"))
+    for i, ln in enumerate([
+            "Detectores: %d" % n_det,
+            "Acionadores: %d" % int(det.get("N_acionadores") or 0),
+            "Hidrantes: %d (tipo %s)" % (n_hid, hid.get("tipo", "?")),
+            "Placas de rota: %d" % n_placas,
+            "Aclaramento: %d pts" % int(ilu.get("N_aclaramento") or 0),
+            "Populacao total: %d" % int(inc.get("populacao_total") or 0)]):
+        s.append(_t(lx + 14, ly + 52 + i * 24, ln, 11, anchor="start"))
+    s.append('</svg>')
+    return "\n".join(s)
+
+
+def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None):
+    """PE-IN-02 Detalhes: corte da coluna de hidrantes DN65 (NBR 13714) com um
+    hidrante por pavimento servido + quadro da escada/rotas + reserva."""
+    sist = inc.get("sistemas") or {}
+    hid = sist.get("hidrantes") or {}
+    gates = inc.get("gates") or {}
+    n = int(hid.get("N_hidrantes") or 0) or 1
+    n_pav = len((estrutura or {}).get("pavimentos") or []) or n
+    reserva = hid.get("reserva_incendio_m3")
+    W, Hh = 940, max(480, 180 + n_pav * 44)
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hh}" '
+         f'viewBox="0 0 {W} {Hh}" font-family="Arial">',
+         f'<rect x="0" y="0" width="{W}" height="{Hh}" fill="white"/>',
+         _t(W / 2, 34, titulo or "DETALHES - HIDRANTES E ROTAS DE FUGA", 19, weight="bold")]
+    x = 220
+    y0, y1 = 110, Hh - 130
+    passo = (y1 - y0) / max(n_pav, 1)
+    s.append(_line(x, y0 - 20, x, y1 + 20, 4.0, VERMELHO))
+    s.append(_t(x, y0 - 32, "COLUNA DN65 (NBR 13714)", 12, color=VERMELHO, weight="bold"))
+    for i in range(n_pav):
+        y = y1 - passo * (i + 0.5)
+        s.append(_line(x, y, x + 90, y, 2.0, VERMELHO))
+        s.append(_sym_hidrante(x + 110, y))
+        s.append(_t(x + 130, y + 4, "hidrante N%d" % (i + 1), 10, "start"))
+    qx, qy = 470, 110
+    rotas = gates.get("rotas_verticais") or {}
+    larg = gates.get("escada_largura") or {}
+    linhas = [
+        "RESERVA DE INCENDIO %.1f m3" % (reserva or 0),
+        "Rotas verticais: min %s / decl %s" % (
+            rotas.get("n_minimo", "?"), rotas.get("n_declarado", "?")),
+        "Largura escada exigida: %s m" % (larg.get("largura_exigida_m", "?"),),
+        "Estrategia: %s" % (inc.get("estrategia_abandono", "?"),),
+        "Populacao total: %d" % int(inc.get("populacao_total") or 0),
+        "Altura: %s m" % (inc.get("altura_edificacao_m", "?"),)]
+    s.append(f'<rect x="{qx}" y="{qy}" width="430" height="{40 + len(linhas) * 26}" '
+             f'fill="white" stroke="#111" stroke-width="1"/>')
+    s.append(_t(qx + 215, qy + 26, "QUADRO DE ROTAS", 13, weight="bold"))
+    for i, ln in enumerate(linhas):
+        s.append(_t(qx + 14, qy + 52 + i * 26, ln, 11, anchor="start"))
+    s.append('</svg>')
+    return "\n".join(s)
+
+
+def gerar_ppci_pavimento(inc, estrutura, path, pavimento=None):
+    """Escreve o PPCI do pavimento-tipo (PE-IN-01) em `path`."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(planta_pavimento_edificio_svg(inc, estrutura, pavimento))
+    return path
+
+
+def gerar_detalhes_hidrantes(inc, estrutura, path, titulo=None):
+    """Escreve os detalhes de hidrantes/rotas (PE-IN-02) em `path`."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(detalhes_hidrantes_rotas_svg(inc, estrutura, titulo))
     return path
 
 

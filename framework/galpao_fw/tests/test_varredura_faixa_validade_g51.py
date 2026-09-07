@@ -212,13 +212,16 @@ def test_06e_chaves_e_tabelas_recusam_nao_bug():
         pass
 
 
-def test_06f_rho_min_aberto_sem_numero_certo_sem_correcao():
-    """fundacao rho_min (ABERTO, nao FP nem fix): satura em C50
-    (rho_min(90) == rho_min(50) == 0,00208). O numero certo para C55-C90
-    exige a Tabela 17.3 da norma, fora do escopo G50 (8.2.5/8.2.8/8.2.10.1/
-    14.6.4.3/17.2.2) - rigor G10: sem numero certo, sem correcao."""
+def test_06f_rho_min_faixa_alta_fechada_na_tabela_17_3():
+    """fundacao rho_min (FECHADO no D94/G59): a Tabela 17.3 COMPLETA esta no
+    acervo (NBR 6118:2014 p. 130, linha Retangular, foto no verbete) e a
+    saturacao em C50 virou os valores literais: 55:0,211 60:0,219 65:0,226
+    70:0,233 75:0,239 80:0,245 85:0,251 90:0,256 %. C50 bit-a-bit intacto."""
     import fundacao_sapata as fs
-    assert fs.rho_min(90.0) == fs.rho_min(50.0) == 0.00208
+    assert fs.rho_min(50.0) == 0.00208
+    assert abs(fs.rho_min(60.0) - 0.00219) < 1e-12
+    assert abs(fs.rho_min(90.0) - 0.00256) < 1e-12
+    assert fs.rho_min(90.0) > fs.rho_min(50.0)  # nao satura mais
     assert fs.rho_min(25.0) == 0.00150
 
 

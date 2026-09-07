@@ -52,6 +52,7 @@ from __future__ import annotations
 import copy
 import os
 
+import alvenaria_estrutural as alv
 import cargas_nbr6120 as cg
 import descida_cargas as dc
 import fundacao_edificio as fe
@@ -790,8 +791,16 @@ def escopo(com_baldrame, com_fundacao):
         "pilar": "implemented",
         "viga_baldrame": "implemented" if com_baldrame else "not_available",
         "fundacao": "implemented" if com_fundacao else "not_available",
-        # a fronteira do cabecalho: casa terrea/sobrado nao roda estabilidade
-        # global neste framework. Nomeada, com guarda de entrada.
+        # D94/G59: a fronteira do cabecalho, com o artigo em vez de um
+        # not_available mudo. gamma_z (15.5.3) e as rigidezes aproximadas
+        # (15.7.3) so valem para estruturas reticuladas com no minimo 4
+        # andares: casa de 1-2 pav esta FORA DO CAMPO do metodo, nao
+        # "esquecida". O desaprumo global (11.3.3.4.1) e' exigido "sejam elas
+        # contraventadas ou nao", mas sem acao horizontal declarada nao ha
+        # analise global onde ele entrasse - a cadeia e' gravitacional por
+        # declaracao, e a imperfeicao LOCAL vive no pilar via M1d,min
+        # (11.3.3.4.3, aplicado em pilar_concreto). O motivo escrito mora no
+        # aviso acao_horizontal_nao_avaliada (casa_residencial) e no relatorio.
         "acao_horizontal": "not_available",
         "estabilidade_global": "not_available",
         "desaprumo": "not_available",
@@ -888,8 +897,13 @@ def relatorio_pt(r):
           % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"]))]
     L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
           "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
-          "   tipologia cobre ate %d pavimentos e RECUSA mais que isso.]"
+          "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
           % MAX_PAVIMENTOS,
-          "  [A CONFIRMAR: alvenaria ESTRUTURAL nao dimensionada (NBR 16868 ausente",
-          "   do acervo); estrutura de telhado em madeira fora do escopo.]"]
+          "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
+          "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
+          "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
+          # G60: linha do memorial da fonte unica em alvenaria_estrutural;
+          # o telhado de madeira segue fora do escopo.
+          "  " + alv.linha_memorial_cadeia_gravitacional(),
+          "  [A CONFIRMAR: estrutura de telhado em madeira fora do escopo.]"]
     return "\n".join(L)

@@ -87,4 +87,6 @@ def test_sem_disciplina_sem_peca():
 
 def test_escopo_publica_tracado():
     assert he._escopo(False)["tracado_das_prumadas"] == "implemented"
-    assert ee._escopo(False)["tracado_e_prumadas_reais"] == "implemented"
+    assert ee._escopo(False)["tracado_convencional_das_prumadas"] == "implemented"
+    # D94/G59: a chave antiga prometia "reais" para um tracado convencional
+    assert "tracado_e_prumadas_reais" not in ee._escopo(False)

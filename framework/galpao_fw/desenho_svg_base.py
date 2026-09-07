@@ -30,9 +30,10 @@ def texto(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
             f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{esc(txt)}</text>')
 
 
-def linha(x1, y1, x2, y2, w=1.5, color="#111"):
+def linha(x1, y1, x2, y2, w=1.5, color="#111", dash=None):
+    d = f' stroke-dasharray="{dash}"' if dash else ""
     return (f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" '
-            f'stroke="{color}" stroke-width="{w}"/>')
+            f'stroke="{color}" stroke-width="{w}"{d}/>')
 
 
 def sym_trafo(cx, cy, r=18):
@@ -117,3 +118,45 @@ def abre_svg(largura, altura, titulo=None, titulo_size=20):
     if titulo is not None:
         partes.append(texto(largura / 2, 34, titulo, titulo_size, weight="bold"))
     return partes
+
+
+def colisoes_de_rotulo_svg(svg):
+    """Rotulos <text> que se sobrepoem (equivalente G56 de colisoes_de_rotulo).
+
+    Le o SVG como XML e estima a caixa de cada texto (largura ~0.6*size por
+    caractere, altura ~size). Devolve os pares que se intersectam. Pranchas
+    com legenda/resumo em caixas fixas nao sobrepostas devolvem [].
+    """
+    import xml.etree.ElementTree as _ET
+
+    try:
+        root = _ET.fromstring(svg)
+    except _ET.ParseError:
+        return [("svg-malformado",)]
+    ns = "{http://www.w3.org/2000/svg}"
+    caixas = []
+    for t in list(root.iter(ns + "text")) + list(root.iter("text")):
+        try:
+            x = float(t.get("x", "0"))
+            y = float(t.get("y", "0"))
+            size = float(t.get("font-size", "12"))
+            anchor = (t.get("text-anchor") or "middle").strip()
+            conteudo = "".join(t.itertext()) or ""
+        except (TypeError, ValueError):
+            continue
+        larg = max(len(conteudo) * size * 0.6, size * 0.6)
+        alt = size * 1.1
+        if anchor == "middle":
+            x0, x1 = x - larg / 2.0, x + larg / 2.0
+        elif anchor == "end":
+            x0, x1 = x - larg, x
+        else:
+            x0, x1 = x, x + larg
+        caixas.append((conteudo[:24], (x0, y - alt, x1, y + alt * 0.3)))
+    fora = []
+    for i in range(len(caixas)):
+        for j in range(i + 1, len(caixas)):
+            a, b = caixas[i][1], caixas[j][1]
+            if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+                fora.append((caixas[i][0], caixas[j][0]))
+    return fora

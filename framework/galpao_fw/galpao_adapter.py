@@ -46,7 +46,12 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
     report = tk.checa_interferencia_federada(
         turnkey_result, _selected_turnkey_spec(normalized),
         folga=policy["folga_mm"], vol_min=policy["vol_min_mm3"])
+    # G55: o galpao NAO declara geometria de cruzamento (regressao congelada:
+    # mesmos pares, mesma classificacao/acao/responsavel). Resolucoes seguem
+    # valendo: request invalida LEVANTA e o hook vira failed.
     pendencias = cp.gerar_pendencias(report)
+    reqs = manifest["coordination"].get("resolution_requests", [])
+    pendencias = cp.aplicar_resolucoes(pendencias, reqs)
     summary = cp.resumo(pendencias)
     _write_json(coordination_dir / "clash.json", report)
     _write_json(coordination_dir / "pendencias.json", pendencias)
@@ -60,11 +65,12 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         "status": "generated",
         "n_membros": report.get("n_membros", 0),
         "n_clashes": report.get("n_clashes", 0),
-        "n_revisar": report.get("n_revisar", 0),
+        "n_revisar": summary.get("abertas", 0),
         "n_esperado": report.get("n_esperado", 0),
+        "n_resolvidas": summary.get("resolvidas", 0),
         "open": summary.get("abertas", 0),
-        "OK": report.get("OK"),
-        "OK_revisar": report.get("OK_revisar"),
+        "OK": cp.gate_ok(pendencias),
+        "OK_revisar": cp.gate_ok(pendencias),
         "policy": policy,
         "resolution_requests": manifest["coordination"].get(
             "resolution_requests", []),

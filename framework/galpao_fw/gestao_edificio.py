@@ -586,6 +586,15 @@ _DISCIPLINAS_DO_EDIFICIO = (
 )
 
 
+# A fundacao NAO e' disciplina propria no indice de pranchas (pacote_legal
+# _PRANCHAS nao tem "fundacao" e o continue do indice a descartaria em
+# silencio - o D89). Ela e' coberta pela folha de concreto "Formas e
+# fundacoes" (PE-CO-01): o mapeamento abaixo diz isso em voz alta. No CADERNO
+# ela segue secao propria (caderno_encargos tem "fundacao"), entao
+# disciplinas() continua a devolve-la - so o pacote traduz.
+FUNDACAO_COBERTA_POR = "concreto"
+
+
 def disciplinas(result):
     """Disciplinas EXECUTADAS na rodada, no vocabulario do caderno/pacote.
 
@@ -602,11 +611,26 @@ def disciplinas(result):
     for nome, traducao in _DISCIPLINAS_DO_EDIFICIO:
         if nome in executadas and traducao not in encontradas:
             encontradas.append(traducao)
-    # a fundacao acompanha o concreto SO quando ela foi dimensionada
+    # a fundacao acompanha o concreto SO quando ela foi dimensionada (secao
+    # propria no caderno de encargos)
     est = (result or {}).get("estrutura") or {}
     if "concreto" in encontradas and est.get("fundacao"):
         encontradas.append("fundacao")
     return encontradas
+
+
+def disciplinas_pacote(result):
+    """Disciplinas no vocabulario do INDICE de pranchas.
+
+    Traduz "fundacao" para FUNDACAO_COBERTA_POR ("concreto", PE-CO-01 "Formas
+    e fundacoes") em vez de deixar o nome atravessar e evaporar no continue
+    do indice (pacote_legal.indice_de_pranchas, D89)."""
+    trad = []
+    for d in disciplinas(result):
+        d2 = FUNDACAO_COBERTA_POR if d == "fundacao" else d
+        if d2 not in trad:
+            trad.append(d2)
+    return trad
 
 
 def memorial(result):
@@ -691,12 +715,49 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, result):
     ep.caderno_no_manifesto(manifest, run_dir, normalized, disciplinas(result))
 
 
+def _pendencias_aprovacao(result):
+    """Itens de escopo que travam a aprovacao e o checklist tem de citar (G57).
+
+    Enquanto o SPDA ou a alimentacao de emergencia do predio estiverem
+    `not_available` no escopo do eletrico, o pacote legal nao pode afirmar
+    completude: cada buraco vira uma pendencia PENDENTE no checklist PPCI/AVCB.
+    Essa e' a correcao que fecha o goal mesmo com SPDA/emergencia parciais.
+    """
+    pendencias = []
+    inst = (result or {}).get("instalacoes") or {}
+    ele = inst.get("eletrico") or {}
+    escopo = ele.get("escopo") or {}
+    if ele and escopo.get("spda_nbr5419") == "not_available":
+        pendencias.append(
+            "SPDA (NBR 5419) nao avaliado - sem ele o predio nao e' aprovavel "
+            "(declarar eletrico.spda com Ng do sitio)")
+    elif (ele and escopo.get("spda_nbr5419") == "implemented"
+            and not (ele.get("spda") or {}).get("dispensada_por_risco", False)
+            and (ele.get("spda") or {}).get("Nd_ano") is None):
+        # avaliacao parcial: captacao prescrita sem o risco avaliado (falta
+        # dado de sitio). Vira PENDENTE nomeado como "risco nao avaliado" -
+        # distinto do "nao avaliado" total acima, mas o pacote nao passa por
+        # completo sem dizer.
+        pendencias.append(
+            "SPDA (NBR 5419) com risco nao avaliado - Nd sem Ng/Cd "
+            "declarados (declarar o dado de sitio)")
+    if ele and escopo.get("grupo_gerador_e_alimentacao_de_emergencia") == "not_available":
+        pendencias.append(
+            "alimentacao de emergencia sem fonte dimensionada - elevador, "
+            "pressurizacao da escada, bombas de incendio e iluminacao de "
+            "emergencia exigem carga essencial declarada (eletrico.emergencia)")
+    # recarga de veiculos (NBR 17019) segue not_available com o motivo escrito
+    # no aviso do eletrico, mas nao trava AVCB: nao entra no checklist.
+    return pendencias
+
+
 def emitir_pacote_legal(manifest, run_dir, normalized, options, result):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD, O&M e memorial do edificio."""
     del options
     ep = _camada()
-    ep.pacote_no_manifesto(manifest, run_dir, disciplinas(result),
-                           memorial(result))
+    ep.pacote_no_manifesto(manifest, run_dir, disciplinas_pacote(result),
+                           memorial(result),
+                           pendencias=_pendencias_aprovacao(result))
 
 
 # ----------------------------------- selftest --------------------------------
@@ -719,9 +780,11 @@ def _selftest():
     assert "armadura_viga" not in dados["quantitativos"]
 
     # disciplinas: so as executadas; fundacao acompanha o concreto dimensionado
+    # (secao propria no caderno) e o pacote a traduz para o concreto (PE-CO-01)
     r = {"estrutura": {"fundacao": {"por_pilar": {}}},
          "instalacoes": {"eletrico": {"ATENDE": True}}}
     assert disciplinas(r) == ["concreto", "eletrico", "fundacao"]
+    assert disciplinas_pacote(r) == ["concreto", "eletrico"]
     assert disciplinas({}) == []
     return True
 

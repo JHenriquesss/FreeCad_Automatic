@@ -245,6 +245,18 @@ FRONTEIRAS = {
         "conversao": "produtor guarda m; leitor faz bf*MM p/ mm",
         "nota": "G20: secao de viga/pilar de concreto do mezanino (bf transversal, d vertical) em m; orientacao hx//X, hy//Y como F17",
     },
+    # ── G60 — PAREDE QUE E CARGA E ELEMENTO (NBR 16868-1) ─────────────
+    "F21_parede_peso_carga_vs_elemento": {
+        "chave": 'Nd do elemento (kN) == carga_linear_parede (kN/m) x comprimento (m)',
+        "unidade_declarada": "kN (forca total na faixa)",
+        "unidade_esperada": "kN (forca total na faixa)",
+        "escreve": ["cargas_nbr6120.carga_linear_parede (via da carga: peso_alvenaria Tab.2 NBR 6120 x altura)",
+                    "alvenaria_estrutural.verifica_* (via do elemento: recebe Nd pronto, soma 0,0 por dentro)"],
+        "le": ["alvenaria_estrutural.confere_fronteira_peso (igualdade Nd_usado == carga_via_6120)",
+               "alvenaria_estrutural.escopo (peso_proprio_interno_kN = 0,0 no resultado)"],
+        "conversao": "nenhuma: os dois lados sao forca total em kN; o modulo declara peso_proprio_interno_kN = 0,0",
+        "nota": "G60: a parede entra pelo peso (NBR 6120) e resiste pelo elemento (NBR 16868-1). Se o modulo novo somasse o peso por dentro, era a laje do G52 outra vez: os dois lados fecham, cada um com o seu numero. A igualdade atravessa a fronteira como dado importavel (guarda em tests/test_alvenaria_estrutural_g60.py, relacao no molde G52 com revestimento fora do default).",
+    },
 }
 
 # Validador rapido (importavel pelos testes)

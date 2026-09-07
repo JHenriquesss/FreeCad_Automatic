@@ -78,11 +78,17 @@ def lista_art(disciplinas):
     return out
 
 
-def checklist_ppci_avcb():
+def checklist_ppci_avcb(pendencias=None):
     """Checklist do PROCESSO PPCI/AVCB (aprovacao no Corpo de Bombeiros). Distinto do
     dimensionamento (que os verticais ja fazem). Etapas de referencia (a IT e o rito
-    variam por estado - A CONFIRMAR no CBM local)."""
-    return [
+    variam por estado - A CONFIRMAR no CBM local).
+
+    G57 (o portao): `pendencias` e' a lista de itens do escopo que seguem
+    `not_available` e travam a aprovacao (ex. SPDA nao avaliado, alimentacao de
+    emergencia nao dimensionada). Cada uma vira um item PENDENTE no fim do
+    checklist - o pacote nunca afirma completude sobre o buraco. Sem
+    pendencias, a saida e' identica a de antes."""
+    base = [
         "Classificar a ocupacao/uso e a area construida (define as medidas exigidas)",
         "Levantar as ITs/normas aplicaveis do CBM do estado (A CONFIRMAR)",
         "Projeto tecnico (PT/PPCI): plantas com saidas, rotas de fuga, hidrantes, "
@@ -93,6 +99,9 @@ def checklist_ppci_avcb():
         "Execucao conforme aprovado + comissionamento das instalacoes",
         "Vistoria e emissao do AVCB/CLCB",
     ]
+    for pend in (pendencias or []):
+        base.append("PENDENTE - %s" % pend)
+    return base
 
 
 # grupo de elementos do checklist LOD -> disciplina que o ENTREGA. Grupo sem
@@ -184,7 +193,8 @@ def memorial_consolidado(R, spec=None):
             "puladas": R.get("puladas", [])}
 
 
-def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None):
+def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
+                 pendencias=None):
     """Monta o pacote legal completo. disciplinas: chaves (default: as de _ART); se
     R (turnkey) for dado, usa as executadas e inclui o memorial consolidado.
 
@@ -192,15 +202,20 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None):
     `galpao_turnkey` (o edificio multipavimento monta o seu em
     `gestao_edificio.memorial`). Ter as duas portas evita que um segundo
     orquestrador tenha de se disfarcar de resultado de turnkey so para
-    atravessar esta funcao."""
+    atravessar esta funcao.
+
+    `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao;
+    vao para o checklist PPCI/AVCB como PENDENTE (o portao do G57)."""
     if disciplinas is None:
         disciplinas = (R.get("executadas") if R else None) or list(_ART.keys())
     disciplinas = [d for d in _ORDEM_DISC if d in disciplinas] or list(_ART.keys())
     pac = {"indice_pranchas": indice_de_pranchas(disciplinas + ["coordenacao"]),
            "lista_art": lista_art(disciplinas),
-           "checklist_ppci_avcb": checklist_ppci_avcb(),
+           "checklist_ppci_avcb": checklist_ppci_avcb(pendencias),
            "checklist_lod_bim": checklist_lod_bim(disciplinas),
            "manual_oem": manual_oem(disciplinas)}
+    if pendencias:
+        pac["pendencias_aprovacao"] = list(pendencias)
     if R is not None:
         pac["memorial_consolidado"] = memorial_consolidado(R, spec)
     elif memorial is not None:
@@ -246,6 +261,11 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     L.append("## Checklist PPCI/AVCB")
     for i, s in enumerate(pac["checklist_ppci_avcb"], 1):
         L.append("%d. %s" % (i, s))
+    if pac.get("pendencias_aprovacao"):
+        L.append("")
+        L.append("> AVISO: %d pendencia(s) de escopo travam a aprovacao e estao "
+                 "marcadas PENDENTE acima - o pacote nao afirma completude "
+                 "sobre elas." % len(pac["pendencias_aprovacao"]))
     L.append("")
     L.append("## Checklist LOD (BIM)")
     for c in pac["checklist_lod_bim"]:

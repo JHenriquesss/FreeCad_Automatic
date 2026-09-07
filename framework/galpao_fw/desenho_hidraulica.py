@@ -17,21 +17,11 @@ from __future__ import annotations
 COR = {"pluvial": "#16a34a", "esgoto": "#92400e", "agua": "#2563eb"}
 
 
-def _esc(txt):
-    """Escapa &<> p/ o texto ser XML-valido (SVG e' XML): um '<'/'&' cru quebra
-    o SVG inteiro em renderers estritos (QtSvg/TechDraw DrawViewSymbol)."""
-    return (str(txt).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-
-
-def _t(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
-    return (f'<text x="{x:.1f}" y="{y:.1f}" font-family="Arial" font-size="{size}" '
-            f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{_esc(txt)}</text>')
-
-
-def _line(x1, y1, x2, y2, w=1.5, color="#111", dash=None):
-    d = f' stroke-dasharray="{dash}"' if dash else ""
-    return (f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="{color}" stroke-width="{w}"{d}/>')
+from desenho_svg_base import (  # noqa: E402
+    esc as _esc,
+    linha as _line,
+    texto as _t,
+)
 
 
 def esquema_hidraulica_svg(r):
@@ -133,6 +123,111 @@ def gerar_esquema(r, path):
     svg = esquema_hidraulica_svg(r)
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# PRANCHAS DO EDIFICIO (G56) - uma folha por rede, com corte vertical
+# ---------------------------------------------------------------------------
+# O emissor do galpao junta as 3 redes numa folha so (um pavimento, um
+# retangulo). O predio tem N pavimentos empilhados e prumadas verticais: cada
+# rede ganha a sua folha (PE-HI-01/02/03) com a planta do pavimento-tipo + o
+# CORTE vertical da prumada que o galpao nunca teve. A saida e' PARAMETRO
+# (rede), nao um desenho_hidraulica_edificio.py paralelo.
+
+_REDES_EDIFICIO = ("agua", "esgoto", "pluvial")
+
+
+def _edificio_C_L(estrutura):
+    pav = (estrutura or {}).get("pavimento") or {}
+    try:
+        return float(sum(pav["vaos_x"])), float(sum(pav["vaos_y"]))
+    except Exception:
+        return 14.0, 9.0
+
+
+def _dn_txt(valor):
+    try:
+        return "DN%.0f" % float(valor)
+    except (TypeError, ValueError):
+        return "DN?"
+
+
+def planta_rede_edificio_svg(hid, estrutura, rede="agua", pavimento=None):
+    """Planta do pavimento-tipo + corte vertical da prumada, por rede.
+
+    rede: 'agua' (coluna DN do calculo), 'esgoto' (tubo de queda + ventilacao)
+    ou 'pluvial' (condutor + descidas). DN rotulado == DN calculado."""
+    if rede not in _REDES_EDIFICIO:
+        raise ValueError("rede deve ser uma de %s (recebido %r)"
+                         % (list(_REDES_EDIFICIO), rede))
+    C, L = _edificio_C_L(estrutura)
+    n = int(hid.get("pavimentos_servidos") or 0) or 1
+    if rede == "agua":
+        dn = ((hid.get("coluna") or {}).get("dn") or {}).get("DN_mm")
+        titulo = "AGUA FRIA - PLANTA E CORTE DA PRUMADA"
+        cor = COR["agua"]
+        extra = "RESERVACAO %.0f L" % ((hid.get("reservacao") or {}).get("total_L") or 0)
+    elif rede == "esgoto":
+        esg = hid.get("esgoto") or {}
+        dn = ((esg.get("tubo_de_queda") or {}).get("DN_mm")
+              or (esg.get("gate_queda") or {}).get("DN_mm"))
+        titulo = "ESGOTO/VENTILACAO - PLANTA E CORTE DA PRUMADA"
+        cor = COR["esgoto"]
+        extra = "VENTILACAO %s" % _dn_txt(esg.get("coluna_ventilacao_DN_mm"))
+    else:
+        plv = hid.get("pluvial") or {}
+        dn = ((plv.get("condutor") or {}).get("DN_mm")
+              or (plv.get("gate") or {}).get("DN_mm"))
+        titulo = "PLUVIAL - PLANTA E CORTE DAS DESCIDAS"
+        cor = COR["pluvial"]
+        extra = "%d DESCIDAS" % int(plv.get("n_descidas") or 1)
+    rot = pavimento or "PAVIMENTO-TIPO"
+    Wc, Hh = 1080, 660
+    ax0, ay0, aw, ah = 50, 90, 560, 420
+    sc = min(aw / C, ah / L)
+
+    def px(xm):
+        return ax0 + xm * sc
+
+    def py(ym):
+        return ay0 + (L - ym) * sc
+
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{Wc}" height="{Hh}" '
+         f'viewBox="0 0 {Wc} {Hh}" font-family="Arial">',
+         f'<rect x="0" y="0" width="{Wc}" height="{Hh}" fill="white"/>',
+         _t(Wc / 2, 34, titulo, 18, weight="bold"),
+         _t(Wc / 2, 56, "%s - %s %s" % (rot.upper(), _dn_txt(dn), extra), 12, color="#555"),
+         f'<rect x="{px(0):.0f}" y="{py(L):.0f}" width="{C * sc:.0f}" height="{L * sc:.0f}" '
+         f'fill="#fafafa" stroke="#111" stroke-width="2"/>',
+         _t(px(C / 2), py(0) + 26, "%.1f m" % C, 12)]
+    # shaft + ramal horizontal do pavimento-tipo
+    sx, sy = px(1.0), py(L - 1.0)
+    s.append(f'<circle cx="{sx:.0f}" cy="{sy:.0f}" r="7" fill="none" '
+             f'stroke="{cor}" stroke-width="2"/>')
+    s.append(_line(sx, sy, px(min(C, 5.0)), sy, 3.0, cor))
+    s.append(_t(px(min(C, 5.0)) + 8, sy - 8, "ramal %s" % _dn_txt(dn), 11, "start", color=cor))
+    # CORTE vertical: a prumada atravessando os N pavimentos (fura a laje)
+    cx0, cw = 700, 130
+    y0, y1 = 110, 560
+    passo = (y1 - y0) / n
+    s.append(_t(cx0 + cw / 2, y0 - 16, "CORTE VERTICAL", 13, weight="bold"))
+    for i in range(n):
+        y = y1 - passo * (i + 0.5)
+        s.append(_line(cx0, y, cx0 + cw, y, 1.0, "#9ca3af", dash="6 4"))
+        s.append(_t(cx0 + cw + 10, y + 4, "N%d" % (i + 1), 10, "start", color="#555"))
+    s.append(_line(cx0 + cw / 2, y0, cx0 + cw / 2, y1, 3.5, cor))
+    s.append(_t(cx0 + cw / 2, y1 + 24, "prumada %s" % _dn_txt(dn), 11, color=cor))
+    qx, qy = 700, 600
+    s.append(_t(qx, qy, extra, 11, "start", color="#555"))
+    s.append('</svg>')
+    return "\n".join(s)
+
+
+def gerar_rede_edificio(hid, estrutura, path, rede="agua", pavimento=None):
+    """Escreve a folha da rede (PE-HI-01/02/03) em `path`."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(planta_rede_edificio_svg(hid, estrutura, rede, pavimento))
     return path
 
 

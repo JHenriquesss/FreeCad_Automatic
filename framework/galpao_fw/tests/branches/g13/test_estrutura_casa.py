@@ -106,6 +106,15 @@ def test_o_escopo_nomeia_o_que_nao_e_calculado(terrea):
     assert escopo["laje"] == escopo["viga"] == escopo["pilar"] == "implemented"
 
 
+def test_o_nao_calculado_tem_artigo_e_nao_so_not_available(terrea):
+    """D94/G59: not_available indistinguivel de esquecimento nao basta.
+    gamma_z fora do campo abaixo de 4 andares (15.5.3/15.7.3), desaprumo
+    global sem objeto sem analise global (11.3.3.4.1), local via M1d,min
+    (11.3.3.4.3) - o motivo escrito mora no relatorio."""
+    rel = ec.relatorio_pt(terrea)
+    assert "15.5.3" in rel and "11.3.3.4.1" in rel and "11.3.3.4.3" in rel
+
+
 # ---------------------------------- o peso da alvenaria terrea nao pode sumir
 
 def test_a_carga_do_baldrame_chega_a_fundacao(terrea):

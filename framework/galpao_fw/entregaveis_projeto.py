@@ -299,11 +299,17 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
 
 
 # --------------------------------- pacote legal ------------------------------
-def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
-    """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial."""
+def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
+                        pendencias=None):
+    """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial.
+
+    `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao
+    (o predio as deriva do escopo do eletrico); vao para o checklist como
+    PENDENTE e para `a_confirmar` - o portao que fecha o G57."""
     import pacote_legal as pl
 
-    pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial)
+    pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial,
+                             pendencias=pendencias)
     pasta = _dir(run_dir, "documentos")
     # INDICE x PASTA (contagem ANTES do .md: o aviso vai para o texto, nao so
     # para o manifesto - G52 achado 1).
@@ -321,6 +327,8 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
     # - a mesma falha do orcamento parcial, na forma de prancha.
     a_confirmar = ["responsavel tecnico (nome, CREA/CAU, numero da ART) nao e "
                    "inventado pelo modulo - preencher antes de protocolar"]
+    if pendencias:
+        a_confirmar.extend("pendencia de aprovacao: %s" % p for p in pendencias)
     if emitidas < len(pacote["indice_pranchas"]):
         a_confirmar.append(
             "o indice lista %d prancha(s) do projeto executivo e esta rodada "
@@ -334,6 +342,7 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial):
         "pranchas_emitidas_na_rodada": emitidas,
         "n_art": len(pacote["lista_art"]),
         "a_confirmar": a_confirmar,
+        "pendencias_aprovacao": list(pendencias or []),
     }
 
 

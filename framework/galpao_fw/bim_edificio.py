@@ -53,8 +53,9 @@
 # duplicar o modulo criaria a segunda descricao que envelhece.
 #
 # O QUE ESTE MODULO NAO EMITE, e por que: escada (nao ha posicao declarada na
-# malha), alvenaria (bloqueada por fonte). Peca que nao foi calculada nao entra
-# no modelo.
+# malha), alvenaria (o calculo existe desde o G60 em alvenaria_estrutural,
+# mas a costura no Loop, com fiadas e graute, e o proximo lote). Peca que
+# nao foi calculada nao entra no modelo.
 # ============================================================================
 """Modelo neutro e IFC4 do edificio multipavimento, puro-Python (sem FreeCAD)."""
 

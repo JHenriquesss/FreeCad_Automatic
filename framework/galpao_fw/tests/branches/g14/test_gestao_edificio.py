@@ -352,17 +352,21 @@ def test_memorial_do_pacote_traz_o_veredito_de_cada_disciplina(derivado, rodada)
 
 
 def test_indice_de_pranchas_nao_passa_por_pasta_de_pranchas(manifesto):
-    """O indice lista o executivo INTEIRO; a rodada desenhou duas folhas.
+    """G56: o aviso "13 prometidas, 3 emitidas" sumiu POR MERITO.
 
-    Sem confrontar os dois, o pacote legal listaria treze pranchas ao lado de
-    uma pasta com duas e passaria por completo - o orcamento parcial na forma
-    de prancha.
+    O indice continua listando o executivo INTEIRO (13 folhas) e o pacote
+    continua confrontando com a pasta - so que agora a rodada desenha as 13:
+    emitidas == n_pranchas e o aviso de escopo some, ficando so o do RT.
+    (Antes do G56: 0 < emitidas < n_pranchas, com o aviso "o indice lista".)
     """
     pacote = manifesto["deliverables"]["pacote_legal"]
     emitidas = pacote["pranchas_emitidas_na_rodada"]
-    assert 0 < emitidas < pacote["n_pranchas"]
-    assert any("o indice lista" in aviso for aviso in pacote["a_confirmar"])
+    assert emitidas == pacote["n_pranchas"] == 13
+    assert not any("o indice lista" in aviso for aviso in pacote["a_confirmar"])
     assert any("responsavel tecnico" in aviso for aviso in pacote["a_confirmar"])
+    desenhos = manifesto["deliverables"]["drawings"]
+    assert (len(desenhos["artifacts"]) + len(desenhos.get("skipped", []))
+            == pacote["n_pranchas"])
 
 
 # ------------------------- o galpao nao foi alterado --------------------------

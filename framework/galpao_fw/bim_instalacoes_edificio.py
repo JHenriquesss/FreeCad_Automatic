@@ -325,6 +325,87 @@ def membros_federados_edificio(estrutura, instalacoes, pe_direito=None):
     return membros, disc
 
 
+def _eixo_membro(mb):
+    """Direcao normalizada de um membro barra (p1->p2) ou None (caixa)."""
+    try:
+        p1, p2 = mb.get("p1"), mb.get("p2")
+        if p1 is None or p2 is None:
+            return None
+        v = (float(p2[0]) - float(p1[0]), float(p2[1]) - float(p1[1]),
+             float(p2[2]) - float(p1[2]))
+        n = (v[0] ** 2 + v[1] ** 2 + v[2] ** 2) ** 0.5
+        if n <= 0:
+            return None
+        return (v[0] / n, v[1] / n, v[2] / n)
+    except Exception:
+        return None
+
+
+_TIPOS_BARRA_INST = ("Pipe", "CableCarrier")
+
+
+def _tipos_do_par(tipos):
+    """'BeamxPipe' -> ('Beam','Pipe'). Tipos conhecidos nao contem 'x'."""
+    for conhecido in ("Column", "CableCarrier", "Footing", "Member", "Plate",
+                      "Slab", "Beam", "Pile", "Pipe", "Board", "Hydrant",
+                      "Luminaire", "Outlet", "Cable", "Earthing"):
+        if tipos.startswith(conhecido + "x"):
+            return conhecido, tipos[len(conhecido) + 1:]
+    ps = tipos.split("x")
+    return (ps[0], ps[1]) if len(ps) == 2 else (tipos, "")
+
+
+def cruzamentos_edificio(membros, report):
+    """Geometria declarada do cruzamento por clash (G55).
+
+    Para cada clash estrutura x instalacao com Beam/Slab, declara "transversal"
+    (passagem que fura: eletrocalha perpendicular a viga, prumada vertical na
+    laje) ou "longitudinal" (tubo correndo ao longo do elemento = embutido
+    13.2.6, nao furo). Criterio: |cos| entre eixos < 0,5 -> transversal;
+    laje x tubo vertical -> transversal, x tubo horizontal -> longitudinal.
+    Sem eixo (caixa) ou fora de Beam/Slab, sem hint (conflito). Chave
+    (a, b, tipos), pronta para compatibilizacao.gerar_pendencias.
+    """
+    mapa = {}
+    for m in membros or []:
+        try:
+            mapa[str(m.get("marca"))] = m
+        except Exception:
+            continue
+    hints = {}
+    for c in (report or {}).get("clashes", []):
+        a, b, tipos = c.get("a"), c.get("b"), str(c.get("tipos") or "")
+        ta, tb = _tipos_do_par(tipos)
+        ma, mb = mapa.get(str(a)), mapa.get(str(b))
+        if ma is None or mb is None:
+            continue
+        da, db = ma.get("disciplina"), mb.get("disciplina")
+        if da == "estrutura":
+            test, tinst, mest, minst = ta, tb, ma, mb
+        elif db == "estrutura":
+            test, tinst, mest, minst = tb, ta, mb, ma
+        else:
+            continue
+        if tinst not in _TIPOS_BARRA_INST:
+            continue
+        if test == "Beam":
+            e_est, e_inst = _eixo_membro(mest), _eixo_membro(minst)
+            if e_est is None or e_inst is None:
+                continue
+            cos = abs(e_est[0] * e_inst[0] + e_est[1] * e_inst[1]
+                      + e_est[2] * e_inst[2])
+            hints[(a, b, tipos)] = {
+                "direcao": "transversal" if cos < 0.5 else "longitudinal"}
+        elif test == "Slab":
+            e_inst = _eixo_membro(minst)
+            if e_inst is None:
+                continue
+            hints[(a, b, tipos)] = {
+                "direcao": ("transversal" if abs(e_inst[2]) > 0.9
+                            else "longitudinal")}
+    return hints
+
+
 def checa_interferencia_edificio(estrutura, instalacoes, pe_direito=None,
                                  folga=1.0, vol_min=1000.0):
     """Clash ENTRE disciplinas no federado do edificio (AABB, sem FreeCAD).

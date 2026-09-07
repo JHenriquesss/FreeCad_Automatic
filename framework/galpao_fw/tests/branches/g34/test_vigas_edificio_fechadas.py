@@ -166,9 +166,16 @@ def test_hook_de_desenhos_emite_a_prancha(tmp_path):
         spec = json.load(f)
     man = project_loop.run_project(_cp.deepcopy(spec), str(tmp_path),
                                    {"generate_ifc": False, "generate_2d": True})
-    arts = man["deliverables"]["drawings"]["artifacts"]
+    reg = man["deliverables"]["drawings"]
+    arts = reg["artifacts"]
     assert "drawings/armacao-vigas-pavimento-tipo.svg" in arts
-    assert len(arts) == 3
+    # O numero de folhas NAO fica congelado aqui: o G56 levou o edificio de
+    # 3 para as 13 pranchas do indice, e um literal so cristalizaria a foto
+    # antiga (a licao do AR300). O que este teste guarda e' a prancha de
+    # vigas: ela SAI, e nao aparece como pulada com motivo.
+    pulados = [p.get("prancha") for p in reg.get("skipped", [])
+               if isinstance(p, dict)]
+    assert "armacao-vigas-pavimento-tipo.svg" not in pulados, pulados
 
 
 # ---------------- trava da transicao ----------------

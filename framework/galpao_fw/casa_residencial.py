@@ -48,13 +48,18 @@ from typing import Any
 
 import arquitetura_residencial as arq
 import estrutura_casa as est
+import gestao_casa as gc
 import hidraulica_residencial as hid
 from residencial_eletrica import run_residential_electrical
 
 
 ADAPTER_NAME = "casa-residencial"
 DISCIPLINES = ("arquitetura", "estrutura", "eletrico", "hidraulica")
-DELIVERABLES = ("report", "drawings", "ifc", "model_3d")
+# G58: a casa nivela com o predio e o galpao - os cinco entregaveis de gestao
+# e coordenacao entram, na mesma ordem de execucao do predio (o cronograma
+# custeia com a planilha que o orcamento acabou de gravar).
+DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "coordination",
+                "orcamento", "cronograma", "caderno_encargos", "pacote_legal")
 SCHEMA = "freecad-automatic/residential-house-result"
 SCHEMA_VERSION = 1
 # 'lighting' conta para o ponto de luz de 9.5.2.1.1; 'tug' conta para os pontos
@@ -434,7 +439,10 @@ def _registro_estrutura(payload, resultado_arquitetura, layout=None):
     avisos.append(_erro(
         "acao_horizontal_nao_avaliada",
         "esta cadeia e' GRAVITACIONAL: vento, desaprumo, gamma_z e o ELS de "
-        "deslocamento lateral nao sao avaliados para casa terrea ou sobrado"))
+        "deslocamento lateral nao sao avaliados para casa terrea ou sobrado. "
+        "gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118 "
+        "15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem analise "
+        "global; imperfeicao local via M1d,min (11.3.3.4.3) aplicada no pilar"))
     if resultado.get("baldrame") is None:
         avisos.append(_erro(
             "viga_baldrame_nao_declarada",
@@ -1106,6 +1114,143 @@ def _emitir_modelo_3d(manifest, run_dir, normalized, options, result):
     manifest["deliverables"]["model_3d"] = registro
 
 
+def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
+    """Hook de compatibilizacao: clash instalacoes x estrutura no mesmo frame.
+
+    Mesma forma do predio (G53): reuso do caminho `compatibilizacao` +
+    matriz/BCF, com o motor da casa (`bim_instalacoes_casa`). A guarda e' a
+    diferenca: sem geometria de instalacao nao ha federado para coordenar, e
+    a rodada devolve `not_available` com o motivo em vez de um relatorio vazio
+    com zero conflitos que pareceria uma casa coordenada.
+
+    A eletrica entra com a posicao REAL declarada (pontos e quadro validados);
+    a hidraulica entra com o tracado CONVENCIONAL em shaft (dito no perfil).
+    """
+    import copy as _copy
+    from pathlib import Path as _Path
+
+    from project_loop import _add_artifact, _write_json
+
+    del normalized
+    policy = _copy.deepcopy(manifest.get("coordination_policy") or {
+        "enabled": True,
+        "folga_mm": options.folga_mm,
+        "vol_min_mm3": options.vol_min_mm3,
+        "resolution_mode": "manual_approval",
+    })
+    if policy.get("enabled") is False:
+        manifest["coordination"] = {
+            "status": "disabled",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+        }
+        return
+
+    estrutura = (turnkey_result.get("estrutura")
+                 if isinstance(turnkey_result, dict) else None)
+    eletrico = (turnkey_result.get("eletrico")
+                if isinstance(turnkey_result, dict) else None)
+    hidraulica = (turnkey_result.get("hidraulica")
+                  if isinstance(turnkey_result, dict) else None)
+    if not isinstance(estrutura, dict) or not estrutura:
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": "estrutura nao calculada; sem geometria para compatibilizar",
+        }
+        return
+    tem_eletrica = isinstance(eletrico, dict) and bool(eletrico)
+    tem_hidraulica = isinstance(hidraulica, dict) and bool(hidraulica)
+    if not (tem_eletrica or tem_hidraulica):
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": ("sem geometria de instalacao; eletrica e hidraulica nao "
+                       "calculadas nesta rodada"),
+        }
+        return
+
+    import bim_instalacoes_casa as bic
+    import compatibilizacao as cp
+
+    try:
+        _fed, disc_fed = bic.membros_federados_casa(
+            estrutura, eletrico, hidraulica)
+    except Exception:
+        _fed, disc_fed = [], ["estrutura"]
+    if len([d for d in (disc_fed or []) if d != "estrutura"]) == 0:
+        manifest["coordination"] = {
+            "status": "not_available",
+            "open": 0,
+            "n_clashes": 0,
+            "n_revisar": 0,
+            "policy": policy,
+            "resolution_requests": (manifest.get("coordination") or {}).get(
+                "resolution_requests", []),
+            "detail": ("sem geometria de instalacao; a eletrica nao tem layout "
+                       "validado e a hidraulica nao tem DNs - o federado tem "
+                       "so a estrutura e nao ha par entre disciplinas para o "
+                       "clash"),
+        }
+        return
+
+    coordination_dir = _Path(run_dir) / "coordination"
+    coordination_dir.mkdir(parents=True, exist_ok=True)
+    report = bic.checa_interferencia_casa(
+        estrutura, eletrico, hidraulica,
+        folga=policy.get("folga_mm", options.folga_mm),
+        vol_min=policy.get("vol_min_mm3", options.vol_min_mm3))
+    pendencias = cp.gerar_pendencias(report)
+    reqs = (manifest.get("coordination") or {}).get("resolution_requests", [])
+    pendencias = cp.aplicar_resolucoes(pendencias, reqs)
+    summary = cp.resumo(pendencias)
+    _write_json(coordination_dir / "clash.json", report)
+    _write_json(coordination_dir / "pendencias.json", pendencias)
+    _write_json(coordination_dir / "pendencias.bcf.json", cp.bcf_topics(pendencias))
+    (coordination_dir / "matriz.svg").write_text(
+        cp.matriz_svg(report, pendencias), encoding="utf-8")
+    (coordination_dir / "relatorio.txt").write_text(
+        bic.relatorio_pt(report) + "\n\n" + cp.relatorio_pt(pendencias, summary),
+        encoding="utf-8")
+    manifest["coordination"] = {
+        "status": "generated",
+        "n_membros": report.get("n_membros", 0),
+        "n_clashes": report.get("n_clashes", 0),
+        "n_revisar": summary.get("abertas", 0),
+        "n_esperado": report.get("n_esperado", 0),
+        "n_resolvidas": summary.get("resolvidas", 0),
+        "open": summary.get("abertas", 0),
+        "OK": cp.gate_ok(pendencias),
+        "OK_revisar": cp.gate_ok(pendencias),
+        "disciplinas": list(disc_fed or []),
+        "policy": policy,
+        "resolution_requests": (manifest.get("coordination") or {}).get(
+            "resolution_requests", []),
+    }
+    for relative, kind in (
+        ("coordination/clash.json", "clash-report"),
+        ("coordination/pendencias.json", "coordination-issues"),
+        ("coordination/pendencias.bcf.json", "bcf-topics"),
+        ("coordination/matriz.svg", "coordination-matrix"),
+        ("coordination/relatorio.txt", "coordination-report"),
+    ):
+        _add_artifact(manifest, run_dir, _Path(run_dir) / relative, kind)
+
+
 def register_casa_residencial_adapter() -> None:
     """Registra o adaptador residencial real no Project Loop."""
     from project_loop import register_adapter
@@ -1117,6 +1262,11 @@ def register_casa_residencial_adapter() -> None:
         disciplines=DISCIPLINES,
         deliverables=DELIVERABLES,
         hooks={"drawings": _emitir_desenhos,
+               "coordination": _write_coordination,
                "ifc": _emitir_ifc,
-               "model_3d": _emitir_modelo_3d},
+               "model_3d": _emitir_modelo_3d,
+               "orcamento": gc.emitir_orcamento,
+               "cronograma": gc.emitir_cronograma,
+               "caderno_encargos": gc.emitir_caderno_encargos,
+               "pacote_legal": gc.emitir_pacote_legal},
     )

@@ -13,7 +13,14 @@
 #   desaprumo           -> 11.3.3.4.1 nao entra nos esforcos;
 #   estabilidade_global -> nada alimenta gamma_z com dM_tot_d de multiplos
 #                          pavimentos; estabilidade_b1b2 segue preso a 1 pav.;
-#   alvenaria_estrutural-> bloqueada por fonte (NBR 16868 ausente do acervo).
+#   alvenaria_estrutural-> o CALCULO existe desde o G60
+#                          (alvenaria_estrutural.py, NBR 16868-1:2020 +
+#                          Er1:2021: compressao 11.2, flexao 11.3.3, tetos
+#                          de esbeltez da Tab.9). O que segue fora e a
+#                          COSTURA no Loop: descida alimentando o Nd da
+#                          parede, contraventamento por rigidez, BIM e
+#                          pranchas - proximo lote, dito no escopo do
+#                          modulo (bim_alvenaria/pranchas: not_available).
 #
 # `vibracao_piso` DEIXOU de ser uma delas (G11): o ELS do Anexo L da NBR 8800 e o
 # desempenho da NBR 15575 passam a ser calculados. O que continua fora sao os
@@ -395,6 +402,25 @@ def _registro_estrutura(estrutura: Any, turnkey: dict):
     recalque = resultado.get("recalque_diferencial")
     baldrame_erro = resultado.get("viga_baldrame_erro")
     recalque_erro = resultado.get("recalque_erro")
+    # D94/G59: sem declaracao o escopo diz not_available - e o motivo tem de
+    # estar escrito aqui, como a casa faz (viga_baldrame_nao_declarada). Sem
+    # isso, um baldrame nao declarado significa a alvenaria do terreo sem
+    # caminho ate a fundacao (o achado do G13 na casa) em silencio.
+    if baldrame is None and baldrame_erro is None:
+        avisos.append(_erro(
+            "viga_baldrame_nao_declarada",
+            "estrutura.fundacao.viga_baldrame nao foi declarada (q_parede ou "
+            "parede Tabela 2 da NBR 6120 + secao): o peso do fechamento do "
+            "terreo NAO entra na fundacao (ele nao passa pelos pilares) e a "
+            "reacao horizontal da base (N_amarracao, G23) fica sem caminho de "
+            "amarracao. Carga de parede nao e' arbitrada por este framework"))
+    if recalque is None and recalque_erro is None:
+        avisos.append(_erro(
+            "recalque_nao_declarado",
+            "estrutura.fundacao.recalque nao foi declarado (Es do laudo ou "
+            "perfil SPT para correlacao): o recalque total/diferencial NAO "
+            "foi verificado. O modulo de deformabilidade do solo nao e' "
+            "arbitrado por este framework"))
     # G17: momento por pilar disponivel quando ha vento e o portico heterogeneo rodou
     momentos = resultado.get("momentos_base")
     com_momento = bool(com_vento and isinstance(momentos, dict)
@@ -531,6 +557,24 @@ def _registro_disciplina(status: str, escopo: dict, **campos: Any) -> dict[str, 
     return registro
 
 
+def _resumo_incendio(saida: dict | None) -> dict[str, Any] | None:
+    """O que a eletrica precisa saber do incendio (G57): qual carga essencial
+    o incendio CRIA. Tipo de escada exigido (pressurizacao?), blocos autonomos
+    da 10898 e presenca de hidrantes (bombas). So leitura, sem recalculo."""
+    if not isinstance(saida, dict):
+        return None
+    sistemas = saida.get("sistemas") or {}
+    gates = saida.get("gates") or {}
+    ilum = sistemas.get("iluminacao_emergencia") or {}
+    totais = sistemas.get("totais_edificio") or {}
+    return {
+        "tipo_escada_exigido": (gates.get("escada_tipo") or {}).get("tipo_exigido"),
+        "blocos_por_pavimento": ilum.get("N_blocos_total"),
+        "blocos_total_edificio": totais.get("blocos_autonomos"),
+        "tem_hidrantes": sistemas.get("hidrantes") is not None,
+    }
+
+
 def _contexto_predio(estrutura: dict, resultado,
                      instalacoes: dict | None = None) -> dict[str, Any]:
     """O predio como as disciplinas de instalacoes o enxergam.
@@ -557,6 +601,10 @@ def _contexto_predio(estrutura: dict, resultado,
         "populacao_por_pavimento": (
             ((instalacoes or {}).get("incendio") or {})
             .get("populacao_por_pavimento")),
+        # G57: a carga essencial da emergencia e' derivada do que o incendio
+        # CRIA (tipo de escada, blocos da 10898, hidrantes) - o resumo viaja no
+        # contexto para a eletrica ler em vez de pedir redigitacao.
+        "incendio": _resumo_incendio((instalacoes or {}).get("incendio")),
     }
 
 
@@ -713,6 +761,12 @@ def _registro_eletrico(payload: Any, estrutura: Any, resultado, instalacoes=None
         "carga_total_VA": saida["entrada"]["carga_total_VA"],
         "prumada_secao_mm2": saida["prumada"]["secao_mm2"],
         "dv_critica_pct": saida["prumada"]["dv_critica_pct"],
+        # G57: o portao do pacote legal le o escopo; o retrato vai junto para
+        # quem consome o registro sem abrir o escopo.
+        "spda_NP": (saida.get("spda") or {}).get("NP") if saida.get("spda") else None,
+        "carga_essencial_VA": ((saida.get("emergencia") or {})
+                               .get("carga_essencial_VA")
+                               if saida.get("emergencia") else None),
     }
     return registro, saida
 
@@ -825,10 +879,13 @@ def _erro_entregavel(exc: Exception) -> str:
 
 
 def _emitir_desenhos(manifest, run_dir, normalized, options, result):
-    """Hook de desenhos: planta de formas do pavimento-tipo.
+    """Hook de desenhos: as 13 pranchas do indice (G56).
 
     Nao depende de FreeCAD - le o resultado ja calculado. Estrutura bloqueada
     vira motivo explicito no manifesto, nunca um SVG vazio que parece prancha.
+    Cada folha do indice que a rodada nao emitir aparece em `skipped` com o
+    motivo: emitidas + puladas == len(indice_pranchas), o laco manifesto<->disco
+    do G52 aplicado ao indice.
     """
     from pathlib import Path
 
@@ -891,11 +948,212 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         puladas.append({"prancha": nome_vigas,
                         "motivo": "vigas nao verificadas nesta rodada "
                                   "(sem vigas_verificacao tramo a tramo)"})
+    # Instalacoes (G56): eletrica, hidraulica e incendio calculam desde o G12
+    # e tem posicao desde o G53 - e nao tinham uma folha sequer. Cada emissor
+    # nasceu para o galpao (um pavimento); aqui sai por pavimento-tipo e com
+    # o corte vertical das prumadas, por parametro, sem modulo paralelo.
+    instalacoes = (result.get("instalacoes")
+                   if isinstance(result, dict) else None) or {}
+    _emitir_eletrica(manifest, run_dir, destino, estrutura, instalacoes,
+                     emitidas, puladas)
+    _emitir_hidraulica(manifest, run_dir, destino, estrutura, instalacoes,
+                       emitidas, puladas)
+    _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
+                     emitidas, puladas)
+    emit_c, pula_c = _emitir_coordenacao(manifest, run_dir, None,
+                                         options, result)
+    emitidas.extend(emit_c)
+    puladas.extend(pula_c)
+    # Laco indice<->disco: toda folha do indice tem de estar emitida ou nomeada
+    # como pulada. O que nao puder sair, sai nomeado - nunca some.
+    try:
+        import gestao_edificio as ge
+        import pacote_legal as pl
+
+        indice = pl.indice_de_pranchas(ge.disciplinas_pacote(result) + ["coordenacao"])
+        ja = {Path(a).name for a in emitidas}
+        ja.update(p.get("prancha") for p in puladas if isinstance(p, dict))
+        for folha in indice:
+            esperado = _PRANCHA_ARQUIVO.get(folha["codigo"])
+            if esperado and esperado not in ja:
+                puladas.append({"prancha": esperado,
+                                "motivo": "folha %s (%s) nao emitida nesta rodada"
+                                          % (folha["codigo"], folha["titulo"])})
+                ja.add(esperado)
+    except Exception as exc:                                # noqa: BLE001
+        # O laco e' a garantia de que nenhuma folha do indice evapora. Se ele
+        # proprio falhar, a garantia cai -- e cair em silencio seria a
+        # saturacao silenciosa vestida de rede de seguranca. O manifesto diz
+        # que a conferencia nao aconteceu, com o erro nomeado.
+        puladas.append({"prancha": "(indice)",
+                        "motivo": "laco indice<->disco nao pode ser conferido: "
+                                  + _erro_entregavel(exc)})
     manifest["deliverables"]["drawings"] = {
         "status": "generated",
         "artifacts": emitidas,
         "skipped": puladas,
     }
+
+
+# codigo do indice (pacote_legal) -> arquivo em drawings/. A coordenacao tem
+# folha (PE-CD-01, a projecao do federado com clashes), nao a matriz: a matriz
+# sai com kind coordination-matrix e nao conta no laco do indice.
+_PRANCHA_ARQUIVO = {
+    "PE-CO-01": "planta-formas-pavimento-tipo.svg",
+    "PE-CO-02": "armacao-vigas-pavimento-tipo.svg",
+    "PE-CO-03": "planta-laje-pavimento-tipo.svg",
+    "PE-EL-01": "eletrica-unifilar-prumada.svg",
+    "PE-EL-02": "eletrica-planta-pavimento-tipo.svg",
+    "PE-EL-03": "eletrica-infra-aterramento.svg",
+    "PE-EL-04": "eletrica-qdc-quadros.svg",
+    "PE-HI-01": "hidraulica-agua-fria.svg",
+    "PE-HI-02": "hidraulica-esgoto-ventilacao.svg",
+    "PE-HI-03": "hidraulica-pluvial.svg",
+    "PE-IN-01": "incendio-ppci-pavimento-tipo.svg",
+    "PE-IN-02": "incendio-detalhes-hidrantes-rotas.svg",
+    "PE-CD-01": "coordenacao-federado.svg",
+}
+
+
+def _emitir_uma(manifest, run_dir, destino, nome, fn, emitidas, puladas):
+    """Emite uma prancha via fn(path); falha vira pulada nomeada, nunca some."""
+    from project_loop import _add_artifact
+
+    try:
+        fn(str(destino / nome))
+    except Exception as exc:                                # noqa: BLE001
+        puladas.append({"prancha": nome, "motivo": _erro_entregavel(exc)})
+        return
+    if not (destino / nome).is_file():
+        puladas.append({"prancha": nome,
+                        "motivo": "emissor nao gravou o arquivo"})
+        return
+    _add_artifact(manifest, run_dir, destino / nome, "drawing")
+    emitidas.append("drawings/" + nome)
+
+
+def _emitir_eletrica(manifest, run_dir, destino, estrutura, instalacoes,
+                     emitidas, puladas):
+    """PE-EL-01..04: unifilar da prumada, planta do pavimento-tipo,
+    infraestrutura/aterramento e QDC - tudo do eletrica_edificio calculado."""
+    import desenho_eletrico as de
+
+    ele = instalacoes.get("eletrico")
+    nomes = ["eletrica-unifilar-prumada.svg",
+             "eletrica-planta-pavimento-tipo.svg",
+             "eletrica-infra-aterramento.svg",
+             "eletrica-qdc-quadros.svg"]
+    if not isinstance(ele, dict) or not ele:
+        for nome in nomes:
+            puladas.append({"prancha": nome,
+                            "motivo": "eletrica nao calculada nesta rodada"})
+        return
+    _emitir_uma(manifest, run_dir, destino, nomes[0],
+                lambda p: de.gerar_prumada_edificio(ele, estrutura, p),
+                emitidas, puladas)
+    _emitir_uma(manifest, run_dir, destino, nomes[1],
+                lambda p: de.gerar_planta_pavimento_edificio(ele, estrutura, p),
+                emitidas, puladas)
+    _emitir_uma(manifest, run_dir, destino, nomes[2],
+                lambda p: de.gerar_infra_edificio(ele, estrutura, p),
+                emitidas, puladas)
+    _emitir_uma(manifest, run_dir, destino, nomes[3],
+                lambda p: de.gerar_qdc_edificio(ele, estrutura, p),
+                emitidas, puladas)
+
+
+def _emitir_hidraulica(manifest, run_dir, destino, estrutura, instalacoes,
+                       emitidas, puladas):
+    """PE-HI-01..03: uma folha por rede (agua fria, esgoto/ventilacao, pluvial),
+    cada uma com planta do pavimento-tipo + corte vertical da prumada."""
+    import desenho_hidraulica as dh
+
+    hid = instalacoes.get("hidraulica")
+    folhas = [("hidraulica-agua-fria.svg", "agua"),
+              ("hidraulica-esgoto-ventilacao.svg", "esgoto"),
+              ("hidraulica-pluvial.svg", "pluvial")]
+    if not isinstance(hid, dict) or not hid:
+        for nome, _rede in folhas:
+            puladas.append({"prancha": nome,
+                            "motivo": "hidraulica nao calculada nesta rodada"})
+        return
+    for nome, rede in folhas:
+        if rede == "esgoto" and not hid.get("esgoto"):
+            puladas.append({"prancha": nome,
+                            "motivo": "tubo de queda nao dimensionado "
+                                      "(sem aparelhos de esgoto declarados)"})
+            continue
+        _emitir_uma(manifest, run_dir, destino, nome,
+                    lambda p, r=rede: dh.gerar_rede_edificio(
+                        hid, estrutura, p, rede=r),
+                    emitidas, puladas)
+
+
+def _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
+                     emitidas, puladas):
+    """PE-IN-01..02: PPCI do pavimento-tipo + detalhes de hidrantes/rotas."""
+    import desenho_incendio as di
+
+    inc = instalacoes.get("incendio")
+    nomes = ["incendio-ppci-pavimento-tipo.svg",
+             "incendio-detalhes-hidrantes-rotas.svg"]
+    if not isinstance(inc, dict) or not inc:
+        for nome in nomes:
+            puladas.append({"prancha": nome,
+                            "motivo": "incendio nao calculado nesta rodada"})
+        return
+    _emitir_uma(manifest, run_dir, destino, nomes[0],
+                lambda p: di.gerar_ppci_pavimento(inc, estrutura, p),
+                emitidas, puladas)
+    _emitir_uma(manifest, run_dir, destino, nomes[1],
+                lambda p: di.gerar_detalhes_hidrantes(inc, estrutura, p),
+                emitidas, puladas)
+
+
+def _emitir_coordenacao(manifest, run_dir, normalized, options, result):
+    """PE-CD-01: a projecao do federado com os clashes marcados (a prancha que
+    o galpao ja emite), registrada com kind drawing para contar no indice.
+
+    Devolve (emitidas, puladas). Sem geometria de instalacao, motivo nomeado
+    em vez de prancha vazia."""
+    from pathlib import Path
+
+    import bim_instalacoes_edificio as bie
+    import desenho_coordenacao as dc
+    from project_loop import _add_artifact
+
+    nome = "coordenacao-federado.svg"
+    estrutura = (result.get("estrutura")
+                 if isinstance(result, dict) else None)
+    instalacoes = (result.get("instalacoes")
+                   if isinstance(result, dict) else None) or {}
+    if not isinstance(estrutura, dict) or not estrutura:
+        return [], [{"prancha": nome,
+                     "motivo": "estrutura nao calculada; sem federado"}]
+    tem_instalacao = any(isinstance(v, dict) and v
+                         for v in instalacoes.values())
+    if not tem_instalacao:
+        return [], [{"prancha": nome,
+                     "motivo": "sem geometria de instalacao; nenhuma disciplina "
+                               "de instalacao calculada nesta rodada"}]
+    try:
+        fed, _disc = bie.membros_federados_edificio(estrutura, instalacoes)
+        clash = bie.checa_interferencia_edificio(estrutura, instalacoes)
+    except Exception as exc:                                # noqa: BLE001
+        return [], [{"prancha": nome, "motivo": _erro_entregavel(exc)}]
+    if not fed:
+        return [], [{"prancha": nome,
+                     "motivo": "federado vazio; sem membros para projetar"}]
+    destino = Path(run_dir) / "drawings"
+    destino.mkdir(parents=True, exist_ok=True)
+    try:
+        dc.gerar_prancha(fed, clash, str(destino / nome),
+                         titulo="COORDENACAO - MODELO FEDERADO DO EDIFICIO")
+    except Exception as exc:                                # noqa: BLE001
+        return [], [{"prancha": nome, "motivo": _erro_entregavel(exc)}]
+    if manifest is not None:
+        _add_artifact(manifest, run_dir, destino / nome, "drawing")
+    return ["drawings/" + nome], []
 
 
 def _estrutura_calculada(result):
@@ -1180,7 +1438,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         _fed, disc_fed = bie.membros_federados_edificio(
             estrutura, instalacoes)
     except Exception:
-        disc_fed = ["estrutura"]
+        _fed, disc_fed = [], ["estrutura"]
     if len([d for d in (disc_fed or []) if d != "estrutura"]) == 0:
         manifest["coordination"] = {
             "status": "not_available",
@@ -1201,7 +1459,16 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         estrutura, instalacoes,
         folga=policy.get("folga_mm", options.folga_mm),
         vol_min=policy.get("vol_min_mm3", options.vol_min_mm3))
-    pendencias = cp.gerar_pendencias(report)
+    # G55: geometria declarada do cruzamento (transversal x longitudinal) -
+    # sem ela, BeamxPipe nao distingue furo de conflito. So Beam/Slab ganham
+    # hint; pilar/fundacao/caixa seguem conflito.
+    hints = bie.cruzamentos_edificio(_fed, report)
+    pendencias = cp.gerar_pendencias(report, cruzamentos=hints)
+    # G55: resolucoes registradas fecham furos (com aprovador+justificativa).
+    # Request invalida (sem justificativa, de reprovado/conflito) LEVANTA e o
+    # hook vira failed - aprovar sem lastro nao pode passar em silencio.
+    reqs = (manifest.get("coordination") or {}).get("resolution_requests", [])
+    pendencias = cp.aplicar_resolucoes(pendencias, reqs)
     summary = cp.resumo(pendencias)
     _write_json(coordination_dir / "clash.json", report)
     _write_json(coordination_dir / "pendencias.json", pendencias)
@@ -1215,11 +1482,12 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         "status": "generated",
         "n_membros": report.get("n_membros", 0),
         "n_clashes": report.get("n_clashes", 0),
-        "n_revisar": report.get("n_revisar", 0),
+        "n_revisar": summary.get("abertas", 0),
         "n_esperado": report.get("n_esperado", 0),
+        "n_resolvidas": summary.get("resolvidas", 0),
         "open": summary.get("abertas", 0),
-        "OK": report.get("OK"),
-        "OK_revisar": report.get("OK_revisar"),
+        "OK": cp.gate_ok(pendencias),
+        "OK_revisar": cp.gate_ok(pendencias),
         "disciplinas": list(disc_fed or []),
         "policy": policy,
         "resolution_requests": (manifest.get("coordination") or {}).get(

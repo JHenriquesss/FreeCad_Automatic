@@ -764,20 +764,27 @@ def xd_lim(fck_MPa):
     return 0.35
 RHO_MIN = 0.0015           # piso absoluto 0,15% (17.3.5.2.1); rho_min(fck) p/ fck>30
 
-# Tabela 17.3 (NBR 6118:2014) - taxa minima de armadura de flexao, secao
-# retangular, CA-50, gamma_c=1,4, d/h=0,8. Piso absoluto 0,15% (17.3.5.2.1); sobe
-# para fck>30. Valores conferidos contra a norma (Carvalho & Figueiredo, Quadro
-# 4.2 = Tabela 17.3) - nao de memoria. Adotado o valor de VIGA (mais exigente que
-# o de laje 2-direcoes 0,67*rho_min, 19.3.3.2/Tab.19.1): remove o canto nao-
-# conservador qualquer que seja a classificacao da sapata pelo revisor.
+# Tabela 17.3 (NBR 6118:2014, p. 130, linha Retangular) - taxa minima de
+# armadura de flexao, secao retangular, CA-50, gamma_c=1,4, d/h=0,8. Piso
+# absoluto 0,15% (17.3.5.2.1); sobe para fck>30. Valores literais da norma
+# (foto da p. 130 no D94/G59: 55:0,211 60:0,219 65:0,226 70:0,233 75:0,239
+# 80:0,245 85:0,251 90:0,256 %), conferidos tambem contra Carvalho &
+# Figueiredo Quadro 4.2 ate C50 - nao de memoria. Adotado o valor de VIGA
+# (mais exigente que o de laje 2-direcoes 0,67*rho_min, 19.3.3.2/Tab.19.1):
+# remove o canto nao-conservador qualquer que seja a classificacao da sapata
+# pelo revisor. Nota a da Tabela: pressupoe CA-50, d/h=0,8, gamma_c=1,4 e
+# gamma_s=1,15 - fora disso, rho_min deve ser recalculado (nao e aqui).
 _RHO_MIN_TAB = {20: 0.00150, 25: 0.00150, 30: 0.00150, 35: 0.00164,
-                40: 0.00179, 45: 0.00194, 50: 0.00208}
+                40: 0.00179, 45: 0.00194, 50: 0.00208, 55: 0.00211,
+                60: 0.00219, 65: 0.00226, 70: 0.00233, 75: 0.00239,
+                80: 0.00245, 85: 0.00251, 90: 0.00256}
 
 
 def rho_min(fck_MPa):
     """Taxa minima de armadura de flexao (Tabela 17.3, secao retangular CA-50).
     Piso 0,15% ate fck 30; interpola linearmente entre pontos tabelados p/ fck>30
-    (a favor da seguranca). fck em MPa. Ex.: 25->0,00150 ; 40->0,00179."""
+    (a favor da seguranca). fck em MPa. Ex.: 25->0,00150 ; 40->0,00179 ;
+    60->0,00219 ; 90->0,00256 (faixa alta completa no D94/G59)."""
     pts = sorted(_RHO_MIN_TAB.items())
     if fck_MPa <= pts[0][0]:
         return pts[0][1]
@@ -1086,11 +1093,14 @@ def _selftest():
     bb = detalha_barras(18e-4, 2.0, 0.05)          # 18 cm2 em 2 m
     assert bb and bb["As_ef"] >= 18e-4 - 1e-9 and bb["n"] >= 2
     assert bb["s"] > 0
-    # 10) rho_min (Tabela 17.3): piso 0,15% ate fck 30 ; sobe p/ fck>30
+    # 10) rho_min (Tabela 17.3 completa ate C90, D94/G59): piso 0,15% ate
+    # fck 30 ; sobe p/ fck>30 ; C50->C90 pela linha Retangular da p. 130
     assert rho_min(20) == 0.0015 and rho_min(25) == 0.0015 and rho_min(30) == 0.0015
     assert abs(rho_min(35) - 0.00164) < 1e-9 and abs(rho_min(50) - 0.00208) < 1e-9
-    assert rho_min(15) == 0.0015 and rho_min(90) == 0.00208     # fora da faixa: extremos
+    assert abs(rho_min(60) - 0.00219) < 1e-9 and abs(rho_min(90) - 0.00256) < 1e-9
+    assert rho_min(15) == 0.0015 and rho_min(95) == 0.00256   # fora da faixa: extremos
     assert 0.00164 < rho_min(37.5) < 0.00179                    # interpola 35..40
+    assert 0.00211 < rho_min(57.5) < 0.00219                    # interpola 55..60
     # 11) PUNCAO (19.5): sapata flexivel verifica C' a 2d; formulas conferidas
     pc = puncao_sapata(300.0, 2.0, 2.0, 0.30, 0.30, 0.25, 25e3, 8e-4, 8e-4)
     d_ = 0.25; C1 = C2 = 0.30

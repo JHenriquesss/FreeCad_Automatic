@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 
+import alvenaria_estrutural as alv
 import cargas_nbr6120 as cg
 import descida_cargas as dc
 import desempenho_nbr15575 as des
@@ -782,8 +783,11 @@ def relatorio_pt(r):
     if "estabilidade_horizontal" not in g:
         L.append("  [ACAO HORIZONTAL NAO AVALIADA: sem 'vento' no spec a descida e'")
         L.append("   apenas GRAVITACIONAL - vento, desaprumo, gamma_z e ELS ficam de fora.]")
-    L += ["  [A CONFIRMAR: alvenaria ESTRUTURAL nao dimensionada (NBR 16868 ausente",
-          "   do acervo). Os requisitos da NBR 15575 que se verificam por ENSAIO",
-          "   (impacto de corpo mole/duro, carga concentrada de 1 kN da parte 3 e",
-          "   deslocamento residual de fachada da parte 4) nao sao calculados aqui.]"]
+    # G60: a fonte entrou no acervo (NBR 16868-1:2020+Er1:2021, F133) e o
+    # vertical existe em alvenaria_estrutural; a linha do memorial vem de
+    # la (fonte unica), e esta cadeia segue sem alimentar o Nd da parede.
+    L += ["  " + alv.linha_memorial_cadeia_gravitacional(),
+          "  [A CONFIRMAR por ENSAIO: impacto de corpo mole/duro, carga",
+          "   concentrada de 1 kN (parte 3) e deslocamento residual de",
+          "   fachada (parte 4) da NBR 15575 nao sao calculados aqui.]"]
     return "\n".join(L)

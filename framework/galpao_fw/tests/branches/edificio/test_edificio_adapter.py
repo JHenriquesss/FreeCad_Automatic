@@ -157,6 +157,20 @@ def test_sem_vento_a_acao_horizontal_volta_a_not_available(spec):
                for a in registros["estrutura"]["warnings"])
 
 
+def test_baldrame_e_recalque_nao_declarados_tem_motivo_escrito(execucao):
+    """D94/G59: a declaracao E' a barreira certa (carga de parede e Es sao
+    dados, nunca arbitrados), mas o not_available nao pode ser mudo. Sem
+    viga_baldrame, a alvenaria do terreo nao tem caminho ate a fundacao -
+    o achado do G13 na casa - e isso tem de estar escrito no aviso."""
+    manifesto, _ = execucao
+    reg = manifesto["disciplines"]["estrutura"]
+    assert reg["scope"]["viga_baldrame"] == "not_available"
+    assert reg["scope"]["recalque_diferencial"] == "not_available"
+    codigos = {a["code"] for a in reg["warnings"]}
+    assert "viga_baldrame_nao_declarada" in codigos
+    assert "recalque_nao_declarado" in codigos
+
+
 def test_o_gate_de_estabilidade_horizontal_chega_ao_manifesto(execucao):
     manifesto, _ = execucao
     gate = manifesto["disciplines"]["estrutura"]["gates"]["estabilidade_horizontal"]

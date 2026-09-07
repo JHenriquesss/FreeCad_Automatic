@@ -53,6 +53,43 @@ _CLAUSULAS = {
          "armadura; tolerancias dimensionais de fabricacao/montagem.",
          ["NBR 6118", "NBR 9062", "NBR 14931", "NBR 12655"]),
     ],
+    # G60: Parte 2 (execucao e controle, NBR 16868-2) e o insumo natural do
+    # caderno: prumo (9.3.4), producao/controle de argamassa e graute (Secao 7
+    # e 8.2) e ensaios de recebimento (prisma/parede pela NBR 16868-3). Os
+    # limites de aceitacao abaixo sao literais da norma, com a secao citada
+    # (nao inventados aqui): desaprumo maximo 10 mm por pavimento com 2 mm/m
+    # e 25 mm no total (9.3.4); juntas de assentamento de 10 mm (10.2.4 da
+    # Parte 1); graute com minimo de 15 MPa onde a Tabela F.1 for usada
+    # (6.1.3 da Parte 1).
+    "alvenaria_estrutural": [
+        ("Blocos, argamassa e graute da alvenaria estrutural",
+         "Blocos de concreto (NBR 6136) ou ceramicos (NBR 15270-1) com fpk de "
+         "prisma declarado em projeto (NBR 16868-3); argamassa de assentamento "
+         "(NBR 13281) com resistencia limitada a 1,5 vez a do bloco; graute com "
+         "resistencia caracteristica minima de 15 MPa onde a Tabela F.1 for "
+         "usada; aco das armaduras (NBR 7480), galvanizado nas juntas.",
+         "Assentamento com junta de 10 mm e amarração direta em cantos e "
+         "bordas; grauteamento dos pontos de projeto; recebimento e "
+         "armazenamento dos materiais em local protegido de umidade e "
+         "deformacoes; dosagem da argamassa e do graute com as tolerancias "
+         "de medida da obra.",
+         "Caracterizacao previa e controle sistematico (blocos, argamassa e "
+         "graute, resistencia do prisma) com ensaios de recebimento por lote; "
+         "aderencia bloco-argamassa por tracao na flexao do prisma.",
+         ["NBR 16868-1", "NBR 16868-2", "NBR 16868-3", "NBR 6136",
+          "NBR 15270-1", "NBR 13281", "NBR 7480"]),
+        ("Elevacao, prumo e controle geometrico das paredes",
+         "Paredes elevadas sobre base nivelada, com respaldo e reforcos "
+         "conforme projeto; fiadas canaleta e pontos grauteados onde "
+         "indicados.",
+         "Elevacao respeitando prumo (alinhamento vertical), nivel "
+         "(alinhamento horizontal) e espessura das juntas; cortes em parede "
+         "so os previstos em projeto, descontados da secao.",
+         "Desaprumo e desalinhamento maximos de 10 mm por pavimento com "
+         "2 mm/m, e 25 mm na altura total (aceitacao contra prumo e nivel "
+         "por pavimento).",
+         ["NBR 16868-2", "NBR 16868-1"]),
+    ],
     "aco": [
         ("Estrutura metalica",
          "Perfis em aco estrutural conforme especificado (ex.: ASTM A572/A36 ou "
@@ -133,13 +170,14 @@ _CLAUSULAS = {
 # nomes de exibicao das disciplinas
 _TITULO_DISC = {
     "fundacao": "FUNDACOES", "concreto": "ESTRUTURA DE CONCRETO",
+    "alvenaria_estrutural": "ALVENARIA ESTRUTURAL",
     "aco": "ESTRUTURA METALICA E COBERTURA", "piso": "PISO INDUSTRIAL",
     "eletrico": "INSTALACOES ELETRICAS", "hidraulica": "INSTALACOES HIDROSSANITARIAS",
     "incendio": "SEGURANCA CONTRA INCENDIO", "terraplenagem": "TERRAPLENAGEM E DRENAGEM",
 }
 # ordem canonica de apresentacao
-_ORDEM = ["terraplenagem", "fundacao", "concreto", "aco", "piso", "eletrico",
-          "hidraulica", "incendio"]
+_ORDEM = ["terraplenagem", "fundacao", "concreto", "alvenaria_estrutural",
+          "aco", "piso", "eletrico", "hidraulica", "incendio"]
 
 
 def disciplinas_disponiveis():
