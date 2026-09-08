@@ -79,7 +79,7 @@ def test_sprinkler_classifica_risco():
     assert sp.classifica_risco(2.0) == "ordinario_I"
     import pytest
     with pytest.raises(ValueError):
-        sp.classifica_risco(5.0)                          # > 3,7 m -> NBR 13792
+        sp.classifica_risco(5.0)                          # > 3,7 m -> NBR 16981:2021 5.2.2
 
 
 def test_sprinkler_projeto_galpao():

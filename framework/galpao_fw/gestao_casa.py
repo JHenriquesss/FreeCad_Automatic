@@ -49,6 +49,7 @@ from __future__ import annotations
 import math
 
 import estrutura_casa as _ec
+import fundacao_sapata_corrida as _fsc
 
 RHO_ACO_KG_M3 = 7850.0
 
@@ -62,12 +63,19 @@ CODIGOS_APLICAVEIS = (
     "fechamento_lateral", "telha_cobertura",
     "eletrica_ponto", "hidraulica_ponto",
 )
+# G61: a parede portante entra no escopo SO no caminho portante (adicionada
+# dinamicamente em derivacao); na casa de concreto ela nao existe e nao pode
+# aparecer em sem_quantidade.
 
 PRECOS_CASA = {
     "armadura_laje": ("Armadura CA-50 de laje (corte/dobra/montagem)", "kg", 13.50),
     "armadura_viga": ("Armadura CA-50 de viga (corte/dobra/montagem)", "kg", 14.50),
     "armadura_pilar": ("Armadura CA-50 de pilar (corte/dobra/montagem)", "kg", 14.50),
     "armadura_fundacao": ("Armadura CA-50 de fundacao", "kg", 13.00),
+    # G61: preco REFERENCIA por m2 de parede portante (bloco + argamassa +
+    # graute/armadura quando houver), A CONFIRMAR com a composicao regional.
+    "alvenaria_estrutural": ("Alvenaria estrutural portante (bloco, argamassa, "
+                             "graute/armadura, m2 de parede)", "m2", 280.00),
 }
 
 # O que a casa TEM e a tabela de referencia NAO precifica. Sem esta lista o
@@ -97,6 +105,9 @@ CUSTO_POR_ATIVIDADE = {
     "concreto_estrut": "estr", "forma": "estr",
     "armadura_laje": "estr", "armadura_viga": "estr", "armadura_pilar": "estr",
     "fechamento_lateral": "vedacao",
+    # G61: a parede portante e estrutura, mas corre na frente de vedacao
+    # (levanta depois do concreto da laje/baldrame, antes da cobertura).
+    "alvenaria_estrutural": "vedacao",
     "telha_cobertura": "cob",
     "eletrica_ponto": "inst", "hidraulica_ponto": "inst",
 }
@@ -158,7 +169,22 @@ def _volume_e_forma_da_estrutura(est):
     eixo descontando a faixa da laje; pilar descontando o no): a casa e' a
     mesma geometria de concreto com menos andares, e a convencao viaja junto
     para o numero continuar comparavel ao IFC.
+
+    G61: na casa de alvenaria portante nao ha viga nem pilar de concreto
+    (a laje apoia direto nas paredes): viga/pilar saem ZERADOS em vez de
+    medir peca que nao vai ser construida. A laje segue medida.
     """
+    pav = est["pavimento"]
+    n_pav = int(est["n_pavimentos"])
+    area = _num(pav["area_m2"])
+    h_laje = _num(est["h_laje_adotada"])
+    vol_laje = area * h_laje * n_pav
+    forma_laje = area * n_pav
+    if isinstance(est.get("alvenaria"), dict) and est["alvenaria"]:
+        return {"laje_m3": vol_laje, "viga_m3": 0.0, "pilar_m3": 0.0,
+                "forma_laje_m2": forma_laje, "forma_viga_m2": 0.0,
+                "forma_pilar_m2": 0.0,
+                "comprimento_vigas_m": 0.0, "n_pavimentos": n_pav}
     pav = est["pavimento"]
     n_pav = int(est["n_pavimentos"])
     area = _num(pav["area_m2"])
@@ -272,8 +298,12 @@ def _fundacao(est, notas, nao_derivados, escopo):
     estaca - cobra-lo faria o orcamento se declarar parcial por um insumo que
     a obra nao tem. O contrario nao vale (bloco de coroamento segue falta
     nomeada quando a fundacao e' em estacas).
+
+    G61: a sapata corrida e por linha de parede (B x h x L), nao por pilar.
     """
     fund = est.get("fundacao")
+    if isinstance(fund, dict) and fund.get("tipo") == "sapata_corrida":
+        return _fundacao_corrida(est, fund, notas, nao_derivados, escopo)
     if not isinstance(fund, dict) or not fund.get("por_pilar"):
         nao_derivados.append({
             "item": "fundacao",
@@ -320,6 +350,71 @@ def _fundacao(est, notas, nao_derivados, escopo):
             "motivo": "fundacao em estacas: o volume do bloco nao e' publicado "
                       "pela geometria (so a altura), e nao entra no concreto"})
     return resultado
+
+
+def _fundacao_corrida(est, fund, notas, nao_derivados, escopo):
+    """Volume e aco da sapata corrida por linha de parede (G61)."""
+    escopo.discard("estaca")
+    comp_por_linha = {}
+    for reg in (est.get("alvenaria") or {}).get("por_linha", []):
+        comp_por_linha[reg["nome"]] = _num(reg.get("comprimento_m"))
+    por_linha = fund.get("por_linha") or {}
+    if not por_linha:
+        nao_derivados.append({
+            "item": "fundacao",
+            "motivo": "sapata corrida sem linha dimensionada"})
+        return {}
+    vol = aco = 0.0
+    sem = []
+    for nome, reg in sorted(por_linha.items()):
+        L = comp_por_linha.get(nome, 0.0)
+        if L <= 0:
+            sem.append(nome)
+            continue
+        q = _fsc.quantitativo_corrida(_num(reg.get("B_m")), _num(reg.get("h_m")),
+                                      L, (fund.get("bruto") or {}).get("parte_B"))
+        vol += _num(q["vol_conc_m3"])
+        aco += _num(q["massa_aco_kg"])
+    if sem:
+        nao_derivados.append({
+            "item": "fundacao",
+            "motivo": "corrida sem comprimento em %s: nao entram no volume"
+                      % ", ".join(sem)})
+    if vol:
+        notas.append(
+            "fundacao corrida medida como PRISMA (B x h x L) por linha de "
+            "parede (G61): lastro, escavacao e reaterro nao estao no volume. "
+            "Os CRUZAMENTOS entre linhas entram nas duas linhas (o modelo BIM "
+            "corta a linha em Y; a medicao nao): sobra a favor do orcamento, "
+            "e fica dito em vez de silencioso")
+    resultado = {}
+    if vol:
+        resultado["fundacao_concreto"] = round(vol, 2)
+    if aco:
+        resultado["armadura_fundacao"] = round(aco, 1)
+    return resultado
+
+
+def _alvenaria_estrutural(est, notas, nao_derivados):
+    """m2 de parede portante verificada (G61) — so no caminho portante."""
+    alv = est.get("alvenaria")
+    if not isinstance(alv, dict) or not alv.get("por_linha"):
+        return {}
+    n_pav = int(est.get("n_pavimentos") or 1)
+    h_tot = _num(est.get("H_total_m"))
+    altura = (h_tot / n_pav) if n_pav > 0 else 0.0
+    if altura <= 0:
+        altura = _pe_direito(est)
+    area = sum(_num(r.get("comprimento_m")) for r in alv["por_linha"]) * altura
+    if area <= 0:
+        return {}
+    notas.append(
+        "alvenaria_estrutural: %.1f m2 = comprimento total das paredes "
+        "portantes x altura (%.2f m), SEM desconto de vaos de porta/janela e "
+        "com os cruzamentos contados nas duas linhas: "
+        "preco REFERENCIA por m2 (bloco+argamassa+graute/armadura), A CONFIRMAR"
+        % (area, altura))
+    return {"alvenaria_estrutural": round(area, 1)}
 
 
 def _fechamento(est, notas, nao_derivados):
@@ -463,12 +558,17 @@ def derivacao(result, spec_hidraulica=None):
                 "item": "armadura_laje",
                 "motivo": "laje sem painel dimensionado no resultado: sem As nao "
                           "ha peso a derivar"})
+        com_alv = isinstance(est.get("alvenaria"), dict) and est["alvenaria"]
         peso_pilar = _armadura_dos_pilares(est)
         if peso_pilar:
             q["armadura_pilar"] = round(peso_pilar, 1)
             notas.append(
                 "armadura_pilar: so a armadura LONGITUDINAL (As adotada x altura do "
                 "lance). Estribos, traspasses e arranques nao estao no peso")
+        elif com_alv:
+            # G61: sem portico nao ha o que medir — sai do escopo em vez de
+            # falta (a parede portante e medida em alvenaria_estrutural).
+            escopo.discard("armadura_pilar")
         else:
             nao_derivados.append({
                 "item": "armadura_pilar",
@@ -476,6 +576,8 @@ def derivacao(result, spec_hidraulica=None):
         peso_viga = _armadura_das_vigas(est, notas)
         if peso_viga:
             q["armadura_viga"] = round(peso_viga, 1)
+        elif com_alv:
+            escopo.discard("armadura_viga")
         else:
             nao_derivados.append({
                 "item": "armadura_viga",
@@ -484,6 +586,15 @@ def derivacao(result, spec_hidraulica=None):
 
         q.update(_fundacao(est, notas, nao_derivados, escopo))
         q.update(_fechamento(est, notas, nao_derivados))
+        if com_alv:
+            escopo.add("alvenaria_estrutural")
+            q.update(_alvenaria_estrutural(est, notas, nao_derivados))
+            # vedacao de fechamento nao existe nesta tipologia: a parede e
+            # estrutura (medida acima), nao vedacao sobre viga. O item sai
+            # do escopo E dos nao_derivados (nao e falta, e nao-aplicavel).
+            escopo.discard("fechamento_lateral")
+            nao_derivados[:] = [n for n in nao_derivados
+                                if n.get("item") != "fechamento_lateral"]
         composicao = {"laje_m3": round(geo["laje_m3"], 2),
                       "viga_m3": round(geo["viga_m3"], 2),
                       "pilar_m3": round(geo["pilar_m3"], 2),
@@ -526,6 +637,8 @@ _DISCIPLINAS_DA_CASA = (
     ("estrutura", "concreto"),
     ("hidraulica", "hidraulica"),
     ("eletrico", "eletrico"),
+    # G61: a parede portante tem disciplina propria no caderno (Parte 2).
+    ("estrutura_alvenaria", "alvenaria_estrutural"),
 )
 
 FUNDACAO_COBERTA_POR = "concreto"
@@ -540,6 +653,10 @@ def disciplinas(result):
     encontradas = []
     if isinstance((result or {}).get("estrutura"), dict) and result["estrutura"]:
         encontradas.append("concreto")
+        est = result["estrutura"]
+        # G61: parede portante verificada entra com disciplina propria.
+        if isinstance(est.get("alvenaria"), dict) and est["alvenaria"]:
+            encontradas.append("alvenaria_estrutural")
     if isinstance((result or {}).get("hidraulica"), dict) and result["hidraulica"]:
         encontradas.append("hidraulica")
     if isinstance((result or {}).get("eletrico"), dict) and result["eletrico"]:

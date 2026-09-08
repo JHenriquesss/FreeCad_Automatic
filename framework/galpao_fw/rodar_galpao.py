@@ -799,6 +799,10 @@ def rodar(params, out_dir):
     _N_mas = (params.get("parede") or {}).get("N_masonry_ext_kN", 0.0)
     casos_base = _casos_base_envelope(n_wall_perm_ext=_N_mas)
     _fund_tipo = params.get("fundacao", {}).get("tipo", "sapata")
+    if _fund_tipo == "sapata_corrida":
+        raise ValueError(
+            "tipo='sapata_corrida' e da parede portante (carga linear kN/m, G61): "
+            "o galpao nao tem parede portante; use sapata/bloco/estaca.")
     if _fund_tipo == "bloco":              # bloco de concreto simples (NBR 6122 7.8.2)
         dims = fs.dimensiona_bloco_env(sap, casos_base)
     else:

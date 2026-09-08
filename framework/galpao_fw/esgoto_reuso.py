@@ -2,15 +2,18 @@
 # esgoto_reuso.py - O QUE ESTE SCRIPT FAZ / CALCULA
 # Duas frentes de saneamento do lote quando NAO ha rede publica / para
 # sustentabilidade:
-#   (1) TRATAMENTO DE ESGOTO no proprio terreno - FOSSA SEPTICA (NBR 7229) + pos-
-#       tratamento/sumidouro. Volume util da fossa pela formula da NBR 7229:
-#         V = 1000 + N.(C.T + K.Lf)   [litros]
-#       onde N=contribuintes, C=contribuicao de esgoto (L/pessoa.dia), T=periodo de
-#       detencao (dias), K=taxa de acumulacao de lodo (dias), Lf=contribuicao de
-#       lodo fresco (L/pessoa.dia). ATENCAO (AR300): C, T, K e Lf sao valores
-#       TABELADOS da NBR 7229 (Tabelas 1/3/4) - este modulo NAO os inventa: sao
+#   (1) TRATAMENTO DE ESGOTO no proprio terreno - FOSSA SEPTICA (NBR 17076:2024
+#       Anexo A - sucede/cancela NBR 7229:1993 e NBR 13969:1997) + pos-
+#       tratamento/sumidouro. Volume util da fossa pela formula da NBR 17076 A.2:
+#         V = 1000 + N.(q.T + K.Lf)   [litros]  (conferido no PDF vigente p.22:
+#         sobrevive identica a formula da NBR 7229 (conferida p.22); C da 7229 = q da 17076)
+#       onde N=contribuintes, q=contribuicao de esgoto (L/unid.dia, Tab.1 p.17),
+#       T=periodo de detencao (dias, Tab.A.1 p.23), K=taxa de acumulacao de lodo
+#       digerido (dias, Tab.A.2 p.23), Lf=contribuicao de lodo fresco (L/unid.dia,
+#       Tab.1). ATENCAO (AR300): q, T, K e Lf sao valores TABELADOS da
+#       NBR 17076 (Tab.1/A.1/A.2) - este modulo NAO os inventa: sao
 #       ENTRADA obrigatoria (o projetista le da norma vigente). Sumidouro/vala de
-#       infiltracao dimensionado pela taxa de infiltracao do solo (ensaio).
+#       infiltracao dimensionado pela taxa de infiltracao do solo (ensaio, Anexos K/L/N).
 #   (2) REUSO DE AGUA DE CHUVA - dimensiona a CISTERNA pelo METODO DE RIPPL (balanco
 #       de massa, NBR 15527 Anexo): volume = maior deficit acumulado (demanda -
 #       oferta) ao longo dos meses. Oferta = precipitacao . area de captacao .
@@ -19,25 +22,29 @@
 #       projeto. A precipitacao mensal e' DADO DE SITIO (A CONFIRMAR: estacao/INMET).
 # STATELESS. Unidades: litros, m2, mm/mes, m3.
 # ============================================================================
-"""Saneamento do lote sem rede: fossa septica (formula NBR 7229, coeficientes de
-ENTRADA) + reuso de agua de chuva (cisterna por Rippl / balanco de massa).
+"""Saneamento do lote sem rede: fossa septica (formula NBR 17076:2024 Anexo A,
+conferida contra NBR 7229 - coeficientes de ENTRADA) + reuso de agua de chuva
+(cisterna por Rippl / balanco de massa).
 STATELESS. Precipitacao/coeficientes tabelados = A CONFIRMAR."""
 
 from __future__ import annotations
 
 RUNOFF_TELHA_METALICA = 0.80    # coef. de escoamento superficial tipico (A CONFIRMAR)
-V_MIN_FOSSA_L = 1000.0          # volume util minimo da fossa septica (NBR 7229)
+V_MIN_FOSSA_L = 1000.0          # volume util minimo da fossa septica (NBR 17076:2024 A.2)
 
 
 def volume_fossa_septica(N, C, T, K, Lf):
-    """Volume util da fossa septica (NBR 7229): V = 1000 + N.(C.T + K.Lf) [L].
-    TODOS os coeficientes sao ENTRADA (valores tabelados da NBR 7229 - Tabela 1 p/
-    C e Lf por ocupacao; Tabela 3 p/ T pela contribuicao diaria; Tabela 4 p/ K pela
-    temperatura e intervalo de limpeza). O modulo aplica a formula e o minimo de
-    1000 L; nao inventa os coeficientes. Retorna dict."""
+    """Volume util da fossa septica (NBR 17076:2024 Anexo A, A.2):
+    V = 1000 + N.(q.T + K.Lf) [L] - conferido no PDF vigente p.22, identico a
+    formula da NBR 7229 sucedida (C da 7229 = q da 17076; conferida p.22).
+    TODOS os coeficientes sao ENTRADA (valores tabelados da NBR 17076 - Tabela 1
+    p.17 p/ q e Lf por ocupacao; Tabela A.1 p.23 p/ T pela contribuicao diaria;
+    Tabela A.2 p.23 p/ K pela temperatura e intervalo de limpeza). O modulo
+    aplica a formula e o minimo de 1000 L; nao inventa os coeficientes.
+    Retorna dict."""
     for nome, val in (("N", N), ("C", C), ("T", T), ("K", K), ("Lf", Lf)):
         if val is None or val < 0:
-            raise ValueError("[A CONFIRMAR NBR 7229] coeficiente %s ausente/invalido: %r"
+            raise ValueError("[A CONFIRMAR NBR 17076:2024] coeficiente %s ausente/invalido: %r"
                              % (nome, val))
     V = 1000.0 + N * (C * T + K * Lf)
     V = max(V, V_MIN_FOSSA_L)
@@ -45,14 +52,16 @@ def volume_fossa_septica(N, C, T, K, Lf):
     return {"volume_util_L": round(V, 0), "volume_util_m3": round(V / 1000.0, 2),
             "contribuicao_diaria_L": round(contrib_diaria, 0),
             "N": N, "C": C, "T": T, "K": K, "Lf": Lf,
-            "fonte": "NBR 7229 (V = 1000 + N(C.T + K.Lf)); coeficientes das Tab.1/3/4 "
+            "fonte": "NBR 17076:2024 Anexo A, A.2 (V = 1000 + N(q.T + K.Lf), "
+                     "conferido contra NBR 7229); coeficientes das Tab.1/A.1/A.2 "
                      "da norma (ENTRADA - A CONFIRMAR na norma vigente)"}
 
 
 def area_sumidouro(contribuicao_diaria_L, taxa_infiltracao_L_m2_dia):
     """Area de infiltracao do sumidouro/vala: A = Q_diaria / taxa_infiltracao.
-    A taxa de infiltracao vem do ENSAIO de infiltracao do solo (NBR 7229/13969) -
-    ENTRADA (A CONFIRMAR). Retorna m2 (area lateral+fundo a prover)."""
+    A taxa de infiltracao vem do ENSAIO de infiltracao do solo (NBR 17076:2024
+    Anexos K/L/N - sucede NBR 7229/13969) - ENTRADA (A CONFIRMAR).
+    Retorna m2 (area lateral+fundo a prover)."""
     if not taxa_infiltracao_L_m2_dia or taxa_infiltracao_L_m2_dia <= 0:
         raise ValueError("[A CONFIRMAR] taxa de infiltracao do solo (ensaio) ausente")
     return round(contribuicao_diaria_L / taxa_infiltracao_L_m2_dia, 1)
@@ -60,7 +69,8 @@ def area_sumidouro(contribuicao_diaria_L, taxa_infiltracao_L_m2_dia):
 
 def dimensiona_esgoto(caso):
     """Sistema de esgoto no lote. caso: {N, C, T, K, Lf, taxa_infiltracao_L_m2_dia?}.
-    Devolve fossa + sumidouro (se a taxa for dada). Coeficientes NBR 7229 = ENTRADA."""
+    Devolve fossa + sumidouro (se a taxa for dada). Coeficientes NBR 17076 = ENTRADA
+    (C = q da Tab.1 da NBR 17076:2024)."""
     f = volume_fossa_septica(caso["N"], caso["C"], caso["T"], caso["K"], caso["Lf"])
     out = {"fossa": f}
     taxa = caso.get("taxa_infiltracao_L_m2_dia")
@@ -118,7 +128,7 @@ def cisterna_rippl(precip_mm_mes, area_captacao_m2, demanda_L_mes,
 
 # ----------------------------------- selftest --------------------------------
 def _selftest():
-    # 1) fossa NBR 7229 - formula exata + minimo 1000 L
+    # 1) fossa NBR 17076:2024 A.2 (conferida contra NBR 7229) - formula exata + minimo 1000 L
     # exemplo: N=50, C=160, T=0,75, K=65, Lf=1  -> V=1000+50(160.0,75+65.1)=1000+50.185=10250
     f = volume_fossa_septica(50, 160.0, 0.75, 65.0, 1.0)
     assert abs(f["volume_util_L"] - (1000 + 50 * (160 * 0.75 + 65 * 1))) < 1e-6

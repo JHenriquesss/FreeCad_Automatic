@@ -56,6 +56,7 @@ import alvenaria_estrutural as alv
 import cargas_nbr6120 as cg
 import descida_cargas as dc
 import fundacao_edificio as fe
+import fundacao_sapata_corrida as fsc
 import laje_concreto as lj
 import pavimento_tipo as pt
 import pilar_continuo as pcn
@@ -69,6 +70,12 @@ GF = 1.4                   # ponderacao das acoes (ELU, combinacao normal)
 # Teto de pavimentos desta tipologia. Casa terrea (1) e sobrado (2) sao o que a
 # cadeia SEM estabilidade horizontal cobre; ver a nota do cabecalho.
 MAX_PAVIMENTOS = 2
+
+# G61: a casa em ALVENARIA ESTRUTURAL portante e aceita apenas terrea neste
+# lote (1 pavimento). Acima disso a entrada e RECUSADA com a tipologia certa,
+# no molde do >2 pavimentos do G13: parede portante de sobrado pede
+# contraventamento e Anexo C, fora deste lote.
+MAX_PAVIMENTOS_ALVENARIA = 1
 
 # teto de iteracoes do ponto fixo espessura-da-laje x carga (ver `rodar`)
 MAX_ITER_LAJE = 6
@@ -442,6 +449,359 @@ def dimensiona_baldrame(cfg, vaos_x, vaos_y, fck, fyk):
 
 
 # ---------------------------------------------------------------------------
+# ALVENARIA PORTANTE (G61): laje -> parede -> baldrame -> sapata corrida
+# ---------------------------------------------------------------------------
+def validar_vaos_parede(vaos, L, pe_direito, nome_linha):
+    """Vãos declarados de uma parede portante (G62, pranchas de elevação).
+
+    Cada vão: {pos_m (eixo da parede onde começa), larg_m, alt_m,
+    peitoril_m? (0 = porta), tipo?}. Fora do comprimento/altura ou em
+    sobreposição, RECUSA com motivo nomeado: prancha que finge vão onde
+    não cabe não é detalhe, é vão inventado. Sem vãos, parede cheia.
+    Devolve a lista normalizada (arredondada a 3 casas).
+    """
+    norm = []
+    if not vaos:
+        return norm
+    if not isinstance(vaos, (list, tuple)):
+        raise EntradaEstrutura(
+            "vaos de %s devem ser uma lista" % nome_linha)
+    for k, v in enumerate(vaos):
+        if not isinstance(v, dict):
+            raise EntradaEstrutura(
+                "vao %d de %s deve ser um objeto" % (k, nome_linha))
+        try:
+            pos = float(v["pos_m"])
+            larg = float(v["larg_m"])
+            alt = float(v.get("alt_m", pe_direito - float(v.get("peitoril_m", 0.0))))
+            peit = float(v.get("peitoril_m", 0.0))
+        except (KeyError, TypeError, ValueError):
+            raise EntradaEstrutura(
+                "vao %d de %s precisa de pos_m/larg_m/alt_m numericos"
+                % (k, nome_linha))
+        if not larg > 0 or not alt > 0:
+            raise EntradaEstrutura(
+                "vao %d de %s com dimensao nao positiva" % (k, nome_linha))
+        if not 0 <= pos or not pos + larg <= L + 1e-9:
+            raise EntradaEstrutura(
+                "vao_fora_da_parede: vao %d de %s (%.3f + %.3f m) fora do "
+                "comprimento %.3f m" % (k, nome_linha, pos, larg, L))
+        if not 0 <= peit or not peit + alt <= float(pe_direito) + 1e-9:
+            raise EntradaEstrutura(
+                "vao_fora_da_altura: vao %d de %s (peitoril %.3f + %.3f m) fora "
+                "do pe-direito %.3f m" % (k, nome_linha, peit, alt,
+                                          float(pe_direito)))
+        norm.append({"pos_m": round(pos, 3), "larg_m": round(larg, 3),
+                     "alt_m": round(alt, 3), "peitoril_m": round(peit, 3),
+                     "tipo": str(v.get("tipo", "porta" if peit == 0 else "janela"))})
+    ordenados = sorted(norm, key=lambda r: r["pos_m"])
+    for a, b in zip(ordenados, ordenados[1:]):
+        if b["pos_m"] < a["pos_m"] + a["larg_m"] - 1e-9:
+            raise EntradaEstrutura(
+                "vaos_sobrepostos: %s tem vaos em %.3f m e %.3f m que se "
+                "sobrepoem" % (nome_linha, a["pos_m"], b["pos_m"]))
+    return ordenados
+
+
+def quinhao_laje_por_linha(pav):
+    """Quinhao da laje (kN) que cada linha da malha recebe, pela 14.7.6.1.
+
+    Reusa as reacoes de borda que `pavimento_tipo` ja calcula painel a painel
+    (charneiras de 45/60 graus, `laje_concreto.reacoes_apoios`, aferidas nos
+    Quadros 7.8/7.9 de Carvalho): a parede portante recebe o que a LAJE
+    entrega naquela borda. Repartir por COMPRIMENTO manda menos carga para a
+    parede longa, que e justamente a que governa: num painel de 4,0 x 9,0 m a
+    borda longa recebe 7,78 kN/m e a quota por comprimento da 6,92 kN/m -
+    11 % a menos, contra a seguranca, e a borda curta 38 % a mais.
+
+    Mapeamento das bordas globais (mesma convencao de `pavimento_tipo`):
+    'inf'/'sup' do painel (i, j) descarregam nas linhas em X j e j+1;
+    'esq'/'dir' nas linhas em Y i e i+1.
+    """
+    p = float(pav["g_kN_m2"]) + float(pav["q_kN_m2"])
+    vx, vy = list(pav["vaos_x"]), list(pav["vaos_y"])
+    quin = {}
+
+    def _soma(nome, valor):
+        quin[nome] = quin.get(nome, 0.0) + valor
+
+    for pan in pav["paineis"]:
+        i, j = int(pan["i"]), int(pan["j"])
+        ru = pan["reacoes_unitarias"]
+        lx, ly = float(vx[i]), float(vy[j])
+        _soma("BX-%d" % j, float(ru["inf"]) * p * lx)
+        _soma("BX-%d" % (j + 1), float(ru["sup"]) * p * lx)
+        _soma("BY-%d" % i, float(ru["esq"]) * p * ly)
+        _soma("BY-%d" % (i + 1), float(ru["dir"]) * p * ly)
+    return quin
+
+
+def confere_simetria_quinhao(quinhoes, vaos_x, vaos_y, tol=1e-6):
+    """Simetria do quinhao: plano simetrico -> linhas opostas recebem igual.
+
+    Nao e o fechamento repetido: o total fecha mesmo com a carga indo para a
+    linha errada (a licao do G3, onde uma malha 2x2 simetrica saiu com 26,5 kN
+    num canto e 18,5 kN no oposto). Quando a lista de vaos e um palindromo, a
+    malha e simetrica naquele eixo e as linhas espelhadas TEM de receber o
+    mesmo quinhao - relacao entre dois valores calculados, nunca literal.
+    Plano assimetrico: nao ha o que conferir (devolve ok com n_pares 0).
+    """
+    pares, pior, pior_par = 0, 0.0, None
+    for pref, vaos in (("BX", list(vaos_y)), ("BY", list(vaos_x))):
+        if list(vaos) != list(reversed(list(vaos))):
+            continue
+        n = len(vaos)
+        for k in range(n + 1):
+            m = n - k
+            if m <= k:
+                continue
+            a = float(quinhoes.get("%s-%d" % (pref, k), 0.0))
+            b = float(quinhoes.get("%s-%d" % (pref, m), 0.0))
+            base = max(abs(a), abs(b))
+            erro = abs(a - b) / base if base > 1e-12 else 0.0
+            pares += 1
+            if erro > pior:
+                pior, pior_par = erro, ("%s-%d" % (pref, k), "%s-%d" % (pref, m))
+    return {"ok": pior <= tol, "n_pares": pares, "pior_erro": round(pior, 9),
+            "pior_par": pior_par}
+
+
+def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
+    """Verifica as paredes portantes que recebem a laje (NBR 16868-1 11.2.1).
+
+    cfg: {'fpk' (kN/m2, DECLARADA, sem default — regra do SPT no G9),
+          'material' ('bloco'|'tijolo'), 'te' (m), 'combinacao' (Tab.2),
+          'habitacao_terrea' (bool, nota "a" da Tab.9),
+          'parede_6120' {tipo, espessura_cm, revestimento_cm?, altura_m?},
+          'linhas' ('contorno'|'todas'),
+          'vaos' (opc) {nome_da_linha: [{pos_m, larg_m, alt_m, peitoril_m?,
+          tipo? porta/janela}]} — vãos declarados para as pranchas (G62);
+          sem vãos a parede é cheia. Posição fora da parede ou sobreposição
+          RECUSA com motivo nomeado (desenho que finge vão onde não cabe).
+    pav: pavimento-tipo montado (a laje que desce). A parcela da LAJE que
+    chega a cada linha e proporcional ao comprimento da linha
+    (tributaria por metro de parede); o peso proprio da PAREDE entra pela
+    via da carga (cargas_nbr6120.carga_linear_parede x L) e o modulo de
+    alvenaria soma ZERO por dentro (F21). Por isso a parcela de parede e
+    ISOLADA por linha (Nd_parede_kN) e a junta F21 confere parcela x via
+    da carga — relacao, nunca numero congelado.
+
+    Devolve {'OK', 'por_linha', 'fechamento', 'reprovadas', ...}. Lambda
+    acima do teto da Tab.9 reprova SEM publicar NRd (o que o G60 provou
+    por mutacao; a integracao propaga o resultado sem acrescentar NRd).
+    """
+    if not isinstance(cfg, dict):
+        raise EntradaEstrutura("alvenaria_portante deve ser um objeto")
+    fpk = cfg.get("fpk")
+    if fpk is None:
+        raise EntradaEstrutura(
+            "alvenaria_portante.fpk nao declarado: a resistencia vem do prisma "
+            "(NBR 16868-3) e e ensaio declarado; sem fpk nao ha fk (regra do SPT no G9)")
+    material = cfg.get("material", "bloco")
+    te = cfg.get("te")
+    if te is None or not float(te) > 0:
+        raise EntradaEstrutura("alvenaria_portante.te deve ser > 0 (m)")
+    te = float(te)
+    combinacao = cfg.get("combinacao", "normal")
+    hab_terrea = bool(cfg.get("habitacao_terrea", True))
+    par = cfg.get("parede_6120")
+    if not isinstance(par, dict):
+        raise EntradaEstrutura(
+            "alvenaria_portante.parede_6120 deve declarar tipo/espessura_cm "
+            "(Tabela 2 da NBR 6120, via da carga)")
+    try:
+        altura = float(par.get("altura_m", pe_direito))
+    except (TypeError, ValueError):
+        raise EntradaEstrutura("parede_6120.altura_m deve ser numerica")
+    modo = cfg.get("linhas", "contorno")
+    linhas = linhas_de_baldrame(list(vaos_x), list(vaos_y), modo)
+    # A LAJE que desce: so a laje (g+q x area), sem o peso proprio das vigas
+    # de concreto nem parede sobre viga — na tipologia de alvenaria nao ha
+    # portico de concreto e esse peso nao existe para descer pela parede.
+    carga_laje = float(pav.get("carga_laje_total_kN", pav.get("N_total_k", 0.0)))
+    try:
+        q_parede = cg.carga_linear_parede(
+            par["tipo"], par["espessura_cm"], altura,
+            par.get("revestimento_cm", 1.0))
+    except KeyError as exc:
+        raise EntradaEstrutura(
+            "parede_6120 precisa de 'tipo' e 'espessura_cm' (Tabela 2): %s"
+            % exc) from exc
+    comprimento_total = sum(sum(l[3]) for l in linhas)
+    if comprimento_total <= 0:
+        raise EntradaEstrutura("nenhum comprimento de parede portante")
+    vaos_cfg = cfg.get("vaos") or {}
+    if vaos_cfg and not isinstance(vaos_cfg, dict):
+        raise EntradaEstrutura("alvenaria_portante.vaos deve ser um objeto "
+                               "{nome_da_linha: [vaos]}")
+    nomes_linhas = {"%s" % l[0] for l in linhas}
+    orfaos = sorted(set(vaos_cfg) - nomes_linhas)
+    if orfaos:
+        raise EntradaEstrutura(
+            "vaos em linha inexistente (%s): linhas validas: %s"
+            % (", ".join(orfaos), ", ".join(sorted(nomes_linhas))))
+    # A laje NAO se reparte por comprimento de parede: cada painel entrega o
+    # seu quinhao a cada borda pela 14.7.6.1, e e isso que a parede recebe.
+    quinhoes = quinhao_laje_por_linha(pav)
+    nomes_com_parede = {n for n in nomes_linhas}
+    sem_parede = sorted(n for n, v in quinhoes.items()
+                        if v > 1e-9 and n not in nomes_com_parede)
+    if sem_parede:
+        # A malha de paineis apoia a laje em TODA linha da grelha. Se uma
+        # dessas linhas nao tem parede portante, a laje foi calculada sobre
+        # um apoio que ninguem vai construir - e o quinhao dela sumiria (ou,
+        # pior, seria espalhado nas outras). Recusa nomeando as linhas.
+        raise EntradaEstrutura(
+            "laje_apoia_em_linha_sem_parede: a laje foi calculada apoiada em "
+            "%s, linha(s) da malha sem parede portante declarada; use "
+            "linhas='todas' (parede em cada linha da malha) ou uma geometria "
+            "de um so painel (G61)" % ", ".join(sem_parede))
+    por_linha = []
+    reprovadas = []
+    for nome, eixo, indice, vaos in linhas:
+        L = float(sum(vaos))
+        vaos_linha = validar_vaos_parede(vaos_cfg.get(nome) or [],
+                                        L, float(pe_direito), nome)
+        N_laje_k = float(quinhoes.get(nome, 0.0))
+        N_parede_k = q_parede * L
+        N_wall_k = N_laje_k + N_parede_k
+        N_wall_d = GF * N_wall_k
+        A = te * L
+        res = alv.verifica_parede_compressao(
+            N_wall_d, fpk, float(pe_direito), te, A, material=material,
+            combinacao=combinacao,
+            acao_horizontal_kN=cfg.get("acao_horizontal_kN"),
+            n_pavimentos=cfg.get("n_pavimentos", 1),
+            habitacao_terrea=hab_terrea, comprimento_m=L)
+        # F21 caso real: a parcela isolada (caracteristica) contra a via
+        # da carga (caracteristica). Nd de calculo quebraria a igualdade
+        # por construcao (GF de um lado so).
+        junta = alv.confere_fronteira_peso_parcela(
+            N_parede_k, par["tipo"], par["espessura_cm"], altura, L,
+            par.get("revestimento_cm", 1.0))
+        ok_linha = bool(res.get("OK")) and bool(junta.get("OK"))
+        registro = {
+            "nome": nome, "eixo": eixo, "indice": indice,
+            "comprimento_m": round(L, 3),
+            "N_laje_kN": round(N_laje_k, 2),
+            "Nd_parede_kN": round(N_parede_k, 3),
+            "N_wall_kN": round(N_wall_k, 2),
+            "N_wall_d_kN": round(N_wall_d, 2),
+            "carga_linear_kN_m": round(q_parede, 3),
+            "vaos": vaos_linha,
+            "verificacao": res, "junta_peso": junta, "OK": ok_linha,
+        }
+        if not ok_linha:
+            motivo = res.get("motivo") or junta.get("motivo") or "reprovada"
+            reprovadas.append("%s: %s" % (nome, motivo))
+        por_linha.append(registro)
+    fechamento = verifica_fechamento_alvenaria(
+        por_linha, carga_laje, q_parede, vaos_x=vaos_x, vaos_y=vaos_y,
+        quinhoes=quinhoes)
+    return {
+        "OK": (not reprovadas) and bool(fechamento["ok"]),
+        "por_linha": por_linha, "reprovadas": reprovadas,
+        "fechamento": fechamento,
+        "carga_laje_total_kN": round(carga_laje, 2),
+        "q_parede_kN_m": round(q_parede, 3),
+        "comprimento_total_m": round(comprimento_total, 3),
+        "fpk_kN_m2": float(fpk), "te_m": te, "material": material,
+        "combinacao": combinacao, "linhas": modo,
+    }
+
+
+def verifica_fechamento_alvenaria(por_linha, carga_laje_total_kN,
+                                  q_parede_kN_m, tol=TOL_FECHAMENTO,
+                                  vaos_x=None, vaos_y=None, quinhoes=None):
+    """Gate de fechamento do caminho portante (G13, licao do G3).
+
+    Confere o TOTAL - o que desce pelas paredes bate com a carga da laje mais
+    o peso das paredes - E a SIMETRIA. A simetria nao pode ser a formula da
+    reparticao repetida: assim ela concordaria consigo mesma e passaria com a
+    carga indo para a parede errada (D86, a assercao tautologica). A quota de
+    laje vem das charneiras da 14.7.6.1, por painel; o que se confere aqui e
+    que num plano SIMETRICO as linhas espelhadas recebem o mesmo quinhao -
+    dois valores calculados por caminhos independentes do teste.
+    """
+    total_laje = sum(r["N_laje_kN"] for r in por_linha)
+    total_parede = sum(r["Nd_parede_kN"] for r in por_linha)
+    L_total = sum(r["comprimento_m"] for r in por_linha)
+    esperado_laje = float(carga_laje_total_kN)
+    esperado_parede = float(q_parede_kN_m) * float(L_total)
+    esperado = esperado_laje + esperado_parede
+    somado = total_laje + total_parede
+    erro_rel = abs(somado - esperado) / esperado if esperado > 0 else 0.0
+    sim = confere_simetria_quinhao(
+        quinhoes if quinhoes is not None
+        else {r["nome"]: r["N_laje_kN"] for r in por_linha},
+        list(vaos_x or []), list(vaos_y or []), tol=tol)
+    ok = erro_rel <= tol and sim["ok"]
+    return {"ok": bool(ok),
+            "N_paredes_kN": round(somado, 2),
+            "carga_esperada_kN": round(esperado, 2),
+            "erro_rel": round(erro_rel, 5),
+            "simetria_ok": bool(sim["ok"]),
+            "simetria_pares": sim["n_pares"],
+            "pior_erro_linha": sim["pior_erro"],
+            "pior_linha": (sim["pior_par"][0] if sim["pior_par"] else None),
+            "comprimento_m": round(L_total, 3)}
+
+
+def _avisos_corrida(dim):
+    """Avisos da corrida, com a peca FLEXIVEL dita em vez de silenciosa."""
+    avisos = [{"code": "fundacao_so_gravitacional",
+               "detail": "sapata corrida dimensionada so para a carga vertical "
+                         "linear (M = 0 na faixa de 1 m)"}]
+    pb = dim.get("parte_B") or {}
+    if pb.get("flag_flexivel"):
+        avisos.append({"code": "corrida_flexivel",
+                       "detail": pb["flag_flexivel"]})
+    return avisos
+
+
+def dimensiona_fundacao_corrida_por_linha(q_por_linha, spec_fundacao):
+    """Dimensiona a sapata corrida por linha de parede (kN/m -> B x h).
+
+    q_por_linha: {nome: q_kN_m caracteristica no nivel da base da parede
+    + baldrame}. Uma secao para a obra: o MAIOR q governa e a mesma
+    largura corre em todas as linhas (pratica corrente, lado conservador).
+    """
+    if not q_por_linha:
+        raise EntradaEstrutura("sem carga linear para a sapata corrida")
+    q_max = max(float(v) for v in q_por_linha.values())
+    dim = fsc.dimensiona_corrida(q_max, dict(spec_fundacao))
+    if dim["aprovado"] is None:
+        return {"OK": False, "aprovado": None, "bruto": dim,
+                "q_max_kN_m": round(q_max, 3), "q_por_linha": dict(q_por_linha),
+                "por_linha": {}, "gate": {"OK": False, "tipo": "sapata_corrida",
+                                          "reprovados": sorted(q_por_linha)}}
+    B, h, rA, meta = dim["aprovado"]
+    por_linha = {}
+    for nome, q in q_por_linha.items():
+        r = fsc.verifica_corrida_A(float(q), B, h, dict(spec_fundacao),
+                                   sigma_solo=rA["sigma_adm"])
+        por_linha[nome] = {
+            "q_kN_m": round(float(q), 3), "B_m": B, "h_m": h,
+            "sigma_max": r["sigma_max"], "u_solo": r["u_solo"], "OK": r["OK_A"],
+        }
+    reprovadas = [n for n, r in por_linha.items() if not r["OK"]]
+    gate = {"OK": not reprovadas, "tipo": "sapata_corrida",
+            "n_linhas": len(por_linha), "reprovados": reprovadas,
+            "B_m": B, "h_m": h,
+            "N_max_kN_m": round(q_max, 1)}
+    return {"OK": gate["OK"], "tipo": "sapata_corrida", "B_m": B, "h_m": h,
+            "sigma_solo_adm": rA["sigma_adm"],
+            "proveniencia_sigma": rA.get("proveniencia_sigma",
+                                         meta.get("proveniencia_sigma", "")),
+            "por_linha": por_linha, "q_por_linha": dict(q_por_linha),
+            "q_max_kN_m": round(q_max, 3),
+            "bruto": dim, "parte_B": dim.get("parte_B"),
+            "gate": gate, "escopo": {"fundacao_rasa": "implemented"},
+            "avisos": _avisos_corrida(dim),
+            "cota_apoio_m": float(dict(spec_fundacao).get("cota_apoio_m", 1.0))}
+
+
+# ---------------------------------------------------------------------------
 # ORQUESTRADOR
 # ---------------------------------------------------------------------------
 def _valida(spec):
@@ -479,6 +839,31 @@ def _valida(spec):
             "de deslocamento lateral) o resultado nao descreveria a estrutura. "
             "Use a tipologia 'edificio' (edificio_multipavimento), que a calcula"
             % (MAX_PAVIMENTOS, len(pavimentos)))
+    if spec.get("alvenaria_portante") is not None:
+        # G61: escopo honesto — a casa em alvenaria portante e aceita apenas
+        # terrea neste lote (parede de sobrado pede contraventamento 9.6.2 e
+        # Anexo C, fora do lote), no molde do >2 pavimentos do G13.
+        if len(pavimentos) > MAX_PAVIMENTOS_ALVENARIA:
+            raise EntradaEstrutura(
+                "casa em alvenaria estrutural portante cobre so casa terrea "
+                "(ate %d pavimento) neste lote e recebeu %d: parede de sobrado "
+                "pede contraventamento (NBR 16868-1 9.6.2) e Anexo C, fora do "
+                "escopo deste lote (G61)"
+                % (MAX_PAVIMENTOS_ALVENARIA, len(pavimentos)))
+        if not isinstance(spec.get("alvenaria_portante"), dict):
+            raise EntradaEstrutura("alvenaria_portante deve ser um objeto")
+    fund_tipo = (spec.get("fundacao") or {}).get("tipo") \
+        if isinstance(spec.get("fundacao"), dict) else None
+    if fund_tipo == "sapata_corrida" and spec.get("alvenaria_portante") is None:
+        raise EntradaEstrutura(
+            "tipo='sapata_corrida' exige parede portante (carga linear kN/m): "
+            "declare alvenaria_portante (G61) ou use sapata/bloco/estaca")
+    if spec.get("alvenaria_portante") is not None and fund_tipo in (
+            "sapata", "bloco", "estaca"):
+        raise EntradaEstrutura(
+            "casa em alvenaria portante entrega carga LINEAR (kN/m) e nao "
+            "apoia em fundacao pontual ('%s'): use tipo='sapata_corrida' (G61)"
+            % fund_tipo)
     materiais = spec.get("materiais")
     if not isinstance(materiais, dict):
         raise EntradaEstrutura("materiais deve declarar fck e fyk (kN/m2)")
@@ -599,36 +984,101 @@ def rodar(spec):
             stair = None
 
     # -------------------------------------------------------- DESCIDA (6.12)
+    # G61: na tipologia de alvenaria portante nao ha portico de concreto —
+    # a laje apoia direto nas paredes e a descida aos pilares nao existe.
+    # A descida e calculada do mesmo jeito (custo zero, mantem o contrato),
+    # mas os gates de pilares/vigas/fechamento sao os do caminho portante.
+    com_alvenaria = spec.get("alvenaria_portante") is not None
+    if com_alvenaria and spec.get("escada"):
+        raise EntradaEstrutura(
+            "alvenaria portante (terrea) nao recebe escada de concreto: sem "
+            "pilares nao ha onde descer a reacao (G61)")
     desc = dc.descer({"pavimentos": pavs, "elemento": "pilar"})
     if stair is not None:
         detalhe_escada = _descer_escada(desc, stair)
     red = dc.verifica_reducao(desc)
 
     # -------------------------------------------------------------- PILARES
+    # G61: sem portico de concreto nao ha pilar a dimensionar; o gate vira
+    # not_applicable em vez de dimensionar peca que nao vai ser construida.
     pilares = {}
     erros_pilar = []
-    for nome in sorted(desc["pilares"]):
-        lances = dc.lances_para_pilar(desc, nome)
-        escolhidos, erros = pcn.dimensiona_pilar_continuo(
-            lances, fck, fyk, secoes=SECOES_PILAR_CASA)
-        r = pcn.dimensiona({"lances": escolhidos, "fck": fck, "fyk": fyk})
-        if erros:
-            r = dict(r, OK=False)
-            r["erros"] = list(r["erros"]) + erros
-        pilares[nome] = r
-        if not r["OK"]:
-            erros_pilar.append(nome)
+    if not com_alvenaria:
+        for nome in sorted(desc["pilares"]):
+            lances = dc.lances_para_pilar(desc, nome)
+            escolhidos, erros = pcn.dimensiona_pilar_continuo(
+                lances, fck, fyk, secoes=SECOES_PILAR_CASA)
+            r = pcn.dimensiona({"lances": escolhidos, "fck": fck, "fyk": fyk})
+            if erros:
+                r = dict(r, OK=False)
+                r["erros"] = list(r["erros"]) + erros
+            pilares[nome] = r
+            if not r["OK"]:
+                erros_pilar.append(nome)
 
     # ---------------------------------------------------------------- VIGAS
-    r_vigas = verifica_vigas(pav, fck, fyk,
-                            com_alvenaria=pav["g_parede_kN_m"] > 0)
+    # G61: idem pilares — sem viga de concreto na casa de alvenaria.
+    if com_alvenaria:
+        r_vigas = {"OK": True, "por_linha": [], "reprovados": [],
+                   "n_tramos": 0,
+                   "nao_aplicavel": ("casa em alvenaria portante: a laje apoia "
+                                     "direto nas paredes, sem viga de concreto")}
+    else:
+        r_vigas = verifica_vigas(pav, fck, fyk,
+                                 com_alvenaria=pav["g_parede_kN_m"] > 0)
+
+    # ------------------------------------------- ALVENARIA PORTANTE (G61)
+    alvenaria = None
+    erro_alvenaria = None
+    if com_alvenaria:
+        try:
+            alvenaria = dimensiona_alvenaria_portante(
+                spec["alvenaria_portante"], pav, geo["vaos_x"], geo["vaos_y"],
+                geo["pe_direito"])
+        except EntradaEstrutura as exc:
+            erro_alvenaria = str(exc)
 
     # ------------------------------------------------------------- BALDRAME
     baldrame = None
     erro_baldrame = None
-    if spec.get("baldrame"):
+    if com_alvenaria and spec.get("baldrame") is None:
+        erro_baldrame = ("casa em alvenaria portante exige baldrame declarado: "
+                         "a parede pousa no baldrame e o baldrame na sapata "
+                         "corrida (caminho laje -> parede -> baldrame -> corrida)")
+    elif spec.get("baldrame"):
         try:
-            baldrame = dimensiona_baldrame(spec["baldrame"], geo["vaos_x"],
+            cfg_bald = spec["baldrame"]
+            if com_alvenaria and alvenaria is not None:
+                # O baldrame sob a parede portante carrega a parede E a laje
+                # que a parede recebe: q de entrada = q_parede + quinhao de
+                # laje por metro (a laje nao passa por viga nenhuma aqui).
+                # E' UMA SECAO PARA A OBRA (a mesma pratica do baldrame de
+                # concreto), logo o q que a dimensiona e o MAIOR quinhao por
+                # metro, nao a media: pela media a linha que governa - a
+                # parede longa, que a 14.7.6.1 carrega mais - sairia leve.
+                import copy as _cp
+                cfg_bald = _cp.deepcopy(spec["baldrame"])
+                q_laje_lin = max(
+                    [(float(reg["N_laje_kN"]) / float(reg["comprimento_m"]))
+                     for reg in alvenaria["por_linha"]
+                     if float(reg["comprimento_m"]) > 0] or [0.0])
+                if cfg_bald.get("q_parede") is not None:
+                    cfg_bald["q_parede"] = (float(cfg_bald["q_parede"])
+                                            + q_laje_lin)
+                elif cfg_bald.get("parede") is not None:
+                    # converte parede -> q para somar a quota de laje sem
+                    # reinterpretar Tabela 2 duas vezes
+                    q_par = cg.carga_linear_parede(
+                        cfg_bald["parede"]["tipo"],
+                        cfg_bald["parede"]["espessura_cm"],
+                        cfg_bald["parede"]["altura"],
+                        cfg_bald["parede"].get("revestimento_cm", 1.0))
+                    cfg_bald = {k: v for k, v in cfg_bald.items()
+                                if k != "parede"}
+                    cfg_bald["q_parede"] = q_par + q_laje_lin
+                else:
+                    cfg_bald["q_parede"] = q_laje_lin
+            baldrame = dimensiona_baldrame(cfg_bald, geo["vaos_x"],
                                            geo["vaos_y"], fck, fyk)
         except EntradaEstrutura as exc:
             erro_baldrame = str(exc)
@@ -649,10 +1099,38 @@ def rodar(spec):
     # baldrame - a alvenaria terrea nao passa por pilar nenhum. Somar aqui, e
     # nao antes, e' o correto: o baldrame entrega no TOPO da fundacao, abaixo do
     # ultimo lance, e nao carrega o pilar.
+    # G61: na casa de alvenaria a fundacao e corrida por linha de parede
+    # (kN/m); apoio pontual nao recebe carga linear (recusado em _valida).
     fundacao = None
     erro_fundacao = None
     reacoes_baldrame = (baldrame or {}).get("por_pilar") or {}
-    if fe.declarada(spec.get("fundacao")):
+    q_fundacao_linear = {}
+    fund_tipo_spec = (spec.get("fundacao") or {}).get("tipo") \
+        if isinstance(spec.get("fundacao"), dict) else None
+    if com_alvenaria:
+        if fund_tipo_spec == "sapata_corrida":
+            if alvenaria is not None and baldrame is not None:
+                w_bald = float(baldrame["w_kN_m"])
+                for reg in alvenaria["por_linha"]:
+                    # w do baldrame ja e parede + laje + peso proprio do
+                    # baldrame (mesma carga por metro em toda a obra, secao
+                    # unica): a fundacao recebe w por metro de parede.
+                    q_fundacao_linear[reg["nome"]] = round(w_bald, 3)
+                try:
+                    fundacao = dimensiona_fundacao_corrida_por_linha(
+                        q_fundacao_linear, dict(spec.get("fundacao")))
+                except Exception as exc:  # noqa: BLE001
+                    erro_fundacao = str(exc)
+            elif alvenaria is None or baldrame is None:
+                erro_fundacao = ("caminho portante incompleto: sem parede "
+                                 "verificada e baldrame nao ha carga linear "
+                                 "para a corrida")
+        elif spec.get("fundacao") is not None:
+            # _valida ja recusou pontual com alvenaria; este ramo so alcanca
+            # fundacao sem tipo (declarada por perfil/sigma sem tipo).
+            erro_fundacao = ("casa em alvenaria portante exige "
+                             "fundacao.tipo='sapata_corrida' (G61)")
+    elif fe.declarada(spec.get("fundacao")):
         pilares_fund = []
         for nome in sorted(desc["pilares"]):
             registro = next(x for x in pav["pilares"] if x["nome"] == nome)
@@ -705,35 +1183,88 @@ def rodar(spec):
                          and escada_erro is None)
 
     # ---------------------------------------------------------------- GATES
-    gates = {
-        "fechamento_carga": {"OK": fechamento_ok, "erro_rel": fech["erro_rel"],
-                             "N_pilares": fech["N_pilares"],
-                             "esperado": fech["carga_esperada"],
-                             "N_desc_total_k": round(N_desc_total, 2),
-                             "esperado_total_k": round(esperado_total, 2),
-                             "erro_total": round(erro_total, 5),
-                             "escada_total_kN": round(escada_bruto_total, 2),
-                             "escada_distribuicao": (detalhe_escada["distribuicao"]
-                                                     if detalhe_escada else None),
-                             "escada_erro": escada_erro},
-        "reducao_6120": {"OK": red["ok"], "reduzidos": red["reduzidos"],
-                         "alivio_pct": red["alivio_pct_max"],
-                         "violacoes": red["violacoes"]},
-        "laje": {"OK": bool(r_laje.get("OK")), "h_cm": r_laje.get("h", 0) * 100},
-        # a carga que desceu foi calculada com a espessura que a laje ADOTOU
-        "laje_compatibilizada": {
-            "OK": convergiu and abs(pav["h_laje_usada"] - r_laje["h"]) <= 1e-9,
-            "h_declarada_cm": h_declarada * 100,
-            "h_adotada_cm": r_laje["h"] * 100,
-            "h_na_carga_cm": pav["h_laje_usada"] * 100,
-            "iteracoes": iteracoes},
-        # ao contrario do edificio, aqui a viga e' VERIFICADA (nao so analisada)
-        "vigas": {"OK": r_vigas["OK"], "n_linhas": len(r_vigas["por_linha"]),
-                  "n_tramos": r_vigas["n_tramos"],
-                  "reprovadas": list(r_vigas["reprovados"])},
-        "pilares": {"OK": not erros_pilar, "reprovados": erros_pilar,
-                    "n": len(pilares)},
-    }
+    # G61: no caminho portante o fechamento e o das paredes (total + simetria
+    # por linha); parede reprovada reprova a tipologia (gate de verdade).
+    if com_alvenaria:
+        if alvenaria is not None:
+            fch = alvenaria["fechamento"]
+            gates = {
+                "fechamento_carga": {
+                    "OK": bool(fch["ok"]) and bool(alvenaria["OK"]),
+                    "erro_rel": fch["erro_rel"],
+                    "N_paredes_kN": fch["N_paredes_kN"],
+                    "esperado": fch["carga_esperada_kN"],
+                    "pior_erro_linha": fch["pior_erro_linha"],
+                    "pior_linha": fch["pior_linha"],
+                    "comprimento_m": fch["comprimento_m"]},
+                "laje": {"OK": bool(r_laje.get("OK")),
+                         "h_cm": r_laje.get("h", 0) * 100},
+                "laje_compatibilizada": {
+                    "OK": convergiu and abs(pav["h_laje_usada"] - r_laje["h"]) <= 1e-9,
+                    "h_declarada_cm": h_declarada * 100,
+                    "h_adotada_cm": r_laje["h"] * 100,
+                    "h_na_carga_cm": pav["h_laje_usada"] * 100,
+                    "iteracoes": iteracoes},
+                "vigas": {"OK": True, "n_linhas": 0, "n_tramos": 0,
+                          "reprovadas": [],
+                          "nao_aplicavel": r_vigas.get("nao_aplicavel", "")},
+                "pilares": {"OK": True, "reprovados": [], "n": 0,
+                            "nao_aplicavel": ("casa em alvenaria portante: sem "
+                                              "portico de concreto")},
+                "alvenaria_portante": {
+                    "OK": bool(alvenaria["OK"]),
+                    "n_linhas": len(alvenaria["por_linha"]),
+                    "reprovadas": list(alvenaria["reprovadas"]),
+                    "fechamento_OK": bool(fch["ok"]),
+                    "erro_rel": fch["erro_rel"]},
+            }
+        else:
+            gates = {
+                "fechamento_carga": {"OK": False, "erro": erro_alvenaria},
+                "laje": {"OK": bool(r_laje.get("OK")),
+                         "h_cm": r_laje.get("h", 0) * 100},
+                "laje_compatibilizada": {
+                    "OK": convergiu and abs(pav["h_laje_usada"] - r_laje["h"]) <= 1e-9,
+                    "h_declarada_cm": h_declarada * 100,
+                    "h_adotada_cm": r_laje["h"] * 100,
+                    "h_na_carga_cm": pav["h_laje_usada"] * 100,
+                    "iteracoes": iteracoes},
+                "vigas": {"OK": True, "n_linhas": 0, "n_tramos": 0,
+                          "reprovadas": []},
+                "pilares": {"OK": True, "reprovados": [], "n": 0},
+                "alvenaria_portante": {"OK": False, "erro": erro_alvenaria,
+                                       "reprovadas": [erro_alvenaria or ""]},
+            }
+    else:
+        gates = {
+            "fechamento_carga": {"OK": fechamento_ok, "erro_rel": fech["erro_rel"],
+                                 "N_pilares": fech["N_pilares"],
+                                 "esperado": fech["carga_esperada"],
+                                 "N_desc_total_k": round(N_desc_total, 2),
+                                 "esperado_total_k": round(esperado_total, 2),
+                                 "erro_total": round(erro_total, 5),
+                                 "escada_total_kN": round(escada_bruto_total, 2),
+                                 "escada_distribuicao": (detalhe_escada["distribuicao"]
+                                                         if detalhe_escada else None),
+                                 "escada_erro": escada_erro},
+            "reducao_6120": {"OK": red["ok"], "reduzidos": red["reduzidos"],
+                             "alivio_pct": red["alivio_pct_max"],
+                             "violacoes": red["violacoes"]},
+            "laje": {"OK": bool(r_laje.get("OK")), "h_cm": r_laje.get("h", 0) * 100},
+            # a carga que desceu foi calculada com a espessura que a laje ADOTOU
+            "laje_compatibilizada": {
+                "OK": convergiu and abs(pav["h_laje_usada"] - r_laje["h"]) <= 1e-9,
+                "h_declarada_cm": h_declarada * 100,
+                "h_adotada_cm": r_laje["h"] * 100,
+                "h_na_carga_cm": pav["h_laje_usada"] * 100,
+                "iteracoes": iteracoes},
+            # ao contrario do edificio, aqui a viga e' VERIFICADA (nao so analisada)
+            "vigas": {"OK": r_vigas["OK"], "n_linhas": len(r_vigas["por_linha"]),
+                      "n_tramos": r_vigas["n_tramos"],
+                      "reprovadas": list(r_vigas["reprovados"])},
+            "pilares": {"OK": not erros_pilar, "reprovados": erros_pilar,
+                        "n": len(pilares)},
+        }
     if baldrame is not None:
         gates["viga_baldrame"] = {
             "OK": baldrame["OK"],
@@ -759,36 +1290,57 @@ def rodar(spec):
             "erro": escada_erro}
 
     reprovados = [k for k, g in gates.items() if not g["OK"]]
-    N_base = {nome: round(desc["pilares"][nome]["N_base_k"]
-                          + float(reacoes_baldrame.get(nome, 0.0)), 2)
-              for nome in desc["pilares"]}
+    if com_alvenaria:
+        if alvenaria is not None:
+            N_base = {}
+            q_lin = dict(q_fundacao_linear) or {
+                r["nome"]: round(float(baldrame["w_kN_m"]), 3)
+                for r in alvenaria["por_linha"]} if baldrame else {}
+        else:
+            N_base = {}
+            q_lin = {}
+    else:
+        N_base = {nome: round(desc["pilares"][nome]["N_base_k"]
+                              + float(reacoes_baldrame.get(nome, 0.0)), 2)
+                  for nome in desc["pilares"]}
+        q_lin = {}
+    N_max = max(N_base.values()) if N_base else (
+        max(q_lin.values()) if q_lin else 0.0)
     return {
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
         "laje": r_laje, "vigas": r_vigas, "baldrame": baldrame,
         "baldrame_erro": erro_baldrame,
+        "alvenaria": alvenaria, "alvenaria_erro": erro_alvenaria,
         "escada": r_escada, "escada_descida": detalhe_escada,
         "escada_erro": escada_erro, "planta": planta,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "n_pavimentos": len(pavs),
-        "tipologia": "terrea" if len(pavs) == 1 else "sobrado",
+        "tipologia": ("alvenaria_terrea" if com_alvenaria
+                      else ("terrea" if len(pavs) == 1 else "sobrado")),
         "H_total_m": len(pavs) * geo["pe_direito"],
         "h_laje_adotada": r_laje["h"], "h_laje_declarada": h_declarada,
         # N_fundacao = o que desceu pelo pilar + o que o baldrame entregou
+        # (concreto) ou vazio no caminho portante (a fundacao e por linha).
         "N_fundacao_k": N_base,
-        "N_base_max_k": max(N_base.values()),
+        "N_base_max_k": N_max,
+        "q_fundacao_linear_kN_m": dict(q_lin),
         "reacoes_baldrame_k": copy.deepcopy(reacoes_baldrame),
         "registro_6120": desc["registro_6120"],
-        "escopo": escopo(baldrame is not None, fundacao is not None),
+        "escopo": escopo(baldrame is not None, fundacao is not None,
+                         alvenaria is not None and erro_alvenaria is None),
     }
 
 
-def escopo(com_baldrame, com_fundacao):
+def escopo(com_baldrame, com_fundacao, com_alvenaria=False):
     """O que esta cadeia cobre e o que ela deixa de fora, dito em voz alta."""
     return {
         "laje": "implemented",
-        "viga": "implemented",
-        "pilar": "implemented",
+        # G61: na casa de alvenaria nao ha portico de concreto — viga e pilar
+        # sao not_available (a laje apoia direto nas paredes); no caminho de
+        # concreto seguem implemented.
+        "viga": "not_available" if com_alvenaria else "implemented",
+        "pilar": "not_available" if com_alvenaria else "implemented",
         "viga_baldrame": "implemented" if com_baldrame else "not_available",
         "fundacao": "implemented" if com_fundacao else "not_available",
         # D94/G59: a fronteira do cabecalho, com o artigo em vez de um
@@ -804,7 +1356,10 @@ def escopo(com_baldrame, com_fundacao):
         "acao_horizontal": "not_available",
         "estabilidade_global": "not_available",
         "desaprumo": "not_available",
-        "alvenaria_estrutural": "not_available",
+        # G61: escopo honesto — sai de not_available so na medida em que
+        # passa a calcular (parede 11.2.1 + corrida por linha).
+        "alvenaria_estrutural": ("implemented" if com_alvenaria
+                                 else "not_available"),
         "telhado_madeira": "not_available",
         "aprovacao_legal": "not_claimed",
         "construction_readiness": "not_claimed",
@@ -823,6 +1378,79 @@ def relatorio_pt(r):
          "  g = %.2f kN/m2 ; q = %.2f kN/m2 (NBR 6120 Tab.10)"
          % (pav["g_kN_m2"], pav["q_kN_m2"]),
          ""]
+    if r.get("alvenaria") is not None or "alvenaria_portante" in g:
+        fc = g["fechamento_carga"]
+        L += ["  FECHAMENTO DE CARGA (PORTANTE): %.1f kN nas paredes x %.1f kN "
+              "esperados (erro %.3f%% ; pior linha %s %.3f%%) -> %s"
+              % (fc.get("N_paredes_kN", 0.0), fc.get("esperado", 0.0),
+                 100 * fc.get("erro_rel", 0.0), fc.get("pior_linha"),
+                 100 * (fc.get("pior_erro_linha") or 0.0),
+                 "OK" if fc["OK"] else "NAO FECHA"),
+              "  LAJE: h = %.0f cm (declarada %.0f cm) -> %s"
+              % (g["laje"]["h_cm"], g["laje_compatibilizada"]["h_declarada_cm"],
+                 "ATENDE" if g["laje"]["OK"] else "REPROVA")]
+        ap = g.get("alvenaria_portante", {})
+        if ap.get("erro"):
+            L.append("  ALVENARIA PORTANTE: REPROVA (%s)" % ap["erro"])
+        else:
+            L.append("  ALVENARIA PORTANTE (NBR 16868-1 11.2.1): %d linhas -> %s"
+                     % (ap.get("n_linhas", 0),
+                        "ATENDE" if ap.get("OK") else
+                        "REPROVA em " + ", ".join(ap.get("reprovadas", []))))
+            for motivo in ap.get("reprovadas", []):
+                L.append("      [parede] " + motivo)
+        if "viga_baldrame" in g:
+            bd = g["viga_baldrame"]
+            if bd.get("erro"):
+                L.append("  VIGA BALDRAME: REPROVA (%s)" % bd["erro"])
+            else:
+                L.append("  VIGA BALDRAME (sob parede portante): %.0f x %.0f cm ; "
+                         "q %.2f kN/m ; fechamento %s -> %s"
+                         % (bd["b_cm"], bd["h_cm"], bd["q_parede_kN_m"],
+                            "OK" if bd["fechamento_OK"] else "NAO FECHA",
+                            "ATENDE" if bd["OK"] else "REPROVA"))
+        if "fundacao" in g:
+            fu = g["fundacao"]
+            if fu.get("erro"):
+                L.append("  FUNDACAO: REPROVA (%s)" % fu["erro"])
+            elif fu.get("tipo") == "sapata_corrida":
+                L.append("  FUNDACAO: sapata_corrida B=%.2f m h=%.2f m em %d linhas "
+                         "-> %s"
+                         % (fu.get("B_m", 0.0), fu.get("h_m", 0.0),
+                            fu.get("n_linhas", 0),
+                            "ATENDE" if fu["OK"] else
+                            "REPROVA em " + ", ".join(fu.get("reprovados", []))))
+            else:
+                L.append("  FUNDACAO: %s -> %s" % (fu.get("tipo"), fu.get("OK")))
+        else:
+            L.append("  FUNDACAO: NAO dimensionada (sondagem/tensao do solo nao "
+                     "declarada)")
+        L += ["", "  MAIOR CARGA LINEAR NA FUNDACAO: q = %.1f kN/m"
+              % r["N_base_max_k"], ""]
+        L.append("%-8s %11s %11s" % ("PAREDE", "L(m)", "q_fund(kN/m)"))
+        L.append("  " + "-" * 34)
+        for nome in sorted(r.get("q_fundacao_linear_kN_m", {})):
+            comp = next((x["comprimento_m"] for x in
+                         (r.get("alvenaria") or {}).get("por_linha", [])
+                         if x["nome"] == nome), 0.0)
+            L.append("%-8s %11.2f %11.2f"
+                     % (nome, comp, r["q_fundacao_linear_kN_m"][nome]))
+        if r.get("planta"):
+            L += ["", "  Planta de formas: %s" % r["planta"]]
+        L += ["", "  RESULTADO GLOBAL: %s"
+              % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"]))]
+        L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
+              "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
+              "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
+              % MAX_PAVIMENTOS,
+              "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
+              "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
+              "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
+              "  [ALVENARIA PORTANTE (G61): casa terrea; sobrado recusado "
+              "(contraventamento 9.6.2 e Anexo C fora do lote).]",
+              "  " + alv.linha_memorial_cadeia_gravitacional(),
+              "  [A CONFIRMAR: estrutura de telhado em madeira fora do escopo.]"]
+        return "\n".join(L)
     L += ["  FECHAMENTO DE CARGA: %.1f kN nos pilares x %.1f kN esperados "
           "(erro %.3f%%) -> %s"
           % (g["fechamento_carga"]["N_pilares"], g["fechamento_carga"]["esperado"],

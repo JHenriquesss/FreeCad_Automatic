@@ -159,6 +159,14 @@ def rodar(spec):
                       'nenhum' o pilar e balanco tambem nessa direcao (le_y = 2H) e a
                       esbeltez costuma estourar o limite de 15.8.3.3.2.
     }"""
+    if spec.get("tipo_fundacao") == "sapata_corrida":
+        # D89/G61: a corrida e apoio LINEAR de parede portante (kN/m); o
+        # galpao nao tem parede portante. Sem esta guarda a corrida cairia
+        # no ramo `else` da fundacao e seria dimensionada como sapata
+        # isolada em silencio.
+        raise ValueError(
+            "tipo_fundacao='sapata_corrida' e da parede portante (carga linear "
+            "kN/m, G61): o galpao nao tem parede portante; use sapata/estaca.")
     vao = spec["vao"]; comp = spec["comprimento"]; H = spec["pe_direito"]
     if vao <= 0 or comp <= 0 or H <= 0:
         raise ValueError("[A CONFIRMAR] geometria invalida: vao=%g, comprimento=%g, "

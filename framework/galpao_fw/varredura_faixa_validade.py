@@ -35,6 +35,24 @@ GALPAO = pathlib.Path(__file__).resolve().parent
 # So casa COMENTARIO/DOCSTRING (nunca codigo): _linhas_validade filtra.
 # "faixa" sozinha nao casa (faixa tributaria, faixa de 1 m); exige o
 # qualificador de validade/calibracao - sem isso a varredura vira ruido.
+#
+# G64 - vocabulario de tabela (alvenaria_estrutural era invisivel: 0 chaves
+# em 161/50). Cada termo novo entra com a contagem de falsos-positivos
+# medida em ~19 mil linhas de comentario/docstring do galpao_fw, porque a
+# lente foi deliberadamente estreita e cada alargamento custa ruido:
+#   - "tetos? (da|de|do) Tab.": 5 ocorrencias, 0 FP (4 alvenaria + 1
+#     estrutura_casa, o mesmo teto da Tab.9). "teto" sozinho tem 78
+#     ocorrencias (forro arquitetonico, teto de ductilidade) e NAO entra.
+#   - "patamar de fpk": 3 ocorrencias, 0 FP. "patamar" sozinho tem 26
+#     (23 sao patamar de escada = descanso) e NAO entra.
+#   - "fora dos? tabelados?": 1 ocorrencia, 0 FP.
+#   - "a partir de <digito>": 1 ocorrencia, 0 FP. Sem o digito sao 42
+#     ("a partir de um payload", "a partir de z0"...) e NAO entra.
+#   - "acima do teto": 6 ocorrencias, 0 FP (4 alvenaria + estrutura_casa
+#     no mesmo teto + pilar_concreto "teto de 6R", que devolve o teto e o
+#     chamador reprova - guarda relevante, nao ruido).
+# PROIBIDO (G64): reescrever comentario de modulo para agradar a esta
+# expressao - a lente se adapta ao codigo, nunca o contrario.
 VALIDADE_RE = re.compile(
     r"s[o\xf3] vale"                       # so vale / só vale
     r"|v[áa]lid[oa]s?\s+(para|at[ée]|quando|se|em)"  # valido para/ate
@@ -46,7 +64,12 @@ VALIDADE_RE = re.compile(
     r"|entre\s+[\d.,°]+\s+e\s+[\-\d.,°]+"
     r"|arbitrado\s+em"
     r"|faixa\s+de\s+validade|faixa\s+calibrada|foge\s+da\s+faixa"
-    r"|fck\s*<=|C55[\u2013\-]C90|\(fck<=|<= ?50|\(G49\)",
+    r"|fck\s*<=|C55[\u2013\-]C90|\(fck<=|<= ?50|\(G49\)"
+    r"|tetos?\s+(da|de|do)\s+Tab\."      # G64: tetos da Tab.9 (5 hits, 0 FP)
+    r"|patamar\s+de\s+fpk"               # G64: patamar de fpk (3 hits, 0 FP)
+    r"|fora\s+dos?\s+tabelados?"         # G64: fora dos tabelados (1, 0 FP)
+    r"|a\s+partir\s+de\s+\d"             # G64: a partir de 26 (1 hit, 0 FP)
+    r"|acima\s+do\s+teto",               # G64: acima do teto (6 hits, 0 FP)
     re.I,
 )
 
@@ -414,8 +437,8 @@ def chaves_varridas(raiz=None):
 # A chave e' (arquivo, declaracao[:70]) e NAO inclui a linha: linha muda a cada
 # edicao e o baseline viraria ruido. Tambem nao inclui a funcao: uma so linha de
 # cabecalho rende ate 14 registros por fan-out (pilar_concreto:36/41/42) - o que
-# se declara e' a DECLARACAO, nao cada funcao que ela alcanca. 106 declaracoes
-# distintas hoje, 21 com alguma desguardada.
+# se declara e' a DECLARACAO, nao cada funcao que ela alcanca. 124 declaracoes
+# distintas hoje (G64: era 106), 27 com alguma desguardada (era 21).
 #
 # Entrada nova aqui = ou vira guarda (if que compara), ou entra declarada com o
 # motivo pelo qual NAO e' bug. Os motivos de cada uma estao medidos nos
@@ -478,13 +501,232 @@ DESGUARDADAS_TRIADAS = [   (   'cargas_nbr6120.py',
         '# tape do 51: 1,20*Inp (faixa 1,15..1,30)'),
     (   'varredura_descoberta.py',
         '# um zero so vale depois do vermelho injetado naquela '
-        'linguagem).')]
+        'linguagem).'),
+    # G64 - alvenaria_estrutural sai da invisibilidade (0 chaves em 161/50
+    # -> 37 chaves). O modulo esta GUARDADO (lambda acima do teto reprova,
+    # patamar de fpk fora da Tab.1 recusa - medido nos test_06g/06h); o que
+    # segue desguardado e fan-out do cabecalho para funcoes que DELEGAM a
+    # guarda (modulo_deformacao, teto_esbeltez + `if lam > teto: reprova`),
+    # a mesma fronteira de 1 nivel ja triada no pilar (test_06c). Cada uma
+    # com o motivo medido pelo qual NAO e bug (rigor G10).
+    (   'alvenaria_estrutural.py',
+        '#     ceramicos 600 x fpk. Patamar de fpk fora dos tabelados recusa'),
+    (   'alvenaria_estrutural.py',
+        '#     concreto 800/750/700 x fpk por patamar de fpk; bloco e tijolo'),
+    (   'alvenaria_estrutural.py',
+        '#   - Esbeltez, 10.1.2: lambda = he / te. Tetos da Tab.9: 24 sem armad'),
+    (   'alvenaria_estrutural.py',
+        'R = [1-(lambda/40)^3] com lambda = he/te (10.1.2); teto da Tab.9'),
+    (   'alvenaria_estrutural.py',
+        'default; lambda acima do teto reprova; Qh avulsa recusa com motivo (a'),
+    (   'alvenaria_estrutural.py',
+        'no momento). Tracao: limitada a 10 % de fpk/gamma_m (C.1-f, leitura do'),]
 
 
 def chaves_desguardadas(raiz=None):
     """(arquivo, declaracao[:70]) das declaracoes com alguma desguardada."""
     return sorted({(d["arquivo"], d["declaracao"][:70])
                    for d in varredura(raiz) if d["balde"] == "desguardada"})
+
+
+# ---------------------------------------------------------------------------
+# COBERTURA (G64, D87). A lente do G51 enxergava o que entrou depois dela:
+# alvenaria_estrutural (vertical novo, cheio de faixas) produzia ZERO chaves
+# e a suite ficava verde. Relatorio vira portao aqui: todo *.py do diretorio
+# ou produz >= 1 chave na varredura, ou consta de SEM_FAIXA_DECLARADA com o
+# motivo pelo qual zero chaves e o esperado. Modulo novo que nao esteja em
+# nenhum dos dois deixa a suite vermelha (test_09*).
+#
+# "Sem faixa" e lido no nivel da LENTE: arquivos que declaram limites em
+# vocabulario que a lente ainda nao cobre levam o prefixo DIVIDA-LENTE com
+# a descricao do vocabulario cego - decisao explicita, nao silencio. Isencao
+# com motivo apagado/vazio reprova; isencao de arquivo que passou a produzir
+# chave reprova (nome morto, mesma regra do baseline); arquivo isento que
+# some do disco reprova (pede a remocao da entrada junto).
+# ---------------------------------------------------------------------------
+SEM_FAIXA_DECLARADA = {
+    "acos.py": "catalogo de acos (fy/fu); sem faixa declarada.",
+    "alma_variavel.py": "gerador de secoes tapered; sem faixa no vocabulario da lente.",
+    "armazenamento_nbr16981.py": "gate de dados (nao dimensiona); limites de contrato, nao faixa de metodo.",
+    "bim_casa_residencial.py": "BIM/IFC sem formula; sem faixa.",
+    "bim_edificio.py": "BIM/IFC sem formula; sem faixa.",
+    "bim_eletrico_residencial.py": "BIM posiciona o ja dimensionado; sem faixa.",
+    "bim_instalacoes_casa.py": "geometria no frame; 'teto' ali e forro arquitetonico (FP do teto generico).",
+    "bim_instalacoes_edificio.py": "geometria no frame; sem faixa.",
+    "build_concreto.py": "build 3D a partir do neutro calculado; sem faixa.",
+    "build_eletrico.py": "build 3D a partir do neutro calculado; sem faixa.",
+    "build_federado.py": "build federado; sem faixa.",
+    "build_final.py": "script avulso de demo legada; sem faixa.",
+    "builtin_adapters.py": "registro de adaptadores; sem faixa.",
+    "caderno_encargos.py": "documento contratual; remete limites a norma, sem faixa propria.",
+    "caderno_turnkey.py": "junta PDFs de pranchas; sem faixa.",
+    "calhas.py": "DIVIDA-LENTE: 'H_max fora de faixa fisica' em vocabulario fora da lente.",
+    "cargas_eletricas.py": "DIVIDA-LENTE: faixas de demanda por ocupacao/potencia (Tab.1.8) fora da lente.",
+    "casa_residencial.py": "adaptador; faixas vivem nos modulos de calculo chamados.",
+    "casa_residencial_sintetica.py": "fixture sintetica; nao calcula.",
+    "check_nbr8800.py": "verificacao por estados-limite; sem faixa no vocabulario da lente.",
+    "climatizacao_nbr16401.py": "DIVIDA-LENTE: limites de velocidade (Tab.1) e tabelas C.1/3.5 fora da lente.",
+    "comissionamento_fv.py": "checklist de evidencias; sem faixa.",
+    "compatibilizacao.py": "documento de coordenacao; 'limite duro' e de processo.",
+    "condutores_nbr5410.py": "DIVIDA-LENTE: limites de queda de tensao e secoes minimas (Tab.30/47) fora da lente.",
+    "console_ponte.py": "DIVIDA-LENTE: perna minima (Tab.9) e faixa de fadiga fora da lente.",
+    "contencao_lateral.py": "verificacao NBR 8800; sem faixa no vocabulario da lente.",
+    "contraventamento.py": "barras tracionadas; 'dispensada do limite' nao declara faixa.",
+    "coordination_review.py": "contrato de revisao; sem faixa.",
+    "cortante_tapered.py": "cortante de alma variavel; sem faixa declarada.",
+    "cronograma.py": "cronograma/curva S; 'faixa' ali e area de desenho.",
+    "curto_circuito.py": "limite matematico interno raiz(3); nao faixa de metodo.",
+    "demanda_residencial_enel.py": "demanda por tabelas Enel; sem faixa no vocabulario da lente.",
+    "demo_engenheiro.py": "script avulso de demonstracao; sem faixa.",
+    "desenho_alvenaria.py": "prancha SVG; 'faixa de ajuste' e geometria de fiada.",
+    "desenho_casa_residencial.py": "prancha SVG; sem faixa.",
+    "desenho_climatizacao.py": "esquema SVG; sem faixa.",
+    "desenho_coordenacao.py": "prancha de coordenacao; 'faixa p/ titulo' e layout.",
+    "desenho_eletrico.py": "unifilar SVG; 'FAIXA DE CIRCUITOS' e legenda.",
+    "desenho_eletrico_residencial.py": "prancha SVG; sem faixa.",
+    "desenho_hidraulica.py": "esquema SVG; sem faixa.",
+    "desenho_incendio.py": "planta AVCB; 'faixa lateral' e layout, 'teto' e posicao.",
+    "desenho_pavimento.py": "planta de formas; sem faixa.",
+    "desenho_piso.py": "planta de juntas; sem faixa.",
+    "desenho_svg_base.py": "primitivas SVG; sem faixa.",
+    "deteccao_alarme_nbr17240.py": "DIVIDA-LENTE: cobertura 81m2 (teto<=8m) e teto>8m em vocabulario 'teto' generico (ruido: 78 hits).",
+    "dimensionamento_eletrico_residencial.py": "delega tabelas a condutores/protecao; sem faixa propria.",
+    "distorcional_fsm.py": "'FAIXAS FINITAS' e nome de metodo numerico; sem faixa.",
+    "dossie.py": "junta PDFs; sem faixa.",
+    "edificio_adapter.py": "adaptador; menciona tetos da Tab.9 com quebra de linha (fora da lente); faixas vivem em alvenaria_estrutural.",
+    "eletrica_edificio.py": "orquestra vertical; limites vivem nos modulos de calculo.",
+    "empocamento_nbr8800.py": "'dispensado (limite inclusivo)' e criterio, nao faixa declarada.",
+    "enrijecedor_painel.py": "enrijecedores de alma; sem faixa declarada.",
+    "entrada_enel_bt.py": "transcricao de tabelas Enel; sem faixa no vocabulario da lente.",
+    "entregaveis_projeto.py": "hooks de entrega; sem faixa.",
+    "escopo.py": "envelope de escopo; sem faixa de metodo.",
+    "esgoto_reuso.py": "reuso de tabelas NBR 17076:2024; sem faixa propria.",
+    "estabilidade_b1b2.py": "DIVIDA-LENTE: 'Limite de validade do MAES (B2<=1.40)' em vocabulario fora da lente.",
+    "estabilidade_global_nbr6118.py": "DIVIDA-LENTE: dispensa de 2a ordem (gamma_z) com 'valido' fora da lente.",
+    "fator_potencia.py": "DIVIDA-LENTE: FP>=0,92 em vocabulario 'limite regulamentar' fora da lente.",
+    "flt_misula.py": "DIVIDA-LENTE: tetos de M_Rd/Cb em vocabulario 'teto' generico fora da lente.",
+    "fogo_nbr14323.py": "DIVIDA-LENTE: temperaturas-limite e carta de cobertura (Tab.6.13) fora da lente.",
+    "fontes_externas_protocolo.py": "protocolo de fontes; sem faixa.",
+    "forcas_localizadas.py": "DIVIDA-LENTE: faixa de Whitmore (12tw/25tw) sem qualificador de validade, fora da lente.",
+    "fotovoltaico.py": "DIVIDA-LENTE: tetos de area/consumo em vocabulario generico fora da lente.",
+    "frame2d.py": "solver de rigidez; sem faixa de metodo.",
+    "framework.py": "ponto de entrada/versao; sem faixa.",
+    "fundacao_edificio.py": "'M=0 na faixa de 1m' e hipotese de modelagem; sem faixa de validade.",
+    "fundacao_sapata_corrida.py": "hipotese da faixa de 1m; verificacao delegada a fundacao_sapata.",
+    "galpao_adapter.py": "adaptador nativo; sem faixa.",
+    "galpao_climatizacao.py": "orquestra disciplina; limites vivem em climatizacao_nbr16401.",
+    "galpao_eletrico.py": "orquestra BT; sem faixa propria.",
+    "galpao_hidraulica.py": "orquestra e roteia; faixas vivem em hidraulica_predial.",
+    "galpao_portico.py": "analise de portico; sem faixa no vocabulario da lente.",
+    "galpao_seguranca_incendio.py": "orquestra vertical; sem faixa propria.",
+    "galpao_turnkey.py": "orquestrador-mestre; sem faixa propria.",
+    "geometria_membros.py": "primitiva geometrica (caixa); sem faixa.",
+    "geotecnia_spt.py": "ponte SPT-tensao; fatores de forma, sem faixa declarada.",
+    "gestao_casa.py": "camada de gestao; sem faixa.",
+    "gestao_edificio.py": "camada de gestao; sem faixa.",
+    "gusset_ligacao.py": "DIVIDA-LENTE: faixa de Whitmore fora da lente (como forcas_localizadas).",
+    "hidrantes_nbr13714.py": "DIVIDA-LENTE: limiares de aplicabilidade (area>750m2, Tab.D.1/Tab.1) fora da lente.",
+    "hidraulica_edificio.py": "DIVIDA-LENTE: teto de 400 kPa em vocabulario generico; calculo nas primitivas.",
+    "hidraulica_predial.py": "DIVIDA-LENTE: tabelas UHC/DN/velocidade sem vocabulario de validade.",
+    "hidraulica_residencial.py": "reuso de primitivas; faixas vivem em hidraulica_predial.",
+    "ifc_emit.py": "emissor IFC; sem faixa.",
+    "ifc_map.py": "mapa peca-IFC; sem faixa.",
+    "iluminacao_emergencia_nbr10898.py": "DIVIDA-LENTE: limites absolutos (20m, 0,5m do teto) fora da lente.",
+    "instalacao_eletrica.py": "DIVIDA-LENTE: faixas de secao e limites de circuito fora da lente.",
+    "junta_dilatacao.py": "verificacao de necessidade; sem faixa declarada.",
+    "layout_ambientes.py": "primitiva de retangulos; sem faixa.",
+    "layout_eletrico_residencial.py": "contrato de layout; sem faixa.",
+    "ligacoes.py": "verificacao de ligacoes; sem faixa declarada.",
+    "luminotecnica_nbr8995.py": "DIVIDA-LENTE: faixas de eficiencia e Fu tabelado fora da lente.",
+    "mao_francesa.py": "dimensionamento Anexo G; sem faixa declarada.",
+    "mao_francesa_geom.py": "geometria pura; sem faixa.",
+    "marcas_peca.py": "marcas de fabricacao; sem faixa.",
+    "modelo_neutro.py": "dados de modelo; sem faixa.",
+    "neve.py": "carga de neve EN 1991; sem faixa declarada.",
+    "pacote_legal.py": "pacote documental; 'VALIDO/ENTREGAVEL' e de processo.",
+    "perfis.py": "catalogo de perfis; sem faixa.",
+    "plataforma.py": "DIVIDA-LENTE: limites de flecha L/350 e frequencia fora da lente.",
+    "ponte_rolante.py": "DIVIDA-LENTE: faixas de fadiga (Anexo K) e tabelas fora da lente.",
+    "populacao_nbr9077.py": "populacao exata sem arredondamento; sem faixa.",
+    "project_io.py": "envelope de transporte; sem faixa.",
+    "project_loop.py": "orquestrador; regras vivem nos calculadores.",
+    "project_loop_cli.py": "CLI fina; sem faixa.",
+    "project_source_gate.py": "gate de fontes; sem faixa de metodo.",
+    "projeto_spec.py": "contrato de dados; validacao de entrada nao e faixa de metodo.",
+    "props_I_mono.py": "DIVIDA-LENTE: razao em faixa (0.5,0.7) fora da lente (INTERVALO_RE nao cobre parenteses com virgula).",
+    "protecao_nbr5410.py": "criterio I2<=1,45IZ; sem faixa declarada.",
+    "proteccao_sprinklers_nbr10897.py": "DIVIDA-LENTE: cobertura/espacamento (Tab.10) e teto absoluto 21m2 fora da lente.",
+    "recalque_edificio.py": "DIVIDA-LENTE: limites default (Tabela C.1) fora da lente.",
+    "redimensionamento.py": "otimizador guloso; verificacoes vivem nos modulos chamados.",
+    "relatorio_calculo.py": "memorial PDF; sem faixa.",
+    "residencial_eletrica.py": "runner que compoe calculadores; sem faixa propria.",
+    "rodar_galpao.py": "orquestrador parametrico; 'TETO'/'patamar' ali sao de outros dominios.",
+    "rodar_projeto.py": "runner spec-calculo; sem faixa.",
+    "romaneio.py": "lista de materiais; sem faixa.",
+    "sapata_divisa.py": "viga alavanca NBR 6122; sem faixa declarada.",
+    "sinalizacao_nbr16820.py": "DIVIDA-LENTE: 'valido L<50m, minimo 4m' (Tab.1) fora da lente.",
+    "smoke_executivo.py": "smoke test; sem faixa.",
+    "spda_nbr5419.py": "DIVIDA-LENTE: criterios/tabelas (R1>RT, malha, secoes) sem vocabulario de validade.",
+    "techdraw_climatizacao.py": "prancha TechDraw; sem faixa.",
+    "techdraw_concreto.py": "prancha TechDraw; sem faixa.",
+    "techdraw_coordenacao.py": "prancha TechDraw; sem faixa.",
+    "techdraw_eletrico.py": "prancha TechDraw; sem faixa.",
+    "techdraw_exec.py": "prancha TechDraw; 'valido' ali e sobre SVG.",
+    "techdraw_hidraulica.py": "prancha TechDraw; sem faixa.",
+    "techdraw_incendio.py": "prancha TechDraw; sem faixa.",
+    "telha_cobertura.py": "hipotese da faixa de 1m; 'no limite' e criterio, sem faixa declarada.",
+    "tensao_ponto.py": "verificacao por tensoes; sem faixa declarada.",
+    "tercas_iteracao.py": "iterador ('escada' = degraus de perfil); verificacao vive em tercas_nbr14762.",
+    "tercas_nbr14762.py": "DIVIDA-LENTE: dispensa (Tab.14) e limites L/180-L/120 fora da lente.",
+    "terraplenagem.py": "movimento de terra; 'acima do greide' e geometria.",
+    "tesoura.py": "DIVIDA-LENTE: 'metodo dos nos valido' (trelica isostatica) fora da lente.",
+    "tolerancias_fabricacao.py": "DIVIDA-LENTE: quadro de tolerancias (Tab.12) fora da lente.",
+    "tools_probe_pe13.py": "script avulso de medicao; sem faixa.",
+    "torcao_nbr8800.py": "torcao 5.5.2; sem faixa no vocabulario da lente.",
+    "validacao.py": "harness de afericao; sem faixa.",
+    "validacao_sistema_g15.py": "harness G15; 'fora do intervalo' ali e de URL/pagina.",
+    "varredura_nao_verificados.py": "ferramenta G33; nao declara faixa de metodo.",
+    "verificar_amostra.py": "script avulso visual; sem faixa.",
+    "vibracao_piso.py": "escopo ilimitado ('vale para toda classe') fora da lente; 'restrito' e de acesso.",
+    "viga_baldrame_edificio.py": "fronteira sem faixa declarada.",
+    "viga_equilibrio.py": "DIVIDA-LENTE: teto de armadura (5cm2/m) em vocabulario generico fora da lente.",
+    "wizard.py": "formulario de entrada; validacao de entrada nao e faixa de metodo.",
+    "zona_painel.py": "DIVIDA-LENTE: limite b/t (Tab.F.1) fora da lente.",
+}
+
+
+def arquivos_varridos(raiz=None):
+    """Arquivos com >= 1 chave na varredura (a cobertura existe)."""
+    return sorted({d["arquivo"] for d in varredura(raiz)})
+
+
+def arquivos_sem_chave(raiz=None):
+    """Arquivos *.py sem nenhuma chave: ou entram em SEM_FAIXA_DECLARADA
+    com motivo, ou a suite fica vermelha (D87). A propria lente nunca entra
+    (ela e o instrumento, nao o objeto)."""
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    varridos = set(arquivos_varridos(raiz))
+    return sorted(p.name for p in base.glob("*.py")
+                  if p.name != "varredura_faixa_validade.py"
+                  and p.name not in varridos)
+
+
+def confere_cobertura(raiz=None, isentos=None):
+    """Guarda D87 em forma chamavel (para o teste provar o vermelho sem
+    mutar o repo): faltando = invisivel a lente e sem isencao; sobrando =
+    isento que agora produz chave (nome morto); sem_motivo = isencao com
+    motivo apagado/vazio; ausentes = isento que sumiu do disco."""
+    iso = SEM_FAIXA_DECLARADA if isentos is None else isentos
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    no_disco = {p.name for p in base.glob("*.py")}
+    sem = arquivos_sem_chave(raiz)
+    faltando = sorted(a for a in sem if a not in iso)
+    sobrando = sorted(a for a in iso if a in no_disco and a not in sem)
+    sem_motivo = sorted(a for a, m in iso.items() if not (m or "").strip())
+    ausentes = sorted(a for a in iso if a not in no_disco)
+    return {"OK": not (faltando or sobrando or sem_motivo or ausentes),
+            "faltando": faltando, "sobrando": sobrando,
+            "sem_motivo": sem_motivo, "ausentes": ausentes}
 
 
 def relatorio_pt():

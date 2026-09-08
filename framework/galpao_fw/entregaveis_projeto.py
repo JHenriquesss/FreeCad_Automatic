@@ -454,7 +454,7 @@ def emitir_obras_sitio(manifest, run_dir, normalized, options, turnkey_result):
         "frentes_com_falha": falhas,
         "a_confirmar": ["empolamento/compactacao, coeficiente de escoamento, IDF e "
                         "taxa de infiltracao sao ensaio/dado local (os coeficientes "
-                        "da NBR 7229 e a IDF da cidade sao entrada)"],
+                        "da NBR 17076:2024 e a IDF da cidade sao entrada)"],
     }
 
 

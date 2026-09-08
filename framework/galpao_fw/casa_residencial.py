@@ -495,7 +495,9 @@ def _registro_estrutura(payload, resultado_arquitetura, layout=None):
             "proveniencia_sigma": fundacao["proveniencia_sigma"],
             "por_pilar": {nome: {"N_dimensionamento_kN": r["N_dimensionamento_kN"],
                                  "geometria": r["geometria"], "OK": r["OK"]}
-                          for nome, r in fundacao["por_pilar"].items()},
+                          for nome, r in (fundacao.get("por_pilar") or {}).items()},
+            # G61: corrida e por linha de parede (kN/m), nao por pilar.
+            "por_linha": copy.deepcopy(fundacao.get("por_linha") or {}),
             "scope": copy.deepcopy(fundacao["escopo"]),
         }
     return registro, resultado

@@ -245,17 +245,25 @@ FRONTEIRAS = {
         "conversao": "produtor guarda m; leitor faz bf*MM p/ mm",
         "nota": "G20: secao de viga/pilar de concreto do mezanino (bf transversal, d vertical) em m; orientacao hx//X, hy//Y como F17",
     },
-    # ── G60 — PAREDE QUE E CARGA E ELEMENTO (NBR 16868-1) ─────────────
+    # ── G60/G61 — PAREDE QUE E CARGA E ELEMENTO (NBR 16868-1) ─────────
+    # G60 exercia a igualdade no caso isolado (Nd == peso da propria parede).
+    # G61 reescreve para o caso real: com laje e pavimentos acima, Nd deixa
+    # de ser o peso da parede e a igualdade total quebra. O guarda passa a
+    # comparar a PARCELA de Nd atribuivel a parede contra carga_linear_parede
+    # x L — relacao, nunca numero congelado (revestimento fora do default
+    # como filtro de nome morto). Se a parcela nao for isolavel no resultado,
+    # ela tem de passar a ser: sem isso a junta volta a ser inverificavel.
     "F21_parede_peso_carga_vs_elemento": {
-        "chave": 'Nd do elemento (kN) == carga_linear_parede (kN/m) x comprimento (m)',
-        "unidade_declarada": "kN (forca total na faixa)",
-        "unidade_esperada": "kN (forca total na faixa)",
+        "chave": 'parcela de Nd atribuivel a parede (kN) == carga_linear_parede (kN/m) x comprimento (m)',
+        "unidade_declarada": "kN (forca da parcela de parede na faixa)",
+        "unidade_esperada": "kN (forca da parcela de parede na faixa)",
         "escreve": ["cargas_nbr6120.carga_linear_parede (via da carga: peso_alvenaria Tab.2 NBR 6120 x altura)",
-                    "alvenaria_estrutural.verifica_* (via do elemento: recebe Nd pronto, soma 0,0 por dentro)"],
-        "le": ["alvenaria_estrutural.confere_fronteira_peso (igualdade Nd_usado == carga_via_6120)",
+                    "estrutura_casa.dimensiona_alvenaria_portante (via do elemento: isola Nd_parede_kN por linha de parede; alvenaria_estrutural recebe Nd pronto e soma 0,0 por dentro)"],
+        "le": ["alvenaria_estrutural.confere_fronteira_peso_parcela (igualdade Nd_parede_kN == carga_via_6120 por linha)",
+               "alvenaria_estrutural.confere_fronteira_peso (caso isolado G60: Nd_usado == carga_via_6120)",
                "alvenaria_estrutural.escopo (peso_proprio_interno_kN = 0,0 no resultado)"],
-        "conversao": "nenhuma: os dois lados sao forca total em kN; o modulo declara peso_proprio_interno_kN = 0,0",
-        "nota": "G60: a parede entra pelo peso (NBR 6120) e resiste pelo elemento (NBR 16868-1). Se o modulo novo somasse o peso por dentro, era a laje do G52 outra vez: os dois lados fecham, cada um com o seu numero. A igualdade atravessa a fronteira como dado importavel (guarda em tests/test_alvenaria_estrutural_g60.py, relacao no molde G52 com revestimento fora do default).",
+        "conversao": "nenhuma: os dois lados sao forca em kN na mesma base (caracteristica x caracteristica ou calculo x calculo com o mesmo GF); o modulo declara peso_proprio_interno_kN = 0,0",
+        "nota": "G61: com laje acima, Nd = laje + parede e a igualdade total Nd == peso da parede quebra por construcao. A junta confere a parcela (Nd_parede_kN isolada por linha contra carga_linear_parede x L). Guarda em tests/test_alvenaria_portante_g61.py, relacao no molde G52 com revestimento fora do default.",
     },
 }
 

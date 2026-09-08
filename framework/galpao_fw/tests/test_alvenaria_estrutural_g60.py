@@ -95,9 +95,13 @@ def test_lambda_acima_do_teto_reprova_sem_saturar():
     # pilar armado acima de 30 reprova (11.2.2 cobre ate 30, sem Anexo C)
     rp = alv.verifica_pilar_armado(1.0, FPK, 4.50, TE, A_M2, 4e-4, FYK, 12.0)
     assert rp["OK"] is False and "esbeltez_acima_do_teto" in rp["motivo"]
-    # parede armada acima de 30: Anexo C, fora deste lote, com endereco
-    with pytest.raises(alv.EntradaAlvenaria, match="anexo_C_nao_implementado"):
+    # parede armada acima de 30: Anexo C (G63, P-Delta com Md,total).
+    # O alias sem esforcos indica o endereco novo; com esforcos calcula.
+    with pytest.raises(alv.EntradaAlvenaria, match="anexo_C_pede_esforcos"):
         alv.verifica_parede_armada_anexo_C()
+    c = alv.verifica_parede_esbelta_anexo_C(50.0, 2.0, FPK, 4.50, TE, 2.0,
+                                            4e-4, FYK)
+    assert c["Md_total_kNm"] > 2.0 and c["Ncr_kN"] > 0
 
 
 def test_pilar_armado_1122_nucleo_com_Ea_da_errata():
@@ -180,11 +184,17 @@ def test_espessura_minima_10_1_1():
 def test_escopo_publica_o_fora_com_motivo():
     esc = alv.escopo()
     assert esc["compressao_parede_11_2_1"] == "implemented"
+    # G62: BIM e pranchas deixaram de ser not_available (parede vira folha
+    # e membro). G63: horizontal 9.6.2, 11.5 e Anexo C implemented; o fora
+    # restante (cisalhamento 11.4) segue com motivo escrito.
+    assert esc["bim_alvenaria"] == "implemented"
+    assert esc["pranchas_alvenaria"] == "implemented"
     for chave in ("flexo_compressao_11_5", "parede_muito_esbelta_anexo_C",
-                  "acao_horizontal_contraventamento", "bim_alvenaria",
-                  "pranchas_alvenaria"):
-        assert esc[chave] == "not_available", chave
+                  "acao_horizontal_contraventamento"):
+        assert esc[chave] == "implemented", chave
         assert alv.motivos_escopo()[chave], chave
+    assert esc["cisalhamento_11_4"] == "not_available"
+    assert alv.motivos_escopo()["cisalhamento_11_4"]
 
 
 def test_selftest_do_modulo():

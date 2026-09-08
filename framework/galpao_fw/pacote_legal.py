@@ -25,6 +25,11 @@ _PRANCHAS = {
     "arquitetura": ("PE-AR", ["Planta de implantacao", "Planta baixa", "Cortes e fachadas"]),
     "terraplenagem": ("PE-TP", ["Terraplenagem (corte/aterro)", "Drenagem do lote"]),
     "concreto": ("PE-CO", ["Formas e fundacoes", "Armacao pilares/vigas", "Detalhes"]),
+    # G62: a parede calculada vira folha - elevacao com fiadas/vaos/quadro +
+    # plantas de 1a/2a fiada. Sem esta entrada as folhas evaporariam no
+    # `continue` do indice (o mesmo D89 da fundacao no G56).
+    "alvenaria_estrutural": ("PE-AL", ["Elevacao das paredes portantes",
+                                       "Plantas de 1a e 2a fiadas"]),
     "aco": ("PE-ES", ["Portico e locacao", "Detalhes de ligacoes", "Cobertura/fechamento"]),
     "piso": ("PE-PI", ["Planta de juntas do piso industrial"]),
     "eletrico": ("PE-EL", ["Unifilar", "Planta de instalacao", "Infraestrutura/aterramento", "Quadros/QDC"]),
@@ -33,7 +38,8 @@ _PRANCHAS = {
     "climatizacao": ("PE-CL", ["Climatizacao/ventilacao"]),
     "coordenacao": ("PE-CD", ["Modelo federado / compatibilizacao"]),
 }
-_ORDEM_DISC = ["arquitetura", "terraplenagem", "concreto", "aco", "piso", "eletrico",
+_ORDEM_DISC = ["arquitetura", "terraplenagem", "concreto", "alvenaria_estrutural",
+               "aco", "piso", "eletrico",
                "hidraulica", "incendio", "climatizacao", "coordenacao"]
 
 # ART/RRT por disciplina: instrumento e conselho
@@ -41,6 +47,8 @@ _ART = {
     "arquitetura": ("RRT", "CAU", "Projeto arquitetonico"),
     "terraplenagem": ("ART", "CREA", "Terraplenagem e drenagem"),
     "concreto": ("ART", "CREA", "Projeto estrutural (concreto)"),
+    # G62: a parede portante tem responsabilidade propria (NBR 16868).
+    "alvenaria_estrutural": ("ART", "CREA", "Projeto de alvenaria estrutural"),
     "aco": ("ART", "CREA", "Projeto estrutural (metalica)"),
     "piso": ("ART", "CREA", "Piso industrial"),
     "eletrico": ("ART", "CREA", "Projeto eletrico"),
@@ -110,6 +118,8 @@ def checklist_ppci_avcb(pendencias=None):
 # documento de aprovacao.
 _LOD_DISCIPLINA = {
     "Estrutura (pilares/vigas/fundacoes)": ("concreto", "aco"),
+    # G62: paredes portantes com fiadas, vergas e quadro de blocos.
+    "Alvenaria estrutural (paredes portantes)": ("alvenaria_estrutural",),
     "Cobertura/fechamento": ("aco",),
     "Instalacoes eletricas": ("eletrico",),
     "Instalacoes hidrossanitarias": ("hidraulica",),
@@ -126,6 +136,8 @@ def checklist_lod_bim(disciplinas=None):
     itens = [
         {"grupo": "Estrutura (pilares/vigas/fundacoes)", "lod": "LOD 350",
          "entrega": "geometria + ligacoes + armadura/marcas + material"},
+        {"grupo": "Alvenaria estrutural (paredes portantes)", "lod": "LOD 350",
+         "entrega": "paredes + fiadas + vergas + quadro de blocos + material"},
         {"grupo": "Cobertura/fechamento", "lod": "LOD 300",
          "entrega": "geometria + secoes + material"},
         {"grupo": "Instalacoes eletricas", "lod": "LOD 300",
@@ -151,6 +163,10 @@ def manual_oem(disciplinas):
     base = {
         "concreto": ("Estrutura de concreto", "Inspecao visual de fissuras/corrosao; "
                      "reparo de cobrimento quando exposto.", "anual"),
+        # G62: parede portante (NBR 16868-2: prumo, fissuras, graute).
+        "alvenaria_estrutural": ("Alvenaria estrutural", "Inspecao de prumo, "
+                                "fissuras e eflorescencia; rejunte e reparo de "
+                                "revestimento onde indicado.", "anual"),
         "aco": ("Estrutura metalica", "Inspecao de pintura/galvanizacao e de "
                 "parafusos/soldas; retoque anticorrosivo.", "anual"),
         "piso": ("Piso industrial", "Reselagem de juntas; verificacao de fissuras e "

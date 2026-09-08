@@ -19,10 +19,14 @@
 # 'nao_declarada' e o escopo continua dizendo not_available. Tensao admissivel
 # arbitrada e' o erro que este framework trata como bug, nao como default.
 #
-# UM TIPO PARA A OBRA, UMA GEOMETRIA POR PILAR. O tipo (sapata / bloco / estaca)
-# e' escolhido UMA vez, pela sondagem sob o pilar MAIS CARREGADO - obra nao mistura
-# fundacao rasa e profunda sem decisao explicita. Ja a geometria e' dimensionada
-# PILAR A PILAR: o pilar de canto de um edificio recebe uma fracao da carga do
+# UM TIPO PARA A OBRA, UMA GEOMETRIA POR PILAR. O tipo (sapata / bloco /
+# sapata_corrida / estaca) e' escolhido UMA vez, pela sondagem sob o pilar
+# MAIS CARREGADO - obra nao mistura fundacao rasa e profunda sem decisao
+# explicita. A sapata_corrida NAO e pilar a pilar: parede portante entrega
+# carga linear (kN/m) e a corrida e dimensionada por linha de parede em
+# fundacao_sapata_corrida (G61); este modulo a nomeia na tupla (D89) e
+# recusa o caminho por pilar com o endereco certo. Ja a geometria (rasa
+# isolada) e' dimensionada PILAR A PILAR: o pilar de canto de um edificio recebe uma fracao da carga do
 # interno, e uma sapata unica dimensionada pelo pior caso seria desperdicio em
 # 8 das 12 posicoes.
 #
@@ -91,7 +95,7 @@ import estaca_profunda as ep
 import fundacao_sapata as fsap
 import geotecnia_spt as gspt
 
-TIPOS = ("sapata", "bloco", "estaca")
+TIPOS = ("sapata", "bloco", "estaca", "sapata_corrida")
 
 # tensao admissivel default: NAO EXISTE. A ausencia e' o comportamento correto.
 SIGMA_SOLO_DEFAULT = None
@@ -536,9 +540,18 @@ def dimensiona(spec_fundacao, contexto):
             p["nome"], p["N_base_k"], horizontais, momentos_base))
         for p in pilares)
     tipo, recomendacao = escolhe_tipo(spec_fundacao, N_max_obra)
+    if tipo == "sapata_corrida":
+        # D89/G61: a tupla nomeia o quarto tipo, mas este caminho e pilar
+        # a pilar e a corrida e por linha de parede (kN/m). Quem chama com
+        # corrida sem parede portante recebe o endereco, nao uma sapata
+        # isolada silenciosa.
+        raise EntradaFundacao(
+            "tipo='sapata_corrida' exige parede portante (carga linear kN/m): "
+            "use estrutura_casa com alvenaria_portante + fundacao_sapata_corrida "
+            "(G61). Este caminho por pilar nao dimensiona corrida.")
 
     sigma_solo = nota_sigma = None
-    if tipo in ("sapata", "bloco"):
+    if tipo in ("sapata", "bloco", "sapata_corrida"):
         sigma_solo, nota_sigma = _sigma_solo(spec_fundacao, recomendacao)
 
     escada = _escada(spec_fundacao)
@@ -785,8 +798,9 @@ def _escopo(tipo, com_horizontal, com_momento=False):
     # - esforco_horizontal_na_estaca: not_available (Broms nao existe)
     return {
         "geotecnia_spt": "implemented",
-        "fundacao_rasa": "implemented" if tipo in ("sapata", "bloco")
-                         else "not_applicable",
+        "fundacao_rasa": "implemented" if tipo in ("sapata", "bloco",
+                                                          "sapata_corrida")
+                          else "not_applicable",
         "fundacao_profunda": "implemented" if tipo == "estaca"
                              else "not_applicable",
         "bloco_de_coroamento": ("partial" if tipo == "estaca"
@@ -866,7 +880,8 @@ def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None,
                           "adicional nao existe na NBR 6122 e seria absorvido pelo "
                           "travamento (viga_baldrame: not_available)" % ", ".join(sorted(divisa_pilares))})
         # G23: vereditos por tipo – sapata/bloco USAM M, estaca USA quando ha braco
-        if tipo in ("sapata", "bloco"):
+        # (a corrida e gravitacional pura por linha: M = 0 na faixa de 1 m)
+        if tipo in ("sapata", "bloco", "sapata_corrida"):
             avisos.append({
                 "code": "momento_em_sapata_isolada_usado",
                 "detail": "M_base alimenta sapata/bloco isolado via Parte A "

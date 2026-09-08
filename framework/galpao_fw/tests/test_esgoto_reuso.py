@@ -1,5 +1,6 @@
-"""Saneamento do lote sem rede: fossa septica (formula NBR 7229, coeficientes de
-ENTRADA - nao inventados) + reuso de agua de chuva (cisterna por Rippl). CI puro."""
+"""Saneamento do lote sem rede: fossa septica (formula NBR 17076:2024 Anexo A,
+conferida contra NBR 7229, coeficientes de ENTRADA - nao inventados) + reuso de
+agua de chuva (cisterna por Rippl). CI puro."""
 import os
 import sys
 
@@ -16,8 +17,8 @@ def test_selftest():
     assert er._selftest() is True
 
 
-def test_fossa_formula_nbr7229():
-    """V = 1000 + N(C.T + K.Lf), exata."""
+def test_fossa_formula_nbr17076():
+    """V = 1000 + N(q.T + K.Lf) (NBR 17076:2024 A.2, conferida contra NBR 7229), exata."""
     f = er.volume_fossa_septica(50, 160.0, 0.75, 65.0, 1.0)
     assert f["volume_util_L"] == 1000 + 50 * (160 * 0.75 + 65 * 1)
     assert f["contribuicao_diaria_L"] == 50 * 160
@@ -28,7 +29,7 @@ def test_fossa_minimo_1000():
 
 
 def test_fossa_coeficiente_ausente_a_confirmar():
-    """AR300: coeficiente da NBR 7229 nao informado -> ValueError (nao inventa)."""
+    """AR300: coeficiente da NBR 17076 nao informado -> ValueError (nao inventa)."""
     with pytest.raises(ValueError):
         er.volume_fossa_septica(10, None, 0.75, 65, 1)
     with pytest.raises(ValueError):

@@ -55,7 +55,7 @@ REQUERIDOS_ESTACA = [
     ("fundacao.estaca.perfil_spt", "perfil SPT da sondagem (camadas tipo/N/dz)"),
     ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
 ]
-TIPOS_FUNDACAO = ("sapata", "estaca", "bloco")
+TIPOS_FUNDACAO = ("sapata", "estaca", "bloco", "sapata_corrida")
 TIPOS_PORTICO = ("prismatico", "alma_variavel", "tesoura")
 
 # Ponte rolante: campos do FABRICANTE requeridos SO quando spec["ponte"] != None.

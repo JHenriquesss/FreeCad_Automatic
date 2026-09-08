@@ -5,7 +5,9 @@
 # por agua):
 #   1) CLASSIFICACAO DE RISCO (Secao 4): leve; ordinario I (estoque <= 2,4 m) / II
 #      (<= 3,7 m); extra I/II. Galpao de producao/estoque <= 3,7 m -> ordinario II.
-#      Estoque > 3,7 m -> areas de armazenamento (NBR 13792, fora do escopo).
+#      Estoque > 3,7 m -> areas de armazenamento (NBR 16981:2021 Secao 5.2,
+#      sucede/cancela NBR 13792:1997 - conferido no PDF vigente: 5.2.1 ate 3,7 m /
+#      5.2.2 acima de 3,7 m - fora do escopo deste modulo).
 #   2) AREA DE COBERTURA por chuveiro (Tab.10) e ESPACAMENTO por risco (parede =
 #      metade; minima 100 mm; teto absoluto 21 m2).
 #   3) CURVA DENSIDADE x AREA DE OPERACAO (Fig.43): densidade de aplicacao (mm/min =
@@ -52,8 +54,9 @@ PRESSAO_MIN_BAR = 0.48          # 48 kPa (9.4.4.10)
 
 
 def classifica_risco(altura_estoque_m, tipo="producao"):
-    """Classe de risco por altura de estocagem (Secao 4). tipo 'extra' forca extra.
-    Estoque > 3,7 m -> armazenamento (NBR 13792, fora do escopo -> ValueError)."""
+    """Classe de risco por altura de estocagem (NBR 10897 Secao 4 + NBR 16981:2021 5.2).
+    tipo 'extra' forca extra. Estoque > 3,7 m -> armazenamento (NBR 16981:2021 5.2.2,
+    conferido no PDF vigente - sucede NBR 13792:1997; fora do escopo -> ValueError)."""
     if tipo in ("extra", "extra_I", "extra_II"):
         return "extra_I" if tipo in ("extra", "extra_I") else "extra_II"
     if tipo == "leve":
@@ -64,7 +67,7 @@ def classifica_risco(altura_estoque_m, tipo="producao"):
     if h <= 3.7:
         return "ordinario_II"
     raise ValueError("[A CONFIRMAR] estoque > 3,7 m -> area de armazenamento "
-                     "(NBR 13792, fora do escopo da NBR 10897).")
+                     "(NBR 16981:2021 5.2.2, fora do escopo da NBR 10897).")
 
 
 def area_operacao(risco, densidade=None):
@@ -133,7 +136,7 @@ def _selftest():
     assert classifica_risco(2.0) == "ordinario_I"
     import pytest
     with pytest.raises(ValueError):
-        classifica_risco(5.0)                          # > 3,7 m -> NBR 13792
+        classifica_risco(5.0)                          # > 3,7 m -> NBR 16981:2021 5.2.2
     # cobertura e espacamento (Tab.10)
     assert RISCO["ordinario_II"]["cobertura_m2"] == 12.1
     assert RISCO["leve"]["espacamento_m"] == 4.6

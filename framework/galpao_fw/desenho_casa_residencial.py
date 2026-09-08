@@ -342,6 +342,20 @@ def gerar_desenhos_casa(result, out_dir) -> dict:
 
     # planta baixa: o programa declara area e perimetro, nao posicoes
     ignorados["planta-baixa.svg"] = "posicoes_dos_ambientes_nao_declaradas"
+
+    # ALVENARIA PORTANTE (G62): elevacao + fiadas saem do MESMO desenhista
+    # das paredes calculadas - um desenho_alvenaria.py com escape proprio
+    # seria o berco do bug de dupla-escapa (todo texto por texto()).
+    if isinstance(estrutura, dict) and (estrutura.get("alvenaria") or {}).get(
+            "por_linha"):
+        import desenho_alvenaria as da
+
+        pranchas = da.gerar_pranchas_alvenaria(estrutura, destino)
+        gerados.extend(pranchas["files"])
+        ignorados.update(pranchas["skipped"])
+    else:
+        ignorados["elevacao-paredes.svg"] = "parede_portante_nao_calculada"
+        ignorados["planta-fiadas.svg"] = "parede_portante_nao_calculada"
     return {"files": gerados, "skipped": ignorados}
 
 

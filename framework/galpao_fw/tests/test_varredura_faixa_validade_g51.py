@@ -337,3 +337,124 @@ def test_08b_vermelho_do_baseline_fora_do_repo(tmp_path):
     alvo.write_text(chr(10).join(_GAP_COM_GUARDA) + chr(10), encoding="utf-8")
     assert not [d for d in vf.varredura(raiz=str(tmp_path))
                 if d["balde"] == "desguardada"]
+
+
+# --- G64: a lente enxerga o que entrou depois dela ---------------------------
+# alvenaria_estrutural produzia ZERO chaves (161 em 50 arquivos, sem ela).
+# O modulo esta GUARDADO - estes dois testes medem as guardas que a triagem
+# do baseline alega (rigor G10: sem numero medido, sem triagem).
+def test_06g_alvenaria_patamar_fora_dos_tabelados_recusa():
+    """Patamar de fpk fora da Tab.1 RECUSA (nao interpola em silencio)."""
+    import alvenaria_estrutural as alv
+    assert alv.modulo_deformacao(20000.0, "bloco_concreto") == 800.0 * 20000.0
+    assert alv.modulo_deformacao(22000.0, "bloco_concreto") == 750.0 * 22000.0
+    assert alv.modulo_deformacao(26000.0, "bloco_concreto") == 700.0 * 26000.0
+    for fpkfora in (21000.0, 23000.0, 25000.0):
+        try:
+            alv.modulo_deformacao(fpkfora, "bloco_concreto")
+            raise AssertionError("patamar %.0f MPa devia recusar" % (fpkfora / 1000.0,))
+        except alv.EntradaAlvenaria as exc:
+            assert "Ea_sem_patamar_tabelado" in str(exc)
+
+
+def test_06h_alvenaria_lambda_acima_do_teto_reprova():
+    """Lambda acima do teto da Tab.9 REPROVA (nao satura, regra G51/D82)."""
+    import alvenaria_estrutural as alv
+    assert alv.teto_esbeltez(False) == 24.0
+    assert alv.teto_esbeltez(True) == 30.0
+    r = alv.verifica_parede_compressao(100.0, 4000.0, 3.0, 0.10, 0.20)
+    assert r["lambda_"] == 30.0 and r["OK"] is False
+    assert "esbeltez_acima_do_teto" in r["motivo"]
+    r2 = alv.verifica_pilar_armado(100.0, 4000.0, 3.5, 0.10, 0.20, 0.002,
+                                   500e3, 10.0)
+    assert r2["OK"] is False and "esbeltez_acima_do_teto" in r2["motivo"]
+    # dentro do teto a conta manda: mesma parede curta aprova
+    r3 = alv.verifica_parede_compressao(10.0, 4000.0, 2.0, 0.20, 0.40)
+    assert r3["OK"] is True and r3["lambda_teto"] == 24.0
+
+
+def test_09_cobertura_todo_py_varrido_ou_isento():
+    """D87: a lente vira portao. Todo *.py ou produz chave, ou esta em
+    SEM_FAIXA_DECLARADA com motivo. Modulo novo invisivel = suite vermelha;
+    isencao sem motivo, isencao que virou nome morto e isencao de arquivo
+    sumido tambem."""
+    r = vf.confere_cobertura()
+    assert not r["faltando"], (
+        "modulo invisivel a lente e sem isencao: %r. Ou a lente passa a "
+        "enxergar o vocabulario (como o G64 fez com a Tab.9), ou o arquivo "
+        "entra em varredura_faixa_validade.SEM_FAIXA_DECLARADA com o motivo "
+        "pelo qual zero chaves e o esperado." % (r["faltando"],))
+    assert not r["sobrando"], (
+        "isencao virou nome morto (arquivo agora produz chave): %r. A "
+        "isencao tem de SAIR junto (senao protege modulo morto)." % (r["sobrando"],))
+    assert not r["sem_motivo"], (
+        "isencao sem motivo: %r. Lista de isentos sem motivo e silencio, "
+        "nao triagem." % (r["sem_motivo"],))
+    assert not r["ausentes"], (
+        "isencao de arquivo que sumiu do disco: %r. Remover a entrada "
+        "junto com o arquivo." % (r["ausentes"],))
+    assert r["OK"]
+
+
+def test_09b_vermelho_cobertura_nos_dois_sentidos(tmp_path):
+    """Vermelho provado por injecao, sem mutar o repo (licao do D81).
+    Sentido 1: modulo com faixa desguardada e pego (varrido, nao some em
+    sem_chave, e o baseline o acusa como nao triado). Sentido 2: modulo sem
+    faixa e pego pela cobertura sem isencao; isencao motivada libera;
+    motivo apagado reprova."""
+    gap = tmp_path / "zz_faixa.py"
+    gap.write_text(chr(10).join(_GAP_SEM_GUARDA) + chr(10), encoding="utf-8")
+    limpo = tmp_path / "zz_limpo.py"
+    limpo.write_text("def soma(a, b):\n    return a + b\n", encoding="utf-8")
+    # sentido 1: com faixa desguardada, a lente VE (nao cai em sem_chave)
+    # e o baseline MORDE (nao esta triado)
+    assert "zz_faixa.py" not in vf.arquivos_sem_chave(raiz=str(tmp_path))
+    novas = set(vf.chaves_desguardadas(raiz=str(tmp_path))) - set(
+        vf.DESGUARDADAS_TRIADAS)
+    assert any(a == "zz_faixa.py" for a, _d in novas), novas
+    # sentido 2: sem faixa e sem isencao, a cobertura MORDE
+    r = vf.confere_cobertura(raiz=str(tmp_path), isentos={})
+    assert "zz_limpo.py" in r["faltando"] and not r["OK"], r
+    # isencao motivada libera...
+    r2 = vf.confere_cobertura(
+        raiz=str(tmp_path),
+        isentos={"zz_limpo.py": "modulo injetado sem faixa (prova do vermelho)",
+                 "zz_faixa.py": "prova do vermelho: tem chave, isencao sobraria - "
+                                "usar baseline, nao esta lista"})
+    assert "zz_faixa.py" in r2["sobrando"] and not r2["OK"], r2
+    so_limpo = {"zz_limpo.py": "modulo injetado sem faixa (prova do vermelho)"}
+    # ...mas zz_faixa tem chave e nao pode estar na lista; so o limpo libera
+    # (ainda falta triar zz_faixa no baseline, que e outro portao):
+    # para a cobertura pura, diretorio so com o limpo + isencao = verde
+    limpo_only = tmp_path / "so_limpo"
+    limpo_only.mkdir()
+    (limpo_only / "zz_limpo.py").write_text(
+        "def soma(a, b):\n    return a + b\n", encoding="utf-8")
+    assert vf.confere_cobertura(raiz=str(limpo_only), isentos=so_limpo)["OK"]
+    # motivo apagado reprova
+    r3 = vf.confere_cobertura(raiz=str(limpo_only),
+                              isentos={"zz_limpo.py": "   "})
+    assert r3["sem_motivo"] == ["zz_limpo.py"] and not r3["OK"], r3
+
+
+def test_09c_vocabulario_estreito_permanece_estreito():
+    """Cada termo novo do G64 veio com a contagem de FP; os primos ruidosos
+    continuam fora: 'patamar' de escada (23 hits), 'a partir de' sem numero
+    (42 hits) e 'teto' generico (78 hits, forro e ductilidade) nao viram
+    declaracao. Se um dia entrarem, e com triagem propria."""
+    tudo = vf.varredura()
+    assert not [d for d in tudo if d["arquivo"] == "escada.py"
+                and "patamar" in d["declaracao"].lower()], \
+        "patamar de escada virou declaracao: a lente alargou alem do medido"
+    assert not [d for d in tudo if "a partir de um payload" in d["declaracao"]], \
+        "'a partir de' sem numero virou declaracao"
+    assert not [d for d in tudo
+                if "ponto de luz fixo no teto" in d["declaracao"]], \
+        "'teto' arquitetonico virou declaracao"
+    # e o vocabulario novo esta mesmo enxergando a alvenaria (nao so o FP
+    # antigo do 'limitada a 10%'): teto da Tab.9 e patamar de fpk produzem
+    # chaves que o G51 nao via
+    alv = [d for d in tudo if d["arquivo"] == "alvenaria_estrutural.py"]
+    assert any("Tab.9" in d["declaracao"] for d in alv), alv
+    assert any("patamar de fpk" in d["declaracao"].lower() for d in alv), alv
+    assert len(alv) >= 10, "alvenaria segue quase invisivel: %d chaves" % len(alv)

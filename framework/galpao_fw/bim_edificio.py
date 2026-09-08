@@ -134,7 +134,13 @@ def membros_bim(estrutura, pe_direito=None):
     empilhamento (viga mais rasa que a laje, pe-direito menor que a viga): sao
     dados que descrevem um predio impossivel, e o modelo nao deve arbitrar um
     conserto em silencio.
+
+    G62: na casa de alvenaria nao ha portico (sem pilares/vigas); o modelo
+    leva lajes + paredes + baldrame + corrida, pelo ramo proprio abaixo.
     """
+    alv = estrutura.get("alvenaria") if isinstance(estrutura, dict) else None
+    if isinstance(alv, dict) and alv.get("por_linha"):
+        return _membros_bim_alvenaria(estrutura, pe_direito)
     pav = estrutura["pavimento"]
     pilares = estrutura["pilares"]
 
@@ -263,6 +269,59 @@ def membros_bim(estrutura, pe_direito=None):
 
     membros.extend(membros_baldrame(estrutura, xs, ys, material))
     membros.extend(membros_fundacao(estrutura, xs, ys, material))
+    return membros
+
+
+def _membros_bim_alvenaria(estrutura, pe_direito=None):
+    """Modelo neutro da casa de alvenaria: lajes, paredes, baldrame, corrida.
+
+    G62: sem pilares e sem vigas de concreto, as guardas de empilhamento do
+    portico nao se aplicam; valem as da parede (altura positiva ate a face
+    inferior da laje) e as do baldrame/corrida (mesmas do caminho de
+    concreto). Peca que ninguem calculou nao aparece.
+    """
+    pav = estrutura["pavimento"]
+    pilares = estrutura.get("pilares") or {}
+    vaos_x = [float(v) for v in pav["vaos_x"]]
+    vaos_y = [float(v) for v in pav["vaos_y"]]
+    xs, ys = _eixos(vaos_x), _eixos(vaos_y)
+
+    h_laje = float(estrutura["laje"]["h"])
+    if pe_direito is None:
+        pe_direito = _pe_direito_estrutura(estrutura, pilares)
+    pe_direito = float(pe_direito)
+    if h_laje <= 0:
+        raise GeometriaIncoerente("a laje tem altura nao positiva")
+    if pe_direito <= h_laje + 1e-9:
+        raise GeometriaIncoerente(
+            "o pe-direito (%.3f m) nao e' maior que a laje (%.3f m): nao ha "
+            "parede a modelar" % (pe_direito, h_laje))
+
+    material = _material(estrutura)
+    lvls = niveis(estrutura, pe_direito)
+    membros = []
+
+    laje = estrutura["laje"]
+    critico = max(pav["paineis"], key=lambda p: p["lx"] * p["ly"])
+    for nivel in lvls:
+        z_top = nivel["elevacao_mm"]
+        for painel in pav["paineis"]:
+            i, j = painel["i"], painel["j"]
+            lx, ly = float(painel["lx"]), float(painel["ly"])
+            membro = {
+                "tipo": "Slab", "marca": "L%d%d-%s" % (i + 1, j + 1, nivel["nome"]),
+                "perfil": "LAJE h=%.0fcm" % (h_laje * 100),
+                "dims": [lx * MM, ly * MM, h_laje * MM],
+                "centro": [(xs[i] + lx / 2.0) * MM, (ys[j] + ly / 2.0) * MM,
+                           z_top - h_laje * MM / 2.0],
+                "material": material, "pavimento": nivel["nome"]}
+            if (i, j) == (critico["i"], critico["j"]):
+                membro["armadura"] = _armadura_laje(laje)
+            membros.append(membro)
+
+    membros.extend(membros_parede(estrutura, xs, ys, pe_direito, h_laje))
+    membros.extend(membros_baldrame(estrutura, xs, ys, material))
+    membros.extend(membros_fundacao_corrida(estrutura, xs, ys))
     return membros
 
 
@@ -422,6 +481,184 @@ def _estacas_do_pilar(nome, geometria, x, y, cota, material):
     return membros
 
 
+def membros_parede(estrutura, xs, ys, pe_direito, h_laje):
+    """Paredes portantes da casa de alvenaria (G62), uma por linha e nivel.
+
+    Convenção do membro Wall (a mesma de bim_casa_residencial._membro_parede):
+    barra HORIZONTAL p1->p2 no eixo da parede, secao {bf: espessura, d: altura}
+    com ancoragem 'base' (sobe `d` a partir de z0). A altura e' pe - h_laje: o
+    topo encontra a FACE INFERIOR da laje, nunca o seu volume (a laje ocupa os
+    h_laje do topo). Linhas em Y recuam te/2 nas pontas, onde encontram as
+    linhas em X, e sao CORTADAS em cada linha em X que as cruza (um membro
+    por trecho, sufixo -T1, -T2...): sem isso o cruzamento entraria duas vezes
+    no quantitativo e no clash intra-disciplina. Com parede so no contorno o
+    corte devolve um trecho unico - por isso o defeito ficou invisivel ate a
+    malha interna existir.
+    """
+    alv = estrutura.get("alvenaria") or {}
+    regs = alv.get("por_linha") or []
+    te = float(alv.get("te_m") or 0.14)
+    h_wall = float(pe_direito) - float(h_laje)
+    if h_wall <= 0:
+        raise GeometriaIncoerente(
+            "a parede (pe %.3f m menos laje %.3f m) nao tem altura positiva"
+            % (float(pe_direito), float(h_laje)))
+    lvls = niveis(estrutura, float(pe_direito))
+    membros = []
+    cortes = _cortes_das_linhas_x(regs, ys)
+    for nivel in lvls:
+        k = lvls.index(nivel)
+        z0 = k * float(pe_direito) * MM
+        for reg in regs:
+            L = float(reg["comprimento_m"])
+            eixo, indice = reg["eixo"], int(reg["indice"])
+            if eixo == "x":
+                trechos = [(xs[0], xs[0] + L)]
+            else:
+                trechos = _trechos_da_linha_y(ys[0], ys[0] + L, cortes, te)
+            for t, (a, b) in enumerate(trechos):
+                if eixo == "x":
+                    p1 = [a * MM, ys[indice] * MM, z0]
+                    p2 = [b * MM, ys[indice] * MM, z0]
+                else:
+                    p1 = [xs[indice] * MM, a * MM, z0]
+                    p2 = [xs[indice] * MM, b * MM, z0]
+                sufixo = "" if len(trechos) == 1 else "-T%d" % (t + 1)
+                membros.append(_membro_parede_trecho(
+                    reg, nivel, sufixo, te, h_wall, p1, p2))
+    return membros
+
+
+def _cortes_das_linhas_x(regs, ys):
+    """Cotas y das linhas em X que TEM parede (onde a parede em Y e cortada)."""
+    return sorted({float(ys[int(r["indice"])]) for r in regs
+                   if r["eixo"] == "x"})
+
+
+def _trechos_da_linha_y(y_ini, y_fim, cortes, te):
+    """Trechos de uma parede em Y entre as paredes em X que a cruzam.
+
+    Duas paredes que se cruzam nao podem ocupar o MESMO volume: o cruzamento
+    entraria duas vezes no quantitativo e o clash intra-disciplina acusaria.
+    A convencao adota a parede em X como continua e CORTA a parede em Y em
+    cada cruzamento, recuando te/2 de cada lado. Com parede so no contorno
+    (dois cortes, nas pontas) isso devolve UM trecho - o mesmo membro unico
+    de antes. Com malha interna ('todas'), devolve um trecho por vao: e ai
+    que o modelo antigo sobrepunha volume, invisivel enquanto a fixture so
+    tinha contorno.
+    """
+    limites = [c for c in cortes if y_ini - 1e-9 <= c <= y_fim + 1e-9]
+    if len(limites) < 2:
+        return [(y_ini + te / 2.0, y_fim - te / 2.0)]
+    trechos = []
+    for a, b in zip(limites, limites[1:]):
+        ini, fim = a + te / 2.0, b - te / 2.0
+        if fim > ini + 1e-9:
+            trechos.append((ini, fim))
+    return trechos or [(y_ini + te / 2.0, y_fim - te / 2.0)]
+
+
+def _membro_parede_trecho(reg, nivel, sufixo, te, h_wall, p1, p2):
+    """Um trecho de parede portante como membro do modelo neutro."""
+    return {
+        "tipo": "Wall",
+        "marca": "PAR-%s%s-%s" % (reg["nome"], sufixo, nivel["nome"]),
+        "perfil": "PAR e=%.0fcm" % (te * 100),
+        "secao": {"forma": "RECT", "bf": te, "d": h_wall},
+        "ancoragem": "base", "p1": p1, "p2": p2,
+        "material": "Alvenaria estrutural",
+        "pavimento": nivel["nome"],
+        "resistencia": {
+            "Nd_kN": float(reg.get("N_wall_d_kN") or 0.0),
+            "veredito": (reg.get("verificacao") or {}).get("veredito")},
+    }
+
+
+def n_trechos_parede(estrutura, ys=None):
+    """Quantos TRECHOS de parede o calculo preve (p/ conferir o modelo).
+
+    Uma linha em X e um trecho; uma linha em Y e cortada em cada linha em X
+    que a cruza, logo vale (n_linhas_x - 1) trechos - ou 1 quando so ha o
+    contorno. Deriva do CALCULO (por_linha + eixos), nao do emissor.
+    """
+    alv = estrutura.get("alvenaria") if isinstance(estrutura, dict) else None
+    if not isinstance(alv, dict) or not alv.get("por_linha"):
+        return 0
+    regs = alv["por_linha"]
+    n_x = len({int(r["indice"]) for r in regs if r["eixo"] == "x"})
+    n_y = len([r for r in regs if r["eixo"] == "y"])
+    return n_x + n_y * max(n_x - 1, 1)
+
+
+def n_paredes(estrutura):
+    """Quantas linhas de parede portante o CALCULO produziu (p/ conferencia)."""
+    alv = estrutura.get("alvenaria") if isinstance(estrutura, dict) else None
+    if not isinstance(alv, dict) or not alv.get("por_linha"):
+        return 0
+    return len(alv["por_linha"])
+
+
+def membros_fundacao_corrida(estrutura, xs, ys):
+    """Sapata corrida: um Footing por TRECHO de linha de parede (G62).
+
+    Caixa com o TOPO na cota de apoio (z de -(cota+h) a -cota), como a sapata
+    isolada. Linha em X: dims [L, B, h]; em Y: [B, L, h]. Sem fundacao
+    dimensionada, lista vazia (peca que ninguem calculou nao aparece).
+    """
+    fundacao = estrutura.get("fundacao")
+    alv = estrutura.get("alvenaria") or {}
+    if not isinstance(fundacao, dict) or fundacao.get("tipo") != "sapata_corrida":
+        return []
+    por_linha = fundacao.get("por_linha") or {}
+    if not por_linha:
+        return []
+    cota = float(fundacao.get("cota_apoio_m")
+                 if fundacao.get("cota_apoio_m") is not None else 1.0)
+    comp = {r["nome"]: float(r["comprimento_m"])
+            for r in (alv.get("por_linha") or [])}
+    cortes = _cortes_das_linhas_x(alv.get("por_linha") or [], ys)
+    membros = []
+    for nome in sorted(por_linha):
+        reg = por_linha[nome]
+        parede = next((r for r in (alv.get("por_linha") or [])
+                       if r["nome"] == nome), {})
+        B = float(reg["B_m"])
+        h = float(reg["h_m"])
+        L = comp.get(nome, 0.0)
+        if L <= 0:
+            raise GeometriaIncoerente(
+                "a linha %s tem fundacao corrida sem comprimento de parede"
+                % nome)
+        eixo = parede.get("eixo", "x")
+        indice = int(parede.get("indice", 0))
+        if eixo == "x":
+            trechos = [(xs[0], xs[0] + L)]
+        else:
+            # a corrida em Y e CORTADA em cada corrida em X que a cruza
+            # (recuo de B/2 de cada lado), pela mesma razao da parede: duas
+            # pecas nao podem ocupar o mesmo volume, senao o cruzamento entra
+            # duas vezes no quantitativo e o clash intra-disciplina acusa.
+            trechos = _trechos_da_linha_y(ys[0], ys[0] + L, cortes, B)
+        for t, (a, b) in enumerate(trechos):
+            comp_t = b - a
+            if eixo == "x":
+                dims = [comp_t * MM, B * MM, h * MM]
+                cx, cy = (a + comp_t / 2.0) * MM, ys[indice] * MM
+            else:
+                dims = [B * MM, comp_t * MM, h * MM]
+                cx, cy = xs[indice] * MM, (a + comp_t / 2.0) * MM
+            sufixo = "" if len(trechos) == 1 else "-T%d" % (t + 1)
+            membros.append({
+                "tipo": "Footing", "marca": "COR-%s%s" % (nome, sufixo),
+                "perfil": "COR B%.0f" % (B * 100),
+                "dims": dims,
+                "centro": [cx, cy, -cota * MM - h * MM / 2.0],
+                "material": _material(estrutura), "pavimento": "Fundacao",
+                "armadura": {"q_kN_m": float(reg.get("q_kN_m") or 0.0)},
+            })
+    return membros
+
+
 def _armadura_laje(laje):
     """Pset da laje do painel critico: As adotada e malha, por direcao."""
     arm = laje.get("armaduras") or {}
@@ -474,6 +711,24 @@ def _pe_direito(pilares):
     return valores.pop()
 
 
+def _pe_direito_estrutura(estrutura, pilares):
+    """Pe-direito da estrutura, com ou sem portico de concreto.
+
+    G62: na casa de alvenaria nao ha lances de pilar; o pe-direito vem do
+    resultado (H_total_m / n_pavimentos). Sem nenhum dos dois, nao ha malha
+    a modelar e o erro e' nomeado em vez de um KeyError vazio.
+    """
+    if pilares:
+        return _pe_direito(pilares)
+    try:
+        return (float(estrutura.get("H_total_m"))
+                / max(int(estrutura.get("n_pavimentos") or 1), 1))
+    except (TypeError, ValueError):
+        raise GeometriaIncoerente(
+            "sem pilares dimensionados e sem H_total_m/n_pavimentos: nao ha "
+            "pe-direito para o modelo")
+
+
 # ---------------------------------------------------------------------------
 # CONFERENCIAS rotulo x geometria (o que os testes de guarda medem)
 # ---------------------------------------------------------------------------
@@ -484,8 +739,14 @@ def confere_modelo(estrutura, membros):
     quando todas as contagens batem - um pilar que sumiu do modelo e' um pilar
     que o projetista nao vai ver no visualizador, e nenhum teste de numero pega
     isso.
+
+    G62: no caminho de alvenaria o esperado e' paredes + lajes + baldrame +
+    corrida (sem Column/Beam de concreto).
     """
     pav = estrutura["pavimento"]
+    alv = estrutura.get("alvenaria") if isinstance(estrutura, dict) else None
+    if isinstance(alv, dict) and alv.get("por_linha"):
+        return _confere_modelo_alvenaria(estrutura, membros)
     n_niveis = len(estrutura["descida"]["pavimentos"])
     n_pilares = len(estrutura["pilares"])
     nx, ny = len(pav["vaos_x"]), len(pav["vaos_y"])
@@ -534,6 +795,39 @@ def confere_modelo(estrutura, membros):
     }
 
 
+def _confere_modelo_alvenaria(estrutura, membros):
+    """Conferencia do modelo da casa de alvenaria (G62): paredes, lajes,
+    baldrame e corrida - o ESPERADO do calculo contra os TIPOS do modelo."""
+    pav = estrutura["pavimento"]
+    n_niveis = len(estrutura["descida"]["pavimentos"])
+    n_par = n_paredes(estrutura)   # linhas (o modelo conta TRECHOS)
+    por_tipo = {}
+    for m in membros:
+        por_tipo[m["tipo"]] = por_tipo.get(m["tipo"], 0) + 1
+    n_bald = n_baldrames(estrutura)
+    fundacao = estrutura.get("fundacao") or {}
+    n_corrida = (n_trechos_parede(estrutura)
+                 if (fundacao.get("tipo") == "sapata_corrida"
+                     and fundacao.get("por_linha")) else 0)
+    esperado = {
+        # trechos, nao linhas: a parede em Y e cortada em cada cruzamento
+        "Wall": n_trechos_parede(estrutura) * n_niveis,
+        "Slab": pav["n_paineis"] * n_niveis,
+    }
+    if n_bald:
+        esperado["Beam"] = n_bald
+    if n_corrida:
+        esperado["Footing"] = n_corrida
+    pavimentos_modelo = {m["pavimento"] for m in membros}
+    n_andares = n_niveis + (1 if (n_corrida or n_bald) else 0)
+    return {
+        "ok": por_tipo == esperado and len(pavimentos_modelo) == n_andares,
+        "por_tipo": por_tipo, "esperado": esperado,
+        "n_pavimentos_modelo": len(pavimentos_modelo),
+        "n_pavimentos_calculo": n_andares,
+    }
+
+
 def confere_empilhamento(membros):
     """Nenhum par de membros pode ocupar o MESMO volume (AABB, mm3).
 
@@ -566,6 +860,11 @@ def pavimentos_ifc(estrutura, pe_direito):
     if isinstance(fundacao, dict) and fundacao.get("por_pilar"):
         cota = float(fundacao.get("cota_apoio_m")
                      if fundacao.get("cota_apoio_m") is not None else 1.0)
+    elif isinstance(fundacao, dict) and fundacao.get("tipo") == "sapata_corrida" \
+            and fundacao.get("por_linha"):
+        # G62: corrida por linha de parede, mesmo topo enterrado na cota.
+        cota = float(fundacao.get("cota_apoio_m")
+                     if fundacao.get("cota_apoio_m") is not None else 1.0)
     elif n_baldrames(estrutura):
         # baldrame sem fundacao dimensionada: o andar existe assim mesmo, senao
         # as vigas de baldrame cairiam dentro do primeiro pavimento no navegador
@@ -583,7 +882,7 @@ def emitir_bim(estrutura, path, nome="Edificio"):
     import ifc_emit
 
     membros = membros_bim(estrutura)
-    pe = _pe_direito(estrutura["pilares"])
+    pe = _pe_direito_estrutura(estrutura, estrutura.get("pilares") or {})
     return ifc_emit.emitir_ifc(membros, path, nome=nome,
                                pavimentos=pavimentos_ifc(estrutura, pe))
 

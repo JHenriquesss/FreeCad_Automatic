@@ -88,7 +88,7 @@ def test_reserva_cresce_com_o_risco():
 
 
 def test_sprinklers_estoque_alto_recusa_sem_inventar():
-    # estoque > 3,7 m -> area de armazenamento (NBR 13792, fora do escopo) -> ValueError
+    # estoque > 3,7 m -> area de armazenamento (NBR 16981:2021 5.2.2, fora do escopo) -> ValueError
     with pytest.raises(ValueError):
         sp.dimensiona_sprinklers({"C": 40.0, "L": 20.0, "altura_estoque_m": 6.0})
 
