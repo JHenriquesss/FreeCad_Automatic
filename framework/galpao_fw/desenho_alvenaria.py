@@ -122,7 +122,12 @@ def _painel_elevacao(partes, reg, pe_direito, te, y0):
     W = L * ESC
     x0 = 70.0
     h_px = pe_direito * ESC
-    y_base = y0 + 46.0 + h_px            # cota zero da parede (base)
+    # A faixa de ajuste e' desenhada ACIMA do topo da parede (y_topo -
+    # resto.ESC): sem reservar essa altura ela subia por cima da linha de
+    # Nd/NRd, que sao justamente os numeros da verificacao. Reserva-se a
+    # faixa aqui, e a altura devolvida cresce junto.
+    faixa_px = resto * ESC if resto > 1e-9 else 0.0
+    y_base = y0 + 46.0 + faixa_px + h_px  # cota zero da parede (base)
     y_topo = y_base - h_px
 
     ver = (reg.get("verificacao") or {})
@@ -163,7 +168,9 @@ def _painel_elevacao(partes, reg, pe_direito, te, y0):
         partes.append(texto(x0 + W + 8, y_topo - resto * ESC / 2,
                                "ajuste %.0f cm" % (resto * 100), 9,
                                anchor="start", color="#92400e"))
-    # vãos + vergas/contravergas
+    # vãos + vergas/contravergas (G70: a folha desenha a verga CALCULADA —
+    # comprimento de apoio, altura e armadura do resultado; sem verga calculada
+    # no registro, cai no tracejado antigo para nao quebrar pranchas manuais)
     for iv, v in enumerate(vaos):
         vx = x0 + v["pos_m"] * ESC
         vw = v["larg_m"] * ESC
@@ -176,21 +183,64 @@ def _painel_elevacao(partes, reg, pe_direito, te, y0):
                                "%s %.0fx%.0f" % (v["tipo"], v["larg_m"] * 100,
                                                  v["alt_m"] * 100),
                                10, weight="bold"))
-        # verga: larg + 0,40 de apoio, acima do vão
-        partes.append(linha(vx - 0.20 * ESC, vy_topo - 4,
-                               vx + vw + 0.20 * ESC, vy_topo - 4,
-                               2.2, COR_VERGA, dash="8 3"))
-        partes.append(texto(vx + vw + 0.20 * ESC + 4, vy_topo - 1,
-                               "verga", 9, anchor="start", color=COR_VERGA))
+        _vergas = reg.get("vergas") or []
+        _calc = _vergas[iv] if iv < len(_vergas) and isinstance(
+            _vergas[iv], dict) and _vergas[iv].get("comprimento_peca_m") else None
+        if _calc is not None:
+            _ap = float(_calc.get("apoio_m", 0.20))
+            _comp = float(_calc["comprimento_peca_m"])
+            _hv = float(_calc.get("altura_verga_m", 0.20))
+            _arm = str(_calc.get("armadura", ""))
+            _xv = x0 + (v["pos_m"] - _ap) * ESC
+            _yv = vy_topo - _hv * ESC
+            partes.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                          'fill="none" stroke="%s" stroke-width="1.6" '
+                          'data-verga="%s-%d" data-verga-comp="%.3f" '
+                          'data-verga-h="%.3f" data-verga-armadura="%s"/>'
+                          % (_xv, _yv, _comp * ESC, _hv * ESC, COR_VERGA,
+                             reg["nome"], iv, _comp, _hv, _arm))
+            partes.append(texto(_xv + _comp * ESC + 4, _yv + 10,
+                                   "verga %.2f %s" % (_comp, _arm), 9,
+                                   anchor="start", color=COR_VERGA))
+        else:
+            # verga: larg + 0,40 de apoio, acima do vão
+            partes.append(linha(vx - 0.20 * ESC, vy_topo - 4,
+                                   vx + vw + 0.20 * ESC, vy_topo - 4,
+                                   2.2, COR_VERGA, dash="8 3"))
+            partes.append(texto(vx + vw + 0.20 * ESC + 4, vy_topo - 1,
+                                   "verga", 9, anchor="start", color=COR_VERGA))
         if v["peitoril_m"] > 1e-9:      # janela: contraverga sob o peitoril
             y_peit = y_base - v["peitoril_m"] * ESC
-            partes.append(linha(vx - 0.20 * ESC, y_peit + 10,
-                                   vx + vw + 0.20 * ESC, y_peit + 10,
-                                   2.2, COR_VERGA, dash="8 3"))
-            partes.append(texto(vx + vw + 0.20 * ESC + 4, y_peit + 13,
-                                   "contraverga", 9, anchor="start",
-                                   color=COR_VERGA))
-    altura = 46.0 + h_px + 34.0
+            _cc = None
+            for _d in (reg.get("contravergas") or []):
+                _vv = _d.get("vao") or {}
+                if abs(float(_vv.get("pos_m", -1)) - float(v["pos_m"])) < 1e-9 \
+                        and abs(float(_vv.get("larg_m", -1)) - float(v["larg_m"])) < 1e-9:
+                    _cc = _d
+                    break
+            if _cc is not None:
+                _apc = float(_cc.get("apoio_m", 0.20))
+                _compc = float(_cc["comprimento_m"])
+                _hc = float(_cc.get("altura_m", 0.10))
+                _xc = x0 + (v["pos_m"] - _apc) * ESC
+                partes.append('<rect x="%.1f" y="%.1f" width="%.1f" '
+                              'height="%.1f" fill="none" stroke="%s" '
+                              'stroke-width="1.4" stroke-dasharray="6 3" '
+                              'data-contraverga="%s-%d" '
+                              'data-contraverga-comp="%.3f"/>'
+                              % (_xc, y_peit, _compc * ESC, _hc * ESC,
+                                 COR_VERGA, reg["nome"], iv, _compc))
+                partes.append(texto(_xc + _compc * ESC + 4, y_peit + 12,
+                                       "contraverga %.2f (detalhe)" % (_compc,),
+                                       9, anchor="start", color=COR_VERGA))
+            else:
+                partes.append(linha(vx - 0.20 * ESC, y_peit + 10,
+                                       vx + vw + 0.20 * ESC, y_peit + 10,
+                                       2.2, COR_VERGA, dash="8 3"))
+                partes.append(texto(vx + vw + 0.20 * ESC + 4, y_peit + 13,
+                                       "contraverga", 9, anchor="start",
+                                       color=COR_VERGA))
+    altura = 46.0 + faixa_px + h_px + 34.0
     return altura, {"paredes": 1, "fiadas": n, "vaos": len(vaos),
                     "ajuste": 1 if resto > 1e-9 else 0}
 
@@ -199,8 +249,16 @@ def elevacao_paredes_svg(alvenaria, pe_direito, te, titulo=None):
     """Todas as elevações empilhadas + quadro de blocos (UMA folha)."""
     regs = alvenaria.get("por_linha") or []
     tit = titulo or "ELEVACAO DAS PAREDES PORTANTES - NBR 16868-1 5.3.1"
+    # O cabecalho sai NO FIM, com as medidas reais: a folha cresce dentro
+    # do laco (W pelo painel mais largo, y pelo empilhamento) e nao da
+    # para declarar a viewBox antes de saber o tamanho. A versao anterior
+    # abria com (1100, 100) e remendava por string depois - e os remendos
+    # de `width` e `viewBox` procuravam '100' num cabecalho que ja saia
+    # com '1100.0', entao NUNCA casavam (filtro de nome morto). So o
+    # `height` casava: a folha saia com height 2477 e viewBox de altura
+    # 100, ou seja, o desenho esticado ~25x e cortado fora da viewBox.
     W = 1100.0
-    partes = abre_svg(W, 100, tit)
+    partes = []
     y = 60.0
     tot = {"paredes": 0, "fiadas": 0, "vaos": 0, "ajuste": 0,
            "inteiros": 0, "meios": 0,
@@ -231,14 +289,8 @@ def elevacao_paredes_svg(alvenaria, pe_direito, te, titulo=None):
                               round(tot["area_bruta_m2"], 2),
                               round(tot["area_vaos_m2"], 2)),
                            12, anchor="start", weight="bold"))
-    svg = "\n".join(partes) + "\n</svg>"
-    svg = svg.replace('width="100"',
-                      'width="%.0f"' % W, 1)
-    svg = svg.replace('viewBox="0 0 100 ',
-                      'viewBox="0 0 %.0f ' % W, 1)
-    svg = svg.replace('height="100"',
-                      'height="%.0f"' % (y + 30.0), 1)
-    return svg
+    H = y + 30.0
+    return "\n".join(abre_svg(W, H, tit) + partes) + "\n</svg>"
 
 
 def confere_elevacao(svg, alvenaria, pe_direito):
@@ -265,6 +317,81 @@ def confere_elevacao(svg, alvenaria, pe_direito):
                and n_vaos == sum(len(r.get("vaos") or []) for r in regs)
                and n_ajustes == (len(regs) if resto > 1e-9 else 0)),
     }
+
+
+def confere_vergas(svg, alvenaria, tol_m=1e-3):
+    """Verga/contraverga DESENHADAS x CALCULADAS (G70, drawing-vs-data).
+
+    Parse do SVG (XML, nunca substring): cada rect data-verga carrega
+    data-verga-comp/h/armadura; cada rect data-contraverga carrega o
+    comprimento do detalhe. Compara contra reg['vergas']/['contravergas'] do
+    resultado (comprimento da peca, altura e armadura). Sem verga calculada
+    no registro (prancha manual antiga), a guarda nao se aplica e devolve
+    ok=True com aplicado=False. Par vermelho-por-injecao: mutar o dado
+    (comprimento, armadura) sem redesenhar reprova; redesenhar volta a passar.
+    """
+    import xml.etree.ElementTree as _ET
+
+    root = _ET.fromstring(svg)
+    ns = "{http://www.w3.org/2000/svg}"
+    rects = list(root.iter(ns + "rect")) + list(root.iter("rect"))
+    des_v = [r for r in rects if r.get("data-verga") is not None]
+    des_c = [r for r in rects if r.get("data-contraverga") is not None]
+    regs = alvenaria.get("por_linha") or []
+    tem_conta = any(isinstance(r.get("vergas"), list) and r.get("vergas")
+                    for r in regs)
+    if not tem_conta:
+        return {"aplicado": False, "ok": True,
+                "motivo": "sem_verga_calculada_no_registro",
+                "vergas_desenhadas": len(des_v),
+                "vergas_calculadas": 0}
+    esp_v, esp_c = [], []
+    for reg in regs:
+        for iv, g in enumerate(reg.get("vergas") or []):
+            esp_v.append(("%s-%d" % (reg["nome"], iv),
+                          float(g.get("comprimento_peca_m", 0.0)),
+                          float(g.get("altura_verga_m", 0.0)),
+                          str(g.get("armadura", ""))))
+        for d in (reg.get("contravergas") or []):
+            _vv = d.get("vao") or {}
+            _idx = next((k for k, v in enumerate(reg.get("vaos") or [])
+                         if abs(float(v.get("pos_m", -1)) - float(_vv.get("pos_m", -2))) < 1e-9
+                         and abs(float(v.get("larg_m", -1)) - float(_vv.get("larg_m", -2))) < 1e-9),
+                        -1)
+            esp_c.append(("%s-%d" % (reg["nome"], _idx),
+                          float(d.get("comprimento_m", 0.0))))
+    des_map = {r.get("data-verga"): (float(r.get("data-verga-comp", 0.0) or 0.0),
+                                     float(r.get("data-verga-h", 0.0) or 0.0),
+                                     str(r.get("data-verga-armadura", "") or ""))
+               for r in des_v}
+    des_cmap = {r.get("data-contraverga"): float(
+        r.get("data-contraverga-comp", 0.0) or 0.0) for r in des_c}
+    diverg = []
+    if len(des_v) != len(esp_v):
+        diverg.append("contagem_verga: des=%d calc=%d" % (len(des_v), len(esp_v)))
+    for chave, comp, h, arm in esp_v:
+        d = des_map.get(chave)
+        if d is None:
+            diverg.append("verga_%s_ausente_no_desenho" % chave)
+            continue
+        if abs(d[0] - comp) > tol_m or abs(d[1] - h) > tol_m or d[2] != arm:
+            diverg.append("verga_%s_diverge: des=(%.3f,%.3f,%s) calc=(%.3f,%.3f,%s)"
+                          % (chave, d[0], d[1], d[2], comp, h, arm))
+    if len(des_c) != len(esp_c):
+        diverg.append("contagem_contraverga: des=%d calc=%d" % (len(des_c), len(esp_c)))
+    for chave, comp in esp_c:
+        d = des_cmap.get(chave)
+        if d is None:
+            diverg.append("contraverga_%s_ausente" % chave)
+        elif abs(d - comp) > tol_m:
+            diverg.append("contraverga_%s_diverge: des=%.3f calc=%.3f"
+                          % (chave, d, comp))
+    return {"aplicado": True, "ok": not diverg, "divergencias": diverg,
+            "vergas_desenhadas": len(des_v),
+            "vergas_calculadas": len(esp_v),
+            "contravergas_desenhadas": len(des_c),
+            "contravergas_calculadas": len(esp_c),
+            "motivo": "" if not diverg else "; ".join(diverg)}
 
 
 def planta_fiadas_svg(alvenaria, vaos_x, vaos_y, te, titulo=None):
@@ -430,6 +557,20 @@ def _selftest():
     # amarracao: impar comeca em meio bloco
     assert _juntas_do_curso(4.0, False)[0] == PASSO_C
     assert _juntas_do_curso(4.0, True)[0] == MEIO_BLOCO + JUNTA
+    # G70: sem verga calculada a guarda nao se aplica; com verga, confere.
+    assert confere_vergas(svg, alv)["ok"] is True
+    assert confere_vergas(svg, alv)["aplicado"] is False
+    import copy as _cp70
+    alv2 = _cp70.deepcopy(alv)
+    alv2["por_linha"][0]["vergas"] = [{
+        "comprimento_peca_m": 1.2, "altura_verga_m": 0.20,
+        "apoio_m": 0.20, "armadura": "2x6.3", "vao": dict(alv2["por_linha"][0]["vaos"][0])}]
+    alv2["por_linha"][0]["contravergas"] = []
+    svg3 = elevacao_paredes_svg(alv2, 2.7, 0.14)
+    ET.fromstring(svg3)
+    assert confere_vergas(svg3, alv2)["ok"], confere_vergas(svg3, alv2)
+    alv2["por_linha"][0]["vergas"][0]["armadura"] = "2x99.9"
+    assert confere_vergas(svg3, alv2)["ok"] is False
     print("desenho_alvenaria self-test PASSED (2 folhas XML-validas)")
     return True
 

@@ -321,15 +321,115 @@ def test_nenhuma_parede_fica_fora_da_arvore(modelo_ifc):
     assert [e.Name for e in produtos if e.id() not in contidos] == []
 
 
-def test_verga_desenhada_nao_se_faz_passar_por_dimensionada():
-    """A folha desenha verga/contraverga; ninguem as calcula — e isso e dito.
+def test_verga_desenhada_nao_se_faz_passar_por_dimensionada(estrutura):
+    """G70: a folha desenha a verga CALCULADA (11.3.3 com arco de descarga).
 
-    Desenho que sugere um calculo inexistente e rotulo dirigindo geometria.
-    O escopo tem de dizer `not_available` COM motivo enquanto nao houver
-    conta; no dia em que houver, este teste pede a atualizacao junto.
+    O escopo diz `implemented` com motivo (dimensiona + verga); cada vao tem
+    verga com Md/MRd e armadura, a contraverga segue detalhe construtivo
+    (fissura no canto do vao, nao peca de flexao) e o SVG confere por parse
+    contra o resultado (drawing-vs-data, par vermelho-por-injecao abaixo).
     """
     import alvenaria_estrutural as alv
     esc = alv.escopo()
-    assert esc["verga_contraverga"] == "not_available"
+    assert esc["verga_contraverga"] == "implemented"
     motivo = alv.motivos_escopo()["verga_contraverga"]
     assert "dimensiona" in motivo and "verga" in motivo
+    alv_reg = estrutura["alvenaria"]
+    tot_vaos = sum(len(r.get("vaos") or []) for r in alv_reg["por_linha"])
+    tot_vergas = sum(len(r.get("vergas") or []) for r in alv_reg["por_linha"])
+    assert tot_vergas == tot_vaos and tot_vaos == 2
+    for reg in alv_reg["por_linha"]:
+        for g in reg.get("vergas") or []:
+            assert g["OK"] and g["MRd_kNm"] >= g["Md_kNm"]
+            assert g["comprimento_peca_m"] == round(
+                g["vao"]["larg_m"] + 2.0 * g["apoio_m"], 3)
+            assert "arco_formado" in g and "q_laje_kN_m" in g
+    tot_contra = sum(len(r.get("contravergas") or [])
+                     for r in alv_reg["por_linha"])
+    assert tot_contra == 1
+    dc = next(r["contravergas"][0] for r in alv_reg["por_linha"]
+              if r.get("contravergas"))
+    assert dc["calculada_113"] is False and "fissura" in dc["motivo"]
+    import desenho_alvenaria as da
+    pe = estrutura["H_total_m"] / estrutura["n_pavimentos"]
+    svg = da.elevacao_paredes_svg(alv_reg, pe, alv_reg["te_m"])
+    conf = da.confere_vergas(svg, alv_reg)
+    assert conf["aplicado"] and conf["ok"], conf
+
+
+def test_verga_vermelha_por_injecao(estrutura):
+    """Par vermelho-por-injecao da guarda desenho-x-dado da verga (G70)."""
+    import copy
+
+    import desenho_alvenaria as da
+    alv_reg = copy.deepcopy(estrutura["alvenaria"])
+    pe = 2.7
+    svg = da.elevacao_paredes_svg(alv_reg, pe, alv_reg["te_m"])
+    assert da.confere_vergas(svg, alv_reg)["ok"]
+    alv_reg["por_linha"][0]["vergas"][0]["armadura"] = "2x99.9"
+    conf = da.confere_vergas(svg, alv_reg)
+    assert conf["aplicado"] and not conf["ok"], conf
+    svg2 = da.elevacao_paredes_svg(alv_reg, pe, alv_reg["te_m"])
+    assert da.confere_vergas(svg2, alv_reg)["ok"]
+
+
+def _caixa_da_folha(svg):
+    """width/height/viewBox declarados da folha (nao confundir com
+    _caixa, que e' a bbox de um solido do IFC neste mesmo arquivo)."""
+    r = _xml(svg)
+    vb = [float(v) for v in r.get("viewBox").split()]
+    return float(r.get("width")), float(r.get("height")), vb
+
+
+def test_folha_declara_viewbox_que_contem_o_desenho(estrutura):
+    """A folha era XML valido, tinha todos os atributos que as guardas
+    liam - e nao desenhava.
+
+    `elevacao_paredes_svg` abria com (1100, 100) e remendava o cabecalho
+    POR STRING no fim. Os remendos de `width` e `viewBox` procuravam
+    '100' num cabecalho que ja saia com '1100.0': nunca casavam (filtro
+    de nome morto). So o `height` casava, e a folha ia para o disco com
+    height 2477 e viewBox de altura 100 - o desenho esticado ~25x e
+    cortado fora da area visivel. Nenhum teste renderizava.
+    """
+    import desenho_alvenaria as da
+
+    svg = da.elevacao_paredes_svg(estrutura["alvenaria"], 2.7, 0.14)
+    w, h, vb = _caixa_da_folha(svg)
+    assert vb[0] == 0 and vb[1] == 0
+    assert vb[2] == pytest.approx(w) and vb[3] == pytest.approx(h)
+    # e a viewBox contem o que foi desenhado, nao so o cabecalho.
+    root = _xml(svg)
+    ns = "{http://www.w3.org/2000/svg}"
+    ymax = 0.0
+    xmax = 0.0
+    for r in root.iter(ns + "rect"):
+        ymax = max(ymax, float(r.get("y", 0)) + float(r.get("height", 0)))
+        xmax = max(xmax, float(r.get("x", 0)) + float(r.get("width", 0)))
+    for t in root.iter(ns + "text"):
+        ymax = max(ymax, float(t.get("y", 0)))
+        xmax = max(xmax, float(t.get("x", 0)))
+    assert ymax <= h + 1e-6, "desenho passa da altura da folha"
+    assert xmax <= w + 1e-6, "desenho passa da largura da folha"
+    # a folha e' alta: a viewBox de 100 do defeito nao chegaria perto.
+    assert h > 500
+
+
+def test_faixa_de_ajuste_nao_cobre_a_linha_de_Nd(estrutura):
+    """Renderizar-e-olhar: com a folha ja desenhando, a faixa de ajuste
+    (que fica ACIMA do topo da parede) subia por cima da linha de
+    Nd/NRd - os numeros da verificacao ficavam ilegiveis."""
+    import desenho_alvenaria as da
+
+    svg = da.elevacao_paredes_svg(estrutura["alvenaria"], 2.7, 0.14)
+    root = _xml(svg)
+    ns = "{http://www.w3.org/2000/svg}"
+    faixas = sorted((float(r.get("y")) for r in root.iter(ns + "rect")
+                     if r.get("data-ajuste")))
+    linhas_nd = sorted(float(t.get("y")) for t in root.iter(ns + "text")
+                       if (t.text or "").startswith("Nd="))
+    assert faixas and linhas_nd and len(faixas) == len(linhas_nd)
+    for y_texto, y_faixa in zip(linhas_nd, faixas):
+        assert y_texto < y_faixa, (
+            "faixa de ajuste em y=%.1f sobe sobre a linha de Nd em y=%.1f"
+            % (y_faixa, y_texto))

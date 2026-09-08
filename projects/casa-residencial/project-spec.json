@@ -104,6 +104,67 @@
         "altura": 2.7,
         "revestimento_cm": 2.0
       },
+      "telhado_madeira": {
+        "vao": 8.0,
+        "inclinacao_graus": 25.0,
+        "extensao": 10.4,
+        "espacamento": 2.0,
+        "n_paineis": 2,
+        "telha": {
+          "tipo": "ondulada",
+          "peso": 0.55
+        },
+        "sobrecarga_kNm2": 0.25,
+        "madeira": {
+          "classe": "C24",
+          "carregamento": "curta",
+          "umidade": 2,
+          "categoria": "serrada"
+        },
+        "secoes": {
+          "banzo_sup": {
+            "b": 0.08,
+            "h": 0.16
+          },
+          "banzo_inf": {
+            "b": 0.06,
+            "h": 0.16
+          },
+          "diagonal": {
+            "b": 0.06,
+            "h": 0.12
+          },
+          "montante": {
+            "b": 0.06,
+            "h": 0.12
+          },
+          "terca": {
+            "b": 0.06,
+            "h": 0.16
+          }
+        },
+        "apoio": "viga",
+        "contraventamento_banzo_inf": true,
+        "apoio_comprimento_m": 0.2,
+        "ligacao": {
+          "tipo_pino": "parafuso",
+          "d_mm": 12.0,
+          "fu_MPa": 415.0,
+          "n_pinos": 4,
+          "config_73": "chapa_central_dupla",
+          "espacamentos": {
+            "a1": 150,
+            "a2": 80,
+            "a3t": 150,
+            "a3c": 80,
+            "a4t": 60,
+            "a4c": 60
+          },
+          "he_mm": 90.0,
+          "t_chapa_mm": 6.3
+        },
+        "travamento_borda_comprimida_m": 2.0
+      },
       "baldrame": {
         "b": 0.15,
         "h": 0.4,
@@ -826,6 +887,14 @@
         "source_id": "b9a4b73e-63b4-4ce4-852d-ebf1f4168651",
         "title": "ABNT NBR 8681:2025 - acoes e seguranca nas estruturas",
         "edition": "2025",
+        "status": 2,
+        "is_stale": false
+      },
+      {
+        "notebook_id": "3a93273b-becc-43ba-91ab-58976f06f32d",
+        "source_id": "f136-madeira-nbr7190-2022-partes-1-a-7",
+        "title": "ABNT NBR 7190:2022 - projeto de estruturas de madeira",
+        "edition": "2022",
         "status": 2,
         "is_stale": false
       }

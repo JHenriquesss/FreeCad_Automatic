@@ -351,13 +351,35 @@ def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
 
 
 def confere_armacao_vigas(vigas_verificacao, svg):
-    """Drawing-vs-data da prancha de vigas: todo tramo tem de estar desenhado."""
+    """Drawing-vs-data da prancha de vigas: todo TRAMO tem de estar desenhado.
+
+    Triagem G69: o lado A e' o calculado (por_linha/tramos de
+    estrutura_casa.verifica_vigas via edificio_multipavimento); o lado B e'
+    o SVG emitido (prancha_armacao_vigas_svg escreve o nome da viga uma vez
+    por linha de tramo). A versao anterior conferia so a presenca do NOME
+    da viga (``n.split()[0] in svg``): faltando um tramo da mesma viga, a
+    guarda passava — concordancia parcial consigo mesma. Agora confere a
+    CONTAGEM por viga (ocorrencias do nome >= tramos da viga), relacao
+    independente entre dado e desenho, nunca literal.
+    """
+    import re as _re
     por_linha = (vigas_verificacao or {}).get("por_linha") or []
     nomes = []
+    esperado_por_viga = {}
     for linha in por_linha:
+        viga = linha.get("nome")
+        n_tr = len(linha.get("tramos") or [])
+        if viga is not None and n_tr:
+            esperado_por_viga[viga] = esperado_por_viga.get(viga, 0) + n_tr
         for tramo in linha.get("tramos") or []:
-            nomes.append("%s tramo %d" % (linha.get("nome"), tramo.get("tramo")))
-    faltando = [n for n in nomes if n.split()[0] not in svg]
+            nomes.append("%s tramo %d" % (viga, tramo.get("tramo")))
+    faltando = []
+    for viga, esperado in esperado_por_viga.items():
+        achados = len(_re.findall(_re.escape(str(viga)) + r"(?![0-9])",
+                                  svg or ""))
+        if achados < esperado:
+            faltando.append("%s: %d tramos calculados, %d desenhados"
+                            % (viga, esperado, achados))
     return {"n_tramos": len(nomes), "faltando": faltando, "ok": not faltando}
 
 

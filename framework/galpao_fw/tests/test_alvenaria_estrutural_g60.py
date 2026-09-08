@@ -185,16 +185,15 @@ def test_escopo_publica_o_fora_com_motivo():
     esc = alv.escopo()
     assert esc["compressao_parede_11_2_1"] == "implemented"
     # G62: BIM e pranchas deixaram de ser not_available (parede vira folha
-    # e membro). G63: horizontal 9.6.2, 11.5 e Anexo C implemented; o fora
-    # restante (cisalhamento 11.4) segue com motivo escrito.
+    # e membro). G63: horizontal 9.6.2, 11.5 e Anexo C implemented. G67:
+    # o cisalhamento 11.4 fecha (Fi verificado) e o vento chega por nivel.
     assert esc["bim_alvenaria"] == "implemented"
     assert esc["pranchas_alvenaria"] == "implemented"
     for chave in ("flexo_compressao_11_5", "parede_muito_esbelta_anexo_C",
-                  "acao_horizontal_contraventamento"):
+                  "acao_horizontal_contraventamento", "cisalhamento_11_4",
+                  "vento_por_nivel_6123"):
         assert esc[chave] == "implemented", chave
         assert alv.motivos_escopo()[chave], chave
-    assert esc["cisalhamento_11_4"] == "not_available"
-    assert alv.motivos_escopo()["cisalhamento_11_4"]
 
 
 def test_selftest_do_modulo():

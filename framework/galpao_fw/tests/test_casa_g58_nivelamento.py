@@ -245,6 +245,11 @@ def test_sobrado_dois_pavimentos_dentro_da_fronteira(spec, tmp_path):
     sobrado["turnkey"]["estrutura"]["pavimentos"] = [
         {"nome": "Terreo", "uso": "residencial_dormitorio"},
         {"nome": "Cobertura", "uso": "cobertura_manutencao"}]
+    # G68: sobrado de concreto declara vento (o turnkey repassa a chave a
+    # estrutura_casa, que recusa sobrado sem vento em vez de sair ATENDE).
+    sobrado["turnkey"]["estrutura"]["vento"] = {
+        "v0": 40.0, "cat": "II", "classe": "B",
+        "ca": {"x": 1.1, "y": 1.1}}
     sobrado["turnkey"]["hidraulica"]["pavimentos"] = 2
     destino = tmp_path / "run-sobrado"
     manifesto = run_project(sobrado, destino, {})
@@ -278,7 +283,9 @@ def test_cada_entregavel_novo_abre_no_disco(execucao):
     planilha = json.loads(
         (destino / "orcamento" / "planilha.json").read_text(encoding="utf-8"))
     assert planilha["preco_venda"] > 0
-    assert len(planilha["linhas"]) == 11
+    # G58: 11 itens; G66: +madeira_telhado (tesouras medidas por peca).
+    assert len(planilha["linhas"]) == 12
+    assert any(l["codigo"] == "madeira_telhado" for l in planilha["linhas"])
     cpm = json.loads(
         (destino / "cronograma" / "cpm.json").read_text(encoding="utf-8"))
     assert cpm["duracao_total_dias"] > 0

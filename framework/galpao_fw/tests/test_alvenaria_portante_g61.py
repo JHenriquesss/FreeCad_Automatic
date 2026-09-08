@@ -244,10 +244,17 @@ def test_lambda_acima_do_teto_reprova_sem_nrdr_na_integracao():
 # --- escopo honesto -----------------------------------------------------------
 
 def test_sobrado_em_alvenaria_e_recusado():
+    # G67: a fronteira subiu para 2 pavimentos (sobrado calcula com vento
+    # 6123 + 9.6.2 + 11.5 + 11.4); acima disso RECUSA nomeando o que falta.
     s = _spec(pavimentos=[{"nome": "Cob", "uso": "cobertura_manutencao"},
                           {"nome": "Ter", "uso": "residencial_dormitorio"}])
-    with pytest.raises(ec.EntradaEstrutura, match="terrea"):
-        ec.rodar(s)
+    r = ec.rodar(s)
+    assert r["alvenaria_erro"] is not None
+    assert "pede_vento" in r["alvenaria_erro"]
+    s3 = _spec(pavimentos=[{"nome": "C%d" % i, "uso": "residencial_dormitorio"}
+                           for i in range(3)])
+    with pytest.raises(ec.EntradaEstrutura, match="ate 2 pavimentos"):
+        ec.rodar(s3)
 
 
 def test_pontual_nao_recebe_carga_linear_e_corrida_exige_parede():
@@ -386,3 +393,29 @@ def test_peca_flexivel_sai_nomeada_no_resultado():
         {"BX-0": 300.0}, {"sigma_solo_adm": 200.0, "cota_apoio_m": 1.0})
     codes = [a["code"] for a in fund["avisos"]]
     assert "corrida_flexivel" in codes
+
+
+def test_nota_a_da_tab9_e_declarada_nao_default():
+    """A nota "a" da Tab.9 troca o teto de esbeltez de 24 para 30 E o
+    gamma_m de 2,0 para 3,0: ela MUDA O VEREDITO, e entrava por default.
+
+    Medido na primitiva: he/te = 2,70/0,10 = 27 sai reprovado sem a nota e
+    aprovado com ela. `estrutura_casa` assumia True (G61) e depois
+    `n == 1` (G67) - adocao silenciosa de opcao normativa, contra a regra
+    que o proprio G60 escreveu ("opcao declarada, nunca silenciosa") e que
+    o modulo respeita na primitiva (default False)."""
+    sem = alv.verifica_parede_compressao(60.0, 4000.0, 2.70, 0.10, 3.0,
+                                         comprimento_m=3.0,
+                                         habitacao_terrea=False)
+    com = alv.verifica_parede_compressao(60.0, 4000.0, 2.70, 0.10, 3.0,
+                                         comprimento_m=3.0,
+                                         habitacao_terrea=True)
+    assert sem["veredito"] == "reprovado" and com["veredito"] == "aprovado"
+    # e a casa nao escolhe sozinha por ninguem: sem declaracao, recusa.
+    spec = _spec()
+    del spec["alvenaria_portante"]["habitacao_terrea"]
+    r = ec.rodar(spec)
+    assert r["alvenaria_erro"] is not None
+    assert "habitacao_terrea_nao_declarada" in r["alvenaria_erro"]
+    # declarada, segue calculando como antes.
+    assert ec.rodar(_spec())["alvenaria_erro"] is None

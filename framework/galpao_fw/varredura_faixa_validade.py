@@ -520,7 +520,16 @@ DESGUARDADAS_TRIADAS = [   (   'cargas_nbr6120.py',
     (   'alvenaria_estrutural.py',
         'default; lambda acima do teto reprova; Qh avulsa recusa com motivo (a'),
     (   'alvenaria_estrutural.py',
-        'no momento). Tracao: limitada a 10 % de fpk/gamma_m (C.1-f, leitura do'),]
+        'no momento). Tracao: limitada a 10 % de fpk/gamma_m (C.1-f, leitura do'),
+    # G67 rebrou o cabecalho do modulo (entrou 11.4 + vento por nivel) e a
+    # quebra de linha mudou: nasceu esta chave, irma da de linha 43 ja triada.
+    # Os "numeros" [9, 10.1, 2, 2] sao REFERENCIA (Tab.9, 10.1.2, Tab.2), nao
+    # faixa de validade de fpk - a lente nao distingue citacao de banda. A
+    # guarda que a frase alega EXISTE e foi medida nesta revisao: he/te = 24,55
+    # sai OK=False com motivo `esbeltez_acima_do_teto` (teto 24 sem armadura,
+    # 30 com a nota "a"); nao satura no teto.
+    (   'alvenaria_estrutural.py',
+        'com tetos da Tab.9 (10.1.2), gamma_m da Tab.2 e fk a partir do fpk de'),]
 
 
 def chaves_desguardadas(raiz=None):
@@ -638,6 +647,7 @@ SEM_FAIXA_DECLARADA = {
     "layout_eletrico_residencial.py": "contrato de layout; sem faixa.",
     "ligacoes.py": "verificacao de ligacoes; sem faixa declarada.",
     "luminotecnica_nbr8995.py": "DIVIDA-LENTE: faixas de eficiencia e Fu tabelado fora da lente.",
+    "madeira_nbr7190.py": "DIVIDA-LENTE: classes Tab.3 por nome, enums de kmod, lambda<=140 por constante e (0,30]mm/he-em-(0,h) em strings de recusa fora da lente.",
     "mao_francesa.py": "dimensionamento Anexo G; sem faixa declarada.",
     "mao_francesa_geom.py": "geometria pura; sem faixa.",
     "marcas_peca.py": "marcas de fabricacao; sem faixa.",
@@ -674,6 +684,7 @@ SEM_FAIXA_DECLARADA = {
     "techdraw_exec.py": "prancha TechDraw; 'valido' ali e sobre SVG.",
     "techdraw_hidraulica.py": "prancha TechDraw; sem faixa.",
     "techdraw_incendio.py": "prancha TechDraw; sem faixa.",
+    "telhado_casa_madeira.py": "DIVIDA-LENTE: vao/extensao na malha, (0,60) graus, n_paineis>=1 e 2j-3 em strings de recusa fora da lente.",
     "telha_cobertura.py": "hipotese da faixa de 1m; 'no limite' e criterio, sem faixa declarada.",
     "tensao_ponto.py": "verificacao por tensoes; sem faixa declarada.",
     "tercas_iteracao.py": "iterador ('escada' = degraus de perfil); verificacao vive em tercas_nbr14762.",

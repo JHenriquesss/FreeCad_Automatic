@@ -287,9 +287,11 @@ def test_arquitetura_invalida_bloqueia_sem_derrubar_a_execucao():
 def test_pranchas_sao_xml_valido(execucao):
     _manifesto, destino = execucao
     svgs = sorted((destino / "drawings").glob("*.svg"))
+    # G66: +telhado-tesoura.svg (o spec persistido agora declara o telhado).
     assert [s.name for s in svgs] == [
         "conferencia-nbr5410.svg", "esquema-hidraulico.svg",
-        "planta-formas.svg", "quadro-ambientes.svg"]
+        "planta-formas.svg", "quadro-ambientes.svg",
+        "telhado-tesoura.svg"]
     for svg in svgs:
         raiz = ET.fromstring(svg.read_text(encoding="utf-8"))
         assert raiz.tag.endswith("svg")

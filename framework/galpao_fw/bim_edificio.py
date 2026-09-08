@@ -484,6 +484,14 @@ def _estacas_do_pilar(nome, geometria, x, y, cota, material):
 def membros_parede(estrutura, xs, ys, pe_direito, h_laje):
     """Paredes portantes da casa de alvenaria (G62), uma por linha e nivel.
 
+    CONVENCAO UNICA G70 (escrita uma so vez em
+    alvenaria_estrutural.CONVENCAO_CRUZAMENTOS / comprimento_liquido_y): a
+    parede em X e continua e a parede em Y e cortada em cada cruzamento com
+    recuo te/2 por lado. O modelo soma os trechos LIQUIDOS (sem dupla
+    ocupacao de volume nem clash intra-disciplina); o orcamento (gestao_casa)
+    mede a linha INTEIRA (bruto, a favor do orcamento). Uma so regra, duas
+    vistas — ver alvenaria_estrutural.comprimento_liquido_y.
+
     Convenção do membro Wall (a mesma de bim_casa_residencial._membro_parede):
     barra HORIZONTAL p1->p2 no eixo da parede, secao {bf: espessura, d: altura}
     com ancoragem 'base' (sobe `d` a partir de z0). A altura e' pe - h_laje: o
@@ -538,7 +546,9 @@ def _cortes_das_linhas_x(regs, ys):
 def _trechos_da_linha_y(y_ini, y_fim, cortes, te):
     """Trechos de uma parede em Y entre as paredes em X que a cruzam.
 
-    Duas paredes que se cruzam nao podem ocupar o MESMO volume: o cruzamento
+    CONVENCAO UNICA G70: deriva de alvenaria_estrutural.comprimento_liquido_y
+    (recuo te/2 por lado; o orcamento mede a linha inteira, o modelo soma os
+    trechos). Duas paredes que se cruzam nao podem ocupar o MESMO volume: o cruzamento
     entraria duas vezes no quantitativo e o clash intra-disciplina acusaria.
     A convencao adota a parede em X como continua e CORTA a parede em Y em
     cada cruzamento, recuando te/2 de cada lado. Com parede so no contorno

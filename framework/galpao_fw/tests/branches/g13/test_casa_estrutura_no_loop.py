@@ -165,6 +165,10 @@ def test_malha_menor_que_a_casa_bloqueia_a_estrutura_na_rodada_real(spec):
 
     mau = copy.deepcopy(spec)
     mau["turnkey"]["estrutura"]["geometria"]["vaos_x"] = [3.0, 3.0]
+    # G66: a perturbacao e' da costura comodo x malha; o telhado declarado
+    # para a malha original sairia pela costura telhado x malha antes da
+    # costura exercitada aqui - fora do assunto, fora do spec perturbado.
+    mau["turnkey"]["estrutura"].pop("telhado_madeira", None)
     _resultado, registros = cr.run_casa_residencial(
         normalize_spec(mau), None, None)
     registro = registros["estrutura"]

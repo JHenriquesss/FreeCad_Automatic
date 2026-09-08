@@ -16,13 +16,29 @@
 #          -> VIGA BALDRAME sob a alvenaria terrea
 #          -> fundacao (sapata/bloco/estaca, pela sondagem declarada)
 #
-# POR QUE E' MAIS CURTA QUE A DO EDIFICIO (G3). Sao os MESMOS modulos, sem a
-# camada de estabilidade horizontal: nao ha gamma_z, nao ha desaprumo e nao ha
-# ELS de deslocamento lateral. Isso NAO e' uma dispensa que este modulo concede
-# - e' uma FRONTEIRA, e ela tem guarda: mais de %d pavimentos e a entrada e'
-# RECUSADA com o nome da tipologia certa (edificio-multipavimento), em vez de um
-# predio de cinco andares atravessar a casa sem que ninguem verifique a
-# estabilidade global. `acao_horizontal` sai no escopo como not_available.
+# POR QUE E' MAIS CURTA QUE A DO EDIFICIO (G3). Na TERREA sao os MESMOS
+# modulos, sem a camada de estabilidade horizontal: nao ha gamma_z, nao ha
+# desaprumo e nao ha ELS de deslocamento lateral. Isso NAO e' uma dispensa que
+# este modulo concede - e' uma FRONTEIRA, e ela tem guarda: mais de %d
+# pavimentos e a entrada e' RECUSADA com o nome da tipologia certa
+# (edificio-multipavimento), em vez de um predio de cinco andares atravessar a
+# casa sem que ninguem verifique a estabilidade global. `acao_horizontal` sai
+# no escopo como not_available, com o motivo escrito por item no aviso
+# acao_horizontal_nao_avaliada e no relatorio.
+#
+# G68: o SOBRADO de concreto SAIU da fronteira gravitacional. Terrea dispensa,
+# sobrado nao - e isso e' fronteira declarada com guarda de recusa, no molde
+# do > 2 pavimentos do G13: sobrado de concreto sem vento declarado e'
+# RECUSADO (sobrado_concreto_pede_vento), em vez de sair ATENDE sem que
+# nenhuma forca horizontal tenha existido. Com vento (S1/S2/S3 + Ca declarado
+# do abaco da Fig.4), o sobrado - e a terrea que declarar vento - calcula
+# Fa = Ca.q.Ae por nivel (NBR 6123 4.2.3), desaprumo global + combinacao 30 %
+# (NBR 6118 11.3.3.4.1) e o indicador gamma_z + ELS lateral pelo portico
+# plano. O REUSO e' de estabilidade_edificio (portico de concreto, NBR 6118):
+# a particao por nivel e' a mesma de alvenaria_estrutural.vento_fa_por_nivel.
+# estabilidade_b1b2 NAO e' reusado de proposito - e' MAES de aco (NBR 8800
+# Anexo D) para o galpao, e semelhanca de simbolos (B2 vs gamma_z) nao e'
+# parentesco de regra (a licao do D84).
 #
 # O QUE A CASA TEM E O EDIFICIO NAO TINHA - A VIGA BALDRAME. O G3 publica
 # `viga_baldrame: not_available` porque num predio a alvenaria do terreo sobe
@@ -60,6 +76,7 @@ import fundacao_sapata_corrida as fsc
 import laje_concreto as lj
 import pavimento_tipo as pt
 import pilar_continuo as pcn
+import telhado_casa_madeira as tmad
 import viga_baldrame as vb
 import viga_concreto as vgc
 import viga_continua as vc
@@ -71,11 +88,12 @@ GF = 1.4                   # ponderacao das acoes (ELU, combinacao normal)
 # cadeia SEM estabilidade horizontal cobre; ver a nota do cabecalho.
 MAX_PAVIMENTOS = 2
 
-# G61: a casa em ALVENARIA ESTRUTURAL portante e aceita apenas terrea neste
-# lote (1 pavimento). Acima disso a entrada e RECUSADA com a tipologia certa,
-# no molde do >2 pavimentos do G13: parede portante de sobrado pede
-# contraventamento e Anexo C, fora deste lote.
-MAX_PAVIMENTOS_ALVENARIA = 1
+# G61/G67: a casa em ALVENARIA ESTRUTURAL portante e aceita ate 2
+# pavimentos (terrea + sobrado). Acima disso a entrada e RECUSADA com a
+# tipologia certa, no molde do >2 pavimentos do G13: predio de alvenaria
+# pede desaprumo global (8.3.2.2) e nucleo armado de contraventamento,
+# fora deste lote.
+MAX_PAVIMENTOS_ALVENARIA = 2
 
 # teto de iteracoes do ponto fixo espessura-da-laje x carga (ver `rodar`)
 MAX_ITER_LAJE = 6
@@ -211,6 +229,77 @@ def _descer_escada(desc, stair):
 
 
 # ---------------------------------------------------------------------------
+# TELHADO DE MADEIRA (G66): a carga que desce do telhado
+# ---------------------------------------------------------------------------
+def linhas_de_beiral(vao, vaos_x, vaos_y, tol=0.01):
+    """As duas linhas que recebem o beiral: o vao da tesoura tem de ser a
+    malha (Lx ou Ly) e a extensao, a outra dimensao. Fora disso a tesoura
+    nao cobre a casa - RECUSA com motivo (a costura arquitetura x
+    estrutura, agora com o telhado)."""
+    Lx, Ly = float(sum(vaos_x)), float(sum(vaos_y))
+    nx, ny = len(vaos_x), len(vaos_y)
+    if abs(float(vao) - Lx) <= tol:
+        return {"direcao": "x", "extensao_esperada": Ly,
+                "linhas": ["BY-0", "BY-%d" % nx],
+                "pilares_beiral": lambda i, j: i in (0, nx)}
+    if abs(float(vao) - Ly) <= tol:
+        return {"direcao": "y", "extensao_esperada": Lx,
+                "linhas": ["BX-0", "BX-%d" % ny],
+                "pilares_beiral": lambda i, j: j in (0, ny)}
+    raise EntradaEstrutura(
+        "telhado.vao=%.3f nao cobre a malha (Lx=%.3f, Ly=%.3f): a tesoura "
+        "tem de vencer a casa inteira, nao um vao avulso" % (float(vao),
+                                                             Lx, Ly))
+
+
+def _descer_telhado(desc, pav, tel):
+    """Soma a reacao do telhado ao lance DE TOPO dos pilares do beiral.
+
+    Gemeo do _descer_escada para UMA carga de cobertura: G integral, Q de
+    manutencao integral (sem alpha_n de 6.12 - conservador, dito). Os
+    acumulados sao recompostos, nunca ajustados por diferenca."""
+    beiral = tel["_beiral"]
+    pos = {p["nome"]: (p["i"], p["j"]) for p in pav["pilares"]}
+    dest = [nome for nome, (i, j) in pos.items()
+            if beiral["pilares_beiral"](i, j)]
+    if not dest:
+        raise EntradaTelhadoMadeira(
+            "nenhum pilar nas linhas de beiral %s" % beiral["linhas"])
+    n = len(dest)
+    dg = tel["descida"]["W_total_G_kN"] / n
+    dq = tel["descida"]["W_total_Q_kN"] / n
+    for nome in dest:
+        p = desc["pilares"][nome]
+        topo = p["lances"][0]
+        topo["N_g_pav"] = round(topo["N_g_pav"] + dg, 3)
+        topo["N_q_pav_bruto"] = round(topo["N_q_pav_bruto"] + dq, 3)
+        topo["N_q_pav_reduzido"] = round(topo["N_q_pav_reduzido"] + dq, 3)
+        topo["N_aplicado"] = round(topo["N_aplicado"] + dg + dq, 3)
+        topo["N_telh_g"] = round(topo.get("N_telh_g", 0.0) + dg, 3)
+        topo["N_telh_q"] = round(topo.get("N_telh_q", 0.0) + dq, 3)
+        acum_g = acum_q = 0.0
+        for lance in p["lances"]:
+            acum_g += lance["N_g_pav"]
+            acum_q += lance["N_q_pav_reduzido"]
+            lance["N_acum_k"] = round(acum_g + acum_q, 2)
+        bruto = sum(l["N_g_pav"] + l["N_q_pav_bruto"] for l in p["lances"])
+        p["N_base_k"] = round(acum_g + acum_q, 2)
+        p["N_base_g_k"] = round(acum_g, 2)
+        p["N_base_q_k"] = round(acum_q, 2)
+        p["N_base_sem_reducao_k"] = round(bruto, 2)
+    return {"distribuicao": ("beiral %s: %.3f kN de G + %.3f kN de Q por "
+                             "pilar em %d pilares (tesoura apoia na cinta "
+                             "do topo; Q sem alpha_n, conservador)")
+            % ("/".join(beiral["linhas"]), dg, dq, n),
+            "pilares": sorted(dest), "W_g_kN": round(dg * n, 2),
+            "W_q_kN": round(dq * n, 2)}
+
+
+class EntradaTelhadoMadeira(ValueError):
+    """A descida do telhado nao alcanca os pilares declarados."""
+
+
+# ---------------------------------------------------------------------------
 # VIGAS: verificacao da secao contra a envoltoria da viga continua
 # ---------------------------------------------------------------------------
 def verifica_vigas(pav, fck, fyk, com_alvenaria):
@@ -312,6 +401,161 @@ def verifica_vigas(pav, fck, fyk, com_alvenaria):
                        "OK": all(t["OK"] for t in tramos), "tramos": tramos})
     return {"OK": not reprovados, "por_linha": linhas,
             "reprovados": reprovados, "n_tramos": n_tramos}
+
+
+# ---------------------------------------------------------------------------
+# CAMADA HORIZONTAL DA CASA DE CONCRETO (G68): vento + desaprumo + ELS.
+# ---------------------------------------------------------------------------
+def verifica_horizontal_casa(geo, pavimentos_spec, montados_por_uso,
+                             secoes_base, secao_viga, fck, vento_cfg,
+                             lajes_lisas=False):
+    """Vento, desaprumo e estabilidade lateral da casa de concreto (G68).
+
+    geo: {'vaos_x', 'vaos_y', 'pe_direito'}. pavimentos_spec: lista do TOPO
+    para a BASE. montados_por_uso: {uso: pavimento montado} (o N_total_k
+    caracteristico de cada nivel sai dali, como no edificio). secoes_base:
+    [(b, h)] dos lances da base (usa a MENOR, conservadora para
+    deslocamento, como o edificio). secao_viga: {'b','h'}. fck (kN/m2).
+    vento_cfg: {v0, cat, classe, s1?, s3?, ca:{x:,y:} ou numero} - Ca sempre
+    DECLARADO do abaco da Fig.4 (h/l1, l1/l2); numero unico vale nas duas
+    direcoes.
+
+    REUSO LEGITIMO (D84): delega a estabilidade_edificio.verifica - portico
+    plano de concreto (NBR 6118), a mesma fisica e a mesma particao por nivel
+    de alvenaria_estrutural.vento_fa_por_nivel (Fa = Ca.q.Ae, q via
+    vento_nbr6123.s2_factor homologado). estabilidade_b1b2 NAO entra: e'
+    MAES de aco (NBR 8800 Anexo D) do galpao - semelhanca de simbolos (B2 vs
+    gamma_z) nao e' parentesco de regra.
+
+    O gamma_z sai como INDICADOR, nao como metodo: 15.5.3 so vale para no
+    minimo 4 andares, e a casa tem 1-2 (aplicavel=False, como no edificio
+    com < 4). A decisao de dispensa usa o indicador (<= 1,1, mesma fronteira
+    de 15.5.2/15.7.2) junto do ELS lateral (Tabela 13.3, valido em qualquer
+    altura). Indicador acima de 1,1 = nos moveis: o simplificado nao vale e
+    o P-Delta rigoroso esta fora deste lote - REPROVA nomeando, em vez de
+    majorar por 0,95*gamma_z fora do campo.
+    """
+    if not isinstance(vento_cfg, dict):
+        raise EntradaEstrutura(
+            "vento_concreto_rejeitado: vento deve ser um objeto {v0, cat, "
+            "classe, s1?, s3?, ca} (NBR 6123); recebido %r" % (vento_cfg,))
+    for chave in ("v0", "cat", "classe"):
+        if vento_cfg.get(chave) is None:
+            raise EntradaEstrutura(
+                "vento_concreto_rejeitado: vento.%s nao declarado (NBR 6123: "
+                "v0 do mapa, cat/classe da Tabela 1)" % chave)
+    ca_decl = vento_cfg.get("ca")
+    if isinstance(ca_decl, dict):
+        for direcao in ("x", "y"):
+            if direcao not in ca_decl:
+                raise EntradaEstrutura(
+                    "vento_concreto_rejeitado: vento.ca['%s'] nao declarado "
+                    "(Ca do abaco da Fig.4, h/l1 e l1/l2, lido pelo "
+                    "projetista)" % direcao)
+        ca = dict(ca_decl)
+    elif isinstance(ca_decl, (int, float)) and not isinstance(ca_decl, bool):
+        ca = {"x": float(ca_decl), "y": float(ca_decl)}
+    else:
+        raise EntradaEstrutura(
+            "vento_concreto_rejeitado: vento.ca nao declarado (Ca do abaco "
+            "da Fig.4 da NBR 6123; sem ele nao ha Fa)")
+    try:
+        cargas = [float(montados_por_uso[pv["uso"]]["N_total_k"])
+                  for pv in reversed(pavimentos_spec)]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EntradaEstrutura(
+            "vento_concreto_rejeitado: carga vertical por pavimento "
+            "indefinida (%s)" % exc) from exc
+    if not secoes_base:
+        raise EntradaEstrutura(
+            "vento_concreto_rejeitado: sem pilar de concreto na base para o "
+            "portico (caminho portante vazio)")
+    b_min, h_min = min(((float(b), float(h)) for b, h in secoes_base),
+                       key=lambda s: s[0] * s[1] ** 3)
+    spec_ee = {
+        "geometria": {"vaos_x": list(geo["vaos_x"]),
+                      "vaos_y": list(geo["vaos_y"]),
+                      "pe_direito": float(geo["pe_direito"])},
+        "n_pavimentos": len(pavimentos_spec),
+        "materiais": {"fck": float(fck)},
+        "secoes": {"pilar": {"b": b_min, "h": h_min},
+                   "viga": {"b": float(secao_viga.get("b", 0.20)),
+                            "h": float(secao_viga.get("h", 0.50))}},
+        "cargas_verticais_kN": cargas,
+        "lajes_lisas": bool(lajes_lisas),
+        "vento": {"v0": vento_cfg.get("v0"), "cat": vento_cfg.get("cat"),
+                  "classe": vento_cfg.get("classe"),
+                  "s1": vento_cfg.get("s1", 1.0),
+                  "s3": vento_cfg.get("s3", 1.0), "ca": ca},
+    }
+    try:
+        import estabilidade_edificio as ee
+        resultado = ee.verifica(spec_ee)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise EntradaEstrutura(
+            "vento_concreto_rejeitado: %s" % exc) from exc
+    resultado["_secao_portico"] = {"pilar": {"b": b_min, "h": h_min},
+                                   "nota": "menor secao do lance da base "
+                                           "(conservadora para deslocamento), "
+                                           "como no edificio"}
+    resultado["_cargas_verticais_kN"] = [round(c, 2) for c in cargas]
+    return resultado
+
+
+def gate_horizontal_casa(r_horizontal):
+    """Gate da camada horizontal da casa de concreto (G68).
+
+    ELS lateral (NBR 6118 Tabela 13.3: topo <= H/1700, entre pavimentos <=
+    Hi/850, vento na combinacao frequente psi_1 = 0,30) REPROVA - vale em
+    qualquer altura. O gamma_z e' INDICADOR (15.5.3 fora do campo com < 4
+    andares): <= 1,1 dispensa a 2a ordem global com o motivo escrito;
+    acima de 1,1 indica nos moveis, e como o P-Delta rigoroso esta fora
+    deste lote, REPROVA nomeando em vez de majorar fora do campo.
+    """
+    por_direcao = {}
+    for direcao in ("x", "y"):
+        bloco = r_horizontal["por_direcao"][direcao]
+        els = bloco["els"]
+        por_direcao[direcao] = {
+            "F_total_kN": round(bloco["vento"]["F_total_kN"], 3),
+            "M_base_kNm": round(bloco["vento"]["M_base_kNm"], 3),
+            "theta_a": bloco["desaprumo"]["theta_a"],
+            "desaprumo_saturou": bloco["desaprumo"]["saturou"],
+            "combinacao_caso": bloco["combinacao"]["caso"],
+            "combinacao_usar": bloco["combinacao"]["usar"],
+            "combinacao_motivo": bloco["combinacao"]["motivo"],
+            "gamma_z_indicador": round(bloco["gamma_z"], 4),
+            "els_OK": bool(els["OK"]),
+            "els_u_topo_mm": round(els["u_topo_m"] * 1000.0, 2),
+            "els_limite_topo_mm": round(els["limite_topo_m"] * 1000.0, 2),
+            "els_pior_drift_mm": round(els["pior_drift_m"] * 1000.0, 2),
+            "els_limite_entre_mm": round(els["limite_entre_m"] * 1000.0, 2),
+        }
+    gz_max = max(v["gamma_z_indicador"] for v in por_direcao.values())
+    els_ok = all(v["els_OK"] for v in por_direcao.values())
+    motivos = []
+    if gz_max > 1.1:
+        motivos.append(
+            "indicador gamma_z = %.3f (> 1,1): nos moveis; o processo "
+            "simplificado (15.5.3/15.7.2) so vale a partir de 4 andares e o "
+            "P-Delta rigoroso esta fora deste lote" % gz_max)
+    if not els_ok:
+        reprovadas = sorted(d for d, v in por_direcao.items()
+                            if not v["els_OK"])
+        motivos.append(
+            "ELS de deslocamento lateral (Tabela 13.3) reprovado em %s"
+            % ", ".join(reprovadas))
+    dispensa = ("2a ordem global dispensavel: indicador gamma_z = %.3f "
+                "<= 1,1 e ELS lateral atendido (15.5.3 fora do campo com %d "
+                "pavimentos: indicador, nao metodo; imperfeicao local via "
+                "M1d,min 11.3.3.4.3 no pilar)"
+                % (gz_max, int(r_horizontal.get("n_pavimentos", 0)))) \
+        if not motivos else None
+    return {"OK": not motivos, "por_direcao": por_direcao,
+            "gamma_z_indicador_max": round(gz_max, 4),
+            "gamma_z_aplicavel": False,
+            "els_OK": bool(els_ok),
+            "motivos": motivos, "dispensa": dispensa}
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +747,67 @@ def validar_vaos_parede(vaos, L, pe_direito, nome_linha):
     return ordenados
 
 
+def _vergas_e_contravergas_da_linha(cfg, par, vaos_linha, L, N_laje_k,
+                                    pe_direito, fpk, material, te, combinacao):
+    """Vergas 11.3.3 + contravergas detalhe por linha de parede (G70).
+
+    Para cada vao: h_acima = pe - (peitoril+alt) (parede acima do topo do
+    vao); peso da parede por m2 pela via da carga (peso_alvenaria); q_laje
+    linear = N_laje_k/L (quinhão daquela linha); a laje pousa no topo, logo
+    h_laje = h_acima (dentro do triangulo so quando o arco nao chega a
+    desvia-la). Aco da verga em cfg['verga'] {fyk?, phi_mm?, bloco?,
+    ranhurado?, apoio_m?, altura_m?} com defaults CA-50/10/concreto declarados
+    aqui (pratica corrente). Devolve (vergas, contravergas): a verga com a
+    conta 11.3.3 e o arco declarado; a contraverga so nas janelas, como
+    detalhe construtivo (nao peca de flexao).
+    """
+    import cargas_nbr6120 as _cgv
+    vergas, contravergas = [], []
+    try:
+        peso_m2 = _cgv.peso_alvenaria(par["tipo"], par["espessura_cm"],
+                                      par.get("revestimento_cm", 1.0))
+    except Exception:
+        peso_m2 = None
+    vcfg = cfg.get("verga") or {}
+    if not isinstance(vcfg, dict):
+        vcfg = {}
+    q_laje_lin = float(N_laje_k) / float(L) if L > 0 else 0.0
+    for v in vaos_linha:
+        h_ac = float(pe_direito) - (float(v["peitoril_m"]) + float(v["alt_m"]))
+        h_ac = max(h_ac, 0.0)
+        if peso_m2 is None:
+            vergas.append({"OK": False, "veredito": "recusado",
+                           "motivo": "verga_sem_peso_parede: tipo sem peso "
+                                     "tabelado na NBR 6120 Tab.2",
+                           "vao_tipo": v["tipo"]})
+        else:
+            try:
+                dg = alv.dimensiona_verga_1133(
+                    v["larg_m"], h_ac, peso_m2,
+                    q_laje_linear_kN_m=q_laje_lin,
+                    h_laje_sobre_verga_m=h_ac,
+                    fpk=fpk, material=material, te_m=te,
+                    combinacao=combinacao,
+                    fyk=vcfg.get("fyk", 500e3),
+                    phi_mm=vcfg.get("phi_mm", 10.0),
+                    bloco=vcfg.get("bloco", "concreto"),
+                    ranhurado=bool(vcfg.get("ranhurado", False)),
+                    apoio_m=vcfg.get("apoio_m"),
+                    altura_verga_m=vcfg.get("altura_m"))
+            except Exception as exc:  # noqa: BLE001 - motivo nomeado, nao quebra
+                dg = {"OK": False, "veredito": "recusado",
+                      "motivo": "verga_recusada: %s" % exc,
+                      "vao_tipo": v["tipo"]}
+            dg["vao"] = dict(v)
+            dg["h_parede_acima_m"] = round(h_ac, 3)
+            vergas.append(dg)
+        if float(v["peitoril_m"]) > 1e-9:
+            dc = alv.detalhe_contraverga(v["larg_m"])
+            dc["vao"] = dict(v)
+            contravergas.append(dc)
+    return vergas, contravergas
+
+
 def quinhao_laje_por_linha(pav):
     """Quinhao da laje (kN) que cada linha da malha recebe, pela 14.7.6.1.
 
@@ -536,6 +841,40 @@ def quinhao_laje_por_linha(pav):
     return quin
 
 
+def quinhao_laje_por_linha_gq(pav):
+    """Quinhao da laje separado em G e Q (kN), pela MESMA 14.7.6.1.
+
+    G67: a 11.4 precisa da pre-compressao so com PERMANENTES (0,9 x G na
+    Tab.4) enquanto a 11.5/Nd usa G + Q. Reusar as mesmas reacoes
+    unitarias do painel (sem recomputar a formula) e escalar por g e por
+    q separadamente: a soma G + Q coincide com quinhao_laje_por_linha
+    (relacao conferida em teste). Devolve {nome: {'G':, 'Q':}}.
+    """
+    g = float(pav["g_kN_m2"])
+    q = float(pav["q_kN_m2"])
+    vx, vy = list(pav["vaos_x"]), list(pav["vaos_y"])
+    quin = {}
+
+    def _soma(nome, vg, vq):
+        r = quin.setdefault(nome, {"G": 0.0, "Q": 0.0})
+        r["G"] += vg
+        r["Q"] += vq
+
+    for pan in pav["paineis"]:
+        i, j = int(pan["i"]), int(pan["j"])
+        ru = pan["reacoes_unitarias"]
+        lx, ly = float(vx[i]), float(vy[j])
+        _soma("BX-%d" % j, float(ru["inf"]) * g * lx,
+              float(ru["inf"]) * q * lx)
+        _soma("BX-%d" % (j + 1), float(ru["sup"]) * g * lx,
+              float(ru["sup"]) * q * lx)
+        _soma("BY-%d" % i, float(ru["esq"]) * g * ly,
+              float(ru["esq"]) * q * ly)
+        _soma("BY-%d" % (i + 1), float(ru["dir"]) * g * ly,
+              float(ru["dir"]) * q * ly)
+    return quin
+
+
 def confere_simetria_quinhao(quinhoes, vaos_x, vaos_y, tol=1e-6):
     """Simetria do quinhao: plano simetrico -> linhas opostas recebem igual.
 
@@ -566,7 +905,8 @@ def confere_simetria_quinhao(quinhoes, vaos_x, vaos_y, tol=1e-6):
             "pior_par": pior_par}
 
 
-def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
+def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
+                                    carga_telhado_por_linha=None):
     """Verifica as paredes portantes que recebem a laje (NBR 16868-1 11.2.1).
 
     cfg: {'fpk' (kN/m2, DECLARADA, sem default — regra do SPT no G9),
@@ -603,7 +943,15 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
         raise EntradaEstrutura("alvenaria_portante.te deve ser > 0 (m)")
     te = float(te)
     combinacao = cfg.get("combinacao", "normal")
-    hab_terrea = bool(cfg.get("habitacao_terrea", True))
+    if cfg.get("habitacao_terrea") is None:
+        raise EntradaEstrutura(
+            "habitacao_terrea_nao_declarada: a nota 'a' da Tab.9 (NBR "
+            "16868-1) troca o teto de esbeltez de 24 para 30 E o gamma_m "
+            "de 2,0 para 3,0 - ela muda o veredito (parede he/te = 27 sai "
+            "reprovada sem a nota e aprovada com ela), entao e' declaracao "
+            "da EDIFICACAO, nunca default (o proprio G60 escreveu 'opcao "
+            "declarada, nunca silenciosa')")
+    hab_terrea = bool(cfg["habitacao_terrea"])
     par = cfg.get("parede_6120")
     if not isinstance(par, dict):
         raise EntradaEstrutura(
@@ -664,7 +1012,10 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
                                         L, float(pe_direito), nome)
         N_laje_k = float(quinhoes.get(nome, 0.0))
         N_parede_k = q_parede * L
-        N_wall_k = N_laje_k + N_parede_k
+        # G66: o telhado pousa no topo da parede (beiral): entra na parede
+        # por linha, com o nome separado (nao some na laje nem na parede).
+        N_telh_k = float((carga_telhado_por_linha or {}).get(nome, 0.0))
+        N_wall_k = N_laje_k + N_parede_k + N_telh_k
         N_wall_d = GF * N_wall_k
         A = te * L
         res = alv.verifica_parede_compressao(
@@ -679,25 +1030,38 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
         junta = alv.confere_fronteira_peso_parcela(
             N_parede_k, par["tipo"], par["espessura_cm"], altura, L,
             par.get("revestimento_cm", 1.0))
-        ok_linha = bool(res.get("OK")) and bool(junta.get("OK"))
+        # G70: a verga desenhada ganha conta (11.3.3 com arco); a contraverga
+        # e detalhe. Verga que nao verifica reprova a linha nomeando o vao.
+        vergas, contravergas = _vergas_e_contravergas_da_linha(
+            cfg, par, vaos_linha, L, N_laje_k, float(pe_direito),
+            fpk, material, te, combinacao)
+        vergas_ok = all(bool(g.get("OK")) for g in vergas)
+        ok_linha = bool(res.get("OK")) and bool(junta.get("OK")) and vergas_ok
         registro = {
             "nome": nome, "eixo": eixo, "indice": indice,
             "comprimento_m": round(L, 3),
             "N_laje_kN": round(N_laje_k, 2),
             "Nd_parede_kN": round(N_parede_k, 3),
+            "N_telhado_kN": round(N_telh_k, 2),
             "N_wall_kN": round(N_wall_k, 2),
             "N_wall_d_kN": round(N_wall_d, 2),
             "carga_linear_kN_m": round(q_parede, 3),
             "vaos": vaos_linha,
+            "vergas": vergas, "contravergas": contravergas,
             "verificacao": res, "junta_peso": junta, "OK": ok_linha,
         }
         if not ok_linha:
             motivo = res.get("motivo") or junta.get("motivo") or "reprovada"
+            if not vergas_ok:
+                gv = next((g for g in vergas if not g.get("OK")), {})
+                motivo = gv.get("motivo") or "verga_reprovada"
             reprovadas.append("%s: %s" % (nome, motivo))
         por_linha.append(registro)
     fechamento = verifica_fechamento_alvenaria(
         por_linha, carga_laje, q_parede, vaos_x=vaos_x, vaos_y=vaos_y,
-        quinhoes=quinhoes)
+        quinhoes=quinhoes,
+        carga_telhado_total_kN=sum(float(v) for v in
+                                   (carga_telhado_por_linha or {}).values()))
     return {
         "OK": (not reprovadas) and bool(fechamento["ok"]),
         "por_linha": por_linha, "reprovadas": reprovadas,
@@ -710,9 +1074,366 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito):
     }
 
 
+def _vento_cfg_por_direcao(vento_cfg, direcao):
+    """Extrai {v0, cat, classe, s1, s3, ca} do vento para uma direcao.
+
+    vento_cfg: {v0, cat, classe, s1?, s3?, ca: {x:, y:} ou numero}. ca e
+    sempre DECLARADO do abaco da Fig.4 da NBR 6123 (h/l1, l1/l2) — a norma
+    so da abaco, nunca tabela. Sem ca da direcao o vento NAO tem origem
+    naquela direcao e o caso RECUSA (Qh avulsa segue recusando).
+    """
+    if not isinstance(vento_cfg, dict):
+        raise EntradaEstrutura(
+            "vento deve ser um objeto {v0, cat, classe, ca} (NBR 6123); "
+            "sobrado sem vento declarado nao tem Qh por nivel e RECUSA")
+    ca_decl = vento_cfg.get("ca")
+    if isinstance(ca_decl, dict):
+        if direcao not in ca_decl:
+            raise EntradaEstrutura(
+                "vento.ca['%s'] nao declarado: o Ca da NBR 6123 e abaco "
+                "(Fig.4, h/l1 e l1/l2) lido pelo projetista; sem ele nao ha "
+                "Fa na direcao %s" % (direcao, direcao))
+        ca = ca_decl[direcao]
+    else:
+        ca = ca_decl
+    if ca is None:
+        raise EntradaEstrutura(
+            "vento.ca nao declarado: o Ca da NBR 6123 e abaco (Fig.4); sem "
+            "ele nao ha Fa (Qh avulsa segue recusando)")
+    return {"v0": vento_cfg.get("v0"), "cat": vento_cfg.get("cat"),
+            "classe": vento_cfg.get("classe"), "s1": vento_cfg.get("s1", 1.0),
+            "s3": vento_cfg.get("s3", 1.0), "ca": ca}
+
+
+def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
+                                        pe_direito, vento_cfg=None,
+                                        carga_telhado_por_linha=None):
+    """Sobrado em alvenaria portante (G67): vertical por nivel + vento.
+
+    cfg: como em dimensiona_alvenaria_portante, mais 'fa_MPa' (resistencia
+      media da argamassa, DECLARADA, Tab.4 em 6.2.2.6) quando houver vento
+      (2 pavimentos) e 'n_pavimentos' (para a 10.1.1). 'acao_horizontal_kN'
+      avulsa segue RECUSANDO (a origem e o vento por nivel, nunca Qh
+      declarada).
+    pavs: lista de pavimentos-tipo MONTADOS, do TOPO para a BASE (um por
+      pavimento declarado). O quinhao de CADA nivel sai das charneiras da
+      14.7.6.1 daquele nivel (quinhao_laje_por_linha_gq — a mesma reacao
+      unitaria do painel, sem recomputar a formula); a parede da base
+      acumula os niveis acima + o peso proprio das paredes de cada nivel
+      (via da carga, F21 por parcela e por nivel).
+    vento_cfg: {v0, cat, classe, s1?, s3?, ca:{x:,y:} ou numero} (NBR 6123).
+      Com 1 pavimento e sem vento, segue o caminho gravitacional (G61);
+      com 2 pavimentos o vento e OBRIGATORIO (sem ele RECUSA nomeando).
+      Cada Fa de nivel reparte nas paredes daquela direcao pela 9.6.2
+      (he = pe-direito do nivel); a parede da base verifica V = soma Fi e
+      M = soma Fi.z (consola), e a do topo V = Fi_topo, M = Fi_topo.he.
+    Verificacao por parede (base governa o registro): 11.5 (Nd_d + Md_d)
+      e 11.4 (Vd_d contra fvk/gamma_m, su 0,9 x permanentes); Anexo C
+      quando lambda > 30 armada (via verifica_parede_esbelta_anexo_C);
+      Tab.9/10.1.1 reprovam sem publicar NRd (a 11.5 ja nao publica).
+    Devolve o mesmo formato de dimensiona_alvenaria_portante, mais
+    'vento' (Fa por nivel e distribuicao) e 'cisalhamento_11_4' por linha.
+    """
+    if not isinstance(cfg, dict):
+        raise EntradaEstrutura("alvenaria_portante deve ser um objeto")
+    if not isinstance(pavs, (list, tuple)) or not pavs:
+        raise EntradaEstrutura("pavs deve ser a lista de pavimentos montados")
+    n = len(pavs)
+    if n > MAX_PAVIMENTOS_ALVENARIA:
+        raise EntradaEstrutura(
+            "casa em alvenaria estrutural portante cobre ate %d pavimentos "
+            "neste lote e recebeu %d (G67)"
+            % (MAX_PAVIMENTOS_ALVENARIA, n))
+    if cfg.get("acao_horizontal_kN") not in (None, 0, 0.0):
+        raise EntradaEstrutura(
+            "acao_horizontal_exige_contraventamento: Qh avulsa nao tem origem; "
+            "declare vento (NBR 6123) e o Fi sai da 9.6.2 por nivel (G67)")
+    fpk = cfg.get("fpk")
+    if fpk is None:
+        raise EntradaEstrutura(
+            "alvenaria_portante.fpk nao declarado: a resistencia vem do prisma "
+            "(NBR 16868-3) e e ensaio declarado; sem fpk nao ha fk (regra do SPT no G9)")
+    material = cfg.get("material", "bloco")
+    te = cfg.get("te")
+    if te is None or not float(te) > 0:
+        raise EntradaEstrutura("alvenaria_portante.te deve ser > 0 (m)")
+    te = float(te)
+    combinacao = cfg.get("combinacao", "normal")
+    if cfg.get("habitacao_terrea") is None:
+        raise EntradaEstrutura(
+            "habitacao_terrea_nao_declarada: a nota 'a' da Tab.9 (NBR "
+            "16868-1) troca o teto de esbeltez de 24 para 30 E o gamma_m "
+            "de 2,0 para 3,0 - ela muda o veredito (parede he/te = 27 sai "
+            "reprovada sem a nota e aprovada com ela), entao e' declaracao "
+            "da EDIFICACAO, nunca default (o proprio G60 escreveu 'opcao "
+            "declarada, nunca silenciosa')")
+    hab_terrea = bool(cfg["habitacao_terrea"])
+    par = cfg.get("parede_6120")
+    if not isinstance(par, dict):
+        raise EntradaEstrutura(
+            "alvenaria_portante.parede_6120 deve declarar tipo/espessura_cm "
+            "(Tabela 2 da NBR 6120, via da carga)")
+    try:
+        altura = float(par.get("altura_m", pe_direito))
+    except (TypeError, ValueError):
+        raise EntradaEstrutura("parede_6120.altura_m deve ser numerica")
+    modo = cfg.get("linhas", "contorno")
+    linhas = linhas_de_baldrame(list(vaos_x), list(vaos_y), modo)
+    try:
+        q_parede = cg.carga_linear_parede(
+            par["tipo"], par["espessura_cm"], altura,
+            par.get("revestimento_cm", 1.0))
+    except KeyError as exc:
+        raise EntradaEstrutura(
+            "parede_6120 precisa de 'tipo' e 'espessura_cm' (Tabela 2): %s"
+            % exc) from exc
+    comprimento_total = sum(sum(l[3]) for l in linhas)
+    if comprimento_total <= 0:
+        raise EntradaEstrutura("nenhum comprimento de parede portante")
+    vaos_cfg = cfg.get("vaos") or {}
+    if vaos_cfg and not isinstance(vaos_cfg, dict):
+        raise EntradaEstrutura("alvenaria_portante.vaos deve ser um objeto "
+                               "{nome_da_linha: [vaos]}")
+    nomes_linhas = {"%s" % l[0] for l in linhas}
+    orfaos = sorted(set(vaos_cfg) - nomes_linhas)
+    if orfaos:
+        raise EntradaEstrutura(
+            "vaos em linha inexistente (%s): linhas validas: %s"
+            % (", ".join(orfaos), ", ".join(sorted(nomes_linhas))))
+    # Vertical por nivel: o quinhao de cada pavimento sai das charneiras
+    # daquele nivel (G61 por cima, sem recomputar a formula).
+    quinhoes_niveis = []
+    quinhoes_gq_niveis = []
+    for pav in pavs:
+        quinhoes_niveis.append(quinhao_laje_por_linha(pav))
+        quinhoes_gq_niveis.append(quinhao_laje_por_linha_gq(pav))
+        sem_parede = sorted(
+            n_ for n_, v in quinhoes_niveis[-1].items()
+            if v > 1e-9 and n_ not in nomes_linhas)
+        if sem_parede:
+            raise EntradaEstrutura(
+                "laje_apoia_em_linha_sem_parede: a laje foi calculada apoiada em "
+                "%s, linha(s) da malha sem parede portante declarada; use "
+                "linhas='todas' (parede em cada linha da malha) ou uma geometria "
+                "de um so painel (G61)" % ", ".join(sem_parede))
+    # Vento por nivel (G67): com 2 pavimentos e obrigatorio; com 1 e sem
+    # vento, caminho gravitacional.
+    vento = None
+    dist_por_nivel = {}
+    if n > 1:
+        if vento_cfg is None:
+            raise EntradaEstrutura(
+                "sobrado_em_alvenaria_pede_vento: 2 pavimentos sem vento "
+                "declarado; declare vento {v0, cat, classe, ca} (NBR 6123, "
+                "Ca do abaco da Fig.4) e o Qh chega por nivel "
+                "(Fa = Ca.q.Ae) em vez de Qh avulsa (G67)")
+        if hab_terrea:
+            # depois do vento de proposito: a ausencia de forca
+            # horizontal e' a fronteira mais funda e fala primeiro.
+            raise EntradaEstrutura(
+                "habitacao_terrea_com_%d_pavimentos: a nota 'a' da "
+                "Tab.9 vale para habitacao TERREA; com mais de um "
+                "pavimento o teto de esbeltez e' 24 (sem armadura) ou "
+                "30 (armada)" % n)
+        fa = cfg.get("fa_MPa")
+        if fa is None:
+            raise EntradaEstrutura(
+                "alvenaria_portante.fa_MPa nao declarado: a 11.4 (fvk da "
+                "Tab.4, 6.2.2.6) e por faixa de resistencia da argamassa; "
+                "sem fa nao ha cisalhamento no sobrado (G67)")
+        vento = {"por_direcao": {}}
+        for direcao, l1, pref in (
+                ("x", float(sum(vaos_y)), "BX"),
+                ("y", float(sum(vaos_x)), "BY")):
+            wdir = _vento_cfg_por_direcao(vento_cfg, direcao)
+            fa_nivel = alv.vento_fa_por_nivel(n, float(pe_direito), l1, wdir)
+            vento["por_direcao"][direcao] = fa_nivel
+            for niv in fa_nivel["niveis"]:
+                k = (direcao, niv["nivel"])
+                pars = []
+                for nome, eixo, indice, vaos in linhas:
+                    if not nome.startswith(pref):
+                        continue
+                    pars.append({"nome": nome,
+                                 "comprimento_m": float(sum(vaos)),
+                                 "te_m": te, "he_m": float(pe_direito)})
+                if not pars:
+                    raise EntradaEstrutura(
+                        "sem_parede_contraventamento_%s: vento na direcao %s "
+                        "sem uma parede no plano (NBR 16868-1 9.6.2)"
+                        % (direcao, direcao))
+                d = alv.distribuir_horizontal_por_rigidez(niv["Fa_kN"], pars)
+                if not d["OK"]:
+                    raise EntradaEstrutura(
+                        "contraventamento_recusado_%s_nivel_%d: %s"
+                        % (direcao, niv["nivel"], d["motivo"]))
+                fech = alv.confere_fechamento_horizontal(d, niv["Fa_kN"])
+                if not fech["OK"]:
+                    raise EntradaEstrutura(
+                        "fechamento_horizontal_diverge_%s_nivel_%d: %s"
+                        % (direcao, niv["nivel"], fech["motivo"]))
+                dist_por_nivel[k] = d
+        vento["distribuicao"] = {
+            "%s_n%d" % k: v for k, v in dist_por_nivel.items()}
+    por_linha = []
+    reprovadas = []
+    for nome, eixo, indice, vaos in linhas:
+        L = float(sum(vaos))
+        vaos_linha = validar_vaos_parede(vaos_cfg.get(nome) or [],
+                                        L, float(pe_direito), nome)
+        # Acumulo vertical caracteristico por natureza (G/Q separados).
+        G_laje = sum(float(q.get(nome, {}).get("G", 0.0))
+                     for q in quinhoes_gq_niveis)
+        Q_laje = sum(float(q.get(nome, {}).get("Q", 0.0))
+                     for q in quinhoes_gq_niveis)
+        N_laje_k = G_laje + Q_laje
+        N_parede_k = q_parede * L * n
+        N_telh_k = float((carga_telhado_por_linha or {}).get(nome, 0.0))
+        N_wall_k = N_laje_k + N_parede_k + N_telh_k
+        N_wall_d = GF * N_wall_k
+        # Horizontal na base (consola): V = soma Fi, M = soma Fi.z.
+        V_k = M_k = 0.0
+        fis_nivel = []
+        if vento is not None:
+            direcao = "x" if nome.startswith("BX") else "y"
+            fa_nivel = vento["por_direcao"][direcao]["niveis"]
+            for niv in fa_nivel:
+                d = dist_por_nivel[(direcao, niv["nivel"])]
+                fi = next(r["Fi_kN"] for r in d["por_parede"]
+                          if r["nome"] == nome)
+                fis_nivel.append({"nivel": niv["nivel"], "Fi_kN": fi,
+                                  "z_m": niv["z_m"]})
+                V_k += fi
+                M_k += fi * niv["z_m"]
+        Vd = GF * V_k
+        Md = GF * M_k
+        A = te * L
+        he = float(pe_direito)
+        lam = he / te
+        # 11.5 (ou Anexo C acima de 30 armada); Tab.9/10.1.1 reprovam sem NRd.
+        res = alv.verifica_parede_compressao(
+            N_wall_d, fpk, he, te, A, material=material,
+            combinacao=combinacao,
+            acao_horizontal_kN=None,
+            n_pavimentos=cfg.get("n_pavimentos", n),
+            habitacao_terrea=hab_terrea, comprimento_m=L)
+        motivo_te = res.get("motivo", "")
+        usa_anexo_C = False
+        if "espessura_minima_14cm" in motivo_te or \
+                "esbeltez_acima_do_teto" in motivo_te:
+            res115 = res
+        elif vento is None and Vd == 0.0:
+            res115 = res
+        else:
+            As = float(cfg.get("As_m2", 0.0))
+            if lam > alv.LAMBDA_TETO_ARMADA and As > 0:
+                usa_anexo_C = True
+                if cfg.get("fyk") is None:
+                    raise EntradaEstrutura(
+                        "alvenaria_portante.fyk nao declarado: Anexo C armado "
+                        "corta fs em fyd; sem fyk nao ha fs (G67)")
+                res115 = alv.verifica_parede_esbelta_anexo_C(
+                    N_wall_d, Md, fpk, he, te, L, As, cfg.get("fyk"),
+                    tipo_bloco=cfg.get("tipo_bloco", "bloco_concreto"),
+                    material=material, combinacao=combinacao)
+            else:
+                res115 = alv.verifica_flexo_compressao_115(
+                    N_wall_d, Md, fpk, he, te, L, material=material,
+                    combinacao=combinacao, As=As,
+                    fyk=cfg.get("fyk"),
+                    tipo_bloco=cfg.get("tipo_bloco", "bloco_concreto"),
+                    habitacao_terrea=hab_terrea, Vd_kN=Vd if Vd else None)
+        # 11.4 sobre o Fi (G67): so com vento; sem vento, nao ha Vd.
+        res114 = None
+        if vento is not None:
+            N_perm_k = (G_laje + N_parede_k
+                        + float((carga_telhado_por_linha or {}).get(nome, 0.0)))
+            # telhado: sem split G/Q declarado, conta como permanente
+            # (conservador para sigma, dito aqui).
+            res114 = alv.verifica_cisalhamento_114(
+                Vd, N_perm_k, te, L, cfg.get("fa_MPa"),
+                combinacao=combinacao)
+        junta = alv.confere_fronteira_peso_parcela(
+            N_parede_k / n if n else N_parede_k, par["tipo"],
+            par["espessura_cm"], altura, L,
+            par.get("revestimento_cm", 1.0))
+        # a junta F21 e por nivel: a parcela de UM nivel contra a via.
+        vergas, contravergas = _vergas_e_contravergas_da_linha(
+            cfg, par, vaos_linha, L, N_laje_k, float(pe_direito),
+            fpk, material, te, combinacao)
+        vergas_ok = all(bool(g.get("OK")) for g in vergas)
+        ok_linha = bool(res115.get("OK")) and bool(junta.get("OK")) and vergas_ok
+        if res114 is not None:
+            ok_linha = ok_linha and bool(res114.get("OK"))
+        registro = {
+            "nome": nome, "eixo": eixo, "indice": indice,
+            "comprimento_m": round(L, 3),
+            "N_laje_kN": round(N_laje_k, 2),
+            "N_laje_G_kN": round(G_laje, 2),
+            "N_laje_Q_kN": round(Q_laje, 2),
+            "Nd_parede_kN": round(N_parede_k, 3),
+            "N_telhado_kN": round(N_telh_k, 2),
+            "N_wall_kN": round(N_wall_k, 2),
+            "N_wall_d_kN": round(N_wall_d, 2),
+            "V_kN": round(V_k, 3), "M_kNm": round(M_k, 3),
+            "Vd_kN": round(Vd, 3), "Md_kNm": round(Md, 3),
+            "fis_por_nivel": fis_nivel,
+            "carga_linear_kN_m": round(q_parede, 3),
+            "vaos": vaos_linha,
+            "vergas": vergas, "contravergas": contravergas,
+            "verificacao": res115, "cisalhamento_11_4": res114,
+            "usa_anexo_C": usa_anexo_C,
+            "junta_peso": junta, "OK": ok_linha,
+        }
+        if not ok_linha:
+            motivo = (res115.get("motivo")
+                      or (res114 or {}).get("motivo")
+                      or junta.get("motivo") or "reprovada")
+            if not vergas_ok:
+                gv = next((g for g in vergas if not g.get("OK")), {})
+                motivo = gv.get("motivo") or "verga_reprovada"
+            reprovadas.append("%s: %s" % (nome, motivo))
+        por_linha.append(registro)
+    carga_laje_total = sum(
+        float(p.get("carga_laje_total_kN", p.get("N_total_k", 0.0)))
+        for p in pavs)
+    fechamento = verifica_fechamento_alvenaria(
+        [{"nome": r["nome"], "comprimento_m": r["comprimento_m"],
+          "N_laje_kN": r["N_laje_kN"], "Nd_parede_kN": r["Nd_parede_kN"],
+          "N_telhado_kN": r.get("N_telhado_kN", 0.0)} for r in por_linha],
+        carga_laje_total, q_parede * n,
+        vaos_x=vaos_x, vaos_y=vaos_y,
+        quinhoes={r["nome"]: r["N_laje_kN"] for r in por_linha},
+        carga_telhado_total_kN=sum(float(v) for v in
+                                   (carga_telhado_por_linha or {}).values()))
+    # Simetria por nivel (G67): cada pavimento confere em separado, com o
+    # quinhao daquele nivel — sem recomputar a formula.
+    simetrias = []
+    for k, q in enumerate(quinhoes_niveis):
+        s = confere_simetria_quinhao(q, list(vaos_x), list(vaos_y))
+        simetrias.append(s)
+        if not s["ok"]:
+            reprovadas.append(
+                "simetria_nivel_%d: pior par %s erro %.6f"
+                % (k + 1, s["pior_par"], s["pior_erro"]))
+    return {
+        "OK": (not reprovadas) and bool(fechamento["ok"]),
+        "por_linha": por_linha, "reprovadas": reprovadas,
+        "fechamento": fechamento, "simetrias_por_nivel": simetrias,
+        "vento": vento,
+        "carga_laje_total_kN": round(carga_laje_total, 2),
+        "q_parede_kN_m": round(q_parede, 3),
+        "n_pavimentos": n,
+        "comprimento_total_m": round(comprimento_total, 3),
+        "fpk_kN_m2": float(fpk), "te_m": te, "material": material,
+        "combinacao": combinacao, "linhas": modo,
+    }
+
+
 def verifica_fechamento_alvenaria(por_linha, carga_laje_total_kN,
-                                  q_parede_kN_m, tol=TOL_FECHAMENTO,
-                                  vaos_x=None, vaos_y=None, quinhoes=None):
+                                   q_parede_kN_m, tol=TOL_FECHAMENTO,
+                                   vaos_x=None, vaos_y=None, quinhoes=None,
+                                   carga_telhado_total_kN=0.0):
     """Gate de fechamento do caminho portante (G13, licao do G3).
 
     Confere o TOTAL - o que desce pelas paredes bate com a carga da laje mais
@@ -725,11 +1446,13 @@ def verifica_fechamento_alvenaria(por_linha, carga_laje_total_kN,
     """
     total_laje = sum(r["N_laje_kN"] for r in por_linha)
     total_parede = sum(r["Nd_parede_kN"] for r in por_linha)
+    total_telhado = sum(r.get("N_telhado_kN", 0.0) for r in por_linha)
     L_total = sum(r["comprimento_m"] for r in por_linha)
     esperado_laje = float(carga_laje_total_kN)
     esperado_parede = float(q_parede_kN_m) * float(L_total)
-    esperado = esperado_laje + esperado_parede
-    somado = total_laje + total_parede
+    esperado_telhado = float(carga_telhado_total_kN)
+    esperado = esperado_laje + esperado_parede + esperado_telhado
+    somado = total_laje + total_parede + total_telhado
     erro_rel = abs(somado - esperado) / esperado if esperado > 0 else 0.0
     sim = confere_simetria_quinhao(
         quinhoes if quinhoes is not None
@@ -739,6 +1462,7 @@ def verifica_fechamento_alvenaria(por_linha, carga_laje_total_kN,
     return {"ok": bool(ok),
             "N_paredes_kN": round(somado, 2),
             "carga_esperada_kN": round(esperado, 2),
+            "N_telhado_kN": round(total_telhado, 2),
             "erro_rel": round(erro_rel, 5),
             "simetria_ok": bool(sim["ok"]),
             "simetria_pares": sim["n_pares"],
@@ -839,16 +1563,30 @@ def _valida(spec):
             "de deslocamento lateral) o resultado nao descreveria a estrutura. "
             "Use a tipologia 'edificio' (edificio_multipavimento), que a calcula"
             % (MAX_PAVIMENTOS, len(pavimentos)))
+    if spec.get("alvenaria_portante") is None and len(pavimentos) > 1 \
+            and spec.get("vento") is None:
+        # G68 (gemeo do sobrado_em_alvenaria_pede_vento do G67): a terrea
+        # dispensa e o sobrado nao. O sobrado de concreto sem vento declarado
+        # saia ATENDE sem que nenhuma forca horizontal tivesse existido -
+        # not_available silencioso dentro de um ATENDE global. Agora RECUSA,
+        # no molde do > 2 pavimentos do G13: fronteira declarada com guarda
+        # de recusa, nao nota de rodape.
+        raise EntradaEstrutura(
+            "sobrado_concreto_pede_vento: 2 pavimentos sem vento declarado; "
+            "declare vento {v0, cat, classe, s1?, s3?, ca} (NBR 6123, Ca do "
+            "abaco da Fig.4 lido pelo projetista) e o Qh chega por nivel "
+            "(Fa = Ca.q.Ae) com desaprumo (11.3.3.4.1) e ELS lateral (G68)")
     if spec.get("alvenaria_portante") is not None:
-        # G61: escopo honesto — a casa em alvenaria portante e aceita apenas
-        # terrea neste lote (parede de sobrado pede contraventamento 9.6.2 e
-        # Anexo C, fora do lote), no molde do >2 pavimentos do G13.
+        # G67: escopo honesto — a casa em alvenaria portante cobre terrea e
+        # sobrado (ate 2 pavimentos, com vento 6123 + 9.6.2 + 11.5 + 11.4 +
+        # Anexo C); acima disso RECUSA nomeando o que falta.
         if len(pavimentos) > MAX_PAVIMENTOS_ALVENARIA:
             raise EntradaEstrutura(
-                "casa em alvenaria estrutural portante cobre so casa terrea "
-                "(ate %d pavimento) neste lote e recebeu %d: parede de sobrado "
-                "pede contraventamento (NBR 16868-1 9.6.2) e Anexo C, fora do "
-                "escopo deste lote (G61)"
+                "casa em alvenaria estrutural portante cobre ate %d "
+                "pavimentos (terrea e sobrado) neste lote e recebeu %d: "
+                "predio de alvenaria pede desaprumo global (NBR 16868-1 "
+                "8.3.2.2) e nucleo armado de contraventamento, fora do "
+                "escopo deste lote (G67)"
                 % (MAX_PAVIMENTOS_ALVENARIA, len(pavimentos)))
         if not isinstance(spec.get("alvenaria_portante"), dict):
             raise EntradaEstrutura("alvenaria_portante deve ser um objeto")
@@ -991,12 +1729,61 @@ def rodar(spec):
     com_alvenaria = spec.get("alvenaria_portante") is not None
     if com_alvenaria and spec.get("escada"):
         raise EntradaEstrutura(
-            "alvenaria portante (terrea) nao recebe escada de concreto: sem "
-            "pilares nao ha onde descer a reacao (G61)")
+            "alvenaria portante nao recebe escada de concreto: sem "
+            "pilares nao ha onde descer a reacao (G61/G67: escada apoiada "
+            "em parede portante fora deste lote)")
     desc = dc.descer({"pavimentos": pavs, "elemento": "pilar"})
     if stair is not None:
         detalhe_escada = _descer_escada(desc, stair)
     red = dc.verifica_reducao(desc)
+
+    # --------------------------------------------- TELHADO DE MADEIRA (G66)
+    # A tesoura e' dimensionada ANTES dos pilares (a reacao REALIMENTA os
+    # lances, gemeo da escada do G42): no caminho de concreto ela desce
+    # ao lance de topo dos pilares do beiral; no portante, ao topo das
+    # paredes do beiral. Sem telhado declarado nao ha telhado calculado.
+    r_telhado = None
+    telhado_erro = None
+    detalhe_telhado = None
+    carga_telhado_por_linha = {}
+    if spec.get("telhado_madeira") is not None:
+        if not isinstance(spec["telhado_madeira"], dict):
+            raise EntradaEstrutura("telhado_madeira deve ser um objeto")
+        try:
+            beiral = linhas_de_beiral(spec["telhado_madeira"].get("vao"),
+                                     geo["vaos_x"], geo["vaos_y"])
+            if (abs(float(spec["telhado_madeira"].get("extensao", -1))
+                    - beiral["extensao_esperada"]) > 0.01):
+                raise EntradaEstrutura(
+                    "telhado.extensao=%.3f fora da malha (esperado %.3f "
+                    "na direcao %s): o telhado cobre a casa inteira"
+                    % (float(spec["telhado_madeira"].get("extensao", -1)),
+                       beiral["extensao_esperada"], beiral["direcao"]))
+            if com_alvenaria and spec["telhado_madeira"].get("apoio") != "parede":
+                raise EntradaEstrutura(
+                    "casa em alvenaria portante recebe a tesoura na PAREDE "
+                    "(apoio='parede'): sem portico nao ha viga no topo")
+            if (not com_alvenaria
+                    and spec["telhado_madeira"].get("apoio") != "viga"):
+                raise EntradaEstrutura(
+                    "casa de concreto recebe a tesoura na VIGA/cinta do "
+                    "topo (apoio='viga'): a carga desce aos pilares")
+            r_telhado = tmad.rodar(dict(spec["telhado_madeira"]))
+            r_telhado["_beiral"] = beiral
+            if com_alvenaria:
+                # W por beiral (kN TOTAIS na linha; o /L sai dentro da
+                # parede e do baldrame, como a laje).
+                for nome in beiral["linhas"]:
+                    carga_telhado_por_linha[nome] = round(
+                        r_telhado["descida"]["W_total_kN"] / 2.0, 3)
+            else:
+                detalhe_telhado = _descer_telhado(desc, pav, r_telhado)
+        except tmad.EntradaTelhado as exc:
+            telhado_erro = str(exc)
+        except EntradaEstrutura:
+            raise
+        except EntradaTelhadoMadeira as exc:
+            telhado_erro = str(exc)
 
     # -------------------------------------------------------------- PILARES
     # G61: sem portico de concreto nao ha pilar a dimensionar; o gate vira
@@ -1027,14 +1814,27 @@ def rodar(spec):
         r_vigas = verifica_vigas(pav, fck, fyk,
                                  com_alvenaria=pav["g_parede_kN_m"] > 0)
 
-    # ------------------------------------------- ALVENARIA PORTANTE (G61)
+    # ------------------------------------------- ALVENARIA PORTANTE (G61/G67)
+    # G67: o sobrado calcula por nivel (vertical da 14.7.6.1 por pavimento
+    # + vento 6123 por nivel + 9.6.2 + 11.5 + 11.4); a terrea segue
+    # gravitacional. pavs_montados: um montado por pavimento declarado.
     alvenaria = None
     erro_alvenaria = None
     if com_alvenaria:
         try:
-            alvenaria = dimensiona_alvenaria_portante(
-                spec["alvenaria_portante"], pav, geo["vaos_x"], geo["vaos_y"],
-                geo["pe_direito"])
+            pavs_montados = []
+            for _pv in spec["pavimentos"]:
+                _cfg_uso = por_uso[_pv["uso"]]
+                if _pv["uso"] == spec["pavimentos"][-1]["uso"] and pav is not None:
+                    _mont = pav
+                else:
+                    _mont = pt.monta(_cfg_uso)
+                pavs_montados.append(_mont)
+            alvenaria = dimensiona_alvenaria_portante_niveis(
+                spec["alvenaria_portante"], pavs_montados,
+                geo["vaos_x"], geo["vaos_y"], geo["pe_direito"],
+                vento_cfg=spec.get("vento"),
+                carga_telhado_por_linha=carga_telhado_por_linha or None)
         except EntradaEstrutura as exc:
             erro_alvenaria = str(exc)
 
@@ -1049,35 +1849,58 @@ def rodar(spec):
         try:
             cfg_bald = spec["baldrame"]
             if com_alvenaria and alvenaria is not None:
-                # O baldrame sob a parede portante carrega a parede E a laje
-                # que a parede recebe: q de entrada = q_parede + quinhao de
-                # laje por metro (a laje nao passa por viga nenhuma aqui).
-                # E' UMA SECAO PARA A OBRA (a mesma pratica do baldrame de
-                # concreto), logo o q que a dimensiona e o MAIOR quinhao por
-                # metro, nao a media: pela media a linha que governa - a
-                # parede longa, que a 14.7.6.1 carrega mais - sairia leve.
+                # O baldrame sob a parede portante carrega TUDO o que esta
+                # acima dele: lajes + paredes dos N niveis + telhado (G67:
+                # N_wall_kN por linha, na base). E' UMA SECAO PARA A OBRA, logo
+                # o q que a dimensiona e o MAIOR q por metro, nao a media: pela
+                # media a linha que governa - a parede longa, que a 14.7.6.1
+                # carrega mais - sairia leve. Na terrea (G61), N_wall = laje +
+                # 1 parede + telhado e a conta coincide com q_parede + quinhao.
                 import copy as _cp
                 cfg_bald = _cp.deepcopy(spec["baldrame"])
-                q_laje_lin = max(
-                    [(float(reg["N_laje_kN"]) / float(reg["comprimento_m"]))
+                q_base_lin = max(
+                    [(float(reg.get("N_wall_kN",
+                                    float(reg["N_laje_kN"])
+                                    + float(reg.get("N_telhado_kN", 0.0))
+                                    + float(reg["Nd_parede_kN"])))
+                      / float(reg["comprimento_m"]))
                      for reg in alvenaria["por_linha"]
                      if float(reg["comprimento_m"]) > 0] or [0.0])
-                if cfg_bald.get("q_parede") is not None:
-                    cfg_bald["q_parede"] = (float(cfg_bald["q_parede"])
-                                            + q_laje_lin)
-                elif cfg_bald.get("parede") is not None:
-                    # converte parede -> q para somar a quota de laje sem
-                    # reinterpretar Tabela 2 duas vezes
-                    q_par = cg.carga_linear_parede(
-                        cfg_bald["parede"]["tipo"],
-                        cfg_bald["parede"]["espessura_cm"],
-                        cfg_bald["parede"]["altura"],
-                        cfg_bald["parede"].get("revestimento_cm", 1.0))
+                if int(alvenaria.get("n_pavimentos", 1)) > 1:
+                    # G67 (sobrado): N_wall ja e lajes + N paredes + telhado
+                    # na base; o baldrame recebe esse q por metro (secao unica
+                    # governada pelo maximo). Declaracao de parede no baldrame
+                    # nao soma por fora — somaria a parede duas vezes.
                     cfg_bald = {k: v for k, v in cfg_bald.items()
-                                if k != "parede"}
-                    cfg_bald["q_parede"] = q_par + q_laje_lin
+                                if k not in ("parede", "q_parede")}
+                    cfg_bald["q_parede"] = q_base_lin
+                    proveniencia_bald = ("N_wall da base (G67: lajes + %d "
+                                         "paredes + telhado por metro)" % int(
+                                             alvenaria.get("n_pavimentos", 1)))
                 else:
-                    cfg_bald["q_parede"] = q_laje_lin
+                    q_laje_lin = max(
+                        [((float(reg["N_laje_kN"])
+                           + float(reg.get("N_telhado_kN", 0.0)))
+                          / float(reg["comprimento_m"]))
+                         for reg in alvenaria["por_linha"]
+                         if float(reg["comprimento_m"]) > 0] or [0.0])
+                    if cfg_bald.get("q_parede") is not None:
+                        cfg_bald["q_parede"] = (float(cfg_bald["q_parede"])
+                                                + q_laje_lin)
+                    elif cfg_bald.get("parede") is not None:
+                        # converte parede -> q para somar a quota de laje sem
+                        # reinterpretar Tabela 2 duas vezes
+                        q_par = cg.carga_linear_parede(
+                            cfg_bald["parede"]["tipo"],
+                            cfg_bald["parede"]["espessura_cm"],
+                            cfg_bald["parede"]["altura"],
+                            cfg_bald["parede"].get("revestimento_cm", 1.0))
+                        cfg_bald = {k: v for k, v in cfg_bald.items()
+                                    if k != "parede"}
+                        cfg_bald["q_parede"] = q_par + q_laje_lin
+                    else:
+                        cfg_bald["q_parede"] = q_laje_lin
+                    proveniencia_bald = None
             baldrame = dimensiona_baldrame(cfg_bald, geo["vaos_x"],
                                            geo["vaos_y"], fck, fyk)
         except EntradaEstrutura as exc:
@@ -1175,19 +1998,51 @@ def rodar(spec):
         escada_bruto_total = len(pavs) * (stair["W_g"] + stair["W_q"])
     elif spec.get("escada"):
         escada_bruto_total = 0.0  # indefinida: o gate reprova abaixo, nao soma zero
-    esperado_total = esperado_pavs + escada_bruto_total
+    # G66: o telhado desceu aos pilares (concreto) ou as paredes (portante):
+    # entra no esperado como a escada, para o fechamento nao fechar sem ele.
+    telhado_bruto_total = 0.0
+    if r_telhado is not None:
+        telhado_bruto_total = (r_telhado["descida"]["W_total_G_kN"]
+                               + r_telhado["descida"]["W_total_Q_kN"])
+    esperado_total = esperado_pavs + escada_bruto_total + telhado_bruto_total
     N_desc_total = sum(p["N_base_sem_reducao_k"] for p in desc["pilares"].values())
     erro_total = (abs(N_desc_total - esperado_total) / esperado_total
                   if esperado_total > 0 else 0.0)
     fechamento_ok = bool(fech["ok"] and erro_total <= TOL_FECHAMENTO
-                         and escada_erro is None)
+                         and escada_erro is None and telhado_erro is None)
+
+    # --------------------------------- CAMADA HORIZONTAL DO CONCRETO (G68)
+    # So no caminho de concreto (no portante a laje apoia nas paredes e o
+    # vento ja e' o da G67). Sobrado sem vento nem chega aqui (_valida
+    # recusa); terrea sem vento segue gravitacional com dispensa escrita.
+    # Terrea ou sobrado COM vento declarado calcula: vento 6123 por nivel,
+    # desaprumo 11.3.3.4.1 + combinacao 30 %, indicador gamma_z e ELS lateral.
+    r_horizontal = None
+    if not com_alvenaria and spec.get("vento") is not None:
+        secoes_base = [(p["lances"][-1]["b"], p["lances"][-1]["h"])
+                       for p in pilares.values() if p.get("lances")]
+        r_horizontal = verifica_horizontal_casa(
+            geo, spec["pavimentos"], montados_fech, secoes_base,
+            {"b": viga.get("b", 0.20), "h": viga.get("h", 0.50)},
+            fck, spec["vento"],
+            lajes_lisas=bool(spec.get("lajes_lisas")))
 
     # ---------------------------------------------------------------- GATES
     # G61: no caminho portante o fechamento e o das paredes (total + simetria
     # por linha); parede reprovada reprova a tipologia (gate de verdade).
+    # G67: no sobrado o vento por nivel e o cisalhamento 11.4 entram no gate.
     if com_alvenaria:
         if alvenaria is not None:
             fch = alvenaria["fechamento"]
+            _vento_gate = None
+            if alvenaria.get("vento") is not None:
+                _vento_gate = {
+                    d: {"F_total_kN": v["F_total_kN"],
+                        "M_base_kNm": v["M_base_kNm"]}
+                    for d, v in alvenaria["vento"]["por_direcao"].items()}
+            _c114_ok = all(
+                (r.get("cisalhamento_11_4") or {"OK": True}).get("OK", True)
+                for r in alvenaria["por_linha"])
             gates = {
                 "fechamento_carga": {
                     "OK": bool(fch["ok"]) and bool(alvenaria["OK"]),
@@ -1214,9 +2069,12 @@ def rodar(spec):
                 "alvenaria_portante": {
                     "OK": bool(alvenaria["OK"]),
                     "n_linhas": len(alvenaria["por_linha"]),
+                    "n_pavimentos": alvenaria.get("n_pavimentos", 1),
                     "reprovadas": list(alvenaria["reprovadas"]),
                     "fechamento_OK": bool(fch["ok"]),
-                    "erro_rel": fch["erro_rel"]},
+                    "erro_rel": fch["erro_rel"],
+                    "vento": _vento_gate,
+                    "cisalhamento_11_4_OK": bool(_c114_ok)},
             }
         else:
             gates = {
@@ -1246,7 +2104,11 @@ def rodar(spec):
                                  "escada_total_kN": round(escada_bruto_total, 2),
                                  "escada_distribuicao": (detalhe_escada["distribuicao"]
                                                          if detalhe_escada else None),
-                                 "escada_erro": escada_erro},
+                                 "escada_erro": escada_erro,
+                                 "telhado_total_kN": round(telhado_bruto_total, 2),
+                                 "telhado_distribuicao": (detalhe_telhado["distribuicao"]
+                                                          if detalhe_telhado else None),
+                                 "telhado_erro": telhado_erro},
             "reducao_6120": {"OK": red["ok"], "reduzidos": red["reduzidos"],
                              "alivio_pct": red["alivio_pct_max"],
                              "violacoes": red["violacoes"]},
@@ -1265,6 +2127,15 @@ def rodar(spec):
             "pilares": {"OK": not erros_pilar, "reprovados": erros_pilar,
                         "n": len(pilares)},
         }
+        # G68: com vento declarado a camada horizontal vira gate de verdade -
+        # ELS lateral reprova (Tabela 13.3 vale em qualquer altura) e o
+        # indicador gamma_z acima de 1,1 reprova (nos moveis: simplificado
+        # fora do campo < 4 andares e P-Delta fora deste lote). Sem vento
+        # (terrea), nao ha gate horizontal: a dispensa escrita mora no aviso
+        # e no relatorio, nao num OK silencioso.
+        if r_horizontal is not None:
+            gates["estabilidade_horizontal"] = gate_horizontal_casa(
+                r_horizontal)
     if baldrame is not None:
         gates["viga_baldrame"] = {
             "OK": baldrame["OK"],
@@ -1288,6 +2159,21 @@ def rodar(spec):
             "distribuicao": (detalhe_escada["distribuicao"]
                              if detalhe_escada else None),
             "erro": escada_erro}
+    if r_telhado is not None or telhado_erro is not None:
+        gates["telhado_madeira"] = {
+            "OK": bool(r_telhado is not None and r_telhado["ATENDE"]
+                       and telhado_erro is None),
+            "n_tesouras": (r_telhado["n_tesouras"] if r_telhado else None),
+            "vao_m": (r_telhado["vao_m"] if r_telhado else None),
+            "W_total_kN": round(telhado_bruto_total, 2),
+            "reprovados": list(r_telhado["reprovados"]) if r_telhado else [],
+            "distribuicao": (detalhe_telhado["distribuicao"]
+                             if detalhe_telhado
+                             else ("paredes do beiral %s"
+                                   % "/".join(sorted(
+                                       carga_telhado_por_linha))
+                                   if carga_telhado_por_linha else None)),
+            "erro": telhado_erro}
 
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     if com_alvenaria:
@@ -1314,9 +2200,12 @@ def rodar(spec):
         "alvenaria": alvenaria, "alvenaria_erro": erro_alvenaria,
         "escada": r_escada, "escada_descida": detalhe_escada,
         "escada_erro": escada_erro, "planta": planta,
+        "telhado": r_telhado, "telhado_descida": detalhe_telhado,
+        "telhado_erro": telhado_erro,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "n_pavimentos": len(pavs),
-        "tipologia": ("alvenaria_terrea" if com_alvenaria
+        "tipologia": (("alvenaria_sobrado" if len(pavs) > 1
+                       else "alvenaria_terrea") if com_alvenaria
                       else ("terrea" if len(pavs) == 1 else "sobrado")),
         "H_total_m": len(pavs) * geo["pe_direito"],
         "h_laje_adotada": r_laje["h"], "h_laje_declarada": h_declarada,
@@ -1327,12 +2216,23 @@ def rodar(spec):
         "q_fundacao_linear_kN_m": dict(q_lin),
         "reacoes_baldrame_k": copy.deepcopy(reacoes_baldrame),
         "registro_6120": desc["registro_6120"],
+        # G68: a camada horizontal de concreto, quando calculada (terrea ou
+        # sobrado com vento declarado).
+        "horizontal": r_horizontal,
         "escopo": escopo(baldrame is not None, fundacao is not None,
-                         alvenaria is not None and erro_alvenaria is None),
+                         alvenaria is not None and erro_alvenaria is None,
+                         r_telhado is not None and telhado_erro is None
+                         and r_telhado["ATENDE"],
+                         com_vento_alvenaria=bool(
+                             alvenaria is not None
+                             and alvenaria.get("vento") is not None),
+                         com_vento_concreto=bool(r_horizontal is not None)),
     }
 
 
-def escopo(com_baldrame, com_fundacao, com_alvenaria=False):
+def escopo(com_baldrame, com_fundacao, com_alvenaria=False,
+           com_telhado=False, com_vento_alvenaria=False,
+           com_vento_concreto=False):
     """O que esta cadeia cobre e o que ela deixa de fora, dito em voz alta."""
     return {
         "laje": "implemented",
@@ -1346,24 +2246,47 @@ def escopo(com_baldrame, com_fundacao, com_alvenaria=False):
         # D94/G59: a fronteira do cabecalho, com o artigo em vez de um
         # not_available mudo. gamma_z (15.5.3) e as rigidezes aproximadas
         # (15.7.3) so valem para estruturas reticuladas com no minimo 4
-        # andares: casa de 1-2 pav esta FORA DO CAMPO do metodo, nao
+        # andares: a TERREA sem vento esta FORA DO CAMPO do metodo, nao
         # "esquecida". O desaprumo global (11.3.3.4.1) e' exigido "sejam elas
         # contraventadas ou nao", mas sem acao horizontal declarada nao ha
         # analise global onde ele entrasse - a cadeia e' gravitacional por
         # declaracao, e a imperfeicao LOCAL vive no pilar via M1d,min
         # (11.3.3.4.3, aplicado em pilar_concreto). O motivo escrito mora no
         # aviso acao_horizontal_nao_avaliada (casa_residencial) e no relatorio.
-        "acao_horizontal": "not_available",
-        "estabilidade_global": "not_available",
-        "desaprumo": "not_available",
+        # G68: com vento declarado (sobrado obrigatorio, terrea opc) o trio
+        # sai de not_available na medida em que passa a calcular - vento
+        # 6123 por nivel + desaprumo 11.3.3.4.1 + indicador gamma_z/ELS.
+        "acao_horizontal": ("implemented" if com_vento_concreto
+                            else "not_available"),
+        "estabilidade_global": ("implemented" if com_vento_concreto
+                                else "not_available"),
+        "desaprumo": "implemented" if com_vento_concreto else "not_available",
         # G61: escopo honesto — sai de not_available so na medida em que
-        # passa a calcular (parede 11.2.1 + corrida por linha).
+        # passa a calcular (parede 11.2.1 + corrida por linha). G67: o
+        # sobrado soma vento 6123 por nivel + 9.6.2 + 11.5 + 11.4 (+ Anexo C).
         "alvenaria_estrutural": ("implemented" if com_alvenaria
                                  else "not_available"),
-        "telhado_madeira": "not_available",
+        "vento_alvenaria_6123": ("implemented" if com_vento_alvenaria
+                                 else "not_available"),
+        # G66: a tesoura existe quando foi declarada, calculada e atendeu;
+        # sem ela o ultimo pavimento segue laje de cobertura sem telhado.
+        "telhado_madeira": ("implemented" if com_telhado
+                            else "not_available"),
         "aprovacao_legal": "not_claimed",
         "construction_readiness": "not_claimed",
     }
+
+
+def _linha_telhado_memorial(r):
+    """Linha do telhado no memorial: calculo dentro ou A CONFIRMAR fora."""
+    tel = r.get("telhado")
+    if isinstance(tel, dict) and tel.get("ATENDE"):
+        return ("TELHADO DE MADEIRA (G66, NBR 7190-1): %d tesoura(s) vao "
+                "%.2f m -> ATENDE (reacao total %.1f kN desceu ao %s)."
+                % (tel["n_tesouras"], tel["vao_m"],
+                   tel["descida"]["W_total_kN"], tel["descida"]["apoio"]))
+    return ("[A CONFIRMAR: estrutura de telhado em madeira fora do "
+            "escopo.]")
 
 
 def relatorio_pt(r):
@@ -1393,10 +2316,21 @@ def relatorio_pt(r):
         if ap.get("erro"):
             L.append("  ALVENARIA PORTANTE: REPROVA (%s)" % ap["erro"])
         else:
-            L.append("  ALVENARIA PORTANTE (NBR 16868-1 11.2.1): %d linhas -> %s"
-                     % (ap.get("n_linhas", 0),
+            _niveis = ap.get("n_pavimentos", 1)
+            _etiq = ("11.2.1" if (_niveis == 1 and not ap.get("vento"))
+                     else "11.5 + 11.4 + vento 6123/9.6.2 (G67)")
+            L.append("  ALVENARIA PORTANTE (NBR 16868-1 %s): %d linhas x %d "
+                     "nivel(is) -> %s"
+                     % (_etiq, ap.get("n_linhas", 0), _niveis,
                         "ATENDE" if ap.get("OK") else
                         "REPROVA em " + ", ".join(ap.get("reprovadas", []))))
+            if ap.get("vento"):
+                for _d, _v in sorted(ap["vento"].items()):
+                    L.append("      [vento %s] Fa = %.2f kN ; M_base = %.2f kNm"
+                             % (_d, _v["F_total_kN"], _v["M_base_kNm"]))
+                L.append("      [cisalhamento 11.4] -> %s"
+                         % ("ATENDE" if ap.get("cisalhamento_11_4_OK")
+                            else "REPROVA"))
             for motivo in ap.get("reprovadas", []):
                 L.append("      [parede] " + motivo)
         if "viga_baldrame" in g:
@@ -1439,17 +2373,32 @@ def relatorio_pt(r):
             L += ["", "  Planta de formas: %s" % r["planta"]]
         L += ["", "  RESULTADO GLOBAL: %s"
               % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"]))]
-        L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
-              "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
-              "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
-              % MAX_PAVIMENTOS,
-              "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
-              "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
-              "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
-              "  [ALVENARIA PORTANTE (G61): casa terrea; sobrado recusado "
-              "(contraventamento 9.6.2 e Anexo C fora do lote).]",
-              "  " + alv.linha_memorial_cadeia_gravitacional(),
-              "  [A CONFIRMAR: estrutura de telhado em madeira fora do escopo.]"]
+        if (r.get("alvenaria") or {}).get("vento") is not None:
+            L += ["  [VENTO NBR 6123 POR NIVEL (G67): Fa = Ca.q.Ae por nivel, "
+                  "Ca declarado do abaco da Fig.4; Fi por parede na 9.6.2 "
+                  "(flange 6t na 10.1.3); parede verificada na 11.5 e no "
+                  "cisalhamento 11.4 (fvk da Tab.4). Desaprumo global "
+                  "(16868-1 8.3.2.2) e gamma_z so acima deste lote: a "
+                  "tipologia cobre ate %d pavimentos e RECUSA mais que isso.]"
+                  % MAX_PAVIMENTOS_ALVENARIA,
+                  "  [ALVENARIA PORTANTE (G67): sobrado de 2 pavimentos; "
+                  "predio acima disso recusado (desaprumo 8.3.2.2 + nucleo "
+                  "armado fora do lote).]",
+                  "  " + alv.linha_memorial_cadeia_gravitacional(),
+                  "  " + _linha_telhado_memorial(r)]
+        else:
+            L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
+                  "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
+                  "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
+                  % MAX_PAVIMENTOS,
+                  "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
+                  "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
+                  "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
+                  "  [ALVENARIA PORTANTE (G61/G67): casa terrea gravitacional; "
+                  "sobrado com vento 6123 + 9.6.2 + 11.5 + 11.4; predio acima "
+                  "de %d pavimentos recusado.]" % MAX_PAVIMENTOS_ALVENARIA,
+                  "  " + alv.linha_memorial_cadeia_gravitacional(),
+                  "  " + _linha_telhado_memorial(r)]
         return "\n".join(L)
     L += ["  FECHAMENTO DE CARGA: %.1f kN nos pilares x %.1f kN esperados "
           "(erro %.3f%%) -> %s"
@@ -1523,15 +2472,52 @@ def relatorio_pt(r):
         L += ["", "  Planta de formas: %s" % r["planta"]]
     L += ["", "  RESULTADO GLOBAL: %s"
           % ("ATENDE" if r["ATENDE"] else "REPROVA -> " + ", ".join(r["reprovados"]))]
-    L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
-          "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
-          "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
-          % MAX_PAVIMENTOS,
-          "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
-          "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
-          "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
-          # G60: linha do memorial da fonte unica em alvenaria_estrutural;
-          # o telhado de madeira segue fora do escopo.
-          "  " + alv.linha_memorial_cadeia_gravitacional(),
-          "  [A CONFIRMAR: estrutura de telhado em madeira fora do escopo.]"]
+    if r.get("horizontal") is not None:
+        L += _linhas_horizontal_memorial(r)
+    else:
+        L += ["  [ACAO HORIZONTAL NAO AVALIADA: esta cadeia e' GRAVITACIONAL. Vento,",
+              "   desaprumo, gamma_z e ELS de deslocamento lateral nao entram - a",
+              "   tipologia cobre ate %d pavimentos e RECUSA mais que isso."
+              % MAX_PAVIMENTOS,
+              "   (G68: a terrea dispensa com este motivo escrito; o sobrado de",
+              "   concreto sem vento e' RECUSADO em vez de sair ATENDE.)",
+              "   gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118",
+              "   15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem",
+              "   analise global; imperfeicao local via M1d,min (11.3.3.4.3) no pilar.]",
+               # G60: linha do memorial da fonte unica em alvenaria_estrutural;
+               # G66: a do telhado sai calculada ou A CONFIRMAR, nunca muda.
+               "  " + alv.linha_memorial_cadeia_gravitacional(),
+               "  " + _linha_telhado_memorial(r)]
     return "\n".join(L)
+
+
+def _linhas_horizontal_memorial(r):
+    """Bloco do relatorio quando a camada horizontal foi calculada (G68)."""
+    h = r["horizontal"]
+    gh = r["gates"]["estabilidade_horizontal"]
+    L = ["  [VENTO NBR 6123 POR NIVEL (G68): Fa = Ca.q.Ae por nivel, Ca "
+         "declarado do abaco da Fig.4 (h/l1, l1/l2); q via S2 (cat/classe, "
+         "s1/s3 do sitio declarado).]"]
+    for d in ("x", "y"):
+        v = gh["por_direcao"][d]
+        L.append("      [vento %s] Fa = %.2f kN ; M_base = %.2f kNm ; "
+                 "desaprumo theta_a = 1/%.0f%s ; combinacao 11.3.3.4.1-%s "
+                 "(%s)"
+                 % (d, v["F_total_kN"], v["M_base_kNm"], 1.0 / v["theta_a"],
+                    "" if not v["desaprumo_saturou"]
+                    else " saturou em %s" % v["desaprumo_saturou"],
+                    v["combinacao_caso"], v["combinacao_usar"]))
+        L.append("      [ELS Tab.13.3] topo %.2f mm (limite %.2f mm) ; pior "
+                 "drift %.2f mm (limite %.2f mm) -> %s"
+                 % (v["els_u_topo_mm"], v["els_limite_topo_mm"],
+                    v["els_pior_drift_mm"], v["els_limite_entre_mm"],
+                    "OK" if v["els_OK"] else "REPROVA"))
+    L.append("  [2A ORDEM (G68): gamma_z = %.3f INDICADOR - 15.5.3 fora do "
+             "campo com %d pavimentos (minimo 4): indicador, nao metodo. "
+             "%s]"
+             % (gh["gamma_z_indicador_max"], int(h.get("n_pavimentos", 0)),
+                gh["dispensa"] if gh["dispensa"] is not None
+                else "; ".join(gh["motivos"])))
+    L.append("  " + alv.linha_memorial_cadeia_gravitacional())
+    L.append("  " + _linha_telhado_memorial(r))
+    return L

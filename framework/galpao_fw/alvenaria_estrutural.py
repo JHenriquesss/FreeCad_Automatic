@@ -76,9 +76,12 @@
 #     tensoes elasticas N/A +/- M/W, fs com Es/Ea e fyd da Er1:2021.
 #   - Anexo C (parede armada esbelta, P-Delta): verifica_parede_esbelta_
 #     anexo_C com Md,total amplificado por 1/(1-Nd/Ncr).
-#   - cisalhamento no plano (11.4): fora deste lote; o Vd por parede e
-#     REPORTADO (Fi da distribuicao) mas nao verificado. escopo() publica
-#     not_available com esse motivo.
+#   - cisalhamento no plano (11.4, G67): verifica_cisalhamento_114(Vd, fa,
+#     sigma) com fvk da Tab.4 (6.2.2.6) e tau_vd = Vd/(te.L) da 11.4.1;
+#     o Fi da 9.6.2 passa a ser VERIFICADO, nao so reportado.
+#   - vento por nivel (G67, NBR 6123 4.2.3 Fa = Ca.q.Ae): vento_fa_por_nivel
+#     da origem ao Qh de cada nivel (Ca declarado do abaco da Fig.4, q via
+#     vento_nbr6123.s2_factor homologado); Qh avulsa segue recusando.
 #   - BIM e pranchas de alvenaria: G62 (implemented).
 #
 # FRONTEIRA DO PESO (a laje do G52 outra vez, se descuidar): o peso
@@ -96,11 +99,13 @@
 
 Compressao simples (11.2.1), pilar armado (11.2.2, Ea da errata), flexao
 simples (11.3.3, fyd da errata), flexo-compressao (11.5, G63), Anexo C
-(G63), contraventamento por rigidez (9.6.2 com flanges ate 6t na 10.1.3,
-G63), esbeltez com tetos da Tab.9 (10.1.2), gamma_m da Tab.2 e fk a
-partir do fpk de prisma (6.2.2.3, Parte 3). fpk e entrada declarada sem
+(G63), cisalhamento no plano (11.4 com fvk da Tab.4 em 6.2.2.6, G67),
+contraventamento por rigidez (9.6.2 com flanges ate 6t na 10.1.3,
+G63) e vento por nivel (NBR 6123 4.2.3 Fa = Ca.q.Ae, G67), esbeltez
+com tetos da Tab.9 (10.1.2), gamma_m da Tab.2 e fk a partir do fpk de
+prisma (6.2.2.3, Parte 3). fpk e fa sao entradas declaradas sem
 default; lambda acima do teto reprova; Qh avulsa recusa com motivo (a
-distribuida verifica na 11.5); peso proprio interno zero.
+distribuida verifica na 11.5 e na 11.4); peso proprio interno zero.
 """
 
 from __future__ import annotations
@@ -148,6 +153,37 @@ FS_TETO_ESTRIBO_12PHI_MP = 500.0
 # 11.3.3: teto de ductilidade do MRd.
 FATOR_MRD_TETO_DUTIL = 0.30
 
+# G70 (verga desenhada ganha conta): geometria declarada da verga /
+# contraverga, usada pelo CALCULO, pelo DESENHO e pela CONFERENCIA.
+# Apoio de cada lado (m): comprimento de apoio da peca sobre a parede.
+# O desenho antigo usava 0,20 m por lado (linha de 0,20*ESC para cada lado,
+# total +0,40 m sobre o vao); a convencao fica escrita aqui, nao no SVG.
+APOIO_VERGA_M = 0.20
+# Altura da verga (m): uma fiada de 0,20 m (canaleta armada). O d util
+# desconta 0,03 m de cobrimento.
+ALTURA_VERGA_M = 0.20
+COBRIMENTO_VERGA_M = 0.03
+# Contraverga: detalhe construtivo sob o peitoril das janelas (nao peca
+# calculada pela 11.3). Mesma largura da verga, altura de 0,10 m em concreto
+# com 2x6.3 corridos: costura a tracao diagonal que abre fissura no canto do
+# vao quando o peitoril recalca. Sem ela o canto fissura; com ela nao ha conta
+# de flexao a fazer (nao vence vao, nao recebe arco).
+ALTURA_CONTRAVERGA_M = 0.10
+APOIO_CONTRAVERGA_M = 0.20
+
+# G70 (uma so verdade nos cruzamentos): a parede em X e continua; a parede
+# em Y e CORTADA em cada cruzamento com recuo de te/2 de cada lado (parede)
+# ou B/2 (sapata corrida). O ORCAMENTO mede a linha INTEIRA (bruto, a favor
+# do orcamento) e o MODELO soma os trechos LIQUIDOS (sem dupla ocupacao de
+# volume); os dois derivam desta mesma regra, escrita aqui uma unica vez.
+# L_liquido_y = L_bruto - (n_linhas_x_com_parede - 1) * te, com minimo de um
+# recuo (contorno: L - te). Ver comprimento_liquido_y() e recuo_cruzamento().
+CONVENCAO_CRUZAMENTOS = (
+    "parede em X continua; parede em Y cortada em cada cruzamento "
+    "(recuo te/2 por lado na parede, B/2 na corrida); orcamento mede a linha "
+    "inteira (bruto, a favor do orcamento), modelo soma os trechos liquidos; "
+    "ambos derivam de alvenaria_estrutural.comprimento_liquido_y (G70)")
+
 # 10.1.3: flange colaborante da parede de contraventamento ate 6t por lado.
 FLANGE_LIMITE_6T = 6.0
 
@@ -157,6 +193,20 @@ TOL_FECHAMENTO_HORIZONTAL_KN = 1e-6
 
 # C.1-f (leitura do lote): tracao na alvenaria ate 10 % de fpk/gamma_m.
 FATOR_TRACAO_ANEXO_C = 0.10
+
+# 6.2.2.6 Tab.4 (G67): faixas de resistencia media da argamassa (MPa) ->
+# (tau0_MPa, teto_MPa) de fvk = tau0 + 0,5.sigma. Patamar fora recusa.
+FVK_TABELA_4 = (
+    (1.5, 3.4, 0.10, 1.0),
+    (3.5, 7.0, 0.15, 1.4),
+    (7.0, float("inf"), 0.35, 1.7),
+)
+COEF_ATRITO_FVK = 0.5
+# 11.4.3/armada (G67): fvk = 0,35 + 17,5.rho <= 0,7 MPa, rho <= 2 %.
+FVK_ARMADA_TAU0_MP = 0.35
+FVK_ARMADA_COEF = 17.5
+FVK_ARMADA_TETO_MP = 0.7
+FVK_ARMADA_RHO_TETO = 0.02
 
 
 class EntradaAlvenaria(ValueError):
@@ -480,7 +530,18 @@ def distribuir_horizontal_por_rigidez(Qh_kN, paredes, tol_kN=None):
 
 
 def confere_fechamento_horizontal(distribuicao, Qh_kN, tol_kN=None):
-    """Guarda de fechamento do horizontal (G63): soma(Fi) bate com Qh.
+    """DECLARACAO de integridade do horizontal (G63), triada no G69 (D86).
+
+    Lado A (soma): soma dos Fi da distribuicao (cada Fi = Qh x quota, com
+    quota = k_rel/k_total calculada em distribuir_horizontal_por_rigidez).
+    Lado B (Qh): a mesma Qh DECLARADA que entrou na reparticao.
+    Os dois lados nascem da MESMA expressao: quotas somam 1 por construcao,
+    entao a soma fecha mesmo com a rigidez errada (parede errada, I/he
+    errado, direcao trocada). E' guarda decorativa como CONFERENCIA fisica;
+    como DECLARACAO ela pega adulteracao posterior (Fi editado a mao,
+    parede removida da lista) — nunca erro de formula. Nao apagar sem
+    substituto (G69). A relacao independente do plano esta em
+    estrutura_casa.verifica_fechamento_alvenaria (simetria, G61).
 
     distribuicao: retorno de distribuir_horizontal_por_rigidez ou lista
     [{Fi_kN}|{Vd_kN}]. Relacao, nunca numero congelado.
@@ -503,6 +564,165 @@ def confere_fechamento_horizontal(distribuicao, Qh_kN, tol_kN=None):
                        "fechamento_horizontal_diverge: soma(Fi) = %.6f kN "
                        "difere de Qh = %.6f kN em %.6f kN."
                        % (soma, Qh, erro))}
+
+
+def fvk_caracteristico_6226(fa_MPa, sigma_MPa):
+    """fvk da Tab.4 (6.2.2.6, G67), em kN/m2.
+
+    fa_MPa: resistencia MEDIA a compressao da argamassa (MPa, DECLARADA,
+      sem default — faixas da Tab.4, nao se interpola patamar).
+    sigma_MPa: tensao normal de pre-compressao na junta (MPa, >= 0),
+      considerando-se APENAS as acoes permanentes ponderadas por 0,9
+      (acao favoravel, nota da Tab.4).
+    fvk = tau0 + 0,5.sigma, capado no teto da faixa. Vale para
+    assentamento com juntas verticais preenchidas; fora disso o caso
+    RECUSA em verifica_cisalhamento_114 (o campo da tabela).
+    """
+    if fa_MPa is None:
+        raise EntradaAlvenaria(
+            "fa_nao_declarada: o fvk da Tab.4 (NBR 16868-1 6.2.2.6) e por "
+            "faixa de resistencia da argamassa; sem fa declarada nao ha fvk.")
+    fa = float(fa_MPa)
+    sig = float(sigma_MPa)
+    if not sig >= 0:
+        raise EntradaAlvenaria("sigma_negativa: %r MPa" % (sig,))
+    for fa_min, fa_max, tau0, teto in FVK_TABELA_4:
+        if fa_min - 1e-9 <= fa <= fa_max + 1e-9:
+            fvk_mp = min(tau0 + COEF_ATRITO_FVK * sig, teto)
+            return {"fvk_MPa": fvk_mp, "fvk_kN_m2": fvk_mp * 1000.0,
+                    "tau0_MPa": tau0, "teto_MPa": teto,
+                    "faixa_MPa": (fa_min, fa_max),
+                    "fonte": "NBR 16868-1 Tab.4 (6.2.2.6)"}
+    raise EntradaAlvenaria(
+        "fa_fora_da_tabela_4: fa = %.2f MPa fora das faixas 1,5-3,4 / "
+        "3,5-7,0 / acima de 7,0 MPa (NBR 16868-1 Tab.4, 6.2.2.6)."
+        % (fa,))
+
+
+def verifica_cisalhamento_114(Vd_kN, N_perm_kN, te_m, L_m, fa_MPa,
+                              combinacao="normal",
+                              juntas_verticais_preenchidas=True):
+    """Parede nao armada ao cisalhamento no plano, 11.4 (G67).
+
+    Vd_kN: cortante DE CALCULO na parede (kN, ex.: Fi da 9.6.2 x 1,4).
+    N_perm_kN: normal CARACTERISTICA das acoes PERMANENTES na parede
+      (kN, >= 0 — laje g + parede + telhado g; o 0,9 favoravel entra aqui
+      dentro, nota da Tab.4, nunca por fora).
+    te_m x L_m: secao da ALMA (m; 11.4.1: em secao com flanges, so a alma).
+    fa_MPa: resistencia media da argamassa (MPa, DECLARADA).
+    juntas_verticais_preenchidas: o campo da Tab.4; False RECUSA (a tabela
+      so vale com elas preenchidas, 6.2.2.6).
+    tau_vd = Vd/(te.L) <= fvk/gamma_m (11.4.1 + 11.4.2). Parede ARMADA ao
+    cisalhamento (11.4.3, Va + Vs) RECUSA com endereco: fora deste lote.
+    """
+    if not juntas_verticais_preenchidas:
+        return _base_resultado(
+            "recusado", False,
+            "juntas_verticais_nao_preenchidas: o fvk da Tab.4 (NBR 16868-1 "
+            "6.2.2.6) so vale para assentamento com juntas verticais "
+            "preenchidas; sem elas nao ha fvk neste lote.",
+            Vd_kN=float(Vd_kN))
+    Vd = float(Vd_kN)
+    Np = float(N_perm_kN)
+    te = float(te_m)
+    L = float(L_m)
+    if Vd < 0:
+        raise EntradaAlvenaria("Vd_negativa: use o modulo (Vd = %r kN)."
+                               % (Vd,))
+    if not Np >= 0:
+        raise EntradaAlvenaria("N_perm_negativa: %r kN" % (Np,))
+    if not te > 0:
+        raise EntradaAlvenaria("te_nao_positiva: %r" % (te,))
+    if not L > 0:
+        raise EntradaAlvenaria("L_nao_positivo: %r m" % (L,))
+    A = te * L
+    sigma = 0.9 * Np / A / 1000.0            # MPa (0,9 favoravel, Tab.4)
+    fvk = fvk_caracteristico_6226(fa_MPa, sigma)
+    gm = gamma_m(combinacao)["alvenaria"]
+    fvd = fvk["fvk_kN_m2"] / gm
+    tau = Vd / A
+    VRd = fvd * A
+    ok = tau <= fvd
+    return _base_resultado(
+        "aprovado" if ok else "reprovado", ok,
+        "" if ok else ("cisalhamento_insuficiente: tau_vd = %.1f kN/m2 "
+                       "acima de fvd = fvk/gamma_m = %.1f kN/m2 "
+                       "(NBR 16868-1 11.4.1 + 11.4.2, fvk da Tab.4)."
+                       % (tau, fvd)),
+        Vd_kN=Vd, N_perm_kN=Np, te_m=te, L_m=L, A_m2=round(A, 4),
+        sigma_MPa=round(sigma, 4), fa_MPa=float(fa_MPa),
+        fvk_kN_m2=round(fvk["fvk_kN_m2"], 3),
+        fvk_MPa=round(fvk["fvk_MPa"], 4),
+        fvd_kN_m2=round(fvd, 3), tau_vd_kN_m2=round(tau, 3),
+        VRd_kN=round(VRd, 3), gamma_m=gm,
+        fonte_fvk=fvk["fonte"])
+
+
+def vento_fa_por_nivel(n_pavimentos, pe_direito_m, largura_frontal_m,
+                       vento):
+    """Forca de arrasto por nivel, NBR 6123 4.2.3 Fa = Ca.q.Ae (G67).
+
+    n_pavimentos/pe_direito_m/largura_frontal_m: geometria (m). A faixa
+    tributaria do nivel i vai de z_i - pe/2 a z_i + pe/2, exceto o ultimo
+    (topo), que termina no topo; a meia-altura inferior (0 a pe/2) desce
+    direto a fundacao e NAO e atribuida a nivel nenhum — a mesma particao
+    de estabilidade_edificio._cotas_e_areas (origem do Qh, nao numero).
+    vento: {v0 (m/s), cat (I-V), classe (A-C), s1?, s3?, ca (numero > 0,
+      DECLARADO do abaco da Fig.4 com h/l1 e l1/l2 — a norma so da abaco)}.
+    q via vento_nbr6123.s2_factor (homologado; nao recalculado aqui).
+    Devolve por nivel {z, h_trib, Ae, s2, vk, q, Fa} + F_total + M_base.
+    """
+    import vento_nbr6123 as _vt
+    n = int(n_pavimentos)
+    pe = float(pe_direito_m)
+    l1 = float(largura_frontal_m)
+    if not n >= 1:
+        raise EntradaAlvenaria("n_pavimentos_nao_positivo: %r" % (n,))
+    if not pe > 0:
+        raise EntradaAlvenaria("pe_direito_nao_positivo: %r" % (pe,))
+    if not l1 > 0:
+        raise EntradaAlvenaria("largura_frontal_nao_positiva: %r" % (l1,))
+    if not isinstance(vento, dict):
+        raise EntradaAlvenaria(
+            "vento_nao_declarado: o sobrado pede vento NBR 6123 (v0, cat, "
+            "classe, ca declarado do abaco da Fig.4); Qh avulsa segue "
+            "recusando.")
+    try:
+        v0 = float(vento["v0"])
+        cat, classe = vento["cat"], vento["classe"]
+        ca = float(vento["ca"])
+    except (KeyError, TypeError, ValueError):
+        raise EntradaAlvenaria(
+            "vento_incompleto: declare v0/cat/classe + ca (NBR 6123 Fig.4, "
+            "abaco lido pelo projetista, recebido %r)." % (vento,))
+    if not v0 > 0:
+        raise EntradaAlvenaria("v0_nao_positivo: %r" % (v0,))
+    if not ca > 0:
+        raise EntradaAlvenaria("ca_nao_positivo: %r" % (ca,))
+    s1 = float(vento.get("s1", 1.0))
+    s3 = float(vento.get("s3", 1.0))
+    niveis = []
+    for i in range(1, n + 1):
+        z = i * pe
+        h_trib = pe if i < n else pe / 2.0
+        Ae = l1 * h_trib
+        _b, _fr, _p, s2 = _vt.s2_factor(cat, classe, z)
+        vk = v0 * s1 * s2 * s3
+        q = 0.613 * vk ** 2 / 1000.0
+        Fa = ca * q * Ae
+        niveis.append({"nivel": i, "z_m": round(z, 3),
+                       "h_trib_m": round(h_trib, 3),
+                       "Ae_m2": round(Ae, 3), "s2": round(s2, 4),
+                       "vk_m_s": round(vk, 2), "q_kN_m2": round(q, 4),
+                       "Fa_kN": round(Fa, 3)})
+    F_tot = sum(v["Fa_kN"] for v in niveis)
+    M_base = sum(v["Fa_kN"] * v["z_m"] for v in niveis)
+    return {"n_pavimentos": n, "pe_direito_m": pe,
+            "largura_frontal_m": l1, "ca": ca,
+            "ca_fonte": ("NBR 6123 Figura 4 (abaco): Ca em funcao de h/l1 "
+                         "e l1/l2 — lido pelo projetista, nao derivado aqui"),
+            "niveis": niveis, "F_total_kN": round(F_tot, 3),
+            "M_base_kNm": round(M_base, 3)}
 
 
 def _fs_flexo_115(fpk, tipo_bloco, fyk, combinacao, es_kNm2=None):
@@ -541,8 +761,8 @@ def verifica_flexo_compressao_115(Nd, Md_kNm, fpk, he, te, L,
     Tracao (sigma_min < 0): sem As REPROVA (flexo_tracao_sem_armadura,
     com o T que o aco teria de levar); com As, o bloco triangular de
     tracao T tem de caber em As.fs (fs da _fs_flexo_115, errata).
-    Vd_kN (Fi da parede) e REPORTADO, nao verificado: o cisalhamento no
-    plano (11.4) segue fora do lote (ver escopo()).
+    Vd_kN (Fi da parede) e REPORTADO para a 11.4 (G67 verifica em
+    verifica_cisalhamento_114); aqui nao e verificado.
     """
     Nd = float(Nd)
     Md = float(Md_kNm)
@@ -1040,12 +1260,244 @@ def verifica_flexao_simples_1133(Md, As, b, d, fd, fyk, phi_mm,
             "peso_proprio_interno_kN": 0.0}
 
 
-def confere_fronteira_peso(Nd_usado_kN, carga_via_6120_kN, tol_kN=1e-3):
-    """Igualdade que atravessa a fronteira peso (F21, molde G52) — CASO ISOLADO.
+def recuo_cruzamento(te_ou_B_m):
+    """Recuo de cada lado no corte em Y (G70): te/2 na parede, B/2 na corrida.
 
-    Nd_usado_kN: o Nd que entrou na verificacao do elemento.
-    carga_via_6120_kN: a mesma carga pela via da carga
-    (cargas_nbr6120.carga_linear_parede x comprimento).
+    Fonte unica da convencao (CONVENCAO_CRUZAMENTOS): bim_edificio e
+    gestao_casa derivam daqui, nunca de numero repetido.
+    """
+    t = float(te_ou_B_m)
+    if not t > 0:
+        raise EntradaAlvenaria("recuo_nao_positivo: %r" % (te_ou_B_m,))
+    return t / 2.0
+
+
+def comprimento_liquido_y(L_bruto_m, n_linhas_x, te_m):
+    """L liquido da linha em Y apos o corte nos cruzamentos (G70).
+
+    L_bruto: linha inteira (o que o orcamento mede, a favor do orcamento).
+    n_linhas_x: quantas linhas em X com parede cruzam o eixo Y.
+    te: espessura da parede. L_liq = L_bruto - max(n_x-1,1)*te.
+    Com so o contorno (n_x=2) devolve L-te (um recuo em cada ponta); com
+    malha interna, um te por vao interno. A corrida usa a mesma funcao com
+    B no lugar de te.
+    """
+    L = float(L_bruto_m)
+    te = float(te_m)
+    try:
+        n_x = int(n_linhas_x)
+    except (TypeError, ValueError):
+        raise EntradaAlvenaria("n_linhas_x_invalido: %r" % (n_linhas_x,))
+    if not L > 0 or not te > 0 or n_x < 0:
+        raise EntradaAlvenaria(
+            "cruzamento_invalido: L=%r n_x=%r te=%r" % (L_bruto_m, n_linhas_x, te_m))
+    cortes = max(n_x - 1, 1)
+    liq = L - cortes * te
+    if not liq > 0:
+        raise EntradaAlvenaria(
+            "linha_y_sem_trecho: L=%.3f m com %d linhas em X e te=%.3f m "
+            "nao deixa trecho positivo" % (L, n_x, te))
+    return round(liq, 4)
+
+
+def detalhe_contraverga(larg_vao_m, apoio_m=None):
+    """Contraverga sob o peitoril: DETALHE construtivo, nao peca calculada.
+
+    Funcao: costurar a tracao diagonal que abre fissura a 45 graus no canto
+    do vao quando o peitoril recalca. Dimensao: larg + 2*apoio de cada lado,
+    altura ALTURA_CONTRAVERGA_M (0,10 m) em concreto com 2x6.3 corridos.
+    Nao ha verificacao de flexao pela 11.3 aqui (nao vence vao, nao recebe
+    arco de descarga): o motivo fica escrito para a folha nao prometer conta.
+    """
+    larg = float(larg_vao_m)
+    if not larg > 0:
+        raise EntradaAlvenaria("vao_nao_positivo_contraverga: %r" % (larg_vao_m,))
+    ap = float(apoio_m) if apoio_m is not None else APOIO_CONTRAVERGA_M
+    if not ap > 0:
+        raise EntradaAlvenaria("apoio_nao_positivo_contraverga: %r" % (apoio_m,))
+    return {"peca": "contraverga",
+            "funcao": "costurar a tracao diagonal no canto do vao "
+                      "(fissuracao no canto do vao sob o peitoril)",
+            "comprimento_m": round(larg + 2.0 * ap, 3),
+            "altura_m": ALTURA_CONTRAVERGA_M,
+            "apoio_m": round(ap, 3),
+            "armadura": "2x6.3 corridos (detalhe construtivo)",
+            "calculada_113": False,
+            "motivo": "detalhe_construtivo_nao_peca_calculada: a contraverga "
+                      "nao vence vao em flexao (11.3 nao se aplica); evita a "
+                      "fissura no canto do vao, nao carrega arco."}
+
+
+def dimensiona_verga_1133(larg_vao_m, h_parede_acima_m, peso_parede_kN_m2,
+                          q_laje_linear_kN_m=0.0, h_laje_sobre_verga_m=None,
+                          fpk=None, material="bloco", te_m=0.14,
+                          combinacao="normal", fyk=500e3, phi_mm=10.0,
+                          bloco="concreto", ranhurado=False,
+                          apoio_m=None, altura_verga_m=None,
+                          gf=1.4):
+    """Verga sobre o vao em flexao simples 11.3.3 COM arco de descarga (G70).
+
+    Vao: L_calculo = larg_vao + apoio (vao livre mais UM apoio, efetivo de
+    apoio simples); a PECA mede larg + 2*apoio (desenho confere esse total).
+    Carga da parede: arco a 45 graus sobre o vao (triangulo isosceles de base
+    L_calculo e altura L_calculo/2). Se a parede acima chega para formar o
+    arco (h_parede_acima >= L_calculo/2), so o triangulo pesa na verga:
+    q_parede = peso * h_arco/2 (peso do triangulo rateado em L). Sem altura
+    para o arco, a verga leva a parede cheia (q = peso*h_acima): sem o arco
+    a verga sai grosseiramente superdimensionada; com o arco mal aplicado
+    (triangulo onde nao cabe, ou laje dentro do triangulo ignorada) sai
+    contra a seguranca.
+    Laje: so entra a parcela que cai DENTRO do triangulo. A laje pousa no
+    topo da parede a h_laje_sobre_verga do topo do vao (default = h_acima);
+    se essa cota esta acima de h_arco, o arco desvia a laje para os lados e
+    a verga nao a recebe (q_laje=0); se esta dentro, a verga recebe a linha
+    toda (q_laje_linear). Peso proprio da canaleta (25*te*h_verga) soma.
+    Flexao: Md = q_tot*L^2/8 (ELU com gf); fd = fk/gamma (fk de fk_de_fpk,
+    gamma de gamma_alvenaria sem armadura/terrea=False); d = h_verga -
+    cobrimento; As escolhido entre 2 barras (6.3/8/10/12.5) pela primeira que
+    passa em verifica_flexao_simples_1133 (fyd da Er1:2021, redutores e teto
+    0,3.fd.b.d2 dentro da verifica).
+    Devolve o dimensionamento com o arco declarado (arco_formado True/False)
+    e a armadura adotada; se nenhuma bitola passa, OK=False com motivo (em
+    vez de devolver As que nao verifica).
+    """
+    larg = float(larg_vao_m)
+    h_ac = float(h_parede_acima_m)
+    peso = float(peso_parede_kN_m2)
+    if not larg > 0:
+        raise EntradaAlvenaria("vao_nao_positivo_verga: %r" % (larg_vao_m,))
+    if not h_ac >= 0:
+        raise EntradaAlvenaria("h_acima_negativa_verga: %r" % (h_parede_acima_m,))
+    if not peso > 0:
+        raise EntradaAlvenaria("peso_parede_nao_positivo_verga: %r"
+                               % (peso_parede_kN_m2,))
+    ap = float(apoio_m) if apoio_m is not None else APOIO_VERGA_M
+    hv_fixa = float(altura_verga_m) if altura_verga_m is not None else None
+    if not ap > 0 or (hv_fixa is not None and not hv_fixa > 0):
+        raise EntradaAlvenaria("apoio_ou_altura_nao_positivos_verga: ap=%r h=%r"
+                               % (apoio_m, altura_verga_m))
+    if fpk is None:
+        raise EntradaAlvenaria(
+            "fpk_nao_declarado_verga: sem fpk nao ha fk nem fd (regra do SPT).")
+    te = float(te_m)
+    if not te > 0:
+        raise EntradaAlvenaria("te_nao_positiva_verga: %r" % (te_m,))
+    L = larg + ap
+    comp_peca = larg + 2.0 * ap
+    h_arco_pot = L / 2.0
+    arco = h_ac >= h_arco_pot - 1e-9
+    h_arco = h_arco_pot if arco else h_ac
+    if arco:
+        q_parede = peso * h_arco / 2.0
+    else:
+        q_parede = peso * h_ac
+    q_laje = float(q_laje_linear_kN_m or 0.0)
+    if q_laje < 0:
+        raise EntradaAlvenaria("q_laje_negativa_verga: %r" % (q_laje_linear_kN_m,))
+    h_laje = float(h_laje_sobre_verga_m) if h_laje_sobre_verga_m is not None else h_ac
+    laje_dentro = (q_laje > 0) and (h_laje <= h_arco + 1e-9)
+    q_laje_cons = q_laje if laje_dentro else 0.0
+    fk = fk_de_fpk(float(fpk), material)
+    gm = gamma_alvenaria(combinacao, False, False)
+    fd = fk / gm
+    import math as _m
+    # Altura por fiadas: 0,20 (1 fiada) e, se nao verificar, 0,30/0,40/0,60.
+    # Verga de 0,20 que nao passa nao vira As maior que o teto (z negativa):
+    # vira peca mais alta, dita no resultado. Altura declarada fixa nao escala.
+    alturas = [hv_fixa] if hv_fixa is not None else [0.20, 0.30, 0.40, 0.60]
+    melhor_falha = None
+    for hv in alturas:
+        q_pp = 25.0 * te * hv
+        q_tot_k = q_parede + q_laje_cons + q_pp
+        Md = float(gf) * q_tot_k * L * L / 8.0
+        d = hv - COBRIMENTO_VERGA_M
+        if not d > 0:
+            raise EntradaAlvenaria("d_nao_positivo_verga: h=%.3f cobr=%.3f"
+                                   % (hv, COBRIMENTO_VERGA_M))
+        adotada = None
+        ultima = None
+        for phi in (6.3, 8.0, 10.0, 12.5):
+            if phi_mm is not None and phi > float(phi_mm) + 1e-9:
+                continue
+            As = 2.0 * _m.pi * (phi / 1000.0) ** 2 / 4.0
+            r = verifica_flexao_simples_1133(Md, As, te, d, fd, fyk, phi,
+                                             bloco=bloco, ranhurado=ranhurado)
+            ultima = (phi, As, r)
+            if r["OK"]:
+                adotada = (phi, As, r)
+                break
+        if adotada is None and phi_mm is not None:
+            phi = float(phi_mm)
+            As = 2.0 * _m.pi * (phi / 1000.0) ** 2 / 4.0
+            r = verifica_flexao_simples_1133(Md, As, te, d, fd, fyk, phi,
+                                             bloco=bloco, ranhurado=ranhurado)
+            ultima = (phi, As, r)
+            if r["OK"]:
+                adotada = (phi, As, r)
+        if adotada is not None:
+            phi_ad, As_ad, res = adotada
+            return {"OK": True,
+                    "veredito": "aprovado",
+                    "motivo": "",
+                    "L_calculo_m": round(L, 3),
+                    "comprimento_peca_m": round(comp_peca, 3),
+                    "apoio_m": round(ap, 3),
+                    "altura_verga_m": round(hv, 3),
+                    "d_m": round(d, 3),
+                    "h_arco_m": round(h_arco, 4),
+                    "arco_formado": bool(arco),
+                    "q_parede_kN_m": round(q_parede, 3),
+                    "q_laje_kN_m": round(q_laje_cons, 3),
+                    "laje_dentro_do_arco": bool(laje_dentro),
+                    "q_pp_kN_m": round(q_pp, 3),
+                    "q_total_k_kN_m": round(q_tot_k, 3),
+                    "Md_kNm": round(Md, 3),
+                    "phi_mm": phi_ad, "As_m2": As_ad,
+                    "As_cm2": round(As_ad * 1e4, 3),
+                    "armadura": "2x%.1f" % (phi_ad,),
+                    "MRd_kNm": res["MRd_kNm"],
+                    "fd_kN_m2": round(fd, 1), "fk_kN_m2": round(fk, 1),
+                    "gamma_m": gm,
+                    "peso_proprio_interno_kN": 0.0}
+        phi_ad, As_ad, res = ultima
+        melhor_falha = (hv, d, q_pp, q_tot_k, Md, phi_ad, As_ad, res)
+    hv, d, q_pp, q_tot_k, Md, phi_ad, As_ad, res = melhor_falha
+    return {"OK": False,
+            "veredito": "reprovado",
+            "motivo": ("verga_nao_passou_1133: Md=%.3f kNm acima do MRd com "
+                       "2x%.1f em h=%.2f m (NBR 16868-1 11.3.3 com fyd da "
+                       "Er1:2021)." % (Md, phi_ad, hv)),
+            "L_calculo_m": round(L, 3),
+            "comprimento_peca_m": round(comp_peca, 3),
+            "apoio_m": round(ap, 3),
+            "altura_verga_m": round(hv, 3),
+            "d_m": round(d, 3),
+            "h_arco_m": round(h_arco, 4),
+            "arco_formado": bool(arco),
+            "q_parede_kN_m": round(q_parede, 3),
+            "q_laje_kN_m": round(q_laje_cons, 3),
+            "laje_dentro_do_arco": bool(laje_dentro),
+            "q_pp_kN_m": round(q_pp, 3),
+            "q_total_k_kN_m": round(q_tot_k, 3),
+            "Md_kNm": round(Md, 3),
+            "phi_mm": phi_ad, "As_m2": As_ad,
+            "As_cm2": round(As_ad * 1e4, 3),
+            "armadura": "2x%.1f" % (phi_ad,),
+            "MRd_kNm": res["MRd_kNm"],
+            "fd_kN_m2": round(fd, 1), "fk_kN_m2": round(fk, 1),
+            "gamma_m": gm,
+            "peso_proprio_interno_kN": 0.0}
+
+
+def confere_fronteira_peso(Nd_usado_kN, carga_via_6120_kN, tol_kN=1e-3):
+    """DECLARACAO da fronteira peso (F21, molde G52) — CASO ISOLADO, triada G69.
+
+    Lado A (Nd_usado_kN): o Nd que entrou na verificacao do elemento.
+    Lado B (carga_via_6120_kN): a mesma carga pela via da carga
+    (cargas_nbr6120.carga_linear_parede x comprimento), passada PRONTA por
+    quem chama. Quando o chamador calcula os dois lados como q x L, os dois
+    lados nascem da mesma expressao (D86): a igualdade pega transcricao
+    (peso contado duas vezes ou nenhuma, GF misturado), nunca fisica nova.
     Vale quando Nd E a propria parede (G60). Com laje acima, Nd deixa de
     ser o peso da parede e esta igualdade QUEBRA POR CONSTRUCAO: use
     confere_fronteira_peso_parcela (G61).
@@ -1069,19 +1521,27 @@ def confere_fronteira_peso_parcela(Nd_parede_kN, tipo_parede_6120,
                                    espessura_cm, altura_m,
                                    comprimento_m, revestimento_cm=1.0,
                                    tol_kN=1e-3):
-    """Igualdade da fronteira peso para o CASO REAL (F21, G61).
+    """DECLARACAO da fronteira peso para o CASO REAL (F21, G61), triada G69 (D86).
 
-    Com laje e pavimentos acima, Nd = laje + parede e Nd total nunca bate
-    com o peso da parede. O guarda compara a PARCELA de Nd atribuivel a
-    parede contra carga_linear_parede x L — relacao, nunca numero congelado:
-    a carga via NBR 6120 e recomputada aqui dentro (revestimento fora do
-    default como filtro de nome morto), nao recebida pronta.
+    Lado A (Nd_parede_kN): parcela isolada por linha de parede, na mesma base
+    da carga via 6120. Quem chama ISOLA a parcela no resultado
+    (estrutura_casa.dimensiona_alvenaria_portante calcula N_parede_k =
+    q_parede x L, com q_parede = carga_linear_parede).
+    Lado B (carga via 6120): recomputada AQUI DENTRO como
+    carga_linear_parede(tipo, esp, altura, revestimento) x L.
+    Os dois lados nascem da MESMA expressao (q x L, mesma tabela): a guarda
+    concordaria consigo mesma com a parede errada — e' decorativa como
+    CONFERENCIA do plano. Como DECLARACAO ela pega transcricao (L errado,
+    GF de um lado so, revestimento com nome morto, parcela ausente) e por
+    isso NAO pode ser apagada sem substituto (G69). A relacao independente
+    do plano e' estrutura_casa.confere_simetria_quinhao via
+    verifica_fechamento_alvenaria (G61): plano simetrico com quinhoes
+    espelhados diferentes reprova mesmo com o total fechando.
 
     Nd_parede_kN: parcela isolada por linha de parede, na mesma base da
     carga via 6120 (caracteristica x caracteristica, ou calculo x calculo
-    com o mesmo GF dos dois lados). Quem chama ISOLA a parcela no
-    resultado (estrutura_casa.dimensiona_alvenaria_portante); sem parcela
-    isolavel a junta e inverificavel e o caso RECUSA.
+    com o mesmo GF dos dois lados). Sem parcela isolavel a junta e
+    inverificavel e o caso RECUSA.
     """
     import cargas_nbr6120 as _cg
     if Nd_parede_kN is None:
@@ -1115,16 +1575,16 @@ def escopo():
         "compressao_pilar_11_2_1": "implemented",
         "pilar_armado_11_2_2": "implemented",
         "flexao_simples_11_3_3": "implemented",
-        # G63: distribuicao 9.6.2 + 11.5 + Anexo C disponiveis; o
-        # cisalhamento no plano (11.4) segue fora e nomeado.
+        # G63: distribuicao 9.6.2 + 11.5 + Anexo C disponiveis; G67 fecha
+        # a 11.4 e da origem ao vento (6123 por nivel).
         "flexo_compressao_11_5": "implemented",
         "parede_muito_esbelta_anexo_C": "implemented",
         "acao_horizontal_contraventamento": "implemented",
-        "cisalhamento_11_4": "not_available",
-        # A prancha DESENHA verga e contraverga (com apoio de 0,40 m); ninguem
-        # as dimensiona. Desenho que sugere calculo inexistente e rotulo
-        # dirigindo geometria: fica dito aqui em vez de implicito na folha.
-        "verga_contraverga": "not_available",
+        "cisalhamento_11_4": "implemented",
+        "vento_por_nivel_6123": "implemented",
+        # G70: a verga desenhada ganha conta (11.3.3 com arco de descarga);
+        # a contraverga segue detalhe construtivo declarado (nao peca de flexao).
+        "verga_contraverga": "implemented",
         # G62: a parede calculada vira folha (desenho_alvenaria sobre as
         # primitivas de desenho_svg_base) e membro BIM (tipo Wall + Footing
         # corrido em bim_edificio, IfcWall/IfcFooting em ifc_emit).
@@ -1151,16 +1611,24 @@ def motivos_escopo():
             "(soma Fi = Qh). estabilidade_b1b2.py e reticulado e nao serve "
             "aqui (D84). Qh avulsa recusa com motivo em vez de zerar o vento.",
         "cisalhamento_11_4":
-            "NBR 16868-1 11.4 (cisalhamento no plano da parede de "
-            "contraventamento): sem conta neste lote; o Vd por parede "
-            "(Fi da 9.6.2) e reportado mas nao verificado.",
+            "G67: verifica_cisalhamento_114 (NBR 16868-1 11.4.1 + 11.4.2, "
+            "tau_vd = Vd/(te.L) contra fvk/gamma_m com fvk da Tab.4 em "
+            "6.2.2.6 por faixa de fa; parede armada ao cisalhamento "
+            "(11.4.3, Va + Vs) segue fora com endereco).",
+        "vento_por_nivel_6123":
+            "G67: vento_fa_por_nivel (NBR 6123 4.2.3 Fa = Ca.q.Ae por "
+            "nivel, Ca declarado do abaco da Fig.4, q via "
+            "vento_nbr6123.s2_factor). Qh avulsa segue recusando.",
         "verga_contraverga":
-            "A elevacao desenha verga e contraverga sobre cada vao (apoio de "
-            "0,40 m de cada lado, pratica corrente), mas NENHUM modulo as "
-            "dimensiona: nao ha flexao da verga (vao livre + carga da parede "
-            "acima, arco de descarga) nem armadura calculada. A folha mostra "
-            "a peca; o memorial nao a verifica. Enquanto assim, a verga e "
-            "detalhe construtivo declarado, nao dimensionamento.",
+            "G70: dimensiona_verga_1133 (NBR 16868-1 11.3.3 com fyd da "
+            "Er1:2021): vao livre mais apoio, carga da parede acima com o "
+            "arco de descarga a 45 graus (so o triangulo quando a parede "
+            "chega para forma-lo, parede cheia quando nao chega) mais a "
+            "parcela de laje que cair dentro do triangulo e o peso da "
+            "canaleta; armadura 2 barras pela primeira bitola que verifica. "
+            "A contraverga sob o peitoril e detalhe construtivo declarado "
+            "(larg + 2 apoios x 0,10 m, 2x6.3): costura a fissuracao no "
+            "canto do vao, nao peca calculada em flexao.",
         "bim_alvenaria":
             "G62: membros BIM da parede (tipo Wall por linha e nivel, Footing "
             "corrido por linha em bim_edificio; IfcWall/IfcFooting em "
@@ -1179,13 +1647,17 @@ def linha_memorial_cadeia_gravitacional():
     Fonte unica do texto: os relatorios importam daqui em vez de congelar
     o motivo (D86). G63: o contraventamento por rigidez (9.6.2/10.1.3),
     a flexo-compressao 11.5 e o Anexo C estao disponiveis neste modulo;
-    o cisalhamento no plano (11.4) segue fora."""
+    G67: o cisalhamento no plano (11.4, fvk da Tab.4) e o vento por nivel
+    (NBR 6123 Fa = Ca.q.Ae) tambem."""
     return ("[ALVENARIA ESTRUTURAL (NBR 16868-1:2020+Er1:2021): vertical "
             "disponivel em alvenaria_estrutural (compressao 11.2, flexao "
-            "11.3.3, flexo-compressao 11.5, Anexo C e contraventamento 9.6.2 "
-            "com flanges ate 6t na 10.1.3 — G63); na casa portante o Nd da "
-            "parede vem da laje (G61) e a parede vira folha e BIM (G62); "
-            "cisalhamento 11.4 fora do lote.]")
+            "11.3.3, flexo-compressao 11.5, cisalhamento 11.4, Anexo C e "
+            "contraventamento 9.6.2 com flanges ate 6t na 10.1.3 — G63/G67; "
+            "vento por nivel NBR 6123 4.2.3 Fa = Ca.q.Ae com Ca declarado; "
+            "verga 11.3.3 com arco de descarga e contraverga como detalhe — "
+            "G70); "
+            "na casa portante o Nd da parede vem da laje (G61/G67) e a "
+            "parede vira folha e BIM (G62).]")
 
 
 def relatorio_pt(r):
@@ -1270,12 +1742,14 @@ def _selftest():
     e = escopo()
     assert e["bim_alvenaria"] == "implemented"
     assert e["pranchas_alvenaria"] == "implemented"
-    # G63: horizontal, 11.5 e Anexo C disponiveis; cisalhamento segue fora.
+    # G63: horizontal, 11.5 e Anexo C disponiveis; G67 fecha a 11.4 e o
+    # vento por nivel.
     assert e["flexo_compressao_11_5"] == "implemented"
     assert e["parede_muito_esbelta_anexo_C"] == "implemented"
     assert e["acao_horizontal_contraventamento"] == "implemented"
-    assert e["cisalhamento_11_4"] == "not_available"
-    assert "11.5" in motivos_escopo()["flexo_compressao_11_5"]
+    assert e["cisalhamento_11_4"] == "implemented"
+    assert e["vento_por_nivel_6123"] == "implemented"
+    assert "11.4" in motivos_escopo()["cisalhamento_11_4"]
     # G63: flange capada em 6t e fechamento soma = Qh (relacao).
     sec = secao_efetiva_contraventamento(3.0, 0.14, 2.0, 0.0)
     assert abs(sec["bf_esq_adotada_m"] - 6.0 * 0.14) < 1e-12
@@ -1305,10 +1779,63 @@ def _selftest():
                                         4e-4, 500e3)
     assert c["Md_total_kNm"] > 2.0
     assert c["Ncr_kN"] > 50.0
+    # G67: 11.4 — fvk da Tab.4 por faixa de fa, tau = Vd/(te.L) <= fvk/gm.
+    f1 = fvk_caracteristico_6226(2.0, 0.39)
+    assert abs(f1["fvk_MPa"] - min(0.10 + 0.5 * 0.39, 1.0)) < 1e-9
+    f2 = fvk_caracteristico_6226(5.0, 0.39)
+    assert abs(f2["fvk_MPa"] - min(0.15 + 0.5 * 0.39, 1.4)) < 1e-9
+    f3 = fvk_caracteristico_6226(8.0, 0.39)
+    assert abs(f3["fvk_MPa"] - min(0.35 + 0.5 * 0.39, 1.7)) < 1e-9
+    r114 = verifica_cisalhamento_114(10.0, 60.0, 0.14, 2.40, 5.0)
+    assert r114["OK"] is True
+    assert abs(r114["tau_vd_kN_m2"] - 10.0 / (0.14 * 2.40)) < 1e-3
+    assert abs(r114["VRd_kN"] - r114["fvd_kN_m2"] * 0.14 * 2.40) < 1e-2
+    assert r114["peso_proprio_interno_kN"] == 0.0
+    # G67: vento por nivel — Fa = Ca.q.Ae com q do s2 homologado.
+    import vento_nbr6123 as _vt67
+    w = vento_fa_por_nivel(2, 2.7, 8.0,
+                           {"v0": 40.0, "cat": "II", "classe": "B",
+                            "ca": 1.0})
+    assert len(w["niveis"]) == 2
+    assert abs(w["F_total_kN"] - sum(v["Fa_kN"] for v in w["niveis"])) < 1e-6
+    _b, _fr, _p, _s2 = _vt67.s2_factor("II", "B", 5.4)
+    _q = 0.613 * (40.0 * _s2) ** 2 / 1000.0
+    assert w["niveis"][1]["q_kN_m2"] == round(_q, 4)
+    assert w["niveis"][1]["Fa_kN"] == round(1.0 * _q * 8.0 * 2.7 / 2.0, 3)
     # linha de memorial: fonte unica, sem motivo congelado
     lin = linha_memorial_cadeia_gravitacional()
     assert "16868-1:2020" in lin and "Er1:2021" in lin
-    assert "G61" in lin and "G63" in lin
+    assert "G61" in lin and "G63" in lin and "G67" in lin
+    # G70: verga 11.3.3 com arco + contraverga detalhe + cruzamento unico.
+    assert e["verga_contraverga"] == "implemented"
+    assert "arco" in motivos_escopo()["verga_contraverga"]
+    import cargas_nbr6120 as _cg70
+    _peso70 = _cg70.peso_alvenaria("bloco_concreto_estrutural", 14.0, 2.0)
+    # arco formado: parede alta desvia a laje (q_laje fora do triangulo).
+    v1 = dimensiona_verga_1133(0.9, 0.6, _peso70, q_laje_linear_kN_m=3.0,
+                               h_laje_sobre_verga_m=0.6, fpk=4000.0,
+                               material="bloco", te_m=0.14)
+    assert v1["OK"] and v1["arco_formado"] is True
+    assert v1["q_laje_kN_m"] == 0.0 and v1["laje_dentro_do_arco"] is False
+    assert v1["comprimento_peca_m"] == round(0.9 + 2.0 * APOIO_VERGA_M, 3)
+    assert v1["L_calculo_m"] == round(0.9 + APOIO_VERGA_M, 3)
+    # sem altura para o arco: parede cheia + laje dentro (contra a seguranca
+    # ignorar a laje aqui).
+    v2 = dimensiona_verga_1133(1.2, 0.3, _peso70, q_laje_linear_kN_m=3.0,
+                               h_laje_sobre_verga_m=0.3, fpk=4000.0,
+                               material="bloco", te_m=0.14)
+    assert v2["OK"] and v2["arco_formado"] is False
+    assert v2["q_laje_kN_m"] == 3.0 and v2["laje_dentro_do_arco"] is True
+    assert v2["q_parede_kN_m"] == round(_peso70 * 0.3, 3)
+    # sem arco a conta explode (superdimensionada); o arco declarado reduz.
+    assert v2["q_parede_kN_m"] > v1["q_parede_kN_m"] - 1.0
+    dc70 = detalhe_contraverga(1.2)
+    assert dc70["calculada_113"] is False and "fissura" in dc70["motivo"]
+    assert dc70["comprimento_m"] == round(1.2 + 2.0 * APOIO_CONTRAVERGA_M, 3)
+    assert recuo_cruzamento(0.14) == 0.07
+    assert comprimento_liquido_y(8.0, 3, 0.14) == round(8.0 - 2 * 0.14, 4)
+    assert comprimento_liquido_y(4.0, 2, 0.14) == round(4.0 - 0.14, 4)
+    assert "comprimento_liquido_y" in CONVENCAO_CRUZAMENTOS
     print("alvenaria_estrutural self-test PASSED")
     return True
 

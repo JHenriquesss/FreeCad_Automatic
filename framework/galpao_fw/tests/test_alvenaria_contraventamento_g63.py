@@ -224,12 +224,14 @@ def test_anexo_C_flambagem_reprova_e_campo_e_armado():
 
 
 def test_escopo_g63_implemented_e_cisalhamento_nomeado():
+    # G67: a 11.4 fecha (Fi verificado) e o vento chega por nivel; o motivo
+    # escrito continua existindo, agora como conta implementada.
     esc = alv.escopo()
     for chave in ("flexo_compressao_11_5", "parede_muito_esbelta_anexo_C",
-                  "acao_horizontal_contraventamento"):
+                  "acao_horizontal_contraventamento", "cisalhamento_11_4",
+                  "vento_por_nivel_6123"):
         assert esc[chave] == "implemented", chave
         assert alv.motivos_escopo()[chave], chave
-    assert esc["cisalhamento_11_4"] == "not_available"
     assert "11.4" in alv.motivos_escopo()["cisalhamento_11_4"]
 
 

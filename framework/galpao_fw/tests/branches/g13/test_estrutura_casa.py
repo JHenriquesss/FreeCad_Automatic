@@ -73,8 +73,12 @@ def test_a_casa_terrea_entrega_a_cadeia_completa(terrea):
 
 
 def test_o_sobrado_tambem_roda():
+    # G68: sobrado de concreto declara vento (sobrado_concreto_pede_vento) -
+    # sem ele a entrada e' recusada em vez de sair ATENDE sem Qh.
     spec = _spec(pavimentos=[{"nome": "Cobertura", "uso": "cobertura_manutencao"},
-                             {"nome": "Terreo", "uso": "residencial_dormitorio"}])
+                             {"nome": "Terreo", "uso": "residencial_dormitorio"}],
+                 vento={"v0": 40.0, "cat": "II", "classe": "B",
+                        "ca": {"x": 1.1, "y": 1.1}})
     resultado = ec.rodar(spec)
     assert resultado["tipologia"] == "sobrado"
     assert resultado["n_pavimentos"] == 2

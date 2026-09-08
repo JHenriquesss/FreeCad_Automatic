@@ -19,8 +19,11 @@
 # de um edificio de concreto. A casa tem:
 #   - ALVENARIA de vedacao + VIGA BALDRAME que leva o peso do terreo a sapata
 #     por fora da descida (estrutura_casa);
-#   - TELHADO (cobertura com area declarada, estrutura de madeira fora do
-#     escopo): herdar a WBS do predio zera o telhado em silencio;
+#   - TELHADO (G66): area inclinada calculada + madeira medida por peca
+#     (telhado_casa_madeira via estrutura_casa); sem telhado calculado a
+#     telha segue pela projecao declarada e a madeira vira falta nomeada.
+#     Herdar a WBS do predio (sem cobertura) zeraria o telhado no prazo
+#     como zeraria no custo;
 #   - ESTRUTURA OPCIONAL (G13): disciplina declarada = implemented, nao
 #     declarada = not_available - nunca concreto inventado do envelope.
 #
@@ -60,7 +63,7 @@ RHO_ACO_KG_M3 = 7850.0
 CODIGOS_APLICAVEIS = (
     "concreto_estrut", "forma", "armadura_laje", "armadura_viga",
     "armadura_pilar", "fundacao_concreto", "armadura_fundacao", "estaca",
-    "fechamento_lateral", "telha_cobertura",
+    "fechamento_lateral", "telha_cobertura", "madeira_telhado",
     "eletrica_ponto", "hidraulica_ponto",
 )
 # G61: a parede portante entra no escopo SO no caminho portante (adicionada
@@ -76,14 +79,20 @@ PRECOS_CASA = {
     # graute/armadura quando houver), A CONFIRMAR com a composicao regional.
     "alvenaria_estrutural": ("Alvenaria estrutural portante (bloco, argamassa, "
                              "graute/armadura, m2 de parede)", "m2", 280.00),
+    # G66: preco REFERENCIA por m3 de peca de madeira serrada de telhado
+    # (fornecimento + montagem da tesoura), A CONFIRMAR (SINAPI/UF/data).
+    "madeira_telhado": ("Madeira serrada de telhado (tesouras e tercas, "
+                        "m3 de peca)", "m3", 2800.00),
 }
 
 # O que a casa TEM e a tabela de referencia NAO precifica. Sem esta lista o
 # preco de venda passaria por preco da casa inteira.
+# G66: a estrutura de madeira SAIU daqui (agora medida por peca em
+# madeira_telhado); ficam os acessorios que ninguem mediu.
 INSUMOS_FORA_DA_TABELA = (
     "alvenaria de vedacao e revestimentos (chapisco/emboco/reboco, pintura)",
     "esquadrias, vidros, loucas e metais",
-    "estrutura de madeira do telhado (tesouras, tercas, ripas)",
+    "ferragens do telhado (chapas de aco, pinos), ripas e acessorios",
     "impermeabilizacao (baldrame, areas molhadas)",
     "escavacao, reaterro e canteiro de obra",
 )
@@ -109,6 +118,7 @@ CUSTO_POR_ATIVIDADE = {
     # (levanta depois do concreto da laje/baldrame, antes da cobertura).
     "alvenaria_estrutural": "vedacao",
     "telha_cobertura": "cob",
+    "madeira_telhado": "cob",
     "eletrica_ponto": "inst", "hidraulica_ponto": "inst",
 }
 
@@ -381,12 +391,11 @@ def _fundacao_corrida(est, fund, notas, nao_derivados, escopo):
             "motivo": "corrida sem comprimento em %s: nao entram no volume"
                       % ", ".join(sem)})
     if vol:
+        import alvenaria_estrutural as _alv70
         notas.append(
             "fundacao corrida medida como PRISMA (B x h x L) por linha de "
             "parede (G61): lastro, escavacao e reaterro nao estao no volume. "
-            "Os CRUZAMENTOS entre linhas entram nas duas linhas (o modelo BIM "
-            "corta a linha em Y; a medicao nao): sobra a favor do orcamento, "
-            "e fica dito em vez de silencioso")
+            "CONVENCAO UNICA G70: %s." % _alv70.CONVENCAO_CRUZAMENTOS)
     resultado = {}
     if vol:
         resultado["fundacao_concreto"] = round(vol, 2)
@@ -408,12 +417,27 @@ def _alvenaria_estrutural(est, notas, nao_derivados):
     area = sum(_num(r.get("comprimento_m")) for r in alv["por_linha"]) * altura
     if area <= 0:
         return {}
+    import alvenaria_estrutural as _alv70b
+    n_x = len([r for r in alv["por_linha"] if r.get("eixo") == "x"])
+    liq = 0.0
+    for r in alv["por_linha"]:
+        L = _num(r.get("comprimento_m"))
+        if r.get("eixo") == "y":
+            try:
+                liq += _alv70b.comprimento_liquido_y(L, n_x, _num(alv.get("te_m") or 0.14))
+            except Exception:
+                liq += L
+        else:
+            liq += L
     notas.append(
         "alvenaria_estrutural: %.1f m2 = comprimento total das paredes "
         "portantes x altura (%.2f m), SEM desconto de vaos de porta/janela e "
         "com os cruzamentos contados nas duas linhas: "
-        "preco REFERENCIA por m2 (bloco+argamassa+graute/armadura), A CONFIRMAR"
-        % (area, altura))
+        "preco REFERENCIA por m2 (bloco+argamassa+graute/armadura), A CONFIRMAR. "
+        "CONVENCAO UNICA G70: o orcamento mede a linha inteira (bruto %.1f m2, "
+        "a favor do orcamento); o modelo BIM soma %.1f m2 liquidos "
+        "(alvenaria_estrutural.comprimento_liquido_y); uma so regra, duas vistas."
+        % (area, altura, area, round(liq * altura, 1)))
     return {"alvenaria_estrutural": round(area, 1)}
 
 
@@ -488,14 +512,24 @@ def _pontos_hidraulicos(spec_hidraulica, notas, nao_derivados):
     return {"hidraulica_ponto": total}
 
 
-def _telha(spec_hidraulica, notas, nao_derivados):
-    """Area de telha da cobertura - projecao declarada, SEM inclinacao.
+def _telha(spec_hidraulica, notas, nao_derivados, telhado=None):
+    """Area de telha da cobertura.
 
-    A estrutura de madeira do telhado esta fora do escopo (nomeda em
-    INSUMOS_FORA_DA_TABELA); a telha sai pela area de projecao que a
-    hidraulica ja declara para o pluvial. Sem ela, o codigo fica VAZIO e o
-    orcamento se declara parcial - nunca zerado em silencio.
+    G66: com o telhado calculado, a area e' a INCLINADA real (2 aguas x
+    extensao), nao a projecao; sem ele, segue a projecao declarada para
+    o pluvial, SEM fator de inclinacao (dito, como antes). Sem nenhuma
+    das duas, o codigo fica VAZIO e o orcamento se declara parcial.
     """
+    if isinstance(telhado, dict) and telhado.get("area_telha_m2"):
+        area_f = float(telhado["area_telha_m2"])
+        notas.append(
+            "telha_cobertura: %.1f m2 = area INCLINADA calculada do "
+            "telhado (%d tesouras, vao %.2f m a %.1f graus); a madeira "
+            "das tesouras esta em madeira_telhado, dentro do preco"
+            % (area_f, telhado.get("n_tesouras", 0),
+               telhado.get("vao_m", 0.0),
+               telhado.get("inclinacao_graus", 0.0)))
+        return {"telha_cobertura": round(area_f, 1)}
     cobertura = (spec_hidraulica or {}).get("cobertura") or {}
     area = cobertura.get("area_m2")
     try:
@@ -514,6 +548,40 @@ def _telha(spec_hidraulica, notas, nao_derivados):
         "(cobertura.area_m2), SEM fator de inclinacao/cumeeira: a area real "
         "de telha e' maior. Estrutura de madeira fora do preco" % area_f)
     return {"telha_cobertura": round(area_f, 1)}
+
+
+def _madeira_telhado(est, notas, nao_derivados):
+    """m3 de madeira serrada do telhado, peca por peca (G66).
+
+    Le o resultado calculado (grupos com b/h/L/n por tesoura x n
+    tesouras): nada vem do spec direto, e sem telhado calculado o
+    insumo sai em sem_quantidade via aplicaveis (o telhado existe e
+    nao pode sair zerado). Ripas, chapas e pinos seguem A CONFIRMAR
+    em INSUMOS_FORA_DA_TABELA."""
+    tel = (est or {}).get("telhado") if isinstance(est, dict) else None
+    if not isinstance(tel, dict) or not tel.get("pecas"):
+        return {}
+    n_tes = int(tel.get("n_tesouras") or 0)
+    if n_tes <= 0:
+        return {}
+    total = 0.0
+    partes = []
+    for peca in tel["pecas"]:
+        vol = (float(peca["b_m"]) * float(peca["h_m"])
+               * float(peca["L_por_tesoura_m"]) * n_tes)
+        total += vol
+        partes.append("%s %dx%dcm x %.2fm x %d" % (
+            peca["grupo"], round(float(peca["b_m"]) * 100),
+            round(float(peca["h_m"]) * 100),
+            float(peca["L_por_tesoura_m"]), n_tes))
+    if total <= 0:
+        return {}
+    notas.append(
+        "madeira_telhado: %.3f m3 = soma por peca (%s), classe %s; "
+        "ripas, chapas de aco e pinos fora do volume (A CONFIRMAR)"
+        % (total, "; ".join(partes), (tel.get("madeira") or {}).get(
+            "classe", "?")))
+    return {"madeira_telhado": round(total, 3)}
 
 
 def derivacao(result, spec_hidraulica=None):
@@ -610,7 +678,10 @@ def derivacao(result, spec_hidraulica=None):
                       "sem quantitativo"})
     q.update(_pontos_eletricos(result, notas, nao_derivados))
     q.update(_pontos_hidraulicos(spec_hidraulica, notas, nao_derivados))
-    q.update(_telha(spec_hidraulica, notas, nao_derivados))
+    est = (result or {}).get("estrutura")
+    tel = (est or {}).get("telhado") if isinstance(est, dict) else None
+    q.update(_telha(spec_hidraulica, notas, nao_derivados, telhado=tel))
+    q.update(_madeira_telhado(est, notas, nao_derivados))
 
     notas.append(
         "vazios de escada e shafts NAO sao descontados da area de laje")
@@ -684,6 +755,11 @@ def disciplinas_pacote(result):
         d2 = FUNDACAO_COBERTA_POR if d == "fundacao" else d
         if d2 not in trad:
             trad.append(d2)
+    # G66: a tesoura calculada vira folha (PE-MD) e ART/O&M/LDO proprios;
+    # sem telhado calculado a disciplina nao existe e nada e' prometido.
+    est = (result or {}).get("estrutura") or {}
+    if isinstance(est.get("telhado"), dict) and est["telhado"]:
+        trad.append("madeira")
     return trad
 
 
@@ -712,6 +788,26 @@ def memorial(result):
         itens.append({"disciplina": nome,
                       "veredito": "ATENDE" if atende else "REPROVA",
                       "reprovados": list(saida.get("reprovados") or [])})
+    # G66: o telhado calculado entra no memorial com nome e numero (classe,
+    # tesouras, vao, volume, reacao total); sem ele nao ha linha - o
+    # relatorio da estrutura ja diz o A CONFIRMAR.
+    tel = est.get("telhado") if isinstance(est, dict) else None
+    if isinstance(tel, dict) and tel:
+        atende = bool(tel.get("ATENDE"))
+        desc = tel.get("descida") or {}
+        mad = tel.get("madeira") or {}
+        itens.append({
+            "disciplina": "telhado_madeira",
+            "veredito": "ATENDE" if atende else "REPROVA",
+            "reprovados": list(tel.get("reprovados") or []),
+            "detalhe": ("NBR 7190-1, classe %s: %d tesoura(s) vao %.2f m, "
+                        "%.3f m3 de madeira, reacao total %.1f kN (%s)"
+                        % (mad.get("classe", "?"),
+                           tel.get("n_tesouras", 0),
+                           tel.get("vao_m", 0.0),
+                           tel.get("vol_madeira_m3", 0.0),
+                           desc.get("W_total_kN", 0.0),
+                           desc.get("apoio", "?")))})
     executadas = [item["disciplina"] for item in itens]
     return {"geometria": geometria, "disciplinas": itens,
             "atende_global": all(item["veredito"] == "ATENDE" for item in itens)

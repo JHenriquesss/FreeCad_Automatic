@@ -286,6 +286,96 @@ def esquema_hidraulico_svg(hidraulica) -> str:
     return "\n".join(partes)
 
 
+def telhado_tesoura_svg(telhado) -> str:
+    """Elevacao da tesoura Howe + quadro de pecas e reacoes (G66).
+
+    Desenha os nos calculados (sem inventar posicao: tudo vem de
+    `geometria_nos` e das barras verificadas). Reprovada sai em
+    vermelho, com o motivo - prancha que esconde reprova mente."""
+    nos = telhado.get("geometria_nos") or {}
+    barras = telhado.get("barras") or []
+    xs = [p[0] for p in nos.values()]
+    ys = [p[1] for p in nos.values()]
+    xmin, xmax = min(xs), max(xs)
+    hmax = max(ys) if ys else 1.0
+    largura, topo_y, escala_area_h = 920, 120, 300
+    esc = (largura - 2 * MARGEM) / max(xmax - xmin, 1e-9)
+
+    def _px(x, y):
+        return (MARGEM + (x - xmin) * esc,
+                topo_y + escala_area_h - y * esc)
+
+    cor_grupo = {"banzo_sup": "#7c2d12", "banzo_inf": "#7c2d12",
+                 "montante": "#15803d", "diagonal": "#1d4ed8"}
+    ok_geral = bool(telhado.get("ATENDE"))
+    partes = abre_svg(largura, topo_y + escala_area_h + 330,
+                      "TESOURA HOWE - NBR 7190-1 (%s)" % (
+                          "ATENDE" if ok_geral else "REPROVA"))
+    for barra in barras:
+        try:
+            n1, n2 = barra["barra"].split("-")
+        except (KeyError, ValueError):
+            continue
+        if n1 not in nos or n2 not in nos:
+            continue
+        x1, y1 = _px(*nos[n1])
+        x2, y2 = _px(*nos[n2])
+        cor = "#b91c1c" if not barra.get("OK", True) else cor_grupo.get(
+            barra.get("grupo"), "#111")
+        partes.append(linha(x1, y1, x2, y2, 3.0, cor))
+    for nid, (x, y) in nos.items():
+        px, py = _px(x, y)
+        partes.append(texto(px, py - 8, nid, 10, anchor="middle"))
+    partes.append(texto(
+        largura / 2, topo_y + escala_area_h + 30,
+        "vao %.2f m ; %d tesouras ; reacao G=%.2f Q=%.2f kN por tesoura" % (
+            telhado.get("vao_m", 0.0), telhado.get("n_tesouras", 0),
+            (telhado.get("descida") or {}).get(
+                "reacao_por_tesoura_kN", {}).get("G_kN", 0.0),
+            (telhado.get("descida") or {}).get(
+                "reacao_por_tesoura_kN", {}).get("Q_kN", 0.0)), 12))
+    # "Volume total": a coluna vizinha e' POR TESOURA e esta e' o telhado
+    # inteiro (x n_tesouras). Duas grandezas lado a lado com um titulo
+    # so dizendo qual e' qual e' rotulo dirigindo a leitura da geometria.
+    colunas = [("Peca", 150, "start"), ("Secao (cm)", 110, "middle"),
+               ("L/tesoura (m)", 120, "end"),
+               ("Volume total (m3)", 140, "end"),
+               ("Situacao", 130, "start")]
+    largura_total = sum(c[1] for c in colunas)
+    x0 = (largura - largura_total) / 2
+    y0 = topo_y + escala_area_h + 60
+    # Situacao POR PECA, nao o veredito global repetido cinco vezes: a
+    # coluna diz respeito a linha, e um telhado com uma barra reprovada
+    # nao pode carimbar REPROVA nas quatro que passam.
+    ok_grupo = {}
+    for b in telhado.get("barras") or []:
+        g = b.get("grupo", "-")
+        ok_grupo[g] = ok_grupo.get(g, True) and bool(b.get("OK"))
+        for chave in ("dimensoes_9_2_1", "esbeltez_9_3"):
+            sub = b.get(chave)
+            if isinstance(sub, dict):
+                ok_grupo[g] = ok_grupo[g] and bool(sub.get("OK", True))
+    terca_r = telhado.get("terca")
+    if isinstance(terca_r, dict):
+        ok_grupo["terca"] = bool(terca_r.get("OK"))
+    linhas = []
+    for peca in telhado.get("pecas") or []:
+        grupo = peca.get("grupo", "-")
+        ok_p = bool(ok_grupo.get(grupo, ok_geral))
+        linhas.append(([
+            grupo,
+            "%dx%d" % (round(float(peca.get("b_m", 0)) * 100),
+                       round(float(peca.get("h_m", 0)) * 100)),
+            "%.2f" % float(peca.get("L_por_tesoura_m", 0)),
+            "%.3f" % (float(peca.get("vol_por_tesoura_m3", 0))
+                      * telhado.get("n_tesouras", 0)),
+            "ATENDE" if ok_p else "REPROVA"],
+            COR_OK if ok_p else COR_DEFICIT))
+    _tabela(partes, x0, y0, colunas, linhas, largura_total)
+    partes.append("</svg>")
+    return "\n".join(partes)
+
+
 def gerar_desenhos_casa(result, out_dir) -> dict:
     """Escreve as pranchas da casa em `out_dir`.
 
@@ -356,6 +446,17 @@ def gerar_desenhos_casa(result, out_dir) -> dict:
     else:
         ignorados["elevacao-paredes.svg"] = "parede_portante_nao_calculada"
         ignorados["planta-fiadas.svg"] = "parede_portante_nao_calculada"
+
+    # TELHADO DE MADEIRA (G66): elevacao da tesoura calculada + quadro de
+    # pecas. Sem telhado calculado a prancha fica indisponivel com motivo.
+    telhado = (estrutura or {}).get("telhado") if isinstance(
+        estrutura, dict) else None
+    if isinstance(telhado, dict) and telhado.get("geometria_nos"):
+        caminho = destino / "telhado-tesoura.svg"
+        caminho.write_text(telhado_tesoura_svg(telhado), encoding="utf-8")
+        gerados.append("telhado-tesoura.svg")
+    else:
+        ignorados["telhado-tesoura.svg"] = "telhado_madeira_nao_calculado"
     return {"files": gerados, "skipped": ignorados}
 
 

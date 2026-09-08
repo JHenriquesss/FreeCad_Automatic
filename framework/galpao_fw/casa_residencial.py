@@ -436,13 +436,34 @@ def _registro_estrutura(payload, resultado_arquitetura, layout=None):
                             % ", ".join(resultado["reprovados"]),
                             reprovados=list(resultado["reprovados"])))
     avisos.append(_erro("reducao_6120_registrada", resultado["registro_6120"]))
-    avisos.append(_erro(
-        "acao_horizontal_nao_avaliada",
-        "esta cadeia e' GRAVITACIONAL: vento, desaprumo, gamma_z e o ELS de "
-        "deslocamento lateral nao sao avaliados para casa terrea ou sobrado. "
-        "gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118 "
-        "15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem analise "
-        "global; imperfeicao local via M1d,min (11.3.3.4.3) aplicada no pilar"))
+    if (resultado.get("alvenaria") or {}).get("vento") is not None:
+        avisos.append(_erro(
+            "vento_alvenaria_avaliado_G67",
+            "vento NBR 6123 por nivel (Fa = Ca.q.Ae, Ca declarado) distribuido "
+            "na 9.6.2 e verificado na 11.5 + 11.4; desaprumo, gamma_z e ELS "
+            "de deslocamento lateral seguem fora (sobrado ate 2 pavimentos)"))
+    elif resultado.get("horizontal") is not None:
+        gh = resultado["gates"]["estabilidade_horizontal"]
+        avisos.append(_erro(
+            "vento_concreto_avaliado_G68",
+            "vento NBR 6123 por nivel (Fa = Ca.q.Ae, Ca declarado) x=%.1f kN "
+            "y=%.1f kN; desaprumo 11.3.3.4.1 caso %s/%s; indicador gamma_z = "
+            "%.3f (15.5.3 fora do campo com %d pavimentos: indicador, nao "
+            "metodo); ELS lateral Tab.13.3 %s"
+            % (gh["por_direcao"]["x"]["F_total_kN"],
+               gh["por_direcao"]["y"]["F_total_kN"],
+               gh["por_direcao"]["x"]["combinacao_caso"],
+               gh["por_direcao"]["y"]["combinacao_caso"],
+               gh["gamma_z_indicador_max"], int(resultado["n_pavimentos"]),
+               "OK" if gh["els_OK"] else "REPROVA")))
+    else:
+        avisos.append(_erro(
+            "acao_horizontal_nao_avaliada",
+            "esta cadeia e' GRAVITACIONAL: vento, desaprumo, gamma_z e o ELS de "
+            "deslocamento lateral nao sao avaliados para casa terrea ou sobrado. "
+            "gamma_z fora do campo de validade abaixo de 4 andares (NBR 6118 "
+            "15.5.3/15.7.3); desaprumo global (11.3.3.4.1) sem objeto sem analise "
+            "global; imperfeicao local via M1d,min (11.3.3.4.3) aplicada no pilar"))
     if resultado.get("baldrame") is None:
         avisos.append(_erro(
             "viga_baldrame_nao_declarada",

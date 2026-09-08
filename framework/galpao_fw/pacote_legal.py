@@ -30,6 +30,10 @@ _PRANCHAS = {
     # `continue` do indice (o mesmo D89 da fundacao no G56).
     "alvenaria_estrutural": ("PE-AL", ["Elevacao das paredes portantes",
                                        "Plantas de 1a e 2a fiadas"]),
+    # G66: a tesoura calculada vira folha - elevacao com quadro de pecas.
+    # Sem esta entrada a prancha telhado-tesoura.svg evaporaria no `continue`
+    # do indice (o mesmo D89 da fundacao no G56).
+    "madeira": ("PE-MD", ["Tesoura de madeira (NBR 7190-1)"]),
     "aco": ("PE-ES", ["Portico e locacao", "Detalhes de ligacoes", "Cobertura/fechamento"]),
     "piso": ("PE-PI", ["Planta de juntas do piso industrial"]),
     "eletrico": ("PE-EL", ["Unifilar", "Planta de instalacao", "Infraestrutura/aterramento", "Quadros/QDC"]),
@@ -39,7 +43,7 @@ _PRANCHAS = {
     "coordenacao": ("PE-CD", ["Modelo federado / compatibilizacao"]),
 }
 _ORDEM_DISC = ["arquitetura", "terraplenagem", "concreto", "alvenaria_estrutural",
-               "aco", "piso", "eletrico",
+               "madeira", "aco", "piso", "eletrico",
                "hidraulica", "incendio", "climatizacao", "coordenacao"]
 
 # ART/RRT por disciplina: instrumento e conselho
@@ -49,6 +53,8 @@ _ART = {
     "concreto": ("ART", "CREA", "Projeto estrutural (concreto)"),
     # G62: a parede portante tem responsabilidade propria (NBR 16868).
     "alvenaria_estrutural": ("ART", "CREA", "Projeto de alvenaria estrutural"),
+    # G66: a tesoura de madeira tambem (NBR 7190).
+    "madeira": ("ART", "CREA", "Projeto estrutural (madeira)"),
     "aco": ("ART", "CREA", "Projeto estrutural (metalica)"),
     "piso": ("ART", "CREA", "Piso industrial"),
     "eletrico": ("ART", "CREA", "Projeto eletrico"),
@@ -120,7 +126,9 @@ _LOD_DISCIPLINA = {
     "Estrutura (pilares/vigas/fundacoes)": ("concreto", "aco"),
     # G62: paredes portantes com fiadas, vergas e quadro de blocos.
     "Alvenaria estrutural (paredes portantes)": ("alvenaria_estrutural",),
-    "Cobertura/fechamento": ("aco",),
+    # G66: a tesoura da casa entrega geometria + secoes + material (o grupo
+    # era so do aco do galpao; a casa metalica segue sem madeira).
+    "Cobertura/fechamento": ("aco", "madeira"),
     "Instalacoes eletricas": ("eletrico",),
     "Instalacoes hidrossanitarias": ("hidraulica",),
     "Incendio": ("incendio",),
@@ -165,8 +173,12 @@ def manual_oem(disciplinas):
                      "reparo de cobrimento quando exposto.", "anual"),
         # G62: parede portante (NBR 16868-2: prumo, fissuras, graute).
         "alvenaria_estrutural": ("Alvenaria estrutural", "Inspecao de prumo, "
-                                "fissuras e eflorescencia; rejunte e reparo de "
-                                "revestimento onde indicado.", "anual"),
+                                 "fissuras e eflorescencia; rejunte e reparo de "
+                                 "revestimento onde indicado.", "anual"),
+        # G66: tesoura e telha (fixacao, preservativo, telhas soltas).
+        "madeira": ("Estrutura de madeira do telhado", "Inspecao de pecas, "
+                    "ligacoes e fixacao das telhas; tratamento preservativo "
+                    "onde indicado.", "anual"),
         "aco": ("Estrutura metalica", "Inspecao de pintura/galvanizacao e de "
                 "parafusos/soldas; retoque anticorrosivo.", "anual"),
         "piso": ("Piso industrial", "Reselagem de juntas; verificacao de fissuras e "
@@ -256,6 +268,10 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
             L.append("- Geometria: %s" % ", ".join("%s=%s" % (k, v) for k, v in g.items()))
         for it in m["disciplinas"]:
             L.append("- %s: **%s**" % (it["disciplina"], it["veredito"]))
+            # G66: o memorial da casa detalha o telhado (tesouras, vao,
+            # volume, reacao); sem detalhe a linha sai como antes.
+            if it.get("detalhe"):
+                L.append("  - %s" % it["detalhe"])
         L.append("- **Veredito global:** %s" % ("ATENDE" if m["atende_global"] else "verificar"))
         L.append("")
     L.append("## Indice de pranchas")
