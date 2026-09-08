@@ -17,10 +17,25 @@ import csv
 import os
 import re
 
+import pytest
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 GALPAO = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(GALPAO))
 CATALOGO = os.path.join(REPO, "fontes", "catalogo.csv")
+
+# `fontes/` inteira e ignorada pelo git (o acervo e de PDFs de norma, que nao
+# vao para o repositorio) — logo o catalogo NAO existe num checkout limpo, e e
+# exatamente assim que o CI de nuvem roda (`working-directory: framework/
+# galpao_fw`, `pytest tests/`). Sem esta guarda o modulo levantaria
+# FileNotFoundError no CI e a suite ficaria vermelha por AUSENCIA DE ACERVO, o
+# que nao e defeito nenhum. O pulo e nomeado e vale SO para o arquivo ausente:
+# catalogo presente com citacao sem lastro continua reprovando.
+sem_acervo = pytest.mark.skipif(
+    not os.path.exists(CATALOGO),
+    reason="fontes/catalogo.csv ausente (acervo local, fora do git): a "
+           "conferencia de lastro so roda onde o acervo existe",
+)
 
 PAT_NBR = re.compile(r"NBR[\s_\-]*(\d{4,5})", re.IGNORECASE)
 PAT_MARCADOR_PROCEDENCIA = re.compile(
@@ -75,6 +90,7 @@ def _citacoes_por_arquivo():
     return cit
 
 
+@sem_acervo
 def test_substituidas_nao_sao_fonte():
     """NBR 7229/13969/13792 como fonte reprova; nota de procedencia nao."""
     cit = _citacoes_por_arquivo()
@@ -96,6 +112,7 @@ def test_substituidas_nao_sao_fonte():
     )
 
 
+@sem_acervo
 def test_toda_nbr_citada_tem_lastro():
     """Todo numero citado precisa de identificador NBR-XXXX no catalogo."""
     catalogo = _numeros_catalogo()
