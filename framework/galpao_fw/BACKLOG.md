@@ -1,5 +1,10 @@
 # BACKLOG — pós-G76 (2026-09-09)
 
+> **Goals executáveis:** ver [`BACKLOG-GOALS.md`](BACKLOG-GOALS.md) — 11 goals
+> autocontidos (G78–G88), cada um com o que foi medido, endereço no código, critério de
+> aceite e as armadilhas do repo que se aplicam. Este arquivo aqui é o levantamento; o
+> outro é a fila de trabalho.
+
 Estado: lote **G74–G76 commitado** (`33e3af8`, branch `feat/tipologias-e-verticais-de-projeto`).
 Verificação do lote: 44 focais (`g74 + g75 + g76 + alcancabilidade`) + 249 vizinhos tocados
 (telhado g66/g71/g72/g73, alvenaria g61/g62/g67, casa g58/g42/g13/g68, edifício, g11) =
