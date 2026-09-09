@@ -40,7 +40,22 @@ foi implementado em G66–G74. A linha está obsoleta e induz ao erro de recaça
 
 ---
 
-## 1. G77 — as 28 folhas que continuam sem guarda nem pixel  *(recomendado como próximo)*
+## 1. ~~G77 — as 28 folhas que continuam sem guarda nem pixel~~ — **FECHADO em 2026-09-09**
+
+> **Resultado:** as 32 folhas passam pela guarda genérica, e um **censo por AST**
+> (`desenho_svg_base.censo_de_folhas`) virou portão: folha nova sem caso deixa a suíte
+> vermelha. Dois defeitos reais na folha entregue: `prancha_armacao_svg` tinha altura
+> fixa e jogava a cota de largura do pilar 3,5 px **fora** da folha (invisível no
+> entregue; a guarda antiga só olhava X, por regex), e a legenda da planta de incêndio
+> era fixa em 10 itens enquanto o desenho é count-driven — anunciava hidrante onde
+> nenhum foi projetado, com um teste que **cristalizava** isso. Ver [[04-decisions#D105]].
+>
+> **Fica aberto, nomeado:** a planta de água do pavimento-tipo desenha um único ramal
+> num pavimento vazio. É o que foi dimensionado — folha magra, decisão do dono da
+> hidráulica, não da varredura.
+
+<details><summary>medição original (pré-G77)</summary>
+
 
 **O que já existe.** O G76 construiu a lente e a validou nos dois sentidos:
 `desenho_svg_base.confere_folha_svg` — parse XML (nunca substring), `viewBox == width×height`
@@ -86,6 +101,8 @@ não guarda** — é conservador por construção (0,6·size por caractere) e ac
 legíveis no PNG; a regra é comparar coordenadas do que o PNG mostra colidir.
 
 **Custo:** baixo — a ferramenta existe e é a mesma para as 28.
+
+</details>
 
 ---
 
@@ -182,10 +199,11 @@ peça central do pacote replicável.
 
 ## Ordem recomendada
 
-1. **G77 — as 28 folhas** (item 1): maior rendimento por custo, ferramenta pronta, cobertura
-   hoje em 4/32.
+1. ~~**G77 — as 28 folhas**~~ — **feito** (2026-09-09): cobertura 32/32 mais o portão do censo.
 2. **Telhado reprovado no federado** (item 2): pequeno, afiado, e é decisão de contrato.
 3. **Dívida de documentação** (item 7): meia hora, e evita que a próxima sessão recace o que
    já está fechado.
+4. **Folha magra da água do pavimento-tipo** (aberta pelo G77, item 1): um ramal só; decidir
+   se há mais a desenhar ou se o escopo diz por que não.
 4. Itens 3, 4, 5 aguardam **dado declarado** ou **caso externo** — não são trabalho de código
    parado, e arbitrar qualquer um deles seria inventar dado de projeto.

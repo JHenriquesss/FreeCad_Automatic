@@ -95,12 +95,43 @@ def _esc(t):
     return dsb.esc(t)
 
 
+#: G77: geometria da folha de armacao. A folha nao tem altura fixa - ela e'
+#: calculada a partir da MAIOR secao, porque a cota de largura de cada secao e'
+#: desenhada 16 px abaixo dela.
+TOPO_SECAO = 60.0      # primeira linha da secao mais alta (abaixo do titulo)
+FOLGA_COTA = 34.0      # cota (y0+h+16) + descida do texto + margem inferior
+ALTURA_NOTA = 24.0     # linha da NOTA C55-C90, quando exigida
+
+
+def _exige_gancho_135(r):
+    """NBR 6118 18.4.3 NOTA: estribo do pilar com gancho a 135 em C55-C90."""
+    try:
+        return (bool((r.get("pilar") or {}).get("gancho_135_exigido"))
+                or float((r.get("spec") or {}).get("fck_MPa", 0.0)) > 50.0)
+    except (TypeError, ValueError):
+        return False
+
+
 def prancha_armacao_svg(r):
     """Monta a prancha de armacao (SVG) do galpao de concreto a partir do resultado
     de galpao_concreto.rodar(). Uma linha com as 3 secoes: pilar, viga, sapata."""
     esc = 3.5                                           # px por cm (escala ~1:29)
     pil = r["pilar"]; vg = r["viga"]; sp = r["spec"]
-    W, Hn = 900, 380
+    W = 900
+    # G77: a folha NAO pode ter altura fixa - a secao cresce com a peca. Com o
+    # antigo Hn = 380 e um pilar de 90 cm, a cota de largura caia em y = 383,5:
+    # emitida, contada pelas guardas de atributo, e invisivel na folha entregue.
+    # A guarda que existia (`test_tudo_cabe_no_canvas`, da regressao da sapata)
+    # media so o X, por regex sobre a fonte do SVG: o Y nunca foi conferido.
+    # A medida vem ANTES do cabecalho - remendar cabecalho depois foi o G76.
+    _gancho = _exige_gancho_135(r)
+    h_sapata = 0.0
+    if r["sapata"]["aprovado"]:
+        _B, _Ls = r["sapata"]["aprovado"][0], r["sapata"]["aprovado"][1]
+        h_sapata = _Ls * 100.0 * (150.0 / (max(_B, _Ls) * 100.0))
+    h_max = max(pil["hx"] * 100.0 * esc, vg["h"] * 100.0 * esc, h_sapata)
+    cy = TOPO_SECAO + h_max / 2.0             # centro comum das tres secoes
+    Hn = TOPO_SECAO + h_max + FOLGA_COTA + (ALTURA_NOTA if _gancho else 0.0)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hn}" '
              f'viewBox="0 0 {W} {Hn}" font-family="Arial,Helvetica,sans-serif">',
              f'<rect width="{W}" height="{Hn}" fill="#ffffff"/>',
@@ -115,7 +146,7 @@ def prancha_armacao_svg(r):
     phi_l = n1["phi_mm"] if n1 else 12.5
     n_l = (n1["n"] // (sp["n_porticos"] * 2)) if n1 else 4
     rot_pil = f'PILAR {pil["hy"]*100:.0f}x{pil["hx"]*100:.0f} - {n_l} f{phi_l:.1f}'
-    parts.append(_svg_secao(180, 210, pil["hy"] * 100, pil["hx"] * 100, esc, rot_pil,
+    parts.append(_svg_secao(180, cy, pil["hy"] * 100, pil["hx"] * 100, esc, rot_pil,
                             [(phi_l, n_l)], faces="perim"))
 
     # ---- viga de cobertura ----
@@ -142,7 +173,7 @@ def prancha_armacao_svg(r):
         # nem passiva nem protensao: a secao sai SEM barra e o rotulo diz isso.
         rot_v = (f'VIGA COB. {vg["b"]*100:.0f}x{vg["h"]*100:.0f} - '
                  f'ARMADURA NAO DEFINIDA (ver memorial)')
-    parts.append(_svg_secao(460, 210, vg["b"] * 100, vg["h"] * 100, esc, rot_v,
+    parts.append(_svg_secao(460, cy, vg["b"] * 100, vg["h"] * 100, esc, rot_v,
                             barras_v, faces="linha"))
 
     # ---- sapata (planta com malha) ----
@@ -151,15 +182,9 @@ def prancha_armacao_svg(r):
     if r["sapata"]["aprovado"]:
         B, Ls, hf = r["sapata"]["aprovado"][:3]
         esc_sap = 150.0 / (max(B, Ls) * 100.0)         # cabe em ~150 px
-        parts.append(_svg_sapata(740, 210, B, Ls, hf, esc_sap, r))
+        parts.append(_svg_sapata(740, cy, B, Ls, hf, esc_sap, r))
     # G50: gancho 135 no ARTEFATO (SVG), nao so no dict. C55-C90 exige estribo
     # com gancho a 135 graus (NBR 6118 18.4.3 NOTA); em C50 nada muda.
-    try:
-        _pil = r.get("pilar", {})
-        _fck = float(r.get("spec", {}).get("fck_MPa", 0.0))
-        _gancho = bool(_pil.get("gancho_135_exigido")) or _fck > 50.0
-    except Exception:
-        _gancho = False
     if _gancho:
         parts.append(f'<text x="20" y="{Hn - 14:.0f}" font-size="12" font-weight="bold" '
                      f'fill="#111">{_esc("NOTA C55-C90 (18.4.3): estribos do pilar com gancho a 135 graus")}</text>')

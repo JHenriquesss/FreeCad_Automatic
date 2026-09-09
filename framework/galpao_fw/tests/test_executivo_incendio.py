@@ -97,12 +97,44 @@ def test_pontos_perimetro_conta_exata_e_fecha():
 
 
 def test_planta_sem_sprinklers_nao_quebra():
+    """G77: a legenda diz o que a PLANTA mostra, nao o que o catalogo tem.
+
+    Este teste exigia "Chuveiro" na legenda de um galpao SEM chuveiro - estava
+    cristalizando o defeito: a folha entregue anunciava um simbolo que nao
+    aparece no desenho, e o leitor procurava na planta o que ninguem
+    dimensionou. Agora mede os dois sentidos.
+    """
     r = gsi.rodar({"geometria": {"L": 30.0, "W": 15.0, "H": 5.0},
                    "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0}})
+    assert not r["gates"]["sprinklers"]["N_chuveiros"]
     svg = di.planta_seguranca_svg(r)
-    assert svg.startswith("<svg") and "Chuveiro" in svg          # legenda existe
+    assert svg.startswith("<svg")
+    assert "LEGENDA" in svg and "Saida de emergencia" in svg      # legenda existe
+    assert "Chuveiro" not in svg                                 # e nao mente
     # sem sprinklers, o resumo NAO cita reserva
     assert "Reserva:" not in svg
+
+
+def test_legenda_da_planta_de_incendio_so_traz_o_que_foi_desenhado():
+    """Baseline nos dois sentidos: com o equipamento, a legenda o traz."""
+    com = gsi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                     "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
+                     "deteccao": {"viga_m": 0.0},
+                     "sprinklers": {"altura_estoque_m": 3.0},
+                     "hidrantes": {"tipo": "2"}})
+    svg_com = di.planta_seguranca_svg(com)
+    assert com["gates"]["sprinklers"]["N_chuveiros"] > 0
+    assert "Chuveiro automatico" in svg_com
+    if com["gates"]["hidrantes"]["N_hidrantes"]:
+        assert "Hidrante" in svg_com
+    else:                                       # sem hidrante projetado
+        assert "Hidrante" not in svg_com
+
+    sem = gsi.rodar({"geometria": {"L": 30.0, "W": 15.0, "H": 5.0},
+                     "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0}})
+    svg_sem = di.planta_seguranca_svg(sem)
+    assert not sem["gates"]["hidrantes"]["N_hidrantes"]
+    assert "Hidrante" not in svg_sem            # o defeito que o G77 achou
 
 
 def test_grade_proporcional():
@@ -164,3 +196,27 @@ def test_build_gera_pranchas_pdf(tmp_path):
     pdfs = [a for a in res.get("arquivos", []) if a.endswith(".pdf")]
     assert len(pdfs) == 2 and all(os.path.exists(p) and os.path.getsize(p) > 0
                                   for p in pdfs), res
+
+
+def test_caixa_da_legenda_nao_invade_o_quadro_resumo():
+    """A legenda cresce com o numero de itens; o RESUMO fica logo abaixo.
+
+    Guarda geometrica (mede o retangulo, nao o texto): mesmo com a legenda
+    mais cheia que a planta consegue produzir, a caixa termina antes de o
+    quadro-resumo comecar.
+    """
+    import xml.etree.ElementTree as ET
+
+    r = gsi.rodar({"geometria": {"L": 40.0, "W": 20.0, "H": 6.0},
+                   "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0},
+                   "deteccao": {"viga_m": 0.0},
+                   "sprinklers": {"altura_estoque_m": 3.0},
+                   "hidrantes": {"tipo": "2"}})
+    raiz = ET.fromstring(di.planta_seguranca_svg(r))
+    ns = "{http://www.w3.org/2000/svg}"
+    caixas = [(float(e.get("y")), float(e.get("y")) + float(e.get("height")))
+              for e in raiz.iter(ns + "rect")
+              if e.get("x") == "730" and e.get("width") == "230"]
+    assert len(caixas) == 2, caixas              # legenda e resumo
+    (topo_leg, base_leg), (topo_res, _b) = sorted(caixas)
+    assert base_leg < topo_res, (base_leg, topo_res)

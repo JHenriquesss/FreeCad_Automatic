@@ -223,3 +223,46 @@ def confere_folha_svg(svg, tol=1e-6):
                 "w": w, "h": h, "vb": vb, "xmax": xmax, "ymax": ymax}
     return {"ok": True, "motivo": "", "w": w, "h": h, "vb": vb,
             "xmax": xmax, "ymax": ymax}
+
+
+# ---------------------------------------------------------------------------
+# G77: censo das folhas. A guarda acima so vale para a folha em que alguem a
+# chamar; o buraco do G76 nao foi a guarda faltar, foi NINGUEM ter olhado 28
+# das 32 folhas. Este censo e' o portao que impede a cobertura de encolher em
+# silencio: a suite compara o conjunto emitido pela ARVORE com o conjunto que
+# ela de fato exercita. Emissor novo sem cobertura = vermelho, nao relatorio.
+# (Licao registrada: varredura sem baseline nos dois sentidos e' relatorio.)
+# ---------------------------------------------------------------------------
+
+#: `*_svg` que NAO sao folha: primitiva de cabecalho, estimador e a propria
+#: guarda. Ficam nomeadas aqui, nao adivinhadas por heuristica.
+NAO_E_FOLHA = ("abre_svg", "colisoes_de_rotulo_svg", "confere_folha_svg")
+
+
+def censo_de_folhas(raiz):
+    """Devolve {"modulo.funcao": (arquivo, linha)} de toda folha `*_svg` da arvore.
+
+    Le por AST (nunca substring): so `def` de nivel de MODULO cujo nome termina
+    em `_svg` e nao esta em NAO_E_FOLHA. Ignora testes, venv e scripts fora do
+    pacote — o alvo e o que a entrega emite.
+    """
+    import ast
+    import os
+
+    achadas = {}
+    for nome in sorted(os.listdir(str(raiz))):
+        if not nome.endswith(".py") or nome.startswith("test_"):
+            continue
+        caminho = os.path.join(str(raiz), nome)
+        try:
+            with open(caminho, encoding="utf-8") as fh:
+                arvore = ast.parse(fh.read(), filename=caminho)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for no in arvore.body:                     # nivel de MODULO, so
+            if not isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not no.name.endswith("_svg") or no.name in NAO_E_FOLHA:
+                continue
+            achadas["%s.%s" % (nome[:-3], no.name)] = (nome, no.lineno)
+    return achadas

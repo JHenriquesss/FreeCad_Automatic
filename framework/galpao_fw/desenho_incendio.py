@@ -198,8 +198,16 @@ def planta_seguranca_svg(r):
     s.append(_t(x0 + gw / 2, y0 - 8, "%.0f m" % C, 12))
     s.append(_t(x0 - 30, y0 + gh / 2, "%.0f m" % L, 12))
 
+    # G77: a legenda passa a sair do que foi DESENHADO. Ela era uma lista fixa
+    # de 10 itens enquanto a planta e' count-driven: sem hidrante projetado, a
+    # folha entregue anunciava o simbolo de hidrante e o leitor procurava na
+    # planta um equipamento que ninguem dimensionou. Mesmo criterio que
+    # `desenho_coordenacao` ja aplica a suas disciplinas.
+    desenhado = set()
+
     # --- CHUVEIROS (grade vermelha) - EXATAMENTE N_chuveiros (== resumo)
     if g["sprinklers"]["N_chuveiros"]:
+        desenhado.add("sprinkler")
         nc = int(g["sprinklers"]["N_chuveiros"])
         for (px, py) in _pontos_exatos(nc, x0, y0, gw, gh, C, L):
             s.append(_sym_sprinkler(px, py))
@@ -207,9 +215,15 @@ def planta_seguranca_svg(r):
     # --- DETECTORES (grade preta) - EXATAMENTE N_detectores ; so pontual (linear = feixes)
     nd = int(g["deteccao_alarme"]["N_detectores"])
     if g["deteccao_alarme"]["tipo_detector"] == "pontual":
+        if nd:
+            desenhado.add("detector")
         for (px, py) in _pontos_exatos(nd, x0, y0, gw, gh, C, L):
             s.append(_sym_detector(px, py))
     else:
+        # detector LINEAR nao usa o simbolo pontual: a legenda diz o que a
+        # planta mostra (feixe), nao o que o catalogo tem.
+        if nd:
+            desenhado.add("detector_linear")
         # detector linear: feixes horizontais ao longo do comprimento
         for j in range(min(nd, 6)):
             yy = y0 + (j + 0.5) * gh / min(nd, 6)
@@ -220,15 +234,20 @@ def planta_seguranca_svg(r):
     # uma grade FIXA 2x2 (chave 'grade' inexistente -> sempre 4), divergindo do resumo
     # (N_aclaramento=6). Ver [[varredura-rotulo-takeoff]].
     nac_l = int(g["iluminacao_emergencia"]["N_aclaramento"] or 0)
+    if nac_l:
+        desenhado.add("aclaramento")
     for (px, py) in _pontos_exatos(nac_l, x0, y0, gw, gh, C, L):
         s.append(_sym_bloco(px, py))
     # BALIZAMENTO: EXATAMENTE N_balizamento rente as paredes (perimetro).
     nbal = int(g["iluminacao_emergencia"]["N_balizamento"] or 0)
+    if nbal:
+        desenhado.add("balizamento")
     for (px, py) in _pontos_perimetro(nbal, x0, y0, gw, gh):
         s.append(_sym_baliz(px, py))
 
     # --- SAIDAS de emergencia nos dois topos (comprimento) + setas de rota
     ys = y0 + gh / 2
+    desenhado.update({"saida", "rota", "extintor"})     # sempre desenhados
     s.append(_sym_saida(x0 - 2, ys))                    # saida esquerda
     s.append(_sym_saida(x0 + gw + 2, ys))               # saida direita
     s.append(_sym_seta_rota(x0 + gw * 0.30, ys, -1, 0))
@@ -236,11 +255,15 @@ def planta_seguranca_svg(r):
     # ACIONADORES: exatamente N_acionadores (mesma contagem do resumo), junto as
     # saidas primeiro e o excedente distribuido ao longo da parede.
     na = int(g["deteccao_alarme"]["N_acionadores"])
+    if na:
+        desenhado.add("acionador")
     fracs_ac = [0.0, 1.0] + [k / (na + 1.0) for k in range(1, max(0, na - 2) + 1)]
     for k in range(na):
         s.append(_sym_acionador(x0 + gw * fracs_ac[k], ys - 26))
     # PLACAS de sinalizacao: EXATAMENTE N_placas ao longo da rota central (== resumo).
     np = int(g["sinalizacao"]["N_placas"])
+    if np:
+        desenhado.add("placa")
     for k in range(max(np, 0)):
         frac = (k + 0.5) / np
         s.append(_sym_placa(x0 + gw * frac, ys - 40))
@@ -250,30 +273,39 @@ def planta_seguranca_svg(r):
     # HIDRANTES (NBR 13714): N_hidrantes distribuidos junto ao perimetro (<= 5 m das
     # portas, 5.2.1). count-driven -> a planta acompanha o resumo.
     nh = int(g["hidrantes"]["N_hidrantes"] or 0)
+    if nh:
+        desenhado.add("hidrante")
     for k in range(nh):
         frac = (k + 0.5) / nh
         s.append(_sym_hidrante(x0 + gw * frac, y0 + gh - 14))     # rente a parede inferior
 
     # --------------------------------------------------------- LEGENDA
     lx, ly = 730, 70
-    ys_leg = [48, 74, 100, 126, 152, 178, 204, 230, 256, 282]
-    s.append(f'<rect x="{lx}" y="{ly}" width="230" height="{ys_leg[-1] + 32}" '
+    #: (chave do que foi desenhado, desenhista do simbolo, rotulo). A ordem e' a
+    #: da planta; so entra o que a planta mostra.
+    catalogo = [
+        ("saida", lambda y: _sym_saida(lx + 20, y, 11), "Saida de emergencia"),
+        ("rota", lambda y: _sym_seta_rota(lx + 12, y, 1, 0, 20), "Rota de fuga"),
+        ("detector", lambda y: _sym_detector(lx + 20, y), "Detector de fumaca"),
+        ("detector_linear", lambda y: _line(lx + 8, y, lx + 32, y, 1.2, "#111",
+                                            dash="6 4"),
+         "Detector linear (feixe)"),
+        ("sprinkler", lambda y: _sym_sprinkler(lx + 20, y), "Chuveiro automatico"),
+        ("hidrante", lambda y: _sym_hidrante(lx + 20, y), "Hidrante (NBR 13714)"),
+        ("aclaramento", lambda y: _sym_bloco(lx + 20, y), "Aclaramento (teto)"),
+        ("balizamento", lambda y: _sym_baliz(lx + 20, y), "Balizamento (rota)"),
+        ("acionador", lambda y: _sym_acionador(lx + 20, y), "Acionador manual"),
+        ("placa", lambda y: _sym_placa(lx + 20, y), "Sinalizacao de rota"),
+        ("extintor", lambda y: _sym_extintor(lx + 20, y), "Extintor"),
+    ]
+    itens = [(dez, txt) for chave, dez, txt in catalogo if chave in desenhado]
+    ys_leg = [48 + 26 * k for k in range(len(itens))]
+    altura_leg = (ys_leg[-1] if ys_leg else 48) + 32
+    s.append(f'<rect x="{lx}" y="{ly}" width="230" height="{altura_leg}" '
              f'fill="white" stroke="#111" stroke-width="1"/>')
     s.append(_t(lx + 115, ly + 22, "LEGENDA", 14, weight="bold"))
-    itens = [
-        (_sym_saida(lx + 20, ly + ys_leg[0], 11), "Saida de emergencia"),
-        (_sym_seta_rota(lx + 12, ly + ys_leg[1], 1, 0, 20), "Rota de fuga"),
-        (_sym_detector(lx + 20, ly + ys_leg[2]), "Detector de fumaca"),
-        (_sym_sprinkler(lx + 20, ly + ys_leg[3]), "Chuveiro automatico"),
-        (_sym_hidrante(lx + 20, ly + ys_leg[4]), "Hidrante (NBR 13714)"),
-        (_sym_bloco(lx + 20, ly + ys_leg[5]), "Aclaramento (teto)"),
-        (_sym_baliz(lx + 20, ly + ys_leg[6]), "Balizamento (rota)"),
-        (_sym_acionador(lx + 20, ly + ys_leg[7]), "Acionador manual"),
-        (_sym_placa(lx + 20, ly + ys_leg[8]), "Sinalizacao de rota"),
-        (_sym_extintor(lx + 20, ly + ys_leg[9]), "Extintor"),
-    ]
-    for (sym, txt), yy in zip(itens, ys_leg):
-        s.append(sym)
+    for (dez, txt), yy in zip(itens, ys_leg):
+        s.append(dez(ly + yy))
         s.append(_t(lx + 40, ly + yy + 4, txt, 12, anchor="start"))
 
     # --------------------------------------------------------- QUADRO-RESUMO
