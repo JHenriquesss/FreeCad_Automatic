@@ -434,7 +434,7 @@ def verifica_horizontal_casa(geo, pavimentos_spec, montados_por_uso,
     caracteristico de cada nivel sai dali, como no edificio). secoes_base:
     [(b, h)] dos lances da base (usa a MENOR, conservadora para
     deslocamento, como o edificio). secao_viga: {'b','h'}. fck (kN/m2).
-    vento_cfg: {v0, cat, classe, s1?, s3?, ca:{x:,y:} ou numero} - Ca sempre
+    vento_cfg: {v0, cat, classe, s1, s3, ca:{x:,y:} ou numero} - Ca sempre
     DECLARADO do abaco da Fig.4 (h/l1, l1/l2); numero unico vale nas duas
     direcoes.
 
@@ -456,12 +456,17 @@ def verifica_horizontal_casa(geo, pavimentos_spec, montados_por_uso,
     if not isinstance(vento_cfg, dict):
         raise EntradaEstrutura(
             "vento_concreto_rejeitado: vento deve ser um objeto {v0, cat, "
-            "classe, s1?, s3?, ca} (NBR 6123); recebido %r" % (vento_cfg,))
+            "classe, s1, s3, ca} (NBR 6123); recebido %r" % (vento_cfg,))
     for chave in ("v0", "cat", "classe"):
         if vento_cfg.get(chave) is None:
             raise EntradaEstrutura(
                 "vento_concreto_rejeitado: vento.%s nao declarado (NBR 6123: "
                 "v0 do mapa, cat/classe da Tabela 1)" % chave)
+    for chave in ("s1", "s3"):
+        if vento_cfg.get(chave) is None:
+            raise EntradaEstrutura(
+                "vento_concreto_rejeitado: vento.%s nao declarado (NBR 6123: "
+                "s1 topografico 5.2, s3 estatistico 5.3; sem eles nao ha Vk)" % chave)
     ca_decl = vento_cfg.get("ca")
     if isinstance(ca_decl, dict):
         for direcao in ("x", "y"):
@@ -503,8 +508,8 @@ def verifica_horizontal_casa(geo, pavimentos_spec, montados_por_uso,
         "lajes_lisas": bool(lajes_lisas),
         "vento": {"v0": vento_cfg.get("v0"), "cat": vento_cfg.get("cat"),
                   "classe": vento_cfg.get("classe"),
-                  "s1": vento_cfg.get("s1", 1.0),
-                  "s3": vento_cfg.get("s3", 1.0), "ca": ca},
+                  "s1": float(vento_cfg["s1"]),
+                  "s3": float(vento_cfg["s3"]), "ca": ca},
     }
     try:
         import estabilidade_edificio as ee
@@ -600,6 +605,14 @@ def linhas_de_baldrame(vaos_x, vaos_y, modo):
     return linhas
 
 
+def _revestimento_cm_declarado(d, onde):
+    if not isinstance(d, dict) or d.get("revestimento_cm") is None:
+        raise EntradaEstrutura(
+            "%s.revestimento_cm nao declarado: o peso da parede (NBR 6120) "
+            "carrega N e muda o veredito; sem ele nao ha carga" % onde)
+    return float(d["revestimento_cm"])
+
+
 def dimensiona_baldrame(cfg, vaos_x, vaos_y, fck, fyk):
     """Dimensiona a viga baldrame e reparte as reacoes pelos pilares.
 
@@ -623,7 +636,15 @@ def dimensiona_baldrame(cfg, vaos_x, vaos_y, fck, fyk):
 
     b = float(cfg.get("b", 0.15))
     h0 = float(cfg.get("h", 0.40))
-    modo = cfg.get("linhas", "contorno")
+    if cfg.get("linhas") is None:
+        raise EntradaEstrutura(
+            "baldrame.linhas nao declarado: 'contorno' ou 'todas' decide "
+            "quais linhas da malha recebem viga e muda as reacoes; sem ele "
+            "nao ha baldrame")
+    modo = cfg["linhas"]
+    if modo not in ("contorno", "todas"):
+        raise EntradaEstrutura(
+            "baldrame.linhas invalido: %r (use 'contorno' ou 'todas')" % (modo,))
     linhas = linhas_de_baldrame(vaos_x, vaos_y, modo)
     if not linhas:
         raise EntradaEstrutura("nenhuma linha de baldrame na malha declarada")
@@ -635,7 +656,7 @@ def dimensiona_baldrame(cfg, vaos_x, vaos_y, fck, fyk):
         try:
             q_parede = cg.carga_linear_parede(
                 parede["tipo"], parede["espessura_cm"], parede["altura"],
-                parede.get("revestimento_cm", 1.0))
+                _revestimento_cm_declarado(parede, "baldrame.parede"))
         except KeyError as exc:
             raise EntradaEstrutura(
                 "baldrame.parede precisa de 'tipo', 'espessura_cm' e 'altura' "
@@ -781,9 +802,9 @@ def _vergas_e_contravergas_da_linha(cfg, par, vaos_linha, L, N_laje_k,
     """
     import cargas_nbr6120 as _cgv
     vergas, contravergas = [], []
+    rev = _revestimento_cm_declarado(par, "parede_6120")
     try:
-        peso_m2 = _cgv.peso_alvenaria(par["tipo"], par["espessura_cm"],
-                                      par.get("revestimento_cm", 1.0))
+        peso_m2 = _cgv.peso_alvenaria(par["tipo"], par["espessura_cm"], rev)
     except Exception:
         peso_m2 = None
     vcfg = cfg.get("verga") or {}
@@ -930,7 +951,7 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
     cfg: {'fpk' (kN/m2, DECLARADA, sem default — regra do SPT no G9),
           'material' ('bloco'|'tijolo'), 'te' (m), 'combinacao' (Tab.2),
           'habitacao_terrea' (bool, nota "a" da Tab.9),
-          'parede_6120' {tipo, espessura_cm, revestimento_cm?, altura_m?},
+          'parede_6120' {tipo, espessura_cm, revestimento_cm, altura_m?},
           'linhas' ('contorno'|'todas'),
           'vaos' (opc) {nome_da_linha: [{pos_m, larg_m, alt_m, peitoril_m?,
           tipo? porta/janela}]} — vãos declarados para as pranchas (G62);
@@ -955,7 +976,12 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
         raise EntradaEstrutura(
             "alvenaria_portante.fpk nao declarado: a resistencia vem do prisma "
             "(NBR 16868-3) e e ensaio declarado; sem fpk nao ha fk (regra do SPT no G9)")
-    material = cfg.get("material", "bloco")
+    if cfg.get("material") is None:
+        raise EntradaEstrutura(
+            "alvenaria_portante.material nao declarado: 'bloco' (fk = 0,70 "
+            "do fpk) ou 'tijolo' (fk = 0,60 do fpk, NBR 16868-1 6.2.2.3); "
+            "o fator troca fd e muda o veredito")
+    material = cfg["material"]
     te = cfg.get("te")
     if te is None or not float(te) > 0:
         raise EntradaEstrutura("alvenaria_portante.te deve ser > 0 (m)")
@@ -988,7 +1014,7 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
     try:
         q_parede = cg.carga_linear_parede(
             par["tipo"], par["espessura_cm"], altura,
-            par.get("revestimento_cm", 1.0))
+            _revestimento_cm_declarado(par, "parede_6120"))
     except KeyError as exc:
         raise EntradaEstrutura(
             "parede_6120 precisa de 'tipo' e 'espessura_cm' (Tabela 2): %s"
@@ -1047,7 +1073,7 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
         # por construcao (GF de um lado so).
         junta = alv.confere_fronteira_peso_parcela(
             N_parede_k, par["tipo"], par["espessura_cm"], altura, L,
-            par.get("revestimento_cm", 1.0))
+            _revestimento_cm_declarado(par, "parede_6120"))
         # G70: a verga desenhada ganha conta (11.3.3 com arco); a contraverga
         # e detalhe. Verga que nao verifica reprova a linha nomeando o vao.
         vergas, contravergas = _vergas_e_contravergas_da_linha(
@@ -1095,7 +1121,7 @@ def dimensiona_alvenaria_portante(cfg, pav, vaos_x, vaos_y, pe_direito,
 def _vento_cfg_por_direcao(vento_cfg, direcao):
     """Extrai {v0, cat, classe, s1, s3, ca} do vento para uma direcao.
 
-    vento_cfg: {v0, cat, classe, s1?, s3?, ca: {x:, y:} ou numero}. ca e
+    vento_cfg: {v0, cat, classe, s1, s3, ca: {x:, y:} ou numero}. ca e
     sempre DECLARADO do abaco da Fig.4 da NBR 6123 (h/l1, l1/l2) — a norma
     so da abaco, nunca tabela. Sem ca da direcao o vento NAO tem origem
     naquela direcao e o caso RECUSA (Qh avulsa segue recusando).
@@ -1118,9 +1144,15 @@ def _vento_cfg_por_direcao(vento_cfg, direcao):
         raise EntradaEstrutura(
             "vento.ca nao declarado: o Ca da NBR 6123 e abaco (Fig.4); sem "
             "ele nao ha Fa (Qh avulsa segue recusando)")
+    for chave in ("s1", "s3"):
+        if vento_cfg.get(chave) is None:
+            raise EntradaEstrutura(
+                "vento.%s nao declarado: s1 topografico (NBR 6123 5.2) e s3 "
+                "estatistico (5.3) multiplicam Vk; sem eles nao ha Fa por "
+                "nivel" % chave)
     return {"v0": vento_cfg.get("v0"), "cat": vento_cfg.get("cat"),
-            "classe": vento_cfg.get("classe"), "s1": vento_cfg.get("s1", 1.0),
-            "s3": vento_cfg.get("s3", 1.0), "ca": ca}
+            "classe": vento_cfg.get("classe"), "s1": float(vento_cfg["s1"]),
+            "s3": float(vento_cfg["s3"]), "ca": ca}
 
 
 def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
@@ -1139,7 +1171,7 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
       unitaria do painel, sem recomputar a formula); a parede da base
       acumula os niveis acima + o peso proprio das paredes de cada nivel
       (via da carga, F21 por parcela e por nivel).
-    vento_cfg: {v0, cat, classe, s1?, s3?, ca:{x:,y:} ou numero} (NBR 6123).
+    vento_cfg: {v0, cat, classe, s1, s3, ca:{x:,y:} ou numero} (NBR 6123).
       Com 1 pavimento e sem vento, segue o caminho gravitacional (G61);
       com 2 pavimentos o vento e OBRIGATORIO (sem ele RECUSA nomeando).
       Cada Fa de nivel reparte nas paredes daquela direcao pela 9.6.2
@@ -1171,7 +1203,12 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
         raise EntradaEstrutura(
             "alvenaria_portante.fpk nao declarado: a resistencia vem do prisma "
             "(NBR 16868-3) e e ensaio declarado; sem fpk nao ha fk (regra do SPT no G9)")
-    material = cfg.get("material", "bloco")
+    if cfg.get("material") is None:
+        raise EntradaEstrutura(
+            "alvenaria_portante.material nao declarado: 'bloco' (fk = 0,70 "
+            "do fpk) ou 'tijolo' (fk = 0,60 do fpk, NBR 16868-1 6.2.2.3); "
+            "o fator troca fd e muda o veredito")
+    material = cfg["material"]
     te = cfg.get("te")
     if te is None or not float(te) > 0:
         raise EntradaEstrutura("alvenaria_portante.te deve ser > 0 (m)")
@@ -1200,7 +1237,7 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
     try:
         q_parede = cg.carga_linear_parede(
             par["tipo"], par["espessura_cm"], altura,
-            par.get("revestimento_cm", 1.0))
+            _revestimento_cm_declarado(par, "parede_6120"))
     except KeyError as exc:
         raise EntradaEstrutura(
             "parede_6120 precisa de 'tipo' e 'espessura_cm' (Tabela 2): %s"
@@ -1242,7 +1279,7 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
         if vento_cfg is None:
             raise EntradaEstrutura(
                 "sobrado_em_alvenaria_pede_vento: 2 pavimentos sem vento "
-                "declarado; declare vento {v0, cat, classe, ca} (NBR 6123, "
+                "declarado; declare vento {v0, cat, classe, s1, s3, ca} (NBR 6123, "
                 "Ca do abaco da Fig.4) e o Qh chega por nivel "
                 "(Fa = Ca.q.Ae) em vez de Qh avulsa (G67)")
         if hab_terrea:
@@ -1344,6 +1381,11 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
             res115 = res
         else:
             As = float(cfg.get("As_m2", 0.0))
+            if As > 0 and cfg.get("tipo_bloco") is None:
+                raise EntradaEstrutura(
+                    "alvenaria_portante.tipo_bloco nao declarado: com As_m2 > 0 "
+                    "a armadura pode trabalhar e a 11.5/Anexo C le Ea(tipo_bloco); "
+                    "sem tipo declarado nao ha Ea")
             if lam > alv.LAMBDA_TETO_ARMADA and As > 0:
                 usa_anexo_C = True
                 if cfg.get("fyk") is None:
@@ -1374,7 +1416,7 @@ def dimensiona_alvenaria_portante_niveis(cfg, pavs, vaos_x, vaos_y,
         junta = alv.confere_fronteira_peso_parcela(
             N_parede_k / n if n else N_parede_k, par["tipo"],
             par["espessura_cm"], altura, L,
-            par.get("revestimento_cm", 1.0))
+            _revestimento_cm_declarado(par, "parede_6120"))
         # a junta F21 e por nivel: a parcela de UM nivel contra a via.
         vergas, contravergas = _vergas_e_contravergas_da_linha(
             cfg, par, vaos_linha, L, N_laje_k, float(pe_direito),
@@ -1591,7 +1633,7 @@ def _valida(spec):
         # de recusa, nao nota de rodape.
         raise EntradaEstrutura(
             "sobrado_concreto_pede_vento: 2 pavimentos sem vento declarado; "
-            "declare vento {v0, cat, classe, s1?, s3?, ca} (NBR 6123, Ca do "
+            "declare vento {v0, cat, classe, s1, s3, ca} (NBR 6123, Ca do "
             "abaco da Fig.4 lido pelo projetista) e o Qh chega por nivel "
             "(Fa = Ca.q.Ae) com desaprumo (11.3.3.4.1) e ELS lateral (G68)")
     if spec.get("alvenaria_portante") is not None:
@@ -1920,7 +1962,7 @@ def rodar(spec):
                             cfg_bald["parede"]["tipo"],
                             cfg_bald["parede"]["espessura_cm"],
                             cfg_bald["parede"]["altura"],
-                            cfg_bald["parede"].get("revestimento_cm", 1.0))
+                            _revestimento_cm_declarado(cfg_bald["parede"], "baldrame.parede"))
                         cfg_bald = {k: v for k, v in cfg_bald.items()
                                     if k != "parede"}
                         cfg_bald["q_parede"] = q_par + q_laje_lin

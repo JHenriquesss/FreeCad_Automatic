@@ -73,7 +73,8 @@ def test_a_viga_critica_e_a_de_maior_carga_vezes_L4_e_nao_a_de_maior_vao():
     pode ser uma de vao MENOR. Escolher pelo vao daria a viga errada e o gate
     olharia para um piso que nao e' o critico."""
     r = em.rodar(_spec(parede_sobre_vigas={"tipo": "bloco_ceramico_furo_horizontal",
-                                           "espessura_cm": 14.0}))
+                                           "espessura_cm": 14.0,
+                                           "revestimento_cm": 1.0}))
     pav = r["pavimento"]
     p1 = vib.psi_1("restrito")
     def sev(v, k):
@@ -155,6 +156,7 @@ def test_o_que_a_15575_exige_e_ninguem_calculou_fica_publicado(rodado):
 
 def test_com_vento_declarado_o_topo_entra_na_15575():
     r = em.rodar(_spec(vento={"v0": 40.0, "cat": "IV", "classe": "B",
+                             "s1": 1.0, "s3": 1.0,
                              "ca": {"x": 1.2, "y": 1.3}}))
     ver = r["desempenho"]["verificacoes"]
     assert "topo" in ver

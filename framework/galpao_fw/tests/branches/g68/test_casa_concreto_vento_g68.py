@@ -46,7 +46,8 @@ TERREA = {
     "viga": {"b": 0.20, "h": 0.45},
     "materiais": {"fck": 25e3, "fyk": 500e3},
     "parede_sobre_vigas": dict(PAREDE),
-    "baldrame": {"b": 0.15, "h": 0.40, "parede": dict(PAREDE)},
+    "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
+               "parede": dict(PAREDE)},
 }
 
 SOBRADO = dict(TERREA, pavimentos=[

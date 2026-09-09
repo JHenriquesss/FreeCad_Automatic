@@ -150,7 +150,11 @@ def vento_por_pavimento(spec, direcao="x"):
 
     v0 = vento["v0"]
     cat, classe = vento["cat"], vento["classe"]
-    s1, s3 = vento.get("s1", 1.0), vento.get("s3", 1.0)
+    if vento.get("s1") is None or vento.get("s3") is None:
+        raise ValueError(
+            "vento.s1/s3 nao declarados (NBR 6123 5.2/5.3): sem eles nao ha "
+            "Vk por pavimento")
+    s1, s3 = vento["s1"], vento["s3"]
 
     pavimentos = []
     for item in _cotas_e_areas(n_pav, pe, l1):

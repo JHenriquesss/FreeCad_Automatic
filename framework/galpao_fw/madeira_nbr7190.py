@@ -30,7 +30,7 @@
 #   - tracao paralela (6.3.2, area liquida), compressao paralela (6.3.3)
 #     COM estabilidade (6.5: lambda <= 140, lambda_rel, kc com betac = 0,2
 #     para serrada/rolica), flexao simples reta (6.3.4) com a borda
-#     comprimida CONTIDA (travamento declarado; 6.5.6 fora do lote),
+#     comprimida CONTIDA (travamento declarado; 6.5.6 dispensa + alternativo p.27),
 #     cisalhamento longitudinal retangular 1,5.V/A (6.4.2),
 #     flexocompressao reta (6.3.7 quadratica + 6.5.5), apoio com
 #     compressao perpendicular (fc90,d = 0,25.fc0,d.alfa_n, alfa_n da
@@ -370,31 +370,135 @@ def dispensa_estabilidade_lateral_656(b_m, h_m, L1_m, E0m, fmd, kmod_num,
                                   % (L1, limite)))}
 
 
-def verifica_flexao(Md_kNm, W_m3, fmd, estabilidade):
-    """6.3.4: sigma = Md/W <= fm,d, mais a estabilidade lateral.
+def tensao_limite_alternativa_656(b_m, h_m, L1_m, E0ef_kNm2):
+    b = float(b_m)
+    L1 = float(L1_m)
+    if b <= 0:
+        raise EntradaMadeira("b deve ser > 0")
+    if L1 <= 0:
+        raise EntradaMadeira("L1 deve ser > 0 para o alternativo da 6.5.6")
+    bm = beta_M(float(h_m) / b)
+    E0ef = float(E0ef_kNm2)
+    if E0ef <= 0:
+        raise EntradaMadeira("E0,ef deve ser > 0")
+    return E0ef / (bm * (L1 / b))
 
-    `estabilidade`: saida de dispensa_estabilidade_lateral_656. So a
-    dispensa CONFERIDA aprova; a verificacao por teoria experimental
-    (6.5.6, quando a dispensa nao vale) segue fora do lote e a peca
-    reprova nomeando o motivo."""
+
+def verifica_flexao(Md_kNm, W_m3, fmd, estabilidade):
     if W_m3 <= 0:
         raise EntradaMadeira("modulo de resistencia W deve ser > 0")
     if not isinstance(estabilidade, dict) or "dispensada" not in estabilidade:
         raise EntradaMadeira(
             "estabilidade lateral deve vir de "
-            "dispensa_estabilidade_lateral_656 (6.5.6): 'travado' como "
-            "declaracao booleana nao e' conferencia")
+            "dispensa_estabilidade_lateral_656 (6.5.6)")
     sigma = abs(float(Md_kNm)) / W_m3
     util = sigma / fmd if fmd > 0 else float("inf")
     ok_res = bool(util <= 1.0)
     disp = bool(estabilidade["dispensada"])
+    if ok_res and disp:
+        return {"solicitacao": "flexao_reta_6.3.4", "sigma_kNm2": sigma,
+                "resistencia_kNm2": fmd, "util": util,
+                "estabilidade_lateral": estabilidade,
+                "criterio_estabilidade": "6.5.6_dispensa",
+                "OK": True, "motivo": None}
+    if not ok_res:
+        return {"solicitacao": "flexao_reta_6.3.4", "sigma_kNm2": sigma,
+                "resistencia_kNm2": fmd, "util": util,
+                "estabilidade_lateral": estabilidade,
+                "criterio_estabilidade": ("6.5.6_dispensa" if disp
+                                          else "6.5.6_alternativo"),
+                "OK": False, "motivo": "resistencia a flexao excedida"}
+    if not bool(estabilidade.get("rotacao_apoio_impedida", True)):
+        return {"solicitacao": "flexao_reta_6.3.4", "sigma_kNm2": sigma,
+                "resistencia_kNm2": fmd, "util": util,
+                "estabilidade_lateral": estabilidade,
+                "criterio_estabilidade": "6.5.6_teoria_fora_do_lote",
+                "OK": False, "motivo": estabilidade["motivo"]}
+    b = float(estabilidade["b_m"])
+    h = float(estabilidade["h_m"])
+    L1 = float(estabilidade["L1_m"])
+    E0ef = float(estabilidade["E0ef_kNm2"])
+    bm = float(estabilidade["beta_M"])
+    sigma_lim = E0ef / (bm * (L1 / b)) if L1 > 0 else float("inf")
+    util_alt = sigma / sigma_lim if sigma_lim > 0 else float("inf")
+    alternativo = {"criterio": "6.5.6_alternativo", "sigma_cd_kNm2": sigma,
+                   "sigma_lim_kNm2": sigma_lim, "util_alternativo": util_alt,
+                   "beta_M": bm, "L1_m": L1, "b_m": b, "h_m": h,
+                   "E0ef_kNm2": E0ef,
+                   "OK": bool(sigma <= sigma_lim + 1e-9)}
+    if alternativo["OK"]:
+        return {"solicitacao": "flexao_reta_6.3.4", "sigma_kNm2": sigma,
+                "resistencia_kNm2": fmd, "util": util,
+                "estabilidade_lateral": estabilidade,
+                "criterio_estabilidade": "6.5.6_alternativo",
+                "alternativo_656": alternativo,
+                "OK": True, "motivo": None}
+    motivo = ("fora da dispensa (L1 = %.2f m acima de %.2f m) e do "
+              "alternativo (sigma = %.0f > %.0f kN/m2 = "
+              "E_c0,ef/((L1/b).beta_M), 6.5.6 p.27)" % (
+                  L1, float(estabilidade.get("L1_limite_m", 0.0)),
+                  sigma, sigma_lim))
     return {"solicitacao": "flexao_reta_6.3.4", "sigma_kNm2": sigma,
-            "resistencia_kNm2": fmd, "util": util,
+            "resistencia_kNm2": fmd, "util": max(util, util_alt),
             "estabilidade_lateral": estabilidade,
-            "OK": bool(ok_res and disp),
-            "motivo": (None if (ok_res and disp)
-                       else (estabilidade["motivo"] if not disp
-                             else "resistencia a flexao excedida"))}
+            "criterio_estabilidade": "6.5.6_alternativo",
+            "alternativo_656": alternativo,
+            "OK": False, "motivo": motivo}
+
+
+def forca_contraventamento_F1d_662(Nd_kN):
+    Nd = abs(float(Nd_kN))
+    return {"criterio": "6.6.2_F1d", "Nd_kN": Nd, "F1d_kN": Nd / 150.0}
+
+
+def alpha_m_662(m):
+    import math as _m
+    if m is None:
+        raise EntradaMadeira("m (n. de intervalos L1) deve ser declarado")
+    try:
+        mf = float(m)
+    except (TypeError, ValueError):
+        raise EntradaMadeira("m deve ser numero >= 1") from None
+    if mf == float("inf"):
+        return 2.0
+    if not mf >= 1.0:
+        raise EntradaMadeira("m deve ser >= 1")
+    return 1.0 + _m.cos(_m.pi / mf)
+
+
+def rigidez_minima_Kbr1min_662(E0ef_kNm2, I2_m4, L1_m, m):
+    import math as _m
+    E0ef = float(E0ef_kNm2)
+    I2 = float(I2_m4)
+    L1 = float(L1_m)
+    if E0ef <= 0 or I2 <= 0 or L1 <= 0:
+        raise EntradaMadeira("E0,ef, I2 e L1 devem ser > 0 (6.6.2)")
+    am = alpha_m_662(m)
+    K = 2.0 * am * _m.pi ** 2 * E0ef * I2 / (L1 ** 3)
+    return {"criterio": "6.6.2_Kbr1min", "E0ef_kNm2": E0ef, "I2_m4": I2,
+            "L1_m": L1, "m": m, "alpha_m": am, "Kbr1min_kN_m": K}
+
+
+def forca_extremidade_Fd_664(n, F1d_kN):
+    nn = int(n)
+    if nn < 2:
+        raise EntradaMadeira("n (tesouras em paralelo) deve ser >= 2")
+    F1d = float(F1d_kN)
+    if F1d < 0:
+        raise EntradaMadeira("F1d deve ser >= 0")
+    return {"criterio": "6.6.4_Fd", "n": nn, "F1d_kN": F1d,
+            "Fd_kN": (2.0 / 3.0) * nn * F1d}
+
+
+def rigidez_minima_Kbr_664(n, Kbr1min_kN_m):
+    nn = int(n)
+    if nn < 2:
+        raise EntradaMadeira("n (tesouras em paralelo) deve ser >= 2")
+    K1 = float(Kbr1min_kN_m)
+    if K1 < 0:
+        raise EntradaMadeira("Kbr,1,min deve ser >= 0")
+    return {"criterio": "6.6.4_Kbrmin", "n": nn, "Kbr1min_kN_m": K1,
+            "Kbrmin_kN_m": (2.0 / 3.0) * nn * K1}
 
 
 # --- 9 disposicoes construtivas ---------------------------------------------
@@ -789,7 +893,8 @@ def verifica_ligacao_madeira_madeira(Sd_kN, cfg):
       Rd = kmod1.kmod2.Rk/1,4 com kmod1 <= 1 (7.1.2, pino em aco).
       Fax,Rk = 0 sem ensaio (conservador, dito na p.60)."""
     for chave in ("tipo_pino", "d_mm", "d0_mm", "fu_MPa", "t1_mm",
-                  "fe1_Nmm2", "n_pinos", "n_cortes", "kmod1", "kmod2"):
+                  "fe1_Nmm2", "n_pinos", "n_cortes", "kmod1", "kmod2",
+                  "t2_mm", "fe2_Nmm2", "t_madeira_mm", "alpha_graus"):
         if cfg.get(chave) is None:
             raise EntradaMadeira("ligacao 7.2 precisa de '%s' declarado"
                                  % chave)
@@ -799,16 +904,16 @@ def verifica_ligacao_madeira_madeira(Sd_kN, cfg):
                              % (tipo, "|".join(TIPOS_PINO_72)))
     d = float(cfg["d_mm"])
     t1 = float(cfg["t1_mm"])
-    t2 = float(cfg.get("t2_mm", t1))
+    t2 = float(cfg["t2_mm"])
     fe1 = float(cfg["fe1_Nmm2"])
-    fe2 = float(cfg.get("fe2_Nmm2", fe1))
+    fe2 = float(cfg["fe2_Nmm2"])
     n_cortes = int(cfg["n_cortes"])
     if n_cortes not in (1, 2):
         raise EntradaMadeira("n_cortes = %r fora da 7.2 (1|corte simples, "
                              "2|corte duplo, Figs.19-21)" % (cfg["n_cortes"],))
-    t_menor = float(cfg.get("t_madeira_mm", min(t1, t2)))
+    t_menor = float(cfg["t_madeira_mm"])
     esp = cfg.get("espacamentos") or {}
-    alpha = float(cfg.get("alpha_graus", 0.0))
+    alpha = float(cfg["alpha_graus"])
     gates_geo, req = _gates_pinos_7190(
         tipo, d, t_menor, cfg.get("penetracao_mm"), esp, alpha)
     pref = verifica_prefuracao_tab16(tipo, d, cfg.get("d0_mm"),
@@ -855,7 +960,8 @@ def verifica_ligacao(Sd_kN, cfg):
     Rd = kmod1.kmod2.Rk/1,4 com kmod1 <= 1 no aco; Rk = nsp.nef.FvRk.
     Geometria minima (7.2 a-f, 7.1.9/7.1.10) vira gate: fura, reprova."""
     for chave in ("config_73", "tipo_pino", "d_mm", "fu_MPa", "t1_mm",
-                  "fe1_Nmm2", "n_pinos", "n_planos", "kmod1", "kmod2"):
+                  "fe1_Nmm2", "n_pinos", "n_planos", "kmod1", "kmod2",
+                  "t_madeira_mm", "alpha_graus"):
         if cfg.get(chave) is None:
             raise EntradaMadeira("ligacao precisa de '%s' declarado" % chave)
     config = cfg["config_73"]
@@ -873,9 +979,19 @@ def verifica_ligacao(Sd_kN, cfg):
     d = float(cfg["d_mm"])
     fu = float(cfg["fu_MPa"])
     t1 = float(cfg["t1_mm"])
-    t2 = float(cfg.get("t2_mm", t1))
     fe1 = float(cfg["fe1_Nmm2"])
-    fe2 = float(cfg.get("fe2_Nmm2", fe1))
+    if config in ("chapas_laterais_finas_dupla",
+                      "chapas_laterais_grossas_dupla"):
+        if cfg.get("t2_mm") is None or cfg.get("fe2_Nmm2") is None:
+            raise EntradaMadeira(
+                "ligacao 7.3 com chapas laterais precisa de t2_mm e "
+                "fe2_Nmm2 declarados: os modos da chapa lateral usam fe2 "
+                "e t2; sem eles nao ha FvRk")
+        t2 = float(cfg["t2_mm"])
+        fe2 = float(cfg["fe2_Nmm2"])
+    else:
+        t2 = t1
+        fe2 = fe1
     nsp = int(cfg["n_planos"])
     if nsp < 1:
         raise EntradaMadeira("n_planos deve ser >= 1")
@@ -885,7 +1001,7 @@ def verifica_ligacao(Sd_kN, cfg):
     if d < dmin:
         gates_geo.append("d=%.2f < dmin=%.1f mm (7.1.9)" % (d, dmin))
     # 7.2 a-f: diametro x espessura e penetracao.
-    t_menor = float(cfg.get("t_madeira_mm", min(t1, t2)))
+    t_menor = float(cfg["t_madeira_mm"])
     if tipo == "parafuso" and d > t_menor / 2.0:
         gates_geo.append("parafuso d=%.1f > t/2=%.1f mm (7.2-a)" % (d, t_menor / 2))
     if tipo == "prego" and d > t_menor / 5.0:
@@ -899,7 +1015,7 @@ def verifica_ligacao(Sd_kN, cfg):
                                 "d" if tipo == "prego" else "f"))
     # 7.1.10: espacamentos minimos (Tab.14, alpha declarado).
     esp = cfg.get("espacamentos") or {}
-    alpha = float(cfg.get("alpha_graus", 0.0))
+    alpha = float(cfg["alpha_graus"])
     req = espacamentos_minimos(tipo, d, alpha, com_prefuro=True)
     for chave in ("a1", "a2", "a3t", "a3c", "a4t", "a4c"):
         if esp.get(chave) is not None and float(esp[chave]) < req[chave] - 1e-9:
@@ -1090,14 +1206,16 @@ def verifica_els_terca(wG_kN_m, wQ_kN_m, L_m, E0m, I_m4, classe_umidade,
 
 
 def escopo():
-    """O que este modulo cobre e o que deixa de fora, dito em voz alta."""
     return {
         "classes_tab3": "implemented",
         "kmod_tab4_tab5": "implemented",
         "tracao_6.3.2": "implemented",
         "compressao_estabilidade_6.3.3_6.5": "implemented",
         "flexao_reta_6.3.4": "implemented",
-        "estabilidade_lateral_6.5.6": "dispensa_implementada",
+        "estabilidade_lateral_6.5.6": "dispensa_e_alternativo_implementados",
+        "contraventamento_6.6_forcas": "implemented",
+        "contraventamento_6.6_peca": "not_available",
+        "contraventamento_6.6_rigidez": "not_available",
         "cisalhamento_6.4.2": "implemented",
         "flexocompressao_6.3.7_6.5.5": "implemented",
         "apoio_perpendicular_6.3.3_6.2.4": "implemented",
@@ -1118,29 +1236,23 @@ def escopo():
 
 
 def motivos_escopo():
-    """Motivo e endereco de cada fora do lote."""
     return {
         "estabilidade_lateral_6.5.6":
-            "a DISPENSA da 6.5.6 esta implementada (Tab.8: rotacao nos "
-            "apoios impedida e L1 <= b.E0,ef/(beta_M.fm,d)); fora da "
-            "dispensa, a verificacao por teoria comprovada "
-            "experimentalmente segue fora do lote e a peca reprova",
+            "dispensa (Tab.8 p.27) e alternativo (sigma_c,d <= E_c0,ef/((L1/b).beta_M) p.27) implementados; fora dos dois, a teoria experimental segue fora do lote e a peca reprova",
+        "contraventamento_6.6_forcas":
+            "F1d = Nd/150 (6.6.2 p.28, 6.6.3 p.29) e Fd >= (2/3).n.F1d + Kbr,min (6.6.4 pp.30-31) calculados a partir de Nd, n, E0,ef, I2, L1 e m declarados",
+        "contraventamento_6.6_peca":
+            "6.6.2 p.29: elementos de contraventamento comprimidos por F1d devem ter estabilidade verificada; secao/comprimento da peca de travamento nao declarados, sem numero",
+        "contraventamento_6.6_rigidez":
+            "6.6.2 p.29 (Kbr,1,min) e 6.6.4 p.31 (Kbr >= (2/3).n.Kbr,1,min): Kmin calculado, K real da estrutura de contraventamento nao declarado, sem verificacao",
         "cortante_reduzida_apoio_6.4.3":
-            "a reducao de Vd a 0 <= z <= 2h (6.4.3) e' permissao, nao "
-            "exigencia: nao aplica-la e' conservador e evita depender da "
-            "posicao declarada da carga",
+            "a reducao de Vd a 0 <= z <= 2h (6.4.3) e permissao, nao exigencia",
         "flexao_obliqua_6.3.5_flexotracao_6.3.6":
-            "a tesoura do G66 tem carga so nos nos (esforco axial) e "
-            "terca em flexao reta; obliqua e flexotracao entram quando "
-            "houver telhado com carga fora do plano da terca",
-        "aneis_7.4": "resistencia pelo ensaio da NBR 7190-5 (7.4): sem "
-                     "ensaio nao ha numero",
-        "chapas_dentes_7.5": "resistencia assegurada pelo fabricante "
-                             "(7.5): sem catalogo nao ha numero",
-        "MLC_MLCC_LVL_CLT": "G66 e' madeira serrada/rolica; lamelada, "
-                            "cruzada, laminada e CLT sao outro lote",
-        "vento_succao_uplift": "cadeia gravitacional como a da casa: "
-                               "vento e succao no telhado fora do lote",
+            "tesoura com carga nos nos e terca em flexao reta; obliqua e flexotracao entram com telhado fora do plano",
+        "aneis_7.4": "resistencia pelo ensaio da NBR 7190-5 (7.4): sem ensaio nao ha numero",
+        "chapas_dentes_7.5": "resistencia assegurada pelo fabricante (7.5): sem catalogo nao ha numero",
+        "MLC_MLCC_LVL_CLT": "G66 e madeira serrada/rolica; lamelada, cruzada, laminada e CLT sao outro lote",
+        "vento_succao_uplift": "cadeia gravitacional como a da casa: vento e succao no telhado fora do lote",
     }
 
 

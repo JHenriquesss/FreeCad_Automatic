@@ -191,8 +191,13 @@ def monta(cfg):
         alt = par.get("altura", cfg.get("pe_direito", 2.90)) - h_v
         if alt <= 0:
             raise ValueError("altura livre da parede <= 0 (pe-direito menor que a viga)")
+        if par.get("revestimento_cm") is None:
+            raise ValueError(
+                "parede_sobre_vigas.revestimento_cm nao declarado: o peso da "
+                "parede (NBR 6120) entra nas vigas de contorno e muda o "
+                "veredito; sem ele nao ha carga")
         g_parede = cg.carga_linear_parede(par["tipo"], par["espessura_cm"], alt,
-                                          par.get("revestimento_cm", 1.0))
+                                          par["revestimento_cm"])
 
     peso_viga = GAMMA_CONC * b_v * h_v          # kN/m
 

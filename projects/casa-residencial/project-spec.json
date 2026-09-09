@@ -110,6 +110,7 @@
         "extensao": 10.4,
         "espacamento": 2.0,
         "n_paineis": 2,
+        "forro_fragil": false,
         "telha": {
           "tipo": "ondulada",
           "peso": 0.55
@@ -144,7 +145,7 @@
           }
         },
         "apoio": "viga",
-        "contraventamento_banzo_inf": true,
+        "contraventamento_banzo_inf_m": 2.0,
         "apoio_comprimento_m": 0.2,
         "ligacao": {
           "tipo_pino": "parafuso",

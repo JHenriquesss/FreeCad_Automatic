@@ -31,7 +31,7 @@ PAREDE = {"tipo": "bloco_ceramico_furo_horizontal", "espessura_cm": 14,
 
 TELHADO_VIGA = {
     "vao": 8.0, "inclinacao_graus": 25.0, "extensao": 10.4,
-    "espacamento": 2.0, "n_paineis": 2,
+    "espacamento": 2.0, "n_paineis": 2, "forro_fragil": False,
     "telha": {"tipo": "ondulada", "peso": 0.55},
     "sobrecarga_kNm2": 0.25,
     "madeira": {"classe": "C24", "carregamento": "curta", "umidade": 2,
@@ -44,7 +44,7 @@ TELHADO_VIGA = {
         "terca": {"b": 0.06, "h": 0.16}},
     "apoio": "viga",
     "travamento_borda_comprimida_m": 2.0,
-    "contraventamento_banzo_inf": True,
+    "contraventamento_banzo_inf_m": 2.0,
     "apoio_comprimento_m": 0.2,
     "ligacao": {
         "tipo_pino": "parafuso", "d_mm": 12.0, "fu_MPa": 415.0,
@@ -67,7 +67,8 @@ def _casa_concreto(telhado=None):
         "viga": {"b": 0.20, "h": 0.45},
         "materiais": {"fck": 25e3, "fyk": 500e3},
         "parede_sobre_vigas": dict(PAREDE),
-        "baldrame": {"b": 0.15, "h": 0.40, "parede": dict(PAREDE)},
+        "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
+               "parede": dict(PAREDE)},
     }
     if telhado is not None:
         spec["telhado_madeira"] = telhado
@@ -93,7 +94,8 @@ def _casa_portante(telhado=None):
         "viga": {"b": 0.20, "h": 0.45},
         "materiais": {"fck": 25e3, "fyk": 500e3},
         "alvenaria_portante": dict(ALVENARIA),
-        "baldrame": {"b": 0.15, "h": 0.40, "parede": dict(PAREDE)},
+        "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
+               "parede": dict(PAREDE)},
         "fundacao": {"tipo": "sapata_corrida", "cota_apoio_m": 1.0,
                      "sigma_solo_adm": 150.0,
                      "sigma_solo_proveniencia": "ensaio declarada no teste"},
@@ -166,7 +168,9 @@ def test_verificacoes_contra_a_mao():
     assert 2.0 < perto["L1_limite_m"] < 6.0
     assert mad.verifica_flexao(5.0, 0.001, 20000.0, perto)["OK"]
     sem_trava = mad.verifica_flexao(5.0, 0.001, 20000.0, longe)
-    assert sem_trava["OK"] is False and "6.5.6-b" in sem_trava["motivo"]
+    assert sem_trava["OK"] is True and sem_trava.get("criterio_estabilidade") == "6.5.6_alternativo"
+    pesada = mad.verifica_flexao(10.0, 0.001, 20000.0, longe)
+    assert pesada["OK"] is False and "alternativo" in pesada["motivo"]
     # a flag booleana nao e' aceita como conferencia.
     with pytest.raises(mad.EntradaMadeira, match="6.5.6"):
         mad.verifica_flexao(5.0, 0.001, 20000.0, True)
@@ -585,6 +589,7 @@ def test_contraflecha_acima_de_dois_tercos_recusa():
     instantanea - senao ela 'zera' no papel uma flecha que existe."""
     with pytest.raises(mad.EntradaMadeira, match="2/3"):
         mad.verifica_els_terca(2.0, 1.0, 3.0, 11e6, 2e-5, 2,
+                               forro_fragil=False,
                                contraflecha_m=0.05)
 
 
@@ -650,8 +655,12 @@ def test_contrato_antigo_do_travamento_recusa_com_endereco():
     solto = copy.deepcopy(TELHADO_VIGA)
     solto["travamento_borda_comprimida_m"] = 6.0
     r = tmad.rodar(solto)
-    assert r["ATENDE"] is False and "tercas" in r["reprovados"]
-    assert "6.5.6-b" in r["terca"]["flexao"]["motivo"]
+    assert r["ATENDE"] is True and r["terca"]["flexao"].get("criterio_estabilidade") == "6.5.6_alternativo"
+    longa = copy.deepcopy(TELHADO_VIGA)
+    longa["travamento_borda_comprimida_m"] = 12.0
+    r2 = tmad.rodar(longa)
+    assert r2["ATENDE"] is False and "tercas" in r2["reprovados"]
+    assert "alternativo" in r2["terca"]["flexao"]["motivo"]
 
 
 def test_apoio_interior_da_terca_recebe_os_dois_tramos():

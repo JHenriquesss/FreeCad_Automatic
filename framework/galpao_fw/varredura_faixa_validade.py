@@ -697,6 +697,7 @@ SEM_FAIXA_DECLARADA = {
     "torcao_nbr8800.py": "torcao 5.5.2; sem faixa no vocabulario da lente.",
     "validacao.py": "harness de afericao; sem faixa.",
     "validacao_sistema_g15.py": "harness G15; 'fora do intervalo' ali e de URL/pagina.",
+    "varredura_defaults_veredito.py": "script avulso G75 (AST de .get); sem numero de norma.",
     "varredura_nao_verificados.py": "ferramenta G33; nao declara faixa de metodo.",
     "verificar_amostra.py": "script avulso visual; sem faixa.",
     "vibracao_piso.py": "escopo ilimitado ('vale para toda classe') fora da lente; 'restrito' e de acesso.",

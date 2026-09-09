@@ -148,7 +148,8 @@ def test_parede_sobre_vigas_carrega_o_contorno_e_nao_o_interno():
     igual se a parede fosse ignorada por completo."""
     sem = em.rodar(_spec())
     com = em.rodar(_spec(parede_sobre_vigas={
-        "tipo": "bloco_ceramico_furo_horizontal", "espessura_cm": 14.0}))
+        "tipo": "bloco_ceramico_furo_horizontal", "espessura_cm": 14.0,
+        "revestimento_cm": 1.0}))
     # canto e extremidade sobem
     assert com["pilares"]["P11"]["N_base_k"] > sem["pilares"]["P11"]["N_base_k"]
     assert com["pilares"]["P12"]["N_base_k"] > sem["pilares"]["P12"]["N_base_k"]

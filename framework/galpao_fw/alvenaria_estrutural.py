@@ -667,7 +667,7 @@ def vento_fa_por_nivel(n_pavimentos, pe_direito_m, largura_frontal_m,
     (topo), que termina no topo; a meia-altura inferior (0 a pe/2) desce
     direto a fundacao e NAO e atribuida a nivel nenhum — a mesma particao
     de estabilidade_edificio._cotas_e_areas (origem do Qh, nao numero).
-    vento: {v0 (m/s), cat (I-V), classe (A-C), s1?, s3?, ca (numero > 0,
+    vento: {v0 (m/s), cat (I-V), classe (A-C), s1, s3, ca (numero > 0,
       DECLARADO do abaco da Fig.4 com h/l1 e l1/l2 — a norma so da abaco)}.
     q via vento_nbr6123.s2_factor (homologado; nao recalculado aqui).
     Devolve por nivel {z, h_trib, Ae, s2, vk, q, Fa} + F_total + M_base.
@@ -685,7 +685,7 @@ def vento_fa_por_nivel(n_pavimentos, pe_direito_m, largura_frontal_m,
     if not isinstance(vento, dict):
         raise EntradaAlvenaria(
             "vento_nao_declarado: o sobrado pede vento NBR 6123 (v0, cat, "
-            "classe, ca declarado do abaco da Fig.4); Qh avulsa segue "
+            "classe, s1, s3, ca declarado do abaco da Fig.4); Qh avulsa segue "
             "recusando.")
     try:
         v0 = float(vento["v0"])
@@ -693,14 +693,18 @@ def vento_fa_por_nivel(n_pavimentos, pe_direito_m, largura_frontal_m,
         ca = float(vento["ca"])
     except (KeyError, TypeError, ValueError):
         raise EntradaAlvenaria(
-            "vento_incompleto: declare v0/cat/classe + ca (NBR 6123 Fig.4, "
+            "vento_incompleto: declare v0/cat/classe/s1/s3 + ca (NBR 6123 Fig.4, "
             "abaco lido pelo projetista, recebido %r)." % (vento,))
     if not v0 > 0:
         raise EntradaAlvenaria("v0_nao_positivo: %r" % (v0,))
     if not ca > 0:
         raise EntradaAlvenaria("ca_nao_positivo: %r" % (ca,))
-    s1 = float(vento.get("s1", 1.0))
-    s3 = float(vento.get("s3", 1.0))
+    if vento.get("s1") is None or vento.get("s3") is None:
+        raise EntradaAlvenaria(
+            "vento.s1/s3 nao declarados: s1 topografico (NBR 6123 5.2) e s3 "
+            "estatistico (5.3) multiplicam Vk; sem eles nao ha Fa por nivel")
+    s1 = float(vento["s1"])
+    s3 = float(vento["s3"])
     niveis = []
     for i in range(1, n + 1):
         z = i * pe
@@ -1795,7 +1799,7 @@ def _selftest():
     import vento_nbr6123 as _vt67
     w = vento_fa_por_nivel(2, 2.7, 8.0,
                            {"v0": 40.0, "cat": "II", "classe": "B",
-                            "ca": 1.0})
+                            "s1": 1.0, "s3": 1.0, "ca": 1.0})
     assert len(w["niveis"]) == 2
     assert abs(w["F_total_kN"] - sum(v["Fa_kN"] for v in w["niveis"])) < 1e-6
     _b, _fr, _p, _s2 = _vt67.s2_factor("II", "B", 5.4)

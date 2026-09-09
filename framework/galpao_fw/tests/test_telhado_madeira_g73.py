@@ -31,7 +31,7 @@ import telhado_casa_madeira as tmad
 
 TELHADO_MM = {
     "vao": 8.0, "inclinacao_graus": 25.0, "extensao": 10.4,
-    "espacamento": 2.0, "n_paineis": 2,
+    "espacamento": 2.0, "n_paineis": 2, "forro_fragil": False,
     "telha": {"tipo": "ondulada", "peso": 0.55},
     "sobrecarga_kNm2": 0.25,
     "madeira": {"classe": "C24", "carregamento": "curta", "umidade": 2,
@@ -44,7 +44,7 @@ TELHADO_MM = {
         "terca": {"b": 0.06, "h": 0.16}},
     "apoio": "viga",
     "travamento_borda_comprimida_m": 2.0,
-    "contraventamento_banzo_inf": True,
+    "contraventamento_banzo_inf_m": 2.0,
     "apoio_comprimento_m": 0.2,
     "ligacao": {
         "sistema": "madeira_madeira",

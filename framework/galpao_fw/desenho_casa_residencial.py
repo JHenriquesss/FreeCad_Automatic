@@ -308,7 +308,7 @@ def telhado_tesoura_svg(telhado) -> str:
     cor_grupo = {"banzo_sup": "#7c2d12", "banzo_inf": "#7c2d12",
                  "montante": "#15803d", "diagonal": "#1d4ed8"}
     ok_geral = bool(telhado.get("ATENDE"))
-    partes = abre_svg(largura, topo_y + escala_area_h + 330,
+    partes = abre_svg(largura, topo_y + escala_area_h + 350,
                       "TESOURA HOWE - NBR 7190-1 (%s)" % (
                           "ATENDE" if ok_geral else "REPROVA"))
     for barra in barras:
@@ -354,6 +354,15 @@ def telhado_tesoura_svg(telhado) -> str:
             "sem vento declarado: cadeia gravitacional (G66)", 12))
     # G73: o sistema do no e' dito na folha (renderizar-e-olhar): a
     # situacao da ligacao nao se herda do veredito global.
+    contra_folha = telhado.get("contraventamento_6_6") or {}
+    partes.append(texto(
+        largura / 2, topo_y + escala_area_h + 70,
+        "contraventamento 6.6: F1d=%.3f kN (Nd=%.2f/150) ; Fd=%.3f kN ((2/3).%d.F1d) ; Kbrmin=%.1f kN/m ; peca nao verificada" % (
+            contra_folha.get("F1d_kN", 0.0),
+            contra_folha.get("Nd_governante_kN", 0.0),
+            contra_folha.get("Fd_extremidade_kN", 0.0),
+            telhado.get("n_tesouras", 0),
+            contra_folha.get("Kbrmin_kN_m", 0.0)), 12))
     lig_folha = telhado.get("ligacoes") or {}
     partes.append(texto(
         largura / 2, topo_y + escala_area_h + 58,
@@ -373,7 +382,7 @@ def telhado_tesoura_svg(telhado) -> str:
                ("Situacao", 130, "start")]
     largura_total = sum(c[1] for c in colunas)
     x0 = (largura - largura_total) / 2
-    y0 = topo_y + escala_area_h + 74
+    y0 = topo_y + escala_area_h + 86
     # Situacao POR PECA, nao o veredito global repetido cinco vezes: a
     # coluna diz respeito a linha, e um telhado com uma barra reprovada
     # nao pode carimbar REPROVA nas quatro que passam.

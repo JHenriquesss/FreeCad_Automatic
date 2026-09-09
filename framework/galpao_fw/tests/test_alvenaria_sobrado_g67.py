@@ -38,9 +38,10 @@ BASE = {
         "parede_6120": {"tipo": "bloco_concreto_estrutural",
                         "espessura_cm": 14.0, "revestimento_cm": 2.0},
         "linhas": "todas", "fa_MPa": 5.0},
-    "vento": {"v0": 35.0, "cat": "II", "classe": "B",
-              "ca": {"x": 0.9, "y": 1.1}},
-    "baldrame": {"b": 0.15, "h": 0.40, "q_parede": 5.0},
+    "vento": {"v0": 35.0, "cat": "II", "classe": "B", "s1": 1.0,
+              "s3": 1.0, "ca": {"x": 0.9, "y": 1.1}},
+    "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
+               "q_parede": 5.0},
     "fundacao": {"tipo": "sapata_corrida", "sigma_solo_adm": 150.0,
                  "cota_apoio_m": 1.0},
 }
@@ -201,9 +202,10 @@ def test_114_governa_sozinha_na_integracao():
     # reprova — a parede que recebe o Fi cai na 11.4, nao so na compressao.
     s = _spec()
     s["alvenaria_portante"] = dict(s["alvenaria_portante"], fa_MPa=2.0,
-                                   As_m2=4e-4, fyk=500e3)
-    s["vento"] = {"v0": 100.0, "cat": "II", "classe": "B",
-                  "ca": {"x": 0.9, "y": 1.1}}
+                                   As_m2=4e-4, fyk=500e3,
+                                   tipo_bloco="bloco_concreto")
+    s["vento"] = {"v0": 100.0, "cat": "II", "classe": "B", "s1": 1.0,
+                  "s3": 1.0, "ca": {"x": 0.9, "y": 1.1}}
     r = ec.rodar(s)
     assert r["ATENDE"] is False
     assert "alvenaria_portante" in r["reprovados"]

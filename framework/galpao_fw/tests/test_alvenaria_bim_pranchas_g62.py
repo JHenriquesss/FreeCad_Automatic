@@ -31,7 +31,7 @@ BASE = {
                            "peitoril_m": 0.0, "tipo": "porta"}],
                  "BY-0": [{"pos_m": 2.0, "larg_m": 1.2, "alt_m": 1.0,
                            "peitoril_m": 1.1, "tipo": "janela"}]}},
-    "baldrame": {"b": 0.15, "h": 0.40,
+    "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
                  "parede": {"tipo": "bloco_ceramico_furo_horizontal",
                             "espessura_cm": 14, "altura": 2.7,
                             "revestimento_cm": 1.0}},

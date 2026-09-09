@@ -259,8 +259,8 @@ def test_sobrado_dois_pavimentos_dentro_da_fronteira(spec, tmp_path):
     # G68: sobrado de concreto declara vento (o turnkey repassa a chave a
     # estrutura_casa, que recusa sobrado sem vento em vez de sair ATENDE).
     sobrado["turnkey"]["estrutura"]["vento"] = {
-        "v0": 40.0, "cat": "II", "classe": "B",
-        "ca": {"x": 1.1, "y": 1.1}}
+        "v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0,
+        "s3": 1.0, "ca": {"x": 1.1, "y": 1.1}}
     sobrado["turnkey"]["hidraulica"]["pavimentos"] = 2
     destino = tmp_path / "run-sobrado"
     manifesto = run_project(sobrado, destino, {})

@@ -352,16 +352,32 @@ def analisa_trelica(nos, barras, cargas, apoio_L, apoio_R):
 def _valida(spec):
     for chave in ("telha", "sobrecarga_kNm2", "madeira", "secoes", "apoio",
                   "ligacao", "travamento_borda_comprimida_m",
-                  "contraventamento_banzo_inf", "apoio_comprimento_m"):
+                  "contraventamento_banzo_inf_m", "apoio_comprimento_m"):
         if spec.get(chave) is None:
             raise EntradaTelhado("%s deve ser declarado" % chave)
+    for chave in ("forro_fragil", "n_paineis"):
+        if spec.get(chave) is None:
+            raise EntradaTelhado(
+                "%s deve ser declarado (sem default): forro_fragil decide os "
+                "limites da Tab.21 e n_paineis a geometria; omitidos mudam o "
+                "veredito" % chave)
     if spec.get("travado_borda_comprimida") is not None:
         raise EntradaTelhado(
             "travado_borda_comprimida saiu do contrato: a 6.5.6 dispensa "
             "pelo NUMERO (L1 entre travamentos da borda comprimida) e nao "
             "por declaracao 'sim'; use travamento_borda_comprimida_m")
+    if spec.get("contraventamento_banzo_inf") is not None:
+        raise EntradaTelhado(
+            "contraventamento_banzo_inf saiu do contrato: o banzo inferior "
+            "flamba para fora do plano pelo COMPRIMENTO entre travamentos "
+            "(6.5 + 6.6.3), nao por declaracao 'sim'; use "
+            "contraventamento_banzo_inf_m (m)")
     if not float(spec["travamento_borda_comprimida_m"]) >= 0:
         raise EntradaTelhado("travamento_borda_comprimida_m deve ser >= 0")
+    if not float(spec["contraventamento_banzo_inf_m"]) > 0:
+        raise EntradaTelhado("contraventamento_banzo_inf_m deve ser > 0: "
+                             "distancia entre travamentos laterais do banzo "
+                             "inferior (m); sem ela L0 e F1d sao indefinidos")
     if spec.get("travamento_borda_inferior_m") is not None and not float(
             spec["travamento_borda_inferior_m"]) >= 0:
         raise EntradaTelhado("travamento_borda_inferior_m deve ser >= 0")
@@ -500,15 +516,11 @@ def confere_fechamento_area(G_lancado_kN, Q_lancado_kN, g_total_kN_m2,
 
 
 def _checa_barra_axial(n1, n2, grupo, L, Nd, sec, res, prop,
-                       d_pino_mm, trav_inf, vao):
-    """Verifica UMA barra sob UM Nd (ELU): tracao (6.3.2, area liquida) ou
-    compressao com estabilidade (6.3.3+6.5, lambda <= 140, kc) + 9.2.1/9.3.
-    O chamador roda nos dois sinais do par (gravidade, uplift): barra que
-    passa de tracao para compressao ganha a estabilidade automaticamente,
-    e o banzo inferior sem contraventamento flamba o vao inteiro."""
-    b, h = float(sec["b"]), float(sec["h"])
+                       d_pino_mm, spacing_inf_m, vao):
+    b = float(sec["b"])
+    h = float(sec["h"])
     A = b * h
-    Ix = b * h ** 3 / 12.0  # flexao no plano (h = altura no plano)
+    Ix = b * h ** 3 / 12.0
     Iy = h * b ** 3 / 12.0
     if Nd >= 0:
         A_liq = (b - float(d_pino_mm) / 1000.0) * h
@@ -516,8 +528,8 @@ def _checa_barra_axial(n1, n2, grupo, L, Nd, sec, res, prop,
         r = dict(r, lambda_=None, kc=None)
     else:
         L0_in = L
-        if grupo == "banzo_inf" and not trav_inf:
-            L0_out = vao  # sem contraventamento, flamba o vao inteiro
+        if grupo == "banzo_inf":
+            L0_out = min(float(spacing_inf_m), float(vao))
         else:
             L0_out = L
         lam = max(mad.esbeltez(L0_in, Ix, A),
@@ -528,7 +540,10 @@ def _checa_barra_axial(n1, n2, grupo, L, Nd, sec, res, prop,
              else PAPEL_921["secundaria"])
     r921 = mad.verifica_dimensoes_minimas_921(b, h, papel)
     solic = "tracionada" if Nd >= 0 else "comprimida"
-    L0_921 = L if (Nd >= 0 or grupo != "banzo_inf" or trav_inf) else vao
+    if Nd >= 0 or grupo != "banzo_inf":
+        L0_921 = L
+    else:
+        L0_921 = min(float(spacing_inf_m), float(vao))
     r93 = mad.verifica_esbeltez_geometrica_93(L0_921, min(b, h), solic)
     construtivas = []
     if not r921["OK"] or not r93["OK"]:
@@ -551,14 +566,14 @@ def rodar(spec):
     inc = _num(spec, "inclinacao_graus", 0, "do telhado")
     ext = _num(spec, "extensao", 0, "comprimento do telhado")
     esp = _num(spec, "espacamento", 0, "entre tesouras")
-    n_pain = int(spec.get("n_paineis", 2))
+    n_pain = int(spec["n_paineis"])
     sobre_q = _num(spec, "sobrecarga_kNm2", 0, "manutencao (projetada)")
     comp_apoio = _num(spec, "apoio_comprimento_m", 0, "apoio da tesoura")
 
     prop = mad.propriedades_classe(spec["madeira"]["classe"])
     km = mad.kmod(spec["madeira"]["carregamento"],
                   spec["madeira"]["umidade"],
-                  spec["madeira"].get("categoria", "serrada"))
+                  spec["madeira"]["categoria"])
     res = mad.resistencias_calculo(prop, km["kmod"])
     conifera = prop["conifera"]
 
@@ -698,7 +713,7 @@ def rodar(spec):
                                  W_tot_kN=round(W_tot, 3))
 
     # verificacao barra a barra: o PAR (gravidade, uplift).
-    trav_inf = bool(spec["contraventamento_banzo_inf"])
+    spacing_inf_m = float(spec["contraventamento_banzo_inf_m"])
     ver_barras = []
     reprovadas = []
     construtivas = []  # 9.2.1 e 9.3, por grupo (uma vez cada)
@@ -711,7 +726,7 @@ def rodar(spec):
         Nd_grav = GF * (Nk_g + Nk_q)
         r_grav, c_grav = _checa_barra_axial(
             n1, n2, grupo, L, Nd_grav, secoes[grupo], res, prop,
-            d_pino, trav_inf, vao)
+            d_pino, spacing_inf_m, vao)
         construtivas.extend(c for c in c_grav
                             if c not in construtivas)
         # uplift: um Nd por caso de vento; governa o pior modulo.
@@ -725,7 +740,7 @@ def rodar(spec):
             Nd_up, Nk_w_up = cands[caso_up]
             r_up, c_up = _checa_barra_axial(
                 n1, n2, grupo, L, Nd_up, secoes[grupo], res, prop,
-                d_pino, trav_inf, vao)
+                d_pino, spacing_inf_m, vao)
             construtivas.extend(c for c in c_up
                                 if c not in construtivas)
         r = dict(r_grav, Nk_kN=round(Nk_g + Nk_q, 2),
@@ -768,7 +783,7 @@ def rodar(spec):
     r_cis = mad.verifica_cisalhamento(Vd, At, res["fv0d"])
     r_els = mad.verifica_els_terca(g_lin, q_lin, esp, prop["E0m"],
                                    It, int(spec["madeira"]["umidade"]),
-                                   bool(spec.get("forro_fragil", False)),
+                                   bool(spec["forro_fragil"]),
                                    float(spec.get("contraflecha_m", 0.0)),
                                    spec.get("limites_flecha"))
     # Apoio da terca: a terca corre a extensao INTEIRA sobre varias
@@ -1043,6 +1058,66 @@ def rodar(spec):
                       * n_tesouras, 3)
     area_telha = 2.0 * (vao / 2.0 / cos_t) * ext
 
+    # 6.6 contraventamento do conjunto (p.27-31, figuras vistas).
+    Nd_sup = 0.0
+    Nd_inf = 0.0
+    for _r in ver_barras:
+        _g = _r.get("grupo", "")
+        for _k in ("Nd_grav_kN", "Nd_uplift_kN"):
+            _v = _r.get(_k)
+            if _v is None:
+                continue
+            if float(_v) < 0:
+                _a = abs(float(_v))
+                if _g == "banzo_sup":
+                    Nd_sup = max(Nd_sup, _a)
+                elif _g == "banzo_inf":
+                    Nd_inf = max(Nd_inf, _a)
+    Nd_gov = max(Nd_sup, Nd_inf)
+    _F1d = mad.forca_contraventamento_F1d_662(Nd_gov)
+    F1d_kN = float(_F1d["F1d_kN"])
+    _Fd = mad.forca_extremidade_Fd_664(n_tesouras, F1d_kN)
+    Fd_kN = float(_Fd["Fd_kN"])
+    sec_inf = secoes["banzo_inf"]
+    bi = float(sec_inf["b"])
+    hi = float(sec_inf["h"])
+    I2_inf = hi * bi ** 3 / 12.0
+    E0ef = float(km["kmod"]) * float(prop["E0m"])
+    L1_inf_eff = min(float(spacing_inf_m), float(vao))
+    m_inf = float(vao) / L1_inf_eff if L1_inf_eff > 0 else float("inf")
+    _K1 = mad.rigidez_minima_Kbr1min_662(E0ef, I2_inf, L1_inf_eff, m_inf)
+    K1_kN_m = float(_K1["Kbr1min_kN_m"])
+    _Kb = mad.rigidez_minima_Kbr_664(n_tesouras, K1_kN_m)
+    Kbrmin = float(_Kb["Kbrmin_kN_m"])
+    precisa_intermediaria = bool(float(ext) > 20.0)
+    contraventamento_66 = {
+        "criterio": "6.6.3+6.6.4",
+        "n_tesouras": n_tesouras,
+        "Nd_banzo_sup_kN": round(Nd_sup, 2),
+        "Nd_banzo_inf_kN": round(Nd_inf, 2),
+        "Nd_governante_kN": round(Nd_gov, 2),
+        "F1d_kN": round(F1d_kN, 3),
+        "Fd_extremidade_kN": round(Fd_kN, 3),
+        "L1_inf_m": round(L1_inf_eff, 3),
+        "spacing_declarado_m": round(float(spacing_inf_m), 3),
+        "m_inf": round(m_inf, 3),
+        "I2_inf_m4": I2_inf,
+        "E0ef_kNm2": E0ef,
+        "Kbr1min_kN_m": round(K1_kN_m, 2),
+        "Kbrmin_kN_m": round(Kbrmin, 2),
+        "intermediarias_20m": ("exigidas (ext > 20 m, 6.6.4 p.30): posicoes nao declaradas"
+                               if precisa_intermediaria else
+                               "dispensadas (ext <= 20 m, so extremidades, 6.6.4 p.30)"),
+        "peca_contraventamento": {
+            "status": "not_available",
+            "motivo": ("6.6.2 p.29: peca comprimida por F1d deve ter estabilidade verificada; "
+                       "secao/comprimento da peca de travamento nao declarados")},
+        "rigidez_real": {
+            "status": "not_available",
+            "motivo": ("6.6.4 p.31: Kbr real da estrutura de extremidade nao declarado; "
+                       "Kbrmin calculado acima e o minimo")},
+    }
+
     # descida: reacao por tesoura -> apoio que a casa ja tem.
     R_por_tesoura = {"G_kN": round(G_tot, 2), "Q_kN": round(Q_tot, 2),
                      "R_kN": round(G_tot + Q_tot, 2)}
@@ -1090,6 +1165,12 @@ def rodar(spec):
                   "cpi": (vento_info["cpi"] if vento_info else None)},
         "ancoragem_uplift": {"OK": ancoragem["OK"],
                              "motivo": ancoragem.get("motivo")},
+        "contraventamento_6.6": {"OK": True,
+                                 "F1d_kN": contraventamento_66["F1d_kN"],
+                                 "Fd_kN": contraventamento_66["Fd_extremidade_kN"],
+                                 "Kbrmin_kN_m": contraventamento_66["Kbrmin_kN_m"],
+                                 "peca": "not_available",
+                                 "rigidez_real": "not_available"},
     }
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {
@@ -1106,6 +1187,7 @@ def rodar(spec):
                     "ft0d": res["ft0d"], "fc0d": res["fc0d"],
                     "fmd": res["fmd"], "fv0d": res["fv0d"]},
         "barras": ver_barras, "terca": terca, "ligacoes": ligacoes,
+        "contraventamento_6_6": contraventamento_66,
         "apoio_verificacao": r_apoio,
         "vento_ativo": bool(casos_W), "vento": vento_info,
         "casos_W": casos_W, "ancoragem": ancoragem,
@@ -1214,11 +1296,17 @@ def relatorio_pt(r):
              r["descida"]["apoio"]),
          "  MADEIRA: %.3f m3 em %d tesouras ; TELHA: %.1f m2 inclinados"
          % (r["vol_madeira_m3"], r["n_tesouras"], r["area_telha_m2"]),
+         "  CONTRAVENTAMENTO 6.6: F1d=%.3f kN (Nd=%s kN/150) ; Fd=%.3f kN ((2/3).n.F1d, n=%d) ; Kbrmin=%.1f kN/m ; peca/rigidez: nao verificadas (secao nao declarada)" % (
+             (r.get("contraventamento_6_6") or {}).get("F1d_kN", 0.0),
+             (r.get("contraventamento_6_6") or {}).get("Nd_governante_kN", 0.0),
+             (r.get("contraventamento_6_6") or {}).get("Fd_extremidade_kN", 0.0),
+             r["n_tesouras"],
+             (r.get("contraventamento_6_6") or {}).get("Kbrmin_kN_m", 0.0)),
          "  RESULTADO GLOBAL: %s" % (
              "ATENDE" if r["ATENDE"]
              else "REPROVA -> " + ", ".join(r["reprovados"])),
           "  [TELHADO GRAVITACIONAL: vento/succao fora do lote; "
-          "contraflecha e contraventamento longitudinal fora do lote.]"
+          "contraflecha fora do lote; contraventamento 6.6: forcas calculadas, peca/rigidez nao declaradas.]"
           if not r.get("vento_ativo") else
           "  [VENTO G71: q=%.3f kN/m2 cpe(EF,GH)=%s cpi=%.2f (%s); "
           "uplift %s; arrancamento L/R %.2f/%.2f kN por tesoura; "

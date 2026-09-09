@@ -122,7 +122,6 @@ def abre_svg(largura, altura, titulo=None, titulo_size=20):
 
 def colisoes_de_rotulo_svg(svg):
     """Rotulos <text> que se sobrepoem (equivalente G56 de colisoes_de_rotulo).
-
     Le o SVG como XML e estima a caixa de cada texto (largura ~0.6*size por
     caractere, altura ~size). Devolve os pares que se intersectam. Pranchas
     com legenda/resumo em caixas fixas nao sobrepostas devolvem [].
@@ -160,3 +159,67 @@ def colisoes_de_rotulo_svg(svg):
             if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
                 fora.append((caixas[i][0], caixas[j][0]))
     return fora
+
+
+def confere_folha_svg(svg, tol=1e-6):
+    """Guarda generica da folha (G76): viewBox == width/height e contem o desenho.
+
+    Barata, sem renderizar: teria pego sozinha o caso da elevacao da
+    alvenaria (height 2477 x viewBox de altura 100). Le o SVG como XML
+    (nunca substring) e mede o maior x/y desenhado em rect/line/circle/
+    text. Devolve {"ok", "w", "h", "vb", "xmax", "ymax", "motivo"}.
+    """
+    import xml.etree.ElementTree as _ET
+
+    try:
+        root = _ET.fromstring(svg)
+    except _ET.ParseError as exc:
+        return {"ok": False, "motivo": "svg-malformado: %s" % exc,
+                "w": 0.0, "h": 0.0, "vb": [], "xmax": 0.0, "ymax": 0.0}
+    try:
+        w = float(root.get("width"))
+        h = float(root.get("height"))
+        vb = [float(v) for v in (root.get("viewBox") or "").split()]
+    except (TypeError, ValueError):
+        return {"ok": False, "motivo": "cabecalho-sem-dimensao",
+                "w": 0.0, "h": 0.0, "vb": [], "xmax": 0.0, "ymax": 0.0}
+    if len(vb) != 4 or vb[0] != 0 or vb[1] != 0:
+        return {"ok": False, "motivo": "viewBox-origem: %r" % vb,
+                "w": w, "h": h, "vb": vb, "xmax": 0.0, "ymax": 0.0}
+    if abs(vb[2] - w) > tol or abs(vb[3] - h) > tol:
+        return {"ok": False,
+                "motivo": "viewBox-nao-e-WxH: vb=%s w=%s h=%s" % (vb, w, h),
+                "w": w, "h": h, "vb": vb, "xmax": 0.0, "ymax": 0.0}
+    ns = "{http://www.w3.org/2000/svg}"
+    xmax = ymax = 0.0
+
+    def _f(el, chave, pad=0.0):
+        try:
+            return float(el.get(chave, pad))
+        except (TypeError, ValueError):
+            return pad
+
+    for tag in ("rect", "line", "circle", "text", "ellipse"):
+        for el in list(root.iter(ns + tag)) + list(root.iter(tag)):
+            if tag == "rect":
+                xmax = max(xmax, _f(el, "x") + _f(el, "width"))
+                ymax = max(ymax, _f(el, "y") + _f(el, "height"))
+            elif tag == "line":
+                xmax = max(xmax, _f(el, "x1"), _f(el, "x2"))
+                ymax = max(ymax, _f(el, "y1"), _f(el, "y2"))
+            elif tag == "circle":
+                xmax = max(xmax, _f(el, "cx") + _f(el, "r"))
+                ymax = max(ymax, _f(el, "cy") + _f(el, "r"))
+            elif tag == "ellipse":
+                xmax = max(xmax, _f(el, "cx") + _f(el, "rx"))
+                ymax = max(ymax, _f(el, "cy") + _f(el, "ry"))
+            elif tag == "text":
+                xmax = max(xmax, _f(el, "x"))
+                ymax = max(ymax, _f(el, "y"))
+    if xmax > w + tol or ymax > h + tol:
+        return {"ok": False,
+                "motivo": "desenho-fora-da-folha: xmax=%.1f w=%.1f ymax=%.1f h=%.1f"
+                % (xmax, w, ymax, h),
+                "w": w, "h": h, "vb": vb, "xmax": xmax, "ymax": ymax}
+    return {"ok": True, "motivo": "", "w": w, "h": h, "vb": vb,
+            "xmax": xmax, "ymax": ymax}

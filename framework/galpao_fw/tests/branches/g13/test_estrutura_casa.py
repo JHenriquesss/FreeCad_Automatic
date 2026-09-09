@@ -40,7 +40,8 @@ TERREA = {
     "viga": {"b": 0.20, "h": 0.45},
     "materiais": {"fck": 25e3, "fyk": 500e3},
     "parede_sobre_vigas": dict(PAREDE),
-    "baldrame": {"b": 0.15, "h": 0.40, "parede": dict(PAREDE)},
+    "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno",
+               "parede": dict(PAREDE)},
     "fundacao": {"perfil_spt": [{"tipo": "argila_arenosa", "N": 8, "dz": 2.0},
                                 {"tipo": "areia_siltosa", "N": 16, "dz": 3.0},
                                 {"tipo": "areia", "N": 25, "dz": 4.0}],
@@ -77,8 +78,8 @@ def test_o_sobrado_tambem_roda():
     # sem ele a entrada e' recusada em vez de sair ATENDE sem Qh.
     spec = _spec(pavimentos=[{"nome": "Cobertura", "uso": "cobertura_manutencao"},
                              {"nome": "Terreo", "uso": "residencial_dormitorio"}],
-                 vento={"v0": 40.0, "cat": "II", "classe": "B",
-                        "ca": {"x": 1.1, "y": 1.1}})
+                 vento={"v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0,
+                        "s3": 1.0, "ca": {"x": 1.1, "y": 1.1}})
     resultado = ec.rodar(spec)
     assert resultado["tipologia"] == "sobrado"
     assert resultado["n_pavimentos"] == 2
@@ -169,7 +170,7 @@ def test_baldrame_sem_a_parede_declarada_reprova_com_o_motivo():
     nao e' o baldrame desta casa. A entrada recusada vira gate REPROVADO com o
     motivo - falha ISOLADA, que nao impede o resto da casa de ser calculado e
     nao deixa a fundacao passar como se o baldrame nao existisse."""
-    spec = _spec(baldrame={"b": 0.15, "h": 0.40})
+    spec = _spec(baldrame={"b": 0.15, "h": 0.40, "linhas": "contorno"})
     resultado = ec.rodar(spec)
     assert resultado["baldrame"] is None
     assert "parede" in resultado["baldrame_erro"]

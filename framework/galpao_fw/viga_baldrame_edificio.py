@@ -91,14 +91,16 @@ def _valida(spec_fundacao):
     if parede is not None and not isinstance(parede, dict):
         erros.append("viga_baldrame.parede deve ser um objeto")
     if parede is not None:
-        for req in ("tipo", "espessura_cm", "altura"):
+        for req in ("tipo", "espessura_cm", "altura", "revestimento_cm"):
             if req not in parede:
                 erros.append("viga_baldrame.parede precisa de '%s'" % req)
     if q is None and parede is None:
         erros.append("viga_baldrame precisa de 'q_parede' (kN/m) ou 'parede' "
-                     "(tipo/espessura_cm/altura, Tabela 2 da NBR 6120)")
+                     "(tipo/espessura_cm/altura/revestimento_cm, Tabela 2 da NBR 6120)")
     linhas = vb_spec.get("linhas")
-    if linhas is not None and linhas not in LINHAS_VALIDAS:
+    if linhas is None:
+        erros.append("viga_baldrame.linhas deve ser declarado (contorno ou todas): quais linhas recebem viga muda as reacoes")
+    elif linhas not in LINHAS_VALIDAS:
         erros.append("viga_baldrame.linhas invalido: %r (use %s)" % (linhas, ", ".join(LINHAS_VALIDAS)))
     cont = vb_spec.get("continuidade")
     if cont is not None and cont not in ("simples", "continua"):
@@ -116,7 +118,7 @@ def _q_parede(spec_vb) -> tuple[float, str]:
     try:
         q = cg.carga_linear_parede(
             parede["tipo"], parede["espessura_cm"], parede["altura"],
-            parede.get("revestimento_cm", 1.0))
+            parede["revestimento_cm"])
     except Exception as exc:  # noqa: BLE001
         raise EntradaBaldrame("viga_baldrame.parede invalida: %s" % exc) from exc
     return float(q), ("Tabela 2 da NBR 6120: %s e=%s cm, h=%.2f m"
@@ -176,7 +178,7 @@ def dimensiona(spec_fundacao, contexto):
 
     b = float(vb_spec.get("b", 0.20))
     h0 = float(vb_spec.get("h", 0.40))
-    modo = vb_spec.get("linhas", "contorno")
+    modo = vb_spec["linhas"]
     linhas = linhas_de_baldrame(vaos_x, vaos_y, modo)
 
     q_parede, proveniencia = _q_parede(vb_spec)

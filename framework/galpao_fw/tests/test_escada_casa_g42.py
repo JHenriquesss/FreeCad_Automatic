@@ -38,8 +38,8 @@ def _spec(**kw):
         # G68: o spec-base tem 2 pavimentos (sobrado de concreto) e sobrado
         # sem vento e' recusado - o vento declarado alimenta a camada
         # horizontal sem interferir na carga vertical da escada.
-        "vento": {"v0": 40.0, "cat": "II", "classe": "B",
-                  "ca": {"x": 1.1, "y": 1.1}},
+        "vento": {"v0": 40.0, "cat": "II", "classe": "B", "s1": 1.0,
+                  "s3": 1.0, "ca": {"x": 1.1, "y": 1.1}},
     }
     base.update(copy.deepcopy(kw))
     return base

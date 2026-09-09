@@ -24,7 +24,7 @@ import telhado_casa_madeira as tmad
 
 TELHADO = {
     "vao": 8.0, "inclinacao_graus": 25.0, "extensao": 10.4,
-    "espacamento": 2.0, "n_paineis": 2,
+    "espacamento": 2.0, "n_paineis": 2, "forro_fragil": False,
     "telha": {"tipo": "ondulada", "peso": 0.55},
     "sobrecarga_kNm2": 0.25,
     "madeira": {"classe": "C24", "carregamento": "curta", "umidade": 2,
@@ -37,7 +37,7 @@ TELHADO = {
         "terca": {"b": 0.06, "h": 0.16}},
     "apoio": "viga",
     "travamento_borda_comprimida_m": 2.0,
-    "contraventamento_banzo_inf": True,
+    "contraventamento_banzo_inf_m": 2.0,
     "apoio_comprimento_m": 0.2,
     "ligacao": {
         "tipo_pino": "parafuso", "d_mm": 12.0, "fu_MPa": 415.0,
@@ -69,7 +69,7 @@ def _estrutura_com_telhado():
         "parede_sobre_vigas": {"tipo": "bloco_ceramico_furo_horizontal",
                                "espessura_cm": 14, "altura": 2.7,
                                "revestimento_cm": 2.0},
-        "baldrame": {"b": 0.15, "h": 0.40, "parede": {
+        "baldrame": {"b": 0.15, "h": 0.40, "linhas": "contorno", "parede": {
             "tipo": "bloco_ceramico_furo_horizontal",
             "espessura_cm": 14, "altura": 2.7,
             "revestimento_cm": 2.0}},
