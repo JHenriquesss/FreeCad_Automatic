@@ -139,12 +139,23 @@ def test_orcamento_parcial_se_declara_parcial_no_disco(spec, tmp_path):
 
 # --- coordenacao: geometria antes do hook ------------------------------------
 
-def test_coordenacao_tem_as_tres_disciplinas(execucao):
+CORE_DISCIPLINAS = {"estrutura", "eletrico", "hidraulica"}
+
+
+def test_coordenacao_tem_as_disciplinas_que_a_casa_declara(execucao, spec):
+    """O conjunto congelado de tres quebrou quando o G72 pos o telhado no
+    federado - e um conjunto congelado nao sabe dizer se o quarto membro
+    entrou por direito ou por acidente. A esperada passa a SAIR da spec: as
+    tres do nucleo sempre, e `telhado` exatamente quando ha telhado de
+    madeira declarado. Some uma do nucleo: vermelho. Aparece disciplina que
+    a spec nao declara: vermelho tambem (baseline nos dois sentidos)."""
     manifesto, _ = execucao
     coordenacao = manifesto["coordination"]
     assert coordenacao["status"] == "generated"
-    assert set(coordenacao["disciplinas"]) == {"estrutura", "eletrico",
-                                              "hidraulica"}
+    esperada = set(CORE_DISCIPLINAS)
+    if (spec.get("turnkey", {}).get("estrutura", {}).get("telhado_madeira")):
+        esperada.add("telhado")
+    assert set(coordenacao["disciplinas"]) == esperada
 
 
 def test_clash_aponta_furos_reais_no_disco(execucao):

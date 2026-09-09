@@ -560,6 +560,7 @@ SEM_FAIXA_DECLARADA = {
     "bim_casa_residencial.py": "BIM/IFC sem formula; sem faixa.",
     "bim_edificio.py": "BIM/IFC sem formula; sem faixa.",
     "bim_eletrico_residencial.py": "BIM posiciona o ja dimensionado; sem faixa.",
+    "bim_telhado_madeira.py": "emissor de geometria (G72); a unica constante e TOL_VOL_REL, tolerancia de cross-check modelo x calculo, nao faixa de validade de norma - o rhom da Tab.3 vem de madeira_nbr7190, que a lente ja varre.",
     "bim_instalacoes_casa.py": "geometria no frame; 'teto' ali e forro arquitetonico (FP do teto generico).",
     "bim_instalacoes_edificio.py": "geometria no frame; sem faixa.",
     "build_concreto.py": "build 3D a partir do neutro calculado; sem faixa.",

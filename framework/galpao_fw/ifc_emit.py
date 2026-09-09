@@ -32,15 +32,43 @@ def disponivel():
         return False
 
 
-def _base_axes(p1, p2):
-    """Eixos locais (x, y, z) da barra p1->p2: z = eixo; x ~ global X perpendicular
-    a z; y = z x x (destro). Retorna (x, y, z, L) com L o comprimento."""
+def _base_axes(p1, p2, ref_hint=None):
+    """Eixos locais (x, y, z) da barra p1->p2: z = eixo; x ~ ref perpendicular
+    a z; y = z x x (destro). Retorna (x, y, z, L) com L o comprimento.
+
+    `ref_hint`: (opc) vetor de referencia (ex.: a normal do plano do
+    portico, chave `plano_normal` do membro). Sem ele vale o default
+    historico (global X, exceto barra paralela a X). Com ele, x sai do
+    plano e y (o eixo de `d` no RECT) cai no plano - a guarda do G72
+    contra a barra retangular girada 90 graus (G3). Retrocompativel:
+    membro sem a chave segue identico.
+    """
     dz = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
     L = math.sqrt(dz[0] ** 2 + dz[1] ** 2 + dz[2] ** 2)
     if L < 1e-9:
         return (1, 0, 0), (0, 1, 0), (0, 0, 1), 0.0
     z = (dz[0] / L, dz[1] / L, dz[2] / L)
-    ref = (1.0, 0.0, 0.0) if abs(z[0]) < 0.9 else (0.0, 1.0, 0.0)
+    if ref_hint is not None:
+        try:
+            rn = math.sqrt(ref_hint[0] ** 2 + ref_hint[1] ** 2
+                           + ref_hint[2] ** 2)
+            ref = (ref_hint[0] / rn, ref_hint[1] / rn, ref_hint[2] / rn)
+        except (TypeError, IndexError, ZeroDivisionError):
+            ref = None
+        if ref is not None:
+            d0 = ref[0] * z[0] + ref[1] * z[1] + ref[2] * z[2]
+            if abs(abs(d0) - 1.0) > 1e-6:
+                ref_usar = ref
+            else:
+                ref_usar = None
+        else:
+            ref_usar = None
+        if ref_usar is None:
+            ref_usar = ((1.0, 0.0, 0.0) if abs(z[0]) < 0.9
+                        else (0.0, 1.0, 0.0))
+        ref = ref_usar
+    else:
+        ref = (1.0, 0.0, 0.0) if abs(z[0]) < 0.9 else (0.0, 1.0, 0.0)
     # x = ref perpendicular a z
     d = ref[0] * z[0] + ref[1] * z[1] + ref[2] * z[2]
     x = (ref[0] - d * z[0], ref[1] - d * z[1], ref[2] - d * z[2])
@@ -51,9 +79,9 @@ def _base_axes(p1, p2):
     return x, y, z, L
 
 
-def _matriz(p1, p2):
+def _matriz(p1, p2, ref_hint=None):
     import numpy as np
-    x, y, z, L = _base_axes(p1, p2)
+    x, y, z, L = _base_axes(p1, p2, ref_hint=ref_hint)
     m = np.eye(4)
     m[:3, 0], m[:3, 1], m[:3, 2], m[:3, 3] = x, y, z, p1
     return m, L
@@ -252,7 +280,7 @@ def _tapered_ifc(m, body, sto, mb, esc):
     from ifcopenshell.api import run
     p_ini = _perfil_ifc(m, (mb.get("perfil") or "") + "_i", mb["secao"], esc)
     p_fim = _perfil_ifc(m, (mb.get("perfil") or "") + "_j", mb["secao2"], esc)
-    mat, L = _matriz(mb["p1"], mb["p2"])
+    mat, L = _matriz(mb["p1"], mb["p2"], ref_hint=mb.get("plano_normal"))
     pos = m.create_entity(
         "IfcAxis2Placement3D",
         Location=m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0, 0.0)))
@@ -457,7 +485,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
         cls, pdt = _IFC_CLASS.get(mb["tipo"], ("IfcMember", "MEMBER"))
         el = run("root.create_entity", m, ifc_class=cls, predefined_type=pdt,
                  name=mb.get("marca") or mb["perfil"])
-        mat, L = _matriz(mb["p1"], mb["p2"])
+        mat, L = _matriz(mb["p1"], mb["p2"], ref_hint=mb.get("plano_normal"))
         mat = _ancorar(mat, mb, s, esc)
         rep = run("geometry.add_profile_representation", m, context=body,
                   profile=prof, depth=L / _MM_M)              # depth em METROS (helper SI)

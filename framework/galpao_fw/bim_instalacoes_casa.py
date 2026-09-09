@@ -203,7 +203,12 @@ def membros_hidraulica(estrutura, resultado_hidraulica):
 
 
 def membros_federados_casa(estrutura, resultado_eletrico, resultado_hidraulica):
-    """Estrutura + instalacoes no frame comum (o da estrutura, sem conversao)."""
+    """Estrutura + instalacoes + TELHADO no frame comum (G72).
+
+    O telhado entra quando foi calculado e ATENDE (estrutura["telhado"]):
+    a tesoura ve a prumada/eletrocalha do sotao no clash. Sem telhado, o
+    federado segue estrutura + instalacoes (retrocompativel).
+    """
     import bim_edificio as bim
 
     membros = []
@@ -229,6 +234,27 @@ def membros_federados_casa(estrutura, resultado_eletrico, resultado_hidraulica):
             membros.append(m)
         if lst:
             disc.append(nome)
+    # O `except` cobre APENAS a ausencia do modulo (retrocompatibilidade).
+    # Engolir Exception aqui apagaria a disciplina inteira do federado e do
+    # clash sem deixar rastro - a tesoura sumia e a prancha de coordenacao
+    # saia com tres disciplinas como se o telhado nao existisse. Defeito na
+    # geometria do telhado tem de estourar (a saturacao silenciosa de novo).
+    try:
+        import bim_telhado_madeira as _bt
+    except ImportError:
+        _bt = None
+    if _bt is not None:
+        tel = (estrutura or {}).get("telhado")
+        if isinstance(tel, dict) and tel.get("ATENDE"):
+            lst = _bt.membros_bim(tel, estrutura=estrutura)
+            for m in lst:
+                m = dict(m)
+                if not str(m.get("marca", "")).startswith("T-"):
+                    m["marca"] = "T-" + str(m.get("marca", ""))
+                m["disciplina"] = "telhado"
+                membros.append(m)
+            if lst:
+                disc.append("telhado")
     return membros, disc
 
 

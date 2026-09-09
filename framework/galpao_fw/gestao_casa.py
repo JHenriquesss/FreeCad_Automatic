@@ -796,18 +796,25 @@ def memorial(result):
         atende = bool(tel.get("ATENDE"))
         desc = tel.get("descida") or {}
         mad = tel.get("madeira") or {}
+        detalhe = ("NBR 7190-1, classe %s: %d tesoura(s) vao %.2f m, "
+                   "%.3f m3 de madeira, reacao total %.1f kN (%s)"
+                   % (mad.get("classe", "?"),
+                      tel.get("n_tesouras", 0),
+                      tel.get("vao_m", 0.0),
+                      tel.get("vol_madeira_m3", 0.0),
+                      desc.get("W_total_kN", 0.0),
+                      desc.get("apoio", "?")))
+        # G71: o alivio atravessa o memorial (a fundacao precisa saber).
+        if desc.get("vento_ativo"):
+            detalhe += ("; uplift: arrancamento total %.1f kN, ancoragem "
+                        "%s" % (desc.get("arrancamento_total_kN", 0.0),
+                                (tel.get("ancoragem") or {}).get(
+                                    "tipo", "nao declarada")))
         itens.append({
             "disciplina": "telhado_madeira",
             "veredito": "ATENDE" if atende else "REPROVA",
             "reprovados": list(tel.get("reprovados") or []),
-            "detalhe": ("NBR 7190-1, classe %s: %d tesoura(s) vao %.2f m, "
-                        "%.3f m3 de madeira, reacao total %.1f kN (%s)"
-                        % (mad.get("classe", "?"),
-                           tel.get("n_tesouras", 0),
-                           tel.get("vao_m", 0.0),
-                           tel.get("vol_madeira_m3", 0.0),
-                           desc.get("W_total_kN", 0.0),
-                           desc.get("apoio", "?")))})
+            "detalhe": detalhe})
     executadas = [item["disciplina"] for item in itens]
     return {"geometria": geometria, "disciplinas": itens,
             "atende_global": all(item["veredito"] == "ATENDE" for item in itens)

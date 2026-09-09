@@ -334,6 +334,36 @@ def telhado_tesoura_svg(telhado) -> str:
                 "reacao_por_tesoura_kN", {}).get("G_kN", 0.0),
             (telhado.get("descida") or {}).get(
                 "reacao_por_tesoura_kN", {}).get("Q_kN", 0.0)), 12))
+    # G71: o caso de alivio e' dito na folha (renderizar-e-olhar): sem
+    # vento, a linha diz que a cadeia e' gravitacional; com vento, o
+    # arrancamento por tesoura e a situacao da ancoragem.
+    desc = telhado.get("descida") or {}
+    if telhado.get("vento_ativo"):
+        arr = desc.get("arrancamento_por_tesoura_kN") or {}
+        anc = telhado.get("ancoragem") or {}
+        partes.append(texto(
+            largura / 2, topo_y + escala_area_h + 46,
+            "uplift: arrancamento L=%.2f R=%.2f kN por tesoura ; "
+            "ancoragem %s (%s)" % (
+                arr.get("L_kN", 0.0), arr.get("R_kN", 0.0),
+                "ATENDE" if anc.get("OK") else "REPROVA",
+                anc.get("tipo", "nao declarada")), 12))
+    else:
+        partes.append(texto(
+            largura / 2, topo_y + escala_area_h + 46,
+            "sem vento declarado: cadeia gravitacional (G66)", 12))
+    # G73: o sistema do no e' dito na folha (renderizar-e-olhar): a
+    # situacao da ligacao nao se herda do veredito global.
+    lig_folha = telhado.get("ligacoes") or {}
+    partes.append(texto(
+        largura / 2, topo_y + escala_area_h + 58,
+        "ligacao %s: %s (apoio %s, no %s)" % (
+            lig_folha.get("sistema", "chapa_aco"),
+            "ATENDE" if lig_folha.get("OK") else "REPROVA",
+            "ATENDE" if (lig_folha.get("apoio") or {}).get("OK")
+            else "REPROVA",
+            "ATENDE" if (lig_folha.get("no_critico") or {}).get("OK")
+            else "REPROVA"), 12))
     # "Volume total": a coluna vizinha e' POR TESOURA e esta e' o telhado
     # inteiro (x n_tesouras). Duas grandezas lado a lado com um titulo
     # so dizendo qual e' qual e' rotulo dirigindo a leitura da geometria.
@@ -343,7 +373,7 @@ def telhado_tesoura_svg(telhado) -> str:
                ("Situacao", 130, "start")]
     largura_total = sum(c[1] for c in colunas)
     x0 = (largura - largura_total) / 2
-    y0 = topo_y + escala_area_h + 60
+    y0 = topo_y + escala_area_h + 74
     # Situacao POR PECA, nao o veredito global repetido cinco vezes: a
     # coluna diz respeito a linha, e um telhado com uma barra reprovada
     # nao pode carimbar REPROVA nas quatro que passam.

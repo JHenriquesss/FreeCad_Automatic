@@ -1,7 +1,7 @@
 """Lente G69 (D86): as guardas que concordam consigo mesmas.
 
 Censo da arvore (baseline em TRIADAS_G69, congelado nos DOIS sentidos):
-17 defs confere_*/verifica_fechamento*. A revisao achou a contagem de 15
+20 defs confere_*/verifica_fechamento*. A revisao achou a contagem de 15
 desatualizada dentro do proprio lote — confere_vergas nasceu no G70 e o
 censo, que so procurava os nomes que ja esperava, nao a viu; e o G66
 ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
@@ -52,6 +52,18 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     fecha por construcao e nao via o tributario de beiral errado.
 16. varredura_faixa_validade.confere_cobertura (lente G51) — A=arquivos no
     disco, B=isencoes declaradas com motivo. INDEPENDENTE (meta-guarda).
+17. bim_telhado_madeira.confere_modelo (G72) — A=contagem de TIPOS no
+    modelo emitido (Member/Beam), B=recomputo da geometria da tesoura
+    (n_barras x n_tesouras, tercas = nos do banzo sup). Nao le os
+    membros para saber o esperado. INDEPENDENTE (mesma forma do item 7).
+18. bim_telhado_madeira.confere_volume (G72) — A=soma bf.d.L medida nos
+    membros EMITIDOS (coordenadas + secao em mm), B=vol_madeira_m3 do
+    quantitativo do calculo (lista de pecas). Caminhos distintos ate o
+    mesmo numero. INDEPENDENTE (rotulo x geometria, item 9).
+19. bim_telhado_madeira.confere_orientacao (G72) — A=eixos locais que o
+    emissor IFC vai usar (ifc_emit._base_axes com o hint), B=normal do
+    plano da tesoura declarada no membro. Mede o EIXO, nao o nome da
+    peca. INDEPENDENTE — e a guarda do G3 (viga deitada de lado).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -85,6 +97,9 @@ TRIADAS_G69 = {
     ("bim_casa_residencial", "confere_solidos"),
     ("bim_edificio", "confere_modelo"),
     ("bim_edificio", "confere_empilhamento"),
+    ("bim_telhado_madeira", "confere_modelo"),
+    ("bim_telhado_madeira", "confere_volume"),
+    ("bim_telhado_madeira", "confere_orientacao"),
     ("desenho_alvenaria", "confere_elevacao"),
     ("desenho_alvenaria", "confere_fiadas"),
     ("desenho_alvenaria", "confere_vergas"),

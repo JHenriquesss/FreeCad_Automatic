@@ -268,6 +268,14 @@ def _descer_telhado(desc, pav, tel):
     n = len(dest)
     dg = tel["descida"]["W_total_G_kN"] / n
     dq = tel["descida"]["W_total_Q_kN"] / n
+    # G71: o caso de alivio desce junto, em chaves proprias - a parede e a
+    # fundacao precisam saber que ele existe. Nao abate a gravidade: sao
+    # combinacoes distintas (1,4.(G+Q) x 0,9.G+1,4.W).
+    arr_por_pilar = 0.0
+    w_por_pilar = {}
+    if tel["descida"].get("vento_ativo"):
+        arr_por_pilar = tel["descida"]["arrancamento_total_kN"] / n
+        w_por_pilar = dict(tel["descida"].get("W_total_W_por_caso_kN", {}))
     for nome in dest:
         p = desc["pilares"][nome]
         topo = p["lances"][0]
@@ -277,6 +285,9 @@ def _descer_telhado(desc, pav, tel):
         topo["N_aplicado"] = round(topo["N_aplicado"] + dg + dq, 3)
         topo["N_telh_g"] = round(topo.get("N_telh_g", 0.0) + dg, 3)
         topo["N_telh_q"] = round(topo.get("N_telh_q", 0.0) + dq, 3)
+        if tel["descida"].get("vento_ativo"):
+            topo["N_telh_arr"] = round(
+                topo.get("N_telh_arr", 0.0) + arr_por_pilar, 3)
         acum_g = acum_q = 0.0
         for lance in p["lances"]:
             acum_g += lance["N_g_pav"]
@@ -292,7 +303,14 @@ def _descer_telhado(desc, pav, tel):
                              "do topo; Q sem alpha_n, conservador)")
             % ("/".join(beiral["linhas"]), dg, dq, n),
             "pilares": sorted(dest), "W_g_kN": round(dg * n, 2),
-            "W_q_kN": round(dq * n, 2)}
+            "W_q_kN": round(dq * n, 2),
+            "arrancamento_por_pilar_kN": round(arr_por_pilar, 3),
+            "arrancamento_total_kN": round(arr_por_pilar * n, 2),
+            "W_w_por_caso_kN": {c: round(v / n * n, 2)
+                                for c, v in w_por_pilar.items()},
+            "alivio": ("arrancamento %.3f kN/pilar (0,9.G+1,4.W): caso de "
+                       "alivio a verificar na fundacao" % arr_por_pilar)
+            if tel["descida"].get("vento_ativo") else None}
 
 
 class EntradaTelhadoMadeira(ValueError):
@@ -1746,6 +1764,7 @@ def rodar(spec):
     telhado_erro = None
     detalhe_telhado = None
     carga_telhado_por_linha = {}
+    carga_telhado_uplift_por_linha = {}
     if spec.get("telhado_madeira") is not None:
         if not isinstance(spec["telhado_madeira"], dict):
             raise EntradaEstrutura("telhado_madeira deve ser um objeto")
@@ -1776,6 +1795,13 @@ def rodar(spec):
                 for nome in beiral["linhas"]:
                     carga_telhado_por_linha[nome] = round(
                         r_telhado["descida"]["W_total_kN"] / 2.0, 3)
+                    # G71: o alivio por linha (arrancamento de projeto por
+                    # beiral): a parede e a corrida precisam saber que o
+                    # caso de succao existe (combinacao a parte, nao abate).
+                    if r_telhado["descida"].get("vento_ativo"):
+                        carga_telhado_uplift_por_linha[nome] = round(
+                            r_telhado["descida"]["arrancamento_total_kN"]
+                            / 2.0, 3)
             else:
                 detalhe_telhado = _descer_telhado(desc, pav, r_telhado)
         except tmad.EntradaTelhado as exc:
@@ -2173,7 +2199,17 @@ def rodar(spec):
                                    % "/".join(sorted(
                                        carga_telhado_por_linha))
                                    if carga_telhado_por_linha else None)),
-            "erro": telhado_erro}
+            "erro": telhado_erro,
+            # G71: o caso de alivio atravessa o gate (parede/fundacao).
+            "vento_ativo": bool(r_telhado
+                                and r_telhado["descida"].get("vento_ativo")),
+            "arrancamento_total_kN": (
+                r_telhado["descida"]["arrancamento_total_kN"]
+                if r_telhado else None),
+            "alivio_por_linha_kN": dict(carga_telhado_uplift_por_linha),
+            "alivio_por_pilar_kN": (
+                detalhe_telhado.get("arrancamento_por_pilar_kN")
+                if detalhe_telhado else None)}
 
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     if com_alvenaria:
@@ -2202,6 +2238,8 @@ def rodar(spec):
         "escada_erro": escada_erro, "planta": planta,
         "telhado": r_telhado, "telhado_descida": detalhe_telhado,
         "telhado_erro": telhado_erro,
+        "telhado_alivio_por_linha_kN": dict(
+            carga_telhado_uplift_por_linha),
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,
         "n_pavimentos": len(pavs),
         "tipologia": (("alvenaria_sobrado" if len(pavs) > 1
@@ -2281,10 +2319,18 @@ def _linha_telhado_memorial(r):
     """Linha do telhado no memorial: calculo dentro ou A CONFIRMAR fora."""
     tel = r.get("telhado")
     if isinstance(tel, dict) and tel.get("ATENDE"):
-        return ("TELHADO DE MADEIRA (G66, NBR 7190-1): %d tesoura(s) vao "
+        base = ("TELHADO DE MADEIRA (G66, NBR 7190-1): %d tesoura(s) vao "
                 "%.2f m -> ATENDE (reacao total %.1f kN desceu ao %s)."
                 % (tel["n_tesouras"], tel["vao_m"],
                    tel["descida"]["W_total_kN"], tel["descida"]["apoio"]))
+        if tel["descida"].get("vento_ativo"):
+            base += (" Alivio G71: succao %s, arrancamento total %.1f kN "
+                     "(ancoragem %s) - verificar fundacao no caso 0,9.G+"
+                     "1,4.W."
+                     % (tel["descida"]["W_total_W_por_caso_kN"],
+                        tel["descida"]["arrancamento_total_kN"],
+                        tel["ancoragem"].get("tipo", "?")))
+        return base
     return ("[A CONFIRMAR: estrutura de telhado em madeira fora do "
             "escopo.]")
 

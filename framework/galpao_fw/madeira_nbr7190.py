@@ -40,9 +40,12 @@
 #     embutimento (6.2.5/7.1.3), My,k = 0,3.fu.d^2,6 (7.1.4), grupo
 #     (7.1.7), Rd = kmod1.kmod2.Rk/1,4 com kmod1 <= 1 no aco (7.1.2) e
 #     geometria minima (7.2 a-f, 7.1.9). Efeito corda sem ensaio = 0
-#     (conservador, dito). Madeira-madeira (7.2), aneis (7.4) e chapas
-#     com dentes (7.5, so fabricante) seguem fora do lote, nomeados em
-#     escopo() com motivo e endereco.
+#     (conservador, dito). Ligacao MADEIRA-MADEIRA (7.2, Tab.18/19 lidas
+#     na pagina do F136, beta = fe2,k/fe1,k, 1 e 2 secoes de corte) com
+#     o MESMO embutimento/My,k/nef/Tab.14/7.2 a-f e portao proprio de
+#     pre-furacao Tab.16. Aneis (7.4) e chapas com dentes (7.5, so
+#     fabricante) seguem fora do lote, nomeados em escopo() com motivo
+#     e endereco.
 #   - ELS da terca (8): flecha instantanea com E0,med, fluencia phi da
 #     Tab.20, limites da Tab.21 para viga biapoiada sem forro fragil
 #     (a Tab.21 da FAIXA: sem declaracao vale o extremo estrito -
@@ -622,6 +625,224 @@ CONFIGS_73 = ("chapa_fina_simples", "chapa_grossa_simples",
               "chapa_central_dupla", "chapas_laterais_finas_dupla",
               "chapas_laterais_grossas_dupla")
 
+TIPOS_PINO_72 = ("prego", "parafuso", "parafuso_rosca_soberba")
+
+
+def _gates_pinos_7190(tipo, d, t_menor, pen, esp, alpha):
+    """Portoes geometricos que valem igual na 7.2 e na 7.3 (reuso, sem
+    reescrever): 7.1.9 (dmin), 7.2 a/b/e (d x espessura) e 7.2 c-d/f
+    (penetracao), mais os minimos da Tab.14 (7.1.10) no alpha declarado.
+
+    Fontes lidas na pagina (F136): 7.1.9 na p.51 do PDF, 7.2 a-f nas
+    pp.56-57, Tab.14 na p.53. `tipo` aqui e' 'prego' (7.2 b-d),
+    'parafuso' passante (7.2 a/f) ou 'parafuso_rosca_soberba' (7.2 e-f,
+    mesma razao 1/5 do prego). Devolve (gates, req)."""
+    gates_geo = []
+    dmin = 3.0 if tipo == "prego" else 9.5
+    if d < dmin:
+        gates_geo.append("d=%.2f < dmin=%.1f mm (7.1.9)" % (d, dmin))
+    if tipo == "parafuso" and d > t_menor / 2.0:
+        gates_geo.append("parafuso d=%.1f > t/2=%.1f mm (7.2-a)"
+                         % (d, t_menor / 2))
+    if tipo in ("prego", "parafuso_rosca_soberba") \
+            and d > t_menor / 5.0:
+        nome = ("prego" if tipo == "prego" else "rosca soberba")
+        letra = "b" if tipo == "prego" else "e"
+        gates_geo.append("%s d=%.1f > t/5=%.1f mm (7.2-%s)"
+                         % (nome, d, t_menor / 5, letra))
+    if pen is not None:
+        limite = 12.0 * d if tipo == "prego" else 6.0 * d
+        if float(pen) < min(limite, t_menor):
+            gates_geo.append("penetracao %.0f < min(%.0f, t) mm (7.2-%s)"
+                             % (float(pen), limite,
+                                "d" if tipo == "prego" else "f"))
+    base = "parafuso" if tipo != "prego" else "prego"
+    req = espacamentos_minimos(base, d, alpha, com_prefuro=True)
+    for chave in ("a1", "a2", "a3t", "a3c", "a4t", "a4c"):
+        if esp.get(chave) is not None \
+                and float(esp[chave]) < req[chave] - 1e-9:
+            gates_geo.append("%s=%.0f < %.0f mm (Tab.14, alpha=%.0f)"
+                             % (chave, float(esp[chave]), req[chave],
+                                alpha))
+    return gates_geo, req
+
+
+def verifica_prefuracao_tab16(tipo, d_mm, d0_mm, conifera=None):
+    """Portao proprio da Tab.16 (7.1.11, p.54 do PDF; Tab.16 na p.55).
+
+    Pregos: d0 = 0,85.d (coniferas) ou 0,98.d (folhosas); parafusos
+    passantes: d <= d0 <= d+1 mm; rosca soberba: d0 = 0,70.d
+    ("aproximadamente 70 %": conferido por igualdade, dito). Sem
+    d0 declarado nao ha numero (regra do SPT do G9). `conifera`
+    (True/False) vem da classe Tab.3 declarada - sem ela o prego nao
+    tem alvo."""
+    if d0_mm is None:
+        raise EntradaMadeira(
+            "ligacao precisa de 'd0_mm': a pre-furacao e' portao "
+            "proprio (Tab.16, 7.1.11), nao detalhe")
+    d, d0 = float(d_mm), float(d0_mm)
+    if not d > 0 and d0 > 0:
+        raise EntradaMadeira("d e d0 de pre-furacao devem ser > 0")
+    if tipo == "prego":
+        if conifera is None:
+            raise EntradaMadeira(
+                "prego precisa de 'conifera' (da classe Tab.3): "
+                "o alvo e' 0,85.d ou 0,98.d (Tab.16)")
+        alvo = 0.85 * d if conifera else 0.98 * d
+        ok = bool(abs(d0 - alvo) <= 1e-9 + 1e-6 * alvo)
+        grupo = "conifera" if conifera else "folhosa"
+        return {"criterio": "Tab.16_prefuracao", "tipo": tipo,
+                "d_mm": d, "d0_mm": d0, "alvo_mm": alvo,
+                "grupo": grupo, "OK": ok,
+                "motivo": (None if ok else
+                           "d0=%.2f mm difere de %.2f.d=%.2f mm (%s, "
+                           "Tab.16)" % (d0, 0.85 if conifera else 0.98,
+                                        alvo, grupo))}
+    if tipo == "parafuso":
+        ok = bool(d - 1e-9 <= d0 <= d + 1.0 + 1e-9)
+        return {"criterio": "Tab.16_prefuracao", "tipo": tipo,
+                "d_mm": d, "d0_mm": d0, "faixa_mm": (d, d + 1.0),
+                "OK": ok,
+                "motivo": (None if ok else
+                           "d0=%.2f mm fora de [d, d+1]=[%.2f, %.2f] mm "
+                           "(Tab.16, passante)" % (d0, d, d + 1.0))}
+    if tipo == "parafuso_rosca_soberba":
+        alvo = 0.70 * d
+        ok = bool(abs(d0 - alvo) <= 1e-9 + 1e-6 * alvo)
+        return {"criterio": "Tab.16_prefuracao", "tipo": tipo,
+                "d_mm": d, "d0_mm": d0, "alvo_mm": alvo, "OK": ok,
+                "motivo": (None if ok else
+                           "d0=%.2f mm difere de 0,70.d=%.2f mm "
+                           "(Tab.16, rosca soberba)" % (d0, alvo))}
+    raise EntradaMadeira("tipo_pino %r fora do lote (Tab.16: prego|"
+                         "parafuso|parafuso_rosca_soberba)" % (tipo,))
+
+
+def _rk_madeira_madeira(n_cortes, fe1, fe2, t1, t2, d, My):
+    """Fv,Rk por plano de corte e por pino (N) na 7.2, lido na pagina.
+
+    Fontes (F136): 7.2 e Rk = Fv,Rk.nsp.nef na p.56 do PDF; Tab.18
+    (1 secao, modos Ia-III) nas pp.58-59; Tab.19 (2 secoes, modos
+    Ia-III) nas pp.59-60; beta = fe2,k/fe1,k e Fax,Rk/4 na p.60.
+    Fax,Rk = 0 sem ensaio (conservador, dito - a norma manda limitar
+    o confinamento e o recomenda "apos investigacao experimental").
+    fe em N/mm2, t/d em mm, My em N.mm."""
+    if fe1 <= 0 or fe2 <= 0:
+        raise EntradaMadeira("fe1,k e fe2,k de embutimento devem ser > 0")
+    if t1 <= 0 or t2 <= 0 or d <= 0 or My <= 0:
+        raise EntradaMadeira("t1, t2, d e My,k devem ser > 0")
+    beta = fe2 / fe1
+    r = t2 / t1
+    Ia = fe1 * t1 * d
+    if n_cortes == 1:
+        Ib = fe1 * t2 * d * beta
+        Ic = (fe1 * t1 * d / (1.0 + beta)
+              * (math.sqrt(beta + 2.0 * beta ** 2
+                           * (1.0 + r + r ** 2)
+                           + beta ** 3 * r ** 2)
+                 - beta * (1.0 + r)))
+        IIa = (1.05 * fe1 * t1 * d / (2.0 + beta)
+               * (math.sqrt(2.0 * beta * (1.0 + beta)
+                            + 4.0 * beta * (2.0 + beta) * My
+                            / (fe1 * d * t1 ** 2))
+                  - beta))
+        IIb = (1.05 * fe1 * t2 * d / (1.0 + 2.0 * beta)
+               * (math.sqrt(2.0 * beta ** 2 * (1.0 + beta)
+                            + 4.0 * beta * (1.0 + 2.0 * beta) * My
+                            / (fe1 * d * t2 ** 2))
+                  - beta))
+        III = (1.15 * math.sqrt(2.0 * beta / (1.0 + beta))
+               * math.sqrt(2.0 * My * fe1 * d))
+        modos = {"Ia_embutimento_t1": Ia, "Ib_embutimento_t2": Ib,
+                 "Ic_misto": Ic, "IIa_misto_t1": IIa,
+                 "IIb_misto_t2": IIb, "III_pino": III}
+    elif n_cortes == 2:
+        Ib = 0.5 * fe1 * t2 * d * beta
+        II = (1.05 * fe1 * t1 * d / (2.0 + beta)
+              * (math.sqrt(2.0 * beta * (1.0 + beta)
+                           + 4.0 * beta * (2.0 + beta) * My
+                           / (fe1 * d * t1 ** 2))
+                 - beta))
+        III = (1.15 * math.sqrt(2.0 * beta / (1.0 + beta))
+               * math.sqrt(2.0 * My * fe1 * d))
+        modos = {"Ia_embutimento_lateral": Ia,
+                 "Ib_embutimento_central": Ib,
+                 "II_misto": II, "III_pino": III}
+    else:
+        raise EntradaMadeira("n_cortes deve ser 1 ou 2 (7.2: corte "
+                             "simples ou duplo, Figs.19-21)")
+    modos["FvRk_N"] = min(modos.values())
+    modos["beta"] = beta
+    return modos
+
+
+def verifica_ligacao_madeira_madeira(Sd_kN, cfg):
+    """No em madeira-madeira com pinos (7.1.2 + 7.2, Tab.18/19).
+
+    cfg: {tipo_pino ('prego'|'parafuso'|'parafuso_rosca_soberba'),
+      d_mm, d0_mm (Tab.16, portao proprio), conifera (bool, p/ prego),
+      fu_MPa, t1_mm, t2_mm (espessuras, Figs.19-21), fe1_Nmm2,
+      fe2_Nmm2 (de embutimento_fek), n_pinos, n_cortes (1|2, NUMERO -
+      nao flag), kmod1, kmod2, espacamentos {a1,a2,a3t,a3c,a4t,a4c}_mm,
+      alpha_graus, t_madeira_mm (menor espessura, 7.2 a-f),
+      penetracao_mm}. Rk = FvRk.nsp.nef com nsp = n_cortes (7.2);
+      Rd = kmod1.kmod2.Rk/1,4 com kmod1 <= 1 (7.1.2, pino em aco).
+      Fax,Rk = 0 sem ensaio (conservador, dito na p.60)."""
+    for chave in ("tipo_pino", "d_mm", "d0_mm", "fu_MPa", "t1_mm",
+                  "fe1_Nmm2", "n_pinos", "n_cortes", "kmod1", "kmod2"):
+        if cfg.get(chave) is None:
+            raise EntradaMadeira("ligacao 7.2 precisa de '%s' declarado"
+                                 % chave)
+    tipo = cfg["tipo_pino"]
+    if tipo not in TIPOS_PINO_72:
+        raise EntradaMadeira("tipo_pino %r fora do lote (7.2: %s)"
+                             % (tipo, "|".join(TIPOS_PINO_72)))
+    d = float(cfg["d_mm"])
+    t1 = float(cfg["t1_mm"])
+    t2 = float(cfg.get("t2_mm", t1))
+    fe1 = float(cfg["fe1_Nmm2"])
+    fe2 = float(cfg.get("fe2_Nmm2", fe1))
+    n_cortes = int(cfg["n_cortes"])
+    if n_cortes not in (1, 2):
+        raise EntradaMadeira("n_cortes = %r fora da 7.2 (1|corte simples, "
+                             "2|corte duplo, Figs.19-21)" % (cfg["n_cortes"],))
+    t_menor = float(cfg.get("t_madeira_mm", min(t1, t2)))
+    esp = cfg.get("espacamentos") or {}
+    alpha = float(cfg.get("alpha_graus", 0.0))
+    gates_geo, req = _gates_pinos_7190(
+        tipo, d, t_menor, cfg.get("penetracao_mm"), esp, alpha)
+    pref = verifica_prefuracao_tab16(tipo, d, cfg.get("d0_mm"),
+                                     cfg.get("conifera"))
+    if not pref["OK"]:
+        gates_geo.append("%s (Tab.16)" % pref["motivo"])
+    My = pino_Myk_Nmm(float(cfg["fu_MPa"]), d)
+    modos = _rk_madeira_madeira(n_cortes, fe1, fe2, t1, t2, d, My)
+    FvRk_N = modos["FvRk_N"]
+    nef = n_efetivo(cfg["n_pinos"])
+    Rk_N = n_cortes * nef * FvRk_N
+    k1 = min(float(cfg["kmod1"]), 1.0)  # 7.1.2: teto no aco (pino)
+    Rd_N = k1 * float(cfg["kmod2"]) * Rk_N / GAMMA_LIG
+    Sd_N = abs(float(Sd_kN)) * 1000.0
+    util = Sd_N / Rd_N if Rd_N > 0 else float("inf")
+    ok = bool(util <= 1.0 and not gates_geo)
+    return {"solicitacao": "ligacao_madeira_madeira_7.2_%dcorte%s"
+            % (n_cortes, "s" if n_cortes > 1 else ""),
+            "tipo_pino": tipo, "d_mm": d, "d0_mm": float(cfg["d0_mm"]),
+            "n_cortes": n_cortes, "beta": modos["beta"],
+            "My_Nmm": My, "FvRk_por_plano_N": FvRk_N,
+            "n_pinos": int(cfg["n_pinos"]), "nef": nef,
+            "Rk_N": Rk_N, "Rd_kN": Rd_N / 1000.0,
+            "kmod1_usado": k1, "kmod2_usado": float(cfg["kmod2"]),
+            "modos_N": {k: v for k, v in modos.items()
+                        if k not in ("FvRk_N", "beta")},
+            "governa": min((k for k in modos
+                            if k not in ("FvRk_N", "beta")),
+                           key=lambda k: modos[k]),
+            "geometria": req, "prefuracao": pref,
+            "falhas_geometria": gates_geo,
+            "efeito_corda": "FaxRk=0 sem ensaio (conservador, p.60)",
+            "util": util, "OK": ok}
+
 
 def verifica_ligacao(Sd_kN, cfg):
     """No de tesoura em chapa de aco + pinos (7.1.2 + 7.3).
@@ -883,7 +1104,7 @@ def escopo():
         "embutimento_6.2.5": "implemented",
         "pino_7.1.4_grupo_7.1.7": "implemented",
         "ligacao_madeira_aco_7.3": "implemented",
-        "ligacao_madeira_madeira_7.2": "not_available",
+        "ligacao_madeira_madeira_7.2": "implemented",
         "aneis_7.4": "not_available",
         "chapas_dentes_7.5": "not_available",
         "els_flecha_8": "implemented",
@@ -912,9 +1133,6 @@ def motivos_escopo():
             "a tesoura do G66 tem carga so nos nos (esforco axial) e "
             "terca em flexao reta; obliqua e flexotracao entram quando "
             "houver telhado com carga fora do plano da terca",
-        "ligacao_madeira_madeira_7.2":
-            "Tab.17/18 sem transcricao inequivoca no lote: o no sai em "
-            "chapa de aco (7.3, modos a-l legiveis)",
         "aneis_7.4": "resistencia pelo ensaio da NBR 7190-5 (7.4): sem "
                      "ensaio nao ha numero",
         "chapas_dentes_7.5": "resistencia assegurada pelo fabricante "
@@ -991,6 +1209,26 @@ def _selftest():
         pass
     else:
         raise AssertionError("1 pino")
+    # 7.2 (G73, Tab.18/19 lidas na pagina do F136): beta = fe2/fe1;
+    # Ia single e' fe1.t1.d; Ib double leva o 0,5; 6 modos x 4 modos.
+    m1 = _rk_madeira_madeira(1, 20.0, 20.0, 60.0, 60.0, 12.0,
+                             pino_Myk_Nmm(415.0, 12.0))
+    assert abs(m1["beta"] - 1.0) < 1e-12, m1
+    assert abs(m1["Ia_embutimento_t1"] - 20.0 * 60.0 * 12.0) < 1e-6, m1
+    assert len([k for k in m1 if k not in ("FvRk_N", "beta")]) == 6, m1
+    m2 = _rk_madeira_madeira(2, 20.0, 20.0, 60.0, 60.0, 12.0,
+                             pino_Myk_Nmm(415.0, 12.0))
+    assert abs(m2["Ib_embutimento_central"]
+               - 0.5 * 20.0 * 60.0 * 12.0) < 1e-6, m2
+    assert len([k for k in m2 if k not in ("FvRk_N", "beta")]) == 4, m2
+    # Tab.16: prego conifera 0,85d / folhosa 0,98d; passante [d, d+1].
+    assert verifica_prefuracao_tab16("prego", 5.0, 4.25, True)["OK"]
+    assert not verifica_prefuracao_tab16("prego", 5.0, 4.90, True)["OK"]
+    assert verifica_prefuracao_tab16("prego", 5.0, 4.90, False)["OK"]
+    assert verifica_prefuracao_tab16("parafuso", 12.0, 12.5)["OK"]
+    assert not verifica_prefuracao_tab16("parafuso", 12.0, 13.5)["OK"]
+    assert escopo()["ligacao_madeira_madeira_7.2"] == "implemented"
+    assert "ligacao_madeira_madeira_7.2" not in motivos_escopo()
     return True
 
 
