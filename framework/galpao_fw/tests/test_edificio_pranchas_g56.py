@@ -1,4 +1,5 @@
-"""G56: o predio ganha as 10 pranchas que o indice promete (13 no total).
+"""G56: o predio ganha as 10 pranchas que o indice promete (13 no total;
+G80 soma PE-CO-04 da fundacao, indo a 14).
 
 Cada prancha nova: (a) parseia o SVG como XML, nao substring; (b) confere
 geometria contra o dado (desenhado == calculado); (c) roda colisoes de rotulo.
@@ -255,7 +256,9 @@ def test_laco_indice_disco_no_hook(tmp_path):
     indice = pl.indice_de_pranchas(ge.disciplinas_pacote(result) + ["coordenacao"])
     assert len(reg["artifacts"]) + len(reg.get("skipped", [])) == len(indice), \
         (len(reg["artifacts"]), len(reg.get("skipped", [])), len(indice))
-    assert len(indice) == 13
+    # G80: PE-CO-04 (locacao/formas da fundacao) soma a 13 do G56.
+    # G81: PE-IN-03 (escada de emergencia) soma a 14 do G80.
+    assert len(indice) == 15
 
 
 def test_fundacao_nao_evapora():

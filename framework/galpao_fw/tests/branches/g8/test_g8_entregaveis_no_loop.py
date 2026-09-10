@@ -133,13 +133,16 @@ def _parte(entregavel, nome):
 
 def test_a_casa_entrega_o_ifc_e_diz_de_onde_veio_o_layout(rodada_casa):
     """A proveniencia viaja: um layout que a arquitetura nao declarou nao pode
-    ser lido no manifesto como se ela o tivesse declarado."""
+    ser lido no manifesto como se ela o tivesse declarado. G78: o spec
+    persistido declara o canonico (`turnkey.arquitetura.layout`), entao a
+    proveniencia e' a da arquitetura - com o espelho eletrico conferindo
+    contra ele (sem divergencia, sem bloqueio)."""
     manifesto, destino = rodada_casa
     entregavel = manifesto["deliverables"]["ifc"]
     assert entregavel["status"] == "generated", entregavel
     arquitetura = _parte(entregavel, "arquitetura")
     assert arquitetura["status"] == "generated", arquitetura
-    assert arquitetura["layout_origem"] == "eletrico.circuits.layout"
+    assert arquitetura["layout_origem"] == "arquitetura.layout"
     assert arquitetura["conferencia_areas"]["ok"]
     for relativo in entregavel["artifacts"]:
         assert (Path(destino) / relativo).is_file()
@@ -171,6 +174,8 @@ def test_sem_layout_nenhum_a_arquitetura_declara_indisponivel(tmp_path):
     por isso a indisponibilidade agora e' da parte, nao do entregavel."""
     spec = copy.deepcopy(_spec("casa-residencial"))
     spec["turnkey"]["eletrico"]["circuits"].pop("layout")
+    # G78: o canonico tambem mora no spec - "sem layout nenhum" tira os dois
+    spec["turnkey"]["arquitetura"].pop("layout", None)
     manifesto = run_project(spec, tmp_path / "run",
                             {"generate_2d": False, "generate_ifc": True})
     entregavel = manifesto["deliverables"]["ifc"]

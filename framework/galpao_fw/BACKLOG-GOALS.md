@@ -1,5 +1,26 @@
 # Backlog de goals executáveis — pós-G77 (2026-09-09)
 
+> ## ⚠ FILA CONSUMIDA — os 11 goals (G78–G88) estão FECHADOS
+>
+> Executados e auditados em 2026-09-09 (G89/G90). Cada um tem verbete em
+> `wiki/04-decisions.md` (**D106–D117**) e a fase em `wiki/03-phases.md`.
+> **Este arquivo fica como registro do que foi medido e pedido — não é mais fila.**
+> Não reexecute nenhum goal daqui: o que sobrou aberto está nomeado no fim deste
+> bloco e no `BACKLOG.md`.
+>
+> | Goal | Verbete | Goal | Verbete |
+> |---|---|---|---|
+> | G78 planta baixa da casa | D106 | G84 declara-ou-recusa | D114 |
+> | G79 terraplenagem desenha | D109 | G85 módulos sem teste | D115 |
+> | G80 fundação do prédio | D110 | G86 telhado no federado | D107 |
+> | G81 folha da escada | D111 | G87 orçamento 3 estados | D116 |
+> | G82 hidráulica 3×1 | D112 | G88 documentação | D117 |
+> | G83 guardas de um eixo | D113 | *(auditoria do lote)* | **D108/G89** |
+>
+> **Aberto e medido, para o próximo arco** (não estava nesta fila): a casa promete
+> 16 pranchas no índice e mapeia 3 (só PE-AR); o galpão não tem laço índice↔disco;
+> o caderno executivo em PDF só existe no galpão.
+
 Cada goal abaixo é **autocontido**: um agente que abra este arquivo sem ter visto a
 conversa consegue executá-lo. Traz o que foi **medido** (com endereço no código), o que
 entregar, o critério de aceite e as armadilhas conhecidas deste projeto que se aplicam.

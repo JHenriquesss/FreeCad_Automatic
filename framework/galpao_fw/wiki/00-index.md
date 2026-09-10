@@ -7,10 +7,18 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 ## TOC
 - [[01-architecture]] — spec-driven, cadeia de módulos, envelope, MAES, calc/model split
 - [[02-test-tree]] — `_selftest()` por módulo, o que cada um assere
-- [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres
-- [[04-decisions]] — log de decisões/fixes normativos (D0–D79)
+- [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres · arco S19–S42 (IFC/BIM, 6 verticais, turnkey, hardening) · **arco G43–G77 (reconstruído do git no G88)** · **G78–G88 (o lote das onze folhas, auditado no G89)**
+- [[04-decisions]] — log de decisões/fixes normativos (D0–D117)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
 - [[06-open-threads]] — T41 revisão da wiki (2026-08-11), T40 janela dupla-conversão (✅ resolvido #150), T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
+
+## Fila de trabalho (goals executáveis)
+- **Não há fila aberta.** [BACKLOG-GOALS.md](../BACKLOG-GOALS.md) foi **consumido**: os 11
+  goals (G78–G88) estão fechados em D106–D117, e o arquivo fica como registro do que foi
+  medido — não reexecutar. O levantamento vivo está em [BACKLOG.md](../BACKLOG.md).
+- **Aberto e medido no G89, para o próximo arco:** a casa promete 16 pranchas no índice e
+  mapeia 3 (só PE-AR); o galpão não tem laço índice↔disco (o prédio fecha 15/15); o caderno
+  executivo em PDF só existe no galpão.
 
 > Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 

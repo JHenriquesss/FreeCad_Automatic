@@ -79,7 +79,8 @@ _CUSTO_POR_ATIVIDADE = {
 
 def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
                            aplicaveis=None, precos_extra=None, notas=(),
-                           extras=None, detalhe_vazio=None):
+                           extras=None, detalhe_vazio=None,
+                           fora_da_tabela=None):
     """Grava a planilha 5D no manifesto a partir de quantitativos JA derivados.
 
     A DERIVACAO e' de quem conhece a tipologia (um galpao metalico e um
@@ -92,6 +93,9 @@ def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
                    ainda sobrepoe qualquer um deles em gestao.orcamento.precos).
     `notas`      : A CONFIRMAR que a derivacao produziu (o que o numero NAO
                    cobre viaja junto do numero, nao depois).
+    `fora_da_tabela`: sistemas que a obra TEM e a tabela NAO precifica (G87),
+                   medidos no modelo. Vira `fora_tabela` classificado + a
+                   guarda `orcamento_fechado` — parcial nunca se diz fechado.
     """
     import orcamento as orc
 
@@ -113,7 +117,8 @@ def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
     tabela.update(precos_usuario or {})
     bdi = float(cfg.get("bdi_pct", orc.BDI_PADRAO_PCT))
     resultado = orc.compor_orcamento(quantitativos, tabela or None, bdi,
-                                     aplicaveis=aplicaveis)
+                                     aplicaveis=aplicaveis,
+                                     fora_da_tabela=fora_da_tabela)
 
     pasta = _dir(run_dir, "orcamento")
     artefatos = [
@@ -134,12 +139,32 @@ def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
     # ORCAMENTO PARCIAL: os insumos sem quantitativo nesta rodada nao entram no
     # preco de venda. Sem isto o manifesto anunciava um orcamento "generated" que
     # podia cobrir um unico insumo - custo omitido lido como obra barata.
+    # G87: a guarda tem tres estados (obra-nao-tem / ninguem-quantificou /
+    # quantificado-sem-preco) e o parcial nunca se diz fechado — nem quando a
+    # tabela interna fecha mas ha sistema fora dela pendente.
     faltando = resultado.get("sem_quantidade") or []
     if faltando:
         a_confirmar.append(
             "orcamento PARCIAL: %d insumo(s) da tabela sem quantitativo derivavel "
             "(%s) - completar em gestao.orcamento.quantitativos antes de usar o "
             "preco de venda" % (len(faltando), ", ".join(faltando)))
+    fora_tabela = resultado.get("fora_tabela") or []
+    for item in fora_tabela:
+        if item.get("estado") == "quantificado_sem_preco":
+            a_confirmar.append(
+                "QUANTIFICADO SEM PRECO (fora da tabela, NAO entra no preco de "
+                "venda): %s = %s %s - declarar o preco, nunca estimar"
+                % (item["codigo"], item["quantidade"], item["unidade"]))
+        else:
+            a_confirmar.append(
+                "SEM QUANTITATIVO (fora da tabela): %s - %s"
+                % (item["codigo"], item["motivo"]))
+    estado = orc.estado_orcamento(resultado)
+    if not estado["fechado"] and not faltando and not resultado.get("sem_preco") \
+            and fora_tabela:
+        a_confirmar.append(
+            "orcamento PARCIAL: sistemas fora da tabela pendentes - o preco de "
+            "venda nao cobre a obra inteira")
     a_confirmar.extend(notas or [])
     registro = {
         "status": "generated",
@@ -151,6 +176,8 @@ def orcamento_no_manifesto(manifest, run_dir, normalized, derivados,
         "sem_preco": resultado["sem_preco"],
         "sem_quantidade": faltando,
         "nao_aplicaveis": resultado.get("nao_aplicaveis", []),
+        "fora_tabela": fora_tabela,
+        "orcamento_fechado": estado["fechado"],
         "cobertura_pct": resultado.get("cobertura_pct"),
         "a_confirmar": a_confirmar,
     }
@@ -447,15 +474,62 @@ def emitir_obras_sitio(manifest, run_dir, normalized, options, turnkey_result):
     pasta = _dir(run_dir, "sitio")
     artefato = _json(manifest, run_dir, pasta / "obras-sitio.json", resultado,
                      "site-works")
+    artefatos = [artefato["path"]]
+    # G89: as folhas PE-TP-01/02 saem AQUI, do mesmo resultado que acabou de ser
+    # calculado. Sem isto os dois emissores do G79 eram ilha (a propria
+    # test_alcancabilidade acusou): `_PRANCHAS["terraplenagem"]` prometia duas
+    # folhas e nenhum adaptador as emitia. Nada de dado novo - o que a folha
+    # desenha e o que `terraplenagem` ja devolveu; o que nao foi declarado
+    # (empolamento, n de Manning) a propria folha carimba como nao declarado.
+    pranchas, falhas_svg = _folhas_terraplenagem(terra_cfg, resultado)
+    for nome, svg in pranchas:
+        artefatos.append(
+            _texto(manifest, run_dir, _dir(run_dir, "drawings") / nome, svg,
+                   "drawing")["path"])
+    falhas = falhas + falhas_svg
     manifest["deliverables"]["obras_sitio"] = {
         "status": "generated" if not falhas else "partial",
-        "artifacts": [artefato["path"]],
+        "artifacts": artefatos,
         "frentes": sorted(resultado),
         "frentes_com_falha": falhas,
         "a_confirmar": ["empolamento/compactacao, coeficiente de escoamento, IDF e "
                         "taxa de infiltracao sao ensaio/dado local (os coeficientes "
                         "da NBR 17076:2024 e a IDF da cidade sao entrada)"],
     }
+
+
+def _folhas_terraplenagem(terra_cfg, resultado):
+    """(nome, svg) das folhas PE-TP que o dado JA calculado sustenta.
+
+    PE-TP-01 exige a grade (corte/aterro por celula); PE-TP-02 exige o caso de
+    drenagem. Frente ausente nao vira folha vazia: sai da lista, e o motivo
+    fica no `frentes_com_falha` de quem chamou. Nao recalcula nada - passa
+    adiante o bloco de `terraplenagem` para o emissor nao ter fonte propria.
+    """
+    import desenho_terraplenagem as dte
+
+    bloco = (resultado or {}).get("terraplenagem") or {}
+    folhas, falhas = [], []
+    if bloco.get("corte_aterro"):
+        svg = _frente(falhas, "prancha_corte_aterro",
+                      lambda: dte.mapa_corte_aterro_svg({
+                          "grid_terreno": terra_cfg["grid_terreno"],
+                          "cota_plataforma": terra_cfg["cota_plataforma"],
+                          "area_celula_m2": terra_cfg["area_celula_m2"],
+                          "empolamento": terra_cfg.get("empolamento"),
+                          "volumes": bloco["corte_aterro"],
+                          "greide": bloco.get("greide_equilibrio_m"),
+                          "movimento": bloco.get("movimento_terra")}))
+        if svg is not None:
+            folhas.append(("terraplenagem-corte-aterro.svg", svg))
+    if bloco.get("drenagem"):
+        svg = _frente(falhas, "prancha_drenagem",
+                      lambda: dte.planta_drenagem_svg({
+                          "caso": terra_cfg["drenagem"],
+                          "resultado": bloco["drenagem"]}))
+        if svg is not None:
+            folhas.append(("terraplenagem-drenagem.svg", svg))
+    return folhas, falhas
 
 
 # --------------------------------- fotovoltaico ------------------------------

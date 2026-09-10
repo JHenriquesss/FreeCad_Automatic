@@ -51,6 +51,17 @@ GALPAO = pathlib.Path(__file__).resolve().parent
 # silencioso no wrapper ja pagou (habitacao_terrea) ou pode pagar.
 # Chave nova aqui entra com triagem escrita no teste-guarda; chave
 # generica ou de apresentacao nao entra (ver motivo no cabecalho).
+#
+# G84: a lente passa nos 4 modulos com mais A CONFIRMAR (galpao_hidraulica,
+# piso_industrial, secundarios_nbr8800, montagem). Chaves novas = opcao que
+# decide veredito nesses modulos (medido sitio a sitio; triagem com numero
+# em tests/test_declara_ou_recusa_g84.py). Fora ficam, dito aqui:
+#   - W/G de secundarios (g.get("W"/"G")): 1 letra, 12/8 sitios ruidosos;
+#   - fck_MPa: chave generica do concreto (6 sitios; cada um ja tem porta:
+#     galpao_concreto materializa do spec, desenho tem default proprio);
+#   - gamma/cargas: dicts genericos de combinacao/carga;
+#   - montagem: sem gate OK (plano, nao veredito); so peso_unit_kg entra
+#     (via `or`: peso ausente vira 0.0 kg no guindaste).
 NORMATIVAS_G75 = frozenset({
     "habitacao_terrea",
     "combinacao",
@@ -80,6 +91,34 @@ NORMATIVAS_G75 = frozenset({
     "ranhurado",
     "apoio_m",
     "altura_verga_m",
+    # G84: hidraulica do galpao (decidem DN/gate; triagem em test_g84).
+    "i_pluvial_mm_h",
+    "p_alim_kPa",
+    "metodo_agua",
+    "n_condutores",
+    "decl_pluvial_pct",
+    "decl_esgoto_pct",
+    "decl_calha_pct",
+    "area_telhado_m2",
+    # G84: piso industrial (decidem h/gate; triagem em test_g84).
+    "posicoes",
+    "udl_kN_m2",
+    "sigma_solo_adm_kN_m2",
+    "k_MN_m3",
+    "cbr_pct",
+    # G84: secundarios NBR 8800 (decidem Msdx/Msdy/interacao).
+    "n_tirantes",
+    "peso_proprio",
+    "Nsd",
+    "gamma_W",
+    "gamma_G",
+    "mesa_interna_travada",
+    "n_maos_francesas",
+    "continua",
+    "Cb",
+    "Lb",
+    # G84: montagem (sem gate; so o peso que alimenta o guindaste).
+    "peso_unit_kg",
 })
 
 OBRIGATORIO = "OBRIGATORIO"

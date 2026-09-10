@@ -133,6 +133,23 @@ def _casa_eletrica():
     return _CACHE["ce"]
 
 
+def _layout_casa_g78():
+    """O layout canonico da casa (G78), validado contra o programa.
+
+    Passa pelo mesmo caminho do hook de desenhos (`_layout_para_planta` com
+    o turnkey persistido): proveniencia arquitetura.layout, nunca o espelho
+    eletrico direto."""
+    if "g78lay" not in _CACHE:
+        import desenho_casa_residencial as dcr
+        spec = json.loads((REPO / "projects" / "casa-residencial" /
+                           "project-spec.json").read_text(encoding="utf-8"))
+        layout, _prov, erros = dcr._layout_para_planta(
+            _casa_resultado(), spec.get("turnkey"))
+        assert layout is not None, erros
+        _CACHE["g78lay"] = layout
+    return _CACHE["g78lay"]
+
+
 def _telhado():
     if "tm" not in _CACHE:
         import telhado_casa_madeira as tm
@@ -221,6 +238,28 @@ def _f_juntas():
                      "area_contato_cm2": 300.0}]}))
 
 
+def _f_tp01():
+    import desenho_terraplenagem as dte
+    import terraplenagem as tp
+    grid = [[102.3, 101.8, 101.2], [101.5, 101.0, 100.4], [100.6, 100.1, 99.5]]
+    vols = tp.volumes_corte_aterro(grid, 101.0, 400.0)
+    return dte.mapa_corte_aterro_svg(
+        {"grid_terreno": grid, "cota_plataforma": 101.0,
+         "area_celula_m2": 400.0, "empolamento": 1.25, "volumes": vols,
+         "greide": tp.greide_equilibrio(grid, 400.0, empolamento=1.25),
+         "movimento": tp.movimento_terra(vols["corte_m3"], vols["aterro_m3"],
+                                         1.25)})
+
+
+def _f_tp02():
+    import desenho_terraplenagem as dte
+    import terraplenagem as tp
+    caso = {"C": 0.75, "i_mm_h": 130.0, "area_ha": 1.2,
+            "largura_canaleta_m": 0.4, "declividade": 0.008}
+    return dte.planta_drenagem_svg(
+        {"caso": caso, "resultado": tp.dimensiona_drenagem(caso)})
+
+
 #: nome do censo -> funcao que EMITE a folha de verdade (nada sintetico).
 FOLHAS = {
     # ---- galpao: eletrico / incendio / hidraulica / climatizacao ----------
@@ -265,6 +304,10 @@ FOLHAS = {
     "desenho_incendio.detalhes_hidrantes_rotas_svg":
         lambda: __import__("desenho_incendio").detalhes_hidrantes_rotas_svg(
             _edificio()[3], _edificio()[0]),
+    "desenho_escada_edificio.planta_escada_svg":
+        # G81: a escada calculada vira folha (PE-IN-03).
+        lambda: __import__("desenho_escada_edificio").planta_escada_svg(
+            _edificio()[0]["escada"], _edificio()[3]),
     "desenho_pavimento.planta_formas_svg":
         lambda: __import__("desenho_pavimento").planta_formas_svg(
             _edificio()[0]["pavimento"]),
@@ -273,6 +316,10 @@ FOLHAS = {
         # `pavimento`: com o dict errado ela emite a tabela VAZIA sem reclamar.
         lambda: __import__("desenho_pavimento").prancha_armacao_vigas_svg(
             _edificio()[0]["vigas_verificacao"]),
+    "desenho_fundacao_edificio.planta_fundacao_svg":
+        # G80: a fundacao dimensionada por pilar vira folha (PE-CO-04).
+        lambda: __import__("desenho_fundacao_edificio").planta_fundacao_svg(
+            _edificio()[0]["fundacao"], _edificio()[0]),
 
     # ---- concreto (galpao pre-moldado + laje) -----------------------------
     "desenho_concreto.prancha_armacao_svg":
@@ -297,6 +344,9 @@ FOLHAS = {
             _casa_resultado()["hidraulica"]),
     "desenho_casa_residencial.telhado_tesoura_svg":
         lambda: __import__("desenho_casa_residencial").telhado_tesoura_svg(_telhado()),
+    "desenho_casa_residencial.planta_baixa_svg":
+        lambda: __import__("desenho_casa_residencial").planta_baixa_svg(
+            _casa_resultado()["arquitetura"], _layout_casa_g78()),
 
     # ---- eletrica residencial (fase 6B) ----------------------------------
     "desenho_eletrico_residencial.unifilar_residencial_svg":
@@ -315,6 +365,8 @@ FOLHAS = {
     "cronograma.curva_s_svg": _f_curva_s,
     "fotovoltaico.grafico_svg": _f_fv,
     "desenho_piso.planta_juntas_svg": _f_juntas,
+    "desenho_terraplenagem.mapa_corte_aterro_svg": _f_tp01,
+    "desenho_terraplenagem.planta_drenagem_svg": _f_tp02,
 }
 
 #: folhas conhecidas que esta suite NAO exercita, com o motivo escrito. Vazio

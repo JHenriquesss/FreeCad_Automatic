@@ -89,7 +89,7 @@ def _contagem():
 
 def test_01_ferramenta_enxerga_piso_e_so_chave_normativa():
     tudo = vd.varredura()
-    assert len(tudo) >= 101, "piso G75: a varredura tem de enxergar >= 101, viu %d" % len(tudo)
+    assert len(tudo) >= 152, "piso G75+G84: a varredura tem de enxergar >= 152, viu %d" % len(tudo)
     assert {d["chave"] for d in tudo} <= vd.NORMATIVAS_G75
     assert {d["via"] for d in tudo} <= {"get", "or"}
     assert all(set(d) == {"arquivo", "linha", "chave", "default", "via"}
@@ -142,7 +142,15 @@ BASELINE_G75 = Counter({
     (u'gestao_casa.py', u'n_pavimentos', u'1', u'or'): 3,
     (u'gestao_casa.py', u'n_pavimentos', u'OBRIGATORIO', u'get'): 2,
     (u'gestao_edificio.py', u'n_pavimentos', u'1', u'or'): 2,
-    (u'gestao_edificio.py', u'n_pavimentos', u'OBRIGATORIO', u'get'): 1,
+    # G87/G89: o "or" do mesmo par (totais do incendio caindo para a
+    # estrutura). Nao e default: os dois lados sao dado declarado, e o
+    # resultado so entra no texto do motivo. Caso (a), fica.
+    (u'gestao_edificio.py', u'n_pavimentos', u"est.get('n_pavimentos')", u'or'): 1,
+    # G87/G89: 1 -> 2. A ocorrencia nova e' `totais.get('n_pavimentos') or
+    # est.get('n_pavimentos')` na quantificacao do incendio, e alimenta SO o
+    # texto do `motivo` ("sem contagem nos totais ... n_pavimentos=%s").
+    # Sem default e sem veredito: caso (a) da triagem, fica.
+    (u'gestao_edificio.py', u'n_pavimentos', u'OBRIGATORIO', u'get'): 2,
     (u'hidrantes_nbr13714.py', u'altura_m', u"caso.get('pe_direito', 6.0)", u'get'): 1,
     (u'ifc_emit.py', u'material', u'OBRIGATORIO', u'get'): 1,
     (u'madeira_nbr7190.py', u'conifera', u'OBRIGATORIO', u'get'): 1,
@@ -166,6 +174,55 @@ BASELINE_G75 = Counter({
     (u'vibracao_piso.py', u'As_m2', u'0.0', u'get'): 3,
     (u'viga_baldrame_edificio.py', u'linhas', u'OBRIGATORIO', u'get'): 1,
     (u'wizard.py', u's3', u'0.95', u'get'): 1,
+    (u'wizard.py', u'n_maos_francesas', u'0', u'or'): 2,
+    # G84: a lente passa nos 4 modulos com mais A CONFIRMAR. Triagem com
+    # numero em tests/test_declara_ou_recusa_g84.py (a = fica, b = vira
+    # calculo, c = vira recusa). O que ja era OBRIGATORIO segue OBRIGATORIO.
+    (u'bim_instalacoes_casa.py', u'n_condutores', u'0', u'or'): 1,
+    (u'galpao_concreto.py', u'cbr_pct', u'OBRIGATORIO', u'get'): 1,
+    (u'galpao_concreto.py', u'k_MN_m3', u'OBRIGATORIO', u'get'): 1,
+    (u'galpao_hidraulica.py', u'area_telhado_m2', u'L * W', u'get'): 1,
+    (u'galpao_hidraulica.py', u'decl_calha_pct', u'1.0', u'get'): 1,
+    (u'galpao_hidraulica.py', u'decl_esgoto_pct', u'1.0', u'get'): 1,
+    (u'galpao_hidraulica.py', u'decl_pluvial_pct', u'1.0', u'get'): 1,
+    (u'galpao_hidraulica.py', u'i_pluvial_mm_h', u'hp.I_PLUVIAL_PADRAO_MM_H', u'get'): 1,
+    (u'galpao_hidraulica.py', u'metodo_agua', u"'soma'", u'get'): 1,
+    (u'galpao_hidraulica.py', u'n_condutores', u'N_CONDUTORES_PADRAO', u'get'): 2,
+    (u'galpao_hidraulica.py', u'p_alim_kPa', u'100.0', u'get'): 2,
+    (u'hidraulica_residencial.py', u'decl_calha_pct', u'1.0', u'get'): 1,
+    (u'hidraulica_residencial.py', u'decl_esgoto_pct', u'1.0', u'get'): 1,
+    (u'hidraulica_residencial.py', u'decl_pluvial_pct', u'1.0', u'get'): 1,
+    (u'hidraulica_residencial.py', u'metodo_agua', u"'soma'", u'get'): 1,
+    (u'hidraulica_residencial.py', u'n_condutores', u'2', u'get'): 1,
+    (u'hidraulica_residencial.py', u'p_alim_kPa', u'OBRIGATORIO', u'get'): 1,
+    (u'montagem.py', u'peso_unit_kg', u'0.0', u'or'): 1,
+    (u'pilar_continuo.py', u'peso_proprio', u'True', u'get'): 1,
+    (u'piso_industrial.py', u'cbr_pct', u'OBRIGATORIO', u'get'): 1,
+    (u'piso_industrial.py', u'k_MN_m3', u'OBRIGATORIO', u'get'): 1,
+    (u'piso_industrial.py', u'posicoes', u"['interior', 'borda']", u'get'): 1,
+    (u'piso_industrial.py', u'sigma_solo_adm_kN_m2', u'OBRIGATORIO', u'get'): 1,
+    (u'piso_industrial.py', u'udl_kN_m2', u'OBRIGATORIO', u'get'): 1,
+    (u'ponte_rolante.py', u'Cb', u'1.0', u'get'): 1,
+    (u'ponte_rolante.py', u'Lb', u'L', u'get'): 1,
+    (u'ponte_rolante.py', u'Lb', u"cfg['vao_viga']", u'get'): 1,
+    (u'projeto_spec.py', u'mesa_interna_travada', u'False', u'get'): 1,
+    (u'projeto_spec.py', u'n_maos_francesas', u'OBRIGATORIO', u'get'): 1,
+    (u'rodar_galpao.py', u'n_tirantes', u'2', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'Cb', u'1.0', u'get'): 2,
+    (u'secundarios_nbr8800.py', u'Lb', u'H', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'Lb', u'vao', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'Nsd', u'5.0', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'continua', u'OBRIGATORIO', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'gamma_G', u'1.25', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'gamma_W', u'1.4', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'mesa_interna_travada', u'False', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'n_maos_francesas', u'n_t', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'n_tirantes', u'1', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'peso_proprio', u'0.1', u'get'): 1,
+    (u'secundarios_nbr8800.py', u'peso_proprio', u'0.31', u'get'): 1,
+    (u'techdraw_exec.py', u'peso_unit_kg', u'OBRIGATORIO', u'get'): 1,
+    (u'tercas_nbr14762.py', u'continua', u'False', u'get'): 2,
+    (u'viga_baldrame.py', u'continua', u'OBRIGATORIO', u'get'): 1,
 })
 
 

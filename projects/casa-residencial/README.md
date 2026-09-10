@@ -78,6 +78,7 @@ reports/adapter-result.json
 drawings/quadro-ambientes.svg      previsão de carga por ambiente
 drawings/conferencia-nbr5410.svg   mínimo normativo × declarado
 drawings/esquema-hidraulico.svg    DN das três redes
+drawings/planta-baixa.svg          PE-AR-02: cômodos posicionados do layout declarado
 drawings/planta-formas.svg         malha de pilares, vigas e painéis de laje
 bim/arquitetura-residencial.ifc    IfcSpace por ambiente (+ piso e paredes)
 bim/estrutura-residencial.ifc      IfcColumn/IfcBeam/IfcSlab/IfcFooting
@@ -90,10 +91,15 @@ acusaria dezenas de conflitos que são embutimento intencional. Cada modelo é
 conferido contra o **seu** cálculo — contagem de peças por tipo e ausência de
 interpenetração — antes de ser publicado.
 
-`drawings/planta-baixa.svg` **não** é emitida e o motivo fica registrado em
-`deliverables.drawings.skipped`: o programa declara área e perímetro, não
-posições. Desenhar cômodos em coordenadas inventadas seria uma prancha que não
-corresponde ao dado.
+O layout dos cômodos mora canonicamente em `turnkey.arquitetura.layout` (a
+arquitetura declara, a elétrica lê); a seção `rooms` sob
+`turnkey.eletrico.circuits.layout` é o espelho, conferido contra o canônico a
+cada rodada. `drawings/planta-baixa.svg` (PE-AR-02) sai desse layout, com nome,
+dimensões, área do programa e cotas gerais — sem inventar parede, porta ou
+janela (fora do escopo, dito na folha). PE-AR-01 (implantação) e PE-AR-03
+(cortes/fachadas) ficam `not_available` com o dado que falta nomeado em
+`deliverables.drawings.skipped`: o spec não declara lote (dimensões, recuos,
+orientação) nem níveis (soleira/terreno).
 
 ## Como rodar
 

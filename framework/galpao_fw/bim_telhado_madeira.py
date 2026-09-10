@@ -9,7 +9,13 @@
 # O QUE ELE EMITE, e por que so isso:
 #   IfcMember - banzos, diagonais e montantes (um por barra por tesoura);
 #   IfcBeam   - tercas (uma por linha de no superior, vencendo a extensao).
-# Peca que ninguem calculou nao entra: sem telhado ATENDE nao ha membro.
+# CONTRATO G86 (D101/G72 redesenhado): o telhado calculado entra SEMPRE,
+# ATENDA ou nao - o clash e' sobre ocupacao fisica, e a geometria da tesoura
+# (secoes adotadas, posicao) existe nos dois casos. O veredito viaja em cada
+# membro (`situacao`: "ATENDE"/"REPROVADO", lido do calculo, nao dos
+# membros). Sem telhado calculado (None, nao-dict ou sem vao/n_tesouras)
+# nao ha membro: ausencia honesta, nao silencio. A folha ja carimbava
+# REPROVA (desenho_casa_residencial); o federado era o unico que sumia.
 #
 # MATERIAL: a classe declarada (C24, D40...) + a densidade MEDIA da Tab. 3
 # (rhom, p.12 do F136) - nunca "madeira" generica. A string leva os dois:
@@ -125,9 +131,15 @@ def membros_bim(telhado, estrutura=None, vaos_x=None, vaos_y=None,
     veio via estrutura_casa). `estrutura` e' o retorno de
     estrutura_casa.rodar (fornece vaos + H_total_m). Sem estrutura, os tres
     tem de vir explicitos. Cada barra leva `plano_normal` (normal do plano
-    da tesoura) para o emissor orientar d no plano.
+    da tesoura) para o emissor orientar d no plano, e `situacao`
+    ("ATENDE"/"REPROVADO" do calculo - G86: o reprovado entra carimbado,
+    nunca some).
     """
-    if not isinstance(telhado, dict) or not telhado.get("ATENDE"):
+    if telhado is None:
+        return []
+    if not isinstance(telhado, dict):
+        return []
+    if telhado.get("vao_m") is None or telhado.get("n_tesouras") is None:
         return []
     try:
         vao = float(telhado["vao_m"])
@@ -156,6 +168,7 @@ def membros_bim(telhado, estrutura=None, vaos_x=None, vaos_y=None,
     nos, barras = geo["nos"], geo["barras"]
     secoes = _secoes_por_grupo(telhado)
     material = material_da_classe(prop["classe"], prop["rhom"])
+    situacao = "ATENDE" if telhado.get("ATENDE") else "REPROVADO"
     ox, oy = float(origem[0]), float(origem[1])
     a = geo["meio_vao"]
     normal = [0.0, 1.0, 0.0] if direcao == "x" else [1.0, 0.0, 0.0]
@@ -184,7 +197,7 @@ def membros_bim(telhado, estrutura=None, vaos_x=None, vaos_y=None,
                 "p1": p1, "p2": p2,
                 "plano_normal": list(normal),
                 "material": material, "pavimento": PAVIMENTO,
-                "disciplina": "telhado",
+                "disciplina": "telhado", "situacao": situacao,
                 "tesoura": k + 1, "grupo": grupo,
                 "barra": "%s-%s" % (n1, n2)})
     # tercas: uma por no superior, vencendo a extensao inteira.
@@ -211,7 +224,7 @@ def membros_bim(telhado, estrutura=None, vaos_x=None, vaos_y=None,
             "p1": p1, "p2": p2,
             "plano_normal": list(normal),
             "material": material, "pavimento": PAVIMENTO,
-            "disciplina": "telhado",
+            "disciplina": "telhado", "situacao": situacao,
             "grupo": "terca", "no_superior": nid})
     return membros
 

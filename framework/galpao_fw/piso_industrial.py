@@ -248,17 +248,25 @@ def verifica_piso(caso):
             escolhido = {"h_mm": h, "pontos": pontos}
             break
 
-    # UDL: verificacao geotecnica simples (pressao <= admissivel do solo)
+    # UDL: verificacao geotecnica simples (pressao <= admissivel do solo).
+    # G84 (c): `sig_solo is None or pressao <= sig_solo` passava em silencio
+    # (udl 500 kPa sem admissivel => OK True; com sigma 100 => OK False).
+    # UDL declarada sem admissivel agora RECUSA no padrao declara-ou-recusa.
     udl = caso.get("udl_kN_m2"); sig_solo = caso.get("sigma_solo_adm_kN_m2")
     udl_res = None
     if udl:
+        if sig_solo is None:
+            return {"OK": False, "motivo": "[A CONFIRMAR] sigma_solo_adm_kN_m2 nao "
+                    "declarado: udl_kN_m2=%s exige a tensao admissivel do solo "
+                    "(ensaio/SPT); a verificacao geotecnica nao pode ser "
+                    "inventada." % (udl,),
+                    "fck_MPa": fck, "k_MN_m3": k, "fctfd_MPa": round(fctd, 3)}
         peso_placa = GAMMA_CONC_KN_M3 * (escolhido["h_mm"] / 1000.0) if escolhido else 0.0
         pressao = udl + peso_placa
         udl_res = {"udl_kN_m2": udl, "pressao_total_kN_m2": round(pressao, 1),
                    "sigma_solo_adm_kN_m2": sig_solo,
-                   "OK": (sig_solo is None) or (pressao <= sig_solo),
-                   "nota": ("sigma_solo_adm nao informado - A CONFIRMAR"
-                            if sig_solo is None else "")}
+                   "OK": pressao <= sig_solo,
+                   "nota": ""}
 
     if not escolhido:
         # nem a maior espessura comercial atende -> REPROVA (carga extrema)

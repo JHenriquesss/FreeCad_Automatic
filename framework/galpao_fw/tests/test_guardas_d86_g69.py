@@ -1,7 +1,8 @@
 """Lente G69 (D86): as guardas que concordam consigo mesmas.
 
 Censo da arvore (baseline em TRIADAS_G69, congelado nos DOIS sentidos):
-20 defs confere_*/verifica_fechamento*. A revisao achou a contagem de 15
+24 defs confere_*/verifica_fechamento* (20 ate o G77; o G80/G81/G82
+trouxeram 3 e o confere_folha_svg do G76 so foi triado no G89). A revisao achou a contagem de 15
 desatualizada dentro do proprio lote — confere_vergas nasceu no G70 e o
 censo, que so procurava os nomes que ja esperava, nao a viu; e o G66
 ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
@@ -65,6 +66,29 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     plano da tesoura declarada no membro. Mede o EIXO, nao o nome da
     peca. INDEPENDENTE — e a guarda do G3 (viga deitada de lado).
 
+20. desenho_fundacao_edificio.confere_desenho_fundacao (G80) - A=`por_pilar`
+    de fundacao_edificio.dimensiona (B/L/Ndim por pilar), B=<rect data-pilar>
+    do SVG parseado. Caminhos distintos ate o mesmo numero: o esperado nunca
+    e lido do desenho. INDEPENDENTE (drawing-vs-data, mesma forma do item 10).
+21. desenho_escada_edificio.confere_desenho_escada (G81) - A=geometria de
+    escada_concreto.dimensiona (n_degraus, espelho, piso) + gates do
+    incendio, B=rects data-degrau/data-patamar-rect e attrs data-* do SVG.
+    INDEPENDENTE (item 10). O comprimento do patamar segue A CONFIRMAR e
+    aparece na folha como tal - a guarda confere o que foi declarado, nao
+    fecha o numero.
+22. desenho_hidraulica.confere_cobertura_galpao (G82) - META-GUARDA de
+    contrato, nao de geometria: A=arquivos de fato emitidos em drawings/,
+    B=os 3 codigos PE-HI que o indice promete. INDEPENDENTE no eixo que
+    importa (disco x indice), e o unico caso do censo em que "conferir" nao
+    e' medir desenho: e' impedir que codigo prometido evapore sem motivo.
+    Mesma familia do item 16 (confere_cobertura da lente G51).
+23. desenho_svg_base.confere_folha_svg (G76) - A=viewBox/width/height
+    declarados na folha, B=extremos (xmax/ymax) medidos nos elementos
+    desenhados. INDEPENDENTE (o continente x o conteudo): e a guarda que
+    pegou a cota 3,5 px fora da folha no G77. Estava no censo desde o G76 e
+    so agora foi triada - nomeada aqui para o baseline fechar nos dois
+    sentidos.
+
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
 Mapa do vermelho: neste arquivo (D86 das 2 fracas + omissao do total +
@@ -110,6 +134,10 @@ TRIADAS_G69 = {
     ("pavimento_tipo", "verifica_fechamento"),
     ("telhado_casa_madeira", "confere_fechamento_area"),
     ("varredura_faixa_validade", "confere_cobertura"),
+    ("desenho_fundacao_edificio", "confere_desenho_fundacao"),
+    ("desenho_escada_edificio", "confere_desenho_escada"),
+    ("desenho_hidraulica", "confere_cobertura_galpao"),
+    ("desenho_svg_base", "confere_folha_svg"),
 }
 
 

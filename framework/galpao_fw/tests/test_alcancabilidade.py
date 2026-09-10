@@ -43,7 +43,8 @@ CARREGADOS_COMO_FONTE = {
 SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                    "validacao", "verificar_amostra", "validacao_sistema_g15",
                    "varredura_nao_verificados", "varredura_descoberta",
-                   "varredura_faixa_validade", "varredura_defaults_veredito"]
+                   "varredura_faixa_validade", "varredura_defaults_veredito",
+                   "varredura_guardas_um_eixo"]
 
 
 def _modulos():

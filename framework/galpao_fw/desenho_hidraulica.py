@@ -127,6 +127,50 @@ def gerar_esquema(r, path):
 
 
 # ---------------------------------------------------------------------------
+# CONTRATO G82: o galpao e' TERREO (um pavimento, um retangulo, sem prumadas
+# verticais) - as 3 redes vivem num esquema unico sobre o mesmo contorno.
+# Separar em 3 folhas seria copiar o mesmo retangulo 3 vezes, sem ganho.
+# Decisao: UM arquivo cobre os TRES titulos do indice (PE-HI-01/02/03), e o
+# motivo viaja escrito aqui, nao na cabeca de ninguem. O predio faz o
+# contrario (uma folha por rede, com o corte vertical que o galpao nunca
+# teve) e segue 1:1 em edificio_adapter._PRANCHA_ARQUIVO.
+#
+# No fluxo do galpao (caderno_turnkey via freecad.exe) este mesmo conteudo
+# vai embutido na PE-HID-01 (techdraw_hidraulica); as PE-HID-0x sao pranchas
+# do executivo A1, codigo distinto do indice PE-HI. No fluxo puro-Python o
+# arquivo abaixo responde pelos 3 codigos.
+# ---------------------------------------------------------------------------
+COBERTURA_GALPAO = {
+    "PE-HI-01": "esquema-hidraulica.svg",
+    "PE-HI-02": "esquema-hidraulica.svg",
+    "PE-HI-03": "esquema-hidraulica.svg",
+}
+
+
+def confere_cobertura_galpao(emitidos):
+    """Laco indice<->disco da hidraulica no galpao.
+
+    emitidos: nomes de arquivo em drawings/ (ou qualquer iteravel).
+    Devolve {"cobertos": [codigos], "pulados": [{"prancha", "motivo"}]}.
+    Com o esquema emitido, os 3 codigos estao cobertos; sem ele, os 3 saem
+    pulados NOMEADOS (nunca somem em silencio - saturacao silenciosa)."""
+    tem = set(emitidos or [])
+    cobertos, pulados = [], []
+    for codigo in ("PE-HI-01", "PE-HI-02", "PE-HI-03"):
+        arquivo = COBERTURA_GALPAO[codigo]
+        if arquivo in tem:
+            cobertos.append(codigo)
+        else:
+            pulados.append({
+                "prancha": arquivo,
+                "motivo": ("folha %s nao emitida nesta rodada: no galpao o "
+                           "esquema unico cobre PE-HI-01/02/03 (contrato G82)"
+                           % codigo),
+            })
+    return {"cobertos": cobertos, "pulados": pulados}
+
+
+# ---------------------------------------------------------------------------
 # PRANCHAS DO EDIFICIO (G56) - uma folha por rede, com corte vertical
 # ---------------------------------------------------------------------------
 # O emissor do galpao junta as 3 redes numa folha so (um pavimento, um

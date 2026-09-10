@@ -203,11 +203,14 @@ def membros_hidraulica(estrutura, resultado_hidraulica):
 
 
 def membros_federados_casa(estrutura, resultado_eletrico, resultado_hidraulica):
-    """Estrutura + instalacoes + TELHADO no frame comum (G72).
+    """Estrutura + instalacoes + TELHADO no frame comum (G72, contrato G86).
 
-    O telhado entra quando foi calculado e ATENDE (estrutura["telhado"]):
-    a tesoura ve a prumada/eletrocalha do sotao no clash. Sem telhado, o
-    federado segue estrutura + instalacoes (retrocompativel).
+    O telhado entra quando foi CALCULADO (estrutura["telhado"] com vao_m e
+    n_tesouras): ATENDA ou nao, a tesoura ve a prumada/eletrocalha do sotao
+    no clash - o veredito viaja em cada membro (`situacao`, lido do
+    calculo). Sem telhado calculado, o federado segue estrutura +
+    instalacoes (retrocompativel). Geometria incoerente estoura (G74), nunca
+    some em silencio (G86).
     """
     import bim_edificio as bim
 
@@ -245,7 +248,10 @@ def membros_federados_casa(estrutura, resultado_eletrico, resultado_hidraulica):
         _bt = None
     if _bt is not None:
         tel = (estrutura or {}).get("telhado")
-        if isinstance(tel, dict) and tel.get("ATENDE"):
+        calculado = (isinstance(tel, dict)
+                     and tel.get("vao_m") is not None
+                     and tel.get("n_tesouras") is not None)
+        if calculado:
             lst = _bt.membros_bim(tel, estrutura=estrutura)
             for m in lst:
                 m = dict(m)

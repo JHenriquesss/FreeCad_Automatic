@@ -40,8 +40,9 @@ Nenhum módulo está hoje bloqueado por ausência de fonte no acervo.
 **A única exceção não é norma, é caso externo** — ver item 5 (T44, fundação).
 
 **Atualização pendente de documento, não de aquisição:** `fontes/fontes-faltantes.md`
-ainda diz *"Destrava o telhado da casa, hoje `telhado_madeira: not_available`"*. O telhado
-foi implementado em G66–G74. A linha está obsoleta e induz ao erro de recaçar fonte.
+dizia *"Destrava o telhado da casa, hoje `telhado_madeira: not_available`"*. O telhado
+foi implementado em G66–G74. **Corrigido no G88** — a linha agora diz `implemented`
+quando calculado (D97–D103).
 
 ---
 

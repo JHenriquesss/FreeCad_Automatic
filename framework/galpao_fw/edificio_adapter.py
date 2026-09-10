@@ -879,7 +879,8 @@ def _erro_entregavel(exc: Exception) -> str:
 
 
 def _emitir_desenhos(manifest, run_dir, normalized, options, result):
-    """Hook de desenhos: as 13 pranchas do indice (G56).
+    """Hook de desenhos: as pranchas do indice (G56 + PE-CO-04 no G80 +
+    PE-IN-03 no G81).
 
     Nao depende de FreeCAD - le o resultado ja calculado. Estrutura bloqueada
     vira motivo explicito no manifesto, nunca um SVG vazio que parece prancha.
@@ -948,6 +949,32 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         puladas.append({"prancha": nome_vigas,
                         "motivo": "vigas nao verificadas nesta rodada "
                                   "(sem vigas_verificacao tramo a tramo)"})
+    # Fundacao do predio (G80): planta de locacao/formas, um elemento por
+    # pilar com dimensoes, cota de apoio e carga de projeto. Sem fundacao
+    # dimensionada (sem sondagem/tensao declarada) sai pulada nomeada, nunca
+    # folha vazia que parece prancha.
+    nome_fund = "fundacao-locacao-formas.svg"
+    fund = estrutura.get("fundacao")
+    if isinstance(fund, dict) and fund.get("por_pilar"):
+        try:
+            import desenho_fundacao_edificio as dfe
+
+            dfe.gerar_planta_fundacao(fund, estrutura,
+                                      str(destino / nome_fund))
+        except Exception as exc:                            # noqa: BLE001
+            puladas.append({"prancha": nome_fund,
+                            "motivo": _erro_entregavel(exc)})
+        else:
+            _add_artifact(manifest, run_dir, destino / nome_fund, "drawing")
+            emitidas.append("drawings/" + nome_fund)
+    else:
+        motivo_fund = (estrutura.get("fundacao_erro")
+                       if isinstance(estrutura, dict) else None)
+        puladas.append({"prancha": nome_fund,
+                        "motivo": ("fundacao nao dimensionada nesta rodada"
+                                   + (": %s" % motivo_fund
+                                      if motivo_fund else
+                                      " (sem sondagem/tensao declarada)"))})
     # Instalacoes (G56): eletrica, hidraulica e incendio calculam desde o G12
     # e tem posicao desde o G53 - e nao tinham uma folha sequer. Cada emissor
     # nasceu para o galpao (um pavimento); aqui sai por pavimento-tipo e com
@@ -1002,6 +1029,9 @@ _PRANCHA_ARQUIVO = {
     "PE-CO-01": "planta-formas-pavimento-tipo.svg",
     "PE-CO-02": "armacao-vigas-pavimento-tipo.svg",
     "PE-CO-03": "planta-laje-pavimento-tipo.svg",
+    # G80: a fundacao dimensionada por pilar vira folha propria. Sem esta
+    # entrada a prancha evaporaria no `continue` do indice (D89).
+    "PE-CO-04": "fundacao-locacao-formas.svg",
     "PE-EL-01": "eletrica-unifilar-prumada.svg",
     "PE-EL-02": "eletrica-planta-pavimento-tipo.svg",
     "PE-EL-03": "eletrica-infra-aterramento.svg",
@@ -1011,6 +1041,9 @@ _PRANCHA_ARQUIVO = {
     "PE-HI-03": "hidraulica-pluvial.svg",
     "PE-IN-01": "incendio-ppci-pavimento-tipo.svg",
     "PE-IN-02": "incendio-detalhes-hidrantes-rotas.svg",
+    # G81: a escada calculada vira folha propria. Sem esta entrada a
+    # prancha evaporaria no `continue` do indice (D89).
+    "PE-IN-03": "incendio-escada-planta-corte.svg",
     "PE-CD-01": "coordenacao-federado.svg",
 }
 
@@ -1091,7 +1124,8 @@ def _emitir_hidraulica(manifest, run_dir, destino, estrutura, instalacoes,
 
 def _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
                      emitidas, puladas):
-    """PE-IN-01..02: PPCI do pavimento-tipo + detalhes de hidrantes/rotas."""
+    """PE-IN-01..03: PPCI do pavimento-tipo + detalhes de hidrantes/rotas +
+    escada de emergencia (G81)."""
     import desenho_incendio as di
 
     inc = instalacoes.get("incendio")
@@ -1101,13 +1135,41 @@ def _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
         for nome in nomes:
             puladas.append({"prancha": nome,
                             "motivo": "incendio nao calculado nesta rodada"})
-        return
-    _emitir_uma(manifest, run_dir, destino, nomes[0],
-                lambda p: di.gerar_ppci_pavimento(inc, estrutura, p),
-                emitidas, puladas)
-    _emitir_uma(manifest, run_dir, destino, nomes[1],
-                lambda p: di.gerar_detalhes_hidrantes(inc, estrutura, p),
-                emitidas, puladas)
+    else:
+        _emitir_uma(manifest, run_dir, destino, nomes[0],
+                    lambda p: di.gerar_ppci_pavimento(inc, estrutura, p),
+                    emitidas, puladas)
+        _emitir_uma(manifest, run_dir, destino, nomes[1],
+                    lambda p: di.gerar_detalhes_hidrantes(inc, estrutura, p),
+                    emitidas, puladas)
+    # Escada de emergencia (G81): planta + corte lendo a escada que a
+    # estrutura dimensionou e os gates que o incendio verificou. Sem escada
+    # dimensionada sai pulada nomeada, nunca folha vazia que parece prancha.
+    nome_esc = "incendio-escada-planta-corte.svg"
+    esc = estrutura.get("escada") if isinstance(estrutura, dict) else None
+    if isinstance(esc, dict) and isinstance(esc.get("geometria"), dict):
+        try:
+            import desenho_escada_edificio as dee
+
+            dee.gerar_planta_escada(
+                esc, str(destino / nome_esc),
+                incendio=inc if isinstance(inc, dict) else None)
+        except Exception as exc:                            # noqa: BLE001
+            puladas.append({"prancha": nome_esc,
+                            "motivo": _erro_entregavel(exc)})
+        else:
+            from project_loop import _add_artifact
+
+            _add_artifact(manifest, run_dir, destino / nome_esc, "drawing")
+            emitidas.append("drawings/" + nome_esc)
+    else:
+        motivo_esc = (estrutura.get("escada_erro")
+                      if isinstance(estrutura, dict) else None)
+        puladas.append({"prancha": nome_esc,
+                        "motivo": ("escada nao dimensionada nesta rodada"
+                                   + (": %s" % motivo_esc
+                                      if motivo_esc else
+                                      " (sem estrutura.escada declarada)"))})
 
 
 def _emitir_coordenacao(manifest, run_dir, normalized, options, result):

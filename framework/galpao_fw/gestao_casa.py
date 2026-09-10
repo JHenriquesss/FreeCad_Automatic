@@ -584,11 +584,88 @@ def _madeira_telhado(est, notas, nao_derivados):
     return {"madeira_telhado": round(total, 3)}
 
 
+def fora_da_tabela_quantificada(result, quantitativos):
+    """Sistemas que a casa TEM e a tabela NAO precifica, medidos NO MODELO (G87).
+
+    Mesma regra do edificio: nomear, nunca estimar. A parede e' a de
+    fechamento OU a portante (uma exclui a outra no escopo); o revestimento
+    sao as duas faces; a impermeabilizacao e' a projecao do pavimento
+    (baldrame/areas molhadas tem a mesma projecao da laje). Esquadrias nao
+    sao modeladas (casa_residencial escopo esquadrias=not_declared) e a casa
+    nao tem vertical de incendio nem elevador — ditos, nunca zerados.
+    """
+    est = (result or {}).get("estrutura") or {}
+    q = quantitativos or {}
+    fora = []
+
+    area_parede = float(q.get("fechamento_lateral")
+                        or q.get("alvenaria_estrutural") or 0.0)
+    origem = ("fechamento_lateral" if q.get("fechamento_lateral")
+              else ("alvenaria_estrutural" if q.get("alvenaria_estrutural")
+                    else ""))
+    if area_parede > 0:
+        fora.append({"codigo": "alvenaria_vedacao" if origem == "fechamento_lateral"
+                     else "alvenaria_portante_revestir",
+                     "descricao": "Alvenaria (%s do modelo, %.1f m2)"
+                                  % (origem, area_parede),
+                     "unidade": "m2", "quantidade": round(area_parede, 1),
+                     "motivo": ""})
+        fora.append({"codigo": "revestimento_casa",
+                     "descricao": "Revestimento das duas faces (2x a area de "
+                                  "parede do modelo)",
+                     "unidade": "m2", "quantidade": round(2.0 * area_parede, 1),
+                     "motivo": ""})
+    else:
+        fora.append({"codigo": "alvenaria_vedacao",
+                     "descricao": "Alvenaria de vedacao", "unidade": "m2",
+                     "quantidade": None,
+                     "motivo": "sem parede no modelo (fechamento nao declarado "
+                               "e sem alvenaria portante): nao ha area a medir"})
+        fora.append({"codigo": "revestimento_casa",
+                     "descricao": "Revestimento das duas faces", "unidade": "m2",
+                     "quantidade": None,
+                     "motivo": "sem area de parede no modelo nao ha face a "
+                               "revestir"})
+
+    try:
+        area_proj = float((est.get("pavimento") or {}).get("area_m2") or 0.0)
+    except (TypeError, ValueError):
+        area_proj = 0.0
+    if area_proj > 0:
+        fora.append({"codigo": "impermeabilizacao_casa",
+                     "descricao": "Impermeabilizacao (baldrame e areas molhadas, "
+                                  "projecao de um pavimento do modelo)",
+                     "unidade": "m2", "quantidade": round(area_proj, 1),
+                     "motivo": ""})
+    else:
+        fora.append({"codigo": "impermeabilizacao_casa",
+                     "descricao": "Impermeabilizacao (baldrame e areas molhadas)",
+                     "unidade": "m2", "quantidade": None,
+                     "motivo": "estrutura sem pavimento calculado: sem projecao "
+                               "no modelo"})
+
+    fora.append({"codigo": "esquadrias",
+                 "descricao": "Esquadrias, vidros, loucas e metais",
+                 "unidade": "un", "quantidade": None,
+                 "motivo": "casa_residencial escopo esquadrias=not_declared: "
+                           "sem vao declarado nao ha folha a contar"})
+    fora.append({"codigo": "incendio_casa",
+                 "descricao": "Instalacao de combate a incendio",
+                 "unidade": "un", "quantidade": None,
+                 "motivo": "casa sem vertical de incendio dimensionado"})
+    fora.append({"codigo": "escavacao_canteiro",
+                 "descricao": "Escavacao, reaterro e canteiro de obra",
+                 "unidade": "un", "quantidade": None,
+                 "motivo": "movimento de terra e canteiro sao dado de sitio, "
+                           "nao derivado do modelo"})
+    return fora
+
+
 def derivacao(result, spec_hidraulica=None):
     """Quantitativos da casa a partir do resultado do adaptador.
 
     Devolve {'quantitativos', 'composicao', 'a_confirmar', 'nao_derivados',
-    'aplicaveis'}. Nunca levanta por dado ausente nem contorna a fronteira
+    'aplicaveis', 'fora_da_tabela'}. Nunca levanta por dado ausente nem contorna a fronteira
     dos 2 pavimentos: sem estrutura calculada nao ha geometria de concreto a
     medir - mas eletrica, hidraulica e telha (que nao passam pela estrutura)
     continuam derivadas, e os insumos de concreto saem em `sem_quantidade`
@@ -599,6 +676,7 @@ def derivacao(result, spec_hidraulica=None):
     if isinstance(est, dict) and int(est.get("n_pavimentos") or 0) > _ec.MAX_PAVIMENTOS:
         return {"quantitativos": {}, "composicao": {},
                 "aplicaveis": sorted(CODIGOS_APLICAVEIS), "a_confirmar": [],
+                "fora_da_tabela": fora_da_tabela_quantificada(result, {}),
                 "nao_derivados": [{
                     "item": "estrutura",
                     "motivo": "n_pavimentos=%s acima do teto da tipologia "
@@ -693,8 +771,10 @@ def derivacao(result, spec_hidraulica=None):
     notas.append(
         "insumos que a casa tem e a tabela de referencia NAO tem, portanto "
         "FORA do preco de venda: %s" % "; ".join(INSUMOS_FORA_DA_TABELA))
+    fora = fora_da_tabela_quantificada(result, q)
     return {"quantitativos": q, "composicao": composicao, "a_confirmar": notas,
-            "nao_derivados": nao_derivados, "aplicaveis": sorted(escopo)}
+            "nao_derivados": nao_derivados, "aplicaveis": sorted(escopo),
+            "fora_da_tabela": fora}
 
 
 # =============================================================================
@@ -853,6 +933,7 @@ def emitir_orcamento(manifest, run_dir, normalized, options, result):
         manifest, run_dir, normalized, dados["quantitativos"],
         aplicaveis=dados["aplicaveis"], precos_extra=PRECOS_CASA,
         notas=dados["a_confirmar"],
+        fora_da_tabela=dados.get("fora_da_tabela"),
         extras={"composicao": dados["composicao"],
                 "nao_derivados": dados["nao_derivados"]},
         detalhe_vazio="estrutura nao calculada: sem geometria nao ha "

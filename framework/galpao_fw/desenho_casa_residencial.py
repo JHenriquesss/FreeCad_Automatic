@@ -7,10 +7,20 @@
 #                                  com o deficit destacado;
 #   3. esquema-hidraulico.svg    - esquema vertical das tres redes com os DN
 #                                  calculados (NBR 5626 / 8160 / 10844).
+#   4. planta-baixa.svg            - PE-AR-02 (G78): retangulos do LAYOUT
+#                                  declarado (canonico: turnkey.arquitetura.
+#                                  layout) com nome, dimensoes, area do
+#                                  programa e cotas gerais do envelope.
 #
-# O que NAO ha aqui e' planta baixa: o programa declara area e perimetro, nao
-# posicoes. Desenhar comodos em posicoes inventadas seria um desenho que nao
-# corresponde ao dado - a prancha ausente vira motivo explicito em 'skipped'.
+# O que NAO ha aqui e' implantacao nem cortes/fachadas (PE-AR-01/PE-AR-03):
+# o spec nao declara lote (dimensoes, recuos, orientacao) nem niveis (cota de
+# soleira/terreno), e arbitrar recuo ou soleira seria geometria inventada -
+# pior que folha ausente. As duas ficam `not_available` com o dado nomeado.
+#
+# A planta baixa tambem ja foi ausencia: o programa declara area e perimetro,
+# nao posicoes, e desenhar comodos em posicoes inventadas seria um desenho que
+# nao corresponde ao dado. O que destrava a folha e' o LAYOUT declarado - sem
+# ele a prancha volta a motivo explicito em 'skipped'.
 #
 # Todo texto sai por texto(), que ja aplica esc() (SVG e' XML: um '<' cru quebra
 # o arquivo inteiro). NUNCA escapar antes de chamar texto(): a dupla escapa
@@ -24,6 +34,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from desenho_svg_base import abre_svg, linha, texto
+
+COR_COTA = "#1d4ed8"
+COR_FUNDO_COMODO = "#f1f5f9"
 
 MARGEM = 40
 LINHA_H = 26          # altura da linha da tabela
@@ -415,11 +428,240 @@ def telhado_tesoura_svg(telhado) -> str:
     return "\n".join(partes)
 
 
-def gerar_desenhos_casa(result, out_dir) -> dict:
+def _layout_para_planta(result, turnkey=None):
+    """O layout que a planta baixa desenha, e de onde ele veio (G78).
+
+    Prioridade: 1. `result["layout_canonico"]` (o adaptador ja conferiu o
+    espelho contra o canonico); 2. `turnkey.arquitetura.layout` validado aqui
+    contra o programa; 3. o layout eletrico validado que viaja no resultado.
+    Devolve (layout, proveniencia, erros). `layout` so vem preenchido quando
+    valido; nunca ha retangulo inventado.
+    """
+    import layout_ambientes as la
+
+    arquitetura = (result or {}).get("arquitetura")
+    canonico = (result or {}).get("layout_canonico")
+    if isinstance(canonico, dict) and canonico.get("ok") \
+            and canonico.get("proveniencia"):
+        # o adaptador conferiu espelho x canonico; o retangulo a desenhar e'
+        # o canonico quando declarado, senao o espelho validado
+        turnkey = turnkey if isinstance(turnkey, dict) else {}
+        arq = turnkey.get("arquitetura") if isinstance(turnkey, dict) else None
+        bruto = (arq.get("layout") if isinstance(arq, dict) else None)
+        if isinstance(bruto, dict):
+            import bim_casa_residencial as bim
+
+            validacao = bim.validar_layout(bruto, arquitetura)
+            if validacao["ok"]:
+                return validacao["layout"], "arquitetura.layout", []
+            return None, "arquitetura.layout", list(validacao["errors"])
+        eletrico = ((result or {}).get("eletrico") or {}).get("circuits") or {}
+        validacao = eletrico.get("layout_validation") or {}
+        if validacao.get("ok") and isinstance(validacao.get("layout"), dict):
+            return validacao["layout"], "eletrico.circuits.layout", []
+        return None, None, list(validacao.get("errors") or [])
+
+    # sem a conferencia do adaptador (chamada direta, fora do Loop): valida o
+    # canonico aqui, com a mesma regra do BIM, e cai no espelho eletrico
+    turnkey = turnkey if isinstance(turnkey, dict) else {}
+    arq = turnkey.get("arquitetura")
+    bruto = (arq.get("layout") if isinstance(arq, dict) else None)
+    if isinstance(bruto, dict):
+        import bim_casa_residencial as bim
+
+        validacao = bim.validar_layout(bruto, arquitetura)
+        if validacao["ok"]:
+            return validacao["layout"], "arquitetura.layout", []
+        return None, "arquitetura.layout", list(validacao["errors"])
+    eletrico = ((result or {}).get("eletrico") or {}).get("circuits") or {}
+    validacao = eletrico.get("layout_validation") or {}
+    if validacao.get("ok") and isinstance(validacao.get("layout"), dict):
+        return validacao["layout"], "eletrico.circuits.layout", []
+    _ = la
+    return None, None, list(validacao.get("errors") or [])
+
+
+def planta_baixa_svg(arquitetura, layout) -> str:
+    """Planta baixa da casa (PE-AR-02, G78): comodos posicionados.
+
+    Desenha um retangulo por comodo do layout validado, com nome, dimensoes
+    (width x depth declarados) e a area DO PROGRAMA (o numero sobre o qual a
+    previsao de carga foi feita), mais as cotas gerais do envelope e um quadro
+    programa x layout por ambiente (o cross-check de area, visivel na folha).
+
+    Sem inventar parede, porta ou janela: nada disso e' declarado em lugar
+    nenhum do spec, e a folha diz isso em vez de desenhar. Sem layout valido
+    nao ha chamada honesta - quem chama confere antes (`_layout_para_planta`
+    + `conferir_areas_programa_layout`); aqui o retangulo ja chega validado.
+    """
+    import layout_ambientes as la
+
+    ambientes = (arquitetura or {}).get("ambientes") or []
+    programa = {a["nome"]: a for a in ambientes
+                if isinstance(a, dict) and a.get("geometria_ok")}
+    rooms = list((layout or {}).get("rooms") or [])
+    xs = [c["x_m"] for c in rooms] + [c["x_m"] + c["width_m"] for c in rooms]
+    ys = [c["y_m"] for c in rooms] + [c["y_m"] + c["depth_m"] for c in rooms]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    largura_m = x_max - x_min
+    profundidade_m = y_max - y_min
+
+    largura = 1180
+    ax0, ay0, aw, ah = 90, 110, 740, 500
+    escala = min(aw / max(largura_m, 1e-9), ah / max(profundidade_m, 1e-9))
+
+    def _px(x_m):
+        return ax0 + (x_m - x_min) * escala
+
+    def _py(y_m):
+        return ay0 + (y_max - y_m) * escala
+
+    totais = (arquitetura or {}).get("totais") or {}
+    altura_quadro = 34 + LINHA_H * len(rooms)
+    y_quadro = ay0 + ah + 64
+    altura = y_quadro + altura_quadro + 3 * LINHA_H + MARGEM
+    partes = abre_svg(largura, altura, "PLANTA BAIXA - CASA RESIDENCIAL")
+    partes.append(texto(
+        largura / 2, 56,
+        "PE-AR-02 - %d ambiente(s), area util %s m2 (programa NBR 5410 9.5.2)"
+        % (len(programa), _num(totais.get("area_util_m2"))), 13))
+
+    for comodo in rooms:
+        x = _px(comodo["x_m"])
+        y = _py(comodo["y_m"] + comodo["depth_m"])
+        w = comodo["width_m"] * escala
+        h = comodo["depth_m"] * escala
+        partes.append(
+            '<rect x="%.0f" y="%.0f" width="%.0f" height="%.0f" fill="%s" '
+            'stroke="#111" stroke-width="2"/>'
+            % (x, y, w, h, COR_FUNDO_COMODO))
+        nome = str(comodo.get("name") or comodo.get("id"))
+        if largura_texto_px(nome, 12) > w - FOLGA_CELULA_PX:
+            nome = ajusta_a_coluna(nome, w, 12)
+        partes.append(texto(x + 8, y + 18, nome, 12, anchor="start",
+                            weight="bold"))
+        registro = programa.get(comodo.get("id")) \
+            or programa.get(comodo.get("name")) or {}
+        partes.append(texto(
+            x + 8, y + 33, "%.2f x %.2f m" % (
+                comodo["width_m"], comodo["depth_m"]), 10, anchor="start",
+            color="#555"))
+        partes.append(texto(x + 8, y + 47, "area %s m2" % _num(
+            registro.get("area_m2")), 10, anchor="start", color="#555"))
+
+    # cotas gerais do envelope (o que foi declarado: os extremos do layout)
+    y_cota = ay0 + ah + 24
+    partes.append(linha(ax0, y_cota, ax0 + largura_m * escala, y_cota, 1.2,
+                        COR_COTA))
+    partes.append(texto(ax0 + largura_m * escala / 2, y_cota + 16,
+                        "%.2f m" % largura_m, 11, color=COR_COTA))
+    partes.append(linha(ax0 - 24, ay0, ax0 - 24, ay0 + profundidade_m * escala,
+                        1.2, COR_COTA))
+    partes.append(texto(ax0 - 30, ay0 + profundidade_m * escala / 2,
+                        "%.2f m" % profundidade_m, 11, anchor="end",
+                        color=COR_COTA))
+
+    # quadro programa x layout: o cross-check de area, desenhado na folha
+    colunas = [("Ambiente", 220, "start"), ("Dimensoes (m)", 150, "start"),
+               ("Area programa (m2)", 150, "end"),
+               ("Area layout (m2)", 140, "end")]
+    largura_total = sum(c[1] for c in colunas)
+    linhas = []
+    for comodo in rooms:
+        registro = programa.get(comodo.get("id")) \
+            or programa.get(comodo.get("name")) or {}
+        area_layout = float(comodo["width_m"]) * float(comodo["depth_m"])
+        area_programa = registro.get("area_m2")
+        ok = (isinstance(area_programa, (int, float))
+              and abs(area_layout - float(area_programa))
+              <= la.TOL_AREA_REL * max(area_layout, float(area_programa)))
+        linhas.append(([
+            str(comodo.get("name") or comodo.get("id")),
+            "%.2f x %.2f" % (comodo["width_m"], comodo["depth_m"]),
+            _num(area_programa),
+            "%.2f" % area_layout,
+        ], "#111" if ok else COR_DEFICIT))
+    _tabela(partes, ax0, y_quadro, colunas, linhas, largura_total)
+
+    rodape = y_quadro + altura_quadro + LINHA_H
+    partes.append(texto(
+        ax0, rodape,
+        "Paredes, portas, janelas e cobertura nao declaradas: fora do escopo - "
+        "a folha mostra os retangulos de ambiente, nao o executivo.", 11,
+        anchor="start", color="#555"))
+    partes.append(texto(
+        ax0, rodape + LINHA_H,
+        "Retangulos do layout declarado (canonico: turnkey.arquitetura.layout); "
+        "areas do programa de arquitetura.", 11, anchor="start",
+        color="#555"))
+    # resumo lateral (count-driven: o que foi desenhado, contado)
+    rx = 900
+    partes.append('<rect x="%d" y="%d" width="232" height="150" fill="white" '
+                  'stroke="#111" stroke-width="1"/>' % (rx - 24, ay0 - 28))
+    for i, item in enumerate(["RESUMO", "",
+                              "Comodos desenhados: %d" % len(rooms),
+                              "Area util (programa): %s m2" % _num(
+                                  totais.get("area_util_m2")),
+                              "Envelope: %.2f x %.2f m" % (
+                                  largura_m, profundidade_m),
+                              "Escala do desenho: 1 px = %.3f m"
+                              % (1.0 / escala)]):
+        partes.append(texto(rx + (80 if i == 0 else 0), ay0 + i * 20, item,
+                            13 if i == 0 else 11,
+                            anchor="middle" if i == 0 else "start",
+                            weight="bold" if i == 0 else "normal"))
+    partes.append("</svg>")
+    return "\n".join(partes)
+
+
+def motivos_arquitetura_faltante(turnkey, site=None):
+    """Triagem G78 (PE-AR-01 e PE-AR-03): o que falta, nomeado, sem arbitrar.
+
+    Implantacao precisa de lote (dimensoes, recuos, orientacao - `site.lote`
+    na raiz do spec); cortes e fachadas precisam de niveis (cota de
+    soleira/terreno) alem do pe-direito. O spec persistido nao declara nenhum
+    dos dois - e mesmo que declarasse, ainda nao ha emissor: a folha fica
+    `not_available` com o dado que falta nomeado, nunca um recuo arbitrado
+    ou uma cota de soleira inventada.
+    """
+    turnkey = turnkey if isinstance(turnkey, dict) else {}
+    if not isinstance(site, dict):
+        site = turnkey.get("site") if isinstance(
+            turnkey.get("site"), dict) else {}
+    lote = site.get("lote")
+    if isinstance(lote, dict) and lote.get("dimensoes_m") \
+            and lote.get("recuos_m") and lote.get("orientacao"):
+        motivo_lote = ("not_available: sem emissor de implantacao nesta "
+                       "rodada (PE-AR-01)")
+    else:
+        motivo_lote = ("not_available: lote nao declarado "
+                       "(site.lote com dimensoes_m, recuos_m e orientacao) e "
+                       "sem emissor de implantacao nesta rodada (PE-AR-01)")
+    niveis = turnkey.get("niveis")
+    if isinstance(niveis, dict) and niveis.get("soleira_m") is not None:
+        motivo_cortes = ("not_available: sem emissor de cortes/fachadas "
+                         "nesta rodada (PE-AR-03)")
+    else:
+        motivo_cortes = ("not_available: niveis nao declarados (cota de "
+                         "soleira/terreno) e sem emissor de cortes/fachadas "
+                         "nesta rodada (PE-AR-03)")
+    return {"implantacao.svg": motivo_lote,
+            "cortes-fachadas.svg": motivo_cortes}
+
+
+def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
     """Escreve as pranchas da casa em `out_dir`.
 
     Retorna ``{"files": [...], "skipped": {...}}``. Cada prancha ausente traz o
-    motivo; nenhuma sai vazia fingindo conteudo."""
+    motivo; nenhuma sai vazia fingindo conteudo.
+
+    `turnkey` (opcional, o spec normalizado): com ele, o layout canonico da
+    arquitetura e' validado aqui e a planta baixa sai dele; sem ele, vale o
+    layout eletrico validado que viaja no resultado. A triagem de implantacao
+    e cortes (PE-AR-01/PE-AR-03) tambem precisa dele (e de `site`, o bloco de
+    sitio na raiz do spec); sem os dois essas folhas ficam sem motivo neste
+    dicionario e o hook da casa completa o laco."""
     destino = Path(out_dir)
     destino.mkdir(parents=True, exist_ok=True)
     gerados = []
@@ -469,8 +711,45 @@ def gerar_desenhos_casa(result, out_dir) -> dict:
     else:
         ignorados["planta-formas.svg"] = "estrutura_nao_calculada"
 
-    # planta baixa: o programa declara area e perimetro, nao posicoes
-    ignorados["planta-baixa.svg"] = "posicoes_dos_ambientes_nao_declaradas"
+    # planta baixa (PE-AR-02, G78): sai do layout declarado - o canonico da
+    # arquitetura quando ha turnkey, senao o espelho eletrico validado. Sem
+    # posicao declarada nao ha planta honesta; com layout que diverge do
+    # programa, desenhar seria publicar uma casa e calcular outra.
+    import layout_ambientes as la
+
+    arquitetura_planta = resultado.get("arquitetura")
+    if isinstance(arquitetura_planta, dict) and arquitetura_planta.get(
+            "ambientes"):
+        layout, _prov, erros_layout = _layout_para_planta(resultado, turnkey)
+        if layout is None:
+            if erros_layout:
+                ignorados["planta-baixa.svg"] = next(
+                    (e.get("code", "layout_recusado")
+                     for e in erros_layout if isinstance(e, dict)),
+                    "layout_recusado")
+            else:
+                ignorados["planta-baixa.svg"] = \
+                    "posicoes_dos_ambientes_nao_declaradas"
+        else:
+            conf = la.conferir_areas_programa_layout(
+                arquitetura_planta.get("ambientes"), layout.get("rooms"))
+            if not conf["ok"]:
+                ignorados["planta-baixa.svg"] = next(
+                    (e.get("code", "layout_diverge_do_programa")
+                     for e in conf["erros"]), "layout_diverge_do_programa")
+            else:
+                caminho = destino / "planta-baixa.svg"
+                caminho.write_text(
+                    planta_baixa_svg(arquitetura_planta, layout),
+                    encoding="utf-8")
+                gerados.append("planta-baixa.svg")
+    else:
+        ignorados["planta-baixa.svg"] = "programa_de_arquitetura_ausente"
+
+    if turnkey is not None:
+        # triagem PE-AR-01/PE-AR-03 (G78): sem dado e sem emissor, o motivo
+        # escrito - nunca um recuo arbitrado fingindo implantacao.
+        ignorados.update(motivos_arquitetura_faltante(turnkey, site))
 
     # ALVENARIA PORTANTE (G62): elevacao + fiadas saem do MESMO desenhista
     # das paredes calculadas - um desenho_alvenaria.py com escape proprio

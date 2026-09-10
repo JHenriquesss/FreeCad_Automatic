@@ -2301,8 +2301,7 @@ def rodar(spec):
         "horizontal": r_horizontal,
         "escopo": escopo(baldrame is not None, fundacao is not None,
                          alvenaria is not None and erro_alvenaria is None,
-                         r_telhado is not None and telhado_erro is None
-                         and r_telhado["ATENDE"],
+                         r_telhado is not None and telhado_erro is None,
                          com_vento_alvenaria=bool(
                              alvenaria is not None
                              and alvenaria.get("vento") is not None),
@@ -2348,8 +2347,10 @@ def escopo(com_baldrame, com_fundacao, com_alvenaria=False,
                                  else "not_available"),
         "vento_alvenaria_6123": ("implemented" if com_vento_alvenaria
                                  else "not_available"),
-        # G66: a tesoura existe quando foi declarada, calculada e atendeu;
-        # sem ela o ultimo pavimento segue laje de cobertura sem telhado.
+        # G66: a tesoura existe quando foi declarada e calculada (G86: ATENDA
+        # ou nao - o reprovado entra no federado carimbado, e o escopo diz
+        # implemented com o veredito no gate; sem calculo o ultimo pavimento
+        # segue laje de cobertura sem telhado).
         "telhado_madeira": ("implemented" if com_telhado
                             else "not_available"),
         "aprovacao_legal": "not_claimed",
@@ -2358,9 +2359,20 @@ def escopo(com_baldrame, com_fundacao, com_alvenaria=False,
 
 
 def _linha_telhado_memorial(r):
-    """Linha do telhado no memorial: calculo dentro ou A CONFIRMAR fora."""
+    """Linha do telhado no memorial: calculo dentro, ATENDA ou nao (G86)."""
     tel = r.get("telhado")
-    if isinstance(tel, dict) and tel.get("ATENDE"):
+    if isinstance(tel, dict) and tel.get("vao_m") is not None:
+        if not tel.get("ATENDE"):
+            base = ("TELHADO DE MADEIRA (G66, NBR 7190-1): %d tesoura(s) vao "
+                    "%.2f m -> REPROVA (%s)."
+                    % (tel.get("n_tesouras", 0), tel.get("vao_m", 0.0),
+                       ", ".join(tel.get("reprovados") or ["veredito"])))
+            desc = tel.get("descida") or {}
+            if desc.get("vento_ativo"):
+                base += (" Alivio G71: arrancamento total %.1f kN - "
+                         "verificar fundacao no caso 0,9.G+1,4.W."
+                         % desc.get("arrancamento_total_kN", 0.0))
+            return base
         base = ("TELHADO DE MADEIRA (G66, NBR 7190-1): %d tesoura(s) vao "
                 "%.2f m -> ATENDE (reacao total %.1f kN desceu ao %s)."
                 % (tel["n_tesouras"], tel["vao_m"],

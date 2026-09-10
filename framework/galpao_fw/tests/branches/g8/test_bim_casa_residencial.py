@@ -1,9 +1,8 @@
 """BIM da arquitetura residencial (G8): modelo so onde ha posicao DECLARADA.
 
-`desenho_casa_residencial` diz, na sua abertura, que nao ha planta baixa porque
-"o programa declara area e perimetro, nao posicoes". O BIM herda exatamente a
-mesma regra: com layout declarado ha modelo; sem ele, ausencia explicita - nunca
-comodos em posicoes arbitradas.
+O BIM herda exatamente a regra da planta baixa (G78): com layout declarado
+ha modelo e folha; sem ele, ausencia explicita - nunca comodos em posicoes
+arbitradas.
 
 Estes testes fixam as duas metades disso: o que o modulo RECUSA (layout que nao
 reproduz o programa, comodo sobrando, parede obliqua) e o que ele EMITE (areas

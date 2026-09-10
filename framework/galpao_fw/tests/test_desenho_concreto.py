@@ -37,6 +37,9 @@ def test_desenha_barras_do_pilar():
 def test_tudo_cabe_no_canvas():
     # REGRESSAO: a sapata (metros) tem que ser reescalada p/ caber. Nenhuma coord
     # x de rect/circle/line pode passar da largura do SVG.
+    # G83: esta guarda media SO o X por regex e deixou a cota de largura do
+    # pilar cair 3,5 px ABAIXO da folha. Completa sem apagar: Y por regex
+    # (paridade com o X) + parse de verdade + guarda generica da folha.
     svg = dc.prancha_armacao_svg(_r())
     W = int(re.search(r'width="(\d+)"', svg).group(1))
     xs = [float(v) for v in re.findall(r'[ (]x="([\d.]+)"', svg)]
@@ -48,6 +51,17 @@ def test_tudo_cabe_no_canvas():
     assert max(xs) <= W + 5, (max(xs), W)
     # a maior largura de elemento interno nao pode exceder o canvas
     assert max(largs) <= W + 1
+    # G83: o eixo que faltava (a cota caia em Y, nao em X). O cabecalho
+    # da prancha de armacao escreve height com decimal (409.0).
+    H = float(re.search(r'height="([\d.]+)"', svg).group(1))
+    ys = [float(v) for v in re.findall(r'[ (]y="([-\d.]+)"', svg)]
+    ys += [float(v) for v in re.findall(r'cy="([-\d.]+)"', svg)]
+    assert min(ys) >= -1 and max(ys) <= H + 5
+    # G83: escada substring -> parse (regex nao ve geometria).
+    import xml.etree.ElementTree as ET
+    import desenho_svg_base as sb
+    ET.fromstring(svg)  # XML de verdade; malformado levanta
+    assert sb.confere_folha_svg(svg)["ok"], sb.confere_folha_svg(svg)
 
 
 def test_gera_arquivo_svg(tmp_path):
@@ -80,6 +94,12 @@ def test_planta_cabe_no_canvas():
     ys += [float(v) for v in re.findall(r'cy="([-\d.]+)"', svg)]
     assert min(xs) >= -1 and max(xs) <= W + 5
     assert min(ys) >= -1 and max(ys) <= H + 5
+    # G83: a lente acusou REGEX_COORD_SEM_PARSE aqui tambem (dois eixos por
+    # regex, sem parse). Completa sem apagar: parse + guarda generica.
+    import xml.etree.ElementTree as ET
+    import desenho_svg_base as sb
+    ET.fromstring(svg)  # XML de verdade; malformado levanta
+    assert sb.confere_folha_svg(svg)["ok"], sb.confere_folha_svg(svg)
 
 
 def test_gera_planta_formas_arquivo(tmp_path):

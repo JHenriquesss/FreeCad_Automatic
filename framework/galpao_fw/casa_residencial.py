@@ -99,49 +99,37 @@ def conferir_geometria_layout(resultado_arquitetura, circuitos):
     ROTULO x GEOMETRIA entre disciplinas: o programa declara area e perimetro
     do ambiente; o layout eletrico declara width_m x depth_m do MESMO ambiente.
     Se os dois discordam, a planta desenhada nao e' a planta calculada - e o
-    numero de tomadas foi tirado de uma e conferido contra a outra."""
+    numero de tomadas foi tirado de uma e conferido contra a outra.
+
+    A conta mora em `layout_ambientes.conferir_areas_programa_layout` (G78: o
+    dono canonico dos retangulos e' a arquitetura, e as duas disciplinas leem
+    a mesma regra). Aqui fica so a adaptacao de forma para a conferencia
+    NBR 5410."""
+    import layout_ambientes as la
+
     layout = (circuitos or {}).get("layout")
     comodos = (layout or {}).get("rooms")
     if not isinstance(comodos, list) or not comodos:
         return {"declarado": False, "ok": None, "erros": [], "por_ambiente": []}
 
-    por_chave = {}
+    # a primitiva casa por id; o layout eletrico declara id e name (iguais no
+    # spec persistido, mas a costura historica aceita qualquer dos dois lados)
+    rooms = []
     for comodo in comodos:
-        if isinstance(comodo, dict):
-            por_chave[_chave_ambiente(comodo.get("id") or comodo.get("name"))] = comodo
-    erros = []
-    por_ambiente = []
-    for ambiente in resultado_arquitetura.get("ambientes", []):
-        if not ambiente.get("geometria_ok"):
+        if not isinstance(comodo, dict):
             continue
-        comodo = por_chave.get(_chave_ambiente(ambiente["nome"]))
-        if comodo is None:
-            erros.append(_erro(
-                "ambiente_ausente_no_layout",
-                "ambiente do programa nao aparece no layout eletrico",
-                ambiente=ambiente["nome"]))
-            continue
-        largura = comodo.get("width_m")
-        profundidade = comodo.get("depth_m")
-        if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
-                   for v in (largura, profundidade)):
-            continue
-        area_layout = float(largura) * float(profundidade)
-        registro = {"ambiente": ambiente["nome"],
-                    "area_programa_m2": ambiente["area_m2"],
-                    "area_layout_m2": round(area_layout, 4)}
-        por_ambiente.append(registro)
-        if abs(area_layout - ambiente["area_m2"]) > 1e-3 * max(
-                area_layout, ambiente["area_m2"], 1.0):
-            erros.append(_erro(
-                "area_do_layout_diverge_do_programa",
-                "o comodo desenhado no layout eletrico tem area diferente da "
-                "do programa de arquitetura",
-                ambiente=ambiente["nome"],
-                area_programa_m2=ambiente["area_m2"],
-                area_layout_m2=round(area_layout, 4)))
-    return {"declarado": True, "ok": not erros, "erros": erros,
-            "por_ambiente": por_ambiente}
+        copia = dict(comodo)
+        if not copia.get("id"):
+            copia["id"] = copia.get("name")
+        rooms.append(copia)
+    ambientes = [a for a in (resultado_arquitetura or {}).get("ambientes", [])
+                 if isinstance(a, dict)]
+    conf = la.conferir_areas_programa_layout(ambientes, rooms,
+                                             tol_rel=la.TOL_AREA_REL)
+    return {"declarado": True, "ok": conf["ok"],
+            "erros": [_erro(e.pop("code"), e.pop("detail", ""), **e)
+                      for e in conf["erros"]],
+            "por_ambiente": conf["por_ambiente"]}
 
 
 def conferir_previsao_nbr5410(resultado_arquitetura, circuitos):
@@ -641,6 +629,28 @@ def run_casa_residencial(normalized, run_dir, preflight=None):
     else:
         resultado_eletrico = None
 
+    # G78: o layout canonico e' o da arquitetura; o espelho eletrico tem de
+    # conferir com ele. Divergencia bloqueia o eletrico (consumidor): duas
+    # declaracoes da mesma casa nao podem discordar em silencio.
+    layout_canonico = conferencia_layout_canonico(
+        turnkey, resultado_arquitetura, resultado_eletrico)
+    if not layout_canonico["ok"]:
+        if "eletrico" in registros:
+            registros["eletrico"]["errors"] = list(
+                registros["eletrico"].get("errors", [])) + copy.deepcopy(
+                layout_canonico["erros"])
+            registros["eletrico"]["status"] = "blocked"
+            registros["eletrico"]["native_atende"] = False
+            registros["eletrico"]["reprovados"] = list(
+                registros["eletrico"].get("reprovados", [])) + [
+                "layout_canonico"]
+            disciplinas["eletrico"]["status"] = "blocked"
+        if resultado_eletrico is not None:
+            resultado_eletrico["errors"] = list(
+                resultado_eletrico.get("errors", [])) + copy.deepcopy(
+                layout_canonico["erros"])
+            resultado_eletrico["status"] = "blocked"
+
     # A ESTRUTURA roda DEPOIS do eletrico porque a conferencia geometrica aceita
     # o layout de qualquer uma das duas proveniencias (ver `layout_arquitetonico`),
     # e a do eletrico so existe com o resultado eletrico ja calculado.
@@ -683,6 +693,7 @@ def run_casa_residencial(normalized, run_dir, preflight=None):
         "adapter": ADAPTER_NAME,
         "synthetic_fixture": False,
         "project_id": normalized.get("project_id"),
+        "layout_canonico": copy.deepcopy(layout_canonico),
         "disciplines": disciplinas,
         "arquitetura": copy.deepcopy(resultado_arquitetura),
         "eletrico": copy.deepcopy(resultado_eletrico),
@@ -716,36 +727,74 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     """Hook de desenhos: planta de ambientes + quadro de previsao de carga.
 
     Nao depende de FreeCAD: le o JSON ja calculado. Ausencia de dado vira
-    motivo explicito no manifesto, nunca um arquivo vazio."""
+    motivo explicito no manifesto, nunca um arquivo vazio. O laco
+    indice<->disco (G52, molde do edificio no G56) vale para a arquitetura:
+    toda PE-AR do indice tem de estar emitida ou nomeada como pulada - o que
+    nao puder sair (implantacao e cortes, sem dado nem emissor no G78) sai
+    nomeado, nunca some."""
     from pathlib import Path
 
     import desenho_casa_residencial as dcr
     from project_loop import _add_artifact
 
-    del normalized
     if not (options.generate_2d or options.generate_caderno):
         manifest["deliverables"]["drawings"] = {"status": "not_requested"}
         return
     destino = Path(run_dir) / "drawings"
+    destino.mkdir(parents=True, exist_ok=True)
+    turnkey = (normalized or {}).get("turnkey_spec")
+    turnkey = turnkey if isinstance(turnkey, dict) else {}
+    site = (normalized or {}).get("site")
+    site = site if isinstance(site, dict) else {}
     try:
-        emitido = dcr.gerar_desenhos_casa(result, destino)
+        emitido = dcr.gerar_desenhos_casa(result, destino, turnkey, site)
     except Exception as exc:                                # noqa: BLE001
         manifest["deliverables"]["drawings"] = {
             "status": "failed", "detail": _erro_entregavel(exc)}
         return
     for nome in emitido["files"]:
         _add_artifact(manifest, run_dir, destino / nome, "drawing")
+    ignorados = dict(emitido["skipped"])
+    try:
+        import pacote_legal as pl
+
+        indice = pl.indice_de_pranchas(["arquitetura"])
+        ja = set(emitido["files"]) | set(ignorados)
+        for folha in indice:
+            esperado = _PRANCHA_ARQUIVO_CASA.get(folha["codigo"])
+            if esperado and esperado not in ja:
+                ignorados[esperado] = (
+                    "folha %s (%s) nao emitida nesta rodada"
+                    % (folha["codigo"], folha["titulo"]))
+                ja.add(esperado)
+    except Exception as exc:                                # noqa: BLE001
+        ignorados["(indice-arquitetura)"] = (
+            "laco indice<->disco nao pode ser conferido: "
+            + _erro_entregavel(exc))
     manifest["deliverables"]["drawings"] = {
         "status": "generated" if emitido["files"] else "not_available",
         "artifacts": ["drawings/" + nome for nome in emitido["files"]],
-        "skipped": emitido["skipped"],
+        "skipped": ignorados,
     }
+
+
+# codigo do indice (pacote_legal, PE-AR) -> arquivo em drawings/. A planta
+# baixa sai do layout declarado; implantacao e cortes seguem not_available
+# com o dado que falta nomeado (triagem do G78) - sem entrada no indice a
+# folha evaporaria no `continue` (o D89 da fundacao no G56 e da alvenaria
+# no G62), e sem o laco acima ela sumiria no hook.
+_PRANCHA_ARQUIVO_CASA = {
+    "PE-AR-01": "implantacao.svg",
+    "PE-AR-02": "planta-baixa.svg",
+    "PE-AR-03": "cortes-fachadas.svg",
+}
 
 
 def layout_arquitetonico(turnkey, result):
     """De onde sai o layout da casa, e com que PROVENIENCIA.
 
-    Prioridade:
+    Prioridade (G78: o CANONICO e' `turnkey.arquitetura.layout` - a arquitetura
+    declara, a eletrica le):
       1. `turnkey.arquitetura.layout` - a declaracao do proprio arquiteto;
       2. os comodos do layout ELETRICO ja validado - que a eletrica exige para
          posicionar pontos de circuito, e que descrevem a MESMA casa.
@@ -767,6 +816,100 @@ def layout_arquitetonico(turnkey, result):
                 "rooms": copy.deepcopy(eletrico.get("rooms") or [])}, \
                "eletrico.circuits.layout"
     return None, None
+
+
+# Onde o layout mora canonicamente (G78, verbete D106): a arquitetura declara
+# em `turnkey.arquitetura.layout`; a eletrica le. A secao `rooms` sob
+# `turnkey.eletrico.circuits.layout` continua existindo (quadro + posicoes de
+# pontos sao eletricos), mas como ESPELHO: quando as duas declaracoes existem
+# e discordam, a rodada recusa com o endereco do canonico (molde do G74, onde
+# a chave antiga recusava com o endereco da nova). Quando so a eletrica
+# declara, vale o fallback com a proveniencia registrada - o spec persistido
+# roda sem quebrar, e o manifesto diz de onde o retangulo veio.
+LAYOUT_CANONICO = "turnkey.arquitetura.layout"
+LAYOUT_ESPELHO = "turnkey.eletrico.circuits.layout.rooms"
+
+
+def conferencia_layout_canonico(turnkey, resultado_arquitetura,
+                                resultado_eletrico):
+    """O espelho eletrico confere com o canonico da arquitetura?
+
+    Devolve {"canonico_declarado", "espelho_declarado", "ok", "erros",
+    "proveniencia"}. Sem canonico declarado nao ha com que conferir: o
+    fallback eletrico vale (proveniencia eletrica). Com os dois, cada comodo
+    tem de ter o mesmo retangulo (tolerancia de digitacao TOL_GEOM_M); o que
+    diverge e' recusado nomeando o CANONICO como endereco - nunca o contrario.
+    """
+    import layout_ambientes as la
+
+    arquitetura = (turnkey or {}).get("arquitetura")
+    canonico = arquitetura.get("layout") if isinstance(
+        arquitetura, dict) else None
+    circuitos = ((resultado_eletrico or {}).get("circuits")
+                 if isinstance(resultado_eletrico, dict) else None) or {}
+    validacao = circuitos.get("layout_validation") or {}
+    espelho = (validacao.get("layout") or {}).get("rooms") \
+        if validacao.get("ok") else None
+
+    if not isinstance(canonico, dict):
+        return {"canonico_declarado": False,
+                "espelho_declarado": bool(espelho),
+                "ok": True, "erros": [],
+                "proveniencia": ("eletrico.circuits.layout"
+                                 if espelho else None)}
+    if not espelho:
+        return {"canonico_declarado": True, "espelho_declarado": False,
+                "ok": True, "erros": [],
+                "proveniencia": "arquitetura.layout"}
+
+    comodos_canonicos = {}
+    for comodo in canonico.get("rooms") or []:
+        if isinstance(comodo, dict) and isinstance(comodo.get("id"), str):
+            comodos_canonicos[comodo["id"]] = comodo
+    erros = []
+    for comodo in espelho:
+        if not isinstance(comodo, dict):
+            continue
+        ref = comodos_canonicos.get(comodo.get("id"))
+        if ref is None:
+            erros.append(_erro(
+                "comodo_do_espelho_ausente_no_canonico",
+                "o espelho eletrico declara '%s' e o canonico "
+                "(%s.rooms) nao: o retangulo canonicamente nao existe"
+                % (comodo.get("id"), LAYOUT_CANONICO),
+                room=comodo.get("id"), canonico=LAYOUT_CANONICO))
+            continue
+        for campo in ("x_m", "y_m", "width_m", "depth_m"):
+            try:
+                diff = abs(float(comodo[campo]) - float(ref[campo]))
+            except (KeyError, TypeError, ValueError):
+                diff = None
+            if diff is None or diff > TOL_GEOM_M:
+                erros.append(_erro(
+                    "layout_eletrico_diverge_do_canonico",
+                    "o espelho eletrico (%s.%s=%s) diverge do canonico "
+                    "(%s.rooms.%s=%s): vale o canonico, declarado em %s"
+                    % (LAYOUT_ESPELHO, campo, comodo.get(campo),
+                       LAYOUT_CANONICO, campo, ref.get(campo),
+                       LAYOUT_CANONICO),
+                    room=comodo.get("id"), campo=campo,
+                    canonico=LAYOUT_CANONICO))
+                break
+    # o canonico tambem tem de existir no espelho: comodo canonico sem
+    # espelho e' planta que a instalacao nao alcanca (o ponto nao tem onde cair)
+    ids_espelho = {c["id"] for c in espelho
+                   if isinstance(c, dict) and isinstance(c.get("id"), str)}
+    for nome in sorted(set(comodos_canonicos) - ids_espelho):
+        erros.append(_erro(
+            "comodo_canonico_ausente_no_espelho",
+            "o canonico (%s.rooms) declara '%s' e o espelho eletrico nao: "
+            "nenhum ponto de circuito pode cair nele"
+            % (LAYOUT_CANONICO, nome),
+            room=nome, canonico=LAYOUT_CANONICO))
+    _ = la  # a tolerancia de digitacao e' a mesma da costura com a malha
+    return {"canonico_declarado": True, "espelho_declarado": True,
+            "ok": not erros, "erros": erros,
+            "proveniencia": "arquitetura.layout"}
 
 
 def _estrutura_calculada(result):

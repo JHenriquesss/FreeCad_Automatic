@@ -493,3 +493,134 @@ bitola/eletroduto, leiaute, 3D/BIM — #161).
   `caderno_encargos` (#170); `pacote_legal` (ART, PPCI/LOD/O&M, #171).
 - **Resultado:** sem contagem de suíte na evidência (não verificado).
 
+---
+
+## Arco G43→G77 — reconstruído do git no G88 (2026-09-09)
+
+A wiki emudeceu em S42 (2026-08-09) enquanto o trabalho seguiu na branch
+`feat/tipologias-e-verticais-de-projeto`. O arco abaixo foi reconstruído no G88 a partir de
+fonte independente — `git log --no-walk` dos commits do arco + os verbetes de
+`wiki/04-decisions.md` (D80–D105). Nada aqui é palpite: cada lote cita hash, data e decisão.
+(Nota: na medição do backlog as decisões paravam em D105; D106/G78 e D107/G86 foram
+registrados depois, por outras sessões.)
+
+## FECHADA — G42–G46: escada da casa desce, detector fala 5 disciplinas, estribo dimensionado — 2026-09-04
+Commit `5f95622`. Escada da casa (`test_escada_casa_g42`), `varredura_descoberta` estendida ao
+G43, validação de sistema G15, pilar de concreto. Ver [[04-decisions]] (arco D80–D84).
+
+## FECHADA — G47–G48: estribo com ramos, lente ampliada aos cálculos, s de pilar pela 18.4.3 — 2026-09-04
+Commit `b52df76`. Teto do estribo sobe com ramos 2/4/6 (não com bitola, φ≤10 congelado);
+`varredura_descoberta` ampliada aos cálculos (G48); `s_estribo_max` mínimo entre 18.3 e 18.4.3
+com `s_limite_governante` dizendo qual mandou. Ver [[04-decisions#D83]], [[04-decisions#D84]].
+
+## FECHADA — G49–G50: C55–C90 deixa de ser calculado com as fórmulas de C50 — 2026-09-05
+Commits `a39e41a` + docs `e11f6c2`. `fctm = 2,12·ln(1+0,11·fck)` acima de C50 (8.2.5) + NOTA de
+ductilidade 18.4.3 como fail-closed (G49); resto da família (17.2.2/14.6.4.3, `Eci` 8.2.8,
+8.2.10.1, gancho 135 no artefato) + a regra da **asserção tautológica** (G50).
+Ver [[04-decisions#D85]], [[04-decisions#D86]].
+
+## FECHADA — G51: a faixa de validade declarada vira guarda, e a varredura vira portão — 2026-09-05
+Commit `a70af35`. `varredura_faixa_validade.py` (106 declarações; baseline `DESGUARDADAS_TRIADAS`
+nos dois sentidos, vermelho por injeção em `tmp_path`); fix θ 30..45° da torção como recusa
+fail-closed; órfãs `LAMBDA_BLOCO`/`ALPHA_C`/`XD_LIM` com sufixo `_C50` + compat que avisa.
+Ver [[04-decisions#D87]].
+
+## FECHADA — G52: a obra inteira rodada, aberta e medida; a laje deixa de pesar duas vezes — 2026-09-06
+Commit `027e5a3`. Fronteira laje→viga (permanente além do peso próprio; `test_fronteira_carga_laje_g52`
+como relação); índice×pasta no `pacote-legal.md`; seção **A CONFIRMAR** no `relatorio.txt`
+(nomear, nunca estimar). Ver [[04-decisions#D88]].
+
+## FECHADA — G53–G54: as instalações ganham geometria e o prédio ganha compatibilização — 2026-09-06
+Commit `ede4484`. `bim_instalacoes_edificio.py` (prumadas no mesmo frame do `bim_edificio`,
+traçado convencional declarado); hook `_write_coordination` com três portas de `not_available`;
+390 membros, 126 conflitos medidos na obra. Ver [[04-decisions#D89]].
+
+## FECHADA — G55–G60: o furo previsto fecha por decisão, o prédio emite as 13 folhas e a parede vira elemento — 2026-09-07
+Commit `37bfae9`. G55 terceira categoria `furo_previsto` (NBR 6118 13.2.5/21.3, fecha por
+`resolution_requests`); G56 prédio 13/13 pranchas (reuso por parâmetro, laço índice⇄disco);
+G57 SPDA/emergência com `not_available` honesto atravessando o pacote; G58 casa com 9
+entregáveis (`gestao_casa.py` próprio); G59 baldrame/recalque com motivo escrito + ρmín C55–C90
+da p. 130 + rename `tracado_convencional_das_prumadas`; G60 vertical de alvenaria estrutural
+(NBR 16868-1 lida página a página, errata aplicada).
+Ver [[04-decisions#D90]]–[[04-decisions#D95]].
+
+## FECHADA — G61–G65: a alvenaria vira caminho de carga, e a laje passa a repartir pela charneira — 2026-09-07
+Commits `1ff22f2` + `0aa3a5f`. `fundacao_sapata_corrida.py`; tipologia portante com fronteira
+(térrea); G62 desenho/BIM da alvenaria; G63 Qh por rigidez 9.6.2; G64 lente do G51 como portão
+de cobertura; G65 7229→17076/13792→16981 conferidas na página vigente + varredura NBR×catalogo
+com `skipif` (não quebra checkout sem `fontes/`). Revisão: quinhão da laje pela charneira
+(não por comprimento), recusa de apoio em linha sem parede, corte dos cruzamentos, sapata
+corrida B×1,00 m, Parte B consultada, verga `not_available`. Ver [[04-decisions#D96]].
+
+## FECHADA — G66–G70: o telhado de madeira, e a carga que fechava contra si mesma — 2026-09-08
+Commit `0114d27`. `madeira_nbr7190.py` + `telhado_casa_madeira.py` (tesoura Howe, Tab. 3/4/5,
+γw, Hankinson, 12 modos 7.3 — célula a célula com o PDF); G67 cisalhamento 11.4 da alvenaria +
+sobrado com vento por nível + G68 recusa do sobrado sem vento (fecha o gap da viga contínua
+do G13); G70 verga dimensionada (adotado × necessário). Revisão: tributário do beiral levava
+painel inteiro (25 % de carga a mais; `confere_fechamento_area` de origem independente),
+a2 de prego (3+6·|sen α|)·d, 6.2.4 com as duas condições, L/200→faixa da Tab. 21, apoio da
+terça em tramo inteiro, elevação com cabeçalho no fim (largura real 1126), nota "a" da Tab. 9
+como declaração obrigatória. Ver [[04-decisions#D97]].
+
+## FECHADA — G71–G73: o telhado voa, entra no BIM e o nó sai em madeira-madeira — 2026-09-08
+Commit `c106bd9`. G71 vento na tesoura (Tab. 5 por bloco h/b, 0,9 favorável como extremo estrito
+declarado, ancoragem contra arrancamento); G72 `bim_telhado_madeira.py` (IfcMember/IfcBeam,
+`ref_hint` contra a viga deitada, portão volume×rótulo); G73 ligação madeira-madeira 7.2
+(beta, 6+4 modos, Tab. 16 como portão, `n_cortes` numérico); revisão D101 (conjunto congelado
+que vira derivado da spec, `except Exception`→`ImportError`, censo a 20 guardas; **aberto,
+nomeado: telhado reprovado some do federado** — virou G86). Ver [[04-decisions#D98]]–[[04-decisions#D101]].
+
+## FECHADA — G74–G76: o default deixa de decidir, a 6.6 vira geometria e a folha passa a ser olhada — 2026-09-09
+Commit `33e3af8` (lote **G74–G76**, verificado em 44 focais + 249 vizinhos = 293 verdes).
+G75 `varredura_defaults_veredito.py` (declara-ou-recusa em 7 módulos, recusas `... nao declarado`
+grep-áveis, baseline nos dois sentidos em `tmp_path`); G74 alternativo da 6.5.6 + 6.6 do
+conjunto (`contraventamento_banzo_inf_m` numérico, chave bool antiga recusa com endereço,
+gate 6.6 informativo, duas ausências nomeadas com artigo); G76 `confere_folha_svg` genérica
++ varredura anti-`replace` de cabeçalho + renderizar-e-olhar (Edge headless).
+Ver [[04-decisions#D102]]–[[04-decisions#D104]].
+
+## FECHADA — G77: o censo das folhas vira portão, e a folha de armação deixa de ter altura fixa — 2026-09-09
+Commit `fb53107`. `censo_de_folhas` por AST (32 folhas, `ISENTAS` vazio, portão nos dois
+sentidos, vermelho por injeção em diretório temporário); defeito achado: `prancha_armacao_svg`
+com altura fixa jogava a cota 3,5 px fora da folha (guarda antiga só olhava X, por regex);
+legenda da planta de incêndio vira count-driven (um teste cristalizava o defeito);
+folha válida-e-vazia reprova. **Aberto, nomeado:** planta de água do pavimento-tipo magra
+(um ramal). Ver [[04-decisions#D105]].
+
+## FECHADA — G78–G88: o lote das onze folhas, e os portões que ficaram vermelhos — 2026-09-09
+Os onze goals de `BACKLOG-GOALS.md` foram executados **e ficaram sem commit** na árvore —
+a armadilha do G74 outra vez. Fechados aqui em bloco, com auditoria antes do commit.
+
+**O que entrou (censo de folhas 32 → 37):**
+- **G78** planta baixa da casa (PE-AR-02), layout canônico em `turnkey.arquitetura.layout`
+  com o elétrico virando espelho conferido; PE-AR-01/03 `not_available` com o dado que
+  falta **nomeado** (lote, níveis) em vez de recuo e soleira arbitrados.
+- **G79** duas folhas de terraplenagem; **G80** locação/formas da fundação do prédio
+  (PE-CO-04); **G81** escada de emergência (PE-IN-03). As três com entrada no índice —
+  sem ela a folha evapora no `continue` (o D89, que já custou duas vezes).
+- **G82** contrato da hidráulica escrito: no galpão 1 arquivo **cobre** os 3 códigos, e isso
+  deixa de ser silêncio; **G86** o telhado reprovado passa a entrar no federado, carimbado.
+- **G83** lente das guardas de um eixo só; **G84** declara-ou-recusa nos 4 módulos com mais
+  `A CONFIRMAR` (a lente do G75 passa de 101 para 152 sítios); **G85** veredito por módulo
+  nos nove que nenhum teste nomeava; **G87** orçamento com três estados.
+- **G88** a própria dívida de documentação (arco G43→G77 reconstruído do git).
+
+**A auditoria do lote (G89), e o que ela achou.** Suíte completa: **3563 passed, 6 failed**.
+Um dos seis não era do lote — `test_g19_quarto_caso_1_comando_output` deu timeout por
+contenção e **passa isolado em 285 s** (reproduzido antes de ser culpado, receita do D81).
+Dos cinco reais, o mais instrutivo não veio do lote: **o portão do G77 estava vermelho desde
+o próprio commit `fb53107`** e ninguém viu, porque `test_09_cobertura` tem dois asserts em
+sequência e o primeiro mascarava o segundo. Também se confirmou que
+**`desenho_terraplenagem` era ilha**: o G79 fez a folha certa e ninguém a emitia — "a folha
+está certa" e "a folha sai" são dois aceites, e o segundo não se deduz do primeiro.
+Ver [[04-decisions#D106]]–[[04-decisions#D117]].
+
+**Aberto, nomeado, medido — a fila do próximo arco:** a casa promete **16** pranchas no
+índice e mapeia **3** (só PE-AR); o galpão não tem laço índice↔disco nenhum (o prédio fecha
+15/15); e o caderno executivo em PDF só existe no galpão.
+
+## Docs do arco (sem código)
+- `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
+- `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;
+  fila de trabalho em `framework/galpao_fw/BACKLOG-GOALS.md`.
+

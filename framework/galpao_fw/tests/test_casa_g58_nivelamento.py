@@ -67,7 +67,13 @@ def test_orcamento_cheio_cobre_telha_e_exclui_estaca(execucao):
     assert orcamento["status"] == "generated"
     assert "telha_cobertura" in orcamento["codigos"]
     assert orcamento["sem_quantidade"] == []
+    # G87: a tabela interna fecha (cobertura 100%), mas os sistemas que nunca
+    # entraram na tabela (esquadrias, incendio, revestimento quantificado sem
+    # preco...) seguem pendentes — o parcial nao se diz fechado.
     assert orcamento["cobertura_pct"] == 100.0
+    assert orcamento["orcamento_fechado"] is False
+    assert any(item["codigo"] == "esquadrias"
+               for item in orcamento["fora_tabela"])
     # sapata, nao estaca: cobrar metro de estaca seria o ruido da guarda 2
     assert "estaca" in orcamento["nao_aplicaveis"]
     assert "aco_estrutural" in orcamento["nao_aplicaveis"]
@@ -78,7 +84,9 @@ def test_relatorio_do_orcamento_nomeia_a_telha(execucao):
     _, destino = execucao
     texto = (destino / "orcamento" / "relatorio.txt").read_text(encoding="utf-8")
     assert "telha_cobertura" in texto or "telha" in texto.lower()
-    assert "ORCAMENTO PARCIAL" not in texto
+    # G87: a tabela interna fecha mas ha sistema fora dela pendente.
+    assert "ORCAMENTO PARCIAL" in texto
+    assert "esquadrias" in texto
 
 
 # --- guarda G14, primeira vez fora do predio ---------------------------------

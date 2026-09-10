@@ -969,3 +969,198 @@ O G76 construiu a lente e a aplicou a 4 folhas de 32. Guarda que ninguem passa n
 - **Dois enganos MEUS de fixture, uteis como achado:** `prancha_armacao_vigas_svg` recebe `vigas_verificacao` (7 linhas / 17 tramos do G34) e nao `pavimento` - com o dict errado emite a tabela **vazia** dizendo "0 linhas / 0 tramos VERIFICADOS", sem reclamar; e `coordenacao_svg` le `p1`/`p2`, nao `bbox` - com a chave errada cai em "sem geometria federada". Ambos ficam anotados no proprio registro.
 - **Renderizado e olhado** (Edge headless): armacao do galpao (a cota "40" agora aparece), armacao de vigas do predio (17 tramos legiveis), unifilar, planta de seguranca (legenda de 9 itens, cada simbolo ocorrendo no desenho), elevacao da alvenaria, rede de agua do predio e planta eletrica residencial. **Observacao aberta, nao redesenhada:** a planta de agua do pavimento-tipo desenha um unico ramal num pavimento vazio - e' o que foi dimensionado, mas a folha e' magra; decisao do dono da hidraulica, nao da varredura.
 - **Suite:** 288 verdes nos modulos de desenho e consumidores diretos; 70 no proprio `test_folhas_g77`.
+
+## D106/G78 - a casa ganha a planta baixa: layout canonico, cross-check e triagem (2026-09-09) - FECHADO
+O comando trazia so G78; o ultimo verbete conferido na arvore e D105.
+Medido: PE-AR-01/02/03 prometidas, 32 folhas no censo e nenhuma de arquitetura; a planta baixa pulava com posicoes_dos_ambientes_nao_declaradas - motivo falso para o spec persistido, que declara os 7 comodos com x/y/width/depth sob turnkey.eletrico.circuits.layout.rooms (os mesmos 7 nomes do programa; a eletrica residencial ja desenhava esses retangulos). Cross-check inedito confirmado: area do programa x area do layout batiam nos 7 comodos - e nada conferia isso.
+- **Onde o layout mora (canonico).** turnkey.arquitetura.layout e o dono; turnkey.eletrico.circuits.layout.rooms segue existindo (quadro + posicoes de pontos sao eletricos) como ESPELHO. Com os dois declarados, cada retangulo tem de ser o mesmo (tolerancia de digitacao TOL_GEOM_M); o que diverge recusa com o endereco do canonico (molde do G74: layout_eletrico_diverge_do_canonico, comodo_canonico_ausente_no_espelho e comodo_do_espelho_ausente_no_canonico, todos com canonico=turnkey.arquitetura.layout) e bloqueia o eletrico. Sem canonico, vale o fallback eletrico com a proveniencia registrada. project-spec.json migrado (7 rooms copiados do espelho, byte a byte); manifesto e IFC passam a dizer arquitetura.layout.
+- **Uma tolerancia para a mesma pergunta.** layout_ambientes.TOL_AREA_REL = 1e-3, a mesma de arquitetura_residencial (area x LxC) e de bim_casa_residencial.TOL_REL (rotulo x geometria); o teste trava as tres iguais para nao envelhecerem em silencio. conferir_areas_programa_layout (programa x layout, por ambiente, com os dois numeros no por_ambiente) e a conta unica: casa_residencial.conferir_geometria_layout delega a ela (forma preservada para a conferencia NBR 5410) e a planta so desenha com ela ok - divergente nao sai, sai skipped com o codigo.
+- **PE-AR-02 de verdade.** planta_baixa_svg(arquitetura, layout): um retangulo por comodo posicionado, nome, dimensoes declaradas, area DO PROGRAMA, cotas gerais do envelope e o quadro programa x layout desenhado na folha; paredes/portas/janelas/cobertura ditas fora do escopo NA FOLHA (nada inventado). Passa em confere_folha_svg; renderizada e olhada no Edge headless (7 retangulos legiveis, cotas 10,40 x 8,00 m, quadro 7x7 batendo). Count-driven: rects com fill proprio == ambientes do programa; dimensoes e cotas reconferidas no teste a partir do JSON, nunca do SVG (sem tautologia).
+- **PE-AR-01/PE-AR-03 triadas, nao implementadas.** Implantacao precisa de site.lote (dimensoes, recuos, orientacao); cortes de niveis (soleira/terreno) alem do pe-direito. O spec nao declara nenhum - e mesmo declarado ainda nao ha emissor: not_available com o dado nomeado (motivos_arquitetura_faltante, que le site na raiz do spec, onde o normalize o carrega). Nada arbitrado: recuo e soleira inventados seriam a geometria inventada que o modulo recusa na propria abertura.
+- **Laco indice-disco.** _PRANCHA_ARQUIVO_CASA (PE-AR-01/02/03 -> arquivos) + conferencia no hook apos gerar: toda PE-AR emitida ou nomeada em skipped (molde do edificio no G56, forma dict da casa preservada). gerar_desenhos_casa(result, out_dir, turnkey=None, site=None): assinatura compativel (chamadas diretas sem turnkey caem no espelho validado).
+- **Guardas:** tests/test_planta_baixa_g78.py (14 testes): tolerancia unica, cross-check nos dois sentidos + ambiente sem retangulo, canonico (passa, diverge-com-endereco, fallback, bloqueio no Loop), planta (guarda, drawing-vs-data com fonte independente, recusa de divergente em tmp_path, motivo antigo sem layout), triagem nos dois sentidos, laco indice-disco no Loop. FOLHAS ganha desenho_casa_residencial.planta_baixa_svg (censo: 32 -> 33). G4 (lista de pranchas + motivo) e G8 (proveniencia arquitetura.layout; sem-layout tira os dois) atualizados por merito.
+- **Suite:** test_planta_baixa_g78 (14) + test_folhas_g77 (72, com a folha nova) + g4/g8 (47): verdes.
+
+## D107/G86 - o telhado reprovado entra no federado, carimbado (2026-09-09) - FECHADO
+O comando trazia so G86; o ultimo verbete conferido na arvore e D106.
+Medido (reproduzido antes de decidir): telhado com carga absurda (telha 5,0 + sobrecarga 5,0) reprova de verdade (ATENDE=False, reprovados=[barras, tercas, ligacoes, apoio_madeira]) mas entrega geometria completa (5 pecas, vol 1,99 m3, 6 tesouras, vao 8,0 m) - e `membros_bim` devolvia [] (0 membros), o federado ficava so ['estrutura'] e o clash com 45 membros em vez de 128 (83 barras sumidas). O escopo dizia `telhado_madeira: not_available` e o memorial "[A CONFIRMAR: ... fora do escopo.]" - o veredito ruim sumia em quatro superficies, justo quando a interferencia mais importa.
+- **Decisao: opcao (a) - entra sempre quando calculado, carimbado REPROVADO.** O clash e sobre ocupacao fisica, e a geometria (secoes adotadas, posicao) existe nos dois casos. A opcao (b) (nunca entrar) destruiria o clash dos 83 membros mesmo no caso bom e contrariaria o G72. O precedente contrario aparente (fundacao sem geometria -> skip, bim_edificio.py:417) nao se aplica: la nao ha peca a emitir; aqui ha. E todo o resto ja fazia (a): a folha carimba REPROVA por peca (desenho_casa_residencial), o orcamento mede a madeira sem gate de ATENDE (gestao_casa._madeira_telhado), o memorial da gestao carimba ATENDE/REPROVA - o federado era o unico que sumia.
+- **Entregue.** `bim_telhado_madeira.membros_bim`: o gate passa de ATENDE para calculado (dict com vao_m + n_tesouras); cada membro carrega `situacao` (ATENDE/REPROVADO lido do calculo, nao dos membros - sem tautologia). `bim_instalacoes_casa.membros_federados_casa`: inclui quando calculado; geometria incoerente continua estourando (G74 intacto). `estrutura_casa`: escopo `telhado_madeira` implemented quando calculado sem erro (antes exigia ATENDE) e `_linha_telhado_memorial` diz REPROVA com os gates nomeados em vez de "fora do escopo".
+- **Guardas:** `tests/test_telhado_federado_g86.py` (7 testes): reprovado entra carimbado, mesma geometria do ATENDE (contagem do caso bom como fonte independente + confere_volume rotulo x geometria), reprovado no clash (n_membros cresce), escopo + memorial proprios, IFC do reprovado aberto e contado, ATENDE segue carimbado, sem-telhado segue ausente. Sensibilidade provada: sob o gate antigo o reprovado nao entra (vermelho); sob o novo entra (verde). Sem folha nova, sem SVG tocado: parse/render nao se aplicam.
+- **Suite:** g86 (7) + g72 (10) + g66/g58 (67) + g71/g73/g74/g75 (63) + coordenacao (9) + folhas_g77 (80) + pipeline/g84/g83 (10): verdes.
+
+## D108/G89 - os portoes do proprio repo estavam vermelhos, e um deles desde o G77 (2026-09-09) - FECHADO
+O lote G78-G88 estava inteiro na arvore e **nao commitado** (a armadilha do G74 outra vez).
+Suite completa antes de mexer: **3563 passed, 6 failed**.
+- **1 dos 6 nao era do lote, e foi reproduzido antes de ser culpado.**
+  `test_g19_quarto_caso_1_comando_output` deu `TimeoutExpired` em 900 s na suite e **passa
+  isolado em 285 s**: eu havia rodado os pipelines das tres tipologias em paralelo com o
+  `-n auto`. Artefato de carga, nao regressao (receita do D81: reproduzir no cenario limpo
+  antes de atribuir ao lote).
+- **desenho_terraplenagem era ILHA.** O G79 entregou os dois emissores, com guarda e
+  registro em `FOLHAS`, e parou ai: nenhum adaptador os importava. `_PRANCHAS["terraplenagem"]`
+  prometia PE-TP-01/02 e o disco recebia zero. A propria `test_alcancabilidade` acusou -
+  o criterio de aceite do goal ("passa em confere_folha_svg, entra em FOLHAS") foi cumprido
+  ao pe da letra e o laco indice<->disco ficou aberto. **Licao de contrato: "a folha esta
+  certa" e "a folha sai" sao dois aceites, e o segundo nao se deduz do primeiro.**
+  Ligadas em `entregaveis_projeto.emitir_obras_sitio`, de onde o dado ja sai calculado
+  (reuso de `_frente`, sem helper novo); frente ausente **nao vira folha vazia**.
+  Guardas novas em `test_terraplenagem_pranchas_g79.py` (3): as duas folhas no disco +
+  no manifesto + `confere_folha_svg`; so-a-grade emite so PE-TP-01; e a aresta de import
+  medida por AST. **Vermelho por injecao provado:** arrancada a ligacao, 2 dos 3 ficam
+  vermelhos; restaurada, 13 verdes.
+- **O portao do G77 estava vermelho desde o proprio commit `fb53107`, e ninguem viu.**
+  `test_09_cobertura` tem dois asserts em sequencia (`faltando`, depois `sobrando`); o
+  primeiro mascarava o segundo. Com os 3 modulos novos isentos, apareceu o real:
+  `desenho_svg_base.py` **produz** chave e a isencao dele virou **nome morto**. A chave e a
+  linha 229 - o comentario "A guarda acima so vale para a folha em que alguem a chamar",
+  que casa com `VALIDADE_RE`. Provado no HEAD (a lente e o arquivo do HEAD casam). O
+  cabecalho da lente **proibe** reescrever comentario para agradar a expressao (G64), entao
+  a correcao foi **tirar a isencao**, nao a prosa. **Licao: assert em sequencia esconde
+  achado - o segundo so aparece quando o primeiro fecha.**
+- **G87 x G66: a assercao que envelheceu.** `test_e2e_orcamento_cobre_a_madeira_e_nao_e_parcial`
+  exigia `"ORCAMENTO PARCIAL" not in texto`, juntando "nenhum insumo DA TABELA sem
+  quantidade" (o que o G66 quis provar) com "o orcamento esta fechado". O G87 separou os
+  tres estados e a casa **tem** sistema fora da tabela (alvenaria, revestimento, esquadria):
+  o carimbo esta certo, a assercao e' que estava errada. Reescrita para exigir que o
+  parcial, quando aparece, seja **pelo que esta fora da tabela e nomeado** - nunca por
+  buraco na tabela; o intent do G66 segue coberto por `sem_quantidade`/`cobertura_pct`.
+- **Baselines atualizados com triagem, nao com numero novo.** `TRIADAS_G69` ganha 4 guardas
+  (fundacao e escada = drawing-vs-data INDEPENDENTE; `confere_cobertura_galpao` = meta-guarda
+  de contrato disco x indice, familia do item 16; `confere_folha_svg` = continente x conteudo,
+  no censo desde o G76 e so agora triada) e a contagem do cabecalho passa de 20 para 24.
+  `BASELINE_G75` ganha o par `gestao_edificio.n_pavimentos` (1 -> 2 no `get`, + o `or`):
+  os dois lados sao dado declarado e o resultado alimenta **so o texto do motivo** - caso (a),
+  fica.
+
+## D109/G79 - terraplenagem calculava e nao desenhava (2026-09-09) - FECHADO
+`terraplenagem.py` ja tinha `volumes_corte_aterro`, `greide_equilibrio`, `movimento_terra`,
+`vazao_racional`, `canaleta_manning` e `dimensiona_drenagem`; `_PRANCHAS["terraplenagem"]`
+prometia PE-TP-01/02 e o arquivo nao tinha **uma unica** funcao `*_svg`.
+- **Entregue:** `desenho_terraplenagem.py` com `mapa_corte_aterro_svg` (mapa da malha por
+  celula + greide de equilibrio cotado) e `planta_drenagem_svg` (canaletas com Q, largura,
+  declividade, n de Manning). Ambas **count-driven** (um rect por no da grade; canaletas
+  desenhadas == dimensionadas), pela armadilha medida da planta de incendio que desenhava
+  `cols*rows != N`.
+- **Nada assumido:** empolamento ausente sai `"... nao declarado"`, nunca 1,0 silencioso; o
+  n de Manning omitido sai rotulado `(default, nao declarado)`. Canaleta insuficiente
+  carimba REPROVA na folha e o `>OK<` **nao** aparece.
+- **O que ficou aberto e foi fechado no G89:** os dois emissores nao eram importados por
+  nenhum adaptador - eram **ilha**, e o disco recebia zero. Ver [[04-decisions#D108]].
+
+## D110/G80 - a fundacao do predio ganha folha (2026-09-09) - FECHADO
+`fundacao_edificio.dimensiona` cobre **todos** os pilares (geometria, momento na base,
+sapata de divisa, viga de equilibrio, baldrame, recalque) e o mapa de pranchas do
+`edificio_adapter` tinha 13 codigos, **nenhum de fundacao**. A unica sapata desenhada na
+arvore era um detalhe dentro da armacao do galpao pre-moldado.
+- **Entregue:** `desenho_fundacao_edificio.planta_fundacao_svg` - PE-CO-04, locacao/formas
+  na malha de pilares, com dimensoes, cota de apoio e carga de projeto por elemento.
+  `confere_desenho_fundacao` faz drawing-vs-data por **parse**: `<rect data-pilar>` contra o
+  `por_pilar` do calculo (o esperado nunca vem do SVG).
+- **A entrada no indice e parte do entregavel:** `_PRANCHAS["concreto"]` ganhou
+  "Locacao e formas da fundacao". Sem ela a folha **evaporaria** no `continue` do indice -
+  o D89, que ja aconteceu com a fundacao no G56 e a alvenaria no G62.
+- **Nao arbitrado:** a tensao admissivel do solo continua sendo declaracao; o framework nao
+  tem default e isso e intencional. A validacao de sistema contra laudo SPT externo segue
+  bloqueada por fonte (T44) - o que **nao** bloqueia a folha: aqui se desenha o calculado.
+
+## D111/G81 - a escada sai do quadro de texto e vira folha (2026-09-09) - FECHADO
+A escada tinha calculo proprio (Blondel, lances, patamares, largura pela 9077 - declaracao
+unica desde o G12) e aparecia **so como texto** no quadro do PPCI.
+- **Entregue:** `desenho_escada_edificio.planta_escada_svg` - PE-IN-03, planta e corte com
+  espelho, piso, degraus por lance, patamares, largura exigida x adotada e Blondel visivel.
+  Um `rect` por degrau; `confere_desenho_escada` confere contagem e medidas contra
+  `escada_concreto.dimensiona` + os gates do incendio.
+- **O `A CONFIRMAR` ficou visivel, nao fechado.** O comprimento do patamar segue igualado a
+  largura do lance porque a 9050/9077 nao traz o valor na base (ver `04-decisions.md:631`).
+  A folha carimba isso e cita o minimo; **nao** se arbitrou o numero.
+- `_PRANCHAS["incendio"]` ganhou o codigo (mesma razao do D110).
+
+## D112/G82 - a hidraulica: 3 codigos, 1 arquivo, e o motivo escrito (2026-09-09) - FECHADO
+O indice promete PE-HI-01/02/03. O **predio** cumpre os tres com tres arquivos; o **galpao**
+tem um emissor so, que desenha as tres redes na mesma folha - e ninguem sabia que 1 arquivo
+respondia por 3 codigos.
+- **Decisao de contrato (nao calculo novo):** no galpao terreo, sem prumadas, **um** arquivo
+  (`esquema-hidraulica.svg`) **cobre** os tres titulos, e isso fica escrito em
+  `desenho_hidraulica.COBERTURA_GALPAO` + `confere_cobertura_galpao`, que devolve os codigos
+  cobertos e os pulados **nomeados**. Separar seria copiar o mesmo retangulo tres vezes.
+  No predio segue 1:1. O que nao servia era o silencio.
+- **Triagem da folha magra da agua (aberta no G77):** `planta_rede_edificio_svg(rede="agua")`
+  desenha um unico ramal porque **e o que foi dimensionado** - uma coluna servindo todos os
+  pavimentos. Numero de prumadas e ramais por aparelho dependem da planta de arquitetura,
+  que o framework nao tem para o predio. Desenhar mais seria **geometria inventada** (a
+  armadilha nomeada no G78). **Veredito: folha mantida, o escopo diz por que.**
+
+## D113/G83 - a varredura das guardas de um eixo so (2026-09-09) - FECHADO
+O G77 achou uma guarda que media **so o X** (`test_tudo_cabe_no_canvas`, regex sobre a fonte
+do SVG, 4 coletas de x/cx/x1/x2 e nenhuma de y). O defeito que ela deixou passar por anos: a
+cota de largura do pilar caia **3,5 px abaixo** da folha, invisivel no entregue.
+- **Ferramenta:** `varredura_guardas_um_eixo.py` (AST, familia do G48/G51/G75) mede tres
+  sinais sintaticos - X_ONLY (e o espelho Y_ONLY), W_SEM_H (e H_SEM_W) e
+  REGEX_COORD_SEM_PARSE (coordenada extraida por `re` sem nenhum parse no corpo). Regex
+  sobre **rotulo** nao e coordenada e nao entra: checar texto nao e medir geometria.
+- **Promocoes, sem apagar a guarda antiga** (o goal dizia "complete-o, nao o apague"):
+  `test_tudo_cabe_no_canvas` ganhou o eixo Y + `ET.fromstring` + `confere_folha_svg`;
+  `test_planta_cabe_no_canvas` ganhou parse + `confere_folha_svg`.
+- **Triagem item a item, com motivo medido** (rigor G10): so os 2 de `desenho_concreto`
+  viraram correcao; os demais ficaram com o motivo pelo qual **nao** sao bug (guarda
+  legitimamente unidimensional - o eixo X e o objeto da guarda). O que a lente nao cobre
+  esta dito no cabecalho, no molde DIVIDA-LENTE do G51. Baseline `BASELINE_G83` nos dois
+  sentidos.
+
+## D114/G84 - declara-ou-recusa nos 4 modulos com mais A CONFIRMAR (2026-09-09) - FECHADO
+Medido fora de testes: `galpao_hidraulica` 16, `piso_industrial` 14, `secundarios_nbr8800` 13,
+`montagem` 13. **O goal nao era zerar a contagem** - `A CONFIRMAR` e a forma honesta de nomear
+dado do projetista, e este repo prefere isso a arbitrar.
+- **O achado de metodo:** a lente do G75 **nao via nenhum sitio** nos quatro (0 de 101). O
+  vocabulario dela era estreito demais para esses modulos. Estendido com 24 chaves: **101 ->
+  152 sitios**, e cada um triado com numero.
+- **Triagem (a) fica / (b) vira calculo / (c) vira recusa**, sempre com a medida do efeito:
+  `i_pluvial_mm_h=150` decide o DN (100 -> DN125, 200 -> DN150) mas **sai flagado**;
+  `p_alim_kPa=100` e gate **informativo** quando assumido e **efetivo** quando declarado
+  (5 kPa reprova) - o silencio nao existe, esta escrito no gate; `metodo_agua='soma'` e o
+  **conservador** dos dois que a 5626:2020 6.14.2 aceita; `decl_esgoto_pct` abaixo do minimo
+  da 8160 4.2.3.2 levanta `ValueError` com endereco.
+- **Baseline do G75 atualizado nos dois sentidos** com a triagem por escrito, nao com numero
+  novo.
+
+## D115/G85 - nove modulos que nenhum teste nomeava (2026-09-09) - FECHADO
+Nao eram ilhas (a alcancabilidade estava verde) - eram **suspeitos**: importados por outros,
+mas com o nome ausente de todo `tests/`. Um veredito por modulo, e onde se alegou cobertura
+transitiva, o **defeito injetado** como evidencia.
+- Comecou pelos dois de engenharia pesada, como o goal mandava: **`fogo_nbr14323`** (aco em
+  incendio) aferido contra a curva ISO 834 e a Tab. 6.2 - `20 + 345 log10(8t+1)` conferido a
+  mao, mais a fisica "protecao reduz a temperatura do aco"; **`distorcional_fsm`** contra a
+  simetria da secao Ue e a flambagem de placa da alma (k=23,9, formula fechada) como ordem
+  de grandeza do Mcrl.
+- Demais: `recalque_edificio`, `junta_dilatacao`, `tercas_iteracao`, `layout_ambientes`
+  (que o G78 passou a nomear na mesma semana), `pycufsm_compat`, `smoke_executivo` (so o
+  testavel sem FreeCAD: `checar_carimbo` e `_acha_pendente`, com injecao de `__PENDENTE__`
+  vazando). **`casa_residencial_sintetica`: decisao do G10 CONFIRMADA, nao redecidida.**
+- Cada teste direto vem com par de injecao em memoria (monkeypatch), nunca mutando o repo.
+
+## D116/G87 - o orcamento passa a ter tres estados (2026-09-09) - FECHADO
+A guarda do G14 nomeava insumo **que estava na tabela** e ficou sem quantidade; os sistemas
+que **nunca entraram na tabela** passavam em silencio. A medida que expos o buraco:
+R$ 790 mil / 1134 m2 ~= **R$ 700/m2** contra CUB de R$ 2.500-3.000/m2 - a diferenca e
+alvenaria, revestimento, esquadria, impermeabilizacao, elevador e incendio.
+- **Tres estados, e o parcial nunca se diz fechado:** "a obra nao tem" (`nao_aplicaveis`),
+  "ninguem quantificou" (`sem_quantidade` / `fora_tabela` sem quantidade) e "quantificado
+  sem preco" (`sem_preco` / `fora_tabela` com quantidade). `estado_orcamento` publica
+  `orcamento_fechado`.
+- **Quantificar pelo MODELO, nunca pelo preco.** As contagens do incendio vem de
+  `sistemas.totais_edificio` - o que o desenho conta, o orcamento quantifica. Insumo sem
+  preco declarado sai **nomeado**, nao chutado; o elevador sai com quantidade `None` e o
+  motivo escrito ("nenhum modulo dimensiona o elevador").
+- **Efeito colateral de merito:** o carimbo novo derrubou uma assercao do G66 que juntava
+  "tabela completa" com "orcamento fechado". Resolvido no G89 - ver [[04-decisions#D108]].
+
+## D117/G88 - a divida de documentacao (2026-09-09) - FECHADO
+`wiki/03-phases.md` parava em **S42** enquanto `04-decisions.md` ja estava em **D105**: quem
+lesse as fases acreditaria que o trabalho parou ha ~45 goals. Arco **G43->G77** reconstruido
+do git, `fontes/fontes-faltantes.md` corrigido (dizia que o telhado da casa estava
+`not_available`, falso desde o G66) e o indice passou a apontar para `BACKLOG-GOALS.md`.
+**Fechados por medicao, nao reabrir:** as constantes orfas `LAMBDA_BLOCO`/`ALPHA_C`/`XD_LIM`
+ja foram renomeadas com sufixo `_C50` no G51; `s_limite_governante` **acrescenta** o rotulo
+da NOTA C55-C90 em vez de sobrescrever; a viga continua do predio **e** verificada desde o
+G34.

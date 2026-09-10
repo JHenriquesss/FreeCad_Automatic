@@ -288,9 +288,10 @@ def test_pranchas_sao_xml_valido(execucao):
     _manifesto, destino = execucao
     svgs = sorted((destino / "drawings").glob("*.svg"))
     # G66: +telhado-tesoura.svg (o spec persistido agora declara o telhado).
+    # G78: +planta-baixa.svg (o layout canonico destrava a PE-AR-02).
     assert [s.name for s in svgs] == [
         "conferencia-nbr5410.svg", "esquema-hidraulico.svg",
-        "planta-formas.svg", "quadro-ambientes.svg",
+        "planta-baixa.svg", "planta-formas.svg", "quadro-ambientes.svg",
         "telhado-tesoura.svg"]
     for svg in svgs:
         raiz = ET.fromstring(svg.read_text(encoding="utf-8"))
@@ -301,8 +302,12 @@ def test_prancha_ausente_traz_o_motivo(execucao):
     manifesto, _ = execucao
     desenhos = manifesto["deliverables"]["drawings"]
     assert desenhos["status"] == "generated"
-    assert desenhos["skipped"]["planta-baixa.svg"] == (
-        "posicoes_dos_ambientes_nao_declaradas")
+    # G78: a planta baixa agora SAI (PE-AR-02 do layout canonico); o que
+    # segue ausente com motivo e' o que nao tem dado nem emissor.
+    assert "drawings/planta-baixa.svg" in desenhos["artifacts"]
+    assert desenhos["skipped"]["implantacao.svg"].startswith("not_available")
+    assert desenhos["skipped"]["cortes-fachadas.svg"].startswith(
+        "not_available")
 
 
 def test_o_quadro_mostra_todos_os_ambientes(execucao, spec):

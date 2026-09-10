@@ -408,7 +408,22 @@ def test_e2e_orcamento_cobre_a_madeira_e_nao_e_parcial(execucao):
     texto = (destino / "orcamento" / "relatorio.txt").read_text(
         encoding="utf-8")
     assert "madeira_telhado" in texto
-    assert "ORCAMENTO PARCIAL" not in texto
+    # G89 (interacao G66 x G87). Este teste asseria `"ORCAMENTO PARCIAL" not
+    # in texto`, o que juntava duas coisas diferentes: "nenhum insumo DA
+    # TABELA ficou sem quantidade" (o que o G66 quis provar, e que continua
+    # provado acima por sem_quantidade/cobertura_pct) e "o orcamento esta
+    # fechado". O G87 separou os tres estados, e a casa tem sistema FORA da
+    # tabela (alvenaria, revestimento, esquadria) que ninguem precifica -
+    # entao o carimbo PARCIAL esta CERTO e a assercao antiga e' que
+    # envelheceu. O que se exige agora: o parcial, quando aparece, e' pelo
+    # que esta fora da tabela, nomeado - nunca por buraco na tabela.
+    if "ORCAMENTO PARCIAL" in texto:
+        assert "sistemas fora da tabela pendentes" in texto, texto[:800]
+        assert "insumo(s) da tabela sem quantitativo" not in texto, texto[:800]
+        assert orcamento["orcamento_fechado"] is False
+        assert orcamento["fora_tabela"], "parcial tem de NOMEAR o que falta"
+    else:
+        assert orcamento["orcamento_fechado"] is True
 
 
 def test_e2e_estrutura_e_memorial_trazem_o_telhado(execucao):

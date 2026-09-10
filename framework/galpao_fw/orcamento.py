@@ -98,8 +98,71 @@ def curva_abc(plan, corte_a=50.0, corte_b=80.0):
     return {"itens": out, "resumo": resumo, "corte_a": corte_a, "corte_b": corte_b}
 
 
+def classifica_fora_da_tabela(fora_da_tabela):
+    """Sistemas que a obra TEM e a tabela de precos NAO tem (G87).
+
+    Cada item: {codigo, descricao, unidade, quantidade|None, motivo}.
+    Estado por item (a guarda de tres estados do G87):
+      - "quantificado_sem_preco": ha quantidade do MODELO, falta o preco
+        (nomear, nunca estimar — nao entra no preco de venda);
+      - "sem_quantitativo": ninguem quantificou (falta o dado de modelo ou a
+        declaracao que o deriva); exige `motivo` nomeando o que falta.
+    O terceiro estado ("a obra nao tem") e' o `nao_aplicaveis` do
+    compor_orcamento — nao entra nesta lista.
+    Nunca levanta por item malformado: o que nao der para classificar sai
+    como sem_quantitativo com o motivo registrado.
+    """
+    out = []
+    for item in fora_da_tabela or []:
+        if not isinstance(item, dict):
+            continue
+        codigo = str(item.get("codigo", ""))
+        descricao = str(item.get("descricao", codigo))
+        unidade = str(item.get("unidade", ""))
+        q = item.get("quantidade")
+        try:
+            qf = float(q) if q is not None else 0.0
+        except (TypeError, ValueError):
+            qf = 0.0
+        motivo = str(item.get("motivo", "") or "")
+        if qf > 0:
+            estado = "quantificado_sem_preco"
+        else:
+            estado = "sem_quantitativo"
+            if not motivo:
+                motivo = "sem quantidade derivavel do modelo e sem motivo nomeado"
+        out.append({"codigo": codigo, "descricao": descricao, "unidade": unidade,
+                    "quantidade": round(qf, 3) if qf > 0 else None,
+                    "estado": estado, "motivo": motivo})
+    return out
+
+
+def estado_orcamento(res):
+    """Guarda G87: o orcamento parcial nao pode se declarar fechado.
+
+    Fechado = nada em `sem_quantidade` (ninguem quantificou, dentro da
+    tabela) + nada em `sem_preco` (quantificado sem preco, dentro da
+    tabela) + nada pendente em `fora_tabela` (sistemas que nunca entraram
+    na tabela, quantificados ou nao). Devolve {"fechado": bool, "motivos"}.
+    """
+    motivos = []
+    for cod in res.get("sem_quantidade") or []:
+        motivos.append("sem_quantitativo na tabela: %s" % cod)
+    for cod in res.get("sem_preco") or []:
+        motivos.append("quantificado sem preco na tabela: %s" % cod)
+    for item in res.get("fora_tabela") or []:
+        if item.get("estado") == "quantificado_sem_preco":
+            motivos.append("quantificado sem preco fora da tabela: %s (%s %s)"
+                           % (item.get("codigo"), item.get("quantidade"),
+                              item.get("unidade")))
+        else:
+            motivos.append("sem_quantitativo fora da tabela: %s (%s)"
+                           % (item.get("codigo"), item.get("motivo")))
+    return {"fechado": not motivos, "motivos": motivos}
+
+
 def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
-                     aplicaveis=None):
+                     aplicaveis=None, fora_da_tabela=None):
     """Mapeia um dict de quantitativos {codigo: quantidade} nos itens da planilha,
     usando a tabela de precos (default: referencia). Ignora quantidade 0/None e
     codigos sem preco (registrando em 'sem_preco'). Retorna planilha + curva ABC.
@@ -109,7 +172,12 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
     piso industrial: sem esta lista, esses tres apareceriam em 'sem_quantidade' e
     o orcamento se declararia PARCIAL por insumos que a obra NAO TEM - ruido que
     esconde a falta que importa. O que fica fora do escopo volta em
-    'nao_aplicaveis', publicado, nunca omitido."""
+    'nao_aplicaveis', publicado, nunca omitido.
+    `fora_da_tabela`: sistemas que a obra TEM e a tabela NAO precifica
+    (G87: alvenaria, revestimento, esquadria, impermeabilizacao, elevador,
+    incendio). Lista de {codigo, descricao, unidade, quantidade|None, motivo},
+    com quantidade medida NO MODELO, nunca estimada. Vira `fora_tabela`
+    classificado + `orcamento_fechado` (a guarda de tres estados)."""
     tab = dict(_PRECOS_REF)
     if precos:
         tab.update(precos)              # override do usuario (SINAPI real)
@@ -121,7 +189,7 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
             sem_preco.append(cod); continue
         desc, un, pu = tab[cod]
         itens.append({"codigo": cod, "descricao": desc, "unidade": un,
-                      "quantidade": q, "preco_unitario": pu})
+                       "quantidade": q, "preco_unitario": pu})
     plan = planilha(itens, bdi_pct)
     abc = curva_abc(plan)
     # COBERTURA: um orcamento com uma linha so PARECE um orcamento fechado. Os
@@ -132,11 +200,15 @@ def compor_orcamento(quantitativos, precos=None, bdi_pct=BDI_PADRAO_PCT,
     sem_quantidade = sorted(c for c in tab if c in escopo and c not in orcados)
     nao_aplicaveis = sorted(c for c in tab if c not in escopo and c not in orcados)
     no_escopo = escopo & set(tab)
-    return {"planilha": plan, "abc": abc, "sem_preco": sem_preco,
+    fora_tabela = classifica_fora_da_tabela(fora_da_tabela)
+    res = {"planilha": plan, "abc": abc, "sem_preco": sem_preco,
             "sem_quantidade": sem_quantidade,
             "nao_aplicaveis": nao_aplicaveis,
+            "fora_tabela": fora_tabela,
             "cobertura_pct": round(
                 100.0 * len(orcados & no_escopo) / (len(no_escopo) or 1), 1)}
+    res["orcamento_fechado"] = estado_orcamento(res)["fechado"]
+    return res
 
 
 def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC", notas=()):
@@ -161,6 +233,7 @@ def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC", notas=()):
     L.append("Curva ABC: A=%d itens (R$ %.2f) | B=%d | C=%d"
              % (r["A"]["n"], r["A"]["custo"], r["B"]["n"], r["C"]["n"]))
     L.append("[%s]" % plan["nota"])
+    estado = estado_orcamento(res)
     faltando = res.get("sem_quantidade") or []
     if faltando:
         L.append("ORCAMENTO PARCIAL - %d insumo(s) da tabela SEM quantitativo nesta "
@@ -169,6 +242,22 @@ def relatorio_pt(res, titulo="ORCAMENTO (5D) - PLANILHA + CURVA ABC", notas=()):
     if res.get("sem_preco"):
         L.append("SEM PRECO NA TABELA (ha quantidade, falta custo): %s"
                  % ", ".join(res["sem_preco"]))
+    for item in res.get("fora_tabela") or []:
+        if item.get("estado") == "quantificado_sem_preco":
+            L.append("QUANTIFICADO SEM PRECO (fora da tabela, NAO entra no preco "
+                     "de venda): %s = %s %s" % (item["codigo"],
+                     item["quantidade"], item["unidade"]))
+        else:
+            L.append("SEM QUANTITATIVO (fora da tabela): %s - %s"
+                     % (item["codigo"], item["motivo"]))
+    if not estado["fechado"] and not faltando and not res.get("sem_preco") \
+            and not res.get("fora_tabela"):
+        L.append("ORCAMENTO PARCIAL")
+    elif not estado["fechado"] and not faltando and not res.get("sem_preco"):
+        # pendencia so fora da tabela: o PARCIAL nao pode sumir so porque a
+        # tabela interna fechou (o defeito G87: R$ 700/m2 com cara de obra).
+        L.append("ORCAMENTO PARCIAL - sistemas fora da tabela pendentes "
+                 "(ver linhas acima)")
     if notas:
         L.append("A CONFIRMAR - fora do preco de venda (nomear, nao estimar):")
         for nota in notas:

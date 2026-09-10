@@ -20,6 +20,12 @@ import math
 
 ROOM_FIELDS = ("id", "name", "x_m", "y_m", "width_m", "depth_m")
 
+# Tolerancia RELATIVA da costura programa x layout (G78). E' a mesma que
+# `arquitetura_residencial` usa para conferir area declarada x largura x
+# comprimento e que `bim_casa_residencial` usa no rotulo x geometria: uma so
+# tolerancia para a mesma pergunta, em qualquer disciplina que a faca.
+TOL_AREA_REL = 1e-3
+
 
 def erro(code, **context):
     registro = {"code": code}
@@ -93,6 +99,70 @@ def rejeitar_sobreposicao(comodos, errors):
 def dentro(comodo, x, y):
     return (comodo["x_m"] - 1e-9 <= x <= comodo["x_m"] + comodo["width_m"] + 1e-9
             and comodo["y_m"] - 1e-9 <= y <= comodo["y_m"] + comodo["depth_m"] + 1e-9)
+
+
+def conferir_areas_programa_layout(ambientes, rooms, tol_rel=TOL_AREA_REL):
+    """Cross-check G78: area do PROGRAMA x area do LAYOUT, por ambiente.
+
+    As duas declaracoes descrevem a MESMA casa: o programa declara area (de
+    largura x comprimento, ou area direta) e o layout declara width x depth do
+    mesmo comodo. Sem este cruzamento as duas envelhecem e passam a discordar
+    em silencio - o anti-padrao que este repo persegue por nome.
+
+    `ambientes`: lista do resultado de `arquitetura_residencial.rodar`
+    (cada item com nome/area_m2/geometria_ok). `rooms`: lista de comodos
+    validados (id/name/width_m/depth_m). Ambientes sem geometria valida sao
+    pulados sem erro: nao ha numero conferivel, e inventar um aqui seria
+    repor o dado recusado la.
+
+    Devolve {"ok", "erros", "por_ambiente"}. `por_ambiente` traz os dois
+    numeros por comodo (o detalhamento entregue, nunca so o veredito).
+    """
+    import math as _math
+
+    por_nome = {}
+    for comodo in rooms or []:
+        if isinstance(comodo, dict):
+            chave = comodo.get("id") or comodo.get("name")
+            if isinstance(chave, str):
+                por_nome[chave] = comodo
+    erros = []
+    por_ambiente = []
+    for ambiente in ambientes or []:
+        if not isinstance(ambiente, dict):
+            continue
+        nome = ambiente.get("nome")
+        if not ambiente.get("geometria_ok"):
+            continue
+        comodo = por_nome.get(nome)
+        if comodo is None:
+            erros.append(erro(
+                "ambiente_ausente_no_layout",
+                ambiente=nome,
+                detail="ambiente do programa sem retangulo no layout"))
+            continue
+        largura = comodo.get("width_m")
+        profundidade = comodo.get("depth_m")
+        if not (finito_positivo(largura) and finito_positivo(profundidade)):
+            continue
+        area_layout = float(largura) * float(profundidade)
+        area_programa = ambiente.get("area_m2")
+        registro = {"ambiente": nome,
+                    "area_programa_m2": area_programa,
+                    "area_layout_m2": round(area_layout, 4)}
+        por_ambiente.append(registro)
+        if not isinstance(area_programa, (int, float)):
+            continue
+        if not _math.isclose(area_layout, float(area_programa),
+                             rel_tol=tol_rel):
+            erros.append(erro(
+                "area_do_layout_diverge_do_programa",
+                ambiente=nome,
+                area_programa_m2=float(area_programa),
+                area_layout_m2=round(area_layout, 4),
+                detail="o retangulo do layout nao reproduz a area do programa "
+                       "de arquitetura (tolerancia relativa %s)" % tol_rel))
+    return {"ok": not erros, "erros": erros, "por_ambiente": por_ambiente}
 
 
 def envolvente(comodos) -> dict:

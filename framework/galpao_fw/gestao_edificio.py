@@ -493,10 +493,143 @@ def _pontos_hidraulicos(inst, notas):
     return {"hidraulica_ponto": total}
 
 
+def fora_da_tabela_quantificada(result, quantitativos):
+    """Sistemas que a obra TEM e a tabela NAO precifica, medidos NO MODELO (G87).
+
+    Regra: nomear, nunca estimar. Quantidade sai do modelo ja calculado
+    (mesma geometria da derivacao, mesmos sistemas do incendio); sem preco
+    declarado o item sai QUANTIFICADO SEM PRECO, nao chutado. Sem dado de
+    modelo, sai SEM QUANTITATIVO com o motivo nomeando o que falta.
+    Devolve lista de {codigo, descricao, unidade, quantidade|None, motivo}.
+    """
+    est = (result or {}).get("estrutura") or {}
+    inst = (result or {}).get("instalacoes") or {}
+    q = quantitativos or {}
+    fora = []
+
+    # parede: a MESMA area do fechamento (perimetro x altura livre), que e'
+    # a area de alvenaria de fachada do modelo. O revestimento sao as DUAS
+    # faces dessa parede (convencao declarada, nao taxa).
+    area_parede = float(q.get("fechamento_lateral") or 0.0)
+    if area_parede > 0:
+        fora.append({"codigo": "alvenaria_fachada",
+                     "descricao": "Alvenaria de fachada (mesma area do "
+                                  "fechamento_lateral do modelo)",
+                     "unidade": "m2", "quantidade": round(area_parede, 1),
+                     "motivo": ""})
+        fora.append({"codigo": "revestimento_fachada",
+                     "descricao": "Revestimento das duas faces da fachada "
+                                  "(2x a area de alvenaria do modelo)",
+                     "unidade": "m2", "quantidade": round(2.0 * area_parede, 1),
+                     "motivo": ""})
+    else:
+        fora.append({"codigo": "alvenaria_fachada",
+                     "descricao": "Alvenaria de fachada", "unidade": "m2",
+                     "quantidade": None,
+                     "motivo": "parede_sobre_vigas nao declarada: sem parede "
+                               "no modelo nao ha area a medir (ver "
+                               "nao_derivados.fechamento_lateral)"})
+        fora.append({"codigo": "revestimento_fachada",
+                     "descricao": "Revestimento das duas faces da fachada",
+                     "unidade": "m2", "quantidade": None,
+                     "motivo": "sem area de parede no modelo nao ha face a "
+                               "revestir"})
+
+    # impermeabilizacao: a laje do TOPO (cobertura) do modelo — um pavimento
+    # de area. Sem pavimento calculado nao ha cobertura a medir.
+    try:
+        area_cob = float((est.get("pavimento") or {}).get("area_m2") or 0.0)
+    except (TypeError, ValueError):
+        area_cob = 0.0
+    if area_cob > 0:
+        fora.append({"codigo": "impermeabilizacao_cobertura",
+                     "descricao": "Impermeabilizacao da cobertura (area de um "
+                                  "pavimento do modelo)",
+                     "unidade": "m2", "quantidade": round(area_cob, 1),
+                     "motivo": ""})
+    else:
+        fora.append({"codigo": "impermeabilizacao_cobertura",
+                     "descricao": "Impermeabilizacao da cobertura",
+                     "unidade": "m2", "quantidade": None,
+                     "motivo": "estrutura sem pavimento calculado: sem laje "
+                               "de cobertura no modelo"})
+
+    # esquadrias: a arquitetura do edificio nao e' modelada (sem vao, sem
+    # folha a contar). Vidros/loucas/metais seguem o mesmo motivo.
+    fora.append({"codigo": "esquadrias",
+                 "descricao": "Esquadrias, vidros, loucas e metais",
+                 "unidade": "un", "quantidade": None,
+                 "motivo": "arquitetura do edificio nao modelada: sem vao "
+                           "declarado nao ha folha a contar"})
+    # elevador: nenhum modulo o calcula; a carga essencial em VA nao e'
+    # um elevador fisico a orcar.
+    fora.append({"codigo": "elevador",
+                 "descricao": "Elevador e casa de maquinas", "unidade": "un",
+                 "quantidade": None,
+                 "motivo": "nenhum modulo dimensiona o elevador (a carga "
+                           "essencial em VA nao e' equipamento a orcar)"})
+
+    # incendio: contagens JA dimensionadas (sistemas.totais_edificio) — o
+    # que o desenho conta (drawing-vs-data) o orcamento quantifica. Sem a
+    # disciplina, cada sistema sai sem quantitativo com o motivo.
+    inc = inst.get("incendio") or {}
+    sist = inc.get("sistemas") or {}
+    totais = sist.get("totais_edificio") or {}
+    por_pav = sist.get("por_pavimento") or {}
+    n_pav_inc = totais.get("n_pavimentos") or est.get("n_pavimentos")
+
+    def _contagem(chave, descricao, unidade):
+        val = totais.get(chave)
+        try:
+            vf = float(val) if val is not None else 0.0
+        except (TypeError, ValueError):
+            vf = 0.0
+        if vf > 0:
+            return {"codigo": chave, "descricao": descricao, "unidade": unidade,
+                    "quantidade": vf, "motivo": ""}
+        motivo = ("incendio nao dimensionado nesta rodada"
+                  if not sist else
+                  "sistema %s sem contagem nos totais do incendio "
+                  "(por_pavimento=%s, n_pavimentos=%s)"
+                  % (chave, por_pav.get(chave), n_pav_inc))
+        return {"codigo": chave, "descricao": descricao, "unidade": unidade,
+                "quantidade": None, "motivo": motivo}
+
+    fora.append(_contagem("hidrantes", "Hidrantes do edificio (totais do "
+                                      "incendio, NBR 13714)", "un"))
+    fora.append(_contagem("blocos_autonomos", "Blocos autonomos de iluminacao "
+                                             "de emergencia (totais, NBR 10898)",
+                          "un"))
+    fora.append(_contagem("placas", "Placas de sinalizacao de rota (totais, "
+                                   "NBR 16820)", "un"))
+    fora.append(_contagem("detectores", "Detectores de incendio (totais, "
+                                       "NBR 17240)", "un"))
+    reserva = totais.get("reserva_incendio_m3")
+    try:
+        rf = float(reserva) if reserva is not None else 0.0
+    except (TypeError, ValueError):
+        rf = 0.0
+    if rf > 0:
+        fora.append({"codigo": "reserva_incendio_m3",
+                     "descricao": "Reserva de incendio (volume unico do "
+                                  "edificio, nao por pavimento)",
+                     "unidade": "m3", "quantidade": round(rf, 2),
+                     "motivo": ""})
+    else:
+        fora.append({"codigo": "reserva_incendio_m3",
+                     "descricao": "Reserva de incendio", "unidade": "m3",
+                     "quantidade": None,
+                     "motivo": ("incendio nao dimensionado nesta rodada"
+                                if not sist else
+                                "sem reserva nos totais do incendio")})
+    return fora
+
+
 def derivacao(result):
     """Quantitativos do edificio a partir do resultado do adaptador.
 
-    Devolve {'quantitativos', 'composicao', 'a_confirmar', 'nao_derivados'}.
+    Devolve {'quantitativos', 'composicao', 'a_confirmar', 'nao_derivados',
+    'aplicaveis', 'fora_da_tabela'}.
     Nunca levanta por dado ausente: o que nao da para derivar sai NOMEADO em
     `nao_derivados` e o codigo fica sem quantitativo (orcamento parcial
     declarado), que e o oposto de um numero inventado.
@@ -505,6 +638,7 @@ def derivacao(result):
     if not isinstance(est, dict) or not est.get("pavimento"):
         return {"quantitativos": {}, "composicao": {},
                 "aplicaveis": sorted(CODIGOS_APLICAVEIS), "a_confirmar": [],
+                "fora_da_tabela": fora_da_tabela_quantificada(result, {}),
                 "nao_derivados": [{"item": "estrutura",
                                    "motivo": "estrutura nao calculada: nao ha "
                                              "geometria da qual derivar "
@@ -570,8 +704,10 @@ def derivacao(result):
                   "forma_m2": round(forma, 1),
                   "comprimento_vigas_m": round(geo["comprimento_vigas_m"], 2),
                   "n_pavimentos": geo["n_pavimentos"]}
+    fora = fora_da_tabela_quantificada(result, q)
     return {"quantitativos": q, "composicao": composicao, "a_confirmar": notas,
-            "nao_derivados": nao_derivados, "aplicaveis": sorted(escopo)}
+            "nao_derivados": nao_derivados, "aplicaveis": sorted(escopo),
+            "fora_da_tabela": fora}
 
 
 # =============================================================================
@@ -685,7 +821,7 @@ def emitir_orcamento(manifest, run_dir, normalized, options, result):
     ep.orcamento_no_manifesto(
         manifest, run_dir, normalized, dados["quantitativos"],
         aplicaveis=dados["aplicaveis"], precos_extra=PRECOS_EDIFICIO,
-        notas=dados["a_confirmar"],
+        notas=dados["a_confirmar"], fora_da_tabela=dados.get("fora_da_tabela"),
         extras={"composicao": dados["composicao"],
                 "nao_derivados": dados["nao_derivados"]},
         detalhe_vazio="estrutura nao calculada: sem geometria nao ha "

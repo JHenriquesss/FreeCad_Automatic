@@ -24,7 +24,13 @@ from __future__ import annotations
 _PRANCHAS = {
     "arquitetura": ("PE-AR", ["Planta de implantacao", "Planta baixa", "Cortes e fachadas"]),
     "terraplenagem": ("PE-TP", ["Terraplenagem (corte/aterro)", "Drenagem do lote"]),
-    "concreto": ("PE-CO", ["Formas e fundacoes", "Armacao pilares/vigas", "Detalhes"]),
+    "concreto": ("PE-CO", ["Formas e fundacoes", "Armacao pilares/vigas", "Detalhes",
+                         # G80: a fundacao dimensionada por pilar vira folha -
+                         # locacao/formas com dimensoes, cota e carga por
+                         # elemento. Sem esta entrada a prancha evaporaria no
+                         # `continue` do indice (o mesmo D89 da fundacao no G56
+                         # e da alvenaria no G62).
+                         "Locacao e formas da fundacao"]),
     # G62: a parede calculada vira folha - elevacao com fiadas/vaos/quadro +
     # plantas de 1a/2a fiada. Sem esta entrada as folhas evaporariam no
     # `continue` do indice (o mesmo D89 da fundacao no G56).
@@ -38,7 +44,13 @@ _PRANCHAS = {
     "piso": ("PE-PI", ["Planta de juntas do piso industrial"]),
     "eletrico": ("PE-EL", ["Unifilar", "Planta de instalacao", "Infraestrutura/aterramento", "Quadros/QDC"]),
     "hidraulica": ("PE-HI", ["Agua fria", "Esgoto/ventilacao", "Pluvial"]),
-    "incendio": ("PE-IN", ["Planta de prevencao (PPCI)", "Detalhes hidrantes/rotas"]),
+    "incendio": ("PE-IN", ["Planta de prevencao (PPCI)", "Detalhes hidrantes/rotas",
+                          # G81: a escada calculada vira folha - planta e corte
+                          # com espelho/piso, Blondel, largura exigida x
+                          # adotada e tipo Tab.11. Sem esta entrada a prancha
+                          # evaporaria no `continue` do indice (o mesmo D89 da
+                          # fundacao no G56 e da alvenaria no G62).
+                          "Escada de emergencia (planta e corte)"]),
     "climatizacao": ("PE-CL", ["Climatizacao/ventilacao"]),
     "coordenacao": ("PE-CD", ["Modelo federado / compatibilizacao"]),
 }
