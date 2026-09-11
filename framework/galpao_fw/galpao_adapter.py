@@ -251,9 +251,13 @@ def _emit_model_3d(manifest, run_dir, normalized, options, turnkey_result):
 #     fluxo FreeCAD);
 #   incendio: 1 (INC01_PLANTA); climatizacao: 1 (CLI01_ESQUEMA);
 #   coordenacao: 1 (COORD01_PLANTA, techdraw_coordenacao).
-# Os 3 sem emissor ligado (PE-CO-04, PE-IN-02, PE-IN-03) tem entrada com
+# Os 2 sem emissor ligado (PE-CO-04, PE-IN-02) tem entrada com
 # nome declarado e saem sempre pulados com o motivo — ausencia declarada,
-# nunca silencio (a mesma forma do G92 na casa).
+# nunca silencio (a mesma forma do G92 na casa). PE-IN-03 (escada) tem
+# fronteira propria (G101, _indice_galpao_com_fronteira): sem escada
+# declarada no spec a disciplina deixa de prometer o codigo (dispensada
+# com motivo escrito); com escada declarada segue prometido e, sem
+# emissor, sai pulado com o motivo.
 _PRANCHA_ARQUIVO_GALPAO = {
     "PE-CO-01": "PE01_FORMAS.pdf",
     "PE-CO-02": "PE02_PORTICO.pdf",
@@ -318,6 +322,41 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo):
                 "arquivo": _PRANCHA_ARQUIVO_GALPAO.get(codigo, "?")}
 
 
+_PE_IN_03_ESCADA = "PE-IN-03"
+
+
+def _tem_objeto_escada(normalized):
+    raw = (normalized or {}).get("raw_spec") or {}
+    turnkey = (normalized or {}).get("turnkey_spec") or {}
+    for fonte in (raw, turnkey):
+        escada = fonte.get("escada")
+        if isinstance(escada, dict) and escada:
+            return True
+    return False
+
+
+def _motivo_escada_dispensada():
+    return ("not_applicable: PE-IN-03 Escada de emergencia nao prometida "
+            "nesta rodada — dado nao declarado: escada ausente no spec "
+            "(escada=None); galpao_seguranca_incendio nao calcula gates de "
+            "escada e o emissor G81 exige shape escada_concreto + gates "
+            "Tab.10/11")
+
+
+def _indice_galpao_com_fronteira(executadas, normalized):
+    import pacote_legal as pl
+
+    indice = pl.indice_de_pranchas(list(executadas) + ["coordenacao"])
+    dispensadas = []
+    if any(f["codigo"] == _PE_IN_03_ESCADA for f in indice) \
+            and not _tem_objeto_escada(normalized):
+        indice = [f for f in indice
+                  if f["codigo"] != _PE_IN_03_ESCADA]
+        dispensadas.append({"codigo": _PE_IN_03_ESCADA,
+                            "motivo": _motivo_escada_dispensada()})
+    return indice, dispensadas
+
+
 def _conferir_indice_galpao(indice, mapa, disco):
     """Laco indice<->disco do galpao (G93) sobre a lente do G91.
 
@@ -354,6 +393,7 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
         manifest["deliverables"]["drawings"] = {
             "status": "not_available", "detail": "freecad.exe nao encontrado"}
         return
+    dispensadas = []
     try:
         import caderno_turnkey as ct
         drawings_dir = Path(run_dir) / "drawings"
@@ -399,10 +439,9 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
         # no disco ou sai nomeado, um por um.
         puladas = []
         try:
-            import pacote_legal as pl
-
             executadas = (turnkey_result or {}).get("executadas") or []
-            indice = pl.indice_de_pranchas(list(executadas) + ["coordenacao"])
+            indice, dispensadas = _indice_galpao_com_fronteira(
+                list(executadas), normalized)
             disco = [r.get("path", "") for r in artifacts]
             puladas = _conferir_indice_galpao(
                 indice, _PRANCHA_ARQUIVO_GALPAO, disco)
@@ -422,11 +461,13 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
                 result_for_manifest, run_dir)),
             "artifacts": [r.get("path", "") for r in artifacts],
             "skipped": puladas,
+            "dispensadas": dispensadas,
         }
     except Exception as exc:
         manifest["deliverables"]["drawings"] = {
             "status": _optional_status(exc),
             "detail": "%s: %s" % (type(exc).__name__, exc),
+            "dispensadas": dispensadas,
         }
 
 

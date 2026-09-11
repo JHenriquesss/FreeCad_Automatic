@@ -1299,3 +1299,140 @@ vez. Aplicada aos portoes existentes (G51, G69, G75, G77, G83) e ao G91.
 A isencao que o goal exigia: assert que **depende** do anterior (`assert r is not None`
 antes de `assert r["x"] == 3`) e correto e sai com motivo escrito - isencao sem motivo e
 silencio, nao triagem, a mesma regra que derrubou o G77.
+
+## D125/G104 - pranchas A1 sem freecad.exe para as tres disciplinas de esquema puro (2026-09-11) - FECHADO
+Hidraulica, incendio e climatizacao **nao tem 3D** (o esquema e' SVG do `desenho_*`,
+o quadro e' tabela+notas do `config_de_spec`) e mesmo assim cada uma pagava uma
+instancia grafica de `freecad.exe` so para carimbar esse conteudo numa A1.
+`prancha_svg_direta.py` e' a rota alternativa em Python puro: esquema SVG -> PNG
+via pixmap do fitz (`caderno_casa_edificio.svg_para_png`; `doc.save()` direto sobre
+SVG falha - G94) -> pagina A1, e quadro+notas verbatim do cfg + carimbo da funcao
+propria da disciplina (`_carimbo_hid/_carimbo_inc/_carimbo_cli`, nunca o generico)
+em pagina A1 de texto. Reuso, nao reescrita: o conteudo e' o **mesmo** `config_de_spec`
+do FreeCAD, e os basenames sao os mesmos das paginas (`HID01_ESQUEMA`, `INC01_PLANTA`,
+`CLI01_ESQUEMA` + quadros), entao `caderno_turnkey._coletar_pdfs` encontra sem mudanca.
+**Medido** (galpao 40x20x6, processo novo a cada rodada, kill confirmado sem zumbi):
+HID 15,25s -> 0,56s; INC 21,09s -> 0,62s; CLI 13,52s -> 0,57s; total ~49,9s -> ~1,75s
+(~28x). O esquema-fonte e' byte-identico ao do FreeCAD (mesma funcao), entao "mesmo
+conteudo" nao e' promessa: e' `confere_folha_svg` + `ET.fromstring` + `svg_para_png`
+no teste, um esquema renderizado e olhado, e o quadro cobrado pelos numeros do
+`rodar()` (DN/capacidade calculados, nunca derivados do proprio PDF - convencao 5).
+O caminho FreeCAD **continua existindo** (`backend="freecad"` nos tres
+`montar_pranchas`; o default virou `"svg"`): este goal nao o remove, e o G105 mede
+o aco por cima dessa rota.
+
+## D126/G101 - o galpao: PE-IN-03 sai da promessa sem escada declarada, PE-IN-02 segue declarado (2026-09-11) - FECHADO
+Caminho **(b), escrito**: sem objeto escada no spec, a disciplina incendio do
+galpao **deixa de prometer** PE-IN-03 em vez de prometer e declarar ausente.
+`galpao_adapter._indice_galpao_com_fronteira` tira o codigo do indice e registra
+`dispensadas` no manifesto com motivo `not_applicable` escrito (codigo + dado
+nomeado: `escada=None` no spec); com escada declarada (`raw_spec`/`turnkey_spec`
+com `escada` truthy) o codigo segue prometido — e, sem emissor, sai pulado com
+o `_motivo` (ausencia declarada, nao silencio). O portao do G91 reflete a
+escolha: dispensada nao e "faltando".
+**Medido, sem arbitrar norma**: (1) `desenho_escada_edificio.planta_escada_svg({},
+None)` levanta `ValueError: sem 'geometria'` — o emissor G81 exige o shape de
+`escada_concreto.dimensiona` + gates de `incendio_edificio` (Tab.10/11); (2)
+`galpao_seguranca_incendio.rodar` minimo devolve gates sem nada de escada
+(iluminacao/sinalizacao/deteccao/sprinklers/hidrantes); (3) `projeto_spec`
+traz `"escada": None` por default (opt-in com `desnivel/projecao/largura`);
+(4) `escada.py` do galpao e metalica industrial (`n_espelhos/espelho_mm`,
+`patamar_comprimento_m`) — shape incompativel com `geometria.n_degraus/
+espelho/piso/patamar_m/largura_m/armadura`. Reuso direto falha nos dois eixos.
+**Alternativa (a) rejeitada**: declarar a escada no spec e reusar o emissor
+exigiria inventar desnivel, largura, tipo, ocupacao e altura — valor normativo,
+e o framework nao arbitra. A fronteira aqui e estrutural (sem objeto, sem
+promessa), nao isencao normativa: nenhum artigo e citado e nenhum e inventado;
+a NBR 9077 rege saidas/escadas e a IT especifica do CBM local segue A CONFIRMAR.
+**PE-IN-02 medido e decidido**: o `rodar()` do galpao calcula tipo/sistema/
+N_hidrantes/vazao/reserva, mas nao DN de coluna/rede, tracado vertical nem
+pavimentos (o corte DN65 so existe em
+`desenho_incendio.detalhes_hidrantes_rotas_svg`, shape do predio com
+`gates.rotas_verticais/escada_largura`). Desenha-lo seria inventar dado:
+segue declarado ausente com o dado nomeado. Guarda em
+`tests/test_galpao_escada_fronteira_g101.py` (7 passed: medicao independente,
+baseline nos dois sentidos, rodada stub sem/com escada, vermelho por injecao
+em `tmp_path`); G93 (7) e G91 (6) verdes, sem regressao.
+
+## D127/G105 - o harness de medicao por prancha do executivo de aco (2026-09-11) - FECHADO (ferramenta; numero ABERTO)
+Ferramenta, nao otimizacao (o D118 pediu exatamente este goal): `tools_harness_aco_por_prancha.py`
+(SCRIPT AVULSO) mede por prancha t_build/t_hlr/t_cotas/t_export, um processo `freecad.exe` por
+prancha, sempre encerrado via `RP._matar_processo_freecad` (kill -> taskkill /F /T -> WMI Terminate,
+D64), agregado em JSON + CSV. Registro de 17 paginas (PE01-PE16 + colisao PE14_DET_CONSOLE x
+PE14_CROQUIS pelo nome completo; PE15/PE14_CROQUIS condicionais saem com motivo, nunca zero
+silencioso), classe hlr/coarse/2d por prancha (PE09/PE16 sao os controles 2D puros). Portao em
+`tests/test_harness_aco_g105.py`: registro x fonte (assinaturas + LIGACOES), BASELINE_G105 nos
+dois sentidos, vermelho por injecao em tmp_path (estouro de orcamento, prancha faltando, boot sem
+despacho). Numeros por prancha: not_available — nao ha modelo FCStd no disco (verificado: nenhum
+*.FCStd em projects/) e orcamento inventado seria dado arbitrado. Rodada manual quando houver
+modelo: `python tools_harness_aco_por_prancha.py --fcstd <modelo.FCStd> --out <dir>`; os tempos
+entao escritos viram o orcamento do `conferir_orcamento` (prancha mais lenta reprova).
+Pre-requisito do D118 mantido: sem fonte declarada p/ os 3 numeros de `_notas_do_modelo` fora do
+3D, migrar PE09/PE16 a SVG seria saturacao silenciosa, nao economia.
+**Nota do G106:** o aceite do goal era "o numero por prancha existe e esta escrito" - e ele NAO
+existe. "Nao ha FCStd no disco" nao e bloqueio de fonte: o modelo se constroi (`montar_modelo`,
+fallback headless, S19). A ferramenta fecha; a medicao fica aberta e nomeada no backlog seguinte.
+
+## D128/G99 - a casa liga o eletrico que ela ja calcula (2026-09-11) - FECHADO
+`casa_residencial._emitir_desenhos` chama `desenho_eletrico_residencial.gerar_desenhos_residenciais`
+sobre `resultado.eletrico` (o resultado ELETRICO, nao a casa inteira). PE-EL-01/02/04 saem no disco
+(`unifilar.svg`, `quadro-cargas.svg`, `planta-eletrica.svg`) com as triagens proprias do emissor
+intactas (`layout_not_declared`, `invalid_layout`); PE-EL-03 segue declarado (sem emissor, malha
+nao declarada). Rodada real do spec persistido: 12 folhas no disco (eram 6).
+**Corrigido no G106:** o `except` do hook devolvia `{"files": [], "skipped": {}}` e apagava a
+excecao - o laco caia no motivo generico "sem emissor ligado", falso depois deste goal (o except
+catch-all do G74, de novo). A falha agora viaja com a excecao para as tres folhas, e os tres
+ramos de motivo voltaram com o dado CERTO (`resultado.eletrico.circuits ausente`), em vez de
+sumir: motivo que sobrevive ao fato vira nome morto, mas motivo apagado cai no generico.
+Guarda: `tests/test_casa_eletrica_g99.py` test_05.
+
+## D129/G100 - as folhas de concreto da casa pelas primitivas do predio (2026-09-11) - FECHADO
+Tres wrappers em `desenho_casa_residencial` (sem copia): PE-CO-02 ->
+`desenho_pavimento.prancha_armacao_vigas_svg` (le `estrutura.vigas`, verificadas desde o G34),
+PE-CO-03 -> `desenho_concreto.planta_laje_svg`, PE-CO-04 ->
+`desenho_fundacao_edificio.planta_fundacao_svg` (so com `por_pilar`). Na casa em alvenaria
+portante (vigas vazias, sapata corrida por linha) a ausencia vira `ValueError` com o dado nomeado
+e vai para `skipped`, nunca folha vazia. As tres entram em `FOLHAS` do G77. Renderizadas e olhadas
+no G106: 7 linhas/17 tramos, 12 sapatas com viga de equilibrio cotada, laje com quadro de ferros.
+**Corrigido no G106 (rotulo x geometria):** o titulo da folha dizia "ARMACAO DE VIGAS E PILARES"
+e a primitiva desenha so vigas. Titulo corrigido; o arquivo manteve o nome. A divida e maior e
+anterior: o indice promete "Armacao pilares/vigas" em PE-CO-02 nas duas tipologias e **nenhuma
+emite armacao de pilar** - aberto no backlog. Tambem medido: a PE-CO-03 desenha UM painel
+(3,50 x 4,00) de uma casa com seis, sem dizer qual nem por que (o predio faz o mesmo).
+
+## D130/G102 - indice x DISCO de rodada real, e o quarto lado da lente (2026-09-11) - FECHADO
+`tests/test_indice_disco_rodada_g102.py` roda as tres tipologias sobre specs de `projects/`
+(`generate_ifc` desligado) e confronta o indice com o MANIFESTO: sem_mapa, sobrando, faltando,
+`extra_no_disco` (quarto lado novo em `varredura_indice_disco`, isencao escrita obrigatoria:
+`quadro-ambientes.svg`, `conferencia-nbr5410.svg`), manifesto que mente (artefato sem arquivo) e
+arquivo fora de `manifest["artifacts"]`. O G91 foi renomeado no docstring para o que mede
+(indice x MAPA). Custo medido: casa 1,9 s, predio 34,8 s, galpao 38,5 s - roda no CI.
+**Medido no G106, e escrito no teste:** em rodada real de casa/predio `faltando` nao dispara
+nunca - o laco do proprio adaptador nomeia todo arquivo ausente. O lado do disco que so a rodada
+real mede e manifesto x arquivo + extra. E o galpao roda com `generate_2d` desligado (sem
+`freecad.exe` o deliverable inteiro sai `not_available`), entao do galpao so se mede indice x mapa.
+**Corrigido no G106:** (1) o teto de custo so era conferido contra a constante escrita a mao
+(test_05) - agora o test_01 cobra o tempo MEDIDO; (2) as injecoes do test_03/04 eram sobre disco
+derivado do mapa, a forma do G91 - o test_06 injeta sobre rodada real da casa (apaga um arquivo
+dito emitido; registra artefato sem codigo) e fica vermelho nos dois.
+
+## D131/G103 - disciplina executada sem prancha: o D89 do lado da promessa (2026-09-11) - FECHADO
+`varredura_disciplina_prancha.py` (funcao pura): disciplina executada tem entrada em
+`pacote_legal._PRANCHAS`, cobertura declarada (`fundacao` -> `concreto`) ou isencao com motivo
+escrito. Aplicada as tres fontes vivas; `mezanino` do galpao sai isento com motivo (parte da
+estrutura, calculado e federado, sem prancha propria). BASELINE_G103 nos dois sentidos, injecao
+em tmp_path, isencao em branco reprova.
+**Limite medido (G106):** as fontes de casa/predio (`disciplinas_pacote`) ja traduzem `fundacao`
+para `concreto` antes da lente - o ramo `COBERTA_POR` so e exercitado pelo teste, nunca pela
+fonte viva. Nao e vermelho; e o que a lente mede.
+
+## D132/G106 - auditoria do lote G99-G105 (2026-09-11) - FECHADO
+Quatro defeitos, nenhum de engenharia de calculo, todos da mesma familia - **dado que some sem
+aviso**: (1) a rota SVG-direta do G104 cortava cada linha do quadro em 220 caracteres e parava no
+fim da A1 com `break`: dois itens do memorial da hidraulica (NBR 5626 e "posicoes esquematicas")
+saiam pela metade, em silencio. Agora quebra linha e continua em pagina A1 de continuacao com o
+carimbo; guarda compara cada nota do `config_de_spec` com o texto do PDF, e o corte antigo
+re-injetado deixa a guarda vermelha. (2) except que apagava a excecao do emissor eletrico (D128).
+(3) titulo que prometia pilar (D129). (4) portao de custo que nunca media (D130).
+Os portoes de censo (G51, G97, G77, alcancabilidade) estavam **verdes** na entrega - a regra do
+lote funcionou pela primeira vez: os dois modulos novos entraram com isencao e motivo.

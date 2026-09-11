@@ -194,10 +194,14 @@ def test_03_vermelho_por_injecao_via_tmp_path(tmp_path):
 
 def test_04_promessa_segue_o_resultado_fonte_unica(tmp_path):
     """A promessa segue `disciplinas_pacote(result)`: sem eletrico
-    calculado, PE-EL nao e prometido e o laco nao o tria; com ele, tria.
+    calculado, PE-EL nao e prometido e o laco nao o tria; com ele, o
+    emissor eletrico e chamado no hook (G99).
 
     Prova comportamental da fonte unica (anti-tautologia: o laco e
-    confrontado com uma variacao do resultado, nao com ele mesmo).
+    confrontado com uma variacao do resultado, nao com ele mesmo). Com o
+    fixture minimo (circuits sem layout declarado) o unifilar e o quadro
+    saem no disco, a planta sai nomeada com a triagem do proprio emissor
+    (`layout_not_declared`) e PE-EL-03 continua declarado sem emissor.
     """
     import casa_residencial as casa
 
@@ -214,16 +218,31 @@ def test_04_promessa_segue_o_resultado_fonte_unica(tmp_path):
     manifesto2 = {"artifacts": [], "deliverables": {}}
     casa._emitir_desenhos(manifesto2, str(tmp_path / "b"), {}, opt,
                           copy.deepcopy(com_ele))
-    pulados_com = dict(
-        manifesto2["deliverables"]["drawings"].get("skipped") or {})
+    desenhos2 = manifesto2["deliverables"]["drawings"]
+    pulados_com = dict(desenhos2.get("skipped") or {})
+    artefatos_com = list(desenhos2.get("artifacts") or [])
     tem_el = [casa._PRANCHA_ARQUIVO_CASA[c] for c in
               ("PE-EL-01", "PE-EL-02", "PE-EL-03", "PE-EL-04")]
     gaps = []
     if any(n in pulados_sem for n in tem_el):
         gaps.append("sem eletrico calculado o laco triou PE-EL: %r"
                     % (sorted(set(tem_el) & set(pulados_sem)),))
-    if any(n not in pulados_com for n in tem_el):
-        gaps.append("com eletrico calculado falta triagem PE-EL: %r"
-                    % (sorted(set(tem_el) - set(pulados_com)),))
+    # G99: unifilar + quadro emitidos pelo emissor eletrico no hook.
+    for nome in ("unifilar.svg", "quadro-cargas.svg"):
+        if "drawings/" + nome not in artefatos_com:
+            gaps.append("%s devia sair no disco com eletrico calculado "
+                        "(G99): %r" % (nome, artefatos_com))
+        if nome in pulados_com:
+            gaps.append("%s emitido e triado ao mesmo tempo: %r"
+                        % (nome, pulados_com.get(nome)))
+    # G99: sem layout declarado a planta sai nomeada, nunca vazia.
+    if pulados_com.get("planta-eletrica.svg") != "layout_not_declared":
+        gaps.append("planta sem layout devia sair nomeada "
+                    "layout_not_declared: %r" % (pulados_com,))
+    # G99: PE-EL-03 continua declarado (sem emissor, malha nao declarada).
+    if "eletrica-infra-aterramento-casa.svg" not in pulados_com:
+        gaps.append("PE-EL-03 devia continuar declarado: %r"
+                    % (sorted(pulados_com),))
     assert not gaps, (
-        "G92 fonte unica:\n%s" % "\n".join("  - " + g for g in gaps))
+        "G92 fonte unica / G99 emissor ligado:\n%s"
+        % "\n".join("  - " + g for g in gaps))

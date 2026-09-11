@@ -169,7 +169,8 @@ def rodar(spec):
     return res
 
 
-def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200):
+def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
+                      backend="svg"):
     """Gera o PROJETO EXECUTIVO (pranchas A1 TechDraw) da seguranca contra incendio
     a partir de rodar(r). NAO precisa de FCStd: a planta de seguranca e' um ESQUEMA
     (SVG do desenho_incendio), nao vista de um 3D. Roda o freecad.exe em modo grafico
@@ -177,7 +178,14 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200):
     PDF+SVG+PNG por prancha em out_dir/pranchas.
 
     Mesma mecanica dos demais montar_pranchas (freecad.exe NOVO -> processo limpo;
-    kill de zumbi garantido na saida). Retorna {ok, pranchas, arquivos, fcstd} | {erro}."""
+    kill de zumbi garantido na saida). Retorna {ok, pranchas, arquivos, fcstd} | {erro}.
+
+    G104: backend="svg" (default) usa a rota SVG-direta sem freecad.exe
+    (prancha_svg_direta, A1 com carimbo); backend="freecad" preserva o caminho
+    grafico."""
+    if backend != "freecad":
+        import prancha_svg_direta as PSD
+        return PSD.montar_pranchas_rota_direta(r, out_dir, "incendio", spec=spec)
     import os, json, time, tempfile, subprocess
     import techdraw_incendio as TDI
     import rodar_projeto as RP

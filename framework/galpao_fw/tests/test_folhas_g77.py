@@ -347,6 +347,22 @@ FOLHAS = {
     "desenho_casa_residencial.planta_baixa_svg":
         lambda: __import__("desenho_casa_residencial").planta_baixa_svg(
             _casa_resultado()["arquitetura"], _layout_casa_g78()),
+    # G100: as folhas de concreto da casa reusam as primitivas do predio
+    # (wrappers em desenho_casa_residencial, sem copia). Fixture real da
+    # casa de concreto (spec persistido): 7 linhas / 17 tramos verificados
+    # e fundacao por pilar.
+    "desenho_casa_residencial.armacao_vigas_pilares_casa_svg":
+        lambda: __import__(
+            "desenho_casa_residencial").armacao_vigas_pilares_casa_svg(
+            _casa_resultado()["estrutura"]),
+    "desenho_casa_residencial.detalhes_concreto_casa_svg":
+        lambda: __import__(
+            "desenho_casa_residencial").detalhes_concreto_casa_svg(
+            _casa_resultado()["estrutura"]),
+    "desenho_casa_residencial.fundacao_locacao_formas_casa_svg":
+        lambda: __import__(
+            "desenho_casa_residencial").fundacao_locacao_formas_casa_svg(
+            _casa_resultado()["estrutura"]),
 
     # ---- eletrica residencial (fase 6B) ----------------------------------
     "desenho_eletrico_residencial.unifilar_residencial_svg":

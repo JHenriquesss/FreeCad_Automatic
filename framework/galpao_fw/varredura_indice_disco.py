@@ -29,6 +29,15 @@
 #   - N:1 (um arquivo cobrindo varios codigos, ex. hidraulica do galpao):
 #     cada codigo com entrada no mapa e avaliado pela sua entrada; dois
 #     codigos apontando para o mesmo arquivo nao e "sobrando".
+#
+# G102 (quarto lado): a lente ganhou `extra_no_disco` — arquivo no disco
+# que nenhum codigo reivindica. Folha de conferencia interna (ex.
+# quadro-ambientes.svg da casa) e legitima, mas so com isencao escrita:
+# `isencoes_extra={arquivo: motivo}`; motivo apagado e silencio, nao
+# triagem (mesma regra dos pulados). O `OK` continua cobrindo os tres
+# lados antigos mais o quarto: portao que passava disco=mapa.values()
+# (a tautologia do G91) continua verde aqui, e o portao de rodada real
+# (tests/test_indice_disco_rodada_g102.py) cobra o quarto lado.
 # ============================================================================
 """Varredura G91: indice de pranchas <-> arquivos no disco, funcao pura."""
 
@@ -76,21 +85,48 @@ def _motivos_validos(motivos):
     return saida
 
 
+def conferir_extras_no_disco(mapa_codigo_arquivo, nomes_no_disco,
+                             isencoes_escritas=None):
+    """Quarto lado (G102): arquivos no disco que nenhum codigo reivindica.
+
+    Compara os basenames do disco contra os valores do mapa (normalizados
+    por _base). Cada extra sai isento com motivo escrito (folha de
+    conferencia interna e legitima) ou e gap. Motivo vazio/em branco nao
+    isenta. Entrada malformada (mapa None ou nao-dict) levanta TypeError.
+    """
+    if mapa_codigo_arquivo is None:
+        raise TypeError("mapa_codigo_arquivo nao pode ser None")
+    if not isinstance(mapa_codigo_arquivo, dict):
+        raise TypeError("mapa_codigo_arquivo tem de ser dict codigo->arquivo")
+    reivindicados = {_base(v) for v in mapa_codigo_arquivo.values()
+                     if _base(v)}
+    no_disco = {_base(n) for n in (nomes_no_disco or []) if _base(n)}
+    isentos = _motivos_validos(isencoes_escritas)
+    extras = sorted(n for n in no_disco
+                    if n not in reivindicados and n not in isentos)
+    return {"extra_no_disco": extras, "OK_extra": not extras}
+
+
 def conferir_indice_disco(codigos_prometidos, mapa_codigo_arquivo,
-                          nomes_no_disco, motivos_escritos):
+                          nomes_no_disco, motivos_escritos,
+                          isencoes_extra=None):
     """Confronta o indice prometido com o disco, via o mapa codigo->arquivo.
 
     codigos_prometidos: os codigos do indice (pacote_legal).
     mapa_codigo_arquivo: {codigo: arquivo em drawings/} (o mapa da tipologia).
     nomes_no_disco: arquivos emitidos nesta rodada (com ou sem "drawings/").
     motivos_escritos: pulados com motivo (ver _motivos_validos).
+    isencoes_extra: {arquivo: motivo} para o quarto lado (G102); extra sem
+      isencao escrita e gap, mesmo com os tres lados verdes.
 
-    Devolve {"OK", "faltando", "sobrando", "sem_mapa"}:
+    Devolve {"OK", "faltando", "sobrando", "sem_mapa", "extra_no_disco"}:
       - faltando: codigo COM entrada no mapa cujo arquivo nem saiu nem foi
         nomeado com motivo;
       - sobrando: entrada no mapa que o indice nao promete (nome morto);
       - sem_mapa: codigo prometido que nem entrada no mapa tem;
-      - OK: os tres vazios.
+      - extra_no_disco: arquivo no disco que nenhum codigo reivindica e
+        nenhuma isencao escrita cobre;
+      - OK: os quatro vazios.
     Entrada malformada (None onde se espera lista/mapa) levanta TypeError:
     lente que devolve OK sobre lixo e saturacao silenciosa. Quem chama em
     adaptador captura e registra via registro_laco_quebrado (o "(indice)"
@@ -111,9 +147,11 @@ def conferir_indice_disco(codigos_prometidos, mapa_codigo_arquivo,
                       and _base(mapa_codigo_arquivo[c]) not in no_disco
                       and _base(mapa_codigo_arquivo[c]) not in nomeados)
     sobrando = sorted(c for c in mapa_codigo_arquivo if c not in tem)
-    return {"OK": not (faltando or sobrando or sem_mapa),
+    extra = conferir_extras_no_disco(
+        mapa_codigo_arquivo, nomes_no_disco, isencoes_extra)["extra_no_disco"]
+    return {"OK": not (faltando or sobrando or sem_mapa or extra),
             "faltando": faltando, "sobrando": sobrando,
-            "sem_mapa": sem_mapa}
+            "sem_mapa": sem_mapa, "extra_no_disco": extra}
 
 
 def registro_laco_quebrado(exc):
@@ -141,14 +179,16 @@ def relatorio_pt(por_tipologia, mapas=None, prometidos=None):
         res = por_tipologia[nome]
         mapa = mapas.get(nome) or {}
         linhas.append("  [%s] OK=%s prometidos=%d faltando=%d sobrando=%d "
-                       "sem_mapa=%d" % (
+                       "sem_mapa=%d extra_no_disco=%d" % (
                            nome, res["OK"], len(prometidos.get(nome) or []),
-                           len(res["faltando"]), len(res["sobrando"]),
-                           len(res["sem_mapa"])))
-        for lado in ("sem_mapa", "faltando", "sobrando"):
-            for codigo in res[lado]:
+                           len(res.get("faltando") or []),
+                           len(res.get("sobrando") or []),
+                           len(res.get("sem_mapa") or []),
+                           len(res.get("extra_no_disco") or [])))
+        for lado in ("sem_mapa", "faltando", "sobrando", "extra_no_disco"):
+            for codigo in res.get(lado) or []:
                 esperado = mapa.get(codigo, "-")
-                linhas.append("    %-9s %-10s -> %s" % (lado, codigo, esperado))
+                linhas.append("    %-14s %-10s -> %s" % (lado, codigo, esperado))
     return "\n".join(linhas)
 
 
@@ -173,6 +213,30 @@ def _selftest():
     morto = conferir_indice_disco(
         [], {"PE-XX-01": "morta.svg"}, [], {})
     assert morto["sobrando"] == ["PE-XX-01"]
+    # G102, quarto lado: disco derivado do mapa nao tem extra (a tautologia
+    # do G91 continua verde); arquivo nao reivindicado e gap; isencao
+    # escrita libera; motivo em branco nao.
+    tautologico = conferir_indice_disco(
+        ["PE-AR-01"], {"PE-AR-01": "a.svg"}, ["a.svg"], {})
+    assert tautologico["OK"] and tautologico["extra_no_disco"] == []
+    fantasma = conferir_indice_disco(
+        ["PE-AR-01"], {"PE-AR-01": "a.svg"}, ["a.svg", "fantasma.svg"], {})
+    assert fantasma["extra_no_disco"] == ["fantasma.svg"] \
+        and not fantasma["OK"]
+    isento = conferir_indice_disco(
+        ["PE-AR-01"], {"PE-AR-01": "a.svg"}, ["a.svg", "fantasma.svg"], {},
+        {"fantasma.svg": "folha de conferencia interna, sem codigo"})
+    assert isento["OK"] and isento["extra_no_disco"] == []
+    isencao_apagada = conferir_indice_disco(
+        ["PE-AR-01"], {"PE-AR-01": "a.svg"}, ["a.svg", "fantasma.svg"], {},
+        {"fantasma.svg": "   "})
+    assert isencao_apagada["extra_no_disco"] == ["fantasma.svg"] \
+        and not isencao_apagada["OK"]
+    try:
+        conferir_extras_no_disco(None, [], {})
+        raise AssertionError("mapa None devia levantar")
+    except TypeError:
+        pass
     try:
         conferir_indice_disco(None, {}, [], {})
         raise AssertionError("None devia levantar")

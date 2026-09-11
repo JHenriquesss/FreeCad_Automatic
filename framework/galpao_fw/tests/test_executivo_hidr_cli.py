@@ -67,9 +67,14 @@ def test_bootstrap_hidraulica():
     assert "_entry_hidraulica" in boot and "QTimer" in boot and "esquema_svg" in boot
 
 
-def test_montar_pranchas_hidraulica_sem_freecad():
-    res = ghi.montar_pranchas(_r_hid(), "/tmp/x", freecad_exe="/nao/existe.exe")
-    assert "erro" in res
+def test_montar_pranchas_hidraulica_sem_freecad(tmp_path):
+    # G104: o default virou a rota SVG-direta (sem freecad.exe); o caminho
+    # grafico continua via backend="freecad" e sem exe segue erro nomeado.
+    res = ghi.montar_pranchas(_r_hid(), str(tmp_path), freecad_exe="/nao/existe.exe")
+    assert res.get("ok") is True and res.get("rota") == "svg-direta", res
+    res_f = ghi.montar_pranchas(_r_hid(), str(tmp_path), freecad_exe="/nao/existe.exe",
+                                backend="freecad")
+    assert "erro" in res_f
 
 
 # ------------------------------ CLIMATIZACAO --------------------------------
@@ -100,6 +105,9 @@ def test_bootstrap_climatizacao():
     assert "_entry_climatizacao" in boot and "QTimer" in boot
 
 
-def test_montar_pranchas_climatizacao_sem_freecad():
-    res = gcl.montar_pranchas(_r_cli(), "/tmp/x", freecad_exe="/nao/existe.exe")
-    assert "erro" in res
+def test_montar_pranchas_climatizacao_sem_freecad(tmp_path):
+    res = gcl.montar_pranchas(_r_cli(), str(tmp_path), freecad_exe="/nao/existe.exe")
+    assert res.get("ok") is True and res.get("rota") == "svg-direta", res
+    res_f = gcl.montar_pranchas(_r_cli(), str(tmp_path), freecad_exe="/nao/existe.exe",
+                                backend="freecad")
+    assert "erro" in res_f

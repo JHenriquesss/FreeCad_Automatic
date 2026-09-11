@@ -115,10 +115,18 @@ def emitir_bim(r, path, nome="GalpaoClimatizacao"):
     return ifc_emit.emitir_ifc(membros, path, nome=nome, secao_em_metros=True)
 
 
-def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200):
+def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
+                      backend="svg"):
     """Gera o PROJETO EXECUTIVO (pranchas A1 TechDraw) da climatizacao a partir de rodar(r).
     NAO precisa de FCStd (o esquema e' SVG do desenho_climatizacao). Mesma mecanica dos
-    demais montar_pranchas (freecad.exe grafico + status json + kill de zumbi)."""
+    demais montar_pranchas (freecad.exe grafico + status json + kill de zumbi).
+
+    G104: backend="svg" (default) usa a rota SVG-direta sem freecad.exe
+    (prancha_svg_direta, A1 com carimbo); backend="freecad" preserva o caminho
+    grafico."""
+    if backend != "freecad":
+        import prancha_svg_direta as PSD
+        return PSD.montar_pranchas_rota_direta(r, out_dir, "climatizacao", spec=spec)
     import os, json, time, tempfile, subprocess
     import techdraw_climatizacao as TDC
     import rodar_projeto as RP

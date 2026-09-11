@@ -1,10 +1,20 @@
-"""G91 - uma lente de indice<->disco para as tres tipologias.
+"""G91 - portao INDICE x MAPA das tres tipologias (divisao do G102).
 
 Contexto: tres implementacoes do mesmo contrato, nenhuma delas E o
 contrato. O predio confronta o indice de todas as disciplinas do pacote
 + coordenacao contra _PRANCHA_ARQUIVO (15/15); a casa confronta so
 ["arquitetura"] (3/3, recorte do proprio escopo); o galpao nao tem mapa
 nenhum (numero contra numero em pacote_no_manifesto).
+
+O nome historico diz "disco", mas este portao mede indice x MAPA: os
+tres quadros montam "disco" como sorted(mapa.values()), entao `faltando`
+nunca pode disparar aqui (a divida que o G102 registra e cobra). O que
+este portao mede de verdade — `sem_mapa` e `sobrando` — e real e util,
+e continua verde. O indice x DISCO de verdade, sobre rodada real com o
+manifesto (mais o quarto lado `extra_no_disco`), esta em
+tests/test_indice_disco_rodada_g102.py. O arquivo e os nomes de teste
+ficam como estao porque a lista PORTOES_G97 (test_asserts_sequencia)
+os referencia pelo nome.
 
 Este portao ENTROU VERMELHO DE PROPOSITO na arvore viva: casa (13 sem
 mapa) e galpao (19 sem mapa) reprovavam no minuto em que a lente existiu.

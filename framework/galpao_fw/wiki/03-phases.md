@@ -654,6 +654,35 @@ novo); `mezanino` é executado pelo turnkey do galpão e não existe no índice,
 índice × **mapa** — o lado do disco vive nos portões por tipologia, e essa distinção precisa
 de portão próprio.
 
+## FECHADA — G99–G105: a declaração vira folha onde o emissor já existia — 2026-09-11
+O arco anterior fez o pacote parar de mentir (todo código sai no disco **ou** nomeado). Este
+trocou nomeado por folha.
+
+**O que entrou.**
+- **G99** a casa chama o emissor elétrico que já calculava: unifilar, quadro e planta no
+  disco ([[04-decisions#D128]]).
+- **G100** PE-CO-02/03/04 da casa pelas primitivas do prédio, sem cópia; rodada real do spec
+  persistido sai com 12 folhas (eram 6) ([[04-decisions#D129]]).
+- **G101** o galpão sem escada declarada deixa de prometer PE-IN-03 ([[04-decisions#D126]]).
+- **G102** índice × disco de rodada real + o quarto lado `extra_no_disco`
+  ([[04-decisions#D130]]).
+- **G103** disciplina executada sem prancha: `mezanino` isento com motivo
+  ([[04-decisions#D131]]).
+- **G104** hidráulica/incêndio/climatização em A1 sem `freecad.exe`: ~49,9 s → ~1,75 s
+  ([[04-decisions#D125]]).
+- **G105** o harness por prancha do aço — ferramenta pronta, número ainda não medido
+  ([[04-decisions#D127]]).
+
+**Auditoria (G106, [[04-decisions#D132]]).** Quatro defeitos, todos "dado que some sem
+aviso": quadro A1 cortado em 220 caracteres, except que apagava a exceção do emissor,
+título que prometia pilar, e portão de custo que conferia uma constante. Os portões de censo
+estavam verdes na entrega — a regra do lote funcionou pela primeira vez.
+
+**Aberto, medido — a fila G107–G112.** O galpão ainda exige `freecad.exe` para o deliverable
+inteiro; o prazo do caderno reserva tempo de FreeCAD para disciplinas de 0,6 s; o número por
+prancha do aço não existe; PE-CO-02 promete pilar e ninguém desenha; PE-CO-03 mostra um
+painel de seis; o carimbo do galpão numera diferente do índice.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

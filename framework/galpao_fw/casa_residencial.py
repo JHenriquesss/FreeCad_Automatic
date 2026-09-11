@@ -756,6 +756,40 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         return
     for nome in emitido["files"]:
         _add_artifact(manifest, run_dir, destino / nome, "drawing")
+    # G99: o emissor eletrico existe e esta provado (fase 6B) - liga-lo ao
+    # hook da casa. Ele espera o RESULTADO ELETRICO (top-level `circuits`,
+    # `calculation`, `service_entry`), nao a casa inteira. Sem `circuits`
+    # nao ha o que desenhar: nao chama, e o laco abaixo nomeia via
+    # _motivo (ausencia se declara, nunca default silencioso). As
+    # triagens proprias do emissor (`layout_not_declared`,
+    # `invalid_layout`) viajam intactas para `ignorados`, sem reescrita.
+    eletrico = (result or {}).get("eletrico")
+    if isinstance(eletrico, dict) and isinstance(
+            eletrico.get("circuits"), dict):
+        try:
+            import desenho_eletrico_residencial as der
+
+            emitido_el = der.gerar_desenhos_residenciais(eletrico, destino)
+        except Exception as exc:                          # noqa: BLE001
+            # A falha do emissor viaja NOMEADA para as tres folhas: o
+            # except que devolvia listas vazias apagava a excecao e o laco
+            # caia no motivo generico "sem emissor ligado" - falso depois
+            # do G99 (o except catch-all do G74, de novo).
+            falha = "emissor eletrico falhou: " + _erro_entregavel(exc)
+            emitido_el = {"files": [], "skipped": {
+                nome: falha for nome in ("unifilar.svg", "quadro-cargas.svg",
+                                         "planta-eletrica.svg")}}
+        for nome in list(emitido_el.get("files") or []):
+            if nome not in emitido["files"]:
+                emitido["files"].append(nome)
+            _add_artifact(manifest, run_dir, destino / nome, "drawing")
+        base_ignorados = emitido.get("skipped")
+        if not isinstance(base_ignorados, dict):
+            base_ignorados = {}
+            emitido["skipped"] = base_ignorados
+        for nome, motivo in dict(emitido_el.get("skipped") or {}).items():
+            if nome not in emitido["files"] and nome not in base_ignorados:
+                base_ignorados[nome] = motivo
     ignorados = dict(emitido["skipped"])
     try:
         import pacote_legal as pl
@@ -840,47 +874,32 @@ def _motivo_folha_casa_nao_emitida(codigo, titulo):
         "PE-CO-01": ("not_available: estrutura nao calculada "
                      "(estrutura.pavimento ausente) nesta rodada "
                      "(PE-CO-01 Formas e fundacoes)"),
-        "PE-CO-02": ("not_available: sem emissor de armacao de "
-                     "pilares/vigas nesta rodada (PE-CO-02 Armacao "
-                     "pilares/vigas); estrutura calculada sem "
-                     "detalhamento de armacao emitido"),
-        "PE-CO-03": ("not_available: sem emissor de detalhes de "
-                     "concreto nesta rodada (PE-CO-03 Detalhes); "
-                     "estrutura calculada sem folha de detalhes emitida"),
-        "PE-CO-04": ("not_available: sem emissor de locacao e formas "
-                     "da fundacao nesta rodada (PE-CO-04 Locacao e formas "
-                     "da fundacao); estrutura.fundacao dimensionada sem "
-                     "folha de locacao emitida"),
+        # G100: PE-CO-02/03/04 saem das primitivas do predio ligadas em
+        # gerar_desenhos_casa (ou em `skipped` com a triagem do proprio
+        # emissor, como a planta eletrica no G99). Ramo que sobrevive ao
+        # fato vira nome morto (o defeito que derrubou o portao do G77).
         "PE-AL-01": ("not_available: parede portante nao calculada "
                      "(estrutura.alvenaria.por_linha ausente) nesta "
                      "rodada (PE-AL-01 Elevacao das paredes portantes)"),
         "PE-AL-02": ("not_available: parede portante nao calculada "
                      "(estrutura.alvenaria.por_linha ausente) nesta "
                      "rodada (PE-AL-02 Plantas de 1a e 2a fiadas)"),
-        "PE-EL-01": ("not_available: sem emissor de unifilar ligado ao "
-                     "hook da casa nesta rodada (PE-EL-01 Unifilar); "
-                     "eletrico calculado em resultado.eletrico.circuits, "
-                     "folha emitida so no adaptador eletrico "
-                     "(desenho_eletrico_residencial."
-                     "gerar_desenhos_residenciais)"),
-        "PE-EL-02": ("not_available: sem emissor de planta eletrica "
-                     "ligado ao hook da casa nesta rodada (PE-EL-02 "
-                     "Planta de instalacao); eletrico calculado em "
-                     "resultado.eletrico.circuits, folha emitida so no "
-                     "adaptador eletrico "
-                     "(desenho_eletrico_residencial."
-                     "gerar_desenhos_residenciais)"),
+        # G99: com o emissor ligado, PE-EL-01/02/04 so chegam aqui quando o
+        # hook nao o chamou - sem resultado.eletrico.circuits. O motivo diz
+        # ESSE dado, nunca o generico "sem emissor ligado" (falso agora).
+        "PE-EL-01": ("not_available: eletrico nao calculado "
+                     "(resultado.eletrico.circuits ausente) nesta rodada "
+                     "(PE-EL-01 Unifilar)"),
+        "PE-EL-02": ("not_available: eletrico nao calculado "
+                     "(resultado.eletrico.circuits ausente) nesta rodada "
+                     "(PE-EL-02 Planta de instalacao)"),
+        "PE-EL-04": ("not_available: eletrico nao calculado "
+                     "(resultado.eletrico.circuits ausente) nesta rodada "
+                     "(PE-EL-04 Quadros/QDC)"),
         "PE-EL-03": ("not_available: sem emissor de "
                      "infraestrutura/aterramento nesta rodada (PE-EL-03 "
                      "Infraestrutura/aterramento); malha de aterramento e "
                      "SPDA nao declarados e sem folha emitida"),
-        "PE-EL-04": ("not_available: sem emissor de quadro de cargas "
-                     "ligado ao hook da casa nesta rodada (PE-EL-04 "
-                     "Quadros/QDC); eletrico calculado em "
-                     "resultado.eletrico.circuits, folha emitida so no "
-                     "adaptador eletrico "
-                     "(desenho_eletrico_residencial."
-                     "gerar_desenhos_residenciais)"),
         "PE-HI-01": ("not_available: rede hidraulica nao dimensionada "
                      "(hidraulica.redes ausente) nesta rodada (PE-HI-01 "
                      "Agua fria)"),

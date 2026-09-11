@@ -650,6 +650,105 @@ def motivos_arquitetura_faltante(turnkey, site=None):
             "cortes-fachadas.svg": motivo_cortes}
 
 
+# ---------------------------------------------------------------------------
+# CONCRETO DA CASA (G100) - reuso por primitivas, nao por copia
+# ---------------------------------------------------------------------------
+# PE-CO-02/03/04 da casa saem das MESMAS funcoes que desenham o predio
+# (o precedente e' a planta de formas, que ja sai de desenho_pavimento
+# dentro de gerar_desenhos_casa). Medido no G100: a casa de concreto
+# calcula vigas verificadas tramo a tramo (G34), laje dimensionada por
+# laje_concreto.dimensiona_laje e fundacao por pilar por
+# fundacao_edificio.dimensiona - os mesmos contratos que os emissores do
+# predio leem. Nenhuma primitiva nova, nenhum desenho duplicado: estes
+# tres wrappers so adaptam a chave (a casa publica `vigas`, o predio le
+# `vigas_verificacao`) e o titulo.
+#
+# A armadilha medida: na casa em alvenaria portante as vigas saem vazias
+# (por_linha == [], G61) e a fundacao sai por linha (sapata corrida, sem
+# por_pilar) - chamar a primitiva do predio com esse dado emitiria a
+# folha correta e vazia. Aqui a ausencia vira ValueError com o dado
+# nomeado, e gerar_desenhos_casa a registra em `skipped`, nunca em disco.
+
+
+def armacao_vigas_pilares_casa_svg(estrutura, titulo=None):
+    """PE-CO-02 da casa: a prancha de armacao de vigas do predio, com o dado
+    da casa (G100).
+
+    Le `estrutura["vigas"]` (o `por_linha` de `estrutura_casa.verifica_vigas`,
+    verificado desde o G34) e delega a
+    `desenho_pavimento.prancha_armacao_vigas_svg` - a mesma funcao que o
+    adaptador do predio chama. Como no predio, a folha cobre as vigas;
+    o titulo do indice ("Armacao pilares/vigas") e' o mesmo das duas
+    tipologias, e a primitiva e' uma so.
+    """
+    vigas = (estrutura or {}).get("vigas") if isinstance(
+        estrutura, dict) else None
+    if not isinstance(vigas, dict) or not vigas.get("por_linha"):
+        raise ValueError(
+            "vigas de concreto nao calculadas nesta rodada (casa em "
+            "alvenaria portante: laje apoia direto nas paredes, G61; "
+            "estrutura.vigas.por_linha vazio); sem tramos verificados "
+            "nao ha folha PE-CO-02")
+    import desenho_pavimento as dp
+
+    # O titulo diz so o que a folha desenha: a primitiva e' de VIGAS. A
+    # armacao de pilar nao e' emitida em nenhuma tipologia (o indice promete
+    # "pilares/vigas" nas duas) - rotulo x geometria, nao prometer no carimbo.
+    tit = titulo or ("ARMACAO DE VIGAS - CASA RESIDENCIAL "
+                     "(%d linhas / %d tramos VERIFICADOS)"
+                     % (len(vigas["por_linha"]),
+                        int(vigas.get("n_tramos") or 0)))
+    return dp.prancha_armacao_vigas_svg(vigas, titulo=tit)
+
+
+def detalhes_concreto_casa_svg(estrutura, titulo=None):
+    """PE-CO-03 da casa: a planta da laje do predio, com o dado da casa
+    (G100).
+
+    Le `estrutura["laje"]` (o dict de `laje_concreto.dimensiona_laje`, o
+    mesmo produtor que alimenta a PE-CO-03 do predio) e delega a
+    `desenho_concreto.planta_laje_svg` - a mesma funcao que o adaptador do
+    predio chama. Sem laje dimensionada nao ha detalhe honesto.
+    """
+    _ = titulo
+    laje = (estrutura or {}).get("laje") if isinstance(
+        estrutura, dict) else None
+    if not isinstance(laje, dict) or laje.get("lx") is None:
+        raise ValueError(
+            "laje nao dimensionada nesta rodada (estrutura.laje ausente); "
+            "sem painel dimensionado nao ha folha PE-CO-03")
+    import desenho_concreto as dc
+
+    return dc.planta_laje_svg(laje)
+
+
+def fundacao_locacao_formas_casa_svg(estrutura, titulo=None):
+    """PE-CO-04 da casa: a planta de locacao/formas do predio, com o dado
+    da casa (G100).
+
+    Le `estrutura["fundacao"]` (o dict de `fundacao_edificio.dimensiona`)
+    mais `estrutura` (com `pavimento`, para os vaos) e delega a
+    `desenho_fundacao_edificio.planta_fundacao_svg` - a mesma funcao do
+    G80. So vale no caminho com `por_pilar`; a fundacao por linha
+    (sapata corrida da alvenaria portante) precisa de emissor proprio e
+    continua declarada com o dado nomeado.
+    """
+    fundacao = (estrutura or {}).get("fundacao") if isinstance(
+        estrutura, dict) else None
+    if not isinstance(fundacao, dict) or not fundacao.get("por_pilar"):
+        por_linha = isinstance(fundacao, dict) and fundacao.get("por_linha")
+        detalhe = ("fundacao por linha (sapata corrida, sem por_pilar): "
+                   "sem emissor de locacao por linha nesta rodada"
+                   if por_linha else
+                   "fundacao nao dimensionada nesta rodada "
+                   "(sondagem/tensao nao declarada)")
+        raise ValueError(
+            "%s; sem pilares dimensionados nao ha folha PE-CO-04" % detalhe)
+    import desenho_fundacao_edificio as dfe
+
+    return dfe.planta_fundacao_svg(fundacao, estrutura, titulo=titulo)
+
+
 def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
     """Escreve as pranchas da casa em `out_dir`.
 
@@ -710,6 +809,28 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
         gerados.append("planta-formas.svg")
     else:
         ignorados["planta-formas.svg"] = "estrutura_nao_calculada"
+
+    # CONCRETO DA CASA (G100): PE-CO-02/03/04 saem das primitivas do predio
+    # (wrappers acima, sem copia). Sem dado a folha sai nomeada, nunca vazia.
+    if isinstance(estrutura, dict) and estrutura.get("pavimento"):
+        for _nome, _fn in (
+                ("armacao-vigas-pilares-casa.svg",
+                 armacao_vigas_pilares_casa_svg),
+                ("detalhes-concreto-casa.svg", detalhes_concreto_casa_svg),
+                ("fundacao-locacao-formas-casa.svg",
+                 fundacao_locacao_formas_casa_svg)):
+            try:
+                caminho = destino / _nome
+                caminho.write_text(_fn(estrutura), encoding="utf-8")
+            except Exception as exc:                            # noqa: BLE001
+                ignorados[_nome] = str(exc)
+            else:
+                gerados.append(_nome)
+    else:
+        for _nome in ("armacao-vigas-pilares-casa.svg",
+                      "detalhes-concreto-casa.svg",
+                      "fundacao-locacao-formas-casa.svg"):
+            ignorados[_nome] = "estrutura_nao_calculada"
 
     # planta baixa (PE-AR-02, G78): sai do layout declarado - o canonico da
     # arquitetura quando ha turnkey, senao o espelho eletrico validado. Sem
