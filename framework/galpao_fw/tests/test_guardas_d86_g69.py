@@ -1,7 +1,8 @@
 """Lente G69 (D86): as guardas que concordam consigo mesmas.
 
 Censo da arvore (baseline em TRIADAS_G69, congelado nos DOIS sentidos):
-24 defs confere_*/verifica_fechamento* (20 ate o G77; o G80/G81/G82
+25 defs confere_*/verifica_fechamento* (a 25a veio com o G110 e o lote
+G107-G112 foi entregue com ESTE censo vermelho - ver item 24; 20 ate o G77; o G80/G81/G82
 trouxeram 3 e o confere_folha_svg do G76 so foi triado no G89). A revisao achou a contagem de 15
 desatualizada dentro do proprio lote — confere_vergas nasceu no G70 e o
 censo, que so procurava os nomes que ja esperava, nao a viu; e o G66
@@ -89,6 +90,14 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     so agora foi triada - nomeada aqui para o baseline fechar nos dois
     sentidos.
 
+24. desenho_pavimento.confere_armacao_pilares (G110) - A=nomes do DADO
+    (dict `pilares` de pilar_continuo.dimensiona, um por pilar calculado),
+    B=ocorrencias do nome no SVG com fronteira de palavra. O esperado nunca
+    e lido do desenho. INDEPENDENTE (drawing-vs-data, mesma forma do item 11,
+    o irmao de vigas). Ramo de ausencia: com `pilares` vazio/ausente o ok so
+    e True se a DECLARACAO de ausencia (_AUSENCIA_PILARES) estiver na folha -
+    folha vazia calada continua reprovando.
+
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
 Mapa do vermelho: neste arquivo (D86 das 2 fracas + omissao do total +
@@ -138,6 +147,7 @@ TRIADAS_G69 = {
     ("desenho_escada_edificio", "confere_desenho_escada"),
     ("desenho_hidraulica", "confere_cobertura_galpao"),
     ("desenho_svg_base", "confere_folha_svg"),
+    ("desenho_pavimento", "confere_armacao_pilares"),
 }
 
 

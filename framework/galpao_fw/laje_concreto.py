@@ -795,6 +795,36 @@ def dimensiona_laje(cfg, espessuras=(0.08, 0.09, 0.10, 0.12, 0.14, 0.16, 0.18,
     return r
 
 
+def detalha_lajes_por_painel(paineis, cfg_base):
+    """G111, opcao (a): um `dimensiona_laje` por painel, mesma h adotada.
+
+    paineis   : a lista `pavimento["paineis"]` (cada item com i, j, lx, ly,
+                caso). NENHUM painel e pulado: o que nao atender sai com
+                OK=False e aviso explicito, nunca com o resultado do
+                vizinho copiado.
+    cfg_base  : {"h" (a ADOTADA, ponto fixo do critico), "g" (permanente
+                ALEM do peso proprio, fronteira G52), "q", "fck", "fyk",
+                + extras repassados a cada `dimensiona_laje`}.
+    Devolve {"h_adotada", "crit_ij", "paineis": [{"painel", "resultado",
+    "quadro"}]}. `crit_ij` segue a MESMA regra de `estrutura_casa` /
+    `edificio_multipavimento` (maior area, o primeiro em empate) e serve
+    so para dizer QUAL painel vai no desenho grande - a folha detalha
+    todos, entao o empate nao decide armadura de ninguem.
+    """
+    h = float(cfg_base.get("h", 0.0))
+    itens = []
+    for p in paineis:
+        r = dimensiona_laje(dict(cfg_base, caso=p["caso"],
+                                 lx=min(p["lx"], p["ly"]),
+                                 ly=max(p["lx"], p["ly"]), h=h))
+        itens.append({"painel": {"i": p["i"], "j": p["j"], "lx": p["lx"],
+                                 "ly": p["ly"], "caso": p["caso"]},
+                      "resultado": r, "quadro": quadro_de_ferros(r)})
+    crit = max(paineis, key=lambda p: p["lx"] * p["ly"])
+    return {"h_adotada": h, "crit_ij": (crit["i"], crit["j"]),
+            "paineis": itens}
+
+
 def relatorio_pt(r):
     """Relatorio textual da laje (numeros com virgula decimal)."""
     L = ["LAJE MACICA DE CONCRETO ARMADO (NBR 6118:2014)",

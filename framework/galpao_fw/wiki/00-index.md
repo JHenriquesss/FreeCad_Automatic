@@ -7,18 +7,18 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 ## TOC
 - [[01-architecture]] — spec-driven, cadeia de módulos, envelope, MAES, calc/model split
 - [[02-test-tree]] — `_selftest()` por módulo, o que cada um assere
-- [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres · arco S19–S42 (IFC/BIM, 6 verticais, turnkey, hardening) · **arco G43–G77 (reconstruído do git no G88)** · **G78–G88 (o lote das onze folhas, auditado no G89)** · **G91–G97 (o laço índice↔disco vira uma lente só)** · **G99–G105 (declaração vira folha; auditado no G106)**
-- [[04-decisions]] — log de decisões/fixes normativos (D0–D132)
+- [[03-phases]] — fases fechadas: revisão sênior 12 módulos (r2) · features pós-homolog · análise de lacunas (gaps+FLAGs) · **projeto executivo 2D (TechDraw)** · handoff/aguarda pareceres · arco S19–S42 (IFC/BIM, 6 verticais, turnkey, hardening) · **arco G43–G77 (reconstruído do git no G88)** · **G78–G88 (o lote das onze folhas, auditado no G89)** · **G91–G97 (o laço índice↔disco vira uma lente só)** · **G99–G105 (declaração vira folha; auditado no G106)** · **G107–G112 (a folha diz o que desenha; auditado no G113)**
+- [[04-decisions]] — log de decisões/fixes normativos (D0–D139)
 - [[05-glossary]] — termos de domínio (pórtico, MAES, ELU/ELS, FLT, Lb, sapata rígida, estaca, biela…)
 - [[06-open-threads]] — T41 revisão da wiki (2026-08-11), T40 janela dupla-conversão (✅ resolvido #150), T40b saturação (padrão, parcial), T22 S19 IFC/BIM, T21 gaps A3/C5, backlog
 
 ## Fila de trabalho (goals executáveis)
-- **Fila aberta: [BACKLOG-GOALS-G107-G112.md](../BACKLOG-GOALS-G107-G112.md)** (6 goals,
-  medidos no G106). As filas anteriores foram consumidas e ficam como registro — não
+- **Fila aberta: [BACKLOG-GOALS-G114-G118.md](../BACKLOG-GOALS-G114-G118.md)** (5 goals,
+  medidos no G113). As filas anteriores foram consumidas e ficam como registro — não
   reexecutar: [BACKLOG-GOALS.md](../BACKLOG-GOALS.md) (G78–G88, D106–D117),
-  [BACKLOG-GOALS-G91-G97.md](../BACKLOG-GOALS-G91-G97.md) (G91–G97, D118–D124) e
-  [BACKLOG-GOALS-G99-G105.md](../BACKLOG-GOALS-G99-G105.md) (G99–G105, D125–D131; auditoria
-  D132). O levantamento vivo está em [BACKLOG.md](../BACKLOG.md).
+  [BACKLOG-GOALS-G91-G97.md](../BACKLOG-GOALS-G91-G97.md) (G91–G97, D118–D124),
+  [BACKLOG-GOALS-G99-G105.md](../BACKLOG-GOALS-G99-G105.md) (G99–G105, D125–D132) e
+  [BACKLOG-GOALS-G107-G112.md](../BACKLOG-GOALS-G107-G112.md) (G107–G112, D133–D139). O levantamento vivo está em [BACKLOG.md](../BACKLOG.md).
 
 > Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 

@@ -51,9 +51,19 @@ _STAGE_WEIGHTS = {
     "aco": 7.0,
     "concreto": 2.0,
     "eletrico": 1.5,
-    "hidraulica": 1.25,
-    "incendio": 1.0,
-    "climatizacao": 1.0,
+    # G108: pesos medidos, nunca palpite. Regra: peso = 7,0 x t_medido / 900 s
+    # (ancora: executivo de aco ~900 s, estouro ~15 min, 06-open-threads T13),
+    # com piso 0,01 (reserva simbolica; peso 0 daria share 0 e timeout 0).
+    # D125/G104 (galpao 40x20x6, rota SVG, processo novo): HID 0,56 s,
+    # INC 0,62 s, CLI 0,57 s (era 15,25/21,09/13,52 s via freecad.exe);
+    # corroborado em 2026-09-11 nesta maquina: 0,99/0,37/0,28 s.
+    "hidraulica": 0.01,      # 7 x 0,56/900 = 0,0044 -> piso 0,01 (D125)
+    "incendio": 0.01,        # 7 x 0,62/900 = 0,0048 -> piso 0,01 (D125)
+    "climatizacao": 0.01,    # 7 x 0,57/900 = 0,0044 -> piso 0,01 (D125)
+    # Mezanino: sem dispatch de pranchas (`_dispatch_pranchas` devolve
+    # "disciplina sem dispatch de pranchas: mezanino", isenta com motivo no
+    # G103); medido 2026-09-11: 0,0003 s. Peso proporcional seria ~2e-6.
+    "mezanino": 0.01,        # piso 0,01: reserva para nada vira quase nada
     "coordenacao_render": 0.5,
     "coordenacao": 0.75,
 }

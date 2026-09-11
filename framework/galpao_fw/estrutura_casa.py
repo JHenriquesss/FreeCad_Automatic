@@ -1758,6 +1758,14 @@ def rodar(spec):
             convergiu = True
             break
         h_laje = r_laje["h"]
+    # G111, opcao (a): a folha PE-CO-03 detalhava so o critico sem dizer
+    # qual nem que existiam outros. Um `dimensiona_laje` por painel, mesma
+    # h adotada - o ponto fixo acima continua convergindo pelo critico; o
+    # que muda e que nenhum painel fica sem quadro de ferros.
+    lajes_por_painel = lj.detalha_lajes_por_painel(
+        pav["paineis"],
+        {"h": r_laje["h"], "g": laje.get("revestimento_kN_m2", 1.0),
+         "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
     fech = pt.verifica_fechamento(pav)
 
     # --------------------------------------------------------------- ESCADA
@@ -2253,6 +2261,18 @@ def rodar(spec):
                 detalhe_telhado.get("arrancamento_por_pilar_kN")
                 if detalhe_telhado else None)}
 
+    # G113: o G111 detalha TODOS os paineis com a h que convergiu pelo
+    # critico (maior area). Painel que reprova com essa h tem de reprovar a
+    # estrutura, nao so aparecer em vermelho na folha PE-CO-03 - sem este
+    # portao o veredito ficava ATENDE com um painel REPROVA desenhado.
+    _paineis_rep = ["painel %d,%d" % (it["painel"]["i"], it["painel"]["j"])
+                    for it in lajes_por_painel["paineis"]
+                    if not it["resultado"].get("OK")]
+    gates["lajes_por_painel"] = {
+        "OK": not _paineis_rep, "reprovados": _paineis_rep,
+        "n_paineis": len(lajes_por_painel["paineis"]),
+        "h_adotada_cm": lajes_por_painel["h_adotada"] * 100}
+
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     if com_alvenaria:
         if alvenaria is not None:
@@ -2273,7 +2293,8 @@ def rodar(spec):
     return {
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
-        "laje": r_laje, "vigas": r_vigas, "baldrame": baldrame,
+        "laje": r_laje, "lajes_por_painel": lajes_por_painel,
+        "vigas": r_vigas, "baldrame": baldrame,
         "baldrame_erro": erro_baldrame,
         "alvenaria": alvenaria, "alvenaria_erro": erro_alvenaria,
         "escada": r_escada, "escada_descida": detalhe_escada,

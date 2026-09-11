@@ -18,7 +18,18 @@ def test_optional_freecad_deliverables_are_explicit_when_executable_is_missing(
                  "freecad_exe": missing_exe},
     )
     assert result["deliverables"]["model_3d"]["status"] == "not_available"
-    assert result["deliverables"]["drawings"]["status"] == "not_available"
+    # G107: sem o executavel o entregavel de desenhos nao some inteiro - as
+    # disciplinas de esquema puro (rota SVG do G104) emitem e o resto sai
+    # declarado POR CODIGO com a causa proxima. O aceite continua sendo
+    # "explicito": `partial`, nunca `generated` com metade faltando, e a
+    # rodada segue `needs_review` (G113: o agregador passou a conhecer
+    # `partial` - sem isso ela saia `passed`).
+    desenhos = result["deliverables"]["drawings"]
+    assert desenhos["status"] == "partial", desenhos.get("status")
+    emitidos = [Path(p).name for p in desenhos.get("artifacts") or []]
+    assert "INC01_PLANTA.pdf" in emitidos, emitidos
+    pulados = " ".join(str(p.get("motivo", "")) for p in desenhos["skipped"])
+    assert "freecad.exe nao encontrado" in pulados, desenhos["skipped"]
     assert result["status"] == "needs_review"
 
 

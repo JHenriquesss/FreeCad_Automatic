@@ -351,19 +351,23 @@ def _hachura_engaste(x1, y1, x2, y2, lado, n=14, t=9.0):
     return "".join(s)
 
 
-def planta_laje_svg(r, quadro=None):
+def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
     """Planta de formas + armacao de um painel de laje macica, a partir do dict
     de laje_concreto.verifica_laje. Mostra o painel na escala, a convencao de
     vinculacao de cada borda (hachura = engaste), as cotas, as barras positivas
     das duas direcoes, as negativas sobre as bordas engastadas, o quadro de
-    ferros e o resumo de verificacao (ELU/ELS)."""
+    ferros e o resumo de verificacao (ELU/ELS).
+
+    `extras` (G111): (altura_extra_px, [linhas_svg]) anexadas abaixo da folha
+    de 700 px - sem ele a saida e a de sempre. `titulo_extra`: sufixo da
+    segunda linha do cabecalho (diz QUAL painel e o desenho)."""
     import laje_concreto as lj
     if quadro is None:
         quadro = lj.quadro_de_ferros(r)
     lx, ly, h = r["lx"], r["ly"], r["h"]
     eng = set(lj.ENGASTES[r["caso"]]) if r["duas_direcoes"] else set()
 
-    W, H = 1040, 700
+    W, H = 1040, 700 + (extras[0] if extras else 0)
     mx, my = 90, 110                                   # margens do desenho
     larg, alt = 480.0, 430.0
     escala = min(larg / lx, alt / ly)                  # px por metro
@@ -376,9 +380,9 @@ def planta_laje_svg(r, quadro=None):
          f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
          f'<text x="30" y="34" font-size="16" font-weight="bold" fill="#111">'
          f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA (NBR 6118)")}</text>',
-         f'<text x="30" y="56" font-size="12" fill="#444">'
-         f'{_esc("painel %.2f x %.2f m (lambda %.2f) ; h = %.0f cm ; d = %.1f cm ; "
-                 "C%.0f ; caso %d ; %s" % (lx, ly, r["lambda"], h * 100, r["d"] * 100, r["fck"] / 1000.0, r["caso"], "armada em 2 direcoes" if r["duas_direcoes"] else "armada em 1 direcao"))}</text>']
+          f'<text x="30" y="56" font-size="12" fill="#444">'
+          f'{_esc("painel %.2f x %.2f m (lambda %.2f) ; h = %.0f cm ; d = %.1f cm ; "
+                  "C%.0f ; caso %d ; %s%s" % (lx, ly, r["lambda"], h * 100, r["d"] * 100, r["fck"] / 1000.0, r["caso"], "armada em 2 direcoes" if r["duas_direcoes"] else "armada em 1 direcao", titulo_extra or ""))}</text>']
 
     # painel (vigas de apoio como contorno grosso)
     s.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{w_px:.1f}" height="{h_px:.1f}" '
@@ -560,14 +564,89 @@ def planta_laje_svg(r, quadro=None):
                  f'font-size="11">{_esc(txt)}</text>')
     veredito = "ATENDE" if r["OK"] else "NAO ATENDE"
     cor = "#166534" if r["OK"] else "#b91c1c"
-    s.append(f'<text x="{qx}" y="{H - 40}" font-size="14" font-weight="bold" '
+    s.append(f'<text x="{qx}" y="{700 - 40}" font-size="14" font-weight="bold" '
              f'fill="{cor}">{_esc("RESULTADO: " + veredito)}</text>')
+    if extras:
+        s.extend(extras[1])
     s.append('</svg>')
     return "\n".join(s)
 
 
-def gerar_planta_laje(r, path, quadro=None):
-    """Escreve a planta da laje (SVG) em `path`. Retorna o path."""
+def gerar_planta_laje(r, path, quadro=None, lajes_por_painel=None):
+    """Escreve a planta da laje (SVG) em `path`. Retorna o path.
+
+    Com `lajes_por_painel` (o dict de `detalha_lajes_por_painel`) sai a
+    folha G111 de todos os paineis; sem ele, a de um painel de sempre."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_laje_svg(r, quadro))
+        if lajes_por_painel is not None:
+            f.write(planta_lajes_todos_paineis_svg(lajes_por_painel))
+        else:
+            f.write(planta_laje_svg(r, quadro))
     return path
+
+
+def planta_lajes_todos_paineis_svg(det):
+    """PE-CO-03, G111 opcao (a): TODOS os paineis detalhados, um quadro de
+    ferros por painel, mesma h adotada.
+
+    det: o dict de `laje_concreto.detalha_lajes_por_painel`. O desenho
+    grande continua sendo o do painel critico (o que converge a
+    espessura), mas o titulo diz QUAL ele e ("Lij, K de N") e a secao
+    abaixo lista cada painel com o seu quadro - a lente
+    drawing-vs-data conta os grupos `data-painel="i,j"` por parse XML e
+    exige o conjunto exato de `pavimento["paineis"]`. Painel que nao
+    atende sai com NAO ATENDE + o primeiro aviso, nunca omitido."""
+    n = len(det["paineis"])
+    ci, cj = det["crit_ij"]
+    crit = next(it for it in det["paineis"]
+                if (it["painel"]["i"], it["painel"]["j"]) == (ci, cj))
+    rot = lambda p: "L%d%d" % (p["i"] + 1, p["j"] + 1)  # noqa: E731
+
+    linhas = []
+    y = 700 + 28
+    linhas.append(
+        f'<text x="30" y="{y}" font-size="14" font-weight="bold" fill="#111">'
+        f'{_esc("QUADROS DE FERROS POR PAINEL - TODOS OS %d PAINEIS "
+                "DETALHADOS (h = %.0f cm para todos)" % (n, det["h_adotada"] * 100))}</text>')
+    y += 20
+    linhas.append(
+        f'<text x="30" y="{y}" font-size="11" fill="#555">'
+        f'{_esc("desenho acima: painel critico %s (%d de %d) ; cada painel "
+                "com o seu caso de vinculacao" % (rot(crit["painel"]),
+                                                  det["paineis"].index(crit) + 1, n))}</text>')
+    y += 10
+    for it in det["paineis"]:
+        p, r = it["painel"], it["resultado"]
+        q = it["quadro"]
+        peso = sum(f["peso_kg"] for f in q)
+        area = p["lx"] * p["ly"]
+        y += 22
+        marca = "  [CRITICO]" if (p["i"], p["j"]) == (ci, cj) else ""
+        linhas.append(f'<g data-painel="{p["i"]},{p["j"]}">')
+        linhas.append(
+            f'<text x="30" y="{y}" font-size="12" font-weight="bold" fill="#111">'
+            f'{_esc("%s - %.2f x %.2f m ; caso %d ; TOTAL %.1f kg "
+                    "(%.2f kg/m2)%s" % (rot(p), p["lx"], p["ly"], p["caso"],
+                                        peso, peso / area, marca))}</text>')
+        for f in q:
+            y += 17
+            linhas.append(
+                f'<text x="48" y="{y}" font-size="11" fill="#333">'
+                f'{_esc("%s %.1f mm c/ %.1f - %.2f m x %d = %.1f kg"
+                        % (f["pos"], f["phi_mm"], f["s_cm"],
+                           f["comprimento_m"], f["n"], f["peso_kg"]))}</text>')
+        y += 17
+        vok = "ATENDE" if r["OK"] else "NAO ATENDE"
+        av = (" - " + r["avisos"][0]) if (not r["OK"] and r["avisos"]) else ""
+        linhas.append(
+            f'<text x="48" y="{y}" font-size="11" font-weight="bold" '
+            f'fill="{"#166534" if r["OK"] else "#b91c1c"}">'
+            f'{_esc("%s: %s%s" % (rot(p), vok, av))}</text>')
+        linhas.append('</g>')
+    altura_extra = (y + 20) - 700
+    titulo_extra = (" ; painel critico %s (%d de %d paineis - quadros de "
+                    "todos abaixo)" % (rot(crit["painel"]),
+                                       det["paineis"].index(crit) + 1, n))
+    return planta_laje_svg(crit["resultado"], quadro=crit["quadro"],
+                           extras=(altura_extra, linhas),
+                           titulo_extra=titulo_extra)

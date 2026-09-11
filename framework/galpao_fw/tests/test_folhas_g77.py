@@ -170,6 +170,25 @@ def _f_laje():
     return dc.planta_laje_svg(r)
 
 
+def _f_lajes_g111():
+    # G111, opcao (a): a PE-CO-03 com os 6 paineis do spec persistido da
+    # casa (3x2 vaos), todos detalhados com a mesma h - entrada sintetica
+    # rapida (sem a rodada completa); a rodada real entra pela
+    # `detalhes_concreto_casa_svg` abaixo.
+    import desenho_concreto as dc
+    import laje_concreto as lj
+    import pavimento_tipo as pt
+    cfg = {"vaos_x": [3.5, 3.5, 3.4], "vaos_y": [4.0, 4.0], "h_laje": 0.10,
+           "uso": "cobertura_manutencao", "revestimento_kN_m2": 1.0,
+           "fck": 25000.0, "fyk": 500000.0}
+    pav = pt.monta(cfg)
+    det = lj.detalha_lajes_por_painel(
+        pav["paineis"],
+        {"h": 0.10, "g": 1.0, "q": pav["q_kN_m2"], "fck": 25000.0,
+         "fyk": 500000.0})
+    return dc.planta_lajes_todos_paineis_svg(det)
+
+
 def _f_elevacao():
     import desenho_alvenaria as da
     r = _casa_alvenaria()
@@ -316,6 +335,17 @@ FOLHAS = {
         # `pavimento`: com o dict errado ela emite a tabela VAZIA sem reclamar.
         lambda: __import__("desenho_pavimento").prancha_armacao_vigas_svg(
             _edificio()[0]["vigas_verificacao"]),
+    "desenho_pavimento.prancha_armacao_pilares_svg":
+        # G110: a folha le `pilares` (12 pilares do _caso); com lista vazia
+        # ela declara a ausencia na secao em vez de emitir folha em branco.
+        lambda: __import__("desenho_pavimento").prancha_armacao_pilares_svg(
+            _edificio()[0]["pilares"]),
+    "desenho_pavimento.prancha_armacao_vigas_pilares_svg":
+        # G110: a folha combinada le `vigas_verificacao` + `pilares`; com o
+        # dict errado (p.ex. `pavimento`) ela emite a tabela VAZIA sem reclamar.
+        lambda: __import__(
+            "desenho_pavimento").prancha_armacao_vigas_pilares_svg(
+            _edificio()[0]["vigas_verificacao"], _edificio()[0]["pilares"]),
     "desenho_fundacao_edificio.planta_fundacao_svg":
         # G80: a fundacao dimensionada por pilar vira folha (PE-CO-04).
         lambda: __import__("desenho_fundacao_edificio").planta_fundacao_svg(
@@ -327,6 +357,7 @@ FOLHAS = {
     "desenho_concreto.planta_formas_svg":
         lambda: __import__("desenho_concreto").planta_formas_svg(_galpao_concreto()),
     "desenho_concreto.planta_laje_svg": _f_laje,
+    "desenho_concreto.planta_lajes_todos_paineis_svg": _f_lajes_g111,
 
     # ---- alvenaria estrutural --------------------------------------------
     "desenho_alvenaria.elevacao_paredes_svg": _f_elevacao,

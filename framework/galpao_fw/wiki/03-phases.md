@@ -678,10 +678,34 @@ aviso": quadro A1 cortado em 220 caracteres, except que apagava a exceção do e
 título que prometia pilar, e portão de custo que conferia uma constante. Os portões de censo
 estavam verdes na entrega — a regra do lote funcionou pela primeira vez.
 
-**Aberto, medido — a fila G107–G112.** O galpão ainda exige `freecad.exe` para o deliverable
+**Aberto, medido — a fila G107–G112 (G109 fechado, [[04-decisions#D133]]).** O galpão ainda exige `freecad.exe` para o deliverable
 inteiro; o prazo do caderno reserva tempo de FreeCAD para disciplinas de 0,6 s; o número por
-prancha do aço não existe; PE-CO-02 promete pilar e ninguém desenha; PE-CO-03 mostra um
+prancha do aço existe para 16 de 17 (PE05 sem número: trava no recompute, declarada);
+PE-CO-02 promete pilar e ninguém desenha; PE-CO-03 mostra um
 painel de seis; o carimbo do galpão numera diferente do índice.
+
+## FECHADA — G107–G112: a folha diz o que desenha — 2026-09-11
+**O que entrou.**
+- **G107** o galpão sem `freecad.exe` emite as pranchas de esquema e declara o resto por
+  código, com status `partial` ([[04-decisions#D134]]).
+- **G108** os pesos do prazo do caderno vêm da medição; a fração do aço sobe de 55 % para
+  82 % ([[04-decisions#D135]]).
+- **G109** o número por prancha do aço existe para 16 de 17 folhas, ~578 s no total; a PE05
+  trava no recompute ([[04-decisions#D133]]).
+- **G110** PE-CO-02 passa a desenhar pilar, abaixo das vigas no mesmo arquivo
+  ([[04-decisions#D136]]).
+- **G111** PE-CO-03 detalha os seis painéis ([[04-decisions#D137]]).
+- **G112** carimbo × índice: numeração própria e tabela de correspondência no pacote do
+  galpão ([[04-decisions#D138]]).
+
+**Auditoria (G113, [[04-decisions#D139]]).** Censos verdes de novo. Corrigidos: o `OK` por
+painel de laje que não chegava ao veredito, o estribo de pilar com padrão inventado, a tabela
+do G112 em duas cópias, e o confronto 18.4 2014 × 2023 que o G110 pedia (idênticas, pela
+imagem). Cinco dos seis goals chegaram sem verbete.
+
+**Aberto, medido — a fila G114–G118.** Portão do G102 com 923 s (turnkey rodado duas vezes);
+lances superiores de 8 dos 12 pilares do prédio fora da folha; migração 2014 → 2023+Em1
+(62 instruções em 51 itens na emenda); a camada de texto da 2023 ilegível; a PE05 do aço.
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -702,6 +702,7 @@ SEM_FAIXA_DECLARADA = {
     "validacao_sistema_g15.py": "harness G15; 'fora do intervalo' ali e de URL/pagina.",
     "varredura_asserts_sequencia.py": "script avulso G97 (AST de asserts em teste); mede assercao de teste, nao numero de norma.",
     "varredura_defaults_veredito.py": "script avulso G75 (AST de .get); sem numero de norma.",
+    "varredura_carimbo_mapa.py": "lente G112 (carimbo<->mapa, funcao pura); sem numero de norma, sem faixa.",
     "varredura_disciplina_prancha.py": "lente G103 (disciplina executada<->prancha, funcao pura); sem numero de norma, sem faixa.",
     "varredura_guardas_um_eixo.py": "script avulso G83 (AST de guarda de um eixo so); mede assercao de teste, nao numero de norma.",
     "varredura_indice_disco.py": "lente G91 (indice<->disco, funcao pura); sem numero de norma, sem faixa.",

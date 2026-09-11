@@ -242,6 +242,12 @@ def rodar(spec):
             convergiu = True
             break
         h_laje = r_laje["h"]
+    # G111, opcao (a): mesma publicacao do lado da casa - todos os paineis
+    # detalhados com a h adotada, para a PE-CO-03 do predio.
+    lajes_por_painel = lj.detalha_lajes_por_painel(
+        pav["paineis"],
+        {"h": r_laje["h"], "g": laje.get("revestimento_kN_m2", 1.0),
+         "q": pav["q_kN_m2"], "fck": fck, "fyk": fyk})
     fech = pt.verifica_fechamento(pav)
 
     # --------------------------------------------------------------- ESCADA
@@ -674,11 +680,24 @@ def rodar(spec):
             "els_OK": estabilidade["els_OK"],
             "H_sobre_u_topo": estabilidade["els"]["H_sobre_u"]}
 
+    # G113: o G111 detalha TODOS os paineis com a h que convergiu pelo
+    # critico (maior area). Painel que reprova com essa h tem de reprovar a
+    # estrutura, nao so aparecer em vermelho na folha PE-CO-03 - sem este
+    # portao o veredito ficava ATENDE com um painel REPROVA desenhado.
+    _paineis_rep = ["painel %d,%d" % (it["painel"]["i"], it["painel"]["j"])
+                    for it in lajes_por_painel["paineis"]
+                    if not it["resultado"].get("OK")]
+    gates["lajes_por_painel"] = {
+        "OK": not _paineis_rep, "reprovados": _paineis_rep,
+        "n_paineis": len(lajes_por_painel["paineis"]),
+        "h_adotada_cm": lajes_por_painel["h_adotada"] * 100}
+
     reprovados = [k for k, g in gates.items() if not g["OK"]]
     return {
         "ATENDE": not reprovados, "reprovados": reprovados, "gates": gates,
         "pavimento": pav, "descida": desc, "pilares": pilares,
-        "laje": r_laje, "vigas": vigas, "vigas_verificacao": r_vigas,
+        "laje": r_laje, "lajes_por_painel": lajes_por_painel,
+        "vigas": vigas, "vigas_verificacao": r_vigas,
         "escada": r_escada, "planta": planta,
         "escada_descida": detalhe_escada, "escada_erro": escada_erro,
         "fundacao": fundacao, "fundacao_erro": erro_fundacao,

@@ -924,7 +924,9 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     nome_laje = "planta-laje-pavimento-tipo.svg"
     if isinstance(laje, dict) and laje:
         try:
-            dc.gerar_planta_laje(laje, str(destino / nome_laje))
+            dc.gerar_planta_laje(laje, str(destino / nome_laje),
+                                 lajes_por_painel=estrutura.get(
+                                     "lajes_por_painel"))
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_laje, "motivo": _erro_entregavel(exc)})
         else:
@@ -933,14 +935,20 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     else:
         puladas.append({"prancha": nome_laje,
                         "motivo": "laje nao dimensionada nesta rodada"})
-    # Prancha de ARMACAO DE VIGAS (G34). Toda viga, todo tramo verificado, com
-    # As_inf/As_sup, estribos, ancoragem e flecha -- o executivo que faltava
-    # para a armadura_viga sair do papel e ir para a obra.
+    # Prancha de ARMACAO DE VIGAS+PILARES (G34/G110). Toda viga, todo tramo
+    # verificado, com As_inf/As_sup, estribos, ancoragem e flecha, mais a
+    # secao de pilares -- o executivo que faltava para a armadura sair do
+    # papel e ir para a obra.
+    # Decisao N:1 (G110): o indice "Armacao pilares/vigas" passa a ser verdade
+    # no MESMO arquivo (sem churn em G92/G94/G34); _PRANCHA_ARQUIVO e o nome
+    # abaixo nao mudam. Pilares None/vazio nao pulam o arquivo: a primitiva
+    # declara a ausencia na secao.
     nome_vigas = "armacao-vigas-pavimento-tipo.svg"
     vv = estrutura.get("vigas_verificacao")
     if isinstance(vv, dict) and vv.get("por_linha"):
         try:
-            dp.gerar_prancha_armacao_vigas(vv, str(destino / nome_vigas))
+            dp.gerar_prancha_armacao_vigas_pilares(
+                vv, estrutura.get("pilares"), str(destino / nome_vigas))
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_vigas, "motivo": _erro_entregavel(exc)})
         else:

@@ -1436,3 +1436,115 @@ re-injetado deixa a guarda vermelha. (2) except que apagava a excecao do emissor
 (3) titulo que prometia pilar (D129). (4) portao de custo que nunca media (D130).
 Os portoes de censo (G51, G97, G77, alcancabilidade) estavam **verdes** na entrega - a regra do
 lote funcionou pela primeira vez: os dois modulos novos entraram com isencao e motivo.
+
+## D133/G109 - o numero por prancha do aco existe: 16 de 17 medidas, PE05 declarada (2026-09-11) - FECHADO (numero; PE05 ABERTA)
+FCStd construido pela rota existente (`RP.calcular` + `montar_modelo` headless via freecadcmd) do spec persistido `projects/galpao-ufpe/project-spec.json` (44x90 2 vaos; HEA240/HEA200/HEA240 + IPE400); saida em `projects/galpao-ufpe/saida/` (agora em `.gitignore`, mesma regra do `iterations/`). Tempos por prancha (soma build/hlr/cotas/export, s): PE01 187,7; PE02 58,8; PE03 211,9; PE04 15,4; PE06 6,4; PE07 7,5; PE08 28,6; PE09 7,6; PE10 12,8; PE11 8,6; PE12 10,7; PE13 12,0; PE14_CROQUIS 4,9; PE16 5,4 (total ≈ 578 s, compativel com os ~15 min do executivo em rodada); PE14_CONSOLE e PE15 condicionais ausentes no modelo (fundacao sapata), saem com motivo. Congelados como `MEDIDOS_G109`/`ORCAMENTO_G109` no harness; portao em `tests/test_orcamento_aco_g109.py` (esquema por parse, folga do teto verificada, vermelho por injecao em tmp_path; PE05 exatamente em faltando). PE05_CONTRAVENTAMENTO sem numero: timeout sistematico (2x1200 s no harness + 540 s no diag), trava no `doc.recompute()` da pagina — o build dela e instantaneo (1 pag + 1 cota). Maquina 8 GB com ~1 GB livre nas rodadas. Porquê: o aceite do G105 era o numero escrito, e medicao que so vale quando confirma nao e medicao. Rejeitado: estimar a PE05 pela classe coarse das irmas (dado arbitrado) ou zerar o total dela (saturacao silenciosa). A PE05 fica aberta e nomeada: re-medir em maquina com folga, ou fatiar o recompute dela, noutro goal.
+Achado de percurso: o boot do harness nunca rodara de verdade — `PRANCHAS` nao existe dentro do freecad.exe (NameError em toda prancha). Corrigido passando so a entrada medida (`_ENT_`); a guarda G105 segue verde.
+
+## D134/G107 - o galpao emite as pranchas de esquema sem freecad.exe (2026-09-11) - FECHADO
+`galpao_adapter._emit_drawings` deixou de sair com `not_available` inteiro quando falta o
+executavel: hidraulica/incendio/climatizacao (rota SVG-direta do G104) emitem, e
+aco/concreto/eletrico/coordenacao saem declarados **por codigo**, com a causa proxima
+("freecad.exe nao encontrado - a disciplina emite via TechDraw e nao tem rota sem executavel")
+anexada ao motivo de cada um. Status novo `partial` quando ha folha e ha disciplina faltando
+(o "orcamento parcial que se diz fechado" do G7 nao volta como `generated`). O registro no
+manifesto passou de `_register_tree` (arvore inteira: json, FCStd, PNG, caderno) para
+`_register_pranchas` (`*/pranchas/*.pdf`) - todas as disciplinas gravam ali
+(`caderno_turnkey._coletar_pdfs`), conferido na auditoria. O portao do G102 passou a rodar o
+galpao com `generate_2d=True`: PE-HI/PE-IN/PE-CL confrontados com disco de verdade, e as
+segundas folhas (HID02/INC02/CLI02) isentas com motivo como `extra_no_disco`.
+**Custo medido e escrito no teste:** a rodada do galpao no portao do G102 foi de 38,5 s para
+**923 s** - `caderno_turnkey.montar_caderno` roda `tk.rodar` de novo, embora o adaptador ja tenha
+o resultado do turnkey. Abaixo do teto de 1800 s, mas ~16 min dentro da suite non-build: aberto (G114).
+**E nao e so tempo:** na auditoria G113 este arquivo derrubou QUATRO execucoes por falta de
+memoria (maquina de 8 GB, 1,5-1,9 GB livres) - em lotes de 50, 22 e 11 arquivos e, por fim,
+SOZINHO, morrendo antes do primeiro ponto (saida com 0 byte), sempre sem processo orfao. Logo,
+rodar isolado NAO resolve: a suite completa nao fecha nesta maquina com o portao na forma
+atual. O `CUSTO_TETO_SEG` de 1800 s nao ve isso - afere tempo, nao memoria. O G114 passa a ter
+"caber na memoria" no aceite.
+
+## D135/G108 - os pesos do prazo do caderno vem da medicao (2026-09-11) - FECHADO
+`_STAGE_WEIGHTS`: hidraulica/incendio/climatizacao/mezanino de 1,25/1,0/1,0/1,0 para **0,01**
+(piso: peso 0 daria prazo 0), cada um com a origem escrita ao lado (D125: 0,56/0,62/0,57 s;
+mezanino sem dispatch, 0,0003 s). Regra: peso = 7,0 x t_medido / 900 s. A fracao do aco na
+reserva sobe de 55 % para **82 %** (7/8,54), travada em `tests/test_caderno_pesos_g108.py`, com
+injecao dos pesos antigos voltando aos 55 %.
+**Nota da auditoria G113:** (1) a ancora de 900 s e a estimativa do T13; o G109 mediu o aco em
+~578 s. Com 578 os pesos continuam abaixo do piso - o resultado nao muda, mas a ancora devia
+ser o numero medido. (2) O teste recalcula a fracao com formula propria em vez de chamar
+`caderno_turnkey._stage_timeout`; se a regra de reserva mudar, o teste nao ve.
+
+## D136/G110 - PE-CO-02 passa a desenhar pilar (2026-09-11) - FECHADO (lances superiores ABERTOS)
+Decisao N:1: a secao de pilares entra **abaixo** da de vigas no mesmo arquivo
+(`desenho_pavimento.prancha_armacao_vigas_pilares_svg`, casa e predio), sem arquivo novo e sem
+mexer em mapa/indice/FOLHAS. Uma fileira por pilar, do **lance de base** (`lances[-1]`): secao,
+n de lances, Nd, As, taxa, estribo (phi, s, ramos) e o limite governante da 18.4.3. Sem
+`phi_long_mm` declarado a celula diz "NAO DETALHADO" - bitola nao e arbitrada.
+**Conferido na auditoria (pela imagem, a camada de texto da F150 e ilegivel):** a 18.4.2 e a
+18.4.3 da NBR 6118:2023 sao identicas as da 2014 (diametro 10 mm a b/8, espacamentos,
+200 mm / menor dimensao / 24phi CA-25 / 12phi CA-50, NOTA C55-C90), e a Em1:2026 nao altera a
+18.4 (a unica mencao e a Figura 18.4, armadura de suspensao, na 18.3.6). A Em1 altera, porem,
+a 15.8.1 que o subtitulo da folha cita - item do goal de migracao 2014 -> 2023.
+**Corrigido no G113:** o rotulo do estribo usava padroes (5 mm, c/15, 2R) quando a chave
+faltava - imprimiria um estribo nao calculado. Agora declara "-". (O dado real tem as chaves.)
+**Aberto, medido:** no predio, **8 dos 12 pilares** mudam de secao ou de As entre lances, e a
+folha mostra so a base. O rodape declara isso - nao e silencio -, mas a gaiola dos lances
+superiores nao chega ao cliente.
+
+## D137/G111 - PE-CO-03 detalha todos os paineis (2026-09-11) - FECHADO
+Opcao (a): `laje_concreto.detalha_lajes_por_painel` roda um `dimensiona_laje` por painel com a
+`h` que convergiu pelo critico (maior area), e a folha lista os seis paineis da casa (e os seis
+do predio) com quadro de ferros cada. Medido: nos dois specs persistidos todos atendem com
+h = 10 cm, inclusive os de caso 8.
+**Corrigido no G113 (saturacao silenciosa latente):** o `OK` por painel nao chegava ao veredito.
+Num spec em que um painel nao critico reprovasse com a h adotada, a folha o mostraria em
+vermelho e a estrutura continuaria ATENDE. Portao novo `gates["lajes_por_painel"]` em
+`estrutura_casa` e `edificio_multipavimento`; injecao em
+`tests/test_laje_todos_paineis_g111.py` (um painel reprovado -> estrutura REPROVA e nomeia
+"painel 2,1").
+
+## D138/G112 - carimbo x indice: numeracao propria, com tabela para o cliente (2026-09-11) - FECHADO
+Caminho (b) do goal. Lente `varredura_carimbo_mapa.py` (carimbo de cada arquivo pertence aos
+codigos que o mapa atribui a ele; carimbos extraidos por AST dos `techdraw_*`) + tabela de
+correspondencia de 22 entradas no `pacote-legal.md` do galpao (que folha do executivo responde
+por que codigo do indice, e por que a numeracao difere: um esquema cobre N codigos, quadros sem
+codigo, PE-01 em dois arquivos, aco com 17 folhas para 3 codigos).
+**Corrigido no G113 (fonte unica):** a tabela canonica vivia na lente (script avulso) e
+`entregaveis_projeto` carregava uma copia de ~150 linhas guardada por teste de igualdade - duas
+listas para divergir, com a canonica onde o cliente nao le. Agora ha uma so,
+`pacote_legal.CORRESPONDENCIA_NUMERACAO_GALPAO` (modulo sem imports: a lente importar
+`entregaveis_projeto` direto dispara o ciclo project_loop -> adaptadores).
+
+## D139/G113 - auditoria do lote G107-G112 (2026-09-11) - FECHADO
+Portoes de censo **verdes** na entrega pela segunda vez seguida. Verbetes: so o G109 (D133)
+chegou escrito; os outros cinco foram escritos na auditoria, a partir do codigo e de medicao.
+**O lote foi entregue com um censo VERMELHO:** `tests/test_guardas_d86_g69.py` (censo das
+guardas `confere_*` x `TRIADAS_G69`) reprovava desde o G110 - a guarda nova
+`desenho_pavimento.confere_armacao_pilares` entrou na arvore sem entrada no baseline e sem a
+linha de origem dos dois lados no cabecalho (regra D86/D87). So apareceu na suite inteira: a
+"regra do lote" dizia "e os baselines", sem nomear arquivos, e quem rodou de memoria nao rodou
+este. Triada como item 24 (A=nomes do dict `pilares`; B=ocorrencias no SVG; INDEPENDENTE, a
+forma do irmao de vigas) e a regra do backlog seguinte passou a listar os censos **por nome de
+arquivo**. E a terceira vez que "modulo/funcao nova invisivel ao censo" custa um vermelho
+(G98, G106, G113) - a diferenca e que desta vez a lente ja existia e ninguem a rodou.
+
+Seis correcoes: portao de laje por painel ligado ao veredito (D137), estribo sem padrao
+inventado (D136), tabela do G112 em fonte unica (D138), o confronto 18.4 2014 x 2023 que o
+G110 pedia e nao fez (D136), e o **status `partial` que o agregador nao conhecia**: o G107
+criou o status e `project_loop._project_status` so olhava `failed`/`not_available` - a rodada
+do galpao sem freecad.exe, com 3 de 7 disciplinas emitidas, saia **`passed`**. Achado pelo
+unico vermelho da suite (`test_optional_freecad_deliverables_are_explicit_when_executable_is_missing`,
+que cobrava o contrato antigo `not_available`); `partial` agora vale `needs_review`, e o teste
+passou a cobrar o contrato novo (folha de esquema emitida + causa proxima nos pulados).
+O mesmo buraco valia para o `partial` que `entregaveis_projeto` ja emitia desde antes. **Suite non-build desta auditoria:** verde em todos os oito lotes (549 + 262 + 420 + 486 + 499
++ 621 + 434 + 426), com os dois vermelhos corrigidos e reexecutados. **Uma excecao honesta:**
+`tests/test_indice_disco_rodada_g102.py` NAO completou nesta maquina - morto por memoria em
+quatro tentativas, a ultima rodando sozinho. Dele so rodaram os 4 testes leves (baseline,
+injecoes e custo escrito); os dois que carregam rodada real (test_01 e test_06) ficaram sem
+rodar, e isso esta dito aqui em vez de a suite ser apresentada como fechada.
+Aberto e medido: portao do G102 com 923 s por `tk.rodar` duplicado;
+lances superiores dos pilares; PE05 do aco sem numero; migracao 2014 -> 2023+Em1. A Em1 (texto
+legivel, F098) traz **62 instrucoes Substituir/Incluir em 51 itens**, entre eles 15.7.3 (reducao
+de rigidez, citando galpoes), 15.8.1 (lambda <= 200, exceto pilar pouco comprimido com
+Nd < 0,10 fcd Ac), 17.3.5.2.4 (As + A's <= 4 % Ac fora das emendas) e 18.3.x - itens que o
+framework implementa pela 2014.

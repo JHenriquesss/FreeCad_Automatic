@@ -281,14 +281,29 @@ _PRANCHA_ARQUIVO_GALPAO = {
 }
 
 
-def _motivo_folha_galpao_nao_emitida(codigo, titulo):
+def _disciplina_do_codigo_galpao(codigo):
+    """Disciplina dona do codigo pelo prefixo de pacote_legal._PRANCHAS.
+
+    Mesma regra do portao G102 (fonte unica: o prefixo do indice, nunca o
+    resultado). None quando nenhum prefixo casa — o motivo generico vale.
+    """
+    import pacote_legal as pl
+
+    for disciplina, (prefixo, _titulos) in pl._PRANCHAS.items():
+        if codigo.startswith(prefixo + "-"):
+            return disciplina
+    return None
+
+
+def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False):
     """Triagem G93: o dado que falta, com nome, para cada folha sem arquivo.
 
     O laco so chega aqui quando o PDF nem saiu nem foi triado (o fluxo do
     galpao nao tria nada antes do laco). Motivo sem o dado nomeado e
     silencio, nao triagem: cada ramo diz o codigo, o titulo e o que falta
     (dado do spec/resultado ou emissor nao ligado), nunca "nao disponivel"
-    sozinho.
+    sozinho. Com causa_freecad=True a causa proxima e nomeada em cada ramo:
+    sem freecad.exe a disciplina nao emite via TechDraw (G107).
     """
     base = {
         "PE-CO-04": ("not_available: sem emissor de locacao e formas da "
@@ -313,13 +328,19 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo):
                      "(coordination-matrix) + pagina do caderno"),
     }
     if codigo in base:
-        return base[codigo]
-    return ("folha %(codigo)s (%(titulo)s) nao emitida nesta rodada: o "
-            "emissor TechDraw (%(arquivo)s) nao gravou o PDF — ver "
-            "deliverables.drawings.result "
-            "(missing_disciplines/failed_disciplines)") % {
-                "codigo": codigo, "titulo": titulo or "?",
-                "arquivo": _PRANCHA_ARQUIVO_GALPAO.get(codigo, "?")}
+        motivo = base[codigo]
+    else:
+        motivo = ("folha %(codigo)s (%(titulo)s) nao emitida nesta rodada: o "
+                  "emissor TechDraw (%(arquivo)s) nao gravou o PDF — ver "
+                  "deliverables.drawings.result "
+                  "(missing_disciplines/failed_disciplines)") % {
+                      "codigo": codigo, "titulo": titulo or "?",
+                      "arquivo": _PRANCHA_ARQUIVO_GALPAO.get(codigo, "?")}
+    if causa_freecad:
+        motivo += ("; causa proxima nesta rodada: freecad.exe nao "
+                   "encontrado — a disciplina emite via TechDraw e nao tem "
+                   "rota sem executavel (G107)")
+    return motivo
 
 
 _PE_IN_03_ESCADA = "PE-IN-03"
@@ -357,13 +378,16 @@ def _indice_galpao_com_fronteira(executadas, normalized):
     return indice, dispensadas
 
 
-def _conferir_indice_galpao(indice, mapa, disco):
+def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=()):
     """Laco indice<->disco do galpao (G93) sobre a lente do G91.
 
     indice: o que `pacote_legal.indice_de_pranchas` promete nesta rodada.
     mapa: `_PRANCHA_ARQUIVO_GALPAO`. disco: caminhos registrados no
-    manifesto por `_register_tree` (o `_base` da lente normaliza
+    manifesto por `_register_pranchas` (o `_base` da lente normaliza
     "drawings/<disc>/pranchas/<pdf>").
+    sem_freecad: disciplinas cuja emissao exige o executavel e que nao
+    sairam porque ele falta (G107) — cada codigo pulado dessas disciplinas
+    sai com a causa proxima nomeada, um por um.
     Devolve a lista de pulados `[{"prancha", "motivo"}]`, um por codigo —
     o que nao saiu, sai nomeado. Nao implementa cobertura N:1 propria: a
     lente ja avalia cada codigo pela sua entrada (varios codigos no mesmo
@@ -374,14 +398,37 @@ def _conferir_indice_galpao(indice, mapa, disco):
     res = lente.conferir_indice_disco(
         [f["codigo"] for f in indice], mapa, disco, {})
     titulos = {f["codigo"]: f.get("titulo", "") for f in indice}
+    sem_freecad = set(sem_freecad or ())
     puladas = []
     for codigo in res["sem_mapa"] + res["faltando"]:
         puladas.append({
             "prancha": mapa.get(codigo, codigo),
             "motivo": _motivo_folha_galpao_nao_emitida(
-                codigo, titulos.get(codigo, "")),
+                codigo, titulos.get(codigo, ""),
+                causa_freecad=(
+                    _disciplina_do_codigo_galpao(codigo) in sem_freecad)),
         })
     return puladas
+
+
+def _register_pranchas(manifest, run_dir, root):
+    """Registra as folhas do deliverable drawings: `*/pranchas/*.pdf`.
+
+    O disco do laco indice<->disco e a folha, nao a arvore: jsons/txts de
+    calculo, FCStd/STEP intermediarios e o CADERNO-EXECUTIVO (merge das
+    folhas, que viaja como executive-dossier) nao reivindicam codigo do
+    indice e virariam extra_no_disco (G102) se entrassem aqui. A casa faz o
+    mesmo (registra arquivo a arquivo, nunca a arvore).
+    """
+    registros = []
+    for path in sorted(Path(root).rglob("pranchas")):
+        if not path.is_dir():
+            continue
+        for pdf in sorted(path.glob("*.pdf")):
+            if pdf.is_file():
+                registros.append(_add_artifact(manifest, run_dir, pdf,
+                                              "drawing"))
+    return registros
 
 
 def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
@@ -389,10 +436,22 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
     if not requested:
         manifest["deliverables"]["drawings"] = {"status": "not_requested"}
         return
-    if not _freecad_executable(options).is_file():
-        manifest["deliverables"]["drawings"] = {
-            "status": "not_available", "detail": "freecad.exe nao encontrado"}
-        return
+    tem_exe = _freecad_executable(options).is_file()
+    # G107: sem freecad.exe o deliverable NAO some inteiro — as disciplinas
+    # de esquema puro (hidraulica/incendio/climatizacao, rota SVG-direta do
+    # G104, backend="svg" default) emitem, e aco/concreto/eletrico/
+    # coordenacao saem declarados por codigo com a causa proxima nomeada.
+    recorte_svg = None
+    sem_freecad = ()
+    if not tem_exe:
+        import prancha_svg_direta as _psd
+
+        rota_svg = set(_psd.DISCIPLINAS)
+        recorte_svg = [d for d in normalized["requested_disciplines"]
+                       if d in rota_svg]
+        sem_freecad = tuple(
+            d for d in normalized["requested_disciplines"]
+            if d not in rota_svg) + ("coordenacao",)
     dispensadas = []
     try:
         import caderno_turnkey as ct
@@ -400,10 +459,11 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
         drawings_dir.mkdir(parents=True, exist_ok=True)
         result = ct.montar_caderno(
             _selected_turnkey_spec(normalized), str(drawings_dir),
-            disciplinas=normalized["requested_disciplines"],
+            disciplinas=(recorte_svg if recorte_svg is not None
+                         else normalized["requested_disciplines"]),
             freecad_exe=str(_freecad_executable(options)),
             timeout=options.timeout_seconds)
-        artifacts = _register_tree(manifest, run_dir, drawings_dir, "drawing")
+        artifacts = _register_pranchas(manifest, run_dir, drawings_dir)
         if isinstance(result, dict) and result.get("path"):
             path = Path(result["path"])
             if path.is_file():
@@ -427,10 +487,13 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
         if isinstance(result_for_manifest, dict):
             result_for_manifest["missing_disciplines"] = missing_disciplines
             result_for_manifest["failed_disciplines"] = failed_disciplines
-        status = "failed" if (
-            timed_out or missing_disciplines or failed_disciplines) else (
-            "generated" if artifacts else _optional_status(
-                error or "nenhuma prancha emitida"))
+        status = "partial" if (
+            artifacts and (timed_out or missing_disciplines
+                           or failed_disciplines)) else (
+            "failed" if (
+                timed_out or missing_disciplines or failed_disciplines) else (
+                "generated" if artifacts else _optional_status(
+                    error or "nenhuma prancha emitida")))
         # G93: o laco indice<->disco sobre a lente do G91. A promessa e a
         # MESMA fonte do pacote (turnkey_result["executadas"], que
         # ep.emitir_pacote_legal usa), nunca um recorte — numero contra
@@ -444,7 +507,8 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
                 list(executadas), normalized)
             disco = [r.get("path", "") for r in artifacts]
             puladas = _conferir_indice_galpao(
-                indice, _PRANCHA_ARQUIVO_GALPAO, disco)
+                indice, _PRANCHA_ARQUIVO_GALPAO, disco,
+                sem_freecad=sem_freecad)
         except Exception as exc:                            # noqa: BLE001
             try:
                 import varredura_indice_disco as _lente

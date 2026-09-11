@@ -108,6 +108,59 @@ PRANCHAS = (
 BASELINE_G105 = {p["chave"]: p["classe"] for p in PRANCHAS}
 TEMPOS_G105 = {p["chave"]: None for p in PRANCHAS}
 
+# G109: numeros medidos em 2026-09-11 no galpao-ufpe (44x90 2 vaos, FCStd
+# 2,3 MB via montar_modelo headless; freecad.exe 1.1; maquina 8 GB com
+# ~1 GB livre). Totais ≈ 578 s nas 16 medidas, compativel com os ~15 min
+# do executivo inteiro (06-open-threads T13). PE05 sem numero: timeout
+# sistematico 2x1200 s + diag 540 s, trava no doc.recompute() da pagina
+# (t_hlr); build dela e instantaneo (1 pag + 1 cota). Tetos manuais com
+# folga; None = sem numero (condicional ausente ou PE05), nunca zero.
+MEDIDOS_G109 = {
+    "PE01_COBERTURA": {"t_build": 0.1, "t_hlr": 67.3,
+                       "t_cotas": 96.6, "t_export": 23.6},
+    "PE02_FUNDACOES": {"t_build": 9.6, "t_hlr": 3.8,
+                       "t_cotas": 35.5, "t_export": 9.8},
+    "PE03_ELEVACOES": {"t_build": 0.2, "t_hlr": 70.7,
+                       "t_cotas": 100.7, "t_export": 40.3},
+    "PE04_PORTICO": {"t_build": 0.2, "t_hlr": 4.3,
+                     "t_cotas": 6.8, "t_export": 4.1},
+    "PE06_DET_BASE": {"t_build": 0.3, "t_hlr": 3.0,
+                      "t_cotas": 1.4, "t_export": 1.6},
+    "PE07_DET_JOELHO": {"t_build": 1.2, "t_hlr": 3.0,
+                        "t_cotas": 1.5, "t_export": 1.9},
+    "PE08_FECHAMENTO": {"t_build": 0.1, "t_hlr": 8.8,
+                        "t_cotas": 11.8, "t_export": 8.0},
+    "PE09_QUADROS": {"t_build": 2.2, "t_hlr": 2.1,
+                     "t_cotas": 0.4, "t_export": 3.0},
+    "PE10_DET_CUMEEIRA": {"t_build": 1.5, "t_hlr": 3.2,
+                          "t_cotas": 3.0, "t_export": 5.1},
+    "PE11_DET_GUSSET_COB": {"t_build": 1.6, "t_hlr": 2.6,
+                            "t_cotas": 1.5, "t_export": 2.9},
+    "PE12_DET_GUSSET_PAR": {"t_build": 2.8, "t_hlr": 2.9,
+                            "t_cotas": 2.3, "t_export": 2.7},
+    "PE13_DET_CLIPE_GIRT": {"t_build": 2.2, "t_hlr": 3.0,
+                            "t_cotas": 2.5, "t_export": 4.3},
+    "PE14_DET_CONSOLE": {"t_build": 0.0, "t_hlr": 0.0,
+                         "t_cotas": 0.0, "t_export": 0.0},
+    "PE15_DET_BLOCO": {"t_build": 0.0, "t_hlr": 0.0,
+                       "t_cotas": 0.0, "t_export": 0.0},
+    "PE14_CROQUIS": {"t_build": 0.1, "t_hlr": 2.8,
+                     "t_cotas": 0.5, "t_export": 1.5},
+    "PE16_MONTAGEM": {"t_build": 0.7, "t_hlr": 2.0,
+                      "t_cotas": 0.4, "t_export": 2.3},
+}
+ORCAMENTO_G109 = {
+    "PE01_COBERTURA": 210.0, "PE02_FUNDACOES": 90.0,
+    "PE03_ELEVACOES": 240.0, "PE04_PORTICO": 30.0,
+    "PE05_CONTRAVENTAMENTO": None, "PE06_DET_BASE": 30.0,
+    "PE07_DET_JOELHO": 30.0, "PE08_FECHAMENTO": 60.0,
+    "PE09_QUADROS": 30.0, "PE10_DET_CUMEEIRA": 30.0,
+    "PE11_DET_GUSSET_COB": 30.0, "PE12_DET_GUSSET_PAR": 30.0,
+    "PE13_DET_CLIPE_GIRT": 30.0, "PE14_DET_CONSOLE": None,
+    "PE15_DET_BLOCO": None, "PE14_CROQUIS": 30.0,
+    "PE16_MONTAGEM": 30.0,
+}
+
 TEMPO_KEYS = ("t_build", "t_hlr", "t_cotas", "t_export")
 
 
@@ -132,6 +185,13 @@ def montar_boot_por_prancha(cfg_nativa, fonte_td, chave, saida_json):
         "_CFG_ = %r\n" % (cfg_nativa,) +
         "_CHAVE_ = %r\n" % (chave,) +
         "_SAIDA_ = %r\n" % (saida_json,) +
+        # G109: o boot roda DENTRO do freecad.exe com so o fonte do techdraw
+        # no namespace; PRANCHAS vive neste harness, nao no techdraw. O boot
+        # recebe so a entrada da prancha medida (_ENT_) em vez de olhar
+        # PRANCHAS (NameError em toda medicao real; o teste-guarda nunca
+        # executa o boot sem freecad.exe). Passar a entrada unica tambem
+        # mantem o teste_05 (boot de PE13 sem "_pr_portico").
+        "_ENT_ = %r\n" % (ent,) +
         fonte_td + r'''
 
 def _medir_uma():
@@ -158,7 +218,7 @@ def _medir_uma():
                     doc.removeObject(nome)
                 except Exception:
                     pass
-        ent = {p["chave"]: p for p in PRANCHAS}[_CHAVE_]
+        ent = _ENT_
         fn = globals()[ent["construtor"]]
         t_a = time.perf_counter()
         if ent["construtor"] == "_pr_ligacoes":

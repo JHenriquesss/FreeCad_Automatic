@@ -327,12 +327,16 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
 
 # --------------------------------- pacote legal ------------------------------
 def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
-                        pendencias=None):
+                        pendencias=None, correspondencia=None):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial.
 
     `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao
     (o predio as deriva do escopo do eletrico); vao para o checklist como
-    PENDENTE e para `a_confirmar` - o portao que fecha o G57."""
+    PENDENTE e para `a_confirmar` - o portao que fecha o G57.
+
+    `correspondencia` (G112): {"intro", "entradas"} com a tabela de
+    numeracao propria que o cliente recebe; vai para o .md via pl.markdown
+    (default None = sem secao, byte-identico)."""
     import pacote_legal as pl
 
     pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial,
@@ -344,7 +348,8 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
                    if item.get("kind") == "drawing")
     artefatos = [
         _texto(manifest, run_dir, pasta / "pacote-legal.md",
-               pl.markdown(pacote, emitidas=emitidas) + "\n", "legal-package"),
+                pl.markdown(pacote, emitidas=emitidas,
+                            correspondencia=correspondencia) + "\n", "legal-package"),
         _json(manifest, run_dir, pasta / "pacote-legal.json", pacote,
               "legal-package-data"),
     ]
@@ -378,13 +383,17 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
 
 
 def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
-    """Pacote legal do galpao, com o memorial consolidado do turnkey."""
+    """Pacote legal do galpao, com o memorial consolidado do turnkey.
+
+    G112: o unico emissor que passa a tabela de correspondencia de
+    numeracao propria (o cliente recebe em pacote-legal.md)."""
     del options
     import pacote_legal as pl
 
     pacote_no_manifesto(
         manifest, run_dir, turnkey_result.get("executadas"),
-        pl.memorial_consolidado(turnkey_result, normalized.get("turnkey_spec")))
+        pl.memorial_consolidado(turnkey_result, normalized.get("turnkey_spec")),
+        correspondencia=pl.CORRESPONDENCIA_NUMERACAO_GALPAO)
 
 
 # --------------------------------- obras do sitio ----------------------------

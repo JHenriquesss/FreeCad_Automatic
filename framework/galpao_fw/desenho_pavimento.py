@@ -267,6 +267,101 @@ def _arr_rotulo(arr):
         return "-"
 
 
+#: colunas da tabela de vigas (x em px, mesma ordem dos valores da fileira).
+_COLS_VIGAS = [("VIGA", 30), ("TR", 130), ("L(m)", 175), ("SECAO", 235),
+               ("M+(kNm)", 330), ("M-(kNm)", 420), ("As_inf", 510),
+               ("As_sup", 590), ("ARR INF", 670), ("ARR SUP", 780),
+               ("ESTRIBO", 890), ("LB(mm)", 1020), ("FLECHA", 1090),
+               ("OK", 1310)]
+
+_SUBTITULO_VIGAS = ("flexao M+/M- (17.2.2) + cortante (17.4.2) + ancoragem (9.4) + "
+                    "flecha Tab.13.3 + fissuracao -- por tramo, da envoltoria 14.6.6")
+
+
+def _dados_vigas(vigas_verificacao):
+    """Separa o `por_linha` em fileiras (linha, tramo) + contagens.
+
+    Builder da secao de vigas (G110): o corpo da tabela saiu da
+    `prancha_armacao_vigas_svg` para ser reusado pela combinada
+    vigas+pilares sem duplicar a formatacao - a saida da prancha de
+    vigas nao muda um byte (diff travado em teste manual antes/depois).
+    """
+    por_linha = (vigas_verificacao or {}).get("por_linha") or []
+    n_tramos = int((vigas_verificacao or {}).get("n_tramos") or 0)
+    linhas = []
+    for linha in por_linha:
+        for tramo in linha.get("tramos") or []:
+            linhas.append((linha, tramo))
+    return por_linha, n_tramos, linhas
+
+
+def _vals_fileira_viga(linha, tramo):
+    """Os 14 valores da fileira, na ordem de _COLS_VIGAS (formatacao da G34)."""
+    ver = tramo.get("verificacao") or {}
+    els = tramo.get("els") or ver.get("els") or {}
+    anc = ver.get("ancoragem") or {}
+    sec = "%dx%d" % (round(float(linha.get("b", 0)) * 100),
+                     round(float(linha.get("h", 0)) * 100))
+    flecha = ("%.1f/%.1f" % (float(els.get("d_comparado_mm", 0)),
+                             float(els.get("lim_mm", 0)))
+              if els else "-")
+    estribo = ("f%.1f c/%d" % (float(ver.get("phi_estribo_mm", 5.0)),
+                               round(float(ver.get("s_estribo_max", 0.2)) * 100))
+               if ver else "-")
+    return [
+        str(linha.get("nome", "")),
+        str(tramo.get("tramo", "")),
+        "%.2f" % float(tramo.get("L", 0)),
+        sec,
+        "%.1f" % float(tramo.get("M_d_kNm", 0)),
+        "%.1f" % float(tramo.get("M_d_neg_envoltoria_kNm", 0)),
+        "%.2f" % float(tramo.get("As_inf_cm2", 0)),
+        "%.2f" % float(tramo.get("As_sup_cm2", 0)),
+        _arr_rotulo(ver.get("arr_inf")),
+        _arr_rotulo(ver.get("arr_sup")),
+        estribo,
+        "%d" % int(anc.get("lb_nec_mm", 0)) if anc else "-",
+        flecha,
+        "OK" if tramo.get("OK") else "REPROVA",
+    ]
+
+
+def _escreve_cabecalho_tabela(P, cols, y0, W):
+    """Cabecalho em negrito + filete (mesma geometria das duas secoes)."""
+    for nome, x in cols:
+        P.append(sb.texto(x, y0, nome, 11, anchor="start", weight="bold"))
+    P.append(sb.linha(24, y0 + 8, W - 24, y0 + 8, 1.0, "#999"))
+
+
+def _escreve_fileira(P, cols, vals, yy):
+    """Uma fileira da tabela (REPROVA em vermelho, o resto em #111)."""
+    for (_nome, x), val in zip(cols, vals):
+        cor = "#b91c1c" if (val == "REPROVA") else "#111"
+        peso = "bold" if val in ("REPROVA",) else "normal"
+        P.append(sb.texto(x, yy, val, 11, anchor="start", weight=peso,
+                          color=cor))
+
+
+def _rodape_armacao_vigas(P, yy, conceitual=True):
+    """As tres linhas de rodape da secao de vigas (notas + CONCEITUAL/ART).
+
+    Na combinada N:1 (G110) a secao de vigas sai com conceitual=False e o
+    carimbo unico fecha a folha (olhar do G110: CONCEITUAL duplicado).
+    """
+    P.append(sb.texto(30, yy + 18,
+                      "As em cm2 ; M_d/M_d_neg de projeto (envelopes x 1,4) ; "
+                      "LB = lb,nec com gancho (9.4) ; flecha comparada/limite Tab.13.3",
+                      11, anchor="start", color="#444"))
+    P.append(sb.texto(30, yy + 36,
+                      "longitudinal (L+2*LB) + estribos contam no quantitativo "
+                      "armadura_viga ; traspasses e perdas nao incluidos",
+                      11, anchor="start", color="#444"))
+    if conceitual:
+        P.append(sb.texto(30, yy + 54,
+                          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+                          11, anchor="start", weight="bold", color="#444"))
+
+
 def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
     """Prancha de armacao das vigas do pavimento-tipo (SVG puro-Python).
 
@@ -276,76 +371,22 @@ def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
     por tramo; a contagem desenhada tem de bater com `n_tramos` (drawing-vs-data,
     o mesmo padrao da planta de formas).
     """
-    por_linha = (vigas_verificacao or {}).get("por_linha") or []
-    n_tramos = int((vigas_verificacao or {}).get("n_tramos") or 0)
-    linhas = []
-    for linha in por_linha:
-        for tramo in linha.get("tramos") or []:
-            linhas.append((linha, tramo))
+    por_linha, n_tramos, linhas = _dados_vigas(vigas_verificacao)
     W = 1420
     H = 170 + max(len(linhas), 1) * 22 + 110
     tit = titulo or ("ARMACAO DE VIGAS - PAVIMENTO-TIPO "
                      "(%d linhas / %d tramos VERIFICADOS)" % (len(por_linha), n_tramos))
     P = sb.abre_svg(W, H, tit)
-    P.append(sb.texto(W / 2, 58,
-                      "flexao M+/M- (17.2.2) + cortante (17.4.2) + ancoragem (9.4) + "
-                      "flecha Tab.13.3 + fissuracao -- por tramo, da envoltoria 14.6.6",
-                      11, color="#444"))
+    P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
     # cabecalho
-    cols = [("VIGA", 30), ("TR", 130), ("L(m)", 175), ("SECAO", 235),
-            ("M+(kNm)", 330), ("M-(kNm)", 420), ("As_inf", 510), ("As_sup", 590),
-            ("ARR INF", 670), ("ARR SUP", 780), ("ESTRIBO", 890),
-            ("LB(mm)", 1020), ("FLECHA", 1090), ("OK", 1310)]
+    cols = _COLS_VIGAS
     y0 = 92
-    for nome, x in cols:
-        P.append(sb.texto(x, y0, nome, 11, anchor="start", weight="bold"))
-    P.append(sb.linha(24, y0 + 8, W - 24, y0 + 8, 1.0, "#999"))
+    _escreve_cabecalho_tabela(P, cols, y0, W)
     yy = y0 + 28
     for linha, tramo in linhas:
-        ver = tramo.get("verificacao") or {}
-        els = tramo.get("els") or ver.get("els") or {}
-        anc = ver.get("ancoragem") or {}
-        sec = "%dx%d" % (round(float(linha.get("b", 0)) * 100),
-                         round(float(linha.get("h", 0)) * 100))
-        flecha = ("%.1f/%.1f" % (float(els.get("d_comparado_mm", 0)),
-                                 float(els.get("lim_mm", 0)))
-                  if els else "-")
-        estribo = ("f%.1f c/%d" % (float(ver.get("phi_estribo_mm", 5.0)),
-                                   round(float(ver.get("s_estribo_max", 0.2)) * 100))
-                   if ver else "-")
-        vals = [
-            str(linha.get("nome", "")),
-            str(tramo.get("tramo", "")),
-            "%.2f" % float(tramo.get("L", 0)),
-            sec,
-            "%.1f" % float(tramo.get("M_d_kNm", 0)),
-            "%.1f" % float(tramo.get("M_d_neg_envoltoria_kNm", 0)),
-            "%.2f" % float(tramo.get("As_inf_cm2", 0)),
-            "%.2f" % float(tramo.get("As_sup_cm2", 0)),
-            _arr_rotulo(ver.get("arr_inf")),
-            _arr_rotulo(ver.get("arr_sup")),
-            estribo,
-            "%d" % int(anc.get("lb_nec_mm", 0)) if anc else "-",
-            flecha,
-            "OK" if tramo.get("OK") else "REPROVA",
-        ]
-        for ( _nome, x), val in zip(cols, vals):
-            cor = "#b91c1c" if (val == "REPROVA") else "#111"
-            peso = "bold" if val in ("REPROVA",) else "normal"
-            P.append(sb.texto(x, yy, val, 11, anchor="start", weight=peso,
-                              color=cor))
+        _escreve_fileira(P, cols, _vals_fileira_viga(linha, tramo), yy)
         yy += 22
-    P.append(sb.texto(30, yy + 18,
-                      "As em cm2 ; M_d/M_d_neg de projeto (envelopes x 1,4) ; "
-                      "LB = lb,nec com gancho (9.4) ; flecha comparada/limite Tab.13.3",
-                      11, anchor="start", color="#444"))
-    P.append(sb.texto(30, yy + 36,
-                      "longitudinal (L+2*LB) + estribos contam no quantitativo "
-                      "armadura_viga ; traspasses e perdas nao incluidos",
-                      11, anchor="start", color="#444"))
-    P.append(sb.texto(30, yy + 54,
-                      "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
-                      11, anchor="start", weight="bold", color="#444"))
+    _rodape_armacao_vigas(P, yy)
     P.append("</svg>")
     return "\n".join(P)
 
@@ -387,4 +428,236 @@ def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None):
     """Escreve a prancha de armacao de vigas (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(prancha_armacao_vigas_svg(vigas_verificacao, titulo))
+    return path
+
+
+# ---------------------------------------------------------------------------
+# QUADRO DE ARMACAO DE PILARES + COMBINADA VIGAS/PILARES (G110)
+# ---------------------------------------------------------------------------
+# Decisao N:1 (G110): o indice PE-CO-02 promete "Armacao pilares/vigas" nas
+# duas tipologias de concreto e o arquivo da casa ja se chama
+# "armacao-vigas-pilares-casa.svg" - a combinada empilha a secao de vigas
+# (G34) e a secao de pilares abaixo, no MESMO <svg>. Sem arquivo novo, sem
+# churn em mapas (pacote_legal._PRANCHA_ARQUIVO), indice, FOLHAS do G77 ou
+# na lente varredura_indice_disco: o codigo PE-CO-02 passa a ser verdade
+# no arquivo que ja o carregava no nome.
+#
+# O pilar e' lido do `pilar_continuo.dimensiona` (via edificio_multipavimento
+# / estrutura_casa: dict por pilar com `lances` do topo a base): UMA fileira
+# por pilar, sempre do lance de BASE (lances[-1], o que acumula toda a carga
+# e define a secao da fundacao). Tudo vem do dado - nada e' arbitrado: sem
+# `phi_long_mm` declarada nao ha arranjo longitudinal honesto (a celula diz
+# NAO DETALHADO em vez de inventar bitola).
+
+#: subtitulo da secao de pilares: so itens VERIFICADOS em pilar_concreto.py
+#: (15.8 esbeltez/2a ordem, 17.3.5.3 As min/max, 18.4.3 estribo/limite).
+_SUBTITULO_PILARES = ("pilares: esbeltez e 2a ordem (15.8) + As min/max (17.3.5.3) + "
+                      "estribo e limite governante (18.4.3) -- NBR 6118:2014")
+
+#: declaracao de ausencia (pilares={} ou None): a secao declara em vez de
+#: sair com a tabela vazia (folha vazia e' o bug irmao do G62).
+_AUSENCIA_PILARES = ("pilares nao dimensionados nesta rodada "
+                     "(estrutura.pilares ausente/vazio)")
+
+#: celula do arranjo longitudinal quando a bitola nao foi declarada (G110).
+_ARRANJO_NAO_DETALHADO = "NAO DETALHADO: phi_long_mm nao declarado"
+
+_COLS_PILARES = [("PILAR", 30), ("SECAO BASE", 120), ("LANCES", 250),
+                 ("Nd(kN)", 330), ("As(cm2)", 420), ("TAXA(%)", 510),
+                 ("ESTRIBO", 610), ("LIMITE GOVERNANTE", 790),
+                 ("ARRANJO LONG.", 1050)]
+
+#: base da altura dinamica da combinada: H = base + 22*(n_tramos + n_pilares).
+_BASE_COMBINADA = 480
+
+
+def _lance_base(pilar):
+    """O lance de BASE (lances[-1]) ou None quando o pilar nao tem lances."""
+    lances = (pilar or {}).get("lances") if isinstance(pilar, dict) else None
+    if not lances:
+        return None
+    return lances[-1]
+
+
+def _estribo_pilar_rotulo(detalhe):
+    """'f<phi> c/<s_cm> <n>R' (s em m no dado, cm na folha via round(s*100))."""
+    det = detalhe if isinstance(detalhe, dict) else {}
+    # G113: sem a chave a celula declara "-". Os padroes (5 mm, c/15, 2R) que
+    # estavam aqui imprimiriam um estribo que ninguem calculou.
+    try:
+        phi = float(det["phi_estribo_mm"])
+        s_cm = round(float(det["s_estribo"]) * 100)
+        n_r = int(det["n_ramos_estribo"])
+    except (KeyError, TypeError, ValueError):
+        return "-"
+    return "f%.1f c/%d %dR" % (phi, s_cm, n_r)
+
+
+def _arranjo_long_rotulo(detalhe):
+    """Arranjo longitudinal: nunca arbitrar `phi_long_mm`.
+
+    A 18.4.3 so limita por 12.phi_long quando a bitola foi DECLARADA
+    (pilar_concreto.py:683) - sem a chave '18.4.3 12.phi_long' em
+    limites_s_m nao ha bitola honesta e a celula declara isso.
+    """
+    det = detalhe if isinstance(detalhe, dict) else {}
+    limites = det.get("limites_s_m") or {}
+    if "18.4.3 12.phi_long" not in limites:
+        return _ARRANJO_NAO_DETALHADO
+    try:
+        phi_long = float(limites["18.4.3 12.phi_long"]) * 1000.0 / 12.0
+    except (TypeError, ValueError):
+        return _ARRANJO_NAO_DETALHADO
+    return "f%.1f (12.phi_long declarado)" % phi_long
+
+
+def _vals_fileira_pilar(nome, pilar):
+    """Os 9 valores da fileira, na ordem de _COLS_PILARES (lance de BASE)."""
+    base = _lance_base(pilar) or {}
+    det = base.get("detalhe") if isinstance(base.get("detalhe"), dict) else {}
+    try:
+        sec = "%dx%d" % (round(float(base.get("b", 0)) * 100),
+                         round(float(base.get("h", 0)) * 100))
+    except (TypeError, ValueError):
+        sec = "-"
+    n_lances = len((pilar or {}).get("lances") or [])
+    return [
+        str(nome),
+        sec,
+        "%d" % n_lances,
+        "%.1f" % float(base.get("Nd", 0)),
+        "%.2f" % float(base.get("As_cm2", 0)),
+        "%.2f" % float(base.get("taxa_pct", 0)),
+        _estribo_pilar_rotulo(det),
+        str(det.get("s_limite_governante", "-")),
+        _arranjo_long_rotulo(det),
+    ]
+
+
+def _escreve_secao_pilares(P, pilares, y_sub, W):
+    """Subtitulo + cabecalho + fileiras (ou a declaracao de ausencia).
+
+    Devolve o yy apos a ultima fileira (ou linha de declaracao).
+    """
+    P.append(sb.texto(W / 2, y_sub, _SUBTITULO_PILARES, 11, color="#444"))
+    y0 = y_sub + 22
+    if not isinstance(pilares, dict) or not pilares:
+        P.append(sb.texto(30, y0 + 28, _AUSENCIA_PILARES, 12, anchor="start"))
+        return y0 + 28
+    _escreve_cabecalho_tabela(P, _COLS_PILARES, y0, W)
+    yy = y0 + 28
+    for nome in sorted(pilares):
+        _escreve_fileira(P, _COLS_PILARES,
+                         _vals_fileira_pilar(nome, pilares[nome]), yy)
+        yy += 22
+    return yy
+
+
+def _rodape_armacao_pilares(P, yy):
+    """As tres linhas de rodape da secao de pilares (notas + CONCEITUAL/ART)."""
+    P.append(sb.texto(30, yy + 18,
+                      "secao, Nd, As e taxa do lance de BASE (lances[-1]) ; "
+                      "s do estribo em cm (round(s_m*100)) ; ESTRIBO f<phi> c/<s> <n>R",
+                      11, anchor="start", color="#444"))
+    P.append(sb.texto(30, yy + 36,
+                      "arranjo longitudinal so com phi_long_mm declarada "
+                      "(18.4.3 12.phi_long) ; sem bitola, NAO DETALHADO",
+                      11, anchor="start", color="#444"))
+    P.append(sb.texto(30, yy + 54,
+                      "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+                      11, anchor="start", weight="bold", color="#444"))
+
+
+def prancha_armacao_pilares_svg(pilares, titulo=None):
+    """Quadro de armacao dos pilares (SVG puro-Python, G110).
+
+    UMA fileira por pilar, do lance de BASE (lances[-1]): secao, n de
+    lances, Nd, As, taxa, estribo (phi/s/ramos), limite governante da
+    18.4.3 e arranjo longitudinal. Pilares vazio/ausente declara a
+    ausencia em vez de sair com a tabela vazia.
+    """
+    nomes = sorted(pilares) if isinstance(pilares, dict) else []
+    W = 1420
+    H = 170 + max(len(nomes), 1) * 22 + 110
+    tit = titulo or ("ARMACAO DE PILARES - PAVIMENTO-TIPO "
+                     "(%d pilares VERIFICADOS)" % len(nomes))
+    P = sb.abre_svg(W, H, tit)
+    yy = _escreve_secao_pilares(P, pilares, 58, W)
+    _rodape_armacao_pilares(P, yy)
+    P.append("</svg>")
+    return "\n".join(P)
+
+
+def confere_armacao_pilares(pilares, svg):
+    """Drawing-vs-data do quadro de pilares: todo PILAR tem de estar desenhado.
+
+    O esperado deriva do DADO (dict pilares), nunca do svg: cada nome conta
+    >= 1 ocorrencia (regex com fronteira, padrao G69 do confere_armacao_vigas).
+    Com pilares vazio/ausente, ok=True so se a declaracao de ausencia constar.
+    """
+    import re as _re
+
+    nomes = sorted(pilares) if isinstance(pilares, dict) else []
+    if not nomes:
+        ok = _AUSENCIA_PILARES in (svg or "")
+        return {"n_pilares": 0, "faltando": [], "ok": ok}
+    faltando = []
+    for nome in nomes:
+        achados = len(_re.findall(_re.escape(str(nome)) + r"(?![0-9A-Za-z])",
+                                  svg or ""))
+        if achados < 1:
+            faltando.append("%s: calculado, nao desenhado" % nome)
+    return {"n_pilares": len(nomes), "faltando": faltando, "ok": not faltando}
+
+
+def gerar_prancha_armacao_pilares(pilares, path, titulo=None):
+    """Escreve o quadro de armacao de pilares (SVG) em `path`. Retorna o path."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(prancha_armacao_pilares_svg(pilares, titulo))
+    return path
+
+
+def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
+    """Combinada N:1 de PE-CO-02 (G110): secao de vigas + secao de pilares.
+
+    Empilha no MESMO <svg> a tabela por tramo (builder da G34, mesma
+    formatacao da prancha de vigas) e o quadro por pilar (lance de BASE).
+    Altura dinamica H = base + 22*(n_tramos + n_pilares); passa em
+    desenho_svg_base.confere_folha_svg.
+    """
+    _por_linha, n_tramos, linhas_v = _dados_vigas(vigas_verificacao)
+    nomes_p = sorted(pilares) if isinstance(pilares, dict) else []
+    W = 1420
+    H = _BASE_COMBINADA + 22 * (max(len(linhas_v), 1) + max(len(nomes_p), 1))
+    tit = titulo or ("ARMACAO DE VIGAS E PILARES - PAVIMENTO-TIPO "
+                     "(%d tramos VERIFICADOS / %d pilares VERIFICADOS)"
+                     % (n_tramos, len(nomes_p)))
+    P = sb.abre_svg(W, H, tit)
+    P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
+    _escreve_cabecalho_tabela(P, _COLS_VIGAS, 92, W)
+    yy = 92 + 28
+    if linhas_v:
+        for linha, tramo in linhas_v:
+            _escreve_fileira(P, _COLS_VIGAS,
+                             _vals_fileira_viga(linha, tramo), yy)
+            yy += 22
+    else:
+        P.append(sb.texto(30, yy,
+                          "vigas nao verificadas nesta rodada "
+                          "(vigas_verificacao sem tramos)",
+                          12, anchor="start"))
+        yy += 22
+    yy = _escreve_secao_pilares(P, pilares, yy + 18, W)
+    _rodape_armacao_vigas(P, yy, conceitual=False)
+    _rodape_armacao_pilares(P, yy + 60)
+    P.append("</svg>")
+    return "\n".join(P)
+
+
+def gerar_prancha_armacao_vigas_pilares(vigas_verificacao, pilares, path,
+                                        titulo=None):
+    """Escreve a combinada de armacao vigas+pilares (SVG) em `path`."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares,
+                                                  titulo))
     return path

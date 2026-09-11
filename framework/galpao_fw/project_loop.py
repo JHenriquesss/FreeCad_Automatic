@@ -890,8 +890,14 @@ def _project_status(records, preflight, deliverables=None, coordination=None):
         return "failed"
     if "needs_review" in statuses:
         return "needs_review"
-    if any(item.get("status") == "not_available" for item in deliverables.values()
-           if isinstance(item, dict)):
+    # G113: `partial` conta como `not_available` aqui. O G107 criou o status
+    # (galpao sem freecad.exe emite as tres de esquema e declara o resto por
+    # codigo) e o agregador nao o conhecia: a rodada com 3 de 7 disciplinas
+    # saia `passed` - o "orcamento parcial que se diz fechado" do G7, agora
+    # no status da rodada. `entregaveis_projeto` ja emitia `partial` e caia
+    # no mesmo buraco.
+    if any(item.get("status") in ("not_available", "partial")
+           for item in deliverables.values() if isinstance(item, dict)):
         return "needs_review"
     if coordination.get("status") == "not_available":
         return "needs_review"

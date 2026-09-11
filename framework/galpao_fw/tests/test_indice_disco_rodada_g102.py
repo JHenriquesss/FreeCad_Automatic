@@ -23,11 +23,12 @@ Entregue:
      em silencio.
 
 CUSTO_MEDIDO (2026-09-11, maquina de desenvolvimento Windows, sem
-freecad.exe no PATH da rodada): casa=1.9s predio=34.8s galpao=38.5s
-total=75.2s. O galpao roda com generate_2d/caderno desligados (a via
-TechDraw exige freecad.exe com GUI e custa ~15min): a ausencia de
-pranchas sai declarada no manifesto e o um-por-um sem FreeCAD e do laco
-G93. Total abaixo do teto de 1800s: roda no CI.
+freecad.exe no PATH da rodada): casa=2.7s predio=35.7s galpao=923.0s
+total=961.4s. G107: o galpao passa a rodar com generate_2d=True (as tres
+de esquema saem pela rota SVG e PE-HI/PE-IN/PE-CL sao confrontados com o
+disco de verdade); o custo do galpao sobe pelos dois `tk.rodar` (turnkey
++ caderno, o segundo do montar_caderno) sobre o spec 44x90 de dois vaos.
+Total abaixo do teto de 1800s: roda no CI.
 
 Cada teste segue as convencoes do BACKLOG: baseline nos dois sentidos,
 vermelho por injecao em diretorio temporario (nunca mutando o repo),
@@ -58,13 +59,27 @@ ISENCOES_EXTRA = {
     "conferencia-nbr5410.svg":
         "folha de conferencia interna da casa (NBR 5410), "
         "sem codigo no indice",
+    # G107: o galpao sem freecad.exe emite as tres de esquema pela rota
+    # SVG-direta (G104), duas folhas cada (esquema + quadro). A primeira
+    # cobre os codigos do indice (N:1 no mapa); a segunda e folha legitima
+    # da disciplina, sem codigo proprio no indice.
+    "HID02_QUADRO.pdf":
+        "segunda folha da hidraulica do galpao (quadro de "
+        "dimensionamento e memorial, rota SVG G104), "
+        "sem codigo proprio no indice",
+    "INC02_RESUMO.pdf":
+        "segunda folha do incendio do galpao (quadro-resumo e memorial, "
+        "rota SVG G104), sem codigo proprio no indice",
+    "CLI02_QUADRO.pdf":
+        "segunda folha da climatizacao do galpao (quadro de capacidade "
+        "e memorial, rota SVG G104), sem codigo proprio no indice",
 }
 
 # Custo medido e escrito (aceite do G102): segundos por tipologia na
 # maquina de desenvolvimento, generate_ifc desligado. O test_01 imprime o
 # custo de cada rodada; o test_05 trava este registro. Se o portao ficar
 # mais lento que o teto, ele reprova em vez de apodrecer em silencio.
-CUSTO_MEDIDO_SEG = {"casa": 1.9, "predio": 34.8, "galpao": 38.5}
+CUSTO_MEDIDO_SEG = {"casa": 2.7, "predio": 35.7, "galpao": 923.0}
 CUSTO_MEDIDO_EM = "2026-09-11"
 CUSTO_TETO_SEG = 1800
 
@@ -79,8 +94,11 @@ _SPECS = {
 _OPCOES = {
     "casa": {"generate_ifc": False, "generate_2d": True},
     "predio": {"generate_ifc": False, "generate_2d": True},
-    "galpao": {"generate_ifc": False, "generate_2d": False,
-               "generate_caderno": False},
+    # G107: o galpao roda com generate_2d=True — as tres de esquema saem
+    # pela rota SVG sem freecad.exe e PE-HI/PE-IN/PE-CL sao confrontados
+    # com o disco de verdade (antes, generate_2d=False media so indice x
+    # mapa no galpao, D130).
+    "galpao": {"generate_ifc": False, "generate_2d": True},
 }
 
 
@@ -134,13 +152,19 @@ def _prometidos(nome, manifesto, resultado):
         return (sorted(f["codigo"] for f in pl.indice_de_pranchas(discos)),
                 list(discos))
     import galpao_turnkey as tk
+    import galpao_adapter as ga
 
     executadas = [n for n, rec in (manifesto.get("disciplines") or {}).items()
                   if isinstance(rec, dict) and rec.get("status") != "blocked"]
     discos = [d for d in tk.DISCIPLINAS
               if d in pl._PRANCHAS and d in executadas] + ["coordenacao"]
-    return (sorted(f["codigo"] for f in pl.indice_de_pranchas(discos)),
-            list(discos))
+    # A promessa e a MESMA fonte do laco do adaptador (G93 + fronteira da
+    # escada G101): sem escada declarada PE-IN-03 sai dispensada, nao
+    # prometida. Cobrar o codigo aqui seria o portao brigando com o laco.
+    indice, _dispensadas = ga._indice_galpao_com_fronteira(
+        discos, {"raw_spec": _spec("galpao"),
+                 "turnkey_spec": _spec("galpao").get("turnkey", {})})
+    return (sorted(f["codigo"] for f in indice), list(discos))
 
 
 def _disciplina_do_codigo(codigo):
@@ -188,8 +212,16 @@ def _confronta(nome, manifesto, destino, desenhos):
         gaps.append("sem_mapa %s (prometido sem entrada no mapa)" % codigo)
     # O mapa e da UNIAO (G92: a casa sem alvenaria promete 15 dos 17): o
     # sobrando de disciplina que a rodada nao prometeu e higiene do portao
-    # G91, nao desta rodada. Nome morto de disciplina prometida e gap.
+    # G91, nao desta rodada. Nome morto de disciplina prometida e gap —
+    # salvo quando a fronteira da tipologia dispensou o codigo por escrito
+    # (G101: PE-IN-03 sem escada sai dispensada, nao prometida; o mapa
+    # continua cobrindo o caso com escada).
+    dispensados = {d.get("codigo")
+                   for d in (desenhos.get("dispensadas") or [])
+                   if isinstance(d, dict)}
     for codigo in res["sobrando"]:
+        if codigo in dispensados:
+            continue
         dona = _disciplina_do_codigo(codigo)
         if dona is None or dona in disciplinas:
             gaps.append("sobrando %s (nome morto no mapa -> %s)"
@@ -244,6 +276,13 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
         lado, res, no_disco, mapa, prometidos, _discs = _confronta(
             nome, manifesto, destino, desenhos)
         gaps.extend("[%s] %s" % (nome, g) for g in lado)
+        if nome == "galpao" and "PE-IN-03" not in prometidos:
+            disp = [d.get("codigo")
+                    for d in (desenhos.get("dispensadas") or [])]
+            if "PE-IN-03" not in disp:
+                gaps.append("[galpao] PE-IN-03 fora do indice sem dispensa "
+                            "escrita (fronteira G101): %r"
+                            % (desenhos.get("dispensadas"),))
         resultados[nome] = res
         mapas[nome] = mapa
         prometidos_por[nome] = prometidos
@@ -274,24 +313,31 @@ def test_02_baseline_extras_isentos_nos_dois_sentidos():
 
     lados = []
     if set(ISENCOES_EXTRA) != {"quadro-ambientes.svg",
-                               "conferencia-nbr5410.svg"}:
+                               "conferencia-nbr5410.svg",
+                               "HID02_QUADRO.pdf", "INC02_RESUMO.pdf",
+                               "CLI02_QUADRO.pdf"}:
         lados.append("ISENCOES_EXTRA mudou sem triagem G102: %r"
                      % (sorted(ISENCOES_EXTRA),))
     for chave, motivo in sorted(ISENCOES_EXTRA.items()):
-        if "sem codigo no indice" not in motivo:
+        if "sem codigo" not in motivo or "no indice" not in motivo:
             lados.append("isencao %r sem dizer que nao ha codigo: %r"
                          % (chave, motivo))
-    # Fonte independente: os dois arquivos saem do mesmo emissor
-    # (gerar_desenhos_casa), nao do mapa — a isencao nao deriva do
-    # proprio resultado que ela libera.
+    # Fonte independente: as duas da casa saem do mesmo emissor
+    # (gerar_desenhos_casa), nao do mapa; as tres do galpao saem da rota
+    # SVG-direta (prancha_svg_direta.ARQUIVOS), nao do mapa — a isencao
+    # nao deriva do proprio resultado que ela libera.
     import ast
 
     arvore = ast.parse(open(os.path.join(
         GALPAO, "desenho_casa_residencial.py"),
         encoding="utf-8").read())
     texto = ast.dump(arvore)
+    import prancha_svg_direta as psd
+
+    arquivos_svg = {base + ".pdf"
+                    for par in psd.ARQUIVOS.values() for base in par}
     for chave in ISENCOES_EXTRA:
-        if chave not in texto:
+        if chave not in texto and chave not in arquivos_svg:
             lados.append("isencao %r sem emissor na arvore (nome morto)"
                          % chave)
     # A lente com as isencoes congela o caso bom; sem elas, o extra volta.

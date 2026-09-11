@@ -671,15 +671,18 @@ def motivos_arquitetura_faltante(turnkey, site=None):
 
 
 def armacao_vigas_pilares_casa_svg(estrutura, titulo=None):
-    """PE-CO-02 da casa: a prancha de armacao de vigas do predio, com o dado
-    da casa (G100).
+    """PE-CO-02 da casa: a combinada de armacao vigas+pilares (G110, N:1).
 
     Le `estrutura["vigas"]` (o `por_linha` de `estrutura_casa.verifica_vigas`,
-    verificado desde o G34) e delega a
-    `desenho_pavimento.prancha_armacao_vigas_svg` - a mesma funcao que o
-    adaptador do predio chama. Como no predio, a folha cobre as vigas;
-    o titulo do indice ("Armacao pilares/vigas") e' o mesmo das duas
-    tipologias, e a primitiva e' uma so.
+    verificado desde o G34) mais `estrutura["pilares"]` (o dict por pilar de
+    `pilar_continuo.dimensiona`, P11..P43) e delega a
+    `desenho_pavimento.prancha_armacao_vigas_pilares_svg` - a mesma primitiva
+    que o adaptador do predio chama. Decisao N:1: o indice PE-CO-02 promete
+    "Armacao pilares/vigas" e este arquivo ja se chama
+    "armacao-vigas-pilares-casa.svg" - a folha empilha as duas secoes no
+    mesmo <svg> em vez de um arquivo novo (mapas, indice e lente
+    varredura_indice_disco intactos). Pilares ausente/vazio nao levanta:
+    a secao de pilares declara a ausencia na folha.
     """
     vigas = (estrutura or {}).get("vigas") if isinstance(
         estrutura, dict) else None
@@ -691,14 +694,13 @@ def armacao_vigas_pilares_casa_svg(estrutura, titulo=None):
             "nao ha folha PE-CO-02")
     import desenho_pavimento as dp
 
-    # O titulo diz so o que a folha desenha: a primitiva e' de VIGAS. A
-    # armacao de pilar nao e' emitida em nenhuma tipologia (o indice promete
-    # "pilares/vigas" nas duas) - rotulo x geometria, nao prometer no carimbo.
-    tit = titulo or ("ARMACAO DE VIGAS - CASA RESIDENCIAL "
-                     "(%d linhas / %d tramos VERIFICADOS)"
-                     % (len(vigas["por_linha"]),
-                        int(vigas.get("n_tramos") or 0)))
-    return dp.prancha_armacao_vigas_svg(vigas, titulo=tit)
+    pilares = (estrutura or {}).get("pilares") if isinstance(
+        estrutura, dict) else None
+    tit = titulo or ("ARMACAO DE VIGAS E PILARES - CASA RESIDENCIAL "
+                     "(%d tramos VERIFICADOS / %d pilares VERIFICADOS)"
+                     % (int(vigas.get("n_tramos") or 0),
+                        len(pilares) if isinstance(pilares, dict) else 0))
+    return dp.prancha_armacao_vigas_pilares_svg(vigas, pilares, titulo=tit)
 
 
 def detalhes_concreto_casa_svg(estrutura, titulo=None):
@@ -718,7 +720,12 @@ def detalhes_concreto_casa_svg(estrutura, titulo=None):
             "laje nao dimensionada nesta rodada (estrutura.laje ausente); "
             "sem painel dimensionado nao ha folha PE-CO-03")
     import desenho_concreto as dc
-
+    lajes = (estrutura or {}).get("lajes_por_painel") if isinstance(
+        estrutura, dict) else None
+    # G111, opcao (a): com todos os paineis detalhados a folha lista os
+    # N quadros; resultado antigo (sem a chave) segue na folha de 1.
+    if isinstance(lajes, dict) and lajes.get("paineis"):
+        return dc.planta_lajes_todos_paineis_svg(lajes)
     return dc.planta_laje_svg(laje)
 
 

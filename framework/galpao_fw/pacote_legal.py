@@ -263,14 +263,173 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
     return pac
 
 
+# CORRESPONDENCIA_NUMERACAO_GALPAO (G112): a razao escrita e a tabela que o
+# cliente do galpao recebe no pacote-legal.md - que folha do executivo
+# (numeracao por arquivo de producao) responde por que codigo(s) do indice
+# (numeracao por disciplina). FONTE UNICA: entregaveis_projeto a passa ao
+# markdown e a lente varredura_carimbo_mapa (G112) a importa daqui. Mora
+# neste modulo porque ele nao importa nada - a lente e script avulso e
+# importar entregaveis_projeto direto dispara o ciclo project_loop ->
+# adaptadores -> entregaveis_projeto. Cada entrada: {arquivo, carimbo,
+# cobre ([] = sem codigo proprio no indice), motivo}.
+CORRESPONDENCIA_NUMERACAO_GALPAO = {
+    "intro": (
+        "O executivo numera as folhas por arquivo de producao "
+        "(PE-HID/PE-INC/PE-CLI para esquema+quadro; PE-01..PE-16 na "
+        "sequencia do aco; PE-01..PE-03 na sequencia do concreto; PE-COORD "
+        "na coordenacao) enquanto o indice numera por disciplina "
+        "(PE-HI/PE-IN/PE-CL/PE-ES/PE-CO/PE-EL/PE-CD). As numeracoes diferem "
+        "porque (a) um arquivo de esquema cobre N codigos do indice "
+        "(HID01_ESQUEMA.pdf cobre PE-HI-01/02/03; INC01_PLANTA.pdf cobre "
+        "PE-IN-01 enquanto PE-IN-02/03 nao tem emissor ligado); (b) as "
+        "folhas de quadro (HID02_QUADRO.pdf com PE-HID-02, INC02_RESUMO.pdf, "
+        "CLI02_QUADRO.pdf, COORD02_CLASH.pdf com PE-COORD-02) nao tem codigo "
+        "proprio no indice - PE-HID-02 colide em numero com PE-HI-02 "
+        "\"Esgoto/ventilacao\" mas e outra folha; (c) o aco emite 17 folhas "
+        "contra 3 codigos PE-ES e o carimbo PE-01 esta em dois arquivos "
+        "distintos (PE01_FORMAS.pdf do concreto e PE01_COBERTURA.pdf do "
+        "aco); (d) a coordenacao emite 2 folhas contra 1 codigo PE-CD. "
+        "Carimbar um unico codigo do indice nessas folhas afirmaria uma "
+        "cobertura que a folha nao tem (convencao 6: a folha diz o que "
+        "desenha) - por isso a numeracao propria permanece, e a tabela "
+        "abaixo diz ao cliente que folha do executivo responde por que "
+        "codigo(s) do indice."
+    ),
+    "entradas": [
+        {"arquivo": "CLI01_ESQUEMA.pdf", "carimbo": "PE-CLI-01",
+         "cobre": ["PE-CL-01"],
+         "motivo": "folha de esquema da climatizacao (carimbo PE-CLI-01) "
+                   "responde pelo unico codigo do indice PE-CL-01 "
+                   "Climatizacao/ventilacao; o prefixo difere (CLI vs CL) "
+                   "mas a cobertura e 1:1 e esta escrita aqui"},
+        {"arquivo": "COORD01_PLANTA.pdf", "carimbo": "PE-COORD-01",
+         "cobre": ["PE-CD-01"],
+         "motivo": "planta de coordenacao (carimbo PE-COORD-01) responde "
+                   "pelo unico codigo do indice PE-CD-01 Modelo federado / "
+                   "compatibilizacao; o prefixo difere (COORD vs CD) mas a "
+                   "cobertura e 1:1 e esta escrita aqui"},
+        {"arquivo": "HID01_ESQUEMA.pdf", "carimbo": "PE-HID-01",
+         "cobre": ["PE-HI-01", "PE-HI-02", "PE-HI-03"],
+         "motivo": "um esquema cobre as 3 redes do indice (contrato G82: "
+                   "PE-HI-01 Agua fria, PE-HI-02 Esgoto/ventilacao, PE-HI-03 "
+                   "Pluvial); carimbar um so codigo afirmaria cobertura "
+                   "parcial"},
+        {"arquivo": "INC01_PLANTA.pdf", "carimbo": "PE-INC-01",
+         "cobre": ["PE-IN-01"],
+         "motivo": "planta de prevencao (carimbo PE-INC-01) responde por "
+                   "PE-IN-01 Planta de prevencao (PPCI); PE-IN-02/03 nao tem "
+                   "emissor ligado ao hook do galpao (motivos no laco G93)"},
+        {"arquivo": "PE01_COBERTURA.pdf", "carimbo": "PE-01",
+         "cobre": ["PE-ES-03"],
+         "motivo": "folha de cobertura/fechamento do aco (carimbo PE-01, "
+                   "primeiro na ordem de producao do executivo) responde por "
+                   "PE-ES-03 Cobertura/fechamento; PE-01 aqui e cobertura, em "
+                   "PE01_FORMAS.pdf e formas - o numero so casa com o arquivo"},
+        {"arquivo": "PE01_FORMAS.pdf", "carimbo": "PE-01",
+         "cobre": ["PE-CO-01"],
+         "motivo": "planta de formas do concreto (carimbo PE-01, primeira da "
+                   "sequencia do concreto) responde por PE-CO-01 Formas e "
+                   "fundacoes; PE-01 aqui e formas, em PE01_COBERTURA.pdf e "
+                   "cobertura - o numero so casa com o arquivo"},
+        {"arquivo": "PE02_PORTICO.pdf", "carimbo": "PE-02",
+         "cobre": ["PE-CO-02"],
+         "motivo": "portico tipico do concreto (carimbo PE-02) responde por "
+                   "PE-CO-02 Armacao pilares/vigas; numeracao da sequencia do "
+                   "concreto, nao do indice"},
+        {"arquivo": "PE03_QUADROS.pdf", "carimbo": "PE-03",
+         "cobre": ["PE-CO-03"],
+         "motivo": "quadros do concreto (carimbo PE-03) respondem por "
+                   "PE-CO-03 Detalhes; numeracao da sequencia do concreto, "
+                   "nao do indice"},
+        {"arquivo": "PE04_PORTICO.pdf", "carimbo": "PE-04",
+         "cobre": ["PE-ES-01"],
+         "motivo": "portico tipico do aco (carimbo PE-04, quarto na ordem de "
+                   "producao do executivo) responde por PE-ES-01 Portico e "
+                   "locacao"},
+        {"arquivo": "PE07_DET_JOELHO.pdf", "carimbo": "PE-07",
+         "cobre": ["PE-ES-02"],
+         "motivo": "detalhe da ligacao joelho do aco (carimbo PE-07, setimo "
+                   "na ordem de producao do executivo) responde por PE-ES-02 "
+                   "Detalhes de ligacoes"},
+        {"arquivo": "HID02_QUADRO.pdf", "carimbo": "PE-HID-02",
+         "cobre": [],
+         "motivo": "quadro de dimensionamento da hidraulica (carimbo "
+                   "PE-HID-02) nao tem codigo proprio no indice; PE-HID-02 "
+                   "colide em numero com PE-HI-02 Esgoto/ventilacao mas e "
+                   "outra folha - mesmo numero, folhas diferentes"},
+        {"arquivo": "INC02_RESUMO.pdf", "carimbo": "PE-INC-02",
+         "cobre": [],
+         "motivo": "quadro-resumo de incendio (carimbo PE-INC-02) nao tem "
+                   "codigo proprio no indice (PE-IN-02 Detalhes "
+                   "hidrantes/rotas nao tem emissor ligado)"},
+        {"arquivo": "CLI02_QUADRO.pdf", "carimbo": "PE-CLI-02",
+         "cobre": [],
+         "motivo": "quadro de capacidade da climatizacao (carimbo PE-CLI-02) "
+                   "nao tem codigo proprio no indice (PE-CL-01 ja respondido "
+                   "por CLI01_ESQUEMA.pdf)"},
+        {"arquivo": "COORD02_CLASH.pdf", "carimbo": "PE-COORD-02",
+         "cobre": [],
+         "motivo": "quadro de clash da coordenacao (carimbo PE-COORD-02) nao "
+                   "tem codigo proprio no indice (PE-CD-01 ja respondido por "
+                   "COORD01_PLANTA.pdf)"},
+        {"arquivo": "PE02_FUNDACOES.pdf", "carimbo": "PE-02",
+         "cobre": [],
+         "motivo": "planta de fundacoes do aco (carimbo PE-02) fora do "
+                   "recorte de 3 representantes do mapa do galpao; numeracao "
+                   "de producao, sem codigo do indice"},
+        {"arquivo": "PE03_ELEVACOES.pdf", "carimbo": "PE-03",
+         "cobre": [],
+         "motivo": "elevacoes do aco (carimbo PE-03) fora do recorte de 3 "
+                   "representantes do mapa do galpao; numeracao de producao, "
+                   "sem codigo do indice"},
+        {"arquivo": "PE05_CONTRAVENTAMENTO.pdf", "carimbo": "PE-05",
+         "cobre": [],
+         "motivo": "contraventamentos do aco (carimbo PE-05) fora do recorte "
+                   "de 3 representantes do mapa do galpao; numeracao de "
+                   "producao, sem codigo do indice"},
+        {"arquivo": "PE06_DET_BASE.pdf", "carimbo": "PE-06",
+         "cobre": [],
+         "motivo": "detalhe de base de coluna do aco (carimbo PE-06) fora do "
+                   "recorte de 3 representantes do mapa do galpao; numeracao "
+                   "de producao, sem codigo do indice"},
+        {"arquivo": "PE08_FECHAMENTO.pdf", "carimbo": "PE-08",
+         "cobre": [],
+         "motivo": "fechamento/tercas/mao-francesa do aco (carimbo PE-08) "
+                   "fora do recorte de 3 representantes do mapa do galpao; "
+                   "numeracao de producao, sem codigo do indice"},
+        {"arquivo": "PE09_QUADROS.pdf", "carimbo": "PE-09",
+         "cobre": [],
+         "motivo": "quadros e notas do aco (carimbo PE-09) fora do recorte "
+                   "de 3 representantes do mapa do galpao; numeracao de "
+                   "producao, sem codigo do indice"},
+        {"arquivo": "PE14_CROQUIS.pdf", "carimbo": "PE-14",
+         "cobre": [],
+         "motivo": "croquis de fabricacao do aco (carimbo PE-14) fora do "
+                   "recorte de 3 representantes do mapa do galpao; numeracao "
+                   "de producao, sem codigo do indice"},
+        {"arquivo": "PE16_MONTAGEM.pdf", "carimbo": "PE-16",
+         "cobre": [],
+         "motivo": "plano de montagem do aco (carimbo PE-16) fora do recorte "
+                   "de 3 representantes do mapa do galpao; numeracao de "
+                   "producao, sem codigo do indice"},
+    ],
+}
+
+
 def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
-             emitidas=None):
+              emitidas=None, correspondencia=None):
     """Renderiza o pacote legal em markdown.
 
     `emitidas`: pranchas efetivamente desenhadas nesta rodada (quando dado e
     menor que o indice, o .md avisa - o indice e o escopo do executivo, nao o
     conteudo da pasta. Sem isso o .md lista 13 folhas ao lado de 3 arquivos e
-    passa por completo (G52 achado 1 / G14)."""
+    passa por completo (G52 achado 1 / G14).
+
+    `correspondencia` (G112): {"intro": texto, "entradas": [{arquivo,
+    carimbo, cobre, motivo}]} com a tabela de numeracao propria que o
+    cliente recebe (galpao: numeracao por arquivo de producao vs indice por
+    disciplina). Quando None (default, casa/predio e chamadas antigas), a
+    saida e byte-identica a de antes - nenhuma secao nova."""
     L = ["# %s" % titulo, ""]
     if "memorial_consolidado" in pac:
         m = pac["memorial_consolidado"]
@@ -318,6 +477,24 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     L.append("## Manual de O&M")
     for o in pac["manual_oem"]:
         L.append("- %s (%s): %s" % (o["sistema"], o["periodicidade"], o["rotina"]))
+    if correspondencia is not None:
+        L.append("")
+        L.append("## Correspondencia de numeracao do executivo (G112)")
+        L.append("")
+        intro = (correspondencia.get("intro") if isinstance(correspondencia, dict)
+                 else None)
+        entradas = (correspondencia.get("entradas") if isinstance(correspondencia, dict)
+                    else correspondencia)
+        if intro:
+            L.append(str(intro))
+            L.append("")
+        for e in entradas or []:
+            carimbo = e.get("carimbo") or "(sem carimbo extraivel)"
+            cobre = list(e.get("cobre") or [])
+            cobertura = (", ".join(cobre) if cobre
+                         else "(sem codigo proprio no indice)")
+            L.append("- %s — carimbo %s — cobre %s — %s"
+                     % (e.get("arquivo"), carimbo, cobertura, e.get("motivo")))
     return "\n".join(L)
 
 

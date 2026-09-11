@@ -46,6 +46,7 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                    "varredura_nao_verificados", "varredura_descoberta",
                    "varredura_faixa_validade", "varredura_defaults_veredito",
                    "varredura_disciplina_prancha",
+                    "varredura_carimbo_mapa",
                    "varredura_guardas_um_eixo", "varredura_asserts_sequencia"]
 
 
