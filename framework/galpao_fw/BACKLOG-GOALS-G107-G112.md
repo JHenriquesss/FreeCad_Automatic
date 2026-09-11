@@ -1,5 +1,17 @@
 # Backlog de goals executáveis — pós-G106 (2026-09-11)
 
+> **FILA CONSUMIDA (2026-09-11).** Os seis goals foram executados e auditados no G113 (D139).
+> Registro apenas — não reexecutar. A fila aberta é `BACKLOG-GOALS-G114-G118.md`.
+>
+> | Goal | Verbete | Nota da auditoria |
+> |---|---|---|
+> | G107 | D134 | ok; custo do portão G102 foi a 923 s (G114) |
+> | G108 | D135 | ok; âncora estimada e teste que reimplementa a fórmula (G114) |
+> | G109 | D133 | ok; PE05 sem número (G118) |
+> | G110 | D136 | estribo com padrão inventado — corrigido; confronto 18.4 feito na auditoria; lances superiores (G115) |
+> | G111 | D137 | OK por painel fora do veredito — corrigido |
+> | G112 | D138 | tabela em duas cópias — fonte única |
+
 Fila **ABERTA**. Seis goals (G107–G112). As filas anteriores estão fechadas e ficam apenas
 como registro — não reexecute nada de lá:
 `BACKLOG-GOALS.md` (G78–G88), `BACKLOG-GOALS-G91-G97.md` (G91–G97) e
