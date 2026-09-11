@@ -37,6 +37,8 @@ Thumbs.db
 # artefatos de teste / backups do FreeCAD
 *.FCBak
 projects/galpao-cert/
+# saida de rodada: o repo versiona spec + README, nunca iterations/
+projects/*/iterations/
 **/exports/freecad/freecad/
 
 # scratch de execucao direta dos modulos (raiz)

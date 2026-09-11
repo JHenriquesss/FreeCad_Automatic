@@ -68,7 +68,8 @@ DISCIPLINES = ("estrutura", "incendio", "hidraulica", "eletrico")
 # A ordem dos extras e a ordem de execucao: o cronograma custeia as suas
 # atividades com a planilha que o orcamento acabou de gravar (G14).
 DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "coordination",
-                "orcamento", "cronograma", "caderno_encargos", "pacote_legal")
+                "orcamento", "cronograma", "caderno_encargos", "pacote_legal",
+                "caderno")
 SCHEMA = "freecad-automatic/building-result"
 SCHEMA_VERSION = 1
 
@@ -1567,6 +1568,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
 
 def register_edificio_adapter() -> None:
     """Registra a tipologia edificio no Project Loop."""
+    from caderno_casa_edificio import emitir_caderno_edificio
     from project_loop import register_adapter
 
     register_adapter(
@@ -1582,5 +1584,6 @@ def register_edificio_adapter() -> None:
                "orcamento": ge.emitir_orcamento,
                "cronograma": ge.emitir_cronograma,
                "caderno_encargos": ge.emitir_caderno_encargos,
-               "pacote_legal": ge.emitir_pacote_legal},
+               "pacote_legal": ge.emitir_pacote_legal,
+               "caderno": emitir_caderno_edificio},
     )

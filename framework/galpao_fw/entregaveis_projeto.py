@@ -352,6 +352,10 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
     # conter, nao o que esta rodada desenhou. Sem confrontar os dois, um pacote
     # que lista treze folhas ao lado de uma pasta com duas passaria por completo
     # - a mesma falha do orcamento parcial, na forma de prancha.
+    # G93: esta conta (numero contra numero) continua no .md como informacao
+    # ao leitor, mas o portao e' o laco indice<->disco em
+    # galpao_adapter._emit_drawings (um por um, via a lente do G91) - um
+    # desenho a mais, de qualquer nome, nao fecha mais a conta.
     a_confirmar = ["responsavel tecnico (nome, CREA/CAU, numero da ART) nao e "
                    "inventado pelo modulo - preencher antes de protocolar"]
     if pendencias:

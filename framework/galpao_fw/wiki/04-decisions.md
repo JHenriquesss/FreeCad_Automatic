@@ -1164,3 +1164,138 @@ do git, `fontes/fontes-faltantes.md` corrigido (dizia que o telhado da casa esta
 ja foram renomeadas com sufixo `_C50` no G51; `s_limite_governante` **acrescenta** o rotulo
 da NOTA C55-C90 em vez de sobrescrever; a viga continua do predio **e** verificada desde o
 G34.
+
+## D118/G96 - o aco executivo precisa do FreeCAD em 11 folhas, nao em 13 (2026-09-10) - FECHADO
+Medição prancha a prancha pedida pelo G96, lida no fonte (construtor -> tipo de vista),
+não suposta. O executivo de aço é `techdraw_exec.gerar_executivo` (`techdraw_exec.py:1809`,
+ordem em `:1849-1873`): 11 construtores com vista + quadros + montagem. **Não existe
+`desenho_aco.py`**: os 15 `desenho_*.py` cobrem as demais disciplinas/tipologias; o núcleo
+aço só sai via TechDraw. `freecadcmd` NÃO exporta PDF ("Cannot load Gui module" —
+`techdraw_exec.py:10`); a exportação exige `freecad.exe` com GUI.
+- **Exigem geometria 3D real (11 grupos, DrawViewPart/DrawViewSection):** PE01 cobertura
+  (`_pr_cobertura:657`, V01_COB:665 coarse), PE02 fundações (`:684`, V02_FUND:698), PE03
+  elevações (`:728`, V03_OITAO:745 + V03_LATERAL:758), PE04 pórtico (`:782`, V04_PORTICO:812
+  em HLR cheio), PE05 contraventamento (`:844`, V05_CV_LAT:868 + V05_CV_COB:882), PE06 base
+  (`:892`, V06_BASE_FR:937 + V06_BASE_TOP:949), PE07 joelho (`:1041`, V07_JOELHO:1114 +
+  `VLIG_SEC_*` DrawViewSection:1267, corte seccionado hachurado), PE08 fechamento (`:1421`,
+  V08_FECH:1439 coarse), PE10+ ligações (`_pr_ligacoes:1402` -> `_detalhe_ligacao`: VLIG_ELEV
+  DrawViewPart:1343 + VLIG_CHAPA:1354 + VLIG_SEC:1376 — corte de peça e vista projetada de
+  conjunto), PE14 croquis (`:1662`, CROQ_* por marca:1702 — shop drawing projetado; o rótulo
+  vem do `por_marca` do cfg, a vista vem do Shape), PE15 bloco (`:968`, V15_BLOCO_FR:1011 +
+  V15_BLOCO_TOP:1021, com `Part.common` de recorte:997 — só fundação profunda).
+- **Desenho 2D puro (2 folhas, só Spreadsheet/Annotation, zero vista):** PE09 quadros
+  (`_pr_quadros:1517` — dados do cfg: resultados, por_marca/takeoff/romaneio) e PE16 montagem
+  (`_pr_montagem:1731` — só `cfg["montagem"]`). O dado já é puro (`romaneio.py`, `montagem.py`);
+  o emissor SVG ainda não existe.
+- **Custo medido de cada via.** Via FreeCAD (atual): `_STAGE_WEIGHTS` dá ao aço **7,0**, o
+  maior peso (`caderno_turnkey.py:49-59`; teste garante aço > 800 s de 1800 s); o stage divide
+  50/50 entre 3D e executivo (`:292-298`); default global 1200 s (`:333`), ≥ 1800 s p/ 6
+  disciplinas (COMO-RODAR); HLR é caro por sólido, modelo ~569 (`techdraw_exec.py:14-16`,
+  gerais em CoarseView, detalhes em HLR de subconjuntos); em rodada, a tesoura calcula OK mas
+  o executivo estoura ~15 min (06-open-threads T13). Via SVG puro: **wall-time não medido** —
+  nenhum emissor de aço existe (ausência declarada, não default). Precedente independente:
+  `desenho_concreto.py` prova o padrão, e o G94 fixa a rota SVG -> PNG -> PDF (Edge headless).
+- **Ressalva que decide o sequenciamento:** hoje até SVG puro paga `freecad.exe` no fluxo do
+  galpão — hidráulica/incêndio/climatização têm esquema SVG (`desenho_hidraulica/incendio/
+  climatizacao.py`) mas o `montar_pranchas` os embrulha em `freecad.exe` só p/ exportar PDF
+  (`galpao_hidraulica.py:337-349`, `galpao_seguranca_incendio.py:172-188`). Migrar PE09/PE16
+  p/ SVG só economiza se a exportação sair do `freecad.exe` (fitz como o caderno, ou Edge
+  como o G94). E a migração só vale com o contrato de dados honrado: `_notas_do_modelo`
+  (`:1462`) mede 3 números no BoundBox do 3D (níveis, gancho, contraventamento) — sem fonte
+  para eles no SVG, é saturação silenciosa (regra 4), não economia.
+- **Decisão:** SIM, o aço executivo precisa do FreeCAD — para as 11 folhas projetadas, sem
+  exceção nem atalho 2D. PE09 e PE16 migram para SVG puro quando (e só quando) houver emissor
+  + rota de export sem `freecad.exe` + fonte declarada p/ os 3 números medidos. **Goal seguinte:
+  o *harness* de medição por prancha** (ferramenta-antes-de-iterar — nenhuma iteração manual
+  de timing foi rodada aqui): processo reiniciado a cada medição (o `freecad.exe` persiste e
+  roda o módulo irmão antigo), kill via WMI `Terminate` (taskkill não derruba travado — D64),
+  baseline nos dois sentidos. Este goal não produziu código: convenções 1–2 registradas para
+  o harness exigir; classificação por leitura construtor->vista (regra 3, sem alegar
+  legibilidade nova); comparação contra fonte independente — dual-route do concreto + mapa G93
+  medido contra emissão real (regra 5).
+
+## D119/G91 - o indice deixa de ter tres contratos (2026-09-10) - FECHADO
+Tres implementacoes do mesmo laco indice<->disco e nenhuma delas ERA o contrato: o predio
+confrontava todas as disciplinas do pacote (`edificio_adapter.py:995`, 15/15), a casa so
+`["arquitetura"]` (3/3, recorte do proprio escopo) e o galpao nao tinha mapa nenhum.
+`varredura_indice_disco.py` e' agora a maquina unica: funcao pura, quatro lados
+(`codigos_prometidos`, `mapa_codigo_arquivo`, `nomes_no_disco`, `motivos_escritos`),
+tres gaps (`faltando`, `sobrando`, `sem_mapa`). O `_base` normaliza `drawings/<nome>`
+(sem isso toda folha emitida pelo predio viraria `faltando`), e `_motivos_validos` recusa
+motivo em branco - motivo apagado e silencio, nao triagem. Entrada `None` **levanta**
+`TypeError`: lente que devolve `OK` sobre lixo e a saturacao silenciosa vestida de rede de
+seguranca. `registro_laco_quebrado` transforma o `except` do predio em funcao chamavel, e
+G92/G93 reusam em vez de reimplementar.
+**Limite dito aqui, para ninguem confiar no que a lente nao mede:** no portao das tres
+tipologias (`tests/test_indice_disco_g91.py:141`) o lado "disco" e' `sorted(mapa.values())`
+- derivado do proprio mapa. Aquele portao mede **indice x mapa** (`sem_mapa` e `sobrando`),
+nao indice x disco; o lado do disco e' medido em `test_04` (disco furado sobre o mapa real)
+e nos portoes por tipologia do G92/G93. A distincao esta escrita porque a convencao 5 e'
+exatamente sobre isto: valor de comparacao derivado do resultado nao mede nada.
+
+## D120/G92 - a casa confronta o pacote inteiro, nao o recorte que ela mesma escolheu (2026-09-10) - FECHADO
+`casa_residencial._emit_drawings` lia `indice_de_pranchas(["arquitetura"])` enquanto
+`gestao_casa.disciplinas_pacote` prometia ao cliente arquitetura + concreto + alvenaria +
+hidraulica + eletrico + madeira. O laco conferia um **recorte do proprio escopo** - saturacao
+silenciosa (regra 4) na forma de portao, com 13 codigos evaporando no `continue` do indice
+(D89) e a suite verde. Agora a fonte e' UMA: `gc.disciplinas_pacote(result)`, a mesma do
+pacote. `_PRANCHA_ARQUIVO_CASA` foi de 3 para **17** entradas (a uniao: 3 AR + 4 CO + 2 AL +
+4 EL + 3 HI + 1 MD; a rodada sem alvenaria promete 15 e o laco ignora as extras).
+`_motivo_folha_casa_nao_emitida` da a cada codigo o **dado que falta com nome** - lote nao
+declarado, `estrutura.pavimento` ausente, `alvenaria.por_linha` ausente - nunca "nao
+disponivel" sozinho.
+**Aberto e medido:** PE-EL-01/02/04 saem declarados como "sem emissor ligado ao hook da
+casa", e os emissores **existem e estao provados** (`desenho_eletrico_residencial.
+gerar_desenhos_residenciais`, chamado so por `residencial_eletrica.py`). E a mesma classe do
+G79/G89: folha certa que ninguem emite. Declarar foi o minimo honesto; ligar e' goal.
+
+## D121/G93 - o galpao troca a contagem pelo codigo nomeado (2026-09-10) - FECHADO
+`pacote_no_manifesto` comparava `len(indice_pranchas)` com o numero de artefatos
+`kind == "drawing"` (`entregaveis_projeto.py:343`): **numero contra numero**. Um desenho a
+mais, de qualquer nome, fechava a conta sem que um unico codigo do indice tivesse sido
+conferido - parente da assercao tautologica do D86. `_PRANCHA_ARQUIVO_GALPAO` (19 entradas)
+foi medido **contra o que o galpao realmente emite**, pagina TechDraw a pagina TechDraw
+(`PE01_FORMAS`, `PE04_PORTICO`, `HID01_ESQUEMA`, `INC01_PLANTA`, `CLI01_ESQUEMA`,
+`COORD01_PLANTA`...), nao suposto; a hidraulica mantem o N:1 do G82 (3 codigos, 1 arquivo) e
+a lente nao chama isso de `sobrando`. A conta continua no `.md` como informacao ao leitor e
+**deixa de ser o portao**.
+**Aberto e medido:** `mezanino` esta em `galpao_turnkey.DISCIPLINAS` e **nao** em
+`pacote_legal._PRANCHAS` - a disciplina e executada e evapora no `continue` do indice. E o
+D89 vivo, do lado da promessa em vez do lado do arquivo. Travado por assert em
+`tests/test_indice_disco_g91.py:290`, nao consertado.
+
+## D122/G94 - caderno executivo de casa e predio, e o portao que impede caderno menor que o indice (2026-09-10) - FECHADO
+So o galpao entregava caderno consolidado (36 paginas via `caderno_turnkey`); casa e predio
+entregavam `.md`/`.json`. `caderno_casa_edificio.py` fecha a assimetria reusando o que ja
+existia - `caderno_turnkey._add_pagina_imagem` e `dossie._add_paginas_texto` - com capa e
+indice **proprios**, porque `_linhas_capa` espera o `R` do turnkey do galpao e fabricar esse
+`R` seria dado inventado. Rota SVG -> PNG -> pagina pelo pixmap do fitz (`doc.save()` direto
+sobre SVG falha; sempre pixmap). Duas camadas: `montar_caderno_svg` pura e testavel em CI,
+e os dois hooks do Loop.
+**O portao:** `n_pranchas + n_declaradas == len(indice)`. Folha prometida sem arquivo **e**
+sem motivo reprova o caderno com o codigo nomeado, em vez de sair um caderno menor que o
+indice - a forma do G87 (orcamento parcial que se diz fechado) aplicada a prancha. Folha
+ausente vira **pagina de declaracao**, nao um buraco.
+
+## D123/G95 - terraplenagem numa rodada real, com a premissa marcada como premissa (2026-09-10) - FECHADO
+O G89 ligou PE-TP-01/02 ao Loop e provou com fixture em memoria; nenhum spec persistido
+declarava `site.terraplenagem`, entao o caminho estava ligado e **nunca rodava**.
+`projects/galpao-tp-g95/` declara os cinco dados e a rodada emite as duas folhas no
+manifesto (`obras_sitio.status == "generated"`).
+O ponto de metodo: grade topografica, empolamento, C e IDF **nao podem ser declarados sem
+levantamento**, e um numero inventado num spec persistido sobrevive ao goal. Por isso o spec
+carrega `test_assumptions` com `status: not_real_engineering_input` e
+`source: agent_assumed_values`, e o portao **exige a procedencia escrita** - sem ela o teste
+reprova. A conferencia dos volumes e' conta a mao na docstring (corte 1120 m3, aterro
+1360 m3, Q = 0,325 m3/s), fonte independente do modulo sob teste (convencao 5).
+
+## D124/G97 - o portao que escondia portao (2026-09-10) - FECHADO
+`test_09_cobertura_todo_py_varrido_ou_isento` tinha **quatro** asserts independentes em
+sequencia (`faltando`, `sobrando`, `sem_motivo`, `ausentes`): o primeiro a estourar impedia
+a avaliacao dos outros tres. Foi assim que o portao do G77 ficou vermelho **desde o proprio
+commit `fb53107`** sem ninguem ver (D108). `varredura_asserts_sequencia.py` acha a forma por
+AST e a receita substituta e' coletar todos os lados, montar uma mensagem so e falhar uma
+vez. Aplicada aos portoes existentes (G51, G69, G75, G77, G83) e ao G91.
+A isencao que o goal exigia: assert que **depende** do anterior (`assert r is not None`
+antes de `assert r["x"] == 3`) e correto e sai com motivo escrito - isencao sem motivo e
+silencio, nao triagem, a mesma regra que derrubou o G77.

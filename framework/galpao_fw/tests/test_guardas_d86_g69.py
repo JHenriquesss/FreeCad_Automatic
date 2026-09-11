@@ -410,13 +410,18 @@ def test_censo_das_guardas_fecha_nos_DOIS_sentidos():
             if m:
                 achadas.add((arq.stem, m.group(1)))
     sumiram = TRIADAS_G69 - achadas
-    assert not sumiram, ("guardas sumiram sem substituto: %r"
-                         % (sorted(sumiram),))
     novas = achadas - TRIADAS_G69
-    assert not novas, (
-        "guarda nova sem triagem D86 (origem de cada lado, DECLARACAO ou "
-        "INDEPENDENTE): declare no cabecalho deste arquivo e em "
-        "TRIADAS_G69: %r" % (sorted(novas),))
+    # G97: um assert so, com os dois sentidos na mensagem. Dois asserts em
+    # sequencia escondiam o segundo (foi assim que confere_vergas nasceu no
+    # G70 invisivel e o G77 ficou vermelho sem ninguem ver).
+    lados = []
+    if sumiram:
+        lados.append("guardas sumiram sem substituto: %r" % (sorted(sumiram),))
+    if novas:
+        lados.append("guarda nova sem triagem D86 (origem de cada lado, "
+                     "DECLARACAO ou INDEPENDENTE): declare no cabecalho deste "
+                     "arquivo e em TRIADAS_G69: %r" % (sorted(novas),))
+    assert not lados, "censo das guardas reprova:\n" + "\n".join(lados)
 
 
 def test_triagem_do_cabecalho_cobre_cada_guarda_do_censo():

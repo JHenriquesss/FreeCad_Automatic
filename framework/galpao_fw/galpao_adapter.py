@@ -239,6 +239,112 @@ def _emit_model_3d(manifest, run_dir, normalized, options, turnkey_result):
         }
 
 
+# codigo do indice (pacote_legal) -> PDF em drawings/ (nome de pagina
+# TechDraw + ".pdf"). G93, medido contra o que o galpao REALMENTE emite
+# hoje (gerar_executivo_* lido pagina a pagina, nao suposto):
+#   concreto: PE01_FORMAS/PE02_PORTICO/PE03_QUADROS (techdraw_concreto);
+#   aco: 3 representantes do executivo (techdraw_exec) que saem mesmo nos
+#     ramos de fallback (PE04_PORTICO/PE07_DET_JOELHO/PE01_COBERTURA);
+#   eletrico: 4 1:1 (techdraw_eletrico);
+#   hidraulica: N:1 num esquema so (HID01_ESQUEMA, contrato G82 — as 3
+#     chaves repetem desenho_hidraulica.COBERTURA_GALPAO, o arquivo e o do
+#     fluxo FreeCAD);
+#   incendio: 1 (INC01_PLANTA); climatizacao: 1 (CLI01_ESQUEMA);
+#   coordenacao: 1 (COORD01_PLANTA, techdraw_coordenacao).
+# Os 3 sem emissor ligado (PE-CO-04, PE-IN-02, PE-IN-03) tem entrada com
+# nome declarado e saem sempre pulados com o motivo — ausencia declarada,
+# nunca silencio (a mesma forma do G92 na casa).
+_PRANCHA_ARQUIVO_GALPAO = {
+    "PE-CO-01": "PE01_FORMAS.pdf",
+    "PE-CO-02": "PE02_PORTICO.pdf",
+    "PE-CO-03": "PE03_QUADROS.pdf",
+    "PE-CO-04": "PE04_LOCACAO_FUNDACAO.pdf",
+    "PE-ES-01": "PE04_PORTICO.pdf",
+    "PE-ES-02": "PE07_DET_JOELHO.pdf",
+    "PE-ES-03": "PE01_COBERTURA.pdf",
+    "PE-EL-01": "PE01_UNIFILAR.pdf",
+    "PE-EL-02": "PE02_PLANTA_INST.pdf",
+    "PE-EL-03": "PE03_PLANTA_INFRA.pdf",
+    "PE-EL-04": "PE04_QUADROS.pdf",
+    "PE-HI-01": "HID01_ESQUEMA.pdf",
+    "PE-HI-02": "HID01_ESQUEMA.pdf",
+    "PE-HI-03": "HID01_ESQUEMA.pdf",
+    "PE-IN-01": "INC01_PLANTA.pdf",
+    "PE-IN-02": "INC03_DETALHES.pdf",
+    "PE-IN-03": "INC04_ESCADA.pdf",
+    "PE-CL-01": "CLI01_ESQUEMA.pdf",
+    "PE-CD-01": "COORD01_PLANTA.pdf",
+}
+
+
+def _motivo_folha_galpao_nao_emitida(codigo, titulo):
+    """Triagem G93: o dado que falta, com nome, para cada folha sem arquivo.
+
+    O laco so chega aqui quando o PDF nem saiu nem foi triado (o fluxo do
+    galpao nao tria nada antes do laco). Motivo sem o dado nomeado e
+    silencio, nao triagem: cada ramo diz o codigo, o titulo e o que falta
+    (dado do spec/resultado ou emissor nao ligado), nunca "nao disponivel"
+    sozinho.
+    """
+    base = {
+        "PE-CO-04": ("not_available: sem emissor de locacao e formas da "
+                     "fundacao nesta rodada (PE-CO-04 Locacao e formas da "
+                     "fundacao); a fundacao do pre-moldado sai dimensionada "
+                     "sem folha de locacao emitida (o executivo de concreto "
+                     "emite FORMAS/PORTICO/QUADROS)"),
+        "PE-IN-02": ("not_available: sem emissor de detalhe de hidrantes e "
+                     "rotas nesta rodada (PE-IN-02 Detalhes hidrantes/rotas); "
+                     "o executivo de incendio emite planta (INC01) + "
+                     "quadro-resumo (INC02), sem corte da coluna de "
+                     "hidrantes"),
+        "PE-IN-03": ("not_available: escada de emergencia nao calculada e "
+                     "sem emissor ligado ao hook do galpao nesta rodada "
+                     "(PE-IN-03 Escada de emergencia); dado nao declarado: "
+                     "geometria da escada no spec do galpao"),
+        "PE-CD-01": ("not_available: sem emissor de coordenacao ligado ao "
+                     "hook nesta rodada (PE-CD-01 Modelo federado / "
+                     "compatibilizacao); montar_caderno so emite a prancha "
+                     "com disciplinas=None e o hook passa recorte de "
+                     "disciplinas — a coordenacao sai como matriz "
+                     "(coordination-matrix) + pagina do caderno"),
+    }
+    if codigo in base:
+        return base[codigo]
+    return ("folha %(codigo)s (%(titulo)s) nao emitida nesta rodada: o "
+            "emissor TechDraw (%(arquivo)s) nao gravou o PDF — ver "
+            "deliverables.drawings.result "
+            "(missing_disciplines/failed_disciplines)") % {
+                "codigo": codigo, "titulo": titulo or "?",
+                "arquivo": _PRANCHA_ARQUIVO_GALPAO.get(codigo, "?")}
+
+
+def _conferir_indice_galpao(indice, mapa, disco):
+    """Laco indice<->disco do galpao (G93) sobre a lente do G91.
+
+    indice: o que `pacote_legal.indice_de_pranchas` promete nesta rodada.
+    mapa: `_PRANCHA_ARQUIVO_GALPAO`. disco: caminhos registrados no
+    manifesto por `_register_tree` (o `_base` da lente normaliza
+    "drawings/<disc>/pranchas/<pdf>").
+    Devolve a lista de pulados `[{"prancha", "motivo"}]`, um por codigo —
+    o que nao saiu, sai nomeado. Nao implementa cobertura N:1 propria: a
+    lente ja avalia cada codigo pela sua entrada (varios codigos no mesmo
+    arquivo nao e "sobrando").
+    """
+    import varredura_indice_disco as lente
+
+    res = lente.conferir_indice_disco(
+        [f["codigo"] for f in indice], mapa, disco, {})
+    titulos = {f["codigo"]: f.get("titulo", "") for f in indice}
+    puladas = []
+    for codigo in res["sem_mapa"] + res["faltando"]:
+        puladas.append({
+            "prancha": mapa.get(codigo, codigo),
+            "motivo": _motivo_folha_galpao_nao_emitida(
+                codigo, titulos.get(codigo, "")),
+        })
+    return puladas
+
+
 def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
     requested = bool(options.generate_2d or options.generate_caderno)
     if not requested:
@@ -285,10 +391,37 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
             timed_out or missing_disciplines or failed_disciplines) else (
             "generated" if artifacts else _optional_status(
                 error or "nenhuma prancha emitida"))
+        # G93: o laco indice<->disco sobre a lente do G91. A promessa e a
+        # MESMA fonte do pacote (turnkey_result["executadas"], que
+        # ep.emitir_pacote_legal usa), nunca um recorte — numero contra
+        # numero (a conta de pacote_no_manifesto) continua no .md como
+        # informacao ao leitor, mas o portao e este laco: cada codigo sai
+        # no disco ou sai nomeado, um por um.
+        puladas = []
+        try:
+            import pacote_legal as pl
+
+            executadas = (turnkey_result or {}).get("executadas") or []
+            indice = pl.indice_de_pranchas(list(executadas) + ["coordenacao"])
+            disco = [r.get("path", "") for r in artifacts]
+            puladas = _conferir_indice_galpao(
+                indice, _PRANCHA_ARQUIVO_GALPAO, disco)
+        except Exception as exc:                            # noqa: BLE001
+            try:
+                import varredura_indice_disco as _lente
+
+                puladas = [_lente.registro_laco_quebrado(exc)]
+            except Exception:
+                puladas = [{"prancha": "(indice)",
+                            "motivo": "laco indice<->disco nao pode ser "
+                                      "conferido: %s: %s"
+                                      % (type(exc).__name__, exc)}]
         manifest["deliverables"]["drawings"] = {
             "status": status,
             "result": _json_safe(_relative_runtime_paths(
                 result_for_manifest, run_dir)),
+            "artifacts": [r.get("path", "") for r in artifacts],
+            "skipped": puladas,
         }
     except Exception as exc:
         manifest["deliverables"]["drawings"] = {

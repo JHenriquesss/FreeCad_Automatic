@@ -230,19 +230,28 @@ def test_02_baseline_nos_dois_sentidos():
     """Regra do G33 aplicada a esta varredura (molde do test_08 do G51).
     Sem o baseline a ferramenta e RELATORIO, nao guarda."""
     agora = _contagem()
+    mudaram = sorted(
+        chave for chave in set(agora) | set(BASELINE_G75)
+        if agora[chave] != BASELINE_G75[chave])
     novas = sorted(set(agora) - set(BASELINE_G75))
     sumidas = sorted(set(BASELINE_G75) - set(agora))
-    for chave in sorted(set(agora) | set(BASELINE_G75)):
-        if agora[chave] != BASELINE_G75[chave]:
-            raise AssertionError(
-                "contagem mudou em %r: baseline %d, agora %d" % (chave, BASELINE_G75[chave], agora[chave]))
-    assert not novas, (
-        "default em opcao normativa que nao estava triado: %r. Ou vira "
-        "recusa nomeada (declarar-ou-recusar), ou entra no BASELINE_G75 com "
-        "o motivo medido pelo qual NAO e bug (rigor G10)." % (novas,))
-    assert not sumidas, (
-        "sitios que a varredura nao acha mais: %r. Se viraram recusa, o "
-        "baseline tem de MUDAR junto (senao protege nome morto)." % (sumidas,))
+    # G97: um assert so. O loop que levantava mais dois asserts em sequencia
+    # escondia o segundo lado (a licao do G77: o sobrando atras do faltando).
+    lados = []
+    if mudaram:
+        lados.append("contagem mudou: %s" % (
+            ", ".join("em %r: baseline %d, agora %d"
+                      % (chave, BASELINE_G75[chave], agora[chave])
+                      for chave in mudaram),))
+    if novas:
+        lados.append("default em opcao normativa nao triado: %r. Ou vira "
+                     "recusa nomeada (declarar-ou-recusar), ou entra no "
+                     "BASELINE_G75 com motivo medido (rigor G10)." % (novas,))
+    if sumidas:
+        lados.append("sitios que a varredura nao acha mais: %r. Se viraram "
+                     "recusa, o baseline MUDA junto (senao protege nome "
+                     "morto)." % (sumidas,))
+    assert not lados, "baseline G75 reprova:\n" + "\n".join(lados)
 
 
 _GAP_GET = [

@@ -42,15 +42,16 @@ def _manifestodisco(destino):
     return json.loads((destino / "project-run.json").read_text(encoding="utf-8"))
 
 
-# --- contrato: nove entregaveis, cinco hooks novos ---------------------------
+# --- contrato: dez entregaveis, cinco hooks novos ---------------------------
+# G94: o caderno executivo entra por ultimo (depois do pacote_legal).
 
-NOVE = {"report", "drawings", "ifc", "model_3d", "coordination", "orcamento",
-        "cronograma", "caderno_encargos", "pacote_legal"}
+DEZ = {"report", "drawings", "ifc", "model_3d", "coordination", "orcamento",
+       "cronograma", "caderno_encargos", "pacote_legal", "caderno"}
 
 
 def test_adaptador_declara_os_nove_entregaveis():
     capacidades = {item["name"]: item for item in describe_adapters()}
-    assert set(capacidades["casa-residencial"]["deliverables"]) == NOVE
+    assert set(capacidades["casa-residencial"]["deliverables"]) == DEZ
 
 
 def test_cronograma_roda_depois_do_orcamento():

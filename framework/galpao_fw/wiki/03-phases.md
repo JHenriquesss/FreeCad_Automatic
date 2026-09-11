@@ -619,6 +619,41 @@ Ver [[04-decisions#D106]]–[[04-decisions#D117]].
 índice e mapeia **3** (só PE-AR); o galpão não tem laço índice↔disco nenhum (o prédio fecha
 15/15); e o caderno executivo em PDF só existe no galpão.
 
+
+## FECHADA — G91–G97: o laço índice↔disco vira uma lente só, e o caderno chega às três tipologias — 2026-09-10
+O arco anterior (G78–G88) fez **folhas certas**; este trata do segundo aceite — *a folha sai* —
+e do que o cliente recebe na mão.
+
+**O que entrou.**
+- **G91** `varredura_indice_disco.py`: uma máquina para as três tipologias, no lugar de três
+  implementações do mesmo contrato. Três gaps (`faltando`, `sobrando`, `sem_mapa`), entrada
+  malformada que **levanta** em vez de devolver `OK`, e o `except` do prédio virado função
+  reusável ([[04-decisions#D119]]).
+- **G92** a casa passa a confrontar o pacote inteiro: `_PRANCHA_ARQUIVO_CASA` de **3 → 17**
+  entradas, cada código sem folha saindo com o **dado que falta nomeado**
+  ([[04-decisions#D120]]).
+- **G93** o galpão troca a contagem (número contra número) pelo código nomeado, com mapa de
+  19 entradas medido página TechDraw a página TechDraw ([[04-decisions#D121]]).
+- **G94** caderno executivo em PDF para casa e prédio (SVG → PNG → página, reusando
+  `_add_pagina_imagem` e `_add_paginas_texto`), com o portão
+  `n_pranchas + n_declaradas == len(indice)` ([[04-decisions#D122]]).
+- **G95** terraplenagem numa rodada real (`projects/galpao-tp-g95`), com a premissa marcada
+  como premissa — `not_real_engineering_input` exigido pelo próprio portão
+  ([[04-decisions#D123]]).
+- **G96** decisão escrita, sem código: o aço executivo precisa do FreeCAD em **11** folhas
+  projetadas; PE09 e PE16 são 2D puro e migram só quando houver emissor, rota de export sem
+  `freecad.exe` e fonte declarada para os 3 números que hoje saem do BoundBox
+  ([[04-decisions#D118]]).
+- **G97** a lente do "portão que esconde portão": asserts independentes em sequência viram
+  uma mensagem só ([[04-decisions#D124]]).
+
+**Aberto, nomeado, medido — a fila do próximo arco.** PE-EL-01/02/04 da casa saem declarados
+como "sem emissor ligado" e os emissores **existem e estão provados** (a classe do G79/G89, de
+novo); `mezanino` é executado pelo turnkey do galpão e não existe no índice, evaporando no
+`continue` (D89 vivo, do lado da promessa); e o portão das três tipologias do G91 mede
+índice × **mapa** — o lado do disco vive nos portões por tipologia, e essa distinção precisa
+de portão próprio.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

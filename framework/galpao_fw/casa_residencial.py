@@ -59,7 +59,8 @@ DISCIPLINES = ("arquitetura", "estrutura", "eletrico", "hidraulica")
 # e coordenacao entram, na mesma ordem de execucao do predio (o cronograma
 # custeia com a planilha que o orcamento acabou de gravar).
 DELIVERABLES = ("report", "drawings", "ifc", "model_3d", "coordination",
-                "orcamento", "cronograma", "caderno_encargos", "pacote_legal")
+                "orcamento", "cronograma", "caderno_encargos", "pacote_legal",
+                "caderno")
 SCHEMA = "freecad-automatic/residential-house-result"
 SCHEMA_VERSION = 1
 # 'lighting' conta para o ponto de luz de 9.5.2.1.1; 'tug' conta para os pontos
@@ -728,10 +729,11 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
 
     Nao depende de FreeCAD: le o JSON ja calculado. Ausencia de dado vira
     motivo explicito no manifesto, nunca um arquivo vazio. O laco
-    indice<->disco (G52, molde do edificio no G56) vale para a arquitetura:
-    toda PE-AR do indice tem de estar emitida ou nomeada como pulada - o que
-    nao puder sair (implantacao e cortes, sem dado nem emissor no G78) sai
-    nomeado, nunca some."""
+    indice<->disco (G52, molde do edificio no G56) vale para TODO o pacote:
+    toda folha do indice tem de estar emitida ou nomeada como pulada - o que
+    nao puder sair sai nomeado com o dado que falta, nunca some (G92: a
+    fonte das disciplinas e a MESMA do pacote,
+    `gestao_casa.disciplinas_pacote`, nunca um recorte)."""
     from pathlib import Path
 
     import desenho_casa_residencial as dcr
@@ -758,19 +760,28 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     try:
         import pacote_legal as pl
 
-        indice = pl.indice_de_pranchas(["arquitetura"])
+        # G92: UMA fonte so de disciplinas - a mesma que o pacote usa
+        # (gestao_casa.disciplinas_pacote, via gc.emitir_pacote_legal). O
+        # recorte ["arquitetura"] era saturacao silenciosa (regra 4): 13
+        # codigos evaporavam no `continue` do indice com a suite verde.
+        indice = pl.indice_de_pranchas(gc.disciplinas_pacote(result))
         ja = set(emitido["files"]) | set(ignorados)
         for folha in indice:
             esperado = _PRANCHA_ARQUIVO_CASA.get(folha["codigo"])
             if esperado and esperado not in ja:
-                ignorados[esperado] = (
-                    "folha %s (%s) nao emitida nesta rodada"
-                    % (folha["codigo"], folha["titulo"]))
+                ignorados[esperado] = _motivo_folha_casa_nao_emitida(
+                    folha["codigo"], folha["titulo"])
                 ja.add(esperado)
     except Exception as exc:                                # noqa: BLE001
-        ignorados["(indice-arquitetura)"] = (
-            "laco indice<->disco nao pode ser conferido: "
-            + _erro_entregavel(exc))
+        try:
+            import varredura_indice_disco as _lente
+
+            reg = _lente.registro_laco_quebrado(exc)
+            ignorados[reg["prancha"]] = reg["motivo"]
+        except Exception:
+            ignorados["(indice)"] = (
+                "laco indice<->disco nao pode ser conferido: "
+                + _erro_entregavel(exc))
     manifest["deliverables"]["drawings"] = {
         "status": "generated" if emitido["files"] else "not_available",
         "artifacts": ["drawings/" + nome for nome in emitido["files"]],
@@ -778,16 +789,116 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     }
 
 
-# codigo do indice (pacote_legal, PE-AR) -> arquivo em drawings/. A planta
-# baixa sai do layout declarado; implantacao e cortes seguem not_available
-# com o dado que falta nomeado (triagem do G78) - sem entrada no indice a
+# codigo do indice (pacote_legal) -> arquivo em drawings/. A casa promete o
+# pacote inteiro (G92: 17 codigos na uniao - 3 AR + 4 CO + 2 AL + 4 EL + 3 HI
+# + 1 MD), nao so a arquitetura. O que ja sai noutro emissor do MESMO hook
+# (planta-formas, esquema-hidraulico N:1, elevacao/fiadas, telhado-tesoura)
+# so precisa da entrada; o que nao tem emissor ligado sai pulado com o dado
+# que falta nomeado, nunca "nao disponivel" generico. Sem entrada no mapa a
 # folha evaporaria no `continue` (o D89 da fundacao no G56 e da alvenaria
 # no G62), e sem o laco acima ela sumiria no hook.
 _PRANCHA_ARQUIVO_CASA = {
     "PE-AR-01": "implantacao.svg",
     "PE-AR-02": "planta-baixa.svg",
     "PE-AR-03": "cortes-fachadas.svg",
+    "PE-CO-01": "planta-formas.svg",
+    "PE-CO-02": "armacao-vigas-pilares-casa.svg",
+    "PE-CO-03": "detalhes-concreto-casa.svg",
+    "PE-CO-04": "fundacao-locacao-formas-casa.svg",
+    "PE-AL-01": "elevacao-paredes.svg",
+    "PE-AL-02": "planta-fiadas.svg",
+    "PE-EL-01": "unifilar.svg",
+    "PE-EL-02": "planta-eletrica.svg",
+    "PE-EL-03": "eletrica-infra-aterramento-casa.svg",
+    "PE-EL-04": "quadro-cargas.svg",
+    "PE-HI-01": "esquema-hidraulico.svg",
+    "PE-HI-02": "esquema-hidraulico.svg",
+    "PE-HI-03": "esquema-hidraulico.svg",
+    "PE-MD-01": "telhado-tesoura.svg",
 }
+
+
+def _motivo_folha_casa_nao_emitida(codigo, titulo):
+    """Triagem G92: o dado que falta, com nome, para cada folha sem emissor.
+
+    O laco so chega aqui quando o arquivo nem saiu nem foi triado pelo
+    emissor (o emissor tria AR-01/03, CO-01, AL, HI e MD com o motivo
+    proprio). Motivo sem o dado nomeado e silencio, nao triagem: cada ramo
+    diz o codigo, o titulo e o que falta (dado do spec/resultado ou emissor
+    nao ligado), nunca "nao disponivel" sozinho.
+    """
+    base = {
+        "PE-AR-01": ("not_available: lote nao declarado (site.lote com "
+                     "dimensoes_m, recuos_m e orientacao) e sem emissor de "
+                     "implantacao nesta rodada (PE-AR-01)"),
+        "PE-AR-02": ("not_available: planta baixa nao emitida "
+                     "(PE-AR-02): posicoes dos ambientes nao declaradas ou "
+                     "layout que diverge do programa"),
+        "PE-AR-03": ("not_available: niveis nao declarados (cota de "
+                     "soleira/terreno) e sem emissor de cortes/fachadas "
+                     "nesta rodada (PE-AR-03)"),
+        "PE-CO-01": ("not_available: estrutura nao calculada "
+                     "(estrutura.pavimento ausente) nesta rodada "
+                     "(PE-CO-01 Formas e fundacoes)"),
+        "PE-CO-02": ("not_available: sem emissor de armacao de "
+                     "pilares/vigas nesta rodada (PE-CO-02 Armacao "
+                     "pilares/vigas); estrutura calculada sem "
+                     "detalhamento de armacao emitido"),
+        "PE-CO-03": ("not_available: sem emissor de detalhes de "
+                     "concreto nesta rodada (PE-CO-03 Detalhes); "
+                     "estrutura calculada sem folha de detalhes emitida"),
+        "PE-CO-04": ("not_available: sem emissor de locacao e formas "
+                     "da fundacao nesta rodada (PE-CO-04 Locacao e formas "
+                     "da fundacao); estrutura.fundacao dimensionada sem "
+                     "folha de locacao emitida"),
+        "PE-AL-01": ("not_available: parede portante nao calculada "
+                     "(estrutura.alvenaria.por_linha ausente) nesta "
+                     "rodada (PE-AL-01 Elevacao das paredes portantes)"),
+        "PE-AL-02": ("not_available: parede portante nao calculada "
+                     "(estrutura.alvenaria.por_linha ausente) nesta "
+                     "rodada (PE-AL-02 Plantas de 1a e 2a fiadas)"),
+        "PE-EL-01": ("not_available: sem emissor de unifilar ligado ao "
+                     "hook da casa nesta rodada (PE-EL-01 Unifilar); "
+                     "eletrico calculado em resultado.eletrico.circuits, "
+                     "folha emitida so no adaptador eletrico "
+                     "(desenho_eletrico_residencial."
+                     "gerar_desenhos_residenciais)"),
+        "PE-EL-02": ("not_available: sem emissor de planta eletrica "
+                     "ligado ao hook da casa nesta rodada (PE-EL-02 "
+                     "Planta de instalacao); eletrico calculado em "
+                     "resultado.eletrico.circuits, folha emitida so no "
+                     "adaptador eletrico "
+                     "(desenho_eletrico_residencial."
+                     "gerar_desenhos_residenciais)"),
+        "PE-EL-03": ("not_available: sem emissor de "
+                     "infraestrutura/aterramento nesta rodada (PE-EL-03 "
+                     "Infraestrutura/aterramento); malha de aterramento e "
+                     "SPDA nao declarados e sem folha emitida"),
+        "PE-EL-04": ("not_available: sem emissor de quadro de cargas "
+                     "ligado ao hook da casa nesta rodada (PE-EL-04 "
+                     "Quadros/QDC); eletrico calculado em "
+                     "resultado.eletrico.circuits, folha emitida so no "
+                     "adaptador eletrico "
+                     "(desenho_eletrico_residencial."
+                     "gerar_desenhos_residenciais)"),
+        "PE-HI-01": ("not_available: rede hidraulica nao dimensionada "
+                     "(hidraulica.redes ausente) nesta rodada (PE-HI-01 "
+                     "Agua fria)"),
+        "PE-HI-02": ("not_available: rede hidraulica nao dimensionada "
+                     "(hidraulica.redes ausente) nesta rodada (PE-HI-02 "
+                     "Esgoto/ventilacao)"),
+        "PE-HI-03": ("not_available: rede hidraulica nao dimensionada "
+                     "(hidraulica.redes ausente) nesta rodada (PE-HI-03 "
+                     "Pluvial)"),
+        "PE-MD-01": ("not_available: telhado de madeira nao calculado "
+                     "(estrutura.telhado.geometria_nos ausente) nesta "
+                     "rodada (PE-MD-01 Tesoura de madeira)"),
+    }
+    if codigo in base:
+        return base[codigo]
+    return ("not_available: folha %s (%s) nao emitida nesta rodada: "
+            "sem emissor ligado e dado de origem nao declarado"
+            % (codigo, titulo))
 
 
 def layout_arquitetonico(turnkey, result):
@@ -1419,6 +1530,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
 
 def register_casa_residencial_adapter() -> None:
     """Registra o adaptador residencial real no Project Loop."""
+    from caderno_casa_edificio import emitir_caderno_casa
     from project_loop import register_adapter
 
     register_adapter(
@@ -1434,5 +1546,6 @@ def register_casa_residencial_adapter() -> None:
                "orcamento": gc.emitir_orcamento,
                "cronograma": gc.emitir_cronograma,
                "caderno_encargos": gc.emitir_caderno_encargos,
-               "pacote_legal": gc.emitir_pacote_legal},
+               "pacote_legal": gc.emitir_pacote_legal,
+               "caderno": emitir_caderno_casa},
     )

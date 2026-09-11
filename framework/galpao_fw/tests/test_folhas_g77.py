@@ -369,9 +369,20 @@ FOLHAS = {
     "desenho_terraplenagem.planta_drenagem_svg": _f_tp02,
 }
 
-#: folhas conhecidas que esta suite NAO exercita, com o motivo escrito. Vazio
-#: hoje: manter assim exige que folha nova venha com caso, ou com a razao.
-ISENTAS = {}
+#: folhas conhecidas que esta suite NAO exercita, com o motivo escrito.
+#: Manter isto curto exige que folha nova venha com caso, ou com a razao.
+ISENTAS = {
+    # G98: o censo e' por NOME (*_svg) e este nao emite folha - CONSOME as
+    # folhas SVG ja emitidas e devolve o caminho de um PDF. Guarda de folha
+    # (viewBox == WxH, conteudo contido) nao se aplica a um caderno; o que
+    # se aplica e' o portao proprio do G94 (n_pranchas + n_declaradas ==
+    # len(indice)), exercitado em tests/test_caderno_casa_edificio_g94.py.
+    # A isencao entra AQUI, e nao se renomeia a funcao para agradar a
+    # heuristica: a lente se adapta ao codigo, nunca o contrario (G64).
+    "caderno_casa_edificio.montar_caderno_svg":
+        "G94: monta PDF a partir de folhas SVG ja emitidas; nao e emissor "
+        "de folha - portao proprio em test_caderno_casa_edificio_g94.py",
+}
 
 
 # ===========================================================================
@@ -381,14 +392,25 @@ ISENTAS = {}
 def test_censo_encontra_as_folhas_da_arvore():
     """Baseline: a lente enxerga folha, e nao enxerga o que nao e' folha."""
     censo = sb.censo_de_folhas(GALPAO)
-    assert len(censo) >= 30, censo
-    # amostra: folha conhecida entra, com arquivo e linha
-    arq, linha = censo["desenho_alvenaria.elevacao_paredes_svg"]
-    assert arq == "desenho_alvenaria.py" and linha > 0
-    # e as tres que NAO sao folha ficam de fora, por nome (nao heuristica)
+    # G97: um assert so. Quatro asserts em sequencia escondiam os seguintes
+    # atras do primeiro (o caso que motivou o goal: o sobrando do G51 atras
+    # do faltando, vermelho desde o fb53107 sem ninguem ver).
+    lados = []
+    if len(censo) < 30:
+        lados.append("lente cega: enxerga %d folhas, piso 30: %r"
+                     % (len(censo), sorted(censo)))
+    arq, linha = censo.get("desenho_alvenaria.elevacao_paredes_svg",
+                           (None, 0))
+    if not (arq == "desenho_alvenaria.py" and linha > 0):
+        lados.append("amostra fora: elevacao_paredes_svg=%r (esperado "
+                     "desenho_alvenaria.py, linha > 0)" % ((arq, linha),))
     nomes = {k.split(".", 1)[1] for k in censo}
-    assert nomes.isdisjoint(set(sb.NAO_E_FOLHA))
-    assert "desenho_svg_base.abre_svg" not in censo
+    if not nomes.isdisjoint(set(sb.NAO_E_FOLHA)):
+        lados.append("heuristica vazou: folha com nome proibido: %r"
+                     % (sorted(nomes & set(sb.NAO_E_FOLHA)),))
+    if "desenho_svg_base.abre_svg" in censo:
+        lados.append("primitiva conta como folha: desenho_svg_base.abre_svg")
+    assert not lados, "censo das folhas reprova:\n" + "\n".join(lados)
 
 
 def test_toda_folha_da_arvore_esta_coberta_ou_isenta():
@@ -400,13 +422,16 @@ def test_toda_folha_da_arvore_esta_coberta_ou_isenta():
     censo = set(sb.censo_de_folhas(GALPAO))
     coberto = set(FOLHAS) | set(ISENTAS)
     sem_caso = sorted(censo - coberto)
-    assert sem_caso == [], (
-        "folha emitida pela arvore e nao exercitada por esta suite: %s "
-        "(adicione um caso em FOLHAS ou uma isencao com motivo em ISENTAS)"
-        % sem_caso)
     fantasmas = sorted(coberto - censo)
-    assert fantasmas == [], (
-        "caso apontando para folha que nao existe mais na arvore: %s" % fantasmas)
+    # G97: um assert so, com os dois lados na mensagem (a receita).
+    lados = []
+    if sem_caso:
+        lados.append("folha emitida e nao exercitada (adicione um caso em "
+                     "FOLHAS ou isencao com motivo em ISENTAS): %s" % sem_caso)
+    if fantasmas:
+        lados.append("caso apontando para folha que nao existe mais: %s"
+                     % fantasmas)
+    assert not lados, ("portao do censo reprova:\n" + "\n".join(lados))
 
 
 def test_o_portao_fica_vermelho_com_folha_nova_sem_caso(tmp_path):

@@ -294,15 +294,16 @@ def test_08_baseline_desguardadas_nos_dois_sentidos():
     declaradas = sorted(vf.DESGUARDADAS_TRIADAS)
     novas = sorted(set(varridas) - set(declaradas))
     sumidas = sorted(set(declaradas) - set(varridas))
-    assert not novas, (
-        "faixa de validade DECLARADA em comentario e nao guardada por um if, "
-        "que nao estava triada: %r. Ou vira guarda (o if que compara), ou "
-        "entra em varredura_faixa_validade.DESGUARDADAS_TRIADAS com o motivo "
-        "medido pelo qual NAO e' bug (rigor G10)." % (novas,))
-    assert not sumidas, (
-        "declaradas que a varredura nao acha mais: %r. Se viraram guarda, o "
-        "baseline tem de DIMINUIR junto (senao protege nome morto)."
-        % (sumidas,))
+    # G97: um assert so, com os dois lados na mensagem. Dois asserts em
+    # sequencia escondiam o segundo atras do primeiro (o caso do G77).
+    lados = []
+    if novas:
+        lados.append("nao triadas (ou vira guarda, ou entra em "
+                     "DESGUARDADAS_TRIADAS com motivo medido): %r" % (novas,))
+    if sumidas:
+        lados.append("sumidas (viraram guarda? o baseline DIMINUI junto, "
+                     "senao protege nome morto): %r" % (sumidas,))
+    assert not lados, "faixa declarada e nao guardada, sem triagem:\n" + "\n".join(lados)
 
 
 _GAP_SEM_GUARDA = [
@@ -379,21 +380,17 @@ def test_09_cobertura_todo_py_varrido_ou_isento():
     isencao sem motivo, isencao que virou nome morto e isencao de arquivo
     sumido tambem."""
     r = vf.confere_cobertura()
-    assert not r["faltando"], (
-        "modulo invisivel a lente e sem isencao: %r. Ou a lente passa a "
-        "enxergar o vocabulario (como o G64 fez com a Tab.9), ou o arquivo "
-        "entra em varredura_faixa_validade.SEM_FAIXA_DECLARADA com o motivo "
-        "pelo qual zero chaves e o esperado." % (r["faltando"],))
-    assert not r["sobrando"], (
-        "isencao virou nome morto (arquivo agora produz chave): %r. A "
-        "isencao tem de SAIR junto (senao protege modulo morto)." % (r["sobrando"],))
-    assert not r["sem_motivo"], (
-        "isencao sem motivo: %r. Lista de isentos sem motivo e silencio, "
-        "nao triagem." % (r["sem_motivo"],))
-    assert not r["ausentes"], (
-        "isencao de arquivo que sumiu do disco: %r. Remover a entrada "
-        "junto com o arquivo." % (r["ausentes"],))
-    assert r["OK"]
+    # G97: um assert so. Quatro asserts em sequencia escondiam os seguintes
+    # atras do primeiro (o sobrando do G77 ficou vermelho desde o fb53107 e
+    # ninguem viu). A mensagem nomeia os quatro lados numa rodada so.
+    assert r["OK"], (
+        "cobertura da lente G51 reprova:\n"
+        "  faltando (invisivel sem isencao: ou a lente enxerga, ou entra em "
+        "SEM_FAIXA_DECLARADA com motivo): %r\n"
+        "  sobrando (isencao virou nome morto: SAI junto): %r\n"
+        "  sem_motivo (lista sem motivo e silencio, nao triagem): %r\n"
+        "  ausentes (arquivo sumiu: remover a entrada junto): %r"
+        % (r["faltando"], r["sobrando"], r["sem_motivo"], r["ausentes"]))
 
 
 def test_09b_vermelho_cobertura_nos_dois_sentidos(tmp_path):

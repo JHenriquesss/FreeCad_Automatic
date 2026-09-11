@@ -20,6 +20,9 @@
 > **Aberto e medido, para o próximo arco** (não estava nesta fila): a casa promete
 > 16 pranchas no índice e mapeia 3 (só PE-AR); o galpão não tem laço índice↔disco;
 > o caderno executivo em PDF só existe no galpão.
+>
+> **A fila aberta agora e' `BACKLOG-GOALS-G91-G97.md`** (G91-G97, medidos em
+> `72a210e`). Este arquivo nao e' fila.
 
 Cada goal abaixo é **autocontido**: um agente que abra este arquivo sem ter visto a
 conversa consegue executá-lo. Traz o que foi **medido** (com endereço no código), o que

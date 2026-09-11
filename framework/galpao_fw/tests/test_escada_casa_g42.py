@@ -125,12 +125,18 @@ def test_apoios_declarados_concentram_nos_pilares_nomeados():
 def test_varredura_casa_limpa_e_baseline_zerada():
     """A casa saiu da baseline do G40: r_escada/stair alcancam verificacao."""
     casa = vd.descobrir_no_arquivo(GALPAO / "estrutura_casa.py")
-    assert not any(d["variavel"] in ("r_escada", "stair") for d in casa), \
-        "G42 reabriu em silencio: %r" % (casa,)
-    # G48: a baseline da lente ampliada tem 3 ilhas declaradas (ver
-    # test_varredura_descoberta_g48.py) - nenhuma e da casa.
-    assert vd.chaves_varridas() == [
+    esperado = [
         ("cargas_nbr6120.py", "multiplicadores_pavimentos", "area"),
         ("galpao_portico.py", "configurar", "W_WALL_COL"),
         ("galpao_portico.py", "reset", "W_WALL_COL"),
-    ], "baseline G42/G48 mudou: %r" % (vd.chaves_varridas(),)
+    ]
+    # G97: um assert so, com os dois lados na mensagem (reabertura silenciosa
+    # e baseline mudada escondiam-se um atras do outro).
+    lados = []
+    reabriu = [d for d in casa if d["variavel"] in ("r_escada", "stair")]
+    if reabriu:
+        lados.append("G42 reabriu em silencio: %r" % (casa,))
+    chaves = vd.chaves_varridas()
+    if chaves != esperado:
+        lados.append("baseline G42/G48 mudou: %r" % (chaves,))
+    assert not lados, "varredura da casa reprova:\n" + "\n".join(lados)
