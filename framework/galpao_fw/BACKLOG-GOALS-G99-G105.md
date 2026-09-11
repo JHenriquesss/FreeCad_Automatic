@@ -1,5 +1,18 @@
 # Backlog de goals executáveis — pós-G98 (2026-09-10)
 
+> **FILA CONSUMIDA (2026-09-11).** Os sete goals foram executados e auditados no G106 (D132).
+> Registro apenas — não reexecutar. A fila aberta é `BACKLOG-GOALS-G107-G112.md`.
+>
+> | Goal | Verbete | Nota da auditoria |
+> |---|---|---|
+> | G99 | D128 | except que apagava a exceção do emissor — corrigido |
+> | G100 | D129 | título prometia pilar — corrigido; a dívida do índice virou G110 |
+> | G101 | D126 | ok |
+> | G102 | D130 | teto de custo nunca medido; injeção sobre disco derivado do mapa — corrigidos |
+> | G103 | D131 | ok (limite da fonte escrito) |
+> | G104 | D125 | quadro cortado em 220 caracteres — corrigido; o Loop ainda não usa a rota (G107) |
+> | G105 | D127 | ferramenta ok; o número por prancha não existe (G109) |
+
 Fila **ABERTA**. Sete goals (G99–G105). As duas filas anteriores estão fechadas e vivem em
 `BACKLOG-GOALS.md` (G78–G88) e `BACKLOG-GOALS-G91-G97.md` (G91–G97) apenas como registro —
 não reexecute nada de lá.
