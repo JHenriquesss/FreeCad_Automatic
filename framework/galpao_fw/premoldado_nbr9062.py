@@ -50,14 +50,32 @@ BETA_A_TRANSP_FAVOR = 0.8  # transporte com carga permanente em situacao favorav
 SIGMA_S_ICAMENTO = 0.50    # tensao da armadura longitudinal limitada a 0,50 fyk (5.3.2.2)
 
 # fator "s" do cimento p/ evolucao da resistencia (NBR 6118 12.3.3)
-S_CIMENTO = {"CPIII": 0.38, "CPIV": 0.38, "CPI": 0.25, "CPII": 0.25, "CPV": 0.20, "CPV-ARI": 0.20}
+# Fonte unica a partir do G123: edicao_nbr6118_g123.S_CIMENTO_2014. O dict
+# local permanece como espelho (mesmo objeto) para retrocompatibilidade de
+# quem importa S_CIMENTO daqui; a regra C60+ (2023+Em1) mora na fonte unica.
+try:
+    from edicao_nbr6118_g123 import S_CIMENTO_2014 as _S_CIMENTO_FONTE
+    S_CIMENTO = dict(_S_CIMENTO_FONTE)
+except ImportError:  # fora do pacote (uso isolado): cai no literal medido
+    S_CIMENTO = {"CPIII": 0.38, "CPIV": 0.38, "CPI": 0.25, "CPII": 0.25, "CPV": 0.20, "CPV-ARI": 0.20}
 
 
 # ---------------------------------------------------------------- (C) fckj
-def fckj_idade(fck, t_dias, cimento="CPII"):
+def fckj_idade(fck, t_dias, cimento="CPII", edicao=None):
     """Resistencia caracteristica do concreto na idade t (NBR 6118 12.3.3):
-    fckj = beta1*fck, beta1 = exp{s[1 - (28/t)^0.5]}. fck em kN/m2, t em dias."""
-    s = S_CIMENTO.get(str(cimento).upper(), 0.25)
+    fckj = beta1*fck, beta1 = exp{s[1 - (28/t)^0.5]}. fck em kN/m2, t em dias.
+
+    G123 (chave DESLIGADA): edicao='2014' ou '2023+Em1' (ver
+    edicao_nbr6118_g123). edicao=None (ausente) = comportamento de hoje
+    (2014) e a folha diz qual e (a declaracao mora no carimbo, nao aqui).
+    2023+Em1: s = 0,20 para todo concreto C60 ou superior (fck >= 60 MPa),
+    qualquer cimento; abaixo disso, a tabela de 2014. Migrar e decisao do
+    usuario; sem o parametro nada muda."""
+    try:
+        from edicao_nbr6118_g123 import s_cimento as _s_por_edicao
+        s = _s_por_edicao(edicao, cimento, fck)
+    except ImportError:
+        s = S_CIMENTO.get(str(cimento).upper(), 0.25)
     if t_dias >= 28:
         return fck
     beta1 = math.exp(s * (1.0 - math.sqrt(28.0 / t_dias)))
@@ -229,6 +247,7 @@ def verifica_icamento_pilar(caso):
       'L': comprimento do pilar (m). 'b','h': secao (m). 'As': armadura long. TRACIONADA (cm2).
       'fck': (kN/m2). 'fyk'. 't_dias' (idade do saque, default 3). 'cimento' (default 'CPV').
       'a_pega' (m, default a_otimo). 'dl' (cobrimento+.., m, default 0,04).
+      'edicao' (opc., G123): '2014' ou '2023+Em1'; ausente = 2014 (hoje).
     }"""
     L = caso["L"]; b = caso["b"]; h = caso["h"]
     As = caso["As"] * 1e-4                          # cm2 -> m2
@@ -244,7 +263,7 @@ def verifica_icamento_pilar(caso):
     Md = q_eq / gk * Mk_max                         # aplica gamma_f*beta_a ao momento
 
     d = h - dl                                       # altura util (flexao no plano de h)
-    fckj = fckj_idade(fck, t, cim)
+    fckj = fckj_idade(fck, t, cim, edicao=caso.get("edicao"))
     # momento resistente com tensao do aco limitada a 0,50 fyk (z ~ 0,9 d, conservador)
     sigma_lim = SIGMA_S_ICAMENTO * fyk
     Mr_05 = As * sigma_lim * 0.9 * d                # kN.m

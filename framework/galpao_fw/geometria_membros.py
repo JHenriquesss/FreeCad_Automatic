@@ -17,13 +17,10 @@ from __future__ import annotations
 
 import math
 
-import fronteiras as _FR  # contrato explicito de unidade (F01/F03/F04/F05)
-
 MM = 1000.0
-# Re-exporta as unidades canonicas para quem importa deste modulo
-UNIDADE_DIMS = _FR.UNIDADE_DIMS_MM  # mm
-UNIDADE_SECAO = _FR.UNIDADE_SECAO_M  # m
-ANCORAGEM_PADRAO = _FR.UNIDADE_ANCORAGEM_ENUM[0]  # "eixo"
+# G124: os re-exports de unidade (UNIDADE_DIMS/SECAO, ANCORAGEM_PADRAO) nunca
+# foram importados por ninguem (residuo, removidos); o contrato de unidade
+# segue em fronteiras (F01/F03/F04/F05) e no MM acima.
 
 # tolerancia geometrica (mm). Abaixo disso e' arredondamento de ponto flutuante;
 # acima, peca dentro de peca.

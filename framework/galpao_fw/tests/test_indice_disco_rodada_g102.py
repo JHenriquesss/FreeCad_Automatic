@@ -29,6 +29,18 @@ de esquema saem pela rota SVG e PE-HI/PE-IN/PE-CL sao confrontados com o
 disco de verdade); o custo do galpao sobe pelos dois `tk.rodar` (turnkey
 + caderno, o segundo do montar_caderno) sobre o spec 44x90 de dois vaos.
 Total abaixo do teto de 1800s: roda no CI.
+G114 (2026-09-12): `montar_caderno(..., R=turnkey_result)` reusa o turnkey
+do adaptador e nao recalcula — um `tk.rodar` so, contado por injecao em
+`tests/test_caderno_reuso_turnkey_g114.py` (com R: zero chamadas; sem R:
+uma; mesmo `n_pranchas`/`disciplinas`/`ATENDE`).
+G121 (2026-09-12): remedicao integral com a maquina livre em corrida
+isolada com -s (8 GB, ~2,5 GB livres, sem orfao): casa=2.4s predio=28.9s
+galpao=1048.3s total=1079.5s, 6 passed. O galpao segue acima dos 923 s de
+antes do reuso (variacao de maquina/rodada, nao regressao do reuso: o
+total 1079,5 s fica abaixo dos 1230 s da corrida limpa pos-G114 do G119).
+Pico de memoria junto (MedidorPico): casa=107,0 predio=143,6
+galpao=1988,8 MB (pytest 174,4 + freecad.exe 1819,7, um por vez) - o teto
+de 2500 MB por rodada mora no CUSTO_TETO_MEM_MB com o motivo escrito.
 
 Cada teste segue as convencoes do BACKLOG: baseline nos dois sentidos,
 vermelho por injecao em diretorio temporario (nunca mutando o repo),
@@ -79,9 +91,36 @@ ISENCOES_EXTRA = {
 # maquina de desenvolvimento, generate_ifc desligado. O test_01 imprime o
 # custo de cada rodada; o test_05 trava este registro. Se o portao ficar
 # mais lento que o teto, ele reprova em vez de apodrecer em silencio.
-CUSTO_MEDIDO_SEG = {"casa": 2.7, "predio": 35.7, "galpao": 923.0}
-CUSTO_MEDIDO_EM = "2026-09-11"
+CUSTO_MEDIDO_SEG = {"casa": 2.4, "predio": 28.9, "galpao": 1048.3}
+CUSTO_MEDIDO_EM = "2026-09-12"
 CUSTO_TETO_SEG = 1800
+
+# G121: o teto do portao media so tempo, e o que matava era memoria (G113:
+# quatro mortes sem o tempo chegar perto do teto; D145). O portao agora
+# mede tambem o PICO DE MEMORIA residente de cada rodada - o processo
+# pytest/Python mais a soma dos freecad.exe visiveis - via o medidor da
+# producao (medicao_memoria.MedidorPico, fonte unica, stdlib-only). O
+# test_01 imprime o pico junto com os segundos; o test_05 trava o registro;
+# o test_07 prova o vermelho por injecao. Medido em 2026-09-12 em corrida
+# isolada com -s (maquina de 8 GB, ~2,5 GB livres, sem processo orfao):
+# o galpao mora no freecad.exe (1819,7 de 1988,8 MB); casa/predio nao
+# sobem freecad.exe (rota SVG pura).
+CUSTO_MEDIDO_MEM_MB = {"casa": 107.0, "predio": 143.6, "galpao": 1988.8}
+CUSTO_MEDIDO_MEM_EM = "2026-09-12"
+# Teto de memoria: 2500 MB por rodada (pico medido 1988,8 + ~25 % de
+# folga). Motivo, como o teto de tempo tem: a maquina tem 8 GB e o SO +
+# fundo comem ~2 GB; o teto deixa a rodada respirar e ainda reprova
+# vazamento, freecad orfao concorrente ou disciplina nova que suba outro
+# freecad junto (n_freecad_max sai no print para auditar). Picos nao se
+# somam entre tipologias (cada rodada e um processo proprio): o teto vale
+# por rodada, nao no total.
+CUSTO_TETO_MEM_MB = 2500
+# G125 (auditoria do G121): quantos freecad.exe cada rodada sobe, medido na
+# mesma corrida oficial (n_freecad_max). A rodada que ve MENOS que isto nao
+# mediu o processo que carrega o pico (acesso negado, nome trocado) - e o
+# pico "cabe no teto" por nao ter visto o freecad. Mais que isto o teto ja
+# pega (freecad orfao concorrente).
+CUSTO_MEDIDO_N_FREECAD = {"casa": 0, "predio": 0, "galpao": 1}
 
 TIPOLOGIAS = ("casa", "predio", "galpao")
 
@@ -112,24 +151,32 @@ def _spec(nome):
 def _rodada(nome, tmp_path):
     """Roda a tipologia de verdade no spec persistido (fonte independente).
 
-    Devolve (manifesto, resultado, destino, segundos). O resultado e o
-    adapter-result.json quando o adaptador o escreve; para o galpao (hook
-    de relatorio proprio) e None e os executados saem do manifesto.
+    Devolve (manifesto, resultado, destino, segundos, pico_mem). O resultado
+    e o adapter-result.json quando o adaptador o escreve; para o galpao
+    (hook de relatorio proprio) e None e os executados saem do manifesto.
+    O pico_mem e o resumo do medicao_memoria.MedidorPico amostrado durante
+    o run_project (G121: processo + freecad.exe na mesma amostra).
     """
+    import medicao_memoria as _mm
     from builtin_adapters import register_builtin_adapters
     from project_loop import run_project
 
     register_builtin_adapters()
     destino = str(tmp_path / ("run-" + nome))
+    medidor = _mm.MedidorPico(intervalo_s=1.0)
     inicio = time.perf_counter()
-    manifesto = run_project(_spec(nome), destino, dict(_OPCOES[nome]))
-    segundos = time.perf_counter() - inicio
+    medidor.start()
+    try:
+        manifesto = run_project(_spec(nome), destino, dict(_OPCOES[nome]))
+    finally:
+        segundos = time.perf_counter() - inicio
+        pico_mem = medidor.stop()
     caminho = os.path.join(destino, "reports", "adapter-result.json")
     resultado = None
     if os.path.isfile(caminho):
         with open(caminho, encoding="utf-8") as fh:
             resultado = json.load(fh)
-    return manifesto, resultado, destino, segundos
+    return manifesto, resultado, destino, segundos, pico_mem
 
 
 def _prometidos(nome, manifesto, resultado):
@@ -257,17 +304,20 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
     faz o codigo voltar a faltando, e planta um arquivo fantasma faz o
     extra disparar (provado por injecao no test_03/test_04 sobre a mesma
     lente). O custo de cada rodada sai na mensagem (aceite do G102)."""
+    import medicao_memoria as mm
     import varredura_indice_disco as lente
 
     gaps = []
     custos = {}
+    picos = {}
     resultados = {}
     mapas = {}
     prometidos_por = {}
     vistos = set()
     for nome in TIPOLOGIAS:
-        manifesto, _resultado, destino, segundos = _rodada(nome, tmp_path)
+        manifesto, _resultado, destino, segundos, pico = _rodada(nome, tmp_path)
         custos[nome] = segundos
+        picos[nome] = pico
         desenhos = (manifesto.get("deliverables") or {}).get("drawings")
         if not desenhos:
             gaps.append("%s: deliverable drawings ausente no manifesto "
@@ -295,11 +345,50 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
     print("CUSTO_G102 " + " ".join("%s=%.1fs" % (n, custos[n])
                                    for n in TIPOLOGIAS)
           + " total=%.1fs" % total)
+    # G121: o pico de memoria sai no print junto com os segundos (aceite).
+    # pico_total = max por amostra de (processo + freecad) - nao a soma dos
+    # picos. Sem -s o pytest engole este print: a rodada oficial que congela
+    # o registro roda com -s em corrida isolada.
+    print("MEM_G102 " + " ".join(
+        "%s=%.1fMB(proc=%.1f,fc=%.1f,n=%d)" % (
+            n, picos[n]["pico_total_mb"], picos[n]["pico_processo_mb"],
+            picos[n]["pico_freecad_mb"], picos[n]["n_freecad_max"])
+        for n in TIPOLOGIAS))
     # G106: o teto cobra o tempo MEDIDO nesta rodada. O test_05 so conferia
     # a constante escrita a mao - portao que nunca mede nao reprova nada.
     if total > CUSTO_TETO_SEG:
         gaps.append("custo medido %.1fs estoura o teto %ss (CI)"
                     % (total, CUSTO_TETO_SEG))
+    # G121: o teto de memoria cobra o pico MEDIDO nesta rodada, por
+    # tipologia (cada rodada e um processo proprio; picos nao se somam).
+    # Pico None/nao mensuravel nao vira gap - a ausencia se declara no
+    # print acima, nunca vira aprovacao silenciosa nem teto inventado.
+    if CUSTO_TETO_MEM_MB is not None:
+        for nome in TIPOLOGIAS:
+            if picos[nome]["falhou"] or picos[nome]["n_amostras"] == 0:
+                gaps.append("[%s] medidor de memoria falhou: pico nao "
+                            "mensuravel, sem numero para cobrar (G121)"
+                            % nome)
+                continue
+            if not picos[nome].get("freecad_mensuravel", False):
+                gaps.append("[%s] freecad.exe nao mensuravel em %d de %d "
+                            "amostras: o pico nao inclui o processo que "
+                            "carrega a rodada (G125)" % (
+                                nome, picos[nome]["n_amostras_sem_freecad"],
+                                picos[nome]["n_amostras"]))
+                continue
+            if picos[nome]["n_freecad_max"] < CUSTO_MEDIDO_N_FREECAD[nome]:
+                gaps.append("[%s] a rodada viu %d freecad.exe, a medida "
+                            "oficial viu %d: o pico nao inclui o processo "
+                            "que carrega a rodada (G125)" % (
+                                nome, picos[nome]["n_freecad_max"],
+                                CUSTO_MEDIDO_N_FREECAD[nome]))
+            falha = mm.veredito_memoria(picos[nome]["pico_total_mb"],
+                                        CUSTO_TETO_MEM_MB)
+            if falha is not None:
+                gaps.append("[%s] %s" % (nome, falha))
+    else:
+        print("MEM_G102 teto de memoria ainda nao congelado (G121)")
     assert not gaps, (
         "G102: indice x disco reprova em rodada real:\n%s\n%s"
         % ("\n".join("  - " + g for g in gaps),
@@ -415,7 +504,7 @@ def test_06_vermelho_por_injecao_sobre_rodada_real(tmp_path):
     Nota medida: `faltando` nao dispara em rodada real de casa/predio - o
     laco do proprio adaptador nomeia todo arquivo ausente. O lado do disco
     que so a rodada real mede e este: manifesto x arquivo, e extra."""
-    manifesto, _resultado, destino, _s = _rodada("casa", tmp_path)
+    manifesto, _resultado, destino, _s, _pico = _rodada("casa", tmp_path)
     desenhos = manifesto["deliverables"]["drawings"]
     bom, _res, _d, _m, _p, _di = _confronta("casa", manifesto, destino,
                                              desenhos)
@@ -439,7 +528,10 @@ def test_05_custo_medido_e_escrito():
 
     Os segundos saem do test_01 (rodada real, generate_ifc desligado) e
     sao transcritos para CUSTO_MEDIDO_SEG/CUSTO_MEDIDO_EM. Portao que
-    estoura o teto reprova em vez de apodrecer em silencio."""
+    estoura o teto reprova em vez de apodrecer em silencio. G121: o mesmo
+    vale para o pico de memoria (CUSTO_MEDIDO_MEM_MB/CUSTO_TETO_MEM_MB)
+    quando congelado; enquanto None, a ausencia segue declarada no
+    test_01 e aqui nao cobra (o vermelho por injecao mora no test_07)."""
     lados = []
     if CUSTO_MEDIDO_EM is None:
         lados.append("custo ainda nao medido: rode o test_01 e transcreva "
@@ -451,4 +543,67 @@ def test_05_custo_medido_e_escrito():
         elif valor > CUSTO_TETO_SEG:
             lados.append("custo de %r estoura o teto (%s > %s): roda no CI "
                          "ou so a mao?" % (nome, valor, CUSTO_TETO_SEG))
+    if CUSTO_MEDIDO_MEM_MB is not None and CUSTO_TETO_MEM_MB is not None:
+        for nome in TIPOLOGIAS:
+            pico = CUSTO_MEDIDO_MEM_MB.get(nome)
+            if not isinstance(pico, (int, float)) or pico <= 0:
+                lados.append("pico de memoria de %r nao escrito: %r"
+                             % (nome, pico))
+            elif pico > CUSTO_TETO_MEM_MB:
+                lados.append("pico de memoria de %r estoura o teto "
+                             "(%s > %s)" % (nome, pico, CUSTO_TETO_MEM_MB))
     assert not lados, "custo G102 reprova:\n" + "\n".join(lados)
+
+
+def test_07_memoria_teto_acusa_em_tmp_path(tmp_path):
+    """G121: o teto de memoria consegue acusar (convencao 7 do lote).
+
+    Roda a casa de verdade em tmp_path com o medidor ligado (a mais
+    barata, ~3 s): o sampler tem de ter medido de verdade (amostras e pico
+    do processo > 0 - medidor que diz zero por ser incapaz de acusar e o
+    defeito do G117/D145). Sobre esse pico real, teto artificialmente baixo
+    reprova e teto folgado passa - nos dois sentidos, sem mutar o repo."""
+    import medicao_memoria as mm
+
+    _manifesto, _resultado, _destino, _seg, pico = _rodada("casa", tmp_path)
+    assert pico["n_amostras"] >= 2, pico
+    assert not pico["falhou"], pico
+    assert pico["pico_processo_mb"] > 0, pico
+    assert pico["pico_total_mb"] >= pico["pico_processo_mb"], pico
+    medido = pico["pico_total_mb"]
+    baixo = mm.veredito_memoria(medido, 0.01)
+    assert baixo is not None and "estoura o teto" in baixo, (medido, baixo)
+    alto = mm.veredito_memoria(medido, medido + 10000.0)
+    assert alto is None, (medido, alto)
+    assert mm.veredito_memoria(None, 0.01) is None
+
+
+def test_08_medidor_acusa_freecad_nao_mensuravel(monkeypatch):
+    """G125 (auditoria do G121): o lado freecad do medidor consegue acusar.
+
+    Antes, `memoria_freecad_mb` devolvendo (None, 0) virava 0,0 MB com
+    `falhou` falso - o teto do galpao passava sem ter medido o freecad.exe
+    (medido: pico 14,7 MB, falhou False). Injecao por monkeypatch (nunca
+    mutando o repo): sem o freecad, `freecad_mensuravel` apaga; intacto, acende."""
+    import medicao_memoria as mm
+
+    intacto = mm.MedidorPico(intervalo_s=0.2)
+    intacto.start()
+    time.sleep(0.5)
+    bom = intacto.stop()
+    monkeypatch.setattr(mm, "memoria_freecad_mb", lambda: (None, 0))
+    cego = mm.MedidorPico(intervalo_s=0.2)
+    cego.start()
+    time.sleep(0.5)
+    ruim = cego.stop()
+    quebras = []
+    if not bom["freecad_mensuravel"]:
+        quebras.append("medidor intacto nao mediu o freecad: %r" % bom)
+    if ruim["freecad_mensuravel"] or ruim["n_amostras_sem_freecad"] < 2:
+        quebras.append("freecad cego nao acusou: %r" % ruim)
+    if ruim["falhou"] or ruim["pico_processo_mb"] <= 0:
+        quebras.append("o lado do processo devia seguir medindo: %r" % ruim)
+    if CUSTO_MEDIDO_N_FREECAD != {"casa": 0, "predio": 0, "galpao": 1}:
+        quebras.append("registro de freecad por rodada mudou sem triagem: %r"
+                       % CUSTO_MEDIDO_N_FREECAD)
+    assert not quebras, "G125:\n" + "\n".join(quebras)

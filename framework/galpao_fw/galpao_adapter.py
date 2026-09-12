@@ -457,12 +457,17 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
         import caderno_turnkey as ct
         drawings_dir = Path(run_dir) / "drawings"
         drawings_dir.mkdir(parents=True, exist_ok=True)
+        # G114: o adaptador JA tem o resultado do turnkey (hook recebe
+        # `turnkey_result` do `_run_turnkey`); passar adiante evita o segundo
+        # `tk.rodar` dentro do caderno (era 38,5 s -> 923 s no G102, D134).
+        # Sem mudar o resultado: mesmas pranchas, mesmo caderno.
         result = ct.montar_caderno(
             _selected_turnkey_spec(normalized), str(drawings_dir),
             disciplinas=(recorte_svg if recorte_svg is not None
                          else normalized["requested_disciplines"]),
             freecad_exe=str(_freecad_executable(options)),
-            timeout=options.timeout_seconds)
+            timeout=options.timeout_seconds,
+            R=turnkey_result)
         artifacts = _register_pranchas(manifest, run_dir, drawings_dir)
         if isinstance(result, dict) and result.get("path"):
             path = Path(result["path"])

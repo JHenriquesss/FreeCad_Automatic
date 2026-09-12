@@ -17,6 +17,30 @@ import desenho_svg_base as dsb
 
 import math
 
+try:
+    from edicao_nbr6118_g123 import (
+        edicao_de_resultado as _edicao_de_r,
+        sufixo_folha_edicao as _sufixo_ed,
+    )
+except ImportError:  # uso isolado fora do pacote
+    _edicao_de_r = None
+    _sufixo_ed = None
+
+
+def _carimbo_edicao(r):
+    """Sufixo de edicao da NBR 6118 para o titulo da folha (G123, fonte unica).
+
+    Sem o parametro no resultado, o comportamento e o de hoje (2014) e a
+    folha diz qual e (chave DESLIGADA, sem default silencioso).
+    """
+    try:
+        ed = _edicao_de_r(r) if _edicao_de_r is not None else None
+    except ValueError:
+        raise
+    if _sufixo_ed is not None:
+        return _sufixo_ed(ed)
+    return " (NBR 6118:2014)" if not ed else (" (NBR 6118:%s)" % ed)
+
 
 def _rebar_positions(x0, y0, w, h, cob_px, n, faces="perim"):
     """Distribui n barras. 'perim': ao longo do perimetro interno (pilar);
@@ -118,6 +142,9 @@ def prancha_armacao_svg(r):
     esc = 3.5                                           # px por cm (escala ~1:29)
     pil = r["pilar"]; vg = r["viga"]; sp = r["spec"]
     W = 900
+    # G123: a folha carimba a edicao de calculo (fonte unica; sem o parametro,
+    # o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    _suf_ed = _carimbo_edicao(r)
     # G77: a folha NAO pode ter altura fixa - a secao cresce com a peca. Com o
     # antigo Hn = 380 e um pilar de 90 cm, a cota de largura caia em y = 383,5:
     # emitida, contada pelas guardas de atributo, e invisivel na folha entregue.
@@ -137,7 +164,8 @@ def prancha_armacao_svg(r):
              f'<rect width="{W}" height="{Hn}" fill="#ffffff"/>',
              f'<text x="20" y="26" font-size="15" font-weight="bold" fill="#111">'
              f'ARMACAO - GALPAO DE CONCRETO C{sp["fck_MPa"]:.0f} '
-             f'(vao {sp["vao"]:.0f} m, pe-direito {sp["H"]:.0f} m)</text>']
+             f'(vao {sp["vao"]:.0f} m, pe-direito {sp["H"]:.0f} m'
+             f'{_esc(_suf_ed)})</text>']
 
     # ---- barras do pilar ----
     import executivo_concreto as ex
@@ -241,7 +269,7 @@ def planta_formas_svg(r):
              f'viewBox="0 0 {W:.0f} {H:.0f}" font-family="sans-serif">',
              f'<rect x="0" y="0" width="{W:.0f}" height="{H:.0f}" fill="white"/>',
              f'<text x="{margem}" y="{margem-64:.0f}" font-size="14" font-weight="bold">'
-             f'PLANTA DE FORMAS - GALPAO DE CONCRETO</text>',
+             f'PLANTA DE FORMAS - GALPAO DE CONCRETO{_esc(_carimbo_edicao(r))}</text>',
              f'<text x="{margem}" y="{margem-48:.0f}" font-size="11" fill="#444">'
              f'vao {vao:.1f} x comp {comp:.1f} m ; {n} porticos @ {s:.2f} m ; '
              f'pilar {hy*100:.0f}x{hx*100:.0f} cm</text>']
@@ -379,7 +407,7 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
          f'viewBox="0 0 {W} {H}" font-family="Arial,Helvetica,sans-serif">',
          f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
          f'<text x="30" y="34" font-size="16" font-weight="bold" fill="#111">'
-         f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA (NBR 6118)")}</text>',
+         f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA" + _carimbo_edicao(r))}</text>',
           f'<text x="30" y="56" font-size="12" fill="#444">'
           f'{_esc("painel %.2f x %.2f m (lambda %.2f) ; h = %.0f cm ; d = %.1f cm ; "
                   "C%.0f ; caso %d ; %s%s" % (lx, ly, r["lambda"], h * 100, r["d"] * 100, r["fck"] / 1000.0, r["caso"], "armada em 2 direcoes" if r["duas_direcoes"] else "armada em 1 direcao", titulo_extra or ""))}</text>']

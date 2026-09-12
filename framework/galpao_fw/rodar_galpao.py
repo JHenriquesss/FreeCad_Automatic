@@ -55,19 +55,14 @@ import escada as esc
 import plataforma
 import terreno
 
-# --- combinacoes ELU de referencia (espelha galpao_portico._combos_elu para
-# documentacao; o envelope REAL usado em _esforcos_base_joelho/_casos_base_envelope
-# vem de gp._combos_elu, que cruza vento W1/W2 e, em multi-vao, inclui C2_xadrez).
-# _COMB e' mantido para rastreabilidade do custo dos dois solves Qa/Qb: cada Qa/Qb
-# tem consumidor em gp._combos_elu::C2_xadrez_* e aqui em _COMB::C2_xadrez_*.
+# --- combinacoes ELU de referencia (o envelope REAL usado em
+# _esforcos_base_joelho/_casos_base_envelope vem de gp._combos_elu, que cruza
+# vento W1/W2 e, em multi-vao, inclui C2_xadrez).
+# G124: _COMB removido (residuo: dicionario de referencia sem leitor; o
+# envelope real mora em gp._combos_elu). Rastreabilidade dos dois solves
+# Qa/Qb: cada Qa/Qb tem consumidor em gp._combos_elu::C2_xadrez_*.
 # Medicao 2026-09-02 (2 vaos 10+10 simetrico): M_base interno 0 -> 6,9 kNm;
 # 2 vaos 8+12 hetero: Mmax 13,1 -> 17,4 kNm (+32,8%) - material, mantido.
-_COMB = {"C1_grav": {"G": 1.25, "Q": 1.50, "W2": 0.6 * 1.40},
-         "C2_uplift": {"G": 1.00, "W1": 1.40},
-         "C3_Gdesf": {"G": 1.25, "W2": 1.40, "Q": 0.8 * 1.50},
-         "C3_Gfav": {"G": 1.00, "W2": 1.40},
-         "C2_xadrez_A": {"G": 1.25, "Qa": 1.50},
-         "C2_xadrez_B": {"G": 1.25, "Qb": 1.50}}
 
 
 def _casos_mf_reac():
@@ -77,7 +72,7 @@ def _casos_mf_reac():
         fr, ix = gp._frame(); fn(fr, ix); _, mf = fr.solve()
         out[nm] = (mf, fr.reactions(), ix)
     # pattern loading Qa/Qb em multi-vao (NBR 8681 xadrez) - NBR 8681 C2_xadrez
-    # Consome em gp._combos_elu::C2_xadrez_A/B e em _COMB::C2_xadrez_A/B (acima).
+    # Consome em gp._combos_elu::C2_xadrez_A/B.
     # Medicao 2026-09-02: multi-vao simetrico 10+10, pilar interno M 0 -> 6,9 kNm;
     # hetero 8+12, Mmax 13,1 -> 17,4 (+33%) - material, mantido. Custo: 2 solves.
     # Sem try/except generico: falha de frame deve falhar alto, nao silenciar.
@@ -1553,8 +1548,35 @@ def _consolidar(out_dir, save, g, params, res=None):
         carimbo = FW.carimbo_versao()
     except Exception:
         carimbo = "framework galpao_fw"
+    # G123: o consolidado carimba a edicao de calculo (fonte unica; sem o
+    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    try:
+        from edicao_nbr6118_g123 import (
+            carimbo_edicao as _car_ed_g123,
+            edicao_de_spec as _ed_spec_g123,
+        )
+        _ed_cfg = None
+        try:
+            _ed_cfg = _ed_spec_g123(params) if isinstance(params, dict) else None
+        except ValueError:
+            raise
+        # O resultado tambem pode carregar a edicao (galpao_concreto.rodar).
+        if _ed_cfg is None and isinstance(res, dict):
+            try:
+                from edicao_nbr6118_g123 import (
+                    edicao_de_resultado as _ed_res_g123)
+                _ed_cfg = _ed_res_g123(res)
+            except ValueError:
+                raise
+            except ImportError:
+                pass
+        _linha_ed = _car_ed_g123(_ed_cfg)
+    except ImportError:
+        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
+                     "atual; edicao nao declarada no projeto — assumida 2014)")
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          f"{carimbo} - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
+         _linha_ed,
          "=" * 70, ""]
     # QUADRO DE VERIFICACOES no topo + ALERTA gritante se algo nao atende.
     if res is not None:

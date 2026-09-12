@@ -124,8 +124,9 @@ def circuitos(luzes, tomadas, v=V_CIRCUITO_V):
 # Selecao SIMPLIFICADA do DN por faixa de secao, p/ circuito tipico de 3-4 condutores a
 # 40% (F+N+PE ou 3F+N+PE). Bitola minima de eletroduto = 16 mm. Os diametros externos dos
 # cabos (base do calculo exato de ocupacao) vem da NBR NM 280 / catalogo; aqui a faixa
-# tabela o resultado usual do criterio de 40%.
-TAXA_OCUPACAO_3MAIS = 0.40      # NBR 5410 6.2.11.1.6-a (3 ou mais condutores)
+# tabela o resultado usual do criterio de 40% (3 ou mais condutores).
+# G124: TAXA_OCUPACAO_3MAIS removido (residuo: o 40% segue narrado aqui e na
+# docstring de eletroduto_dn; nenhum calculo o lia).
 _ELETRODUTO_POR_SECAO = [(2.5, 20), (6.0, 25), (16.0, 32), (35.0, 40), (1e9, 50)]
 DN_ELETRODUTO_MIN_MM = 16
 

@@ -26,9 +26,9 @@ from __future__ import annotations
 import math
 
 # conversoes de capacidade (1 TR = ...)
+# G124: TR_KCAL_H removido (residuo: conversao sem chamador).
 TR_KW = 3.517
 TR_BTU_H = 12000.0
-TR_KCAL_H = 3024.0
 KW_BTU_H = 3412.0
 
 # vazao de ar exterior minima (NBR 16401-3)

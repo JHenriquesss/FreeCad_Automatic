@@ -286,7 +286,8 @@ def largura_pessoa_vertical_mm(perfil, andar_mais_elevado):
 
 # --- Tabela 11 - tipo de escada por ocupante x altura da edificacao ---------
 # Cada faixa: (altura maxima em m, tipo). math.inf fecha a ultima.
-TIPOS_ESCADA = ("aberta", "protegida", "antecamara_ventilada", "pressurizada")
+# G124: TIPOS_ESCADA removido (residuo: enum nunca validado; a Tab.11 abaixo
+# e' a implementacao lida por tipo_escada_exigido/atende_tipo_escada).
 TIPO_ESCADA_TAB11 = {
     "A":    ((6.0, "aberta"), (30.0, "protegida"), (math.inf, "prova_de_fumaca")),
     "B":    ((6.0, "aberta"), (12.0, "protegida"), (math.inf, "prova_de_fumaca")),

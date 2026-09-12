@@ -1548,3 +1548,717 @@ legivel, F098) traz **62 instrucoes Substituir/Incluir em 51 itens**, entre eles
 de rigidez, citando galpoes), 15.8.1 (lambda <= 200, exceto pilar pouco comprimido com
 Nd < 0,10 fcd Ac), 17.3.5.2.4 (As + A's <= 4 % Ac fora das emendas) e 18.3.x - itens que o
 framework implementa pela 2014.
+
+## D140/G117 - a cifra da F150 decodificada (ramo a), G116 destravado (2026-09-11) - FECHADO
+Ramo (a) do goal: `f150_decodifica.py` (tabela canonica, fonte unica;
+lente e teste importam de la) decodifica a camada de texto do corpo da
+F150 (`fontes/01_CONCRETO/...-projeto-estruturas-concreto.pdf`, 260 p.,
+saida `...-dec.txt`, 639707 bytes, 14662 linhas, fora do git:
+`fontes/` e ignorado). Medido no rawdict: base byte+29 para
+letras/digitos/pontuacao ("7"->"T", "R"->"o", "2V"->"Os",
+"UHTXLVLWRV"->"requisitos", "\x03"->espaco) nas TRES fontes subsetadas
+*MT2 (ArialMT2/BoldMT2/ItalicMT2 - o G106/G113 so citava o corpo; os
+cabecalhos em negrito/italico usam a mesma cifra e tambem sao
+decodificados); 12 bytes reaproveitados para acentos (i->á, j->à,
+k->â, m->ã, o->ç, p->é, r->ê, t->í, y->ó, {->ô, }->õ, ~->ú) +
+"°/º/fi/fl/–/'/Á/“/”"; o par "\x03\x20" (espaco w=3.06 + espacador
+w=2.21) renderiza UM espaco - "\x20" em MT2 nunca e "=" (o "=" real
+mora nas fontes de formula). Vao no bbox reconstrui espacos sem codigo.
+Aceite: 15 ancoras em 10 paginas (xvi, xvii, 5.1.2, 8.2.3, 9.4.2.6,
+11.4.1.3, 14.4.1, 15.4.2, 17.4.2.3, 22.5.1.3), duas de formula (a prosa
+ao redor), todas lidas na pagina RENDERIZADA (regra 3) e conferidas na
+imagem nesta entrega. Declarado o que nao sai: miolo simbolico de
+formulas/tabelas/figuras (o "phi" extrai como "I" da SymbolMT -
+preservado, nao adivinhado), carimbo vermelho lateral e marca d'agua
+(texto corrido). OCR (ramo b) rejeitado: sem Tesseract na maquina.
+Suite: os 8 portoes nominais verdes + teste-guarda
+`test_f150_decodifica_g117.py` (portao vivo/baseline/injecao em
+tmp_path); a entrega tropecou nos dois censos que o G113 nomeou -
+`confere_cobertura` (lente sem faixa: isenta com motivo) e o censo das
+guardas (`confere_amostra` triada como item 25, INDEPENDENTE) - e os
+fechou antes de declarar verde. Nao subir ao NotebookLM sem OK do
+usuario (publicar em servico externo).
+
+## D141/G116 - o impacto 2014 -> 2023+Em1, medido (2026-09-12) - FECHADO
+
+Goal media e escreve, sem trocar base de modulo nenhum. Entrega:
+`impacto_nbr6118_g116.py` (tabelas canonicas, fonte unica; lente e teste
+importam de la), `tests/test_impacto_nbr6118_g116.py` (portao/baseline/
+injecao em tmp_path/casos) e o inventario
+`wiki/07-nbr6118-2023-em1-impacto-g116.md` (51 itens, 4 casos, Tabela 2 das
+familias fora da Emenda, lacunas declaradas).
+
+Medido, com endereco. A Emenda (F098, 23 pags, legivel) tem 85 cabecalhos
+literais de instrucao - o G113 contou 51 itens e 62 instrucoes por
+agrupamento; o portao confere os 85 um a um por substring (CABECALHOS_EM1,
+particao congelada em CAB_PARA_ITEM, provada no teste), de modo que qualquer
+contagem esta coberta. 2014 = 2023 pre-Em1 em todas as clausulas de
+intersecao sondadas (13.2.5.1-b, 15.8.1, 17.3.5.2.4, 17.4.1.1.3, 19.5.4, 20.1;
+F016 extraivel x F150 decodificada no G117), menos a 15.7.3: o paragrafo do
+galpao nao existe em 2014 e ja existe na 2023 - novidade da edicao, fora da
+Emenda (gap medido aqui; o resto do 2014 -> 2023 segue NAO MEDIDO, declarado
+na Tabela 2, nunca default silencioso).
+
+Resultado para a decisao do usuario. NUMERO-MUDA em 2 pontos: 13.2.5.1-b
+(furo circular 12,1-12,5 cm entra na dispensa; framework
+`compatibilizacao.avalia_furo_viga` pede verificacao a mais - conservador) e
+12.3.3 (s = 0,20 para todo C60+: C60 CPIII 7d da 41032 em 2014 contra 49124
+kN/m2 em 2023+Em1, +19,7%). REGRA-MUDA sem numero: Tab 13.3 (some o teta
+0,0017 - constante orfa no framework, sem efeito), Tab 13.4 NOTA 2, 17.5.1.4.1
+(he alternativo), 18.2.4 (grampo 135-180 g), 18.3.3.2 (barra de amarracao),
+19.5.4 (C'' condicional). PROCESSO-NOVO: 5.3 ATP (maior novidade da Emenda) e
+20.6 balanco/marquise - exigem criar gate, nao trocar conta. Todo o resto nos
+pontos implementados e EDITORIAL (15.8.1, 17.3.5.2.4 e 19.5.4 ja diziam em
+2014 o que a Em1 diz - inclusive a ressalva do pouco comprimido que o G113
+apresentou como novidade). Casos C1-C4 chamam funcao real, sem alterar modulo
+(contra assercao tautologica); 4 testes verdes.
+
+Suite: os 8 portoes nominais verdes (faixa, asserts, folhas 92, alcance 5,
+guardas 14, disciplina/indice/carimbo 17) + 4 do G116. Registros de borda:
+script avulso em SCRIPTS_AVULSOS, isencao com motivo em SEM_FAIXA_DECLARADA;
+funcoes nomeadas sem prefixo confere_/verifica_fechamento (fora do censo
+D86/D87 por desenho); testes-portao com um assert so (G97).
+
+## D142/G114 - o caderno reusa o turnkey: um `tk.rodar` so (2026-09-12) - FECHADO (parede nao remedida; memoria aberta)
+
+`caderno_turnkey.montar_caderno(spec, out_dir, ..., R=None, turnkey_result=None)`
+reusa o `R` que o adaptador do galpao ja tem do hook (`_run_turnkey` ->
+`tk.rodar`) e so calcula quando nao recebe (`tk.rodar(spec, out_dir)` uma
+vez); `galpao_adapter._emit_drawings` passa `R=turnkey_result`. Sem mudar o
+resultado: o `R` so entra como leitura (`executadas`, `disciplinas[*].raw`,
+`geometria`, `ATENDE`); `res["turnkey_reuso"]` declara o caminho. Porquê: o
+portao do G102 media galpao 38,5 s -> 923 s depois do G107 (generate_2d=True)
+pelos dois `tk.rodar` sobre o spec 44x90 de dois vaos (D134/D139), ~16 min na
+suite non-build e 4 mortes por memoria nesta maquina (8 GB, 1,5-1,9 GB
+livres, a ultima sozinho com saida 0 byte) — o teto de 1800 s mede tempo,
+nao memoria. Rejeitado: recalcular "por seguranca" (o segundo calculo era o
+custo); estimar o depois sem medir (ausencia se declara).
+
+Medido, com endereco. Portao novo `tests/test_caderno_reuso_turnkey_g114.py`
+(4 testes, tmp_path + monkeypatch, sem FreeCAD): com R zero chamadas a
+`tk.rodar`, sem R exatamente uma, mesmo `n_pranchas`/`disciplinas`/`ATENDE`;
+alias `turnkey_result=` igual a `R=`; defeito duplo injetado volta a 1
+chamada (vermelho); adaptador passa o objeto que tem (identidade). Dois
+residuos do G108 no mesmo lote: ancora 900 s (estimativa T13) ->
+`_ANCORA_ACO_SEG = 578.0` medidos (D133/G109, 16 pranchas, PE05 sem numero,
+G118), pesos no piso 0,01 inalterados (7x0,56/578 = 0,0068 etc.); teste
+`test_caderno_pesos_g108.py` chama a reserva real (`_fracao_reserva` via
+`_total_peso` + `_stage_timeout` com prazo congelado, nunca soma propria) +
+`test_03_ancora_medida_d133`. Fonte unica: `_total_peso`/`_fracao_reserva` na
+producao, lente e testes importam de la; `reserve_stage` interno usa
+`_total_peso`. Fakes de `montar_caderno` em G93/G101 aceitam `R=`/`**_kw`.
+
+Aceite honesto (negativo declarado, como manda o goal). O antes/depois de
+parede NAO foi reescrito em `CUSTO_MEDIDO_SEG` (segue 2,7/35,7/923,0 s de
+2026-09-11): a rodada integral do galpao OOM nesta maquina como na auditoria
+G113, e numero inventado seria dado arbitrado. O ganho provado e 1 calculo a
+menos por rodada (pico de memoria cai junto). O docstring do G102 registra
+isso e aponta o verbete. Aberto: o teto segue de tempo; "caber" (rodar junto
+dos outros ou teto de memoria) fica para o proximo passo — fatiar a rodada
+ou medir memoria com harness, nunca default silencioso.
+
+## D143/G115 - a armacao de pilar mostra todos os trechos (2026-09-12) - FECHADO
+
+Fecha o ABERTO do D136: no predio, 8 dos 12 pilares mudavam de secao ou de
+As entre lances e a folha (G110) mostrava so a base. Agora uma fileira por
+TRECHO de lances iguais (mesma secao e mesmo As, contiguos) em
+`desenho_pavimento.py` (`_trechos_pilar`, `_vals_fileira_trecho`,
+`_escreve_secao_pilares` por trecho): LANCES e' o intervalo 1-based do topo
+para a base ("1-5" ou "6"); secao, Nd, As, taxa, estribo, limite e arranjo
+sao os do lance de BASE do trecho (o mais carregado). Pilar sem mudanca
+continua com uma fileira ("1-9"). Coluna "SECAO BASE" volta a "SECAO".
+
+Medido, com endereco. Predio (spec persistido, 9 lances por pilar): 12
+pilares, **42 trechos** — P11/P13/P41/P43 "1-9" (1); P12/P42 "1-5","6","7",
+"8","9" (5); P21/P23/P31/P33 "1-7","8","9" (3); P22/P32 "1-2" + "3".."9" (8).
+Casa: 12 pilares de 1 lance, 12 trechos — inalterada, como previa o goal.
+A 18.4 nao muda (D136, conferida pela imagem) — nenhuma clausula nova alem
+das do G110.
+
+Lente: `confere_armacao_pilares` por trecho (nome >= n_trechos por regex
+G69 + intervalo/secao/As literais do trecho + soma dos lances cobertos ==
+lances do resultado). A folha antiga (so a base) reprova nela quando ha
+variacao — o vermelho por injecao do aceite (P11 com b 0.19->0.25 no lance
+5: 1 trecho vira 3, mesma SVG reprova). Altura dinamica por fileiras
+(isolada e combinada; licao do G77: altura fixa com conteudo que cresce
+corta fileira). Triagem do item 24 atualizada para trechos; o baseline
+`TRIADAS_G69` nao muda (mesma funcao, sem guarda nova). Tres aceites:
+certa (dois confere ok + XML + `confere_folha_svg`), no manifesto (mesmo
+arquivo PE-CO-02, sem churn em mapa/indice/FOLHAS) e diz o que desenha
+(rodape: "uma fileira por trecho de lances iguais ... do lance de BASE do
+trecho").
+
+Suite: os 8 portoes nominais verdes (faixa, asserts, folhas 106, alcance +
+disciplina/indice/carimbo 22, guardas) + G110 (8) + G115
+`tests/test_armacao_pilares_trechos_g115.py` (8: 42 trechos, casa 12,
+injecao de secao, fileira removida, vazio, norma/guarda, combinada
+ 17 tramos + 42 trechos em disco, render). Renderizada via
+`svg_para_png` (fitz presente, PNG > 0); isolada H 1204, combinada H 1778.
+
+## D144/G118 - a PE05 do aco tem numero: o topo travava nos tirantes sem oclusores (2026-09-12) - FECHADO
+
+Causa medida, nao suposta, no modelo do G109 (galpao-ufpe 44x90 2 vaos, FCStd
+2,4 MB, freecad.exe 1.1, maquina 8 GB com ~1,1-1,5 GB livres — a mesma
+condicao do G109, entao memoria esta exonerada por medicao). Fatiado vista a
+vista com o harness do G105 (um processo freecad.exe por variante, boots e
+logs em tmp, producao intacta ate o fix):
+
+- V4 so 12 ESTICADORes, lateral: t_hlr 4,4 s — o esticador sozinho e inocente.
+- V8 so 12 CONTRAV, topo: t_hlr 4,9 s (20 s totais) — as diagonais sao inocentes.
+- V1 so lateral (547 fontes, com esticador): t_hlr 123 s, total 209 s — passa.
+- V13 contexto de 955 com oclusores, topo, esc 0,004: t_hlr 65 s, total 97 s.
+- PE01 rehecha hoje pelo harness real: t_hlr 79,6 s (G109: 67,3 s) — reproduz.
+- V7 so 432 TIRANTEs, topo, esc 0,004: 548 s de recompute + export travado.
+- V2 so topo (547): >600 s. V3 ambas sem esticador (535+535): >600 s.
+- V14 as 547 vistas de baixo (0,0,-1): >600 s. Memoria chata nos tres (~1,2 GB
+  residentes, sem blowup): trava de CPU no HLR, nao OOM.
+
+O veneno: os 432 TIRANTEs (barras redondas esbeltas, 48 verticais de parede
+vistos de topo) numa vista de topo/fundo SEM os planos oclusores da cobertura
+(TELHA/TAPAMENTO/TERCA). Sem oclusores o HLR vira combinatorio (548 s para
+432 solidos triviais de 3 faces); com oclusores os mesmos 955 solidos saem em
+~60 s. Escala exonerada (V13 usa a esc da PE05 e passa); direcao sozinha nao
+explica (lateral passa, topo/fundo travam).
+
+Fix na producao (`techdraw_exec._pr_contravent`): a vista de cobertura leva
+so os CONTRAV (12); tirantes, esticadores e porticos seguem na lateral
+(Source da V05_CV_LAT), entao `_cobertura` passa sem nada omitido e a folha
+diz o que desenha (A05a vertical + A05b cobertura, mesmos titulos). Medido
+pelo harness real: PE05 build 0,2 / hlr 128,0 / cotas 47,1 / export 34,1
+(total ≈ 209 s), renderizada e olhada (PNG: X nas duas baias de extremidade
+na lateral com cotas 7,50/7,00 m; cobertura com os 2 X dos dois vaos;
+carimbo PE-05 05/09 ESC 1:250). Congelado em `MEDIDOS_G109`/`ORCAMENTO_G109`
+(teto 240, mesma folga ~15 % da PE03) e o portao
+`tests/test_orcamento_aco_g109.py` passa sem faltando (so as duas
+condicionais sem numero); guarda nova `tests/test_pe05_topo_g118.py` (topo
+sem TIRANTE + lateral cobre os 4 prefixos, vermelho por injecao, sem
+FreeCAD). Rejeitado: estimar a PE05 pelas irmas (dado arbitrado, D133) e
+zerar o total dela (saturacao silenciosa).
+
+Tres aceites: certa (numero medido + PNG olhado + cobertura por Sources),
+no manifesto (PDF/SVG/DXF/PNG exportados pelo harness) e diz o que desenha
+(titulos e carimbo intactos). Para o G114: o total medido do aco agora e
+≈ 788 s (17 medidas + 2 condicionais com motivo); a ancora segue 578 ate ele
+decidir (comentario em `caderno_turnkey.py` atualizado, valor intacto).
+Censos do lote verdes (faixa, asserts, folhas, alcance, guardas, disciplina,
+indice, carimbo) + G105/G109/G118: 140 passed.
+
+
+## D145/G119 - auditoria do lote G114-G118: a regua que nao podia acusar (2026-09-12) - FECHADO
+
+Primeiro lote do projeto que chegou com verbete em TODOS os goals (D140-D144)
+e com os oito censos nominais verdes - conferidos por medicao nesta auditoria,
+nao por declaracao: `confere_cobertura` OK, `confere` (asserts) OK, e
+folhas/alcance/guardas/disciplina/indice/carimbo 128 passed. Os numeros de
+manchete tambem batem, medidos por conta propria: 42 trechos no spec
+persistido do predio (mapa pilar a pilar identico), 639707 bytes no .txt
+decodificado, e a conta do 12.3.3 (C60 CPIII 7 d: 41032 -> 49124 kN/m2,
++19,7 %) confere ate o ultimo digito. O G116 ainda corrige um erro MEU: a
+ressalva do pilar pouco comprimido (15.8.1, "0,10 fcd Ac") que o D139
+apresentou como novidade da Emenda ja esta na 2014, p.125, palavra por
+palavra. Sete defeitos, dois deles de classe nova.
+
+**1. A regua sem marca (G117) - a classe nova, e a pior.** `decodifica_char`
+devolvia `chr(o + 29)` para todo byte fora da tabela. `DESCONHECIDO_FMT`
+existia, e `decodifica_pdf` contava suas ocorrencias para relatar
+`desconhecidos` - mas NADA nunca o escrevia. O medidor relatava `{}` porque
+era estruturalmente incapaz de acusar. Sob ele, 16 codigos saiam como outro
+caractere PLAUSIVEL: "2ª ordem" virava "2º ordem" (120x), "εc2 = 2,0 ‰"
+virava "2,0 â" e - o pior - **"fck ≤ 50 MPa" virava "fck ± 50 MPa"**, um
+limite normativo com outro operador. Nao era omissao, era TROCA: o cabecalho
+declarava que "≥≤" moravam em outras fontes e nao sairiam, quando na verdade
+saem nos spans MT2 (0x95 e 0x94) e saiam errados. Oito codigos foram
+conferidos na PAGINA RENDERIZADA e mapeados (0x9D ª, 0x94 ≤, 0x95 ≥, 0xC2 ·,
+0xC5 ‰, 0xCB Í, 0xBB /, 0xBFA ff, cada um com a pagina anotada na tabela);
+byte alto fora da tabela agora vira marcador visivel. O medidor passou de
+`{}` a 8 codigos / 372 ocorrencias. O .txt foi regerado (± zerado, 123 "ª",
+42 "≤", 80 "≥") e o catalogo do acervo atualizado. Ancoras novas na amostra
+(15 -> 19): nenhuma das 15 originais tinha ordinal feminino nem operador, e
+foi exatamente por isso que a troca passou pela lente.
+**Licao:** medidor de ausencia que ninguem consegue fazer disparar e' pior
+que medidor nenhum - da' garantia. Todo `DESCONHECIDO`/`faltando`/`nao
+coberto` precisa de um teste que o faca acusar (`test_05`).
+
+**2. Default plausivel no lugar de ausencia (mesma raiz do 1).** A regra
+`+29` nao tinha fundo: aplicava-se a qualquer byte, inclusive aos que ela
+nao sabia ler. E a mesma familia do estribo padrao do G113 (D139) e do
+default que decide veredito (G74): o palpite se disfarca de resultado porque
+e' plausivel. Agora `_LIMITE_REGRA_MAIS_29` marca onde a regra acaba.
+
+**3. A guarda que nunca reprovava (G115).** `confere_armacao_pilares`
+conferia o intervalo do trecho por substring solta. Trecho de um lance so
+sai "6" - e "6" casa em qualquer ponto do SVG (medido: uma folha sem
+nenhum desses trechos contem "6", "3" e "7"). Metade da guarda - justamente
+a dos trechos isolados, que sao a maioria no predio - nao conseguia
+reprovar. Corrigido com `_celula`, que confere o conteudo do elemento de
+texto (`>1-5<`), como `_escreve_fileira` emite. Vermelho por injecao provado:
+apagada a celula "6", a lente reprova.
+
+**4. Constante escrita a mao que o teste nao confrontava (G115).**
+`_TRECHOS_MEDIDOS` (mapa pilar -> intervalos) so era conferido pelo TOTAL
+(42) e por aquelas substrings cegas. O agrupamento por pilar podia mudar
+inteiro sem nada reprovar, desde que a soma desse 42. `test_09` agora
+compara item a item com `_trechos_pilar` sobre o spec persistido. O mapa
+estava certo - a medicao confirmou os 42 e cada intervalo -, mas nada o
+segurava.
+
+**5. Excecao nova onde antes nao havia (G118).** A guarda de entrada da PE05
+aceita `CONTRAV` *ou* `TIRANTE`; desde o G118 o topo leva so `CONTRAV`. Um
+modelo so-tirante passa a entrada, `cob` fica vazio, `_bbox([])` devolve
+None e `_fit_escala` estourava `AttributeError` - caminho que nao existia
+antes (o topo levava o mesmo conjunto da lateral, garantido nao-vazio).
+Nao e' alcancavel pelo `build_galpao` de hoje (CONTRAV e' incondicional),
+mas a folha nao pode depender disso: agora a vista de topo nao sai e a nota
+DECLARA a ausencia (`_AUSENCIA_CONTRAV_COBERTURA`), com teste.
+**Licao:** quando um goal estreita o conjunto de uma vista, a guarda de
+entrada tem de estreitar junto - senao o "ou" da entrada vira caminho morto.
+
+**6. Codigo morto que duplica regra (G115).** `_vals_fileira_pilar` foi
+mantida "por compatibilidade G110" e, depois da troca para fileira por
+trecho, ninguem mais a chamava - nem producao, nem teste - enquanto
+carregava uma segunda copia da montagem da fileira, livre para divergir da
+real. Removida.
+
+**O que NAO era defeito, e foi medido para dizer que nao era.** O reuso do
+turnkey (G114) e' seguro nos dois pontos de risco: todo `_run_*` copia a
+sub-spec antes de injetar geometria (`s = dict(sub)`), entao o `tk.rodar`
+removido nao mutava nada que o caderno lesse depois; e o despacho de
+pranchas do aco re-roda `RP.rodar_tudo` no seu proprio `disc_out`, sem
+depender dos arquivos que aquele segundo `tk.rodar` gravava. O corte do
+topo da PE05 (G118) tambem nao perde conteudo: `CONTRAV_COBERTURA` E' o
+contraventamento de cobertura, e tirantes/esticadores/porticos seguem na
+lateral. E o inventario do G116 NAO herdou o texto corrompido (zero "±"):
+quem o escreveu leu a norma com cuidado nas clausulas que citou - o estrago
+ficava so no artefato do acervo, que existe justamente para ser lido depois.
+
+**7. A ancora que nao ancorava (G114).** `_ANCORA_ACO_SEG = 578.0` entrou no
+lote como "a ancora dos pesos passa de 900 s estimados para os 578 s
+medidos" - mas a producao nunca a LIA: `_STAGE_WEIGHTS` seguia com literais
+e comentarios citando a conta. Trocar a ancora nao mudava peso nenhum. E o
+teste `test_03_ancora_medida_d133` conferia que a constante valia 578 (o
+literal contra ele mesmo) e procurava a string "900" no texto do arquivo -
+tautologia com busca textual por cima. Agora `peso_medido(t)` implementa a
+regra do G108 (7,0 x t / ancora, piso 0,01) e os quatro pesos com tempo
+CRONOMETRADO derivam dela (`_T_MEDIDO_SEG`, com a origem por disciplina);
+concreto e eletrico, que nunca foram medidos, seguem literais com o motivo
+escrito - tempo inventado so para caber na formula seria dado arbitrado.
+Pesos finais identicos aos de antes (conferido), e o teste agora move a
+ancora pela metade e cobra que o peso dobre.
+**Licao:** constante "medida" que a producao nao le e' comentario com
+sintaxe de codigo. Medida em varredura: 95 constantes de modulo escritas e
+nunca lidas no proprio modulo (goal G124 confere quais tambem nao saem por
+import).
+
+**Aberto ao fim da auditoria, dito em vez de escondido.** `CUSTO_MEDIDO_SEG` do portao
+G102 segue `{"casa": 2.7, "predio": 35.7, "galpao": 923.0}` — os 923 s sao de ANTES do
+reuso do G114. A corrida limpa e isolada do arquivo completou (6 passed, 1230 s), mas sem
+`-s` o pytest engole o `print` do custo por tipologia; a segunda corrida, com `-s`, foi
+morta por falta de memoria porque a maquina estava em uso ao lado dela. Re-congelar com um
+numero nao medido seria dado arbitrado, entao a baseline fica velha e declarada, e a
+remedicao abre o goal G121.
+
+## D146/G121 - o portao mede memoria: o teto que faltava (2026-09-12) - FECHADO
+
+Fecha o ABERTO do D145. O portao do G102 media so tempo; nas quatro mortes do G113 o
+tempo nunca chegou perto do teto de 1800 s — o processo era morto antes, e o portao nao
+via o que o matava. Agora ele mede o pico de memoria residente de cada rodada e cobra um
+teto, no mesmo formato do custo de tempo.
+
+**Medido, com endereco.** `medicao_memoria.py` (producao, stdlib-only, fonte unica: o
+portao importa daqui) amostra a cada 1 s o RSS do processo pytest via
+`psapi.GetProcessMemoryInfo` mais a soma de todos os `freecad.exe` via `EnumProcesses` +
+`GetModuleBaseName` + `GetProcessMemoryInfo` — sem psutil, sem parse de `tasklist`
+(dependente de locale). `pico_total` e o max por amostra de (processo + freecad) na MESMA
+amostra, nao a soma dos picos. Corrida oficial isolada com `-s`, um pytest por vez
+(maquina de 8 GB, ~2,5 GB livres, sem orfao, 2026-09-12):
+`CUSTO_G102 casa=2.4s predio=28.9s galpao=1048.3s total=1079.5s`, 6 passed em 1079,8 s;
+`MEM_G102 casa=107,0MB(proc=107,0,fc=0,0,n=0) predio=143,6MB(proc=143,6,fc=0,0,n=0)
+galpao=1988,8MB(proc=174,4,fc=1819,7,n=1)`. Re-congelado em `CUSTO_MEDIDO_SEG`,
+`CUSTO_MEDIDO_EM = "2026-09-12"` e, novo, `CUSTO_MEDIDO_MEM_MB` /
+`CUSTO_MEDIDO_MEM_EM`. O galpao segue acima dos 923 s de antes do reuso — variacao de
+maquina/rodada, nao regressao do G114 (o total 1079,5 s fica abaixo dos 1230 s da corrida
+limpa pos-G114 do G119). O que o numero novo revela: o galpao mora no freecad.exe
+(1819,7 de 1988,8 MB, um por vez); casa/predio nao sobem freecad (rota SVG pura) e vivem
+abaixo de 160 MB. O "≈803 MB" observado a mao no G119 era um instante, nao o pico —
+amostrar vence olhar.
+
+**O teto, com a folga escrita.** `CUSTO_TETO_MEM_MB = 2500` por rodada (pico 1988,8 +
+~25 %): a maquina tem 8 GB e o SO + fundo comem ~2 GB; o teto deixa a rodada respirar e
+ainda reprova vazamento, freecad orfao concorrente ou disciplina nova que suba outro
+freecad junto (`n_freecad_max` sai no print para auditar). Picos nao se somam entre
+tipologias — o teto vale por rodada, nao no total. O `test_01` cobra os dois tetos sobre
+o MEDIDO nesta rodada; o `test_05` trava os dois registros; o `test_07` (casa real em
+`tmp_path`, ~3 s) prova o vermelho por injecao nos dois sentidos — sampler com
+`n_amostras >= 2`, `falhou` falso e `pico_processo > 0` (medidor incapaz de acusar era
+o defeito do G117), teto 0,01 reprova, teto folgado passa, pico None declara sem
+reprovar — e sampler que falha em todas as amostras vira gap ("sem numero para
+cobrar"), nunca verde silencioso.
+
+**Duas acusacoes no caminho, as duas certas.** A lente de faixa flagrou
+`medicao_memoria.py` como `faltando` — declarado com faixa de verdade
+(`intervalo_s` entre 0,2 e 5 s: abaixo o proprio EnumProcesses perturba, acima um filho
+curto passa entre amostras; fora da faixa, `ValueError`, nunca clamp), hoje `guardada`.
+O alcance flagrou o mesmo arquivo como ilha — declarado script avulso com motivo e
+`__main__` que sonda a maquina (`python medicao_memoria.py`), no molde das varreduras
+que os testes importam. Sem psutil de proposito: dependencia nova para medir seria o
+instrumento pesando na medida.
+
+**Limite declarado.** A soma do freecad.exe e de TODOS os visiveis, nao so dos filhos
+desta rodada — em corrida isolada equivale aos filhos; com outro freecad alheio o numero
+sai MAIOR (conservador, nunca esconde pico). E um detalhe de 64-bit que custou um ciclo:
+`GetCurrentProcess` devolve pseudo-handle -1 e o ctypes truncava para 32-bit (erro 6) —
+protótipos com `HANDLE`/`DWORD` resolveram (`dbg_mem.py` ainda mostra o erro antigo,
+era o script sem o fix, nao o modulo).
+
+**Armadilha do goal, nao mordida.** A rodada oficial correu com captura do harness
+(processo vigiado, nao arquivo de saida) — o 0 byte no meio da corrida nao apareceu
+porque nada foi redirecionado para arquivo.
+
+Suite do lote verde, um pytest por vez: faixa OK, asserts OK, folhas 92, alcance 5,
+guardas 14, disciplina 5, indice 6, carimbo 6 — mais o G102 (test_01 oficial com `-s`,
+test_02–07).
+
+## D147/G120 - os 8 codigos que a F150 ainda nao lia: 7 na pagina, 1 declarado (2026-09-12) - FECHADO
+
+Fecha a cifra do G117 e destrava o G122. Dos 8 codigos / 372 ocorrencias que o
+G119 deixou como marcador visivel, **7 foram conferidos na PAGINA RENDERIZADA
+(regra 3) e mapeados** — cada um com clip da imagem lido e a pagina anotada na
+tabela: `0x81 ü` p.118 "(Rüsch)"; `0x92 ∞` p.50 "t∞ – vida útil da estrutura"
+(16x: t∞, φ(t∞,t0), εcs(t∞,t0), σp∞); `0xA8 Δ` p.37 "cnom = cmín + Δc";
+`0xEE ×` p.75 "-15 × 10-5" (4x); `0x101 ·` p.139 "αc = 0,85 · [1,0 – ..."
+(7x, tambem p.188 "1,5 · FSd"); `0xED –` p.9/p.13/p.46/p.159/p.236 (143x:
+sumario, figuras, tabela 8.1, formula, legenda); `0xBC5 –` p.218 tabela 23.2
+(12x, celula vazia). **Nenhum glifo deduzido por contexto ou frequencia** —
+cada mapeamento tem a imagem correspondente (12 clips lidos, do sumario a
+tabela, do bold a prosa).
+
+**Dois achados de subset, os dois com a conta escrita.** Tres bytes desenham o
+MESMO traco do `0xB1` ("–", G119): ED e BC5 duplicam o glifo (larguras em
+ArialMT2 regular: B1 6,11 pt, ED 5,84–6,42 pt, BC5 6,11 pt — metrica, nao outro
+caractere; os tres usos conferidos na imagem). E `0x101` duplica o `0xC2`
+("·", G119 p.42): o avanco difere (3,66 contra 3,06 pt no mesmo size) mas o
+desenho e o mesmo ponto de multiplicacao (p.139 e p.188 lidas).
+
+**O oitavo continua marcador, com o motivo escrito — era o caso que o goal
+previa.** `0x0BD8` (188x, 188/188 imediatamente antes de item de lista "a)",
+"b)", "c)"...) tem avanco fixo de 0,91 pt e NENHUMA marca visivel na pagina
+renderizada (p.37 e p.52 conferidas em zoom 9x: so o recuo do item). E'
+controle de layout do subset, nao glifo — mapear como "" ou " " seria
+adivinhar. Segue `[<U+0BD8>]` declarado, com o motivo em `f150_decodifica.py`.
+
+**Medido ao fim.** `desconhecidos` 372 → `{'0BD8': 188}` (lista nominal: so o
+declarado). `.txt` regerado (260 p.; "±" e "²" seguem zerados; os do G119
+intactos: 123 "ª", 42 "≤", 80 "≥"). `catalogo.csv` (F150) atualizado com os
+restantes. Amostra 19 → 26 ancoras em 20 paginas (uma por codigo mapeado, cada
+uma lida na imagem); `test_04` ganha `_MAPEADOS_G120`; `test_06` novo trava o
+0BD8 como marcador declarado (remapear sem conferir a imagem quebra o teste e
+exige triagem). **Vermelho por injecao 1:1 provado**: cada um dos 7 bytes
+removido da tabela em memoria derruba exatamente a sua ancora. Nada subiu ao
+NotebookLM (regra do goal).
+
+Suite do lote verde: faixa OK, asserts OK, folhas + alcance + guardas +
+disciplina + indice + carimbo + f150 **134 passed em 134 s**.
+
+## D148/G122 - as diferencas 2014 -> 2023 que nao estao na Emenda: 1 numero novo, resto igual (2026-09-12) - FECHADO
+
+Fecha a lacuna declarada na Tabela 2 do G116. Confronto secao a secao 2014 x 2023
+pre-Emenda nas 45 familias que o framework cita (grep "6118" em 217 .py, 295 linhas;
+mesma particao do G116), com texto das duas e veredito por familia. Diferenca de texto
+so virou veredito com imagem das duas edicoes (200 dpi, lado a lado). Nenhum modulo
+troca de base normativa.
+
+**Medido, com endereco e imagem.** `confronto_2014_2023_g122.py` (producao, fonte unica;
+o teste importa daqui) congela CONFRONTO_G122 (45) + MODULOS_POR_FAMILIA +
+`cobre_inventario` (cada OK chega ao veredito global) + caso C5 que chama a funcao REAL.
+Seis diferencas confirmadas na imagem, uma por uma:
+8.2.5 fct,m C55+ F016 p.23 PDF41 "2,12 ln (1 + 0,11 fck)" x F150 p.23 PDF41
+"2,12 ln [1 + 0,1 (fck + 8)]" (NUMERO-MUDA, item 52, caso C5);
+8.2.8 Eci F016 p.24 PDF42 "NBR 8522 / 20-50 e 55-90" x F150 p.24 PDF42
+"NBR 8522-1 e 8522-2 / <=50 e >50" (EDITORIAL, fecha o gap 51-54);
+15.4.2 exemplo F016 p.103 PDF121 "...postes e em certos pilares de galpoes industriais."
+x F150 p.103 PDF121 "...postes." (EDITORIAL);
+15.7.2 F016 p.106 PDF124 "majoracao adicional dos esforcos horizontais" x F150 p.106
+PDF124 "majoracao adicional das acoes horizontais" (EDITORIAL, 0,95 e 1,3 iguais);
+15.7.3 paragrafo do galpao AUSENTE na F016 p.106 PDF124 x PRESENTE na F150 p.106 PDF124
+("Em estruturas de edificacoes com menos de quatro andares...", novidade ja apontada
+no G116 item 31, aqui reconfirmada ausente x presente);
+18.2.3/18.2.4 frases novas F016 p.146 PDF164 (sem) x F150 p.147 PDF165 ("...no banzo
+comprimido." + "O estribo suplementar deve atender ao minimo estabelecido em 18.4.3...",
+REGRA-MUDA de detalhamento, sem numero).
+Todo o resto IGUAL no numero e na regra aplicados (prosa equivalente a menos de
+ortografia; 2014 = 2023 pre-Emenda em 13.2.5.1-b, 12.3.3-s, 15.8.1, 17.3.5.2.4, 17.4.1.1.3,
+19.5.4-numero e 20.1, re-sondados aqui). Formula/tabela/figura e limite declarado por
+familia (ver pagina renderizada), nunca silenciado; o que ficou ilegivel na extracao
+e dito por clausula. O 0BD8 segue marcador declarado (G120).
+
+**O numero novo.** 8.2.5 entra na Tabela 1 como item 52, no mesmo formato, com o caso
+do repo: `premoldado_nbr9062._fctm` (2014, funcao real) da 4,300 MPa no C60 contra 4,355
+MPa pela prescricao 2023 (+1,3%). [Corrigido no G125/D151: sao 10 modulos que CALCULAM fct,m C55+, nao 5 -
+estaca_profunda, fissuracao_nbr6118, laje_concreto, pilar_concreto e
+viga_baldrame faltavam; desenho_piso so cita.] Os modulos que aplicam fct,m (base_chumbador.py:83,
+fundacao_sapata.py:675, piso_industrial.py:298, premoldado_nbr9062.py:67,
+viga_protendida.py:66, desenho_piso.py:103) calculam pela 2014; migrar e decisao do
+usuario (G123). 18.2.4 e REGRA-MUDA sem numero (executivo_concreto.py:60 admite
+"90-180 graus envolvendo a barra": 90 graus segue tolerado na 2023 pre-Emenda; o
+"preferencialmente 135-180" e da Emenda, item 40).
+
+**Cobertura nos dois sentidos.** Cada citacao de "6118" no codigo tem linha na Tabela
+2-G122 (45 linhas, cada uma com arquivo:linha; a geral lista as mencoes sem clausula
+uma a uma, sem "e outros"); cada secao divergente tem endereco e pagina-imagem
+(F016/F150 p. + PDF). O portao `cobre_inventario` cobra familias + modulos + ".py:"
+nas divergentes, com acumuladores `faltando_familias` / `faltando_modulos` /
+`sem_endereco` que disparam de verdade (vermelho por injecao em tmp_path nos tres
+sentidos; intacto verde). Baseline congelado nos dois sentidos (45/45; 1 NUMERO-MUDA).
+
+**Armadilha evitada.** O ".txt" decodificado mente em figura (simbolo sai letra) e a
+primeira ocorrencia da clausula no corpo pode ser remissao, nao o texto (15.5 x 15.4,
+17.2.5 x 17.2.4.4 novo). Janela titulada + SIM so triam; veredito so com a pagina
+renderizada aberta. Nada subiu ao NotebookLM.
+
+Suite do lote (lista nominal): faixa OK, asserts OK, folhas 92 (101,7 s), alcance 5,
+guardas 14, disciplina 5, indice 6, carimbo 6 (36 em 32,2 s) + impacto+f150 10 +
+confronto 4 (14 em 1,1 s).
+
+## D149/G123 - o projeto declara por qual edicao da norma foi calculado: carimbo de fonte unica e chave desligada (2026-09-12) - FECHADO
+
+Fecha o achado do G116/G119: o framework calcula pela NBR 6118:2014 (F016) e
+nenhuma peca de concreto dizia isso, quando a vigente e a 2023 + Emenda 1:2026.
+Este goal e o unico do arco que toca o que o cliente recebe — e nao decide por
+ele: migrar e decisao do usuario. Entrega a declaracao e a chave; quem vira a
+chave e ele. ATP (5.3) e marquise (20.6) nao entram: sao gate novo, nao troca
+de conta.
+
+**Fonte unica.** `edicao_nbr6118_g123.py` (producao; o teste importa daqui):
+EDICOES_VALIDAS ("2014", "2023+Em1"), EDICAO_PADRAO "2014", DECLARACAO_2014
+"NBR 6118:2014", DECLARACAO_2023_EM1 "NBR 6118:2023 + Emenda 1:2026",
+S_CIMENTO_2014 (o dict que era de `premoldado_nbr9062.py:53`), limites
+120/120/125 mm (13.2.5.1-b), MODULOS_COM_TROCA (2) + USO_ESPERADO (12) +
+`resolver_edicao` (sem default silencioso) + `carimbo_edicao` (a folha diz
+qual e mesmo sem o parametro) + `s_cimento`/`limite_furo_viga_mm` (os 2
+numeros que leem a chave) + `contem_declaracao`/`confere_peca`/`confere_pecas`
+(peca sem declaracao reprova, com o motivo nomeado) +
+`arquivos_que_importam_edicao`/`confere_uso_edicao` por AST (string em
+isencao nao e dependencia) + casos C1/C4 que chamam as funcoes REAIS nas duas
+edicoes. "2023" sem Emenda nao e edicao: levanta ValueError em toda porta.
+
+**Chave DESLIGADA, sem default silencioso.** `premoldado_nbr9062.fckj_idade`
+ganha `edicao=None` (ausente = 2014, hoje; 2023+Em1: s = 0,20 para todo C60+,
+qualquer cimento); `compatibilizacao.avalia_furo_viga` ganha
+`edicao=None, forma_furo=None` (ausente = 120 mm, hoje; 2023+Em1: 125 mm SO
+para circular explicita; retangular ou forma ausente fica em 12 cm,
+conservador — liberar 125 retangular seria nao-conservador). `classifica_`
+e `gerar_pendencias` repassam (a forma vem do hint). `verifica_icamento_pilar`
+repassa via `caso["edicao"]`. Sem o parametro o numero e o de hoje e o carimbo
+diz "edicao nao declarada no projeto — assumida 2014". `projeto_spec.novo`
+ganha `norma_6118_edicao=None` (nao bloqueia); invalida BLOQUEIA no `validar`;
+`to_rodar_params` repassa; `galpao_concreto.rodar` resolve, carrega em
+`res["edicao_6118"]` e fia no icamento. 8.2.5 (G122 item 52) segue 2014
+declarado, fora desta chave.
+
+**Carimbo em toda peca de concreto, da fonte unica.** `desenho_concreto`
+(armacao, formas, laje: sufixo no titulo existente, sem geometria nova —
+`confere_folha_svg` segue verde), `techdraw_concreto.config_de_spec`
+(notas 6 + linha do carimbo), `pacote_legal.gerar_pacote`/`markdown` (secao
+"Norma de calculo do concreto (G123)", sai sempre), `executivo_concreto`
+(quadro + memorial), `galpao_concreto.relatorio_pt`,
+`rodar_galpao._consolidar` (MEMORIAL-CONSOLIDADO.txt),
+`relatorio_calculo.gerar_pdf` (capa), via `entregaveis_projeto`
+(spec repassado). Peca sem a declaracao reprova em `confere_pecas`
+(`sem_declaracao` dispara de verdade).
+
+**Aceite medido.** C1 no mesmo caso do repo (circular 125 mm, h = 600 mm):
+2014 `a_confirmar` (limite 120) contra 2023+Em1 `admissivel` (limite 125),
+com a fonte na clausula ("NBR 6118:2014" x "Emenda 1"). C4 no mesmo caso
+(C60 CPIII 7 d, MESMA `fckj_idade` com a chave em cada posicao):
+41032 kN/m2 em 2014 contra 49124 em 2023+Em1 (+19,7 %, literais do inventario,
+nao formula reescrita). O portao confere que nenhum modulo troca por conta
+propria (`confere_uso_edicao` por AST nos dois sentidos: extra ou faltando =
+vermelho; `MODULOS_COM_TROCA` tem exatamente os 2, sem ATP nem marquise).
+Vermelho por injecao em `tmp_path` nos tres acumuladores
+(`sem_declaracao`, `extras`/`faltando`/`ausentes`); intacto verde; None
+levanta (nao devolve OK sobre lixo).
+
+**Armadilhas evitadas.** (a) Default silencioso: `edicao=None` declara a
+ausencia na folha em vez de fingir escolha. (b) Furo retangular com 125:
+forma ausente/retangular nao ganha a dispensa maior. (c) Substring em
+isencao virando dependencia: o scan e por AST (`SEM_FAIXA` cita o nome sem
+importar). (d) Renomear para escapar do G69: os 3 `confere_*` novos entram
+triados no G69 (itens 26-28, INDEPENDENTES), nao renomeados. (e) Liturgia do
+G119: o numero so vale porque a producao o le — `fckj_idade` muda com a chave
+(C4 prova), `S_CIMENTO` da producao e o da fonte unica.
+
+Suite do lote (lista nominal): faixa OK, asserts OK, folhas 92, alcance 5,
+guardas 17 (14 + 3 do G123 triados), disciplina 5, indice 6, carimbo 6 +
+edicao 5 (portao proprio).
+
+## D150/G124 - as 61 constantes que ninguem lia: 7 fonte unica, 15 residuos, 39 dividas (2026-09-12) - FECHADO
+
+Fecha a classe que apareceu duas vezes no G119 (D145 item 7): constante
+"medida" que a producao nao le e comentario com sintaxe de codigo. O G119
+media 95 nunca-lidas-no-proprio-modulo e 51 orfas no repo inteiro; remedido
+neste goal na arvore de hoje: 97 / 60 — o delta e o arco G120-G123 (G122 e
+G123 criaram e consumiram constantes; ex.: S_CIMENTO virou fonte unica no
+G123, LIMITE_FORMULA_TABELA nasceu no G122). A 61a orfa (validacao.TOL) foi
+achada pela propria lente nova: a medicao ad-hoc bebia do `.venv` e um
+`TOL` de pacote terceiro a escondia; a lente exclui `.venv`/`__pycache__`.
+
+**Maquina.** `varredura_constantes_orfas.py` (producao, fonte unica; o teste
+importa daqui): definicao = atribuicao de topo em MAIUSCULAS (com `_`
+inicial, licao do G98), uso = Name em Load, atributo `.NOME` ou
+`from-import` em qualquer `.py` do diretorio (recursivo, incluindo tests/,
+sem `.venv`); mencao em string NAO e uso. `confere()` nos dois sentidos —
+`novas` (orfa sem triagem), `resolvidas` (triada que voltou a ser lida ou
+sumiu: nome morto), `sem_motivo`, `sem_endereco`, `ausentes` — com
+`ORFAS_TRIADAS` de 39 entradas, toda DIVIDA com motivo e endereco de
+clausula (o teste cobra o padrao NBR|AISC|NR-|Mamede|Negrisoli|.py:linha).
+
+**Triagem nominal, uma linha cada (61). FONTE UNICA (7, numero identico):**
+RHO_MIN fundacao_sapata.py:765 (piso 0,15% no `rho_min`, via maximo);
+ALTURA_VERGA_M alvenaria_estrutural.py:164 (primeira altura de
+`dimensiona_verga_1133`, :1411); _IW_RIGIDO fundacao_sapata.py:256 (defaults
+de `recalque_elastico` :259 e `caso.get` :348); CLASSES_UMIDADE
+madeira_nbr7190.py:143 (validacao em `kmod` :228, mesma pertinencia das
+chaves de KMOD2); CONFIGS_73 madeira_nbr7190.py:728 (mensagem de erro
+:722-725 deriva dela, texto identico); ESCOPO_FUNDACAO_ABERTO
+edificio_adapter.py:102 (`_escopo` :150-151 virou loop sobre a tupla);
+TOL validacao.py:24 (4× `err < 1e-6` de equilibrio :72-:125, achada pela
+lente). **RESIDUO (15, removidos):** TR_KCAL_H (conversao sem chamador);
+TIPOS_ESCADA (enum nunca validado; Tab.11 implementa); LIMITE_FORMULA_TABELA
+(escopo do G122 sem consumidor; o limite por familia segue no
+CONFRONTO_G122; `cobre_inventario` intocado); TAXA_OCUPACAO_3MAIS (o 40%
+segue narrado); G_ACO (deriva de E/NU); _COMB (envelope real em
+gp._combos_elu); _SEP (parser casa `#`*10); _ROOM_FIELDS (alias sem leitor);
+UNIDADE_DIMS/SECAO + ANCORAGEM_PADRAO de geometria_membros (re-exports sem
+importador, import removido junto); UNIDADE_DIMS/SECAO de modelo_neutro
+(idem); _SJB_SPEC_TEMPLATE (harness usa _SJB_SPEC); _DISCIPLINAS_DA_CASA
+(`disciplinas()` implementa com as proprias condicoes). **DIVIDA (39, com
+clausula em ORFAS_TRIADAS):** FVK_ARMADA_* ×4 (16868-1 11.4.3, so a Tab.4
+nao armada calcula); R_MAX_EXPLOSIVO (1 ohm, Negrisoli); Q_BORDA_GUARDA_CORPO
+(nota j Tab.10, so em prosa) e Q_ELEMENTO_ISOLADO_COBERTURA (6120 6.4, so em
+prosa); DV_TERMINAL_MAX (5410 6.2.7); COMB_FACHADA (15575-4 7.2.1, d_h entra
+pronto) e NOTA_B_TAB2 (15575-2 Tab.2 nota b); deteccao ×3 RAIO/AFASTAMENTO/
+LINEAR_PAREDE (17240 5.4.1.1/5.4.1.2/5.4.4); Q_CONCENTRADA da escada (sem
+clausula citada, declarado) e da plataforma + PESO_ACO (gaps de modelagem);
+ETA1_LISA/ENTALHADA (6118 9.3.2.1, via parametro sem validacao);
+UNIDADE_TIPO_ENUM (contrato F06 sem validacao; literais em orcamento
+:308-309,347-348, ifc_emit :457, ifc_map :40); PSI0_SOBRECARGA (8681, 0,7
+nunca aplicado); K_UMA_BORDA (AISC DG29, sem ramificacao bandeira);
+SOBREPRESSAO_TRANSIENTE (5626 6.9.7) e P_DIN_MIN_REDE (5626 6.9.4, so o de
+ponto e cobrado); iluminacao ×3 ESPACO_ALTO_MAX/FLUXO_DUPLO/FLUXO_EXCLUSIVO
+(10898, teto e 5.2.4/5.2.3); THETA_APOIO_LIM (6118 Tab 13.3, ja citada no
+G116); REFLETANCIA_* ×3 (Mamede 2.6.7.1.2, Fu por catalogo); GAMMA_W_ELS
+(7190 5.8.6, sem conta ELS de resistencia); EPS_CS_PADRAO (6118 Tab.A.1);
+ESP_FUNDO_MIN (9062 7.7.5.1, so a parede e verificada); PAREDE_MIN_MM
+(10897 7.7.3); NIVEL_INTERMEDIARIO/INFERIOR (16820 6.3, so o superior sai);
+_CUP (15421 Tab.10, sem extracao modal); CD_LOCALIZACAO (5419-2 Tab.A.1) e
+RT_R3 (5419-2 Tab.4, so R1 avaliado).
+
+**Nao feito de proposito.** Nenhuma constante foi ligada numa conta so para
+"usa-la" (mudaria veredito por motivo administrativo): exigencia sem conta
+virou divida, nao wiring. Nenhum portao de outro goal foi tocado
+(`cobre_inventario` do G122, vocabulario do G97).
+
+**Aceite medido.** Vermelho por injecao em `tmp_path` nos tres sentidos
+(orfa nova acusa, curada vira `resolvida`, renomeada p/ minusculas continua
+`resolvida` — licao do G98; intacto verde); isencao sem motivo/endereco
+reprova; `test_07` trava os 7 rewires (orfas que voltaram acusam + numero
+bit-a-bit: `rho_min(25)==0,0015`, mensagem da 7.3 identica, chaves do
+escopo); `test_08` trava a ausencia dos 15 residuos. A lente entrou em
+SEM_FAIXA_DECLARADA (cobertura D87) e em SCRIPTS_AVULSOS; o `test_01`
+colapsado em mensagem unica passou pelo `confere` do G97 (a primeira versao
+com 4 asserts em sequencia foi flagrada por ele — a lente mordeu o proprio
+goal no caminho).
+
+Suite do lote (lista nominal): faixa OK, asserts OK, folhas 92, alcance 5,
+guardas 14, disciplina 5, indice 6, carimbo 6 + constantes 8 (portao
+proprio) — 136 passed; faixa-51 + alcance + asserts-97 + constantes: 34
+passed; selftests sapata e alvenaria verdes; 24 passed nos ramos de
+madeira/edificio/escopo.
+
+## D151/G125 - auditoria do lote G120-G124: o que a lente nao procurava (2026-09-12) - FECHADO
+
+Auditoria por medicao do arco G120-G124 (D146-D150). Os numeros de manchete
+bateram na remedicao: `desconhecidos` da F150 = `{'0BD8': 188}` e zero "±"
+no .txt regerado; o "∞" (0x92) conferido na imagem (PDF p.14, "εcs(t∞,t0)");
+a 8.2.5 lida nas paginas renderizadas das DUAS edicoes (PDF41: "2,12 ln (1 +
+0,11 fck)" x "2,12 ln [1 + 0,1 (fck + 8)]"); o 12.3.3 do G123 da 41032 x 49124
+na funcao real, e a regra nova so pega C60+ (medido de C20 a C90 com 4
+cimentos: ate C55 os tres caminhos dao o mesmo numero; a unidade kN/m2 ->
+MPa esta certa); os 15 residuos do G124 nao tem leitor em lugar nenhum do
+repo (fora os worktrees de `.loop-runtime`). Faixa, asserts e orfas OK.
+
+**Seis defeitos, corrigidos. A classe do arco: a lente olhava para onde o
+dado ja estava declarado, e nao para onde ele e produzido.**
+
+1. **G122 - o item NUMERO-MUDA listava 6 modulos; a conta mora em 10.** O
+   confronto partiu do grep "6118" e deixou fora cinco modulos que CALCULAM
+   fct,m C55+ e citam so "8.2.5" na linha da conta: `estaca_profunda:388`,
+   `fissuracao_nbr6118:59`, `laje_concreto:441`, `pilar_concreto:407`,
+   `viga_baldrame:47,78` (o `desenho_piso` so cita). Migrar a 8.2.5 pelo
+   inventario esqueceria metade das contas. Corrigido:
+   `sites_formula_fctm` procura a CONTA (regex fora de comentario) e
+   `confere_sites_8_2_5` acusa nos dois sentidos (`nao_inventariados`,
+   `sem_formula`); inventario (item 52 e Tabela 2-G122) e D148 corrigidos;
+   triada 29 no G69; `test_05` com injecao em `tmp_path`.
+2. **G122 - o endereco das divergentes era cobrado no texto inteiro.**
+   `cobre_inventario` aceitava a divergente se houvesse um ".py:" em
+   QUALQUER lugar do inventario: um endereco satisfazia todos, e apagar o da
+   8.2.5 nao acusava nada (o teste de injecao apagava todos de uma vez).
+   Agora e cobrado na linha `- <familia> |`; o `test_05` apaga so o da 8.2.5
+   e exige `sem_endereco == ['8.2.5']`.
+3. **G123 - quatro folhas de concreto saiam sem a edicao.** O `test_01`
+   conferia so as pecas do GALPAO. Medido em rodada real de casa e predio:
+   `planta-formas.svg`, `fundacao-locacao-formas-casa.svg`,
+   `planta-formas-pavimento-tipo.svg` e `fundacao-locacao-formas.svg` sem
+   declaracao; as de armacao e laje so passavam por citar "NBR 6118:2014"
+   numa nota antiga - acerto por acaso, nao pelo carimbo. Corrigido: o
+   sufixo da fonte unica nos titulos de `desenho_pavimento` (formas, vigas,
+   pilares, vigas+pilares) e `desenho_fundacao_edificio`; `USO_ESPERADO`
+   12 -> 14 com a triagem; `test_06` roda a casa real e confere as 4 PE-CO,
+   com injecao. Remedido: as 8 PE-CO das duas tipologias declaram; o maior
+   titulo estima 1320 px numa folha de 1420; as 5 colisoes de rotulo das
+   folhas de laje/detalhes sao as mesmas com e sem o sufixo (preexistentes).
+4. **G121 - o medidor de memoria era cego para o freecad.exe.** Se so o
+   lado freecad falhava, a amostra virava 0,0 MB e `falhou` ficava falso -
+   `falhou` so acendia com os DOIS lados perdidos. Injetado: pico 14,7 MB,
+   `falhou: False`. No galpao o freecad e 91 % do pico: o teto de 2500 MB
+   passaria sem ter medido o que carrega a rodada. Corrigido:
+   `n_amostras_sem_freecad`/`freecad_mensuravel` no resumo, gap no
+   `test_01`; e `CUSTO_MEDIDO_N_FREECAD = {casa 0, predio 0, galpao 1}`
+   (da corrida oficial do D146) acusa a rodada que ve MENOS freecad do que a
+   medida - o caso do `OpenProcess` negado, que devolve soma zero sem erro.
+   `test_08` por monkeypatch.
+5. **G116/G122 (e a minha auditoria G119) - `test_normas_catalogo`
+   vermelho.** `impacto_nbr6118_g116.py` cita NBR 8522 e 8965, e o G122
+   acrescentou a 8522 em `confronto_2014_2023_g122.py`, sem lastro no
+   catalogo. O lote 06 da suite do G119 ja tinha dado esse vermelho - saiu
+   depois do meu relatorio, e eu nao o li. Sao remissoes do TEXTO da norma
+   (a Emenda exclui a 8965; a 8.2.8 remete o Eci a 8522), nao fonte de
+   calculo, e nao estao no acervo. Corrigido sem inventar lastro:
+   `REMISSOES_DA_NORMA_TRANSCRITA` por (arquivo, numero) - um modulo que
+   passe a calcular pela 8522 continua reprovando - e teste de fantasma nos
+   dois sentidos.
+6. **G123 - laco morto** em `edicao_de_resultado` (`for chave in ...:
+   pass`), removido.
+
+**Aberto e declarado, nao corrigido.** (a) Casa e predio nao leem a chave
+de edicao: o carimbo deles e o do parametro ausente ("NBR 6118:2014"). Um
+spec de casa que declare `2023+Em1` sairia com folha dizendo 2014 - que e
+por onde calculou, mas a declaracao do projeto nao chega a folha. (b) O
+caderno de encargos cita "NBR 6118" sem edicao nas tres tipologias (fora da
+lista do G123: pranchas, pacote legal, relatorio). (c) As 5 colisoes de
+rotulo no quadro da planta de laje/detalhes de concreto, preexistentes. (d)
+`fundacao_sapata.rho_min` aplica `max(RHO_MIN, tabela)` onde a tabela ja
+vale 0,0015 - ligacao sem efeito, na fronteira do "ligar constante so para
+usa-la" que o G124 proibia; mantida por ser semanticamente o piso da
+17.3.5.2.1, dita aqui.
+
+**Suite inteira, lida lote a lote (convencao nova 10).** 283 arquivos em 9 lotes
+sequenciais, um pytest por vez: 540 + 216 + 336 + 466 + 369 + 465 + 569 + 392 + 408 =
+**3761 passed, 0 falhas**. O executor foi morto por memoria no lote 06; o laco seguiu
+(padrao do laco zumbi) e foi vigiado ate o `== FIM`, sem orfao ao final. **Fechado o
+aberto do G119:** `test_build_eletrico::test_build_headless_gera_solidos_sem_clash` e
+`test_build_federado::test_montar_3d_federado_vivo_e_consistente_com_aabb`, que falharam
+na suite do G119 ("freecadcmd headless nao gerou o resultado do modelo 3D"), passaram no
+lote 02 desta rodada sobre o mesmo codigo daqueles modulos - nao eram regressao. A causa
+daquela falha nao foi medida.

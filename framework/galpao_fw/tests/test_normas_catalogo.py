@@ -55,6 +55,19 @@ SUBSTITUIDAS = {
 # lastro reprovam; estas reprovam se mudarem sem atualizar o conjunto.
 LACUNAS_PRE_EXISTENTES = frozenset({"13438", "5413", "5444"})
 
+# G125 (auditoria do G116/G122): normas que as lentes de CONFRONTO da NBR 6118
+# citam porque o TEXTO DA NORMA as cita - a Emenda 1:2026 exclui a NBR 8965 das
+# referencias; a 8.2.8 remete o Eci a NBR 8522. Nao sao fonte de calculo do
+# framework e nao estao no acervo. A isencao e por (arquivo, numero): um modulo
+# de producao que passe a CALCULAR pela 8522 continua reprovando. Medido: o
+# test_toda_nbr_citada_tem_lastro ficou vermelho no G119 (8522/8965 em
+# impacto_nbr6118_g116.py) e o G122 acrescentou a 8522 em confronto_2014_2023.
+REMISSOES_DA_NORMA_TRANSCRITA = frozenset({
+    ("impacto_nbr6118_g116.py", "8522"),
+    ("impacto_nbr6118_g116.py", "8965"),
+    ("confronto_2014_2023_g122.py", "8522"),
+})
+
 
 def _numeros_catalogo():
     with open(CATALOGO, encoding="utf-8-sig") as f:
@@ -128,7 +141,8 @@ def test_toda_nbr_citada_tem_lastro():
     novas = {}
     for arq, nums in sem_lastro.items():
         resto = [n for n in nums if n not in LACUNAS_PRE_EXISTENTES
-                 and n not in SUBSTITUIDAS]
+                 and n not in SUBSTITUIDAS
+                 and (arq, n) not in REMISSOES_DA_NORMA_TRANSCRITA]
         if resto:
             novas[arq] = resto
     assert not novas, (
@@ -148,3 +162,22 @@ def test_toda_nbr_citada_tem_lastro():
         "LACUNAS_PRE_EXISTENTES desatualizadas: sumiram do codigo %r; "
         "ganharam lastro %r. Atualize o conjunto." % (fantasmas, resolvidas)
     )
+
+
+@sem_acervo
+def test_remissoes_transcritas_seguem_citadas_e_sem_lastro():
+    """G125: a isencao por (arquivo, numero) nao apodrece em silencio.
+
+    Nos dois sentidos: par declarado que sumiu do arquivo e fantasma; par
+    que ganhou lastro no catalogo deixa de precisar da isencao."""
+    catalogo = _numeros_catalogo()
+    cit = _citacoes_por_arquivo()
+    fantasmas = sorted(
+        par for par in REMISSOES_DA_NORMA_TRANSCRITA
+        if par[1] not in {num for num, _, _ in cit.get(par[0], [])})
+    com_lastro = sorted(par for par in REMISSOES_DA_NORMA_TRANSCRITA
+                        if par[1] in catalogo)
+    assert not (fantasmas or com_lastro), (
+        "REMISSOES_DA_NORMA_TRANSCRITA desatualizada: sumiram do arquivo %r; "
+        "ganharam lastro %r" % (fantasmas, com_lastro))
+

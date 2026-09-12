@@ -841,6 +841,12 @@ def _pr_portico(doc, cfg, objs):
     return [page], [c]
 
 
+#: nota da PE05 quando o modelo nao tem contraventamento de cobertura (G119):
+#: a vista de topo nao sai e a folha DIZ isso, em vez de calar ou quebrar.
+_AUSENCIA_CONTRAV_COBERTURA = ("SEM CONTRAVENTAMENTO DE COBERTURA NO MODELO - "
+                               "vista de topo nao emitida")
+
+
 def _pr_contravent(doc, cfg, objs, todos):
     if not _pref(objs, ("CONTRAV", "TIRANTE")):
         page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
@@ -851,13 +857,30 @@ def _pr_contravent(doc, cfg, objs, todos):
     # de contraventamento aparecer completo (barra + esticador) nesta prancha.
     est = _pref(todos, ("ESTICADOR",))
     cv = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO")) + est
-    cob = _pref(objs, ("CONTRAV", "TIRANTE", "PORTICO")) + est
+    # G118: a vista de cobertura (topo) levava o mesmo conjunto da lateral e
+    # travava o recompute (>1200 s, 2x no harness + 540 s no diag, D133). Fatiado
+    # vista a vista: lateral sozinha passa (t_hlr 123 s), topo sozinho trava, e o
+    # veneno sao os 432 TIRANTEs vistos de topo sem os planos oclusores da
+    # cobertura (TELHA/TAPAMENTO/TERCA): 432 tirantes sozinhos no topo = 548 s de
+    # recompute; com os oclusores (contexto de 955) o mesmo topo sai em ~60 s.
+    # O topo mostra so os CONTRAV (12, t_hlr ~5 s); tirantes/esticadores/portico
+    # seguem cobertos na lateral (Source da V05_CV_LAT), então _cobertura passa.
+    cob = _pref(objs, ("CONTRAV",))
     bb = _bbox(objs)
     comp_x = True  # convencao build_galpao: comprimento em X, vao em Y (nao inferir por bbox: quebra se vao>comp)
     ax_lt = "y" if comp_x else "x"
     e1, _ = _fit_escala(bb, ax_lt, 720, 200)
-    e2, _ = _fit_escala(_bbox(cob), "z", 720, 200)
-    esc = min(e1, e2); nome = _ESC_NOME[esc]
+    # G119 (auditoria do G118): a guarda de entrada aceita CONTRAV *ou*
+    # TIRANTE, e o topo agora so leva CONTRAV - logo `cob` pode ser vazio
+    # onde antes nunca era (o conjunto do topo era o mesmo da lateral).
+    # `_bbox([])` devolve None e `_fit_escala(None, ...)` estourava
+    # AttributeError. Modelo so-tirante nao existe no build_galpao de hoje
+    # (CONTRAV e' incondicional), mas a folha nao pode depender disso:
+    # sem contraventamento de cobertura a vista de topo nao sai e a nota
+    # DECLARA a ausencia, em vez de quebrar ou desenhar uma vista vazia.
+    bb_cob = _bbox(cob)
+    esc = e1 if bb_cob is None else min(e1, _fit_escala(bb_cob, "z", 720, 200)[0])
+    nome = _ESC_NOME[esc]
     page = _nova_prancha(doc, "PE05_CONTRAVENTAMENTO",
                          _carimbo(cfg, "CONTRAVENTAMENTOS", "PE-05",
                                   nome, "05/09"))
@@ -879,13 +902,16 @@ def _pr_contravent(doc, cfg, objs, todos):
     else:
         c1.d((0, comp, 0.), (0, comp, g["eave"]), "DistanceY",
              _fmt_m(g["eave"]), "dir")
-    _vista(doc, page, "V05_CV_COB", cob, (0, 0, 1), (1, 0, 0), esc,
-           410, 220, coarse=True)
+    if cob:
+        _vista(doc, page, "V05_CV_COB", cob, (0, 0, 1), (1, 0, 0), esc,
+               410, 220, coarse=True)
     _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome,
                               "Barras redondas pretensionadas c/ esticador."],
           200, 345, 5)
-    _anot(doc, page, "A05b", ["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome,
-                              "Cotas em metros."], 200, 120, 5)
+    _anot(doc, page, "A05b",
+          (["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome,
+            "Cotas em metros."] if cob else
+           [_AUSENCIA_CONTRAV_COBERTURA, "Cotas em metros."]), 200, 120, 5)
     return [page], [c1]
 
 

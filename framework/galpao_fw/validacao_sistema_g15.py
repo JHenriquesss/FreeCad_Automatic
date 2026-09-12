@@ -511,8 +511,9 @@ def check_armadilha_d_sen45():
 # 10) GALPAO SJB REAL — 4º caso (G19, obra construída) — harness preparado
 # ---------------------------------------------------------------------------
 # Caminhos canônicos (repo root = parents[2] de framework/galpao_fw/)
+# G124: _SJB_SPEC_TEMPLATE removido (residuo: o harness preparado usa
+# _SJB_SPEC; os testes de project_loop montam o path do template sozinhos).
 _SJB_SPEC = pathlib.Path(__file__).resolve().parents[2] / "projects" / "galpao-sjb" / "project-spec.json"
-_SJB_SPEC_TEMPLATE = pathlib.Path(__file__).resolve().parents[2] / "projects" / "galpao-sjb" / "project-spec.template.json"
 _SJB_MEMORIAL_PDF = pathlib.Path(__file__).resolve().parents[2] / "docs" / "validacao_g15" / "galpao-sjb-memorial.pdf"
 _SJB_MEMORIAL_JSON = pathlib.Path(__file__).resolve().parents[2] / "docs" / "validacao_g15" / "galpao-sjb-valores-referencia.json"
 _SJB_MEMORIAL_TEMPLATE = pathlib.Path(__file__).resolve().parents[2] / "docs" / "validacao_g15" / "galpao-sjb-valores-referencia.json.template"

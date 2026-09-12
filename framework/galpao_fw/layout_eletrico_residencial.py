@@ -23,7 +23,7 @@ import copy
 # em silencio. Aqui ficam apenas as partes ELETRICAS do layout (quadro, pontos).
 import layout_ambientes as la
 
-_ROOM_FIELDS = la.ROOM_FIELDS
+# G124: _ROOM_FIELDS removido (residuo: alias de la.ROOM_FIELDS sem leitor).
 _POINT_FIELDS = ("id", "x_m", "y_m", "z_m")
 _BOARD_FIELDS = ("id", "x_m", "y_m", "z_m")
 

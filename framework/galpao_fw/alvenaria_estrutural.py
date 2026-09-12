@@ -1408,7 +1408,9 @@ def dimensiona_verga_1133(larg_vao_m, h_parede_acima_m, peso_parede_kN_m2,
     # Altura por fiadas: 0,20 (1 fiada) e, se nao verificar, 0,30/0,40/0,60.
     # Verga de 0,20 que nao passa nao vira As maior que o teto (z negativa):
     # vira peca mais alta, dita no resultado. Altura declarada fixa nao escala.
-    alturas = [hv_fixa] if hv_fixa is not None else [0.20, 0.30, 0.40, 0.60]
+    # G124: a primeira altura e ALTURA_VERGA_M (fonte unica, uma fiada de
+    # canaleta); os degraus seguintes sao a escada de pecas mais altas.
+    alturas = [hv_fixa] if hv_fixa is not None else [ALTURA_VERGA_M, 0.30, 0.40, 0.60]
     melhor_falha = None
     for hv in alturas:
         q_pp = 25.0 * te * hv

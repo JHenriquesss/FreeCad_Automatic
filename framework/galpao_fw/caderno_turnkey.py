@@ -46,20 +46,61 @@ def _remaining_timeout(deadline):
     return max(0.0, deadline - _monotonic())
 
 
+_ANCORA_ACO_SEG = 578.0
+# D133/G109 (2026-09-11, galpao-ufpe 44x90 2 vaos, maquina 8 GB): executivo de
+# aco ~578 s nas 16 pranchas medidas (PE01 187,7; PE02 58,8; PE03 211,9;
+# PE04 15,4; PE06 6,4; PE07 7,5; PE08 28,6; PE09 7,6; PE10 12,8; PE11 8,6;
+# PE12 10,7; PE13 12,0; PE14_CROQUIS 4,9; PE16 5,4; PE05 sem numero entao
+# (+ PE05 ≈ 209 s medidos no G118; a ancora segue 578 ate o G114 decidir).
+# Compativel com os ~15 min do executivo em rodada (06-open-threads T13, a
+# estimativa antiga de 900 s que a ancora usava ate o G113).
+#: piso do peso: peso 0 daria share 0 e timeout 0 (reserva simbolica).
+_PISO_PESO = 0.01
+
+
+def peso_medido(t_seg):
+    """Peso da etapa a partir do tempo MEDIDO, pela regra do G108 (G119).
+
+    peso = 7,0 x t_seg / `_ANCORA_ACO_SEG`, com piso `_PISO_PESO`.
+
+    G119 (auditoria do G114): `_ANCORA_ACO_SEG` era decorativa - escrita,
+    documentada no comentario e lida por NINGUEM. Os pesos eram literais, e
+    trocar a ancora nao mudava peso nenhum; o teste do G108 so conferia que
+    a constante valia 578 (o literal contra ele mesmo) e procurava "900" no
+    texto do arquivo. Agora a ancora sustenta os pesos de verdade: mude 578
+    e os pesos derivados mudam junto.
+    """
+    return max(_PISO_PESO, round(7.0 * float(t_seg) / _ANCORA_ACO_SEG, 4))
+
+
+#: tempos MEDIDOS por disciplina (s). So entra aqui o que foi cronometrado,
+#: com a origem escrita. Disciplina sem medicao NAO ganha tempo inventado:
+#: fica com peso literal e o motivo dito na entrada de `_STAGE_WEIGHTS`.
+_T_MEDIDO_SEG = {
+    "aco": 578.0,        # D133/G109, as 16 pranchas com numero (+ PE05 no G118)
+    "hidraulica": 0.56,  # D125/G104, rota SVG
+    "incendio": 0.62,    # D125/G104
+    "climatizacao": 0.57,  # D125/G104
+}
+
 _STAGE_WEIGHTS = {
     # Aco executa calculo, modelo 3D e executivo no mesmo dispatch.
-    "aco": 7.0,
-    "concreto": 2.0,
-    "eletrico": 1.5,
-    # G108: pesos medidos, nunca palpite. Regra: peso = 7,0 x t_medido / 900 s
-    # (ancora: executivo de aco ~900 s, estouro ~15 min, 06-open-threads T13),
+    "aco": peso_medido(_T_MEDIDO_SEG["aco"]),
+    # G119: concreto e eletrico NUNCA foram cronometrados. O peso segue
+    # literal, herdado do G108, e o motivo esta dito aqui em vez de um
+    # t_medido inventado so para caber na formula (ausencia se declara).
+    "concreto": 2.0,   # SEM MEDICAO: literal do G108
+    "eletrico": 1.5,   # SEM MEDICAO: literal do G108
+    # G108: pesos medidos, nunca palpite. Regra: peso = 7,0 x t_medido / 578 s
+    # (ancora: executivo de aco ~578 s medidos, D133/G109; antes 900 s,
+    # estimativa do 06-open-threads T13, corrigida no G114),
     # com piso 0,01 (reserva simbolica; peso 0 daria share 0 e timeout 0).
     # D125/G104 (galpao 40x20x6, rota SVG, processo novo): HID 0,56 s,
     # INC 0,62 s, CLI 0,57 s (era 15,25/21,09/13,52 s via freecad.exe);
     # corroborado em 2026-09-11 nesta maquina: 0,99/0,37/0,28 s.
-    "hidraulica": 0.01,      # 7 x 0,56/900 = 0,0044 -> piso 0,01 (D125)
-    "incendio": 0.01,        # 7 x 0,62/900 = 0,0048 -> piso 0,01 (D125)
-    "climatizacao": 0.01,    # 7 x 0,57/900 = 0,0044 -> piso 0,01 (D125)
+    "hidraulica": peso_medido(_T_MEDIDO_SEG["hidraulica"]),    # 0,0068 -> piso
+    "incendio": peso_medido(_T_MEDIDO_SEG["incendio"]),        # 0,0075 -> piso
+    "climatizacao": peso_medido(_T_MEDIDO_SEG["climatizacao"]),  # 0,0069 -> piso
     # Mezanino: sem dispatch de pranchas (`_dispatch_pranchas` devolve
     # "disciplina sem dispatch de pranchas: mezanino", isenta com motivo no
     # G103); medido 2026-09-11: 0,0003 s. Peso proporcional seria ~2e-6.
@@ -85,6 +126,29 @@ def _stage_timeout(deadline, cap, stages_remaining=1, *, weight=1.0,
     denominator = max(denominator, 1e-9)
     share = remaining * float(weight) / denominator
     return min(float(cap), share)
+
+
+def _total_peso(pendentes):
+    """Soma dos pesos ainda pendentes (fonte unica da reserva; G114).
+
+    O caderno vivo e o teste do G108 importam daqui — peso sem entrada cai
+    no default 1,0, a mesma regra do `reserve_stage` interno.
+    """
+    return sum(_STAGE_WEIGHTS.get(etapa, 1.0) for etapa in pendentes)
+
+
+def _fracao_reserva(nome, pendentes):
+    """Fracao do prazo restante reservada a `nome` (peso/total; G114).
+
+    Caminho real da reserva: `reserve_stage` interno reserva
+    `_stage_timeout(deadline, cap, ..., weight, total_weight=_total_peso(...))`,
+    logo a fracao e `weight/total`. O teste do G108 chama daqui, nunca
+    recalcula a soma com formula propria (regra anti-tautologia do lote).
+    """
+    total = _total_peso(pendentes)
+    if total <= 0.0:
+        return 0.0
+    return float(_STAGE_WEIGHTS.get(nome, 1.0)) / float(total)
 
 
 def _timeout_status(timeout):
@@ -340,17 +404,35 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
     return {"erro": "disciplina sem dispatch de pranchas: %s" % nome}
 
 
-def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=1200):
-    """VIVO: roda o turnkey, dispara as pranchas de cada disciplina executada (freecad)
-    e mescla tudo num CADERNO unico. `disciplinas` (opc) restringe o subconjunto (ex.
-    ['incendio']). O timeout e um prazo global da montagem: cada etapa recebe
-    somente o tempo restante, e as etapas que nao couberem sao registradas como
-    timeout antes da mesclagem do resultado parcial."""
+def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=1200,
+                   R=None, turnkey_result=None):
+    """VIVO: roda o turnkey (ou reusa o ja calculado), dispara as pranchas de
+    cada disciplina executada (freecad) e mescla tudo num CADERNO unico.
+    `disciplinas` (opc) restringe o subconjunto (ex. ['incendio']). O timeout
+    e um prazo global da montagem: cada etapa recebe somente o tempo
+    restante, e as etapas que nao couberem sao registradas como timeout
+    antes da mesclagem do resultado parcial.
+
+    G114: `R` (alias `turnkey_result`) reusa o resultado que o adaptador do
+    galpao ja tem do hook (`_run_turnkey` -> `tk.rodar`) e NAO recalcula.
+    Sem ele, chama `tk.rodar(spec, out_dir)` uma vez (comportamento antigo).
+    O resultado e identico (mesmas pranchas, mesmo caderno): o `R` so entra
+    como leitura (`executadas`, `disciplinas[*].raw`, `geometria`, `ATENDE`).
+    `res["turnkey_reuso"]` diz se reusou (portao G114 conta `tk.rodar` por
+    injecao: com reuso, zero chamadas).
+    """
     import galpao_turnkey as tk
     timeout = float(timeout)
     started = _monotonic()
     deadline = started + max(0.0, timeout)
-    R = tk.rodar(spec, out_dir)
+    if R is None:
+        R = turnkey_result
+    turnkey_reuso = isinstance(R, dict) and all(
+        k in R for k in ("executadas", "disciplinas", "geometria", "ATENDE"))
+    if not turnkey_reuso:
+        R = tk.rodar(spec, out_dir)
+    else:
+        turnkey_reuso = True
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
     pending_stages = list(alvo)
     if len(R["executadas"]) >= 2:
@@ -361,8 +443,7 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     def reserve_stage(name, cap):
         if name not in pending_stages:
             return None
-        total_weight = sum(_STAGE_WEIGHTS.get(stage, 1.0)
-                           for stage in pending_stages)
+        total_weight = _total_peso(pending_stages)
         value = _stage_timeout(
             deadline, cap, len(pending_stages),
             weight=_STAGE_WEIGHTS.get(name, 1.0),
@@ -435,6 +516,7 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     res["timeout_seconds"] = timeout
     res["elapsed_seconds"] = max(0.0, _monotonic() - started)
     res["timed_out"] = any(_contains_timeout(item) for item in status.values())
+    res["turnkey_reuso"] = bool(turnkey_reuso)
     return res
 
 

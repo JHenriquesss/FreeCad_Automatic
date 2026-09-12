@@ -20,6 +20,17 @@ checklists PPCI-AVCB e LOD-BIM, manual O&M. STATELESS. Dados do RT = A CONFIRMAR
 
 from __future__ import annotations
 
+try:
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _carimbo_ed_g123,
+        edicao_de_spec as _edicao_de_spec_g123,
+        rotulo_edicao as _rotulo_ed_g123,
+    )
+except ImportError:  # uso isolado fora do pacote
+    _carimbo_ed_g123 = None
+    _edicao_de_spec_g123 = None
+    _rotulo_ed_g123 = None
+
 # prefixo de prancha e titulo por disciplina
 _PRANCHAS = {
     "arquitetura": ("PE-AR", ["Planta de implantacao", "Planta baixa", "Cortes e fachadas"]),
@@ -234,7 +245,7 @@ def memorial_consolidado(R, spec=None):
 
 
 def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
-                 pendencias=None):
+                 pendencias=None, edicao=None):
     """Monta o pacote legal completo. disciplinas: chaves (default: as de _ART); se
     R (turnkey) for dado, usa as executadas e inclui o memorial consolidado.
 
@@ -245,15 +256,44 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
     atravessar esta funcao.
 
     `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao;
-    vao para o checklist PPCI/AVCB como PENDENTE (o portao do G57)."""
+    vao para o checklist PPCI/AVCB como PENDENTE (o portao do G57).
+
+    G123 (chave DESLIGADA): `edicao` = '2014' ou '2023+Em1'; ausente = a
+    edicao declarada no `spec` (norma_6118_edicao) ou, sem ela, o
+    comportamento de hoje (2014) declarado na folha (sem default silencioso).
+    O carimbo mora na fonte unica edicao_nbr6118_g123."""
     if disciplinas is None:
         disciplinas = (R.get("executadas") if R else None) or list(_ART.keys())
     disciplinas = [d for d in _ORDEM_DISC if d in disciplinas] or list(_ART.keys())
+    # Resolve a edicao: parametro explicito vence; senao o spec; senao hoje.
+    _ed_resolvida = None
+    if edicao is not None:
+        if _edicao_de_spec_g123 is not None:
+            from edicao_nbr6118_g123 import normaliza_edicao as _norm_ed
+            _ed_resolvida = _norm_ed(edicao)
+        else:
+            _ed_resolvida = str(edicao)
+    elif isinstance(spec, dict) and _edicao_de_spec_g123 is not None:
+        try:
+            _ed_resolvida = _edicao_de_spec_g123(spec)
+        except ValueError:
+            raise
     pac = {"indice_pranchas": indice_de_pranchas(disciplinas + ["coordenacao"]),
            "lista_art": lista_art(disciplinas),
            "checklist_ppci_avcb": checklist_ppci_avcb(pendencias),
            "checklist_lod_bim": checklist_lod_bim(disciplinas),
            "manual_oem": manual_oem(disciplinas)}
+    if _carimbo_ed_g123 is not None:
+        pac["edicao_6118"] = _ed_resolvida
+        pac["carimbo_edicao_6118"] = _carimbo_ed_g123(_ed_resolvida)
+    else:
+        pac["edicao_6118"] = _ed_resolvida
+        pac["carimbo_edicao_6118"] = (
+            "Projeto calculado pela NBR 6118:2014 (comportamento atual; "
+            "edicao nao declarada no projeto — assumida 2014)"
+            if not _ed_resolvida else
+            ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
+             "projeto)" % _ed_resolvida))
     if pendencias:
         pac["pendencias_aprovacao"] = list(pendencias)
     if R is not None:
@@ -429,8 +469,24 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     carimbo, cobre, motivo}]} com a tabela de numeracao propria que o
     cliente recebe (galpao: numeracao por arquivo de producao vs indice por
     disciplina). Quando None (default, casa/predio e chamadas antigas), a
-    saida e byte-identica a de antes - nenhuma secao nova."""
+    saida e byte-identica a de antes - nenhuma secao nova, EXCETO a secao
+    G123 (edicao da NBR 6118), que e declaracao obrigatoria e sai sempre
+    (a ausencia reprova no portao G123)."""
     L = ["# %s" % titulo, ""]
+    # G123: declaracao obrigatoria da edicao de calculo (fonte unica; sem o
+    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    _carimbo_txt = pac.get("carimbo_edicao_6118")
+    if not _carimbo_txt:
+        if _carimbo_ed_g123 is not None:
+            _carimbo_txt = _carimbo_ed_g123(pac.get("edicao_6118"))
+        else:
+            _carimbo_txt = ("Projeto calculado pela NBR 6118:2014 "
+                            "(comportamento atual; edicao nao declarada no "
+                            "projeto — assumida 2014)")
+    L.append("## Norma de calculo do concreto (G123)")
+    L.append("")
+    L.append(str(_carimbo_txt))
+    L.append("")
     if "memorial_consolidado" in pac:
         m = pac["memorial_consolidado"]
         L.append("## Memorial descritivo consolidado")

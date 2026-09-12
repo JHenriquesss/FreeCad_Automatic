@@ -253,7 +253,8 @@ def _rodada_stub(tmp_path, monkeypatch, executadas, pdfs_por_disco,
     import galpao_adapter as ga
 
     def falso_montar_caderno(spec, out_dir, disciplinas=None,
-                             freecad_exe=None, timeout=1200):
+                             freecad_exe=None, timeout=1200, R=None,
+                             turnkey_result=None, **_kw):
         for rel in pdfs_por_disco:
             p = Path(out_dir) / rel
             p.parent.mkdir(parents=True, exist_ok=True)

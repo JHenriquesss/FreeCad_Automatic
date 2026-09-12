@@ -703,9 +703,49 @@ painel de laje que não chegava ao veredito, o estribo de pilar com padrão inve
 do G112 em duas cópias, e o confronto 18.4 2014 × 2023 que o G110 pedia (idênticas, pela
 imagem). Cinco dos seis goals chegaram sem verbete.
 
-**Aberto, medido — a fila G114–G118.** Portão do G102 com 923 s (turnkey rodado duas vezes);
-lances superiores de 8 dos 12 pilares do prédio fora da folha; migração 2014 → 2023+Em1
-(62 instruções em 51 itens na emenda); a camada de texto da 2023 ilegível; a PE05 do aço.
+## G114–G118: a norma legível, e o que a régua não media
+
+Arco fechado (2026-09-12). Primeiro lote do projeto com verbete em todos os goals.
+- **G117** decodifica a camada de texto da NBR 6118:2023 (F150): 260 páginas, .txt fora do
+  git ([[04-decisions#D140]]).
+- **G116** mede a migração 2014 → 2023+Em1 sem migrar: inventário dos 51 itens, cada um
+  endereçado no framework; 2 pontos em que o número muda ([[04-decisions#D141]]).
+- **G114** o caderno reusa o turnkey do adaptador: um `tk.rodar` só ([[04-decisions#D142]]).
+- **G115** a armação de pilar mostra todos os trechos, não só a base: 42 trechos no prédio
+  ([[04-decisions#D143]]).
+- **G118** a PE05 do aço ganha número: o topo travava nos 432 tirantes sem oclusores
+  ([[04-decisions#D144]]).
+
+**Auditoria (G119, [[04-decisions#D145]]).** Oito censos verdes, medidos. Corrigidos **sete**
+defeitos, dois de classe nova: o medidor de bytes desconhecidos que era incapaz de acusar
+(e sob ele "fck ≤ 50 MPa" saía "fck ± 50 MPa" na norma decodificada), e a guarda de intervalo
+que nunca reprovava para trecho de um lance só. Mais: a âncora de pesos que a produção não
+lia, o mapa de trechos sem confronto, exceção nova na PE05 sem contraventamento de cobertura,
+o default plausível no lugar de ausência e o código morto que duplicava a montagem da fileira.
+**Medido junto:** o portão `test_indice_disco_rodada_g102.py`, morto quatro vezes por memória
+no G113, completou depois do reuso do G114 — 6 passed em 1230 s.
+
+## G120–G124: a cifra fechada, a edição declarada, e o que a lente não procurava
+Arco fechado (2026-09-12). Verbete em todos os goals, pela segunda vez seguida.
+- **G121** o portão do G102 passa a medir o pico de memória, não só o tempo: galpão 1988,8 MB,
+  91 % no freecad.exe; teto 2500 MB com a folga escrita ([[04-decisions#D146]]).
+- **G120** 7 dos 8 códigos restantes da F150 conferidos na página e mapeados; o 0BD8 (188×,
+  avanço sem marca visível) segue marcador declarado ([[04-decisions#D147]]).
+- **G122** confronto 2014 × 2023 nas 45 famílias citadas: uma conta nova fora da Emenda,
+  a fct,m do C55+ (+1,3 % no C60) ([[04-decisions#D148]]).
+- **G123** toda peça de concreto declara a edição de cálculo, de uma fonte só; a chave
+  `2014`/`2023+Em1` existe, desligada ([[04-decisions#D149]]).
+- **G124** as 61 constantes que ninguém lia: 7 viram fonte única, 15 resíduos removidos,
+  39 dívidas com cláusula ([[04-decisions#D150]]).
+
+**Auditoria (G125, [[04-decisions#D151]]).** Manchetes remedidas e batidas. Corrigidos
+**seis** defeitos, com uma classe comum: **a lente olhava para onde o dado já estava
+declarado, não para onde ele é produzido.** O item NUMERO-MUDA da 8.2.5 listava 6 módulos
+e a conta mora em 10 (o confronto partiu da citação "6118"); o endereço das divergentes era
+cobrado no texto inteiro; o carimbo do G123 era conferido só no galpão, e quatro folhas de
+concreto da casa e do prédio saíam sem edição; o medidor de memória ficava cego para o
+freecad.exe sem acusar. Mais o `test_normas_catalogo` vermelho desde o G116 (remissões da
+norma sem lastro) — que a suíte do G119 já tinha mostrado e a auditoria não leu.
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

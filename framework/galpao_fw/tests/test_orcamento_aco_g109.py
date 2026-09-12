@@ -2,9 +2,10 @@
 # test_orcamento_aco_g109.py - G109: o numero por prancha do aco existe e o
 # orcamento congelado reprova estouro. Os numeros viera da rodada manual
 # 2026-09-11 (galpao-ufpe, FCStd 2,3 MB); os tetos sao manuais com folga e o
-# teste VERIFICA a folga em vez de deriva-la (convencao 5). PE05 segue sem
-# numero (timeout sistematico no recompute): o portao a declara em faltando,
-# nunca some. Vermelho por injecao em tmp_path; o repo vivo nunca e mutado.
+# teste VERIFICA a folga em vez de deriva-la (convencao 5). G118 (2026-09-12)
+# mediu a PE05 que faltava (mesmo modelo/maquina): o portao agora declara so
+# as duas condicionais sem numero. Vermelho por injecao em tmp_path; o repo
+# vivo nunca e mutado.
 # ============================================================================
 """Portao G109: orcamento por prancha do executivo de aco."""
 
@@ -36,10 +37,10 @@ def test_01_medidos_g109_parseiam_sem_problema(tmp_path):
         assert problemas == [], "%s: %r" % (chave, problemas)
 
 
-def test_02_orcamento_cobre_medidos_e_declara_pe05(tmp_path):
+def test_02_orcamento_cobre_medidos_sem_faltando(tmp_path):
     """Teto manual acima do total medido em toda prancha com numero; o portao
-    passa sem estouros e declara exatamente PE05 em faltando e as duas
-    condicionais sem numero."""
+    passa sem estouros nem faltando e declara so as duas condicionais sem
+    numero (G118 mediu a PE05 que o G109 declarava em faltando)."""
     for chave, med in H.MEDIDOS_G109.items():
         teto = H.ORCAMENTO_G109.get(chave)
         if teto is None:
@@ -49,10 +50,10 @@ def test_02_orcamento_cobre_medidos_e_declara_pe05(tmp_path):
             chave, teto, total)
     r = H.conferir_orcamento(dict(H.MEDIDOS_G109), dict(H.ORCAMENTO_G109))
     assert r["estouros"] == []
-    assert r["faltando"] == ["PE05_CONTRAVENTAMENTO"]
+    assert r["faltando"] == []
     assert sorted(r["sem_orcamento"]) == ["PE14_DET_CONSOLE",
                                           "PE15_DET_BLOCO"]
-    assert r["OK"] is False
+    assert r["OK"] is True
 
 
 def test_03_vermelho_por_injecao_lentidao(tmp_path):
@@ -69,7 +70,7 @@ def test_03_vermelho_por_injecao_lentidao(tmp_path):
 
 
 def test_04_vermelho_por_injecao_prancha_sumida(tmp_path):
-    """Medido sem PE01 acusa faltando alem da PE05 ja declarada."""
+    """Medido sem PE01 acusa faltando (nao some)."""
     medidos = {c: dict(m) for c, m in H.MEDIDOS_G109.items()
                if c != "PE01_COBERTURA"}
     (tmp_path / "sem_pe01.json").write_text(json.dumps(medidos),
@@ -78,5 +79,4 @@ def test_04_vermelho_por_injecao_prancha_sumida(tmp_path):
         (tmp_path / "sem_pe01.json").read_text(encoding="utf-8"))
     r = H.conferir_orcamento(med, dict(H.ORCAMENTO_G109))
     assert r["OK"] is False
-    assert sorted(r["faltando"]) == ["PE01_COBERTURA",
-                                     "PE05_CONTRAVENTAMENTO"]
+    assert sorted(r["faltando"]) == ["PE01_COBERTURA"]

@@ -35,7 +35,8 @@ import math
 
 E = 200e6          # kN/m2 (modulo de elasticidade)
 NU = 0.3           # coeficiente de Poisson
-G_ACO = 77e6       # kN/m2 (modulo transversal)
+# G124: G_ACO removido (residuo: nenhuma formula o lia; deriva-se de E/NU
+# quando preciso: G = E/(2*(1+NU))).
 GA = 1.10          # gamma para flexao/cortante (NBR 14762 9.8)
 
 # Tabela 13 (NBR 14762) - kl da secao COMPLETA, flexao no eixo de maior inercia,

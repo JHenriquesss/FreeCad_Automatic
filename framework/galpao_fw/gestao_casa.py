@@ -784,13 +784,9 @@ def derivacao(result, spec_hidraulica=None):
 # A arquitetura nao tem clausulas na biblioteca (o caderno especifica COMO
 # executar; o programa de ambientes e' memorial, nao servico): ela entra no
 # pacote e no memorial, nunca no caderno.
-_DISCIPLINAS_DA_CASA = (
-    ("estrutura", "concreto"),
-    ("hidraulica", "hidraulica"),
-    ("eletrico", "eletrico"),
-    # G61: a parede portante tem disciplina propria no caderno (Parte 2).
-    ("estrutura_alvenaria", "alvenaria_estrutural"),
-)
+# G124: _DISCIPLINAS_DA_CASA removido (residuo: o mapa nunca foi iterado;
+# disciplinas() abaixo implementa com as condicoes proprias, incluindo a
+# parede portante com disciplina propria no caderno - G61).
 
 FUNDACAO_COBERTA_POR = "concreto"
 

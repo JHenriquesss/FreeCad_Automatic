@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 
 TOL = 1e-6          # tolerancia relativa dos checks analiticos exatos
+                    # (G124: fonte unica dos 4 `err < TOL` de equilibrio)
 
 
 def check_frame2d():
@@ -69,7 +70,7 @@ def check_equilibrio_gravidade():
     aplicado, reacao = _equilibrio_caso(gp.case_G, eixo=1)
     ref = max(abs(aplicado), 1e-9)
     err = abs(abs(aplicado) - abs(reacao)) / ref
-    return ("Equilibrio VERTICAL do portico (carga G)", err < 1e-6, err,
+    return ("Equilibrio VERTICAL do portico (carga G)", err < TOL, err,
             f"|carga aplicada|={abs(aplicado):.3f} kN ; "
             f"|reacoes|={abs(reacao):.3f} kN ; residuo={err:.2e}")
 
@@ -89,7 +90,7 @@ def check_equilibrio_horizontal():
     aplicado, reacao = _equilibrio_caso(_horiz, eixo=0)
     ref = max(abs(aplicado), 1e-9)
     err = abs(abs(aplicado) - abs(reacao)) / ref
-    return ("Equilibrio HORIZONTAL do portico (carga conhecida)", err < 1e-6, err,
+    return ("Equilibrio HORIZONTAL do portico (carga conhecida)", err < TOL, err,
             f"|carga aplicada|={abs(aplicado):.3f} kN ; "
             f"|reacoes|={abs(reacao):.3f} kN ; residuo={err:.2e}")
 
@@ -106,7 +107,7 @@ def check_equilibrio_multivao():
     ref = max(abs(aplicado), 1e-9)
     err = abs(abs(aplicado) - abs(reacao)) / ref
     return ("Equilibrio VERTICAL do portico MULTI-VAO (2 vaos, carga G)",
-            err < 1e-6, err,
+            err < TOL, err,
             f"|carga|={abs(aplicado):.3f} kN ; |reacoes|={abs(reacao):.3f} kN "
             f"(3 colunas) ; residuo={err:.2e}")
 
@@ -122,7 +123,7 @@ def check_equilibrio_engastada():
     aplicado, reacao = _equilibrio_caso(gp.case_G, eixo=1)
     ref = max(abs(aplicado), 1e-9)
     err = abs(abs(aplicado) - abs(reacao)) / ref
-    return ("Equilibrio VERTICAL com base ENGASTADA (carga G)", err < 1e-6, err,
+    return ("Equilibrio VERTICAL com base ENGASTADA (carga G)", err < TOL, err,
             f"|carga|={abs(aplicado):.3f} kN ; |reacoes|={abs(reacao):.3f} kN ; "
             f"residuo={err:.2e}")
 

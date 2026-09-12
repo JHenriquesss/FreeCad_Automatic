@@ -27,6 +27,18 @@ from __future__ import annotations
 
 import desenho_svg_base as sb
 
+
+def _sufixo_edicao():
+    """Sufixo de edicao da NBR 6118 no titulo (G125, auditoria do G123).
+
+    O G123 carimbou as folhas de concreto do GALPAO; as da casa e do predio
+    que saem por aqui seguiam sem dizer por qual edicao foram calculadas
+    (medido: planta de formas e locacao da fundacao, nas duas tipologias).
+    Casa e predio nao leem a chave de edicao - calculam pela 2014 -, entao
+    o sufixo e o do parametro ausente, vindo da fonte unica (sem literal)."""
+    from edicao_nbr6118_g123 import sufixo_folha_edicao
+    return sufixo_folha_edicao(None)
+
 COR_PILAR = "#333"
 COR_VIGA = "#1f6feb"
 COR_LAJE = "#eef2f7"
@@ -71,6 +83,7 @@ def planta_formas_svg(pav, descida=None, titulo=None):
 
     tit = titulo or ("PLANTA DE FORMAS - PAVIMENTO-TIPO  (%d x %d vaos ; %.1f m2)"
                      % (nx, ny, pav["area_m2"]))
+    tit += _sufixo_edicao()
     P = sb.abre_svg(W, H, tit)
 
     # --- paineis de laje ---------------------------------------------------
@@ -376,6 +389,7 @@ def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
     H = 170 + max(len(linhas), 1) * 22 + 110
     tit = titulo or ("ARMACAO DE VIGAS - PAVIMENTO-TIPO "
                      "(%d linhas / %d tramos VERIFICADOS)" % (len(por_linha), n_tramos))
+    tit += _sufixo_edicao()
     P = sb.abre_svg(W, H, tit)
     P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
     # cabecalho
@@ -444,10 +458,12 @@ def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None):
 #
 # O pilar e' lido do `pilar_continuo.dimensiona` (via edificio_multipavimento
 # / estrutura_casa: dict por pilar com `lances` do topo a base): UMA fileira
-# por pilar, sempre do lance de BASE (lances[-1], o que acumula toda a carga
-# e define a secao da fundacao). Tudo vem do dado - nada e' arbitrado: sem
-# `phi_long_mm` declarada nao ha arranjo longitudinal honesto (a celula diz
-# NAO DETALHADO em vez de inventar bitola).
+# por TRECHO de lances iguais (G115: mesma secao e mesmo As; "lances 1-5:
+# 19x30, As 2,28"). Pilar sem mudanca continua com uma fileira ("1-9").
+# Os valores da fileira (secao, Nd, As, taxa, estribo, limite, arranjo) sao
+# os do lance de BASE do trecho (o mais carregado). Tudo vem do dado - nada
+# e' arbitrado: sem `phi_long_mm` declarada nao ha arranjo longitudinal
+# honesto (a celula diz NAO DETALHADO em vez de inventar bitola).
 
 #: subtitulo da secao de pilares: so itens VERIFICADOS em pilar_concreto.py
 #: (15.8 esbeltez/2a ordem, 17.3.5.3 As min/max, 18.4.3 estribo/limite).
@@ -462,12 +478,14 @@ _AUSENCIA_PILARES = ("pilares nao dimensionados nesta rodada "
 #: celula do arranjo longitudinal quando a bitola nao foi declarada (G110).
 _ARRANJO_NAO_DETALHADO = "NAO DETALHADO: phi_long_mm nao declarado"
 
-_COLS_PILARES = [("PILAR", 30), ("SECAO BASE", 120), ("LANCES", 250),
+_COLS_PILARES = [("PILAR", 30), ("SECAO", 120), ("LANCES", 250),
                  ("Nd(kN)", 330), ("As(cm2)", 420), ("TAXA(%)", 510),
                  ("ESTRIBO", 610), ("LIMITE GOVERNANTE", 790),
                  ("ARRANJO LONG.", 1050)]
 
-#: base da altura dinamica da combinada: H = base + 22*(n_tramos + n_pilares).
+#: base da altura dinamica da combinada: H = base + 22*(n_tramos + n_fileiras).
+#: G115: n_fileiras = soma dos trechos (nao n_pilares); folha de altura fixa
+#: com conteudo que cresce corta fileira (licao do G77).
 _BASE_COMBINADA = 480
 
 
@@ -477,6 +495,68 @@ def _lance_base(pilar):
     if not lances:
         return None
     return lances[-1]
+
+
+def _chave_trecho(lance):
+    """Chave de igualdade do trecho (G115): mesma secao e mesmo As.
+
+    `b`/`h` em m (comparados em cm arredondado, a precisao da folha) e
+    `As_cm2` (arredondado a 2 casas, a precisao da celula). Nd, taxa,
+    estribo e limite NAO entram: Nd sempre cresce ao descer e a fileira
+    mostra o Nd de BASE do trecho; taxa/estribo/limite derivam da secao+As
+    no dado medido (predio: identicos dentro do trecho).
+    """
+    try:
+        b_cm = round(float(lance.get("b", 0)) * 100)
+        h_cm = round(float(lance.get("h", 0)) * 100)
+    except (TypeError, ValueError):
+        b_cm, h_cm = 0, 0
+    try:
+        as_cm2 = round(float(lance.get("As_cm2", 0)), 2)
+    except (TypeError, ValueError):
+        as_cm2 = 0.0
+    return (b_cm, h_cm, as_cm2)
+
+
+def _trechos_pilar(pilar):
+    """Agrupa os lances CONTIGUOS iguais em trechos (G115).
+
+    Devolve [{"i_ini", "i_fim", "rotulo", "lances", "base"}]: indices 0-based
+    do topo para a base, `rotulo` 1-based ("1-5" ou "6"), `base` o lance de
+    BASE do trecho (o mais carregado, que assina a fileira). Pilar sem
+    lances devolve []. Pilar sem mudanca devolve um trecho unico ("1-N").
+    """
+    lances = (pilar or {}).get("lances") if isinstance(pilar, dict) else None
+    if not lances:
+        return []
+    trechos = []
+    ini = 0
+    for k in range(1, len(lances) + 1):
+        if k < len(lances) and _chave_trecho(lances[k]) == _chave_trecho(lances[ini]):
+            continue
+        fim = k - 1
+        if ini == fim:
+            rotulo = "%d" % (ini + 1)
+        else:
+            rotulo = "%d-%d" % (ini + 1, fim + 1)
+        trechos.append({"i_ini": ini, "i_fim": fim, "rotulo": rotulo,
+                        "lances": lances[ini:k], "base": lances[fim]})
+        ini = k
+    return trechos
+
+
+def _n_fileiras_pilares(pilares):
+    """Total de fileiras da secao de pilares: soma dos trechos (G115).
+
+    Pilar sem lances conta 0 (a secao declara a ausencia). Dict vazio/None
+    conta 1 para a altura minima (a linha de declaracao).
+    """
+    if not isinstance(pilares, dict) or not pilares:
+        return 1
+    total = 0
+    for nome in pilares:
+        total += max(len(_trechos_pilar(pilares[nome])), 0)
+    return max(total, 1)
 
 
 def _estribo_pilar_rotulo(detalhe):
@@ -511,20 +591,25 @@ def _arranjo_long_rotulo(detalhe):
     return "f%.1f (12.phi_long declarado)" % phi_long
 
 
-def _vals_fileira_pilar(nome, pilar):
-    """Os 9 valores da fileira, na ordem de _COLS_PILARES (lance de BASE)."""
-    base = _lance_base(pilar) or {}
+def _vals_fileira_trecho(nome, pilar, trecho):
+    """Os 9 valores da fileira, na ordem de _COLS_PILARES (G115: um trecho).
+
+    LANCES e' o intervalo 1-based do topo para a base ("1-5" ou "6");
+    secao, Nd, As, taxa, estribo, limite e arranjo sao os do lance de BASE
+    do trecho (o mais carregado). Pilar de lance unico sai "1-1"? Nao:
+    trecho unico cobre "1-N" (ex. "1-9"); lance isolado no meio sai "6".
+    """
+    base = (trecho or {}).get("base") or {}
     det = base.get("detalhe") if isinstance(base.get("detalhe"), dict) else {}
     try:
         sec = "%dx%d" % (round(float(base.get("b", 0)) * 100),
                          round(float(base.get("h", 0)) * 100))
     except (TypeError, ValueError):
         sec = "-"
-    n_lances = len((pilar or {}).get("lances") or [])
     return [
         str(nome),
         sec,
-        "%d" % n_lances,
+        str((trecho or {}).get("rotulo", "-")),
         "%.1f" % float(base.get("Nd", 0)),
         "%.2f" % float(base.get("As_cm2", 0)),
         "%.2f" % float(base.get("taxa_pct", 0)),
@@ -534,10 +619,21 @@ def _vals_fileira_pilar(nome, pilar):
     ]
 
 
+# G119 (auditoria do G115): `_vals_fileira_pilar` foi removida. O G115 a
+# manteve "por compatibilidade G110", mas depois da troca para fileira por
+# trecho NINGUEM mais a chamava - nem producao, nem teste - e ela carregava
+# uma segunda copia da montagem da fileira, livre para divergir da real
+# (`_vals_fileira_trecho`). Codigo morto que duplica regra e' a mesma classe
+# do filtro de nome morto: nao quebra hoje, mente amanha.
+
+
 def _escreve_secao_pilares(P, pilares, y_sub, W):
     """Subtitulo + cabecalho + fileiras (ou a declaracao de ausencia).
 
-    Devolve o yy apos a ultima fileira (ou linha de declaracao).
+    G115: uma fileira por TRECHO de lances iguais (mesma secao e mesmo As),
+    do topo para a base, pilar a pilar em ordem alfabetica. Pilar sem
+    mudanca sai com uma fileira ("1-N"). Devolve o yy apos a ultima fileira
+    (ou linha de declaracao).
     """
     P.append(sb.texto(W / 2, y_sub, _SUBTITULO_PILARES, 11, color="#444"))
     y0 = y_sub + 22
@@ -547,17 +643,19 @@ def _escreve_secao_pilares(P, pilares, y_sub, W):
     _escreve_cabecalho_tabela(P, _COLS_PILARES, y0, W)
     yy = y0 + 28
     for nome in sorted(pilares):
-        _escreve_fileira(P, _COLS_PILARES,
-                         _vals_fileira_pilar(nome, pilares[nome]), yy)
-        yy += 22
+        for trecho in _trechos_pilar(pilares[nome]):
+            _escreve_fileira(P, _COLS_PILARES,
+                             _vals_fileira_trecho(nome, pilares[nome], trecho), yy)
+            yy += 22
     return yy
 
 
 def _rodape_armacao_pilares(P, yy):
     """As tres linhas de rodape da secao de pilares (notas + CONCEITUAL/ART)."""
     P.append(sb.texto(30, yy + 18,
-                      "secao, Nd, As e taxa do lance de BASE (lances[-1]) ; "
-                      "s do estribo em cm (round(s_m*100)) ; ESTRIBO f<phi> c/<s> <n>R",
+                      "uma fileira por trecho de lances iguais (mesma secao e "
+                      "mesmo As) ; LANCES do topo para a base ; Nd, As, taxa, "
+                      "estribo e limite do lance de BASE do trecho",
                       11, anchor="start", color="#444"))
     P.append(sb.texto(30, yy + 36,
                       "arranjo longitudinal so com phi_long_mm declarada "
@@ -569,18 +667,22 @@ def _rodape_armacao_pilares(P, yy):
 
 
 def prancha_armacao_pilares_svg(pilares, titulo=None):
-    """Quadro de armacao dos pilares (SVG puro-Python, G110).
+    """Quadro de armacao dos pilares (SVG puro-Python, G110/G115).
 
-    UMA fileira por pilar, do lance de BASE (lances[-1]): secao, n de
-    lances, Nd, As, taxa, estribo (phi/s/ramos), limite governante da
-    18.4.3 e arranjo longitudinal. Pilares vazio/ausente declara a
-    ausencia em vez de sair com a tabela vazia.
+    UMA fileira por TRECHO de lances iguais (G115: mesma secao e mesmo As;
+    "lances 1-5: 19x30, As 2,28"): secao, intervalo de lances, Nd, As, taxa,
+    estribo (phi/s/ramos), limite governante da 18.4.3 e arranjo
+    longitudinal. Pilar sem mudanca sai com uma fileira ("1-N"). Pilares
+    vazio/ausente declara a ausencia em vez de sair com a tabela vazia.
     """
     nomes = sorted(pilares) if isinstance(pilares, dict) else []
     W = 1420
-    H = 170 + max(len(nomes), 1) * 22 + 110
+    # G115/G77: a altura cresce com as fileiras (uma por trecho, nao por
+    # pilar). Folha de altura fixa com conteudo que cresce corta fileira.
+    H = 170 + max(_n_fileiras_pilares(pilares), 1) * 22 + 110
     tit = titulo or ("ARMACAO DE PILARES - PAVIMENTO-TIPO "
                      "(%d pilares VERIFICADOS)" % len(nomes))
+    tit += _sufixo_edicao()
     P = sb.abre_svg(W, H, tit)
     yy = _escreve_secao_pilares(P, pilares, 58, W)
     _rodape_armacao_pilares(P, yy)
@@ -588,26 +690,77 @@ def prancha_armacao_pilares_svg(pilares, titulo=None):
     return "\n".join(P)
 
 
-def confere_armacao_pilares(pilares, svg):
-    """Drawing-vs-data do quadro de pilares: todo PILAR tem de estar desenhado.
+def _celula(svg, valor):
+    """O valor sai como CELULA da tabela (`<text ...>valor</text>`)? (G119)
 
-    O esperado deriva do DADO (dict pilares), nunca do svg: cada nome conta
-    >= 1 ocorrencia (regex com fronteira, padrao G69 do confere_armacao_vigas).
-    Com pilares vazio/ausente, ok=True so se a declaracao de ausencia constar.
+    O G115 conferia o intervalo por substring solta, e um trecho de um lance
+    so ("6") casa em qualquer lugar do SVG - coordenada, tamanho de fonte,
+    outro numero. Medido: "6", "3" e "7" aparecem numa folha que nao tem
+    nenhum desses trechos, entao essa metade da guarda nunca reprovava.
+    `_escreve_fileira` emite cada celula via `sb.texto`, logo a checagem
+    honesta e' pelo conteudo do elemento de texto.
+    """
+    return (">%s<" % valor) in (svg or "")
+
+
+def confere_armacao_pilares(pilares, svg):
+    """Drawing-vs-data do quadro de pilares (G110/G115): todo TRECHO desenhado.
+
+    O esperado deriva do DADO (dict pilares), nunca do svg: cada pilar conta
+    >= n_trechos ocorrencias do nome (regex com fronteira, padrao G69 do
+    confere_armacao_vigas) e cada trecho conta com o intervalo ("1-5" ou
+    "6"), a secao e o As do lance de BASE do trecho presentes no SVG. A
+    soma dos lances cobertos tem de bater com os lances do resultado
+    (drawing-vs-data por soma, nao so presenca). A folha antiga (G110: uma
+    fileira por pilar, so a base) reprova aqui quando ha variacao ao longo
+    dos lances -- e' o vermelho por injecao do G115. Com pilares
+    vazio/ausente, ok=True so se a declaracao de ausencia constar.
     """
     import re as _re
 
     nomes = sorted(pilares) if isinstance(pilares, dict) else []
     if not nomes:
         ok = _AUSENCIA_PILARES in (svg or "")
-        return {"n_pilares": 0, "faltando": [], "ok": ok}
+        return {"n_pilares": 0, "n_trechos": 0, "faltando": [], "ok": ok}
     faltando = []
+    n_trechos = 0
     for nome in nomes:
+        trechos = _trechos_pilar(pilares[nome])
+        n_trechos += len(trechos)
         achados = len(_re.findall(_re.escape(str(nome)) + r"(?![0-9A-Za-z])",
                                   svg or ""))
-        if achados < 1:
-            faltando.append("%s: calculado, nao desenhado" % nome)
-    return {"n_pilares": len(nomes), "faltando": faltando, "ok": not faltando}
+        if achados < max(len(trechos), 1):
+            faltando.append("%s: %d trechos calculados, %d desenhados"
+                            % (nome, len(trechos), achados))
+        for trecho in trechos:
+            base = trecho.get("base") or {}
+            try:
+                sec = "%dx%d" % (round(float(base.get("b", 0)) * 100),
+                                 round(float(base.get("h", 0)) * 100))
+            except (TypeError, ValueError):
+                sec = "-"
+            try:
+                as_txt = "%.2f" % float(base.get("As_cm2", 0))
+            except (TypeError, ValueError):
+                as_txt = "-"
+            rotulo = str(trecho.get("rotulo", ""))
+            if rotulo and not _celula(svg, rotulo):
+                faltando.append("%s trecho %s: intervalo nao desenhado"
+                                % (nome, rotulo))
+            if sec != "-" and not _celula(svg, sec):
+                faltando.append("%s trecho %s: secao %s nao desenhada"
+                                % (nome, rotulo, sec))
+            if as_txt != "-" and not _celula(svg, as_txt):
+                faltando.append("%s trecho %s: As %s nao desenhado"
+                                % (nome, rotulo, as_txt))
+        # a folha soma exatamente os lances de cada pilar do resultado
+        coberto = sum(t["i_fim"] - t["i_ini"] + 1 for t in trechos)
+        n_lances = len((pilares[nome] or {}).get("lances") or [])
+        if coberto != n_lances:
+            faltando.append("%s: %d lances calculados, %d cobertos"
+                            % (nome, n_lances, coberto))
+    return {"n_pilares": len(nomes), "n_trechos": n_trechos,
+            "faltando": faltando, "ok": not faltando}
 
 
 def gerar_prancha_armacao_pilares(pilares, path, titulo=None):
@@ -618,20 +771,21 @@ def gerar_prancha_armacao_pilares(pilares, path, titulo=None):
 
 
 def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
-    """Combinada N:1 de PE-CO-02 (G110): secao de vigas + secao de pilares.
+    """Combinada N:1 de PE-CO-02 (G110/G115): secao de vigas + secao de pilares.
 
     Empilha no MESMO <svg> a tabela por tramo (builder da G34, mesma
-    formatacao da prancha de vigas) e o quadro por pilar (lance de BASE).
-    Altura dinamica H = base + 22*(n_tramos + n_pilares); passa em
+    formatacao da prancha de vigas) e o quadro por TRECHO de pilar (G115).
+    Altura dinamica H = base + 22*(n_tramos + n_fileiras_pilares); passa em
     desenho_svg_base.confere_folha_svg.
     """
     _por_linha, n_tramos, linhas_v = _dados_vigas(vigas_verificacao)
     nomes_p = sorted(pilares) if isinstance(pilares, dict) else []
     W = 1420
-    H = _BASE_COMBINADA + 22 * (max(len(linhas_v), 1) + max(len(nomes_p), 1))
+    H = _BASE_COMBINADA + 22 * (max(len(linhas_v), 1) + max(_n_fileiras_pilares(pilares), 1))
     tit = titulo or ("ARMACAO DE VIGAS E PILARES - PAVIMENTO-TIPO "
                      "(%d tramos VERIFICADOS / %d pilares VERIFICADOS)"
                      % (n_tramos, len(nomes_p)))
+    tit += _sufixo_edicao()
     P = sb.abre_svg(W, H, tit)
     P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
     _escreve_cabecalho_tabela(P, _COLS_VIGAS, 92, W)

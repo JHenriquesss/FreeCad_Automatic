@@ -90,13 +90,44 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     so agora foi triada - nomeada aqui para o baseline fechar nos dois
     sentidos.
 
-24. desenho_pavimento.confere_armacao_pilares (G110) - A=nomes do DADO
-    (dict `pilares` de pilar_continuo.dimensiona, um por pilar calculado),
-    B=ocorrencias do nome no SVG com fronteira de palavra. O esperado nunca
-    e lido do desenho. INDEPENDENTE (drawing-vs-data, mesma forma do item 11,
-    o irmao de vigas). Ramo de ausencia: com `pilares` vazio/ausente o ok so
-    e True se a DECLARACAO de ausencia (_AUSENCIA_PILARES) estiver na folha -
+24. desenho_pavimento.confere_armacao_pilares (G110, trechos no G115) -
+    A=trechos do DADO (dict `pilares` de pilar_continuo.dimensiona, agrupados
+    por secao+As contiguos: intervalos "1-5"/"6", secao e As da base do
+    trecho, soma dos lances), B=ocorrencias do nome no SVG com fronteira de
+    palavra + intervalos/secao/As literais. O esperado nunca e lido do
+    desenho. INDEPENDENTE (drawing-vs-data, mesma forma do item 11, o irmao
+    de vigas). Ramo de ausencia: com `pilares` vazio/ausente o ok so e True
+    se a DECLARACAO de ausencia (_AUSENCIA_PILARES) estiver na folha -
     folha vazia calada continua reprovando.
+
+25. f150_decodifica.confere_amostra (G117) - A=15 frases-ancora lidas
+    nas paginas RENDERIZADAS da F150 (PNG por fitz, nunca a camada de
+    texto: xvi, xvii, 5.1.2, 8.2.3, 9.4.2.6, 11.4.1.3, 14.4.1, 15.4.2,
+    17.4.2.3, 22.5.1.3), B=ocorrencias literais no .txt decodificado.
+    O esperado nunca e lido do resultado. INDEPENDENTE (a forma das
+    drawing-vs-data: especificacao de um lado, produto do outro).
+
+26. edicao_nbr6118_g123.confere_peca (G123) - A=declaracao exigida
+    ("NBR 6118:2014" ou "NBR 6118:2023 + Emenda 1:2026" no texto da peca),
+    B=substring medida no texto emitido. INDEPENDENTE (especificacao de um
+    lado, produto do outro; peca sem declaracao reprova com o motivo
+    nomeado, nunca OK silencioso).
+27. edicao_nbr6118_g123.confere_pecas (G123) - A=conjunto de pecas de
+    concreto que o cliente recebe, B=OK por peca que chega ao veredito
+    global (contra saturacao silenciosa do G113). INDEPENDENTE (o global
+    so e True com todas as pecas declarando; sem_declaracao lista quem
+    falta).
+28. edicao_nbr6118_g123.confere_uso_edicao (G123) - A=arquivos no disco que
+    importam a fonte unica, B=USO_ESPERADO declarado com motivo (14 usos
+    desde o G125: + desenho_pavimento e desenho_fundacao_edificio).
+    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x declaracao;
+    extra ou faltando = troca por conta propria).
+29. confronto_2014_2023_g122.confere_sites_8_2_5 (G125, auditoria do G122) -
+    A=modulos onde a CONTA fct,m C55+ aparece no codigo (regex fora de
+    comentario), B=modulos do item 8.2.5 do CONFRONTO_G122, escritos a mao
+    com a triagem no inventario. INDEPENDENTE (codigo x inventario: o G122
+    partiu das citacoes de "6118" e deixou 5 contas fora; nao_inventariados
+    e sem_formula disparam por injecao em tmp_path).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -148,6 +179,11 @@ TRIADAS_G69 = {
     ("desenho_hidraulica", "confere_cobertura_galpao"),
     ("desenho_svg_base", "confere_folha_svg"),
     ("desenho_pavimento", "confere_armacao_pilares"),
+    ("f150_decodifica", "confere_amostra"),
+    ("edicao_nbr6118_g123", "confere_peca"),
+    ("edicao_nbr6118_g123", "confere_pecas"),
+    ("edicao_nbr6118_g123", "confere_uso_edicao"),
+    ("confronto_2014_2023_g122", "confere_sites_8_2_5"),
 }
 
 

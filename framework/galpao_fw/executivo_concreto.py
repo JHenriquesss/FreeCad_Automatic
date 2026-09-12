@@ -20,6 +20,15 @@ import math
 
 import fundacao_sapata as fs
 
+try:
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _carimbo_ed_g123,
+        edicao_de_resultado as _edicao_de_r_g123,
+    )
+except ImportError:
+    _carimbo_ed_g123 = None
+    _edicao_de_r_g123 = None
+
 _BITOLAS_LONG = [10.0, 12.5, 16.0, 20.0, 25.0]      # bitolas longitudinais (mm)
 PESO_ML = 0.00617                                   # kg/m por mm^2 de bitola (7850 kg/m3)
 
@@ -166,7 +175,19 @@ def resumo_aco(r, quadro=None):
 
 def relatorio_quadro_pt(r):
     q = quadro_de_aco(r); res = resumo_aco(r, q)
+    # G123: o quadro carimba a edicao de calculo (fonte unica).
+    try:
+        _ed = _edicao_de_r_g123(r) if _edicao_de_r_g123 else None
+    except ValueError:
+        raise
+    _car = (_carimbo_ed_g123(_ed) if _carimbo_ed_g123 else
+            ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
+             "edicao nao declarada no projeto — assumida 2014)"
+             if not _ed else
+             ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
+              "projeto)" % _ed)))
     L = ["QUADRO DE ACO - GALPAO DE CONCRETO (NBR 6118)",
+         "  %s" % _car,
          "  Elemento    | Pos          | phi(mm) |   n  | comp(m) | peso(kg)",
          "  " + "-" * 62]
     for x in q:
@@ -206,8 +227,19 @@ def memorial(r):
         viga_rel = vp.relatorio_pt(r["viga_prot"])
     else:
         viga_rel = vc.relatorio_pt(r["viga"])
+    try:
+        _ed = _edicao_de_r_g123(r) if _edicao_de_r_g123 else None
+    except ValueError:
+        raise
+    _car = (_carimbo_ed_g123(_ed) if _carimbo_ed_g123 else
+            ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
+             "edicao nao declarada no projeto — assumida 2014)"
+             if not _ed else
+             ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
+              "projeto)" % _ed)))
     partes = ["=" * 66,
               "MEMORIAL DE CALCULO - GALPAO DE CONCRETO PRE-MOLDADO",
+              _car,
               "=" * 66, "",
               gc.relatorio_pt(r), "",
               "-- VENTO " + "-" * 57, vento.relatorio_pt(r["vento"]), "",

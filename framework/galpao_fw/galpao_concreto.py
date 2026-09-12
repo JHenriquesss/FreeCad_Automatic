@@ -158,7 +158,20 @@ def rodar(spec):
                       flambagem NA DIRECAO LONGITUDINAL (ver _le_por_direcao). Com
                       'nenhum' o pilar e balanco tambem nessa direcao (le_y = 2H) e a
                       esbeltez costuma estourar o limite de 15.8.3.3.2.
+      'norma_6118_edicao' (opc., G123): '2014' ou '2023+Em1' (atalhos
+                      'edicao_6118'/'edicao'); ausente = comportamento de hoje
+                      (2014) e a folha diz qual e. So os 2 pontos NUMERO-MUDA
+                      leem a chave (12.3.3 no icamento; 13.2.5.1 na
+                      compatibilizacao); migrar e decisao do usuario.
     }"""
+    # G123: resolve a edicao sem default silencioso (ausente = 2014 hoje).
+    try:
+        from edicao_nbr6118_g123 import edicao_de_spec as _ed_spec_g123
+        _edicao = _ed_spec_g123(spec) if isinstance(spec, dict) else None
+    except ValueError:
+        raise
+    except ImportError:
+        _edicao = None
     if spec.get("tipo_fundacao") == "sapata_corrida":
         # D89/G61: a corrida e apoio LINEAR de parede portante (kN/m); o
         # galpao nao tem parede portante. Sem esta guarda a corrida cairia
@@ -242,10 +255,12 @@ def rodar(spec):
                                    "fck": min(fck, 25e3), "fyk": fyk,
                                    "interface": interface_cal})
     # situacao transitoria: icamento do pilar pre-moldado (peso proprio, 2 pegas)
+    # G123: o fckj (12.3.3) le a chave; ausente = 2014 (hoje).
     icamento = pm.verifica_icamento_pilar({"L": H, "b": pilar["hy"], "h": pilar["hx"],
                                            "As": pilar["As_cm2"], "fck": fck, "fyk": fyk,
                                            "t_dias": spec.get("t_saque_dias", 3),
-                                           "cimento": spec.get("cimento", "CPV")})
+                                           "cimento": spec.get("cimento", "CPV"),
+                                           "edicao": _edicao})
 
     # ------------------------------------------------------------ FUNDACAO
     # reacao de base de projeto: N (permanente+sobrecarga+p.proprio) e M/V do vento.
@@ -382,7 +397,9 @@ def rodar(spec):
                          "vol_m3": piso.get("volume_concreto_m3"),
                          "motivo": piso.get("motivo", ""), "OK": bool(piso["OK"])}
     res = {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
-                    "s": round(s, 2), "fck_MPa": fck / 1000.0},
+                    "s": round(s, 2), "fck_MPa": fck / 1000.0,
+                    "edicao_6118_resolvida": _edicao},
+           "edicao_6118": _edicao,
            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
            "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
@@ -616,7 +633,15 @@ def montar_pranchas(r, out_dir, fcstd_path, spec=None, freecad_exe=None,
 
 def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
+    try:
+        from edicao_nbr6118_g123 import (
+            carimbo_edicao as _car_ed, edicao_de_resultado as _ed_r)
+        _car = _car_ed(_ed_r(r))
+    except Exception:
+        _car = ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
+                "edicao nao declarada no projeto — assumida 2014)")
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
+         "  %s" % _car,
          f"  Vao {sp['vao']:.1f} m x comprimento {sp['comprimento']:.1f} m ; "
          f"pe-direito {sp['H']:.1f} m ; {sp['n_porticos']} porticos (s={sp['s']:.2f} m) ; C{sp['fck_MPa']:.0f}",
          f"  VENTO: q = {g['vento']['q_kN_m2']:.3f} kN/m2 ; w_h = {g['vento']['w_h']:.2f} kN/m ; "

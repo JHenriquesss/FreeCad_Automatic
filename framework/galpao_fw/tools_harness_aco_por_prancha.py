@@ -111,10 +111,14 @@ TEMPOS_G105 = {p["chave"]: None for p in PRANCHAS}
 # G109: numeros medidos em 2026-09-11 no galpao-ufpe (44x90 2 vaos, FCStd
 # 2,3 MB via montar_modelo headless; freecad.exe 1.1; maquina 8 GB com
 # ~1 GB livre). Totais ≈ 578 s nas 16 medidas, compativel com os ~15 min
-# do executivo inteiro (06-open-threads T13). PE05 sem numero: timeout
+# do executivo inteiro (06-open-threads T13). PE05 sem numero entao: timeout
 # sistematico 2x1200 s + diag 540 s, trava no doc.recompute() da pagina
 # (t_hlr); build dela e instantaneo (1 pag + 1 cota). Tetos manuais com
-# folga; None = sem numero (condicional ausente ou PE05), nunca zero.
+# folga; None = sem numero (condicional ausente), nunca zero.
+# G118 (2026-09-12, mesmo modelo/maquina/condicao ~1 GB livre): causa medida
+# (topo com 432 TIRANTEs sem oclusores; 548 s so neles) e fix na producao
+# (topo so CONTRAV). PE05 medida: build 0,2 / hlr 128,0 / cotas 47,1 / export
+# 34,1 (total ≈ 209 s); teto 240 com folga. Total do aco ≈ 788 s.
 MEDIDOS_G109 = {
     "PE01_COBERTURA": {"t_build": 0.1, "t_hlr": 67.3,
                        "t_cotas": 96.6, "t_export": 23.6},
@@ -124,6 +128,8 @@ MEDIDOS_G109 = {
                        "t_cotas": 100.7, "t_export": 40.3},
     "PE04_PORTICO": {"t_build": 0.2, "t_hlr": 4.3,
                      "t_cotas": 6.8, "t_export": 4.1},
+    "PE05_CONTRAVENTAMENTO": {"t_build": 0.2, "t_hlr": 128.0,
+                              "t_cotas": 47.1, "t_export": 34.1},
     "PE06_DET_BASE": {"t_build": 0.3, "t_hlr": 3.0,
                       "t_cotas": 1.4, "t_export": 1.6},
     "PE07_DET_JOELHO": {"t_build": 1.2, "t_hlr": 3.0,
@@ -151,8 +157,8 @@ MEDIDOS_G109 = {
 }
 ORCAMENTO_G109 = {
     "PE01_COBERTURA": 210.0, "PE02_FUNDACOES": 90.0,
-    "PE03_ELEVACOES": 240.0, "PE04_PORTICO": 30.0,
-    "PE05_CONTRAVENTAMENTO": None, "PE06_DET_BASE": 30.0,
+    "PE03_ELEVACOES": 240.0,     "PE04_PORTICO": 30.0,
+    "PE05_CONTRAVENTAMENTO": 240.0, "PE06_DET_BASE": 30.0,
     "PE07_DET_JOELHO": 30.0, "PE08_FECHAMENTO": 60.0,
     "PE09_QUADROS": 30.0, "PE10_DET_CUMEEIRA": 30.0,
     "PE11_DET_GUSSET_COB": 30.0, "PE12_DET_GUSSET_PAR": 30.0,

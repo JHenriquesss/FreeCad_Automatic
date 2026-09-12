@@ -1,3 +1,23 @@
+> **FILA CONSUMIDA (2026-09-12).** Os cinco goals foram executados e auditados no G119
+> (verbete `wiki/04-decisions.md#D145`). Este arquivo fica como registro — **não reexecute
+> nada daqui**. A fila aberta é `BACKLOG-GOALS-G120-G124.md`.
+>
+> | goal | entregue | verbete |
+> |------|----------|---------|
+> | G114 | caderno reusa o turnkey: um `tk.rodar` só | D142 |
+> | G115 | armação de pilar por trecho de lances iguais (42 no prédio) | D143 |
+> | G116 | inventário do impacto 2014 → 2023+Em1 (51 itens) | D141 |
+> | G117 | camada de texto da F150 decodificada (260 p.) | D140 |
+> | G118 | PE05 do aço com número: o topo travava nos tirantes | D144 |
+>
+> Corrigido na auditoria (D145): o medidor de bytes desconhecidos que não podia acusar (e
+> sob ele "fck ≤ 50 MPa" saía "fck ± 50 MPa"), a guarda de intervalo que nunca reprovava,
+> o mapa de trechos sem confronto, a exceção nova na PE05 sem contraventamento de cobertura,
+> o código morto da fileira e a âncora de pesos que a produção não lia.
+>
+> **Medido depois do G114:** `tests/test_indice_disco_rodada_g102.py`, que morreu quatro
+> vezes por memória no G113, **completou** — 6 passed em 1230 s.
+
 # Backlog de goals executáveis — pós-G113 (2026-09-11)
 
 Fila **ABERTA**. Cinco goals (G114–G118). As filas anteriores estão fechadas e ficam apenas

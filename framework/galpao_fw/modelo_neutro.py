@@ -19,11 +19,9 @@ Contratos de fronteira: fronteiras.F01 (dims mm), F03 (p1/p2 mm), F04 (secao m),
 
 from __future__ import annotations
 
-import fronteiras as _FR  # F01/F03/F04/F07: dims/coord mm, secao m, poligono mm
-
 MM = 1000.0
-UNIDADE_DIMS = _FR.UNIDADE_DIMS_MM
-UNIDADE_SECAO = _FR.UNIDADE_SECAO_M
+# G124: re-exports UNIDADE_DIMS/SECAO removidos (residuo, ninguem importava);
+# o contrato segue em fronteiras (F01/F03/F04/F07).
 
 
 def _n_porticos(comprimento, bay):

@@ -256,9 +256,10 @@ def estabilidade(N, V, M, B, L, h, mu, coesao=0.0, h_reaterro=0.0,
 _IW_RIGIDO = {1.0: 0.88}                             # circulo -> usar 0,79 (caso.Iw)
 
 
-def recalque_elastico(q_liq, B, Es, nu=0.30, Iw=0.88):
+def recalque_elastico(q_liq, B, Es, nu=0.30, Iw=_IW_RIGIDO[1.0]):
     """Recalque IMEDIATO/elastico de sapata pela Teoria da Elasticidade
     (Veloso & Lopes; NBR 6122 remete a metodos geotecnicos):
+    (G124: o default de Iw e _IW_RIGIDO[1.0], fonte unica do 0,88.)
 
         rho = q_liq * B * (1 - nu^2) * Iw / Es
 
@@ -345,7 +346,7 @@ def verifica_sapata_A(caso):
         q_liq = max(N_serv / (B * L) - caso.get("q_sobrecarga", 0.0), 0.0)
         Bmin = min(B, L)                             # menor dimensao (recalque)
         rho = recalque_elastico(q_liq, Bmin, Es, caso.get("nu_solo", 0.30),
-                                caso.get("Iw", 0.88))
+                                 caso.get("Iw", _IW_RIGIDO[1.0]))  # G124: fonte unica
         r["recalque_mm"] = rho * 1000.0
         r["recalque_adm_mm"] = caso.get("recalque_adm_mm", 25.0)
         r["ok_recalque"] = r["recalque_mm"] <= r["recalque_adm_mm"] + 1e-9
@@ -787,7 +788,9 @@ def rho_min(fck_MPa):
     60->0,00219 ; 90->0,00256 (faixa alta completa no D94/G59)."""
     pts = sorted(_RHO_MIN_TAB.items())
     if fck_MPa <= pts[0][0]:
-        return pts[0][1]
+        # G124: o piso de 0,15% mora em RHO_MIN (fonte unica); a tabela o
+        # repete por transcricao e rho_min o aplica por maximo (mesmo numero).
+        return max(RHO_MIN, pts[0][1])
     if fck_MPa >= pts[-1][0]:
         return pts[-1][1]
     for (f0, r0), (f1, r1) in zip(pts, pts[1:]):

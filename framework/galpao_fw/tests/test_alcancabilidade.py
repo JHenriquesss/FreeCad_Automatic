@@ -47,7 +47,12 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                    "varredura_faixa_validade", "varredura_defaults_veredito",
                    "varredura_disciplina_prancha",
                     "varredura_carimbo_mapa",
-                   "varredura_guardas_um_eixo", "varredura_asserts_sequencia"]
+                    "f150_decodifica",
+                   "impacto_nbr6118_g116",
+                   "confronto_2014_2023_g122",
+                    "varredura_guardas_um_eixo", "varredura_asserts_sequencia",
+                     "varredura_constantes_orfas",
+                    "medicao_memoria"]
 
 
 def _modulos():

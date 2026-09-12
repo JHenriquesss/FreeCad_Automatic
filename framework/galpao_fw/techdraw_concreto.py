@@ -29,6 +29,17 @@ from techdraw_exec import (
     _carimbo, _fit_escala, _bbox, _fmt_m, _fmt_mm, _paper_half, _ESC_NOME,
     _svg_para_png, AREA_1V, AREA_2V)
 
+try:
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _carimbo_ed_g123,
+        edicao_de_spec as _edicao_de_spec_g123,
+        rotulo_edicao as _rotulo_ed_g123,
+    )
+except ImportError:  # dentro do freecad.exe sem o modulo no path
+    _carimbo_ed_g123 = None
+    _edicao_de_spec_g123 = None
+    _rotulo_ed_g123 = None
+
 
 # ─────────────────────────────────────────────────────────────────────────
 # SELECAO DE PECAS (dentro do FreeCAD) - por MARCA (Label)
@@ -337,6 +348,20 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     # quantitativo de concreto (do build 3D, se veio no spec; senao omite)
     tk = ((spec.get("estrutura", {}) or {}).get("takeoff_concreto")
           if isinstance(spec, dict) else None)
+    # G123: a prancha carimba a edicao de calculo (fonte unica; sem o
+    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    try:
+        _ed_cfg = _edicao_de_spec_g123(spec) if _edicao_de_spec_g123 else None
+    except ValueError:
+        raise
+    if _carimbo_ed_g123 is not None:
+        _linha_ed = _carimbo_ed_g123(_ed_cfg)
+    else:
+        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
+                     "atual; edicao nao declarada no projeto — assumida 2014)"
+                     if not _ed_cfg else
+                     ("Projeto calculado pela NBR 6118:%s (edicao declarada "
+                      "no projeto)" % _ed_cfg))
     notas = [
         "NOTAS TECNICAS E ESPECIFICACOES",
         "1. Concreto: fck = %.0f MPa (concreto armado, gamma_c = 1,4)." % fckM,
@@ -345,7 +370,10 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "4. Sistema pre-moldado: pilares engastados na base por CALICE de fundacao",
         "   (NBR 9062); viga de cobertura biapoiada sobre o topo dos pilares.",
         "5. %s" % fund_nota,
-        "6. Normas: NBR 6118, NBR 6122, NBR 6123, NBR 9062, NBR 15200.",
+        "6. Normas: %s, NBR 6122, NBR 6123, NBR 9062, NBR 15200." % (
+            _rotulo_ed_g123(_ed_cfg) if _rotulo_ed_g123 else
+            ("NBR 6118:2014" if not _ed_cfg else "NBR 6118:%s" % _ed_cfg)),
+        "   %s." % _linha_ed,
         "7. Verificar situacoes transitorias de icamento/transporte (NBR 9062 5.3.2).",
     ]
     if tk:

@@ -146,6 +146,11 @@ def novo():
         "neve": None,
         "escada": None,       # None (sem escada) ou dict {desnivel, projecao, largura}
         "plataforma": None,   # None (sem plataforma) ou dict {L, b_trib, q_perm, q_acidental}
+        # G123 (chave DESLIGADA): edicao da NBR 6118 de calculo do concreto.
+        # None (ausente) = comportamento de hoje (2014) e a folha diz qual e
+        # (sem default silencioso). '2014' ou '2023+Em1' explicito; migrar e
+        # decisao do usuario. Nao bloqueia (tem comportamento declarado).
+        "norma_6118_edicao": None,
         "_a_confirmar": [],
     }
 
@@ -631,6 +636,21 @@ def validar(spec):
             _v = _dnum(_pl, _k)
             if _v is not None and _v < 0:
                 faltando.append(("plataforma." + _k, "%s nao pode ser < 0 (recebido %g)" % (_k, _v)))
+    # G123 (chave DESLIGADA): edicao da NBR 6118. None/ausente = comportamento
+    # de hoje (2014) declarado na folha (nao bloqueia); '2014'/'2023+Em1'
+    # explicito; qualquer outra string BLOQUEIA (nao vira edicao em silencio).
+    _ed = spec.get("norma_6118_edicao")
+    if _ed not in (None, "", PENDENTE):
+        try:
+            import edicao_nbr6118_g123 as _edm
+            _edm.normaliza_edicao(_ed)
+        except ValueError:
+            faltando.append(("norma_6118_edicao",
+                             "edicao invalida %r (use '2014' ou '2023+Em1')" % (_ed,)))
+        except ImportError:
+            if str(_ed).strip() not in ("2014", "2023+Em1"):
+                faltando.append(("norma_6118_edicao",
+                                 "edicao invalida %r (use '2014' ou '2023+Em1')" % (_ed,)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
@@ -886,6 +906,9 @@ def to_rodar_params(spec):
     p["neve"] = spec.get("neve") if spec.get("neve") else None
     p["escada"] = spec.get("escada") if spec.get("escada") else None
     p["plataforma"] = spec.get("plataforma") if spec.get("plataforma") else None
+    # G123: a chave de edicao viaja ao orquestrador (ausente = 2014 hoje).
+    if spec.get("norma_6118_edicao") not in (None, "", PENDENTE):
+        p["norma_6118_edicao"] = spec.get("norma_6118_edicao")
     return p
 
 

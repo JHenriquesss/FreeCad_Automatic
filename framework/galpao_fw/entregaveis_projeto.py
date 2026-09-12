@@ -327,7 +327,8 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
 
 # --------------------------------- pacote legal ------------------------------
 def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
-                        pendencias=None, correspondencia=None):
+                        pendencias=None, correspondencia=None, edicao=None,
+                        spec=None):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial.
 
     `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao
@@ -336,11 +337,25 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
 
     `correspondencia` (G112): {"intro", "entradas"} com a tabela de
     numeracao propria que o cliente recebe; vai para o .md via pl.markdown
-    (default None = sem secao, byte-identico)."""
+    (default None = sem secao, byte-identico, exceto a secao G123 que sai
+    sempre).
+
+    G123: `edicao` ('2014'/'2023+Em1') vence; senao o `spec`
+    (norma_6118_edicao); senao o comportamento de hoje (2014) declarado."""
     import pacote_legal as pl
 
+    _ed = edicao
+    if _ed is None and isinstance(spec, dict):
+        try:
+            from edicao_nbr6118_g123 import edicao_de_spec as _ed_spec
+            _ed = _ed_spec(spec)
+        except ValueError:
+            raise
+        except ImportError:
+            pass
     pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial,
-                             pendencias=pendencias)
+                             pendencias=pendencias, edicao=_ed,
+                             spec=spec)
     pasta = _dir(run_dir, "documentos")
     # INDICE x PASTA (contagem ANTES do .md: o aviso vai para o texto, nao so
     # para o manifesto - G52 achado 1).
@@ -386,14 +401,18 @@ def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
     """Pacote legal do galpao, com o memorial consolidado do turnkey.
 
     G112: o unico emissor que passa a tabela de correspondencia de
-    numeracao propria (o cliente recebe em pacote-legal.md)."""
+    numeracao propria (o cliente recebe em pacote-legal.md).
+    G123: repassa o spec para o carimbo da edicao (ausente = 2014 hoje)."""
     del options
     import pacote_legal as pl
 
+    _spec = (normalized.get("turnkey_spec") if isinstance(normalized, dict)
+             else None)
     pacote_no_manifesto(
         manifest, run_dir, turnkey_result.get("executadas"),
-        pl.memorial_consolidado(turnkey_result, normalized.get("turnkey_spec")),
-        correspondencia=pl.CORRESPONDENCIA_NUMERACAO_GALPAO)
+        pl.memorial_consolidado(turnkey_result, _spec),
+        correspondencia=pl.CORRESPONDENCIA_NUMERACAO_GALPAO,
+        spec=_spec)
 
 
 # --------------------------------- obras do sitio ----------------------------

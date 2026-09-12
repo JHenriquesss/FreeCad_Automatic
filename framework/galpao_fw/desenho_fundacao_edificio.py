@@ -19,6 +19,18 @@ from __future__ import annotations
 
 import desenho_svg_base as sb
 
+
+def _sufixo_edicao():
+    """Sufixo de edicao da NBR 6118 no titulo (G125, auditoria do G123).
+
+    O G123 carimbou as folhas de concreto do GALPAO; as da casa e do predio
+    que saem por aqui seguiam sem dizer por qual edicao foram calculadas
+    (medido: planta de formas e locacao da fundacao, nas duas tipologias).
+    Casa e predio nao leem a chave de edicao - calculam pela 2014 -, entao
+    o sufixo e o do parametro ausente, vindo da fonte unica (sem literal)."""
+    from edicao_nbr6118_g123 import sufixo_folha_edicao
+    return sufixo_folha_edicao(None)
+
 COR_SAPATA = "#e8e4dc"
 COR_SAPATA_DIVISA = "#fde9c8"
 COR_VIGA_EQ = "#b91c1c"
@@ -106,6 +118,7 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None):
 
     tit = titulo or ("PE-CO-04 - LOCACAO E FORMAS DA FUNDACAO "
                      "(%s ; %d pilares)" % (tipo, len(por_pilar)))
+    tit += _sufixo_edicao()
     P = sb.abre_svg(W, H, tit)
     sigma_txt = ("%.1f kN/m2 (%s)" % (float(sigma), prov)) \
         if sigma is not None else "... nao declarado (ver quadro)"

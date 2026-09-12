@@ -225,7 +225,7 @@ def kmod(classe_carregamento, classe_umidade, categoria="serrada"):
     except (TypeError, ValueError):
         raise EntradaMadeira(
             "classe de umidade deve ser 1-4 (Tab.1)") from None
-    if umidade not in KMOD2:
+    if umidade not in CLASSES_UMIDADE:  # G124: fonte unica (chaves de KMOD2)
         raise EntradaMadeira(
             "classe de umidade %r invalida (Tab.1: 1-4)" % (classe_umidade,))
     k1 = KMOD1[classe_carregamento][grupo]
@@ -720,9 +720,9 @@ def _rk_madeira_aco(config, fe1, fe2, t1, t2, d, My):
         return {"k_embutimento": k, "l_pino": ll,
                 "FvRk_N": min(k, ll)}
     raise EntradaMadeira(
-        "config %r invalida (7.3: chapa_fina_simples, chapa_grossa_simples,"
-        " chapa_central_dupla, chapas_laterais_finas_dupla,"
-        " chapas_laterais_grossas_dupla)" % (config,))
+        # G124: a lista valida e CONFIGS_73 (fonte unica); a mensagem deriva
+        # dela para nao duplicar os 5 nomes (mesmo texto de antes).
+        "config %r invalida (7.3: %s)" % (config, ", ".join(CONFIGS_73)))
 
 
 CONFIGS_73 = ("chapa_fina_simples", "chapa_grossa_simples",

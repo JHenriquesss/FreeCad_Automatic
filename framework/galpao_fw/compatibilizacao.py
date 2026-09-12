@@ -53,6 +53,19 @@ VER_REPROVADO = "reprovado"         # viola limite duro: nao pode ser aprovado
 
 _FONTE_6118 = "NBR 6118:2014"
 
+# Fonte da edicao 2023+Em1 (G123): o rotulo mora na fonte unica; este modulo
+# so o referencia para carimbar a clausula quando a chave esta virada.
+try:
+    from edicao_nbr6118_g123 import (
+        DECLARACAO_2023_EM1 as _DECL_2023_EM1,
+        limite_furo_viga_mm as _limite_furo_edicao,
+        resolver_edicao as _resolver_edicao,
+    )
+except ImportError:  # uso isolado fora do pacote
+    _DECL_2023_EM1 = "NBR 6118:2023 + Emenda 1:2026"
+    _limite_furo_edicao = None
+    _resolver_edicao = None
+
 
 def _disciplinas_do_par(par):
     """'concretoxeletrico' -> ('concreto','eletrico'). Nomes nao contem 'x'."""
@@ -107,22 +120,46 @@ def _num(v):
 def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
                      zona_tracao=None, dist_face_mm=None, cobrimento_mm=None,
                      dist_entre_furos_mm=None, furo_unico=False,
-                     armadura_seccionada=None, sob_torcao=False):
-    """Admissibilidade de furo transversal em viga de concreto (G55).
+                     armadura_seccionada=None, sob_torcao=False,
+                     edicao=None, forma_furo=None):
+    """Admissibilidade de furo transversal em viga de concreto (G55 + G123).
 
     Fonte: NBR 6118:2014 13.2.5/13.2.5.1 (+ 21.3.1 armadura de contorno).
+    G123 (chave DESLIGADA): edicao='2014' ou '2023+Em1' (ver
+    edicao_nbr6118_g123); edicao=None (ausente) = comportamento de hoje
+    (2014) e a folha diz qual e (a declaracao mora no carimbo, nao aqui).
+    2023+Em1 muda SO a alinea (b): furo circular ate 12,5 cm dispensa (forma
+    circular explicita); retangular (ou forma nao declarada) fica em 12 cm
+    (conservador). forma_furo='circular'|'retangular'|None (None = 12 cm).
     Dispensa de verificacao adicional exige SIMULTANEAMENTE (13.2.5.1 a-d):
       a) furo em zona de tracao e a >= 2h da face do apoio;
-      b) dimensao do furo <= 12 cm e <= h/3;
+      b) dimensao do furo <= limite da edicao (120 mm em 2014; 125 mm SO para
+         circular em 2023+Em1) e <= h/3;
       c) distancia entre faces de furos no mesmo tramo >= 2h;
       d) cobrimentos suficientes e nenhum seccionamento de armadura (Secao 7).
     Base "em qualquer caso": dist a face mais proxima >= 5 cm e 2x cobrimento.
     Sem o dado, o veredito e' a_confirmar com o motivo nomeado - nunca um passe.
-    Retorna {"veredito","motivos","clausulas"}.
+    Retorna {"veredito","motivos","clausulas","edicao","limite_mm"}.
     """
     motivos = []
-    clausulas = [_FONTE_6118 + " 13.2.5", _FONTE_6118 + " 13.2.5.1",
-                 _FONTE_6118 + " 21.3.1"]
+    # Resolve a edicao sem default silencioso: ausente = 2014 declarado.
+    if _resolver_edicao is not None:
+        try:
+            _res_ed = _resolver_edicao(edicao)
+            _ed_canon = _res_ed["edicao"]
+        except ValueError:
+            raise
+        _fonte = _FONTE_6118 if _ed_canon == "2014" else _DECL_2023_EM1
+        if _limite_furo_edicao is not None:
+            _limite = float(_limite_furo_edicao(_ed_canon, forma_furo))
+        else:
+            _limite = 120.0
+    else:
+        _ed_canon = "2014"
+        _fonte = _FONTE_6118
+        _limite = 120.0
+    clausulas = [_fonte + " 13.2.5", _fonte + " 13.2.5.1",
+                 _fonte + " 21.3.1"]
     d = _num(d_furo_mm); h = _num(h_viga_mm)
     dist_ap = _num(dist_apoio_mm); dist_face = _num(dist_face_mm)
     cob = _num(cobrimento_mm); dist_ff = _num(dist_entre_furos_mm)
@@ -148,7 +185,8 @@ def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
         return {"veredito": VER_ACONFIRMAR,
                 "motivos": ["dado ausente: %s - sem ele nao ha dispensa "
                             "(13.2.5.1) nem passe" % ", ".join(ausentes)],
-                "clausulas": list(clausulas)}
+                "clausulas": list(clausulas),
+                "edicao": _ed_canon, "limite_mm": float(_limite)}
 
     # --- limites duros ("em qualquer caso"): violacao reprova ---------------
     face_min = max(50.0, 2.0 * cob)
@@ -157,12 +195,14 @@ def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
                 "motivos": ["distancia a face %.0f mm < minimo %.0f mm "
                             "(5 cm e 2x cobrimento, 13.2.5.1)" % (dist_face,
                                                                   face_min)],
-                "clausulas": list(clausulas)}
+                "clausulas": list(clausulas),
+                "edicao": _ed_canon, "limite_mm": float(_limite)}
     if armadura_seccionada is True:
         return {"veredito": VER_REPROVADO,
                 "motivos": ["secciona armadura sem reposicao declarada "
                             "(13.2.5.1(d))"],
-                "clausulas": list(clausulas)}
+                "clausulas": list(clausulas),
+                "edicao": _ed_canon, "limite_mm": float(_limite)}
     if sob_torcao:
         motivos.append("elemento sob torcao: limites devem ser ajustados de "
                        "forma a permitir funcionamento adequado (13.2.5.1, "
@@ -172,9 +212,16 @@ def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
     pend = []
     if not (zona_tracao is True and dist_ap >= 2.0 * h):
         pend.append("fora da zona de tracao a >= 2h do apoio (13.2.5.1(a))")
-    if not (d <= 120.0 and d <= h / 3.0):
-        pend.append("dimensao %.0f mm excede o limite de dispensa "
-                    "(12 cm e h/3, 13.2.5.1(b))" % d)
+    if not (d <= _limite and d <= h / 3.0):
+        if _ed_canon == "2023+Em1":
+            pend.append("dimensao %.0f mm excede o limite de dispensa "
+                        "(%.0f mm %s e h/3, 13.2.5.1(b) 2023+Em1)" % (
+                            d, _limite,
+                            "circular" if str(forma_furo or "").strip().lower()
+                            == "circular" else "retangular"))
+        else:
+            pend.append("dimensao %.0f mm excede o limite de dispensa "
+                        "(12 cm e h/3, 13.2.5.1(b))" % d)
     if not furo_unico and dist_ff < 2.0 * h:
         pend.append("espacamento entre furos %.0f mm < 2h (13.2.5.1(c))" % dist_ff)
     if motivos or pend:
@@ -184,12 +231,14 @@ def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
                      "estrutural (reducao ao cisalhamento/flexao, 13.2.5; "
                      "bielas e tirantes, Secao 22)") % "; ".join(pend)] if pend
                 else motivos,
-                "clausulas": list(clausulas)}
+                "clausulas": list(clausulas),
+                "edicao": _ed_canon, "limite_mm": float(_limite)}
     return {"veredito": VER_ADMISSIVEL,
             "motivos": ["dispensa de verificacao adicional atendida "
                         "(13.2.5.1 a-d); manter armadura de contorno/cantos "
                         "(21.3.1) e boa concretagem"],
-            "clausulas": list(clausulas)}
+            "clausulas": list(clausulas),
+            "edicao": _ed_canon, "limite_mm": float(_limite)}
 
 
 def avalia_abertura_laje(dim_abertura_mm=None, vao_menor_mm=None,
@@ -343,7 +392,7 @@ def _hint_do_clash(clash, cruzamentos):
     return None
 
 
-def classifica_cruzamento(clash, cruzamento=None):
+def classifica_cruzamento(clash, cruzamento=None, edicao=None):
     """Categoria + veredito normativo de um clash (G55, criterio declarado).
 
     - esperado=True -> montagem (contato intencional, sem veredito).
@@ -353,6 +402,8 @@ def classifica_cruzamento(clash, cruzamento=None):
       em Slab -> furo (regra 13.2.5.2); em Column/Footing/Pile -> conflito
       (pilar/fundacao nao admite furo dispensado).
     - transversal fora de estrutura x instalacao -> conflito.
+    G123: edicao='2014'|'2023+Em1' (ausente = 2014, hoje); a forma do furo
+    ('circular' p/ 12,5 cm em 2023+Em1) vem do hint (forma_furo/forma).
     Retorna {"categoria","veredito","motivos","clausulas"}.
     """
     esperado = bool(clash.get("esperado"))
@@ -417,7 +468,10 @@ def classifica_cruzamento(clash, cruzamento=None):
                 dist_entre_furos_mm=hint.get("dist_entre_furos_mm"),
                 furo_unico=bool(hint.get("furo_unico", False)),
                 armadura_seccionada=hint.get("armadura_seccionada"),
-                sob_torcao=bool(hint.get("sob_torcao", False)))
+                sob_torcao=bool(hint.get("sob_torcao", False)),
+                edicao=(edicao if edicao is not None
+                        else hint.get("edicao")),
+                forma_furo=hint.get("forma_furo", hint.get("forma")))
         return {"categoria": CAT_FURO, "veredito": v["veredito"],
                 "motivos": v["motivos"], "clausulas": v["clausulas"]}
     return {"categoria": CAT_CONFLITO, "veredito": None,
@@ -452,7 +506,8 @@ def _acao_furo(da, db, veredito, motivos):
     return (acao, inst)
 
 
-def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None):
+def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
+                      edicao=None):
     """Uma pendencia rastreavel por clash. rep_clash = saida de
     checa_interferencia_federada. Ordena A REVISAR (por volume desc) antes dos
     esperados; ID CLH-NNN estavel pela ordem. Retorna lista de dicts.
@@ -461,6 +516,8 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None):
     {(a, b, tipos): {"direcao": "transversal"|"longitudinal", ...dims...}} -
     so com ela um clash vira furo_previsto; sem ela, o comportamento e'
     identico ao anterior (montagem x conflito).
+    G123: edicao='2014'|'2023+Em1' (ausente = 2014, hoje); vale para os furos
+    em viga desta chamada (a forma vem do hint; sem forma, 12 cm).
     """
     clashes = rep_clash.get("clashes", [])
     # a revisar primeiro (por volume desc), depois esperados (por volume desc)
@@ -472,7 +529,7 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None):
         da, db = _disciplinas_do_par(c.get("disciplinas", ""))
         esperado = bool(c.get("esperado"))
         hint = _hint_do_clash(c, cruzamentos)
-        cls = classifica_cruzamento(c, hint)
+        cls = classifica_cruzamento(c, hint, edicao=edicao)
         categoria = cls["categoria"]
         veredito = cls["veredito"]
         if categoria == CAT_FURO:

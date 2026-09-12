@@ -147,8 +147,11 @@ def _escopo(com_vento: bool = False, com_fundacao: bool = False,
     # G18: viga baldrame e recalque deixam de ser not_available quando declarados.
     # Declarados = implemented (fronteira calculada); nao declarados = not_available
     # (capacidade publicada, mas nao calculada). Mesmo formato do G9/G12.
-    escopo["viga_baldrame"] = "implemented" if com_baldrame else "not_available"
-    escopo["recalque_diferencial"] = "implemented" if com_recalque else "not_available"
+    # G124: as chaves saem de ESCOPO_FUNDACAO_ABERTO (fonte unica), nao de
+    # literais repetidos.
+    for _chave, _declarado in zip(ESCOPO_FUNDACAO_ABERTO,
+                                  (com_baldrame, com_recalque)):
+        escopo[_chave] = "implemented" if _declarado else "not_available"
     # G17: momento na base por pilar deixa de ser not_available quando ha vento
     # (portico heterogeneo, secao bruta) – alimenta a fundacao com M_x/M_y por
     # prumada e distingue canto vs centro. Sem vento, segue not_available.
