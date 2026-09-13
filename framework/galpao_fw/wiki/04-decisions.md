@@ -2719,3 +2719,73 @@ fora; a lista passou a ser `find tests -name 'test_*.py'`; (2) o galpao com
 freecad.exe (~2 GB de pico) nao cabe na memoria livre da maquina junto de
 outros aplicativos abertos, e o harness matava o lote em segundo plano: o
 G102 rodou isolado, como processo independente, e passou.
+
+## D158 - tempo de suite: o solver do pilar e o FSM das tercas, sem mover um bit (2026-09-13) - FECHADO
+
+Pedido do usuario: a suite atrasava o desenvolvimento; melhorar sem degradar
+a qualidade - item 1 (medir com `--durations`) e item 2 (rodada real
+compartilhada por sessao).
+
+**Medido antes (item 1).** Lotes da suite de 289 arquivos: 00 42:43, 04
+21:46, 05 12:26, 06 12:20; 01-03 e 07-09 somam ~26 min; o G102 isolado, 19
+min. O perfil de uma rodada do predio (`edificio_adapter.run_edificio`, 23,5
+s sem profiler) pos 99 % do tempo em `pilar_concreto._resultante_concreto`:
+500 396 chamadas, 30,5 milhoes de `_sigma_c` e 31 milhoes de `_eps_fibra`,
+com `eps_cu`/`eps_c2`/`expoente_n`/`alpha_c_pilar` recalculados por fibra;
+80,5 % das chamadas de `_N_M_resistente` repetiam argumentos exatos. Por
+isso cada teste do G12 levava ~29,5 s e o multipavimento ate 77 s - o custo
+nao era o `run_project`. No galpao metalico, `distorcional_fsm.
+curva_assinatura` (pycufsm) era 13,8 dos 18,5 s de um check do G15: 30
+chamadas em 3 checks, 5 argumentos distintos (83 % de repeticao).
+
+**Item 2 (rodada real compartilhada): NAO feito, com o motivo.** O
+levantamento achou 4 grupos de mesmo spec persistido com as mesmas opcoes
+RESOLVIDAS entre arquivos (predio com 2D, 7 usos; casa com 2D com e sem
+IFC, 6 e 5; predio so IFC, 2) - e so um teste escreve numa pasta de rodada
+real (o `test_06` do G102). Com o predio a ~7 s depois da otimizacao,
+compartilhar economiza segundos e poe estado entre testes; as rodadas do
+galpao que sobram sao injecoes diferentes. O helper escrito foi removido
+antes de qualquer teste usa-lo.
+
+**O que mudou (so tempo; nenhum numero).**
+1. `pilar_concreto._resultante_concreto`: o que nao depende da fibra sai do
+   laco; por fibra, as mesmas operacoes de ponto flutuante na mesma ordem.
+   `_N_M_resistente` memorizado (`lru_cache(maxsize=65536, typed=True)`:
+   funcao pura de floats, devolve tupla imutavel).
+2. `distorcional_fsm.curva_assinatura`: a conta em `_curva_assinatura_calc`,
+   memorizada (`maxsize=256`); a publica devolve COPIAS dos arrays.
+
+**Prova de que nao degrada.**
+(a) Predio inteiro: sha256 de `json.dumps(run_edificio(...))` identico no
+HEAD (duas execucoes, determinismo conferido) e na arvore, `c679562d...`,
+516 083 bytes; 23,5 s -> 4,6 s.
+(b) `tests/test_pilar_solver_equivalencia_d158.py`: a integral `==` o laco
+original (que chama as primitivas por fibra) em 448 casos (C20-C90, dominios
+2, 3/4 e 5, fronteiras x23 e h); cache `==` `__wrapped__` frio e quente;
+dimensionamento completo igual com cache limpo e cheio; e o VERMELHO: uma
+operacao reordenada, algebricamente igual, e acusada pelo `==`.
+(c) `tests/test_fsm_cache_d158.py`: cache igual a funcao crua (arrays e My);
+mexer no array recebido nao contamina a proxima chamada; `mdist` igual frio e
+quente. A injecao do `test_fsm_injecao_sem_minimos_vira_erro` troca
+`_minimos_locais`, que atua depois da curva, e segue valendo.
+(d) 3 checks do G15 com o cache x sem ele (`__wrapped__`, mesma arvore - o
+HEAD extraido fora do repo nao roda estes checks, caminhos ancorados no
+repo): sha256 identico nos 3; 62,9 s -> 29,3 s.
+
+**Depois (mesmos lotes, mesma contagem).** 00: 42:43 -> 11:07 (522 = 522);
+04: 21:46 -> 7:25 (401 = 401).
+
+**Suite inteira depois (lista nominal, lida inteira - convencao 10): 3802
+passed, 0 falhas, 291 arquivos, 2832 s (47 min).** Lotes de 30 arquivos:
+586 + 351 + 328 + 389 + 334 + 436 + 512 + 325 + 282 + 259; 3802 = os 3795
+do D157 + os 7 testes novos de equivalencia (4 do pilar, 3 do FSM). A suite
+do D157, na mesma maquina, somou ~8269 s (2 h 18 min) por lotes: -66 %. O
+que sobra de maior e o G102 (a rodada real das 3 tipologias com freecad.exe,
+~19 min no lote 6) e os builds do FreeCAD, que o Python nao acelera.
+
+**Licao de metodo.** Paralelizar ou compartilhar fixture antes de perfilar
+teria atacado o custo errado: a suite era lenta por um laco puro do solver,
+chamado dezenas de vezes por teste. Numa maquina de 8 GB, `-n auto` so
+trocaria lentidao por processo morto. Otimizacao de conta so entra com prova
+de numero identico (hash do resultado inteiro + `==` contra a implementacao
+anterior + vermelho de uma reordenacao).

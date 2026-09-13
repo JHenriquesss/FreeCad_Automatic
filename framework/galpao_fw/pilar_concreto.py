@@ -26,6 +26,7 @@ armadura por compatibilidade de deformacoes. Unidades: m, kN, fck/fyk em kN/m2."
 
 from __future__ import annotations
 
+import functools
 import math
 
 import fctm_nbr6118_g127
@@ -254,20 +255,52 @@ def _sigma_c(eps, fcd, fck=None):
 def _resultante_concreto(x, b, h, d, fck, n=60):
     """Integra o diagrama parabola-retangulo na zona comprimida (regra do ponto
     medio, n faixas): retorna (Rcc [kN], Mcc [kN.m] em relacao ao CG).
-    Diagrama 8.2.10.1/17.2.2 por fck (G50)."""
+    Diagrama 8.2.10.1/17.2.2 por fck (G50).
+
+    D158 (tempo de suite, medido): esta integracao era 99 % do custo de uma
+    rodada do predio (500 mil chamadas, 30 milhoes de _sigma_c/_eps_fibra,
+    com eps_cu/eps_c2/expoente_n/alpha_c recalculados por fibra). O laco
+    abaixo e o de _eps_fibra + _sigma_c com o que NAO depende da fibra
+    calculado uma vez - as mesmas operacoes de ponto flutuante, na mesma
+    ordem, por fibra. Resultado bit a bit identico, travado contra o laco
+    original em tests/test_pilar_solver_equivalencia_d158.py."""
     fcd = fck / GAMMA_C
     dz = h / n
+    # --- invariantes de _eps_fibra (dependem de x, d, h, fck; nao de z) ---
+    fck_MPa = fck / 1000.0 if fck is not None else None
+    ecu = eps_cu(fck_MPa)
+    ec2 = eps_c2(fck_MPa)
+    x23 = d * ecu / (ecu + EPS_SU)
+    if x <= x23:
+        k = EPS_SU / (d - x) if d > x else ecu / max(x, 1e-12)
+    elif x <= h:
+        k = ecu / x
+    else:
+        k = ec2 / (x - 3.0 * h / 7.0)
+    # --- invariantes de _sigma_c (dependem de fck; nao da deformacao) ---
+    nn = expoente_n(fck_MPa)
+    ac = alpha_c_pilar(fck_MPa)
     Rcc = 0.0
     Mcc = 0.0
     for i in range(n):
         z = (i + 0.5) * dz
-        s = _sigma_c(_eps_fibra(z, x, d, h, fck), fcd, fck)
+        eps = k * (x - z)
+        if eps <= 0.0:
+            s = 0.0
+        elif eps >= ec2:
+            s = ac * fcd
+        else:
+            s = ac * fcd * (1.0 - (1.0 - eps / ec2) ** nn)
         f = s * b * dz
         Rcc += f
         Mcc += f * (h / 2.0 - z)
     return Rcc, Mcc
 
 
+# D158: funcao pura de floats que devolve tupla imutavel; 80,5 % das chamadas
+# de uma rodada do predio repetiam argumentos exatos (bisseccao em As sobre
+# bisseccao em x). typed=True: 0 e 0.0 nao dividem entrada.
+@functools.lru_cache(maxsize=65536, typed=True)
 def _N_M_resistente(x, As, b, h, dl, fck, fyk):
     """Esforcos resistentes (NRd, MRd em relacao ao CG) da secao retangular b*h com
     As/2 em cada face (a dl das bordas), para linha neutra x. Concreto pelo diagrama

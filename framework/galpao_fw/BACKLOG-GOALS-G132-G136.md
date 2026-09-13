@@ -66,6 +66,10 @@ de cada fonte única que o goal tocar (`test_edicao_nbr6118_g123.py`,
 `test_edicao_tipologias_g128.py`, `test_cimento_nbr6118_g126.py`,
 `test_fctm_fonte_unica_g127.py`).
 
+**Otimização de conta (D158):** só com prova de número idêntico — hash do resultado inteiro
+antes e depois, `==` contra a implementação anterior e o vermelho de uma reordenação. O molde
+está em `tests/test_pilar_solver_equivalencia_d158.py` e `tests/test_fsm_cache_d158.py`.
+
 **O verbete é parte da entrega.** **Uma fonte só:** dado que o cliente recebe mora na
 produção; lente e teste importam de lá.
 

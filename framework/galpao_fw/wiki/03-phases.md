@@ -771,6 +771,12 @@ de cimento. Ficaram medidos para o G132–G136: a chave 2023+Em1 carimba a ediç
 trocando só dois pontos; a viga protendida calculada em C40 num projeto C30; a pergunta do
 cimento no fluxo metálico, sem conta.
 
+**Tempo de suíte ([[04-decisions#D158]]).** Medido com `--durations` e perfil, antes de
+mexer: 99 % de uma rodada do prédio era um laço puro do solver do pilar, e o FSM das terças
+repetia 83 % das chamadas. Os invariantes saíram do laço e as duas contas puras foram
+memorizadas, com o resultado inteiro do prédio e dos checks do G15 idêntico por hash. Lote 00
+42:43 → 11:07; lote 04 21:46 → 7:25. A rodada real compartilhada ficou de fora, com o motivo.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

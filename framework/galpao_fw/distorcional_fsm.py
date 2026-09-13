@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 
 try:
@@ -50,10 +52,26 @@ def secao_ue(bw, bf, D, t, nw=12, nf=6, nl=4):
 
 def curva_assinatura(bw, bf, D, t, fy=250.0, E=200000.0, nu=0.3,
                      Lmin=20.0, Lmax=4000.0, n=80):
-    """Roda a curva assinatura (FSM, flexao Mxx). Retorna lengths, LF, My."""
+    """Roda a curva assinatura (FSM, flexao Mxx). Retorna lengths, LF, My.
+
+    D158 (tempo de suite, medido): 3 checks do G15 chamavam esta funcao 30
+    vezes com 5 argumentos distintos (83 % de repeticao - cada rodada de
+    galpao avalia o mesmo catalogo de tercas Ue duas vezes), ~1,4 s por
+    chamada. A conta mora em `_curva_assinatura_calc`, memorizada (funcao
+    pura dos argumentos); aqui saem COPIAS dos arrays, entao quem mexer no
+    que recebeu nao contamina a proxima chamada. Mesmo numero, travado em
+    tests/test_fsm_cache_d158.py."""
     if not _HAS_PYCUFSM:
         raise RuntimeError("pycufsm indisponivel. "
                            "Instale: pip install pycufsm (numpy 1.x ou 2.x)")
+    lengths, LF, My = _curva_assinatura_calc(bw, bf, D, t, fy, E, nu,
+                                             Lmin, Lmax, n)
+    return lengths.copy(), LF.copy(), My
+
+
+@functools.lru_cache(maxsize=256, typed=True)
+def _curva_assinatura_calc(bw, bf, D, t, fy, E, nu, Lmin, Lmax, n):
+    """A curva assinatura de fato (FSM), sem copia: so curva_assinatura chama."""
     G = E / (2 * (1 + nu))
     coord, ends = secao_ue(bw, bf, D, t)
     nn = len(coord)
