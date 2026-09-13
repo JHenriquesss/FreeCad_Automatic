@@ -31,6 +31,11 @@ except ImportError:  # uso isolado fora do pacote
     _edicao_de_spec_g123 = None
     _rotulo_ed_g123 = None
 
+try:
+    import exigencias_nao_verificadas_g130 as _exig_g130
+except ImportError:  # uso isolado fora do pacote
+    _exig_g130 = None
+
 # prefixo de prancha e titulo por disciplina
 _PRANCHAS = {
     "arquitetura": ("PE-AR", ["Planta de implantacao", "Planta baixa", "Cortes e fachadas"]),
@@ -245,7 +250,8 @@ def memorial_consolidado(R, spec=None):
 
 
 def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
-                 pendencias=None, edicao=None):
+                 pendencias=None, edicao=None, tipologia=None,
+                 cimento_calculado=None):
     """Monta o pacote legal completo. disciplinas: chaves (default: as de _ART); se
     R (turnkey) for dado, usa as executadas e inclui o memorial consolidado.
 
@@ -261,7 +267,25 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
     G123 (chave DESLIGADA): `edicao` = '2014' ou '2023+Em1'; ausente = a
     edicao declarada no `spec` (norma_6118_edicao) ou, sem ela, o
     comportamento de hoje (2014) declarado na folha (sem default silencioso).
-    O carimbo mora na fonte unica edicao_nbr6118_g123."""
+    O carimbo mora na fonte unica edicao_nbr6118_g123.
+
+    G126: o cimento do fckj sai da chave "cimento" do `spec`; ausente = piso
+    conservador declarado (nunca CPV); invalido levanta. A linha mora na
+    fonte unica cimento_nbr6118_g126.
+
+    G130: `tipologia` = 'casa'/'predio'/'galpao' ("edificio" e alias de
+    "predio"); ausente = a uniao das tres (o pacote nunca esconde divida
+    por falta de rotulo). Cada divida de ORFAS_TRIADAS aplicavel a
+    tipologia sai em exigencias_nao_verificadas (fonte unica
+    exigencias_nao_verificadas_g130, que le ORFAS ao vivo). Invalida
+    levanta; divida nova sem triagem aparece em sem_triagem (vermelho por
+    injecao). Nao implementa verificacao nenhuma."""
+    if tipologia is not None and _exig_g130 is not None:
+        _tip_canon = _exig_g130.normaliza_tipologia(tipologia)
+    elif tipologia is not None:
+        _tip_canon = str(tipologia).strip().lower()
+    else:
+        _tip_canon = None
     if disciplinas is None:
         disciplinas = (R.get("executadas") if R else None) or list(_ART.keys())
     disciplinas = [d for d in _ORDEM_DISC if d in disciplinas] or list(_ART.keys())
@@ -294,6 +318,27 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
             if not _ed_resolvida else
             ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
              "projeto)" % _ed_resolvida))
+    # G126/G131: o cimento que o pacote declara e o que o CALCULO usou
+    # (`cimento_calculado`, do resultado); sem ele, casa/predio declaram que
+    # nao ha icamento calculado e o resto le o spec (ausente = piso dito).
+    # Declarado no spec x usado na conta divergentes LEVANTA (fonte unica,
+    # sem copia literal da linha aqui).
+    from cimento_nbr6118_g126 import cimento_da_entrega as _cim_ent_pl
+    from cimento_nbr6118_g126 import linha_cimento as _lin_cim_pl
+    _cim_res = _cim_ent_pl(cimento_calculado, spec, _tip_canon)
+    _cim_linha = _lin_cim_pl(_cim_res)
+    pac["cimento"] = _cim_res
+    pac["linha_cimento"] = _cim_linha
+    # G130: as dividas aplicaveis a tipologia saem no pacote como exigencia
+    # nao verificada (fonte unica; sem tipologia = a uniao; invalida levanta
+    # acima; divida nova sem triagem viaja em sem_triagem).
+    if _exig_g130 is not None:
+        pac["tipologia_exigencias"] = _tip_canon
+        pac["exigencias_nao_verificadas"] = \
+            _exig_g130.exigencias_para_tipologia(_tip_canon)
+    else:
+        pac["tipologia_exigencias"] = _tip_canon
+        pac["exigencias_nao_verificadas"] = []
     if pendencias:
         pac["pendencias_aprovacao"] = list(pendencias)
     if R is not None:
@@ -469,9 +514,10 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     carimbo, cobre, motivo}]} com a tabela de numeracao propria que o
     cliente recebe (galpao: numeracao por arquivo de producao vs indice por
     disciplina). Quando None (default, casa/predio e chamadas antigas), a
-    saida e byte-identica a de antes - nenhuma secao nova, EXCETO a secao
-    G123 (edicao da NBR 6118), que e declaracao obrigatoria e sai sempre
-    (a ausencia reprova no portao G123)."""
+    saida e byte-identica a de antes - nenhuma secao nova, EXCETO as secoes
+    G123 (edicao da NBR 6118), G126 (cimento do fckj) e G130 (exigencias
+    nao verificadas), que sao declaracao obrigatoria e saem sempre (a
+    ausencia reprova no portao)."""
     L = ["# %s" % titulo, ""]
     # G123: declaracao obrigatoria da edicao de calculo (fonte unica; sem o
     # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
@@ -486,6 +532,18 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     L.append("## Norma de calculo do concreto (G123)")
     L.append("")
     L.append(str(_carimbo_txt))
+    L.append("")
+    # G126: declaracao obrigatoria do cimento do fckj (fonte unica; sem o
+    # cimento, o piso conservador, com a ausencia dita).
+    _cim_txt = pac.get("linha_cimento")
+    if not _cim_txt:
+        # G131: pacote montado fora de gerar_pacote declara pela fonte unica
+        # (sem copia literal da linha aqui).
+        from cimento_nbr6118_g126 import linha_cimento as _lin_cim_md
+        _cim_txt = _lin_cim_md(pac.get("cimento"))
+    L.append("## Cimento do concreto (G126)")
+    L.append("")
+    L.append(str(_cim_txt))
     L.append("")
     if "memorial_consolidado" in pac:
         m = pac["memorial_consolidado"]
@@ -533,6 +591,26 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     L.append("## Manual de O&M")
     for o in pac["manual_oem"]:
         L.append("- %s (%s): %s" % (o["sistema"], o["periodicidade"], o["rotina"]))
+    # G130: declaracao obrigatoria das exigencias nao verificadas (fonte
+    # unica; sem tipologia = a uniao; a ausencia reprova no portao).
+    L.append("")
+    if _exig_g130 is not None:
+        _tip_sec = pac.get("tipologia_exigencias")
+        try:
+            _sec130 = _exig_g130.markdown_secao(_tip_sec)
+        except ValueError:
+            raise
+        # markdown_secao ja traz o titulo; carimba as linhas da fonte unica.
+        # Quando o pacote foi montado sem a fonte (uso isolado), cai no
+        # ramo abaixo com as exigencias que viajaram no dict.
+        L.append(_sec130)
+    else:
+        L.append("## %s" % ("Exigências não verificadas pelo framework (G130)"))
+        L.append("")
+        for it in pac.get("exigencias_nao_verificadas") or []:
+            L.append("- %s (%s): %s — %s [não verificada pelo framework]"
+                     % (it.get("nome"), it.get("arquivo"), it.get("motivo"),
+                        it.get("endereco")))
     if correspondencia is not None:
         L.append("")
         L.append("## Correspondencia de numeracao do executivo (G112)")

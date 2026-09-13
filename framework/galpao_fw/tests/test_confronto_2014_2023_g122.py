@@ -8,20 +8,22 @@ p.106, 18.2.3/18.2.4 p.146-147, todas lidas em 200 dpi). Este goal NAO troca
 base normativa de modulo nenhum.
 
 Entregue:
-  1. LENTE (confronto_2014_2023_g122.py, fonte unica): CONFRONTO_G122 (45) +
-     FAMILIAS_G122 + MODULOS_POR_FAMILIA + cobre_inventario (cada OK chega
-     ao veredito global - contra saturacao silenciosa) + caso C5 que chama
-     a funcao REAL (premoldado_nbr9062._fctm para 2014; a prescricao literal
-     da 2023 para o novo numero - contra assercao tautologica).
-  2. PORTAO (test_01): o inventario wiki real cobre as 45 + modulos +
-     enderecos das divergentes.
-  3. BASELINE (test_02, nos dois sentidos): 45 familias congeladas; cada
-     familia num item so; divergentes = 1 NUMERO-MUDA (8.2.5) + 3
-     REGRA-MUDA/EDITORIAL com imagem (8.2.8/15.7.2/15.4.2/15.7.3/18.2.4).
-  4. INJECAO (test_03, tmp_path, nunca o repo): familia ou modulo removido
-     = vermelho (o acumulador faltando_* dispara); intacto = verde.
-  5. CASOS (test_04): C5 fctm C60 4,300 (2014, funcao real) vs 4,355 MPa
-     (2023, prescricao), +1,3%.
+   1. LENTE (confronto_2014_2023_g122.py, fonte unica): CONFRONTO_G122 (45) +
+      FAMILIAS_G122 + MODULOS_POR_FAMILIA + cobre_inventario (cada OK chega
+      ao veredito global - contra saturacao silenciosa) + caso C5 que chama
+      a funcao REAL (fctm_nbr6118_g127.fctm para 2014; a prescricao literal
+      da 2023 para o novo numero - contra assercao tautologica).
+   2. PORTAO (test_01): o inventario wiki real cobre as 45 + modulos +
+      enderecos das divergentes.
+   3. BASELINE (test_02, nos dois sentidos): 45 familias congeladas; cada
+      familia num item so; divergentes = 1 NUMERO-MUDA (8.2.5) + 3
+      REGRA-MUDA/EDITORIAL com imagem (8.2.8/15.7.2/15.4.2/15.7.3/18.2.4).
+   4. INJECAO (test_03, tmp_path, nunca o repo): familia ou modulo removido
+      = vermelho (o acumulador faltando_* dispara); intacto = verde.
+   5. CASOS (test_04): C5 fctm C60 4,300 (2014, funcao real) vs 4,355 MPa
+      (2023, prescricao), +1,3%.
+   6. G127: a conta C55+ mora na fonte unica fctm_nbr6118_g127 (test_05
+      atualizado: 1 sitio, nao 10; os 10 modulos a chamam).
 
 O que a lente NAO cobre: clausulas que o framework nao cita; miolo de
 formulas/tabelas/figuras (limite declarado por familia, ver imagem); a
@@ -133,25 +135,27 @@ def test_05_conta_da_8_2_5_x_inventario_consegue_acusar(tmp_path):
     """G125 (auditoria do G122): o item NUMERO-MUDA listava 6 modulos e a
     formula C55+ morava em 10 (mais o desenho_piso, que so cita). A lente
     procura a CONTA, nao a citacao, e acusa nos dois sentidos; o endereco
-    da divergente e cobrado na linha da familia, nao em qualquer lugar."""
+    da divergente e cobrado na linha da familia, nao em qualquer lugar.
+    G127: a conta mora na fonte unica fctm_nbr6118_g127 (os 10 modulos a
+    chamam); o item lista a fonte + quem so cita."""
     quebras = []
     real = lente.confere_sites_8_2_5()
     if not real["OK"]:
         quebras.append("arvore real: %r" % real)
-    if len(real["sites"]) != 10:
-        quebras.append("sites da formula=%d, esperado 10: %r"
-                       % (len(real["sites"]), sorted(real["sites"])))
-    # modulo novo com a conta, fora do inventario -> nao_inventariados
+    if sorted(real["sites"]) != ["fctm_nbr6118_g127"]:
+        quebras.append("sites da formula=%r, esperado ['fctm_nbr6118_g127']"
+                       % (sorted(real["sites"]),))
+    # modulo novo com a conta, fora da fonte unica -> nao_inventariados
     (tmp_path / "modulo_novo.py").write_text(
         "import math" + chr(10)
         + "fctm = 2.12 * math.log(1.0 + 0.11 * 60.0)" + chr(10),
         encoding="utf-8")
     novo = lente.confere_sites_8_2_5(str(tmp_path))
     if "modulo_novo" not in novo["nao_inventariados"]:
-        quebras.append("conta fora do inventario nao acusou: %r" % novo)
-    # nenhum modulo do item tem a conta neste diretorio -> sem_formula
-    if len(novo["sem_formula"]) != 10 or novo["OK"]:
-        quebras.append("item sem a conta nao acusou: %r" % novo)
+        quebras.append("conta fora da fonte unica nao acusou: %r" % novo)
+    # a fonte unica sem a conta neste diretorio -> sem_formula
+    if novo["sem_formula"] != ["fctm_nbr6118_g127"] or novo["OK"]:
+        quebras.append("fonte sem a conta nao acusou: %r" % novo)
     # conta so em comentario nao e conta
     (tmp_path / "modulo_novo.py").write_text(
         "# fctm = 2.12 * math.log(1.0 + 0.11 * fck)" + chr(10),

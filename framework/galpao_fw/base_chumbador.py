@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import math
 
+import fctm_nbr6118_g127
+
 GA2 = 1.35         # coef. ruptura (parafuso), NBR 8800
 GA1 = 1.10         # coef. escoamento
 GC = 1.40          # concreto (NBR 6118)
@@ -79,8 +81,8 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     alpha). Fecha o lado do CONCRETO que faltava (o modulo so tinha aco/placa).
 
       - 9.3.2.1  fbd = eta1*eta2*eta3*fctd ; fctd = fctk,inf/gamma_c ,
-                 fctk,inf = 0,7*fctm , fctm = 0,3*fck^(2/3) [MPa, fck<=50] ;
-                 fck>50: fctm = 2,12*ln(1+0,11*fck) (NBR 6118 8.2.5, G49) ;
+                 fctk,inf = 0,7*fctm , fctm pela fonte unica
+                 fctm_nbr6118_g127 (NBR 6118 8.2.5, G127) ;
                  eta1 = 1,0 (barra LISA = chumbador liso; nervurada seria 2,25) ;
                  eta2 = 1,0 boa aderencia / 0,7 ma ; eta3 = 1,0 (phi<32 mm) ;
       - 9.4.2.4  lb = (phi/4)*(fyd/fbd) ;
@@ -93,10 +95,7 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     Unidades: db,h_embed em m ; fck,fyk em kN/m2 ; Ft_sd em kN."""
     phi = db
     fck_MPa = fck / 1000.0
-    if fck_MPa <= 50.0:
-        fctm = 0.3 * fck_MPa ** (2.0 / 3.0)              # MPa (8.2.5, ate C50)
-    else:
-        fctm = 2.12 * math.log(1.0 + 0.11 * fck_MPa)    # MPa (8.2.5, C55-C90, G49)
+    fctm = fctm_nbr6118_g127.fctm_MPa(fck_MPa)    # MPa (8.2.5, fonte unica G127)
     fctd = 0.7 * fctm / GC * 1000.0                  # kN/m2
     eta3 = 1.0 if db < 0.032 else (132.0 - db * 1000.0) / 100.0
     fbd = eta1 * eta2 * eta3 * fctd

@@ -50,9 +50,9 @@
 #
 # Maquina: cobre_inventario(texto) e o portao - cada familia e cada modulo
 # precisa aparecer no texto do inventario; cada familia com veredito
-# NUMERO-MUDA ou REGRA-MUDA precisa vir com endereco arquivo:linha; o OK
-# por item chega ao veredito global (contra a saturacao silenciosa do
-# G113). caso_fctm_c60 chama a funcao REAL (premoldado_nbr9062._fctm para
+# NUMERO-MUDA ou REGRA-MUDA precisa vir com endereco arquivo:linha (".py:");
+# o OK por item chega ao veredito global (contra a saturacao silenciosa do
+# G113). caso_fctm_c60 chama a funcao REAL (fctm_nbr6118_g127.fctm para
 # 2014; a prescricao literal da 2023 para o novo numero) - a lente nao
 # reimplementa formula do framework (contra assercao tautologica). O
 # instrumento acusa: faltando_familias / faltando_modulos / sem_endereco
@@ -75,6 +75,8 @@ import math
 import pathlib
 import re
 import unicodedata
+
+import fctm_nbr6118_g127 as _fonte_fctm
 
 GALPAO = pathlib.Path(__file__).resolve().parent
 
@@ -100,20 +102,15 @@ CONFRONTO_G122 = (
      "F016 p.23 PDF41 / F150 p.23 PDF41",
      (("build_concreto", "8.2.2"),)),
     ("8.2.5", "NUMERO-MUDA",
-     "fct,m C55+: 2014 '2,12 ln (1 + 0,11 fck)' x 2023 '2,12 ln [1 + 0,1 "
-     "(fck + 8)]' + limiar 'classes ate C50 / C55 a C90' -> 'fck ate 50 / fck "
-     "acima de 50 MPa'. Confirmado na imagem F016 p.23 PDF41 x F150 p.23 PDF41. Caso C5: "
-     "C60 da 4,30 MPa (2014) contra 4,35 MPa (2023), +1,3%.",
-     "F016 p.23 PDF41 / F150 p.23 PDF41",
-     (("base_chumbador", "8.2.5"), ("fundacao_sapata", "8.2.5"),
-      ("piso_industrial", "8.2.5"), ("premoldado_nbr9062", "8.2.5"),
-      ("viga_protendida", "8.2.5"), ("desenho_piso", "8.2.5"),
-      # G125 (auditoria do G122): cinco modulos que CALCULAM a formula C55+
-      # e nao estavam aqui - o inventario partiu do grep "6118", e estes
-      # citam so "8.2.5" na linha da conta. Achados por sites_formula_fctm.
-      ("estaca_profunda", "8.2.5"), ("fissuracao_nbr6118", "8.2.5"),
-      ("laje_concreto", "8.2.5"), ("pilar_concreto", "8.2.5"),
-      ("viga_baldrame", "8.2.5"))),
+      "fct,m C55+: 2014 '2,12 ln (1 + 0,11 fck)' x 2023 '2,12 ln [1 + 0,1 "
+      "(fck + 8)]' + limiar 'classes ate C50 / C55 a C90' -> 'fck ate 50 / fck "
+      "acima de 50 MPa'. Confirmado na imagem F016 p.23 PDF41 x F150 p.23 PDF41. Caso C5: "
+      "C60 da 4,30 MPa (2014) contra 4,35 MPa (2023), +1,3%. "
+      "G127: a conta mora na fonte unica fctm_nbr6118_g127; os 10 modulos "
+      "a chamam (ver MODULOS_VIA_FONTE la); a 2023 segue sem migrar.",
+      "F016 p.23 PDF41 / F150 p.23 PDF41",
+      (("fctm_nbr6118_g127", "8.2.5"),
+       ("desenho_piso", "8.2.5"))),
     ("8.2.8", "EDITORIAL",
      "Eci: ensaio 'NBR 8522' -> 'NBR 8522-1 e 8522-2'; faixas '20-50 e 55-90'"
      " -> 'ate 50 e acima de 50' (fecha o gap 51-54; formulas identicas). Confirmado "
@@ -404,17 +401,21 @@ def cobre_inventario(texto_inventario):
 #: G125: modulos que CITAM a 8.2.5 sem calcular fct,m (desenho da folha).
 CITAM_SEM_CALCULAR_8_2_5 = ("desenho_piso",)
 
-_RE_FCTM_C55 = re.compile(
-    r"2\.12\s*\*\s*math\.log\(\s*1(?:\.0)?\s*\+\s*0\.11\s*\*")
+#: G127: o detector da conta e o da fonte unica (um detector so: dois
+#: detectores divergiriam no primeiro espacamento diferente).
+_RE_FCTM_C55 = _fonte_fctm.RE_FCTM_C55
 
 
 def sites_formula_fctm(raiz=None):
-    """Modulos de producao que CALCULAM fct,m C55+ pela formula de 2014.
+    """Modulos de producao que CONTEM fct,m C55+ pela formula de 2014.
 
     G125 (auditoria do G122): o item NUMERO-MUDA listava 6 modulos e a
     formula morava em 11 - o inventario partiu das citacoes de "6118", e
     quem cita so "8.2.5" na linha da conta ficou de fora. Esta varredura
-    procura a CONTA, nao a citacao. Devolve {modulo: [linhas]}."""
+    procura a CONTA, nao a citacao. Devolve {modulo: [linhas]}.
+    G127: a conta mora na fonte unica fctm_nbr6118_g127; no repo real o
+    esperado e {fonte: [...]} e copia nova fora dela cai em
+    nao_inventariados (ver confere_sites_8_2_5)."""
     base = pathlib.Path(raiz) if raiz is not None else pathlib.Path(
         __file__).resolve().parent
     achados = {}
@@ -436,8 +437,11 @@ def sites_formula_fctm(raiz=None):
 def confere_sites_8_2_5(raiz=None):
     """Conta x inventario da 8.2.5, nos dois sentidos (convencao 7).
 
-    `nao_inventariados`: modulo que calcula a formula e nao esta no item;
-    `sem_formula`: modulo do item (fora dos que so citam) sem a conta."""
+    G127: o item lista a fonte unica (que CONTEM a conta) + quem so cita;
+    os 10 modulos chamam a fonte (ver MODULOS_VIA_FONTE e o portao
+    fctm_nbr6118_g127.confere_uso_fctm).
+    `nao_inventariados`: modulo com a conta fora da fonte unica;
+    `sem_formula`: a fonte sem a conta."""
     sites = sites_formula_fctm(raiz)
     item = dict((f, mods) for f, _v, _d, _p, mods in CONFRONTO_G122)["8.2.5"]
     listados = {m for m, _c in item}
@@ -451,10 +455,10 @@ def confere_sites_8_2_5(raiz=None):
 
 def caso_c5_fctm_c60():
     """8.2.5: fct,m aos 60 MPa. 2014: 2,12*ln(1+0,11*fck). 2023 pre-Emenda:
-    2,12*ln[1+0,1*(fck+8)]. O numero 2014 vem da funcao REAL."""
-    import premoldado_nbr9062 as pm
+    2,12*ln[1+0,1*(fck+8)]. O numero 2014 vem da funcao REAL (a fonte
+    unica; os 10 modulos a chamam)."""
     fck_MPa = 60.0
-    f2014 = float(pm._fctm(fck_MPa * 1000.0)) / 1000.0
+    f2014 = float(_fonte_fctm.fctm(fck_MPa * 1000.0)) / 1000.0
     f2023 = 2.12 * math.log(1.0 + 0.1 * (fck_MPa + 8.0))
     return {"fctm_2014_MPa": float(f2014),
             "fctm_2023_MPa": float(f2023)}

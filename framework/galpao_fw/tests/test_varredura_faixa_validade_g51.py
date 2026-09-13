@@ -53,8 +53,10 @@ def test_01_ferramenta_enxerga_piso_e_classifica():
     # theta, depois do fix: guardada (virava desguardada antes do G51)
     theta = _por("verifica_torcao")
     assert theta and all(d["balde"] == "guardada" for d in theta), theta
-    # referencias G49/G50 ja certas seguem guardadas
-    assert any(d["balde"] == "guardada" for d in _por("_fctm", "viga_protendida.py"))
+    # referencias G49/G50 ja certas seguem guardadas (G127: a fct,m mora
+    # na fonte unica; o limiar entre os ramos e guardado em fctm_MPa)
+    assert any(d["balde"] == "guardada"
+               for d in _por("fctm_MPa", "fctm_nbr6118_g127.py"))
     assert any(d["balde"] == "guardada" for d in _por("eci_MPa", "fissuracao_nbr6118.py"))
 
 

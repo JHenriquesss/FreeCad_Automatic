@@ -670,7 +670,7 @@ def motivos_arquitetura_faltante(turnkey, site=None):
 # nomeado, e gerar_desenhos_casa a registra em `skipped`, nunca em disco.
 
 
-def armacao_vigas_pilares_casa_svg(estrutura, titulo=None):
+def armacao_vigas_pilares_casa_svg(estrutura, titulo=None, edicao=None):
     """PE-CO-02 da casa: a combinada de armacao vigas+pilares (G110, N:1).
 
     Le `estrutura["vigas"]` (o `por_linha` de `estrutura_casa.verifica_vigas`,
@@ -700,10 +700,11 @@ def armacao_vigas_pilares_casa_svg(estrutura, titulo=None):
                      "(%d tramos VERIFICADOS / %d pilares VERIFICADOS)"
                      % (int(vigas.get("n_tramos") or 0),
                         len(pilares) if isinstance(pilares, dict) else 0))
-    return dp.prancha_armacao_vigas_pilares_svg(vigas, pilares, titulo=tit)
+    return dp.prancha_armacao_vigas_pilares_svg(vigas, pilares, titulo=tit,
+                                               edicao=edicao)
 
 
-def detalhes_concreto_casa_svg(estrutura, titulo=None):
+def detalhes_concreto_casa_svg(estrutura, titulo=None, edicao=None):
     """PE-CO-03 da casa: a planta da laje do predio, com o dado da casa
     (G100).
 
@@ -725,11 +726,11 @@ def detalhes_concreto_casa_svg(estrutura, titulo=None):
     # G111, opcao (a): com todos os paineis detalhados a folha lista os
     # N quadros; resultado antigo (sem a chave) segue na folha de 1.
     if isinstance(lajes, dict) and lajes.get("paineis"):
-        return dc.planta_lajes_todos_paineis_svg(lajes)
-    return dc.planta_laje_svg(laje)
+        return dc.planta_lajes_todos_paineis_svg(lajes, edicao=edicao)
+    return dc.planta_laje_svg(laje, edicao=edicao)
 
 
-def fundacao_locacao_formas_casa_svg(estrutura, titulo=None):
+def fundacao_locacao_formas_casa_svg(estrutura, titulo=None, edicao=None):
     """PE-CO-04 da casa: a planta de locacao/formas do predio, com o dado
     da casa (G100).
 
@@ -753,10 +754,12 @@ def fundacao_locacao_formas_casa_svg(estrutura, titulo=None):
             "%s; sem pilares dimensionados nao ha folha PE-CO-04" % detalhe)
     import desenho_fundacao_edificio as dfe
 
-    return dfe.planta_fundacao_svg(fundacao, estrutura, titulo=titulo)
+    return dfe.planta_fundacao_svg(fundacao, estrutura, titulo=titulo,
+                                   edicao=edicao)
 
 
-def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
+def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
+                      edicao=None) -> dict:
     """Escreve as pranchas da casa em `out_dir`.
 
     Retorna ``{"files": [...], "skipped": {...}}``. Cada prancha ausente traz o
@@ -767,12 +770,27 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
     layout eletrico validado que viaja no resultado. A triagem de implantacao
     e cortes (PE-AR-01/PE-AR-03) tambem precisa dele (e de `site`, o bloco de
     sitio na raiz do spec); sem os dois essas folhas ficam sem motivo neste
-    dicionario e o hook da casa completa o laco."""
+    dicionario e o hook da casa completa o laco.
+
+    `edicao` (G128): '2014' ou '2023+Em1' declarada no projeto, da fonte
+    unica; ausente, resolve do `turnkey` (e sem ele, o comportamento de
+    hoje, 2014 declarado nas folhas de concreto). Invalida levanta
+    (nao vira edicao em silencio)."""
     destino = Path(out_dir)
     destino.mkdir(parents=True, exist_ok=True)
     gerados = []
     ignorados = {}
     resultado = result or {}
+    # G128: a edicao declarada resolve aqui (fonte unica); explicita vence
+    # o turnkey, que vence a ausencia (hoje, 2014 declarado).
+    if edicao is None and isinstance(turnkey, dict):
+        try:
+            from edicao_nbr6118_g123 import edicao_de_spec as _ed_spec_casa
+            edicao = _ed_spec_casa(turnkey)
+        except ValueError:
+            raise
+        except ImportError:
+            edicao = None
 
     arquitetura = resultado.get("arquitetura")
     if isinstance(arquitetura, dict) and arquitetura.get("ambientes"):
@@ -812,7 +830,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
         dp.gerar_planta_formas(
             estrutura["pavimento"], str(caminho),
             descida=estrutura.get("descida"),
-            titulo="PLANTA DE FORMAS - CASA RESIDENCIAL")
+            titulo="PLANTA DE FORMAS - CASA RESIDENCIAL",
+            edicao=edicao)
         gerados.append("planta-formas.svg")
     else:
         ignorados["planta-formas.svg"] = "estrutura_nao_calculada"
@@ -828,7 +847,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None) -> dict:
                  fundacao_locacao_formas_casa_svg)):
             try:
                 caminho = destino / _nome
-                caminho.write_text(_fn(estrutura), encoding="utf-8")
+                caminho.write_text(_fn(estrutura, edicao=edicao),
+                                   encoding="utf-8")
             except Exception as exc:                            # noqa: BLE001
                 ignorados[_nome] = str(exc)
             else:

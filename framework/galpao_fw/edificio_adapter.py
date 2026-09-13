@@ -898,7 +898,15 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     import desenho_pavimento as dp
     from project_loop import _add_artifact
 
-    del normalized
+    # G128: a edicao declarada no projeto chega as folhas de concreto (sem
+    # ela, o comportamento e o de hoje, 2014 declarado em cada titulo).
+    try:
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_de
+        _ed_de = _ed_norm_de(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_de = None
     if not (options.generate_2d or options.generate_caderno):
         manifest["deliverables"]["drawings"] = {"status": "not_requested"}
         return
@@ -912,7 +920,7 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     nome = "planta-formas-pavimento-tipo.svg"
     try:
         dp.gerar_planta_formas(estrutura["pavimento"], str(destino / nome),
-                               descida=estrutura["descida"])
+                               descida=estrutura["descida"], edicao=_ed_de)
     except Exception as exc:                                # noqa: BLE001
         manifest["deliverables"]["drawings"] = {
             "status": "failed", "detail": _erro_entregavel(exc)}
@@ -929,7 +937,8 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         try:
             dc.gerar_planta_laje(laje, str(destino / nome_laje),
                                  lajes_por_painel=estrutura.get(
-                                     "lajes_por_painel"))
+                                     "lajes_por_painel"),
+                                 edicao=_ed_de)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_laje, "motivo": _erro_entregavel(exc)})
         else:
@@ -951,7 +960,8 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     if isinstance(vv, dict) and vv.get("por_linha"):
         try:
             dp.gerar_prancha_armacao_vigas_pilares(
-                vv, estrutura.get("pilares"), str(destino / nome_vigas))
+                vv, estrutura.get("pilares"), str(destino / nome_vigas),
+                edicao=_ed_de)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_vigas, "motivo": _erro_entregavel(exc)})
         else:
@@ -972,7 +982,8 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
             import desenho_fundacao_edificio as dfe
 
             dfe.gerar_planta_fundacao(fund, estrutura,
-                                      str(destino / nome_fund))
+                                      str(destino / nome_fund),
+                                      edicao=_ed_de)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_fund,
                             "motivo": _erro_entregavel(exc)})
@@ -1453,7 +1464,15 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
 
     from project_loop import _add_artifact, _write_json
 
-    del normalized
+    # G128: a edicao declarada no projeto chega a compatibilizacao (o furo
+    # circular de 125 mm muda de veredito com a chave, e so com ela).
+    try:
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_ed
+        _ed_ed = _ed_norm_ed(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_ed = None
     policy = _copy.deepcopy(manifest.get("coordination_policy") or {
         "enabled": True,
         "folga_mm": options.folga_mm,
@@ -1537,7 +1556,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
     # sem ela, BeamxPipe nao distingue furo de conflito. So Beam/Slab ganham
     # hint; pilar/fundacao/caixa seguem conflito.
     hints = bie.cruzamentos_edificio(_fed, report)
-    pendencias = cp.gerar_pendencias(report, cruzamentos=hints)
+    pendencias = cp.gerar_pendencias(report, cruzamentos=hints, edicao=_ed_ed)
     # G55: resolucoes registradas fecham furos (com aprovador+justificativa).
     # Request invalida (sem justificativa, de reprovado/conflito) LEVANTA e o
     # hook vira failed - aprovar sem lastro nao pode passar em silencio.

@@ -747,6 +747,30 @@ concreto da casa e do prédio saíam sem edição; o medidor de memória ficava 
 freecad.exe sem acusar. Mais o `test_normas_catalogo` vermelho desde o G116 (remissões da
 norma sem lastro) — que a suíte do G119 já tinha mostrado e a auditoria não leu.
 
+## G126–G130: o default que ninguém declarou, a conta numa fonte só, e a entrega que dizia um valor enquanto a conta usava outro
+Arco fechado (2026-09-13). Verbete em todos os goals, pela terceira vez seguida.
+- **G126** o cimento do fckj deixa de cair no CPV em silêncio: piso conservador s = 0,38
+  declarado; cimento desconhecido levanta ([[04-decisions#D152]]).
+- **G127** a fct,m sai de 11 cópias em 10 módulos para uma fonte, sem mover um ulp
+  ([[04-decisions#D153]]).
+- **G128** a edição declarada chega a folhas, compatibilização e caderno das três tipologias
+  ([[04-decisions#D154]]).
+- **G129** censo de colisão de rótulo em 35 folhas: 19 colisões reais corrigidas, 43 pares
+  triados no PNG ([[04-decisions#D155]]).
+- **G130** as 39 dívidas normativas saem no pacote legal por tipologia, com a cláusula
+  ([[04-decisions#D156]]).
+
+**Auditoria (G131, [[04-decisions#D157]]).** O G127 bateu bit a bit contra o HEAD (99
+valores). Corrigidos **cinco** defeitos, e a classe do G125 voltou pela terceira vez, agora do
+lado da entrega: **o documento declarava um valor e a conta usava outro.** No galpão real, o
+pacote lia o cimento do topo do projeto e o cálculo lia do payload do concreto — cada um dizia
+uma coisa, nos dois sentidos; a edição tinha a mesma precedência calada (pacote 2023+Em1,
+conta e folhas 2014); o pacote da casa e do prédio afirmava um piso de içamento que nenhuma
+conta usou. Mais um catch-all que trocava erro por texto fixo e as cópias literais da linha
+de cimento. Ficaram medidos para o G132–G136: a chave 2023+Em1 carimba a edição inteira
+trocando só dois pontos; a viga protendida calculada em C40 num projeto C30; a pergunta do
+cimento no fluxo metálico, sem conta.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

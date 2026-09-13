@@ -163,6 +163,12 @@ def rodar(spec):
                       (2014) e a folha diz qual e. So os 2 pontos NUMERO-MUDA
                       leem a chave (12.3.3 no icamento; 13.2.5.1 na
                       compatibilizacao); migrar e decisao do usuario.
+      'cimento' (opc., G126): tipo da NBR 6118 12.3.3 para o fckj do
+                      icamento ('CPI'/'CPII'/'CPIII'/'CPIV'/'CPV'/'CPV-ARI');
+                      AUSENTE = piso conservador (maior `s` = 0,38) e a folha
+                      e o memorial dizem isso (nunca CPV). Desconhecido
+                      BLOQUEIA com ValueError. Nao e palpite: declarar o
+                      cimento do projeto e decisao do usuario.
     }"""
     # G123: resolve a edicao sem default silencioso (ausente = 2014 hoje).
     try:
@@ -256,10 +262,14 @@ def rodar(spec):
                                    "interface": interface_cal})
     # situacao transitoria: icamento do pilar pre-moldado (peso proprio, 2 pegas)
     # G123: o fckj (12.3.3) le a chave; ausente = 2014 (hoje).
+    # G126: o cimento vem do spec SEM default silencioso (ausente = piso
+    # conservador declarado; desconhecido levanta). Nunca CPV.
+    from cimento_nbr6118_g126 import resolver_cimento as _res_cim_gc
+    _rcim = _res_cim_gc(spec.get("cimento"))
     icamento = pm.verifica_icamento_pilar({"L": H, "b": pilar["hy"], "h": pilar["hx"],
                                            "As": pilar["As_cm2"], "fck": fck, "fyk": fyk,
                                            "t_dias": spec.get("t_saque_dias", 3),
-                                           "cimento": spec.get("cimento", "CPV"),
+                                           "cimento": _rcim["cimento"],
                                            "edicao": _edicao})
 
     # ------------------------------------------------------------ FUNDACAO
@@ -385,6 +395,8 @@ def rodar(spec):
                    "OK": calice["OK"]},
         "icamento": {"Md": icamento["Md_kN_m"], "Mr_05fyk": icamento["Mr_0.5fyk_kN_m"],
                      "fckj_MPa": icamento["fckj_MPa"], "a_pega": icamento["a_pega"],
+                     "cimento": icamento["cimento"],
+                     "cimento_origem": icamento["cimento_origem"],
                      "OK": icamento["OK"]},
         "fogo": {"TRRF": TRRF, "nota": fogo_nota, "viga": fg_viga, "pilar": fg_pilar,
                  "OK": fogo_ok},
@@ -398,8 +410,15 @@ def rodar(spec):
                          "motivo": piso.get("motivo", ""), "OK": bool(piso["OK"])}
     res = {"spec": {"vao": vao, "comprimento": comp, "H": H, "n_porticos": n_port,
                     "s": round(s, 2), "fck_MPa": fck / 1000.0,
-                    "edicao_6118_resolvida": _edicao},
+                    "edicao_6118_resolvida": _edicao,
+                    "cimento": _rcim["cimento"],
+                    "cimento_origem": _rcim["origem"]},
            "edicao_6118": _edicao,
+           # G126: o cimento resolvido viaja no resultado (a folha e o
+           # memorial declaram daqui, fonte unica).
+           "cimento": {"cimento": _rcim["cimento"],
+                       "origem": _rcim["origem"],
+                       "explicito": _rcim["explicito"]},
            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
            "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
@@ -633,15 +652,18 @@ def montar_pranchas(r, out_dir, fcstd_path, spec=None, freecad_exe=None,
 
 def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
-    try:
-        from edicao_nbr6118_g123 import (
-            carimbo_edicao as _car_ed, edicao_de_resultado as _ed_r)
-        _car = _car_ed(_ed_r(r))
-    except Exception:
-        _car = ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
-                "edicao nao declarada no projeto — assumida 2014)")
+    # G131: sem catch-all - uma edicao invalida no resultado nao pode virar
+    # "2014 assumida" fixo no memorial (a mesma licao do G74).
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _car_ed, edicao_de_resultado as _ed_r)
+    _car = _car_ed(_ed_r(r))
+    # G131: sem catch-all (um erro na declaracao nao pode virar texto fixo
+    # no memorial) e sem copia literal da linha (fonte unica).
+    from cimento_nbr6118_g126 import linha_cimento as _lin_cim
+    _cim = _lin_cim(r)
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
          "  %s" % _car,
+         "  %s" % _cim,
          f"  Vao {sp['vao']:.1f} m x comprimento {sp['comprimento']:.1f} m ; "
          f"pe-direito {sp['H']:.1f} m ; {sp['n_porticos']} porticos (s={sp['s']:.2f} m) ; C{sp['fck_MPa']:.0f}",
          f"  VENTO: q = {g['vento']['q_kN_m2']:.3f} kN/m2 ; w_h = {g['vento']['w_h']:.2f} kN/m ; "

@@ -518,8 +518,17 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
     identico ao anterior (montagem x conflito).
     G123: edicao='2014'|'2023+Em1' (ausente = 2014, hoje); vale para os furos
     em viga desta chamada (a forma vem do hint; sem forma, 12 cm).
+    G128: cada pendencia carrega `edicao_6118` (a edicao que a conta usou,
+    resolvida na fonte unica; ausente = "2014", hoje declarado) - a peca
+    diz qual e mesmo sem o parametro.
     """
     clashes = rep_clash.get("clashes", [])
+    # Resolve a edicao uma vez para a chamada inteira (fonte unica; ausente
+    # = hoje; invalida levanta, nao vira edicao em silencio).
+    if _resolver_edicao is not None:
+        _ed_canon = _resolver_edicao(edicao)["edicao"]
+    else:
+        _ed_canon = "2014"
     # a revisar primeiro (por volume desc), depois esperados (por volume desc)
     ordenados = sorted(clashes, key=lambda c: (c.get("esperado", False),
                                                -c.get("vol_mm3", 0)))
@@ -553,6 +562,7 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
             "veredito": veredito,
             "motivos": list(cls["motivos"]),
             "clausulas": list(cls["clausulas"]),
+            "edicao_6118": _ed_canon,
             "resolucao": None,
             "acao_sugerida": acao, "responsavel": resp,
         })

@@ -362,6 +362,12 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
                      if not _ed_cfg else
                      ("Projeto calculado pela NBR 6118:%s (edicao declarada "
                       "no projeto)" % _ed_cfg))
+    # G126: a prancha declara o cimento do fckj do icamento (fonte unica;
+    # sem o cimento, o piso conservador, com a ausencia dita). Le do
+    # resultado (o que foi calculado), nunca do spec isolado.
+    # G131: sem copia literal da linha no fallback (fonte unica).
+    from cimento_nbr6118_g126 import linha_cimento as _lin_cim_g126
+    _linha_cim = _lin_cim_g126(r)
     notas = [
         "NOTAS TECNICAS E ESPECIFICACOES",
         "1. Concreto: fck = %.0f MPa (concreto armado, gamma_c = 1,4)." % fckM,
@@ -375,6 +381,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
             ("NBR 6118:2014" if not _ed_cfg else "NBR 6118:%s" % _ed_cfg)),
         "   %s." % _linha_ed,
         "7. Verificar situacoes transitorias de icamento/transporte (NBR 9062 5.3.2).",
+        "   %s." % _linha_cim,
     ]
     if tk:
         notas.append("8. Volume de concreto (modelo 3D): %s m3 (~%s kg)."

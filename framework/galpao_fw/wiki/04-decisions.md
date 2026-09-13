@@ -2259,6 +2259,463 @@ sequenciais, um pytest por vez: 540 + 216 + 336 + 466 + 369 + 465 + 569 + 392 + 
 (padrao do laco zumbi) e foi vigiado ate o `== FIM`, sem orfao ao final. **Fechado o
 aberto do G119:** `test_build_eletrico::test_build_headless_gera_solidos_sem_clash` e
 `test_build_federado::test_montar_3d_federado_vivo_e_consistente_com_aabb`, que falharam
-na suite do G119 ("freecadcmd headless nao gerou o resultado do modelo 3D"), passaram no
-lote 02 desta rodada sobre o mesmo codigo daqueles modulos - nao eram regressao. A causa
-daquela falha nao foi medida.
+ na suite do G119 ("freecadcmd headless nao gerou o resultado do modelo 3D"), passaram no
+ lote 02 desta rodada sobre o mesmo codigo daqueles modulos - nao eram regressao. A causa
+ daquela falha nao foi medida.
+
+ ## D152/G126 - o cimento que ninguem declarou: piso conservador s=0,38 dito na folha e no memorial (2026-09-13) - FECHADO
+
+ Fecha o medido do G125: `galpao_concreto.py:262` passava
+ `spec.get("cimento", "CPV")` ao icamento e `premoldado_nbr9062.py:255`
+ repetia `caso.get("cimento", "CPV")`, sem campo no ProjetoSpec/wizard -
+ pelo caminho do produto, o galpao SEMPRE calculava com CPV, o `s` mais
+ favoravel da 12.3.3. Remedido na funcao real: `fckj_idade(30e3, 7)` da CPV
+ 24562, CPII 23364, CPIII 20516 kN/m2 (os literais do goal); o default dava
+ +19,7 % aos 7 dias sobre um CPIII que ninguem excluiu. Segundo default
+ silencioso: `fckj_idade` tinha `cimento="CPII"`. Terceiro: desconhecido
+ ("XYZ") virava `s = 0,25` em silencio, o mesmo numero do CPII.
+
+ **Escolha escrita (exigida pelo goal): PISO CONSERVADOR DECLARADO, nao
+ bloqueio. Motivo:** o G123 (mesma familia - dado que o projeto nao
+ declarou) ja decidiu pela chave DESLIGADA, e o goal manda o campo de
+ ProjetoSpec/wizard OPCIONAL ("com a ausencia dita"), o que e incompativel
+ com bloqueio; travar todo spec antigo por um dado que nunca foi pedido
+ seria punir o usuario pela omissao do framework. Piso nao e "o cimento
+ provavel" (Nao fazer do goal): e o MAIOR `s` da tabela (0,38 = CPIII/CPIV
+ = menor resistencia jovem), e a folha e o memorial dizem que ele foi usado
+ PORQUE o cimento nao foi declarado. Cimento desconhecido LEVANTA
+ ValueError com a lista dos validos em toda porta (nunca mais 0,25); nenhum
+ cimento de projeto foi escolhido em spec nenhum do repo.
+
+ **Fonte unica.** `cimento_nbr6118_g126.py` (producao; o teste importa
+ daqui): CIMENTOS_VALIDOS (os 6 da 12.3.3, so identidade - os valores de
+ `s` continuam em `edicao_nbr6118_g123.S_CIMENTO_2014`), PISO_S = 0,38,
+ `normaliza_cimento` (desconhecido levanta; None nunca chega aqui),
+ `resolver_cimento` (ausente = piso com a origem dita),
+ `cimento_de_spec` (le a chave sem default), `linha_cimento` (o que a folha
+ e o memorial dizem), `contem_declaracao_cimento`/`confere_pecas` (peca sem
+ declaracao reprova; `sem_declaracao` dispara), `defaults_de_cimento`/
+ `confere_defaults` (por AST: `.get("cimento", "<valido>")` ou parametro
+ `cimento="<valido>"`; baseline vazio) e `arquivos_que_importam_cimento`/
+ `confere_uso_cimento` (8 leitores; o executivo compoe o relatorio e nao
+ importa - dito na fonte).
+
+ **Fiacao (parte de onde o dado e PRODUZIDO, convencao 9).**
+ `premoldado.fckj_idade` passa a `cimento=None`; `verifica_icamento_pilar`
+ perde o `get` com CPV e devolve `cimento`/`cimento_origem`/`s_usado`;
+ `galpao_concreto.rodar` resolve do spec (invalido BLOQUEIA com o motivo) e
+ o resolvido viaja em `res["cimento"]`, `res["spec"]` e `gates["icamento"]`;
+ `edicao_nbr6118_g123.s_cimento` aplica o piso ao ausente, levanta ao
+ desconhecido, e `S_PADRAO_DESCONHECIDO` foi removido (so ele o lia; nenhum
+ teste o citava; o confere das orfas segue verde). **Folha e memorial, da
+ fonte unica:** `desenho_concreto` (2 SVG, bloco de 2 linhas no rodape com
+ entrelinha que nem o estimador acusa e zero colisoes novas),
+ `galpao_concreto.relatorio_pt` (+ `executivo_concreto.memorial`, que o
+ compoe), `techdraw_concreto` notas e `pacote_legal` markdown (secao
+ "Cimento do concreto (G126)"). **Entrada:** `ProjetoSpec.cimento`
+ (opcional, ausente = piso dito; invalido bloqueia) + pergunta opcional no
+ wizard + repasse em `to_rodar_params`. Nao feito de proposito: o PDF do
+ memorial (a declaracao mora no memorial em texto, que o portao confere) e
+ o quadro de aco (sem fckj).
+
+ **Casos do repo, um a um, antes (CPV) x depois (piso), na funcao REAL
+ (o "nao medido" do goal, agora medido). NENHUM vira veredito** - o OK do
+ icamento e do aco (0,50 fyk) e a fissura informa; os numeros caem:
+ ica8/selftest (t=3): fckj 19,9 -> 13,7 MPa, Mr,fiss 23,49 -> 18,36,
+ fissura False -> False, OK True -> True; ica10/ponto-otimo (t=5): 22,8 ->
+ 17,8, 43,45 -> 36,88, False -> False, True -> True; ica14/pilar-longo
+ (t=2): 17,3 -> 10,6, 6,03 -> 4,34, True -> True, False -> False;
+ galpao10 e galpao15 (t=3): 19,9 -> 13,7, False -> False, gate True ->
+ True. fckj(30e3,7): 24561,9 -> 20515,8 (= CPIII explicito, longe do CPV).
+ Que o instrumento acusa quando ha o que acusar: fronteira construida L=12
+ (40x40, As=12, t=3, Md=20,88) - Mr,fiss 23,49 (CPV, sem fissura) contra
+ 18,36 (piso, COM fissura). Travado em `test_04` com estes literais.
+
+ **Aceite medido.** Vermelho por injecao em `tmp_path` nos quatro
+ acumuladores (`sem_declaracao`, `defaults`, `extras`, intacto verde);
+ invalida levanta nas 7 portas (`normaliza`, `resolver`, `cimento_de_spec`,
+ `fckj_idade`, `verifica_icamento_pilar`, `rodar`, `s_cimento`), sempre com
+ a lista dos validos; `None` em `confere_pecas` levanta TypeError e
+ `normaliza(None)` levanta (ausencia nao e cimento invalido). As 3
+ `confere_*` novas entram triadas no G69 (itens 30-32); o modulo novo entra
+ isento com motivo em SEM_FAIXA_DECLARADA; o helper de nota entra isento
+ com motivo em ISENTAS do G77 (nao e emissor de folha - a lente se adapta
+ ao codigo, G64).
+
+ **Suite do lote (lista nominal, lida inteira - convencao 10):** faixa OK
+ (0/0/0/0), asserts OK, orfas OK (0 em tudo), folhas 92, alcance 5, guardas
+ 14 (com os 3 do G126 triados nos itens 30-32), disciplina 5, indice 6, carimbo 6, normas 3 +
+ cimento 5 (portao proprio) - 136 passed, 0 falhas. Regressao alem do lote:
+ edicao 6 (inclui rodada real), premoldado + galpao_concreto + guardas 52,
+ desenho + executivo + techdraw + pacote 32, g50 + fronteiras 27, validacao
+ + wizard + aco + tipo-ligacao 48, bloco + techdraw-concreto 11, faixa 22 -
+  tudo verde.
+
+  ## D153/G127 - a fct,m em onze copias vira fonte unica, sem mover um ulp (2026-09-13) - FECHADO
+
+  Fecha o medido do G125: a expressao do ramo alto (`2,12 ln (1 + 0,11
+  fck)`) estava escrita em 11 linhas de 10 modulos (base_chumbador:99,
+  estaca_profunda:388, fissuracao_nbr6118:59, fundacao_sapata:681,
+  laje_concreto:441, pilar_concreto:407, piso_industrial:73,
+  premoldado_nbr9062:125, viga_baldrame:47,78, viga_protendida:70), todas
+  com o limiar `fck <= 50` e o mesmo numero. Remedido na funcao real
+  antes da migracao: fis/pm/vp devolvem 2210,4188991842316 kN/m2 em C20,
+  4071,626424892359 em C50, 4140,418547667256 em C55, 4299,674284259645
+  em C60 e 5064,177113178408 em C90. O "nao medido" do goal (unidades)
+  foi medido: dois jeitos de entrar e sair sem divergencia de conta -
+  MPa -> MPa (estaca, fundacao, piso) e kN/m2 -> kN/m2 (fissuracao,
+  premoldado, protendida, baldrame/flecha); os quatro
+  cortantes/ancoragens convertem no contorno. NENHUM caso do repo muda
+  de numero, logo nenhum muda de veredito: o depois e `==` ao antes em
+  todos os modulos x C20/C50/C55/C60/C90 (os literais acima, travados no
+  `test_02`).
+
+  **Fonte unica.** `fctm_nbr6118_g127.py` (producao; a lente e o teste
+  importam daqui): `fctm_MPa` (MPa -> MPa, o miolo) + `fctm` (kN/m2 ->
+  kN/m2, a mesma conta) + `fctk_inf/sup` nas duas unidades (as copias
+  derivavam `0,7 * fctm` inline; nenhuma derivava o sup). O `fctd`
+  (`fctk,inf / gamma_c`) continua nos modulos: e de outra clausula
+  (9.3.2/17.4/19.4.1), e as linhas de baixo seguem intocadas. Cada
+  modulo chama a primitiva do seu sistema de unidades.
+
+  **Faixa declarada e guardada, sem travar a producao.** A faixa e o
+  limiar entre os ramos (`fck <= 50 MPa`, com o `if` no corpo - a lente
+  do G51 a ve guardada). A primeira versao travava fora de C20-C90 com
+  ValueError - e a suite acusou o erro: `verifica_icamento_pilar` avalia
+  fct,m no fckj jovem (13,74 MPa aos 3 dias no galpao de concreto), fora
+  de C20. Trava dura ali mudaria veredito de peca real, entao o fckj
+  jovem usa a mesma expressao por extrapolacao DECLARADA (dita na fonte,
+  com o numero medido), e o `test_05` trava o limiar + o jovem em vez
+  de travar a producao.
+
+  **Fiacao (parte de onde o dado e PRODUZIDO, convencao 9).** Os 10
+  modulos importam a fonte e apagam as 11 copias; o detector da conta
+  (`RE_FCTM_C55`) mora na fonte e a lente do G122 o importa (um detector
+  so). O item 8.2.5 do `CONFRONTO_G122` lista a fonte + quem so cita
+  (desenho_piso); o caso C5 chama a fonte; o item 52 e a Tabela 2-G122
+  do inventario apontam para a fonte unica. A 2023 (`0,1 * (fck + 8)`)
+  nao entrou em nenhum dos 11 arquivos (`test_06` varre o codigo): virar
+  a edicao segue decisao do usuario (G123).
+
+  **Aceite medido.** Vermelho por injecao em `tmp_path` nos quatro
+  acumuladores (`copias` fora da fonte, `fonte_apagada`, `extras`,
+  `faltando`; comentario nao conta como conta; intacto verde); os 2
+  `confere_*` novos entram triados no G69 (itens 33-34); `test_01` do
+  G51 passa a cobrar a fct,m guardada na fonte; piso/viga_baldrame/
+  viga_protendida (que so declaravam faixa pela copia) entram isentos
+  com motivo em SEM_FAIXA_DECLARADA ("faixas vivem na fonte", o mesmo
+  molde dos adaptadores); `test_05` do G122 atualizado (1 sitio, nao
+  10).
+
+  **Suite do lote (lista nominal, lida inteira - convencao 10):** faixa
+  OK (0/0/0/0), asserts OK, orfas OK (0 em tudo), folhas 92, alcance 5,
+  guardas 14 (com os 2 do G127 triados nos itens 33-34), disciplina 5,
+  indice 6, carimbo 6, normas 3 + fonte-unica 6, confronto 5 e fctm-c60
+  11 (portoes proprios) - tudo verde, 0 falhas. Regressao alem do lote:
+  cimento 5 + edicao 6, 343 passed nos ramos de concreto tocados
+  (baldrame, base, desenho, estaca, executivo, fissuracao, g50, laje,
+  pilar, piso, premoldado, puncao, alonso, vibracao, protendida) e 49
+  passed em galpao_concreto/bim/techdraw/laje-paineis/fronteira - tudo
+  verde.
+
+  ## D154/G128 - a declaracao da edicao chega as tres tipologias (2026-09-13) - FECHADO
+
+  Fecha os abertos (a) e (b) do D151: o G123 tinha fiado a chave
+  `norma_6118_edicao` so no galpao - casa e predio carimbavam o parametro
+  ausente, as tres tipologias chamavam `gerar_pendencias` sem `edicao`, e o
+  caderno escrevia "NBR 6118" sem edicao (4x na casa, 4x no predio).
+
+  **Fonte unica.** `edicao_nbr6118_g123.py` (producao; o teste importa
+  daqui): ganha `edicao_de_normalized` (le `raw_spec`, depois
+  `turnkey_spec`; ausente = None, invalida levanta) e o USO_ESPERADO vai
+  de 14 para 19 (+ casa_residencial, edificio_adapter, galpao_adapter,
+  desenho_casa_residencial, caderno_encargos - triagem escrita na fonte e
+  no item 28 do G69: so LEEM a chave e a repassam, nenhum troca conta;
+  MODULOS_COM_TROCA intacto, 8.2.5 segue 2014 declarado, fora da chave).
+
+  **Fiacao (parte de onde o dado e PRODUZIDO, convencao 9).** Folhas de
+  casa/predio: `desenho_pavimento` (formas, vigas, pilares, combinada +
+  `_subtitulo_pilares`, que era literal "2014" fixo), `desenho_fundacao_
+  edificio` e `desenho_concreto` (laje, via `_carimbo_edicao` com edicao
+  explicita vencendo o resultado) ganham `edicao=None` (ausente = hoje,
+  byte-identico); `desenho_casa_residencial` resolve do turnkey e os hooks
+  passam a declarada. Compat x3: os 3 adapters passam a declarada a
+  `gerar_pendencias`, que carimba `edicao_6118` em cada pendencia (ausente
+  = "2014", dito). Caderno: `gerar_caderno`/`markdown`/`caderno_de_turnkey`
+  ganham `edicao` (a "NBR 6118" sai com a da conta + secao "Norma de
+  calculo do concreto (G123)", sempre); pacote de casa/predio recebe o
+  spec (o do galpao, o projeto declarado em vez do turnkey so).
+
+  **Achado real no caminho (medido, nao suposto).** Com a chave injetada
+  no topo, o pacote do galpao seguia dizendo 2014 (lia so o turnkey, que o
+  normalize monta sem a chave) e o calculo do concreto nem a recebia
+  (`galpao_turnkey` nao a repassa ao payload "concreto") - metade do
+  projeto em 2023, metade em 2014, cada peca "certa" sozinha. Corrigido no
+  goal: `_run_turnkey` repassa a declarada ao payload (o proximo da
+  producao vence; sem ela, nada muda) e o pacote le o projeto declarado.
+  Regra que vale daqui em diante: chave no topo do project-spec chega ao
+  calculo do galpao; casa/predio nao calculam pela chave (so a
+  compatibilizacao ramifica), por decisao do G123.
+
+  **Aceite medido (rodada real x 2 chaves, tmp_path, repo intacto).**
+  Casa: 4 PE-CO + pacote + caderno declaram 2014/2023+Em1, 61 pendencias
+  carimbadas; predio: idem, 126 pendencias; galpao (sem 2D, o emissor de
+  desenho e do G123): 2 SVG do calculo + pacote + caderno + 970
+  pendencias, tudo na edicao da conta. Furo circular 125 mm: sem chave
+  `a_confirmar`, com 2023+Em1 `admissivel`; retangular, sem-forma e sem
+  hint nao mudam (so com ela). Vermelho por injecao: folha 2014 com chave
+  2023 reprova nomeando os dois lados; "NBR 6118" sem edicao reprova;
+  invalida levanta nas 4 portas novas. Nenhum project-spec.json do repo
+  declara a chave (travado no `test_08`; virar a edicao segue decisao do
+  usuario).
+
+  **Suite do lote (lista nominal, lida inteira - convencao 10):** faixa
+  OK (0/0/0/0), asserts OK, orfas OK (0 em tudo), folhas 92, alcance 5,
+  guardas 14 (item 28 com os 5 do G128 triados), disciplina 5, indice 6,
+  carimbo 6, normas 3 - 131 passed, 0 falhas. Portoes proprios: tipologias
+  8 (inclui as 6 rodadas reais), edicao 6 (baseline 19 usos). Regressao
+  alem do lote: compat 2 arquivos + caderno + armacao x2 + casa-indice +
+  indice-g91 + caderno-casa-edificio + pacote/orcamento/fronteiras - 140
+  passed, 0 falhas.
+
+## D155/G129 - os rotulos que se sobrepoem, agora com censo: 19 colisoes reais corrigidas, 43 pares triados (2026-09-13) - FECHADO
+
+Fecha o medido do G125: 6 de 27 folhas de casa+predio com colisao (48
+pares) sem nenhum censo sobre todas as folhas entregues, e o galpao sem
+medicao nenhuma. Remedido na arvore de hoje, rodada real casa+predio
+(`run_project` nos specs persistidos, `generate_2d`): 12 + 15 = 27 SVGs
+do manifesto, os mesmos 48 pares nas mesmas 6 folhas (planta-eletrica 15,
+planta-baixa 8, telhado-tesoura 8, quadro-cargas 7, detalhes-concreto-casa
+5, planta-laje-pavimento-tipo 5) - a remedicao bate com o G125 par a par.
+
+**O galpao, medido.** O manifesto do galpao entrega PDFs
+(`*/pranchas/*.pdf`, cobertos pelo G102), que o estimador SVG nao le; a
+medicao parte de onde o dado e PRODUZIDO (convencao 9): o turnkey real do
+spec persistido (`galpao-tp-g95`, `tk.rodar` puro sem freecad.exe, 29,7 s
+- o custo de 923 s do G102 e freecad+caderno, nao o calculo) + os 8
+emissores SVG que o `config_de_spec` rasteriza na rota G104. 14 pares em
+4 fontes (planta-seguranca 8, diagrama-unifilar 3, planta-formas 2,
+esquema-hidraulica 1; climatizacao, quadro-cargas, planta-eletrica e
+prancha-armacao com 0). Total do censo: 35 folhas, 62 pares.
+
+**Triagem par a par, PNG a PNG (regra 3, fitz como no G94/G104).**
+19 colisoes REAIS, todas na eletrica residencial da casa real (a fixture
+sintetica dos guardioes da folha tem 1 ponto por comodo e nunca acusou):
+planta-eletrica 12 (etiquetas L-*/T-* sobrepostas - luz e tomada no mesmo
+ponto do layout saiam com a etiqueta na mesma origem; no Banheiro
+L-BAN/T-BAN-01/TUE-CHUV vinham 100 % sobrepostos, ilegivel) e
+quadro-cargas 7 (o COMODO de 7 comodos atravessava TIPO/CARGA/I/SECAO/
+DISJ.). 43 FPs em 4 familias, cada um com o motivo e o PNG: linhas
+empilhadas legiveis (planta-baixa 8, RESUMO do incendio 8, legenda e
+blocos de comodo); entrelinha apertada porem legivel sem toque de glifo
+(telhado 8, unifilar 3, hidraulica 1, titulo/formas 1); bloco VERIFICACOES
+(detalhes 5 + laje 5: textos SEM text-anchor, start real - o estimador
+centra a caixa em middle e ainda superestima a largura em 0,6*size); e um
+texto rotacionado (cota `90.00 m`, rotate -90, que o estimador ignora).
+
+**Correcao na folha (F1/F2, desenho_eletrico_residencial.py).** F1: a
+etiqueta do ponto tenta 10 deslocamentos fixos, em ordem, e fica no
+primeiro que nao encosta em rotulo de comodo, no quadro nem em etiqueta
+ja posta, na regua do G129 (censo 15 -> 3, os 3 FPs de bloco/legenda).
+F2: a celula do quadro quebra em linhas que cabem na coluna
+(`_quebra_celula`, item com virgula fica inteiro - "Dormitorio 01" nao
+parte no meio) e a altura da linha acompanha a celula mais alta,
+entrelinha 17 px em corpo 11 (caixa do estimador 15,4); a coluna GOVERN.
+guarda a largura do "piso da tabela (norma 1,5 mm2)", que tem guardiao
+proprio cobrando a string inteira (phase6b). Censo 7 -> 0, PNGs
+posfix-*.png re-conferidos. A correcao nao muda a fixture sintetica
+(quadro 0, planta 1 par de legenda, unifilar 0 - byte-comportamento
+preservado onde nao havia colisao; phase6b 36 passed sem retoque).
+
+**Portao (`varredura_colisoes_g129.py`, SCRIPT AVULSO; teste-guarda
+`tests/test_colisoes_censo_g129.py`, 6 testes).** Fonte unica: o teste
+importa de la (universo de 35, BASELINE de 43 pares em 9 folhas,
+ISENCOES com PNG em todo motivo, CORRIGIDOS com os 19). `confere_censo`
+nos dois sentidos (par novo, par sumido, sem_triagem, isencao morta,
+folha nova, folha sumida); vermelho por injecao em `tmp_path` (rotulo
+empurrado, motivo apagado, par sumido); malformada levanta e SVG
+malformado vira par acusador. Integracao: item 35 + triagem no G69
+(`confere_censo` casa no `confere_\\w+`; `conferir_` nao casaria e viraria
+fantasma), isencao com motivo em SEM_FAIXA_DECLARADA, `pares_de_svg` em
+ISENTAS do G77 (wrapper, nao emissor - a lente se adapta ao codigo, G64),
+registro em SCRIPTS_AVULSOS. Teste novo em estilo de um assert so (G97).
+
+**Achado de metodo.** O guardiao do quadro (`test_nenhum_texto_do_quadro_
+invade_a_coluna_seguinte`) passava na fixture e a folha real transbordava:
+guardiao por folha nao substitui censo sobre rodada real - era exatamente
+o buraco que o G129 fechou.
+
+**Nao-coverture declarada (na lente).** Rotulo x simbolo/linha (o
+estimador so mede texto x texto); texto rotacionado alem do caso triado;
+a fileira Momentos do VERIFICACOES segue com vao real curto (~8 px,
+legivel, FP triado) - valor mais longo vira par novo e reabre a triagem.
+
+**Suite do lote (lista nominal, lida inteira - convencao 10):** faixa OK
+(0/0/0/0), asserts OK, orfas OK (0 em tudo), folhas 92, alcance 5,
+guardas 14 (item 35 com o G129 triado), disciplina 5, indice 6, carimbo 6,
+normas 3 - 137 passed, 0 falhas. Portao proprio: colisoes 6 (inclui as 3
+rodadas vivas: casa 2,3 s + predio 30,9 s + turnkey do galpao 29,7 s).
+Regressao alem do lote: phase6b 36 + casa-eletrica-g99 + casa-concreto +
+laje-paineis + casa-indice + caderno-casa-edificio + golden-journey +
+casa-adapter - tudo verde, 0 falhas.
+
+## D156/G130 - as 39 dividas que o cliente nao ve: toda aplicavel no pacote, com a clausula da fonte unica (2026-09-13) - FECHADO
+
+Fecha o medido do G125: `varredura_constantes_orfas.ORFAS_TRIADAS` tem 39
+DIVIDAS com clausula - exigencias de norma escritas e nao verificadas - e
+zero mencoes (nome, clausula ou "nao verificado") nos documentos entregues
+de rodada real de casa e predio. Nao medido: o galpao; quais se aplicam a
+cada tipologia (e o que este goal declara).
+
+**Fonte unica.** `exigencias_nao_verificadas_g130.py` (producao; a lente e
+o teste importam daqui): TIPOLOGIAS (casa/predio/galpao, "edificio" e alias
+de "predio"), APLICABILIDADE (para cada chave de ORFAS: o conjunto onde
+vale + o motivo escrito onde nao vale), `exigencias_para_tipologia` /
+`nao_aplicaveis_para_tipologia` (leem ORFAS ao vivo: divida nova sem
+triagem vira sem_triagem, nunca some), `linha_exigencia` /
+`linhas_markdown` / `markdown_secao` (nome + arquivo + motivo + endereco da
+fonte unica + a marca "não verificada pelo framework"),
+`contem_exigencia` / `confere_documento` (portao por substring, por parte:
+cada aplicavel tem de chegar ao veredito) e `confere_aplicabilidade` /
+`confere_uso_exigencias` (baseline nos dois sentidos). A clausula/motivo
+NAO sao copiados: moram em ORFAS_TRIADAS (fonte unica do G124), lidos ao
+vivo. Nenhuma conta importa esta fonte para calcular (so PUBLICA).
+
+**Fiacao (parte de onde o dado e PRODUZIDO, convencao 9).**
+`pacote_legal.gerar_pacote` ganha `tipologia` (ausente = a uniao das tres,
+o pacote nunca esconde divida por falta de rotulo; invalida levanta) e o
+markdown ganha a secao obrigatoria G130, sempre (mesmo molde G123/G126);
+os 3 emissores passam a tipologia (`gestao_casa` = casa,
+`gestao_edificio` = predio, `entregaveis_projeto.emitir_pacote_legal` =
+galpao, via `pacote_no_manifesto`). Sem tipologia = 39 itens; com
+tipologia = o recorte.
+
+**Promocao honesta no caminho (medida, nao suposta).** A fonte das
+clausulas (`varredura_constantes_orfas.py`) se declarava SCRIPT AVULSO
+("nao importada por ninguem") - e o G130 manda a producao ler ORFAS ao
+vivo. O proprio guarda (`test_scripts_avulsos_nao_sao_importados_por_
+ninguem`) manda "deixar de ser avulso, ou o import sai": a lente virou
+MODULO DE PRODUCAO no cabecalho e saiu de SCRIPTS_AVULSOS (alcancavel via
+pacote_legal <- adaptadores <- ENTRADAS, sem ilha). Sem string-import nem
+copia de clausula para escapar do guarda (licao do G98).
+
+**Lista por tipologia (exigida pelo goal; 18 + 24 + 30 = 39 na uniao).**
+CASA (18): FVK_ARMADA_COEF/RHO_TETO/TAU0_MP/TETO_MP (16868-1 11.4.3, caminho
+portante pode ser armado); R_MAX_EXPLOSIVO (quando houver area
+classificada); Q_BORDA_GUARDA_CORPO (sacada/terraco) e
+Q_ELEMENTO_ISOLADO_COBERTURA (6120 6.4); DV_TERMINAL_MAX (5410 6.2.7);
+COMB_FACHADA (15575-4 7.2.1) e NOTA_B_TAB2 (15575-2 Tab.2 nota b);
+ETA1_ENTALHADA/LISA (6118 9.3.2.1); UNIDADE_TIPO_ENUM (contrato F06);
+SOBREPRESSAO_TRANSIENTE (5626 6.9.7) e P_DIN_MIN_REDE (5626 6.9.4);
+THETA_APOIO_LIM (6118 Tab 13.3, tem laje); GAMMA_W_ELS (7190 5.8.6, tesoura
+de madeira); _CUP (15421 Tab.10, quando houver extracao modal). Fora da
+casa, com o motivo no codigo: deteccao x3 / iluminacao x3 / sinalizacao x2
+/ sprinklers (unifamiliar sem sistema central exigido); escada/plataforma
+x2/gusset/protensao/premoldado (sem aco industrial nem pre-moldado);
+15575 nao se aplica ao galpao (abaixo); refletancias (so galpao); SPDA x2
+(sem SPDA avaliado).
+PREDIO (24): R_MAX_EXPLOSIVO; Q_BORDA + Q_ELEMENTO; DV_TERMINAL;
+COMB_FACHADA + NOTA_B_TAB2; deteccao x3 (17240 5.4.1.1/5.4.1.2/5.4.4);
+ETA1 x2; UNIDADE_TIPO_ENUM; hidraulica x2; iluminacao x3 (10898 + 5.2.4 +
+5.2.3); THETA_APOIO_LIM; PAREDE_MIN_MM (10897 7.7.3);
+NIVEL_INFERIOR/INTERMEDIARIO (16820 6.3); _CUP; CD_LOCALIZACAO (5419-2
+Tab.A.1) + RT_R3 (5419-2 Tab.4). Fora do predio: FVK armada x4 (portico de
+concreto, alvenaria e vedacao); escada/plataforma/gusset/PSI0/protensao/
+premoldado/refletancias/madeira (sem esses sistemas).
+GALPAO (30): R_MAX_EXPLOSIVO; Q_ELEMENTO_ISOLADO; DV_TERMINAL; deteccao
+x3; Q_CONCENTRADA da escada industrial; ETA1 x2; UNIDADE_TIPO_ENUM;
+PSI0_SOBRECARGA (8681); K_UMA_BORDA (AISC DG29); hidraulica x2;
+iluminacao x3; REFLETANCIA_PAREDE/PISO/TETO (Mamede 2.6.7.1.2, metodo dos
+lumens); EPS_CS_PADRAO (6118 Tab.A.1); PESO_ACO + Q_CONCENTRADA da
+plataforma; ESP_FUNDO_MIN (9062 7.7.5.1); PAREDE_MIN_MM;
+NIVEL_INFERIOR/INTERMEDIARIO; _CUP; CD_LOCALIZACAO + RT_R3. Fora do galpao:
+FVK armada x4 (fechamento metalico); Q_BORDA (sem borda habitacional);
+15575 x2 (habitacional); THETA (sem laje); GAMMA_W (sem madeira).
+
+**Aceite medido (rodada real, spec persistido, repo intacto).** Casa (2,9 s)
+18/18 no pacote-legal.md; predio (~35 s) 24/24; galpao sem 2D (~30 s,
+o pacote independe dele) 30/30 - `confere_documento` OK nas tres.
+Vermelho por injecao em `tmp_path`: divida nova em ORFAS (copia em memoria)
+vira sem_triagem e o documento sem ela reprova; documento com
+FVK_ARMADA_COEF arrancado reprova nomeando; tipologia invalida levanta nas
+6 portas (lente x4 + pacote); intacto verde; "edificio" canoniza para
+"predio". Nao feito de proposito: nenhuma verificacao implementada, nenhuma
+constante ligada em conta (cada divida segue em ORFAS_TRIADAS).
+
+**Suite do lote (lista nominal, lida inteira - convencao 10):** faixa OK
+(0/0/0/0), asserts OK, orfas OK (0 em tudo), folhas 92, alcance 5, guardas
+14 (itens 36-38 com o G130 triado), disciplina 5, indice 6, carimbo 6,
+normas 3 - tudo verde, 0 falhas. Portao proprio: exigencias 6 (inclui as 3
+rodadas vivas: casa + predio + galpao sem 2D). Baseline travado: 39
+dividas, casa 18 / predio 24 / galpao 30, uniao 39; LEITORES_ESPERADOS 2
+(a fonte + pacote_legal).
+
+## D157/G131 - auditoria do lote G126-G130: a entrega declarava um valor e a conta usava outro (2026-09-13) - FECHADO
+
+Auditoria por medicao do lote G126-G130 (D152-D156), sem confiar no que os
+verbetes dizem.
+
+**Bateram na remedicao.** G127: os 11 escalares do teste comparados HEAD
+(pre-migracao, `git archive`) x arvore em 9 fcks (C20, C35, C50, C50,5, C55,
+C60, C75, C90 e o fckj jovem 13,74 MPa) - 99 valores, zero divergencias com
+`==`; os literais ANTES_MEDIDO do teste sao os do HEAD (nao tautologia). As
+`0,3 fck^(2/3)` que sobraram (base_chumbador:797, estaca_profunda:672) sao
+selftest de referencia, nao producao. G126: fckj(30e3,7) CPV 24562 x CPIII
+20516 na funcao real; zero defaults por AST. G130: casa 18, predio 24,
+galpao 30 no pacote de rodada real (portao proprio verde). G129: portao
+vivo verde nas 3 rodadas.
+
+**Defeitos corrigidos (5).**
+1. **G126 - pacote e conta liam o cimento de lugares diferentes.** Rodada
+real do galpao (`galpao-tp-g95`, sem 2D): com `"cimento": "CPII"` no TOPO
+do project-spec, o pacote dizia "CPII (declarado no projeto)" e a conta
+usava o piso (s=0,38); com CPII no payload `turnkey.concreto`, a conta usava
+0,25 e o pacote dizia "nao declarado - piso". O teste do G126 conferia as
+pecas so sem cimento e o pacote sem spec - a lente olhou a declaracao, nao o
+caminho do produto (a classe do D151, pela terceira vez). Corrigido:
+`cimento_do_turnkey(R)` le o que a conta gravou; `cimento_da_entrega` faz o
+resultado vencer e LEVANTA quando o spec declara outro;
+`galpao_adapter._run_turnkey` leva o topo ao payload e levanta com os dois
+divergentes; `emitir_pacote_legal` passa o calculado. Remedido: topo CPII e
+payload CPII saem CPII na conta, nas 2 folhas e no pacote; topo CPII x
+payload CPIII falha a rodada com o motivo no project-run.json, sem pacote.
+2. **G126 - casa e predio afirmavam "piso conservador s=0,38" no icamento
+sem icamento nenhum calculado** (pacote-legal.md de rodada real). Terceiro
+estado declarado na fonte unica: "sem icamento de pre-moldado calculado
+nesta entrega - nenhum fckj depende do cimento" (ORIGEM_SEM_ICAMENTO; o
+portao reconhece a marca).
+3. **G128 - a mesma precedencia silenciosa na edicao.** Com 2023+Em1 no topo
+e 2014 no payload concreto, pacote, caderno e pendencias diziam 2023+Em1 e a
+conta e as 2 folhas diziam 2014 (medido, `contem_declaracao` por peca): o
+payload vencia calado. Agora levanta; a mesma edicao nos dois lugares segue.
+4. **G126 - `relatorio_pt` embrulhava a linha do cimento (e o carimbo do
+G123 ao lado) num `except Exception`** que trocava qualquer erro por texto
+fixo; e 3 fallbacks `except ImportError` (pacote, techdraw, desenho) mais o
+do markdown repetiam a linha literal fora da fonte unica - o G127 acabava de
+desfazer 11 copias de uma conta. Removidos: a linha vem so da fonte.
+5. D156 com um byte corrompido na marca "nao verificada" - corrigido.
+
+**Achado e NAO corrigido (vai para o backlog G132-G136, medido).**
+(a) A chave 2023+Em1 carimba a edicao INTEIRA e so troca 2 pontos (12.3.3 no
+icamento e 13.2.5.1 no furo): na casa real com a chave, as 4 folhas PE-CO e
+o caderno dizem "calculado pela NBR 6118:2023 + Emenda 1:2026" e o memorial
+da sapata, na MESMA entrega, diz "NBR 6118:2014" - o memorial esta certo. O
+portao do G128 compara a folha com a chave de entrada, nao com a conta.
+Latente (nenhum project-spec do repo declara a chave, test_08); redesenhar a
+declaracao parcial toca os portoes G123/G128 inteiros - e goal.
+(b) `ProjetoSpec.cimento` e a pergunta do wizard viajam por
+`to_rodar_params` ao `rodar_galpao` metalico, que nao le a chave e nao tem
+icamento de pre-moldado: pergunta sem conta.
+(c) A viga protendida do galpao de concreto calcula com
+`fck = max(fck, 40e3)` (galpao_concreto:223) e `fckj = fck` na
+transferencia (viga_protendida:154).
+
+**Suite (lista nominal, lida inteira - convencao 10): 3795 passed, 0 falhas,
+289 arquivos.** Lotes: 522 + 158 + 297 + 381 + 401 + 459 + 325 + 511 (lote
+07 sem o G102) + 403 + 330 + 8 (G102 isolado, 1150 s). Dois achados de
+metodo no caminho: (1) o runner listava `tests/test_*.py` e pegava 246
+arquivos - as subpastas `tests/branches` (42) e `tests/trunk` (1) ficavam de
+fora; a lista passou a ser `find tests -name 'test_*.py'`; (2) o galpao com
+freecad.exe (~2 GB de pico) nao cabe na memoria livre da maquina junto de
+outros aplicativos abertos, e o harness matava o lote em segundo plano: o
+G102 rodou isolado, como processo independente, e passou.

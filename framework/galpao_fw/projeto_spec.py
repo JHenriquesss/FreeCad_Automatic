@@ -151,6 +151,12 @@ def novo():
         # (sem default silencioso). '2014' ou '2023+Em1' explicito; migrar e
         # decisao do usuario. Nao bloqueia (tem comportamento declarado).
         "norma_6118_edicao": None,
+        # G126: cimento do concreto para o fckj do icamento (NBR 6118
+        # 12.3.3). None (ausente) = piso conservador (maior `s` = 0,38) e a
+        # folha e o memorial dizem isso (nunca CPV). Opcional, com a
+        # ausencia dita; invalido BLOQUEIA. Escolher o cimento do projeto e
+        # decisao do usuario (piso nao e palpite).
+        "cimento": None,
         "_a_confirmar": [],
     }
 
@@ -651,6 +657,27 @@ def validar(spec):
             if str(_ed).strip() not in ("2014", "2023+Em1"):
                 faltando.append(("norma_6118_edicao",
                                  "edicao invalida %r (use '2014' ou '2023+Em1')" % (_ed,)))
+    # G126: cimento do concreto (NBR 6118 12.3.3). None/ausente = piso
+    # conservador declarado (nao bloqueia); string valida explicita;
+    # qualquer outra string BLOQUEIA (nao vira cimento em silencio).
+    _cim = spec.get("cimento")
+    if _cim not in (None, "", PENDENTE):
+        try:
+            import cimento_nbr6118_g126 as _cimm
+            _cimm.normaliza_cimento(_cim)
+        except ValueError:
+            faltando.append(("cimento",
+                             "cimento desconhecido %r (NBR 6118 12.3.3; use um "
+                             "de: CPI, CPII, CPIII, CPIV, CPV, CPV-ARI)"
+                             % (_cim,)))
+        except ImportError:
+            if str(_cim).strip().upper() not in (
+                    "CPI", "CPII", "CPIII", "CPIV", "CPV", "CPV-ARI",
+                    "CPV ARI"):
+                faltando.append(("cimento",
+                                 "cimento desconhecido %r (NBR 6118 12.3.3; use "
+                                 "um de: CPI, CPII, CPIII, CPIV, CPV, CPV-ARI)"
+                                 % (_cim,)))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
@@ -909,6 +936,10 @@ def to_rodar_params(spec):
     # G123: a chave de edicao viaja ao orquestrador (ausente = 2014 hoje).
     if spec.get("norma_6118_edicao") not in (None, "", PENDENTE):
         p["norma_6118_edicao"] = spec.get("norma_6118_edicao")
+    # G126: o cimento declarado viaja ao orquestrador (ausente = piso
+    # conservador declarado no calculo do concreto).
+    if spec.get("cimento") not in (None, "", PENDENTE):
+        p["cimento"] = spec.get("cimento")
     return p
 
 

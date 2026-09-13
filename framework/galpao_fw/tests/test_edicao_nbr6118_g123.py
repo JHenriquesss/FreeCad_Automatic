@@ -131,8 +131,8 @@ def test_01_portao_pecas_reais_declaram_e_sem_declaracao_reprova():
 
 
 def test_02_baseline_nos_dois_sentidos():
-    """Baseline congelado: 2 edicoes, 2 pontos, 14 usos (G125); nada some nem nasce
-    em silencio (vira a chave sem triagem = vermelho)."""
+    """Baseline congelado: 2 edicoes, 2 pontos, 19 usos (G125 + G128); nada
+    some nem nasce em silencio (vira a chave sem triagem = vermelho)."""
     lados = []
     if tuple(lente.EDICOES_VALIDAS) != ("2014", "2023+Em1"):
         lados.append("EDICOES_VALIDAS=%r, esperado ('2014','2023+Em1')"
@@ -151,7 +151,14 @@ def test_02_baseline_nos_dois_sentidos():
            # G125 (auditoria do G123): planta de formas, armacao e locacao
            # da fundacao da casa e do predio saiam sem declaracao (medido em
            # rodada real); os dois emissores passam a importar a fonte unica.
-           "desenho_pavimento.py", "desenho_fundacao_edificio.py"}
+           "desenho_pavimento.py", "desenho_fundacao_edificio.py",
+           # G128 (a declaracao chega as tres tipologias): quem resolve a
+           # chave fora do galpao (os 3 hooks de compatibilizacao/desenho/
+           # turnkey + o wrapper das folhas da casa) e o caderno. Triagem:
+           # so LEEM a chave e a repassam (MODULOS_COM_TROCA intacto).
+           "casa_residencial.py", "edificio_adapter.py",
+           "galpao_adapter.py", "desenho_casa_residencial.py",
+           "caderno_encargos.py"}
     if set(lente.USO_ESPERADO) != esp:
         lados.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                      % (sorted(esp - set(lente.USO_ESPERADO)),

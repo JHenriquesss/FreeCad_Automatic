@@ -748,8 +748,18 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     turnkey = turnkey if isinstance(turnkey, dict) else {}
     site = (normalized or {}).get("site")
     site = site if isinstance(site, dict) else {}
+    # G128: a edicao declarada no projeto chega as folhas de concreto (via
+    # gerar_desenhos_casa, que a resolve do turnkey quando ausente aqui).
     try:
-        emitido = dcr.gerar_desenhos_casa(result, destino, turnkey, site)
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_casa
+        _ed_casa = _ed_norm_casa(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_casa = None
+    try:
+        emitido = dcr.gerar_desenhos_casa(result, destino, turnkey, site,
+                                          edicao=_ed_casa)
     except Exception as exc:                                # noqa: BLE001
         manifest["deliverables"]["drawings"] = {
             "status": "failed", "detail": _erro_entregavel(exc)}
@@ -1427,7 +1437,15 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
 
     from project_loop import _add_artifact, _write_json
 
-    del normalized
+    # G128: a edicao declarada no projeto chega a compatibilizacao (o furo
+    # circular de 125 mm muda de veredito com a chave, e so com ela).
+    try:
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_cc
+        _ed_cc = _ed_norm_cc(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_cc = None
     policy = _copy.deepcopy(manifest.get("coordination_policy") or {
         "enabled": True,
         "folga_mm": options.folga_mm,
@@ -1510,7 +1528,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
         estrutura, eletrico, hidraulica,
         folga=policy.get("folga_mm", options.folga_mm),
         vol_min=policy.get("vol_min_mm3", options.vol_min_mm3))
-    pendencias = cp.gerar_pendencias(report)
+    pendencias = cp.gerar_pendencias(report, edicao=_ed_cc)
     reqs = (manifest.get("coordination") or {}).get("resolution_requests", [])
     pendencias = cp.aplicar_resolucoes(pendencias, reqs)
     summary = cp.resumo(pendencias)

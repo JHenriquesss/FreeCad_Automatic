@@ -20,16 +20,14 @@ from __future__ import annotations
 import desenho_svg_base as sb
 
 
-def _sufixo_edicao():
-    """Sufixo de edicao da NBR 6118 no titulo (G125, auditoria do G123).
+def _sufixo_edicao(edicao=None):
+    """Sufixo de edicao da NBR 6118 no titulo (G123/G125, auditoria do G123).
 
-    O G123 carimbou as folhas de concreto do GALPAO; as da casa e do predio
-    que saem por aqui seguiam sem dizer por qual edicao foram calculadas
-    (medido: planta de formas e locacao da fundacao, nas duas tipologias).
-    Casa e predio nao leem a chave de edicao - calculam pela 2014 -, entao
-    o sufixo e o do parametro ausente, vindo da fonte unica (sem literal)."""
+    G128: a edicao declarada no projeto chega aqui (casa e predio leem a
+    chave; ausente = comportamento de hoje, 2014 declarado). O sufixo vem
+    da fonte unica (sem literal)."""
     from edicao_nbr6118_g123 import sufixo_folha_edicao
-    return sufixo_folha_edicao(None)
+    return sufixo_folha_edicao(edicao)
 
 COR_SAPATA = "#e8e4dc"
 COR_SAPATA_DIVISA = "#fde9c8"
@@ -76,13 +74,15 @@ def _geometria_desenho(registro):
     return float(B), float(L), float(h or 0.0), subtipo, "sapata"
 
 
-def planta_fundacao_svg(fundacao, estrutura, titulo=None):
+def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
     """Monta a planta de locacao/formas da fundacao.
 
     fundacao  : dict de fundacao_edificio.dimensiona (tipo, sigma_solo_adm,
                 proveniencia_sigma, cota_apoio_m, por_pilar).
     estrutura : R do edificio (com 'pavimento') ou o pav direto
                 ({vaos_x, vaos_y}).
+    edicao    : (opc, G128) '2014' ou '2023+Em1' declarada no projeto;
+                ausente = comportamento de hoje (2014) declarado no titulo.
     """
     if not isinstance(fundacao, dict) or not fundacao.get("por_pilar"):
         raise ValueError(
@@ -118,7 +118,7 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None):
 
     tit = titulo or ("PE-CO-04 - LOCACAO E FORMAS DA FUNDACAO "
                      "(%s ; %d pilares)" % (tipo, len(por_pilar)))
-    tit += _sufixo_edicao()
+    tit += _sufixo_edicao(edicao)
     P = sb.abre_svg(W, H, tit)
     sigma_txt = ("%.1f kN/m2 (%s)" % (float(sigma), prov)) \
         if sigma is not None else "... nao declarado (ver quadro)"
@@ -392,8 +392,10 @@ def confere_desenho_fundacao(fundacao, svg, tol=1e-6):
             "divergencias": divergencias}
 
 
-def gerar_planta_fundacao(fundacao, estrutura, path, titulo=None):
+def gerar_planta_fundacao(fundacao, estrutura, path, titulo=None,
+                          edicao=None):
     """Escreve a planta de fundacao (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_fundacao_svg(fundacao, estrutura, titulo))
+        f.write(planta_fundacao_svg(fundacao, estrutura, titulo,
+                                    edicao=edicao))
     return path

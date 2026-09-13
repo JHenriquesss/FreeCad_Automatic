@@ -86,6 +86,92 @@ def _simbolo_do_design(design, points):
     return sym_lampada if kinds and all(k == "lighting" for k in kinds) else sym_tomada
 
 
+def _largura_est(texto_dado, size):
+    """Largura estimada da caixa do rotulo, na MESMA regua do censo G129.
+
+    `desenho_svg_base.colisoes_de_rotulo_svg` estima largura ~0,6*size por
+    caractere; o emissor que respeita essa regua ao posicionar nao entrega
+    par novo ao censo. A lente segue medindo o SVG emitido de forma
+    independente (parse do XML) - se o posicionamento falhar, o par aparece
+    no censo e o portao fica vermelho.
+    """
+    return max(len(str(texto_dado)) * size * 0.6, size * 0.6)
+
+
+def _caixa_texto(x, y, txt, size=13, anchor="middle"):
+    """Caixa estimada (x0, y0, x1, y1) de um <text>, na regua do G129."""
+    larg = _largura_est(txt, size)
+    alt = size * 1.1
+    if anchor == "middle":
+        x0, x1 = x - larg / 2.0, x + larg / 2.0
+    elif anchor == "end":
+        x0, x1 = x - larg, x
+    else:
+        x0, x1 = x, x + larg
+    return (x0, y - alt, x1, y + alt * 0.3)
+
+
+def _colide(caixa, outras):
+    return any(caixa[0] < b[2] and b[0] < caixa[2]
+               and caixa[1] < b[3] and b[1] < caixa[3] for b in outras)
+
+
+def _quebra_celula(valor, largura_px, size):
+    """Quebra o texto da celula em linhas que cabem em `largura_px`.
+
+    Regua do G129 (0,6*size por caractere): nenhuma linha devolvida excede
+    a largura da coluna sob a mesma metrica que o censo usa. Quebra por
+    palavra; palavra sozinha mais longa que a coluna e fatiada (nunca
+    corta conteudo fora). Devolve [texto] quando ja cabe (caso comum).
+    """
+    por_char = size * 0.6
+    cabem = max(int(largura_px // por_char), 1)
+    texto_dado = str(valor)
+    # lista separada por virgula (ex. comodos do circuito): cada item fica
+    # inteiro na linha - partir "Dormitorio 01" no meio confunde a leitura.
+    if ", " in texto_dado:
+        itens = [p for p in texto_dado.split(", ") if p]
+        linhas, atual = [], ""
+        for pos, item in enumerate(itens):
+            pedaco = item + ("," if pos < len(itens) - 1 else "")
+            if len(pedaco) > cabem:          # item sozinho maior que a coluna
+                for parte in _quebra_celula(pedaco, largura_px, size):
+                    if atual and len(atual) + 1 + len(parte) <= cabem:
+                        atual = (atual + " " + parte).strip()
+                    else:
+                        if atual:
+                            linhas.append(atual)
+                        atual = parte
+                continue
+            candidato = (atual + " " + pedaco).strip()
+            if len(candidato) <= cabem or not atual:
+                atual = candidato
+            else:
+                linhas.append(atual)
+                atual = pedaco
+        if atual or not linhas:
+            linhas.append(atual)
+        return linhas
+    palavras = texto_dado.split(" ")
+    linhas, atual = [], ""
+    for palavra in palavras:
+        while len(palavra) > cabem:           # palavra maior que a coluna
+            if atual:
+                linhas.append(atual)
+                atual = ""
+            linhas.append(palavra[:cabem])
+            palavra = palavra[cabem:]
+        candidato = (atual + " " + palavra).strip()
+        if len(candidato) <= cabem or not atual:
+            atual = candidato
+        else:
+            linhas.append(atual)
+            atual = palavra
+    if atual or not linhas:
+        linhas.append(atual)
+    return linhas
+
+
 def _num(value, fmt="%.1f"):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return A_CONFIRMAR
@@ -282,28 +368,57 @@ def quadro_cargas_residencial_svg(result) -> str:
         ))
 
     ausentes = circuitos_nao_dimensionados(result)
-    # Largura das colunas dimensionada para o rotulo MAIS LONGO que a coluna pode
-    # receber - o "piso da tabela (norma 1,5 mm2)" transbordava sobre a coluna DR.
+    # G129: nenhuma celula pode transbordar a coluna. A rodada real com 7
+    # comodos punha "Area de servico, Banheiro, Circulacao, Cozinha,
+    # Dormitorio 01, Dormitorio 02, Sala" por cima de TIPO/CARGA/I/SECAO/
+    # DISJ. (7 pares no censo, PNG casa-quadro-cargas.png) - a fixture
+    # sintetica do guardiao da folha tem comodos curtos e nunca acusou.
+    # Cada celula quebra em linhas que cabem na coluna (regua do G129) e a
+    # altura da linha acompanha a celula mais alta; entrelinha 17 px em
+    # corpo 11 (caixa do estimador: 1,1*size + 0,3*size = 15,4 < 17).
     largura = 1300
-    altura_linha = 28
-    altura = (altura_linha * (len(linhas) + 1) + 92
-              + (38 + 16 * len(ausentes) if ausentes else 0))
-    s = abre_svg(largura, altura, "QUADRO DE CARGAS - INSTALAÇÃO RESIDENCIAL", 18)
-    colunas = [20, 120, 180, 320, 430, 530, 590, 680, 750, 820, 1020, 1090]
+    corpo = 11
+    entrelinha = 17
+    topo_texto = 19
+    pe_linha = 9
+    # A coluna GOVERN. guarda a largura do rotulo MAIS LONGO que ela pode
+    # receber ("piso da tabela (norma 1,5 mm2)", 31 caracteres, com guardiao
+    # proprio em phase6b que cobra a string inteira): 230 px uteis >=
+    # 31*11*0,6 na regua do G129, sem quebrar a frase.
+    colunas = [20, 120, 180, 320, 430, 530, 590, 680, 750, 820, 1060, 1130]
+    bordas = colunas[1:] + [largura - 40]
+    larguras = [b - (c + 6) - 4 for c, b in zip(colunas, bordas)]
+    # desenha primeiro para medir as alturas (a linha acompanha a celula
+    # mais alta); depois emite com os y acumulados.
+    blocos = []
+    for linha_dados in linhas:
+        celulas = [_quebra_celula(valor, larg, corpo)
+                   for valor, larg in zip(linha_dados, larguras)]
+        blocos.append(celulas)
+    alturas = [topo_texto + (max(len(c) for c in cel) - 1) * entrelinha
+               + pe_linha for cel in blocos]
     y0 = 56
-    for i, linha_dados in enumerate(linhas):
-        y = y0 + i * altura_linha
+    altura = (y0 + sum(alturas) + 60
+              + (38 + 16 * len(ausentes) if ausentes else 0))
+    s = abre_svg(largura, altura, "QUADRO DE CARGAS - INSTALAÇÃO RESIDENCIAL",
+                 18)
+    y = y0
+    for i, (linha_dados, celulas, alt) in enumerate(zip(linhas, blocos,
+                                                        alturas)):
         fundo = "#dfe7ef" if i == 0 else ("#f4f4f0" if i % 2 else "white")
         s.append(f'<rect x="20" y="{y:.0f}" width="{largura - 40}" '
-                 f'height="{altura_linha}" fill="{fundo}" stroke="#888" '
+                 f'height="{alt}" fill="{fundo}" stroke="#888" '
                  f'stroke-width="0.6"/>')
         reprova = i > 0 and linha_dados[-1] == "REPROVA"
-        for c, valor in enumerate(linha_dados):
+        for c, (valor, partes) in enumerate(zip(linha_dados, celulas)):
             peso = "bold" if i == 0 else "normal"
             cor = "#a00" if (reprova and c == len(linha_dados) - 1) else "#111"
-            s.append(texto(colunas[c] + 6, y + 19, valor, 11, "start", peso, cor))
+            for k, parte in enumerate(partes):
+                s.append(texto(colunas[c] + 6, y + topo_texto + k * entrelinha,
+                               parte, corpo, "start", peso, cor))
+        y += alt
 
-    rodape = y0 + len(linhas) * altura_linha + 22
+    rodape = y + 22
     entry = _entry(result)
     s.append(texto(24, rodape,
                    "Padrão de entrada: %s | disjuntor geral %s A | aterramento %s mm²"
@@ -359,6 +474,7 @@ def planta_eletrica_residencial_svg(result) -> str:
             cor_de[point_id] = _cor_do_circuito(index)
 
     s = abre_svg(largura, altura, "PLANTA DE ILUMINAÇÃO E TOMADAS - RESIDENCIAL")
+    obstaculos = []
     for room in layout["rooms"]:
         x = px(room["x_m"])
         y = py(room["y_m"] + room["depth_m"])
@@ -372,9 +488,16 @@ def planta_eletrica_residencial_svg(result) -> str:
         s.append(texto(x + 8, y + 33,
                        "%.2f x %.2f m" % (room["width_m"], room["depth_m"]), 10,
                        "start", color="#999"))
+        obstaculos.append(_caixa_texto(x + 8, y + 18, room["name"], 12,
+                                       "start"))
+        obstaculos.append(_caixa_texto(
+            x + 8, y + 33, "%.2f x %.2f m" % (room["width_m"],
+                                              room["depth_m"]), 10, "start"))
 
     quadro = layout["board"]
     qx, qy = px(quadro["x_m"]), py(quadro["y_m"])
+    obstaculos.append(_caixa_texto(qx + 14, qy + 4, quadro["id"], 11,
+                                   "start"))
     for index, design in enumerate(designs):
         cor = _cor_do_circuito(index)
         for point_id in design["point_ids"]:
@@ -389,12 +512,32 @@ def planta_eletrica_residencial_svg(result) -> str:
     for point_id, posicao in posicoes.items():
         cor = cor_de.get(point_id, "#111")
         kind = points.get(point_id, {}).get("kind")
+        sx, sy = px(posicao["x_m"]), py(posicao["y_m"])
         if kind == "lighting":
-            s.append(sym_lampada_cor(px(posicao["x_m"]), py(posicao["y_m"]), cor))
+            s.append(sym_lampada_cor(sx, sy, cor))
         else:
-            s.append(sym_tomada_cor(px(posicao["x_m"]), py(posicao["y_m"]), cor))
-        s.append(texto(px(posicao["x_m"]) + 12, py(posicao["y_m"]) - 8, point_id, 9,
-                       "start", color=cor))
+            s.append(sym_tomada_cor(sx, sy, cor))
+        # G129: etiquetas de pontos proximos (luz + tomada no mesmo ponto do
+        # layout, tags vizinhas) saiam sobrepostas e ilegíveis - 12 pares no
+        # censo, PNG casa-planta-eletrica.png (ex. L-BAN/T-BAN-01/TUE-CHUV no
+        # mesmo (x, y)). A etiqueta tenta deslocamentos fixos, em ordem, e
+        # fica no primeiro que nao encosta em rotulo de comodo, no quadro nem
+        # em etiqueta ja posta (regua do G129); se nenhum servir, sai no
+        # padrao e o censo acusa (ausencia declarada pelo portao, nunca
+        # silencio).
+        larg_tag = _largura_est(point_id, 9)
+        tentativas = [(12, -8), (12, 9), (-larg_tag - 12, -8),
+                      (-larg_tag - 12, 9), (12, -25), (12, 26),
+                      (-larg_tag - 12, -25), (-larg_tag - 12, 26),
+                      (30, -8), (-larg_tag - 30, -8)]
+        tx, ty = sx + 12, sy - 8
+        for dx, dy in tentativas:
+            cand = _caixa_texto(sx + dx, sy + dy, point_id, 9, "start")
+            if not _colide(cand, obstaculos):
+                tx, ty = sx + dx, sy + dy
+                break
+        obstaculos.append(_caixa_texto(tx, ty, point_id, 9, "start"))
+        s.append(texto(tx, ty, point_id, 9, "start", color=cor))
     s.append(sym_disjuntor(qx, qy))
     s.append(texto(qx + 14, qy + 4, quadro["id"], 11, "start", "bold"))
 

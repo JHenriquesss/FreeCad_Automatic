@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import math
 
+import fctm_nbr6118_g127
+
 # --- coeficientes de ponderacao (ELU, combinacao normal) --------------------
 GAMMA_C = 1.4
 GAMMA_S = 1.15
@@ -401,10 +403,7 @@ def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
     fywd = fyk / GAMMA_S
     alpha_v2 = 1.0 - fck_MPa / 250.0
     VRd2 = 0.27 * alpha_v2 * fcd * bw * d
-    if fck_MPa <= 50.0:
-        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)       # 8.2.5 ate C50
-    else:
-        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)  # 8.2.5 C55-C90 (G49)
+    fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
     fctd_MPa = 0.7 * fctm_MPa / 1.4
     Vc = 0.6 * fctd_MPa * 1000.0 * bw * d
     fywk_MPa = fyk / 1000.0

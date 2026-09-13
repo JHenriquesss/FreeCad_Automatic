@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 import fundacao_sapata as fs
+import fctm_nbr6118_g127
 
 # --- Tabela 12.6 (Aoki-Velloso, 1975) - K [kPa] e alpha [%] por tipo de solo ---
 # K em kPa = valor em kgf/cm2 x 100 (convencao de Cintra & Aoki 2010). LIDO do PDF.
@@ -376,16 +377,13 @@ def recalque_grupo(N_grupo, B_grupo, L_grupo, L_estaca, Es, nu=0.30, Iw=0.88,
 def ancoragem_tirante(phi, fck, fyk, boa_aderencia=True, gancho=False,
                       As_calc=None, As_ef=None):
     """Comprimento de ancoragem do tirante (NBR 6118 9.3.2/9.4.2). phi em m.
-      fctm = 0,3*fck^(2/3) (ate C50) ; C55-C90: fctm = 2,12*ln(1+0,11*fck) (8.2.5, G49) ; fctd = 0,7*fctm/1,4 ; fbd = eta1*eta2*eta3*fctd
+      fct,m pela fonte unica fctm_nbr6118_g127 (8.2.5, G127) ; fctd = 0,7*fctm/1,4 ; fbd = eta1*eta2*eta3*fctd
       eta1=2,25 (nervurada CA-50) ; eta2=1,0 boa / 0,7 ma aderencia ; eta3=1,0 (phi<32mm)
       lb = (phi/4)*(fyd/fbd) ; lb_nec = alpha*lb*(As_calc/As_ef) >= lb_min
       lb_min = max(0,3 lb ; 10 phi ; 100 mm) ; alpha = 0,7 (gancho) / 1,0 (reta).
     fck, fyk em kN/m2. Retorna dict (comprimentos em m)."""
     fck_MPa = fck / 1000.0
-    if fck_MPa <= 50.0:
-        fctm = 0.3 * fck_MPa ** (2.0 / 3.0)              # MPa (8.2.5, ate C50)
-    else:
-        fctm = 2.12 * math.log(1.0 + 0.11 * fck_MPa)    # MPa (8.2.5, C55-C90, G49)
+    fctm = fctm_nbr6118_g127.fctm_MPa(fck_MPa)    # MPa (8.2.5, fonte unica G127)
     fctd = 0.7 * fctm / 1.4                          # MPa
     phi_mm = phi * 1000.0
     eta1 = 2.25                                      # barra nervurada (CA-50)

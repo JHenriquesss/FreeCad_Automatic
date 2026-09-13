@@ -1,6 +1,17 @@
 # Backlog de goals executáveis — pós-G125 (2026-09-12)
 
-Fila **ABERTA**. Cinco goals (G126–G130). As filas anteriores estão fechadas e ficam apenas
+> **FILA CONSUMIDA (2026-09-13).** Os cinco goals foram executados e auditados (G131,
+> [[04-decisions#D157]]). Não reexecute. A fila aberta é `BACKLOG-GOALS-G132-G136.md`.
+>
+> | Goal | Verbete | Auditoria |
+> |---|---|---|
+> | G126 cimento declarado | D152 | pacote e conta liam o cimento de lugares diferentes; casa/prédio afirmavam piso sem içamento; catch-all e cópias da linha — corrigidos |
+> | G127 fct,m em fonte única | D153 | bateu (99 valores HEAD == árvore, 9 fcks) |
+> | G128 edição nas 3 tipologias | D154 | topo × payload: o payload vencia calado — corrigido; a chave carimba a edição inteira trocando 2 pontos — G132 |
+> | G129 censo de colisões | D155 | bateu (portão vivo verde) |
+> | G130 dívidas no pacote | D156 | bateu (18/24/30); byte corrompido no verbete — corrigido |
+
+Fila ~~ABERTA~~ consumida. Cinco goals (G126–G130). As filas anteriores estão fechadas e ficam apenas
 como registro — não reexecute nada de lá: `BACKLOG-GOALS.md` (G78–G88),
 `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`, `BACKLOG-GOALS-G107-G112.md`,
 `BACKLOG-GOALS-G114-G118.md` e `BACKLOG-GOALS-G120-G124.md`.

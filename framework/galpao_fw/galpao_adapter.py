@@ -41,6 +41,15 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
     import compatibilizacao as cp
     import galpao_turnkey as tk
 
+    # G128: a edicao declarada no projeto chega a compatibilizacao (o furo
+    # circular de 125 mm muda de veredito com a chave, e so com ela).
+    try:
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_ga
+        _ed_ga = _ed_norm_ga(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_ga = None
     coordination_dir = Path(run_dir) / "coordination"
     coordination_dir.mkdir(parents=True, exist_ok=True)
     report = tk.checa_interferencia_federada(
@@ -49,7 +58,7 @@ def _write_coordination(manifest, run_dir, normalized, options, turnkey_result):
     # G55: o galpao NAO declara geometria de cruzamento (regressao congelada:
     # mesmos pares, mesma classificacao/acao/responsavel). Resolucoes seguem
     # valendo: request invalida LEVANTA e o hook vira failed.
-    pendencias = cp.gerar_pendencias(report)
+    pendencias = cp.gerar_pendencias(report, edicao=_ed_ga)
     reqs = manifest["coordination"].get("resolution_requests", [])
     pendencias = cp.aplicar_resolucoes(pendencias, reqs)
     summary = cp.resumo(pendencias)
@@ -590,6 +599,50 @@ def _run_turnkey(normalized, run_dir, preflight=None):
     turnkey_spec = _selected_turnkey_spec(normalized)
     for name in blocked:
         turnkey_spec.pop(name, None)
+    # G128: a edicao declarada no projeto (raw_spec, topo) chega ao calculo
+    # do concreto (galpao_concreto.rodar a le no payload "concreto"; o
+    # normalize do loop nao a carrega para o turnkey). Sem ela, nada muda
+    # (chave DESLIGADA, 2014 declarado nas pecas); o payload que ja declara
+    # vence (o mais proximo da producao manda); invalida levanta.
+    try:
+        from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm_rt
+        _ed_rt = _ed_norm_rt(normalized)
+    except ValueError:
+        raise
+    except ImportError:
+        _ed_rt = None
+    # G131 (auditoria do G128, medido em rodada real): com 2023+Em1 no topo e
+    # 2014 no payload, o payload vencia em silencio - pacote, caderno e
+    # pendencias diziam 2023+Em1, a conta e as 2 folhas diziam 2014. Agora a
+    # divergencia LEVANTA (a entrega nao declara duas edicoes).
+    if _ed_rt is not None and isinstance(turnkey_spec.get("concreto"), dict):
+        from edicao_nbr6118_g123 import edicao_de_spec as _ed_spec_rt
+        _ed_payload = _ed_spec_rt(turnkey_spec["concreto"])
+        if _ed_payload is not None and _ed_payload != _ed_rt:
+            raise ValueError(
+                "edicao da NBR 6118 declarada no topo do projeto (%s) diverge "
+                "do payload concreto (%s): declare uma so (G131)"
+                % (_ed_rt, _ed_payload))
+        if _ed_payload is None:
+            turnkey_spec["concreto"] = dict(turnkey_spec["concreto"],
+                                            norma_6118_edicao=_ed_rt)
+    # G131 (auditoria do G126, medido em rodada real): o cimento declarado no
+    # topo do projeto nao chegava ao calculo (pacote dizia CPII, a conta
+    # usava o piso s=0,38). Agora chega ao payload do concreto; declarado nos
+    # dois lugares com valores diferentes LEVANTA (a entrega nao escolhe um
+    # em silencio); invalido levanta na fonte unica.
+    from cimento_nbr6118_g126 import cimento_de_spec as _cim_spec_rt
+    _cim_topo = _cim_spec_rt(normalized.get("raw_spec")
+                             if isinstance(normalized, dict) else None)
+    if _cim_topo is not None and isinstance(turnkey_spec.get("concreto"), dict):
+        _cim_payload = _cim_spec_rt(turnkey_spec["concreto"])
+        if _cim_payload is not None and _cim_payload != _cim_topo:
+            raise ValueError(
+                "cimento declarado no topo do projeto (%s) diverge do payload "
+                "concreto (%s): declare um so (NBR 6118 12.3.3, G131)"
+                % (_cim_topo, _cim_payload))
+        turnkey_spec["concreto"] = dict(turnkey_spec["concreto"],
+                                        cimento=_cim_topo)
     result = tk.rodar(turnkey_spec, str(run_dir / "disciplines"))
     records = {}
     for name in normalized["requested_disciplines"]:

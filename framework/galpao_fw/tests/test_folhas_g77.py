@@ -429,6 +429,22 @@ ISENTAS = {
     "caderno_casa_edificio.montar_caderno_svg":
         "G94: monta PDF a partir de folhas SVG ja emitidas; nao e emissor "
         "de folha - portao proprio em test_caderno_casa_edificio_g94.py",
+    # G126: devolve as 2 linhas de nota do cimento (fonte unica) CONSUMIDAS
+    # pelas folhas desenho_concreto.prancha_armacao_svg e planta_formas_svg
+    # (ambas em FOLHAS); nao emite folha - o portao proprio e o G126
+    # (tests/test_cimento_nbr6118_g126.py, test_01 confere as 2 SVG inteiras).
+    "desenho_concreto._linhas_cimento_svg":
+        "G126: helper de nota consumido pelas 2 folhas do galpao em FOLHAS; "
+        "nao e emissor de folha - portao proprio em "
+        "tests/test_cimento_nbr6118_g126.py",
+    # G129: embrulho puro do estimador (parse XML + ordenacao dos pares),
+    # CONSUMIDO pelo portao do censo (tests/test_colisoes_censo_g129.py);
+    # nao emite folha - o portao proprio e o G129 (confere_censo com
+    # baseline nos dois sentidos + vermelho por injecao).
+    "varredura_colisoes_g129.pares_de_svg":
+        "G129: wrapper puro do estimador consumido pelo portao do censo; "
+        "nao e emissor de folha - portao proprio em "
+        "tests/test_colisoes_censo_g129.py",
 }
 
 

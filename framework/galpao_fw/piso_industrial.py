@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 
 import fissuracao_nbr6118 as fis
+import fctm_nbr6118_g127
 
 # --- constantes de material/modelo -----------------------------------------
 NU_CONCRETO = 0.15              # Poisson do concreto p/ Westergaard (classico)
@@ -60,17 +61,13 @@ def resistencia_flexao_projeto(fck_MPa):
     """Resistencia de projeto a tracao NA FLEXAO (modulo de ruptura) da placa,
     NBR 6118 8.2.5. A placa de piso trabalha a FLEXAO, nao a tracao axial; a norma
     da fct = 0,7.fct,f (a tracao na flexao e' ~1/0,7 = 1,43x a tracao direta):
-      fct,m       = 0,3.fck^(2/3)           (tracao axial media, ate C50)
-      C55-C90: fct,m = 2,12.ln(1+0,11.fck)  (8.2.5, G49)
+      fct,m axial medio pela fonte unica fctm_nbr6118_g127 (8.2.5, G127)
       fct,f,m     = fct,m / 0,7             (tracao na flexao media)
       fct,f,k,inf = 0,7.fct,f,m = fct,m     (caracteristico inferior, CV=0,7)
       fct,f,d     = fct,f,k,inf / gamma_c
     Retorna MPa. (Contrasta com fundacao_sapata.py, que usa a tracao AXIAL fctd
     para ancoragem/cisalhamento - la o estado-limite e' outro.)"""
-    if fck_MPa <= 50.0:
-        fctm = 0.3 * fck_MPa ** (2.0 / 3.0)
-    else:
-        fctm = 2.12 * math.log(1.0 + 0.11 * fck_MPa)
+    fctm = fctm_nbr6118_g127.fctm_MPa(fck_MPa)
     fct_f_k_inf = fctm                      # = 0,7.(fct,m/0,7)
     return fct_f_k_inf / GAMMA_C
 

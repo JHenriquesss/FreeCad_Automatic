@@ -27,14 +27,34 @@ except ImportError:  # uso isolado fora do pacote
     _sufixo_ed = None
 
 
-def _carimbo_edicao(r):
+def _linhas_cimento_svg(r):
+    """Cimento do fckj em linhas curtas para a folha (G126, fonte unica).
+
+    A declaracao cheia nao cabe na largura minima das folhas, entao ela e
+    partida no primeiro ": " (prefixo numa linha, marca noutra). O portao
+    confere o texto INTEIRO do SVG, de modo que o prefixo e a marca
+    continuam acusando (substring, nunca regex sobre a folha).
+    """
+    # G131: sem copia literal da linha no fallback (fonte unica).
+    from cimento_nbr6118_g126 import linha_cimento as _lc_g126
+    cheia = _lc_g126(r)
+    antes, sep, depois = cheia.partition(": ")
+    if not sep:
+        return [cheia]
+    return [antes + ":", depois]
+
+
+def _carimbo_edicao(r, edicao=None):
     """Sufixo de edicao da NBR 6118 para o titulo da folha (G123, fonte unica).
 
     Sem o parametro no resultado, o comportamento e o de hoje (2014) e a
     folha diz qual e (chave DESLIGADA, sem default silencioso).
+    G128: `edicao` explicita (a declarada no projeto, que casa e predio
+    repassam) vence o que o resultado carrega; ausente, vale o resultado.
     """
     try:
-        ed = _edicao_de_r(r) if _edicao_de_r is not None else None
+        ed = (edicao if edicao is not None
+              else (_edicao_de_r(r) if _edicao_de_r is not None else None))
     except ValueError:
         raise
     if _sufixo_ed is not None:
@@ -125,6 +145,7 @@ def _esc(t):
 TOPO_SECAO = 60.0      # primeira linha da secao mais alta (abaixo do titulo)
 FOLGA_COTA = 34.0      # cota (y0+h+16) + descida do texto + margem inferior
 ALTURA_NOTA = 24.0     # linha da NOTA C55-C90, quando exigida
+ALTURA_LINHA_CIMENTO = 40.0  # G126: bloco de 2 linhas do cimento no rodape
 
 
 def _exige_gancho_135(r):
@@ -158,7 +179,8 @@ def prancha_armacao_svg(r):
         h_sapata = _Ls * 100.0 * (150.0 / (max(_B, _Ls) * 100.0))
     h_max = max(pil["hx"] * 100.0 * esc, vg["h"] * 100.0 * esc, h_sapata)
     cy = TOPO_SECAO + h_max / 2.0             # centro comum das tres secoes
-    Hn = TOPO_SECAO + h_max + FOLGA_COTA + (ALTURA_NOTA if _gancho else 0.0)
+    Hn = (TOPO_SECAO + h_max + FOLGA_COTA + (ALTURA_NOTA if _gancho else 0.0)
+          + ALTURA_LINHA_CIMENTO)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hn}" '
              f'viewBox="0 0 {W} {Hn}" font-family="Arial,Helvetica,sans-serif">',
              f'<rect width="{W}" height="{Hn}" fill="#ffffff"/>',
@@ -215,7 +237,16 @@ def prancha_armacao_svg(r):
     # com gancho a 135 graus (NBR 6118 18.4.3 NOTA); em C50 nada muda.
     if _gancho:
         parts.append(f'<text x="20" y="{Hn - 14:.0f}" font-size="12" font-weight="bold" '
-                     f'fill="#111">{_esc("NOTA C55-C90 (18.4.3): estribos do pilar com gancho a 135 graus")}</text>')
+                      f'fill="#111">{_esc("NOTA C55-C90 (18.4.3): estribos do pilar com gancho a 135 graus")}</text>')
+    # G126: a folha declara o cimento do fckj (fonte unica; sem o cimento, o
+    # piso conservador, com a ausencia dita). Bloco no rodape, acima da nota
+    # do gancho quando ela existe; a altura ja entrou no Hn acima.
+    # Entrelinha de 16 px (fonte 11): nem o estimador de colisao acusa o par.
+    _lc = _linhas_cimento_svg(r)
+    _y_cim_base = Hn - 10.0 - (ALTURA_NOTA if _gancho else 0.0)
+    for _i, _t in enumerate(_lc):
+        parts.append(f'<text x="20" y="{_y_cim_base - 16.0 * (len(_lc) - 1 - _i):.1f}" '
+                      f'font-size="11" fill="#444">{_esc(_t)}</text>')
     parts.append('</svg>')
     return "\n".join(parts)
 
@@ -315,6 +346,12 @@ def planta_formas_svg(r):
                  f'stroke="#333"/><text x="{xl-6:.1f}" y="{Y(comp/2):.1f}" font-size="12" '
                  f'text-anchor="middle" transform="rotate(-90 {xl-6:.1f} {Y(comp/2):.1f})">'
                  f'{comp:.2f} m</text>')
+    # G126: a folha declara o cimento do fckj (fonte unica), abaixo das
+    # cotas (faixa livre do rodape: a margem tem 108 px e o bloco usa ~70).
+    # Entrelinha de 16 px (fonte 11): nem o estimador de colisao acusa o par.
+    for _i, _t in enumerate(_linhas_cimento_svg(r)):
+        s_svg.append(f'<text x="{margem:.0f}" y="{Y(comp) + 52.0 + 16.0 * _i:.1f}" '
+                      f'font-size="11" fill="#444">{_esc(_t)}</text>')
     s_svg.append('</svg>')
     return "\n".join(x for x in s_svg if x)
 
@@ -379,7 +416,8 @@ def _hachura_engaste(x1, y1, x2, y2, lado, n=14, t=9.0):
     return "".join(s)
 
 
-def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
+def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None,
+                    edicao=None):
     """Planta de formas + armacao de um painel de laje macica, a partir do dict
     de laje_concreto.verifica_laje. Mostra o painel na escala, a convencao de
     vinculacao de cada borda (hachura = engaste), as cotas, as barras positivas
@@ -388,7 +426,9 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
 
     `extras` (G111): (altura_extra_px, [linhas_svg]) anexadas abaixo da folha
     de 700 px - sem ele a saida e a de sempre. `titulo_extra`: sufixo da
-    segunda linha do cabecalho (diz QUAL painel e o desenho)."""
+    segunda linha do cabecalho (diz QUAL painel e o desenho).
+    `edicao` (G128): a declarada no projeto (casa/predio repassam); vence o
+    que o resultado carrega; ausente = comportamento de hoje declarado."""
     import laje_concreto as lj
     if quadro is None:
         quadro = lj.quadro_de_ferros(r)
@@ -406,8 +446,8 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
          f'viewBox="0 0 {W} {H}" font-family="Arial,Helvetica,sans-serif">',
          f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
-         f'<text x="30" y="34" font-size="16" font-weight="bold" fill="#111">'
-         f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA" + _carimbo_edicao(r))}</text>',
+          f'<text x="30" y="34" font-size="16" font-weight="bold" fill="#111">'
+          f'{_esc("PLANTA DE FORMAS E ARMACAO - LAJE MACICA" + _carimbo_edicao(r, edicao))}</text>',
           f'<text x="30" y="56" font-size="12" fill="#444">'
           f'{_esc("painel %.2f x %.2f m (lambda %.2f) ; h = %.0f cm ; d = %.1f cm ; "
                   "C%.0f ; caso %d ; %s%s" % (lx, ly, r["lambda"], h * 100, r["d"] * 100, r["fck"] / 1000.0, r["caso"], "armada em 2 direcoes" if r["duas_direcoes"] else "armada em 1 direcao", titulo_extra or ""))}</text>']
@@ -600,20 +640,23 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None):
     return "\n".join(s)
 
 
-def gerar_planta_laje(r, path, quadro=None, lajes_por_painel=None):
+def gerar_planta_laje(r, path, quadro=None, lajes_por_painel=None,
+                      edicao=None):
     """Escreve a planta da laje (SVG) em `path`. Retorna o path.
 
     Com `lajes_por_painel` (o dict de `detalha_lajes_por_painel`) sai a
-    folha G111 de todos os paineis; sem ele, a de um painel de sempre."""
+    folha G111 de todos os paineis; sem ele, a de um painel de sempre.
+    `edicao` (G128): a declarada no projeto; ausente = hoje declarado."""
     with open(path, "w", encoding="utf-8") as f:
         if lajes_por_painel is not None:
-            f.write(planta_lajes_todos_paineis_svg(lajes_por_painel))
+            f.write(planta_lajes_todos_paineis_svg(lajes_por_painel,
+                                                   edicao=edicao))
         else:
-            f.write(planta_laje_svg(r, quadro))
+            f.write(planta_laje_svg(r, quadro, edicao=edicao))
     return path
 
 
-def planta_lajes_todos_paineis_svg(det):
+def planta_lajes_todos_paineis_svg(det, edicao=None):
     """PE-CO-03, G111 opcao (a): TODOS os paineis detalhados, um quadro de
     ferros por painel, mesma h adotada.
 
@@ -677,4 +720,4 @@ def planta_lajes_todos_paineis_svg(det):
                                        det["paineis"].index(crit) + 1, n))
     return planta_laje_svg(crit["resultado"], quadro=crit["quadro"],
                            extras=(altura_extra, linhas),
-                           titulo_extra=titulo_extra)
+                           titulo_extra=titulo_extra, edicao=edicao)

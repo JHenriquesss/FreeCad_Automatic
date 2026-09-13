@@ -185,14 +185,48 @@ def disciplinas_disponiveis():
     return [d for d in _ORDEM if d in _CLAUSULAS]
 
 
-def gerar_caderno(disciplinas=None):
+def gerar_caderno(disciplinas=None, edicao=None):
     """Monta o caderno de encargos. disciplinas: lista de chaves (default: todas).
-    Retorna dict estruturado {disciplinas:[{disciplina, titulo, clausulas:[...]}], ...}."""
+    Retorna dict estruturado {disciplinas:[{disciplina, titulo, clausulas:[...]}], ...}.
+
+    `edicao` (G128): '2014' ou '2023+Em1' declarada no projeto, da fonte
+    unica `edicao_nbr6118_g123`. A mencao "NBR 6118" das clausulas sai com
+    a edicao que a conta usou; sem o parametro, o comportamento e o de hoje
+    (2014) e o caderno diz qual e (via `linha_edicao_6118`). Invalida
+    levanta (nao vira edicao em silencio)."""
     if disciplinas is None:
         disciplinas = disciplinas_disponiveis()
     invalidas = [d for d in disciplinas if d not in _CLAUSULAS]
     if invalidas:
         raise ValueError("disciplina(s) sem clausulas: %r" % invalidas)
+    try:
+        from edicao_nbr6118_g123 import (
+            carimbo_edicao as _carimbo_ed_g128,
+            normaliza_edicao as _norm_ed_g128,
+            rotulo_edicao as _rot_ed_g128,
+        )
+    except ImportError:  # uso isolado fora do pacote
+        _carimbo_ed_g128 = None
+        _norm_ed_g128 = None
+        _rot_ed_g128 = None
+    if edicao is None:
+        _ed_canon = None
+    elif _norm_ed_g128 is not None:
+        _ed_canon = _norm_ed_g128(edicao)
+    else:
+        _ed_canon = str(edicao)
+    if _rot_ed_g128 is not None:
+        _rot = _rot_ed_g128(_ed_canon)
+    else:
+        _rot = "NBR 6118:2014" if not _ed_canon else "NBR 6118:%s" % _ed_canon
+
+    def _com_edicao(nome_norma):
+        # So a 6118 tem edicao declarada neste goal; as demais seguem como
+        # referencia de numero (o modulo nao tabela valor de norma).
+        if nome_norma == "NBR 6118":
+            return _rot
+        return nome_norma
+
     secoes = []
     for d in _ORDEM:
         if d not in disciplinas:
@@ -201,19 +235,31 @@ def gerar_caderno(disciplinas=None):
         for (titulo, material, execucao, controle, normas) in _CLAUSULAS[d]:
             clausulas.append({"titulo": titulo, "material": material,
                               "execucao": execucao, "controle": controle,
-                              "normas": list(normas)})
+                              "normas": [_com_edicao(n) for n in normas]})
         secoes.append({"disciplina": d, "titulo": _TITULO_DISC.get(d, d.upper()),
                        "clausulas": clausulas})
     normas = sorted({n for s in secoes for c in s["clausulas"] for n in c["normas"]})
+    if _carimbo_ed_g128 is not None:
+        _linha_ed = _carimbo_ed_g128(_ed_canon)
+    else:
+        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
+                     "atual; edicao nao declarada no projeto — assumida 2014)"
+                     if not _ed_canon else
+                     ("Projeto calculado pela NBR 6118:%s (edicao declarada "
+                      "no projeto)" % _ed_canon))
     return {"secoes": secoes, "n_secoes": len(secoes),
             "n_clausulas": sum(len(s["clausulas"]) for s in secoes),
-            "normas_referenciadas": normas}
+            "normas_referenciadas": normas,
+            "edicao_6118": _ed_canon,
+            "linha_edicao_6118": _linha_ed}
 
 
-def caderno_de_turnkey(R):
+def caderno_de_turnkey(R, edicao=None):
     """Seleciona as disciplinas do caderno a partir de um resultado de
     galpao_turnkey.rodar(R) (as executadas) + fundacao/piso/terraplenagem quando
-    o concreto rodou. Best-effort, nunca quebra."""
+    o concreto rodou. Best-effort, nunca quebra.
+
+    `edicao` (G128): a declarada no projeto, repassada a `gerar_caderno`."""
     execs = set(R.get("executadas", []))
     disc = [d for d in _ORDEM if d in execs]
     if "concreto" in execs:
@@ -228,12 +274,31 @@ def caderno_de_turnkey(R):
                 .get("raw", {}) or {}).get("piso")
         if piso and "piso" not in disc:
             disc.append("piso")
-    return gerar_caderno([d for d in _ORDEM if d in disc]) if disc else gerar_caderno()
+    return gerar_caderno([d for d in _ORDEM if d in disc],
+                         edicao=edicao) if disc else gerar_caderno(
+                             edicao=edicao)
 
 
 def markdown(caderno, titulo="CADERNO DE ENCARGOS - ESPECIFICACOES TECNICAS"):
-    """Renderiza o caderno em markdown."""
+    """Renderiza o caderno em markdown.
+
+    G128: a secao "Norma de calculo do concreto" sai sempre (a mesma
+    declaracao do pacote legal, da fonte unica): sem a edicao no projeto,
+    o comportamento e o de hoje (2014) e a peca diz qual e."""
     L = ["# %s" % titulo, ""]
+    _linha_ed = (caderno or {}).get("linha_edicao_6118")
+    if not _linha_ed:
+        try:
+            from edicao_nbr6118_g123 import carimbo_edicao as _car_md
+            _linha_ed = _car_md((caderno or {}).get("edicao_6118"))
+        except ImportError:
+            _linha_ed = ("Projeto calculado pela NBR 6118:2014 "
+                         "(comportamento atual; edicao nao declarada no "
+                         "projeto — assumida 2014)")
+    L.append("## Norma de calculo do concreto (G123)")
+    L.append("")
+    L.append(str(_linha_ed))
+    L.append("")
     for i, s in enumerate(caderno["secoes"], start=1):
         L.append("## %d. %s" % (i, s["titulo"]))
         for j, c in enumerate(s["clausulas"], start=1):
@@ -279,6 +344,22 @@ def _selftest():
     md = markdown(cad)
     assert md.startswith("# CADERNO DE ENCARGOS") and "## 1." in md
     assert "**Material:**" in md and "NBR 8800" in md
+
+    # G128: sem edicao, a 6118 sai com a de hoje (2014) e o caderno diz
+    # qual e; com a chave, sai a declarada; invalida levanta.
+    assert "NBR 6118:2014" in md and "nao declarada" in md
+    assert cad["edicao_6118"] is None
+    ce23 = gerar_caderno(["concreto"], edicao="2023+Em1")
+    assert ce23["edicao_6118"] == "2023+Em1"
+    assert ce23["secoes"][0]["clausulas"][0]["normas"][0] == \
+        "NBR 6118:2023 + Emenda 1:2026"
+    md23 = markdown(ce23)
+    assert "NBR 6118:2023 + Emenda 1:2026" in md23
+    assert "edicao declarada no projeto" in md23
+    try:
+        gerar_caderno(["concreto"], edicao="2015"); assert False
+    except ValueError:
+        pass
 
     # caderno_de_turnkey seleciona pelas executadas + acrescenta a fundacao
     R = {"executadas": ["concreto", "eletrico"],

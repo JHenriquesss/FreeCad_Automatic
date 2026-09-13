@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import math
 
+import fctm_nbr6118_g127
+
 ETA1_NERVURADA = 2.25          # coef. de conformacao superficial, barra nervurada (9.3.2.1)
 ETA1_LISA = 1.0
 ETA1_ENTALHADA = 1.4
@@ -55,8 +57,7 @@ def modulo_secante(fck, alpha_e=1.0):
 
 def fctm(fck):
     """Resistencia media a tracao (8.2.5). fck em kN/m2 -> kN/m2."""
-    fck_MPa = fck / 1000.0
-    v = 0.3 * fck_MPa ** (2.0 / 3.0) if fck_MPa <= 50.0 else 2.12 * math.log(1 + 0.11 * fck_MPa)
+    v = fctm_nbr6118_g127.fctm_MPa(fck / 1000.0)
     return v * 1000.0
 
 

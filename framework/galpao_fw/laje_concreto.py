@@ -40,6 +40,7 @@ import re
 
 import fissuracao_nbr6118 as fis
 import fundacao_sapata as fs
+import fctm_nbr6118_g127
 
 GAMMA_C_CONC = 25.0        # peso especifico do concreto armado (kN/m3), NBR 6120
 GF = 1.4                   # ponderacao das acoes (ELU normal)
@@ -435,10 +436,7 @@ def cortante_laje(V_sd, bw, d, fck, As1, sigma_cp=0.0, metade_no_apoio=False):
     Verifica tambem a biela: V_Rd2 = 0,5*alpha_v1*fcd*bw*0,9d.
     Formulacao de LAJE - diferente do modelo de trelica da viga."""
     fck_MPa = fck / 1000.0
-    if fck_MPa <= 50.0:
-        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)       # 8.2.5 ate C50
-    else:
-        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)  # 8.2.5 C55-C90 (G49)
+    fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
     fctd = 0.7 * fctm_MPa / 1.4 * 1000.0     # kN/m2
     tau_rd = 0.25 * fctd
     k = 1.0 if metade_no_apoio else max(abs(1.6 - d), 1.0)

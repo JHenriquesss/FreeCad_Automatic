@@ -190,6 +190,13 @@ PERGUNTAS = [
     # Antes era MR250 fixo p/ todo projeto, sem o eng. poder pedir alta resistencia.
     ("aco", "Classe do aco estrutural (MR250/A572-G50/AR350/AR-COR415)",
      str, "MR250", False),
+    # G126: cimento do concreto p/ o fckj do icamento (NBR 6118 12.3.3).
+    # OPCIONAL com a ausencia dita: vazio = nao declarado -> piso
+    # conservador (maior `s` = 0,38) declarado na folha e no memorial
+    # (nunca CPV). Invalido BLOQUEIA no validar (nao vira cimento calado).
+    ("cimento", "Tipo de cimento do concreto p/ o fckj do icamento "
+     "(CPI/CPII/CPIII/CPIV/CPV/CPV-ARI; vazio=nao declarado -> piso conservador)",
+     str, "", False),
     # (removido: 'tapamento' era campo MORTO - nao chegava ao calculo e duplicava
     #  o peso da parede, ja tratado por 'fech_peso' -> cargas_parede. O peso do
     #  fechamento das paredes vem de 'fech_peso'; o da cobertura, de G/telha_peso.)
@@ -253,6 +260,9 @@ def construir_spec(r, slug="galpao"):
     # aco: guarda o valor CRU (nao normaliza aqui). Assim um erro de digitacao
     # ('AR300') e BLOQUEADO pelo validar em vez de cair calado no MR250 default.
     s["estrutura"]["aco"] = r.get("aco") or "MR250"
+    # G126: cimento guarda o valor CRU ("" ou ausente = None = nao declarado
+    # -> piso conservador declarado; invalido BLOQUEIA no validar).
+    s["cimento"] = (str(r.get("cimento") or "").strip() or None)
     # tipo de ligacao (soldada/parafusada): normaliza e guarda cru p/ validar().
     s["estrutura"]["tipo_ligacao"] = (r.get("tipo_ligacao") or "soldada").strip().lower()
     nmf = r.get("n_maos_francesas", 0) or 0

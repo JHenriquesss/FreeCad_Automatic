@@ -35,6 +35,7 @@ import math
 import re
 
 import puncao_nbr6118 as pu
+import fctm_nbr6118_g127
 
 # Limites legados/configuraveis (o caso pode sobrescrever). O engenheiro deve
 # confirmar o criterio de projeto; a NBR 6122:2022 nao foi usada para atribuir
@@ -673,12 +674,9 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
 def comprimento_ancoragem(phi_mm, fck_MPa=25, fyk_MPa=500, gancho=True,
                            boa_aderencia=True):
     """Comprimento de ancoragem basico (lb) e necessario (lb,nec) (NBR 6118 9.4).
-    NBR 6118 8.2.5 (G49): ate C50 fctm=0,3*fck^(2/3); C55-C90 fctm=2,12*ln(1+0,11*fck).
+    fct,m pela fonte unica fctm_nbr6118_g127 (NBR 6118 8.2.5, G127).
     Retorna lb, lb_nec, lb_min em mm, fbd em MPa."""
-    if fck_MPa <= 50.0:
-        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
-    else:
-        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)
+    fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)
     fctd = 0.7 * fctm_MPa / 1.4
     fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * 1.0 * fctd
     fyd = fyk_MPa / 1.15

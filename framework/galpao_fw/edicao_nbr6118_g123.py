@@ -7,7 +7,10 @@
 # tests/test_edicao_nbr6118_g123.py. IMPORTADO pela producao (premoldado,
 # compatibilizacao, desenho_concreto, techdraw_concreto, pacote_legal,
 # relatorio_calculo, executivo_concreto, projeto_spec, galpao_concreto,
-# rodar_galpao) - por isso NAO e script avulso (ver test_alcancabilidade).
+# rodar_galpao, entregaveis_projeto, desenho_pavimento,
+# desenho_fundacao_edificio + G128: casa_residencial, edificio_adapter,
+# galpao_adapter, desenho_casa_residencial, caderno_encargos) - por isso
+# NAO e script avulso (ver test_alcancabilidade).
 #
 # O que foi MEDIDO (G116/G122, enderecos verificados naquelas entregas):
 #   - O framework calcula pela NBR 6118:2014 (F016) e nenhuma folha, pacote
@@ -62,12 +65,13 @@ DECLARACAO_2023_EM1 = "NBR 6118:2023 + Emenda 1:2026"
 
 # s do cimento em 2014 (NBR 6118 12.3.3, medido em premoldado_nbr9062:53).
 # Fonte unica a partir deste goal: premoldado importa daqui (uma fonte so).
+# G126: a identidade valida e o piso moram em cimento_nbr6118_g126 (fonte
+# unica da identidade); desconhecido LEVANTA la, ausente vira o piso.
 S_CIMENTO_2014 = {
     "CPIII": 0.38, "CPIV": 0.38,
     "CPI": 0.25, "CPII": 0.25,
     "CPV": 0.20, "CPV-ARI": 0.20,
 }
-S_PADRAO_DESCONHECIDO = 0.25
 
 # Limites de dispensa do furo em viga (NBR 6118 13.2.5.1-b).
 # 2014 = 2023 pre-Em1: 12 cm e h/3 (qualquer forma).
@@ -103,6 +107,16 @@ USO_ESPERADO = frozenset({
     # G125 (auditoria do G123): as folhas de concreto da casa e do predio.
     "desenho_pavimento.py",
     "desenho_fundacao_edificio.py",
+    # G128 (a declaracao chega as tres tipologias): quem resolve a chave
+    # fora do galpao (os 3 hooks de compatibilizacao + os 2 de desenho),
+    # o wrapper das folhas da casa e o caderno de encargos. Triagem: cada
+    # um so LE a chave via edicao_de_spec/edicao_de_normalized e a repassa
+    # (nenhum troca conta por conta propria: MODULOS_COM_TROCA intacto).
+    "casa_residencial.py",
+    "edificio_adapter.py",
+    "galpao_adapter.py",
+    "desenho_casa_residencial.py",
+    "caderno_encargos.py",
 })
 
 
@@ -223,6 +237,26 @@ def edicao_de_resultado(res):
     return None
 
 
+def edicao_de_normalized(normalized):
+    """Edicao declarada no normalized do project_loop (G128, as 3 tipologias).
+
+    Le `raw_spec` e, na falta, `turnkey_spec` (o loop os deriva do mesmo
+    project-spec.json; a chave mora na raiz, `norma_6118_edicao`). Ausente
+    em ambos -> None (comportamento de hoje, 2014 declarado na peca).
+    Valor invalido -> ValueError (nao vira edicao em silencio).
+    """
+    if not isinstance(normalized, dict):
+        return None
+    for fonte in (normalized.get("raw_spec"),
+                  normalized.get("turnkey_spec")):
+        if not isinstance(fonte, dict):
+            continue
+        ed = edicao_de_spec(fonte)
+        if ed is not None:
+            return ed
+    return None
+
+
 def s_cimento(edicao, cimento, fck_kNm2):
     """s do cimento para fckj (12.3.3) lendo a chave.
 
@@ -230,6 +264,9 @@ def s_cimento(edicao, cimento, fck_kNm2):
     2023+Em1: 0,20 para todo concreto C60 ou superior (fck >= 60 MPa),
     qualquer cimento; abaixo de 60, a mesma tabela de 2014.
     edicao=None -> 2014 (comportamento de hoje).
+    G126: cimento ausente (None/"") -> piso conservador
+    (cimento_nbr6118_g126.PISO_S, o maior `s`); cimento desconhecido ->
+    ValueError com a lista dos validos (nunca mais 0,25 em silencio).
     """
     r = resolver_edicao(edicao)
     try:
@@ -238,7 +275,11 @@ def s_cimento(edicao, cimento, fck_kNm2):
         fck_MPa = 0.0
     if r["edicao"] == "2023+Em1" and fck_MPa >= 60.0:
         return 0.20
-    return S_CIMENTO_2014.get(str(cimento).upper(), S_PADRAO_DESCONHECIDO)
+    if cimento is None or (isinstance(cimento, str) and not cimento.strip()):
+        from cimento_nbr6118_g126 import PISO_S as _piso
+        return _piso
+    from cimento_nbr6118_g126 import normaliza_cimento as _norm_cim
+    return S_CIMENTO_2014[_norm_cim(cimento)]
 
 
 def limite_furo_viga_mm(edicao=None, forma_furo=None):

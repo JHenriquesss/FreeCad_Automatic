@@ -964,11 +964,20 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, result):
 
 
 def emitir_pacote_legal(manifest, run_dir, normalized, options, result):
-    """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD, O&M e memorial da casa."""
+    """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD, O&M e memorial da casa.
+
+    G130: tipologia "casa" (as dividas aplicaveis a casa saem no pacote
+    como exigencia nao verificada, da fonte unica)."""
     del options
     ep = _camada()
+    # G128: o spec viaja para o carimbo da edicao (ausente = 2014 hoje).
+    _spec = (normalized or {}).get("raw_spec")
+    if not isinstance(_spec, dict):
+        _spec = (normalized or {}).get("turnkey_spec")
     ep.pacote_no_manifesto(manifest, run_dir, disciplinas_pacote(result),
-                           memorial(result))
+                           memorial(result),
+                           spec=_spec if isinstance(_spec, dict) else None,
+                           tipologia="casa")
 
 
 # ----------------------------------- selftest --------------------------------

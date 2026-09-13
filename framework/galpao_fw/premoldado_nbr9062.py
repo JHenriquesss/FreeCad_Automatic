@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import math
 
+import fctm_nbr6118_g127
+
 # --- coeficientes de ponderacao (NBR 6118) ---------------------------------
 GAMMA_C = 1.4
 GAMMA_S = 1.15
@@ -59,9 +61,33 @@ try:
 except ImportError:  # fora do pacote (uso isolado): cai no literal medido
     S_CIMENTO = {"CPIII": 0.38, "CPIV": 0.38, "CPI": 0.25, "CPII": 0.25, "CPV": 0.20, "CPV-ARI": 0.20}
 
+# G126: identidade do cimento (fonte unica). O fallback local replica a
+# regra estrita para uso isolado de arquivo unico (nunca default
+# silencioso, nunca 0,25).
+try:
+    from cimento_nbr6118_g126 import resolver_cimento as _resolver_cimento
+    from cimento_nbr6118_g126 import normaliza_cimento as _normaliza_cimento
+except ImportError:
+    def _normaliza_cimento(cimento):
+        t = str(cimento).strip().upper() if isinstance(cimento, str) else cimento
+        t = "CPV-ARI" if t == "CPV ARI" else t
+        if t not in S_CIMENTO:
+            raise ValueError("cimento desconhecido %r (NBR 6118 12.3.3; use "
+                             "um de: %s)"
+                             % (cimento, ", ".join(sorted(S_CIMENTO))))
+        return t
+
+    def _resolver_cimento(valor=None):
+        if valor is None or (isinstance(valor, str) and not valor.strip()):
+            return {"cimento": None,
+                    "origem": "piso_conservador_sem_declaracao",
+                    "explicito": False}
+        return {"cimento": _normaliza_cimento(valor),
+                "origem": "declarado_no_projeto", "explicito": True}
+
 
 # ---------------------------------------------------------------- (C) fckj
-def fckj_idade(fck, t_dias, cimento="CPII", edicao=None):
+def fckj_idade(fck, t_dias, cimento=None, edicao=None):
     """Resistencia caracteristica do concreto na idade t (NBR 6118 12.3.3):
     fckj = beta1*fck, beta1 = exp{s[1 - (28/t)^0.5]}. fck em kN/m2, t em dias.
 
@@ -70,12 +96,22 @@ def fckj_idade(fck, t_dias, cimento="CPII", edicao=None):
     (2014) e a folha diz qual e (a declaracao mora no carimbo, nao aqui).
     2023+Em1: s = 0,20 para todo concreto C60 ou superior (fck >= 60 MPa),
     qualquer cimento; abaixo disso, a tabela de 2014. Migrar e decisao do
-    usuario; sem o parametro nada muda."""
+    usuario; sem o parametro nada muda.
+    G126: cimento=None/"" (ausente) = piso conservador (o maior `s`,
+    cimento_nbr6118_g126.PISO_S), com a ausencia dita na folha e no
+    memorial - nunca CPV nem CPII. Cimento desconhecido LEVANTA ValueError
+    com a lista dos validos (nunca 0,25 em silencio)."""
     try:
         from edicao_nbr6118_g123 import s_cimento as _s_por_edicao
         s = _s_por_edicao(edicao, cimento, fck)
     except ImportError:
-        s = S_CIMENTO.get(str(cimento).upper(), 0.25)
+        # fora do pacote (uso isolado, sem a fonte unica da edicao): mesma
+        # regra estrita com o espelho local (nunca 0,25 em silencio).
+        if cimento is None or (isinstance(cimento, str)
+                               and not cimento.strip()):
+            s = max(S_CIMENTO.values())
+        else:
+            s = S_CIMENTO[_normaliza_cimento(cimento)]
     if t_dias >= 28:
         return fck
     beta1 = math.exp(s * (1.0 - math.sqrt(28.0 / t_dias)))
@@ -84,12 +120,7 @@ def fckj_idade(fck, t_dias, cimento="CPII", edicao=None):
 
 def _fctm(fck):
     """Resistencia media a tracao (NBR 6118 8.2.5). fck em kN/m2 -> retorna kN/m2."""
-    fck_MPa = fck / 1000.0
-    if fck_MPa <= 50.0:
-        fctm_MPa = 0.3 * fck_MPa ** (2.0 / 3.0)
-    else:
-        fctm_MPa = 2.12 * math.log(1.0 + 0.11 * fck_MPa)
-    return fctm_MPa * 1000.0
+    return fctm_nbr6118_g127.fctm(fck)
 
 
 # ------------------------------------------------------- (A) CALICE / COLARINHO
@@ -245,14 +276,22 @@ def verifica_icamento_pilar(caso):
     armadura longitudinal limitada a 0,50 fyk (5.3.2.2, OBRIGATORIO). Resistencia
     do concreto na idade do saque (fckj). caso: {
       'L': comprimento do pilar (m). 'b','h': secao (m). 'As': armadura long. TRACIONADA (cm2).
-      'fck': (kN/m2). 'fyk'. 't_dias' (idade do saque, default 3). 'cimento' (default 'CPV').
+      'fck': (kN/m2). 'fyk'. 't_dias' (idade do saque, default 3).
+      'cimento' (G126, opcional): tipo da 12.3.3; AUSENTE = piso conservador
+      (maior `s`), com a ausencia dita na folha e no memorial - nunca CPV.
+      Desconhecido LEVANTA ValueError com a lista dos validos.
       'a_pega' (m, default a_otimo). 'dl' (cobrimento+.., m, default 0,04).
       'edicao' (opc., G123): '2014' ou '2023+Em1'; ausente = 2014 (hoje).
-    }"""
+    }
+    Devolve tambem 'cimento' (canonico ou None), 'cimento_origem' e
+    's_usado', para a folha e o memorial declararem (fonte unica G126)."""
     L = caso["L"]; b = caso["b"]; h = caso["h"]
     As = caso["As"] * 1e-4                          # cm2 -> m2
     fck = caso.get("fck", 30e3); fyk = caso.get("fyk", 500e3)
-    t = caso.get("t_dias", 3); cim = caso.get("cimento", "CPV")
+    # G126: sem default silencioso - ausente resolve para o piso, com a
+    # origem registrada; desconhecido levanta (nao vira 0,25).
+    _rc = _resolver_cimento(caso.get("cimento"))
+    t = caso.get("t_dias", 3); cim = _rc["cimento"]
     dl = caso.get("dl", 0.04)
     a = caso.get("a_pega", a_otimo_icamento(L))
     GAMMA_CONC = 25.0                               # kN/m3
@@ -264,6 +303,11 @@ def verifica_icamento_pilar(caso):
 
     d = h - dl                                       # altura util (flexao no plano de h)
     fckj = fckj_idade(fck, t, cim, edicao=caso.get("edicao"))
+    try:
+        from edicao_nbr6118_g123 import s_cimento as _s_g126
+        s_usado = _s_g126(caso.get("edicao"), cim, fck)
+    except ImportError:
+        s_usado = max(S_CIMENTO.values()) if cim is None else S_CIMENTO[cim]
     # momento resistente com tensao do aco limitada a 0,50 fyk (z ~ 0,9 d, conservador)
     sigma_lim = SIGMA_S_ICAMENTO * fyk
     Mr_05 = As * sigma_lim * 0.9 * d                # kN.m
@@ -275,6 +319,8 @@ def verifica_icamento_pilar(caso):
             "a_otimo": round(a_otimo_icamento(L), 3), "Md_kN_m": round(Md, 2),
             "Mr_0.5fyk_kN_m": round(Mr_05, 2), "sigma_s_util": round(Md / Mr_05, 2) if Mr_05 else None,
             "fckj_MPa": round(fckj / 1000.0, 1), "t_dias": t,
+            "cimento": cim, "cimento_origem": _rc["origem"],
+            "s_usado": s_usado,
             "Mr_fissuracao_kN_m": round(Mr_fiss, 2), "fissura": Md > Mr_fiss, "OK": ok}
 
 

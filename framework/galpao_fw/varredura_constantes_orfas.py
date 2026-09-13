@@ -1,10 +1,13 @@
 # ============================================================================
 # varredura_constantes_orfas.py - G124: AS 51 CONSTANTES QUE NINGUEM LE.
-# SCRIPT AVULSO: ferramenta permanente rodada a mao/CI (python
-# varredura_constantes_orfas.py) e pelo teste-guarda
-# tests/test_varredura_constantes_orfas_g124.py. Nao e importada por nenhum
-# orquestrador do Loop - declarada em SCRIPTS_AVULSOS no
-# tests/test_alcancabilidade.py, no mesmo molde de varredura_descoberta.
+# MODULO DE PRODUCAO (fonte unica das 39 dividas): ORFAS_TRIADAS e o que o
+# cliente recebe (via exigencias_nao_verificadas_g130 -> pacote_legal, G130);
+# a lente e o teste importam daqui. (Uma fonte so - regra do lote.)
+# Rodado a mao/CI (python varredura_constantes_orfas.py) e pelo teste-guarda
+# tests/test_varredura_constantes_orfas_g124.py. IMPORTADO pela producao
+# (exigencias_nao_verificadas_g130, que le ORFAS_TRIADAS ao vivo) - por isso
+# NAO e script avulso (ver test_alcancabilidade; G130 promoveu o dado a
+# producao sem copiar a clausula).
 #
 # Motivacao (G124, classe que apareceu duas vezes no G119): um limite de
 # norma escrito numa constante que nenhuma conta le significa uma de tres

@@ -28,16 +28,14 @@ from __future__ import annotations
 import desenho_svg_base as sb
 
 
-def _sufixo_edicao():
-    """Sufixo de edicao da NBR 6118 no titulo (G125, auditoria do G123).
+def _sufixo_edicao(edicao=None):
+    """Sufixo de edicao da NBR 6118 no titulo (G123/G125, auditoria do G123).
 
-    O G123 carimbou as folhas de concreto do GALPAO; as da casa e do predio
-    que saem por aqui seguiam sem dizer por qual edicao foram calculadas
-    (medido: planta de formas e locacao da fundacao, nas duas tipologias).
-    Casa e predio nao leem a chave de edicao - calculam pela 2014 -, entao
-    o sufixo e o do parametro ausente, vindo da fonte unica (sem literal)."""
+    G128: a edicao declarada no projeto chega aqui (casa e predio leem a
+    chave; ausente = comportamento de hoje, 2014 declarado). O sufixo vem
+    da fonte unica (sem literal)."""
     from edicao_nbr6118_g123 import sufixo_folha_edicao
-    return sufixo_folha_edicao(None)
+    return sufixo_folha_edicao(edicao)
 
 COR_PILAR = "#333"
 COR_VIGA = "#1f6feb"
@@ -52,12 +50,14 @@ def _escala(vaos_x, vaos_y, larg_util, alt_util):
     return min(larg_util / lx, alt_util / ly)
 
 
-def planta_formas_svg(pav, descida=None, titulo=None):
+def planta_formas_svg(pav, descida=None, titulo=None, edicao=None):
     """Monta a planta de formas.
 
     pav     : dict devolvido por `pavimento_tipo.monta`.
     descida : (opc) dict de `descida_cargas.descer` - se dado, o quadro mostra o
               N acumulado na BASE de cada pilar em vez do N do pavimento.
+    edicao  : (opc, G128) '2014' ou '2023+Em1' declarada no projeto; ausente =
+              comportamento de hoje (2014) declarado no titulo.
     """
     vaos_x, vaos_y = pav["vaos_x"], pav["vaos_y"]
     nx, ny = len(vaos_x), len(vaos_y)
@@ -83,7 +83,7 @@ def planta_formas_svg(pav, descida=None, titulo=None):
 
     tit = titulo or ("PLANTA DE FORMAS - PAVIMENTO-TIPO  (%d x %d vaos ; %.1f m2)"
                      % (nx, ny, pav["area_m2"]))
-    tit += _sufixo_edicao()
+    tit += _sufixo_edicao(edicao)
     P = sb.abre_svg(W, H, tit)
 
     # --- paineis de laje ---------------------------------------------------
@@ -260,10 +260,10 @@ def confere_desenho(pav):
             "n_vigas": (ny + 1) + (nx + 1)}
 
 
-def gerar_planta_formas(pav, path, descida=None, titulo=None):
+def gerar_planta_formas(pav, path, descida=None, titulo=None, edicao=None):
     """Escreve a planta de formas (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_formas_svg(pav, descida, titulo))
+        f.write(planta_formas_svg(pav, descida, titulo, edicao=edicao))
     return path
 
 
@@ -375,7 +375,7 @@ def _rodape_armacao_vigas(P, yy, conceitual=True):
                           11, anchor="start", weight="bold", color="#444"))
 
 
-def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
+def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None, edicao=None):
     """Prancha de armacao das vigas do pavimento-tipo (SVG puro-Python).
 
     Le `edificio_multipavimento.vigas_verificacao` (o `por_linha` de
@@ -389,7 +389,7 @@ def prancha_armacao_vigas_svg(vigas_verificacao, titulo=None):
     H = 170 + max(len(linhas), 1) * 22 + 110
     tit = titulo or ("ARMACAO DE VIGAS - PAVIMENTO-TIPO "
                      "(%d linhas / %d tramos VERIFICADOS)" % (len(por_linha), n_tramos))
-    tit += _sufixo_edicao()
+    tit += _sufixo_edicao(edicao)
     P = sb.abre_svg(W, H, tit)
     P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
     # cabecalho
@@ -438,10 +438,12 @@ def confere_armacao_vigas(vigas_verificacao, svg):
     return {"n_tramos": len(nomes), "faltando": faltando, "ok": not faltando}
 
 
-def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None):
+def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None,
+                                edicao=None):
     """Escreve a prancha de armacao de vigas (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(prancha_armacao_vigas_svg(vigas_verificacao, titulo))
+        f.write(prancha_armacao_vigas_svg(vigas_verificacao, titulo,
+                                          edicao=edicao))
     return path
 
 
@@ -467,8 +469,23 @@ def gerar_prancha_armacao_vigas(vigas_verificacao, path, titulo=None):
 
 #: subtitulo da secao de pilares: so itens VERIFICADOS em pilar_concreto.py
 #: (15.8 esbeltez/2a ordem, 17.3.5.3 As min/max, 18.4.3 estribo/limite).
+#: A edicao sai de _subtitulo_pilares (G128, fonte unica); a constante segue
+#: como a renderizacao do parametro ausente (2014, hoje), que os testes
+#: citam — ver _subtitulo_pilares.
 _SUBTITULO_PILARES = ("pilares: esbeltez e 2a ordem (15.8) + As min/max (17.3.5.3) + "
                       "estribo e limite governante (18.4.3) -- NBR 6118:2014")
+
+
+def _subtitulo_pilares(edicao=None):
+    """Subtitulo da secao de pilares com a edicao declarada (G128).
+
+    Ausente = o texto de sempre (2014, `_SUBTITULO_PILARES`, byte-identico);
+    com a chave, o rotulo da fonte unica (sem literal aqui)."""
+    if edicao is None:
+        return _SUBTITULO_PILARES
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed
+    return ("pilares: esbeltez e 2a ordem (15.8) + As min/max (17.3.5.3) + "
+            "estribo e limite governante (18.4.3) -- %s" % _rot_ed(edicao))
 
 #: declaracao de ausencia (pilares={} ou None): a secao declara em vez de
 #: sair com a tabela vazia (folha vazia e' o bug irmao do G62).
@@ -627,7 +644,7 @@ def _vals_fileira_trecho(nome, pilar, trecho):
 # do filtro de nome morto: nao quebra hoje, mente amanha.
 
 
-def _escreve_secao_pilares(P, pilares, y_sub, W):
+def _escreve_secao_pilares(P, pilares, y_sub, W, edicao=None):
     """Subtitulo + cabecalho + fileiras (ou a declaracao de ausencia).
 
     G115: uma fileira por TRECHO de lances iguais (mesma secao e mesmo As),
@@ -635,7 +652,7 @@ def _escreve_secao_pilares(P, pilares, y_sub, W):
     mudanca sai com uma fileira ("1-N"). Devolve o yy apos a ultima fileira
     (ou linha de declaracao).
     """
-    P.append(sb.texto(W / 2, y_sub, _SUBTITULO_PILARES, 11, color="#444"))
+    P.append(sb.texto(W / 2, y_sub, _subtitulo_pilares(edicao), 11, color="#444"))
     y0 = y_sub + 22
     if not isinstance(pilares, dict) or not pilares:
         P.append(sb.texto(30, y0 + 28, _AUSENCIA_PILARES, 12, anchor="start"))
@@ -666,7 +683,7 @@ def _rodape_armacao_pilares(P, yy):
                       11, anchor="start", weight="bold", color="#444"))
 
 
-def prancha_armacao_pilares_svg(pilares, titulo=None):
+def prancha_armacao_pilares_svg(pilares, titulo=None, edicao=None):
     """Quadro de armacao dos pilares (SVG puro-Python, G110/G115).
 
     UMA fileira por TRECHO de lances iguais (G115: mesma secao e mesmo As;
@@ -682,9 +699,9 @@ def prancha_armacao_pilares_svg(pilares, titulo=None):
     H = 170 + max(_n_fileiras_pilares(pilares), 1) * 22 + 110
     tit = titulo or ("ARMACAO DE PILARES - PAVIMENTO-TIPO "
                      "(%d pilares VERIFICADOS)" % len(nomes))
-    tit += _sufixo_edicao()
+    tit += _sufixo_edicao(edicao)
     P = sb.abre_svg(W, H, tit)
-    yy = _escreve_secao_pilares(P, pilares, 58, W)
+    yy = _escreve_secao_pilares(P, pilares, 58, W, edicao=edicao)
     _rodape_armacao_pilares(P, yy)
     P.append("</svg>")
     return "\n".join(P)
@@ -763,14 +780,15 @@ def confere_armacao_pilares(pilares, svg):
             "faltando": faltando, "ok": not faltando}
 
 
-def gerar_prancha_armacao_pilares(pilares, path, titulo=None):
+def gerar_prancha_armacao_pilares(pilares, path, titulo=None, edicao=None):
     """Escreve o quadro de armacao de pilares (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(prancha_armacao_pilares_svg(pilares, titulo))
+        f.write(prancha_armacao_pilares_svg(pilares, titulo, edicao=edicao))
     return path
 
 
-def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
+def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None,
+                                     edicao=None):
     """Combinada N:1 de PE-CO-02 (G110/G115): secao de vigas + secao de pilares.
 
     Empilha no MESMO <svg> a tabela por tramo (builder da G34, mesma
@@ -785,7 +803,7 @@ def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
     tit = titulo or ("ARMACAO DE VIGAS E PILARES - PAVIMENTO-TIPO "
                      "(%d tramos VERIFICADOS / %d pilares VERIFICADOS)"
                      % (n_tramos, len(nomes_p)))
-    tit += _sufixo_edicao()
+    tit += _sufixo_edicao(edicao)
     P = sb.abre_svg(W, H, tit)
     P.append(sb.texto(W / 2, 58, _SUBTITULO_VIGAS, 11, color="#444"))
     _escreve_cabecalho_tabela(P, _COLS_VIGAS, 92, W)
@@ -801,7 +819,7 @@ def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
                           "(vigas_verificacao sem tramos)",
                           12, anchor="start"))
         yy += 22
-    yy = _escreve_secao_pilares(P, pilares, yy + 18, W)
+    yy = _escreve_secao_pilares(P, pilares, yy + 18, W, edicao=edicao)
     _rodape_armacao_vigas(P, yy, conceitual=False)
     _rodape_armacao_pilares(P, yy + 60)
     P.append("</svg>")
@@ -809,9 +827,9 @@ def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None):
 
 
 def gerar_prancha_armacao_vigas_pilares(vigas_verificacao, pilares, path,
-                                        titulo=None):
+                                        titulo=None, edicao=None):
     """Escreve a combinada de armacao vigas+pilares (SVG) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares,
-                                                  titulo))
+                                                  titulo, edicao=edicao))
     return path

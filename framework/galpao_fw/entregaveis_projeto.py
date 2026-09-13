@@ -285,16 +285,30 @@ def emitir_cronograma(manifest, run_dir, normalized, options, turnkey_result):
 
 
 # ------------------------------ caderno de encargos --------------------------
-def caderno_no_manifesto(manifest, run_dir, normalized, disciplinas):
+def caderno_no_manifesto(manifest, run_dir, normalized, disciplinas,
+                         edicao=None):
     """Caderno de encargos das disciplinas dadas (vazio = todas as da biblioteca).
 
     `gestao.caderno_encargos.disciplinas` do usuario vence a derivacao.
+    G128: `edicao` ('2014'/'2023+Em1') vence; senao a declarada no projeto
+    (`raw_spec`, depois `turnkey_spec`); senao o comportamento de hoje
+    (2014) declarado no caderno. Invalida levanta.
     """
     import caderno_encargos as ce
 
     cfg = _bloco(normalized, "gestao", "caderno_encargos")
     escolhidas = cfg.get("disciplinas") or disciplinas
-    caderno = ce.gerar_caderno(list(escolhidas)) if escolhidas else ce.gerar_caderno()
+    _ed = edicao
+    if _ed is None:
+        try:
+            from edicao_nbr6118_g123 import edicao_de_normalized as _ed_norm
+            _ed = _ed_norm(normalized)
+        except ValueError:
+            raise
+        except ImportError:
+            _ed = None
+    caderno = ce.gerar_caderno(list(escolhidas), edicao=_ed) \
+        if escolhidas else ce.gerar_caderno(edicao=_ed)
     pasta = _dir(run_dir, "documentos")
     artefatos = [
         _texto(manifest, run_dir, pasta / "caderno-encargos.md",
@@ -328,7 +342,7 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
 # --------------------------------- pacote legal ------------------------------
 def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
                         pendencias=None, correspondencia=None, edicao=None,
-                        spec=None):
+                        spec=None, tipologia=None, cimento_calculado=None):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial.
 
     `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao
@@ -337,11 +351,15 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
 
     `correspondencia` (G112): {"intro", "entradas"} com a tabela de
     numeracao propria que o cliente recebe; vai para o .md via pl.markdown
-    (default None = sem secao, byte-identico, exceto a secao G123 que sai
-    sempre).
+    (default None = sem secao, byte-identico, exceto as secoes G123/G126/G130
+    que saem sempre).
 
     G123: `edicao` ('2014'/'2023+Em1') vence; senao o `spec`
-    (norma_6118_edicao); senao o comportamento de hoje (2014) declarado."""
+    (norma_6118_edicao); senao o comportamento de hoje (2014) declarado.
+
+    G130: `tipologia` ('casa'/'predio'/'galpao') filtra as exigencias nao
+    verificadas que saem no pacote (fonte unica
+    exigencias_nao_verificadas_g130); ausente = a uniao; invalida levanta."""
     import pacote_legal as pl
 
     _ed = edicao
@@ -355,7 +373,8 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
             pass
     pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial,
                              pendencias=pendencias, edicao=_ed,
-                             spec=spec)
+                             spec=spec, tipologia=tipologia,
+                             cimento_calculado=cimento_calculado)
     pasta = _dir(run_dir, "documentos")
     # INDICE x PASTA (contagem ANTES do .md: o aviso vai para o texto, nao so
     # para o manifesto - G52 achado 1).
@@ -402,17 +421,29 @@ def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
 
     G112: o unico emissor que passa a tabela de correspondencia de
     numeracao propria (o cliente recebe em pacote-legal.md).
-    G123: repassa o spec para o carimbo da edicao (ausente = 2014 hoje)."""
+    G123: repassa o spec para o carimbo da edicao (ausente = 2014 hoje).
+    G128: o spec e o projeto declarado (raw_spec, depois turnkey_spec) -
+    so o turnkey nao via a chave do topo (o normalize nao a carrega).
+    G130: tipologia "galpao" (as dividas aplicaveis ao galpao saem no
+    pacote como exigencia nao verificada, da fonte unica)."""
     del options
     import pacote_legal as pl
 
-    _spec = (normalized.get("turnkey_spec") if isinstance(normalized, dict)
+    _spec = (normalized.get("raw_spec") if isinstance(normalized, dict)
              else None)
+    if not isinstance(_spec, dict):
+        _spec = (normalized.get("turnkey_spec") if isinstance(normalized, dict)
+                 else None)
+    # G131 (auditoria do G126): o pacote declara o cimento que o CALCULO
+    # usou (resultado do turnkey), nao a chave do spec - medido, os dois
+    # divergiam; declarado x usado diferentes levanta na fonte unica.
+    from cimento_nbr6118_g126 import cimento_do_turnkey as _cim_tk
     pacote_no_manifesto(
         manifest, run_dir, turnkey_result.get("executadas"),
         pl.memorial_consolidado(turnkey_result, _spec),
         correspondencia=pl.CORRESPONDENCIA_NUMERACAO_GALPAO,
-        spec=_spec)
+        spec=_spec, tipologia="galpao",
+        cimento_calculado=_cim_tk(turnkey_result))
 
 
 # --------------------------------- obras do sitio ----------------------------

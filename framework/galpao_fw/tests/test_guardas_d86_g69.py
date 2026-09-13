@@ -1,7 +1,9 @@
 """Lente G69 (D86): as guardas que concordam consigo mesmas.
 
 Censo da arvore (baseline em TRIADAS_G69, congelado nos DOIS sentidos):
-25 defs confere_*/verifica_fechamento* (a 25a veio com o G110 e o lote
+38 defs confere_*/verifica_fechamento* (3 com o G130; a ultima antes veio
+com o G129; 2 com o
+G127; 3 com o G126; a
 G107-G112 foi entregue com ESTE censo vermelho - ver item 24; 20 ate o G77; o G80/G81/G82
 trouxeram 3 e o confere_folha_svg do G76 so foi triado no G89). A revisao achou a contagem de 15
 desatualizada dentro do proprio lote — confere_vergas nasceu no G70 e o
@@ -118,16 +120,69 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     so e True com todas as pecas declarando; sem_declaracao lista quem
     falta).
 28. edicao_nbr6118_g123.confere_uso_edicao (G123) - A=arquivos no disco que
-    importam a fonte unica, B=USO_ESPERADO declarado com motivo (14 usos
-    desde o G125: + desenho_pavimento e desenho_fundacao_edificio).
-    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x declaracao;
-    extra ou faltando = troca por conta propria).
+     importam a fonte unica, B=USO_ESPERADO declarado com motivo (19 usos:
+     14 desde o G125 + os 5 do G128, que so leem a chave e a repassam -
+     casa_residencial, edificio_adapter, galpao_adapter,
+     desenho_casa_residencial, caderno_encargos).
+     INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x declaracao;
+     extra ou faltando = troca por conta propria).
 29. confronto_2014_2023_g122.confere_sites_8_2_5 (G125, auditoria do G122) -
     A=modulos onde a CONTA fct,m C55+ aparece no codigo (regex fora de
     comentario), B=modulos do item 8.2.5 do CONFRONTO_G122, escritos a mao
     com a triagem no inventario. INDEPENDENTE (codigo x inventario: o G122
     partiu das citacoes de "6118" e deixou 5 contas fora; nao_inventariados
     e sem_formula disparam por injecao em tmp_path).
+30. cimento_nbr6118_g126.confere_pecas (G126) - A=declaracao exigida
+    ("Cimento (NBR 6118 12.3.3" + "(declarado no projeto)" ou
+    "piso conservador s=0,38" no texto da peca), B=substring medida no
+    texto emitido. INDEPENDENTE (especificacao de um lado, produto do
+    outro; peca sem declaracao reprova com o motivo nomeado, nunca OK
+    silencioso; o OK global so fecha com todas declarando).
+31. cimento_nbr6118_g126.confere_defaults (G126) - A=defaults de cimento no
+    codigo (`.get("cimento", "<valido>")` ou parametro `cimento="<valido>"`,
+    por AST), B=baseline vazio declarado (nenhum default sobrando: ausente
+    e piso, nao CPV/CPII). INDEPENDENTE (codigo x baseline; default novo
+    sem triagem = vermelho, provado por injecao em tmp_path).
+32. cimento_nbr6118_g126.confere_uso_cimento (G126) - A=arquivos no disco
+    que importam a fonte unica, B=LEITORES_ESPERADOS declarado com motivo
+    (8 usos: a fonte + 7 leitores; o executivo compoe o relatorio e nao
+    importa - dito na fonte). INDEPENDENTE (meta-guarda, mesma forma do
+    item 16: disco x declaracao; extra ou faltando = leitura por conta
+    propria).
+33. fctm_nbr6118_g127.confere_copias (G127) - A=literal da conta fct,m
+    C55+ no codigo (regex fora de comentario, o mesmo detector da lente
+    do G122), B=fonte unica declarada (so ela pode conter a conta).
+    INDEPENDENTE (codigo x declaracao; copia nova fora da fonte ou conta
+    apagada da fonte = vermelho, provado por injecao em tmp_path).
+34. fctm_nbr6118_g127.confere_uso_fctm (G127) - A=arquivos no disco que
+    importam a fonte unica, B=LEITORES_ESPERADOS declarado com motivo
+    (12 usos: a fonte + os 10 modulos + a lente do G122, que importa o
+    detector unico e a conta para o caso C5 - dito na fonte).
+    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x
+    declaracao; extra ou faltando = leitura por conta propria).
+35. varredura_colisoes_g129.confere_censo (G129) - A=censo vivo das 35
+    folhas (pares do estimador por folha), B=BASELINE_G129 declarado com
+    a triagem (43 pares isentos com PNG em ISENCOES_G129 + 19 corrigidos
+    em CORRIGIDOS_G129). INDEPENDENTE (censo vivo x declaracao; par novo
+    ou par sumido = vermelho, provado por injecao em tmp_path).
+36. exigencias_nao_verificadas_g130.confere_aplicabilidade (G130) -
+    A=chaves DIVIDA de ORFAS_TRIADAS no disco, B=APLICABILIDADE declarada
+    com motivo de nao-aplicacao (39 dividas; casa 18, predio 24, galpao
+    30, uniao 39). INDEPENDENTE (meta-guarda, mesma forma do item 16:
+    disco x declaracao; divida nova sem triagem ou motivo vazio =
+    vermelho, provado por injecao em tmp_path).
+37. exigencias_nao_verificadas_g130.confere_documento (G130) - A=divida
+    aplicavel exigida (nome + clausula da fonte unica no texto do
+    pacote), B=substring medida no pacote-legal.md emitido. INDEPENDENTE
+    (especificacao de um lado, produto do outro; faltando lista quem nao
+    chegou ao cliente, nunca OK silencioso; o OK global so fecha com
+    todas citadas).
+38. exigencias_nao_verificadas_g130.confere_uso_exigencias (G130) - A=arquivos
+    no disco que importam a fonte unica, B=LEITORES_ESPERADOS declarado
+    com motivo (2 usos: a fonte + pacote_legal; gestao_casa/edificio e
+    entregaveis_projeto so passam a string da tipologia - dito na fonte).
+    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x
+    declaracao; extra ou faltando = leitura por conta propria).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -184,6 +239,15 @@ TRIADAS_G69 = {
     ("edicao_nbr6118_g123", "confere_pecas"),
     ("edicao_nbr6118_g123", "confere_uso_edicao"),
     ("confronto_2014_2023_g122", "confere_sites_8_2_5"),
+    ("cimento_nbr6118_g126", "confere_pecas"),
+    ("cimento_nbr6118_g126", "confere_defaults"),
+    ("cimento_nbr6118_g126", "confere_uso_cimento"),
+    ("fctm_nbr6118_g127", "confere_copias"),
+    ("fctm_nbr6118_g127", "confere_uso_fctm"),
+    ("varredura_colisoes_g129", "confere_censo"),
+    ("exigencias_nao_verificadas_g130", "confere_aplicabilidade"),
+    ("exigencias_nao_verificadas_g130", "confere_documento"),
+    ("exigencias_nao_verificadas_g130", "confere_uso_exigencias"),
 }
 
 
