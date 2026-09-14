@@ -144,7 +144,10 @@ class ProjectLoopOptions:
     folga_mm: float = 1.0
     vol_min_mm3: float = 1000.0
     freecad_exe: str | None = None
-    timeout_seconds: int = 1200
+    # G137 (D166): 1200 -> 2100 s. Medido: aco 1038,9 s (D165) + resto
+    # 536,3 s sem aco (G102/D165) = 1575 s; folga ~33 % para variacao de
+    # maquina. Sem aco o portao rapido segue em ~536 s.
+    timeout_seconds: int = 2100
     readiness: dict[str, Any] | None = None
     # D165: o executivo de aco do galpao (TechDraw, ~787 s medidos) pode ficar
     # fora da rodada - a folha sai pulada com a causa nomeada, nunca em

@@ -423,30 +423,101 @@ def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
     return "\n".join(s)
 
 
-def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None):
+# G138 (D168): o que o calculo do galpao NAO produz para o corte de
+# hidrantes — medido em 2026-09-14 contra `galpao_seguranca_incendio.rodar`
+# (gates: iluminacao/sinalizacao/deteccao/sprinklers/hidrantes; spec C/L/H)
+# e o que `detalhes_hidrantes_rotas_svg` le (shape do predio:
+# inc.sistemas.hidrantes + inc.gates.rotas_verticais/escada_largura +
+# inc.estrategia_abandono/populacao_total/altura_edificacao_m +
+# estrutura.pavimentos). Uma fonte so: esta lista mora na producao e a
+# folha a declara, nunca inventa.
+AUSENCIAS_GALPAO_DETALHES = (
+    "gates.rotas_verticais (n_minimo/n_declarado)",
+    "gates.escada_largura (largura_exigida_m)",
+    "estrategia_abandono",
+    "populacao_total",
+    "altura_edificacao_m",
+    "estrutura.pavimentos (galpao terreo, nivel unico)",
+)
+
+
+def adaptar_galpao_para_detalhes(r):
+    """Adapta o resultado de `galpao_seguranca_incendio.rodar` para o emissor
+    de detalhes de hidrantes (shape do predio), sem recalcular nada.
+
+    Devolve (inc, estrutura, ausentes): `inc`/`estrutura` no shape que
+    `detalhes_hidrantes_rotas_svg` le, lidos do calculo (o `hidrantes` cru
+    de `r["hidrantes"]`, com `reserva_incendio_m3` original — nunca o gate
+    reescrito `reserva_m3`); `ausentes` e o subconjunto de
+    `AUSENCIAS_GALPAO_DETALHES` que o calculo nao produz nesta rodada, mais
+    `hidrantes (N_hidrantes/tipo/reserva)` quando o spec nao declarou
+    hidrantes. Ausencia se declara na folha, nunca vira default silencioso.
+    """
+    hid_raw = (r or {}).get("hidrantes") if isinstance(r, dict) else None
+    if isinstance(hid_raw, dict):
+        hid = {"N_hidrantes": hid_raw.get("N_hidrantes"),
+               "tipo": hid_raw.get("tipo"),
+               "reserva_incendio_m3": hid_raw.get("reserva_incendio_m3")}
+    else:
+        hid = {"N_hidrantes": None, "tipo": None,
+               "reserva_incendio_m3": None}
+    inc = {"sistemas": {"hidrantes": hid}, "gates": {},
+           "estrategia_abandono": None, "populacao_total": None,
+           "altura_edificacao_m": None}
+    ausentes = list(AUSENCIAS_GALPAO_DETALHES)
+    if not isinstance(hid_raw, dict):
+        ausentes = (["hidrantes (N_hidrantes/tipo/reserva_incendio_m3) "
+                     "nao calculados: hidrantes ausente no spec"] + ausentes)
+    return inc, {}, ausentes
+
+
+def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
+                                 nivel_unico=False):
     """PE-IN-02 Detalhes: corte da coluna de hidrantes DN65 (NBR 13714) com um
-    hidrante por pavimento servido + quadro da escada/rotas + reserva."""
+    hidrante por pavimento servido + quadro da escada/rotas + reserva.
+
+    G138: `nivel_unico=True` desenha o galpao terreo (N hidrantes lado a
+    lado no nivel unico, nunca N pavimentos inventados) e `ausencias`
+    declara na folha os campos que o calculo do galpao nao produz. Com os
+    defaults (None/False) o caminho do predio e byte-identico."""
     sist = inc.get("sistemas") or {}
     hid = sist.get("hidrantes") or {}
     gates = inc.get("gates") or {}
     n = int(hid.get("N_hidrantes") or 0) or 1
     n_pav = len((estrutura or {}).get("pavimentos") or []) or n
     reserva = hid.get("reserva_incendio_m3")
+    if titulo is None and nivel_unico:
+        titulo = "DETALHES - HIDRANTES (GALPAO TERREO) E ROTAS DE FUGA"
     W, Hh = 940, max(480, 180 + n_pav * 44)
+    if ausencias:
+        Hh += 40 + len(list(ausencias)) * 20
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hh}" '
          f'viewBox="0 0 {W} {Hh}" font-family="Arial">',
          f'<rect x="0" y="0" width="{W}" height="{Hh}" fill="white"/>',
          _t(W / 2, 34, titulo or "DETALHES - HIDRANTES E ROTAS DE FUGA", 19, weight="bold")]
     x = 220
-    y0, y1 = 110, Hh - 130
+    y0, y1 = 110, Hh - 130 - (40 + len(list(ausencias or [])) * 20 if ausencias else 0)
     passo = (y1 - y0) / max(n_pav, 1)
     s.append(_line(x, y0 - 20, x, y1 + 20, 4.0, VERMELHO))
     s.append(_t(x, y0 - 32, "COLUNA DN65 (NBR 13714)", 12, color=VERMELHO, weight="bold"))
-    for i in range(n_pav):
-        y = y1 - passo * (i + 0.5)
-        s.append(_line(x, y, x + 90, y, 2.0, VERMELHO))
-        s.append(_sym_hidrante(x + 110, y))
-        s.append(_t(x + 130, y + 4, "hidrante N%d" % (i + 1), 10, "start"))
+    if nivel_unico:
+        # Galpao terreo: N hidrantes no nivel unico, lado a lado (count-driven:
+        # EXATAMENTE N simbolos == N_hidrantes do calculo, nunca N pavimentos).
+        y = y1 - passo * 0.5
+        largura = 200.0
+        x_ini = x - 40.0
+        for i in range(n):
+            xi = x_ini + (largura * i / max(n - 1, 1) if n > 1 else 60.0)
+            s.append(_sym_hidrante(xi, y))
+            s.append(_t(xi, y + 22, "HID-%d (terreo)" % (i + 1), 10))
+        s.append(_t(x, y1 + 44, "nivel unico (terreo): %d hidrante(s) "
+                   "no mesmo nivel" % n, 11, color=VERMELHO))
+    else:
+        for i in range(n_pav):
+            y = y1 - passo * (i + 0.5)
+            s.append(_line(x, y, x + 90, y, 2.0, VERMELHO))
+            s.append(_sym_hidrante(x + 110, y))
+            s.append(_t(x + 130, y + 4, "hidrante N%d" % (i + 1), 10, "start"))
     qx, qy = 470, 110
     rotas = gates.get("rotas_verticais") or {}
     larg = gates.get("escada_largura") or {}
@@ -463,8 +534,31 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None):
     s.append(_t(qx + 215, qy + 26, "QUADRO DE ROTAS", 13, weight="bold"))
     for i, ln in enumerate(linhas):
         s.append(_t(qx + 14, qy + 52 + i * 26, ln, 11, anchor="start"))
+    if ausencias:
+        ax, ay = 40, qy + 40 + len(linhas) * 26 + 20
+        alt = 40 + len(list(ausencias)) * 20
+        s.append(f'<rect x="{ax}" y="{ay}" width="860" height="{alt}" '
+                 f'fill="white" stroke="{VERMELHO}" stroke-width="1.5"/>')
+        s.append(_t(ax + 430, ay + 24, "DADOS NAO DECLARADOS PELO CALCULO "
+                   "DO GALPAO (G138)", 12, weight="bold", color=VERMELHO))
+        for i, campo in enumerate(list(ausencias)):
+            s.append(_t(ax + 14, ay + 46 + i * 20,
+                       "nao declarado: %s" % campo, 11, anchor="start"))
     s.append('</svg>')
     return "\n".join(s)
+
+
+def gerar_detalhes_galpao(r, path, titulo=None):
+    """Escreve os detalhes de hidrantes do GALPAO (PE-IN-02) em `path`.
+
+    G138: adapta o resultado de `galpao_seguranca_incendio.rodar` (uma fonte
+    so, sem recalcular hidrantes) e declara na folha os campos que o calculo
+    nao produz. Devolve (path, ausentes)."""
+    inc, estrutura, ausentes = adaptar_galpao_para_detalhes(r)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(detalhes_hidrantes_rotas_svg(
+            inc, estrutura, titulo, ausencias=ausentes, nivel_unico=True))
+    return path, ausentes
 
 
 def gerar_ppci_pavimento(inc, estrutura, path, pavimento=None):
@@ -474,10 +568,13 @@ def gerar_ppci_pavimento(inc, estrutura, path, pavimento=None):
     return path
 
 
-def gerar_detalhes_hidrantes(inc, estrutura, path, titulo=None):
+def gerar_detalhes_hidrantes(inc, estrutura, path, titulo=None,
+                             ausencias=None, nivel_unico=False):
     """Escreve os detalhes de hidrantes/rotas (PE-IN-02) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(detalhes_hidrantes_rotas_svg(inc, estrutura, titulo))
+        f.write(detalhes_hidrantes_rotas_svg(
+            inc, estrutura, titulo, ausencias=ausencias,
+            nivel_unico=nivel_unico))
     return path
 
 

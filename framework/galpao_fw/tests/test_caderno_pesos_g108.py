@@ -7,7 +7,7 @@ os pendentes somavam 12,75 e ele recebia 7/12,75 = 54,9 % do restante.
 Entregue (`caderno_turnkey._STAGE_WEIGHTS`): os quatro pesos vem de
 medicao (D125 para as tres de esquema; dispatch do mezanino medido em
 2026-09-11: 0,0003 s, sem prancha), com a origem escrita ao lado de cada
-peso. A fracao do aco sobe para 7/8,54 = 82,0 %.
+peso. A fracao do aco sobe para 7/8,54 = 82,0 % (G137: 9,54/11,08 = 86,1 %).
 
 G114: ancora 900 s (estimativa T13) -> 578 s medidos (D133/G109); pesos
 continuam no piso 0,01, fracao inalterada. O teste passa a chamar a
@@ -30,13 +30,14 @@ GALPAO = os.path.dirname(HERE)
 sys.path.insert(0, GALPAO)
 sys.path.insert(0, HERE)
 
-# Conta travada, escrita a mao (G108):
+# Conta travada, escrita a mao (G108; G137 atualiza o aco 7,0 -> 9,5396):
 # pendentes quando o aco reserva = [aco, eletrico, incendio, climatizacao,
 # hidraulica, mezanino] (concreto + coordenacao_* ja consumidos, na ordem de
-# DISCIPLINAS) = 7,0 + 1,5 + 0,01 + 0,01 + 0,01 + 0,01 = 8,54.
-# Fracao do aco = 7,0/8,54 = 0,81967 (~82,0 %; era 7/12,75 = 0,54902).
-FRACAO_ACO_ESPERADA = 0.8197
-FRACAO_ACO_ANTIGA = 0.5490
+# DISCIPLINAS) = 9,5396 + 1,5 + 0,01 + 0,01 + 0,01 + 0,01 = 11,0796.
+# Fracao do aco = 9,5396/11,0796 = 0,8610 (~86,1 %; era 7/8,54 = 0,8197;
+# antes 7/12,75 = 0,5490). G137: t_medido 578 -> 787,7 s (PE05 medida).
+FRACAO_ACO_ESPERADA = 0.8610
+FRACAO_ACO_ANTIGA = 0.6239
 
 
 def _pendentes_do_aco():

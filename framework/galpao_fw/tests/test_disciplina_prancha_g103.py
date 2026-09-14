@@ -1,11 +1,13 @@
 """G103 - disciplina executada que o indice nao promete: o D89 do lado da promessa.
 
-Medido (G98): "mezanino" esta em galpao_turnkey.DISCIPLINAS e nao em
+Medido (G98): "mezanino" estava em galpao_turnkey.DISCIPLINAS e nao em
 pacote_legal._PRANCHAS (travado por assert em
 tests/test_indice_disco_g91.py:304-305, achado registrado e nao
-consertado). A disciplina e calculada e evapora no `continue` do indice.
-E o D89 espelhado: o D89 conhecido e codigo prometido sem arquivo; este
-e disciplina entregue sem codigo. Nenhuma lente olhava esse lado.
+consertado). A disciplina era calculada e evaporava no `continue` do
+indice. Era o D89 espelhado: o D89 conhecido e codigo prometido sem
+arquivo; este era disciplina entregue sem codigo. Nenhuma lente olhava
+esse lado. G141 curou o gap (PE-MZ-01 em _PRANCHAS, ausencia declarada
+por codigo); a baseline abaixo mudou junto, com motivo.
 
 Entregue:
   1. FERRAMENTA (varredura_disciplina_prancha.py, funcao pura): recebe as
@@ -18,17 +20,17 @@ Entregue:
      e falha UMA vez so, com todos os lados na mensagem (a receita do
      G97: coletar tudo, relatar tudo, um assert).
   3. BASELINE (test_02, nos dois sentidos): o estado conhecido congelado -
-     galpao isenta "mezanino" com motivo escrito; casa e predio sem gap.
+     galpao sem gap (G141: o mezanino tem PE-MZ-01); casa e predio sem gap.
      Disciplina nova sem prancha = vermelho; gap conhecido que some sem
      triagem = vermelho.
   4. INJECAO (test_03, tmp_path, nunca mutando o repo): disciplina nova
-     sem prancha, motivo apagado e cobertura sumida deixam a suite
-     vermelha; o caso bom fica verde.
+     sem prancha, entrada do mezanino removida e cobertura sumida deixam a
+     suite vermelha; o caso bom fica verde.
 
 Nao fazer (regra do lote): arbitrar valor normativo, inventar dado de
 projeto, ou transformar ausencia de dado em default silencioso. O
-mezanino segue sem prancha propria com a excecao nomeada - ausencia
-declarada continua sendo entrega valida.
+mezanino tem codigo com ausencia declarada (PE-MZ-01 sem emissor) -
+ausencia declarada continua sendo entrega valida.
 """
 import json
 import os
@@ -105,14 +107,15 @@ def _resultados(quadros=None):
         for nome, q in quadros.items()}
 
 
-# BASELINE_G103 (medido 2026-09-11): o galpao executa 7 disciplinas e isenta
-# 1 ("mezanino", parte da estrutura sem prancha propria, motivo escrito);
-# casa (6 na uniao) e predio (4) fecham sem gap. Entrada nova aqui = cura
-# de um lado (o baseline MUDA junto, nunca em silencio); gap novo que
-# coincida com estes e o defeito voltando.
+# BASELINE_G103 (medido 2026-09-11; curado pelo G141 em 2026-09-14): o galpao
+# executa 7 disciplinas e nenhuma fica sem prancha - o mezanino promete
+# PE-MZ-01 em pacote_legal._PRANCHAS (ausencia declarada por codigo, sem
+# emissor ligado); casa (6 na uniao) e predio (4) fecham sem gap. Entrada
+# nova aqui = cura de um lado (o baseline MUDA junto, nunca em silencio);
+# gap novo que coincida com estes e o defeito voltando.
 BASELINE_G103 = {
     "casa": {"sem_prancha": [], "isentas": []},
-    "galpao": {"sem_prancha": [], "isentas": ["mezanino"]},
+    "galpao": {"sem_prancha": [], "isentas": []},
     "predio": {"sem_prancha": [], "isentas": []},
 }
 
@@ -160,22 +163,25 @@ def test_03_vermelho_por_injecao_via_tmp_path(tmp_path):
                        encoding="utf-8")
     copia = list(json.loads(caminho.read_text(encoding="utf-8")))
     pranchas = dict(quadros["galpao"]["pranchas"])
-    # caso bom: as executadas vivas fecham com a isencao escrita
+    # caso bom: as executadas vivas fecham sem isencao (G141: o mezanino
+    # tem PE-MZ-01 em _PRANCHAS, ausencia declarada por codigo)
     bom = lente.conferir_disciplina_prancha(
         copia, pranchas, lente.ISENCOES_DISCIPLINA_PRANCHA)
-    assert bom["OK"] and bom["isentas"] == ["mezanino"], bom
+    assert bom["OK"] and bom["isentas"] == [] and bom["sem_prancha"] == [], bom
     # injecao 1: disciplina nova sem prancha vira sem_prancha
     copia.append("ancoragem_orbital")
     quebrado = lente.conferir_disciplina_prancha(
         copia, pranchas, lente.ISENCOES_DISCIPLINA_PRANCHA)
     assert quebrado["sem_prancha"] == ["ancoragem_orbital"] \
         and not quebrado["OK"], quebrado
-    # injecao 2 (outro sentido): motivo apagado e silencio, nao triagem -
-    # o mezanino volta a sem_prancha
-    apagado = lente.conferir_disciplina_prancha(
-        quadros["galpao"]["executadas"], pranchas, {"mezanino": "   "})
-    assert apagado["sem_prancha"] == ["mezanino"] \
-        and not apagado["OK"], apagado
+    # injecao 2 (outro sentido): sem a entrada em _PRANCHAS, o mezanino
+    # volta a sem_prancha - o gap que o G141 curou
+    sem_mezanino = {d: v for d, v in pranchas.items() if d != "mezanino"}
+    curado = lente.conferir_disciplina_prancha(
+        quadros["galpao"]["executadas"], sem_mezanino,
+        lente.ISENCOES_DISCIPLINA_PRANCHA)
+    assert curado["sem_prancha"] == ["mezanino"] \
+        and not curado["OK"], curado
     # injecao 3 (outro sentido): cobertura sumida - a fundacao sem o
     # concreto que a cobre vira sem_prancha
     sem_cobertura = {d: v for d, v in pranchas.items() if d != "concreto"}
@@ -192,10 +198,13 @@ def test_04_isencao_sem_motivo_reprova_e_malformada_grita():
     Entrada malformada (None) levanta: lente que devolve OK sobre lixo e
     saturacao silenciosa."""
     # G97: um assert so, com os tres lados na mesma mensagem.
+    # G141: o mezanino tem PE-MZ-01, entao a regra da isencao vazia e
+    # provada com disciplina sem prancha (ancoragem_orbital), nunca com
+    # o curado.
     lados = []
     vazia = lente.conferir_disciplina_prancha(
-        ["mezanino"], _pranchas(), {"mezanino": ""})
-    if vazia["sem_prancha"] != ["mezanino"] or vazia["OK"]:
+        ["ancoragem_orbital"], _pranchas(), {"ancoragem_orbital": ""})
+    if vazia["sem_prancha"] != ["ancoragem_orbital"] or vazia["OK"]:
         lados.append("isencao vazia devia reprovar: %r" % (vazia,))
     try:
         lente.conferir_disciplina_prancha(None, {}, {})
@@ -244,7 +253,11 @@ def test_05_fontes_independentes_das_executadas():
                 and d not in lente.COBERTA_POR:
             lados.append("executada %r sem prancha, sem isencao e sem "
                          "cobertura: %r" % (d, sorted(pl._PRANCHAS)))
-    if not str(lente.ISENCOES_DISCIPLINA_PRANCHA.get("mezanino") or ""
-               ).strip():
-        lados.append("isencao do mezanino sem motivo escrito")
+    # G141 (portao do comportamento novo): o mezanino tem entrada em
+    # _PRANCHAS e nao pede isencao; isencao remanescente seria silencio.
+    if "mezanino" not in pl._PRANCHAS:
+        lados.append("mezanino sem entrada em _PRANCHAS (G141)")
+    if "mezanino" in lente.ISENCOES_DISCIPLINA_PRANCHA:
+        lados.append("isencao do mezanino devia morrer com o G141: %r"
+                     % (lente.ISENCOES_DISCIPLINA_PRANCHA,))
     assert not lados, "fontes independentes reprovam:\n" + "\n".join(lados)

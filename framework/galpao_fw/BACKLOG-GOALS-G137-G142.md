@@ -1,6 +1,10 @@
 # Backlog de goals executáveis — pós-G136 / D165 (2026-09-13)
 
-Fila **ABERTA**. Seis goals (G137–G142). As filas anteriores estão fechadas e ficam apenas
+> **FILA CONSUMIDA (2026-09-14).** Os seis goals foram executados (verbetes D166–D171).
+> Ultima suite pelo runner, na arvore final: `rc_pytest` 0, 3869 passed, 1 skipped, `quebras`
+> vazio. O G21-C (3 testes de subprocesso) so fecha verde com `PYTHONUTF8=1` no ambiente (D169).
+
+Fila **CONSUMIDA** (era aberta). Seis goals (G137–G142). As filas anteriores estão fechadas e ficam apenas
 como registro — não reexecute nada de lá: `BACKLOG-GOALS.md` (G78–G88),
 `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`, `BACKLOG-GOALS-G107-G112.md`,
 `BACKLOG-GOALS-G114-G118.md`, `BACKLOG-GOALS-G120-G124.md`, `BACKLOG-GOALS-G126-G130.md` e

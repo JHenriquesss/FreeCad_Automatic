@@ -95,8 +95,20 @@ ISENCOES_EXTRA = {
 # o executivo de aco, CUSTO_G102 casa=2.0s predio=6.3s galpao=536.3s
 # total=544.6s, 9 passed em 551,5 s (antes: galpao 1048,3 s, ~460 s deles
 # esperando o corte do executivo de aco que nunca terminava).
-CUSTO_MEDIDO_SEG = {"casa": 2.0, "predio": 6.3, "galpao": 536.3}
-CUSTO_MEDIDO_EM = "2026-09-13"
+# G139 (2026-09-14, corrida isolada com -s, maquina livre): com a prancha
+# formal de coordenacao emitida no recorte (2 folhas, PE-CD-01/02),
+# CUSTO_G102 casa=2.4s predio=8.3s galpao=729.9s total=740.6s, 1 passed em
+# 740,9 s (coord ok:true, sem timeout, com os pesos maximos D167). O galpao
+# sobe +193,6 s sobre o D165 pelo diff (render + prancha federados com aco:
+# 3012 membros, ~110-165 s medidos); casa/predio (+0,4/+2,0 s) e variacao
+# de maquina, nao do diff (o diff nao toca as duas tipologias).
+# G138 (2026-09-14, corrida isolada com -s, maquina livre): com PE-IN-02
+# emitida (INC03_DETALHES via rota SVG, sem freecad extra),
+# CUSTO_G102 casa=2.4s predio=8.7s galpao=725.5s total=736.5s, 9 passed em
+# 742,6 s. Variacao de maquina sobre o G139 (+0,4 s predio, -4,4 s galpao);
+# o diff so acrescenta 1 PDF SVG de ~ms a rodada do galpao.
+CUSTO_MEDIDO_SEG = {"casa": 2.4, "predio": 8.7, "galpao": 725.5}
+CUSTO_MEDIDO_EM = "2026-09-14"
 CUSTO_TETO_SEG = 1800
 
 # G121: o teto do portao media so tempo, e o que matava era memoria (G113:
@@ -111,8 +123,16 @@ CUSTO_TETO_SEG = 1800
 # sobem freecad.exe (rota SVG pura).
 # D165 (mesma corrida): MEM_G102 casa=112.5MB predio=207.5MB
 # galpao=1616.8MB(proc=195.1,fc=1486.5,n=1).
-CUSTO_MEDIDO_MEM_MB = {"casa": 112.5, "predio": 207.5, "galpao": 1616.8}
-CUSTO_MEDIDO_MEM_EM = "2026-09-13"
+# G139 (mesma corrida 2026-09-14): MEM_G102 casa=108.8MB predio=207.4MB
+# galpao=2111.3MB(proc=206.0,fc=1968.4,n=1). O galpao sobe ~+495 MB pelo
+# diff (federado com aco: 2850 solidos + prancha de coordenacao no mesmo
+# freecad.exe); segue abaixo do teto 2500. Casa/predio: variacao de
+# maquina (sem freecad nas duas).
+# G138 (mesma corrida 2026-09-14): MEM_G102 casa=108.2MB predio=207.7MB
+# galpao=2076.6MB(proc=212.8,fc=1938.4,n=1) (teto 2500). Variacao de
+# maquina sobre o G139; o INC03 SVG nao sobe freecad.
+CUSTO_MEDIDO_MEM_MB = {"casa": 108.2, "predio": 207.7, "galpao": 2076.6}
+CUSTO_MEDIDO_MEM_EM = "2026-09-14"
 # Teto de memoria: 2500 MB por rodada (pico medido 1988,8 + ~25 % de
 # folga). Motivo, como o teto de tempo tem: a maquina tem 8 GB e o SO +
 # fundo comem ~2 GB; o teto deixa a rodada respirar e ainda reprova

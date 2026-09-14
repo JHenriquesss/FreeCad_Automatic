@@ -79,6 +79,21 @@ def test_config_viga_protendida_quadro():
     assert "cordoalhas" in cfg["viga_arm_lbl"]
 
 
+def test_config_locacao_g140_por_pilar_sem_redimensionar():
+    # G140 (puro, sem FreeCAD): o cfg carrega a locacao adaptada do
+    # calculo — um elemento por pilar, dimensoes == dimensionadas.
+    import desenho_fundacao_edificio as dfe
+
+    r = gc.rodar(_spec())
+    cfg = tdc.config_de_spec(r, "x.FCStd", "/out", _spec())
+    assert cfg["locacao_erro"] is None, cfg["locacao_erro"]
+    assert cfg["locacao_svg"].count("data-pilar") == 2 * 7
+    fund, _est, _aus = dfe.adaptar_galpao_para_locacao(r, _spec())
+    assert dfe.confere_desenho_fundacao(
+        fund, cfg["locacao_svg"])["ok"]
+    assert cfg["locacao_ausentes"] == list(_aus) and cfg["locacao_ausentes"]
+
+
 def test_bootstrap_injeta_syspath_e_entry():
     r = gc.rodar(_spec())
     cfg = tdc.config_de_spec(r, "x.FCStd", "/out", _spec())
@@ -95,7 +110,7 @@ def test_bootstrap_injeta_syspath_e_entry():
 
 def test_codigo_fonte_tem_as_pranchas():
     txt = tdc.codigo_fonte()
-    for fn in ("_pr_formas", "_pr_portico", "_pr_quadros",
+    for fn in ("_pr_formas", "_pr_portico", "_pr_quadros", "_pr_locacao",
                "gerar_executivo_concreto", "_entry_concreto"):
         assert "def %s" % fn in txt
 
@@ -113,7 +128,10 @@ def test_build_gera_pranchas_pdf(tmp_path):
     # 2) pranchas A1 (freecad.exe GUI)
     res = gc.montar_pranchas(r, out, fcstd, spec=_spec(n=5), timeout=1200)
     assert res.get("ok"), res
-    assert len(res.get("pranchas", [])) == 3
+    # G140: a PE04 (locacao da fundacao) sai do mesmo executivo
+    assert res.get("pranchas", []) == ["PE01_FORMAS", "PE02_PORTICO",
+                                       "PE03_QUADROS",
+                                       "PE04_LOCACAO_FUNDACAO"], res
     pdfs = [a for a in res.get("arquivos", []) if a.endswith(".pdf")]
-    assert len(pdfs) == 3 and all(os.path.exists(p) and os.path.getsize(p) > 0
+    assert len(pdfs) == 4 and all(os.path.exists(p) and os.path.getsize(p) > 0
                                   for p in pdfs), res

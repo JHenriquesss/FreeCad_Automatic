@@ -42,6 +42,14 @@ _PRANCHAS = {
                          # `continue` do indice (o mesmo D89 da fundacao no G56
                          # e da alvenaria no G62).
                          "Locacao e formas da fundacao"]),
+    # G141: o mezanino calculado vira codigo - planta de locacao/forma da
+    # laje+vigas+pilares de concreto dentro do envelope (G20). Sem esta
+    # entrada a disciplina executada evaporaria no `continue` do indice
+    # (o mesmo D89 da fundacao no G56). Sem emissor TechDraw ligado, a
+    # folha sai pulada com motivo nomeado no laco do galpao
+    # (galpao_adapter._motivo_folha_galpao_nao_emitida["PE-MZ-01"]) -
+    # ausencia declarada por codigo, nunca silencio.
+    "mezanino": ("PE-MZ", ["Mezanino de concreto (laje/vigas/pilares)"]),
     # G62: a parede calculada vira folha - elevacao com fiadas/vaos/quadro +
     # plantas de 1a/2a fiada. Sem esta entrada as folhas evaporariam no
     # `continue` do indice (o mesmo D89 da fundacao no G56).
@@ -51,7 +59,27 @@ _PRANCHAS = {
     # Sem esta entrada a prancha telhado-tesoura.svg evaporaria no `continue`
     # do indice (o mesmo D89 da fundacao no G56).
     "madeira": ("PE-MD", ["Tesoura de madeira (NBR 7190-1)"]),
-    "aco": ("PE-ES", ["Portico e locacao", "Detalhes de ligacoes", "Cobertura/fechamento"]),
+    "aco": ("PE-ES", ["Portico e locacao", "Detalhes de ligacoes", "Cobertura/fechamento",
+                     # G137 (D166): uma prancha emitida, um codigo. As 3 primeiras
+                     # seguem as mesmas (PE04_PORTICO, PE07_DET_JOELHO,
+                     # PE01_COBERTURA); as 12 seguintes cobrem as 12 que saiam
+                     # sem codigo no D165 (PE02, PE03, PE05, PE06, PE08, PE09,
+                     # PE10-PE13, PE14_CROQUIS, PE16), medidas pagina a pagina
+                     # em techdraw_exec.py; as 2 ultimas sao condicionais
+                     # (PE14_DET_CONSOLE so com ponte rolante, PE15_DET_BLOCO
+                     # so com fundacao profunda — ausentes no galpao-tp-g95).
+                     "Planta de fundacoes", "Elevacoes",
+                     "Contraventamentos", "Detalhe da base de coluna",
+                     "Fechamento / tercas / mao-francesa",
+                     "Quadros e notas tecnicas",
+                     "Detalhe da ligacao de cumeeira",
+                     "Detalhe do gusset do contraventamento da cobertura",
+                     "Detalhe do gusset do contraventamento da parede",
+                     "Detalhe da fixacao de girt (clipe)",
+                     "Croquis de fabricacao (pecas principais)",
+                     "Plano de montagem e escoramento",
+                     "Detalhe do console da ponte rolante",
+                     "Detalhe do bloco de coroamento"]),
     "piso": ("PE-PI", ["Planta de juntas do piso industrial"]),
     "eletrico": ("PE-EL", ["Unifilar", "Planta de instalacao", "Infraestrutura/aterramento", "Quadros/QDC"]),
     "hidraulica": ("PE-HI", ["Agua fria", "Esgoto/ventilacao", "Pluvial"]),
@@ -63,9 +91,26 @@ _PRANCHAS = {
                           # fundacao no G56 e da alvenaria no G62).
                           "Escada de emergencia (planta e corte)"]),
     "climatizacao": ("PE-CL", ["Climatizacao/ventilacao"]),
+    # G139: a coordenacao do GALPAO emite 2 folhas, mas o vocabulario fica
+    # com 1 titulo. O predio usa o mesmo vocabulario ("coordenacao") com
+    # emissor de folha unica (coordenacao-federado.svg): um 2o titulo aqui
+    # prometeria ao predio um codigo sem emissor nem cobertura (sem_mapa no
+    # 15/15 congelado) — a mesma razao da fronteira G101 para PE-IN-03. A
+    # 2a folha do galpao (quadro de clash) ganha codigo pelo verbete
+    # PE_CD_02_GALPAO abaixo, prometido so no laco do galpao
+    # (galpao_adapter._indice_galpao_com_fronteira).
     "coordenacao": ("PE-CD", ["Modelo federado / compatibilizacao"]),
 }
-_ORDEM_DISC = ["arquitetura", "terraplenagem", "concreto", "alvenaria_estrutural",
+
+# G139 (D167): segunda folha de coordenacao do GALPAO (quadro de clash e
+# notas, COORD02_CLASH.pdf). Uma prancha emitida, um codigo (mesma regra do
+# G137 para o aco): sem codigo proprio, a emissao parcial (COORD01 sem
+# COORD02, medida sob carga na 1a suite) virava extra sem isencao possivel
+# — estado real irrepresentavel. Com codigo, a ausencia sai pulada com
+# motivo, como PE-CO-04/PE-IN-02.
+PE_CD_02_GALPAO = {"codigo": "PE-CD-02", "disciplina": "coordenacao",
+                   "titulo": "Quadro de clash e notas"}
+_ORDEM_DISC = ["arquitetura", "terraplenagem", "concreto", "mezanino", "alvenaria_estrutural",
                "madeira", "aco", "piso", "eletrico",
                "hidraulica", "incendio", "climatizacao", "coordenacao"]
 
@@ -146,7 +191,7 @@ def checklist_ppci_avcb(pendencias=None):
 # eletricas num projeto que nao tem projeto eletrico e declaracao falsa num
 # documento de aprovacao.
 _LOD_DISCIPLINA = {
-    "Estrutura (pilares/vigas/fundacoes)": ("concreto", "aco"),
+    "Estrutura (pilares/vigas/fundacoes)": ("concreto", "aco", "mezanino"),
     # G62: paredes portantes com fiadas, vergas e quadro de blocos.
     "Alvenaria estrutural (paredes portantes)": ("alvenaria_estrutural",),
     # G66: a tesoura da casa entrega geometria + secoes + material (o grupo
@@ -364,25 +409,31 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
 CORRESPONDENCIA_NUMERACAO_GALPAO = {
     "intro": (
         "O executivo numera as folhas por arquivo de producao "
-        "(PE-HID/PE-INC/PE-CLI para esquema+quadro; PE-01..PE-16 na "
-        "sequencia do aco; PE-01..PE-03 na sequencia do concreto; PE-COORD "
-        "na coordenacao) enquanto o indice numera por disciplina "
-        "(PE-HI/PE-IN/PE-CL/PE-ES/PE-CO/PE-EL/PE-CD). As numeracoes diferem "
-        "porque (a) um arquivo de esquema cobre N codigos do indice "
-        "(HID01_ESQUEMA.pdf cobre PE-HI-01/02/03; INC01_PLANTA.pdf cobre "
-        "PE-IN-01 enquanto PE-IN-02/03 nao tem emissor ligado); (b) as "
-        "folhas de quadro (HID02_QUADRO.pdf com PE-HID-02, INC02_RESUMO.pdf, "
-        "CLI02_QUADRO.pdf, COORD02_CLASH.pdf com PE-COORD-02) nao tem codigo "
-        "proprio no indice - PE-HID-02 colide em numero com PE-HI-02 "
-        "\"Esgoto/ventilacao\" mas e outra folha; (c) o aco emite 17 folhas "
-        "contra 3 codigos PE-ES e o carimbo PE-01 esta em dois arquivos "
-        "distintos (PE01_FORMAS.pdf do concreto e PE01_COBERTURA.pdf do "
-        "aco); (d) a coordenacao emite 2 folhas contra 1 codigo PE-CD. "
-        "Carimbar um unico codigo do indice nessas folhas afirmaria uma "
-        "cobertura que a folha nao tem (convencao 6: a folha diz o que "
-        "desenha) - por isso a numeracao propria permanece, e a tabela "
-        "abaixo diz ao cliente que folha do executivo responde por que "
-        "codigo(s) do indice."
+         "(PE-HID/PE-INC/PE-CLI para esquema+quadro; PE-01..PE-16 na "
+         "sequencia do aco; PE-01..PE-04 na sequencia do concreto; PE-COORD "
+         "na coordenacao) enquanto o indice numera por disciplina "
+         "(PE-HI/PE-IN/PE-CL/PE-ES/PE-CO/PE-EL/PE-CD). As numeracoes diferem "
+         "porque (a) um arquivo de esquema cobre N codigos do indice "
+         "(HID01_ESQUEMA.pdf cobre PE-HI-01/02/03; INC01_PLANTA.pdf cobre "
+         "PE-IN-01 enquanto PE-IN-03 nao tem emissor ligado (G101); "
+         "INC03_DETALHES.pdf cobre PE-IN-02 (G138)); (b) as "
+         "folhas de quadro (HID02_QUADRO.pdf com PE-HID-02, INC02_RESUMO.pdf, "
+         "CLI02_QUADRO.pdf) nao tem codigo "
+         "proprio no indice - PE-HID-02 colide em numero com PE-HI-02 "
+         "\"Esgoto/ventilacao\" mas e outra folha; (c) o aco emite ate 17 "
+         "folhas com 17 codigos PE-ES (G137: cada prancha emitida tem codigo; "
+         "antes 3) e o carimbo PE-01 esta em dois arquivos "
+         "distintos (PE01_FORMAS.pdf do concreto e PE01_COBERTURA.pdf do "
+         "aco) — o mesmo vale para o PE-04 (PE04_LOCACAO_FUNDACAO.pdf do "
+         "concreto, G140, e PE04_PORTICO.pdf do aco); (d) a coordenacao "
+         "emite 2 folhas com 2 codigos PE-CD "
+         "(G139: cada folha emitida tem codigo, mesma regra do G137; "
+         "antes 2 folhas contra 1 codigo). "
+         "Carimbar um unico codigo do indice nessas folhas afirmaria uma "
+         "cobertura que a folha nao tem (convencao 6: a folha diz o que "
+         "desenha) - por isso a numeracao propria permanece, e a tabela "
+         "abaixo diz ao cliente que folha do executivo responde por que "
+         "codigo(s) do indice."
     ),
     "entradas": [
         {"arquivo": "CLI01_ESQUEMA.pdf", "carimbo": "PE-CLI-01",
@@ -394,7 +445,7 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
         {"arquivo": "COORD01_PLANTA.pdf", "carimbo": "PE-COORD-01",
          "cobre": ["PE-CD-01"],
          "motivo": "planta de coordenacao (carimbo PE-COORD-01) responde "
-                   "pelo unico codigo do indice PE-CD-01 Modelo federado / "
+                   "pelo codigo do indice PE-CD-01 Modelo federado / "
                    "compatibilizacao; o prefixo difere (COORD vs CD) mas a "
                    "cobertura e 1:1 e esta escrita aqui"},
         {"arquivo": "HID01_ESQUEMA.pdf", "carimbo": "PE-HID-01",
@@ -406,8 +457,9 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
         {"arquivo": "INC01_PLANTA.pdf", "carimbo": "PE-INC-01",
          "cobre": ["PE-IN-01"],
          "motivo": "planta de prevencao (carimbo PE-INC-01) responde por "
-                   "PE-IN-01 Planta de prevencao (PPCI); PE-IN-02/03 nao tem "
-                   "emissor ligado ao hook do galpao (motivos no laco G93)"},
+                   "PE-IN-01 Planta de prevencao (PPCI); PE-IN-02 sai em "
+                   "INC03_DETALHES.pdf (G138) e PE-IN-03 nao tem emissor "
+                   "ligado ao hook do galpao (motivo no laco G93)"},
         {"arquivo": "PE01_COBERTURA.pdf", "carimbo": "PE-01",
          "cobre": ["PE-ES-03"],
          "motivo": "folha de cobertura/fechamento do aco (carimbo PE-01, "
@@ -430,6 +482,16 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
          "motivo": "quadros do concreto (carimbo PE-03) respondem por "
                    "PE-CO-03 Detalhes; numeracao da sequencia do concreto, "
                    "nao do indice"},
+        {"arquivo": "PE04_LOCACAO_FUNDACAO.pdf", "carimbo": "PE-04",
+         "cobre": ["PE-CO-04"],
+         "motivo": "locacao e formas da fundacao do concreto (carimbo "
+                   "PE-04, quarta na sequencia do concreto) responde por "
+                   "PE-CO-04 Locacao e formas da fundacao (G140: emissor "
+                   "desenho_fundacao_edificio adaptado do calculo do "
+                   "galpao, sem redimensionar; cota_apoio_m e tensao sem "
+                   "sondagem declarados como ausentes na folha); PE-04 "
+                   "aqui e locacao do concreto, em PE04_PORTICO.pdf e "
+                   "portico do aco - o numero so casa com o arquivo"},
         {"arquivo": "PE04_PORTICO.pdf", "carimbo": "PE-04",
          "cobre": ["PE-ES-01"],
          "motivo": "portico tipico do aco (carimbo PE-04, quarto na ordem de "
@@ -450,57 +512,68 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
          "cobre": [],
          "motivo": "quadro-resumo de incendio (carimbo PE-INC-02) nao tem "
                    "codigo proprio no indice (PE-IN-02 Detalhes "
-                   "hidrantes/rotas nao tem emissor ligado)"},
+                   "hidrantes/rotas sai em INC03_DETALHES.pdf, G138)"},
+        {"arquivo": "INC03_DETALHES.pdf", "carimbo": "PE-INC-03",
+         "cobre": ["PE-IN-02"],
+         "motivo": "detalhes de hidrantes do galpao (carimbo PE-INC-03) "
+                   "respondem pelo codigo do indice PE-IN-02 Detalhes "
+                   "hidrantes/rotas (G138: emissor desenho_incendio "
+                   "adaptado do calculo do galpao, sem recalcular "
+                   "hidrantes; rotas_verticais/escada_largura, "
+                   "estrategia_abandono, populacao_total, "
+                   "altura_edificacao_m e pavimentos declarados como "
+                   "ausentes na folha); o prefixo difere (INC vs IN) mas "
+                   "a cobertura e 1:1 e esta escrita aqui"},
         {"arquivo": "CLI02_QUADRO.pdf", "carimbo": "PE-CLI-02",
          "cobre": [],
          "motivo": "quadro de capacidade da climatizacao (carimbo PE-CLI-02) "
                    "nao tem codigo proprio no indice (PE-CL-01 ja respondido "
                    "por CLI01_ESQUEMA.pdf)"},
         {"arquivo": "COORD02_CLASH.pdf", "carimbo": "PE-COORD-02",
-         "cobre": [],
-         "motivo": "quadro de clash da coordenacao (carimbo PE-COORD-02) nao "
-                   "tem codigo proprio no indice (PE-CD-01 ja respondido por "
-                   "COORD01_PLANTA.pdf)"},
+         "cobre": ["PE-CD-02"],
+         "motivo": "quadro de clash da coordenacao (carimbo PE-COORD-02) "
+                   "responde pelo codigo do indice PE-CD-02 Quadro de clash "
+                   "e notas (G139: cada folha emitida tem codigo); o "
+                   "prefixo difere (COORD vs CD) mas a cobertura e 1:1 e "
+                   "esta escrita aqui"},
         {"arquivo": "PE02_FUNDACOES.pdf", "carimbo": "PE-02",
-         "cobre": [],
-         "motivo": "planta de fundacoes do aco (carimbo PE-02) fora do "
-                   "recorte de 3 representantes do mapa do galpao; numeracao "
-                   "de producao, sem codigo do indice"},
+         "cobre": ["PE-ES-04"],
+         "motivo": "planta de fundacoes do aco (carimbo PE-02, segunda na "
+                   "ordem de producao do executivo) responde por PE-ES-04 "
+                   "Planta de fundacoes; PE-02 aqui e fundacoes do aco"},
         {"arquivo": "PE03_ELEVACOES.pdf", "carimbo": "PE-03",
-         "cobre": [],
-         "motivo": "elevacoes do aco (carimbo PE-03) fora do recorte de 3 "
-                   "representantes do mapa do galpao; numeracao de producao, "
-                   "sem codigo do indice"},
+         "cobre": ["PE-ES-05"],
+         "motivo": "elevacoes do aco (carimbo PE-03, terceira na ordem de "
+                   "producao do executivo) respondem por PE-ES-05 Elevacoes; "
+                   "numeracao da sequencia do aco, nao do indice"},
         {"arquivo": "PE05_CONTRAVENTAMENTO.pdf", "carimbo": "PE-05",
-         "cobre": [],
-         "motivo": "contraventamentos do aco (carimbo PE-05) fora do recorte "
-                   "de 3 representantes do mapa do galpao; numeracao de "
-                   "producao, sem codigo do indice"},
+         "cobre": ["PE-ES-06"],
+         "motivo": "contraventamentos do aco (carimbo PE-05, quinta na ordem "
+                   "de producao do executivo) respondem por PE-ES-06 "
+                   "Contraventamentos"},
         {"arquivo": "PE06_DET_BASE.pdf", "carimbo": "PE-06",
-         "cobre": [],
-         "motivo": "detalhe de base de coluna do aco (carimbo PE-06) fora do "
-                   "recorte de 3 representantes do mapa do galpao; numeracao "
-                   "de producao, sem codigo do indice"},
+         "cobre": ["PE-ES-07"],
+         "motivo": "detalhe de base de coluna do aco (carimbo PE-06, sexta "
+                   "na ordem de producao do executivo) responde por PE-ES-07 "
+                   "Detalhe da base de coluna"},
         {"arquivo": "PE08_FECHAMENTO.pdf", "carimbo": "PE-08",
-         "cobre": [],
-         "motivo": "fechamento/tercas/mao-francesa do aco (carimbo PE-08) "
-                   "fora do recorte de 3 representantes do mapa do galpao; "
-                   "numeracao de producao, sem codigo do indice"},
+         "cobre": ["PE-ES-08"],
+         "motivo": "fechamento/tercas/mao-francesa do aco (carimbo PE-08, "
+                   "oitava na ordem de producao do executivo) responde por "
+                   "PE-ES-08 Fechamento / tercas / mao-francesa"},
         {"arquivo": "PE09_QUADROS.pdf", "carimbo": "PE-09",
-         "cobre": [],
-         "motivo": "quadros e notas do aco (carimbo PE-09) fora do recorte "
-                   "de 3 representantes do mapa do galpao; numeracao de "
-                   "producao, sem codigo do indice"},
+         "cobre": ["PE-ES-09"],
+         "motivo": "quadros e notas do aco (carimbo PE-09, nona na ordem de "
+                   "producao do executivo) respondem por PE-ES-09 Quadros e "
+                   "notas tecnicas"},
         {"arquivo": "PE14_CROQUIS.pdf", "carimbo": "PE-14",
-         "cobre": [],
-         "motivo": "croquis de fabricacao do aco (carimbo PE-14) fora do "
-                   "recorte de 3 representantes do mapa do galpao; numeracao "
-                   "de producao, sem codigo do indice"},
+         "cobre": ["PE-ES-14"],
+         "motivo": "croquis de fabricacao do aco (carimbo PE-14) responde "
+                   "por PE-ES-14 Croquis de fabricacao (pecas principais)"},
         {"arquivo": "PE16_MONTAGEM.pdf", "carimbo": "PE-16",
-         "cobre": [],
-         "motivo": "plano de montagem do aco (carimbo PE-16) fora do recorte "
-                   "de 3 representantes do mapa do galpao; numeracao de "
-                   "producao, sem codigo do indice"},
+         "cobre": ["PE-ES-15"],
+         "motivo": "plano de montagem do aco (carimbo PE-16) responde por "
+                   "PE-ES-15 Plano de montagem e escoramento"},
     ],
 }
 

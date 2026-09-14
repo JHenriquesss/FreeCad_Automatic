@@ -33,20 +33,12 @@ CUSTO_MEDIDO_SEG = 1038.9
 CUSTO_MEDIDO_EM = "2026-09-13"
 
 # arquivo -> motivo (medido no D165; o G137 da codigo e remove daqui)
-SEM_CODIGO_ACO = {
-    "PE02_FUNDACOES.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE03_ELEVACOES.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE05_CONTRAVENTAMENTO.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE06_DET_BASE.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE08_FECHAMENTO.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE09_QUADROS.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE10_DET_CUMEEIRA.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE11_DET_GUSSET_COB.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE12_DET_GUSSET_PAR.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE13_DET_CLIPE_GIRT.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE14_CROQUIS.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-    "PE16_MONTAGEM.pdf": "emitida pelo techdraw_exec sem codigo no indice (G137)",
-}
+# G137 (D166): baseline VAZIA — as 12 pranchas ganharam codigo PE-ES-04..15
+# no indice (pacote_legal._PRANCHAS) e no mapa (galpao_adapter.
+# _PRANCHA_ARQUIVO_GALPAO), 1:1 medido contra o techdraw_exec. Nos dois
+# sentidos: prancha nova sem codigo reprova; entrada aqui que ganhar codigo
+# ou sumir do disco reprova (nome morto).
+SEM_CODIGO_ACO = {}
 
 
 def conferir_pranchas_aco(pdfs, mapa_arquivos, sem_codigo):

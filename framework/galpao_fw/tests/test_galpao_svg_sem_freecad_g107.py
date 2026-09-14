@@ -37,12 +37,15 @@ EXECUTADAS_CHEIAS = ["concreto", "aco", "eletrico", "incendio",
 
 FOLHAS_ESQUEMA = ["HID01_ESQUEMA.pdf", "HID02_QUADRO.pdf",
                   "INC01_PLANTA.pdf", "INC02_RESUMO.pdf",
+                  # G138: PE-IN-02 sai da rota SVG (detalhes adaptados do
+                  # calculo, sem freecad).
+                  "INC03_DETALHES.pdf",
                   "CLI01_ESQUEMA.pdf", "CLI02_QUADRO.pdf"]
 
 CODIGOS_FREECAD = ["PE-CO-01", "PE-CO-02", "PE-CO-03", "PE-CO-04",
                    "PE-ES-01", "PE-ES-02", "PE-ES-03",
                    "PE-EL-01", "PE-EL-02", "PE-EL-03", "PE-EL-04",
-                   "PE-CD-01"]
+                   "PE-CD-01", "PE-CD-02"]
 
 
 def _turnkey_fatiado():
@@ -130,9 +133,10 @@ def test_01_sem_exe_parcial_nomeado_e_esquema_no_disco(tmp_path, monkeypatch):
         if artefato not in registrados:
             gaps.append("fora do manifesto %s" % artefato)
     prometidos = sorted(
-        f["codigo"] for f in pl.indice_de_pranchas(
+        [f["codigo"] for f in pl.indice_de_pranchas(
             list(EXECUTADAS_CHEIAS) + ["coordenacao"])
-        if f["codigo"] != "PE-IN-03")
+         if f["codigo"] != "PE-IN-03"]
+        + [pl.PE_CD_02_GALPAO["codigo"]])
     dispensadas = list(desenhos.get("dispensadas") or [])
     if [d["codigo"] for d in dispensadas] != ["PE-IN-03"]:
         gaps.append("sem escada no spec, PE-IN-03 devia sair dispensada "
@@ -192,9 +196,10 @@ def test_02_injecao_sem_rota_svg_falha_nomeada(tmp_path, monkeypatch):
             gaps.append("folha de esquema saiu com a rota desligada: %s"
                         % folha)
     prometidos = sorted(
-        f["codigo"] for f in pl.indice_de_pranchas(
+        [f["codigo"] for f in pl.indice_de_pranchas(
             list(EXECUTADAS_CHEIAS) + ["coordenacao"])
-        if f["codigo"] != "PE-IN-03")
+         if f["codigo"] != "PE-IN-03"]
+        + [pl.PE_CD_02_GALPAO["codigo"]])
     sem_declaracao = lente.conferir_indice_disco(
         prometidos, ga._PRANCHA_ARQUIVO_GALPAO, [], {})
     if "PE-HI-01" not in sem_declaracao["faltando"] \

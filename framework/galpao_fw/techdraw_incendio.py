@@ -9,9 +9,12 @@
 # NAO se abre um FCStd nem se faz _vista: cria-se um documento VAZIO e montam-se as
 # pranchas so com o SVG + tabelas.
 #
-# 2 pranchas A1: PE-INC-01 PLANTA DE SEGURANCA (rotas de fuga + detectores +
+# 3 pranchas A1: PE-INC-01 PLANTA DE SEGURANCA (rotas de fuga + detectores +
 # chuveiros + sinalizacao, SVG embutido); PE-INC-02 QUADRO-RESUMO + NOTAS/MEMORIAL
-# (contagens por sistema + normas). Carimbo proprio (_carimbo_inc) evita o vazamento
+# (contagens por sistema + normas); PE-INC-03 DETALHES DE HIDRANTES (G138:
+# corte da coluna DN65 via desenho_incendio.detalhes_hidrantes_rotas_svg
+# adaptado do calculo do galpao, com os campos ausentes declarados na folha).
+# Carimbo proprio (_carimbo_inc) evita o vazamento
 # de material/norma de ACO do carimbo generico.
 #
 # Roda DENTRO do freecad.exe (GUI -> exportPageAsPdf), disparado por QTimer, como os
@@ -45,7 +48,7 @@ def _pr_planta(doc, cfg):
     TechDraw::DrawViewSymbol na prancha A1."""
     page = _nova_prancha(doc, "INC01_PLANTA",
                          _carimbo_inc(cfg, "PLANTA DE SEGURANCA CONTRA INCENDIO",
-                                      "PE-INC-01", "S/ESC", "01/02"))
+                                      "PE-INC-01", "S/ESC", "01/03"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "PLANTA_INC")
     sym.Symbol = cfg["planta_svg"]
     page.addView(sym)
@@ -62,7 +65,7 @@ def _pr_resumo(doc, cfg):
     """PE-INC-02 - QUADRO-RESUMO + NOTAS/MEMORIAL."""
     page = _nova_prancha(doc, "INC02_RESUMO",
                          _carimbo_inc(cfg, "QUADRO-RESUMO E MEMORIAL",
-                                      "PE-INC-02", "-", "02/02"))
+                                      "PE-INC-02", "-", "02/03"))
     # titulo BEM acima da tabela (a colisao titulo x cabecalho apareceu no
     # render-and-look da 1a versao: titulo tam=7 a 30 mm da tabela invadia as linhas).
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (em vez de x=175 a esquerda)
@@ -71,6 +74,25 @@ def _pr_resumo(doc, cfg):
             420, 455, tam=6, larguras=[260, 140, 180], escala=1.5)
     _bloco_texto(doc, page, "N02", cfg["notas"], 420, 300, tam=5, largura=580,
                  escala=1.5)
+    return [page]
+
+
+def _pr_detalhes(doc, cfg):
+    """PE-INC-03 - DETALHES DE HIDRANTES (G138): corte da coluna DN65 a partir
+    do calculo do galpao (detalhes_svg do cfg, ja adaptado com as ausencias
+    declaradas). Sem recalculo dentro do FreeCAD."""
+    page = _nova_prancha(doc, "INC03_DETALHES",
+                         _carimbo_inc(cfg, "DETALHES DE HIDRANTES E ROTAS",
+                                      "PE-INC-03", "S/ESC", "03/03"))
+    sym = doc.addObject("TechDraw::DrawViewSymbol", "DETALHES_HID")
+    sym.Symbol = cfg["detalhes_svg"]
+    page.addView(sym)
+    try:
+        sym.X = 420.0                     # centro da A1 (841 x 594 mm)
+        sym.Y = 300.0
+        sym.Scale = 7.0
+    except Exception:
+        pass
     return [page]
 
 
@@ -93,7 +115,7 @@ def gerar_executivo_incendio(cfg):
     doc = App.newDocument("executivo_incendio")        # SEM FCStd: planta e' esquema
 
     paginas = []
-    for fn in (_pr_planta, _pr_resumo):
+    for fn in (_pr_planta, _pr_resumo, _pr_detalhes):
         try:
             paginas += fn(doc, cfg)
         except Exception as ex:
@@ -190,6 +212,11 @@ def config_de_spec(r, out_dir, spec=None):
     g = r["gates"]
 
     planta_svg = di.planta_seguranca_svg(r)
+    # G138: o corte da coluna de hidrantes a partir do calculo do galpao
+    # (adaptacao na producao, sem recalcular; ausencias declaradas na folha).
+    _inc_det, _est_det, _aus_det = di.adaptar_galpao_para_detalhes(r)
+    detalhes_svg = di.detalhes_hidrantes_rotas_svg(
+        _inc_det, _est_det, ausencias=_aus_det, nivel_unico=True)
 
     resumo_hdr = ["SISTEMA", "QUANTIDADE", "NORMA"]
     resumo = [
@@ -260,6 +287,8 @@ def config_de_spec(r, out_dir, spec=None):
         "descricao": spec.get("descricao", "Galpao industrial - Seguranca contra Incendio"),
         "autor": spec.get("autor", "galpao_fw"),
         "planta_svg": planta_svg,
+        "detalhes_svg": detalhes_svg,
+        "detalhes_ausentes": list(_aus_det),
         "resumo_hdr": resumo_hdr, "resumo": resumo,
         "carimbo_material": "SEG. INCENDIO",
         "notas": notas,

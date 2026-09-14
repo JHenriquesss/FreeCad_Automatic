@@ -3470,3 +3470,689 @@ runner, BLAS no padrao - o numero bit a bit): 3839 passed, 1 skipped, 0
 falhas, 35 min 13 s.** Mesmas contagens da corrida paralela com 1 thread de
 BLAS (3839 passed, 1 skipped, 22 min 04 s): nenhum veredito depende do
 ultimo ulp.
+
+## D166 - G137: cada prancha de aco emitida tem codigo; o prazo sai do medido (2026-09-14) - FECHADO
+
+**Pedido.** O caderno do galpao saia sem nenhuma prancha de aco: 459 s de
+1200 s para um executivo medido em ~788 s + 3D ~210 s; 15 PDFs emitidos,
+so 3 com codigo.
+
+**Medido antes de mudar (2026-09-14, sem freecad salvo onde dito).**
+1. Prazo do aco no caderno: `caderno_turnkey._dispatch_pranchas` dividia o
+   stage meio a meio (3D/executivo); com global 1200 o executivo recebia
+   ~459 s (`timeout 459.18 s aguardando pranchas`, D164) — estoura por
+   construcao em toda rodada.
+2. Tempo por prancha (`tools_harness_aco_por_prancha.MEDIDOS_G109`, G109 +
+   G118): PE01 187,6; PE02 58,7; PE03 211,9; PE04 15,4; PE05 209,4; PE06 6,3;
+   PE07 7,6; PE08 28,7; PE09 7,7; PE10 12,8; PE11 8,6; PE12 10,7; PE13 12,0;
+   PE14_CROQUIS 4,9; PE16 5,4 (total 787,7 s); PE14_DET_CONSOLE e
+   PE15_DET_BLOCO 0,0 (condicionais ausentes no modelo). 3D ~210 s (D164,
+   ~3,5 min). D165: 1038,9 s total (referencia) / 1186,4 s no pytest.
+3. 15 pranchas contra o mapa: `conferir_pranchas_aco` com as 15 do D165
+   contra `galpao_adapter._PRANCHA_ARQUIVO_GALPAO` (3 entradas de aco) +
+   `SEM_CODIGO_ACO` (12) — 12 sem codigo, baseline nos dois sentidos.
+
+**Entregue.**
+- `pacote_legal._PRANCHAS["aco"]`: 3 -> 17 titulos (PE-ES-01..17; os 3
+  primeiros intactos; PE-ES-04..15 as 12 do D165; PE-ES-16/17 as
+  condicionais console/bloco, com motivo de ausencia declarada no laco).
+- `galpao_adapter._PRANCHA_ARQUIVO_GALPAO`: 19 -> 33 entradas, 1:1 medido
+  contra o `techdraw_exec` (literais via AST + `LIGACOES` para as 5
+  variaveis PE10-13/console, mesma fonte do harness G105).
+- `pacote_legal.CORRESPONDENCIA_NUMERACAO_GALPAO`: as 8 com carimbo
+  extraivel ganham `cobre` (PE-ES-04..09,14,15); as 4 de ligacao sem
+  carimbo literal seguem fora da lente G112 (nao-coverture declarada).
+- Prazo do medido: `_T_MEDIDO_SEG["aco"]` 578 -> 787,7 s (peso 7,0 ->
+  9,5396 via `peso_medido`); split 3D/exec proporcional ao medido
+  (210/787,7) em vez de meio a meio; global 1200 -> 2100 s (aco 1038,9 +
+  resto 536,3 = 1575 s + folga ~33 % para variacao de maquina; COMO-RODAR
+  ja pedia >= 1800 para o lote cheio; sem aco o rapido segue ~536 s).
+- `tests/test_executivo_aco_completo_d165.py`: `SEM_CODIGO_ACO` vazia
+  (portao nos dois sentidos segue acusando prancha nova sem codigo e nome
+  morto).
+- Novo `tests/test_executivo_aco_g137.py` (4): 1:1 medido contra o emissor,
+  vermelho por injecao em tmp_path nos dois sentidos, tres aceites de
+  PE02/PE03 (pagina+carimbo no fonte, codigo no mapa, titulo que diz o que
+  desenha), prazo derivado do medido (o dispatch le `_T_MEDIDO_*`; meio a
+  meio ausente; global 2100).
+
+**Tres aceites por folha, olhando o PNG (rodada de auditoria D165,
+freecad sozinho, 2026-09-14, `PE02_FUNDACOES.png` / `PE03_ELEVACOES.png`
+em `Temp/pytest-of-joseh/pytest-2885/.../pranchas/`).**
+- PE-ES-04 / PE02_FUNDACOES.pdf — (1) esta certa: PLANTA DE FUNDACOES
+  1:150, 13 eixos x 3 linhas = 39 sapatas (90,00 m / 7,50 m / 44,00 m),
+  QUADRO DE SAPATAS + cotas em metros (sapatas em cm), carimbo PE-02
+  02/15, sem pagina em branco; (2) sai no manifesto: PDF em
+  `aco/pranchas/`, registrado em `drawings` + `executive-dossier` (o
+  portao D165 lista as 15 e fecha com a baseline vazia); (3) diz o que
+  desenha: indice "Planta de fundacoes", carimbo "PLANTA DE FUNDACOES",
+  anotacao "PLANTA DE FUNDACOES ESCALA 1:150".
+- PE-ES-05 / PE03_ELEVACOES.pdf — (1) esta certa: ELEVACAO FRONTAL
+  (OITAO) 44,00 m + ELEVACAO LATERAL 90,00 m, pe-direito 7,00 m /
+  cumeeira 8,10 m, baias 7,50 m, ESC 1:300, carimbo PE-03 03/15; (2) sai
+  no manifesto (mesma via do D165); (3) diz o que desenha: indice
+  "Elevacoes", carimbo "ELEVACOES", anotacoes "ELEVACAO FRONTAL (OITAO)"
+  / "ELEVACAO LATERAL".
+- Conteudo das pranchas intacto (nenhuma geometria/cota/nota tocada; o
+  diff e so mapa/indice/prazo/testes).
+
+**Baselines atualizadas com motivo escrito (nao e verde por edicao).**
+G93 `PROMETIDOS_ESPERADOS` 19 -> 33 (+`_paginas_techdraw` lendo `LIGACOES`
+para as 5 variaveis); G112 `BASELINE_G112` (8 do aco de arquivo_sem_mapa
+para fora_do_mapa com os esperados PE-ES-..; isentas seguem 22);
+G91 `test_06` 19 -> 33 e comentario 19/19 -> 33/33; G108 `FRACAO_ACO`
+0,8197 -> 0,8610 (antiga 0,5490 -> 0,6239 com o peso novo).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`, `varredura_asserts_
+sequencia.confere()`, `varredura_constantes_orfas.confere()` — OK, OK,
+OK; `test_folhas_g77`, `test_alcancabilidade`, `test_guardas_d86_g69`,
+`test_disciplina_prancha_g103`, `test_indice_disco_g91`,
+`test_carimbo_mapa_g112`, `test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` + `test_executivo_aco_completo_d165:test_01` +
+`test_executivo_aco_g137` (4) — 147 passed.
+
+**G102 isolado com -s (2026-09-14, maquina livre).**
+`CUSTO_G102 casa=2.5s predio=7.0s galpao=579.2s total=588.7s`, 9 passed
+em 594,8 s; `MEM_G102 ... galpao=2054.3MB(proc=205.9,fc=1911.9,n=1)`
+(teto 2500). Congelado segue D165 (2,0/6,3/536,3; 112,5/207,5/1616,8):
+a variacao (+8 % tempo, +27 % pico) e de maquina, nao do diff (o diff so
+acrescenta 14 puladas nomeadas sem freecad; o `test_05` segue verde sob
+o teto). Nao devolvido o executivo ao G102 (`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 299 arquivos
+== coletados): 3843 passed, 1 skipped, 0 falhas, 18 min 18 s, `quebras`
+vazio** (censo do FreeCAD fechado, `git status` igual, memoria livre
+minima 379 MB). O skip e o portao de auditoria do aco. +4 sobre os 3839
+do D165 (o guarda novo G137).
+
+**Portao de auditoria do aco (`GALPAO_AUDITORIA=1 pytest -s
+tests/test_executivo_aco_completo_d165.py`): 2 passed em 1067,3 s**,
+`CUSTO_D165 executivo_aco_completo=1066.4s` (referencia D165 1038,9 s;
+pytest D165 1186,4 s). As 15 pranchas batem com o mapa 1:1 nos dois
+sentidos — o portao dispara e fecha na rodada real.
+
+**Nao feito (do goal).** Mudar geometria/calculo/conteudo das pranchas;
+tirar `executivo_aco=False` do G102 (o rapido fica rapido).
+
+## D167 - G139: a coordenacao que o hook nunca emitia passa a sair no recorte, com peso medido e codigo nas duas folhas (2026-09-14) - FECHADO
+
+**Pedido.** PE-CD-01 saia pulada em toda rodada do galpao: `montar_caderno`
+so emitia a prancha formal com `disciplinas=None` e o hook sempre passa o
+recorte; peso da coordenacao literal (0,5/0,75); 2a folha sem codigo.
+
+**Medido antes de mudar (2026-09-14, mocks sem freecad onde dito).**
+1. Remeça com fakes (sem freecad): recorte de 2 disciplinas -> render 1,
+   prancha formal 0; `disciplinas=None` -> render 1, prancha 1; recorte de
+   1 -> render 1 (desperdicio), prancha 0. O hook (`_emit_drawings`) nunca
+   passa None — PE-CD-01 nunca emitida, por construcao.
+2. Tempos cronometrados (galpao-tp-g95, freecad.exe nesta maquina,
+   processo reiniciado por amostra): clash puro 0,012 s (4 disc) / 0,184 s
+   (5 disc, 767 membros); render federado 12,1 s (4 disc, 155 membros),
+   20,0 s (5 disc), 73,6 + 95,6 s (6 disc com aco, 3012 membros, 2850
+   solidos); prancha formal 13,0 s (4 disc), 15,2 s (5 disc), 34,8 (1a,
+   freecad morno — fora) + 67,8 + 69,8 + 65,7 s (frias, ok=True, 2 PDFs).
+   Pesos literais 0,5/0,75 lidos pela producao sem cronometro (convencao 8
+   violada no estado inicial).
+
+**Entregue.**
+- `caderno_turnkey.montar_caderno`: a coordenacao e de quem RODOU (o
+  alvo/recorte), nao de quem existe no R — com >= 2 disciplinas no alvo,
+  render + prancha formal entram na reserva com peso medido; com 1, seguem
+  fora com motivo escrito (`MOTIVO_COORDENACAO_RECORTE_1`, visivel em
+  `status["coordenacao"]`). O render desperdicado no recorte de 1 sumiu.
+- Prazo do medido: `_T_MEDIDO_SEG["coordenacao_render"]=95,6` (peso
+  1,1578) e `["coordenacao"]=69,8` (peso 0,8453), via `peso_medido`
+  (ancora 578 s) — os MAXIMOS das amostras. A 1a versao usou a media
+  (73,6/34,8) e estourou por construcao (`timeout 62,4 s na prancha`,
+  G102 sob carga): a licao do G137 vale para a coordenacao.
+- Cada folha emitida tem codigo (regra do G137): PE-CD-02 para o quadro de
+  clash (titulo em `PE_CD_02_GALPAO`, prometido so no laco do galpao pela
+  fronteira — o vocabulario partilhado com o predio segue com 1 titulo
+  para nao prometer ao predio (folha unica) um codigo sem cobertura).
+  Sem isso, a emissao parcial medida (COORD01 sem COORD02 no timeout sob
+  carga) era estado real irrepresentavel: nem codigo, nem isencao sem
+  tripwire de `isencao morta`.
+- `galpao_adapter`: motivo PE-CD-01 reescrito para a regra nova (>= 2; 1
+  segue sem); motivo proprio PE-CD-02; mapa 33 -> 34 entradas 1:1 medidas
+  contra o `techdraw_coordenacao` (AST); `CORRESPONDENCIA` com cobre
+  1:1 nas duas folhas.
+- Novo `tests/test_coordenacao_g139.py` (5): recorte >= 2 emite / 1 segue
+  sem motivo (fakes com PDFs validos em tmp_path); vermelho por injecao
+  nos dois sentidos (lente + motivo vivo, sem o texto do defeito);
+  tres aceites PE-CD-01/02 (pagina no emissor, codigo no mapa, titulo que
+  diz o que desenha); prazo deriva do medido (sem literais 0,5/0,75);
+  emissao parcial fecha a lente sem extra nem buraco.
+- Predio e casa intactos em producao (nenhuma linha): predio segue 15/15.
+
+**Tres aceites por folha, olhando o PNG (rodada de medicao 6 disciplinas,
+2026-09-14, `COORD01_PLANTA.png` / `COORD02_CLASH.png` em
+`Temp/coord_6d_beh2wkk4_coord/pranchas/`; confirmados na rodada G102).**
+- PE-CD-01 / COORD01_PLANTA.pdf — (1) esta certa: titulo COORDENACAO -
+  MODELO FEDERADO, PLANTA (comprimento x largura) + ELEVACAO
+  (comprimento x altura), legenda com as 6 disciplinas coloridas
+  (Concreto/Eletrico/Incendio/Climatizacao/Hidraulica/Aco) + Clash a
+  revisar, RESUMO DE CLASH (Membros 3012, Conflitos 970, A revisar 688,
+  Esperados 282, por par acoX*), carimbo PE-COORD-01 01/02 PARA APROVACAO,
+  sem pagina em branco; (2) sai no manifesto: PDF em
+  `coordenacao/pranchas/`, registrado em `drawings` + `executive-dossier`,
+  `disciplinas.coordenacao=2` no caderno; (3) diz o que desenha: indice
+  "Modelo federado / compatibilizacao", carimbo "PLANTA DE COORDENACAO -
+  MODELO FEDERADO".
+- PE-CD-02 / COORD02_CLASH.pdf — (1) esta certa: QUADRO DE
+  INTERFERENCIAS (CLASH) - COORDENACAO (22 A REVISAR + 8 esperados),
+  NOTAS com frame comum X=comprimento e triagem NBR 5419 vs A REVISAR,
+  carimbo PE-COORD-02 02/02 (texto legivel esq->dir; o suposto
+  espelhamento do thumbnail nao se confirmou no zoom nem no render fitz
+  independente); (2) sai no manifesto (mesma via); (3) diz o que desenha:
+  indice "Quadro de clash e notas", carimbo "QUADRO DE CLASH E NOTAS".
+- Rodada G102 final (adapter de verdade, abaixo): `coordenacao ok:true`,
+  `timed_out:false`, `skipped` sem coordenacao, ambos os PDFs no disco e
+  nos artifacts.
+
+**Baselines atualizadas com motivo escrito (nao e verde por edicao).**
+G93 `PROMETIDOS_ESPERADOS` 33 -> 34 (+PE-CD-02; `_prometidos_vivos` deriva
+do vivo + o codigo de fronteira); G91 `_quadro_galpao` 33 -> 34 (predio
+segue 15/15; `test_06` conta a mao 33 + 1 de fronteira, anti-tautologia
+acusou e foi atualizado); G112 `BASELINE_G112` (COORD02 de
+arquivo_sem_mapa para fora_do_mapa com esperado [PE-CD-02]; isentas
+seguem 22 arquivos); G108 `FRACAO_ACO` inalterada 0,8610 (coordenacao ja
+consumida nos pendentes do aco); G101 passa (motivo PE-CD-02 com
+not_available + dado nomeado); G107 `CODIGOS_FREECAD` + PE-CD-02 (causa
+freecad via disciplina dona); G102 `CUSTO_MEDIDO_*` abaixo.
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`, `varredura_asserts_
+sequencia.confere()`, `varredura_constantes_orfas.confere()` — OK, OK,
+OK; `test_folhas_g77`, `test_alcancabilidade`, `test_guardas_d86_g69`,
+`test_disciplina_prancha_g103`, `test_indice_disco_g91`,
+`test_carimbo_mapa_g112`, `test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` + `test_coordenacao` + `test_coordenacao_g139`
+(5) + `test_caderno_pesos_g108` + ramos rapidos do G102 — verdes.
+
+**G102 isolado com -s, tres corridas (2026-09-14, maquina livre).**
+1. `casa=2.3s predio=7.0s galpao=661.8s total=671.1s`, 1 passed em 671,3 s
+   (com a isencao COORD02 provisoria: passou = COORD02 existia no disco).
+2. `casa=2.3s predio=8.5s galpao=732.7s total=743.5s` — com PE-CD-02 e
+   pesos medios: `status.coordenacao = timeout 62,4 s`, freecad morto com
+   so COORD01 pronta (prova de que a media nao cobre a necessidade;
+   PE-CD-01 reivindicada, PE-CD-02 pulada com motivo — o desenho que
+   aguentou o estado parcial).
+3. `casa=2.4s predio=8.3s galpao=729.9s total=740.6s`, 1 passed em 740,9 s
+   (pesos maximos: `coordenacao ok:true`, `timed_out:false`, ambos os
+   PDFs + PNGs + status no disco e nos artifacts).
+Congelado: `CUSTO_G102 casa=2.4s predio=8.3s galpao=729.9s`
+(total=740.6s); `MEM_G102 casa=108.8MB predio=207.4MB
+galpao=2111.3MB(proc=206.0,fc=1968.4,n=1)` (teto 2500). O galpao sobe
++193,6 s / +~495 MB sobre o D165 pelo diff (federado com aco + prancha
+formal); casa/predio e variacao de maquina. Executivo de aco segue fora
+do G102 (`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 300 arquivos
+== coletados), tres corridas, `quebras` vazio nas tres.**
+1. 22 min 36 s: **4 failed, 3843 passed, 1 skipped** — G102 com
+   `isencao morta COORD02_CLASH.pdf` (emissao parcial sob carga, acima)
+   + 3 G21. Decisao: PE-CD-02 (estado parcial vira pulada nomeada) e
+   pesos pelos maximos (acima), em vez de reinspecionar a loteria.
+2. 25 min 05 s: **3 failed, 3845 passed, 1 skipped** — G102 VERDE no
+   paralelo (o desenho aguentou); restam 3 G21.
+3. 25 min 02 s: **3 failed, 3845 passed, 1 skipped** — os mesmos 3 G21;
+   `quebras` vazio; memoria livre minima 534 MB; censo fechado.
+Os 3 G21 (`test_G21_C1/C2/C3_disco_*_fica_vermelho`) sao anteriores ao
+goal e alheios as fontes que ele toca (mutam `galpao_concreto` /
+`edificio_multipavimento` em copia e rodam pytest em subprocesso): nas
+3 corridas o subprocesso morre sem nenhuma saida (`rc != 0` com
+`saida == "\n"` — a 1a assercao, mutacao->vermelho, PASSOU nas 3; so a
+conferencia do texto da saida cai). Serial passam em 4 s (medido agora,
+com o diff aplicado); o proprio arquivo documenta a nao-determinacao
+sob paralelo desde 2026-09-03. Sem relacao com este diff (falham igual
+antes e depois do PE-CD-02; nenhum modulo tocado por eles foi tocado
+aqui — `git status` na auditoria). Fica registrado para goal proprio;
+nao e verde por edicao: `rc_pytest` ficou 1 nas tres corridas.
+
+**Nao feito (do goal).** Mudar a checagem de clash; devolver o executivo
+de aco ao G102; prometer PE-CD-02 ao predio (folha unica, sem cobertura
+— seria numero inventado); consertar o flake de subprocesso do G21
+(goal proprio).
+
+## D168 - G138: PE-IN-02 do galpao sai do emissor existente, adaptado do calculo, com as ausencias declaradas (2026-09-14) - FECHADO
+
+**Pedido.** PE-IN-02 saia pulada em toda rodada do galpao ("sem emissor
+de detalhe de hidrantes e rotas nesta rodada"): o emissor existe e esta
+provado (`desenho_incendio.detalhes_hidrantes_rotas_svg` /
+`gerar_detalhes_hidrantes`, chamado so pelo predio), mas o resultado do
+incendio do galpao tem outra forma (G101 mediu a fronteira e manteve a
+folha ausente).
+
+**Medido antes de mudar (2026-09-14, sem freecad).**
+1. `galpao_seguranca_incendio.rodar` (spec real do galpao-tp-g95, com
+   `hidrantes: {ocupacao: industrial_I2}`) devolve chaves de topo
+   `ATENDE/deteccao_alarme/gates/hidrantes/iluminacao_emergencia/
+   reprovados/sinalizacao/spec/sprinklers`; `gates.hidrantes =
+   {tipo: 2, sistema: hidrante, N_hidrantes: 4, vazao_total_Lmin: 600.0,
+   reserva_m3: 36.0, ...}` e `spec = {C: 40.0, L: 20.0, H: 6.0}`.
+2. O emissor le no shape do predio: `inc.sistemas.hidrantes`
+   (N_hidrantes/tipo/reserva_incendio_m3) + `inc.gates.rotas_verticais`
+   (n_minimo/n_declarado) e `escada_largura` (largura_exigida_m) +
+   `inc.estrategia_abandono/populacao_total/altura_edificacao_m` +
+   `estrutura.pavimentos`. Remeça no `test_01` (fonte viva: o fonte do
+   emissor + o `rodar()` do galpao, nunca o proprio mapa).
+3. Faltam ao galpao 6 campos: `gates.rotas_verticais`,
+   `gates.escada_largura`, `estrategia_abandono`, `populacao_total`,
+   `altura_edificacao_m`, `estrutura.pavimentos` (galpao terreo, nivel
+   unico) — constantes em `AUSENCIAS_GALPAO_DETALHES`, uma fonte so na
+   producao. Sem hidrantes no spec, um 7o entra na frente (`hidrantes nao
+   calculados`).
+
+**Entregue.**
+- `desenho_incendio.adaptar_galpao_para_detalhes(r)`: (inc, estrutura,
+  ausentes) lidos do calculo — o `hidrantes` cru de `r["hidrantes"]`, com
+  `reserva_incendio_m3` original (nunca o gate reescrito `reserva_m3`);
+  nenhum recalculado.
+- `detalhes_hidrantes_rotas_svg(..., ausencias=None, nivel_unico=False)`:
+  defaults = caminho do predio byte-identico (provado contra o HEAD:
+  2473 bytes iguais); `nivel_unico=True` desenha os N hidrantes lado a
+  lado no nivel unico (EXATAMENTE N simbolos == N_hidrantes, nunca N
+  pavimentos inventados) e declara as ausencias em caixa vermelha na
+  folha; `gerar_detalhes_hidrantes` repassa; `gerar_detalhes_galpao`
+  adapta + escreve (uma fonte so).
+- Executivo do galpao com INC03_DETALHES nos dois backends: rota
+  svg-direta em `galpao_seguranca_incendio.montar_pranchas` (A1 via
+  `pagina_esquema_a1` + carimbo PE-INC-03 03/03) e `_pr_detalhes` no
+  `techdraw_incendio` (FreeCAD); INC01/INC02 passam a 01/03 e 02/03 (o
+  galpao muda de 2 para 3 folhas; o predio nao usa este executivo).
+- Mapa ja apontava INC03 (1:1 sem mudar); motivo PE-IN-02 reescrito para
+  a regra nova (emite com incendio executado; sem ele, segue sem com o
+  arquivo e o dado nomeados); `CORRESPONDENCIA` com `cobre: [PE-IN-02]`
+  1:1 (cada folha emitida tem codigo, regra do G137/G139) + intro e
+  entradas INC01/INC02 atualizadas.
+- Novo `tests/test_hidrantes_g138.py` (5): remeça dos 6 (+7o sem
+  hidrantes); predio byte-identico + galpao sem recalculo (N simbolos ==
+  N do calculo, reserva do calculo, ausencias na folha); INC03 no disco,
+  parse, guarda e raster (PNG com bytes); vermelho por injecao nos dois
+  sentidos (emissor morto -> erro nomeado; sem INC03 a lente acusa
+  PE-IN-02 faltando; motivo vivo com codigo/arquivo/dado); tres aceites
+  (pagina no emissor via AST, codigo no mapa, titulo/carimbo/cobertura).
+- Predio intacto em producao (nenhuma linha no caminho do predio):
+  `edificio_adapter` segue chamando com 3 args; predio 15/15 no G102.
+
+**Tres aceites por folha, olhando o PNG (spec real do galpao-tp-g95,
+2026-09-14, `C:/tmp/g138/INC03_DETALHES.png`, 1437x978, 11.797 px
+vermelhos / 57.593 nao-brancos; SVG com 4 `HID-`).**
+- PE-IN-02 / INC03_DETALHES.pdf — (1) esta certa: titulo DETALHES -
+  HIDRANTES (GALPAO TERREO) E ROTAS DE FUGA, COLUNA DN65 (NBR 13714), 4
+  hidrantes HID-1..HID-4 lado a lado no nivel unico ("nivel unico
+  (terreo): 4 hidrante(s) no mesmo nivel"), QUADRO DE ROTAS com RESERVA
+  DE INCENDIO 36.0 m3 do calculo, caixa vermelha DADOS NAO DECLARADOS
+  PELO CALCULO DO GALPAO (G138) com os 6 campos, sem pagina em branco;
+  (2) sai no manifesto: PDF em `incendio/pranchas/`, registrado em
+  `drawings` + `executive-dossier` (a lente fecha PE-IN-01/02 com INC01 +
+  INC03; o G102 abaixo lista INC03 sem pulada); (3) diz o que desenha:
+  indice "Detalhes hidrantes/rotas", carimbo PE-INC-03 "DETALHES DE
+  HIDRANTES E ROTAS", correspondencia cobre [PE-IN-02] 1:1.
+
+**Baselines atualizadas com motivo escrito (nao e verde por edicao).**
+G93 `DECLARADOS_SEM_EMISSOR` -PE-IN-02 (ganha emissor; ficam PE-CO-04 e
+PE-IN-03); G112 `BASELINE_G112` fora_do_mapa 19 -> 20 (+INC03/PE-INC-03
+[PE-IN-02]; `techdraw_incendio` entra na extracao viva) e isentas 22 ->
+23; tabela 22 -> 23 entradas; G107 `FOLHAS_ESQUEMA` +INC03 (a rota SVG
+emite 3 PDFs no incendio); G104 `test_rota_svg_incendio_emite_2_pdfs_a1`
+3 arquivos/pranchas; `test_executivo_incendio` build 2 -> 3; G102
+`CUSTO_MEDIDO_*` abaixo.
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`, `varredura_asserts_
+sequencia.confere()`, `varredura_constantes_orfas.confere()` — OK, OK,
+OK; `test_folhas_g77`, `test_alcancabilidade`, `test_guardas_d86_g69`,
+`test_disciplina_prancha_g103`, `test_indice_disco_g91`,
+`test_carimbo_mapa_g112`, `test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` + `test_hidrantes_g138` (5) +
+`test_rota_svg_g104` + `test_executivo_incendio` (puros) +
+`test_galpao_escada_fronteira_g101` + `test_galpao_svg_sem_freecad_g107` +
+`test_caderno_pesos_g108` + `test_coordenacao_g139` + predio
+(`test_edificio_pranchas_g56`, `test_incendio_bim`,
+`test_incendio_robustez`) — verdes.
+
+**G102 isolado com -s (2026-09-14, maquina livre).**
+`casa=2.4s predio=8.7s galpao=725.5s total=736.5s`, 9 passed em 742,6 s;
+`MEM_G102 casa=108.2MB predio=207.7MB galpao=2076.6MB
+(proc=212.8,fc=1938.4,n=1)` (teto 2500). Congelado com estes numeros
+(variacao de maquina sobre o G139: +0,4 s predio, -4,4 s galpao; o diff
+so acrescenta 1 PDF SVG de ~ms a rodada do galpao). Executivo de aco
+segue fora do G102 (`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 301 arquivos
+== coletados): 1 failed, 3852 passed, 1 skipped, 23 min 54 s, `quebras`
+vazio** (censo do FreeCAD fechado, memoria livre minima 767 MB). O skip
+e o portao de auditoria do aco; +2 arquivos sobre os 299 do D166 (os
+guardas novos G137/G138). O 1 failed era baseline do proprio diff
+(`test_montar_caderno_vivo_incendio`: caderno so-incendio com 3
+pranchas, nao 2 — corrigido com motivo para 3, verde isolado em
+`test_caderno_turnkey.py`). Nenhum G21 falhou nesta corrida.
+
+**Nao feito (do goal).** Recalcular hidrantes; mexer na rota SVG do G104
+(a rota segue com 2 arquivos nas outras disciplinas; o INC03 sai do
+`galpao_seguranca_incendio`, nao da `prancha_svg_direta`); prometer
+PE-IN-03 ao galpao sem escada (fronteira G101 fica); devolver o
+executivo de aco ao G102.
+
+## D169 - G140: PE-CO-04 do galpao sai do emissor existente, adaptado do calculo, com cada sapata desenhada uma por uma (2026-09-14) - FECHADO
+
+**Pedido.** PE-CO-04 saia pulada em toda rodada do galpao ("sem emissor
+de locacao e formas da fundacao nesta rodada"): a fundacao do
+pre-moldado sai dimensionada (`galpao_concreto`) sem folha de locacao.
+A casa tem `desenho_casa_residencial.fundacao_locacao_formas_casa_svg`
+(`:733`, que delega a mesma funcao do G80) e o predio tem
+`desenho_fundacao_edificio` (PE-CO-04 do predio emitida — predio real
+sem nenhuma folha pulada).
+
+**Medido antes de mudar (2026-09-14, sem freecad).**
+1. `galpao_concreto.rodar` (spec do galpao-tp-g95: vao 20, 7 porticos,
+   sigma 250) devolve a sapata UNICA dimensionada (`sapata.aprovado =
+   (B, L, h, rA, cA)`, ex. 3.0 x 3.0 x 0.90) + `spec {vao, comprimento,
+   H, n_porticos, s}` + `tipo_fundacao`; sem `por_pilar`, sem
+   `proveniencia_sigma`, sem `cota_apoio_m`.
+2. O emissor le no shape do predio: `fundacao.{tipo, sigma_solo_adm,
+   proveniencia_sigma, cota_apoio_m, por_pilar[{i, j,
+   N_dimensionamento_kN, geometria}]}` + `estrutura.{vaos_x, vaos_y}`.
+   Remeça no `test_01` (fonte viva: o fonte do emissor + o `rodar()`
+   do galpao, nunca o proprio mapa).
+3. Faltam ao galpao 2 campos: `cota_apoio_m` (sempre — o calculo usa
+   h_reaterro=0,5 m) e a tensao sem sondagem (só quando o sigma é
+   default 200 sem SPT nem spec) — constantes em
+   `AUSENCIAS_GALPAO_LOCACAO`, uma fonte so na producao. O `por_pilar`
+   (malha 2 x n_porticos, P<j><E|D> como no `membros_bim`) e os vaos
+   ([vao] x [s]*(n-1)) sao construidos da sapata dimensionada, nunca
+   redimensionados.
+
+**Entregue.**
+- `desenho_fundacao_edificio.adaptar_galpao_para_locacao(r, spec)`:
+  (fundacao, estrutura, ausentes) lidos do calculo — cada pilar com a
+  sapata (ou o grupo de estacas) DIMENSIONADA; sem sapata/estaca
+  aprovada levanta ValueError com o codigo PE-CO-04 (nunca folha
+  vazia). `gerar_locacao_galpao` adapta + escreve o SVG (uma fonte
+  so).
+- `planta_fundacao_svg(..., ausencias=None)`: defaults = caminho do
+  predio/casa byte-identico (provado contra o HEAD: 8486 bytes
+  iguais); com ausencias desenha a mesma planta (uma por pilar,
+  `confere_desenho_fundacao` ok) e declara a caixa vermelha
+  DADOS NAO DECLARADOS PELO CALCULO DO GALPAO (G140); o quadro
+  encurta acima da caixa (sem ausencias, pixel a pixel como antes).
+- Executivo do galpao com PE04_LOCACAO_FUNDACAO nos dois niveis:
+  `_pr_locacao` no `techdraw_concreto` (carimbo PE-04 04/04, simbolo
+  da locacao; PE01..PE03 passam a 01/04..03/04) + fallback puro-Python
+  em `galpao_concreto.montar_pranchas` (`gerar_prancha_locacao`, A1
+  via `pagina_esquema_a1` com o carimbo do concreto — mesma via do
+  INC03 no G138; só entra se a PE04 caiu no FreeCAD).
+- Mapa ja apontava PE04 (1:1 sem mudar); motivo PE-CO-04 reescrito
+  para a regra nova (emite com concreto executado; sem ele, segue sem
+  com o arquivo e o dado nomeados); `CORRESPONDENCIA` com
+  `cobre: [PE-CO-04]` 1:1 (cada folha emitida tem codigo, regra do
+  G137/G139) + intro (concreto PE-01..PE-04; PE-04 em dois arquivos,
+  como o PE-01).
+- Novo `tests/test_fundacao_locacao_g140.py` (5): remeça dos 2 (+caso
+  sem sigma, +erro sem sapata); predio/casa byte-identicos + galpao
+  sem recalculo (14 rects data-pilar == 2 x 7, B/L/Ndim ==
+  dimensionados, adaptar nao muta o resultado); PE04 no disco, parse,
+  guarda e raster (PNG com bytes); vermelho por injecao nos dois
+  sentidos (emissor morto -> erro nomeado; sem PE04 a lente acusa
+  PE-CO-04 faltando; motivo vivo com codigo/arquivo/dado); tres
+  aceites (pagina no emissor via AST, codigo no mapa,
+  titulo/carimbo/cobertura).
+- Predio e casa intactos em producao (nenhuma linha no caminho com
+  defaults): `edificio_adapter` e `desenho_casa_residencial:733`
+  seguem chamando sem `ausencias`.
+
+**Tres aceites por folha, olhando o PNG (spec real do galpao-tp-g95,
+2026-09-14, `C:/tmp/g140/PE04_LOCACAO_FUNDACAO.png`, 2170x1559, 9.991
+px vermelhos / 125.434 nao-brancos; SVG com 14 `data-pilar`).**
+- PE-CO-04 / PE04_LOCACAO_FUNDACAO.pdf — (1) esta certa: titulo
+  PE-CO-04 - LOCACAO E FORMAS DA FUNDACAO DO GALPAO (sapata ;
+  14 pilares), malha 2 x 7 (eixos 1-2 x A-G, vaos 20,00 x 15,00),
+  cada uma das 14 sapatas 3.00 x 3.00 com Ndim 174 kN do calculo,
+  QUADRO DE FUNDACAO com tipo/sigma/proveniencia/cota e as 14 linhas
+  3.00 x 3.00 x 0.90, caixa vermelha com a cota ausente, sem pagina
+  em branco; (2) sai no manifesto: PDF em `concreto/pranchas/`
+  (4a prancha do executivo, provada no `test_build_gera_pranchas_pdf`
+  com freecad.exe: PE01..PE04), registrado em `drawings` (a lente
+  fecha PE-CO-01/04; o G102 abaixo lista PE04 sem pulada); (3) diz o
+  que desenha: indice "Locacao e formas da fundacao", carimbo PE-04
+  "LOCACAO E FORMAS DA FUNDACAO", correspondencia cobre [PE-CO-04]
+  1:1.
+- Ressalva visual: a cota do vao (20,00) cruza entre as duas linhas
+  de legenda da fileira P1 (sapata pequena em vao grande) — a mesma
+  classe da linha de cota que atravessa a sapata no predio (emissor
+  do G80, fora do escopo: refaze-lo mudaria o predio byte-identico).
+
+**Baselines atualizadas com motivo escrito (nao e verde por edicao).**
+G93 `DECLARADOS_SEM_EMISSOR` -PE-CO-04 (ganha emissor; fica PE-IN-03);
+G112 `BASELINE_G112` fora_do_mapa 20 -> 21 (+PE04_LOCACAO_FUNDACAO/
+PE-04 [PE-CO-04]; `techdraw_concreto` entra na extracao viva) e
+isentas 23 -> 24; tabela 23 -> 24 entradas; `test_techdraw_concreto`
+3 -> 4 pranchas (+`test_config_locacao_g140` puro); G102
+`CUSTO_MEDIDO_*` abaixo (sem re-congelar: o portao passou no teto).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`,
+`varredura_asserts_sequencia.confere()`, `varredura_constantes_orfas.confere()` — OK, OK,
+OK; `test_folhas_g77`, `test_alcancabilidade`, `test_guardas_d86_g69`,
+`test_disciplina_prancha_g103`, `test_indice_disco_g91`,
+`test_carimbo_mapa_g112`, `test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` + `test_fundacao_locacao_g140` (5) +
+`test_techdraw_concreto` (puro) + `test_galpao_escada_fronteira_g101` +
+`test_galpao_svg_sem_freecad_g107` + `test_caderno_pesos_g108` +
+`test_coordenacao_g139` + `test_hidrantes_g138` + predio
+(`test_edificio_pranchas_g56`, `test_fundacao_prancha_g80`) e casa
+(`test_casa_concreto_g100`) — verdes.
+
+**G102 isolado com -s (2026-09-14, maquina livre, 2 corridas).**
+`casa=2.6s predio=7.9s galpao=619.9s total=630.4s`, 9 passed em
+636,7 s (1a corrida: 9 passed em 652,6 s);
+`MEM_G102 casa=104.0MB predio=206.8MB galpao=2068.7MB
+(proc=211.6,fc=1926.3,n=1)` (teto 2500). Variacao de maquina sobre o
+G138 (galpao 725,5 s la; a PE04 soma 1 pagina TechDraw ao concreto,
+~s, sem freecad extra). Executivo de aco segue fora do G102
+(`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 302 arquivos
+== coletados): `rc_pytest` 0, 3859 passed, 1 skipped, 20 min 52 s,
+`quebras` vazio** (censo do FreeCAD fechado, memoria livre minima
+329 MB). O skip e o portao de auditoria do aco; +1 arquivo sobre os
+301 do D168 (o guarda novo G140). Tres corridas anteriores falharam
+só nos 3 testes de subprocesso do G21-C (C1/C2/C3, saida vazia no
+pipe) — flake de infra, nao do diff: os 3 passam isolados em ~4 s e
+o mecanismo aninhado foi provado a mao (rc=1 com FAILED no stdout).
+Causa medida: nesta maquina (console cp850, repo em caminho com
+"Área") o spawn dos workers xdist quebra com `UnicodeEncodeError ...
+surrogates not allowed` no bootstrap do execnet; com `PYTHONUTF8=1`
+no ambiente o spawn cura e a suite fecha verde (o repo só abre
+arquivo com encoding explícito, nada muda nos testes).
+
+**Nao feito (do goal).** Redimensionar fundacao (a adaptacao só lê);
+refazer o emissor do G80 (a cota que cruza a legenda/sapata e dele,
+e o predio segue byte-identico); prometer PE-IN-03 ao galpao sem
+escada (fronteira G101 fica).
+
+## D170 - G141: o mezanino calculado ganha codigo (PE-MZ-01, ausencia declarada por codigo, sem mudar o calculo) (2026-09-14) - FECHADO
+
+**Pedido.** `galpao_turnkey.DISCIPLINAS` inclui `mezanino` (despachado por
+`_run_mezanino`, levado ao BIM); `pacote_legal._PRANCHAS` nao tinha a
+disciplina, entao ela era executada e sumia no `continue` do indice (D89
+do lado da promessa, D121). Travado por assert em
+`tests/test_indice_disco_g91.py:304-305`, nao consertado. Nenhum
+`projects/*/project-spec.json` declara mezanino (0 ocorrencias).
+
+**Medido antes de mudar (2026-09-14, sem freecad).**
+1. `tk.DISCIPLINAS` = 7 com `mezanino`; `mezanino in pl._PRANCHAS` = False;
+   o indice vivo da rodada (executadas filtradas ao vocabulario +
+   coordenacao) promete 34 sem o mezanino - a disciplina some por
+   construcao. Remeça no `test_01` do guarda novo (fontes vivas + glob
+   dos 8 project-specs, nunca o proprio mapa).
+2. `galpao_mezanino.rodar` na amostra 6x5 a 3 m no galpao 40x20x6 ATENDE
+   (laje+vigas+pilares+sapatas, membros 4 Beam + 4 Column + 4 Footing +
+   1 Slab, marcas M- federadas sem transformar).
+
+**Entregue (ausencia declarada por codigo, sem folha nova).**
+- `pacote_legal._PRANCHAS["mezanino"]` = ("PE-MZ", ["Mezanino de concreto
+  (laje/vigas/pilares)"]) + entrada em `_ORDEM_DISC` (apos o concreto) e
+  no grupo de LOD da estrutura; sem `_ART`/O&M novos (o mezanino segue na
+  responsabilidade do concreto). Sem mezanino executado o indice/pacote
+  saem byte-identicos (a disciplina so entra quando executada).
+- `galpao_adapter._PRANCHA_ARQUIVO_GALPAO["PE-MZ-01"]` = "MZ01_MEZANINO.pdf"
+  + motivo nomeado (sem emissor TechDraw ligado; o dimensionamento sai no
+  memorial/BIM com membros M-). Sem correspondencia nova (nenhum arquivo
+  emitido; PE-IN-03 e o precedente).
+- `caderno_turnkey`: ROTULO/ORDEM com mezanino + dispatch declarado (ok
+  None com `MOTIVO_MEZANINO_SEM_PRANCHA`, nunca erro) + comentario do peso
+  atualizado (antes "sem dispatch", isento no G103).
+- `varredura_disciplina_prancha.ISENCOES_DISCIPLINA_PRANCHA` vazia (a cura
+  matou a isencao); o assert do G91 vira o portao do comportamento novo
+  (`mezanino in _PRANCHAS`, prefixo PE-MZ, PE-MZ-01 nos prometidos).
+- Novo `tests/test_mezanino_indice_g141.py` (5): remeça; rodada com
+  mezanino (PE-MZ-01 no indice e no pacote, laco fecha via pulada nomeada,
+  M- no federado; spec em tmp_path); sem mezanino byte-identico (sem
+  PE-MZ/MZ01/mezanino no indice/pacote/md, concreto bit a bit igual);
+  vermelho por injecao nos dois sentidos (sem _PRANCHAS vira sem_prancha,
+  sem mapa vira sem_mapa, sem motivo vira faltando; dispatch ok None);
+  fontes independentes + calculo intacto (membros 4/4/4/1, ATENDE).
+
+**Baselines atualizadas com motivo escrito (nao e verde por edicao).**
+G91 `_quadro_galpao` 34 -> 35 e `test_06` conta a mao + `mezanino` com
+portao novo; G103 `BASELINE_G103` galpao isentas ["mezanino"] -> [] +
+`test_03` caso bom/isencao-curacao e `test_04` com disciplina sem prancha
+(ancoragem_orbital) + `test_05` portao da cura; G93 `PROMETIDOS_ESPERADOS`
+34 -> 35 (+PE-MZ-01) e `DECLARADOS_SEM_EMISSOR` +PE-MZ-01; G112
+`test_05` mapa 34 -> 35 (MZ01 sem carimbo cai em sem_carimbo_informativo,
+fora_do_mapa/isentas intactos, sem tabela nova).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`,
+`varredura_asserts_sequencia.confere()`, `varredura_constantes_orfas.confere()`
+— OK, OK, OK; `test_folhas_g77`, `test_alcancabilidade`,
+`test_guardas_d86_g69`, `test_disciplina_prancha_g103`,
+`test_indice_disco_g91`, `test_carimbo_mapa_g112`, `test_normas_catalogo`,
+`test_galpao_indice_g93`, `test_suite_paralela_d164` + guarda novo G141 (5)
++ `test_mezanino`/`test_turnkey`/`test_caderno_turnkey`/`test_caderno_pesos_g108`/
+`test_pacote_legal` + G138/G139/G140 + fronteira G101 + SVG G107 — verdes.
+
+**G102 isolado com -s (2026-09-14, maquina livre).**
+`casa=2.7s predio=8.0s galpao=618.7s total=629.5s`, 9 passed em 636,1 s;
+`MEM_G102 casa=114.9MB predio=206.2MB galpao=1770.5MB
+(proc=214.7,fc=1627.6,n=1)` (teto 2500). Nao re-congelado: variacao de
+maquina sobre o G140 (2.6/7.9/619.9/630.4); o diff so acrescenta 1 pulada
+nomeada quando ha mezanino (nenhum spec do repo declara), e o portao
+passou no teto. Executivo de aco segue fora do G102
+(`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 303 arquivos
+== coletados), duas corridas, `quebras` vazio nas duas.**
+1. 20 min 52 s: **3 failed, 3861 passed, 1 skipped** — os 3 G21-C
+   (C1/C2/C3, subprocesso com saida vazia no pipe); serial passam em
+   6 s (9 passed), alheios ao diff (nenhum modulo tocado por eles foi
+   tocado aqui). `quebras` vazio; memoria livre minima 362 MB.
+2. Com `PYTHONUTF8=1` (cura do D169 para o spawn xdist no caminho com
+   "Area"): **`rc_pytest` 0, 3864 passed, 1 skipped, 21 min 55 s,
+   `quebras` vazio** (censo do FreeCAD fechado, `git status` igual,
+   memoria livre minima 436 MB). O skip e o portao de auditoria do aco;
+   +1 arquivo sobre os 302 do D169 (o guarda novo G141).
+
+**Nao feito (do goal).** Mudar o calculo do mezanino (a adaptacao so le;
+concreto bit a bit igual com e sem o vizinho); desenhar folha dedicada
+de mezanino (sem emissor ligado, a ausencia sai declarada por codigo);
+inventar geometria de mezanino num project-spec do repo (o spec de teste
+mora em tmp_path, dito); prometer ART/O&M novos ao mezanino (segue na
+responsabilidade do concreto).
+
+## D171 - G142: PE-EL-03 da casa segue pulada - nada desenhável sem malha/SPDA, medição registrada (2026-09-14) - FECHADO
+
+**Pedido.** Casa real com PE-EL-03 pulada ("sem emissor de
+infraestrutura/aterramento; malha de aterramento e SPDA nao declarados
+e sem folha emitida"). O predio emite com
+`desenho_eletrico.infra_aterramento_edificio_svg` (`desenho_eletrico.py:439`),
+chamado so por `edificio_adapter.py:1114`. Entregar a infra que o calculo
+da casa produz, declarando malha/SPDA ausentes na folha - ou, se nada for
+desenhável sem esses dados, manter a pulada e registrar a medicao. Sem
+dimensionar SPDA/malha; predio byte-identico.
+
+**Medido antes de mudar (2026-09-14, sem freecad, fontes vivas).**
+1. O que a conta da casa produz (`residencial_eletrica.
+run_residential_electrical`, fixture fase 6B): padrao de entrada B1
+(disjuntor geral 50 A, ramal `10 (10)`, eletroduto ø50 mm, condutor de
+aterramento do padrao 10 mm2), 3 circuitos dimensionados (secao/protecao
+por NBR 5410) e layout validado (6 comodos, 3 pontos, quadro QD-01 em
+x=8,0/y=7,0/z=1,6). Nao produz: `pavimentos_servidos`, `prumada`, rotas
+de eletrodutos (`circuits.routes == []`, aceitas mas nunca geradas),
+malha (solo/resistividade/arranjo/eletrodo) nem SPDA (NP/descidas) -
+`malha/spda/resistividade/solo/eletrodo` ausentes do JSON inteiro.
+2. O que o emissor do predio consome (o fonte, nunca o mapa):
+`ele.pavimentos_servidos >= 1` (senao ValueError "nada a desenhar") e
+`prumada.secao_mm2` no corte vertical do shaft com calhas por pavimento.
+Com `{}` levanta; com shape minimo de predio (2 pavimentos, prumada
+50 mm2) emite "PRUMADA 50 mm2". Casa terrea sem shaft/prumada nao tem o
+que alimentar.
+3. A infra parcial que existe ja e declarada onde e devida: o unifilar
+residencial mostra ATERRAMENTO 10 mm2 + DPS + curto "nao avaliado", a
+planta mostra o QD-01 e diz que a ligacao ponto-quadro NAO e tracado de
+eletroduto. Desenhar eletroduto sem rota declarada, ou malha/SPDA sem
+dado, seria invencao - a ausencia se declara, nunca default silencioso.
+Conclusao: nada da folha e desenhável sem os dados. Segundo ramo do goal.
+
+**Entregue (folha segue pulada, medicao registrada).**
+- Nenhuma linha de producao mudada (casa, predio e emissores intactos;
+o motivo atual ja nomeia codigo + malha + SPDA; o mapa ja tem
+`PE-EL-03 -> eletrica-infra-aterramento-casa.svg`).
+- Novo `tests/test_infra_aterramento_casa_g142.py` (5): test_01 remeça a
+conta contra o emissor (fonte viva dos dois lados); test_02 motivo vivo
++ lente fecha com a pulada nomeada; test_03 substring -> parse ->
+guarda -> PNG nas 3 folhas emitidas (sem `malha de aterramento`,
+`SPDA NP` ou `PRUMADA` inventados); test_04 vermelho por injecao nos
+dois sentidos (emissor morto, sem motivo vira faltando, sem mapa vira
+sem_mapa, tudo em tmp_path); test_05 predio byte-identico (casa nunca
+chama o emissor do predio; emissor deterministico; nada dimensiona).
+
+**Tres aceites olhando o PNG (fixture fase 6B, 2026-09-14,
+`Temp/opencode/g142_png/`, `svg_para_png` via fitz).**
+- unifilar.svg (7572 bytes -> PNG 64775): DIAGRAMA UNIFILAR - INSTALACAO
+RESIDENCIAL, ENTRADA BT, padrao B1, DISJ. GERAL 50 A, QD - QUADRO DE
+DISTRIBUICAO, ATERRAMENTO 10 mm2 do calculo; sem malha/SPDA/PRUMADA.
+(1) esta certa: numeros do calculo, parse + guarda ok; (2) sai no
+manifesto: `drawings/unifilar.svg` no disco e nos artifacts; (3) diz o
+que desenha: unifilar + quadro de distribuicao, sem prometer infra.
+- planta-eletrica.svg (10234 -> PNG 119193): PLANTA DE ILUMINACAO E
+TOMADAS, comodos + QD-01 + legenda + "NAO e tracado de eletroduto".
+(1)/(2)/(3) como acima: posicoes do layout validado, no manifesto e no
+disco, sem tracar eletroduto inexistente.
+- quadro-cargas.svg (7117 -> PNG 58913): QUADRO DE CARGAS com os 3
+circuitos, secao/protecao e rodape do padrao; sem dimensionar malha/SPDA.
+A PE-EL-03 segue em `skipped` com malha e SPDA nomeados - o dado que
+falta, com nome, nunca "nao disponivel" sozinho.
+
+**Baselines atualizadas: nenhuma (nao e verde por edicao).** Sem mudar
+producao, G92/G99/G91/G112/G93/G103 seguem verdes como estao; o guarda
+novo congela o segundo ramo (se um dia o calculo declarar rotas/malha/
+SPDA, o test_01 acusa a mudanca de forma e o goal se reabre por dado,
+nao por defeito).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`,
+`varredura_asserts_sequencia.confere()`, `varredura_constantes_orfas.
+confere()` - OK, OK, OK; `test_folhas_g77`, `test_alcancabilidade`,
+`test_guardas_d86_g69` (111 passed); `test_disciplina_prancha_g103`,
+`test_indice_disco_g91`, `test_carimbo_mapa_g112`,
+`test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` (31 passed); portoes das fontes tocadas
+`test_casa_eletrica_g99`, `test_casa_indice_g92`,
+`test_edificio_pranchas_g56` (29 passed); guarda novo G142 (5 passed).
+G102 isolado nao se aplica (goal sem folha de galpao; regra do lote) e
+nada foi re-congelado.
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 304 arquivos
+== coletados): `rc_pytest` 0, 3869 passed, 1 skipped, 34 min 42 s,
+`quebras` vazio** (censo do FreeCAD fechado, memoria livre minima
+159 MB). O skip e o portao de auditoria do aco. +1 arquivo e +5 testes
+sobre os 303/3864 do D170 (o guarda novo G142); 3864 + 5 = 3869 bate.
+
+**Nao feito (do goal).** Dimensionar SPDA ou malha sem dado declarado
+(a adaptacao nem existe: nada le `rho/A/L` ou `NP/descidas`); mexer no
+caminho do predio (`edificio_adapter`/`desenho_eletrico` intactos);
+emitir folha inventada (eletroduto sem rota, malha/SPDA sem solo/norma).

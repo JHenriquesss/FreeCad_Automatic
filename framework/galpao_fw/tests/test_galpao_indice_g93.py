@@ -6,10 +6,13 @@ codigo do indice tivesse sido conferido). O galpao era a unica tipologia sem
 mapa codigo->arquivo.
 
 Entregue:
-  1. `_PRANCHA_ARQUIVO_GALPAO` (galpao_adapter): os 19 codigos que o turnkey
-     promete (concreto/aco/eletrico/hidraulica/incendio/climatizacao +
-     coordenacao) -> PDF em drawings/, medido pagina a pagina nos
-     gerar_executivo_* (nao suposto);
+  1. `_PRANCHA_ARQUIVO_GALPAO` (galpao_adapter): os 35 codigos que o turnkey
+     promete (G137: 19 + 14 do aco; G139: + PE-CD-02 para a segunda folha
+     da coordenacao; G141: + PE-MZ-01 para o mezanino calculado;
+     concreto/mezanino/aco/eletrico/hidraulica/
+     incendio/climatizacao + coordenacao) -> PDF em drawings/, medido pagina
+     a pagina nos gerar_executivo_* (nao suposto; PE-MZ-01 declarada sem
+     emissor, sempre pulada com motivo);
   2. o laco da lente do G91 em `galpao_adapter._emit_drawings`, com os
      pulados nomeados um por um;
   3. a conta de `pacote_no_manifesto` continua no .md como informacao ao
@@ -31,17 +34,27 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GALPAO = os.path.dirname(HERE)
 sys.path.insert(0, GALPAO)
 
-# Os 19 prometidos (mesma conta do test_06 do G91, fonte viva).
+# Os 35 prometidos (G137: 19 + 14 do aco; G139: + PE-CD-02 para a
+# segunda folha da coordenacao; G141: + PE-MZ-01 para o mezanino calculado;
+# mesma conta do test_06 do G91, fonte viva).
+# PE-ES-01..17 (3 historicos + 12 do D165 + 2 condicionais).
 PROMETIDOS_ESPERADOS = (
     ["PE-CO-%02d" % i for i in (1, 2, 3, 4)]
-    + ["PE-ES-%02d" % i for i in (1, 2, 3)]
+    + ["PE-MZ-01"]
+    + ["PE-ES-%02d" % i for i in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                                  13, 14, 15, 16, 17)]
     + ["PE-EL-%02d" % i for i in (1, 2, 3, 4)]
     + ["PE-HI-%02d" % i for i in (1, 2, 3)]
     + ["PE-IN-%02d" % i for i in (1, 2, 3)]
-    + ["PE-CL-01", "PE-CD-01"])
+    + ["PE-CL-01", "PE-CD-01", "PE-CD-02"])
 
 # Sem emissor ligado: entrada declarada, sempre pulada com motivo.
-DECLARADOS_SEM_EMISSOR = {"PE-CO-04", "PE-IN-02", "PE-IN-03"}
+# G138: PE-IN-02 ganha emissor (desenho_incendio adaptado do calculo).
+# G140: PE-CO-04 ganha emissor (desenho_fundacao_edificio adaptado do
+# calculo do galpao, sem redimensionar).
+# G141: PE-MZ-01 segue sem emissor (mezanino calculado, sem prancha
+# dedicada - ausencia declarada por codigo).
+DECLARADOS_SEM_EMISSOR = {"PE-IN-03", "PE-MZ-01"}
 
 # Motivo sem o dado nomeado e silencio, nao triagem (mesmo molde do G92).
 AUSENCIA_NOMEADA = ("nao declarado", "nao declarada", "nao calculada",
@@ -64,12 +77,20 @@ def _prometidos_vivos():
     import pacote_legal as pl
 
     discos = [d for d in tk.DISCIPLINAS if d in pl._PRANCHAS]
-    return sorted(f["codigo"] for f in pl.indice_de_pranchas(
-        discos + ["coordenacao"]))
+    return sorted([f["codigo"] for f in pl.indice_de_pranchas(
+        discos + ["coordenacao"])] + [pl.PE_CD_02_GALPAO["codigo"]])
 
 
 def _paginas_techdraw():
-    """Nomes de pagina que os emissores realmente criam (AST, sem FreeCAD)."""
+    """Nomes de pagina que os emissores realmente criam (AST, sem FreeCAD).
+
+    G137: as 5 paginas de ligacao/detalhe variavel (PE10_DET_CUMEEIRA,
+    PE11_DET_GUSSET_COB, PE12_DET_GUSSET_PAR, PE13_DET_CLIPE_GIRT,
+    PE14_DET_CONSOLE) nao tem literal em `_nova_prancha` (page_name
+    variavel em `_pr_ligacoes`) — o nome valido vem de
+    `techdraw_exec.LIGACOES` (fonte viva, mesma do harness G105), nunca
+    suposto.
+    """
     arquivos = ("techdraw_concreto.py", "techdraw_exec.py",
                 "techdraw_eletrico.py", "techdraw_hidraulica.py",
                 "techdraw_incendio.py", "techdraw_climatizacao.py",
@@ -87,11 +108,21 @@ def _paginas_techdraw():
             segundo = no.args[1]
             if isinstance(segundo, ast.Constant) and segundo.value:
                 paginas.add(segundo.value)
+    # Paginas variaveis das ligacoes (1:1 com o mapa PE-ES-10..13,16).
+    try:
+        import techdraw_exec as _td
+
+        for i, (_pref, _tit, _base, _kw, _el, _ch, _ca, _sn) in enumerate(
+                _td.LIGACOES):
+            paginas.add("PE%02d_DET_%s" % (10 + i, _base))
+    except Exception:
+        pass
     return paginas
 
 
 def test_01_mapa_cobre_os_19_prometidos_caso_bom_verde():
-    """O mapa fecha os 19 prometidos quando o disco tem tudo."""
+    """O mapa fecha os 35 prometidos quando o disco tem tudo (G137: 19+14;
+    G139: +PE-CD-02; G141: +PE-MZ-01)."""
     import galpao_adapter as ga
     import varredura_indice_disco as lente
 
@@ -101,13 +132,13 @@ def test_01_mapa_cobre_os_19_prometidos_caso_bom_verde():
         gaps.append("prometidos vivos mudaram: %r" % (prometidos,))
     mapa = dict(ga._PRANCHA_ARQUIVO_GALPAO)
     if sorted(mapa) != sorted(PROMETIDOS_ESPERADOS):
-        gaps.append("mapa != 19 prometidos: sobrando=%r sem_mapa=%r" % (
+        gaps.append("mapa != 35 prometidos: sobrando=%r sem_mapa=%r" % (
             sorted(set(mapa) - set(PROMETIDOS_ESPERADOS)),
             sorted(set(PROMETIDOS_ESPERADOS) - set(mapa))))
     disco = sorted(set(mapa.values()))
     res = lente.conferir_indice_disco(prometidos, mapa, disco, {})
     if not res["OK"]:
-        gaps.append("caso bom devia fechar 19/19: %r" % (res,))
+        gaps.append("caso bom devia fechar 35/35: %r" % (res,))
     assert not gaps, (
         "G93 mapa:\n%s" % "\n".join("  - " + g for g in gaps))
 
@@ -177,7 +208,7 @@ def test_04_nenhum_motivo_generico():
 
     indice = {f["codigo"]: f["titulo"]
               for f in pl.indice_de_pranchas(
-                  ["concreto", "aco", "eletrico", "hidraulica", "incendio",
+                  ["concreto", "mezanino", "aco", "eletrico", "hidraulica", "incendio",
                    "climatizacao", "coordenacao"])}
     gaps = []
     for codigo in sorted(PROMETIDOS_ESPERADOS):
@@ -323,12 +354,15 @@ def test_06_aceite_duplo_na_rodada_stub(tmp_path, monkeypatch):
             item.get("motivo", ""))
     if "COORD01_PLANTA.pdf" not in por_prancha:
         gaps.append("PE-CD-01 devia sair pulada nomeada: %r" % (pulados,))
+    if "COORD02_CLASH.pdf" not in por_prancha:
+        gaps.append("PE-CD-02 devia sair pulada nomeada: %r" % (pulados,))
     for nome, motivos in sorted(por_prancha.items()):
         for motivo in motivos:
             if not any(m in _norm(motivo) for m in AUSENCIA_NOMEADA):
                 gaps.append("%s sem o dado nomeado: %r" % (nome, motivo))
-    prometidos = sorted(f["codigo"] for f in pl.indice_de_pranchas(
-        ["aco", "hidraulica", "coordenacao"]))
+    prometidos = sorted(
+        f["codigo"] for f in ga._indice_galpao_com_fronteira(
+            ["aco", "hidraulica"], {})[0])
     res = lente.conferir_indice_disco(prometidos, ga._PRANCHA_ARQUIVO_GALPAO,
                                       artefatos, pulados)
     if res["faltando"] or res["sem_mapa"]:

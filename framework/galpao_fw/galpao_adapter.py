@@ -251,19 +251,35 @@ def _emit_model_3d(manifest, run_dir, normalized, options, turnkey_result):
 # codigo do indice (pacote_legal) -> PDF em drawings/ (nome de pagina
 # TechDraw + ".pdf"). G93, medido contra o que o galpao REALMENTE emite
 # hoje (gerar_executivo_* lido pagina a pagina, nao suposto):
-#   concreto: PE01_FORMAS/PE02_PORTICO/PE03_QUADROS (techdraw_concreto);
-#   aco: 3 representantes do executivo (techdraw_exec) que saem mesmo nos
-#     ramos de fallback (PE04_PORTICO/PE07_DET_JOELHO/PE01_COBERTURA);
+#   concreto: PE01_FORMAS/PE02_PORTICO/PE03_QUADROS/PE04_LOCACAO_FUNDACAO
+#     (techdraw_concreto; G140: a locacao sai do calculo adaptado);
+#   aco: G137 — 1:1 contra o techdraw_exec (PE01…PE16 + 2 condicionais):
+#     PE-ES-01..03 os 3 representantes historicos (PE04_PORTICO/
+#     PE07_DET_JOELHO/PE01_COBERTURA); PE-ES-04..15 as 12 que saiam sem
+#     codigo no D165 (PE02_FUNDACOES, PE03_ELEVACOES, PE05_CONTRAVENTAMENTO,
+#     PE06_DET_BASE, PE08_FECHAMENTO, PE09_QUADROS, PE10_DET_CUMEEIRA,
+#     PE11_DET_GUSSET_COB, PE12_DET_GUSSET_PAR, PE13_DET_CLIPE_GIRT,
+#     PE14_CROQUIS, PE16_MONTAGEM); PE-ES-16/17 as condicionais
+#     (PE14_DET_CONSOLE so com ponte, PE15_DET_BLOCO so com bloco — ausentes
+#     no galpao-tp-g95, com motivo no laco quando nao emitidas);
+#   eletrico: 4 1:1 (techdraw_eletrico);
 #   eletrico: 4 1:1 (techdraw_eletrico);
 #   hidraulica: N:1 num esquema so (HID01_ESQUEMA, contrato G82 — as 3
 #     chaves repetem desenho_hidraulica.COBERTURA_GALPAO, o arquivo e o do
 #     fluxo FreeCAD);
 #   incendio: 1 (INC01_PLANTA); climatizacao: 1 (CLI01_ESQUEMA);
-#   coordenacao: 1 (COORD01_PLANTA, techdraw_coordenacao).
-# Os 2 sem emissor ligado (PE-CO-04, PE-IN-02) tem entrada com
-# nome declarado e saem sempre pulados com o motivo — ausencia declarada,
-# nunca silencio (a mesma forma do G92 na casa). PE-IN-03 (escada) tem
-# fronteira propria (G101, _indice_galpao_com_fronteira): sem escada
+#   coordenacao: 2 (COORD01_PLANTA -> PE-CD-01, COORD02_CLASH -> PE-CD-02,
+#     techdraw_coordenacao; G139: cada folha emitida tem codigo).
+#   mezanino: 1 declarada sem emissor (MZ01_MEZANINO -> PE-MZ-01, G141:
+#     o calculo sai no memorial/BIM, sem prancha dedicada; entrada com
+#     nome declarado, sempre pulada com motivo - ausencia declarada).
+# O sem emissor ligado (PE-IN-03, fronteira G101, e PE-MZ-01, G141) tem entrada com
+# nome declarado e sai sempre pulado com o motivo ou dispensado —
+# ausencia declarada, nunca silencio (a mesma forma do G92 na casa).
+# G138/G140: PE-IN-02 e PE-CO-04 ganharam emissor ligado (detalhes de
+# hidrantes e locacao da fundacao, adaptados do calculo); sem a
+# disciplina executada seguem sem, com o motivo abaixo. PE-IN-03
+# (escada) tem fronteira propria (_indice_galpao_com_fronteira): sem escada
 # declarada no spec a disciplina deixa de prometer o codigo (dispensada
 # com motivo escrito); com escada declarada segue prometido e, sem
 # emissor, sai pulado com o motivo.
@@ -272,9 +288,28 @@ _PRANCHA_ARQUIVO_GALPAO = {
     "PE-CO-02": "PE02_PORTICO.pdf",
     "PE-CO-03": "PE03_QUADROS.pdf",
     "PE-CO-04": "PE04_LOCACAO_FUNDACAO.pdf",
+    # G141: o mezanino calculado ganha codigo (PE-MZ-01, 1:1 com o titulo
+    # em pacote_legal._PRANCHAS["mezanino"]). Sem emissor TechDraw ligado,
+    # a folha sai sempre pulada com motivo nomeado abaixo - ausencia
+    # declarada por codigo, nunca extra nem buraco.
+    "PE-MZ-01": "MZ01_MEZANINO.pdf",
     "PE-ES-01": "PE04_PORTICO.pdf",
     "PE-ES-02": "PE07_DET_JOELHO.pdf",
     "PE-ES-03": "PE01_COBERTURA.pdf",
+    "PE-ES-04": "PE02_FUNDACOES.pdf",
+    "PE-ES-05": "PE03_ELEVACOES.pdf",
+    "PE-ES-06": "PE05_CONTRAVENTAMENTO.pdf",
+    "PE-ES-07": "PE06_DET_BASE.pdf",
+    "PE-ES-08": "PE08_FECHAMENTO.pdf",
+    "PE-ES-09": "PE09_QUADROS.pdf",
+    "PE-ES-10": "PE10_DET_CUMEEIRA.pdf",
+    "PE-ES-11": "PE11_DET_GUSSET_COB.pdf",
+    "PE-ES-12": "PE12_DET_GUSSET_PAR.pdf",
+    "PE-ES-13": "PE13_DET_CLIPE_GIRT.pdf",
+    "PE-ES-14": "PE14_CROQUIS.pdf",
+    "PE-ES-15": "PE16_MONTAGEM.pdf",
+    "PE-ES-16": "PE14_DET_CONSOLE.pdf",
+    "PE-ES-17": "PE15_DET_BLOCO.pdf",
     "PE-EL-01": "PE01_UNIFILAR.pdf",
     "PE-EL-02": "PE02_PLANTA_INST.pdf",
     "PE-EL-03": "PE03_PLANTA_INFRA.pdf",
@@ -287,6 +322,7 @@ _PRANCHA_ARQUIVO_GALPAO = {
     "PE-IN-03": "INC04_ESCADA.pdf",
     "PE-CL-01": "CLI01_ESQUEMA.pdf",
     "PE-CD-01": "COORD01_PLANTA.pdf",
+    "PE-CD-02": "COORD02_CLASH.pdf",
 }
 
 
@@ -316,26 +352,71 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False,
     sem freecad.exe a disciplina nao emite via TechDraw (G107).
     """
     base = {
-        "PE-CO-04": ("not_available: sem emissor de locacao e formas da "
-                     "fundacao nesta rodada (PE-CO-04 Locacao e formas da "
-                     "fundacao); a fundacao do pre-moldado sai dimensionada "
-                     "sem folha de locacao emitida (o executivo de concreto "
-                     "emite FORMAS/PORTICO/QUADROS)"),
-        "PE-IN-02": ("not_available: sem emissor de detalhe de hidrantes e "
-                     "rotas nesta rodada (PE-IN-02 Detalhes hidrantes/rotas); "
-                     "o executivo de incendio emite planta (INC01) + "
-                     "quadro-resumo (INC02), sem corte da coluna de "
-                     "hidrantes"),
+        "PE-MZ-01": ("not_available: mezanino calculado sem prancha dedicada "
+                     "nesta rodada (PE-MZ-01 Mezanino de concreto "
+                     "(laje/vigas/pilares)); dado nao declarado para a folha: "
+                     "arquivo MZ01_MEZANINO.pdf — com mezanino executado o "
+                     "dimensionamento sai no memorial e no BIM (membros M- "
+                     "federados), sem emissor TechDraw ligado ao hook; sem "
+                     "mezanino executado segue fora do indice, com este motivo"),
+        "PE-CO-04": ("not_available: locacao e formas da fundacao nao "
+                     "emitidas nesta rodada (PE-CO-04 Locacao e formas da "
+                     "fundacao); dado nao declarado para a folha: arquivo "
+                     "PE04_LOCACAO_FUNDACAO.pdf — com concreto executado o "
+                     "hook emite via "
+                     "desenho_fundacao_edificio.planta_fundacao_svg "
+                     "adaptado do calculo do galpao (G140, sem "
+                     "redimensionar fundacao; cota_apoio_m e tensao sem "
+                     "sondagem declarados como ausentes na folha); sem "
+                     "concreto executado segue sem, com este motivo"),
+        "PE-IN-02": ("not_available: detalhe de hidrantes e rotas nao "
+                     "emitido nesta rodada (PE-IN-02 Detalhes hidrantes/rotas); "
+                     "dado nao declarado para a folha: arquivo "
+                     "INC03_DETALHES.pdf — com incendio executado o hook emite "
+                     "via desenho_incendio.detalhes_hidrantes_rotas_svg "
+                     "adaptado do calculo do galpao (G138, sem recalcular "
+                     "hidrantes; gates.rotas_verticais/escada_largura, "
+                     "estrategia_abandono, populacao_total, "
+                     "altura_edificacao_m e pavimentos declarados como "
+                     "ausentes na folha); sem incendio executado segue sem, "
+                     "com este motivo"),
         "PE-IN-03": ("not_available: escada de emergencia nao calculada e "
                      "sem emissor ligado ao hook do galpao nesta rodada "
                      "(PE-IN-03 Escada de emergencia); dado nao declarado: "
                      "geometria da escada no spec do galpao"),
-        "PE-CD-01": ("not_available: sem emissor de coordenacao ligado ao "
-                     "hook nesta rodada (PE-CD-01 Modelo federado / "
-                     "compatibilizacao); montar_caderno so emite a prancha "
-                     "com disciplinas=None e o hook passa recorte de "
-                     "disciplinas — a coordenacao sai como matriz "
+        "PE-CD-01": ("not_available: sem emissor de prancha formal de "
+                     "coordenacao nesta rodada (PE-CD-01 Modelo federado / "
+                     "compatibilizacao); dado nao declarado para a prancha: "
+                     "recorte com >= 2 disciplinas executadas — com 1 "
+                     "disciplina segue sem, com este motivo; com >= 2 o "
+                     "hook emite via caderno_turnkey (render + "
+                     "COORD01_PLANTA); a coordenacao sai como matriz "
                      "(coordination-matrix) + pagina do caderno"),
+        # G139 (2a rodada): a 2a folha tem codigo proprio — o motivo nomeia
+        # a regra como o da PE-CD-01 (a causa proxima fina, ex. timeout sob
+        # carga, mora em deliverables.drawings.result status.coordenacao).
+        "PE-CD-02": ("not_available: sem emissor de quadro de clash ligado "
+                     "a esta rodada (PE-CD-02 Quadro de clash e notas); "
+                     "dado nao declarado para a folha: prancha formal de "
+                     "coordenacao com >= 2 disciplinas executadas no "
+                     "recorte — com 1 disciplina segue sem, com este "
+                     "motivo; com >= 2 o hook emite via caderno_turnkey "
+                     "(render + COORD02_CLASH); a coordenacao sai como "
+                     "matriz (coordination-matrix) + pagina do caderno"),
+        # G137: condicionais do aco — o emissor existe, a prancha so sai com
+        # o dado declarado. Sem ele a ausencia e declarada aqui, nunca
+        # silencio (mesma forma do G92).
+        "PE-ES-16": ("not_available: detalhe do console da ponte rolante nao "
+                     "emitido nesta rodada (PE-ES-16 Detalhe do console da "
+                     "ponte rolante); dado nao declarado: ponte rolante "
+                     "ausente no spec (ponte=None) — a prancha so sai com "
+                     "ponte declarada (techdraw_exec._pr_ligacoes "
+                     "CONEX_CONSOLE)"),
+        "PE-ES-17": ("not_available: detalhe do bloco de coroamento nao "
+                     "emitido nesta rodada (PE-ES-17 Detalhe do bloco de "
+                     "coroamento); dado nao declarado: fundacao profunda "
+                     "ausente no spec (sem BLOCO/ESTACA) — a prancha so sai "
+                     "com bloco declarado (techdraw_exec._pr_bloco)"),
     }
     if codigo in base:
         motivo = base[codigo]
@@ -389,6 +470,14 @@ def _indice_galpao_com_fronteira(executadas, normalized):
                   if f["codigo"] != _PE_IN_03_ESCADA]
         dispensadas.append({"codigo": _PE_IN_03_ESCADA,
                             "motivo": _motivo_escada_dispensada()})
+    # G139: a 2a folha da coordenacao (quadro de clash) tem codigo proprio
+    # (PE_CD_02_GALPAO, mesma regra do G137: uma prancha emitida, um
+    # codigo). Prometida em toda rodada que promete coordenacao; ausente,
+    # sai pulada com motivo pelo laco — nunca extra nem buraco.
+    if any(f["codigo"] == "PE-CD-01" for f in indice) \
+            and not any(f["codigo"] == pl.PE_CD_02_GALPAO["codigo"]
+                        for f in indice):
+        indice.append(dict(pl.PE_CD_02_GALPAO))
     return indice, dispensadas
 
 

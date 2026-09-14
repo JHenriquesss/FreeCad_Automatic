@@ -192,10 +192,10 @@ def test_build_gera_pranchas_pdf(tmp_path):
     out = str(tmp_path).replace("\\", "/")
     res = gsi.montar_pranchas(r, out, spec=_spec(), timeout=1200)
     assert res.get("ok"), res
-    assert len(res.get("pranchas", [])) == 2
+    assert len(res.get("pranchas", [])) == 3, res
     pdfs = [a for a in res.get("arquivos", []) if a.endswith(".pdf")]
-    assert len(pdfs) == 2 and all(os.path.exists(p) and os.path.getsize(p) > 0
-                                  for p in pdfs), res
+    assert len(pdfs) == 3 and all(os.path.exists(p) and os.path.getsize(p) > 0
+                                 for p in pdfs), res
 
 
 def test_caixa_da_legenda_nao_invade_o_quadro_resumo():

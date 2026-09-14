@@ -82,7 +82,7 @@ def _pr_formas(doc, cfg, objs):
     bb = _bbox(objs)
     esc, nome = _fit_escala(bb, "z", *AREA_1V)
     page = _nova_prancha(doc, "PE01_FORMAS",
-                         _carimbo_conc(cfg, "PLANTA DE FORMAS", "PE-01", nome, "01/03"))
+                         _carimbo_conc(cfg, "PLANTA DE FORMAS", "PE-01", nome, "01/04"))
     v = _vista(doc, page, "V01_FORMAS", objs, (0, 0, 1), (1, 0, 0),
                esc, 410, 350, coarse=True)
     hw, hh = _paper_half(bb, esc, "z")
@@ -114,7 +114,7 @@ def _pr_portico(doc, cfg, objs):
     fb = _bbox(frame)
     esc, nome = _fit_escala(fb, "y", *AREA_1V)
     page = _nova_prancha(doc, "PE02_PORTICO",
-                         _carimbo_conc(cfg, "PORTICO TIPICO", "PE-02", nome, "02/03"))
+                         _carimbo_conc(cfg, "PORTICO TIPICO", "PE-02", nome, "02/04"))
     # olha em -Y -> plano X-Z (vao na horizontal, altura na vertical)
     v = _vista(doc, page, "V02_PORTICO", frame, (0, -1, 0), (1, 0, 0),
                esc, 410, 350)
@@ -137,7 +137,7 @@ def _pr_quadros(doc, cfg):
     materiais e o quantitativo de concreto (volume/massa)."""
     page = _nova_prancha(doc, "PE03_QUADROS",
                          _carimbo_conc(cfg, "QUADROS E ESPECIFICACOES", "PE-03",
-                                       "-", "03/03"))
+                                       "-", "03/04"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
     # x=175 (encostado a esquerda, deixando ~metade da folha vazia).
     # QUADRO DE PILARES
@@ -156,6 +156,30 @@ def _pr_quadros(doc, cfg):
     # NOTAS + QUANTITATIVO (bloco de texto centralizado)
     _bloco_texto(doc, page, "N03", cfg["notas"], 420, 130, tam=5, largura=560,
                  escala=1.3)
+    return [page], []
+
+
+def _pr_locacao(doc, cfg):
+    """PE04 - LOCACAO E FORMAS DA FUNDACAO (G140): planta de locacao das
+    sapatas (ou blocos de estaca) a partir do calculo do galpao
+    (locacao_svg do cfg, ja adaptado com as ausencias declaradas). Sem
+    redimensionamento dentro do FreeCAD."""
+    page = _nova_prancha(doc, "PE04_LOCACAO_FUNDACAO",
+                         _carimbo_conc(cfg, "LOCACAO E FORMAS DA FUNDACAO",
+                                       "PE-04", "S/ESC", "04/04"))
+    if not cfg.get("locacao_svg"):
+        raise ValueError(
+            "PE04 sem locacao: %s" % (cfg.get("locacao_erro")
+                                      or "fundacao nao dimensionada"))
+    sym = doc.addObject("TechDraw::DrawViewSymbol", "LOCACAO_FUND")
+    sym.Symbol = cfg["locacao_svg"]
+    page.addView(sym)
+    try:
+        sym.X = 420.0                     # centro da A1 (841 x 594 mm)
+        sym.Y = 300.0
+        sym.Scale = 7.0
+    except Exception:
+        pass
     return [page], []
 
 
@@ -189,7 +213,7 @@ def gerar_executivo_concreto(cfg):
 
     paginas, cotadores = [], []
     for fn, args in ((_pr_formas, (objs,)), (_pr_portico, (objs,)),
-                     (_pr_quadros, ())):
+                     (_pr_quadros, ()), (_pr_locacao, ())):
         try:
             pgs, cts = fn(doc, cfg, *args)
             paginas += pgs
@@ -385,6 +409,20 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
                      % (tk.get("vol_concreto_m3"), tk.get("massa_concreto_kg")))
     notas.append("Cotas em metros salvo indicacao. Confrontar com a memoria de calculo.")
 
+    # G140: a locacao/formas da fundacao a partir do calculo do galpao
+    # (adaptacao na producao, sem redimensionar; ausencias declaradas na
+    # folha). Sem fundacao dimensionada o cfg carrega o erro e so a PE04
+    # cai (nunca o executivo inteiro).
+    import desenho_fundacao_edificio as _dfe140
+    try:
+        _fund140, _est140, _aus140 = _dfe140.adaptar_galpao_para_locacao(
+            r, spec)
+        _loc_svg140 = _dfe140.planta_fundacao_svg(
+            _fund140, _est140, ausencias=_aus140 or None)
+        _loc_erro140 = None
+    except Exception as exc:                            # noqa: BLE001
+        _loc_svg140, _aus140, _loc_erro140 = None, [], str(exc)
+
     return {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
@@ -400,6 +438,9 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "quadro_fund_titulo": quadro_fund_titulo, "quadro_fund_hdr": quadro_fund_hdr,
         "quadro_fund": quadro_fund,
         "notas": notas,
+        "locacao_svg": _loc_svg140,
+        "locacao_ausentes": list(_aus140),
+        "locacao_erro": _loc_erro140,
         # o carimbo do techdraw_exec le 'materiais' (pode ser None -> omite)
         "materiais": {"aco_MPa": None, "fck_MPa": int(fckM),
                       "cobrimento_cm": cob_mm / 10.0},

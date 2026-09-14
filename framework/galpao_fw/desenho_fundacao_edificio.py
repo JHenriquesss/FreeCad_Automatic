@@ -76,7 +76,8 @@ def _geometria_desenho(registro):
     return float(B), float(L), float(h or 0.0), subtipo, "sapata"
 
 
-def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
+def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
+                          ausencias=None):
     """Monta a planta de locacao/formas da fundacao.
 
     fundacao  : dict de fundacao_edificio.dimensiona (tipo, sigma_solo_adm,
@@ -85,6 +86,9 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
                 ({vaos_x, vaos_y}).
     edicao    : (opc, G128) '2014' ou '2023+Em1' declarada no projeto;
                 ausente = comportamento de hoje (2014) declarado no titulo.
+    ausencias : (opc, G140) campos que o calculo do galpao nao produz,
+                declarados em caixa vermelha na folha. None = caminho do
+                predio/casa, byte-identico (nenhum pixel muda).
     """
     if not isinstance(fundacao, dict) or not fundacao.get("por_pilar"):
         raise ValueError(
@@ -98,10 +102,16 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
     vaos_x, vaos_y = _resolve_vaos(fundacao, estrutura)
 
     W, H = 1420, 960
+    alt_aus = 0
+    if ausencias:
+        # G140: a caixa vermelha mora acima do rodape; a planta encolhe
+        # o mesmo tanto (nunca desenhada embaixo da caixa).
+        alt_aus = 40 + len(list(ausencias)) * 20
+        H += alt_aus
     MX, MY = 150, 190
     LARG_QUADRO = 430
     larg_util = W - MX - LARG_QUADRO - 160
-    alt_util = H - MY - 140
+    alt_util = H - MY - 140 - alt_aus
     lx, ly = sum(vaos_x), sum(vaos_y)
     esc = min(larg_util / max(lx, 1e-9), alt_util / max(ly, 1e-9))
 
@@ -235,7 +245,9 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
     # --- quadro --------------------------------------------------------------
     qx = W - LARG_QUADRO - 20
     qy = MY - 20
-    qh = H - qy - 40
+    # G140: com a caixa de ausencias no rodape, o quadro termina acima
+    # dela (nunca desenhado embaixo). Sem ausencias, como antes.
+    qh = H - qy - 40 - (alt_aus + 12 if ausencias else 0)
     P.append('<rect x="%d" y="%d" width="%d" height="%d" fill="#fbfcfd" '
              'stroke="#c9d4e0" stroke-width="1"/>' % (qx, qy, LARG_QUADRO, qh))
     P.append(sb.texto(qx + LARG_QUADRO / 2, qy + 24,
@@ -273,7 +285,7 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
         reg = por_nome[nome]
         g = reg.get("geometria") or {}
         yy += 19
-        if yy > H - 96:
+        if yy > H - 96 - (alt_aus + 12 if ausencias else 0):
             P.append(sb.texto(qx + LARG_QUADRO / 2, yy,
                               "... (%d pilares no total)" % len(por_nome),
                               10, color="#777"))
@@ -302,6 +314,21 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None):
                       "dimensionadas ; divisa com viga de equilibrio (M da "
                       "viga cotado)",
                       11, anchor="start", color="#444"))
+    if ausencias:
+        # G140: o que o calculo do galpao nao produz, declarado na folha
+        # (nunca default silencioso). Mesma forma do G138.
+        ax, ay = (float(MX), float(H - 46 - 24 - alt_aus))
+        P.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                 'fill="white" stroke="#b91c1c" stroke-width="1.5"/>'
+                 % (ax, ay, W - MX - 170, alt_aus))
+        P.append(sb.texto(ax + (W - MX - 170) / 2.0, ay + 24,
+                          "DADOS NAO DECLARADOS PELO CALCULO "
+                          "DO GALPAO (G140)",
+                          12, weight="bold", color="#b91c1c"))
+        for i, campo in enumerate(list(ausencias)):
+            P.append(sb.texto(ax + 14, ay + 46 + i * 20,
+                              "nao declarado: %s" % campo, 11,
+                              anchor="start"))
     P.append(sb.texto(MX, H - 28,
                       "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
                       11, anchor="start", weight="bold", color="#444"))
@@ -401,3 +428,158 @@ def gerar_planta_fundacao(fundacao, estrutura, path, titulo=None,
         f.write(planta_fundacao_svg(fundacao, estrutura, titulo,
                                     edicao=edicao))
     return path
+
+
+# G140 (D169): o que o calculo do galpao NAO produz para a planta de
+# locacao/formas — medido em 2026-09-14 contra `galpao_concreto.rodar`
+# (sapata unica dimensionada + spec {vao, comprimento, n_porticos, s} +
+# tipo_fundacao; sem `por_pilar`, sem `proveniencia_sigma`, sem
+# `cota_apoio_m`) e o que `planta_fundacao_svg` le (shape do predio:
+# fundacao.{tipo, sigma_solo_adm, proveniencia_sigma, cota_apoio_m,
+# por_pilar[{i, j, N_dimensionamento_kN, geometria}]} +
+# estrutura.{vaos_x, vaos_y}). Uma fonte so: esta lista mora na producao
+# e a folha a declara, nunca inventa.
+AUSENCIAS_GALPAO_LOCACAO = (
+    "cota_apoio_m (cota de assentamento nao declarada no spec do galpao; "
+    "o calculo usa h_reaterro=0,5 m)",
+    "sigma_solo_adm sem sondagem SPT declarada "
+    "(default 200 kN/m2; confirmar com sondagem)",
+)
+
+
+def adaptar_galpao_para_locacao(r, spec=None):
+    """Adapta o resultado de `galpao_concreto.rodar` para o emissor de
+    locacao/formas da fundacao (shape do predio), sem redimensionar nada.
+
+    Devolve (fundacao, estrutura, ausentes): `fundacao`/`estrutura` no
+    shape que `planta_fundacao_svg` le — um elemento por pilar (malha de
+    2 x n_porticos, nomes P<j><E|D> como no `membros_bim`), cada um com a
+    sapata (ou o grupo de estacas) DIMENSIONADA pelo calculo; `ausentes`
+    e o subconjunto de `AUSENCIAS_GALPAO_LOCACAO` que o calculo nao
+    produz nesta rodada. Ausencia se declara na folha, nunca vira
+    default silencioso. Levanta ValueError quando a fundacao nao foi
+    dimensionada (sem sapata/estaca aprovada nao ha folha honesta).
+    """
+    spec = dict(spec or {})
+    rsp = ((r or {}).get("spec") or {}) if isinstance(r, dict) else {}
+    try:
+        vao = float(spec.get("vao", rsp.get("vao")))
+        comp = float(spec.get("comprimento", rsp.get("comprimento")))
+        n = int(spec.get("n_porticos", rsp.get("n_porticos")))
+    except (TypeError, ValueError):
+        raise ValueError(
+            "adaptar_galpao_para_locacao: vao/comprimento/n_porticos nao "
+            "declarados (sem malha de pilares nao ha locacao)")
+    if not (vao > 0 and comp > 0 and n >= 2):
+        raise ValueError(
+            "adaptar_galpao_para_locacao: malha invalida (vao=%r, "
+            "comprimento=%r, n_porticos=%r)" % (vao, comp, n))
+    try:
+        s = float(rsp.get("s") or (comp / (n - 1)))
+    except (TypeError, ValueError, ZeroDivisionError):
+        raise ValueError(
+            "adaptar_galpao_para_locacao: espacamento entre porticos nao "
+            "derivado (comprimento=%r, n_porticos=%r)" % (comp, n))
+    tipo = ((r or {}).get("tipo_fundacao") or "sapata") \
+        if isinstance(r, dict) else "sapata"
+    por_pilar = {}
+    sigma = None
+    if tipo == "estaca":
+        est = ((r or {}).get("estaca") or {}) if isinstance(r, dict) else {}
+        grupo = (est.get("grupo") or {})
+        cap = (est.get("capacidade") or {})
+        n_est = grupo.get("n")
+        if not n_est:
+            raise ValueError(
+                "adaptar_galpao_para_locacao: fundacao profunda sem grupo "
+                "dimensionado (sem n de estacas nao ha folha PE-CO-04)")
+        try:
+            Ndim_e = float(est.get("N_pilar", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            Ndim_e = 0.0
+        for j in range(n):
+            for lado, i in (("E", 0), ("D", 1)):
+                nome = "P%d%s" % (j + 1, lado)
+                por_pilar[nome] = {
+                    "i": i, "j": j,
+                    "N_dimensionamento_kN": Ndim_e,
+                    "geometria": {"n_estacas": int(n_est),
+                                  "D_m": float(cap.get("D", 0.0) or 0.0),
+                                  "L_m": float(cap.get("L", 0.0) or 0.0),
+                                  "subtipo": "estaca"},
+                }
+    else:
+        sap = ((r or {}).get("sapata") or {}) if isinstance(r, dict) else {}
+        aprovado = sap.get("aprovado")
+        if not aprovado or len(aprovado) < 3:
+            raise ValueError(
+                "adaptar_galpao_para_locacao: sapata nao dimensionada "
+                "nesta rodada (sem sapata aprovada nao ha folha PE-CO-04)")
+        B, L, h = (float(aprovado[0]), float(aprovado[1]),
+                   float(aprovado[2]))
+        rA = (aprovado[3] or {}) if len(aprovado) > 3 else {}
+        cA = (aprovado[4] or {}) if len(aprovado) > 4 else {}
+        try:
+            Ndim = float(cA.get("N", rA.get("N_ext_verificacao",
+                                            rA.get("N_tot", 0.0))))
+        except (TypeError, ValueError):
+            Ndim = 0.0
+        sigma = cA.get("sigma_solo_adm", rA.get("sigma_adm"))
+        for j in range(n):
+            for lado, i in (("E", 0), ("D", 1)):
+                nome = "P%d%s" % (j + 1, lado)
+                por_pilar[nome] = {
+                    "i": i, "j": j,
+                    "N_dimensionamento_kN": Ndim,
+                    "geometria": {"B_m": B, "L_m": L, "h_m": h,
+                                  "subtipo": "isolada"},
+                }
+    # proveniencia: explicita no spec > derivada da sondagem > default
+    # sem sondagem (ausencia declarada, nunca "assumida" calada).
+    ausentes = []
+    tem_spt = bool(spec.get("perfil_spt"))
+    tem_geo = isinstance((r or {}).get("geotecnia"), dict)
+    sigma_default = False
+    if spec.get("sigma_solo_adm") is not None:
+        prov = "declarada no spec (sigma_solo_adm)"
+    elif tem_spt or tem_geo:
+        prov = "derivada da sondagem SPT (geotecnia_spt)"
+    else:
+        prov = ("default 200 kN/m2 sem sondagem declarada "
+                "(confirmar com sondagem)")
+        sigma_default = True
+    cota = spec.get("cota_apoio")
+    if cota is None:
+        ausentes.append(AUSENCIAS_GALPAO_LOCACAO[0])
+    else:
+        try:
+            cota = float(cota)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "adaptar_galpao_para_locacao: cota_apoio nao numerica (%r)"
+                % (cota,))
+    if sigma_default:
+        ausentes.append(AUSENCIAS_GALPAO_LOCACAO[1])
+    fundacao = {"tipo": tipo, "sigma_solo_adm": sigma,
+                "proveniencia_sigma": prov, "cota_apoio_m": cota,
+                "por_pilar": por_pilar}
+    estrutura = {"vaos_x": [vao], "vaos_y": [s] * (n - 1)}
+    return fundacao, estrutura, ausentes
+
+
+def gerar_locacao_galpao(r, path, titulo=None, spec=None):
+    """Escreve a locacao/formas da fundacao do GALPAO (PE-CO-04) em `path`.
+
+    G140: adapta o resultado de `galpao_concreto.rodar` (uma fonte so,
+    sem redimensionar fundacao) e declara na folha os campos que o
+    calculo nao produz. Devolve (path, ausentes)."""
+    fundacao, estrutura, ausentes = adaptar_galpao_para_locacao(r, spec)
+    n = len(fundacao["por_pilar"])
+    rot = "estaca" if fundacao.get("tipo") == "estaca" else "sapata"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(planta_fundacao_svg(
+            fundacao, estrutura,
+            titulo=titulo or ("PE-CO-04 - LOCACAO E FORMAS DA FUNDACAO "
+                              "DO GALPAO (%s ; %d pilares)" % (rot, n)),
+            ausencias=ausentes or None))
+    return path, ausentes

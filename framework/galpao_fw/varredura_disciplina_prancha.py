@@ -6,12 +6,13 @@
 # orquestrador do Loop - declarada em SCRIPTS_AVULSOS no
 # tests/test_alcancabilidade.py, no mesmo molde de varredura_asserts_sequencia.
 #
-# Motivacao (G103): "mezanino" esta em galpao_turnkey.DISCIPLINAS e nao em
-# pacote_legal._PRANCHAS - a disciplina e calculada e evapora no `continue`
+# Motivacao (G103): "mezanino" estava em galpao_turnkey.DISCIPLINAS e nao em
+# pacote_legal._PRANCHAS - a disciplina era calculada e evaporava no `continue`
 # do indice (travado por assert em tests/test_indice_disco_g91.py:304-305,
-# achado registrado e nao consertado). E o D89 espelhado: o D89 conhecido
-# e codigo prometido sem arquivo; este e disciplina entregue sem codigo.
-# Nenhuma lente olhava esse lado.
+# achado registrado e nao consertado). Era o D89 espelhado: o D89 conhecido
+# e codigo prometido sem arquivo; este era disciplina entregue sem codigo.
+# Nenhuma lente olhava esse lado. G141 curou o gap (PE-MZ-01 em _PRANCHAS,
+# ausencia declarada por codigo no laco); a motivacao fica como registro.
 #
 # Maquina: funcao pura, sem AST e sem FreeCAD. Recebe as disciplinas
 # executadas (fonte viva da tipologia), o mapa de pranchas
@@ -37,18 +38,12 @@ import pathlib
 GALPAO = pathlib.Path(__file__).resolve().parent
 
 
-# G103: a unica disciplina executada sem prancha propria conhecida e o
-# mezanino do galpao - mezanino de concreto dentro do envelope metalico
-# (laje+viga+pilar+sapata, NBR 6118, G20), calculado por galpao_mezanino.rodar
-# e federado no BIM, sem folha propria no indice. Parte da estrutura, sem
-# prancha propria: o motivo fica escrito e a excecao e nomeada aqui.
-# Isencao sem motivo (string vazia/branca) e silencio, nao triagem - a
-# mesma regra que derrubou o G77.
+# G141: o mezanino do galpao ganhou entrada em pacote_legal._PRANCHAS
+# (PE-MZ-01, ausencia declarada por codigo sem emissor ligado). A isencao
+# morreu com a cura - disciplina executada agora tem prancha (ou motivo
+# por codigo no laco), e isencao sem gap viraria silencio. Dict vazio =
+# ninguem isento, nunca erro.
 ISENCOES_DISCIPLINA_PRANCHA = {
-    "mezanino": (
-        "mezanino de concreto interior (laje+viga+pilar+sapata, NBR 6118, "
-        "G20), calculado e federado, sem prancha propria no indice; "
-        "detalhamento nao prometido nesta rodada"),
 }
 
 

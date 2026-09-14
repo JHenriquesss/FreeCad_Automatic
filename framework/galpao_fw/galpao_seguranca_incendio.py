@@ -185,7 +185,50 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
     grafico."""
     if backend != "freecad":
         import prancha_svg_direta as PSD
-        return PSD.montar_pranchas_rota_direta(r, out_dir, "incendio", spec=spec)
+        res = PSD.montar_pranchas_rota_direta(r, out_dir, "incendio", spec=spec)
+        if not isinstance(res, dict) or not res.get("ok"):
+            return res
+        # G138: PE-IN-02 a partir do calculo do galpao (sem recalcular
+        # hidrantes; ausencias declaradas na folha). Mesma A1 da rota
+        # (esquema rasterizado + carimbo proprio), basename igual ao da
+        # pagina FreeCAD para o _coletar_pdfs achar sem mudanca.
+        try:
+            import os as _os
+            import desenho_incendio as _di
+            import techdraw_incendio as _tdi
+            _inc, _est, _aus = _di.adaptar_galpao_para_detalhes(r)
+            _svg = _di.detalhes_hidrantes_rotas_svg(
+                _inc, _est, ausencias=_aus, nivel_unico=True)
+            _cfg = _tdi.config_de_spec(r, out_dir, spec)
+            _car = _tdi._carimbo_inc(
+                _cfg, "DETALHES DE HIDRANTES E ROTAS", "PE-INC-03",
+                "S/ESC", "03/03")
+            import fitz as _fitz
+            _doc = _fitz.open()
+            try:
+                _sub = "%s | %s" % (_cfg.get("descricao", "galpao_incendio"),
+                                    _cfg.get("slug", "galpao_incendio"))
+                if not PSD.pagina_esquema_a1(
+                        _doc, _svg, _car,
+                        "PE-INC-03 - DETALHES DE HIDRANTES E ROTAS", _sub):
+                    return {"erro": "detalhes de hidrantes do galpao nao "
+                                    "rasterizaram (svg_para_png)"}
+                _pdf3 = _os.path.join(str(out_dir), "pranchas",
+                                     "INC03_DETALHES.pdf")
+                _doc.save(_pdf3, garbage=3, deflate=True)
+            finally:
+                try:
+                    _doc.close()
+                except Exception:
+                    pass
+            if not _os.path.exists(_pdf3):
+                return {"erro": "PDF de detalhes nao gravado: %s" % _pdf3}
+            res["pranchas"] = list(res.get("pranchas") or []) + [
+                "INC03_DETALHES"]
+            res["arquivos"] = list(res.get("arquivos") or []) + [_pdf3]
+            return res
+        except Exception as exc:
+            return {"erro": "%s: %s" % (type(exc).__name__, exc)}
     import os, json, time, tempfile, subprocess
     import techdraw_incendio as TDI
     import rodar_projeto as RP

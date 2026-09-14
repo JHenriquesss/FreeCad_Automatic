@@ -7,9 +7,10 @@
 # tests/test_alcancabilidade.py, no mesmo molde de varredura_asserts_sequencia.
 #
 # O que foi MEDIDO (G106, 2026-09-11; enderecos verificados na entrega G112):
-#   - o carimbo das pranchas do galpao diz PE-HID-01/02, PE-INC-01/02,
-#     PE-CLI-01/02 (techdraw_hidraulica.py:30,47-48,
-#     techdraw_incendio.py:46,63-64, techdraw_climatizacao.py:25,41-42, e a
+#   - o carimbo das pranchas do galpao diz PE-HID-01/02, PE-INC-01/02/03
+#     (G138: +PE-INC-03 em techdraw_incendio._pr_detalhes), PE-CLI-01/02
+#     (techdraw_hidraulica.py:30,47-48,
+#     techdraw_incendio.py:46,68,84, techdraw_climatizacao.py:25,41-42, e a
 #     rota SVG do G104 em prancha_svg_direta.PRANCHAS, :50-54);
 #   - o indice (pacote_legal._PRANCHAS, :46,47-49,54) promete PE-HI-01..03,
 #     PE-IN-01..03, PE-CL-01. Nao e so o prefixo: PE-HI-02 no indice e
@@ -20,8 +21,10 @@
 #     1518,1669,1737 - _nova_prancha "PE01_COBERTURA".."PE16_MONTAGEM" com
 #     carimbo "PE-01".."PE-16"; PE15_DET_BLOCO, :1008, carimba "-" e nao
 #     conta) contra PE-ES-01..03 do indice; concreto do galpao
-#     (techdraw_concreto.py:78,110,132 - "PE01_FORMAS"/"PE02_PORTICO"/
-#     "PE03_QUADROS" com carimbo "PE-01"/"PE-02"/"PE-03"); eletrico
+#     (techdraw_concreto.py - "PE01_FORMAS"/"PE02_PORTICO"/
+#     "PE03_QUADROS"/"PE04_LOCACAO_FUNDACAO" com carimbo
+#     "PE-01"/"PE-02"/"PE-03"/"PE-04"; G140: a locacao ganha emissor
+#     ligado); eletrico
 #     (techdraw_eletrico.py:46,66,88,110 - "PE01_UNIFILAR".."PE04_QUADROS"
 #     com carimbo "PE-EL-01".."PE-EL-04"); coordenacao
 #     (techdraw_coordenacao.py:43,60 - "COORD01_PLANTA"/"COORD02_CLASH" com
@@ -42,26 +45,30 @@
 # O que a lente NAO cobre, dito aqui (molde DIVIDA-LENTE do G51):
 #   - conteudo da folha (geometria, legibilidade): e de confere_folha_svg
 #     e do censo do G77, nao desta lente (codigo no carimbo nao e desenho);
-#   - arquivos sem literal de carimbo extraivel (ex. PE04_LOCACAO_FUNDACAO,
-#     INC03_DETALHES, INC04_ESCADA no mapa do galpao; todas as .svg da casa
+#   - arquivos sem literal de carimbo extraivel (ex. INC04_ESCADA no mapa
+#     do galpao; todas as .svg da casa
 #     e do predio, cujos emissores desenho_* nao publicam literal de
 #     carimbo): saem em `sem_carimbo_informativo` e NAO afetam o OK -
 #     ausencia declarada, nunca default silencioso (nao-coverture
-#     declarada, nao passe livre);
+#     declarada, nao passe livre). G138: INC03_DETALHES tem literal
+#     extraivel (techdraw_incendio._pr_detalhes) e cobertura 1:1 na tabela,
+#     logo nao cai aqui; G140: PE04_LOCACAO_FUNDACAO tem literal
+#     extraivel (techdraw_concreto._pr_locacao) e cobertura 1:1 na tabela,
+#     logo nao cai aqui;
 #   - indice x disco (arquivo emitido ou nao): e da lente do G91/G102,
 #     nao desta (carimbo x mapa, nao promessa x arquivo).
 #
 # Veredito G112 (segundo ramo do goal: numeracao propria + tabela): os
 # carimbos ficam como estao - o executivo numera as folhas por arquivo de
 # producao (PE-HID/PE-INC/PE-CLI para esquema+quadro; PE-01..PE-16 na
-# sequencia do aco; PE-01..PE-03 na sequencia do concreto; PE-COORD na
+# sequencia do aco; PE-01..PE-04 na sequencia do concreto; PE-COORD na
 # coordenacao) enquanto o indice numera por disciplina
 # (PE-HI/PE-IN/PE-CL/PE-ES/PE-CO/PE-EL/PE-CD). As numeracoes diferem porque
 # (a) um arquivo de esquema cobre N codigos do indice (HID01_ESQUEMA.pdf
-# cobre PE-HI-01/02/03; INC01_PLANTA.pdf cobre PE-IN-01 enquanto PE-IN-02/03
-# nao tem emissor ligado); (b) as folhas de quadro (HID02_QUADRO.pdf com
-# PE-HID-02, INC02_RESUMO.pdf, CLI02_QUADRO.pdf, COORD02_CLASH.pdf com
-# PE-COORD-02) nao tem codigo proprio no indice - PE-HID-02 colide em numero
+# cobre PE-HI-01/02/03; INC01_PLANTA.pdf cobre PE-IN-01 (PE-IN-02 sai em
+# INC03_DETALHES.pdf, G138; PE-IN-03 sem emissor); (b) as folhas de quadro
+# (HID02_QUADRO.pdf com PE-HID-02, INC02_RESUMO.pdf, CLI02_QUADRO.pdf)
+# nao tem codigo proprio no indice - PE-HID-02 colide em numero
 # com PE-HI-02 "Esgoto/ventilacao" mas e outra folha; (c) o aco emite 17
 # folhas contra 3 codigos PE-ES e o carimbo PE-01 esta em dois arquivos
 # distintos (PE01_FORMAS.pdf do concreto e PE01_COBERTURA.pdf do aco);
@@ -69,7 +76,10 @@
 # codigo do indice nessas folhas afirmaria uma cobertura que a folha nao tem
 # (convencao 6: a folha diz o que desenha) - por isso a numeracao propria
 # permanece, e a CORRESPONDENCIA_G112 abaixo diz ao cliente que folha do
-# executivo responde por que codigo(s) do indice. A tabela viaja no
+# executivo responde por que codigo(s) do indice. G137: o aco passa a 17
+# codigos PE-ES (1:1 com as pranchas emitidas); o carimbo de producao
+# (PE-01..PE-16) segue distinto do codigo do indice (PE-ES-..), logo a
+# tabela e as isencoes permanecem. A tabela viaja no
 # pacote-legal.md do galpao (pacote_legal.markdown com correspondencia, via
 # entregaveis_projeto.emitir_pacote_legal); o portao fica verde COM as
 # isencoes escritas (ISENCOES_CARIMBO_MAPA), nunca enfraquecendo a lente.
@@ -96,7 +106,7 @@ RAZAO_NUMERACAO_PROPRIA_G112 = _PACOTE_G112["intro"]
 CORRESPONDENCIA_G112 = _PACOTE_G112["entradas"]
 
 
-# ISENCOES_CARIMBO_MAPA: os 22 arquivos da tabela, com o motivo escrito
+# ISENCOES_CARIMBO_MAPA: os 23 arquivos da tabela, com o motivo escrito
 # (molde G103 de varredura_disciplina_prancha.ISENCOES_DISCIPLINA_PRANCHA:
 # {arquivo: motivo}; motivo vazio/em branco e silencio, nao triagem).
 # Derivada da tabela - uma fonte so, nunca duas listas para divergir.
@@ -301,10 +311,11 @@ def _selftest():
         raise AssertionError("isencoes nao-dict devia levantar")
     except TypeError:
         pass
-    # tabela: 22 entradas (10 fora + 12 sem_mapa do baseline), cada uma com
+    # tabela: 24 entradas (22 + INC03_DETALHES do G138 +
+    # PE04_LOCACAO_FUNDACAO do G140), cada uma com
     # arquivo/carimbo/cobre/motivo; isencoes derivadas 1:1; o renderer conta
     # cada arquivo na secao do cliente.
-    assert len(CORRESPONDENCIA_G112) == 22, len(CORRESPONDENCIA_G112)
+    assert len(CORRESPONDENCIA_G112) == 24, len(CORRESPONDENCIA_G112)
     assert set(ISENCOES_CARIMBO_MAPA) == {e["arquivo"]
                                           for e in CORRESPONDENCIA_G112}
     assert all(str(v or "").strip() for e in CORRESPONDENCIA_G112

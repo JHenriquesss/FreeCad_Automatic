@@ -68,9 +68,12 @@ def test_rota_svg_hidraulica_emite_2_pdfs_a1(tmp_path):
 
 
 def test_rota_svg_incendio_emite_2_pdfs_a1(tmp_path):
+    # G138: a rota do incendio emite 3 PDFs (planta + quadro + PE-IN-02
+    # detalhes de hidrantes adaptados do calculo, sem recalcular).
     res = gsi.montar_pranchas(_r_inc(), str(tmp_path))
     assert res.get("ok") is True, res
-    assert len(res.get("arquivos", [])) == 2, res
+    assert len(res.get("arquivos", [])) == 3, res
+    assert res.get("pranchas", [])[-1] == "INC03_DETALHES", res
     for pdf in res["arquivos"]:
         assert os.path.exists(pdf) and os.path.getsize(pdf) > 0, pdf
 

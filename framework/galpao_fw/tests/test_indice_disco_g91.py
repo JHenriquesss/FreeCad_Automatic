@@ -104,21 +104,26 @@ def _quadro_predio():
 
 
 def _quadro_galpao():
-    """O galpao: mapa real do G93, 19 prometidos, 19 mapeados, lado verde.
+    """O galpao: mapa real do G93, 35 prometidos, 35 mapeados, lado verde.
+    (G137: 19 + 14 do aco; G139: + PE-CD-02 para a segunda folha da
+    coordenacao; G141: + PE-MZ-01 para o mezanino calculado.)
 
     Prometidos = DISCIPLINAS que o turnkey executa (fonte viva,
     galpao_turnkey) filtradas ao vocabulario do indice + coordenacao.
-    "mezanino" evapora no continue do indice (D89) - achado registrado,
-    nao consertado (o pacote faz o mesmo; o laco do G93 confronta a mesma
-    fonte). O disco do quadro e o caso bom (tudo emitido); a rodada real
-    sem uma disciplina marca os codigos dela como pulados nomeados, nunca
-    como buraco - ver tests/test_galpao_indice_g93.py."""
+    "mezanino" promete PE-MZ-01 (G141: ausencia declarada por codigo, sem
+    emissor ligado). O disco do quadro e o caso bom (tudo emitido); a
+    rodada real sem uma disciplina marca os codigos dela como pulados
+    nomeados, nunca como buraco - ver tests/test_galpao_indice_g93.py."""
     import galpao_adapter as ga
     import galpao_turnkey as tk
     import pacote_legal as pl
 
     discos = [d for d in tk.DISCIPLINAS if d in pl._PRANCHAS]
     prometidos = _codigos(discos + ["coordenacao"])
+    # G139: a 2a folha da coordenacao tem codigo proprio, prometido so no
+    # laco do galpao (PE_CD_02_GALPAO; o vocabulario partilhado com o predio
+    # segue com 1 titulo para nao quebrar o 15/15 dele sem cobertura).
+    prometidos = sorted(set(prometidos) | {pl.PE_CD_02_GALPAO["codigo"]})
     mapa = dict(ga._PRANCHA_ARQUIVO_GALPAO)
     return {"prometidos": prometidos, "mapa": mapa,
             "disco": sorted(set(mapa.values())), "motivos": {}}
@@ -137,8 +142,9 @@ def _resultados(quadros=None):
 
 
 # BASELINE_G91 (medido 2026-09-10, commit 72a210e; curado na casa pelo
-# G92 e no galpao pelo G93 em 2026-09-10): as tres tipologias fecham
-# (predio 15/15, casa 17/17, galpao 19/19). Entrada nova aqui = cura de um
+# G92 e no galpao pelo G93 em 2026-09-10; G137 leva o galpao a 33/33;
+# G139 a 34/34 com PE-CD-02):
+# as tres tipologias fecham (predio 15/15, casa 17/17, galpao 33/33). Entrada nova aqui = cura de um
 # lado (o baseline MUDA junto, nunca em silencio); gap novo que coincida
 # com estes e o defeito voltando.
 BASELINE_G91 = {
@@ -295,11 +301,18 @@ def test_06_fontes_independentes_dos_prometidos():
         ["concreto", "eletrico", "hidraulica", "incendio",
          "coordenacao"]) == 15
     assert len(quadros["galpao"]["prometidos"]) == conta(
-        ["concreto", "aco", "eletrico", "hidraulica", "incendio",
-         "climatizacao", "coordenacao"]) == 19
-    # "mezanino" o turnkey executa e o indice nao promete: evapora no
-    # continue (D89). Registrado para o G93; este assert trava o fato.
+        ["concreto", "mezanino", "aco", "eletrico", "hidraulica", "incendio",
+         "climatizacao", "coordenacao"]) + 1 == 35
+    # O +1 e PE-CD-02, prometido so no laco do galpao (PE_CD_02_GALPAO):
+    # o vocabulario partilhado conta 34 titulos e o vivo promete 35. Se a
+    # fronteira encolher em silencio, este teste acusa mesmo com a lente
+    # verde (a conta feita a mao nao deriva do proprio vivo que ela cobra).
+    # G141: "mezanino" o turnkey executa e o indice promete (PE-MZ-01,
+    # ausencia declarada por codigo sem emissor ligado). O gap D89 morreu;
+    # este assert e o portao do comportamento novo.
     import galpao_turnkey as tk
 
     assert "mezanino" in tk.DISCIPLINAS
-    assert "mezanino" not in pl._PRANCHAS
+    assert "mezanino" in pl._PRANCHAS
+    assert pl._PRANCHAS["mezanino"][0] == "PE-MZ"
+    assert "PE-MZ-01" in quadros["galpao"]["prometidos"]

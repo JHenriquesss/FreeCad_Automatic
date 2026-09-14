@@ -712,7 +712,76 @@ def montar_pranchas(r, out_dir, fcstd_path, spec=None, freecad_exe=None,
             os.unlink(boot.name)
         except OSError:
             pass
+    if isinstance(res, dict) and res.get("ok"):
+        # G140: a PE04 sai do TechDraw (_pr_locacao); se ela caiu la dentro
+        # (só ela — as 3 primeiras seguem no res), a rota pura garante a
+        # folha no disco com o mesmo basename, nunca silencio.
+        try:
+            bases = {str(a).replace("\\", "/").split("/")[-1]
+                     for a in (res.get("arquivos") or [])}
+        except Exception:
+            bases = set()
+        if "PE04_LOCACAO_FUNDACAO.pdf" not in bases:
+            try:
+                _pdf4 = gerar_prancha_locacao(r, out_dir, spec)
+                res["pranchas"] = list(res.get("pranchas") or []) + [
+                    "PE04_LOCACAO_FUNDACAO"]
+                res["arquivos"] = list(res.get("arquivos") or []) + [_pdf4]
+            except Exception as exc:                # noqa: BLE001
+                res["locacao_erro"] = "%s: %s" % (type(exc).__name__, exc)
     return res
+
+
+def gerar_prancha_locacao(r, out_dir, spec=None):
+    """Gera a PE04 (locacao/formas da fundacao) em PDF A1 puro-Python.
+
+    G140: a partir do resultado de rodar() (uma fonte so, sem
+    redimensionar), via desenho_fundacao_edificio adaptado + A1 com o
+    carimbo do concreto (mesma via do INC03 no G138). Usada como
+    fallback do montar_pranchas e pelos testes sem freecad.exe.
+    Devolve o caminho do PDF. Levanta ValueError nomeado sem fundacao
+    dimensionada (nunca folha vazia)."""
+    import os as _os
+    import desenho_fundacao_edificio as _dfe
+    import techdraw_concreto as _tdc
+    import prancha_svg_direta as _psd
+    import fitz as _fitz
+
+    _fund, _est, _aus = _dfe.adaptar_galpao_para_locacao(r, spec)
+    _svg = _dfe.planta_fundacao_svg(_fund, _est, ausencias=_aus or None)
+    # carimbo de producao do concreto (PE-04, 04/04 — mesma folha do
+    # TechDraw; fonte unica do numero/titulo).
+    _cfg = {"slug": (spec or {}).get("slug", "galpao_concreto"),
+            "descricao": (spec or {}).get(
+                "descricao",
+                "Galpao de concreto pre-moldado - Projeto Estrutural"),
+            "autor": (spec or {}).get("autor", "galpao_fw"),
+            "fck_MPa": int((r.get("spec") or {}).get("fck_MPa", 30)),
+            "aco": "CA-50",
+            "materiais": None}
+    _car = _tdc._carimbo_conc(_cfg, "LOCACAO E FORMAS DA FUNDACAO",
+                              "PE-04", "S/ESC", "04/04")
+    _doc = _fitz.open()
+    try:
+        _sub = "%s | %s" % (_cfg["descricao"], _cfg["slug"])
+        if not _psd.pagina_esquema_a1(
+                _doc, _svg, _car,
+                "PE-04 - LOCACAO E FORMAS DA FUNDACAO", _sub):
+            raise ValueError(
+                "locacao da fundacao do galpao nao rasterizou "
+                "(svg_para_png)")
+        _pdf = _os.path.join(str(out_dir), "pranchas",
+                             "PE04_LOCACAO_FUNDACAO.pdf")
+        _os.makedirs(_os.path.dirname(_pdf), exist_ok=True)
+        _doc.save(_pdf, garbage=3, deflate=True)
+    finally:
+        try:
+            _doc.close()
+        except Exception:
+            pass
+    if not _os.path.exists(_pdf):
+        raise ValueError("PDF de locacao nao gravado: %s" % _pdf)
+    return _pdf
 
 
 def relatorio_pt(r):

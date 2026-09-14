@@ -233,5 +233,7 @@ def test_montar_caderno_vivo_incendio(tmp_path):
                          "deteccao": {"viga_m": 0.0}, "sprinklers": {"altura_estoque_m": 3.0}},
             "slug": "galpao_turnkey"}
     res = ct.montar_caderno(spec, str(tmp_path), disciplinas=["incendio"], timeout=1100)
-    assert res["n_pranchas"] == 2, res
+    # G138: o incendio emite 3 pranchas (planta + quadro + PE-IN-02 detalhes
+    # de hidrantes adaptados do calculo).
+    assert res["n_pranchas"] == 3, res
     assert os.path.exists(res["path"]) and os.path.getsize(res["path"]) > 0

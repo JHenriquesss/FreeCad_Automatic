@@ -26,13 +26,14 @@ import time
 
 
 ROTULO = {"concreto": "ESTRUTURA DE CONCRETO (NBR 6118/6122)",
+          "mezanino": "MEZANINO DE CONCRETO (NBR 6118, G20)",
           "aco": "ESTRUTURA DE ACO (NBR 8800/6123)",
           "eletrico": "INSTALACOES ELETRICAS (NBR 5410/14039/5419)",
           "incendio": "SEGURANCA CONTRA INCENDIO (NBR 10898/16820/17240/10897)",
           "climatizacao": "CLIMATIZACAO / HVAC (NBR 16401)",
           "hidraulica": "HIDRAULICA PREDIAL (NBR 5626:2020/8160/10844)",
           "coordenacao": "COORDENACAO - MODELO FEDERADO (BIM/IFC4)"}
-ORDEM = ("concreto", "aco", "eletrico", "incendio", "climatizacao", "hidraulica",
+ORDEM = ("concreto", "mezanino", "aco", "eletrico", "incendio", "climatizacao", "hidraulica",
          "coordenacao")
 
 
@@ -52,6 +53,12 @@ _ANCORA_ACO_SEG = 578.0
 # PE04 15,4; PE06 6,4; PE07 7,5; PE08 28,6; PE09 7,6; PE10 12,8; PE11 8,6;
 # PE12 10,7; PE13 12,0; PE14_CROQUIS 4,9; PE16 5,4; PE05 sem numero entao
 # (+ PE05 ≈ 209 s medidos no G118; a ancora segue 578 ate o G114 decidir).
+# G137 (D166, 2026-09-14): re-medido antes de mudar — soma do harness
+# (tools_harness_aco_por_prancha.MEDIDOS_G109: 16 pranchas 578,3 s +
+# PE05 209,4 s = 787,7 s) + modelo 3D ~210 s (D164, ~3,5 min) = ~998 s;
+# D165 mediu 1038,9 s (3D+executivo, freecad sozinho) e 1186,4 s no pytest.
+# A ancora segue 578 (referencia do peso 7,0); o _T_MEDIDO_SEG["aco"] passa
+# a 787,7 (executivo) e o split 3D/executivo passa a proporcional medido.
 # Compativel com os ~15 min do executivo em rodada (06-open-threads T13, a
 # estimativa antiga de 900 s que a ancora usava ate o G113).
 #: piso do peso: peso 0 daria share 0 e timeout 0 (reserva simbolica).
@@ -76,12 +83,30 @@ def peso_medido(t_seg):
 #: tempos MEDIDOS por disciplina (s). So entra aqui o que foi cronometrado,
 #: com a origem escrita. Disciplina sem medicao NAO ganha tempo inventado:
 #: fica com peso literal e o motivo dito na entrada de `_STAGE_WEIGHTS`.
+#: G137: o aco passa de 578 (16 pranchas sem PE05) a 787,7 (16 + PE05 209,4,
+#: MEDIDOS_G109 G109+G118) — o peso deriva sozinho via peso_medido.
 _T_MEDIDO_SEG = {
-    "aco": 578.0,        # D133/G109, as 16 pranchas com numero (+ PE05 no G118)
+    "aco": 787.7,        # G137/D166: 578,3 (G109, 16 pranchas) + 209,4 (G118, PE05)
     "hidraulica": 0.56,  # D125/G104, rota SVG
     "incendio": 0.62,    # D125/G104
     "climatizacao": 0.57,  # D125/G104
+    # G139/D167 (2026-09-14, galpao-tp-g95, 6 disciplinas, 3012 membros,
+    # freecad.exe nesta maquina, processo reiniciado a cada amostra):
+    # render federado 73,6 + 95,6 s; prancha formal 34,8 (1a, freecad morno
+    # apos o render — fora) + 67,8 + 69,8 + 65,7 s (frias, ok=True, 2 PDFs).
+    # O peso usa o MAXIMO (95,6 e 69,8): a 1a suite com a media estourou por
+    # construcao (`timeout 62,4 s na prancha`, G102 sob carga) — a licao do
+    # G137 vale para a coordenacao (prazo que nao cobre o medido estoura
+    # sempre). Sem aco (5 disc, 767 membros): render 20,0 + prancha 15,2 s;
+    # 4 leves (155 membros): 12,1 + 13,0 s. O lote cheio com aco e o que a
+    # producao federada carrega.
+    "coordenacao_render": 95.6,
+    "coordenacao": 69.8,
 }
+
+#: 3D do aco medido (D164, modelo ~3,5 min = 210 s) — o dispatch divide o
+#: stage proporcional ao medido (3D 210 / executivo 787,7), nunca meio a meio.
+_T_MEDIDO_3D_ACO_SEG = 210.0
 
 _STAGE_WEIGHTS = {
     # Aco executa calculo, modelo 3D e executivo no mesmo dispatch.
@@ -101,12 +126,17 @@ _STAGE_WEIGHTS = {
     "hidraulica": peso_medido(_T_MEDIDO_SEG["hidraulica"]),    # 0,0068 -> piso
     "incendio": peso_medido(_T_MEDIDO_SEG["incendio"]),        # 0,0075 -> piso
     "climatizacao": peso_medido(_T_MEDIDO_SEG["climatizacao"]),  # 0,0069 -> piso
-    # Mezanino: sem dispatch de pranchas (`_dispatch_pranchas` devolve
-    # "disciplina sem dispatch de pranchas: mezanino", isenta com motivo no
-    # G103); medido 2026-09-11: 0,0003 s. Peso proporcional seria ~2e-6.
+    # Mezanino: disciplina calculada sem emissor de prancha (G141: ok None
+    # com MOTIVO_MEZANINO_SEM_PRANCHA, PE-MZ-01 pulada com motivo no laco;
+    # antes "sem dispatch", isenta com motivo no G103); medido 2026-09-11:
+    # 0,0003 s. Peso proporcional seria ~2e-6.
     "mezanino": 0.01,        # piso 0,01: reserva para nada vira quase nada
-    "coordenacao_render": 0.5,
-    "coordenacao": 0.75,
+    # G139: pesos medidos, nunca palpite (convencao 8). Render 95,6 s ->
+    # 1,1578; prancha 69,8 s -> 0,8453 (regra peso_medido, ancora 578 s;
+    # maximos das amostras D167). Antes 0,5/0,75 literais (G108) que a
+    # producao lia sem cronometro.
+    "coordenacao_render": peso_medido(_T_MEDIDO_SEG["coordenacao_render"]),
+    "coordenacao": peso_medido(_T_MEDIDO_SEG["coordenacao"]),
 }
 
 
@@ -361,6 +391,17 @@ MOTIVO_EXECUTIVO_ACO_FORA = (
     "D165): calculo, memorial e modelo 3D do aco rodam; as pranchas TechDraw "
     "do aco nao sao geradas")
 
+MOTIVO_COORDENACAO_RECORTE_1 = (
+    "coordenacao nao emitida nesta rodada: recorte de 1 disciplina "
+    "(G139) — a prancha formal PE-CD-01 requer >= 2 disciplinas executadas; "
+    "a coordenacao sai como matriz (coordination-matrix) + pagina do caderno")
+
+MOTIVO_MEZANINO_SEM_PRANCHA = (
+    "mezanino calculado sem prancha dedicada nesta rodada (G141): "
+    "laje+vigas+pilares dimensionados no memorial e federados no BIM "
+    "(membros M-); sem emissor TechDraw ligado ao hook, a PE-MZ-01 sai "
+    "pulada com motivo no laco do galpao")
+
 
 def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
                        executivo_aco=True):
@@ -373,7 +414,13 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
     if nome == "aco":
         import rodar_projeto as RP
         stage_timeout = max(0.01, float(timeout))
-        timeout_3d = stage_timeout / 2.0
+        # G137: split proporcional ao MEDIDO (3D 210 s / executivo 787,7 s),
+        # nunca meio a meio — meio a meio dava 459 s ao executivo dentro de
+        # 1200 s e estourava por construcao (D164/D165).
+        _t3d = float(_T_MEDIDO_3D_ACO_SEG)
+        _tex = float(_T_MEDIDO_SEG["aco"])
+        _frac3d = _t3d / (_t3d + _tex) if (_t3d + _tex) > 0 else 0.5
+        timeout_3d = stage_timeout * _frac3d
         timeout_exec = stage_timeout - timeout_3d
         r = RP.rodar_tudo(dict(sub_spec or {}), out_dir=disc_out, com_3d=True,
                           com_executivo=bool(executivo_aco), gerar_pdf=True,
@@ -414,10 +461,15 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
             return {"erro": "montar_3d concreto nao gerou FCStd", "detalhe": m}
         return gc.montar_pranchas(r_disc, disc_out, fcstd, spec=sub_spec,
                                   freecad_exe=freecad_exe, timeout=timeout)
+    if nome == "mezanino":
+        # G141: disciplina calculada sem dispatch de pranchas - ausencia
+        # declarada (ok None, sem erro), nunca falha; o laco do galpao
+        # nomeia a PE-MZ-01 pulada com o motivo.
+        return {"ok": None, "nao_solicitado": MOTIVO_MEZANINO_SEM_PRANCHA}
     return {"erro": "disciplina sem dispatch de pranchas: %s" % nome}
 
 
-def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=1200,
+def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=2100,
                    R=None, turnkey_result=None, executivo_aco=True):
     """VIVO: roda o turnkey (ou reusa o ja calculado), dispara as pranchas de
     cada disciplina executada (freecad) e mescla tudo num CADERNO unico.
@@ -425,6 +477,12 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     e um prazo global da montagem: cada etapa recebe somente o tempo
     restante, e as etapas que nao couberem sao registradas como timeout
     antes da mesclagem do resultado parcial.
+
+    G137 (D166): default 1200 -> 2100 s. Medido: aco 1038,9 s sozinho
+    (D165, 3D+executivo) + resto 536,3 s sem aco (G102/D165) = 1575 s;
+    2100 da folga ~33 % para variacao de maquina (D165 deu 1186 s no
+    pytest contra 1038 na referencia). COMO-RODAR ja pedia >= 1800 para o
+    lote cheio; sem aco o portao rapido segue em ~536 s (nao usa o teto).
 
     G114: `R` (alias `turnkey_result`) reusa o resultado que o adaptador do
     galpao ja tem do hook (`_run_turnkey` -> `tk.rodar`) e NAO recalcula.
@@ -448,10 +506,15 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
         turnkey_reuso = True
     alvo = [n for n in R["executadas"] if (disciplinas is None or n in disciplinas)]
     pending_stages = list(alvo)
-    if len(R["executadas"]) >= 2:
+    # G139: a coordenacao e de quem RODOU (o recorte), nao de quem existe no
+    # R. Com >= 2 disciplinas no alvo, render + prancha formal entram na
+    # reserva com peso medido; com 1, seguem fora com motivo escrito
+    # (MOTIVO_COORDENACAO_RECORTE_1). Antes: o hook sempre passava o recorte
+    # e a prancha so saia com disciplinas=None — PE-CD-01 nunca emitida.
+    tem_coordenacao = len(alvo) >= 2
+    if tem_coordenacao:
         pending_stages.insert(0, "coordenacao_render")
-        if disciplinas is None:
-            pending_stages.insert(1, "coordenacao")
+        pending_stages.insert(1, "coordenacao")
 
     def reserve_stage(name, cap):
         if name not in pending_stages:
@@ -469,10 +532,11 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
 
     # PRANCHA DE COORDENACAO: clash (interferencia entre disciplinas) + RENDER isometrico
     # do modelo federado + PRANCHA A1 TechDraw formal (planta/elevacao + quadro de clash).
-    # So com >= 2 disciplinas; falha isolada nao derruba o caderno.
+    # G139: so com >= 2 disciplinas NO ALVO (o recorte); falha isolada nao
+    # derruba o caderno; recorte de 1 segue sem, com motivo escrito.
     clash = None
     render_png = None
-    if len(R["executadas"]) >= 2:
+    if tem_coordenacao:
         try:
             clash = tk.checa_interferencia_federada(R, spec)
         except Exception:
@@ -489,21 +553,22 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
                 render_png = next((v for v in vistas if "isometrica" in v), None)
         except Exception:
             render_png = None
-        if disciplinas is None:                           # prancha A1 formal de coordenacao
-            try:
-                coord_out = os.path.join(out_dir, "coordenacao")
-                coord_timeout = reserve_stage("coordenacao", min(timeout, 600))
-                if coord_timeout is None:
-                    status["coordenacao"] = _timeout_status(timeout)
-                else:
-                    status["coordenacao"] = tk.montar_prancha_coordenacao(
-                        R, coord_out, spec=spec, clash=clash,
-                        freecad_exe=freecad_exe, timeout=coord_timeout)
-                    pdfs_coord = _coletar_pdfs(out_dir, "coordenacao")
-                    if pdfs_coord:
-                        pdfs_por_disciplina["coordenacao"] = pdfs_coord
-            except Exception as ex:
-                status["coordenacao"] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
+        try:                                              # prancha A1 formal de coordenacao
+            coord_out = os.path.join(out_dir, "coordenacao")
+            coord_timeout = reserve_stage("coordenacao", min(timeout, 600))
+            if coord_timeout is None:
+                status["coordenacao"] = _timeout_status(timeout)
+            else:
+                status["coordenacao"] = tk.montar_prancha_coordenacao(
+                    R, coord_out, spec=spec, clash=clash,
+                    freecad_exe=freecad_exe, timeout=coord_timeout)
+                pdfs_coord = _coletar_pdfs(out_dir, "coordenacao")
+                if pdfs_coord:
+                    pdfs_por_disciplina["coordenacao"] = pdfs_coord
+        except Exception as ex:
+            status["coordenacao"] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
+    else:
+        status["coordenacao"] = {"ok": None, "nao_solicitado": MOTIVO_COORDENACAO_RECORTE_1}
 
     for nome in alvo:
         disc_out = os.path.join(out_dir, nome)
