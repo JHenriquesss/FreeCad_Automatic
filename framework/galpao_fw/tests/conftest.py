@@ -8,6 +8,87 @@ if GALPAO not in sys.path:
     sys.path.insert(0, GALPAO)
 
 
+def _carrega_censo():
+    # por caminho, sem por tests/ no sys.path (nomes de teste nao sombreiam
+    # modulos de producao)
+    import importlib.util
+
+    caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "censo_freecad.py")
+    spec = importlib.util.spec_from_file_location("_censo_freecad_suite", caminho)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
+_CF = _carrega_censo()
+_AMOSTRADOR = None
+
+
+def _distribuida(config):
+    return bool(getattr(config.option, "numprocesses", None)) \
+        and not hasattr(config, "workerinput")
+
+
+def pytest_configure(config):
+    """D164: sob xdist, o censo do FreeCAD liga sozinho (o controlador cria a
+    pasta antes de subir os workers, que herdam o ambiente)."""
+    global _AMOSTRADOR
+    if _distribuida(config) and not os.environ.get(_CF.ENV_DIR):
+        import tempfile
+
+        os.environ[_CF.ENV_DIR] = tempfile.mkdtemp(prefix="censo_freecad_")
+    pasta = os.environ.get(_CF.ENV_DIR)
+    if pasta and not _distribuida(config):
+        worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+        _AMOSTRADOR = _CF.Amostrador(
+            os.path.join(pasta, "freecad-%s.jsonl" % worker), worker)
+        _AMOSTRADOR.start()
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    """D164: quem sobe freecad vai para um grupo xdist unico (um por vez)."""
+    arquivos = set()
+    for item in items:
+        arq = _CF.arquivo_do_nodeid(item.nodeid)
+        arquivos.add(arq)
+        if arq in _CF.GRUPO_FREECAD:
+            item.add_marker(pytest.mark.xdist_group(name=_CF.NOME_GRUPO))
+    pasta = os.environ.get(_CF.ENV_DIR)
+    if pasta:
+        import json
+
+        worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+        with open(os.path.join(pasta, "coletados-%s.json" % worker), "w",
+                  encoding="utf-8") as fh:
+            json.dump(sorted(arquivos), fh)
+
+
+def pytest_runtest_logstart(nodeid, location):
+    if _AMOSTRADOR is not None:
+        _AMOSTRADOR.atual = nodeid
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Worker: fecha o amostrador. Controlador de corrida distribuida: teste
+    fora do grupo que subiu freecad reprova a corrida (o sentido da isencao
+    morta so vale em corrida inteira e mora em tools/suite_paralela.py)."""
+    if _AMOSTRADOR is not None:
+        _AMOSTRADOR.parar()
+        return
+    pasta = os.environ.get(_CF.ENV_DIR)
+    if pasta and _distribuida(session.config):
+        violacoes, _mortas = _CF.confere_censo(
+            _CF.ler_registros(pasta), _CF.ler_coletados(pasta), False)
+        if violacoes:
+            rep = session.config.pluginmanager.get_plugin("terminalreporter")
+            for linha in violacoes:
+                if rep is not None:
+                    rep.write_line(linha, red=True)
+            session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
 @pytest.fixture
 def turnkey_fixture():
     def make(**overrides):
