@@ -3457,3 +3457,16 @@ opcoes falsas) - 262 passed.
 vazio** (censo do FreeCAD fechado nos dois sentidos, `git status` igual,
 memoria livre minima 594 MB). O skip e o portao de auditoria do aco, com o
 motivo escrito. De 48 min 33 s (serial, D163) para 22 min 04 s.
+
+**Portao de auditoria do aco rodado de verdade (depois do commit 6212192).**
+`GALPAO_AUDITORIA=1 pytest -s tests/test_executivo_aco_completo_d165.py`:
+**2 passed em 1187,2 s**, `CUSTO_D165 executivo_aco_completo=1186.4s`
+(a medicao de referencia, fora do pytest, deu 1038,9 s). As 15 pranchas e as
+12 sem codigo bateram com a baseline nos dois sentidos - o portao dispara e
+fecha na rodada real, nao so no test_01 sintetico.
+
+**Suite serial de referencia (auditoria do lote, `pytest tests` sem o
+runner, BLAS no padrao - o numero bit a bit): 3839 passed, 1 skipped, 0
+falhas, 35 min 13 s.** Mesmas contagens da corrida paralela com 1 thread de
+BLAS (3839 passed, 1 skipped, 22 min 04 s): nenhum veredito depende do
+ultimo ulp.
