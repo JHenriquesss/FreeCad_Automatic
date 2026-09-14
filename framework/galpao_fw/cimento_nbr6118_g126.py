@@ -69,9 +69,11 @@
 #     so o `s` da 12.3.3 para o fckj do icamento do pre-moldado);
 #   - o fckj da PROTENSAO (viga_protendida le `cfg["fckj"]`, default fck,
 #     com A CONFIRMAR no relatorio): nao passa pela 12.3.3 nem pelo cimento;
-#   - o campo ProjetoSpec/wizard do galpao METALICO (to_rodar_params ->
-#     rodar_galpao), que nao tem icamento de pre-moldado: o caminho que
-#     calcula e o project-spec do turnkey (topo ou payload concreto);
+#   - o campo ProjetoSpec/wizard do galpao METALICO (G134: REMOVIDO -
+#     antes to_rodar_params -> rodar_galpao, que nao tem icamento de
+#     pre-moldado e tinha zero leitores; ver chaves_to_rodar_g134 e D162):
+#     o caminho que calcula e o project-spec do turnkey (topo ou payload
+#     concreto);
 #   - PDF do memorial (relatorio_calculo.gerar_pdf): a declaracao mora no
 #     memorial em texto (executivo_concreto.memorial + relatorio_pt), que e
 #     o que o portao confere; o PDF so o reimprime.

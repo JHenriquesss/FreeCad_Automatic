@@ -21,6 +21,7 @@ import math
 import fundacao_sapata as fs
 import fissuracao_nbr6118 as fis
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 GAMMA_C_CONC = 25.0        # peso especifico do concreto armado (kN/m3) - NBR 6118
 GF = 1.4                   # coef. de ponderacao das acoes (ELU, combinacao normal)
@@ -43,7 +44,7 @@ def _verifica_cortante(Vd, b, d, fck, fyk):
     alpha_v2 = 1.0 - fck_MPa / 250.0
     VRd2 = 0.27 * alpha_v2 * fcd * b * d
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
-    fctd_MPa = 0.7 * fctm_MPa / 1.4
+    fctd_MPa = fctd_nbr6118_g136.fctd_MPa(fck_MPa)  # fonte unica G136; gamma_c normal
     Vc = 0.6 * fctd_MPa * 1000.0 * b * d
     fywk_MPa = fyk / 1000.0
     rho_sw_min = 0.2 * fctm_MPa / fywk_MPa if fywk_MPa > 0 else 0.0
@@ -210,11 +211,13 @@ def verifica_baldrame(cfg):
 
 
 def relatorio_pt(r):
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
     def _arr(a):
         return (f"{a['n']} phi {a['phi']:.1f} mm (s={a['s']*1000:.0f} mm, "
                 f"As_ef={a['As_ef']*1e4:.2f} cm2)"
                 if a and a.get("n") else "(detalhar)")
-    L = ["VIGA DE BALDRAME / AMARRACAO (ABNT NBR 6118:2014)",
+    L = ["VIGA DE BALDRAME / AMARRACAO (ABNT %s)" % _rot_ed_g135(),
          f"  Vao entre sapatas = {r['vao']:.2f} m ; secao {r['b']*100:.0f}x{r['h']*100:.0f} cm "
          f"(d={r['d']*100:.0f} cm) ; b_min 12 cm {'OK' if r['b_ok'] else 'REPROVA'}",
          f"  BALDRAME (flexao): w = {r['w']:.3f} kN/m (parede + p.proprio {r['w_self']:.3f}) ; "

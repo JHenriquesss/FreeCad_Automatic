@@ -9,7 +9,10 @@
 # relatorio_calculo, executivo_concreto, projeto_spec, galpao_concreto,
 # rodar_galpao, entregaveis_projeto, desenho_pavimento,
 # desenho_fundacao_edificio + G128: casa_residencial, edificio_adapter,
-# galpao_adapter, desenho_casa_residencial, caderno_encargos) - por isso
+# galpao_adapter, desenho_casa_residencial, caderno_encargos + G135: os 10
+# memoriais que carimbavam a edicao a mao (fundacao_sapata, laje_concreto,
+# pilar_concreto, pilar_continuo, viga_baldrame, viga_baldrame_edificio,
+# viga_concreto, viga_continua, viga_protendida, escada_concreto)) - por isso
 # NAO e script avulso (ver test_alcancabilidade).
 #
 # O que foi MEDIDO (G116/G122, enderecos verificados naquelas entregas):
@@ -31,7 +34,14 @@
 # MODULOS_COM_TROCA/USO_ESPERADO (o portao: nenhum modulo troca por conta
 # propria) + casos C1/C4 que chamam as funcoes REAIS (contra assercao
 # tautologica: o numero 2014 vem da funcao real com a chave em 2014; o
-# 2023+Em1 vem da MESMA funcao real com a chave em 2023+Em1).
+# 2023+Em1 vem da MESMA funcao real com a chave em 2023+Em1) + G135:
+# copias_carimbo_fora_da_fonte/fonte_tem_carimbo/confere_copias (so a fonte
+# contem o texto do carimbo, molde fctm_nbr6118_g127.confere_copias) +
+# rotulos_6118_2014_fora_da_fonte/confere_rotulos (todo "6118:2014" fora
+# daqui e citacao isenta em CITACOES_ISENTAS, com motivo; baseline nos dois
+# sentidos) + G132: edicao_da_peca/carimbo_composicao/confronto_peca_conta
+# (a peca declara a edicao que a SUA conta usou; o carimbo do projeto diz
+# a composicao; o portao parte da conta, nao da chave).
 #
 # O que a lente NAO cobre, dito aqui (molde DIVIDA-LENTE do G51):
 #   - 2014 -> 2023 fora dos 2 pontos (inclui 8.2.5, 6 REGRA-MUDA, EDITORIAL,
@@ -46,6 +56,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 
 GALPAO = pathlib.Path(__file__).resolve().parent
 
@@ -117,7 +128,77 @@ USO_ESPERADO = frozenset({
     "galpao_adapter.py",
     "desenho_casa_residencial.py",
     "caderno_encargos.py",
+    # G135 (a declaracao escrita a mao): os cabecalhos de memorial que
+    # carimbavam "NBR 6118:2014" a mao passam a chamar rotulo_edicao() daqui
+    # (sem a chave, 2014 byte-identico; a composicao por peca com a chave e
+    # do G132). Triagem no verbete D160: carimbo de calculo, nao citacao.
+    "fundacao_sapata.py",
+    "laje_concreto.py",
+    "pilar_concreto.py",
+    "pilar_continuo.py",
+    "viga_baldrame.py",
+    "viga_baldrame_edificio.py",
+    "viga_concreto.py",
+    "viga_continua.py",
+    "viga_protendida.py",
+    "escada_concreto.py",
 })
+
+# G135: o texto do carimbo fora daqui (quase todo em fallback de except que
+# dentro do pacote nunca dispara). So a fonte o contem; copia nova = vermelho.
+RE_CARIMBO_COPIA = re.compile(r"Projeto calculado pela NBR 6118")
+
+# G135: o rotulo "6118:2014" escrito a mao. Carimbos de calculo migraram para
+# rotulo_edicao()/carimbo_edicao()/sufixo_folha_edicao(); o que resta fora
+# daqui e citacao historica isenta (CITACOES_ISENTAS, com motivo) — a
+# composicao por peca com a chave e do G132.
+RE_ROTULO_2014 = re.compile(r"6118:2014")
+
+# Arquivos que podem reter o literal "6118:2014" fora da fonte unica, com o
+# motivo escrito (baseline nos dois sentidos em confere_rotulos: rotulo novo
+# sem triagem = vermelho; isencao sem rotulo = vermelho). Tudo aqui e
+# docstring de metodo / tabela METODOS / clausula-fonte / subtitulo default —
+# nunca o carimbo "Projeto calculado pela ..." (esse e confere_copias).
+CITACOES_ISENTAS = {
+    "compatibilizacao.py":
+        "docstrings Fonte 13.2.5/13.2.5.2/21.3.3 (clausula-fonte do metodo); "
+        "o rotulo de calculo vem da fonte (DECLARACAO_2014 importada)",
+    "desenho_pavimento.py":
+        "subtitulo default = renderizacao do parametro ausente (2014, "
+        "byte-identico); com a chave, _subtitulo_pilares usa a fonte",
+    "escada_concreto.py":
+        "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
+        "memorial vem da fonte",
+    "fissuracao_nbr6118.py":
+        "docstring de metodo 17.3.3.2 (edicao da clausula lida)",
+    "laje_concreto.py":
+        "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
+        "memorial vem da fonte",
+    "perdas_protensao_nbr6118.py":
+        "docstring de metodo 9.6.3 (edicao da clausula lida)",
+    "pilar_concreto.py":
+        "docstrings de metodo (inclui 18.3.3.2); o cabecalho do memorial vem "
+        "da fonte",
+    "pilar_continuo.py":
+        "docstring de metodo (15.6/15.8); o cabecalho do memorial vem da fonte",
+    "puncao_nbr6118.py":
+        "docstring de metodo 19.5 (edicao da clausula lida)",
+    "relatorio_calculo.py":
+        "tabela METODOS (fonte do metodo por modulo, nao carimbo da peca; "
+        "migrar item a item e decisao do usuario, G132 Nao fazer)",
+    "viga_baldrame.py":
+        "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
+        "memorial vem da fonte",
+    "viga_concreto.py":
+        "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
+        "memorial vem da fonte",
+    "viga_continua.py":
+        "docstrings + texto literal de 14.6.6.1-c citado (fonte do metodo); "
+        "o cabecalho do memorial vem da fonte",
+    "viga_protendida.py":
+        "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
+        "memorial vem da fonte",
+}
 
 
 def normaliza_edicao(edicao):
@@ -299,6 +380,94 @@ def limite_furo_viga_mm(edicao=None, forma_furo=None):
     return LIMITE_FURO_2014_MM
 
 
+# ---- G132: a peca declara a edicao que a SUA conta usou --------------------
+# Medido (G131, remedido no G132 nas 3 tipologias com a chave em 2023+Em1
+# injetada em memoria): as folhas PE-CO e o caderno dizem 2023+Em1 enquanto
+# o memorial da sapata (adapter-result.json) diz 2014 - e o memorial esta
+# certo: nenhuma conta da casa troca com a chave. Casa: 4 folhas + pacote
+# + caderno em 2023, 61 pendencias de conflito em 2023, sapata em 2014.
+# Predio: 4 folhas + pacote + caderno em 2023, 126 furo_previsto em 2023
+# (81 de laje 13.2.5.2, sem troca; 45 de viga 13.2.5.1, COM troca),
+# sapata em 2014. Galpao: 2 folhas + pacote + caderno em 2023, 688
+# conflito + 282 montagem em 2023. So 2 pontos leem a chave
+# (MODULOS_COM_TROCA); todo o resto calcula pela 2014 com qualquer chave.
+# Regra: peca sem conta que troca declara 2014; o carimbo do projeto diz
+# a composicao; o portao parte da conta, nao da chave. Nao migra item
+# nenhum nem vira a chave em spec do repo.
+
+
+def edicao_da_peca(edicao_projeto, usa_troca):
+    """Edicao que a conta da peca usou (G132, fonte unica).
+
+    `edicao_projeto`: a declarada no projeto (None = ausente, hoje).
+    `usa_troca`: True quando a conta da peca le um dos 2 pontos de
+    MODULOS_COM_TROCA (fckj do icamento 12.3.3; furo em viga 13.2.5.1).
+    Peca sem conta que troca declara 2014, mesmo com a chave em 2023+Em1.
+    Sem a chave, 2014 (o comportamento de hoje). Edicao invalida levanta
+    (nunca vira edicao em silencio).
+    """
+    if edicao_projeto is None:
+        return "2014"
+    canon = normaliza_edicao(edicao_projeto)
+    if usa_troca:
+        return canon
+    return "2014"
+
+
+def carimbo_composicao(edicao=None):
+    """Carimbo do projeto: a composicao (G132, fonte unica).
+
+    Sem a chave (ou 2014 explicita): o carimbo de hoje, byte a byte (sem
+    a chave, a saida e byte-identica). Com 2023+Em1: 2014 + os itens que
+    seguem a 2023+Em1 (os pontos de MODULOS_COM_TROCA, listados daqui -
+    uma fonte so, sem literal da lista fora daqui).
+    """
+    if edicao is None:
+        return carimbo_edicao(None)
+    canon = normaliza_edicao(edicao)
+    if canon == "2014":
+        return carimbo_edicao("2014")
+    itens = " e ".join("%s (%s)" % (clausula, modulo)
+                       for modulo, clausula in MODULOS_COM_TROCA)
+    return ("Projeto calculado pela %s, exceto %s pela %s "
+            "(edicao declarada no projeto: %s)"
+            % (DECLARACAO_2014, itens, DECLARACAO_2023_EM1, canon))
+
+
+def contem_composicao(texto, edicao=None):
+    """O documento traz o carimbo de composicao do projeto? (G132).
+
+    True quando o texto contem o carimbo_composicao da edicao (substring
+    estavel). Devolve {'tem'}; o portao do projeto (pacote/caderno) usa
+    este, nao o confronto por peca (a composicao com a chave contem as
+    duas edicoes de proposito).
+    """
+    return {"tem": carimbo_composicao(edicao) in str(texto or "")}
+
+
+def confronto_peca_conta(texto, edicao_projeto, usa_troca):
+    """Portao da peca a partir da conta (G132, fonte unica).
+
+    OK so quando a peca declara a edicao que a SUA conta usou
+    (edicao_da_peca): folha que diz 2023+Em1 numa peca sem conta que
+    troca reprova nomeando os dois lados; peca sem declaracao reprova.
+    """
+    esperada = edicao_da_peca(edicao_projeto, usa_troca)
+    c = contem_declaracao(texto)
+    if not c["tem"]:
+        return {"OK": False, "esperada": esperada, "declarada": None,
+                "motivo": "peca sem declaracao da edicao (exigido G132: "
+                          "a peca declara a edicao que a sua conta usou)"}
+    if c["edicao"] != esperada:
+        return {"OK": False, "esperada": esperada,
+                "declarada": c["edicao"],
+                "motivo": "peca declara %s, mas a sua conta usou %s "
+                          "(projeto em %s)" % (c["edicao"], esperada,
+                                               edicao_projeto)}
+    return {"OK": True, "esperada": esperada, "declarada": c["edicao"],
+            "motivo": ""}
+
+
 def contem_declaracao(texto):
     """A peca declara por qual edicao foi calculada? (portao por substring).
 
@@ -419,6 +588,106 @@ def confere_uso_edicao(raiz=None, esperado=None):
             "tem": sorted(tem)}
 
 
+def copias_carimbo_fora_da_fonte(raiz=None):
+    """Modulos com o texto do carimbo fora da fonte unica (molde G127).
+
+    Varre `*.py` da raiz (fora de comentario `#`; docstring conta como
+    codigo) e devolve {modulo: [linhas]} sem a fonte unica. Existe para o
+    portao provar o vermelho num diretorio temporario sem mutar o repo.
+    """
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    achados = {}
+    for caminho in sorted(base.glob("*.py")):
+        if caminho.name == "edicao_nbr6118_g123.py":
+            continue
+        try:
+            linhas = caminho.read_text(encoding="utf-8",
+                                        errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, linha in enumerate(linhas, 1):
+            codigo = linha.split("#", 1)[0]
+            if RE_CARIMBO_COPIA.search(codigo):
+                achados.setdefault(caminho.stem, []).append(i)
+    return achados
+
+
+def fonte_tem_carimbo(raiz=None):
+    """A fonte unica ainda contem o texto do carimbo? (contra remocao)."""
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    caminho = base / "edicao_nbr6118_g123.py"
+    try:
+        texto = caminho.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return any(RE_CARIMBO_COPIA.search(ln.split("#", 1)[0])
+               for ln in texto.splitlines())
+
+
+def confere_copias(raiz=None):
+    """Portao 'nenhuma copia do carimbo fora da fonte' (molde G127).
+
+    OK so quando ha ZERO copias fora da fonte unica E a fonte contem o
+    carimbo (baseline nos dois sentidos: copia nova = vermelho; carimbo
+    apagado da fonte = vermelho). `copias` e `fonte_apagada` sao os
+    acumuladores que o teste faz disparar.
+    """
+    copias = copias_carimbo_fora_da_fonte(raiz)
+    apagada = not fonte_tem_carimbo(raiz)
+    return {"OK": not (copias or apagada), "copias": copias,
+            "fonte_apagada": bool(apagada)}
+
+
+def rotulos_6118_2014_fora_da_fonte(raiz=None):
+    """Arquivos com o literal '6118:2014' fora da fonte unica.
+
+    Mesmo varrimento do censo de copias (fora de comentario `#`). Devolve
+    {arquivo: [linhas]} com o `.py` (nao o stem), sem a fonte unica. O
+    portao (confere_rotulos) tria contra CITACOES_ISENTAS.
+    """
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    achados = {}
+    for caminho in sorted(base.glob("*.py")):
+        if caminho.name == "edicao_nbr6118_g123.py":
+            continue
+        try:
+            linhas = caminho.read_text(encoding="utf-8",
+                                        errors="replace").splitlines()
+        except OSError:
+            continue
+        for i, linha in enumerate(linhas, 1):
+            codigo = linha.split("#", 1)[0]
+            if RE_ROTULO_2014.search(codigo):
+                achados.setdefault(caminho.name, []).append(i)
+    return achados
+
+
+def confere_rotulos(raiz=None, esperado=None):
+    """Portao 'todo 6118:2014 fora da fonte e citacao isenta triada'.
+
+    OK so quando todo arquivo com o literal esta em CITACOES_ISENTAS E toda
+    isencao ainda tem o literal no disco (baseline nos dois sentidos:
+    `extras` = rotulo novo sem triagem; `faltando` = isencao sem rotulo ou
+    arquivo sumido = vermelho). O carimbo-sentenca continua em
+    confere_copias: arquivo isento com o carimbo reprova la tambem.
+    """
+    esp = set(CITACOES_ISENTAS) if esperado is None else set(esperado)
+    tem = rotulos_6118_2014_fora_da_fonte(raiz)
+    extras = sorted(set(tem) - esp)
+    base = pathlib.Path(raiz) if raiz is not None else GALPAO
+    try:
+        no_disco = {p.name for p in base.glob("*.py")}
+    except OSError:
+        no_disco = set(tem) | esp
+    ausentes = sorted(a for a in esp if a not in no_disco)
+    sem_rotulo = sorted(a for a in esp
+                        if a in no_disco and a not in tem)
+    faltando = sorted(set(ausentes) | set(sem_rotulo))
+    return {"OK": not (extras or faltando), "extras": extras,
+            "faltando": faltando, "ausentes": ausentes,
+            "sem_rotulo": sem_rotulo, "tem": sorted(tem)}
+
+
 def caso_c1_furo_circular():
     """13.2.5.1-b no mesmo caso do repo pelas duas edicoes (funcao REAL).
 
@@ -466,13 +735,26 @@ def main() -> int:
              len(USO_ESPERADO)))
     print("carimbo (sem parametro): %s" % carimbo_edicao(None))
     print("carimbo (2023+Em1): %s" % carimbo_edicao("2023+Em1"))
+    print("composicao (sem parametro): %s" % carimbo_composicao(None))
+    print("composicao (2023+Em1): %s" % carimbo_composicao("2023+Em1"))
+    print("peca sem troca com a chave: %s" % edicao_da_peca("2023+Em1", False))
+    print("peca com troca com a chave: %s" % edicao_da_peca("2023+Em1", True))
+    c = confere_copias()
+    print("copias do carimbo fora da fonte=%r fonte_apagada=%s"
+          % (c["copias"], c["fonte_apagada"]))
+    t = confere_rotulos()
+    print("rotulos 6118:2014 fora da fonte=%r extras=%r faltando=%r"
+          % (t["tem"], t["extras"], t["faltando"]))
+    u = confere_uso_edicao()
+    print("uso OK=%s extras=%r faltando=%r" % (u["OK"], u["extras"],
+                                               u["faltando"]))
     c1 = caso_c1_furo_circular()
     print("C1 furo125 circular: 2014=%s 2023+Em1=%s"
           % (c1["veredito_2014"], c1["veredito_2023_em1"]))
     c4 = caso_c4_fckj_c60()
     print("C4 fckj C60/CPIII/7d: 2014=%.0f 2023+Em1=%.0f kN/m2"
           % (c4["fckj_2014_kNm2"], c4["fckj_2023_em1_kNm2"]))
-    return 0
+    return 0 if (c["OK"] and t["OK"] and u["OK"]) else 1
 
 
 if __name__ == "__main__":

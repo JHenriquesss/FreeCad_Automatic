@@ -356,23 +356,36 @@ def montar_caderno_de_pdfs(pdfs_por_disciplina, out_pdf, R, spec, clash=None,
 
 
 # ------------------------------------------------------------- orquestracao VIVA
-def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
+MOTIVO_EXECUTIVO_ACO_FORA = (
+    "executivo de aco nao solicitado nesta rodada (opcao executivo_aco=False, "
+    "D165): calculo, memorial e modelo 3D do aco rodam; as pranchas TechDraw "
+    "do aco nao sao geradas")
+
+
+def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
+                       executivo_aco=True):
     """Dispara o montar_pranchas da disciplina (freecad.exe). eletrico/concreto
     precisam do montar_3d antes (a prancha e' vista do 3D); incendio nao (esquema);
     aco vai pelo pipeline proprio (rodar_projeto.rodar_tudo: calc + 3D + executivo)
-    que escreve as PE*.pdf em disc_out/pranchas. Retorna o dict de status."""
+    que escreve as PE*.pdf em disc_out/pranchas. Retorna o dict de status.
+    D165: executivo_aco=False roda o aco sem o executivo e devolve o status
+    "nao solicitado" (ok None, sem erro): ausencia declarada, nao falha."""
     if nome == "aco":
         import rodar_projeto as RP
         stage_timeout = max(0.01, float(timeout))
         timeout_3d = stage_timeout / 2.0
         timeout_exec = stage_timeout - timeout_3d
         r = RP.rodar_tudo(dict(sub_spec or {}), out_dir=disc_out, com_3d=True,
-                          com_executivo=True, gerar_pdf=True, gerar_dossie=False,
-                          verbose=False, timeout_3d=timeout_3d,
-                          timeout_exec=timeout_exec)
+                          com_executivo=bool(executivo_aco), gerar_pdf=True,
+                          gerar_dossie=False, verbose=False,
+                          timeout_3d=timeout_3d, timeout_exec=timeout_exec)
+        atende = r.get("atende") if isinstance(r, dict) else None
+        if not executivo_aco:
+            return {"ok": None, "nao_solicitado": True,
+                    "executivo": {"nao_solicitado": MOTIVO_EXECUTIVO_ACO_FORA},
+                    "atende": atende}
         ex = (r.get("executivo") if isinstance(r, dict) else None) or {}
-        return {"ok": bool(ex.get("ok")), "executivo": ex,
-                "atende": (r.get("atende") if isinstance(r, dict) else None)}
+        return {"ok": bool(ex.get("ok")), "executivo": ex, "atende": atende}
     if nome == "incendio":
         import galpao_seguranca_incendio as gsi
         return gsi.montar_pranchas(r_disc, disc_out, spec=sub_spec,
@@ -405,7 +418,7 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout):
 
 
 def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=1200,
-                   R=None, turnkey_result=None):
+                   R=None, turnkey_result=None, executivo_aco=True):
     """VIVO: roda o turnkey (ou reusa o ja calculado), dispara as pranchas de
     cada disciplina executada (freecad) e mescla tudo num CADERNO unico.
     `disciplinas` (opc) restringe o subconjunto (ex. ['incendio']). O timeout
@@ -503,7 +516,7 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
             try:
                 status[nome] = _dispatch_pranchas(
                     nome, r_disc, disc_out, spec.get(nome), freecad_exe,
-                    stage_timeout)
+                    stage_timeout, executivo_aco=executivo_aco)
             except Exception as ex:
                 status[nome] = {"erro": "%s: %s" % (type(ex).__name__, ex)}
         pdfs_por_disciplina[nome] = _coletar_pdfs(out_dir, nome)
@@ -517,6 +530,7 @@ def montar_caderno(spec, out_dir, disciplinas=None, freecad_exe=None, timeout=12
     res["elapsed_seconds"] = max(0.0, _monotonic() - started)
     res["timed_out"] = any(_contains_timeout(item) for item in status.values())
     res["turnkey_reuso"] = bool(turnkey_reuso)
+    res["executivo_aco"] = bool(executivo_aco)
     return res
 
 

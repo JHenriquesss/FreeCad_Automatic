@@ -15,11 +15,19 @@ Entregue:
   3. CADERNO: gerar_caderno/markdown/caderno_de_turnkey ganham `edicao`
      (a "NBR 6118" sai com a da conta + secao de declaracao, sempre);
      pacote de casa/predio recebe o spec (o do galpao, o projeto declarado).
-  4. PORTAO (test_01/02/03): rodada real das 3 tipologias x 2 chaves.
-  5. INJECAO (test_04/05, tmp_path, nunca o repo): folha 2014 com chave
-     2023+Em1 reprova no confronto; o furo 125 so muda com a chave.
-  6. BASELINE (test_06, nos dois sentidos): defaults byte-identicos, 19
-     usos, 2 pontos intactos (8.2.5 fora, G123).
+   4. PORTAO (test_01/02/03): rodada real das 3 tipologias x 2 chaves.
+   5. INJECAO (test_04/05, tmp_path, nunca o repo): folha 2014 com chave
+      2023+Em1 reprova no confronto; o furo 125 so muda com a chave.
+   6. BASELINE (test_06, nos dois sentidos): defaults byte-identicos, 19
+      usos, 2 pontos intactos (8.2.5 fora, G123).
+
+G132 (a edicao que se declara inteira trocando dois pontos): o portao
+passa a partir da CONTA, nao da chave (fonte unica confronto_peca_conta
++ contem_composicao). Folha de desenho nao calcula nenhum dos 2 pontos
+de troca: declara 2014 com qualquer chave; pacote e caderno trazem a
+composicao do projeto; pendencia declara por categoria (so furo
+transversal em viga segue a chave). test_01/02/03/05/06/09 atualizados;
+o detalhe por peca mora em tests/test_edicao_peca_conta_g132.py.
 
 O que este goal NAO faz: virar a chave em projeto nenhum do repo (a
 injecao e em copia na memoria + tmp_path); migrar a 8.2.5 (segue 2014
@@ -61,20 +69,16 @@ def _rodada(nome, tmp_path, edicao=None, opcoes=None):
     return run_project(spec, destino, opcoes), destino
 
 
-def _confronto_folha_edicao(texto, edicao_esperada):
-    """A folha declara a edicao que a conta usou? (portao do aceite).
+def _confronto_peca_conta(texto, edicao_projeto, usa_troca):
+    """A peca declara a edicao que a SUA conta usou? (portao do aceite).
 
-    OK so quando ha declaracao e ela e a esperada ('ambas' = citacao
-    obsoleta junto do carimbo, reprova). Sem declaracao reprova nomeando
-    (o mesmo molde do confere_peca do G123)."""
-    c = lente.contem_declaracao(texto)
-    if not c["tem"]:
-        return {"OK": False,
-                "motivo": "folha sem declaracao da edicao (exigido G128)"}
-    if c["edicao"] != edicao_esperada:
-        return {"OK": False,
-                "motivo": "folha declara %s com o projeto em %s"
-                          % (c["edicao"], edicao_esperada)}
+    G132: delega a fonte unica (confronto_peca_conta). OK so quando ha
+    declaracao e ela e a da conta ('ambas' = composicao onde devia haver
+    peca, reprova). Sem declaracao reprova nomeando (o mesmo molde do
+    confere_peca do G123)."""
+    r = lente.confronto_peca_conta(texto, edicao_projeto, usa_troca)
+    if not r["OK"]:
+        return {"OK": False, "motivo": r["motivo"]}
     return {"OK": True, "motivo": ""}
 
 
@@ -102,8 +106,16 @@ def _pecas_concreto(nome, destino):
     return pecas, faltando
 
 
-def _confere_rodada(nome, destino, edicao_esperada, com_desenhos=True):
-    """Um assert so por rodada: folhas + pacote + caderno + pendencias."""
+def _confere_rodada(nome, destino, edicao_chave, com_desenhos=True):
+    """Um assert so por rodada: folhas (conta) + pacote/caderno (projeto)
+    + pendencias (conta por categoria).
+
+    G132: a folha de desenho nao calcula nenhum ponto de troca: declara
+    2014 com qualquer chave (usa_troca=False). Pacote e caderno trazem a
+    composicao do projeto (contem_composicao: com a chave, as duas
+    edicoes de proposito). Pendencia declara o que a sua conta citou:
+    2023+Em1 so onde as clausulas citam 2023 (furo transversal em viga,
+    13.2.5.1); fora disso - laje, conflito, montagem - 2014."""
     quebras = []
     if com_desenhos:
         pecas, faltando = _pecas_concreto(nome, destino)
@@ -114,7 +126,7 @@ def _confere_rodada(nome, destino, edicao_esperada, com_desenhos=True):
             quebras.append("folhas PE-CO do predio=%d, esperado 4"
                            % len(pecas))
         for arquivo, texto in sorted(pecas.items()):
-            r = _confronto_folha_edicao(texto, edicao_esperada)
+            r = _confronto_peca_conta(texto, edicao_chave, False)
             if not r["OK"]:
                 quebras.append("%s: %s" % (arquivo, r["motivo"]))
     for doc in ("pacote-legal.md", "caderno-encargos.md"):
@@ -124,41 +136,55 @@ def _confere_rodada(nome, destino, edicao_esperada, com_desenhos=True):
             continue
         with open(caminho, encoding="utf-8") as fh:
             texto = fh.read()
-        r = _confronto_folha_edicao(texto, edicao_esperada)
-        if not r["OK"]:
-            quebras.append("%s: %s" % (doc, r["motivo"]))
-        if edicao_esperada == "2014" and "nao declarada" not in texto:
+        if not lente.contem_composicao(texto, edicao_chave)["tem"]:
+            quebras.append("%s sem a composicao do projeto (%s)"
+                           % (doc, edicao_chave or "ausente"))
+        if edicao_chave is None and "nao declarada" not in texto:
             quebras.append("%s esconde a ausencia (sem 'nao declarada')"
                            % doc)
     caminho = os.path.join(destino, "coordination", "pendencias.json")
     if os.path.isfile(caminho):
         with open(caminho, encoding="utf-8") as fh:
             pends = json.load(fh)
-        outras = sorted({p.get("edicao_6118") for p in pends
-                         if p.get("edicao_6118") != edicao_esperada})
-        if outras:
-            quebras.append("pendencias com edicao %r (esperado %s)"
-                           % (outras, edicao_esperada))
+        for p in pends:
+            e_furo = p.get("categoria") == "furo_previsto"
+            e_viga = str(p.get("tipos") or "").startswith("Beam")
+            cita_2023 = any("2023" in cl
+                            for cl in (p.get("clausulas") or []))
+            if cita_2023 and not (e_furo and e_viga):
+                quebras.append("%s cita 2023 fora de furo em viga "
+                               "(categoria %s, tipos %s)"
+                               % (p.get("id"), p.get("categoria"),
+                                  p.get("tipos")))
+            esperado = "2023+Em1" if (cita_2023
+                                      and edicao_chave == "2023+Em1") \
+                else "2014"
+            if p.get("edicao_6118") != esperado:
+                quebras.append("%s declara %r, mas a sua conta citou %s"
+                               % (p.get("id"), p.get("edicao_6118"),
+                                  "2023" if cita_2023 else "2014"))
     return quebras
 
 
 def test_01_rodada_casa_ausente_e_2023(tmp_path):
-    """Casa de verdade x 2 chaves: toda peca de concreto declara a da conta."""
+    """Casa de verdade x 2 chaves: folha declara a da conta (2014, sem
+    troca); pacote/caderno trazem a composicao; pendencias, a da conta."""
     quebras = []
-    for chave, esperada in ((None, "2014"), ("2023+Em1", "2023+Em1")):
+    for chave in (None, "2023+Em1"):
         _man, destino = _rodada("casa", tmp_path, edicao=chave)
         quebras.extend("[casa %s] %s" % (chave or "ausente", q)
-                       for q in _confere_rodada("casa", destino, esperada))
+                       for q in _confere_rodada("casa", destino, chave))
     assert not quebras, "G128 casa:\n" + "\n".join(quebras)
 
 
 def test_02_rodada_predio_ausente_e_2023(tmp_path):
-    """Predio de verdade x 2 chaves: toda peca de concreto declara a da conta."""
+    """Predio de verdade x 2 chaves: folha declara a da conta (2014, sem
+    troca); pacote/caderno trazem a composicao; furo em viga, a chave."""
     quebras = []
-    for chave, esperada in ((None, "2014"), ("2023+Em1", "2023+Em1")):
+    for chave in (None, "2023+Em1"):
         _man, destino = _rodada("predio", tmp_path, edicao=chave)
         quebras.extend("[predio %s] %s" % (chave or "ausente", q)
-                       for q in _confere_rodada("predio", destino, esperada))
+                       for q in _confere_rodada("predio", destino, chave))
     assert not quebras, "G128 predio:\n" + "\n".join(quebras)
 
 
@@ -168,9 +194,10 @@ def test_03_rodada_galpao_ausente_e_2023(tmp_path):
     Sem 2D (o emissor de desenho do galpao e do G123, ja coberto la com
     2D; aqui valem as pranchas SVG puro-Python + os documentos). A chave
     chega ao calculo do concreto (o normalize nao a carregava ao turnkey):
-    com 2023+Em1 as folhas do calculo declaram 2023+Em1."""
+    G132, as folhas do calculo declaram a da conta (2014, sem troca) e o
+    pacote/caderno trazem a composicao."""
     quebras = []
-    for chave, esperada in ((None, "2014"), ("2023+Em1", "2023+Em1")):
+    for chave in (None, "2023+Em1"):
         _man, destino = _rodada("galpao", tmp_path, edicao=chave,
                                 opcoes={"generate_ifc": False,
                                         "generate_2d": False})
@@ -181,12 +208,12 @@ def test_03_rodada_galpao_ausente_e_2023(tmp_path):
                                % (chave or "ausente", arquivo))
                 continue
             with open(caminho, encoding="utf-8") as fh:
-                r = _confronto_folha_edicao(fh.read(), esperada)
+                r = _confronto_peca_conta(fh.read(), chave, False)
             if not r["OK"]:
                 quebras.append("[galpao %s] %s: %s"
                                % (chave or "ausente", arquivo, r["motivo"]))
         quebras.extend("[galpao %s] %s" % (chave or "ausente", q)
-                       for q in _confere_rodada("galpao", destino, esperada,
+                       for q in _confere_rodada("galpao", destino, chave,
                                                 com_desenhos=False))
     assert not quebras, "G128 galpao:\n" + "\n".join(quebras)
 
@@ -240,26 +267,31 @@ def test_04_furo_125_muda_so_com_a_chave():
     if r_s["categoria"] != "conflito":
         quebras.append("sem hint virou %r, esperado conflito"
                        % (r_s["categoria"],))
+    # G132: pendencia sem conta que troca declara 2014 mesmo com a chave.
+    if r_s["edicao_6118"] != "2014":
+        quebras.append("conflito com 2023+Em1 declara %r, esperado 2014 "
+                       "(a conta nao troca)" % (r_s["edicao_6118"],))
     assert not quebras, "G128 furo 125:\n" + "\n".join(quebras)
 
 
 def test_05_vermelho_por_injecao_em_tmp_path(tmp_path):
-    """tmp_path, nunca o repo: 2014 com chave 2023 reprova; sem declaracao
+    """tmp_path, nunca o repo (G132: o confronto parte da conta): 2023
+    numa peca sem troca reprova; a intacta (2014) passa; sem declaracao
     reprova; edicao invalida levanta em toda porta nova."""
     quebras = []
-    # Folha 2023+Em1 adulterada para 2014: o confronto acusa nomeando.
-    boa = lente.carimbo_edicao("2023+Em1")
-    adulterada = boa.replace(lente.DECLARACAO_2023_EM1,
-                             lente.DECLARACAO_2014)
-    r = _confronto_folha_edicao(adulterada, "2023+Em1")
+    # Folha 2014 adulterada para 2023+Em1: o confronto da conta acusa.
+    boa = lente.carimbo_edicao("2014")
+    adulterada = boa.replace(lente.DECLARACAO_2014,
+                             lente.DECLARACAO_2023_EM1)
+    r = _confronto_peca_conta(adulterada, "2023+Em1", False)
     if r["OK"]:
-        quebras.append("folha 2014 com chave 2023 devia reprovar")
-    elif "2014" not in r["motivo"] or "2023+Em1" not in r["motivo"]:
+        quebras.append("folha 2023 em peca sem troca devia reprovar")
+    elif "2023+Em1" not in r["motivo"] or "2014" not in r["motivo"]:
         quebras.append("motivo nao nomeia os dois lados: %r" % (r["motivo"],))
     # A intacta passa; a sem declaracao reprova.
-    if not _confronto_folha_edicao(boa, "2023+Em1")["OK"]:
+    if not _confronto_peca_conta(boa, "2023+Em1", False)["OK"]:
         quebras.append("folha intacta devia passar")
-    if _confronto_folha_edicao("concreto sem norma", "2014")["OK"]:
+    if _confronto_peca_conta("concreto sem norma", "2014", False)["OK"]:
         quebras.append("folha sem declaracao devia reprovar")
     # "NBR 6118" sem edicao no caderno reprova (a ausencia que o G128 achou).
     if lente.contem_declaracao("**Normas:** NBR 6118, NBR 9062")["tem"]:
@@ -274,7 +306,10 @@ def test_05_vermelho_por_injecao_em_tmp_path(tmp_path):
                    {"raw_spec": {"norma_6118_edicao": "2015"}}),
                lambda: cp.gerar_pendencias(rep, edicao="2015"),
                lambda: ce.gerar_caderno(["concreto"], edicao="2015"),
-               lambda: dp.prancha_armacao_pilares_svg({}, edicao="2015")):
+               lambda: dp.prancha_armacao_pilares_svg({}, edicao="2015"),
+               lambda: lente.edicao_da_peca("2015", False),
+               lambda: lente.carimbo_composicao("2015"),
+               lambda: lente.confronto_peca_conta(boa, "2015", False)):
         try:
             fn()
             quebras.append("edicao invalida devia levantar: %r" % (fn,))
@@ -286,7 +321,8 @@ def test_05_vermelho_por_injecao_em_tmp_path(tmp_path):
 
 
 def test_06_baseline_nos_dois_sentidos():
-    """Defaults byte-identicos; 19 usos; 2 pontos intactos (8.2.5 fora)."""
+    """Defaults byte-identicos; 29 usos (19 + os 10 memoriais do G135);
+    2 pontos intactos (8.2.5 fora)."""
     import caderno_encargos as ce
     import compatibilizacao as cp
     import desenho_fundacao_edificio as dfe
@@ -300,9 +336,13 @@ def test_06_baseline_nos_dois_sentidos():
         quebras.append("sufixo fundacao mudou: %r" % (dfe._sufixo_edicao(),))
     if dp._subtitulo_pilares() != dp._SUBTITULO_PILARES:
         quebras.append("subtitulo default mudou")
-    if "NBR 6118:2023 + Emenda 1:2026" not in dp._subtitulo_pilares(
-            "2023+Em1"):
-        quebras.append("subtitulo 2023 sem Emenda 1")
+    # G132: a folha declara a da conta (sem troca, 2014 com qualquer
+    # chave): o subtitulo e o sufixo com a chave rendem o literal de hoje.
+    if dp._subtitulo_pilares("2023+Em1") != dp._SUBTITULO_PILARES:
+        quebras.append("subtitulo com chave devia declarar 2014 (G132)")
+    if dp._sufixo_edicao("2023+Em1") != " (NBR 6118:2014)":
+        quebras.append("sufixo com chave devia declarar 2014 (G132): %r"
+                       % (dp._sufixo_edicao("2023+Em1"),))
     if [n for n in ce.gerar_caderno()["normas_referenciadas"]
             if n == "NBR 6118"]:
         quebras.append("caderno default ainda tem NBR 6118 sem edicao")
@@ -313,7 +353,8 @@ def test_06_baseline_nos_dois_sentidos():
     p = cp.gerar_pendencias({"clashes": []})
     if p != []:
         quebras.append("pendencias vazias mudaram: %r" % (p,))
-    # ...e a peca diz qual e: 19 usos, 2 pontos, 2 edicoes.
+    # ...e a peca diz qual e: 29 usos, 2 pontos, 2 edicoes (19 do G128 +
+    # os 10 memoriais fiados no G135, que chamam rotulo_edicao() da fonte).
     esp = {"edicao_nbr6118_g123.py", "premoldado_nbr9062.py",
            "compatibilizacao.py", "desenho_concreto.py",
            "techdraw_concreto.py", "pacote_legal.py", "relatorio_calculo.py",
@@ -322,7 +363,12 @@ def test_06_baseline_nos_dois_sentidos():
            "desenho_pavimento.py", "desenho_fundacao_edificio.py",
            "casa_residencial.py", "edificio_adapter.py",
            "galpao_adapter.py", "desenho_casa_residencial.py",
-           "caderno_encargos.py"}
+           "caderno_encargos.py",
+           "fundacao_sapata.py", "laje_concreto.py",
+           "pilar_concreto.py", "pilar_continuo.py",
+           "viga_baldrame.py", "viga_baldrame_edificio.py",
+           "viga_concreto.py", "viga_continua.py",
+           "viga_protendida.py", "escada_concreto.py"}
     if set(lente.USO_ESPERADO) != esp:
         quebras.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                        % (sorted(esp - set(lente.USO_ESPERADO)),
@@ -351,6 +397,9 @@ def test_07_pacote_e_caderno_lem_spec():
     md = pl.markdown(pac)
     if "NBR 6118:2023 + Emenda 1:2026" not in md:
         quebras.append("pacote 2023 sem carimbo no markdown")
+    # G132: o pacote diz a composicao (os itens + o resto), nao so a chave.
+    if not lente.contem_composicao(md, "2023+Em1")["tem"]:
+        quebras.append("pacote 2023 sem a composicao do projeto")
     pac0 = pl.gerar_pacote(["concreto"], spec={})
     if "nao declarada" not in pl.markdown(pac0):
         quebras.append("pacote sem chave esconde a ausencia")
@@ -444,7 +493,7 @@ def test_09_topo_x_payload_divergentes_falham_com_motivo(tmp_path):
         quebras.append("mesma edicao nos dois lugares nao emitiu pacote")
     else:
         with open(caminho, encoding="utf-8") as fh:
-            r = _confronto_folha_edicao(fh.read(), "2023+Em1")
-        if not r["OK"]:
-            quebras.append("pacote com a mesma edicao: %s" % r["motivo"])
+            # G132: o pacote diz a composicao do projeto (nao peca unica).
+            if not lente.contem_composicao(fh.read(), "2023+Em1")["tem"]:
+                quebras.append("pacote com a mesma edicao sem composicao")
     assert not quebras, "G131 edicao topo x payload:" + nl + nl.join(quebras)

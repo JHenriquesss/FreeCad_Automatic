@@ -499,28 +499,23 @@ def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO", spec=None,
     hoje = datetime.date.today().strftime("%d/%m/%Y")
     fluxo = []
 
-    # G123: carimbo da edicao (fonte unica; explicito vence, senao spec,
-    # senao hoje declarado). O texto do consolidado ja carimba; a capa
-    # repete para o PDF ser peca declarada sozinho (portao por texto).
-    try:
-        from edicao_nbr6118_g123 import (
-            carimbo_edicao as _car_ed_g123,
-            edicao_de_spec as _ed_spec_g123,
-            normaliza_edicao as _norm_ed_g123,
-        )
-        _ed_pdf = None
-        if edicao is not None:
-            _ed_pdf = _norm_ed_g123(edicao)
-        elif isinstance(spec, dict):
-            try:
-                _ed_pdf = _ed_spec_g123(spec)
-            except ValueError:
-                raise
-        _linha_ed_pdf = _car_ed_g123(_ed_pdf)
-    except ImportError:
-        _linha_ed_pdf = ("Projeto calculado pela NBR 6118:2014 (comportamento "
-                         "atual; edicao nao declarada no projeto — assumida "
-                         "2014)")
+    # G123/G135: carimbo da edicao (fonte unica; explicito vence, senao spec,
+    # senao hoje declarado; sem copia literal aqui). O texto do consolidado
+    # ja carimba; a capa repete para o PDF ser peca declarada sozinho.
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _car_ed_g123,
+        edicao_de_spec as _ed_spec_g123,
+        normaliza_edicao as _norm_ed_g123,
+    )
+    _ed_pdf = None
+    if edicao is not None:
+        _ed_pdf = _norm_ed_g123(edicao)
+    elif isinstance(spec, dict):
+        try:
+            _ed_pdf = _ed_spec_g123(spec)
+        except ValueError:
+            raise
+    _linha_ed_pdf = _car_ed_g123(_ed_pdf)
 
     # ---- CAPA ----
     fluxo += [Spacer(1, 45 * mm),

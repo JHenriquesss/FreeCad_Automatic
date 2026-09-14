@@ -404,25 +404,41 @@ def test_05_fontes_producao_le_fonte_unica_e_sem_parametro_e_piso():
                      % (lente.linha_cimento("cpii"),))
     # A entrada declara sem inventar: ProjetoSpec opcional, invalido
     # bloqueia, wizard repassa cru.
-    if PS.novo()["cimento"] is not None:
-        lados.append("ProjetoSpec.cimento devia nascer None (opcional)")
+    # G134/D162 (baseline com motivo escrito): o cimento SAIU do
+    # ProjetoSpec/wizard do galpao METALICO - o rodar_galpao nunca lia a
+    # chave (zero leitores; ver chaves_to_rodar_g134 e o guarda
+    # test_chaves_to_rodar_g134). novo() nasce sem a chave; legado
+    # ausente/None/"" segue OK; valor explicito (mesmo valido) BLOQUEIA
+    # com o caminho certo (project-spec do turnkey); o wizard nao pergunta
+    # mais (resposta legada explicita levanta). O cimento do turnkey segue
+    # lido (test_06 aqui + test_05 do G134).
+    if "cimento" in PS.novo():
+        lados.append("G134: ProjetoSpec.cimento devia ter saido do novo()")
     s = PS.novo()
     s["cimento"] = "CPII"
-    if any(p == "cimento" for p, _d in PS.validar(s)["faltando"]):
-        lados.append("cimento valido nao devia faltar")
+    if "cimento" not in [p for p, _d in PS.validar(s)["faltando"]]:
+        lados.append("G134: cimento explicito no metalico devia bloquear "
+                     "(declarar no turnkey)")
+    else:
+        _msg = dict(PS.validar(s)["faltando"]).get("cimento", "")
+        if "G134" not in _msg and "turnkey" not in _msg.lower():
+            lados.append("G134: bloqueio sem o motivo escrito: %r" % (_msg,))
     s["cimento"] = "XYZ"
     if not any(p == "cimento" for p, _d in PS.validar(s)["faltando"]):
         lados.append("cimento invalido devia bloquear no validar")
     import wizard as WZ
     base_r = dict(area_lote_m2=1200, span=10, comprimento=20, eave=6,
                   v0=40, sigma_solo=200, fund_tipo="sapata")
-    if WZ.construir_spec(base_r)["cimento"] is not None:
-        lados.append("wizard sem resposta devia dar None (piso dito)")
-    if WZ.construir_spec(dict(base_r, cimento="CPV"))["cimento"] != "CPV":
-        lados.append("wizard devia repassar o cimento cru")
-    if not PS.validar(WZ.construir_spec(
-            dict(base_r, cimento="CPV")))["ok"]:
-        lados.append("wizard com CPV devia validar")
+    if "cimento" in WZ.construir_spec(base_r):
+        lados.append("G134: wizard sem resposta nao escreve mais cimento")
+    try:
+        WZ.construir_spec(dict(base_r, cimento="CPV"))
+        lados.append("G134: wizard com cimento explicito devia levantar")
+    except ValueError as _exc:
+        if "G134" not in str(_exc) and "turnkey" not in str(_exc).lower():
+            lados.append("G134: wizard levantou sem o motivo: %r" % (_exc,))
+    if not PS.validar(WZ.construir_spec(base_r))["ok"]:
+        lados.append("wizard sem cimento devia validar")
     assert not lados, "fontes G126 reprovam:\n" + "\n".join(lados)
 
 

@@ -1548,32 +1548,26 @@ def _consolidar(out_dir, save, g, params, res=None):
         carimbo = FW.carimbo_versao()
     except Exception:
         carimbo = "framework galpao_fw"
-    # G123: o consolidado carimba a edicao de calculo (fonte unica; sem o
-    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    # G123/G135: o consolidado carimba a edicao de calculo (fonte unica;
+    # sem o parametro, o comportamento e o de hoje - 2014 - e a folha diz
+    # qual e; sem copia literal aqui).
+    from edicao_nbr6118_g123 import (
+        carimbo_edicao as _car_ed_g123,
+        edicao_de_resultado as _ed_res_g123,
+        edicao_de_spec as _ed_spec_g123,
+    )
+    _ed_cfg = None
     try:
-        from edicao_nbr6118_g123 import (
-            carimbo_edicao as _car_ed_g123,
-            edicao_de_spec as _ed_spec_g123,
-        )
-        _ed_cfg = None
+        _ed_cfg = _ed_spec_g123(params) if isinstance(params, dict) else None
+    except ValueError:
+        raise
+    # O resultado tambem pode carregar a edicao (galpao_concreto.rodar).
+    if _ed_cfg is None and isinstance(res, dict):
         try:
-            _ed_cfg = _ed_spec_g123(params) if isinstance(params, dict) else None
+            _ed_cfg = _ed_res_g123(res)
         except ValueError:
             raise
-        # O resultado tambem pode carregar a edicao (galpao_concreto.rodar).
-        if _ed_cfg is None and isinstance(res, dict):
-            try:
-                from edicao_nbr6118_g123 import (
-                    edicao_de_resultado as _ed_res_g123)
-                _ed_cfg = _ed_res_g123(res)
-            except ValueError:
-                raise
-            except ImportError:
-                pass
-        _linha_ed = _car_ed_g123(_ed_cfg)
-    except ImportError:
-        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
-                     "atual; edicao nao declarada no projeto — assumida 2014)")
+    _linha_ed = _car_ed_g123(_ed_cfg)
     L = ["=" * 70, f"MEMORIAL CONSOLIDADO - GALPAO {g['comprimento']:.0f}x{g['span']:.0f} m",
          f"{carimbo} - CONCEITUAL, PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
          _linha_ed,

@@ -146,6 +146,10 @@ class ProjectLoopOptions:
     freecad_exe: str | None = None
     timeout_seconds: int = 1200
     readiness: dict[str, Any] | None = None
+    # D165: o executivo de aco do galpao (TechDraw, ~787 s medidos) pode ficar
+    # fora da rodada - a folha sai pulada com a causa nomeada, nunca em
+    # silencio. Padrao True: a entrega de producao nao muda.
+    executivo_aco: bool = True
 
     @classmethod
     def from_value(cls, value: "ProjectLoopOptions | dict[str, Any] | None"):
@@ -178,6 +182,7 @@ class ProjectLoopOptions:
             "freecad_exe": self.freecad_exe,
             "timeout_seconds": self.timeout_seconds,
             "readiness": copy.deepcopy(self.readiness),
+            "executivo_aco": self.executivo_aco,
         }
 
 

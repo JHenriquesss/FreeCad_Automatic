@@ -91,8 +91,12 @@ ISENCOES_EXTRA = {
 # maquina de desenvolvimento, generate_ifc desligado. O test_01 imprime o
 # custo de cada rodada; o test_05 trava este registro. Se o portao ficar
 # mais lento que o teto, ele reprova em vez de apodrecer em silencio.
-CUSTO_MEDIDO_SEG = {"casa": 2.4, "predio": 28.9, "galpao": 1048.3}
-CUSTO_MEDIDO_EM = "2026-09-12"
+# D165 (2026-09-13, corrida isolada com -s, maquina livre): com o galpao sem
+# o executivo de aco, CUSTO_G102 casa=2.0s predio=6.3s galpao=536.3s
+# total=544.6s, 9 passed em 551,5 s (antes: galpao 1048,3 s, ~460 s deles
+# esperando o corte do executivo de aco que nunca terminava).
+CUSTO_MEDIDO_SEG = {"casa": 2.0, "predio": 6.3, "galpao": 536.3}
+CUSTO_MEDIDO_EM = "2026-09-13"
 CUSTO_TETO_SEG = 1800
 
 # G121: o teto do portao media so tempo, e o que matava era memoria (G113:
@@ -105,8 +109,10 @@ CUSTO_TETO_SEG = 1800
 # isolada com -s (maquina de 8 GB, ~2,5 GB livres, sem processo orfao):
 # o galpao mora no freecad.exe (1819,7 de 1988,8 MB); casa/predio nao
 # sobem freecad.exe (rota SVG pura).
-CUSTO_MEDIDO_MEM_MB = {"casa": 107.0, "predio": 143.6, "galpao": 1988.8}
-CUSTO_MEDIDO_MEM_EM = "2026-09-12"
+# D165 (mesma corrida): MEM_G102 casa=112.5MB predio=207.5MB
+# galpao=1616.8MB(proc=195.1,fc=1486.5,n=1).
+CUSTO_MEDIDO_MEM_MB = {"casa": 112.5, "predio": 207.5, "galpao": 1616.8}
+CUSTO_MEDIDO_MEM_EM = "2026-09-13"
 # Teto de memoria: 2500 MB por rodada (pico medido 1988,8 + ~25 % de
 # folga). Motivo, como o teto de tempo tem: a maquina tem 8 GB e o SO +
 # fundo comem ~2 GB; o teto deixa a rodada respirar e ainda reprova
@@ -137,7 +143,15 @@ _OPCOES = {
     # pela rota SVG sem freecad.exe e PE-HI/PE-IN/PE-CL sao confrontados
     # com o disco de verdade (antes, generate_2d=False media so indice x
     # mapa no galpao, D130).
-    "galpao": {"generate_ifc": False, "generate_2d": True},
+    # D165: sem o executivo de aco. Com ele o portao era sorteio de relogio
+    # (D164): PE01+PE02+PE03 = 458,4 s medidos contra 459 s de prazo; quando
+    # PE02/PE03 chegavam ao disco antes do corte saiam sem codigo e o portao
+    # reprovava. O executivo nunca terminava na rodada de teste (~8 min
+    # esperando o corte). Aqui as folhas de aco saem puladas com a causa
+    # nomeada (test_09 cobra); o executivo completo tem portao proprio
+    # (test_executivo_aco_completo_d165.py, na auditoria).
+    "galpao": {"generate_ifc": False, "generate_2d": True,
+               "executivo_aco": False},
 }
 
 
@@ -326,6 +340,19 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
         lado, res, no_disco, mapa, prometidos, _discs = _confronta(
             nome, manifesto, destino, desenhos)
         gaps.extend("[%s] %s" % (nome, g) for g in lado)
+        if nome == "galpao":
+            # D165: sem o executivo de aco, cada folha de aco sai pulada com a
+            # causa nomeada - nunca o motivo generico "nao gravou o PDF".
+            import galpao_adapter as _ga
+
+            arquivos_aco = {arq for cod, arq in _ga._PRANCHA_ARQUIVO_GALPAO.items()
+                            if cod.startswith("PE-ES-")}
+            for pulo in desenhos.get("skipped") or []:
+                if (isinstance(pulo, dict) and pulo.get("prancha") in arquivos_aco
+                        and "executivo_aco=False" not in (pulo.get("motivo") or "")):
+                    gaps.append("[galpao] folha de aco %s pulada sem a causa "
+                                "executivo_aco=False (D165): %r"
+                                % (pulo.get("prancha"), pulo.get("motivo")))
         if nome == "galpao" and "PE-IN-03" not in prometidos:
             disp = [d.get("codigo")
                     for d in (desenhos.get("dispensadas") or [])]
@@ -576,6 +603,56 @@ def test_07_memoria_teto_acusa_em_tmp_path(tmp_path):
     alto = mm.veredito_memoria(medido, medido + 10000.0)
     assert alto is None, (medido, alto)
     assert mm.veredito_memoria(None, 0.01) is None
+
+
+def test_09_sem_executivo_aco_declara_a_causa_vermelho_nos_dois_sentidos(
+        monkeypatch):
+    """D165: a opcao executivo_aco=False chega ao dispatch do aco (o
+    rodar_tudo recebe com_executivo=False e o status diz nao solicitado, nao
+    falha) e cada folha PE-ES pulada nomeia a causa. Com a opcao ligada, a
+    causa NAO aparece (vermelho no outro sentido) e o dispatch pede o
+    executivo. Sem FreeCAD: rodar_tudo por monkeypatch."""
+    import caderno_turnkey as ct
+    import galpao_adapter as ga
+    import project_loop as pl_loop
+    import rodar_projeto as RP
+
+    lados = []
+    pedidos = []
+
+    def falso_rodar_tudo(spec, out_dir=None, **kw):
+        pedidos.append(kw.get("com_executivo"))
+        return {"atende": True, "executivo": {"ok": True}}
+
+    monkeypatch.setattr(RP, "rodar_tudo", falso_rodar_tudo)
+    fora = ct._dispatch_pranchas("aco", {}, "x", {}, None, 10.0,
+                                 executivo_aco=False)
+    dentro = ct._dispatch_pranchas("aco", {}, "x", {}, None, 10.0)
+    if pedidos != [False, True]:
+        lados.append("com_executivo repassado errado: %r" % (pedidos,))
+    if not (fora.get("nao_solicitado") is True and fora.get("ok") is None
+            and "executivo_aco=False" in fora["executivo"]["nao_solicitado"]):
+        lados.append("status sem executivo nao declara: %r" % (fora,))
+    if dentro.get("ok") is not True or "nao_solicitado" in dentro:
+        lados.append("status com executivo mudou: %r" % (dentro,))
+    indice = [{"codigo": c, "titulo": c} for c in ("PE-ES-01", "PE-EL-01")]
+    sem = ga._conferir_indice_galpao(indice, ga._PRANCHA_ARQUIVO_GALPAO, [],
+                                     sem_executivo_aco=True)
+    com = ga._conferir_indice_galpao(indice, ga._PRANCHA_ARQUIVO_GALPAO, [])
+    motivos_sem = {p["prancha"]: p["motivo"] for p in sem}
+    motivos_com = {p["prancha"]: p["motivo"] for p in com}
+    if "executivo_aco=False" not in motivos_sem.get("PE04_PORTICO.pdf", ""):
+        lados.append("aco sem executivo sem causa: %r" % (motivos_sem,))
+    if "executivo_aco=False" in motivos_sem.get("PE01_UNIFILAR.pdf", ""):
+        lados.append("causa do aco vazou para o eletrico: %r" % (motivos_sem,))
+    if any("executivo_aco=False" in m for m in motivos_com.values()):
+        lados.append("causa aparece com o executivo ligado: %r" % (motivos_com,))
+    padrao = pl_loop.ProjectLoopOptions()
+    if padrao.executivo_aco is not True or not padrao.to_dict()["executivo_aco"]:
+        lados.append("padrao de producao mudou: %r" % (padrao,))
+    if _OPCOES["galpao"].get("executivo_aco") is not False:
+        lados.append("portao voltou a esperar o executivo: %r" % (_OPCOES,))
+    assert not lados, "D165:\n" + "\n".join(lados)
 
 
 def test_08_medidor_acusa_freecad_nao_mensuravel(monkeypatch):

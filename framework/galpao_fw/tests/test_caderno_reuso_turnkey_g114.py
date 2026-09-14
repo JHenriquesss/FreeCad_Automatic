@@ -175,7 +175,8 @@ def test_04_adaptador_passa_turnkey_result(tmp_path, monkeypatch):
                    "project_id": "g114", "adapter": "galpao"}
     opcoes = type("O", (), {"generate_2d": True, "generate_caderno": False,
                             "timeout_seconds": 10, "freecad_exe": None,
-                            "folga_mm": 0.0, "vol_min_mm3": 0.0})()
+                            "folga_mm": 0.0, "vol_min_mm3": 0.0,
+                            "executivo_aco": True})()
     turnkey = _R_minimo(executadas=("incendio",))
     ga._emit_drawings(manifesto, str(run_dir), normalizado, opcoes, turnkey)
     assert capturado.get("R") is turnkey, (

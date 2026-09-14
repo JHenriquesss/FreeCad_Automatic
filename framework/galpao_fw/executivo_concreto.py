@@ -20,14 +20,12 @@ import math
 
 import fundacao_sapata as fs
 
-try:
-    from edicao_nbr6118_g123 import (
-        carimbo_edicao as _carimbo_ed_g123,
-        edicao_de_resultado as _edicao_de_r_g123,
-    )
-except ImportError:
-    _carimbo_ed_g123 = None
-    _edicao_de_r_g123 = None
+from edicao_nbr6118_g123 import (
+    carimbo_composicao as _composicao_ed_g132,
+    carimbo_edicao as _carimbo_peca_g132,
+    edicao_da_peca as _edicao_da_peca_g132,
+    edicao_de_resultado as _edicao_de_r_g123,
+)
 
 _BITOLAS_LONG = [10.0, 12.5, 16.0, 20.0, 25.0]      # bitolas longitudinais (mm)
 PESO_ML = 0.00617                                   # kg/m por mm^2 de bitola (7850 kg/m3)
@@ -175,17 +173,15 @@ def resumo_aco(r, quadro=None):
 
 def relatorio_quadro_pt(r):
     q = quadro_de_aco(r); res = resumo_aco(r, q)
-    # G123: o quadro carimba a edicao de calculo (fonte unica).
+    # G123/G135: o quadro carimba a edicao de calculo (fonte unica, sem copia
+    # literal aqui).
+    # G132: o quadro e peca sem conta que troca (lista de aco, sem 12.3.3
+    # nem 13.2.5.1): declara 2014 com qualquer chave.
     try:
-        _ed = _edicao_de_r_g123(r) if _edicao_de_r_g123 else None
+        _ed = _edicao_da_peca_g132(_edicao_de_r_g123(r), False)
     except ValueError:
         raise
-    _car = (_carimbo_ed_g123(_ed) if _carimbo_ed_g123 else
-            ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
-             "edicao nao declarada no projeto — assumida 2014)"
-             if not _ed else
-             ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
-              "projeto)" % _ed)))
+    _car = _carimbo_peca_g132(_ed)
     L = ["QUADRO DE ACO - GALPAO DE CONCRETO (NBR 6118)",
          "  %s" % _car,
          "  Elemento    | Pos          | phi(mm) |   n  | comp(m) | peso(kg)",
@@ -228,15 +224,12 @@ def memorial(r):
     else:
         viga_rel = vc.relatorio_pt(r["viga"])
     try:
-        _ed = _edicao_de_r_g123(r) if _edicao_de_r_g123 else None
+        _ed = _edicao_de_r_g123(r)
     except ValueError:
         raise
-    _car = (_carimbo_ed_g123(_ed) if _carimbo_ed_g123 else
-            ("Projeto calculado pela NBR 6118:2014 (comportamento atual; "
-             "edicao nao declarada no projeto — assumida 2014)"
-             if not _ed else
-             ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
-              "projeto)" % _ed)))
+    # G132: o memorial compoe secoes com troca (icamento 12.3.3) e sem
+    # troca (viga/pilar/sapata): o cabecalho diz a composicao do projeto.
+    _car = _composicao_ed_g132(_ed)
     partes = ["=" * 66,
               "MEMORIAL DE CALCULO - GALPAO DE CONCRETO PRE-MOLDADO",
               _car,

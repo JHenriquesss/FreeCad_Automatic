@@ -437,6 +437,15 @@ ISENTAS = {
         "G126: helper de nota consumido pelas 2 folhas do galpao em FOLHAS; "
         "nao e emissor de folha - portao proprio em "
         "tests/test_cimento_nbr6118_g126.py",
+    # G133: devolve as 2-3 linhas de nota da protensao (fonte unica)
+    # CONSUMIDAS pelas folhas desenho_concreto.prancha_armacao_svg e
+    # planta_formas_svg (ambas em FOLHAS); nao emite folha - o portao
+    # proprio e o G133 (tests/test_protensao_fck_g133.py, test_01 confere
+    # as 2 SVG inteiras).
+    "desenho_concreto._linhas_protensao_svg":
+        "G133: helper de nota consumido pelas 2 folhas do galpao em FOLHAS; "
+        "nao e emissor de folha - portao proprio em "
+        "tests/test_protensao_fck_g133.py",
     # G129: embrulho puro do estimador (parse XML + ordenacao dos pares),
     # CONSUMIDO pelo portao do censo (tests/test_colisoes_censo_g129.py);
     # nao emite folha - o portao proprio e o G129 (confere_censo com
@@ -625,9 +634,14 @@ def test_prancha_de_armacao_acompanha_a_altura_da_secao():
     # baseline no outro sentido: com a altura FIXA de antes, a peca alta
     # estouraria - e a baixa nao. Foi por isso que o defeito passou despercebido:
     # dependia de qual fixture a pessoa abrisse.
+    # G126/G133: o rodape declara o cimento (ALTURA_LINHA_CIMENTO) e a
+    # protensao (ALTURA_LINHA_PROTENSAO); a referencia historica de 380 px
+    # vale para a secao + cota, sem os blocos de declaracao.
     ALTURA_FIXA_ANTIGA = 380.0
     assert y_alto > ALTURA_FIXA_ANTIGA, y_alto
-    assert y_baixo <= ALTURA_FIXA_ANTIGA, y_baixo
+    import desenho_concreto as _dc_alt
+    assert y_baixo <= (ALTURA_FIXA_ANTIGA + _dc_alt.ALTURA_LINHA_CIMENTO
+                       + _dc_alt.ALTURA_LINHA_PROTENSAO), y_baixo
 
 
 def test_nota_c55_c90_nao_pisa_na_cota_da_secao():

@@ -14,15 +14,17 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 - [[07-nbr6118-2023-em1-impacto-g116]] — inventário G116: 51 itens 2014 → 2023+Em1, 4 casos, Tabela 2 (D141)
 
 ## Fila de trabalho (goals executáveis)
-- **Fila aberta: [BACKLOG-GOALS-G132-G136.md](../BACKLOG-GOALS-G132-G136.md)** (5 goals,
-  medidos no G131). As filas anteriores foram consumidas e ficam como registro — não
+- **Fila aberta: [BACKLOG-GOALS-G137-G142.md](../BACKLOG-GOALS-G137-G142.md)** (6 goals,
+  medidos na auditoria D165: as folhas que o galpão promete e não emite). As filas anteriores
+  foram consumidas e ficam como registro — não
   reexecutar: [BACKLOG-GOALS.md](../BACKLOG-GOALS.md) (G78–G88, D106–D117),
   [BACKLOG-GOALS-G91-G97.md](../BACKLOG-GOALS-G91-G97.md) (G91–G97, D118–D124),
   [BACKLOG-GOALS-G99-G105.md](../BACKLOG-GOALS-G99-G105.md) (G99–G105, D125–D132),
   [BACKLOG-GOALS-G107-G112.md](../BACKLOG-GOALS-G107-G112.md) (G107–G112, D133–D139),
   [BACKLOG-GOALS-G114-G118.md](../BACKLOG-GOALS-G114-G118.md) (G114–G118, D140–D145) e
   [BACKLOG-GOALS-G120-G124.md](../BACKLOG-GOALS-G120-G124.md) (G120–G124, D146–D151) e
-  [BACKLOG-GOALS-G126-G130.md](../BACKLOG-GOALS-G126-G130.md) (G126–G130, D152–D157). O levantamento vivo está em [BACKLOG.md](../BACKLOG.md).
+  [BACKLOG-GOALS-G126-G130.md](../BACKLOG-GOALS-G126-G130.md) (G126–G130, D152–D157) e
+  [BACKLOG-GOALS-G132-G136.md](../BACKLOG-GOALS-G132-G136.md) (G132–G136, D159–D163, D165). O levantamento vivo está em [BACKLOG.md](../BACKLOG.md).
 
 > Wiki mantida na estrutura do skill (00–07 + revisoes/). Relatórios de trabalho (`PR_45_46_Review`, `PR_47_Review`, `PR_49_Review`, `PR_51_54_Review`, `PR_55_61_Review`) foram **consolidados aqui e integrados** — precedente: 2026-07-15 (07-/08-/review_completo) e 2026-07-21 (PR_44_Review).
 

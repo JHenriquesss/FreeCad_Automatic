@@ -269,8 +269,11 @@ def dimensiona(cfg, espessuras=(0.08, 0.09, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20))
 
 def relatorio(r):
     """Memoria de calculo da escada de concreto."""
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
     g = r["geometria"]
-    L = ["ESCADA DE CONCRETO ARMADO - ABNT NBR 6118:2014 (laje armada em uma direcao)",
+    L = ["ESCADA DE CONCRETO ARMADO - ABNT %s (laje armada em uma direcao)"
+         % _rot_ed_g135(),
          "  Geometria: %d degraus ; espelho %.1f cm ; piso %.1f cm ; "
          "Blondel 2e+p = %.1f cm ; inclinacao %.1f graus"
          % (g["n_degraus"], g["espelho"] * 100, g["piso"] * 100, g["blondel"] * 100,

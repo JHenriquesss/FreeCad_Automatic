@@ -342,7 +342,8 @@ def emitir_caderno_encargos(manifest, run_dir, normalized, options, turnkey_resu
 # --------------------------------- pacote legal ------------------------------
 def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
                         pendencias=None, correspondencia=None, edicao=None,
-                        spec=None, tipologia=None, cimento_calculado=None):
+                        spec=None, tipologia=None, cimento_calculado=None,
+                        protensao_calculada=None):
     """Indice de pranchas, ART/RRT, PPCI/AVCB, LOD do BIM, O&M e memorial.
 
     `pendencias` (G57): itens de escopo `not_available` que travam a aprovacao
@@ -374,7 +375,8 @@ def pacote_no_manifesto(manifest, run_dir, disciplinas, memorial,
     pacote = pl.gerar_pacote(disciplinas or None, memorial=memorial,
                              pendencias=pendencias, edicao=_ed,
                              spec=spec, tipologia=tipologia,
-                             cimento_calculado=cimento_calculado)
+                             cimento_calculado=cimento_calculado,
+                             protensao_calculada=protensao_calculada)
     pasta = _dir(run_dir, "documentos")
     # INDICE x PASTA (contagem ANTES do .md: o aviso vai para o texto, nao so
     # para o manifesto - G52 achado 1).
@@ -438,12 +440,16 @@ def emitir_pacote_legal(manifest, run_dir, normalized, options, turnkey_result):
     # usou (resultado do turnkey), nao a chave do spec - medido, os dois
     # divergiam; declarado x usado diferentes levanta na fonte unica.
     from cimento_nbr6118_g126 import cimento_do_turnkey as _cim_tk
+    # G133: o pacote declara a protensao que o CALCULO usou (resultado do
+    # turnkey); declarado x usado diferentes levanta na fonte unica.
+    from protensao_fck_g133 import protensao_do_turnkey as _prot_tk
     pacote_no_manifesto(
         manifest, run_dir, turnkey_result.get("executadas"),
         pl.memorial_consolidado(turnkey_result, _spec),
         correspondencia=pl.CORRESPONDENCIA_NUMERACAO_GALPAO,
         spec=_spec, tipologia="galpao",
-        cimento_calculado=_cim_tk(turnkey_result))
+        cimento_calculado=_cim_tk(turnkey_result),
+        protensao_calculada=_prot_tk(turnkey_result))
 
 
 # --------------------------------- obras do sitio ----------------------------

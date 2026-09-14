@@ -90,7 +90,8 @@ def _emitir(tmp_path, monkeypatch, desliga_svg=False):
                    "project_id": "g107", "adapter": "galpao"}
     opcoes = type("O", (), {"generate_2d": True, "generate_caderno": False,
                             "timeout_seconds": 600, "freecad_exe": None,
-                            "folga_mm": 0.0, "vol_min_mm3": 0.0})()
+                            "folga_mm": 0.0, "vol_min_mm3": 0.0,
+                            "executivo_aco": True})()
     ga._emit_drawings(manifesto, str(run_dir), normalizado, opcoes,
                       {"executadas": list(EXECUTADAS_CHEIAS)})
     return manifesto, str(run_dir)

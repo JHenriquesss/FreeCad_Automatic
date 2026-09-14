@@ -1,6 +1,12 @@
 # Backlog de goals executáveis — pós-G131 (2026-09-13)
 
-Fila **ABERTA**. Cinco goals (G132–G136). As filas anteriores estão fechadas e ficam apenas
+> **FILA CONSUMIDA (2026-09-13).** Os cinco goals foram executados (verbetes D159–D163) e
+> auditados por medição na auditoria D165: G133 (protendida C30 → `lim_comp` −21000, C40 só
+> declarado), G135/G136/G134 (censos fechados; fctd com 560 campos iguais ao HEAD pré-G136),
+> G132 (casa com a chave: nenhuma folha diz 2023). A fila seguinte é
+> `BACKLOG-GOALS-G137-G142.md`.
+
+Fila **CONSUMIDA** (era aberta). Cinco goals (G132–G136). As filas anteriores estão fechadas e ficam apenas
 como registro — não reexecute nada de lá: `BACKLOG-GOALS.md` (G78–G88),
 `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`, `BACKLOG-GOALS-G107-G112.md`,
 `BACKLOG-GOALS-G114-G118.md`, `BACKLOG-GOALS-G120-G124.md` e `BACKLOG-GOALS-G126-G130.md`.

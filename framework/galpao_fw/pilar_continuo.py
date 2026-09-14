@@ -240,7 +240,10 @@ def dimensiona_pilar_continuo(lances, fck, fyk, secoes=SECOES_PILAR):
 
 def relatorio(r):
     """Memoria de calculo da descida do pilar continuo."""
-    L = ["PILAR CONTINUO - ABNT NBR 6118:2014 (le de 15.6 ; 2a ordem local de 15.8)",
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+    L = ["PILAR CONTINUO - ABNT %s (le de 15.6 ; 2a ordem local de 15.8)"
+         % _rot_ed_g135(),
          "%d lances ; forca normal caracteristica na base: %.1f kN"
          % (r["n_lances"], r["N_base_k"]),
          "",

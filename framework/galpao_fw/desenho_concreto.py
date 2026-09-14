@@ -17,14 +17,11 @@ import desenho_svg_base as dsb
 
 import math
 
-try:
-    from edicao_nbr6118_g123 import (
-        edicao_de_resultado as _edicao_de_r,
-        sufixo_folha_edicao as _sufixo_ed,
-    )
-except ImportError:  # uso isolado fora do pacote
-    _edicao_de_r = None
-    _sufixo_ed = None
+from edicao_nbr6118_g123 import (
+    edicao_da_peca as _edicao_da_peca,
+    edicao_de_resultado as _edicao_de_r,
+    sufixo_folha_edicao as _sufixo_ed,
+)
 
 
 def _linhas_cimento_svg(r):
@@ -44,6 +41,24 @@ def _linhas_cimento_svg(r):
     return [antes + ":", depois]
 
 
+def _linhas_protensao_svg(r):
+    """Protensao (fck da viga e fckj) em linhas curtas para a folha (G133).
+
+    Mesmo molde do cimento: parte no primeiro ": " e, quando a segunda
+    parte passa de 90 caracteres, no "; " entre o fck e o fckj. O portao
+    confere o texto INTEIRO do SVG (prefixo + marcas continuam acusando).
+    """
+    from protensao_fck_g133 import linha_protensao as _lp_g133
+    cheia = _lp_g133(r)
+    antes, sep, depois = cheia.partition(": ")
+    if not sep:
+        return [cheia]
+    if len(depois) > 90 and "; " in depois:
+        p1, _, p2 = depois.partition("; ")
+        return [antes + ":", p1 + ";", p2]
+    return [antes + ":", depois]
+
+
 def _carimbo_edicao(r, edicao=None):
     """Sufixo de edicao da NBR 6118 para o titulo da folha (G123, fonte unica).
 
@@ -51,15 +66,15 @@ def _carimbo_edicao(r, edicao=None):
     folha diz qual e (chave DESLIGADA, sem default silencioso).
     G128: `edicao` explicita (a declarada no projeto, que casa e predio
     repassam) vence o que o resultado carrega; ausente, vale o resultado.
+    G132: a folha declara a edicao que a SUA conta usou (sem troca: 2014
+    com qualquer chave). Invalida continua levantando.
     """
     try:
         ed = (edicao if edicao is not None
-              else (_edicao_de_r(r) if _edicao_de_r is not None else None))
+              else _edicao_de_r(r))
     except ValueError:
         raise
-    if _sufixo_ed is not None:
-        return _sufixo_ed(ed)
-    return " (NBR 6118:2014)" if not ed else (" (NBR 6118:%s)" % ed)
+    return _sufixo_ed(_edicao_da_peca(ed, False))
 
 
 def _rebar_positions(x0, y0, w, h, cob_px, n, faces="perim"):
@@ -146,6 +161,7 @@ TOPO_SECAO = 60.0      # primeira linha da secao mais alta (abaixo do titulo)
 FOLGA_COTA = 34.0      # cota (y0+h+16) + descida do texto + margem inferior
 ALTURA_NOTA = 24.0     # linha da NOTA C55-C90, quando exigida
 ALTURA_LINHA_CIMENTO = 40.0  # G126: bloco de 2 linhas do cimento no rodape
+ALTURA_LINHA_PROTENSAO = 56.0  # G133: bloco de 2-3 linhas da protensao
 
 
 def _exige_gancho_135(r):
@@ -180,7 +196,7 @@ def prancha_armacao_svg(r):
     h_max = max(pil["hx"] * 100.0 * esc, vg["h"] * 100.0 * esc, h_sapata)
     cy = TOPO_SECAO + h_max / 2.0             # centro comum das tres secoes
     Hn = (TOPO_SECAO + h_max + FOLGA_COTA + (ALTURA_NOTA if _gancho else 0.0)
-          + ALTURA_LINHA_CIMENTO)
+          + ALTURA_LINHA_CIMENTO + ALTURA_LINHA_PROTENSAO)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hn}" '
              f'viewBox="0 0 {W} {Hn}" font-family="Arial,Helvetica,sans-serif">',
              f'<rect width="{W}" height="{Hn}" fill="#ffffff"/>',
@@ -241,8 +257,10 @@ def prancha_armacao_svg(r):
     # G126: a folha declara o cimento do fckj (fonte unica; sem o cimento, o
     # piso conservador, com a ausencia dita). Bloco no rodape, acima da nota
     # do gancho quando ela existe; a altura ja entrou no Hn acima.
+    # G133: a folha declara o fck da protendida e o fckj (fonte unica), no
+    # bloco abaixo do cimento.
     # Entrelinha de 16 px (fonte 11): nem o estimador de colisao acusa o par.
-    _lc = _linhas_cimento_svg(r)
+    _lc = _linhas_cimento_svg(r) + _linhas_protensao_svg(r)
     _y_cim_base = Hn - 10.0 - (ALTURA_NOTA if _gancho else 0.0)
     for _i, _t in enumerate(_lc):
         parts.append(f'<text x="20" y="{_y_cim_base - 16.0 * (len(_lc) - 1 - _i):.1f}" '
@@ -288,7 +306,10 @@ def planta_formas_svg(r):
     margem = 108.0
     escala = min(560.0 / max(vao, 1e-6), 640.0 / max(comp, 1e-6))   # px por metro
     W = max(vao * escala + 2 * margem, 560.0)          # min p/ o titulo nao estourar
-    H = comp * escala + 2 * margem
+    # G133: o rodape declara o cimento (2 linhas) + a protensao (ate 3):
+    # 5 linhas a 16 px a partir de +52 passam da margem de 108 px - a folha
+    # cresce 48 px para conter o bloco.
+    H = comp * escala + 2 * margem + 48.0
 
     def X(x_m):   # x_m em [-vao/2, vao/2] -> px
         return margem + (x_m + vao / 2.0) * escala
@@ -348,8 +369,9 @@ def planta_formas_svg(r):
                  f'{comp:.2f} m</text>')
     # G126: a folha declara o cimento do fckj (fonte unica), abaixo das
     # cotas (faixa livre do rodape: a margem tem 108 px e o bloco usa ~70).
+    # G133: a folha declara o fck da protendida e o fckj abaixo do cimento.
     # Entrelinha de 16 px (fonte 11): nem o estimador de colisao acusa o par.
-    for _i, _t in enumerate(_linhas_cimento_svg(r)):
+    for _i, _t in enumerate(_linhas_cimento_svg(r) + _linhas_protensao_svg(r)):
         s_svg.append(f'<text x="{margem:.0f}" y="{Y(comp) + 52.0 + 16.0 * _i:.1f}" '
                       f'font-size="11" fill="#444">{_esc(_t)}</text>')
     s_svg.append('</svg>')

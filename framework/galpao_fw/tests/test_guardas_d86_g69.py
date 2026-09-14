@@ -120,10 +120,11 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     so e True com todas as pecas declarando; sem_declaracao lista quem
     falta).
 28. edicao_nbr6118_g123.confere_uso_edicao (G123) - A=arquivos no disco que
-     importam a fonte unica, B=USO_ESPERADO declarado com motivo (19 usos:
+     importam a fonte unica, B=USO_ESPERADO declarado com motivo (29 usos:
      14 desde o G125 + os 5 do G128, que so leem a chave e a repassam -
      casa_residencial, edificio_adapter, galpao_adapter,
-     desenho_casa_residencial, caderno_encargos).
+     desenho_casa_residencial, caderno_encargos - + os 10 memoriais fiados
+     no G135, que chamam rotulo_edicao() da fonte).
      INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x declaracao;
      extra ou faltando = troca por conta propria).
 29. confronto_2014_2023_g122.confere_sites_8_2_5 (G125, auditoria do G122) -
@@ -156,10 +157,11 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     apagada da fonte = vermelho, provado por injecao em tmp_path).
 34. fctm_nbr6118_g127.confere_uso_fctm (G127) - A=arquivos no disco que
     importam a fonte unica, B=LEITORES_ESPERADOS declarado com motivo
-    (12 usos: a fonte + os 10 modulos + a lente do G122, que importa o
-    detector unico e a conta para o caso C5 - dito na fonte).
-    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x
-    declaracao; extra ou faltando = leitura por conta propria).
+    (13 usos: a fonte + os 10 modulos + a lente do G122, que importa o
+    detector unico e a conta para o caso C5 + a fonte do G136, que
+    deriva a fctd da fctk,inf daqui - dito na fonte). INDEPENDENTE
+    (meta-guarda, mesma forma do item 16: disco x declaracao; extra ou
+    faltando = leitura por conta propria).
 35. varredura_colisoes_g129.confere_censo (G129) - A=censo vivo das 35
     folhas (pares do estimador por folha), B=BASELINE_G129 declarado com
     a triagem (43 pares isentos com PNG em ISENCOES_G129 + 19 corrigidos
@@ -183,6 +185,60 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     entregaveis_projeto so passam a string da tipologia - dito na fonte).
     INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x
     declaracao; extra ou faltando = leitura por conta propria).
+39. protensao_fck_g133.confere_pecas (G133) - A=declaracao exigida
+    ("Protensao (fck da viga e fckj" + marcas do fck e do fckj, ou
+    "sem viga protendida" no texto da peca), B=substring medida no
+    texto emitido. INDEPENDENTE (especificacao de um lado, produto do
+    outro; peca sem declaracao reprova com o motivo nomeado, nunca OK
+    silencioso; o OK global so fecha com todas declarando).
+40. protensao_fck_g133.confere_defaults (G133) - A=defaults de protensao
+    no codigo (`max(fck, <piso>)`, `.get("fck_protendida"/"fckj_protensao",
+    <numero>)` ou `.get("fckj", <nao-fck>)`, por AST), B=baseline vazio
+    declarado (nenhum default sobrando: ausente e fck do projeto / fckj
+    = fck, nunca C40). INDEPENDENTE (codigo x baseline; default novo
+    sem triagem = vermelho, provado por injecao em tmp_path).
+41. protensao_fck_g133.confere_uso_protensao (G133) - A=arquivos no disco
+    que importam a fonte unica, B=LEITORES_ESPERADOS declarado com motivo
+    (8 usos: a fonte + viga_protendida, galpao_concreto, desenho_concreto,
+    techdraw_concreto, pacote_legal, galpao_adapter, entregaveis_projeto;
+    o executivo compoe os relatorios e nao importa - dito na fonte).
+    INDEPENDENTE (meta-guarda, mesma forma do item 16: disco x
+    declaracao; extra ou faltando = leitura por conta propria).
+42. edicao_nbr6118_g123.confere_copias (G135) - A=texto do carimbo no
+    codigo (regex fora de comentario, molde fctm_nbr6118_g127.
+    confere_copias), B=fonte unica declarada (so ela pode conter o
+    carimbo). INDEPENDENTE (codigo x declaracao; copia nova fora da
+    fonte ou carimbo apagado da fonte = vermelho, provado por injecao
+    em tmp_path).
+43. edicao_nbr6118_g123.confere_rotulos (G135) - A=arquivos no disco com
+    o literal "6118:2014" fora de comentario, B=CITACOES_ISENTAS
+    declarado com motivo por arquivo (14 citacoes historicas:
+    docstrings de metodo / tabela METODOS / clausula-fonte / subtitulo
+    default; o carimbo-sentenca continua no item 42). INDEPENDENTE
+    (meta-guarda, mesma forma do item 16: disco x declaracao; rotulo
+    novo sem triagem ou isencao sem rotulo = vermelho, provado por
+    injecao em tmp_path).
+44. chaves_to_rodar_g134.confere_censo (G134) - A=chaves de topo que
+    to_rodar_params escreve em `p` (por AST), B=CHAVES_ESPERADAS
+    declarado com motivo (29 chaves: as 30 menos o cimento, que saiu do
+    fluxo metalico com o motivo escrito) + LEITURAS_DECLARADAS
+    (norma_6118_edicao via edicao_de_spec, importada e chamada no
+    rodar_galpao). INDEPENDENTE (codigo x declaracao; chave nova sem
+    leitor, leitura declarada sem uso ou nome morto = vermelho, provado
+    por injecao em tmp_path; string em mensagem nao e leitura).
+45. fctd_nbr6118_g136.confere_copias (G136) - A=literal da conta fctd
+    no codigo (regex fora de comentario e fora de _selftest, o mesmo
+    molde de fctm_nbr6118_g127.confere_copias), B=fonte unica declarada
+    (so ela pode conter a conta). INDEPENDENTE (codigo x declaracao;
+    copia nova fora da fonte ou conta apagada da fonte = vermelho,
+    provado por injecao em tmp_path; copia em _selftest e prova
+    independente, fora da lente por declaracao na fonte).
+    fctd_nbr6118_g136.confere_uso_fctd (G136) - A=arquivos no disco que
+    importam a fonte unica, B=LEITORES_ESPERADOS declarado com motivo
+    (8 usos: a fonte + os 7 modulos - as 6 copias do backlog com o 1,4
+    literal mais base_chumbador via GC, mesmo numero). INDEPENDENTE
+    (meta-guarda, mesma forma do item 16: disco x declaracao; extra ou
+    faltando = leitura por conta propria).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -238,6 +294,8 @@ TRIADAS_G69 = {
     ("edicao_nbr6118_g123", "confere_peca"),
     ("edicao_nbr6118_g123", "confere_pecas"),
     ("edicao_nbr6118_g123", "confere_uso_edicao"),
+    ("edicao_nbr6118_g123", "confere_copias"),
+    ("edicao_nbr6118_g123", "confere_rotulos"),
     ("confronto_2014_2023_g122", "confere_sites_8_2_5"),
     ("cimento_nbr6118_g126", "confere_pecas"),
     ("cimento_nbr6118_g126", "confere_defaults"),
@@ -248,6 +306,12 @@ TRIADAS_G69 = {
     ("exigencias_nao_verificadas_g130", "confere_aplicabilidade"),
     ("exigencias_nao_verificadas_g130", "confere_documento"),
     ("exigencias_nao_verificadas_g130", "confere_uso_exigencias"),
+    ("protensao_fck_g133", "confere_pecas"),
+    ("protensao_fck_g133", "confere_defaults"),
+    ("protensao_fck_g133", "confere_uso_protensao"),
+    ("chaves_to_rodar_g134", "confere_censo"),
+    ("fctd_nbr6118_g136", "confere_copias"),
+    ("fctd_nbr6118_g136", "confere_uso_fctd"),
 }
 
 

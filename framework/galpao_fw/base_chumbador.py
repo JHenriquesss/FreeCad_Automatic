@@ -44,6 +44,7 @@ from __future__ import annotations
 import math
 
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 GA2 = 1.35         # coef. ruptura (parafuso), NBR 8800
 GA1 = 1.10         # coef. escoamento
@@ -80,8 +81,9 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     embutimento reto desenvolve a tracao Ft_sd por aderencia; o gancho reduz por
     alpha). Fecha o lado do CONCRETO que faltava (o modulo so tinha aco/placa).
 
-      - 9.3.2.1  fbd = eta1*eta2*eta3*fctd ; fctd = fctk,inf/gamma_c ,
-                 fctk,inf = 0,7*fctm , fctm pela fonte unica
+       - 9.3.2.1  fbd = eta1*eta2*eta3*fctd ; fctd = fctk,inf/gamma_c pela
+                  fonte unica fctd_nbr6118_g136 (G136 ; gamma_c normal Tab.
+                  12.1) , fctk,inf = 0,7*fctm , fctm pela fonte unica
                  fctm_nbr6118_g127 (NBR 6118 8.2.5, G127) ;
                  eta1 = 1,0 (barra LISA = chumbador liso; nervurada seria 2,25) ;
                  eta2 = 1,0 boa aderencia / 0,7 ma ; eta3 = 1,0 (phi<32 mm) ;
@@ -96,7 +98,7 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     phi = db
     fck_MPa = fck / 1000.0
     fctm = fctm_nbr6118_g127.fctm_MPa(fck_MPa)    # MPa (8.2.5, fonte unica G127)
-    fctd = 0.7 * fctm / GC * 1000.0                  # kN/m2
+    fctd = fctd_nbr6118_g136.fctd_MPa(fck_MPa) * 1000.0  # kN/m2 (9.3.2/12.4.1, fonte unica G136; gamma_c normal)
     eta3 = 1.0 if db < 0.032 else (132.0 - db * 1000.0) / 100.0
     fbd = eta1 * eta2 * eta3 * fctd
     fyd = fyk / 1.15

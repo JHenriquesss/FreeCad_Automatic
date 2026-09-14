@@ -33,9 +33,13 @@ def _sufixo_edicao(edicao=None):
 
     G128: a edicao declarada no projeto chega aqui (casa e predio leem a
     chave; ausente = comportamento de hoje, 2014 declarado). O sufixo vem
-    da fonte unica (sem literal)."""
-    from edicao_nbr6118_g123 import sufixo_folha_edicao
-    return sufixo_folha_edicao(edicao)
+    da fonte unica (sem literal).
+    G132: a folha declara a edicao que a SUA conta usou (fonte unica
+    edicao_da_peca): o desenho nao calcula nenhum dos 2 pontos de troca,
+    entao declara 2014 com qualquer chave (a composicao mora no carimbo
+    do projeto). Invalida continua levantando."""
+    from edicao_nbr6118_g123 import edicao_da_peca, sufixo_folha_edicao
+    return sufixo_folha_edicao(edicao_da_peca(edicao, False))
 
 COR_PILAR = "#333"
 COR_VIGA = "#1f6feb"
@@ -480,12 +484,15 @@ def _subtitulo_pilares(edicao=None):
     """Subtitulo da secao de pilares com a edicao declarada (G128).
 
     Ausente = o texto de sempre (2014, `_SUBTITULO_PILARES`, byte-identico);
-    com a chave, o rotulo da fonte unica (sem literal aqui)."""
+    com a chave, o rotulo da fonte unica (sem literal aqui).
+    G132: a folha declara a edicao que a SUA conta usou (sem troca: 2014
+    com qualquer chave)."""
     if edicao is None:
         return _SUBTITULO_PILARES
-    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed
+    from edicao_nbr6118_g123 import edicao_da_peca, rotulo_edicao as _rot_ed
     return ("pilares: esbeltez e 2a ordem (15.8) + As min/max (17.3.5.3) + "
-            "estribo e limite governante (18.4.3) -- %s" % _rot_ed(edicao))
+            "estribo e limite governante (18.4.3) -- %s"
+            % _rot_ed(edicao_da_peca(edicao, False)))
 
 #: declaracao de ausencia (pilares={} ou None): a secao declara em vez de
 #: sair com a tabela vazia (folha vazia e' o bug irmao do G62).

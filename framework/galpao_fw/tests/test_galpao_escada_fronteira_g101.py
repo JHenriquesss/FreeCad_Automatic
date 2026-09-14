@@ -149,7 +149,8 @@ def _rodada_stub(tmp_path, monkeypatch, executadas, pdfs_por_disco,
     normalizado.update(normalizado_extra or {})
     opcoes = type("O", (), {"generate_2d": True, "generate_caderno": False,
                             "timeout_seconds": 10, "freecad_exe": None,
-                            "folga_mm": 0.0, "vol_min_mm3": 0.0})()
+                            "folga_mm": 0.0, "vol_min_mm3": 0.0,
+                            "executivo_aco": True})()
     turnkey = {"executadas": list(executadas)}
     ga._emit_drawings(manifesto, str(run_dir), normalizado, opcoes, turnkey)
     return manifesto, str(run_dir)

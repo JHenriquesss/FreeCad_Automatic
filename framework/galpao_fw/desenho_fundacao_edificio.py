@@ -25,9 +25,11 @@ def _sufixo_edicao(edicao=None):
 
     G128: a edicao declarada no projeto chega aqui (casa e predio leem a
     chave; ausente = comportamento de hoje, 2014 declarado). O sufixo vem
-    da fonte unica (sem literal)."""
-    from edicao_nbr6118_g123 import sufixo_folha_edicao
-    return sufixo_folha_edicao(edicao)
+    da fonte unica (sem literal).
+    G132: a folha declara a edicao que a SUA conta usou (sem troca: 2014
+    com qualquer chave). Invalida continua levantando."""
+    from edicao_nbr6118_g123 import edicao_da_peca, sufixo_folha_edicao
+    return sufixo_folha_edicao(edicao_da_peca(edicao, False))
 
 COR_SAPATA = "#e8e4dc"
 COR_SAPATA_DIVISA = "#fde9c8"

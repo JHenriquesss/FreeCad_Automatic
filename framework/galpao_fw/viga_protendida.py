@@ -23,6 +23,7 @@ por nivel (Tab.13.4) e ELU a flexao. Cordoalha CP-190 RB. Aferido contra Bastos.
 from __future__ import annotations
 
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 # --- aco de protensao CP-190 RB (NBR 7483) ---------------------------------
 FPTK_CP190 = 1900e3                # resistencia a tracao (kN/m2) = 1900 MPa
@@ -115,7 +116,8 @@ def verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck, gamma_f=1.4):
 def verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, Msd_max, Vsd, fywk=500e3):
     """Cortante ELU da viga protendida (NBR 6118 17.4.2.2, Modelo I).
       VRd2 = 0,27 alpha_v2 fcd bw d ; alpha_v2 = 1 - fck/250 (biela);
-      Vc0 = 0,6 fctd bw d ; fctd = fctk,inf/gamma_c ; fctk,inf = 0,7 fctm;
+       Vc0 = 0,6 fctd bw d ; fctd = fctk,inf/gamma_c pela fonte unica
+       fctd_nbr6118_g136 (9.3.2/12.4.1, G136 ; gamma_c normal Tab. 12.1) ; fctk,inf = 0,7 fctm;
       FLEXO-COMPRESSAO (protensao): Vc = Vc0(1 + M0/Msd,max) <= 2 Vc0, com M0 =
       momento que anula a compressao na borda tracionada = 0,9 Pinf (Wb/Ac + ep);
       Vsw = (Asw/s) 0,9 d fywd (estribo vertical). fywd <= 435 MPa.
@@ -124,7 +126,7 @@ def verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, Msd_max, Vsd, fywk=500
     av2 = 1.0 - (fck / 1000.0) / 250.0
     VRd2 = 0.27 * av2 * fcd * b * dp
     fctmv = _fctm(fck)                              # kN/m2
-    fctd = 0.7 * fctmv / 1.4                        # fctk,inf/gamma_c
+    fctd = fctd_nbr6118_g136.fctd(fck)             # fctk,inf/gamma_c (fonte unica G136; gamma_c normal)
     Vc0 = 0.6 * fctd * b * dp
     pr = props_retangular(b, h)
     M0 = 0.9 * Pinf * (pr["Wb"] / pr["Ac"] + ep)    # momento de descompressao da borda
@@ -151,7 +153,34 @@ def verifica_viga_protendida(cfg):
     Ap = ncord * AP_CORDOALHA[phi]
     dp = h - cob                                   # cordoalha junto a face tracionada
     ep = dp - h / 2.0                              # excentricidade abaixo do CG
-    fckj = cfg.get("fckj", fck)
+    # G133: o fckj da transferencia e dado declarado; ausente = fck, com a
+    # origem gravada (a folha e o memorial dizem; nunca idade inventada).
+    # O mecanismo `cfg.get("fckj", fck)` permanece, agora com a ausencia dita.
+    # Quando o chamador (galpao_concreto) resolve pela fonte unica, ele passa
+    # a origem (fck_origem/fckj_origem); ausente aqui = chamada direta com
+    # fck explicito e fckj ausente.
+    if cfg.get("fckj", None) in (None, ""):
+        fckj = fck
+    else:
+        fckj = cfg["fckj"]
+    fckj_explicito = bool(cfg.get("fckj_explicito",
+                                  ("fckj" in cfg and cfg["fckj"] not in (None, ""))))
+    fck_explicito = bool(cfg.get("fck_explicito", True))
+    try:
+        import protensao_fck_g133 as _pfck_g133
+        fck_origem = (cfg.get("fck_origem")
+                      or (_pfck_g133.ORIGEM_FCK_DECLARADO if fck_explicito
+                          else _pfck_g133.ORIGEM_FCK_PISO))
+        fckj_origem = (cfg.get("fckj_origem")
+                       or (_pfck_g133.ORIGEM_FCKJ_DECLARADO if fckj_explicito
+                           else _pfck_g133.ORIGEM_FCKJ_PISO))
+    except ImportError:
+        fck_origem = (cfg.get("fck_origem")
+                      or ("declarado_no_projeto" if fck_explicito
+                          else "fck_nao_declarado_usa_fck_projeto"))
+        fckj_origem = (cfg.get("fckj_origem")
+                       or ("fckj_declarado_no_projeto" if fckj_explicito
+                           else "fckj_nao_declarado_adotado_fck"))
     sigma_pi = SIGMA_PI_MAX                        # estiramento no limite (9.6.1.2.1)
 
     # cargas: peso proprio + sobrecarga/permanente adicional
@@ -185,6 +214,9 @@ def verifica_viga_protendida(cfg):
                                         fywk=cfg.get("fyk", 500e3))
     OK = ato["ok"] and serv["ok"] and elu["ok"] and cort["ok"]
     return {"vao": L, "b": b, "h": h, "n_cordoalhas": ncord, "phi_cord": phi,
+            "fck": fck, "fck_origem": fck_origem, "fck_explicito": fck_explicito,
+            "fckj": fckj, "fckj_origem": fckj_origem,
+            "fckj_explicito": fckj_explicito,
             "Ap_cm2": round(Ap * 1e4, 2), "ep_cm": round(ep * 100, 1),
             "P0": round(P0, 1), "Pinf": round(Pinf, 1), "sigma_pi_MPa": round(sigma_pi / 1000, 0),
             "Mg": round(Mg, 1), "Mq": round(Mq, 1), "g": round(g, 2),
@@ -208,7 +240,14 @@ def dimensiona_viga_protendida(cfg, secoes=None, max_cord=24):
 
 def relatorio_pt(r):
     a = r["ato"]; s = r["servico"]; e = r["elu"]
-    L = ["VIGA DE COBERTURA PRE-TRACIONADA (ABNT NBR 6118:2014 ; CP-190 RB)",
+    # G133: a peca declara o fck usado e o fckj da transferencia (fonte
+    # unica; sem copia literal da linha aqui).
+    from protensao_fck_g133 import linha_protensao as _lin_prot_g133
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+    _l_prot = _lin_prot_g133(r)
+    L = ["VIGA DE COBERTURA PRE-TRACIONADA (ABNT %s ; CP-190 RB)"
+         % _rot_ed_g135(),
          f"  Vao {r['vao']:.1f} m ; secao {r['b']*100:.0f}x{r['h']*100:.0f} cm ; "
          f"{r['n_cordoalhas']} cordoalhas Ø{r['phi_cord']} (Ap={r['Ap_cm2']:.2f} cm2, "
          f"ep={r['ep_cm']:.1f} cm)",
@@ -229,8 +268,9 @@ def relatorio_pt(r):
          f"{'OK' if r['cortante']['biela_ok'] else 'REPROVA (biela)'} ; Vc={r['cortante']['Vc']:.0f} kN "
          f"(protensao) ; Asw/s={r['cortante']['Asw_s_cm2_m']:.2f} cm2/m "
          f"(min {r['cortante']['Asw_s_min_cm2_m']:.2f})",
-         f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
-         "  [A CONFIRMAR: fckj na idade da protensao, perdas (9.6.3), classe de agressividade.]"]
+          f"  RESULTADO: {'APROVADA' if r['OK'] else 'REPROVADA'}",
+          "  %s" % _l_prot,
+          "  [A CONFIRMAR: fckj na idade da protensao, perdas (9.6.3), classe de agressividade.]"]
     import re
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 

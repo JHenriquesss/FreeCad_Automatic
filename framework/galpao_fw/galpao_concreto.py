@@ -47,6 +47,39 @@ _SECOES_VIGA = [(0.20, 0.40), (0.20, 0.50), (0.20, 0.60), (0.25, 0.60),
 TRAVAMENTOS_LONGITUDINAIS = ("nenhum", "topo")
 
 
+def _prot_sem_uso_g133(spec):
+    """Protensao resolvida quando a viga sai em concreto armado (G133).
+
+    Terceiro valor declarado: nenhum fck/fckj de protensao usado; valor
+    declarado sem conta que o use viaja como sem-uso (a linha diz)."""
+    try:
+        from protensao_fck_g133 import (
+            fck_protendida_de_spec as _fck_ps, fckj_protensao_de_spec as _fckj_ps,
+            ORIGEM_SEM_PROTENSAO as _sem_prot)
+    except ImportError:
+        _fck_ps = _fckj_ps = lambda s: None
+        _sem_prot = "sem_viga_protendida"
+    out = {"origem": _sem_prot, "tem_protensao": False,
+           "fck_usado": None, "fckj_usado": None}
+    try:
+        fck_d = _fck_ps(spec)
+    except ValueError:
+        raise
+    except Exception:
+        fck_d = None
+    try:
+        fckj_d = _fckj_ps(spec)
+    except ValueError:
+        raise
+    except Exception:
+        fckj_d = None
+    if fck_d is not None:
+        out["fck_declarado_sem_uso"] = fck_d
+    if fckj_d is not None:
+        out["fckj_declarado_sem_uso"] = fckj_d
+    return out
+
+
 def _le_por_direcao(H, hy, travamento):
     """Comprimentos de flambagem do pilar do galpao, por direcao (m).
 
@@ -169,6 +202,15 @@ def rodar(spec):
                       e o memorial dizem isso (nunca CPV). Desconhecido
                       BLOQUEIA com ValueError. Nao e palpite: declarar o
                       cimento do projeto e decisao do usuario.
+      'fck_protendida' (opc., G133): fck da viga protendida em kN/m2
+                      (atalho MPa, ex. 40 = 40 MPa). AUSENTE = fck do projeto
+                      e a folha e o memorial dizem isso (nunca C40 de
+                      fabrica). Invalido BLOQUEIA. Declarar e decisao do
+                      usuario.
+      'fckj_protensao' (opc., G133): fckj na transferencia em kN/m2
+                      (atalho MPa). AUSENTE = fck usado, com a ausencia dita
+                      (confirmar na idade da protensao). Invalido BLOQUEIA.
+                      A idade de protensao nunca e inventada.
     }"""
     # G123: resolve a edicao sem default silencioso (ausente = 2014 hoje).
     try:
@@ -209,6 +251,11 @@ def rodar(spec):
     # ---------------------------------------------------- VIGA DE COBERTURA
     # Tenta CONCRETO ARMADO; se o vao nao vence (> ~12 m), roteia p/ PROTENDIDA
     # (pre-tracao) em vez de so reprovar. tipo_viga registra a solucao adotada.
+    # G133: o fck da protendida e o fckj da transferencia sao dados
+    # declarados (ausente = fck do projeto / fckj = fck usado, com a origem
+    # dita na folha e no memorial; nunca max(fck, 40e3) calado).
+    from protensao_fck_g133 import resolver_entrada as _res_prot_g133
+    _prot_in = _res_prot_g133(spec, fck)
     w_beam = (G_roof + Q_roof) * s                 # kN/m (biapoiada, vao=vao)
     viga = None
     for (bb, hh) in _SECOES_VIGA:
@@ -220,7 +267,12 @@ def rodar(spec):
     viga_prot = None
     if not viga["OK"]:
         viga_prot = vp.dimensiona_viga_protendida(
-            {"vao": vao, "fck": max(fck, 40e3), "q": w_beam})
+            {"vao": vao, "fck": _prot_in["fck_usado"],
+             "fck_origem": _prot_in["fck_origem"],
+             "fck_explicito": _prot_in["fck_explicito"],
+             "fckj": _prot_in["fckj_usado"],
+             "fckj_origem": _prot_in["fckj_origem"],
+             "fckj_explicito": _prot_in["fckj_explicito"], "q": w_beam})
         if viga_prot and viga_prot["OK"]:
             tipo_viga = "protendida"
             # adapta ao pipeline downstream (b/h + guards; ferragem = cordoalhas)
@@ -419,6 +471,19 @@ def rodar(spec):
            "cimento": {"cimento": _rcim["cimento"],
                        "origem": _rcim["origem"],
                        "explicito": _rcim["explicito"]},
+           # G133: a protensao resolvida viaja no resultado (a folha e o
+           # memorial declaram daqui, fonte unica). Sem protendida, o
+           # terceiro valor declarado (sem viga protendida).
+           "protensao": ({
+               "fck_usado": _prot_in["fck_usado"],
+               "fck_origem": _prot_in["fck_origem"],
+               "fck_explicito": _prot_in["fck_explicito"],
+               "fckj_usado": _prot_in["fckj_usado"],
+               "fckj_origem": _prot_in["fckj_origem"],
+               "fckj_explicito": _prot_in["fckj_explicito"],
+               "tem_protensao": True}
+               if tipo_viga == "protendida" else
+               _prot_sem_uso_g133(spec)),
            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
            "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
@@ -654,16 +719,23 @@ def relatorio_pt(r):
     g = r["gates"]; sp = r["spec"]
     # G131: sem catch-all - uma edicao invalida no resultado nao pode virar
     # "2014 assumida" fixo no memorial (a mesma licao do G74).
+    # G132: o relatorio compoe icamento (12.3.3, com troca) e o resto
+    # (sem troca): o cabecalho diz a composicao do projeto (fonte unica).
     from edicao_nbr6118_g123 import (
-        carimbo_edicao as _car_ed, edicao_de_resultado as _ed_r)
+        carimbo_composicao as _car_ed, edicao_de_resultado as _ed_r)
     _car = _car_ed(_ed_r(r))
     # G131: sem catch-all (um erro na declaracao nao pode virar texto fixo
     # no memorial) e sem copia literal da linha (fonte unica).
     from cimento_nbr6118_g126 import linha_cimento as _lin_cim
     _cim = _lin_cim(r)
+    # G133: a folha e o memorial dizem o concreto que a CONTA usou
+    # (fonte unica; sem copia literal da linha aqui).
+    from protensao_fck_g133 import linha_protensao as _lin_prot_gc
+    _l_prot = _lin_prot_gc(r)
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
          "  %s" % _car,
          "  %s" % _cim,
+         "  %s" % _l_prot,
          f"  Vao {sp['vao']:.1f} m x comprimento {sp['comprimento']:.1f} m ; "
          f"pe-direito {sp['H']:.1f} m ; {sp['n_porticos']} porticos (s={sp['s']:.2f} m) ; C{sp['fck_MPa']:.0f}",
          f"  VENTO: q = {g['vento']['q_kN_m2']:.3f} kN/m2 ; w_h = {g['vento']['w_h']:.2f} kN/m ; "

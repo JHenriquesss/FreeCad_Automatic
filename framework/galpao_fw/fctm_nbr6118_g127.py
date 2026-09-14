@@ -7,8 +7,8 @@
 # tests/test_fctm_fonte_unica_g127.py. IMPORTADO pela producao
 # (base_chumbador, estaca_profunda, fissuracao_nbr6118, fundacao_sapata,
 # laje_concreto, pilar_concreto, piso_industrial, premoldado_nbr9062,
-# viga_baldrame, viga_protendida) - por isso NAO e script avulso (ver
-# test_alcancabilidade).
+# viga_baldrame, viga_protendida, fctd_nbr6118_g136) - por isso NAO e
+# script avulso (ver test_alcancabilidade).
 #
 # O que foi MEDIDO (G125, remedido no G127 na funcao real, 2026-09-13):
 #   - A expressao do ramo alto (`2,12 ln (1 + 0,11 fck)`) estava escrita em
@@ -85,9 +85,12 @@ MODULOS_VIA_FONTE = (
 
 # Arquivos que podem importar esta fonte unica (a fonte + os 10 leitores
 # de producao + a lente do G122, que importa o detector unico e a conta
-# para o caso C5). Baseline nos dois sentidos em confere_uso_fctm.
+# para o caso C5 + a fonte unica do G136, que deriva a fctd da fctk,inf
+# daqui em vez de recomputar o 0,7). Baseline nos dois sentidos em
+# confere_uso_fctm.
 LEITORES_ESPERADOS = frozenset(
-    {"fctm_nbr6118_g127.py", "confronto_2014_2023_g122.py"}
+    {"fctm_nbr6118_g127.py", "confronto_2014_2023_g122.py",
+     "fctd_nbr6118_g136.py"}
     | {m + ".py" for m in MODULOS_VIA_FONTE}
 )
 

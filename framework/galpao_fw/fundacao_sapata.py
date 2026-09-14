@@ -36,6 +36,7 @@ import re
 
 import puncao_nbr6118 as pu
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 # Limites legados/configuraveis (o caso pode sobrescrever). O engenheiro deve
 # confirmar o criterio de projeto; a NBR 6122:2022 nao foi usada para atribuir
@@ -659,8 +660,11 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
         L += ["NENHUMA sapata da escada passou - ampliar a escada, reduzir sigma pela",
               "geometria, ou revisar (M/V alto: aumentar sapata, tirante, ou base rotulada)."]
     if rB is not None:
-        L += ["", "-" * 78, "PARTE B - CONCRETO ARMADO (NBR 6118:2014):", "",
-              relatorio_sapata_B(rB, caso)]
+        # G135: o cabecalho da peca vem da fonte unica (sem a chave, 2014
+        # byte-identico; a composicao por peca com a chave e do G132).
+        from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+        L += ["", "-" * 78, "PARTE B - CONCRETO ARMADO (%s):" % _rot_ed_g135(),
+              "", relatorio_sapata_B(rB, caso)]
     L += ["", "[FLAG] sigma_solo,adm e parametros do solo: relatorio de sondagem (geotecnia).",
           "[FLAG] A reacao (N,V,M) e a combinacao que governa a PLACA DE BASE (em",
           "       galpao leve, o vento/uplift). A PRESSAO NO SOLO deve ainda ser",
@@ -674,10 +678,11 @@ def _tabela_sapata(linhas, aprovado, caso, rB=None):
 def comprimento_ancoragem(phi_mm, fck_MPa=25, fyk_MPa=500, gancho=True,
                            boa_aderencia=True):
     """Comprimento de ancoragem basico (lb) e necessario (lb,nec) (NBR 6118 9.4).
-    fct,m pela fonte unica fctm_nbr6118_g127 (NBR 6118 8.2.5, G127).
+    fct,m pela fonte unica fctm_nbr6118_g127 (NBR 6118 8.2.5, G127); fctd
+    pela fonte unica fctd_nbr6118_g136 (9.3.2/12.4.1, G136; gamma_c normal).
     Retorna lb, lb_nec, lb_min em mm, fbd em MPa."""
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)
-    fctd = 0.7 * fctm_MPa / 1.4
+    fctd = fctd_nbr6118_g136.fctd_MPa(fck_MPa)  # 9.3.2/12.4.1, fonte unica G136; gamma_c normal
     fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * 1.0 * fctd
     fyd = fyk_MPa / 1.15
     lb = (phi_mm / 4.0) * (fyd / fbd)
@@ -988,9 +993,11 @@ def dimensiona_sapata_B(caso, r_A):
 
 
 def relatorio_sapata_B(rB, caso):
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
     def cm2(As):
         return (As or 0.0) * 1e4       # m2 -> cm2 (por largura da sapata)
-    L = ["SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014",
+    L = ["SAPATA - PARTE B (CONCRETO ARMADO) - %s" % _rot_ed_g135(),
          f"  Geometria: {rB['B']:.2f} x {rB['L']:.2f} x {rB['h']:.2f} m ; "
          f"d(util)={rB['d']*100:.1f} cm ; pilar {rB['ap_B']*100:.0f}x{rB['ap_L']*100:.0f} cm",
          f"  RIGIDEZ (22.6.1): h>= (a-ap)/3 -> dir.L {'OK' if rB['rig_L'] else 'NAO'} ; "

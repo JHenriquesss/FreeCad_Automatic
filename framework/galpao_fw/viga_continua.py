@@ -452,7 +452,9 @@ def analisa(cfg):
 
 def relatorio(r):
     """Memoria de calculo da viga continua."""
-    L = ["VIGA CONTINUA - ABNT NBR 6118:2014, item 14.6.6",
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+    L = ["VIGA CONTINUA - ABNT %s, item 14.6.6" % _rot_ed_g135(),
          "Tramos: %d ; vaos: %s m" % (r["n_tramos"],
                                       ", ".join("%.2f" % v for v in r["vaos"])),
          "",

@@ -304,7 +304,8 @@ def _disciplina_do_codigo_galpao(codigo):
     return None
 
 
-def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False):
+def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False,
+                                     causa_sem_executivo_aco=False):
     """Triagem G93: o dado que falta, com nome, para cada folha sem arquivo.
 
     O laco so chega aqui quando o PDF nem saiu nem foi triado (o fluxo do
@@ -349,6 +350,10 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False):
         motivo += ("; causa proxima nesta rodada: freecad.exe nao "
                    "encontrado — a disciplina emite via TechDraw e nao tem "
                    "rota sem executavel (G107)")
+    if causa_sem_executivo_aco:
+        import caderno_turnkey as _ct
+
+        motivo += "; causa proxima nesta rodada: " + _ct.MOTIVO_EXECUTIVO_ACO_FORA
     return motivo
 
 
@@ -387,7 +392,8 @@ def _indice_galpao_com_fronteira(executadas, normalized):
     return indice, dispensadas
 
 
-def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=()):
+def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=(),
+                            sem_executivo_aco=False):
     """Laco indice<->disco do galpao (G93) sobre a lente do G91.
 
     indice: o que `pacote_legal.indice_de_pranchas` promete nesta rodada.
@@ -410,12 +416,13 @@ def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=()):
     sem_freecad = set(sem_freecad or ())
     puladas = []
     for codigo in res["sem_mapa"] + res["faltando"]:
+        dona = _disciplina_do_codigo_galpao(codigo)
         puladas.append({
             "prancha": mapa.get(codigo, codigo),
             "motivo": _motivo_folha_galpao_nao_emitida(
                 codigo, titulos.get(codigo, ""),
-                causa_freecad=(
-                    _disciplina_do_codigo_galpao(codigo) in sem_freecad)),
+                causa_freecad=(dona in sem_freecad),
+                causa_sem_executivo_aco=(sem_executivo_aco and dona == "aco")),
         })
     return puladas
 
@@ -476,7 +483,8 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
                          else normalized["requested_disciplines"]),
             freecad_exe=str(_freecad_executable(options)),
             timeout=options.timeout_seconds,
-            R=turnkey_result)
+            R=turnkey_result,
+            executivo_aco=options.executivo_aco)
         artifacts = _register_pranchas(manifest, run_dir, drawings_dir)
         if isinstance(result, dict) and result.get("path"):
             path = Path(result["path"])
@@ -522,7 +530,8 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
             disco = [r.get("path", "") for r in artifacts]
             puladas = _conferir_indice_galpao(
                 indice, _PRANCHA_ARQUIVO_GALPAO, disco,
-                sem_freecad=sem_freecad)
+                sem_freecad=sem_freecad,
+                sem_executivo_aco=not options.executivo_aco)
         except Exception as exc:                            # noqa: BLE001
             try:
                 import varredura_indice_disco as _lente
@@ -643,6 +652,37 @@ def _run_turnkey(normalized, run_dir, preflight=None):
                 % (_cim_topo, _cim_payload))
         turnkey_spec["concreto"] = dict(turnkey_spec["concreto"],
                                         cimento=_cim_topo)
+    # G133: a protensao declarada no topo do projeto chega ao calculo do
+    # concreto (galpao_concreto.rodar a le no payload "concreto"). O payload
+    # que ja declara vence (o mais proximo da producao manda); declarado
+    # nos dois lugares com valores diferentes LEVANTA (a entrega nao
+    # escolhe um em silencio); invalido levanta na fonte unica.
+    from protensao_fck_g133 import (
+        fck_protendida_de_spec as _pfck_topo_rt,
+        fckj_protensao_de_spec as _pfckj_topo_rt)
+    _raw_top = normalized.get("raw_spec") if isinstance(normalized, dict) else None
+    _pf_topo = _pfck_topo_rt(_raw_top)
+    _pj_topo = _pfckj_topo_rt(_raw_top)
+    if ((_pf_topo is not None or _pj_topo is not None)
+            and isinstance(turnkey_spec.get("concreto"), dict)):
+        _pf_pay = _pfck_topo_rt(turnkey_spec["concreto"])
+        _pj_pay = _pfckj_topo_rt(turnkey_spec["concreto"])
+        if _pf_topo is not None and _pf_pay is not None and abs(_pf_topo - _pf_pay) > 1e-6:
+            raise ValueError(
+                "fck_protendida declarado no topo do projeto (%.0f kN/m2) "
+                "diverge do payload concreto (%.0f kN/m2): declare um so "
+                "(G133)" % (_pf_topo, _pf_pay))
+        if _pj_topo is not None and _pj_pay is not None and abs(_pj_topo - _pj_pay) > 1e-6:
+            raise ValueError(
+                "fckj_protensao declarado no topo do projeto (%.0f kN/m2) "
+                "diverge do payload concreto (%.0f kN/m2): declare um so "
+                "(G133)" % (_pj_topo, _pj_pay))
+        _novo_conc = dict(turnkey_spec["concreto"])
+        if _pf_topo is not None and _pf_pay is None:
+            _novo_conc["fck_protendida"] = _pf_topo
+        if _pj_topo is not None and _pj_pay is None:
+            _novo_conc["fckj_protensao"] = _pj_topo
+        turnkey_spec["concreto"] = _novo_conc
     result = tk.rodar(turnkey_spec, str(run_dir / "disciplines"))
     records = {}
     for name in normalized["requested_disciplines"]:

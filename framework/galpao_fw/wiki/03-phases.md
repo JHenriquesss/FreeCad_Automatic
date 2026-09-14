@@ -777,6 +777,38 @@ repetia 83 % das chamadas. Os invariantes saíram do laço e as duas contas pura
 memorizadas, com o resultado inteiro do prédio e dos checks do G15 idêntico por hash. Lote 00
 42:43 → 11:07; lote 04 21:46 → 7:25. A rodada real compartilhada ficou de fora, com o motivo.
 
+**Suíte em paralelo ([[04-decisions#D164]]).** Depois do lote G132–G136 (~10 h de suíte nos
+cinco goals), a medição mostrou que o `-n N` com o padrão ficava mais lento que a serial: cada
+teste pesado ocupa ~4 núcleos pelo OpenBLAS do scipy, e três workers saturam os 8. Com 1 thread
+de BLAS o paralelo escala (3837 passed em 29 min contra 48 min 33 s), mas o último ulp de contas
+do LAPACK muda — opção declarada no runner `tools/suite_paralela.py`, com a serial seguindo
+como referência bit a bit. O FreeCAD vai numa fila xdist só, congelada por censo de processos
+nos dois sentidos (o grep dava 39 arquivos; 15 sobem freecad). Achado sem correção: o
+executivo de aço do portão G102 estoura o prazo por construção (459 s de 787 s medidos),
+~8 min de toda suíte — e o veredito do portão depende do relógio: PE01+PE02+PE03 somam
+458,4 s, e quando PE02/PE03 chegam ao disco antes do corte saem sem código no mapa e o
+portão reprova (corrida de 26 min 58 s: 3836 passed, 1 failed).
+
+## G132–G136: a edição por peça, o concreto da protendida, a pergunta sem conta, o carimbo e a fctd numa fonte
+Arco fechado (2026-09-13). Verbete em todos os goals.
+- **G133** a viga protendida deixa de calcular num C40 que o projeto não declarou
+  ([[04-decisions#D159]]).
+- **G135** o carimbo da edição sai de 23 cópias e 49 rótulos para a fonte única
+  ([[04-decisions#D160]]).
+- **G132** cada peça declara a edição que a sua conta usou; o projeto declara a composição
+  ([[04-decisions#D161]]).
+- **G134** a pergunta do cimento sai do fluxo metálico, onde nenhuma conta a lia
+  ([[04-decisions#D162]]).
+- **G136** a fctd sai de sete cópias para uma fonte, com o γc da Tab. 12.1 lido na página
+  ([[04-decisions#D163]]).
+
+**Auditoria ([[04-decisions#D165]]).** Medido na função real, sem confiar no verbete: a fctd
+dá os mesmos 560 campos no HEAD pré-G136 e na árvore (8 fcks × 7 módulos); a protendida C30
+sem chave sai com `lim_comp` −21000 e declara a origem, com `fck_protendida` 40 volta a −28000;
+os censos das fontes únicas estão fechados; a casa com a chave 2023+Em1 não tem folha dizendo
+2023. O lote se sustenta. No mesmo passo, o portão G102 deixou de esperar o executivo de aço
+(sorteio de relógio, D164) e o executivo completo ganhou portão próprio, de auditoria.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

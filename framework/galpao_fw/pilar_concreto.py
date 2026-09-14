@@ -30,6 +30,7 @@ import functools
 import math
 
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 # --- coeficientes de ponderacao (ELU, combinacao normal) --------------------
 GAMMA_C = 1.4
@@ -437,7 +438,7 @@ def verifica_cortante_pilar(Vd, bw, d, fck, fyk):
     alpha_v2 = 1.0 - fck_MPa / 250.0
     VRd2 = 0.27 * alpha_v2 * fcd * bw * d
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
-    fctd_MPa = 0.7 * fctm_MPa / 1.4
+    fctd_MPa = fctd_nbr6118_g136.fctd_MPa(fck_MPa)  # fonte unica G136; gamma_c normal
     Vc = 0.6 * fctd_MPa * 1000.0 * bw * d
     fywk_MPa = fyk / 1000.0
     rho_sw_min = 0.2 * fctm_MPa / fywk_MPa if fywk_MPa > 0 else 0.0
@@ -790,7 +791,10 @@ def dimensiona_pilar(caso):
 
 
 def relatorio_pt(r):
-    L = ["PILAR DE CONCRETO ARMADO - FLEXAO COMPOSTA (ABNT NBR 6118:2014)",
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+    L = ["PILAR DE CONCRETO ARMADO - FLEXAO COMPOSTA (ABNT %s)"
+         % _rot_ed_g135(),
          f"  Secao hx x hy = {r['hx']*100:.0f} x {r['hy']*100:.0f} cm "
          f"(Ac = {r['Ac_cm2']:.0f} cm2) ; Nd = {r['Nd']:.0f} kN "
          f"(gamma_n = {r['gamma_n']:.2f}) ; nu = {r['nu']:.2f}"]

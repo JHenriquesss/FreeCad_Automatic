@@ -300,9 +300,11 @@ def _escopo(com_baldrame: bool) -> dict:
 
 def relatorio_pt(resultado) -> str:
     """Quadro do baldrame do edificio."""
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
     r = resultado["verificacao"]
     linhas = [
-        "VIGA BALDRAME DO EDIFICIO MULTIPAVIMENTO (ABNT NBR 6118:2014)",
+        "VIGA BALDRAME DO EDIFICIO MULTIPAVIMENTO (ABNT %s)" % _rot_ed_g135(),
         "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
         "  Secao: %d x %d cm (declarada %d cm) ; continuidade: %s" % (
             resultado["secao"]["b_cm"], resultado["secao"]["h_cm"],

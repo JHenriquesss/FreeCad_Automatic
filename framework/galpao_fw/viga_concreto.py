@@ -185,10 +185,12 @@ def verifica_viga(cfg):
 
 
 def relatorio_pt(r):
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
     def _arr(a):
         return (f"{a['n']} phi {a['phi']:.1f} mm (As_ef={a['As_ef']*1e4:.2f} cm2)"
                 if a and a.get("n") else "(detalhar)")
-    L = ["VIGA DE CONCRETO ARMADO (ABNT NBR 6118:2014)",
+    L = ["VIGA DE CONCRETO ARMADO (ABNT %s)" % _rot_ed_g135(),
          f"  Vao = {r['vao']:.2f} m ; secao {r['b']*100:.0f}x{r['h']*100:.0f} cm "
          f"(d={r['d']*100:.0f} cm) ; b_min 12 cm {'OK' if r['b_ok'] else 'REPROVA'}",
          f"  FLEXAO: w = {r['w']:.3f} kN/m (+p.proprio {r['w_self']:.3f}) ; "

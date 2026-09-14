@@ -20,16 +20,11 @@ checklists PPCI-AVCB e LOD-BIM, manual O&M. STATELESS. Dados do RT = A CONFIRMAR
 
 from __future__ import annotations
 
-try:
-    from edicao_nbr6118_g123 import (
-        carimbo_edicao as _carimbo_ed_g123,
-        edicao_de_spec as _edicao_de_spec_g123,
-        rotulo_edicao as _rotulo_ed_g123,
-    )
-except ImportError:  # uso isolado fora do pacote
-    _carimbo_ed_g123 = None
-    _edicao_de_spec_g123 = None
-    _rotulo_ed_g123 = None
+from edicao_nbr6118_g123 import (
+    carimbo_composicao as _composicao_ed_g123,
+    edicao_de_spec as _edicao_de_spec_g123,
+    rotulo_edicao as _rotulo_ed_g123,
+)
 
 try:
     import exigencias_nao_verificadas_g130 as _exig_g130
@@ -251,7 +246,7 @@ def memorial_consolidado(R, spec=None):
 
 def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
                  pendencias=None, edicao=None, tipologia=None,
-                 cimento_calculado=None):
+                 cimento_calculado=None, protensao_calculada=None):
     """Monta o pacote legal completo. disciplinas: chaves (default: as de _ART); se
     R (turnkey) for dado, usa as executadas e inclui o memorial consolidado.
 
@@ -273,6 +268,12 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
     conservador declarado (nunca CPV); invalido levanta. A linha mora na
     fonte unica cimento_nbr6118_g126.
 
+    G133: a protensao (fck da viga protendida e fckj da transferencia) sai
+    do que o CALCULO usou (`protensao_calculada`, do resultado); sem ela, o
+    spec (ausente = fck do projeto / fckj = fck, com a ausencia dita) ou
+    "sem viga protendida" para casa/predio. Declarado x usado divergentes
+    LEVANTA. A linha mora na fonte unica protensao_fck_g133.
+
     G130: `tipologia` = 'casa'/'predio'/'galpao' ("edificio" e alias de
     "predio"); ausente = a uniao das tres (o pacote nunca esconde divida
     por falta de rotulo). Cada divida de ORFAS_TRIADAS aplicavel a
@@ -290,14 +291,12 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
         disciplinas = (R.get("executadas") if R else None) or list(_ART.keys())
     disciplinas = [d for d in _ORDEM_DISC if d in disciplinas] or list(_ART.keys())
     # Resolve a edicao: parametro explicito vence; senao o spec; senao hoje.
+    # G135: fonte unica, sem copia literal do carimbo aqui.
+    from edicao_nbr6118_g123 import normaliza_edicao as _norm_ed
     _ed_resolvida = None
     if edicao is not None:
-        if _edicao_de_spec_g123 is not None:
-            from edicao_nbr6118_g123 import normaliza_edicao as _norm_ed
-            _ed_resolvida = _norm_ed(edicao)
-        else:
-            _ed_resolvida = str(edicao)
-    elif isinstance(spec, dict) and _edicao_de_spec_g123 is not None:
+        _ed_resolvida = _norm_ed(edicao)
+    elif isinstance(spec, dict):
         try:
             _ed_resolvida = _edicao_de_spec_g123(spec)
         except ValueError:
@@ -307,17 +306,11 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
            "checklist_ppci_avcb": checklist_ppci_avcb(pendencias),
            "checklist_lod_bim": checklist_lod_bim(disciplinas),
            "manual_oem": manual_oem(disciplinas)}
-    if _carimbo_ed_g123 is not None:
-        pac["edicao_6118"] = _ed_resolvida
-        pac["carimbo_edicao_6118"] = _carimbo_ed_g123(_ed_resolvida)
-    else:
-        pac["edicao_6118"] = _ed_resolvida
-        pac["carimbo_edicao_6118"] = (
-            "Projeto calculado pela NBR 6118:2014 (comportamento atual; "
-            "edicao nao declarada no projeto — assumida 2014)"
-            if not _ed_resolvida else
-            ("Projeto calculado pela NBR 6118:%s (edicao declarada no "
-             "projeto)" % _ed_resolvida))
+    pac["edicao_6118"] = _ed_resolvida
+    # G132: o carimbo do projeto diz a composicao (quais itens seguem a
+    # 2023+Em1, o resto pela 2014); `edicao_6118` segue sendo a edicao
+    # declarada no projeto (metadado, nao conta de peca).
+    pac["carimbo_edicao_6118"] = _composicao_ed_g123(_ed_resolvida)
     # G126/G131: o cimento que o pacote declara e o que o CALCULO usou
     # (`cimento_calculado`, do resultado); sem ele, casa/predio declaram que
     # nao ha icamento calculado e o resto le o spec (ausente = piso dito).
@@ -329,6 +322,17 @@ def gerar_pacote(disciplinas=None, R=None, spec=None, memorial=None,
     _cim_linha = _lin_cim_pl(_cim_res)
     pac["cimento"] = _cim_res
     pac["linha_cimento"] = _cim_linha
+    # G133: a protensao que o pacote declara e a que o CALCULO usou
+    # (`protensao_calculada`, do resultado); sem ela, casa/predio declaram
+    # que nao ha viga protendida e o resto le o spec (ausente = piso dito).
+    # Declarado no spec x usado na conta divergentes LEVANTA (fonte unica,
+    # sem copia literal da linha aqui).
+    from protensao_fck_g133 import protensao_da_entrega as _prot_ent_pl
+    from protensao_fck_g133 import linha_protensao as _lin_prot_pl
+    _prot_res = _prot_ent_pl(protensao_calculada, spec, _tip_canon)
+    _prot_linha = _lin_prot_pl(_prot_res)
+    pac["protensao"] = _prot_res
+    pac["linha_protensao"] = _prot_linha
     # G130: as dividas aplicaveis a tipologia saem no pacote como exigencia
     # nao verificada (fonte unica; sem tipologia = a uniao; invalida levanta
     # acima; divida nova sem triagem viaja em sem_triagem).
@@ -519,16 +523,13 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     nao verificadas), que sao declaracao obrigatoria e saem sempre (a
     ausencia reprova no portao)."""
     L = ["# %s" % titulo, ""]
-    # G123: declaracao obrigatoria da edicao de calculo (fonte unica; sem o
-    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    # G123/G135: declaracao obrigatoria da edicao de calculo (fonte unica;
+    # sem o parametro, o comportamento e o de hoje - 2014 - e a folha diz
+    # qual e; sem copia literal aqui).
+    # G132: o carimbo do projeto diz a composicao (fonte unica).
     _carimbo_txt = pac.get("carimbo_edicao_6118")
     if not _carimbo_txt:
-        if _carimbo_ed_g123 is not None:
-            _carimbo_txt = _carimbo_ed_g123(pac.get("edicao_6118"))
-        else:
-            _carimbo_txt = ("Projeto calculado pela NBR 6118:2014 "
-                            "(comportamento atual; edicao nao declarada no "
-                            "projeto — assumida 2014)")
+        _carimbo_txt = _composicao_ed_g123(pac.get("edicao_6118"))
     L.append("## Norma de calculo do concreto (G123)")
     L.append("")
     L.append(str(_carimbo_txt))
@@ -544,6 +545,19 @@ def markdown(pac, titulo="PACOTE DE PROJETO - DOCUMENTOS DE GESTAO E APROVACAO",
     L.append("## Cimento do concreto (G126)")
     L.append("")
     L.append(str(_cim_txt))
+    L.append("")
+    # G133: declaracao obrigatoria do fck da protendida e do fckj (fonte
+    # unica; sem declaracao, o fck do projeto / fckj = fck, com a ausencia
+    # dita; sem viga protendida, o terceiro valor declarado).
+    _prot_txt = pac.get("linha_protensao")
+    if not _prot_txt:
+        # pacote montado fora de gerar_pacote declara pela fonte unica
+        # (sem copia literal da linha aqui).
+        from protensao_fck_g133 import linha_protensao as _lin_prot_md
+        _prot_txt = _lin_prot_md(pac.get("protensao"))
+    L.append("## Protensao da viga (G133)")
+    L.append("")
+    L.append(str(_prot_txt))
     L.append("")
     if "memorial_consolidado" in pac:
         m = pac["memorial_consolidado"]

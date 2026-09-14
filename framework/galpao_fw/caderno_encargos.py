@@ -193,32 +193,26 @@ def gerar_caderno(disciplinas=None, edicao=None):
     unica `edicao_nbr6118_g123`. A mencao "NBR 6118" das clausulas sai com
     a edicao que a conta usou; sem o parametro, o comportamento e o de hoje
     (2014) e o caderno diz qual e (via `linha_edicao_6118`). Invalida
-    levanta (nao vira edicao em silencio)."""
+    levanta (nao vira edicao em silencio).
+    G135: fonte unica, sem copia literal do carimbo/rotulo aqui.
+    G132: a secao de declaracao diz a composicao do projeto (fonte unica
+    carimbo_composicao); as clausulas citam a edicao declarada (norma de
+    referencia para execucao, nao conta de peca)."""
+    from edicao_nbr6118_g123 import (
+        carimbo_composicao as _comp_ed_g132,
+        normaliza_edicao as _norm_ed_g128,
+        rotulo_edicao as _rot_ed_g128,
+    )
     if disciplinas is None:
         disciplinas = disciplinas_disponiveis()
     invalidas = [d for d in disciplinas if d not in _CLAUSULAS]
     if invalidas:
         raise ValueError("disciplina(s) sem clausulas: %r" % invalidas)
-    try:
-        from edicao_nbr6118_g123 import (
-            carimbo_edicao as _carimbo_ed_g128,
-            normaliza_edicao as _norm_ed_g128,
-            rotulo_edicao as _rot_ed_g128,
-        )
-    except ImportError:  # uso isolado fora do pacote
-        _carimbo_ed_g128 = None
-        _norm_ed_g128 = None
-        _rot_ed_g128 = None
     if edicao is None:
         _ed_canon = None
-    elif _norm_ed_g128 is not None:
+    else:
         _ed_canon = _norm_ed_g128(edicao)
-    else:
-        _ed_canon = str(edicao)
-    if _rot_ed_g128 is not None:
-        _rot = _rot_ed_g128(_ed_canon)
-    else:
-        _rot = "NBR 6118:2014" if not _ed_canon else "NBR 6118:%s" % _ed_canon
+    _rot = _rot_ed_g128(_ed_canon)
 
     def _com_edicao(nome_norma):
         # So a 6118 tem edicao declarada neste goal; as demais seguem como
@@ -239,14 +233,7 @@ def gerar_caderno(disciplinas=None, edicao=None):
         secoes.append({"disciplina": d, "titulo": _TITULO_DISC.get(d, d.upper()),
                        "clausulas": clausulas})
     normas = sorted({n for s in secoes for c in s["clausulas"] for n in c["normas"]})
-    if _carimbo_ed_g128 is not None:
-        _linha_ed = _carimbo_ed_g128(_ed_canon)
-    else:
-        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
-                     "atual; edicao nao declarada no projeto — assumida 2014)"
-                     if not _ed_canon else
-                     ("Projeto calculado pela NBR 6118:%s (edicao declarada "
-                      "no projeto)" % _ed_canon))
+    _linha_ed = _comp_ed_g132(_ed_canon)
     return {"secoes": secoes, "n_secoes": len(secoes),
             "n_clausulas": sum(len(s["clausulas"]) for s in secoes),
             "normas_referenciadas": normas,
@@ -288,13 +275,11 @@ def markdown(caderno, titulo="CADERNO DE ENCARGOS - ESPECIFICACOES TECNICAS"):
     L = ["# %s" % titulo, ""]
     _linha_ed = (caderno or {}).get("linha_edicao_6118")
     if not _linha_ed:
-        try:
-            from edicao_nbr6118_g123 import carimbo_edicao as _car_md
-            _linha_ed = _car_md((caderno or {}).get("edicao_6118"))
-        except ImportError:
-            _linha_ed = ("Projeto calculado pela NBR 6118:2014 "
-                         "(comportamento atual; edicao nao declarada no "
-                         "projeto — assumida 2014)")
+        # G135: pacote montado fora de gerar_caderno declara pela fonte unica
+        # (sem copia literal da linha aqui).
+        # G132: a secao e a composicao do projeto (fonte unica).
+        from edicao_nbr6118_g123 import carimbo_composicao as _car_md
+        _linha_ed = _car_md((caderno or {}).get("edicao_6118"))
     L.append("## Norma de calculo do concreto (G123)")
     L.append("")
     L.append(str(_linha_ed))
@@ -347,7 +332,9 @@ def _selftest():
 
     # G128: sem edicao, a 6118 sai com a de hoje (2014) e o caderno diz
     # qual e; com a chave, sai a declarada; invalida levanta.
-    assert "NBR 6118:2014" in md and "nao declarada" in md
+    # G135: o rotulo esperado vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import DECLARACAO_2014 as _DECL_2014_ST
+    assert _DECL_2014_ST in md and "nao declarada" in md
     assert cad["edicao_6118"] is None
     ce23 = gerar_caderno(["concreto"], edicao="2023+Em1")
     assert ce23["edicao_6118"] == "2023+Em1"

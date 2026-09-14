@@ -29,16 +29,11 @@ from techdraw_exec import (
     _carimbo, _fit_escala, _bbox, _fmt_m, _fmt_mm, _paper_half, _ESC_NOME,
     _svg_para_png, AREA_1V, AREA_2V)
 
-try:
-    from edicao_nbr6118_g123 import (
-        carimbo_edicao as _carimbo_ed_g123,
-        edicao_de_spec as _edicao_de_spec_g123,
-        rotulo_edicao as _rotulo_ed_g123,
-    )
-except ImportError:  # dentro do freecad.exe sem o modulo no path
-    _carimbo_ed_g123 = None
-    _edicao_de_spec_g123 = None
-    _rotulo_ed_g123 = None
+from edicao_nbr6118_g123 import (
+    carimbo_composicao as _composicao_ed_g132,
+    edicao_de_spec as _edicao_de_spec_g123,
+    rotulo_edicao as _rotulo_ed_g123,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -348,26 +343,28 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     # quantitativo de concreto (do build 3D, se veio no spec; senao omite)
     tk = ((spec.get("estrutura", {}) or {}).get("takeoff_concreto")
           if isinstance(spec, dict) else None)
-    # G123: a prancha carimba a edicao de calculo (fonte unica; sem o
-    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e).
+    # G123/G135: a prancha carimba a edicao de calculo (fonte unica; sem o
+    # parametro, o comportamento e o de hoje - 2014 - e a folha diz qual e;
+    # sem copia literal aqui).
+    # G132: a prancha cobre o calculo inteiro (inclui o icamento 12.3.3,
+    # com troca): o carimbo diz a composicao do projeto (fonte unica); a
+    # linha de normas cita a edicao declarada (referencia de execucao).
     try:
-        _ed_cfg = _edicao_de_spec_g123(spec) if _edicao_de_spec_g123 else None
+        _ed_cfg = _edicao_de_spec_g123(spec)
     except ValueError:
         raise
-    if _carimbo_ed_g123 is not None:
-        _linha_ed = _carimbo_ed_g123(_ed_cfg)
-    else:
-        _linha_ed = ("Projeto calculado pela NBR 6118:2014 (comportamento "
-                     "atual; edicao nao declarada no projeto — assumida 2014)"
-                     if not _ed_cfg else
-                     ("Projeto calculado pela NBR 6118:%s (edicao declarada "
-                      "no projeto)" % _ed_cfg))
+    _linha_ed = _composicao_ed_g132(_ed_cfg)
     # G126: a prancha declara o cimento do fckj do icamento (fonte unica;
     # sem o cimento, o piso conservador, com a ausencia dita). Le do
     # resultado (o que foi calculado), nunca do spec isolado.
     # G131: sem copia literal da linha no fallback (fonte unica).
     from cimento_nbr6118_g126 import linha_cimento as _lin_cim_g126
     _linha_cim = _lin_cim_g126(r)
+    # G133: a prancha declara o fck da protendida e o fckj (fonte unica;
+    # sem declaracao, o fck do projeto / fckj = fck, com a ausencia dita).
+    # Le do resultado (o que foi calculado), nunca do spec isolado.
+    from protensao_fck_g133 import linha_protensao as _lin_prot_g133
+    _linha_prot = _lin_prot_g133(r)
     notas = [
         "NOTAS TECNICAS E ESPECIFICACOES",
         "1. Concreto: fck = %.0f MPa (concreto armado, gamma_c = 1,4)." % fckM,
@@ -377,11 +374,11 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "   (NBR 9062); viga de cobertura biapoiada sobre o topo dos pilares.",
         "5. %s" % fund_nota,
         "6. Normas: %s, NBR 6122, NBR 6123, NBR 9062, NBR 15200." % (
-            _rotulo_ed_g123(_ed_cfg) if _rotulo_ed_g123 else
-            ("NBR 6118:2014" if not _ed_cfg else "NBR 6118:%s" % _ed_cfg)),
+            _rotulo_ed_g123(_ed_cfg)),
         "   %s." % _linha_ed,
         "7. Verificar situacoes transitorias de icamento/transporte (NBR 9062 5.3.2).",
         "   %s." % _linha_cim,
+        "   %s." % _linha_prot,
     ]
     if tk:
         notas.append("8. Volume de concreto (modelo 3D): %s m3 (~%s kg)."

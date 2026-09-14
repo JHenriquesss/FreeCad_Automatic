@@ -41,6 +41,7 @@ import re
 import fissuracao_nbr6118 as fis
 import fundacao_sapata as fs
 import fctm_nbr6118_g127
+import fctd_nbr6118_g136
 
 GAMMA_C_CONC = 25.0        # peso especifico do concreto armado (kN/m3), NBR 6120
 GF = 1.4                   # ponderacao das acoes (ELU normal)
@@ -437,7 +438,7 @@ def cortante_laje(V_sd, bw, d, fck, As1, sigma_cp=0.0, metade_no_apoio=False):
     Formulacao de LAJE - diferente do modelo de trelica da viga."""
     fck_MPa = fck / 1000.0
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
-    fctd = 0.7 * fctm_MPa / 1.4 * 1000.0     # kN/m2
+    fctd = fctd_nbr6118_g136.fctd_MPa(fck_MPa) * 1000.0  # kN/m2 (fonte unica G136; gamma_c normal)
     tau_rd = 0.25 * fctd
     k = 1.0 if metade_no_apoio else max(abs(1.6 - d), 1.0)
     rho1 = min(As1 / (bw * d), 0.02) if bw * d > 0 else 0.0
@@ -825,7 +826,9 @@ def detalha_lajes_por_painel(paineis, cfg_base):
 
 def relatorio_pt(r):
     """Relatorio textual da laje (numeros com virgula decimal)."""
-    L = ["LAJE MACICA DE CONCRETO ARMADO (NBR 6118:2014)",
+    # G135: o cabecalho da peca vem da fonte unica (sem literal aqui).
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot_ed_g135
+    L = ["LAJE MACICA DE CONCRETO ARMADO (%s)" % _rot_ed_g135(),
          "  Painel %.2f x %.2f m (lambda %.2f) ; h %.0f cm (h_min %.0f cm, %s)"
          " ; d %.1f cm"
          % (r["lx"], r["ly"], r["lambda"], r["h"] * 100, r["h_min"] * 100,

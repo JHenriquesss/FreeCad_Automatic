@@ -151,12 +151,14 @@ def novo():
         # (sem default silencioso). '2014' ou '2023+Em1' explicito; migrar e
         # decisao do usuario. Nao bloqueia (tem comportamento declarado).
         "norma_6118_edicao": None,
-        # G126: cimento do concreto para o fckj do icamento (NBR 6118
-        # 12.3.3). None (ausente) = piso conservador (maior `s` = 0,38) e a
-        # folha e o memorial dizem isso (nunca CPV). Opcional, com a
-        # ausencia dita; invalido BLOQUEIA. Escolher o cimento do projeto e
-        # decisao do usuario (piso nao e palpite).
-        "cimento": None,
+        # G134: o cimento SAIU do ProjetoSpec do galpao METALICO (era G126:
+        # "cimento": None). Motivo na fonte unica chaves_to_rodar_g134
+        # (MOTIVO_REMOCAO_CIMENTO): o rodar_galpao nunca lia a chave (zero
+        # leitores) - o icamento so existe no turnkey de concreto, cuja
+        # entrada e o project-spec (topo ou turnkey.concreto, G131). Um
+        # "cimento" presente aqui e legado: ausente/None/"" segue OK
+        # (specs antigos continuam validos); valor explicito BLOQUEIA com
+        # o motivo e o caminho certo (ver validar). NAO recriar a chave.
         "_a_confirmar": [],
     }
 
@@ -657,27 +659,35 @@ def validar(spec):
             if str(_ed).strip() not in ("2014", "2023+Em1"):
                 faltando.append(("norma_6118_edicao",
                                  "edicao invalida %r (use '2014' ou '2023+Em1')" % (_ed,)))
-    # G126: cimento do concreto (NBR 6118 12.3.3). None/ausente = piso
-    # conservador declarado (nao bloqueia); string valida explicita;
-    # qualquer outra string BLOQUEIA (nao vira cimento em silencio).
+    # G134: o cimento SAIU do ProjetoSpec do galpao METALICO (era G126:
+    # campo opcional com piso declarado). Motivo na fonte unica
+    # chaves_to_rodar_g134 (MOTIVO_REMOCAO_CIMENTO): o rodar_galpao nunca
+    # lia a chave - o icamento so existe no turnkey de concreto (entrada:
+    # project-spec topo ou turnkey.concreto, G131). Legado: ausente/None/""
+    # segue OK (specs antigos continuam validos); valor EXPLICITO bloqueia
+    # com o caminho certo, nunca vira conta em silencio. O import da fonte
+    # do cimento fica para distinguir "valido mas fora do fluxo" de
+    # "desconhecido" na mensagem (mesmo LEITORES_ESPERADOS do G126).
     _cim = spec.get("cimento")
     if _cim not in (None, "", PENDENTE):
         try:
             import cimento_nbr6118_g126 as _cimm
             _cimm.normaliza_cimento(_cim)
+            _cim_msg = ("cimento %r saiu do fluxo metalico (G134: o "
+                        "rodar_galpao nao le esta chave; declare no "
+                        "project-spec do turnkey - topo ou "
+                        "turnkey.concreto - onde o icamento e calculado)"
+                        % (_cim,))
         except ValueError:
-            faltando.append(("cimento",
-                             "cimento desconhecido %r (NBR 6118 12.3.3; use um "
-                             "de: CPI, CPII, CPIII, CPIV, CPV, CPV-ARI)"
-                             % (_cim,)))
+            _cim_msg = ("cimento desconhecido %r (NBR 6118 12.3.3; use um "
+                        "de: CPI, CPII, CPIII, CPIV, CPV, CPV-ARI) - e, no "
+                        "fluxo metalico, nem o valido e lido (G134: declare "
+                        "no project-spec do turnkey)"
+                        % (_cim,))
         except ImportError:
-            if str(_cim).strip().upper() not in (
-                    "CPI", "CPII", "CPIII", "CPIV", "CPV", "CPV-ARI",
-                    "CPV ARI"):
-                faltando.append(("cimento",
-                                 "cimento desconhecido %r (NBR 6118 12.3.3; use "
-                                 "um de: CPI, CPII, CPIII, CPIV, CPV, CPV-ARI)"
-                                 % (_cim,)))
+            _cim_msg = ("cimento %r nao e lido no fluxo metalico (G134) "
+                        "%s" % (_cim, ""))
+        faltando.append(("cimento", _cim_msg))
     return {"faltando": faltando, "a_confirmar": list(spec.get("_a_confirmar", [])),
             "avisos": avisos, "ok": not faltando}
 
@@ -936,10 +946,16 @@ def to_rodar_params(spec):
     # G123: a chave de edicao viaja ao orquestrador (ausente = 2014 hoje).
     if spec.get("norma_6118_edicao") not in (None, "", PENDENTE):
         p["norma_6118_edicao"] = spec.get("norma_6118_edicao")
-    # G126: o cimento declarado viaja ao orquestrador (ausente = piso
-    # conservador declarado no calculo do concreto).
+    # G134: o cimento NAO viaja ao orquestrador metalico (era G126: repasse
+    # com `p["cimento"]`). Motivo na fonte unica chaves_to_rodar_g134: o
+    # rodar_galpao tem zero leitores da chave. Guarda de regressao barata
+    # (a prova por AST mora na lente): se um "cimento" legado chegar ate
+    # aqui, levanta com o motivo em vez de seguir morto no `p`.
     if spec.get("cimento") not in (None, "", PENDENTE):
-        p["cimento"] = spec.get("cimento")
+        import chaves_to_rodar_g134 as _censo_g134
+        raise ValueError("cimento %r: %s"
+                         % (spec.get("cimento"),
+                            _censo_g134.MOTIVO_REMOCAO_CIMENTO))
     return p
 
 

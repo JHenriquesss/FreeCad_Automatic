@@ -51,20 +51,16 @@ VER_ADMISSIVEL = "admissivel"       # dispensa de 13.2.5.1/13.2.5.2 atendida
 VER_ACONFIRMAR = "a_confirmar"      # sem dado ou fora da dispensa: exige verificacao
 VER_REPROVADO = "reprovado"         # viola limite duro: nao pode ser aprovado
 
-_FONTE_6118 = "NBR 6118:2014"
-
-# Fonte da edicao 2023+Em1 (G123): o rotulo mora na fonte unica; este modulo
-# so o referencia para carimbar a clausula quando a chave esta virada.
-try:
-    from edicao_nbr6118_g123 import (
-        DECLARACAO_2023_EM1 as _DECL_2023_EM1,
-        limite_furo_viga_mm as _limite_furo_edicao,
-        resolver_edicao as _resolver_edicao,
-    )
-except ImportError:  # uso isolado fora do pacote
-    _DECL_2023_EM1 = "NBR 6118:2023 + Emenda 1:2026"
-    _limite_furo_edicao = None
-    _resolver_edicao = None
+# Fonte da edicao (G123/G135): os rotulos moram na fonte unica; este modulo
+# so os referencia (o 2014 nas clausulas que nao trocam com a chave, o
+# 2023+Em1 no furo circular quando a chave esta virada). Sem literal aqui.
+from edicao_nbr6118_g123 import (
+    DECLARACAO_2014 as _FONTE_6118,
+    DECLARACAO_2023_EM1 as _DECL_2023_EM1,
+    edicao_da_peca as _edicao_da_peca,
+    limite_furo_viga_mm as _limite_furo_edicao,
+    resolver_edicao as _resolver_edicao,
+)
 
 
 def _disciplinas_do_par(par):
@@ -143,21 +139,14 @@ def avalia_furo_viga(d_furo_mm=None, h_viga_mm=None, dist_apoio_mm=None,
     """
     motivos = []
     # Resolve a edicao sem default silencioso: ausente = 2014 declarado.
-    if _resolver_edicao is not None:
-        try:
-            _res_ed = _resolver_edicao(edicao)
-            _ed_canon = _res_ed["edicao"]
-        except ValueError:
-            raise
-        _fonte = _FONTE_6118 if _ed_canon == "2014" else _DECL_2023_EM1
-        if _limite_furo_edicao is not None:
-            _limite = float(_limite_furo_edicao(_ed_canon, forma_furo))
-        else:
-            _limite = 120.0
-    else:
-        _ed_canon = "2014"
-        _fonte = _FONTE_6118
-        _limite = 120.0
+    # G135: fonte unica, sem ramo isolado (o import e direto).
+    try:
+        _res_ed = _resolver_edicao(edicao)
+        _ed_canon = _res_ed["edicao"]
+    except ValueError:
+        raise
+    _fonte = _FONTE_6118 if _ed_canon == "2014" else _DECL_2023_EM1
+    _limite = float(_limite_furo_edicao(_ed_canon, forma_furo))
     clausulas = [_fonte + " 13.2.5", _fonte + " 13.2.5.1",
                  _fonte + " 21.3.1"]
     d = _num(d_furo_mm); h = _num(h_viga_mm)
@@ -521,14 +510,15 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
     G128: cada pendencia carrega `edicao_6118` (a edicao que a conta usou,
     resolvida na fonte unica; ausente = "2014", hoje declarado) - a peca
     diz qual e mesmo sem o parametro.
+    G132: `edicao_6118` e por pendencia, da conta (fonte unica
+    edicao_da_peca): so o furo transversal em viga (13.2.5.1, ponto de
+    MODULOS_COM_TROCA) segue a chave; laje/vertical/conflito/montagem
+    declaram 2014 com qualquer chave.
     """
     clashes = rep_clash.get("clashes", [])
     # Resolve a edicao uma vez para a chamada inteira (fonte unica; ausente
     # = hoje; invalida levanta, nao vira edicao em silencio).
-    if _resolver_edicao is not None:
-        _ed_canon = _resolver_edicao(edicao)["edicao"]
-    else:
-        _ed_canon = "2014"
+    _ed_canon = _resolver_edicao(edicao)["edicao"]
     # a revisar primeiro (por volume desc), depois esperados (por volume desc)
     ordenados = sorted(clashes, key=lambda c: (c.get("esperado", False),
                                                -c.get("vol_mm3", 0)))
@@ -541,6 +531,13 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
         cls = classifica_cruzamento(c, hint, edicao=edicao)
         categoria = cls["categoria"]
         veredito = cls["veredito"]
+        # G132: a pendencia declara a edicao que a SUA conta usou (fonte
+        # unica): so o furo transversal em viga le a chave (13.2.5.1); o
+        # resto calcula pela 2014 com qualquer chave.
+        _e_viga = "Beam" in str(c.get("tipos") or "")
+        _transv = not (isinstance(hint, dict)
+                       and hint.get("vertical") is True)
+        _usa_troca = (categoria == CAT_FURO and _e_viga and _transv)
         if categoria == CAT_FURO:
             acao, resp = _acao_furo(da, db, veredito, cls["motivos"])
         else:
@@ -562,7 +559,7 @@ def gerar_pendencias(rep_clash, prefixo="CLH", cruzamentos=None,
             "veredito": veredito,
             "motivos": list(cls["motivos"]),
             "clausulas": list(cls["clausulas"]),
-            "edicao_6118": _ed_canon,
+            "edicao_6118": _edicao_da_peca(_ed_canon, _usa_troca),
             "resolucao": None,
             "acao_sugerida": acao, "responsavel": resp,
         })

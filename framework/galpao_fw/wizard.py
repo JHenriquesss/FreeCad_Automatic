@@ -190,13 +190,13 @@ PERGUNTAS = [
     # Antes era MR250 fixo p/ todo projeto, sem o eng. poder pedir alta resistencia.
     ("aco", "Classe do aco estrutural (MR250/A572-G50/AR350/AR-COR415)",
      str, "MR250", False),
-    # G126: cimento do concreto p/ o fckj do icamento (NBR 6118 12.3.3).
-    # OPCIONAL com a ausencia dita: vazio = nao declarado -> piso
-    # conservador (maior `s` = 0,38) declarado na folha e no memorial
-    # (nunca CPV). Invalido BLOQUEIA no validar (nao vira cimento calado).
-    ("cimento", "Tipo de cimento do concreto p/ o fckj do icamento "
-     "(CPI/CPII/CPIII/CPIV/CPV/CPV-ARI; vazio=nao declarado -> piso conservador)",
-     str, "", False),
+    # G134: a pergunta do cimento SAIU do wizard do galpao METALICO (era
+    # G126: "Tipo de cimento do concreto p/ o fckj do icamento", opcional
+    # com ausencia dita). Motivo na fonte unica chaves_to_rodar_g134
+    # (MOTIVO_REMOCAO_CIMENTO): o rodar_galpao nunca lia a resposta (zero
+    # leitores) - o icamento so existe no turnkey de concreto, cuja entrada
+    # e o project-spec (topo ou turnkey.concreto, G131). Perguntar sem
+    # leitor e comentario (convencao 8). NAO recriar a pergunta.
     # (removido: 'tapamento' era campo MORTO - nao chegava ao calculo e duplicava
     #  o peso da parede, ja tratado por 'fech_peso' -> cargas_parede. O peso do
     #  fechamento das paredes vem de 'fech_peso'; o da cobertura, de G/telha_peso.)
@@ -260,9 +260,18 @@ def construir_spec(r, slug="galpao"):
     # aco: guarda o valor CRU (nao normaliza aqui). Assim um erro de digitacao
     # ('AR300') e BLOQUEADO pelo validar em vez de cair calado no MR250 default.
     s["estrutura"]["aco"] = r.get("aco") or "MR250"
-    # G126: cimento guarda o valor CRU ("" ou ausente = None = nao declarado
-    # -> piso conservador declarado; invalido BLOQUEIA no validar).
-    s["cimento"] = (str(r.get("cimento") or "").strip() or None)
+    # G134: o cimento SAIU do fluxo metalico (era G126: repasse cru com
+    # ""/ausente = None = piso dito). Motivo na fonte unica
+    # chaves_to_rodar_g134 (MOTIVO_REMOCAO_CIMENTO): o rodar_galpao nunca
+    # lia a resposta. Resposta legada explicita (dict antigo reutilizado)
+    # BLOQUEIA com o caminho certo em vez de seguir morta; ausente/None/""
+    # segue OK (nao se escreve mais `s["cimento"]`).
+    _cim_leg = r.get("cimento")
+    if _cim_leg not in (None, ""):
+        import chaves_to_rodar_g134 as _censo_g134
+        raise ValueError(
+            "resposta 'cimento'=%r: %s"
+            % (_cim_leg, _censo_g134.MOTIVO_REMOCAO_CIMENTO))
     # tipo de ligacao (soldada/parafusada): normaliza e guarda cru p/ validar().
     s["estrutura"]["tipo_ligacao"] = (r.get("tipo_ligacao") or "soldada").strip().lower()
     nmf = r.get("n_maos_francesas", 0) or 0
