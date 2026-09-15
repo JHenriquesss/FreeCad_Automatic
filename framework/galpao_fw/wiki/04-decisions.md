@@ -4464,3 +4464,79 @@ sobre os 309/3904 do G146 (o guarda novo G147).
 fechar aplicativos do usuario para medir; mover o G102-galpao para a
 auditoria (parte do G148, com decisao do usuario); dar piso de memoria ao
 runner (so registra o minimo).
+
+## D175 - G148 parte 1: piso de memoria livre no runner (200 MB derivados do medido) - FECHADO
+
+**Pedido.** `framework/galpao_fw/BACKLOG-GOALS-G143-G148.md` G148 parte 1:
+piso de memoria livre em `tools/suite_paralela.py` derivado do medido, que
+grava os testes de cada worker e sai como quebra nomeada sem matar processo
+do usuario, com vermelho por injecao. Medir quanto a suite ganharia sem o
+galpao do G102 e so relatar (nao mover cobertura). Seguir as convencoes 1-13
+e a regra do lote, rodar a suite pelo runner ate `rc_pytest` 0 e `quebras`
+vazio, escrever o verbete e fazer o commit. Parte 2 (tirar o galpao do G102
+da suite do goal) com decisao do usuario: nao executada.
+
+**Medido (antes de mudar, fontes vivas, aplicativos do usuario abertos).**
+- O runner so REGISTRAVA `memoria_livre_min_mb`; sem piso: 159 MB (G142),
+  308/416 MB (D172), 460 MB (G146), 258 MB (G147). A serial de referencia foi
+  morta pelo harness por memoria baixa em 24 % (D172; a relancada passou com
+  1,1-1,6 GB livres) - 159 MB ja e zona de morte, nao folga.
+- Pico do G102-galpao: 1679,0 MB no congelado (G146: proc 207,1 + fc 1535,4,
+  teto 2500), maximo historico 2111,3 MB (G139: fc 1968,4); producao cheia
+  G147 2019-2041 MB; freecad.exe sozinho 1535-1968 MB numa maquina de 8 GB
+  (SO + fundo ~2 GB). Livre antes da suite deste goal: ~843 MB.
+
+**Entregue.**
+- `PISO_MEMORIA_LIVRE_MB = 200` em `tools/suite_paralela.py` (fonte unica, com
+  o numero e o motivo escritos): acima da zona onde a morte ja ocorreu (159),
+  abaixo das minimas normais (258+), com folga para o amostrador de 5 s
+  abortar antes de o harness matar.
+- `veredito_piso_memoria(livre, piso)` pura: abaixo acusa nomeando piso +
+  livre + goal + garantia; no piso/acima passa; None declara (nunca gap).
+- `testes_por_worker(censo_dir)`: o que o censo ja sabe
+  (coletados-<worker>.json + freecad-<worker>.jsonl) agrupado por worker;
+  vazio declara `{}`.
+- `main()` com amostrador injetavel (`_amostra_fn`, `_piso_mb`,
+  `_intervalo_s`; default le a maquina e o piso da producao): cruzado o piso,
+  termina SO o proprio filho pytest (`Popen` + `terminate`, nunca taskkill) e
+  o resumo sai com a quebra nomeada + `testes_por_worker` + `minimo` do falso
+  + `piso_memoria_livre_mb` (opcao declarada, nunca silenciosa).
+- Novo `tests/test_piso_memoria_g148.py` (4): piso 200 com a derivacao escrita
+  e lido pela producao por default (convencao 8); veredito nos dois sentidos
+  (ausente/zero/presente, piso custom); snapshot agrupa o censo e vazio
+  declara; integracao com amostrador falso - brecha vira quebra nomeada com o
+  minimo do falso e o processo "do usuario" segue vivo, folga fecha
+  `rc` 0 e `quebras` vazio. Tudo em `tmp_path`; nenhum teste novo sobe
+  freecad (fora do `GRUPO_FREECAD`).
+
+**Baselines mudadas com motivo: nenhuma** (nao e verde por edicao). O resumo
+ganha dois campos (`piso_memoria_livre_mb` sempre, `testes_por_worker` na
+brecha); `threading` sai dos imports (a vigia virou o laco do `Popen`).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`,
+`varredura_asserts_sequencia.confere()`, `varredura_constantes_orfas.
+confere()` - OK, OK, OK; `test_folhas_g77`, `test_alcancabilidade`,
+`test_guardas_d86_g69`, `test_disciplina_prancha_g103`,
+`test_indice_disco_g91`, `test_carimbo_mapa_g112`, `test_normas_catalogo`,
+`test_galpao_indice_g93`, `test_suite_paralela_d164`,
+`test_auditoria_g137_g142_d172` + guarda novo G148 - 151 passed em 89,3 s.
+G102 isolado nao se aplica (goal sem folha de galpao; regra do lote).
+
+**Ganho sem o galpao do G102 (medido, so relatado; cobertura NAO movida).**
+`test_01` nesta suite: 769,8 s; casa + predio remedidos aqui (mesma maquina,
+aplicativos abertos): 3,4 + 14,2 = 17,6 s. Parte do galpao ~= 752 s
+(~12,5 min, ~98 % do G102). Sem ela a suite de 1605 s cairia para ~853 s
+(~14 min): ganho ~= 750 s (~47 %). Casa e predio ficam; a decisao da parte 2
+e do usuario.
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 311 arquivos
+== coletados): `rc_pytest` 0, 3908 + 4 = 3912 passed, 1 skipped, 1605,1 s,
+`quebras` vazio** (censo do FreeCAD fechado, memoria livre minima 270 MB >
+piso 200 - sem falso disparo; `piso_memoria_livre_mb` 200 no resumo). O skip
+e o portao de auditoria do aco. +1 arquivo e +4 testes sobre os 310/3908 do
+G147 (o guarda novo G148); 3908 + 4 = 3912 bate.
+
+**Nao feito (do goal).** Tirar o galpao do G102 da suite do goal (parte 2,
+com decisao do usuario); baixar `-n` sem medir; fechar aplicativos do
+usuario para medir.
