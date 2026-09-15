@@ -270,10 +270,10 @@ def _emit_model_3d(manifest, run_dir, normalized, options, turnkey_result):
 #   incendio: 1 (INC01_PLANTA); climatizacao: 1 (CLI01_ESQUEMA);
 #   coordenacao: 2 (COORD01_PLANTA -> PE-CD-01, COORD02_CLASH -> PE-CD-02,
 #     techdraw_coordenacao; G139: cada folha emitida tem codigo).
-#   mezanino: 1 declarada sem emissor (MZ01_MEZANINO -> PE-MZ-01, G141:
-#     o calculo sai no memorial/BIM, sem prancha dedicada; entrada com
-#     nome declarado, sempre pulada com motivo - ausencia declarada).
-# O sem emissor ligado (PE-IN-03, fronteira G101, e PE-MZ-01, G141) tem entrada com
+#   mezanino: 1 ligada (MZ01_MEZANINO -> PE-MZ-01, G146: formas +
+#     armacao via desenho_pavimento adaptado do calculo, rota SVG pura;
+#     pagina TechDraw em techdraw_mezanino para o backend manual).
+# O sem emissor ligado (PE-IN-03, fronteira G101) tem entrada com
 # nome declarado e sai sempre pulado com o motivo ou dispensado —
 # ausencia declarada, nunca silencio (a mesma forma do G92 na casa).
 # G138/G140: PE-IN-02 e PE-CO-04 ganharam emissor ligado (detalhes de
@@ -289,9 +289,10 @@ _PRANCHA_ARQUIVO_GALPAO = {
     "PE-CO-03": "PE03_QUADROS.pdf",
     "PE-CO-04": "PE04_LOCACAO_FUNDACAO.pdf",
     # G141: o mezanino calculado ganha codigo (PE-MZ-01, 1:1 com o titulo
-    # em pacote_legal._PRANCHAS["mezanino"]). Sem emissor TechDraw ligado,
-    # a folha sai sempre pulada com motivo nomeado abaixo - ausencia
-    # declarada por codigo, nunca extra nem buraco.
+    # em pacote_legal._PRANCHAS["mezanino"]). G146: a folha sai do calculo
+    # adaptado (galpao_mezanino.montar_pranchas, rota SVG pura); sem
+    # mezanino executado segue fora do indice, com o motivo abaixo -
+    # ausencia declarada por codigo, nunca extra nem buraco.
     "PE-MZ-01": "MZ01_MEZANINO.pdf",
     "PE-ES-01": "PE04_PORTICO.pdf",
     "PE-ES-02": "PE07_DET_JOELHO.pdf",
@@ -343,11 +344,13 @@ def _disciplina_do_codigo_galpao(codigo):
 def _causas_folhas_galpao(statuses):
     """D172: a causa medida de folha que caiu dentro de disciplina que
     rodou (`locacao_erro` do concreto, G140; `detalhes_erro` do incendio,
-    G138), por codigo. Sem a chave nos status, nada (nunca causa inventada).
+    G138; `mezanino_erro` do mezanino, G146), por codigo. Sem a chave nos
+    status, nada (nunca causa inventada).
     """
     causas = {}
     for disc, chave, codigo in (("concreto", "locacao_erro", "PE-CO-04"),
-                                ("incendio", "detalhes_erro", "PE-IN-02")):
+                                 ("incendio", "detalhes_erro", "PE-IN-02"),
+                                 ("mezanino", "mezanino_erro", "PE-MZ-01")):
         st = (statuses or {}).get(disc)
         if isinstance(st, dict) and st.get(chave):
             causas[codigo] = str(st[chave])
@@ -367,12 +370,15 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False,
     sem freecad.exe a disciplina nao emite via TechDraw (G107).
     """
     base = {
-        "PE-MZ-01": ("not_available: mezanino calculado sem prancha dedicada "
-                     "nesta rodada (PE-MZ-01 Mezanino de concreto "
+        "PE-MZ-01": ("not_available: formas e armacao do mezanino nao "
+                     "emitidas nesta rodada (PE-MZ-01 Mezanino de concreto "
                      "(laje/vigas/pilares)); dado nao declarado para a folha: "
                      "arquivo MZ01_MEZANINO.pdf — com mezanino executado o "
-                     "dimensionamento sai no memorial e no BIM (membros M- "
-                     "federados), sem emissor TechDraw ligado ao hook; sem "
+                     "hook emite via desenho_pavimento.planta_formas_svg + "
+                     "prancha_armacao_vigas_pilares_svg adaptados do calculo "
+                     "do galpao (G146, sem recalcular; engastamento entre "
+                     "paineis, momento negativo de envoltorias e locacao "
+                     "x0/y0 declarados como ausentes na folha); sem "
                      "mezanino executado segue fora do indice, com este motivo"),
         "PE-CO-04": ("not_available: locacao e formas da fundacao nao "
                      "emitidas nesta rodada (PE-CO-04 Locacao e formas da "

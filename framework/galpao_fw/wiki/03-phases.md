@@ -828,6 +828,13 @@ esperava esse erro. A causa da folha caída passa a chegar ao motivo da pulada, 
 `PYTHONUTF8` sai do shell para o runner. Vermelho provado no `f22dfe9`; runner 3874 passed,
 serial 3874 passed, portão do aço 2 passed.
 
+### G143–G148 — o default calado, o fallback calado e a folha do mezanino
+- **G143** a estaca do galpão sem default calado (D/L/tipo recusam, resto com origem dita).
+- **G144** o gate de interferência do mezanino vira falha nomeada que reprova.
+- **G145** os 47 fallbacks `or 0`/`or 1` triados contra o produtor; 3 vivos declaram ausência.
+- **G146** PE-MZ-01 do mezanino: formas + armação via primitivas do prédio adaptadas do
+  cálculo, cada viga/pilar/sapata um por um ([[04-decisions#D173]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

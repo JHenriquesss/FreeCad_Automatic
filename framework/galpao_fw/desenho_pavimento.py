@@ -54,7 +54,8 @@ def _escala(vaos_x, vaos_y, larg_util, alt_util):
     return min(larg_util / lx, alt_util / ly)
 
 
-def planta_formas_svg(pav, descida=None, titulo=None, edicao=None):
+def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
+                      ausencias=None):
     """Monta a planta de formas.
 
     pav     : dict devolvido por `pavimento_tipo.monta`.
@@ -62,11 +63,19 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None):
               N acumulado na BASE de cada pilar em vez do N do pavimento.
     edicao  : (opc, G128) '2014' ou '2023+Em1' declarada no projeto; ausente =
               comportamento de hoje (2014) declarado no titulo.
+    ausencias : (opc, G146) lista de campos que o calculo nao produz para
+              esta folha - com a lista a folha desenha a mesma planta e
+              declara a caixa vermelha; com None (default) o caminho do
+              predio/casa sai byte-identico.
     """
     vaos_x, vaos_y = pav["vaos_x"], pav["vaos_y"]
     nx, ny = len(vaos_x), len(vaos_y)
 
     W, H = 1180, 760
+    # G146: a caixa de ausencias mora na faixa extra abaixo da legenda - a
+    # malha e a legenda nao se movem (o predio, com ausencias=None, nao muda
+    # um byte).
+    Hh = H + (48 + 20 * len(list(ausencias)) if ausencias else 0)
     MX, MY = 90, 90                      # margens do desenho
     LARG_QUADRO = 300
     larg_util = W - MX - LARG_QUADRO - 40
@@ -88,7 +97,7 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None):
     tit = titulo or ("PLANTA DE FORMAS - PAVIMENTO-TIPO  (%d x %d vaos ; %.1f m2)"
                      % (nx, ny, pav["area_m2"]))
     tit += _sufixo_edicao(edicao)
-    P = sb.abre_svg(W, H, tit)
+    P = sb.abre_svg(W, Hh, tit)
 
     # --- paineis de laje ---------------------------------------------------
     n_paineis_desenhados = 0
@@ -204,6 +213,19 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None):
                       "traco vermelho = borda CONTINUA (engastada) ; "
                       "reacoes por 14.7.6.1 ; vigas por 14.6.6", 11, anchor="start",
                       color="#444"))
+    if ausencias:
+        # G146: a caixa vermelha mora na faixa extra (H..Hh) - a legenda e a
+        # malha ficam onde sempre estiveram.
+        ax, ay = MX, H + 12
+        alt = Hh - H - 20
+        P.append(f'<rect x="{ax}" y="{ay}" width="{W - MX - 40}" height="{alt}" '
+                 f'fill="white" stroke="{COR_ENGASTE}" stroke-width="1.5"/>')
+        P.append(sb.texto(ax + (W - MX - 40) / 2, ay + 22,
+                          "DADOS NAO DECLARADOS PELO CALCULO DO MEZANINO (G146)",
+                          12, weight="bold", color=COR_ENGASTE))
+        for k, campo in enumerate(list(ausencias)):
+            P.append(sb.texto(ax + 14, ay + 44 + k * 20,
+                              "nao declarado: %s" % campo, 11, anchor="start"))
     P.append("</svg>")
     return "\n".join(P)
 
@@ -834,9 +856,185 @@ def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None,
 
 
 def gerar_prancha_armacao_vigas_pilares(vigas_verificacao, pilares, path,
-                                        titulo=None, edicao=None):
+                                         titulo=None, edicao=None):
     """Escreve a combinada de armacao vigas+pilares (SVG) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares,
                                                   titulo, edicao=edicao))
     return path
+
+
+# G146 (D173): o que o calculo do mezanino NAO produz para as primitivas do
+# predio — medido contra `galpao_mezanino.rodar` (laje 1 painel com
+# `armaduras`, `viga_X`/`viga_Y` simples, `pilar` unico, `sapatas[4]` com
+# `aprovado`, posicao x0/y0/Lx/Ly/h) e o que `planta_formas_svg` +
+# `prancha_armacao_vigas_pilares_svg` leem (shape do predio: pav com
+# vaos_x/vaos_y/area_m2/paineis[i,j,lx,ly,caso,engastes]/pilares[nome,i,j,
+# posicao,N_k]/g/q + vigas_verificacao por_linha/tramos + pilares por
+# lances). Uma fonte so: esta lista mora na producao e a folha a declara,
+# nunca inventa.
+AUSENCIAS_GALPAO_MEZANINO = (
+    "engastamento entre paineis (painel unico, bordas simples)",
+    "momento negativo de envoltorias nas vigas (viga simples, sem continuidade)",
+    "locacao x0/y0 do mezanino no envelope do galpao "
+    "(a planta mostra o mezanino isolado; ver memorial)",
+)
+
+#: declaration when the slab has no reinforcement sized in this run (conv. 13:
+#: the sheet states it in words, never a number).
+AUSENCIA_LAJE_SEM_ARMADURA = (
+    "armadura da laje (laje sem armaduras dimensionadas nesta rodada)")
+
+
+def adaptar_galpao_mezanino(r):
+    """Adapta o resultado de `galpao_mezanino.rodar` para as primitivas de
+    formas e armacao do predio, sem recalcular nada.
+
+    Devolve (pav, vigas_verificacao, pilares, sapatas, ausentes): `pav` no
+    shape que `planta_formas_svg` le (1 painel Lx x Ly, 4 pilares M-P1..M-P4
+    nos cantos com o Nk calculado); `vigas_verificacao` com 4 linhas de 1
+    tramo (M-VX1/M-VX2 do `viga_X`, M-VY1/M-VY2 do `viga_Y` calculados);
+    `pilares` com 4 lances unicos do `pilar` calculado; `sapatas` com as 4
+    geometrias DIMENSIONADAS (B/L/h do `aprovado`); `ausentes` e o
+    subconjunto de `AUSENCIAS_GALPAO_MEZANINO` mais a armadura da laje
+    quando o calculo nao a produz. Ausencia se declara na folha, nunca vira
+    default silencioso. Levanta ValueError nomeando a PE-MZ-01 quando a
+    fundacao nao foi dimensionada (sem sapata aprovada nao ha folha
+    honesta) ou quando falta o dado de entrada da folha.
+    """
+    if not isinstance(r, dict):
+        raise ValueError(
+            "adaptar_galpao_mezanino: resultado do mezanino ausente "
+            "(sem calculo nao ha folha PE-MZ-01)")
+    mz = r.get("mezanino")
+    if not isinstance(mz, dict):
+        raise ValueError(
+            "adaptar_galpao_mezanino: bloco 'mezanino' ausente no resultado "
+            "(sem geometria Lx/Ly nao ha folha PE-MZ-01)")
+    try:
+        Lx = float(mz["Lx"])
+        Ly = float(mz["Ly"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(
+            "adaptar_galpao_mezanino: Lx/Ly do mezanino nao declarados "
+            "(sem painel nao ha folha PE-MZ-01)")
+    if not (Lx > 0 and Ly > 0):
+        raise ValueError(
+            "adaptar_galpao_mezanino: painel invalido (Lx=%r, Ly=%r; "
+            "sem painel nao ha folha PE-MZ-01)" % (mz.get("Lx"), mz.get("Ly")))
+    try:
+        Nk = float(r["Nk_pilar"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(
+            "adaptar_galpao_mezanino: Nk do pilar nao calculado "
+            "(sem carga nao ha folha PE-MZ-01)")
+    try:
+        g_m2 = float(mz["g_kN_m2"])
+        q_m2 = float(mz["q_uso"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(
+            "adaptar_galpao_mezanino: cargas g_kN_m2/q_uso do mezanino nao "
+            "calculadas (sem carga nao ha folha PE-MZ-01)")
+    laje = r.get("laje")
+    caso = 1
+    if isinstance(laje, dict) and laje.get("caso") is not None:
+        try:
+            caso = int(laje["caso"])
+        except (TypeError, ValueError):
+            raise ValueError(
+                "adaptar_galpao_mezanino: caso da laje nao numerico (%r; "
+                "sem caso nao ha folha PE-MZ-01)" % (laje.get("caso"),))
+    # --- formas: 1 painel, 4 pilares nos cantos (mesma ordem do membros_bim)
+    cantos_ij = [(0, 0), (1, 0), (0, 1), (1, 1)]
+    pilares_pav = []
+    for k, (i, j) in enumerate(cantos_ij, start=1):
+        pilares_pav.append({"i": i, "j": j, "nome": "M-P%d" % k,
+                            "posicao": "canto", "N_k": Nk})
+    pav = {"vaos_x": [Lx], "vaos_y": [Ly], "area_m2": Lx * Ly,
+           "paineis": [{"i": 0, "j": 0, "lx": Lx, "ly": Ly, "caso": caso,
+                        "engastes": {"esq": False, "dir": False,
+                                     "inf": False, "sup": False}}],
+           "pilares": pilares_pav,
+           "g_kN_m2": g_m2, "q_kN_m2": q_m2}
+    # --- armacao das vigas: 1 tramo por viga fisica (2 em X + 2 em Y)
+    rx = r.get("viga_X")
+    ry = r.get("viga_Y")
+    if not isinstance(rx, dict) or not isinstance(ry, dict):
+        raise ValueError(
+            "adaptar_galpao_mezanino: viga_X/viga_Y nao calculadas "
+            "(sem viga nao ha folha PE-MZ-01)")
+
+    def _tramo(res_viga, nome, vao):
+        try:
+            md_pos = float(res_viga["M_d"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(
+                "adaptar_galpao_mezanino: %s sem M_d calculado "
+                "(sem esforco nao ha folha PE-MZ-01)" % nome)
+        md_neg = res_viga.get("M_d_neg")
+        try:
+            md_neg = float(md_neg) if md_neg is not None else 0.0
+        except (TypeError, ValueError):
+            md_neg = 0.0
+        return {"tramo": 1, "L": float(vao),
+                "M_d_kNm": md_pos, "M_d_neg_envoltoria_kNm": md_neg,
+                "As_inf_cm2": res_viga.get("As_inf_cm2"),
+                "As_sup_cm2": res_viga.get("As_sup_cm2"),
+                "els": res_viga.get("els"),
+                "verificacao": res_viga,
+                "OK": bool(res_viga.get("OK"))}
+
+    por_linha = [
+        {"nome": "M-VX1", "b": float(rx["b"]), "h": float(rx["h"]),
+         "tramos": [_tramo(rx, "viga_X", Lx)]},
+        {"nome": "M-VX2", "b": float(rx["b"]), "h": float(rx["h"]),
+         "tramos": [_tramo(rx, "viga_X", Lx)]},
+        {"nome": "M-VY1", "b": float(ry["b"]), "h": float(ry["h"]),
+         "tramos": [_tramo(ry, "viga_Y", Ly)]},
+        {"nome": "M-VY2", "b": float(ry["b"]), "h": float(ry["h"]),
+         "tramos": [_tramo(ry, "viga_Y", Ly)]},
+    ]
+    vigas_verificacao = {"por_linha": por_linha, "n_tramos": 4}
+    # --- armacao dos pilares: 1 lance por pilar fisico (4 identicos)
+    rp = r.get("pilar")
+    if not isinstance(rp, dict):
+        raise ValueError(
+            "adaptar_galpao_mezanino: pilar nao calculado "
+            "(sem pilar nao ha folha PE-MZ-01)")
+    try:
+        nd = float(rp["Nd"])
+        as_cm2 = float(rp["As_cm2"])
+        taxa = float(rp["taxa_pct"])
+        b_pil = float(rp.get("hy", mz.get("hy", 0.0)))
+        h_pil = float(rp.get("hx", mz.get("hx", 0.0)))
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(
+            "adaptar_galpao_mezanino: pilar sem Nd/As/taxa/secao "
+            "(sem pilar nao ha folha PE-MZ-01)")
+    pilares = {}
+    for k in range(1, 5):
+        pilares["M-P%d" % k] = {
+            "lances": [{"b": b_pil, "h": h_pil, "Nd": nd,
+                        "As_cm2": as_cm2, "taxa_pct": taxa,
+                        "detalhe": rp}]}
+    # --- sapatas: a geometria DIMENSIONADA, uma por pilar
+    saps = r.get("sapatas")
+    if not isinstance(saps, list) or len(saps) < 4:
+        raise ValueError(
+            "adaptar_galpao_mezanino: 4 sapatas dimensionadas ausentes "
+            "(sem sapata aprovada nao ha folha PE-MZ-01)")
+    sapatas = []
+    for k, sap in enumerate(saps[:4], start=1):
+        ap = (sap or {}).get("aprovado") if isinstance(sap, dict) else None
+        if not ap or len(ap) < 3:
+            raise ValueError(
+                "adaptar_galpao_mezanino: sapata M-SAP%d sem geometria "
+                "aprovada (sem sapata aprovada nao ha folha PE-MZ-01)" % k)
+        sapatas.append({"marca": "M-SAP%d" % k, "B_m": float(ap[0]),
+                        "L_m": float(ap[1]), "h_m": float(ap[2]),
+                        "Nk_kN": Nk})
+    ausentes = list(AUSENCIAS_GALPAO_MEZANINO)
+    arm = laje.get("armaduras") if isinstance(laje, dict) else None
+    if not arm:
+        ausentes.append(AUSENCIA_LAJE_SEM_ARMADURA)
+    return pav, vigas_verificacao, pilares, sapatas, ausentes

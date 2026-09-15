@@ -15,10 +15,11 @@ Entregue:
   no grupo de LOD da estrutura; sem mezanino executado o indice/pacote
   saem byte-identicos (a disciplina so entra quando executada).
 - `galpao_adapter._PRANCHA_ARQUIVO_GALPAO["PE-MZ-01"]` = "MZ01_MEZANINO.pdf"
-  + motivo nomeado em `_motivo_folha_galpao_nao_emitida` (sem emissor
-  TechDraw ligado; o dimensionamento sai no memorial/BIM com membros M-).
-- `caderno_turnkey`: ROTULO/ORDEM com mezanino + dispatch declarado
-  (ok None com MOTIVO_MEZANINO_SEM_PRANCHA, nunca erro).
+  + motivo nomeado em `_motivo_folha_galpao_nao_emitida`.
+- G146: a folha ganhou emissor ligado (`galpao_mezanino.montar_pranchas`,
+  rota SVG pura via desenho_pavimento adaptado) e o dispatch do caderno
+  emite a MZ01 em vez de declarar ausencia; sem emissao (disco vazio) o
+  laco segue fechando via pulada nomeada.
 - `varredura_disciplina_prancha.ISENCOES_DISCIPLINA_PRANCHA` vazia (a cura
   matou a isencao); o assert do G91 vira o portao do comportamento novo.
 - Novo `tests/test_mezanino_indice_g141.py` (5): remeça, rodada com
@@ -236,15 +237,29 @@ def test_04_vermelho_por_injecao_nos_dois_sentidos(tmp_path):
                                         ga._PRANCHA_ARQUIVO_GALPAO, [], [])
     if vazio["OK"] or vazio["faltando"] != ["PE-MZ-01"]:
         gaps.append("sem motivo devia faltar: %r" % (vazio,))
-    # o dispatch declara ausencia, nunca erro (o caderno nao falha)
+    # o dispatch emite a MZ01 (G146: emissor ligado, rota SVG pura); com
+    # o calculo morto a causa fica nomeada em mezanino_erro, nunca erro
+    # generico nem silencio
     import caderno_turnkey as ct
+    import galpao_mezanino as gmz
 
-    st = ct._dispatch_pranchas("mezanino", {}, str(tmp_path), {}, None, 10)
-    if st.get("ok") is not None or "erro" in st:
-        gaps.append("dispatch do mezanino devia ser ok None: %r" % (st,))
-    if "PE-MZ-01" not in ct.MOTIVO_MEZANINO_SEM_PRANCHA:
-        gaps.append("motivo do caderno sem codigo: %r"
-                    % (ct.MOTIVO_MEZANINO_SEM_PRANCHA,))
+    st = ct._dispatch_pranchas(
+        "mezanino",
+        gmz.rodar({"geometria": {"comprimento": 40.0, "vao": 20.0,
+                                 "pe_direito": 6.0},
+                   "x0": 2.0, "y0": 2.0, "Lx": 6.0, "Ly": 5.0, "h": 3.0,
+                   "q_uso": 2.0}),
+        str(tmp_path / "mz"), {"slug": "g141"}, None, 60)
+    if not st.get("ok") or st.get("pranchas") != ["MZ01_MEZANINO"]:
+        gaps.append("dispatch do mezanino devia emitir a MZ01: %r" % (st,))
+    for pdf in st.get("arquivos") or []:
+        if not os.path.exists(pdf) or not os.path.getsize(pdf):
+            gaps.append("MZ01 vazia no disco: %s" % pdf)
+    quebrado = ct._dispatch_pranchas("mezanino", {}, str(tmp_path), {}, None, 10)
+    if quebrado.get("ok") or "mezanino_erro" not in quebrado:
+        gaps.append("sem calculo a MZ01 devia cair nomeada: %r" % (quebrado,))
+    if "PE-MZ-01" not in str(quebrado.get("mezanino_erro")):
+        gaps.append("causa sem o codigo da folha: %r" % (quebrado,))
     assert copy is not None and tmp_path.is_dir()
     assert not gaps, "G141 injecao:\n%s" % "\n".join("  - " + g for g in gaps)
 

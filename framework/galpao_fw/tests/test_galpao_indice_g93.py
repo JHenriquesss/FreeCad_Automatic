@@ -9,9 +9,10 @@ Entregue:
   1. `_PRANCHA_ARQUIVO_GALPAO` (galpao_adapter): os 35 codigos que o turnkey
      promete (G137: 19 + 14 do aco; G139: + PE-CD-02 para a segunda folha
      da coordenacao; G141: + PE-MZ-01 para o mezanino calculado;
+     G146: + pagina MZ01_MEZANINO no techdraw_mezanino;
      concreto/mezanino/aco/eletrico/hidraulica/
      incendio/climatizacao + coordenacao) -> PDF em drawings/, medido pagina
-     a pagina nos gerar_executivo_* (nao suposto; PE-MZ-01 declarada sem
+     a pagina nos gerar_executivo_* (nao suposto; PE-IN-03 declarada sem
      emissor, sempre pulada com motivo);
   2. o laco da lente do G91 em `galpao_adapter._emit_drawings`, com os
      pulados nomeados um por um;
@@ -54,7 +55,9 @@ PROMETIDOS_ESPERADOS = (
 # calculo do galpao, sem redimensionar).
 # G141: PE-MZ-01 segue sem emissor (mezanino calculado, sem prancha
 # dedicada - ausencia declarada por codigo).
-DECLARADOS_SEM_EMISSOR = {"PE-IN-03", "PE-MZ-01"}
+# G146: PE-MZ-01 ganha emissor (desenho_pavimento adaptado do calculo do
+# mezanino + pagina TechDraw em techdraw_mezanino, sem recalcular).
+DECLARADOS_SEM_EMISSOR = {"PE-IN-03"}
 
 # Motivo sem o dado nomeado e silencio, nao triagem (mesmo molde do G92).
 AUSENCIA_NOMEADA = ("nao declarado", "nao declarada", "nao calculada",
@@ -92,9 +95,9 @@ def _paginas_techdraw():
     suposto.
     """
     arquivos = ("techdraw_concreto.py", "techdraw_exec.py",
-                "techdraw_eletrico.py", "techdraw_hidraulica.py",
-                "techdraw_incendio.py", "techdraw_climatizacao.py",
-                "techdraw_coordenacao.py")
+                 "techdraw_eletrico.py", "techdraw_hidraulica.py",
+                 "techdraw_incendio.py", "techdraw_climatizacao.py",
+                 "techdraw_coordenacao.py", "techdraw_mezanino.py")
     paginas = set()
     for nome in arquivos:
         arvore = ast.parse(open(os.path.join(GALPAO, nome),
@@ -176,8 +179,9 @@ def test_03_mapa_medido_nos_emissores_nao_suposto():
     """Cada entrada com emissor e pagina TechDraw real (+ .pdf).
 
     Fonte independente (convencao 5): os nomes de pagina vao do AST dos
-    techdraw_*, nunca do proprio mapa. As 3 declaradas sem emissor tem de
-    NAO estar entre as paginas — sao ausencia declarada, nao cobertura.
+    techdraw_*, nunca do proprio mapa. A declarada sem emissor (PE-IN-03)
+    tem de NAO estar entre as paginas — e ausencia declarada, nao
+    cobertura.
     """
     import galpao_adapter as ga
 

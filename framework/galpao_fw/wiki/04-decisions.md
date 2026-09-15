@@ -4252,3 +4252,119 @@ livres na maquina, nao travado).
 
 **Nao feito.** Mudar o calculo de hidrantes ou o predio; dar piso de
 memoria ao runner (so registra o minimo; nao existe teto declarado).
+
+## D173 - G146: PE-MZ-01, a folha do mezanino calculado (formas + armacao via primitivas do predio) (2026-09-15) - FECHADO
+
+**Pedido.** `framework/galpao_fw/BACKLOG-GOALS-G143-G148.md` G146: a folha
+PE-MZ-01 do mezanino calculado, adaptada do resultado de
+`galpao_mezanino.rodar` para as primitivas do predio
+(`desenho_pavimento`), com ausencias declaradas e cada viga, pilar e
+sapata desenhados um por um. Comecar medindo a diferenca de forma no
+test_01, aplicar a convencao 13 (dado ausente, zero, falha so na folha
+nova), seguir as convencoes 1-13 e a regra do lote, rodar o G102 isolado
+e a suite pelo runner ate `rc_pytest` 0 e `quebras` vazio, escrever o
+verbete e fazer o commit.
+
+**Medido (antes de mudar, fontes vivas).**
+- `galpao_mezanino.rodar` (`:305-319`) devolve `laje` (com `armaduras`),
+  `viga_X`/`viga_Y` simples, `pilar` unico, `sapatas[4]` com `aprovado` e
+  a posicao x0/y0/Lx/Ly/h — sem `vaos_x`/`vaos_y`/`paineis`/`por_pilar`,
+  sem `por_linha`/`tramos` e sem `lances`, que e o que
+  `planta_formas_svg` (`desenho_pavimento.py:57`) e
+  `prancha_armacao_vigas_pilares_svg` (`:797`) leem no shape do predio
+  (`pavimento_tipo.monta`: `vaos_x`, `vaos_y`, `area_m2`,
+  `paineis[i,j,lx,ly,caso]`, `pilares`). Remeça no
+  `tests/test_mezanino_folha_g146.test_01`.
+- D170/G141: com mezanino executado a PE-MZ-01 era prometida e saia
+  pulada ("sem emissor ligado"); o arquivo `MZ01_MEZANINO.pdf` ja estava
+  mapeado (`_PRANCHA_ARQUIVO_GALPAO["PE-MZ-01"]`).
+- Rota sem freecad.exe: as primitivas sao SVG puro-Python (mesma via da
+  INC03 no G138 e da PE04 no G140) — medida, a folha sai sem executavel.
+
+**Entregue.**
+- `desenho_pavimento.adaptar_galpao_mezanino(r)`: (pav, vigas_verificacao,
+  pilares, sapatas, ausentes) lidos do calculo, sem redimensionar — 1
+  painel Lx x Ly, 4 pilares M-P1..M-P4 nos cantos com o Nk calculado, 4
+  linhas de viga de 1 tramo (M-VX1/M-VX2 do `viga_X`, M-VY1/M-VY2 do
+  `viga_Y`), 4 lances unicos do `pilar`, 4 sapatas com B/L/h do
+  `aprovado`; `ausentes` = `AUSENCIAS_GALPAO_MEZANINO` (engastamento entre
+  paineis, M- de envoltorias, locacao x0/y0 no envelope) + armadura da
+  laje quando o calculo nao a produz. Sem sapata aprovada levanta
+  ValueError nomeando a PE-MZ-01 (nunca folha vazia); nao muta o
+  resultado.
+- `planta_formas_svg(..., ausencias=None)`: default = caminho do
+  predio/casa byte-identico; com a lista desenha a mesma planta e declara
+  a caixa vermelha na faixa extra (malha e legenda nao se movem). A
+  combinada de armacao segue intocada (M- 0.0 e calculado de viga simples;
+  arranjo do pilar sem bitola ja diz NAO DETALHADO).
+- `techdraw_mezanino.py` (novo): `config_de_spec` (adapta em `try`
+  proprio, `mezanino_erro`; fck lido da conta, sem default - D172),
+  carimbo MZ-01 (material/norma/departamento de concreto), pagina
+  `MZ01_MEZANINO`, executivo + bootstrap para o backend manual.
+- `galpao_mezanino.gerar_prancha_mezanino` (PDF A1 puro de 3 paginas:
+  formas, armacao, quadro de sapatas/laje) + `montar_pranchas`
+  (backend svg default; a MZ01 que cai fica em `mezanino_erro` com
+  `ok: False`, sem derrubar as demais).
+- Ligacao: motivo da PE-MZ-01 reescrito (emite via desenho_pavimento
+  adaptado, G146), `mezanino_erro` em `_causas_folhas_galpao`, dispatch do
+  mezanino no caderno emitindo (aposenta o `MOTIVO_MEZANINO_SEM_PRANCHA`
+  do G141), correspondencia G112 com a entrada MZ01/MZ-01 cobrindo
+  PE-MZ-01 (25 entradas; carimbo distinto do codigo, mesma regra do aco).
+- Novo `tests/test_mezanino_folha_g146.py` (5): diferenca de forma,
+  predio byte-identico + 1-por-1 com guardas, rota emitindo MZ01 de 3
+  paginas que rasteriza, convencao 13, tres aceites.
+
+**Convencao 13 (um por um).** Sapatas sem a chave e com `aprovado` None:
+erro nomeado (nunca folha vazia). Laje com `armaduras` None e `{}`:
+declara "armadura nao dimensionada nesta rodada" no quadro (nunca numero;
+`0.00 cm2/m` acusado se aparecer). `q_uso=0` calculado sai com q 0.00 (o
+numero do calculo, nao inventado). Emissor morto por monkeypatch: a MZ01
+cai com a causa e a PE-CO-04 segue no disco (1 pulada so); sem causa, o
+motivo nao inventa "causa proxima" (mesma forma do D172).
+
+**Tres aceites, olhando o PNG (amostra 6x5 a 3 m, q=2).** (1) Esta certa:
+formas com M-P1..M-P4, L11, Nk 68.2 e a caixa de ausencias; armacao com
+M-VX1/M-VX2/M-VY1/M-VY2, M-P1..M-P4, secao 30x30 e OK; quadro com M-SAP1..
+M-SAP4 120x120x35 e LAJE m-x/m-y — PNGs de 98 kB e 166 kB, nao em branco,
+guardas `confere_folha_svg`/`confere_armacao_*` verdes. (2) Sai no
+manifesto: mapa 1:1 `PE-MZ-01 -> MZ01_MEZANINO.pdf`, dispatch emite e o
+laco fecha com o PDF no disco. (3) Diz o que desenha: indice "Mezanino de
+concreto (laje/vigas/pilares)", carimbo MZ-01, cobertura escrita na
+tabela G112.
+
+**Baseline mudada com motivo.** `test_mezanino_indice_g141.test_04`:
+dispatch `ok None` (o defeito do G141: ausencia declarada) agora emite a
+MZ01 e sem calculo cai nomeado. `DECLARADOS_SEM_EMISSOR` -PE-MZ-01 (so
+PE-IN-03); `_paginas_techdraw` +techdraw_mezanino;
+`BASELINE_G112.fora_do_mapa` +MZ01/MZ-01 e isentas 24->25; tabela G112
+24->25; `SEM_FAIXA_DECLARADA` +techdraw_mezanino; G102 re-congelado
+abaixo. Predio e casa byte-identicos (formas default e combinada
+intocadas).
+
+**Vermelho no codigo antigo.** Sem o adaptar, `test_01` acusa a diferenca
+de forma (`por_linha`/`lances`/`vaos_x` ausentes no resultado); com o
+emissor morto, `test_04` acusa a MZ01 caida com a causa; sem a entrada no
+mapa vira `sem_mapa` e sem motivo vira `faltando` (test_05 nos dois
+sentidos).
+
+**Portoes.** G146 (5) + G141 (5) + G93/G91/G103/G112 + lote rapido
+(faixa/asserts/orfas/fallback verdes; folhas/alcancabilidade/guardas/
+normas/D164/D172: 123 passed) + vizinhos (mezanino/interferencia/
+techdraw_concreto/fallback/estaca/edificio: 64 passed; caderno/
+coordenacao/incendio/orfas/faixa: 56 passed).
+
+**G102 isolado (`-s`): 9 passed em 730,5 s** (casa 2,7 s, predio 14,7 s,
+galpao 706,6 s; MEM 107,9/207,4/1679,0 MB, 1 freecad). Re-congelado com o
+medido (G146, 2026-09-15): predio +6,0 s e variacao de maquina, nao do
+diff (a rota do predio passa pela primitiva com `ausencias=None`,
+byte-identica); o galpao-tp-g95 nao tem mezanino, a MZ01 SVG nao sobe
+freecad.
+
+**Suite inteira pelo runner:** `rc_pytest` 0, **3904 passed, 1 skipped,
+1504,9 s (309 arquivos == coletados), `quebras` vazio**, memoria livre
+minima 460 MB (o skip e o portao de auditoria do aco).
+
+**Nao feito.** Mudar o calculo do mezanino; por mezanino num
+`projects/*/project-spec.json` (o spec de teste mora em tmp_path);
+paralelizar pranchas; backend freecad da MZ01 alem da pagina (a rota de
+producao e a SVG pura, medida).

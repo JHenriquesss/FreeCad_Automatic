@@ -25,6 +25,8 @@ substring; arquivo emitido = nome da pagina + ".pdf"):
      (:84-85), PE02_PORTICO/PE-02 (:116-117), PE03_QUADROS/PE-03
      (:138-139), PE04_LOCACAO_FUNDACAO/PE-04 do G140 (:167-169, via AST
      de techdraw_concreto);
+   mezanino do galpao (techdraw_mezanino.py): MZ01_MEZANINO/MZ-01 do G146
+     (via AST de techdraw_mezanino);
   eletrico (techdraw_eletrico.py): PE01_UNIFILAR/PE-EL-01 (:46),
     PE02_PLANTA_INST/PE-EL-02 (:66), PE03_PLANTA_INFRA/PE-EL-03 (:88),
     PE04_QUADROS/PE-EL-04 (:110);
@@ -158,7 +160,8 @@ def _carimbos_galpao():
 
     saida = {}
     for modulo in ("techdraw_exec", "techdraw_concreto", "techdraw_eletrico",
-                   "techdraw_incendio", "techdraw_coordenacao"):
+                   "techdraw_incendio", "techdraw_coordenacao",
+                   "techdraw_mezanino"):
         for arquivo, codigos in _pares_nova_prancha_carimbo(modulo).items():
             saida.setdefault(arquivo, set()).update(codigos)
     for disciplina in direta.DISCIPLINAS:
@@ -221,6 +224,13 @@ def _resultados(quadros=None, sem_isencoes=False):
 # [PE-CO-04] — ganhou emissor ligado (techdraw_concreto._pr_locacao) e
 # cobertura 1:1 na tabela, mesma regra do G137/G138/G139; isentas 23
 # -> 24):
+# G146 move MZ01_MEZANINO para fora_do_mapa com esperado [PE-MZ-01] —
+# ganhou emissor ligado (techdraw_mezanino._pr_mezanino, formas + armacao
+# via desenho_pavimento adaptado) e cobertura 1:1 na tabela, mesma regra;
+# o carimbo de producao (MZ-01) segue distinto do codigo do indice
+# (PE-MZ-01); isentas 24 -> 25):
+#   fora_do_mapa (22): os 21 de antes + MZ01_MEZANINO/MZ-01
+#     ({PE-MZ-01}; G146: o mezanino calculado ganha folha ligada);
 #   fora_do_mapa (21): os 20 de antes + PE04_LOCACAO_FUNDACAO/PE-04
 #     ({PE-CO-04}; G140: a locacao da fundacao do galpao ganha emissor
 #     ligado e cobertura 1:1 na tabela, mesma regra do G137/G139);
@@ -242,6 +252,7 @@ BASELINE_G112 = {
              ["PE-HI-01", "PE-HI-02", "PE-HI-03"]],
             ["INC01_PLANTA.pdf", "PE-INC-01", ["PE-IN-01"]],
             ["INC03_DETALHES.pdf", "PE-INC-03", ["PE-IN-02"]],
+            ["MZ01_MEZANINO.pdf", "MZ-01", ["PE-MZ-01"]],
             ["PE01_COBERTURA.pdf", "PE-01", ["PE-ES-03"]],
             ["PE01_FORMAS.pdf", "PE-01", ["PE-CO-01"]],
             ["PE02_FUNDACOES.pdf", "PE-02", ["PE-ES-04"]],
@@ -268,9 +279,9 @@ BASELINE_G112 = {
 }
 
 
-# BASELINE_ISENTAS_G112: as isentas congeladas - o galpao tria os 24
+# BASELINE_ISENTAS_G112: as isentas congeladas - o galpao tria os 25
 # arquivos da tabela com motivo escrito (G138: +INC03_DETALHES; G140:
-# +PE04_LOCACAO_FUNDACAO); casa e
+# +PE04_LOCACAO_FUNDACAO; G146: +MZ01_MEZANINO); casa e
 # triar: sem literal de carimbo extraivel). Cura muda o baseline junto;
 # isencao que some sem triagem = vermelho (o gap cru reaparece no test_01).
 BASELINE_ISENTAS_G112 = {
@@ -285,6 +296,7 @@ BASELINE_ISENTAS_G112 = {
         "INC01_PLANTA.pdf",
         "INC02_RESUMO.pdf",
         "INC03_DETALHES.pdf",
+        "MZ01_MEZANINO.pdf",
         "PE01_COBERTURA.pdf",
         "PE01_FORMAS.pdf",
         "PE02_FUNDACOES.pdf",
@@ -497,14 +509,17 @@ def test_05_fontes_independentes_dos_carimbos():
                      "INC02_RESUMO.pdf": ["PE-INC-02"],
                      "INC03_DETALHES.pdf": ["PE-INC-03"]}:
         lados.append("carimbos do incendio mudaram: %r" % (pares_inc,))
+    pares_mz = _pares_nova_prancha_carimbo("techdraw_mezanino")
+    if pares_mz != {"MZ01_MEZANINO.pdf": ["MZ-01"]}:
+        lados.append("carimbos do mezanino mudaram: %r" % (pares_mz,))
     codigos = [p["codigo"] for p in
                pl.indice_de_pranchas(["hidraulica", "incendio",
                                       "climatizacao"])]
     if codigos != ["PE-HI-01", "PE-HI-02", "PE-HI-03", "PE-IN-01",
                    "PE-IN-02", "PE-IN-03", "PE-CL-01"]:
         lados.append("indice hid/inc/cli mudou: %r" % (codigos,))
-    if len(lente.CORRESPONDENCIA_G112) != 24:
-        lados.append("tabela G112 encolheu/cresceu: %d entradas (G140: 24)"
+    if len(lente.CORRESPONDENCIA_G112) != 25:
+        lados.append("tabela G112 encolheu/cresceu: %d entradas (G146: 25)"
                      % (len(lente.CORRESPONDENCIA_G112),))
     if set(lente.ISENCOES_CARIMBO_MAPA) != set(
             BASELINE_ISENTAS_G112["galpao"]):

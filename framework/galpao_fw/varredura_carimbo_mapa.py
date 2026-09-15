@@ -24,7 +24,9 @@
 #     (techdraw_concreto.py - "PE01_FORMAS"/"PE02_PORTICO"/
 #     "PE03_QUADROS"/"PE04_LOCACAO_FUNDACAO" com carimbo
 #     "PE-01"/"PE-02"/"PE-03"/"PE-04"; G140: a locacao ganha emissor
-#     ligado); eletrico
+#     ligado); mezanino (techdraw_mezanino.py - "MZ01_MEZANINO" com
+#     carimbo "MZ-01"; G146: formas + armacao via desenho_pavimento
+#     adaptado, cobertura 1:1 na tabela); eletrico
 #     (techdraw_eletrico.py:46,66,88,110 - "PE01_UNIFILAR".."PE04_QUADROS"
 #     com carimbo "PE-EL-01".."PE-EL-04"); coordenacao
 #     (techdraw_coordenacao.py:43,60 - "COORD01_PLANTA"/"COORD02_CLASH" com
@@ -54,7 +56,9 @@
 #     extraivel (techdraw_incendio._pr_detalhes) e cobertura 1:1 na tabela,
 #     logo nao cai aqui; G140: PE04_LOCACAO_FUNDACAO tem literal
 #     extraivel (techdraw_concreto._pr_locacao) e cobertura 1:1 na tabela,
-#     logo nao cai aqui;
+#     logo nao cai aqui; G146: MZ01_MEZANINO tem literal extraivel
+#     (techdraw_mezanino._pr_mezanino) e cobertura 1:1 na tabela, logo
+#     nao cai aqui;
 #   - indice x disco (arquivo emitido ou nao): e da lente do G91/G102,
 #     nao desta (carimbo x mapa, nao promessa x arquivo).
 #
@@ -311,11 +315,11 @@ def _selftest():
         raise AssertionError("isencoes nao-dict devia levantar")
     except TypeError:
         pass
-    # tabela: 24 entradas (22 + INC03_DETALHES do G138 +
-    # PE04_LOCACAO_FUNDACAO do G140), cada uma com
+    # tabela: 25 entradas (22 + INC03_DETALHES do G138 +
+    # PE04_LOCACAO_FUNDACAO do G140 + MZ01_MEZANINO do G146), cada uma com
     # arquivo/carimbo/cobre/motivo; isencoes derivadas 1:1; o renderer conta
     # cada arquivo na secao do cliente.
-    assert len(CORRESPONDENCIA_G112) == 24, len(CORRESPONDENCIA_G112)
+    assert len(CORRESPONDENCIA_G112) == 25, len(CORRESPONDENCIA_G112)
     assert set(ISENCOES_CARIMBO_MAPA) == {e["arquivo"]
                                           for e in CORRESPONDENCIA_G112}
     assert all(str(v or "").strip() for e in CORRESPONDENCIA_G112

@@ -697,6 +697,7 @@ SEM_FAIXA_DECLARADA = {
     "techdraw_exec.py": "prancha TechDraw; 'valido' ali e sobre SVG.",
     "techdraw_hidraulica.py": "prancha TechDraw; sem faixa.",
     "techdraw_incendio.py": "prancha TechDraw; sem faixa.",
+    "techdraw_mezanino.py": "prancha TechDraw do mezanino (G146); sem faixa.",
     "telhado_casa_madeira.py": "DIVIDA-LENTE: vao/extensao na malha, (0,60) graus, n_paineis>=1 e 2j-3 em strings de recusa fora da lente.",
     "telha_cobertura.py": "hipotese da faixa de 1m; 'no limite' e criterio, sem faixa declarada.",
     "tensao_ponto.py": "verificacao por tensoes; sem faixa declarada.",

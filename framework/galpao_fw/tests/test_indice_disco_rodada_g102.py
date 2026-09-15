@@ -107,8 +107,15 @@ ISENCOES_EXTRA = {
 # CUSTO_G102 casa=2.4s predio=8.7s galpao=725.5s total=736.5s, 9 passed em
 # 742,6 s. Variacao de maquina sobre o G139 (+0,4 s predio, -4,4 s galpao);
 # o diff so acrescenta 1 PDF SVG de ~ms a rodada do galpao.
-CUSTO_MEDIDO_SEG = {"casa": 2.4, "predio": 8.7, "galpao": 725.5}
-CUSTO_MEDIDO_EM = "2026-09-14"
+# G146 (2026-09-15, corrida isolada com -s, maquina livre): com PE-MZ-01
+# emitida (MZ01_MEZANINO via rota SVG, sem freecad extra), o galpao-tp-g95
+# (sem mezanino no spec) nao executa a disciplina nova,
+# CUSTO_G102 casa=2.7s predio=14.7s galpao=706.6s total=723.9s, 9 passed em
+# 730,5 s. Predio +6,0 s e variacao de maquina, nao do diff (a rota do
+# predio passa pela mesma primitiva com ausencias=None, byte-identica);
+# o diff so acrescenta a pagina TechDraw MZ01 ao extrato de carimbos.
+CUSTO_MEDIDO_SEG = {"casa": 2.7, "predio": 14.7, "galpao": 706.6}
+CUSTO_MEDIDO_EM = "2026-09-15"
 CUSTO_TETO_SEG = 1800
 
 # G121: o teto do portao media so tempo, e o que matava era memoria (G113:
@@ -131,8 +138,12 @@ CUSTO_TETO_SEG = 1800
 # G138 (mesma corrida 2026-09-14): MEM_G102 casa=108.2MB predio=207.7MB
 # galpao=2076.6MB(proc=212.8,fc=1938.4,n=1) (teto 2500). Variacao de
 # maquina sobre o G139; o INC03 SVG nao sobe freecad.
-CUSTO_MEDIDO_MEM_MB = {"casa": 108.2, "predio": 207.7, "galpao": 2076.6}
-CUSTO_MEDIDO_MEM_EM = "2026-09-14"
+# G146 (mesma corrida 2026-09-15): MEM_G102 casa=107.9MB predio=207.4MB
+# galpao=1679.0MB(proc=207.1,fc=1535.4,n=1) (teto 2500). Queda do freecad
+# e variacao de maquina (o galpao-tp-g95 nao tem mezanino; a MZ01 SVG nao
+# sobe freecad).
+CUSTO_MEDIDO_MEM_MB = {"casa": 107.9, "predio": 207.4, "galpao": 1679.0}
+CUSTO_MEDIDO_MEM_EM = "2026-09-15"
 # Teto de memoria: 2500 MB por rodada (pico medido 1988,8 + ~25 % de
 # folga). Motivo, como o teto de tempo tem: a maquina tem 8 GB e o SO +
 # fundo comem ~2 GB; o teto deixa a rodada respirar e ainda reprova

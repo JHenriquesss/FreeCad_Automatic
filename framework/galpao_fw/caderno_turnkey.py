@@ -126,10 +126,10 @@ _STAGE_WEIGHTS = {
     "hidraulica": peso_medido(_T_MEDIDO_SEG["hidraulica"]),    # 0,0068 -> piso
     "incendio": peso_medido(_T_MEDIDO_SEG["incendio"]),        # 0,0075 -> piso
     "climatizacao": peso_medido(_T_MEDIDO_SEG["climatizacao"]),  # 0,0069 -> piso
-    # Mezanino: disciplina calculada sem emissor de prancha (G141: ok None
-    # com MOTIVO_MEZANINO_SEM_PRANCHA, PE-MZ-01 pulada com motivo no laco;
-    # antes "sem dispatch", isenta com motivo no G103); medido 2026-09-11:
-    # 0,0003 s. Peso proporcional seria ~2e-6.
+    # Mezanino: folha PE-MZ-01 ligada (G146: formas + armacao via
+    # desenho_pavimento adaptado, rota SVG pura; medido 2026-09-11:
+    # 0,0003 s para o calculo, a emissao SVG e' da ordem de 1 s).
+    # Peso proporcional seria ~2e-6.
     "mezanino": 0.01,        # piso 0,01: reserva para nada vira quase nada
     # G139: pesos medidos, nunca palpite (convencao 8). Render 95,6 s ->
     # 1,1578; prancha 69,8 s -> 0,8453 (regra peso_medido, ancora 578 s;
@@ -396,12 +396,6 @@ MOTIVO_COORDENACAO_RECORTE_1 = (
     "(G139) — a prancha formal PE-CD-01 requer >= 2 disciplinas executadas; "
     "a coordenacao sai como matriz (coordination-matrix) + pagina do caderno")
 
-MOTIVO_MEZANINO_SEM_PRANCHA = (
-    "mezanino calculado sem prancha dedicada nesta rodada (G141): "
-    "laje+vigas+pilares dimensionados no memorial e federados no BIM "
-    "(membros M-); sem emissor TechDraw ligado ao hook, a PE-MZ-01 sai "
-    "pulada com motivo no laco do galpao")
-
 
 def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
                        executivo_aco=True):
@@ -462,10 +456,14 @@ def _dispatch_pranchas(nome, r_disc, disc_out, sub_spec, freecad_exe, timeout,
         return gc.montar_pranchas(r_disc, disc_out, fcstd, spec=sub_spec,
                                   freecad_exe=freecad_exe, timeout=timeout)
     if nome == "mezanino":
-        # G141: disciplina calculada sem dispatch de pranchas - ausencia
-        # declarada (ok None, sem erro), nunca falha; o laco do galpao
-        # nomeia a PE-MZ-01 pulada com o motivo.
-        return {"ok": None, "nao_solicitado": MOTIVO_MEZANINO_SEM_PRANCHA}
+        # G146: a folha PE-MZ-01 ligada (formas + armacao via desenho_pavimento
+        # adaptado do calculo, rota SVG pura sem freecad.exe). A MZ01 que cai
+        # fica nomeada em `mezanino_erro` e chega ao motivo da pulada no laco
+        # do galpao (mesma forma da INC03 no D172); cada dispatch tem `try`
+        # proprio no laco acima, nunca derruba as demais.
+        import galpao_mezanino as gmz
+        return gmz.montar_pranchas(r_disc, disc_out, spec=sub_spec,
+                                   freecad_exe=freecad_exe, timeout=timeout)
     return {"erro": "disciplina sem dispatch de pranchas: %s" % nome}
 
 

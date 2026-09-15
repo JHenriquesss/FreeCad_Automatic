@@ -428,12 +428,16 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
          "concreto, G140, e PE04_PORTICO.pdf do aco); (d) a coordenacao "
          "emite 2 folhas com 2 codigos PE-CD "
          "(G139: cada folha emitida tem codigo, mesma regra do G137; "
-         "antes 2 folhas contra 1 codigo). "
-         "Carimbar um unico codigo do indice nessas folhas afirmaria uma "
-         "cobertura que a folha nao tem (convencao 6: a folha diz o que "
-         "desenha) - por isso a numeracao propria permanece, e a tabela "
-         "abaixo diz ao cliente que folha do executivo responde por que "
-         "codigo(s) do indice."
+          "antes 2 folhas contra 1 codigo). "
+          "Carimbar um unico codigo do indice nessas folhas afirmaria uma "
+          "cobertura que a folha nao tem (convencao 6: a folha diz o que "
+          "desenha) - por isso a numeracao propria permanece, e a tabela "
+          "abaixo diz ao cliente que folha do executivo responde por que "
+          "codigo(s) do indice. (e) o mezanino emite 1 folha com 1 codigo "
+          "PE-MZ-01 (G146: formas + armacao via desenho_pavimento adaptado "
+          "do calculo), mas o carimbo de producao (MZ-01) segue distinto "
+          "do codigo do indice, mesma regra do aco - por isso tem entrada "
+          "propria abaixo."
     ),
     "entradas": [
         {"arquivo": "CLI01_ESQUEMA.pdf", "carimbo": "PE-CLI-01",
@@ -497,6 +501,17 @@ CORRESPONDENCIA_NUMERACAO_GALPAO = {
          "motivo": "portico tipico do aco (carimbo PE-04, quarto na ordem de "
                    "producao do executivo) responde por PE-ES-01 Portico e "
                    "locacao"},
+        {"arquivo": "MZ01_MEZANINO.pdf", "carimbo": "MZ-01",
+         "cobre": ["PE-MZ-01"],
+         "motivo": "formas e armacao do mezanino (carimbo MZ-01, folha "
+                   "unica da disciplina) respondem pelo codigo do indice "
+                   "PE-MZ-01 Mezanino de concreto (G146: emissor "
+                   "desenho_pavimento adaptado do calculo do galpao, sem "
+                   "recalcular; engastamento entre paineis, momento "
+                   "negativo de envoltorias e locacao x0/y0 declarados "
+                   "como ausentes na folha); o carimbo de producao (MZ-01) "
+                   "segue distinto do codigo do indice (PE-MZ-01) mas "
+                   "a cobertura e 1:1 e esta escrita aqui"},
         {"arquivo": "PE07_DET_JOELHO.pdf", "carimbo": "PE-07",
          "cobre": ["PE-ES-02"],
          "motivo": "detalhe da ligacao joelho do aco (carimbo PE-07, setimo "

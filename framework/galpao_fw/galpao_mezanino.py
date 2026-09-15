@@ -561,6 +561,149 @@ def relatorio_pt(r):
     return re.sub(r"(?<!\d\.)(\d)\.(\d)(?!\.\d)", r"\1,\2", "\n".join(L))
 
 
+def gerar_prancha_mezanino(r, out_dir, spec=None):
+    """Gera a MZ01 (formas + armacao do mezanino) em PDF A1 puro-Python.
+
+    G146: a partir do resultado de rodar() (uma fonte so, sem
+    redimensionar), via desenho_pavimento adaptado + A1 com o carimbo do
+    mezanino (mesma via da INC03 no G138 e da PE04 no G140). O PDF tem 3
+    paginas: formas, armacao de vigas/pilares e quadro de sapatas/laje.
+    Devolve o caminho do PDF. Levanta ValueError nomeando a PE-MZ-01 sem
+    sapata dimensionada, e KeyError sem fck no resultado (D172: a conta le
+    direto, sem default) — nunca folha vazia.
+    """
+    import os as _os
+    import prancha_svg_direta as _psd
+    import techdraw_mezanino as _tdm
+    import fitz as _fitz
+
+    cfg = _tdm.config_de_spec(r, out_dir, spec)
+    if cfg.get("mezanino_erro"):
+        raise ValueError("mezanino_erro na PE-MZ-01: %s" % cfg["mezanino_erro"])
+    if not cfg.get("formas_svg") or not cfg.get("armacao_svg"):
+        raise ValueError("PE-MZ-01 sem esquemas (sem calculo nao ha folha)")
+    _car = _tdm._carimbo_mz(cfg, "MEZANINO DE CONCRETO - FORMAS E ARMACAO",
+                            "MZ-01", "S/ESC", "01/01")
+    _doc = _fitz.open()
+    try:
+        _sub = "%s | %s" % (cfg.get("descricao", "galpao_mezanino"),
+                            cfg.get("slug", "galpao_mezanino"))
+        if not _psd.pagina_esquema_a1(
+                _doc, cfg["formas_svg"], _car,
+                "MZ-01 - PE-MZ-01 FORMAS DO MEZANINO", _sub):
+            raise ValueError("formas do mezanino nao rasterizaram (svg_para_png)")
+        if not _psd.pagina_esquema_a1(
+                _doc, cfg["armacao_svg"], _car,
+                "MZ-01 - PE-MZ-01 ARMACAO DO MEZANINO", _sub):
+            raise ValueError("armacao do mezanino nao rasterizou (svg_para_png)")
+        if not _psd.pagina_quadro_a1(
+                _doc, _car, "MZ-01 - PE-MZ-01 QUADRO DE SAPATAS E LAJE",
+                _sub, cfg["quadro_sap_hdr"], cfg["quadro_sap"], cfg["notas"]):
+            raise ValueError("quadro do mezanino sem pagina escrita")
+        _pdf = _os.path.join(str(out_dir), "pranchas", "MZ01_MEZANINO.pdf")
+        _os.makedirs(_os.path.dirname(_pdf), exist_ok=True)
+        _doc.save(_pdf, garbage=3, deflate=True)
+    finally:
+        try:
+            _doc.close()
+        except Exception:
+            pass
+    if not _os.path.exists(_pdf):
+        raise ValueError("PDF do mezanino nao gravado: %s" % _pdf)
+    return _pdf
+
+
+def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
+                    backend="svg"):
+    """Gera o PROJETO EXECUTIVO (prancha A1) do mezanino a partir de rodar().
+
+    G146: backend="svg" (default) usa a rota SVG-direta sem freecad.exe
+    (prancha_svg_direta, A1 com carimbo proprio); backend="freecad" preserva
+    o caminho grafico via techdraw_mezanino. A MZ01 que cai fica nomeada em
+    `mezanino_erro` (mesma forma da INC03 no D172 e da PE04 no G140): a causa
+    chega ao motivo da PE-MZ-01 pulada, sem derrubar as demais disciplinas
+    (cada dispatch tem `try` proprio no caderno). Retorna {ok, pranchas,
+    arquivos} | {ok False, erro, mezanino_erro} (nunca silencio).
+    """
+    if backend != "freecad":
+        try:
+            pdf = gerar_prancha_mezanino(r, out_dir, spec)
+        except Exception as exc:                        # noqa: BLE001
+            causa = "%s: %s" % (type(exc).__name__, exc)
+            return {"ok": False, "erro": causa, "mezanino_erro": causa,
+                    "pranchas": [], "arquivos": []}
+        return {"ok": True, "pranchas": ["MZ01_MEZANINO"], "arquivos": [pdf]}
+    import os
+    import json
+    import time
+    import tempfile
+    import subprocess
+    import techdraw_mezanino as TDM
+    import rodar_projeto as RP
+
+    exe = freecad_exe or os.environ.get("FREECAD_EXE") or \
+        r"C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if not os.path.exists(exe):
+        return {"erro": "freecad.exe nao encontrado: %s" % exe}
+
+    try:
+        cfg = TDM.config_de_spec(r, str(out_dir), spec)
+    except Exception as exc:                            # noqa: BLE001
+        causa = "%s: %s" % (type(exc).__name__, exc)
+        return {"ok": False, "erro": causa, "mezanino_erro": causa,
+                "pranchas": [], "arquivos": []}
+    if cfg.get("mezanino_erro"):
+        return {"ok": False, "erro": cfg["mezanino_erro"],
+                "mezanino_erro": cfg["mezanino_erro"],
+                "pranchas": [], "arquivos": []}
+    prdir = os.path.join(str(out_dir), "pranchas")
+    os.makedirs(prdir, exist_ok=True)
+    status = os.path.join(prdir, "_status.json")
+    try:
+        os.remove(status)
+    except OSError:
+        pass
+
+    boot = tempfile.NamedTemporaryFile(mode="w", suffix="_exec_mz.py",
+                                       delete=False, encoding="utf-8")
+    boot.write(TDM.script_bootstrap(cfg))
+    boot.close()
+
+    proc = subprocess.Popen([exe, boot.name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.time()
+    res = None
+    try:
+        while time.time() - t0 < timeout:
+            if os.path.exists(status):
+                time.sleep(0.5)
+                with open(status, encoding="utf-8") as f:
+                    res = json.load(f)
+                break
+            if proc.poll() is not None and not os.path.exists(status):
+                time.sleep(2)
+                if os.path.exists(status):
+                    with open(status, encoding="utf-8") as f:
+                        res = json.load(f)
+                else:
+                    res = {"erro": "freecad.exe encerrou sem gerar _status.json"}
+                break
+            time.sleep(2)
+        if res is None:
+            res = {"erro": "timeout %ss aguardando pranchas" % timeout}
+    finally:
+        RP._matar_processo_freecad(proc)
+        try:
+            os.unlink(boot.name)
+        except OSError:
+            pass
+    if isinstance(res, dict) and res.get("ok"):
+        return res
+    causa = (res or {}).get("erro", "falha sem causa") if isinstance(res, dict) else str(res)
+    return {"ok": False, "erro": causa, "mezanino_erro": causa,
+            "pranchas": [], "arquivos": []}
+
+
 def _selftest():
     """Mezanino tipico dentro do galpao 40x20x6: 6x5 a 3 m, 12 cm, q=3 kN/m2."""
     geo = {"comprimento": 40.0, "vao": 20.0, "pe_direito": 6.0}
