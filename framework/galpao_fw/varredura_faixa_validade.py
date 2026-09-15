@@ -716,6 +716,7 @@ SEM_FAIXA_DECLARADA = {
     "varredura_colisoes_g129.py": "lente G129 (censo de colisoes de rotulo, funcao pura); sem numero de norma, sem faixa.",
     "varredura_disciplina_prancha.py": "lente G103 (disciplina executada<->prancha, funcao pura); sem numero de norma, sem faixa.",
     "varredura_guardas_um_eixo.py": "script avulso G83 (AST de guarda de um eixo so); mede assercao de teste, nao numero de norma.",
+    "varredura_fallback_folha.py": "lente G145 (AST de fallbacks or 0/or 1 em emissor, funcao pura de texto + casos que chamam funcao real); sem numero de norma, sem faixa.",
     "varredura_indice_disco.py": "lente G91 (indice<->disco, funcao pura); sem numero de norma, sem faixa.",
     "varredura_nao_verificados.py": "ferramenta G33; nao declara faixa de metodo.",
     "verificar_amostra.py": "script avulso visual; sem faixa.",

@@ -325,6 +325,9 @@ def planta_seguranca_svg(r):
         linhas.append("Hidrantes: %d (tipo %d)" % (g["hidrantes"]["N_hidrantes"],
                                                    g["hidrantes"]["tipo"]))
         linhas.append("Reserva hidr.: %.0f m3" % g["hidrantes"]["reserva_m3"])
+    else:
+        # G145: galpao sem hidrantes dimensionados declara, nunca 0 silencioso.
+        linhas.append("Hidrantes: nao calculados")
     box_h = 34 + len(linhas) * 17
     s.append(f'<rect x="{qx}" y="{qy}" width="230" height="{box_h}" fill="white" '
              f'stroke="#111" stroke-width="1"/>')
@@ -370,7 +373,9 @@ def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
     sin = sist.get("sinalizacao") or {}
     ilu = sist.get("iluminacao_emergencia") or {}
     n_det = int(det.get("N_detectores") or 0)
-    n_hid = int(hid.get("N_hidrantes") or 0)
+    _hid_raw = hid.get("N_hidrantes")
+    # G145: sem `or 0` - None vira 0 simbolos + texto declarado; 0 vira 0.
+    n_hid = 0 if _hid_raw is None else int(_hid_raw)
     n_placas = int(sin.get("N_total") or 0)
     rot = pavimento or "PAVIMENTO-TIPO"
     W, Hh = 1000, 640
@@ -414,7 +419,9 @@ def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
     for i, ln in enumerate([
             "Detectores: %d" % n_det,
             "Acionadores: %d" % int(det.get("N_acionadores") or 0),
-            "Hidrantes: %d (tipo %s)" % (n_hid, hid.get("tipo", "?")),
+            ("Hidrantes: nao dimensionados"
+             if _hid_raw is None else
+             "Hidrantes: %d (tipo %s)" % (n_hid, hid.get("tipo", "?"))),
             "Placas de rota: %d" % n_placas,
             "Aclaramento: %d pts" % int(ilu.get("N_aclaramento") or 0),
             "Populacao total: %d" % int(inc.get("populacao_total") or 0)]):
@@ -523,23 +530,37 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
             s.append(_t(x, y1 + 44, "nivel unico (terreo): %d hidrante(s) "
                        "no mesmo nivel" % n, 11, color=VERMELHO))
     else:
-        for i in range(n_pav):
-            y = y1 - passo * (i + 0.5)
-            s.append(_line(x, y, x + 90, y, 2.0, VERMELHO))
-            s.append(_sym_hidrante(x + 110, y))
-            s.append(_t(x + 130, y + 4, "hidrante N%d" % (i + 1), 10, "start"))
+        # G145: predio sem hidrantes dimensionados (n_decl None) declara e
+        # desenha 0 simbolos - nunca os n_pav inventados; 0 desenha 0.
+        if n_decl is None:
+            s.append(_t(x, y1 + 44,
+                        "hidrantes nao calculados: nenhum simbolo",
+                        11, color=VERMELHO))
+        elif not n_decl:
+            s.append(_t(x, y1 + 44,
+                        "0 hidrantes no calculo: nenhum simbolo",
+                        11, color=VERMELHO))
+        else:
+            for i in range(n_pav):
+                y = y1 - passo * (i + 0.5)
+                s.append(_line(x, y, x + 90, y, 2.0, VERMELHO))
+                s.append(_sym_hidrante(x + 110, y))
+                s.append(_t(x + 130, y + 4, "hidrante N%d" % (i + 1), 10, "start"))
     qx, qy = 470, 110
     rotas = gates.get("rotas_verticais") or {}
     larg = gates.get("escada_largura") or {}
+    _pop = inc.get("populacao_total")
     linhas = [
         ("RESERVA DE INCENDIO: nao calculada"
-         if nivel_unico and reserva is None else
-         "RESERVA DE INCENDIO %.1f m3" % (reserva or 0)),
+         if reserva is None else
+         "RESERVA DE INCENDIO %.1f m3" % reserva),
         "Rotas verticais: min %s / decl %s" % (
             rotas.get("n_minimo", "?"), rotas.get("n_declarado", "?")),
         "Largura escada exigida: %s m" % (larg.get("largura_exigida_m", "?"),),
         "Estrategia: %s" % (inc.get("estrategia_abandono", "?"),),
-        "Populacao total: %d" % int(inc.get("populacao_total") or 0),
+        ("Populacao total: nao calculada"
+         if _pop is None else
+         "Populacao total: %d" % _pop),
         "Altura: %s m" % (inc.get("altura_edificacao_m", "?"),)]
     s.append(f'<rect x="{qx}" y="{qy}" width="430" height="{40 + len(linhas) * 26}" '
              f'fill="white" stroke="#111" stroke-width="1"/>')

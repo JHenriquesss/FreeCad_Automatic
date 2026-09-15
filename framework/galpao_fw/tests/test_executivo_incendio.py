@@ -128,13 +128,15 @@ def test_legenda_da_planta_de_incendio_so_traz_o_que_foi_desenhado():
     if com["gates"]["hidrantes"]["N_hidrantes"]:
         assert "Hidrante" in svg_com
     else:                                       # sem hidrante projetado
-        assert "Hidrante" not in svg_com
+        assert "Hidrante (NBR 13714)" not in svg_com
+        assert "Hidrantes: nao calculados" in svg_com  # G145 declara no RESUMO
 
     sem = gsi.rodar({"geometria": {"L": 30.0, "W": 15.0, "H": 5.0},
                      "iluminacao_emergencia": {"fluxo_bloco_lm": 350.0}})
     svg_sem = di.planta_seguranca_svg(sem)
     assert not sem["gates"]["hidrantes"]["N_hidrantes"]
-    assert "Hidrante" not in svg_sem            # o defeito que o G77 achou
+    assert "Hidrante (NBR 13714)" not in svg_sem  # legenda: o defeito que o G77 achou
+    assert "Hidrantes: nao calculados" in svg_sem  # G145: o RESUMO declara, nunca 0
 
 
 def test_grade_proporcional():
