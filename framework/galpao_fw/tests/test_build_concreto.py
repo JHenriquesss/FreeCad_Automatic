@@ -113,8 +113,9 @@ def test_pilar_e_sapata_compartilham_face_sem_penetrar():
 def test_estaca_omite_footing_no_3d():
     perfil = [{"tipo": "argila", "N": 5, "dz": 3.0},
               {"tipo": "areia", "N": 25, "dz": 8.0}]
+    # G143: D/L/tipo declarados (sem default calado).
     r = gc.rodar(_spec(tipo_fundacao="estaca", perfil_spt=perfil,
-                       D_estaca=0.30, L_estaca=10.0))
+                       D_estaca=0.30, L_estaca=10.0, tipo_estaca="pre_moldada"))
     cxs = bc.caixas(gc.membros_bim(r))
     assert not any(c["tipo"] == "Footing" for c in cxs)
     assert any(c["tipo"] == "Column" for c in cxs)

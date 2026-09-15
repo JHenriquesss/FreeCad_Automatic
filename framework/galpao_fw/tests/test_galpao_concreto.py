@@ -161,8 +161,9 @@ def test_fundacao_default_e_sapata():
 
 def test_fundacao_estaca_wired():
     # fundacao profunda: reusa estaca_profunda (Aoki-Velloso) sob o pilar do galpao
+    # G143: D/L/tipo declarados (sem default calado).
     r = gc.rodar(_spec(vao=10.0, tipo_fundacao="estaca", perfil_spt=_PERFIL_SPT,
-                       D_estaca=0.30, L_estaca=10.0))
+                       D_estaca=0.30, L_estaca=10.0, tipo_estaca="pre_moldada"))
     assert r["tipo_fundacao"] == "estaca" and r["estaca"] is not None
     assert r["gates"]["fundacao"]["OK"]
     assert r["estaca"]["grupo"]["n"] >= 1
@@ -179,8 +180,9 @@ def test_estaca_sem_perfil_spt_exige_sondagem():
 
 def test_bim_estaca_omite_footing():
     # com estaca, o emissor simplificado nao gera caixa de sapata (bloco tem geom propria)
+    # G143: D/L/tipo declarados (sem default calado).
     r = gc.rodar(_spec(vao=10.0, tipo_fundacao="estaca", perfil_spt=_PERFIL_SPT,
-                       D_estaca=0.30, L_estaca=10.0))
+                       D_estaca=0.30, L_estaca=10.0, tipo_estaca="pre_moldada"))
     membros = gc.membros_bim(r)
     assert not any(m["tipo"] == "Footing" for m in membros)
     assert any(m["tipo"] == "Column" for m in membros)

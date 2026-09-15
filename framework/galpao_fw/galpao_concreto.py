@@ -334,11 +334,17 @@ def rodar(spec):
     # (antes: sigma_solo_adm era dado manual e o tipo escolhido a mao). O explicito
     # do spec sempre vence a recomendacao.
     geo = None
+    # G143: cota_apoio/B_max com a origem dita (mesmos numeros, nunca
+    # calados — a proveniencia viaja em res["fundacao_parametros"]).
+    from estaca_parametros_g143 import (
+        resolver_recomendacao_de_spec as _rec_geo_g143,
+        parametros_de_spec as _par_fund_g143)
+    _rec143 = _rec_geo_g143(spec)
     if spec.get("perfil_spt"):
         import geotecnia_spt as gspt
         geo = gspt.recomenda_fundacao(spec["perfil_spt"], N_base,
-                                      cota_apoio_m=spec.get("cota_apoio", 0.5),
-                                      B_max_m=spec.get("B_max_sapata", 2.5))
+                                      cota_apoio_m=_rec143["cota_apoio"],
+                                      B_max_m=_rec143["B_max_sapata"])
     tipo_fund = spec.get("tipo_fundacao")
     if tipo_fund is None:
         tipo_fund = (geo["tipo"] if geo and geo["tipo"] in ("sapata", "estaca")
@@ -348,10 +354,16 @@ def rodar(spec):
         if not spec.get("perfil_spt"):
             raise ValueError("tipo_fundacao='estaca' exige 'perfil_spt' (sondagem SPT) "
                              "- A CONFIRMAR, nao inventado")
-        D_e = spec.get("D_estaca", 0.30); L_e = spec.get("L_estaca", 8.0)
+        # G143 (D102): D/L/tipo sem default silencioso — ausente ou
+        # invalido RECUSA com motivo nomeado (nunca 0,30/8,0/"pre_moldada"
+        # calados, que decidiam geometria, capacidade e veredito).
+        from estaca_parametros_g143 import (
+            resolver_estaca_de_spec as _res_est_g143)
+        _est143 = _res_est_g143(spec)
+        D_e = _est143["D"]; L_e = _est143["L"]
         estaca = estp.verifica_estaca({
             "perfil": spec["perfil_spt"], "D": D_e, "L": L_e,
-            "tipo_estaca": spec.get("tipo_estaca", "pre_moldada"),
+            "tipo_estaca": _est143["tipo_estaca"],
             "N_pilar": N_base, "Mx": M_w_k,
             "bloco": {"a_pilar": pilar["hx"], "fck": min(fck, 25e3), "fyk": fyk,
                       "cobrimento": 0.05}})
@@ -484,10 +496,16 @@ def rodar(spec):
                "tem_protensao": True}
                if tipo_viga == "protendida" else
                _prot_sem_uso_g133(spec)),
-           "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
-           "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
-           "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
-           "fogo": gates["fogo"], "estab_global": estab, "gates": gates}
+            "vento": v, "viga": viga, "viga_prot": viga_prot, "tipo_viga": tipo_viga,
+            "pilar": pilar, "sapata": sap, "estaca": estaca, "tipo_fundacao": tipo_fund,
+            "calice": calice, "icamento": icamento, "piso": piso, "geotecnia": geo,
+            "fogo": gates["fogo"], "estab_global": estab, "gates": gates}
+    # G143 (D102): a proveniencia dos 7 valores do bloco de fundacao viaja
+    # no resultado (fonte unica do memorial, da folha e dos sinais de
+    # revisao). Os {"default": True} sao lidos pelo _review_signals do
+    # adaptador (codigo assumed_default).
+    res["fundacao_parametros"] = _par_fund_g143(
+        spec, tipo_fund, bool(spec.get("perfil_spt")) or isinstance(geo, dict))
     # varredura de interpenetracao no modelo 3D (pega sapatas sobrepostas p/ s < L)
     interf = checa_interferencia(res)
     gates["interferencia"] = {"conflitos": len(interf["conflitos"]),
@@ -802,6 +820,10 @@ def relatorio_pt(r):
     # (fonte unica; sem copia literal da linha aqui).
     from protensao_fck_g133 import linha_protensao as _lin_prot_gc
     _l_prot = _lin_prot_gc(r)
+    # G143: o memorial diz a proveniencia dos parametros da fundacao
+    # (fonte unica; sem copia literal da linha aqui).
+    from estaca_parametros_g143 import linha_memorial as _lin_fund_g143
+    _l_fund = _lin_fund_g143(r.get("fundacao_parametros"))
     L = ["GALPAO DE CONCRETO PRE-MOLDADO (NBR 6118/6123/6122)",
          "  %s" % _car,
          "  %s" % _cim,
@@ -820,8 +842,9 @@ def relatorio_pt(r):
          f"(taxa {g['pilar']['taxa_pct']:.2f}%) ; Vd {g['pilar'].get('Vd_gov', 0.0):.1f} <= "
          f"VRd2 {g['pilar'].get('VRd2', 0.0):.1f} kN (u={g['pilar'].get('u_cort', 0.0):.3f}) -> "
          f"{'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
-         f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}"
-         + (f"\n  GEOTECNIA (SPT): {r['geotecnia']['justificativa']}" if r.get("geotecnia") else ""),
+          f"  FUNDACAO ({g['fundacao']['tipo']}): {g['fundacao']['geom']} -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}"
+          + (f"\n  GEOTECNIA (SPT): {r['geotecnia']['justificativa']}" if r.get("geotecnia") else ""),
+          f"  {_l_fund}",
          f"  ESTABILIDADE GLOBAL (NBR 6118 15.5): alpha {g['estab_global']['alpha']:.3f} "
          f"{'<=' if g['estab_global']['nos']=='fixos' else '>'} {g['estab_global']['alpha1']:.2f} "
          f"-> nos {g['estab_global']['nos']}",

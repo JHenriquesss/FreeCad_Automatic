@@ -616,6 +616,7 @@ SEM_FAIXA_DECLARADA = {
     "esgoto_reuso.py": "reuso de tabelas NBR 17076:2024; sem faixa propria.",
     "estabilidade_b1b2.py": "DIVIDA-LENTE: 'Limite de validade do MAES (B2<=1.40)' em vocabulario fora da lente.",
     "estabilidade_global_nbr6118.py": "DIVIDA-LENTE: dispensa de 2a ordem (gamma_z) com 'valido' fora da lente.",
+    "estaca_parametros_g143.py": "fonte unica G143 (recusa D/L/tipo da estaca + proveniencia cota/B_max/mu/sigma, funcao pura de texto + casos que chamam funcao real); sem faixa propria.",
     "f150_decodifica.py": "lente G117 (cifra da F150, funcao pura de texto); sem numero de norma, sem faixa.",
     "impacto_nbr6118_g116.py": "lente G116 (inventario 2014 -> 2023+Em1, funcao pura de texto + casos que chamam funcao real); sem faixa propria.",
     "confronto_2014_2023_g122.py": "lente G122 (confronto 2014 -> 2023 pre-Em1 secao a secao, funcao pura de texto + caso que chama funcao real); sem faixa propria.",

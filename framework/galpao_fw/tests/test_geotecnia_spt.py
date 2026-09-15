@@ -99,11 +99,20 @@ def test_integra_galpao_concreto_deriva_sigma_do_spt():
 
 
 def test_integra_galpao_concreto_auto_estaca():
+    # G143 (D102): a recomendacao continua dizendo "estaca", mas dimensionar
+    # a estaca sem D/L/tipo declarados RECUSA (nunca 0,30/8,0 calados).
     import galpao_concreto as gc
     spec = {"vao": 10.0, "comprimento": 40.0, "pe_direito": 6.0, "v0": 45.0,
             "perfil_spt": [{"tipo": "argila_arenosa", "N": 3, "dz": 6.0},
                            {"tipo": "areia", "N": 30, "dz": 8.0}]}
-    r = gc.rodar(spec)
+    try:
+        gc.rodar(spec)
+        raise AssertionError("auto-estaca sem D/L/tipo devia recusar (G143)")
+    except ValueError as exc:
+        assert "nao_declarada" in str(exc), exc
+    # com D/L/tipo declarados a recomendacao vira estaca dimensionada
+    r = gc.rodar(dict(spec, D_estaca=0.30, L_estaca=10.0,
+                      tipo_estaca="pre_moldada"))
     assert r["tipo_fundacao"] == "estaca"          # SPT recomenda profunda
 
 

@@ -167,11 +167,18 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
         B, L, h, subtipo, _kind = _geometria_desenho(reg)
         n_dim = float(reg.get("N_dimensionamento_kN", 0.0))
         if B is None:
-            # estaca ou sem geometria: marca o pilar, nunca some
+            # estaca ou sem geometria: marca o pilar, nunca some. Com grupo
+            # dimensionado (n_estacas) o circulo carrega n/D/L/Ndim para a
+            # conferencia por PARSE (G143, mesma forma do rect da sapata).
+            n_est = int(g.get("n_estacas") or 0)
+            d_est = float(g.get("D_m") or 0.0)
+            l_est = float(g.get("L_m") or 0.0)
             P.append('<circle cx="%.1f" cy="%.1f" r="7" fill="white" '
                      'stroke="#b91c1c" stroke-width="1.6" data-pilar="%s" '
-                     'data-subtipo="%s"/>'
-                     % (cx, cy, sb.esc(nome), sb.esc(str(subtipo))))
+                     'data-subtipo="%s" data-n="%d" data-D="%.3f" '
+                     'data-L="%.3f" data-Ndim="%.1f"/>'
+                     % (cx, cy, sb.esc(nome), sb.esc(str(subtipo)),
+                        n_est, d_est, l_est, n_dim))
             P.append(sb.texto(cx, cy - 14, nome, 10, weight="bold",
                               color="#b91c1c"))
             motivo = "bloco nao dimensionado" if "n_estacas" in g \
@@ -274,6 +281,16 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
     P.append(sb.texto(qx + 14, yy, "cota de apoio: %s" % cota_txt, 11,
                       anchor="start"))
     yy += 24
+    # G143: a proveniencia dos parametros da fundacao, lida do resultado
+    # (adaptar_galpao_para_locacao). Caminho do predio/casa nao tem a chave
+    # e segue byte-identico (nenhum pixel muda).
+    prov143 = (fundacao or {}).get("proveniencias_g143")
+    if prov143:
+        for _lin143 in str(prov143).split(" ; ")[:3]:
+            P.append(sb.texto(qx + 14, yy, "G143: %s" % _lin143[:64], 10,
+                              anchor="start", color="#555"))
+            yy += 15
+        yy += 9
     P.append(sb.texto(qx + 14, yy, "PILAR", 10, anchor="start",
                       weight="bold"))
     P.append(sb.texto(qx + 74, yy, "SAPATA (m)", 10, anchor="start",
@@ -354,6 +371,11 @@ def confere_desenho_fundacao(fundacao, svg, tol=1e-6):
                 "faltando": sorted(esperado), "divergencias": []}
     ns = "{http://www.w3.org/2000/svg}"
     rects = list(raiz.iter(ns + "rect")) + list(raiz.iter("rect"))
+    # G143: a estaca sai como <circle data-pilar> (sem B/L, com n/D/L no
+    # quadro) — conta como elemento desenhado do pilar, como o rect.
+    rects += [el for el in (list(raiz.iter(ns + "circle"))
+                            + list(raiz.iter("circle")))
+              if el.get("data-pilar")]
     por_pilar_svg = {}
     for el in rects:
         nome = el.get("data-pilar")
@@ -367,6 +389,19 @@ def confere_desenho_fundacao(fundacao, svg, tol=1e-6):
         g = reg.get("geometria") or {}
         el = por_pilar_svg[nome]
         if "n_estacas" in g:
+            # G143: estaca desenhada == dimensionada (n/D/L por PARSE).
+            for chave, attr in (("n_estacas", "data-n"), ("D_m", "data-D"),
+                                ("L_m", "data-L")):
+                try:
+                    des = float(el.get(attr))
+                except (TypeError, ValueError):
+                    divergencias.append("%s: %s ausente no desenho"
+                                        % (nome, attr))
+                    continue
+                if abs(des - float(g[chave])) > 1e-3:
+                    divergencias.append(
+                        "%s: %s desenhado %.3f != dimensionado %.3f"
+                        % (nome, chave, des, float(g[chave])))
             continue
         for chave, attr in (("B_m", "data-B"), ("L_m", "data-L")):
             if g.get(chave) is None:
@@ -563,6 +598,17 @@ def adaptar_galpao_para_locacao(r, spec=None):
     fundacao = {"tipo": tipo, "sigma_solo_adm": sigma,
                 "proveniencia_sigma": prov, "cota_apoio_m": cota,
                 "por_pilar": por_pilar}
+    # G143: a proveniencia dos parametros da fundacao (D/L/tipo da estaca,
+    # cota/B_max/mu/sigma) viaja na folha — lida do resultado (fonte unica),
+    # nunca inventada aqui. Ausente no resultado antigo -> sem linha (a
+    # folha segue como antes).
+    try:
+        from estaca_parametros_g143 import linha_folha as _lin_folha_g143
+        _prov143 = _lin_folha_g143((r or {}).get("fundacao_parametros"))
+    except Exception:
+        _prov143 = None
+    if _prov143:
+        fundacao["proveniencias_g143"] = _prov143
     estrutura = {"vaos_x": [vao], "vaos_y": [s] * (n - 1)}
     return fundacao, estrutura, ausentes
 

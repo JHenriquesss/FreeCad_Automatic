@@ -62,8 +62,9 @@ def test_carimbo_nao_vaza_aco_do_template_de_steel():
 def test_config_estaca_muda_quadro():
     perfil = [{"tipo": "argila", "N": 5, "dz": 3.0},
               {"tipo": "areia", "N": 25, "dz": 8.0}]
+    # G143: D/L/tipo declarados (sem default calado).
     r = gc.rodar(_spec(tipo_fundacao="estaca", perfil_spt=perfil,
-                       D_estaca=0.30, L_estaca=10.0))
+                       D_estaca=0.30, L_estaca=10.0, tipo_estaca="pre_moldada"))
     cfg = tdc.config_de_spec(r, "x.FCStd", "/out", _spec())
     assert cfg["quadro_fund_titulo"] == "QUADRO DE ESTACAS"
     assert cfg["quadro_fund"][0][0] == "Estaca"
