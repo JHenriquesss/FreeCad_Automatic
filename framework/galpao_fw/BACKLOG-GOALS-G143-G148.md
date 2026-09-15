@@ -1,5 +1,8 @@
 # Backlog de goals executáveis — pós-G142 / D172 (2026-09-14)
 
+> **FILA CONSUMIDA** (2026-09-15): G143–G148 executados; auditoria em D176 (commit
+> `076a69f`). A fila aberta é [BACKLOG-GOALS-G149-G153.md](BACKLOG-GOALS-G149-G153.md).
+
 Fila **ABERTA**. Seis goals (G143–G148). As filas anteriores estão fechadas e ficam apenas
 como registro — não reexecute nada de lá: `BACKLOG-GOALS.md` (G78–G88),
 `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`, `BACKLOG-GOALS-G107-G112.md`,
