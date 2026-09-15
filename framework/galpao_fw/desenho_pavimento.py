@@ -55,8 +55,13 @@ def _escala(vaos_x, vaos_y, larg_util, alt_util):
 
 
 def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
-                      ausencias=None):
+                      ausencias=None, rotulo_viga=None):
     """Monta a planta de formas.
+
+    rotulo_viga : (opc, D176) funcao (eixo "X"/"Y", indice da linha) -> marca
+              desenhada. Com None (default) o predio/casa segue "VX0"/"VY0"
+              byte-identico; o mezanino passa `rotulo_viga_mezanino` para a
+              planta marcar as MESMAS vigas da armacao e do BIM (M-VX1..).
 
     pav     : dict devolvido por `pavimento_tipo.monta`.
     descida : (opc) dict de `descida_cargas.descer` - se dado, o quadro mostra o
@@ -132,12 +137,15 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
     n_vigas_desenhadas = 0
     for j in range(ny + 1):
         P.append(sb.linha(xs[0], ys_inv[j], xs[-1], ys_inv[j], 4.0, COR_VIGA))
-        P.append(sb.texto(xs[0] - 32, ys_inv[j] + 4, "VX%d" % j, 10, anchor="middle",
-                          color=COR_VIGA))
+        P.append(sb.texto(xs[0] - 32, ys_inv[j] + 4,
+                          rotulo_viga("X", j) if rotulo_viga else "VX%d" % j,
+                          10, anchor="middle", color=COR_VIGA))
         n_vigas_desenhadas += 1
     for i in range(nx + 1):
         P.append(sb.linha(xs[i], ys_inv[0], xs[i], ys_inv[-1], 4.0, COR_VIGA))
-        P.append(sb.texto(xs[i], ys_inv[-1] - 30, "VY%d" % i, 10, color=COR_VIGA))
+        P.append(sb.texto(xs[i], ys_inv[-1] - 30,
+                          rotulo_viga("Y", i) if rotulo_viga else "VY%d" % i,
+                          10, color=COR_VIGA))
         n_vigas_desenhadas += 1
 
     # --- pilares: um por PILAR DA LISTA (nao recalculado da malha) ---------
@@ -882,6 +890,17 @@ AUSENCIAS_GALPAO_MEZANINO = (
 
 #: declaration when the slab has no reinforcement sized in this run (conv. 13:
 #: the sheet states it in words, never a number).
+def rotulo_viga_mezanino(eixo, indice):
+    """Marca de viga do mezanino na planta de formas (D176).
+
+    A linha j da malha em X e a M-VX(j+1) do `galpao_mezanino.membros_bim`
+    (k=1 em y0, k=2 em y0+Ly); a linha i em Y e a M-VY(i+1) (x0, x0+Lx) - as
+    mesmas marcas da armacao (`adaptar_galpao_mezanino`). Antes a planta
+    marcava VX0/VX1 e a armacao M-VX1/M-VX2 na mesma folha.
+    """
+    return "M-V%s%d" % (eixo, int(indice) + 1)
+
+
 AUSENCIA_LAJE_SEM_ARMADURA = (
     "armadura da laje (laje sem armaduras dimensionadas nesta rodada)")
 

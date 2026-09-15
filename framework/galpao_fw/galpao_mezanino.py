@@ -582,7 +582,9 @@ def gerar_prancha_mezanino(r, out_dir, spec=None):
         raise ValueError("mezanino_erro na PE-MZ-01: %s" % cfg["mezanino_erro"])
     if not cfg.get("formas_svg") or not cfg.get("armacao_svg"):
         raise ValueError("PE-MZ-01 sem esquemas (sem calculo nao ha folha)")
-    _car = _tdm._carimbo_mz(cfg, "MEZANINO DE CONCRETO - FORMAS E ARMACAO",
+    # D176: titulo que cabe na celula do carimbo (_cap_titulo corta em 26 e o
+    # "MEZANINO DE CONCRETO - FORMAS E ARMACAO" saia "... - FO…").
+    _car = _tdm._carimbo_mz(cfg, _tdm.TITULO_CARIMBO_MZ01,
                             "MZ-01", "S/ESC", "01/01")
     _doc = _fitz.open()
     try:

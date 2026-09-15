@@ -4540,3 +4540,108 @@ G147 (o guarda novo G148); 3908 + 4 = 3912 bate.
 **Nao feito (do goal).** Tirar o galpao do G102 da suite do goal (parte 2,
 com decisao do usuario); baixar `-n` sem medir; fechar aplicativos do
 usuario para medir.
+
+## D176 - auditoria do lote G143-G148: o worker que sobrevivia ao piso, a viga com duas marcas e os tres goals sem verbete (2026-09-15) - FECHADO
+
+**Pedido.** "backlog executado, agora e a sua vez": auditar por medicao o lote
+G143-G148 (`14ece99`..`9f112ce`), corrigir, rodar a suite inteira e ler o
+resumo, commitar e escrever o proximo backlog.
+
+**Medido (fontes vivas, antes de mudar).**
+- **G148 - o piso terminava so o pai.** Sonda com o proprio `main` do runner,
+  amostrador falso que seca quando os workers ja rodam um teste de 60 s
+  (`-n 2`): no aborto havia 6 processos novos (launcher do venv 2920 ->
+  pytest 14960 -> 2 workers xdist, cada um launcher + python); depois do
+  `terminate` o pai sumiu e **4 processos dos workers seguiam vivos no
+  instante 0 e 10 s depois**; so aos ~40 s sairam, quando o `sleep` do teste
+  acabou. Num teste do `GRUPO_FREECAD` (G102-galpao ~700 s, freecad.exe
+  1535-1968 MB) o "aborto" deixaria o freecad segurando justamente a memoria
+  que o piso queria liberar. O `test_04` do G148 nao pegava: recorte rapido
+  em `-n 1` que acaba antes do terminate.
+- **G146 - a folha com duas marcas para a mesma viga.** Render da MZ01 (3
+  paginas, PNG olhado): a planta de formas marcava `VX0/VX1/VY0/VY1` (rotulo
+  fixo do predio, `desenho_pavimento.py:135,140`) e a armacao + o BIM marcavam
+  `M-VX1/M-VX2/M-VY1/M-VY2` (`galpao_mezanino.membros_bim:431,444`). Os testes
+  do G146 conferiam `M-VX1` so na armacao.
+- **G146 - titulo cortado.** "MEZANINO DE CONCRETO - FORMAS E ARMACAO" (39)
+  passa por `techdraw_exec._cap_titulo` (26) e sai "MEZANINO DE CONCRETO -
+  FO…" no rodape das 3 paginas. Mesma classe em mais **22** titulos de
+  carimbo de outros emissores (AST de todas as chamadas `_carimbo*` com
+  literal): 23 cortados no total - anterior ao lote, vai para o backlog.
+- **G143, G144 e G145 sem verbete.** O `04-decisions` do lote tem D173
+  (G146), D174 (G147) e D175 (G148); os tres primeiros goals so tinham uma
+  linha no `03-phases` e o commit de uma linha. O verbete e parte da entrega.
+- **Conferido e sem defeito:** a recusa do G143 dentro do turnkey chega
+  isolada com erro nomeado (`galpao_turnkey.py:181-183`); os 3
+  `project-spec.json` do repo tem `"estaca": null` (nenhum dependia do
+  default); o gate do G144 reprova com motivo e o relatorio declara; a MZ01
+  com mezanino reprovado marca REPROVA por viga na armacao; `fyk` e `hx/hy`
+  existem no resultado do mezanino (os `.get(..., 500e3)`/`0.0` do adaptador
+  estao mortos hoje); "18.3 (viga)" no limite governante do pilar e o rotulo
+  do `pilar_concreto` (D84), nao defeito; as NBR citadas nas linhas novas do
+  lote (13714, 6118, 6122, 8800) estao no catalogo.
+
+**Corrigido.**
+- `tools/suite_paralela.py`: `arvore_descendentes(pares, raiz)` pura (so quem
+  descende do proprio filho; ciclo de ppid nao trava), `_pares_processos()`
+  (CIM), `processo_vivo(pid)` (OpenProcess + GetExitCodeProcess) e
+  `terminar_arvore(proc)`: snapshot da arvore ANTES do terminate, taskkill /F
+  por PID de cada descendente vivo, WMI Terminate para quem resistir. O resumo
+  ganha `descendentes_terminados` e `descendentes_sobreviventes`; sobrevivente
+  vira quebra nomeada. O texto do veredito diz "so a arvore do proprio filho
+  pytest".
+- `desenho_pavimento.planta_formas_svg(..., rotulo_viga=None)`: None mantem
+  `VX%d/VY%d` do predio; `rotulo_viga_mezanino(eixo, k)` = `M-V<eixo><k+1>`
+  (mesma ordem do `membros_bim`), passado pelo `techdraw_mezanino.config_de_spec`.
+- `techdraw_mezanino.TITULO_CARIMBO_MZ01 = "MEZANINO - FORMAS/ARMACAO"` (25),
+  fonte unica da rota SVG e do TechDraw.
+- Novo `tests/test_auditoria_g143_g148_d176.py` (4): marcas de viga iguais
+  nas formas, na armacao e no BIM (a regua acusa sem o rotulo e o predio
+  segue `VX0`); todo `_carimbo_mz` com titulo que `_cap_titulo` nao corta e
+  PDF sem reticencia; arvore pura (usuario fora, snapshot vazio declara);
+  aborto real com amostrador falso que seca quando o teste lento grava o PID
+  do worker - o worker nao pode estar vivo 10 s depois e o resumo tem de
+  nomea-lo. **Vermelho provado no `9f112ce` (worktree): 4 failed** (formas
+  `VX0..` != BIM `M-VX1..`; 2 titulos cortados; sem `arvore_descendentes`;
+  worker 14504 vivo 10 s depois e resumo sem o nome).
+
+**Os tres verbetes que faltaram (resumo medido dos fontes do proprio goal).**
+- **G143 (`14ece99`)** - sem `D_estaca`/`L_estaca` a conta usava 0,30/8,0
+  calados (`galpao_concreto.py:351`) e a PE-CO-04 desenhava "D30 L8". Medido:
+  L 8->10 util 0,116->0,103; D 0,30->0,40 util 0,116->0,071; L=0 n 1->5 em
+  silencio; D=0 TypeError cru; pre_moldada->escavada util 0,116->0,198 e, no
+  perfil fraco com Q_roof 0,25/L 6, pre_moldada ATENDE (n=2) e escavada
+  REPROVA (n=4) - o tipo inverte o veredito. cota_apoio/B_max decidem o tipo
+  no auto (B_max 0,5->estaca, >=1,0->sapata); mu/sigma nao entram na estaca.
+  Entregue (D102): D/L/tipo recusam nomeados; cota/B_max/mu/sigma com a origem
+  dita no resultado (`fundacao_parametros`), memorial, PE-CO-04 e sinais
+  `assumed_default` (`estaca_parametros_g143.py`, fonte unica). Wizard alimenta
+  o metalico, nao o concreto: terceiro valor declarado. Fora: `wizard.py:321-323`
+  e `fundacao_edificio.py:403-405` seguem com default (backlog).
+- **G144 (`2a2dd3c`)** - `galpao_mezanino.py:321-329` com `except Exception:
+  pass`: checagem de interferencia levantando devolvia ATENDE True, reprovados
+  [] e `interferencia` None. Entregue: gate `{"OK": False, "erro", "motivo":
+  "interferencia_nao_verificada"}`, "interferencia" em reprovados, ATENDE
+  False, relatorio "NAO VERIFICADA (...) -> REVISAR". Varridos os outros
+  `except` do caminho (bridge->headless, isolamento do turnkey, emitir_bim):
+  todos declaram, nenhum apaga gate.
+- **G145 (`88c0b33`)** - o grep contava 47 linhas; o AST achou 50 ocorrencias
+  `or 0/or 1` nos 10 emissores (2 linhas com duas). 3 VIVOS curados (reserva,
+  populacao dos detalhes, N_hidrantes da planta do pavimento: declaram em
+  texto); 47 restantes triados MORTOS contra o produtor com baseline nos dois
+  sentidos (`varredura_fallback_folha.py`). Fronteira medida aqui: a lente so
+  ve `BoolOp Or`; `.get(chave, 0/1)` nos mesmos emissores + techdraw do
+  mezanino/incendio/concreto soma **64** (backlog).
+
+**Baselines mudadas com motivo: nenhuma.** O resumo do runner ganha 2 campos.
+
+**Portoes tocados.** `test_auditoria_g143_g148_d176` + G148 + G146 + G141 +
+G112 + G93 + D164 + G145: 47 passed em 39,7 s. Regra do lote: 165 passed, varreduras
+True.
+
+**Suite inteira (lida inteira).** Runner `-n 3`: rc_pytest 0, **3916 passed, 1 skipped
+em 1574,4 s** (26 min), 312/312 arquivos, memoria livre minima 251 MB (piso nao
+disparou), `descendentes_terminados` [] e `descendentes_sobreviventes` [], quebras [].
+Referencia serial: **3916 passed, 1 skipped em 3398,1 s** (56 min). Portao do aco
+(`GALPAO_AUDITORIA=1`, D165): **2 passed em 1909,2 s**. +4 testes sobre o G148
+(3912), os 4 deste verbete.

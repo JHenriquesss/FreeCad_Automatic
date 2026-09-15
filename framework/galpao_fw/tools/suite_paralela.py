@@ -140,7 +140,8 @@ def veredito_piso_memoria(livre_mb, piso_mb=PISO_MEMORIA_LIVRE_MB):
         return ("piso de memoria livre (G148): %.0f MB livres < piso %.0f MB - "
                 "suite abortada como quebra nomeada; testes por worker em "
                 "resumo[testes_por_worker]; nenhum processo do usuario foi "
-                "morto (so o proprio filho pytest)" % (livre, piso))
+                "morto (so a arvore do proprio filho pytest, D176)"
+                % (livre, piso))
     return None
 
 
@@ -186,6 +187,115 @@ def testes_por_worker(censo_dir):
     except Exception:
         return {}
     return dict(sorted(saida.items()))
+
+
+def arvore_descendentes(pares, raiz):
+    """PIDs descendentes de `raiz` (sem ela) a partir de pares (pid, ppid).
+
+    Funcao pura (D176): o piso do G148 terminava so o pytest pai e os workers
+    xdist (e o freecad.exe de um teste do grupo) seguiam vivos ate o teste
+    corrente acabar - medido: 4 processos vivos 10 s depois do aborto. Aqui
+    so entra quem descende do proprio filho do runner; processo do usuario
+    nunca descende dele. Ciclo de ppid (PID reusado) nao trava.
+    """
+    filhos = {}
+    for pid, ppid in pares or ():
+        try:
+            filhos.setdefault(int(ppid), []).append(int(pid))
+        except (TypeError, ValueError):
+            continue
+    vistos, fila = [], [int(raiz)]
+    while fila:
+        atual = fila.pop(0)
+        for f in filhos.get(atual, []):
+            if f != int(raiz) and f not in vistos:
+                vistos.append(f)
+                fila.append(f)
+    return sorted(vistos)
+
+
+def _pares_processos():
+    """[(pid, ppid)] da maquina via CIM; [] fora do Windows ou se falhar."""
+    if sys.platform != "win32":
+        return []
+    cmd = ("Get-CimInstance Win32_Process | Select-Object ProcessId,"
+           "ParentProcessId | ConvertTo-Json -Compress")
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd],
+                             capture_output=True, encoding="utf-8",
+                             errors="replace", timeout=60).stdout
+        dados = json.loads(out or "[]")
+    except Exception:
+        return []
+    if isinstance(dados, dict):
+        dados = [dados]
+    return [(d.get("ProcessId"), d.get("ParentProcessId")) for d in dados
+            if isinstance(d, dict)]
+
+
+def processo_vivo(pid):
+    """True se o PID existe e nao saiu (OpenProcess + GetExitCodeProcess)."""
+    if sys.platform != "win32":
+        return False
+    k32 = ctypes.windll.kernel32
+    h = k32.OpenProcess(0x1000, False, int(pid))  # QUERY_LIMITED_INFORMATION
+    if not h:
+        return False
+    try:
+        codigo = ctypes.c_ulong()
+        if not k32.GetExitCodeProcess(h, ctypes.byref(codigo)):
+            return False
+        return codigo.value == 259                   # STILL_ACTIVE
+    finally:
+        k32.CloseHandle(h)
+
+
+def terminar_arvore(proc, _pares_fn=None, espera_s=20.0):
+    """Termina o filho pytest E os seus descendentes; nunca outro processo.
+
+    Snapshot da arvore ANTES de terminar o pai (depois o ppid orfao ainda
+    aponta para ele, mas o PID pode ser reusado). Cada descendente vivo leva
+    taskkill /F no PID dele (sem /T: a arvore ja foi resolvida aqui) e, se
+    resistir, WMI Terminate (freecad.exe travado, memoria
+    freecad-zumbis-wmi-kill). Devolve (terminados, sobreviventes).
+    """
+    pares = (_pares_fn or _pares_processos)()
+    alvos = arvore_descendentes(pares, proc.pid)
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=30)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    for pid in alvos:
+        if not processo_vivo(pid):
+            continue
+        try:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=15)
+        except Exception:
+            pass
+    limite = time.time() + float(espera_s)
+    while time.time() < limite and any(processo_vivo(p) for p in alvos):
+        time.sleep(0.5)
+    for pid in [p for p in alvos if processo_vivo(p)]:
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "$p=Get-CimInstance Win32_Process -Filter \"ProcessId=%d\";"
+                 "if($p){Invoke-CimMethod -InputObject $p -MethodName Terminate"
+                 "|Out-Null}" % pid],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+        except Exception:
+            pass
+    sobreviventes = [p for p in alvos if processo_vivo(p)]
+    return alvos, sobreviventes
 
 
 def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
@@ -238,10 +348,13 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
            "--durations=40"] + (extras or ["tests"])
     inicio = time.perf_counter()
     with open(os.path.join(saida, "pytest.txt"), "w", encoding="utf-8") as fh:
-        # Popen (nao call): cruzado o piso, o runner termina SO o proprio
-        # filho pytest - nenhum processo do usuario e tocado, nunca taskkill.
+        # Popen (nao call): cruzado o piso, o runner termina SO a arvore do
+        # proprio filho pytest (pai + workers xdist + freecad deles, D176) -
+        # nenhum processo do usuario e tocado (taskkill so por PID resolvido
+        # como descendente).
         proc = subprocess.Popen(cmd, cwd=GALPAO, env=env, stdout=fh,
                                 stderr=subprocess.STDOUT)
+        arvore = {"terminados": [], "sobreviventes": []}
         while proc.poll() is None:
             time.sleep(min(intervalo, 1.0))
             try:
@@ -254,17 +367,8 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
                 brecha["livre"] = m
                 break
         if brecha["livre"] is not None:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
-            try:
-                proc.wait(timeout=30)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            terminados, sobreviventes = terminar_arvore(proc)
+            arvore = {"terminados": terminados, "sobreviventes": sobreviventes}
         else:
             proc.wait()
         rc = proc.returncode if proc.returncode is not None else 1
@@ -292,6 +396,11 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
                           sorted(set(git_depois) - set(git_antes))))
     if brecha["livre"] is not None:
         quebras.append(veredito_piso_memoria(brecha["livre"], piso))
+        if arvore["sobreviventes"]:
+            quebras.append("piso de memoria livre (D176): %d descendente(s) do "
+                           "filho pytest sobreviveram ao aborto: %s"
+                           % (len(arvore["sobreviventes"]),
+                              arvore["sobreviventes"]))
     por_worker = testes_por_worker(censo_dir) if brecha["livre"] is not None else {}
     with open(os.path.join(saida, "pytest.txt"), encoding="utf-8") as fh:
         linhas = fh.read().splitlines()
@@ -305,6 +414,8 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
               "piso_memoria_livre_mb": piso,
               "freecad_por_arquivo": cf.arquivos_que_subiram(registros),
               "testes_por_worker": por_worker,
+              "descendentes_terminados": arvore["terminados"],
+              "descendentes_sobreviventes": arvore["sobreviventes"],
               "quebras": quebras}
     with open(os.path.join(saida, "resumo.json"), "w", encoding="utf-8") as fh:
         json.dump(resumo, fh, ensure_ascii=False, indent=1)

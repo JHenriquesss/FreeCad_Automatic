@@ -24,6 +24,12 @@ from techdraw_exec import (
     _nova_prancha, _anot, _carimbo, _svg_para_png)
 
 
+#: D176: titulo do carimbo da MZ01 (fonte unica da rota SVG e do TechDraw).
+#: `techdraw_exec._cap_titulo` corta acima de 26 caracteres; o titulo antigo
+#: ("MEZANINO DE CONCRETO - FORMAS E ARMACAO", 39) saia "... - FO…" na folha.
+TITULO_CARIMBO_MZ01 = "MEZANINO - FORMAS/ARMACAO"
+
+
 def _carimbo_mz(cfg, titulo, numero, escala, folha):
     """Carimbo do mezanino: corrige os defaults ESTRUTURAIS de aco do carimbo
     generico (material, norma, tipo de documento e departamento). Sem isso a
@@ -44,7 +50,7 @@ def _pr_mezanino(doc, cfg):
     vigas/pilares (SVGs do cfg, ja adaptados com as ausencias declaradas) +
     quadro de sapatas e da laje. Sem recalculo dentro do FreeCAD."""
     page = _nova_prancha(doc, "MZ01_MEZANINO",
-                         _carimbo_mz(cfg, "MEZANINO DE CONCRETO - FORMAS E ARMACAO",
+                         _carimbo_mz(cfg, TITULO_CARIMBO_MZ01,
                                       "MZ-01", "S/ESC", "01/01"))
     if not cfg.get("formas_svg") or not cfg.get("armacao_svg"):
         raise ValueError("MZ01 sem esquemas: %s"
@@ -250,7 +256,8 @@ def config_de_spec(r, out_dir, spec=None):
             pav, titulo=("PE-MZ-01 - PLANTA DE FORMAS DO MEZANINO "
                          "(1 painel ; %.1f x %.1f m ; %.1f m2)")
             % (pav["vaos_x"][0], pav["vaos_y"][0], pav["area_m2"]),
-            ausencias=ausentes if ausentes else None)
+            ausencias=ausentes if ausentes else None,
+            rotulo_viga=dp.rotulo_viga_mezanino)   # D176: marca = armacao = BIM
         armacao_svg = dp.prancha_armacao_vigas_pilares_svg(
             vv, pilares,
             titulo=("PE-MZ-01 - ARMACAO DE VIGAS E PILARES DO MEZANINO "

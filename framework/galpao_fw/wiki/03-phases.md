@@ -834,6 +834,18 @@ serial 3874 passed, portão do aço 2 passed.
 - **G145** os 47 fallbacks `or 0`/`or 1` triados contra o produtor; 3 vivos declaram ausência.
 - **G146** PE-MZ-01 do mezanino: formas + armação via primitivas do prédio adaptadas do
   cálculo, cada viga/pilar/sapata um por um ([[04-decisions#D173]]).
+- **G147** pesos de concreto (61,1 s) e elétrico (110,5 s) medidos; prazo 2100 s mantido
+  ([[04-decisions#D174]]).
+- **G148** piso de 200 MB livres no runner, quebra nomeada; ganho sem o galpão do G102
+  só relatado ([[04-decisions#D175]]).
+
+**Auditoria ([[04-decisions#D176]]).** O piso do G148 terminava só o pytest pai: os
+workers xdist seguiam vivos até o teste corrente acabar (4 processos 10 s depois do
+aborto). Agora o runner termina a árvore do próprio filho e nomeia quem sobreviver. A
+MZ01 marcava a mesma viga como VX0 na planta e M-VX1 na armação e no BIM, e cortava o
+título do carimbo. G143, G144 e G145 não tinham verbete; o resumo medido entra no D176.
+Vermelho provado no `9f112ce` (4 failed). Suíte: runner 3916 passed/1 skipped em 26 min,
+quebras vazio; serial igual em 56 min; portão do aço 2 passed.
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
