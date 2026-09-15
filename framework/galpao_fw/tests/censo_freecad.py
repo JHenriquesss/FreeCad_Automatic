@@ -62,10 +62,11 @@ GRUPO_FREECAD = {
         "1 freecadcmd.exe em test_build_tesoura_barras (D164)",
     "tests/test_ifc_secundarios_xcheck.py":
         "1 freecadcmd.exe em test_terca_puro_bate_com_o_build (D164)",
-    "tests/test_indice_disco_rodada_g102.py":
-        "7 processos em test_01_portao_rodada_real_falha_unica (galpao real, "
-        "~2 GB de pico; o portao de memoria soma todo freecad.exe visivel) "
-        "(D164)",
+    # D177: tests/test_indice_disco_rodada_g102.py saiu. Os 7 processos do
+    # D164 eram da rodada do galpao, que foi para o test_10 (auditoria do
+    # lote, GALPAO_AUDITORIA=1, serial, como o aco do D165); casa e predio
+    # no test_01 nao sobem freecad (CUSTO_MEDIDO_N_FREECAD 0/0). Ficar aqui
+    # seria isencao morta na corrida do goal.
     "tests/test_techdraw_concreto.py":
         "2 processos em test_build_gera_pranchas_pdf (D164)",
 }

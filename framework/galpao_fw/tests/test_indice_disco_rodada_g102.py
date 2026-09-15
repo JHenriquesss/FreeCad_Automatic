@@ -53,6 +53,8 @@ import os
 import sys
 import time
 
+import pytest
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 GALPAO = os.path.dirname(HERE)
 sys.path.insert(0, GALPAO)
@@ -85,6 +87,18 @@ ISENCOES_EXTRA = {
     "CLI02_QUADRO.pdf":
         "segunda folha da climatizacao do galpao (quadro de capacidade "
         "e memorial, rota SVG G104), sem codigo proprio no indice",
+}
+
+# D177: de que rodada sai cada isencao. A "isencao morta" so se cobra das
+# tipologias que rodaram - a rodada do goal (casa, predio) nao emite as
+# folhas do galpao, e isso nao e isencao morta; a rodada da auditoria cobra
+# as dela. Isencao sem dona declarada e cobrada em toda rodada (nunca some).
+ISENCOES_TIPOLOGIA = {
+    "quadro-ambientes.svg": "casa",
+    "conferencia-nbr5410.svg": "casa",
+    "HID02_QUADRO.pdf": "galpao",
+    "INC02_RESUMO.pdf": "galpao",
+    "CLI02_QUADRO.pdf": "galpao",
 }
 
 # Custo medido e escrito (aceite do G102): segundos por tipologia na
@@ -160,6 +174,15 @@ CUSTO_TETO_MEM_MB = 2500
 CUSTO_MEDIDO_N_FREECAD = {"casa": 0, "predio": 0, "galpao": 1}
 
 TIPOLOGIAS = ("casa", "predio", "galpao")
+# D177 (G148 parte 2, decisao do usuario em 2026-09-15): o galpao sai da
+# suite de cada goal e roda na AUDITORIA do lote, como o executivo de aco
+# (D165). Medido no D175: a parte do galpao no test_01 era ~752 s dos 1605 s
+# da suite (~47 %); casa + predio 17,6 s. O portao e o mesmo (mesma lente,
+# mesmos tetos, mesmo registro de freecad); muda QUANDO roda: test_01 (casa,
+# predio) em todo goal, test_10 (galpao) com GALPAO_AUDITORIA=1, serial.
+ENV_AUDITORIA = "GALPAO_AUDITORIA"
+TIPOLOGIAS_GOAL = ("casa", "predio")
+TIPOLOGIAS_AUDITORIA = ("galpao",)
 
 _SPECS = {
     "casa": ("casa-residencial", "project-spec.json"),
@@ -342,8 +365,20 @@ def _confronta(nome, manifesto, destino, desenhos):
     return gaps, res, no_disco, mapa, prometidos, disciplinas
 
 
-def test_01_portao_rodada_real_falha_unica(tmp_path):
-    """As tres tipologias de verdade, todos os lados, um assert so.
+def isencoes_mortas(vistos, nomes):
+    """[chaves] isentas cuja tipologia rodou e cujo arquivo nao apareceu no
+    disco (D177). Isencao sem dona em ISENCOES_TIPOLOGIA e cobrada sempre."""
+    mortas = []
+    for chave in sorted(ISENCOES_EXTRA):
+        dona = ISENCOES_TIPOLOGIA.get(chave)
+        if (dona is None or dona in nomes) and chave not in vistos:
+            mortas.append(chave)
+    return mortas
+
+
+def _portao_rodada_real(nomes, tmp_path):
+    """As tipologias `nomes` de verdade, todos os lados. Devolve (gaps,
+    relatorio): o teste que chama faz um assert so.
 
     O disco vem do manifesto da rodada (nao do mapa): desligar o emissor
     faz o codigo voltar a faltando, e planta um arquivo fantasma faz o
@@ -359,7 +394,7 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
     mapas = {}
     prometidos_por = {}
     vistos = set()
-    for nome in TIPOLOGIAS:
+    for nome in nomes:
         manifesto, _resultado, destino, segundos, pico = _rodada(nome, tmp_path)
         custos[nome] = segundos
         picos[nome] = pico
@@ -395,13 +430,13 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
         mapas[nome] = mapa
         prometidos_por[nome] = prometidos
         vistos.update(n.split("/")[-1] for n in no_disco)
-    for chave in sorted(ISENCOES_EXTRA):
-        if chave not in vistos:
-            gaps.append("isencao morta %s (isenta sem arquivo no disco em "
-                        "nenhuma rodada)" % chave)
+    for chave in isencoes_mortas(vistos, nomes):
+        gaps.append("isencao morta %s (isenta sem arquivo no disco na "
+                    "rodada de %s)" % (chave, ISENCOES_TIPOLOGIA.get(
+                        chave, "todas")))
     total = sum(custos.values())
     print("CUSTO_G102 " + " ".join("%s=%.1fs" % (n, custos[n])
-                                   for n in TIPOLOGIAS)
+                                   for n in nomes)
           + " total=%.1fs" % total)
     # G121: o pico de memoria sai no print junto com os segundos (aceite).
     # pico_total = max por amostra de (processo + freecad) - nao a soma dos
@@ -411,7 +446,7 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
         "%s=%.1fMB(proc=%.1f,fc=%.1f,n=%d)" % (
             n, picos[n]["pico_total_mb"], picos[n]["pico_processo_mb"],
             picos[n]["pico_freecad_mb"], picos[n]["n_freecad_max"])
-        for n in TIPOLOGIAS))
+        for n in nomes))
     # G106: o teto cobra o tempo MEDIDO nesta rodada. O test_05 so conferia
     # a constante escrita a mao - portao que nunca mede nao reprova nada.
     if total > CUSTO_TETO_SEG:
@@ -422,7 +457,7 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
     # Pico None/nao mensuravel nao vira gap - a ausencia se declara no
     # print acima, nunca vira aprovacao silenciosa nem teto inventado.
     if CUSTO_TETO_MEM_MB is not None:
-        for nome in TIPOLOGIAS:
+        for nome in nomes:
             if picos[nome]["falhou"] or picos[nome]["n_amostras"] == 0:
                 gaps.append("[%s] medidor de memoria falhou: pico nao "
                             "mensuravel, sem numero para cobrar (G121)"
@@ -447,10 +482,75 @@ def test_01_portao_rodada_real_falha_unica(tmp_path):
                 gaps.append("[%s] %s" % (nome, falha))
     else:
         print("MEM_G102 teto de memoria ainda nao congelado (G121)")
+    return gaps, lente.relatorio_pt(resultados, mapas, prometidos_por)
+
+
+def test_01_portao_rodada_real_falha_unica(tmp_path):
+    """Casa e predio de verdade em todo goal, um assert so. O galpao mora
+    no test_10, na auditoria do lote (D177)."""
+    gaps, relatorio = _portao_rodada_real(TIPOLOGIAS_GOAL, tmp_path)
     assert not gaps, (
         "G102: indice x disco reprova em rodada real:\n%s\n%s"
-        % ("\n".join("  - " + g for g in gaps),
-           lente.relatorio_pt(resultados, mapas, prometidos_por)))
+        % ("\n".join("  - " + g for g in gaps), relatorio))
+
+
+@pytest.mark.skipif(os.environ.get(ENV_AUDITORIA) != "1",
+                    reason="rodada real do galpao (~12 min, freecad.exe "
+                           "~2 GB): portao da auditoria do lote - rode com "
+                           "GALPAO_AUDITORIA=1, serial (D177)")
+def test_10_portao_rodada_real_galpao_na_auditoria(tmp_path):
+    """D177: o mesmo portao do test_01 sobre o galpao de verdade (lente,
+    folhas de aco puladas com a causa, fronteira PE-IN-03, tetos de tempo e
+    memoria, freecad mensuravel). Roda com GALPAO_AUDITORIA=1, serial."""
+    gaps, relatorio = _portao_rodada_real(TIPOLOGIAS_AUDITORIA, tmp_path)
+    assert not gaps, (
+        "G102 (auditoria): indice x disco reprova na rodada do galpao:\n%s\n%s"
+        % ("\n".join("  - " + g for g in gaps), relatorio))
+
+
+def test_11_galpao_so_na_auditoria_nos_dois_sentidos(monkeypatch):
+    """D177: as duas rodadas cobrem as tres tipologias sem sobrepor; o
+    galpao so sai da suite do goal pelo portao de auditoria; a isencao
+    morta so se cobra de quem rodou, e a sem dona e cobrada sempre."""
+    lados = []
+    goal, auditoria = set(TIPOLOGIAS_GOAL), set(TIPOLOGIAS_AUDITORIA)
+    if goal | auditoria != set(TIPOLOGIAS) or goal & auditoria:
+        lados.append("rodadas nao particionam as tipologias: goal=%r "
+                     "auditoria=%r" % (TIPOLOGIAS_GOAL, TIPOLOGIAS_AUDITORIA))
+    if TIPOLOGIAS_AUDITORIA != ("galpao",):
+        lados.append("auditoria mudou sem decisao: %r" % (TIPOLOGIAS_AUDITORIA,))
+    marcas = [m for m in getattr(test_10_portao_rodada_real_galpao_na_auditoria,
+                                 "pytestmark", []) if m.name == "skipif"]
+    razao = marcas[0].kwargs.get("reason", "") if marcas else ""
+    if len(marcas) != 1 or "GALPAO_AUDITORIA=1" not in razao:
+        lados.append("test_10 sem o skip da auditoria: %r" % (marcas,))
+    elif marcas[0].args != (os.environ.get(ENV_AUDITORIA) != "1",):
+        lados.append("skip do test_10 nao segue %s: %r"
+                     % (ENV_AUDITORIA, marcas[0].args))
+    if set(ISENCOES_TIPOLOGIA) != set(ISENCOES_EXTRA) or not set(
+            ISENCOES_TIPOLOGIA.values()) <= set(TIPOLOGIAS):
+        lados.append("isencao sem dona ou dona ignota: %r"
+                     % (ISENCOES_TIPOLOGIA,))
+    da_casa = {"quadro-ambientes.svg", "conferencia-nbr5410.svg"}
+    casos = [
+        (da_casa, TIPOLOGIAS_GOAL, []),
+        (da_casa, TIPOLOGIAS, ["CLI02_QUADRO.pdf", "HID02_QUADRO.pdf",
+                               "INC02_RESUMO.pdf"]),
+        (set(), TIPOLOGIAS_GOAL, ["conferencia-nbr5410.svg",
+                                  "quadro-ambientes.svg"]),
+        (set(), TIPOLOGIAS_AUDITORIA, ["CLI02_QUADRO.pdf", "HID02_QUADRO.pdf",
+                                       "INC02_RESUMO.pdf"]),
+    ]
+    for vistos, nomes, esperado in casos:
+        obtido = isencoes_mortas(vistos, nomes)
+        if obtido != esperado:
+            lados.append("isencoes_mortas(%r, %r) = %r, esperado %r"
+                         % (sorted(vistos), nomes, obtido, esperado))
+    sem_dona = dict(ISENCOES_EXTRA, **{"orfa.pdf": "sem codigo no indice"})
+    monkeypatch.setattr(sys.modules[__name__], "ISENCOES_EXTRA", sem_dona)
+    if "orfa.pdf" not in isencoes_mortas(da_casa, TIPOLOGIAS_GOAL):
+        lados.append("isencao sem dona sumiu da cobranca")
+    assert not lados, "D177:\n" + "\n".join(lados)
 
 
 def test_02_baseline_extras_isentos_nos_dois_sentidos():

@@ -4645,3 +4645,75 @@ disparou), `descendentes_terminados` [] e `descendentes_sobreviventes` [], quebr
 Referencia serial: **3916 passed, 1 skipped em 3398,1 s** (56 min). Portao do aco
 (`GALPAO_AUDITORIA=1`, D165): **2 passed em 1909,2 s**. +4 testes sobre o G148
 (3912), os 4 deste verbete.
+
+## D177 - G148 parte 2: o galpao do G102 sai da suite do goal para a auditoria do lote (2026-09-15) - FECHADO
+
+**Pedido.** Decisao do usuario sobre a parte 2 do G148 ("Pode fazer assim"):
+tirar a rodada real do galpao do G102 da suite de cada goal e roda-la so na
+auditoria do lote, como o executivo de aco (D165). Casa e predio ficam.
+
+**Medido antes (D175/D176).** Na suite pelo runner o `test_01` levava 769,8 s
+(D175) e 838,8 s (D176), dos quais casa + predio 17,6 s. O pico do galpao e o
+freecad.exe (1369-1968 MB); casa e predio nao sobem freecad
+(`CUSTO_MEDIDO_N_FREECAD` 0/0).
+
+**Entregue.**
+- `tests/test_indice_disco_rodada_g102.py`: o corpo do `test_01` virou
+  `_portao_rodada_real(nomes, tmp_path)` (mesma lente, mesmos tetos de tempo e
+  memoria, mesma cobranca de freecad mensuravel, folhas de aco puladas com a
+  causa, fronteira PE-IN-03), devolvendo `(gaps, relatorio)`. `test_01` roda
+  `TIPOLOGIAS_GOAL = ("casa", "predio")`; o novo `test_10` roda
+  `TIPOLOGIAS_AUDITORIA = ("galpao",)` com `skipif` em `GALPAO_AUDITORIA != "1"`
+  e o motivo escrito. Nome do `test_01` mantido (citado no G91/G97).
+- `ISENCOES_TIPOLOGIA` + `isencoes_mortas(vistos, nomes)`: a isencao morta so
+  se cobra da tipologia que rodou (a rodada do goal nao emite HID02/INC02/CLI02
+  do galpao, e isso nao e isencao morta); isencao sem dona e cobrada sempre.
+- `test_11` (puro): as duas rodadas particionam as tres tipologias; auditoria
+  == galpao; `test_10` com um `skipif` so, preso a `GALPAO_AUDITORIA=1`;
+  `ISENCOES_TIPOLOGIA` cobre `ISENCOES_EXTRA`; `isencoes_mortas` nos dois
+  sentidos (so casa vista: nada no goal, as 3 do galpao com tudo; nada visto:
+  as 2 da casa no goal, as 3 do galpao na auditoria) e a sem dona nao some.
+- `tests/censo_freecad.GRUPO_FREECAD`: a entrada do G102 saiu com o motivo
+  escrito no lugar. Os 7 processos do D164 eram do galpao; ficar no grupo seria
+  isencao morta na corrida do goal (o runner reprova isso em corrida inteira).
+
+**Baselines mudadas com motivo.** `GRUPO_FREECAD` perde o G102 (acima).
+`CUSTO_MEDIDO_SEG`/`CUSTO_MEDIDO_MEM_MB` ficam como estao: sao o registro da
+auditoria, e o `test_05` segue cobrando as tres tipologias.
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK; os 15
+arquivos da regra do lote + G102 + G147 + G107 + G97: 182 passed, 1 skipped
+(o `test_10`) em 208,1 s. No goal: `CUSTO_G102 casa=7.1s predio=22.5s
+total=29.6s`, `MEM_G102 casa=138.4MB predio=208.6MB`, n_freecad 0.
+
+**Portao do galpao na auditoria (`GALPAO_AUDITORIA=1`, serial, -s).** `test_10`:
+1 passed em 771,7 s; `CUSTO_G102 galpao=770.8s` (teto 1800),
+`MEM_G102 galpao=1470.9MB(proc=184.2,fc=1369.1,n=1)` (teto 2500, freecad
+mensuravel e visto). Mesma ordem dos registros (706,6 s / 1679,0 MB no G146):
+variacao de maquina, sem re-congelar.
+
+**Suite inteira pelo runner (`-n 3`).** `rc_pytest` 0, **3917 passed, 2 skipped
+em 1664,6 s** (27,7 min), 312/312 arquivos, memoria livre minima 300 MB,
+descendentes [] / [], `quebras` [] - censo do FreeCAD fechado com o G102 fora
+do grupo (sem violacao, sem isencao morta). +1 passed (`test_11`) e +1 skipped
+(`test_10`) sobre o D176 (3916/1). O `test_01` caiu de 838,8 s para 31,8 s.
+
+**Ganho de parede NAO demonstrado.** A corrida levou 1664,6 s contra 1574,4 s
+do D176. Nao e o diff: os testes do grupo FreeCAD, intocados, ficaram
+1,4-2,3x mais lentos (coluna_tapered 81,6->144,1 s; tesoura 79,8->124,6;
+estaca_bloco 53,1->119,6; g19_quarto_caso 56,8->88,8), e o Cursor do usuario,
+aberto as 16:33 (depois da corrida do D176), somava ~3,3 mil s de CPU ao fim
+(CPU em 51 % com a suite ja parada). A estimativa do D175 (1605 -> ~853 s,
+-47 %) subtraia o teste do total, e isso nao vale sob xdist: a parede depende
+da CPU disputada pelos 3 workers + freecad, nao so da fila de um worker.
+Ganho medido com certeza: ~807 s de tempo de teste e o freecad.exe de
+1,4-2 GB fora da corrida do goal. A parede em corrida comparavel vai para o
+G153 (com a carga da maquina registrada, sem fechar aplicativo do usuario).
+
+**Como rodar a auditoria do lote agora.** Serial `pytest tests` +
+`GALPAO_AUDITORIA=1 pytest tests/test_executivo_aco_completo_d165.py
+tests/test_indice_disco_rodada_g102.py::test_10_portao_rodada_real_galpao_na_auditoria`
+(uma rodada pesada por vez). Goal que muda folha do galpao roda o `test_10`.
+
+**Nao feito.** Mover qualquer outra cobertura; baixar `-n`; mexer nos tetos;
+fechar aplicativo do usuario para medir.

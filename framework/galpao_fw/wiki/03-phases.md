@@ -847,6 +847,11 @@ título do carimbo. G143, G144 e G145 não tinham verbete; o resumo medido entra
 Vermelho provado no `9f112ce` (4 failed). Suíte: runner 3916 passed/1 skipped em 26 min,
 quebras vazio; serial igual em 56 min; portão do aço 2 passed.
 
+**G148 parte 2 ([[04-decisions#D177]]), decisão do usuário.** O galpão do G102 roda só na
+auditoria (`test_10`, `GALPAO_AUDITORIA=1`, 771,7 s verde); casa e prédio seguem no
+`test_01` (31,8 s). Suíte 3917 passed/2 skipped, quebras vazio. O ganho de parede não se
+demonstrou (máquina carregada, builds do FreeCAD 1,4–2,3× mais lentos); o G153 mede.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

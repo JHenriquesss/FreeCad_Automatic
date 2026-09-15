@@ -72,8 +72,8 @@ SPT externo (T44).
     `PYTHONUTF8=1` (D172) e aborta abaixo de 200 MB livres terminando só a árvore do próprio
     filho (G148/D176). Não edite o repositório com a suíte rodando. Teste novo que sobe
     freecad.exe/freecadcmd.exe entra em `tests/censo_freecad.GRUPO_FREECAD` com o motivo medido.
-    A serial `pytest tests` e o portão do executivo de aço (`GALPAO_AUDITORIA=1`) rodam **na
-    auditoria do lote**, não em cada goal. Máquina de 8 GB: rodada pesada uma por vez; os
+    A serial `pytest tests` e os portões de auditoria (`GALPAO_AUDITORIA=1`: executivo de aço
+    D165 e galpão do G102 D177) rodam **na auditoria do lote**, não em cada goal. Máquina de 8 GB: rodada pesada uma por vez; os
     aplicativos do usuário ficam abertos.
 13. **(D172) Emissor ou conta reaproveitados trazem os fallbacks deles.** Rode com o dado
     **ausente** e com **zero**, um por um; folha nova ligada em código comum fica num `try`
@@ -93,8 +93,9 @@ antes da suíte: `varredura_faixa_validade.confere_cobertura()`,
 `tests/test_galpao_indice_g93.py`, `tests/test_suite_paralela_d164.py`,
 `tests/test_auditoria_g137_g142_d172.py`, `tests/test_auditoria_g143_g148_d176.py` e
 `tests/test_fallback_folha_g145.py` — mais o portão próprio de cada fonte que o goal tocar.
-Goal que muda folha do galpão roda também `tests/test_indice_disco_rodada_g102.py` **isolado**
-(`-s`, ~12 min, re-congela o custo com o número medido se ele mudar).
+Goal que muda folha do galpão roda também o portão do galpão do G102 **isolado e serial**
+(`GALPAO_AUDITORIA=1 pytest -s tests/test_indice_disco_rodada_g102.py::test_10_portao_rodada_real_galpao_na_auditoria`,
+~13 min; re-congela o custo com o número medido se ele mudar). Sem a variável ele sai pulado (D177).
 
 **Otimização de conta (D158):** só com prova de número idêntico. **O verbete é parte da
 entrega.** **Uma fonte só:** dado que o cliente recebe mora na produção.
@@ -109,8 +110,9 @@ entrega.** **Uma fonte só:** dado que o cliente recebe mora na produção.
   lente ainda não triou.
 - **G151** independente (carimbo; mexe em título, não em conta).
 - **G153** independente (runner); roda por último se a máquina estiver em uso.
-- **Decisão do usuário (sem goal):** a parte 2 do G148 — tirar o galpão do G102 da suíte de
-  cada goal e rodá-lo só na auditoria do lote. Medido no D175: ~750 s de ganho (~47 % da suíte).
+- **Decidido (D177):** a parte 2 do G148 foi aprovada pelo usuário — o galpão do G102 roda só na
+  auditoria do lote (`test_10`). O `test_01` caiu de 838,8 s para 31,8 s, mas o ganho de parede
+  **não se demonstrou** na corrida do D177 (máquina carregada): o G153 mede.
 
 ---
 
@@ -221,8 +223,8 @@ abreviação limpa é declarada numa tabela com motivo), títulos corrigidos sem
 sentidos; PNG olhado de cada folha tocada.
 
 **Aceite.** Nenhum título com "…"; injeção de título longo reprova nomeando arquivo:linha;
-`test_carimbo_mapa_g112` e `test_galpao_indice_g93` verdes; G102 isolado se folha do galpão
-mudar.
+`test_carimbo_mapa_g112` e `test_galpao_indice_g93` verdes; portão do galpão do G102 (`test_10`,
+`GALPAO_AUDITORIA=1`) se folha do galpão mudar.
 
 **Não fazer.** Aumentar a célula do template ISO 5457 às cegas (o `_cap_titulo` existe porque o
 título invadia "Created by"); mudar código de prancha.
@@ -268,16 +270,21 @@ decidir gate.
   sido abortado. O resumo guarda só o mínimo, não a série — não há como saber se 159 foi um
   pico de 1 s ou minutos.
 - Depois do aborto, a D176 termina a árvore do filho; não medido quanto tempo leva para a
-  memória voltar com um freecad.exe do G102 (1,5–2 GB) ocupado.
+  memória voltar com um freecad.exe (1,5–2 GB) ocupado.
+- **D177:** com o galpão do G102 fora da suíte do goal, o `test_01` caiu de 838,8 s para 31,8 s,
+  mas a corrida levou 1664,6 s contra 1574,4 s do D176. Os testes do FreeCAD intocados ficaram
+  1,4–2,3× mais lentos e o Cursor do usuário somava ~3,3 mil s de CPU: a comparação não isola o
+  diff. O resumo não grava a carga da máquina.
 
 **Entregar.** Gravar a série de amostras no resumo; medir em duas corridas reais (máquina em
 uso normal) a duração das quedas abaixo do piso; decidir a regra de confirmação **só com os
 números**, com vermelho por injeção nos dois sentidos (queda transitória não aborta; queda
 sustentada aborta e mata a árvore). Medir o tempo até a memória voltar com freecad ocupado,
-sem fechar aplicativo do usuário.
+sem fechar aplicativo do usuário. Gravar a carga da máquina no resumo e medir o ganho de parede
+do D177 contra o D176 em corrida comparável (os testes intocados servem de régua da carga).
 
 **Aceite.** Resumo com a série; regra escrita com a derivação; teste com amostrador falso para
 transitório e sustentado; suíte pelo runner `rc_pytest` 0 e `quebras` vazio.
 
-**Não fazer.** Baixar o piso para "caber"; mover cobertura (é a parte 2 do G148, decisão do
-usuário).
+**Não fazer.** Baixar o piso para "caber"; mover mais cobertura para a auditoria sem decisão do
+usuário (o D177 moveu só o galpão do G102).
