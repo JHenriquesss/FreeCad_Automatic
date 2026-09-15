@@ -809,6 +809,25 @@ os censos das fontes únicas estão fechados; a casa com a chave 2023+Em1 não t
 2023. O lote se sustenta. No mesmo passo, o portão G102 deixou de esperar o executivo de aço
 (sorteio de relógio, D164) e o executivo completo ganhou portão próprio, de auditoria.
 
+### G137–G142 — as folhas que o galpão prometia e não emitia
+- **G137** as 17 pranchas de aço ganham código; o prazo do caderno sai do medido
+  ([[04-decisions#D166]]).
+- **G139** a coordenação sai no recorte com ≥ 2 disciplinas, PE-CD-02 com código
+  ([[04-decisions#D167]]).
+- **G138** PE-IN-02 do galpão sai do emissor do prédio, adaptado do cálculo
+  ([[04-decisions#D168]]).
+- **G140** PE-CO-04 do galpão, cada sapata desenhada uma por uma ([[04-decisions#D169]]).
+- **G141** o mezanino calculado ganha PE-MZ-01, ausência declarada ([[04-decisions#D170]]).
+- **G142** PE-EL-03 da casa segue pulada: nada desenhável sem malha/SPDA
+  ([[04-decisions#D171]]).
+
+**Auditoria ([[04-decisions#D172]]).** O emissor do prédio reusado no galpão trouxe o
+`or 1` dele: sem hidrantes calculados a PE-IN-02 desenhava HID-1 e reserva 0,0 m³. A INC03
+nova, ligada sem try no cfg comum, derrubava INC01/INC02 — e o teste do próprio goal
+esperava esse erro. A causa da folha caída passa a chegar ao motivo da pulada, e o
+`PYTHONUTF8` sai do shell para o runner. Vermelho provado no `f22dfe9`; runner 3874 passed,
+serial 3874 passed, portão do aço 2 passed.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

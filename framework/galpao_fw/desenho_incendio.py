@@ -483,7 +483,8 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
     sist = inc.get("sistemas") or {}
     hid = sist.get("hidrantes") or {}
     gates = inc.get("gates") or {}
-    n = int(hid.get("N_hidrantes") or 0) or 1
+    n_decl = hid.get("N_hidrantes")
+    n = int(n_decl or 0) or 1
     n_pav = len((estrutura or {}).get("pavimentos") or []) or n
     reserva = hid.get("reserva_incendio_m3")
     if titulo is None and nivel_unico:
@@ -506,12 +507,21 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
         y = y1 - passo * 0.5
         largura = 200.0
         x_ini = x - 40.0
-        for i in range(n):
-            xi = x_ini + (largura * i / max(n - 1, 1) if n > 1 else 60.0)
-            s.append(_sym_hidrante(xi, y))
-            s.append(_t(xi, y + 22, "HID-%d (terreo)" % (i + 1), 10))
-        s.append(_t(x, y1 + 44, "nivel unico (terreo): %d hidrante(s) "
-                   "no mesmo nivel" % n, 11, color=VERMELHO))
+        if not n_decl:
+            # D172: sem N calculado (None) ou N=0 nao ha simbolo a desenhar
+            # - o `or 1` do predio desenhava HID-1 inventado ao lado da
+            # caixa que diz "nao calculados".
+            s.append(_t(x, y1 + 44, (
+                "hidrantes nao calculados: nenhum simbolo"
+                if n_decl is None else
+                "0 hidrantes no calculo: nenhum simbolo"), 11, color=VERMELHO))
+        else:
+            for i in range(n):
+                xi = x_ini + (largura * i / max(n - 1, 1) if n > 1 else 60.0)
+                s.append(_sym_hidrante(xi, y))
+                s.append(_t(xi, y + 22, "HID-%d (terreo)" % (i + 1), 10))
+            s.append(_t(x, y1 + 44, "nivel unico (terreo): %d hidrante(s) "
+                       "no mesmo nivel" % n, 11, color=VERMELHO))
     else:
         for i in range(n_pav):
             y = y1 - passo * (i + 0.5)
@@ -522,7 +532,9 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
     rotas = gates.get("rotas_verticais") or {}
     larg = gates.get("escada_largura") or {}
     linhas = [
-        "RESERVA DE INCENDIO %.1f m3" % (reserva or 0),
+        ("RESERVA DE INCENDIO: nao calculada"
+         if nivel_unico and reserva is None else
+         "RESERVA DE INCENDIO %.1f m3" % (reserva or 0)),
         "Rotas verticais: min %s / decl %s" % (
             rotas.get("n_minimo", "?"), rotas.get("n_declarado", "?")),
         "Largura escada exigida: %s m" % (larg.get("largura_exigida_m", "?"),),

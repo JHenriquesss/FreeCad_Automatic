@@ -340,8 +340,23 @@ def _disciplina_do_codigo_galpao(codigo):
     return None
 
 
+def _causas_folhas_galpao(statuses):
+    """D172: a causa medida de folha que caiu dentro de disciplina que
+    rodou (`locacao_erro` do concreto, G140; `detalhes_erro` do incendio,
+    G138), por codigo. Sem a chave nos status, nada (nunca causa inventada).
+    """
+    causas = {}
+    for disc, chave, codigo in (("concreto", "locacao_erro", "PE-CO-04"),
+                                ("incendio", "detalhes_erro", "PE-IN-02")):
+        st = (statuses or {}).get(disc)
+        if isinstance(st, dict) and st.get(chave):
+            causas[codigo] = str(st[chave])
+    return causas
+
+
 def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False,
-                                     causa_sem_executivo_aco=False):
+                                     causa_sem_executivo_aco=False,
+                                     causa_erro=None):
     """Triagem G93: o dado que falta, com nome, para cada folha sem arquivo.
 
     O laco so chega aqui quando o PDF nem saiu nem foi triado (o fluxo do
@@ -435,6 +450,9 @@ def _motivo_folha_galpao_nao_emitida(codigo, titulo, causa_freecad=False,
         import caderno_turnkey as _ct
 
         motivo += "; causa proxima nesta rodada: " + _ct.MOTIVO_EXECUTIVO_ACO_FORA
+    if causa_erro:
+        motivo += "; causa proxima nesta rodada: a folha caiu no emissor (%s)" \
+            % causa_erro
     return motivo
 
 
@@ -482,7 +500,7 @@ def _indice_galpao_com_fronteira(executadas, normalized):
 
 
 def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=(),
-                            sem_executivo_aco=False):
+                            sem_executivo_aco=False, causas=None):
     """Laco indice<->disco do galpao (G93) sobre a lente do G91.
 
     indice: o que `pacote_legal.indice_de_pranchas` promete nesta rodada.
@@ -511,7 +529,8 @@ def _conferir_indice_galpao(indice, mapa, disco, sem_freecad=(),
             "motivo": _motivo_folha_galpao_nao_emitida(
                 codigo, titulos.get(codigo, ""),
                 causa_freecad=(dona in sem_freecad),
-                causa_sem_executivo_aco=(sem_executivo_aco and dona == "aco")),
+                causa_sem_executivo_aco=(sem_executivo_aco and dona == "aco"),
+                causa_erro=(causas or {}).get(codigo)),
         })
     return puladas
 
@@ -620,7 +639,8 @@ def _emit_drawings(manifest, run_dir, normalized, options, turnkey_result=None):
             puladas = _conferir_indice_galpao(
                 indice, _PRANCHA_ARQUIVO_GALPAO, disco,
                 sem_freecad=sem_freecad,
-                sem_executivo_aco=not options.executivo_aco)
+                sem_executivo_aco=not options.executivo_aco,
+                causas=_causas_folhas_galpao(statuses))
         except Exception as exc:                            # noqa: BLE001
             try:
                 import varredura_indice_disco as _lente

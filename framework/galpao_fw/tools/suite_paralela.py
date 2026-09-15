@@ -82,6 +82,24 @@ def memoria_livre_mb():
     return st.ullAvailPhys / (1024.0 * 1024.0)
 
 
+def ambiente_suite(base, censo_dir, env_dir, blas):
+    """Ambiente do pytest da corrida paralela.
+
+    PYTHONUTF8=1 (D169/D170): nesta maquina (console cp850, repo em caminho
+    com "Área") o spawn dos workers xdist quebrava com `UnicodeEncodeError
+    ... surrogates not allowed`, e os 3 G21-C (pytest em subprocesso) caiam
+    com saida vazia; so fechava verde com a variavel posta a mao no shell.
+    Fica no runner para nao depender de quem roda. O repo abre arquivo com
+    encoding explicito; a serial de referencia (sem o runner) segue sem ela.
+    """
+    env = dict(base, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    env[env_dir] = censo_dir
+    if blas != "padrao":
+        for var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+            env[var] = str(int(blas))
+    return env
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", type=int, default=3)
@@ -119,11 +137,7 @@ def main(argv=None):
 
     fio = threading.Thread(target=_amostra, daemon=True)
     fio.start()
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    env[cf.ENV_DIR] = censo_dir
-    if args.blas != "padrao":
-        for var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
-            env[var] = str(int(args.blas))
+    env = ambiente_suite(os.environ, censo_dir, cf.ENV_DIR, args.blas)
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
            "-W", "ignore", "-n", str(args.n), "--dist", "loadgroup",
            "--durations=40"] + (extras or ["tests"])

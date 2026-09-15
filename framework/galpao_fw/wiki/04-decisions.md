@@ -4156,3 +4156,99 @@ sobre os 303/3864 do D170 (o guarda novo G142); 3864 + 5 = 3869 bate.
 (a adaptacao nem existe: nada le `rho/A/L` ou `NP/descidas`); mexer no
 caminho do predio (`edificio_adapter`/`desenho_eletrico` intactos);
 emitir folha inventada (eletroduto sem rota, malha/SPDA sem solo/norma).
+
+## D172 - auditoria do lote G137-G142: o hidrante que o `or 1` desenhava e a folha que derrubava a disciplina (2026-09-14) - FECHADO
+
+**Pedido.** Auditar por medicao o lote G137-G142 (commit `f22dfe9`) e
+tirar do shell o `PYTHONUTF8=1` de que a suite dependia (D169/D170).
+
+**Medido (arvore `f22dfe9`, fontes vivas, leitura do diff inteiro do lote).**
+1. **Hidrante inventado na PE-IN-02 do galpao (G138).**
+`desenho_incendio.detalhes_hidrantes_rotas_svg(..., nivel_unico=True)`
+herdava do predio `n = int(N_hidrantes or 0) or 1` e
+`"RESERVA DE INCENDIO %.1f m3" % (reserva or 0)`. Com hidrantes nao
+calculados (spec sem `hidrantes`, gate informativo) a folha desenhava
+**1 simbolo "HID-1 (terreo)"**, escrevia "1 hidrante(s)" e "RESERVA DE
+INCENDIO 0.0 m3" - ao lado da caixa que dizia "hidrantes nao calculados".
+Com N=0 tambem 1 simbolo; N=3 dava 3 (o G138 so testou o caso com N).
+Saturacao silenciosa: numero inventado na folha.
+2. **A folha que caia derrubava a disciplina.** Na rota SVG (a de producao
+do incendio, G104) `techdraw_incendio.config_de_spec` passou a chamar o
+emissor de detalhes sem try, e `galpao_seguranca_incendio.montar_pranchas`
+devolvia `{"erro"}` em qualquer excecao da INC03: INC01/INC02 saiam do
+status e a disciplina virava `failed_disciplines`. O
+`test_hidrantes_g138.test_04` congelava esse `erro` como esperado.
+3. **A causa nunca chegava ao motivo.** `locacao_erro` (PE04, G140) era
+gravado no status do concreto e ninguem lia; a pulada da PE-CO-04 saia
+com o motivo generico.
+4. **Default morto no carimbo da PE04 de reserva (G140).**
+`int((r.get("spec") or {}).get("fck_MPa", 30))`; medido: o carimbo da
+rota pura nao imprime o material (texto da pagina sem C30/C35), entao o
+30 nunca chegou a folha - cosmetico, trocado por leitura direta como a
+conta faz (`r["spec"]["fck_MPa"]`).
+5. **`PYTHONUTF8` fora do runner.** Os 3 G21-C so fechavam verdes com a
+variavel posta a mao no shell (D169/D170).
+Sem achado nos demais pontos lidos: a tensao default 200 kN/m2 da
+locacao (G140) e anterior ao lote e sai declarada na folha
+(`AUSENCIAS_GALPAO_LOCACAO[1]`); G141/G142 nao mudaram producao.
+
+**Entregue.**
+- `desenho_incendio`: com `nivel_unico` e N ausente/0, nenhum simbolo e a
+folha diz "hidrantes nao calculados: nenhum simbolo" / "0 hidrantes no
+calculo: nenhum simbolo"; reserva ausente sai "nao calculada". Caminho do
+predio byte-identico (`test_hidrantes_g138.test_02`).
+- `techdraw_incendio.config_de_spec`: detalhes em try, `detalhes_erro` no
+cfg; `_pr_detalhes` recusa nomeado sem SVG.
+- `galpao_seguranca_incendio.montar_pranchas` (rota SVG): a INC03 que cai
+grava `detalhes_erro` e devolve INC01/INC02.
+- `galpao_adapter._causas_folhas_galpao(statuses)` + `causas=` no
+`_conferir_indice_galpao` + `causa_erro=` no motivo: a causa medida
+(`locacao_erro`/`detalhes_erro`) sai no motivo da pulada; sem ela, nada.
+- `galpao_concreto.gerar_prancha_locacao`: `fck_MPa` sem default.
+- `tools/suite_paralela.ambiente_suite`: `PYTHONUTF8=1` no ambiente do
+pytest (sobrepoe um 0 herdado); `test_suite_paralela_d164.test_05`.
+- Novo `tests/test_auditoria_g137_g142_d172.py` (4): hidrantes um por um
+com vermelho por injecao numa copia do fonte com a guarda desligada;
+INC03 caida sem derrubar INC01/INC02 + causa no motivo (e nenhuma causa
+inventada sem ela); leitura das causas nos status; PE04 recusa sem fck.
+
+**Baseline mudada com motivo.** `test_hidrantes_g138.test_04`: esperava
+`erro` na disciplina com o emissor morto (o defeito 2); agora espera
+`detalhes_erro` nomeado sem `erro`.
+
+**Vermelho no codigo antigo.** Worktree de `f22dfe9` no scratchpad (repo
+intocado) com o guarda D172 copiado: **4 failed** - "sem hidrantes: 1
+simbolo(s) HID desenhado(s), calculo da 0", "reserva 0.0 m3 inventada",
+"N=0: 1 simbolo(s)", INC03 derrubando a disciplina, causas ausentes,
+"sem fck_MPa ... carimbou um default". Na arvore consertada: 4 passed.
+
+**Portoes.** D172 + G138/G140/G107/G93/G91/G112/G103/G104/incendio/
+techdraw_concreto/G77/alcancabilidade/guardas/D164/G141/G139/G137/G142:
+**214 passed em 107 s.**
+
+**Suite inteira pelo runner, antes dos consertos e sem `PYTHONUTF8` no
+shell (so o runner com a variavel):** `rc_pytest` 0, 3870 passed,
+1 skipped, 20 min 33 s, `quebras` vazio, memoria livre minima 308 MB
+(304 arquivos == coletados; +1 teste: o `test_05`). Os 3 G21-C verdes sem
+a variavel no shell.
+
+**Suite inteira pelo runner, com os consertos (305 arquivos == coletados):
+`rc_pytest` 0, 3874 passed, 1 skipped, 20 min 25 s, `quebras` vazio**
+(censo do FreeCAD fechado, memoria livre minima 416 MB). 3870 + 4 (o
+guarda D172) = 3874 bate; o skip e o portao de auditoria do aco.
+
+**Serial de referencia (`pytest tests`, sem runner, BLAS no padrao - o
+numero bit a bit): `rc` 0, 3874 passed, 1 skipped, 1 h 06 min 57 s** -
+o mesmo total do runner, nenhum veredito depende do BLAS. Mais lenta que
+os 35 min do D165 por memoria da maquina (1,1-1,6 GB livres com os
+aplicativos do usuario abertos); a 1a tentativa foi morta pelo harness
+por memoria baixa em 24 % e relancada destacada, sem sobra de processo.
+
+**Portao de auditoria do aco (`GALPAO_AUDITORIA=1 pytest
+tests/test_executivo_aco_completo_d165.py`, serial): 2 passed em
+1937,2 s**, `CUSTO_D165 executivo_aco_completo=1936.1s` (1067,3 s no
+D166; mesma causa da serial - freecad.exe vivo com 1136 s de CPU e 648 MB
+livres na maquina, nao travado).
+
+**Nao feito.** Mudar o calculo de hidrantes ou o predio; dar piso de
+memoria ao runner (so registra o minimo; nao existe teto declarado).

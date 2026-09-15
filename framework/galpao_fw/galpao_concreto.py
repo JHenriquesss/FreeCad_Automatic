@@ -756,7 +756,8 @@ def gerar_prancha_locacao(r, out_dir, spec=None):
                 "descricao",
                 "Galpao de concreto pre-moldado - Projeto Estrutural"),
             "autor": (spec or {}).get("autor", "galpao_fw"),
-            "fck_MPa": int((r.get("spec") or {}).get("fck_MPa", 30)),
+            # D172: le da conta, sem default (era 30 calado no carimbo).
+            "fck_MPa": int(r["spec"]["fck_MPa"]),
             "aco": "CA-50",
             "materiais": None}
     _car = _tdc._carimbo_conc(_cfg, "LOCACAO E FORMAS DA FUNDACAO",

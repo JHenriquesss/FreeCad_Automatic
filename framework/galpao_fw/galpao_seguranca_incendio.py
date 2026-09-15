@@ -211,8 +211,8 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
                 if not PSD.pagina_esquema_a1(
                         _doc, _svg, _car,
                         "PE-INC-03 - DETALHES DE HIDRANTES E ROTAS", _sub):
-                    return {"erro": "detalhes de hidrantes do galpao nao "
-                                    "rasterizaram (svg_para_png)"}
+                    raise ValueError("detalhes de hidrantes do galpao nao "
+                                     "rasterizaram (svg_para_png)")
                 _pdf3 = _os.path.join(str(out_dir), "pranchas",
                                      "INC03_DETALHES.pdf")
                 _doc.save(_pdf3, garbage=3, deflate=True)
@@ -222,13 +222,16 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
                 except Exception:
                     pass
             if not _os.path.exists(_pdf3):
-                return {"erro": "PDF de detalhes nao gravado: %s" % _pdf3}
+                raise ValueError("PDF de detalhes nao gravado: %s" % _pdf3)
             res["pranchas"] = list(res.get("pranchas") or []) + [
                 "INC03_DETALHES"]
             res["arquivos"] = list(res.get("arquivos") or []) + [_pdf3]
-            return res
         except Exception as exc:
-            return {"erro": "%s: %s" % (type(exc).__name__, exc)}
+            # D172: a INC03 que cai nao derruba INC01/INC02 ja gravadas (a
+            # disciplina inteira virava falha); a causa fica nomeada e chega
+            # ao motivo da PE-IN-02 pulada (mesma forma da PE04, G140).
+            res["detalhes_erro"] = "%s: %s" % (type(exc).__name__, exc)
+        return res
     import os, json, time, tempfile, subprocess
     import techdraw_incendio as TDI
     import rodar_projeto as RP

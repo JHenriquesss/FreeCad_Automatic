@@ -84,6 +84,9 @@ def _pr_detalhes(doc, cfg):
     page = _nova_prancha(doc, "INC03_DETALHES",
                          _carimbo_inc(cfg, "DETALHES DE HIDRANTES E ROTAS",
                                       "PE-INC-03", "S/ESC", "03/03"))
+    if not cfg.get("detalhes_svg"):
+        raise ValueError("INC03 sem detalhes: %s"
+                         % (cfg.get("detalhes_erro") or "svg ausente"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "DETALHES_HID")
     sym.Symbol = cfg["detalhes_svg"]
     page.addView(sym)
@@ -214,9 +217,16 @@ def config_de_spec(r, out_dir, spec=None):
     planta_svg = di.planta_seguranca_svg(r)
     # G138: o corte da coluna de hidrantes a partir do calculo do galpao
     # (adaptacao na producao, sem recalcular; ausencias declaradas na folha).
-    _inc_det, _est_det, _aus_det = di.adaptar_galpao_para_detalhes(r)
-    detalhes_svg = di.detalhes_hidrantes_rotas_svg(
-        _inc_det, _est_det, ausencias=_aus_det, nivel_unico=True)
+    # D172: sem try a falha dos detalhes derrubava o cfg inteiro - INC01/
+    # INC02 (rota SVG e FreeCAD) caiam junto. So a INC03 cai, com a causa.
+    try:
+        _inc_det, _est_det, _aus_det = di.adaptar_galpao_para_detalhes(r)
+        detalhes_svg = di.detalhes_hidrantes_rotas_svg(
+            _inc_det, _est_det, ausencias=_aus_det, nivel_unico=True)
+        detalhes_erro = None
+    except Exception as exc:                            # noqa: BLE001
+        detalhes_svg, _aus_det = None, []
+        detalhes_erro = "%s: %s" % (type(exc).__name__, exc)
 
     resumo_hdr = ["SISTEMA", "QUANTIDADE", "NORMA"]
     resumo = [
@@ -289,6 +299,7 @@ def config_de_spec(r, out_dir, spec=None):
         "planta_svg": planta_svg,
         "detalhes_svg": detalhes_svg,
         "detalhes_ausentes": list(_aus_det),
+        "detalhes_erro": detalhes_erro,
         "resumo_hdr": resumo_hdr, "resumo": resumo,
         "carimbo_material": "SEG. INCENDIO",
         "notas": notas,

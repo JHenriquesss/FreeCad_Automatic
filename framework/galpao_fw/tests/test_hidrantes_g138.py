@@ -233,7 +233,9 @@ def test_04_vermelho_por_injecao_emissor_desligado(tmp_path, monkeypatch):
     if not bom["OK"]:
         gaps.append("caso bom devia fechar PE-IN-01/02: %r" % (bom,))
     # injecao: emissor desligado nao grava INC03 (erro nomeado, nunca
-    # silencio) e a lente acusa PE-IN-02 faltando
+    # silencio) e a lente acusa PE-IN-02 faltando. D172: o erro fica em
+    # `detalhes_erro` e INC01/INC02 seguem - antes a disciplina inteira
+    # virava `erro` (este teste congelava esse defeito).
     import desenho_incendio as di
 
     def emissor_morto(*_a, **_k):
@@ -241,9 +243,10 @@ def test_04_vermelho_por_injecao_emissor_desligado(tmp_path, monkeypatch):
 
     monkeypatch.setattr(di, "detalhes_hidrantes_rotas_svg", emissor_morto)
     morto = gsi.montar_pranchas(_r_galpao(), str(tmp_path / "morto"))
-    if "erro" not in morto:
-        gaps.append("com o emissor morto devia voltar erro nomeado: %r"
-                    % (morto,))
+    if "injecao G138" not in str(morto.get("detalhes_erro")) \
+            or "erro" in morto:
+        gaps.append("com o emissor morto devia voltar detalhes_erro "
+                    "nomeado, sem derrubar a disciplina: %r" % (morto,))
     caminho = tmp_path / "mapa_galpao.json"
     caminho.write_text(json.dumps(mapa), encoding="utf-8")
     copia = {c: dict(json.loads(caminho.read_text(encoding="utf-8")))[c]

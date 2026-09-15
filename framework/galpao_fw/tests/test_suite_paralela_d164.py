@@ -111,3 +111,25 @@ def test_04_grupo_existe_e_tem_motivo_medido():
                 or "a medir" in texto or "inicial" in texto):
             lados.append("%s: motivo sem medicao (%r)" % (arq, motivo))
     assert not lados, "\n".join(lados)
+
+
+def test_05_runner_poe_pythonutf8_sem_depender_do_shell():
+    """D169/D170: os 3 G21-C so fechavam verdes com PYTHONUTF8=1 posto a mao.
+    O ambiente do runner carrega a variavel mesmo com o shell sem ela (e
+    sobrepoe um 0 herdado); o BLAS segue declarado nos dois modos."""
+    sys.path.insert(0, os.path.join(GALPAO, "tools"))
+    import suite_paralela as sp
+
+    lados = []
+    for base in ({}, {"PYTHONUTF8": "0", "X": "y"}):
+        env = sp.ambiente_suite(base, "C:/censo", "CENSO_DIR", "1")
+        if env.get("PYTHONUTF8") != "1":
+            lados.append("base %r: PYTHONUTF8=%r" % (base, env.get("PYTHONUTF8")))
+        if env.get("OPENBLAS_NUM_THREADS") != "1" or env.get("CENSO_DIR") != "C:/censo":
+            lados.append("base %r: blas/censo fora: %r" % (base, env))
+    padrao = sp.ambiente_suite({}, "C:/censo", "CENSO_DIR", "padrao")
+    if "OPENBLAS_NUM_THREADS" in padrao or padrao.get("PYTHONUTF8") != "1":
+        lados.append("blas padrao: %r" % (padrao,))
+    if base.get("PYTHONUTF8") != "0":
+        lados.append("a base do chamador foi mutada")
+    assert not lados, "\n".join(lados)
