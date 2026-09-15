@@ -318,6 +318,8 @@ def rodar(spec):
         "ATENDE": ATENDE,
     }
     # varredura de interpenetracao interna
+    # G144: a falha da checagem e estado nomeado que reprova — nunca ATENDE
+    # sem a checagem (o except que devolvia None apagava o G106 e o G113).
     try:
         interf = checa_interferencia(res)
         gates["interferencia"] = {"OK": interf["OK"], "conflitos": len(interf["conflitos"]), "detalhe": interf["conflitos"][:3]}
@@ -325,8 +327,18 @@ def rodar(spec):
             reprovados.append("interferencia")
             res["reprovados"] = reprovados
             res["ATENDE"] = False
-    except Exception:
-        pass
+    except Exception as exc:
+        gates["interferencia"] = {
+            "OK": False,
+            "conflitos": 0,
+            "detalhe": [],
+            "erro": "%s: %s" % (type(exc).__name__, exc),
+            "motivo": "interferencia_nao_verificada",
+        }
+        if "interferencia" not in reprovados:
+            reprovados.append("interferencia")
+        res["reprovados"] = reprovados
+        res["ATENDE"] = False
     res["interferencia"] = gates.get("interferencia")
     return res
 
@@ -523,6 +535,14 @@ def relatorio_pt(r):
     """Quadro-resumo do mezanino (numeros com virgula decimal, como nos demais)."""
     import re
     geo = r["geometria"]; mz = r["mezanino"]; g = r["gates"]
+    _interf = g.get("interferencia", {})
+    if _interf.get("erro"):
+        # G144: falha da checagem declarada em texto, nunca numero calado.
+        _linha_interf = ("  INTERFERENCIA INTERNA: NAO VERIFICADA (%s) -> REVISAR"
+                         % _interf["erro"])
+    else:
+        _linha_interf = (f"  INTERFERENCIA INTERNA: {_interf.get('conflitos', '?')} conflito(s)"
+                         f" -> {'OK' if _interf.get('OK') else 'REVISAR'}")
     L = [
         "MEZANINO DE CONCRETO DENTRO DO GALPAO METALICO (NBR 6118) — G20",
         f"  Envelope do galpao: {geo['comprimento']:.1f} x {geo['vao']:.1f} m ; pe-direito {geo['pe_direito']:.1f} m",
@@ -533,7 +553,7 @@ def relatorio_pt(r):
         f"  PILAR (4x, h={mz['h']:.1f}m): secao {g['pilar']['secao']} cm ; Nk {r['Nk_pilar']:.0f} kN ; As {g['pilar']['As_cm2']:.2f} cm2 -> {'ATENDE' if g['pilar']['OK'] else 'REPROVA'}",
         f"  FUNDACAO (sapatas): {g['fundacao']['n_sapatas']} sapatas -> {'ATENDE' if g['fundacao']['OK'] else 'REPROVA'}",
         f"  POSICAO: x0={mz['x0']:.1f} y0={mz['y0']:.1f} -> {'DENTRO' if g['posicao']['OK'] else 'FORA'} do envelope",
-        f"  INTERFERENCIA INTERNA: {g.get('interferencia', {}).get('conflitos', '?')} conflito(s) -> {'OK' if g.get('interferencia', {}).get('OK') else 'REVISAR'}",
+        _linha_interf,
         f"  RESULTADO: {'ATENDE' if r['ATENDE'] else 'REPROVADO em ' + ', '.join(r['reprovados'])}",
         "  [A CONFIRMAR: sobrecarga de utilizacao (NBR 6120), sigma do solo (sondagem),",
         "   cargas de parede/divisoria sobre o mezanino.]",
