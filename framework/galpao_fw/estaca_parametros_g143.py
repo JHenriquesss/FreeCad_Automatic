@@ -57,6 +57,14 @@ SIGMA_SOLO_DEFAULT = 200.0
 ORIGEM_DECLARADO = "declarado_no_spec"
 ORIGEM_DEFAULT = "default"
 ORIGEM_NAO_SE_APLICA = "nao_se_aplica"
+# G149: o FS global defaultado nao e um numero qualquer — e o piso normativo
+# da NBR 6122 (metodo semi-empirico SEM prova de carga estatica). Origem
+# propria para nao confundir com default de modelo (cota/B_max) nem com
+# valor declarado. O NUMERO nao muda (3,0); so a origem e dita.
+ORIGEM_DEFAULT_NORMATIVO = "default_normativo_NBR6122"
+# G149: fck/fyk do bloco de coroamento herdados do material declarado do
+# projeto (spec fundacao.fck/fyk, via params), nunca arbitrados aqui.
+ORIGEM_MATERIAL_PROJETO = "material_do_projeto"
 
 
 def _e_numero(valor):
@@ -234,8 +242,278 @@ def _fmt_origem(origem):
     return {"declarado_no_spec": "declarado no spec",
             "default": "default (confirmar com sondagem/projeto)",
             "nao_se_aplica": "nao se aplica",
-            "derivada_sondagem": "derivada da sondagem SPT"}.get(
+            "derivada_sondagem": "derivada da sondagem SPT",
+            "default_normativo_NBR6122":
+                "default normativo NBR 6122 (semi-empirico sem prova "
+                "de carga; 2,0 so com prova)",
+            "material_do_projeto": "material do projeto (fundacao.fck/fyk)"}.get(
                 origem, str(origem))
+
+
+# ============================================================================
+# G149: a estaca calada nas outras tres portas (galpao metalico, wizard,
+# predio) + tipo e FS default do nucleo. Mesma regra D102, mesma fonte unica
+# (nunca uma copia por modulo).
+#
+# Medido por injecao (2026-09-15, antes de mudar):
+# - nucleo (verifica_estaca, N=500, argila N5/3m + areia N25/8m): D 0,30->0,40
+#   P_adm 572,7->913,2 kN (n 1, util 0,873->0,548); L 10->8 m P_adm
+#   572,7->509,8 (util 0,873->0,981); pre_moldada->escavada P_adm 572,7->334,1
+#   (n 1->2); FS 3->2 P_adm 572,7->859,0 (N=850: n 2->1, util 0,742->0,990);
+#   no perfil fraco (L6, N400) pre n=11 x esc n=19. Sem tipo -> "pre_moldada"
+#   calada; sem FS -> 3,0 calado.
+# - bloco (n=2): fck 25->15 MPa em N=600 OK->REPROVA (biela); a_pilar
+#   0,30->0,50 m em N=700/800 REPROVA->OK. fck e a_pilar DECIDEM veredito.
+# - predio isolado (N=800): D 0,30->0,40 n 2->1; tipo pre->esc n 2->3; sem
+#   D_m/sem tipo a conta usava 0,30/"pre_moldada" calados (mesmo numero do
+#   declarado — o silencio, nao o numero, e o defeito). L ausente ja avisa
+#   (comprimento_de_estaca_lido_da_sondagem) — caminho que declara nao se
+#   recusa. Divisa (:666): mesmos defaults + P_adm=700,0 de fallback e
+#   perfil sem tipo de solo caindo no 700 em silencio.
+# - metalico (spec->params->rodar): to_rodar_params .get(D,0,30)/.get(L,10,)/
+#   .get(tipo,"pre_moldada")/.get(FS,3,0) + rodar setdefault D/L/bloco
+#   {a_pilar 0,30, fck 25 MPa}. O fck do bloco deve ser lido do material
+#   declarado do projeto (spec fundacao.fck, que viaja a params fundacao.fck;
+#   PARAMS_REF traz 25e3): o divisa do predio ja herda assim
+#   (spec_fundacao.get("fck", materiais["fck"])) — precedente, nao invencao.
+# - wizard: construir_spec gravava o default no spec (r.get com default) e a
+#   origem se perdia ali, nao na conta.
+#
+# Regra por item (motivo escrito, sem valor novo arbitrado, sem trocar o FS):
+# - D, L, tipo (metalico, predio), a_pilar (bloco metalico): RECUSA NOMEADA.
+#   Motivo: geometria sem piso universal que decide capacidade, n e veredito
+#   (medido acima) — mesmo motivo do G143.
+# - bloco ausente (metalico, com estaca): RECUSA NOMEADA (bloco_nao_declarado).
+#   Motivo: o bloco decide o veredito da biela e a geometria 3D (h); o dict
+#   inteiro calado escondia fck/a_pilar juntos.
+# - fck/fyk do bloco ausentes: HERDAM o material do projeto com a origem dita
+#   (declaracao, nao default). Motivo: o material do projeto ja esta declarado
+#   no spec (fundacao.fck/fyk); repetir o numero com a origem e declarar, nao
+#   arbitrar. Sem material de onde herdar: recusa (nunca inventar).
+# - FS ausente: MANTEM 3,0 com a origem dita (default normativo NBR 6122) no
+#   resultado e no memorial; nunca outro numero. Motivo: valor normativo no
+#   acervo (F-catalogo); trocar seria arbitrar norma. FS invalido recusa.
+# - L do predio ausente: segue o aviso existente (nao se recusa caminho que
+#   ja declara).
+# ============================================================================
+
+def _fs_global_g149():
+    try:
+        import estaca_profunda as _ep
+        return float(_ep.FS_GLOBAL)
+    except ImportError:
+        return 3.0
+
+
+def _tipos_estaca_g149():
+    try:
+        import estaca_profunda as _ep
+        return sorted(_ep._F1_F2)
+    except ImportError:
+        return ["pre_moldada", "metalica", "escavada", "helice", "raiz",
+                "franki", "omega"]
+
+
+def _e_numero_pos(valor):
+    import math
+    return (_e_numero(valor) and math.isfinite(valor) and valor > 0)
+
+
+def _resolver_tipo(tipo):
+    """tipo da estaca sem default silencioso (nucleo, metalico, predio)."""
+    if tipo is None:
+        raise ValueError(
+            "tipo_estaca_nao_declarada: tipo da estaca nao declarado — "
+            "sem default (pre_moldada calada decidia capacidade, n e "
+            "veredito, G149)")
+    validos = _tipos_estaca_g149()
+    if not isinstance(tipo, str) or tipo not in validos:
+        raise ValueError(
+            "tipo_estaca_invalida: %r (use um de: %s)"
+            % (tipo, ", ".join(validos)))
+    return tipo
+
+
+def _resolver_fs(fs):
+    """FS global: ausente -> (3,0 normativo, origem dita); nunca outro numero.
+
+    O numero e o FS_GLOBAL do nucleo (NBR 6122). Nao valida faixa contra
+    prova de carga aqui: a flag mora no spec e o gate projeto_spec.validar()
+    barra FS<3,0 sem prova; o nucleo so registra a origem.
+    """
+    if fs is None:
+        return _fs_global_g149(), ORIGEM_DEFAULT_NORMATIVO
+    if not _e_numero(fs) or not fs > 0:
+        raise ValueError(
+            "fs_invalida: FS deve ser numero > 0 (recebido %r)" % (fs,))
+    return float(fs), ORIGEM_DECLARADO
+
+
+def resolver_tipo_fs_nucleo(cfg):
+    """Tipo e FS para estaca_profunda.verifica_estaca (G149, fonte unica).
+
+    Tipo ausente/invalido -> recusa nomeada. FS ausente -> 3,0 normativo com
+    a origem dita (o numero nao muda). D/L continuam leitura direta do cfg
+    (KeyError sem eles) — fora do escopo medido do nucleo.
+    """
+    cfg = cfg if isinstance(cfg, dict) else {}
+    tipo = _resolver_tipo(cfg.get("tipo_estaca"))
+    fs, fs_origem = _resolver_fs(cfg.get("FS"))
+    return {"tipo_estaca": tipo, "tipo_origem": ORIGEM_DECLARADO,
+            "FS": fs, "FS_origem": fs_origem}
+
+
+def _resolver_dimensao(valor, nome, marca_nao, marca_inv, unidade):
+    if valor is None:
+        raise ValueError(
+            "%s: %s nao declarado (%s) — sem default" % (marca_nao, nome,
+                                                         unidade))
+    if not _e_numero_pos(valor):
+        raise ValueError(
+            "%s: %s deve ser numero > 0 (%s, recebido %r)"
+            % (marca_inv, nome, unidade, valor))
+    return float(valor)
+
+
+def resolver_estaca_metalica(e, material=None):
+    """D/L/tipo/FS/bloco da estaca do galpao METALICO sem default silencioso.
+
+    `e`: fundacao.estaca do spec ou params["estaca"] (chaves D, L,
+    tipo_estaca, FS, bloco{a_pilar, fck, fyk}). `material`: projeto
+    declarado (fundacao com fck/fyk) de onde o bloco herda fck/fyk com a
+    origem dita. Ausente/invalido -> ValueError NOMEADO; nunca 0,30/10,0/
+    "pre_moldada"/bloco cheio calados.
+    """
+    e = e if isinstance(e, dict) else {}
+    D = _resolver_dimensao(e.get("D"), "D (diametro da estaca)",
+                           "d_estaca_nao_declarada", "d_estaca_invalida",
+                           "m")
+    L = _resolver_dimensao(e.get("L"), "L (comprimento da estaca)",
+                           "l_estaca_nao_declarada", "l_estaca_invalida",
+                           "m")
+    tipo = _resolver_tipo(e.get("tipo_estaca"))
+    fs, fs_origem = _resolver_fs(e.get("FS"))
+    bloco = e.get("bloco")
+    if bloco is None:
+        raise ValueError(
+            "bloco_nao_declarado: fundacao profunda exige 'bloco' "
+            "(a_pilar, fck, fyk) declarado — o dict inteiro calado "
+            "{a_pilar 0,30, fck 25 MPa} decidia o veredito da biela e a "
+            "geometria 3D sem ninguem declarar (G149)")
+    if not isinstance(bloco, dict):
+        raise ValueError(
+            "bloco_invalido: 'bloco' deve ser dict {a_pilar, fck, fyk} "
+            "(recebido %r)" % (bloco,))
+    a_pilar = _resolver_dimensao(bloco.get("a_pilar"),
+                                 "a_pilar (lado do pilar no bloco)",
+                                 "a_pilar_nao_declarado",
+                                 "a_pilar_invalida", "m")
+    mat = material if isinstance(material, dict) else {}
+    origens = {"a_pilar": ORIGEM_DECLARADO}
+    if bloco.get("fck") is None:
+        fck = mat.get("fck")
+        if not _e_numero_pos(fck):
+            raise ValueError(
+                "fck_bloco_nao_declarado: bloco sem 'fck' e sem material "
+                "do projeto (fundacao.fck) de onde herdar — sem default")
+        fck, origens["fck"] = float(fck), ORIGEM_MATERIAL_PROJETO
+    else:
+        if not _e_numero_pos(bloco.get("fck")):
+            raise ValueError(
+                "fck_bloco_invalido: fck deve ser numero > 0 (kN/m2, "
+                "recebido %r)" % (bloco.get("fck"),))
+        fck, origens["fck"] = float(bloco["fck"]), ORIGEM_DECLARADO
+    if bloco.get("fyk") is None:
+        fyk = mat.get("fyk")
+        if not _e_numero_pos(fyk):
+            raise ValueError(
+                "fyk_bloco_nao_declarado: bloco sem 'fyk' e sem material "
+                "do projeto (fundacao.fyk) de onde herdar — sem default")
+        fyk, origens["fyk"] = float(fyk), ORIGEM_MATERIAL_PROJETO
+    else:
+        if not _e_numero_pos(bloco.get("fyk")):
+            raise ValueError(
+                "fyk_bloco_invalido: fyk deve ser numero > 0 (kN/m2, "
+                "recebido %r)" % (bloco.get("fyk"),))
+        fyk, origens["fyk"] = float(bloco["fyk"]), ORIGEM_DECLARADO
+    return {"D": D, "L": L, "tipo_estaca": tipo,
+            "tipo_origem": ORIGEM_DECLARADO,
+            "FS": fs, "FS_origem": fs_origem,
+            "bloco": {"a_pilar": a_pilar, "fck": fck, "fyk": fyk,
+                      "origens": origens}}
+
+
+def resolver_estaca_predio(estaca_cfg):
+    """D_m/tipo da estaca do PREDIO sem default silencioso (G149, fonte unica).
+
+    L_m ausente NAO recusa: o caminho existente ja declara (aviso
+    comprimento_de_estaca_lido_da_sondagem, fundacao_edificio.py:959-964) —
+    e caminho que declara nao se recusa. Devolve L_m None com a origem
+    derivada-da-sondagem nesse caso.
+    """
+    cfg = estaca_cfg if isinstance(estaca_cfg, dict) else {}
+    D = _resolver_dimensao(cfg.get("D_m"), "D_m (diametro da estaca)",
+                           "d_estaca_nao_declarada", "d_estaca_invalida",
+                           "m")
+    tipo = _resolver_tipo(cfg.get("tipo_estaca"))
+    if cfg.get("L_m") is None:
+        L, L_origem = None, "derivada_sondagem"
+    else:
+        L = _resolver_dimensao(cfg.get("L_m"),
+                               "L_m (comprimento da estaca)",
+                               "l_estaca_nao_declarada",
+                               "l_estaca_invalida", "m")
+        L_origem = ORIGEM_DECLARADO
+    return {"D_m": D, "L_m": L, "L_origem": L_origem,
+            "tipo_estaca": tipo, "tipo_origem": ORIGEM_DECLARADO}
+
+
+def linha_fs_g149(fs, origem):
+    """Linha do memorial com a origem do FS global (vem desta fonte so).
+
+    O numero nao muda: ausente na entrada -> 3,0 normativo NBR 6122.
+    """
+    return ("FS global = %.1f (%s)"
+            % (float(fs), _fmt_origem(origem)))
+
+
+def linha_bloco_g149(bloco):
+    """Linha curta do bloco do metalico com a origem de cada item."""
+    if not isinstance(bloco, dict):
+        raise ValueError("resultado sem bloco resolvido (G149)")
+    org = (bloco.get("origens") or {}) if isinstance(bloco, dict) else {}
+    return ("bloco a_pilar=%.2f m (%s) ; fck=%.0f kN/m2 (%s) ; fyk=%.0f kN/m2 (%s)"
+            % (bloco.get("a_pilar", 0.0),
+               _fmt_origem(org.get("a_pilar")),
+               bloco.get("fck", 0.0), _fmt_origem(org.get("fck")),
+               bloco.get("fyk", 0.0), _fmt_origem(org.get("fyk"))))
+
+
+def linha_folha_g149(estaca_parametros):
+    """Linha curta que a folha de fundacao do predio carimba (fonte unica).
+
+    None quando nao ha o que declarar (caminho rasa, resultado antigo).
+    """
+    if not isinstance(estaca_parametros, dict):
+        return None
+    if estaca_parametros.get("tipo_fundacao") != "estaca":
+        return None
+    par = estaca_parametros.get("parametros") or {}
+    d = (par.get("D_m") or {})
+    t = (par.get("tipo_estaca") or {})
+    f = (par.get("FS") or {})
+    base = ("estaca D%.0f %s (%s)"
+            % (float(d.get("valor", 0.0)) * 100,
+               t.get("valor", "?"),
+               _fmt_origem(t.get("origem"))))
+    l = (par.get("L_m") or {})
+    if l.get("origem") == ORIGEM_DECLARADO:
+        base += " L%.0f (declarado)" % float(l.get("valor", 0.0))
+    else:
+        base += " L da sondagem (ver aviso)"
+    base += " ; FS %s (%s)" % (str(f.get("valor", "?")),
+                               _fmt_origem(f.get("origem")))
+    return "G149: " + base
 
 
 def linha_memorial(parametros):
@@ -355,6 +633,66 @@ def _selftest():
     assert p_sap["parametros"]["D_estaca"]["origem"] == "nao_se_aplica"
     assert "PARAMETROS DA FUNDACAO (G143)" in linha_memorial(p_est)
     assert "declarado no spec" in (linha_folha(p_est) or "")
+    # G149: nucleo — tipo recusa, FS ausente vira 3,0 normativo com origem
+    tfs = resolver_tipo_fs_nucleo({"tipo_estaca": "pre_moldada"})
+    assert tfs["FS"] == 3.0 and tfs["FS_origem"] == ORIGEM_DEFAULT_NORMATIVO
+    tfs2 = resolver_tipo_fs_nucleo({"tipo_estaca": "escavada", "FS": 2.0})
+    assert tfs2["FS"] == 2.0 and tfs2["FS_origem"] == ORIGEM_DECLARADO
+    for bad, marca in [({}, "tipo_estaca_nao_declarada"),
+                       ({"tipo_estaca": "tubarole"}, "tipo_estaca_invalida"),
+                       ({"tipo_estaca": "pre_moldada", "FS": 0},
+                        "fs_invalida")]:
+        try:
+            resolver_tipo_fs_nucleo(bad)
+            raise AssertionError("devia recusar: %s" % marca)
+        except ValueError as exc:
+            assert marca in str(exc), (marca, exc)
+    # G149: metalico — D/L/tipo/bloco/a_pilar recusam; FS e fck/fyk declaram
+    mat = {"fck": 25e3, "fyk": 500e3}
+    m = resolver_estaca_metalica(
+        {"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
+         "bloco": {"a_pilar": 0.30}}, mat)
+    assert m["FS"] == 3.0 and m["FS_origem"] == ORIGEM_DEFAULT_NORMATIVO
+    assert m["bloco"]["fck"] == 25e3
+    assert m["bloco"]["origens"]["fck"] == ORIGEM_MATERIAL_PROJETO
+    for bad, marca in [
+            ({}, "d_estaca_nao_declarada"),
+            ({"D": 0.30}, "l_estaca_nao_declarada"),
+            ({"D": 0.30, "L": 10.0}, "tipo_estaca_nao_declarada"),
+            ({"D": 0, "L": 10.0, "tipo_estaca": "pre_moldada",
+              "bloco": {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3}},
+             "d_estaca_invalida"),
+            ({"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada"},
+             "bloco_nao_declarado"),
+            ({"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
+              "bloco": {"fck": 25e3, "fyk": 500e3}},
+             "a_pilar_nao_declarado"),
+            ({"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
+              "bloco": {"a_pilar": 0.30}}, "fck_bloco_nao_declarado")]:
+        try:
+            resolver_estaca_metalica(bad, None if marca == "fck_bloco_nao_declarado" else mat)
+            raise AssertionError("devia recusar: %s" % marca)
+        except ValueError as exc:
+            assert marca in str(exc), (marca, exc)
+    # G149: predio — D_m/tipo recusam; L_m ausente declara (sondagem)
+    p = resolver_estaca_predio({"D_m": 0.30, "tipo_estaca": "pre_moldada"})
+    assert p["L_m"] is None and p["L_origem"] == "derivada_sondagem"
+    p2 = resolver_estaca_predio({"D_m": 0.30, "L_m": 10.0,
+                                 "tipo_estaca": "escavada"})
+    assert p2["L_m"] == 10.0 and p2["L_origem"] == ORIGEM_DECLARADO
+    for bad, marca in [({}, "d_estaca_nao_declarada"),
+                       ({"D_m": 0.30}, "tipo_estaca_nao_declarada"),
+                       ({"D_m": 0, "L_m": 10.0,
+                         "tipo_estaca": "pre_moldada"},
+                        "d_estaca_invalida")]:
+        try:
+            resolver_estaca_predio(bad)
+            raise AssertionError("devia recusar: %s" % marca)
+        except ValueError as exc:
+            assert marca in str(exc), (marca, exc)
+    assert "NBR 6122" in linha_fs_g149(3.0, ORIGEM_DEFAULT_NORMATIVO)
+    assert "declarado no spec" in linha_fs_g149(2.0, ORIGEM_DECLARADO)
+    assert "material do projeto" in linha_bloco_g149(m["bloco"])
     print("estaca_parametros_g143 self-test PASSED")
 
 

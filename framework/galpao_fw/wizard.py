@@ -128,7 +128,8 @@ PRESETS = {
           dict(area_lote_m2=1200, span=12, comprimento=30, eave=6.5, bay=6,
                base_fixed=True, v0=38, sigma_solo=150, fund_tipo="estaca",
                spt_tipo="argila_siltosa", spt_N=12, spt_dz=8.0,
-               est_tipo="pre_moldada", est_D=0.30, est_L=12.0, G=0.28, Q=0.25)),
+               est_tipo="pre_moldada", est_D=0.30, est_L=12.0,
+               est_a_pilar=0.30, G=0.28, Q=0.25)),
 }
 
 
@@ -210,11 +211,15 @@ PERGUNTAS = [
 ]
 
 # perguntas da fundacao PROFUNDA (so quando fund_tipo == 'estaca')
+# G149: o bloco de coroamento (a_pilar) e dado de projeto — pergunta propria
+# (o default mostrado [0,30] e aceito com Enter, como D/L/FS; resposta
+# programatica sem a chave nao ganha default silencioso em construir_spec).
 PERGUNTAS_ESTACA = [
     ("est_tipo", "Tipo de estaca (pre_moldada/metalica/escavada/helice)", str, "pre_moldada", False),
     ("est_D", "Diametro da estaca (m)", _f, 0.30, False),
     ("est_L", "Comprimento da estaca (m)", _f, 10.0, False),
     ("est_FS", "Fator de seguranca global (NBR 6122; >=3,0 sem prova de carga)", _f, 3.0, False),
+    ("est_a_pilar", "Lado do pilar no bloco de coroamento (m)", _f, 0.30, False),
     ("spt_tipo", "Solo predominante da sondagem (ex areia_siltosa)", str, None, True),
     ("spt_N", "N-SPT medio ao longo do fuste", _f, None, True),
     ("spt_dz", "Espessura da camada resistente (m)", _f, None, True),
@@ -314,13 +319,27 @@ def construir_spec(r, slug="galpao"):
     if tipo == "estaca":
         # sem os dados da sondagem, perfil_spt fica vazio -> validar() bloqueia
         # (Ask-Do-Not-Invent). Com eles, monta a camada resistente.
+        # G149 (D102): o wizard NAO grava default no spec — a origem se perdia
+        # aqui, antes da conta. Chave ausente na resposta -> chave ausente no
+        # spec (validar() bloqueia D/L/tipo; FS defaulta com origem dita no
+        # to_rodar_params). So escreve o que a resposta trouxe.
         tem_spt = all(r.get(k) not in (None, "") for k in ("spt_tipo", "spt_N", "spt_dz"))
-        s["fundacao"]["estaca"] = {
-            "perfil_spt": ([{"tipo": r["spt_tipo"], "N": r["spt_N"], "dz": r["spt_dz"]}]
-                           if tem_spt else []),
-            "tipo_estaca": r.get("est_tipo", "pre_moldada"),
-            "D": r.get("est_D", 0.30), "L": r.get("est_L", 10.0),
-            "FS": r.get("est_FS", 3.0)}
+        est = {"perfil_spt": ([{"tipo": r["spt_tipo"], "N": r["spt_N"], "dz": r["spt_dz"]}]
+                              if tem_spt else [])}
+        if r.get("est_tipo") is not None:
+            est["tipo_estaca"] = r["est_tipo"]
+        if r.get("est_D") is not None:
+            est["D"] = r["est_D"]
+        if r.get("est_L") is not None:
+            est["L"] = r["est_L"]
+        if r.get("est_FS") is not None:
+            est["FS"] = r["est_FS"]
+        # G149: o bloco so existe quando o a_pilar foi respondido (sem ele,
+        # validar() bloqueia por bloco_nao_declarado; fck/fyk herdam o
+        # material do projeto com a origem dita no to_rodar_params).
+        if r.get("est_a_pilar") is not None:
+            est["bloco"] = {"a_pilar": r["est_a_pilar"]}
+        s["fundacao"]["estaca"] = est
     return s
 
 
@@ -461,9 +480,13 @@ def _selftest():
     salvar_spec(s, p)
     assert PS.validar(carregar_spec(p))["ok"]
     # estaca sem os dados da sondagem -> bloqueia; com eles -> valido
+    # (G149: D/L/tipo tambem bloqueiam quando ausentes — o wizard nao grava
+    # mais default no spec; a resposta abaixo os declara)
     r_est = dict(r_sapata, fund_tipo="estaca")
     assert PS.validar(construir_spec(r_est))["ok"] is False
-    r_est.update(spt_tipo="areia_siltosa", spt_N=20, spt_dz=8.0)
+    r_est.update(spt_tipo="areia_siltosa", spt_N=20, spt_dz=8.0,
+                 est_tipo="pre_moldada", est_D=0.30, est_L=10.0, est_FS=3.0,
+                 est_a_pilar=0.30)
     assert PS.validar(construir_spec(r_est, slug="t_estaca"))["ok"]
     # laco interativo simulado: Enter em tudo menos os obrigatorios
     respostas = iter(["meu_galpao"] + _roteiro_min())

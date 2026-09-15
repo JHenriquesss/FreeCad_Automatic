@@ -481,19 +481,33 @@ def bloco_coroamento(N_pilar, n_est, espacamento, a_pilar, d, fck, fyk, D_estaca
 
 def verifica_estaca(cfg):
     """Orquestra: capacidade -> n estacas -> bloco. cfg com perfil, D, L, tipo,
-    N_pilar, e (opcional) bloco {espacamento, a_pilar, h, fck, fyk, cobrimento}."""
+    N_pilar, e (opcional) bloco {espacamento, a_pilar, h, fck, fyk, cobrimento}.
+
+    G149 (D102, fonte unica estaca_parametros_g143): tipo sem default
+    silencioso — ausente/invalido RECUSA nomeada (tipo_estaca_nao_declarada);
+    FS ausente MANTEM 3,0 com a origem dita (default_normativo_NBR6122) em
+    out["FS_origem"] e capacidade["FS_origem"] — o numero nao muda."""
+    from estaca_parametros_g143 import (
+        resolver_tipo_fs_nucleo as _res_tfs_g149)
+    _tfs = _res_tfs_g149(cfg if isinstance(cfg, dict) else {})
+    _tipo, _fs = _tfs["tipo_estaca"], _tfs["FS"]
     cap = capacidade_aoki_velloso(cfg["perfil"], cfg["D"], cfg["L"],
-                                  cfg.get("tipo_estaca", "pre_moldada"),
+                                  _tipo,
                                   N_ponta=cfg.get("N_ponta"),
-                                  fs_global=cfg.get("FS", FS_GLOBAL))
+                                  fs_global=_fs)
+    cap["FS_origem"] = _tfs["FS_origem"]
+    cap["tipo_origem"] = _tfs["tipo_origem"]
     dq = capacidade_decourt_quaresma(cfg["perfil"], cfg["D"], cfg["L"],
                                      N_ponta=cfg.get("N_ponta"),
-                                     fs_global=cfg.get("FS", FS_GLOBAL))
+                                     fs_global=_fs)
+    dq["FS_origem"] = _tfs["FS_origem"]
     tx = capacidade_teixeira(cfg["perfil"], cfg["D"], cfg["L"],
-                             cfg.get("tipo_estaca", "pre_moldada"), N_ponta=cfg.get("N_ponta"))
+                             _tipo, N_ponta=cfg.get("N_ponta"))
     nn = n_estacas(cfg["N_pilar"], cap["P_adm_kN"], cfg.get("peso_bloco", 0.0))
     out = {"capacidade": cap, "decourt": dq, "teixeira": tx, "grupo": nn,
-           "N_pilar": cfg["N_pilar"]}
+           "N_pilar": cfg["N_pilar"], "FS": _fs,
+           "FS_origem": _tfs["FS_origem"],
+           "tipo_origem": _tfs["tipo_origem"]}
     # Tracao (uplift): se o pilar arranca (N_uplift > 0), verifica pelo atrito lateral
     N_up = abs(cfg.get("N_uplift", 0.0))
     if N_up > 0:
@@ -557,6 +571,19 @@ def verifica_estaca(cfg):
     return out
 
 
+def _linha_fs_origem_g149(c):
+    """Origem do FS global no memorial (G149, fonte unica). Sem a chave
+    (resultado antigo), cai no texto normativo — o numero nunca muda."""
+    try:
+        from estaca_parametros_g143 import linha_fs_g149 as _lin
+        return "  " + _lin(c.get("FS", FS_GLOBAL),
+                           c.get("FS_origem",
+                                 "default_normativo_NBR6122"))
+    except ImportError:
+        return ("  FS global = %.1f (NBR 6122: >=3,0 sem prova de carga)"
+                % c.get("FS", FS_GLOBAL))
+
+
 def relatorio_pt(r):
     c = r["capacidade"]; g = r["grupo"]
     L = ["FUNDACAO PROFUNDA - ESTACA (Aoki-Velloso 1975 / NBR 6122)",
@@ -566,6 +593,7 @@ def relatorio_pt(r):
          f"(K={c['K_ponta']:.0f} kPa, N={c['N_ponta']:.0f})",
          f"  R_lateral = sum(alpha*K*N/F2)*U*dz = {c['R_lateral_kN']:.1f} kN",
          f"  R_ult = {c['R_ult_kN']:.1f} kN ; P_adm = R_ult/{c['FS']:.1f} = {c['P_adm_kN']:.1f} kN",
+         _linha_fs_origem_g149(c),
          f"  Pilar N = {r['N_pilar']:.1f} kN -> n estacas = {g['n']} "
          f"(N/estaca = {g['N_por_estaca_kN']:.1f} kN ; util {g['util']:.2f})"]
     dq = r.get("decourt")

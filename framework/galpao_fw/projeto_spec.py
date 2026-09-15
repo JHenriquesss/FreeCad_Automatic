@@ -51,9 +51,18 @@ REQUERIDOS = [
 # Fundacao PROFUNDA (estaca): campos requeridos SO quando fundacao.tipo=="estaca".
 # O perfil SPT e o tipo de estaca vem da SONDAGEM (Ask, Do Not Invent) -> sem
 # default; PENDENTE/ausente bloqueia. D, L, FS tem default (A CONFIRMAR).
+# G149: D, L e o bloco passam a bloquear (d_estaca_nao_declarada,
+# l_estaca_nao_declarada, bloco_nao_declarado) — geometria sem piso universal
+# que decide capacidade, n e veredito (medido no G149). FS ausente NAO
+# bloqueia: mantem 3,0 normativo com a origem dita (to_rodar_params).
 REQUERIDOS_ESTACA = [
     ("fundacao.estaca.perfil_spt", "perfil SPT da sondagem (camadas tipo/N/dz)"),
-    ("fundacao.estaca.tipo_estaca", "tipo de estaca (pre_moldada/metalica/escavada/...)"),
+    ("fundacao.estaca.tipo_estaca", "tipo de estaca (tipo_estaca_nao_declarada; "
+     "pre_moldada/metalica/escavada/...)"),
+    ("fundacao.estaca.D", "D da estaca em m (d_estaca_nao_declarada)"),
+    ("fundacao.estaca.L", "L da estaca em m (l_estaca_nao_declarada)"),
+    ("fundacao.estaca.bloco", "bloco de coroamento {a_pilar, fck, fyk} "
+     "(bloco_nao_declarado)"),
 ]
 TIPOS_FUNDACAO = ("sapata", "estaca", "bloco", "sapata_corrida")
 TIPOS_PORTICO = ("prismatico", "alma_variavel", "tesoura")
@@ -305,19 +314,28 @@ def validar(spec):
                             faltando.append(("fundacao.estaca.perfil_spt",
                                              "espessura de camada dz deve ser > 0 (recebido %g)" % _dz))
             # tipo de estaca: o motor Aoki-Velloso so aceita a lista fechada (F1/F2).
+            # G149: a marca e a da fonte unica (tipo_estaca_invalida).
             _te = _get(spec, "fundacao.estaca.tipo_estaca")
             if _te not in (KeyError, None, PENDENTE):
                 import estaca_profunda as _ep2
                 if _te not in _ep2._F1_F2:
                     faltando.append(("fundacao.estaca.tipo_estaca",
-                                     "tipo de estaca '%s' invalido; use um de: %s"
+                                     "tipo de estaca '%s' invalido (tipo_estaca_invalida); use um de: %s"
                                      % (_te, ", ".join(sorted(_ep2._F1_F2)))))
             # geometria da estaca: D (diametro) e L (comprimento) > 0.
-            for _k in ("D", "L"):
+            # G149: marcas da fonte unica (d_estaca_invalida/l_estaca_invalida).
+            for _k, _marca in (("D", "d_estaca_invalida"),
+                               ("L", "l_estaca_invalida")):
                 _v = _get(spec, "fundacao.estaca." + _k)
                 if isinstance(_v, (int, float)) and not isinstance(_v, bool) and _v <= 0:
                     faltando.append(("fundacao.estaca." + _k,
-                                     "%s da estaca deve ser > 0 (recebido %g)" % (_k, _v)))
+                                     "%s da estaca deve ser > 0 (%s; recebido %g)" % (_k, _marca, _v)))
+            # bloco de coroamento: presente nao basta — sem a_pilar nao ha
+            # bloco a dimensionar (G149: a_pilar_nao_declarado).
+            _bl = _get(spec, "fundacao.estaca.bloco")
+            if isinstance(_bl, dict) and _bl.get("a_pilar") is None:
+                faltando.append(("fundacao.estaca.bloco",
+                                 "bloco sem 'a_pilar' (a_pilar_nao_declarado)"))
     # tipo de portico invalido bloqueia (prismatico|alma_variavel)
     tp = _get(spec, "estrutura.tipo_portico")
     if tp not in (KeyError, None, PENDENTE) and tp not in TIPOS_PORTICO:
@@ -877,12 +895,31 @@ def to_rodar_params(spec):
     # da sapata). Nada de dado geometrico inventado: tudo vem do bloco 'estaca'.
     if fu.get("tipo") == "estaca" and isinstance(fu.get("estaca"), dict):
         e = fu["estaca"]
-        # FS default 3,0 (NBR 6122 semi-empirico s/ prova de carga); 2,0 so com
-        # prova de carga (barrado no validar()).
-        ec = {"perfil": e["perfil_spt"], "D": e.get("D", 0.30),
-              "L": e.get("L", 10.0), "tipo_estaca": e.get("tipo_estaca", "pre_moldada"),
-              "FS": e.get("FS", 3.0)}
-        for opt in ("N_ponta", "bloco", "grupo", "camadas_neg", "recalque_grupo",
+        # G149 (D102, fonte unica estaca_parametros_g143): D/L/tipo/bloco sem
+        # default silencioso — ausente/invalido RECUSA nomeada (nunca 0,30/
+        # 10,0/"pre_moldada"/bloco cheio calados). FS ausente MANTEM 3,0
+        # normativo com a origem dita (FS_origem viaja a params); fck/fyk do
+        # bloco ausentes HERDAM o material declarado do projeto (fundacao.fck
+        # /fyk) com a origem dita — nunca valor inventado.
+        from estaca_parametros_g143 import (
+            resolver_estaca_metalica as _res_met_g149)
+        _met = _res_met_g149(e, material=fu)
+        # bloco: parte do declarado no spec (espacamento/h/cobrimento opt-in)
+        # com a_pilar/fck/fyk resolvidos por cima (nunca o cru sem origem).
+        _bloco_ec = dict(e.get("bloco") or {})
+        _bloco_ec.update({"a_pilar": _met["bloco"]["a_pilar"],
+                          "fck": _met["bloco"]["fck"],
+                          "fyk": _met["bloco"]["fyk"]})
+        ec = {"perfil": e["perfil_spt"], "D": _met["D"],
+              "L": _met["L"], "tipo_estaca": _met["tipo_estaca"],
+              "FS": _met["FS"], "FS_origem": _met["FS_origem"],
+              "tipo_origem": _met["tipo_origem"],
+              "bloco": _bloco_ec,
+              "bloco_origens": dict(_met["bloco"]["origens"])}
+        # G149: "bloco" sai do passthrough — ele ja vai resolvido acima
+        # (a_pilar declarado + fck/fyk declarados ou herdados com origem);
+        # repassar o cru do spec apagaria a heranca.
+        for opt in ("N_ponta", "grupo", "camadas_neg", "recalque_grupo",
                     "FS_tracao"):
             if e.get(opt) is not None:
                 ec[opt] = e[opt]

@@ -842,12 +842,32 @@ def rodar(params, out_dir):
         N_pilar = abs(N_comp)
         N_tr = max(0.0, -min(n for _, n, _, _ in casos_base))  # uplift (reacao negativa)
         M_base = max(abs(m) for _, _, _, m in casos_base)      # momento na base (envelope)
+        # G149 (D102, fonte unica estaca_parametros_g143): D/L/tipo/bloco sem
+        # default silencioso — ausente/invalido RECUSA nomeada aqui tambem
+        # (porta direta de params, nao so via spec). FS ausente mantem 3,0
+        # normativo com a origem dita; fck/fyk do bloco herdam o material
+        # declarado do projeto (params fundacao.fck/fyk).
+        from estaca_parametros_g143 import (
+            resolver_estaca_metalica as _res_met_g149)
+        _met = _res_met_g149(params["estaca"],
+                             material=params.get("fundacao"))
         ecfg = dict(params["estaca"]); ecfg.setdefault("N_pilar", round(N_pilar, 1))
         ecfg.setdefault("N_uplift", round(N_tr, 1))
         ecfg.setdefault("Mx", round(M_base, 1))                # flexo-compressao no grupo (Q2)
-        ecfg.setdefault("D", 0.30); ecfg.setdefault("L", 10.0)
-        # garante o bloco de coroamento no calculo (dims p/ desenhar o 3D)
-        ecfg.setdefault("bloco", {"a_pilar": 0.30, "fck": 25e3, "fyk": 500e3})
+        ecfg["D"] = _met["D"]; ecfg["L"] = _met["L"]
+        ecfg["tipo_estaca"] = _met["tipo_estaca"]
+        ecfg["FS"] = _met["FS"]; ecfg["FS_origem"] = _met["FS_origem"]
+        ecfg["tipo_origem"] = _met["tipo_origem"]
+        # bloco resolvido (a_pilar declarado; fck/fyk declarados ou herdados
+        # do material com a origem dita) — garante o bloco de coroamento no
+        # calculo (dims p/ desenhar o 3D). Opt-in do chamador (espacamento/h/
+        # cobrimento) preservados; os tres resolvidos por cima, nunca o cru.
+        _bloco = dict((params["estaca"] or {}).get("bloco") or {})
+        _bloco.update({"a_pilar": _met["bloco"]["a_pilar"],
+                       "fck": _met["bloco"]["fck"],
+                       "fyk": _met["bloco"]["fyk"]})
+        ecfg["bloco"] = _bloco
+        ecfg["bloco_origens"] = dict(_met["bloco"]["origens"])
         re_ = ep.verifica_estaca(ecfg)
         save("gate7-estaca.txt", ep.relatorio_pt(re_))
         Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
@@ -868,7 +888,14 @@ def rodar(params, out_dir):
                          "D": Dp, "L": ecfg["L"], "espacamento": esp,
                          "bloco_h": h_bloco, "bloco_a": a_pil,
                          "uplift": bool(N_tr > 1e-6),
-                         "util": _g.get("util"), "ok": _ok_est}
+                         "util": _g.get("util"), "ok": _ok_est,
+                         # G149: proveniencia no resultado (fonte unica) — FS
+                         # e tipo declarados ou default normativo dito; fck do
+                         # bloco declarado ou herdado do material dito.
+                         "FS": re_["FS"], "FS_origem": re_["FS_origem"],
+                         "tipo_origem": re_["tipo_origem"],
+                         "bloco_fck": (ecfg.get("bloco") or {}).get("fck"),
+                         "bloco_origens": dict(ecfg.get("bloco_origens") or {})}
 
         # NBR 6122 8.5.6.1: blocos sobre 1 estaca (n=1) ou 1 linha de 2 estacas
         # (n=2) NAO tem rigidez rotacional na direcao perpendicular a linha das

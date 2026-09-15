@@ -49,7 +49,8 @@ def test_solo_invalido_bloqueia_no_validar():
     def _est(tipo):
         r = dict(area_lote_m2=1200, span=12, comprimento=30, eave=6.5, v0=38,
                  sigma_solo=150, fund_tipo="estaca", est_tipo="pre_moldada",
-                 est_D=0.30, est_L=12.0, est_FS=3.0, spt_tipo=tipo, spt_N=12, spt_dz=8.0)
+                 est_D=0.30, est_L=12.0, est_FS=3.0, est_a_pilar=0.30,
+                 spt_tipo=tipo, spt_N=12, spt_dz=8.0)
         return WZ.construir_spec(r, slug="t")
     assert PS.validar(_est("rocha"))["ok"] is False
     assert PS.validar(_est("areia_siltosa"))["ok"] is True

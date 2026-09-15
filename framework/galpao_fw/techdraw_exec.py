@@ -603,8 +603,23 @@ def _callout_bloco(cfg, a_cm=None, h_cm=None):
         h_cm = b.get("h", 0) * 100
     L = []
     if a_cm and h_cm:
-        L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck 25 MPa)"
-                 % (a_cm, a_cm, h_cm))
+        # G149: o fck do bloco vem do calculo (bloco_adotado, com origem) em
+        # kPa; sem ele, o literal antigo vira declaracao de ignorancia (nunca
+        # numero calado). Sem import de irmao (roda dentro do freecad).
+        _fck_kpa = b.get("fck")
+        _fck_mpa = (_fck_kpa / 1000.0 if isinstance(_fck_kpa, (int, float))
+                    and _fck_kpa > 0 else 0)
+        if _fck_mpa > 0:
+            _org149 = {"declarado_no_spec": "declarado no spec",
+                       "material_do_projeto": "material do projeto"}.get(
+                           b.get("fck_origem") or "", "")
+            _suf149 = (" (%s)" % _org149) if _org149 else ""
+            L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck %.0f MPa%s)"
+                     % (a_cm, a_cm, h_cm, _fck_mpa, _suf149))
+        else:
+            L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck 25 MPa - "
+                     "origem nao registrada, confirmar)"
+                     % (a_cm, a_cm, h_cm))
     if e:
         n = e.get("n", "") or ""
         tipo = e.get("tipo") or e.get("tipo_estaca") or ""

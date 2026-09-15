@@ -291,6 +291,16 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
                               anchor="start", color="#555"))
             yy += 15
         yy += 9
+    # G149: a proveniencia D_m/L_m/tipo/FS da estaca do predio, lida do
+    # resultado (dimensiona). Caminho rasa/casa/sem proveniencia nao tem a
+    # chave e segue byte-identico (nenhum pixel muda).
+    prov149 = (fundacao or {}).get("proveniencias_g149")
+    if prov149:
+        for _lin149 in str(prov149).split(" ; ")[:3]:
+            P.append(sb.texto(qx + 14, yy, "%s" % _lin149[:72], 10,
+                              anchor="start", color="#555"))
+            yy += 15
+        yy += 9
     P.append(sb.texto(qx + 14, yy, "PILAR", 10, anchor="start",
                       weight="bold"))
     P.append(sb.texto(qx + 74, yy, "SAPATA (m)", 10, anchor="start",

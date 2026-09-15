@@ -4717,3 +4717,98 @@ tests/test_indice_disco_rodada_g102.py::test_10_portao_rodada_real_galpao_na_aud
 
 **Nao feito.** Mover qualquer outra cobertura; baixar `-n`; mexer nos tetos;
 fechar aplicativo do usuario para medir.
+
+## G149 - A estaca calada nas outras tres portas (metalico, wizard, predio) - FECHADO
+
+**Medido por injecao (antes de mudar).**
+- **Nucleo** (`verifica_estaca`, N=500, argila N5/3 m + areia N25/8 m):
+  D 0,30->0,40 P_adm 572,7->913,2 kN (util 0,873->0,548); L 10->8 m P_adm
+  572,7->509,8 (util 0,873->0,981); pre_moldada->escavada P_adm 572,7->334,1
+  (n 1->2); FS 3->2 P_adm 572,7->859,0 (N=850: n 2->1, util 0,742->0,990);
+  no perfil fraco (L6, N400) pre n=11 x esc n=19. Sem `tipo_estaca` a conta
+  usava "pre_moldada" calada; sem `FS`, 3,0 calado.
+- **Bloco** (n=2, bielas-e-tirantes): fck 25->15 MPa em N=600 OK->REPROVA
+  (biela); a_pilar 0,30->0,50 m em N=700/800 REPROVA->OK. O bloco decide o
+  veredito — o dict inteiro calado escondia fck e a_pilar juntos.
+- **Predio isolado** (N=800): D 0,30->0,40 n 2->1; tipo pre->esc n 2->3; sem
+  D_m/tipo a conta calava 0,30/"pre_moldada" (o numero coincidia com o
+  declarado — o defeito era o silencio). L ausente ja avisava
+  (`comprimento_de_estaca_lido_da_sondagem`).
+- **Predio divisa** (`:666-678`): mesmos defaults de D/tipo + `P_adm = 700,0`
+  de fallback; perfil sem tipo de solo caia no 700 em silencio (o `except`
+  engolia o erro do `verifica_estaca`).
+- **Metalico**: `to_rodar_params` com `.get(D,0,30)/.get(L,10,)/
+  .get(tipo_estaca,"pre_moldada")/.get(FS,3,0)` + `rodar_galpao` com
+  `setdefault` D/L/bloco `{a_pilar 0,30, fck 25 MPa}`. O fck do bloco se le
+  do material declarado do projeto (spec `fundacao.fck` -> params
+  `fundacao.fck`; `PARAMS_REF` traz 25e3) — o divisa do predio ja herdava
+  assim (`spec_fundacao.get("fck", materiais["fck"])`), precedente, nao
+  invencao. O default do template (`PS.novo` fundacao.fck 25e3, nunca
+  perguntado no wizard) e fronteira medida aqui, fora do escopo: a heranca
+  le o valor vigente do projeto com a origem dita.
+- **Wizard**: `construir_spec` gravava o default no spec (`r.get` com
+  default) — a origem se perdia ali, nao na conta. O laco interativo mostra
+  o default (`[0,30]`, Enter aceita = declarado pelo usuario); o dict
+  programatico sem a chave ganhava default silencioso.
+
+**Entregue (D102, fonte unica `estaca_parametros_g143.py`, nunca copia por
+modulo; sem arbitrar valor, sem trocar o FS).**
+- D, L, tipo (metalico, predio), bloco e a_pilar (metalico): **recusa
+  nomeada** (`d/l/tipo_estaca_nao_declarada`, `*_invalida`,
+  `bloco_nao_declarado`, `a_pilar_nao_declarado`) — geometria sem piso
+  universal que decide capacidade, n e veredito (medido acima). No metalico
+  a recusa mora nas duas portas (spec: `validar` com as marcas +
+  `to_rodar_params`; params direto: `rodar_galpao` antes do `verifica`).
+  No predio mora na entrada do `dimensiona` (vira `EntradaFundacao`, o
+  contrato do modulo), na isolada e na divisa.
+- fck/fyk do bloco ausentes: **herdam o material do projeto**
+  (`material_do_projeto`) com a origem dita — declaracao, nao default. Sem
+  material de onde herdar: recusa (`fck/fyk_bloco_nao_declarado`).
+- FS ausente: **mantem 3,0 com a origem dita** (`default_normativo_NBR6122`)
+  em `verifica_estaca` (out + capacidades), no `gate7-estaca.txt`, no
+  `res["estaca"]` do metalico e no memorial/resultado do predio
+  (`estaca_parametros` + `relatorio_pt`). FS invalido recusa
+  (`fs_invalida`); FS<3 sem prova continua bloqueado no `validar`.
+- L do predio ausente: segue o aviso existente (nao se recusa caminho que
+  ja declara). `P_adm = 700,0` removido da divisa (o erro sobe ao `except`
+  externo e cai na isolada honesta); perfil sem tipo de solo recusa com
+  motivo nos dois caminhos.
+- Folhas: predio com estaca carimba `proveniencias_g149` (D/L/tipo/FS com
+  origem; caminho rasa/casa sem a chave segue byte-identico); PE-CO-04 do
+  metalico (`_callout_bloco`) le o fck do `bloco_adotado` com origem (sem
+  proveniencia: "origem nao registrada, confirmar", nunca literal calado).
+- Wizard: `construir_spec` so escreve o que a resposta trouxe (tipo/D/L/FS/
+  bloco via `est_a_pilar`, pergunta nova em `PERGUNTAS_ESTACA`); ausente
+  bloqueia no `validar`. Preset 3 declara `est_a_pilar`.
+
+**Testes.** Novo `tests/test_estaca_g149.py` (9): vermelho por injecao em
+cada porta (nucleo tipo/FS; spec metalico ausente-e-zero um por um;
+rodar direto sem D/bloco; wizard sem `est_*`; predio isolado e divisa;
+perfil sem tipo); tabela antes/depois (D/L/tipo/FS/bloco mudam
+capacidade/n/veredito); FS 3,0 com origem no resultado e nos tres
+memoriais; casa e rasa byte-identicas; os tres aceites da folha de
+fundacao do predio com estaca (parse por pilar + G149 + `confere` +
+PNG rasterizado + mapa 1:1 + indice). `test_estaca_g143` segue verde.
+Vizinhos que congelavam o default antigo passaram a declarar:
+`test_validacao` (wizard), `test_crashes_wiki07`, `test_validacao_coerencia`
+(`_base_estaca` + marcas `*_invalida` no `validar` + `a_pilar` sem declaracao
+bloqueia), `branches/g9/test_fundacao_edificio` (5), `test_g9_fundacao_no_loop`
+(IfcPile), `branches/g14/test_gestao_edificio` (insumo estaca).
+
+**Baselines mudadas com motivo: nenhuma** (censo de chaves G134 intacto:
+29 de topo; lente G145 sem ocorrencia nova).
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+os 15 arquivos da regra + G143 + validacao/coerencia + fundacao: verdes.
+Portao do galpao (`GALPAO_AUDITORIA=1`, serial, `-s`, folha do executivo
+tocada): `test_10` 1 passed em 683,2 s; `CUSTO_G102 galpao=678,9s`
+(teto 1800), `MEM_G102 galpao=1669,8MB` (teto 2500, freecad mensuravel).
+
+**Suite inteira pelo runner (`-n 3`, lida inteira).** `rc_pytest` 0,
+**3926 passed, 2 skipped em 1270,4 s** (21 min), 313/313 arquivos (+1 sobre
+o D177: `test_estaca_g149`), memoria livre minima 217 MB (piso 200 nao
+disparou), descendentes [] / [], `quebras` []. Duas tentativas abortadas
+pelo piso antes (190/149/165 MB, maquina carregada; so a arvore do proprio
+filho, nenhum app do usuario tocado) — artefato de carga, nao do diff: as
+quebras de censo que as acompanham somem na corrida completa. O piso que
+aborta na primeira amostra e o objeto do G153.

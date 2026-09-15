@@ -275,7 +275,9 @@ def _base_estaca():
     s["fundacao"]["tipo"] = "estaca"
     s["fundacao"]["estaca"] = {
         "perfil_spt": [{"tipo": "argila_siltosa", "N": 12, "dz": 8.0}],
-        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 10.0, "FS": 3.0}
+        "tipo_estaca": "pre_moldada", "D": 0.30, "L": 10.0, "FS": 3.0,
+        # G149: bloco declarado (a_pilar; fck/fyk herdam o material)
+        "bloco": {"a_pilar": 0.30}}
     return s
 
 

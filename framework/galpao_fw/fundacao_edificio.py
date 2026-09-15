@@ -105,6 +105,20 @@ class EntradaFundacao(ValueError):
     """A entrada declarada nao permite dimensionar a fundacao."""
 
 
+def _resolve_estaca_g149(estaca_cfg):
+    """D_m/tipo da estaca sem default silencioso (G149, fonte unica).
+
+    A recusa da fonte unica (ValueError nomeado) vira EntradaFundacao — o
+    contrato deste modulo — com a marca preservada na mensagem.
+    """
+    from estaca_parametros_g143 import (
+        resolver_estaca_predio as _res_pred_g149)
+    try:
+        return _res_pred_g149(estaca_cfg)
+    except ValueError as exc:
+        raise EntradaFundacao(str(exc))
+
+
 def declarada(spec_fundacao) -> bool:
     """True se ha o minimo para dimensionar: sondagem OU tensao assumida."""
     if not isinstance(spec_fundacao, dict):
@@ -386,6 +400,11 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
             raise EntradaFundacao(
                 "o perfil SPT precisa do TIPO DE SOLO de cada camada para o "
                 "metodo de Aoki-Velloso (K e alpha da Tab.12.6 dependem dele)")
+    # G149 (D102, fonte unica estaca_parametros_g143): D_m/tipo sem default
+    # silencioso — ausente/invalido RECUSA nomeada (nunca 0,30/"pre_moldada"
+    # calados). L_m ausente NAO recusa: atravessa a 1a camada competente com
+    # o aviso comprimento_de_estaca_lido_da_sondagem (caminho que declara).
+    _est149 = _resolve_estaca_g149(estaca_cfg)
     N_max = max(caso[1] for caso in casos)
     # G23: extrai Mx/My maximos das combinacoes para alimentar o grupo.
     # Casos sao (nome, N, V, M) com nome = gravitacional | sotavento_x etc.
@@ -400,9 +419,10 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
     _b, h = secao_pilar
     cfg_estaca = {
         "perfil": copy.deepcopy(perfil),
-        "D": estaca_cfg.get("D_m", 0.30),
-        "L": estaca_cfg.get("L_m", _profundidade_sugerida(perfil)),
-        "tipo_estaca": estaca_cfg.get("tipo_estaca", "pre_moldada"),
+        "D": _est149["D_m"],
+        "L": (_est149["L_m"] if _est149["L_m"] is not None
+              else _profundidade_sugerida(perfil)),
+        "tipo_estaca": _est149["tipo_estaca"],
         "N_pilar": N_max,
         "bloco": {"a_pilar": h, "fck": spec_fundacao.get("fck", materiais["fck"]),
                   "fyk": spec_fundacao.get("fyk", materiais["fyk"]),
@@ -446,6 +466,35 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
             "bloco de %d estacas fora do modelo de bielas implementado "
             "(2 ou 4); dimensionar em separado" % grupo["n"])
     return resultado, geometria, ok
+
+
+def _parametros_estaca_g149(spec_fundacao, resolvido):
+    """Proveniencia D_m/L_m/tipo/FS da estaca do predio (G149, fonte unica).
+
+    D_m/tipo sempre declarados aqui (a entrada recusou antes). L_m declarado
+    ou derivado da sondagem (aviso comprimento_de_estaca_lido_da_sondagem).
+    FS: o predio nunca passa FS ao nucleo — vale o 3,0 normativo com a origem
+    dita (o numero nao muda). Devolve (bloco_parametros, linha_folha).
+    """
+    from estaca_parametros_g143 import ORIGEM_DECLARADO
+    import estaca_profunda as _ep
+    L_dec = (spec_fundacao.get("estaca") or {}).get("L_m")
+    if resolvido["L_m"] is not None:
+        L_val, L_org = float(resolvido["L_m"]), ORIGEM_DECLARADO
+    else:
+        L_val = float(_profundidade_sugerida(spec_fundacao["perfil_spt"]))
+        L_org = "derivada_sondagem"
+    par = {"tipo_fundacao": "estaca",
+           "parametros": {
+               "D_m": {"valor": float(resolvido["D_m"]),
+                       "origem": ORIGEM_DECLARADO},
+               "L_m": {"valor": L_val, "origem": L_org},
+               "tipo_estaca": {"valor": resolvido["tipo_estaca"],
+                               "origem": ORIGEM_DECLARADO},
+               "FS": {"valor": float(_ep.FS_GLOBAL),
+                      "origem": "default_normativo_NBR6122"}}}
+    from estaca_parametros_g143 import linha_folha_g149 as _lin_g149
+    return par, _lin_g149(par)
 
 
 N_COMPETENTE = 20          # SPT que caracteriza a camada de apoio (geotecnia_spt)
@@ -540,6 +589,11 @@ def dimensiona(spec_fundacao, contexto):
             p["nome"], p["N_base_k"], horizontais, momentos_base))
         for p in pilares)
     tipo, recomendacao = escolhe_tipo(spec_fundacao, N_max_obra)
+    # G149 (D102, fonte unica): com tipo estaca, D_m/tipo recusam nomeados
+    # logo na entrada (nunca 0,30/"pre_moldada" calados nas portas abaixo).
+    _est149 = None
+    if tipo == "estaca":
+        _est149 = _resolve_estaca_g149(spec_fundacao.get("estaca") or {})
     if tipo == "sapata_corrida":
         # D89/G61: a tupla nomeia o quarto tipo, mas este caminho e pilar
         # a pilar e a corrida e por linha de parede (kN/m). Quem chama com
@@ -659,33 +713,41 @@ def dimensiona(spec_fundacao, contexto):
                     dist_divisa = min(float(b_pil), float(h_pil)) / 2.0
                     if spec_fundacao.get("dist_divisa_m") is not None:
                         dist_divisa = float(spec_fundacao["dist_divisa_m"])
-                    # P_adm da estaca: usa o mesmo perfil e D/L default
-                    # estima via ep.n_estacas com peso, ou via verifica se perfil existe
+                    # P_adm da estaca: usa o mesmo perfil e D/L declarados.
+                    # G149 (D102, fonte unica): D_m/tipo sem default
+                    # silencioso — ausente/invalido RECUSA nomeada (o 0,30/
+                    # "pre_moldada" calados e o P_adm=700,0 de fallback saiam
+                    # daqui). L_m ausente atravessa a 1a camada competente
+                    # com aviso (nao se recusa caminho que declara). Perfil
+                    # sem tipo de solo RECUSA (antes caia no 700 em silencio);
+                    # o except externo leva a isolada honesta.
                     perfil = spec_fundacao.get("perfil_spt")
                     estaca_cfg = spec_fundacao.get("estaca") or {}
-                    D_est = float(estaca_cfg.get("D_m", 0.30))
-                    # tenta obter P_adm do dimensionamento isolado anterior, ou calcula
-                    P_adm = 700.0  # fallback
-                    L_est = None
-                    if perfil:
-                        L_est = estaca_cfg.get("L_m", _profundidade_sugerida(perfil))
-                        try:
-                            # calcula capacidade com N ficticio para obter P_adm
-                            tmp = ep.verifica_estaca({
-                                "perfil": copy.deepcopy(perfil),
-                                "D": D_est,
-                                "L": L_est,
-                                "tipo_estaca": estaca_cfg.get("tipo_estaca", "pre_moldada"),
-                                "N_pilar": P_div,
-                                "bloco": {"a_pilar": float(h_pil),
-                                          "fck": spec_fundacao.get("fck", contexto["materiais"]["fck"]),
-                                          "fyk": spec_fundacao.get("fyk", contexto["materiais"]["fyk"])},
-                            })
-                            P_adm = float(tmp["capacidade"]["P_adm_kN"])
-                        except Exception:  # noqa: BLE001
-                            pass
-                    if L_est is None:
-                        L_est = estaca_cfg.get("L_m", 15.0)
+                    _estd = _resolve_estaca_g149(estaca_cfg)
+                    D_est = _estd["D_m"]
+                    for _cam in (perfil or []):
+                        if not _cam.get("tipo"):
+                            raise EntradaFundacao(
+                                "o perfil SPT precisa do TIPO DE SOLO de cada "
+                                "camada para o metodo de Aoki-Velloso (K e "
+                                "alpha da Tab.12.6 dependem dele)")
+                    if _estd["L_m"] is not None:
+                        L_est = _estd["L_m"]
+                    else:
+                        L_est = _profundidade_sugerida(perfil)
+                    # calcula capacidade para obter P_adm (sem fallback: o
+                    # erro sobe ao except externo e cai na isolada).
+                    tmp = ep.verifica_estaca({
+                        "perfil": copy.deepcopy(perfil),
+                        "D": D_est,
+                        "L": L_est,
+                        "tipo_estaca": _estd["tipo_estaca"],
+                        "N_pilar": P_div,
+                        "bloco": {"a_pilar": float(h_pil),
+                                  "fck": spec_fundacao.get("fck", contexto["materiais"]["fck"]),
+                                  "fyk": spec_fundacao.get("fyk", contexto["materiais"]["fyk"])},
+                    })
+                    P_adm = float(tmp["capacidade"]["P_adm_kN"])
                     a_pilar = float(max(b_pil, h_pil))
                     res_eq = veq.dimensiona_viga_equilibrio(
                         P_divisa=P_div, P_interno=P_int,
@@ -757,6 +819,11 @@ def dimensiona(spec_fundacao, contexto):
     gate = {"OK": not reprovados, "tipo": tipo, "n_pilares": len(pilares),
             "reprovados": reprovados,
             "N_max_kN": round(N_max_obra, 1)}
+    # G149: a proveniencia D_m/L_m/tipo/FS viaja no resultado (fonte unica);
+    # a linha curta vai a folha. Fora da estaca: None (casa/sapata intactas).
+    _par149, _folha149 = (None, None)
+    if tipo == "estaca" and _est149 is not None:
+        _par149, _folha149 = _parametros_estaca_g149(spec_fundacao, _est149)
     return {
         "tipo": tipo,
         # a cota de apoio viaja no resultado porque e' ela que posiciona a peca
@@ -772,6 +839,8 @@ def dimensiona(spec_fundacao, contexto):
         "escopo": _escopo(tipo, bool(horizontais), com_momento),
         "avisos": _avisos(spec_fundacao, tipo, horizontais, recomendacao,
                           por_pilar, com_momento, divisa_pilares),
+        "estaca_parametros": _par149,
+        "proveniencias_g149": _folha149,
     }
 
 
@@ -977,6 +1046,27 @@ def relatorio_pt(resultado):
         linhas.append("  sigma_solo,adm = %.0f kN/m2 (%s)"
                       % (resultado["sigma_solo_adm"],
                          resultado["proveniencia_sigma"]))
+    # G149: D_m/L_m/tipo/FS da estaca com a origem dita (fonte unica; o
+    # numero do FS nao muda — 3,0 normativo NBR 6122).
+    _par149 = resultado.get("estaca_parametros")
+    if resultado.get("tipo") == "estaca" and isinstance(_par149, dict):
+        from estaca_parametros_g143 import (
+            linha_fs_g149 as _lin_fs_g149, _fmt_origem as _fmt_g149)
+        _pp = _par149.get("parametros") or {}
+        _d = _pp.get("D_m") or {}
+        _l = _pp.get("L_m") or {}
+        _t = _pp.get("tipo_estaca") or {}
+        _f = _pp.get("FS") or {}
+        linhas.append("  estaca D=%.2f m (%s) ; L=%.1f m (%s) ; tipo=%s (%s)"
+                      % (_d.get("valor", 0.0),
+                         _fmt_g149(_d.get("origem")),
+                         _l.get("valor", 0.0),
+                         _fmt_g149(_l.get("origem")),
+                         _t.get("valor", "?"),
+                         _fmt_g149(_t.get("origem"))))
+        linhas.append("  " + _lin_fs_g149(_f.get("valor", 3.0),
+                                          _f.get("origem",
+                                                 "default_normativo_NBR6122")))
     linhas.append("  N maximo de dimensionamento: %.1f kN" % gate["N_max_kN"])
     linhas.append("")
     linhas.append("  %-6s %-12s %10s | %s" % ("pilar", "posicao", "N_dim(kN)",

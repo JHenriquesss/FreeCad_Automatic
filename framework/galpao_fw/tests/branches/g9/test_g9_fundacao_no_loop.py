@@ -242,6 +242,8 @@ def test_a_estaca_sai_como_ifcpile_cilindrica(tmp_path):
         {"tipo": "argila_arenosa", "N": 5, "dz": 4.0},
         {"tipo": "areia", "N": 32, "dz": 5.0},
         {"tipo": "areia", "N": 45, "dz": 6.0}]
+    # G149: D_m/tipo declarados (o motivo aqui e o IfcPile cilindrico)
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     resultado = em.rodar(entrada)
     assert resultado["fundacao"]["tipo"] == "estaca"
     destino = tmp_path / "estacas.ifc"

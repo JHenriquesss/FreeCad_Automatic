@@ -114,6 +114,8 @@ def test_entrada_declarada_que_nao_fecha_vira_gate_reprovado():
     entrada = _entrada()
     entrada["fundacao"]["tipo"] = "estaca"
     entrada["fundacao"]["perfil_spt"] = [{"tipo": "argila", "N": 3, "dz": 8.0}]
+    # G149: D_m/tipo declarados (o motivo aqui e a camada, nao o default)
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     resultado = em.rodar(entrada)
     assert resultado["fundacao"] is None
     assert resultado["fundacao_erro"]
@@ -238,6 +240,9 @@ def test_o_momento_na_base_de_cada_pilar_e_declarado_ausente(fundacao):
 def test_a_sondagem_mole_manda_para_fundacao_profunda():
     entrada = _entrada()
     entrada["fundacao"]["perfil_spt"] = copy.deepcopy(PERFIL_MOLE)
+    # G149: D_m/tipo declarados (L_m via sondagem, com aviso); o motivo aqui
+    # e a recomendacao da sondagem, nao o default calado.
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     fundacao = em.rodar(entrada)["fundacao"]
     assert fundacao["tipo"] == "estaca"
     for registro in fundacao["por_pilar"].values():
@@ -250,6 +255,7 @@ def test_a_estaca_atravessa_a_camada_competente():
     nao exige arbitrar embutimento."""
     entrada = _entrada()
     entrada["fundacao"]["perfil_spt"] = copy.deepcopy(PERFIL_MOLE)
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     fundacao = em.rodar(entrada)["fundacao"]
     esperado = sum(camada["dz"] for camada in PERFIL_MOLE[:3])
     for registro in fundacao["por_pilar"].values():
@@ -261,6 +267,7 @@ def test_bloco_de_coroamento_fora_de_2_ou_4_estacas_e_declarado(fundacao):
     dimensionado, e o resultado diz - nao some do quadro."""
     entrada = _entrada()
     entrada["fundacao"]["perfil_spt"] = copy.deepcopy(PERFIL_MOLE)
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     resultado = em.rodar(entrada)["fundacao"]
     assert resultado["escopo"]["bloco_de_coroamento"] == "partial"
     sem_bloco = [nome for nome, r in resultado["por_pilar"].items()
@@ -328,6 +335,7 @@ def test_o_cortante_na_estaca_e_declarado_nao_verificado():
     framework. Fronteira nomeada, nao verificacao esquecida."""
     entrada = _entrada()
     entrada["fundacao"]["perfil_spt"] = copy.deepcopy(PERFIL_MOLE)
+    entrada["fundacao"]["estaca"] = {"D_m": 0.30, "tipo_estaca": "pre_moldada"}
     fundacao = em.rodar(entrada)["fundacao"]
     assert fundacao["escopo"]["esforco_horizontal_na_estaca"] == "not_available"
 

@@ -224,10 +224,13 @@ def test_wizard_constroi_spec_valido():
     r = dict(area_lote_m2=1200, span=10, comprimento=20, eave=6, v0=40,
              sigma_solo=200, fund_tipo="sapata")
     assert PS.validar(wizard.construir_spec(r))["ok"]
-    # estaca sem sondagem bloqueia; com sondagem valida
+    # estaca sem sondagem bloqueia; com sondagem + D/L/tipo/bloco
+    # declarados valida (G149: o wizard nao grava mais default no spec)
     r_est = dict(r, fund_tipo="estaca")
     assert PS.validar(wizard.construir_spec(r_est))["ok"] is False
-    r_est.update(spt_tipo="areia_siltosa", spt_N=20, spt_dz=8.0)
+    r_est.update(spt_tipo="areia_siltosa", spt_N=20, spt_dz=8.0,
+                 est_tipo="pre_moldada", est_D=0.30, est_L=10.0,
+                 est_a_pilar=0.30)
     assert PS.validar(wizard.construir_spec(r_est))["ok"]
 
 

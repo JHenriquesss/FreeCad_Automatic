@@ -40,9 +40,15 @@ def calcular(spec, out_dir):
         spec["estrutura"]["estaca_adotada"] = {
             "D": e["D"], "L": e["L"], "n": e["n_estacas"],
             "espacamento": e["espacamento"], "tipo": e["tipo"],
-            "uplift": e.get("uplift", False)}
+            "uplift": e.get("uplift", False),
+            # G149: FS e origem viajam a folha (o callout declara em vez de
+            # repetir o literal "fck 25 MPa" sem prova).
+            "FS": e.get("FS"), "FS_origem": e.get("FS_origem"),
+            "tipo_origem": e.get("tipo_origem")}
         spec["estrutura"]["bloco_adotado"] = {
-            "h": e["bloco_h"], "a": e["bloco_a"]}
+            "h": e["bloco_h"], "a": e["bloco_a"],
+            "fck": e.get("bloco_fck"),
+            "fck_origem": (e.get("bloco_origens") or {}).get("fck")}
     if res.get("baldrame"):
         b = res["baldrame"]
         spec.setdefault("estrutura", {})

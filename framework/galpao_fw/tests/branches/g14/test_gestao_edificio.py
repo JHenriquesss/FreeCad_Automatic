@@ -275,6 +275,9 @@ def test_fundacao_em_estacas_troca_o_insumo_e_nomeia_o_bloco(spec):
     """
     profunda = copy.deepcopy(spec)
     profunda["turnkey"]["estrutura"]["fundacao"]["tipo"] = "estaca"
+    # G149: D_m/tipo declarados (o motivo aqui e o insumo, nao o default)
+    profunda["turnkey"]["estrutura"]["fundacao"]["estaca"] = {
+        "D_m": 0.30, "tipo_estaca": "pre_moldada"}
     resultado, _registros = ea.run_edificio(normalize_spec(profunda), None)
     dados = ge.derivacao(resultado)
     assert dados["quantitativos"]["estaca"] > 0
