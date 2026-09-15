@@ -14,8 +14,11 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 - [[07-nbr6118-2023-em1-impacto-g116]] — inventário G116: 51 itens 2014 → 2023+Em1, 4 casos, Tabela 2 (D141)
 
 ## Fila de trabalho (goals executáveis)
-- **Sem fila aberta.** A última, [BACKLOG-GOALS-G137-G142.md](../BACKLOG-GOALS-G137-G142.md)
-  (G137–G142, D166–D171, auditada no D172), foi consumida. Todas as filas ficam como registro — não
+- **Fila aberta: [BACKLOG-GOALS-G143-G148.md](../BACKLOG-GOALS-G143-G148.md)** (6 goals,
+  medidos na auditoria D172: default calado da estaca, gate do mezanino num `except`, 47
+  fallbacks dos emissores, folha do mezanino, prazo do aço sob carga, custo da suíte).
+  [BACKLOG-GOALS-G137-G142.md](../BACKLOG-GOALS-G137-G142.md) (G137–G142, D166–D172) foi
+  consumida. As filas anteriores ficam como registro — não
   reexecutar: [BACKLOG-GOALS.md](../BACKLOG-GOALS.md) (G78–G88, D106–D117),
   [BACKLOG-GOALS-G91-G97.md](../BACKLOG-GOALS-G91-G97.md) (G91–G97, D118–D124),
   [BACKLOG-GOALS-G99-G105.md](../BACKLOG-GOALS-G99-G105.md) (G99–G105, D125–D132),
