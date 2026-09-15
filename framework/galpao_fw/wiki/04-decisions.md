@@ -4368,3 +4368,99 @@ minima 460 MB (o skip e o portao de auditoria do aco).
 `projects/*/project-spec.json` (o spec de teste mora em tmp_path);
 paralelizar pranchas; backend freecad da MZ01 alem da pagina (a rota de
 producao e a SVG pura, medida).
+
+## D174 - G147: o prazo do executivo de aco numa maquina carregada e os pesos de concreto e eletrico medidos (2026-09-15) - FECHADO
+
+**Pedido.** `framework/galpao_fw/BACKLOG-GOALS-G143-G148.md` G147: o prazo
+do executivo de aco numa maquina carregada (1067 s livre, 1937 s com
+648 MB livres) e os pesos de concreto e eletrico sem medicao em
+`caderno_turnkey.py`. Cronometrar os dois, rodar a producao do galpao com
+`executivo_aco=True` com maquina livre e em uso normal, decidir o prazo so
+com numeros, seguir as convencoes 1-13 e a regra do lote, rodar a suite
+pelo runner ate `rc_pytest` 0 e `quebras` vazio, escrever o verbete e fazer
+o commit. Nao fechar aplicativos do usuario.
+
+**Medido (antes de mudar, fontes vivas).**
+- `caderno_turnkey._STAGE_WEIGHTS`: concreto 2,0 e eletrico 1,5 literais
+  "SEM MEDICAO" (G108), producao lendo sem cronometro (convencao 8
+  violada no estado inicial).
+- Portao do aco: 1038,9 s (D165), 1067,3 s (D166), 1937,2 s (D172, 648 MB
+  livres; freecad.exe vivo com 1136 s de CPU — nao travado).
+- Producao: `ProjectLoopOptions.timeout_seconds` = 2100, repartido por peso
+  (aco 787,7 s + 3D 210 s, medidos com maquina livre).
+
+**Cronometro G147 (mesmo protocolo do G139: processo reiniciado por
+amostra, dispatch vivo 3D+pranchas, ok=True, 4 PDFs cada, galpao-tp-g95,
+freecad.exe nesta maquina, aplicativos do usuario abertos).**
+- concreto: 61,1 + 58,6 + 60,8 s -> MAXIMO 61,1 s -> peso 0,74;
+- eletrico: 108,4 + 104,3 + 110,5 s -> MAXIMO 110,5 s -> peso 1,3382
+  (regra `peso_medido`, ancora 578 s; maximos — a media estouraria por
+  construcao, licao do G139).
+- PNGs olhados (substring -> parse -> renderizar): concreto PE01 101725,
+  PE02 101228, PE03 119515, PE04 276017 bytes; eletrico PE01 160886, PE02
+  648365, PE03 133113, PE04 139811 bytes — nenhum em branco, 4 PDFs cada.
+
+**Producao do galpao (`projects/galpao-tp-g95`, generate_ifc False,
+generate_2d True, `executivo_aco=True`, timeout 2100, aplicativos abertos).**
+
+| rodada | elapsed | caderno | pico | mem livre | status |
+|---|---|---|---|---|---|
+| livre | 1380,5 s | 1364,3 s | 2041,8 MB (proc 197,2 + fc 1948,9, n=1) | ~2500 MB antes | generated, timed_out False, 0 estouros |
+| uso normal | 1733,4 s | 1716,4 s | 2019,2 MB (proc 161,5 + fc 1926,5, n=1) | min 260 MB | generated, timed_out False, 0 estouros |
+
+**Decisao so com numeros.** 2100 cobre o livre com folga 719,5 s (52 %) e
+o uso normal com folga 366,6 s (21 %); o carregado do D172 (aco sozinho
+1937 s com 648 MB) cabe no mesmo teto quando somado ao resto medido sem aco
+(536,3 s no D165) so no limite — a producao cheia medida aqui (1733 s com
+260 MB livres) passa sem timeout. Prazo 2100 MANTIDO com a frequencia
+medida (2/2 generated); nenhum palpite, nenhum numero novo arbitrado.
+
+**Entregue.**
+- `_T_MEDIDO_SEG["concreto"]=61,1` e `["eletrico"]=110,5` com a origem
+  escrita; `_STAGE_WEIGHTS` deriva via `peso_medido` — nenhum "SEM MEDICAO"
+  restante no fonte.
+- `tests/test_caderno_pesos_g147.py` (4): prazo deriva do medido (sem
+  literais 2,0/1,5); vermelho por injecao nos dois sentidos (literais
+  antigos mudam a fracao do aco para 0,8610; constante nao medida lida pelo
+  prazo acusa por parte); G102 intacto (`executivo_aco=False` fica);
+  reserva usa os medidos (fracao do aco 0,8738; concreto < eletrico < aco).
+- `tests/test_caderno_pesos_g108.py`: fracao do aco 0,8610 -> 0,8738
+  (eletrico 1,5 -> 1,3382); test_02 fixa o eletrico/concreto antigos para
+  reproduzir o regime; test_03 cobra o medido (G147) em vez da ausencia.
+
+**Baselines mudadas com motivo (nao e verde por edicao).**
+G108 `FRACAO_ACO_ESPERADA` 0,8610 -> 0,8738 (10,9178 = 9,5396 + 1,3382 +
+0,01 x 4); injecao antiga fixa eletrico 1,5/concreto 2,0; ancora passa a
+cobrar concreto/eletrico derivados. G102 NAO re-congelado (goal sem folha
+de galpao; regra do lote): casa 3,1 / predio 11,5 / galpao 797,1 s (+90,5 s
+no galpao e -3,2 s no predio sobre o G146: variacao de maquina com 260 MB
+livres, nao do diff — o diff so troca a reserva, nao a geometria; o teste
+cobra o teto, nao o numero exato).
+
+**Lista nominal do lote, lida inteira (convencao 10).**
+`varredura_faixa_validade.confere_cobertura()`,
+`varredura_asserts_sequencia.confere()`, `varredura_constantes_orfas.
+confere()` — OK, OK, OK; `test_folhas_g77`, `test_alcancabilidade`,
+`test_guardas_d86_g69`, `test_disciplina_prancha_g103`,
+`test_indice_disco_g91`, `test_carimbo_mapa_g112`,
+`test_normas_catalogo`, `test_galpao_indice_g93`,
+`test_suite_paralela_d164` + `test_auditoria_g137_g142_d172` (214 passed
+no D172) + `test_caderno_pesos_g108` + `test_caderno_pesos_g147` (4) +
+`test_coordenacao_g139` — 159 passed em 126,8 s.
+
+**G102 isolado com -s (2026-09-15, aplicativos abertos).**
+`casa=3,1s predio=11,5s galpao=797,1s total=811,7s`, 9 passed em 824,0 s;
+`MEM_G102 casa=136,5MB predio=206,6MB galpao=1998,8MB
+(proc=208,5,fc=1856,1,n=1)` (teto 2500). Executivo de aco segue fora do
+G102 (`executivo_aco=False` fica).
+
+**Suite inteira pelo runner (`tools/suite_paralela.py -n 3`, 310 arquivos
+== coletados): `rc_pytest` 0, 3904 + 4 = 3908 passed, 1 skipped, 1735,1 s,
+`quebras` vazio** (censo do FreeCAD fechado, memoria livre minima
+258 MB). O skip e o portao de auditoria do aco. +1 arquivo e +4 testes
+sobre os 309/3904 do G146 (o guarda novo G147).
+
+**Nao feito (do goal).** Paralelizar pranchas dentro do freecad.exe;
+fechar aplicativos do usuario para medir; mover o G102-galpao para a
+auditoria (parte do G148, com decisao do usuario); dar piso de memoria ao
+runner (so registra o minimo).

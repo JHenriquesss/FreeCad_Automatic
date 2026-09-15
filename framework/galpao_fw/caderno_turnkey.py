@@ -102,6 +102,14 @@ _T_MEDIDO_SEG = {
     # producao federada carrega.
     "coordenacao_render": 95.6,
     "coordenacao": 69.8,
+    # G147 (2026-09-15, galpao-tp-g95, freecad.exe nesta maquina,
+    # processo reiniciado por amostra, dispatch vivo 3D+pranchas ok=True,
+    # 4 PDFs cada): concreto 61,1 + 58,6 + 60,8 s; eletrico 108,4 + 104,3 +
+    # 110,5 s. O peso usa o MAXIMO (61,1 e 110,5): a licao do G139 (media
+    # estoura por construcao) vale aqui — prazo que nao cobre o maximo
+    # medido estoura sempre.
+    "concreto": 61.1,
+    "eletrico": 110.5,
 }
 
 #: 3D do aco medido (D164, modelo ~3,5 min = 210 s) — o dispatch divide o
@@ -111,11 +119,12 @@ _T_MEDIDO_3D_ACO_SEG = 210.0
 _STAGE_WEIGHTS = {
     # Aco executa calculo, modelo 3D e executivo no mesmo dispatch.
     "aco": peso_medido(_T_MEDIDO_SEG["aco"]),
-    # G119: concreto e eletrico NUNCA foram cronometrados. O peso segue
-    # literal, herdado do G108, e o motivo esta dito aqui em vez de um
-    # t_medido inventado so para caber na formula (ausencia se declara).
-    "concreto": 2.0,   # SEM MEDICAO: literal do G108
-    "eletrico": 1.5,   # SEM MEDICAO: literal do G108
+    # G147: pesos medidos, nunca palpite (convencao 8). Concreto 61,1 s ->
+    # 0,74; eletrico 110,5 s -> 1,3382 (regra peso_medido, ancora 578 s;
+    # maximos das amostras). Antes 2,0/1,5 literais (G108) que a producao
+    # lia sem cronometro.
+    "concreto": peso_medido(_T_MEDIDO_SEG["concreto"]),
+    "eletrico": peso_medido(_T_MEDIDO_SEG["eletrico"]),
     # G108: pesos medidos, nunca palpite. Regra: peso = 7,0 x t_medido / 578 s
     # (ancora: executivo de aco ~578 s medidos, D133/G109; antes 900 s,
     # estimativa do 06-open-threads T13, corrigida no G114),

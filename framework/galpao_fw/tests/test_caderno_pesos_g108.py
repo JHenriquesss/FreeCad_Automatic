@@ -30,13 +30,15 @@ GALPAO = os.path.dirname(HERE)
 sys.path.insert(0, GALPAO)
 sys.path.insert(0, HERE)
 
-# Conta travada, escrita a mao (G108; G137 atualiza o aco 7,0 -> 9,5396):
+# Conta travada, escrita a mao (G108; G137 atualiza o aco 7,0 -> 9,5396;
+# G147 atualiza o eletrico 1,5 -> 1,3382):
 # pendentes quando o aco reserva = [aco, eletrico, incendio, climatizacao,
 # hidraulica, mezanino] (concreto + coordenacao_* ja consumidos, na ordem de
-# DISCIPLINAS) = 9,5396 + 1,5 + 0,01 + 0,01 + 0,01 + 0,01 = 11,0796.
-# Fracao do aco = 9,5396/11,0796 = 0,8610 (~86,1 %; era 7/8,54 = 0,8197;
-# antes 7/12,75 = 0,5490). G137: t_medido 578 -> 787,7 s (PE05 medida).
-FRACAO_ACO_ESPERADA = 0.8610
+# DISCIPLINAS) = 9,5396 + 1,3382 + 0,01 + 0,01 + 0,01 + 0,01 = 10,9178.
+# Fracao do aco = 9,5396/10,9178 = 0,8738 (~87,4 %; era 9,5396/11,0796 =
+# 0,8610; antes 7/8,54 = 0,8197; antes 7/12,75 = 0,5490). G137: t_medido
+# 578 -> 787,7 s (PE05 medida). G147: eletrico 110,5 s medidos.
+FRACAO_ACO_ESPERADA = 0.8738
 FRACAO_ACO_ANTIGA = 0.6239
 
 
@@ -103,6 +105,9 @@ def test_02_injecao_pesos_antigos_volta_a_fracao_antiga(tmp_path, monkeypatch):
     antigos = dict(ct._STAGE_WEIGHTS)
     antigos.update({"hidraulica": 1.25, "incendio": 1.0, "climatizacao": 1.0})
     antigos.pop("mezanino", None)          # pre-G108: default 1,0
+    # G147: o regime antigo tinha eletrico 1,5 literal (e concreto 2,0);
+    # sem fixar, a injecao misturaria o eletrico medido ao resto antigo.
+    antigos.update({"eletrico": 1.5, "concreto": 2.0})
     monkeypatch.setattr(ct, "_STAGE_WEIGHTS", antigos)
 
     fracao, fracao_via_timeout, _pend = _fracao_via_reserva_real()
@@ -150,10 +155,15 @@ def test_03_ancora_medida_d133(tmp_path):
     if ct.peso_medido(ct._T_MEDIDO_SEG["hidraulica"]) != pytest.approx(0.01):
         gaps.append("piso 0,01 perdido: %r"
                     % ct.peso_medido(ct._T_MEDIDO_SEG["hidraulica"]))
-    # disciplina sem cronometro NAO ganha t_medido inventado
-    for sem in ("concreto", "eletrico"):
-        if sem in ct._T_MEDIDO_SEG:
-            gaps.append("%s entrou em _T_MEDIDO_SEG sem medicao escrita" % sem)
+    # G147: concreto e eletrico passam a ter cronometro (pesos derivados);
+    # nenhuma disciplina com peso lido pela producao fica sem t_medido.
+    for agora in ("concreto", "eletrico"):
+        if agora not in ct._T_MEDIDO_SEG:
+            gaps.append("%s sem t_medido apos G147" % agora)
+        elif ct._STAGE_WEIGHTS.get(agora) != pytest.approx(
+                ct.peso_medido(ct._T_MEDIDO_SEG[agora])):
+            gaps.append("peso de %s nao deriva do medido (G147): %r"
+                        % (agora, ct._STAGE_WEIGHTS.get(agora)))
     src = open(os.path.join(GALPAO, "caderno_turnkey.py"),
                encoding="utf-8").read()
     if "900 s" in src and "T13" in src and "ancora" in src.lower():
