@@ -23,7 +23,7 @@ def _carimbo_cli(cfg, titulo, numero, escala, folha):
 
 def _pr_esquema(doc, cfg):
     page = _nova_prancha(doc, "CLI01_ESQUEMA",
-                         _carimbo_cli(cfg, "ESQUEMA DA REDE DE CLIMATIZACAO (HVAC)",
+                         _carimbo_cli(cfg, "ESQUEMA REDE HVAC",
                                       "PE-CLI-01", "S/ESC", "01/02"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "ESQUEMA_CLI")
     sym.Symbol = cfg["esquema_svg"]
@@ -39,7 +39,7 @@ def _pr_esquema(doc, cfg):
 
 def _pr_quadro(doc, cfg):
     page = _nova_prancha(doc, "CLI02_QUADRO",
-                         _carimbo_cli(cfg, "QUADRO DE CAPACIDADE E MEMORIAL",
+                         _carimbo_cli(cfg, "QUADRO CAPACIDADE/MEMORIAL",
                                       "PE-CLI-02", "-", "02/02"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (em vez de x=175 a esquerda)
     _anot(doc, page, "A02c", ["QUADRO DE CAPACIDADE - CLIMATIZACAO (HVAC)"], 420, 520, 6)

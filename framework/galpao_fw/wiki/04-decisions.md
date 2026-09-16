@@ -4873,3 +4873,106 @@ item 46) + `test_fallback_folha_g145`: **168 passed**. Portao do galpao
 o G149: `test_fallback_get_g150`; +6 passed sobre os 3926), memoria livre
 minima 402 MB (piso 200 nao disparou), descendentes [] / [], `quebras` [].
 
+
+## G151 - O titulo que o carimbo corta em 26 caracteres - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G149-G153.md G151: os 23 titulos de carimbo cortados
+por `techdraw_exec._cap_titulo` (26) e o `sheet_number` fora da contagem.
+Lente AST com baseline nos dois sentidos, titulos corrigidos sem mudar
+`drawing_number` nem codigo de prancha, abreviacoes declaradas com motivo,
+PNG olhado de cada folha tocada, convencoes 1-14 e regra do lote, portao do
+galpao se folha do galpao mudar, suite pelo runner ate `rc_pytest` 0 e
+`quebras` vazio, verbete e commit.
+
+**Medido (AST, antes de mudar).** `varredura_titulo_carimbo_g151.py` (nova,
+mesmo molde da do G145): toda chamada `_carimbo*` com titulo literal +
+tabela `LIGACOES` + `TITULOS` da rota SVG + `TITULO_CARIMBO_MZ01`: **20
+cortados** (15 literais em 9 arquivos + 5 `TITULOS` espelho em
+`prancha_svg_direta`) - o backlog contava 23 incluindo as limpas. Os 20:
+`techdraw_exec` 2 (CROQUIS 40->"CROQUIS DE FABRICACAO (pe…", PLANO 31->"…ESCOR…"),
+`techdraw_eletrico` 3, `techdraw_hidraulica` 2, `techdraw_incendio` 2,
+`techdraw_climatizacao` 2, `techdraw_concreto` 1, `techdraw_coordenacao` 1,
+`galpao_concreto` 1, `galpao_seguranca_incendio` 1, `TITULOS` 5. MZ01 curada
+na D176 (25, sem corte). `sheet_number`: a MZ01 tem 3 paginas e carimbava
+"01/01" nas tres (D176, reproduzido aqui: `Folha 01/01` x3); rota SVG com 1
+pagina por PDF (01/02, 02/02 coerentes) e quadro de 1 pagina na rodada real.
+
+**Corrigido (titulo curto, `drawing_number` e codigo de prancha intactos).**
+13 titulos unicos, todos <=26 e com `_cap_titulo(t)==t`:
+
+| original (n) | novo (n) | motivo |
+|---|---|---|
+| CROQUIS DE FABRICACAO (pecas principais) (40) | CROQUIS DE FABRICACAO (21) | parentese lista C1/V1/MI1 ja no corpo |
+| PLANO DE MONTAGEM E ESCORAMENTO (31) | MONTAGEM E ESCORAMENTO (22) | PLANO redundante; corpo diz NBR 8800 12.3 |
+| PLANTA DE ILUMINACAO E TOMADAS (30) | ILUMINACAO E TOMADAS (20) | PLANTA redundante |
+| PLANTA - ELETROCALHAS E ATERRAMENTO (35) | ELETROCALHAS E ATERRAMENTO (26) | PLANTA - redundante |
+| QUADRO DE CARGAS E ESPECIFICACOES (33) | CARGAS E ESPECIFICACOES (23) | QUADRO DE redundante (prancha ja e quadro) |
+| ESQUEMA DA REDE HIDRAULICA PREDIAL (34) | ESQUEMA REDE HIDRAULICA (23) | DA/PREDIAL redundantes (disciplina ja diz) |
+| QUADRO DE DIMENSIONAMENTO E MEMORIAL (36) | DIMENSIONAMENTO E MEMORIAL (25) | QUADRO DE redundante |
+| PLANTA DE SEGURANCA CONTRA INCENDIO (35) | SEGURANCA CONTRA INCENDIO (25) | PLANTA DE redundante |
+| DETALHES DE HIDRANTES E ROTAS (29) | HIDRANTES E ROTAS (17) | DETALHES DE redundante |
+| ESQUEMA DA REDE DE CLIMATIZACAO (HVAC) (38) | ESQUEMA REDE HVAC (17) | HVAC ja diz climatizacao |
+| QUADRO DE CAPACIDADE E MEMORIAL (31) | QUADRO CAPACIDADE/MEMORIAL (26) | DE->vazio, E->/ compacto |
+| LOCACAO E FORMAS DA FUNDACAO (28) | LOCACAO E FORMAS FUNDACAO (25) | artigo DA |
+| PLANTA DE COORDENACAO - MODELO FEDERADO (39) | COORDENACAO - FEDERADO (22) | PLANTA/MODELO redundantes |
+
+Arquivos: `techdraw_exec` (PE-14, PE-16), `techdraw_eletrico` (PE-EL-02/03/04),
+`techdraw_hidraulica` (PE-HID-01/02), `techdraw_incendio` (PE-INC-01/03),
+`techdraw_climatizacao` (PE-CLI-01/02), `techdraw_concreto` + `galpao_concreto`
+(PE-04), `techdraw_coordenacao` (PE-COORD-01), `galpao_seguranca_incendio`
+(PE-INC-03), `prancha_svg_direta.TITULOS` (5, mesmos textos). Nenhum
+`drawing_number` (PE-14, PE-16, PE-EL-02/03/04, PE-HID-01/02, PE-INC-01/03,
+PE-CLI-01/02, PE-04, PE-COORD-01, PE-INC-03) e nenhum codigo de prancha
+(PE14_CROQUIS, PE16_MONTAGEM, PE02_PLANTA_INST, PE03_PLANTA_INFRA,
+PE04_QUADROS, HID01_ESQUEMA, HID02_QUADRO, INC01_PLANTA, INC03_DETALHES,
+CLI01_ESQUEMA, CLI02_QUADRO, PE04_LOCACAO_FUNDACAO, COORD01_PLANTA) mudou.
+
+**Abreviacoes limpas declaradas (10, sem reticencia, cap conferido).**
+`ABREVIACOES_LIMPAS` na lente, uma fonte so: DETALHE-BASE/COLUNA,
+BLOCO/COROAMENTO, LIGACAO/JOELHO (2 formas), FECHAMENTO/TERCAS/MAO-FRANCESA
+e as 5 da tabela `LIGACOES` (CUMEEIRA, GUSSET_COB/PAR, GIRT, CONSOLE) -
+motivo escrito em cada uma (DETALHE redundante; complemento no corpo/vista).
+Motivo vazio, cap divergente, limpa nova sem entrada e abreviacao que some
+reprovam (fails closed).
+
+**`sheet_number` coerente.** `galpao_mezanino.gerar_prancha_mezanino`: 3
+carimbos 01/03, 02/03, 03/03 (antes um so "01/01" nas 3); o quadro e 1 pagina
+na rodada real e, se derramar (N>1), o total vira 2+N com um carimbo por
+pagina do quadro (`prancha_svg_direta.pagina_quadro_a1(..., carimbos=)` novo
+parametro opcional, comportamento historico sem ele).
+
+**Testes.** Novo `tests/test_titulo_carimbo_g151.py` (6): baseline (0
+cortados, 10 abreviacoes, todo titulo <=26 sem "…"); vermelho por injecao de
+titulo longo em `tmp_path` nomeando arquivo:linha; resolvida nos dois
+sentidos; limpa sem motivo/nao declarada reprova; MZ01 com 3 paginas
+01/03..03/03 sem "…" no PDF; rota SVG 01/02+02/02 sem "…". Vermelho provado:
+antes da correcao a lente achava 20 cortados (test_01 falharia); injecao nova
+reprova (test_02).
+
+**PNG olhado (convencoes 3/6).** MZ01 3p (formas M-VX/VY=BIM, armacao,
+quadro; rodape 01/03..03/03, titulo inteiro); HID01/HID02, INC01 (+INC03
+HIDRANTES E ROTAS via `montar_pranchas`, PE-INC-03 intacto), CLI01/CLI02 e
+PE04_LOCACAO_FUNDACAO (PE-04 | LOCACAO E FORMAS FUNDACAO | 04/04) - titulos
+inteiros, sem "…", sem "-" da fonte helv, `drawing_number` no rodape.
+PE-14/PE-16/PE-EL/PE-COORD: mudanca so de literal de titulo (mesmo padrao
+das demais, sem conta); cobertas pelo portao do galpao abaixo.
+
+**Baselines mudadas com motivo.** `ABREVIACOES_LIMPAS` 10 (nova);
+`SCRIPTS_AVULSOS` +1 (`varredura_titulo_carimbo_g151`);
+`SEM_FAIXA_DECLARADA` +1 (lente sem numero de norma). Nenhuma outra baseline.
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+13 arquivos da regra + `test_titulo_carimbo_g151`: **168 passed**.
+`test_carimbo_mapa_g112` e `test_galpao_indice_g93` verdes (codigo intacto).
+Portao do galpao (`GALPAO_AUDITORIA=1`, serial, isolado): **1 passed em
+656,9 s** (CUSTO_G102 galpao 656,4 s, MEM 1583,1 MB).
+
+**Suite inteira pelo runner (`-n 3`, lida inteira).** `rc_pytest` 0,
+**3938 passed, 2 skipped em 976,6 s** (16,3 min), 315/315 arquivos (+1 sobre
+o G150: `test_titulo_carimbo_g151`; +6 passed sobre os 3932), memoria livre
+minima 599 MB (piso 200 nao disparou), descendentes [] / [], `quebras` [].
+Os 2 skipped sao os portoes de auditoria (galpao `test_10` + aco D165),
+pulados sem a variavel (D177).
+
+**Nao feito.** Aumentar a celula do template ISO 5457; mudar codigo de
+prancha; trocar numero do FS ou qualquer conta (titulo, nao conta).

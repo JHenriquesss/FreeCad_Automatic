@@ -28,7 +28,7 @@ def _carimbo_hid(cfg, titulo, numero, escala, folha):
 def _pr_esquema(doc, cfg):
     """PE-HID-01 - ESQUEMA DA REDE: embute o SVG (desenho_hidraulica)."""
     page = _nova_prancha(doc, "HID01_ESQUEMA",
-                         _carimbo_hid(cfg, "ESQUEMA DA REDE HIDRAULICA PREDIAL",
+                         _carimbo_hid(cfg, "ESQUEMA REDE HIDRAULICA",
                                       "PE-HID-01", "S/ESC", "01/02"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "ESQUEMA_HID")
     sym.Symbol = cfg["esquema_svg"]
@@ -45,7 +45,7 @@ def _pr_esquema(doc, cfg):
 def _pr_quadro(doc, cfg):
     """PE-HID-02 - QUADRO DE DIMENSIONAMENTO + NOTAS."""
     page = _nova_prancha(doc, "HID02_QUADRO",
-                         _carimbo_hid(cfg, "QUADRO DE DIMENSIONAMENTO E MEMORIAL",
+                         _carimbo_hid(cfg, "DIMENSIONAMENTO E MEMORIAL",
                                       "PE-HID-02", "-", "02/02"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de x=175
     # (encostado a esquerda, ~2/3 da folha vazios). escala 1,5 p/ legibilidade.

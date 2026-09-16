@@ -54,12 +54,12 @@ PRANCHAS = {
 }
 
 TITULOS = {
-    "hidraulica": ("ESQUEMA DA REDE HIDRAULICA PREDIAL",
-                   "QUADRO DE DIMENSIONAMENTO E MEMORIAL"),
-    "incendio": ("PLANTA DE SEGURANCA CONTRA INCENDIO",
+    "hidraulica": ("ESQUEMA REDE HIDRAULICA",
+                   "DIMENSIONAMENTO E MEMORIAL"),
+    "incendio": ("SEGURANCA CONTRA INCENDIO",
                  "QUADRO-RESUMO E MEMORIAL"),
-    "climatizacao": ("ESQUEMA DA REDE DE CLIMATIZACAO (HVAC)",
-                     "QUADRO DE CAPACIDADE E MEMORIAL"),
+    "climatizacao": ("ESQUEMA REDE HVAC",
+                     "QUADRO CAPACIDADE/MEMORIAL"),
 }
 
 
@@ -208,12 +208,17 @@ def _nova_pagina_quadro(doc, carimbo, titulo_pagina, indice):
 
 
 def pagina_quadro_a1(doc, carimbo, titulo_pagina, subtitulo, header, rows,
-                     notas):
+                     notas, carimbos=None):
     """Adiciona a(s) pagina(s) A1 do quadro: header+rows verbatim do cfg e
     notas verbatim, em texto monoespacado, com o carimbo no rodape de cada
     pagina. Linha longa quebra; quadro que nao cabe continua em nova pagina
     A1 do mesmo PDF - nada e' cortado. Pura (so fitz). Devolve o numero de
-    paginas escritas."""
+    paginas escritas.
+
+    G151: `carimbos` (lista de dicts, opcional) da coerencia ao sheet_number
+    quando o quadro derrama em N>1 paginas: pagina k usa carimbos[k] (se
+    houver) em vez do mesmo `carimbo` em todas. Sem ele, o comportamento
+    historico permanece (mesmo carimbo + "(continuacao N)" no titulo)."""
     itens = []                              # (texto, fonte, corpo, passo)
     if subtitulo:
         itens += [(ln, "helv", 20, 44.0) for ln in _quebra(subtitulo, 20, 0.7)]
@@ -231,7 +236,10 @@ def pagina_quadro_a1(doc, carimbo, titulo_pagina, subtitulo, header, rows,
     page, y, paginas = None, 0.0, 0
     for texto, fonte, corpo, passo in itens:
         if page is None or y + passo > limite:
-            page = _nova_pagina_quadro(doc, carimbo, titulo_pagina, paginas)
+            car_k = carimbo
+            if isinstance(carimbos, (list, tuple)) and paginas < len(carimbos) and isinstance(carimbos[paginas], dict):
+                car_k = carimbos[paginas]
+            page = _nova_pagina_quadro(doc, car_k, titulo_pagina, paginas)
             paginas += 1
             y = 160.0
         if texto:

@@ -778,7 +778,7 @@ def gerar_prancha_locacao(r, out_dir, spec=None):
             "fck_MPa": int(r["spec"]["fck_MPa"]),
             "aco": "CA-50",
             "materiais": None}
-    _car = _tdc._carimbo_conc(_cfg, "LOCACAO E FORMAS DA FUNDACAO",
+    _car = _tdc._carimbo_conc(_cfg, "LOCACAO E FORMAS FUNDACAO",
                               "PE-04", "S/ESC", "04/04")
     _doc = _fitz.open()
     try:

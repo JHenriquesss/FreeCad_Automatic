@@ -201,7 +201,7 @@ def montar_pranchas(r, out_dir, spec=None, freecad_exe=None, timeout=1200,
                 _inc, _est, ausencias=_aus, nivel_unico=True)
             _cfg = _tdi.config_de_spec(r, out_dir, spec)
             _car = _tdi._carimbo_inc(
-                _cfg, "DETALHES DE HIDRANTES E ROTAS", "PE-INC-03",
+                _cfg, "HIDRANTES E ROTAS", "PE-INC-03",
                 "S/ESC", "03/03")
             import fitz as _fitz
             _doc = _fitz.open()

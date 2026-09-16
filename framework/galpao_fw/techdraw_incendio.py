@@ -47,7 +47,7 @@ def _pr_planta(doc, cfg):
     """PE-INC-01 - PLANTA DE SEGURANCA: embute o SVG (desenho_incendio) como
     TechDraw::DrawViewSymbol na prancha A1."""
     page = _nova_prancha(doc, "INC01_PLANTA",
-                         _carimbo_inc(cfg, "PLANTA DE SEGURANCA CONTRA INCENDIO",
+                         _carimbo_inc(cfg, "SEGURANCA CONTRA INCENDIO",
                                       "PE-INC-01", "S/ESC", "01/03"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "PLANTA_INC")
     sym.Symbol = cfg["planta_svg"]
@@ -82,7 +82,7 @@ def _pr_detalhes(doc, cfg):
     do calculo do galpao (detalhes_svg do cfg, ja adaptado com as ausencias
     declaradas). Sem recalculo dentro do FreeCAD."""
     page = _nova_prancha(doc, "INC03_DETALHES",
-                         _carimbo_inc(cfg, "DETALHES DE HIDRANTES E ROTAS",
+                         _carimbo_inc(cfg, "HIDRANTES E ROTAS",
                                       "PE-INC-03", "S/ESC", "03/03"))
     if not cfg.get("detalhes_svg"):
         raise ValueError("INC03 sem detalhes: %s"

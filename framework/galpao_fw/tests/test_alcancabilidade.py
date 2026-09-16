@@ -53,6 +53,7 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                    "confronto_2014_2023_g122",
                      "varredura_guardas_um_eixo", "varredura_asserts_sequencia",
                      "varredura_fallback_folha",
+                    "varredura_titulo_carimbo_g151",
                     # G130: varredura_constantes_orfas deixou de ser avulsa
                     # (ORFAS_TRIADAS e lida pela producao via
                     # exigencias_nao_verificadas_g130 -> pacote_legal; o

@@ -41,7 +41,7 @@ def _pr_planta(doc, cfg):
     """PE-COORD-01 - PLANTA DE COORDENACAO: embute o SVG (desenho_coordenacao) como
     TechDraw::DrawViewSymbol na prancha A1."""
     page = _nova_prancha(doc, "COORD01_PLANTA",
-                         _carimbo_coord(cfg, "PLANTA DE COORDENACAO - MODELO FEDERADO",
+                         _carimbo_coord(cfg, "COORDENACAO - FEDERADO",
                                         "PE-COORD-01", "S/ESC", "01/02"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "PLANTA_COORD")
     sym.Symbol = cfg["coord_svg"]

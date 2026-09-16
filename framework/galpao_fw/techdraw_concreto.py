@@ -165,7 +165,7 @@ def _pr_locacao(doc, cfg):
     (locacao_svg do cfg, ja adaptado com as ausencias declaradas). Sem
     redimensionamento dentro do FreeCAD."""
     page = _nova_prancha(doc, "PE04_LOCACAO_FUNDACAO",
-                         _carimbo_conc(cfg, "LOCACAO E FORMAS DA FUNDACAO",
+                         _carimbo_conc(cfg, "LOCACAO E FORMAS FUNDACAO",
                                        "PE-04", "S/ESC", "04/04"))
     if not cfg.get("locacao_svg"):
         raise ValueError(

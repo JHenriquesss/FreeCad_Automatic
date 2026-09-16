@@ -64,7 +64,7 @@ def _pr_planta_instalacao(doc, cfg):
     circuitos (ilum/TUG separados, NBR 5410 4.2.5.5). E' a planta de INSTALACAO
     (leiaute dos pontos), complementar a planta de eletrocalhas/aterramento (PE-EL-03)."""
     page = _nova_prancha(doc, "PE02_PLANTA_INST",
-                         _carimbo_elet(cfg, "PLANTA DE ILUMINACAO E TOMADAS", "PE-EL-02",
+                         _carimbo_elet(cfg, "ILUMINACAO E TOMADAS", "PE-EL-02",
                                        "S/ESC", "02/04"))
     sym = doc.addObject("TechDraw::DrawViewSymbol", "PLANTA_INST")
     sym.Symbol = cfg["planta_eletrica_svg"]
@@ -86,7 +86,7 @@ def _pr_planta(doc, cfg, objs):
     bb = _bbox(objs)
     esc, nome = _fit_escala(bb, "z", *AREA_1V)
     page = _nova_prancha(doc, "PE03_PLANTA_INFRA",
-                         _carimbo_elet(cfg, "PLANTA - ELETROCALHAS E ATERRAMENTO",
+                         _carimbo_elet(cfg, "ELETROCALHAS E ATERRAMENTO",
                                        "PE-EL-03", nome, "03/04"))
     v = _vista(doc, page, "V02_PLANTA", objs, (0, 0, 1), (1, 0, 0),
                esc, 410, 350, coarse=True)
@@ -108,7 +108,7 @@ def _pr_planta(doc, cfg, objs):
 def _pr_quadros(doc, cfg):
     """PE-EL-04 - QUADRO DE CARGAS + NOTAS."""
     page = _nova_prancha(doc, "PE04_QUADROS",
-                         _carimbo_elet(cfg, "QUADRO DE CARGAS E ESPECIFICACOES",
+                         _carimbo_elet(cfg, "CARGAS E ESPECIFICACOES",
                                        "PE-EL-04", "-", "04/04"))
     # views ancoradas pelo CENTRO -> x=420 centraliza na folha A1 (841 mm), em vez de
     # x=175 (encostado a esquerda, deixando ~2/3 da folha vazios). escala 1,5 p/ legibilidade.

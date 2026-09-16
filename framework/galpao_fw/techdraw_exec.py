@@ -1708,7 +1708,7 @@ def _pr_croquis(doc, cfg, objs, todos):
     detalhe de FABRICACAO por peca, complementando os detalhes de LIGACAO
     (PE06/07/10-13). Escala automatica p/ preencher a folha."""
     page = _nova_prancha(doc, "PE14_CROQUIS",
-                         _carimbo(cfg, "CROQUIS DE FABRICACAO (pecas principais)",
+                         _carimbo(cfg, "CROQUIS DE FABRICACAO",
                                   "PE-14", "-", "14/14"))
     # info por marca (comp_unit_m, qtd, perfil) do por_marca -> rotulo
     info = {t[0]: (t[5], t[3], t[2]) for t in (cfg.get("por_marca") or [])}
@@ -1776,7 +1776,7 @@ def _pr_montagem(doc, cfg, objs):
     provisorio (12.3.2.1) + tolerancia de prumo (12.3.3.1.1). Prancha de
     PROCEDIMENTO (texto/tabelas). Parametros de canteiro sao A CONFIRMAR."""
     page = _nova_prancha(doc, "PE16_MONTAGEM",
-                         _carimbo(cfg, "PLANO DE MONTAGEM E ESCORAMENTO",
+                         _carimbo(cfg, "MONTAGEM E ESCORAMENTO",
                                   "PE-16", "-", "16/16"))
     pl = cfg.get("montagem")
     if not pl:

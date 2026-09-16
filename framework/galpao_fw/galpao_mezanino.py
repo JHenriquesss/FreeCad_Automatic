@@ -584,23 +584,42 @@ def gerar_prancha_mezanino(r, out_dir, spec=None):
         raise ValueError("PE-MZ-01 sem esquemas (sem calculo nao ha folha)")
     # D176: titulo que cabe na celula do carimbo (_cap_titulo corta em 26 e o
     # "MEZANINO DE CONCRETO - FORMAS E ARMACAO" saia "... - FO…").
-    _car = _tdm._carimbo_mz(cfg, _tdm.TITULO_CARIMBO_MZ01,
-                            "MZ-01", "S/ESC", "01/01")
+    # G151: sheet_number coerente com as paginas do PDF (antes "01/01" nas 3).
+    # O quadro e 1 pagina na rodada real; se derramar (N>1), o total vira 2+N
+    # e cada pagina do quadro usa o proprio carimbo (carimbos[k]).
+    def _car_folha(n, total):
+        return _tdm._carimbo_mz(cfg, _tdm.TITULO_CARIMBO_MZ01,
+                                "MZ-01", "S/ESC", "%02d/%02d" % (n, total))
     _doc = _fitz.open()
     try:
         _sub = "%s | %s" % (cfg.get("descricao", "galpao_mezanino"),
                             cfg.get("slug", "galpao_mezanino"))
+        # pre-conta as paginas do quadro num doc temporario (mesmo conteudo)
+        _tmp = _fitz.open()
+        try:
+            _n_quadro = _psd.pagina_quadro_a1(
+                _tmp, _car_folha(3, 3), "MZ-01 - PE-MZ-01 QUADRO DE SAPATAS E LAJE",
+                _sub, cfg["quadro_sap_hdr"], cfg["quadro_sap"], cfg["notas"])
+        finally:
+            try:
+                _tmp.close()
+            except Exception:
+                pass
+        _total = 2 + max(int(_n_quadro or 0), 1)
+        _car1, _car2 = _car_folha(1, _total), _car_folha(2, _total)
+        _cars_q = [_car_folha(3 + k, _total) for k in range(max(int(_n_quadro or 0), 1))]
         if not _psd.pagina_esquema_a1(
-                _doc, cfg["formas_svg"], _car,
+                _doc, cfg["formas_svg"], _car1,
                 "MZ-01 - PE-MZ-01 FORMAS DO MEZANINO", _sub):
             raise ValueError("formas do mezanino nao rasterizaram (svg_para_png)")
         if not _psd.pagina_esquema_a1(
-                _doc, cfg["armacao_svg"], _car,
+                _doc, cfg["armacao_svg"], _car2,
                 "MZ-01 - PE-MZ-01 ARMACAO DO MEZANINO", _sub):
             raise ValueError("armacao do mezanino nao rasterizou (svg_para_png)")
         if not _psd.pagina_quadro_a1(
-                _doc, _car, "MZ-01 - PE-MZ-01 QUADRO DE SAPATAS E LAJE",
-                _sub, cfg["quadro_sap_hdr"], cfg["quadro_sap"], cfg["notas"]):
+                _doc, _cars_q[0], "MZ-01 - PE-MZ-01 QUADRO DE SAPATAS E LAJE",
+                _sub, cfg["quadro_sap_hdr"], cfg["quadro_sap"], cfg["notas"],
+                carimbos=_cars_q):
             raise ValueError("quadro do mezanino sem pagina escrita")
         _pdf = _os.path.join(str(out_dir), "pranchas", "MZ01_MEZANINO.pdf")
         _os.makedirs(_os.path.dirname(_pdf), exist_ok=True)
