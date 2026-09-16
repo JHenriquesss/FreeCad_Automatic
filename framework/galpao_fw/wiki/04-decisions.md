@@ -4812,3 +4812,64 @@ pelo piso antes (190/149/165 MB, maquina carregada; so a arvore do proprio
 filho, nenhum app do usuario tocado) — artefato de carga, nao do diff: as
 quebras de censo que as acompanham somem na corrida completa. O piso que
 aborta na primeira amostra e o objeto do G153.
+
+## G150 - O `or 0` que a lente nao ve (`.get(chave, 0/1)` nos emissores) - FECHADO
+
+**Medido (AST, antes de triar).** A lente do G145 so acha `BoolOp Or`; o mesmo
+fallback como `.get(chave, 0|0.0|1|1.0)` nao entra. AST nos 10 emissores do
+G145 + `techdraw_mezanino`, `techdraw_incendio`, `techdraw_concreto`: **64**
+ocorrencias — `desenho_pavimento` 24, `desenho_casa_residencial` 16,
+`desenho_fundacao_edificio` 8, `desenho_alvenaria` 8, `desenho_escada_edificio`
+3, `desenho_eletrico` 2, `techdraw_concreto` 2, `desenho_hidraulica` 1
+(`desenho_incendio`, `desenho_coordenacao`, `techdraw_eletrico`,
+`techdraw_mezanino`, `techdraw_incendio`: 0, congelados no alvo). Fora do AST
+numerico, os 3 do adaptador novo pelo nome: `rp.get("hy"|"hx", mz.get(...))`
+(`desenho_pavimento.py:1027-1028`, default externo e outra Call) e
+`mz.get("fyk", 500e3)` (`techdraw_mezanino.config_de_spec:242`, fora de 0/1).
+
+**Triagem contra o produtor (convencao 9): 64 + 3 MORTOS, 0 VIVOS.** Nenhum
+dado pode faltar em rodada real: tramo/linha/lance/base do pavimento
+(`viga_concreto.verifica_viga`, `adaptar_galpao_mezanino:1007-1014,1034-1038`,
+`galpao_mezanino`), telhado/pecas/contraventamento/arrancamento
+(`telhado_casa_madeira.rodar`, chave `contraventamento_6_6` com underscore),
+carga_total (`eletrica_edificio.dimensiona` via spec do predio + contexto),
+blondel/h_laje (`escada_concreto.geometria/dimensiona`), N_dimensionamento
+(`fundacao_edificio.py:797`), ventilacao (`galpao_hidraulica.py:159`, ramo
+guardado pela coluna), N_wall/H_total/comprimentos
+(`estrutura_casa`, `alvenaria_estrutural`), As_inf (`galpao_concreto.py:280`),
+conferencias (`confere_*`, diagnostico, nao desenho). Correcao antes de
+fechar: `rp` **tem** `hx/hy` (echo do `dimensiona_pilar`, medido 0,30/0,30) —
+o motivo inicial "rp nunca tem" foi reescrito; o externo nunca cai no `mz` e
+o interno nunca cai no `0.0`. Com 0 vivos, nenhuma folha declara ausencia
+nova: **nenhum emissor tocado, predio e casa byte-identicos por construcao,
+sem PNG de cura** (o teste regenera os SVGs da MZ01 em memoria e confere
+`CA-50` + formas/armacao presentes, sem escrever no disco).
+
+**Entregue (uma fonte so, a do G145).** `varredura_fallback_folha.py`:
+`ALVOS_GET` (13), `varredura_get`/`chaves_get` (mesma chave estavel + `#k`),
+`GETS_TRIADOS` (64), `ADAPTADOR_MEZANINO_TRIADOS` (3, presenca textual +
+`confere_get`/`relatorio_get` com `adp_resolvidas` fails closed). A lente do
+G145 (`varredura`/`chaves`/`confere`, 47) segue intacta e verde.
+
+**Testes.** Novo `tests/test_fallback_get_g150.py` (6): baseline (64/64/3,
+0 vivos); vermelho por injecao de `.get` novo em `tmp_path` (convencoes
+1/2/7); resolvida nos dois sentidos; motivo/produtor vazio reprova;
+mortos-produzem (mezanino + escada + viga + telhado + eletrica/H_total do
+predio + hidraulica do galpao + prova textual por produtor para
+fundacao/alvenaria/concreto); adaptador-morto (fyk/hx/hy no resultado,
+`CA-50`, SVGs presentes, presenca textual). Censo de guardas D86: item 46
+(`confere_get`, INDEPENDENTE codigo x declaracao), 39 defs.
+
+**Baselines mudadas com motivo:** `GETS_TRIADOS` 64 (nova), adaptador 3
+(novo), `TRIADAS_G69` +1 (`confere_get`). `FALLBACKS_TRIADOS` intacta (47).
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK; os
+13 arquivos da regra (12 do lote + `test_fallback_get_g150`; `guardas` com o
+item 46) + `test_fallback_folha_g145`: **168 passed**. Portao do galpao
+(`test_10`) nao correu: o goal nao muda folha do galpao (so lente + teste).
+
+**Suite inteira pelo runner (`-n 3`, lida inteira).** `rc_pytest` 0,
+**3932 passed, 2 skipped em 939,7 s** (15,6 min), 314/314 arquivos (+1 sobre
+o G149: `test_fallback_get_g150`; +6 passed sobre os 3926), memoria livre
+minima 402 MB (piso 200 nao disparou), descendentes [] / [], `quebras` [].
+

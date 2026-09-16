@@ -1,7 +1,7 @@
 """Lente G69 (D86): as guardas que concordam consigo mesmas.
 
 Censo da arvore (baseline em TRIADAS_G69, congelado nos DOIS sentidos):
-38 defs confere_*/verifica_fechamento* (3 com o G130; a ultima antes veio
+39 defs confere_*/verifica_fechamento* (1 com o G150; 3 com o G130; a ultima antes veio
 com o G129; 2 com o
 G127; 3 com o G126; a
 G107-G112 foi entregue com ESTE censo vermelho - ver item 24; 20 ate o G77; o G80/G81/G82
@@ -239,6 +239,12 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     literal mais base_chumbador via GC, mesmo numero). INDEPENDENTE
     (meta-guarda, mesma forma do item 16: disco x declaracao; extra ou
     faltando = leitura por conta propria).
+46. varredura_fallback_folha.confere_get (G150) - A=.get(chave, 0/1) no
+    codigo (AST, 13 emissores), B=GETS_TRIADOS (64, motivo+produtor) +
+    ADAPTADOR_MEZANINO_TRIADOS (3, pelo nome). INDEPENDENTE (meta-guarda,
+    mesma forma do item 16: codigo x declaracao; .get novo sem triagem,
+    triado que sumiu ou motivo/produtor vazio = vermelho, provado por
+    injecao em tmp_path).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -312,6 +318,7 @@ TRIADAS_G69 = {
     ("chaves_to_rodar_g134", "confere_censo"),
     ("fctd_nbr6118_g136", "confere_copias"),
     ("fctd_nbr6118_g136", "confere_uso_fctd"),
+    ("varredura_fallback_folha", "confere_get"),
 }
 
 
