@@ -58,6 +58,8 @@ def _pr_planta(doc, cfg):
         sym.Scale = 7.0                   # o SVG (1000x620) preenche ~570x390 mm
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_INC", [cfg["veredito_linha"]], 200, 58, 6)
     return [page]
 
 
@@ -96,6 +98,8 @@ def _pr_detalhes(doc, cfg):
         sym.Scale = 7.0
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_DET", [cfg["veredito_linha"]], 200, 58, 6)
     return [page]
 
 
@@ -213,6 +217,10 @@ def config_de_spec(r, out_dir, spec=None):
     import desenho_incendio as di
     spec = spec or {}
     g = r["gates"]
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
 
     planta_svg = di.planta_seguranca_svg(r)
     # G138: o corte da coluna de hidrantes a partir do calculo do galpao
@@ -291,7 +299,7 @@ def config_de_spec(r, out_dir, spec=None):
         "7. Documentacao para o AVCB (Auto de Vistoria do Corpo de Bombeiros).",
     ]
 
-    return {
+    return _aplicar152({
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_incendio"),
         "descricao": spec.get("descricao", "Galpao industrial - Seguranca contra Incendio"),
@@ -304,7 +312,7 @@ def config_de_spec(r, out_dir, spec=None):
         "carimbo_material": "SEG. INCENDIO",
         "notas": notas,
         "materiais": None,
-    }
+    }, r)
 
 
 def codigo_fonte():

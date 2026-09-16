@@ -636,6 +636,11 @@ def _callout_bloco(cfg, a_cm=None, h_cm=None):
 # ─────────────────────────────────────────────────────────────────────────
 def _carimbo(cfg, titulo, numero, escala, folha):
     import datetime
+    # G152: o carimbo declara o veredito lido do resultado. A leitura mora na
+    # fonte unica (veredito_folha_g152, aplicada no config_de_spec, fora do
+    # FreeCAD); aqui so se LE a chave precomputada `veredito_status` - sem
+    # import de irmao (este modulo roda dentro do freecad sem o galpao_fw no
+    # sys.path). Sem a chave (cfg antigo), o historico "PARA APROVACAO".
     return {
         "title": _cap_titulo(titulo),
         "supplementary_title_1": cfg.get("descricao", ""),
@@ -649,7 +654,7 @@ def _carimbo(cfg, titulo, numero, escala, folha):
         "legal_owner_1": cfg.get("slug", "galpao"),
         "legal_owner_2": "", "legal_owner_3": "", "legal_owner_4": "",
         "document_type": "PROJETO EXECUTIVO ESTRUTURAL",
-        "document_status": "PARA APROVACAO",
+        "document_status": cfg.get("veredito_status") or "PARA APROVACAO",
         "revision_index": "00",
         "language_code": "PT",
         "responsible_department": "ESTRUTURAS",
@@ -689,10 +694,12 @@ def _pr_cobertura(doc, cfg, objs):
             _fmt_m(bay), "baixo", nivel=0)
     c.d((0, 0, z), (comp, 0, z), "DistanceX", _fmt_m(comp), "baixo", nivel=1)
     c.d((0, 0, z), (0, span, z), "DistanceY", _fmt_m(span), "esq")
-    _anot(doc, page, "A01", ["PLANTA DE COBERTURA   ESCALA %s" % nome,
-                             "Inclinacao: %.0f%%" % (g.get("slope", 0.1) * 100),
-                             "Cotas em metros."],
-          200, 70, 6)
+    _a01 = ["PLANTA DE COBERTURA   ESCALA %s" % nome,
+            "Inclinacao: %.0f%%" % (g.get("slope", 0.1) * 100),
+            "Cotas em metros."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a01 = _a01 + [cfg["veredito_linha"]]
+    _anot(doc, page, "A01", _a01, 200, 70, 6)
     return [page], [c]
 
 
@@ -735,8 +742,10 @@ def _pr_fundacoes(doc, cfg, objs):
         _anot(doc, page, "A02q", [titq], 120, 175, 6)
         _tabela(doc, page, "Q02", hdrq, rowsq, 120, 150, tam=6,
                 larguras=[90, 70, 70, 70])
-    _anot(doc, page, "A02", ["PLANTA DE FUNDACOES   ESCALA %s" % nome, nota],
-          200, 70, 6)
+    _a02 = ["PLANTA DE FUNDACOES   ESCALA %s" % nome, nota]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a02 = _a02 + [cfg["veredito_linha"]]
+    _anot(doc, page, "A02", _a02, 200, 70, 6)
     return [page], [c]
 
 
@@ -786,8 +795,10 @@ def _pr_elevacoes(doc, cfg, objs):
         c2.d((0, 0, 0.), (0, comp, 0.), "DistanceX", _fmt_m(comp),
              "baixo", nivel=1)
     c2.d((0, 0, 0.), (0, 0, g["eave"]), "DistanceY", _fmt_m(g["eave"]), "esq")
-    _anot(doc, page, "A03a", ["ELEVACAO FRONTAL (OITAO)   ESC %s" % nome],
-          120, 150, 5)
+    _a03a = ["ELEVACAO FRONTAL (OITAO)   ESC %s" % nome]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a03a = _a03a + [cfg["veredito_linha"]]
+    _anot(doc, page, "A03a", _a03a, 120, 150, 5)
     _anot(doc, page, "A03b", ["ELEVACAO LATERAL   ESC %s" % nome], 490, 150, 5)
     _anot(doc, page, "A03c", ["Cotas em metros. RN +0,00 = topo do concreto."],
           200, 60, 5)
@@ -852,6 +863,8 @@ def _pr_portico(doc, cfg, objs):
         linhas.append("Ponte rolante%s: viga de rolamento no nivel +%s" %
                       (cap, _fmt_m(pt["Hvr"])))
     linhas.append("Cotas em metros.")
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "A04", linhas, 200, 70, 6)
     return [page], [c]
 
@@ -920,8 +933,11 @@ def _pr_contravent(doc, cfg, objs, todos):
     if cob:
         _vista(doc, page, "V05_CV_COB", cob, (0, 0, 1), (1, 0, 0), esc,
                410, 220, coarse=True)
-    _anot(doc, page, "A05a", ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome,
-                              "Barras redondas pretensionadas c/ esticador."],
+    _a05a = ["CONTRAVENTAMENTO VERTICAL   ESC %s" % nome,
+             "Barras redondas pretensionadas c/ esticador."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a05a = _a05a + [cfg["veredito_linha"]]
+    _anot(doc, page, "A05a", _a05a,
           200, 345, 5)
     _anot(doc, page, "A05b",
           (["CONTRAVENTAMENTO DE COBERTURA   ESC %s" % nome,
@@ -1002,6 +1018,8 @@ def _pr_base(doc, cfg, objs, todos):
     if ba:
         linhas += ["Placa %.0f x %.0f x %.0f mm" % (ba["B"], ba["L"], ba["t"]),
                    "%dx chumbadores d %.0f mm" % (ba["n"], ba["db"])]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "A06", linhas, 200, 90, 5)
     return [page], [c1, c2]
 
@@ -1075,6 +1093,8 @@ def _pr_bloco(doc, cfg, objs, todos):
     h_cm = round(bc.ZLength / 10.0)
     linhas += _callout_bloco(cfg, a_cm=a_cm, h_cm=h_cm)
     linhas.append("Cotas em milimetros.")
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "A15", linhas, 200, 95, 5)
     return [page], [c1, c2]
 
@@ -1168,13 +1188,16 @@ def _pr_joelho(doc, cfg, objs, todos):
                 (mao_bb.XMax, jb.YMin, mao_bb.ZMin),
                 "DistanceX", _fmt_mm(mao_bb.XLength), "baixo")
     fab07 = _callout_fab(cfg, "joelho")
-    _anot(doc, page, "A07", [
+    _a07 = ([
         "DETALHE DO NO VIGA-COLUNA (JOELHO)   ESCALA %s" % nome,
         "Colunas: %s   Vigas: %s" % (cfg.get("perfil_col", "?"),
                                      cfg.get("perfil_raf", "?"))]
         + fab07 + [
         "Mao-francesa, chapas e parafusos conforme memoria de calculo.",
-        "Cotas em milimetros."], 200, 80 + 6 * len(fab07), 5)
+        "Cotas em milimetros."])
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a07 = _a07 + [cfg["veredito_linha"]]
+    _anot(doc, page, "A07", _a07, 200, 80 + 6 * len(fab07), 5)
     return [page], [c]
 
 
@@ -1425,6 +1448,8 @@ def _detalhe_ligacao(doc, cfg, todos, prefixo, titulo, base, KW, elev, chapa,
     linhas += fab
     linhas += ["Chapas, solda e parafusos conforme memoria de calculo.",
                "Cotas em milimetros."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "ALIG_" + base, linhas, 200, 80 + 6 * len(fab), 5)
     # simbolo grafico AWS de solda de filete (quando o callout tras a perna do
     # calculo): glyph ligado ao dado, headless via DrawViewSymbol (nao DrawWeldSymbol).
@@ -1496,6 +1521,8 @@ def _pr_fechamento(doc, cfg, objs):
     if tc:
         linhas.append("Terca: %s" % _fmt_terca(tc))
     linhas.append("Cotas em metros.")
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "A08", linhas, 200, 80, 5)
     return [page], [c]
 
@@ -1683,6 +1710,11 @@ def _pr_quadros(doc, cfg):
         _n12,
         "13. Projeto executivo sujeito a revisao e ART.",
     ]
+    # G152: a folha de disciplina reprovada declara o veredito no corpo,
+    # nomeando os gates (lido do resultado, via cfg). Sem REPROVA, as notas
+    # saem como antes (byte-identicas).
+    if cfg.get("veredito_linha"):
+        notas = list(notas) + [cfg["veredito_linha"]]
     notas_y = _pos_notas(n_verif, n_mat, len(notas))
     _bloco_texto(doc, page, "A09n", notas, 210, notas_y, tam=5, largura=560,
                  escala=1.4)
@@ -1747,10 +1779,11 @@ def _pr_croquis(doc, cfg, objs, todos):
               ["MARCA %s (%s)" % (mk, str(perf)[:18]),
                "L(corte) ~ %s  qtd %s  esc %s" % (L_txt, qt if qt else "-", escn),
                notas_marca.get(mk, "")], xs[i] - 55, 500, 7)
-    _anot(doc, page, "C14n",
-          ["Croquis de fabricacao por peca (marca). Cotas de fabricacao e furacao",
-           "conforme o modelo 3D e o memorial. Simbolo de solda: filete, memorial."],
-          250, 130, 6)
+    _c14n = ["Croquis de fabricacao por peca (marca). Cotas de fabricacao e furacao",
+             "conforme o modelo 3D e o memorial. Simbolo de solda: filete, memorial."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _c14n = _c14n + [cfg["veredito_linha"]]
+    _anot(doc, page, "C14n", _c14n, 250, 130, 6)
     return [page], []
 
 
@@ -1840,6 +1873,8 @@ def _pr_montagem(doc, cfg, objs):
     nn = []
     for t in notas:
         nn += _wrap(t, 118)
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        nn = nn + [cfg["veredito_linha"]]
     _bloco_texto(doc, page, "NOTAS_MONT", nn, 420, 90, tam=5.0, largura=1150)
     return [page], []
 
@@ -2200,7 +2235,7 @@ def config_de_spec(spec, fcstd_path, out_dir):
     sp = est.get("sapata_adotada")
     jo = est.get("joelho_adotado")
     perfil_col, perfil_raf = _descreve_perfis(est)
-    return {
+    cfg = {
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
         "slug": _limpo(spec.get("slug"), "galpao"),
@@ -2251,6 +2286,15 @@ def config_de_spec(spec, fcstd_path, out_dir):
         # prumo. Computado no lado lancador (o techdraw nao importa irmaos no freecad).
         "montagem": _montagem_plano(spec),
     }
+    # G152: o veredito do ACO lido do resultado (carimbado no spec pelo
+    # `calcular`; sem carimbo, DESCONHECIDO e o cfg sai como antes). A fonte
+    # unica mora em veredito_folha_g152 (lado lancador, fora do FreeCAD).
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
+    from veredito_folha_g152 import veredito_de_spec_aco as _ver152aco
+    _at152, _rep152 = _ver152aco(spec)
+    _aplicar152(cfg, {"atende": _at152, "falhas_verificacao": _rep152}
+                if _at152 is not None else {})
+    return cfg
 
 
 def codigo_fonte():

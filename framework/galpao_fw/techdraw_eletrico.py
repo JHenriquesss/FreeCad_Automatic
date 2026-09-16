@@ -55,6 +55,8 @@ def _pr_unifilar(doc, cfg):
         sym.Scale = 8.0                   # o SVG (940x640) preenche ~570x390 mm
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_UNIF", [cfg["veredito_linha"]], 200, 58, 6)
     return [page], []
 
 
@@ -75,6 +77,8 @@ def _pr_planta_instalacao(doc, cfg):
         sym.Scale = 6.5                   # o SVG (1180x760) preenche ~a folha util
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_INST", [cfg["veredito_linha"]], 200, 58, 6)
     return [page], []
 
 
@@ -96,12 +100,13 @@ def _pr_planta(doc, cfg, objs):
     z = bb.ZMax
     c.d((0.0, 0.0, z), (L, 0.0, z), "DistanceX", _fmt_m(L), "baixo")   # _fmt_m espera mm
     c.d((0.0, 0.0, z), (0.0, W, z), "DistanceY", _fmt_m(W), "esq")
-    _anot(doc, page, "A02",
-          ["PLANTA - ELETROCALHAS E ATERRAMENTO   ESCALA %s" % nome,
-           "Eletrocalha principal sob o beiral; anel de aterramento no perimetro",
-           "(cabo Cu 50 mm2) + hastes de canto; descidas de SPDA nas colunas.",
-           "Cotas em metros."],
-          200, 74, 6)
+    _a02 = ["PLANTA - ELETROCALHAS E ATERRAMENTO   ESCALA %s" % nome,
+            "Eletrocalha principal sob o beiral; anel de aterramento no perimetro",
+            "(cabo Cu 50 mm2) + hastes de canto; descidas de SPDA nas colunas.",
+            "Cotas em metros."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a02 = _a02 + [cfg["veredito_linha"]]
+    _anot(doc, page, "A02", _a02, 200, 74, 6)
     return [page], [c]
 
 
@@ -256,6 +261,10 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     recalculado dentro do FreeCAD."""
     import desenho_eletrico as de
     spec = spec or {}
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
     g = r["gates"]
     geo = r.get("geometria") or {"L": 40.0, "W": 20.0, "H": 6.0}
     V = r["spec"]["tensao_V"]
@@ -320,7 +329,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "Dados de sitio (rho do solo, demanda contratada, R1) A CONFIRMAR - ver memoria.",
     ]
 
-    return {
+    return _aplicar152({
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_eletrico"),
@@ -334,7 +343,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         "carimbo_material": carimbo_mat,
         "notas": notas,
         "materiais": None,
-    }
+    }, r)
 
 
 def codigo_fonte():

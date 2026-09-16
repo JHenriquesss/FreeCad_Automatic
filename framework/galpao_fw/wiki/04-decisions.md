@@ -4976,3 +4976,82 @@ pulados sem a variavel (D177).
 
 **Nao feito.** Aumentar a celula do template ISO 5457; mudar codigo de
 prancha; trocar numero do FS ou qualquer conta (titulo, nao conta).
+
+## G152 - A folha de disciplina reprovada que nao dizia que reprovou - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G149-G153.md G152: a folha reprovada saia com
+carimbo PARA APROVACAO e sem nenhum REPROVAD no corpo. Medir disciplina por
+disciplina com o veredito reprovado injetado; a folha reprovada declara o
+veredito no carimbo e no corpo, nomeando os gates - texto, nunca omissao,
+lido do resultado (fonte unica). ATENDE byte-identica, PNG olhado,
+convencoes 1-14 e regra do lote, suite pelo runner ate `rc_pytest` 0 e
+`quebras` vazio, verbete e commit.
+
+**Medido (resultado real na mao, conta intacta, antes de mudar).**
+`grep REPROVAD|NAO ATENDE` em `techdraw_*.py` + `prancha_svg_direta.py`: 0;
+`_carimbo` sempre PARA APROVACAO; o veredito morava fora da folha (capa do
+caderno, `native_atende`/`reprovados` do adaptador). Por disciplina:
+
+| disciplina | resultado real | folha dizia |
+|---|---|---|
+| hidraulica | ATENDE [] | nada; inj. reprovada -> nada |
+| incendio | ATENDE [] | nada; inj. reprovada -> nada |
+| climatizacao | ATENDE [] | nada; inj. reprovada -> nada |
+| mezanino | ATENDE [] | nada; inj. (viga_X/viga_Y/vigas) -> so a armacao marca por viga, formas e quadro nada |
+| eletrico | REPROVA ['cargas'] de verdade no spec minimo | nada (prova viva) |
+| concreto | REPROVA ['pilar'] de verdade no spec minimo | nada (prova viva) |
+| aco | `config_de_spec(spec)` nem recebia o veredito (o memorial ja imprime VEREDITO, a folha nao) | nada |
+
+Coordenacao: N/A declarado - clash e triagem (A REVISAR/esperados), nao
+veredito de calculo; o global ja vai na capa do caderno.
+
+**Entregue (fonte unica `veredito_folha_g152.py`, lida do resultado, nunca
+decidida na folha).** `extrair_veredito` le os dois dialetos (ATENDE/
+reprovados e atende_global/atende/falhas_verificacao); sem a chave, o
+veredito e DESCONHECIDO e a folha sai como antes. `aplicar_a_cfg` em todo
+`config_de_spec` (7 disciplinas) carrega `veredito_atende/reprovados/linha/
+status`; o aco viaja carimbado no spec pelo `calcular`
+(`estrutura.veredito_aco`, escrito do `res`). Carimbo: REPROVADO - VER
+MEMORIAL so na REPROVA (lido da chave precomputada, sem import de irmao
+dentro do freecad). Corpo, nomeando os gates: notas do quadro + titulo das
+vistas (13 paginas do aco, 3 do eletrico, 3 do concreto, 1 da MZ01 FreeCAD,
+7 simbolo com vista V152 nova) + subtitulo e rodape STATUS em CADA pagina
+da rota SVG (hid/inc/cli default + MZ01 3p). A folha reprovada continua
+saindo (o engenheiro precisa dela para revisar).
+
+**Testes.** Novo `tests/test_veredito_folha_g152.py` (5): baseline ATENDE/
+DESCONHECIDO sem REPROVAD e com carimbo historico; vermelho por injecao em
+cada uma das 7 disciplinas (carimbo + linha com todos os gates + linha nas
+notas); fonte unica le-sem-decidir (tabela verdade, literais a mao);
+rota SVG declara por pagina e ATENDE sem REPROVAD; MZ01 3p declara e ATENDE
+sem REPROVAD. Vermelho provado: com a producao em `stash`, o test_01 falha
+(sem `veredito_atende`); com o fix, 5 passed em 23,3 s.
+
+**PNG olhado (convencoes 3/6).** HID01/HID02 e MZ01 (3p) reprovadas: subtitulo
+com o veredito e os gates, rodape STATUS, notas com a linha, sem colisao;
+ATENDE sem VEREDITO e sem STATUS (byte-identica no pixel). INC/CLI
+reprovadas: texto por pagina confere (mesmo renderizador). FreeCAD real
+(eletrico que REPROVA cargas de verdade, 3D headless + freecad.exe):
+PE-EL-01/02/03/04 com carimbo REPROVADO - VER MEMORIAL, linha no corpo e
+`drawing_number`/folha intactos; a vista V152 a y=45 encostava na moldura e
+subiu para y=58 (re-render PE-EL-01 confere: legivel, sem colisao).
+
+**Baselines mudadas com motivo.** `SEM_FAIXA_DECLARADA` +1 (fonte pura sem
+numero de norma). Nenhuma outra baseline.
+
+**Portoes tocados + regra do lote.** Faixa/sequencia/orfas OK; 13 arquivos
+da regra + faixa-guard + `test_veredito_folha_g152`: **189 passed**.
+`test_carimbo_mapa_g112` e `test_galpao_indice_g93` verdes (nenhum codigo
+de prancha muda aqui). Portao do galpao (`GALPAO_AUDITORIA=1`, serial,
+isolado): **1 passed em 623,9 s** (CUSTO_G102 galpao 623,7 s, MEM 1587,8 MB).
+
+**Suite inteira pelo runner (`-n 3`, lida inteira).** `rc_pytest` 0,
+**3943 passed, 2 skipped em 1009,7 s** (16,8 min), 316/316 arquivos (+1
+sobre o G151: `test_veredito_folha_g152`; +5 passed sobre os 3938), memoria
+livre minima 365 MB (piso 200 nao disparou), descendentes [] / [],
+`quebras` []. Os 2 skipped sao os portoes de auditoria (galpao `test_10` +
+aco D165), pulados sem a variavel (D177); o `test_10` rodou isolado acima.
+
+**Nao feito.** Parar de emitir a folha reprovada; decidir gate na folha;
+coordenacao com veredito (clash e triagem, nao conta); numero novo no
+carimbo (`drawing_number`/titulo intactos, G151 segue verde).

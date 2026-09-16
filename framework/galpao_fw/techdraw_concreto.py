@@ -96,12 +96,13 @@ def _pr_formas(doc, cfg, objs):
             _fmt_m(s), "esq", nivel=0)
     c.d((x0, 0, z), (x0, comp, z), "DistanceY", _fmt_m(comp), "esq", nivel=1)
     c.d((-vao / 2.0, 0, z), (vao / 2.0, 0, z), "DistanceX", _fmt_m(vao), "baixo")
-    _anot(doc, page, "A01",
-          ["PLANTA DE FORMAS   ESCALA %s" % nome,
-           "Pilares %s cm  -  Vigas de cobertura %s cm" %
-           (cfg["sec_pilar_lbl"], cfg["sec_viga_lbl"]),
-           "Cotas em metros. RN +0,00 = topo da fundacao."],
-          200, 70, 6)
+    _a01 = ["PLANTA DE FORMAS   ESCALA %s" % nome,
+            "Pilares %s cm  -  Vigas de cobertura %s cm" %
+            (cfg["sec_pilar_lbl"], cfg["sec_viga_lbl"]),
+            "Cotas em metros. RN +0,00 = topo da fundacao."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a01 = _a01 + [cfg["veredito_linha"]]
+    _anot(doc, page, "A01", _a01, 200, 70, 6)
     return [page], [c]
 
 
@@ -128,6 +129,8 @@ def _pr_portico(doc, cfg, objs):
               "Pilar (balanco, engastado no calice): %s cm" % cfg["sec_pilar_lbl"],
               "Viga de cobertura: %s cm%s" % (cfg["sec_viga_lbl"], cfg["viga_arm_lbl"]),
               "Cotas em metros. Pilar pre-moldado, ligacao base por calice (NBR 9062)."]
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        linhas = linhas + [cfg["veredito_linha"]]
     _anot(doc, page, "A02", linhas, 200, 72, 6)
     return [page], [c]
 
@@ -180,6 +183,8 @@ def _pr_locacao(doc, cfg):
         sym.Scale = 7.0
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_LOC", [cfg["veredito_linha"]], 200, 58, 6)
     return [page], []
 
 
@@ -315,6 +320,10 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     galpao_concreto.rodar(r) + o FCStd do build_concreto. Nada e recalculado
     dentro do FreeCAD; todos os quadros/notas vem daqui (nao inventa valores)."""
     spec = spec or {}
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
     sp = r["spec"]
     vao = sp["vao"] * 1000.0
     comp = sp["comprimento"] * 1000.0
@@ -423,7 +432,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
     except Exception as exc:                            # noqa: BLE001
         _loc_svg140, _aus140, _loc_erro140 = None, [], str(exc)
 
-    return {
+    return _aplicar152({
         "fcstd": str(fcstd_path).replace("\\", "/"),
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_concreto"),
@@ -444,7 +453,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
         # o carimbo do techdraw_exec le 'materiais' (pode ser None -> omite)
         "materiais": {"aco_MPa": None, "fck_MPa": int(fckM),
                       "cobrimento_cm": cob_mm / 10.0},
-    }
+    }, r)
 
 
 def codigo_fonte():

@@ -39,6 +39,8 @@ def _pr_esquema(doc, cfg):
         sym.Scale = 7.0
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_HID", [cfg["veredito_linha"]], 200, 58, 6)
     return [page]
 
 
@@ -210,7 +212,7 @@ def config_de_spec(r, out_dir, spec=None):
     notas.append("6. Posicoes esquematicas - ajustar ao leiaute real de projeto. "
                  "Dimensionamento: %s." % g["dimensionamento"])
 
-    return {
+    cfg = {
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_hidraulica"),
         "descricao": spec.get("descricao", "Galpao industrial - Hidraulica Predial"),
@@ -221,6 +223,11 @@ def config_de_spec(r, out_dir, spec=None):
         "notas": notas,
         "materiais": None,
     }
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
+    return _aplicar152(cfg, r)
 
 
 def codigo_fonte():

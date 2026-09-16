@@ -127,6 +127,17 @@ def calcular(spec, out_dir):
     }
     spec.setdefault("estrutura", {})["resultados"] = resultados
     spec["estrutura"]["estados"] = {k: v for k, v in estados.items() if v is not None}
+    # G152: o veredito do ACO carimbado no spec, lido do RESULTADO (fonte unica
+    # em veredito_folha_g152, via techdraw_exec.config_de_spec). E o GLOBAL
+    # (atende_global, todos os gates - o mesmo que o relatorio imprime), com
+    # as falhas nomeadas; fallback p/ o do portico quando ausente.
+    if isinstance(res, dict) and ("atende_global" in res or "atende" in res):
+        _at152 = res.get("atende_global", res.get("atende"))
+        _fa152 = res.get("falhas_verificacao", []) or []
+        spec["estrutura"]["veredito_aco"] = {
+            "atende": (None if _at152 is None else bool(_at152)),
+            "falhas_verificacao": list(_fa152),
+        }
     # esforcos de projeto (2a ordem) por grupo -> modelo analitico BIM (ifc_emit)
     if res.get("esf_coluna"):
         spec["estrutura"]["esf_coluna"] = res["esf_coluna"]

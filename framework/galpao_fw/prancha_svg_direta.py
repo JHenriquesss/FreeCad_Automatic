@@ -90,8 +90,13 @@ def _carimbo_da_disciplina(TD, cfg, titulo, numero, folha):
 
 
 def _linhas_carimbo(carimbo):
-    """Linhas de rodape com os campos do carimbo (verbatim, sem inventar)."""
-    return [
+    """Linhas de rodape com os campos do carimbo (verbatim, sem inventar).
+
+    G152: quando o `document_status` nao e o historico "PARA APROVACAO" (folha
+    reprovada - veredito lido do resultado), o rodape declara o status numa
+    4a linha. Com o status historico, as 3 linhas de sempre (byte-identico).
+    """
+    linhas = [
         "%s | %s | %s" % (carimbo.get("drawing_number", "?"),
                            carimbo.get("title", "?"),
                            carimbo.get("scale", "?")),
@@ -103,6 +108,10 @@ def _linhas_carimbo(carimbo):
                                       carimbo.get("creator", ""),
                                       carimbo.get("legal_owner_1", "")),
     ]
+    _st = carimbo.get("document_status") or "PARA APROVACAO"
+    if _st != "PARA APROVACAO":
+        linhas.append("STATUS: %s" % _st)
+    return linhas
 
 
 def pagina_esquema_a1(doc, esquema_svg, carimbo, titulo_pagina, subtitulo="",
@@ -282,6 +291,11 @@ def montar_pranchas_rota_direta(r, out_dir, disciplina, spec=None, dpi=150):
     car_esq = _carimbo_da_disciplina(TD, cfg, tit_esq, cod_esq, "01/02")
     car_qua = _carimbo_da_disciplina(TD, cfg, tit_qua, cod_qua, "02/02")
     subt = "%s | %s" % (cfg.get("descricao", slug), slug)
+    # G152: a folha de disciplina reprovada declara o veredito no corpo de
+    # CADA pagina (subtitulo do esquema e do quadro). Sem REPROVA, o
+    # subtitulo de sempre (byte-identico).
+    if cfg.get("veredito_linha"):
+        subt = "%s | %s" % (subt, cfg["veredito_linha"])
 
     prdir = os.path.join(str(out_dir), "pranchas")
     try:

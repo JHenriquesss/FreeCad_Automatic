@@ -594,6 +594,10 @@ def gerar_prancha_mezanino(r, out_dir, spec=None):
     try:
         _sub = "%s | %s" % (cfg.get("descricao", "galpao_mezanino"),
                             cfg.get("slug", "galpao_mezanino"))
+        # G152: a MZ01 reprovada declara o veredito no corpo de CADA pagina
+        # (formas, armacao e quadro). Sem REPROVA, o subtitulo de sempre.
+        if cfg.get("veredito_linha"):
+            _sub = "%s | %s" % (_sub, cfg["veredito_linha"])
         # pre-conta as paginas do quadro num doc temporario (mesmo conteudo)
         _tmp = _fitz.open()
         try:

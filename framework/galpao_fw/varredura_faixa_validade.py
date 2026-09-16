@@ -721,6 +721,7 @@ SEM_FAIXA_DECLARADA = {
     "varredura_titulo_carimbo_g151.py": "lente G151 (AST de titulos de carimbo vs _cap_titulo, funcao pura); sem numero de norma, sem faixa.",
     "varredura_indice_disco.py": "lente G91 (indice<->disco, funcao pura); sem numero de norma, sem faixa.",
     "varredura_nao_verificados.py": "ferramenta G33; nao declara faixa de metodo.",
+    "veredito_folha_g152.py": "fonte unica G152 (le o veredito do resultado, funcao pura); sem numero de norma, sem faixa.",
     "verificar_amostra.py": "script avulso visual; sem faixa.",
     "vibracao_piso.py": "escopo ilimitado ('vale para toda classe') fora da lente; 'restrito' e de acesso.",
     "viga_baldrame.py": "G127: fct,m vem da fonte unica fctm_nbr6118_g127; faixas vivem na fonte.",

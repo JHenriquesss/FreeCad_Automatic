@@ -73,8 +73,10 @@ def _pr_mezanino(doc, cfg):
         armacao.Scale = 2.0
     except Exception:
         pass
-    _anot(doc, page, "A01s", ["QUADRO DE SAPATAS E LAJE"] + cfg.get("quadro_linhas", []),
-           420, 60, 5)
+    _a01s = (["QUADRO DE SAPATAS E LAJE"] + cfg.get("quadro_linhas", []))
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _a01s = _a01s + [cfg["veredito_linha"]]
+    _anot(doc, page, "A01s", _a01s, 420, 60, 5)
     return [page]
 
 
@@ -231,6 +233,10 @@ def config_de_spec(r, out_dir, spec=None):
     """
     import desenho_pavimento as dp
     spec = spec if isinstance(spec, dict) else {}
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
     if not isinstance(r, dict) or not isinstance(r.get("mezanino"), dict):
         raise ValueError(
             "config da PE-MZ-01 sem bloco 'mezanino' no resultado "
@@ -288,7 +294,7 @@ def config_de_spec(r, out_dir, spec=None):
     for campo in ausentes:
         notas.append("6. Dado nao declarado pelo calculo: %s." % campo)
 
-    return {
+    return _aplicar152({
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_mezanino"),
         "descricao": spec.get("descricao", "Galpao industrial - Mezanino de concreto"),
@@ -303,7 +309,7 @@ def config_de_spec(r, out_dir, spec=None):
         "quadro_linhas": quadro_linhas,
         "notas": notas,
         "materiais": None,
-    }
+    }, r)
 
 
 def codigo_fonte():

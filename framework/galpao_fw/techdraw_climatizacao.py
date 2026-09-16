@@ -34,6 +34,8 @@ def _pr_esquema(doc, cfg):
         sym.Scale = 7.0
     except Exception:
         pass
+    if cfg.get("veredito_linha"):  # G152: a folha reprovada declara o veredito
+        _anot(doc, page, "V152_CLI", [cfg["veredito_linha"]], 200, 58, 6)
     return [page]
 
 
@@ -152,6 +154,10 @@ def config_de_spec(r, out_dir, spec=None):
     """Monta o cfg (dados JA computados) a partir de galpao_climatizacao.rodar(r)."""
     import desenho_climatizacao as dcl
     spec = spec or {}
+    # G152: o veredito lido do resultado (fonte unica em
+    # veredito_folha_g152) - a folha reprovada declara, a ATENDIDA sai
+    # byte-identica.
+    from veredito_folha_g152 import aplicar_a_cfg as _aplicar152
     cap = r["gates"]["capacidade"]; dp = r["gates"]["duto_principal"]
     duto = r["duto"]
 
@@ -183,7 +189,7 @@ def config_de_spec(r, out_dir, spec=None):
         "ajustar ao leiaute e ao zoneamento termico reais.",
     ]
 
-    return {
+    return _aplicar152({
         "out": str(out_dir).replace("\\", "/"),
         "slug": spec.get("slug", "galpao_climatizacao"),
         "descricao": spec.get("descricao", "Galpao industrial - Climatizacao (HVAC)"),
@@ -193,7 +199,7 @@ def config_de_spec(r, out_dir, spec=None):
         "carimbo_material": "CLIMATIZACAO",
         "notas": notas,
         "materiais": None,
-    }
+    }, r)
 
 
 def codigo_fonte():
