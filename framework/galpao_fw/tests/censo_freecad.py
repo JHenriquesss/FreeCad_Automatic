@@ -174,16 +174,38 @@ class Amostrador(threading.Thread):
 def ler_registros(pasta):
     registros = []
     for caminho in sorted(glob.glob(os.path.join(pasta, "freecad-*.jsonl"))):
-        with open(caminho, encoding="utf-8") as fh:
-            registros.extend(json.loads(l) for l in fh if l.strip())
+        try:
+            with open(caminho, encoding="utf-8") as fh:
+                for l in fh:
+                    if not l.strip():
+                        continue
+                    try:
+                        registros.append(json.loads(l))
+                    except Exception:
+                        continue
+        except Exception:
+            continue
     return registros
 
 
 def ler_coletados(pasta):
+    """Coletados por worker; arquivo vazio/ilegivel declara ausencia (G153).
+
+    No aborto do piso o runner mata a arvore no meio da escrita e um
+    coletados-*.json pode sair vazio - antes o json.load('') levantava e o
+    proprio resumo do aborto morria com JSONDecodeError (vermelho do G153).
+    """
     coletados = set()
     for caminho in glob.glob(os.path.join(pasta, "coletados-*.json")):
-        with open(caminho, encoding="utf-8") as fh:
-            coletados.update(json.load(fh))
+        try:
+            with open(caminho, encoding="utf-8") as fh:
+                dados = json.load(fh)
+        except Exception:
+            continue
+        try:
+            coletados.update(dados)
+        except Exception:
+            continue
     return coletados
 
 

@@ -134,6 +134,10 @@ def test_04_quebra_nomeada_com_amostrador_falso_sem_matar_usuario(tmp_path):
     um processo "do usuario" (filho deste teste, nao do runner) segue vivo -
     o runner so termina o proprio filho pytest. O outro sentido (falso sempre
     alto) fecha sem quebra do piso.
+
+    G153: o piso agora confirma em 3 amostras seguidas (CONFIRMACAO_PISO_
+    AMOSTRAS) - a sequencia 50/40/30 confirma na 3a, por isso o minimo e 30
+    (antes, amostra unica, era 50) e a quebra diz "confirmado em 3".
     """
     usuario = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(120)"],
@@ -162,9 +166,12 @@ def test_04_quebra_nomeada_com_amostrador_falso_sem_matar_usuario(tmp_path):
             lados.append("resumo sem o piso usado: %r" % (resumo,))
         if "testes_por_worker" not in resumo:
             lados.append("resumo sem snapshot por worker")
-        if resumo.get("memoria_livre_min_mb") != 50:
-            lados.append("minimo nao e o do falso (50, 1a leitura seca): %r"
+        if resumo.get("memoria_livre_min_mb") != 30:
+            lados.append("minimo nao e o do falso (30, 3a leitura seguida): %r"
                          % (resumo.get("memoria_livre_min_mb"),))
+        if not any("confirmado em 3" in q for q in resumo["quebras"]):
+            lados.append("quebra sem dizer a confirmacao G153: %r"
+                         % (resumo["quebras"],))
         if usuario.poll() is not None:
             lados.append("o runner matou o processo do usuario")
         assert not lados, "brecha G148 reprova:\n" + "\n".join(lados)

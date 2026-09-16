@@ -120,6 +120,24 @@ def ambiente_suite(base, censo_dir, env_dir, blas):
 # sem matar processo do usuario (so o proprio filho pytest e terminado).
 PISO_MEMORIA_LIVRE_MB = 200
 
+# G153 - confirmacao do piso (derivado do medido; numero e motivo escritos
+# aqui, fonte unica - a producao le desta constante, nunca de copia).
+# Medido (serie de amostras no resumo, maquina em uso normal, sem fechar os
+# aplicativos do usuario):
+# - corrida G153-A (pos-G152, -n 3, 3948 passed/2 skipped em 1031,6 s, serie
+#   com 1032 amostras de 1 s): quedas abaixo de 200 MB = 0, duracao 0 s,
+#   minimo 374 MB (livre_inicial 1283 MB);
+# - corrida G153-B (idem, 3948 passed/2 skipped em 1061,7 s, 1062 amostras):
+#   quedas = 0, duracao 0 s, minimo 419 MB (livre_inicial 1794 MB);
+# - historico: G142 passou com minimo de 159 MB numa unica amostra (sem serie,
+#   sem duracao) - com o piso de amostra unica teria sido abortado; D176
+#   minimo 251 MB e D177 minimo 300 MB, ambos sem serie (duracao desconhecida).
+# Regra: aborta so com K amostras CONSECUTIVAS abaixo do piso (K=3, ~3 s no
+# amostrador de 1 s). Queda transitoria de 1-2 s nao aborta; queda sustentada
+# de 3 s+ aborta e mata a arvore. Amostra None (nao mensuravel) quebra a
+# sequencia - a ausencia declara, nunca confirma brecha.
+CONFIRMACAO_PISO_AMOSTRAS = 3
+
 
 def veredito_piso_memoria(livre_mb, piso_mb=PISO_MEMORIA_LIVRE_MB):
     """Gap textual quando a memoria livre cruza o piso; None quando respira.
@@ -143,6 +161,123 @@ def veredito_piso_memoria(livre_mb, piso_mb=PISO_MEMORIA_LIVRE_MB):
                 "morto (so a arvore do proprio filho pytest, D176)"
                 % (livre, piso))
     return None
+
+
+def confirma_queda_consecutiva(serie_mb, piso_mb=PISO_MEMORIA_LIVRE_MB,
+                               k=CONFIRMACAO_PISO_AMOSTRAS):
+    """True so com as ultimas k amostras seguidas abaixo do piso (G153).
+
+    Funcao pura para o vermelho por injecao: serie curta (< k), amostra None
+    no meio, ou qualquer uma das ultimas k no piso/acima -> False (queda
+    transitoria nao confirma). k None/invalido nao confirma - a ausencia se
+    declara, nunca aborta no escuro.
+    """
+    try:
+        n = int(k)
+    except (TypeError, ValueError):
+        return False
+    if n <= 0:
+        return False
+    try:
+        piso = float(piso_mb)
+    except (TypeError, ValueError):
+        return False
+    hist = list(serie_mb or [])[-n:]
+    if len(hist) < n:
+        return False
+    for v in hist:
+        if v is None:
+            return False
+        try:
+            if not (float(v) < piso):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
+def quedas_abaixo_piso(serie, piso_mb=PISO_MEMORIA_LIVRE_MB):
+    """Trechos maximais seguidos abaixo do piso (G153).
+
+    `serie`: [(t_s, livre_mb), ...] com t crescente. None quebra o trecho.
+    Devolve [{"inicio_s","fim_s","duracao_s","n_amostras","minimo_mb"}].
+    Serie vazia ou sem queda -> []. Funcao pura (derivacao da regra no
+    resumo, sem amostrar a maquina).
+    """
+    try:
+        piso = float(piso_mb)
+    except (TypeError, ValueError):
+        return []
+    quedas = []
+    ini = fim = None
+    n = 0
+    minimo = None
+    for t, v in list(serie or []):
+        try:
+            tf = float(t)
+        except (TypeError, ValueError):
+            continue
+        try:
+            vf = None if v is None else float(v)
+        except (TypeError, ValueError):
+            vf = None
+        abaixo = vf is not None and vf < piso
+        if abaixo:
+            if ini is None:
+                ini = fim = tf
+                n = 1
+                minimo = vf
+            else:
+                fim = tf
+                n += 1
+                if vf < minimo:
+                    minimo = vf
+        else:
+            if ini is not None:
+                quedas.append({"inicio_s": round(ini, 1), "fim_s": round(fim, 1),
+                               "duracao_s": round(max(0.0, fim - ini), 1),
+                               "n_amostras": n,
+                               "minimo_mb": round(minimo, 0)})
+                ini = fim = None
+                n = 0
+                minimo = None
+    if ini is not None:
+        quedas.append({"inicio_s": round(ini, 1), "fim_s": round(fim, 1),
+                       "duracao_s": round(max(0.0, fim - ini), 1),
+                       "n_amostras": n, "minimo_mb": round(minimo, 0)})
+    return quedas
+
+
+def carga_maquina_dict(livre_inicial_mb=None, livre_min_mb=None,
+                       n_amostras=None):
+    """Carga da maquina para o resumo (G153, sem fechar nada do usuario).
+
+    stdlib-only: n de CPUs logicas, RAM fisica total (Windows), livre no
+    inicio/minimo da corrida e n de amostras. Falha declara None, nunca
+    inventa numero.
+    """
+    total = None
+    try:
+        if sys.platform == "win32":
+            st = _MEMSTAT()
+            st.dwLength = ctypes.sizeof(_MEMSTAT)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+                total = round(st.ullTotalPhys / (1024.0 * 1024.0), 0)
+    except Exception:
+        total = None
+    try:
+        cpus = os.cpu_count()
+    except Exception:
+        cpus = None
+    def _r(v):
+        try:
+            return round(float(v), 0) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+    return {"cpu_logicos": cpus, "total_phys_mb": total,
+            "livre_inicial_mb": _r(livre_inicial_mb),
+            "livre_min_mb": _r(livre_min_mb),
+            "n_amostras": n_amostras}
 
 
 def testes_por_worker(censo_dir):
@@ -298,7 +433,8 @@ def terminar_arvore(proc, _pares_fn=None, espera_s=20.0):
     return alvos, sobreviventes
 
 
-def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
+def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0,
+         _confirmacao_k=None, _recuperacao_s=30.0):
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", type=int, default=3)
     ap.add_argument("--saida", default=None)
@@ -329,6 +465,15 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
     # o amostrador devolve None e o piso nao dispara (ausencia declarada).
     amostrador = _amostra_fn or memoria_livre_mb
     piso = PISO_MEMORIA_LIVRE_MB if _piso_mb is None else _piso_mb
+    # G153: confirmacao em K amostras seguidas (fonte unica:
+    # CONFIRMACAO_PISO_AMOSTRAS, nunca copia). Teste injeta K pequeno.
+    try:
+        k_conf = (CONFIRMACAO_PISO_AMOSTRAS if _confirmacao_k is None
+                  else int(_confirmacao_k))
+    except (TypeError, ValueError):
+        k_conf = CONFIRMACAO_PISO_AMOSTRAS
+    if k_conf <= 0:
+        k_conf = CONFIRMACAO_PISO_AMOSTRAS
     try:
         intervalo = float(_intervalo_s)
     except (TypeError, ValueError):
@@ -341,6 +486,10 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
         primeira = None
     minimo = {"mb": primeira}
     brecha = {"livre": None}
+    # G153: serie de amostras [(t_s, livre_mb)] para o resumo - a duracao das
+    # quedas se deriva daqui, nunca do minimo sozinho.
+    serie = [(0.0, primeira)]
+    hist = [primeira]
 
     env = ambiente_suite(os.environ, censo_dir, cf.ENV_DIR, args.blas)
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
@@ -355,20 +504,50 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
         proc = subprocess.Popen(cmd, cwd=GALPAO, env=env, stdout=fh,
                                 stderr=subprocess.STDOUT)
         arvore = {"terminados": [], "sobreviventes": []}
+        passo = min(intervalo, 1.0)
         while proc.poll() is None:
-            time.sleep(min(intervalo, 1.0))
+            time.sleep(passo)
+            decorrido = time.perf_counter() - inicio
             try:
                 m = amostrador()
             except Exception:
                 m = None
+            serie.append((round(decorrido, 1), m))
+            hist.append(m)
             if m is not None and (minimo["mb"] is None or m < minimo["mb"]):
                 minimo["mb"] = m
-            if brecha["livre"] is None and veredito_piso_memoria(m, piso) is not None:
+            # G153: so confirma com K seguidas abaixo do piso; transitoria
+            # de 1-2 amostras nao aborta.
+            if (brecha["livre"] is None
+                    and confirma_queda_consecutiva(hist, piso, k_conf)):
                 brecha["livre"] = m
                 break
+        tempo_volta = None
+        serie_volta = []
         if brecha["livre"] is not None:
             terminados, sobreviventes = terminar_arvore(proc)
             arvore = {"terminados": terminados, "sobreviventes": sobreviventes}
+            # G153: tempo ate a memoria voltar (amostrador real ou falso;
+            # sem tocar processo do usuario). None = nao voltou no teto.
+            try:
+                teto_rec = float(_recuperacao_s)
+            except (TypeError, ValueError):
+                teto_rec = 120.0
+            if teto_rec > 0:
+                t0 = time.time()
+                while time.time() - t0 < teto_rec:
+                    time.sleep(0.5)
+                    try:
+                        v = amostrador()
+                    except Exception:
+                        v = None
+                    serie_volta.append((round(time.time() - t0, 1), v))
+                    try:
+                        if v is not None and float(v) >= float(piso):
+                            tempo_volta = round(time.time() - t0, 1)
+                            break
+                    except (TypeError, ValueError):
+                        pass
         else:
             proc.wait()
         rc = proc.returncode if proc.returncode is not None else 1
@@ -395,7 +574,10 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
                        % (sorted(set(git_antes) - set(git_depois)),
                           sorted(set(git_depois) - set(git_antes))))
     if brecha["livre"] is not None:
-        quebras.append(veredito_piso_memoria(brecha["livre"], piso))
+        gap = veredito_piso_memoria(brecha["livre"], piso)
+        if gap is not None:
+            quebras.append("%s (confirmado em %d amostras seguidas < piso, G153)"
+                           % (gap, k_conf))
         if arvore["sobreviventes"]:
             quebras.append("piso de memoria livre (D176): %d descendente(s) do "
                            "filho pytest sobreviveram ao aborto: %s"
@@ -405,6 +587,18 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
     with open(os.path.join(saida, "pytest.txt"), encoding="utf-8") as fh:
         linhas = fh.read().splitlines()
     ultima = linhas[-1] if linhas else ""
+    try:
+        serie_json = [[t, (round(float(v), 0) if v is not None else None)]
+                      for t, v in serie]
+    except Exception:
+        serie_json = []
+    quedas = quedas_abaixo_piso(serie, piso)
+    carga = carga_maquina_dict(primeira, minimo["mb"], len(serie))
+    try:
+        volta_json = [[t, (round(float(v), 0) if v is not None else None)]
+                      for t, v in serie_volta]
+    except Exception:
+        volta_json = []
     resumo = {"rc_pytest": rc, "segundos": round(segundos, 1), "n": args.n,
               "blas": args.blas,
               "arquivos_lista": len(lista), "arquivos_coletados": len(coletados),
@@ -412,6 +606,12 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
               "memoria_livre_min_mb": (round(minimo["mb"], 0)
                                        if minimo["mb"] is not None else None),
               "piso_memoria_livre_mb": piso,
+              "memoria_confirmacao_amostras": k_conf,
+              "memoria_serie_amostras": serie_json,
+              "memoria_quedas_abaixo_piso": quedas,
+              "carga_maquina": carga,
+              "tempo_memoria_volta_s": tempo_volta,
+              "memoria_serie_recuperacao": volta_json,
               "freecad_por_arquivo": cf.arquivos_que_subiram(registros),
               "testes_por_worker": por_worker,
               "descendentes_terminados": arvore["terminados"],
@@ -420,7 +620,9 @@ def main(argv=None, _amostra_fn=None, _piso_mb=None, _intervalo_s=5.0):
     with open(os.path.join(saida, "resumo.json"), "w", encoding="utf-8") as fh:
         json.dump(resumo, fh, ensure_ascii=False, indent=1)
     print(json.dumps({k: v for k, v in resumo.items()
-                      if k not in ("freecad_por_arquivo", "testes_por_worker")},
+                      if k not in ("freecad_por_arquivo", "testes_por_worker",
+                                   "memoria_serie_amostras",
+                                   "memoria_serie_recuperacao")},
                      ensure_ascii=False, indent=1))
     print("saida:", saida)
     return 1 if (rc != 0 or quebras) else 0

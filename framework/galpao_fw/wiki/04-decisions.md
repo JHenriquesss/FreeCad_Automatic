@@ -5055,3 +5055,87 @@ aco D165), pulados sem a variavel (D177); o `test_10` rodou isolado acima.
 **Nao feito.** Parar de emitir a folha reprovada; decidir gate na folha;
 coordenacao com veredito (clash e triagem, nao conta); numero novo no
 carimbo (`drawing_number`/titulo intactos, G151 segue verde).
+
+## D178 - G153: o piso que abortava por uma amostra confirma em 3, com serie e carga no resumo (2026-09-16) - FECHADO
+
+**Pedido.** O piso do runner abortava na primeira amostra abaixo de 200 MB e o
+G142 passou com minimo de 159 MB numa unica amostra (sem serie, sem duracao):
+com o piso de hoje teria sido abortado. Entregar: serie de amostras no resumo;
+duracao das quedas em duas corridas reais com a maquina em uso normal; regra de
+confirmacao decidida so com os numeros, com vermelho por injecao nos dois
+sentidos; tempo ate a memoria voltar com processo ocupado; carga da maquina no
+resumo e ganho de parede do D177 contra o D176 em corrida comparavel. Sem
+fechar aplicativo do usuario, sem mover cobertura.
+
+**Medido (fontes vivas, antes de decidir).**
+- Duas corridas reais pelo runner (`-n 3`, maquina em uso normal, aplicativos
+  do usuario abertos; resumos em
+  `C:/Users/joseh/AppData/Local/Temp/opencode/g153-A/resumo.json` e `.../g153-B/resumo.json`):
+  A = 3948 passed/2 skipped em 1031,6 s, serie de 1032 amostras de 1 s,
+  quedas abaixo de 200 MB = 0, duracao 0 s, minimo 374 MB (livre_inicial 1283 MB);
+  B = 3948 passed/2 skipped em 1061,7 s, 1062 amostras, quedas = 0, duracao 0 s,
+  minimo 419 MB (livre_inicial 1794 MB). Em ~2094 amostras reais, nenhuma queda:
+  a unica queda historica (G142 159 MB) foi de 1 amostra sem duracao.
+- Volta da memoria com processo ocupado (sonda propria, sem fechar nada do
+  usuario): filho python com 400 MB + sleep, terminate da arvore propria -
+  morte em ~0,0 s e livre 827 -> 1215 MB (+388) em 0,5 s. O freecad.exe real
+  (1535-1968 MB, D176) sai pela mesma `terminar_arvore` (D176 provou worker
+  morto < 10 s); em brecha real o runner grava `tempo_memoria_volta_s` e a
+  `memoria_serie_recuperacao` (nas duas corridas: None declarado, sem brecha).
+- Carga como regua (testes intocados do grupo FreeCAD, `--durations=40`):
+  D176 = coluna_tapered 81,6 / tesoura 79,8 / estaca_bloco 53,1 / g19 56,8 s;
+  D177 (carregada, Cursor ~3,3 mil s CPU) = 144,1 / 124,6 / 119,6 / 88,8 s;
+  G153-A = 76,5 / 70,4 / 52,3 / 60,9 s; G153-B = 78,3 / 69,7 / 51,1 / 61,0 s.
+  A/B andam com o D176, nao com o D177: a comparacao de parede vale contra o D176.
+- Ganho de parede do D177 (galpao do G102 fora da suite do goal) em corrida
+  comparavel: D176 1574,4 s -> G153-A 1031,6 s = -542,8 s (-34 %); o `test_01`
+  838,8 s (D176) -> 16,1 s (A). O D177 mediu 1664,6 s so porque a maquina
+  estava carregada (regua acima); o diff em si entrega ~807 s de tempo de teste
+  e o freecad.exe de 1,4-2 GB fora da corrida do goal.
+
+**Decidido so com os numeros.** Aborta so com K = 3 amostras CONSECUTIVAS
+abaixo do piso (~3 s no amostrador de 1 s). Derivacao: 2094 amostras reais com
+0 quedas + 1 queda historica de 1 amostra (G142) = transitoria de 1-2 s nunca
+pode abortar; nada medido dura 3 s+, entao 3 confirma sem nenhum falso-aborto
+observado e sem afrouxar para rajadinha. Amostra None quebra a sequencia.
+
+**Entregue.**
+- `tools/suite_paralela.py`: `CONFIRMACAO_PISO_AMOSTRAS = 3` (fonte unica, motivo
+  com os numeros acima); `confirma_queda_consecutiva` + `quedas_abaixo_piso`
+  puras; `carga_maquina_dict` (cpu_logicos, total_phys_mb, livre_inicial/min,
+  n_amostras); o `main` grava `memoria_serie_amostras`, `memoria_quedas_abaixo_piso`,
+  `memoria_confirmacao_amostras`, `carga_maquina`, `tempo_memoria_volta_s` e
+  `memoria_serie_recuperacao`, e so aborta com 3 seguidas (quebra diz
+  "confirmado em 3 amostras seguidas < piso, G153").
+- `tests/censo_freecad.py`: `ler_coletados`/`ler_registros` declaram ausencia
+  em arquivo vazio/linha ruim (vermelho do G153: no aborto o worker morre no
+  meio da escrita e o `json.load('')` matava o proprio resumo com
+  JSONDecodeError).
+- `tests/test_piso_memoria_g153.py` (6): K derivado e lido pela producao;
+  puras nos dois sentidos + quedas com duracao/minimo; transitoria nao aborta e
+  sustentada aborta pelo `main` (usuario vivo nos dois); aborto com teste lento
+  mata a arvore < 10 s e nomeia o worker (conv. 14); serie/carga/volta
+  declaradas; censo com coletados vazio nao levanta.
+- `tests/test_piso_memoria_g148.py::test_04`: baseline recomposta com motivo
+  (sequencia 50/40/30 confirma na 3a: minimo 30, quebra "confirmado em 3").
+
+**Baselines mudadas com motivo.** `test_04` do G148 (acima). `GRUPO_FREECAD`
+intocado; piso 200 MB intocado; nenhum teto mexido.
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+lote (g77, alcancabilidade, guardas, disciplina, indice_g91, carimbo,
+normas, galpao_indice, fallback, g148, g153): 159 passed em 105,5 s; D164 +
+auditorias g137-g142/g143-g148: 13 passed em 43,3 s.
+
+**Suite inteira (lida inteira).** Corrida A pelo runner: rc_pytest 0,
+3948 passed, 2 skipped em 1031,6 s, 317/317 arquivos, minimo 374 MB,
+quedas [], `tempo_memoria_volta_s` None (declarado, sem brecha),
+descendentes [] / [], `quebras` []. Corrida B: mesmos 3948/2 em 1061,7 s com
+1 quebra flaky de censo (`test_ifc_secundarios_xcheck` no grupo e sem avistamento
+na B, avistado na A com 78,18 s de teste) - amostrador de 0,5 s perdeu o processo
+curto, isencao viva, nao morta. Fechamento pela A (rc 0 e quebras vazio); o fix
+do censo e o comentario de derivacao entraram depois sem mudar comportamento do
+caminho verde (lote re-rodado verde acima).
+
+**Nao feito.** Baixar o piso; mover cobertura para a auditoria; fechar
+aplicativo do usuario para medir; trocar K sem numero novo.
