@@ -30,6 +30,18 @@ def _distribuida(config):
         and not hasattr(config, "workerinput")
 
 
+def _worker_xdist(config):
+    """D179: so um worker de verdade (config.workerinput) escreve no censo.
+    Um pytest aninhado (test_G21 roda pytest em subprocesso) herda
+    GALPAO_CENSO_FREECAD e PYTEST_XDIST_WORKER do worker externo e, sem este
+    filtro, ligava um amostrador proprio e sobrescrevia coletados-gwN.json
+    da corrida de fora (medido nas corridas A/B do G153). `-n 0` explicito
+    (runner sem workers) continua escrevendo como 'master'; o pytest aninhado
+    nao passa `-n` (numprocesses None) e fica de fora."""
+    return (hasattr(config, "workerinput")
+            or getattr(config.option, "numprocesses", None) == 0)
+
+
 def pytest_configure(config):
     """D164: sob xdist, o censo do FreeCAD liga sozinho (o controlador cria a
     pasta antes de subir os workers, que herdam o ambiente)."""
@@ -39,7 +51,7 @@ def pytest_configure(config):
 
         os.environ[_CF.ENV_DIR] = tempfile.mkdtemp(prefix="censo_freecad_")
     pasta = os.environ.get(_CF.ENV_DIR)
-    if pasta and not _distribuida(config):
+    if pasta and _worker_xdist(config):
         worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
         _AMOSTRADOR = _CF.Amostrador(
             os.path.join(pasta, "freecad-%s.jsonl" % worker), worker)
@@ -56,7 +68,7 @@ def pytest_collection_modifyitems(config, items):
         if arq in _CF.GRUPO_FREECAD:
             item.add_marker(pytest.mark.xdist_group(name=_CF.NOME_GRUPO))
     pasta = os.environ.get(_CF.ENV_DIR)
-    if pasta:
+    if pasta and _worker_xdist(config):
         import json
 
         worker = os.environ.get("PYTEST_XDIST_WORKER", "master")

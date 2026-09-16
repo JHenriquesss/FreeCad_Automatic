@@ -227,6 +227,10 @@ def test_04_aborto_sustentado_mata_a_arvore_com_teste_lento(tmp_path):
 
     marcador = tmp_path / "pid_worker.txt"
     lento = tmp_path / "test_lento_g153.py"
+    # D179: sem ini ao lado, a raiz do pytest aninhado vira C:\Users\<user> e a
+    # coleta varre o Temp inteiro (pasta de outro app apagada no meio = erro;
+    # a serial da auditoria D179 falhou assim).
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     lento.write_text(
         "import os, time\n\n"
         "def test_lento():\n"

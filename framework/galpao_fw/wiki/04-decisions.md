@@ -5139,3 +5139,132 @@ caminho verde (lote re-rodado verde acima).
 
 **Nao feito.** Baixar o piso; mover cobertura para a auditoria; fechar
 aplicativo do usuario para medir; trocar K sem numero novo.
+
+## D179 - auditoria do lote G149-G153: o FS "normativo" que a norma nao diz, o PID reusado e o censo herdado (2026-09-16) - FECHADO
+
+**Pedido.** "goals encerrados, sua vez agora": auditar por medicao o lote
+G149-G153 (`86b981c`..`0083568`), corrigir, rodar a suite inteira (runner,
+serial, portoes de auditoria) e ler o resumo, commitar e escrever o proximo
+backlog.
+
+**Medido (fontes vivas, antes de mudar).**
+- **G149 - o FS 3,0 carimbado como "default normativo NBR 6122".** O G149
+  passou a escrever essa origem no resultado (`FS_origem`), no memorial do
+  metalico e do predio e na folha de fundacao do predio. O acervo diz outra
+  coisa: NBR 6122:2022 **p.18 (imagem do PDF, F038)**, 6.2.1.2.1 - "O fator de
+  seguranca global a ser utilizado para determinacao da carga admissivel e
+  **2,0**" (semiempirico); 6.2.1.2.2 - **1,6** com prova de carga estatica. O
+  **3,00** e da Tabela 1 (fundacao **rasa**, 6.2.1.1.1). O 3,0 veio do D38
+  (parecer de 2026-07-11, "sem citar o PDF 6122 escaneado"; antes era 2,0). O
+  G149 so repetiu o que o **backlog G149-G153 afirmava** ("valor normativo
+  (NBR 6122, no acervo)", escrito na auditoria D176 sem ler a pagina) - o erro
+  de origem e da auditoria anterior, nao do goal. A lente do teste novo achou
+  mais dois textos com a mesma atribuicao: a pergunta do wizard
+  (`wizard.py:222`) e o memorial do nucleo (`estaca_profunda.py:662`).
+- **G149 - fck do bloco "herdado do material do projeto".** `projeto_spec.novo()`
+  (`:125`) escreve `fundacao.fck = 25e3` em todo spec e o wizard nunca pergunta:
+  a origem "material do projeto" pode ser o valor do modelo. O G149 mediu que
+  fck 25->15 vira a biela (OK->REPROVA). `fundacao_sapata_corrida.py:173` ainda
+  cala `.get("fck", 25e3)`. Vai para o G154.
+- **G153 - a quebra "flaky" do censo nao era processo curto.** O freecadcmd do
+  `test_ifc_secundarios_xcheck` vive **~40 s** (sonda a 50 ms: de 10,8 a 51,0
+  s) - um amostrador de 0,5 s nao o perde. Duas causas medidas nos arquivos do
+  censo das corridas A/B e por injecao:
+  1. `Amostrador.amostra` descartava por **PID ja visto**; o Windows reusa PID
+     (3612 e 5796 aparecem em testes diferentes nas duas corridas). Injecao:
+     freecad do segundo teste com PID reusado -> sem registro -> "isencao morta"
+     falsa (a mesma quebra da corrida B).
+  2. O pytest aninhado do `test_G21_prova_fronteiras` (subprocesso sem `-n`)
+     herdava `GALPAO_CENSO_FREECAD` e `PYTEST_XDIST_WORKER`, ligava um
+     amostrador proprio e **sobrescrevia `coletados-gw1/gw2.json`** da corrida de
+     fora com `["tests/test_fronteiras.py"]` (A e B).
+  O D178 fechou pela corrida A e **mudou codigo depois** (fix do censo) sem
+  rodar de novo; esta auditoria rodou.
+- **G152 - veredito DESCONHECIDO sai "PARA APROVACAO".** Medido: os seis
+  `config_de_spec` das disciplinas recebem o resultado `r`; o aco le o carimbo
+  do `calcular`, e os quatro chamadores de `rodar_executivo` (`rodar_tudo`,
+  `build_final`, `smoke_executivo`, turnkey) calculam antes. Nao alcancavel em
+  rodada real hoje: sem defeito.
+- **G151 - a lente dos titulos.** 29 chamadas `_carimbo*` com titulo nao
+  literal: todas repasse de wrapper (`titulo`) ou a constante da MZ01 (coberta).
+  Nenhum titulo montado por conta escapa: sem defeito.
+- **G150.** Nao re-triado nesta auditoria (64+3 mortos): a lente e o teste
+  mortos-produzem do goal seguem verdes na regra do lote. Nao medido aqui.
+- **Processo.** Os verbetes G149-G152 fecharam sem numero D (so o G153 virou
+  D178) e nenhum dos cinco escreveu no `03-phases` (escrito aqui). Vai para o
+  G157 como guarda.
+
+**Corrigido.**
+- Atribuicao do FS (numero e trava **intocados**, decisao do usuario):
+  `estaca_parametros_g143.ORIGEM_FS_ADOTADO = "fs_adotado_D38"` (era
+  `default_normativo_NBR6122`) + `NOTA_FS_NBR6122`; `_fmt_origem` diz "adotado no
+  framework (D38); NBR 6122:2022 6.2.1.2.1 fixa 2,0 no semiempirico (1,6 com
+  prova de carga, 6.2.1.2.2) - confirmar com o responsavel". Mesma correcao em
+  `estaca_profunda` (comentarios, fallback do memorial, texto A CONFIRMAR),
+  `fundacao_edificio` (origem + comentario), `projeto_spec.validar` (mensagem
+  do bloqueio e do aviso com prova: "regra adotada no D38"), `wizard.py` (aviso e
+  pergunta do FS) e o comentario do `test_fase3`.
+- Texto do material herdado: "fundacao.fck/fyk do spec (o wizard nao pergunta:
+  pode ser o valor do modelo PS.novo) - confirmar".
+- `tests/censo_freecad.Amostrador.amostra`: PID que sai da arvore deixa de
+  contar como visto (reuso volta a ser avistamento).
+- `tests/conftest.py`: `_worker_xdist(config)` - so worker de verdade
+  (`workerinput`) ou `-n 0` explicito liga o amostrador e escreve `coletados`;
+  o pytest aninhado fica de fora.
+- Novo `tests/test_auditoria_g149_g153_d179.py` (6, o `test_05` descrito nas
+  suites abaixo): PID reusado volta a ser
+  avistado e nao gera isencao morta; pytest aninhado nao escreve no censo de
+  fora e `-n 0` segue escrevendo; nenhum texto de producao atribui 3,0 a NBR
+  6122 sem o item (AST), a linha do FS cita 6.2.1.2.1 e 2,0, `FS_GLOBAL` segue
+  3,0 e a mensagem do `validar` tem a atribuicao corrigida, com o trecho do
+  acervo conferido quando presente; acervo presente ou pulo declarado; texto do
+  fck diz "pode ser o valor do modelo". **Vermelho provado no `0083568`
+  (worktree, os 5 primeiros): 4 failed, 1 skipped** (sem o acervo na copia);
+  o `test_05` acusa os dois arquivos do `0083568`.
+- `tests/test_estaca_g149.py`: 4 literais da origem acompanham o nome novo.
+
+**Baselines mudadas com motivo.** Valor da origem do FS
+(`default_normativo_NBR6122` -> `fs_adotado_D38`), pelo motivo acima. Nenhum
+numero, teto, piso ou gate.
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+auditoria + estaca G143/G149 + fase3 + validacao/coerencia + crashes + g9 +
+wizard: 157 passed em 106,9 s; regra do lote (15 + G149-G153 + D179 + G102):
+**204 passed, 1 skipped** (o `test_10`) em 188,2 s.
+
+**Suites da auditoria (lidas inteiras).**
+- Runner `-n 3`: `rc_pytest` 0, **3954 passed, 2 skipped em 896,4 s** (15 min),
+  318/318, memoria livre minima 614 MB, quedas [], descendentes [] / [],
+  `quebras` []. Os tres `coletados-gwN.json` com a lista inteira (12 356 bytes
+  cada; nas corridas do G153 gw1/gw2 tinham 28 bytes). +6 sobre os 3948 do
+  G153-A: 5 deste verbete + o `test_06` do G153, que entrou depois da corrida A.
+- Serial `pytest tests`: **1 failed, 3953 passed, 2 skipped em 3034,4 s**. A
+  falha: `test_piso_memoria_g153::test_04` - o runner aninhado saiu com rc 1 e
+  quebras [] porque a coleta deu `FileNotFoundError` em
+  `Temp\playwright_chromiumdev_profile-...` (pasta de outro aplicativo apagada
+  no meio). Medido: o arquivo lento mora no `tmp_path` sem ini e a raiz do
+  pytest aninhado vira `C:\Users\joseh` (coleta 1,67 s varrendo o Temp); com um
+  `pytest.ini` ao lado a raiz e o proprio tmp (0,01 s). Mesmo desenho no
+  `test_04` do D176 (escrito na auditoria anterior). **Corrigido:** os dois
+  poem `pytest.ini` ao lado; `test_05` novo (guarda: todo teste que gera
+  arquivo para o runner aninhado poe o ini; acusa os dois arquivos como estavam
+  no `0083568`; injecao nos dois sentidos). Os dois testes + vizinhos: 20
+  passed; o arquivo da auditoria: 6 passed.
+- Portao do aco (`GALPAO_AUDITORIA=1`, D165): **2 passed em 1780,7 s**
+  (`CUSTO_D165 executivo_aco_completo=1779.6s`).
+- Portao do galpao (`test_10`, D177): **1 passed em 884,4 s**;
+  `CUSTO_G102 galpao=884.0s` (teto 1800), `MEM_G102
+  galpao=1864.1MB(proc=171.0,fc=1761.8,n=1)` (teto 2500).
+- Runner de novo no codigo final (convencao 16: a correcao dos testes veio
+  depois): `rc_pytest` 0, **3955 passed, 2 skipped em 1777,4 s**, 318/318,
+  memoria livre minima 252 MB, quedas [], descendentes [] / [], `quebras` []
+  (+1 = o `test_05`). Mais lenta que a primeira (896 s) por carga da maquina,
+  nao do diff: a regua dos testes intocados do FreeCAD subiu junto
+  (coluna_tapered 136,7 s, tesoura 120,0, estaca_bloco 78,5, g19 101,3).
+
+**Decisao do usuario (backlog G154-G157).** FS da estaca: (a) manter 3,0 como
+adotado e declarado; (b) alinhar a 2,0 / 1,6 com prova (vira goal, muda
+capacidade, n e veredito).
+
+**Nao feito.** Trocar o FS ou a trava; mudar o fck do modelo; numerar os
+verbetes G149-G152 (G157).

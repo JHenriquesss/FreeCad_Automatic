@@ -271,23 +271,28 @@ def validar(spec):
                 v = _get(spec, path)
                 if v in (KeyError, None, PENDENTE, [], "") or v == PENDENTE:
                     faltando.append((path, desc))
-            # Fator de seguranca global (NBR 6122): metodo semi-empirico SEM prova
-            # de carga estatica -> FS >= 3,0. FS < 3,0 (ate 2,0) so e admitido COM
-            # prova de carga na obra (fundacao.estaca.prova_de_carga = True). Sem a
-            # flag, FS<3,0 BLOQUEIA (evita relatorio contra a norma).
+            # Fator de seguranca global: regra ADOTADA no D38 (parecer de
+            # 2026-07-11) - FS<3,0 so com prova de carga na obra
+            # (fundacao.estaca.prova_de_carga = True); sem a flag, BLOQUEIA.
+            # D179: o acervo (NBR 6122:2022 6.2.1.2.1) fixa 2,0 no semiempirico
+            # e 1,6 com prova (6.2.1.2.2) - a regra e do framework, nao da
+            # norma; mudar o numero e decisao do responsavel.
             fs_est = _get(spec, "fundacao.estaca.FS")
             prova = _get(spec, "fundacao.estaca.prova_de_carga")
             if isinstance(fs_est, (int, float)) and fs_est < 3.0:
                 if prova is not True:
                     faltando.append(
                         ("fundacao.estaca.FS",
-                         "FS=%.2f < 3,0 exige prova de carga estatica (NBR 6122): "
+                         "FS=%.2f < 3,0 exige prova de carga estatica (regra adotada no "
+                         "D38; a NBR 6122:2022 6.2.1.2.1 fixa 2,0 no "
+                         "semiempirico): "
                          "marque fundacao.estaca.prova_de_carga=True ou use FS>=3,0" % fs_est))
                 else:
                     # excecao normativa ATIVA: fica na memoria de calculo (auditoria).
                     avisos.append(
                         ("fundacao.estaca.FS",
-                         "FS=%.2f < 3,0 liberado por PROVA DE CARGA estatica (NBR 6122). "
+                         "FS=%.2f < 3,0 liberado por PROVA DE CARGA estatica (regra D38; "
+                         "NBR 6122:2022 6.2.1.2.2 fixa 1,6 com prova). "
                          "Validade do dimensionamento condicionada a execucao das provas "
                          "na obra - responsabilidade do engenheiro." % fs_est))
             # tipo de solo da sondagem: o motor (Aoki-Velloso) so aceita a lista

@@ -57,11 +57,16 @@ SIGMA_SOLO_DEFAULT = 200.0
 ORIGEM_DECLARADO = "declarado_no_spec"
 ORIGEM_DEFAULT = "default"
 ORIGEM_NAO_SE_APLICA = "nao_se_aplica"
-# G149: o FS global defaultado nao e um numero qualquer — e o piso normativo
-# da NBR 6122 (metodo semi-empirico SEM prova de carga estatica). Origem
-# propria para nao confundir com default de modelo (cota/B_max) nem com
-# valor declarado. O NUMERO nao muda (3,0); so a origem e dita.
-ORIGEM_DEFAULT_NORMATIVO = "default_normativo_NBR6122"
+# G149/D179: o FS global defaultado (3,0) e o valor ADOTADO no framework pelo
+# parecer do D38 (2026-07-11, adotado sem ler o PDF da 6122). Medido no
+# D179 contra o acervo (fontes/03_FUNDACOES_GEOTECNIA, NBR 6122:2022 p.18):
+# 6.2.1.2.1 fixa FS global 2,0 para estaca por metodo semiempirico e
+# 6.2.1.2.2 fixa 1,6 com prova de carga estatica; o 3,00 e da Tabela 1
+# (fundacao RASA). A origem NAO pode se dizer normativa. O NUMERO nao muda
+# aqui (decisao do responsavel, nunca arbitrada no codigo).
+ORIGEM_FS_ADOTADO = "fs_adotado_D38"
+NOTA_FS_NBR6122 = ("NBR 6122:2022 6.2.1.2.1 fixa 2,0 no semiempirico "
+                   "(1,6 com prova de carga, 6.2.1.2.2)")
 # G149: fck/fyk do bloco de coroamento herdados do material declarado do
 # projeto (spec fundacao.fck/fyk, via params), nunca arbitrados aqui.
 ORIGEM_MATERIAL_PROJETO = "material_do_projeto"
@@ -243,10 +248,12 @@ def _fmt_origem(origem):
             "default": "default (confirmar com sondagem/projeto)",
             "nao_se_aplica": "nao se aplica",
             "derivada_sondagem": "derivada da sondagem SPT",
-            "default_normativo_NBR6122":
-                "default normativo NBR 6122 (semi-empirico sem prova "
-                "de carga; 2,0 so com prova)",
-            "material_do_projeto": "material do projeto (fundacao.fck/fyk)"}.get(
+            "fs_adotado_D38":
+                "adotado no framework (D38); " + NOTA_FS_NBR6122 +
+                " - confirmar com o responsavel",
+            "material_do_projeto":
+                "fundacao.fck/fyk do spec (o wizard nao pergunta: pode ser "
+                "o valor do modelo PS.novo) - confirmar"}.get(
                 origem, str(origem))
 
 
@@ -290,9 +297,10 @@ def _fmt_origem(origem):
 #   (declaracao, nao default). Motivo: o material do projeto ja esta declarado
 #   no spec (fundacao.fck/fyk); repetir o numero com a origem e declarar, nao
 #   arbitrar. Sem material de onde herdar: recusa (nunca inventar).
-# - FS ausente: MANTEM 3,0 com a origem dita (default normativo NBR 6122) no
-#   resultado e no memorial; nunca outro numero. Motivo: valor normativo no
-#   acervo (F-catalogo); trocar seria arbitrar norma. FS invalido recusa.
+# - FS ausente: MANTEM 3,0 com a origem dita (adotado no D38) no resultado e
+#   no memorial; nunca outro numero. D179: o acervo NAO diz 3,0 para estaca
+#   (NBR 6122:2022 6.2.1.2.1 = 2,0); o numero e decisao do responsavel.
+#   FS invalido recusa.
 # - L do predio ausente: segue o aviso existente (nao se recusa caminho que
 #   ja declara).
 # ============================================================================
@@ -335,14 +343,16 @@ def _resolver_tipo(tipo):
 
 
 def _resolver_fs(fs):
-    """FS global: ausente -> (3,0 normativo, origem dita); nunca outro numero.
+    """FS global: ausente -> (3,0 adotado no D38, origem dita); nunca outro
+    numero.
 
-    O numero e o FS_GLOBAL do nucleo (NBR 6122). Nao valida faixa contra
+    O numero e o FS_GLOBAL do nucleo (adotado; ver NOTA_FS_NBR6122). Nao
+    valida faixa contra
     prova de carga aqui: a flag mora no spec e o gate projeto_spec.validar()
     barra FS<3,0 sem prova; o nucleo so registra a origem.
     """
     if fs is None:
-        return _fs_global_g149(), ORIGEM_DEFAULT_NORMATIVO
+        return _fs_global_g149(), ORIGEM_FS_ADOTADO
     if not _e_numero(fs) or not fs > 0:
         raise ValueError(
             "fs_invalida: FS deve ser numero > 0 (recebido %r)" % (fs,))
@@ -352,7 +362,7 @@ def _resolver_fs(fs):
 def resolver_tipo_fs_nucleo(cfg):
     """Tipo e FS para estaca_profunda.verifica_estaca (G149, fonte unica).
 
-    Tipo ausente/invalido -> recusa nomeada. FS ausente -> 3,0 normativo com
+    Tipo ausente/invalido -> recusa nomeada. FS ausente -> 3,0 adotado com
     a origem dita (o numero nao muda). D/L continuam leitura direta do cfg
     (KeyError sem eles) — fora do escopo medido do nucleo.
     """
@@ -471,7 +481,8 @@ def resolver_estaca_predio(estaca_cfg):
 def linha_fs_g149(fs, origem):
     """Linha do memorial com a origem do FS global (vem desta fonte so).
 
-    O numero nao muda: ausente na entrada -> 3,0 normativo NBR 6122.
+    O numero nao muda: ausente na entrada -> 3,0 adotado no D38 (a linha
+    cita a NBR 6122:2022 6.2.1.2.1, que fixa 2,0).
     """
     return ("FS global = %.1f (%s)"
             % (float(fs), _fmt_origem(origem)))
@@ -635,7 +646,7 @@ def _selftest():
     assert "declarado no spec" in (linha_folha(p_est) or "")
     # G149: nucleo — tipo recusa, FS ausente vira 3,0 normativo com origem
     tfs = resolver_tipo_fs_nucleo({"tipo_estaca": "pre_moldada"})
-    assert tfs["FS"] == 3.0 and tfs["FS_origem"] == ORIGEM_DEFAULT_NORMATIVO
+    assert tfs["FS"] == 3.0 and tfs["FS_origem"] == ORIGEM_FS_ADOTADO
     tfs2 = resolver_tipo_fs_nucleo({"tipo_estaca": "escavada", "FS": 2.0})
     assert tfs2["FS"] == 2.0 and tfs2["FS_origem"] == ORIGEM_DECLARADO
     for bad, marca in [({}, "tipo_estaca_nao_declarada"),
@@ -652,7 +663,7 @@ def _selftest():
     m = resolver_estaca_metalica(
         {"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
          "bloco": {"a_pilar": 0.30}}, mat)
-    assert m["FS"] == 3.0 and m["FS_origem"] == ORIGEM_DEFAULT_NORMATIVO
+    assert m["FS"] == 3.0 and m["FS_origem"] == ORIGEM_FS_ADOTADO
     assert m["bloco"]["fck"] == 25e3
     assert m["bloco"]["origens"]["fck"] == ORIGEM_MATERIAL_PROJETO
     for bad, marca in [
@@ -690,7 +701,7 @@ def _selftest():
             raise AssertionError("devia recusar: %s" % marca)
         except ValueError as exc:
             assert marca in str(exc), (marca, exc)
-    assert "NBR 6122" in linha_fs_g149(3.0, ORIGEM_DEFAULT_NORMATIVO)
+    assert "NBR 6122" in linha_fs_g149(3.0, ORIGEM_FS_ADOTADO)
     assert "declarado no spec" in linha_fs_g149(2.0, ORIGEM_DECLARADO)
     assert "material do projeto" in linha_bloco_g149(m["bloco"])
     print("estaca_parametros_g143 self-test PASSED")

@@ -110,7 +110,8 @@ def _avisos_coerencia(r):
                   "sem travar a mesa interna, elas nao reduzem o Lb." % nmf)
     if r.get("fund_tipo") == "estaca" and r.get("est_FS", 3.0) < 3.0 \
             and not r.get("prova_de_carga"):
-        av.append("FS<3,0 na estaca exige prova de carga (NBR 6122) - sera bloqueado.")
+        av.append("FS<3,0 na estaca exige prova de carga (regra adotada no D38; a "
+                  "NBR 6122:2022 6.2.1.2.1 fixa 2,0) - sera bloqueado.")
     return av
 
 
@@ -218,7 +219,7 @@ PERGUNTAS_ESTACA = [
     ("est_tipo", "Tipo de estaca (pre_moldada/metalica/escavada/helice)", str, "pre_moldada", False),
     ("est_D", "Diametro da estaca (m)", _f, 0.30, False),
     ("est_L", "Comprimento da estaca (m)", _f, 10.0, False),
-    ("est_FS", "Fator de seguranca global (NBR 6122; >=3,0 sem prova de carga)", _f, 3.0, False),
+    ("est_FS", "Fator de seguranca global (3,0 adotado no D38; NBR 6122:2022 6.2.1.2.1 fixa 2,0; <3,0 exige prova de carga)", _f, 3.0, False),
     ("est_a_pilar", "Lado do pilar no bloco de coroamento (m)", _f, 0.30, False),
     ("spt_tipo", "Solo predominante da sondagem (ex areia_siltosa)", str, None, True),
     ("spt_N", "N-SPT medio ao longo do fuste", _f, None, True),

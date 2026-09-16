@@ -98,9 +98,9 @@ def test_01_nucleo_tipo_recusa_fs_declara_origem():
                 gaps.append("ausente sem o nome %s: %r" % (marca, exc))
     # FS ausente -> 3,0 com a origem dita (o numero nao muda)
     r = ep.verifica_estaca(_cfg_nucleo())
-    if r["FS"] != 3.0 or r["FS_origem"] != "default_normativo_NBR6122":
+    if r["FS"] != 3.0 or r["FS_origem"] != "fs_adotado_D38":
         gaps.append("FS ausente sem origem normativa: %r" % (r,))
-    if r["capacidade"]["FS_origem"] != "default_normativo_NBR6122":
+    if r["capacidade"]["FS_origem"] != "fs_adotado_D38":
         gaps.append("capacidade sem FS_origem: %r" % (r["capacidade"],))
     # FS declarado -> o numero do cfg, origem declarada
     r2 = ep.verifica_estaca(_cfg_nucleo(FS=2.0))
@@ -239,7 +239,7 @@ def test_03_metalico_spec_recusa_um_por_um_ausente_e_zero():
     del s["fundacao"]["estaca"]["bloco"]["fyk"]
     p2 = PS.to_rodar_params(s)
     if p2["estaca"]["FS"] != 3.0 \
-            or p2["estaca"]["FS_origem"] != "default_normativo_NBR6122":
+            or p2["estaca"]["FS_origem"] != "fs_adotado_D38":
         gaps.append("FS ausente sem origem normativa: %r" % (p2["estaca"],))
     if p2["estaca"]["bloco"]["fck"] != 25e3 \
             or p2["estaca"]["bloco_origens"]["fck"] != "material_do_projeto":
@@ -383,7 +383,7 @@ def test_06_predio_isolado_recusa_d_tipo_e_mede():
         gaps.append("D sem origem: %r" % (par,))
     if par["parametros"]["FS"]["valor"] != 3.0 \
             or par["parametros"]["FS"]["origem"] != \
-            "default_normativo_NBR6122":
+            "fs_adotado_D38":
         gaps.append("FS sem origem normativa: %r" % (par,))
     # memorial declara D/L/tipo/FS
     rel = fe.relatorio_pt(fe.dimensiona(_spec_predio(), ctx))

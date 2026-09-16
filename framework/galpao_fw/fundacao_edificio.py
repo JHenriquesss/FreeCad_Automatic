@@ -492,7 +492,7 @@ def _parametros_estaca_g149(spec_fundacao, resolvido):
                "tipo_estaca": {"valor": resolvido["tipo_estaca"],
                                "origem": ORIGEM_DECLARADO},
                "FS": {"valor": float(_ep.FS_GLOBAL),
-                      "origem": "default_normativo_NBR6122"}}}
+                      "origem": "fs_adotado_D38"}}}
     from estaca_parametros_g143 import linha_folha_g149 as _lin_g149
     return par, _lin_g149(par)
 
@@ -1047,7 +1047,8 @@ def relatorio_pt(resultado):
                       % (resultado["sigma_solo_adm"],
                          resultado["proveniencia_sigma"]))
     # G149: D_m/L_m/tipo/FS da estaca com a origem dita (fonte unica; o
-    # numero do FS nao muda — 3,0 normativo NBR 6122).
+    # numero do FS nao muda — 3,0 adotado no D38; D179: a NBR 6122:2022
+    # 6.2.1.2.1 fixa 2,0, a linha do memorial cita).
     _par149 = resultado.get("estaca_parametros")
     if resultado.get("tipo") == "estaca" and isinstance(_par149, dict):
         from estaca_parametros_g143 import (
@@ -1066,7 +1067,7 @@ def relatorio_pt(resultado):
                          _fmt_g149(_t.get("origem"))))
         linhas.append("  " + _lin_fs_g149(_f.get("valor", 3.0),
                                           _f.get("origem",
-                                                 "default_normativo_NBR6122")))
+                                                 "fs_adotado_D38")))
     linhas.append("  N maximo de dimensionamento: %.1f kN" % gate["N_max_kN"])
     linhas.append("")
     linhas.append("  %-6s %-12s %10s | %s" % ("pilar", "posicao", "N_dim(kN)",

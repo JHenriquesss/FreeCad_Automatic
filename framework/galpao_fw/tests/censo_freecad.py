@@ -151,11 +151,15 @@ class Amostrador(threading.Thread):
 
     def amostra(self):
         try:
-            novos = [(pid, exe) for pid, exe
-                     in freecad_descendentes(self._raiz, exes=self.exes)
-                     if pid not in self._vistos]
+            atuais = freecad_descendentes(self._raiz, exes=self.exes)
         except Exception:                                   # noqa: BLE001
             return
+        # D179: o Windows reusa PID. Chave so por PID fazia o freecad de um
+        # teste posterior com PID ja visto neste worker sumir do registro -
+        # "isencao morta" falsa (quebra da corrida B do G153). PID que saiu da
+        # arvore deixa de contar como visto; reuso volta a ser avistamento.
+        self._vistos &= {pid for pid, _exe in atuais}
+        novos = [(pid, exe) for pid, exe in atuais if pid not in self._vistos]
         if not novos:
             return
         with open(self.destino, "a", encoding="utf-8") as fh:

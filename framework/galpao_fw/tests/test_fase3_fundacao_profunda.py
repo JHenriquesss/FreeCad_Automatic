@@ -101,7 +101,8 @@ def test_tipo_invalido_bloqueia():
 
 
 def test_fs_menor_que_3_sem_prova_bloqueia():
-    # NBR 6122: semi-empirico s/ prova de carga -> FS >= 3,0
+    # regra ADOTADA no D38 (FS >= 3,0 sem prova de carga); D179: a NBR 6122:2022
+    # 6.2.1.2.1 fixa 2,0 no semiempirico - o numero e decisao do responsavel
     s = _spec_base("estaca")
     s["fundacao"]["estaca"]["FS"] = 2.0
     r = PS.validar(s)

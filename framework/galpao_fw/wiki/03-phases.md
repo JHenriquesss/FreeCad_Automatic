@@ -852,6 +852,28 @@ auditoria (`test_10`, `GALPAO_AUDITORIA=1`, 771,7 s verde); casa e prédio segue
 `test_01` (31,8 s). Suíte 3917 passed/2 skipped, quebras vazio. O ganho de parede não se
 demonstrou (máquina carregada, builds do FreeCAD 1,4–2,3× mais lentos); o G153 mede.
 
+### G149–G153 — a estaca calada nas outras portas, o `.get(…, 0)`, o carimbo cortado, a folha reprovada e o piso
+Os verbetes do G149 ao G152 estão em `04-decisions` com cabeçalho `## G1xx`, sem número D
+(o G157 numera); estas linhas foram escritas na auditoria, os goals não escreveram aqui.
+- **G149** D/L/tipo/bloco da estaca recusam nomeados no metálico, wizard e prédio; fck/fyk do
+  bloco herdam o material do spec; FS com a origem dita.
+- **G150** os 64 `.get(chave, 0/1)` dos emissores + 3 do adaptador do mezanino triados:
+  todos mortos, lente estendida.
+- **G151** 13 títulos de carimbo encurtados sem corte, 10 abreviações declaradas, MZ01
+  numerada 01/03–03/03.
+- **G152** a folha de disciplina reprovada declara o veredito (carimbo REPROVADO - VER
+  MEMORIAL e linha com os gates), lida de `veredito_folha_g152`; ATENDE byte-idêntica.
+- **G153** o piso de memória só aborta com 3 amostras seguidas; série e carga no resumo;
+  ganho de parede do D177 medido: 1574 → 1032 s (−34 %) ([[04-decisions#D178]]).
+
+**Auditoria ([[04-decisions#D179]]).** O G149 carimbava o FS 3,0 da estaca como "default
+normativo NBR 6122"; a NBR 6122:2022 (p.18, 6.2.1.2.1) diz 2,0 — a afirmação veio do backlog
+anterior. Corrigida a atribuição (número e trava ficam, decisão do usuário). O censo do
+FreeCAD descartava por PID reusado e o pytest aninhado sobrescrevia o censo de fora; a serial
+caiu num teste de runner aninhado que varria o Temp sem `pytest.ini`. Suíte: runner 3955
+passed/2 skipped, quebras vazio; serial 3953/1 failed (corrigido e re-rodado pelo runner);
+portões do aço (2 passed) e do galpão (884 s) verdes.
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

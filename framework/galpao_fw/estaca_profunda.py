@@ -3,7 +3,8 @@
 # Fundacao PROFUNDA: capacidade de carga da ESTACA pelo metodo semi-empirico de
 # AOKI-VELLOSO (1975) a partir do SPT, e o BLOCO DE COROAMENTO em concreto armado.
 #   - capacidade_aoki_velloso: R_ult = R_ponta + R_lateral ; P_adm = R_ult/FS
-#     (NBR 6122, FS>=3,0 semi-empirico SEM prova de carga; 2,0 so COM prova).
+#     (FS 3,0 ADOTADO no D38; a NBR 6122:2022 6.2.1.2.1 fixa 2,0 no
+#     semiempirico e 6.2.1.2.2 fixa 1,6 com prova de carga - D179).
 #       R_ponta   = (K*N_p/F1) * A_ponta
 #       R_lateral = sum_camadas (alpha*K*N_l/F2) * U * dL
 #     K, alpha (Tab.12.6) e F1, F2 (Tab.12.7) LIDOS do PDF (Veloso & Lopes 2012 /
@@ -62,9 +63,12 @@ _F1_F2 = {
 }
 
 N_LIMITE = 50.0        # valor limite de N adotado no metodo (Veloso & Lopes p.279)
-# NBR 6122 - fator de seguranca global: metodo semi-empirico (SPT) SEM prova de
-# carga estatica -> FS >= 3,0. FS = 2,0 so e admitido COM prova de carga na obra.
-# O gate projeto_spec.validar() barra FS<3,0 sem fundacao.estaca.prova_de_carga.
+# FS global ADOTADO no framework: 3,0 (parecer do D38, 2026-07-11, adotado sem
+# ler o PDF da 6122). D179 leu o acervo (NBR 6122:2022 p.18): 6.2.1.2.1 fixa
+# 2,0 para metodo semiempirico e 6.2.1.2.2 fixa 1,6 com prova de carga
+# estatica; o 3,00 e da Tabela 1 (fundacao rasa). O numero e o gate de
+# projeto_spec.validar() (FS<3,0 sem prova_de_carga bloqueia) ficam ate a
+# decisao do responsavel - nunca arbitrados aqui.
 FS_GLOBAL = 3.0
 
 
@@ -485,7 +489,7 @@ def verifica_estaca(cfg):
 
     G149 (D102, fonte unica estaca_parametros_g143): tipo sem default
     silencioso — ausente/invalido RECUSA nomeada (tipo_estaca_nao_declarada);
-    FS ausente MANTEM 3,0 com a origem dita (default_normativo_NBR6122) em
+    FS ausente MANTEM 3,0 com a origem dita (fs_adotado_D38) em
     out["FS_origem"] e capacidade["FS_origem"] — o numero nao muda."""
     from estaca_parametros_g143 import (
         resolver_tipo_fs_nucleo as _res_tfs_g149)
@@ -573,14 +577,15 @@ def verifica_estaca(cfg):
 
 def _linha_fs_origem_g149(c):
     """Origem do FS global no memorial (G149, fonte unica). Sem a chave
-    (resultado antigo), cai no texto normativo — o numero nunca muda."""
+    (resultado antigo), cai na origem adotada — o numero nunca muda."""
     try:
         from estaca_parametros_g143 import linha_fs_g149 as _lin
         return "  " + _lin(c.get("FS", FS_GLOBAL),
                            c.get("FS_origem",
-                                 "default_normativo_NBR6122"))
+                                 "fs_adotado_D38"))
     except ImportError:
-        return ("  FS global = %.1f (NBR 6122: >=3,0 sem prova de carga)"
+        return ("  FS global = %.1f (adotado no D38; NBR 6122:2022 "
+                "6.2.1.2.1 fixa 2,0 no semiempirico)"
                 % c.get("FS", FS_GLOBAL))
 
 
@@ -654,7 +659,8 @@ def relatorio_pt(r):
                  f"{rg['B_eq_m']:.1f}x{rg['L_eq_m']:.1f} m): "
                  f"{rg['recalque_mm']:.1f} mm (q={rg['q_liq_kPa']:.0f} kPa)")
     L += ["  [A CONFIRMAR: perfil de SPT (tipo de solo + N por camada) da SONDAGEM;",
-          "   tipo/geometria da estaca; FS da NBR 6122 (>=3,0 s/ prova; 2,0 c/ prova);",
+          "   tipo/geometria da estaca; FS 3,0 adotado no D38 (NBR 6122:2022 6.2.1.2.1",
+          "   fixa 2,0 no semiempirico e 6.2.1.2.2 fixa 1,6 c/ prova de carga);",
           "   puncao do bloco flexivel = projeto do bloco.]",
           "  [3 metodos de capacidade (Aoki-Velloso, Decourt-Quaresma, Teixeira) +",
           "   tracao, grupo, atrito negativo, recalque, bloco (biela+ancoragem+puncao).]"]

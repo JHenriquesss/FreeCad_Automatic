@@ -146,6 +146,9 @@ def test_04_aborto_do_piso_nao_deixa_worker_vivo(tmp_path):
 
     marcador = tmp_path / "pid_worker.txt"
     lento = tmp_path / "test_lento_d176.py"
+    # D179: sem ini ao lado, a raiz do pytest aninhado vira C:\Users\<user> e a
+    # coleta varre o Temp inteiro (pasta de outro app apagada no meio = erro).
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     lento.write_text(
         "import os, time\n\n"
         "def test_lento():\n"
