@@ -1,5 +1,11 @@
 # Backlog de goals executáveis — pós-G148 / D176 (2026-09-15)
 
+> **FILA CONSUMIDA** (2026-09-16): G149–G153 executados; auditoria em D179 (commit
+> `6d94510`). A fila aberta é [BACKLOG-GOALS-G154-G157.md](BACKLOG-GOALS-G154-G157.md).
+> **Correção (D179):** a "Atenção no G149" abaixo afirmava que o FS 3,0 da estaca é valor
+> normativo da NBR 6122 — a página (NBR 6122:2022 p.18, 6.2.1.2.1) diz **2,0**; o 3,0 é o
+> valor adotado no D38.
+
 Fila **ABERTA**. Cinco goals (G149–G153) e uma decisão pendente do usuário. As filas anteriores
 estão fechadas e ficam apenas como registro — não reexecute nada de lá: `BACKLOG-GOALS.md`
 (G78–G88), `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`,

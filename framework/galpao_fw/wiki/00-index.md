@@ -14,10 +14,12 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
 - [[07-nbr6118-2023-em1-impacto-g116]] — inventário G116: 51 itens 2014 → 2023+Em1, 4 casos, Tabela 2 (D141)
 
 ## Fila de trabalho (goals executáveis)
-- **Fila aberta: [BACKLOG-GOALS-G149-G153.md](../BACKLOG-GOALS-G149-G153.md)** (5 goals,
-  medidos na auditoria D176: estaca calada nas outras portas, 64 `.get(k, 0/1)` dos
-  emissores, 23 títulos de carimbo cortados, folha de disciplina reprovada que não diz,
-  piso de memória com amostra única; mais a decisão do galpão G102 fora da suíte).
+- **Fila aberta: [BACKLOG-GOALS-G154-G157.md](../BACKLOG-GOALS-G154-G157.md)** (4 goals,
+  medidos na auditoria D179: material da fundação que vem do modelo e decide veredito, folhas
+  do prédio/casa que não dizem que reprovaram, citação normativa com número e sem item,
+  verbete sem número D; mais a decisão do FS da estaca — 3,0 adotado x 2,0 da NBR 6122:2022).
+  [BACKLOG-GOALS-G149-G153.md](../BACKLOG-GOALS-G149-G153.md) (G149–G153, D178–D179; os
+  verbetes do G149 ao G152 estão sem número D),
   [BACKLOG-GOALS-G143-G148.md](../BACKLOG-GOALS-G143-G148.md) (G143–G148, D173–D176) e
   [BACKLOG-GOALS-G137-G142.md](../BACKLOG-GOALS-G137-G142.md) (G137–G142, D166–D172) foram
   consumidas. As filas anteriores ficam como registro — não
