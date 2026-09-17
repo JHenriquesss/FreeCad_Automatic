@@ -185,5 +185,7 @@ def test_04_fck_do_bloco_diz_que_pode_ser_o_modelo():
     import estaca_parametros_g143 as EP
 
     texto = EP._fmt_origem(EP.ORIGEM_MATERIAL_PROJETO)
-    assert ("wizard nao pergunta" in texto and "PS.novo" in texto
-            and "confirmar" in texto), texto
+    # G154: o wizard passa a perguntar o material; a origem distingue no
+    # _origem_material (o texto antigo "nao pergunta" saiu com motivo).
+    assert ("PS.novo" in texto and "confirmar" in texto
+            and "G154" in texto), texto

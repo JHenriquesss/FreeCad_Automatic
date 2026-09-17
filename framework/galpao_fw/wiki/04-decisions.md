@@ -5268,3 +5268,79 @@ capacidade, n e veredito).
 
 **Nao feito.** Trocar o FS ou a trava; mudar o fck do modelo; numerar os
 verbetes G149-G152 (G157).
+
+## D180 - G154: o material da fundacao que vinha do modelo sem ninguem declarar (2026-09-17) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G154-G157.md G154: o `fundacao.fck = 25e3` /
+`fyk = 500e3` que o `projeto_spec.novo()` (`:125`) escreve em todo spec e o
+wizard nunca pergunta, e que decide veredito — bloco do metalico
+(`estaca_parametros_g143`), predio (`fundacao_edificio.py:352,427,666,747,756`)
+e sapata corrida (`fundacao_sapata_corrida.py:173`, 25 MPa calado).
+
+**Medido por injecao (antes de mudar).**
+- Bloco metalico n=2 N=600: **fck 25->15 MPa OK->REPROVA** (biela, sig 13,33 vs
+  fcd1 13,66->8,56); fyk 500->250 MPa OK segue OK, As 6,9->13,8 cm2
+  (quantidade, nao veredito); cobrimento 0,05->0,10 m: h 0,445->0,495 m com
+  d 0,375 inalterado (h = d+cob+emb do bloco rigido) — OK igual, muda
+  geometria; phi_barra nao lido no bloco (bitola do tirante e detalhada).
+- Sapata isolada Parte B (B=2 L=2,5 h=0,5): **fck 25->15 em N=1500 OK->REPROVA**
+  (u_cd 0,691->1,103); **cob 0,05->0,10 em N=2000 OK->REPROVA**
+  (u_cd 0,922->1,041, d 0,438->0,388); **phi 12,5->25 mm em N=2120 OK->REPROVA**
+  (u_cd 0,977->1,006); fyk 500->250 MPa OK segue OK em M=100..400 (As sobe,
+  puncao melhora 0,133->0,112) — quantidade, nao veredito.
+- Sapata corrida: mesma Parte B (VIVO por construcao); no aprovado tipico o
+  SOLO governa (q=150/sigma=120: B 2,0 passa solo, concreto passa nos dois
+  fck) — o silencio continua defeito (D102) e sai do mesmo jeito.
+- Portas: spec metalico (PS.novo escreve antes de qualquer resposta; comparar
+  valor com 25e3 nao distingue — o usuario pode declarar 25); wizard
+  (`:317-343` nunca pergunta); predio (herda do material declarado do predio);
+  corrida (`.get("fck", 25e3)` calado).
+
+**Entregue (D102, fonte unica `material_fundacao_g154.py`, nunca copia por
+modulo; sem arbitrar valor, sem trocar classe de agressividade, sem quebrar o
+caminho do usuario).**
+- O spec distingue desde onde o numero nasce: `PS.novo()` escreve
+  `fundacao._origem_material` modelo; `wizard.construir_spec` (4 perguntas
+  novas `fund_fck/fyk/cobrimento/phi`, com FAIXAS e conversao MPa/cm/mm) so
+  escreve o que a resposta trouxe e marca declarado; `declarar_material_fundacao`
+  marca no spec-direto. Sem aviso no `validar` (o aviso virava needs_review no
+  G15/G19 e quebrava a proposta 36x24 ready sem mudar numero — a declaracao
+  mora na entrega, nao no gate, mesmo desenho do G143 para cota/B_max).
+- Por item, com motivo: fck/cobrimento/phi DECLARAM com origem (decidem
+  veredito, medido acima; numero mantido); fyk DECLARA com origem (muda As,
+  nao veredito); phi no bloco e TERCEIRO VALOR (nao se aplica, declarado).
+  A corrida deixa de calar 25 MPa (resolver); o bloco herda cobrimento com
+  origem (antes calava 0,05); o predio herda do predio declarado com origem
+  dita (antes heranca calada).
+- Memorial sempre diz a origem (`MATERIAL DA FUNDACAO (G154)` em
+  gate7-fundacao.txt, gate7-estaca.txt, relatorio do predio e tabela da
+  corrida); folha carimba `G154 material: ... modelo (confirmar)` so no modelo
+  a confirmar (declarado puro segue sem linha nova, byte-identico).
+
+**Testes.** Novo `tests/test_material_fundacao_g154.py` (8): tabela antes/depois
+(fck/cob/phi viram, fyk nao); spec modelo vs declarado (declarar 25 segue
+declarado); wizard sem/com `fund_*`; metalico modelo/declarado no memorial e
+na folha (rodar de verdade); predio heranca/declarado no memorial; corrida sem
+25 MPa calado; folha do predio tres aceites com modelo (parse por pilar +
+`confere` + PNG rasterizado + mapa 1:1 + indice); baseline nos dois sentidos.
+Vizinhos com baseline mudada com motivo: `test_estaca_g149` (heranca de modelo
+diz `modelo_PS_novo`, antes `material_do_projeto` generico) e
+`test_auditoria_g149_g153_d179::test_04` (o wizard agora pergunta; o texto
+"nao pergunta" saiu). Lente G75 sem ocorrencia nova (a leitura do memorial usa
+`[]`, nao `.get("material")`).
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+G75/G145/G150/G151/G152/G149/D179 + validacao/coerencia/crashes + fundacao G9
++ G102 casa/predio (`test_01`) + colisoes: verdes. G102 casa/predio seguem
+rodando; o galpao vai no portao de auditoria (folha do galpao tocada no
+callout do bloco).
+
+**Suite inteira pelo runner (`-n 3`, lida inteira, worktree so com o G154).**
+`rc_pytest` 0, **3958 passed, 7 skipped em 1399,7 s** (23 min), 319/319
+arquivos, memoria livre minima 368 MB (piso 200 nao disparou), quedas [],
+descendentes [] / [], `quebras` []. (Na arvore com o WIP do G155 em progresso
+a suite nao fecha — o G155 toca o mesmo emissor e ainda nao triou o
+`BASELINE_G83`; ver G155.)
+
+**Nao feito.** Escolher outro fck; mudar classe de agressividade; tirar o valor
+do modelo sem a pergunta no wizard; numerar os verbetes G149-G152 (G157).

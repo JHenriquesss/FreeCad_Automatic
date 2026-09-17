@@ -802,7 +802,17 @@ def rodar(params, out_dir):
         dims = fs.dimensiona_bloco_env(sap, casos_base)
     else:
         dims = fs.dimensiona_sapata_env(sap, casos_base)
-    save("gate7-fundacao.txt", dims["tabela"])
+    # G154: o material com a origem no memorial (fonte unica; o numero nao
+    # muda — o spec distingue modelo de declarado desde o nascimento).
+    try:
+        from material_fundacao_g154 import (
+            resolver_material as _res_mat154g, linha_memorial as _lin_mat154g)
+        _m154g = _res_mat154g(params.get("fundacao") if isinstance(
+            params.get("fundacao"), dict) else {})
+        _tab154 = dims.get("tabela", "") + "\n  " + _lin_mat154g(_m154g)
+    except (ValueError, KeyError, ImportError):
+        _tab154 = dims["tabela"]
+    save("gate7-fundacao.txt", _tab154)
 
     # Alvenaria: a viga de baldrame sob a parede e dimensionada p/ o peso da alvenaria.
     _w_mas = (params.get("parede") or {}).get("w_masonry_kN_m", 0.0)
@@ -858,18 +868,40 @@ def rodar(params, out_dir):
         ecfg["tipo_estaca"] = _met["tipo_estaca"]
         ecfg["FS"] = _met["FS"]; ecfg["FS_origem"] = _met["FS_origem"]
         ecfg["tipo_origem"] = _met["tipo_origem"]
-        # bloco resolvido (a_pilar declarado; fck/fyk declarados ou herdados
-        # do material com a origem dita) — garante o bloco de coroamento no
-        # calculo (dims p/ desenhar o 3D). Opt-in do chamador (espacamento/h/
-        # cobrimento) preservados; os tres resolvidos por cima, nunca o cru.
+        # bloco resolvido (a_pilar declarado; fck/fyk/cobrimento declarados
+        # ou herdados do material com a origem dita) — garante o bloco de
+        # coroamento no calculo (dims p/ desenhar o 3D). Opt-in do chamador
+        # (espacamento/h) preservados; os resolvidos por cima, nunca o cru.
+        # G154: cobrimento herda com origem (antes calava 0,05).
         _bloco = dict((params["estaca"] or {}).get("bloco") or {})
         _bloco.update({"a_pilar": _met["bloco"]["a_pilar"],
                        "fck": _met["bloco"]["fck"],
-                       "fyk": _met["bloco"]["fyk"]})
+                       "fyk": _met["bloco"]["fyk"],
+                       "cobrimento": _met["bloco"]["cobrimento"]})
         ecfg["bloco"] = _bloco
         ecfg["bloco_origens"] = dict(_met["bloco"]["origens"])
         re_ = ep.verifica_estaca(ecfg)
-        save("gate7-estaca.txt", ep.relatorio_pt(re_))
+        # G154: o memorial diz a origem do material que a conta usou
+        # (fonte unica; o numero nao muda).
+        try:
+            from estaca_parametros_g143 import (
+                linha_bloco_g149 as _lin_bloco149)
+            from material_fundacao_g154 import (
+                resolver_material as _res_mat154e,
+                linha_memorial as _lin_mat154e)
+            _bloco_mem = {"a_pilar": _met["bloco"]["a_pilar"],
+                          "fck": _met["bloco"]["fck"],
+                          "fyk": _met["bloco"]["fyk"],
+                          "cobrimento": _met["bloco"]["cobrimento"],
+                          "origens": dict(_met["bloco"]["origens"])}
+            _m154e = _res_mat154e(params.get("fundacao") if isinstance(
+                params.get("fundacao"), dict) else {})
+            _txt_est154 = (ep.relatorio_pt(re_) + "\n  " +
+                           _lin_bloco149(_bloco_mem) + "\n  " +
+                           _lin_mat154e(_m154e))
+        except (ValueError, KeyError, ImportError):
+            _txt_est154 = ep.relatorio_pt(re_)
+        save("gate7-estaca.txt", _txt_est154)
         Dp = ecfg["D"]; a_pil = (ecfg.get("bloco") or {}).get("a_pilar", 0.30)
         esp = (ecfg.get("bloco") or {}).get("espacamento", 3.0 * Dp)
         h_bloco = (re_.get("bloco") or {}).get("h", max(0.40, 1.2 * Dp))

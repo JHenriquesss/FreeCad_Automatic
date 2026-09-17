@@ -244,6 +244,9 @@ def parametros_de_spec(spec, tipo_fund, tem_spt_ou_geo):
 
 
 def _fmt_origem(origem):
+    # G154: o wizard passa a perguntar o material; a origem distingue desde
+    # onde o numero nasce (modelo PS.novo vs declarado). Texto antigo do
+    # material mantido para resultados antigos sem o registro novo.
     return {"declarado_no_spec": "declarado no spec",
             "default": "default (confirmar com sondagem/projeto)",
             "nao_se_aplica": "nao se aplica",
@@ -252,8 +255,14 @@ def _fmt_origem(origem):
                 "adotado no framework (D38); " + NOTA_FS_NBR6122 +
                 " - confirmar com o responsavel",
             "material_do_projeto":
-                "fundacao.fck/fyk do spec (o wizard nao pergunta: pode ser "
-                "o valor do modelo PS.novo) - confirmar"}.get(
+                "fundacao.fck/fyk do spec (pode ser o valor do modelo "
+                "PS.novo — confirmar; G154 distingue no _origem_material)",
+            "modelo_PS_novo":
+                "modelo PS.novo (confirmar com o projeto; G154)",
+            "modelo_legado_confirmar":
+                "modelo (origem nao registrada, confirmar; G154)",
+            "herdado_material_predio_declarado":
+                "herdado do material declarado do predio"}.get(
                 origem, str(origem))
 
 
@@ -420,13 +429,40 @@ def resolver_estaca_metalica(e, material=None):
                                  "a_pilar_invalida", "m")
     mat = material if isinstance(material, dict) else {}
     origens = {"a_pilar": ORIGEM_DECLARADO}
+    # G154: a origem do herdado distingue declarado de modelo desde onde o
+    # numero nasce (PS.novo escreve _origem_material; o wizard declara).
+    # Comparar valor com 25e3 nao distingue (o usuario pode declarar 25).
+    try:
+        from material_fundacao_g154 import (
+            ORIGEM_MODELO as _ORG_MOD154,
+            ORIGEM_DECLARADO as _ORG_DEC154)
+    except ImportError:
+        _ORG_MOD154, _ORG_DEC154 = "modelo_PS_novo", "declarado_no_spec"
+    _reg154 = mat.get("_origem_material") if isinstance(
+        mat.get("_origem_material"), dict) else {}
+    def _org_herdado154(chave):
+        _o = _reg154.get(chave)
+        if _o == _ORG_DEC154:
+            return ORIGEM_MATERIAL_PROJETO
+        if _o == _ORG_MOD154:
+            return _ORG_MOD154
+        # legado sem registro: o numero existe mas o nascimento nao foi
+        # registrado — modelo a confirmar (nunca comparar valor).
+        if _o is None and _e_numero_pos(mat.get(chave)):
+            try:
+                from material_fundacao_g154 import (
+                    ORIGEM_MODELO_LEGADO as _ORG_LEG154)
+            except ImportError:
+                _ORG_LEG154 = "modelo_legado_confirmar"
+            return _ORG_LEG154
+        return ORIGEM_MATERIAL_PROJETO
     if bloco.get("fck") is None:
         fck = mat.get("fck")
         if not _e_numero_pos(fck):
             raise ValueError(
                 "fck_bloco_nao_declarado: bloco sem 'fck' e sem material "
                 "do projeto (fundacao.fck) de onde herdar — sem default")
-        fck, origens["fck"] = float(fck), ORIGEM_MATERIAL_PROJETO
+        fck, origens["fck"] = float(fck), _org_herdado154("fck")
     else:
         if not _e_numero_pos(bloco.get("fck")):
             raise ValueError(
@@ -439,17 +475,40 @@ def resolver_estaca_metalica(e, material=None):
             raise ValueError(
                 "fyk_bloco_nao_declarado: bloco sem 'fyk' e sem material "
                 "do projeto (fundacao.fyk) de onde herdar — sem default")
-        fyk, origens["fyk"] = float(fyk), ORIGEM_MATERIAL_PROJETO
+        fyk, origens["fyk"] = float(fyk), _org_herdado154("fyk")
     else:
         if not _e_numero_pos(bloco.get("fyk")):
             raise ValueError(
                 "fyk_bloco_invalido: fyk deve ser numero > 0 (kN/m2, "
                 "recebido %r)" % (bloco.get("fyk"),))
         fyk, origens["fyk"] = float(bloco["fyk"]), ORIGEM_DECLARADO
+    # G154: cobrimento do bloco herda o material com a origem dita (antes
+    # calava 0,05 em estaca_profunda). phi_barra nao se aplica ao bloco
+    # (bitola do tirante e detalhada, nao entrada — medido no G154).
+    if bloco.get("cobrimento") is None:
+        _cob = mat.get("cobrimento")
+        if not _e_numero_pos(_cob):
+            try:
+                from material_fundacao_g154 import (
+                    COBRIMENTO_MODELO as _COB_MOD154)
+            except ImportError:
+                _COB_MOD154 = 0.05
+            _cob, origens["cobrimento"] = float(_COB_MOD154), _ORG_MOD154
+        else:
+            _cob, origens["cobrimento"] = float(_cob), _org_herdado154(
+                "cobrimento")
+    else:
+        if not _e_numero_pos(bloco.get("cobrimento")):
+            raise ValueError(
+                "cobrimento_bloco_invalido: cobrimento deve ser numero > 0 "
+                "(m, recebido %r)" % (bloco.get("cobrimento"),))
+        _cob, origens["cobrimento"] = float(bloco["cobrimento"]), ORIGEM_DECLARADO
+    origens["phi_barra"] = ORIGEM_NAO_SE_APLICA
     return {"D": D, "L": L, "tipo_estaca": tipo,
             "tipo_origem": ORIGEM_DECLARADO,
             "FS": fs, "FS_origem": fs_origem,
             "bloco": {"a_pilar": a_pilar, "fck": fck, "fyk": fyk,
+                      "cobrimento": _cob,
                       "origens": origens}}
 
 
@@ -493,11 +552,17 @@ def linha_bloco_g149(bloco):
     if not isinstance(bloco, dict):
         raise ValueError("resultado sem bloco resolvido (G149)")
     org = (bloco.get("origens") or {}) if isinstance(bloco, dict) else {}
-    return ("bloco a_pilar=%.2f m (%s) ; fck=%.0f kN/m2 (%s) ; fyk=%.0f kN/m2 (%s)"
+    # G154: cobrimento viaja no bloco com origem (antes calava 0,05).
+    base = ("bloco a_pilar=%.2f m (%s) ; fck=%.0f kN/m2 (%s) ; fyk=%.0f kN/m2 (%s)"
             % (bloco.get("a_pilar", 0.0),
                _fmt_origem(org.get("a_pilar")),
                bloco.get("fck", 0.0), _fmt_origem(org.get("fck")),
                bloco.get("fyk", 0.0), _fmt_origem(org.get("fyk"))))
+    if bloco.get("cobrimento") is not None:
+        base += (" ; cob=%.0f cm (%s)"
+                 % (float(bloco["cobrimento"]) * 100.0,
+                    _fmt_origem(org.get("cobrimento"))))
+    return base
 
 
 def linha_folha_g149(estaca_parametros):
@@ -659,13 +724,28 @@ def _selftest():
         except ValueError as exc:
             assert marca in str(exc), (marca, exc)
     # G149: metalico — D/L/tipo/bloco/a_pilar recusam; FS e fck/fyk declaram
+    # G154: material sem registro = modelo legado (o numero existe mas o
+    # nascimento nao foi registrado); com _origem_material declarado, a
+    # origem e material_do_projeto.
     mat = {"fck": 25e3, "fyk": 500e3}
     m = resolver_estaca_metalica(
         {"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
          "bloco": {"a_pilar": 0.30}}, mat)
     assert m["FS"] == 3.0 and m["FS_origem"] == ORIGEM_FS_ADOTADO
     assert m["bloco"]["fck"] == 25e3
-    assert m["bloco"]["origens"]["fck"] == ORIGEM_MATERIAL_PROJETO
+    assert m["bloco"]["origens"]["fck"] in (
+        ORIGEM_MATERIAL_PROJETO, "modelo_legado_confirmar"), m["bloco"]
+    assert m["bloco"]["cobrimento"] == 0.05
+    mat_dec = {"fck": 25e3, "fyk": 500e3, "cobrimento": 0.05,
+               "_origem_material": {"fck": "declarado_no_spec",
+                                    "fyk": "declarado_no_spec",
+                                    "cobrimento": "declarado_no_spec",
+                                    "phi_barra": "declarado_no_spec"}}
+    m2 = resolver_estaca_metalica(
+        {"D": 0.30, "L": 10.0, "tipo_estaca": "pre_moldada",
+         "bloco": {"a_pilar": 0.30}}, mat_dec)
+    assert m2["bloco"]["origens"]["fck"] == ORIGEM_MATERIAL_PROJETO
+    assert m2["bloco"]["origens"]["cobrimento"] == ORIGEM_MATERIAL_PROJETO
     for bad, marca in [
             ({}, "d_estaca_nao_declarada"),
             ({"D": 0.30}, "l_estaca_nao_declarada"),
@@ -703,7 +783,7 @@ def _selftest():
             assert marca in str(exc), (marca, exc)
     assert "NBR 6122" in linha_fs_g149(3.0, ORIGEM_FS_ADOTADO)
     assert "declarado no spec" in linha_fs_g149(2.0, ORIGEM_DECLARADO)
-    assert "material do projeto" in linha_bloco_g149(m["bloco"])
+    assert "cob=" in linha_bloco_g149(m["bloco"])
     print("estaca_parametros_g143 self-test PASSED")
 
 

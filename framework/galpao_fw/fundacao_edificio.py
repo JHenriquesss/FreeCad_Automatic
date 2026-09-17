@@ -339,9 +339,18 @@ def _sigma_solo(spec_fundacao, recomendacao):
 
 
 def _caso_base(spec_fundacao, sigma_solo, secao_pilar, materiais):
-    """Parametros do solo/concreto comuns a todas as combinacoes de um pilar."""
+    """Parametros do solo/concreto comuns a todas as combinacoes de um pilar.
+
+    G154 (D102, fonte unica material_fundacao_g154): sem heranca calada —
+    o quarteto vem do resolver (declarado no spec > herdado do predio
+    declarado > modelo mantido com origem dita). phi_barra viaja ao caso
+    (d = h-cob-phi na Parte B).
+    """
+    from material_fundacao_g154 import resolver_material as _res_mat154
+    _m154 = _res_mat154(spec_fundacao if isinstance(spec_fundacao, dict) else {},
+                        materiais if isinstance(materiais, dict) else {})
     b, h = secao_pilar
-    return {
+    out = {
         "sigma_solo_adm": sigma_solo,
         "mu": spec_fundacao.get("mu_solo", 0.5),
         "coesao": spec_fundacao.get("coesao", 0.0),
@@ -349,11 +358,14 @@ def _caso_base(spec_fundacao, sigma_solo, secao_pilar, materiais):
         # o pedestal tem a secao do PILAR que ele recebe - e' o que define o
         # balanco da sapata e, com ele, a rigidez (22.6.1) e a armadura.
         "d_ped": h, "b_ped": b, "h_ped": spec_fundacao.get("h_pedestal_m", 0.5),
-        "fck": spec_fundacao.get("fck", materiais["fck"]),
-        "fyk": spec_fundacao.get("fyk", materiais["fyk"]),
-        "cobrimento": spec_fundacao.get("cobrimento", 0.05),
+        "fck": _m154["fck"],
+        "fyk": _m154["fyk"],
+        "cobrimento": _m154["cobrimento"],
+        "phi_barra": _m154["phi_barra"],
         "verificacao_estabilidade": spec_fundacao.get("verificacao_estabilidade"),
+        "material_origens": dict(_m154["origens"]),
     }
+    return out
 
 
 def _dimensiona_raso(tipo, caso_base, casos, escada):
@@ -417,6 +429,10 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
         # Conservador: poe o max nos dois eixos quando nao ha direcao
         Mx_max = My_max = M_global
     _b, h = secao_pilar
+    # G154: material do bloco sem heranca calada (fonte unica).
+    from material_fundacao_g154 import resolver_material as _res_mat154b
+    _m154b = _res_mat154b(spec_fundacao if isinstance(spec_fundacao, dict) else {},
+                          materiais if isinstance(materiais, dict) else {})
     cfg_estaca = {
         "perfil": copy.deepcopy(perfil),
         "D": _est149["D_m"],
@@ -424,9 +440,9 @@ def _dimensiona_estaca(spec_fundacao, casos, secao_pilar, materiais):
               else _profundidade_sugerida(perfil)),
         "tipo_estaca": _est149["tipo_estaca"],
         "N_pilar": N_max,
-        "bloco": {"a_pilar": h, "fck": spec_fundacao.get("fck", materiais["fck"]),
-                  "fyk": spec_fundacao.get("fyk", materiais["fyk"]),
-                  "cobrimento": spec_fundacao.get("cobrimento", 0.05)},
+        "bloco": {"a_pilar": h, "fck": _m154b["fck"],
+                  "fyk": _m154b["fyk"],
+                  "cobrimento": _m154b["cobrimento"]},
     }
     # G23: alimenta Mx/My quando ha momento; verifica_estaca monta grupo_momento
     if Mx_max > 1e-9 or My_max > 1e-9:
@@ -663,8 +679,14 @@ def dimensiona(spec_fundacao, contexto):
                         dist_divisa = float(spec_fundacao["dist_divisa_m"])
                     # sigma e materiais
                     sig = sigma_solo if sigma_solo else 250.0
-                    fck = spec_fundacao.get("fck", contexto["materiais"]["fck"])
-                    fyk = spec_fundacao.get("fyk", contexto["materiais"]["fyk"])
+                    # G154: sem heranca calada (fonte unica).
+                    from material_fundacao_g154 import (
+                        resolver_material as _res_mat154d)
+                    _m154d = _res_mat154d(
+                        spec_fundacao if isinstance(spec_fundacao, dict) else {},
+                        contexto.get("materiais") if isinstance(
+                            contexto.get("materiais"), dict) else {})
+                    fck, fyk = _m154d["fck"], _m154d["fyk"]
                     # b_col_paralela e' a dimensão do pilar paralela à divisa
                     b_col_par = float(h_pil) if direcao == "x" else float(b_pil)
                     res_div = sd.dimensiona_divisa(
@@ -737,6 +759,13 @@ def dimensiona(spec_fundacao, contexto):
                         L_est = _profundidade_sugerida(perfil)
                     # calcula capacidade para obter P_adm (sem fallback: o
                     # erro sobe ao except externo e cai na isolada).
+                    # G154: material do bloco sem heranca calada (fonte unica).
+                    from material_fundacao_g154 import (
+                        resolver_material as _res_mat154e)
+                    _m154e = _res_mat154e(
+                        spec_fundacao if isinstance(spec_fundacao, dict) else {},
+                        contexto.get("materiais") if isinstance(
+                            contexto.get("materiais"), dict) else {})
                     tmp = ep.verifica_estaca({
                         "perfil": copy.deepcopy(perfil),
                         "D": D_est,
@@ -744,8 +773,8 @@ def dimensiona(spec_fundacao, contexto):
                         "tipo_estaca": _estd["tipo_estaca"],
                         "N_pilar": P_div,
                         "bloco": {"a_pilar": float(h_pil),
-                                  "fck": spec_fundacao.get("fck", contexto["materiais"]["fck"]),
-                                  "fyk": spec_fundacao.get("fyk", contexto["materiais"]["fyk"])},
+                                  "fck": _m154e["fck"],
+                                  "fyk": _m154e["fyk"]},
                     })
                     P_adm = float(tmp["capacidade"]["P_adm_kN"])
                     a_pilar = float(max(b_pil, h_pil))
@@ -753,8 +782,8 @@ def dimensiona(spec_fundacao, contexto):
                         P_divisa=P_div, P_interno=P_int,
                         dist_eixos=float(dist_eixos), dist_divisa=float(dist_divisa),
                         P_estaca_adm=float(P_adm), a_pilar=a_pilar, D_estaca=D_est,
-                        fck=float(spec_fundacao.get("fck", contexto["materiais"]["fck"])),
-                        fyk=float(spec_fundacao.get("fyk", contexto["materiais"]["fyk"])))
+                        fck=float(_m154e["fck"]),
+                        fyk=float(_m154e["fyk"]))
                     util_div = round(float(res_eq["divisa"]["carga_estaca"]) / float(P_adm), 3) if P_adm else None
                     geometria = {"subtipo": "divisa_estaca", "direcao": direcao,
                                  "dist_eixos_m": round(float(dist_eixos), 3),
@@ -824,6 +853,22 @@ def dimensiona(spec_fundacao, contexto):
     _par149, _folha149 = (None, None)
     if tipo == "estaca" and _est149 is not None:
         _par149, _folha149 = _parametros_estaca_g149(spec_fundacao, _est149)
+    # G154: o material com a origem viaja no resultado (fonte unica); a
+    # linha curta vai a folha e ao memorial.
+    from material_fundacao_g154 import resolver_material as _res_mat154r
+    try:
+        _m154r = _res_mat154r(spec_fundacao if isinstance(spec_fundacao, dict) else {},
+                              (contexto.get("materiais") if isinstance(
+                                  contexto, dict) and isinstance(
+                                  contexto.get("materiais"), dict) else {}))
+    except Exception:
+        _m154r = {"fck": 0.0, "fyk": 0.0, "cobrimento": 0.0,
+                  "phi_barra": 0.0, "origens": {}}
+    from material_fundacao_g154 import linha_folha as _lin_folha154
+    try:
+        _folha154 = _lin_folha154(_m154r)
+    except Exception:
+        _folha154 = None
     return {
         "tipo": tipo,
         # a cota de apoio viaja no resultado porque e' ela que posiciona a peca
@@ -831,6 +876,9 @@ def dimensiona(spec_fundacao, contexto):
         "cota_apoio_m": float(spec_fundacao.get("cota_apoio_m", 1.0)),
         "sigma_solo_adm": sigma_solo,
         "proveniencia_sigma": nota_sigma,
+        "material": {k: _m154r[k] for k in ("fck", "fyk", "cobrimento", "phi_barra")},
+        "material_origens": dict(_m154r.get("origens") or {}),
+        "proveniencias_g154": _folha154,
         "recomendacao_spt": recomendacao,
         "acao_horizontal": horizontais,
         "momentos_base": momentos_base,
@@ -1046,6 +1094,33 @@ def relatorio_pt(resultado):
         linhas.append("  sigma_solo,adm = %.0f kN/m2 (%s)"
                       % (resultado["sigma_solo_adm"],
                          resultado["proveniencia_sigma"]))
+    # G154: o material com a origem (fonte unica; o numero nao muda).
+    # Sem `.get("material")` (a lente G75 conta `get` de chave normativa;
+    # aqui e leitura de resultado para o memorial, nao opcao de conta):
+    # acesso direto com KeyError tratado.
+    try:
+        from material_fundacao_g154 import linha_memorial as _lin_mat154
+        _mat154 = resultado["material"]
+        _mat154 = _mat154 if isinstance(_mat154, dict) else {}
+        def _num154(_k, _d=0.0):
+            try:
+                _v = _mat154[_k]
+            except KeyError:
+                return _d
+            return _v if isinstance(_v, (int, float)) else _d
+        try:
+            _org154 = resultado["material_origens"]
+            _org154 = _org154 if isinstance(_org154, dict) else {}
+        except KeyError:
+            _org154 = {}
+        _m154 = {"fck": _num154("fck"), "fyk": _num154("fyk"),
+                 "cobrimento": _num154("cobrimento"),
+                 "phi_barra": _num154("phi_barra"),
+                 "origens": _org154}
+        if any(_m154[k] for k in ("fck", "fyk")):
+            linhas.append("  " + _lin_mat154(_m154))
+    except (ValueError, KeyError):
+        pass
     # G149: D_m/L_m/tipo/FS da estaca com a origem dita (fonte unica; o
     # numero do FS nao muda — 3,0 adotado no D38; D179: a NBR 6122:2022
     # 6.2.1.2.1 fixa 2,0, a linha do memorial cita).

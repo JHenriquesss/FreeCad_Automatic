@@ -606,16 +606,25 @@ def _callout_bloco(cfg, a_cm=None, h_cm=None):
         # G149: o fck do bloco vem do calculo (bloco_adotado, com origem) em
         # kPa; sem ele, o literal antigo vira declaracao de ignorancia (nunca
         # numero calado). Sem import de irmao (roda dentro do freecad).
+        # G154: a origem distingue modelo de declarado (o wizard pergunta).
         _fck_kpa = b.get("fck")
         _fck_mpa = (_fck_kpa / 1000.0 if isinstance(_fck_kpa, (int, float))
                     and _fck_kpa > 0 else 0)
         if _fck_mpa > 0:
             _org149 = {"declarado_no_spec": "declarado no spec",
-                       "material_do_projeto": "material do projeto"}.get(
+                       "material_do_projeto": "material do projeto",
+                       "modelo_PS_novo": "modelo PS.novo (confirmar)",
+                       "modelo_legado_confirmar":
+                           "modelo (origem nao registrada, confirmar)",
+                       "herdado_material_predio_declarado":
+                           "herdado do material declarado do predio"}.get(
                            b.get("fck_origem") or "", "")
             _suf149 = (" (%s)" % _org149) if _org149 else ""
             L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck %.0f MPa%s)"
                      % (a_cm, a_cm, h_cm, _fck_mpa, _suf149))
+            # G154: sem origem registrada, declarar (nunca calar).
+            if not _org149:
+                L.append("G154 material: fck modelo (confirmar)")
         else:
             L.append("Bloco: %.0f x %.0f x h=%.0f cm (concreto fck 25 MPa - "
                      "origem nao registrada, confirmar)"

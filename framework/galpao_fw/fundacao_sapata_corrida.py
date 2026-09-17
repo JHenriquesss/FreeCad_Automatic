@@ -136,6 +136,8 @@ def dimensiona_corrida(q_kN_m, spec_fundacao, escada=None):
             "sem sigma_solo_adm declarada e sem perfil_spt que a derive: "
             "fundacao corrida nao pode ser dimensionada (regra do G9)")
     escada = escada or ESCADA_CORRIDA
+    from material_fundacao_g154 import resolver_material as _res_mat154b
+    _mat154b = _res_mat154b(spec_fundacao if isinstance(spec_fundacao, dict) else {})
     linhas, aprovado, parte_B = [], None, None
     for (B, h) in escada:
         sig, prov = sigma_solo(spec_fundacao, B)
@@ -156,8 +158,10 @@ def dimensiona_corrida(q_kN_m, spec_fundacao, escada=None):
             parte_B = rB
     return {"aprovado": aprovado, "parte_B": parte_B, "linhas": linhas,
             "q_kN_m": float(q_kN_m),
+            "material": {k: _mat154b[k] for k in ("fck", "fyk", "cobrimento", "phi_barra")},
+            "material_origens": dict(_mat154b["origens"]),
             "tabela": _tabela(linhas, aprovado, float(q_kN_m),
-                              spec_fundacao)}
+                              spec_fundacao, _mat154b)}
 
 
 def _parte_B(q_kN_m, B, h, spec_fundacao):
@@ -166,17 +170,26 @@ def _parte_B(q_kN_m, B, h, spec_fundacao):
     Pedestal ficticio: d_ped = 1,0 m corre na direcao L (ao longo do muro),
     onde o balanco e ZERO; b_ped = largura do baldrame corre na direcao B,
     onde esta o unico balanco real, (B - b_ped)/2.
+
+    G154 (D102, fonte unica material_fundacao_g154): sem 25 MPa calado —
+    o material vem do resolver (modelo mantido com origem dita, ou
+    declarado/herdado). phi_barra viaja ao caso (d = h-cob-phi).
     """
+    from material_fundacao_g154 import resolver_material as _res_mat154
+    _mat154 = _res_mat154(spec_fundacao if isinstance(spec_fundacao, dict) else {})
     b_ped = min(float(spec_fundacao.get("b_baldrame_m", 0.15)), B - 0.05)         if B > 0.20 else B / 2.0
     caso_b = {
         "N": float(q_kN_m) * 1.0, "V": 0.0, "M": 0.0,
-        "fck": spec_fundacao.get("fck", 25e3),
-        "fyk": spec_fundacao.get("fyk", 500e3),
-        "cobrimento": spec_fundacao.get("cobrimento", 0.05),
+        "fck": _mat154["fck"],
+        "fyk": _mat154["fyk"],
+        "cobrimento": _mat154["cobrimento"],
+        "phi_barra": _mat154["phi_barra"],
         "gamma_f": spec_fundacao.get("gamma_f", 1.4),
         "d_ped": 1.0, "b_ped": max(b_ped, 0.10),
     }
-    return fsap.dimensiona_sapata_B(caso_b, {"B": float(B), "L": 1.0, "h": h})
+    rB = fsap.dimensiona_sapata_B(caso_b, {"B": float(B), "L": 1.0, "h": h})
+    rB["material_origens"] = dict(_mat154["origens"])
+    return rB
 
 
 def quantitativo_corrida(B, h, comprimento_m, parte_B=None):
@@ -204,13 +217,26 @@ def quantitativo_corrida(B, h, comprimento_m, parte_B=None):
             "B_m": B, "h_m": h, "L_m": comprimento_m}
 
 
-def _tabela(linhas, aprovado, q, spec):
+def _tabela(linhas, aprovado, q, spec, _mat154=None):
+    try:
+        from material_fundacao_g154 import (
+            linha_memorial as _lin_mat154, resolver_material as _res154)
+        _m154 = _mat154 if isinstance(_mat154, dict) else _res154(
+            spec if isinstance(spec, dict) else {})
+    except ImportError:
+        _m154 = None
     L = ["=" * 78, "DIMENSIONAMENTO DA SAPATA CORRIDA - CARGA LINEAR (NBR 6122)",
          "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL", "=" * 78, "",
          "q linear caracteristica = %.2f kN/m (faixa de 1 m: N = q x 1 m)"
          % q,
          "Solo: sigma declarada vence SPT (N/50 no bulbo 2.B); sem nenhum, "
          "o modulo recusa (G9).", ""]
+    if _m154 is not None:
+        try:
+            L.append("  " + _lin_mat154(_m154))
+        except ValueError:
+            pass
+        L.append("")
     L.append("%10s | %8s %6s %7s %7s | res" % ("Bxh (m)", "sig_max", "u_solo",
                                               "FS_tomb", "FS_desl"))
     L.append("-" * 78)

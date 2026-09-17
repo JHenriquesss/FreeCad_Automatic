@@ -874,6 +874,11 @@ caiu num teste de runner aninhado que varria o Temp sem `pytest.ini`. Suíte: ru
 passed/2 skipped, quebras vazio; serial 3953/1 failed (corrigido e re-rodado pelo runner);
 portões do aço (2 passed) e do galpão (884 s) verdes.
 
+### G154–G157 — o material do modelo, as folhas que não dizem que reprovaram, a citação sem item e o verbete sem número (aberto; G154 fechado)
+- **G154** o material da fundação distingue modelo de declarado desde onde o número
+  nasce (wizard pergunta); memorial sempre diz a origem, folha carimba o modelo a
+  confirmar; corrida sem 25 MPa calado ([[04-decisions#D180]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

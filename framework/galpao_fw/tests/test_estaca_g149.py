@@ -233,6 +233,9 @@ def test_03_metalico_spec_recusa_um_por_um_ausente_e_zero():
     if (p["estaca"]["D"], p["estaca"]["L"]) != (0.40, 8.0):
         gaps.append("declarado nao chegou a params: %r" % (p["estaca"],))
     # FS ausente -> 3,0 normativo dito; fck ausente herda o material dito
+    # G154: o _spec_met usa PS.novo (modelo) sem declarar — a heranca diz
+    # modelo_PS_novo (antes material_do_projeto generico; baseline mudada
+    # com motivo: a origem distingue desde onde o numero nasce).
     s = _spec_met()
     del s["fundacao"]["estaca"]["FS"]
     del s["fundacao"]["estaca"]["bloco"]["fck"]
@@ -242,7 +245,9 @@ def test_03_metalico_spec_recusa_um_por_um_ausente_e_zero():
             or p2["estaca"]["FS_origem"] != "fs_adotado_D38":
         gaps.append("FS ausente sem origem normativa: %r" % (p2["estaca"],))
     if p2["estaca"]["bloco"]["fck"] != 25e3 \
-            or p2["estaca"]["bloco_origens"]["fck"] != "material_do_projeto":
+            or p2["estaca"]["bloco_origens"]["fck"] not in (
+                "material_do_projeto", "modelo_PS_novo",
+                "modelo_legado_confirmar"):
         gaps.append("fck sem heranca do material: %r" % (p2["estaca"],))
     assert not gaps, "G149 metalico-spec:\n%s" % "\n".join(
         "  - " + g for g in gaps)

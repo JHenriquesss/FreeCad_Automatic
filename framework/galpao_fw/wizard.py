@@ -78,6 +78,13 @@ FAIXAS = {
     "est_D": (0.2, 1.2, 0.1, 3.0, "m"), "est_L": (4.0, 30.0, 2.0, 60.0, "m"),
     "est_FS": (2.0, 3.5, 1.2, 6.0, ""),
     "spt_N": (3.0, 50.0, 0.0, 80.0, ""), "spt_dz": (1.0, 30.0, 0.3, 60.0, "m"),
+    # G154: material da fundacao (declarar tira o aviso de modelo; Enter =
+    # declarado pelo usuario no laco; dict programatico sem a chave segue
+    # modelo, como D/L/FS no G149).
+    "fund_fck": (20.0, 40.0, 10.0, 90.0, "MPa"),
+    "fund_fyk": (400.0, 600.0, 250.0, 600.0, "MPa"),
+    "fund_cobrimento": (3.0, 6.0, 2.0, 10.0, "cm"),
+    "fund_phi": (8.0, 20.0, 5.0, 32.0, "mm"),
 }
 
 
@@ -209,6 +216,15 @@ PERGUNTAS = [
     ("sigma_solo", "Tensao admissivel do solo (kN/m2, DA SONDAGEM)", _f, None, True),
     ("fund_tipo", "Tipo de fundacao (sapata=rasa armada / bloco=rasa concreto simples "
      "/ estaca=profunda)", str, "sapata", False),
+    # G154: material da fundacao (fck/fyk/cobrimento/phi). O modelo PS.novo
+    # escreve 25/500/5cm/12,5mm sem perguntar; quem declara aqui tira o
+    # aviso de modelo e a folha/memorial dizem "declarado". Enter aceita o
+    # default = declarado pelo usuario (laco); dict programatico sem a chave
+    # segue modelo (construir_spec so escreve o que a resposta trouxe).
+    ("fund_fck", "fck do concreto da fundacao (MPa; modelo 25 se Enter vazio = declarar 25)", _f, 25.0, False),
+    ("fund_fyk", "fyk do aco da fundacao (MPa; modelo 500 se Enter vazio = declarar 500)", _f, 500.0, False),
+    ("fund_cobrimento", "Cobrimento da fundacao (cm; modelo 5,0 se Enter vazio = declarar 5)", _f, 5.0, False),
+    ("fund_phi", "Bitola principal da fundacao (mm; modelo 12,5 se Enter vazio = declarar 12,5)", _f, 12.5, False),
 ]
 
 # perguntas da fundacao PROFUNDA (so quando fund_tipo == 'estaca')
@@ -317,6 +333,25 @@ def construir_spec(r, slug="galpao"):
     s["fundacao"]["sigma_solo_adm"] = r["sigma_solo"]
     tipo = r.get("fund_tipo", "sapata")
     s["fundacao"]["tipo"] = tipo
+    # G154 (D102): o material nasce modelo no PS.novo; so o que a resposta
+    # trouxe vira declarado (mesmo padrao do G149 para D/L/FS). Unidades da
+    # pergunta -> unidades da conta (MPa->kN/m2, cm->m, mm->m).
+    _mat154 = s["fundacao"].get("_origem_material")
+    if not isinstance(_mat154, dict):
+        _mat154 = {}
+        s["fundacao"]["_origem_material"] = _mat154
+    if r.get("fund_fck") is not None:
+        s["fundacao"]["fck"] = float(r["fund_fck"]) * 1000.0
+        _mat154["fck"] = "declarado_no_spec"
+    if r.get("fund_fyk") is not None:
+        s["fundacao"]["fyk"] = float(r["fund_fyk"]) * 1000.0
+        _mat154["fyk"] = "declarado_no_spec"
+    if r.get("fund_cobrimento") is not None:
+        s["fundacao"]["cobrimento"] = float(r["fund_cobrimento"]) / 100.0
+        _mat154["cobrimento"] = "declarado_no_spec"
+    if r.get("fund_phi") is not None:
+        s["fundacao"]["phi_barra"] = float(r["fund_phi"]) / 1000.0
+        _mat154["phi_barra"] = "declarado_no_spec"
     if tipo == "estaca":
         # sem os dados da sondagem, perfil_spt fica vazio -> validar() bloqueia
         # (Ask-Do-Not-Invent). Com eles, monta a camada resistente.

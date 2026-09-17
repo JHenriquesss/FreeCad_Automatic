@@ -124,6 +124,15 @@ def novo():
         "fundacao": {"tipo": P, "sigma_solo_adm": P, "mu": 0.5, "coesao": 0.0,
                      "h_reaterro": 0.5, "fck": 25e3, "fyk": 500e3,
                      "cobrimento": 0.05, "phi_barra": 0.0125, "gamma_f": 1.4,
+                     # G154: a proveniencia nasce onde o numero nasce. O
+                     # modelo escreve os 4 com origem modelo; o wizard (ou
+                     # o declarar_material_fundacao) troca para declarado.
+                     # Comparar valor com 25e3 nao distingue (o usuario pode
+                     # declarar 25) — so esta chave distingue.
+                     "_origem_material": {"fck": "modelo_PS_novo",
+                                          "fyk": "modelo_PS_novo",
+                                          "cobrimento": "modelo_PS_novo",
+                                          "phi_barra": "modelo_PS_novo"},
                      "verificacao_estabilidade": {
                          "metodo": "nbr6122_valores_calculo",
                          "tipo_acoes": "calculo",
@@ -179,6 +188,34 @@ def _get(spec, path):
             return KeyError
         o = o[k]
     return o
+
+
+def declarar_material_fundacao(spec, fck=None, fyk=None, cobrimento=None,
+                               phi_barra=None):
+    """Marca o material da fundacao como declarado (G154, fonte do nascimento).
+
+    So o que e passado vira declarado; o resto segue modelo. Pura no dict
+    (mutacao explicita do spec, como marcar_a_confirmar). Valor <= 0
+    bloqueia depois no validar (regra existente).
+    """
+    fu = spec.get("fundacao")
+    if not isinstance(fu, dict):
+        # aceita o bloco fundacao direto (s["fundacao"]) como o spec inteiro
+        if any(k in spec for k in ("fck", "tipo", "_origem_material")):
+            fu = spec
+        else:
+            raise ValueError("spec sem bloco fundacao")
+    reg = fu.get("_origem_material")
+    if not isinstance(reg, dict):
+        reg = {}
+        fu["_origem_material"] = reg
+    for chave, valor in (("fck", fck), ("fyk", fyk),
+                         ("cobrimento", cobrimento), ("phi_barra", phi_barra)):
+        if valor is None:
+            continue
+        fu[chave] = valor
+        reg[chave] = "declarado_no_spec"
+    return spec
 
 
 def validar(spec):
@@ -608,6 +645,12 @@ def validar(spec):
     _gf = _num("fundacao.gamma_f")
     if _gf is not None and _gf < 1.0:
         faltando.append(("fundacao.gamma_f", "gamma_f (majoracao) deve ser >= 1,0 (recebido %g)" % _gf))
+    # G154 (D102): o material distingue modelo de declarado em
+    # fundacao._origem_material (nasce no novo(), o wizard declara); a
+    # folha e o memorial declaram a origem. Sem AVISO no validar: o aviso
+    # virava needs_review no G15/G19 e quebrava specs legados ready
+    # (proposta 36x24) sem mudar numero — a declaracao mora na entrega,
+    # nao no gate (mesmo desenho do G143 para cota/B_max).
     # --- BALDRAME (viga de amarracao NBR 6118): secao > 0.
     _bd = spec.get("baldrame")
     if isinstance(_bd, dict):

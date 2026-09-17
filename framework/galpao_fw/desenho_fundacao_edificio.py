@@ -301,6 +301,15 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
                               anchor="start", color="#555"))
             yy += 15
         yy += 9
+    # G154: o material com a origem, lido do resultado (dimensiona, fonte
+    # unica material_fundacao_g154). So carimba quando ha o que declarar
+    # (modelo a confirmar); declarado puro segue sem linha nova.
+    prov154 = (fundacao or {}).get("proveniencias_g154")
+    if prov154:
+        P.append(sb.texto(qx + 14, yy, "%s" % str(prov154)[:72], 10,
+                          anchor="start", color="#555"))
+        yy += 15
+        yy += 9
     P.append(sb.texto(qx + 14, yy, "PILAR", 10, anchor="start",
                       weight="bold"))
     P.append(sb.texto(qx + 74, yy, "SAPATA (m)", 10, anchor="start",
