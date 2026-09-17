@@ -304,6 +304,12 @@ escrita no teste. Nenhuma das duas para o goal.
   `fundacao_sapata_corrida.py:164`, `validacao.py` 2, `techdraw_hidraulica.py` 2. A heurística
   é **ruidosa** (docstrings, números que não são da norma); a triagem é o goal.
 - A lente do D179 (`test_auditoria_g149_g153_d179::test_03`) só cobre "3,0" + "NBR 6122".
+- Achado de 2026-09-17 ao catalogar a F152 (**entra na triagem mesmo que a heurística não o
+  pegue**, por ser comentário): `instalacao_eletrica.py:123` atribui "os diametros externos dos
+  cabos" à **NBR NM 280** (F151, que trata do condutor). O diâmetro externo do cabo isolado está
+  na **NBR NM 247-3:2002** (F152), Tabela 1 (p.5 da norma / p.12 do arquivo; 2,5 mm² classe 1 =
+  3,2 a 3,9 mm, conferido na imagem). Corrige só a atribuição; `_ELETRODUTO_POR_SECAO` não muda.
+  A lente cobre também "NBR NM nnn".
 
 **Entregar.** Lente AST (baseline nos dois sentidos) de toda frase que atribui número a NBR:
 cada uma com o **item** e triada contra a **imagem da página** do acervo (tabela: frase, item,
