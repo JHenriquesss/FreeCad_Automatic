@@ -1,7 +1,8 @@
 # Backlog de goals executáveis — pós-G153 / D179 (2026-09-16)
 
-Fila **ABERTA**. Quatro goals (G154–G157) e **uma decisão pendente do usuário** (o FS da
-estaca). As filas anteriores estão fechadas e ficam apenas como registro — não reexecute nada
+Fila **ABERTA**. Quatro goals: **G154 fechado** (D180, `4018471`); **G155, G156 e G157
+abertos**, nesta ordem, **um de cada vez**. Todas as decisões do usuário já foram tomadas
+(2026-09-17, seção "Decisões tomadas"): nenhum goal para para perguntar. As filas anteriores estão fechadas e ficam apenas como registro — não reexecute nada
 de lá: `BACKLOG-GOALS.md` (G78–G88), `BACKLOG-GOALS-G91-G97.md`, `BACKLOG-GOALS-G99-G105.md`,
 `BACKLOG-GOALS-G107-G112.md`, `BACKLOG-GOALS-G114-G118.md`, `BACKLOG-GOALS-G120-G124.md`,
 `BACKLOG-GOALS-G126-G130.md`, `BACKLOG-GOALS-G132-G136.md`, `BACKLOG-GOALS-G137-G142.md`,
@@ -46,7 +47,48 @@ SPT externo (T44).
 
 ---
 
-## Decisão do usuário (sem goal): o FS da estaca
+## Protocolo de execução em sequência (2026-09-17)
+
+**Por que existe.** O G155 começou a editar a árvore (09:19) **antes** do commit do G154
+(11:06): os dois rodaram ao mesmo tempo na mesma cópia. O G154 teve de fechar a suíte num
+worktree à parte (o WIP do G155 quebrava a guarda), e o G155 ficou pela metade, sem commit. O
+backlog também deixava escolhas abertas ("proveniência **ou** pergunta", "depois do G154 **se**…",
+"a escolha vai ao usuário"). Este protocolo fecha as duas portas.
+
+1. **Um goal por vez, na ordem G155 → G156 → G157.** Nunca abra dois goals ao mesmo tempo, nem
+   em outra janela/sessão. O próximo só começa depois do commit do anterior.
+2. **Checagem de entrada (antes de editar qualquer arquivo):**
+   - `git log --oneline` tem o commit do goal anterior (G155: `4018471` G154; G156: o commit
+     "G155:"; G157: o commit "G156:"). Se não tiver, **não comece**: encerre dizendo qual falta.
+   - `git status --short` só pode mostrar o WIP **do próprio goal** (ver "Estado de partida" de
+     cada um). Arquivo modificado que não é do goal → **não comece**: encerre listando os
+     arquivos. Nunca apague, reverta ou faça stash de trabalho alheio.
+   - Nenhum `pytest`/`suite_paralela`/`freecad*` rodando (liste os processos). Se houver, é outra
+     execução: encerre dizendo o PID.
+3. **Sem perguntas no meio.** As decisões estão abaixo. Escolha que o backlog não previu segue a
+   **regra conservadora**: não muda número, veredito, default nem trava; declara a ausência; a
+   escolha vai ao verbete numa linha **"Pendência ao usuário:"**; o goal **continua** até o commit.
+4. **Fechamento:** suíte pelo runner no código final (conv. 12 e 16), verbete com número D e
+   linha no `wiki/03-phases.md` **no mesmo commit**, commit com o prefixo `G15x:`. O goal só
+   termina com a árvore limpa (`git status --short` vazio).
+5. **Interrupção** (queda, contexto, máquina): o próximo disparo do **mesmo** goal retoma pelo
+   `git status`/`git diff` — nunca começa o goal seguinte.
+
+---
+
+## Decisões tomadas (usuário, 2026-09-17)
+
+- **FS da estaca: (a) manter 3,0 adotado e declarado.** Nenhum goal muda o número ou a trava
+  do `validar`. O texto já diz "adotado no D38" com 6.2.1.2.1/6.2.1.2.2 ao lado (D179).
+- **G155 retoma o WIP** que está na árvore (não descarta, não recomeça).
+- **Disparo:** um `/goal` por vez, em sequência, com a checagem de entrada do protocolo.
+- **Imprevisto:** regra conservadora do protocolo, item 3 (seguir e registrar; não parar).
+- **G156, divergência de citação:** corrige só a atribuição ("adotado", com o item da norma ao
+  lado), lista na tabela do verbete como pendência ao usuário; **nenhum número muda**.
+- **G157, numeração:** os quatro verbetes recebem os próximos D livres **depois** do último D
+  existente no momento do G157, na ordem G149, G150, G151, G152.
+
+Registro do FS (para consulta):
 
 - **Código:** `estaca_profunda.FS_GLOBAL = 3.0` (`:68`), adotado no **D38** (parecer de
   2026-07-11, "sem citar o PDF 6122 escaneado"); `projeto_spec.validar()` **bloqueia FS < 3,0
@@ -57,9 +99,8 @@ SPT externo (T44).
 - **D179 fez só a atribuição:** o resultado, o memorial, a folha, o wizard e a mensagem do
   `validar` dizem agora "3,0 adotado no D38; NBR 6122:2022 6.2.1.2.1 fixa 2,0 — confirmar". O
   número e a trava **não mudaram**.
-- **Escolha:** (a) manter 3,0 como valor adotado, conservador e declarado (como está); ou
-  (b) alinhar o default a 2,0 e a trava com prova de carga a 1,6, com a regra da norma. Com (b)
-  vira um goal (muda capacidade, n de estacas e veredito — medir antes e depois).
+- **Escolhido (a)** em 2026-09-17. A alternativa (b), alinhar a 2,0/1,6, não está em goal
+  nenhum deste lote.
 
 ---
 
@@ -99,7 +140,8 @@ SPT externo (T44).
 15. **NOVO (D179) — norma citada é norma LIDA.** Toda frase que atribui um número a uma NBR
     traz o **item** e foi conferida **na imagem da página** do acervo. "Está no catálogo" não é
     leitura. Número do código que diverge da página **não se troca no goal**: a atribuição se
-    corrige ("adotado", com o item da norma ao lado) e a escolha vai ao usuário. Isso vale para
+    corrige ("adotado", com o item da norma ao lado) e a escolha vai ao usuário **como
+    pendência no verbete, sem parar o goal** (protocolo, item 3). Isso vale para
     o backlog também: o D179 achou a afirmação falsa **no backlog anterior**.
 16. **NOVO (D179) — o fechamento é do código commitado.** Mudou código depois da corrida que
     fecha (mesmo "sem mudar o caminho verde")? Rode de novo. O verbete tem **número D** e a
@@ -131,18 +173,20 @@ entrega.** **Uma fonte só:** dado que o cliente recebe mora na produção.
 
 ## Ordem e dependência
 
-- **G154** primeiro: é o único que pode mudar **veredito** (o G149 mediu fck 25→15 MPa virando
-  a biela do bloco de OK para REPROVA).
-- **G155** depois do G154 se a folha de fundação do prédio for tocada nos dois (mesmo emissor).
-- **G156** independente (texto e lente; nunca muda número).
-- **G157** por último (processo; lê o que os outros escreveram).
-- **Decisão do usuário:** o FS da estaca (acima). Se for (b), vira goal antes do G154.
+Estritamente sequencial, sem ramificação:
+
+1. **G154** — FECHADO (D180, `4018471`).
+2. **G155** — retoma o WIP; parte de `4018471`.
+3. **G156** — parte do commit do G155.
+4. **G157** — parte do commit do G156 (lê o que os outros escreveram).
 
 ---
 
 # GOALS
 
 ## G154 · O material do modelo que decide veredito sem ninguém declarar
+
+**FECHADO** em 2026-09-17 (D180, commit `4018471`). Não reexecutar; mantido como registro.
 
 **Prioridade: alta.**
 
@@ -187,6 +231,27 @@ número nasce.
 
 **Prioridade: média-alta.**
 
+**Estado de partida (medido em 2026-09-17, 12:40) — RETOMAR, não recomeçar.** Uma execução
+anterior do G155, sobreposta ao G154, deixou WIP sem commit sobre `4018471`: 16 arquivos
+(`desenho_alvenaria`, `desenho_casa_residencial`, `desenho_climatizacao`, `desenho_concreto`,
+`desenho_coordenacao`, `desenho_eletrico`, `desenho_eletrico_residencial`,
+`desenho_escada_edificio`, `desenho_fundacao_edificio`, `desenho_hidraulica`,
+`desenho_incendio`, `desenho_pavimento`, `desenho_piso`, `edificio_adapter`,
+`veredito_folha_g152` com `veredito_para_folha_svg`/`injetar_veredito_no_svg`,
+`tests/test_folhas_g77.py` com 2 isenções) e o novo `tests/test_veredito_folha_g155.py`. Nesse
+WIP: `test_veredito_folha_g155` + `g152` **10 passed**; `test_guardas_um_eixo_g83` +
+`test_folhas_g77` **96 passed** (o D180 registrou que o `BASELINE_G83` quebrava antes; hoje
+está verde — conferir se foi triado com motivo, não só atualizado). **Não medido:** a regra do
+lote, a suíte inteira, os PNG olhados, o verbete e a linha de fase. O goal começa lendo
+`git diff`, confere cada disciplina da lista abaixo contra o que já existe, completa o que
+faltar e fecha pelo protocolo. Esses 17 caminhos são o único WIP permitido na checagem de
+entrada.
+
+**Decidido para este goal:** disciplina sem veredito no resultado (nem `ATENDE` nem
+`atende_global`) **não ganha** veredito na folha — a folha diz "veredito não disponível no
+resultado" e o caso vai ao verbete (regra conservadora). Folha de conferência interna da casa
+também declara.
+
 **Medido.**
 - O G152 cobriu os `techdraw_*` e a rota SVG do **galpão**. Os emissores do prédio/casa
   (`desenho_*.py`) por grep: `desenho_fundacao_edificio` **0** "REPROVA", `desenho_eletrico` 0,
@@ -221,6 +286,13 @@ conferência interna (sem código no índice): também dizem.
 
 **Prioridade: média.**
 
+**Estado de partida:** commit do G155 no `git log`, árvore limpa.
+
+**Decidido para este goal:** frase que não dá para conferir porque a norma **não está no
+acervo** ou a página é ilegível entra na tabela como "não conferível" (com o motivo) e fica
+como está; frase de fonte que não é NBR (livro, catálogo) fica fora da lente, com a regra
+escrita no teste. Nenhuma das duas para o goal.
+
 **Medido.**
 - O D179 achou `FS 3,0 "NBR 6122"` em resultado, memorial, folha, wizard e `validar` — a página
   diz 2,0 (6.2.1.2.1). Viveu do D38 (2026-07-11) ao D179 porque nenhuma lente confere número
@@ -254,6 +326,9 @@ não regra cega.
 ## G157 · O verbete sem número e a fase sem linha
 
 **Prioridade: média-baixa.**
+
+**Estado de partida:** commit do G156 no `git log`, árvore limpa. A guarda cobre também os
+goals G154–G156 (já têm D) e o próprio G157.
 
 **Medido.**
 - `wiki/04-decisions.md`: os verbetes do G149, G150, G151 e G152 têm cabeçalho `## G1xx - …`
