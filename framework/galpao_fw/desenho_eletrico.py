@@ -341,11 +341,16 @@ def _edificio_pavimentos(estrutura, n_servidos):
     return nomes
 
 
-def diagrama_prumada_edificio_svg(ele, estrutura, titulo=None):
+def diagrama_prumada_edificio_svg(ele, estrutura, titulo=None, veredito=None):
     """PE-EL-01 Unifilar: diagrama vertical entrada -> prumada -> QDs.
 
     Um QD por pavimento SERVIDO (drawing-vs-data: len == pavimentos_servidos),
-    com a secao da prumada e o disjuntor geral rotulados do calculo."""
+    com a secao da prumada e o disjuntor geral rotulados do calculo.
+
+    veredito: (G155) fonte do veredito (o proprio `ele` com ATENDE/reprovados).
+      None = caminho historico, byte-identico; ATENDE = byte-identico; REPROVA
+      declara a linha com os gates + STATUS, lidos da fonte unica
+      veredito_folha_g152 (nunca decididos aqui)."""
     n = int(ele.get("pavimentos_servidos") or 0)
     if n < 1:
         raise ValueError("eletrica sem pavimentos servidos: nada a desenhar")
@@ -383,13 +388,25 @@ def diagrama_prumada_edificio_svg(ele, estrutura, titulo=None):
                11, "start", color="#555"))
     s.append(_t(W - 180, Hh - 24, "CARGA TOTAL %.0f VA" % ent.get("carga_total_VA", 0),
                11, color="#555"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def planta_eletrica_pavimento_svg(ele, estrutura, pavimento=None):
+def planta_eletrica_pavimento_svg(ele, estrutura, pavimento=None, veredito=None):
     """PE-EL-02 Planta de instalacao do pavimento-tipo: contorno + shaft com a
-    prumada, eletrocalha atravessando o comprimento e o QDP do pavimento."""
+    prumada, eletrocalha atravessando o comprimento e o QDP do pavimento.
+
+    veredito: (G155) fonte do veredito (o proprio `ele`). None/ATENDE =
+      byte-identico; REPROVA declara pela fonte unica."""
     C, L = _edificio_C_L(estrutura)
     qua = ele.get("quadro_de_pavimento") or {}
     Wc, Hh = 1000, 640
@@ -432,13 +449,25 @@ def planta_eletrica_pavimento_svg(ele, estrutura, pavimento=None):
                11, "start"))
     s.append(_t(lx + 14, ly + 124, "carga comum: %.0f VA" % (ele.get("carga_areas_comuns_VA") or 0),
                11, "start"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(Wc / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(Wc / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def infra_aterramento_edificio_svg(ele, estrutura, titulo=None):
+def infra_aterramento_edificio_svg(ele, estrutura, titulo=None, veredito=None):
     """PE-EL-03 Infraestrutura: corte vertical do shaft (prumada + calhas por
-    pavimento) descendo ao eletrodo de aterramento."""
+    pavimento) descendo ao eletrodo de aterramento.
+
+    veredito: (G155) fonte do veredito (o proprio `ele`). None/ATENDE =
+      byte-identico; REPROVA declara pela fonte unica."""
     n = int(ele.get("pavimentos_servidos") or 0)
     if n < 1:
         raise ValueError("eletrica sem pavimentos servidos: nada a desenhar")
@@ -465,13 +494,27 @@ def infra_aterramento_edificio_svg(ele, estrutura, titulo=None):
     s.append(_line(x, y_base + 40, x, y_base + 70, 2.0))
     s.append(_sym_terra(x, y_base + 82))
     s.append(_t(x + 30, y_base + 86, "ATERRAMENTO (A CONFIRMAR)", 12, "start"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    # O STATUS sai ancorado a direita (G129: centrado colidia com o rotulo
+    # ATERRAMENTO na rodada real, que ja reprova - PNG reconferido).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W - 20, Hh - 8, "STATUS: %s" % _st155, 11,
+                           anchor="end", weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def qdc_edificio_svg(ele, estrutura, titulo=None):
+def qdc_edificio_svg(ele, estrutura, titulo=None, veredito=None):
     """PE-EL-04 Quadros/QDC: uma linha por QD (pavimento servido) com secao e
-    protecao do quadro calculado + a protecao geral da entrada."""
+    protecao do quadro calculado + a protecao geral da entrada.
+
+    veredito: (G155) fonte do veredito (o proprio `ele`). None/ATENDE =
+      byte-identico; REPROVA declara pela fonte unica."""
     n = int(ele.get("pavimentos_servidos") or 0)
     if n < 1:
         raise ValueError("eletrica sem pavimentos servidos: nada a desenhar")
@@ -502,35 +545,48 @@ def qdc_edificio_svg(ele, estrutura, titulo=None):
     disj_g = (prot.get("disjuntor") or {}).get("IN", "?")
     s.append(_t(60, y0 + (n + 2) * rh + 16, "GERAL DA ENTRADA: %s A - %.0f VA" % (
         disj_g, ent.get("carga_total_VA", 0)), 12, "start", "bold"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def gerar_prumada_edificio(ele, estrutura, path, titulo=None):
+def gerar_prumada_edificio(ele, estrutura, path, titulo=None, veredito=None):
     """Escreve o unifilar da prumada (PE-EL-01) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(diagrama_prumada_edificio_svg(ele, estrutura, titulo))
+        f.write(diagrama_prumada_edificio_svg(ele, estrutura, titulo,
+                                              veredito=veredito))
     return path
 
 
-def gerar_planta_pavimento_edificio(ele, estrutura, path, pavimento=None):
+def gerar_planta_pavimento_edificio(ele, estrutura, path, pavimento=None, veredito=None):
     """Escreve a planta de instalacao do pavimento-tipo (PE-EL-02)."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_eletrica_pavimento_svg(ele, estrutura, pavimento))
+        f.write(planta_eletrica_pavimento_svg(ele, estrutura, pavimento,
+                                              veredito=veredito))
     return path
 
 
-def gerar_infra_edificio(ele, estrutura, path, titulo=None):
+def gerar_infra_edificio(ele, estrutura, path, titulo=None, veredito=None):
     """Escreve a infra/aterramento (PE-EL-03) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(infra_aterramento_edificio_svg(ele, estrutura, titulo))
+        f.write(infra_aterramento_edificio_svg(ele, estrutura, titulo,
+                                               veredito=veredito))
     return path
 
 
-def gerar_qdc_edificio(ele, estrutura, path, titulo=None):
+def gerar_qdc_edificio(ele, estrutura, path, titulo=None, veredito=None):
     """Escreve o QDC por pavimento (PE-EL-04) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(qdc_edificio_svg(ele, estrutura, titulo))
+        f.write(qdc_edificio_svg(ele, estrutura, titulo,
+                                 veredito=veredito))
     return path
 
 

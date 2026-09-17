@@ -55,7 +55,7 @@ def _escala(vaos_x, vaos_y, larg_util, alt_util):
 
 
 def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
-                      ausencias=None, rotulo_viga=None):
+                      ausencias=None, rotulo_viga=None, veredito=None):
     """Monta a planta de formas.
 
     rotulo_viga : (opc, D176) funcao (eixo "X"/"Y", indice da linha) -> marca
@@ -72,6 +72,8 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
               esta folha - com a lista a folha desenha a mesma planta e
               declara a caixa vermelha; com None (default) o caminho do
               predio/casa sai byte-identico.
+    veredito : (G155) fonte do veredito da estrutura (R com ATENDE/reprovados).
+              None/ATENDE = byte-identico; REPROVA declara pela fonte unica.
     """
     vaos_x, vaos_y = pav["vaos_x"], pav["vaos_y"]
     nx, ny = len(vaos_x), len(vaos_y)
@@ -234,6 +236,28 @@ def planta_formas_svg(pav, descida=None, titulo=None, edicao=None,
         for k, campo in enumerate(list(ausencias)):
             P.append(sb.texto(ax + 14, ay + 44 + k * 20,
                               "nao declarado: %s" % campo, 11, anchor="start"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    # A malha ocupa a folha inteira (cotas/quadro/legenda embaixo, rotulos de
+    # viga/pilar em cima): a REPROVA abre uma faixa propria de 48 px no
+    # rodape, com a linha + STATUS, em vez de espremer texto sobre o
+    # desenho. Sem linha (parametro ausente ou ATENDE) nada muda:
+    # byte-identico. O cabecalho e o fundo sao reemitidos com o novo Hh
+    # (mesmo formato de sb.abre_svg).
+    _lin155 = _st155 = None
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+    if _lin155 is not None:
+        _base155 = Hh
+        Hh += 48
+        P[0] = f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" '\
+            f'height="{Hh}" viewBox="0 0 {W} {Hh}" font-family="Arial">'
+        P[1] = f'<rect x="0" y="0" width="{W}" height="{Hh}" fill="white"/>'
+        P.append(sb.texto(W / 2, _base155 + 20, _lin155, 12, weight="bold",
+                          color="#b91c1c"))
+        if _st155 is not None:
+            P.append(sb.texto(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                              weight="bold", color="#b91c1c"))
     P.append("</svg>")
     return "\n".join(P)
 
@@ -294,10 +318,12 @@ def confere_desenho(pav):
             "n_vigas": (ny + 1) + (nx + 1)}
 
 
-def gerar_planta_formas(pav, path, descida=None, titulo=None, edicao=None):
+def gerar_planta_formas(pav, path, descida=None, titulo=None, edicao=None,
+                        veredito=None):
     """Escreve a planta de formas (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_formas_svg(pav, descida, titulo, edicao=edicao))
+        f.write(planta_formas_svg(pav, descida, titulo, edicao=edicao,
+                                  veredito=veredito))
     return path
 
 
@@ -825,13 +851,16 @@ def gerar_prancha_armacao_pilares(pilares, path, titulo=None, edicao=None):
 
 
 def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None,
-                                     edicao=None):
+                                     edicao=None, veredito=None):
     """Combinada N:1 de PE-CO-02 (G110/G115): secao de vigas + secao de pilares.
 
     Empilha no MESMO <svg> a tabela por tramo (builder da G34, mesma
     formatacao da prancha de vigas) e o quadro por TRECHO de pilar (G115).
     Altura dinamica H = base + 22*(n_tramos + n_fileiras_pilares); passa em
     desenho_svg_base.confere_folha_svg.
+
+    veredito: (G155) fonte do veredito da estrutura. None/ATENDE =
+      byte-identico; REPROVA declara pela fonte unica.
     """
     _por_linha, n_tramos, linhas_v = _dados_vigas(vigas_verificacao)
     nomes_p = sorted(pilares) if isinstance(pilares, dict) else []
@@ -859,16 +888,27 @@ def prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares, titulo=None,
     yy = _escreve_secao_pilares(P, pilares, yy + 18, W, edicao=edicao)
     _rodape_armacao_vigas(P, yy, conceitual=False)
     _rodape_armacao_pilares(P, yy + 60)
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            P.append(sb.texto(W / 2, 75, _lin155, 12, weight="bold",
+                              color="#b91c1c"))
+            if _st155 is not None:
+                P.append(sb.texto(W / 2, H - 8, "STATUS: %s" % _st155, 11,
+                                  weight="bold", color="#b91c1c"))
     P.append("</svg>")
     return "\n".join(P)
 
 
 def gerar_prancha_armacao_vigas_pilares(vigas_verificacao, pilares, path,
-                                         titulo=None, edicao=None):
+                                         titulo=None, edicao=None, veredito=None):
     """Escreve a combinada de armacao vigas+pilares (SVG) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(prancha_armacao_vigas_pilares_svg(vigas_verificacao, pilares,
-                                                  titulo, edicao=edicao))
+                                                  titulo, edicao=edicao,
+                                                  veredito=veredito))
     return path
 
 

@@ -23,9 +23,13 @@ def _t(x, y, txt, size=13, anchor="middle", weight="normal", color="#111"):
             f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{_esc(txt)}</text>')
 
 
-def planta_juntas_svg(r):
+def planta_juntas_svg(r, veredito=None):
     """r: dict de piso_industrial.verifica_piso() (com OK, h_cm, juntas, ...).
-    Devolve o SVG (str). Se o piso reprovou/A CONFIRMAR, desenha um aviso."""
+    Devolve o SVG (str). Se o piso reprovou/A CONFIRMAR, desenha um aviso.
+
+    veredito: (G155) fonte do veredito (o proprio `r` com OK). None = historico
+      (o aviso proprio continua); OK True = byte-identico; OK False declara a
+      linha com os gates + STATUS, lidos da fonte unica veredito_folha_g152."""
     Wc, Hh = 1120, 760
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{Wc}" height="{Hh}" '
            f'viewBox="0 0 {Wc} {Hh}" font-family="Arial">',
@@ -102,13 +106,22 @@ def planta_juntas_svg(r):
     out.append(_t(ax0, ly + 48, "Metodo: placa sobre solo de Winkler + Westergaard; "
                  "material NBR 6118 8.2.5 (tracao na flexao).", 11, anchor="start", color="#666"))
 
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            out.append(_t(Wc / 2, 62, _lin155, 12, weight="bold", color="#b00"))
+            if _st155 is not None:
+                out.append(_t(Wc / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                             weight="bold", color="#b00"))
     out.append("</svg>")
     return "\n".join(out)
 
 
-def gerar_planta_juntas(r, path):
+def gerar_planta_juntas(r, path, veredito=None):
     """Grava o SVG da planta de juntas em `path`."""
-    svg = planta_juntas_svg(r)
+    svg = planta_juntas_svg(r, veredito=veredito)
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
     return path

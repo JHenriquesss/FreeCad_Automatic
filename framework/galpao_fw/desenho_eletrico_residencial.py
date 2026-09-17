@@ -621,17 +621,33 @@ def gerar_desenhos_residenciais(result, out_dir) -> dict:
     destino = Path(out_dir)
     destino.mkdir(parents=True, exist_ok=True)
     gerados = []
+    # G155: cada folha reprovada declara o veredito (lido do `circuits`
+    # pela fonte unica, nunca decidido aqui). O `circuits` do
+    # dimensionamento declara "ok" e os erros por design_id; sem ele, a
+    # fonte nao declara veredito e a folha diz que esta indisponivel.
+    # ATENDE = byte-identico.
+    try:
+        from veredito_folha_g152 import injetar_veredito_no_svg as _inj155
+    except ImportError:
+        _inj155 = lambda _s, _f: _s
+
+    def _fonte155(res):
+        cir = (res or {}).get("circuits") if isinstance(res, dict) else None
+        return cir if isinstance(cir, dict) else (res if isinstance(res, dict) else {})
+
     for nome, funcao in (("unifilar.svg", unifilar_residencial_svg),
                          ("quadro-cargas.svg", quadro_cargas_residencial_svg)):
         caminho = destino / nome
-        caminho.write_text(funcao(result), encoding="utf-8")
+        caminho.write_text(_inj155(funcao(result), _fonte155(result)),
+                           encoding="utf-8")
         gerados.append(nome)
 
     ignorados = {}
     validacao = _layout_validado(result)
     if validacao["ok"]:
         caminho = destino / "planta-eletrica.svg"
-        caminho.write_text(planta_eletrica_residencial_svg(result), encoding="utf-8")
+        caminho.write_text(_inj155(planta_eletrica_residencial_svg(result),
+                                   _fonte155(result)), encoding="utf-8")
         gerados.append("planta-eletrica.svg")
     elif not validacao["declared"]:
         ignorados["planta-eletrica.svg"] = "layout_not_declared"

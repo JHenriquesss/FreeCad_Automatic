@@ -439,7 +439,7 @@ def _hachura_engaste(x1, y1, x2, y2, lado, n=14, t=9.0):
 
 
 def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None,
-                    edicao=None):
+                    edicao=None, veredito=None):
     """Planta de formas + armacao de um painel de laje macica, a partir do dict
     de laje_concreto.verifica_laje. Mostra o painel na escala, a convencao de
     vinculacao de cada borda (hachura = engaste), as cotas, as barras positivas
@@ -450,7 +450,11 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None,
     de 700 px - sem ele a saida e a de sempre. `titulo_extra`: sufixo da
     segunda linha do cabecalho (diz QUAL painel e o desenho).
     `edicao` (G128): a declarada no projeto (casa/predio repassam); vence o
-    que o resultado carrega; ausente = comportamento de hoje declarado."""
+    que o resultado carrega; ausente = comportamento de hoje declarado.
+    `veredito` (G155): fonte do veredito da estrutura (R com ATENDE/
+    reprovados). None/o proprio `r` ATENDE = byte-identico (o RESULTADO da
+    peca continua); REPROVA da disciplina declara a linha com os gates pela
+    fonte unica veredito_folha_g152."""
     import laje_concreto as lj
     if quadro is None:
         quadro = lj.quadro_de_ferros(r)
@@ -652,10 +656,22 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None,
                  f'font-weight="bold">{_esc("Reacoes (kN/m)")}</text>')
         s.append(f'<text x="{qx + 118}" y="{ry + 20 + len(itens) * 18}" '
                  f'font-size="11">{_esc(txt)}</text>')
-    veredito = "ATENDE" if r["OK"] else "NAO ATENDE"
+    veredito_peca = "ATENDE" if r["OK"] else "NAO ATENDE"
     cor = "#166534" if r["OK"] else "#b91c1c"
     s.append(f'<text x="{qx}" y="{700 - 40}" font-size="14" font-weight="bold" '
-             f'fill="{cor}">{_esc("RESULTADO: " + veredito)}</text>')
+             f'fill="{cor}">{_esc("RESULTADO: " + veredito_peca)}</text>')
+    # G155: veredito da disciplina lido do resultado pela fonte unica. A
+    # linha mora abaixo do RESULTADO da peca (y=678): o topo tem titulo,
+    # subtitulo e o QUADRO DE FERROS sem faixa livre (PNG + estimador).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(f'<text x="{W / 2:.0f}" y="678" font-size="12" font-weight="bold" '
+                     f'fill="#b91c1c" text-anchor="middle">{_esc(_lin155)}</text>')
+            if _st155 is not None:
+                s.append(f'<text x="{W / 2:.0f}" y="{H - 8}" font-size="11" font-weight="bold" '
+                         f'fill="#b91c1c" text-anchor="middle">{_esc("STATUS: " + _st155)}</text>')
     if extras:
         s.extend(extras[1])
     s.append('</svg>')
@@ -663,7 +679,7 @@ def planta_laje_svg(r, quadro=None, extras=None, titulo_extra=None,
 
 
 def gerar_planta_laje(r, path, quadro=None, lajes_por_painel=None,
-                      edicao=None):
+                      edicao=None, veredito=None):
     """Escreve a planta da laje (SVG) em `path`. Retorna o path.
 
     Com `lajes_por_painel` (o dict de `detalha_lajes_por_painel`) sai a
@@ -672,13 +688,15 @@ def gerar_planta_laje(r, path, quadro=None, lajes_por_painel=None,
     with open(path, "w", encoding="utf-8") as f:
         if lajes_por_painel is not None:
             f.write(planta_lajes_todos_paineis_svg(lajes_por_painel,
-                                                   edicao=edicao))
+                                                   edicao=edicao,
+                                                   veredito=veredito))
         else:
-            f.write(planta_laje_svg(r, quadro, edicao=edicao))
+            f.write(planta_laje_svg(r, quadro, edicao=edicao,
+                                    veredito=veredito))
     return path
 
 
-def planta_lajes_todos_paineis_svg(det, edicao=None):
+def planta_lajes_todos_paineis_svg(det, edicao=None, veredito=None):
     """PE-CO-03, G111 opcao (a): TODOS os paineis detalhados, um quadro de
     ferros por painel, mesma h adotada.
 
@@ -742,4 +760,5 @@ def planta_lajes_todos_paineis_svg(det, edicao=None):
                                        det["paineis"].index(crit) + 1, n))
     return planta_laje_svg(crit["resultado"], quadro=crit["quadro"],
                            extras=(altura_extra, linhas),
-                           titulo_extra=titulo_extra, edicao=edicao)
+                           titulo_extra=titulo_extra, edicao=edicao,
+                           veredito=veredito)

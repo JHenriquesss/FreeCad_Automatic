@@ -454,6 +454,21 @@ ISENTAS = {
         "G129: wrapper puro do estimador consumido pelo portao do censo; "
         "nao e emissor de folha - portao proprio em "
         "tests/test_colisoes_censo_g129.py",
+    # G155: helpers da fonte unica do veredito (leem o resultado e devolvem
+    # strings), CONSUMIDOS pelas folhas do predio/casa; nao emitem folha -
+    # o portao proprio e o G155 (tests/test_veredito_folha_g155.py).
+    "veredito_folha_g152.veredito_para_folha_svg":
+        "G155: helper da fonte unica consumido pelas folhas do predio/casa; "
+        "nao e emissor de folha - portao proprio em "
+        "tests/test_veredito_folha_g155.py",
+    "veredito_folha_g152.injetar_veredito_no_svg":
+        "G155: helper da fonte unica consumido pelos gerar_* da casa; "
+        "nao e emissor de folha - portao proprio em "
+        "tests/test_veredito_folha_g155.py",
+    "veredito_folha_g152._altura_svg":
+        "G155: helper interno do injetar (le a altura do cabecalho para a "
+        "faixa do rodape); nao e emissor de folha - portao proprio em "
+        "tests/test_veredito_folha_g155.py",
 }
 
 

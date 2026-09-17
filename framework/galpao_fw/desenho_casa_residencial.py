@@ -670,7 +670,7 @@ def motivos_arquitetura_faltante(turnkey, site=None):
 # nomeado, e gerar_desenhos_casa a registra em `skipped`, nunca em disco.
 
 
-def armacao_vigas_pilares_casa_svg(estrutura, titulo=None, edicao=None):
+def armacao_vigas_pilares_casa_svg(estrutura, titulo=None, edicao=None, veredito=None):
     """PE-CO-02 da casa: a combinada de armacao vigas+pilares (G110, N:1).
 
     Le `estrutura["vigas"]` (o `por_linha` de `estrutura_casa.verifica_vigas`,
@@ -683,6 +683,9 @@ def armacao_vigas_pilares_casa_svg(estrutura, titulo=None, edicao=None):
     mesmo <svg> em vez de um arquivo novo (mapas, indice e lente
     varredura_indice_disco intactos). Pilares ausente/vazio nao levanta:
     a secao de pilares declara a ausencia na folha.
+
+    veredito: (G155) fonte do veredito da estrutura. None = a propria
+      `estrutura`; ATENDE = byte-identico; REPROVA declara pela fonte unica.
     """
     vigas = (estrutura or {}).get("vigas") if isinstance(
         estrutura, dict) else None
@@ -701,10 +704,11 @@ def armacao_vigas_pilares_casa_svg(estrutura, titulo=None, edicao=None):
                      % (int(vigas.get("n_tramos") or 0),
                         len(pilares) if isinstance(pilares, dict) else 0))
     return dp.prancha_armacao_vigas_pilares_svg(vigas, pilares, titulo=tit,
-                                               edicao=edicao)
+                                               edicao=edicao,
+                                               veredito=estrutura if veredito is None else veredito)
 
 
-def detalhes_concreto_casa_svg(estrutura, titulo=None, edicao=None):
+def detalhes_concreto_casa_svg(estrutura, titulo=None, edicao=None, veredito=None):
     """PE-CO-03 da casa: a planta da laje do predio, com o dado da casa
     (G100).
 
@@ -712,6 +716,8 @@ def detalhes_concreto_casa_svg(estrutura, titulo=None, edicao=None):
     mesmo produtor que alimenta a PE-CO-03 do predio) e delega a
     `desenho_concreto.planta_laje_svg` - a mesma funcao que o adaptador do
     predio chama. Sem laje dimensionada nao ha detalhe honesto.
+
+    veredito: (G155) fonte do veredito da estrutura (a propria `estrutura`).
     """
     _ = titulo
     laje = (estrutura or {}).get("laje") if isinstance(
@@ -726,11 +732,14 @@ def detalhes_concreto_casa_svg(estrutura, titulo=None, edicao=None):
     # G111, opcao (a): com todos os paineis detalhados a folha lista os
     # N quadros; resultado antigo (sem a chave) segue na folha de 1.
     if isinstance(lajes, dict) and lajes.get("paineis"):
-        return dc.planta_lajes_todos_paineis_svg(lajes, edicao=edicao)
-    return dc.planta_laje_svg(laje, edicao=edicao)
+        return dc.planta_lajes_todos_paineis_svg(
+            lajes, edicao=edicao,
+            veredito=estrutura if veredito is None else veredito)
+    return dc.planta_laje_svg(laje, edicao=edicao,
+                              veredito=estrutura if veredito is None else veredito)
 
 
-def fundacao_locacao_formas_casa_svg(estrutura, titulo=None, edicao=None):
+def fundacao_locacao_formas_casa_svg(estrutura, titulo=None, edicao=None, veredito=None):
     """PE-CO-04 da casa: a planta de locacao/formas do predio, com o dado
     da casa (G100).
 
@@ -740,6 +749,9 @@ def fundacao_locacao_formas_casa_svg(estrutura, titulo=None, edicao=None):
     G80. So vale no caminho com `por_pilar`; a fundacao por linha
     (sapata corrida da alvenaria portante) precisa de emissor proprio e
     continua declarada com o dado nomeado.
+
+    veredito: (G155) fonte do veredito (a `fundacao` com gate). None = a
+      propria fundacao.
     """
     fundacao = (estrutura or {}).get("fundacao") if isinstance(
         estrutura, dict) else None
@@ -755,7 +767,8 @@ def fundacao_locacao_formas_casa_svg(estrutura, titulo=None, edicao=None):
     import desenho_fundacao_edificio as dfe
 
     return dfe.planta_fundacao_svg(fundacao, estrutura, titulo=titulo,
-                                   edicao=edicao)
+                                   edicao=edicao,
+                                   veredito=fundacao if veredito is None else veredito)
 
 
 def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
@@ -781,6 +794,13 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
     gerados = []
     ignorados = {}
     resultado = result or {}
+    # G155: cada folha reprovada declara o veredito + gates, lidos do
+    # resultado pela fonte unica (nunca decididos aqui). ATENDE/
+    # DESCONHECIDO = byte-identico (injetar devolve intacto).
+    try:
+        from veredito_folha_g152 import injetar_veredito_no_svg as _inj155
+    except ImportError:
+        _inj155 = lambda _s, _f: _s
     # G128: a edicao declarada resolve aqui (fonte unica); explicita vence
     # o turnkey, que vence a ausencia (hoje, 2014 declarado).
     if edicao is None and isinstance(turnkey, dict):
@@ -795,7 +815,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
     arquitetura = resultado.get("arquitetura")
     if isinstance(arquitetura, dict) and arquitetura.get("ambientes"):
         caminho = destino / "quadro-ambientes.svg"
-        caminho.write_text(quadro_ambientes_svg(arquitetura), encoding="utf-8")
+        caminho.write_text(_inj155(quadro_ambientes_svg(arquitetura),
+                                   arquitetura), encoding="utf-8")
         gerados.append("quadro-ambientes.svg")
     else:
         ignorados["quadro-ambientes.svg"] = "programa_de_arquitetura_ausente"
@@ -805,7 +826,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
         eletrico, dict) else None
     if isinstance(conferencia, dict) and conferencia.get("por_ambiente"):
         caminho = destino / "conferencia-nbr5410.svg"
-        caminho.write_text(conferencia_svg(conferencia), encoding="utf-8")
+        caminho.write_text(_inj155(conferencia_svg(conferencia), conferencia),
+                           encoding="utf-8")
         gerados.append("conferencia-nbr5410.svg")
     else:
         ignorados["conferencia-nbr5410.svg"] = "conferencia_nao_executada"
@@ -813,7 +835,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
     hidraulica = resultado.get("hidraulica")
     if isinstance(hidraulica, dict) and hidraulica.get("redes"):
         caminho = destino / "esquema-hidraulico.svg"
-        caminho.write_text(esquema_hidraulico_svg(hidraulica), encoding="utf-8")
+        caminho.write_text(_inj155(esquema_hidraulico_svg(hidraulica),
+                                   hidraulica), encoding="utf-8")
         gerados.append("esquema-hidraulico.svg")
     else:
         ignorados["esquema-hidraulico.svg"] = "rede_hidraulica_nao_dimensionada"
@@ -831,7 +854,9 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
             estrutura["pavimento"], str(caminho),
             descida=estrutura.get("descida"),
             titulo="PLANTA DE FORMAS - CASA RESIDENCIAL",
-            edicao=edicao)
+            edicao=edicao, veredito=estrutura)
+        # G155: o gerar_* do predio ja declara quando a estrutura reprova
+        # (fonte unica); aqui so garante o arquivo no laco (sem reinjetar).
         gerados.append("planta-formas.svg")
     else:
         ignorados["planta-formas.svg"] = "estrutura_nao_calculada"
@@ -888,7 +913,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
             else:
                 caminho = destino / "planta-baixa.svg"
                 caminho.write_text(
-                    planta_baixa_svg(arquitetura_planta, layout),
+                    _inj155(planta_baixa_svg(arquitetura_planta, layout),
+                            arquitetura_planta),
                     encoding="utf-8")
                 gerados.append("planta-baixa.svg")
     else:
@@ -919,7 +945,8 @@ def gerar_desenhos_casa(result, out_dir, turnkey=None, site=None,
         estrutura, dict) else None
     if isinstance(telhado, dict) and telhado.get("geometria_nos"):
         caminho = destino / "telhado-tesoura.svg"
-        caminho.write_text(telhado_tesoura_svg(telhado), encoding="utf-8")
+        caminho.write_text(_inj155(telhado_tesoura_svg(telhado), telhado),
+                           encoding="utf-8")
         gerados.append("telhado-tesoura.svg")
     else:
         ignorados["telhado-tesoura.svg"] = "telhado_madeira_nao_calculado"

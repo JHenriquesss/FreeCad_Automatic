@@ -77,7 +77,7 @@ def _geometria_desenho(registro):
 
 
 def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
-                          ausencias=None):
+                          ausencias=None, veredito=None):
     """Monta a planta de locacao/formas da fundacao.
 
     fundacao  : dict de fundacao_edificio.dimensiona (tipo, sigma_solo_adm,
@@ -89,6 +89,10 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
     ausencias : (opc, G140) campos que o calculo do galpao nao produz,
                 declarados em caixa vermelha na folha. None = caminho do
                 predio/casa, byte-identico (nenhum pixel muda).
+    veredito  : (G155) fonte do veredito (o proprio `fundacao` com
+                gate.OK/reprovados). None/ATENDE = byte-identico; REPROVA
+                declara a linha com os gates + STATUS, lidos da fonte unica
+                veredito_folha_g152 (nunca decididos aqui).
     """
     if not isinstance(fundacao, dict) or not fundacao.get("por_pilar"):
         raise ValueError(
@@ -368,6 +372,16 @@ def planta_fundacao_svg(fundacao, estrutura, titulo=None, edicao=None,
     P.append(sb.texto(MX, H - 28,
                       "CONCEITUAL - PENDENTE REVISAO E ART DO ENG. RESPONSAVEL",
                       11, anchor="start", weight="bold", color="#444"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            P.append(sb.texto(W / 2, 100, _lin155, 12, weight="bold",
+                              color="#b91c1c"))
+            if _st155 is not None:
+                P.append(sb.texto(W / 2, H - 12, "STATUS: %s" % _st155, 11,
+                                  weight="bold", color="#b91c1c"))
     P.append("</svg>")
     return "\n".join(P)
 
@@ -476,11 +490,12 @@ def confere_desenho_fundacao(fundacao, svg, tol=1e-6):
 
 
 def gerar_planta_fundacao(fundacao, estrutura, path, titulo=None,
-                          edicao=None):
+                          edicao=None, veredito=None):
     """Escreve a planta de fundacao (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(planta_fundacao_svg(fundacao, estrutura, titulo,
-                                    edicao=edicao))
+                                    edicao=edicao,
+                                    veredito=veredito))
     return path
 
 

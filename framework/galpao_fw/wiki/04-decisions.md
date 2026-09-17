@@ -5344,3 +5344,96 @@ a suite nao fecha — o G155 toca o mesmo emissor e ainda nao triou o
 
 **Nao feito.** Escolher outro fck; mudar classe de agressividade; tirar o valor
 do modelo sem a pergunta no wizard; numerar os verbetes G149-G152 (G157).
+
+## D181 - G155: as folhas do predio e da casa que nao diziam que reprovaram (2026-09-17) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G154-G157.md G155, pelo protocolo de execucao em
+sequencia e as decisoes do topo (retomar o WIP, sem recomeçar; sem perguntas;
+imprevisto pela regra conservadora). Checagem de entrada OK antes de editar:
+`git log` com `4018471` (G154/D180); `git status` so com os 17 caminhos do WIP
+do "Estado de partida"; nenhum pytest/suite_paralela/freecad rodando.
+
+**Medido por injecao (antes de completar; conta intacta).**
+- Predio (edificio-multipavimento real): eletrica REPROVA de verdade e a
+  prumada nao dizia nada (prova viva); hidraulica/incendio ATENDEM e com o
+  reprovado injetado seguiam sem dizer nada; fundacao (`gate.OK`) idem; R
+  traz `ATENDE=True`; memorial com `atende_global=False` (a eletrica reprova).
+  Marcas parciais (escada 13, pavimento 4, casa 7/6) nomeiam a peca, nao o
+  veredito da disciplina com os gates.
+- Casa (casa-residencial real): arquitetura/hidraulica/estrutura/telhado com
+  ATENDE; conferencia_nbr5410 com `ok=True`; fundacao com `gate.OK=True`;
+  `circuits` com `ok=True` produzido pelo dimensionamento (erros por
+  `design_id` quando falha); planta-baixa sobre arquitetura com ATENDE.
+  Nenhuma disciplina com dado real esta sem veredito (o caminho
+  "indisponivel" abaixo e provado por injecao).
+- `BASELINE_G83`: intacto e verde — o WIP nao o tocou
+  (`test_guardas_um_eixo_g83.py` fora do diff) e o G155 nao cria guarda de
+  um eixo em teste (asserts de substring/parse/hash; o veredito usa
+  coordenadas absolutas na producao). O "quebrava antes" do D180 era a
+  execucao sobreposta G154+G155 na mesma copia, nao um triado pendente.
+
+**Entregue (fonte unica `veredito_folha_g152`, estendida, nunca copiada).**
+- `extrair_veredito` le ATENDE > atende_* > `gate.OK` (fundacao) > `OK`
+  (piso/escada/peca) > `ok` (conferencia) > `circuits.ok` com erros por
+  `design_id` + designs com conductor/protection OK False (eletrica
+  residencial, tudo produzido pelo calculo). Sem chave: DESCONHECIDO.
+- Decisao do backlog: disciplina sem veredito no resultado nao ganha
+  veredito na folha — a folha declara `VEREDITO NAO DISPONIVEL NO
+  RESULTADO - VER MEMORIAL`, sem STATUS (carimbar seria decidir); so o
+  parametro ausente (None) sai byte-identico. O caso vai ao verbete (abaixo:
+  nenhum com dado real).
+- Cada folha do predio/casa aceita `veredito=` e declara na REPROVA a linha
+  com todos os gates + `STATUS: REPROVADO - VER MEMORIAL`, so posicionando
+  as strings da fonte unica; ATENDE = byte-identico (hash). Posicoes
+  conferidas no PNG + estimador `colisoes_de_rotulo_svg` (zero pares
+  VEREDITO/STATUS): formas abre faixa propria de 48 px no rodape (a malha
+  ocupa a folha toda); coordenacao no vao entre as caixas; fundacao y=100
+  (fora dos numeros de eixo); hidraulica y=75; escada y=76; vigas y=75;
+  laje abaixo do RESULTADO da peca (y=678). `gerar_*` repassam o veredito
+  (ausente = historico silencioso, byte-identico com G143/G149/G138); o
+  adapter passa a disciplina explicitamente em todas as pranchas; a casa
+  injeta no gerar (primeira faixa livre: 20/56/92 + rodape).
+- Completado alem do WIP: as 6 posicoes acima (o WIP colidia em CD-01,
+  CO-01, CO-04, HI, IN-03, CO-02 — visto no PNG); a eletrica residencial
+  lia por agregacao manual no emissor, agora le o `circuits` pela fonte
+  unica; a laje no caminho `paineis` (predio e casa) perdia o veredito —
+  `planta_lajes_todos_paineis_svg`/`gerar_planta_laje` repassam; a decisao
+  "sem veredito declara indisponivel" nao existia no WIP; isencao com
+  motivo para `veredito_folha_g152._altura_svg` no censo G77.
+- Primeira corrida do goal (3 failed) acusou o conflito real: o default
+  "gerar passa a disciplina" quebrava o byte-identico de
+  G143/G149/G138 — voltado a pass-through com o adapter explicito
+  (regra conservadora: teste de goal antigo nao se reescreve).
+
+**Testes.** `tests/test_veredito_folha_g155.py` (7): baseline ATENDE
+byte-identica; vermelho por injecao em cada disciplina (14 folhas do
+predio + casa); fonte unica estendida (literais, com precedencia);
+casa por folha; PNG reprovado rasterizado (fitz); zero colisao da marca;
+eletrica residencial (`circuits` real: ok byte-identico, reprovado com
+design_id, sem circuits indisponivel). Vizinhos: G152, G77 (+1 isencao
+motivada), guardas G83, laje, casa-concreto G100, alvenaria G62,
+planta-baixa G78, eletrica G99/fase6B, G142, G143/G149/G138/G140, adapter
+do predio (21), G102 casa/predio na suite.
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+G77, alcancabilidade, guardas D86/G69, disciplina-prancha G103, indice
+G91, carimbo-mapa G112, normas-catalogo, galpao-indice G93, suite D164,
+auditorias D172/D176/D179, fallbacks G145/G150, titulo G151, veredito
+G152, piso G153, estaca G149: verdes. Folha do galpao intocada (sem
+portao de auditoria; carimbo do galpao fechado). G102 casa/predio verdes
+na suite.
+
+**Suite inteira pelo runner (`-n 3`, codigo final, lida inteira).**
+`rc_pytest` 0, **3970 passed, 2 skipped em 1477,4 s** (24 min), 320/320
+arquivos, memoria livre minima 207 MB (piso 200 confirmado em 3
+amostras, 0 quedas), descendentes [] / [], `quebras` [].
+
+**PNG olhado (reprovada declara, ATENDE limpa):** EL-01/02/03/04,
+HI-agua/esgoto/pluvial, IN-01/02/03, CO-04, CO-01 (faixa no rodape),
+CO-02, CD-01, quadro-ambientes da casa. G154 visivel na CO-04
+(`cob modelo (confirmar)`), intacto.
+
+**Pendencia ao usuario:** nenhuma — toda disciplina com dado real
+carrega veredito (medido acima); o caminho indisponivel existe so por
+injecao. **Nao feito.** Parar de emitir folha reprovada; decidir gate na
+folha; mudar o carimbo do galpao. Nao comecar o G156.

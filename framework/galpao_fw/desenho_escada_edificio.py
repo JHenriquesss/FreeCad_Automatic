@@ -52,13 +52,17 @@ def _num(valor, default=None):
         return default
 
 
-def planta_escada_svg(escada, incendio=None, titulo=None):
+def planta_escada_svg(escada, incendio=None, titulo=None, veredito=None):
     """Monta a folha da escada (planta + corte + quadro).
 
     escada   : resultado de escada_concreto.dimensiona (com "geometria",
                "patamar_m", "largura_m", "armadura_positiva", "vinculacao").
     incendio : saida de incendio_edificio.dimensiona (usa ["gates"]) ou None.
                Sem ele, os campos 9077/9050 saem "... nao declarado".
+    veredito : (G155) fonte do veredito (o `incendio` com ATENDE/reprovados;
+               sem ele, a propria `escada` com OK). None = historico; ATENDE
+               = byte-identico; REPROVA declara pela fonte unica
+               veredito_folha_g152 (o carimbo REPROVADA do quadro continua).
     """
     if not isinstance(escada, dict) or not isinstance(
             escada.get("geometria"), dict):
@@ -269,6 +273,18 @@ def planta_escada_svg(escada, incendio=None, titulo=None):
                       11, anchor="start", color="#444"))
     P.append(sb.texto(W - 20, H - 30, "CONCEITUAL - PENDENTE REVISAO E ART",
                       11, anchor="end", weight="bold", color="#444"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    _fonte155 = veredito if veredito is not None else (
+        incendio if incendio is not None else escada)
+    if _fonte155 is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(_fonte155)
+        if _lin155 is not None:
+            P.append(sb.texto(W / 2, 76, _lin155, 12, weight="bold",
+                              color="#b91c1c"))
+            if _st155 is not None:
+                P.append(sb.texto(W / 2, H - 12, "STATUS: %s" % _st155, 11,
+                                  weight="bold", color="#b91c1c"))
     P.append("</svg>")
     svg = "\n".join(P)
     # carimbo legivel por parse (nao so por pixel)
@@ -361,8 +377,9 @@ def confere_desenho_escada(escada, svg, incendio=None, tol=1e-6):
             "divergencias": divergencias}
 
 
-def gerar_planta_escada(escada, path, incendio=None, titulo=None):
+def gerar_planta_escada(escada, path, incendio=None, titulo=None, veredito=None):
     """Escreve a folha da escada (SVG) em `path`. Retorna o path."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_escada_svg(escada, incendio, titulo))
+        f.write(planta_escada_svg(escada, incendio, titulo,
+                                  veredito=veredito))
     return path

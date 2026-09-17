@@ -920,7 +920,8 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
     nome = "planta-formas-pavimento-tipo.svg"
     try:
         dp.gerar_planta_formas(estrutura["pavimento"], str(destino / nome),
-                               descida=estrutura["descida"], edicao=_ed_de)
+                               descida=estrutura["descida"], edicao=_ed_de,
+                               veredito=estrutura)
     except Exception as exc:                                # noqa: BLE001
         manifest["deliverables"]["drawings"] = {
             "status": "failed", "detail": _erro_entregavel(exc)}
@@ -938,7 +939,7 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
             dc.gerar_planta_laje(laje, str(destino / nome_laje),
                                  lajes_por_painel=estrutura.get(
                                      "lajes_por_painel"),
-                                 edicao=_ed_de)
+                                 edicao=_ed_de, veredito=estrutura)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_laje, "motivo": _erro_entregavel(exc)})
         else:
@@ -961,7 +962,7 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
         try:
             dp.gerar_prancha_armacao_vigas_pilares(
                 vv, estrutura.get("pilares"), str(destino / nome_vigas),
-                edicao=_ed_de)
+                edicao=_ed_de, veredito=estrutura)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_vigas, "motivo": _erro_entregavel(exc)})
         else:
@@ -983,7 +984,7 @@ def _emitir_desenhos(manifest, run_dir, normalized, options, result):
 
             dfe.gerar_planta_fundacao(fund, estrutura,
                                       str(destino / nome_fund),
-                                      edicao=_ed_de)
+                                      edicao=_ed_de, veredito=fund)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_fund,
                             "motivo": _erro_entregavel(exc)})
@@ -1105,16 +1106,20 @@ def _emitir_eletrica(manifest, run_dir, destino, estrutura, instalacoes,
                             "motivo": "eletrica nao calculada nesta rodada"})
         return
     _emitir_uma(manifest, run_dir, destino, nomes[0],
-                lambda p: de.gerar_prumada_edificio(ele, estrutura, p),
+                lambda p: de.gerar_prumada_edificio(ele, estrutura, p,
+                                                   veredito=ele),
                 emitidas, puladas)
     _emitir_uma(manifest, run_dir, destino, nomes[1],
-                lambda p: de.gerar_planta_pavimento_edificio(ele, estrutura, p),
+                lambda p: de.gerar_planta_pavimento_edificio(
+                    ele, estrutura, p, veredito=ele),
                 emitidas, puladas)
     _emitir_uma(manifest, run_dir, destino, nomes[2],
-                lambda p: de.gerar_infra_edificio(ele, estrutura, p),
+                lambda p: de.gerar_infra_edificio(ele, estrutura, p,
+                                                 veredito=ele),
                 emitidas, puladas)
     _emitir_uma(manifest, run_dir, destino, nomes[3],
-                lambda p: de.gerar_qdc_edificio(ele, estrutura, p),
+                lambda p: de.gerar_qdc_edificio(ele, estrutura, p,
+                                               veredito=ele),
                 emitidas, puladas)
 
 
@@ -1141,7 +1146,7 @@ def _emitir_hidraulica(manifest, run_dir, destino, estrutura, instalacoes,
             continue
         _emitir_uma(manifest, run_dir, destino, nome,
                     lambda p, r=rede: dh.gerar_rede_edificio(
-                        hid, estrutura, p, rede=r),
+                        hid, estrutura, p, rede=r, veredito=hid),
                     emitidas, puladas)
 
 
@@ -1160,10 +1165,12 @@ def _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
                             "motivo": "incendio nao calculado nesta rodada"})
     else:
         _emitir_uma(manifest, run_dir, destino, nomes[0],
-                    lambda p: di.gerar_ppci_pavimento(inc, estrutura, p),
+                    lambda p: di.gerar_ppci_pavimento(inc, estrutura, p,
+                                                     veredito=inc),
                     emitidas, puladas)
         _emitir_uma(manifest, run_dir, destino, nomes[1],
-                    lambda p: di.gerar_detalhes_hidrantes(inc, estrutura, p),
+                    lambda p: di.gerar_detalhes_hidrantes(inc, estrutura, p,
+                                                         veredito=inc),
                     emitidas, puladas)
     # Escada de emergencia (G81): planta + corte lendo a escada que a
     # estrutura dimensionou e os gates que o incendio verificou. Sem escada
@@ -1176,7 +1183,8 @@ def _emitir_incendio(manifest, run_dir, destino, estrutura, instalacoes,
 
             dee.gerar_planta_escada(
                 esc, str(destino / nome_esc),
-                incendio=inc if isinstance(inc, dict) else None)
+                incendio=inc if isinstance(inc, dict) else None,
+                veredito=inc if isinstance(inc, dict) else esc)
         except Exception as exc:                            # noqa: BLE001
             puladas.append({"prancha": nome_esc,
                             "motivo": _erro_entregavel(exc)})
@@ -1232,8 +1240,22 @@ def _emitir_coordenacao(manifest, run_dir, normalized, options, result):
     destino = Path(run_dir) / "drawings"
     destino.mkdir(parents=True, exist_ok=True)
     try:
+        # G155: a coordenacao declara o veredito global do pacote (lido do
+        # memorial, nunca clash decidido na folha) pela fonte unica.
+        try:
+            import gestao_edificio as _ge155
+            _mem155 = _ge155.memorial(result)
+            _fonte155 = {"atende_global": bool(_mem155.get("atende_global")),
+                         "falhas_verificacao": [
+                             "%s:%s" % (it.get("disciplina"),
+                                        ",".join(it.get("reprovados") or []))
+                             for it in (_mem155.get("disciplinas") or [])
+                             if it.get("veredito") != "ATENDE"]}
+        except Exception:
+            _fonte155 = None
         dc.gerar_prancha(fed, clash, str(destino / nome),
-                         titulo="COORDENACAO - MODELO FEDERADO DO EDIFICIO")
+                         titulo="COORDENACAO - MODELO FEDERADO DO EDIFICIO",
+                         veredito=_fonte155)
     except Exception as exc:                                # noqa: BLE001
         return [], [{"prancha": nome, "motivo": _erro_entregavel(exc)}]
     if manifest is not None:

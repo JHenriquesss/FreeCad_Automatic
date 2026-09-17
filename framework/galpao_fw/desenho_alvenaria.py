@@ -513,16 +513,23 @@ def gerar_pranchas_alvenaria(estrutura, out_dir):
     n_pav = int(estrutura.get("n_pavimentos") or 1)
     pe = float(estrutura.get("H_total_m", 0.0)) / max(n_pav, 1)
     te = float(alv.get("te_m") or 0.14)
+    # G155: cada folha reprovada declara o veredito da estrutura pela fonte
+    # unica (ATENDE = byte-identico).
+    try:
+        from veredito_folha_g152 import injetar_veredito_no_svg as _inj155
+    except ImportError:
+        _inj155 = lambda _s, _f: _s
     try:
         (destino / "elevacao-paredes.svg").write_text(
-            elevacao_paredes_svg(alv, pe, te), encoding="utf-8")
+            _inj155(elevacao_paredes_svg(alv, pe, te), estrutura), encoding="utf-8")
         gerados.append("elevacao-paredes.svg")
     except Exception as exc:                            # noqa: BLE001
         ignorados["elevacao-paredes.svg"] = "falha_no_desenho: %s" % exc
     try:
         pav = estrutura.get("pavimento") or {}
         (destino / "planta-fiadas.svg").write_text(
-            planta_fiadas_svg(alv, pav.get("vaos_x"), pav.get("vaos_y"), te),
+            _inj155(planta_fiadas_svg(alv, pav.get("vaos_x"), pav.get("vaos_y"), te),
+                    estrutura),
             encoding="utf-8")
         gerados.append("planta-fiadas.svg")
     except Exception as exc:                            # noqa: BLE001

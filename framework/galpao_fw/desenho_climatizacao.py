@@ -31,8 +31,12 @@ def _line(x1, y1, x2, y2, w=1.5, color="#111"):
             f'stroke="{color}" stroke-width="{w}"/>')
 
 
-def esquema_climatizacao_svg(r):
-    """Planta esquematica da rede de climatizacao a partir de r=rodar(). String SVG."""
+def esquema_climatizacao_svg(r, veredito=None):
+    """Planta esquematica da rede de climatizacao a partir de r=rodar(). String SVG.
+
+    veredito: (G155) fonte do veredito (o proprio `r` com ATENDE/reprovados).
+      None/ATENDE = byte-identico; REPROVA declara pela fonte unica
+      veredito_folha_g152 (nunca decidido aqui)."""
     geo = r["geometria"]
     C = float(geo["L"]); Lg = float(geo["W"])           # comprimento x largura (m)
     duto = r["duto"]
@@ -90,13 +94,22 @@ def esquema_climatizacao_svg(r):
         s.append(_t(qx + 14, qy + 44 + i * 19, ln, 11, anchor="start"))
     s.append(_t(qx + 14, qy + box_h + 24, "NBR 16401-1 (Tab.1 velocidade)", 10,
                 anchor="start", color="#555"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 52, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
 
     s.append('</svg>')
     return "\n".join(s)     # NAO aplicar virgula decimal no SVG (corromperia coordenadas)
 
 
-def gerar_esquema(r, path):
-    svg = esquema_climatizacao_svg(r)
+def gerar_esquema(r, path, veredito=None):
+    svg = esquema_climatizacao_svg(r, veredito=veredito)
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
     return path

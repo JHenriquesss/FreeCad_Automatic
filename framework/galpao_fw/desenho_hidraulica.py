@@ -197,11 +197,15 @@ def _dn_txt(valor):
         return "DN?"
 
 
-def planta_rede_edificio_svg(hid, estrutura, rede="agua", pavimento=None):
+def planta_rede_edificio_svg(hid, estrutura, rede="agua", pavimento=None, veredito=None):
     """Planta do pavimento-tipo + corte vertical da prumada, por rede.
 
     rede: 'agua' (coluna DN do calculo), 'esgoto' (tubo de queda + ventilacao)
-    ou 'pluvial' (condutor + descidas). DN rotulado == DN calculado."""
+    ou 'pluvial' (condutor + descidas). DN rotulado == DN calculado.
+
+    veredito: (G155) fonte do veredito (o proprio `hid` com ATENDE/reprovados).
+      None/ATENDE = byte-identico; REPROVA declara pela fonte unica
+      veredito_folha_g152 (nunca decidido aqui)."""
     if rede not in _REDES_EDIFICIO:
         raise ValueError("rede deve ser uma de %s (recebido %r)"
                          % (list(_REDES_EDIFICIO), rede))
@@ -264,14 +268,24 @@ def planta_rede_edificio_svg(hid, estrutura, rede="agua", pavimento=None):
     s.append(_t(cx0 + cw / 2, y1 + 24, "prumada %s" % _dn_txt(dn), 11, color=cor))
     qx, qy = 700, 600
     s.append(_t(qx, qy, extra, 11, "start", color="#555"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(Wc / 2, 75, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(Wc / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def gerar_rede_edificio(hid, estrutura, path, rede="agua", pavimento=None):
+def gerar_rede_edificio(hid, estrutura, path, rede="agua", pavimento=None, veredito=None):
     """Escreve a folha da rede (PE-HI-01/02/03) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_rede_edificio_svg(hid, estrutura, rede, pavimento))
+        f.write(planta_rede_edificio_svg(hid, estrutura, rede, pavimento,
+                                         veredito=veredito))
     return path
 
 

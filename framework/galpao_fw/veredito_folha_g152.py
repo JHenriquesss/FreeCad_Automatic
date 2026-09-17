@@ -15,16 +15,30 @@
 # dentro do FreeCAD (carimbos, _anot, _bloco_texto) so LE essas chaves do
 # cfg - nunca importa este modulo la dentro (o bootstrap do aco nem poe o
 # galpao_fw no sys.path) e nunca decide gate: sem ATENDE no resultado, o
-# veredito e DESCONHECIDO (None) e a folha sai como antes, byte-identica.
+# veredito e DESCONHECIDO (None). G155 (folhas SVG do predio/casa): o
+# parametro ausente (None) sai como antes, byte-identico; a fonte presente
+# sem veredito declara a ausencia na folha, sem STATUS.
 #
 # Formas de resultado lidas (nunca decididas aqui):
 #   - maiusculas: {"ATENDE": bool, "reprovados": [...]} (concreto, eletrico,
-#     incendio, hidraulica, climatizacao, mezanino via galpao_turnkey._norm);
+#     incendio, hidraulica, climatizacao, mezanino via galpao_turnkey._norm;
+#     predio/casa: eletrica/hidraulica/incendio/estrutura via dimensiona);
 #   - minusculas do aco: {"atende_global"|"atende": bool, "falhas_verificacao":
 #     [...]} (rodar_projeto.calcular/rodar_tudo). O `calcular` carimba o
 #     veredito no spec (`estrutura.veredito_aco`, lido por
 #     `veredito_de_spec_aco`) - o carimbo viaja do resultado, nunca de conta
 #     refeita na folha.
+#   - G155 (predio/casa, sem copiar a semantica): {"gate": {"OK": bool,
+#     "reprovados": [...]}} (fundacao_edificio.dimensiona: o veredito mora no
+#     gate, nao em ATENDE); {"OK": bool, "reprovados"|"falhas"|"gates": [...]}
+#     (piso, escada e pecas com OK direto); {"ok": bool, "errors":
+#     [{"design_id": ...}], "designs": [{id, conductor.OK, protection.OK}]}
+#     (circuits da eletrica residencial: o ok e os erros por design_id sao
+#     produzidos pelo dimensionamento); {"ok": bool} (conferencia interna
+#     da casa). Ordem fixa: ATENDE > atende_* > gate > OK > ok; fonte
+#     presente sem nenhuma chave: a folha declara "VEREDITO NAO DISPONIVEL
+#     NO RESULTADO" (decisao do backlog G155), sem STATUS; so o parametro
+#     ausente (None) sai byte-identico.
 # ============================================================================
 """Fonte unica do veredito declarado nas folhas (G152).
 
@@ -40,6 +54,11 @@ STATUS_APROVADO = "PARA APROVACAO"
 
 #: Carimbo de folha REPROVADA (G152: o carimbo declara o veredito).
 STATUS_REPROVADO = "REPROVADO - VER MEMORIAL"
+
+#: Linha da folha sem veredito no resultado (G155, decisao do backlog: a
+#: disciplina sem veredito nao ganha veredito na folha - a folha declara a
+#: ausencia; sem STATUS, carimbar seria decidir).
+LINHA_SEM_VEREDITO = "VEREDITO NAO DISPONIVEL NO RESULTADO - VER MEMORIAL"
 
 
 def extrair_veredito(fonte):
@@ -69,6 +88,57 @@ def extrair_veredito(fonte):
         else:
             gates = [str(falhas)]
         return (None if at is None else bool(at)), gates
+    # G155: fundacao do predio/casa - o veredito mora em fonte["gate"].
+    gate = fonte.get("gate")
+    if isinstance(gate, dict) and ("OK" in gate or "reprovados" in gate):
+        ok = gate.get("OK")
+        rep = gate.get("reprovados") or []
+        if isinstance(rep, (list, tuple)):
+            gates = [str(x) for x in rep]
+        else:
+            gates = [str(rep)]
+        return (None if ok is None else bool(ok)), gates
+    # G155: piso/escada/peca com OK direto (sem ATENDE). So le quando ha
+    # chave de gates ao lado ou valor booleano explícito; sem OK, desconhecido.
+    if "OK" in fonte and isinstance(fonte.get("OK"), bool):
+        rep = (fonte.get("reprovados", fonte.get("falhas",
+               fonte.get("gates", []))) or [])
+        if isinstance(rep, (list, tuple)):
+            gates = [str(x) for x in rep]
+        else:
+            gates = [str(rep)]
+        return bool(fonte.get("OK")), gates
+    # G155 (casa): conferencia interna com "ok" minusculo (conferencia_nbr5410,
+    # esquema hidraulico com pressao OK por rede). Mesma semantica, sem decidir.
+    # G155 (casa eletrica): o `circuits` do dimensionamento declara "ok" e os
+    # erros por design_id (produzidos pelo calculo); os designs reprovados
+    # trazem conductor/protection com OK False. Os gates nomeados sao os
+    # design_id - lidos, nunca decididos aqui.
+    if "ok" in fonte and isinstance(fonte.get("ok"), bool):
+        rep = (fonte.get("reprovados", fonte.get("falhas",
+               fonte.get("gates", []))) or [])
+        if isinstance(rep, (list, tuple)):
+            gates = [str(x) for x in rep]
+        else:
+            gates = [str(rep)]
+        for erro in (fonte.get("errors") or []):
+            if not isinstance(erro, dict):
+                continue
+            did = erro.get("design_id")
+            if isinstance(did, str) and did.strip() and did not in gates:
+                gates.append(did)
+        for desenho in (fonte.get("designs") or []):
+            if not isinstance(desenho, dict):
+                continue
+            cond = desenho.get("conductor")
+            prot = desenho.get("protection")
+            cok = cond.get("OK") if isinstance(cond, dict) else None
+            pok = prot.get("OK") if isinstance(prot, dict) else None
+            did = desenho.get("id")
+            if ((cok is False or pok is False) and isinstance(did, str)
+                    and did.strip() and did not in gates):
+                gates.append(did)
+        return bool(fonte.get("ok")), gates
     return None, []
 
 
@@ -125,3 +195,87 @@ def aplicar_a_cfg(cfg, fonte):
     if linha is not None and isinstance(cfg.get("notas"), list):
         cfg["notas"] = list(cfg["notas"]) + [linha]
     return cfg
+
+
+def veredito_para_folha_svg(fonte):
+    """(linha, status) para as folhas SVG puras do predio/casa (G155).
+
+    Le da MESMA fonte (extrair_veredito) e devolve o MESMO texto
+    (linha_veredito) e o MESMO status (status_carimbo): a folha nao decide
+    nada, so posiciona as duas strings. ATENDE: (None, "PARA APROVACAO") -
+    a folha sai byte-identica (nenhum texto novo). Fonte None (parametro
+    ausente, caminho historico): idem. Fonte presente SEM veredito
+    (decisao do backlog G155): (LINHA_SEM_VEREDITO, None) - a folha
+    declara a ausencia, sem carimbar STATUS; o chamador so anexa o
+    STATUS quando nao e None."""
+
+    if fonte is None:
+        return None, STATUS_APROVADO
+    atende, gates = extrair_veredito(fonte)
+    if atende is None:
+        return LINHA_SEM_VEREDITO, None
+    return linha_veredito(atende, gates), status_carimbo(atende)
+
+
+def _altura_svg(svg):
+    """Altura do cabecalho do SVG, ou None quando nao parseavel (G155)."""
+    try:
+        import xml.etree.ElementTree as _ET
+        return float(_ET.fromstring(svg).get("height"))
+    except (ValueError, TypeError, _ET.ParseError):
+        return None
+
+
+def _marca_colide(svg_teste):
+    """True quando a marca nova (VEREDITO/STATUS) colide com rotulo (G155).
+
+    Usa o estimador de colisoes de rotulos: a faixa fixa (20,20) atravessa
+    o titulo centrado e longo de algumas folhas da casa."""
+    try:
+        from desenho_svg_base import colisoes_de_rotulo_svg as _col155
+    except ImportError:
+        return False
+    for a, b in _col155(svg_teste):
+        if ("VEREDITO" in a or "VEREDITO" in b
+                or "STATUS" in a or "STATUS" in b):
+            return True
+    return False
+
+
+def injetar_veredito_no_svg(svg, fonte):
+    """Devolve o SVG com a linha do veredito (+ STATUS quando REPROVA) (G155).
+
+    Le da fonte unica (veredito_para_folha_svg): fonte None ou ATENDE
+    devolve o SVG intacto (byte-identico); fonte presente SEM veredito
+    insere so a linha de indisponibilidade (sem STATUS); REPROVA insere
+    a linha com os gates + STATUS antes do `</svg>`. A marca mora na
+    primeira faixa livre (candidatas de cima para baixo + rodape),
+    conferida pelo estimador - o titulo longo de algumas folhas alcanca
+    a faixa fixa. A folha nunca decide gate."""
+
+    if fonte is None or not isinstance(svg, str) or "</svg>" not in svg:
+        return svg
+    linha, status = veredito_para_folha_svg(fonte)
+    if linha is None:
+        return svg
+    from xml.sax.saxutils import escape as _esc155
+
+    def _marcas(y_lin, y_st):
+        marca_linha = '<text x="20" y="%d" font-family="Arial" font-size="12" '\
+            'font-weight="bold" fill="#b91c1c">%s</text>' % (
+                y_lin, _esc155(linha))
+        if status is None:
+            return marca_linha
+        return marca_linha + '<text x="20" y="%d" font-family="Arial" '\
+            'font-size="11" font-weight="bold" fill="#b91c1c">%s</text>' % (
+                y_st, _esc155("STATUS: " + status))
+
+    candidatas = [(20, 38), (56, 74), (92, 110)]
+    altura = _altura_svg(svg)
+    if altura is not None and altura >= 200:
+        candidatas.append((int(altura) - 38, int(altura) - 20))
+    for y_lin, y_st in candidatas:
+        tentativa = svg.replace("</svg>", _marcas(y_lin, y_st) + "</svg>")
+        if not _marca_colide(tentativa):
+            return tentativa
+    return svg.replace("</svg>", _marcas(20, 38) + "</svg>")

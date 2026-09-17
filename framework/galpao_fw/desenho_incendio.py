@@ -363,9 +363,13 @@ def _edificio_C_L(estrutura):
         return 14.0, 9.0
 
 
-def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
+def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None, veredito=None):
     """PE-IN-01 PPCI do pavimento-tipo: saidas + rotas, hidrantes, detectores,
-    sinalizacao e iluminacao - contagens == sistemas calculados."""
+    sinalizacao e iluminacao - contagens == sistemas calculados.
+
+    veredito: (G155) fonte do veredito (o proprio `inc` com ATENDE/reprovados).
+      None/ATENDE = byte-identico; REPROVA declara pela fonte unica
+      veredito_folha_g152 (nunca decidido aqui)."""
     C, L = _edificio_C_L(estrutura)
     sist = inc.get("sistemas") or {}
     det = sist.get("deteccao_alarme") or {}
@@ -426,6 +430,15 @@ def planta_pavimento_edificio_svg(inc, estrutura, pavimento=None):
             "Aclaramento: %d pts" % int(ilu.get("N_aclaramento") or 0),
             "Populacao total: %d" % int(inc.get("populacao_total") or 0)]):
         s.append(_t(lx + 14, ly + 52 + i * 24, ln, 11, anchor="start"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
@@ -479,14 +492,17 @@ def adaptar_galpao_para_detalhes(r):
 
 
 def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
-                                 nivel_unico=False):
+                                 nivel_unico=False, veredito=None):
     """PE-IN-02 Detalhes: corte da coluna de hidrantes DN65 (NBR 13714) com um
     hidrante por pavimento servido + quadro da escada/rotas + reserva.
 
     G138: `nivel_unico=True` desenha o galpao terreo (N hidrantes lado a
     lado no nivel unico, nunca N pavimentos inventados) e `ausencias`
     declara na folha os campos que o calculo do galpao nao produz. Com os
-    defaults (None/False) o caminho do predio e byte-identico."""
+    defaults (None/False) o caminho do predio e byte-identico.
+
+    veredito: (G155) fonte do veredito (o proprio `inc`). None/ATENDE =
+      byte-identico; REPROVA declara pela fonte unica."""
     sist = inc.get("sistemas") or {}
     hid = sist.get("hidrantes") or {}
     gates = inc.get("gates") or {}
@@ -577,6 +593,15 @@ def detalhes_hidrantes_rotas_svg(inc, estrutura, titulo=None, ausencias=None,
         for i, campo in enumerate(list(ausencias)):
             s.append(_t(ax + 14, ay + 46 + i * 20,
                        "nao declarado: %s" % campo, 11, anchor="start"))
+    # G155: veredito lido do resultado pela fonte unica (nunca decidido aqui).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(W / 2, 56, _lin155, 12, weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
@@ -594,20 +619,22 @@ def gerar_detalhes_galpao(r, path, titulo=None):
     return path, ausentes
 
 
-def gerar_ppci_pavimento(inc, estrutura, path, pavimento=None):
+def gerar_ppci_pavimento(inc, estrutura, path, pavimento=None, veredito=None):
     """Escreve o PPCI do pavimento-tipo (PE-IN-01) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
-        f.write(planta_pavimento_edificio_svg(inc, estrutura, pavimento))
+        f.write(planta_pavimento_edificio_svg(inc, estrutura, pavimento,
+                                              veredito=veredito))
     return path
 
 
 def gerar_detalhes_hidrantes(inc, estrutura, path, titulo=None,
-                             ausencias=None, nivel_unico=False):
+                             ausencias=None, nivel_unico=False, veredito=None):
     """Escreve os detalhes de hidrantes/rotas (PE-IN-02) em `path`."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(detalhes_hidrantes_rotas_svg(
             inc, estrutura, titulo, ausencias=ausencias,
-            nivel_unico=nivel_unico))
+            nivel_unico=nivel_unico,
+            veredito=veredito))
     return path
 
 

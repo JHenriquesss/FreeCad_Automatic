@@ -125,10 +125,16 @@ def _projecao(membros, clashes, x0, y0, w, h, ejx, ejy, bb, rotulo):
     return s
 
 
-def coordenacao_svg(membros, clash=None, titulo="COORDENACAO - MODELO FEDERADO"):
+def coordenacao_svg(membros, clash=None, titulo="COORDENACAO - MODELO FEDERADO",
+                    veredito=None):
     """Prancha de coordenacao (planta X-Y + elevacao X-Z) do modelo federado. String SVG.
     membros: lista do federado (marca prefixada por disciplina). clash: relatorio de
-    checa_interferencia_federada (usa 'revisar'). Sem geometria -> SVG minimo com aviso."""
+    checa_interferencia_federada (usa 'revisar'). Sem geometria -> SVG minimo com aviso.
+
+    veredito: (G155) fonte do veredito global (dict com atende_global/ATENDE).
+      None/ATENDE = byte-identico; REPROVA declara a linha com os gates +
+      STATUS, lidos da fonte unica veredito_folha_g152 (a folha nunca decide
+      clash: o hook passa o veredito global do pacote)."""
     W, Hh = 1000, 700
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{Hh}" '
          f'viewBox="0 0 {W} {Hh}" font-family="Arial">',
@@ -192,13 +198,28 @@ def coordenacao_svg(membros, clash=None, titulo="COORDENACAO - MODELO FEDERADO")
     for i, ln in enumerate(linhas):
         s.append(_t(qx + 14, qy + 40 + i * 17, ln, 11, anchor="start"))
 
+    # G155: veredito global lido do resultado pela fonte unica (nunca clash
+    # decidido aqui). Parametro ausente/ATENDE = byte-identico. A linha mora
+    # no vao entre as caixas PLANTA e ELEVACAO (ancorada a esquerda; a
+    # direita--ancorada da primeira versao atravessava a caixa DISCIPLINAS
+    # no PNG - G129 da mesma classe).
+    if veredito is not None:
+        from veredito_folha_g152 import veredito_para_folha_svg as _v152
+        _lin155, _st155 = _v152(veredito)
+        if _lin155 is not None:
+            s.append(_t(48, 363, _lin155, 12, anchor="start",
+                       weight="bold", color="#b91c1c"))
+            if _st155 is not None:
+                s.append(_t(W / 2, Hh - 8, "STATUS: %s" % _st155, 11,
+                           weight="bold", color="#b91c1c"))
     s.append('</svg>')
     return "\n".join(s)
 
 
-def gerar_prancha(membros, clash, path, titulo="COORDENACAO - MODELO FEDERADO"):
+def gerar_prancha(membros, clash, path, titulo="COORDENACAO - MODELO FEDERADO",
+                  veredito=None):
     """Escreve a prancha de coordenacao (SVG) em `path`."""
-    svg = coordenacao_svg(membros, clash, titulo)
+    svg = coordenacao_svg(membros, clash, titulo, veredito=veredito)
     with open(path, "w", encoding="utf-8") as f:
         f.write(svg)
     return path
