@@ -1192,7 +1192,7 @@ def rodar(spec):
         "vento_ativo": bool(casos_W), "vento": vento_info,
         "casos_W": casos_W, "ancoragem": ancoragem,
         "combinacoes": {
-            "gravidade": "1,4.(G+Q) (NBR 8681, permanente desfavoravel)",
+            "gravidade": "1,4.(G+Q) (NBR 8681:2025 Tab.1: madeira desf 1,30 - adotado 1,4; confirmar)",
             "uplift": ("0,9.G+1,4.W por caso de vento (NBR 8681 5.1.3.1 "
                        "conjunto favoravel; 5.1.4.2: Q favoravel = 0; "
                        "Tab.4: vento 1,4; G_FAV 0,9 = extremo estrito "

@@ -118,7 +118,8 @@ VELOCIDADES = {
                     "demais velocidades"},
     3: {"nome": "rapida", "T_s": 150,
         "criterio": "plasticos/texteis sinteticos empilhados, 3,0 m < H <= 5,0 m, "
-                    "risco extraordinario grupo 1 (NBR 10897)"},
+                    "risco extraordinario grupo 1 (NBR 10897:2014 Anexo A Tab.A.1: "
+                    "o grupo; faixa de altura a confirmar - ver NBR 16981)"},
     4: {"nome": "ultrarrapida", "T_s": 75,
         "criterio": "empilhamento h > 5,0 m, risco extraordinario grupo 2, "
                     "liquidos/gases combustiveis, plasticos celulares"},

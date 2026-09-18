@@ -90,8 +90,9 @@ def oferta_chuva_mensal(precip_mm_mes, area_captacao_m2, runoff=RUNOFF_TELHA_MET
 
 def cisterna_rippl(precip_mm_mes, area_captacao_m2, demanda_L_mes,
                    runoff=RUNOFF_TELHA_METALICA):
-    """Dimensiona a cisterna de reuso pelo METODO DE RIPPL (balanco de massa, NBR
-    15527). precip_mm_mes: 12 valores (mm/mes) do sitio [A CONFIRMAR]. demanda_L_mes:
+    """Dimensiona a cisterna de reuso pelo METODO DE RIPPL (balanco de massa;
+    NBR 15527:2019 4.4.10 nao prescreve metodo - pode ser da ed. 2007; confirmar).
+    precip_mm_mes: 12 valores (mm/mes) do sitio [A CONFIRMAR]. demanda_L_mes:
     consumo mensal a atender (escalar ou 12 valores). Volume = maior deficit
     acumulado (sum de demanda-oferta enquanto positivo). Retorna dict."""
     if len(precip_mm_mes) != 12:

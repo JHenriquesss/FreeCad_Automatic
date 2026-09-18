@@ -292,7 +292,7 @@ def verifica_fissura(wk_mm, wk_lim_norma_mm=None):
     """Abertura de fissura. A 15575-2 7.3.1 impoe 0,6 mm "em qualquer situacao";
     quando a norma de projeto (NBR 6118 Tabela 13.4, por CAA) for mais
     restritiva, e' ela que governa."""
-    adotado, gov = WK_MAX_MM, "NBR 15575-2 (0,6 mm em qualquer situacao)"
+    adotado, gov = WK_MAX_MM, "NBR 15575-2:2013 7.3.1 (0,6 mm em qualquer situacao)"
     if wk_lim_norma_mm is not None and wk_lim_norma_mm < adotado:
         adotado, gov = wk_lim_norma_mm, "NBR 6118 Tabela 13.4 (CAA)"
     return {"wk_mm": round(wk_mm, 3), "limite_15575_mm": WK_MAX_MM,

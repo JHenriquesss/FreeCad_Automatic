@@ -16,8 +16,9 @@
 # Todos os valores LIDOS do PDF da NBR 5419-1/2/3 via NotebookLM - NAO de memoria.
 # Unidades: L,W,H,a,b em m; Ad em m2; Ng em 1/km2.ano; seccoes em mm2.
 # ============================================================================
-"""SPDA do galpao (NBR 5419-1/2/3/4): gerenciamento de risco (Nd, RT=1e-5), nivel
-de protecao, esfera rolante/malha, descidas e secoes minimas. Valores via NotebookLM."""
+"""SPDA do galpao (NBR 5419-1/2/3/4): gerenciamento de risco (Nd, RT=1e-5 pela
+NBR 5419-2:2026 5.3 Tab.4), nivel de protecao, esfera rolante/malha, descidas e
+secoes minimas. Valores via NotebookLM."""
 
 from __future__ import annotations
 

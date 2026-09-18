@@ -108,7 +108,7 @@ ITENS_EM1 = (
      (("perdas_protensao_nbr6118", "Tab.A.1"),), "SEM-REFLEXO",
      "Remissivo; o modulo usa valores tipicos Tab.A.1 declarados, sem citar 8.2.11."),
     ("8.3.1", ("Pagina 28, 8.3.1",),
-     "Armaduras: CA-25/50/60 conforme NBR 7480.",
+        "Armaduras: CA-25/50/60 conforme NBR 7480:2024 4.1.2.",
      (), "SEM-REFLEXO",
      "Framework assume CA-50/60 nos calculos sem gate de categoria."),
     ("8.3.7-8.4.6", ("Pagina 30, 8.3.7", "Pagina 31, 8.4.6",),

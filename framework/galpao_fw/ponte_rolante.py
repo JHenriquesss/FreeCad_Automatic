@@ -20,7 +20,7 @@
 # Viga de rolamento (vao = distancia entre porticos): momento por CARGA MOVEL (2
 # rodas, formula do momento maximo absoluto - mecanica exata), flexao lateral do
 # surto (eixo fraco), verificacao NBR 8800 (Anexo G + biaxial), flecha e FADIGA.
-# ELS (NBR 8800): flecha vertical L/600 (<200 kN) / L/800 (>=200) / L/1000
+# ELS (NBR 8800:2008 Tab.C.1): flecha vertical L/600 (<200 kN) / L/800 (>=200) / L/1000
 # (siderurgica); horizontal L/400 (L/600 siderurgica); NAO majorar por impacto.
 # Coluna: deslocamento no nivel da viga de rolamento <= Hvr/400.
 # FADIGA (NBR 8800 Anexo K): CALCULA a faixa de tensoes da carga movel vertical
@@ -107,7 +107,7 @@ def _m_max_movel(P, d, L):
 
 
 def limite_flecha_vertical(cap_kN, siderurgica):
-    """NBR 8800: L/600 (<200 kN) ; L/800 (>=200) ; L/1000 (siderurgica >=200)."""
+    """NBR 8800:2008 Tab.C.1: L/600 (<200 kN) ; L/800 (>=200) ; L/1000 (siderurgica >=200)."""
     if siderurgica and cap_kN >= 200.0:
         return 1000.0
     if cap_kN >= 200.0:

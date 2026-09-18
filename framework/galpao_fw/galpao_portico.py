@@ -538,7 +538,8 @@ def _combos_elu(ponte=None, sismo=None):
     base = {"G": 1.0, "Q": 1.0}
     combos = {}
     # wf = fator de combinacao ELU do vento: PRIMARIO 1,40 ; SECUNDARIO (combo de
-    # gravidade, Q predomina) = gamma_f * psi0 = 1,40 * 0,60 = 0,84 (NBR 8681).
+    # gravidade, Q predomina) = gamma_f * psi0 = 1,40 * 0,60 = 0,84
+    # (NBR 8681:2025 Tab.4: gama-q vento 1,4; Tab.6: psi0 vento 0,6).
     # Gfav: G FAVORAVEL (gamma_g=1,0) com vento principal (uplift). A sobrecarga Q
     # (variavel gravitacional) NAO pode estabilizar o arrancamento -> gamma_q=0
     # (NBR 8681: acoes variaveis favoraveis nao entram na combinacao). qf=0,80 seria

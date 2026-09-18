@@ -150,7 +150,8 @@ def _trib_sup(t):
 
 
 def _gamma_g_dead(wv):
-    """gamma_g do peso permanente (NBR 8681) conforme o SENTIDO do vento no no:
+    """gamma_g do peso permanente (NBR 8681:2025 Tab.1: fav 1,0, adotado 0,9
+    conservador p/ uplift; desf 1,25-1,50, adotado 1,4) conforme o SENTIDO do vento no no:
     - vento de SUCCAO (wv<=0, uplift): peso e FAVORAVEL (opoe o arranque) -> 0,9;
     - vento de PRESSAO (wv>0, p/ baixo): peso e DESFAVORAVEL (soma) -> 1,4.
     (parecer item 41, pt.3: nao usar 0,9 hardcoded se o vento vira pressao.)"""
@@ -230,7 +231,7 @@ def _nt_rd(sec, fy, fu, Ct=1.0, area_furos=0.0):
     na secao critica (parafusada). Parecer: a ruptura liquida costuma governar o
     banzo tracionado parafusado."""
     import check_nbr8800 as ck
-    GA2 = getattr(ck, "GA2", 1.35)                    # NBR 8800: ruptura (1,35)
+    GA2 = getattr(ck, "GA2", 1.35)                    # NBR 8800:2008 Tab.3: ruptura (1,35)
     A, _, _ = _props_I(sec)
     N_esc = A * fy / ck.GA1
     An = max(A - area_furos, 0.0)

@@ -321,7 +321,7 @@ def config_de_spec(r, fcstd_path, out_dir, spec=None):
                          g["luminotecnica"]["E_lux"], g["luminotecnica"]["N_luminarias"],
                          g["luminotecnica"]["P_kW"], g["luminotecnica"]["densidade_W_m2"]))
     notas += [
-        "6. Aterramento: resistencia de terra = %s (limite 10 ohm, NBR 5419)." % at_txt,
+        "6. Aterramento: resistencia de terra = %s (limite 10 ohm adotado; NBR 5419-3:2026 7.1.4 nao exige medicao)." % at_txt,
         "7. SPDA: %s (NBR 5419-1/2/3)." % (
             "nivel de protecao %s, %s descidas" % (g["spda"]["NP"], g["spda"]["n_descidas"])
             if g["spda"]["NP"] else "A CONFIRMAR (estudo de risco NBR 5419-2)"),

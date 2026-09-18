@@ -10,7 +10,8 @@
 #   2) EQUILIBRIO GLOBAL do portico: soma das reacoes verticais = soma das
 #      cargas aplicadas (gravidade) ; soma das reacoes horizontais = carga
 #      horizontal aplicada (vento) - independente do metodo de rigidez.
-#   3) Vento NBR 6123: Vk = V0*S1*S2*S3 e q = 0,613*Vk^2 batem com o modulo.
+#   3) Vento NBR 6123:1988 4.2 c): Vk = V0*S1*S2*S3 e q = 0,613*Vk^2 batem
+#      com o modulo.
 # NAO cobre a validacao de SISTEMA contra projeto real/comercial (isso exige um
 # caso-referencia externo - ver validacao_referencia()). Estes checks provam o
 # NUCLEO, nao o dimensionamento normativo completo.
@@ -129,7 +130,7 @@ def check_equilibrio_engastada():
 
 
 def check_vento_formula():
-    """Vk = V0*S1*S2*S3 e q = 0,613*Vk^2 (NBR 6123) batem com o modulo."""
+    """Vk = V0*S1*S2*S3 e q = 0,613*Vk^2 (NBR 6123:1988 4.2 c) batem com o modulo."""
     import framework as FW
     import vento_nbr6123 as vento
     FW.reset_tudo()
@@ -139,7 +140,7 @@ def check_vento_formula():
     err_vk = abs(r["vk"] - vk_esp) / vk_esp
     err_q = abs(r["q_kN_m2"] - q_esp) / q_esp
     ok = err_vk < 1e-2 and err_q < 1e-2      # r arredondado a 2-3 casas
-    return ("Vento NBR 6123: Vk=V0*S1*S2*S3 ; q=0,613*Vk^2", ok, max(err_vk, err_q),
+    return ("Vento (NBR 6123:1988 4.2 c): Vk=V0*S1*S2*S3 ; q=0,613*Vk^2", ok, max(err_vk, err_q),
             f"Vk={r['vk']} (esp {vk_esp:.2f}) ; q={r['q_kN_m2']} kN/m2 "
             f"(esp {q_esp:.3f})")
 

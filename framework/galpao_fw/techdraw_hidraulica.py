@@ -185,7 +185,7 @@ def config_de_spec(r, out_dir, spec=None):
                          "NBR 8160 Tab.8 / Tab.D.1"])
     metodo = ag.get("metodo", "-")
     dim_rows.append(["Barrilete de agua fria", "DN %.0f" % ag["D_mm"],
-                     "NBR 5626 (%s; v<=3 m/s)" % metodo])
+                      "NBR 5626:2020 6.8.3 (%s; v<=3 m/s)" % metodo])
     if ag.get("pressao"):
         vp = ag["pressao"]
         dim_rows.append(["Pressao residual no ponto", "%.0f kPa (min %.0f)"
@@ -197,7 +197,7 @@ def config_de_spec(r, out_dir, spec=None):
         "1. Aguas pluviais (NBR 10844): vazao Q=i.A/60 (i intensidade local - DADO DE "
         "SITIO, confirmar Tab.5 por cidade); condutor vertical DN interno >= 70 mm "
         "(Sec.5.6.3); calha semicircular pela Tab.3.",
-        "2. Esgoto sanitario (NBR 8160): dimensionamento por Unidades Hunter de "
+        "2. Esgoto sanitario (NBR 8160:1999 5.1.4.1/4.2.3.2): dimensionamento por Unidades Hunter de "
         "Contribuicao (UHC=%.0f); coletor predial DN minimo 100; declividade minima "
         "2%% (DN<=75) / 1%% (DN>=100)." % es.get("uhc", 0),
         "3. Ventilacao (NBR 8160 Sec.5.2.2): ramal por UHC (Tab.8), coluna pelo DN do "

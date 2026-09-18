@@ -9,7 +9,7 @@
 #      (LIMITADA) -> ELS-F (formacao de fissuras, comb. frequente: tracao <= fct,f)
 #      e ELS-D (descompressao, comb. quase-permanente: sem tracao);
 #   3) ELU a FLEXAO: Mrd (cordoalha a fpyd + bloco de concreto) >= Md.
-# Cordoalha CP-190 RB (NBR 7483): fptk=1900 MPa, fpyk=0,9 fptk, Ep=200 GPa; areas
+# Cordoalha CP-190 RB (NBR 7483:2021 4.1.2): fptk=1900 MPa, fpyk=0,9 fptk, Ep=200 GPa; areas
 # Ø12,7=1,01 cm2, Ø15,2=1,40 cm2. Tensao de estiramento (9.6.1.2.1, pre-tracao):
 # sigma_pi <= min(0,77 fptk ; 0,90 fpyk). PERDAS por 9.6.3 (processo aproximado
 # permitido, 9.6.3.4.3) - estimadas por um fator, marcado A CONFIRMAR.

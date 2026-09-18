@@ -36,7 +36,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 # ----------------------------------------------------------------------------
 METODOS = {
     "1. VENTO": (
-        "NBR 6123:1988. Pressao dinamica q = 0,613 . Vk^2 (Vk em m/s -> q em "
+        "NBR 6123:1988 4.2 c). Pressao dinamica q = 0,613 . Vk^2 (Vk em m/s -> q em "
         "N/m2), Vk = V0 . S1 . S2 . S3. Coeficientes de pressao externa (Cpe) "
         "por zona e interna (Cpi) conforme permeabilidade/abertura dominante. "
         "Carga em cada superficie = (Cpe - Cpi) . q. Combina-se o caso de maior "

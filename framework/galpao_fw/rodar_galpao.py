@@ -1530,8 +1530,9 @@ def rodar(params, out_dir):
         res["fogo_TRRF"] = rf["TRRF_min"]
         # A temperatura (C) NAO e uma utilizacao (bug 8.34: 550 C virava
         # "util 550 > 1 -> NAO ATENDE" sempre). Verificacao ao fogo: aco abaixo da
-        # temperatura critica no TRRF. theta_critica (NBR 14323, ~550 C p/ mu~0,6,
-        # A CONFIRMAR pelo eng.) configuravel. util = theta/theta_critica.
+        # temperatura critica no TRRF. theta_critica (NBR 14323:2013 Tab.B.6:
+        # 550 C e o theta-o,t p/ TRRF 30, nao theta-critica - confirmar; ~550 C
+        # p/ mu~0,6, A CONFIRMAR pelo eng.) configuravel. util = theta/theta_critica.
         theta_cr = fg.get("theta_critica_C", 550.0)
         res["fogo_util"] = round(rf["theta_aco_C"] / theta_cr, 2)
         res["fogo_ok"] = bool(rf["theta_aco_C"] <= theta_cr)
@@ -1543,8 +1544,9 @@ def rodar(params, out_dir):
         res["fogo_lambda_p_default"] = bool(rf.get("lambda_p_default"))
         _txt_fogo = fogo.relatorio_pt(rf)
         if res["fogo_theta_cr_default"]:
-            _txt_fogo += ("\n  [DEFAULT - CONFIRMAR: theta_critica = 550 C (mu~0,6, "
-                          "NBR 14323) assumida; depende do nivel de carregamento a "
+            _txt_fogo += ("\n  [DEFAULT - CONFIRMAR: theta_critica = 550 C (mu~0,6; "
+                          "NBR 14323:2013 Tab.B.6: 550 C e o theta-o,t p/ TRRF 30 - confirmar) "
+                          "assumida; depende do nivel de carregamento a "
                           "quente. Informe params['fogo']['theta_critica_C'].]")
         save("gate8-fogo.txt", _txt_fogo)
     # Gate 8 - ESCADA INDUSTRIAL

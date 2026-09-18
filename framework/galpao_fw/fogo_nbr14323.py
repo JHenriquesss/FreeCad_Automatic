@@ -77,8 +77,8 @@ def temp_aco_nao_protegido(t_min, u_A, emissividade=0.5, amb=20.0):
 
 
 def comb_incendio(G_k, Q_k, psi2=0.4, gamma_g=1.1):
-    """Combinacao excepcional de incendio (NBR 8681 / NBR 14323).
-    Fd = gamma_g * Gk + psic2 * psic2 * Qk  (acao termica e a excepcional).
+    """Combinacao excepcional de incendio (NBR 14323:2013 6.3.1 Tab.3; NBR 8681:2025).
+    Fd = gamma_g * Gk + psi2 * Qk  (acao termica e a excepcional).
     gamma_g = 1,0 (fav) / 1,1 (desf pequena var) / 1,2 (desf grande var).
     psi2 = 0,2 (sem predominancia), 0,4 (concentracao), 0,6 (arquivos)."""
     return gamma_g * G_k + psi2 * Q_k

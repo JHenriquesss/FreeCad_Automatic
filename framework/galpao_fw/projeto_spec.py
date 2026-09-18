@@ -488,9 +488,10 @@ def validar(spec):
     if isinstance(fogo, dict):
         if fogo.get("theta_critica_C") in (None, PENDENTE):
             avisos.append(("fogo.theta_critica_C",
-                           "theta_critica ausente -> assumindo 550 C (mu~0,6, NBR "
-                           "14323). CONFIRMAR: depende do nivel de carregamento a "
-                           "quente do perfil."))
+                            "theta_critica ausente -> assumindo 550 C (mu~0,6; "
+                            "NBR 14323:2013 Tab.B.6: 550 C e o theta-o,t p/ TRRF 30, "
+                            "nao theta-critica - confirmar). CONFIRMAR: depende do "
+                            "nivel de carregamento a quente do perfil."))
         prot = fogo.get("protecao")
         if isinstance(prot, dict) and prot.get("tipo") in ("intumescente", "spray"):
             if prot.get("lambda_p") in (None, PENDENTE):

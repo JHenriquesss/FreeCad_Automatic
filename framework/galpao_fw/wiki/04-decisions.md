@@ -5437,3 +5437,90 @@ CO-02, CD-01, quadro-ambientes da casa. G154 visivel na CO-04
 carrega veredito (medido acima); o caminho indisponivel existe so por
 injecao. **Nao feito.** Parar de emitir folha reprovada; decidir gate na
 folha; mudar o carimbo do galpao. Nao comecar o G156.
+
+## D182 - G156: a citacao normativa com numero e sem item (2026-09-18) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G154-G157.md G156, pelo protocolo de execucao em
+sequencia (checagem de entrada: `4432af0 G155:` no log, arvore limpa, nenhum
+pytest/suite_paralela/freecad rodando). Lente AST das frases que atribuem
+numero a NBR, baseline nos dois sentidos, triagem de cada frase contra a
+imagem da pagina do acervo; divergencia corrige so a atribuicao (numero
+nunca muda) e vai ao verbete como pendencia; sem perguntas no meio.
+
+**Decidido para este goal (backlog):** frase nao conferivel (norma fora do
+acervo ou pagina ilegivel) fica como esta, com o motivo; frase de fonte que
+nao e NBR (livro, catalogo) fica fora da lente, com a regra escrita no teste.
+
+**Medido.** Heuristica do backlog (literais com `NBR nnnn` + numero, sem
+`n.n`/Tabela/Anexo): 25 literais em 21 arquivos na arvore do D179. Na arvore
+do G156 (pos-G154/G155) a mesma classe, estendida a comentarios (o achado
+F152 e comentario) e a inteiros com unidade, da 70 frases em 43 arquivos +
+1 comentario NM 280 (+2 fragmentos multi-linha triados pela lente: 73
+itens). A maioria e remissao/titulo/dado de projeto; 20 sao atribuicao de
+valor normativo e 2 nao conferiveis (NBR 16401-2 e 16401-3 fora do acervo;
+so a parte 1 F077).
+
+**Entregue (lente `tests/test_citacao_norma_g156.py`, 3 testes).** Regra:
+literal/comentario com NBR (inclui NM) + valor + sem item reprova, salvo
+triado na BASELINE (73 itens: CONFERE/NAO_CONFERIVEL com item+pagina;
+DIVERGE com a atribuicao corrigida; REMISSAO/FONTE_NAO_NBR/D179 com motivo
+escrito). Sentido 1: frase sem triagem reprova; sentido 2: triagem sem
+frase reprova. Vermelho por injecao em tmp_path (literal e comentario,
+nomeando arquivo:linha; caso com item passa). `Cap.N` conta como item
+(item de livro-fonte: Negrisoli/Mamede).
+
+**Triagem contra a imagem (18 paginas conferidas; numeros identicos).**
+CONFERE (item acrescentado): 6123:1988 4.2 c) p.4 (0,613, validacao x3 +
+relatorio); 15575-2:2013 7.3.1 p.7 (0,6 mm); 14323:2013 6.3.1 Tab.3 p.13
+(gama 1,0/1,10-1,30); 5410:2004 5.3.4.1 p.63 (1,45); 8800:2008 Tab.C.1
+p.117 (L/600-800-1000) e Tab.3 p.23 (gama2 1,35); 5626:2020 6.8.3 NOTA
+p.21 (3 m/s); 8160:1999 5.1.4.1 p.17 (DN100) e 4.2.3.2 p.4 (2%/1%);
+7480:2024 4.1.2 p.3 (CA-25/50/60); 5419-2:2026 5.3 Tab.4 p.27 (RT=1e-5);
+7483:2021 4.1.2 p.3 (CP-190); 8681:2025 Tab.1 p.14 + Tab.4 p.15 (vento 1,4)
++ Tab.6 (psi0 vento 0,6) + 5.1.4.2 p.15 (portico 1,40x0,60; fav nao entra).
+DIVERGE (so atribuicao; numero e trava intactos): NM 280 -> NM 247-3
+Tab.1 p.5 (2,5 mm2 = 3,2-3,9 mm; a 280 Tab.1 p.9 e resistencia 7,41 ohm/km;
+_ELETRODUTO_POR_SECAO inalterado); Wenner sai da 15749 (escopo 1.1 nao
+cobre; re-atribuido a Negrisoli Cap.11; 7117-1 fora do acervo, ref. na
+5419-3:2026); 10 ohm adotado (5419-3:2026 7.1.4 nao exige medicao);
+Rippl (15527:2019 4.4.10 nao prescreve metodo; pode ser da ed. 2007);
+theta 550/mu 0,6 (14323 Tab.B.6 p.42: 550 C e theta-o,t p/ TRRF 30);
+faixa 3,0-5,0 m do incendio (grupo 1 existe no Anexo A Tab.A.1 p.92 da
+10897; faixa nao localizada nem na 16981); gama 0,9/1,4 adotados ante
+8681 Tab.1 (fav 1,0); psi2 0,2/0,4/0,6 ante 14323 6.3.1 (0,21/0,28/0,42);
+10% da cinta (fonte mista 6122/Alonso). NAO_CONFERIVEL: 16401-3 (27n+1,5A)
+e 16401-2 (0,335) - partes fora do acervo. Corrigido de quebra o typo
+`psic2 * psic2` -> `psi2` no docstring (texto igual ao codigo).
+
+**Testes.** Lente (3, baseline 73 + injecao literal/comentario). Vizinhos:
+G65 lastro acusou o `7117` novo sem acervo - re-atribuido via 5419-3 (com
+lastro), registro cheio na baseline/aqui; G65 verde sem tocar LACUNAS.
+Regra do lote inteira verde (faixa/sequencia/orfas OK; G77, alcancabilidade,
+guardas, disciplina-prancha, indice, carimbo-mapa, normas-catalogo,
+galpao-indice, suite D164, auditorias D172/D176/D179, fallbacks, titulo
+G151, veredito G152, piso G153, estaca G149).
+
+**Suite inteira pelo runner (`-n 3`, codigo final, lida inteira).**
+`rc_pytest` 0, **3973 passed, 2 skipped em 1718,9 s** (28 min), 321/321
+arquivos, memoria livre minima 94 MB (3 quedas abaixo do piso 200;
+`memoria_confirmacao_amostras` 3), descendentes [] / [], `quebras` [].
+Primeira corrida do goal (rc 0, mesmos 3973) caiu numa quebra alheia ao
+codigo (`.ai-memory.toml`, scaffolding da sessao criado no meio da corrida);
+removido o arquivo e rodada de novo, limpa.
+
+**PNG olhado:** PE-HID-02 (quadro com `NBR 5626:2020 6.8.3` e nota
+`NBR 8160:1999 5.1.4.1/4.2.3.2`) - texto dentro da folha, carimbo intacto.
+Prancha eletrica (nota 6, freecad-only): gerada e verde na suite; mudanca
+e so linha de nota, mesmo emissor. 18 paginas de norma vistas na imagem
+(F038 p.18 ja conferida no D179, nao relida).
+
+**Pendencia ao usuario:** (1) confirmar 1,4 ante o 1,30 da madeira
+(Tab.1) e o par 0,9/1,4 da tesoura/tercas ante Tab.1 (adotados,
+conservadores); (2) confirmar o item da faixa 3,0-5,0 m do incendio
+(grupo 1 OK no Anexo A); (3) confirmar theta-critica 550/mu 0,6 ante
+14323 Tab.B.6; (4) confirmar Rippl ante 15527 (pode ser ed. 2007);
+(5) confirmar Wenner ante 7117-1/Negrisoli e o 10 ohm ante 5419-3:2026;
+(6) confirmar psi2 0,2/0,4/0,6 ante 14323 6.3.1 e os 10% da cinta
+(6122/Alonso). Nenhum numero mudou; as seis seguem declaradas no codigo.
+**Nao feito.** Trocar numero para bater com a norma; confiar no OCR sem a
+imagem; citar de memoria; renumerar D existentes. Nao comecar o G157.

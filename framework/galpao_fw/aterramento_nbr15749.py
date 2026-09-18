@@ -3,21 +3,29 @@
 # Sistema de ATERRAMENTO do galpao: resistividade do solo, resistencia de haste,
 # de conjunto de hastes e de malha. Base: ABNT NBR 15749 (medicao de resistencia
 # de aterramento e de resistividade do solo) e Mamede/Negrisoli Cap.11:
-#   1) RESISTIVIDADE aparente pelo metodo de WENNER (NBR 15749): rho = 2*pi*a*R,
+#   1) RESISTIVIDADE aparente pelo metodo de WENNER (norma de resistividade
+#      do solo fora do acervo - a NBR 5419-3:2026 referencia a 7117-1;
+#      base: Negrisoli Cap.11 - confirmar): rho = 2*pi*a*R,
 #      valido para a >> b (profundidade dos eletrodos, tipicamente b <= a/20).
+#      A NBR 15749 1.1 trata de resistencia de aterramento e potenciais,
+#      nao da resistividade Wenner.
 #   2) RESISTENCIA de HASTE vertical isolada: R = rho/(2*pi*L)*ln(2L/r) (r = raio;
 #      forma equivalente rho/(2*pi*L)*ln(4L/d) com d = diametro).
 #   3) CONJUNTO de n hastes em paralelo: Rn = R1/(n*K), K = rendimento (0<K<=1).
 #   4) MALHA de aterramento (Sverak/Laurent-Niemann): Rm = rho/4*raiz(pi/A) + rho/L
 #      (A = area da malha, L = comprimento total de condutor enterrado).
-#   5) LIMITE recomendado: R <= 10 ohm (NBR 5419, SPDA/subestacao); <= 1 ohm em
-#      locais a prova de explosao (Negrisoli).
+#   5) LIMITE recomendado: R <= 10 ohm adotado (SPDA/subestacao); <= 1 ohm em
+#      locais a prova de explosao (Negrisoli). A NBR 5419-3:2026 7.1.4 nao
+#      exige medicao de resistencia - confirmar o 10 ohm.
 # Formulas e o exemplo (haste 3 m, d=3/4", rho=100 -> 33,9 ohm) LIDOS do PDF da NBR
 # 15749 / Negrisoli via NotebookLM - NAO de memoria.
 # Unidades: rho em ohm.m; L,a,d,r em m; A em m2; R em ohm. Saidas em portugues.
 # ============================================================================
-"""Aterramento (NBR 15749 / Mamede Cap.11): resistividade de Wenner, resistencia
-de haste, de n hastes e de malha (Sverak), com o limite de 10 ohm da NBR 5419."""
+"""Aterramento (NBR 15749 / Mamede Cap.11): resistividade de Wenner (metodo pela
+norma de resistividade do solo, fora do acervo - a NBR 5419-3:2026 referencia
+a 7117-1; base Negrisoli Cap.11 - confirmar), resistencia
+de haste, de n hastes e de malha (Sverak), com o limite de 10 ohm adotado
+(NBR 5419-3:2026 7.1.4 nao exige medicao - confirmar)."""
 
 from __future__ import annotations
 
@@ -28,7 +36,9 @@ R_MAX_EXPLOSIVO = 1.0     # ohm, locais a prova de explosao (Negrisoli)
 
 
 def resistividade_wenner(a, R_medido):
-    """Resistividade aparente do solo (NBR 15749): rho = 2*pi*a*R. a = espacamento
+    """Resistividade aparente do solo (metodo de Wenner: norma de resistividade
+    fora do acervo - a NBR 5419-3:2026 referencia a 7117-1; base Negrisoli
+    Cap.11 - confirmar): rho = 2*pi*a*R. a = espacamento
     entre eletrodos (m); R = resistencia lida no terrometro (ohm) -> ohm.m."""
     return 2.0 * math.pi * a * R_medido
 

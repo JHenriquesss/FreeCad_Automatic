@@ -21,8 +21,9 @@
 #   - Modelo estatico: a flag "continua" AUTO-seleciona os coeficientes -
 #     BIAPOIADO (1/8, 1/2, 5/384) ou CONTINUO >=3 vaos iguais (1/10, 0,6,
 #     2,6/384); ambos ainda sobrescrevveis por coef_momento/cortante/flecha.
-# gamma_g FAVORAVEL: adotado 0,90 (conservador p/ uplift, NBR 8681 / criterio do
-#   RT). A NBR 8800 Tabela 1 permite 1,00; configuravel via cfg["gamma"].
+# gamma_g FAVORAVEL: adotado 0,90 (conservador p/ uplift; NBR 8681:2025 Tab.1
+#   fav = 1,0; criterio do RT). A NBR 8800 Tabela 1 permite 1,00;
+#   configuravel via cfg["gamma"].
 # Wef pelo MSE usa Wx (catalogo) + kl (Tabela 13, das dimensoes) -> baixo erro.
 # ATENCAO: propriedades do perfil = do catalogo do fornecedor (A CONFIRMAR).
 # Saidas em portugues. Calcula apenas; pendente revisao. Unidades SI: m, kN.
@@ -216,8 +217,8 @@ def verifica_terca(perfil, cfg):
     trib = cfg["larg_influencia"]
     ct, st = math.cos(theta), math.sin(theta)
     Gk, Qk, Wk = cfg.get("G", 0.0), cfg.get("Q", 0.0), cfg.get("W", 0.0)
-    # gamma_g FAVORAVEL = 0,90 (conservador para uplift; NBR 8681 / criterio do
-    # RT). NBR 8800 Tabela 1 permite 1,00 - sobrescrever via cfg["gamma"].
+    # gamma_g FAVORAVEL = 0,90 (conservador para uplift; NBR 8681:2025 Tab.1
+    # fav = 1,0 / criterio do RT). NBR 8800 Tabela 1 permite 1,00 - sobrescrever via cfg["gamma"].
     g = cfg.get("gamma", {"G": 1.25, "Q": 1.50, "W": 1.40, "G_fav": 0.90})
     # modelo estatico: a flag "continua" AUTO-seleciona os coeficientes.
     continua = cfg.get("continua", False)

@@ -17,7 +17,7 @@
 # disjuntor de 32 A).
 # Unidades: correntes em A. Saidas em portugues.
 # ============================================================================
-"""Protecao de circuito BT (NBR 5410): coordenacao disjuntor x condutor
+"""Protecao de circuito BT (NBR 5410:2004 5.3.4.1): coordenacao disjuntor x condutor
 (IB<=IN<=IZ, I2<=1,45*IZ), capacidade de interrupcao, DR e classe de DPS."""
 
 from __future__ import annotations
