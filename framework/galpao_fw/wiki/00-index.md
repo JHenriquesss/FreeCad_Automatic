@@ -18,8 +18,8 @@ Cwd primário: `C:\Users\joseh\OneDrive\Área de Trabalho\dev\FreeCad_Automatic\
   medidos na auditoria D179: material da fundação que vem do modelo e decide veredito, folhas
   do prédio/casa que não dizem que reprovaram, citação normativa com número e sem item,
   verbete sem número D; mais a decisão do FS da estaca — 3,0 adotado x 2,0 da NBR 6122:2022).
-  [BACKLOG-GOALS-G149-G153.md](../BACKLOG-GOALS-G149-G153.md) (G149–G153, D178–D179; os
-  verbetes do G149 ao G152 estão sem número D),
+  [BACKLOG-GOALS-G149-G153.md](../BACKLOG-GOALS-G149-G153.md) (G149–G153, D178–D179 e D183–D186; os
+  verbetes do G149 ao G152 foram numerados no G157),
   [BACKLOG-GOALS-G143-G148.md](../BACKLOG-GOALS-G143-G148.md) (G143–G148, D173–D176) e
   [BACKLOG-GOALS-G137-G142.md](../BACKLOG-GOALS-G137-G142.md) (G137–G142, D166–D172) foram
   consumidas. As filas anteriores ficam como registro — não

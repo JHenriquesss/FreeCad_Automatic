@@ -853,16 +853,17 @@ auditoria (`test_10`, `GALPAO_AUDITORIA=1`, 771,7 s verde); casa e prédio segue
 demonstrou (máquina carregada, builds do FreeCAD 1,4–2,3× mais lentos); o G153 mede.
 
 ### G149–G153 — a estaca calada nas outras portas, o `.get(…, 0)`, o carimbo cortado, a folha reprovada e o piso
-Os verbetes do G149 ao G152 estão em `04-decisions` com cabeçalho `## G1xx`, sem número D
-(o G157 numera); estas linhas foram escritas na auditoria, os goals não escreveram aqui.
+Os verbetes do G149 ao G152 estão em `04-decisions` numerados no G157 (D183–D186);
+estas linhas foram escritas na auditoria, os goals não escreveram aqui.
 - **G149** D/L/tipo/bloco da estaca recusam nomeados no metálico, wizard e prédio; fck/fyk do
-  bloco herdam o material do spec; FS com a origem dita.
+  bloco herdam o material do spec; FS com a origem dita ([[04-decisions#D183]]).
 - **G150** os 64 `.get(chave, 0/1)` dos emissores + 3 do adaptador do mezanino triados:
-  todos mortos, lente estendida.
+  todos mortos, lente estendida ([[04-decisions#D184]]).
 - **G151** 13 títulos de carimbo encurtados sem corte, 10 abreviações declaradas, MZ01
-  numerada 01/03–03/03.
+  numerada 01/03–03/03 ([[04-decisions#D185]]).
 - **G152** a folha de disciplina reprovada declara o veredito (carimbo REPROVADO - VER
-  MEMORIAL e linha com os gates), lida de `veredito_folha_g152`; ATENDE byte-idêntica.
+  MEMORIAL e linha com os gates), lida de `veredito_folha_g152`; ATENDE byte-idêntica
+  ([[04-decisions#D186]]).
 - **G153** o piso de memória só aborta com 3 amostras seguidas; série e carga no resumo;
   ganho de parede do D177 medido: 1574 → 1032 s (−34 %) ([[04-decisions#D178]]).
 
@@ -874,7 +875,7 @@ caiu num teste de runner aninhado que varria o Temp sem `pytest.ini`. Suíte: ru
 passed/2 skipped, quebras vazio; serial 3953/1 failed (corrigido e re-rodado pelo runner);
 portões do aço (2 passed) e do galpão (884 s) verdes.
 
-### G154–G157 — o material do modelo, as folhas que não dizem que reprovaram, a citação sem item e o verbete sem número (aberto; G154, G155 e G156 fechados)
+### G154–G157 — o material do modelo, as folhas que não dizem que reprovaram, a citação sem item e o verbete sem número (fechado)
 - **G154** o material da fundação distingue modelo de declarado desde onde o número
   nasce (wizard pergunta); memorial sempre diz a origem, folha carimba o modelo a
   confirmar; corrida sem 25 MPa calado ([[04-decisions#D180]]).
@@ -888,6 +889,11 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   atribuição (NM 280→NM 247-3, Wenner, 10 ohm, Rippl, theta 550, faixa do
   incêndio, gamas adotados), números intactos, 6 pendências ao usuário;
   suíte 3973 passed/2 skipped, quebras vazio ([[04-decisions#D182]]).
+- **G157** todo goal fechado desde o G149 tem verbete com número D e bullet
+  com link na fase (guarda em `tests/test_verbete_fase_g157.py`, baseline
+  nos dois sentidos, vermelho por injeção em `tmp_path`); verbetes G149–G152
+  numerados D183–D186 sem reescrever o conteúdo, links conferidos; suíte
+  3976 passed/2 skipped, quebras vazio ([[04-decisions#D187]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

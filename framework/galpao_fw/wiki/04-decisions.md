@@ -4718,7 +4718,7 @@ tests/test_indice_disco_rodada_g102.py::test_10_portao_rodada_real_galpao_na_aud
 **Nao feito.** Mover qualquer outra cobertura; baixar `-n`; mexer nos tetos;
 fechar aplicativo do usuario para medir.
 
-## G149 - A estaca calada nas outras tres portas (metalico, wizard, predio) - FECHADO
+## D183 - G149: A estaca calada nas outras tres portas (metalico, wizard, predio) - FECHADO
 
 **Medido por injecao (antes de mudar).**
 - **Nucleo** (`verifica_estaca`, N=500, argila N5/3 m + areia N25/8 m):
@@ -4813,7 +4813,7 @@ filho, nenhum app do usuario tocado) — artefato de carga, nao do diff: as
 quebras de censo que as acompanham somem na corrida completa. O piso que
 aborta na primeira amostra e o objeto do G153.
 
-## G150 - O `or 0` que a lente nao ve (`.get(chave, 0/1)` nos emissores) - FECHADO
+## D184 - G150: O `or 0` que a lente nao ve (`.get(chave, 0/1)` nos emissores) - FECHADO
 
 **Medido (AST, antes de triar).** A lente do G145 so acha `BoolOp Or`; o mesmo
 fallback como `.get(chave, 0|0.0|1|1.0)` nao entra. AST nos 10 emissores do
@@ -4874,7 +4874,7 @@ o G149: `test_fallback_get_g150`; +6 passed sobre os 3926), memoria livre
 minima 402 MB (piso 200 nao disparou), descendentes [] / [], `quebras` [].
 
 
-## G151 - O titulo que o carimbo corta em 26 caracteres - FECHADO
+## D185 - G151: O titulo que o carimbo corta em 26 caracteres - FECHADO
 
 **Pedido.** BACKLOG-GOALS-G149-G153.md G151: os 23 titulos de carimbo cortados
 por `techdraw_exec._cap_titulo` (26) e o `sheet_number` fora da contagem.
@@ -4977,7 +4977,7 @@ pulados sem a variavel (D177).
 **Nao feito.** Aumentar a celula do template ISO 5457; mudar codigo de
 prancha; trocar numero do FS ou qualquer conta (titulo, nao conta).
 
-## G152 - A folha de disciplina reprovada que nao dizia que reprovou - FECHADO
+## D186 - G152: A folha de disciplina reprovada que nao dizia que reprovou - FECHADO
 
 **Pedido.** BACKLOG-GOALS-G149-G153.md G152: a folha reprovada saia com
 carimbo PARA APROVACAO e sem nenhum REPROVAD no corpo. Medir disciplina por
@@ -5524,3 +5524,83 @@ conservadores); (2) confirmar o item da faixa 3,0-5,0 m do incendio
 (6122/Alonso). Nenhum numero mudou; as seis seguem declaradas no codigo.
 **Nao feito.** Trocar numero para bater com a norma; confiar no OCR sem a
 imagem; citar de memoria; renumerar D existentes. Nao comecar o G157.
+
+## D187 - G157: o verbete sem numero e a fase sem linha (2026-09-18) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G154-G157.md G157, pelo protocolo de execucao em
+sequencia (checagem de entrada: `6d3b16d G156:` no log, arvore limpa,
+nenhum pytest/suite_paralela/freecad rodando - so uvicorn do Projetor e o
+notebooklm-mcp, alheios a este repo). Guarda que confere, para todo goal
+fechado no git log desde o G149 (incluindo G154-G157), verbete com numero D
+em `04-decisions` e bullet com link em `03-phases`; baseline nos dois
+sentidos, vermelho por injecao em `tmp_path`; numerar os verbetes do G149
+ao G152 com os proximos D livres, nessa ordem, sem reescrever o conteudo;
+conferir os links da wiki; sem perguntas no meio.
+
+**Decidido para este goal (topo do backlog):** os quatro verbetes recebem os
+proximos D livres depois do ultimo D existente no momento do G157, na ordem
+G149, G150, G151, G152. Imprevisto segue a regra conservadora do protocolo
+(segur e registrar, nao parar; escolha vai ao verbete como pendencia).
+
+**Medido (antes de mudar).** `## G149/G150/G151/G152 - ...` sem numero D
+(so o G153 virou D178); nenhum dos cinco escreveu no `03-phases` (o D179
+escreveu as linhas na auditoria); ultimo D existente: D182 (G156). Nao ha
+guarda que cubra isso: o D176 e o D179 acharam a falta lendo o arquivo.
+Links `[[04-decisions#D152]]`, `[[04-decisions#D153]]` e
+`[[04-decisions#D154]]` nos bullets do G126/G127/G128 sem header `## D`
+correspondente (lote G126-G130, fora do escopo desde-G149: vai a pendencia,
+nao se renumera nem se reescreve sem decisao).
+
+**Entregue (guarda no teste, precedente G156).** `tests/test_verbete_fase_g157.py`
+(3 testes + `confere_verbete_fase` pura): MAPA_GOAL_D (G149:D183, G150:D184,
+G151:D185, G152:D186, G153:D178, G154:D180, G155:D181, G156:D182, G157:D187)
+com `goals_no_git_log` (parse de `^<hash> G<num>:`); sentido 1 (goal no log
+sem MAPA/verbete/bullet+link reprova, nomeando o goal); sentido 2 (MAPA sem
+commit - salvo o goal em progresso -, verbete `## D - G>=149` fora do MAPA,
+header `## G<num>` sem D, link do bullet sem `## D` reprova). Sem modulo novo
+na producao de proposito: modulo so consumido pelo teste seria ilha no
+`test_nenhuma_ilha_fora_do_declarado` (precedente G156: a lente mora no
+teste); por isso nenhuma baseline de producao muda (sem ilha, sem censo D86,
+sem SCRIPTS_AVULSOS, G156/G65/faixa/orfas verdes sem triagem nova).
+Numerados os headers (`## D183 - G149:` .. `## D186 - G152:`, resto do titulo
+intacto) e linkados os bullets (`([[04-decisions#D183]])` ..
+`([[04-decisions#D186]])`); nota do `03-phases` e do `00-index` atualizadas
+no passado (eram "sem numero D"). Nenhum `[[04-decisions#G1xx]]` existia,
+nenhum link quebrou na renumeracao.
+
+**Testes.** Baseline verde no repo real; vermelho por injecao em `tmp_path`
+(header sem D, bullet removido, MAPA com goal inexistente, goal sem MAPA,
+verbete orfao, link trocado por D999, carve-out do goal corrente exato nos
+dois mundos) + copia limpa sem falso-positivo. Vermelho provado no defeito
+real antes de numerar (10 gaps: 8 do G149-G152 + 2 do G157 ainda nao
+escrito). Um assert por teste (G97).
+
+**Baselines mudadas com motivo: nenhuma.**
+
+**Portoes tocados + regra do lote.** Varreduras faixa/sequencia/orfas OK;
+lote (g77, alcancabilidade, guardas, disciplina-prancha, indice_g91,
+carimbo-mapa, normas-catalogo, galpao-indice, suite D164, auditorias
+D172/D176/D179, fallbacks, titulo G151, veredito G152, piso G153, estaca
+G149, material G154, veredito G155, citacao G156): **218 passed** (serial).
+Sem portao do galpao (nenhuma folha tocada) e sem GRUPO_FREECAD (nenhum
+freecad subido pelo teste novo).
+
+**Suite inteira pelo runner (`-n 3`, codigo final, lida inteira).**
+`rc_pytest` 0, **3976 passed, 2 skipped em 2067,9 s** (34,5 min), 322/322
+arquivos, memoria livre minima 173 MB (1 queda de 1 amostra < 200, sem
+disparo - G153), descendentes [] / [], `quebras` []. A corrida anterior
+(rc 1, 3974 passed + os 2 failed) tinha como unicos fails a guarda nova
+acusando este verbete ainda nao escrito; com o verbete e o bullet no lugar
+- a arvore que esta corrida viu -, tudo verde. Codigo identico nas duas
+corridas (so wiki/prosa mudou entre elas, precedente D178).
+
+**Pendencia ao usuario:** (1) os links `[[04-decisions#D152]]`,
+`[[04-decisions#D153]]` e `[[04-decisions#D154]]` nos bullets do G126, G127
+e G128 nao tem verbete `## D152/D153/D154` (o lote G126-G130 registrou
+D152-D157 no indice mas os verbetes do G126-G128 nao levaram esses
+numeros); fora do escopo deste goal (desde o G149) - confirmar se ganham
+numeracao nova ou se os links caem. Nenhum numero mudou neste goal.
+
+**Nao feito.** Reescrever verbete antigo; renumerar D ja existentes; tocar
+folha ou codigo de producao; mudar numero, veredito, default ou trava;
+criar backlog novo. Nao comecar goal novo (a fila G154-G157 fecha aqui).
