@@ -143,6 +143,9 @@ _MOTOR_POWER_CV = {
     for _, power_cv, _ in _MOTOR_TABLE_KVA
 }
 
+_MOTOR_INSTALLED_POWER_SOURCE = "WKI Enel item 6.1, PDF p. 5"
+_MOTOR_NO_PLATE_KW_PER_CV = 1.5
+
 
 def _motor_power_key(value: Any) -> str | None:
     if isinstance(value, str):
@@ -273,6 +276,7 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                 elif key == "motors":
                     _validate_positive_integer(errors, key, index, item, "quantity")
                     _validate_motor_power(errors, key, index, item)
+                    _validate_motor_efficiency(errors, key, index, item)
                     if not _is_concrete_hashable_string(item.get("connection")):
                         errors.append(_error(
                             "invalid_load_value",
@@ -338,6 +342,25 @@ def _validate_motor_power(
             group=group,
             index=index,
             field="power_cv",
+        ))
+
+
+def _validate_motor_efficiency(
+    errors: list[dict[str, Any]],
+    group: str,
+    index: int,
+    item: dict[str, Any],
+) -> None:
+    if "rendimento" not in item:
+        return
+    value = item.get("rendimento")
+    if not _is_number(value) or not 0 < float(value) <= 1:
+        errors.append(_error(
+            "invalid_load_value",
+            "rendimento do motor deve ser maior que zero e menor ou igual a 1",
+            group=group,
+            index=index,
+            field="rendimento",
         ))
 
 
@@ -445,12 +468,24 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
                 quantity=quantity,
             ))
             continue
-        installed += float(quantity) * _MOTOR_POWER_CV[power_key] * 0.736
+        rendimento = item.get("rendimento")
+        cv = _MOTOR_POWER_CV[power_key]
+        if rendimento is None:
+            installed_power_kw = float(quantity) * cv * _MOTOR_NO_PLATE_KW_PER_CV
+            installed_power_basis = "sem_placa_1500_w_por_cv"
+        else:
+            installed_power_kw = float(quantity) * cv * 0.736 / float(rendimento)
+            installed_power_basis = "rendimento_da_placa"
+        installed += installed_power_kw
         item_demand = float(value)
         result_items.append({
             "quantity": quantity,
             "power_cv": power_key,
             "connection": connection,
+            "rendimento": float(rendimento) if rendimento is not None else None,
+            "installed_power_kw": installed_power_kw,
+            "installed_power_basis": installed_power_basis,
+            "installed_power_source": _MOTOR_INSTALLED_POWER_SOURCE,
             "demand_kva": item_demand,
         })
     if result_items:

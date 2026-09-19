@@ -121,6 +121,53 @@ def test_real_project_motor_case_uses_source_spelling_and_diversification():
     assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(2.437)
 
 
+@pytest.mark.parametrize(
+    ("rendimento", "installed_kw", "basis"),
+    [
+        (0.736, 1.0, "rendimento_da_placa"),
+        (None, 1.5, "sem_placa_1500_w_por_cv"),
+    ],
+)
+def test_motor_installed_power_uses_efficiency_or_source_fallback(
+    rendimento, installed_kw, basis
+):
+    payload = _payload()
+    motor = {"quantity": 1, "power_cv": "1", "connection": "trifasica"}
+    if rendimento is not None:
+        motor["rendimento"] = rendimento
+    payload["loads"]["motors"] = [motor]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is True
+    item = result["calculation"]["motors"]["items"][0]
+    assert item["installed_power_kw"] == pytest.approx(installed_kw)
+    assert item["installed_power_basis"] == basis
+    assert item["installed_power_source"] == "WKI Enel item 6.1, PDF p. 5"
+    assert result["calculation"]["motors"]["installed_kw"] == pytest.approx(installed_kw)
+    assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(1.52)
+
+
+@pytest.mark.parametrize("rendimento", [0, -0.1, 1.01, 2])
+def test_motor_efficiency_must_be_between_zero_and_one(rendimento):
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 1,
+        "power_cv": "1",
+        "connection": "trifasica",
+        "rendimento": rendimento,
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(
+        error["code"] == "invalid_load_value"
+        and error.get("context", {}).get("field") == "rendimento"
+        for error in result["errors"]
+    )
+
+
 def test_motor_quantity_above_table_limit_is_rejected():
     payload = _payload()
     payload["loads"]["motors"] = [{
