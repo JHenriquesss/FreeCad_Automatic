@@ -108,6 +108,58 @@ def test_motor_demand_diversifies_different_powers():
     assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(2.97 + 0.70 * 1.52)
 
 
+def test_motor_demand_consolidates_declarations_of_the_same_power():
+    """6.2.3.2 reads the table by quantity of motors of the same power."""
+    payload = _payload()
+    payload["loads"]["motors"] = [
+        {"quantity": 1, "power_cv": "1", "connection": "trifasica"},
+        {"quantity": 1, "power_cv": "1", "connection": "trifasica"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    motors = result["calculation"]["motors"]
+    assert result["ok"] is True
+    assert motors["demand_kva"] == pytest.approx(_MOTOR_TABLE_KVA[("trifasica", "1", 2)])
+    assert motors["demand_kva"] == pytest.approx(2.28)
+    assert len(motors["groups"]) == 1
+    assert motors["groups"][0]["quantity"] == 2
+    assert motors["groups"][0]["declarations"] == [0, 1]
+    assert len(motors["items"]) == 2
+
+
+def test_consolidated_motor_group_keeps_installed_power_per_declaration():
+    payload = _payload()
+    payload["loads"]["motors"] = [
+        {"quantity": 1, "power_cv": "1", "connection": "trifasica", "rendimento": 0.736},
+        {"quantity": 1, "power_cv": "1", "connection": "trifasica"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    motors = result["calculation"]["motors"]
+    assert [item["installed_power_basis"] for item in motors["items"]] == [
+        "rendimento_da_placa",
+        "sem_placa_1500_w_por_cv",
+    ]
+    assert motors["installed_kw"] == pytest.approx(1.0 + 1.5)
+    assert motors["demand_kva"] == pytest.approx(2.28)
+
+
+def test_consolidated_motor_quantity_above_table_limit_is_rejected():
+    payload = _payload()
+    payload["loads"]["motors"] = [
+        {"quantity": 6, "power_cv": "1", "connection": "trifasica"},
+        {"quantity": 5, "power_cv": "1", "connection": "trifasica"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "motor_outside_table" for error in result["errors"])
+    assert any("acima de 10" in error["message"] for error in result["errors"])
+
+
 def test_real_project_motor_case_uses_source_spelling_and_diversification():
     payload = _payload()
     payload["loads"]["motors"] = [

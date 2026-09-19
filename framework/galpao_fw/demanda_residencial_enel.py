@@ -144,6 +144,7 @@ _MOTOR_POWER_CV = {
 }
 
 _MOTOR_INSTALLED_POWER_SOURCE = "WKI Enel item 6.1, PDF p. 5"
+_MOTOR_TABLE_MAX_QUANTITY = 10
 _MOTOR_NO_PLATE_KW_PER_CV = 1.5
 
 
@@ -425,9 +426,18 @@ def _calculate_heating(items: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Resolve a demanda de motores da WKI.
+
+    O item 6.2.3.2 lê a demanda nas TABELAS 2 e 3 pela quantidade de motores de
+    MESMA potência, então declarações que repetem o par ligação/potência são
+    consolidadas em uma única linha da tabela antes da consulta. A potência
+    instalada continua por declaração, porque o item 6.1 deixa cada motor trazer o
+    rendimento da sua própria placa.
+    """
     result_items = []
     errors = []
     installed = 0.0
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
     for index, item in enumerate(items):
         quantity = item.get("quantity")
         power_cv = item.get("power_cv")
@@ -443,25 +453,23 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
                 quantity=quantity,
             ))
             continue
-        if isinstance(quantity, int) and quantity > 10:
+        power_key = _motor_power_key(power_cv)
+        if power_key is None or connection not in ("monofasica", "trifasica"):
             errors.append(_error(
                 "motor_outside_table",
-                "quantidade de motores acima de 10 recusada: as TABELAS 2 e 3 "
-                "da WKI (PDF p. 14) têm somente as colunas de 1 a 10",
+                "combinação de motor sem linha exata nas TABELAS 2 e 3 da WKI "
+                "(PDF p. 14); CV fora da grafia da fonte não é interpolado",
                 index=index,
                 connection=connection,
                 power_cv=power_cv,
                 quantity=quantity,
             ))
             continue
-        power_key = _motor_power_key(power_cv)
-        key = (connection, power_key, quantity) if power_key is not None else None
-        value = _MOTOR_TABLE_KVA.get(key)
-        if value is None:
+        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:
             errors.append(_error(
                 "motor_outside_table",
-                "combinação de motor sem linha exata nas TABELAS 2 e 3 da WKI "
-                "(PDF p. 14); CV fora da grafia da fonte não é interpolado",
+                "quantidade de motores deve ser inteiro ≥ 1 para entrar nas "
+                "TABELAS 2 e 3 da WKI (PDF p. 14)",
                 index=index,
                 connection=connection,
                 power_cv=power_cv,
@@ -476,9 +484,13 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             installed_power_kw = float(quantity) * cv * 0.736 / float(rendimento)
             installed_power_basis = "rendimento_da_placa"
-        installed += installed_power_kw
-        item_demand = float(value)
-        result_items.append({
+        grupo = groups.setdefault(
+            (connection, power_key),
+            {"connection": connection, "power_cv": power_key, "quantity": 0, "items": []},
+        )
+        grupo["quantity"] += quantity
+        grupo["items"].append({
+            "index": index,
             "quantity": quantity,
             "power_cv": power_key,
             "connection": connection,
@@ -486,23 +498,60 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
             "installed_power_kw": installed_power_kw,
             "installed_power_basis": installed_power_basis,
             "installed_power_source": _MOTOR_INSTALLED_POWER_SOURCE,
-            "demand_kva": item_demand,
         })
-    if result_items:
+
+    result_groups = []
+    for (connection, power_key), grupo in groups.items():
+        indexes = [item["index"] for item in grupo["items"]]
+        if grupo["quantity"] > _MOTOR_TABLE_MAX_QUANTITY:
+            errors.append(_error(
+                "motor_outside_table",
+                "quantidade de motores acima de 10 recusada: as TABELAS 2 e 3 "
+                "da WKI (PDF p. 14) têm somente as colunas de 1 a 10",
+                indexes=indexes,
+                connection=connection,
+                power_cv=power_key,
+                quantity=grupo["quantity"],
+            ))
+            continue
+        value = _MOTOR_TABLE_KVA.get((connection, power_key, grupo["quantity"]))
+        if value is None:
+            errors.append(_error(
+                "motor_outside_table",
+                "combinação de motor sem linha exata nas TABELAS 2 e 3 da WKI "
+                "(PDF p. 14); CV fora da grafia da fonte não é interpolado",
+                indexes=indexes,
+                connection=connection,
+                power_cv=power_key,
+                quantity=grupo["quantity"],
+            ))
+            continue
+        for item in grupo["items"]:
+            installed += item["installed_power_kw"]
+            result_items.append(item)
+        result_groups.append({
+            "connection": connection,
+            "power_cv": power_key,
+            "quantity": grupo["quantity"],
+            "declarations": indexes,
+            "demand_kva": float(value),
+        })
+
+    if result_groups:
         major_index = max(
-            range(len(result_items)),
-            key=lambda index: result_items[index]["demand_kva"],
+            range(len(result_groups)),
+            key=lambda index: result_groups[index]["demand_kva"],
         )
         demand = 0.0
-        for index, result_item in enumerate(result_items):
+        for index, grupo in enumerate(result_groups):
             factor = 1.0 if index == major_index else 0.70
-            result_item["diversity_factor"] = factor
-            result_item["demand_contribution_kva"] = result_item["demand_kva"] * factor
-            demand += result_item["demand_contribution_kva"]
+            grupo["diversity_factor"] = factor
+            grupo["demand_contribution_kva"] = grupo["demand_kva"] * factor
+            demand += grupo["demand_contribution_kva"]
     else:
         demand = 0.0
-    return {"items": result_items, "installed_kw": installed, "demand_kva": demand,
-            "errors": errors}
+    return {"items": result_items, "groups": result_groups, "installed_kw": installed,
+            "demand_kva": demand, "errors": errors}
 
 
 def _calculate_special_lighting(items: list[dict[str, Any]]) -> dict[str, Any]:
