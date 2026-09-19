@@ -60,12 +60,98 @@ _HEATING_TABLE = (
     (61, 30.0, 16.0),
 )
 
-# WKI motor table: somente a combinação prevista no contrato desta primeira
-# fatia foi liberada. Combinações sem linha exata devem ser revisadas, não
-# interpoladas.
+def _motor_table_rows(
+    connection: str,
+    rows: tuple[tuple[str, tuple[float, ...]], ...],
+) -> dict[tuple[str, str, int], float]:
+    return {
+        (connection, power_cv, quantity): demand_kva
+        for power_cv, values in rows
+        for quantity, demand_kva in enumerate(values, start=1)
+    }
+
+
+# WKI TABELA 2 (PDF p. 14): three-phase motors, complete source transcription.
+# The source prints 33.29 for 15 CV and 4 motors; keep that cell unchanged.
 _MOTOR_TABLE_KVA = {
-    ("trifasica", 1.0, 1): 1.52,
+    **_motor_table_rows(
+        "trifasica",
+        (
+            ("1/3", (0.65, 0.98, 1.24, 1.50, 1.76, 1.95, 2.15, 2.34, 2.53, 2.73)),
+            ("1/2", (0.87, 1.31, 1.65, 2.00, 2.35, 2.61, 2.87, 3.13, 3.39, 3.65)),
+            ("3/4", (1.26, 1.89, 2.39, 2.90, 3.40, 3.78, 4.16, 4.54, 4.91, 5.29)),
+            ("1", (1.52, 2.28, 2.89, 3.50, 4.10, 4.56, 5.02, 5.47, 5.93, 6.38)),
+            ("1 1/2", (2.17, 3.26, 4.12, 4.99, 5.86, 6.51, 7.16, 7.81, 8.46, 9.11)),
+            ("2", (2.70, 4.05, 5.13, 6.21, 7.29, 8.10, 8.91, 9.72, 10.53, 11.34)),
+            ("3", (4.04, 6.06, 7.68, 9.29, 10.91, 12.12, 13.13, 14.54, 15.76, 16.97)),
+            ("4", (5.03, 7.55, 9.56, 11.57, 13.58, 15.09, 16.60, 18.11, 19.62, 21.13)),
+            ("5", (6.02, 9.03, 11.44, 13.85, 16.25, 18.86, 19.87, 21.67, 23.48, 25.28)),
+            ("7 1/2", (8.65, 12.98, 16.44, 19.90, 23.36, 25.95, 28.55, 31.14, 33.74, 36.33)),
+            ("10", (11.54, 17.31, 21.93, 26.54, 31.16, 34.62, 38.08, 41.54, 45.01, 48.47)),
+            ("12 1/2", (14.09, 21.14, 26.77, 32.41, 38.04, 42.27, 46.50, 50.72, 54.95, 59.18)),
+            ("15", (16.65, 24.98, 31.63, 33.29, 44.96, 49.95, 54.95, 59.94, 64.93, 69.93)),
+            ("20", (22.10, 33.15, 41.99, 50.83, 59.67, 66.30, 72.93, 79.56, 86.19, 92.82)),
+            ("25", (25.83, 38.75, 49.08, 59.41, 69.74, 77.49, 85.24, 92.99, 100.74, 108.49)),
+            ("30", (30.52, 45.78, 57.99, 70.20, 82.40, 91.56, 100.72, 109.87, 119.03, 128.18)),
+            ("40", (39.74, 59.61, 75.51, 91.40, 107.30, 119.22, 131.14, 143.06, 154.99, 166.91)),
+            ("50", (48.73, 73.10, 92.59, 112.08, 131.57, 146.19, 160.81, 175.43, 190.05, 204.67)),
+            ("60", (58.15, 87.23, 110.49, 133.74, 157.01, 174.45, 191.90, 209.34, 226.79, 244.23)),
+            ("75", (72.28, 108.42, 137.33, 166.24, 195.16, 216.84, 238.52, 260.21, 281.89, 303.58)),
+            ("100", (95.56, 143.34, 181.56, 219.79, 258.01, 286.68, 315.35, 344.02, 372.68, 401.35)),
+            ("125", (117.05, 175.58, 222.40, 269.22, 316.04, 351.15, 386.27, 421.38, 456.50, 491.61)),
+            ("150", (141.29, 211.94, 263.45, 324.97, 381.43, 423.87, 466.26, 508.64, 551.03, 593.42)),
+            ("200", (190.18, 285.27, 361.34, 437.41, 513.49, 570.54, 627.59, 684.65, 741.70, 789.76)),
+        ),
+    ),
+    # WKI TABELA 3 (PDF p. 14): single-phase motors, complete source transcription.
+    # The source prints 2.53 for 1 1/2 CV and 2 motors, and 33.41 for 10 CV
+    # and 7 motors; those cells are intentionally not corrected.
+    **_motor_table_rows(
+        "monofasica",
+        (
+            ("1/4", (0.66, 0.99, 1.25, 1.52, 1.78, 1.98, 2.18, 2.38, 2.57, 2.77)),
+            ("1/3", (0.77, 1.16, 1.46, 1.77, 2.08, 2.31, 2.54, 2.77, 3.00, 3.23)),
+            ("1/2", (1.18, 1.77, 2.24, 2.71, 3.19, 3.54, 3.89, 4.25, 4.60, 4.96)),
+            ("3/4", (1.34, 2.01, 2.55, 3.03, 3.62, 4.02, 4.42, 4.82, 5.23, 5.63)),
+            ("1", (1.56, 2.34, 2.96, 3.59, 4.21, 4.68, 5.01, 5.62, 6.08, 6.55)),
+            ("1 1/2", (2.35, 2.53, 4.47, 5.41, 6.35, 7.05, 7.76, 8.46, 9.17, 9.87)),
+            ("2", (2.97, 4.46, 5.64, 6.83, 8.02, 8.91, 9.80, 10.69, 11.58, 12.47)),
+            ("3", (4.07, 6.11, 7.73, 9.36, 10.99, 12.21, 13.43, 14.65, 15.87, 17.09)),
+            ("5", (6.16, 9.24, 11.70, 14.17, 16.63, 18.48, 20.33, 22.18, 24.02, 25.87)),
+            ("7 1/2", (8.84, 13.26, 16.80, 20.33, 23.87, 26.52, 29.17, 31.82, 34.48, 37.13)),
+            ("10", (11.64, 17.46, 22.12, 26.77, 31.43, 34.92, 33.41, 41.90, 45.40, 48.89)),
+            ("12 1/2", (14.94, 22.41, 28.39, 34.03, 40.34, 44.02, 49.30, 53.78, 58.27, 62.75)),
+            ("15", (16.94, 25.41, 32.19, 38.96, 45.74, 50.82, 55.90, 60.98, 66.07, 71.15)),
+        ),
+    ),
 }
+
+
+def _motor_power_cv_number(power_cv: str) -> float:
+    if "/" not in power_cv:
+        return float(power_cv)
+    if " " in power_cv:
+        whole, fraction = power_cv.split(" ", 1)
+    else:
+        whole, fraction = "0", power_cv
+    numerator, denominator = fraction.split("/", 1)
+    return float(whole) + float(numerator) / float(denominator)
+
+
+_MOTOR_POWER_CV = {
+    power_cv: _motor_power_cv_number(power_cv)
+    for _, power_cv, _ in _MOTOR_TABLE_KVA
+}
+
+
+def _motor_power_key(value: Any) -> str | None:
+    if isinstance(value, str):
+        candidate = value.strip()
+    elif _is_number(value) and float(value).is_integer():
+        candidate = str(int(value))
+    else:
+        return None
+    return candidate if candidate in _MOTOR_POWER_CV else None
 
 _ROOM_NAMES = (
     "quarto", "sala", "banheiro", "cozinha", "area_servico", "outros",
@@ -186,7 +272,7 @@ def _validate_payload(payload: Any) -> list[dict[str, Any]]:
                     _validate_positive_number(errors, key, index, item, "power_kw")
                 elif key == "motors":
                     _validate_positive_integer(errors, key, index, item, "quantity")
-                    _validate_positive_number(errors, key, index, item, "power_cv")
+                    _validate_motor_power(errors, key, index, item)
                     if not _is_concrete_hashable_string(item.get("connection")):
                         errors.append(_error(
                             "invalid_load_value",
@@ -232,6 +318,27 @@ def _validate_positive_number(errors: list[dict[str, Any]], group: str,
     if not _is_number(value) or value <= 0:
         errors.append(_error("invalid_load_value", "carga deve informar número finito positivo",
                              group=group, index=index, field=field))
+
+
+def _validate_motor_power(
+    errors: list[dict[str, Any]],
+    group: str,
+    index: int,
+    item: dict[str, Any],
+) -> None:
+    value = item.get("power_cv")
+    if isinstance(value, str):
+        valid = bool(value.strip())
+    else:
+        valid = _is_number(value) and value > 0
+    if not valid:
+        errors.append(_error(
+            "invalid_load_value",
+            "carga deve informar potência de motor em CV",
+            group=group,
+            index=index,
+            field="power_cv",
+        ))
 
 
 def _is_concrete_hashable_string(value: Any) -> bool:
@@ -298,23 +405,67 @@ def _calculate_motors(items: list[dict[str, Any]]) -> dict[str, Any]:
     result_items = []
     errors = []
     installed = 0.0
-    demand = 0.0
     for index, item in enumerate(items):
         quantity = item.get("quantity")
         power_cv = item.get("power_cv")
         connection = item.get("connection")
-        key = (connection, power_cv, quantity)
+        if connection == "bifasica":
+            errors.append(_error(
+                "motor_outside_table",
+                "motor bifásico recusado: as TABELAS 2 e 3 da WKI (PDF p. 14) "
+                "cobrem somente motores monofásicos e trifásicos",
+                index=index,
+                connection=connection,
+                power_cv=power_cv,
+                quantity=quantity,
+            ))
+            continue
+        if isinstance(quantity, int) and quantity > 10:
+            errors.append(_error(
+                "motor_outside_table",
+                "quantidade de motores acima de 10 recusada: as TABELAS 2 e 3 "
+                "da WKI (PDF p. 14) têm somente as colunas de 1 a 10",
+                index=index,
+                connection=connection,
+                power_cv=power_cv,
+                quantity=quantity,
+            ))
+            continue
+        power_key = _motor_power_key(power_cv)
+        key = (connection, power_key, quantity) if power_key is not None else None
         value = _MOTOR_TABLE_KVA.get(key)
         if value is None:
-            errors.append(_error("motor_outside_table", "combinação de motor sem linha exata na tabela WKI",
-                                 index=index, connection=connection, power_cv=power_cv,
-                                 quantity=quantity))
+            errors.append(_error(
+                "motor_outside_table",
+                "combinação de motor sem linha exata nas TABELAS 2 e 3 da WKI "
+                "(PDF p. 14); CV fora da grafia da fonte não é interpolado",
+                index=index,
+                connection=connection,
+                power_cv=power_cv,
+                quantity=quantity,
+            ))
             continue
-        installed += float(quantity) * float(power_cv) * 0.736
+        installed += float(quantity) * _MOTOR_POWER_CV[power_key] * 0.736
         item_demand = float(value)
-        demand += item_demand
-        result_items.append({"quantity": quantity, "power_cv": float(power_cv),
-                             "connection": connection, "demand_kva": item_demand})
+        result_items.append({
+            "quantity": quantity,
+            "power_cv": power_key,
+            "connection": connection,
+            "demand_kva": item_demand,
+        })
+    if result_items:
+        major_index = max(
+            range(len(result_items)),
+            key=lambda index: result_items[index]["demand_kva"],
+        )
+        demand = 0.0
+        for index, result_item in enumerate(result_items):
+            factor = 1.0 if index == major_index else 0.70
+            result_item["diversity_factor"] = factor
+            result_item["demand_contribution_kva"] = result_item["demand_kva"] * factor
+            demand += result_item["demand_contribution_kva"]
+    else:
+        demand = 0.0
     return {"items": result_items, "installed_kw": installed, "demand_kva": demand,
             "errors": errors}
 

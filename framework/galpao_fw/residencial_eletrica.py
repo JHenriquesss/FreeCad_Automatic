@@ -13,7 +13,7 @@ from math import isfinite
 from numbers import Real
 from typing import Any
 
-from demanda_residencial_enel import calculate_residential_demand
+from demanda_residencial_enel import _MOTOR_TABLE_KVA, calculate_residential_demand
 from dimensionamento_eletrico_residencial import calculate_residential_circuit_designs
 from entrada_enel_bt import select_enel_bt_entry
 from layout_eletrico_residencial import validate_electrical_layout
@@ -31,12 +31,15 @@ REQUIRED_SOURCE_REFS = frozenset(
     (ELECTRICAL_NOTEBOOK_ID, source_id) for source_id in REQUIRED_SOURCE_IDS
 )
 MOTOR_TABLE_COVERAGE = {
-    "status": "limited",
-    "supported": [{
-        "connection": "trifasica",
-        "power_cv": 1.0,
-        "quantity": 1,
-    }],
+    "status": "complete",
+    "supported": [
+        {
+            "connection": connection,
+            "power_cv": power_cv,
+            "quantity": quantity,
+        }
+        for connection, power_cv, quantity in _MOTOR_TABLE_KVA
+    ],
     "demand_field": "demand_kva",
 }
 

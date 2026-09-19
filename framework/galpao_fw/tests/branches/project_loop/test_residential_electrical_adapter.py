@@ -8,6 +8,7 @@ import pytest
 from project_io import run_project_file
 from project_loop import describe_adapters, normalize_spec, run_project, verify_project_run
 from residencial_eletrica import run_residential_electrical
+from demanda_residencial_enel import _MOTOR_TABLE_KVA
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -334,15 +335,15 @@ assert callable(residencial_eletrica.register_residential_electrical_adapter)
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
-def test_runner_exposes_limited_motor_table_scope_and_kva_field(tmp_path):
+def test_runner_exposes_complete_motor_table_scope_and_kva_field(tmp_path):
     result, records = run_residential_electrical(normalize_spec(_spec()), tmp_path)
     coverage = result["scope"]["motor_table_coverage"]
-    assert coverage["status"] == "limited"
-    assert coverage["supported"] == [{
-        "connection": "trifasica",
-        "power_cv": 1.0,
-        "quantity": 1,
-    }]
+    assert coverage["status"] == "complete"
+    assert len(coverage["supported"]) == len(_MOTOR_TABLE_KVA) == 370
+    assert {
+        (row["connection"], row["power_cv"], row["quantity"])
+        for row in coverage["supported"]
+    } == set(_MOTOR_TABLE_KVA)
     assert coverage["demand_field"] == "demand_kva"
     assert records["eletrico"]["calculation"]["motors"]["demand_kva"] == 0.0
 

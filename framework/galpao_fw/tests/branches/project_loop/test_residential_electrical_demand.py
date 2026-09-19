@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from demanda_residencial_enel import calculate_residential_demand
+from demanda_residencial_enel import _MOTOR_TABLE_KVA, calculate_residential_demand
 
 
 def _payload(**overrides):
@@ -86,6 +86,87 @@ def test_final_demand_combines_a_major_group_and_remaining_groups():
     assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(1.52)
     assert result["calculation"]["special_lighting"]["demand_kva"] == pytest.approx(4.0)
     assert demand["final_kva"] == pytest.approx(17.6473333333)
+
+
+def test_motor_tables_are_complete_and_preserve_source_cells():
+    assert len(_MOTOR_TABLE_KVA) == 370
+    assert _MOTOR_TABLE_KVA[("trifasica", "15", 4)] == pytest.approx(33.29)
+    assert _MOTOR_TABLE_KVA[("monofasica", "1 1/2", 2)] == pytest.approx(2.53)
+    assert _MOTOR_TABLE_KVA[("monofasica", "10", 7)] == pytest.approx(33.41)
+
+
+def test_motor_demand_diversifies_different_powers():
+    payload = _payload()
+    payload["loads"]["motors"] = [
+        {"quantity": 1, "power_cv": 1, "connection": "trifasica"},
+        {"quantity": 1, "power_cv": "2", "connection": "monofasica"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is True
+    assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(2.97 + 0.70 * 1.52)
+
+
+def test_real_project_motor_case_uses_source_spelling_and_diversification():
+    payload = _payload()
+    payload["loads"]["motors"] = [
+        {"quantity": 1, "power_cv": "1", "connection": "trifasica"},
+        {"quantity": 2, "power_cv": "1/2", "connection": "trifasica"},
+    ]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is True
+    assert result["calculation"]["motors"]["demand_kva"] == pytest.approx(2.437)
+
+
+def test_motor_quantity_above_table_limit_is_rejected():
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 11,
+        "power_cv": "1",
+        "connection": "trifasica",
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "motor_outside_table" for error in result["errors"])
+
+
+def test_bifasica_motor_is_rejected_with_table_reason():
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 1,
+        "power_cv": "1",
+        "connection": "bifasica",
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(
+        error["code"] == "motor_outside_table"
+        and "TABELAS 2 e 3" in error["message"]
+        and "monofásicos" in error["message"]
+        and "trifásicos" in error["message"]
+        for error in result["errors"]
+    )
+
+
+def test_motor_cv_not_printed_in_source_is_rejected_without_interpolation():
+    payload = _payload()
+    payload["loads"]["motors"] = [{
+        "quantity": 1,
+        "power_cv": "0.6",
+        "connection": "trifasica",
+    }]
+
+    result = calculate_residential_demand(payload)
+
+    assert result["ok"] is False
+    assert any(error["code"] == "motor_outside_table" for error in result["errors"])
 
 
 def test_final_demand_applies_seventy_percent_to_tied_second_major_group():
