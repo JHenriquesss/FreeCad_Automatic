@@ -377,7 +377,9 @@ def _is_concrete_hashable_string(value: Any) -> bool:
 
 def _calculate_rooms(rooms: dict[str, int], location_factor: float) -> dict[str, Any]:
     bedrooms = rooms["quarto"]
-    kitchen_module = 1.50 if bedrooms <= 2 else 2.10
+    # WKI notes 1 and 2 (p. 7): up to 2 bedrooms uses the COZINHA 1 module, 3 or more uses
+    # COZINHA 2. The values come from the transcribed table, never from a second literal.
+    kitchen_module = ROOM_MODULES_KVA["cozinha_1" if bedrooms <= 2 else "cozinha_2"]
     modules = {
         "quarto": bedrooms * ROOM_MODULES_KVA["quarto"],
         "sala": rooms["sala"] * ROOM_MODULES_KVA["sala"],
