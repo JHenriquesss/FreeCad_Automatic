@@ -5779,3 +5779,57 @@ acima entra na decisao do G163. Nenhum numero de conta mudou neste goal.
 
 **Nao feito.** Trocar numero para bater com a norma; extracao de texto no
 lugar da imagem; citar de memoria; mandar WKI para FONTE_NAO_NBR.
+
+## D190 - G161: as 476 celulas WKI conferidas na imagem (2026-09-21) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G158-G163.md G161. Estado de partida: `25b33b5`
+(G160) no `git log`, arvore limpa.
+
+**Medido (antes de mudar).** `demanda_residencial_enel.py`: `_MOTOR_TABLE_KVA`
+370 celulas, `_HEATING_TABLE` 90, `ROOM_MODULES_KVA` 7, `LOCATION_FACTORS` 4,
+`_SPECIAL_LIGHTING_POWER_FACTORS` 4, `_MOTOR_TABLE_MAX_QUANTITY` 1,
+`_MOTOR_NO_PLATE_KW_PER_CV` 1 = ~476, com comentarios "complete source
+transcription" (`:74`, `:106`) - transcricao, nao conferencia. `6734fc8`
+prova o segundo modo de erro (leitura por quantidade consolidada, 2,584 kVA
+onde a coluna qtd 2 imprime 2,28). Zero afericao contra exemplo resolvido
+(grep `exemplo`/`anexo`/`worked` no teste de demanda = 0). F131 e PDF digital
+mas a conferencia e na imagem (extracao de tabela embaralha coluna).
+
+**Censo na imagem (F131, paginas abertas como imagem).** 476/476 conferidas,
+0 divergencias:
+- TABELA 2 + TABELA 3, p.14: 370/370. Coluna de quantidade 1..10 conferida
+  primeiro (onde morava o `6734fc8`). Anomalias SÃO DA FONTE e foram mantidas:
+  tri 15 CV/qtd 4 = 33,29; mono 1 1/2 CV/qtd 2 = 2,53; mono 10 CV/qtd 7 = 33,41;
+  mais tri 3 CV/qtd 7 = 13,13; tri 5 CV/qtd 6 = 18,86; tri 150 CV/qtd 3 = 263,45;
+  mono 12 1/2 CV/qtd 4 = 34,03 (todas como impresso).
+- TABELA 1, p.13: 90/90 (30 linhas x minimo + 2 fatores). Faixas "26 A 30",
+  "31 A 40", "41 A 50", "51 A 60", "61 OU MAIS" = minimos 26/31/41/51/61.
+- Soltas: comodos p.6-7 (1,50/1,60/2,30/1,50/2,10/1,90/0,35); localizacao
+  6.2.2.2 p.7 (1/0,88/0,75/0,55); iluminacao 6.2.3.3 p.8 (vapor /0,9,
+  incandescente kW=kVA); item 6.1 p.5 (sem placa 1500 W/CV).
+- Leitura: motores 6.2.3.2 p.8 consolidam mesma potencia (100% maior + 70%
+  demais); aquecimento Nota 1 p.13 NÃO consolida (cada tipo separado, soma) -
+  o Exemplo 1 prova (3,52 + 1,20).
+- Exemplo resolvido EXISTE (o backlog marcou "nao medido"): 6.6.1 EXEMPLO 1,
+  p.28-30 (casa Santa Rosa/Niterói, Dc = 23,69 kVA). Nao inventado.
+
+**Entregue.** `tests/test_wki_transcricao_g161.py` (convencao 17: a proxima
+edicao nao apaga): literais ESPERADO_* independentes vistos na imagem
+(convencao 5: nada importado do modulo); `confere_transcricao` acusa por parte
+(convencao 7); test_01 baseline 476 verde; test_02 injecao em `tmp_path` por
+parte (tri/mono/aquecimento/comodos/localizacao/iluminacao/escalares) + copia
+limpa sem falso-positivo; test_03 fixture EXEMPLO 1 (a=14,67 b=4,72 c=4,48
+d=1,67 final=23,69); test_04 leitura consolidada (motor 1+1 CV = 2,28) e recusa
+(consolidado >10), aquecimento soma sem consolidar (2x4,4 = 2x3,52) e recusa
+(qtd 0). Nenhum numero de producao mudou (0 divergencias, nada a trocar).
+Contrato do G157 no mesmo commit (MAPA ganha `G161: D190`, GOAL_CORRENTE
+avanca, sem mudar regra de conteudo).
+
+**Pendencia ao usuario:** nenhuma linha de divergencia vai a tabela do G163
+(0 divergencias). Ficam registradas as 7 celulas anomalas impressas pela fonte
+e mantidas acima - sao CONFERE com a pagina, nao pendencia de numero. Demais
+pendencias (vigencia WKI R01/2018, IEC 60364) seguem no G163.
+
+**Nao feito.** Interpolar valor nao impresso (`:462`/`:523` mantidos);
+arredondar para bater; conferir por extracao de texto; aceitar a tabela porque
+os testes passam (os testes vinham da mesma transcricao).

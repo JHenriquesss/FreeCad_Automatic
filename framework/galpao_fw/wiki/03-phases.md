@@ -910,7 +910,15 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   a regra escrita no teste e a isenção de livro/catálogo/fabricante mantida);
   as 32 citações de conta triadas na imagem (15 WKI contra o F131 p.5–8,13–14,
   5 CNC contra o F128 p.25, resto REMISSAO/NAO_CONFERIVEL), nenhuma com número
-  mudado; suíte com os mesmos resultados ([[04-decisions#D189]]).
+   mudado; suíte com os mesmos resultados ([[04-decisions#D189]]).
+
+### G161 — as 476 células transcritas conferidas na imagem (fechado)
+- **G161** as 476 células WKI que a produção lê conferidas na imagem do F131
+  (TABELAS 2 e 3 p.14: 370; TABELA 1 p.13: 90; 16 soltas p.5–8; 0 divergências,
+  7 anomalias impressas mantidas); guarda em
+  `tests/test_wki_transcricao_g161.py` com vermelho por injeção por parte;
+  aferição pelo EXEMPLO 1 da fonte (6.6.1 p.28–30, Dc 23,69 kVA); nenhum número
+  mudou ([[04-decisions#D190]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
