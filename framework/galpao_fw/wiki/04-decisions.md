@@ -5706,3 +5706,76 @@ posterior nao conferida) segue no G163. Nenhum numero mudou neste goal.
 **Nao feito.** Reescrever os verbetes antigos; renumerar D existentes; mudar
 a producao do modulo WKI (G160/G161/G162); transformar a isencao em lista
 de nomes sem motivo; rodar a auditoria do lote (G158).
+
+## D189 - G160: a lente de citacao que so enxergava NBR (2026-09-21) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G158-G163.md G160. Estado de partida: `ed13be6`
+(G159) no `git log`, arvore limpa.
+
+**Medido (antes de mudar).** `tests/test_citacao_norma_g156.py:42` casava so
+`NBR`: as 13 citacoes WKI de `demanda_residencial_enel.py` (`:29`, `:74`,
+`:106`, `:146`, `:164`, `:380`, `:431`, `:450`, `:462`, `:473`, `:511`,
+`:523`, mais a docstring `:1`) trazem item e pagina e nenhuma estava na
+BASELINE. Censo da producao (entrega do goal): 32 frases citam fonte de
+conta nao-NBR - 15 WKI (13 no modulo + 2 no `validacao_sistema_g15.py`),
+5 CNC/ET-Enel, 5 IEC, 7 ISO/CIE-8995 (5 na `luminotecnica_nbr8995.py` + 1
+na folha `techdraw_eletrico.py` + 1 `NBR 8995-1` na docstring; `ISO 5457`
+de prancha, `ISO-8601` de data e `piso`/`aviso`/`piece` nunca casam).
+
+**Entregue (mesma lente, nunca copia).** `PAT_FONTE` = `PAT_NBR` + `PAT_CONTA`
+(`PAT_WKI` casa `WKI` E `WKI-OMBR-MAT-18-0263-INBR-R01`; `PAT_CNC_ET` casa
+qualquer `CNC-...` com ou sem revisao + `ET-123-R01`; `PAT_IEC`; `PAT_ISO_CIE`
+exige `8995` ou `CIE` ao lado); `_candidatos_em_texto` continua um so (Tier A:
+fonte sem item com valor reprova); `_citacoes_conta_em_texto` + teste novo
+(Tier B: TODA frase de conta tem veredicto na BASELINE, mesmo com item);
+teste de padrao-vivo (abreviacao E codigo casam; ISO de prancha/data nao)
++ injecao nos dois tiers + isencao livro/catalogo intacta em `tmp_path`.
+WKI nunca vai para `FONTE_NAO_NBR`. Pagina do arquivo = pagina da norma no
+F131 e no F128 (o rodape numerado coincide com a pagina do viewer).
+
+**Triagem na imagem (todas as 32 vistas; numero nenhum mudou).**
+
+| frase | arquivo:linha | item | pag. arq. | pag. norma | veredicto |
+|---|---|---|---|---|---|
+| base WKI/Enel (docstring) | demanda_residencial_enel.py:1 | - | - | - | REMISSAO (nomeia a base, sem valor) |
+| WKI Tabela 1 (3,5 kW) | demanda_residencial_enel.py:29 | Tabela 1 | 13 | F131 p.13 | CONFERE (limite 3,5 kW; celulas ao G161) |
+| WKI TABELA 2 three-phase | demanda_residencial_enel.py:74 | TABELA 2 | 14 | F131 p.14 | REMISSAO (nota de transcricao; celulas ao G161) |
+| WKI TABELA 3 single-phase | demanda_residencial_enel.py:106 | TABELA 3 | 14 | F131 p.14 | REMISSAO idem |
+| WKI Enel item 6.1 | demanda_residencial_enel.py:146 | 6.1 | 5 | F131 p.5 | CONFERE (Pn x 0,736/eta; sem placa 1500 W) |
+| WKI 6.2.3.3 vapor/incand. | demanda_residencial_enel.py:164 | 6.2.3.3 | 8 | F131 p.8 | CONFERE (vapor/0,9; incand. kW=kVA) |
+| WKI notes 1 and 2 | demanda_residencial_enel.py:380 | notes 1-2 | 7 | F131 p.7 | CONFERE (COZINHA 1 ate 2 quartos, 2 com 3+) |
+| item 6.2.3.2 TABELAS 2-3 | demanda_residencial_enel.py:431 | 6.2.3.2 | 8 | F131 p.8 | CONFERE (100% maior + 70% demais) |
+| recusa bifasico | demanda_residencial_enel.py:450 | TABELAS 2-3 | 14 | F131 p.14 | REMISSAO (texto de recusa, sem valor) |
+| recusa sem linha exata | demanda_residencial_enel.py:462 | TABELAS 2-3 | 14 | F131 p.14 | REMISSAO idem |
+| quantidade >= 1 | demanda_residencial_enel.py:473 | TABELAS 2-3 | 14 | F131 p.14 | CONFERE (colunas 1 a 10) |
+| acima de 10 recusada | demanda_residencial_enel.py:511 | TABELAS 2-3 | 14 | F131 p.14 | CONFERE (so colunas 1-10) |
+| recusa sem linha (grupo) | demanda_residencial_enel.py:523 | TABELAS 2-3 | 14 | F131 p.14 | REMISSAO idem :462 |
+| caso Enel WKI (6 comodos) | validacao_sistema_g15.py:404 | - | 7 | F131 p.7 | REMISSAO (definicao do caso; 1,9 kVA computado) |
+| oraculo 8.875 kVA | validacao_sistema_g15.py:413 | - | - | - | REMISSAO (numero do teste, nao da norma) |
+| CNC 25-1580 7.8.3 | eletrica_edificio.py:84 | 7.8.3 | 25 | F128 p.25 | CONFERE (7.8.2 a/b: <=75 kW BT, >75 MT) |
+| referencia conexao coletiva | eletrica_edificio.py:657 | - | - | - | REMISSAO (referencia, sem valor; 75 kW no :84) |
+| aviso sem fator | eletrica_edificio.py:759 | - | - | - | REMISSAO (declara a fonte, sem valor) |
+| dado da CONCESSIONARIA | eletrica_edificio.py:25 | - | - | - | REMISSAO (fonte declarada, sem valor) |
+| CNC-24-1569-EDBR | entrada_enel_bt.py:14 | Anexos A/C | - | - | REMISSAO (identificador do documento) |
+| IEC 60364 (x3) | comissionamento_fv.py:62,90,98 | - | - | - | NAO_CONFERIVEL (60364 fora do acervo; F148=60617) |
+| NBR 5444/IEC (x2) | desenho_eletrico.py:9, desenho_svg_base.py:3 | - | - | - | REMISSAO (pratica citada, sem valor) |
+| NBR IEC 60898 (x2) | protecao_nbr5410.py:8,25 | - | - | - | REMISSAO (serie citada como input, sem valor) |
+| NBR (ISO/CIE) 8995-1 (x5) | luminotecnica_nbr8995.py:5,20,28,67; techdraw_eletrico.py:319 | - | - | - | REMISSAO (base citada, sem valor; F102) |
+
+Celulas impares da fonte preservadas como impresso (vistas p.14):
+TABELA 2 15 CV/4 motores = 33,29; TABELA 3 1 1/2 CV/2 motores = 2,53 e
+10 CV/7 motores = 33,41 (o codigo as mantem de proposito; afericao ao G161).
+
+**Testes.** Lente 5 passed (3 do G156 intactos + Tier B + padrao-vivo/injecao).
+Regra do lote verde no codigo final (so teste + wiki mudaram; producao
+intacta, censo G159 inafetado). Segui o contrato do G157 no mesmo commit
+(MAPA ganha `G160: D189`, GOAL_CORRENTE avanca, sem mudar regra de conteudo).
+
+**Pendencia ao usuario:** (1) as ~476 celulas seguem transcritas sem
+conferencia celula a celula (G161); (2) IEC 60364 citado e fora do acervo -
+manter NAO_CONFERIVEL ou adquirir a norma; (3) vigencia da WKI R01/2018
+(listada 2026, revisao posterior nao conferida) segue no G163; (4) a tabela
+acima entra na decisao do G163. Nenhum numero de conta mudou neste goal.
+
+**Nao feito.** Trocar numero para bater com a norma; extracao de texto no
+lugar da imagem; citar de memoria; mandar WKI para FONTE_NAO_NBR.

@@ -904,6 +904,14 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   WKI regularizados no D188, a auditoria D179 isenta com motivo
   ([[04-decisions#D188]]).
 
+### G160 — a lente de citação que só enxergava NBR (fechado)
+- **G160** a mesma lente do G156 passa a enxergar fonte normativa de conta
+  que não é NBR (distribuidora por código WKI/CNC/ET, IEC, ISO/CIE 8995, com
+  a regra escrita no teste e a isenção de livro/catálogo/fabricante mantida);
+  as 32 citações de conta triadas na imagem (15 WKI contra o F131 p.5–8,13–14,
+  5 CNC contra o F128 p.25, resto REMISSAO/NAO_CONFERIVEL), nenhuma com número
+  mudado; suíte com os mesmos resultados ([[04-decisions#D189]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

@@ -1,20 +1,40 @@
 """G156 - lente das frases que atribuem numero a NBR (D182).
+G160 - a mesma lente passa a enxergar fonte normativa de conta que nao
+e NBR (D189): distribuidora (WKI/ENEL, por codigo de documento), IEC,
+ISO/CIE 8995. WKI nunca vai para FONTE_NAO_NBR (ela e fonte de conta).
 
 Defeito (D179): uma citacao normativa errada (FS 3,0 da estaca "pela
 NBR 6122") viveu dois meses porque nenhuma lente confere o numero citado
 contra a pagina. Esta lente fecha a porta para TODA frase que atribui
-numero a NBR: cada uma traz o item e foi triada contra a imagem da pagina
-do acervo (convencao 15).
+numero a norma de conta: cada uma traz o item e foi triada contra a imagem
+da pagina do acervo (convencao 15).
 
 Regra (heuristica ruidosa, triagem e o goal): literal (AST Constant str)
-ou comentario (tokenize) em *.py de producao que menciona NBR (inclui
-"NBR NM") + contem numero com valor (decimal, inteiro com unidade, razao,
-%, =, :) depois de remover identificadores NBR/anos/placeholders + NAO
-contem padrao de item (n.n, Tabela/Tab., Anexo, Secao/Sec., Figura/Fig.,
-Quadro) REPROVA, salvo triado na BASELINE.
+ou comentario (tokenize) em *.py de producao que menciona FONTE DE CONTA
+(NBR, inclui "NBR NM", OU distribuidora/IEC/ISO-CIE abaixo) + contem numero
+com valor (decimal, inteiro com unidade, razao, %, =, :) depois de remover
+identificadores NBR/anos/placeholders + NAO contem padrao de item (n.n,
+Tabela/Tab., Anexo, Secao/Sec., Figura/Fig., Quadro) REPROVA, salvo triado
+na BASELINE. E TODA frase que menciona fonte de conta (com ou sem item,
+com ou sem valor) tem de estar na BASELINE com o veredicto (CONFERE,
+DIVERGE, NAO_CONFERIVEL, REMISSAO): citacao de conta sem triagem reprova,
+mesmo com item (e o ponto do G160 - as 11+ citacoes WKI trazem item e a
+lente do G156 nunca as viu).
+
+Fonte de conta (coberta pela lente, com item e triagem na imagem):
+- NBR (PAT_NBR, como no G156);
+- distribuidora POR CODIGO DE DOCUMENTO: WKI (abreviacao E codigo cheio
+  WKI-OMBR-MAT-18-0263-INBR-R01 - o padrao casa os dois, nunca so um),
+  CNC-... (qualquer CNC-...-EDBR/EDRJ, com ou sem revisao) e ET-123-R01;
+- IEC (com ou sem "NBR" na frente, com ou sem numero);
+- ISO/CIE da iluminacao (NBR ISO/CIE 8995-1, ISO/CIE 8995-1, NBR 8995-1,
+  8995-1). "ISO" sozinho NAO e fonte de conta (ISO 5457 de prancha,
+  ISO-8601 de data, "piso"/"aviso" que contem "iso" nunca casam: o padrao
+  exige 8995 ou CIE ao lado).
 
 Fora da lente, com a regra escrita aqui (decisao do goal):
-- fonte que nao e NBR (livro, catalogo, fabricante): Pfeil, Mamede,
+- fonte que nao e normativa de conta (livro, catalogo, fabricante -
+  isencao do G156 MANTIDA): Pfeil, Mamede,
   Negrisoli, Creder, Alonso, catalogo de perfil, ANEEL, ANSI 50/51;
 - remissao ("ver NBR", titulo que so nomeia a norma, parametro descrito
   com numero do PROJETO, mensagem com %r/%s, geometria do desenho,
@@ -41,6 +61,25 @@ GALPAO = os.path.dirname(HERE)
 
 PAT_NBR = re.compile(r"NBR\s+(?:NM\s+)?\d{3,5}(?:[-:/]\d+)*(?::\d+)?",
                      re.IGNORECASE)
+# G160 - fonte normativa de conta que nao e NBR (distribuidora por codigo,
+# IEC, ISO/CIE da iluminacao). Cada sub-padrao casa a abreviacao E o codigo
+# cheio (anti-filtro-morto: substring que nunca casa vira no-op silencioso).
+PAT_WKI = re.compile(r"\bWKI(?:-OMBR-MAT-18-0263-INBR-R01)?\b",
+                     re.IGNORECASE)
+PAT_CNC_ET = re.compile(r"\bCNC-[A-Z0-9\-]+\b|\bET-123-R01\b",
+                        re.IGNORECASE)
+PAT_IEC = re.compile(r"\bNBR\s+IEC\s*\d*(?:[-/]\d+)*"
+                     r"|\bIEC\s*\d*(?:[-/]\d+)*",
+                     re.IGNORECASE)
+PAT_ISO_CIE = re.compile(r"\bNBR\s+ISO/CIE\s*8995(?:-1)?\b"
+                         r"|\bISO/CIE\s*8995(?:-1)?\b"
+                         r"|\bNBR\s*8995-1\b|\b8995-1\b",
+                         re.IGNORECASE)
+PAT_CONTA = re.compile("|".join((PAT_WKI.pattern, PAT_CNC_ET.pattern,
+                                 PAT_IEC.pattern, PAT_ISO_CIE.pattern)),
+                       re.IGNORECASE)
+PAT_FONTE = re.compile(PAT_NBR.pattern + "|" + PAT_CONTA.pattern,
+                       re.IGNORECASE)
 PAT_ITEM = re.compile(
     r"\d+\.\d+|Tabela|TABELA|Tab\.|Anexo|ANEXO|Secao|Se\u00e7\u00e3o"
     r"|Sec\.|Figura|Fig\.|Quadro|Cap\.\d+", re.IGNORECASE)
@@ -226,6 +265,105 @@ BASELINE = [
      "vizinhas) + fonte lida declarada (NotebookLM, nao de memoria)"),
     ("fundacao_edificio.py", "numero do FS nao muda",
      "D179: fragmento; conjunto com item (6.2.1.2.1 nas linhas seguintes); numero ja triado"),
+    # --- G160 (D189): fonte normativa de conta que nao e NBR, triada na ---
+    # --- imagem. F131 = WKI-OMBR-MAT-18-0263-INBR-R01 (44 pp., PDF digital);
+    # --- pagina do arquivo = pagina impressa da norma (o rodape numerado ---
+    # --- coincide com a pagina do viewer; conferido nas imagens p.5-8,13-14).
+    # --- WKI nunca vai para FONTE_NAO_NBR (ela e fonte de conta). ---
+    # WKI 6.1: potencia instalada (CONFERE p.5, imagem vista).
+    ("demanda_residencial_enel.py", "WKI Enel item 6.1, PDF p. 5",
+     "CONFERE WKI-OMBR-MAT-18-0263-INBR-R01 6.1 p.5 (arq p.5): "
+     "P(kW) = Pn(CV) x 0,736 / eta; sem placa 1 CV = 1500 W"),
+    # WKI Tabela 1 (CONFERE descricao; celulas ao G161).
+    ("demanda_residencial_enel.py", "WKI - Tabela 1: (quantidade",
+     "CONFERE WKI 6.2.3.1/TABELA 1 p.13 (arq p.13): limite 3,5 kW, "
+     "kW = kVA (resistiva); fatores celula a celula ao G161"),
+    # WKI TABELAS 2 e 3: notas de transcricao (sem valor na frase).
+    ("demanda_residencial_enel.py", "WKI TABELA 2 (PDF p. 14): three-phase",
+     "REMISSAO: nota de proveniencia da transcricao (TABELA 2 trifasica, "
+     "PDF p.14); celulas ao G161"),
+    ("demanda_residencial_enel.py", "WKI TABELA 3 (PDF p. 14): single-phase",
+     "REMISSAO: nota de proveniencia da transcricao (TABELA 3 monofasica, "
+     "PDF p.14); celulas ao G161"),
+    # WKI 6.2.3.3 (CONFERE p.8, imagem vista).
+    ("demanda_residencial_enel.py", "WKI 6.2.3.3:",
+     "CONFERE WKI 6.2.3.3 p.8 (arq p.8): vapor Hg/Na/metalico / 0,9; "
+     "incandescente kW = kVA; 100% da instalada"),
+    # WKI notes 1-2 / modulo da cozinha (CONFERE p.7, imagem vista).
+    ("demanda_residencial_enel.py", "WKI notes 1 and 2 (p. 7)",
+     "CONFERE WKI NOTAS 1-2 p.7 (arq p.7): COZINHA 1 ate 2 quartos, "
+     "COZINHA 2 com 3+"),
+    # WKI 6.2.3.2 (CONFERE p.8, imagem vista).
+    ("demanda_residencial_enel.py", "O item 6.2.3.2",
+     "CONFERE WKI 6.2.3.2 p.8 (arq p.8): TABELAS 2 e 3 por quantidade de "
+     "motores de MESMA potencia; 100% da maior + 70% das demais"),
+    # WKI recusas: textos sem valor (a tabela citada confere p.14).
+    ("demanda_residencial_enel.py", "motor bif",
+     "REMISSAO: texto de recusa (bifasico fora das TABELAS 2 e 3), sem "
+     "valor; tabelas vistas p.14 (arq p.14)"),
+    ("demanda_residencial_enel.py", "sem linha exata nas TABELAS 2 e 3 da WKI",
+     "REMISSAO: texto de recusa (sem interpolar grafia fora da fonte), sem "
+     "valor; tabelas vistas p.14 (arq p.14)"),
+    ("demanda_residencial_enel.py", "deve ser inteiro",
+     "CONFERE WKI TABELAS 2-3 p.14 (arq p.14): colunas de quantidade "
+     "1 a 10, so inteiro >= 1 entra"),
+    ("demanda_residencial_enel.py", "acima de 10 recusada",
+     "CONFERE WKI TABELAS 2-3 p.14 (arq p.14): so as colunas de 1 a 10"),
+    # WKI base citada sem valor.
+    ("demanda_residencial_enel.py", "base WKI/Enel",
+     "REMISSAO: docstring nomeia a base (WKI/Enel), sem valor"),
+    # WKI no caso de validacao (oraculo do teste, nao celula da norma).
+    ("validacao_sistema_g15.py", "WKI fator de demanda por modulo",
+     "REMISSAO: definicao do caso de validacao (area_servico 1,9 kVA etc. "
+     "computados dos modulos); numero do teste, nao da norma"),
+    ("validacao_sistema_g15.py", "Eletrica demanda 8.875 kVA (Enel WKI)",
+     "REMISSAO: oraculo do teste (8,875 kVA computado), nao celula da "
+     "norma; WKI citada como base"),
+    # CNC-NDBR-DBR-25-1580 (F128): 75 kW / 7.8.2-7.8.3 (imagem p.25 vista).
+    ("eletrica_edificio.py", "Enel CNC-NDBR-DBR-25-1580 7.8.3",
+     "CONFERE Enel CNC-NDBR-DBR-25-1580 7.8.2 a/b p.25 (arq p.25): "
+     "<= 75 kW em BT, > 75 kW em MT (limites de 7.8.3); numero do GATE "
+     "inalterado"),
+    ("eletrica_edificio.py", "conexao coletiva BT): ",
+     "REMISSAO: referencia do GATE (documento citado, sem valor na frase; "
+     "o 75 kW vive no comentario 7.8.3 ja triado)"),
+    ("eletrica_edificio.py", "fator_demanda_entre_unidades nao declarado",
+     "REMISSAO: aviso declara a fonte do fator (concessionaria), sem valor"),
+    ("eletrica_edificio.py", "dado da CONCESSIONARIA (Enel CNC-NDBR-DBR-25-1580,",
+     "REMISSAO: comentario declara a fonte (concessionaria, nao NBR 5410), "
+     "sem valor"),
+    ("entrada_enel_bt.py", "CNC-NDBR-DBR-24-1569-EDBR",
+     "REMISSAO: identificador do documento transcrito (Anexos A e C), "
+     "sem valor"),
+    # IEC 60364: fora do acervo (F148 = 60617, F149 = 60417).
+    ("comissionamento_fv.py", "instalado conforme IEC 60364 e",
+     "NAO_CONFERIVEL: IEC 60364 fora do acervo (F148 e 60617, F149 e "
+     "60417); fica como esta"),
+    ("comissionamento_fv.py", "Meios de desconexao devem existir",
+     "NAO_CONFERIVEL idem (IEC 60364-7-712 fora do acervo)"),
+    ("comissionamento_fv.py", "tensao reversa deve atender",
+     "NAO_CONFERIVEL idem (IEC 60364-7-712 fora do acervo)"),
+    # NBR 5444/IEC e NBR IEC 60898: pratica/serie citada, sem valor.
+    ("desenho_eletrico.py", "NBR 5444/IEC",
+     "REMISSAO: pratica citada (simbolos), sem valor"),
+    ("desenho_svg_base.py", "NBR 5444/IEC",
+     "REMISSAO: pratica citada (simbologia), sem valor"),
+    ("protecao_nbr5410.py", "NBR IEC 60898/60947-2) que atenda",
+     "REMISSAO: serie comercial citada como input (IB <= IN <= IZ), "
+     "sem valor da norma"),
+    ("protecao_nbr5410.py", "NBR IEC 60898 / 60947-2), A",
+     "REMISSAO idem (correntes nominais de disjuntor, sem valor)"),
+    # NBR ISO/CIE 8995-1 (F102): base citada, sem valor na frase.
+    ("luminotecnica_nbr8995.py", "NBR 8995-1 / Mamede",
+     "REMISSAO: docstring cita a base (norma + livros), sem valor"),
+    ("luminotecnica_nbr8995.py", "para a atividade (NBR 8995-1)",
+     "REMISSAO: docstring de parametro (E por atividade), sem valor"),
+    ("luminotecnica_nbr8995.py", "Base: ABNT NBR ISO/CIE 8995-1",
+     "REMISSAO: comentario cita a base, sem valor"),
+    ("luminotecnica_nbr8995.py", "por atividade (NBR ISO/CIE 8995-1 / 5413)",
+     "REMISSAO: comentario cita a base, sem valor"),
+    ("techdraw_eletrico.py", "metodo dos lumens, NBR ISO/CIE 8995-1",
+     "REMISSAO: nota da folha cita o metodo, sem valor (placeholders %s)"),
 ]
 
 
@@ -238,7 +376,12 @@ def _modulos_fonte():
 
 
 def _candidatos_em_texto(nome, texto):
-    """Rende (linha, origem, trecho) para cada frase sem item com valor."""
+    """Rende (linha, origem, trecho) para cada frase sem item com valor.
+
+    G160: a mesma lente, agora com PAT_FONTE (NBR + fonte de conta:
+    WKI/ENEL por codigo, IEC, ISO/CIE 8995). Nenhuma copia: o corpo e o
+    mesmo do G156, so o padrao de fonte alargou.
+    """
     achados = []
     try:
         arvore = ast.parse(texto)
@@ -247,9 +390,9 @@ def _candidatos_em_texto(nome, texto):
     for no in ast.walk(arvore):
         if isinstance(no, ast.Constant) and isinstance(no.value, str):
             v = no.value
-            if not PAT_NBR.search(v) or PAT_ITEM.search(v):
+            if not PAT_FONTE.search(v) or PAT_ITEM.search(v):
                 continue
-            sem = PAT_NBR.sub("", v)
+            sem = PAT_FONTE.sub("", v)
             sem = re.sub(r"\b(?:19|20)\d{2}\b", "", sem)
             sem = PAT_PLACE.sub("", sem)
             if PAT_VALOR.search(sem):
@@ -260,12 +403,44 @@ def _candidatos_em_texto(nome, texto):
         for tk in toks:
             if tk.type == tokenize.COMMENT:
                 v = tk.string
-                if not PAT_NBR.search(v) or PAT_ITEM.search(v):
+                if not PAT_FONTE.search(v) or PAT_ITEM.search(v):
                     continue
-                sem = PAT_NBR.sub("", v)
+                sem = PAT_FONTE.sub("", v)
                 sem = re.sub(r"\b(?:19|20)\d{2}\b", "", sem)
                 if PAT_VALOR.search(sem):
                     achados.append((tk.start[0], "comentario", v[:220]))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+    return achados
+
+
+def _citacoes_conta_em_texto(nome, texto):
+    """Rende (linha, origem, trecho) para TODA frase que menciona fonte de
+    conta nao-NBR (PAT_CONTA), com ou sem item, com ou sem valor.
+
+    G160 (segundo sentido da baseline): as citacoes WKI trazem item e pagina
+    e a lente do G156 nunca as viu porque so enxergava NBR. Toda frase de
+    conta tem de estar na BASELINE com veredicto (CONFERE/DIVERGE/
+    NAO_CONFERIVEL/REMISSAO) - com item ou sem.
+    """
+    achados = []
+    try:
+        arvore = ast.parse(texto)
+    except SyntaxError:
+        return achados
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Constant) and isinstance(no.value, str):
+            v = no.value
+            if PAT_CONTA.search(v):
+                achados.append((no.lineno, "literal",
+                                v.replace("\n", " ")[:220]))
+    try:
+        toks = tokenize.generate_tokens(io.StringIO(texto).readline)
+        for tk in toks:
+            if tk.type == tokenize.COMMENT:
+                if PAT_CONTA.search(tk.string):
+                    achados.append((tk.start[0], "comentario",
+                                    tk.string[:220]))
     except (tokenize.TokenError, IndentationError, SyntaxError):
         pass
     return achados
@@ -278,6 +453,18 @@ def _candidatos():
                   errors="ignore") as fh:
             texto = fh.read()
         for linha, origem, trecho in _candidatos_em_texto(nome, texto):
+            out.append((nome, linha, origem, trecho))
+    return out
+
+
+def _citacoes_conta():
+    """Toda frase de producao que menciona fonte de conta nao-NBR."""
+    out = []
+    for nome in _modulos_fonte():
+        with open(os.path.join(GALPAO, nome), encoding="utf-8",
+                  errors="ignore") as fh:
+            texto = fh.read()
+        for linha, origem, trecho in _citacoes_conta_em_texto(nome, texto):
             out.append((nome, linha, origem, trecho))
     return out
 
@@ -340,4 +527,81 @@ def test_injecao_sem_item_reprova_nomeando_arquivo_linha(tmp_path):
         lados.append("a lente nao nomeia arquivo:linha do injetado: %r" % (ok_sujo,))
     if ok_limpo:
         lados.append("a lente acusa o caso corrigido (com item): %r" % (ok_limpo,))
+    assert not lados, "\n".join(lados)
+
+
+def test_nenhuma_citacao_conta_sem_triagem():
+    """G160: toda frase de fonte de conta nao-NBR esta na BASELINE.
+
+    As citacoes WKI trazem item e pagina e a lente do G156 nunca as viu
+    (so enxergava NBR). Sentido 1 para conta: frase com WKI/CNC/ET/IEC/
+    ISO-CIE 8995 sem marcador na BASELINE reprova, nomeando arquivo:linha
+    (tenha ou nao item). Sentido 2 (fantasma) ja vale para todas via
+    test_baseline_sem_fantasma.
+    """
+    base = {}
+    for arq, marcador, _ver in BASELINE:
+        base.setdefault(arq, []).append(marcador)
+    faltando = []
+    for nome, linha, origem, trecho in _citacoes_conta():
+        ok = any(_cobre(m, trecho) for m in base.get(nome, []))
+        if not ok:
+            faltando.append("%s:%d [%s]: %r"
+                            % (nome, linha, origem, trecho[:120]))
+    assert not faltando, (
+        "citacao de fonte de conta (WKI/ENEL/IEC/ISO-CIE) sem triagem "
+        "(G160):\n" + "\n".join(faltando)
+        + "\nTrie contra a imagem da pagina (CONFERE/DIVERGE/NAO_CONFERIVEL/"
+        "REMISSAO) e registre na BASELINE. WKI nunca vai para FONTE_NAO_NBR."
+    )
+
+
+def test_conta_injecao_e_padrao_vivo(tmp_path):
+    """G160: conta sem triagem reprova (mesmo com item) e o padrao nao e
+    filtro morto (casa abreviacao E codigo; nao casa ISO de prancha/data)."""
+    lados = []
+    # (a) padrao vivo: abreviacao e codigo cheio casam; ISO de prancha,
+    # data, "piso"/"aviso" e "piece" nunca casam.
+    vivos = ["WKI Enel item 6.1",
+             "WKI-OMBR-MAT-18-0263-INBR-R01 item 6.1",
+             "Enel CNC-NDBR-DBR-25-1580 7.8.3",
+             "CNC-NDBR-DBR-24-1569-EDBR",
+             "conforme IEC 60364-7-712",
+             "NBR IEC 60898",
+             "NBR ISO/CIE 8995-1",
+             "metodo dos lumens (NBR 8995-1)"]
+    for texto in vivos:
+        if not PAT_CONTA.search(texto):
+            lados.append("filtro morto: PAT_CONTA nao casa %r" % (texto,))
+    mortos = ["pagina A1 (ISO 5457): 841 x 594 mm",
+              "timestamp ISO-8601",
+              "template ISO A1",
+              "peso = 7,0 x t_seg",
+              "piece marks por grupo",
+              " fulfilled"]
+    for texto in mortos:
+        if PAT_CONTA.search(texto):
+            lados.append("falso-positivo: PAT_CONTA casa %r" % (texto,))
+    # (b) injecao Tier A: conta sem item com valor reprova com arquivo:linha.
+    sujo_a = ('X = "demanda 2,28 kVA pela WKI sem item"\n')
+    ok_a = _candidatos_em_texto("inj_conta_a.py", sujo_a)
+    if len(ok_a) != 1 or ok_a[0][0] != 1:
+        lados.append("conta sem item com valor nao acusa em arquivo:linha: "
+                     "%r" % (ok_a,))
+    # (c) injecao Tier B: conta COM item sem triagem reprova na baseline.
+    sujo_b = ('X = "demanda pela WKI TABELA 2 (PDF p. 14), 2,28 kVA"\n')
+    cont_b = _citacoes_conta_em_texto("inj_conta_b.py", sujo_b)
+    base_b = [m for a, m, _v in BASELINE if a == "inj_conta_b.py"]
+    if not cont_b:
+        lados.append("Tier B nao ve a frase de conta com item: %r" % (sujo_b,))
+    elif any(_cobre(m, cont_b[0][2]) for m in base_b):
+        lados.append("Tier B cobre frase sem triagem: %r" % (cont_b,))
+    # (d) isencao mantida: livro/catalogo continua fora da lente.
+    isentos = ['X = "viga por Pfeil, 2,28 kNm"\n',
+               'X = "catalogo de perfil, 2,28 kNm"\n']
+    for sujo in isentos:
+        if _candidatos_em_texto("inj_isento.py", sujo):
+            lados.append("isencao livro/catalogo quebrada: %r" % (sujo,))
+        if _citacoes_conta_em_texto("inj_isento.py", sujo):
+            lados.append("conta alcanca livro/catalogo: %r" % (sujo,))
     assert not lados, "\n".join(lados)

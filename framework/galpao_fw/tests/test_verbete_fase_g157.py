@@ -50,12 +50,14 @@ GOAL_MINIMO = 149
 #: para ele; o test_03 prova que o carve-out so libera este goal).
 #: (G159: avancado pelo contrato de manutencao - MAPA ganha a entrada nova,
 #: GOAL_CORRENTE avanca - sem mudar nenhuma regra de conteudo.)
-GOAL_CORRENTE = "G159"
+#: (G160: idem - MAPA ganha G160/D189, GOAL_CORRENTE avanca.)
+GOAL_CORRENTE = "G160"
 
 #: Baseline nos dois sentidos: goal -> D do verbete. Os quatro verbetes sem
 #: D ganharam os proximos D livres depois do ultimo D existente no momento
 #: do G157 (D182), na ordem G149, G150, G151, G152 (decisao do usuario no
-#: topo do backlog G154-G157); o G157 ganha o D187; o G159 ganha o D188
+#: topo do backlog G154-G157); o G157 ganha o D187; o G159 ganha o D188;
+#: o G160 ganha o D189
 #: (contrato de manutencao: o goal seguinte atualiza os tres juntos).
 MAPA_GOAL_D = {
     "G149": "D183",
@@ -68,6 +70,7 @@ MAPA_GOAL_D = {
     "G156": "D182",
     "G157": "D187",
     "G159": "D188",
+    "G160": "D189",
 }
 
 #: `## G149 - ...` (sem D) ou `## D183 - G149: ...` (numerado). A forma
