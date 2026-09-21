@@ -218,6 +218,25 @@ def _entry(result):
     return entry if isinstance(entry, dict) else None
 
 
+def _linha_fonte_demanda(result):
+    """Linha de origem do numero da demanda (G162), ou None.
+
+    Le da conta pela fonte unica (`demanda_residencial_enel.fonte_demanda`/
+    `linha_fonte_demanda`): fonte + itens + fator locacional usado (G131).
+    Sem calculo (recusa ou secao ausente), None: o chamador declara a
+    ausencia com A_CONFIRMAR, nunca silencio (padrao G106).
+    """
+    try:
+        from demanda_residencial_enel import linha_fonte_demanda as _lf162
+    except ImportError:
+        return None
+    try:
+        calculo = ((result or {}).get("calculation") or {})
+        return _lf162(calculo)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 def unifilar_residencial_svg(result) -> str:
     """Diagrama unifilar residencial: ramal de entrada -> QD -> circuitos."""
     designs = _designs(result)
@@ -274,6 +293,22 @@ def unifilar_residencial_svg(result) -> str:
         "final_kva")
     s.append(texto(xb1, ybus - 12,
                    "demanda %s kVA" % _num(demanda, "%.2f"), 11, "end"))
+    # G162: a linha da demanda declara de onde veio o numero (fonte +
+    # itens + fator locacional, lidos da conta). Sem calculo, declara a
+    # ausencia com A_CONFIRMAR (nunca some sem aviso, padrao G106). A
+    # recusa em si (qual recusa) sai pelo veredito da fonte unica G152.
+    fonte_demanda = _linha_fonte_demanda(result)
+    # Faixa propria acima da linha da demanda (ybus-32): o estimador do
+    # G129 mede a caixa cheia do rotulo, e a linha longa da fonte (codigo
+    # do documento + itens + fator) encostava nas caixas do titulo e da
+    # demanda em ybus-26. Seis px acima limpam a vertical sem tocar o DPS
+    # (y+155).
+    if fonte_demanda is None:
+        s.append(texto(xb1, ybus - 32, "fonte da demanda " + A_CONFIRMAR,
+                       9, "end", color="#a00"))
+    else:
+        s.append(texto(xb1, ybus - 32, fonte_demanda, 9, "end",
+                       color="#555"))
 
     yfim = ybus + 190
     for index, design in enumerate(designs):
@@ -633,7 +668,22 @@ def gerar_desenhos_residenciais(result, out_dir) -> dict:
 
     def _fonte155(res):
         cir = (res or {}).get("circuits") if isinstance(res, dict) else None
-        return cir if isinstance(cir, dict) else (res if isinstance(res, dict) else {})
+        if not isinstance(cir, dict):
+            return res if isinstance(res, dict) else {}
+        # G162: as recusas da demanda (gravadas pela vertical em
+        # calculation.demand_errors, inclusive quando o numero falta)
+        # viajam na fonte para a fonte unica ler. Sem a chave, a fonte
+        # sai como antes (ATENDE byte-identico). Copia rasa: o resultado
+        # nunca e mutado aqui.
+        fonte = dict(cir)
+        try:
+            calc = (res or {}).get("calculation") or {}
+            derr = calc.get("demand_errors") if isinstance(calc, dict) else None
+            if isinstance(derr, list) and derr:
+                fonte["demand_errors"] = list(derr)
+        except AttributeError:
+            pass
+        return fonte
 
     for nome, funcao in (("unifilar.svg", unifilar_residencial_svg),
                          ("quadro-cargas.svg", quadro_cargas_residencial_svg)):

@@ -5833,3 +5833,62 @@ pendencias (vigencia WKI R01/2018, IEC 60364) seguem no G163.
 **Nao feito.** Interpolar valor nao impresso (`:462`/`:523` mantidos);
 arredondar para bater; conferir por extracao de texto; aceitar a tabela porque
 os testes passam (os testes vinham da mesma transcricao).
+
+## D191 - G162: a demanda que chegava a folha como um numero sem origem (2026-09-21) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G158-G163.md G162. Estado de partida: `f093b4b`
+(G161) no `git log`, arvore limpa.
+
+**Medido (antes de mudar, por injecao, conta intacta).**
+`desenho_eletrico_residencial.py:273-276` imprimia so
+`"demanda %s kVA" % final_kva`, sem fonte (WKI/F131), item, fator locacional
+ou composicao. O `_num` (`:175-178`) declara a ausencia (certo, intocado).
+A folha sabia reprovar circuitos (`_reprovado` `:181`, REPROVA em `:308`,
+`:367`, `:412`, `:593`, fonte unica em `:630`). As recusas da demanda
+morriam no resultado: motor bifasico / sem linha exata / qtd > 10 davam
+ok=False com `calculation` PRESENTE (numero so-dos-comodos) e a folha
+imprimia o numero como se ATENDESSE (`extrair_veredito(circuits)` =
+(True, []), silencio); fator locacional fora da tabela dava `calculation`
+vazio e a folha saia `demanda A CONFIRMAR kVA` sem dizer por que (G106).
+
+**Entregue (fonte unica, nunca copia).**
+`demanda_residencial_enel.fonte_demanda/linha_fonte_demanda` +
+`calculation["fonte"]` (codigo, acervo F131, itens 6.1/6.2.3.2/6.2.3.3,
+notas 1-2 p.7/TABELA 1, fator usado - G154/G131); `residencial_eletrica`
+grava `calculation["demand_errors"]` (vale quando o numero falta; a segunda
+chamada le do mesmo modulo puro, sem divergir); `veredito_folha_g152`
+ganha `gates_demanda` lido em `extrair_veredito`
+(`demanda-motor-bifasico`, `demanda-motor-sem-linha`,
+`demanda-motor-qtd-acima-10`, `demanda-fator-locacional`,
+`demanda-<code>`); o unifilar declara a fonte em faixa propria (ybus-32,
+sem colisao no estimador G129) e a recusa pelo veredito. A folha nunca
+para de sair, nunca decide gate, o numero nao muda e o carimbo nao e
+tocado. Lente G160: +1 triagem (o codigo do documento, CONFERE catalogo
+F131); comentario novo sem token de fonte.
+
+**Testes.** `tests/test_demanda_folha_g162.py` (7): ok byte-identica (hash
+cru == gerado) com fonte; vermelho por injecao nas 4 recusas pela porta do
+adaptador (gates distintos) + bifasico pela porta da casa composta
+(convencao 11); fonte unica em literais a mao; numero intocado e mesma
+composicao nas duas chamadas; manifesto com unifilar+quadro e titulo;
+PNG das duas folhas (artefato em tmp_path). Regra do lote verde no codigo
+final (folhas, alcance, guardas, disciplina, indice, carimbo, normas,
+galpao-indice, fallbacks, titulo, vereditos, citacao, verbete, censo,
+estaca, piso, auditorias D172/D176/D179; 3 varreduras OK) + G102 casa
+verde (10 passed, menos o portao do galpao, so na auditoria). Runner
+integral: `rc_pytest` 0 e `quebras` vazio (resumo.json).
+
+**PNG olhado.** `unifilar-com-demanda.png` (63 901 bytes) e
+`unifilar-demanda-recusada.png` (75 234 bytes): as duas renderizam; a
+recusada declara `VEREDITO: REPROVADO em demanda-motor-bifasico` + STATUS
+na faixa de fallback do G155 (o estimador acusa encosto no titulo
+centrado - comportamento pre-existente das folhas residenciais reprovadas,
+igual aos gates de circuito; ficou registrado e visivel para o olho).
+
+**Pendencia ao usuario:** nenhuma linha nova vai a tabela do G163 (nenhum
+numero mudou). Fica o convite de olhar os dois PNG acima e dizer se a
+faixa de fallback do veredito nas folhas residenciais deve ganhar faixa
+propria (como a planta de formas) em goal futuro - sem mudar nada aqui.
+
+**Nao feito.** Parar a folha na recusa; decidir gate na folha; mudar o
+numero; tocar o carimbo (G151); interpolar valor nao impresso.

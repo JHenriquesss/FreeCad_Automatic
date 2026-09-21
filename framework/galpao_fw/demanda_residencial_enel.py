@@ -147,6 +147,43 @@ _MOTOR_INSTALLED_POWER_SOURCE = "WKI Enel item 6.1, PDF p. 5"
 _MOTOR_TABLE_MAX_QUANTITY = 10
 _MOTOR_NO_PLATE_KW_PER_CV = 1.5
 
+# G162: a folha declara de onde veio o numero (fonte + item), pela mesma
+# regra do G154 (declarado vs modelo) e do G131 (a entrega declara o que a
+# conta usou). Fonte unica desta linha: este modulo (a conta), lida pela
+# folha via `fonte_demanda_linha`. Nada aqui decide veredito.
+DEMANDA_FONTE_CODIGO = "WKI-OMBR-MAT-18-0263-INBR-R01"
+DEMANDA_FONTE_ACERVO = "F131"
+DEMANDA_FONTE_ITENS = ("itens 6.1, 6.2.3.2, 6.2.3.3, notas 1 e 2 p. 7, "
+                       "TABELA 1")
+
+
+def fonte_demanda(calculation):
+    """Proveniencia da demanda lida do resultado, sem decidir nada.
+
+    Devolve {"codigo", "acervo", "itens", "fator_locacional"} ou None
+    quando o calculo nao traz o fator usado (recusa ou secao ausente):
+    a folha declara a ausencia, nunca um default.
+    """
+    if not isinstance(calculation, dict):
+        return None
+    fator = calculation.get("location_factor")
+    if not _is_number(fator):
+        return None
+    return {"codigo": DEMANDA_FONTE_CODIGO,
+            "acervo": DEMANDA_FONTE_ACERVO,
+            "itens": DEMANDA_FONTE_ITENS,
+            "fator_locacional": float(fator)}
+
+
+def linha_fonte_demanda(calculation):
+    """Linha curta que a folha carimba (fonte unica). None sem o que declarar."""
+    fonte = fonte_demanda(calculation)
+    if fonte is None:
+        return None
+    return ("%s (%s; %s; fator locacional %.2f)"
+            % (fonte["codigo"], fonte["acervo"], fonte["itens"],
+               fonte["fator_locacional"]))
+
 
 def _motor_power_key(value: Any) -> str | None:
     if isinstance(value, str):
@@ -590,6 +627,14 @@ def _compose_result(rooms: dict[str, Any], heating: dict[str, Any],
     )
     calculation = {
         "location_factor": location_factor,
+        # G162: a entrega declara o que a conta usou (G131). A folha le a
+        # fonte daqui (fonte_demanda/linha_fonte_demanda); a composicao
+        # viaja no mesmo envelope das duas chamadas da vertical, entao o
+        # warning da segunda chamada nunca diverge do calculo da primeira.
+        "fonte": {"codigo": DEMANDA_FONTE_CODIGO,
+                  "acervo": DEMANDA_FONTE_ACERVO,
+                  "itens": DEMANDA_FONTE_ITENS,
+                  "fator_locacional": float(location_factor)},
         "rooms": rooms,
         "heating": heating,
         "special_lighting": special,

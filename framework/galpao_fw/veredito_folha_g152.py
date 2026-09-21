@@ -61,6 +61,66 @@ STATUS_REPROVADO = "REPROVADO - VER MEMORIAL"
 LINHA_SEM_VEREDITO = "VEREDITO NAO DISPONIVEL NO RESULTADO - VER MEMORIAL"
 
 
+def _porta_recusa_demanda(erro):
+    """Nome curto da recusa da demanda (G162), ou None.
+
+    O modulo tem recusas nomeadas que partilham o codigo
+    `motor_outside_table`: a variante sai da mensagem (bifasico, sem
+    linha exata, quantidade acima de 10). Qualquer outra recusa do
+    calculo vira `demanda:<code>`. Le, nunca decide.
+    """
+    if not isinstance(erro, dict):
+        return None
+    codigo = erro.get("code")
+    import unicodedata as _ud162
+    bruto = str(erro.get("message", erro.get("detail", "")) or "").lower()
+    msg = "".join(c for c in _ud162.normalize("NFKD", bruto)
+                  if not _ud162.combining(c))
+    if codigo == "motor_outside_table":
+        if "bifas" in msg:
+            return "demanda-motor-bifasico"
+        if "acima de 10" in msg:
+            return "demanda-motor-qtd-acima-10"
+        if "sem linha exata" in msg:
+            return "demanda-motor-sem-linha"
+        return "demanda-motor-outside-table"
+    if codigo == "invalid_location_factor":
+        return "demanda-fator-locacional"
+    if isinstance(codigo, str) and codigo.strip():
+        return "demanda-%s" % codigo.strip()
+    return "demanda-recusa"
+
+
+def gates_demanda(fonte):
+    """Gates da demanda recusada lidos da fonte, sem decidir nada.
+
+    Le `fonte["demand_errors"]` (a vertical eletrica grava ali as recusas
+    de `calculate_residential_demand`, inclusive quando o numero falta)
+    e, por robustez, `fonte["calculation"]["demand_errors"]` (o resultado
+    eletrico inteiro passado direto). Sem a chave: [] (a folha sai como
+    antes, byte-identica).
+    """
+    if not isinstance(fonte, dict):
+        return []
+    vistos = []
+
+    def _colhe(lista):
+        for erro in (lista or []):
+            nome = _porta_recusa_demanda(erro)
+            if nome and nome not in vistos:
+                vistos.append(nome)
+
+    derr = fonte.get("demand_errors")
+    if isinstance(derr, list):
+        _colhe(derr)
+    calc = fonte.get("calculation")
+    if isinstance(calc, dict):
+        derr2 = calc.get("demand_errors")
+        if isinstance(derr2, list):
+            _colhe(derr2)
+    return vistos
+
+
 def extrair_veredito(fonte):
     """(atende, reprovados) lidos da fonte, sem decidir nada.
 
@@ -68,7 +128,25 @@ def extrair_veredito(fonte):
     veredito (chaves ausentes ou valor None): a folha nao inventa um, sai
     como antes. `reprovados` vazio com `False` declara a REPROVA sem nomear
     gates (nunca omite o veredito).
+
+    G162 (eletrica residencial, sem copiar a semantica): a recusa da
+    DEMANDA (erros de `calculate_residential_demand` gravados pela
+    vertical em `demand_errors`, inclusive quando o numero falta) entra
+    aqui como REPROVA nomeada (`demanda-motor-bifasico`,
+    `demanda-motor-sem-linha`, `demanda-motor-qtd-acima-10`,
+    `demanda-fator-locacional`, `demanda-<code>`). Sem a chave, a folha
+    sai como antes (ATENDE byte-identico). A folha nunca decide gate.
     """
+    def _completa(at, gates):
+        dem = gates_demanda(fonte)
+        if not dem:
+            return at, gates
+        todos = list(gates or [])
+        for nome in dem:
+            if nome not in todos:
+                todos.append(nome)
+        return False, todos
+
     if not isinstance(fonte, dict):
         return None, []
     if "ATENDE" in fonte:
@@ -78,7 +156,7 @@ def extrair_veredito(fonte):
             gates = [str(x) for x in rep]
         else:
             gates = [str(rep)]
-        return (None if at is None else bool(at)), gates
+        return _completa(None if at is None else bool(at), gates)
     if "atende_global" in fonte or "atende" in fonte:
         at = fonte.get("atende_global", fonte.get("atende"))
         falhas = fonte.get("falhas_verificacao",
@@ -87,7 +165,7 @@ def extrair_veredito(fonte):
             gates = [str(x) for x in falhas]
         else:
             gates = [str(falhas)]
-        return (None if at is None else bool(at)), gates
+        return _completa(None if at is None else bool(at), gates)
     # G155: fundacao do predio/casa - o veredito mora em fonte["gate"].
     gate = fonte.get("gate")
     if isinstance(gate, dict) and ("OK" in gate or "reprovados" in gate):
@@ -97,7 +175,7 @@ def extrair_veredito(fonte):
             gates = [str(x) for x in rep]
         else:
             gates = [str(rep)]
-        return (None if ok is None else bool(ok)), gates
+        return _completa(None if ok is None else bool(ok), gates)
     # G155: piso/escada/peca com OK direto (sem ATENDE). So le quando ha
     # chave de gates ao lado ou valor booleano explícito; sem OK, desconhecido.
     if "OK" in fonte and isinstance(fonte.get("OK"), bool):
@@ -107,7 +185,7 @@ def extrair_veredito(fonte):
             gates = [str(x) for x in rep]
         else:
             gates = [str(rep)]
-        return bool(fonte.get("OK")), gates
+        return _completa(bool(fonte.get("OK")), gates)
     # G155 (casa): conferencia interna com "ok" minusculo (conferencia_nbr5410,
     # esquema hidraulico com pressao OK por rede). Mesma semantica, sem decidir.
     # G155 (casa eletrica): o `circuits` do dimensionamento declara "ok" e os
@@ -138,8 +216,8 @@ def extrair_veredito(fonte):
             if ((cok is False or pok is False) and isinstance(did, str)
                     and did.strip() and did not in gates):
                 gates.append(did)
-        return bool(fonte.get("ok")), gates
-    return None, []
+        return _completa(bool(fonte.get("ok")), gates)
+    return _completa(None, [])
 
 
 def veredito_de_spec_aco(spec):

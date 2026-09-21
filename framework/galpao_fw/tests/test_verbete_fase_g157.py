@@ -52,13 +52,15 @@ GOAL_MINIMO = 149
 #: GOAL_CORRENTE avanca - sem mudar nenhuma regra de conteudo.)
 #: (G160: idem - MAPA ganha G160/D189, GOAL_CORRENTE avanca.)
 #: (G161: idem - MAPA ganha G161/D190, GOAL_CORRENTE avanca.)
-GOAL_CORRENTE = "G161"
+#: (G162: idem - MAPA ganha G162/D191, GOAL_CORRENTE avanca.)
+GOAL_CORRENTE = "G162"
 
 #: Baseline nos dois sentidos: goal -> D do verbete. Os quatro verbetes sem
 #: D ganharam os proximos D livres depois do ultimo D existente no momento
 #: do G157 (D182), na ordem G149, G150, G151, G152 (decisao do usuario no
 #: topo do backlog G154-G157); o G157 ganha o D187; o G159 ganha o D188;
 #: o G160 ganha o D189
+#: o G161 ganha o D190; o G162 ganha o D191
 #: (contrato de manutencao: o goal seguinte atualiza os tres juntos).
 MAPA_GOAL_D = {
     "G149": "D183",
@@ -73,6 +75,7 @@ MAPA_GOAL_D = {
     "G159": "D188",
     "G160": "D189",
     "G161": "D190",
+    "G162": "D191",
 }
 
 #: `## G149 - ...` (sem D) ou `## D183 - G149: ...` (numerado). A forma

@@ -920,6 +920,12 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   aferição pelo EXEMPLO 1 da fonte (6.6.1 p.28–30, Dc 23,69 kVA); nenhum número
   mudou ([[04-decisions#D190]]).
 
+### G162 — a demanda que chegava à folha como um número sem origem (fechado)
+- **G162** a linha da demanda declara fonte + itens + fator locacional
+  (WKI-OMBR-MAT-18-0263-INBR-R01, F131); cada recusa do módulo vira gate
+  nomeado na folha pela fonte única do G152; ATENDE byte-idêntica, PNG
+  olhado das duas folhas ([[04-decisions#D191]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

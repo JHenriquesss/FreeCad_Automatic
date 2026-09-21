@@ -312,6 +312,12 @@ BASELINE = [
     # WKI base citada sem valor.
     ("demanda_residencial_enel.py", "base WKI/Enel",
      "REMISSAO: docstring nomeia a base (WKI/Enel), sem valor"),
+    # G162: a constante que nomeia a fonte da linha da demanda (sem valor
+    # na frase; o codigo e o do catalogo F131, triado no G160/D189).
+    ("demanda_residencial_enel.py", "WKI-OMBR-MAT-18-0263-INBR-R01",
+     "CONFERE catalogo F131 = WKI-OMBR-MAT-18-0263-INBR-R01 "
+     "(Instrucao de Trabalho 263, calculo de demanda BT; listada Enel-Rio "
+     "2026): a constante so nomeia a fonte, sem valor"),
     # WKI no caso de validacao (oraculo do teste, nao celula da norma).
     ("validacao_sistema_g15.py", "WKI fator de demanda por modulo",
      "REMISSAO: definicao do caso de validacao (area_servico 1,9 kVA etc. "

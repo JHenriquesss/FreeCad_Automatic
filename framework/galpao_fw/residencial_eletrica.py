@@ -312,6 +312,14 @@ def run_residential_electrical(normalized, run_dir, preflight=None):
     if has_calculation_sections:
         demand_result = calculate_residential_demand(payload)
         calculation = copy.deepcopy(demand_result.get("calculation", {}))
+        # G162: as recusas da demanda viajam no calculo para a folha ler
+        # pela fonte unica do G152 (nunca copiada na folha). Vale para a
+        # composicao inteira, inclusive quando o numero falta (fator
+        # locacional invalido: calculation vazio + refusal nomeada, nunca
+        # A_CONFIRMAR silencioso). A segunda chamada (:355, so warnings)
+        # le do mesmo modulo puro, entao nao diverge (padrao G131).
+        calculation["demand_errors"] = copy.deepcopy(
+            demand_result.get("errors", []))
         errors.extend(copy.deepcopy(demand_result.get("errors", [])))
         network_kind = payload["network"].get("network_kind")
         if network_kind != "aerea":
