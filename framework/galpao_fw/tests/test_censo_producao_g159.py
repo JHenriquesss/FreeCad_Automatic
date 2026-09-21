@@ -77,7 +77,9 @@ COMMIT_BASE_G149 = "86b981c5c982cd102d624afa81261a9e953cd17a"
 
 #: Cobertura: commit (hash cheio) -> D do verbete que o registra. Os seis goals
 #: usam os verbetes que o G157 ja numerou; os quatro commits WKI usam o D188
-#: (verbete deste goal).
+#: (verbete deste goal); o G162 usa o D191 (contrato de manutencao: o hash
+#: so existe depois do commit, entao a entrada entra no commit seguinte,
+#: que toca so teste e nao entra no censo).
 COBERTURA_COMMIT_D = {
     "86b981c5c982cd102d624afa81261a9e953cd17a": "D183",  # G149
     "94d00b6e8bb65890f8fe9141c4080e92878756ce": "D185",  # G151
@@ -89,6 +91,7 @@ COBERTURA_COMMIT_D = {
     "700afd85bd80660ebea1763067cdb6e6053ea3d4": "D188",  # WKI p71
     "6734fc8c89e427cb9958b1906409974607a4dc73": "D188",  # WKI revisao
     "a85bdbec0a31ccc83d183a9c83ec4a1ceb307a49": "D188",  # WKI cozinha
+    "e4779b8d3b15a60b36b6d49b0e0def5d3d6dfa8f": "D191",  # G162
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -212,7 +215,7 @@ def _repo_git_tmp(tmp_path, arquivos_por_commit):
 
 
 def test_01_baseline_verde_e_censo_real_no_repo():
-    """O repo real: o censo lista os 11 commits que tocaram producao desde o
+    """O repo real: o censo lista os 12 commits que tocaram producao desde o
     G149, cada um coberto (verbete) ou isento com motivo - e nada mais."""
     censo = censo_de_git()
     with open(DECISIONS, encoding="utf-8") as fh:
@@ -224,8 +227,8 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 11:
-        lados.append("censo=%d, esperado 11 (6 goals + 1 auditoria + 4 WKI)"
+    if len(censo) != 12:
+        lados.append("censo=%d, esperado 12 (7 goals + 1 auditoria + 4 WKI)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
