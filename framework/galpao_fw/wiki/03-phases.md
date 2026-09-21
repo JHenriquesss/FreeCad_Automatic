@@ -926,6 +926,12 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   nomeado na folha pela fonte única do G152; ATENDE byte-idêntica, PNG
   olhado das duas folhas ([[04-decisions#D191]]).
 
+### G163 — a tabela de decisão das pendências e dos links sem verbete (fechado)
+- **G163** tabela única das pendências (seis do D182 + links D152–D154 do
+  D187 + FS 3,0 decidido do D179 + G160/G161 + vigência WKI), cada linha
+  conferida na imagem da página com a recomendação conservadora ao lado;
+  nenhum número, veredito, default ou trava mudou ([[04-decisions#D192]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

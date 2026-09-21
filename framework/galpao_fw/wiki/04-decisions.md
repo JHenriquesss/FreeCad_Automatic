@@ -5892,3 +5892,90 @@ propria (como a planta de formas) em goal futuro - sem mudar nada aqui.
 
 **Nao feito.** Parar a folha na recusa; decidir gate na folha; mudar o
 numero; tocar o carimbo (G151); interpolar valor nao impresso.
+
+## D192 - G163: a tabela de decisao das sete pendencias e dos links sem verbete (2026-09-21) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G158-G163.md G163. Estado de partida: `8123f70`
+(G162) no `git log`, arvore limpa. Entregar a tabela unica de decisao das
+pendencias empilhadas nos verbetes (D182 seis, D187 links, D179 FS 3,0,
+G160/G161, vigencia WKI), cada linha conferida na imagem da pagina, com a
+recomendacao conservadora ao lado. Nenhum numero, veredito, default ou
+trava muda neste goal.
+
+**Medido (antes de mudar).** D182 (`:5517-5523`): seis pendencias, todas
+declaradas no codigo com "adotado"/"confirmar"/"CONFIRMAR", nenhuma trava
+nada (a lente `test_citacao_norma_g156.py` as carrega como
+CONFERE-parcial/DIVERGE com o motivo escrito). D187 (`:5597-5602`): os
+links `[[04-decisions#D152]]`, `[[04-decisions#D153]]` e
+`[[04-decisions#D154]]` nos bullets do G126/G127/G128 (`03-phases.md`
+`:753,:755,:757`) nao resolvem: os verbetes existem mas como headers
+compostos `## D152/G126` (`:2266`), `## D153/G127` (`:2354`) e
+`## D154/G128` (`:2421`), cuja ancora nao e `#D152/#D153/#D154`. D179
+(`:5265-5267`): FS 3,0 decisao (a) manter adotado e declarado
+(2026-09-17). G160 (D189): 0 divergencias; IEC 60364 NAO_CONFERIVEL.
+G161 (D190): 0 divergencias; 7 celulas anomalas CONFERE-como-impresso.
+Fontes: catalogo F131 = `listada_enel_rio_2026` (listada, nao vigencia
+conferida); 7117-1 e 60364 ausentes do catalogo; 16401-2/3 ausentes (so
+F077 parte 1); 15527 no acervo e ed. 2019; 5419-3 no acervo e ed. 2026
+(igual a citada).
+
+**Entregue (tabela unica, 9 paginas vistas na imagem neste goal + F038
+p.18 vista no D179).** Legenda: DIVERGE-adotado = numero do codigo difere
+da pagina e esta MAIS seguro (nao e erro); DIVERGE-parcial = parte confere,
+parte nao localizada; NAO_CONFERIVEL = fica como esta, com o motivo.
+
+| # | frase (arquivo:linha) | norma / item | pag. acervo (imagem vista) | o que o codigo usa | o que a pagina diz | veredito | recomendacao conservadora |
+|---|---|---|---|---|---|---|---|
+| 1a | `1,4.(G+Q) (NBR 8681:2025 Tab.1: madeira desf 1,30 - adotado 1,4; confirmar)` (telhado_casa_madeira.py:1195) | NBR 8681:2025 Tab.1 | p.14 (F101) | 1,4 desf na madeira | Tab.1 Normal: pre-moldada/madeira desf 1,30, fav 1,0 | DIVERGE-adotado (1,4 > 1,30, mais seguro) | manter 1,4 declarado; confirmar item |
+| 1b | `gamma_g do peso permanente (NBR 8681:2025 Tab.1: fav 1,0, adotado 0,9 conservador p/ uplift; desf 1,25-1,50, adotado 1,4)` (tesoura.py:152-158); `gamma_g FAVORAVEL: adotado 0,90` (tercas_nbr14762.py:24,220) | NBR 8681:2025 Tab.1 | p.14 (F101) | 0,9 fav / 1,4 desf por sentido do vento | Tab.1 Normal: fav 1,0 (todas); desf 1,25-1,50 conforme tipo | DIVERGE-adotado no fav (0,9 < 1,0, mais seguro p/ uplift); desf 1,4 CONFERE na faixa | manter 0,9/1,4 declarados; confirmar item |
+| 2 | `plasticos/texteis sinteticos empilhados, 3,0 m < H <= 5,0 m, risco extraordinario grupo 1 (NBR 10897:2014 Anexo A Tab.A.1: o grupo; faixa de altura a confirmar - ver NBR 16981)` (incendio_edificio.py:120-122) | NBR 10897:2014 Anexo A Tab.A.1; NBR 16981:2021 (busca) | p.92 (F070, grupo 1 existe); 16981: 5 ocorrencias de "3,0 m" (Anexo B), nenhuma e o criterio de velocidade | grupo 1 + faixa 3,0-5,0 m p/ velocidade rapida | Tab.A.1 p.92: "Risco extraordinario - Grupo 1" existe; a faixa 3,0-5,0 m NAO foi localizada na 10897 nem na 16981 | DIVERGE-parcial (grupo CONFERE, faixa nao localizada) | manter declarado "a confirmar"; confirmar item da faixa |
+| 3 | `theta_critica ausente -> assumindo 550 C (mu~0,6; NBR 14323:2013 Tab.B.6: 550 C e o theta-o,t p/ TRRF 30, nao theta-critica - confirmar)` (projeto_spec.py:489-493); `[DEFAULT - CONFIRMAR: theta_critica = 550 C (mu~0,6; ...)]` (rodar_galpao.py:1547-1550, comentario :1533-1535) | NBR 14323:2013 Tab.B.6 | p.42 (F116): Tab.B.6, TRRF 30 -> theta-o,t 550 C | 550 C como theta-critica default (mu~0,6), flagado CONFIRMAR | 550 C e o theta-o,t p/ TRRF 30 (parametro da formula de B.3.2.2.1), nao theta-critica p/ mu 0,6 | DIVERGE-parcial (numero certo na tabela errada) | manter default flagado; confirmar com o responsavel |
+| 4 | `Dimensiona a cisterna de reuso pelo METODO DE RIPPL (balanco de massa; NBR 15527:2019 4.4.10 nao prescreve metodo - pode ser da ed. 2007; confirmar)` (esgoto_reuso.py:93-94; metodo :126) | NBR 15527 4.4.10 | p.6 arq (F069, ed. 2019 no acervo): 4.4.10 sem prescrever metodo | Rippl (balanco de massa) atribuido a 15527 | 4.4.10: "dimensionado com base em criterios tecnicos, economicos e ambientais" - nenhum metodo prescrito; Rippl pode ser da ed. 2007 | DIVERGE-atribuicao (edicao a confirmar) | manter metodo declarado; confirmar se Rippl e da ed. 2007 |
+| 5a | `RESISTIVIDADE aparente pelo metodo de WENNER (norma de resistividade do solo fora do acervo - a NBR 5419-3:2026 referencia a 7117-1; base: Negrisoli Cap.11 - confirmar)` (aterramento_nbr15749.py:6-11, docstring :39-43) | NBR 15749:2009 1.1; NBR 7117-1 (fora do acervo); Negrisoli Cap.11 | p.1 (F059, escopo 1.1); catalogo: 7117 ausente | Wenner re-atribuido a Negrisoli Cap.11 | 1.1: escopo = medicao de resistencia de aterramento e de potenciais - NAO cobre resistividade Wenner | DIVERGE re-atribuido (saiu da 15749; 7117-1 fora do acervo) | manter base Negrisoli declarada; confirmar 7117-1 ou adquirir a norma |
+| 5b | `LIMITE recomendado: R <= 10 ohm adotado (SPDA/subestacao); ... A NBR 5419-3:2026 7.1.4 nao exige medicao de resistencia - confirmar o 10 ohm` (aterramento_nbr15749.py:17-19,27-28; `R_MAX_SPDA = 10.0` :34; techdraw_eletrico.py:324; desenho_eletrico.py:115) | NBR 5419-3:2026 7.1.4 | p.45 (F062, ed. 2026 = citada) | 10 ohm adotado como limite | 7.1.4: "Nao e necessaria a realizacao de medicao de resistencia de aterramento para a verificacao da eficacia do SPDA" - nenhum 10 ohm exigido (era da edicao anterior/pratica) | DIVERGE-adotado | manter 10 ohm adotado; confirmar item |
+| 6a | `psi2 = 0,2 (sem predominancia), 0,4 (concentracao), 0,6 (arquivos)` (fogo_nbr14323.py:79-83, default 0.4) | NBR 14323:2013 6.3.1; NBR 8681:2025 Tab.6 nota c | p.13 (F116): 6.3.1 traz 0,21/0,28/0,42; p.16 (F101): Tab.6 psi2 0,3/0,4/0,6 com nota c (x0,7 no fogo) | 0,2/0,4/0,6 sem a reducao x0,7 | 6.3.1 ja embute a reducao (0,3x0,7=0,21; 0,4x0,7=0,28; 0,6x0,7=0,42) | DIVERGE-adotado (sem reduzir = mais carga = mais seguro) | manter 0,2/0,4/0,6 declarados; confirmar item |
+| 6b | `dimensiona-se a CINTA TRANSVERSAL, para a excentricidade executiva acidental (>= 10% da carga vertical, NBR 6122 / Alonso)` (rodar_galpao.py:937; `N_cinta = 0.10 * N_pilar` :942) | NBR 6122 / Alonso (livro) | OCR F038: as ocorrencias de "10 %" sao outras (majoracao, diagramas); item nao localizado; Alonso fora da lente (livro) | 0,10 x N_pilar | item da norma nao localizado | DIVERGE-fonte-mista (norma + livro, sem item) | manter 0,10 declarado; confirmar fonte |
+| 7 | FS 3,0 da estaca (`estaca_parametros_g143.ORIGEM_FS_ADOTADO = "fs_adotado_D38"`, `projeto_spec.validar`) | NBR 6122:2022 6.2.1.2.1 | p.18 (F038, vista na imagem no D179; OCR: FS 2,0 semiempirico) | 3,0 adotado (D38), trava do `validar` intacta | 6.2.1.2.1: FS 2,0 no semiempirico (1,6 com prova, 6.2.1.2.2); 3,00 e da Tab.1 de fundacao rasa | DECIDIDO (a) manter adotado e declarado, 2026-09-17 (D179 :5265-5267) | registro; nenhum goal deste arco muda o numero ou a trava |
+| 8 | links `[[04-decisions#D152]]`, `[[04-decisions#D153]]`, `[[04-decisions#D154]]` (03-phases.md :753,:755,:757, bullets G126/G127/G128) | indice do lote G126-G130 (D152-D157) | - (link quebrado, nao pagina) | links apontam `#D152/#D153/#D154` | verbetes existem como `## D152/G126` (:2266), `## D153/G127` (:2354), `## D154/G128` (:2421): a ancora `#D152` nao resolve (header composto) | link sem verbete correspondente | (a) criar D novos e renomear os links; (b) corrigir os 3 links para as ancoras existentes; (c) deixar como esta |
+| 9 | G160 (D189): 32 frases triadas; IEC 60364 x3 (comissionamento_fv.py:62,90,98) | IEC 60364 | NAO_CONFERIVEL: fora do acervo (F148 = 60617, F149 = 60417; catalogo) | citado sem valor | norma ausente | NAO_CONFERIVEL com motivo | manter NAO_CONFERIVEL ou adquirir a norma |
+| 10 | G161 (D190): 476/476 celulas vistas; 7 anomalas (tri 15 CV/qtd 4 = 33,29; mono 1 1/2 CV/qtd 2 = 2,53; mono 10 CV/qtd 7 = 33,41; tri 3 CV/qtd 7 = 13,13; tri 5 CV/qtd 6 = 18,86; tri 150 CV/qtd 3 = 263,45; mono 12 1/2 CV/qtd 4 = 34,03) + EXEMPLO 1 (6.6.1 p.28-30, Dc 23,69 kVA) | WKI F131 p.5-8,13-14,28-30 | vistas na imagem no G161 | mantidas como impresso | sao DA FONTE | 0 divergencias (CONFERE-como-impresso, nao pendencia de numero) | registro; nada a decidir |
+| 11 | vigencia da WKI-OMBR-MAT-18-0263-INBR-R01 | catalogo F131 | capa vista: Instrucao de Trabalho no. 263, Versao no.01, data 02/03/2018; catalogo = `listada_enel_rio_2026` | R01/2018 em uso | "listada em 2026", nao "vigencia conferida" | NAO_CONFERIVEL no acervo (depende de consulta externa a listagem Enel-Rio) | confirmar se substituida por revisao posterior |
+
+**Testes.** Contrato do G157 no mesmo commit (MAPA ganha `G163: D192`,
+GOAL_CORRENTE avanca, sem mudar regra de conteudo). Regra do lote verde
+no codigo final + lente G156/G160 (nenhuma frase nova: nenhum `.py` de
+producao mudou). Runner integral nao rodado neste goal (nenhum `.py` de
+producao mudou - so teste-guarda e wiki; precedente G159).
+
+**Suite.** Nenhum numero de conta mudou: nenhum `.py` de producao tocado
+neste goal (`git status` so wiki + MAPA). A corrida que vale para o codigo
+commitado segue a do G162.
+
+**PNG olhado (9 paginas, rendidas do PDF a 130 dpi e vistas na imagem):**
+8681 Tab.1 p.14 (madeira desf 1,30 / fav 1,0); 8681 Tab.6 p.16 (psi2
+0,3/0,4/0,6); 14323 6.3.1 p.13 (0,21/0,28/0,42); 14323 Tab.B.6 p.42
+(theta-o,t 550 p/ TRRF 30); 10897 Tab.A.1 p.92 (Grupo 1 existe); 15749
+1.1 p.1 (escopo sem Wenner); 5419-3 7.1.4 p.45 (sem exigir medicao);
+15527 4.4.10 p.6 arq (sem prescrever metodo); WKI capa (R01 02/03/2018).
+F038 p.18 (FS 2,0) vista na imagem no D179, nao relida. 16981: busca por
+"3,0 m" (5 ocorrencias no Anexo B, nenhuma e o criterio de velocidade) -
+a ausencia da faixa e corroborada por busca, nao por imagem pagina a
+pagina.
+
+**Pendencia ao usuario (lista fechada, item a item - a entrega deste
+goal):** (1a) manter 1,4 ante o 1,30 da madeira; (1b) manter 0,9/1,4 ante
+Tab.1 (fav 1,0); (2) o item da faixa 3,0-5,0 m (grupo 1 OK, faixa nao
+localizada); (3) o default 550/mu 0,6 ante Tab.B.6 (e theta-o,t p/ TRRF
+30); (4) o Rippl ante a 15527:2019 (pode ser ed. 2007); (5a) o Wenner ante
+Negrisoli Cap.11 (7117-1 fora do acervo); (5b) o 10 ohm ante 5419-3:2026
+7.1.4 (nao exige); (6a) o psi2 0,2/0,4/0,6 ante 6.3.1 (0,21/0,28/0,42 sem
+o x0,7); (6b) os 10% da cinta (item nao localizado, fonte mista
+6122/Alonso); (7) FS 3,0: ja decidido (a), so registro; (8) links
+D152/D153/D154: (a) numeracao nova, (b) corrigir para as ancoras
+existentes, ou (c) deixar como esta; (9) IEC 60364: manter
+NAO_CONFERIVEL ou adquirir; (10) 7 celulas anomalas: registro, nada a
+decidir; (11) WKI R01/2018: confirmar se substituida.
+
+**Nao feito.** Decidir qualquer linha pelo usuario; trocar numero para
+bater com a norma; reescrever verbete antigo; renumerar D existentes;
+abrir goal novo a partir da tabela.
