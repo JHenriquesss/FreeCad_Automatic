@@ -48,12 +48,15 @@ GOAL_MINIMO = 149
 #: Goal corrente: entra no git log no commit deste arquivo, ate la vai em
 #: `em_progresso` no test_01 (o resto da checagem - verbete+linha - ja vale
 #: para ele; o test_03 prova que o carve-out so libera este goal).
-GOAL_CORRENTE = "G157"
+#: (G159: avancado pelo contrato de manutencao - MAPA ganha a entrada nova,
+#: GOAL_CORRENTE avanca - sem mudar nenhuma regra de conteudo.)
+GOAL_CORRENTE = "G159"
 
 #: Baseline nos dois sentidos: goal -> D do verbete. Os quatro verbetes sem
 #: D ganharam os proximos D livres depois do ultimo D existente no momento
 #: do G157 (D182), na ordem G149, G150, G151, G152 (decisao do usuario no
-#: topo do backlog G154-G157); o G157 ganha o D187.
+#: topo do backlog G154-G157); o G157 ganha o D187; o G159 ganha o D188
+#: (contrato de manutencao: o goal seguinte atualiza os tres juntos).
 MAPA_GOAL_D = {
     "G149": "D183",
     "G150": "D184",
@@ -64,6 +67,7 @@ MAPA_GOAL_D = {
     "G155": "D181",
     "G156": "D182",
     "G157": "D187",
+    "G159": "D188",
 }
 
 #: `## G149 - ...` (sem D) ou `## D183 - G149: ...` (numerado). A forma

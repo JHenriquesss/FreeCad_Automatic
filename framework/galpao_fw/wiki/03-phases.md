@@ -895,6 +895,15 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   numerados D183–D186 sem reescrever o conteúdo, links conferidos; suíte
   3976 passed/2 skipped, quebras vazio ([[04-decisions#D187]]).
 
+### G159 — o código de produção que entra sem deixar registro (fechado)
+- **G159** todo commit desde o G149 que toca arquivo de produção tem verbete
+  com D ou isenção com motivo (censo por arquivo em
+  `tests/test_censo_producao_g159.py`, definição de produção reusada da lente
+  do G156, parada fixa no commit do G149, baseline nos três sentidos com
+  vermelho por injeção em repo git de verdade em `tmp_path`); os 4 commits
+  WKI regularizados no D188, a auditoria D179 isenta com motivo
+  ([[04-decisions#D188]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;

@@ -5604,3 +5604,105 @@ numeracao nova ou se os links caem. Nenhum numero mudou neste goal.
 **Nao feito.** Reescrever verbete antigo; renumerar D ja existentes; tocar
 folha ou codigo de producao; mudar numero, veredito, default ou trava;
 criar backlog novo. Nao comecar goal novo (a fila G154-G157 fecha aqui).
+
+## D188 - G159: o codigo de producao que entra sem deixar registro (2026-09-21) - FECHADO
+
+**Pedido.** BACKLOG-GOALS-G158-G163.md G159. Desvio de entrada registrado: o
+backlog manda partir do commit do G158, mas o `git log` nao tem commit
+`G158:` (o HEAD e `23a23a9` docs-backlog da fila G158-G163, arvore limpa) -
+ou seja, a auditoria G158 ainda nao fechou quando este goal executou. Pela
+regra do backlog ("D livres na ordem em que os goals fecharem", ultimo D
+D187), o verbete deste goal leva o D188. Nada da auditoria pendente foi
+assumido aqui: o que e auditoria segue no G158.
+
+**Medido (antes de mudar).** Quatro commits de 2026-09-19 sem prefixo
+`G1xx:` entregaram conta normativa viva: `dc686af` feat(p70, tabelas de
+motores completa), `700afd8` feat(p71, rendimento do motor), `6734fc8`
+fix(revisao, consolida motores de mesma potencia), `a85bdbe` fix(demand,
+cozinha via tabela transcrita). `demanda_residencial_enel.py` tem 600
+linhas; `residencial_eletrica.py:16` importa, `:313` e `:355` chamam
+`calculate_residential_demand`; o numero chega a folha em
+`desenho_eletrico_residencial.py:273-276` (`demanda %s kVA` de
+`calculation.demand.final_kva`). Grep por `wki`/`enel`/`demanda_residencial`
+em `wiki/*.md`: zero. A guarda do G157 estava verde (casa so prefixo
+`G1xx:`); a lente do G156 nao ve (casa so `NBR`, e o modulo cita "WKI").
+Censo completo desde o G149 (parte da entrega): 18 commits no intervalo,
+11 tocaram producao - 6 goals (G149, G151, G152, G154, G155, G156), 1
+auditoria (`6d94510` fix d179) e os 4 WKI. G150, G153, G157 e os 4
+docs-backlog nao tocam producao (so teste/lente/wiki), por isso nao entram
+no censo. Nenhum outro commit do intervalo entregou numero ao cliente: so
+os 4 WKI poem numero na folha.
+
+**O que a conta faz.** `calculate_residential_demand(payload)` (modulo puro,
+sem FreeCAD): (a) comodos x modulos kVA (`ROOM_MODULES_KVA`: quarto 1,50,
+sala 1,60, banheiro 2,30, cozinha_1 1,50 / cozinha_2 2,10, area_servico 1,90,
+outros 0,35; divisor 1,40 com 1 quarto senao 1,20) x fator locacional
+(1,00/0,88/0,75/0,55); (b) aquecimento pela TABELA 1 (quantidade x potencia
+x fator da faixa); (c) motores pelas TABELAS 2 e 3 por grupo de mesma
+potencia, com o maior grupo a 1,0 e os demais a 0,70; (d) iluminacao
+especial (kW / fator: incandescente 1,0, vapores 0,9); final = a + maior de
+(b,c,d) + 0,70 x demais. **De onde vem (F131,
+WKI-OMBR-MAT-18-0263-INBR-R01):** item 6.1 (potencia instalada e rendimento
+da placa), 6.2.3.2 (motores de mesma potencia nas TABELAS 2 e 3, PDF p. 14),
+6.2.3.3 (iluminacao especial), notes 1 e 2 p. 7 (COZINHA 1 ate 2 quartos,
+COZINHA 2 com 3+), TABELA 1 de aquecimento. **O que ela recusa** (erro
+estruturado, nunca default): motor bifasico; CV fora da grafia da fonte
+(sem interpolar); quantidade nao-inteira ou < 1; consolidado > 10 colunas;
+payload sem network/rooms/loads; fator locacional fora da tabela; comodo
+fora do contrato; rendimento fora de (0,1]; `factor` arbitrario na
+iluminacao especial; rede nao-aerea para o padrao de entrada e
+`installed_load_kw` nao-positivo (na `residencial_eletrica`).
+
+**O erro entregue e corrigido.** Antes do `6734fc8`, cada declaracao de
+motor virava um grupo proprio na consulta: dois motores de 1 CV trifasicos
+em duas linhas somavam 1,52 + 1,06 ~= **2,584 kVA**, onde a coluna de
+quantidade 2 da TABELA 2 imprime **2,28 kVA**. A correcao consolida por par
+(ligacao, potencia) antes da consulta; a potencia instalada continua por
+declaracao (item 6.1: cada motor traz o rendimento da propria placa).
+`p70` tirou a tabela de `limited` (1 celula) para completa (370 celulas);
+`p71` separou sem-placa (1500 W/CV) de rendimento-da-placa
+(CV x 0,736 / rendimento); `a85bdbe` tirou o segundo literal 1,50/2,10 e le
+o modulo da cozinha so de `ROOM_MODULES_KVA`. Erro entregue e corrigido sem
+D e exatamente o que o registro existe para guardar - por isso vai aqui, e
+a afericao celula-a-celula na imagem fica no G161 (nao conferida neste
+goal, convencao 17).
+
+**Entregue (guarda no teste, precedente G156/G157).**
+`tests/test_censo_producao_g159.py` (5 testes + `censo_de_git` e
+`confere_censo` puras): parada fixa `COMMIT_BASE_G149` (hash cheio do commit
+do G149, sem "desde sempre"); predicado unico `_e_arquivo_producao` (a regra
+do G156, com o test_05 provando a equivalencia e travando que os emissores
+G145/G150 nao veem os 3 arquivos WKI - anti-padrao G131); sentido 1 (commit
+sem cobertura/isencao reprova nomeando commit+arquivo), isencao sem motivo
+reprova, sentido 2 (cobertura de commit inexistente e D sem `## D`
+reprovam); cobertura dos 10 (6 goals nos D que o G157 numerou + 4 WKI no
+D188) e isencao do `6d94510` com motivo (auditoria D179, nao entrega nova).
+Anti-tautologia G91: o censo vem do git e a cobertura do literal, por
+argumentos separados. Segui o contrato de manutencao do G157 no mesmo
+commit (MAPA ganha `G159: D188`, GOAL_CORRENTE avanca, sem mudar regra de
+conteudo). Sem modulo novo na producao (precedente G156/G157: nada de ilha,
+nenhuma baseline de producao muda).
+
+**Testes.** Guarda nova (5, baseline + 3 injecoes em repo git de verdade em
+`tmp_path` + fonte unica). Vermelho provado no defeito real antes do
+verbete (test_01 acusou so o D188 ausente: censo 11/11, WKI 4/4). Regra do
+lote verde no codigo final, serial: 198 passed em 265 s (folhas, alcance,
+guardas, disciplina, indice, carimbo, normas, galpao-indice, suite D164,
+fallbacks, titulo G151, vereditos, citacao G156, verbete G157, censo G159,
+estaca G149) + 28 passed em 88 s (auditorias D172/D176/D179, piso G153,
+material G154); 3 varreduras (faixa/sequencia/orfas) OK. Sem GRUPO_FREECAD (nenhum
+freecad subido pelo teste novo) e sem portao do galpao (nenhuma folha
+tocada). Runner integral nao rodado neste goal (nenhum `.py` de producao
+mudou - so teste e wiki; a corrida que vale para o codigo commitado segue a
+do G158 quando ele fechar).
+
+**Pendencia ao usuario:** (1) o G158 (auditoria do lote G154-G157) ainda nao
+fechou - este goal nao auditou os goals, so registrou os commits; (2) as
+~476 celulas WKI transcritas seguem sem conferencia na imagem (G161);
+(3) a lente do G156 segue so-NBR, as citacoes WKI seguem sem triagem
+(G160); (4) a vigencia da WKI R01/2018 (listada Enel-Rio 2026, revisao
+posterior nao conferida) segue no G163. Nenhum numero mudou neste goal.
+
+**Nao feito.** Reescrever os verbetes antigos; renumerar D existentes; mudar
+a producao do modulo WKI (G160/G161/G162); transformar a isencao em lista
+de nomes sem motivo; rodar a auditoria do lote (G158).
