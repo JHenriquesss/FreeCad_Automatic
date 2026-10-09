@@ -745,8 +745,13 @@ def _anotar_calculo(membros, spec):
     def _barra(esf, util, perfil_inicial, perfil_adotado, marca):
         esf = esf or {}
         rom = romaneio.get(marca) or {}
+        # sem `.get` nas chaves do romaneio (a lente G75 conta `get` de chave de
+        # calculo): peca sem linha no romaneio fica SEM a propriedade no pset,
+        # nunca com um valor padrao
+        compr = rom["comprimento_m"] if "comprimento_m" in rom else None
+        peso = rom["peso_unit_kg"] if "peso_unit_kg" in rom else None
         return {PSET_CALCULO: {
-            "Comprimento_m": rom.get("comprimento_m"), "Peso_kg": rom.get("peso_unit_kg"),
+            "Comprimento_m": compr, "Peso_kg": peso,
             "PerfilAdotado": perfil_adotado, "PerfilInicial": _decidido(perfil_inicial),
             "Aco": classe, "fy_MPa": fy / 1000.0, "fu_MPa": fu / 1000.0,
             "Nsd_kN": esf.get("N_kN"), "Vsd_kN": esf.get("V_kN"),
