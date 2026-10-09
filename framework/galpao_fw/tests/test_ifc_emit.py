@@ -447,3 +447,16 @@ def test_fisico_e_analitico_validam_no_esquema_ifc4(tmp_path):
         assert not log.statements, (caminho, [s.get("message") for s in log.statements[:5]])
     barras = ifcopenshell.open(ana).by_type("IfcStructuralCurveMember")
     assert barras and all(b.Axis.DirectionRatios == (0.0, 0.0, 1.0) for b in barras)
+
+
+def test_fisico_perfil_pendente_do_spec_nao_vaza_para_o_pset(tmp_path):
+    # galpao em que o calculo escolhe o perfil: o spec chega com o marcador
+    # PENDENTE em perfil_col/perfil_raf. Achado ao rodar a amostra do engenheiro:
+    # o pset saia com PerfilInicial = "__PENDENTE__".
+    import projeto_spec
+    m = _fisico(tmp_path, dict(_EST_CALCULADA, perfil_col=projeto_spec.PENDENTE,
+                               perfil_raf=projeto_spec.PENDENTE))
+    for el in m.by_type("IfcColumn") + [v for v in m.by_type("IfcBeam") if v.Name == "V1"]:
+        p = _pset_calculo(el)
+        assert "PerfilInicial" not in p and projeto_spec.PENDENTE not in p.values()
+        assert p["PerfilAdotado"] in ("HEA200", "HEA180")

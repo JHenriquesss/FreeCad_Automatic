@@ -675,8 +675,14 @@ def _anotar_calculo(membros, spec):
     import re
 
     import acos
+    import projeto_spec
     est = spec.get("estrutura", {}) or {}
     res = est.get("resultados") or {}
+
+    def _decidido(valor):
+        """Perfil deixado para o calculo escolher (marcador PENDENTE do spec) nao
+        e' dado: fica fora do pset, como chave ausente."""
+        return None if valor == projeto_spec.PENDENTE else valor
     veredito = (est.get("veredito_aco") or {}).get("atende")
     classe = acos.normaliza(est.get("aco") or acos.PADRAO)
     fy, fu = acos.propriedades(classe)
@@ -685,7 +691,7 @@ def _anotar_calculo(membros, spec):
     def _barra(esf, util, perfil_inicial, perfil_adotado):
         esf = esf or {}
         return {PSET_CALCULO: {
-            "PerfilAdotado": perfil_adotado, "PerfilInicial": perfil_inicial,
+            "PerfilAdotado": perfil_adotado, "PerfilInicial": _decidido(perfil_inicial),
             "Aco": classe, "fy_MPa": fy / 1000.0, "fu_MPa": fu / 1000.0,
             "Nsd_kN": esf.get("N_kN"), "Vsd_kN": esf.get("V_kN"),
             "Msd_kNm": esf.get("M_kNm"), "ComboGovernante": esf.get("combo"),

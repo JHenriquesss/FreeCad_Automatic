@@ -6113,3 +6113,41 @@ entrada dele sao os SVG do Bonsai, que ainda nao e' saida do pipeline. Fase
 5 (eletrico sobre planta de terceiros): o plano a poe depois do galpao.
 **O galpao do cliente segue sem dado real (D193); tudo aqui foi medido no
 spec de teste.**
+
+## D195 - Plano de 2026-10-08, Fase 2 no galpao 20 x 28,5 m: o marcador PENDENTE vazava para o IFC (2026-10-08) - FECHADO
+
+**Pedido.** Fechar o criterio de pronto da Fase 2 num galpao que nao seja o
+spec de teste. `projects/galpao-sjb/project-spec.json` segue sem dado real
+(D193). Busca feita antes de pedir ao usuario: os nove `project-spec.json`
+de `projects/` se declaram `not_real_engineering_input` ou estao
+bloqueados; a unica ficha completa e sem essa marca e
+`spec_amostra_engenheiro.json` (20 x 28,5 m, pe-direito 8 m, V0 45, lote de
+957 m2 com recuos e taxa de ocupacao), a mesma que o usuario levou ao
+Blender em `dev/3Dblender/galpao`. **Se ela e' o galpao do cliente atual so
+o usuario confirma.**
+
+**Medido.** `rodar_tudo(spec, com_3d=False, com_executivo=False)` na ficha,
+saida em `projects/amostra_engenheiro/saida/plano-2026-10/` (ignorada pelo
+git): `exigir_completo` passa; calculo ATENDE sem falha de verificacao
+(pilar e viga IPE500, utilizacao maxima 0,84; contraventamento 1,00 e
+flecha do portico 0,99 no limite); memorial em PDF; IFC fisico (12
+IfcColumn, 27 IfcBeam, 130 IfcMember, 156 IfcPlate, 12 IfcFooting, 360
+IfcMechanicalFastener, perfis IPE500 e HEA160, 24 elementos em `Aco MR250`
+e 12 em `Concreto C25`) e analitico, os dois com 0 apontamento no validador
+de esquema e sem FreeCAD carregado. **Defeito achado na leitura do pset:**
+`PerfilInicial = "__PENDENTE__"` - a ficha deixa o perfil para o calculo
+escolher e o `_anotar_calculo` do D193 copiava o marcador como se fosse
+dado.
+
+**Entregue.** `ifc_emit._anotar_calculo`: valor igual a
+`projeto_spec.PENDENTE` fica fora do pset (mesmo tratamento de chave
+ausente). `tests/test_ifc_emit.py`: um teste com o marcador nos dois
+perfis. Na pasta de saida, geradas pelo fluxo do D194: tres folhas A1 pelo
+Bonsai (PDF e PNG; eixos lidos do IFC a cada 5,7 m, cotas 5 x 5700, 28500,
+20000 e 8000), DXF de seis folhas (cortes e elevacoes a 1:50, plantas a
+1:75, todas A1) e o DWG pelo ODA.
+
+**Nao feito.** Confirmar que esta ficha e' o galpao do cliente (decisao do
+usuario). Abrir o IFC em visualizador com interface (aberto no Bonsai sem
+janela e validado no esquema). A elevacao frontal ainda invade o carimbo na
+folha do Bonsai (pe-direito de 8 m); no DXF cada vista tem a sua folha.

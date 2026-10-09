@@ -942,6 +942,9 @@ congelado até a entrega do galpão.
 - **Fases 1, 3 e 4** camada rápida medida (3173 testes em 212 s, `tools/suite_rapida.py`),
   relatório do teste do Blender + Bonsai em `docs/fase3-bonsai/` e prancha DXF editável
   (`dxf_prancha.py`, DWG pelo ODA) ([[04-decisions#D194]]).
+- **Fase 2 no galpão 20 × 28,5 m** IFC, folhas, DXF e DWG gerados da ficha
+  `spec_amostra_engenheiro.json`; o marcador pendente deixou de vazar para o IFC;
+  falta o usuário confirmar que é o galpão do cliente ([[04-decisions#D195]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
