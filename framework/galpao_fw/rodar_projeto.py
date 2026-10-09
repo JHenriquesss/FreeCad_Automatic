@@ -503,12 +503,18 @@ def relatorio_consolidado(spec, res, modelo=None, executivo=None, out_dir=None):
 
 def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=True,
                gerar_pdf=True, gerar_dossie=True, host="http://localhost:9875",
-               timeout_3d=180, timeout_exec=1200, verbose=True):
+               timeout_3d=180, timeout_exec=1200, verbose=True,
+               com_pranchas_ifc=False, carimbo_pranchas=None, revisao_pranchas="00"):
     """ENTRADA UNICA: spec -> calculo + memorial PDF + modelo 3D + pranchas 2D +
     RELATORIO-CONSOLIDADO. Portavel (out_dir default = projects/<slug>/saida).
     Cada estagio degrada com gracia: se o FreeCAD (MCP/exe) nao estiver
     disponivel, o 3D/executivo ficam 'NAO GERADO' e o calculo/relatorio seguem.
-    Retorna {res, modelo, executivo, relatorio, out_dir, atende}."""
+    Retorna {res, modelo, executivo, relatorio, out_dir, atende}.
+    `com_pranchas_ifc=True` gera tambem, do IFC do passo 2b, as pranchas pelo
+    Blender + Bonsai, o DXF editavel, o DWG e o PDF das folhas (`pranchas_ifc`);
+    leva minutos e depende de programas de fora, por isso e' pedido, nao padrao.
+    `carimbo_pranchas` sao os campos declarados do carimbo (PROJETO, CLIENTE,
+    RESPONSAVEL, DATA); o que nao for declarado sai em branco."""
     import os
     PS_ok = True
     try:
@@ -564,6 +570,31 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
             _log("[2b] BIM IFC: ifcopenshell ausente (pip install ifcopenshell)")
     except Exception as ex:
         _log(f"[2b] BIM IFC: FALHOU ({ex})")
+
+    # 2c) pranchas do IFC (Bonsai) + DXF + DWG + PDF - pedido, nao padrao. Sem o
+    # IFC do passo 2b ou sem o Blender fica NAO GERADO com o motivo.
+    pranchas = None
+    if com_pranchas_ifc:
+        bim = spec.get("estrutura", {}).get("ifc_bim") or {}
+        fis = bim["fisico"] if "fisico" in bim else None
+        if not fis or not os.path.isfile(str(fis)):
+            pranchas = {"gerado": False, "avisos": [],
+                        "nao_gerado": {"desenhos": "IFC fisico ausente (passo 2b)"}}
+        else:
+            try:
+                import pranchas_ifc as PI
+                g = spec.get("geometria", {})
+                pranchas = PI.gerar(
+                    str(fis), os.path.join(out_dir, "pranchas-ifc"),
+                    titulo="GALPAO %sx%s m" % (g.get("comprimento", "?"), g.get("span", "?")),
+                    revisao=revisao_pranchas, carimbo=carimbo_pranchas)
+            except Exception as ex:
+                pranchas = {"gerado": False, "avisos": [],
+                            "nao_gerado": {"desenhos": "falhou (%s)" % ex}}
+        spec.setdefault("estrutura", {})["pranchas_ifc"] = pranchas
+        import pranchas_ifc as PI
+        for linha in PI.resumo_pt(pranchas):
+            _log("[2c] Pranchas do IFC: " + linha)
 
     # 3) modelo 3D (FreeCAD via MCP) - opcional/gracioso
     modelo = None
@@ -623,6 +654,7 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
     _global = (res.get("atende_global") if isinstance(res, dict)
                and "atende_global" in res else res.get("atende"))
     return {"res": res, "modelo": modelo, "executivo": executivo, "dossie": dossie,
+            "pranchas_ifc": pranchas,
             "relatorio": rel, "out_dir": out_dir, "atende": bool(_global),
             "atende_portico": bool(res.get("atende")) if isinstance(res, dict) else False,
             "falhas": (res.get("falhas_verificacao") or []) if isinstance(res, dict) else []}

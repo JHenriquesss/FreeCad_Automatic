@@ -6825,3 +6825,53 @@ sao iguais. Nao era defeito do arquivo.
 nem cota em relacao ao DXF. NAO prova que o AutoCAD o abre sem aviso nem que
 o desenho aparece como esperado na tela (fontes, espessuras, viewport): isso
 so abrindo num CAD de verdade, e continua com o usuario. Nenhum codigo mudou.
+
+## D214 - Plano de 2026-10-08: Fases 3 e 4 - as pranchas do IFC saem do `rodar_tudo` (2026-10-09) - FECHADO
+
+**Por que.** O D194 deixou aberto: "ligar `dxf_prancha` ao `rodar_tudo`: a
+entrada dele sao os SVG do Bonsai, que ainda nao e' saida do pipeline". O
+pacote do galpao do cliente (D195 a D204) foi montado por quatro comandos
+dados a mao, um depois do outro (Blender, `dxf_prancha`, ODA, Inkscape).
+
+**Entregue.**
+- `pranchas_ifc.py` (modulo novo): `gerar(ifc, pasta, titulo, revisao,
+  carimbo)` copia o IFC do motor para a pasta de trabalho (o Bonsai grava no
+  arquivo que abre; o original nao e' tocado), roda o script do Bonsai sem
+  janela, converte os desenhos em DXF com a lista de material do proprio IFC
+  (`dxf_prancha.gerar_de_pasta`), gera o DWG pelo ODA e o PDF de cada folha
+  pelo Inkscape. Cada programa de fora e' procurado na maquina (variavel de
+  ambiente `BLENDER_EXE` / `ODA_EXE` / `INKSCAPE_EXE`, pasta de instalacao,
+  PATH); o que faltar ou falhar fica em `nao_gerado` com o motivo, e uma
+  entrega so aparece no resultado com o arquivo gravado e nao vazio. Vista
+  que o Bonsai nao conseguiu gerar aparece como INCOMPLETO. Pasta de
+  trabalho de corrida anterior e' renomeada (`.anterior-<data>`), nunca
+  apagada nem reaproveitada.
+- `rodar_projeto.rodar_tudo(..., com_pranchas_ifc=False,
+  carimbo_pranchas=None, revisao_pranchas="00")`: passo 2c, depois do IFC.
+  Pedido, nao padrao: leva minutos e depende de programas de fora. O
+  resultado vai em `r["pranchas_ifc"]` e em `spec["estrutura"]`. Campo do
+  carimbo nao declarado sai em branco (a ficha nao traz cliente nem
+  responsavel).
+- `dxf_prancha.py` deixou de ser script avulso (o `pranchas_ifc` o importa);
+  saiu de `SCRIPTS_AVULSOS` e o cabecalho mudou. O uso pela linha de comando
+  continua.
+- 8 funcoes de teste em `tests/test_pranchas_ifc.py`, com o executor dos
+  programas trocado por um que escreve os arquivos que cada um escreveria, e
+  1 em `tests/test_pipeline_bim.py` (o `rodar_tudo` passa o IFC do passo 2b,
+  a pasta, a revisao e o carimbo declarados, e so quando pedido).
+
+**Medido no galpao do cliente (20 x 28,5 m), com os programas de verdade.**
+`rodar_tudo(spec, com_3d=False, com_executivo=False, gerar_dossie=False,
+com_pranchas_ifc=True)` em pasta nova (`plano-2026-10-d214`, ignorada pelo
+git): 163 s ao todo, 141 s nas pranchas; 13 desenhos, nenhum passo do Bonsai
+com erro; 6 folhas A1 em PDF; DXF de 14 folhas e DWG de 264 kB. O DXF que
+saiu do pipeline, ao lado do que tinha sido montado a mao e conferido no
+D213: mesma contagem por tipo e por camada (8702 entidades), mesmas 14
+folhas, mesmos blocos, textos e cotas. Folha EST-01 vista em imagem.
+
+**Limites.** Os testes nao sobem Blender, ODA nem Inkscape: a costura e'
+testada, os programas so foram exercitados na corrida medida acima. O script
+do Bonsai segue em `docs/fase3-bonsai/scripts/` e so conhece o galpao. O
+titulo passado ao script nao aparece no carimbo das folhas do Bonsai (a
+celula mostra o titulo curto das vistas). DWG ainda nao aberto no AutoCAD.
+O `relatorio_consolidado` nao lista as pranchas do IFC.

@@ -1,5 +1,5 @@
 # ============================================================================
-# dxf_prancha.py - SCRIPT AVULSO: PRANCHA DXF EDITAVEL A PARTIR DO DESENHO DO
+# dxf_prancha.py - PRANCHA DXF EDITAVEL A PARTIR DO DESENHO DO
 # MODELO IFC (plano de 2026-10-08, Fase 4). Entregavel para quem revisa no
 # AutoCAD: geometria em tamanho real no espaco do modelo, uma folha por vista
 # no espaco de papel, com viewport na escala, carimbo como bloco com atributos,
@@ -17,7 +17,8 @@
 # O desenho e' DERIVADO do modelo: corrigir o projeto e' corrigir o modelo e
 # gerar de novo, nunca editar o DXF.
 #
-# Uso:  python dxf_prancha.py <pasta com os .svg> <saida.dxf> [chave=valor ...]
+# No pipeline e' chamado por pranchas_ifc (rodar_tudo, com_pranchas_ifc=True).
+# Uso avulso:  python dxf_prancha.py <pasta com os .svg> <saida.dxf> [chave=valor ...]
 #       (chaves do carimbo: PROJETO, CLIENTE, RESPONSAVEL, DATA, REVISAO)
 #       IFC=<modelo.ifc> acrescenta a folha da LISTA DE MATERIAL, contada no
 #       proprio modelo (marca, perfil, comprimento, quantidade; peso so onde o

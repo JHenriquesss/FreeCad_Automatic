@@ -51,3 +51,27 @@ def test_ifc_no_diretorio_ifc(tmp_path):
     assert idir.is_dir()
     ifcs = list(idir.glob("*.ifc"))
     assert len(ifcs) == 2                               # fisico + analitico
+
+
+def test_rodar_tudo_so_gera_as_pranchas_quando_pedido(tmp_path, monkeypatch):
+    import inspect
+    import pranchas_ifc as PI
+    assert inspect.signature(RP.rodar_tudo).parameters["com_pranchas_ifc"].default is False
+    spec = _spec_amostra()
+    visto = {}
+
+    def falso(ifc, pasta, titulo, revisao, carimbo=None, **kw):
+        visto.update(ifc=ifc, pasta=pasta, titulo=titulo, revisao=revisao, carimbo=carimbo)
+        return {"gerado": False, "avisos": [], "nao_gerado": {"desenhos": "teste"}}
+
+    monkeypatch.setattr(PI, "gerar", falso)
+    r = RP.rodar_tudo(spec, out_dir=str(tmp_path), com_3d=False, com_executivo=False,
+                      gerar_pdf=False, gerar_dossie=False, verbose=False,
+                      com_pranchas_ifc=True, carimbo_pranchas={"CLIENTE": "Fulano"},
+                      revisao_pranchas="03")
+    assert visto["ifc"] == spec["estrutura"]["ifc_bim"]["fisico"]
+    assert visto["pasta"] == os.path.join(str(tmp_path), "pranchas-ifc")
+    assert (visto["titulo"], visto["revisao"]) == ("GALPAO 28.5x20 m", "03")
+    assert visto["carimbo"] == {"CLIENTE": "Fulano"}
+    assert r["pranchas_ifc"]["nao_gerado"] == {"desenhos": "teste"}
+    assert spec["estrutura"]["pranchas_ifc"] is r["pranchas_ifc"]

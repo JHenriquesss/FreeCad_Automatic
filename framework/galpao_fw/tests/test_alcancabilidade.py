@@ -59,9 +59,8 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                     # exigencias_nao_verificadas_g130 -> pacote_legal; o
                     # proprio guarda acima manda "deixar de ser avulso").
                     "medicao_memoria",
-                   # plano de 2026-10-08, Fase 4: ferramenta de linha de comando
-                   # rodada depois do desenho do modelo (D194); nenhum modulo a importa
-                   "dxf_prancha",
+                   # dxf_prancha deixou de ser avulso no D214: pranchas_ifc o
+                   # importa e rodar_projeto.rodar_tudo chama pranchas_ifc
                    # Fase 5, primeiro passo: ferramenta de linha de comando que le a
                    # planta do cliente e chama o motor (D205); nenhum modulo a importa
                    # (D206: tambem e' ele que chama a biblioteca circuitos_planta)
