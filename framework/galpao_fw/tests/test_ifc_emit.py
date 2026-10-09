@@ -350,3 +350,100 @@ def test_emitir_do_spec_tapered_retorna_none(tmp_path):
     spec = {"geometria": _GEO, "estrutura": {"perfil_col_adotado": None,
                                              "perfil_raf_adotado": None}}
     assert EM.emitir_ifc_do_spec(spec, str(tmp_path / "x.ifc")) is None
+
+
+# ---- Fase 2 (plano de 2026-10-08): o calculo vai gravado no elemento ----------
+_EST_CALCULADA = {
+    "perfil_col": "HEA180", "perfil_raf": "HEA160",
+    "perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+    "sapata_adotada": {"B": 2.0, "L": 2.5, "h": 0.6, "tipo": "sapata"},
+    "esf_coluna": {"M_kNm": 120.0, "N_kN": 50.0, "V_kN": 20.0, "combo": "C1_gov"},
+    "esf_rafter": {"M_kNm": 90.0, "N_kN": 40.0, "V_kN": 35.0, "combo": "C2_gov"},
+    "resultados": {"Coluna": 0.81, "Viga": 0.93, "Sapata": 0.34},
+    "veredito_aco": {"atende": True, "falhas_verificacao": []}}
+
+
+def _pset_calculo(el):
+    import ifcopenshell.util.element as ue
+    return ue.get_psets(el).get(EM.PSET_CALCULO)
+
+
+def _fisico(tmp_path, estrutura, **spec):
+    f = str(tmp_path / "calc.ifc")
+    assert EM.emitir_ifc_do_spec(dict({"slug": "calc", "geometria": _GEO,
+                                       "estrutura": estrutura}, **spec), f) == f
+    return ifcopenshell.open(f)
+
+
+def test_fisico_grava_calculo_e_material_no_portico(tmp_path):
+    import ifcopenshell.util.element as ue
+    m = _fisico(tmp_path, dict(_EST_CALCULADA, aco="A572-G50"),
+                fundacao={"fck": 30000.0})
+    cols, vigas = m.by_type("IfcColumn"), m.by_type("IfcBeam")
+    assert len(cols) == 18
+    for col in cols:
+        p = _pset_calculo(col)
+        assert (p["PerfilAdotado"], p["PerfilInicial"]) == ("HEA200", "HEA180")
+        assert (p["Msd_kNm"], p["Nsd_kN"], p["Vsd_kN"]) == (120.0, 50.0, 20.0)
+        assert p["ComboGovernante"] == "C1_gov" and p["Utilizacao"] == 0.81
+        assert p["VereditoAcoAtende"] is True
+        # a classe declarada no spec, com o par (fy, fu) que o calculo usa
+        assert (p["Aco"], p["fy_MPa"], p["fu_MPa"]) == ("A572-G50", 345.0, 450.0)
+        assert ue.get_material(col).Name == "Aco A572-G50"
+    portico = [v for v in vigas if v.Name == "V1"]
+    assert len(portico) == 18
+    for v in portico:
+        p = _pset_calculo(v)
+        assert p["PerfilAdotado"] == "HEA180" and p["Utilizacao"] == 0.93
+        assert (p["Msd_kNm"], p["ComboGovernante"]) == (90.0, "C2_gov")
+    sap = m.by_type("IfcFooting")
+    assert len(sap) == 18
+    for s in sap:
+        p = _pset_calculo(s)
+        assert (p["Tipo"], p["Utilizacao"], p["fck_MPa"]) == ("sapata", 0.34, 30.0)
+        assert ue.get_material(s).Name == "Concreto C30"
+
+
+def test_fisico_so_o_portico_e_a_fundacao_levam_o_calculo(tmp_path):
+    # escora/cumeeira (Beam com outra marca), tercas e chapas nao tem esforco
+    # proprio no spec: ficam sem pset, em vez de herdar o da viga do portico
+    m = _fisico(tmp_path, dict(_EST_CALCULADA, perfil_escora="HEA160",
+                               n_terca=4, terca_dims=[200.0, 75.0, 25.0, 2.65]))
+    com = {e.is_a() for e in m.by_type("IfcElement") if _pset_calculo(e)}
+    assert com == {"IfcColumn", "IfcBeam", "IfcFooting"}
+    outras = [v for v in m.by_type("IfcBeam") if v.Name != "V1"]
+    assert outras and not any(_pset_calculo(v) for v in outras)
+    assert m.by_type("IfcMember") and not any(_pset_calculo(e)
+                                             for e in m.by_type("IfcMember"))
+
+
+def test_fisico_dado_ausente_fica_fora_do_pset(tmp_path):
+    # spec so com os perfis (sem esforcos, sem utilizacao, sem fck): o pset nao
+    # inventa zero nem veredito, e a sapata nao ganha concreto sem fck declarado
+    import ifcopenshell.util.element as ue
+    m = _fisico(tmp_path, {"perfil_col_adotado": "HEA200",
+                           "perfil_raf_adotado": "HEA180",
+                           "sapata_adotada": {"B": 2.0, "L": 2.5, "h": 0.6}})
+    p = _pset_calculo(m.by_type("IfcColumn")[0])
+    ausentes = {"Nsd_kN", "Vsd_kN", "Msd_kNm", "ComboGovernante", "Utilizacao",
+                "VereditoAcoAtende", "PerfilInicial"}
+    assert not ausentes & set(p), sorted(ausentes & set(p))
+    assert p["PerfilAdotado"] == "HEA200"
+    sap = m.by_type("IfcFooting")[0]
+    assert ue.get_material(sap) is None and _pset_calculo(sap) is None
+
+
+def test_fisico_e_analitico_validam_no_esquema_ifc4(tmp_path):
+    # validador de esquema do ifcopenshell: zero apontamento nos dois arquivos
+    # (o analitico saia com 'Attribute not optional' em cada barra: faltava Axis)
+    import ifcopenshell.validate
+    spec = {"slug": "v", "geometria": dict(_GEO, base_fixed=True),
+            "estrutura": dict(_EST_CALCULADA), "fundacao": {"fck": 25000.0}}
+    fis = EM.emitir_ifc_do_spec(spec, str(tmp_path / "f.ifc"))
+    ana = EM.emitir_ifc_analitico_do_spec(spec, str(tmp_path / "a.ifc"))
+    for caminho in (fis, ana):
+        log = ifcopenshell.validate.json_logger()
+        ifcopenshell.validate.validate(ifcopenshell.open(caminho), log)
+        assert not log.statements, (caminho, [s.get("message") for s in log.statements[:5]])
+    barras = ifcopenshell.open(ana).by_type("IfcStructuralCurveMember")
+    assert barras and all(b.Axis.DirectionRatios == (0.0, 0.0, 1.0) for b in barras)

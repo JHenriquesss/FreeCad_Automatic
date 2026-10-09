@@ -5979,3 +5979,71 @@ decidir; (11) WKI R01/2018: confirmar se substituida.
 **Nao feito.** Decidir qualquer linha pelo usuario; trocar numero para
 bater com a norma; reescrever verbete antigo; renumerar D existentes;
 abrir goal novo a partir da tabela.
+
+## D193 - Plano de 2026-10-08, Fases 1 e 2: o motor sem FreeCAD provado e o calculo gravado no IFC (2026-10-08) - FECHADO
+
+**Pedido.** `decisoes-arquitetura-projetos.md` (raiz do repo, decisao do
+usuario em 2026-10-08): o sistema passa a ser ferramenta interna para vender
+o PROJETO; o motor de calculo nao pode importar FreeCAD (Fase 1) e o galpao
+sai em IFC direto dos dados do motor, com classes, perfis reais, materiais e
+resultados de calculo em property sets (Fase 2). Este verbete nao e de goal
+`G<num>`: o arco de goals G/D fica congelado ate a entrega do galpao.
+
+**Medido (antes de mudar).** Fase 1: por AST, 12 dos 233 modulos de
+`galpao_fw` citam o FreeCAD (`build_galpao`, `build_concreto`,
+`build_eletrico`, `build_federado` e os oito `techdraw_*`), e so
+`build_galpao` importa no topo; nenhum modulo de calculo importa um deles ao
+carregar. Sonda viva (subprocesso com FreeCAD/Part/TechDraw/PySide bloqueados
+no `sys.meta_path`): 231 de 233 importam; as duas excecoes sao
+`build_galpao` (esperada) e `casa_residencial_sintetica`, que so importa
+depois de `project_loop` (import circular ja existente, sem relacao com o
+FreeCAD). `tools_probe_pe13` sobe um `freecad.exe` ao ser importado (script
+sem guarda `__main__`, ja declarado SCRIPT AVULSO). Fase 2: `rodar_tudo` com
+`com_3d=False` no spec de teste `projects/galpao-sjb/project-spec-framework-
+teste.json` (dados sinteticos, `not_real_engineering_input`) gerou os dois
+IFC em 40,5 s sem FreeCAD carregado: fisico com 16 IfcColumn, 37 IfcBeam,
+166 IfcMember, 184 IfcPlate, 16 IfcFooting, 480 IfcMechanicalFastener, perfis
+`IfcIShapeProfileDef` (HEA240/IPE330/HEA160), 0 apontamento no
+`ifcopenshell.validate` - e **0 IfcMaterial, 0 IfcPropertySet**. Analitico:
+4 apontamentos `Attribute not optional` (um por `IfcStructuralCurveMember`,
+faltava `Axis`, obrigatorio no IFC4).
+
+**Entregue.**
+- `tests/test_motor_sem_freecad.py` (so teste): medida estatica (quem cita o
+  FreeCAD tem de estar em `SAIDA_FREECAD`, nos dois sentidos) e medida viva
+  (todo modulo nao-avulso importa com o FreeCAD bloqueado, menos
+  `IMPORTA_NO_TOPO`); vermelho por injecao dos dois medidores (import tardio
+  em funcao para a AST; import de topo, em cadeia e dinamico via `importlib`
+  para a sonda - o dinamico a AST nao ve).
+- `ifc_emit.py`: `membros_do_spec` chama `_anotar_calculo`, que grava em
+  coluna (`C<n>`), viga do portico (`V<n>`) e fundacao o material declarado
+  e o pset `Calc_VerificacaoEstrutural` (perfil adotado e inicial, classe do
+  aco com o par fy/fu de `acos.propriedades`, Nsd/Vsd/Msd e combinacao
+  governante, utilizacao, veredito do aco; na fundacao: tipo, utilizacao,
+  fck). So copia o que o calculo deixou em `spec.estrutura`: chave ausente
+  fica fora do pset; sapata sem `fundacao.fck` nao ganha concreto.
+  `emitir_ifc` ganha `_pset`/`_assoc_calculo` (chave `propriedades` do
+  membro; `Pset_Armadura` passa pelo mesmo `_pset`, mesmo resultado).
+  `emitir_ifc_analitico` grava `Axis` (0,0,1: portico no plano XY).
+- Depois: no mesmo spec de teste, 32 elementos com `Aco MR250`, 16 com
+  `Concreto C25`, 48 psets (16 coluna + 16 viga + 16 fundacao), 0
+  apontamento de validacao nos dois arquivos.
+- `tests/test_ifc_emit.py`: quatro testes (calculo e material no portico;
+  so portico e fundacao levam o pset; dado ausente fica fora; os dois
+  arquivos validam e toda barra analitica tem `Axis`).
+
+**Decisoes tomadas sem o usuario (reversiveis).** (1) Nome do pset sem o
+prefixo `Pset_`, que o buildingSMART reserva aos psets padronizados (os
+`Pset_Armadura`/`Pset_SecaoAnalitica` antigos ficam como estao). (2)
+Escoras, cumeeiras, tercas, tirantes e chapas seguem sem material e sem
+pset: o spec nao guarda esforco proprio deles, e a classe do aco do portico
+nao vale para chumbador nem para perfil formado a frio. (3) Nenhuma citacao
+de norma entra no pset (a lente de citacao cobra conferencia de cada uma).
+
+**Nao feito.** Empacotar o motor (`pyproject`, imports com nome de pacote):
+os 233 modulos usam import plano, e renomear tudo nao aproxima a entrega do
+galpao. Entradas e saidas tipadas (dataclass/pydantic). Abrir o IFC num
+visualizador externo (so `ifcopenshell.validate`). **O criterio de pronto da
+Fase 2 fala do galpao do cliente: `projects/galpao-sjb/project-spec.json`
+segue bloqueado por 9 campos sem dado real (comprimento, vao, pe-direito e
+as seis disciplinas); o IFC entregue aqui e o do spec de teste.**

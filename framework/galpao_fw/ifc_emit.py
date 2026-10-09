@@ -428,8 +428,15 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
         arm = mb.get("armadura")
         if not arm:
             return
+        _pset(el, "Pset_Armadura", arm)
+
+    def _pset(el, nome, valores, pula_ausente=False):
+        """Anexa um IfcPropertySet `nome` ao elemento. Com `pula_ausente`, valor
+        None fica FORA do pset (dado ausente nao vira zero no modelo)."""
         props = []
-        for k, v in arm.items():
+        for k, v in valores.items():
+            if v is None and pula_ausente:
+                continue
             if isinstance(v, str):
                 nv = m.create_entity("IfcLabel", v)
             elif isinstance(v, bool):
@@ -438,17 +445,28 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
                 nv = m.create_entity("IfcReal", float(v))
             props.append(m.create_entity("IfcPropertySingleValue", Name=str(k),
                                          NominalValue=nv))
-        pset = m.create_entity("IfcPropertySet", GlobalId=_guid(), Name="Pset_Armadura",
+        if pula_ausente and not props:
+            return
+        pset = m.create_entity("IfcPropertySet", GlobalId=_guid(), Name=nome,
                                HasProperties=props)
         m.create_entity("IfcRelDefinesByProperties", GlobalId=_guid(),
                         RelatedObjects=[el], RelatingPropertyDefinition=pset)
+
+    def _assoc_calculo(el, mb):
+        """Anexa os resultados do calculo que o membro declara em 'propriedades'
+        ({nome_do_pset: {propriedade: valor}}). Backward-compatible: sem a chave,
+        nao faz nada."""
+        for nome_pset, valores in (mb.get("propriedades") or {}).items():
+            _pset(el, nome_pset, valores, pula_ausente=True)
 
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
             _painel_ifc(m, body, _sto(mb), mb, _guid)
             continue
         if "secao2" in mb:                            # barra de ALMA VARIÁVEL (tapered)
-            _tapered_ifc(m, body, _sto(mb), mb, esc)
+            el = _tapered_ifc(m, body, _sto(mb), mb, esc)
+            _assoc_mat(el, mb)
+            _assoc_calculo(el, mb)
             continue
         if "dims" in mb and "centro" in mb:           # CAIXA num ponto (fundação/chapa)
             import numpy as np
@@ -475,6 +493,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
                 products=[fo])
             _assoc_mat(fo, mb)
             _assoc_armadura(fo, mb)
+            _assoc_calculo(fo, mb)
             continue
         s = mb["secao"]
         key = mb["perfil"]
@@ -494,6 +513,7 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
         run("spatial.assign_container", m, relating_structure=_sto(mb), products=[el])
         _assoc_mat(el, mb)
         _assoc_armadura(el, mb)
+        _assoc_calculo(el, mb)
     m.write(path)
     return path
 
@@ -637,7 +657,60 @@ def membros_do_spec(spec):
                                 misula=misula, fund_profunda=fund_prof, ponte=ponte,
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
+    _anotar_calculo(membros, spec)
     return membros
+
+
+PSET_CALCULO = "Calc_VerificacaoEstrutural"
+
+
+def _anotar_calculo(membros, spec):
+    """Grava em cada peca do portico e da fundacao o MATERIAL declarado e o
+    RESULTADO do calculo (perfil adotado, esforcos de calculo, utilizacao), para
+    quem revisa o modelo ler a verificacao no proprio elemento. So copia o que o
+    calculo deixou em spec.estrutura: chave ausente fica fora do pset, nunca
+    vira valor inventado. Coluna = marca C<n>, viga do portico = marca V<n>
+    (modelo_neutro); as demais barras (escoras, tercas, tirantes) nao tem
+    esforco proprio no spec e seguem sem pset."""
+    import re
+
+    import acos
+    est = spec.get("estrutura", {}) or {}
+    res = est.get("resultados") or {}
+    veredito = (est.get("veredito_aco") or {}).get("atende")
+    classe = acos.normaliza(est.get("aco") or acos.PADRAO)
+    fy, fu = acos.propriedades(classe)
+    aco = "Aco %s" % classe
+
+    def _barra(esf, util, perfil_inicial, perfil_adotado):
+        esf = esf or {}
+        return {PSET_CALCULO: {
+            "PerfilAdotado": perfil_adotado, "PerfilInicial": perfil_inicial,
+            "Aco": classe, "fy_MPa": fy / 1000.0, "fu_MPa": fu / 1000.0,
+            "Nsd_kN": esf.get("N_kN"), "Vsd_kN": esf.get("V_kN"),
+            "Msd_kNm": esf.get("M_kNm"), "ComboGovernante": esf.get("combo"),
+            "Utilizacao": util, "VereditoAcoAtende": veredito}}
+
+    col = _barra(est.get("esf_coluna"), res.get("Coluna"), est.get("perfil_col"),
+                 est.get("perfil_col_adotado"))
+    raf = _barra(est.get("esf_rafter"), res.get("Viga"), est.get("perfil_raf"),
+                 est.get("perfil_raf_adotado"))
+    fck = (spec.get("fundacao") or {}).get("fck")          # kPa
+    sa = est.get("sapata_adotada") or {}
+    for mb in membros:
+        marca = mb.get("marca") or ""
+        if mb.get("tipo") == "Column" and re.fullmatch(r"C\d+", marca):
+            mb.setdefault("material", aco)
+            mb.setdefault("propriedades", col)
+        elif mb.get("tipo") == "Beam" and re.fullmatch(r"V\d+", marca):
+            mb.setdefault("material", aco)
+            mb.setdefault("propriedades", raf)
+        elif mb.get("tipo") == "Footing":
+            if fck:
+                mb.setdefault("material", "Concreto C%d" % round(fck / 1000.0))
+            mb.setdefault("propriedades", {PSET_CALCULO: {
+                "Tipo": sa.get("tipo"), "Utilizacao": res.get("Sapata"),
+                "fck_MPa": (fck / 1000.0) if fck else None}})
 
 
 def emitir_ifc_do_spec(spec, path):
@@ -689,6 +762,9 @@ def emitir_ifc_analitico(modelo, path, nome="Galpao"):
             pc.AppliedCondition = m.create_entity("IfcBoundaryNodeCondition",
                                                    Name=a.get("tipo", "apoio"))
     membros = []
+    # Axis e' obrigatorio no IFC4 (direcao que fixa o eixo z local da barra): o
+    # portico esta no plano XY do modelo, entao z local = fora do plano.
+    eixo_z = m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0))
     for k, b in enumerate(modelo["barras"], 1):
         vi, vj = vert[b["no_i"]], vert[b["no_j"]]
         edge = m.create_entity("IfcEdge", EdgeStart=vi, EdgeEnd=vj)
@@ -698,7 +774,8 @@ def emitir_ifc_analitico(modelo, path, nome="Galpao"):
         pdef = m.create_entity("IfcProductDefinitionShape", Representations=[top])
         cm = m.create_entity("IfcStructuralCurveMember", GlobalId=guid(),
                              Name="%s%d" % (b["grupo"][:3].upper(), k),
-                             PredefinedType="RIGID_JOINED_MEMBER", Representation=pdef)
+                             PredefinedType="RIGID_JOINED_MEMBER", Representation=pdef,
+                             Axis=eixo_z)
         for nd in (conn[b["no_i"]], conn[b["no_j"]]):
             m.create_entity("IfcRelConnectsStructuralMember", GlobalId=guid(),
                             RelatingStructuralMember=cm, RelatedStructuralConnection=nd)

@@ -932,6 +932,14 @@ portões do aço (2 passed) e do galpão (884 s) verdes.
   conferida na imagem da página com a recomendação conservadora ao lado;
   nenhum número, veredito, default ou trava mudou ([[04-decisions#D192]]).
 
+## Plano de 2026-10-08 — serviço de projetos (fases 0–5)
+Norte em `decisoes-arquitetura-projetos.md` (raiz do repo): vende-se o projeto, o
+motor não importa FreeCAD, o IFC é a fonte única. O arco de goals G/D fica
+congelado até a entrega do galpão.
+- **Fases 1 e 2** motor provado sem FreeCAD (`tests/test_motor_sem_freecad.py`) e
+  cálculo + material gravados no IFC físico, analítico válido no esquema IFC4;
+  galpão do cliente ainda sem dado real ([[04-decisions#D193]]).
+
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
 - `868b93e` (2026-09-09) — backlog de 11 goals executáveis (G78–G88), medidos na árvore;
