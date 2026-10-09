@@ -997,6 +997,8 @@ congelado até a entrega do galpão.
   DXF saiu igual ao montado à mão ([[04-decisions#D214]]).
 - **Fase 3, lista de material no Bonsai** a mesma tabela contada no IFC vira folha do
   DXF e folha `EST-0n` do Bonsai ([[04-decisions#D215]]).
+- **Fase 1, motor como pacote** `pyproject.toml` plano (239 módulos com o nome que já
+  têm); roda instalada fora do repositório importa 236 deles ([[04-decisions#D216]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -66,3 +66,7 @@ tools/build-logs/
 # Logs do job periodico do remote-check G35 (tools/run_remote_check.ps1)
 tools/remote-check-logs/
 framework/galpao_fw/out_g15_*/
+
+# subprodutos de construir o pacote do motor (framework/galpao_fw/pyproject.toml)
+framework/galpao_fw/build/
+framework/galpao_fw/*.egg-info/

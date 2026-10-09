@@ -6912,3 +6912,46 @@ e camada, mesmas folhas, textos e cotas.
 folha (o Bonsai so tem o carimbo A1 preparado em portugues). A largura das
 notas e' estimada por letra (0,6 da altura, adotado), so para o teste de
 caber. As 32 linhas secundarias seguem sem peso (D198).
+
+## D216 - Plano de 2026-10-08: Fase 1 - o motor como pacote instalavel plano (2026-10-09) - FECHADO (sem mudanca de modulo)
+
+**Por que.** O D193 deixou aberto "empacotar o motor (`pyproject`, imports
+com nome de pacote)" porque renomear os imports de todos os modulos nao
+aproximava a entrega. O Projetor-eletrico alcanca o motor pondo esta pasta no
+`sys.path` (`MOTOR_PATH` ou a pasta irma). **Decisao do usuario
+(2026-10-09, perguntada):** pacote instalavel PLANO - os modulos instalados
+com o nome que ja tem, sem renomear import nenhum.
+
+**Entregue.**
+- `framework/galpao_fw/pyproject.toml`: distribuicao `galpao-fw` 0.1.0 com os
+  239 modulos da pasta em `py-modules`; dependencias lidas de
+  `requirements.txt` (uma lista so). `tests/` e `tools/` nao entram.
+- `tests/test_empacotamento_d216.py` (3 funcoes): a lista do pyproject e' a
+  pasta nos dois sentidos (modulo novo fora da lista reprova, nome que nao
+  existe mais tambem); as dependencias nao tem segunda lista; pasta de teste
+  nao entra.
+- `.gitignore`: `build/` e `*.egg-info/` do pacote.
+
+**Medido.** Roda construida com `uv build --wheel` (1,7 MB) e instalada, com
+as dependencias, num ambiente Python 3.12 novo fora do repositorio. De uma
+pasta vazia, sem o repositorio no caminho de importacao: 236 dos 239 modulos
+importam. Os tres que nao importam:
+- `build_galpao`: importa `FreeCAD` (e' o construtor que roda dentro do
+  FreeCAD) - esperado;
+- `tools_probe_pe13`: script avulso que le um arquivo ao ser importado;
+- `casa_residencial_sintetica`: importacao circular com `casa_residencial`
+  quando e' o primeiro a ser importado. **Ja acontece no repositorio** (medido
+  fora do pacote, mesmo erro); nao e' efeito do empacotamento e nao foi
+  mexido (tipologia fora do escopo congelado).
+Os modulos que o Projetor-eletrico usa (`condutores_nbr5410`,
+`instalacao_eletrica`, `dimensionamento_eletrico_residencial`,
+`arquitetura_residencial`) importam e respondem do `site-packages`.
+
+**Limites.** Pacote plano poe 239 nomes soltos no ambiente (`framework`,
+`perfis`, `validacao`): serve a um ambiente dedicado ao motor, nao a um
+ambiente compartilhado. A instalacao comum so serve aos modulos de calculo:
+quem le a arvore do repositorio pelo proprio caminho (`framework.raiz_repo`,
+as varreduras, os scripts enviados ao FreeCAD, `pranchas_ifc` ao procurar o
+script do Bonsai em `docs/`) so funciona na instalacao editavel. Arquivos de
+dados (fichas JSON) nao vao na roda. Entradas e saidas tipadas (dataclass)
+continuam nao feitas.
