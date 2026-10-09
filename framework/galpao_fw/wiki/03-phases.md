@@ -965,6 +965,8 @@ congelado até a entrega do galpão.
   ([[04-decisions#D202]]).
 - **Detalhes de ligação no Bonsai, 5ª etapa** ligação da cumeeira no modelo e detalhes
   de cumeeira e de contraventamento ([[04-decisions#D203]]).
+- **Detalhes de ligação no Bonsai, 6ª etapa** contraventamento pela parede, terça e
+  longarina; só o script de pranchas mudou ([[04-decisions#D204]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

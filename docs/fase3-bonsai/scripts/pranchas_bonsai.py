@@ -41,7 +41,7 @@ VAO_MM, TITULO_MM = 12.0, 16.0
 ORDEM = ("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL", "ELEVACAO-LATERAL",
          "PLANTA-FUNDACAO", "PLANTA-COBERTURA",
          "DET-BASE-ELEVACAO", "DET-BASE-PLANTA", "DET-JOELHO", "DET-CUMEEIRA",
-         "DET-CONTRAVENTAMENTO")
+         "DET-CONTRAVENTAMENTO", "DET-TERCA", "DET-LONGARINA")
 # rotulos do carimbo padrao do Bonsai -> portugues
 CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH": "NORTE",
               "COMPANY": "RESP. TECNICO", "REV. NO.": "REV.", "DESCRIPTION": "DESCRICAO",
@@ -53,7 +53,8 @@ TITULO_CURTO = {"PLANTA-BAIXA": "PLANTA", "CORTE-TRANSVERSAL": "CORTE",
                 "PLANTA-FUNDACAO": "FUNDACAO", "PLANTA-COBERTURA": "COBERTURA",
                 "DET-BASE-ELEVACAO": "DET. BASE", "DET-BASE-PLANTA": "BASE (PLANTA)",
                 "DET-JOELHO": "DET. JOELHO", "DET-CUMEEIRA": "DET. CUMEEIRA",
-                "DET-CONTRAVENTAMENTO": "DET. CONTRAV."}
+                "DET-CONTRAVENTAMENTO": "DET. CONTRAV.", "DET-TERCA": "DET. TERCA",
+                "DET-LONGARINA": "DET. LONGARINA"}
 
 
 def distribuir(tamanhos, area=AREA_UTIL, vao=VAO_MM, titulo=TITULO_MM):
@@ -270,7 +271,7 @@ def _placa_de_base(tool, x, y):
     return None if melhor is None else (melhor[1], melhor[2])
 
 
-def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None):
+def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
     """Detalhes de ligacao a 1:10, tirados do MESMO modelo: base do pilar em
     corte e em planta (cotas lidas do envelope da placa no modelo) e o no
     viga-pilar. Pilar do segundo portico, linha A (o primeiro tem os montantes
@@ -312,12 +313,43 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None):
                        [((xb, y_apice + 1.20, cumeeira - 0.95), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
                         ((xb, y_apice + 1.20, cumeeira - 1.07), "CHAPA DE TOPO E PARAFUSOS: "
                          "{{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
-    # canto do contraventamento da cobertura, no primeiro portico: chapa de
-    # gusset, barras e a escora, em planta olhando de cima do beiral
-    vistas.append(("DET-CONTRAVENTAMENTO", "PLAN_VIEW", (xs[0] + 0.75, ys[0] + 0.75, alt_col + 0.60),
-                   (0, 0, 0), jan, jan, 1.20, [], "IfcColumn, IfcBeam, IfcMember, IfcPlate",
-                   ESCALA_DETALHE, []))
+    estrutura = "IfcColumn, IfcBeam, IfcMember, IfcPlate, IfcMechanicalFastener"
+    # contraventamento da PAREDE, canto inferior do primeiro vao, visto de fora:
+    # na planta da cobertura a chapa de gusset ficava escondida sob a viga
+    vistas.append(("DET-CONTRAVENTAMENTO", "ELEVATION_VIEW",
+                   (xs[0] + 0.75, ys[0] - 0.6, 0.80), (r(90), 0, 0),
+                   jan, jan, 1.20, [], estrutura, ESCALA_DETALHE,
+                   [((xs[0] + 0.55, ys[0], 1.55), "CONTRAVENTAMENTO {{Name}} - CHAPA DE GUSSET", "CV")]))
+    for nome, prefixo, rotulo in (("DET-TERCA", "T", "TERCA"), ("DET-LONGARINA", "G", "LONGARINA")):
+        alvo = (apoios or {}).get(prefixo)
+        if alvo is None:
+            continue
+        # vista ao longo do comprimento, no segundo portico: a peca em secao
+        # sobre a viga (terca) ou sobre o pilar (longarina), com o clipe
+        _cx, cy, cz = alvo
+        vistas.append((nome, "ELEVATION_VIEW", (xb - 0.6, cy, cz), (r(90), 0, r(-90)),
+                       jan * 0.7, jan * 0.7, 1.20, [], estrutura, ESCALA_DETALHE,
+                       [((xb, cy + 0.62, cz - 0.55), rotulo + " {{Name}}", prefixo)]))
     return vistas
+
+
+def _apoio_secundario(tool, prefixo, y_ref, z_ref):
+    """Centro (m), no plano do portico, da peca secundaria de marca `prefixo`<n>
+    (T = terca, G = longarina) mais proxima do ponto (y_ref, z_ref)."""
+    melhor = None
+    for el in tool.Ifc.get().by_type("IfcMember"):
+        nome = el.Name or ""
+        if not (nome.startswith(prefixo) and nome[len(prefixo):].isdigit()):
+            continue
+        o = tool.Ifc.get_object(el)
+        if o is None or o.type != "MESH":
+            continue
+        pts = [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
+        c = [sum(p[i] for p in pts) / 8.0 for i in range(3)]
+        dist = math.hypot(c[1] - y_ref, c[2] - z_ref)
+        if melhor is None or dist < melhor[0]:
+            melhor = (dist, tuple(c))
+    return None if melhor is None else melhor[1]
 
 
 def _mais_proximo(tool, prefixo, x, y):
@@ -469,7 +501,10 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
 
     xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
     todas = (vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira)
-             + detalhes_do_galpao(xs, ys, alt_col, _placa_de_base(tool, xb, yb), cumeeira))
+             + detalhes_do_galpao(
+                 xs, ys, alt_col, _placa_de_base(tool, xb, yb), cumeeira,
+                 apoios={"T": _apoio_secundario(tool, "T", yb + 3.0, alt_col + 0.5),
+                         "G": _apoio_secundario(tool, "G", yb, alt_col * 0.5)}))
     for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala, textos in todas:
         if so_estas and nome not in so_estas:
             continue

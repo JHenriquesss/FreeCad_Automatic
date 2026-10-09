@@ -6470,3 +6470,23 @@ escondida sob a viga na planta (so aparecem a barra, a viga e a escora): a
 vista certa e' de baixo para cima, nao tentada. Simbolo de solda. Chapa de
 reforco de alma do joelho. As ligacoes de terca, longarina e mao-francesa
 nao tem detalhe proprio.
+
+## D204 - Plano de 2026-10-08: detalhes de contraventamento, terca e longarina (2026-10-09) - FECHADO, SO SCRIPT
+
+**Entregue.** `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: o detalhe do
+contraventamento passou a ser a vista da PAREDE no canto inferior do
+primeiro vao (na planta da cobertura a chapa de gusset ficava escondida sob
+a viga); dois detalhes novos, de terca e de longarina, com a camera posta
+no centro da peca lido do modelo (`_apoio_secundario`). Nenhum modulo de
+producao mudou. Galpao do cliente: seis folhas A1 do Bonsai (a sexta com
+cumeeira, contraventamento, terca e longarina), DXF de catorze folhas com
+auditoria sem erro, DWG pelo ODA.
+
+**Visto na folha e nao resolvido.** Os tres detalhes novos sao pobres: no
+do contraventamento aparecem a base do pilar e a chapa de gusset, mas a
+barra nao; no da terca e no da longarina aparecem a peca em secao e o
+clipe, sem cota nem fixador (o modelo nao tem os parafusos do clipe). Servem
+de localizacao, nao de detalhe de fabricacao.
+
+**Nao feito.** Simbolo de solda (falta o usuario dizer de onde saem tipo e
+perna). Chapa de reforco de alma do joelho. Mao-francesa sem detalhe.
