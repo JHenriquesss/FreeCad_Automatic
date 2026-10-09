@@ -979,6 +979,9 @@ congelado até a entrega do galpão.
 - **Fase 5, quarto passo** o elétrico desenhado sobre a planta DXF recebida, em camadas
   próprias e em outro arquivo; posições dos pontos são sugestão
   ([[04-decisions#D208]]).
+- **Fase 5, quinto passo** ambientes lidos dos `IfcSpace` de um modelo IFC, com o mesmo
+  contrato do leitor de DXF; área e perímetro da geometria
+  ([[04-decisions#D209]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

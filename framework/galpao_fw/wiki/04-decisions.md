@@ -6658,3 +6658,35 @@ explicados na legenda. Ambiente cujo centro cai fora do proprio poligono
 tomadas de ambientes vizinhos podem se sobrepor perto de um encontro de
 paredes. O DXF nao foi aberto num CAD de verdade, so relido pelo ezdxf e
 visto em imagem.
+
+## D209 - Plano de 2026-10-08: Fase 5, quinto passo - ambientes lidos de um modelo IFC (2026-10-09) - FECHADO
+
+**Entregue.**
+- `ambientes_ifc.py` (biblioteca sem FreeCAD, chamada pela linha de comando
+  do `ambientes_dxf` quando o arquivo e' `.ifc`; declarada em
+  `SEM_FAIXA_DECLARADA`): cada `IfcSpace` do pavimento vira um ambiente com
+  o mesmo contrato do leitor de DXF. Area, perimetro e poligono saem da
+  GEOMETRIA (face de baixo do solido, pelo nucleo geometrico do
+  ifcopenshell), em metros qualquer que seja a unidade do arquivo. O tipo
+  vem de `ObjectType`, senao `LongName`, senao `Name`. O quadro e' o unico
+  `IfcElectricDistributionBoard`.
+- Erro nomeado em vez de palpite: ambiente sem nome, sem geometria, com
+  vazio no piso, quantidade de area do arquivo divergindo da geometria em
+  mais de 1 %, ambientes em mais de um pavimento sem o pavimento escolhido,
+  pavimento que nao existe, mais de um quadro.
+- `tests/test_ambientes_ifc.py`: 8 testes com o modelo escrito pelo
+  ifcopenshell (mm e m; ambientes fora da origem; ambiente em L; previsao,
+  divisao e comprimento iguais aos da planta DXF equivalente; rotulo x
+  geometria; modelo mal formado; dois pavimentos).
+
+**Limites ditos.** A tolerancia de 1 % entre a area escrita e a da geometria
+e' ADOTADA (conferencia de rotulo, nao criterio de norma). Nao ha saida
+desenhada para entrada em IFC: o desenho do D208 precisa de uma planta DXF
+de base. Nenhum IFC de cliente (Revit, ArchiCAD) foi lido: so modelos
+escritos pelo proprio teste. Os `IfcSpace` que o proprio projeto emite para
+a casa nao trazem tipo (so o nome do ambiente).
+
+**Fase 5: o que continua aberto.** Demanda, ramal e padrao de entrada na
+ponte da planta (os motores existem, a ponte nao); eletroduto tracado;
+gabarito contra um projeto ja entregue - depende de o usuario trazer uma
+planta real e o projeto correspondente.

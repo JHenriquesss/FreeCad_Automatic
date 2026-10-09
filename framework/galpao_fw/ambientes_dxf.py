@@ -26,6 +26,10 @@
 # Uso:  python ambientes_dxf.py <planta.dxf> [camada] [unidade: mm|cm|m]
 #                               [criterios=<criterios.json>] [saida=<pasta>]
 #                               [dxf=<planta-eletrica.dxf>]
+#       python ambientes_dxf.py <modelo.ifc> [pavimento=<nome>] [criterios=...]
+#                               [saida=<pasta>]
+# Arquivo .ifc: os ambientes vem dos IfcSpace (ambientes_ifc); nao ha `dxf=`,
+# porque o desenho precisa de uma planta DXF de base.
 # Com `criterios=` sai tambem a divisao em circuitos e o quadro de cargas
 # (circuitos_planta.dividir); os criterios sao declarados, sem padrao. Se o
 # arquivo de criterios trouxer `instalacao` (e `tracado` ou `comprimentos_m`),
@@ -176,7 +180,7 @@ def previsao_de_cargas(caminho, camada=CAMADA_PADRAO, unidade=None):
 
 
 if __name__ == "__main__":
-    _args = [a for a in sys.argv[1:] if not a.startswith(("criterios=", "saida=", "dxf="))]
+    _args = [a for a in sys.argv[1:] if not a.startswith(("criterios=", "saida=", "dxf=", "pavimento="))]
     _crit = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("criterios=")]
     _saida = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("saida=")]
     _dxf = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("dxf=")]
@@ -184,8 +188,14 @@ if __name__ == "__main__":
         sys.exit(__doc__ + "\nuso: python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] "
                            "[criterios=<criterios.json>]")
     import arquitetura_residencial as _AR
-    res = previsao_de_cargas(_args[0], *(_args[1:2] or [CAMADA_PADRAO]),
-                             unidade=(_args[2] if len(_args) > 2 else None))
+    if _args[0].lower().endswith(".ifc"):
+        import ambientes_ifc as _AI
+        _pav = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("pavimento=")]
+        res = _AI.previsao_de_cargas(_args[0], normaliza_tipo, _pav[0] if _pav else None)
+        _dxf = []                                   # sem planta DXF de base nao ha desenho
+    else:
+        res = previsao_de_cargas(_args[0], *(_args[1:2] or [CAMADA_PADRAO]),
+                                 unidade=(_args[2] if len(_args) > 2 else None))
     print(_AR.relatorio_pt(res))
     if res["leitura_dxf"]["erros"]:
         print("ERROS DE LEITURA DA PLANTA:")
