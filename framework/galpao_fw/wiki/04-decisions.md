@@ -6417,3 +6417,30 @@ conceitual do build, nao uma ligacao detalhada.**
 **Nao feito.** Simbolo de solda; pedestal da fundacao rasa; cumeeira,
 contraventamento e demais ligacoes; chapa de reforco de alma (doubler) do
 joelho, que o build desenha quando a zona de painel exige.
+
+## D202 - Plano de 2026-10-08: o pedestal do build e' menor que a placa de base (2026-10-09) - REGISTRADO, SEM MUDANCA DE CODIGO
+
+**Pedido.** Quarta etapa das ligacoes no Bonsai: levar ao modelo do IFC o
+pedestal da fundacao rasa que o `build_galpao` desenha.
+
+**Medido.** A altura do pedestal tem origem declarada (`fundacao.h_ped`,
+0,5 m quando a ficha nao declara; `projeto_spec.to_build_kwargs` e o
+quantitativo do calculo a usam). O lado, nao: o `build_galpao` fixa
+`pdim = max(d + 120, bf + 120, 300)` mm a partir do pilar. No galpao do
+cliente (pilar IPE500, placa de base 600 x 800 x 100 mm, chumbadores a 60
+mm da borda da placa) isso da **620 mm de lado contra 800 mm de placa: os
+chumbadores ficam a 340 mm do eixo e a face do pedestal a 310 mm - fora do
+concreto**. Vi isso no detalhe da base gerado do IFC com o pedestal
+espelhado (implementado, 1308 testes verdes, e desfeito).
+
+**Decisao do usuario (2026-10-09, perguntada).** Sem pedestal no IFC por
+enquanto: o bloco fica direto sob a placa, com o gap de graute (D199), que
+e' o detalhe que sai coerente. O codigo do pedestal no modelo neutro foi
+revertido antes de qualquer commit.
+
+**Fica aberto.** O defeito esta no `build_galpao` (PEDESTAL_* menor que a
+placa sempre que a placa passa de `pilar + 120 mm`) e portanto na prancha
+PE06 do executivo do FreeCAD. A regra do lado do pedestal (placa + folga,
+cobrimento do chumbador) e' definicao do engenheiro; nada foi mudado no
+build. A chapa de reforco de alma do joelho (doubler) tambem nao foi levada
+ao modelo: no galpao do cliente a zona de painel da 0,87 e nao a exige.

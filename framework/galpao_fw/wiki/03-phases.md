@@ -960,6 +960,9 @@ congelado até a entrega do galpão.
 - **Detalhes de ligação no Bonsai, 3ª etapa** chapa de topo, parafusos e enrijecedores
   do joelho no modelo, espelhando o construtor do FreeCAD; a chapa não escala com o
   perfil adotado ([[04-decisions#D201]]).
+- **Pedestal da fundação rasa** não levado ao IFC por decisão do usuário: no construtor
+  do FreeCAD ele é menor que a placa de base e deixa os chumbadores fora do concreto
+  ([[04-decisions#D202]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
