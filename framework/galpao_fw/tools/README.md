@@ -24,3 +24,17 @@ pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Os testes de build 3D (`-m build`, exigem FreeCAD) ficam de fora — rodam à parte.
+
+## suite_rapida.py — a camada rápida (toda alteração)
+
+Roda `pytest -m "not slow"`: motores e modelo, sem FreeCAD e sem os arquivos
+medidos como lentos em `tests/camada_lenta.py`. Medido em 2026-10-08: 3173
+testes em 212 s de parede (`-n 2`, máquina de 8 GB).
+
+```bash
+python tools/suite_rapida.py            # -n 2
+```
+
+Reprova também se a corrida passar de 600 s ou se um arquivo da camada rápida
+somar o dobro do corte de 10 s (aí ele entra em `LENTOS_MEDIDOS`). A suíte
+inteira, de antes de entrega, é `tools/suite_paralela.py`.

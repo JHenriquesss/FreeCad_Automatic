@@ -58,7 +58,10 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                     # (ORFAS_TRIADAS e lida pela producao via
                     # exigencias_nao_verificadas_g130 -> pacote_legal; o
                     # proprio guarda acima manda "deixar de ser avulso").
-                    "medicao_memoria"]
+                    "medicao_memoria",
+                   # plano de 2026-10-08, Fase 4: ferramenta de linha de comando
+                   # rodada depois do desenho do modelo (D194); nenhum modulo a importa
+                   "dxf_prancha"]
 
 
 def _modulos():

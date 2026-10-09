@@ -939,6 +939,9 @@ congelado até a entrega do galpão.
 - **Fases 1 e 2** motor provado sem FreeCAD (`tests/test_motor_sem_freecad.py`) e
   cálculo + material gravados no IFC físico, analítico válido no esquema IFC4;
   galpão do cliente ainda sem dado real ([[04-decisions#D193]]).
+- **Fases 1, 3 e 4** camada rápida medida (3173 testes em 212 s, `tools/suite_rapida.py`),
+  relatório do teste do Blender + Bonsai em `docs/fase3-bonsai/` e prancha DXF editável
+  (`dxf_prancha.py`, DWG pelo ODA) ([[04-decisions#D194]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

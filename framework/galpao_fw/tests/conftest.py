@@ -22,6 +22,21 @@ def _carrega_censo():
 
 
 _CF = _carrega_censo()
+
+
+def _carrega_camada_lenta():
+    import importlib.util
+
+    caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "camada_lenta.py")
+    spec = importlib.util.spec_from_file_location("_camada_lenta_suite", caminho)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
+# Fase 1 do plano de 2026-10-08: camada rapida = `pytest -m "not slow"`.
+_LENTOS = _carrega_camada_lenta().arquivos_lentos(_CF.GRUPO_FREECAD)
 _AMOSTRADOR = None
 
 
@@ -67,6 +82,8 @@ def pytest_collection_modifyitems(config, items):
         arquivos.add(arq)
         if arq in _CF.GRUPO_FREECAD:
             item.add_marker(pytest.mark.xdist_group(name=_CF.NOME_GRUPO))
+        if arq in _LENTOS:
+            item.add_marker(pytest.mark.slow)
     pasta = os.environ.get(_CF.ENV_DIR)
     if pasta and _worker_xdist(config):
         import json

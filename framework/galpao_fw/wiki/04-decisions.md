@@ -6047,3 +6047,69 @@ visualizador externo (so `ifcopenshell.validate`). **O criterio de pronto da
 Fase 2 fala do galpao do cliente: `projects/galpao-sjb/project-spec.json`
 segue bloqueado por 9 campos sem dado real (comprimento, vao, pe-direito e
 as seis disciplinas); o IFC entregue aqui e o do spec de teste.**
+
+## D194 - Plano de 2026-10-08, Fases 1, 3 e 4: camada rapida medida, teste do Bonsai e prancha DXF (2026-10-08) - FECHADO
+
+**Pedido.** `decisoes-arquitetura-projetos.md`: separar a suite em camada
+rapida (motores e modelo, poucos minutos na maquina de 8 GB) e lenta (Fase
+1); testar o Blender + Bonsai com seis criterios e entregar relatorio (Fase
+3); exportar DXF editavel em espaco de papel, com escala e folha escolhidas
+sozinhas, viewport, carimbo como bloco, camadas por disciplina e estilo fixo
+de cota (Fase 4).
+
+**Medido (antes de mudar).** Suite inteira no commit do D193
+(`tools/suite_paralela.py -n 2`, com junit): 4020 testes, 0 falha, 2
+pulados, 1535 s de parede, 3044 s somados em 326 arquivos (maquina
+carregada: o teste do Bonsai rodou junto e a memoria livre desceu a 61 MB,
+sem quebra). 61 arquivos somam 10 s ou mais e concentram 2676 s; os 263
+restantes fora do grupo do FreeCAD somam 368 s. Linha de base antes de
+qualquer mudanca (commit `a1e8f0e`): rc 0 em 1512 s. Bonsai: nao instalado;
+Blender 5.2.1 LTS instalado; sem Inkscape; sem ODA File Converter. O
+`requirements.txt` citava um `dxf_vistas.py` que nao existe; nenhum modulo
+de `galpao_fw` importava `ezdxf`.
+
+**Entregue.**
+- Fase 1: `tests/camada_lenta.py` (61 arquivos com o tempo medido, corte de
+  10 s; quem sobe o FreeCAD entra por `censo_freecad.GRUPO_FREECAD`, fonte
+  unica); `tests/conftest.py` marca `slow`; `pytest.ini` declara o marcador;
+  `tools/suite_rapida.py` roda `-m "not slow"` e reprova por orcamento de
+  parede (600 s) ou por arquivo que dobra o corte;
+  `tests/test_camada_rapida.py` cobra a lista (isencao morta, FreeCAD dentro,
+  guardas da fase na camada rapida) e injeta os dois defeitos no medidor do
+  runner. Medido: camada rapida = 3173 testes em 265 arquivos, **212 s de
+  parede** (`-n 2`); lenta = 862 testes.
+- Fase 3: `docs/fase3-bonsai/` (relatorio com os seis criterios, dois
+  scripts, tres folhas A1 em PDF e PNG, render). Bonsai, Inkscape 1.4.4 e
+  ODA File Converter instalados na maquina para o teste.
+- Fase 4: `dxf_prancha.py` (SCRIPT AVULSO, declarado em
+  `test_alcancabilidade.SCRIPTS_AVULSOS`): le o SVG de desenho que o
+  `ifcopenshell.draw` escreve, leva a geometria ao espaco do modelo em mm
+  reais por camada de disciplina (corte em 0,50 mm), grava cada cota como
+  entidade DIMENSION que mede a geometria, e cria uma folha por vista no
+  espaco de papel com a maior escala entre 1:50, 1:75 e 1:100 que cabe na
+  menor folha entre A3, A2 e A1, viewport nessa escala e carimbo como bloco
+  com oito atributos. `tests/test_dxf_prancha.py`: 15 testes com SVG escrito
+  a mao (sem Blender). No galpao do spec de teste: 6 folhas (corte e
+  elevacao frontal 1:50 A1; plantas e elevacao lateral 1:75 A1), 7091 linhas,
+  30 cotas, auditoria do ezdxf sem erro, cota = distancia entre os pontos
+  medidos nas 30. DWG pelo ODA File Converter 27.9.0 (AutoCAD 2018, auditoria
+  ligada, sem arquivo de erro); convertido de volta, as 6 folhas, as 7091
+  linhas, as 30 cotas, a viewport 1:75 e o carimbo estao la.
+
+**Decisoes tomadas sem o usuario (reversiveis).** (1) Corte da camada lenta
+em 10 s por arquivo, medido com a maquina carregada. (2) Folga de 2x no
+runner: cinco arquivos de 6 a 9 s numa corrida somaram de 11 a 14 s na
+seguinte, e sem folga o runner reprovava por ruido. (3) Vista que nao cabe
+em A1 a 1:100 cai em escala de escape (1:125 a 1:500) e o resumo diz
+`escala_de_escape`. (4) Margens, carimbo, altura de texto e espessuras do
+DXF sao ADOTADOS e estao declarados no cabecalho do modulo: a norma de
+desenho tecnico nao esta na biblioteca de normas.
+
+**Nao feito.** Trocar o FreeCAD por Bonsai em qualquer entregavel (a decisao
+de migrar e do usuario; o relatorio recomenda). Carimbo proprio no Bonsai,
+eixos nomeados, niveis, detalhes de ligacao. Abrir o DXF no AutoCAD (so
+auditoria e render pelo ezdxf). Ligar `dxf_prancha` ao `rodar_tudo`: a
+entrada dele sao os SVG do Bonsai, que ainda nao e' saida do pipeline. Fase
+5 (eletrico sobre planta de terceiros): o plano a poe depois do galpao.
+**O galpao do cliente segue sem dado real (D193); tudo aqui foi medido no
+spec de teste.**
