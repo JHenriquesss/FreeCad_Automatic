@@ -6947,6 +6947,15 @@ Os modulos que o Projetor-eletrico usa (`condutores_nbr5410`,
 `instalacao_eletrica`, `dimensionamento_eletrico_residencial`,
 `arquitetura_residencial`) importam e respondem do `site-packages`.
 
+**No Projetor-eletrico** (ramo `feat/motor-instalado`, commit `3e98107`): a
+fachada `projetor_api/motor.py` continua usando `MOTOR_PATH` ou a pasta irma;
+sem os dois, importa o modulo instalado no ambiente. `MOTOR_PATH` declarado
+e errado segue respondendo 503 (nao cai no pacote em silencio). Dois testes
+novos; 245 testes da API passam. Provado com a roda: a fachada respondeu
+limites de queda e DN de eletroduto com o motor vindo do `site-packages`, sem
+a pasta irma. O pacote NAO foi posto no `pyproject.toml` nem no `uv.lock` da
+API (fixaria la o `numpy==1.26.4` do motor): e' instalacao a parte.
+
 **Limites.** Pacote plano poe 239 nomes soltos no ambiente (`framework`,
 `perfis`, `validacao`): serve a um ambiente dedicado ao motor, nao a um
 ambiente compartilhado. A instalacao comum so serve aos modulos de calculo:
