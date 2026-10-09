@@ -40,7 +40,8 @@ VAO_MM, TITULO_MM = 12.0, 16.0
 # ordem em que as vistas entram nas folhas
 ORDEM = ("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL", "ELEVACAO-LATERAL",
          "PLANTA-FUNDACAO", "PLANTA-COBERTURA",
-         "DET-BASE-ELEVACAO", "DET-BASE-PLANTA", "DET-JOELHO")
+         "DET-BASE-ELEVACAO", "DET-BASE-PLANTA", "DET-JOELHO", "DET-CUMEEIRA",
+         "DET-CONTRAVENTAMENTO")
 # rotulos do carimbo padrao do Bonsai -> portugues
 CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH": "NORTE",
               "COMPANY": "RESP. TECNICO", "REV. NO.": "REV.", "DESCRIPTION": "DESCRICAO",
@@ -51,7 +52,8 @@ TITULO_CURTO = {"PLANTA-BAIXA": "PLANTA", "CORTE-TRANSVERSAL": "CORTE",
                 "ELEVACAO-FRONTAL": "ELEV. FRONTAL", "ELEVACAO-LATERAL": "ELEV. LATERAL",
                 "PLANTA-FUNDACAO": "FUNDACAO", "PLANTA-COBERTURA": "COBERTURA",
                 "DET-BASE-ELEVACAO": "DET. BASE", "DET-BASE-PLANTA": "BASE (PLANTA)",
-                "DET-JOELHO": "DET. JOELHO"}
+                "DET-JOELHO": "DET. JOELHO", "DET-CUMEEIRA": "DET. CUMEEIRA",
+                "DET-CONTRAVENTAMENTO": "DET. CONTRAV."}
 
 
 def distribuir(tamanhos, area=AREA_UTIL, vao=VAO_MM, titulo=TITULO_MM):
@@ -268,7 +270,7 @@ def _placa_de_base(tool, x, y):
     return None if melhor is None else (melhor[1], melhor[2])
 
 
-def detalhes_do_galpao(xs, ys, alt_col, placa):
+def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None):
     """Detalhes de ligacao a 1:10, tirados do MESMO modelo: base do pilar em
     corte e em planta (cotas lidas do envelope da placa no modelo) e o no
     viga-pilar. Pilar do segundo portico, linha A (o primeiro tem os montantes
@@ -301,6 +303,20 @@ def detalhes_do_galpao(xs, ys, alt_col, placa):
                    [((xb, yb + 1.80, alt_col - 0.55), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
                     ((xb, yb + 1.80, alt_col - 0.67), "PILAR {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "C"),
                     ((xb, yb + 1.80, alt_col - 0.79), "JOELHO: {{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
+    if cumeeira is not None and len(ys) > 1:
+        # apice do primeiro vao, no segundo portico: as duas vigas, a chapa de
+        # topo e os parafusos, em vista (camera 0,6 m antes do portico)
+        y_apice = (ys[0] + ys[1]) / 2.0
+        vistas.append(("DET-CUMEEIRA", "ELEVATION_VIEW", (xb - 0.6, y_apice, cumeeira - 0.15),
+                       (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE,
+                       [((xb, y_apice + 1.20, cumeeira - 0.95), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
+                        ((xb, y_apice + 1.20, cumeeira - 1.07), "CHAPA DE TOPO E PARAFUSOS: "
+                         "{{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
+    # canto do contraventamento da cobertura, no primeiro portico: chapa de
+    # gusset, barras e a escora, em planta olhando de cima do beiral
+    vistas.append(("DET-CONTRAVENTAMENTO", "PLAN_VIEW", (xs[0] + 0.75, ys[0] + 0.75, alt_col + 0.60),
+                   (0, 0, 0), jan, jan, 1.20, [], "IfcColumn, IfcBeam, IfcMember, IfcPlate",
+                   ESCALA_DETALHE, []))
     return vistas
 
 
@@ -453,7 +469,7 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
 
     xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
     todas = (vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira)
-             + detalhes_do_galpao(xs, ys, alt_col, _placa_de_base(tool, xb, yb)))
+             + detalhes_do_galpao(xs, ys, alt_col, _placa_de_base(tool, xb, yb), cumeeira))
     for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala, textos in todas:
         if so_estas and nome not in so_estas:
             continue

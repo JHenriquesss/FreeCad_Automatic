@@ -963,6 +963,8 @@ congelado até a entrega do galpão.
 - **Pedestal da fundação rasa** não levado ao IFC por decisão do usuário: no construtor
   do FreeCAD ele é menor que a placa de base e deixa os chumbadores fora do concreto
   ([[04-decisions#D202]]).
+- **Detalhes de ligação no Bonsai, 5ª etapa** ligação da cumeeira no modelo e detalhes
+  de cumeeira e de contraventamento ([[04-decisions#D203]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -590,3 +590,26 @@ def test_sem_ligacao_adotada_ou_com_medida_faltando_o_joelho_so_tem_a_misula():
     for ms in (so_misula, falta):
         assert len([m for m in ms if m.get("perfil") == "Misula"]) == 18
         assert not [m for m in ms if m.get("marca") in ("CJ1", "PJ1", "EJ1")]
+
+
+def test_cumeeira_leva_chapa_de_topo_e_parafusos_escalados_pela_viga():
+    ms = _joelho()
+    chapas = [m for m in ms if m.get("perfil") == "ChapaTopoCumeeira"]
+    paraf = [m for m in ms if m.get("marca") == "PM1"]
+    # 9 porticos, 1 apice cada: 1 chapa e 4 parafusos por apice
+    assert (len(chapas), len(paraf)) == (9, 36)
+    c = chapas[0]
+    # largura = mesa da viga (180), espessura do calculo (12,5), altura = d + 140
+    assert c["dims"] == (180.0, 12.5, 171.0 + 140.0)
+    assert c["centro"] == (0.0, 10000.0, 7000.0)            # apice: meio do vao, cumeeira
+    p4 = paraf[:4]
+    assert sorted((round(p["p1"][0]), round(p["p1"][2] - 7000.0, 1)) for p in p4) == [
+        (-55, -60.5), (-55, 60.5), (55, -60.5), (55, 60.5)]    # bf/2 - 35 e d/2 - 25
+    for p in p4:                                            # 140 mm ao longo de Y
+        assert (p["p1"][1], p["p2"][1]) == (10000.0 - 70.0, 10000.0 + 70.0)
+        assert p["p1"][0] == p["p2"][0] and p["p1"][2] == p["p2"][2]
+
+
+def test_sem_ligacao_adotada_nao_ha_chapa_de_cumeeira():
+    ms = MN.frame_completo(_GEO_J, _SEC_J, misula=_MIS_J)
+    assert not [m for m in ms if m.get("marca") in ("CC1", "PM1")]

@@ -436,6 +436,37 @@ def ligacoes_joelho(geometria, joelho, col_d, col_bf, hlen=800.0):
     return ms
 
 
+def ligacoes_cumeeira(geometria, joelho, raf_d, raf_bf):
+    """Ligacao de momento no APICE: CHAPA DE TOPO no encontro das duas vigas
+    (normal em Y, cobrindo a secao da viga + 140 mm na altura) e 4 PARAFUSOS
+    pela chapa, 2 por mesa. Espelha CONEX_CUMEEIRA_*_CHAPA e _M* do build_galpao
+    (mesmas medidas: largura = mesa da viga, altura = d + 140, parafusos a
+    bf/2 - 35 e d/2 - 25 do centro, 140 mm de comprimento). Usa a espessura e
+    a bitola do `joelho_adotado` do calculo, como o build. Conceitual: o
+    parafusamento definitivo e' do engenheiro. raf_d/raf_bf em m."""
+    if not joelho or not all(k in joelho for k in ("db", "t")):
+        return []
+    rafz, _cols, rid = _rafz_mm(geometria)
+    jt, jdb = float(joelho["t"]) * MM, float(joelho["db"]) * MM
+    dep, wid = float(raf_d) * MM, float(raf_bf) * MM
+    bx, bz = wid / 2.0 - 35.0, dep / 2.0 - 25.0
+    paraf = {"nome": "Ø%g" % jdb, "forma": "round", "D": jdb / MM}
+    ms = []
+    for x in (xm * MM for xm in _xs(geometria)):
+        for ry in rid:
+            rh = rafz(ry)
+            ms.append({"marca": "CC1", "perfil": "ChapaTopoCumeeira", "tipo": "Plate",
+                       "centro": (x, ry, rh), "dims": (wid, jt, dep + 140.0),
+                       "secao": {"forma": "box"}})
+            for sz in (-1.0, 1.0):
+                for sx in (-1.0, 1.0):
+                    ms.append({"marca": "PM1", "perfil": paraf["nome"], "tipo": "Fastener",
+                               "p1": (x + sx * bx, ry - 70.0, rh + sz * bz),
+                               "p2": (x + sx * bx, ry + 70.0, rh + sz * bz),
+                               "secao": paraf})
+    return ms
+
+
 def gussets_contrav(geometria, gusset_t=12.0, esc_d=0.152, L=150.0, z0_mm=30.0):
     """Gussets (chapas triangulares) dos cantos dos painéis de contraventamento, nos
     vãos de EXTREMIDADE. Cobertura: 4 cantos/vão (plano X-Y no beiral). Parede: 4/vão
@@ -1086,6 +1117,9 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
             # (no de alma variavel o joelho e' a propria secao, sem chapa de topo)
             ms += ligacoes_joelho(geometria, joelho_lig, secoes["col"]["d"],
                                   secoes["col"]["bf"])
+            if secoes.get("raf"):                      # chapa de topo e parafusos do apice
+                ms += ligacoes_cumeeira(geometria, joelho_lig, secoes["raf"]["d"],
+                                        secoes["raf"]["bf"])
     if ponte:                                          # ponte rolante (viga + consoles)
         ms += ponte_rolante(geometria, ponte.get("hvr"), ponte.get("ecc"),
                             ponte.get("vr_sec"), ponte.get("console_sec"))

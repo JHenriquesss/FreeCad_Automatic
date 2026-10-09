@@ -6444,3 +6444,29 @@ PE06 do executivo do FreeCAD. A regra do lado do pedestal (placa + folga,
 cobrimento do chumbador) e' definicao do engenheiro; nada foi mudado no
 build. A chapa de reforco de alma do joelho (doubler) tambem nao foi levada
 ao modelo: no galpao do cliente a zona de painel da 0,87 e nao a exige.
+
+## D203 - Plano de 2026-10-08: ligacao da cumeeira no modelo e detalhes de cumeeira e contraventamento (2026-10-09) - FECHADO
+
+**Pedido.** Quinta etapa das ligacoes no Bonsai: cumeeira e contraventamento.
+
+**Medido (antes de mudar).** `build_galpao.cumeeira_conn` desenha no apice
+uma chapa de topo (largura = mesa da viga, espessura do `joelho_adotado`,
+altura = d + 140 mm, normal em Y) e 4 parafusos de 140 mm (a bf/2 - 35 e
+d/2 - 25 do centro) - aqui a chapa ESCALA com o perfil, ao contrario da do
+joelho (D201). O modelo neutro nao tinha a ligacao do apice. Os gussets do
+contraventamento ja estavam no modelo (`gussets_contrav`).
+
+**Entregue.** `modelo_neutro.ligacoes_cumeeira` (chapa `CC1` e parafusos
+`PM1`, mesmas medidas e posicoes do build), chamada junto com a do joelho;
+dois testes em `tests/test_modelo_neutro.py`. No script de pranchas: detalhe
+`DET-CUMEEIRA` (vista do apice a 1:10, com o perfil da viga e a descricao da
+ligacao lidos do modelo) e `DET-CONTRAVENTAMENTO` (planta do canto do
+primeiro portico, filtrada para a estrutura). No galpao do cliente: +6
+chapas e +24 parafusos no IFC, seis folhas A1 do Bonsai, DXF de doze
+folhas.
+
+**Nao feito.** No detalhe do contraventamento a chapa de gusset fica
+escondida sob a viga na planta (so aparecem a barra, a viga e a escora): a
+vista certa e' de baixo para cima, nao tentada. Simbolo de solda. Chapa de
+reforco de alma do joelho. As ligacoes de terca, longarina e mao-francesa
+nao tem detalhe proprio.
