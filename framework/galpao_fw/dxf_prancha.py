@@ -9,8 +9,10 @@
 # ENTRADA: os SVG de desenho que o ifcopenshell.draw escreve (hoje pelo
 # Blender + Bonsai, docs/fase3-bonsai/scripts/pranchas_bonsai.py): cada
 # elemento IFC e' um grupo com a classe, o material, a marca e o GUID; cada
-# cota e' uma <line> de classe PredefinedType-DIMENSION. O grupo raiz traz a
-# matriz papel<-modelo (ifc:matrix3), de onde sai a escala de origem.
+# cota e' uma <line> de classe PredefinedType-DIMENSION; cada eixo da grade do
+# IFC e' uma <line> de classe PredefinedType-GRID com o rotulo num <text
+# class="GRID"> em cada ponta. O grupo raiz traz a matriz papel<-modelo
+# (ifc:matrix3), de onde sai a escala de origem.
 #
 # O desenho e' DERIVADO do modelo: corrigir o projeto e' corrigir o modelo e
 # gerar de novo, nunca editar o DXF.
@@ -61,6 +63,8 @@ CAMADAS = {
 }
 ESPESSURA_CORTE = 50
 CAMADA_COTA, CAMADA_TEXTO = "ANOT-COTA", "ANOT-TEXTO"
+CAMADA_EIXO = "ANOT-EIXO"
+RAIO_BOLHA, ALTURA_ROTULO_EIXO = 4.0, 3.5      # mm de papel
 CAMADA_FOLHA, CAMADA_VIEWPORT = "FOLHA-CARIMBO", "FOLHA-VIEWPORT"
 CAMPOS_CARIMBO = ("PROJETO", "CLIENTE", "TITULO", "ESCALA", "FOLHA", "DATA",
                   "RESPONSAVEL", "REVISAO")
@@ -135,13 +139,28 @@ def ler_desenho(caminho):
         if "PredefinedType-DIMENSION" in (ln.get("class") or ""):
             cotas.append((real(float(ln.get("x1")), float(ln.get("y1"))),
                           real(float(ln.get("x2")), float(ln.get("y2")))))
+    # eixos da grade: a linha e o rotulo que o desenho pos em cada ponta
+    rotulos = [((float(t.get("x")), float(t.get("y"))), (t.text or "").strip())
+               for t in raiz.iter(NS_SVG + "text") if (t.get("class") or "") == "GRID"]
+    eixos = []
+    for ln in raiz.iter(NS_SVG + "line"):
+        if "PredefinedType-GRID" not in (ln.get("class") or ""):
+            continue
+        a = (float(ln.get("x1")), float(ln.get("y1")))
+        b = (float(ln.get("x2")), float(ln.get("y2")))
+        nomes = {r for (x, y), r in rotulos
+                 if r and min(abs(x - q[0]) + abs(y - q[1]) for q in (a, b)) < 1e-3}
+        if len(nomes) != 1:
+            raise ValueError("%s: eixo da grade com %d rotulos nas pontas (esperado 1): %r"
+                             % (caminho, len(nomes), sorted(nomes)))
+        eixos.append((real(*a), real(*b), nomes.pop()))
     larg, alt = _mm(raiz.get("width")), _mm(raiz.get("height"))
     x0, y1 = real(0.0, 0.0)
     x1, y0 = real(larg, alt)
     return {"nome": os.path.splitext(os.path.basename(caminho))[0],
             "escala_origem": round(1000.0 / mm_por_m),
             "quadro": (x0, y0, x1, y1),          # mm reais: xmin, ymin, xmax, ymax
-            "elementos": elementos, "cotas": cotas}
+            "elementos": elementos, "cotas": cotas, "eixos": eixos}
 
 
 def escolher_folha(larg_real_mm, alt_real_mm, escalas=ESCALAS,
@@ -203,15 +222,17 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
     (por folha: escala, formato, entidades por camada, cotas)."""
     import ezdxf
     from ezdxf import units
+    from ezdxf.enums import TextEntityAlignment
 
     carimbo = dict(carimbo or {})
     carimbo.setdefault("DATA", datetime.date.today().strftime("%d/%m/%Y"))
-    doc = ezdxf.new("R2018", setup=False)
+    doc = ezdxf.new("R2018", setup=["linetypes"])       # traz o tipo de linha CENTER
     doc.units = units.MM
     doc.header["$MEASUREMENT"] = 1
     doc.header["$LWDISPLAY"] = 1
     doc.styles.new("TEXTO", dxfattribs={"font": "arial.ttf"})
     doc.layers.add(CAMADA_COTA, color=7, lineweight=13)
+    doc.layers.add(CAMADA_EIXO, color=8, lineweight=13, linetype="CENTER")
     doc.layers.add(CAMADA_TEXTO, color=7, lineweight=18)
     doc.layers.add(CAMADA_FOLHA, color=7, lineweight=35)
     vp = doc.layers.add(CAMADA_VIEWPORT, color=8)
@@ -243,6 +264,16 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
                                       distance=0, dimstyle=estilo,
                                       dxfattribs={"layer": CAMADA_COTA})
             dim.render()
+        for (ax, ay), (bx, by), rotulo in des.get("eixos", ()):
+            cam_eixo = {"layer": CAMADA_EIXO}
+            msp.add_line((ax + dx, ay + dy), (bx + dx, by + dy),
+                         dxfattribs=dict(cam_eixo, ltscale=float(esc)))
+            for px, py in ((ax, ay), (bx, by)):
+                msp.add_circle((px + dx, py + dy), RAIO_BOLHA * esc,
+                               dxfattribs=dict(cam_eixo, linetype="CONTINUOUS"))
+                msp.add_text(rotulo, height=ALTURA_ROTULO_EIXO * esc, dxfattribs={
+                    "layer": CAMADA_EIXO, "style": "TEXTO"}).set_placement(
+                        (px + dx, py + dy), align=TextEntityAlignment.MIDDLE_CENTER)
         # ---- folha no espaco de papel --------------------------------------
         nome_folha = "%02d-%s" % (k, des["nome"])[:31]
         folha = doc.layouts.new(nome_folha)
@@ -267,7 +298,8 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
             "folha": nome_folha, "desenho": des["nome"], "escala": esc,
             "formato": formato, "escala_de_escape": de_escape,
             "escala_origem": des["escala_origem"], "entidades": por_camada,
-            "cotas": len(des["cotas"]), "largura_real_mm": round(larg, 1),
+            "cotas": len(des["cotas"]), "eixos": len(des.get("eixos", ())),
+            "largura_real_mm": round(larg, 1),
             "altura_real_mm": round(alt, 1)})
         x_base += larg + folga_entre_vistas_mm
     if "Layout1" in doc.layouts and resumo["folhas"]:

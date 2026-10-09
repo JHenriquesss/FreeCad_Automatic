@@ -43,13 +43,18 @@ _SVG = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:ifc="http://www.ifcopens
  </g>
  <line class="GlobalId-x IfcAnnotation PredefinedType-DIMENSION" x1="30" y1="95" x2="130" y2="95"/>
  <line class="GlobalId-y IfcAnnotation PredefinedType-DIMENSION" x1="15" y1="80" x2="15" y2="30"/>
+ %(eixos)s
 </svg>
 """
 
+_EIXO_1 = """<line class="GlobalId-e IfcAnnotation PredefinedType-GRID" x1="30" y1="100" x2="30" y2="10"/>
+ <text class="GRID" x="30" y="100">1</text><text class="GRID" x="30" y="10">1</text>"""
 
-def _svg(tmp_path, nome="PLANTA", larg=160, alt=110, extra=""):
+
+def _svg(tmp_path, nome="PLANTA", larg=160, alt=110, extra="", eixos=""):
     p = tmp_path / (nome + ".svg")
-    p.write_text(_SVG % {"larg": larg, "alt": alt, "extra": extra}, encoding="utf-8")
+    p.write_text(_SVG % {"larg": larg, "alt": alt, "extra": extra, "eixos": eixos},
+                 encoding="utf-8")
     return str(p)
 
 
@@ -191,3 +196,47 @@ def test_duas_vistas_nao_se_sobrepoem_no_modelo(tmp_path):
 def test_pasta_sem_svg_reprova(tmp_path):
     with pytest.raises(ValueError, match="nenhum .svg"):
         DP.gerar_de_pasta(str(tmp_path), str(tmp_path / "x.dxf"))
+
+
+def test_eixo_da_grade_vai_ao_dxf_com_linha_bolha_e_rotulo(tmp_path):
+    des = DP.ler_desenho(_svg(tmp_path, eixos=_EIXO_1))
+    assert len(des["eixos"]) == 1
+    p1, p2, rotulo = des["eixos"][0]
+    assert rotulo == "1"
+    assert _plano([p1, p2]) == pytest.approx([0.0, -2000.0, 0.0, 7000.0])
+    resumo, doc = _dxf(tmp_path, [des])
+    assert resumo["folhas"][0]["eixos"] == 1
+    msp = doc.modelspace()
+    linhas = msp.query('LINE[layer=="%s"]' % DP.CAMADA_EIXO)
+    assert len(linhas) == 1 and round(linhas[0].dxf.start.distance(linhas[0].dxf.end)) == 9000
+    bolhas = msp.query('CIRCLE[layer=="%s"]' % DP.CAMADA_EIXO)
+    textos = msp.query('TEXT[layer=="%s"]' % DP.CAMADA_EIXO)
+    assert len(bolhas) == 2 and [t.dxf.text for t in textos] == ["1", "1"]
+    # uma bolha em cada ponta do eixo, nas duas coordenadas (a vista comeca em
+    # x = 3000 e y = 3000 no modelo: o quadro do desenho vai de -3000 a ...)
+    centros = sorted((round(c.dxf.center.x), round(c.dxf.center.y)) for c in bolhas)
+    assert centros == [(3000, 1000), (3000, 10000)]
+    assert sorted((round(t.dxf.align_point.x), round(t.dxf.align_point.y))
+                  for t in textos) == centros
+    # bolha e rotulo no tamanho de papel vezes a escala da folha (1:50 aqui),
+    # sem deformar a letra (fator de largura 1)
+    assert {c.dxf.radius for c in bolhas} == {DP.RAIO_BOLHA * 50}
+    assert {t.dxf.height for t in textos} == {DP.ALTURA_ROTULO_EIXO * 50}
+    assert {t.dxf.get("width", 1.0) for t in textos} == {1.0}
+    assert doc.layers.get(DP.CAMADA_EIXO).dxf.linetype == "CENTER"
+    assert not doc.audit().errors
+
+
+def test_desenho_sem_grade_segue_sem_eixo(tmp_path):
+    des = DP.ler_desenho(_svg(tmp_path))
+    assert des["eixos"] == []
+    resumo, doc = _dxf(tmp_path, [des])
+    assert resumo["folhas"][0]["eixos"] == 0
+    assert len(doc.modelspace().query('*[layer=="%s"]' % DP.CAMADA_EIXO)) == 0
+
+
+def test_eixo_sem_rotulo_na_ponta_reprova(tmp_path):
+    solto = ('<line class="GlobalId-e IfcAnnotation PredefinedType-GRID" '
+             'x1="30" y1="100" x2="30" y2="10"/>')
+    with pytest.raises(ValueError, match="eixo da grade com 0 rotulos"):
+        DP.ler_desenho(_svg(tmp_path, eixos=solto))

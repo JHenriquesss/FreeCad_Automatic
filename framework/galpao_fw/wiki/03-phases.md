@@ -948,6 +948,8 @@ congelado até a entrega do galpão.
 - **Decisões do usuário e folhas do galpão do cliente** o galpão é o de 20 × 28,5 m;
   Fase 5 congelada; Bonsai entra aos poucos; folhas sem sobreposição, carimbo em
   português, grade de eixos no IFC (ainda não desenhada) ([[04-decisions#D196]]).
+- **Eixos, cumeeira e revisão** eixos 1–6 e A–B desenhados nas folhas e no DXF,
+  cota de cumeeira 9500 lida do IFC, carimbo com revisão ([[04-decisions#D197]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

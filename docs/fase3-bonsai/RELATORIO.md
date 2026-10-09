@@ -107,11 +107,11 @@ de 20 × 28,5 m (`spec_amostra_engenheiro.json`). Do que estava em ressalva:
 - **Resolvido:** disposição na folha (as vistas são repartidas pela área útil e
   nenhuma cai sobre o carimbo; o galpão do cliente saiu em quatro folhas),
   carimbo com rótulos em português, numeração `EST-0n` e título curto.
-- **Pela metade:** os eixos nomeados estão gravados no IFC (`IfcGrid`) e o
-  Bonsai cria as anotações de referência, mas sem janela elas não aparecem no
-  desenho.
-- **Continua aberto:** cota de cumeeira, níveis, revisão no carimbo, detalhes
-  de ligação, lista de material e símbolos de solda.
+- **Resolvido depois (D197):** eixos nomeados desenhados (o Bonsai só os põe no
+  desenho depois de recarregar o IFC, então o script gera em duas passadas),
+  cota de cumeeira lida do IFC e revisão no carimbo.
+- **Continua aberto:** bolhas de eixo cortadas na borda do corte, marcas de
+  corte sobre cotas, detalhes de ligação, lista de material e símbolos de solda.
 
 As evidências desta pasta são do galpão de teste (40 × 20 m). O pacote do
 galpão do cliente fica em `projects/amostra_engenheiro/saida/plano-2026-10/`,

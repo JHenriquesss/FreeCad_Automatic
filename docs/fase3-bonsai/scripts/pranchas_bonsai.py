@@ -142,6 +142,30 @@ def _eixos(ifc):
     return xs, ys, alt
 
 
+def _cumeeira(ifc):
+    """Cota (m) do ponto mais alto do EIXO das vigas do portico (marca V<n>):
+    a ponta da extrusao de cada viga, lida da posicao e do comprimento no IFC.
+    None se o modelo nao tiver viga de portico."""
+    import re
+
+    import ifcopenshell.util.placement as up
+    import ifcopenshell.util.unit as uu
+    import numpy as np
+    esc = uu.calculate_unit_scale(ifc)
+    topo = None
+    for v in ifc.by_type("IfcBeam"):
+        if not re.fullmatch(r"V\d+", v.Name or ""):
+            continue
+        item = v.Representation.Representations[0].Items[0]
+        if not item.is_a("IfcExtrudedAreaSolid"):
+            continue
+        m = up.get_local_placement(v.ObjectPlacement)
+        for comp in (0.0, float(item.Depth)):
+            z = float((m @ np.array([0.0, 0.0, comp, 1.0]))[2]) * esc
+            topo = z if topo is None else max(topo, z)
+    return topo
+
+
 def _cota(tool, desenho, p1, p2):
     """Cota linear entre dois pontos do MUNDO (m), no plano do desenho."""
     import bonsai.bim.module.drawing.annotation as ann
@@ -170,7 +194,7 @@ def _cota(tool, desenho, p1, p2):
     return el
 
 
-def vistas_do_galpao(mn, mx, xs, ys, alt_col):
+def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
     """(nome, tipo, posicao, rotacao, largura, altura, profundidade, cotas, filtro)."""
     c = [(a + b) / 2 for a, b in zip(mn, mx)]
     d = [b - a for a, b in zip(mn, mx)]
@@ -178,12 +202,15 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col):
     x0, x1, y0, y1 = xs[0], xs[-1], ys[0], ys[-1]
     topo = mx[2]
     x_corte = (xs[1] + xs[2]) / 2 if len(xs) > 2 else c[0]
-    planta = ([((a, y0 - 3.0, 0), (b, y0 - 3.0, 0)) for a, b in zip(xs, xs[1:])]
-              + [((x0, y0 - 4.5, 0), (x1, y0 - 4.5, 0))]
-              + [((x0 - 3.0, a, 0), (x0 - 3.0, b, 0)) for a, b in zip(ys, ys[1:])])
+    # as bolhas dos eixos da grade ficam a 2,5 m da ultima linha de pilares e
+    # tem ~1,1 m de diametro a 1:100: as cotas passam por fora delas
+    planta = ([((a, y0 - 4.2, 0), (b, y0 - 4.2, 0)) for a, b in zip(xs, xs[1:])]
+              + [((x0, y0 - 5.4, 0), (x1, y0 - 5.4, 0))]
+              + [((x0 - 4.3, a, 0), (x0 - 4.3, b, 0)) for a, b in zip(ys, ys[1:])])
+    alto = cumeeira if cumeeira is not None else topo
     corte = [((0, y0, -3.2), (0, y1, -3.2)),
              ((0, y0 - 2.5, 0.0), (0, y0 - 2.5, alt_col)),
-             ((0, y1 + 2.5, 0.0), (0, y1 + 2.5, topo))]
+             ((0, y1 + 2.5, 0.0), (0, y1 + 2.5, alto))]
     larg_x, larg_y, alt = d[0] + MARGEM_M, d[1] + MARGEM_M, d[2] + MARGEM_M
     return [
         ("PLANTA-BAIXA", "PLAN_VIEW", (c[0], c[1], 1.50), (0, 0, 0),
@@ -202,7 +229,7 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col):
     ]
 
 
-def main(ifc_path, so_estas=(), titulo="GALPAO"):
+def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
     rel = {"passos": [], "avisos": [], "cotas": {}, "papel_mm": {}}
 
     def passo(nome, fn):
@@ -225,14 +252,15 @@ def main(ifc_path, so_estas=(), titulo="GALPAO"):
     ifc = tool.Ifc.get()
     mn, mx = _envelope(tool)
     xs, ys, alt_col = _eixos(ifc)
+    cumeeira = _cumeeira(ifc)
     rel["envelope_m"] = [[round(a, 2), round(b, 2)] for a, b in zip(mn, mx)]
-    rel["eixos_m"] = {"x": xs, "y": ys, "altura_pilar": alt_col}
+    rel["eixos_m"] = {"x": xs, "y": ys, "altura_pilar": alt_col, "cumeeira": cumeeira}
     props = bpy.context.scene.DocProperties
     cena = bpy.context.scene
     feitos = {a.id() for a in ifc.by_type("IfcAnnotation") if a.ObjectType == "DRAWING"}
 
     for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro in vistas_do_galpao(
-            mn, mx, xs, ys, alt_col):
+            mn, mx, xs, ys, alt_col, cumeeira):
         if so_estas and nome not in so_estas:
             continue
 
@@ -265,9 +293,9 @@ def main(ifc_path, so_estas=(), titulo="GALPAO"):
                 _cota(tool, des, p1, p2)
             rel["cotas"][nome] = len(cotas)
             rel["papel_mm"][nome] = (round(larg * MM_POR_M, 1), round(alt * MM_POR_M, 1))
-            # sync=True cria no IFC as anotacoes de referencia dos eixos da grade
-            # (medido: 25 anotacoes GRID nas seis vistas). PENDENTE: sem janela
-            # elas nao chegam ao SVG, nem gerando o desenho uma segunda vez.
+            # sync=True cria no IFC as anotacoes de referencia (eixos da grade,
+            # marcas de corte e de elevacao). Elas so entram no SVG depois de o
+            # projeto ser RECARREGADO: por isso a segunda passada, la embaixo.
             bpy.ops.bim.create_drawing(print_all=False, open_viewer=False, sync=True)
 
         passo(nome, _vista)
@@ -302,6 +330,8 @@ def main(ifc_path, so_estas=(), titulo="GALPAO"):
                 tool.Ifc, tool.Drawing, sheet=nova,
                 identification="EST-%02d" % k,
                 name=" / ".join(TITULO_CURTO.get(n, n) for n, _x, _y in folha))
+            tool.Ifc.run("document.edit_information", information=nova,
+                         attributes={"Revision": revisao})
         posicoes = {n: (x, y) for folha in plano for n, x, y in folha}
         rel["reposicionados"] = _reposicionar(os.path.join(raiz, "layouts"), posicoes)
         bpy.ops.bim.load_sheets()
@@ -311,6 +341,31 @@ def main(ifc_path, so_estas=(), titulo="GALPAO"):
     passo("folhas A1", _folhas)
     passo("salvar IFC", lambda: bpy.ops.bim.save_project(filepath=ifc_path,
                                                          should_save_as=False))
+
+    def _segunda_passada():
+        """Recarrega o IFC salvo e gera de novo desenhos e folhas: medido, as
+        anotacoes de referencia criadas na primeira passada (25 eixos no galpao
+        de 20 x 28,5 m) so aparecem no SVG numa sessao que ja abre com elas."""
+        for o in list(bpy.data.objects):
+            bpy.data.objects.remove(o)
+        bpy.ops.bim.load_project(filepath=ifc_path, use_relative_path=False,
+                                 should_start_fresh_session=False)
+        novo = tool.Ifc.get()
+        cena2 = bpy.context.scene
+        feitos2 = 0
+        for des in novo.by_type("IfcAnnotation"):
+            if des.ObjectType != "DRAWING" or des.Name not in rel["cotas"]:
+                continue
+            bpy.ops.bim.activate_drawing(drawing=des.id(), should_view_from_camera=False)
+            cp = cena2.camera.data.BIMCameraProperties
+            cena2.render.resolution_x, cena2.render.resolution_y = cp.raster_x, cp.raster_y
+            bpy.ops.bim.create_drawing(print_all=False, open_viewer=False)
+            feitos2 += 1
+        bpy.ops.bim.load_sheets()
+        bpy.ops.bim.create_sheets(create_all=True, open_viewer=False)
+        return feitos2
+
+    rel["segunda_passada"] = passo("segunda passada", _segunda_passada)
     raiz = os.path.dirname(ifc_path)
     rel["arquivos"] = sorted(
         os.path.relpath(os.path.join(b, x), raiz).replace("\\", "/")
@@ -325,4 +380,4 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:]
     opcoes = dict(a.split("=", 1) for a in args[1:] if "=" in a)
     main(args[0], tuple(a for a in args[1:] if "=" not in a),
-         titulo=opcoes.get("titulo", "GALPAO"))
+         titulo=opcoes.get("titulo", "GALPAO"), revisao=opcoes.get("revisao", "00"))

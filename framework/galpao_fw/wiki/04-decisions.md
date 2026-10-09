@@ -6197,3 +6197,42 @@ DXF tambem. A cota de altura do corte ainda e' o topo do envelope (9750),
 nao a cumeeira do portico. `REV` sai `None` no carimbo. Detalhes de
 ligacao, lista de material e simbolos de solda continuam so no executivo do
 FreeCAD. O DWG nao foi aberto no AutoCAD.
+
+## D197 - Plano de 2026-10-08: eixos desenhados, cota de cumeeira e revisao no carimbo (2026-10-09) - FECHADO
+
+**Pedido.** Fechar o que o D196 deixou aberto nas folhas do galpao do
+cliente: eixos da grade que nao chegavam ao desenho, cota de altura do
+corte no topo do envelope e `REV None` no carimbo.
+
+**Medido (antes de mudar).** Recarregando o IFC que a primeira geracao
+salvou, as 8 anotacoes GRID do grupo da planta estao na cena, visiveis e
+dentro de `get_drawing_elements`; gerar o desenho NESSA sessao poe as 24
+marcas de eixo no SVG. Na sessao que as criou (`create_drawing(sync=True)`)
+elas nao entram, nem gerando duas vezes. O desenho grava cada eixo como
+`<line class="... PredefinedType-GRID">` com um `<text class="GRID">` em
+cada ponta. A ponta da extrusao das vigas `V<n>` no IFC da 9,5 m (a
+cumeeira da ficha); o topo do envelope dava 9,75 m (terca).
+
+**Entregue.**
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: segunda passada (recarrega
+  o IFC salvo e gera de novo desenhos e folhas); cota de cumeeira lida do
+  eixo das vigas do portico no IFC (`_cumeeira`); cotas da planta afastadas
+  das bolhas dos eixos; `Revision` gravada na folha (padrao `00`). No galpao
+  do cliente: 24 marcas de eixo em cada planta e 6 no corte, cotas 5 x 5700,
+  28500, 20000, 8000 e **9500**, carimbo com `REV 00`; 62 s as seis vistas
+  e as quatro folhas com as duas passadas.
+- `dxf_prancha.py`: le os eixos do desenho (linha + rotulo das pontas; eixo
+  sem rotulo unico reprova) e grava no DXF linha em tipo CENTER, bolha e
+  rotulo na camada `ANOT-EIXO`, no tamanho de papel vezes a escala da folha.
+  `tests/test_dxf_prancha.py`: tres testes (eixo com linha, bolha e rotulo
+  nas duas coordenadas; desenho sem grade; eixo sem rotulo). No galpao do
+  cliente: 8 eixos em cada planta e 2 no corte, auditoria sem erro, 24
+  cotas iguais a distancia medida; DWG pelo ODA.
+
+**Nao feito.** No corte do Bonsai as bolhas dos eixos A e B saem cortadas
+pela borda da vista (a linha do eixo ocupa a altura toda) e a marca de
+elevacao cai sobre a cota de 8000; na planta a marca de corte cai sobre uma
+cota de vao. Detalhes de ligacao, lista de material e simbolos de solda
+continuam so no executivo do FreeCAD. **Nenhum programa CAD esta instalado
+nesta maquina (procurado em `C:/Program Files`): o DWG foi conferido so
+pelo ODA e pelo ezdxf, nunca aberto no AutoCAD.**
