@@ -7,9 +7,14 @@ prismatic / web-tapered / truss) → MAES 2nd order → member check NBR 8800 (+
 eccentric) → fire → stairs → platforms → **FreeCAD 3D model** → **2D executive drawings
 (TechDraw, AWS A2.4 weld symbols)** → DXF → PT memorials.
 
-**Status:** REVISAO itens 1–49: 47 HOMOLOGADO + 2 PARECER (46, 49) · pytest 1353
-selecionados / 1340 passed / 1 failed (`test_dossie_unico`, sem `fitz`) / 15
-skipped · smoke 7/7.
+**Status (2026-10-09):** suite do `framework/galpao_fw` — 4153 passed / 2 skipped /
+0 failed no commit `7ac876d` (medido em blocos de um processo: camada rápida
+`tools/suite_rapida.py` + camada lenta). O norte atual é o plano
+`decisoes-arquitetura-projetos.md` (vender o projeto, não o software): motor Python sem
+FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terceiros. Estado por
+fase em `framework/galpao_fw/wiki/03-phases.md` ("Plano de 2026-10-08"); decisões em
+`wiki/04-decisions.md` (D193–D212). A linha anterior deste status (REVISAO itens 1–49,
+pytest 1353) era de antes desse plano e não foi remedida.
 
 ## Quick Start
 
