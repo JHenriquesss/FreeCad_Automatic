@@ -973,6 +973,9 @@ congelado até a entrega do galpão.
 - **Fase 5, segundo passo** pontos mínimos, divisão em circuitos e quadro de carga
   instalada a partir dos ambientes; critério de projeto declarado, sem padrão
   ([[04-decisions#D206]]).
+- **Fase 5, terceiro passo** comprimento (declarado ou estimado pelo quadro marcado na
+  planta), condutor e proteção pelo motor existente, unifilar e quadro em SVG
+  ([[04-decisions#D207]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

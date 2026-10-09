@@ -214,3 +214,231 @@ def test_da_planta_dxf_ao_quadro(tmp_path):
     assert da_planta["quadro"] == a_mao["quadro"] and da_planta["ATENDE"] is True
     texto = CP.relatorio_pt(da_planta)
     assert "TE2" in texto and "total 5160 VA em 4 circuitos" in texto
+
+
+# ---------------------------------------------------------------------------
+# terceiro passo: comprimento, dimensionamento pelo motor e desenhos
+# ---------------------------------------------------------------------------
+_GEOMETRIA = {"quarto": [[0.0, 0.0], [4.0, 0.0], [4.0, 3.0], [0.0, 3.0]],
+              "cozinha": [[4.0, 0.0], [7.0, 0.0], [7.0, 3.0], [4.0, 3.0]],
+              "banho": [[0.0, 3.0], [2.0, 3.0], [2.0, 4.5], [0.0, 4.5]],
+              "servico": [[2.0, 3.0], [7.0, 3.0], [7.0, 4.5], [2.0, 4.5]]}
+_TRACADO = {"fator": 1.2, "acrescimo_vertical_m": 2.5}
+_INSTALACAO = {"isolacao": "PVC", "metodo_referencia": "B1", "temperatura_ambiente_c": 30.0,
+               "circuitos_agrupados": 3, "queda_tensao_max_pct": 4.0,
+               "exposicao_dps": "quadro",
+               "fator_potencia": {"iluminacao": 1.0, "tomadas": 0.8,
+                                  "tomadas_exclusivas": 0.8, "equipamento": 1.0}}
+
+
+def _comprimentos(valor=10.0, **troca):
+    div = CP.dividir(_previsao(), _criterios())
+    comp = {c["id"]: {"comprimento_m": valor, "origem": "declarado"} for c in div["circuitos"]}
+    for cid, v in troca.items():
+        comp[cid] = {"comprimento_m": v, "origem": "declarado"}
+    return div, comp
+
+
+def test_comprimento_estimado_e_a_distancia_ortogonal_ao_vertice_mais_distante():
+    div = CP.dividir(_previsao(), _criterios())
+    est = CP.comprimentos_pela_planta(div, _GEOMETRIA, [2.0, 3.0], _TRACADO)
+    assert est["erros"] == []
+    achado = {cid: (d["distancia_ortogonal_m"], d["ambiente_mais_distante"],
+                    d["comprimento_m"], d["origem"]) for cid, d in est["comprimentos"].items()}
+    assert achado == {
+        "IL1": (8.0, "cozinha", pytest.approx(12.1), "estimado_pela_planta"),   # (7; 0)
+        "TG1": (5.0, "quarto", pytest.approx(8.5), "estimado_pela_planta"),     # (0; 0)
+        "TE1": (8.0, "cozinha", pytest.approx(12.1), "estimado_pela_planta"),
+        "TE2": (6.5, "servico", pytest.approx(10.3), "estimado_pela_planta")}   # (7; 4,5)
+    # o quadro anda so em y e depois so em x: o comprimento acompanha cada eixo
+    em_y = CP.comprimentos_pela_planta(div, _GEOMETRIA, [2.0, 0.0], _TRACADO)["comprimentos"]
+    em_x = CP.comprimentos_pela_planta(div, _GEOMETRIA, [0.0, 3.0], _TRACADO)["comprimentos"]
+    assert em_y["TE2"]["distancia_ortogonal_m"] == 9.5      # 5 + 4,5
+    assert em_x["TE2"]["distancia_ortogonal_m"] == 8.5      # 7 + 1,5
+    assert em_y["TE2"]["comprimento_m"] == pytest.approx(1.2 * 9.5 + 2.5)
+
+
+@pytest.mark.parametrize("quadro, tracado, campo", [
+    (None, _TRACADO, "quadro"),
+    ([2.0, 3.0], {"acrescimo_vertical_m": 2.5}, "tracado.fator"),
+    ([2.0, 3.0], {"fator": 0.9, "acrescimo_vertical_m": 2.5}, "tracado.fator"),
+    ([2.0, 3.0], {"fator": 1.2}, "tracado.acrescimo_vertical_m"),
+    ([2.0, 3.0], None, "tracado.fator")])
+def test_sem_quadro_ou_sem_criterio_de_tracado_nao_ha_comprimento(quadro, tracado, campo):
+    div = CP.dividir(_previsao(), _criterios())
+    est = CP.comprimentos_pela_planta(div, _GEOMETRIA, quadro, tracado)
+    assert est["comprimentos"] == {} and campo in [e["campo"] for e in est["erros"]]
+    criterios = _criterios(instalacao=_INSTALACAO)
+    if tracado is not None:
+        criterios["tracado"] = tracado
+    dim = CP.dimensionar_da_planta(div, {"geometria": _GEOMETRIA, "quadro_m": quadro}, criterios)
+    assert dim["ATENDE"] is False and dim["circuits"] is None and dim["resumo"] == []
+    codigos = [e["code"] for e in dim["erros"]]
+    assert "comprimento_ausente" in codigos
+    assert CP.desenhos(dim, "nao_usada")["files"] == []
+
+
+def test_dimensionamento_e_o_do_motor_para_o_mesmo_circuito():
+    import dimensionamento_eletrico_residencial as DR
+
+    div, comp = _comprimentos(TE1=20.0)
+    dim = CP.dimensionar(div, _INSTALACAO, comp)
+    assert dim["ATENDE"] is True and dim["erros"] == []
+    assert [r["id"] for r in dim["resumo"]] == ["IL1", "TG1", "TE1", "TE2"]
+    a_mao = DR.calculate_residential_circuit_designs({
+        "points": [{"id": "p", "room": "cozinha", "kind": "tug", "power_va": 1900.0,
+                    "voltage_v": 127.0}],
+        "designs": [{"id": "X", "point_ids": ["p"], "length_m": 20.0, "system": "monofasico",
+                     "conductors_loaded": 2, "insulation": "PVC", "reference_method": "B1",
+                     "ambient_temperature_C": 30.0, "grouping_count": 3, "power_factor": 0.8,
+                     "voltage_drop_limit_pct": 4.0, "use": "forca",
+                     "protection": {"location": "molhado", "exposure": "quadro"}}]}, [])
+    esperado = a_mao["designs"][0]
+    te1 = [r for r in dim["resumo"] if r["id"] == "TE1"][0]
+    assert te1["secao_mm2"] == esperado["conductor"]["secao_mm2"]
+    assert te1["disjuntor_a"] == esperado["protection"]["disjuntor"]["IN"]
+    assert te1["queda_pct"] == esperado["conductor"]["dv_pct"]
+    assert te1["corrente_a"] == pytest.approx(1900.0 / 127.0) and te1["comprimento_m"] == 20.0
+    # a protecao nunca fica abaixo da corrente nem acima do que o condutor leva
+    for d in dim["circuits"]["designs"]:
+        assert d["load"]["current_a"] <= d["protection"]["disjuntor"]["IN"] <= d["conductor"]["Iz"]
+        assert d["conductor"]["dv_pct"] <= 4.0
+
+
+def test_comprimento_maior_engrossa_o_condutor_e_o_absurdo_reprova():
+    def _te1(metros):
+        div, comp = _comprimentos(TE1=metros)
+        return CP.dimensionar(div, _INSTALACAO, comp)
+
+    curto, longo = _te1(20.0), _te1(60.0)
+    secao = lambda dim: [r["secao_mm2"] for r in dim["resumo"] if r["id"] == "TE1"][0]
+    assert secao(curto) < secao(longo) and longo["ATENDE"] is True
+    absurdo = _te1(5000.0)
+    assert absurdo["ATENDE"] is False
+    assert "TE1" not in [r["id"] for r in absurdo["resumo"]]
+    assert [e["design_id"] for e in absurdo["erros"]] == ["TE1"]
+
+
+def test_local_do_circuito_e_o_mais_restritivo_dos_ambientes():
+    locais = {c["id"]: c["local"] for c in CP.dividir(_previsao(), _criterios())["circuitos"]}
+    assert locais == {"IL1": "banheiro", "TG1": "banheiro", "TE1": "molhado", "TE2": "molhado"}
+    secos = AR.rodar({"ambientes": [
+        {"nome": "quarto", "tipo": "quarto", "area_m2": 12.0, "perimetro_m": 14.0},
+        {"nome": "sala", "tipo": "sala", "area_m2": 16.0, "perimetro_m": 16.0}]})
+    assert {c["local"] for c in CP.dividir(secos, _criterios())["circuitos"]} == {"seco"}
+    varanda = AR.rodar({"ambientes": [
+        {"nome": "quarto", "tipo": "quarto", "area_m2": 12.0, "perimetro_m": 14.0},
+        {"nome": "varanda", "tipo": "varanda", "area_m2": 4.0, "perimetro_m": 8.0}]})
+    assert {c["local"] for c in CP.dividir(varanda, _criterios())["circuitos"]} == {"externo"}
+    # iluminacao em local seco nao leva o diferencial; com banheiro no circuito, leva
+    def _dr_da_iluminacao(previsao):
+        div = CP.dividir(previsao, _criterios())
+        comp = {c["id"]: {"comprimento_m": 10.0, "origem": "declarado"}
+                for c in div["circuitos"]}
+        return [r["dr"] for r in CP.dimensionar(div, _INSTALACAO, comp)["resumo"]
+                if r["classe"] == "iluminacao"]
+    assert _dr_da_iluminacao(secos) == [False]
+    assert _dr_da_iluminacao(_previsao()) == [True]
+
+
+def test_comprimento_declarado_vence_o_estimado_e_a_origem_fica_dita():
+    div = CP.dividir(_previsao(), _criterios())
+    criterios = _criterios(instalacao=_INSTALACAO, tracado=_TRACADO,
+                           comprimentos_m={"TE1": 31.0})
+    dim = CP.dimensionar_da_planta(div, {"geometria": _GEOMETRIA, "quadro_m": [2.0, 3.0]},
+                                   criterios)
+    assert dim["ATENDE"] is True
+    origem = {r["id"]: (r["origem_comprimento"], r["comprimento_m"]) for r in dim["resumo"]}
+    assert origem["TE1"] == ("declarado", 31.0)
+    assert origem["TE2"] == ("estimado_pela_planta", pytest.approx(10.3))
+    texto = CP.relatorio_dimensionamento_pt(dim)
+    assert "declarado" in texto and "estimado" in texto and "ATENDE: True" in texto
+    # tudo declarado: nem o quadro nem o criterio de tracado fazem falta
+    tudo = _criterios(instalacao=_INSTALACAO,
+                      comprimentos_m={c["id"]: 12.0 for c in div["circuitos"]})
+    so_declarado = CP.dimensionar_da_planta(div, {"geometria": {}, "quadro_m": None}, tudo)
+    assert so_declarado["ATENDE"] is True and so_declarado["erros"] == []
+
+
+@pytest.mark.parametrize("campo", ["isolacao", "metodo_referencia", "temperatura_ambiente_c",
+                                   "circuitos_agrupados", "queda_tensao_max_pct",
+                                   "exposicao_dps", "fator_potencia"])
+def test_dado_de_instalacao_ausente_nao_e_suposto(campo):
+    div, comp = _comprimentos()
+    instalacao = copy.deepcopy(_INSTALACAO)
+    del instalacao[campo]
+    dim = CP.dimensionar(div, instalacao, comp)
+    assert dim["ATENDE"] is False and dim["circuits"] is None
+    assert any(e["campo"].startswith("instalacao.%s" % campo) for e in dim["erros"])
+
+
+def test_fator_de_potencia_de_uma_classe_so_faltando_e_nomeado():
+    div, comp = _comprimentos()
+    instalacao = copy.deepcopy(_INSTALACAO)
+    del instalacao["fator_potencia"]["tomadas"]
+    dim = CP.dimensionar(div, instalacao, comp)
+    assert [e["campo"] for e in dim["erros"]] == ["instalacao.fator_potencia.tomadas"]
+
+
+def test_unifilar_e_quadro_saem_com_todos_os_circuitos(tmp_path):
+    import xml.dom.minidom
+
+    div = CP.dividir(_previsao(), _criterios(equipamentos=[
+        {"nome": "chuveiro", "ambiente": "banho", "potencia_va": 5500.0,
+         "tensao_v": 220.0, "n_fases": 2}]))
+    comp = {c["id"]: {"comprimento_m": 12.0, "origem": "declarado"} for c in div["circuitos"]}
+    dim = CP.dimensionar(div, _INSTALACAO, comp)
+    assert dim["ATENDE"] is True
+    emitido = CP.desenhos(dim, str(tmp_path))
+    assert emitido["files"] == ["unifilar.svg", "quadro-cargas.svg"]
+    for nome in emitido["files"]:
+        svg = (tmp_path / nome).read_text(encoding="utf-8")
+        xml.dom.minidom.parseString(svg)                 # e' XML de verdade
+        for c in div["circuitos"]:
+            assert ">%s<" % c["id"] in svg, (nome, c["id"])
+    quadro = (tmp_path / "quadro-cargas.svg").read_text(encoding="utf-8")
+    eq = [r for r in dim["resumo"] if r["id"] == "EQ1"][0]
+    assert "%d A" % eq["disjuntor_a"] in quadro and "5500 VA" in quadro
+
+
+def test_da_planta_com_quadro_marcado_ao_dimensionamento(tmp_path):
+    ezdxf = pytest.importorskip("ezdxf")
+    import ambientes_dxf as AD
+
+    def _planta(nome, quadros):
+        doc = ezdxf.new("R2018")
+        doc.header["$INSUNITS"] = 4
+        msp = doc.modelspace()
+        for x0, y0, w, h, texto in [(0, 0, 4000, 3000, "quarto; quarto"),
+                                    (4000, 0, 3000, 3000, "cozinha; cozinha"),
+                                    (0, 3000, 2000, 1500, "banho; banheiro"),
+                                    (2000, 3000, 5000, 1500, "servico; area de servico")]:
+            msp.add_lwpolyline([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)],
+                               close=True, dxfattribs={"layer": "AMBIENTES"})
+            msp.add_text(texto, dxfattribs={"layer": "AMBIENTES",
+                                            "insert": (x0 + w / 2.0, y0 + h / 2.0)})
+        for q in quadros:
+            msp.add_point(q, dxfattribs={"layer": "QUADRO"})
+        caminho = str(tmp_path / nome)
+        doc.saveas(caminho)
+        return caminho
+
+    criterios = _criterios(instalacao=_INSTALACAO, tracado=_TRACADO)
+    prev = AD.previsao_de_cargas(_planta("um.dxf", [(2000, 3000)]))
+    assert prev["leitura_dxf"]["quadro_m"] == [2.0, 3.0]
+    assert prev["leitura_dxf"]["geometria"] == _GEOMETRIA
+    dim = CP.dimensionar_da_planta(CP.dividir(prev, criterios), prev["leitura_dxf"], criterios)
+    assert dim["ATENDE"] is True
+    assert {r["id"]: r["comprimento_m"] for r in dim["resumo"]} == {
+        "IL1": pytest.approx(12.1), "TG1": pytest.approx(8.5),
+        "TE1": pytest.approx(12.1), "TE2": pytest.approx(10.3)}
+    # dois quadros marcados: erro nomeado, posicao nao escolhida, veredito cai
+    dois = AD.previsao_de_cargas(_planta("dois.dxf", [(2000, 3000), (6000, 1000)]))
+    assert dois["leitura_dxf"]["quadro_m"] is None and dois["ATENDE"] is False
+    assert [e["code"] for e in dois["leitura_dxf"]["erros"]] == ["varios_quadros"]
+    # nenhum quadro marcado nao e' erro de leitura: so impede o comprimento estimado
+    nenhum = AD.previsao_de_cargas(_planta("nenhum.dxf", []))
+    assert nenhum["leitura_dxf"]["quadro_m"] is None and nenhum["ATENDE"] is True
+    sem = CP.dimensionar_da_planta(CP.dividir(nenhum, criterios), nenhum["leitura_dxf"],
+                                   criterios)
+    assert sem["ATENDE"] is False and "quadro_nao_marcado" in [e["code"] for e in sem["erros"]]

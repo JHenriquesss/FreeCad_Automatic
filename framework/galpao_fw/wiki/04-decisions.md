@@ -6578,3 +6578,49 @@ cliente passou por aqui.
 **Nao feito.** Comprimento dos circuitos (precisa da posicao do quadro na
 planta), dimensionamento, unifilar, saida em DXF, entrada por IFC e gabarito
 contra projeto entregue.
+
+## D207 - Plano de 2026-10-08: Fase 5, terceiro passo - comprimento, dimensionamento, unifilar e quadro (2026-10-09) - FECHADO
+
+**Medido (antes de escrever).** O motor `dimensionamento_eletrico_residencial`
+ja dimensiona condutor e protecao de circuito explicito, e
+`desenho_eletrico_residencial` ja desenha unifilar e quadro de cargas a
+partir do resultado dele. Faltava so a ponte: a divisao do D206 nao tinha
+comprimento nem os dados de instalacao que o motor exige. Nenhuma tabela foi
+reescrita.
+
+**Entregue.**
+- `ambientes_dxf`: o leitor devolve tambem o poligono de cada ambiente em
+  metros e a posicao do quadro, lida de UMA entidade na camada `QUADRO`
+  (duas ou mais: erro nomeado; nenhuma: posicao nao informada, sem erro).
+- `circuitos_planta.comprimentos_pela_planta`: comprimento ESTIMADO = fator
+  de tracado x distancia ortogonal do quadro ao vertice mais distante do
+  ambiente mais distante do circuito + acrescimo vertical. Fator e acrescimo
+  sao declarados, sem padrao; a origem ("estimado" ou "declarado") vai ao
+  resumo. Comprimento declarado por circuito vence a estimativa.
+- `circuitos_planta.dimensionar`: monta os circuitos no contrato do motor e o
+  chama. Isolacao, metodo, temperatura, agrupamento, fator de potencia por
+  classe, limite de queda e exposicao sao declarados; faltando um, nada e'
+  dimensionado e o campo e' nomeado. O local do circuito (banheiro, molhado,
+  externo, seco) e' o mais restritivo dos ambientes que ele serve.
+- `circuitos_planta.desenhos`: unifilar e quadro de cargas em SVG pelo
+  emissor que ja existia.
+- Linha de comando: `criterios=<json>` com `instalacao` dimensiona;
+  `saida=<pasta>` grava os dois SVG.
+- Testes: 10 funcoes novas em `test_circuitos_planta.py` e 2 em
+  `test_ambientes_dxf.py` (51 casos nos dois arquivos; comprimento conferido a mao com o quadro andando
+  em cada eixo; resultado igual ao do motor chamado a mao; comprimento maior
+  engrossa o condutor; circuito recusado some do resumo e derruba o veredito;
+  iluminacao de local seco sem diferencial e com banheiro no circuito com).
+
+**Visto no desenho.** Unifilar e quadro abertos em imagem na planta de teste
+de cinco ambientes: cinco circuitos, secao, disjuntor e diferencial de cada
+um; entrada, disjuntor geral, aterramento e demanda saem "A CONFIRMAR"
+(nao foram calculados). No unifilar o texto da corrente do disjuntor fica
+cortado pela linha do circuito - defeito do emissor que ja existia, nao
+corrigido aqui.
+
+**Limites ditos.** O comprimento estimado e' de anteprojeto: nao segue
+parede nem eletroduto. Sem demanda, sem ramal e padrao de entrada, sem
+curto-circuito. O motor responde `KeyError` (sem dizer o motivo) quando o
+comprimento passa do que as tabelas dele cobrem; o circuito e' recusado, mas
+o motivo fica opaco.

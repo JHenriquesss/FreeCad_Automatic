@@ -17,12 +17,18 @@
 # e' recusado, a menos que quem chama informe `unidade` - area errada por um
 # fator de 10^6 nao e' erro que apareca sozinho.
 #
+# QUADRO: a posicao do quadro de distribuicao e' UMA entidade (ponto, bloco,
+# circulo ou texto) na camada QUADRO. Nenhuma -> posicao nao informada (so
+# faz falta para estimar comprimento de circuito); mais de uma -> erro nomeado.
+#
 # Nenhum valor de norma mora aqui: quantidades e cargas vem do motor.
 #
 # Uso:  python ambientes_dxf.py <planta.dxf> [camada] [unidade: mm|cm|m]
-#                               [criterios=<criterios.json>]
+#                               [criterios=<criterios.json>] [saida=<pasta>]
 # Com `criterios=` sai tambem a divisao em circuitos e o quadro de cargas
-# (circuitos_planta.dividir); os criterios sao declarados, sem padrao.
+# (circuitos_planta.dividir); os criterios sao declarados, sem padrao. Se o
+# arquivo de criterios trouxer `instalacao` (e `tracado` ou `comprimentos_m`),
+# sai o dimensionamento; com `saida=` saem o unifilar e o quadro em SVG.
 # ============================================================================
 """Ambientes (tipo, area, perimetro) lidos de polilinhas fechadas de um DXF."""
 
@@ -33,6 +39,7 @@ import sys
 import unicodedata
 
 CAMADA_PADRAO = "AMBIENTES"
+CAMADA_QUADRO = "QUADRO"
 # $INSUNITS do DXF -> metros por unidade de desenho
 METROS_POR_INSUNITS = {4: 0.001, 5: 0.01, 6: 1.0}
 METROS_POR_NOME = {"mm": 0.001, "cm": 0.01, "m": 1.0}
@@ -65,8 +72,24 @@ def _dentro(ponto, pts):
     return dentro
 
 
-def ler_ambientes(caminho, camada=CAMADA_PADRAO, unidade=None):
-    """{ambientes: [{nome, tipo, area_m2, perimetro_m}], erros: [...]}.
+def _quadro(msp, camada, esc, erros):
+    """Posicao (x, y) em metros da unica entidade da camada do quadro."""
+    achados = []
+    for e in msp.query('POINT INSERT CIRCLE TEXT MTEXT[layer=="%s"]' % camada):
+        tipo = e.dxftype()
+        p = (e.dxf.location if tipo == "POINT" else
+             e.dxf.center if tipo == "CIRCLE" else e.dxf.insert)
+        achados.append([round(p.x * esc, 4), round(p.y * esc, 4)])
+    if len(achados) > 1:
+        erros.append({"code": "varios_quadros", "n": len(achados),
+                      "detail": "a camada do quadro tem de ter UMA entidade"})
+        return None
+    return achados[0] if achados else None
+
+
+def ler_ambientes(caminho, camada=CAMADA_PADRAO, unidade=None, camada_quadro=CAMADA_QUADRO):
+    """{ambientes: [{nome, tipo, area_m2, perimetro_m}], geometria: {nome:
+    [[x_m, y_m], ...]}, quadro_m: [x, y] ou None, erros: [...]}.
     `unidade` ('mm', 'cm' ou 'm') so e' usada quando o DXF nao declara a sua."""
     import ezdxf
 
@@ -102,7 +125,7 @@ def ler_ambientes(caminho, camada=CAMADA_PADRAO, unidade=None):
         frase = (t.plain_text() if t.dxftype() == "MTEXT" else t.dxf.text).strip()
         rotulos.append(((t.dxf.insert.x, t.dxf.insert.y), frase))
     usados = set()
-    ambientes, contagem = [], {}
+    ambientes, contagem, geometria = [], {}, {}
     for pts in poligonos:
         dentro = [i for i, (pos, _f) in enumerate(rotulos) if _dentro(pos, pts)]
         area, perim = _area_e_perimetro(pts)
@@ -124,12 +147,14 @@ def ler_ambientes(caminho, camada=CAMADA_PADRAO, unidade=None):
             nome = "%s %d" % (tipo, contagem[tipo])
         ambientes.append({"nome": nome, "tipo": tipo, "area_m2": round(area_m2, 4),
                           "perimetro_m": round(perim_m, 4)})
+        geometria[nome] = [[round(x * esc, 4), round(y * esc, 4)] for x, y in pts]
     for i, (_pos, frase) in enumerate(rotulos):
         if i not in usados:
             erros.append({"code": "texto_fora_de_ambiente", "texto": frase,
                           "detail": "texto da camada fora de qualquer polilinha fechada"})
+    quadro = _quadro(msp, camada_quadro, esc, erros)
     return {"ambientes": ambientes, "erros": erros, "camada": camada,
-            "metros_por_unidade": esc}
+            "metros_por_unidade": esc, "geometria": geometria, "quadro_m": quadro}
 
 
 def previsao_de_cargas(caminho, camada=CAMADA_PADRAO, unidade=None):
@@ -141,15 +166,17 @@ def previsao_de_cargas(caminho, camada=CAMADA_PADRAO, unidade=None):
     resultado = AR.rodar({"ambientes": lido["ambientes"]})
     resultado["leitura_dxf"] = {"arquivo": caminho, "camada": lido["camada"],
                                 "metros_por_unidade": lido["metros_por_unidade"],
-                                "erros": lido["erros"]}
+                                "geometria": lido["geometria"],
+                                "quadro_m": lido["quadro_m"], "erros": lido["erros"]}
     if lido["erros"]:
         resultado["ATENDE"] = False
     return resultado
 
 
 if __name__ == "__main__":
-    _args = [a for a in sys.argv[1:] if not a.startswith("criterios=")]
+    _args = [a for a in sys.argv[1:] if not a.startswith(("criterios=", "saida="))]
     _crit = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("criterios=")]
+    _saida = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("saida=")]
     if not _args:
         sys.exit(__doc__ + "\nuso: python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] "
                            "[criterios=<criterios.json>]")
@@ -163,4 +190,11 @@ if __name__ == "__main__":
     if _crit:
         import circuitos_planta as _CP
         with open(_crit[0], encoding="utf-8") as _f:
-            print(_CP.relatorio_pt(_CP.dividir(res, json.load(_f))))
+            _criterios = json.load(_f)
+        _div = _CP.dividir(res, _criterios)
+        print(_CP.relatorio_pt(_div))
+        if "instalacao" in _criterios:
+            _dim = _CP.dimensionar_da_planta(_div, res["leitura_dxf"], _criterios)
+            print(_CP.relatorio_dimensionamento_pt(_dim))
+            if _saida:
+                print("desenhos:", _CP.desenhos(_dim, _saida[0]))

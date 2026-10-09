@@ -135,3 +135,26 @@ def test_outra_camada_nao_entra(tmp_path):
     ("  SUÍTE ", "suite"), ("sala-jantar", "sala_jantar")])
 def test_normaliza_tipo(texto, esperado):
     assert AD.normaliza_tipo(texto) == esperado
+
+
+@pytest.mark.parametrize("insunits, fator", [(4, 1000.0), (5, 100.0), (6, 1.0)])
+def test_geometria_e_quadro_saem_em_metros_nos_dois_eixos(tmp_path, insunits, fator):
+    def _extras(msp):
+        msp.add_circle((1.5 * fator, 2.5 * fator), 0.1 * fator, dxfattribs={"layer": "QUADRO"})
+
+    lido = AD.ler_ambientes(_planta(tmp_path, [(1 * fator, 2 * fator, 4 * fator, 3 * fator,
+                                                "quarto")], insunits=insunits, extras=_extras))
+    assert lido["erros"] == []
+    assert lido["geometria"] == {"quarto 1": [[1.0, 2.0], [5.0, 2.0], [5.0, 5.0], [1.0, 5.0]]}
+    assert lido["quadro_m"] == [1.5, 2.5]
+
+
+def test_quadro_em_outra_camada_e_tipos_de_entidade(tmp_path):
+    def _extras(msp):
+        msp.add_text("QD", dxfattribs={"layer": "QD-GERAL", "insert": (500, 700)})
+        msp.add_point((9000, 9000), dxfattribs={"layer": "OUTRA"})
+
+    caminho = _planta(tmp_path, [(0, 0, 4000, 3000, "quarto")], extras=_extras)
+    assert AD.ler_ambientes(caminho)["quadro_m"] is None
+    assert AD.ler_ambientes(caminho, camada_quadro="QD-GERAL")["quadro_m"] == [0.5, 0.7]
+    assert AD.ler_ambientes(caminho, camada_quadro="OUTRA")["quadro_m"] == [9.0, 9.0]

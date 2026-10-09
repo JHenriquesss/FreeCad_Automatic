@@ -19,8 +19,19 @@
 # Tudo isso e' CRITERIO DECLARADO por quem responde pelo projeto; criterio
 # ausente e' erro nomeado e nenhum circuito sai.
 #
-# O que este passo NAO faz: comprimento de circuito, secao de condutor,
-# disjuntor, demanda e entrada. O quadro aqui e' de CARGA INSTALADA.
+# DIMENSIONAMENTO (terceiro passo): `dimensionar` monta os circuitos no
+# contrato do motor que ja existe (dimensionamento_eletrico_residencial) e o
+# chama; nenhuma tabela e' reescrita aqui. O que o motor pede e a planta nao
+# tem (isolacao, metodo de instalacao, temperatura, agrupamento, fator de
+# potencia, limite de queda, exposicao) e' DECLARADO em `instalacao`.
+#
+# COMPRIMENTO: ou vem declarado circuito a circuito, ou e' ESTIMADO pela
+# planta: distancia ortogonal (|dx| + |dy|) do quadro ao vertice mais distante
+# do ambiente mais distante do circuito, vezes um fator de tracado declarado,
+# mais um acrescimo vertical declarado. E' estimativa de anteprojeto, marcada
+# como tal na saida; o comprimento do tracado real substitui.
+#
+# O que NAO se faz aqui: demanda, ramal e padrao de entrada, curto-circuito.
 #
 # Biblioteca: quem a chama pela linha de comando e' o ambientes_dxf
 # (python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] criterios=<json>).
@@ -42,6 +53,12 @@ CLASSES_COM_LIMITE = (CLASSE_ILUMINACAO, CLASSE_TOMADAS, CLASSE_TOMADAS_EXCLUSIV
 PREFIXO = {CLASSE_ILUMINACAO: "IL", CLASSE_TOMADAS: "TG",
            CLASSE_TOMADAS_EXCLUSIVAS: "TE", CLASSE_EQUIPAMENTO: "EQ"}
 FASES = ("A", "B", "C")
+# do mais restritivo ao menos; so rotula o local do circuito para o motor de
+# protecao decidir o dispositivo diferencial
+ORDEM_LOCAL = ("banheiro", "molhado", "externo", "seco")
+CAMPOS_INSTALACAO = ("isolacao", "metodo_referencia", "temperatura_ambiente_c",
+                     "circuitos_agrupados", "queda_tensao_max_pct", "exposicao_dps")
+CLASSES = CLASSES_COM_LIMITE + (CLASSE_EQUIPAMENTO,)
 
 
 def _positivo(valor):
@@ -151,6 +168,18 @@ def _equipamentos(criterios, ambientes, erros):
     return saida
 
 
+def _local_do_ambiente(amb):
+    import arquitetura_residencial as AR
+
+    if amb["tipo"] in AR.TIPOS_BANHEIRO:
+        return "banheiro"
+    if amb["molhado"]:
+        return "molhado"
+    if amb["tipo"] in AR.TIPOS_VARANDA:
+        return "externo"
+    return "seco"
+
+
 def _distribui_fases(circuitos, n_fases):
     """Maior carga primeiro, sempre na fase menos carregada. E' uma heuristica
     de equilibrio (4.2.5.6 pede 'o maior equilibrio possivel', sem numero)."""
@@ -203,6 +232,10 @@ def dividir(previsao, criterios):
             # o circuito e' proprio de todo jeito; aqui fica dito se a norma o EXIGE
             "independente_exigido_9_5_3_1": corrente > CORRENTE_CIRCUITO_INDEPENDENTE_A})
 
+    local_de = {a["nome"]: _local_do_ambiente(a) for a in previsao["ambientes"]
+                if a["geometria_ok"]}
+    for c in circuitos:
+        c["local"] = min((local_de[nome] for nome in c["ambientes"]), key=ORDEM_LOCAL.index)
     por_fase = _distribui_fases(circuitos, criterios["n_fases"])
     maior, menor = max(por_fase.values()), min(por_fase.values())
     quadro = {
@@ -237,3 +270,176 @@ def relatorio_pt(resultado):
     linhas.append("ATENDE: %s" % resultado["ATENDE"])
     return "\n".join(linhas)
 
+
+
+def _nao_negativo(valor):
+    return (isinstance(valor, (int, float)) and not isinstance(valor, bool)
+            and math.isfinite(valor) and valor >= 0)
+
+
+def comprimentos_pela_planta(divisao, geometria, quadro_m, tracado):
+    """{comprimentos: {circuito: {comprimento_m, origem, ...}}, erros}.
+    `geometria` = {ambiente: [[x_m, y_m], ...]}; `quadro_m` = [x, y];
+    `tracado` = {fator (>= 1), acrescimo_vertical_m (>= 0)}, declarados."""
+    erros = []
+    if (not isinstance(tracado, dict) or "fator" not in tracado
+            or not _positivo(tracado["fator"]) or tracado["fator"] < 1.0):
+        erros.append({"code": "criterio_ausente", "campo": "tracado.fator",
+                      "detail": "fator (>= 1) que leva a distancia ortogonal ao comprimento "
+                                "do tracado"})
+    if (not isinstance(tracado, dict) or "acrescimo_vertical_m" not in tracado
+            or not _nao_negativo(tracado["acrescimo_vertical_m"])):
+        erros.append({"code": "criterio_ausente", "campo": "tracado.acrescimo_vertical_m",
+                      "detail": "metros de subida e descida somados a cada circuito"})
+    if quadro_m is None:
+        erros.append({"code": "quadro_nao_marcado", "campo": "quadro",
+                      "detail": "sem a posicao do quadro na planta nao ha comprimento "
+                                "estimado; marque o quadro ou declare os comprimentos"})
+    saida = {}
+    if erros:
+        return {"comprimentos": saida, "erros": erros}
+    qx, qy = quadro_m
+    for c in divisao["circuitos"]:
+        longe = None
+        for nome in c["ambientes"]:
+            if nome not in geometria:
+                erros.append({"code": "ambiente_sem_geometria", "circuito": c["id"],
+                              "ambiente": nome, "campo": "geometria",
+                              "detail": "ambiente do circuito sem poligono lido da planta"})
+                longe = None
+                break
+            d = max(abs(x - qx) + abs(y - qy) for x, y in geometria[nome])
+            if longe is None or d > longe[0]:
+                longe = (d, nome)
+        if longe is None:
+            continue
+        saida[c["id"]] = {
+            "comprimento_m": tracado["fator"] * longe[0] + tracado["acrescimo_vertical_m"],
+            "origem": "estimado_pela_planta", "distancia_ortogonal_m": longe[0],
+            "ambiente_mais_distante": longe[1]}
+    return {"comprimentos": saida, "erros": erros}
+
+
+def _erros_da_instalacao(instalacao):
+    if not isinstance(instalacao, dict):
+        return [{"code": "criterio_ausente", "campo": "instalacao",
+                 "detail": "os dados de instalacao devem ser um objeto"}]
+    erros = [{"code": "criterio_ausente", "campo": "instalacao.%s" % campo,
+              "detail": "dado de instalacao declarado por quem projeta"}
+             for campo in CAMPOS_INSTALACAO if campo not in instalacao]
+    fps = instalacao["fator_potencia"] if "fator_potencia" in instalacao else None
+    for classe in CLASSES:
+        if not isinstance(fps, dict) or classe not in fps:
+            erros.append({"code": "criterio_ausente",
+                          "campo": "instalacao.fator_potencia.%s" % classe,
+                          "detail": "fator de potencia adotado para a classe"})
+    return erros
+
+
+def dimensionar(divisao, instalacao, comprimentos):
+    """Condutor e protecao de cada circuito pelo motor residencial.
+    `comprimentos` = {circuito: {comprimento_m, origem}}. Devolve {circuits:
+    <saida do motor ou None>, resumo, comprimentos, erros, ATENDE}."""
+    import dimensionamento_eletrico_residencial as DR
+
+    erros = list(_erros_da_instalacao(instalacao))
+    if divisao["quadro"] is None:
+        erros.append({"code": "divisao_nao_feita", "campo": "divisao",
+                      "detail": "sem circuitos nao ha o que dimensionar"})
+    for c in divisao["circuitos"]:
+        if c["id"] not in comprimentos or not _positivo(comprimentos[c["id"]]["comprimento_m"]):
+            erros.append({"code": "comprimento_ausente", "campo": "comprimento",
+                          "circuito": c["id"],
+                          "detail": "circuito sem comprimento declarado nem estimado"})
+    if erros:
+        return {"circuits": None, "resumo": [], "comprimentos": comprimentos,
+                "erros": erros, "ATENDE": False}
+    designs = []
+    for c in divisao["circuitos"]:
+        trifasico = c["n_fases"] == 3
+        designs.append({
+            "id": c["id"], "point_ids": list(c["point_ids"]),
+            "length_m": float(comprimentos[c["id"]]["comprimento_m"]),
+            "system": "trifasico" if trifasico else "monofasico",
+            "conductors_loaded": 3 if trifasico else 2,
+            "insulation": instalacao["isolacao"],
+            "reference_method": instalacao["metodo_referencia"],
+            "ambient_temperature_C": instalacao["temperatura_ambiente_c"],
+            "grouping_count": instalacao["circuitos_agrupados"],
+            "power_factor": instalacao["fator_potencia"][c["classe"]],
+            "voltage_drop_limit_pct": instalacao["queda_tensao_max_pct"],
+            "use": c["use"],
+            "protection": {"location": c["local"], "exposure": instalacao["exposicao_dps"]}})
+    pontos = [{k: p[k] for k in ("id", "room", "kind", "power_va", "voltage_v")}
+              for p in divisao["pontos"]]
+    calculo = DR.calculate_residential_circuit_designs({"points": pontos, "designs": designs}, [])
+    feitos = {d["id"]: d for d in calculo["designs"]}
+    resumo = []
+    for c in divisao["circuitos"]:
+        if c["id"] not in feitos:
+            continue
+        d = feitos[c["id"]]
+        resumo.append({
+            "id": c["id"], "classe": c["classe"], "local": c["local"],
+            "comprimento_m": d["declared_length_m"],
+            "origem_comprimento": comprimentos[c["id"]]["origem"],
+            "corrente_a": d["load"]["current_a"],
+            "secao_mm2": d["conductor"]["secao_mm2"],
+            "governante": d["conductor"]["governante"],
+            "queda_pct": d["conductor"]["dv_pct"],
+            "disjuntor_a": d["protection"]["disjuntor"]["IN"],
+            "dr": bool(d["protection"]["dr"]["requer_DR"])})
+    atende = (bool(divisao["ATENDE"]) and calculo["ok"] is True
+              and len(resumo) == len(divisao["circuitos"]))
+    return {"circuits": calculo, "resumo": resumo, "comprimentos": comprimentos,
+            "erros": list(calculo["errors"]), "ATENDE": atende}
+
+
+def dimensionar_da_planta(divisao, leitura, criterios):
+    """Junta comprimento e dimensionamento: `criterios["comprimentos_m"]`
+    (declarado, por circuito) vence a estimativa pela planta; o que faltar e'
+    estimado com `criterios["tracado"]` e a posicao do quadro lida."""
+    declarados = criterios["comprimentos_m"] if "comprimentos_m" in criterios else {}
+    comprimentos = {cid: {"comprimento_m": v, "origem": "declarado"}
+                    for cid, v in declarados.items()}
+    erros = []
+    if any(c["id"] not in comprimentos for c in divisao["circuitos"]):
+        est = comprimentos_pela_planta(
+            divisao, leitura["geometria"], leitura["quadro_m"],
+            criterios["tracado"] if "tracado" in criterios else None)
+        erros = est["erros"]
+        for cid, dado in est["comprimentos"].items():
+            if cid not in comprimentos:
+                comprimentos[cid] = dado
+    resultado = dimensionar(divisao, criterios["instalacao"], comprimentos)
+    resultado["erros"] = erros + resultado["erros"]
+    return resultado
+
+
+def relatorio_dimensionamento_pt(resultado):
+    linhas = ["DIMENSIONAMENTO DOS CIRCUITOS",
+              "%-5s %-9s %8s %-10s %8s %7s %-16s %7s %6s %-3s" % (
+                  "circ", "local", "L (m)", "origem", "IB (A)", "mm2", "governa",
+                  "dV (%)", "DJ (A)", "DR")]
+    for r in resultado["resumo"]:
+        linhas.append("%-5s %-9s %8.1f %-10s %8.2f %7.1f %-16s %7.2f %6d %-3s" % (
+            r["id"], r["local"], r["comprimento_m"],
+            "declarado" if r["origem_comprimento"] == "declarado" else "estimado",
+            r["corrente_a"], r["secao_mm2"], r["governante"], r["queda_pct"],
+            r["disjuntor_a"], "sim" if r["dr"] else "nao"))
+    for e in resultado["erros"]:
+        linhas.append("ERRO %s%s" % (e["code"], "".join(
+            " %s=%s" % (k, e[k]) for k in ("campo", "circuito", "design_id", "field") if k in e)))
+    linhas.append("ATENDE: %s" % resultado["ATENDE"])
+    return "\n".join(linhas)
+
+
+def desenhos(resultado, pasta):
+    """Unifilar e quadro de cargas em SVG pelo emissor residencial que ja
+    existe. Sem dimensionamento nao ha desenho (devolve o motivo)."""
+    if resultado["circuits"] is None:
+        return {"files": [], "skipped": {"unifilar.svg": "circuitos_nao_dimensionados",
+                                         "quadro-cargas.svg": "circuitos_nao_dimensionados"}}
+    import desenho_eletrico_residencial as DER
+
+    return DER.gerar_desenhos_residenciais({"circuits": resultado["circuits"]}, pasta)
