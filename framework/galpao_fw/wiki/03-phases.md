@@ -976,6 +976,9 @@ congelado até a entrega do galpão.
 - **Fase 5, terceiro passo** comprimento (declarado ou estimado pelo quadro marcado na
   planta), condutor e proteção pelo motor existente, unifilar e quadro em SVG
   ([[04-decisions#D207]]).
+- **Fase 5, quarto passo** o elétrico desenhado sobre a planta DXF recebida, em camadas
+  próprias e em outro arquivo; posições dos pontos são sugestão
+  ([[04-decisions#D208]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

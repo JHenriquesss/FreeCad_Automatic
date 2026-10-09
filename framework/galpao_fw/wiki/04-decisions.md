@@ -6624,3 +6624,37 @@ parede nem eletroduto. Sem demanda, sem ramal e padrao de entrada, sem
 curto-circuito. O motor responde `KeyError` (sem dizer o motivo) quando o
 comprimento passa do que as tabelas dele cobrem; o circuito e' recusado, mas
 o motivo fica opaco.
+
+## D208 - Plano de 2026-10-08: Fase 5, quarto passo - o eletrico desenhado sobre a planta DXF recebida (2026-10-09) - FECHADO
+
+**Entregue.**
+- `planta_eletrica_dxf.py` (biblioteca sem FreeCAD, chamada pela linha de
+  comando do `ambientes_dxf` com `dxf=<saida.dxf>`; declarada em
+  `SEM_FAIXA_DECLARADA`): abre o DXF recebido, acrescenta camadas `ELE-` e
+  grava em OUTRO arquivo. Vao ao desenho o quadro (onde o cliente marcou), um
+  ponto de luz no centro de cada ambiente, as tomadas repartidas pelo
+  perimetro e afastadas para dentro do ambiente, os equipamentos ao lado do
+  ponto de luz, o circuito ao lado de cada ponto, a tabela dos circuitos
+  (com condutor, disjuntor e diferencial quando ha dimensionamento), a
+  legenda e a nota de que as posicoes sao sugestao.
+- `tests/test_planta_eletrica_dxf.py`: 11 testes que RELEEM o arquivo
+  gravado (o original nao muda, byte a byte; cada ponto vira um simbolo no
+  ambiente certo, nos dois eixos; rotulo = circuito que alimenta; tabela com
+  uma linha por circuito; mm, cm e m; ambiente em U sem ponto inventado;
+  circuito recusado escrito "NAO DIMENSIONADO").
+
+**Achado ao olhar o desenho (corrigido antes do commit).** (1) A tomada que
+caia exatamente no canto do ambiente saia desenhada do lado de FORA: no
+vertice nao ha um "lado de dentro" de uma parede so; agora ela e' puxada
+para fora do canto antes de ser afastada. (2) Os simbolos da legenda estavam
+nas mesmas camadas dos pontos: quem contasse pontos por camada contaria a
+legenda; foram para a camada da tabela.
+
+**Limites ditos.** As posicoes sao sugestao de partida, nao projeto: a
+planta nao diz onde ficam portas, bancadas e moveis. Nao ha eletroduto
+tracado. Os simbolos sao ADOTADOS (o acervo nao tem norma de simbologia) e
+explicados na legenda. Ambiente cujo centro cai fora do proprio poligono
+(L fino, U) nao recebe ponto: erro nomeado e veredito reprovado. Rotulos de
+tomadas de ambientes vizinhos podem se sobrepor perto de um encontro de
+paredes. O DXF nao foi aberto num CAD de verdade, so relido pelo ezdxf e
+visto em imagem.

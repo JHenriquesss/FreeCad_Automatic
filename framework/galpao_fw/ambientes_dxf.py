@@ -25,10 +25,12 @@
 #
 # Uso:  python ambientes_dxf.py <planta.dxf> [camada] [unidade: mm|cm|m]
 #                               [criterios=<criterios.json>] [saida=<pasta>]
+#                               [dxf=<planta-eletrica.dxf>]
 # Com `criterios=` sai tambem a divisao em circuitos e o quadro de cargas
 # (circuitos_planta.dividir); os criterios sao declarados, sem padrao. Se o
 # arquivo de criterios trouxer `instalacao` (e `tracado` ou `comprimentos_m`),
-# sai o dimensionamento; com `saida=` saem o unifilar e o quadro em SVG.
+# sai o dimensionamento; com `saida=` saem o unifilar e o quadro em SVG. Com
+# `dxf=` sai a planta recebida com as camadas do eletrico (planta_eletrica_dxf).
 # ============================================================================
 """Ambientes (tipo, area, perimetro) lidos de polilinhas fechadas de um DXF."""
 
@@ -174,9 +176,10 @@ def previsao_de_cargas(caminho, camada=CAMADA_PADRAO, unidade=None):
 
 
 if __name__ == "__main__":
-    _args = [a for a in sys.argv[1:] if not a.startswith(("criterios=", "saida="))]
+    _args = [a for a in sys.argv[1:] if not a.startswith(("criterios=", "saida=", "dxf="))]
     _crit = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("criterios=")]
     _saida = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("saida=")]
+    _dxf = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("dxf=")]
     if not _args:
         sys.exit(__doc__ + "\nuso: python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] "
                            "[criterios=<criterios.json>]")
@@ -193,8 +196,16 @@ if __name__ == "__main__":
             _criterios = json.load(_f)
         _div = _CP.dividir(res, _criterios)
         print(_CP.relatorio_pt(_div))
+        _dim = None
         if "instalacao" in _criterios:
             _dim = _CP.dimensionar_da_planta(_div, res["leitura_dxf"], _criterios)
             print(_CP.relatorio_dimensionamento_pt(_dim))
             if _saida:
                 print("desenhos:", _CP.desenhos(_dim, _saida[0]))
+        if _dxf:
+            import planta_eletrica_dxf as _PE
+            _des = _PE.desenhar(_args[0], _dxf[0], res["leitura_dxf"], _div, _dim)
+            print("planta eletrica: %s (%d pontos; ATENDE %s)" % (
+                _des["arquivo"], _des["pontos_desenhados"], _des["ATENDE"]))
+            for _e in _des["erros"]:
+                print("ERRO %s: %s" % (_e["code"], _e["detail"]))
