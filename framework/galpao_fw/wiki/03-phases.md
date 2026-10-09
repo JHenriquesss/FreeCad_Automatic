@@ -945,6 +945,9 @@ congelado até a entrega do galpão.
 - **Fase 2 no galpão 20 × 28,5 m** IFC, folhas, DXF e DWG gerados da ficha
   `spec_amostra_engenheiro.json`; o marcador pendente deixou de vazar para o IFC;
   falta o usuário confirmar que é o galpão do cliente ([[04-decisions#D195]]).
+- **Decisões do usuário e folhas do galpão do cliente** o galpão é o de 20 × 28,5 m;
+  Fase 5 congelada; Bonsai entra aos poucos; folhas sem sobreposição, carimbo em
+  português, grade de eixos no IFC (ainda não desenhada) ([[04-decisions#D196]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

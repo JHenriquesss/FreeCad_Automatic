@@ -98,3 +98,21 @@ blender -b --python docs/fase3-bonsai/scripts/pranchas_bonsai.py -- <pasta>/galp
 blender -b --python docs/fase3-bonsai/scripts/render_apresentacao.py -- <pasta>/galpao.ifc saida.png BLENDER_EEVEE
 inkscape "<pasta>/sheets/A01 - UNTITLED.svg" --export-type=pdf --export-filename=folha-A01.pdf
 ```
+
+## Atualização de 2026-10-09
+
+Henriques decidiu **migrar aos poucos** e confirmou que o galpão do cliente é o
+de 20 × 28,5 m (`spec_amostra_engenheiro.json`). Do que estava em ressalva:
+
+- **Resolvido:** disposição na folha (as vistas são repartidas pela área útil e
+  nenhuma cai sobre o carimbo; o galpão do cliente saiu em quatro folhas),
+  carimbo com rótulos em português, numeração `EST-0n` e título curto.
+- **Pela metade:** os eixos nomeados estão gravados no IFC (`IfcGrid`) e o
+  Bonsai cria as anotações de referência, mas sem janela elas não aparecem no
+  desenho.
+- **Continua aberto:** cota de cumeeira, níveis, revisão no carimbo, detalhes
+  de ligação, lista de material e símbolos de solda.
+
+As evidências desta pasta são do galpão de teste (40 × 20 m). O pacote do
+galpão do cliente fica em `projects/amostra_engenheiro/saida/plano-2026-10/`,
+fora do git.

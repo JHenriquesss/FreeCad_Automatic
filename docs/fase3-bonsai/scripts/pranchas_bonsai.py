@@ -6,7 +6,7 @@ grava tudo ao lado do IFC (drawings/, layouts/, sheets/). Nada e' editado a mao:
 alterou o projeto, regenera o IFC e roda de novo.
 
 Uso (o IFC e' COPIADO para uma pasta de trabalho antes: o Bonsai grava nele):
-    blender -b --python pranchas_bonsai.py -- <caminho.ifc> [VISTA ...]
+    blender -b --python pranchas_bonsai.py -- <caminho.ifc> [titulo=...] [VISTA ...]
 
 Sem VISTA, gera todas. Imprime uma linha `RELATORIO_JSON {...}` com o tempo de
 cada passo, os eixos lidos e os avisos.
@@ -31,18 +31,98 @@ import bpy
 import mathutils
 
 MARGEM_M = 9.0        # folga em volta do modelo, para as cotas
-# desenhos por folha A1 (medido: planta + corte + elevacao frontal cabem; duas
-# plantas de 40 m na mesma folha nao cabem)
-FOLHAS = [("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL"),
-          ("PLANTA-FUNDACAO", "ELEVACAO-LATERAL"),
-          ("PLANTA-COBERTURA",)]
 ESCALA = "1:100|1/100"
+MM_POR_M = 10.0       # papel a 1:100
+# Folha A1 (mm, y para baixo como no SVG). A area util para acima do carimbo do
+# modelo do Bonsai, que ocupa a faixa de baixo da folha (medido no A1.svg).
+AREA_UTIL = (30.0, 30.0, 811.0, 505.0)
+VAO_MM, TITULO_MM = 12.0, 16.0
+# ordem em que as vistas entram nas folhas
+ORDEM = ("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL", "ELEVACAO-LATERAL",
+         "PLANTA-FUNDACAO", "PLANTA-COBERTURA")
+# rotulos do carimbo padrao do Bonsai -> portugues
+CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH": "NORTE",
+              "COMPANY": "RESP. TECNICO", "REV. NO.": "REV.", "DESCRIPTION": "DESCRICAO",
+              "AUTHOR": "AUTOR", "ISSUED": "EMISSAO", "NOTES": "NOTAS", "DATE": "DATA",
+              "DO NOT SCALE DRAWINGS": "NAO MEDIR NO DESENHO"}
+# titulo curto de cada vista no carimbo (a celula do titulo tem ~80 mm)
+TITULO_CURTO = {"PLANTA-BAIXA": "PLANTA", "CORTE-TRANSVERSAL": "CORTE",
+                "ELEVACAO-FRONTAL": "ELEV. FRONTAL", "ELEVACAO-LATERAL": "ELEV. LATERAL",
+                "PLANTA-FUNDACAO": "FUNDACAO", "PLANTA-COBERTURA": "COBERTURA"}
 
 
-def _envelope():
+def distribuir(tamanhos, area=AREA_UTIL, vao=VAO_MM, titulo=TITULO_MM):
+    """Reparte as vistas em folhas, em prateleiras (esquerda->direita, de cima
+    para baixo), reservando a faixa do titulo sob cada vista. `tamanhos` =
+    [(nome, largura_mm, altura_mm)] na ordem de entrada. Devolve
+    [[(nome, x, y), ...] por folha]. Vista maior que a area util levanta: nao
+    existe folha em que ela caiba nesta escala."""
+    x0, y0, x1, y1 = area
+    folhas, atual = [], []
+    x, y, alt_linha = x0, y0, 0.0
+    for nome, larg, alt in tamanhos:
+        if larg > x1 - x0 or alt + titulo > y1 - y0:
+            raise ValueError("%s (%.0f x %.0f mm) nao cabe na area util da folha"
+                             % (nome, larg, alt))
+        if x + larg > x1:                              # proxima prateleira
+            x, y, alt_linha = x0, y + alt_linha + titulo + vao, 0.0
+        if y + alt + titulo > y1:                      # proxima folha
+            folhas.append(atual)
+            atual, x, y, alt_linha = [], x0, y0, 0.0
+        atual.append((nome, x, y))
+        x += larg + vao
+        alt_linha = max(alt_linha, alt)
+    if atual:
+        folhas.append(atual)
+    return folhas
+
+
+def _reposicionar(pasta_layouts, posicoes):
+    """Grava no arquivo de disposicao de cada folha a posicao calculada (o
+    Bonsai empilha os desenhos sem conferir se cabem)."""
+    import re
+    mexidos = 0
+    for arq in os.listdir(pasta_layouts):
+        if not arq.lower().endswith(".svg"):
+            continue
+        caminho = os.path.join(pasta_layouts, arq)
+        txt = open(caminho, encoding="utf-8").read()
+
+        def _grupo(m):
+            nonlocal mexidos
+            g = m.group(0)
+            ref = re.search(r'data-type="foreground" xlink:href="([^"]+)"', g)
+            nome = os.path.splitext(os.path.basename(ref.group(1).replace("\\", "/")))[0] if ref else None
+            if nome not in posicoes:
+                return g
+            x, y = posicoes[nome]
+            alt = float(re.search(r'data-type="foreground"[^>]*height="([^"]+)"', g).group(1))
+            g = re.sub(r'(data-type="foreground"[^>]*? x=")[^"]+(" y=")[^"]+', r"\g<1>%s\g<2>%s" % (x, y), g)
+            g = re.sub(r'(data-type="view-title"[^>]*? x=")[^"]+(" y=")[^"]+',
+                       r"\g<1>%s\g<2>%s" % (x, y + alt + 4.0), g)
+            mexidos += 1
+            return g
+
+        novo = re.sub(r'<g data-type="drawing".*?</g>', _grupo, txt, flags=re.S)
+        if novo != txt:
+            open(caminho, "w", encoding="utf-8").write(novo)
+    return mexidos
+
+
+def _carimbo_em_portugues(caminho):
+    txt = open(caminho, encoding="utf-8").read()
+    for en, pt in CARIMBO_PT.items():
+        txt = txt.replace(">%s<" % en, ">%s<" % pt)
+    open(caminho, "w", encoding="utf-8").write(txt)
+
+
+def _envelope(tool):
+    """Envelope dos ELEMENTOS do modelo (a grade de eixos passa dos pilares de
+    proposito e nao entra na conta do enquadramento)."""
     pts = []
-    for o in bpy.data.objects:
-        if o.type == "MESH":
+    for el in tool.Ifc.get().by_type("IfcElement"):
+        o = tool.Ifc.get_object(el)
+        if o is not None and o.type == "MESH":
             pts += [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
     mn = [min(p[i] for p in pts) for i in range(3)]
     mx = [max(p[i] for p in pts) for i in range(3)]
@@ -122,8 +202,8 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col):
     ]
 
 
-def main(ifc_path, so_estas=()):
-    rel = {"passos": [], "avisos": [], "cotas": {}}
+def main(ifc_path, so_estas=(), titulo="GALPAO"):
+    rel = {"passos": [], "avisos": [], "cotas": {}, "papel_mm": {}}
 
     def passo(nome, fn):
         t = time.time()
@@ -143,7 +223,7 @@ def main(ifc_path, so_estas=()):
     import bonsai.tool as tool
     import ifcopenshell.api.pset
     ifc = tool.Ifc.get()
-    mn, mx = _envelope()
+    mn, mx = _envelope(tool)
     xs, ys, alt_col = _eixos(ifc)
     rel["envelope_m"] = [[round(a, 2), round(b, 2)] for a, b in zip(mn, mx)]
     rel["eixos_m"] = {"x": xs, "y": ys, "altura_pilar": alt_col}
@@ -184,35 +264,49 @@ def main(ifc_path, so_estas=()):
             for p1, p2 in cotas:
                 _cota(tool, des, p1, p2)
             rel["cotas"][nome] = len(cotas)
-            bpy.ops.bim.create_drawing(print_all=False, open_viewer=False)
+            rel["papel_mm"][nome] = (round(larg * MM_POR_M, 1), round(alt * MM_POR_M, 1))
+            # sync=True cria no IFC as anotacoes de referencia dos eixos da grade
+            # (medido: 25 anotacoes GRID nas seis vistas). PENDENTE: sem janela
+            # elas nao chegam ao SVG, nem gerando o desenho uma segunda vez.
+            bpy.ops.bim.create_drawing(print_all=False, open_viewer=False, sync=True)
 
         passo(nome, _vista)
 
     def _folhas():
-        # o Bonsai empilha os desenhos na folha sem conferir se cabem: uma folha
-        # por grupo que cabe num A1 em 1:100
+        raiz = os.path.dirname(ifc_path)
+        tamanhos = [(n,) + tuple(rel["papel_mm"][n]) for n in ORDEM if n in rel["papel_mm"]]
+        plano = distribuir(tamanhos)
         props.titleblock = "A1"
-        feitas = []
-        for grupo in FOLHAS:
-            nomes = [n for n in grupo if n in rel["cotas"]]
-            if not nomes:
-                continue
+        for k, folha in enumerate(plano, 1):
+            antes = {sh.ifc_definition_id for sh in props.sheets if sh.is_sheet}
             bpy.ops.bim.add_sheet()
+            if k == 1:
+                _carimbo_em_portugues(os.path.join(raiz, "layouts", "titleblocks", "A1.svg"))
             bpy.ops.bim.load_sheets()
             bpy.ops.bim.load_drawings()
             for item in props.drawings:
                 if not item.is_drawing:
                     item.is_expanded = True
             tool.Drawing.import_drawings()
-            props.active_sheet_index = max(i for i, sh in enumerate(props.sheets) if sh.is_sheet)
-            for nome in nomes:
+            # a lista vem ordenada pela identificacao: a folha nova nao e' a ultima
+            idx = [i for i, sh in enumerate(props.sheets)
+                   if sh.is_sheet and sh.ifc_definition_id not in antes][0]
+            props.active_sheet_index = idx
+            for nome, _x, _y in folha:
                 for i, item in enumerate(props.drawings):
                     if item.is_drawing and item.name == nome:
                         props.active_drawing_index = i
                         bpy.ops.bim.add_drawing_to_sheet()
-            feitas.append(nomes)
+            nova = ifc.by_id(props.sheets[idx].ifc_definition_id)
+            core.rename_sheet(
+                tool.Ifc, tool.Drawing, sheet=nova,
+                identification="EST-%02d" % k,
+                name=" / ".join(TITULO_CURTO.get(n, n) for n, _x, _y in folha))
+        posicoes = {n: (x, y) for folha in plano for n, x, y in folha}
+        rel["reposicionados"] = _reposicionar(os.path.join(raiz, "layouts"), posicoes)
+        bpy.ops.bim.load_sheets()
         bpy.ops.bim.create_sheets(create_all=True, open_viewer=False)
-        rel["folhas"] = feitas
+        rel["folhas"] = [[n for n, _x, _y in folha] for folha in plano]
 
     passo("folhas A1", _folhas)
     passo("salvar IFC", lambda: bpy.ops.bim.save_project(filepath=ifc_path,
@@ -229,4 +323,6 @@ def main(ifc_path, so_estas=()):
 
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:]
-    main(args[0], tuple(args[1:]))
+    opcoes = dict(a.split("=", 1) for a in args[1:] if "=" in a)
+    main(args[0], tuple(a for a in args[1:] if "=" not in a),
+         titulo=opcoes.get("titulo", "GALPAO"))

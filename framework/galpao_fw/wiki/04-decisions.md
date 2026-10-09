@@ -6152,3 +6152,48 @@ Bonsai (PDF e PNG; eixos lidos do IFC a cada 5,7 m, cotas 5 x 5700, 28500,
 usuario). Abrir o IFC em visualizador com interface (aberto no Bonsai sem
 janela e validado no esquema). A elevacao frontal ainda invade o carimbo na
 folha do Bonsai (pe-direito de 8 m); no DXF cada vista tem a sua folha.
+
+## D196 - Plano de 2026-10-08: decisoes do usuario e as ressalvas das folhas do galpao 20 x 28,5 m (2026-10-09) - FECHADO
+
+**Decisoes do usuario (2026-10-08, perguntadas uma a uma).** (1) O galpao
+do cliente atual e' o de 20 x 28,5 m da ficha `spec_amostra_engenheiro.json`
+- com isso o criterio de pronto da Fase 2 fecha com o que o D195 gerou. (2)
+A Fase 5 (eletrico sobre planta de terceiros) segue congelada ate a entrega
+do galpao. (3) Bonsai entra aos poucos como saida de pranchas e render; o
+FreeCAD fica ate o Bonsai cobrir o que o executivo de aco entrega hoje.
+
+**Medido (antes de mudar).** Nas folhas do Bonsai do galpao do cliente: a
+elevacao frontal (pe-direito de 8 m) invadia o carimbo; o titulo da segunda
+vista caia sobre a tabela de revisoes; carimbo em ingles com `UNTITLED`;
+plantas sem eixo nomeado. O Bonsai grava a posicao de cada desenho num SVG
+de disposicao por folha (`layouts/*.svg`, um `<image x y>` por vista) e
+ordena a lista de folhas pela identificacao - renomear a primeira muda o
+indice das seguintes.
+
+**Entregue.**
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: `distribuir` reparte as
+  vistas em prateleiras dentro da area util acima do carimbo e abre folha
+  nova quando a vista nao cabe (o galpao do cliente passou de 3 para 4
+  folhas, nenhuma vista sobre o carimbo); as posicoes sao gravadas no SVG de
+  disposicao antes de gerar; carimbo com rotulos em portugues, folha
+  `EST-0n` e titulo curto por vista; a folha recem-criada e' achada pela
+  diferenca de ids (o bug do indice renomeava sempre a mesma folha); o
+  enquadramento usa so os elementos, sem a grade.
+- `ifc_emit.py`: `emitir_ifc(..., eixos=)` grava um `IfcGrid` com um eixo
+  numerado por portico e um eixo com letra por linha de pilares, 2,5 m alem
+  da ultima linha; `emitir_ifc_do_spec` le as posicoes dos proprios pilares
+  (`eixos_dos_pilares`). As outras tipologias chamam `emitir_ifc` sem
+  `eixos` e seguem sem grade. `tests/test_ifc_emit.py`: tres testes (grade
+  com rotulos e posicoes, so entra quando pedida, letra depois do Z). No
+  galpao do cliente: 6 eixos numerados e 2 com letra, IFC com 0 apontamento.
+- Pacote em `projects/amostra_engenheiro/saida/plano-2026-10/` (ignorado
+  pelo git): memorial em PDF, IFC fisico e analitico, quatro folhas A1 em
+  PDF, DXF de seis folhas e DWG.
+
+**Nao feito.** **Os eixos estao no IFC e o Bonsai cria as 25 anotacoes de
+referencia, mas sem janela elas nao chegam ao SVG** (nem com `sync=True`,
+nem gerando o desenho duas vezes): as plantas seguem sem eixo desenhado e o
+DXF tambem. A cota de altura do corte ainda e' o topo do envelope (9750),
+nao a cumeeira do portico. `REV` sai `None` no carimbo. Detalhes de
+ligacao, lista de material e simbolos de solda continuam so no executivo do
+FreeCAD. O DWG nao foi aberto no AutoCAD.

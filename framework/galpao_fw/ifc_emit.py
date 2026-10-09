@@ -355,7 +355,8 @@ def _espaco_ifc(m, body, sto, mb, run):
     return esp
 
 
-def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=None):
+def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=None,
+               eixos=None):
     """Escreve um IFC4 com os `membros` (do modelo_neutro) em `path`. Cada barra ->
     IfcColumn/IfcBeam com perfil I extrudado ao longo do eixo. Retorna o path (ou
     levanta se o ifcopenshell faltar). secao_em_metros: as dims da secao (d/bf/tw/
@@ -366,7 +367,12 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
     `mb['pavimento']`. Sem isso o edificio de 9 pavimentos abriria no visualizador
     como um unico 'Terreo' com tudo dentro, e a arvore do modelo (o que o
     projetista navega) nao teria relacao com o predio calculado. Omitido =
-    comportamento historico do galpao: um unico pavimento 'Terreo'."""
+    comportamento historico do galpao: um unico pavimento 'Terreo'.
+
+    eixos: (opc) {'x': [mm...], 'y': [mm...]} - grava um IfcGrid com um eixo
+    numerado (1, 2, ...) em cada posicao de x e um eixo com letra (A, B, ...)
+    em cada posicao de y, para as plantas sairem com os eixos nomeados. Omitido
+    = sem grade (as outras tipologias seguem identicas)."""
     import ifcopenshell
     from ifcopenshell.api import run
 
@@ -514,8 +520,53 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
         _assoc_mat(el, mb)
         _assoc_armadura(el, mb)
         _assoc_calculo(el, mb)
+    if eixos and eixos.get("x") and eixos.get("y"):
+        _grade_ifc(m, sto, eixos, run)
     m.write(path)
     return path
+
+
+FOLGA_EIXO_MM = 2500.0     # quanto o eixo passa da ultima linha de pilares
+
+
+def letra_do_eixo(i):
+    """0 -> A, 25 -> Z, 26 -> AA (rotulo dos eixos longitudinais)."""
+    s = ""
+    i += 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def eixos_dos_pilares(membros):
+    """Posicoes (mm) das linhas de pilar do portico: {'x': [...], 'y': [...]}.
+    Lidas dos proprios membros (marca C<n>), nao recalculadas da geometria."""
+    import re
+    bases = [mb["p1"] for mb in membros
+             if mb.get("tipo") == "Column" and re.fullmatch(r"C\d+", mb.get("marca") or "")
+             and "p1" in mb]
+    return {"x": sorted({round(p[0], 3) for p in bases}),
+            "y": sorted({round(p[1], 3) for p in bases})}
+
+
+def _grade_ifc(m, sto, eixos, run):
+    xs, ys = list(eixos["x"]), list(eixos["y"])
+    x0, x1 = xs[0] - FOLGA_EIXO_MM, xs[-1] + FOLGA_EIXO_MM
+    y0, y1 = ys[0] - FOLGA_EIXO_MM, ys[-1] + FOLGA_EIXO_MM
+
+    def _eixo(rotulo, a, b):
+        linha = m.create_entity("IfcPolyline", Points=[
+            m.create_entity("IfcCartesianPoint", Coordinates=(float(a[0]), float(a[1]))),
+            m.create_entity("IfcCartesianPoint", Coordinates=(float(b[0]), float(b[1])))])
+        return m.create_entity("IfcGridAxis", AxisTag=rotulo, AxisCurve=linha, SameSense=True)
+
+    grade = run("root.create_entity", m, ifc_class="IfcGrid", name="Eixos")
+    grade.UAxes = [_eixo(str(i + 1), (x, y0), (x, y1)) for i, x in enumerate(xs)]
+    grade.VAxes = [_eixo(letra_do_eixo(i), (x0, y), (x1, y)) for i, y in enumerate(ys)]
+    run("geometry.edit_object_placement", m, product=grade)
+    run("spatial.assign_container", m, relating_structure=sto, products=[grade])
+    return grade
 
 
 def membros_do_spec(spec):
@@ -726,7 +777,8 @@ def emitir_ifc_do_spec(spec, path):
     membros = membros_do_spec(spec)
     if membros is None:
         return None
-    return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao")
+    return emitir_ifc(membros, path, nome=spec.get("slug") or "Galpao",
+                      eixos=eixos_dos_pilares(membros))
 
 
 def emitir_ifc_analitico(modelo, path, nome="Galpao"):

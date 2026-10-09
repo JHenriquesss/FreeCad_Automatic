@@ -460,3 +460,40 @@ def test_fisico_perfil_pendente_do_spec_nao_vaza_para_o_pset(tmp_path):
         p = _pset_calculo(el)
         assert "PerfilInicial" not in p and projeto_spec.PENDENTE not in p.values()
         assert p["PerfilAdotado"] in ("HEA200", "HEA180")
+
+
+def test_fisico_grava_a_grade_de_eixos_dos_pilares(tmp_path):
+    # eixo numerado em cada portico, eixo com letra em cada linha de pilares;
+    # as posicoes saem dos proprios pilares do modelo (9 porticos a cada 5 m, vao 20 m)
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.validate
+    m = _fisico(tmp_path, dict(_EST_CALCULADA))
+    grades = m.by_type("IfcGrid")
+    assert len(grades) == 1
+    g = grades[0]
+    assert [a.AxisTag for a in g.UAxes] == [str(i) for i in range(1, 10)]
+    assert [a.AxisTag for a in g.VAxes] == ["A", "B"]
+    x_dos_eixos = [a.AxisCurve.Points[0].Coordinates[0] for a in g.UAxes]
+    assert x_dos_eixos == [5000.0 * i for i in range(9)]
+    y_dos_eixos = [a.AxisCurve.Points[0].Coordinates[1] for a in g.VAxes]
+    assert y_dos_eixos == [0.0, 20000.0]
+    # o eixo passa da ultima linha de pilares nos dois sentidos
+    a1 = g.UAxes[0].AxisCurve.Points
+    assert (a1[0].Coordinates[1], a1[1].Coordinates[1]) == (
+        -EM.FOLGA_EIXO_MM, 20000.0 + EM.FOLGA_EIXO_MM)
+    assert ue.get_container(g).is_a("IfcBuildingStorey")
+    log = ifcopenshell.validate.json_logger()
+    ifcopenshell.validate.validate(m, log)
+    assert not log.statements, [s.get("message") for s in log.statements[:5]]
+
+
+def test_grade_so_entra_quando_pedida(tmp_path):
+    # emitir_ifc sem `eixos` (casa, edificio, disciplinas) segue sem IfcGrid
+    f = str(tmp_path / "sem.ifc")
+    EM.emitir_ifc(MN.frame_primario(_GEO, _SEC), f)
+    assert ifcopenshell.open(f).by_type("IfcGrid") == []
+
+
+def test_letra_do_eixo_passa_de_z():
+    assert [EM.letra_do_eixo(i) for i in (0, 1, 25, 26, 27, 51, 52)] == [
+        "A", "B", "Z", "AA", "AB", "AZ", "BA"]
