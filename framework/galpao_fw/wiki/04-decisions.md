@@ -6118,9 +6118,10 @@ spec de teste.**
 
 **Pedido.** Fechar o criterio de pronto da Fase 2 num galpao que nao seja o
 spec de teste. `projects/galpao-sjb/project-spec.json` segue sem dado real
-(D193). Busca feita antes de pedir ao usuario: os nove `project-spec.json`
-de `projects/` se declaram `not_real_engineering_input` ou estao
-bloqueados; a unica ficha completa e sem essa marca e
+(D193). Busca feita antes de pedir ao usuario: das quatro fichas de galpao
+em `projects/`, a do `galpao-sjb` esta bloqueada e as outras tres
+(`galpao-25x54-trelicado`, `galpao-ufpe`, `galpao-tp-g95`) se declaram
+`not_real_engineering_input`; a ficha completa e sem essa marca e
 `spec_amostra_engenheiro.json` (20 x 28,5 m, pe-direito 8 m, V0 45, lote de
 957 m2 com recuos e taxa de ocupacao), a mesma que o usuario levou ao
 Blender em `dev/3Dblender/galpao`. **Se ela e' o galpao do cliente atual so
