@@ -15,8 +15,15 @@
 #     ha dimensionamento) e a legenda dos simbolos.
 #
 # AS POSICOES SAO SUGESTAO DE PARTIDA, nao projeto: a planta recebida nao diz
-# onde ficam portas, bancadas e moveis. A nota vai escrita no desenho. Nao ha
-# eletroduto tracado: o plano deixa o roteamento para depois.
+# onde ficam portas, bancadas e moveis. A nota vai escrita no desenho.
+#
+# ELETRODUTO: so um ESBOCO de ligacao, em camada propria, quando o quadro esta
+# marcado. O ponto de luz de cada ambiente e' o no do ambiente; os nos se
+# ligam ao quadro pela arvore de menor comprimento total (cada no se liga ao
+# no ja ligado mais proximo, a comecar do quadro) e cada tomada ou equipamento
+# se liga ao no do seu ambiente. Sao retas: nao desviam de parede, nao dizem
+# por onde o eletroduto passa nem quantos condutores leva. O comprimento dos
+# circuitos NAO sai deste esboco (segue o criterio declarado de tracado).
 #
 # SIMBOLOS: o acervo nao tem norma de simbologia; os simbolos sao ADOTADOS e
 # explicados na legenda do proprio desenho.
@@ -28,7 +35,9 @@
 from __future__ import annotations
 
 CAMADAS = {"ELE-QUADRO": 1, "ELE-ILUMINACAO": 2, "ELE-TOMADA": 3, "ELE-EQUIPAMENTO": 6,
-           "ELE-TEXTO": 7, "ELE-TABELA": 7}
+           "ELE-TEXTO": 7, "ELE-TABELA": 7, "ELE-ELETRODUTO-ESBOCO": 8}
+NOTA_ESBOCO = ("ELETRODUTO: ESBOCO DE LIGACAO EM LINHA RETA - O TRACADO REAL E' DEFINIDO "
+               "NA REVISAO")
 BLOCOS = {"lighting": ("ELE_LUZ", "ELE-ILUMINACAO"), "tug": ("ELE_TOMADA", "ELE-TOMADA"),
           "tue": ("ELE_EQUIPAMENTO", "ELE-EQUIPAMENTO")}
 BLOCO_QUADRO = "ELE_QUADRO"
@@ -120,6 +129,29 @@ def posicoes_sugeridas(divisao, geometria):
     return posicoes, erros
 
 
+def esboco_de_eletroduto(divisao, posicoes, quadro_m):
+    """[(origem, destino)] em metros: arvore dos pontos de luz a partir do
+    quadro e, em cada ambiente, uma reta do ponto de luz a cada outro ponto.
+    Sem quadro marcado nao ha esboco."""
+    if quadro_m is None:
+        return []
+    nos = {}                                           # ambiente -> posicao do ponto de luz
+    for p in divisao["pontos"]:
+        if p["kind"] == "lighting" and p["id"] in posicoes:
+            nos[p["room"]] = posicoes[p["id"]]
+    dist = lambda a, b: ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+    trechos, ligados, soltos = [], [tuple(quadro_m)], dict(nos)
+    while soltos:
+        nome, de = min(((n, l) for n in sorted(soltos) for l in ligados),
+                       key=lambda par: dist(soltos[par[0]], par[1]))
+        trechos.append((de, soltos[nome]))
+        ligados.append(soltos.pop(nome))
+    for p in divisao["pontos"]:
+        if p["kind"] != "lighting" and p["id"] in posicoes and p["room"] in nos:
+            trechos.append((nos[p["room"]], posicoes[p["id"]]))
+    return trechos
+
+
 def _blocos(doc, r):
     """Simbolos adotados, desenhados uma vez como blocos de raio r."""
     def _novo(nome):
@@ -175,6 +207,7 @@ def desenhar(planta_dxf, destino_dxf, leitura, divisao, dimensionamento=None):
 
     if divisao["quadro"] is None:
         return {"arquivo": None, "pontos_desenhados": 0, "pontos_sem_posicao": [],
+                "trechos_de_esboco": 0,
                 "erros": [{"code": "divisao_nao_feita",
                            "detail": "sem circuitos nao ha o que desenhar"}], "ATENDE": False}
     doc = ezdxf.readfile(planta_dxf)
@@ -209,6 +242,11 @@ def desenhar(planta_dxf, destino_dxf, leitura, divisao, dimensionamento=None):
         msp.add_blockref(BLOCO_QUADRO, (u(qx), u(qy)), dxfattribs={"layer": "ELE-QUADRO"})
         msp.add_text("QD", dxfattribs={"layer": "ELE-QUADRO", "height": h,
                                        "insert": (u(qx) + 2.0 * h, u(qy) + 1.2 * h)})
+
+    trechos = esboco_de_eletroduto(divisao, posicoes, leitura["quadro_m"])
+    for (xa, ya), (xb, yb) in trechos:
+        msp.add_line((u(xa), u(ya)), (u(xb), u(yb)),
+                     dxfattribs={"layer": "ELE-ELETRODUTO-ESBOCO"})
 
     # tabela, legenda e nota a direita da planta
     vertices = [v for pts in leitura["geometria"].values() for v in pts]
@@ -251,9 +289,14 @@ def desenhar(planta_dxf, destino_dxf, leitura, divisao, dimensionamento=None):
                                             "insert": (x0 + 5.0 * h, y)})
     y -= 2.0 * passo
     msp.add_text(NOTA, dxfattribs={"layer": "ELE-TABELA", "height": h, "insert": (x0, y)})
+    if trechos:
+        y -= passo
+        msp.add_text(NOTA_ESBOCO, dxfattribs={"layer": "ELE-TABELA", "height": h,
+                                              "insert": (x0, y)})
 
     doc.saveas(destino_dxf)
     dimensionado = dimensionamento is None or bool(dimensionamento["ATENDE"])
     atende = bool(divisao["ATENDE"]) and dimensionado and not erros and not sem_posicao
     return {"arquivo": destino_dxf, "pontos_desenhados": desenhados,
-            "pontos_sem_posicao": sem_posicao, "erros": erros, "ATENDE": atende}
+            "pontos_sem_posicao": sem_posicao, "trechos_de_esboco": len(trechos),
+            "erros": erros, "ATENDE": atende}

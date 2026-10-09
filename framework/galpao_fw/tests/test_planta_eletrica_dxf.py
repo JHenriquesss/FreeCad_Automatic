@@ -256,3 +256,64 @@ def test_tomada_nao_cai_no_canto_nem_fora(tmp_path):
         (2.6, round(4.0 - a, 4)), (round(a, 4), 2.2)]
     for p in pontos:
         assert PE._dentro(p, sala)
+
+
+def _trechos_do_arquivo(caminho, esc=0.001):
+    return [((round(e.dxf.start.x * esc, 3), round(e.dxf.start.y * esc, 3)),
+             (round(e.dxf.end.x * esc, 3), round(e.dxf.end.y * esc, 3)))
+            for e in ezdxf.readfile(caminho).modelspace().query(
+                'LINE[layer=="ELE-ELETRODUTO-ESBOCO"]')]
+
+
+def test_esboco_liga_todo_ponto_ao_quadro_pela_arvore_mais_curta(tmp_path):
+    _o, prev, div, _dim, res = _tudo(tmp_path)
+    trechos = _trechos_do_arquivo(res["arquivo"])
+    # quatro pontos de luz (um trecho cada, em arvore) + 12 tomadas + 1 equipamento
+    assert len(trechos) == res["trechos_de_esboco"] == 4 + 12 + 1
+    # quadro em (12; 23). Centros: banho (11; 23,75) a 1,25; quarto (12; 21,5) a 1,5;
+    # servico (14,5; 23,75) a 2,61; cozinha (15,5; 21,5) a 3,81. A arvore liga banho e
+    # quarto ao quadro, o servico ao quadro (2,61 < 3,36 do quarto e 3,5 do banho) e a
+    # cozinha ao servico (2,46 < 3,5 do quarto)
+    arvore = trechos[:4]
+    assert arvore == [((12.0, 23.0), (11.0, 23.75)), ((12.0, 23.0), (12.0, 21.5)),
+                      ((12.0, 23.0), (14.5, 23.75)), ((14.5, 23.75), (15.5, 21.5))]
+    # todo simbolo desenhado esta numa ponta de trecho, e tudo chega ao quadro
+    vizinhos = {}
+    for a, b in trechos:
+        vizinhos.setdefault(a, set()).add(b)
+        vizinhos.setdefault(b, set()).add(a)
+    alcancados, fila = set(), [(12.0, 23.0)]
+    while fila:
+        no = fila.pop()
+        if no not in alcancados:
+            alcancados.add(no)
+            fila.extend(vizinhos[no])
+    posicoes, _e = PE.posicoes_sugeridas(div, prev["leitura_dxf"]["geometria"])
+    assert {(round(x, 3), round(y, 3)) for x, y in posicoes.values()} <= alcancados
+    assert len(alcancados) == 1 + len(posicoes)
+    textos = [t.dxf.text for t in ezdxf.readfile(res["arquivo"]).modelspace().query(
+        'TEXT[layer=="ELE-TABELA"]')]
+    assert PE.NOTA_ESBOCO in textos
+
+
+def test_sem_quadro_marcado_nao_ha_esboco_nem_a_nota_dele(tmp_path):
+    origem = _planta(tmp_path, quadro=None)
+    prev = AD.previsao_de_cargas(origem)
+    div = CP.dividir(prev, _CRITERIOS)
+    res = PE.desenhar(origem, str(tmp_path / "e.dxf"), prev["leitura_dxf"], div)
+    assert res["trechos_de_esboco"] == 0 and _trechos_do_arquivo(res["arquivo"]) == []
+    textos = [t.dxf.text for t in ezdxf.readfile(res["arquivo"]).modelspace().query(
+        'TEXT[layer=="ELE-TABELA"]')]
+    assert PE.NOTA_ESBOCO not in textos and PE.NOTA in textos
+
+
+def test_quadro_que_anda_em_cada_eixo_muda_a_arvore(tmp_path):
+    def _primeiro(quadro, pasta):
+        pasta.mkdir()
+        _o, _p, _d, _dim, res = _tudo(pasta, quadro=quadro)
+        return _trechos_do_arquivo(res["arquivo"])[0]
+
+    # quadro no canto de baixo a direita: o primeiro no ligado e' a cozinha (15,5; 21,5)
+    assert _primeiro((7.0, 0.0), tmp_path / "x") == ((17.0, 20.0), (15.5, 21.5))
+    # no canto de cima a esquerda: o banho (11; 23,75)
+    assert _primeiro((0.0, 4.5), tmp_path / "y") == ((10.0, 24.5), (11.0, 23.75))

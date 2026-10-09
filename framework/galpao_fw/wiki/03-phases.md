@@ -987,6 +987,8 @@ congelado até a entrega do galpão.
   ([[04-decisions#D210]]).
 - **Fase 5, gabarito da demanda** o motor reproduz um cálculo de demanda já entregue;
   motores, iluminação especial e grupo "nenhum" na ponte ([[04-decisions#D211]]).
+- **Fase 5, esboço de eletroduto** árvore de ligação em linha reta no DXF do elétrico, em
+  camada própria; não é traçado ([[04-decisions#D212]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

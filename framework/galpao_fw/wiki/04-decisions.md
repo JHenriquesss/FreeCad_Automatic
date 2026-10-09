@@ -6768,3 +6768,34 @@ diferente.
 **Nao feito.** Nao ha planta de ambientes desse projeto (os DXF da pasta sao
 desenhos de rede da distribuidora), entao a ponte inteira - planta ate o
 quadro - segue sem gabarito real. Eletroduto tracado segue fora.
+
+## D212 - Plano de 2026-10-08: Fase 5 - esboco de eletroduto no DXF do eletrico (2026-10-09) - FECHADO
+
+**O que o plano pede.** "Roteamento automatico de cabos fica para versao
+posterior; no inicio, tracado simplificado e ajuste manual." O D208 nao
+tracava nada.
+
+**Entregue.**
+- `planta_eletrica_dxf.esboco_de_eletroduto`: com o quadro marcado, o ponto
+  de luz de cada ambiente e' o no do ambiente; os nos se ligam ao quadro pela
+  arvore de menor comprimento (cada no se liga ao ja ligado mais proximo, a
+  comecar do quadro) e cada tomada ou equipamento se liga ao no do seu
+  ambiente. Retas na camada `ELE-ELETRODUTO-ESBOCO`, que se desliga sozinha,
+  com a nota escrita no desenho. Sem quadro marcado nao ha esboco nem nota.
+- 3 funcoes de teste novas em `test_planta_eletrica_dxf.py`, relendo o
+  arquivo: arvore conferida a mao na casa de teste; todo simbolo desenhado
+  alcanca o quadro pelos trechos; o primeiro trecho muda quando o quadro anda
+  em x e quando anda em y.
+
+**Visto no desenho.** Imagem da planta de teste de cinco ambientes: 5 trechos
+de arvore e 18 ramais, todos chegando ao quadro.
+
+**Limites ditos.** E' esboco de LIGACAO, nao tracado: as retas atravessam
+parede, nao dizem por onde o eletroduto passa, quantos condutores leva nem o
+diametro. O comprimento dos circuitos NAO sai dele (segue o criterio
+declarado do D207). Em planta cheia as retas se cruzam e poluem o desenho;
+por isso a camada propria.
+
+**Fase 5: o que continua aberto.** Gabarito da ponte inteira (planta ate o
+quadro) contra um projeto entregue: depende de planta de ambientes real e do
+projeto correspondente, que nao existem na maquina.
