@@ -240,3 +240,69 @@ def test_eixo_sem_rotulo_na_ponta_reprova(tmp_path):
              'x1="30" y1="100" x2="30" y2="10"/>')
     with pytest.raises(ValueError, match="eixo da grade com 0 rotulos"):
         DP.ler_desenho(_svg(tmp_path, eixos=solto))
+
+
+def _ifc_com_romaneio(tmp_path):
+    ifcopenshell = pytest.importorskip("ifcopenshell")
+    import ifc_emit
+    spec = {"slug": "lm", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
+                                        "ridge": 7.0, "bay": 5.0},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "sapata_adotada": {"B": 2.0, "L": 2.5, "h": 0.6},
+                          "romaneio": [{"marca": "C1", "comprimento_m": 6.0, "peso_unit_kg": 253.8},
+                                       {"marca": "V1", "comprimento_m": 10.05,
+                                        "peso_unit_kg": 356.8}]}}
+    return ifc_emit.emitir_ifc_do_spec(spec, str(tmp_path / "lm.ifc"))
+
+
+def test_lista_de_material_e_contada_no_modelo(tmp_path):
+    lista = DP.lista_do_ifc(_ifc_com_romaneio(tmp_path))
+    por_marca = {l["marca"]: l for l in lista["linhas"]}
+    # 9 porticos x 2 = 18 pilares de 6 m e 18 vigas; comprimento da extrusao
+    c, v = por_marca["C1"], por_marca["V1"]
+    assert (c["peca"], c["perfil"], c["comprimento_m"], c["qtd"]) == ("Pilar", "HEA200", 6.0, 18)
+    assert (c["peso_unit_kg"], c["peso_total_kg"]) == (253.8, 4568.4)
+    assert (v["qtd"], v["peso_total_kg"]) == (18, round(356.8 * 18, 1))
+    # fundacao entra contada e SEM peso (o calculo nao a pesa): celula vazia
+    sap = [l for l in lista["linhas"] if l["peca"] == "Fundacao"]
+    assert sap and sum(l["qtd"] for l in sap) == 18
+    assert all(l["peso_total_kg"] is None for l in sap)
+    # a altura do bloco nao entra na coluna de comprimento
+    assert all(l["comprimento_m"] is None for l in sap)
+    assert lista["peso_total_kg"] == round(4568.4 + 356.8 * 18, 1)
+    assert lista["linhas_sem_peso"] == len(lista["linhas"]) - 2
+    # a primeira linha e' pilar: ordem por tipo de peca
+    assert lista["linhas"][0]["peca"] == "Pilar"
+
+
+def test_lista_de_material_vira_folha_do_dxf_e_avisa_do_peso_parcial(tmp_path):
+    lista = DP.lista_do_ifc(_ifc_com_romaneio(tmp_path))
+    resumo, doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))], PROJETO="Galpao X")
+    assert "lista" not in resumo
+    destino = str(tmp_path / "com_lista.dxf")
+    resumo = DP.gerar_dxf([DP.ler_desenho(_svg(tmp_path))], destino, {"PROJETO": "Galpao X"},
+                          lista=lista)
+    doc = ezdxf.readfile(destino)
+    assert not doc.audit().errors
+    assert resumo["lista"]["folha"] == "02-LISTA-DE-MATERIAL"
+    assert resumo["lista"]["linhas"] == len(lista["linhas"])
+    folha = doc.layouts.get("02-LISTA-DE-MATERIAL")
+    textos = [t.dxf.text for t in folha.query("TEXT")]
+    assert "C1" in textos and "HEA200" in textos and "4568,4" in textos
+    assert "TOTAL PESADO" in textos
+    assert any("sem peso" in t and "NAO e' o peso da obra" in t for t in textos)
+    carimbo = {a.dxf.tag: a.dxf.text for a in folha.query("INSERT")[0].attribs}
+    assert carimbo["TITULO"] == "LISTA DE MATERIAL" and carimbo["FOLHA"] == "02/02  A3"
+    # a folha da vista passa a contar a lista no total de folhas
+    vista = doc.layouts.get(resumo["folhas"][0]["folha"])
+    assert {a.dxf.tag: a.dxf.text for a in vista.query("INSERT")[0].attribs}["FOLHA"] \
+        == "01/02  A3"
+
+
+def test_lista_que_nao_cabe_na_folha_reprova(tmp_path):
+    lista = {"linhas": [{"marca": "M%d" % i, "peca": "Barra", "perfil": "L50", "comprimento_m": 1.0,
+                         "qtd": 1, "peso_unit_kg": None, "peso_total_kg": None}
+                        for i in range(60)],
+             "peso_total_kg": None, "linhas_sem_peso": 60}
+    with pytest.raises(ValueError, match="nao cabe numa folha A3"):
+        DP.gerar_dxf([DP.ler_desenho(_svg(tmp_path))], str(tmp_path / "x.dxf"), {}, lista=lista)

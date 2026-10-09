@@ -19,6 +19,9 @@
 #
 # Uso:  python dxf_prancha.py <pasta com os .svg> <saida.dxf> [chave=valor ...]
 #       (chaves do carimbo: PROJETO, CLIENTE, RESPONSAVEL, DATA, REVISAO)
+#       IFC=<modelo.ifc> acrescenta a folha da LISTA DE MATERIAL, contada no
+#       proprio modelo (marca, perfil, comprimento, quantidade; peso so onde o
+#       calculo o gravou no pset da peca).
 #
 # ADOTADO, A CONFERIR (a norma de desenho tecnico ainda nao esta na biblioteca
 # de normas): margens de 25 mm a esquerda e 10 mm nas demais, carimbo de 175 mm
@@ -217,7 +220,107 @@ def _estilo_cota(doc, escala):
     return nome
 
 
-def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
+COLUNAS_LISTA = (("MARCA", 22.0), ("PECA", 44.0), ("PERFIL", 48.0), ("COMPR. (m)", 26.0),
+                 ("QTD", 16.0), ("PESO UNIT. (kg)", 32.0), ("PESO TOTAL (kg)", 34.0))
+NOME_DA_CLASSE = {"IfcColumn": "Pilar", "IfcBeam": "Viga", "IfcMember": "Barra secundaria",
+                  "IfcPlate": "Chapa", "IfcMechanicalFastener": "Fixador",
+                  "IfcFooting": "Fundacao", "IfcPile": "Estaca", "IfcCovering": "Fechamento"}
+
+
+CLASSES_LINEARES = ("IfcColumn", "IfcBeam", "IfcMember", "IfcMechanicalFastener", "IfcPile")
+
+
+def lista_do_ifc(caminho_ifc):
+    """Lista de material CONTADA no modelo: uma linha por (classe, marca,
+    perfil, comprimento). Comprimento = o da extrusao no IFC; peso so quando
+    a peca traz `Peso_kg` no pset do calculo (hoje as pecas primarias) - nas
+    outras a celula fica vazia, nunca zero. Devolve tambem o total pesado."""
+    import ifcopenshell
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.util.unit as uu
+
+    ifc = ifcopenshell.open(caminho_ifc)
+    esc = uu.calculate_unit_scale(ifc)
+    grupos = {}
+    for el in ifc.by_type("IfcElement"):
+        if not el.Representation:
+            continue
+        item = el.Representation.Representations[0].Items[0]
+        perfil = getattr(getattr(item, "SweptArea", None), "ProfileName", None) or ""
+        # comprimento so para peca linear: em chapa, bloco e fechamento a
+        # extrusao e' espessura ou altura, e sairia na coluna errada
+        compr = (round(float(item.Depth) * esc, 3)
+                 if hasattr(item, "Depth") and el.is_a() in CLASSES_LINEARES else None)
+        peso = None
+        for nome, props in ue.get_psets(el).items():
+            if nome.startswith("Calc_") and props.get("Peso_kg") is not None:
+                peso = float(props["Peso_kg"])
+        chave = (el.is_a(), el.Name or "", perfil, compr)
+        g = grupos.setdefault(chave, {"qtd": 0, "peso": peso})
+        g["qtd"] += 1
+    ordem = list(NOME_DA_CLASSE)
+    linhas = []
+    for (classe, marca, perfil, compr), g in sorted(
+            grupos.items(), key=lambda kv: (ordem.index(kv[0][0]) if kv[0][0] in ordem else 99,
+                                            kv[0][1], kv[0][2], kv[0][3] or 0.0)):
+        linhas.append({"marca": marca, "peca": NOME_DA_CLASSE.get(classe, classe[3:]),
+                       "perfil": perfil, "comprimento_m": compr, "qtd": g["qtd"],
+                       "peso_unit_kg": g["peso"],
+                       "peso_total_kg": None if g["peso"] is None else round(g["peso"] * g["qtd"], 1)})
+    pesado = [l["peso_total_kg"] for l in linhas if l["peso_total_kg"] is not None]
+    return {"linhas": linhas, "peso_total_kg": round(sum(pesado), 1) if pesado else None,
+            "linhas_sem_peso": sum(1 for l in linhas if l["peso_total_kg"] is None)}
+
+
+def _folha_da_lista(doc, lista, nome_folha, carimbo, k, total):
+    """Folha A3 com a tabela da lista de material, no espaco de papel."""
+    _n, fw, fh = FORMATOS[0]
+    folha = doc.layouts.new(nome_folha)
+    folha.page_setup(size=(fw, fh), margins=(0, 0, 0, 0), units="mm")
+    cam = {"layer": CAMADA_FOLHA}
+    qx0, qy0, qx1, qy1 = MARGEM_ESQ, MARGEM, fw - MARGEM, fh - MARGEM
+    folha.add_lwpolyline([(qx0, qy0), (qx1, qy0), (qx1, qy1), (qx0, qy1)], close=True,
+                         dxfattribs=cam)
+    valores = dict(carimbo, TITULO="LISTA DE MATERIAL", ESCALA="-",
+                   FOLHA="%02d/%02d  A3" % (k, total))
+    ref = folha.add_blockref("CARIMBO", (qx1 - CARIMBO_L, qy0), dxfattribs=cam)
+    ref.add_auto_attribs({c: str(valores.get(c, "")) for c in CAMPOS_CARIMBO})
+    passo, x0, y = 6.0, qx0 + 8.0, qy1 - 14.0
+
+    def _fmt(v, casas):
+        return "" if v is None else ("%%.%df" % casas % v).replace(".", ",")
+
+    def _linha(celulas, altura=ALTURA_TEXTO):
+        x = x0
+        for (_tit, larg), texto in zip(COLUNAS_LISTA, celulas):
+            folha.add_text(texto, height=altura, dxfattribs={
+                "layer": CAMADA_TEXTO, "style": "TEXTO", "insert": (x + 1.5, y + 1.6)})
+            x += larg
+
+    larg_total = sum(l for _t, l in COLUNAS_LISTA)
+    _linha([t for t, _l in COLUNAS_LISTA])
+    folha.add_line((x0, y), (x0 + larg_total, y), dxfattribs=cam)
+    for ln in lista["linhas"]:
+        y -= passo
+        if y < qy0 + CARIMBO_H + passo:
+            raise ValueError("lista de material com %d linhas nao cabe numa folha A3"
+                             % len(lista["linhas"]))
+        _linha([ln["marca"], ln["peca"], ln["perfil"], _fmt(ln["comprimento_m"], 3),
+                str(ln["qtd"]), _fmt(ln["peso_unit_kg"], 1), _fmt(ln["peso_total_kg"], 1)])
+    folha.add_line((x0, y), (x0 + larg_total, y), dxfattribs=cam)
+    y -= passo
+    if lista["peso_total_kg"] is not None:
+        _linha(["", "", "", "", "", "TOTAL PESADO", _fmt(lista["peso_total_kg"], 1)])
+        y -= passo
+    if lista["linhas_sem_peso"]:
+        folha.add_text(
+            "%d linha(s) sem peso: o calculo so pesa as pecas primarias; o total acima "
+            "NAO e' o peso da obra." % lista["linhas_sem_peso"],
+            height=ALTURA_TEXTO, dxfattribs={"layer": CAMADA_TEXTO, "style": "TEXTO",
+                                             "insert": (x0 + 1.5, y + 1.6)})
+
+
+def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lista=None):
     """Escreve o DXF com uma folha por desenho. Devolve o resumo do que entrou
     (por folha: escala, formato, entidades por camada, cotas)."""
     import ezdxf
@@ -241,6 +344,7 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
     msp = doc.modelspace()
     resumo = {"destino": destino, "folhas": []}
     x_base = 0.0
+    n_folhas = len(desenhos) + (1 if lista else 0)
     for k, des in enumerate(desenhos, 1):
         x0, y0, x1, y1 = des["quadro"]
         larg, alt = x1 - x0, y1 - y0
@@ -285,7 +389,7 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
         folha.add_lwpolyline([(qx0, qy0), (qx1, qy0), (qx1, qy1), (qx0, qy1)],
                              close=True, dxfattribs=cam)
         valores = dict(carimbo, TITULO=des["nome"], ESCALA="1:%d" % esc,
-                       FOLHA="%02d/%02d  %s" % (k, len(desenhos), formato))
+                       FOLHA="%02d/%02d  %s" % (k, n_folhas, formato))
         ref = folha.add_blockref("CARIMBO", (qx1 - CARIMBO_L, qy0), dxfattribs=cam)
         ref.add_auto_attribs({c: str(valores.get(c, "")) for c in CAMPOS_CARIMBO})
         util_cx = (qx0 + qx1) / 2.0
@@ -302,22 +406,30 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0):
             "largura_real_mm": round(larg, 1),
             "altura_real_mm": round(alt, 1)})
         x_base += larg + folga_entre_vistas_mm
+    if lista:
+        nome_lista = "%02d-LISTA-DE-MATERIAL" % n_folhas
+        _folha_da_lista(doc, lista, nome_lista, carimbo, n_folhas, n_folhas)
+        resumo["lista"] = {"folha": nome_lista, "linhas": len(lista["linhas"]),
+                           "peso_total_kg": lista["peso_total_kg"],
+                           "linhas_sem_peso": lista["linhas_sem_peso"]}
     if "Layout1" in doc.layouts and resumo["folhas"]:
         doc.layouts.delete("Layout1")                  # folha vazia que o ezdxf cria
     doc.saveas(destino)
     return resumo
 
 
-def gerar_de_pasta(pasta, destino, carimbo=None):
+def gerar_de_pasta(pasta, destino, carimbo=None, ifc=None):
     svgs = sorted(os.path.join(pasta, f) for f in os.listdir(pasta) if f.lower().endswith(".svg"))
     if not svgs:
         raise ValueError("nenhum .svg em %s" % pasta)
-    return gerar_dxf([ler_desenho(p) for p in svgs], destino, carimbo)
+    return gerar_dxf([ler_desenho(p) for p in svgs], destino, carimbo,
+                     lista=lista_do_ifc(ifc) if ifc else None)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(__doc__ + "\nuso: python dxf_prancha.py <pasta dos svg> <saida.dxf> [CHAVE=valor ...]")
     campos = dict(a.split("=", 1) for a in sys.argv[3:] if "=" in a)
-    print(json.dumps(gerar_de_pasta(sys.argv[1], sys.argv[2], campos),
+    modelo = campos.pop("IFC", None)
+    print(json.dumps(gerar_de_pasta(sys.argv[1], sys.argv[2], campos, ifc=modelo),
                      ensure_ascii=False, indent=1))

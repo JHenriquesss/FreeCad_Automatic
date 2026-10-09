@@ -110,8 +110,10 @@ de 20 × 28,5 m (`spec_amostra_engenheiro.json`). Do que estava em ressalva:
 - **Resolvido depois (D197):** eixos nomeados desenhados (o Bonsai só os põe no
   desenho depois de recarregar o IFC, então o script gera em duas passadas),
   cota de cumeeira lida do IFC e revisão no carimbo.
-- **Continua aberto:** bolhas de eixo cortadas na borda do corte, marcas de
-  corte sobre cotas, detalhes de ligação, lista de material e símbolos de solda.
+- **Resolvido depois (D198):** bolhas de eixo e marcas de corte inteiras e
+  fora das cotas; lista de material contada no IFC, como folha do DXF.
+- **Continua aberto:** detalhes de ligação e símbolos de solda (só no executivo
+  do FreeCAD) e o peso das peças secundárias na lista de material.
 
 As evidências desta pasta são do galpão de teste (40 × 20 m). O pacote do
 galpão do cliente fica em `projects/amostra_engenheiro/saida/plano-2026-10/`,

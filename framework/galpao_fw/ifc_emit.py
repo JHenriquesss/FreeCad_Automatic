@@ -739,9 +739,14 @@ def _anotar_calculo(membros, spec):
     fy, fu = acos.propriedades(classe)
     aco = "Aco %s" % classe
 
-    def _barra(esf, util, perfil_inicial, perfil_adotado):
+    # romaneio do calculo (pecas primarias), por marca: comprimento e peso
+    romaneio = {r.get("marca"): r for r in (est.get("romaneio") or []) if r.get("marca")}
+
+    def _barra(esf, util, perfil_inicial, perfil_adotado, marca):
         esf = esf or {}
+        rom = romaneio.get(marca) or {}
         return {PSET_CALCULO: {
+            "Comprimento_m": rom.get("comprimento_m"), "Peso_kg": rom.get("peso_unit_kg"),
             "PerfilAdotado": perfil_adotado, "PerfilInicial": _decidido(perfil_inicial),
             "Aco": classe, "fy_MPa": fy / 1000.0, "fu_MPa": fu / 1000.0,
             "Nsd_kN": esf.get("N_kN"), "Vsd_kN": esf.get("V_kN"),
@@ -749,9 +754,9 @@ def _anotar_calculo(membros, spec):
             "Utilizacao": util, "VereditoAcoAtende": veredito}}
 
     col = _barra(est.get("esf_coluna"), res.get("Coluna"), est.get("perfil_col"),
-                 est.get("perfil_col_adotado"))
+                 est.get("perfil_col_adotado"), "C1")
     raf = _barra(est.get("esf_rafter"), res.get("Viga"), est.get("perfil_raf"),
-                 est.get("perfil_raf_adotado"))
+                 est.get("perfil_raf_adotado"), "V1")
     fck = (spec.get("fundacao") or {}).get("fck")          # kPa
     sa = est.get("sapata_adotada") or {}
     for mb in membros:

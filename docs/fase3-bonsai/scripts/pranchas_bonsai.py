@@ -30,7 +30,7 @@ import traceback
 import bpy
 import mathutils
 
-MARGEM_M = 9.0        # folga em volta do modelo, para as cotas
+MARGEM_M = 11.0       # folga em volta do modelo: bolhas dos eixos, cotas e marca de corte
 ESCALA = "1:100|1/100"
 MM_POR_M = 10.0       # papel a 1:100
 # Folha A1 (mm, y para baixo como no SVG). A area util para acima do carimbo do
@@ -107,6 +107,70 @@ def _reposicionar(pasta_layouts, posicoes):
         if novo != txt:
             open(caminho, "w", encoding="utf-8").write(novo)
     return mexidos
+
+
+BORDA_MM = 8.0        # folga para a bolha do eixo e a seta do corte nao serem cortadas
+
+
+def puxar_para_dentro(caminho, borda=BORDA_MM):
+    """O Bonsai leva a linha de cada eixo e de cada corte ate a borda da vista,
+    e a bolha ou a seta da ponta sai cortada pela metade. Encurta essas linhas
+    para `borda` mm dentro da vista e leva junto o rotulo e o simbolo que
+    estavam na ponta. Devolve quantas pontas mexeu."""
+    import re
+    txt = open(caminho, encoding="utf-8").read()
+    cab = re.search(r"<svg[^>]*>", txt).group(0)
+    larg = float(re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"', cab).group(1))
+    alt = float(re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"', cab).group(2))
+
+    def _dentro(x, y):
+        return (min(max(x, borda), larg - borda), min(max(y, borda), alt - borda))
+
+    desloc = []                                       # (ponto antigo, delta)
+
+    def _linha(m):
+        tag = m.group(0)
+        v = {k: float(re.search(r'\b%s="([-\d.eE]+)"' % k, tag).group(1))
+             for k in ("x1", "y1", "x2", "y2")}
+        for kx, ky in (("x1", "y1"), ("x2", "y2")):
+            nx, ny = _dentro(v[kx], v[ky])
+            if (nx, ny) != (v[kx], v[ky]):
+                desloc.append(((v[kx], v[ky]), (nx - v[kx], ny - v[ky])))
+                tag = re.sub(r'\b%s="[-\d.eE]+"' % kx, '%s="%s"' % (kx, nx), tag)
+                tag = re.sub(r'\b%s="[-\d.eE]+"' % ky, '%s="%s"' % (ky, ny), tag)
+        return tag
+
+    txt = re.sub(r"<line[^>]*PredefinedType-(?:GRID|SECTION)[^>]*>", _linha, txt)
+    if not desloc:
+        return 0
+
+    def _delta(x, y):
+        for (px, py), d in desloc:
+            if abs(x - px) < 4.0 and abs(y - py) < 4.0:
+                return d
+        return None
+
+    def _rotulo(m):
+        tag = m.group(0)
+        mx_ = re.search(r'\bx="([-\d.eE]+)"', tag)
+        my_ = re.search(r'\by="([-\d.eE]+)"', tag)
+        if not (mx_ and my_):
+            return tag
+        x, y = float(mx_.group(1)), float(my_.group(1))
+        d = _delta(x, y)
+        if d is None:
+            return tag
+        tag = re.sub(r'\bx="[-\d.eE]+"', 'x="%s"' % (x + d[0]), tag, count=1)
+        tag = re.sub(r'\by="[-\d.eE]+"', 'y="%s"' % (y + d[1]), tag, count=1)
+        rot = re.search(r"rotate\(([-\d.eE]+), ([-\d.eE]+), ([-\d.eE]+)\)", tag)
+        if rot:
+            tag = tag.replace(rot.group(0), "rotate(%s, %s, %s)" % (
+                rot.group(1), float(rot.group(2)) + d[0], float(rot.group(3)) + d[1]))
+        return tag
+
+    txt = re.sub(r"<(?:text|use)\b[^>]*>", _rotulo, txt)
+    open(caminho, "w", encoding="utf-8").write(txt)
+    return len(desloc)
 
 
 def _carimbo_em_portugues(caminho):
@@ -205,7 +269,7 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
     # as bolhas dos eixos da grade ficam a 2,5 m da ultima linha de pilares e
     # tem ~1,1 m de diametro a 1:100: as cotas passam por fora delas
     planta = ([((a, y0 - 4.2, 0), (b, y0 - 4.2, 0)) for a, b in zip(xs, xs[1:])]
-              + [((x0, y0 - 5.4, 0), (x1, y0 - 5.4, 0))]
+              + [((x0, y0 - 5.2, 0), (x1, y0 - 5.2, 0))]
               + [((x0 - 4.3, a, 0), (x0 - 4.3, b, 0)) for a, b in zip(ys, ys[1:])])
     alto = cumeeira if cumeeira is not None else topo
     corte = [((0, y0, -3.2), (0, y1, -3.2)),
@@ -362,6 +426,10 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
             cena2.render.resolution_x, cena2.render.resolution_y = cp.raster_x, cp.raster_y
             bpy.ops.bim.create_drawing(print_all=False, open_viewer=False)
             feitos2 += 1
+        pasta = os.path.join(os.path.dirname(ifc_path), "drawings")
+        rel["pontas_puxadas"] = {
+            a[:-4]: puxar_para_dentro(os.path.join(pasta, a))
+            for a in sorted(os.listdir(pasta)) if a.lower().endswith(".svg")}
         bpy.ops.bim.load_sheets()
         bpy.ops.bim.create_sheets(create_all=True, open_viewer=False)
         return feitos2

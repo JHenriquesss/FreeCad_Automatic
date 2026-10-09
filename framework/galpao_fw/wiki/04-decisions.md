@@ -6236,3 +6236,47 @@ cota de vao. Detalhes de ligacao, lista de material e simbolos de solda
 continuam so no executivo do FreeCAD. **Nenhum programa CAD esta instalado
 nesta maquina (procurado em `C:/Program Files`): o DWG foi conferido so
 pelo ODA e pelo ezdxf, nunca aberto no AutoCAD.**
+
+## D198 - Plano de 2026-10-08: acabamento das pranchas do galpao do cliente e lista de material (2026-10-09) - FECHADO
+
+**Pedido.** Decisao do usuario (2026-10-09, perguntada): enquanto a
+entrega espera a abertura do DWG no AutoCAD e a revisao do engenheiro
+parceiro, trabalhar no acabamento das pranchas do galpao de 20 x 28,5 m -
+bolhas de eixo cortadas no corte, marca de corte sobre cota e a lista de
+material numa folha do DXF. Fase 5 segue congelada.
+
+**Medido (antes de mudar).** O Bonsai leva a linha de cada eixo e de cada
+corte ate a borda da vista (`<line>` com y de 0,001 a 319,7 numa vista de
+319,7 mm), e a bolha ou a seta da ponta sai pela metade. A marca de corte
+ficava a 5,2 m da linha de pilares, sobre a cota total (5,4 m). O romaneio
+do calculo so existia em texto (`romaneio-preliminar.txt`, pecas
+primarias); o IFC nao guardava peso.
+
+**Entregue.**
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: `puxar_para_dentro`
+  encurta as linhas de eixo e de corte para 8 mm dentro da vista e leva
+  junto o rotulo e o simbolo da ponta (4 pontas no corte, 2 em cada
+  planta); margem do enquadramento de 9 para 11 m e cota total a 5,2 m,
+  para a marca de corte ficar abaixo das cotas.
+- `ifc_emit._anotar_calculo`: `Comprimento_m` e `Peso_kg` do romaneio do
+  calculo no pset da peca primaria (marca C1 e V1); sem romaneio as duas
+  chaves ficam fora.
+- `dxf_prancha.py`: `lista_do_ifc` conta as pecas no proprio modelo (uma
+  linha por classe, marca, perfil e comprimento; comprimento so para peca
+  linear; peso so onde o pset traz) e `gerar_dxf(..., lista=)` grava a
+  folha A3 `NN-LISTA-DE-MATERIAL` com a tabela, o total pesado e o aviso
+  de quantas linhas estao sem peso. Lista que nao cabe na folha reprova.
+- Testes: um em `tests/test_ifc_emit.py` (peso e comprimento no pset; fora
+  sem romaneio) e tres em `tests/test_dxf_prancha.py` (lista contada no
+  modelo; folha no DXF com aviso de peso parcial; lista que nao cabe).
+- No galpao do cliente: 29 linhas, 2 com peso (12 pilares IPE500 de 8,000
+  m = 8703,6 kg; 12 vigas IPE500 de 10,112 m = 11001,6 kg), **total pesado
+  19705,2 kg** contra 19705,9 kg do romaneio do calculo (a lista soma o
+  peso unitario arredondado a 0,1 kg); DXF de sete folhas com auditoria
+  sem erro, DWG pelo ODA.
+
+**Nao feito.** Peso das 27 linhas secundarias (tercas, longarinas, chapas,
+fixadores, bloco): o calculo nao as pesa, e a folha diz que o total nao e'
+o peso da obra. Lista de material tambem como folha do Bonsai (so no DXF).
+Detalhes de ligacao e simbolos de solda continuam so no executivo do
+FreeCAD. DWG nunca aberto no AutoCAD (nenhum CAD nesta maquina).

@@ -497,3 +497,19 @@ def test_grade_so_entra_quando_pedida(tmp_path):
 def test_letra_do_eixo_passa_de_z():
     assert [EM.letra_do_eixo(i) for i in (0, 1, 25, 26, 27, 51, 52)] == [
         "A", "B", "Z", "AA", "AB", "AZ", "BA"]
+
+
+def test_fisico_leva_comprimento_e_peso_do_romaneio_a_peca_primaria(tmp_path):
+    # o romaneio do calculo (por marca) vai ao pset da peca; sem romaneio, as
+    # duas chaves ficam fora (nao viram zero)
+    rom = [{"marca": "C1", "descricao": "Coluna", "perfil": "HEA200", "comprimento_m": 6.0,
+            "qtd": 18, "peso_unit_kg": 253.8, "peso_total_kg": 4568.4},
+           {"marca": "V1", "descricao": "Viga", "perfil": "HEA180", "comprimento_m": 10.05,
+            "qtd": 18, "peso_unit_kg": 356.8, "peso_total_kg": 6422.4}]
+    m = _fisico(tmp_path, dict(_EST_CALCULADA, romaneio=rom))
+    c = _pset_calculo(m.by_type("IfcColumn")[0])
+    v = _pset_calculo([b for b in m.by_type("IfcBeam") if b.Name == "V1"][0])
+    assert (c["Comprimento_m"], c["Peso_kg"]) == (6.0, 253.8)
+    assert (v["Comprimento_m"], v["Peso_kg"]) == (10.05, 356.8)
+    sem = _pset_calculo(_fisico(tmp_path, dict(_EST_CALCULADA)).by_type("IfcColumn")[0])
+    assert "Peso_kg" not in sem and "Comprimento_m" not in sem
