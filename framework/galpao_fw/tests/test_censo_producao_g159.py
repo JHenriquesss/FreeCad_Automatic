@@ -96,6 +96,7 @@ COBERTURA_COMMIT_D = {
     "d1d19f4b8dedb4eb020e738912ae44100a980601": "D194",  # Fases 1, 3 e 4 (plano 2026-10-08)
     "f0c604e15326cea905f178ef5841834d43b030fb": "D195",  # Fase 2, galpao 20 x 28,5 m
     "145e1e95c4756144b4ab78f67c12417cb31013a4": "D196",  # grade de eixos no IFC
+    "e4ea9645ff01da5de0c072837c221581b23d07f3": "D197",  # eixos no DXF
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -219,7 +220,7 @@ def _repo_git_tmp(tmp_path, arquivos_por_commit):
 
 
 def test_01_baseline_verde_e_censo_real_no_repo():
-    """O repo real: o censo lista os 16 commits que tocaram producao desde o
+    """O repo real: o censo lista os 17 commits que tocaram producao desde o
     G149, cada um coberto (verbete) ou isento com motivo - e nada mais."""
     censo = censo_de_git()
     with open(DECISIONS, encoding="utf-8") as fh:
@@ -231,9 +232,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 16:
-        lados.append("censo=%d, esperado 16 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 4 do plano de 2026-10-08)"
+    if len(censo) != 17:
+        lados.append("censo=%d, esperado 17 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 5 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
