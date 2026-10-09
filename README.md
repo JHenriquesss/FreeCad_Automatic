@@ -8,12 +8,12 @@ eccentric) → fire → stairs → platforms → **FreeCAD 3D model** → **2D e
 (TechDraw, AWS A2.4 weld symbols)** → DXF → PT memorials.
 
 **Status (2026-10-09):** suite do `framework/galpao_fw` — 4153 passed / 2 skipped /
-0 failed no commit `7ac876d` (medido em blocos de um processo: camada rápida
-`tools/suite_rapida.py` + camada lenta). O norte atual é o plano
+0 failed no commit `cfb0452` (suíte inteira por `tools/suite_paralela.py -n 3`, 332
+arquivos, 19 min 26 s, sem quebra de lista nominal, censo do FreeCAD ou repositório). O norte atual é o plano
 `decisoes-arquitetura-projetos.md` (vender o projeto, não o software): motor Python sem
 FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terceiros. Estado por
 fase em `framework/galpao_fw/wiki/03-phases.md` ("Plano de 2026-10-08"); decisões em
-`wiki/04-decisions.md` (D193–D212). A linha anterior deste status (REVISAO itens 1–49,
+`wiki/04-decisions.md` (D193–D213). A linha anterior deste status (REVISAO itens 1–49,
 pytest 1353) era de antes desse plano e não foi remedida.
 
 ## Quick Start
