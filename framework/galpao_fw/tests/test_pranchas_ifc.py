@@ -238,7 +238,7 @@ def test_peso_ausente_fica_vazio_e_o_total_some_quando_nada_foi_pesado(tmp_path)
 
 
 def test_lista_que_nao_cabe_na_folha_do_bonsai_reprova(tmp_path):
-    tabela = {"cabecalho": ["A"], "larguras_mm": [20.0], "linhas": [["x"]] * 200,
+    tabela = {"cabecalho": ["A"], "larguras_mm": [20.0], "linhas": [["celula"]] * 200,
               "total": None, "notas": []}
     with pytest.raises(ValueError, match="nao cabe"):
         PI.svg_da_lista(tabela, str(tmp_path / "lista.svg"))
