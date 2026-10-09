@@ -6690,3 +6690,46 @@ a casa nao trazem tipo (so o nome do ambiente).
 ponte da planta (os motores existem, a ponte nao); eletroduto tracado;
 gabarito contra um projeto ja entregue - depende de o usuario trazer uma
 planta real e o projeto correspondente.
+
+## D210 - Plano de 2026-10-08: Fase 5, sexto passo - demanda e padrao de entrada na ponte da planta (2026-10-09) - FECHADO
+
+**Medido (antes de escrever).** Os motores `demanda_residencial_enel` e
+`entrada_enel_bt` ja existiam e o unifilar ja sabia desenhar o que eles
+devolvem; na ponte da planta (D207) entrada, disjuntor geral, aterramento e
+demanda saiam "A CONFIRMAR". As fontes da distribuidora NAO estao no acervo
+novo de texto nativo (so no antigo, F131): por isso a ponte nao interpreta
+regra nenhuma delas.
+
+**Entregue.**
+- `circuitos_planta.demanda_e_entrada`: monta a entrada dos dois motores e os
+  chama. Conta os ambientes por modulo de demanda: tipo que e' exatamente um
+  modulo do motor entra direto; qualquer outro (suite, varanda, lavabo...) so
+  entra com o modulo DECLARADO em `demanda.modulo_por_tipo`, senao e' erro
+  nomeado. Equipamento so entra com `grupo_demanda` declarado, e so o grupo
+  de aquecimento esta ligado (iguais em potencia viram um item com a
+  quantidade). Carga instalada em kW = soma dos circuitos pela potencia vezes
+  o fator de potencia declarado da classe. Rede (fator locacional, tensao,
+  tipo de fornecimento, aerea ou nao) declarada.
+- Conferencia cruzada: o numero de fases em que o quadro foi repartido tem de
+  ser o que o ramal da linha escolhida entrega (lido da propria tabela do
+  motor, "2x10 (10)"); diferente, reprova.
+- `desenhos(..., entrada)` leva demanda e padrao de entrada ao unifilar e ao
+  quadro; linha de comando: `rede` no arquivo de criterios.
+- 10 funcoes de teste novas em `test_circuitos_planta.py` (resultado igual ao
+  dos dois motores chamados a mao; tipo sem modulo; equipamento sem grupo;
+  cada dado de rede ausente; rede que os motores recusam; fases; unifilar com
+  e sem entrada).
+
+**Visto no desenho.** Unifilar da planta de teste com a rede declarada:
+"ENTRADA BT 127/220 V", "Padrao B1 - ramal 10 (10) mm2", "DISJ. GERAL 50 A",
+aterramento 10 mm2 e demanda 10,69 kVA com a fonte escrita. Conta refeita a
+mao: modulos 8,8 kVA / 1,40 + chuveiro 5,5 kW x 80 % = 10,69 kVA.
+
+**Limites ditos.** Vale so para a distribuidora cujas tabelas o motor tem
+(rede aerea, 127/220 e 120/240 V). Motores e iluminacao especial nao sao
+montados pela ponte. Curto-circuito segue nao avaliado. A correspondencia
+entre tipo de ambiente e modulo de demanda e' de quem projeta.
+
+**Fase 5: o que continua aberto.** Eletroduto tracado; gabarito contra um
+projeto ja entregue (depende de planta real e projeto correspondente
+trazidos pelo usuario).

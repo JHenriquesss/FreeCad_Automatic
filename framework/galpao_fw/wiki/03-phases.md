@@ -982,6 +982,9 @@ congelado até a entrega do galpão.
 - **Fase 5, quinto passo** ambientes lidos dos `IfcSpace` de um modelo IFC, com o mesmo
   contrato do leitor de DXF; área e perímetro da geometria
   ([[04-decisions#D209]]).
+- **Fase 5, sexto passo** demanda e padrão de entrada pelos motores da distribuidora,
+  com rede, módulo por tipo de ambiente e grupo de demanda declarados
+  ([[04-decisions#D210]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

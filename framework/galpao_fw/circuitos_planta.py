@@ -31,7 +31,17 @@
 # mais um acrescimo vertical declarado. E' estimativa de anteprojeto, marcada
 # como tal na saida; o comprimento do tracado real substitui.
 #
-# O que NAO se faz aqui: demanda, ramal e padrao de entrada, curto-circuito.
+# DEMANDA E PADRAO DE ENTRADA (sexto passo): `demanda_e_entrada` monta a
+# entrada dos dois motores da distribuidora que ja existem
+# (demanda_residencial_enel e entrada_enel_bt) e os chama. A ponte NAO
+# interpreta a regra da distribuidora: ambiente cujo tipo nao e' exatamente um
+# dos modulos do motor so entra com o modulo DECLARADO para aquele tipo;
+# equipamento so entra com o grupo de demanda DECLARADO, e so o grupo de
+# aquecimento esta ligado. A rede (fator locacional, tensao, tipo de
+# fornecimento, rede aerea ou nao) e' declarada.
+#
+# O que NAO se faz aqui: curto-circuito; motores e iluminacao especial na
+# demanda (o motor os calcula, a ponte nao os monta).
 #
 # Biblioteca: quem a chama pela linha de comando e' o ambientes_dxf
 # (python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] criterios=<json>).
@@ -434,12 +444,148 @@ def relatorio_dimensionamento_pt(resultado):
     return "\n".join(linhas)
 
 
-def desenhos(resultado, pasta):
+def desenhos(resultado, pasta, entrada=None):
     """Unifilar e quadro de cargas em SVG pelo emissor residencial que ja
-    existe. Sem dimensionamento nao ha desenho (devolve o motivo)."""
+    existe. Sem dimensionamento nao ha desenho (devolve o motivo). `entrada`
+    (saida de demanda_e_entrada) leva demanda e padrao de entrada ao desenho;
+    sem ela o emissor escreve que estao a confirmar."""
     if resultado["circuits"] is None:
         return {"files": [], "skipped": {"unifilar.svg": "circuitos_nao_dimensionados",
                                          "quadro-cargas.svg": "circuitos_nao_dimensionados"}}
     import desenho_eletrico_residencial as DER
 
-    return DER.gerar_desenhos_residenciais({"circuits": resultado["circuits"]}, pasta)
+    fonte = {"circuits": resultado["circuits"]}
+    if entrada is not None:
+        fonte["calculation"] = entrada["calculation"]
+        fonte["service_entry"] = entrada["service_entry"]
+    return DER.gerar_desenhos_residenciais(fonte, pasta)
+
+
+GRUPO_AQUECIMENTO = "aquecimento"
+CAMPOS_REDE = ("location_factor", "voltage_system", "supply_type", "network_kind")
+
+
+def demanda_e_entrada(previsao, divisao, criterios):
+    """Demanda e padrao de entrada pelos motores da distribuidora.
+    `criterios` traz `rede` = {location_factor, voltage_system, supply_type,
+    network_kind}, `instalacao.fator_potencia` (para a carga instalada em kW),
+    `equipamentos[].grupo_demanda` e, se preciso, `demanda.modulo_por_tipo` =
+    {tipo de ambiente: modulo do motor}. Devolve {rooms, heating,
+    installed_load_kw, calculation, service_entry, erros, ATENDE}."""
+    import demanda_residencial_enel as DE
+    import entrada_enel_bt as EE
+
+    vazio = {"rooms": None, "heating": [], "installed_load_kw": None, "calculation": {},
+             "service_entry": {"ok": False, "entry": None, "errors": [], "warnings": []}}
+    erros = []
+    rede = criterios["rede"] if "rede" in criterios else None
+    for campo in CAMPOS_REDE:
+        if not isinstance(rede, dict) or campo not in rede:
+            erros.append({"code": "criterio_ausente", "campo": "rede.%s" % campo,
+                          "detail": "dado da rede declarado por quem projeta"})
+    if "instalacao" not in criterios:
+        erros.append({"code": "criterio_ausente", "campo": "instalacao",
+                      "detail": "os fatores de potencia levam a carga instalada a kW"})
+    else:
+        erros += [e for e in _erros_da_instalacao(criterios["instalacao"])
+                  if e["campo"].startswith("instalacao.fator_potencia")]
+    if divisao["quadro"] is None:
+        erros.append({"code": "divisao_nao_feita", "campo": "divisao",
+                      "detail": "sem circuitos nao ha carga instalada"})
+    if erros:
+        return dict(vazio, erros=erros, ATENDE=False)
+
+    declarado = {}
+    if "demanda" in criterios and "modulo_por_tipo" in criterios["demanda"]:
+        declarado = criterios["demanda"]["modulo_por_tipo"]
+    modulos = tuple(DE._ROOM_NAMES)
+    rooms = {m: 0 for m in modulos}
+    for amb in previsao["ambientes"]:
+        tipo = amb["tipo"]
+        if tipo in declarado:
+            modulo = declarado[tipo]
+        elif tipo in modulos:
+            modulo = tipo
+        else:
+            modulo = None
+        if modulo not in modulos:
+            erros.append({"code": "tipo_sem_modulo_de_demanda",
+                          "campo": "demanda.modulo_por_tipo", "ambiente": amb["nome"],
+                          "tipo": tipo, "modulos": list(modulos),
+                          "detail": "declare em demanda.modulo_por_tipo o modulo de demanda "
+                                    "deste tipo de ambiente"})
+            continue
+        rooms[modulo] += 1
+
+    por_potencia = {}
+    for eq in criterios["equipamentos"]:
+        if not isinstance(eq, dict) or "grupo_demanda" not in eq:
+            erros.append({"code": "equipamento_sem_grupo_de_demanda", "campo": "equipamentos",
+                          "equipamento": eq["nome"] if isinstance(eq, dict) and "nome" in eq
+                          else None,
+                          "detail": "declare grupo_demanda no equipamento"})
+        elif eq["grupo_demanda"] != GRUPO_AQUECIMENTO:
+            erros.append({"code": "grupo_de_demanda_nao_ligado", "campo": "equipamentos",
+                          "equipamento": eq["nome"], "grupo": eq["grupo_demanda"],
+                          "detail": "a ponte so monta o grupo de aquecimento"})
+        else:                                          # resistivo: kVA = kW
+            kw = float(eq["potencia_va"]) / 1000.0
+            por_potencia[kw] = por_potencia[kw] + 1 if kw in por_potencia else 1
+    heating = [{"quantity": n, "power_kw": kw} for kw, n in sorted(por_potencia.items())]
+
+    fps = criterios["instalacao"]["fator_potencia"]
+    instalada_kw = sum(c["potencia_va"] * fps[c["classe"]]
+                       for c in divisao["circuitos"]) / 1000.0
+    if erros:
+        return dict(vazio, rooms=rooms, heating=heating, installed_load_kw=instalada_kw,
+                    erros=erros, ATENDE=False)
+
+    demanda = DE.calculate_residential_demand({
+        "network": {"location_factor": rede["location_factor"]}, "rooms": rooms,
+        "loads": {"heating": heating, "motors": [], "special_lighting": []}})
+    erros += list(demanda["errors"])
+    entrada = dict(vazio["service_entry"])
+    if rede["network_kind"] != "aerea":
+        erros.append({"code": "rede_fora_das_tabelas", "campo": "rede.network_kind",
+                      "detail": "as tabelas de padrao de entrada do motor sao de rede aerea"})
+    elif demanda["ok"]:
+        entrada = EE.select_enel_bt_entry(voltage_system=rede["voltage_system"],
+                                          supply_type=rede["supply_type"],
+                                          installed_load_kw=instalada_kw)
+        erros += list(entrada["errors"])
+        if entrada["ok"]:
+            # o ramal da linha escolhida diz quantas fases chegam ("2x10 (10)")
+            fases_do_ramal = int(entrada["entry"]["connection_conductors"].split("x")[0])
+            if fases_do_ramal != criterios["n_fases"]:
+                erros.append({"code": "fases_do_quadro_diferem_do_fornecimento",
+                              "campo": "n_fases", "n_fases_quadro": criterios["n_fases"],
+                              "n_fases_ramal": fases_do_ramal,
+                              "detail": "os circuitos foram repartidos num numero de fases "
+                                        "que o fornecimento escolhido nao entrega"})
+    calculo = dict(demanda["calculation"])
+    calculo["demand_errors"] = list(demanda["errors"])
+    return {"rooms": rooms, "heating": heating, "installed_load_kw": instalada_kw,
+            "calculation": calculo, "service_entry": entrada, "erros": erros,
+            "ATENDE": bool(divisao["ATENDE"]) and not erros and entrada["ok"] is True}
+
+
+def relatorio_entrada_pt(resultado):
+    linhas = ["DEMANDA E PADRAO DE ENTRADA"]
+    if resultado["rooms"] is not None:
+        linhas.append("modulos: " + ", ".join(
+            "%s=%d" % par for par in resultado["rooms"].items()))
+    if resultado["installed_load_kw"] is not None:
+        linhas.append("carga instalada: %.2f kW" % resultado["installed_load_kw"])
+    if "demand" in resultado["calculation"]:
+        linhas.append("demanda: %.2f kVA" % resultado["calculation"]["demand"]["final_kva"])
+    entrada = resultado["service_entry"]["entry"]
+    if entrada is not None:
+        linhas.append("padrao de entrada: linha %s, tipo %s, disjuntor %s A, ramal %s" % (
+            entrada["row"], entrada["supply_type"], entrada["breaker_a"],
+            entrada["connection_conductors"]))
+    for e in resultado["erros"]:
+        linhas.append("ERRO %s%s" % (e["code"], "".join(
+            " %s=%s" % (k, e[k]) for k in ("campo", "ambiente", "tipo", "equipamento")
+            if k in e)))
+    linhas.append("ATENDE: %s" % resultado["ATENDE"])
+    return "\n".join(linhas)

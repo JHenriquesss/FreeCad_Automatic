@@ -442,3 +442,130 @@ def test_da_planta_com_quadro_marcado_ao_dimensionamento(tmp_path):
     sem = CP.dimensionar_da_planta(CP.dividir(nenhum, criterios), nenhum["leitura_dxf"],
                                    criterios)
     assert sem["ATENDE"] is False and "quadro_nao_marcado" in [e["code"] for e in sem["erros"]]
+
+
+# ---------------------------------------------------------------------------
+# sexto passo: demanda e padrao de entrada pelos motores da distribuidora
+# ---------------------------------------------------------------------------
+_REDE = {"location_factor": 1.0, "voltage_system": "127/220", "supply_type": "B",
+         "network_kind": "aerea"}
+_CHUVEIRO = {"nome": "chuveiro", "ambiente": "banho", "potencia_va": 5500.0,
+             "tensao_v": 220.0, "n_fases": 2, "grupo_demanda": "aquecimento"}
+_AMBIENTES_COM_SALA = _AMBIENTES + [
+    {"nome": "sala", "tipo": "sala", "area_m2": 16.0, "perimetro_m": 16.0}]
+
+
+def _entrada(ambientes=None, **troca):
+    prev = AR.rodar({"ambientes": copy.deepcopy(ambientes or _AMBIENTES_COM_SALA)})
+    criterios = _criterios(instalacao=_INSTALACAO, rede=dict(_REDE),
+                           equipamentos=[dict(_CHUVEIRO)])
+    criterios.update(troca)
+    return prev, criterios, CP.demanda_e_entrada(prev, CP.dividir(prev, criterios), criterios)
+
+
+def test_demanda_e_entrada_sao_as_dos_motores_para_a_mesma_casa():
+    import demanda_residencial_enel as DE
+    import entrada_enel_bt as EE
+
+    prev, criterios, ent = _entrada()
+    assert ent["ATENDE"] is True and ent["erros"] == []
+    assert ent["rooms"] == {"quarto": 1, "sala": 1, "banheiro": 1, "cozinha": 1,
+                            "area_servico": 1, "outros": 0}
+    assert ent["heating"] == [{"quantity": 1, "power_kw": 5.5}]
+    # carga instalada em kW: cada circuito pela potencia vezes o fator declarado da classe
+    div = CP.dividir(prev, criterios)
+    va = {classe: sum(c["potencia_va"] for c in div["circuitos"] if c["classe"] == classe)
+          for classe in CP.CLASSES}
+    assert va == {"iluminacao": 680.0, "tomadas": 1300.0, "tomadas_exclusivas": 3800.0,
+                  "equipamento": 5500.0}
+    assert ent["installed_load_kw"] == pytest.approx(
+        (680.0 * 1.0 + 1300.0 * 0.8 + 3800.0 * 0.8 + 5500.0 * 1.0) / 1000.0)
+    a_mao = DE.calculate_residential_demand({
+        "network": {"location_factor": 1.0}, "rooms": ent["rooms"],
+        "loads": {"heating": [{"quantity": 1, "power_kw": 5.5}], "motors": [],
+                  "special_lighting": []}})
+    assert ent["calculation"]["demand"] == a_mao["calculation"]["demand"]
+    assert ent["service_entry"] == EE.select_enel_bt_entry(
+        voltage_system="127/220", supply_type="B", installed_load_kw=ent["installed_load_kw"])
+    assert ent["service_entry"]["entry"]["row"] == "B1"
+    texto = CP.relatorio_entrada_pt(ent)
+    assert "linha B1" in texto and "ATENDE: True" in texto
+
+
+def test_tipo_fora_dos_modulos_so_entra_com_o_modulo_declarado():
+    casa = _AMBIENTES_COM_SALA + [
+        {"nome": "suite", "tipo": "suite", "area_m2": 14.0, "perimetro_m": 15.0},
+        {"nome": "varanda", "tipo": "varanda", "area_m2": 4.0, "perimetro_m": 8.0}]
+    _prev, _c, sem = _entrada(casa)
+    assert sem["ATENDE"] is False and sem["calculation"] == {}
+    assert [(e["code"], e["tipo"]) for e in sem["erros"]] == [
+        ("tipo_sem_modulo_de_demanda", "suite"), ("tipo_sem_modulo_de_demanda", "varanda")]
+    _prev, _c, com = _entrada(casa, demanda={"modulo_por_tipo": {"suite": "quarto",
+                                                                 "varanda": "outros"}})
+    assert com["rooms"]["quarto"] == 2 and com["rooms"]["outros"] == 1
+    assert "tipo_sem_modulo_de_demanda" not in [e["code"] for e in com["erros"]]
+    # modulo declarado que o motor nao tem continua sendo erro
+    _prev, _c, torto = _entrada(casa, demanda={"modulo_por_tipo": {"suite": "dormitorio",
+                                                                   "varanda": "outros"}})
+    assert [(e["code"], e["tipo"]) for e in torto["erros"]] == [
+        ("tipo_sem_modulo_de_demanda", "suite")]
+
+
+def test_equipamento_sem_grupo_ou_de_grupo_nao_ligado_reprova():
+    sem_grupo = {k: v for k, v in _CHUVEIRO.items() if k != "grupo_demanda"}
+    _p, _c, ent = _entrada(equipamentos=[sem_grupo])
+    assert [e["code"] for e in ent["erros"]] == ["equipamento_sem_grupo_de_demanda"]
+    assert ent["ATENDE"] is False and ent["service_entry"]["entry"] is None
+    motor = dict(_CHUVEIRO, nome="bomba", grupo_demanda="motor")
+    _p, _c, ent = _entrada(equipamentos=[motor])
+    assert [(e["code"], e["equipamento"]) for e in ent["erros"]] == [
+        ("grupo_de_demanda_nao_ligado", "bomba")]
+    # dois aquecedores de mesma potencia viram um item de quantidade 2
+    dois = [dict(_CHUVEIRO), dict(_CHUVEIRO, nome="chuveiro 2")]
+    _p, _c, ent = _entrada(equipamentos=dois, rede=dict(_REDE, supply_type="C"), n_fases=3)
+    assert ent["heating"] == [{"quantity": 2, "power_kw": 5.5}]
+
+
+@pytest.mark.parametrize("campo", ["location_factor", "voltage_system", "supply_type",
+                                   "network_kind"])
+def test_dado_da_rede_ausente_nao_e_suposto(campo):
+    rede = dict(_REDE)
+    del rede[campo]
+    _p, _c, ent = _entrada(rede=rede)
+    assert ent["ATENDE"] is False and ent["calculation"] == {}
+    assert [e["campo"] for e in ent["erros"]] == ["rede.%s" % campo]
+
+
+def test_rede_que_os_motores_recusam_reprova_com_o_erro_deles():
+    _p, _c, fator = _entrada(rede=dict(_REDE, location_factor=0.9))
+    assert fator["ATENDE"] is False
+    assert [e["code"] for e in fator["erros"]] == ["invalid_location_factor"]
+    _p, _c, enterrada = _entrada(rede=dict(_REDE, network_kind="subterranea"))
+    assert [e["code"] for e in enterrada["erros"]] == ["rede_fora_das_tabelas"]
+    assert enterrada["service_entry"]["entry"] is None and enterrada["ATENDE"] is False
+    _p, _c, tensao = _entrada(rede=dict(_REDE, voltage_system="220/380"))
+    assert [e["code"] for e in tensao["erros"]] == ["unsupported_voltage_system"]
+
+
+def test_fases_do_quadro_tem_de_ser_as_do_fornecimento():
+    # 10,22 kW cabe no tipo B (duas fases); o quadro repartido em tres nao bate
+    _p, _c, ent = _entrada(n_fases=3)
+    assert ent["service_entry"]["entry"]["row"] == "B1"
+    assert [e["code"] for e in ent["erros"]] == ["fases_do_quadro_diferem_do_fornecimento"]
+    assert (ent["erros"][0]["n_fases_quadro"], ent["erros"][0]["n_fases_ramal"]) == (3, 2)
+    assert ent["ATENDE"] is False
+
+
+def test_unifilar_leva_a_entrada_e_a_demanda_quando_calculadas(tmp_path):
+    prev, criterios, ent = _entrada()
+    div = CP.dividir(prev, criterios)
+    comp = {c["id"]: {"comprimento_m": 12.0, "origem": "declarado"} for c in div["circuitos"]}
+    dim = CP.dimensionar(div, _INSTALACAO, comp)
+    com, sem = tmp_path / "com", tmp_path / "sem"
+    CP.desenhos(dim, str(com), ent)
+    CP.desenhos(dim, str(sem))
+    unifilar = (com / "unifilar.svg").read_text(encoding="utf-8")
+    assert "DISJ. GERAL 50 A" in unifilar and "127/220" in unifilar
+    assert "demanda %.2f kVA" % ent["calculation"]["demand"]["final_kva"] in unifilar
+    seco = (sem / "unifilar.svg").read_text(encoding="utf-8")
+    assert "DISJ. GERAL 50 A" not in seco and "A CONFIRMAR" in seco

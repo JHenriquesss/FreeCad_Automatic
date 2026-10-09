@@ -35,6 +35,7 @@
 # arquivo de criterios trouxer `instalacao` (e `tracado` ou `comprimentos_m`),
 # sai o dimensionamento; com `saida=` saem o unifilar e o quadro em SVG. Com
 # `dxf=` sai a planta recebida com as camadas do eletrico (planta_eletrica_dxf).
+# Com `rede` nos criterios saem a demanda e o padrao de entrada da distribuidora.
 # ============================================================================
 """Ambientes (tipo, area, perimetro) lidos de polilinhas fechadas de um DXF."""
 
@@ -210,8 +211,12 @@ if __name__ == "__main__":
         if "instalacao" in _criterios:
             _dim = _CP.dimensionar_da_planta(_div, res["leitura_dxf"], _criterios)
             print(_CP.relatorio_dimensionamento_pt(_dim))
+            _ent = None
+            if "rede" in _criterios:
+                _ent = _CP.demanda_e_entrada(res, _div, _criterios)
+                print(_CP.relatorio_entrada_pt(_ent))
             if _saida:
-                print("desenhos:", _CP.desenhos(_dim, _saida[0]))
+                print("desenhos:", _CP.desenhos(_dim, _saida[0], _ent))
         if _dxf:
             import planta_eletrica_dxf as _PE
             _des = _PE.desenhar(_args[0], _dxf[0], res["leitura_dxf"], _div, _dim)
