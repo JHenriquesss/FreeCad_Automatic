@@ -6715,7 +6715,7 @@ regra nenhuma delas.
   motor, "2x10 (10)"); diferente, reprova.
 - `desenhos(..., entrada)` leva demanda e padrao de entrada ao unifilar e ao
   quadro; linha de comando: `rede` no arquivo de criterios.
-- 10 funcoes de teste novas em `test_circuitos_planta.py` (resultado igual ao
+- 7 funcoes de teste novas em `test_circuitos_planta.py` (resultado igual ao
   dos dois motores chamados a mao; tipo sem modulo; equipamento sem grupo;
   cada dado de rede ausente; rede que os motores recusam; fases; unifilar com
   e sem entrada).
