@@ -989,6 +989,9 @@ congelado até a entrega do galpão.
   motores, iluminação especial e grupo "nenhum" na ponte ([[04-decisions#D211]]).
 - **Fase 5, esboço de eletroduto** árvore de ligação em linha reta no DXF do elétrico, em
   camada própria; não é traçado ([[04-decisions#D212]]).
+- **Fase 4, DWG conferido por ida e volta** o DWG do galpão guarda as mesmas entidades,
+  camadas, folhas, textos e cotas do DXF; abrir no AutoCAD segue com o usuário
+  ([[04-decisions#D213]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

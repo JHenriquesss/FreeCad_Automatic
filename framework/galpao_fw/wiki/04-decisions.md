@@ -6799,3 +6799,29 @@ por isso a camada propria.
 **Fase 5: o que continua aberto.** Gabarito da ponte inteira (planta ate o
 quadro) contra um projeto entregue: depende de planta de ambientes real e do
 projeto correspondente, que nao existem na maquina.
+
+## D213 - Plano de 2026-10-08: Fase 4 - o DWG do galpao conferido por ida e volta, sem AutoCAD (2026-10-09) - FECHADO (so medicao)
+
+**Por que.** O DWG da entrega nunca foi aberto num AutoCAD (nao ha CAD na
+maquina) e isso segue dependendo do usuario. O que da para medir sem ele: se
+o DWG guarda tudo o que o DXF tinha.
+
+**Medido.** `galpao-20x28_5.dwg` convertido de volta a DXF pelo ODA File
+Converter 27.9.0 e relido com o ezdxf em modo de recuperacao, ao lado do DXF
+de origem:
+- auditoria do ezdxf: 0 erros e 0 correcoes nos dois arquivos;
+- espaco do modelo: 8702 entidades nos dois, mesma contagem por tipo e por
+  camada;
+- 14 folhas com os mesmos nomes; mesmos blocos; mesma unidade;
+- todos os textos iguais;
+- 28 cotas com a mesma medida pela geometria e o mesmo texto.
+
+**Erro meu no caminho.** A primeira comparacao acusou as 28 cotas como
+diferentes: eu lia o campo de medida gravada, que o DXF de origem nao traz e
+o ODA devolve como -1 (a recalcular). Medindo pela geometria nos dois lados,
+sao iguais. Nao era defeito do arquivo.
+
+**Limite.** Isto prova que o DWG nao perdeu entidade, camada, folha, texto
+nem cota em relacao ao DXF. NAO prova que o AutoCAD o abre sem aviso nem que
+o desenho aparece como esperado na tela (fontes, espessuras, viewport): isso
+so abrindo num CAD de verdade, e continua com o usuario. Nenhum codigo mudou.
