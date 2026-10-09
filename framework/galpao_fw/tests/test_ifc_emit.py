@@ -513,3 +513,36 @@ def test_fisico_leva_comprimento_e_peso_do_romaneio_a_peca_primaria(tmp_path):
     assert (v["Comprimento_m"], v["Peso_kg"]) == (10.05, 356.8)
     sem = _pset_calculo(_fisico(tmp_path, dict(_EST_CALCULADA)).by_type("IfcColumn")[0])
     assert "Peso_kg" not in sem and "Comprimento_m" not in sem
+
+
+def test_fisico_leva_a_descricao_da_ligacao_a_placa_de_base_e_a_misula(tmp_path):
+    # o que o calculo adotou vai em texto de prancha ao elemento, para o detalhe
+    # de ligacao ler do modelo; medida faltando -> sem descricao (nao inventa)
+    est = dict(_EST_CALCULADA,
+               base_adotada={"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6},
+               joelho_adotado={"n": 4, "db": 0.024, "t": 0.0125},
+               resultados=dict(_EST_CALCULADA["resultados"], Base=0.68, Joelho=0.73))
+    m = _fisico(tmp_path, est)
+    placa = _pset_calculo([p for p in m.by_type("IfcPlate") if p.Name == "PB1"][0])
+    assert placa["Descricao"] == "600 x 800 x 100 mm"
+    assert placa["Chumbadores"] == "6 " + EM.DIAMETRO + "32" and placa["Utilizacao"] == 0.68
+    mis = _pset_calculo([p for p in m.by_type("IfcPlate") if p.Name == "MI1"][0])
+    assert mis["Descricao"] == "4 parafusos " + EM.DIAMETRO + "24, chapa 12.5 mm"
+    assert mis["Utilizacao"] == 0.73
+    # nervura e clipe nao sao a ligacao: seguem sem pset
+    assert not any(_pset_calculo(p) for p in m.by_type("IfcPlate") if p.Name == "NB1")
+    incompleto = _fisico(tmp_path, dict(_EST_CALCULADA, base_adotada={"B": 0.6, "L": 0.8, "t": 0.1},
+                                        joelho_adotado={"n": 4, "db": 0.024}))
+    p2 = _pset_calculo([p for p in incompleto.by_type("IfcPlate") if p.Name == "PB1"][0])
+    assert p2["Descricao"] == "600 x 800 x 100 mm" and "Chumbadores" not in p2
+    assert not any(_pset_calculo(p) for p in incompleto.by_type("IfcPlate") if p.Name == "MI1")
+
+
+def test_fisico_pilar_desenhado_comeca_no_topo_da_placa(tmp_path):
+    # 6 m de base ao beiral no calculo; a peca no IFC tem 5970 mm e nasce em z = 30
+    import ifcopenshell.util.placement as up
+    m = _fisico(tmp_path, dict(_EST_CALCULADA,
+                               base_adotada={"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6}))
+    col = m.by_type("IfcColumn")[0]
+    assert col.Representation.Representations[0].Items[0].Depth == 5970.0
+    assert up.get_local_placement(col.ObjectPlacement)[2, 3] == 30.0

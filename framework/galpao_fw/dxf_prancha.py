@@ -157,13 +157,23 @@ def ler_desenho(caminho):
             raise ValueError("%s: eixo da grade com %d rotulos nas pontas (esperado 1): %r"
                              % (caminho, len(nomes), sorted(nomes)))
         eixos.append((real(*a), real(*b), nomes.pop()))
+    # textos de chamada (anotacao TEXT do modelo, ja com as variaveis resolvidas):
+    # <text transform="translate(x, y) ..."><tspan class="... PredefinedType-TEXT">
+    textos = []
+    for t in raiz.iter(NS_SVG + "text"):
+        linhas = [(ts.text or "").strip() for ts in t.findall(NS_SVG + "tspan")
+                  if "PredefinedType-TEXT" in (ts.get("class") or "")]
+        pos = re.search(r"translate\(\s*([-\d.eE]+)[ ,]+([-\d.eE]+)\s*\)", t.get("transform") or "")
+        if linhas and pos:
+            textos.append((real(float(pos.group(1)), float(pos.group(2))),
+                           " ".join(l for l in linhas if l)))
     larg, alt = _mm(raiz.get("width")), _mm(raiz.get("height"))
     x0, y1 = real(0.0, 0.0)
     x1, y0 = real(larg, alt)
     return {"nome": os.path.splitext(os.path.basename(caminho))[0],
             "escala_origem": round(1000.0 / mm_por_m),
             "quadro": (x0, y0, x1, y1),          # mm reais: xmin, ymin, xmax, ymax
-            "elementos": elementos, "cotas": cotas, "eixos": eixos}
+            "elementos": elementos, "cotas": cotas, "eixos": eixos, "textos": textos}
 
 
 def escolher_folha(larg_real_mm, alt_real_mm, escalas=ESCALAS,
@@ -255,6 +265,11 @@ def lista_do_ifc(caminho_ifc):
         for nome, props in ue.get_psets(el).items():
             if nome.startswith("Calc_") and props.get("Peso_kg") is not None:
                 peso = float(props["Peso_kg"])
+                # peca pesada pelo calculo: o comprimento da linha e' o do
+                # calculo (o que gerou o peso), nao o da extrusao - o pilar
+                # desenhado e' 30 mm mais curto (nasce no topo da placa de base)
+                if "Comprimento_m" in props and props["Comprimento_m"] is not None:
+                    compr = round(float(props["Comprimento_m"]), 3)
         chave = (el.is_a(), el.Name or "", perfil, compr)
         g = grupos.setdefault(chave, {"qtd": 0, "peso": peso})
         g["qtd"] += 1
@@ -311,6 +326,12 @@ def _folha_da_lista(doc, lista, nome_folha, carimbo, k, total):
     y -= passo
     if lista["peso_total_kg"] is not None:
         _linha(["", "", "", "", "", "TOTAL PESADO", _fmt(lista["peso_total_kg"], 1)])
+        y -= passo
+    if lista["peso_total_kg"] is not None:
+        folha.add_text(
+            "Linhas com peso: comprimento e peso do calculo (comprimento estrutural).",
+            height=ALTURA_TEXTO, dxfattribs={"layer": CAMADA_TEXTO, "style": "TEXTO",
+                                             "insert": (x0 + 1.5, y + 1.6)})
         y -= passo
     if lista["linhas_sem_peso"]:
         folha.add_text(
@@ -382,6 +403,9 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                 msp.add_text(rotulo, height=ALTURA_ROTULO_EIXO * esc, dxfattribs={
                     "layer": CAMADA_EIXO, "style": "TEXTO"}).set_placement(
                         (px + dx, py + dy), align=TextEntityAlignment.MIDDLE_CENTER)
+        for (tx, ty), frase in des.get("textos", ()):
+            msp.add_text(frase, height=ALTURA_TEXTO * esc, dxfattribs={
+                "layer": CAMADA_TEXTO, "style": "TEXTO", "insert": (tx + dx, ty + dy)})
         # ---- folha no espaco de papel --------------------------------------
         nome_folha = "%02d-%s" % (k, des["nome"])[:31]
         folha = doc.layouts.new(nome_folha)
@@ -407,6 +431,7 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
             "formato": formato, "escala_de_escape": de_escape,
             "escala_origem": des["escala_origem"], "entidades": por_camada,
             "cotas": len(des["cotas"]), "eixos": len(des.get("eixos", ())),
+            "textos": len(des.get("textos", ())),
             "largura_real_mm": round(larg, 1),
             "altura_real_mm": round(alt, 1)})
         x_base += larg + folga_entre_vistas_mm

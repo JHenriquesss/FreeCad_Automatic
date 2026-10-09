@@ -467,7 +467,8 @@ def emitir_ifc(membros, path, nome="Galpao", secao_em_metros=True, pavimentos=No
 
     for mb in membros:
         if "poligono" in mb:                          # painel (tapamento): poligono+vazios
-            _painel_ifc(m, body, _sto(mb), mb, _guid)
+            el = _painel_ifc(m, body, _sto(mb), mb, _guid)
+            _assoc_calculo(el, mb)                    # chapa poligonal (ex.: misula)
             continue
         if "secao2" in mb:                            # barra de ALMA VARIÁVEL (tapered)
             el = _tapered_ifc(m, body, _sto(mb), mb, esc)
@@ -713,6 +714,7 @@ def membros_do_spec(spec):
 
 
 PSET_CALCULO = "Calc_VerificacaoEstrutural"
+DIAMETRO = "Ø"        # simbolo de diametro nas descricoes de ligacao
 
 
 def _anotar_calculo(membros, spec):
@@ -764,6 +766,25 @@ def _anotar_calculo(membros, spec):
                  est.get("perfil_raf_adotado"), "V1")
     fck = (spec.get("fundacao") or {}).get("fck")          # kPa
     sa = est.get("sapata_adotada") or {}
+
+    def _mm(valor_m):
+        return "%g" % round(float(valor_m) * 1000.0, 1)
+
+    # LIGACOES: o que o calculo adotou vai, ja em texto de prancha, a placa de
+    # base e a misula do joelho, para o detalhe ler do proprio elemento. So
+    # monta a descricao quando o calculo deixou TODAS as medidas dela.
+    placa_base = joelho = None
+    ba = est.get("base_adotada") or {}
+    if all(k in ba for k in ("B", "L", "t")):
+        placa_base = {"Descricao": "%s x %s x %s mm" % (_mm(ba["B"]), _mm(ba["L"]), _mm(ba["t"])),
+                      "Utilizacao": res.get("Base")}
+        if "n" in ba and "db" in ba:
+            placa_base["Chumbadores"] = "%d %s%s" % (int(ba["n"]), DIAMETRO, _mm(ba["db"]))
+    ja = est.get("joelho_adotado") or {}
+    if all(k in ja for k in ("n", "db", "t")):
+        joelho = {"Descricao": "%d parafusos %s%s, chapa %s mm"
+                               % (int(ja["n"]), DIAMETRO, _mm(ja["db"]), _mm(ja["t"])),
+                  "Utilizacao": res.get("Joelho")}
     for mb in membros:
         marca = mb.get("marca") or ""
         if mb.get("tipo") == "Column" and re.fullmatch(r"C\d+", marca):
@@ -772,6 +793,10 @@ def _anotar_calculo(membros, spec):
         elif mb.get("tipo") == "Beam" and re.fullmatch(r"V\d+", marca):
             mb.setdefault("material", aco)
             mb.setdefault("propriedades", raf)
+        elif mb.get("perfil") == "PlacaBase" and placa_base:
+            mb.setdefault("propriedades", {PSET_CALCULO: placa_base})
+        elif mb.get("perfil") == "Misula" and joelho:
+            mb.setdefault("propriedades", {PSET_CALCULO: joelho})
         elif mb.get("tipo") == "Footing":
             if fck:
                 mb.setdefault("material", "Concreto C%d" % round(fck / 1000.0))

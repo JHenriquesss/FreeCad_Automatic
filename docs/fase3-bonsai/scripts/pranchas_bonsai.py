@@ -287,13 +287,72 @@ def detalhes_do_galpao(xs, ys, alt_col, placa):
             # camera 1,3 m antes do eixo do pilar, fora do bloco: o corte pelo
             # eixo preenchia de preto a alma do pilar e o bloco inteiro
             ("DET-BASE-ELEVACAO", "ELEVATION_VIEW", (xb - 1.3, yb, 0.15), (r(90), 0, r(-90)),
-             jan, jan, 1.90, corte, None, ESCALA_DETALHE),
+             jan, jan, 1.90, corte, None, ESCALA_DETALHE,
+             [((xb, yb + 0.98, 0.95), "PILAR {{Calc_VerificacaoEstrutural.PerfilAdotado}} - ACO {{Calc_VerificacaoEstrutural.Aco}}", "C"),
+              ((xb, yb + 0.98, -0.62), "PLACA DE BASE {{Calc_VerificacaoEstrutural.Descricao}}", "PB"),
+              ((xb, yb + 0.98, -0.74), "CHUMBADORES {{Calc_VerificacaoEstrutural.Chumbadores}}", "PB")]),
             ("DET-BASE-PLANTA", "PLAN_VIEW", (xb, yb, pz1 + 0.25), (0, 0, 0),
-             jan, jan, 0.60, planta, None, ESCALA_DETALHE),
+             jan, jan, 0.60, planta, None, ESCALA_DETALHE,
+             [((xb + 0.42, yb + 0.80, 0), "PLACA {{Calc_VerificacaoEstrutural.Descricao}}", "PB"),
+              ((xb + 0.42, yb + 0.68, 0), "{{Calc_VerificacaoEstrutural.Chumbadores}}", "PB")]),
         ]
     vistas.append(("DET-JOELHO", "ELEVATION_VIEW", (xb - 0.6, yb + 0.55, alt_col + 0.15),
-                   (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE))
+                   (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE,
+                   [((xb, yb + 1.80, alt_col - 0.55), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
+                    ((xb, yb + 1.80, alt_col - 0.67), "PILAR {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "C"),
+                    ((xb, yb + 1.80, alt_col - 0.79), "JOELHO: {{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
     return vistas
+
+
+def _mais_proximo(tool, prefixo, x, y):
+    """Elemento IFC cuja marca comeca por `prefixo` (C, V, PB, MI...) e seguida
+    so de digitos, mais proximo do eixo do pilar em (x, y)."""
+    melhor = None
+    for el in tool.Ifc.get().by_type("IfcElement"):
+        nome = el.Name or ""
+        if not (nome.startswith(prefixo) and nome[len(prefixo):].isdigit()):
+            continue
+        o = tool.Ifc.get_object(el)
+        if o is None or o.type != "MESH":
+            continue
+        pts = [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
+        cx = sum(p[0] for p in pts) / 8.0
+        cy = sum(p[1] for p in pts) / 8.0
+        dist = math.hypot(cx - x, cy - y)
+        if melhor is None or dist < melhor[0]:
+            melhor = (dist, el)
+    return None if melhor is None else melhor[1]
+
+
+def _texto(tool, desenho, ponto, literal, produto):
+    """Texto de chamada ligado a um elemento do modelo: o `literal` traz
+    variaveis `{{Pset.Propriedade}}` que o Bonsai resolve no elemento associado
+    ao gerar o desenho. O numero na prancha e' o do IFC, nao texto digitado."""
+    import bonsai.bim.module.drawing.annotation as ann
+    tipo = "TEXT"
+    vista = tool.Drawing.get_drawing_target_view(desenho)
+    ctx = (tool.Drawing.get_annotation_context(vista, tipo)
+           or tool.Drawing.create_annotation_context(vista, tipo))
+    obj = ann.Annotator.get_annotation_obj(
+        desenho, tipo, tool.Drawing.get_annotation_data_type(tipo))
+    cam = tool.Ifc.get_object(desenho)
+    inv = cam.matrix_world.inverted()
+    local = inv @ mathutils.Vector(ponto)
+    local.z = (inv @ obj.matrix_world.translation).z
+    matriz = obj.matrix_world.copy()
+    matriz.translation = cam.matrix_world @ local
+    obj.matrix_world = matriz
+    bpy.context.view_layer.update()
+    el = tool.Drawing.run_root_assign_class(
+        obj=obj, ifc_class="IfcAnnotation", predefined_type=tipo,
+        should_add_representation=True, context=ctx,
+        ifc_representation_class=tool.Drawing.get_ifc_representation_class(tipo))
+    tool.Ifc.run("group.assign_group",
+                 group=tool.Drawing.get_drawing_group(desenho), products=[el])
+    tool.Collector.assign(obj, should_clean_users_collection=True)
+    tool.Drawing.edit_text_literals(obj, [{"Literal": literal, "BoxAlignment": "bottom-left"}])
+    tool.Ifc.run("drawing.assign_product", relating_product=produto, related_object=el)
+    return el
 
 
 def _cota(tool, desenho, p1, p2):
@@ -358,7 +417,7 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
         ("PLANTA-COBERTURA", "PLAN_VIEW", (c[0], c[1], topo + 1.0), (0, 0, 0),
          larg_x, larg_y, topo + 1.0 - alt_col + 0.6, planta, "IfcBeam, IfcMember"),
     ]
-    return [v + (ESCALA_GERAL,) for v in gerais]
+    return [v + (ESCALA_GERAL, []) for v in gerais]
 
 
 def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
@@ -395,7 +454,7 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
     xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
     todas = (vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira)
              + detalhes_do_galpao(xs, ys, alt_col, _placa_de_base(tool, xb, yb)))
-    for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala in todas:
+    for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala, textos in todas:
         if so_estas and nome not in so_estas:
             continue
 
@@ -431,6 +490,13 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
             cena.render.resolution_x, cena.render.resolution_y = cp.raster_x, cp.raster_y
             for p1, p2 in cotas:
                 _cota(tool, des, p1, p2)
+            for ponto, literal, prefixo in textos:
+                produto = _mais_proximo(tool, prefixo, xb, yb)
+                if produto is None:
+                    rel["avisos"].append("%s: sem elemento %s* para o texto %r"
+                                         % (nome, prefixo, literal))
+                    continue
+                _texto(tool, des, ponto, literal, produto)
             rel["cotas"][nome] = len(cotas)
             rel["papel_mm"][nome] = (round(larg * 1000.0 / escala, 1),
                                      round(alt * 1000.0 / escala, 1))

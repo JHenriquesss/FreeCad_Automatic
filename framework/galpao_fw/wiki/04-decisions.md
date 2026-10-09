@@ -6332,3 +6332,47 @@ comeca o pilar em Z0); mexer nisso muda o comprimento do pilar no IFC
 (8,000 m, igual ao do romaneio) e ficou para decisao. Textos de chamada nos
 detalhes (bitola do chumbador, perfil, utilizacao). Detalhes de cumeeira,
 contraventamento e demais ligacoes do PE10+.
+
+## D200 - Plano de 2026-10-08: pilar no topo da placa e textos de chamada nos detalhes (2026-10-09) - FECHADO
+
+**Decisoes do usuario (2026-10-09, perguntadas).** (1) Alinhar o pilar com
+o FreeCAD: no modelo do IFC ele passa a nascer no topo da placa de base
+(+30 mm), nao na cota 0. (2) Etapa 2 das ligacoes no Bonsai = textos de
+chamada lidos do modelo.
+
+**Medido (antes de mudar).** IFC do galpao do cliente: pilar de z = 0 a
+8000 e placa de base de -70 a +30 - 30 mm do pilar dentro da placa. O
+`build_galpao` comeca o pilar em `Z0` (30 mm). A placa de base, os
+chumbadores e a misula nao tinham propriedade nenhuma no IFC; o que o
+calculo adotou para a base e para o joelho so existia em `spec.estrutura`.
+As chapas poligonais (misula, nervura) passavam por `_painel_ifc` e nunca
+recebiam pset. O Bonsai resolve `{{Pset.Propriedade}}` no texto de uma
+anotacao a partir do elemento associado a ela.
+
+**Entregue.**
+- `modelo_neutro.frame_completo`: com placa de base, o pilar nasce em
+  `Z0_PLACA_MM` (30); sem placa, na cota 0 como antes. No galpao do cliente
+  a peca passa a 7970 mm no IFC.
+- `ifc_emit`: a placa de base leva `Descricao` (B x L x t), `Chumbadores`
+  (quantidade e bitola) e `Utilizacao`; a misula leva a ligacao do joelho
+  (`n parafusos, chapa t`) e a utilizacao - so quando o calculo deixou
+  todas as medidas. Chapa poligonal passa a receber o pset.
+- `dxf_prancha`: a linha da peca pesada usa o comprimento do calculo (o que
+  gerou o peso), com a nota na folha; os textos de chamada do desenho vao
+  ao DXF no tamanho de papel vezes a escala.
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: `_texto` cria a anotacao
+  TEXT ligada ao elemento mais proximo do eixo do detalhe; oito chamadas
+  nos tres detalhes.
+- Testes: um em `test_modelo_neutro.py`, dois em `test_ifc_emit.py`, dois
+  em `test_dxf_prancha.py`.
+- No galpao do cliente (texto lido do SVG gerado): "PILAR IPE500 - ACO
+  MR250", "PLACA DE BASE 600 x 800 x 100 mm", "CHUMBADORES 6 O32", "VIGA
+  IPE500", "JOELHO: 4 parafusos O24, chapa 12.5 mm" (O = simbolo de
+  diametro). Lista de material: pilar com 8,000 m e 725,3 kg (calculo).
+  DXF de dez folhas com auditoria sem erro.
+
+**Nao feito.** Simbolo de solda; chapa de topo e parafusos do joelho como
+geometria (hoje so a descricao em texto); pedestal da fundacao rasa;
+detalhes de cumeeira, contraventamento e demais ligacoes. O texto da
+utilizacao nao foi posto na prancha (esta no pset). A descricao do joelho
+sai com ponto decimal ("12.5 mm").

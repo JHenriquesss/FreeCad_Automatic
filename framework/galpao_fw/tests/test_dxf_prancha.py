@@ -56,6 +56,10 @@ _SVG_DETALHE = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:ifc="http://www.
   </g>
  </g>
  <line class="GlobalId-x IfcAnnotation PredefinedType-DIMENSION" x1="75" y1="150" x2="145" y2="150"/>
+ <text style="font-size: 0;" transform="translate(12.0, 167.0) rotate(0.0)">
+   <tspan class="GlobalId-t IfcAnnotation PredefinedType-TEXT" dy="0em" x="0" y="0">PLACA DE BASE 600 x 800 x 100 mm</tspan>
+ </text>
+ <text transform="translate(200.0, 121.0) rotate(0.0)"><tspan class="SECTIONLEVEL">RL +0</tspan></text>
 </svg>
 """
 
@@ -342,3 +346,37 @@ def test_vista_geral_nao_herda_escala_de_origem(tmp_path):
     # 1:100 de origem nao entra na lista: segue a maior escala que cabe (1:50)
     resumo, _doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))])
     assert resumo["folhas"][0]["escala"] == 50 and resumo["folhas"][0]["escala_origem"] == 100
+
+
+def test_lista_usa_o_comprimento_do_calculo_na_peca_pesada(tmp_path):
+    # com placa de base o pilar desenhado tem 5,970 m; a linha da lista traz os
+    # 6,000 m do calculo, que e' o comprimento que gerou o peso
+    ifcopenshell = pytest.importorskip("ifcopenshell")
+    import ifc_emit
+    spec = {"slug": "lm2", "geometria": {"span": 20.0, "comprimento": 40.0, "eave": 6.0,
+                                         "ridge": 7.0, "bay": 5.0},
+            "estrutura": {"perfil_col_adotado": "HEA200", "perfil_raf_adotado": "HEA180",
+                          "base_adotada": {"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6},
+                          "romaneio": [{"marca": "C1", "comprimento_m": 6.0, "peso_unit_kg": 253.8}]}}
+    caminho = ifc_emit.emitir_ifc_do_spec(spec, str(tmp_path / "lm2.ifc"))
+    col = ifcopenshell.open(caminho).by_type("IfcColumn")[0]
+    assert col.Representation.Representations[0].Items[0].Depth == 5970.0
+    c1 = [l for l in DP.lista_do_ifc(caminho)["linhas"] if l["marca"] == "C1"]
+    assert len(c1) == 1 and c1[0]["comprimento_m"] == 6.0 and c1[0]["qtd"] == 18
+
+
+def test_texto_de_chamada_vai_ao_dxf_na_posicao_e_no_tamanho_da_escala(tmp_path):
+    p = tmp_path / "DET-BASE.svg"
+    p.write_text(_SVG_DETALHE, encoding="utf-8")
+    des = DP.ler_desenho(str(p))
+    # so a anotacao TEXT do modelo entra; a marca de nivel do Bonsai nao
+    assert [frase for _pos, frase in des["textos"]] == ["PLACA DE BASE 600 x 800 x 100 mm"]
+    pos = des["textos"][0][0]
+    assert _plano([pos]) == pytest.approx([-980.0, -570.0])      # (12-110)/100 m e -(167-110)/100 m
+    resumo, doc = _dxf(tmp_path, [des])
+    assert resumo["folhas"][0]["textos"] == 1
+    t = doc.modelspace().query('TEXT[layer=="%s"]' % DP.CAMADA_TEXTO)
+    assert [x.dxf.text for x in t] == ["PLACA DE BASE 600 x 800 x 100 mm"]
+    # a vista comeca em (-1100, -1100) e vai para (0, 0) no modelo: +1100 nas duas
+    assert (round(t[0].dxf.insert.x), round(t[0].dxf.insert.y)) == (120, 530)
+    assert t[0].dxf.height == DP.ALTURA_TEXTO * 10 and t[0].dxf.get("width", 1.0) == 1.0

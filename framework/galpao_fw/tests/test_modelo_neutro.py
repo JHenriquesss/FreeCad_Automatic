@@ -502,3 +502,20 @@ def test_fundacao_rasa_sem_placa_de_base_segue_com_o_topo_na_cota_zero():
     geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
     f0 = MN.fundacoes(geo, _FUND)[0]
     assert f0["centro"][2] + f0["dims"][2] / 2.0 == 0.0
+
+
+def test_pilar_nasce_no_topo_da_placa_de_base():
+    # com placa de base o pilar comeca em z = 30 (topo da placa), nao em 0: de 0
+    # a 30 ele ficava dentro da placa. O topo (beiral) nao muda.
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    sec = {"col": {"nome": "HEA200", "d": 0.19, "bf": 0.2, "tw": 0.0065, "tf": 0.01},
+           "raf": {"nome": "HEA180", "d": 0.171, "bf": 0.18, "tw": 0.006, "tf": 0.0095}}
+    com = MN.frame_completo(geo, sec, base_sec={"B": 0.6, "L": 0.8, "t": 0.1})
+    pilares = [m for m in com if m["tipo"] == "Column"]
+    placa = [m for m in com if m.get("perfil") == "PlacaBase"][0]
+    topo_placa = placa["centro"][2] + placa["dims"][2] / 2.0
+    assert len(pilares) == 18 and topo_placa == MN.Z0_PLACA_MM == 30.0
+    assert {m["p1"][2] for m in pilares} == {topo_placa}
+    assert {m["p2"][2] for m in pilares} == {6000.0}
+    sem = MN.frame_completo(geo, sec)
+    assert {m["p1"][2] for m in sem if m["tipo"] == "Column"} == {0.0}

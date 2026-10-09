@@ -955,6 +955,8 @@ congelado até a entrega do galpão.
 - **Detalhes de ligação no Bonsai, 1ª etapa** base (elevação e planta) e joelho a 1:10
   do mesmo modelo; o modelo neutro passou a realizar o gap de graute sob a placa de
   base ([[04-decisions#D199]]).
+- **Detalhes de ligação no Bonsai, 2ª etapa** pilar nascendo no topo da placa de base e
+  textos de chamada lidos do modelo nos três detalhes ([[04-decisions#D200]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

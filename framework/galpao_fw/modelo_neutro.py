@@ -929,6 +929,9 @@ def tapamentos(geometria, fechamento=None, aberturas=None, z0_mm=30.0, tcl_mm=0.
     return ms
 
 
+Z0_PLACA_MM = 30.0     # cota do topo da placa de base (o z0_mm padrao das funcoes de base)
+
+
 def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    girt_sec=None, col_d=None, n_tirante_parede=None,
                    d_tirante_mm=16.0, contrav=False, d_contrav_mm=20.0,
@@ -950,6 +953,15 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         cd = col_d if col_d is not None else (secoes.get("col") or {}).get("d", 0.0)
         ms = frame_primario(geometria, secoes)
         raf_d = (secoes.get("raf") or {}).get("d", 0.0) if secoes else 0.0
+    if base_sec:
+        # Com placa de base, o pilar NASCE no topo dela (Z0 = 30 mm, o mesmo de
+        # `placas_base` e do build_galpao, que comeca o pilar em Z0), nao na cota
+        # 0: de 0 a 30 o pilar ficava DENTRO da placa (D200, decisao do usuario).
+        # O comprimento estrutural do calculo (base ao beiral) nao muda; o que
+        # encurta 30 mm e' a peca desenhada. Sem placa de base, nada muda.
+        for mb in ms:
+            if mb.get("tipo") == "Column" and "p1" in mb:
+                mb["p1"] = (mb["p1"][0], mb["p1"][1], Z0_PLACA_MM)
     geo = dict(geometria)                             # altura do rafter -> assento
     geo.setdefault("raf_d", raf_d)
     if n_terca and terca_sec:
