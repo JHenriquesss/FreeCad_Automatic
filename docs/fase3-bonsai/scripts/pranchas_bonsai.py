@@ -319,7 +319,12 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
     vistas.append(("DET-CONTRAVENTAMENTO", "ELEVATION_VIEW",
                    (xs[0] + 0.75, ys[0] - 0.6, 0.80), (r(90), 0, 0),
                    jan, jan, 1.20, [], estrutura, ESCALA_DETALHE,
-                   [((xs[0] + 0.55, ys[0], 1.55), "CONTRAVENTAMENTO {{Name}} - CHAPA DE GUSSET", "CV")]))
+                   [((xs[0] + 0.55, ys[0], 1.55), "CONTRAVENTAMENTO {{Name}}", "CV"),
+                    ((xs[0] + 0.55, ys[0], 1.43),
+                     "GUSSET: {{Calc_VerificacaoEstrutural.Descricao}} - SOLDA DE FILETE, PERNA "
+                     "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}} mm, TODO O CONTORNO", "GC"),
+                    ((xs[0] + 0.75, ys[0], 1.20), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
+                     SIMBOLO_SOLDA)]))
     for nome, prefixo, rotulo in (("DET-TERCA", "T", "TERCA"), ("DET-LONGARINA", "G", "LONGARINA")):
         alvo = (apoios or {}).get(prefixo)
         if alvo is None:
@@ -372,7 +377,37 @@ def _mais_proximo(tool, prefixo, x, y):
     return None if melhor is None else melhor[1]
 
 
-def _texto(tool, desenho, ponto, literal, produto):
+SIMBOLO_SOLDA = "solda-filete-contorno"
+# Simbolo de solda de FILETE em todo o contorno (mm de papel): linha de
+# referencia, seta, circulo de "todo o contorno" na dobra e o triangulo do
+# filete ABAIXO da linha (lado da seta), com a perna vertical a esquerda - a
+# mesma leitura do glifo do executivo do FreeCAD (`_svg_solda_filete`). O campo
+# de texto recebe a perna, lida do elemento.
+SVG_SIMBOLO_SOLDA = """
+    <g id="%s">
+        <path d="M 0,0 L 22,0" style="fill: none; stroke: black; stroke-width: 0.25;" />
+        <path d="M 0,0 L -7,7" style="fill: none; stroke: black; stroke-width: 0.25;" />
+        <path d="M -7,7 L -4.6,6.2 L -6.2,4.6 Z" style="fill: black; stroke: none;" />
+        <circle cx="0" cy="0" r="1.3" style="fill: white; stroke: black; stroke-width: 0.25;" />
+        <path d="M 8,0 L 8,5 L 13,0 Z" style="fill: black; stroke: none;" />
+        <text x="6.5" y="3" class="regular" text-anchor="end" dominant-baseline="middle" data-type="text-template"></text>
+    </g>
+""" % SIMBOLO_SOLDA
+
+
+def garantir_simbolo_de_solda(pasta_assets):
+    """Acrescenta o simbolo de solda ao `symbols.svg` do projeto (o Bonsai so
+    conhece os simbolos que estao nesse arquivo). Idempotente."""
+    caminho = os.path.join(pasta_assets, "symbols.svg")
+    txt = open(caminho, encoding="utf-8").read()
+    if 'id="%s"' % SIMBOLO_SOLDA in txt:
+        return False
+    fim = txt.rindex("</svg>")
+    open(caminho, "w", encoding="utf-8").write(txt[:fim] + SVG_SIMBOLO_SOLDA + txt[fim:])
+    return True
+
+
+def _texto(tool, desenho, ponto, literal, produto, simbolo=None):
     """Texto de chamada ligado a um elemento do modelo: o `literal` traz
     variaveis `{{Pset.Propriedade}}` que o Bonsai resolve no elemento associado
     ao gerar o desenho. O numero na prancha e' o do IFC, nao texto digitado."""
@@ -400,6 +435,8 @@ def _texto(tool, desenho, ponto, literal, produto):
     tool.Collector.assign(obj, should_clean_users_collection=True)
     tool.Drawing.edit_text_literals(obj, [{"Literal": literal, "BoxAlignment": "bottom-left"}])
     tool.Ifc.run("drawing.assign_product", relating_product=produto, related_object=el)
+    if simbolo:
+        tool.Drawing.edit_text_symbol(obj, simbolo)
     return el
 
 
@@ -541,13 +578,15 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
             cena.render.resolution_x, cena.render.resolution_y = cp.raster_x, cp.raster_y
             for p1, p2 in cotas:
                 _cota(tool, des, p1, p2)
-            for ponto, literal, prefixo in textos:
-                produto = _mais_proximo(tool, prefixo, xb, yb)
+            for ponto, literal, prefixo, *resto in textos:
+                # o texto se liga ao elemento mais proximo do PONTO do texto (o
+                # gusset do canto do detalhe, nao o do segundo portico)
+                produto = _mais_proximo(tool, prefixo, ponto[0], ponto[1])
                 if produto is None:
                     rel["avisos"].append("%s: sem elemento %s* para o texto %r"
                                          % (nome, prefixo, literal))
                     continue
-                _texto(tool, des, ponto, literal, produto)
+                _texto(tool, des, ponto, literal, produto, *resto)
             rel["cotas"][nome] = len(cotas)
             rel["papel_mm"][nome] = (round(larg * 1000.0 / escala, 1),
                                      round(alt * 1000.0 / escala, 1))
@@ -621,6 +660,7 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
                                  should_start_fresh_session=False)
         novo = tool.Ifc.get()
         cena2 = bpy.context.scene
+        garantir_simbolo_de_solda(os.path.join(os.path.dirname(ifc_path), "drawings", "assets"))
         feitos2 = 0
         for des in novo.by_type("IfcAnnotation"):
             if des.ObjectType != "DRAWING" or des.Name not in rel["cotas"]:

@@ -556,6 +556,7 @@ def chaves_desguardadas(raiz=None):
 SEM_FAIXA_DECLARADA = {
     "acos.py": "catalogo de acos (fy/fu); sem faixa declarada.",
     "alma_variavel.py": "gerador de secoes tapered; sem faixa no vocabulario da lente.",
+    "ambientes_dxf.py": "leitor de planta DXF (area e perimetro por ambiente); sem formula normativa, a previsao e' do motor.",
     "armazenamento_nbr16981.py": "gate de dados (nao dimensiona); limites de contrato, nao faixa de metodo.",
     "bim_casa_residencial.py": "BIM/IFC sem formula; sem faixa.",
     "bim_edificio.py": "BIM/IFC sem formula; sem faixa.",

@@ -6490,3 +6490,45 @@ de localizacao, nao de detalhe de fabricacao.
 
 **Nao feito.** Simbolo de solda (falta o usuario dizer de onde saem tipo e
 perna). Chapa de reforco de alma do joelho. Mao-francesa sem detalhe.
+
+## D205 - Plano de 2026-10-08: Fase 5 liberada (primeiro passo) e simbolo de solda do gusset (2026-10-09) - FECHADO
+
+**Decisoes do usuario (2026-10-09, perguntadas).** (1) LIBERAR a Fase 5,
+suspendendo o congelamento registrado no D196: fazer o primeiro passo do
+plano (ler ambientes num DXF e gerar a previsao de cargas). (2) Solda: usar
+a que o executivo do FreeCAD ja usa, marcada como conceitual.
+
+**Medido (antes de mudar).** Motor: `arquitetura_residencial.rodar` aceita
+ambientes por `{nome, tipo, area_m2, perimetro_m}` e ja entrega a previsao
+(pontos minimos e cargas). Nao havia leitor de planta no `galpao_fw`. Solda
+no executivo do FreeCAD: so o gusset (e o console) tem solda com dado - a
+perna vem de `gusset_adotado.perna_solda_mm` (solda de filete minima do
+calculo) e sai como glifo de filete em todo o contorno; base, joelho e
+cumeeira nao tem solda nenhuma no codigo dele.
+
+**Entregue.**
+- `ambientes_dxf.py` (SCRIPT AVULSO, declarado em
+  `test_alcancabilidade.SCRIPTS_AVULSOS` e em `SEM_FAIXA_DECLARADA`): le
+  polilinhas fechadas e o texto de dentro de cada uma numa camada (padrao
+  `AMBIENTES`), devolve tipo, area e perimetro em metros pela unidade do
+  cabecalho do DXF e chama o motor. Desenho sem unidade declarada e'
+  recusado ate a unidade ser informada; polilinha aberta, com arco, sem
+  texto, com dois textos e texto solto viram erro nomeado e derrubam o
+  veredito. Nenhum valor de norma no modulo.
+- `tests/test_ambientes_dxf.py`: 14 testes com a planta escrita pelo ezdxf
+  (area e perimetro; mm, cm e m; sem unidade; previsao igual a do motor para
+  os mesmos numeros digitados; planta mal marcada; outra camada; tipos com
+  acento e preposicao).
+- `ifc_emit`: a chapa de gusset leva a espessura, a perna da solda de filete
+  e a utilizacao do calculo. Um teste.
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: simbolo de solda de filete
+  em todo o contorno acrescentado ao `symbols.svg` do projeto e posto no
+  detalhe do contraventamento, com a perna lida do elemento; texto de
+  chamada com espessura e perna. No galpao do cliente: "GUSSET: chapa 12 mm
+  - SOLDA DE FILETE, PERNA 5.0 mm, TODO O CONTORNO" e o simbolo com 5.0.
+
+**Nao feito.** Fase 5 alem do primeiro passo: entrada por IFC (`IfcSpace`),
+divisao de circuitos, quadro, unifilar e saida do eletrico em DXF sobre a
+planta; gabarito contra projeto ja entregue (nenhuma planta real de cliente
+foi lida, so plantas de teste). Solda de base, joelho e cumeeira: o FreeCAD
+nao tem dado para elas. O simbolo de solda nao vai ao DXF (so o texto).

@@ -781,6 +781,14 @@ def _anotar_calculo(membros, spec):
                       "Utilizacao": res.get("Base")}
         if "n" in ba and "db" in ba:
             placa_base["Chumbadores"] = "%d %s%s" % (int(ba["n"]), DIAMETRO, _mm(ba["db"]))
+    # gusset do contraventamento: espessura e perna da solda de filete que o
+    # calculo adotou (a mesma que o executivo do FreeCAD poe no simbolo de solda)
+    gusset = None
+    ga = est.get("gusset_adotado") or {}
+    if "t_mm" in ga:
+        gusset = {"Descricao": "chapa %g mm" % float(ga["t_mm"]),
+                  "SoldaFiletePerna_mm": ga["perna_solda_mm"] if "perna_solda_mm" in ga else None,
+                  "Utilizacao": res.get("Gusset")}
     ja = est.get("joelho_adotado") or {}
     if all(k in ja for k in ("n", "db", "t")):
         joelho = {"Descricao": "%d parafusos %s%s, chapa %s mm"
@@ -798,6 +806,8 @@ def _anotar_calculo(membros, spec):
             mb.setdefault("propriedades", {PSET_CALCULO: placa_base})
         elif mb.get("perfil") == "Misula" and joelho:
             mb.setdefault("propriedades", {PSET_CALCULO: joelho})
+        elif mb.get("perfil") == "GussetContrav" and gusset:
+            mb.setdefault("propriedades", {PSET_CALCULO: gusset})
         elif mb.get("tipo") == "Footing":
             if fck:
                 mb.setdefault("material", "Concreto C%d" % round(fck / 1000.0))

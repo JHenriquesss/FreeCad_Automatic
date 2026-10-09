@@ -546,3 +546,19 @@ def test_fisico_pilar_desenhado_comeca_no_topo_da_placa(tmp_path):
     col = m.by_type("IfcColumn")[0]
     assert col.Representation.Representations[0].Items[0].Depth == 5970.0
     assert up.get_local_placement(col.ObjectPlacement)[2, 3] == 30.0
+
+
+def test_fisico_leva_a_solda_do_gusset_a_chapa(tmp_path):
+    # espessura e perna da solda de filete do calculo vao a chapa de gusset; sem
+    # a perna no calculo a propriedade fica fora (nao vira zero)
+    est = dict(_EST_CALCULADA, gusset_adotado={"t_mm": 12.0, "perna_solda_mm": 5.0},
+               resultados=dict(_EST_CALCULADA["resultados"], Gusset=0.48))
+    m = _fisico(tmp_path, est)
+    gussets = [p for p in m.by_type("IfcPlate") if p.Name == "GC1"]
+    assert gussets
+    for g in gussets:
+        p = _pset_calculo(g)
+        assert (p["Descricao"], p["SoldaFiletePerna_mm"], p["Utilizacao"]) == ("chapa 12 mm", 5.0, 0.48)
+    sem_perna = _fisico(tmp_path, dict(_EST_CALCULADA, gusset_adotado={"t_mm": 12.0}))
+    p2 = _pset_calculo([p for p in sem_perna.by_type("IfcPlate") if p.Name == "GC1"][0])
+    assert p2["Descricao"] == "chapa 12 mm" and "SoldaFiletePerna_mm" not in p2

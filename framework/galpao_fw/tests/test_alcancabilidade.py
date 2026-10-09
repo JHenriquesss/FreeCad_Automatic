@@ -61,7 +61,10 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                     "medicao_memoria",
                    # plano de 2026-10-08, Fase 4: ferramenta de linha de comando
                    # rodada depois do desenho do modelo (D194); nenhum modulo a importa
-                   "dxf_prancha"]
+                   "dxf_prancha",
+                   # Fase 5, primeiro passo: ferramenta de linha de comando que le a
+                   # planta do cliente e chama o motor (D205); nenhum modulo a importa
+                   "ambientes_dxf"]
 
 
 def _modulos():

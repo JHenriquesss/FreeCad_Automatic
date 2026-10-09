@@ -967,6 +967,9 @@ congelado até a entrega do galpão.
   de cumeeira e de contraventamento ([[04-decisions#D203]]).
 - **Detalhes de ligação no Bonsai, 6ª etapa** contraventamento pela parede, terça e
   longarina; só o script de pranchas mudou ([[04-decisions#D204]]).
+- **Fase 5, primeiro passo, e solda do gusset** ambientes lidos de uma planta DXF e
+  previsão de cargas pelo motor; símbolo de solda no detalhe do contraventamento
+  ([[04-decisions#D205]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
