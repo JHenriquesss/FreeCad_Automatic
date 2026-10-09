@@ -451,6 +451,7 @@ _REDE = {"location_factor": 1.0, "voltage_system": "127/220", "supply_type": "B"
          "network_kind": "aerea"}
 _CHUVEIRO = {"nome": "chuveiro", "ambiente": "banho", "potencia_va": 5500.0,
              "tensao_v": 220.0, "n_fases": 2, "grupo_demanda": "aquecimento"}
+_SEM_ACESSORIOS = {"motores": [], "iluminacao_especial": []}
 _AMBIENTES_COM_SALA = _AMBIENTES + [
     {"nome": "sala", "tipo": "sala", "area_m2": 16.0, "perimetro_m": 16.0}]
 
@@ -458,7 +459,8 @@ _AMBIENTES_COM_SALA = _AMBIENTES + [
 def _entrada(ambientes=None, **troca):
     prev = AR.rodar({"ambientes": copy.deepcopy(ambientes or _AMBIENTES_COM_SALA)})
     criterios = _criterios(instalacao=_INSTALACAO, rede=dict(_REDE),
-                           equipamentos=[dict(_CHUVEIRO)])
+                           equipamentos=[dict(_CHUVEIRO)],
+                           demanda={"motores": [], "iluminacao_especial": []})
     criterios.update(troca)
     return prev, criterios, CP.demanda_e_entrada(prev, CP.dividir(prev, criterios), criterios)
 
@@ -500,13 +502,13 @@ def test_tipo_fora_dos_modulos_so_entra_com_o_modulo_declarado():
     assert sem["ATENDE"] is False and sem["calculation"] == {}
     assert [(e["code"], e["tipo"]) for e in sem["erros"]] == [
         ("tipo_sem_modulo_de_demanda", "suite"), ("tipo_sem_modulo_de_demanda", "varanda")]
-    _prev, _c, com = _entrada(casa, demanda={"modulo_por_tipo": {"suite": "quarto",
-                                                                 "varanda": "outros"}})
+    _prev, _c, com = _entrada(casa, demanda=dict(_SEM_ACESSORIOS, modulo_por_tipo={
+        "suite": "quarto", "varanda": "outros"}))
     assert com["rooms"]["quarto"] == 2 and com["rooms"]["outros"] == 1
     assert "tipo_sem_modulo_de_demanda" not in [e["code"] for e in com["erros"]]
     # modulo declarado que o motor nao tem continua sendo erro
-    _prev, _c, torto = _entrada(casa, demanda={"modulo_por_tipo": {"suite": "dormitorio",
-                                                                   "varanda": "outros"}})
+    _prev, _c, torto = _entrada(casa, demanda=dict(_SEM_ACESSORIOS, modulo_por_tipo={
+        "suite": "dormitorio", "varanda": "outros"}))
     assert [(e["code"], e["tipo"]) for e in torto["erros"]] == [
         ("tipo_sem_modulo_de_demanda", "suite")]
 
@@ -516,10 +518,10 @@ def test_equipamento_sem_grupo_ou_de_grupo_nao_ligado_reprova():
     _p, _c, ent = _entrada(equipamentos=[sem_grupo])
     assert [e["code"] for e in ent["erros"]] == ["equipamento_sem_grupo_de_demanda"]
     assert ent["ATENDE"] is False and ent["service_entry"]["entry"] is None
-    motor = dict(_CHUVEIRO, nome="bomba", grupo_demanda="motor")
-    _p, _c, ent = _entrada(equipamentos=[motor])
+    torto = dict(_CHUVEIRO, nome="forno", grupo_demanda="cozimento")
+    _p, _c, ent = _entrada(equipamentos=[torto])
     assert [(e["code"], e["equipamento"]) for e in ent["erros"]] == [
-        ("grupo_de_demanda_nao_ligado", "bomba")]
+        ("grupo_de_demanda_desconhecido", "forno")]
     # dois aquecedores de mesma potencia viram um item de quantidade 2
     dois = [dict(_CHUVEIRO), dict(_CHUVEIRO, nome="chuveiro 2")]
     _p, _c, ent = _entrada(equipamentos=dois, rede=dict(_REDE, supply_type="C"), n_fases=3)
@@ -569,3 +571,42 @@ def test_unifilar_leva_a_entrada_e_a_demanda_quando_calculadas(tmp_path):
     assert "demanda %.2f kVA" % ent["calculation"]["demand"]["final_kva"] in unifilar
     seco = (sem / "unifilar.svg").read_text(encoding="utf-8")
     assert "DISJ. GERAL 50 A" not in seco and "A CONFIRMAR" in seco
+
+
+def test_motor_e_iluminacao_especial_vao_ao_calculador_como_declarados():
+    import demanda_residencial_enel as DE
+
+    bomba = {"nome": "bomba", "ambiente": "servico", "potencia_va": 1500.0, "tensao_v": 220.0,
+             "n_fases": 3, "grupo_demanda": "motor"}
+    lavadora = {"nome": "lavadora", "ambiente": "servico", "potencia_va": 1200.0,
+                "tensao_v": 127.0, "n_fases": 1, "grupo_demanda": "nenhum"}
+    acessorios = {"motores": [{"quantity": 1, "power_cv": "1", "connection": "trifasica"}],
+                  "iluminacao_especial": [{"power_kw": 1.2, "kind": "incandescent"}]}
+    _p, _c, ent = _entrada(equipamentos=[dict(_CHUVEIRO), bomba, lavadora], demanda=acessorios,
+                           rede=dict(_REDE, supply_type="C"), n_fases=3)
+    assert ent["erros"] == [] and ent["heating"] == [{"quantity": 1, "power_kw": 5.5}]
+    a_mao = DE.calculate_residential_demand({
+        "network": {"location_factor": 1.0}, "rooms": ent["rooms"],
+        "loads": {"heating": [{"quantity": 1, "power_kw": 5.5}],
+                  "motors": acessorios["motores"],
+                  "special_lighting": acessorios["iluminacao_especial"]}})
+    d = ent["calculation"]["demand"]
+    assert d == a_mao["calculation"]["demand"]
+    # os tres grupos entram: nenhum e' zero, e a lavadora ("nenhum") nao mexe em nenhum deles
+    assert d["b"] == pytest.approx(4.4) and d["c"] > 0 and d["d"] == pytest.approx(1.2)
+    _p, _c, sem_lavadora = _entrada(equipamentos=[dict(_CHUVEIRO), bomba], demanda=acessorios,
+                                    rede=dict(_REDE, supply_type="C"), n_fases=3)
+    assert sem_lavadora["calculation"]["demand"] == d
+    # motor declarado no equipamento sem descricao na demanda nao some calado
+    _p, _c, oco = _entrada(equipamentos=[bomba], rede=dict(_REDE, supply_type="C"), n_fases=3)
+    assert [(e["code"], e["equipamento"]) for e in oco["erros"]] == [
+        ("motor_sem_descricao_na_demanda", "bomba")]
+
+
+@pytest.mark.parametrize("lista", ["motores", "iluminacao_especial"])
+def test_lista_de_demanda_ausente_nao_vira_lista_vazia(lista):
+    demanda = dict(_SEM_ACESSORIOS)
+    del demanda[lista]
+    _p, _c, ent = _entrada(demanda=demanda)
+    assert ent["ATENDE"] is False and ent["calculation"] == {}
+    assert [e["campo"] for e in ent["erros"]] == ["demanda.%s" % lista]

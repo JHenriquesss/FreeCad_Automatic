@@ -6733,3 +6733,38 @@ entre tipo de ambiente e modulo de demanda e' de quem projeta.
 **Fase 5: o que continua aberto.** Eletroduto tracado; gabarito contra um
 projeto ja entregue (depende de planta real e projeto correspondente
 trazidos pelo usuario).
+
+## D211 - Plano de 2026-10-08: Fase 5 - gabarito da demanda contra um projeto entregue; motores, iluminacao especial e grupo "nenhum" na ponte (2026-10-09) - FECHADO
+
+**Gabarito (medido).** Na pasta de clientes (fora do repositorio, nao
+versionada) ha um calculo de demanda residencial ja entregue a distribuidora,
+feito por um script proprio daquela entrega, que nao importa o motor daqui.
+Os mesmos dados passados a `demanda_residencial_enel` e a `entrada_enel_bt`
+deram o MESMO resultado: parcelas a, b, c e d iguais, demanda final
+31,682567 kVA nos dois, e a mesma linha do padrao de entrada (C8, 175 A).
+Limite do gabarito: os dois calculos sao do mesmo autor e da mesma leitura
+da fonte; concordarem prova que o motor reproduz o que foi entregue, nao que
+a leitura da fonte esteja certa. Os dados do cliente nao entraram em teste
+nem em arquivo do repositorio.
+
+**Achado do gabarito.** No projeto entregue, o grupo de aquecimento levou so
+forno e cooktop; chuveiros, ar-condicionado e lavadora nao entraram em grupo
+acessorio nenhum, e havia tres motores e iluminacao especial. A ponte do
+D210 nao conseguia representar isso: so conhecia o grupo de aquecimento e
+recusava o resto. O exemplo que eu usei no D210 (chuveiro como aquecimento)
+e' escolha de quem declara, nao regra - e o projeto entregue escolheu
+diferente.
+
+**Entregue.**
+- `grupo_demanda` de cada equipamento passa a ser um de: `aquecimento` (a
+  ponte monta o item), `motor` (o motor vem descrito em `demanda.motores`) ou
+  `nenhum` (nao entra em grupo acessorio). Outro valor: erro nomeado.
+- `demanda.motores` e `demanda.iluminacao_especial` sao listas declaradas no
+  contrato do calculador e vao a ele como estao; ausentes, e' erro nomeado
+  (lista vazia tem de ser dita). Equipamento declarado como motor com
+  `demanda.motores` vazia reprova.
+- 2 funcoes de teste novas e 3 ajustadas em `test_circuitos_planta.py`.
+
+**Nao feito.** Nao ha planta de ambientes desse projeto (os DXF da pasta sao
+desenhos de rede da distribuidora), entao a ponte inteira - planta ate o
+quadro - segue sem gabarito real. Eletroduto tracado segue fora.

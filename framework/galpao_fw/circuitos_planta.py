@@ -36,12 +36,14 @@
 # (demanda_residencial_enel e entrada_enel_bt) e os chama. A ponte NAO
 # interpreta a regra da distribuidora: ambiente cujo tipo nao e' exatamente um
 # dos modulos do motor so entra com o modulo DECLARADO para aquele tipo;
-# equipamento so entra com o grupo de demanda DECLARADO, e so o grupo de
-# aquecimento esta ligado. A rede (fator locacional, tensao, tipo de
+# cada equipamento DECLARA o seu grupo de demanda: "aquecimento" (a ponte
+# monta o item), "motor" (o motor eletrico vem descrito em demanda.motores, no
+# contrato do calculador: quantidade, potencia em CV e ligacao) ou "nenhum"
+# (nao entra em grupo acessorio). Motores e iluminacao especial sao listas
+# declaradas, vazias se nao ha. A rede (fator locacional, tensao, tipo de
 # fornecimento, rede aerea ou nao) e' declarada.
 #
-# O que NAO se faz aqui: curto-circuito; motores e iluminacao especial na
-# demanda (o motor os calcula, a ponte nao os monta).
+# O que NAO se faz aqui: curto-circuito.
 #
 # Biblioteca: quem a chama pela linha de comando e' o ambientes_dxf
 # (python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] criterios=<json>).
@@ -462,6 +464,10 @@ def desenhos(resultado, pasta, entrada=None):
 
 
 GRUPO_AQUECIMENTO = "aquecimento"
+GRUPO_MOTOR = "motor"
+GRUPO_NENHUM = "nenhum"
+GRUPOS_DE_DEMANDA = (GRUPO_AQUECIMENTO, GRUPO_MOTOR, GRUPO_NENHUM)
+LISTAS_DE_DEMANDA = ("motores", "iluminacao_especial")
 CAMPOS_REDE = ("location_factor", "voltage_system", "supply_type", "network_kind")
 
 
@@ -469,8 +475,10 @@ def demanda_e_entrada(previsao, divisao, criterios):
     """Demanda e padrao de entrada pelos motores da distribuidora.
     `criterios` traz `rede` = {location_factor, voltage_system, supply_type,
     network_kind}, `instalacao.fator_potencia` (para a carga instalada em kW),
-    `equipamentos[].grupo_demanda` e, se preciso, `demanda.modulo_por_tipo` =
-    {tipo de ambiente: modulo do motor}. Devolve {rooms, heating,
+    `equipamentos[].grupo_demanda` ("aquecimento", "motor" ou "nenhum"),
+    `demanda` = {motores: [...], iluminacao_especial: [...]} no contrato do
+    calculador (listas vazias se nao ha) e, se preciso,
+    `demanda.modulo_por_tipo` = {tipo de ambiente: modulo}. Devolve {rooms, heating,
     installed_load_kw, calculation, service_entry, erros, ATENDE}."""
     import demanda_residencial_enel as DE
     import entrada_enel_bt as EE
@@ -492,12 +500,16 @@ def demanda_e_entrada(previsao, divisao, criterios):
     if divisao["quadro"] is None:
         erros.append({"code": "divisao_nao_feita", "campo": "divisao",
                       "detail": "sem circuitos nao ha carga instalada"})
+    dem = criterios["demanda"] if "demanda" in criterios else None
+    for lista in LISTAS_DE_DEMANDA:
+        if not isinstance(dem, dict) or lista not in dem or not isinstance(dem[lista], list):
+            erros.append({"code": "criterio_ausente", "campo": "demanda.%s" % lista,
+                          "detail": "lista declarada no contrato do calculador de demanda "
+                                    "(vazia se nao ha)"})
     if erros:
         return dict(vazio, erros=erros, ATENDE=False)
 
-    declarado = {}
-    if "demanda" in criterios and "modulo_por_tipo" in criterios["demanda"]:
-        declarado = criterios["demanda"]["modulo_por_tipo"]
+    declarado = dem["modulo_por_tipo"] if "modulo_por_tipo" in dem else {}
     modulos = tuple(DE._ROOM_NAMES)
     rooms = {m: 0 for m in modulos}
     for amb in previsao["ambientes"]:
@@ -524,11 +536,17 @@ def demanda_e_entrada(previsao, divisao, criterios):
                           "equipamento": eq["nome"] if isinstance(eq, dict) and "nome" in eq
                           else None,
                           "detail": "declare grupo_demanda no equipamento"})
-        elif eq["grupo_demanda"] != GRUPO_AQUECIMENTO:
-            erros.append({"code": "grupo_de_demanda_nao_ligado", "campo": "equipamentos",
+        elif eq["grupo_demanda"] not in GRUPOS_DE_DEMANDA:
+            erros.append({"code": "grupo_de_demanda_desconhecido", "campo": "equipamentos",
                           "equipamento": eq["nome"], "grupo": eq["grupo_demanda"],
-                          "detail": "a ponte so monta o grupo de aquecimento"})
-        else:                                          # resistivo: kVA = kW
+                          "detail": "grupo_demanda e' um de: %s" % ", ".join(GRUPOS_DE_DEMANDA)})
+        elif eq["grupo_demanda"] == GRUPO_MOTOR:
+            if not dem["motores"]:
+                erros.append({"code": "motor_sem_descricao_na_demanda",
+                              "campo": "demanda.motores", "equipamento": eq["nome"],
+                              "detail": "equipamento declarado como motor, mas "
+                                        "demanda.motores esta vazia"})
+        elif eq["grupo_demanda"] == GRUPO_AQUECIMENTO:  # resistivo: kVA = kW
             kw = float(eq["potencia_va"]) / 1000.0
             por_potencia[kw] = por_potencia[kw] + 1 if kw in por_potencia else 1
     heating = [{"quantity": n, "power_kw": kw} for kw, n in sorted(por_potencia.items())]
@@ -542,7 +560,8 @@ def demanda_e_entrada(previsao, divisao, criterios):
 
     demanda = DE.calculate_residential_demand({
         "network": {"location_factor": rede["location_factor"]}, "rooms": rooms,
-        "loads": {"heating": heating, "motors": [], "special_lighting": []}})
+        "loads": {"heating": heating, "motors": list(dem["motores"]),
+                  "special_lighting": list(dem["iluminacao_especial"])}})
     erros += list(demanda["errors"])
     entrada = dict(vazio["service_entry"])
     if rede["network_kind"] != "aerea":

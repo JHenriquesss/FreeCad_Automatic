@@ -985,6 +985,8 @@ congelado até a entrega do galpão.
 - **Fase 5, sexto passo** demanda e padrão de entrada pelos motores da distribuidora,
   com rede, módulo por tipo de ambiente e grupo de demanda declarados
   ([[04-decisions#D210]]).
+- **Fase 5, gabarito da demanda** o motor reproduz um cálculo de demanda já entregue;
+  motores, iluminação especial e grupo "nenhum" na ponte ([[04-decisions#D211]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
