@@ -246,11 +246,18 @@ def contrav_cobertura(geometria, d_mm=20.0):
     return ms
 
 
-def fundacoes(geometria, fund_sec):
-    """Fundacoes rasas (sapata/bloco): uma CAIXA B x L x h por base de coluna, com o
-    TOPO no nivel do solo (Z0=0) descendo -h. Espelha SAPATA_ do build (o bloco raso
-    tambem sai como caixa). fund_sec {B,L,h} em m. Membro tipo 'Footing' definido por
-    CENTRO + dims (nao por eixo)."""
+def fundacoes(geometria, fund_sec, base_t=None, z0_mm=30.0, grout_mm=30.0):
+    """Fundacoes rasas (sapata/bloco): uma CAIXA B x L x h por base de coluna,
+    descendo -h a partir do TOPO DO CONCRETO. fund_sec {B,L,h} em m. Membro tipo
+    'Footing' definido por CENTRO + dims (nao por eixo).
+
+    base_t: espessura da placa de base (m). Com ela, o topo do concreto fica na
+    face inferior da placa MENOS o gap de graute (z0 - t - grout), como no
+    build_galpao (`z_conc_top = pbot - GROUT_GAP`) e em `fundacoes_profundas`.
+    Sem isso o bloco subia ate a cota 0 e a placa (de z0 - t a z0) ficava
+    enterrada no concreto junto com a porca de nivel, sem folga de graute -
+    achado ao olhar o detalhe da base gerado do IFC (D199). Sem placa de base
+    (base_t None) vale o comportamento historico: topo na cota 0."""
     if not fund_sec or not all(k in fund_sec for k in ("B", "L", "h")):
         return []
     spans = geometria.get("spans") or [geometria.get("span")]
@@ -260,11 +267,12 @@ def fundacoes(geometria, fund_sec):
     for s in spans:
         cols_y.append(cols_y[-1] + s)
     nome = "Bloco" if str(fund_sec.get("tipo")) == "bloco" else "Sapata"
+    topo = 0.0 if base_t is None else float(z0_mm) - float(base_t) * MM - float(grout_mm)
     ms = []
     for x in _xs(geometria):
         for y in cols_y:
             ms.append({"marca": nome[:3].upper() + "1", "perfil": nome, "tipo": "Footing",
-                       "centro": (x * MM, y * MM, -h / 2.0 * MM),
+                       "centro": (x * MM, y * MM, topo - h / 2.0 * MM),
                        "dims": (B * MM, L * MM, h * MM), "secao": fund_sec})
     return ms
 
@@ -980,7 +988,9 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += ponte_rolante(geometria, ponte.get("hvr"), ponte.get("ecc"),
                             ponte.get("vr_sec"), ponte.get("console_sec"))
     if fund_sec:
-        ms += fundacoes(geometria, fund_sec)
+        # com placa de base, o topo do concreto desce a espessura dela + o graute
+        ms += fundacoes(geometria, fund_sec,
+                        base_t=base_sec["t"] if base_sec and "t" in base_sec else None)
     if fund_profunda:                                  # estaca + bloco + pedestal
         fp = fund_profunda
         ms += fundacoes_profundas(geometria, fp.get("estaca"), fp.get("bloco_h"),

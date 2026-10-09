@@ -952,6 +952,9 @@ congelado até a entrega do galpão.
   cota de cumeeira 9500 lida do IFC, carimbo com revisão ([[04-decisions#D197]]).
 - **Acabamento e lista de material** bolhas e marcas de corte inteiras nas vistas;
   lista de material contada no IFC como folha do DXF ([[04-decisions#D198]]).
+- **Detalhes de ligação no Bonsai, 1ª etapa** base (elevação e planta) e joelho a 1:10
+  do mesmo modelo; o modelo neutro passou a realizar o gap de graute sob a placa de
+  base ([[04-decisions#D199]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -112,8 +112,11 @@ de 20 × 28,5 m (`spec_amostra_engenheiro.json`). Do que estava em ressalva:
   cota de cumeeira lida do IFC e revisão no carimbo.
 - **Resolvido depois (D198):** bolhas de eixo e marcas de corte inteiras e
   fora das cotas; lista de material contada no IFC, como folha do DXF.
-- **Continua aberto:** detalhes de ligação e símbolos de solda (só no executivo
-  do FreeCAD) e o peso das peças secundárias na lista de material.
+- **Detalhes de ligação, 1ª etapa (D199):** base em elevação e em planta e nó
+  do joelho a 1:10, numa folha própria, do mesmo modelo.
+- **Continua aberto:** símbolo de solda, chapa de topo e parafusos do joelho no
+  modelo, pedestal da fundação rasa, textos de chamada, demais ligações, e o
+  peso das peças secundárias na lista de material.
 
 As evidências desta pasta são do galpão de teste (40 × 20 m). O pacote do
 galpão do cliente fica em `projects/amostra_engenheiro/saida/plano-2026-10/`,

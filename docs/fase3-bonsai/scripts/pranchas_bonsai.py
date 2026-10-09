@@ -31,15 +31,16 @@ import bpy
 import mathutils
 
 MARGEM_M = 11.0       # folga em volta do modelo: bolhas dos eixos, cotas e marca de corte
-ESCALA = "1:100|1/100"
-MM_POR_M = 10.0       # papel a 1:100
+ESCALA_GERAL, ESCALA_DETALHE = 100, 10
+JANELA_DETALHE_M = 2.2          # lado da janela dos detalhes de ligacao
 # Folha A1 (mm, y para baixo como no SVG). A area util para acima do carimbo do
 # modelo do Bonsai, que ocupa a faixa de baixo da folha (medido no A1.svg).
 AREA_UTIL = (30.0, 30.0, 811.0, 505.0)
 VAO_MM, TITULO_MM = 12.0, 16.0
 # ordem em que as vistas entram nas folhas
 ORDEM = ("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL", "ELEVACAO-LATERAL",
-         "PLANTA-FUNDACAO", "PLANTA-COBERTURA")
+         "PLANTA-FUNDACAO", "PLANTA-COBERTURA",
+         "DET-BASE-ELEVACAO", "DET-BASE-PLANTA", "DET-JOELHO")
 # rotulos do carimbo padrao do Bonsai -> portugues
 CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH": "NORTE",
               "COMPANY": "RESP. TECNICO", "REV. NO.": "REV.", "DESCRIPTION": "DESCRICAO",
@@ -48,7 +49,9 @@ CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH"
 # titulo curto de cada vista no carimbo (a celula do titulo tem ~80 mm)
 TITULO_CURTO = {"PLANTA-BAIXA": "PLANTA", "CORTE-TRANSVERSAL": "CORTE",
                 "ELEVACAO-FRONTAL": "ELEV. FRONTAL", "ELEVACAO-LATERAL": "ELEV. LATERAL",
-                "PLANTA-FUNDACAO": "FUNDACAO", "PLANTA-COBERTURA": "COBERTURA"}
+                "PLANTA-FUNDACAO": "FUNDACAO", "PLANTA-COBERTURA": "COBERTURA",
+                "DET-BASE-ELEVACAO": "DET. BASE", "DET-BASE-PLANTA": "BASE (PLANTA)",
+                "DET-JOELHO": "DET. JOELHO"}
 
 
 def distribuir(tamanhos, area=AREA_UTIL, vao=VAO_MM, titulo=TITULO_MM):
@@ -127,13 +130,25 @@ def puxar_para_dentro(caminho, borda=BORDA_MM):
         return (min(max(x, borda), larg - borda), min(max(y, borda), alt - borda))
 
     desloc = []                                       # (ponto antigo, delta)
+    fora = []                                         # pontas de linhas que nao passam na vista
 
     def _linha(m):
         tag = m.group(0)
         v = {k: float(re.search(r'\b%s="([-\d.eE]+)"' % k, tag).group(1))
              for k in ("x1", "y1", "x2", "y2")}
+        vertical = abs(v["x1"] - v["x2"]) < abs(v["y1"] - v["y2"])
+        # eixo que nao cruza a vista (ex.: o eixo B num detalhe do eixo A): o
+        # Bonsai o deixa fora do quadro; nao pode ser trazido para dentro
+        if (vertical and not 0.0 <= v["x1"] <= larg) or \
+                (not vertical and not 0.0 <= v["y1"] <= alt):
+            fora.extend([(v["x1"], v["y1"]), (v["x2"], v["y2"])])
+            return ""
         for kx, ky in (("x1", "y1"), ("x2", "y2")):
             nx, ny = _dentro(v[kx], v[ky])
+            if vertical:
+                nx = v[kx]                            # encurta so ao longo da linha
+            else:
+                ny = v[ky]
             if (nx, ny) != (v[kx], v[ky]):
                 desloc.append(((v[kx], v[ky]), (nx - v[kx], ny - v[ky])))
                 tag = re.sub(r'\b%s="[-\d.eE]+"' % kx, '%s="%s"' % (kx, nx), tag)
@@ -141,7 +156,7 @@ def puxar_para_dentro(caminho, borda=BORDA_MM):
         return tag
 
     txt = re.sub(r"<line[^>]*PredefinedType-(?:GRID|SECTION)[^>]*>", _linha, txt)
-    if not desloc:
+    if not desloc and not fora:
         return 0
 
     def _delta(x, y):
@@ -157,6 +172,9 @@ def puxar_para_dentro(caminho, borda=BORDA_MM):
         if not (mx_ and my_):
             return tag
         x, y = float(mx_.group(1)), float(my_.group(1))
+        if any(abs(x - fx) < 4.0 and abs(y - fy) < 4.0 for fx, fy in fora):
+            # rotulo de eixo que nao passa na vista: sai junto com a linha
+            return "<text data-remover=\"1\">" if tag.startswith("<text") else ""
         d = _delta(x, y)
         if d is None:
             return tag
@@ -169,6 +187,7 @@ def puxar_para_dentro(caminho, borda=BORDA_MM):
         return tag
 
     txt = re.sub(r"<(?:text|use)\b[^>]*>", _rotulo, txt)
+    txt = re.sub(r'<text data-remover="1">[^<]*</text>', "", txt)
     open(caminho, "w", encoding="utf-8").write(txt)
     return len(desloc)
 
@@ -230,6 +249,53 @@ def _cumeeira(ifc):
     return topo
 
 
+def _placa_de_base(tool, x, y):
+    """Envelope (min, max), em metros, da placa de base (marca PB<n>) mais
+    proxima do pilar em (x, y). None se o modelo nao tiver placa de base."""
+    melhor = None
+    for el in tool.Ifc.get().by_type("IfcPlate"):
+        if not (el.Name or "").startswith("PB"):
+            continue
+        o = tool.Ifc.get_object(el)
+        if o is None or o.type != "MESH":
+            continue
+        pts = [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
+        mn = [min(p[i] for p in pts) for i in range(3)]
+        mx = [max(p[i] for p in pts) for i in range(3)]
+        dist = math.hypot((mn[0] + mx[0]) / 2 - x, (mn[1] + mx[1]) / 2 - y)
+        if melhor is None or dist < melhor[0]:
+            melhor = (dist, mn, mx)
+    return None if melhor is None else (melhor[1], melhor[2])
+
+
+def detalhes_do_galpao(xs, ys, alt_col, placa):
+    """Detalhes de ligacao a 1:10, tirados do MESMO modelo: base do pilar em
+    corte e em planta (cotas lidas do envelope da placa no modelo) e o no
+    viga-pilar. Pilar do segundo portico, linha A (o primeiro tem os montantes
+    do oitao na frente)."""
+    r = math.radians
+    xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
+    jan = JANELA_DETALHE_M
+    vistas = []
+    if placa:
+        (px0, py0, pz0), (px1, py1, pz1) = placa
+        corte = [((0, py0, pz0 - 0.30), (0, py1, pz0 - 0.30)),
+                 ((0, py0 - 0.30, pz0), (0, py0 - 0.30, pz1))]
+        planta = [((px0, py0 - 0.30, 0), (px1, py0 - 0.30, 0)),
+                  ((px0 - 0.30, py0, 0), (px0 - 0.30, py1, 0))]
+        vistas += [
+            # camera 1,3 m antes do eixo do pilar, fora do bloco: o corte pelo
+            # eixo preenchia de preto a alma do pilar e o bloco inteiro
+            ("DET-BASE-ELEVACAO", "ELEVATION_VIEW", (xb - 1.3, yb, 0.15), (r(90), 0, r(-90)),
+             jan, jan, 1.90, corte, None, ESCALA_DETALHE),
+            ("DET-BASE-PLANTA", "PLAN_VIEW", (xb, yb, pz1 + 0.25), (0, 0, 0),
+             jan, jan, 0.60, planta, None, ESCALA_DETALHE),
+        ]
+    vistas.append(("DET-JOELHO", "ELEVATION_VIEW", (xb - 0.6, yb + 0.55, alt_col + 0.15),
+                   (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE))
+    return vistas
+
+
 def _cota(tool, desenho, p1, p2):
     """Cota linear entre dois pontos do MUNDO (m), no plano do desenho."""
     import bonsai.bim.module.drawing.annotation as ann
@@ -277,7 +343,7 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
              ((0, y0 - 3.8, 0.0), (0, y0 - 3.8, alt_col)),
              ((0, y1 + 3.8, 0.0), (0, y1 + 3.8, alto))]
     larg_x, larg_y, alt = d[0] + MARGEM_M, d[1] + MARGEM_M, d[2] + MARGEM_M
-    return [
+    gerais = [
         ("PLANTA-BAIXA", "PLAN_VIEW", (c[0], c[1], 1.50), (0, 0, 0),
          larg_x, larg_y, 1.50 - mn[2] + 0.2, planta, None),
         ("ELEVACAO-LATERAL", "ELEVATION_VIEW", (c[0], mn[1] - 1.0, c[2]), (r(90), 0, 0),
@@ -292,10 +358,12 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
         ("PLANTA-COBERTURA", "PLAN_VIEW", (c[0], c[1], topo + 1.0), (0, 0, 0),
          larg_x, larg_y, topo + 1.0 - alt_col + 0.6, planta, "IfcBeam, IfcMember"),
     ]
+    return [v + (ESCALA_GERAL,) for v in gerais]
 
 
 def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
-    rel = {"passos": [], "avisos": [], "cotas": {}, "papel_mm": {}}
+    rel = {"passos": [], "avisos": [], "cotas": {}, "papel_mm": {},
+           "primeira_passada_incompleta": []}
 
     def passo(nome, fn):
         t = time.time()
@@ -324,8 +392,10 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
     cena = bpy.context.scene
     feitos = {a.id() for a in ifc.by_type("IfcAnnotation") if a.ObjectType == "DRAWING"}
 
-    for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro in vistas_do_galpao(
-            mn, mx, xs, ys, alt_col, cumeeira):
+    xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
+    todas = (vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira)
+             + detalhes_do_galpao(xs, ys, alt_col, _placa_de_base(tool, xb, yb)))
+    for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala in todas:
         if so_estas and nome not in so_estas:
             continue
 
@@ -340,11 +410,16 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
                 ifcopenshell.api.pset.edit_pset(
                     ifc, pset=tool.Pset.get_element_pset(des, "EPset_Drawing"),
                     properties={"Include": filtro})
+            if escala == ESCALA_DETALHE:
+                # detalhe nao aparece como marca nas vistas gerais
+                ifcopenshell.api.pset.edit_pset(
+                    ifc, pset=tool.Pset.get_element_pset(des, "EPset_Drawing"),
+                    properties={"GlobalReferencing": False})
             bpy.ops.bim.activate_drawing(drawing=des.id(), should_view_from_camera=False)
             cam = cena.camera
             cam.location, cam.rotation_euler = pos, rot
             cp = cam.data.BIMCameraProperties
-            cp.diagram_scale = ESCALA
+            cp.diagram_scale = "1:%d|1/%d" % (escala, escala)
             cp.width, cp.height = larg, alt
             cam.data.clip_start, cam.data.clip_end = 0.0, prof
             bpy.context.view_layer.update()
@@ -357,18 +432,30 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
             for p1, p2 in cotas:
                 _cota(tool, des, p1, p2)
             rel["cotas"][nome] = len(cotas)
-            rel["papel_mm"][nome] = (round(larg * MM_POR_M, 1), round(alt * MM_POR_M, 1))
-            # sync=True cria no IFC as anotacoes de referencia (eixos da grade,
-            # marcas de corte e de elevacao). Elas so entram no SVG depois de o
-            # projeto ser RECARREGADO: por isso a segunda passada, la embaixo.
-            bpy.ops.bim.create_drawing(print_all=False, open_viewer=False, sync=True)
+            rel["papel_mm"][nome] = (round(larg * 1000.0 / escala, 1),
+                                     round(alt * 1000.0 / escala, 1))
+            # PRIMEIRA PASSADA: so interessa o que fica no IFC (camera, cotas e,
+            # pelo sync=True, as anotacoes de referencia: eixos da grade, marcas
+            # de corte, de elevacao e de nivel). O SVG desta passada e' descartado:
+            # as referencias nascem com geometria de comprimento zero ate o IFC ser
+            # recarregado, e o Bonsai chega a quebrar ao desenha-las num corte
+            # (svgwriter: angle_signed de vetor nulo). A falha aqui e' esperada e
+            # fica anotada; quem tem de sair certo e' a segunda passada.
+            try:
+                bpy.ops.bim.create_drawing(print_all=False, open_viewer=False, sync=True)
+            except Exception as exc:
+                motivo = [ln for ln in str(exc).splitlines() if "Error" in ln] or [str(exc)]
+                rel["primeira_passada_incompleta"].append("%s: %s" % (nome, motivo[-1][:120]))
 
         passo(nome, _vista)
 
     def _folhas():
         raiz = os.path.dirname(ifc_path)
         tamanhos = [(n,) + tuple(rel["papel_mm"][n]) for n in ORDEM if n in rel["papel_mm"]]
-        plano = distribuir(tamanhos)
+        # detalhes (1:10) em folha propria, depois das vistas gerais
+        gerais = [t for t in tamanhos if not t[0].startswith("DET-")]
+        dets = [t for t in tamanhos if t[0].startswith("DET-")]
+        plano = distribuir(gerais) + (distribuir(dets) if dets else [])
         props.titleblock = "A1"
         for k, folha in enumerate(plano, 1):
             antes = {sh.ifc_definition_id for sh in props.sheets if sh.is_sheet}
@@ -390,11 +477,12 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
                     if item.is_drawing and item.name == nome:
                         props.active_drawing_index = i
                         bpy.ops.bim.add_drawing_to_sheet()
-            nova = ifc.by_id(props.sheets[idx].ifc_definition_id)
+            nova = tool.Ifc.get().by_id(props.sheets[idx].ifc_definition_id)
             core.rename_sheet(
                 tool.Ifc, tool.Drawing, sheet=nova,
                 identification="EST-%02d" % k,
-                name=" / ".join(TITULO_CURTO.get(n, n) for n, _x, _y in folha))
+                name=("DETALHES DE LIGACAO" if all(n.startswith("DET-") for n, _x, _y in folha)
+                      else " / ".join(TITULO_CURTO.get(n, n) for n, _x, _y in folha)))
             tool.Ifc.run("document.edit_information", information=nova,
                          attributes={"Revision": revisao})
         posicoes = {n: (x, y) for folha in plano for n, x, y in folha}
@@ -403,14 +491,13 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
         bpy.ops.bim.create_sheets(create_all=True, open_viewer=False)
         rel["folhas"] = [[n for n, _x, _y in folha] for folha in plano]
 
-    passo("folhas A1", _folhas)
     passo("salvar IFC", lambda: bpy.ops.bim.save_project(filepath=ifc_path,
                                                          should_save_as=False))
 
     def _segunda_passada():
-        """Recarrega o IFC salvo e gera de novo desenhos e folhas: medido, as
-        anotacoes de referencia criadas na primeira passada (25 eixos no galpao
-        de 20 x 28,5 m) so aparecem no SVG numa sessao que ja abre com elas."""
+        """Recarrega o IFC salvo e gera os desenhos: medido, as anotacoes de
+        referencia criadas na primeira passada (25 eixos no galpao de 20 x 28,5
+        m) so aparecem no SVG numa sessao que ja abre com elas."""
         for o in list(bpy.data.objects):
             bpy.data.objects.remove(o)
         bpy.ops.bim.load_project(filepath=ifc_path, use_relative_path=False,
@@ -430,11 +517,13 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
         rel["pontas_puxadas"] = {
             a[:-4]: puxar_para_dentro(os.path.join(pasta, a))
             for a in sorted(os.listdir(pasta)) if a.lower().endswith(".svg")}
-        bpy.ops.bim.load_sheets()
-        bpy.ops.bim.create_sheets(create_all=True, open_viewer=False)
         return feitos2
 
     rel["segunda_passada"] = passo("segunda passada", _segunda_passada)
+    props = bpy.context.scene.DocProperties          # a sessao foi recarregada
+    passo("folhas A1", _folhas)
+    passo("salvar IFC com as folhas", lambda: bpy.ops.bim.save_project(
+        filepath=ifc_path, should_save_as=False))
     raiz = os.path.dirname(ifc_path)
     rel["arquivos"] = sorted(
         os.path.relpath(os.path.join(b, x), raiz).replace("\\", "/")

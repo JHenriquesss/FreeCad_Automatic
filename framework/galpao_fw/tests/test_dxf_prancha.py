@@ -47,6 +47,18 @@ _SVG = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:ifc="http://www.ifcopens
 </svg>
 """
 
+_SVG_DETALHE = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:ifc="http://www.ifcopenshell.org/ns"
+     width="220mm" height="220mm" viewBox="0 0 220 220">
+ <g ifc:name="Elevation D" class="section target-view-SECTIONVIEW scale-10"
+    ifc:matrix3="[[100.0,0.0,110.0],[0.0,100.0,110.0],[0.0,0.0,1.0]]">
+  <g id="product-1" class="IfcPlate material-null cut" ifc:name="PB1" ifc:guid="g1">
+   <path d="M75,110 L145,110 L145,120 L75,120 Z"/>
+  </g>
+ </g>
+ <line class="GlobalId-x IfcAnnotation PredefinedType-DIMENSION" x1="75" y1="150" x2="145" y2="150"/>
+</svg>
+"""
+
 _EIXO_1 = """<line class="GlobalId-e IfcAnnotation PredefinedType-GRID" x1="30" y1="100" x2="30" y2="10"/>
  <text class="GRID" x="30" y="100">1</text><text class="GRID" x="30" y="10">1</text>"""
 
@@ -306,3 +318,27 @@ def test_lista_que_nao_cabe_na_folha_reprova(tmp_path):
              "peso_total_kg": None, "linhas_sem_peso": 60}
     with pytest.raises(ValueError, match="nao cabe numa folha A3"):
         DP.gerar_dxf([DP.ler_desenho(_svg(tmp_path))], str(tmp_path / "x.dxf"), {}, lista=lista)
+
+
+def test_detalhe_mantem_a_escala_de_origem_no_dxf(tmp_path):
+    # desenho a 1:10 (100 mm de papel por metro): 2,2 m de janela nao vira 1:50
+    p = tmp_path / "DET-BASE.svg"
+    p.write_text(_SVG_DETALHE, encoding="utf-8")
+    des = DP.ler_desenho(str(p))
+    assert des["escala_origem"] == 10
+    resumo, doc = _dxf(tmp_path, [des])
+    info = resumo["folhas"][0]
+    assert (info["escala"], info["formato"], info["escala_de_escape"]) == (10, "A3", False)
+    dims = doc.modelspace().query("DIMENSION")
+    assert [round(d.get_measurement(), 6) for d in dims] == [700.0]     # placa de 700 mm
+    assert {d.dxf.dimstyle for d in dims} == {"COTA-1-10"}
+    vp = [v for v in doc.layouts.get(info["folha"]).query("VIEWPORT")
+          if v.dxf.layer == DP.CAMADA_VIEWPORT][0]
+    assert vp.dxf.view_height / vp.dxf.height == pytest.approx(10.0)
+    assert (vp.dxf.width, vp.dxf.height) == pytest.approx((220.0, 220.0))
+
+
+def test_vista_geral_nao_herda_escala_de_origem(tmp_path):
+    # 1:100 de origem nao entra na lista: segue a maior escala que cabe (1:50)
+    resumo, _doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))])
+    assert resumo["folhas"][0]["escala"] == 50 and resumo["folhas"][0]["escala_origem"] == 100

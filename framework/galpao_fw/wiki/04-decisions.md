@@ -6280,3 +6280,55 @@ fixadores, bloco): o calculo nao as pesa, e a folha diz que o total nao e'
 o peso da obra. Lista de material tambem como folha do Bonsai (so no DXF).
 Detalhes de ligacao e simbolos de solda continuam so no executivo do
 FreeCAD. DWG nunca aberto no AutoCAD (nenhum CAD nesta maquina).
+
+## D199 - Plano de 2026-10-08: detalhes de ligacao no Bonsai (1a etapa) e o graute que o modelo neutro nao realizava (2026-10-09) - FECHADO
+
+**Pedido.** Decisao do usuario (2026-10-09, perguntada): levar para o
+Bonsai o que hoje so o executivo do FreeCAD entrega em detalhes de ligacao,
+base e simbolos de solda. Trabalho em etapas; esta e' a primeira.
+
+**Medido (antes de mudar).** O executivo do FreeCAD (`techdraw_exec.py`)
+entrega PE06 (base de coluna, com o toco do pilar), PE07 (joelho, recorte
+em torno do no), PE10+ (uma prancha por tipo de ligacao) e o glifo de solda
+de filete. O IFC do galpao do cliente ja traz placa de base, enrijecedores,
+chumbadores, porcas, arruelas e a misula; nao traz chapa de topo nem
+parafusos do joelho, nem solda. Ao olhar o primeiro detalhe da base gerado
+do IFC: placa de base de z = -70 a +30 mm e bloco com o topo em 0 - **a
+placa 70 mm dentro do concreto e a porca de nivel (-98 a -70) enterrada,
+sem a folga de graute**. O `build_galpao` ja realizava o gap
+(`z_conc_top = pbot - GROUT_GAP`, com o comentario do mesmo defeito) e
+`fundacoes_profundas` tambem; so `modelo_neutro.fundacoes` (fundacao rasa,
+o caminho do IFC) nao.
+
+**Entregue.**
+- `modelo_neutro.fundacoes(..., base_t=)`: com placa de base, o topo do
+  concreto fica em `z0 - t - grout` (-100 mm para placa de 100 mm);
+  `frame_completo` passa a espessura da placa. Sem placa, topo na cota 0
+  como antes. Dois testes em `tests/test_modelo_neutro.py` (gap de 30 mm
+  realizado; sem placa nada muda). 504 testes que tocam o modelo neutro, o
+  IFC e as fundacoes passaram antes da suite inteira.
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: tres detalhes a 1:10 do
+  MESMO modelo, numa folha propria (`EST-05 DETALHES DE LIGACAO`): base em
+  elevacao e em planta (cotas 600, 800 e 100 lidas do envelope da placa no
+  modelo) e o no do joelho. Vista em ELEVACAO, com a camera fora do bloco:
+  o corte pelo eixo do pilar preenchia de preto a alma e o bloco. A primeira
+  passada so grava no IFC e tolera falha de desenho (as marcas de referencia
+  nascem com geometria de comprimento zero e o Bonsai quebra ao desenha-las
+  num corte); desenhos e folhas saem todos da segunda passada. O ajuste das
+  bolhas passou a encurtar a linha so ao longo dela e a remover o eixo que
+  nao cruza a vista (trazia o eixo B para dentro de um detalhe do eixo A).
+- `dxf_prancha.py`: desenho com escala de origem maior que 1:50 mantem essa
+  escala na folha (os detalhes saem a 1:10 em A3). Dois testes.
+- Galpao do cliente: cinco folhas A1 do Bonsai e DXF/DWG de dez folhas (seis
+  vistas, tres detalhes e a lista de material), auditoria sem erro, 28 cotas
+  iguais a distancia medida.
+
+**Nao feito (proximas etapas).** Simbolo de solda (o IFC nao tem solda;
+falta decidir de onde sai a perna e o tipo). Chapa de topo e parafusos do
+joelho no modelo neutro. Pedestal da fundacao rasa, que o `build_galpao`
+desenha e o modelo neutro nao. **O pilar no modelo neutro comeca em z = 0 e
+o topo da placa esta em +30: 30 mm de sobreposicao** (o `build_galpao`
+comeca o pilar em Z0); mexer nisso muda o comprimento do pilar no IFC
+(8,000 m, igual ao do romaneio) e ficou para decisao. Textos de chamada nos
+detalhes (bitola do chumbador, perfil, utilizacao). Detalhes de cumeeira,
+contraventamento e demais ligacoes do PE10+.

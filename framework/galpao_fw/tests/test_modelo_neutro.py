@@ -475,3 +475,30 @@ def test_frame_completo_tapered_com_secundarios():
 
 def test_selftest_modulo():
     MN._selftest()
+
+
+def test_fundacao_rasa_deixa_o_gap_de_graute_sob_a_placa_de_base():
+    # placa de 100 mm com o topo em z0 = 30: face inferior em -70; o concreto
+    # para 30 mm abaixo (-100). Antes o bloco subia ate 0 e a placa ficava 70 mm
+    # dentro dele, com a porca de nivel enterrada.
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    base = {"B": 0.6, "L": 0.8, "t": 0.1}
+    ms = MN.frame_completo(geo, {"col": {"nome": "HEA200", "d": 0.19, "bf": 0.2, "tw": 0.0065,
+                                         "tf": 0.01},
+                                 "raf": {"nome": "HEA180", "d": 0.171, "bf": 0.18, "tw": 0.006,
+                                         "tf": 0.0095}},
+                           fund_sec=_FUND, base_sec=base)
+    bloco = [m for m in ms if m["tipo"] == "Footing"][0]
+    placa = [m for m in ms if m.get("perfil") == "PlacaBase"][0]
+    topo_bloco = bloco["centro"][2] + bloco["dims"][2] / 2.0
+    fundo_placa = placa["centro"][2] - placa["dims"][2] / 2.0
+    assert fundo_placa == -70.0
+    assert topo_bloco == -100.0
+    assert fundo_placa - topo_bloco == 30.0            # o gap de graute, realizado
+    assert bloco["dims"] == (2500.0, 3000.0, 2350.0)   # o bloco nao muda de tamanho
+
+
+def test_fundacao_rasa_sem_placa_de_base_segue_com_o_topo_na_cota_zero():
+    geo = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+    f0 = MN.fundacoes(geo, _FUND)[0]
+    assert f0["centro"][2] + f0["dims"][2] / 2.0 == 0.0

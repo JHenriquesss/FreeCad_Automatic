@@ -348,7 +348,11 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
     for k, des in enumerate(desenhos, 1):
         x0, y0, x1, y1 = des["quadro"]
         larg, alt = x1 - x0, y1 - y0
-        esc, formato, fw, fh, de_escape = escolher_folha(larg, alt)
+        # detalhe (desenhado a escala maior que 1:50) mantem a escala de origem
+        escalas = ESCALAS
+        if des["escala_origem"] < ESCALAS[0]:
+            escalas = (des["escala_origem"],) + ESCALAS
+        esc, formato, fw, fh, de_escape = escolher_folha(larg, alt, escalas=escalas)
         dx, dy = x_base - x0, -y0                      # vista ao lado da anterior
         por_camada = {}
         for el in des["elementos"]:
