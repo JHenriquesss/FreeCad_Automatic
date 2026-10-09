@@ -957,6 +957,9 @@ congelado até a entrega do galpão.
   base ([[04-decisions#D199]]).
 - **Detalhes de ligação no Bonsai, 2ª etapa** pilar nascendo no topo da placa de base e
   textos de chamada lidos do modelo nos três detalhes ([[04-decisions#D200]]).
+- **Detalhes de ligação no Bonsai, 3ª etapa** chapa de topo, parafusos e enrijecedores
+  do joelho no modelo, espelhando o construtor do FreeCAD; a chapa não escala com o
+  perfil adotado ([[04-decisions#D201]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

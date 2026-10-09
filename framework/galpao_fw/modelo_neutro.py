@@ -351,6 +351,91 @@ def misulas_joelho(geometria, raf_d, raf_tw, hlen=800.0, hdep=450.0):
     return ms
 
 
+CHAPA_JOELHO_MM = (220.0, 250.0)     # largura x altura da chapa de topo (= build)
+PASSO_PARAFUSO_JOELHO_MM = (70.0, 90.0)   # meia-distancia entre parafusos: em X e na altura
+
+
+def ligacoes_joelho(geometria, joelho, col_d, col_bf, hlen=800.0):
+    """Pecas da ligacao do joelho que a misula sozinha nao mostra: CHAPA DE TOPO
+    no fim da misula (perpendicular a viga), PARAFUSOS pela chapa e os dois
+    ENRIJECEDORES de continuidade no pilar. Espelha CONEX_JOELHO_*_CHAPA, _M*
+    e _ENRIJ_* do build_galpao (mesmas medidas e posicoes; a chapa e' 220 x 250
+    e os parafusos ficam a +-70 no comprimento e +-90 na altura - geometria
+    CONCEITUAL do build, o parafusamento definitivo e' do engenheiro).
+    joelho = joelho_adotado do calculo {n, db, t} em m; col_d/col_bf em m.
+    Com n diferente de 4 as fileiras se repartem por igual na altura da chapa."""
+    import math
+    if not joelho or not all(k in joelho for k in ("n", "db", "t")):
+        return []
+    spans = geometria.get("spans") or [geometria.get("span")]
+    spans = [float(s) for s in spans if s]
+    rafz, cols, rid = _rafz_mm(geometria)
+    EAVE = float(geometria["eave"]) * MM
+    xs = [x * MM for x in _xs(geometria)]
+    jt, jdb, n = float(joelho["t"]) * MM, float(joelho["db"]) * MM, int(joelho["n"])
+    larg, alt = CHAPA_JOELHO_MM
+    du, dv = PASSO_PARAFUSO_JOELHO_MM
+    fileiras = max(1, n // 2)
+    alturas = ([-dv, dv] if fileiras == 2 else
+               [0.0] if fileiras == 1 else
+               [-dv + 2.0 * dv * i / (fileiras - 1) for i in range(fileiras)])
+    paraf = {"nome": "Ø%g" % jdb, "forma": "round", "D": jdb / MM}
+    nv = len(spans)
+    ms = []
+
+    def _soma(p, s, vec):
+        return (p[0] + s * vec[0], p[1] + s * vec[1], p[2] + s * vec[2])
+
+    def _no(node, rdir):
+        L = math.sqrt(sum(c * c for c in rdir))
+        if L < 1e-9:
+            return
+        dirn = (rdir[0] / L, rdir[1] / L, rdir[2] / L)
+        u = (1.0, 0.0, 0.0)
+        v = (0.0, dirn[2], -dirn[1])                  # dirn x u
+        nvv = math.sqrt(sum(c * c for c in v)) or 1.0
+        v = (v[0] / nvv, v[1] / nvv, v[2] / nvv)
+        if v[2] > 0.0:
+            v = (-v[0], -v[1], -v[2])
+        ec = _soma(node, hlen + 20.0, dirn)           # centro da chapa (= build)
+        face = _soma(ec, -jt / 2.0, dirn)             # a extrusao parte desta face
+        cantos = [_soma(_soma(face, su * larg / 2.0, u), sv * alt / 2.0, v)
+                  for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        # a chapa e' extrudada pela normal (1a aresta x 2a): tem de ser +dirn
+        normal_x_dirn = (u[1] * v[2] - u[2] * v[1]) * dirn[0] + \
+                        (u[2] * v[0] - u[0] * v[2]) * dirn[1] + \
+                        (u[0] * v[1] - u[1] * v[0]) * dirn[2]
+        if normal_x_dirn < 0.0:
+            cantos = [cantos[0], cantos[3], cantos[2], cantos[1]]
+        ms.append({"marca": "CJ1", "perfil": "ChapaTopoJoelho", "tipo": "Plate",
+                   "poligono": cantos, "esp": jt, "aberturas": [],
+                   "secao": {"forma": "poly"}})
+        for sv in alturas:
+            for su in (-du, du):
+                p = _soma(_soma(ec, su, u), sv, v)
+                ms.append({"marca": "PJ1", "perfil": paraf["nome"], "tipo": "Fastener",
+                           "p1": _soma(p, -60.0, dirn), "p2": _soma(p, 60.0, dirn),
+                           "secao": paraf})
+
+    for x in xs:
+        for j in range(nv + 1):
+            yc = cols[j]
+            if j == 0:
+                _no((x, yc, EAVE), (0.0, rid[0] - yc, rafz(rid[0]) - EAVE))
+            elif j == nv:
+                _no((x, yc, EAVE), (0.0, rid[-1] - yc, rafz(rid[-1]) - EAVE))
+            else:
+                _no((x, yc, EAVE), (0.0, rid[j - 1] - yc, rafz(rid[j - 1]) - EAVE))
+                _no((x, yc, EAVE), (0.0, rid[j] - yc, rafz(rid[j]) - EAVE))
+            # enrijecedores de continuidade no pilar: um par por pilar (= build)
+            for dz in (-95.0, -15.0):
+                ms.append({"marca": "EJ1", "perfil": "EnrijJoelho", "tipo": "Plate",
+                           "centro": (x, yc, EAVE + dz),
+                           "dims": (float(col_bf) * MM, float(col_d) * MM, 12.0),
+                           "secao": {"forma": "box"}})
+    return ms
+
+
 def gussets_contrav(geometria, gusset_t=12.0, esc_d=0.152, L=150.0, z0_mm=30.0):
     """Gussets (chapas triangulares) dos cantos dos painéis de contraventamento, nos
     vãos de EXTREMIDADE. Cobertura: 4 cantos/vão (plano X-Y no beiral). Parede: 4/vão
@@ -941,7 +1026,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                    mao_francesa=None, esc_sec=None, montante_ab=None,
                    tirante_cob=False, d_tirante_cob_mm=16.0, base_full=None,
                    drenagem_cfg=None, gusset_contrav=None, misula=None,
-                   fund_profunda=None, ponte=None):
+                   fund_profunda=None, ponte=None, joelho_lig=None):
     """Modelo neutro fisico = primario (colunas + rafters, PRISMÁTICO ou tapered) +
     terças/girts/tirantes/contrav + fundações + placas de base + telha + tapamento.
     `tapered` (dict, m) -> primário de alma variável (secoes pode ser None nesse caso)."""
@@ -996,6 +1081,11 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
                               gusset_contrav.get("esc_d", 0.152))
     if misula:                                         # mísula (haunch) do joelho
         ms += misulas_joelho(geometria, misula.get("raf_d"), misula.get("raf_tw"))
+        if joelho_lig and secoes and secoes.get("col"):
+            # chapa de topo, parafusos e enrijecedores: so no portico prismatico
+            # (no de alma variavel o joelho e' a propria secao, sem chapa de topo)
+            ms += ligacoes_joelho(geometria, joelho_lig, secoes["col"]["d"],
+                                  secoes["col"]["bf"])
     if ponte:                                          # ponte rolante (viga + consoles)
         ms += ponte_rolante(geometria, ponte.get("hvr"), ponte.get("ecc"),
                             ponte.get("vr_sec"), ponte.get("console_sec"))

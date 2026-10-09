@@ -519,3 +519,74 @@ def test_pilar_nasce_no_topo_da_placa_de_base():
     assert {m["p2"][2] for m in pilares} == {6000.0}
     sem = MN.frame_completo(geo, sec)
     assert {m["p1"][2] for m in sem if m["tipo"] == "Column"} == {0.0}
+
+
+_GEO_J = {"span": 20.0, "comprimento": 40.0, "eave": 6.0, "ridge": 7.0, "bay": 5.0}
+_SEC_J = {"col": {"nome": "HEA200", "d": 0.19, "bf": 0.2, "tw": 0.0065, "tf": 0.01},
+          "raf": {"nome": "HEA180", "d": 0.171, "bf": 0.18, "tw": 0.006, "tf": 0.0095}}
+_MIS_J = {"raf_d": 0.171, "raf_tw": 0.006}
+
+
+def _joelho(n=4):
+    return MN.frame_completo(_GEO_J, _SEC_J, misula=_MIS_J,
+                             joelho_lig={"n": n, "db": 0.024, "t": 0.0125})
+
+
+def test_joelho_leva_chapa_de_topo_parafusos_e_enrijecedores():
+    ms = _joelho()
+    chapas = [m for m in ms if m.get("perfil") == "ChapaTopoJoelho"]
+    paraf = [m for m in ms if m.get("marca") == "PJ1"]
+    enrij = [m for m in ms if m.get("perfil") == "EnrijJoelho"]
+    # 9 porticos x 2 pilares = 18 joelhos: 1 chapa, 4 parafusos e 2 enrijecedores cada
+    assert (len(chapas), len(paraf), len(enrij)) == (18, 72, 36)
+    assert {m["esp"] for m in chapas} == {12.5}
+    assert {m["perfil"] for m in paraf} == {"Ø24"} and {m["tipo"] for m in paraf} == {"Fastener"}
+    assert {m["dims"] for m in enrij} == {(200.0, 190.0, 12.0)}        # bf x d x 12 mm
+    assert {round(m["centro"][2] - 6000.0) for m in enrij} == {-95, -15}
+
+
+def test_chapa_de_topo_do_joelho_fica_centrada_e_perpendicular_a_viga():
+    import math
+    ms = _joelho()
+    chapa = [m for m in ms if m.get("perfil") == "ChapaTopoJoelho"][0]
+    paraf = [m for m in ms if m.get("marca") == "PJ1"][:4]
+    c = chapa["poligono"]
+    # direcao da viga no primeiro joelho: sobe 1 m em 10 m
+    L = math.hypot(10000.0, 1000.0)
+    dirn = (0.0, 10000.0 / L, 1000.0 / L)
+    # lados da chapa: 220 mm (ao longo de X) e 250 mm (na altura)
+    lados = sorted(round(math.dist(c[i], c[(i + 1) % 4]), 6) for i in range(4))
+    assert lados == [220.0, 220.0, 250.0, 250.0]
+    # todo canto esta no mesmo plano perpendicular a viga
+    proj = [sum(p[i] * dirn[i] for i in range(3)) for p in c]
+    assert max(proj) - min(proj) < 1e-6
+    # normal de extrusao (1a aresta x 2a) aponta para +viga, e a chapa (12,5 mm)
+    # fica centrada a 820 mm do no: face inicial em 820 - 6,25
+    e1 = [c[1][i] - c[0][i] for i in range(3)]
+    e2 = [c[2][i] - c[1][i] for i in range(3)]
+    n = (e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0])
+    assert sum(n[i] * dirn[i] for i in range(3)) > 0
+    no = (0.0, 0.0, 6000.0)
+    centro = [sum(p[i] for p in c) / 4.0 for i in range(3)]
+    dist = sum((centro[i] - no[i]) * dirn[i] for i in range(3))
+    assert abs(dist - (820.0 - 6.25)) < 1e-6
+    # cada parafuso tem 120 mm, paralelo a viga, atravessando a chapa
+    for pf in paraf:
+        eixo = [pf["p2"][i] - pf["p1"][i] for i in range(3)]
+        assert abs(math.sqrt(sum(a * a for a in eixo)) - 120.0) < 1e-6
+        assert abs(sum(eixo[i] * dirn[i] for i in range(3)) - 120.0) < 1e-6
+    # 2 x 2: +-70 em X
+    assert sorted(round(pf["p1"][0]) for pf in paraf) == [-70, -70, 70, 70]
+
+
+def test_joelho_com_seis_parafusos_reparte_em_tres_fileiras():
+    ms = _joelho(n=6)
+    assert len([m for m in ms if m.get("marca") == "PJ1"]) == 18 * 6
+
+
+def test_sem_ligacao_adotada_ou_com_medida_faltando_o_joelho_so_tem_a_misula():
+    so_misula = MN.frame_completo(_GEO_J, _SEC_J, misula=_MIS_J)
+    falta = MN.frame_completo(_GEO_J, _SEC_J, misula=_MIS_J, joelho_lig={"n": 4, "db": 0.024})
+    for ms in (so_misula, falta):
+        assert len([m for m in ms if m.get("perfil") == "Misula"]) == 18
+        assert not [m for m in ms if m.get("marca") in ("CJ1", "PJ1", "EJ1")]

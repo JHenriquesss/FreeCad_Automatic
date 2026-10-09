@@ -707,6 +707,7 @@ def membros_do_spec(spec):
                                 d_tirante_cob_mm=16.0, base_full=base_full,
                                 drenagem_cfg=dren, gusset_contrav=gusset_c,
                                 misula=misula, fund_profunda=fund_prof, ponte=ponte,
+                                joelho_lig=est.get("joelho_adotado"),
                                 fechamento=spec.get("fechamento"),
                                 aberturas=spec.get("aberturas"))
     _anotar_calculo(membros, spec)

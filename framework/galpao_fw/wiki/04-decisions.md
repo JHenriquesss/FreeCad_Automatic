@@ -6376,3 +6376,44 @@ geometria (hoje so a descricao em texto); pedestal da fundacao rasa;
 detalhes de cumeeira, contraventamento e demais ligacoes. O texto da
 utilizacao nao foi posto na prancha (esta no pset). A descricao do joelho
 sai com ponto decimal ("12.5 mm").
+
+## D201 - Plano de 2026-10-08: chapa de topo, parafusos e enrijecedores do joelho no modelo (2026-10-09) - FECHADO
+
+**Pedido.** Terceira etapa das ligacoes no Bonsai: levar ao modelo que gera
+o IFC a ligacao do joelho que so o `build_galpao` desenhava, para o detalhe
+mostrar a peca e nao so o texto.
+
+**Medido (antes de mudar).** `build_galpao.joelho` desenha, por no: misula,
+chapa de topo (espessura do calculo x 220 x 250 mm, perpendicular a viga, a
+820 mm do no), 4 parafusos pela chapa (+-70 mm no comprimento, +-90 mm na
+altura, 120 mm de comprimento) e dois enrijecedores de continuidade no
+pilar (bf x d x 12 mm, a -95 e -15 mm do beiral). O docstring diz
+"conceitual - dimensoes/parafusamento definitivos sao detalhe do eng.
+responsavel". `modelo_neutro.misulas_joelho` so levava a misula e dizia que
+o resto era detalhe de fabricacao fora do intercambio.
+
+**Entregue.** `modelo_neutro.ligacoes_joelho`: as mesmas pecas, medidas e
+posicoes do build (chapa `CJ1`, parafusos `PJ1`, enrijecedores `EJ1`), so
+quando o calculo deixou `joelho_adotado` com n, db e t, e so no portico
+prismatico; a chapa e' extrudada para +viga e fica centrada no ponto do
+build. `frame_completo(..., joelho_lig=)` e `ifc_emit.membros_do_spec`
+passam o adotado. Quatro testes em `tests/test_modelo_neutro.py`
+(contagens; chapa centrada, plana e perpendicular a viga, parafusos de 120
+mm paralelos a ela; seis parafusos em tres fileiras; sem adotado so a
+misula). 1029 testes que tocam o modelo, o IFC, os fixadores e o orcamento
+passaram antes da suite inteira. No galpao do cliente: +12 chapas de topo,
++24 enrijecedores e +48 parafusos no IFC (validacao sem apontamento),
+detalhe do joelho com a chapa e os parafusos, lista de material com 32
+linhas.
+
+**Achado ao olhar o detalhe, NAO corrigido.** A chapa de topo de 250 mm de
+altura fica no meio de uma viga IPE500 de 500 mm: o build fixa 220 x 250
+(medida da referencia antiga, viga de 171 mm) e nao escala com o perfil
+adotado. Espelhei o build; dimensionar a chapa e o parafusamento para o
+perfil e' projeto de ligacao, do engenheiro. O mesmo vale para a posicao
+dos enrijecedores (-95 e -15 mm). **O detalhe do joelho mostra a ligacao
+conceitual do build, nao uma ligacao detalhada.**
+
+**Nao feito.** Simbolo de solda; pedestal da fundacao rasa; cumeeira,
+contraventamento e demais ligacoes; chapa de reforco de alma (doubler) do
+joelho, que o build desenha quando a zona de painel exige.
