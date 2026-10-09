@@ -970,6 +970,9 @@ congelado até a entrega do galpão.
 - **Fase 5, primeiro passo, e solda do gusset** ambientes lidos de uma planta DXF e
   previsão de cargas pelo motor; símbolo de solda no detalhe do contraventamento
   ([[04-decisions#D205]]).
+- **Fase 5, segundo passo** pontos mínimos, divisão em circuitos e quadro de carga
+  instalada a partir dos ambientes; critério de projeto declarado, sem padrão
+  ([[04-decisions#D206]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

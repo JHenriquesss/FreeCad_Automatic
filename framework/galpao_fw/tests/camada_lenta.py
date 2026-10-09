@@ -57,6 +57,9 @@ LENTOS_MEDIDOS = {
     "tests/branches/g8/test_bim_edificio.py": 20.4,
     "tests/test_indice_disco_rodada_g102.py": 19.7,
     "tests/test_varredura_constantes_orfas_g124.py": 19.1,
+    # remedido em 2026-10-09 (camada rapida, -n 2): cresceu com os testes de
+    # ligacao do plano (D198-D205); cada um emite um modelo com placa de base
+    "tests/test_ifc_emit.py": 20.6,
     "tests/test_folhas_g77.py": 18.9,
     "tests/test_galpao_concreto_bim.py": 18.6,
     "tests/branches/g8/test_g8_xcheck_freecad.py": 17.5,

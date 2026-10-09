@@ -64,6 +64,7 @@ SCRIPTS_AVULSOS = ["build_final", "demo_engenheiro", "tools_probe_pe13",
                    "dxf_prancha",
                    # Fase 5, primeiro passo: ferramenta de linha de comando que le a
                    # planta do cliente e chama o motor (D205); nenhum modulo a importa
+                   # (D206: tambem e' ele que chama a biblioteca circuitos_planta)
                    "ambientes_dxf"]
 
 

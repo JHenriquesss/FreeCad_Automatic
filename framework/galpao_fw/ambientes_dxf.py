@@ -20,6 +20,9 @@
 # Nenhum valor de norma mora aqui: quantidades e cargas vem do motor.
 #
 # Uso:  python ambientes_dxf.py <planta.dxf> [camada] [unidade: mm|cm|m]
+#                               [criterios=<criterios.json>]
+# Com `criterios=` sai tambem a divisao em circuitos e o quadro de cargas
+# (circuitos_planta.dividir); os criterios sao declarados, sem padrao.
 # ============================================================================
 """Ambientes (tipo, area, perimetro) lidos de polilinhas fechadas de um DXF."""
 
@@ -145,12 +148,19 @@ def previsao_de_cargas(caminho, camada=CAMADA_PADRAO, unidade=None):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit(__doc__ + "\nuso: python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m]")
+    _args = [a for a in sys.argv[1:] if not a.startswith("criterios=")]
+    _crit = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("criterios=")]
+    if not _args:
+        sys.exit(__doc__ + "\nuso: python ambientes_dxf.py <planta.dxf> [camada] [mm|cm|m] "
+                           "[criterios=<criterios.json>]")
     import arquitetura_residencial as _AR
-    res = previsao_de_cargas(sys.argv[1], *(sys.argv[2:3] or [CAMADA_PADRAO]),
-                             unidade=(sys.argv[3] if len(sys.argv) > 3 else None))
+    res = previsao_de_cargas(_args[0], *(_args[1:2] or [CAMADA_PADRAO]),
+                             unidade=(_args[2] if len(_args) > 2 else None))
     print(_AR.relatorio_pt(res))
     if res["leitura_dxf"]["erros"]:
         print("ERROS DE LEITURA DA PLANTA:")
         print(json.dumps(res["leitura_dxf"]["erros"], ensure_ascii=False, indent=1))
+    if _crit:
+        import circuitos_planta as _CP
+        with open(_crit[0], encoding="utf-8") as _f:
+            print(_CP.relatorio_pt(_CP.dividir(res, json.load(_f))))

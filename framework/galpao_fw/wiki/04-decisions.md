@@ -6532,3 +6532,49 @@ divisao de circuitos, quadro, unifilar e saida do eletrico em DXF sobre a
 planta; gabarito contra projeto ja entregue (nenhuma planta real de cliente
 foi lida, so plantas de teste). Solda de base, joelho e cumeeira: o FreeCAD
 nao tem dado para elas. O simbolo de solda nao vai ao DXF (so o texto).
+
+## D206 - Plano de 2026-10-08: Fase 5, segundo passo - pontos, divisao em circuitos e quadro de cargas (2026-10-09) - FECHADO
+
+**Medido (antes de escrever).** O motor de dimensionamento
+(`dimensionamento_eletrico_residencial`) so aceita pontos e circuitos
+EXPLICITOS; `residencial_eletrica` diz no proprio cabecalho que nao cria
+pontos a partir de comodos. Nao havia divisao em circuitos em Python (no
+Projetor-eletrico ela so existe em TypeScript). Regras lidas no acervo
+(edicao 2004, paginas 18-19 e 184): 4.2.5.5, 4.2.5.6, 9.5.3.1, 9.5.3.2 e
+9.5.3.3. A norma NAO fixa potencia maxima por circuito.
+
+**Entregue.**
+- `circuitos_planta.py` (biblioteca sem FreeCAD, chamada pela linha de
+  comando do `ambientes_dxf` com `criterios=<json>`; declarada em
+  `SEM_FAIXA_DECLARADA`): da
+  previsao por ambiente tira um ponto de luz com a carga minima e os pontos
+  de tomada minimos, cada um com a potencia do motor (a soma e' conferida
+  contra a previsao); separa iluminacao, tomadas e tomadas dos locais de
+  9.5.3.2; enche os circuitos na ordem da planta ate o limite declarado;
+  cada equipamento declarado ganha circuito proprio, com a exigencia de
+  9.5.3.1 dita (acima de 10 A); distribui os circuitos nas fases, maior
+  primeiro na menos carregada. Os pontos saem no formato do motor de
+  dimensionamento.
+- Criterio de projeto e' DECLARADO, sem padrao: tensao, numero de fases,
+  limite de VA por classe e lista de equipamentos (vazia se nao ha). Faltando
+  um, nenhum circuito sai e o campo e' nomeado.
+- `tests/test_circuitos_planta.py`: 13 testes (soma por ambiente; classes que
+  nao se misturam; corte no ponto certo com dois limites; quadro e fases
+  fechando com a previsao; 10 A exatos nao exige e 10,01 A exige; criterio
+  ausente; ponto maior que o limite; equipamento mal declarado; da planta DXF
+  ao quadro).
+
+**Camada rapida.** `tests/test_ifc_emit.py` somou 20,6 s na camada rapida
+(limite de 20 s por arquivo) por causa dos testes de ligacao do D198 ao D205;
+foi declarado em `camada_lenta.LENTOS_MEDIDOS` com o tempo medido. Segue na
+suite inteira; saiu da rapida (3197 testes, 197 s de parede).
+
+**Limites ditos.** O quadro e' de CARGA INSTALADA: sem demanda, sem
+comprimento, sem condutor e sem disjuntor. A excecao de 9.5.3.3 (circuito
+comum) nao e' usada. A distribuicao de fases e' heuristica, nao o otimo. O
+ponto de luz e' um por ambiente, com a carga inteira. Nenhuma planta real de
+cliente passou por aqui.
+
+**Nao feito.** Comprimento dos circuitos (precisa da posicao do quadro na
+planta), dimensionamento, unifilar, saida em DXF, entrada por IFC e gabarito
+contra projeto entregue.
