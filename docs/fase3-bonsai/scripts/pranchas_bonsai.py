@@ -209,8 +209,9 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
               + [((x0 - 4.3, a, 0), (x0 - 4.3, b, 0)) for a, b in zip(ys, ys[1:])])
     alto = cumeeira if cumeeira is not None else topo
     corte = [((0, y0, -3.2), (0, y1, -3.2)),
-             ((0, y0 - 2.5, 0.0), (0, y0 - 2.5, alt_col)),
-             ((0, y1 + 2.5, 0.0), (0, y1 + 2.5, alto))]
+             # a 3,8 m: a marca da elevacao lateral fica a 2,5 m da linha de pilares
+             ((0, y0 - 3.8, 0.0), (0, y0 - 3.8, alt_col)),
+             ((0, y1 + 3.8, 0.0), (0, y1 + 3.8, alto))]
     larg_x, larg_y, alt = d[0] + MARGEM_M, d[1] + MARGEM_M, d[2] + MARGEM_M
     return [
         ("PLANTA-BAIXA", "PLAN_VIEW", (c[0], c[1], 1.50), (0, 0, 0),
