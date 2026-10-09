@@ -606,6 +606,7 @@ SEM_FAIXA_DECLARADA = {
     "dimensionamento_eletrico_residencial.py": "delega tabelas a condutores/protecao; sem faixa propria.",
     "distorcional_fsm.py": "'FAIXAS FINITAS' e nome de metodo numerico; sem faixa.",
     "dossie.py": "junta PDFs; sem faixa.",
+    "dxf_prancha.py": "prancha DXF derivada do desenho do modelo; a unica faixa (escala e folha que cabem) reprova fora dela em escolher_folha; sem faixa de metodo de calculo.",
     "edificio_adapter.py": "adaptador; menciona tetos da Tab.9 com quebra de linha (fora da lente); faixas vivem em alvenaria_estrutural.",
     "eletrica_edificio.py": "orquestra vertical; limites vivem nos modulos de calculo.",
     "empocamento_nbr8800.py": "'dispensado (limite inclusivo)' e criterio, nao faixa declarada.",
