@@ -7,6 +7,8 @@
 #      no proprio IFC;
 #   3. o DWG pelo ODA File Converter;
 #   4. o PDF de cada folha pelo Inkscape.
+# A lista de material e' contada uma vez no IFC (dxf_prancha.lista_do_ifc) e
+# vai, com os mesmos textos, a uma folha do DXF e a uma folha do Bonsai.
 #
 # Blender, ODA e Inkscape sao programas de fora: cada um e' procurado na
 # maquina e, se nao estiver, o passo dele fica NAO GERADO com o motivo
@@ -35,6 +37,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_BONSAI = os.path.normpath(os.path.join(
     HERE, "..", "..", "docs", "fase3-bonsai", "scripts", "pranchas_bonsai.py"))
 MARCA_RELATORIO = "RELATORIO_JSON "
+NOME_LISTA = "LISTA-DE-MATERIAL"
+# tabela da lista na folha do Bonsai (mm): passo da linha, altura do texto e
+# a area util da folha A1 acima do carimbo (a mesma do script do Bonsai)
+PASSO_LISTA_MM, TEXTO_LISTA_MM = 6.0, 2.5
+AREA_LISTA_MM = (781.0, 475.0)
 VERSAO_DWG = "ACAD2018"
 
 # programa -> (variavel de ambiente, padroes de busca na maquina, nome no PATH)
@@ -79,6 +86,60 @@ def ler_relatorio(saida):
         raise ValueError("o script do Bonsai nao imprimiu o relatorio; fim da saida: %s"
                          % saida[-400:])
     return json.loads(linhas[-1][len(MARCA_RELATORIO):])
+
+
+def _xml(texto):
+    return (texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def svg_da_lista(tabela, destino, area_mm=AREA_LISTA_MM):
+    """Grava a tabela da lista de material como SVG em milimetros, para entrar
+    numa folha do Bonsai como referencia. Tabela que nao cabe na area util
+    reprova (nada e' cortado). Devolve (largura, altura) em mm."""
+    passo, alt_txt = PASSO_LISTA_MM, TEXTO_LISTA_MM
+    larguras = tabela["larguras_mm"]
+    larg_tabela = float(sum(larguras))
+    blocos = [tabela["cabecalho"]] + tabela["linhas"]
+    n_linhas = len(blocos) + (1 if tabela["total"] is not None else 0) + len(tabela["notas"])
+    # nota e' texto corrido: a largura dela conta (0,6 da altura por letra, adotado)
+    larg = max([larg_tabela] + [3.0 + len(n) * alt_txt * 0.6 for n in tabela["notas"]])
+    alt = (n_linhas + 1) * passo
+    if larg > area_mm[0] or alt > area_mm[1]:
+        raise ValueError("lista de material de %.0f x %.0f mm (%d linhas) nao cabe na area "
+                         "util de %.0f x %.0f mm da folha" % (
+                             larg, alt, len(tabela["linhas"]), area_mm[0], area_mm[1]))
+    estilo = ('font-family="Arial, sans-serif" font-size="%s" fill="#000000" stroke="none"'
+              % alt_txt)
+    traco = 'stroke="#000000" stroke-width="0.25" fill="none"'
+    partes = ['<svg xmlns="http://www.w3.org/2000/svg" width="%smm" height="%smm" '
+              'viewBox="0 0 %s %s">' % (larg, alt, larg, alt)]
+
+    def _linha(celulas, y):
+        x = 0.0
+        for largura, texto in zip(larguras, celulas):
+            if texto:
+                partes.append('<text x="%s" y="%s" %s>%s</text>'
+                              % (x + 1.5, y - 1.6, estilo, _xml(texto)))
+            x += largura
+
+    y = passo
+    _linha(tabela["cabecalho"], y)
+    partes.append('<line x1="0" y1="%s" x2="%s" y2="%s" %s/>' % (y, larg_tabela, y, traco))
+    for celulas in tabela["linhas"]:
+        y += passo
+        _linha(celulas, y)
+    partes.append('<line x1="0" y1="%s" x2="%s" y2="%s" %s/>' % (y, larg_tabela, y, traco))
+    if tabela["total"] is not None:
+        y += passo
+        _linha(tabela["total"], y)
+    for nota in tabela["notas"]:
+        y += passo
+        partes.append('<text x="1.5" y="%s" %s>%s</text>' % (y - 1.6, estilo, _xml(nota)))
+    partes.append("</svg>")
+    with open(destino, "w", encoding="utf-8") as f:
+        f.write("\n".join(partes) + "\n")
+    return larg, alt
 
 
 def _pasta_de_trabalho(pasta):
@@ -151,8 +212,16 @@ def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
     copia = os.path.join(trabalho, os.path.basename(ifc))
     shutil.copyfile(ifc, copia)
 
+    # a lista de material e' contada no IFC do motor ANTES de o Bonsai gravar
+    # desenhos e folhas na copia; o mesmo resultado vai ao DXF mais abaixo
+    lista = dxf_prancha.lista_do_ifc(ifc)
+    os.makedirs(os.path.join(trabalho, "references"))
+    svg_lista = os.path.join(trabalho, "references", NOME_LISTA + ".svg")
+    svg_da_lista(dxf_prancha.tabela_da_lista(lista), svg_lista)
+
     codigo, saida = rodar([blender, "-b", "--python", SCRIPT_BONSAI, "--", copia,
-                           "titulo=%s" % titulo, "revisao=%s" % revisao], timeout_bonsai)
+                           "titulo=%s" % titulo, "revisao=%s" % revisao,
+                           "lista=%s" % svg_lista], timeout_bonsai)
     with open(os.path.join(pasta, "bonsai-saida.log"), "w", encoding="utf-8") as f:
         f.write(saida)
     try:
@@ -176,7 +245,15 @@ def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
     dxf = os.path.join(pasta_dxf, os.path.splitext(os.path.basename(ifc))[0] + ".dxf")
     campos = dict(carimbo or {})
     campos["REVISAO"] = revisao
-    res["dxf_resumo"] = dxf_prancha.gerar_de_pasta(desenhos, dxf, campos, ifc=ifc)
+    res["dxf_resumo"] = dxf_prancha.gerar_dxf(
+        [dxf_prancha.ler_desenho(p) for p in res["desenhos"]], dxf, campos, lista=lista)
+    res["lista"] = {"linhas": len(lista["linhas"]), "peso_total_kg": lista["peso_total_kg"],
+                    "linhas_sem_peso": lista["linhas_sem_peso"]}
+    if "folha_da_lista" in rel:
+        res["lista"]["folha_bonsai"] = rel["folha_da_lista"]
+    else:
+        res["nao_gerado"]["lista_no_bonsai"] = ("o script do Bonsai nao informou a folha "
+                                                "da lista de material")
     res["dxf"] = dxf
     res["gerado"] = True
 

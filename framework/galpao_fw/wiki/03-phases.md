@@ -995,6 +995,8 @@ congelado até a entrega do galpão.
 - **Fases 3 e 4, pranchas do IFC no pipeline** `rodar_tudo(com_pranchas_ifc=True)` gera
   desenhos e folhas (Bonsai), DXF, DWG e PDF do IFC num passo; no galpão do cliente o
   DXF saiu igual ao montado à mão ([[04-decisions#D214]]).
+- **Fase 3, lista de material no Bonsai** a mesma tabela contada no IFC vira folha do
+  DXF e folha `EST-0n` do Bonsai ([[04-decisions#D215]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

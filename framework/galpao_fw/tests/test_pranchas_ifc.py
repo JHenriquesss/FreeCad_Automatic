@@ -45,7 +45,7 @@ def so_o_ambiente(monkeypatch):
 
 
 def _executor(tmp_path, passos=(("PLANTA", "ok"),), sem_relatorio=False, sem_dwg=False,
-              chamadas=None):
+              chamadas=None, sem_folha_da_lista=False):
     def rodar(comando, timeout):
         if chamadas is not None:
             chamadas.append(list(comando))
@@ -66,6 +66,8 @@ def _executor(tmp_path, passos=(("PLANTA", "ok"),), sem_relatorio=False, sem_dwg
             if sem_relatorio:
                 return 1, "Error: Bonsai nao instalado"
             rel = {"passos": [[v, e, 1.0] for v, e in passos]}
+            if not sem_folha_da_lista:
+                rel["folha_da_lista"] = "EST-02"
             if any(e != "ok" for _v, e in passos):
                 rel["avisos"] = ["%s: Traceback\nRuntimeError: sem geometria" % v
                                  for v, e in passos if e != "ok"]
@@ -90,7 +92,7 @@ def _gerar(tmp_path, amb, ifc=None, **kw):
     ifc = ifc or TDP._ifc_com_romaneio(tmp_path)
     executor = _executor(tmp_path, **{k: kw.pop(k) for k in list(kw)
                                       if k in ("passos", "sem_relatorio", "sem_dwg",
-                                               "chamadas")})
+                                               "chamadas", "sem_folha_da_lista")})
     return ifc, PI.gerar(ifc, str(tmp_path / "pranchas"), titulo="GALPAO 40x20 m",
                          revisao="02", ambiente=amb, rodar=executor, **kw)
 
@@ -121,7 +123,15 @@ def test_cadeia_inteira_grava_dxf_dwg_e_pdf_e_nao_toca_o_ifc(tmp_path, so_o_ambi
         assert f.read() == antes                       # o Bonsai so abre a copia
     copia = chamadas[0][chamadas[0].index("--") + 1]
     assert os.path.isfile(copia) and os.path.abspath(copia) != os.path.abspath(ifc)
-    assert chamadas[0][-2:] == ["titulo=GALPAO 40x20 m", "revisao=02"]
+    assert chamadas[0][-3:-1] == ["titulo=GALPAO 40x20 m", "revisao=02"]
+    # a tabela da lista vai pronta ao Bonsai, na pasta da copia do IFC
+    svg_lista = chamadas[0][-1].split("=", 1)[1]
+    assert chamadas[0][-1].startswith("lista=") and os.path.isfile(svg_lista)
+    assert os.path.dirname(os.path.dirname(svg_lista)) == os.path.dirname(copia)
+    assert res["lista"] == {"linhas": res["dxf_resumo"]["lista"]["linhas"],
+                            "peso_total_kg": res["dxf_resumo"]["lista"]["peso_total_kg"],
+                            "linhas_sem_peso": res["dxf_resumo"]["lista"]["linhas_sem_peso"],
+                            "folha_bonsai": "EST-02"}
     for chave in ("dxf", "dwg"):
         assert os.path.isfile(res[chave]) and os.path.getsize(res[chave]) > 0
     assert [os.path.basename(p) for p in res["pdf"]] == ["EST-01.pdf"]
@@ -176,3 +186,61 @@ def test_corrida_anterior_e_arquivada_e_nao_entra_na_nova(tmp_path, so_o_ambient
         os.path.join(arquivada, "bonsai", "drawings", "VELHA.svg"))
     assert [os.path.basename(p) for p in r2["desenhos"]] == ["PLANTA.svg"]
     assert len(r2["dxf_resumo"]["folhas"]) == 1
+
+
+def test_bonsai_que_nao_informa_a_folha_da_lista_vira_nao_gerado(tmp_path, so_o_ambiente):
+    _ifc, res = _gerar(tmp_path, _programas(tmp_path), sem_folha_da_lista=True)
+    assert res["gerado"] is True and "folha_bonsai" not in res["lista"]
+    assert "lista de material" in res["nao_gerado"]["lista_no_bonsai"]
+
+
+def _textos_do_svg(caminho):
+    import xml.etree.ElementTree as ET
+    raiz = ET.parse(caminho).getroot()
+    ns = "{http://www.w3.org/2000/svg}"
+    return raiz, [t.text for t in raiz.iter(ns + "text")], list(raiz.iter(ns + "line"))
+
+
+def test_tabela_da_lista_e_a_mesma_no_dxf_e_no_svg_do_bonsai(tmp_path):
+    import dxf_prancha as DP
+    lista = DP.lista_do_ifc(TDP._ifc_com_romaneio(tmp_path))
+    tabela = DP.tabela_da_lista(lista)
+    destino = str(tmp_path / "lista.svg")
+    larg, alt = PI.svg_da_lista(tabela, destino)
+    raiz, textos, linhas = _textos_do_svg(destino)
+    # toda celula preenchida aparece uma vez por ocorrencia; celula vazia nao vira texto
+    esperado = [c for linha in [tabela["cabecalho"]] + tabela["linhas"] + [tabela["total"]]
+                for c in linha if c] + tabela["notas"]
+    assert textos == esperado and "" not in textos
+    assert raiz.attrib["width"] == "%smm" % larg and raiz.attrib["height"] == "%smm" % alt
+    assert len(linhas) == 2                             # sob o cabecalho e sob a ultima linha
+    # os mesmos textos estao na folha da lista do DXF
+    resumo = DP.gerar_dxf([DP.ler_desenho(TDP._svg(tmp_path))], str(tmp_path / "l.dxf"),
+                          lista=lista)
+    doc = ezdxf.readfile(str(tmp_path / "l.dxf"))
+    no_dxf = [e.dxf.text for e in doc.layouts.get(resumo["lista"]["folha"]).query("TEXT")]
+    assert [t for t in no_dxf if t] == esperado          # o DXF grava a celula vazia
+
+
+def test_peso_ausente_fica_vazio_e_o_total_some_quando_nada_foi_pesado(tmp_path):
+    import dxf_prancha as DP
+    lista = {"linhas": [{"marca": "T<1>", "peca": "Barra & cia", "perfil": "Ue 300",
+                         "comprimento_m": None, "qtd": 3, "peso_unit_kg": None,
+                         "peso_total_kg": None}],
+             "peso_total_kg": None, "linhas_sem_peso": 1}
+    tabela = DP.tabela_da_lista(lista)
+    assert tabela["linhas"] == [["T<1>", "Barra & cia", "Ue 300", "", "3", "", ""]]
+    assert tabela["total"] is None and len(tabela["notas"]) == 1
+    destino = str(tmp_path / "lista.svg")
+    PI.svg_da_lista(tabela, destino)
+    _raiz, textos, _linhas = _textos_do_svg(destino)      # XML valido com < e &
+    assert "T<1>" in textos and "Barra & cia" in textos and "TOTAL PESADO" not in textos
+
+
+def test_lista_que_nao_cabe_na_folha_do_bonsai_reprova(tmp_path):
+    tabela = {"cabecalho": ["A"], "larguras_mm": [20.0], "linhas": [["x"]] * 200,
+              "total": None, "notas": []}
+    with pytest.raises(ValueError, match="nao cabe"):
+        PI.svg_da_lista(tabela, str(tmp_path / "lista.svg"))
+    assert not (tmp_path / "lista.svg").exists()
+

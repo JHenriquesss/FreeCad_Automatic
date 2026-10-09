@@ -288,6 +288,29 @@ def lista_do_ifc(caminho_ifc):
             "linhas_sem_peso": sum(1 for l in linhas if l["peso_total_kg"] is None)}
 
 
+def tabela_da_lista(lista):
+    """Os textos da tabela da lista de material, celula a celula: fonte unica
+    da folha do DXF e da folha do Bonsai (pranchas_ifc). Celula sem valor fica
+    vazia, nunca zero."""
+    def _fmt(v, casas):
+        return "" if v is None else ("%%.%df" % casas % v).replace(".", ",")
+
+    notas = []
+    if lista["peso_total_kg"] is not None:
+        notas.append("Linhas com peso: comprimento e peso do calculo (comprimento estrutural).")
+    if lista["linhas_sem_peso"]:
+        notas.append("%d linha(s) sem peso: o calculo so pesa as pecas primarias; o total acima "
+                     "NAO e' o peso da obra." % lista["linhas_sem_peso"])
+    return {"cabecalho": [t for t, _l in COLUNAS_LISTA],
+            "larguras_mm": [l for _t, l in COLUNAS_LISTA],
+            "linhas": [[ln["marca"], ln["peca"], ln["perfil"], _fmt(ln["comprimento_m"], 3),
+                        str(ln["qtd"]), _fmt(ln["peso_unit_kg"], 1),
+                        _fmt(ln["peso_total_kg"], 1)] for ln in lista["linhas"]],
+            "total": (None if lista["peso_total_kg"] is None else
+                      ["", "", "", "", "", "TOTAL PESADO", _fmt(lista["peso_total_kg"], 1)]),
+            "notas": notas}
+
+
 def _folha_da_lista(doc, lista, nome_folha, carimbo, k, total):
     """Folha A3 com a tabela da lista de material, no espaco de papel."""
     _n, fw, fh = FORMATOS[0]
@@ -302,9 +325,7 @@ def _folha_da_lista(doc, lista, nome_folha, carimbo, k, total):
     ref = folha.add_blockref("CARIMBO", (qx1 - CARIMBO_L, qy0), dxfattribs=cam)
     ref.add_auto_attribs({c: str(valores.get(c, "")) for c in CAMPOS_CARIMBO})
     passo, x0, y = 6.0, qx0 + 8.0, qy1 - 14.0
-
-    def _fmt(v, casas):
-        return "" if v is None else ("%%.%df" % casas % v).replace(".", ",")
+    tabela = tabela_da_lista(lista)
 
     def _linha(celulas, altura=ALTURA_TEXTO):
         x = x0
@@ -316,30 +337,22 @@ def _folha_da_lista(doc, lista, nome_folha, carimbo, k, total):
     larg_total = sum(l for _t, l in COLUNAS_LISTA)
     _linha([t for t, _l in COLUNAS_LISTA])
     folha.add_line((x0, y), (x0 + larg_total, y), dxfattribs=cam)
-    for ln in lista["linhas"]:
+    for celulas in tabela["linhas"]:
         y -= passo
         if y < qy0 + CARIMBO_H + passo:
             raise ValueError("lista de material com %d linhas nao cabe numa folha A3"
                              % len(lista["linhas"]))
-        _linha([ln["marca"], ln["peca"], ln["perfil"], _fmt(ln["comprimento_m"], 3),
-                str(ln["qtd"]), _fmt(ln["peso_unit_kg"], 1), _fmt(ln["peso_total_kg"], 1)])
+        _linha(celulas)
     folha.add_line((x0, y), (x0 + larg_total, y), dxfattribs=cam)
     y -= passo
-    if lista["peso_total_kg"] is not None:
-        _linha(["", "", "", "", "", "TOTAL PESADO", _fmt(lista["peso_total_kg"], 1)])
+    if tabela["total"] is not None:
+        _linha(tabela["total"])
         y -= passo
-    if lista["peso_total_kg"] is not None:
-        folha.add_text(
-            "Linhas com peso: comprimento e peso do calculo (comprimento estrutural).",
-            height=ALTURA_TEXTO, dxfattribs={"layer": CAMADA_TEXTO, "style": "TEXTO",
-                                             "insert": (x0 + 1.5, y + 1.6)})
-        y -= passo
-    if lista["linhas_sem_peso"]:
-        folha.add_text(
-            "%d linha(s) sem peso: o calculo so pesa as pecas primarias; o total acima "
-            "NAO e' o peso da obra." % lista["linhas_sem_peso"],
-            height=ALTURA_TEXTO, dxfattribs={"layer": CAMADA_TEXTO, "style": "TEXTO",
-                                             "insert": (x0 + 1.5, y + 1.6)})
+    for k_nota, nota in enumerate(tabela["notas"]):
+        if k_nota:
+            y -= passo
+        folha.add_text(nota, height=ALTURA_TEXTO, dxfattribs={
+            "layer": CAMADA_TEXTO, "style": "TEXTO", "insert": (x0 + 1.5, y + 1.6)})
 
 
 def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lista=None):

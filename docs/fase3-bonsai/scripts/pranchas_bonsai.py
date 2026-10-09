@@ -6,7 +6,11 @@ grava tudo ao lado do IFC (drawings/, layouts/, sheets/). Nada e' editado a mao:
 alterou o projeto, regenera o IFC e roda de novo.
 
 Uso (o IFC e' COPIADO para uma pasta de trabalho antes: o Bonsai grava nele):
-    blender -b --python pranchas_bonsai.py -- <caminho.ifc> [titulo=...] [VISTA ...]
+    blender -b --python pranchas_bonsai.py -- <caminho.ifc> [titulo=...] [revisao=..]
+                                              [lista=<tabela.svg>] [VISTA ...]
+
+`lista=` e' o SVG da lista de material (escrito por `pranchas_ifc.svg_da_lista`
+na pasta do IFC): entra numa folha propria, depois das demais.
 
 Sem VISTA, gera todas. Imprime uma linha `RELATORIO_JSON {...}` com o tempo de
 cada passo, os eixos lidos e os avisos.
@@ -505,7 +509,7 @@ def vistas_do_galpao(mn, mx, xs, ys, alt_col, cumeeira=None):
     return [v + (ESCALA_GERAL, []) for v in gerais]
 
 
-def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
+def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00", lista=None):
     rel = {"passos": [], "avisos": [], "cotas": {}, "papel_mm": {},
            "primeira_passada_incompleta": []}
 
@@ -641,6 +645,31 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00"):
                       else " / ".join(TITULO_CURTO.get(n, n) for n, _x, _y in folha)))
             tool.Ifc.run("document.edit_information", information=nova,
                          attributes={"Revision": revisao})
+        if lista:
+            # lista de material: SVG pronto (contado no IFC pelo motor), posto
+            # numa folha propria como referencia do projeto
+            k = len(plano) + 1
+            antes = {sh.ifc_definition_id for sh in props.sheets if sh.is_sheet}
+            bpy.ops.bim.add_sheet()
+            bpy.ops.bim.load_sheets()
+            idx = [i for i, sh in enumerate(props.sheets)
+                   if sh.is_sheet and sh.ifc_definition_id not in antes][0]
+            props.active_sheet_index = idx
+            core.add_document(tool.Ifc, tool.Drawing, "REFERENCE",
+                              uri=os.path.relpath(lista, raiz).replace("\\", "/"))
+            nome_ref = os.path.splitext(os.path.basename(lista))[0]
+            props.active_reference_index = [
+                i for i, r in enumerate(props.references) if r.name == nome_ref][0]
+            bpy.ops.bim.add_reference_to_sheet()
+            nova = tool.Ifc.get().by_id(props.sheets[idx].ifc_definition_id)
+            if not [r for r in tool.Drawing.get_document_references(nova)
+                    if tool.Drawing.get_reference_description(r) == "REFERENCE"]:
+                raise RuntimeError("o Bonsai nao pos a lista de material na folha")
+            core.rename_sheet(tool.Ifc, tool.Drawing, sheet=nova,
+                              identification="EST-%02d" % k, name="LISTA DE MATERIAL")
+            tool.Ifc.run("document.edit_information", information=nova,
+                         attributes={"Revision": revisao})
+            rel["folha_da_lista"] = "EST-%02d" % k
         posicoes = {n: (x, y) for folha in plano for n, x, y in folha}
         rel["reposicionados"] = _reposicionar(os.path.join(raiz, "layouts"), posicoes)
         bpy.ops.bim.load_sheets()
@@ -695,4 +724,5 @@ if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:]
     opcoes = dict(a.split("=", 1) for a in args[1:] if "=" in a)
     main(args[0], tuple(a for a in args[1:] if "=" not in a),
-         titulo=opcoes.get("titulo", "GALPAO"), revisao=opcoes.get("revisao", "00"))
+         titulo=opcoes.get("titulo", "GALPAO"), revisao=opcoes.get("revisao", "00"),
+         lista=opcoes.get("lista"))

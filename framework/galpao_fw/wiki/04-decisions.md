@@ -6875,3 +6875,40 @@ do Bonsai segue em `docs/fase3-bonsai/scripts/` e so conhece o galpao. O
 titulo passado ao script nao aparece no carimbo das folhas do Bonsai (a
 celula mostra o titulo curto das vistas). DWG ainda nao aberto no AutoCAD.
 O `relatorio_consolidado` nao lista as pranchas do IFC.
+
+## D215 - Plano de 2026-10-08: Fase 3 - a lista de material como folha do Bonsai (2026-10-09) - FECHADO
+
+**Por que.** O D198 deixou aberto: "lista de material tambem como folha do
+Bonsai (so no DXF)". Quem recebe as folhas em PDF nao via a lista.
+
+**Entregue.**
+- `dxf_prancha.tabela_da_lista(lista)`: os textos da tabela, celula a celula
+  (cabecalho, linhas, total pesado, notas). A folha do DXF passou a ser
+  escrita a partir dela, sem mudar o que sai.
+- `pranchas_ifc.svg_da_lista(tabela, destino)`: a mesma tabela como SVG em
+  milimetros. Celula sem valor nao vira texto; tabela que nao cabe na area
+  util da folha A1 reprova antes de gravar.
+- `pranchas_ifc.gerar` conta a lista uma vez no IFC do motor, grava o SVG em
+  `references/` ao lado da copia do IFC e passa `lista=` ao script; o mesmo
+  resultado vai ao DXF. O resultado traz `lista` (linhas, peso, linhas sem
+  peso, folha do Bonsai); se o script nao informar a folha, fica em
+  `nao_gerado`.
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: com `lista=`, registra o
+  SVG como referencia do projeto e o poe numa folha propria depois das
+  demais (`EST-0n LISTA DE MATERIAL`); se o Bonsai nao ligar a referencia a
+  folha, o passo reprova.
+- 4 funcoes de teste novas em `tests/test_pranchas_ifc.py` (12 no arquivo):
+  mesmos textos no SVG e na folha do DXF; peso ausente fica vazio e o total
+  some quando nada foi pesado (com `<` e `&` no texto); tabela que nao cabe
+  reprova; script que nao informa a folha vira nao gerado.
+
+**Medido no galpao do cliente, com os programas de verdade.** Folha
+`EST-07 - LISTA DE MATERIAL` em PDF, vista em imagem: 34 linhas, total
+pesado 19705,2 kg, as duas notas (32 linhas sem peso). 91 s para a cadeia
+inteira. O DXF dessa corrida ao lado do DXF do D214: mesma contagem por tipo
+e camada, mesmas folhas, textos e cotas.
+
+**Limites.** Texto de 2,5 mm numa folha A1: a tabela ocupa um canto da
+folha (o Bonsai so tem o carimbo A1 preparado em portugues). A largura das
+notas e' estimada por letra (0,6 da altura, adotado), so para o teste de
+caber. As 32 linhas secundarias seguem sem peso (D198).
