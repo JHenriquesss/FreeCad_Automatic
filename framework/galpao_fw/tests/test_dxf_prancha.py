@@ -563,7 +563,9 @@ def test_simbolo_de_solda_do_desenho_vai_ao_dxf_no_tamanho_da_escala(tmp_path):
     # y do papel cresce para baixo: o campo fica 3 mm ABAIXO da linha de referencia
     assert (round(perna[0].dxf.align_point.x), round(perna[0].dxf.align_point.y)) \
         == (8000 + 325, 6000 - 150)
+    # altura de papel vezes a escala, sem deformar a letra (fator de largura 1)
     assert perna[0].dxf.height == DP.ALTURA_TEXTO * 50
+    assert perna[0].dxf.get("width", 1.0) == 1.0
     assert not doc.audit().errors
 
 
