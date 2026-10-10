@@ -7161,7 +7161,7 @@ frase do gusset saia "...TODO O CONTORN": passava da janela de 2,2 m.
   maiuscula). A constante ficou 0,9, com a medicao escrita ao lado, e o
   aviso passou a disparar nos desenhos antigos e a calar nos novos.
 
-**Testes.** 4 funcoes novas em `tests/test_dxf_prancha.py` (25 no arquivo):
+**Testes.** 4 funcoes novas em `tests/test_dxf_prancha.py` (24 no arquivo):
 polilinha dentro do quadro volta identica; a que sai e' cortada na borda
 (sai e volta, toda fora, canto, diagonal); a peca comprida do detalhe nao
 deixa nada no vao nem na vista vizinha, e a vizinha continua inteira; texto
