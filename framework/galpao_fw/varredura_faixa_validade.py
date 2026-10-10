@@ -560,6 +560,7 @@ SEM_FAIXA_DECLARADA = {
     "circuitos_planta.py": "divisao em circuitos por classe e limite DECLARADO; sem formula com faixa (o unico limiar, 10 A, so rotula a exigencia).",
     "planta_eletrica_dxf.py": "desenho do eletrico sobre a planta DXF; posicoes sugeridas e simbolos adotados, sem formula de calculo.",
     "pranchas_ifc.py": "costura IFC -> Bonsai -> DXF -> DWG -> PDF por programas de fora; sem formula de calculo.",
+    "criterios_planta.py": "leitura tipada dos criterios de projeto (chaves e estrutura); os valores sao validados em circuitos_planta, sem formula aqui.",
     "ambientes_ifc.py": "leitor de IfcSpace (area e perimetro da geometria); sem formula normativa, a previsao e' do motor.",
     "armazenamento_nbr16981.py": "gate de dados (nao dimensiona); limites de contrato, nao faixa de metodo.",
     "bim_casa_residencial.py": "BIM/IFC sem formula; sem faixa.",

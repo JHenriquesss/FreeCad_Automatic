@@ -6964,3 +6964,42 @@ as varreduras, os scripts enviados ao FreeCAD, `pranchas_ifc` ao procurar o
 script do Bonsai em `docs/`) so funciona na instalacao editavel. Arquivos de
 dados (fichas JSON) nao vao na roda. Entradas e saidas tipadas (dataclass)
 continuam nao feitas.
+
+## D217 - Plano de 2026-10-08: Fases 1 e 5 - os criterios de projeto do eletrico lidos como estrutura tipada (2026-10-09) - FECHADO
+
+**Por que.** O plano pede na Fase 1 "entradas e saidas como estruturas de
+dados tipadas"; o D193 e o D216 deixaram por fazer. Comecei pela entrada que
+o servico usa e que e' escrita a mao: o arquivo de criterios do eletrico
+sobre planta.
+
+**Defeito medido antes de mudar.** Chave obrigatoria que falta ja reprovava,
+mas chave com o nome errado passava em silencio. Com `comprimento_m` no
+lugar de `comprimentos_m`, `dimensionar_da_planta` devolvia `erros == []` e
+dimensionava o circuito pelo comprimento ESTIMADO, ignorando os 40 m
+declarados. O teste guarda esse comportamento do motor e a recusa da leitura.
+
+**Entregue.**
+- `criterios_planta.py` (modulo novo): `Criterios`, `Equipamento`,
+  `Instalacao`, `Tracado`, `Rede` e `Demanda` como dataclasses imutaveis;
+  `ler(dicionario)` devolve `(Criterios, [])` ou `(None, erros)`. Chave que o
+  motor nao le, em qualquer nivel, vira `criterio_desconhecido` com a chave
+  parecida (`comprimento_m` -> `comprimentos_m`). O que falta ou e' invalido
+  continua dito pelos validadores de `circuitos_planta`, chamados daqui (regra
+  nao copiada). Bloco opcional ausente fica `None`; nada e' preenchido.
+  `Criterios.para_dict()` devolve o dicionario que o motor consome, igual ao
+  lido.
+- `ambientes_dxf.py` (linha de comando): o arquivo de criterios passa pela
+  leitura; com erro, imprime todos e para com codigo 1 antes de qualquer
+  conta.
+- `tests/test_criterios_planta.py`: 9 funcoes (15 casos): ida e volta igual ao
+  dicionario, opcional ausente, imutavel, sete nomes errados com a parecida,
+  classe errada no fator de potencia, o defeito do comprimento, o que falta
+  dito pelo validador do motor, e a linha de comando parando.
+- `pyproject.toml` e `SEM_FAIXA_DECLARADA` com o modulo novo.
+
+**Limites.** So a ENTRADA de criterios foi tipada. A leitura da planta
+(ambientes, geometria, quadro) e as saidas (divisao, dimensionamento,
+demanda) seguem como dicionarios. Os campos de `Instalacao` e `Rede` nao tem
+tipo proprio (`Any`): os valores aceitos sao os dos motores que os consomem.
+Quem chama `circuitos_planta` direto, sem passar por `ler`, continua exposto
+ao nome errado. Os motores do galpao nao foram tocados.

@@ -999,6 +999,9 @@ congelado até a entrega do galpão.
   DXF e folha `EST-0n` do Bonsai ([[04-decisions#D215]]).
 - **Fase 1, motor como pacote** `pyproject.toml` plano (239 módulos com o nome que já
   têm); roda instalada fora do repositório importa 236 deles ([[04-decisions#D216]]).
+- **Fases 1 e 5, critérios tipados** o arquivo de critérios do elétrico é lido como
+  estrutura imutável; chave com nome errado reprova em vez de sumir
+  ([[04-decisions#D217]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

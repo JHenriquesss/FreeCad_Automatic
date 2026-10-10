@@ -203,8 +203,14 @@ if __name__ == "__main__":
         print(json.dumps(res["leitura_dxf"]["erros"], ensure_ascii=False, indent=1))
     if _crit:
         import circuitos_planta as _CP
+        import criterios_planta as _CR
         with open(_crit[0], encoding="utf-8") as _f:
-            _criterios = json.load(_f)
+            _lidos, _erros_crit = _CR.ler(json.load(_f))
+        if _erros_crit:
+            print("ERROS NO ARQUIVO DE CRITERIOS (nada foi calculado):")
+            print(_CR.relatorio_pt(_erros_crit))
+            sys.exit(1)
+        _criterios = _lidos.para_dict()
         _div = _CP.dividir(res, _criterios)
         print(_CP.relatorio_pt(_div))
         _dim = None
