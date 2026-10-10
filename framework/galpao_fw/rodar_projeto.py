@@ -504,7 +504,8 @@ def relatorio_consolidado(spec, res, modelo=None, executivo=None, out_dir=None):
 def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=True,
                gerar_pdf=True, gerar_dossie=True, host="http://localhost:9875",
                timeout_3d=180, timeout_exec=1200, verbose=True,
-               com_pranchas_ifc=False, carimbo_pranchas=None, revisao_pranchas="00"):
+               com_pranchas_ifc=False, carimbo_pranchas=None, revisao_pranchas="00",
+               com_render_ifc=False):
     """ENTRADA UNICA: spec -> calculo + memorial PDF + modelo 3D + pranchas 2D +
     RELATORIO-CONSOLIDADO. Portavel (out_dir default = projects/<slug>/saida).
     Cada estagio degrada com gracia: se o FreeCAD (MCP/exe) nao estiver
@@ -514,7 +515,9 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
     Blender + Bonsai, o DXF editavel, o DWG e o PDF das folhas (`pranchas_ifc`);
     leva minutos e depende de programas de fora, por isso e' pedido, nao padrao.
     `carimbo_pranchas` sao os campos declarados do carimbo (PROJETO, CLIENTE,
-    RESPONSAVEL, DATA); o que nao for declarado sai em branco."""
+    RESPONSAVEL, DATA); o que nao for declarado sai em branco.
+    `com_render_ifc=True` (so junto das pranchas) grava tambem o render de
+    apresentacao do mesmo IFC."""
     import os
     PS_ok = True
     try:
@@ -587,7 +590,8 @@ def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=Tru
                 pranchas = PI.gerar(
                     str(fis), os.path.join(out_dir, "pranchas-ifc"),
                     titulo="GALPAO %sx%s m" % (g.get("comprimento", "?"), g.get("span", "?")),
-                    revisao=revisao_pranchas, carimbo=carimbo_pranchas)
+                    revisao=revisao_pranchas, carimbo=carimbo_pranchas,
+                    render=com_render_ifc)
             except Exception as ex:
                 pranchas = {"gerado": False, "avisos": [],
                             "nao_gerado": {"desenhos": "falhou (%s)" % ex}}

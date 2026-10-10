@@ -1004,6 +1004,8 @@ congelado até a entrega do galpão.
   ([[04-decisions#D217]]).
 - **Fases 1 e 5, saídas tipadas** divisão, dimensionamento e demanda do elétrico com
   contrato imutável; chave a mais ou a menos reprova dizendo onde ([[04-decisions#D218]]).
+- **Fase 3, render com sombra** imagem de apresentação pelo CYCLES, opcional no mesmo
+  passo das pranchas ([[04-decisions#D219]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

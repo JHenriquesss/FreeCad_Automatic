@@ -7047,3 +7047,40 @@ origem devolve. A leitura da planta (ambientes, geometria, quadro) segue
 como dicionario. Os campos numericos do resumo nao tem tipo proprio (`Any`):
 o contrato confere as chaves, nao os valores. Os motores do galpao nao foram
 tocados.
+
+## D219 - Plano de 2026-10-08: Fase 3 - render de apresentacao com sombra, no mesmo passo das pranchas (2026-10-09) - FECHADO
+
+**Por que.** O criterio 4 do relatorio da Fase 3 ficou "aprovado com
+ressalvas": o render saia claro demais e sem sombra marcada, e era um
+comando a parte.
+
+**Medido antes de mudar.** No Blender 5.2.1 sem janela, com o motor EEVEE, a
+luz do sol nao entra na imagem: duas tentativas (energia, direcao por vetor,
+sombra e tracado de raios ligados) sairam sem sombra nenhuma, so com a luz do
+ceu. Com o motor CYCLES a mesma cena sai com a sombra projetada. Nao achei a
+causa no EEVEE; o diagnostico mostrou o sol fora da camada de vista no
+momento da consulta, o que nao explica o CYCLES funcionar.
+
+**Entregue.**
+- `docs/fase3-bonsai/scripts/render_apresentacao.py` reescrito: motor padrao
+  CYCLES (48 amostras, reducao de ruido, CPU), sol por vetor de direcao, ceu
+  mais fraco, piso mais escuro e a transformacao de vista AgX com contraste.
+  IFC sem geometria reprova. Cores, sol e camera sao escolha de apresentacao.
+- `pranchas_ifc.gerar(..., render=False)`: quando pedido, grava
+  `render/apresentacao.png` da copia de trabalho do IFC; so aparece no
+  resultado com a imagem gravada, senao fica em `nao_gerado`.
+- `rodar_tudo(..., com_render_ifc=False)` repassa o pedido.
+- 1 funcao de teste nova em `tests/test_pranchas_ifc.py` (13 no arquivo): o
+  render so roda quando pedido, abre a copia e nao o IFC do motor, e falha
+  do script ou imagem nao gravada viram nao gerado sem derrubar o DXF.
+
+**Medido no galpao do cliente.** `rodar_tudo(com_pranchas_ifc=True,
+com_render_ifc=True)` em `plano-2026-10-d219` (fora do git): 219 s ao todo,
+87,5 s no render; 13 desenhos, 7 folhas em PDF (a setima e' a lista de
+material), DXF de 14 folhas, DWG e a imagem. Imagem vista: sombra da
+cobertura e dos porticos no piso, estrutura legivel.
+
+**Limites.** As fundacoes ficam sob o plano do piso e nao aparecem. Tercas
+e telha saem como solidos simples; nao ha material com textura. O EEVEE
+continua sem sombra neste modo e a causa nao foi achada. Os testes nao sobem
+o Blender.

@@ -7,6 +7,8 @@
 #      no proprio IFC;
 #   3. o DWG pelo ODA File Converter;
 #   4. o PDF de cada folha pelo Inkscape.
+#   5. (pedido) o render de apresentacao do mesmo modelo
+#      (docs/fase3-bonsai/scripts/render_apresentacao.py).
 # A lista de material e' contada uma vez no IFC (dxf_prancha.lista_do_ifc) e
 # vai, com os mesmos textos, a uma folha do DXF e a uma folha do Bonsai.
 #
@@ -36,6 +38,9 @@ import dxf_prancha
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_BONSAI = os.path.normpath(os.path.join(
     HERE, "..", "..", "docs", "fase3-bonsai", "scripts", "pranchas_bonsai.py"))
+SCRIPT_RENDER = os.path.normpath(os.path.join(
+    HERE, "..", "..", "docs", "fase3-bonsai", "scripts", "render_apresentacao.py"))
+MOTOR_DE_RENDER = "CYCLES"      # no EEVEE sem janela a sombra do sol nao sai (D219)
 MARCA_RELATORIO = "RELATORIO_JSON "
 NOME_LISTA = "LISTA-DE-MATERIAL"
 # tabela da lista na folha do Bonsai (mm): passo da linha, altura do texto e
@@ -184,15 +189,29 @@ def _pdfs(inkscape, pasta_folhas, pasta_pdf, timeout, rodar):
     return feitos
 
 
+def _render(blender, ifc, png, timeout, rodar):
+    """Render de apresentacao; so se diz feito com a imagem gravada."""
+    os.makedirs(os.path.dirname(png), exist_ok=True)
+    codigo, saida = rodar([blender, "-b", "--python", SCRIPT_RENDER, "--", ifc, png,
+                           MOTOR_DE_RENDER], timeout)
+    rel = ler_relatorio(saida)
+    if "erro" in rel:
+        raise RuntimeError("o render falhou: %s" % rel["erro"].strip().splitlines()[-1])
+    if not os.path.isfile(png) or os.path.getsize(png) == 0:
+        raise RuntimeError("o Blender terminou (codigo %s) sem gravar %s" % (codigo, png))
+    return rel
+
+
 def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
-          timeout_conversao=600, ambiente=None, rodar=_rodar):
+          timeout_conversao=600, ambiente=None, rodar=_rodar, render=False):
     """Gera desenhos, folhas, DXF, DWG e PDF do `ifc` em `pasta`.
 
     Devolve um dicionario com `gerado` (ha desenho e DXF), o caminho de cada
     entrega feita e, em `nao_gerado`, o motivo de cada entrega que faltou.
     `titulo` e `revisao` vao ao carimbo das folhas do Bonsai; `carimbo` sao os
     campos do carimbo do DXF (PROJETO, CLIENTE, RESPONSAVEL, DATA) - campo nao
-    declarado sai em branco."""
+    declarado sai em branco. `render=True` grava tambem a imagem de
+    apresentacao (minutos a mais)."""
     if not os.path.isfile(ifc):
         raise FileNotFoundError("IFC ausente: %s" % ifc)
     t0 = time.time()
@@ -275,6 +294,14 @@ def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
                                os.path.join(pasta, "pdf"), timeout_conversao, rodar)
         except Exception as ex:
             res["nao_gerado"]["pdf"] = str(ex)
+    if render:
+        try:
+            png = os.path.join(pasta, "render", "apresentacao.png")
+            rel_render = _render(blender, copia, png, timeout_bonsai, rodar)
+            res["render"] = png
+            res["render_segundos"] = rel_render["tempo_s"] if "tempo_s" in rel_render else None
+        except Exception as ex:
+            res["nao_gerado"]["render"] = str(ex)
     res["segundos"] = round(time.time() - t0, 1)
     return res
 
@@ -286,10 +313,10 @@ def resumo_pt(res):
         linhas.append("desenhos: %d; DXF: %s (%d folhas)" % (
             len(res["desenhos"]), res["dxf"], len(res["dxf_resumo"]["folhas"])
             + (1 if "lista" in res["dxf_resumo"] else 0)))
-    for chave in ("dwg", "pdf"):
+    for chave in ("dwg", "pdf", "render"):
         if chave in res:
-            linhas.append("%s: %s" % (chave.upper(), res[chave] if chave == "dwg"
-                                      else "%d folhas" % len(res[chave])))
+            linhas.append("%s: %s" % (chave.upper(), "%d folhas" % len(res[chave])
+                                      if chave == "pdf" else res[chave]))
     for chave in sorted(res["nao_gerado"]):
         linhas.append("%s: NAO GERADO (%s)" % (chave, res["nao_gerado"][chave]))
     if "passos_com_erro" in res and res["passos_com_erro"]:

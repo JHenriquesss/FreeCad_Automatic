@@ -45,11 +45,19 @@ def so_o_ambiente(monkeypatch):
 
 
 def _executor(tmp_path, passos=(("PLANTA", "ok"),), sem_relatorio=False, sem_dwg=False,
-              chamadas=None, sem_folha_da_lista=False):
+              chamadas=None, sem_folha_da_lista=False, render="ok"):
     def rodar(comando, timeout):
         if chamadas is not None:
             chamadas.append(list(comando))
         nome = os.path.basename(comando[0])
+        if nome == "blender.exe" and comando[3] == PI.SCRIPT_RENDER:
+            png = comando[comando.index("--") + 2]
+            if render == "erro":
+                return 0, PI.MARCA_RELATORIO + json.dumps({"erro": "Traceback\nRuntimeError: sem luz"})
+            if render == "ok":
+                with open(png, "wb") as g:
+                    g.write(b"PNG")
+            return 0, PI.MARCA_RELATORIO + json.dumps({"motor": comando[-1], "tempo_s": 1.5})
         if nome == "blender.exe":
             raiz = os.path.dirname(comando[comando.index("--") + 1])
             os.makedirs(os.path.join(raiz, "drawings"))
@@ -92,7 +100,10 @@ def _gerar(tmp_path, amb, ifc=None, **kw):
     ifc = ifc or TDP._ifc_com_romaneio(tmp_path)
     executor = _executor(tmp_path, **{k: kw.pop(k) for k in list(kw)
                                       if k in ("passos", "sem_relatorio", "sem_dwg",
-                                               "chamadas", "sem_folha_da_lista")})
+                                               "chamadas", "sem_folha_da_lista",
+                                               "render")})
+    if "render_pedido" in kw:
+        kw["render"] = kw.pop("render_pedido")
     return ifc, PI.gerar(ifc, str(tmp_path / "pranchas"), titulo="GALPAO 40x20 m",
                          revisao="02", ambiente=amb, rodar=executor, **kw)
 
@@ -244,3 +255,23 @@ def test_lista_que_nao_cabe_na_folha_do_bonsai_reprova(tmp_path):
         PI.svg_da_lista(tabela, str(tmp_path / "lista.svg"))
     assert not (tmp_path / "lista.svg").exists()
 
+
+def test_render_so_quando_pedido_e_so_com_a_imagem_gravada(tmp_path, so_o_ambiente):
+    amb = _programas(tmp_path)
+    chamadas = []
+    _ifc, sem = _gerar(tmp_path, amb, chamadas=chamadas)
+    assert "render" not in sem and "render" not in sem["nao_gerado"]
+    assert not [c for c in chamadas if PI.SCRIPT_RENDER in c]
+    chamadas.clear()
+    _ifc, com = _gerar(tmp_path, amb, chamadas=chamadas, render_pedido=True)
+    pedido = [c for c in chamadas if PI.SCRIPT_RENDER in c][0]
+    assert pedido[-1] == PI.MOTOR_DE_RENDER and pedido[-2] == com["render"]
+    # o render abre a copia de trabalho, nunca o IFC do motor
+    assert os.path.dirname(pedido[-3]).endswith("bonsai")
+    assert os.path.isfile(com["render"]) and com["render_segundos"] == 1.5
+    assert any(ln.startswith("RENDER: ") for ln in PI.resumo_pt(com))
+    _ifc, falhou = _gerar(tmp_path, amb, render_pedido=True, render="erro")
+    assert "render" not in falhou and "sem luz" in falhou["nao_gerado"]["render"]
+    _ifc, mudo = _gerar(tmp_path, amb, render_pedido=True, render="nao grava")
+    assert "render" not in mudo and "sem gravar" in mudo["nao_gerado"]["render"]
+    assert mudo["gerado"] is True and os.path.isfile(mudo["dxf"])

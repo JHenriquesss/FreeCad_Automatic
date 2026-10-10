@@ -121,3 +121,17 @@ de 20 × 28,5 m (`spec_amostra_engenheiro.json`). Do que estava em ressalva:
 As evidências desta pasta são do galpão de teste (40 × 20 m). O pacote do
 galpão do cliente fica em `projects/amostra_engenheiro/saida/plano-2026-10/`,
 fora do git.
+
+## Atualização de 2026-10-09 (D214, D215 e D219)
+
+- **Um passo só:** `rodar_projeto.rodar_tudo(spec, com_pranchas_ifc=True)` gera do IFC os
+  desenhos e as folhas (este script), o DXF, o DWG e o PDF de cada folha
+  (`framework/galpao_fw/pranchas_ifc.py`). Os comandos de "Como reproduzir" acima continuam
+  valendo para rodar à mão.
+- **Lista de material:** virou também folha do Bonsai (`EST-0n - LISTA DE MATERIAL`), com a
+  mesma tabela que vai ao DXF.
+- **Ressalva do critério 4 (render):** resolvida pelo motor CYCLES. No EEVEE sem janela a
+  luz do sol não entra na imagem e a causa não foi achada. `com_render_ifc=True` grava
+  `render/apresentacao.png` no mesmo passo (87,5 s no galpão do cliente).
+- **Continua aberto:** pedestal da fundação rasa, peso das peças secundárias na lista de
+  material, norma de desenho (espessuras e carimbo) e o DWG aberto num AutoCAD.
