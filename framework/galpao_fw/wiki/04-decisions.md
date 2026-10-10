@@ -6991,7 +6991,7 @@ declarados. O teste guarda esse comportamento do motor e a recusa da leitura.
 - `ambientes_dxf.py` (linha de comando): o arquivo de criterios passa pela
   leitura; com erro, imprime todos e para com codigo 1 antes de qualquer
   conta.
-- `tests/test_criterios_planta.py`: 9 funcoes (15 casos): ida e volta igual ao
+- `tests/test_criterios_planta.py`: 8 funcoes (15 casos): ida e volta igual ao
   dicionario, opcional ausente, imutavel, sete nomes errados com a parecida,
   classe errada no fator de potencia, o defeito do comprimento, o que falta
   dito pelo validador do motor, e a linha de comando parando.
