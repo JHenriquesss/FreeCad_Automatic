@@ -1010,6 +1010,8 @@ congelado até a entrega do galpão.
   a cadeia do elétrico fica tipada de ponta a ponta ([[04-decisions#D220]]).
 - **Fase 4, DXF e DWG abertos no QCAD** dois defeitos vistos e corrigidos: peça comprida
   de um detalhe invadindo a vista vizinha e texto de chamada cortado ([[04-decisions#D221]]).
+- **Fases 2 a 4, pendências menores** peso das peças secundárias na lista, linha de chamada
+  das cotas e símbolo de solda no DXF, detalhe da mão-francesa ([[04-decisions#D222]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -562,3 +562,73 @@ def test_fisico_leva_a_solda_do_gusset_a_chapa(tmp_path):
     sem_perna = _fisico(tmp_path, dict(_EST_CALCULADA, gusset_adotado={"t_mm": 12.0}))
     p2 = _pset_calculo([p for p in sem_perna.by_type("IfcPlate") if p.Name == "GC1"][0])
     assert p2["Descricao"] == "chapa 12 mm" and "SoldaFiletePerna_mm" not in p2
+
+
+# ---- peso das pecas que o romaneio nao traz (D222) --------------------------
+def _pset_quantitativo(el):
+    import ifcopenshell.util.element as ue
+    return ue.get_psets(el).get(EM.PSET_QUANTITATIVO)
+
+
+def test_barra_secundaria_e_placa_de_base_levam_o_peso_pela_secao(tmp_path):
+    """A lista de material so pesava pilar e viga do portico. As barras
+    secundarias com secao real e a placa de base passam a levar o peso, com a
+    area que o calculo usa; os valores esperados sao contas a mao."""
+    est = dict(_EST_CALCULADA, perfil_escora="HEA160", n_terca=4,
+               terca_dims=[200.0, 75.0, 25.0, 2.65],
+               longarina_dims=[140.0, 65.0, 5.0, 9.0], longarina_perfil="UPE140",
+               base_adotada={"B": 0.6, "L": 0.8, "t": 0.1},
+               calha_adotada={"B_mm": 200.0, "H_mm": 150.0, "condutor_mm": 150.0})
+    m = _fisico(tmp_path, est)
+    por_marca = {}
+    for el in m.by_type("IfcElement"):
+        por_marca.setdefault(el.Name, el)
+
+    # escora de beiral HEA160 (catalogo: 38,77 cm2) num vao de 5 m
+    eb = _pset_quantitativo(por_marca["EB1"])
+    assert (eb["Perfil"], eb["Comprimento_m"], eb["AreaDaSecao_cm2"]) == ("HEA160", 5.0, 38.77)
+    assert eb["Peso_kg"] == pytest.approx(38.77e-4 * 7850.0 * 5.0, abs=0.01)       # 152,17
+    assert "catalogo de perfis" in eb["Origem"]
+    # longarina UPE140 (tabela: 18,40 cm2) ao longo dos 40 m
+    g1 = _pset_quantitativo(por_marca["G1"])
+    assert g1["Peso_kg"] == pytest.approx(18.40e-4 * 7850.0 * 40.0, abs=0.01)      # 577,76
+    # contraventamento: barra macica de 20 mm na diagonal de 5 x 20 m
+    cv = _pset_quantitativo(por_marca["CV1"])
+    assert cv["Peso_kg"] == pytest.approx(3.14159265 * 0.02 ** 2 / 4 * 7850.0 * 20.61553, abs=0.01)
+    # terca Ue 200x75x25x2,65: area pela linha media = espessura x desenvolvimento
+    # = 2,65 x (197,35 + 2 x 72,35 + 2 x 23,675) = 1031,9 mm2 (cantos vivos)
+    t1 = _pset_quantitativo(por_marca["T1"])
+    assert t1["AreaDaSecao_cm2"] == pytest.approx(10.319, abs=0.001)
+    assert t1["Peso_kg"] == pytest.approx(10.319e-4 * 7850.0 * 40.0, abs=0.05)     # 324,0 kg
+    # placa de base 600 x 800 x 100 mm: 0,048 m3 de aco
+    pb = _pset_quantitativo(por_marca["PB1"])
+    assert pb["Peso_kg"] == pytest.approx(0.048 * 7850.0, abs=0.01)                # 376,8
+    assert "Comprimento_m" not in pb
+    # a placa continua com a descricao da ligacao no pset da verificacao
+    assert _pset_calculo(por_marca["PB1"])["Descricao"] == "600 x 800 x 100 mm"
+
+
+def test_peca_representativa_e_peca_do_romaneio_ficam_fora_do_peso_pela_secao(tmp_path):
+    est = dict(_EST_CALCULADA, perfil_escora="HEA160", n_terca=4,
+               terca_dims=[200.0, 75.0, 25.0, 2.65],
+               base_adotada={"B": 0.6, "L": 0.8, "t": 0.1, "db": 0.032, "n": 6},
+               calha_adotada={"B_mm": 200.0, "H_mm": 150.0, "condutor_mm": 150.0})
+    m = _fisico(tmp_path, est)
+    nomes = {el.Name for el in m.by_type("IfcElement")}
+    # calha, condutor e bocal estao no modelo, e sao pecas representativas (o
+    # condutor e' um cilindro cheio de 150 mm): pesar pelo desenho inventaria peso
+    assert {"CL1", "CD1", "BO1", "NB1", "CB1"} <= nomes
+    pesadas = {el.Name for el in m.by_type("IfcElement") if _pset_quantitativo(el)}
+    assert pesadas == {"EB1", "CM1", "MO1", "T1", "CV1", "TC1", "PB1"}
+    # pilar e viga do portico seguem so com o peso do romaneio do calculo
+    assert not any(_pset_quantitativo(e) for e in m.by_type("IfcColumn"))
+
+
+def test_barra_sem_area_no_motor_fica_sem_peso(tmp_path):
+    # longarina com um perfil que a tabela UPE do calculo nao tem: sem area,
+    # sem peso (nada e' estimado pelo desenho)
+    est = dict(_EST_CALCULADA, longarina_dims=[140.0, 65.0, 5.0, 9.0],
+               longarina_perfil="U-DESCONHECIDO")
+    m = _fisico(tmp_path, est)
+    longarinas = [e for e in m.by_type("IfcMember") if e.Name == "G1"]
+    assert longarinas and not any(_pset_quantitativo(e) for e in longarinas)

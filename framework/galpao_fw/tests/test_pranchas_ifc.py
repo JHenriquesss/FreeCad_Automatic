@@ -238,7 +238,7 @@ def test_peso_ausente_fica_vazio_e_o_total_some_quando_nada_foi_pesado(tmp_path)
     lista = {"linhas": [{"marca": "T<1>", "peca": "Barra & cia", "perfil": "Ue 300",
                          "comprimento_m": None, "qtd": 3, "peso_unit_kg": None,
                          "peso_total_kg": None}],
-             "peso_total_kg": None, "linhas_sem_peso": 1}
+             "peso_total_kg": None, "linhas_sem_peso": 1, "linhas_pesadas_pelo_modelo": 0}
     tabela = DP.tabela_da_lista(lista)
     assert tabela["linhas"] == [["T<1>", "Barra & cia", "Ue 300", "", "3", "", ""]]
     assert tabela["total"] is None and len(tabela["notas"]) == 1

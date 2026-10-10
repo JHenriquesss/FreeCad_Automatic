@@ -7180,3 +7180,79 @@ mexidos: as cotas saem sem linhas de chamada (so a linha de cota com as
 setas); a moldura da janela aparece na tela (a camada nao imprime); o
 simbolo de solda do detalhe do contraventamento existe na folha do Bonsai e
 nao no DXF.
+
+## D222 - Plano de 2026-10-08: Fases 2 a 4 - pendencias menores do pacote do galpao: peso das pecas secundarias, linha de chamada das cotas, simbolo de solda no DXF e detalhe da mao-francesa (2026-10-10) - FECHADO
+
+**Por que.** O usuario mandou resolver as pendencias menores que sobravam do
+plano (2026-10-10): a lista de material so pesava pilar e viga; as cotas do
+DXF saiam sem linha de chamada e o simbolo de solda nao ia ao DXF (os dois
+vistos no QCAD, D221); a mao-francesa nao tinha detalhe.
+
+**1. Peso das pecas que o romaneio nao traz** (`ifc_emit._quantitativo`, pset
+novo `Calc_Quantitativo`: `Perfil`, `Comprimento_m`, `AreaDaSecao_cm2`,
+`Peso_kg`, `Origem`).
+- Barra secundaria de secao real: area x comprimento do modelo x 7850 kg/m3.
+  A area e' a do motor: catalogo `perfis.PERFIS` (escora, cumeeira, montante),
+  tabela `secundarios_nbr8800.ESCADA_UPE` (longarina), `perfis.cantoneira`
+  (mao-francesa, sem raio de concordancia), barra macica (contraventamento e
+  tirantes) e Ue de cantos vivos, t (bw + 2 bf + 2 D - 4 t) (terca).
+- Placa de base: volume bruto da chapa que o calculo adotou, sem furos.
+- Ficam SEM peso, de proposito: calha, condutor e bocal (pecas
+  representativas; o condutor e' um cilindro cheio no modelo), telha e
+  tapamento (o peso da telha no calculo e' um valor A CONFIRMAR de catalogo),
+  chapas de ligacao de geometria conceitual (D201), fixadores e fundacao.
+  Barra cujo perfil o motor nao tem na tabela tambem fica sem peso.
+- A lista (`dxf_prancha.lista_do_ifc`) guarda a origem de cada peso e a nota
+  da folha separa "peso do calculo" de "secao x comprimento do modelo, sem
+  traspasse, furos nem perdas". Peso unitario com duas casas (a peca de 3 kg
+  perdia 1,5 % no arredondamento de uma).
+- **Achado, nao corrigido:** o calculo da terca (`tercas_iteracao._props_ue`)
+  toma as medidas externas do Ue como linha media: area 2 a 3 % maior que a
+  da secao (10,60 contra 10,32 cm2 no Ue 200x75x25x2,65). A favor da
+  seguranca na carga; a lista usa a area geometrica.
+
+**2. Linha de chamada das cotas** (`dxf_prancha.origem_da_chamada`). O
+desenho de origem so traz a linha de cota. Cada ponta ganha a linha de
+chamada ate o traco mais perto sobre a perpendicular (peca, eixo ou borda da
+bolha do eixo). A cota passou de alinhada a linear na direcao da linha de
+cota: a medida nao muda. Cota sem traco na perpendicular fica como estava e
+e' contada (`cotas_sem_linha_de_chamada` no resumo da folha).
+
+**3. Simbolo de solda no DXF.** `ler_desenho` le o simbolo de chamada com
+campo de texto (grupo posicionado, em mm de papel) e `gerar_dxf` o desenha na
+camada `ANOT-SIMBOLO`, no tamanho de papel vezes a escala: tracos, areas
+cheias (HATCH), circulo e o texto do campo. Simbolo girado reprova.
+- **Pego ao gerar o pacote, antes do commit:** as DEFINICOES de simbolo do
+  Bonsai (`<defs>`) tem o mesmo campo de texto, vazio; a primeira versao as
+  lia como simbolo e o DXF do galpao nao saia. O SVG de teste nao tinha
+  `<defs>`.
+
+**4. Detalhe da mao-francesa** (`pranchas_bonsai.py`, vista
+`DET-MAO-FRANCESA` a 1:10): olhando ao longo da viga do portico, a viga em
+corte, a terca ao comprido e o braco em verdadeira grandeza; chamada
+"MAO-FRANCESA {{Name}} - {{Calc_Quantitativo.Perfil}}" lida do elemento.
+
+**Medido no galpao do cliente** (`plano-2026-10-d222`, fora do git, 103 s):
+14 desenhos, DXF/DWG de 15 folhas, 7 folhas A1 em PDF. 28 cotas, todas com
+linha de chamada. Lista: 34 linhas, 13 com peso (eram 2), total pesado
+34 063,6 kg (era 19 705,2): tercas 3 796,9; escoras e cumeeiras 2 602,2;
+longarinas 1 646,6; montantes 1 090,3; contraventamento e tirantes 617,3;
+maos-francesas 83,5; placas de base 4 521,6. Conferido no QCAD: planta,
+corte, base, contraventamento, mao-francesa e lista.
+
+**Para o engenheiro ver.** As 12 placas de base de 600 x 800 x 100 mm somam
+4,5 t (13 % do total pesado): a espessura de 100 mm e' a que o calculo da
+base adotou. No detalhe, o braco da mao-francesa chega a alma da viga perto
+da mesa inferior (geometria do `mao_francesa_geom`).
+
+**Testes.** `tests/test_dxf_prancha.py` (33 funcoes, 9 novas): perpendicular
+da cota (traco, eixo, bolha, nada, ja encostada), cota do DXF com as origens
+no traco e a mesma medida, cota sem traco contada, simbolo no tamanho da
+escala, simbolo girado, desenho sem simbolo, nota da lista por origem e
+largura da nota na folha. `tests/test_ifc_emit.py` (39 funcoes, 3 novas):
+pesos por conta a mao, pecas representativas e do romaneio fora, barra sem
+area sem peso.
+
+**Limites.** Peso sem traspasse, emendas, furos nem perdas. O simbolo de
+solda segue sendo so o do gusset (o FreeCAD nao tem dado de solda de base,
+joelho e cumeeira). O DWG continua sem abrir no AutoCAD/TrueView.

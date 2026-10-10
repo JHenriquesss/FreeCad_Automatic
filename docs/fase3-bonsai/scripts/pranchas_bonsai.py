@@ -45,7 +45,7 @@ VAO_MM, TITULO_MM = 12.0, 16.0
 ORDEM = ("PLANTA-BAIXA", "CORTE-TRANSVERSAL", "ELEVACAO-FRONTAL", "ELEVACAO-LATERAL",
          "PLANTA-FUNDACAO", "PLANTA-COBERTURA",
          "DET-BASE-ELEVACAO", "DET-BASE-PLANTA", "DET-JOELHO", "DET-CUMEEIRA",
-         "DET-CONTRAVENTAMENTO", "DET-TERCA", "DET-LONGARINA")
+         "DET-CONTRAVENTAMENTO", "DET-TERCA", "DET-LONGARINA", "DET-MAO-FRANCESA")
 # rotulos do carimbo padrao do Bonsai -> portugues
 CARIMBO_PT = {"DRAWING NUMBER": "FOLHA", "DRAWING TITLE": "TITULO", "GRID NORTH": "NORTE",
               "COMPANY": "RESP. TECNICO", "REV. NO.": "REV.", "DESCRIPTION": "DESCRICAO",
@@ -58,7 +58,7 @@ TITULO_CURTO = {"PLANTA-BAIXA": "PLANTA", "CORTE-TRANSVERSAL": "CORTE",
                 "DET-BASE-ELEVACAO": "DET. BASE", "DET-BASE-PLANTA": "BASE (PLANTA)",
                 "DET-JOELHO": "DET. JOELHO", "DET-CUMEEIRA": "DET. CUMEEIRA",
                 "DET-CONTRAVENTAMENTO": "DET. CONTRAV.", "DET-TERCA": "DET. TERCA",
-                "DET-LONGARINA": "DET. LONGARINA"}
+                "DET-LONGARINA": "DET. LONGARINA", "DET-MAO-FRANCESA": "DET. MAO-FRANC."}
 
 
 def distribuir(tamanhos, area=AREA_UTIL, vao=VAO_MM, titulo=TITULO_MM):
@@ -343,12 +343,26 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
         vistas.append((nome, "ELEVATION_VIEW", (xb - 0.6, cy, cz), (r(90), 0, r(-90)),
                        jan * 0.7, jan * 0.7, 1.20, [], estrutura, ESCALA_DETALHE,
                        [((xb, cy + 0.62, cz - 0.55), rotulo + " {{Name}}", prefixo)]))
+    alvo = (apoios or {}).get("MF")
+    if alvo is not None:
+        # mao-francesa: a peca fica no plano perpendicular a viga do portico, da
+        # terca a mesa inferior. Vista AO LONGO da viga (camera 0,6 m antes): a
+        # viga em corte, a terca ao comprido e o braco em verdadeira grandeza
+        cx, cy, cz = alvo
+        vistas.append(("DET-MAO-FRANCESA", "ELEVATION_VIEW", (cx, cy - 0.6, cz), (r(90), 0, 0),
+                       jan * 0.7, jan * 0.7, 1.20, [], estrutura, ESCALA_DETALHE,
+                       # texto a direita do eixo do portico (a 0,33 m do centro da
+                       # vista): a esquerda, a frase atravessava a linha do eixo
+                       [((cx - 0.25, cy, cz - 0.62),
+                         "MAO-FRANCESA {{Name}} - {{Calc_Quantitativo.Perfil}}", "MF")]))
     return vistas
 
 
-def _apoio_secundario(tool, prefixo, y_ref, z_ref):
+def _apoio_secundario(tool, prefixo, y_ref, z_ref, x_ref=None):
     """Centro (m), no plano do portico, da peca secundaria de marca `prefixo`<n>
-    (T = terca, G = longarina) mais proxima do ponto (y_ref, z_ref)."""
+    (T = terca, G = longarina, MF = mao-francesa) mais proxima do ponto
+    (y_ref, z_ref). Com `x_ref`, a distancia conta tambem ao longo do galpao
+    (peca curta, que existe em cada portico)."""
     melhor = None
     for el in tool.Ifc.get().by_type("IfcMember"):
         nome = el.Name or ""
@@ -360,6 +374,8 @@ def _apoio_secundario(tool, prefixo, y_ref, z_ref):
         pts = [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
         c = [sum(p[i] for p in pts) / 8.0 for i in range(3)]
         dist = math.hypot(c[1] - y_ref, c[2] - z_ref)
+        if x_ref is not None:
+            dist = math.hypot(dist, c[0] - x_ref)
         if melhor is None or dist < melhor[0]:
             melhor = (dist, tuple(c))
     return None if melhor is None else melhor[1]
@@ -549,7 +565,9 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00", lista=None):
              + detalhes_do_galpao(
                  xs, ys, alt_col, _placa_de_base(tool, xb, yb), cumeeira,
                  apoios={"T": _apoio_secundario(tool, "T", yb + 3.0, alt_col + 0.5),
-                         "G": _apoio_secundario(tool, "G", yb, alt_col * 0.5)}))
+                         "G": _apoio_secundario(tool, "G", yb, alt_col * 0.5),
+                         "MF": _apoio_secundario(tool, "MF", yb + 3.0, alt_col + 0.5,
+                                                 x_ref=xb)}))
     for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala, textos in todas:
         if so_estas and nome not in so_estas:
             continue

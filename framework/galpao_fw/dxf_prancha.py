@@ -4,7 +4,8 @@
 # AutoCAD: geometria em tamanho real no espaco do modelo, uma folha por vista
 # no espaco de papel, com viewport na escala, carimbo como bloco com atributos,
 # camadas por disciplina e cotas que sao entidades DIMENSION (o CAD mede a
-# geometria; o numero nao e' texto copiado).
+# geometria; o numero nao e' texto copiado), com linha de chamada ate o traco
+# cotado. O simbolo de chamada do desenho (solda) vai junto, na camada dele.
 #
 # ENTRADA: os SVG de desenho que o ifcopenshell.draw escreve (hoje pelo
 # Blender + Bonsai, docs/fase3-bonsai/scripts/pranchas_bonsai.py): cada
@@ -22,7 +23,7 @@
 #       (chaves do carimbo: PROJETO, CLIENTE, RESPONSAVEL, DATA, REVISAO)
 #       IFC=<modelo.ifc> acrescenta a folha da LISTA DE MATERIAL, contada no
 #       proprio modelo (marca, perfil, comprimento, quantidade; peso so onde o
-#       calculo o gravou no pset da peca).
+#       motor o gravou num pset da peca).
 #
 # ADOTADO, A CONFERIR (a norma de desenho tecnico ainda nao esta na biblioteca
 # de normas): margens de 25 mm a esquerda e 10 mm nas demais, carimbo de 175 mm
@@ -35,6 +36,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import os
 import re
 import sys
@@ -74,6 +76,7 @@ CAMADAS = {
 ESPESSURA_CORTE = 50
 CAMADA_COTA, CAMADA_TEXTO = "ANOT-COTA", "ANOT-TEXTO"
 CAMADA_EIXO = "ANOT-EIXO"
+CAMADA_SIMBOLO = "ANOT-SIMBOLO"
 RAIO_BOLHA, ALTURA_ROTULO_EIXO = 4.0, 3.5      # mm de papel
 CAMADA_FOLHA, CAMADA_VIEWPORT = "FOLHA-CARIMBO", "FOLHA-VIEWPORT"
 CAMPOS_CARIMBO = ("PROJETO", "CLIENTE", "TITULO", "ESCALA", "FOLHA", "DATA",
@@ -174,13 +177,46 @@ def ler_desenho(caminho):
         if linhas and pos:
             textos.append((real(float(pos.group(1)), float(pos.group(2))),
                            " ".join(l for l in linhas if l)))
+    # simbolo de chamada com campo de texto (o de solda): o desenho o traz como
+    # um grupo posicionado, em MILIMETROS DE PAPEL - tracos, areas cheias,
+    # circulos e o texto do campo ja resolvido no elemento do modelo
+    simbolos = []
+    # as DEFINICOES dos simbolos (em <defs>) tem o mesmo campo de texto, vazio:
+    # so conta o simbolo posto no desenho
+    definicoes = {id(g) for d in raiz.iter(NS_SVG + "defs") for g in d.iter(NS_SVG + "g")}
+    for g in raiz.iter(NS_SVG + "g"):
+        campos = [t for t in g.findall(NS_SVG + "text") if t.get("data-type") == "text-template"]
+        if not campos or id(g) in definicoes:
+            continue
+        pos = re.fullmatch(r"\s*translate\(\s*([-\d.eE]+)[ ,]+([-\d.eE]+)\s*\)\s*"
+                           r"(?:rotate\(\s*([-\d.eE]+)\s*\)\s*)?"
+                           r"(?:scale\(\s*([-\d.eE]+)\s*\)\s*)?",
+                           g.get("transform") or "")
+        if not pos or abs(float(pos.group(3) or 0.0)) > 1e-6:
+            raise ValueError("%s: simbolo de chamada com transformacao nao tratada: %r"
+                             % (caminho, g.get("transform")))
+        fator = float(pos.group(4) or 1.0)
+        tracos, cheios = [], []
+        for p in g.findall(NS_SVG + "path"):
+            cheio = not re.search(r"fill:\s*none", p.get("style") or "")
+            for poli in _pontos(p.get("d") or ""):
+                (cheios if cheio else tracos).append([(x * fator, y * fator) for x, y in poli])
+        simbolos.append({
+            "posicao": real(float(pos.group(1)), float(pos.group(2))),
+            "tracos": tracos, "cheios": cheios,
+            "circulos": [(float(c.get("cx")) * fator, float(c.get("cy")) * fator,
+                          float(c.get("r")) * fator) for c in g.findall(NS_SVG + "circle")],
+            "textos": [(float(t.get("x")) * fator, float(t.get("y")) * fator,
+                        (t.text or "").strip(), t.get("text-anchor") or "start")
+                       for t in campos]})
     larg, alt = _mm(raiz.get("width")), _mm(raiz.get("height"))
     x0, y1 = real(0.0, 0.0)
     x1, y0 = real(larg, alt)
     return {"nome": os.path.splitext(os.path.basename(caminho))[0],
             "escala_origem": round(1000.0 / mm_por_m),
             "quadro": (x0, y0, x1, y1),          # mm reais: xmin, ymin, xmax, ymax
-            "elementos": elementos, "cotas": cotas, "eixos": eixos, "textos": textos}
+            "elementos": elementos, "cotas": cotas, "eixos": eixos, "textos": textos,
+            "simbolos": simbolos}
 
 
 def _recorta_segmento(a, b, quadro):
@@ -234,6 +270,43 @@ def recortar_no_quadro(poli, quadro):
     if len(atual) > 1:
         pedacos.append(atual)
     return [p for p in pedacos if any(pt != p[0] for pt in p[1:])]
+
+
+def origem_da_chamada(ponto, ao_longo, segmentos, circulos=(), tol=1.0):
+    """De onde nasce a linha de chamada de uma ponta de cota: o ponto DESENHADO
+    mais perto de `ponto` sobre a perpendicular a linha de cota (`ao_longo` e'
+    o versor da linha de cota). `segmentos` sao os tracos do desenho e
+    `circulos` as bolhas dos eixos (centro x, y, raio). Devolve `ponto` quando
+    a linha de cota ja encosta no desenho, e None quando a perpendicular nao
+    encontra nada (a cota fica sem linha de chamada, e isso e' contado)."""
+    ux, uy = ao_longo
+    px, py = ponto
+    alturas = []                         # distancia com sinal, sobre a perpendicular
+    for (ax, ay), (bx, by) in segmentos:
+        sa = (ax - px) * ux + (ay - py) * uy
+        sb = (bx - px) * ux + (by - py) * uy
+        ha = -(ax - px) * uy + (ay - py) * ux
+        hb = -(bx - px) * uy + (by - py) * ux
+        if abs(sa) <= tol and abs(sb) <= tol:          # traco sobre a perpendicular
+            alturas.append(0.0 if ha * hb <= 0.0 else min(ha, hb, key=abs))
+        elif sa * sb < 0.0:                            # cruza a perpendicular
+            alturas.append(ha + (hb - ha) * sa / (sa - sb))
+        elif abs(sa) <= tol:                           # so uma ponta sobre ela
+            alturas.append(ha)
+        elif abs(sb) <= tol:
+            alturas.append(hb)
+    for cx, cy, raio in circulos:
+        s = (cx - px) * ux + (cy - py) * uy
+        if abs(s) < raio:
+            h = -(cx - px) * uy + (cy - py) * ux
+            meia = (raio * raio - s * s) ** 0.5
+            alturas += [0.0] if abs(h) <= meia else [h - meia, h + meia]
+    if not alturas:
+        return None
+    h = min(alturas, key=abs)
+    if abs(h) <= tol:
+        return ponto
+    return (px - h * uy, py + h * ux)
 
 
 def escolher_folha(larg_real_mm, alt_real_mm, escalas=ESCALAS,
@@ -303,8 +376,10 @@ CLASSES_LINEARES = ("IfcColumn", "IfcBeam", "IfcMember", "IfcMechanicalFastener"
 def lista_do_ifc(caminho_ifc):
     """Lista de material CONTADA no modelo: uma linha por (classe, marca,
     perfil, comprimento). Comprimento = o da extrusao no IFC; peso so quando
-    a peca traz `Peso_kg` no pset do calculo (hoje as pecas primarias) - nas
-    outras a celula fica vazia, nunca zero. Devolve tambem o total pesado."""
+    a peca traz `Peso_kg` num pset do calculo - nas outras a celula fica vazia,
+    nunca zero. O peso vem de duas origens, e a lista diz qual: o romaneio do
+    calculo (pecas primarias) e a secao x comprimento do modelo (pset com a
+    propriedade `Origem`). Devolve tambem o total pesado."""
     import ifcopenshell
     import ifcopenshell.util.element as ue
     import ifcopenshell.util.unit as uu
@@ -321,17 +396,18 @@ def lista_do_ifc(caminho_ifc):
         # extrusao e' espessura ou altura, e sairia na coluna errada
         compr = (round(float(item.Depth) * esc, 3)
                  if hasattr(item, "Depth") and el.is_a() in CLASSES_LINEARES else None)
-        peso = None
+        peso, origem = None, None
         for nome, props in ue.get_psets(el).items():
             if nome.startswith("Calc_") and props.get("Peso_kg") is not None:
                 peso = float(props["Peso_kg"])
+                origem = "modelo" if props.get("Origem") else "romaneio"
                 # peca pesada pelo calculo: o comprimento da linha e' o do
                 # calculo (o que gerou o peso), nao o da extrusao - o pilar
                 # desenhado e' 30 mm mais curto (nasce no topo da placa de base)
                 if "Comprimento_m" in props and props["Comprimento_m"] is not None:
                     compr = round(float(props["Comprimento_m"]), 3)
         chave = (el.is_a(), el.Name or "", perfil, compr)
-        g = grupos.setdefault(chave, {"qtd": 0, "peso": peso})
+        g = grupos.setdefault(chave, {"qtd": 0, "peso": peso, "origem": origem})
         g["qtd"] += 1
     ordem = list(NOME_DA_CLASSE)
     linhas = []
@@ -340,11 +416,13 @@ def lista_do_ifc(caminho_ifc):
                                             kv[0][1], kv[0][2], kv[0][3] or 0.0)):
         linhas.append({"marca": marca, "peca": NOME_DA_CLASSE.get(classe, classe[3:]),
                        "perfil": perfil, "comprimento_m": compr, "qtd": g["qtd"],
-                       "peso_unit_kg": g["peso"],
+                       "peso_unit_kg": g["peso"], "origem_do_peso": g["origem"],
                        "peso_total_kg": None if g["peso"] is None else round(g["peso"] * g["qtd"], 1)})
     pesado = [l["peso_total_kg"] for l in linhas if l["peso_total_kg"] is not None]
     return {"linhas": linhas, "peso_total_kg": round(sum(pesado), 1) if pesado else None,
-            "linhas_sem_peso": sum(1 for l in linhas if l["peso_total_kg"] is None)}
+            "linhas_sem_peso": sum(1 for l in linhas if l["peso_total_kg"] is None),
+            "linhas_pesadas_pelo_modelo": sum(1 for l in linhas
+                                              if l["origem_do_peso"] == "modelo")}
 
 
 def tabela_da_lista(lista):
@@ -355,15 +433,23 @@ def tabela_da_lista(lista):
         return "" if v is None else ("%%.%df" % casas % v).replace(".", ",")
 
     notas = []
-    if lista["peso_total_kg"] is not None:
+    pelo_modelo = lista["linhas_pesadas_pelo_modelo"]
+    pelo_romaneio = (len(lista["linhas"]) - lista["linhas_sem_peso"] - pelo_modelo)
+    pela_secao = ("secao x comprimento do modelo x 7850 kg/m3 (placa de base: chapa bruta), "
+                  "sem traspasse, furos nem perdas.")
+    if pelo_romaneio and pelo_modelo:
+        notas.append("Pilar e viga do portico: peso do calculo. Demais pesos: " + pela_secao)
+    elif pelo_romaneio:
         notas.append("Linhas com peso: comprimento e peso do calculo (comprimento estrutural).")
+    elif pelo_modelo:
+        notas.append("Linhas com peso: " + pela_secao)
     if lista["linhas_sem_peso"]:
-        notas.append("%d linha(s) sem peso: o calculo so pesa as pecas primarias; o total acima "
+        notas.append("%d linha(s) sem peso (o motor nao tem o peso dessas pecas): o total acima "
                      "NAO e' o peso da obra." % lista["linhas_sem_peso"])
     return {"cabecalho": [t for t, _l in COLUNAS_LISTA],
             "larguras_mm": [l for _t, l in COLUNAS_LISTA],
             "linhas": [[ln["marca"], ln["peca"], ln["perfil"], _fmt(ln["comprimento_m"], 3),
-                        str(ln["qtd"]), _fmt(ln["peso_unit_kg"], 1),
+                        str(ln["qtd"]), _fmt(ln["peso_unit_kg"], 2),
                         _fmt(ln["peso_total_kg"], 1)] for ln in lista["linhas"]],
             "total": (None if lista["peso_total_kg"] is None else
                       ["", "", "", "", "", "TOTAL PESADO", _fmt(lista["peso_total_kg"], 1)]),
@@ -450,6 +536,7 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
         dx, dy = x_base - x0, -y0                      # vista ao lado da anterior
         por_camada = {}
         recortadas = 0
+        tracos_da_vista = []                           # o que ficou desenhado, sem deslocar
         for el in des["elementos"]:
             camada, cor, esp = _camada(el["classe"], el["corte"])
             if camada not in doc.layers:
@@ -458,6 +545,7 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                 pedacos = recortar_no_quadro(inteira, des["quadro"])
                 if pedacos != [inteira]:
                     recortadas += 1
+                tracos_da_vista += pedacos
                 for poli in pedacos:
                     pts = [(x + dx, y + dy) for x, y in poli]
                     if len(pts) == 2:
@@ -466,10 +554,33 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                         msp.add_lwpolyline(pts, dxfattribs={"layer": camada})
                     por_camada[camada] = por_camada.get(camada, 0) + 1
         estilo = _estilo_cota(doc, esc)
+        # o desenho de origem so traz a LINHA de cota, afastada da peca: a linha
+        # de chamada de cada ponta vai ate o traco mais perto sobre a
+        # perpendicular (peca, eixo ou bolha do eixo). A medida nao muda: a cota
+        # e' linear, medida na direcao da linha de cota.
+        raio_bolha = RAIO_BOLHA * esc
+        tracos = [(a, b) for poli in tracos_da_vista for a, b in zip(poli, poli[1:])]
+        bolhas = []
+        for pa, pb, _rot in des.get("eixos", ()):
+            tracos.append((pa, pb))
+            bolhas += [(pa[0], pa[1], raio_bolha), (pb[0], pb[1], raio_bolha)]
+        tol_chamada = 0.05 * des["escala_origem"]      # 0,05 mm de papel no desenho de origem
+        sem_chamada = 0
         for (ax, ay), (bx, by) in des["cotas"]:
-            dim = msp.add_aligned_dim(p1=(ax + dx, ay + dy), p2=(bx + dx, by + dy),
-                                      distance=0, dimstyle=estilo,
-                                      dxfattribs={"layer": CAMADA_COTA})
+            comp = math.hypot(bx - ax, by - ay)
+            if comp <= 0.0:
+                raise ValueError("%s: cota de comprimento zero" % des["nome"])
+            versor = ((bx - ax) / comp, (by - ay) / comp)
+            origens = [origem_da_chamada(p, versor, tracos, bolhas, tol_chamada)
+                       for p in ((ax, ay), (bx, by))]
+            if origens[0] is None and origens[1] is None:
+                sem_chamada += 1
+            (o1x, o1y), (o2x, o2y) = [o or p for o, p in zip(origens, ((ax, ay), (bx, by)))]
+            dim = msp.add_linear_dim(
+                base=((ax + bx) / 2.0 + dx, (ay + by) / 2.0 + dy),
+                p1=(o1x + dx, o1y + dy), p2=(o2x + dx, o2y + dy),
+                angle=math.degrees(math.atan2(by - ay, bx - ax)), dimstyle=estilo,
+                dxfattribs={"layer": CAMADA_COTA})
             dim.render()
         for (ax, ay), (bx, by), rotulo in des.get("eixos", ()):
             cam_eixo = {"layer": CAMADA_EIXO}
@@ -481,6 +592,32 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                 msp.add_text(rotulo, height=ALTURA_ROTULO_EIXO * esc, dxfattribs={
                     "layer": CAMADA_EIXO, "style": "TEXTO"}).set_placement(
                         (px + dx, py + dy), align=TextEntityAlignment.MIDDLE_CENTER)
+        for simb in des.get("simbolos", ()):
+            if CAMADA_SIMBOLO not in doc.layers:
+                doc.layers.add(CAMADA_SIMBOLO, color=7, lineweight=25)
+            sx, sy = simb["posicao"]
+            cam_simb = {"layer": CAMADA_SIMBOLO}
+
+            def _no_modelo(x_papel, y_papel, _sx=sx, _sy=sy):
+                # papel (mm, y para baixo) -> modelo (mm reais, y para cima)
+                return (_sx + dx + x_papel * esc, _sy + dy - y_papel * esc)
+
+            for poli in simb["tracos"]:
+                msp.add_lwpolyline([_no_modelo(x, y) for x, y in poli], dxfattribs=cam_simb)
+            for poli in simb["cheios"]:
+                cantos = [_no_modelo(x, y) for x, y in poli]
+                if cantos[0] == cantos[-1]:
+                    cantos = cantos[:-1]
+                cheio = msp.add_hatch(color=7, dxfattribs=cam_simb)
+                cheio.paths.add_polyline_path(cantos, is_closed=True)
+            for cx, cy, raio in simb["circulos"]:
+                msp.add_circle(_no_modelo(cx, cy), raio * esc, dxfattribs=cam_simb)
+            for x_txt, y_txt, frase, ancora in simb["textos"]:
+                msp.add_text(frase, height=ALTURA_TEXTO * esc, dxfattribs={
+                    "layer": CAMADA_SIMBOLO, "style": "TEXTO"}).set_placement(
+                        _no_modelo(x_txt, y_txt),
+                        align=(TextEntityAlignment.MIDDLE_RIGHT if ancora == "end"
+                               else TextEntityAlignment.MIDDLE_LEFT))
         textos_cortados = []
         for (tx, ty), frase in des.get("textos", ()):
             msp.add_text(frase, height=ALTURA_TEXTO * esc, dxfattribs={
@@ -514,7 +651,9 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
             "folha": nome_folha, "desenho": des["nome"], "escala": esc,
             "formato": formato, "escala_de_escape": de_escape,
             "escala_origem": des["escala_origem"], "entidades": por_camada,
-            "cotas": len(des["cotas"]), "eixos": len(des.get("eixos", ())),
+            "cotas": len(des["cotas"]), "cotas_sem_linha_de_chamada": sem_chamada,
+            "simbolos": len(des.get("simbolos", ())),
+            "eixos": len(des.get("eixos", ())),
             "polilinhas_recortadas_no_quadro": recortadas,
             "textos_alem_do_quadro": textos_cortados,
             "textos": len(des.get("textos", ())),
@@ -526,7 +665,8 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
         _folha_da_lista(doc, lista, nome_lista, carimbo, n_folhas, n_folhas)
         resumo["lista"] = {"folha": nome_lista, "linhas": len(lista["linhas"]),
                            "peso_total_kg": lista["peso_total_kg"],
-                           "linhas_sem_peso": lista["linhas_sem_peso"]}
+                           "linhas_sem_peso": lista["linhas_sem_peso"],
+                           "linhas_pesadas_pelo_modelo": lista["linhas_pesadas_pelo_modelo"]}
     if "Layout1" in doc.layouts and resumo["folhas"]:
         doc.layouts.delete("Layout1")                  # folha vazia que o ezdxf cria
     doc.saveas(destino)

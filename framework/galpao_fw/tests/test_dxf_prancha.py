@@ -285,8 +285,16 @@ def test_lista_de_material_e_contada_no_modelo(tmp_path):
     assert all(l["peso_total_kg"] is None for l in sap)
     # a altura do bloco nao entra na coluna de comprimento
     assert all(l["comprimento_m"] is None for l in sap)
-    assert lista["peso_total_kg"] == round(4568.4 + 356.8 * 18, 1)
-    assert lista["linhas_sem_peso"] == len(lista["linhas"]) - 2
+    assert (c["origem_do_peso"], v["origem_do_peso"]) == ("romaneio", "romaneio")
+    # o contraventamento nao esta no romaneio: barra macica de 20 mm pesada pela
+    # secao. Conta a mao: pi x 0,02^2 / 4 x 7850 kg/m3 x hipotenusa(5; 20) m
+    cv = por_marca["CV1"]
+    assert (cv["qtd"], cv["origem_do_peso"]) == (4, "modelo")
+    assert cv["peso_unit_kg"] == pytest.approx(3.14159265 * 0.0001 * 7850.0 * 20.61553, abs=0.01)
+    assert cv["comprimento_m"] == 20.616
+    assert lista["peso_total_kg"] == round(4568.4 + 356.8 * 18 + cv["peso_total_kg"], 1)
+    assert lista["linhas_sem_peso"] == len(lista["linhas"]) - 3
+    assert lista["linhas_pesadas_pelo_modelo"] == 1
     # a primeira linha e' pilar: ordem por tipo de peca
     assert lista["linhas"][0]["peca"] == "Pilar"
 
@@ -319,7 +327,7 @@ def test_lista_que_nao_cabe_na_folha_reprova(tmp_path):
     lista = {"linhas": [{"marca": "M%d" % i, "peca": "Barra", "perfil": "L50", "comprimento_m": 1.0,
                          "qtd": 1, "peso_unit_kg": None, "peso_total_kg": None}
                         for i in range(60)],
-             "peso_total_kg": None, "linhas_sem_peso": 60}
+             "peso_total_kg": None, "linhas_sem_peso": 60, "linhas_pesadas_pelo_modelo": 0}
     with pytest.raises(ValueError, match="nao cabe numa folha A3"):
         DP.gerar_dxf([DP.ler_desenho(_svg(tmp_path))], str(tmp_path / "x.dxf"), {}, lista=lista)
 
@@ -447,3 +455,143 @@ def test_texto_que_passa_da_janela_da_vista_e_avisado(tmp_path):
         _SVG_DETALHE.replace("PLACA DE BASE 600 x 800 x 100 mm", longo), encoding="utf-8")
     resumo, _doc = _dxf(tmp_path, [DP.ler_desenho(str(tmp_path / "LONGO.svg"))])
     assert resumo["folhas"][0]["textos_alem_do_quadro"] == [longo.strip()]
+
+
+# ---- linha de chamada da cota (D222) ---------------------------------------
+def test_perpendicular_da_cota_acha_o_traco_mais_perto():
+    cota_horizontal = (1.0, 0.0)
+    # traco que cruza a perpendicular 300 abaixo e outro 800 acima: fica o de 300
+    tracos = [((-50.0, -300.0), (50.0, -300.0)), ((-50.0, 800.0), (50.0, 800.0))]
+    assert DP.origem_da_chamada((0.0, 0.0), cota_horizontal, tracos) == (0.0, -300.0)
+    # traco SOBRE a perpendicular (o eixo do pilar): a ponta mais perto
+    assert DP.origem_da_chamada((0.0, 0.0), cota_horizontal,
+                                [((0.0, 400.0), (0.0, 9000.0))]) == (0.0, 400.0)
+    # so a ponta de um traco cai na perpendicular
+    assert DP.origem_da_chamada((0.0, 0.0), cota_horizontal,
+                                [((0.0, 250.0), (700.0, 250.0))]) == (0.0, 250.0)
+    # cota vertical: a perpendicular e' horizontal
+    assert DP.origem_da_chamada((0.0, 0.0), (0.0, 1.0),
+                                [((600.0, -10.0), (600.0, 10.0))]) == (600.0, 0.0)
+
+
+def test_perpendicular_da_cota_para_na_borda_da_bolha_do_eixo():
+    # eixo sobre a perpendicular, com a bolha de raio 400 na ponta: a chamada
+    # para na borda da bolha (a 1100), nao no centro (a 1500)
+    eixo = [((0.0, 1500.0), (0.0, 9000.0))]
+    assert DP.origem_da_chamada((0.0, 0.0), (1.0, 0.0), eixo,
+                                [(0.0, 1500.0, 400.0)]) == (0.0, 1100.0)
+
+
+def test_perpendicular_sem_nada_ou_ja_encostada_nao_inventa_chamada():
+    assert DP.origem_da_chamada((0.0, 0.0), (1.0, 0.0), [((50.0, 0.0), (90.0, 300.0))]) is None
+    # a linha de cota ja passa pelo traco: a origem e' a propria ponta
+    assert DP.origem_da_chamada((0.0, 0.0), (1.0, 0.0),
+                                [((0.0, -500.0), (0.0, 500.0))]) == (0.0, 0.0)
+
+
+def test_cota_do_dxf_tem_linha_de_chamada_ate_a_peca_e_mede_o_mesmo(tmp_path):
+    """Visto ao abrir o DXF num CAD (D221): a cota saia so com a linha de cota,
+    solta ao lado do desenho. A linha de chamada vai ate o traco mais perto; a
+    medida continua a da linha de cota do desenho de origem."""
+    resumo, doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))])
+    assert resumo["folhas"][0]["cotas_sem_linha_de_chamada"] == 0
+    dims = {round(d.get_measurement()): d for d in doc.modelspace().query("DIMENSION")}
+    assert sorted(dims) == [5000, 10000]
+
+    def _origens(dim):
+        return sorted((round(p.x), round(p.y)) for p in (dim.dxf.defpoint2, dim.dxf.defpoint3))
+
+    # a vista comeca em (3000, 3000) no modelo. Cota de 10 m (linha a y = 1500):
+    # a esquerda o traco mais perto e' a fundacao (y = 2000), a direita a ponta
+    # da viga (y = 3000)
+    assert _origens(dims[10000]) == [(3000, 2000), (13000, 3000)]
+    assert round(dims[10000].dxf.defpoint.y) == 1500
+    # cota de 5 m (linha a x = 1500): as duas vigas comecam em x = 3000
+    assert _origens(dims[5000]) == [(3000, 3000), (3000, 8000)]
+    assert round(dims[5000].dxf.defpoint.x) == 1500
+    assert not doc.audit().errors
+
+
+def test_cota_sem_traco_na_perpendicular_e_contada(tmp_path):
+    # cota fora do alcance de qualquer traco do desenho (x de 140 a 150 mm de papel)
+    solta = ('</g><line class="GlobalId-z IfcAnnotation PredefinedType-DIMENSION" '
+             'x1="140" y1="5" x2="150" y2="5"/><g>')
+    resumo, doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path, extra=solta))])
+    assert resumo["folhas"][0]["cotas"] == 3
+    assert resumo["folhas"][0]["cotas_sem_linha_de_chamada"] == 1
+    assert sorted(round(d.get_measurement()) for d in doc.modelspace().query("DIMENSION")) \
+        == [1000, 5000, 10000]
+
+
+# ---- simbolo de chamada (solda) no DXF (D222) -------------------------------
+_SIMBOLO = """</g><g transform="translate(%s) rotate(%s) scale(1.0)">
+    <path d="M 0,0 L 22,0" style="fill: none; stroke: black; stroke-width: 0.25;"/>
+    <path d="M 0,0 L -7,7" style="fill: none; stroke: black; stroke-width: 0.25;"/>
+    <path d="M -7,7 L -4.6,6.2 L -6.2,4.6 Z" style="fill: black; stroke: none;"/>
+    <circle cx="0" cy="0" r="1.3" style="fill: white; stroke: black; stroke-width: 0.25;"/>
+    <path d="M 8,0 L 8,5 L 13,0 Z" style="fill: black; stroke: none;"/>
+    <text x="6.5" y="3" class="GlobalId-s IfcAnnotation PredefinedType-TEXT" text-anchor="end"
+          dominant-baseline="middle" data-type="text-template">5.0</text>
+  </g><g>"""
+
+
+def test_simbolo_de_solda_do_desenho_vai_ao_dxf_no_tamanho_da_escala(tmp_path):
+    """O simbolo de solda do detalhe existia na folha do Bonsai e nao no DXF."""
+    des = DP.ler_desenho(_svg(tmp_path, extra=_SIMBOLO % ("80.0, 50.0", "-0.0")))
+    assert len(des["simbolos"]) == 1
+    simb = des["simbolos"][0]
+    assert _plano([simb["posicao"]]) == pytest.approx([5000.0, 3000.0])
+    assert (len(simb["tracos"]), len(simb["cheios"]), len(simb["circulos"])) == (2, 2, 1)
+    assert simb["textos"] == [(6.5, 3.0, "5.0", "end")]
+    # o texto do campo nao entra duas vezes (nao e' texto de chamada)
+    assert des["textos"] == []
+    resumo, doc = _dxf(tmp_path, [des])
+    assert resumo["folhas"][0]["simbolos"] == 1 and resumo["folhas"][0]["escala"] == 50
+    msp = doc.modelspace()
+    da_camada = '[layer=="%s"]' % DP.CAMADA_SIMBOLO
+    assert len(msp.query("HATCH" + da_camada)) == 2          # seta e triangulo do filete
+    circ = msp.query("CIRCLE" + da_camada)
+    # ancora do simbolo: (5000, 3000) do desenho + (3000, 3000) da vista no modelo
+    assert (round(circ[0].dxf.center.x), round(circ[0].dxf.center.y)) == (8000, 6000)
+    assert circ[0].dxf.radius == pytest.approx(1.3 * 50)
+    # linha de referencia: 22 mm de papel a 1:50 = 1100 mm, para a direita
+    tracos = msp.query("LWPOLYLINE" + da_camada)
+    pontas = sorted((round(x), round(y)) for t in tracos for x, y, *_r in t.get_points())
+    assert (9100, 6000) in pontas and (8000 - 350, 6000 - 350) in pontas
+    perna = msp.query("TEXT" + da_camada)
+    assert [t.dxf.text for t in perna] == ["5.0"]
+    # y do papel cresce para baixo: o campo fica 3 mm ABAIXO da linha de referencia
+    assert (round(perna[0].dxf.align_point.x), round(perna[0].dxf.align_point.y)) \
+        == (8000 + 325, 6000 - 150)
+    assert perna[0].dxf.height == DP.ALTURA_TEXTO * 50
+    assert not doc.audit().errors
+
+
+def test_simbolo_girado_reprova_em_vez_de_sair_torto(tmp_path):
+    with pytest.raises(ValueError, match="transformacao nao tratada"):
+        DP.ler_desenho(_svg(tmp_path, extra=_SIMBOLO % ("80.0, 50.0", "30.0")))
+
+
+def test_desenho_sem_simbolo_segue_sem_a_camada(tmp_path):
+    resumo, doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))])
+    assert resumo["folhas"][0]["simbolos"] == 0
+    assert DP.CAMADA_SIMBOLO not in doc.layers
+
+
+# ---- a lista diz de onde veio cada peso (D222) ------------------------------
+def test_nota_da_lista_separa_o_peso_do_calculo_do_peso_pela_secao(tmp_path):
+    lista = DP.lista_do_ifc(_ifc_com_romaneio(tmp_path))
+    notas = DP.tabela_da_lista(lista)["notas"]
+    assert len(notas) == 2
+    assert "Pilar e viga do portico: peso do calculo" in notas[0]
+    assert "secao x comprimento do modelo x 7850 kg/m3" in notas[0]
+    assert "sem traspasse, furos nem perdas" in notas[0]
+    assert "NAO e' o peso da obra" in notas[1]
+    # so romaneio -> a frase antiga; so secao -> so a da secao
+    so_calculo = dict(lista, linhas_pesadas_pelo_modelo=0)
+    assert DP.tabela_da_lista(so_calculo)["notas"][0].startswith("Linhas com peso: comprimento")
+    so_secao = dict(lista, linhas_pesadas_pelo_modelo=len(lista["linhas"]) - lista["linhas_sem_peso"])
+    assert DP.tabela_da_lista(so_secao)["notas"][0].startswith("Linhas com peso: secao x")
+    # as notas cabem na largura do quadro da folha A3 do DXF (de x = 34,5 a
+    # x = 410 mm; 2,25 mm por letra, medido no QCAD - D221)
+    assert all(len(n) * DP.ALTURA_TEXTO * DP.LARGURA_MEDIA_DA_LETRA <= 375.5 for n in notas)

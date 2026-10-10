@@ -715,7 +715,77 @@ def membros_do_spec(spec):
 
 
 PSET_CALCULO = "Calc_VerificacaoEstrutural"
+PSET_QUANTITATIVO = "Calc_Quantitativo"
 DIAMETRO = "Ø"        # simbolo de diametro nas descricoes de ligacao
+# barras SECUNDARIAS de aco cuja secao e' a real (a que o calculo verificou ou a
+# barra macica desenhada): so essas sao pesadas pela secao. Calha, condutor e
+# bocal sao pecas representativas (o condutor e' um cilindro cheio no modelo) e
+# ficam fora: pesa-las pelo desenho daria um peso que nao existe.
+BARRAS_PESADAS_PELA_SECAO = ("T1", "G1", "EB1", "CM1", "MO1", "MF1", "CV1", "TR1", "TC1")
+
+
+def _area_de_aco(mb, est):
+    """(area bruta da secao em m2, de onde ela veio) de uma barra secundaria,
+    ou None quando o motor nao tem a area dessa secao. A area e' a MESMA que o
+    calculo usa (catalogo de perfis, tabela UPE, cantoneira sem raio) ou a
+    geometria exata da secao declarada (barra macica, Ue de cantos vivos);
+    nada e' estimado pelo desenho."""
+    import math
+
+    import perfis
+    sec = mb.get("secao") or {}
+    marca, nome = mb.get("marca"), mb.get("perfil")
+    if marca not in BARRAS_PESADAS_PELA_SECAO:
+        return None
+    if sec.get("forma") == "round":
+        return math.pi * float(sec["D"]) ** 2 / 4.0, "barra redonda macica"
+    if sec.get("forma") == "L":
+        return (perfis.cantoneira(float(sec["bf"]) * 1000.0, float(sec["t"]) * 1000.0)["A"],
+                "cantoneira sem raio de concordancia")
+    if marca == "T1":
+        td = est.get("terca_dims")
+        if not td or len(td) < 4:
+            return None
+        # Ue bw x bf x D x t, medidas EXTERNAS: area = espessura x desenvolvimento
+        # da linha media = t (bw + 2 bf + 2 D - 4 t), cantos vivos. O calculo da
+        # terca toma as medidas externas como linha media (t x (bw + 2 bf + 2 D),
+        # 2 a 3 % a mais): a favor da seguranca na carga, a mais no peso da lista.
+        bw, bf, lip, t = (float(v) for v in td[:4])
+        return (t * (bw + 2.0 * bf + 2.0 * lip - 4.0 * t) * 1.0e-6,
+                "Ue de cantos vivos, espessura x desenvolvimento")
+    if marca == "G1":
+        import secundarios_nbr8800
+        for perfil_u in secundarios_nbr8800.ESCADA_UPE:
+            if perfil_u["nome"] == nome:
+                return perfil_u["A"], "tabela UPE do calculo"
+        return None
+    if nome in perfis.PERFIS:
+        return perfis.PERFIS[nome]["A"], "catalogo de perfis do calculo"
+    return None
+
+
+def _quantitativo(mb, est):
+    """Pset do peso de uma peca que o romaneio do calculo nao traz: barra
+    secundaria (area da secao x comprimento do modelo) e placa de base (volume
+    bruto da chapa que o calculo adotou). Sem traspasse, furos nem perdas. None
+    quando a peca nao e' pesada assim."""
+    import math
+
+    import romaneio
+    if mb.get("perfil") == "PlacaBase" and "dims" in mb:
+        bx, ly, t = (float(v) / 1000.0 for v in mb["dims"])
+        return {"Peso_kg": round(bx * ly * t * romaneio.RHO_ACO, 2),
+                "Origem": "volume bruto da chapa adotada no calculo, sem furos"}
+    if "p1" not in mb or "p2" not in mb:
+        return None
+    area = _area_de_aco(mb, est)
+    if area is None:
+        return None
+    compr = math.dist(mb["p1"], mb["p2"]) / 1000.0
+    return {"Perfil": mb.get("perfil"), "Comprimento_m": round(compr, 3),
+            "AreaDaSecao_cm2": round(area[0] * 1.0e4, 3),
+            "Peso_kg": round(romaneio.massa_por_metro(area[0]) * compr, 2),
+            "Origem": "area da secao (%s) x comprimento do modelo" % area[1]}
 
 
 def _anotar_calculo(membros, spec):
@@ -725,7 +795,8 @@ def _anotar_calculo(membros, spec):
     calculo deixou em spec.estrutura: chave ausente fica fora do pset, nunca
     vira valor inventado. Coluna = marca C<n>, viga do portico = marca V<n>
     (modelo_neutro); as demais barras (escoras, tercas, tirantes) nao tem
-    esforco proprio no spec e seguem sem pset."""
+    esforco proprio no spec e seguem sem o pset da verificacao - levam so o do
+    quantitativo (`_quantitativo`: peso pela secao), para a lista de material."""
     import re
 
     import acos
@@ -814,6 +885,11 @@ def _anotar_calculo(membros, spec):
             mb.setdefault("propriedades", {PSET_CALCULO: {
                 "Tipo": sa.get("tipo"), "Utilizacao": res.get("Sapata"),
                 "fck_MPa": (fck / 1000.0) if fck else None}})
+        quant = _quantitativo(mb, est)
+        if quant:
+            # dicionario proprio da peca: o das colunas e o das vigas sao partilhados
+            mb["propriedades"] = dict(mb.get("propriedades") or {})
+            mb["propriedades"][PSET_QUANTITATIVO] = quant
 
 
 def emitir_ifc_do_spec(spec, path):
