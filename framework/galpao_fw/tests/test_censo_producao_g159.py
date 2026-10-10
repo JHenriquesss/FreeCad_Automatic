@@ -117,6 +117,7 @@ COBERTURA_COMMIT_D = {
     "8533972e73ac8c2f8b057ebdadc8f381d935cc2f": "D218",  # saidas do eletrico como contrato tipado
     "7706accc60ebe4693c94b6a0b9b359d90ed16789": "D219",  # render de apresentacao no passo das pranchas
     "37bfd7b604320a95b0732d488c606c30ac4beb38": "D220",  # leitura da planta como contrato tipado
+    "e55977a4f056df772cdc99bd98db062374b41789": "D221",  # DXF recorta no quadro da vista
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -252,9 +253,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 37:
-        lados.append("censo=%d, esperado 37 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 25 do plano de 2026-10-08)"
+    if len(censo) != 38:
+        lados.append("censo=%d, esperado 38 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 26 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
