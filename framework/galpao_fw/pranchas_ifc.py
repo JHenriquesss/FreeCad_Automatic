@@ -266,6 +266,10 @@ def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
     campos["REVISAO"] = revisao
     res["dxf_resumo"] = dxf_prancha.gerar_dxf(
         [dxf_prancha.ler_desenho(p) for p in res["desenhos"]], dxf, campos, lista=lista)
+    for folha in res["dxf_resumo"]["folhas"]:
+        for frase in folha["textos_alem_do_quadro"]:
+            res["avisos"].append("%s: texto passa da janela da vista e sai cortado na folha "
+                                 "do DXF: %r" % (folha["folha"], frase))
     res["lista"] = {"linhas": len(lista["linhas"]), "peso_total_kg": lista["peso_total_kg"],
                     "linhas_sem_peso": lista["linhas_sem_peso"]}
     if "folha_da_lista" in rel:

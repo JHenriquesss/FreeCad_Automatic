@@ -324,8 +324,12 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
                    (xs[0] + 0.75, ys[0] - 0.6, 0.80), (r(90), 0, 0),
                    jan, jan, 1.20, [], estrutura, ESCALA_DETALHE,
                    [((xs[0] + 0.55, ys[0], 1.55), "CONTRAVENTAMENTO {{Name}}", "CV"),
+                    # duas linhas: numa so, a frase passava da janela de 2,2 m e saia
+                    # cortada na folha (visto ao abrir o DXF num CAD)
                     ((xs[0] + 0.55, ys[0], 1.43),
-                     "GUSSET: {{Calc_VerificacaoEstrutural.Descricao}} - SOLDA DE FILETE, PERNA "
+                     "GUSSET: {{Calc_VerificacaoEstrutural.Descricao}}", "GC"),
+                    ((xs[0] + 0.55, ys[0], 1.33),
+                     "SOLDA DE FILETE, PERNA "
                      "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}} mm, TODO O CONTORNO", "GC"),
                     ((xs[0] + 0.75, ys[0], 1.20), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
                      SIMBOLO_SOLDA)]))

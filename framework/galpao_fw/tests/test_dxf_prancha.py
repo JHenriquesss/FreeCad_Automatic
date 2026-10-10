@@ -380,3 +380,70 @@ def test_texto_de_chamada_vai_ao_dxf_na_posicao_e_no_tamanho_da_escala(tmp_path)
     # a vista comeca em (-1100, -1100) e vai para (0, 0) no modelo: +1100 nas duas
     assert (round(t[0].dxf.insert.x), round(t[0].dxf.insert.y)) == (120, 530)
     assert t[0].dxf.height == DP.ALTURA_TEXTO * 10 and t[0].dxf.get("width", 1.0) == 1.0
+
+
+_QUADRO = (0.0, 0.0, 10.0, 10.0)
+
+
+def test_polilinha_dentro_do_quadro_volta_identica():
+    poli = [(1.0, 1.0), (9.0, 1.0), (9.0 + 1e-13 - 1e-13, 9.0), (0.1 + 0.2, 0.3)]
+    assert DP.recortar_no_quadro(poli, _QUADRO) == [poli]
+    # tocar a borda nao e' sair
+    borda = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)]
+    assert DP.recortar_no_quadro(borda, _QUADRO) == [borda]
+
+
+def test_polilinha_que_sai_do_quadro_e_cortada_na_borda():
+    assert DP.recortar_no_quadro([(5.0, 5.0), (25.0, 5.0)], _QUADRO) == [[(5.0, 5.0), (10.0, 5.0)]]
+    assert DP.recortar_no_quadro([(-20.0, 4.0), (30.0, 4.0)], _QUADRO) == [[(0.0, 4.0), (10.0, 4.0)]]
+    # sai e volta: dois pedacos, e o trecho de fora some
+    vai_e_volta = [(2.0, 5.0), (2.0, 15.0), (8.0, 15.0), (8.0, 5.0)]
+    assert DP.recortar_no_quadro(vai_e_volta, _QUADRO) == [
+        [(2.0, 5.0), (2.0, 10.0)], [(8.0, 10.0), (8.0, 5.0)]]
+    # toda fora, e a que so encosta num canto: nada
+    assert DP.recortar_no_quadro([(20.0, 20.0), (30.0, 25.0)], _QUADRO) == []
+    assert DP.recortar_no_quadro([(10.0, 10.0), (20.0, 20.0)], _QUADRO) == []
+    # diagonal que so toca o canto de fora para fora: nada
+    assert DP.recortar_no_quadro([(-5.0, 5.0), (5.0, 15.0)], _QUADRO) == []
+    # diagonal: as duas pontas cortadas no mesmo segmento
+    assert DP.recortar_no_quadro([(-5.0, 0.0), (15.0, 10.0)], _QUADRO) == [[(0.0, 2.5), (10.0, 7.5)]]
+
+
+def test_peca_comprida_do_detalhe_nao_aparece_na_vista_vizinha(tmp_path):
+    """Medido no galpao do cliente: nos detalhes a 1:10 a viga segue desenhada
+    ate 21 m alem do quadro de 2,2 m e atravessava a janela da vista ao lado."""
+    # viga que passa 20 m a direita do quadro do detalhe (220 mm de papel = 2,2 m)
+    comprida = _SVG_DETALHE.replace(
+        '<path d="M75,110 L145,110 L145,120 L75,120 Z"/>',
+        '<path d="M75,110 L145,110 L145,120 L75,120 Z"/><path d="M100,60 L2220,60"/>')
+    (tmp_path / "A-DETALHE.svg").write_text(comprida, encoding="utf-8")
+    detalhe = DP.ler_desenho(str(tmp_path / "A-DETALHE.svg"))
+    planta = DP.ler_desenho(_svg(tmp_path, nome="B-PLANTA"))
+    assert max(x for el in detalhe["elementos"] for p in el["polilinhas"] for x, _y in p) > 20000
+    resumo, doc = _dxf(tmp_path, [detalhe, planta])
+    assert [f["polilinhas_recortadas_no_quadro"] for f in resumo["folhas"]] == [1, 0]
+    larg_detalhe = detalhe["quadro"][2] - detalhe["quadro"][0]
+    inicio_da_planta = larg_detalhe + 5000.0
+    xs = sorted(x for e in doc.modelspace().query("LINE LWPOLYLINE")
+                for x, _y, *_r in (e.get_points() if e.dxftype() == "LWPOLYLINE"
+                                   else [e.dxf.start, e.dxf.end]))
+    # nada no vao entre as duas vistas, e a viga cortada acaba na borda do detalhe
+    assert not [x for x in xs if larg_detalhe + 1e-6 < x < inicio_da_planta - 1e-6]
+    assert max(x for x in xs if x < inicio_da_planta) == pytest.approx(larg_detalhe)
+    # a geometria da planta vizinha continua inteira
+    sozinha, doc2 = _dxf(tmp_path, [planta])
+    assert resumo["folhas"][1]["entidades"] == sozinha["folhas"][0]["entidades"]
+
+
+def test_texto_que_passa_da_janela_da_vista_e_avisado(tmp_path):
+    """Visto no galpao do cliente ao abrir o DXF num CAD: a chamada do gusset
+    saia cortada em "...TODO O CONTORN". O texto nao e' recortado; e' dito."""
+    (tmp_path / "CABE.svg").write_text(_SVG_DETALHE, encoding="utf-8")
+    cabe = DP.ler_desenho(str(tmp_path / "CABE.svg"))
+    resumo, _doc = _dxf(tmp_path, [cabe])
+    assert resumo["folhas"][0]["textos_alem_do_quadro"] == []
+    longo = "PLACA DE BASE 600 x 800 x 100 mm - " + "SOLDA DE FILETE EM TODO O CONTORNO " * 3
+    (tmp_path / "LONGO.svg").write_text(
+        _SVG_DETALHE.replace("PLACA DE BASE 600 x 800 x 100 mm", longo), encoding="utf-8")
+    resumo, _doc = _dxf(tmp_path, [DP.ler_desenho(str(tmp_path / "LONGO.svg"))])
+    assert resumo["folhas"][0]["textos_alem_do_quadro"] == [longo.strip()]

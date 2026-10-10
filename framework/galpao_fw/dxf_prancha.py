@@ -51,6 +51,12 @@ FORMATOS = (("A3", 420.0, 297.0), ("A2", 594.0, 420.0), ("A1", 841.0, 594.0))
 MARGEM_ESQ, MARGEM = 25.0, 10.0
 CARIMBO_L, CARIMBO_H = 175.0, 40.0
 ALTURA_TEXTO = 2.5
+# largura media de uma letra em relacao a altura do texto, so para avisar do
+# texto que passa da janela da vista. MEDIDO (2026-10-09) no galpao do cliente
+# aberto no QCAD: a chamada do gusset, em maiusculas, ocupou 0,88 da altura por
+# letra (no DXF a altura do texto e' a da maiuscula, nao a do corpo da fonte).
+# Com 0,6 a regua nao acusava o texto que saia cortado.
+LARGURA_MEDIA_DA_LETRA = 0.9
 
 # classe IFC -> (camada, cor ACI, espessura em centesimos de mm)
 CAMADAS = {
@@ -175,6 +181,59 @@ def ler_desenho(caminho):
             "escala_origem": round(1000.0 / mm_por_m),
             "quadro": (x0, y0, x1, y1),          # mm reais: xmin, ymin, xmax, ymax
             "elementos": elementos, "cotas": cotas, "eixos": eixos, "textos": textos}
+
+
+def _recorta_segmento(a, b, quadro):
+    """O trecho do segmento a-b dentro do quadro (xmin, ymin, xmax, ymax), ou
+    None se ficar todo fora (Liang-Barsky)."""
+    x0, y0, x1, y1 = quadro
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, a[0] - x0), (dx, x1 - a[0]), (-dy, a[1] - y0), (dy, y1 - a[1])):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        t = q / p
+        if p < 0:
+            if t > t1:
+                return None
+            t0 = max(t0, t)
+        else:
+            if t < t0:
+                return None
+            t1 = min(t1, t)
+    # ponta que nao foi cortada volta EXATA (a + 1.0 * (b - a) nem sempre e' b)
+    return (a if t0 == 0.0 else (a[0] + t0 * dx, a[1] + t0 * dy),
+            b if t1 == 1.0 else (a[0] + t1 * dx, a[1] + t1 * dy))
+
+
+def recortar_no_quadro(poli, quadro):
+    """Parte a polilinha nos pedacos que ficam dentro do quadro da vista. O
+    desenho de origem so MOSTRA o que esta no quadro, mas a peca comprida segue
+    desenhada alem dele (a viga inteira num detalhe de 2 m): sem recortar, ela
+    atravessa o espaco do modelo e aparece na janela da vista vizinha."""
+    pedacos, atual = [], []
+    for a, b in zip(poli, poli[1:]):
+        dentro = _recorta_segmento(a, b, quadro)
+        if dentro is None:
+            if len(atual) > 1:
+                pedacos.append(atual)
+            atual = []
+            continue
+        p, q = dentro
+        if atual and atual[-1] == p:
+            atual.append(q)
+        else:
+            if len(atual) > 1:
+                pedacos.append(atual)
+            atual = [p, q]
+        if q != b:                                # saiu do quadro neste segmento
+            pedacos.append(atual)
+            atual = []
+    if len(atual) > 1:
+        pedacos.append(atual)
+    return [p for p in pedacos if any(pt != p[0] for pt in p[1:])]
 
 
 def escolher_folha(larg_real_mm, alt_real_mm, escalas=ESCALAS,
@@ -390,17 +449,22 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
         esc, formato, fw, fh, de_escape = escolher_folha(larg, alt, escalas=escalas)
         dx, dy = x_base - x0, -y0                      # vista ao lado da anterior
         por_camada = {}
+        recortadas = 0
         for el in des["elementos"]:
             camada, cor, esp = _camada(el["classe"], el["corte"])
             if camada not in doc.layers:
                 doc.layers.add(camada, color=cor, lineweight=esp)
-            for poli in el["polilinhas"]:
-                pts = [(x + dx, y + dy) for x, y in poli]
-                if len(pts) == 2:
-                    msp.add_line(pts[0], pts[1], dxfattribs={"layer": camada})
-                else:
-                    msp.add_lwpolyline(pts, dxfattribs={"layer": camada})
-                por_camada[camada] = por_camada.get(camada, 0) + 1
+            for inteira in el["polilinhas"]:
+                pedacos = recortar_no_quadro(inteira, des["quadro"])
+                if pedacos != [inteira]:
+                    recortadas += 1
+                for poli in pedacos:
+                    pts = [(x + dx, y + dy) for x, y in poli]
+                    if len(pts) == 2:
+                        msp.add_line(pts[0], pts[1], dxfattribs={"layer": camada})
+                    else:
+                        msp.add_lwpolyline(pts, dxfattribs={"layer": camada})
+                    por_camada[camada] = por_camada.get(camada, 0) + 1
         estilo = _estilo_cota(doc, esc)
         for (ax, ay), (bx, by) in des["cotas"]:
             dim = msp.add_aligned_dim(p1=(ax + dx, ay + dy), p2=(bx + dx, by + dy),
@@ -417,9 +481,15 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                 msp.add_text(rotulo, height=ALTURA_ROTULO_EIXO * esc, dxfattribs={
                     "layer": CAMADA_EIXO, "style": "TEXTO"}).set_placement(
                         (px + dx, py + dy), align=TextEntityAlignment.MIDDLE_CENTER)
+        textos_cortados = []
         for (tx, ty), frase in des.get("textos", ()):
             msp.add_text(frase, height=ALTURA_TEXTO * esc, dxfattribs={
                 "layer": CAMADA_TEXTO, "style": "TEXTO", "insert": (tx + dx, ty + dy)})
+            # o texto nao e' recortado (ficaria ilegivel pela metade): o que passa
+            # do quadro e' cortado pela janela da folha, e isso tem de ser dito
+            fim = tx + len(frase) * ALTURA_TEXTO * esc * LARGURA_MEDIA_DA_LETRA
+            if tx < x0 or fim > x1 or ty < y0 or ty + ALTURA_TEXTO * esc > y1:
+                textos_cortados.append(frase)
         # ---- folha no espaco de papel --------------------------------------
         nome_folha = "%02d-%s" % (k, des["nome"])[:31]
         folha = doc.layouts.new(nome_folha)
@@ -445,6 +515,8 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
             "formato": formato, "escala_de_escape": de_escape,
             "escala_origem": des["escala_origem"], "entidades": por_camada,
             "cotas": len(des["cotas"]), "eixos": len(des.get("eixos", ())),
+            "polilinhas_recortadas_no_quadro": recortadas,
+            "textos_alem_do_quadro": textos_cortados,
             "textos": len(des.get("textos", ())),
             "largura_real_mm": round(larg, 1),
             "altura_real_mm": round(alt, 1)})

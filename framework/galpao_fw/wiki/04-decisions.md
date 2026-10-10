@@ -7116,3 +7116,67 @@ tem entrada e saidas tipadas de ponta a ponta; os motores do galpao
 (calculo estrutural, IFC, pranchas) continuam com dicionarios e nao foram
 tocados - o item "entradas e saidas tipadas" da Fase 1 esta feito so para o
 eletrico sobre planta.
+
+## D221 - Plano de 2026-10-08: Fase 4 - o DXF e o DWG abertos num programa de CAD (QCAD) e dois defeitos que so assim apareceram (2026-10-09) - FECHADO
+
+**Por que.** O criterio de pronto da Fase 4 e' "o engenheiro abre o arquivo
+no AutoCAD". Ate aqui o DWG so tinha sido conferido por contagem (ODA +
+ezdxf, D213); nenhum programa de CAD estava na maquina. O usuario autorizou
+instalar o QCAD e o DWG TrueView (2026-10-09).
+
+**O que foi instalado.** QCAD 3.33.1 (pacote oficial para Windows em zip,
+versao de avaliacao da edicao profissional; descompactado em pasta
+temporaria, sem instalador). A ferramenta `dwg2bmp` dele desenha uma folha
+do DWG ou do DXF em imagem, sem janela. **O DWG TrueView nao foi instalado:**
+o endereco que o `winget` usa devolve 404 e a pagina da Autodesk so entrega o
+instalador pela pagina interativa. Continua com o usuario.
+
+**Medido.** O QCAD abre o DWG e o DXF do galpao do cliente e desenha as
+folhas: janela da vista na escala, eixos com bolha, cotas com o valor medido
+(5700, 28500, 20000, 9500, 7970), carimbo com titulo, escala, folha, data e
+revisao, e a folha da lista de material inteira (34 linhas, total 19705,2).
+
+**Defeito 1 - geometria de uma vista aparecendo na vizinha.** No detalhe do
+joelho apareciam linhas diagonais que nao existem no desenho de origem (o
+SVG do Bonsai, rasterizado ao lado, nao as tem). Causa: o desenho de origem
+so MOSTRA o que cabe no quadro, mas a peca comprida segue desenhada alem
+dele. Medido nos 13 desenhos: nos sete detalhes, de 10 a 76 polilinhas saem
+do quadro, ate 21,7 m alem de um quadro de 2,2 m; nas seis vistas gerais,
+nenhuma. No espaco do modelo do DXF as vistas ficam lado a lado com 5 m de
+folga, entao essas pecas atravessavam a janela das vistas vizinhas. O teste
+"duas vistas nao se sobrepoem" olhava o quadro, nao a geometria.
+- `dxf_prancha.recortar_no_quadro`: cada polilinha e' partida nos pedacos que
+  ficam dentro do quadro da vista (ponta nao cortada volta exata). O resumo
+  de cada folha traz `polilinhas_recortadas_no_quadro`.
+
+**Defeito 2 - texto de chamada cortado.** No detalhe do contraventamento a
+frase do gusset saia "...TODO O CONTORN": passava da janela de 2,2 m.
+- `docs/fase3-bonsai/scripts/pranchas_bonsai.py`: a frase virou duas linhas.
+- `dxf_prancha`: texto que passa do quadro entra em `textos_alem_do_quadro`
+  no resumo da folha, e `pranchas_ifc.gerar` o leva para os avisos. O texto
+  nao e' recortado (ficaria ilegivel pela metade); e' dito.
+- **Regua que nao acusava, pega antes do commit:** a primeira versao estimava
+  0,6 da altura por letra e NAO acusou a frase que eu tinha visto cortada.
+  Medido no QCAD: 0,88 da altura por letra (no DXF a altura do texto e' a da
+  maiuscula). A constante ficou 0,9, com a medicao escrita ao lado, e o
+  aviso passou a disparar nos desenhos antigos e a calar nos novos.
+
+**Testes.** 4 funcoes novas em `tests/test_dxf_prancha.py` (25 no arquivo):
+polilinha dentro do quadro volta identica; a que sai e' cortada na borda
+(sai e volta, toda fora, canto, diagonal); a peca comprida do detalhe nao
+deixa nada no vao nem na vista vizinha, e a vizinha continua inteira; texto
+alem da janela e' avisado.
+
+**Conferido depois.** Pacote regerado em `plano-2026-10-d221` (fora do git)
+e o DWG novo aberto no QCAD: joelho, base, contraventamento e terca sem
+linha estranha; a frase do gusset inteira.
+
+**Limites.** O leitor de DWG do QCAD vem da mesma familia de bibliotecas do
+conversor ODA que grava o nosso DWG: abrir nele NAO vale como abrir no
+AutoCAD. O criterio de pronto da Fase 4 continua dependendo do AutoCAD ou do
+DWG TrueView. O QCAD de avaliacao encerra a sessao em 15 minutos e marca a
+imagem; serve para conferir, nao para entregar. Vistos de passagem e nao
+mexidos: as cotas saem sem linhas de chamada (so a linha de cota com as
+setas); a moldura da janela aparece na tela (a camada nao imprime); o
+simbolo de solda do detalhe do contraventamento existe na folha do Bonsai e
+nao no DXF.

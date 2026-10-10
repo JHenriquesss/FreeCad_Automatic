@@ -1008,6 +1008,8 @@ congelado até a entrega do galpão.
   passo das pranchas ([[04-decisions#D219]]).
 - **Fases 1 e 5, leitura tipada** a leitura da planta (DXF e IFC) com um contrato só;
   a cadeia do elétrico fica tipada de ponta a ponta ([[04-decisions#D220]]).
+- **Fase 4, DXF e DWG abertos no QCAD** dois defeitos vistos e corrigidos: peça comprida
+  de um detalhe invadindo a vista vizinha e texto de chamada cortado ([[04-decisions#D221]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.
