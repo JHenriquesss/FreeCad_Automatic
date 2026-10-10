@@ -135,3 +135,65 @@ def test_comprimento_estimado_pela_planta_traz_os_campos_a_mais_e_volta_igual():
     for c in RP.dimensionamento(dec).comprimentos.values():
         assert c.distancia_ortogonal_m is None and "distancia_ortogonal_m" not in c.para_dict()
 
+
+def _leituras(tmp_path):
+    """As leituras reais dos dois leitores: planta DXF e modelo IFC."""
+    pytest.importorskip("ezdxf")
+    pytest.importorskip("ifcopenshell")
+    import ambientes_dxf as AD
+    import ambientes_ifc as AI
+    import test_ambientes_dxf as TAD
+    import test_ambientes_ifc as TAI
+    planta = TAD._planta(tmp_path, TAD._CASA_MM)
+    modelo = TAI._casa(tmp_path)
+    return {"dxf": (AD.ler_ambientes(planta), AD.previsao_de_cargas(planta)),
+            "ifc": (AI.ler_ambientes(modelo, AD.normaliza_tipo),
+                    AI.previsao_de_cargas(modelo, AD.normaliza_tipo))}
+
+
+def test_leitura_dos_dois_leitores_cabe_no_mesmo_contrato(tmp_path):
+    lidas = _leituras(tmp_path)
+    for origem, (lido, previsao) in lidas.items():
+        tipada = RP.leitura(lido)
+        assert tipada.para_dict(list(lido)) == lido, origem
+        assert [a.nome for a in tipada.ambientes] == [a["nome"] for a in lido["ambientes"]]
+        assert sorted(tipada.geometria) == sorted(a.nome for a in tipada.ambientes)
+        bloco = RP.leitura_da_previsao(previsao["leitura_dxf"])
+        assert bloco.arquivo == previsao["leitura_dxf"]["arquivo"]
+    # o que so uma origem traz fica None na outra, sem valor inventado
+    dxf, ifc = RP.leitura(lidas["dxf"][0]), RP.leitura(lidas["ifc"][0])
+    assert dxf.camada == "AMBIENTES" and dxf.pavimentos is None
+    assert ifc.camada is None and isinstance(ifc.pavimentos, tuple)
+    assert dxf.quadro_m is None and ifc.quadro_m == (12.0, 23.0)
+    assert RP.leitura_da_previsao(lidas["ifc"][1]["leitura_dxf"]).origem == "ifc"
+    assert RP.leitura_da_previsao(lidas["dxf"][1]["leitura_dxf"]).origem is None
+
+
+@pytest.mark.parametrize("mexe, trecho", [
+    (lambda d: d.pop("quadro_m"), "leitura: faltam ['quadro_m']"),
+    (lambda d: d.update(quadro=[1.0, 2.0]), "fora do contrato ['quadro']"),
+    (lambda d: d["ambientes"][0].pop("perimetro_m"), "leitura.ambientes[1]"),
+    (lambda d: d["ambientes"][0].update(area=1.0), "leitura.ambientes[1]"),
+    (lambda d: d.update(quadro_m=[1.0, 2.0, 3.0]), "leitura.quadro_m"),
+    (lambda d: d["geometria"].pop(d["ambientes"][0]["nome"]), "nao sao os ambientes lidos"),
+    (lambda d: d["geometria"].update(fantasma=[[0, 0], [1, 0], [1, 1]]),
+     "nao sao os ambientes lidos"),
+    (lambda d: d["geometria"].update({d["ambientes"][0]["nome"]: [[0, 0], [1, 0]]}),
+     "esperados 3 ou mais pontos"),
+])
+def test_leitura_fora_do_contrato_reprova_dizendo_onde(tmp_path, mexe, trecho):
+    lido = copy.deepcopy(_leituras(tmp_path)["dxf"][0])
+    mexe(lido)
+    with pytest.raises(RP.SaidaForaDoContrato) as ex:
+        RP.leitura(lido)
+    assert trecho in str(ex.value)
+
+
+def test_leitura_com_erro_do_leitor_tambem_cabe_no_contrato(tmp_path):
+    pytest.importorskip("ezdxf")
+    import ambientes_dxf as AD
+    import test_ambientes_dxf as TAD
+    lido = AD.ler_ambientes(TAD._planta(tmp_path, [(0, 0, 4000, 3000, None)]))
+    assert lido["erros"]
+    tipada = RP.leitura(lido)
+    assert tipada.para_dict(list(lido)) == lido and len(tipada.erros) == len(lido["erros"])

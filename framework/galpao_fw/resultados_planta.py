@@ -3,7 +3,8 @@
 # TIPADAS (plano de 2026-10-08, Fase 1: "entradas e saidas como estruturas de
 # dados tipadas"; Fase 5). A entrada (criterios) foi tipada no D217; aqui ficam
 # as saidas que `circuitos_planta` escreve: a divisao em circuitos, o
-# dimensionamento e a demanda com o padrao de entrada.
+# dimensionamento e a demanda com o padrao de entrada - e a leitura da planta
+# que os leitores de DXF e de IFC entregam (D220).
 #
 # O motor continua devolvendo dicionarios (e' o que os relatorios e os
 # desenhos ja leem). Este modulo e' o CONTRATO desses dicionarios:
@@ -256,3 +257,120 @@ def entrada(d):
                    installed_load_kw=d["installed_load_kw"], calculation=d["calculation"],
                    service_entry=d["service_entry"],
                    erros=tuple(_lista(d["erros"], "entrada.erros")), atende=d["ATENDE"])
+
+
+# ----------------------------------------------------------------------------
+# Leitura da planta (ambientes_dxf e ambientes_ifc): o mesmo contrato para as
+# duas origens. O que so uma origem traz e' opcional e fica None na outra.
+# ----------------------------------------------------------------------------
+@dataclasses.dataclass(frozen=True)
+class Ambiente:
+    nome: str
+    tipo: str
+    area_m2: float
+    perimetro_m: float
+
+    OBRIGATORIAS = ("nome", "tipo", "area_m2", "perimetro_m")
+    OPCIONAIS = ()
+
+    def para_dict(self):
+        return {c: getattr(self, c) for c in self.OBRIGATORIAS}
+
+
+@dataclasses.dataclass(frozen=True)
+class Leitura:
+    """Saida de `ler_ambientes` (DXF ou IFC)."""
+    ambientes: Tuple[Ambiente, ...]
+    erros: Tuple[Mapping[str, Any], ...]
+    geometria: Mapping[str, Any]               # {ambiente: [[x_m, y_m], ...]}
+    quadro_m: Optional[Tuple[float, float]]    # None quando a planta nao marca o quadro
+    metros_por_unidade: Any
+    camada: Optional[str] = None               # so no DXF
+    pavimento: Optional[str] = None            # so no IFC
+    pavimentos: Optional[Tuple[str, ...]] = None
+
+    OBRIGATORIAS = ("ambientes", "erros", "geometria", "quadro_m", "metros_por_unidade")
+    OPCIONAIS = ("camada", "pavimento", "pavimentos")
+
+    def para_dict(self, chaves):
+        """`chaves` e' a ordem e o conjunto de chaves do dicionario de origem:
+        `pavimento` pode ser None DE VERDADE no IFC, e so a origem diz se a
+        chave existia."""
+        d = {}
+        for c in chaves:
+            v = getattr(self, c)
+            if c == "ambientes":
+                v = [a.para_dict() for a in v]
+            elif c == "erros":
+                v = [dict(e) for e in v]
+            elif c == "geometria":
+                v = {k: [list(p) for p in pts] for k, pts in v.items()}
+            elif c in ("quadro_m", "pavimentos") and v is not None:
+                v = list(v)
+            d[c] = v
+        return d
+
+
+@dataclasses.dataclass(frozen=True)
+class LeituraDaPrevisao:
+    """O bloco `leitura_dxf` que `previsao_de_cargas` anexa ao resultado."""
+    arquivo: str
+    metros_por_unidade: Any
+    geometria: Mapping[str, Any]
+    quadro_m: Optional[Tuple[float, float]]
+    erros: Tuple[Mapping[str, Any], ...]
+    camada: Optional[str] = None
+    origem: Optional[str] = None
+    pavimento: Optional[str] = None
+
+    OBRIGATORIAS = ("arquivo", "metros_por_unidade", "geometria", "quadro_m", "erros")
+    OPCIONAIS = ("camada", "origem", "pavimento")
+
+
+def _geometria(valor, ambientes, onde):
+    if not isinstance(valor, dict):
+        raise SaidaForaDoContrato("%s: esperado um objeto" % onde)
+    for nome, pts in valor.items():
+        if not isinstance(pts, list) or len(pts) < 3 or not all(
+                isinstance(p, (list, tuple)) and len(p) == 2 for p in pts):
+            raise SaidaForaDoContrato("%s.%s: esperados 3 ou mais pontos [x, y]" % (onde, nome))
+    if ambientes is not None and sorted(valor) != sorted(ambientes):
+        raise SaidaForaDoContrato(
+            "%s: os ambientes com geometria %r nao sao os ambientes lidos %r"
+            % (onde, sorted(valor), sorted(ambientes)))
+    return {nome: tuple(tuple(p) for p in pts) for nome, pts in valor.items()}
+
+
+def _quadro(valor, onde):
+    if valor is None:
+        return None
+    if not isinstance(valor, (list, tuple)) or len(valor) != 2:
+        raise SaidaForaDoContrato("%s: esperado [x, y] ou nulo" % onde)
+    return tuple(valor)
+
+
+def leitura(d):
+    """Le a saida de `ambientes_dxf.ler_ambientes` ou `ambientes_ifc.ler_ambientes`."""
+    _conferir(d, Leitura.OBRIGATORIAS, Leitura.OPCIONAIS, "leitura")
+    ambientes = tuple(_item(Ambiente, a, "leitura.ambientes[%d]" % k)
+                      for k, a in enumerate(_lista(d["ambientes"], "leitura.ambientes"),
+                                            start=1))
+    opcionais = {c: d[c] for c in Leitura.OPCIONAIS if c in d}
+    if "pavimentos" in opcionais and opcionais["pavimentos"] is not None:
+        opcionais["pavimentos"] = tuple(opcionais["pavimentos"])
+    return Leitura(
+        ambientes=ambientes, erros=tuple(_lista(d["erros"], "leitura.erros")),
+        geometria=_geometria(d["geometria"], [a.nome for a in ambientes], "leitura.geometria"),
+        quadro_m=_quadro(d["quadro_m"], "leitura.quadro_m"),
+        metros_por_unidade=d["metros_por_unidade"], **opcionais)
+
+
+def leitura_da_previsao(d):
+    """Le o bloco `leitura_dxf` do resultado de `previsao_de_cargas`."""
+    _conferir(d, LeituraDaPrevisao.OBRIGATORIAS, LeituraDaPrevisao.OPCIONAIS, "leitura_dxf")
+    return LeituraDaPrevisao(
+        arquivo=d["arquivo"], metros_por_unidade=d["metros_por_unidade"],
+        geometria=_geometria(d["geometria"], None, "leitura_dxf.geometria"),
+        quadro_m=_quadro(d["quadro_m"], "leitura_dxf.quadro_m"),
+        erros=tuple(_lista(d["erros"], "leitura_dxf.erros")),
+        **{c: d[c] for c in LeituraDaPrevisao.OPCIONAIS if c in d})

@@ -7084,3 +7084,35 @@ cobertura e dos porticos no piso, estrutura legivel.
 e telha saem como solidos simples; nao ha material com textura. O EEVEE
 continua sem sombra neste modo e a causa nao foi achada. Os testes nao sobem
 o Blender.
+
+## D220 - Plano de 2026-10-08: Fases 1 e 5 - a leitura da planta como contrato tipado (2026-10-09) - FECHADO
+
+**Por que.** Era o ultimo trecho da cadeia do eletrico sobre planta ainda
+como dicionario solto: os criterios foram tipados no D217 e as saidas no
+D218. O usuario mandou continuar (2026-10-09).
+
+**Entregue.**
+- `resultados_planta.py`: `Ambiente`, `Leitura` (a saida de `ler_ambientes`
+  do DXF e do IFC, um contrato so) e `LeituraDaPrevisao` (o bloco
+  `leitura_dxf` que a previsao de cargas carrega). O que so uma origem traz
+  (`camada` no DXF; `pavimento` e `pavimentos` no IFC) e' opcional e fica
+  `None` na outra. Alem das chaves, o contrato confere duas coisas de forma:
+  o quadro e' `[x, y]` ou nulo, e os ambientes com geometria sao exatamente
+  os ambientes lidos (nome a mais ou a menos reprova).
+- `ambientes_dxf.py` (linha de comando): a leitura passa pelo contrato logo
+  depois de lida, antes do relatorio.
+- 3 funcoes de teste novas em `tests/test_resultados_planta.py` (10 no
+  arquivo, 23 casos), sobre as leituras REAIS dos dois leitores: ida e volta
+  igual para DXF e IFC; oito formas de leitura fora do contrato com o lugar
+  no erro; leitura com erro do leitor (ambiente sem texto) cabe no contrato.
+
+**Medido.** A linha de comando nas plantas de teste (DXF e IFC) segue
+rodando inteira com os tres contratos ligados.
+
+**Limites.** O contrato confere chaves e forma, nao valores: area negativa
+ou poligono cruzado passam por ele (quem valida e' o leitor). Os leitores
+continuam devolvendo dicionarios. Com isso a cadeia do eletrico sobre planta
+tem entrada e saidas tipadas de ponta a ponta; os motores do galpao
+(calculo estrutural, IFC, pranchas) continuam com dicionarios e nao foram
+tocados - o item "entradas e saidas tipadas" da Fase 1 esta feito so para o
+eletrico sobre planta.

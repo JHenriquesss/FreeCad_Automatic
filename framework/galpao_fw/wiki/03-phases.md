@@ -1006,6 +1006,8 @@ congelado até a entrega do galpão.
   contrato imutável; chave a mais ou a menos reprova dizendo onde ([[04-decisions#D218]]).
 - **Fase 3, render com sombra** imagem de apresentação pelo CYCLES, opcional no mesmo
   passo das pranchas ([[04-decisions#D219]]).
+- **Fases 1 e 5, leitura tipada** a leitura da planta (DXF e IFC) com um contrato só;
+  a cadeia do elétrico fica tipada de ponta a ponta ([[04-decisions#D220]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

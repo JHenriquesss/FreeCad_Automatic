@@ -197,6 +197,8 @@ if __name__ == "__main__":
     else:
         res = previsao_de_cargas(_args[0], *(_args[1:2] or [CAMADA_PADRAO]),
                                  unidade=(_args[2] if len(_args) > 2 else None))
+    import resultados_planta as _RP
+    _RP.leitura_da_previsao(res["leitura_dxf"])   # leitura da planta dentro do contrato
     print(_AR.relatorio_pt(res))
     if res["leitura_dxf"]["erros"]:
         print("ERROS DE LEITURA DA PLANTA:")
@@ -211,7 +213,6 @@ if __name__ == "__main__":
             print(_CR.relatorio_pt(_erros_crit))
             sys.exit(1)
         _criterios = _lidos.para_dict()
-        import resultados_planta as _RP
         _div = _CP.dividir(res, _criterios)
         _RP.divisao(_div)                      # saida do motor dentro do contrato
         print(_CP.relatorio_pt(_div))
