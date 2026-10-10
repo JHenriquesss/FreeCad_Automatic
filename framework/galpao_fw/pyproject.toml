@@ -210,6 +210,7 @@ py-modules = [
     "redimensionamento",
     "relatorio_calculo",
     "residencial_eletrica",
+    "resultados_planta",
     "rodar_galpao",
     "rodar_projeto",
     "romaneio",

@@ -211,15 +211,19 @@ if __name__ == "__main__":
             print(_CR.relatorio_pt(_erros_crit))
             sys.exit(1)
         _criterios = _lidos.para_dict()
+        import resultados_planta as _RP
         _div = _CP.dividir(res, _criterios)
+        _RP.divisao(_div)                      # saida do motor dentro do contrato
         print(_CP.relatorio_pt(_div))
         _dim = None
         if "instalacao" in _criterios:
             _dim = _CP.dimensionar_da_planta(_div, res["leitura_dxf"], _criterios)
+            _RP.dimensionamento(_dim)
             print(_CP.relatorio_dimensionamento_pt(_dim))
             _ent = None
             if "rede" in _criterios:
                 _ent = _CP.demanda_e_entrada(res, _div, _criterios)
+                _RP.entrada(_ent)
                 print(_CP.relatorio_entrada_pt(_ent))
             if _saida:
                 print("desenhos:", _CP.desenhos(_dim, _saida[0], _ent))

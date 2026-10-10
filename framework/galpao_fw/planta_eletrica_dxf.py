@@ -204,7 +204,13 @@ def desenhar(planta_dxf, destino_dxf, leitura, divisao, dimensionamento=None):
     bloco `leitura_dxf` do leitor (geometria, quadro_m, metros_por_unidade).
     Devolve {arquivo, pontos_desenhados, pontos_sem_posicao, erros, ATENDE}."""
     import ezdxf
+    import resultados_planta as RP
 
+    # contrato das saidas do motor: dicionario com chave faltando ou sobrando
+    # reprova aqui, com o nome da chave, antes de qualquer desenho
+    RP.divisao(divisao)
+    if dimensionamento is not None:
+        RP.dimensionamento(dimensionamento)
     if divisao["quadro"] is None:
         return {"arquivo": None, "pontos_desenhados": 0, "pontos_sem_posicao": [],
                 "trechos_de_esboco": 0,

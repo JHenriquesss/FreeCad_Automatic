@@ -7003,3 +7003,47 @@ demanda) seguem como dicionarios. Os campos de `Instalacao` e `Rede` nao tem
 tipo proprio (`Any`): os valores aceitos sao os dos motores que os consomem.
 Quem chama `circuitos_planta` direto, sem passar por `ler`, continua exposto
 ao nome errado. Os motores do galpao nao foram tocados.
+
+## D218 - Plano de 2026-10-08: Fases 1 e 5 - as saidas do eletrico sobre planta como contrato tipado (2026-10-09) - FECHADO
+
+**Por que.** O D217 tipou so a entrada (criterios) e deixou dito que as
+saidas seguiam como dicionarios. O usuario mandou continuar (2026-10-09).
+
+**Entregue.**
+- `resultados_planta.py` (modulo novo): `Divisao` (com `Ponto`, `Circuito`,
+  `Quadro`), `Dimensionamento` (com `LinhaDoResumo`, `Comprimento`) e
+  `Entrada` como dataclasses imutaveis. `divisao(d)`, `dimensionamento(d)` e
+  `entrada(d)` leem o dicionario que `circuitos_planta` devolve; chave que
+  falta ou chave que a estrutura nao conhece levanta `SaidaForaDoContrato`
+  dizendo onde. `.para_dict()` devolve o dicionario igual ao lido. Campo que
+  o motor deixa ausente fica `None` e nao volta.
+- O motor continua devolvendo dicionarios (relatorios e desenhos ja os leem).
+  O contrato e' cobrado em dois pontos: `planta_eletrica_dxf.desenhar` confere
+  a divisao e o dimensionamento antes de abrir a planta, e a linha de comando
+  (`ambientes_dxf.py`) confere as tres saidas logo depois de cada conta.
+- `tests/test_resultados_planta.py`: 7 funcoes (13 casos), sobre as saidas
+  que o motor devolve de verdade para a casa de teste: ida e volta igual nos
+  casos que atendem e nos casos com erro (divisao nao feita, sem
+  comprimento, sem rede); estruturas imutaveis; sete formas de divisao fora
+  do contrato com o lugar no erro; dimensionamento e entrada fora do
+  contrato; o desenho recusa a divisao torta antes de abrir a planta; o
+  comprimento estimado pela planta.
+- `pyproject.toml` e `SEM_FAIXA_DECLARADA` com o modulo novo.
+
+**Erro meu que o proprio contrato pegou.** Escrevi `Comprimento` so com
+`comprimento_m` e `origem`. Dez testes do desenho ficaram vermelhos: o
+comprimento ESTIMADO pela planta traz tambem `distancia_ortogonal_m` e
+`ambiente_mais_distante` (D207). O contrato estava errado, nao o motor; os
+dois campos entraram como opcionais e ganharam teste.
+
+**Medido.** A linha de comando nas plantas de teste (DXF com dois arquivos
+de criterios; IFC) roda inteira com os contratos ligados, inclusive nos casos
+que o motor reprova (saida com erro cabe no contrato).
+
+**Limites.** O que vem de outros motores e passa por dentro destas saidas
+(`circuits` do dimensionamento residencial, `calculation` da demanda,
+`service_entry` do padrao de entrada) nao foi tipado: fica como o motor de
+origem devolve. A leitura da planta (ambientes, geometria, quadro) segue
+como dicionario. Os campos numericos do resumo nao tem tipo proprio (`Any`):
+o contrato confere as chaves, nao os valores. Os motores do galpao nao foram
+tocados.
