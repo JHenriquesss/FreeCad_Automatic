@@ -7579,3 +7579,8 @@ Tabela 11 contra `solda_filete_minimo`) e o PDF com os trechos.
 trecho (vento, combinacoes, compressao, solda). Flexao, cortante, ligacoes
 parafusadas, base, fundacao e as demais seguem com o metodo resumido e a
 edicao que o motor declara.
+
+**Visto no PDF do galpao do cliente, depois do primeiro commit do D228.** O
+trecho de 6.3.2.1 c) trazia a lista de valores de cpi com a coluna das razoes
+de area incompleta (no texto do acervo so' aparecem "1,5" e "6 ou mais"): a
+citacao parava de fazer sentido. O recorte passou a terminar antes da lista.

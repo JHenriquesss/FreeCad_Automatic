@@ -76,14 +76,7 @@ TRECHOS = [{'secao': '1. VENTO',
            'barlavento\n'
            'e a área total das aberturas em todas as faces (paredes e cobertura, nas condições de '
            '6.3.1)\n'
-           'submetidas a sucções externas:\n'
-           'cpi = +0,1\n'
-           '1,5\n'
-           'cpi = +0,3\n'
-           'cpi = +0,5\n'
-           'cpi = +0,6\n'
-           '6 ou mais\n'
-           'cpi = +0,8'},
+           'submetidas a sucções externas:'},
  {'secao': '1b. VENTO LONGITUDINAL',
   'norma': 'ABNT NBR 6123:2023',
   'edicao_id': 'ed_01M3CN7934JXME00Z2FQA4MKTD',

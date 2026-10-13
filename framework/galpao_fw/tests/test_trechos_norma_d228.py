@@ -48,7 +48,9 @@ def test_toda_secao_citada_existe_no_memorial():
 def test_numeros_do_motor_estao_no_trecho_citado():
     assert "q = 0,613 Vk²" in _trecho("4.2 c)")
     assert "cpi = +0,2" in _trecho("6.3.2.1 a)") and "cpi = -0,3" in _trecho("6.3.2.1 a)")
-    assert "cpi = +0,8" in _trecho("6.3.2.1 c)")
+    # a lista de valores de c) nao e' citada: no acervo a coluna das razoes esta' incompleta
+    assert "abertura dominante na face de barlavento" in _trecho("6.3.2.1 c)")
+    assert "cpi =" not in _trecho("6.3.2.1 c)")
     assert "H/300" in _trecho("B.3, Tabela B.1")
     assert "não podem ser incluídas nas combinações" in _trecho("4.8.6.2, Tabela 1, nota a")
     assert "C0_grav" in gp._combos_elu()                 # a combinacao que a nota a pede

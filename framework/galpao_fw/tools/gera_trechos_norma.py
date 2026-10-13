@@ -25,7 +25,10 @@ PEDIDOS = [
      "pessoas no entorno."),
     ("1. VENTO", V, "6.3", "6.3.2.1 a)", "Duas faces opostas igualmente permeáveis",
      "cpi = -0,3"),
-    ("1. VENTO", V, "6.3", "6.3.2.1 c)", "Abertura dominante em uma face", "cpi = +0,8"),
+    # para antes da lista de valores: no texto do acervo a coluna das razoes de area
+    # perdeu celulas (so' aparecem "1,5" e "6 ou mais"), e citar a lista assim engana
+    ("1. VENTO", V, "6.3", "6.3.2.1 c)", "Abertura dominante em uma face",
+     "submetidas a sucções externas:"),
     ("1b. VENTO LONGITUDINAL", V, "4.3.3", "4.3.3", "A componente da força global na direção",
      "Fa = q Ca Ae fv"),
     ("2. PORTICO", A, "4.8.7.2.1", "4.8.7.2.1", "Em cada combinação, devem estar incluídas",
