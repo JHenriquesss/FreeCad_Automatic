@@ -7,16 +7,27 @@ prismatic / web-tapered / truss) → MAES 2nd order → member check NBR 8800 (+
 eccentric) → fire → stairs → platforms → **FreeCAD 3D model** → **2D executive drawings
 (TechDraw, AWS A2.4 weld symbols)** → DXF → PT memorials.
 
-**Status (2026-10-10):** suite do `framework/galpao_fw` — 4224 passed / 2 skipped /
-0 failed no commit `7396117` (suíte inteira por `tools/suite_paralela.py -n 3`, 336
-arquivos, 18 min, sem quebra de lista nominal, censo do FreeCAD ou repositório). O norte
-atual é o plano `decisoes-arquitetura-projetos.md` (vender o projeto, não o software): motor
-Python sem FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terceiros.
+**Status (2026-10-13):** suite do `framework/galpao_fw` — 4271 passed / 7 skipped /
+0 failed no commit `defabe9` (suíte inteira por `tools/suite_paralela.py -n 3`, 340
+arquivos, 27 min, sem quebra de lista nominal, censo do FreeCAD ou repositório). Os
+commits seguintes (D228, trechos da norma no memorial) rodaram só os testes do que
+tocaram e as lentes, não a suíte inteira. O norte atual é o plano
+`decisoes-arquitetura-projetos.md` (vender o projeto, não o software): motor Python sem
+FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terceiros.
 `rodar_tudo(..., com_pranchas_ifc=True)` gera do IFC as folhas, o DXF, o DWG e o PDF num
 passo; o motor instala como pacote (`framework/galpao_fw/pyproject.toml`). Estado por
 fase em `framework/galpao_fw/wiki/03-phases.md` ("Plano de 2026-10-08"); decisões em
-`wiki/04-decisions.md` (D193–D222). A linha anterior deste status (REVISAO itens 1–49,
-pytest 1353) era de antes desse plano e não foi remedida.
+`wiki/04-decisions.md` (D193–D228).
+
+**Auditoria dos motores contra as normas do acervo (D224–D228, em andamento).** Conferidos
+e corrigidos: vento lateral do pórtico e coeficientes de forma pela proporção do galpão
+(NBR 6123:2023), combinações últimas e compressão do perfil (NBR 8800:2024), perna mínima
+de filete. Ainda com as fórmulas da edição anterior, sem conferência: flexão e cortante do
+perfil, tesoura, ligações parafusadas, base, fundações, terças e os verticais fora do galpão.
+O memorial em PDF traz os trechos literais das normas já conferidas.
+
+`framework/tanque_fw` é um pacote à parte (tanque-base sob contêiner): 77 testes próprios,
+fora da suíte acima.
 
 ## Quick Start
 
