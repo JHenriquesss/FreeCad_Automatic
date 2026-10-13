@@ -1020,6 +1020,8 @@ congelado até a entrega do galpão.
   proporção do galpão ([[04-decisions#D224]]).
 - **Auditoria contra o acervo, combinações** gravidade sem vento e sobrecarga secundária
   com o coeficiente de ponderação ([[04-decisions#D225]]).
+- **Auditoria contra o acervo, compressão** área efetiva e flambagem por torção da
+  NBR 8800:2024 ([[04-decisions#D226]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

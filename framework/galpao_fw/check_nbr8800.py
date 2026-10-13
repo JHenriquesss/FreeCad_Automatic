@@ -1,9 +1,14 @@
 # ============================================================================
 # check_nbr8800.py - O QUE ESTE SCRIPT FAZ / CALCULA
-# Verifica um perfil I/H laminado pela ABNT NBR 8800:2008 dados os esforcos
-# solicitantes (Nsd, Msd, Vsd). Formulas extraidas da norma (Anexos F e G).
-#   Compressao (5.3): flambagem global (chi, Tabela 4) + flambagem local
-#     (fator Q = Qs*Qa, Anexo F / Tabela F.1) - NAO assume Q=1, calcula.
+# Verifica um perfil I/H laminado pela ABNT NBR 8800 dados os esforcos
+# solicitantes (Nsd, Msd, Vsd).
+#   Compressao: NBR 8800:2024/Er1:2025, 5.3 (lida no MCP_Fontes em 2026-10-13,
+#     D226): Nc,Rd = chi.Aef.fy/ga1; chi de 5.3.3 com lambda0 = raiz(Ag.fy/Ne);
+#     Ne = menor entre flexao em x, flexao em y e torcao (5.3.5.1); Aef pelas
+#     larguras efetivas de 5.3.4.2 (Tabelas 4 e 5). A edicao de 2008 fazia a
+#     flambagem local pelo fator Q do Anexo F (`fator_Q`, mantido para a tesoura).
+#   Flexao e cortante: formulas da edicao de 2008 (Anexo G e 5.4.3), AINDA NAO
+#     conferidas contra a edicao de 2024.
 #   Flexao (5.4 / Anexo G, Tabela G.1): estados-limite FLT, FLM e FLA com as
 #     formulas exatas (Mr = 0,7 fy W ; Lr, Mcr com Cw e J calculados da geometria;
 #     Mn = menor dos tres). Cw = Iy(d-tf)^2/4 ; J = soma(b t^3)/3.
@@ -19,8 +24,11 @@ from __future__ import annotations
 
 import math
 
-E = 200e6          # kN/m2 (200 GPa)
+E = 200e6          # kN/m2 (200 GPa) - NBR 8800:2024, 4.6.2.9 a)
+G_ACO = 77e6       # kN/m2 (77 GPa)  - NBR 8800:2024, 4.6.2.9 c)
 GA1 = 1.10
+# NBR 8800:2024, Tabela 5 - fatores (c1, c2) da largura efetiva
+C_AA, C_AL = (0.18, 1.31), (0.22, 1.49)
 
 
 def chi_compressao(lambda0):
@@ -30,8 +38,36 @@ def chi_compressao(lambda0):
     return 0.877 / lambda0 ** 2
 
 
+def _largura_efetiva(b, t, lim, c, chi, fy):
+    """NBR 8800:2024, 5.3.4.2: largura efetiva do elemento de largura b e
+    espessura t, com (b/t)lim da Tabela 4 e (c1, c2) da Tabela 5."""
+    bt = b / t
+    if bt <= lim / math.sqrt(chi):
+        return b
+    sigma_el = (c[1] * lim / bt) ** 2 * fy
+    raiz = math.sqrt(sigma_el / (chi * fy))
+    return b * (1.0 - c[0] * raiz) * raiz
+
+
+def area_efetiva(sec, fy, chi):
+    """NBR 8800:2024, 5.3.4: area efetiva do perfil I/H laminado na compressao.
+    Mesas: 4 abas AL do grupo 4, (b/t)lim = 0,56.raiz(E/fy), b = bf/2. Alma: AA
+    do grupo 2, (b/t)lim = 1,49.raiz(E/fy), b = d - 2.tf (sem o raio de
+    concordancia: alma um pouco mais esbelta que a real). Devolve (Aef, razao
+    bef/b da mesa, razao bef/b da alma)."""
+    bf, tf, d, tw = sec["bf"], sec["tf"], sec["d"], sec["tw"]
+    h = d - 2 * tf
+    rE = math.sqrt(E / fy)
+    b_mesa = bf / 2.0
+    ef_mesa = _largura_efetiva(b_mesa, tf, 0.56 * rE, C_AL, chi, fy)
+    ef_alma = _largura_efetiva(h, tw, 1.49 * rE, C_AA, chi, fy)
+    aef = sec["A"] - 4.0 * (b_mesa - ef_mesa) * tf - (h - ef_alma) * tw
+    return aef, ef_mesa / b_mesa, ef_alma / h
+
+
 def fator_Q(sec, fy):
-    """Anexo F: Q = Qs (mesa, Grupo 4) * Qa (alma, Grupo 2)."""
+    """NBR 8800:2008, Anexo F: Q = Qs (mesa, Grupo 4) * Qa (alma, Grupo 2).
+    Metodo da edicao anterior; `verifica` usa a area efetiva de 2024."""
     bf, tf, d, tw = sec["bf"], sec["tf"], sec["d"], sec["tw"]
     h = d - 2 * tf
     rE = math.sqrt(E / fy)
@@ -145,14 +181,20 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
         Lb = L
     r = {"nome": nome}
 
-    # Compressao (5.3): global + local (Q)
-    Q, Qs, Qa, btf, btw = fator_Q(sec, fy)
-    Ne = min(math.pi ** 2 * E * Ix / (Kx * L) ** 2,
-             math.pi ** 2 * E * Iy / (Ky * Lb) ** 2)
-    lambda0 = math.sqrt(Q * A * fy / Ne)
+    # Compressao (NBR 8800:2024, 5.3): Ne de 5.3.5.1 (flexao em x, em y e torcao,
+    # esta com o mesmo comprimento destravado de y), chi de 5.3.3 e Aef de 5.3.4
+    Cw, J = _cw_j(sec)
+    Nex = math.pi ** 2 * E * Ix / (Kx * L) ** 2
+    Ney = math.pi ** 2 * E * Iy / (Ky * Lb) ** 2
+    Nez = (math.pi ** 2 * E * Cw / (Ky * Lb) ** 2 + G_ACO * J) / ((Ix + Iy) / A)
+    Ne = min(Nex, Ney, Nez)
+    lambda0 = math.sqrt(A * fy / Ne)
     chi = chi_compressao(lambda0)
-    Nc_Rd = chi * Q * A * fy / GA1
-    r.update(Q=Q, Qs=Qs, Qa=Qa, Ne=Ne, lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
+    Aef, Qs, Qa = area_efetiva(sec, fy, chi)
+    Q = Aef / A
+    Nc_Rd = chi * Aef * fy / GA1
+    r.update(Q=Q, Qs=Qs, Qa=Qa, Aef=Aef, Ne=Ne, Nex=Nex, Ney=Ney, Nez=Nez,
+             lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
 
     # Flexao (Anexo G)
     Mn, gov, det = momento_resistente(sec, fy, Lb, Cb)
@@ -193,7 +235,8 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
 
 
 def relatorio_pt(rs, fy):
-    L = ["VERIFICACAO DE PERFIS (ABNT NBR 8800:2008 - Anexos F e G)",
+    L = ["VERIFICACAO DE PERFIS (ABNT NBR 8800: compressao pela edicao de 2024, 5.3;",
+         "  flexao e cortante pelas formulas da edicao de 2008, Anexo G e 5.4.3)",
          f"  fy = {fy/1000:.0f} MPa ; gamma_a1 = {GA1:.2f}",
          "  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem)."]
     for r in rs:
@@ -206,7 +249,8 @@ def relatorio_pt(rs, fy):
                       f"Lr(FLT)={r['Lr_flt']:.2f} m ; Cw={r['Cw']:.3e} ; J={r['J']:.3e}")
         L += ["",
               f"  --- {r['nome']} ---",
-              f"  Flambagem local: Qs={r['Qs']:.3f} ; Qa={r['Qa']:.3f} ; Q={r['Q']:.3f}",
+              f"  Largura efetiva (5.3.4): mesa bef/b={r['Qs']:.3f} ; alma bef/b={r['Qa']:.3f} ; "
+              f"Aef/Ag={r['Q']:.3f}",
               f"  Compressao: Ne={r['Ne']:.0f} kN ; lambda0={r['lambda0']:.3f} ; "
               f"chi={r['chi']:.3f} ; Nc,Rd={r['Nc_Rd']:.1f} kN",
               flexao,

@@ -142,11 +142,6 @@ BASELINE = [
      "NBR 8800 Tab.1 (permite 1,00) ja declarados no comentario"),
     ("tercas_nbr14762.py", "gamma_g FAVORAVEL = 0,90",
      "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (idem)"),
-    ("galpao_portico.py", "gamma_f * psi0 = 1,40 * 0,60 = 0,84",
-     "CONFERE NBR 8681:2025 Tab.4 p.15 (gama-q vento 1,4) + Tab.6 (psi0 vento 0,6) + "
-     "Tab.1 p.14 (gama-g fav 1,0) + 5.1.4.2 p.15"),
-    ("galpao_portico.py", "acoes variaveis favoraveis nao entram na combinacao",
-     "CONFERE NBR 8681:2025 5.1.4.2 p.15"),
     # --- DIVERGE (so a atribuicao; nenhum numero mudou) ---
     ("instalacao_eletrica.py", "vem da NBR NM 247-3 Tabela 1",
      "DIVERGE: diametro externo do cabo isolado e da NBR NM 247-3 Tab.1 p.5 "

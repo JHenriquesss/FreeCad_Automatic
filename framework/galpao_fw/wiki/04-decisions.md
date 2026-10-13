@@ -7458,3 +7458,37 @@ NBR 15421 nao foi conferida nesta rodada.
 sem vento existe; fatores da sobrecarga e do vento secundarios; arrancamento
 sem sobrecarga e com G favoravel; e o defeito medido - com a succao dentro, o
 momento de gravidade da viga sai menor que sem ela.
+
+## D226 - Auditoria dos motores contra as fontes do acervo, 3a parte: compressao do perfil pela NBR 8800:2024 (area efetiva no lugar do fator Q de 2008, flambagem por torcao) (2026-10-13) - FECHADO
+
+**Por que.** Terceira conferencia da auditoria pedida pelo usuario
+(2026-10-13). `check_nbr8800.verifica` declarava a edicao de 2008 (Anexos F e
+G); a vigente no acervo e' a NBR 8800:2024/Er1:2025.
+
+**O que mudou na norma e no motor (compressao, 5.3).**
+- 5.3.2: Nc,Rd = chi.Aef.fy/ga1. A edicao de 2008 usava chi.Q.Ag.fy/ga1, com Q
+  do Anexo F entrando tambem no lambda0. Agora lambda0 = raiz(Ag.fy/Ne)
+  (5.3.3.2) e a flambagem local entra pela area efetiva.
+- 5.3.4.2 (lida na imagem da pagina): bef = b para b/t <= (b/t)lim/raiz(chi);
+  acima disso bef = b.(1 - c1.raiz(sigma_el/(chi.fy))).raiz(sigma_el/(chi.fy)),
+  com sigma_el = (c2.(b/t)lim/(b/t))^2.fy. Tabela 4: mesa de I laminado, grupo
+  4, 0,56.raiz(E/fy); alma, grupo 2, 1,49.raiz(E/fy) - os mesmos limites de
+  2008. Tabela 5: c1/c2 = 0,18/1,31 (AA) e 0,22/1,49 (AL).
+- 5.3.5.1: Ne e' o menor entre flexao em x, flexao em y e TORCAO. O motor so'
+  olhava as duas flexoes (a edicao de 2008 tambem pedia a torcao). A torcao
+  entra com o comprimento destravado de y.
+- Conferido sem divergencia: curva de chi (5.3.3.1), E = 200 000 MPa e
+  G = 77 000 MPa (4.6.2.9), ga1 = 1,10.
+
+**Medido no IPE500 do cliente (fy 250 MPa):** so' a alma reduz (h/tw = 45,9
+contra 42,1); Aef/Ag = 0,993 onde o Q de 2008 dava 0,973. O galpao segue
+governado pela flexao.
+
+**Nao conferido nesta rodada (o memorial passa a dizer isso).** Flexao (FLT,
+FLM, FLA) e cortante seguem com as formulas do Anexo G e de 5.4.3 de 2008.
+`fator_Q` fica para a tesoura (`tesoura.py`), que ainda usa o metodo de 2008.
+O indice de esbeltez 200 virou recomendacao em 5.3.7.1.
+
+**Testes.** `tests/test_compressao_2024_d226.py` (novo, 7 casos): largura
+efetiva a mao, efeito de chi, perfil compacto, IPE500, Nc,Rd = chi.Aef.fy/ga1 e
+a torcao a mao.
