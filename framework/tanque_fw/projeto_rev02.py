@@ -25,7 +25,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 "galpao_fw"))
 from check_nbr8800 import GA1, chi_compressao  # noqa: E402  NBR 8800 5.3.3
-from ligacoes import GW2, solda_filete_minimo   # noqa: E402  NBR 8800 6.2.5.1 e Tabela 9
+from ligacoes import GW2                        # noqa: E402  NBR 8800:2024 Tabela 9, nota i
+from solda_perfil_chapa import perna_minima     # noqa: E402  NBR 8800:2024 Tabela 11
 
 import tanque_base as TB                        # noqa: E402
 
@@ -268,7 +269,7 @@ def barras(spec):
     lw = 2 * (spec["tubo_travessa_inf"]["h"] + spec["tubo_travessa_inf"]["b"])
     out.append(_ver("Travessa inferior: solda de filete no apoio", r_trav_sd / 1000,
                     0.6 * FW_E70 * 0.707 * perna * lw / GW2 / 1000, "kN",
-                    "NBR 8800 Tabela 8 (0,60.Aw.fw/gw2)"))
+                    "NBR 8800 Tabela 9 (0,60.Aw.fw/gw2)"))
 
     # travessa superior: so' a pressao de projeto sobre a tampa
     q_sd = GAMA_Q * p * g["passo"] + GAMA_G * trav_sup["massa_kg_m"] * G / 1000
@@ -424,7 +425,7 @@ def respiro(spec):
 
 
 def _filete(perna, comprimento):
-    """Forca resistente de calculo (kN) do filete - NBR 8800 6.2.5.1 (metal da solda)."""
+    """Forca resistente de calculo (kN) do filete - NBR 8800:2024 Tabela 9 (metal da solda)."""
     return 0.6 * FW_E70 * 0.707 * perna * comprimento / GW2 / 1000
 
 
@@ -472,15 +473,15 @@ def complementares(spec):
     # --- no' longarina-montante: filete em todo o contorno do tubo ---
     perna = spec["perna_solda"]
     lw = 2 * (q["h"] + q["b"])
-    ref_solda = "NBR 8800 6.2.5.1 (0,60.Aw.fw/gw2)"
+    ref_solda = "NBR 8800 Tabela 9 (0,60.Aw.fw/gw2)"
     out.append(_ver("No' longarina-montante: solda, tanque cheio", v_long, _filete(perna, lw),
                     "kN", ref_solda))
     out.append(_ver("No' longarina-montante: parede do tubo ao cisalhamento", v_long,
                     0.6 * fy * quadro["t_calculo_mm"] * lw / GA1 / 1000, "kN",
                     "NBR 8800 6.5 (escoamento do metal-base)"))
-    minimo = max(solda_filete_minimo(q["t"]), solda_filete_minimo(ti["t"]))
+    minimo = perna_minima(q["t"])         # tubo do quadro em tubo do quadro: mesma parede
     out.append(_ver("Perna minima do filete entre tubos do quadro", minimo, perna, "mm",
-                    "NBR 8800 Tabela 9 (perna minima pela espessura)"))
+                    "NBR 8800 Tabela 11 (perna minima pela parte menos espessa)"))
 
     # --- icamento vazio pelos 4 cantos superiores ---
     vazio_n = (m["aco_kg"] + m["acessorios_kg"]) * G
