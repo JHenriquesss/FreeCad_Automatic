@@ -721,7 +721,7 @@ DIAMETRO = "Ø"        # simbolo de diametro nas descricoes de ligacao
 # barra macica desenhada): so essas sao pesadas pela secao. Calha, condutor e
 # bocal sao pecas representativas (o condutor e' um cilindro cheio no modelo) e
 # ficam fora: pesa-las pelo desenho daria um peso que nao existe.
-BARRAS_PESADAS_PELA_SECAO = ("T1", "G1", "EB1", "CM1", "MO1", "MF1", "CV1", "TR1", "TC1")
+BARRAS_PESADAS_PELA_SECAO = ("T1", "G1", "EB1", "CM1", "MO1", "MF1", "CV1", "CVP1", "TR1", "TC1")
 
 
 def _area_de_aco(mb, est):
@@ -865,6 +865,16 @@ def _anotar_calculo(membros, spec):
         joelho = {"Descricao": "%d parafusos %s%s, chapa %s mm"
                                % (int(ja["n"]), DIAMETRO, _mm(ja["db"]), _mm(ja["t"])),
                   "Utilizacao": res.get("Joelho")}
+    # SOLDA do perfil na chapa (filete em todo o contorno): a perna que o calculo
+    # adotou vai a chapa que recebe o perfil, para o detalhe ler do elemento
+    def _perna(chave):
+        s = est[chave] if chave in est and est[chave] else None
+        return s["perna_mm"] if s and "perna_mm" in s else None
+
+    if placa_base and _perna("solda_base") is not None:
+        placa_base["SoldaFiletePerna_mm"] = _perna("solda_base")
+    chapa_topo = {"ChapaTopoJoelho": _perna("solda_joelho"),
+                  "ChapaTopoCumeeira": _perna("solda_cumeeira")}
     for mb in membros:
         marca = mb.get("marca") or ""
         if mb.get("tipo") == "Column" and re.fullmatch(r"C\d+", marca):
@@ -879,6 +889,9 @@ def _anotar_calculo(membros, spec):
             mb.setdefault("propriedades", {PSET_CALCULO: joelho})
         elif mb.get("perfil") == "GussetContrav" and gusset:
             mb.setdefault("propriedades", {PSET_CALCULO: gusset})
+        elif chapa_topo.get(mb.get("perfil")) is not None:
+            mb.setdefault("propriedades", {PSET_CALCULO: {
+                "SoldaFiletePerna_mm": chapa_topo[mb.get("perfil")]}})
         elif mb.get("tipo") == "Footing":
             if fck:
                 mb.setdefault("material", "Concreto C%d" % round(fck / 1000.0))

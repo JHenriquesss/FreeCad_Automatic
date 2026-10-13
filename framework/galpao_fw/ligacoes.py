@@ -27,7 +27,7 @@ import math
 
 GA2 = 1.35         # ruptura (parafuso/solda de ruptura)
 GA1 = 1.10         # escoamento (metal-base)
-GW2 = 1.35         # solda (Nota k, Tabela 8)
+GW2 = 1.35         # solda (NBR 8800:2024, Tabela 9, nota i)
 FORCA_MIN = 45.0   # kN (6.1.5.2)
 
 
@@ -281,12 +281,15 @@ def comprimento_parafuso(db, esp_chapa, esp_arruela=3.0, n_porcas=1):
 
 
 def solda_filete_minimo(t_chapa):
-    """Perna minima de solda de filete (mm) conforme NBR 8800 Tab.9."""
-    if t_chapa <= 6.0:    return 3.0
-    elif t_chapa <= 12.0: return 5.0
+    """Perna minima de solda de filete (mm) pela MENOR espessura do metal-base
+    na junta (mm) - NBR 8800:2024, 6.2.6.2.1 e Tabela 11 (lida no MCP_Fontes em
+    2026-10-13): ate' 6,3 -> 3; acima de 6,3 ate' 12,5 -> 5; acima de 12,5 ate'
+    19 -> 6; acima de 19 -> 8. Ate' o D223 os limites eram 6/12/19/38 com 10 mm
+    acima de 38, que nao sao os da tabela."""
+    if t_chapa <= 6.3:    return 3.0
+    elif t_chapa <= 12.5: return 5.0
     elif t_chapa <= 19.0: return 6.0
-    elif t_chapa <= 38.0: return 8.0
-    else:                 return 10.0
+    else:                 return 8.0
 
 
 def chapa_extremidade(bf_viga, d_alma, fy=250e3, fu=400e3, t_min=12.5):

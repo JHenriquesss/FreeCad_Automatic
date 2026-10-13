@@ -7256,3 +7256,84 @@ area sem peso.
 **Limites.** Peso sem traspasse, emendas, furos nem perdas. O simbolo de
 solda segue sendo so o do gusset (o FreeCAD nao tem dado de solda de base,
 joelho e cumeeira). O DWG continua sem abrir no AutoCAD/TrueView.
+
+## D223 - Plano de 2026-10-08: Fases 2 a 4 - solda de base, joelho e cumeeira dimensionada e desenhada, dados de fabricacao nos detalhes de terca, longarina e contraventamento, e a diagonal de parede que faltava no modelo (2026-10-13) - FECHADO
+
+**Por que.** O usuario mandou fazer o que restava sem depender de terceiros
+(2026-10-13): o D222 fechou dizendo que o simbolo de solda era so o do gusset
+e que os detalhes de terca, longarina e contraventamento eram so de
+localizacao. Detalhe de ligacao sem solda o engenheiro devolve.
+
+**1. Solda do perfil na chapa** (`solda_perfil_chapa.py`, modulo novo). Filete
+em todo o contorno do pilar na placa de base e da viga nas chapas de topo do
+joelho e da cumeeira.
+- Metodo: a solda transmite o que o elemento do perfil traz. Tensoes da secao
+  I de chapas retas em regime elastico (sigma = N/A + M.y/I, tau = V/(hw.tw));
+  a forca por comprimento de cada elemento se divide pelos dois cordoes; a
+  resultante vetorial por comprimento de cordao contra 0,6.Aw.fw/gw2.
+- Norma lida no MCP_Fontes (NBR 8800:2024/Er1:2025): Tabela 9, linha "Filete"
+  e nota i (gw2 = 1,35); 6.2.2.2 a) e b) (garganta); Tabela 11 (perna minima
+  pela parte menos espessa); Tabela A.4 (fw = 485 MPa, classe 70). O acrescimo
+  de 6.2.5.2 pela direcao da forca nao e' usado.
+- A perna sobe pela escada 3-4-5-6-8-10-12-14-16 mm a partir da minima. Se o
+  metal da solda nao fecha com 16 mm, reprova pedindo penetracao; se a tensao
+  no proprio perfil passa do limite, reprova dizendo isso (nenhuma perna
+  resolve).
+- A favor da seguranca: compressao entra como tracao (sem contato); o joelho
+  usa a viga sem a misula; o momento e' o do no, nao o da face.
+- **Primeira versao descartada antes do commit:** linha de solda elastica com
+  garganta unitaria. Ela reparte o momento pelo comprimento de cordao e nao
+  pela espessura do elemento, e reprovava a alma do IPE500 do cliente por uma
+  tensao que o perfil nao tem.
+- Esforcos: os mesmos da base e do joelho (`_esforcos_base_joelho`) e, para a
+  cumeeira, a ponta da viga no apice (`_esforcos_cumeeira`, novo). So no
+  portico de perfil I prismatico.
+- Entra no quadro de verificacoes ("Solda perfil-chapa") e, por ele, no
+  veredito; memorial em `gate7-soldas.txt`.
+
+**2. Perna minima de filete corrigida** (`ligacoes.solda_filete_minimo`). Os
+limites eram 6/12/19/38 mm com 10 mm acima de 38; a Tabela 11 da edicao 2024
+da' 6,3/12,5/19 e 8 mm acima de 19. Muda o resultado para chapa entre 6 e
+6,3 mm (5 -> 3), entre 12 e 12,5 mm (6 -> 5) e acima de 38 mm (10 -> 8). O
+gusset de 12 mm do galpao segue com 5 mm.
+
+**3. Do calculo a prancha.** A perna adotada vai ao spec
+(`solda_base`/`solda_joelho`/`solda_cumeeira`), ao pset
+`Calc_VerificacaoEstrutural.SoldaFiletePerna_mm` da placa de base e das chapas
+de topo (`ifc_emit`) e ao detalhe: frase e simbolo de solda com a seta na
+junta (`pranchas_bonsai._solda_no_detalhe`). Texto cuja variavel o elemento
+nao tem preenchida deixa de sair como frase sem numero: e' omitido com aviso
+(`_propriedade_ausente`).
+
+**4. Dados de fabricacao nos detalhes.** Terca e longarina: perfil e
+comprimento lidos do elemento; a longarina, de alma vertical, ganha as cotas
+da secao (a terca acompanha a agua e o envelope nao e' a secao). 
+Contraventamento: barra (perfil e comprimento) e cotas do gusset.
+
+**5. Achado olhando o detalhe: o modelo nao tinha o contraventamento de
+parede.** `modelo_neutro` so trazia as diagonais de cobertura; o detalhe
+mostrava o gusset sem barra e a chamada lia o comprimento da barra de
+cobertura (20,8 m). `contrav_parede` (marca CVP) espelha o `build_galpao`: 2
+vaos de extremidade x 2 paredes x 2 diagonais, do topo da placa de base ao
+beiral. Entra na lista de material pesado pela secao.
+
+**Medido no galpao do cliente** (`plano-2026-10-d223`, fora do git, 122 s):
+base IPE500 em placa de 100 mm, N 107,0 / V 57,3 / M 191,9 -> filete de 6 mm
+(0,99); joelho, N 130,4 / V 53,9 / M 309,7 -> 10 mm (0,94); cumeeira,
+N 29,7 / V 11,5 / M 243,4 -> 8 mm (0,88). Diagonal de parede de 9,799 m.
+Conferido na imagem das folhas EST-05 e EST-06.
+
+**Para o engenheiro ver.** A solda da base esta' a 99 %. A barra de
+contraventamento sai sempre com 20 mm no modelo (`ifc_emit`), mesmo quando o
+calculo adota outra bitola. A diagonal de cobertura do modelo e' uma barra so'
+de parede a parede no plano do beiral (20,8 m), como no `build_galpao`.
+
+**Testes.** `tests/test_solda_perfil_chapa.py` (novo, 18 casos): tabela 11,
+secao e momento puro a mao, equilibrio dos cordoes, subida da perna, reprova
+pelo perfil e pelo metal da solda, sinal trocado, perna no pset de cada chapa
+e ausencia sem calculo. `test_modelo_neutro`, `test_ifc_emit` e
+`test_dxf_prancha` contam a diagonal de parede.
+
+**Limites.** O simbolo e' um so' (filete, todo o contorno). A solda dos
+enrijecedores, da misula e dos clipes nao foi dimensionada. A geometria do
+joelho no modelo segue conceitual (D201).

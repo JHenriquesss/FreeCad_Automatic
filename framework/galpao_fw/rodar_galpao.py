@@ -36,6 +36,7 @@ import mao_francesa as maofr
 import secundarios_nbr8800 as secmod
 import contraventamento as ctv
 import gusset_ligacao as gus
+import solda_perfil_chapa as spc
 import calhas
 import sapata_divisa as sd
 import viga_equilibrio as veq
@@ -123,6 +124,24 @@ def _esforcos_base_joelho():
             if knee_best is None or abs(Mk) > abs(knee_best[3]):
                 knee_best = (nm, Nk, Vk, Mk)
     return base_best, knee_best
+
+
+def _esforcos_cumeeira():
+    """Esforcos (nome, N, V, M) na ponta da viga que chega a cumeeira: pior |M|
+    entre os vaos e as combinacoes ELU. None no portico sem cumeeira (uma agua)."""
+    casos = _casos_mf_reac()
+    _, _, ix = casos["G"]
+    if "rafts" not in ix:
+        return None
+    combos = gp._combos_elu(gp.PONTE, gp.SISMO)
+    pior = None
+    for nm, c in combos.items():
+        for esq, _dir in ix["rafts"]:
+            f = sum(fac * casos[cs][0][esq[-1]] for cs, fac in c.items())
+            Mc, Vc, Nc = f[5], f[4], -f[3]
+            if pior is None or abs(Mc) > abs(pior[3]):
+                pior = (nm, Nc, Vc, Mc)
+    return pior
 
 
 def _casos_base_envelope(n_wall_perm_ext=0.0):
@@ -1513,6 +1532,32 @@ def rodar(params, out_dir):
         j = params["joelho"]
         res["joelho_adotado"] = {"n": j["n"], "db": j["db"], "t": j["t_chapa"]}
         res["joelho_ok"] = False
+    # Gate 7 - SOLDA do perfil na chapa (pilar na placa de base, viga na chapa de
+    # topo do joelho e da cumeeira): filete em todo o contorno, dimensionado aos
+    # mesmos esforcos da base e do joelho. So' no portico de perfil I prismatico:
+    # alma variavel e tesoura nao tem a secao constante que a linha de solda supoe.
+    if params.get("tipo_portico") in (None, "prismatico") and all(
+            k in sc["perfil_col"] and k in sc["perfil_raf"] for k in ("d", "bf", "tw", "tf")):
+        casos_solda = [
+            ("solda_base", "Pilar na placa de base - %s" % bnm, sc["perfil_col"],
+             res["base_adotada"]["t"], bN, bV, bM),
+            ("solda_joelho", "Viga na chapa de topo do joelho - %s" % knm, sc["perfil_raf"],
+             res["joelho_adotado"]["t"], kN, kV, kM)]
+        cume = _esforcos_cumeeira()
+        if cume is not None:
+            casos_solda.append(("solda_cumeeira", "Viga na chapa de topo da cumeeira - %s"
+                                % cume[0], sc["perfil_raf"], res["joelho_adotado"]["t"],
+                                cume[1], cume[2], cume[3]))
+        rsol = []
+        for chave, nome_s, perfil_s, t_chapa, sN, sV, sM in casos_solda:
+            rs_ = spc.dimensiona(perfil_s, t_chapa * 1000.0, float(sN), float(sV), float(sM),
+                                 params["fy"], params.get("fu", 400e3), nome=nome_s)
+            rsol.append(rs_)
+            res[chave] = {"perna_mm": rs_["perna_mm"], "u": round(float(rs_["u"]), 2),
+                          "ok": bool(rs_["OK"])}
+        save("gate7-soldas.txt", spc.relatorio_pt(rsol))
+        res["soldas_u_max"] = round(max(float(x["u"]) for x in rsol), 2)
+        res["soldas_ok"] = all(x["OK"] for x in rsol)
     clip = params["clip_terca"]
     save("gate7-ligacoes.txt", lg.relatorio_pt([lg.verifica_ligacao(clip)]))
     # Gate 8 - FOGO (NBR 14323): verifica o perfil adotado em situacao de incendio
@@ -1699,6 +1744,7 @@ def _consolidar(out_dir, save, g, params, res=None):
                   ("Montante", res.get("montante_inter")), ("Verga", res.get("verga_inter")),
                   ("Contrav./tirantes", _uok("barras_u_max", "barras_ok")),
                   ("Gusset contravento", _uok("gusset_u_max", "gusset_ok")),
+                  ("Solda perfil-chapa", _uok("soldas_u_max", "soldas_ok")),
                   ("Mao-francesa (peca)", res.get("mf_peca_u")),
                   ("Viga rolamento", _uok("ponte_viga_inter", "ponte_viga_ok")),
                   ("Console ponte", _uok("console_u_max", "console_ok")),

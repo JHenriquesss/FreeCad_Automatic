@@ -147,9 +147,10 @@ def test_emitir_do_spec_com_tercas(tmp_path):
     EM.emitir_ifc_do_spec(spec, f)
     m = ifcopenshell.open(f)
     assert len(m.by_type("IfcColumn")) == 18 and len(m.by_type("IfcBeam")) == 18
-    # membros IfcMember: 10 tercas + 4 girts + 4 contrav (2 vaos extremos x 2) +
-    # 80 tirantes de cobertura (8 vaos x 2 aguas x 5 segmentos) = 98
-    assert len(m.by_type("IfcMember")) == (2 * (5 - 1) + 2) + 4 + 4 + (8 * 2 * 5)
+    # membros IfcMember: 10 tercas + 4 girts + 4 contrav de cobertura (2 vaos
+    # extremos x 2) + 8 de parede (2 vaos x 2 paredes x 2, D223) + 80 tirantes de
+    # cobertura (8 vaos x 2 aguas x 5 segmentos) = 106
+    assert len(m.by_type("IfcMember")) == (2 * (5 - 1) + 2) + 4 + 4 + 8 + (8 * 2 * 5)
     # perfil formado a frio -> IfcCShapeProfileDef ; girt U -> IfcUShapeProfileDef ;
     # barras redondas -> IfcCircleProfileDef (contrav Ø20 + tirante cobertura Ø16)
     cs = m.by_type("IfcCShapeProfileDef")
@@ -619,7 +620,7 @@ def test_peca_representativa_e_peca_do_romaneio_ficam_fora_do_peso_pela_secao(tm
     # condutor e' um cilindro cheio de 150 mm): pesar pelo desenho inventaria peso
     assert {"CL1", "CD1", "BO1", "NB1", "CB1"} <= nomes
     pesadas = {el.Name for el in m.by_type("IfcElement") if _pset_quantitativo(el)}
-    assert pesadas == {"EB1", "CM1", "MO1", "T1", "CV1", "TC1", "PB1"}
+    assert pesadas == {"EB1", "CM1", "MO1", "T1", "CV1", "CVP1", "TC1", "PB1"}
     # pilar e viga do portico seguem so com o peso do romaneio do calculo
     assert not any(_pset_quantitativo(e) for e in m.by_type("IfcColumn"))
 

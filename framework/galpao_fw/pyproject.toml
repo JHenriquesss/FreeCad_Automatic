@@ -219,6 +219,7 @@ py-modules = [
     "sinalizacao_nbr16820",
     "sismo_nbr15421",
     "smoke_executivo",
+    "solda_perfil_chapa",
     "spda_nbr5419",
     "subestacao_nbr14039",
     "techdraw_climatizacao",

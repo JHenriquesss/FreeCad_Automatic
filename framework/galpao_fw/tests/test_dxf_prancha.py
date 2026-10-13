@@ -292,9 +292,15 @@ def test_lista_de_material_e_contada_no_modelo(tmp_path):
     assert (cv["qtd"], cv["origem_do_peso"]) == (4, "modelo")
     assert cv["peso_unit_kg"] == pytest.approx(3.14159265 * 0.0001 * 7850.0 * 20.61553, abs=0.01)
     assert cv["comprimento_m"] == 20.616
-    assert lista["peso_total_kg"] == round(4568.4 + 356.8 * 18 + cv["peso_total_kg"], 1)
-    assert lista["linhas_sem_peso"] == len(lista["linhas"]) - 3
-    assert lista["linhas_pesadas_pelo_modelo"] == 1
+    # contraventamento de PAREDE (D223): 2 vaos x 2 paredes x 2 diagonais, do topo
+    # da placa de base (30 mm) ao beiral: hipotenusa(5; 6 - 0,03) m
+    cvp = por_marca["CVP1"]
+    assert (cvp["qtd"], cvp["origem_do_peso"]) == (8, "modelo")
+    assert cvp["comprimento_m"] == pytest.approx((5.0 ** 2 + 5.97 ** 2) ** 0.5, abs=0.001)
+    assert lista["peso_total_kg"] == round(4568.4 + 356.8 * 18 + cv["peso_total_kg"]
+                                           + cvp["peso_total_kg"], 1)
+    assert lista["linhas_sem_peso"] == len(lista["linhas"]) - 4
+    assert lista["linhas_pesadas_pelo_modelo"] == 2
     # a primeira linha e' pilar: ordem por tipo de peca
     assert lista["linhas"][0]["peca"] == "Pilar"
 

@@ -275,7 +275,28 @@ def _placa_de_base(tool, x, y):
     return None if melhor is None else (melhor[1], melhor[2])
 
 
-def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
+PERNA_DA_SOLDA = "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}"
+# o simbolo de solda tem a ponta da seta 7 mm abaixo e a esquerda da dobra
+RECUO_SETA_M = 7.0e-3
+
+
+def _solda_no_detalhe(x, ponta_y, ponta_z, texto_yz, rotulo, prefixo, escala,
+                      duas_linhas=False):
+    """Chamada de solda de filete num detalhe em elevacao (camera olhando +X, a
+    direita do papel e' -Y): a frase com a perna lida do elemento e o simbolo com
+    a ponta da seta em (ponta_y, ponta_z)."""
+    recuo = RECUO_SETA_M * escala
+    frase = "FILETE " + PERNA_DA_SOLDA + " mm, TODO O CONTORNO"
+    if duas_linhas:
+        textos = [((x, texto_yz[0], texto_yz[1]), rotulo + ":", prefixo),
+                  ((x, texto_yz[0], texto_yz[1] - 0.10), frase, prefixo)]
+    else:
+        textos = [((x, texto_yz[0], texto_yz[1]), rotulo + ": " + frase, prefixo)]
+    return textos + [
+        ((x, ponta_y - recuo, ponta_z + recuo), PERNA_DA_SOLDA, prefixo, SIMBOLO_SOLDA)]
+
+
+def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None, pecas=None):
     """Detalhes de ligacao a 1:10, tirados do MESMO modelo: base do pilar em
     corte e em planta (cotas lidas do envelope da placa no modelo) e o no
     viga-pilar. Pilar do segundo portico, linha A (o primeiro tem os montantes
@@ -284,6 +305,10 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
     xb, yb = (xs[1] if len(xs) > 1 else xs[0]), ys[0]
     jan = JANELA_DETALHE_M
     vistas = []
+    # envelopes (min, max) do pilar e das chapas de topo, para apontar a solda
+    pecas = pecas or {}
+    pilar, ch_joelho, ch_cumeeira = pecas.get("C"), pecas.get("CJ"), pecas.get("CC")
+    gusset = pecas.get("GC")
     if placa:
         (px0, py0, pz0), (px1, py1, pz1) = placa
         corte = [((0, py0, pz0 - 0.30), (0, py1, pz0 - 0.30)),
@@ -297,7 +322,15 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
              jan, jan, 1.90, corte, None, ESCALA_DETALHE,
              [((xb, yb + 0.98, 0.95), "PILAR {{Calc_VerificacaoEstrutural.PerfilAdotado}} - ACO {{Calc_VerificacaoEstrutural.Aco}}", "C"),
               ((xb, yb + 0.98, -0.62), "PLACA DE BASE {{Calc_VerificacaoEstrutural.Descricao}}", "PB"),
-              ((xb, yb + 0.98, -0.74), "CHUMBADORES {{Calc_VerificacaoEstrutural.Chumbadores}}", "PB")]),
+              ((xb, yb + 0.98, -0.74), "CHUMBADORES {{Calc_VerificacaoEstrutural.Chumbadores}}", "PB")]
+             # solda do pilar na placa: seta por dentro da mesa da esquerda, no topo
+             # da placa (pela direita, o numero caia sobre a porca do chumbador)
+             # frase em duas linhas, no alto: embaixo, numa linha chegava a bolha
+             # do eixo e, em duas, a segunda saia da janela
+             + (_solda_no_detalhe(xb, pilar[1][1] - 0.02, pz1, (yb + 0.98, 0.83),
+                                  "SOLDA DO PILAR NA PLACA", "PB", ESCALA_DETALHE,
+                                  duas_linhas=True)
+                if pilar else [])),
             ("DET-BASE-PLANTA", "PLAN_VIEW", (xb, yb, pz1 + 0.25), (0, 0, 0),
              jan, jan, 0.60, planta, None, ESCALA_DETALHE,
              [((xb + 0.42, yb + 0.80, 0), "PLACA {{Calc_VerificacaoEstrutural.Descricao}}", "PB"),
@@ -307,7 +340,12 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
                    (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE,
                    [((xb, yb + 1.80, alt_col - 0.55), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
                     ((xb, yb + 1.80, alt_col - 0.67), "PILAR {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "C"),
-                    ((xb, yb + 1.80, alt_col - 0.79), "JOELHO: {{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
+                    ((xb, yb + 1.80, alt_col - 0.79), "JOELHO: {{Calc_VerificacaoEstrutural.Descricao}}", "MI")]
+                   # solda da viga na chapa de topo: seta no topo da chapa, lado da viga
+                   + (_solda_no_detalhe(xb, ch_joelho[1][1], ch_joelho[1][2],
+                                        (yb + 1.80, alt_col - 0.91),
+                                        "SOLDA DA VIGA NA CHAPA DE TOPO", "CJ", ESCALA_DETALHE)
+                      if ch_joelho else [])))
     if cumeeira is not None and len(ys) > 1:
         # apice do primeiro vao, no segundo portico: as duas vigas, a chapa de
         # topo e os parafusos, em vista (camera 0,6 m antes do portico)
@@ -316,22 +354,37 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
                        (r(90), 0, r(-90)), jan + 0.4, jan, 1.20, [], None, ESCALA_DETALHE,
                        [((xb, y_apice + 1.20, cumeeira - 0.95), "VIGA {{Calc_VerificacaoEstrutural.PerfilAdotado}}", "V"),
                         ((xb, y_apice + 1.20, cumeeira - 1.07), "CHAPA DE TOPO E PARAFUSOS: "
-                         "{{Calc_VerificacaoEstrutural.Descricao}}", "MI")]))
+                         "{{Calc_VerificacaoEstrutural.Descricao}}", "MI")]
+                       + (_solda_no_detalhe(xb, ch_cumeeira[0][1], ch_cumeeira[1][2],
+                                            (y_apice + 1.20, cumeeira - 1.19),
+                                            "SOLDA DAS VIGAS NAS CHAPAS DE TOPO", "CC",
+                                            ESCALA_DETALHE)
+                          if ch_cumeeira else [])))
     estrutura = "IfcColumn, IfcBeam, IfcMember, IfcPlate, IfcMechanicalFastener"
     # contraventamento da PAREDE, canto inferior do primeiro vao, visto de fora:
     # na planta da cobertura a chapa de gusset ficava escondida sob a viga
     vistas.append(("DET-CONTRAVENTAMENTO", "ELEVATION_VIEW",
                    (xs[0] + 0.75, ys[0] - 0.6, 0.80), (r(90), 0, 0),
-                   jan, jan, 1.20, [], estrutura, ESCALA_DETALHE,
-                   [((xs[0] + 0.55, ys[0], 1.55), "CONTRAVENTAMENTO {{Name}}", "CV"),
+                   jan, jan, 1.20,
+                   ([((gusset[0][0], ys[0], gusset[1][2] + 0.15),
+                      (gusset[1][0], ys[0], gusset[1][2] + 0.15)),
+                     ((gusset[1][0] + 0.15, ys[0], gusset[0][2]),
+                      (gusset[1][0] + 0.15, ys[0], gusset[1][2]))] if gusset else []),
+                   estrutura, ESCALA_DETALHE,
+                   # textos a direita do gusset e ABAIXO da diagonal (no alto, a barra
+                   # de parede atravessava as frases)
+                   [((xs[0] + 1.00, ys[0], 0.87), "CONTRAVENTAMENTO {{Name}}", "CVP"),
+                    ((xs[0] + 1.00, ys[0], 0.75),
+                     "BARRA {{Calc_Quantitativo.Perfil}}, "
+                     "COMPRIMENTO {{Calc_Quantitativo.Comprimento_m}} m", "CVP"),
                     # duas linhas: numa so, a frase passava da janela de 2,2 m e saia
                     # cortada na folha (visto ao abrir o DXF num CAD)
-                    ((xs[0] + 0.55, ys[0], 1.43),
+                    ((xs[0] + 1.00, ys[0], 0.63),
                      "GUSSET: {{Calc_VerificacaoEstrutural.Descricao}}", "GC"),
-                    ((xs[0] + 0.55, ys[0], 1.33),
+                    ((xs[0] + 1.00, ys[0], 0.53),
                      "SOLDA DE FILETE, PERNA "
                      "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}} mm, TODO O CONTORNO", "GC"),
-                    ((xs[0] + 0.75, ys[0], 1.20), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
+                    ((xs[0] + 1.20, ys[0], 0.40), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
                      SIMBOLO_SOLDA)]))
     for nome, prefixo, rotulo in (("DET-TERCA", "T", "TERCA"), ("DET-LONGARINA", "G", "LONGARINA")):
         alvo = (apoios or {}).get(prefixo)
@@ -340,9 +393,18 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None):
         # vista ao longo do comprimento, no segundo portico: a peca em secao
         # sobre a viga (terca) ou sobre o pilar (longarina), com o clipe
         _cx, cy, cz = alvo
+        secao = pecas.get(prefixo) if prefixo == "G" else None
+        cotas = []
+        if secao:
+            (_x0, sy0, sz0), (_x1, sy1, sz1) = secao
+            cotas = [((0, sy0, sz0 - 0.15), (0, sy1, sz0 - 0.15)),
+                     ((0, sy0 - 0.15, sz0), (0, sy0 - 0.15, sz1))]
         vistas.append((nome, "ELEVATION_VIEW", (xb - 0.6, cy, cz), (r(90), 0, r(-90)),
-                       jan * 0.7, jan * 0.7, 1.20, [], estrutura, ESCALA_DETALHE,
-                       [((xb, cy + 0.62, cz - 0.55), rotulo + " {{Name}}", prefixo)]))
+                       jan * 0.7, jan * 0.7, 1.20, cotas, estrutura, ESCALA_DETALHE,
+                       [((xb, cy + 0.62, cz - 0.35),
+                         rotulo + " {{Name}} - {{Calc_Quantitativo.Perfil}}", prefixo),
+                        ((xb, cy + 0.62, cz - 0.45),
+                         "COMPRIMENTO {{Calc_Quantitativo.Comprimento_m}} m", prefixo)]))
     alvo = (apoios or {}).get("MF")
     if alvo is not None:
         # mao-francesa: a peca fica no plano perpendicular a viga do portico, da
@@ -379,6 +441,42 @@ def _apoio_secundario(tool, prefixo, y_ref, z_ref, x_ref=None):
         if melhor is None or dist < melhor[0]:
             melhor = (dist, tuple(c))
     return None if melhor is None else melhor[1]
+
+
+def _envelope_de(tool, prefixo, x, y, z=None):
+    """Envelope (min, max), em metros, do elemento de marca `prefixo`<n> mais
+    proximo de (x, y) e, se dado, de z. None se o modelo nao tiver a peca."""
+    melhor = None
+    for el in tool.Ifc.get().by_type("IfcElement"):
+        nome = el.Name or ""
+        if not (nome.startswith(prefixo) and nome[len(prefixo):].isdigit()):
+            continue
+        o = tool.Ifc.get_object(el)
+        if o is None or o.type != "MESH":
+            continue
+        pts = [o.matrix_world @ mathutils.Vector(c) for c in o.bound_box]
+        mn = [min(p[i] for p in pts) for i in range(3)]
+        mx = [max(p[i] for p in pts) for i in range(3)]
+        dist = math.hypot((mn[0] + mx[0]) / 2 - x, (mn[1] + mx[1]) / 2 - y)
+        if z is not None:
+            dist = math.hypot(dist, (mn[2] + mx[2]) / 2 - z)
+        if melhor is None or dist < melhor[0]:
+            melhor = (dist, mn, mx)
+    return None if melhor is None else (melhor[1], melhor[2])
+
+
+def _propriedade_ausente(literal, produto):
+    """Primeira variavel `{{Pset.Propriedade}}` do `literal` que o elemento nao
+    tem preenchida (None se todas existem). Texto com variavel vazia sairia na
+    prancha como frase sem numero."""
+    import re
+
+    import ifcopenshell.util.element as ue
+    psets = ue.get_psets(produto)
+    for pset, prop in re.findall(r"\{\{(\w+)\.(\w+)\}\}", literal):
+        if psets.get(pset, {}).get(prop) in (None, ""):
+            return "%s.%s" % (pset, prop)
+    return None
 
 
 def _mais_proximo(tool, prefixo, x, y):
@@ -567,7 +665,13 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00", lista=None):
                  apoios={"T": _apoio_secundario(tool, "T", yb + 3.0, alt_col + 0.5),
                          "G": _apoio_secundario(tool, "G", yb, alt_col * 0.5),
                          "MF": _apoio_secundario(tool, "MF", yb + 3.0, alt_col + 0.5,
-                                                 x_ref=xb)}))
+                                                 x_ref=xb)},
+                 pecas={"C": _envelope_de(tool, "C", xb, yb),
+                        "GC": _envelope_de(tool, "GC", xs[0] + 0.55, ys[0], 0.3),
+                        "G": _envelope_de(tool, "G", xb, yb, alt_col * 0.5),
+                        "CJ": _envelope_de(tool, "CJ", xb, yb, alt_col),
+                        "CC": (_envelope_de(tool, "CC", xb, (ys[0] + ys[1]) / 2.0, cumeeira)
+                               if cumeeira is not None and len(ys) > 1 else None)}))
     for nome, tipo, pos, rot, larg, alt, prof, cotas, filtro, escala, textos in todas:
         if so_estas and nome not in so_estas:
             continue
@@ -611,6 +715,11 @@ def main(ifc_path, so_estas=(), titulo="GALPAO", revisao="00", lista=None):
                 if produto is None:
                     rel["avisos"].append("%s: sem elemento %s* para o texto %r"
                                          % (nome, prefixo, literal))
+                    continue
+                falta = _propriedade_ausente(literal, produto)
+                if falta:
+                    rel["avisos"].append("%s: %s sem %s; texto %r omitido"
+                                         % (nome, produto.Name, falta, literal))
                     continue
                 _texto(tool, des, ponto, literal, produto, *resto)
             rel["cotas"][nome] = len(cotas)

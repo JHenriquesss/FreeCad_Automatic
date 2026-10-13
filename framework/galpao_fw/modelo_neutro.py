@@ -246,6 +246,31 @@ def contrav_cobertura(geometria, d_mm=20.0):
     return ms
 
 
+def contrav_parede(geometria, d_mm=20.0, z0_mm=30.0):
+    """Contraventamento de parede: 2 diagonais cruzadas (so-tracao) no plano de
+    cada parede longitudinal, do topo da placa de base ao beiral, nos vaos de
+    EXTREMIDADE. Espelha o build_galpao (CONTRAV_PAREDE). Marca CVP: a barra de
+    parede tem outro comprimento que a de cobertura (CV)."""
+    spans = geometria.get("spans") or [geometria.get("span")]
+    span_tot = sum(float(s) for s in spans if s)
+    eave = float(geometria["eave"])
+    xs = _xs(geometria)
+    if len(xs) < 2:
+        return []
+    pares = [(xs[0], xs[1])]
+    if len(xs) >= 3:
+        pares.append((xs[-2], xs[-1]))
+    sec = {"nome": "R%.0f" % d_mm, "forma": "round", "D": d_mm / 1000.0}
+    ms = []
+    for (x0, x1) in pares:
+        for yw in (0.0, span_tot):
+            for (xa, xb) in ((x0, x1), (x1, x0)):     # A e B (cruzadas)
+                ms.append({"marca": "CVP1", "perfil": sec["nome"], "tipo": "Member",
+                           "p1": (xa * MM, yw * MM, float(z0_mm)),
+                           "p2": (xb * MM, yw * MM, eave * MM), "secao": sec})
+    return ms
+
+
 def fundacoes(geometria, fund_sec, base_t=None, z0_mm=30.0, grout_mm=30.0):
     """Fundacoes rasas (sapata/bloco): uma CAIXA B x L x h por base de coluna,
     descendo -h a partir do TOPO DO CONCRETO. fund_sec {B,L,h} em m. Membro tipo
@@ -1107,6 +1132,7 @@ def frame_completo(geometria, secoes, n_terca=None, terca_sec=None,
         ms += tirantes_parede(geometria, n_tirante_parede, d_tirante_mm, cd, girt_d)
     if contrav:
         ms += contrav_cobertura(geometria, d_contrav_mm)
+        ms += contrav_parede(geometria, d_contrav_mm)
     if gusset_contrav:                                 # chapas dos cantos do contravento
         ms += gussets_contrav(geometria, gusset_contrav.get("t", 12.0),
                               gusset_contrav.get("esc_d", 0.152))

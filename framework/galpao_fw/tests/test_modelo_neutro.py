@@ -154,8 +154,13 @@ def test_frame_completo_com_tirantes_e_contrav():
     M = MN.frame_completo(geo, _SEC, n_terca=5, terca_sec=_TERCA, girt_sec=_GIRT,
                           col_d=0.5, n_tirante_parede=2, contrav=True)
     r = MN.resumo(M)
-    # 10 tercas + 4 girts + 8*2*2 tirantes + 4 contrav
-    assert r["Member"] == 10 + 4 + 8 * 2 * 2 + 4
+    # 10 tercas + 4 girts + 8*2*2 tirantes + 4 contrav de cobertura + 8 de parede
+    assert r["Member"] == 10 + 4 + 8 * 2 * 2 + 4 + 8
+    parede = [m for m in M if m["marca"] == "CVP1"]
+    # no plano da parede (y constante), do topo da placa de base ao beiral
+    assert all(m["p1"][1] == m["p2"][1] and m["p1"][2] == 30.0 and m["p2"][2] == 8000.0
+               for m in parede)
+    assert {m["p1"][1] for m in parede} == {0.0, 20000.0}
 
 
 _FUND = {"B": 2.5, "L": 3.0, "h": 2.35, "tipo": "bloco"}
