@@ -243,6 +243,7 @@ py-modules = [
     "tools_probe_pe13",
     "torcao_nbr6118",
     "torcao_nbr8800",
+    "trechos_norma",
     "validacao",
     "validacao_sistema_g15",
     "varredura_asserts_sequencia",

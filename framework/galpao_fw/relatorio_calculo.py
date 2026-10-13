@@ -28,6 +28,8 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Preformatt
                                 PageBreak, Table, TableStyle, KeepTogether)
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
+import trechos_norma
+
 
 # ----------------------------------------------------------------------------
 # METODO por modulo: norma + procedimento resumido. Chave = prefixo do titulo
@@ -36,15 +38,19 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 # ----------------------------------------------------------------------------
 METODOS = {
     "1. VENTO": (
-        "NBR 6123:1988 4.2 c). Pressao dinamica q = 0,613 . Vk^2 (Vk em m/s -> q em "
-        "N/m2), Vk = V0 . S1 . S2 . S3. Coeficientes de pressao externa (Cpe) "
-        "por zona e interna (Cpi) conforme permeabilidade/abertura dominante. "
-        "Carga em cada superficie = (Cpe - Cpi) . q. Combina-se o caso de maior "
-        "sucecao/pressao para o portico."),
+        "Pressao dinamica a partir da velocidade caracteristica (velocidade basica "
+        "do local vezes os fatores de topografia, de rugosidade e altura, e "
+        "estatistico). Coeficientes de forma externos das paredes e do telhado "
+        "escolhidos pela proporcao real do galpao (altura sobre a menor dimensao "
+        "em planta e relacao entre as dimensoes em planta), e coeficiente de "
+        "pressao interna conforme a permeabilidade ou a abertura dominante. Carga "
+        "em cada superficie = (coeficiente externo - interno) x pressao dinamica, "
+        "aplicada no portico com o vao entre porticos: distribuida nas colunas "
+        "(paredes) e nas vigas (telhado)."),
     "1b. VENTO LONGITUDINAL": (
-        "NBR 6123:1988. Vento incidindo no oitao: forcas de arrasto sobre a "
-        "area frontal projetada, distribuidas ao sistema de contraventamento "
-        "longitudinal (barras e travamentos)."),
+        "Vento incidindo no oitao: forca de arrasto sobre a area frontal "
+        "projetada, mais a forca de atrito quando aplicavel, distribuidas ao "
+        "sistema de contraventamento longitudinal (barras e travamentos)."),
     "1c. PONTE ROLANTE": (
         "NBR 8800:2008 (acoes de equipamento) + dados do fabricante. Reacao "
         "vertical maxima por roda com o carro na aproximacao minima; impacto "
@@ -150,6 +156,13 @@ METODOS = {
         "por VIGA ALAVANCA ate o pilar interno vizinho. Reacao majorada R = P . "
         "dist_eixos / (dist_eixos - e); alivio na sapata interna; flexao/cortante "
         "da viga de equilibrio. sigma_solo,adm por sondagem."),
+    "12b. SOLDA": (
+        "Filete em todo o contorno do pilar na placa de base e da viga nas chapas "
+        "de topo do joelho e da cumeeira. A solda transmite o que o elemento do "
+        "perfil traz: tensoes da secao em regime elastico, forca por comprimento "
+        "repartida entre os dois cordoes de cada elemento, resultante vetorial "
+        "contra a resistencia do filete. A perna parte da minima pela espessura "
+        "e sobe ate' atender."),
     "12. LIGACOES": (
         "NBR 8800:2008 (cap. 6 e Anexo). Parafusos a cisalhamento e tracao, "
         "pressao de contato (bearing), ruptura de bloco de cisalhamento e "
@@ -165,6 +178,22 @@ METODOS = {
 # fim de _METODOS -> texto padrao quando o modulo nao tem entrada dedicada
 _METODO_PADRAO = ("Procedimento e norma conforme cabecalho do memorial abaixo. "
                   "Verificar contra a referencia normativa citada.")
+
+
+def _trechos_flow(titulo, ss):
+    """Trechos literais da norma citados na secao (`trechos_norma`), cada um com
+    a edicao e o item de onde foi recortado."""
+    trechos = trechos_norma.da_secao(titulo)
+    if not trechos:
+        return []
+    fl = [Paragraph("TRECHOS DA NORMA (texto literal do acervo)", ss["MetodoTit"])]
+    for t in trechos:
+        texto = (t["texto"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                 .replace("\n", "<br/>"))
+        fl.append(Paragraph("<b>%s, %s:</b> &ldquo;%s&rdquo;" % (t["norma"], t["item"], texto),
+                            ss["Trecho"]))
+    fl.append(Spacer(1, 2 * mm))
+    return fl
 
 
 def _metodo_para(titulo):
@@ -240,6 +269,9 @@ def _estilos():
                           fontName="Helvetica-Bold", spaceAfter=1))
     ss.add(ParagraphStyle("Metodo", parent=ss["Normal"], fontSize=9,
                           leading=12, alignment=TA_LEFT))
+    ss.add(ParagraphStyle("Trecho", parent=ss["Normal"], fontSize=8, leading=10.5,
+                          leftIndent=6 * mm, spaceAfter=2, alignment=TA_LEFT,
+                          textColor=colors.HexColor("#333333")))
     ss.add(ParagraphStyle("Mono", parent=ss["Code"], fontSize=7.2, leading=8.6,
                           fontName="Courier"))
     ss.add(ParagraphStyle("Nota", parent=ss["Normal"], fontSize=8,
@@ -586,7 +618,9 @@ def gerar_pdf(out_dir, pdf_path=None, titulo="GALPAO EM ACO", spec=None,
             cab.append(Paragraph("Resultado: %s" % res_hl, ss["Nota"]))
         cab += [Paragraph("METODO (norma e procedimento)", ss["MetodoTit"]),
                 Paragraph(_metodo_para(titulo_sec), ss["Metodo"]),
-                Spacer(1, 2 * mm),
+                Spacer(1, 2 * mm)]
+        cab += _trechos_flow(titulo_sec, ss)
+        cab += [
                 Paragraph("CALCULO (memorial &mdash; numeros do dimensionamento)",
                           ss["MetodoTit"])]
         # KeepTogether so no cabecalho+metodo; corpo pode quebrar de pagina

@@ -1022,6 +1022,10 @@ congelado até a entrega do galpão.
   com o coeficiente de ponderação ([[04-decisions#D225]]).
 - **Auditoria contra o acervo, compressão** área efetiva e flambagem por torção da
   NBR 8800:2024 ([[04-decisions#D226]]).
+- **Auditoria contra o acervo, fechamento do vento** vento da direita no galpão de uma
+  água e referências refeitas depois da suíte inteira ([[04-decisions#D227]]).
+- **Trechos da norma no memorial** recortes literais do acervo por seção e a seção da
+  solda no consolidado ([[04-decisions#D228]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

@@ -664,6 +664,7 @@ SEM_FAIXA_DECLARADA = {
     "layout_ambientes.py": "primitiva de retangulos; sem faixa.",
     "layout_eletrico_residencial.py": "contrato de layout; sem faixa.",
     "ligacoes.py": "verificacao de ligacoes; sem faixa declarada.",
+    "trechos_norma.py": "recortes literais do texto das normas para o memorial; dado citado, nenhuma formula.",
     "solda_perfil_chapa.py": "solda de filete do perfil I na chapa; o limite e' a escada de pernas (acima de 16 mm reprova pedindo penetracao), nao faixa de validade de metodo.",
     "luminotecnica_nbr8995.py": "DIVIDA-LENTE: faixas de eficiencia e Fu tabelado fora da lente.",
     "madeira_nbr7190.py": "DIVIDA-LENTE: classes Tab.3 por nome, enums de kmod, lambda<=140 por constante e (0,30]mm/he-em-(0,h) em strings de recusa fora da lente.",

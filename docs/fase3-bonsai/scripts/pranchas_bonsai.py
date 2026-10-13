@@ -373,18 +373,20 @@ def detalhes_do_galpao(xs, ys, alt_col, placa, cumeeira=None, apoios=None, pecas
                    estrutura, ESCALA_DETALHE,
                    # textos a direita do gusset e ABAIXO da diagonal (no alto, a barra
                    # de parede atravessava as frases)
-                   [((xs[0] + 1.00, ys[0], 0.87), "CONTRAVENTAMENTO {{Name}}", "CVP"),
-                    ((xs[0] + 1.00, ys[0], 0.75),
+                   # a partir de 0,60 m do eixo: mais a direita a frase da solda saia da
+                   # janela; mais alto, a diagonal cortava a primeira linha
+                   [((xs[0] + 0.60, ys[0], 0.75), "CONTRAVENTAMENTO {{Name}}", "CVP"),
+                    ((xs[0] + 0.60, ys[0], 0.65),
                      "BARRA {{Calc_Quantitativo.Perfil}}, "
                      "COMPRIMENTO {{Calc_Quantitativo.Comprimento_m}} m", "CVP"),
                     # duas linhas: numa so, a frase passava da janela de 2,2 m e saia
                     # cortada na folha (visto ao abrir o DXF num CAD)
-                    ((xs[0] + 1.00, ys[0], 0.63),
+                    ((xs[0] + 0.60, ys[0], 0.55),
                      "GUSSET: {{Calc_VerificacaoEstrutural.Descricao}}", "GC"),
-                    ((xs[0] + 1.00, ys[0], 0.53),
+                    ((xs[0] + 0.60, ys[0], 0.45),
                      "SOLDA DE FILETE, PERNA "
                      "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}} mm, TODO O CONTORNO", "GC"),
-                    ((xs[0] + 1.20, ys[0], 0.40), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
+                    ((xs[0] + 0.80, ys[0], 0.32), "{{Calc_VerificacaoEstrutural.SoldaFiletePerna_mm}}", "GC",
                      SIMBOLO_SOLDA)]))
     for nome, prefixo, rotulo in (("DET-TERCA", "T", "TERCA"), ("DET-LONGARINA", "G", "LONGARINA")):
         alvo = (apoios or {}).get(prefixo)

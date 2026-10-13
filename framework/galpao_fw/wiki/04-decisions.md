@@ -7540,3 +7540,42 @@ agua de sotavento tem succao -0,4 (o motor usava -0,6).
 vermelha - duas frases de comentario reescritas ainda constavam da baseline.
 Corrigido no commit do D226. A lente nao estava entre os testes rodados antes
 daquele commit.
+
+## D228 - Trechos literais das normas no memorial de calculo e a secao da solda no consolidado (2026-10-13) - FECHADO
+
+**Por que.** Segunda metade do pedido do usuario de 2026-10-13: "citar os
+trechos normativos nos nossos projetos". O memorial dizia a norma e o item; o
+texto da norma ficava para o leitor procurar.
+
+**1. `trechos_norma.py` (modulo novo).** 17 recortes do texto nativo das
+normas, por secao do memorial: NBR 6123:2023 (5.1, 4.2 b e c, grupos 3 e 4 da
+Tabela 4, 6.3.2.1 a e c, 4.3.3) e NBR 8800:2024/Er1:2025 (4.8.7.2.1, nota a da
+Tabela 1, linha "galpoes em geral" da Tabela B.1, 5.3.2, 5.3.4.1, 4.6.2.9,
+6.2.6.2.1 com a Tabela 11, 6.2.2.2 a, Tabela A.4).
+- O texto nao e' digitado: `tools/gera_trechos_norma.py` le o item no
+  MCP_Fontes e recorta entre um marcador de inicio e um de fim. Cada entrada
+  guarda a edicao e o item lido. Rodape de pagina preso no meio do item e'
+  retirado.
+- Tabelas e figuras que so' existem como imagem (Tabelas 6 e 7 e Figura 1 da
+  NBR 6123) nao tem trecho: seguem citadas pelo numero.
+- O texto sai como esta' no acervo, inclusive onde a extracao colou duas
+  palavras ("estados-limiteultimos" em 5.3.2).
+
+**2. Memorial em PDF** (`relatorio_calculo`). Cada secao que tem trecho ganha o
+bloco "TRECHOS DA NORMA (texto literal do acervo)" entre o metodo e o calculo.
+Os textos de metodo do vento deixaram de citar a edicao de 1988 e descrevem o
+que o motor faz depois do D224.
+
+**3. A solda nao estava no consolidado.** O D223 gravava `gate7-soldas.txt`,
+mas a lista de secoes do `MEMORIAL-CONSOLIDADO` nao o incluia: o memorial em
+PDF saia sem a secao da solda. Nova secao "12b. SOLDA DO PERFIL NA CHAPA".
+
+**Testes.** `tests/test_trechos_norma_d228.py` (novo, 8 casos): estrutura dos
+trechos, casamento com os titulos do memorial, os numeros que o motor usa
+presentes no trecho citado (0,613; cpi; H/300; E e G; fw; as quatro linhas da
+Tabela 11 contra `solda_filete_minimo`) e o PDF com os trechos.
+
+**Limites.** So' as secoes cujas normas foram conferidas nesta auditoria tem
+trecho (vento, combinacoes, compressao, solda). Flexao, cortante, ligacoes
+parafusadas, base, fundacao e as demais seguem com o metodo resumido e a
+edicao que o motor declara.

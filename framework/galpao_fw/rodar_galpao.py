@@ -1649,6 +1649,7 @@ def _consolidar(out_dir, save, g, params, res=None):
              ("11e. ESCADA", "gate8-escada.txt"),
              ("11f. PLATAFORMA", "gate8-plataforma.txt"),
              ("12. LIGACOES", "gate7-ligacoes.txt"),
+             ("12b. SOLDA DO PERFIL NA CHAPA", "gate7-soldas.txt"),
              ("13. CALHAS E CONDUTORES", "gate-calha.txt"),
              ("14. PLANO DE MONTAGEM/ESCORAMENTO", "gate8-montagem.txt")]
     try:
