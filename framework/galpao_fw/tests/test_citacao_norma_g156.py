@@ -195,7 +195,7 @@ BASELINE = [
      "REMISSAO: 1 m e a faixa de analise (geometria convencionada), nao valor da norma"),
     ("projeto_spec.py", "abaixo do minimo do mapa de isopletas NBR 6123",
      "REMISSAO: ~30 com til e contexto (comparacao com dado de sitio), nao valor atribuido"),
-    ("vento_nbr6123.py", "VENTO LONGITUDINAL (ABNT NBR 6123/1988",
+    ("vento_nbr6123.py", "VENTO LONGITUDINAL (ABNT NBR 6123:2023",
      "REMISSAO: titulo do emissor, sem valor"),
     ("dossie.py", "Normas:       NBR 8800 / 6118",
      "REMISSAO: lista de normas do dossie, sem valor"),

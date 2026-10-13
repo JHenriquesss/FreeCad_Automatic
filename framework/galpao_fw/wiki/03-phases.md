@@ -1015,6 +1015,9 @@ congelado até a entrega do galpão.
 - **Fases 2 a 4, soldas e detalhes** solda de base, joelho e cumeeira dimensionada e
   desenhada; perfil, comprimento e cotas nos detalhes de terça, longarina e
   contraventamento; diagonal de parede no modelo ([[04-decisions#D223]]).
+- **Auditoria contra o acervo, vento** força lateral do vento no pórtico corrigida (faltava
+  o vão entre pórticos e a parede de sotavento freava) e coeficientes de forma pela
+  proporção do galpão ([[04-decisions#D224]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

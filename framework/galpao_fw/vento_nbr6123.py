@@ -1,10 +1,11 @@
 # ============================================================================
 # vento_nbr6123.py - O QUE ESTE SCRIPT FAZ / CALCULA
-# Calcula a acao do vento pela ABNT NBR 6123/1988.
+# Calcula a acao do vento pela ABNT NBR 6123:2023 (tabelas conferidas no D224;
+# as da edicao de 1988 tem os mesmos valores com outra numeracao).
 #   Calcula: fator de rugosidade S2 (Tabela 1), velocidade caracteristica Vk,
 #            pressao dinamica q = 0,613*Vk^2, coeficientes de forma externos Cpe
-#            (paredes Tabela 4, telhado Tabela 5) e coeficiente de pressao interna
-#            Cpi (item 6.2.5-c, portao como abertura dominante), e a pressao
+#            (paredes Tabela 6, telhado Tabela 7) e coeficiente de pressao interna
+#            Cpi (item 6.3.2.1-c, portao como abertura dominante), e a pressao
 #            liquida (Cpe - Cpi)*q por superficie.
 # NAO analisa a estrutura - so fornece as pressoes de vento.
 # ============================================================================
@@ -66,38 +67,118 @@ def _interp(x, x0, x1, y0, y1):
     return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
 
 
-def cpe_paredes():
-    """NBR 6123 Tabela 4, paredes. Vento transversal atinge as paredes longas
-    (a=20). Bloco 1/2<h/b<=3/2, linha 2<=a/b<=4, incidencia alpha=90 (faces A,B).
-    A = barlavento, B = sotavento."""
-    return {"parede_barlavento": +0.70, "parede_sotavento": -0.60}
+# ---------------------------------------------------------------------------
+# COEFICIENTES DE FORMA EXTERNOS - NBR 6123:2023, Tabelas 6 e 7, lidas na imagem
+# da pagina no MCP_Fontes em 2026-10-13 (D224). Sao as Tabelas 4 e 5 da edicao
+# de 1988, com os mesmos valores nas celulas que o motor ja usava.
+#
+# Ate' o D224 o motor usava SEMPRE o bloco 1/2 < h/b <= 3/2 com 2 <= a/b <= 4,
+# qualquer que fosse a proporcao do galpao. A escolha agora e' pela geometria.
+# Sem geometria (h_b / a_b = None) vale o bloco antigo: so' para o chamador que
+# nao a tem (memorial avulso, selftest).
+#
+# Tabela 6 (paredes), por bloco de h/b e de a/b:
+#   alpha = 0  (vento na face menor b): A1B1, A2B2, C (barlavento), D (sotavento)
+#   alpha = 90 (vento na face maior a): A (barlavento), B (sotavento), C1D1, C2D2
+_CE_PAREDE = {
+    "<=1/2":   {"1-3/2": (-0.8, -0.5, +0.7, -0.4, +0.7, -0.4, -0.8, -0.4),
+                "2-4":   (-0.8, -0.4, +0.7, -0.3, +0.7, -0.5, -0.9, -0.5)},
+    "1/2-3/2": {"1-3/2": (-0.9, -0.5, +0.7, -0.5, +0.7, -0.5, -0.9, -0.5),
+                "2-4":   (-0.9, -0.4, +0.7, -0.3, +0.7, -0.6, -0.9, -0.5)},
+    "3/2-6":   {"1-3/2": (-1.0, -0.6, +0.8, -0.6, +0.8, -0.6, -1.0, -0.6),
+                "2-4":   (-1.0, -0.5, +0.8, -0.3, +0.8, -0.6, -1.0, -0.6)},
+}
+# Tabela 7 (telhado de duas aguas), por bloco de h/b:
+#   theta -> (EFI, GHJ) para alpha = 90 e (EG, FH) para alpha = 0
+_CE_TELHADO = {
+    "<=1/2": [(0, (-0.8, -0.4, -0.8, -0.4)), (5, (-0.9, -0.4, -0.8, -0.4)),
+              (10, (-1.2, -0.4, -0.8, -0.6)), (15, (-1.0, -0.4, -0.8, -0.6)),
+              (20, (-0.4, -0.4, -0.7, -0.6)), (30, (0.0, -0.4, -0.7, -0.6)),
+              (45, (+0.3, -0.5, -0.7, -0.6)), (60, (+0.7, -0.6, -0.7, -0.6))],
+    "1/2-3/2": [(0, (-0.8, -0.6, -1.0, -0.6)), (5, (-0.9, -0.6, -0.9, -0.6)),
+                (10, (-1.1, -0.6, -0.8, -0.6)), (15, (-1.0, -0.6, -0.8, -0.6)),
+                (20, (-0.7, -0.5, -0.8, -0.6)), (30, (-0.2, -0.5, -0.8, -0.8)),
+                (45, (+0.2, -0.5, -0.8, -0.8)), (60, (+0.6, -0.5, -0.8, -0.8))],
+    "3/2-6": [(0, (-0.8, -0.6, -0.9, -0.7)), (5, (-0.8, -0.6, -0.8, -0.8)),
+              (10, (-0.8, -0.6, -0.8, -0.8)), (15, (-0.8, -0.6, -0.8, -0.8)),
+              (20, (-0.8, -0.6, -0.8, -0.8)), (30, (-1.0, -0.5, -0.8, -0.7)),
+              (40, (-0.2, -0.5, -0.8, -0.7)), (50, (+0.2, -0.5, -0.8, -0.7)),
+              (60, (+0.5, -0.5, -0.8, -0.7))],
+}
+_BLOCO_ANTIGO = "1/2-3/2"
 
 
-def cpe_telhado(theta_graus=5.71):
-    """NBR 6123 Tabela 5, telhado duas aguas. MESMA incidencia das paredes:
-    vento perpendicular a cumeeira = alpha=90 graus -> colunas EF (agua
-    barlavento) e GH (agua sotavento). Bloco 1/2<h/b<=3/2 (h/b=0,6). Interpola
-    theta entre 5 e 10 graus:
-      5 graus:  EF=-0,90  GH=-0,60 ; 10 graus: EF=-1,10  GH=-0,60.
-    (As colunas EG/FH da Tabela 5 sao para alpha=0 - vento LONGITUDINAL - e NAO
-    podem ser misturadas com as paredes de alpha=90.)"""
-    ef = _interp(theta_graus, 5.0, 10.0, -0.90, -1.10)
-    gh = _interp(theta_graus, 5.0, 10.0, -0.60, -0.60)
-    return {"cobertura_barlavento": round(ef, 2), "cobertura_sotavento": round(gh, 2)}
+def _bloco_de(h_b):
+    if h_b is None:
+        return _BLOCO_ANTIGO
+    if h_b <= 0.5:
+        return "<=1/2"
+    if h_b <= 1.5:
+        return "1/2-3/2"
+    if h_b <= 6.0:
+        return "3/2-6"
+    raise ValueError(f"h/b={h_b:.2f} fora das Tabelas 6 e 7 (limite 6)")
 
 
-def cpe_telhado_longitudinal(theta_graus=5.71):
-    """NBR 6123 Tabela 5, colunas alpha=0 (vento LONGITUDINAL, paralelo a cumeeira).
-    Sob vento a 0 graus, o telhado se divide AO LONGO DO COMPRIMENTO nas zonas EG
-    (metade a barlavento do comprimento) e FH (metade a sotavento); AMBAS as aguas
-    de um MESMO portico transversal ficam na MESMA zona -> carga SIMETRICA nas duas
-    aguas da tesoura. Bloco 1/2<h/b<=3/2 (mesmo bloco de cpe_telhado), verbatim:
-      5 graus:  EG=-0,90  FH=-0,60 ; 10 graus: EG=-0,80  FH=-0,60.
-    EG (mais negativo) e a zona critica para o uplift simetrico. Valores lidos da
-    Tabela 5 (PDF pag.15, imagem)."""
-    eg = _interp(theta_graus, 5.0, 10.0, -0.90, -0.80)
-    fh = _interp(theta_graus, 5.0, 10.0, -0.60, -0.60)
-    return {"cobertura_long_EG": round(eg, 2), "cobertura_long_FH": round(fh, 2)}
+def _linha_parede(h_b, a_b):
+    """Linha da Tabela 6 para (h/b, a/b); entre 3/2 e 2 interpola (Nota 2)."""
+    bloco = _CE_PAREDE[_bloco_de(h_b)]
+    if a_b is None:
+        return bloco["2-4"]
+    if a_b < 1.0:
+        raise ValueError(f"a/b={a_b:.2f}: a e' a MAIOR dimensao em planta (a/b >= 1)")
+    # acima de a/b = 4 a Tabela 6 nao tem linha: vale a ultima (2 <= a/b <= 4) e
+    # o memorial avisa (relatorio_pt)
+    if a_b <= 1.5:
+        return bloco["1-3/2"]
+    if a_b >= 2.0:
+        return bloco["2-4"]
+    return tuple(_interp(a_b, 1.5, 2.0, y0, y1)
+                 for y0, y1 in zip(bloco["1-3/2"], bloco["2-4"]))
+
+
+def _linha_telhado(theta_graus, h_b):
+    """Linha da Tabela 7 para theta, interpolada entre os angulos tabelados."""
+    linhas = _CE_TELHADO[_bloco_de(h_b)]
+    if not linhas[0][0] <= theta_graus <= linhas[-1][0]:
+        raise ValueError(f"theta={theta_graus:.1f} graus fora da Tabela 7 (0 a 60)")
+    for (t0, v0), (t1, v1) in zip(linhas, linhas[1:]):
+        if t0 <= theta_graus <= t1:
+            return tuple(_interp(theta_graus, t0, t1, y0, y1) for y0, y1 in zip(v0, v1))
+    return linhas[-1][1]
+
+
+def cpe_paredes(h_b=None, a_b=None):
+    """NBR 6123:2023 Tabela 6, paredes, vento a 90 graus (na face maior): A =
+    barlavento, B = sotavento. h_b = altura do beiral / menor dimensao em planta;
+    a_b = maior / menor dimensao em planta."""
+    ln = _linha_parede(h_b, a_b)
+    return {"parede_barlavento": round(ln[4], 3), "parede_sotavento": round(ln[5], 3)}
+
+
+def cpe_telhado(theta_graus=5.71, h_b=None):
+    """NBR 6123:2023 Tabela 7, telhado de duas aguas, vento PERPENDICULAR a
+    cumeeira (alpha = 90): EFI = agua de barlavento, GHJ = agua de sotavento.
+    (As colunas EG/FH sao do vento a 0 grau e nao se misturam com as paredes de
+    alpha = 90.)"""
+    ln = _linha_telhado(theta_graus, h_b)
+    return {"cobertura_barlavento": round(ln[0], 2), "cobertura_sotavento": round(ln[1], 2)}
+
+
+def cpe_telhado_longitudinal(theta_graus=5.71, h_b=None):
+    """NBR 6123:2023 Tabela 7, vento PARALELO a cumeeira (alpha = 0): o telhado se
+    divide ao longo do comprimento nas zonas EG (barlavento) e FH (sotavento); as
+    duas aguas de um mesmo portico ficam na mesma zona -> carga simetrica. EG e'
+    a zona critica do uplift simetrico."""
+    ln = _linha_telhado(theta_graus, h_b)
+    return {"cobertura_long_EG": round(ln[2], 2), "cobertura_long_FH": round(ln[3], 2)}
+
+
+def proporcoes(larg_b, alt_h, comp_a):
+    """(h/b, a/b) das Tabelas 6 e 7 a partir do vao, da altura do beiral e do
+    comprimento: b e' a MENOR dimensao em planta e a, a maior."""
+    menor, maior = min(larg_b, comp_a), max(larg_b, comp_a)
+    return alt_h / menor, maior / menor
 
 
 def cpi_cases(abertura_dominante="portao_oitao"):
@@ -311,7 +392,8 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     b, Fr, p, s2 = s2_factor(cat, classe, z)     # b = coef. da Tabela 1 (NAO a largura)
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
-    cpe = {**cpe_paredes(), **cpe_telhado(theta)}
+    h_b, a_b = proporcoes(larg_b, alt_h, comp_a)
+    cpe = {**cpe_paredes(h_b, a_b), **cpe_telhado(theta, h_b)}
     cpi = cpi_cases(abertura_dominante)
     net = {}
     for cname, cpiv in cpi.items():
@@ -326,24 +408,41 @@ def compute(v0=None, cat=None, classe=None, s1=None, s3=None, z=None, theta=None
     return {"v0": v0, "cat": cat, "classe": classe, "s1": s1, "s2": round(s2, 3),
             "s3": s3, "b": b, "Fr": Fr, "p": p, "z": z, "theta": theta,
             "vk": round(vk, 2), "q_kN_m2": round(q, 3),
-            "abertura_dominante": abertura_dominante,
+            "abertura_dominante": abertura_dominante, "h_b": h_b, "a_b": a_b,
             "cpe": cpe, "cpi_cases": cpi, "net": net, "local": local}
+
+
+def grupo_s3(s3):
+    """Grupo da Tabela 4 da NBR 6123:2023 a que o valor de S3 corresponde."""
+    grupos = {1.11: "grupo 1: socorro e seguranca apos tempestade",
+              1.06: "grupo 2: aglomeracao de pessoas",
+              1.00: "grupo 3: residencia, hotel, comercio, industria",
+              0.95: "grupo 4: SEM ocupacao humana (deposito, silo) e sem pessoas no entorno",
+              0.83: "grupo 5: temporaria nao reutilizavel"}
+    for valor, nome in grupos.items():
+        if abs(s3 - valor) < 0.005:
+            return nome
+    return "valor fora dos minimos da Tabela 4"
 
 
 def relatorio_pt(r):
     L = []
-    L.append("VENTO (ABNT NBR 6123/1988)")
+    L.append("VENTO (ABNT NBR 6123:2023)")
     L.append(f"  V0 = {r['v0']:.0f} m/s ; Categoria {r['cat']} ; Classe {r['classe']}")
-    L.append(f"  S1 = {r['s1']:.2f} (topografia plana) ; S3 = {r['s3']:.2f} (galpao deposito)")
+    L.append(f"  S1 = {r['s1']:.2f} (topografia plana) ; S3 = {r['s3']:.2f} "
+             f"({grupo_s3(r['s3'])})")
     L.append(f"  S2 = {r['b']:.2f}*{r['Fr']:.2f}*({r['z']:.1f}/10)^{r['p']:.3f} = {r['s2']:.3f}")
     L.append(f"  Vk = {r['vk']:.2f} m/s ; q = 0,613*Vk^2 = {r['q_kN_m2']:.3f} kN/m2")
-    L.append(f"  Telhado theta = {r['theta']:.2f} graus (10%) ; h/b=0,6 ; a/b=2")
-    L.append("  Cpe (MESMA incidencia alpha=90: paredes Tab.4 A/B ; telhado Tab.5 EF/GH):")
+    L.append(f"  Telhado theta = {r['theta']:.2f} graus ; h/b = {r['h_b']:.2f} ; "
+             f"a/b = {r['a_b']:.2f}")
+    if r["a_b"] > 4.0:
+        L.append("  AVISO: a/b > 4 esta' FORA da Tabela 6; usada a linha 2 <= a/b <= 4.")
+    L.append("  Cpe (MESMA incidencia alpha=90: paredes Tabela 6 A/B ; telhado Tabela 7 EFI/GHJ):")
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
     _ad = str(r.get("abertura_dominante", "portao_oitao")).lower()
-    _lbl = ("VEDADA (sem abertura dominante, item 6.2.5-a/b)"
-            if _ad.startswith("veda") else "PORTAO como abertura dominante, item 6.2.5-c")
+    _lbl = ("VEDADA (sem abertura dominante, item 6.3.2.1-a/b)"
+            if _ad.startswith("veda") else "PORTAO como abertura dominante, item 6.3.2.1-c")
     L.append("  Cpi (%s):" % _lbl)
     for k, v in r["cpi_cases"].items():
         L.append(f"    {k.replace('_',' ')}: {v:+.2f}")
@@ -355,7 +454,7 @@ def relatorio_pt(r):
     loc = r.get("local")
     if loc:
         c = loc["cobertura"]; pa = loc["parede"]
-        L.append("  Cpe MEDIO / LOCAL (borda-canto, Tab.4/5 col. 'cpe medio') - TELHA/TERCA/FIXADOR:")
+        L.append("  Cpe MEDIO / LOCAL (borda-canto, Tabelas 6 e 7, col. 'cpe medio') - TELHA/TERCA/FIXADOR:")
         L.append(f"    cobertura: envoltoria {c['cpe_medio_envoltoria']:+.2f} "
                  f"(zonas {c['zonas']}); faixa y={c['faixa_y_m']:.2f} m ; "
                  f"zona={c['dim_zona_m']:.2f} m ; lanternim {c['lanternim_cpe_medio']:+.2f}")
@@ -366,8 +465,10 @@ def relatorio_pt(r):
                  f"parede {loc['p_local_par_kN_m2']:+.3f} kN/m2")
         L.append("    -> dimensionar o fixador da telha e a ligacao terca-portico de BORDA/CANTO")
         L.append("       com esta succao local (bem maior que a global do portico).")
-    L.append("  [A CONFIRMAR: classe (20 m), S3=0,95, mapeamento de zonas/alpha e")
-    L.append("   razao de areas das aberturas para o Cpi do portao (6.2.5-c).]")
+    L.append("  [A CONFIRMAR: classe (20 m), grupo do S3 (Tabela 4), e a razao de areas")
+    L.append("   das aberturas para o Cpi do portao (6.3.2.1-c): com o portao em face")
+    L.append("   paralela ao vento a norma manda o Ce do local da abertura (Tabela 6);")
+    L.append("   o -0,60 adotado e' um valor intermediario.]")
     return "\n".join(L)
 
 
@@ -381,12 +482,13 @@ def relatorio_pt(r):
 # ============================================================================
 
 
-def cpe_paredes_longitudinal():
-    """NBR 6123 Tabela 4, incidencia alpha=0 (vento no oitao). a/b = 2.
-    Barlavento (empena atingida) C = +0,7 ; sotavento D = -0,3 (a/b=2) ;
-    paredes laterais (paralelas ao vento) A/B = -0,8 / -0,5."""
-    return {"oitao_barlavento": +0.70, "oitao_sotavento": -0.30,
-            "parede_lateral_A": -0.80, "parede_lateral_B": -0.50}
+def cpe_paredes_longitudinal(h_b=None, a_b=None):
+    """NBR 6123:2023 Tabela 6, vento a 0 grau (no oitao): C = empena de
+    barlavento, D = empena de sotavento, A1B1 / A2B2 = paredes laterais. Sem
+    geometria vale o caso antigo do motor (h/b <= 1/2, a/b = 2)."""
+    ln = _linha_parede(0.5 if h_b is None else h_b, 2.0 if a_b is None else a_b)
+    return {"oitao_barlavento": round(ln[2], 3), "oitao_sotavento": round(ln[3], 3),
+            "parede_lateral_A": round(ln[0], 3), "parede_lateral_B": round(ln[1], 3)}
 
 
 def forca_arrasto(q, area_frontal, ca):
@@ -440,7 +542,8 @@ def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=Non
     vk = v0 * s1 * s2 * s3
     q = 0.613 * vk ** 2 / 1000.0     # 0,613*Vk^2 [N/m2] -> /1000 -> kN/m2
     area = b * eave + b * (ridge - eave) / 2.0     # empena: retangulo + triangulo
-    cpe = cpe_paredes_longitudinal()
+    cpe = (cpe_paredes_longitudinal(*proporcoes(b, eave, comp)) if comp
+           else cpe_paredes_longitudinal())
     cpi = cpi_cases()
     net = {c: {s: round(cpe[s] - civ, 2) for s in cpe} for c, civ in cpi.items()}
     Fa = forca_arrasto(q, area, ca)
@@ -460,10 +563,10 @@ def compute_longitudinal(v0=None, cat=None, classe=None, s1=None, s3=None, z=Non
 
 
 def relatorio_longitudinal_pt(r):
-    L = ["VENTO LONGITUDINAL (ABNT NBR 6123/1988 - incidencia alpha=0, oitao)",
+    L = ["VENTO LONGITUDINAL (ABNT NBR 6123:2023 - incidencia alpha=0, oitao)",
          f"  Vk = {r['vk']:.2f} m/s ; q = {r['q_kN_m2']:.3f} kN/m2",
          f"  Area frontal (empena {r['b']:.0f} m) = {r['area_frontal']:.2f} m2",
-         f"  Cpe paredes (Tab.4, alpha=0):"]
+         f"  Cpe paredes (Tabela 6, alpha=0):"]
     for s, v in r["cpe"].items():
         L.append(f"    {s.replace('_',' ')}: {v:+.2f}")
     L.append("  Cp liquido (Cpe - Cpi) por caso de portao:")

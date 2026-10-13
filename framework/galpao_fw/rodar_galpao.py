@@ -228,6 +228,7 @@ def rodar(params, out_dir):
     if "spans" in g:
         gp.configurar(spans=g["spans"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
+                      comprimento=g["comprimento"] if "comprimento" in g else None,
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
@@ -236,6 +237,7 @@ def rodar(params, out_dir):
     else:
         gp.configurar(span=g["span"], eave=g["eave"], ridge=g["ridge"], bay=g["bay"],
                       base_fixed=params.get("base_fixed", True),
+                      comprimento=g["comprimento"] if "comprimento" in g else None,
                       A_col=sc["A_col"], I_col=sc["I_col"],
                       A_raf=sc["A_raf"], I_raf=sc["I_raf"],
                       G_roof=params["cargas"]["G"], rafter_self=params["cargas"]["self"],
@@ -1382,7 +1384,7 @@ def rodar(params, out_dir):
         # (b) vento a 0 (longitudinal): as DUAS aguas do portico ficam na MESMA zona
         #     (EG, mais negativa) -> uplift SIMETRICO. Parecer item 41 pt.2: este caso
         #     pode governar (simetria) e NAO pode ser omitido.
-        cl = vento.cpe_telhado_longitudinal(vr["theta"])
+        cl = vento.cpe_telhado_longitudinal(vr["theta"], vr["h_b"])
         net_eg = round(cl["cobertura_long_EG"] - cpi_max, 2)
         w_long = round(net_eg * qb, 3)
         # (c) comparacao: uniforme-pior antigo (min de tudo em todo o vao).

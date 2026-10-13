@@ -7337,3 +7337,88 @@ e ausencia sem calculo. `test_modelo_neutro`, `test_ifc_emit` e
 **Limites.** O simbolo e' um so' (filete, todo o contorno). A solda dos
 enrijecedores, da misula e dos clipes nao foi dimensionada. A geometria do
 joelho no modelo segue conceitual (D201).
+
+## D224 - Auditoria dos motores contra as fontes do acervo, 1a parte: o vento lateral do portico (forca das paredes sem o vao entre porticos e com a parede de sotavento freando) e os coeficientes de forma escolhidos pela proporcao do galpao (2026-10-13) - FECHADO
+
+**Por que.** O usuario pediu (2026-10-13) conferir os motores ja' criados
+contra as fontes que agora estao no acervo em texto nativo e citar os trechos
+nos projetos. A primeira norma conferida foi a de vento (NBR 6123:2023).
+
+**1. Achado grave: o vento a 90 graus quase nao empurrava o portico.**
+Medido no galpao do cliente (20 x 28,5 m, beiral a 8 m, porticos a cada
+5,7 m, q = 1,066 kN/m2): a reacao horizontal do portico sob o caso de vento
+dava 2,4 kN (portao a barlavento) e -9,6 kN (a sotavento), onde o arrasto das
+duas paredes mais o do telhado pede 47 kN. Tres erros em `galpao_portico`,
+nos tres caminhos (`_wind_unico`, `_wind_multi`, `_wind_shed`):
+- a forca das paredes era (cpe - cpi).q.h/2, em kN por metro de galpao, sem
+  multiplicar pelo vao entre porticos (as cargas do telhado multiplicavam);
+- a parede de sotavento entrava com o mesmo sinal de formula da de barlavento:
+  pressao liquida negativa (succao) virava forca CONTRA o vento, quando a
+  succao puxa a parede de sotavento no sentido do vento. A soma das duas
+  paredes dava (0,1 - 2.cpi) em vez de (cpe_barl - cpe_sot);
+- a componente horizontal da pressao no telhado tinha o sinal trocado nas duas
+  aguas (a vertical, que e' o arrancamento, estava certa).
+Correcao: `_vento_nas_paredes` distribui (cpe - cpi).q.BAY nas duas colunas
+externas, cada parede com o seu sentido; a componente horizontal do telhado
+segue a normal da agua. A reacao horizontal passou a 47,0 kN nos dois casos de
+pressao interna - e tem de ser a mesma, porque a pressao interna empurra as
+duas paredes por igual.
+- Nenhum teste media a reacao horizontal do portico: os 107 testes de vento e
+  de portico passaram antes e depois da correcao.
+- O historico: o `frame2d` teve sinal inconsistente entre carga nodal e
+  distribuida ate' 2026-07-16; a carga das paredes ficou nodal com a formula
+  antiga. A convencao foi medida de novo aqui (carga +x da' reacao -x, nodal e
+  distribuida).
+
+**2. Coeficientes de forma pela proporcao do galpao** (`vento_nbr6123`). O
+motor usava sempre o bloco 1/2 < h/b <= 3/2 com 2 <= a/b <= 4, qualquer que
+fosse o galpao, e o portico recebia como comprimento "o dobro do vao".
+- Tabela 6 (paredes) e Tabela 7 (telhado de duas aguas) da NBR 6123:2023
+  transcritas inteiras para os tres blocos de h/b, lidas na imagem da pagina
+  no MCP_Fontes; sao as Tabelas 4 e 5 da edicao de 1988 com os mesmos valores
+  nas celulas que o motor ja' usava. a/b entre 3/2 e 2 interpola (Nota 2);
+  theta interpola entre os angulos tabelados (antes extrapolava a reta de 5 a
+  10 graus para qualquer angulo).
+- `galpao_portico.configurar(comprimento=...)` recebe o comprimento real;
+  `vento_nbr6123.proporcoes` da' h/b e a/b com b = menor dimensao em planta.
+- Acima de a/b = 4 a Tabela 6 nao tem linha: vale a ultima, com aviso no
+  memorial. h/b > 6 e theta fora de 0 a 60 graus reprovam.
+- No galpao do cliente (h/b = 0,40; a/b = 1,43; 8,53 graus): parede de
+  sotavento -0,40 (era -0,60); agua de barlavento -1,11 (era -1,04); agua de
+  sotavento -0,40 (era -0,60).
+
+**3. Memorial de vento** cita a edicao 2023, a proporcao real (imprimia
+"h/b=0,6 ; a/b=2" fixo) e o grupo da Tabela 4 a que o S3 declarado corresponde
+(imprimia "galpao deposito" para qualquer valor).
+
+**Conferido e sem divergencia:** Tabela 1 (bm e p das cinco categorias),
+Tabela 2 (fator de rajada), q = 0,613.Vk2 (4.2), cpi +0,2 / -0,3 de 6.3.2.1 a)
+e +0,8 da abertura dominante a barlavento com razao de areas de 6 ou mais.
+
+**Medido no galpao do cliente depois da correcao:** continua atendendo com
+IPE500. Coluna 0,71 -> 0,93; zona de painel 0,87 -> 1,00; joelho 0,73 -> 0,79;
+flecha do portico 0,99 -> 0,57 (a agua de sotavento tem menos succao no bloco
+certo); solda da base 6 -> 10 mm e do joelho 10 -> 12 mm.
+
+**Para o usuario e o engenheiro decidirem (nao alterado):**
+- **S3 = 0,95 na ficha do galpao do cliente.** Pela Tabela 4 de 2023, 0,95 e'
+  o grupo 4, "edificacoes nao destinadas a ocupacao humana (depositos, silos)
+  e sem circulacao de pessoas no entorno"; industria e comercio sao o grupo 3,
+  S3 = 1,00, que da' 10,8 % a mais de pressao. O padrao do motor tambem e'
+  0,95.
+- **cpi = -0,60 com o portao a sotavento.** Para abertura dominante em face
+  paralela ao vento, 6.3.2.1 c) manda adotar o Ce do local da abertura
+  (Tabela 6: -0,8 a -0,9 junto a aresta de barlavento, -0,4 a -0,5 no resto).
+  O -0,60 e' intermediario.
+- O vento so' e' aplicado da esquerda para a direita (portico simetrico).
+
+**Testes.** `tests/test_vento_lateral_d224.py` (novo, 23 casos): reacao
+horizontal do portico igual ao arrasto das paredes mais o do telhado, por
+conta a mao e igual nos dois casos de pressao interna; reacao vertical igual a
+succao do telhado; celulas das Tabelas 6 e 7 nos tres blocos; interpolacao em
+a/b e em theta; fora de tabela; memorial.
+
+**Limites.** Telhados multiplos (`cpe_telhado_multiplo`) e uma agua
+(`cpe_telhado_1agua`) nao foram conferidos celula a celula nesta rodada. A
+forca das paredes vai inteira para o portico, sem a parcela que desce direto
+para a base pelo fechamento.
