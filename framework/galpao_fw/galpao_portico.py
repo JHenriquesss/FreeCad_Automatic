@@ -560,18 +560,27 @@ def _combos_elu(ponte=None, sismo=None):
     W1 (portao barlavento) e W2 (portao sotavento). Retorna dict
     {'C1_Grav_W1': {"G":1.25,"Q":1.50,"W1":0.84}, ...}.
     Opcionais: ponte (adiciona C4/C5) e sismo (adiciona C6)."""
-    base = {"G": 1.0, "Q": 1.0}
     combos = {}
-    # wf = fator de combinacao ELU do vento: PRIMARIO 1,40 ; SECUNDARIO (combo de
-    # gravidade, Q predomina) = gamma_f * psi0 = 1,40 * 0,60 = 0,84
-    # (NBR 8681:2025 Tab.4: gama-q vento 1,4; Tab.6: psi0 vento 0,6).
-    # Gfav: G FAVORAVEL (gamma_g=1,0) com vento principal (uplift). A sobrecarga Q
-    # (variavel gravitacional) NAO pode estabilizar o arrancamento -> gamma_q=0
-    # (NBR 8681: acoes variaveis favoraveis nao entram na combinacao). qf=0,80 seria
-    # nao-conservativo (subdimensiona chumbadores/blocos/estacas sob tracao).
-    for tag, gf, qf, wf in [("grav", 1.25, 1.50, 0.6 * 1.40),
+    # NBR 8800:2024 (lida no MCP_Fontes em 2026-10-13, D225):
+    #  Tabela 1 - gama_g 1,25 (1,00 favoravel) para peso proprio de estrutura de
+    #    aco; gama_q 1,50 para a sobrecarga e 1,40 para o vento. Nota a: acao
+    #    variavel FAVORAVEL a seguranca nao entra na combinacao.
+    #  Tabela 2 - psi0 = 0,8 para sobrecarga em COBERTURAS e 0,6 para o vento.
+    #  4.8.7.2.1 - Fd = soma(gama_g.G) + gama_q1.Q1 + soma(gama_qj.psi0j.Qj).
+    PSI0_COBERTURA, PSI0_VENTO = 0.8, 0.6
+    # C0: gravidade SEM vento. No telhado de baixa inclinacao o vento e' succao
+    # e alivia a gravidade: e' acao favoravel e sai da combinacao (nota a). Ate'
+    # o D225 toda combinacao de gravidade levava 0,84.W, que descontava a succao.
+    combos["C0_grav"] = {"G": 1.25, "Q": 1.50}
+    # grav:  sobrecarga principal + vento secundario (1,40 x 0,6 = 0,84), para o
+    #        caso em que o vento soma (pressao na agua, vento lateral na coluna).
+    # Gdesf: vento principal + sobrecarga secundaria (1,50 x 0,8 = 1,20). Ate' o
+    #        D225 a sobrecarga entrava com 0,80: o psi0 sem o gama_q.
+    # uplift / Gfav: G favoravel (1,00) com o vento principal; a sobrecarga nao
+    #        pode estabilizar o arrancamento (nota a) e fica fora.
+    for tag, gf, qf, wf in [("grav", 1.25, 1.50, PSI0_VENTO * 1.40),
                              ("uplift", 1.00, 0.00, 1.40),
-                             ("Gdesf", 1.25, 0.80, 1.40),
+                             ("Gdesf", 1.25, 1.50 * PSI0_COBERTURA, 1.40),
                              ("Gfav", 1.00, 0.00, 1.40)]:
         for wsuf, wkey in (("W1", "W1"), ("W2", "W2")):
             c = {"G": gf}

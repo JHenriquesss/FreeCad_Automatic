@@ -1018,6 +1018,8 @@ congelado até a entrega do galpão.
 - **Auditoria contra o acervo, vento** força lateral do vento no pórtico corrigida (faltava
   o vão entre pórticos e a parede de sotavento freava) e coeficientes de forma pela
   proporção do galpão ([[04-decisions#D224]]).
+- **Auditoria contra o acervo, combinações** gravidade sem vento e sobrecarga secundária
+  com o coeficiente de ponderação ([[04-decisions#D225]]).
 
 ## Docs do arco (sem código)
 - `5157222` (2026-09-09) — backlog pós-G76, medido na árvore.

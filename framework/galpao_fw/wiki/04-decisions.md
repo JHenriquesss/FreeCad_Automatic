@@ -7422,3 +7422,39 @@ a/b e em theta; fora de tabela; memorial.
 (`cpe_telhado_1agua`) nao foram conferidos celula a celula nesta rodada. A
 forca das paredes vai inteira para o portico, sem a parcela que desce direto
 para a base pelo fechamento.
+
+## D225 - Auditoria dos motores contra as fontes do acervo, 2a parte: combinacoes ultimas do portico (faltava a gravidade sem vento e a sobrecarga secundaria entrava sem o coeficiente de ponderacao) (2026-10-13) - FECHADO
+
+**Por que.** Segunda norma conferida na auditoria pedida pelo usuario
+(2026-10-13): NBR 8800:2024/Er1:2025, Tabelas 1 e 2 e item 4.8.7.2.1, lidos no
+MCP_Fontes, contra `galpao_portico._combos_elu`.
+
+**Conferido e sem divergencia:** gama_g 1,25 e 1,00 (favoravel) para peso
+proprio de estrutura de aco; gama_q 1,50 (demais acoes variaveis) e 1,40
+(vento); psi0 do vento 0,6; psi0 de pilares que suportam viga de rolamento 0,7.
+
+**1. Nao havia combinacao de gravidade sem vento.** Toda combinacao de
+gravidade do portico de um vao levava 0,84.W. No telhado de baixa inclinacao o
+vento e' succao e desconta a gravidade; a nota a da Tabela 1 diz que acao
+variavel favoravel a seguranca nao pode ser incluida. Nova `C0_grav`
+(1,25.G + 1,50.Q). Em portico de varios vaos ja' existia a gravidade pura do
+carregamento em xadrez.
+
+**2. Sobrecarga secundaria com psi0 sem gama_q.** Com o vento como acao
+principal (`C1_Gdesf`), a sobrecarga entrava com 0,80. Pela equacao de
+4.8.7.2.1 e' gama_q.psi0 = 1,50 x 0,8 = 1,20 (Tabela 2: psi0 = 0,8 para
+coberturas).
+
+**Medido no galpao do cliente:** nada muda - governa o arrancamento
+(`C1_uplift_W1`) em pilar e viga, com V0 = 45 m/s e cobertura leve. Muda em
+galpao de vento fraco ou cobertura pesada, onde a gravidade governa.
+
+**Para o engenheiro ver (nao alterado).** As combinacoes com ponte rolante
+(`C4`, `C5`) nao levam a sobrecarga de cobertura. As de sismo usam G = 1,20;
+a Tabela 1 da' 1,10 para peso proprio de aco em combinacao excepcional, e a
+NBR 15421 nao foi conferida nesta rodada.
+
+**Testes.** `tests/test_combinacoes_elu_d225.py` (novo, 4 casos): a gravidade
+sem vento existe; fatores da sobrecarga e do vento secundarios; arrancamento
+sem sobrecarga e com G favoravel; e o defeito medido - com a succao dentro, o
+momento de gravidade da viga sai menor que sem ela.
