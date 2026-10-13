@@ -244,7 +244,7 @@ def test_g19_esquema_9_campos_valida_blocked_e_ready():
 def test_g19_gerar_sidecar_extraido_do_framework():
     """G19: tools/gerar_sidecar.py deve extrair peso/Mcol do framework e gerar sidecar com 0.0% de divergência."""
     import pathlib, json, subprocess, sys, tempfile, shutil
-    # caso ready (proposta) deve gerar sidecar com peso 23206 e Mcol 235.99
+    # caso ready (proposta) deve gerar sidecar com o peso e o Mcol do run (refeitos no D224)
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="test_gerar_sidecar_"))
     out = tmp / "sidecar.json"
     try:
@@ -257,9 +257,9 @@ def test_g19_gerar_sidecar_extraido_do_framework():
         assert res.returncode == 0, f"gerar_sidecar.py falhou: {stdout[:500]} {res.stderr.decode('utf-8', errors='replace')[:500]}"
         assert out.is_file()
         data = json.loads(out.read_text(encoding="utf-8"))
-        assert data["valores_referencia"]["peso_aco_primario_kg"] == 23206.0
-        assert data["valores_referencia"]["Mcol_kNm"] == 235.99
-        assert "HEB280" in data["valores_referencia"]["perfis"]["coluna"]
+        assert data["valores_referencia"]["peso_aco_primario_kg"] == 19348.7
+        assert data["valores_referencia"]["Mcol_kNm"] == 230.44
+        assert "HEB240" in data["valores_referencia"]["perfis"]["coluna"]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     # caso blocked deve falhar com código 3

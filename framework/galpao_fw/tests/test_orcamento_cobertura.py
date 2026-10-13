@@ -69,9 +69,10 @@ def test_sapata_vai_para_fundacao_e_nao_para_concreto_estrutural():
                                "travamento_longitudinal": "topo"}})
     q = orc.quantitativos_de_turnkey(R)
     assert q["fundacao_concreto"] > 0 and q["concreto_estrut"] > 0
-    # o volume das sapatas domina; se tudo caisse em concreto_estrut, o preco
-    # unitario aplicado seria o da superestrutura (620 vs 780 R$/m3).
-    assert q["fundacao_concreto"] > q["concreto_estrut"]
+    # o volume das sapatas e' da ordem do da superestrutura; se tudo caisse em
+    # concreto_estrut, o preco unitario aplicado seria o da superestrutura (620 vs
+    # 780 R$/m3). Ate' o D224 as sapatas dominavam (o vento antigo pedia mais base).
+    assert q["fundacao_concreto"] > 0.8 * q["concreto_estrut"]
 
 
 # ---------------------- (3) orcamento parcial se declara ----------------------

@@ -73,7 +73,9 @@ def test_shed_1vao_valida_multivao_bloqueia():
 def test_shed_pipeline_duas_colunas_distintas(tmp_path):
     import rodar_galpao as R
     r = dict(area_lote_m2=1200, span=15, comprimento=30, eave=6, bay=6, aguas=1,
-             slope=0.10, v0=45, cat="II", sigma_solo=250, fund_tipo="sapata")
+             slope=0.10, v0=30, cat="II", sigma_solo=250, fund_tipo="sapata")
+    # v0 = 30 m/s desde o D224: com o vento lateral inteiro no portico, este shed
+    # de 15 m nao fecha o deslocamento H/300 a 45 m/s com os perfis da escada
     s = WZ.construir_spec(r, slug="shed")
     res = R.rodar(PS.to_rodar_params(s), str(tmp_path))
     assert res.get("atende") is True

@@ -442,7 +442,7 @@ def _comprimento_do_vento():
     return COMPRIMENTO if COMPRIMENTO else 2.0 * sum(SPANS)
 
 
-def _vento_nas_paredes(fr, ix, q, cpi, cw, z_barl=None, z_sot=None):
+def _vento_nas_paredes(fr, ix, q, cpi, cw, da_direita=False):
     """Pressao liquida (cpe - cpi).q.BAY do vento a 90 graus, distribuida nas
     colunas externas. Pressao liquida positiva empurra a parede PARA DENTRO: +x
     na de barlavento (a esquerda) e -x na de sotavento. Com succao de sotavento
@@ -453,10 +453,12 @@ def _vento_nas_paredes(fr, ix, q, cpi, cw, z_barl=None, z_sot=None):
     a reacao horizontal do portico dava 2,4 kN onde o arrasto pede cerca de 28."""
     w_barl = (cw["parede_barlavento"] - cpi) * q * BAY
     w_sot = -(cw["parede_sotavento"] - cpi) * q * BAY
+    # vento da direita (uma agua, fachada alta a barlavento): espelha as paredes
+    esq, dire = (-w_sot, -w_barl) if da_direita else (w_barl, w_sot)
     for e in ix["cols"][0]:
-        fr.add_member_udl(e, wx=w_barl)
+        fr.add_member_udl(e, wx=esq)
     for e in ix["cols"][-1]:
-        fr.add_member_udl(e, wx=w_sot)
+        fr.add_member_udl(e, wx=dire)
 
 
 def _wind_multi(cpi_key, fr=None, ix=None):
@@ -514,8 +516,10 @@ def _wind_shed(cpi_key):
             p = (Ce - cpi) * q                     # succao (p<0) -> wy>0 (uplift)
             # agua unica que sobe para a direita: forca (p.sen, -p.cos)
             fr.add_member_udl(e, wx=p * BAY * SIN, wy=-p * BAY * COS)
-        # paredes: baixa (x=0) e alta (x=SPAN), cada coluna na sua altura
-        _vento_nas_paredes(fr, ix, q, cpi, cw)
+        # paredes: baixa (x=0) e alta (x=SPAN), cada coluna na sua altura. No caso
+        # "vento desce" o vento vem da direita e a fachada ALTA e' a de barlavento.
+        _vento_nas_paredes(fr, ix, q, cpi, cw,
+                           da_direita=(cpi_key != "portao_barlavento"))
     return apply, wr
 
 

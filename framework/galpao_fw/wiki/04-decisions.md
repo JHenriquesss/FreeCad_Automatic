@@ -7492,3 +7492,51 @@ O indice de esbeltez 200 virou recomendacao em 5.3.7.1.
 **Testes.** `tests/test_compressao_2024_d226.py` (novo, 7 casos): largura
 efetiva a mao, efeito de chi, perfil compacto, IPE500, Nc,Rd = chi.Aef.fy/ga1 e
 a torcao a mao.
+
+## D227 - Auditoria do vento, fechamento: a suite inteira depois do D224, o vento da direita no galpao de uma agua e as referencias que guardavam a saida antiga do motor (2026-10-13) - FECHADO
+
+**Por que.** A suite inteira no commit do D224 (`5c7704e`,
+`tools/suite_paralela.py -n 3`, 338 arquivos, 24 min 38 s) deu 4249 passed,
+11 failed, 7 skipped. Nenhuma falha em teste de vento ou de portico: todas em
+consequencia do vento corrigido.
+
+**1. Galpao de uma agua, vento da direita** (`galpao_portico._wind_shed`). No
+caso "vento desce" o vento vem do lado alto, e as paredes seguiam carregadas
+como se viesse do lado baixo. `_vento_nas_paredes(da_direita=True)` espelha:
+a fachada alta e' a de barlavento.
+
+**2. O galpao de uma agua de 15 m a 45 m/s deixou de atender.** Com o vento
+lateral inteiro no portico, o deslocamento do topo do pilar passa de H/300
+(NBR 8800:2024, Tabela B.1, "galpoes em geral": conferido no MCP_Fontes) com
+qualquer perfil da escada do redimensionamento: 42,8 mm contra 20,0 mm com
+IPE550. A 30 m/s atende com IPE500/HEB300 (19,4 mm). O teste
+`test_shed_pipeline_duas_colunas_distintas` passou a 30 m/s. E' consequencia
+real, nao defeito: antes o deslocamento era medido com 5 % da forca.
+
+**3. Referencias que eram a saida antiga do proprio motor** (refeitas):
+- proposta sintetica 36 x 24 (`docs/validacao_g15/proposta-36x24-...json`,
+  declarada "nao e' obra real"): colunas HEB280/HEB260 -> HEB240/HEB220, viga
+  IPE450 -> IPE400, aco primario 23 206 -> 19 348,7 kg, Mcol 235,99 -> 230,44;
+- TCC UFPE 44 x 90 (`comparacao.json`, nas duas copias): pilar lateral do
+  motor HEA240 -> HEA220. A fonte traz W150x29,8.
+Os dois ficaram mais leves: no bloco h/b <= 1/2, que e' o desses galpoes, a
+agua de sotavento tem succao -0,4 (o motor usava -0,6).
+
+**4. Tres testes cujo criterio media outra coisa.**
+- `test_edicao_carimbo_fonte_unica_g135`: procurava "2023" solto no memorial
+  para acusar a edicao da NBR 6118; o memorial de vento agora diz
+  "NBR 6123:2023". Passou a procurar "6118:2023".
+- `test_orcamento_cobertura`: exigia volume de sapata maior que o da
+  superestrutura no galpao de concreto; com o vento certo ficaram 33,6 e
+  35,0 m3. O que o teste protege e' a classificacao (sapata em fundacao);
+  passou a exigir a mesma ordem de grandeza.
+- `test_ifc_secundarios_xcheck`: o construtor do FreeCAD era chamado sem o
+  passo da mao-francesa do calculo e ficava no padrao (2). Coincidia enquanto
+  o calculo dava 2; no galpao do cliente o calculo agora da' 1 (mao-francesa
+  em toda terca: 48 no lugar de 24). O caminho de producao
+  (`rodar_projeto.montar_modelo`) ja' passava o valor.
+
+**Tambem neste lote:** o D225 foi commitado com a lente de citacao (G156)
+vermelha - duas frases de comentario reescritas ainda constavam da baseline.
+Corrigido no commit do D226. A lente nao estava entre os testes rodados antes
+daquele commit.

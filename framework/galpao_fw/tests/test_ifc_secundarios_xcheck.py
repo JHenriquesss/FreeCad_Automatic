@@ -100,6 +100,10 @@ def test_terca_puro_bate_com_o_build(tmp_path):
     # excluindo os girts de parede (TERCA_PAREDE). MESMO n_terca do calc.
     bk = PS.to_build_kwargs(spec)
     bk["n_terca"] = est["n_terca"]
+    # o passo da mao-francesa tambem vem do calculo, como em RP.montar_modelo: sem
+    # ele o build fica no padrao (2) e so' coincidia enquanto o calculo dava 2
+    if est.get("mf_stride"):
+        bk["mf_stride"] = est["mf_stride"]
     bk["export_dir"] = str(tmp_path).replace("\\", "/")
     bk["doc_name"] = "xc_terca"
     src = RP._ship_build_src(FW.raiz_repo() / "framework" / "galpao_fw" / "build_galpao.py")

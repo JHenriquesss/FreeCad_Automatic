@@ -145,7 +145,7 @@ def test_02_sem_chave_cada_linha_migrada_rende_o_literal_antigo():
                      CARIMBO_SEM_CHAVE):
         if esperado not in mem:
             quebras.append("memorial real sem %r" % (esperado,))
-    if "2023" in mem:
+    if "6118:2023" in mem:      # a edicao de OUTRA norma (vento, NBR 6123:2023) nao conta
         quebras.append("memorial sem chave citando 2023")
     # Fundacao (funcoes reais, caso real do modulo): os dois cabecalhos
     # migrados saem em 2014 sem a chave.
@@ -159,7 +159,7 @@ def test_02_sem_chave_cada_linha_migrada_rende_o_literal_antigo():
     if "SAPATA - PARTE B (CONCRETO ARMADO) - NBR 6118:2014" not in \
             fs.relatorio_sapata_B(rB_fs, caso_fs):
         quebras.append("relatorio B real da sapata sem o cabecalho em 2014")
-    if "2023" in mem:
+    if "6118:2023" in mem:      # a edicao de OUTRA norma (vento, NBR 6123:2023) nao conta
         quebras.append("memorial sem chave citando 2023")
     assert not quebras, "byte-identico G135 reprova:\n" + "\n".join(quebras)
 

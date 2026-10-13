@@ -28,7 +28,7 @@
       "fonte_valor": "W150x29,8",
       "fonte_pagina": 22,
       "fonte_trecho": "47 pilares. Nos pilares laterais e centrais do galpão serão utilizados perfis W150x29,8, com 7 metros de altura. Os pila",
-      "framework_valor": "HEA240",
+      "framework_valor": "HEA220",
       "framework_detalhe": "HEA240 massa 60,3 kg/m Wx 675 cm3 - pilar lateral 7,0 m, interacao 1.08 (gov C1_Gfav_W1 M=123 kNm, N=54 kN), Lb col = 7,0 m (base engastada)",
       "definicao_comparacao": "Perfil designado + massa linear (kg/m) e modulo Wx sob mesma definicao NBR 8800 5.4.3 (FLT com Lb=altura total). Ambas medem resistencia a flexo-compressao do pilar externo 7 m, vao 22 m.",
       "erro_relativo_massa_pct": 102.3,
