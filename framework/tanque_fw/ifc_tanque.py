@@ -23,7 +23,6 @@ _EIXOS = {
     "y": ((-1, 0, 0), (0, 0, 1), (0, 1, 0)),
     "z": ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
 }
-ALTURA_CONTEINER_1CC = 2.591   # m - ISO 668:2020/Amd.1:2022, Tabela 2
 
 
 def _n(x, casas=0):
@@ -42,6 +41,11 @@ def emitir(caminho, spec=None, com_conteiner=False):
     import ifcopenshell.api.root
     import ifcopenshell.api.spatial
     import ifcopenshell.api.unit
+
+    if (spec or P.SPEC_REV02)["apoios_por_lado"] != 3:
+        raise NotImplementedError(
+            "o modelo 3D do tanque-base esta' feito para 3 apoios por lado (conteiner de "
+            "20 pes); para outro numero de apoios so' o calculo e' parametrico")
 
     spec = spec or P.SPEC_REV02
     g = P.geometria(spec)
@@ -161,8 +165,8 @@ def emitir(caminho, spec=None, com_conteiner=False):
             yc = B - ct["larg"] * mm / 2 if sy else ct["larg"] * mm / 2
             peca("IfcPlate", "CT", p_ct, (xc, yc, h_canto), "z", ct["t"] * mm,
                  ct["comp"] * mm * ct["larg"] * mm * ct["t"] * mm * TB.RHO_ACO, linear=False)
-            xi = (L + P.S_CANTOS * mm) / 2 if sx else (L - P.S_CANTOS * mm) / 2
-            yi = (B + P.P_CANTOS * mm) / 2 if sy else (B - P.P_CANTOS * mm) / 2
+            xi = (L + spec["conteiner"]["S"] * mm) / 2 if sx else (L - spec["conteiner"]["S"] * mm) / 2
+            yi = (B + spec["conteiner"]["P"] * mm) / 2 if sy else (B - spec["conteiner"]["P"] * mm) / 2
             peca("IfcBuildingElementProxy", "CONE", p_cone, (xi, yi, H), "z",
                  det["cone"]["h"] * mm)
     # longarinas e testeiras, nos dois niveis, entre montantes
@@ -298,7 +302,7 @@ def emitir(caminho, spec=None, com_conteiner=False):
     # Respiro e entradas de esgoto saem pela TAMPA e atravessam o piso do conteiner.
     # Pela testa da baia o respiro ficaria abaixo do nivel alto-alto: a tampa esta'
     # a 65 mm do conteiner e as longarinas superiores fecham a faixa de cima.
-    topo_conteiner = H + ALTURA_CONTEINER_1CC
+    topo_conteiner = H + spec["conteiner"]["alt"] * mm
     y_shaft = B - qb - spec["folga_lateral"] * mm - 0.30
     # todo tubo que sai pela tampa passa no MEIO de um vao entre travessas superiores
     n_vaos = g["n_travessas"] - 1
@@ -350,7 +354,7 @@ def emitir(caminho, spec=None, com_conteiner=False):
         p_cont = m.createIfcRectangleProfileDef("AREA", "CONTEINER 1CC (REFERENCIA)", None,
                                                 L * U, B * U)
         peca("IfcBuildingElementProxy", "CONTEINER", p_cont, (L / 2, B / 2, H), "z",
-             ALTURA_CONTEINER_1CC)
+             spec["conteiner"]["alt"] * mm)
 
     m.write(caminho)
     return {"elementos": len(feitos), "peso_kg": round(peso_total, 1), "caminho": caminho}

@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from check_nbr8800 import GA1, chi_compressao  # noqa: E402  NBR 8800 5.3.3
 from ligacoes import GW2                        # noqa: E402  NBR 8800:2024 Tabela 9, nota i
 from solda_perfil_chapa import perna_minima     # noqa: E402  NBR 8800:2024 Tabela 11
+import vento_nbr6123 as VN                      # noqa: E402  NBR 6123:2023 Tabela 6
 
 import tanque_base as TB                        # noqa: E402
 
@@ -43,12 +44,25 @@ GAMA_VENTO = 1.40
 FLECHA_LIMITE_BARRA = 350.0
 # NBR 9050:2020, 6.8.2: degraus
 ESPELHO_MIN, ESPELHO_MAX, PISO_MIN, PISO_MAX = 160.0, 180.0, 280.0, 320.0
-# ISO 668:2020/Amd.1:2022, Tabela 2 - massa bruta maxima do conteiner 1CC
-R_ISO_1CC = 36000.0   # kg
-# ISO 668:2020, Tabela A.1 - distancia entre centros dos cantos, 1CC
-S_CANTOS, P_CANTOS = 5853.0, 2259.0  # mm
-# ISO 668:2020, secao 4 - altura do conteiner 1CC
-H_CONTEINER_1CC = 2591.0  # mm
+# CONTEINERES DA SERIE 1 - lidos no MCP_Fontes em 2026-10-13:
+#  ISO 668:2020, Tabela 2 - comprimento L e altura H externos (largura 2 438 mm);
+#  ISO 668:2020, Tabela A.1 - distancias S e P entre centros dos cantos;
+#  ISO 668:2020/Amd.1:2022, Tabela 2 - massa bruta maxima R (36 000 kg; 1D: 10 160).
+LARGURA_ISO, P_CANTOS = 2438.0, 2259.0  # mm
+_COMPRIMENTO_ISO = {"A": (12192.0, 11985.0, 36000.0), "B": (9125.0, 8918.0, 36000.0),
+                    "C": (6058.0, 5853.0, 36000.0), "D": (2991.0, 2787.0, 10160.0)}
+_ALTURA_ISO = {1: 2438.0, 2: 2591.0, 3: 2896.0}    # 1C, 1CC, 1CCC
+CONTEINER_ISO = {}
+for _letra, (_comp, _s, _r) in _COMPRIMENTO_ISO.items():
+    for _n_letras, _alt in _ALTURA_ISO.items():
+        if _letra == "D" and _n_letras > 1:
+            continue                               # a serie nao tem 1DD nem 1DDD
+        CONTEINER_ISO["1" + _letra * _n_letras] = {
+            "comp": _comp, "larg": LARGURA_ISO, "alt": _alt, "S": _s, "P": P_CANTOS, "R": _r}
+# o projeto da REV.02 e' sobre o 1CC
+R_ISO_1CC = CONTEINER_ISO["1CC"]["R"]
+S_CANTOS = CONTEINER_ISO["1CC"]["S"]
+H_CONTEINER_1CC = CONTEINER_ISO["1CC"]["alt"]
 # NBR 6123:2023, Tabela 3 - fator S2 para z <= 5 m, por categoria e classe
 # (lido no MCP_Fontes em 2026-10-13; confere com bm.Fr.(z/10)^p das Tabelas 1 e 2)
 S2_ATE_5M = {"I": {"A": 1.06, "B": 1.04, "C": 1.01}, "II": {"A": 0.94, "B": 0.92, "C": 0.89},
@@ -59,6 +73,8 @@ LADO_MIN_SAPATA = 600.0  # mm
 
 SPEC_REV02 = {
     "documento": "PRU-CT-SAN-RES-001/2026 REV.02",
+    "conteiner": dict(CONTEINER_ISO["1CC"], tipo="1CC"),
+    "apoios_por_lado": 3,         # 2 cantos + 1 no meio de cada lado longo
     "skid": {"comp": 6058.0, "larg": 2438.0, "alt": 690.0},
     "tubo_quadro": {"h": 150.0, "b": 100.0, "t": 6.35},     # longarinas, testeiras e montantes
     # travessa inferior em pe' (100 mm): deitada, a flecha com o tanque cheio passava de vao/220
@@ -105,9 +121,6 @@ SPEC_REV02 = {
         "categoria": "II",    # 5.3.1: terreno aberto, poucos obstaculos (a favor da seguranca)
         "classe": "A",        # 5.3.2: maior dimensao ate' 20 m
         "s3": 1.0,            # Tabela 4, grupo 3 (inclui estrutura desmontavel reutilizavel)
-        # Figura 4 (baixa turbulencia), vento na lateral: o ponto cai entre as curvas de
-        # 1,1 e 1,2; vale a de cima. O valor so' serve para as proporcoes em que foi lido.
-        "ca": 1.2, "ca_lido_para": {"l1_l2": 2.48, "h_l1": 0.54},
     },
     # Apoio no terreno: a tensao admissivel e' dado de sondagem ou de prova de carga
     # (NBR 6122 7.3). Sem ela a memoria so' mostra cenarios, nao dimensiona.
@@ -133,6 +146,80 @@ SPEC_REV02 = {
         "d_respiro_mm": 100.0,
     },
 }
+
+
+def novo_spec(conteiner="1CC", alt_base=None, apoios_por_lado=None, documento=None):
+    """Spec do tanque-base para outro conteiner da serie 1 (ISO 668), a partir do
+    da REV.02: troca o envelope, os cantos e a massa bruta, e reparte os apoios.
+
+    `apoios_por_lado` padrao: o menor numero que mantem o vao da longarina no
+    maximo igual ao da REV.02 (2 954 mm). So' o CALCULO e' parametrico: o modelo
+    3D e as pranchas existem para 3 apoios por lado (conteiner de 20 pes)."""
+    import copy
+    if conteiner not in CONTEINER_ISO:
+        raise ValueError("conteiner %r fora da serie 1 da ISO 668: %s"
+                         % (conteiner, ", ".join(sorted(CONTEINER_ISO))))
+    spec = copy.deepcopy(SPEC_REV02)
+    iso = CONTEINER_ISO[conteiner]
+    spec["conteiner"] = dict(iso, tipo=conteiner)
+    spec["skid"]["comp"], spec["skid"]["larg"] = iso["comp"], iso["larg"]
+    if alt_base is not None:
+        if not 400.0 <= alt_base <= 1200.0:
+            raise ValueError("altura da base de %.0f mm fora de 400 a 1200 mm" % alt_base)
+        spec["skid"]["alt"] = float(alt_base)
+    if apoios_por_lado is None:
+        vao_ref = (SPEC_REV02["skid"]["comp"] - SPEC_REV02["tubo_quadro"]["h"]) / 2
+        livre = iso["comp"] - spec["tubo_quadro"]["h"]
+        apoios_por_lado = max(2, math.ceil(livre / vao_ref - 1e-9) + 1)
+    if int(apoios_por_lado) != apoios_por_lado or apoios_por_lado < 2:
+        raise ValueError("apoios_por_lado tem de ser inteiro >= 2")
+    spec["apoios_por_lado"] = int(apoios_por_lado)
+    spec["documento"] = documento or "TANQUE-BASE %s (derivado da REV.02)" % conteiner
+    if geometria(spec)["interno"][2] <= 0:
+        raise ValueError("altura da base nao deixa altura util para o tanque")
+    return spec
+
+
+def viga_continua(n_vaos, vao, w=1.0):
+    """Viga continua de `n_vaos` vaos iguais sob carga distribuida w, apoios
+    simples: equacao dos tres momentos. Devolve o maior momento (em modulo), as
+    reacoes de cada apoio e a maior flecha multiplicada por E.I."""
+    n = int(n_vaos)
+    m = [0.0] * (n + 1)                      # momento em cada apoio (negativo = tracao em cima)
+    if n > 1:
+        # M[i-1] + 4 M[i] + M[i+1] = -w L2 / 2, tridiagonal resolvida por Thomas
+        k = n - 1
+        dg, rhs = [4.0] * k, [-w * vao ** 2 / 2.0] * k
+        for i in range(1, k):
+            f = 1.0 / dg[i - 1]
+            dg[i] -= f
+            rhs[i] -= f * rhs[i - 1]
+        sol = [0.0] * k
+        sol[-1] = rhs[-1] / dg[-1]
+        for i in range(k - 2, -1, -1):
+            sol[i] = (rhs[i] - sol[i + 1]) / dg[i]
+        m[1:n] = sol
+    reacoes = []
+    for i in range(n + 1):
+        r = 0.0
+        if i > 0:
+            r += w * vao / 2.0 + (m[i - 1] - m[i]) / vao
+        if i < n:
+            r += w * vao / 2.0 + (m[i + 1] - m[i]) / vao
+        reacoes.append(r)
+    m_max, f_max = max(abs(x) for x in m), 0.0
+    for i in range(n):
+        ma, mb = m[i], m[i + 1]
+        for j in range(1, 100):
+            x = vao * j / 100.0
+            m_x = ma + (mb - ma) * x / vao + w * x * (vao - x) / 2.0
+            m_max = max(m_max, abs(m_x))
+            f = (w * x * (vao ** 3 - 2 * vao * x ** 2 + x ** 3) / 24.0
+                 + (ma * x * (vao - x) * (2 * vao - x) + mb * x * (vao - x) * (vao + x))
+                 / (6.0 * vao))
+            f_max = max(f_max, abs(f))
+    return {"M_max": m_max, "reacoes": reacoes, "flecha_EI": f_max,
+            "R_interno_max": max(reacoes[1:-1]) if n > 1 else 0.0, "R_extremo": reacoes[0]}
 
 
 def _ver(nome, sd, rd, unid, ref):
@@ -169,7 +256,9 @@ def geometria(spec):
             "z_fundo": z_fundo, "z_tampa": z_tampa, "z_topo_gaiola": z_topo_gaiola,
             "vao_travessa": vao_travessa, "passo": comp / n_vaos,
             "n_travessas": n_vaos + 1,
-            "vao_longarina": (s["comp"] - q["h"]) / 2,   # entre eixos dos montantes
+            # entre eixos dos montantes, repartido pelos apoios de cada lado
+            "n_vaos_longarina": spec["apoios_por_lado"] - 1,
+            "vao_longarina": (s["comp"] - q["h"]) / (spec["apoios_por_lado"] - 1),
             "alt_montante": s["alt"]}
 
 
@@ -196,7 +285,8 @@ def massas(spec):
         "chapa da tampa": kg(c * l * ch["tampa"]),
         "chapas laterais": kg(2 * (c + l) * a * ch["lateral"]),
         "longarinas e testeiras (2 niveis)": 2 * 2 * (s["comp"] + s["larg"]) / 1000 * quadro,
-        "montantes (6)": 6 * s["alt"] / 1000 * quadro,
+        "montantes (%d)" % (2 * spec["apoios_por_lado"]):
+            2 * spec["apoios_por_lado"] * s["alt"] / 1000 * quadro,
         "travessas inferiores": g["n_travessas"] * g["vao_travessa"] / 1000 * t_inf,
         "travessas superiores": g["n_travessas"] * g["vao_travessa"] / 1000 * t_sup,
     }
@@ -283,28 +373,31 @@ def barras(spec):
     w_perm = ((m["tanque_kg"] + m["itens"]["travessas inferiores"]) * G / 2 / c
               + quadro["massa_kg_m"] * G / 1000)
     w_sd = GAMA_Q * w_var + GAMA_G * w_perm
-    out.append(_ver("Longarina inferior, 6 apoios: flexao no apoio central",
-                    w_sd * lg ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
-                    "kN.m", ref_m))
-    out[-1]["flecha_mm"] = (w_var + w_perm) * lg ** 4 / (185 * E_ACO * quadro["Ix_mm4"])
+    nv = g["n_vaos_longarina"]
+    vc = viga_continua(nv, lg)                                 # por unidade de carga
+    out.append(_ver("Longarina inferior, %d apoios: flexao" % (2 * spec["apoios_por_lado"]),
+                    w_sd * vc["M_max"] / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
+                    "kN.m", ref_m + "; viga continua de %d vao(s)" % nv))
+    out[-1]["flecha_mm"] = (w_var + w_perm) * vc["flecha_EI"] / (E_ACO * quadro["Ix_mm4"])
+    out[-1]["longarina_inferior"] = True
     # mesma longarina SEM os apoios do meio e com o tanque cheio: tem de reprovar
-    # ou passar por conta, para a memoria dizer se o apoio central e' obrigatorio
+    # ou passar por conta, para a memoria dizer se o apoio do meio e' obrigatorio
     out.append(_ver("Longarina inferior, so' 4 cantos, tanque CHEIO",
-                    w_sd * (2 * lg) ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
+                    w_sd * (nv * lg) ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
                     "kN.m", ref_m))
     out[-1]["informativo"] = True
 
     # longarina superior: reacoes das travessas superiores
     w_sd = (GAMA_Q * p * lv / 2 + GAMA_G * quadro["massa_kg_m"] * G / 1000)
-    out.append(_ver("Longarina superior: flexao no montante central",
-                    w_sd * lg ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
+    out.append(_ver("Longarina superior: flexao",
+                    w_sd * vc["M_max"] / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
                     "kN.m", ref_m))
 
     # icamento vazio pelos 4 cantos superiores: so' a longarina inferior, sem contar a gaiola
-    w_vazio = (m["aco_kg"] + m["acessorios_kg"]) * G / 2 / (2 * lg)
+    w_vazio = (m["aco_kg"] + m["acessorios_kg"]) * G / 2 / (nv * lg)
     w_sd = GAMA_G * ad["fator_dinamico_icamento"] * w_vazio
     out.append(_ver("Icamento vazio pelos 4 cantos: flexao da longarina",
-                    w_sd * (2 * lg) ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
+                    w_sd * (nv * lg) ** 2 / 8 / 1e6, quadro["Wx_mm3"] * fy / GA1 / 1e6,
                     "kN.m", ref_m))
 
     # montante de canto: carga do conteiner com a excentricidade do centro do canto ISO
@@ -313,8 +406,9 @@ def barras(spec):
     r_min = math.sqrt(quadro["Iy_mm4"] / area)
     lam0 = (g["alt_montante"] / r_min) / math.pi * math.sqrt(fy / E_ACO)
     n_rd = chi_compressao(lam0) * area * fy / GA1 / 1000       # kN
-    ex = (spec["skid"]["comp"] - S_CANTOS) / 2 - q_t["h"] / 2  # mm, ao longo do comprimento
-    ey = (spec["skid"]["larg"] - P_CANTOS) / 2 - q_t["b"] / 2
+    cont = spec["conteiner"]
+    ex = (spec["skid"]["comp"] - cont["S"]) / 2 - q_t["h"] / 2  # mm, ao longo do comprimento
+    ey = (spec["skid"]["larg"] - cont["P"]) / 2 - q_t["b"] / 2
     mx_rd = quadro["Wx_mm3"] * fy / GA1 / 1e6
     my_rd = quadro["Wy_mm3"] * fy / GA1 / 1e6
 
@@ -325,7 +419,7 @@ def barras(spec):
     out.append(_ver("Montante de canto: carga da placa (%.0f kN de servico)"
                     % ad["carga_canto_kN"], interacao(n_placa), 1.0, "-",
                     "NBR 8800 5.3 e 5.5 (interacao linear N + Mx + My)"))
-    n_iso = 1.8 * R_ISO_1CC * G / 4 / 1000
+    n_iso = 1.8 * cont["R"] * G / 4 / 1000
     out.append(_ver("Montante de canto: envoltoria ISO (1,8 R / 4 = %.0f kN)" % n_iso,
                     interacao(n_iso), 1.0, "-",
                     "ISO 1496-1 5.3.4 e ISO 668 Tabela 2; NBR 8800 5.3 e 5.5"))
@@ -335,40 +429,49 @@ def barras(spec):
 
 
 def reacoes(spec):
-    """Cargas de SERVICO em cada um dos 6 pontos de fundacao (kN)."""
+    """Cargas de SERVICO nos pontos de fundacao (kN): 4 cantos e os do meio."""
     g, ad, m = geometria(spec), spec["adotado"], massas(spec)
     s = spec["skid"]
     base = (m["aco_kg"] + m["acessorios_kg"]) * G / 1000
     liq = m["efluente_cheio_kg"] * G / 1000
     cont = ad["massa_conteiner_kg"] * G / 1000
     uso = ad["sobrecarga_piso_kPa"] * s["comp"] * s["larg"] / 1e6
-    # viga continua de 2 vaos: 3/16 em cada extremo, 10/16 no meio (por lado)
+    # cada longarina e' viga continua sobre os apoios do seu lado (2 vaos: 3/16 em
+    # cada extremo e 10/16 no meio); o conteiner e o uso descem pelos 4 cantos
     dist = (base + liq) / 2
-    canto = 0.1875 * dist + (cont + uso) / 4
-    meio = 0.625 * dist
+    nv = g["n_vaos_longarina"]
+    vc = viga_continua(nv, 1.0, dist / nv)             # carga total `dist` no comprimento
+    canto = vc["R_extremo"] + (cont + uso) / 4
+    meios = vc["reacoes"][1:-1]
     return {"base_kN": base, "efluente_kN": liq, "conteiner_kN": cont, "uso_kN": uso,
-            "total_kN": base + liq + cont + uso, "canto_kN": canto, "meio_kN": meio,
-            "canto_placa_kN": 0.1875 * dist + ad["carga_canto_kN"]}
+            "total_kN": base + liq + cont + uso, "canto_kN": canto,
+            "meio_kN": max(meios) if meios else 0.0, "meios_kN": meios,
+            "canto_placa_kN": vc["R_extremo"] + ad["carga_canto_kN"]}
 
 
 def vento(spec):
     """Forca de arrasto na lateral do conjunto base + conteiner - NBR 6123:2023, 4.2 e 4.3.3."""
     loc, s = spec["local"], spec["skid"]
-    h = (s["alt"] + H_CONTEINER_1CC) / 1000                      # m
+    alt_cont = spec["conteiner"]["alt"]
+    h = (s["alt"] + alt_cont) / 1000                             # m
     if h > 5.0:
         raise ValueError("S2 so' esta' transcrito para z <= 5 m (altura do conjunto: %.2f m)" % h)
     l1, l2 = s["comp"] / 1000, s["larg"] / 1000                 # l1: face que recebe o vento
-    lido = loc["ca_lido_para"]
-    for nome, atual in (("l1_l2", l1 / l2), ("h_l1", h / l1)):
-        if abs(atual / lido[nome] - 1) > 0.05:
-            raise ValueError("Ca foi lido na Figura 4 para %s = %.2f; a geometria da' %.2f: "
-                             "ler de novo" % (nome, lido[nome], atual))
     s2 = S2_ATE_5M[loc["categoria"]][loc["classe"]]
     vk = loc["v0"] * loc["s1"] * s2 * loc["s3"]
     q = 0.613 * vk ** 2 / 1000                                   # kPa
-    pressao = q * loc["ca"]
+    # NBR 6123:2023, Tabela 6: coeficiente de forma da parede de barlavento menos o
+    # da de sotavento, pela proporcao do conjunto (b = menor dimensao em planta).
+    # Substitui a leitura do grafico da Figura 4 da primeira emissao (Ca = 1,2).
+    h_b, a_b = VN.proporcoes(l2, h, l1)
+    ce = VN.cpe_paredes(h_b, a_b)
+    coef = ce["parede_barlavento"] - ce["parede_sotavento"]
+    pressao = q * coef
     return {"h_m": h, "s2": s2, "vk_m_s": vk, "q_kPa": q, "pressao_kPa": pressao,
-            "forca_conteiner_kN": pressao * l1 * H_CONTEINER_1CC / 1000,
+            "h_b": h_b, "a_b": a_b, "ce_barlavento": ce["parede_barlavento"],
+            "ce_sotavento": ce["parede_sotavento"], "coef": coef,
+            "fora_da_tabela": a_b > 4.0,
+            "forca_conteiner_kN": pressao * l1 * alt_cont / 1000,
             "forca_total_kN": pressao * l1 * h}
 
 
@@ -466,8 +569,11 @@ def complementares(spec):
     w_perm = ((m["tanque_kg"] + m["itens"]["travessas inferiores"]) * G / 2 / c
               + quadro["massa_kg_m"] * G / 1000)
     w_sd = GAMA_Q * w_var + GAMA_G * w_perm
-    v_long = 0.625 * w_sd * lg / 1000            # viga continua de 2 vaos, no apoio central
-    out.append(_ver("Longarina inferior: cortante no montante central", v_long,
+    vc = viga_continua(g["n_vaos_longarina"], lg)
+    # maior cortante junto a um apoio: nunca mais que a reacao do apoio mais carregado
+    v_long = max(vc["R_interno_max"] / 2.0 if g["n_vaos_longarina"] > 1 else 0.0,
+                 vc["R_extremo"]) * w_sd / 1000
+    out.append(_ver("Longarina inferior: cortante no apoio mais carregado", v_long,
                     cortante_rd(q, quadro), "kN", "NBR 8800 5.4.3.2"))
 
     # --- no' longarina-montante: filete em todo o contorno do tubo ---
@@ -491,7 +597,8 @@ def complementares(spec):
     ang = math.radians(ad["angulo_cabo_icamento_graus"])
     n_comp = f_canto / math.tan(ang)
     r_min = math.sqrt(quadro["Iy_mm4"] / quadro["A_mm2"])
-    lam0 = (lg / r_min) / math.pi * math.sqrt(fy / E_ACO)
+    # sem contar o travamento dos montantes do meio: comprimento inteiro entre cantos
+    lam0 = (g["n_vaos_longarina"] * lg / r_min) / math.pi * math.sqrt(fy / E_ACO)
     out.append(_ver("Icamento: compressao na longarina superior (cabo a %.0f graus)"
                     % ad["angulo_cabo_icamento_graus"], n_comp,
                     chi_compressao(lam0) * quadro["A_mm2"] * fy / GA1 / 1000, "kN",
@@ -639,15 +746,16 @@ def notas_gerais(spec):
         "nas bordas;",
         "   (e) solda de fechamento da tampa por fora; (f) retoque interno pela boca de inspecao; "
         "(g) ensaio.",
-        "6. Ensaio de estanqueidade com agua ate' 0,5 m acima da tampa, sobre os 6 apoios, por 24 h.",
+        "6. Ensaio de estanqueidade com agua ate' 0,5 m acima da tampa, sobre os %d apoios, por 24 h."
+        % (2 * spec["apoios_por_lado"]),
         "7. Pintura interna para imersao em esgoto (ISO 12944-5, Tabela C.6). Externa conforme "
         "o local (ISO 12944-2).",
         "8. Fechar com tampao soldado toda ponta aberta de tubo.",
         "9. Pressao de projeto do tanque: +/- %s kPa. Volume cheio %s m3; operacional (80 %%) %s m3."
         % (f(ad["pressao_projeto_kPa"]), f(cap["volume_m3"], 2),
            f(cap["niveis"]["alarme_alto"]["volume_m3"], 2)),
-        "10. Carga maxima de servico por canto: %s kN. APOIAR EM 6 PONTOS, TRAVADOS NO PISO "
-        "CONTRA O VENTO." % f(ad["carga_canto_kN"], 0),
+        "10. Carga maxima de servico por canto: %s kN. APOIAR EM %d PONTOS, TRAVADOS NO PISO "
+        "CONTRA O VENTO." % (f(ad["carga_canto_kN"], 0), 2 * spec["apoios_por_lado"]),
         "11. ICAR E TRANSPORTAR SOMENTE VAZIO, pelos 4 olhais, cabos a no minimo %s graus "
         "da horizontal." % f(ad["angulo_cabo_icamento_graus"], 0),
         "12. Conferir no conteiner real, antes do corte: medidas, cantos, porta, shaft do respiro "
@@ -664,7 +772,7 @@ def calcular(spec=None):
     # flechas em servico contra o limite de viga de piso
     lv, lg = geometria(spec)["vao_travessa"], geometria(spec)["vao_longarina"]
     trav = [v for v in ver if v["nome"] == "Travessa inferior: flexao"][0]
-    long_ = [v for v in ver if "6 apoios" in v["nome"]][0]
+    long_ = [v for v in ver if v.get("longarina_inferior")][0]
     ref_f = "NBR 8800 Tabela B.1 (viga de piso, vao/%.0f)" % FLECHA_LIMITE_BARRA
     ver.append(_ver("Travessa inferior: flecha, tanque cheio", trav["flecha_normal_mm"],
                     lv / FLECHA_LIMITE_BARRA, "mm", ref_f))
@@ -693,9 +801,9 @@ if __name__ == "__main__":
         print("%-62s %8.2f / %8.2f %-5s %.2f %s%s" % (
             v["nome"], v["sd"], v["rd"], v["unid"], v["razao"], "OK" if v["ok"] else "NAO",
             " (informativo)" if v.get("informativo") else ""))
-    print({k: round(v, 1) for k, v in res["reacoes"].items()})
+    print({k: round(v, 1) for k, v in res["reacoes"].items() if k != "meios_kN"})
     print({k: round(v, 2) for k, v in res["respiro"].items() if k != "verificacao"})
-    print({k: round(v, 3) for k, v in res["vento"].items()})
+    print({k: round(v, 3) for k, v in res["vento"].items() if k != "fora_da_tabela"})
     print({k: round(v, 2) for k, v in res["estabilidade"].items() if k != "tombamento"})
     print(res["apoios"])
     print("APROVADO" if res["aprovado"] else "REPROVADO")

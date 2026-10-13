@@ -104,7 +104,7 @@ def memoria(res, caminho):
         "ABNT NBR 8261:2019: tubos retangulares; Tabela 4 (escoamento), 4.6.6 (raio de canto).",
         "ASTM A36/A36M-19: chapas, escoamento mínimo de 250 MPa.",
         "ABNT NBR 6123:2023: vento; Figura 1 (velocidade básica), Tabela 3 (S2), Tabela 4 (S3) "
-        "e Figura 4 (coeficiente de arrasto).",
+        "e Tabela 6 (coeficientes de forma das paredes).",
         "ABNT NBR 6122:2022: 7.3 (a tensão admissível do terreno vem de ensaio ou de "
         "investigação) e 7.7.1 (sapata com no mínimo 60 cm de lado).",
         "AWS D1.1:2025 (soldagem) e ABNT NBR NM 334:2012 (líquido penetrante).",
@@ -271,16 +271,18 @@ def memoria(res, caminho):
                  "Tabela 4, grupo 3 (inclui estruturas desmontáveis reutilizáveis)"],
                 ["Velocidade característica Vk", "%s m/s" % _n(vt["vk_m_s"]), "4.2: V0.S1.S2.S3"],
                 ["Pressão dinâmica q", "%s kPa" % _n(vt["q_kPa"], 3), "4.2: 0,613.Vk²"],
-                ["Coeficiente de arrasto Ca", _n(loc["ca"]),
-                 "Figura 4, vento na lateral: o ponto cai entre as curvas de 1,1 e 1,2; "
-                 "adotada a maior"],
+                ["Coeficientes de forma das paredes",
+                 "%s e %s" % (_n(vt["ce_barlavento"]), _n(vt["ce_sotavento"])),
+                 "Tabela 6, vento na face maior: barlavento e sotavento, para h/b = %s e "
+                 "a/b = %s; a força usa a diferença, %s"
+                 % (_n(vt["h_b"], 2), _n(vt["a_b"], 2), _n(vt["coef"]))],
                 ["Força na lateral do contêiner", "%s kN" % _n(vt["forca_conteiner_kN"]),
-                 "4.3.3: q.Ca.A; passa pelos quatro montantes de canto"],
+                 "Pressão x área; passa pelos quatro montantes de canto"],
                 ["Força na lateral do conjunto", "%s kN" % _n(vt["forca_total_kN"]),
                  "Base e contêiner tratados como um corpo fechado"]], [50, 28, 96]),
           _p("O contêiner foi tomado com %s mm de altura (ISO 668, tipo 1CC). Se for do tipo "
              "alto (high cube), a área exposta cresce e esta seção deve ser refeita."
-             % _n(P.H_CONTEINER_1CC, 0)),
+             % _n(spec["conteiner"]["alt"], 0)),
           _p("Estabilidade com o tanque vazio e o contêiner mais leve (%s kN no total): o "
              "momento de tombamento de cálculo é %s kN.m, contra %s kN.m estabilizantes; "
              "<b>não tomba</b>. Para não escorregar, o atrito entre os calços e o piso teria de "
@@ -555,6 +557,12 @@ def alteracoes(res, caminho):
 
 def gerar(pasta, spec=None):
     res = P.calcular(spec)
+    tipo, lados = res["spec"]["conteiner"]["tipo"], res["spec"]["apoios_por_lado"]
+    if not tipo.startswith("1C") or lados != 3:
+        # os dois documentos comparam com a REV.01 e com o produto de serie de 20 pes
+        raise ValueError("a memoria e o relatorio da REV.02 sao do conteiner de 20 pes com 6 "
+                         "apoios; para %s com %d apoios use so' projeto_rev02.calcular"
+                         % (tipo, 2 * lados))
     os.makedirs(pasta, exist_ok=True)
     arqs = {"memoria": os.path.join(pasta, "01_Memoria_de_calculo_REV02.pdf"),
             "alteracoes": os.path.join(pasta, "02_Relatorio_de_alteracoes_REV01_para_REV02.pdf")}

@@ -91,7 +91,7 @@ def test_respiro_sai_acima_do_nivel_alto_alto(modelo):
     hh = (g["z_fundo"] + P.SPEC_REV02["chapas"]["fundo"]
           + P.capacidade(P.SPEC_REV02)["niveis"]["alarme_alto_alto"]["lamina_mm"]) / 1000
     assert _caixa(ifc, {"RESPIRO"})[0][2] > hh
-    assert _caixa(ifc, {"RESPIRO"})[1][2] > 0.690 + ifc_tanque.ALTURA_CONTEINER_1CC
+    assert _caixa(ifc, {"RESPIRO"})[1][2] > 0.690 + (P.SPEC_REV02["conteiner"]["alt"] / 1000.0)
 
 
 def test_tubos_da_tampa_passam_entre_as_travessas_superiores(modelo):

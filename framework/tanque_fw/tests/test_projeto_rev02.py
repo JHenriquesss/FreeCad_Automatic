@@ -158,12 +158,16 @@ def test_so_a_boca_de_inspecao_e_aparafusada():
 
 def test_vento_a_mao():
     # NBR 6123:2023: Vk = 35 x 1,0 x 0,94 x 1,0 = 32,9 m/s ; q = 0,613 x 32,9^2 = 663,5 N/m2
-    # arrasto por area = 1,2 x 663,5 = 796 N/m2 ; altura = 0,690 + 2,591 = 3,281 m
+    # altura = 0,690 + 2,591 = 3,281 m ; h/b = 3,281 / 2,438 = 1,35 ; a/b = 2,48
+    # Tabela 6: barlavento +0,7 e sotavento -0,6 -> 1,3 x 663,5 = 862,6 N/m2
     v = P.vento(P.SPEC_REV02)
     assert v["vk_m_s"] == pytest.approx(32.9)
     assert v["q_kPa"] == pytest.approx(0.6635, abs=0.0001)
-    assert v["forca_total_kN"] == pytest.approx(0.79622 * 6.058 * 3.281, rel=1e-4)
-    assert v["forca_conteiner_kN"] == pytest.approx(0.79622 * 6.058 * 2.591, rel=1e-4)
+    assert (v["ce_barlavento"], v["ce_sotavento"]) == (0.7, -0.6)
+    assert v["h_b"] == pytest.approx(3.281 / 2.438) and v["a_b"] == pytest.approx(6.058 / 2.438)
+    assert v["forca_total_kN"] == pytest.approx(0.86255 * 6.058 * 3.281, rel=1e-4)
+    assert v["forca_conteiner_kN"] == pytest.approx(0.86255 * 6.058 * 2.591, rel=1e-4)
+    assert v["fora_da_tabela"] is False
 
 
 @pytest.mark.parametrize("cat, classe, bm, fr, p", [
@@ -174,20 +178,19 @@ def test_s2_da_tabela_3_bate_com_a_formula(cat, classe, bm, fr, p):
     assert P.S2_ATE_5M[cat][classe] == pytest.approx(bm * fr * 0.5 ** p, abs=0.006)
 
 
-@pytest.mark.parametrize("alt, trecho", [(1500.0, "Ca foi lido"), (2500.0, "z <= 5 m")])
-def test_vento_recusa_geometria_fora_da_leitura(alt, trecho):
+def test_vento_recusa_conjunto_acima_de_5_m():
     spec = copy.deepcopy(P.SPEC_REV02)
-    spec["skid"]["alt"] = alt
-    with pytest.raises(ValueError, match=trecho):
+    spec["skid"]["alt"] = 2500.0
+    with pytest.raises(ValueError, match="z <= 5 m"):
         P.vento(spec)
 
 
 def test_tombamento_a_mao():
-    # H_sd = 1,4 x 15,826 = 22,16 kN a 3,281 / 2 ; braco = (2438 - 100) / 2 = 1169 mm
+    # H_sd = 1,4 x 17,145 = 24,00 kN a 3,281 / 2 ; braco = (2438 - 100) / 2 = 1169 mm
     e = P.estabilidade(P.SPEC_REV02)
-    assert e["tombamento"]["sd"] == pytest.approx(22.157 * 1.6405, abs=0.01)
+    assert e["tombamento"]["sd"] == pytest.approx(24.003 * 1.6405, abs=0.01)
     assert e["tombamento"]["rd"] == pytest.approx(0.9 * e["peso_minimo_kN"] * 1.169)
-    assert e["atrito_necessario"] == pytest.approx(22.157 / (0.9 * e["peso_minimo_kN"]), abs=1e-3)
+    assert e["atrito_necessario"] == pytest.approx(24.003 / (0.9 * e["peso_minimo_kN"]), abs=1e-3)
     # sem conteiner em cima a base vazia nao segura o vento de um conteiner
     assert e["atrito_necessario"] > 0.4
 
@@ -204,7 +207,82 @@ def test_apoio_com_tensao_declarada():
     spec = copy.deepcopy(P.SPEC_REV02)
     spec["apoio"]["tensao_admissivel_kPa"] = 100.0
     a = P.apoios(spec)
-    # raiz(1,05 x 53,69 / 100) = 0,751 m -> 800 mm
+    # raiz(1,05 x 54,15 / 100) = 0,754 m -> 800 mm
     assert a["lado_mm"] == 800.0
     spec["apoio"]["tensao_admissivel_kPa"] = 1000.0
     assert P.apoios(spec)["lado_mm"] == P.LADO_MIN_SAPATA      # NBR 6122 7.7.1
+
+
+# ---------------------------------------------------------------------------
+# calculo parametrico: outros conteineres da serie 1 (ISO 668)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("n_vaos, m, r_ext, r_int, flecha", [
+    (1, 1 / 8, 0.5, 0.0, 5 / 384),            # biapoiada
+    (2, 1 / 8, 0.375, 1.25, 1 / 185),         # dois vaos
+    (3, 0.100, 0.400, 1.100, 0.00688),        # tres vaos
+    (4, 0.1071, 0.3929, 1.1428, 0.00646),     # quatro vaos (tabela: 0,0065)
+])
+def test_viga_continua_bate_com_os_coeficientes_de_tabela(n_vaos, m, r_ext, r_int, flecha):
+    v = P.viga_continua(n_vaos, 1.0, 1.0)
+    assert v["M_max"] == pytest.approx(m, abs=2e-4)
+    assert v["R_extremo"] == pytest.approx(r_ext, abs=2e-4)
+    assert v["R_interno_max"] == pytest.approx(r_int, abs=2e-4)
+    assert v["flecha_EI"] == pytest.approx(flecha, abs=3e-5)
+    assert sum(v["reacoes"]) == pytest.approx(n_vaos)
+
+
+def test_tabela_iso_668():
+    c = P.CONTEINER_ISO
+    assert (c["1CC"]["comp"], c["1CC"]["alt"], c["1CC"]["S"], c["1CC"]["R"]) == (
+        6058.0, 2591.0, 5853.0, 36000.0)
+    assert (c["1AA"]["comp"], c["1AA"]["S"]) == (12192.0, 11985.0)
+    assert (c["1D"]["comp"], c["1D"]["S"], c["1D"]["R"]) == (2991.0, 2787.0, 10160.0)
+    assert c["1CCC"]["alt"] == 2896.0 and "1DD" not in c
+
+
+def test_novo_spec_do_proprio_1cc_e_a_rev02():
+    spec = P.novo_spec("1CC", documento=P.SPEC_REV02["documento"])
+    assert spec == P.SPEC_REV02
+
+
+@pytest.mark.parametrize("tipo, lados", [("1D", 2), ("1CC", 3), ("1BB", 5), ("1AA", 6)])
+def test_novo_spec_reparte_os_apoios_sem_passar_do_vao_da_rev02(tipo, lados):
+    spec = P.novo_spec(tipo)
+    g = P.geometria(spec)
+    assert spec["apoios_por_lado"] == lados
+    assert g["vao_longarina"] <= 2954.0 + 1e-6
+    r = P.reacoes(spec)
+    assert 4 * r["canto_kN"] + 2 * sum(r["meios_kN"]) == pytest.approx(r["total_kN"], rel=1e-9)
+
+
+@pytest.mark.parametrize("tipo", ["1D", "1C", "1CCC", "1BB", "1AA"])
+def test_outros_conteineres_calculam_ate_o_veredito(tipo):
+    res = P.calcular(P.novo_spec(tipo))
+    assert isinstance(res["aprovado"], bool)
+    assert res["capacidade"]["volume_m3"] > 0 and res["vento"]["forca_total_kN"] > 0
+
+
+def test_conteiner_de_40_pes_fica_fora_da_tabela_de_vento_e_avisa():
+    v = P.vento(P.novo_spec("1AA"))
+    assert v["a_b"] == pytest.approx(12192.0 / 2438.0) and v["fora_da_tabela"] is True
+
+
+def test_novo_spec_recusa_entrada_invalida():
+    with pytest.raises(ValueError, match="fora da serie 1"):
+        P.novo_spec("1DD")
+    with pytest.raises(ValueError, match="400 a 1200"):
+        P.novo_spec("1CC", alt_base=200.0)
+    with pytest.raises(ValueError, match="inteiro"):
+        P.novo_spec("1CC", apoios_por_lado=1)
+
+
+def test_documentos_da_rev02_recusam_outro_conteiner(tmp_path):
+    import entrega_rev02 as E
+    with pytest.raises(ValueError, match="20 pes"):
+        E.gerar(str(tmp_path), P.novo_spec("1AA"))
+
+
+def test_modelo_3d_recusa_outro_numero_de_apoios(tmp_path):
+    import ifc_tanque
+    with pytest.raises(NotImplementedError, match="3 apoios por lado"):
+        ifc_tanque.emitir(str(tmp_path / "x.ifc"), P.novo_spec("1AA"))
