@@ -125,6 +125,7 @@ COBERTURA_COMMIT_D = {
     "5f18a1e8af2510b9e6aa71e69a1f77b91ce2a1c0": "D226",  # compressao pela NBR 8800:2024 (area efetiva, torcao)
     "648b6724a5ba5a74edd53935d4c2a39fb57788ea": "D227",  # vento da direita no galpao de uma agua
     "79138ace9baec0c21dd43ed456ee98851ef2c090": "D228",  # trechos literais das normas no memorial; solda no consolidado
+    "44da228140dcd9dd8140570290a61a3205c5457a": "D228",  # recorte de 6.3.2.1 c) sem a lista incompleta
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -260,9 +261,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 45:
-        lados.append("censo=%d, esperado 45 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 33 do plano de 2026-10-08)"
+    if len(censo) != 46:
+        lados.append("censo=%d, esperado 46 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 34 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
