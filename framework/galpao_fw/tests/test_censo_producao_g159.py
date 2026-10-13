@@ -121,6 +121,7 @@ COBERTURA_COMMIT_D = {
     "954138e3469ef59dc50b54538ab083f9249bb662": "D222",  # peso das secundarias, chamada das cotas, solda no DXF
     "46a2ec895cb9fe13eaa5ea5c03d7139884e35f59": "D223",  # solda de base/joelho/cumeeira, detalhes, diagonal de parede
     "6916620895f65c9efd76e9c58eaf498a9fa68668": "D224",  # vento lateral do portico e Cpe pela proporcao
+    "866a2659ba78e353f905f8a017c9f0f426062c80": "D225",  # combinacoes ultimas: gravidade sem vento, sobrecarga secundaria
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -256,9 +257,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 41:
-        lados.append("censo=%d, esperado 41 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 29 do plano de 2026-10-08)"
+    if len(censo) != 42:
+        lados.append("censo=%d, esperado 42 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 30 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
