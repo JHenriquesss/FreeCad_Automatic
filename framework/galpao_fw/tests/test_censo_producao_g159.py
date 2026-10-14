@@ -135,6 +135,7 @@ COBERTURA_COMMIT_D = {
     "113579a3ca5ea518f2c164caddad604371f13b41": "D232",  # curva do risco leve (10897:2020) e terca na lente G134
     "736f16eac6b769398087a0f6d62b9e3b8a84deb2": "D233",  # metodos dos verticais: pilar, protensao, laje, madeira, estacas, vento multiplo
     "a2b9276059e90c78ddd940ac2ecf34046001c3bd": "D233",  # fechamento: Tabela 8 da 6123:2023 inteira
+    "060c0b62b7d37cc0a1e9b20843d564d19a443ae7": "D234",  # decisoes do usuario: terca, sapata NBR 6122 por padrao, estacas
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -270,9 +271,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 55:
-        lados.append("censo=%d, esperado 55 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 43 do plano de 2026-10-08)"
+    if len(censo) != 56:
+        lados.append("censo=%d, esperado 56 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 44 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
