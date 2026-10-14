@@ -8126,3 +8126,38 @@ Tabela 2 do G116 (o G116 errou duas como IGUAL).
 **Fase 3:** levar a chave aos chamadores da casa e do predio, virar
 `EDICAO_PADRAO` para "2023+Em1" com o carimbo dizendo a composicao, suite e
 pacotes regerados.
+
+**Fase 2 (feita).** Cada ponto le a chave por `edicao_nbr6118_g123.eh_2023(edicao)`
+(None = `EDICAO_PADRAO`: virar o padrao na fase 3 vira tudo junto):
+- 8.2.5 (`fctm_nbr6118_g127.fctm_MPa`): acima de C50, 2,12 ln[1 + 0,1 (fck + 8)]
+  na 2023 (texto da p.23); C60 4,300 -> 4,355 MPa. Ate' C50 igual.
+- 17.2.2-e (`fundacao_sapata.alpha_c`, usada por sapata, laje, vigas, baldrame,
+  sapata de divisa, viga de equilibrio e pela viga protendida): bloco com
+  alfa_c.eta_c.fcd na 2023.
+- 19.4.1 (`laje_concreto.cortante_laje`): tau_Rd limitado ao de fck = 60 MPa.
+- 9.6.1.2.1/9.6.1.2.2 (`viga_protendida.limites_protensao`): 2023 = 0,77 fptk e
+  0,74 fptk, sem o limite em fpyk.
+- 5.3 da Emenda 1 (ATP): `classe_consequencia` (Tabela 5.1, imagem da p.2 da
+  Emenda) e a secao "Avaliacao tecnica de projeto - ATP" no caderno de encargos
+  quando a edicao e' a 2023 + Em1 (classe declarada ou "na duvida, CC3", 5.3.3).
+- 20.6 da Emenda 1 (`laje_concreto.verifica_laje`, laje em balanco): armadura
+  inferior ancorada no apoio para as permanentes. A norma nao da' a expressao;
+  adotado o tirante As = 1,4.g.l/fyd por metro, marcado A CONFIRMAR.
+- 18.2.4, 18.3.3.2 e 19.5.4 da Emenda: detalhamento sem numero (o gancho de
+  10.phi cobre 135-180 graus; o pilar ja' tem barra em todo canto; a ancoragem
+  da armadura de colapso so' muda de condicao) - comentarios atualizados.
+- `MODULOS_COM_TROCA` passa a 8 pontos e `USO_ESPERADO` ganha o
+  `fctm_nbr6118_g127.py`; lentes G123, G128, G132, G135 e G127 acompanham.
+
+**Fase 2b (feita): releitura no texto/imagem da 2023 das familias que o G116
+deixou "NAO MEDIDO" ou "IGUAL (ver imagem)".** Conferem com o motor: 7.2
+(Tabela 7.2), 8.2.8 (Eci, alfa_E, alfa_i), 9.3.2.1, 9.4.2.5, 11.3.3.4.1, 12.4.1
+(Tabela 12.1), 13.2.2, 13.2.3, 13.2.4.1, Tabela 13.3, Tabela 13.4, 14.6.4.3,
+14.6.6.1, 15.5.2, 15.5.3, 15.6, 15.7.2, 15.8.3.3.2, 17.2.5, 17.3.2.1.1,
+17.3.2.1.2, 17.3.3.2, 17.3.5.3, 17.5.1.5, 17.5.1.6, 18.4.3, 19.3.3.2, 19.5.3.1,
+20.1, 22.3.2. Dois defeitos achados nessa releitura, que valem nas DUAS
+edicoes e foram corrigidos sem chave: 9.3.2.1 eta3 = (132 - phi)/100 para phi
+>= 32 mm (o motor fixava 1,0 na sapata) e 9.4.2.4 lb >= 25.phi (faltava na
+sapata, no tirante da estaca e no chumbador; em C90 o lb saia ~19.phi). O
+baseline do G136 (lb de C50 a C90 com phi 20: 475/467/449/382 -> 500 mm) foi
+atualizado.

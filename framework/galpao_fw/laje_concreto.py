@@ -442,6 +442,10 @@ def cortante_laje(V_sd, bw, d, fck, As1, sigma_cp=0.0, metade_no_apoio=False):
     fck_MPa = fck / 1000.0
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
     fctd = fctd_nbr6118_g136.fctd_MPa(fck_MPa) * 1000.0  # kN/m2 (fonte unica G136; gamma_c normal)
+    # D236: na 2023 (19.4.1, p.178) tau_Rd fica limitado ao de fck = 60 MPa
+    import edicao_nbr6118_g123 as _ed
+    if _ed.eh_2023() and fck_MPa > 60.0:
+        fctd = fctd_nbr6118_g136.fctd_MPa(60.0) * 1000.0
     tau_rd = 0.25 * fctd
     k = 1.0 if metade_no_apoio else max(abs(1.6 - d), 1.0)
     rho1 = min(As1 / (bw * d), 0.02) if bw * d > 0 else 0.0
@@ -703,6 +707,26 @@ def verifica_laje(cfg):
         if M.get(chave, 0.0) > 0:
             arm[chave] = dimensiona_seccao(M[chave], 1.0, d, h, fck, fyk,
                                            "negativa", phi_pref)
+
+    # --- 20.6 (Emenda 1 da 2023): laje em balanco leva armadura INFERIOR
+    # ancorada no apoio, capaz de suportar as acoes permanentes (anti-colapso
+    # se a secao de apoio romper). A norma nao da' a expressao: adotado o
+    # tirante que pendura a carga permanente de calculo do balanco no apoio,
+    # As = 1,4.g.l/fyd por metro (A CONFIRMAR pelo engenheiro). D236.
+    import edicao_nbr6118_g123 as _ed
+    if tipo == "balanco" and _ed.eh_2023():
+        As_20_6 = GF * g * lx / (fyk / 1.15)
+        arm["inferior_20_6"] = {"M_d": 0.0, "As": As_20_6, "As_min": As_20_6,
+                                "As_adotada": As_20_6, "As_max": 0.04 * h,
+                                "x_d": 0.0, "z": d, "ok_dominio": True,
+                                "secao_ok": True, "governa_minimo": False,
+                                "ok_As_max": As_20_6 <= 0.04 * h + 1e-12,
+                                "papel": "inferior_20_6",
+                                "malha": detalha_malha(As_20_6, h, principal=False,
+                                                       phi_max_mm=phi_pref)}
+        avisos.append("20.6 (NBR 6118:2023/Em1): armadura inferior ancorada no "
+                      "apoio, %.2f cm2/m (tirante das permanentes, A CONFIRMAR)"
+                      % (As_20_6 * 1e4))
 
     # --- cortante (19.4.1) na borda mais carregada -------------------------
     reac = reacoes_apoios(caso, lx, ly, p_k) if duas_direcoes else None

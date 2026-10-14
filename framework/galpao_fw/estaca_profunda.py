@@ -411,7 +411,7 @@ def ancoragem_tirante(phi, fck, fyk, boa_aderencia=True, gancho=False,
     eta3 = 1.0 if phi_mm < 32.0 else (132.0 - phi_mm) / 100.0
     fbd = eta1 * eta2 * eta3 * fctd                  # MPa
     fyd = (fyk / 1000.0) / 1.15                      # MPa
-    lb = (phi / 4.0) * (fyd / fbd)                   # m
+    lb = max((phi / 4.0) * (fyd / fbd), 25.0 * phi)  # m ; 9.4.2.4: >= 25.phi (D236)
     alpha = 0.7 if gancho else 1.0
     rel = (As_calc / As_ef) if (As_calc and As_ef and As_ef > 0) else 1.0
     lb_min = max(0.3 * lb, 10.0 * phi, 0.10)

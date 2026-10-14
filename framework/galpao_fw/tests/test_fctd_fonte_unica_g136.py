@@ -138,25 +138,25 @@ ANTES_MEDIDO = {
            "prot_Vc0": 72.94382367307965},
     50.0: {"base_fctd": 2035.8132124461795, "base_fbd": 2035.8132124461795,
            "base_lb": 0.5339176084986069, "estaca_fbd": 4.58,
-           "estaca_lb": 0.475, "sapata_fbd": 4.58, "sapata_lb": 475,
+           "estaca_lb": 0.5, "sapata_fbd": 4.58, "sapata_lb": 500,   # D236: lb >= 25.phi
            "laje_tau": 508.95330311154487, "laje_Vrd1": 106.88019365342444,
            "pilar_Vc": 109.93391347209369, "baldrame_Vc": 109.93391347209369,
            "prot_Vc0": 134.36367202144785},
     55.0: {"base_fctd": 2070.209273833628, "base_fbd": 2070.209273833628,
            "base_lb": 0.5250466875391283, "estaca_fbd": 4.66,
-           "estaca_lb": 0.467, "sapata_fbd": 4.66, "sapata_lb": 467,
+           "estaca_lb": 0.5, "sapata_fbd": 4.66, "sapata_lb": 500,   # D236
            "laje_tau": 517.552318458407, "laje_Vrd1": 108.68598687626546,
            "pilar_Vc": 111.7913007870159, "baldrame_Vc": 111.7913007870159,
            "prot_Vc0": 136.63381207301944},
     60.0: {"base_fctd": 2149.8371421298225, "base_fbd": 2149.8371421298225,
            "base_lb": 0.5055994709730866, "estaca_fbd": 4.84,
-           "estaca_lb": 0.449, "sapata_fbd": 4.84, "sapata_lb": 449,
+           "estaca_lb": 0.5, "sapata_fbd": 4.84, "sapata_lb": 500,   # D236
            "laje_tau": 537.4592855324556, "laje_Vrd1": 112.86644996181568,
            "pilar_Vc": 116.09120567501043, "baldrame_Vc": 116.09120567501043,
            "prot_Vc0": 141.8892513805683},
     90.0: {"base_fctd": 2532.088556589204, "base_fbd": 2532.088556589204,
-           "base_lb": 0.4292727120110255, "estaca_fbd": 5.7,
-           "estaca_lb": 0.382, "sapata_fbd": 5.7, "sapata_lb": 382,
+           "base_lb": 0.5, "estaca_fbd": 5.7,   # D236: lb >= 25.phi
+           "estaca_lb": 0.5, "sapata_fbd": 5.7, "sapata_lb": 500,
            "laje_tau": 633.022139147301, "laje_Vrd1": 132.9346492209332,
            "pilar_Vc": 136.732782055817, "baldrame_Vc": 136.732782055817,
            "prot_Vc0": 167.11784473488748},
@@ -260,7 +260,8 @@ def _canonico(sondas_por_fck):
 # Hash das sondas ANTES (mesmos casos, formula antiga): o depois tem de
 # render o mesmo hash (D158: numero identico ponta a ponta, nao so por
 # sonda).
-HASH_ANTES = "8040018e6e1265de2f0753016ca6a5d377e7ce59b83079bc2b9c98e7a34d96c7"
+# D236: o piso lb >= 25.phi (9.4.2.4) moveu os lb de C50 a C90 de proposito
+HASH_ANTES = "555dfb2ac326f3d05b4031126fb2d9aa68d31f30578a9dd133b647381281f737"
 
 
 def test_05_hash_do_resultado_inteiro_igual_ao_antes():

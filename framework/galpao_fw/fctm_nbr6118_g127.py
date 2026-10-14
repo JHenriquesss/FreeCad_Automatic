@@ -101,44 +101,50 @@ RE_FCTM_C55 = re.compile(
     r"2\.12\s*\*\s*math\.log\(\s*1(?:\.0)?\s*\+\s*0\.11\s*\*")
 
 
-def fctm_MPa(fck_MPa):
-    """Resistencia media a tracao fct,m em MPa (NBR 6118 8.2.5, 2014).
+def fctm_MPa(fck_MPa, edicao=None):
+    """Resistencia media a tracao fct,m em MPa (NBR 6118 8.2.5).
 
     Faixa de validade: fck <= 50 MPa no ramo potenciado; acima do limiar,
     no ramo logaritmico. O fckj jovem do icamento, abaixo de C20, usa a
     mesma expressao (extrapolacao declarada, numero inalterado).
+    D236: o ramo alto troca com a edicao (None = EDICAO_PADRAO): 2014 =
+    2,12 ln(1 + 0,11 fck); 2023 = 2,12 ln[1 + 0,1 (fck + 8)] (texto da 2023,
+    p.23; F150 na imagem no G122).
     """
     if fck_MPa <= FCK_LIMIAR_C50_MPA:
         return 0.3 * fck_MPa ** (2.0 / 3.0)
+    import edicao_nbr6118_g123 as _ed
+    if _ed.eh_2023(edicao):
+        return 2.12 * math.log(1.0 + 0.1 * (fck_MPa + 8.0))
     return 2.12 * math.log(1.0 + 0.11 * fck_MPa)
 
 
-def fctm(fck):
+def fctm(fck, edicao=None):
     """Resistencia media a tracao fct,m (NBR 6118 8.2.5, 2014).
 
     fck em kN/m2 -> retorna kN/m2. O mesmo miolo da primitiva em MPa.
     """
-    return fctm_MPa(fck / 1000.0) * 1000.0
+    return fctm_MPa(fck / 1000.0, edicao) * 1000.0
 
 
-def fctk_inf_MPa(fck_MPa):
+def fctk_inf_MPa(fck_MPa, edicao=None):
     """Valor caracteristico inferior fctk,inf = 0,7 fct,m (8.2.5). MPa."""
-    return 0.7 * fctm_MPa(fck_MPa)
+    return 0.7 * fctm_MPa(fck_MPa, edicao)
 
 
-def fctk_sup_MPa(fck_MPa):
+def fctk_sup_MPa(fck_MPa, edicao=None):
     """Valor caracteristico superior fctk,sup = 1,3 fct,m (8.2.5). MPa."""
-    return 1.3 * fctm_MPa(fck_MPa)
+    return 1.3 * fctm_MPa(fck_MPa, edicao)
 
 
-def fctk_inf(fck):
+def fctk_inf(fck, edicao=None):
     """fctk,inf em kN/m2 (fck em kN/m2)."""
-    return fctk_inf_MPa(fck / 1000.0) * 1000.0
+    return fctk_inf_MPa(fck / 1000.0, edicao) * 1000.0
 
 
-def fctk_sup(fck):
+def fctk_sup(fck, edicao=None):
     """fctk,sup em kN/m2 (fck em kN/m2)."""
-    return fctk_sup_MPa(fck / 1000.0) * 1000.0
+    return fctk_sup_MPa(fck / 1000.0, edicao) * 1000.0
 
 
 def copias_fctm_fora_da_fonte(raiz=None):

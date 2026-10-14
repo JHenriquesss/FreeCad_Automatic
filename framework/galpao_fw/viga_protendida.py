@@ -37,6 +37,18 @@ GAMMA_P_ATO = 1.1                  # ponderacao da protensao no ato (17.2.4.3.2)
 # lido no F016 p.47, D233): 0,77 fptk e 0,85 fpyk. O 0,90 fpyk e' do aco RN; ate'
 # o D233 o motor usava 0,90 e estirava a 0,770 fptk em vez de 0,765 fptk.
 SIGMA_PI_MAX = min(0.77 * FPTK_CP190, 0.85 * FPYK_CP190)
+# D236: a 2023 (9.6.1.2.1-a e b, p.64) da' so' 0,77 fptk (pre-tracao) e 0,74
+# fptk (ao termino, via 9.6.1.2.2), sem o limite em fpyk.
+SIGMA_PI_MAX_2023 = 0.77 * FPTK_CP190
+SIGMA_P0_MAX_2023 = 0.74 * FPTK_CP190
+
+
+def limites_protensao(edicao=None):
+    """(sigma_pi_max, sigma_p0_max) da edicao (None = EDICAO_PADRAO)."""
+    import edicao_nbr6118_g123 as _ed
+    if _ed.eh_2023(edicao):
+        return SIGMA_PI_MAX_2023, SIGMA_P0_MAX_2023
+    return SIGMA_PI_MAX, SIGMA_P0_MAX
 # ao termino da operacao (9.6.1.2.2): sigma_p0 nao supera 9.6.1.2.1-b (RB: 0,74
 # fptk e 0,82 fpyk). Ate' o D233 nao era verificado.
 SIGMA_P0_MAX = min(0.74 * FPTK_CP190, 0.82 * FPYK_CP190)
@@ -117,7 +129,8 @@ def verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck, gamma_f=1.4):
     fcd = fck / 1.4
     fck_MPa = fck / 1000.0
     lam = 0.8 if fck_MPa <= 50.0 else 0.8 - (fck_MPa - 50.0) / 400.0
-    ac = 0.85 if fck_MPa <= 50.0 else 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
+    import fundacao_sapata as _fs
+    ac = _fs.alpha_c(fck_MPa)                      # 17.2.2-e por edicao (D236)
     xd_lim = 0.45 if fck_MPa <= 50.0 else 0.35
     fpyd = FPYK_CP190 / GAMMA_S
     Rp = Ap * fpyd                                 # forca da cordoalha (kN)
@@ -200,7 +213,8 @@ def verifica_viga_protendida(cfg):
         fckj_origem = (cfg.get("fckj_origem")
                        or ("fckj_declarado_no_projeto" if fckj_explicito
                            else "fckj_nao_declarado_adotado_fck"))
-    sigma_pi = SIGMA_PI_MAX                        # estiramento no limite (9.6.1.2.1)
+    sig_pi_max, sig_p0_max = limites_protensao(cfg.get("edicao"))
+    sigma_pi = sig_pi_max                          # estiramento no limite (9.6.1.2.1)
 
     # cargas: peso proprio + sobrecarga/permanente adicional
     g = 25.0 * b * h                               # p.proprio (kN/m)
@@ -224,7 +238,7 @@ def verifica_viga_protendida(cfg):
     P0 = Ap * sigma_p0                              # no ato (apos perda imediata)
     Pinf = Ap * sigma_pi * (1.0 - perdas)          # em servico (perdas totais)
 
-    sigma_p0_ok = sigma_p0 <= SIGMA_P0_MAX + 1e-6     # 9.6.1.2.2 (D233)
+    sigma_p0_ok = sigma_p0 <= sig_p0_max + 1e-6       # 9.6.1.2.2 (D233)
     ato = verifica_ato(P0, ep, Mg, b, h, fckj)
     serv = verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, cfg.get("nivel", 2))
     elu = verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck)
@@ -240,7 +254,7 @@ def verifica_viga_protendida(cfg):
             "Ap_cm2": round(Ap * 1e4, 2), "ep_cm": round(ep * 100, 1),
             "P0": round(P0, 1), "Pinf": round(Pinf, 1), "sigma_pi_MPa": round(sigma_pi / 1000, 0),
             "sigma_p0_MPa": round(sigma_p0 / 1000, 0),
-            "sigma_p0_max_MPa": round(SIGMA_P0_MAX / 1000, 0), "sigma_p0_ok": sigma_p0_ok,
+            "sigma_p0_max_MPa": round(sig_p0_max / 1000, 0), "sigma_p0_ok": sigma_p0_ok,
             "Mg": round(Mg, 1), "Mq": round(Mq, 1), "g": round(g, 2),
             "ato": ato, "servico": serv, "elu": elu, "cortante": cort, "perdas": perdas,
             "perdas_info": perdas_info, "OK": OK}

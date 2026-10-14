@@ -144,7 +144,11 @@ def test_02_baseline_nos_dois_sentidos():
     if tuple(lente.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
                                           ("compatibilizacao", "13.2.5.1"),
                                           ("pilar_concreto", "15.8.2"),
-                                          ("pilar_concreto", "8.2.10.1")):
+                                          ("pilar_concreto", "8.2.10.1"),
+                                          ("fctm_nbr6118_g127", "8.2.5"),
+                                          ("fundacao_sapata", "17.2.2"),
+                                          ("laje_concreto", "19.4.1"),
+                                          ("viga_protendida", "9.6.1.2")):
         lados.append("MODULOS_COM_TROCA=%r (esperado os 2 pontos, sem ATP nem "
                      "marquise)" % (lente.MODULOS_COM_TROCA,))
     esp = {"edicao_nbr6118_g123.py", "premoldado_nbr9062.py",
@@ -171,7 +175,9 @@ def test_02_baseline_nos_dois_sentidos():
             "pilar_concreto.py", "pilar_continuo.py",
             "viga_baldrame.py", "viga_baldrame_edificio.py",
             "viga_concreto.py", "viga_continua.py",
-            "viga_protendida.py", "escada_concreto.py"}
+            "viga_protendida.py", "escada_concreto.py",
+            # D236: fct,m le a chave
+            "fctm_nbr6118_g127.py"}
     if set(lente.USO_ESPERADO) != esp:
         lados.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                      % (sorted(esp - set(lente.USO_ESPERADO)),
@@ -327,9 +333,10 @@ def test_05_fontes_independentes_e_chave_desligada():
             lados.append("edicao invalida devia levantar: %r" % (fn,))
         except ValueError:
             pass
-    # 8.2.5 segue 2014 declarado (fora desta chave, G122 item 52): a fonte
-    # unica nao o migra e nenhum modulo o migra por conta propria.
-    if any("8.2.5" in str(m) for m in lente.MODULOS_COM_TROCA):
+    # D236 (migracao decidida pelo usuario): 8.2.5 entra na chave, mas SO' pela
+    # fonte unica do fct,m (nenhum modulo o migra por conta propria).
+    if [m for m in lente.MODULOS_COM_TROCA
+            if "8.2.5" in str(m)] != [("fctm_nbr6118_g127", "8.2.5")]:
         lados.append("8.2.5 entrou na chave sem triagem: %r"
                      % (lente.MODULOS_COM_TROCA,))
     assert not lados, "fontes/chave reprovam:\n" + "\n".join(lados)

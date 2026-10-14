@@ -700,9 +700,13 @@ def comprimento_ancoragem(phi_mm, fck_MPa=25, fyk_MPa=500, gancho=True,
     Retorna lb, lb_nec, lb_min em mm, fbd em MPa."""
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)
     fctd = fctd_nbr6118_g136.fctd_MPa(fck_MPa)  # 9.3.2/12.4.1, fonte unica G136; gamma_c normal
-    fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * 1.0 * fctd
+    # 9.3.2.1 (2014 = 2023): eta3 = 1,0 para phi < 32 mm e (132 - phi)/100
+    # acima; 9.4.2.4: lb >= 25.phi. Ate' o D236 o motor fixava eta3 = 1,0 e
+    # nao tinha o piso de 25.phi (em C90 o lb saia ~19.phi).
+    eta3 = 1.0 if phi_mm < 32.0 else (132.0 - phi_mm) / 100.0
+    fbd = 2.25 * (1.0 if boa_aderencia else 0.7) * eta3 * fctd
     fyd = fyk_MPa / 1.15
-    lb = (phi_mm / 4.0) * (fyd / fbd)
+    lb = max((phi_mm / 4.0) * (fyd / fbd), 25.0 * phi_mm)
     alpha = 0.7 if gancho else 1.0
     lb_min = max(0.3 * lb, 10.0 * phi_mm, 100.0)
     lb_nec = max(alpha * lb, lb_min)
@@ -769,9 +773,15 @@ def lambda_bloco(fck_MPa):
     return 0.80 - (fck_MPa - 50.0) / 400.0
 
 
-def alpha_c(fck_MPa):
+def alpha_c(fck_MPa, edicao=None):
     """Tensao do bloco (NBR 6118 17.2.2, G50).
-    fck<=50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200]."""
+    fck<=50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200].
+    D236: na 2023 (17.2.2-e, p.137) a tensao do bloco e' alfa_c.eta_c.fcd,
+    eta_c = (40/fck)^(1/3) acima de C40 (None = EDICAO_PADRAO)."""
+    import edicao_nbr6118_g123 as _ed
+    if _ed.eh_2023(edicao):
+        base = 0.85 if fck_MPa <= 50.0 else 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
+        return base * _ed.eta_c(edicao, fck_MPa)
     if fck_MPa <= 50.0:
         return 0.85
     return 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)

@@ -151,7 +151,7 @@ def ancoragem_chumbador(Ft_sd, db, fck, fyk=250e3, com_gancho=True,
     eta3 = 1.0 if db < 0.032 else (132.0 - db * 1000.0) / 100.0
     fbd = eta1 * eta2 * eta3 * fctd
     fyd = fyk / 1.15
-    lb = (phi / 4.0) * (fyd / fbd)                   # 9.4.2.4
+    lb = max((phi / 4.0) * (fyd / fbd), 25.0 * phi)  # 9.4.2.4: >= 25.phi (D236)
     Abe, _ = _area_efetiva(db)
     As_cal = Ft_sd / fyd if fyd > 0 else 0.0         # area necessaria p/ a tracao
     ratio = min(As_cal / Abe, 1.0) if Abe > 0 else 0.0

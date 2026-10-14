@@ -78,7 +78,11 @@ def test_01_fonte_peca_e_composicao_tabela_fechada():
     if tuple(fonte.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
                                          ("compatibilizacao", "13.2.5.1"),
                                          ("pilar_concreto", "15.8.2"),
-                                         ("pilar_concreto", "8.2.10.1")):
+                                         ("pilar_concreto", "8.2.10.1"),
+                                         ("fctm_nbr6118_g127", "8.2.5"),
+                                         ("fundacao_sapata", "17.2.2"),
+                                         ("laje_concreto", "19.4.1"),
+                                         ("viga_protendida", "9.6.1.2")):
         quebras.append("MODULOS_COM_TROCA mudou: %r" % (fonte.MODULOS_COM_TROCA,))
     # Confronto: parte da conta, nao da chave.
     boa_2014 = fonte.carimbo_edicao("2014")

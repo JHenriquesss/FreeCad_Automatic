@@ -284,6 +284,18 @@ def markdown(caderno, titulo="CADERNO DE ENCARGOS - ESPECIFICACOES TECNICAS"):
     L.append("")
     L.append(str(_linha_ed))
     L.append("")
+    # D236: na 2023 + Emenda 1 a avaliacao tecnica de projeto (5.3) e'
+    # obrigatoria; a classe de consequencia vem da Tabela 5.1.
+    import edicao_nbr6118_g123 as _ed_atp
+    if _ed_atp.eh_2023((caderno or {}).get("edicao_6118")):
+        _cc = (caderno or {}).get("classe_consequencia")
+        L.append("## Avaliacao tecnica de projeto - ATP (NBR 6118:2023/Em1:2026, 5.3)")
+        L.append("")
+        L.append("A ATP e' obrigatoria antes da construcao (5.3.1). Classe de "
+                 "consequencia: %s." % (_ed_atp.ATP_TEXTO[_cc] if _cc else
+                                        "a definir pela Tabela 5.1; na duvida, "
+                                        "CC3 (5.3.3)"))
+        L.append("")
     for i, s in enumerate(caderno["secoes"], start=1):
         L.append("## %d. %s" % (i, s["titulo"]))
         for j, c in enumerate(s["clausulas"], start=1):

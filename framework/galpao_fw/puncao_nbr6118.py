@@ -51,7 +51,9 @@ SR_MAX_FATOR = 0.75        # s_r <= 0,75 d
 S0_MAX_FATOR = 0.50        # 1a linha de conectores a no maximo 0,5 d da face
 DIST_ABERTURA = 8.0        # aberturas a menos de 8d do contorno C (19.5.1)
 FRACAO_MIN_19_5_3_5 = 0.50  # armadura para no minimo 50% de F_Sd
-FATOR_COLAPSO = 1.5        # fyd*As,ccp >= 1,5*F_Sd (19.5.4)
+FATOR_COLAPSO = 1.5        # fyd*As,ccp >= 1,5*F_Sd (19.5.4; a Emenda 1 da 2023
+                           # so' muda a ancoragem: alem de C', ou de C'' quando
+                           # ha armadura de puncao - o numero e' o mesmo, D236)
 GF_COLAPSO = 1.2           # 19.5.4 permite calcular F_Sd com gamma_f = 1,2
 
 _N_ARCO = 24               # discretizacao de cada arco de canto do contorno

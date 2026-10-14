@@ -101,6 +101,12 @@ MODULOS_COM_TROCA = (
     # e p.26; F016 p.108 e p.26).
     ("pilar_concreto", "15.8.2"),
     ("pilar_concreto", "8.2.10.1"),
+    # D236 fase 2: fct,m acima de C50, bloco retangular (eta_c), tau_Rd da
+    # laje limitado a C60 e limites de estiramento sem fpyk.
+    ("fctm_nbr6118_g127", "8.2.5"),
+    ("fundacao_sapata", "17.2.2"),
+    ("laje_concreto", "19.4.1"),
+    ("viga_protendida", "9.6.1.2"),
 )
 
 # Arquivos de producao que podem importar esta fonte unica (baseline nos
@@ -147,6 +153,8 @@ USO_ESPERADO = frozenset({
     "viga_continua.py",
     "viga_protendida.py",
     "escada_concreto.py",
+    # D236: fct,m le a chave (8.2.5 da 2023 acima de C50).
+    "fctm_nbr6118_g127.py",
 })
 
 # G135: o texto do carimbo fora daqui (quase todo em fallback de except que
@@ -366,6 +374,39 @@ def s_cimento(edicao, cimento, fck_kNm2):
         return _piso
     from cimento_nbr6118_g126 import normaliza_cimento as _norm_cim
     return S_CIMENTO_2014[_norm_cim(cimento)]
+
+
+def eh_2023(edicao=None):
+    """True quando a edicao resolvida (None = EDICAO_PADRAO) e' a 2023 + Em1.
+    Fonte unica do teste de edicao dos modulos que trocam conta (D236)."""
+    return resolver_edicao(edicao)["edicao"] == "2023+Em1"
+
+
+# 5.3 da Emenda 1 (Tabela 5.1, imagem da p.2 da Emenda, D236): classes de
+# consequencia para a avaliacao tecnica de projeto (ATP), obrigatoria em todo
+# projeto (5.3.1). Na duvida, CC3 (5.3.3).
+ATP_TEXTO = {
+    "CC3": "CC3 - o avaliador desenvolve modelos e analises independentes (5.3.4-b)",
+    "CC2": "CC2 - o avaliador analisa o memorial e revisa os calculos (5.3.4-b); "
+           "dispensavel em comum acordo (5.3.5)",
+    "CC1": "CC1 - o avaliador analisa o memorial e revisa os calculos (5.3.4-b); "
+           "dispensavel em comum acordo (5.3.5)",
+}
+
+
+def classe_consequencia(tipologia, n_pavimentos=None, protendida=False,
+                        marquise=False):
+    """Classe de consequencia da Tabela 5.1 da Emenda 1 (D236).
+    galpao (estrutura de obra industrial), protendida, marquise -> CC3;
+    casa (unifamiliar ate' 2 pavimentos habitaveis) -> CC1; predio ate' 5
+    pavimentos -> CC2, acima -> CC3; o resto, ou a falta de dado, CC3 (5.3.3)."""
+    if protendida or marquise or tipologia == "galpao":
+        return "CC3"
+    if tipologia == "casa" and n_pavimentos is not None and n_pavimentos <= 2:
+        return "CC1"
+    if tipologia == "predio" and n_pavimentos is not None:
+        return "CC2" if n_pavimentos <= 5 else "CC3"
+    return "CC3"
 
 
 def alpha_b_balanco(edicao, Mc, Ma):

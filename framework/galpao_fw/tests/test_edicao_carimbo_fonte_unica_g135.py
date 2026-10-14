@@ -41,7 +41,7 @@ import edicao_nbr6118_g123 as fonte
 # 6 arquivos + "6118:2014" a mao em 22 arquivos (46 linhas). Depois da
 # fiacao, o censo de copias e vazio e os rotulos sao so as 14 isencoes.
 N_ISENCOES_ESPERADO = 14
-N_USOS_ESPERADO = 29
+N_USOS_ESPERADO = 30   # D236: + fctm_nbr6118_g127 (8.2.5 le a chave)
 
 # Os literais antigos, escritos a mao no teste (nao lidos da fonte: contra
 # assercao tautologica, convencao 5 - a fonte tem de bater neles).

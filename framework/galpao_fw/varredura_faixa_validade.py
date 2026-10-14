@@ -642,7 +642,6 @@ SEM_FAIXA_DECLARADA = {
     "f150_decodifica.py": "lente G117 (cifra da F150, funcao pura de texto); sem numero de norma, sem faixa.",
     "impacto_nbr6118_g116.py": "lente G116 (inventario 2014 -> 2023+Em1, funcao pura de texto + casos que chamam funcao real); sem faixa propria.",
     "confronto_2014_2023_g122.py": "lente G122 (confronto 2014 -> 2023 pre-Em1 secao a secao, funcao pura de texto + caso que chama funcao real); sem faixa propria.",
-    "edicao_nbr6118_g123.py": "fonte unica G123 (carimbo + chave de edicao 2014/2023+Em1, funcao pura de texto + casos C1/C4 que chamam funcao real); sem faixa propria.",
     "fator_potencia.py": "DIVIDA-LENTE: FP>=0,92 em vocabulario 'limite regulamentar' fora da lente.",
     "fctd_nbr6118_g136.py": "fonte unica G136 (fctd = fctk,inf/gamma_c + portao, funcao pura de texto + casos que chamam funcao real); sem faixa propria (a faixa do fck vive na fonte do G127).",
     "flt_misula.py": "DIVIDA-LENTE: tetos de M_Rd/Cb em vocabulario 'teto' generico fora da lente.",

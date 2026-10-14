@@ -233,12 +233,19 @@ def test_05_faixa_limiar_separa_ramos_e_jovem_extrapola():
 
 
 def test_06_edicao_2023_nao_entrou():
-    """Um assert so: nenhum dos 11 arquivos contem a conta da 2023
-    (`0,1 * (fck + 8)`); a fonte segue a 2014 declarada e o caso C5 segue
+    """Um assert so: nenhum dos 10 modulos que usam a fonte contem a conta
+    da 2023 (`0,1 * (fck + 8)`); D236: a fonte a tem, atras da chave (sem a
+    chave, 2014; com 2023+Em1, a de 2023 - C60 4,355 MPa). O caso C5 segue
     2014 < 2023."""
     quebras = []
     rx2023 = re.compile(r"0\.1\s*\*\s*\(")
-    alvos = list(fonte.MODULOS_VIA_FONTE) + ["fctm_nbr6118_g127"]
+    alvos = list(fonte.MODULOS_VIA_FONTE)
+    if abs(fonte.fctm_MPa(60.0, "2014") - 4.300) > 0.005:
+        quebras.append("fonte 2014 C60 mudou")
+    if abs(fonte.fctm_MPa(60.0, "2023+Em1") - 2.12 * math.log(1.0 + 0.1 * 68.0)) > 1e-12:
+        quebras.append("fonte 2023 C60 fora da 8.2.5 de 2023")
+    if fonte.fctm_MPa(30.0, "2023+Em1") != fonte.fctm_MPa(30.0, "2014"):
+        quebras.append("ate' C50 as duas edicoes sao iguais")
     for nome in sorted(alvos):
         caminho = os.path.join(GALPAO, nome + ".py")
         with open(caminho, encoding="utf-8", errors="replace") as fh:

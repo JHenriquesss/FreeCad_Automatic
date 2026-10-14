@@ -29,6 +29,8 @@ from __future__ import annotations
 import functools
 import math
 
+import edicao_nbr6118_g123 as _ed_g123
+
 import fctm_nbr6118_g127
 import fctd_nbr6118_g136
 
@@ -77,10 +79,8 @@ def alpha_c_pilar(fck_MPa=None, edicao=None):
     """Tensao do bloco parabola-retangulo (NBR 6118 17.2.2, G50).
     C50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200].
     D236: com a chave em 2023+Em1, 0,85.eta_c (Figura 8.2 da 2023)."""
-    if edicao is not None:
-        import edicao_nbr6118_g123 as _ed
-        if _ed.resolver_edicao(edicao)["edicao"] == "2023+Em1":
-            return 0.85 * _ed.eta_c(edicao, fck_MPa)
+    if _ed_g123.eh_2023(edicao):
+        return 0.85 * _ed_g123.eta_c(edicao, fck_MPa)
     if fck_MPa is None or fck_MPa <= 50.0:
         return ALPHA_C
     return 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
@@ -108,8 +108,7 @@ def alpha_b(caso_dir, edicao=None):
     if tipo == "balanco":
         # D236: a regra mora na fonte unica da edicao (2014: 0,80 + 0,20.Mc/Ma
         # entre 0,85 e 1,0 ; 2023: 1,0)
-        import edicao_nbr6118_g123 as _ed
-        return _ed.alpha_b_balanco(edicao, caso_dir.get("Mc", 0.0), Ma)
+        return _ed_g123.alpha_b_balanco(edicao, caso_dir.get("Mc", 0.0), Ma)
     # biapoiado sem cargas transversais
     Mb = caso_dir.get("Mb", 0.0)             # sinal: + mesma curvatura, - reversa
     ab = 0.60 + 0.40 * Mb / Ma
@@ -622,7 +621,6 @@ def dimensiona_pilar(caso):
     Nd = gn * gf * caso["Nk"]
     nu = Nd / (Ac * fcd)                          # forca normal adimensional
 
-    import edicao_nbr6118_g123 as _ed_g123
     res = {"edicao_6118": _ed_g123.edicao_da_peca(edicao, True),
            "hx": hx, "hy": hy, "Ac_cm2": round(Ac * 1e4, 1), "Nd": round(Nd, 1),
            "gamma_n": round(gn, 3), "nu": round(nu, 3), "dir": {}}

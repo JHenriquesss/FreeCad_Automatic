@@ -63,8 +63,9 @@ def _estribo_comprimento(b, h, cob, phi_est_mm):
 
 def _grampo_comprimento(hx, cob, phi_est_mm):
     """Comprimento de UM grampo suplementar reto do fuste (m): travessa ao longo
-    da profundidade hx + 2 ganchos (10*phi cada, 90-180 graus envolvendo a barra
-    longitudinal, NBR 6118 18.2.4/Fig.18.2). G47: cada par de ramos alem dos 2
+    da profundidade hx + 2 ganchos (10*phi cada, envolvendo a barra
+    longitudinal, NBR 6118 18.2.4/Fig.18.2; a Emenda 1 da 2023 prefere ganchos
+    de 135 a 180 graus - o comprimento de 10*phi cobre os dois, D236). G47: cada par de ramos alem dos 2
     do estribo fechado consome 1 grampo por espacamento."""
     return round((hx - 2 * cob) + 2.0 * 10.0 * phi_est_mm / 1000.0, 3)
 

@@ -368,7 +368,8 @@ def test_06_baseline_nos_dois_sentidos():
            "pilar_concreto.py", "pilar_continuo.py",
            "viga_baldrame.py", "viga_baldrame_edificio.py",
            "viga_concreto.py", "viga_continua.py",
-           "viga_protendida.py", "escada_concreto.py"}
+           "viga_protendida.py", "escada_concreto.py",
+           "fctm_nbr6118_g127.py"}                    # D236
     if set(lente.USO_ESPERADO) != esp:
         quebras.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                        % (sorted(esp - set(lente.USO_ESPERADO)),
@@ -380,7 +381,11 @@ def test_06_baseline_nos_dois_sentidos():
     if tuple(lente.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
                                           ("compatibilizacao", "13.2.5.1"),
                                           ("pilar_concreto", "15.8.2"),
-                                          ("pilar_concreto", "8.2.10.1")):
+                                          ("pilar_concreto", "8.2.10.1"),
+                                          ("fctm_nbr6118_g127", "8.2.5"),
+                                          ("fundacao_sapata", "17.2.2"),
+                                          ("laje_concreto", "19.4.1"),
+                                          ("viga_protendida", "9.6.1.2")):
         quebras.append("MODULOS_COM_TROCA mudou: %r"
                        % (lente.MODULOS_COM_TROCA,))
     if tuple(lente.EDICOES_VALIDAS) != ("2014", "2023+Em1"):
