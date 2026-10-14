@@ -235,8 +235,9 @@ def test_06_norma_parse_guarda_e_diz_o_que_desenha():
     pilares = _pilares_predio()
     svg = dp.prancha_armacao_pilares_svg(pilares)
     gaps = []
-    if "NBR 6118:2014" not in svg:
-        gaps.append("folha sem declarar NBR 6118:2014")
+    # D236: a folha declara a edicao do projeto (sem chave, 2023 + Em1)
+    if "NBR 6118:2023 + Emenda 1:2026" not in svg:
+        gaps.append("folha sem declarar a edicao (2023 + Em1, padrao)")
     if "phi_long_mm" not in svg:
         gaps.append("folha omite o dado ausente (phi_long_mm nao nomeado)")
     if "NAO DETALHADO" not in svg.upper():

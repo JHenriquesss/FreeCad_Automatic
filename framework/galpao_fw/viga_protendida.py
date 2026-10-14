@@ -214,7 +214,7 @@ def verifica_viga_protendida(cfg):
                        or ("fckj_declarado_no_projeto" if fckj_explicito
                            else "fckj_nao_declarado_adotado_fck"))
     sig_pi_max, sig_p0_max = limites_protensao(cfg.get("edicao"))
-    sigma_pi = sig_pi_max                          # estiramento no limite (9.6.1.2.1)
+    sigma_pi = sig_pi_max                          # estiramento no teto (9.6.1.2.1); reduzido abaixo se sigma_p0 passar de 9.6.1.2.2
 
     # cargas: peso proprio + sobrecarga/permanente adicional
     g = 25.0 * b * h                               # p.proprio (kN/m)
@@ -226,10 +226,19 @@ def verifica_viga_protendida(cfg):
     perdas_in = cfg.get("perdas")
     if perdas_in is None:
         import perdas_protensao_nbr6118 as pp
-        pr = pp.perdas_pretracao(sigma_pi, Ap, ep, Mg, b, h, fckj,
-                                 cfg.get("phi_fluencia", pp.PHI_FLUENCIA_PADRAO))
-        perdas = pr["perda_total_frac"]
+        phi_f = cfg.get("phi_fluencia", pp.PHI_FLUENCIA_PADRAO)
+        pr = pp.perdas_pretracao(sigma_pi, Ap, ep, Mg, b, h, fckj, phi_f)
         sigma_p0 = sigma_pi * (1.0 - pr["perda_imediata_pct"] / 100.0)  # apos perda imediata
+        # D236: o estiramento e' escolha do projeto ate' o teto de 9.6.1.2.1; se
+        # depois da perda imediata o sigma_p0 passa do limite de 9.6.1.2.2, o
+        # projeto estira menos (como na obra), em vez de reprovar a secao.
+        for _ in range(20):
+            if sigma_p0 <= sig_p0_max + 1e-6:
+                break
+            sigma_pi *= sig_p0_max / sigma_p0
+            pr = pp.perdas_pretracao(sigma_pi, Ap, ep, Mg, b, h, fckj, phi_f)
+            sigma_p0 = sigma_pi * (1.0 - pr["perda_imediata_pct"] / 100.0)
+        perdas = pr["perda_total_frac"]
         perdas_info = pr
     else:
         perdas = perdas_in

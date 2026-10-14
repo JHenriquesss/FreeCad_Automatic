@@ -22,6 +22,8 @@ entrou.
 """
 import math
 import os
+
+import pytest
 import re
 import sys
 
@@ -41,6 +43,16 @@ import viga_baldrame as vb
 import viga_protendida as vp
 import fissuracao_nbr6118 as fis
 import premoldado_nbr9062 as pm
+
+
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede os numeros da
+# 2014 bit a bit, entao declara a 2014 (a chave do projeto) em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
 
 # fcks do aceite, em MPa.
 FCKS = (20.0, 50.0, 55.0, 60.0, 90.0)

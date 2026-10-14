@@ -138,8 +138,9 @@ def test_02_baseline_nos_dois_sentidos():
     if tuple(lente.EDICOES_VALIDAS) != ("2014", "2023+Em1"):
         lados.append("EDICOES_VALIDAS=%r, esperado ('2014','2023+Em1')"
                      % (lente.EDICOES_VALIDAS,))
-    if lente.EDICAO_PADRAO != "2014":
-        lados.append("EDICAO_PADRAO=%r, esperado '2014'" % (lente.EDICAO_PADRAO,))
+    # D236 fase 3 (migracao decidida pelo usuario): o padrao e' a 2023 + Em1
+    if lente.EDICAO_PADRAO != "2023+Em1":
+        lados.append("EDICAO_PADRAO=%r, esperado '2023+Em1'" % (lente.EDICAO_PADRAO,))
     # D236 (migracao para a 2023, fase 1): o pilar entra com 15.8.2 e 8.2.10.1
     if tuple(lente.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
                                           ("compatibilizacao", "13.2.5.1"),
@@ -177,7 +178,10 @@ def test_02_baseline_nos_dois_sentidos():
             "viga_concreto.py", "viga_continua.py",
             "viga_protendida.py", "escada_concreto.py",
             # D236: fct,m le a chave
-            "fctm_nbr6118_g127.py"}
+            "fctm_nbr6118_g127.py",
+            # D236 fase 3: entradas que ativam a edicao do projeto
+            "estrutura_casa.py", "edificio_multipavimento.py",
+            "galpao_turnkey.py", "rodar_projeto.py"}
     if set(lente.USO_ESPERADO) != esp:
         lados.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                      % (sorted(esp - set(lente.USO_ESPERADO)),
@@ -290,14 +294,15 @@ def test_05_fontes_independentes_e_chave_desligada():
     f23 = float(pm.fckj_idade(60e3, 7, cimento="CPIII", edicao="2023+Em1"))
     if abs(f14 - 41032) > 1.0 or abs(f23 - 49124) > 1.0:
         lados.append("producao nao le a chave no 12.3.3: %.0f/%.0f" % (f14, f23))
-    # Chave DESLIGADA: sem o parametro, o comportamento e o de hoje.
+    # D236 fase 3: sem o parametro vale o padrao, a 2023 + Em1.
     f_sem = float(pm.fckj_idade(60e3, 7, cimento="CPIII"))
-    if abs(f_sem - f14) > 1e-9:
-        lados.append("sem parametro devia ser hoje (2014): %.1f vs %.1f"
-                     % (f_sem, f14))
+    if abs(f_sem - f23) > 1e-9:
+        lados.append("sem parametro devia ser o padrao (2023+Em1): %.1f vs %.1f"
+                     % (f_sem, f23))
     base = {"d_furo_mm": 125.0, "h_viga_mm": 600.0, "dist_apoio_mm": 1300.0,
             "zona_tracao": True, "dist_face_mm": 60.0, "cobrimento_mm": 25.0,
             "furo_unico": True, "armadura_seccionada": False}
+    # sem a forma do furo nao ha o 125 em edicao nenhuma (padrao 2023 inclusive)
     r_sem = co.avalia_furo_viga(**base)
     r_14 = co.avalia_furo_viga(edicao="2014", forma_furo="circular", **base)
     if r_sem["veredito"] != r_14["veredito"] != "a_confirmar":
@@ -315,8 +320,8 @@ def test_05_fontes_independentes_e_chave_desligada():
         lados.append("sem forma em 2023+Em1 devia ficar em 12 cm: %r"
                      % (r_sf["veredito"],))
     # O carimbo diz qual e mesmo sem o parametro (sem default silencioso).
-    if "NBR 6118:2014" not in lente.carimbo_edicao(None):
-        lados.append("carimbo sem parametro sem 2014: %r"
+    if "NBR 6118:2023 + Emenda 1:2026" not in lente.carimbo_edicao(None):
+        lados.append("carimbo sem parametro sem a 2023 + Em1: %r"
                      % (lente.carimbo_edicao(None),))
     if "nao declarada" not in lente.carimbo_edicao(None):
         lados.append("carimbo sem parametro esconde a ausencia: %r"

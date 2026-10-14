@@ -211,8 +211,9 @@ def test_04_norma_parse_e_guarda_da_folha():
     pilares = _pilares_predio()
     svg = dp.prancha_armacao_pilares_svg(pilares)
     gaps = []
-    if "NBR 6118:2014" not in svg:
-        gaps.append("folha sem declarar NBR 6118:2014")
+    # D236: a folha declara a edicao do projeto (sem chave, 2023 + Em1)
+    if "NBR 6118:2023 + Emenda 1:2026" not in svg:
+        gaps.append("folha sem declarar a edicao (2023 + Em1, padrao)")
     # Sem inventar a frase exata da primitiva: o que vale e' a ausencia
     # sair NOMEADA (o dado phi_long_mm dito nao declarado).
     if "phi_long_mm" not in svg:

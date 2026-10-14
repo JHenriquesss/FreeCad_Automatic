@@ -19,6 +19,7 @@
 NBR 6118/6123/6122. Orquestrador STATELESS: rodar(spec) -> gates ATENDE/REPROVA."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import math
 
@@ -178,6 +179,7 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
     return gov
 
 
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar(spec):
     """Dimensiona o galpao de concreto e devolve os gates.
     spec: {

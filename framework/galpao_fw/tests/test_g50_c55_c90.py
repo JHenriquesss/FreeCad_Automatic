@@ -8,6 +8,7 @@
 4. gancho_135_exigido no ARTEFATO (SVG/quadro), nao so no dict.
 Direcao conservadora + C50 bit-a-bit inalterado.
 """
+import pytest
 import math
 import os
 import sys
@@ -20,6 +21,17 @@ import fundacao_sapata as fs
 import fissuracao_nbr6118 as fis
 import pilar_concreto as pc
 import viga_baldrame as vb
+
+
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede regras da
+# NBR 6118:2014 (as que mudaram tem teste proprio em test_migracao_6118_2023_d236),
+# entao declara a 2014 em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
 
 
 def eci_errado_MPa(fck_MPa):

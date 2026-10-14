@@ -13,6 +13,7 @@ Um projeto = um dict de params. Se params['geometria']['spans'] existir,
 usa multi-vao; senao, usa 'span' (retrocompativel)."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import math
 import os
@@ -185,6 +186,7 @@ def _casos_base_envelope(n_wall_perm_ext=0.0):
     return out
 
 
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar(params, out_dir):
     os.makedirs(out_dir, exist_ok=True)
 

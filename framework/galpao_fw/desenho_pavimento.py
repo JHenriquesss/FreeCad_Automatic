@@ -543,9 +543,9 @@ def _subtitulo_pilares(edicao=None):
     com a chave, o rotulo da fonte unica (sem literal aqui).
     G132: a folha declara a edicao que a SUA conta usou (sem troca: 2014
     com qualquer chave)."""
-    if edicao is None:
-        return _SUBTITULO_PILARES
     from edicao_nbr6118_g123 import edicao_da_peca, rotulo_edicao as _rot_ed
+    if edicao is None and _rot_ed(None) in _SUBTITULO_PILARES:
+        return _SUBTITULO_PILARES
     return ("pilares: esbeltez e 2a ordem (15.8) + As min/max (17.3.5.3) + "
             "estribo e limite governante (18.4.3) -- %s"
             % _rot_ed(edicao_da_peca(edicao, False)))

@@ -32,6 +32,7 @@ verticais (concreto/aco/eletrico/incendio) e consolida gates + ATENDE global +
 modelo BIM/IFC federado (emitir_bim)."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import math
 
@@ -156,6 +157,7 @@ _ADAPTADORES = {"concreto": _run_concreto, "aco": _run_aco,
 
 
 # ------------------------------------------------------------------- mestre
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar(spec, out_dir=None):
     """Despacha todos os verticais presentes no spec e consolida os vereditos.
     spec: {

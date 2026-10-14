@@ -188,9 +188,14 @@ def _imports_para_modulo(arvore):
 
 
 def _chamadas_de(no_func):
-    """Pares (base_ou_None, nome) chamados no corpo da funcao."""
+    """Pares (base_ou_None, nome) chamados no corpo da funcao.
+
+    So o CORPO: o decorador (ex. `com_edicao_do_projeto`, D236) nao e'
+    chamada feita pela funcao; contado, ele gastava o teto de funcoes por
+    orquestrador e empurrava calculo real para fora do alcance da lente."""
     achadas = []
-    for no in ast.walk(no_func):
+    corpo = ast.Module(body=list(getattr(no_func, "body", [])), type_ignores=[])
+    for no in ast.walk(corpo):
         if isinstance(no, ast.Call):
             fn = no.func
             if isinstance(fn, ast.Name):

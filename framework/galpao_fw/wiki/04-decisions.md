@@ -8161,3 +8161,37 @@ edicoes e foram corrigidos sem chave: 9.3.2.1 eta3 = (132 - phi)/100 para phi
 sapata, no tirante da estaca e no chumbador; em C90 o lb saia ~19.phi). O
 baseline do G136 (lb de C50 a C90 com phi 20: 475/467/449/382 -> 500 mm) foi
 atualizado.
+
+**Fase 3 (feita): a 2023 + Emenda 1 vira o padrao.**
+- `EDICAO_PADRAO = "2023+Em1"`. A 2014 so' quando o projeto a declara
+  (`norma_6118_edicao`).
+- A edicao DECLARADA chega a toda conta pela variavel de contexto
+  `_EDICAO_ATIVA`: as entradas (`galpao_concreto.rodar`, `rodar_galpao.rodar`,
+  `estrutura_casa.rodar`, `edificio_multipavimento.rodar`,
+  `run_casa_residencial`, `run_edificio`, `galpao_turnkey.rodar`,
+  `rodar_projeto.rodar_tudo`) levam o decorador `com_edicao_do_projeto`, e
+  `resolver_edicao(None)` le o contexto antes do padrao. Medido na casa real:
+  com "2014" declarada, folhas, memorial da sapata, pacote, caderno e as 61
+  pendencias saem em 2014; sem a chave, tudo em 2023 + Em1.
+- A regra do G132 ("peca sem conta que troca declara 2014") deixa de valer:
+  com a releitura da fase 2b a conta sem troca e' igual nas duas edicoes, e
+  toda peca declara a edicao do projeto. `carimbo_composicao` vira o carimbo
+  da edicao. As clausulas da compatibilizacao, o subtitulo da folha de pilares,
+  os textos de metodo do relatorio e a fonte da viga continua citam a edicao
+  do projeto (antes, "NBR 6118:2014" fixo).
+- Achado ao virar: a viga protendida do galpao de concreto de 20 m subia de
+  30x80 para 30x100 porque o motor sempre estirava no teto de 9.6.1.2.1 e
+  reprovava pelo limite de 9.6.1.2.2 (D233). Agora o estiramento desce ate'
+  o sigma_p0 caber (como na obra): 30x80 nas duas edicoes.
+- Lente G48 (`varredura_descoberta._chamadas_de`): contava o decorador como
+  chamada de `rodar()` e, pelo teto de 32 funcoes por orquestrador, perdia a
+  ilha `cargas_nbr6120.multiplicadores_pavimentos/area`. Passa a ler so' o
+  corpo da funcao.
+- Lentes revistas para a regra nova: G123 (padrao, usos 34), G128, G132
+  (reescrita: toda peca declara a edicao do projeto; projeto 2014 com folha
+  2023 reprova), G135 (13 isencoes, 34 usos, literais da 2014 medidos com a
+  2014 declarada). Os testes que medem numeros da 2014 bit a bit (G127, G133,
+  G136, pilar, C55-C90, fctm C60, G116, G122, D233) declaram a 2014 por fixture.
+
+**Estado.** Migracao concluida: o motor calcula pela NBR 6118:2023 + Emenda 1
+por padrao e pela 2014 quando o projeto a declarar.

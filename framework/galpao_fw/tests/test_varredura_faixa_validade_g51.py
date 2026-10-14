@@ -284,7 +284,7 @@ def test_07c_orfa_lambda_bloco_do_pilar_saiu():
     assert (chr(10) + "LAMBDA_BLOCO =") not in corpo
     assert not hasattr(pc, "LAMBDA_BLOCO")
     assert pc.ALPHA_C == 0.85 and pc.alpha_c_pilar(30.0) == 0.85
-    assert abs(pc.alpha_c_pilar(60.0) - 0.85 * 0.95) < 1e-12
+    assert abs(pc.alpha_c_pilar(60.0, "2014") - 0.85 * 0.95) < 1e-12   # D236: regra da 2014
 
 
 # --- G51-rev: a varredura nao pode crescer sozinha -------------------------

@@ -345,8 +345,9 @@ def _selftest():
     # G128: sem edicao, a 6118 sai com a de hoje (2014) e o caderno diz
     # qual e; com a chave, sai a declarada; invalida levanta.
     # G135: o rotulo esperado vem da fonte unica (sem literal aqui).
-    from edicao_nbr6118_g123 import DECLARACAO_2014 as _DECL_2014_ST
-    assert _DECL_2014_ST in md and "nao declarada" in md
+    from edicao_nbr6118_g123 import DECLARACAO_2023_EM1 as _DECL_ST
+    # D236: sem a chave, o padrao (2023 + Em1) declarado, com a ATP da Emenda
+    assert _DECL_ST in md and "nao declarada" in md and "ATP" in md
     assert cad["edicao_6118"] is None
     ce23 = gerar_caderno(["concreto"], edicao="2023+Em1")
     assert ce23["edicao_6118"] == "2023+Em1"

@@ -25,6 +25,7 @@ descida de cargas, pilares continuos, lajes, vigas, escada e planta de formas, e
 consolida os gates."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import os
 
@@ -159,6 +160,7 @@ def _descer_escada(desc, stair):
             "W_q_por_pav_kN": round(stair["W_q"], 3)}
 
 
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar(spec):
     """Dimensiona o edificio multipavimento e devolve os gates.
 

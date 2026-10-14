@@ -40,14 +40,18 @@ import edicao_nbr6118_g123 as fonte
 # Remedicao do G135 antes de mudar (2026-09-13): 22 linhas do carimbo em
 # 6 arquivos + "6118:2014" a mao em 22 arquivos (46 linhas). Depois da
 # fiacao, o censo de copias e vazio e os rotulos sao so as 14 isencoes.
-N_ISENCOES_ESPERADO = 14
-N_USOS_ESPERADO = 30   # D236: + fctm_nbr6118_g127 (8.2.5 le a chave)
+N_ISENCOES_ESPERADO = 13   # D236: relatorio_calculo cita a edicao do projeto
+N_USOS_ESPERADO = 34   # D236: + fctm_nbr6118_g127 + as 4 entradas da fase 3
 
 # Os literais antigos, escritos a mao no teste (nao lidos da fonte: contra
 # assercao tautologica, convencao 5 - a fonte tem de bater neles).
-CARIMBO_SEM_CHAVE = ("Projeto calculado pela NBR 6118:2014 (comportamento "
-                     "atual; edicao nao declarada no projeto \u2014 assumida "
-                     "2014)")
+# D236: sem a chave vale o padrao (2023 + Em1); a 2014 so' declarada.
+CARIMBO_SEM_CHAVE = ("Projeto calculado pela NBR 6118:2023 + Emenda 1:2026 "
+                     "(edicao nao declarada no projeto — assumida a "
+                     "2023+Em1, padrao desde o D236)")
+CARIMBO_2014 = ("Projeto calculado pela NBR 6118:2014 (edicao declarada no "
+                "projeto)")
+ROTULO_2023 = "NBR 6118:2023 + Emenda 1:2026"
 ROTULO_2014 = "NBR 6118:2014"
 SUFIXO_2014 = " (NBR 6118:2014)"
 
@@ -87,13 +91,20 @@ def test_02_sem_chave_cada_linha_migrada_rende_o_literal_antigo():
     a byte (o que prova que cada cabecalho fiado sai identico); o memorial
     real do galpao carimba os cabecalhos migrados em 2014."""
     quebras = []
-    if fonte.rotulo_edicao(None) != ROTULO_2014:
-        quebras.append("rotulo sem chave=%r, esperado %r"
-                       % (fonte.rotulo_edicao(None), ROTULO_2014))
+    # D236: sem a chave, o padrao 2023 + Em1 ...
+    if fonte.rotulo_edicao(None) != ROTULO_2023:
+        quebras.append("rotulo sem chave=%r" % (fonte.rotulo_edicao(None),))
     if fonte.carimbo_edicao(None) != CARIMBO_SEM_CHAVE:
         quebras.append("carimbo sem chave=%r" % (fonte.carimbo_edicao(None),))
+    # ... e com a 2014 declarada (contexto das entradas), os literais antigos.
+    _ctx = fonte.edicao_do_projeto("2014")
+    _ctx.__enter__()
+    if fonte.rotulo_edicao(None) != ROTULO_2014:
+        quebras.append("rotulo com 2014 declarada=%r" % (fonte.rotulo_edicao(None),))
+    if fonte.carimbo_edicao(None) != CARIMBO_2014:
+        quebras.append("carimbo com 2014 declarada=%r" % (fonte.carimbo_edicao(None),))
     if fonte.sufixo_folha_edicao(None) != SUFIXO_2014:
-        quebras.append("sufixo sem chave=%r"
+        quebras.append("sufixo com 2014 declarada=%r"
                        % (fonte.sufixo_folha_edicao(None),))
     if fonte.DECLARACAO_2014 != ROTULO_2014:
         quebras.append("DECLARACAO_2014 mudou: %r" % (fonte.DECLARACAO_2014,))
@@ -142,7 +153,7 @@ def test_02_sem_chave_cada_linha_migrada_rende_o_literal_antigo():
     for esperado in ("PILAR DE CONCRETO ARMADO - FLEXAO COMPOSTA "
                      "(ABNT NBR 6118:2014)",
                      "VIGA DE CONCRETO ARMADO (ABNT NBR 6118:2014)",
-                     CARIMBO_SEM_CHAVE):
+                     CARIMBO_2014):
         if esperado not in mem:
             quebras.append("memorial real sem %r" % (esperado,))
     if "6118:2023" in mem:      # a edicao de OUTRA norma (vento, NBR 6123:2023) nao conta
@@ -160,7 +171,8 @@ def test_02_sem_chave_cada_linha_migrada_rende_o_literal_antigo():
             fs.relatorio_sapata_B(rB_fs, caso_fs):
         quebras.append("relatorio B real da sapata sem o cabecalho em 2014")
     if "6118:2023" in mem:      # a edicao de OUTRA norma (vento, NBR 6123:2023) nao conta
-        quebras.append("memorial sem chave citando 2023")
+        quebras.append("memorial com 2014 declarada citando 2023")
+    _ctx.__exit__(None, None, None)
     assert not quebras, "byte-identico G135 reprova:\n" + "\n".join(quebras)
 
 
@@ -313,7 +325,7 @@ def _pecas_concreto(nome, destino):
     return pecas, faltando
 
 
-def test_06_tres_tipologias_sem_chave_declaram_2014_em_toda_peca(tmp_path):
+def test_06_tres_tipologias_sem_chave_declaram_2023_em_toda_peca(tmp_path):
     """Um assert so (molde G128 test_01/02/03): rodada real das 3
     tipologias sem a chave - toda folha PE-CO / SVG de calculo + pacote
     + caderno declara 2014 pela fonte; nenhum "2023" sai."""
@@ -348,9 +360,10 @@ def test_06_tres_tipologias_sem_chave_declaram_2014_em_toda_peca(tmp_path):
                 pecas["%s:%s" % (nome, doc)] = fh.read()
         for arquivo, texto in sorted(pecas.items()):
             c = fonte.contem_declaracao(texto)
-            if not c["tem"] or c["edicao"] != "2014":
-                quebras.append("%s declara %r (esperado 2014)"
+            # D236: sem a chave toda peca declara o padrao 2023 + Em1
+            if not c["tem"] or c["edicao"] != "2023+Em1":
+                quebras.append("%s declara %r (esperado 2023+Em1)"
                                % (arquivo, c["edicao"]))
-            if "2023" in texto:
-                quebras.append("%s sem chave citando 2023" % (arquivo,))
+            if "6118:2014" in texto:
+                quebras.append("%s sem chave citando 2014" % (arquivo,))
     assert not quebras, "tipologias G135 reprovam:\n" + "\n".join(quebras)

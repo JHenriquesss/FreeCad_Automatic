@@ -64,6 +64,7 @@
 fundacao, sem a camada de estabilidade horizontal do edificio."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import copy
 import os
@@ -1672,6 +1673,7 @@ def _valida(spec):
             raise EntradaEstrutura("materiais.%s deve ser numerico > 0" % chave)
 
 
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar(spec):
     """Dimensiona a estrutura da casa e devolve os gates.
 

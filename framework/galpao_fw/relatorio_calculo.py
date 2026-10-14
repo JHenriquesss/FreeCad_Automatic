@@ -122,7 +122,7 @@ METODOS = {
         "no concreto, tracao nos chumbadores, flexao da placa e verificacao do "
         "concreto (esmagamento)."),
     "11. SAPATA": (
-        "NBR 6118:2014. Envelope de combinacoes ELU (N, V, M na base). Verifica "
+        "{NBR6118}. Envelope de combinacoes ELU (N, V, M na base). Verifica "
         "tensao no solo <= admissivel, seguranca ao tombamento e ao "
         "deslizamento (fatores FS), puncao (22.6.2.2) e armadura de flexao das "
         "duas direcoes. sigma_solo,adm e parametro de sondagem (geotecnia)."),
@@ -134,7 +134,7 @@ METODOS = {
         "seguranca ao tombamento e deslizamento, e tensao de tracao no concreto "
         "limitada a ~fck/25 (Alonso). sigma_solo,adm e parametro de sondagem."),
     "11b. VIGA DE BALDRAME": (
-        "NBR 6118:2014. Viga de baldrame sob o fechamento: flexao e cisalhamento "
+        "{NBR6118}. Viga de baldrame sob o fechamento: flexao e cisalhamento "
         "para a carga de parede/pe-direito, apoiada nos blocos/sapatas."),
     "11c. FUNDACAO PROFUNDA": (
         "Metodos semi-empiricos (Aoki-Velloso / Decourt-Quaresma) para "
@@ -151,7 +151,7 @@ METODOS = {
         "NBR 8800 + NBR 6120. Piso/vigas da plataforma: flexao para a "
         "sobrecarga de uso, apoio e flecha."),
     "11g. SAPATA DE DIVISA": (
-        "NBR 6118:2014 + metodo de Alonso. Pilar na linha do lote: sapata "
+        "{NBR6118} + metodo de Alonso. Pilar na linha do lote: sapata "
         "EXCENTRICA (a resultante do solo nao passa pelo eixo do pilar) equilibrada "
         "por VIGA ALAVANCA ate o pilar interno vizinho. Reacao majorada R = P . "
         "dist_eixos / (dist_eixos - e); alivio na sapata interna; flexao/cortante "
@@ -197,10 +197,12 @@ def _trechos_flow(titulo, ss):
 
 
 def _metodo_para(titulo):
+    # D236: "{NBR6118}" vira o rotulo da edicao do projeto (padrao 2023 + Em1)
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot
     t = titulo.strip()
     for chave, txt in METODOS.items():
         if t.startswith(chave):
-            return txt
+            return txt.replace("{NBR6118}", _rot(None))
     return _METODO_PADRAO
 
 

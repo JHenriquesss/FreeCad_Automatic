@@ -65,6 +65,16 @@ sys.path.insert(0, GALPAO)
 import protensao_fck_g133 as lente
 
 
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede os numeros da
+# 2014 bit a bit, entao declara a 2014 (a chave do projeto) em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
+
+
 def _galpao_concreto(**kw):
     import galpao_concreto as gc
     base = {"vao": 15.0, "comprimento": 40.0, "pe_direito": 6.0,

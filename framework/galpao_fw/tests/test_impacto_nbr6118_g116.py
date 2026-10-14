@@ -37,6 +37,17 @@ sys.path.insert(0, GALPAO)
 
 import impacto_nbr6118_g116 as lente
 
+
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede regras da
+# NBR 6118:2014 (as que mudaram tem teste proprio em test_migracao_6118_2023_d236),
+# entao declara a 2014 em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
+
 INVENTARIO = os.path.join(GALPAO, "wiki",
                           "07-nbr6118-2023-em1-impacto-g116.md")
 

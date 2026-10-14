@@ -41,6 +41,7 @@
 com as costuras entre a planta, a instalacao declarada e a malha estrutural."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import copy
 import unicodedata
@@ -596,6 +597,7 @@ def _registro_eletrico(normalized, run_dir, preflight, resultado_arquitetura):
     return registro, resultado
 
 
+@_ed_d236.com_edicao_do_projeto('normalized')
 def run_casa_residencial(normalized, run_dir, preflight=None):
     """Executa as tres disciplinas da casa e devolve (resultado, registros)."""
     if not isinstance(normalized, dict):

@@ -7,6 +7,7 @@
 """Runner de projeto: reset -> validar -> calculo -> modelo. Portavel e isolado."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import framework as FW
 import projeto_spec as PS
@@ -504,6 +505,7 @@ def relatorio_consolidado(spec, res, modelo=None, executivo=None, out_dir=None):
     return txt
 
 
+@_ed_d236.com_edicao_do_projeto('spec')
 def rodar_tudo(spec, out_dir=None, doc_name=None, com_3d=True, com_executivo=True,
                gerar_pdf=True, gerar_dossie=True, host="http://localhost:9875",
                timeout_3d=180, timeout_exec=1200, verbose=True,

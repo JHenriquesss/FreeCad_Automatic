@@ -65,8 +65,22 @@ GALPAO = pathlib.Path(__file__).resolve().parent
 # de projeto neste goal).
 EDICOES_VALIDAS = ("2014", "2023+Em1")
 
-# Comportamento de hoje (o que o framework faz sem o parametro).
-EDICAO_PADRAO = "2014"
+# Comportamento sem o parametro. D236 (migracao decidida pelo usuario em
+# 2026-10-14, fase 3): a 2023 + Emenda 1 passa a ser o padrao; a 2014 so' com
+# a edicao declarada no projeto.
+EDICAO_PADRAO = "2023+Em1"
+
+# D236: a edicao DECLARADA no projeto vale para toda conta feita durante a
+# rodada (os pontos de MODULOS_COM_TROCA chamam eh_2023() sem parametro). As
+# entradas (galpao_concreto.rodar, rodar_galpao.rodar, estrutura_casa.rodar,
+# edificio_multipavimento.rodar, run_casa_residencial, run_edificio,
+# galpao_turnkey.rodar, rodar_projeto.rodar_tudo) a ativam pelo decorador
+# `com_edicao_do_projeto`; fora delas vale EDICAO_PADRAO.
+import contextlib as _contextlib
+import contextvars as _contextvars
+import functools as _functools
+
+_EDICAO_ATIVA = _contextvars.ContextVar("edicao_6118_do_projeto", default=None)
 
 # Rotulos que a folha carimba. Substrings estaveis que o portao confere por
 # substring (nunca regex sobre a folha: convencao 3 do lote e parse, mas o
@@ -155,6 +169,9 @@ USO_ESPERADO = frozenset({
     "escada_concreto.py",
     # D236: fct,m le a chave (8.2.5 da 2023 acima de C50).
     "fctm_nbr6118_g127.py",
+    # D236 fase 3: entradas que ativam a edicao do projeto (decorador).
+    "estrutura_casa.py", "edificio_multipavimento.py",
+    "galpao_turnkey.py", "rodar_projeto.py",
 })
 
 # G135: o texto do carimbo fora daqui (quase todo em fallback de except que
@@ -196,9 +213,6 @@ CITACOES_ISENTAS = {
         "docstring de metodo (15.6/15.8); o cabecalho do memorial vem da fonte",
     "puncao_nbr6118.py":
         "docstring de metodo 19.5 (edicao da clausula lida)",
-    "relatorio_calculo.py":
-        "tabela METODOS (fonte do metodo por modulo, nao carimbo da peca; "
-        "migrar item a item e decisao do usuario, G132 Nao fazer)",
     "viga_baldrame.py":
         "docstring de metodo (edicao das clausulas lidas); o cabecalho do "
         "memorial vem da fonte",
@@ -246,6 +260,10 @@ def resolver_edicao(edicao=None):
     inventado nao vira edicao).
     """
     if edicao is None:
+        ativa = _EDICAO_ATIVA.get()
+        if ativa is not None:
+            return {"edicao": ativa, "origem": "declarada_no_projeto",
+                    "explicita": True}
         return {"edicao": EDICAO_PADRAO,
                 "origem": "padrao_hoje_sem_parametro",
                 "explicita": False}
@@ -273,8 +291,8 @@ def carimbo_edicao(edicao=None):
     if r["explicita"]:
         return ("Projeto calculado pela %s (edicao declarada no projeto)"
                 % rot)
-    return ("Projeto calculado pela %s (comportamento atual; edicao nao "
-            "declarada no projeto — assumida 2014)" % rot)
+    return ("Projeto calculado pela %s (edicao nao declarada no projeto — "
+            "assumida a %s, padrao desde o D236)" % (rot, EDICAO_PADRAO))
 
 
 def sufixo_folha_edicao(edicao=None):
@@ -374,6 +392,35 @@ def s_cimento(edicao, cimento, fck_kNm2):
         return _piso
     from cimento_nbr6118_g126 import normaliza_cimento as _norm_cim
     return S_CIMENTO_2014[_norm_cim(cimento)]
+
+
+@_contextlib.contextmanager
+def edicao_do_projeto(edicao):
+    """Ativa a edicao declarada no projeto durante o bloco (None = nao muda)."""
+    canon = normaliza_edicao(edicao) if edicao not in (None, "") else None
+    tok = _EDICAO_ATIVA.set(canon if canon is not None else _EDICAO_ATIVA.get())
+    try:
+        yield canon
+    finally:
+        _EDICAO_ATIVA.reset(tok)
+
+
+def com_edicao_do_projeto(extrator="spec"):
+    """Decorador das entradas: le a edicao do 1o argumento (spec dict pelo
+    `edicao_de_spec`, ou normalized do project_loop pelo `edicao_de_normalized`)
+    e a ativa durante a rodada (D236)."""
+    def deco(func):
+        @_functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            arg = args[0] if args else None
+            if extrator == "normalized":
+                ed = edicao_de_normalized(arg) if isinstance(arg, dict) else None
+            else:
+                ed = edicao_de_spec(arg) if isinstance(arg, dict) else None
+            with edicao_do_projeto(ed):
+                return func(*args, **kwargs)
+        return wrapper
+    return deco
 
 
 def eh_2023(edicao=None):
@@ -477,11 +524,13 @@ def edicao_da_peca(edicao_projeto, usa_troca):
     (nunca vira edicao em silencio).
     """
     if edicao_projeto is None:
-        return "2014"
+        return resolver_edicao(None)["edicao"]
     canon = normaliza_edicao(edicao_projeto)
-    if usa_troca:
+    if usa_troca or canon == "2014":
         return canon
-    return "2014"
+    # D236: com a releitura da fase 2b, a conta sem troca e' igual nas duas
+    # edicoes; a peca declara a edicao do projeto.
+    return canon
 
 
 def carimbo_composicao(edicao=None):
@@ -497,6 +546,9 @@ def carimbo_composicao(edicao=None):
     canon = normaliza_edicao(edicao)
     if canon == "2014":
         return carimbo_edicao("2014")
+    if EDICAO_PADRAO == "2023+Em1":
+        # D236: migracao completa - o projeto inteiro e' pela 2023 + Em1
+        return carimbo_edicao(canon)
     itens = " e ".join("%s (%s)" % (clausula, modulo)
                        for modulo, clausula in MODULOS_COM_TROCA)
     return ("Projeto calculado pela %s, exceto %s pela %s "

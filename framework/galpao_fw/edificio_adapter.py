@@ -47,6 +47,7 @@
 honestos para o que ainda nao e' calculado."""
 
 from __future__ import annotations
+import edicao_nbr6118_g123 as _ed_d236  # D236
 
 import copy
 from typing import Any
@@ -783,6 +784,7 @@ _DISCIPLINAS_INSTALACOES = (
 )
 
 
+@_ed_d236.com_edicao_do_projeto('normalized')
 def run_edificio(normalized, run_dir, preflight=None):
     """Executa a estrutura do edificio e devolve (resultado, registros)."""
     del run_dir, preflight

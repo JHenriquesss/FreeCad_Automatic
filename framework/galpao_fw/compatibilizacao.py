@@ -63,6 +63,14 @@ from edicao_nbr6118_g123 import (
 )
 
 
+def _fonte_6118():
+    """Rotulo da NBR 6118 que a clausula cita: a edicao do projeto (contexto
+    ativado pelas entradas) ou o padrao, 2023 + Em1 desde o D236. Ate' o D236
+    as clausulas sem ponto de troca citavam 2014 fixo."""
+    from edicao_nbr6118_g123 import rotulo_edicao as _rot
+    return _rot(None)
+
+
 def _disciplinas_do_par(par):
     """'concretoxeletrico' -> ('concreto','eletrico'). Nomes nao contem 'x'."""
     ps = par.split("x")
@@ -241,8 +249,8 @@ def avalia_abertura_laje(dim_abertura_mm=None, vao_menor_mm=None,
     (b) dist face-eixo de apoio >= vao/4; (c) dist entre faces adjacentes >
     vao_menor/2. Secao remanescente deve equilibrar o ELU sem a abertura.
     """
-    clausulas = [_FONTE_6118 + " 13.2.5", _FONTE_6118 + " 13.2.5.2",
-                 _FONTE_6118 + " 20.2", _FONTE_6118 + " 21.3.4"]
+    clausulas = [_fonte_6118() + " 13.2.5", _fonte_6118() + " 13.2.5.2",
+                 _fonte_6118() + " 20.2", _fonte_6118() + " 21.3.4"]
     dim = _num(dim_abertura_mm); vao = _num(vao_menor_mm)
     dist_ap = _num(dist_apoio_mm); dist_adj = _num(dist_adjacente_mm)
 
@@ -305,7 +313,7 @@ def avalia_furo_vertical_viga(d_furo_mm=None, b_viga_mm=None, dist_face_mm=None,
     a >= 5 cm e cada intervalo com >= 1 estribo; secao remanescente deve
     resistir ao cisalhamento/flexao e permitir boa concretagem.
     """
-    clausulas = [_FONTE_6118 + " 13.2.5", _FONTE_6118 + " 21.3.3"]
+    clausulas = [_fonte_6118() + " 13.2.5", _fonte_6118() + " 21.3.3"]
     d = _num(d_furo_mm); b = _num(b_viga_mm)
     dist_face = _num(dist_face_mm); cob = _num(cobrimento_mm)
     dist_ff = _num(dist_entre_faces_mm)
@@ -382,6 +390,14 @@ def _hint_do_clash(clash, cruzamentos):
 
 
 def classifica_cruzamento(clash, cruzamento=None, edicao=None):
+    """Classifica o cruzamento na edicao do projeto (D236: as clausulas sem
+    ponto de troca tambem citam a edicao declarada)."""
+    from edicao_nbr6118_g123 import edicao_do_projeto as _ctx
+    with _ctx(edicao):
+        return _classifica_cruzamento(clash, cruzamento, edicao)
+
+
+def _classifica_cruzamento(clash, cruzamento=None, edicao=None):
     """Categoria + veredito normativo de um clash (G55, criterio declarado).
 
     - esperado=True -> montagem (contato intencional, sem veredito).
@@ -413,7 +429,7 @@ def classifica_cruzamento(clash, cruzamento=None, edicao=None):
                 "motivos": ["sobreposicao longitudinal: canalizacao embutida "
                             "segundo o eixo do elemento (13.2.6), nao furo "
                             "transversal - remanejar o tracado"],
-                "clausulas": [_FONTE_6118 + " 13.2.6"]}
+                "clausulas": [_fonte_6118() + " 13.2.6"]}
     if direcao != "transversal":
         return {"categoria": CAT_CONFLITO, "veredito": None,
                 "motivos": ["direcao do cruzamento indefinida: sem passagem "
@@ -467,7 +483,7 @@ def classifica_cruzamento(clash, cruzamento=None, edicao=None):
             "motivos": ["elemento estrutural %s nao admite furo dispensado "
                         "(13.2.5.1 e' de vigas, 13.2.5.2 e' de lajes) - "
                         "remanejar o tracado" % tipos],
-            "clausulas": [_FONTE_6118 + " 13.2.5"]}
+            "clausulas": [_fonte_6118() + " 13.2.5"]}
 
 
 def _acao_furo(da, db, veredito, motivos):

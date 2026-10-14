@@ -235,7 +235,8 @@ def coef_engastamento_parcial(r_vig, r_inf, r_sup, variante="norma"):
         if den <= 0:
             raise ValueError("soma das rigidezes nula no no do apoio extremo")
         return {"viga": (r_inf + r_sup) / den, "sup": r_sup / den, "inf": r_inf / den,
-                "fonte": "NBR 6118:2014, 14.6.6.1-c (texto literal)"}
+                "fonte": "%s, 14.6.6.1-c (texto literal; igual nas duas edicoes)"
+                         % __import__("edicao_nbr6118_g123").rotulo_edicao(None)}
     if variante == "apostila":
         den = 4.0 * r_vig + 3.0 * r_inf + 3.0 * r_sup
         if den <= 0:

@@ -8,12 +8,24 @@ Armado', C30/CA-50), lidos do PDF - nao de memoria:
 O solver de resistencia usa o diagrama parabola-retangulo (referencia dos abacos
 de pilar); tolerancia de leitura de abaco ~+-5%.
 """
+import pytest
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pilar_concreto as pc
+
+
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede regras da
+# NBR 6118:2014 (as que mudaram tem teste proprio em test_migracao_6118_2023_d236),
+# entao declara a 2014 em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
 
 
 # ------------------------------------------------------------------ Ex.1

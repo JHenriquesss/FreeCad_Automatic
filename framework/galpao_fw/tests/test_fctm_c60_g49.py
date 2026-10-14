@@ -8,6 +8,7 @@ e exige C60 < extrapolacao errada (sinal do fix + direcao conservadora).
 Referencias (nao reescritas, so conferidas): fissuracao_nbr6118.fctm e
 premoldado_nbr9062._fctm ja tratam a faixa alta.
 """
+import pytest
 import math
 import os
 import sys
@@ -26,6 +27,17 @@ import viga_baldrame as vb
 import viga_protendida as vp
 import fissuracao_nbr6118 as fis
 import premoldado_nbr9062 as pm
+
+
+# D236 (fase 3): o padrao passou a 2023 + Em1. Este arquivo mede regras da
+# NBR 6118:2014 (as que mudaram tem teste proprio em test_migracao_6118_2023_d236),
+# entao declara a 2014 em cada teste.
+@pytest.fixture(autouse=True)
+def _edicao_2014_declarada():
+    import edicao_nbr6118_g123 as _ed
+    with _ed.edicao_do_projeto("2014"):
+        yield
+
 
 
 def fctm_errada_MPa(fck_MPa):

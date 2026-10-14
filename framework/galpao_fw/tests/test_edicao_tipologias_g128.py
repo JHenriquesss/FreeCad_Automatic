@@ -146,23 +146,18 @@ def _confere_rodada(nome, destino, edicao_chave, com_desenhos=True):
     if os.path.isfile(caminho):
         with open(caminho, encoding="utf-8") as fh:
             pends = json.load(fh)
+        # D236 (migracao completa): toda pendencia declara a edicao do
+        # projeto (ausente = padrao 2023 + Em1) e as clausulas citam a mesma.
+        esperado = lente.resolver_edicao(edicao_chave)["edicao"]
+        rot = lente.rotulo_edicao(esperado)
         for p in pends:
-            e_furo = p.get("categoria") == "furo_previsto"
-            e_viga = str(p.get("tipos") or "").startswith("Beam")
-            cita_2023 = any("2023" in cl
-                            for cl in (p.get("clausulas") or []))
-            if cita_2023 and not (e_furo and e_viga):
-                quebras.append("%s cita 2023 fora de furo em viga "
-                               "(categoria %s, tipos %s)"
-                               % (p.get("id"), p.get("categoria"),
-                                  p.get("tipos")))
-            esperado = "2023+Em1" if (cita_2023
-                                      and edicao_chave == "2023+Em1") \
-                else "2014"
             if p.get("edicao_6118") != esperado:
-                quebras.append("%s declara %r, mas a sua conta citou %s"
-                               % (p.get("id"), p.get("edicao_6118"),
-                                  "2023" if cita_2023 else "2014"))
+                quebras.append("%s declara %r, esperado %r"
+                               % (p.get("id"), p.get("edicao_6118"), esperado))
+            fora = [cl for cl in (p.get("clausulas") or [])
+                    if "NBR 6118" in cl and not cl.startswith(rot)]
+            if fora:
+                quebras.append("%s cita outra edicao: %r" % (p.get("id"), fora))
     return quebras
 
 
@@ -238,14 +233,15 @@ def test_04_furo_125_muda_so_com_a_chave():
 
     quebras = []
     rep, hints = _clash_furo_125("circular")
-    sem = cp.gerar_pendencias(rep, cruzamentos=hints)[0]
-    com = cp.gerar_pendencias(rep, cruzamentos=hints,
-                              edicao="2023+Em1")[0]
+    # D236: sem chave vale o padrao (2023 + Em1); a 2014 so' declarada
+    sem = cp.gerar_pendencias(rep, cruzamentos=hints,
+                              edicao="2014")[0]
+    com = cp.gerar_pendencias(rep, cruzamentos=hints)[0]
     if sem["veredito"] != "a_confirmar":
-        quebras.append("circular 125 sem chave=%r, esperado a_confirmar"
+        quebras.append("circular 125 com 2014=%r, esperado a_confirmar"
                        % (sem["veredito"],))
     if com["veredito"] != "admissivel":
-        quebras.append("circular 125 com 2023+Em1=%r, esperado admissivel"
+        quebras.append("circular 125 sem chave (2023+Em1)=%r, esperado admissivel"
                        % (com["veredito"],))
     if sem["edicao_6118"] != "2014" or com["edicao_6118"] != "2023+Em1":
         quebras.append("carimbo da pendencia: %r/%r"
@@ -267,10 +263,14 @@ def test_04_furo_125_muda_so_com_a_chave():
     if r_s["categoria"] != "conflito":
         quebras.append("sem hint virou %r, esperado conflito"
                        % (r_s["categoria"],))
-    # G132: pendencia sem conta que troca declara 2014 mesmo com a chave.
-    if r_s["edicao_6118"] != "2014":
-        quebras.append("conflito com 2023+Em1 declara %r, esperado 2014 "
-                       "(a conta nao troca)" % (r_s["edicao_6118"],))
+    # D236 (migracao completa): a pendencia declara a edicao do projeto.
+    if r_s["edicao_6118"] != "2023+Em1":
+        quebras.append("conflito com 2023+Em1 declara %r" % (r_s["edicao_6118"],))
+    r_14 = cp.gerar_pendencias(rep_s, edicao="2014")[0]
+    if r_14["edicao_6118"] != "2014" or not all(
+            "NBR 6118:2014" in cl for cl in r_14["clausulas"] if "6118" in cl):
+        quebras.append("conflito com 2014 declarada nao cita 2014: %r"
+                       % (r_14,))
     assert not quebras, "G128 furo 125:\n" + "\n".join(quebras)
 
 
@@ -283,13 +283,15 @@ def test_05_vermelho_por_injecao_em_tmp_path(tmp_path):
     boa = lente.carimbo_edicao("2014")
     adulterada = boa.replace(lente.DECLARACAO_2014,
                              lente.DECLARACAO_2023_EM1)
-    r = _confronto_peca_conta(adulterada, "2023+Em1", False)
+    # D236: a folha declara a edicao do projeto; 2023 num projeto em 2014
+    # reprova nomeando os dois lados.
+    r = _confronto_peca_conta(adulterada, "2014", False)
     if r["OK"]:
-        quebras.append("folha 2023 em peca sem troca devia reprovar")
+        quebras.append("folha 2023 em projeto 2014 devia reprovar")
     elif "2023+Em1" not in r["motivo"] or "2014" not in r["motivo"]:
         quebras.append("motivo nao nomeia os dois lados: %r" % (r["motivo"],))
     # A intacta passa; a sem declaracao reprova.
-    if not _confronto_peca_conta(boa, "2023+Em1", False)["OK"]:
+    if not _confronto_peca_conta(boa, "2014", False)["OK"]:
         quebras.append("folha intacta devia passar")
     if _confronto_peca_conta("concreto sem norma", "2014", False)["OK"]:
         quebras.append("folha sem declaracao devia reprovar")
@@ -329,20 +331,20 @@ def test_06_baseline_nos_dois_sentidos():
     import desenho_pavimento as dp
 
     quebras = []
-    # Sem o parametro, o comportamento e o de hoje...
-    if dp._sufixo_edicao() != dp._sufixo_edicao(None) != " (NBR 6118:2014)":
-        quebras.append("sufixo default mudou: %r" % (dp._sufixo_edicao(),))
-    if dfe._sufixo_edicao() != " (NBR 6118:2014)":
-        quebras.append("sufixo fundacao mudou: %r" % (dfe._sufixo_edicao(),))
-    if dp._subtitulo_pilares() != dp._SUBTITULO_PILARES:
-        quebras.append("subtitulo default mudou")
-    # G132: a folha declara a da conta (sem troca, 2014 com qualquer
-    # chave): o subtitulo e o sufixo com a chave rendem o literal de hoje.
-    if dp._subtitulo_pilares("2023+Em1") != dp._SUBTITULO_PILARES:
-        quebras.append("subtitulo com chave devia declarar 2014 (G132)")
-    if dp._sufixo_edicao("2023+Em1") != " (NBR 6118:2014)":
-        quebras.append("sufixo com chave devia declarar 2014 (G132): %r"
-                       % (dp._sufixo_edicao("2023+Em1"),))
+    # D236: sem o parametro vale o padrao (2023 + Em1); a 2014 declarada
+    # rende o literal de antes.
+    s23 = " (NBR 6118:2023 + Emenda 1:2026)"
+    if dp._sufixo_edicao() != s23 or dp._sufixo_edicao(None) != s23:
+        quebras.append("sufixo default: %r" % (dp._sufixo_edicao(),))
+    if dfe._sufixo_edicao() != s23:
+        quebras.append("sufixo fundacao: %r" % (dfe._sufixo_edicao(),))
+    if "NBR 6118:2023 + Emenda 1:2026" not in dp._subtitulo_pilares():
+        quebras.append("subtitulo default sem a 2023 + Em1")
+    if dp._subtitulo_pilares("2014") != dp._SUBTITULO_PILARES:
+        quebras.append("subtitulo com 2014 declarada mudou")
+    if dp._sufixo_edicao("2014") != " (NBR 6118:2014)":
+        quebras.append("sufixo com 2014 declarada: %r"
+                       % (dp._sufixo_edicao("2014"),))
     if [n for n in ce.gerar_caderno()["normas_referenciadas"]
             if n == "NBR 6118"]:
         quebras.append("caderno default ainda tem NBR 6118 sem edicao")
@@ -369,7 +371,9 @@ def test_06_baseline_nos_dois_sentidos():
            "viga_baldrame.py", "viga_baldrame_edificio.py",
            "viga_concreto.py", "viga_continua.py",
            "viga_protendida.py", "escada_concreto.py",
-           "fctm_nbr6118_g127.py"}                    # D236
+           "fctm_nbr6118_g127.py",                    # D236
+           "estrutura_casa.py", "edificio_multipavimento.py",
+           "galpao_turnkey.py", "rodar_projeto.py"}   # D236 fase 3
     if set(lente.USO_ESPERADO) != esp:
         quebras.append("USO_ESPERADO mudou: so no conhecido %r, so no vivo %r"
                        % (sorted(esp - set(lente.USO_ESPERADO)),
