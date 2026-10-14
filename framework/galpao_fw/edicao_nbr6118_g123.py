@@ -96,6 +96,11 @@ LIMITE_FURO_CIRCULAR_2023_EM1_MM = 125.0
 MODULOS_COM_TROCA = (
     ("premoldado_nbr9062", "12.3.3"),
     ("compatibilizacao", "13.2.5.1"),
+    # D236 (migracao para a 2023 decidida pelo usuario em 2026-10-14, fase 1):
+    # os dois numeros do pilar que o D233 achou mudando (imagem da 2023 p.108
+    # e p.26; F016 p.108 e p.26).
+    ("pilar_concreto", "15.8.2"),
+    ("pilar_concreto", "8.2.10.1"),
 )
 
 # Arquivos de producao que podem importar esta fonte unica (baseline nos
@@ -361,6 +366,30 @@ def s_cimento(edicao, cimento, fck_kNm2):
         return _piso
     from cimento_nbr6118_g126 import normaliza_cimento as _norm_cim
     return S_CIMENTO_2014[_norm_cim(cimento)]
+
+
+def alpha_b_balanco(edicao, Mc, Ma):
+    """alpha_b do pilar em BALANCO (15.8.2 c) lendo a chave (D236).
+
+    2014 (F016 p.108): 0,80 + 0,20.Mc/Ma, com 0,85 <= alpha_b <= 1,0.
+    2023 (p.108 da 2023, imagem): alpha_b = 1,0. edicao=None -> 2014."""
+    r = resolver_edicao(edicao)
+    if r["edicao"] == "2023+Em1":
+        return 1.0
+    Ma = abs(float(Ma))
+    if Ma <= 0.0:
+        return 1.0
+    return min(max(0.80 + 0.20 * float(Mc) / Ma, 0.85), 1.0)
+
+
+def eta_c(edicao, fck_MPa):
+    """eta_c do pico do diagrama parabola-retangulo (8.2.10.1) lendo a chave
+    (D236). 2014: nao existe (1,0). 2023 (Figura 8.2, imagem p.26): 1,0 ate'
+    C40 e (40/fck)^(1/3) acima. edicao=None -> 2014."""
+    r = resolver_edicao(edicao)
+    if r["edicao"] == "2023+Em1" and fck_MPa is not None and float(fck_MPa) > 40.0:
+        return (40.0 / float(fck_MPa)) ** (1.0 / 3.0)
+    return 1.0
 
 
 def limite_furo_viga_mm(edicao=None, forma_furo=None):

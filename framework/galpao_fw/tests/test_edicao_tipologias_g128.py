@@ -376,8 +376,11 @@ def test_06_baseline_nos_dois_sentidos():
     uso = lente.confere_uso_edicao()
     if not uso["OK"]:
         quebras.append("uso real fora do baseline: %r" % (uso,))
+    # D236 (migracao para a 2023, fase 1): o pilar entra com 15.8.2 e 8.2.10.1
     if tuple(lente.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
-                                          ("compatibilizacao", "13.2.5.1")):
+                                          ("compatibilizacao", "13.2.5.1"),
+                                          ("pilar_concreto", "15.8.2"),
+                                          ("pilar_concreto", "8.2.10.1")):
         quebras.append("MODULOS_COM_TROCA mudou: %r"
                        % (lente.MODULOS_COM_TROCA,))
     if tuple(lente.EDICOES_VALIDAS) != ("2014", "2023+Em1"):

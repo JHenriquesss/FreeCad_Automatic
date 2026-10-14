@@ -8088,3 +8088,41 @@ d229 e d234 intocados), 217 s, ATENDE: a `gate7-base.txt` traz a base unica
 conferida nos dois pilares (HEB280 chumbador 0,85; HEB240 0,29; placa 50 mm),
 terca Ue 300x85 travada a 2,85 m, 15 folhas conferidas no CADCraft. Suite
 completa depois da triagem D86: 4368 passaram, 2 pulados, nenhuma falha.
+
+## D236 - Migracao da NBR 6118 para a 2023 + Emenda 1: plano e fase 1 (pilar de concreto) (2026-10-14) - EM ANDAMENTO
+
+**Decisao do usuario (2026-10-14, pergunta direta):** "Migrar tudo para 2023".
+O D233 mostrou que o inventario G116/G122 dava como IGUAIS dois itens que mudam
+(15.8.2 c e 8.2.10.1); por isso a migracao nao e' so' aplicar a lista: e' reler
+na imagem cada secao que o motor usa. A chave padrao (`EDICAO_PADRAO`) so' vira
+para "2023+Em1" no fim - virar antes daria memorial carimbado 2023 com conta de
+2014 (o que o G132 proibe).
+
+**Fase 1 (feita neste verbete).** Pilar de concreto lendo a chave pela fonte
+unica `edicao_nbr6118_g123`:
+- `alpha_b_balanco(edicao, Mc, Ma)`: 2014 = 0,80 + 0,20.Mc/Ma entre 0,85 e 1,0
+  (F016 p.108); 2023 = 1,0 (imagem da 2023 p.108).
+- `eta_c(edicao, fck)`: 2023 = (40/fck)^(1/3) acima de C40 (Figura 8.2, p.26);
+  `pilar_concreto.alpha_c_pilar` usa 0,85.eta_c com a chave em 2023.
+- A edicao desce por toda a cadeia do solver (`_N_M_resistente` com cache
+  inclusive), `dimensiona_pilar` le `caso["edicao"]` e declara
+  `edicao_6118` pela `edicao_da_peca` (G132). `galpao_concreto` e
+  `pilar_continuo` repassam a chave.
+- `MODULOS_COM_TROCA` ganha ("pilar_concreto", "15.8.2") e ("pilar_concreto",
+  "8.2.10.1"); as tres lentes que a congelavam (G123, G128, G132) e a da G135
+  (memorial sem 2023, agora exceto os modulos que trocam) foram atualizadas.
+- Medido: pilar 40x40 em balanco C30 alpha_b 0,90 -> 1,0; C70 com Nk 3000 kN e
+  Ma 300 kN.m: As 56,4 -> 70,1 cm2 (a 2023 reprova a secao que a 2014 aprova).
+  Sem a chave, byte a byte igual. Testes: `tests/test_migracao_6118_2023_d236.py`.
+
+**Fase 2 (proxima): os itens ja' conhecidos, cada um atras da chave.**
+8.2.5 fctm C55+ (G122 item 52); 17.2.2-e bloco retangular alfa_c.eta_c (sapata,
+viga e laje via `fundacao_sapata._armadura_flexao`); 19.4.1 tau_Rd limitado ao
+fck de 60 MPa (achado no D233); 9.6.1.2.1 pre-tracao so' com 0,77 fptk (D233);
+REGRA-MUDA do G116: Tabela 13.3, Tabela 13.4, 17.5.1.4.1, 18.2.4, 18.3.3.2,
+19.5.4; PROCESSO-NOVO: 5.3 (ATP) e 20.5-20.6 (marquise/balanco).
+**Fase 2b:** reler na imagem, secao a secao, as familias "NAO MEDIDO" da
+Tabela 2 do G116 (o G116 errou duas como IGUAL).
+**Fase 3:** levar a chave aos chamadores da casa e do predio, virar
+`EDICAO_PADRAO` para "2023+Em1" com o carimbo dizendo a composicao, suite e
+pacotes regerados.

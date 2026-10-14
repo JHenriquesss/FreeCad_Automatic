@@ -110,7 +110,7 @@ def _le_por_direcao(H, hy, travamento):
 
 
 def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum",
-                          V_w_k=0.0):
+                          V_w_k=0.0, edicao=None):
     """Adota a MENOR secao de pilar que atende as 2 combinacoes ELU. hx (=h) e a
     dimensao no plano do vento (resiste ao momento de base). Retorna dict.
     V_w_k = cortante de base caracteristico do vento (kN); chega ao fuste como
@@ -126,12 +126,14 @@ def _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk, travamento="nenhum"
         c1 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_gq, "le_x": le_x,
             "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": GF,
             "forcar_biaxial": True, "Vd": GF * PSI0_VENTO * abs(V_w_k),
-            "M1d_x": {"tipo": "balanco", "Ma": GF * PSI0_VENTO * M_w_k}})
+            "M1d_x": {"tipo": "balanco", "Ma": GF * PSI0_VENTO * M_w_k},
+            "edicao": edicao})
         # comb 2 (vento principal): Nd=1,0*G (minimo), M=1,4*M_w, V=1,4*V_w_k
         c2 = pc.dimensiona_pilar({"b": hy, "h": hx, "Nk": Nk_g, "le_x": le_x,
             "le_y": le_y, "fck": fck, "fyk": fyk, "dl": 0.04, "gamma_f": 1.0,
             "forcar_biaxial": True, "Vd": GF * abs(V_w_k),
-            "M1d_x": {"tipo": "balanco", "Ma": GF * M_w_k}})
+            "M1d_x": {"tipo": "balanco", "Ma": GF * M_w_k},
+            "edicao": edicao})
         gov = c1 if c1["As_cm2"] >= c2["As_cm2"] else c2
         gov = gov if (c1["OK"] and c2["OK"]) else dict(gov, OK=(c1["OK"] and c2["OK"]))
         if c1["OK"] and c2["OK"]:
@@ -292,7 +294,7 @@ def rodar(spec):
     Nk_gq = Nk_g + R_beam_q                        # permanente + sobrecarga
     pilar = _dimensiona_pilar_secao(Nk_g, Nk_gq, M_w_k, H, fck, fyk,
                                     spec.get("travamento_longitudinal", "nenhum"),
-                                    V_w_k)
+                                    V_w_k, edicao=_edicao)
 
     # peso proprio do pilar (soma na reacao de fundacao)
     peso_pilar = GAMMA_CONC * pilar["hx"] * pilar["hy"] * H

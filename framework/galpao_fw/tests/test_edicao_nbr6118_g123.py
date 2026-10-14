@@ -140,8 +140,11 @@ def test_02_baseline_nos_dois_sentidos():
                      % (lente.EDICOES_VALIDAS,))
     if lente.EDICAO_PADRAO != "2014":
         lados.append("EDICAO_PADRAO=%r, esperado '2014'" % (lente.EDICAO_PADRAO,))
+    # D236 (migracao para a 2023, fase 1): o pilar entra com 15.8.2 e 8.2.10.1
     if tuple(lente.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
-                                          ("compatibilizacao", "13.2.5.1")):
+                                          ("compatibilizacao", "13.2.5.1"),
+                                          ("pilar_concreto", "15.8.2"),
+                                          ("pilar_concreto", "8.2.10.1")):
         lados.append("MODULOS_COM_TROCA=%r (esperado os 2 pontos, sem ATP nem "
                      "marquise)" % (lente.MODULOS_COM_TROCA,))
     esp = {"edicao_nbr6118_g123.py", "premoldado_nbr9062.py",

@@ -73,9 +73,14 @@ def expoente_n(fck_MPa=None):
     return 1.4 + 23.4 * ((90.0 - fck_MPa) / 100.0) ** 4
 
 
-def alpha_c_pilar(fck_MPa=None):
+def alpha_c_pilar(fck_MPa=None, edicao=None):
     """Tensao do bloco parabola-retangulo (NBR 6118 17.2.2, G50).
-    C50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200]."""
+    C50: 0,85 ; C55-C90: 0,85*[1-(fck-50)/200].
+    D236: com a chave em 2023+Em1, 0,85.eta_c (Figura 8.2 da 2023)."""
+    if edicao is not None:
+        import edicao_nbr6118_g123 as _ed
+        if _ed.resolver_edicao(edicao)["edicao"] == "2023+Em1":
+            return 0.85 * _ed.eta_c(edicao, fck_MPa)
     if fck_MPa is None or fck_MPa <= 50.0:
         return ALPHA_C
     return 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
@@ -87,7 +92,7 @@ def esbeltez(le, h):
     return math.sqrt(12.0) * le / h
 
 
-def alpha_b(caso_dir):
+def alpha_b(caso_dir, edicao=None):
     """Coeficiente alpha_b (15.8.2), por vinculacao/diagrama de M1 na direcao:
       - 'balanco'  (pilar em balanco): 0,80 + 0,20*Mc/Ma, com 0,85 <= alpha_b <= 1,0;
       - 'biapoiado' sem cargas transversais: 0,60 + 0,40*Mb/Ma, com 0,40 <= alpha_b <= 1,0
@@ -101,9 +106,10 @@ def alpha_b(caso_dir):
     if caso_dir.get("carga_transversal", False):
         return 1.0
     if tipo == "balanco":
-        Mc = caso_dir.get("Mc", 0.0)
-        ab = 0.80 + 0.20 * Mc / Ma
-        return min(max(ab, 0.85), 1.0)
+        # D236: a regra mora na fonte unica da edicao (2014: 0,80 + 0,20.Mc/Ma
+        # entre 0,85 e 1,0 ; 2023: 1,0)
+        import edicao_nbr6118_g123 as _ed
+        return _ed.alpha_b_balanco(edicao, caso_dir.get("Mc", 0.0), Ma)
     # biapoiado sem cargas transversais
     Mb = caso_dir.get("Mb", 0.0)             # sinal: + mesma curvatura, - reversa
     ab = 0.60 + 0.40 * Mb / Ma
@@ -247,7 +253,7 @@ def _sigma_s(eps, fyd):
     return max(-fyd, min(fyd, ES_ACO * eps))
 
 
-def _sigma_c(eps, fcd, fck=None):
+def _sigma_c(eps, fcd, fck=None, edicao=None):
     """Tensao do concreto pelo diagrama PARABOLA-RETANGULO (17.2.2 + 8.2.10.1
     Fig.8.2, G50): alpha_c*fcd*[1-(1-eps/eps_c2)^n] p/ 0<=eps<eps_c2 ;
     alpha_c*fcd p/ eps_c2<=eps<=eps_cu. fck em kN/m2 (None = C50 legado:
@@ -257,7 +263,7 @@ def _sigma_c(eps, fcd, fck=None):
     fck_MPa = fck / 1000.0 if fck is not None else None
     ec2 = eps_c2(fck_MPa)
     nn = expoente_n(fck_MPa)
-    ac = alpha_c_pilar(fck_MPa)
+    ac = alpha_c_pilar(fck_MPa, edicao)
     if eps <= 0.0:
         return 0.0
     if eps >= ec2:
@@ -265,7 +271,7 @@ def _sigma_c(eps, fcd, fck=None):
     return ac * fcd * (1.0 - (1.0 - eps / ec2) ** nn)
 
 
-def _resultante_concreto(x, b, h, d, fck, n=60):
+def _resultante_concreto(x, b, h, d, fck, n=60, edicao=None):
     """Integra o diagrama parabola-retangulo na zona comprimida (regra do ponto
     medio, n faixas): retorna (Rcc [kN], Mcc [kN.m] em relacao ao CG).
     Diagrama 8.2.10.1/17.2.2 por fck (G50).
@@ -292,7 +298,7 @@ def _resultante_concreto(x, b, h, d, fck, n=60):
         k = ec2 / (x - _z_pivo_c(h, ecu, ec2))
     # --- invariantes de _sigma_c (dependem de fck; nao da deformacao) ---
     nn = expoente_n(fck_MPa)
-    ac = alpha_c_pilar(fck_MPa)
+    ac = alpha_c_pilar(fck_MPa, edicao)
     Rcc = 0.0
     Mcc = 0.0
     for i in range(n):
@@ -314,18 +320,18 @@ def _resultante_concreto(x, b, h, d, fck, n=60):
 # de uma rodada do predio repetiam argumentos exatos (bisseccao em As sobre
 # bisseccao em x). typed=True: 0 e 0.0 nao dividem entrada.
 @functools.lru_cache(maxsize=65536, typed=True)
-def _N_M_resistente(x, As, b, h, dl, fck, fyk):
+def _N_M_resistente(x, As, b, h, dl, fck, fyk, edicao=None):
     """Esforcos resistentes (NRd, MRd em relacao ao CG) da secao retangular b*h com
     As/2 em cada face (a dl das bordas), para linha neutra x. Concreto pelo diagrama
     parabola-retangulo. Compressao positiva. As em m2 ; retorna (NRd [kN], MRd [kN.m])."""
     fcd = fck / GAMMA_C
     fyd = fyk / GAMMA_S
     d = h - dl                                    # aco tracionado (face oposta)
-    Rcc, Mcc = _resultante_concreto(x, b, h, d, fck)
+    Rcc, Mcc = _resultante_concreto(x, b, h, d, fck, edicao=edicao)
     eps_c = _eps_fibra(dl, x, d, h, fck)               # aco junto a face comprimida
     eps_t = _eps_fibra(d, x, d, h, fck)                # aco junto a face tracionada
     # desconta o concreto DESLOCADO pelo aco comprimido (tensao real na fibra)
-    sig_c = _sigma_s(eps_c, fyd) - _sigma_c(eps_c, fcd, fck)
+    sig_c = _sigma_s(eps_c, fyd) - _sigma_c(eps_c, fcd, fck, edicao)
     sig_t = _sigma_s(eps_t, fyd)
     Rs_c = (As / 2.0) * sig_c
     Rs_t = (As / 2.0) * sig_t
@@ -334,19 +340,19 @@ def _N_M_resistente(x, As, b, h, dl, fck, fyk):
     return NRd, MRd
 
 
-def _x_para_Nd(Nd, As, b, h, dl, fck, fyk):
+def _x_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao=None):
     """Acha a profundidade x da linha neutra que equilibra a forca normal Nd
     (NRd(x)=Nd) por bisseccao. NRd e monotona crescente em x."""
     lo, hi = 1e-5, 20.0 * h                        # x pode passar de h (dominio 5)
-    N_lo, _ = _N_M_resistente(lo, As, b, h, dl, fck, fyk)
-    N_hi, _ = _N_M_resistente(hi, As, b, h, dl, fck, fyk)
+    N_lo, _ = _N_M_resistente(lo, As, b, h, dl, fck, fyk, edicao)
+    N_hi, _ = _N_M_resistente(hi, As, b, h, dl, fck, fyk, edicao)
     if Nd <= N_lo:
         return lo
     if Nd >= N_hi:
         return hi
     for _ in range(80):
         mid = 0.5 * (lo + hi)
-        Nm, _ = _N_M_resistente(mid, As, b, h, dl, fck, fyk)
+        Nm, _ = _N_M_resistente(mid, As, b, h, dl, fck, fyk, edicao)
         if Nm < Nd:
             lo = mid
         else:
@@ -354,29 +360,29 @@ def _x_para_Nd(Nd, As, b, h, dl, fck, fyk):
     return 0.5 * (lo + hi)
 
 
-def MRd_para_Nd(Nd, As, b, h, dl, fck, fyk):
+def MRd_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao=None):
     """Momento resistente MRd para a forca normal Nd atuante e armadura As total
     (m2). Acha x tal que NRd(x)=Nd e devolve o MRd correspondente (kN.m, >=0)."""
-    x = _x_para_Nd(Nd, As, b, h, dl, fck, fyk)
-    _, MRd = _N_M_resistente(x, As, b, h, dl, fck, fyk)
+    x = _x_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao)
+    _, MRd = _N_M_resistente(x, As, b, h, dl, fck, fyk, edicao)
     return abs(MRd)
 
 
-def armadura_flexao_composta(Nd, Md, b, h, dl, fck, fyk, As_max=None):
+def armadura_flexao_composta(Nd, Md, b, h, dl, fck, fyk, As_max=None, edicao=None):
     """Armadura TOTAL As (m2) de flexao composta reta: menor As tal que
     MRd_para_Nd(Nd, As) >= |Md|. Bisseccao em As (MRd e monotona crescente em As).
     Retorna (As, ok) ; ok=False se nem As_max resiste."""
     Md = abs(Md)
     if As_max is None:
         As_max = 0.08 * b * h                      # teto absoluto 8% (17.3.5.3.2)
-    if MRd_para_Nd(Nd, 0.0, b, h, dl, fck, fyk) >= Md:
+    if MRd_para_Nd(Nd, 0.0, b, h, dl, fck, fyk, edicao) >= Md:
         return 0.0, True                           # so concreto ja resiste
-    if MRd_para_Nd(Nd, As_max, b, h, dl, fck, fyk) < Md:
+    if MRd_para_Nd(Nd, As_max, b, h, dl, fck, fyk, edicao) < Md:
         return As_max, False                       # nem no teto resiste
     lo, hi = 0.0, As_max
     for _ in range(80):
         mid = 0.5 * (lo + hi)
-        if MRd_para_Nd(Nd, mid, b, h, dl, fck, fyk) < Md:
+        if MRd_para_Nd(Nd, mid, b, h, dl, fck, fyk, edicao) < Md:
             lo = mid
         else:
             hi = mid
@@ -389,7 +395,8 @@ def armadura_flexao_composta(Nd, Md, b, h, dl, fck, fyk, As_max=None):
 ALPHA_BIAXIAL_RECT = 1.2   # expoente da interacao (17.2.5, secao retangular); 1,0 geral
 
 
-def verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha=ALPHA_BIAXIAL_RECT):
+def verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha=ALPHA_BIAXIAL_RECT,
+                     edicao=None):
     """Verificacao de flexao composta OBLIQUA (NBR 6118 17.2.5):
         (Mx/Mrd,xx)^alpha + (My/Mrd,yy)^alpha <= 1
     Mrd,xx e Mrd,yy = momentos resistentes UNIAXIAIS (flexao composta normal) em cada
@@ -397,8 +404,8 @@ def verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha=ALPHA_BIAXIAL_R
     (profundidade hx); My = dir y (profundidade hy). Armadura nos 4 CANTOS -> cada
     capacidade uniaxial usa o As TOTAL (As/2 por face perpendicular ao eixo, exatamente
     o solver aferido). Retorna dict com util e ok."""
-    Mrd_xx = MRd_para_Nd(Nd, As, hy, hx, dl, fck, fyk)   # dir x: profundidade hx, largura hy
-    Mrd_yy = MRd_para_Nd(Nd, As, hx, hy, dl, fck, fyk)   # dir y: profundidade hy, largura hx
+    Mrd_xx = MRd_para_Nd(Nd, As, hy, hx, dl, fck, fyk, edicao)   # dir x: profundidade hx, largura hy
+    Mrd_yy = MRd_para_Nd(Nd, As, hx, hy, dl, fck, fyk, edicao)   # dir y: profundidade hy, largura hx
     ix = (Mx / Mrd_xx) ** alpha if Mrd_xx > 1e-9 else float("inf")
     iy = (My / Mrd_yy) ** alpha if Mrd_yy > 1e-9 else float("inf")
     util = ix + iy
@@ -406,11 +413,12 @@ def verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha=ALPHA_BIAXIAL_R
             "ok": util <= 1.0 + 1e-6}
 
 
-def armadura_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As_max, alpha=ALPHA_BIAXIAL_RECT):
+def armadura_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As_max, alpha=ALPHA_BIAXIAL_RECT,
+                     edicao=None):
     """Menor As total (armadura nos 4 cantos) que satisfaz a interacao obliqua (17.2.5)
     <= 1. util e monotona decrescente em As -> bisseccao. Retorna (As, ok)."""
     def _u(As):
-        return verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha)["util"]
+        return verifica_biaxial(Nd, Mx, My, hy, hx, dl, fck, fyk, As, alpha, edicao)["util"]
     if _u(0.0) <= 1.0:
         return 0.0, True
     if _u(As_max) > 1.0:
@@ -603,6 +611,9 @@ def dimensiona_pilar(caso):
     hx = caso["h"]; hy = caso["b"]
     fck = caso["fck"]; fyk = caso["fyk"]
     dl = caso.get("dl", 0.04)
+    # D236: edicao da NBR 6118 declarada no projeto (None = 2014, hoje); le
+    # alpha_b do balanco (15.8.2) e eta_c (8.2.10.1) pela fonte unica.
+    edicao = caso.get("edicao")
     Ac = hx * hy
     fcd = fck / GAMMA_C
     fyd = fyk / GAMMA_S
@@ -611,7 +622,9 @@ def dimensiona_pilar(caso):
     Nd = gn * gf * caso["Nk"]
     nu = Nd / (Ac * fcd)                          # forca normal adimensional
 
-    res = {"hx": hx, "hy": hy, "Ac_cm2": round(Ac * 1e4, 1), "Nd": round(Nd, 1),
+    import edicao_nbr6118_g123 as _ed_g123
+    res = {"edicao_6118": _ed_g123.edicao_da_peca(edicao, True),
+           "hx": hx, "hy": hy, "Ac_cm2": round(Ac * 1e4, 1), "Nd": round(Nd, 1),
            "gamma_n": round(gn, 3), "nu": round(nu, 3), "dir": {}}
 
     Md_gov = 0.0
@@ -632,7 +645,7 @@ def dimensiona_pilar(caso):
         M1min = momento_minimo(Nd, hcol)
         # 15.8.2 d): momento de 1a ordem abaixo do minimo -> alpha_b = 1,0 (tambem
         # no lambda1; ate' o D233 o alpha_b < 1 do diagrama aumentava lambda1).
-        ab = 1.0 if M1dA < M1min else alpha_b(md)
+        ab = 1.0 if M1dA < M1min else alpha_b(md, edicao)
         e1 = M1dA / Nd if Nd > 0 else 0.0
         l1 = lambda_1(e1, hcol, ab)
         # NBR 6118:2014 15.8.3.3.2 (lido na imagem da pagina 109 do F016, D233):
@@ -673,11 +686,12 @@ def dimensiona_pilar(caso):
     biaxial = caso.get("forcar_biaxial", False) or (m1real["x"] > 1e-9 and m1real["y"] > 1e-9)
     bx = None
     if biaxial:
-        As, ok_res = armadura_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_max)
+        As, ok_res = armadura_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_max,
+                                       edicao=edicao)
         modo = "biaxial"
     else:
         As, ok_res = armadura_flexao_composta(Nd, Md_gov, wid_gov, dep_gov, dl,
-                                              fck, fyk, As_max=As_max)
+                                              fck, fyk, As_max=As_max, edicao=edicao)
         modo = "uniaxial"
     As_min = max(0.15 * Nd / fyd, 0.004 * Ac)
     As_ad = max(As, As_min)
@@ -769,7 +783,8 @@ def dimensiona_pilar(caso):
 
     # verificacao da interacao obliqua com o As ADOTADO (para o relatorio/gate)
     if biaxial:
-        bx = verifica_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_ad)
+        bx = verifica_biaxial(Nd, mtot["x"], mtot["y"], hy, hx, dl, fck, fyk, As_ad,
+                              edicao=edicao)
         res["biaxial"] = {"util": round(bx["util"], 3), "alpha": bx["alpha"],
                           "Mrd_xx": round(bx["Mrd_xx"], 1), "Mrd_yy": round(bx["Mrd_yy"], 1),
                           "Md_x": round(mtot["x"], 1), "Md_y": round(mtot["y"], 1),

@@ -74,8 +74,11 @@ def test_01_fonte_peca_e_composicao_tabela_fechada():
         if pedaco not in comp:
             quebras.append("composicao 2023 sem %r: %r" % (pedaco, comp))
     # A lista de itens vem de MODULOS_COM_TROCA (uma fonte so).
+    # D236 (migracao para a 2023, fase 1): o pilar entra com 15.8.2 e 8.2.10.1
     if tuple(fonte.MODULOS_COM_TROCA) != (("premoldado_nbr9062", "12.3.3"),
-                                         ("compatibilizacao", "13.2.5.1")):
+                                         ("compatibilizacao", "13.2.5.1"),
+                                         ("pilar_concreto", "15.8.2"),
+                                         ("pilar_concreto", "8.2.10.1")):
         quebras.append("MODULOS_COM_TROCA mudou: %r" % (fonte.MODULOS_COM_TROCA,))
     # Confronto: parte da conta, nao da chave.
     boa_2014 = fonte.carimbo_edicao("2014")

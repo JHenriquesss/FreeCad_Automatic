@@ -255,7 +255,10 @@ def test_05_triagem_cada_rotulo_tem_motivo_e_nenhum_e_carimbo():
         caminho = os.path.join(GALPAO, arquivo)
         with open(caminho, encoding="utf-8", errors="replace") as fh:
             texto = fh.read()
-        if "2023" in texto and arquivo in (
+        # D236: modulo que le a chave (MODULOS_COM_TROCA, fonte unica) cita a
+        # 2023 por direito; os demais memoriais continuam sem ela.
+        com_troca = {m + ".py" for m, _c in fonte.MODULOS_COM_TROCA}
+        if "2023" in texto and arquivo not in com_troca and arquivo in (
                 "fundacao_sapata.py", "laje_concreto.py",
                 "pilar_concreto.py", "pilar_continuo.py",
                 "viga_baldrame.py", "viga_baldrame_edificio.py",

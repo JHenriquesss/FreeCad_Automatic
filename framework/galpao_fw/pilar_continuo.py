@@ -141,7 +141,8 @@ def dimensiona(cfg):
 
         caso = {"b": b, "h": h, "Nk": N_base, "le_x": le_x, "le_y": le_y,
                 "fck": fck, "fyk": fyk, "dl": cfg.get("dl", 0.04),
-                "gamma_f": cfg.get("gamma_f", 1.4)}
+                "gamma_f": cfg.get("gamma_f", 1.4),
+                "edicao": cfg.get("edicao")}          # D236: repassa a chave
         for key in ("M1d_x", "M1d_y"):
             if lc.get(key):
                 caso[key] = lc[key]
