@@ -25,7 +25,7 @@ def _sec(h, bf=0.25, tw=0.004, tf=0.016):
 # ==================== me-1: kv por a/h ==================================
 def test_kv_sem_enrijecedor():
     import enrijecedor_painel as enp
-    assert enp.kv(_sec(0.95), a=None) == 5.0
+    assert enp.kv(_sec(0.95), a=None) == 5.34            # NBR 8800:2024, 5.4.3.1.1 (D231)
 
 
 def test_kv_a_igual_h():
@@ -39,7 +39,7 @@ def test_kv_a_h_maior_que_3_cai_para_5():
     import enrijecedor_painel as enp
     s = _sec(0.95)
     h = s["d"] - 2 * s["tf"]
-    assert enp.kv(s, a=4.0 * h) == 5.0                   # a/h>3 -> sem enrijecedor
+    assert enp.kv(s, a=4.0 * h) == 5.34                  # a/h>3 -> sem enrijecedor
 
 
 def test_kv_a_h_acima_do_limite_260():
@@ -48,7 +48,10 @@ def test_kv_a_h_acima_do_limite_260():
     h = s["d"] - 2 * s["tf"]
     lim = (260.0 / (h / s["tw"])) ** 2
     a = (lim + 0.5) * h                                  # a/h > (260/(h/tw))^2
-    assert enp.kv(s, a=a) == 5.0
+    # a edicao de 2008 mandava kv = 5 aqui; a de 2024 (5.4.3.1.1) so' tira o
+    # enrijecedor da conta para a/h > 3: abaixo disso vale 5 + 5/(a/h)^2 (D231)
+    assert lim < a / h < 3.0
+    assert enp.kv(s, a=a) == pytest.approx(5.0 + 5.0 / (a / h) ** 2)
 
 
 # ==================== me-2: V_Rd com kv ================================
@@ -64,10 +67,10 @@ def test_vrd_a_none_reproduz_kv5():
     import enrijecedor_painel as enp
     import check_nbr8800 as ck
     s = _sec(0.95)
-    # replica o cortante de check_nbr8800 (kv=5, tres dominios) com Aw=d*tw
+    # replica o cortante de check_nbr8800 (kv=5,34, tres dominios) com Aw=d*tw
     h = s["d"] - 2 * s["tf"]; lam = h / s["tw"]
-    lamp = 1.10 * math.sqrt(5.0 * ck.E / FY)
-    lamr = 1.37 * math.sqrt(5.0 * ck.E / FY)
+    lamp = 1.10 * math.sqrt(5.34 * ck.E / FY)
+    lamr = 1.37 * math.sqrt(5.34 * ck.E / FY)
     Vpl = 0.6 * s["d"] * s["tw"] * FY
     if lam <= lamp:
         Vn = Vpl
@@ -112,19 +115,38 @@ def test_bt_limite_verbatim():
     assert r["bt_lim"] == pytest.approx(0.56 * math.sqrt(ck.E / FY), rel=1e-9)
 
 
-# ==================== me-4: Anexo H relaxa cap 260 =====================
-def test_anexo_h_cap_260_relaxado_com_enrijecedor():
+# ==================== me-4: teto de h/tw do Anexo E =====================
+def test_enrijecedor_nao_dispensa_o_teto_de_260():
+    """NBR 8800:2024, E.5.3 b): "a relacao h/tw nao pode exceder 260 nem ...".
+    Ate' o D231 o motor dispensava o 260 quando havia enrijecedor com a/h <= 3."""
     import alma_esbelta as ae
     import alma_variavel as av
-    # alma muito esbelta: h/tw > 260 -> fora de validade SEM enrijecedor
     sec = av.props_I(1.10, 0.25, 0.004, 0.014)           # h/tw ~ 267 > 260
     assert (sec["d"] - 2 * sec["tf"]) / sec["tw"] > 260.0
-    r_sem = ae.mrd_alma_esbelta(sec, FY, Lb=2.0, a=None)
-    assert r_sem["fora_validade"] is True
-    # com enrijecedor a/h<=3 -> cap 260 dispensado (Aw/Afc ainda <=10)
+    assert ae.mrd_alma_esbelta(sec, FY, Lb=2.0, a=None)["fora_validade"] is True
     a = 1.5 * (sec["d"] - 2 * sec["tf"])
-    r_com = ae.mrd_alma_esbelta(sec, FY, Lb=2.0, a=a)
-    assert r_com["fora_validade"] is False
+    assert ae.mrd_alma_esbelta(sec, FY, Lb=2.0, a=a)["fora_validade"] is True
+
+
+def test_teto_de_esbeltez_da_alma_pelos_tres_limites():
+    import alma_esbelta as ae
+    import alma_variavel as av
+    import check_nbr8800 as ck
+    sec = av.props_I(1.03, 0.25, 0.004, 0.014)
+    h = sec["d"] - 2 * sec["tf"]
+    # fy = 250 MPa: 0,42 E/fy = 336 e 11,7 raiz(E/fy) = 331 -> governa o 260
+    assert ae.limite_esbeltez_alma(sec, 250e3, None) == 260.0
+    assert ae.limite_esbeltez_alma(sec, 250e3, 1.0 * h) == 260.0
+    # fy = 345 MPa sem enrijecedor (a/h > 1,5): 0,42 E/fy = 243,5 < 260
+    assert ae.limite_esbeltez_alma(sec, 345e3, None) == pytest.approx(0.42 * ck.E / 345e3)
+    assert ae.limite_esbeltez_alma(sec, 345e3, 2.0 * h) == pytest.approx(243.478, abs=1e-3)
+    # com a/h <= 1,5: 11,7 raiz(E/fy) = 281,7 -> volta a governar o 260
+    assert ae.limite_esbeltez_alma(sec, 345e3, 1.5 * h) == 260.0
+    # alma de h/tw = 250: dentro a 250 MPa, fora a 345 MPa sem enrijecedor
+    assert 243.5 < h / sec["tw"] < 260.0
+    assert ae.mrd_alma_esbelta(sec, 250e3, 2.0)["fora_validade"] is False
+    assert ae.mrd_alma_esbelta(sec, 345e3, 2.0)["fora_validade"] is True
+    assert ae.mrd_alma_esbelta(sec, 345e3, 2.0, a=1.2 * h)["fora_validade"] is False
 
 
 def test_aw_afc_ainda_limita():

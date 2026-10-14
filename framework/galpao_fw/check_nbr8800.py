@@ -7,18 +7,25 @@
 #     Ne = menor entre flexao em x, flexao em y e torcao (5.3.5.1); Aef pelas
 #     larguras efetivas de 5.3.4.2 (Tabelas 4 e 5). A edicao de 2008 fazia a
 #     flambagem local pelo fator Q do Anexo F (`fator_Q`, mantido para a tesoura).
-#   Flexao e cortante: formulas da edicao de 2008 (Anexo G e 5.4.3), AINDA NAO
-#     conferidas contra a edicao de 2024.
-#   Flexao (5.4 / Anexo G, Tabela G.1): estados-limite FLT, FLM e FLA com as
-#     formulas exatas (Mr = 0,7 fy W ; Lr, Mcr com Cw e J calculados da geometria;
-#     Mn = menor dos tres). Cw = Iy(d-tf)^2/4 ; J = soma(b t^3)/3.
-#   Cortante (5.4.3): com verificacao de esbeltez da alma.
-#   Interacao flexo-compressao (5.5.1.2).
+#   Flexao: NBR 8800:2024/Er1:2025, 5.4.2 e Anexo D (lidos no MCP_Fontes em
+#     2026-10-13, D231; na edicao de 2008 era o Anexo G). Estados-limite FLT,
+#     FLM e FLA da Tabela D.1 para I/H de dois eixos de simetria: Mr = (fy -
+#     sigma_r).W com sigma_r = 0,3 fy (D.2.8-e); lambda_r e Mcr da FLT por
+#     D.2.8-a, com Cb DENTRO de lambda_r e de Mcr - a interpolacao de D.2.1 nao
+#     leva Cb (a edicao de 2008 multiplicava o trecho inelastico por Cb).
+#     Cw = Iy(d-tf)^2/4 ; J = soma(b t^3)/3. Teto de 5.4.2.2: 1,50.W.fy.
+#     Alma esbelta (h/tw > 5,70 raiz(E/fy)): Anexo E (`alma_esbelta`).
+#   Cortante: 5.4.3.1.1 e 5.4.3.1.2 de 2024: tres dominios, Aw = d.tw,
+#     kv = 5,34 para alma sem enrijecedor transversal (a edicao de 2008 dava 5,0).
+#   Interacao (5.5.1.2 de 2024): conferida; na tracao o motor usa Nc,Rd no lugar
+#     de Nt,Rd (a favor da seguranca).
+#   A favor da seguranca, declarado: h = d - 2.tf sem descontar os raios de
+#     concordancia do laminado (5.4.3.1.1 e Tabela D.1 mandam descontar).
 # ATENCAO: os esforcos de entrada Nsd/Msd ja devem vir amplificados pela analise
 # de 2a ordem (B1/B2). Este script verifica a SECAO, nao a estabilidade global.
 # NAO calcula esforcos (vem do galpao_portico). Calcula apenas; pendente revisao.
 # ============================================================================
-"""Verificacao de perfil metalico conforme ABNT NBR 8800:2008 (Anexos F e G)."""
+"""Verificacao de perfil metalico I/H conforme ABNT NBR 8800:2024 (5.3, 5.4 e Anexo D)."""
 
 from __future__ import annotations
 
@@ -29,6 +36,8 @@ G_ACO = 77e6       # kN/m2 (77 GPa)  - NBR 8800:2024, 4.6.2.9 c)
 GA1 = 1.10
 # NBR 8800:2024, Tabela 5 - fatores (c1, c2) da largura efetiva
 C_AA, C_AL = (0.18, 1.31), (0.22, 1.49)
+KV_SEM_ENRIJECEDOR = 5.34      # NBR 8800:2024, 5.4.3.1.1 (alma sem enrijecedor transversal)
+TETO_ELASTICO = 1.50           # NBR 8800:2024, 5.4.2.2: M_Rd <= 1,50.W.fy/ga1
 
 
 def chi_compressao(lambda0):
@@ -103,24 +112,27 @@ def _cw_j(sec):
     return Cw, J
 
 
-def _interp_M(lam, lamp, lamr, Mpl, Mr, Mcr, Cb=1.0):
-    """G.2.1: Mn plastificacao / inelastico (interp) / elastico."""
+def _interp_M(lam, lamp, lamr, Mpl, Mr, Mcr):
+    """NBR 8800:2024, D.2.1 (FLT) e D.2.2 (FLM, FLA): plastificacao / trecho
+    inelastico (reta entre Mpl e Mr) / flambagem elastica. Sem Cb: na FLT ele
+    entra em lambda_r e em Mcr (D.2.8-a)."""
     if lam <= lamp:
         return Mpl
     if lam <= lamr:
-        return min(Cb * (Mpl - (Mpl - Mr) * (lam - lamp) / (lamr - lamp)), Mpl)
+        return Mpl - (Mpl - Mr) * (lam - lamp) / (lamr - lamp)
     return min(Mcr, Mpl)
 
 
 def momento_resistente(sec, fy, Lb, Cb=1.0):
-    """Menor Mn entre FLT, FLM, FLA (Tabela G.1, I duplo eixo, eixo forte).
-    Se a alma for ESBELTA (h/tw > 5,70 sqrt(E/fy)), despacha para o Anexo H
+    """Menor Mn entre FLT, FLM, FLA (NBR 8800:2024, Anexo D, Tabela D.1, I de
+    dois eixos de simetria, eixo forte), com o teto de 1,50.W.fy (5.4.2.2).
+    Se a alma for ESBELTA (h/tw > 5,70 sqrt(E/fy)), despacha para o Anexo E
     (viga de alma esbelta: Wxc/Wxt + kpg), em vez de abortar."""
     Zx, Wx, ry, bf, tf, d, tw = (sec["Zx"], sec["Wx"], sec["ry"], sec["bf"],
                                  sec["tf"], sec["d"], sec["tw"])
     Iy = sec["Iy"]
     h = d - 2 * tf
-    # despacho para o Anexo H quando a alma e esbelta (h/tw > 5,70 sqrt(E/fy)).
+    # despacho para o Anexo E quando a alma e esbelta (h/tw > 5,70 sqrt(E/fy)).
     if h / tw > 5.70 * math.sqrt(E / fy):
         import alma_esbelta as ae
         rh = ae.mrd_alma_esbelta(sec, fy, Lb, Cb)
@@ -128,23 +140,23 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
         det = {"Mpl": None, "Lp": None, "Lr_flt": None,
                "Mn_flt": rh["M_flt"], "Mn_flm": rh["M_flm"], "Mn_fla": rh["M_esc"],
                "kpg": rh["kpg"], "kc": rh["kc"], "ryT": rh["ryT"],
-               "fora_validade": rh["fora_validade"], "anexo": "H"}
+               "fora_validade": rh["fora_validade"], "anexo": "E"}
         return Mn, rh["gov"], det
     Mpl = Zx * fy
     sr = 0.3 * fy                     # tensao residual
     rE = math.sqrt(E / fy)
     Cw, J = _cw_j(sec)
 
-    # FLT
+    # FLT (D.2.1 com lambda_r e Mcr de D.2.8-a: Cb dentro dos dois)
     lam = Lb / ry
     lamp = 1.76 * rE
     Mr_flt = (fy - sr) * Wx
     b1 = (fy - sr) * Wx / (E * J)
-    lamr_flt = (1.38 * math.sqrt(Iy * J)) / (ry * J * b1) * \
-        math.sqrt(1 + math.sqrt(1 + 27 * Cw * b1 ** 2 / Iy))
+    lamr_flt = (1.38 * Cb * math.sqrt(Iy * J)) / (ry * J * b1) * \
+        math.sqrt(1 + math.sqrt(1 + 27 * Cw * b1 ** 2 / (Cb ** 2 * Iy)))
     Mcr_flt = (Cb * math.pi ** 2 * E * Iy / Lb ** 2) * \
         math.sqrt(Cw / Iy + 0.039 * J * Lb ** 2 / Iy)
-    Mn_flt = _interp_M(lam, lamp, lamr_flt, Mpl, Mr_flt, Mcr_flt, Cb)
+    Mn_flt = _interp_M(lam, lamp, max(lamr_flt, lamp), Mpl, Mr_flt, Mcr_flt)
 
     # FLM (mesa, laminado)
     lam_m = (bf / 2.0) / tf
@@ -158,19 +170,21 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
     lam_a = h / tw
     lamp_a = 3.76 * rE
     lamr_a = 5.70 * rE
-    if lam_a > lamr_a:                 # alma esbelta: fora do escopo (Tabela G.1)
+    if lam_a > lamr_a:                 # alma esbelta: fora do escopo (Tabela D.1)
         raise ValueError(
             f"{sec.get('nome', 'perfil')}: esbeltez da alma h/tw={lam_a:.1f} > "
             f"lamr={lamr_a:.1f}. Alma esbelta -> dimensionar como viga de alma "
-            f"cheia (NBR 8800 Anexo H); fora do escopo deste verificador.")
+            f"cheia (NBR 8800:2024 Anexo E); fora do escopo deste verificador.")
     Mr_a = fy * Wx
     Mn_fla = _interp_M(lam_a, lamp_a, lamr_a, Mpl, Mr_a, Mpl)  # alma nao-esbelta
 
-    Mn = min(Mn_flt, Mn_flm, Mn_fla)
-    gov = ["FLT", "FLM", "FLA"][[Mn_flt, Mn_flm, Mn_fla].index(Mn)]
+    Mn_teto = TETO_ELASTICO * Wx * fy  # 5.4.2.2 (validade da analise elastica)
+    candidatos = [Mn_flt, Mn_flm, Mn_fla, Mn_teto]
+    Mn = min(candidatos)
+    gov = ["FLT", "FLM", "FLA", "5.4.2.2"][candidatos.index(Mn)]
     return Mn, gov, {"Mpl": Mpl, "Lp": lamp * ry, "Lr_flt": lamr_flt * ry,
                      "Mn_flt": Mn_flt, "Mn_flm": Mn_flm, "Mn_fla": Mn_fla,
-                     "Cw": Cw, "J": J, "anexo": "G"}
+                     "Mn_teto": Mn_teto, "Cw": Cw, "J": J, "anexo": "D"}
 
 
 def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""):
@@ -196,16 +210,17 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
     r.update(Q=Q, Qs=Qs, Qa=Qa, Aef=Aef, Ne=Ne, Nex=Nex, Ney=Ney, Nez=Nez,
              lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
 
-    # Flexao (Anexo G)
+    # Flexao (NBR 8800:2024, 5.4.2 e Anexo D; alma esbelta: Anexo E)
     Mn, gov, det = momento_resistente(sec, fy, Lb, Cb)
     Mrd = Mn / GA1
     r.update(Mrd=Mrd, M_gov=gov, **det)
 
-    # Cortante (5.4.3.1.1): tres dominios, kv=5 (alma sem enrijecedores)
+    # Cortante (NBR 8800:2024, 5.4.3.1.1): tres dominios, kv = 5,34 (alma sem
+    # enrijecedor transversal); Vpl = 0,60.Aw.fy com Aw = d.tw (5.4.3.1.2)
     h = d - 2 * tf
     lamw = h / tw
-    lamw_p = 1.10 * math.sqrt(5.0 * E / fy)   # escoamento (plastificacao)
-    lamw_r = 1.37 * math.sqrt(5.0 * E / fy)   # flambagem elastica
+    lamw_p = 1.10 * math.sqrt(KV_SEM_ENRIJECEDOR * E / fy)   # plastificacao
+    lamw_r = 1.37 * math.sqrt(KV_SEM_ENRIJECEDOR * E / fy)   # flambagem elastica
     Vpl = 0.6 * Aw * fy
     if lamw <= lamw_p:
         Vn = Vpl                                   # plastificacao da alma
@@ -235,14 +250,14 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
 
 
 def relatorio_pt(rs, fy):
-    L = ["VERIFICACAO DE PERFIS (ABNT NBR 8800: compressao pela edicao de 2024, 5.3;",
-         "  flexao e cortante pelas formulas da edicao de 2008, Anexo G e 5.4.3)",
+    L = ["VERIFICACAO DE PERFIS (ABNT NBR 8800:2024: compressao 5.3.2; flexao 5.4.2 e",
+         "  Anexo D; cortante 5.4.3; interacao 5.5.1.2)",
          f"  fy = {fy/1000:.0f} MPa ; gamma_a1 = {GA1:.2f}",
          "  ATENCAO: Nsd/Msd devem vir amplificados por B1/B2 (2a ordem)."]
     for r in rs:
-        # Alma esbelta (Anexo H): Mpl/Lp/Lr_flt = None e nao ha Cw/J no dict.
-        if r.get("anexo") == "H":
-            flexao = (f"  Flexao (Anexo H, alma esbelta): kpg={r['kpg']:.3f} ; "
+        # Alma esbelta (Anexo E): Mpl/Lp/Lr_flt = None e nao ha Cw/J no dict.
+        if r.get("anexo") == "E":
+            flexao = (f"  Flexao (Anexo E, alma esbelta): kpg={r['kpg']:.3f} ; "
                       f"kc={r['kc']:.3f} ; ryT={r['ryT']:.4f} m")
         else:
             flexao = (f"  Flexao: Mpl={r['Mpl']:.1f} ; Lp={r['Lp']:.2f} m ; "

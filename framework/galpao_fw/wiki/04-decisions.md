@@ -7660,3 +7660,71 @@ CADCraft e olhado.
 **Limites.** O pacote continua com dois conjuntos de folhas: o PDF (folhas
 montadas pelo Bonsai, que vao ao dossie) e o DXF/DWG (uma vista por folha). O
 carimbo das folhas do Bonsai e' outro (SVG) e nao mudou.
+
+## D231 - Auditoria dos motores contra as fontes do acervo, 4a parte: flexao e cortante do perfil pela NBR 8800:2024 (Cb da flambagem lateral, teto de 1,50.W.fy, kv = 5,34, teto de h/tw da alma esbelta) (2026-10-13) - FECHADO
+
+**Por que.** Era o primeiro item da lista "nao conferido ainda" do D226/D227:
+`check_nbr8800` fazia a compressao pela edicao de 2024 e a flexao e o cortante
+pelas formulas de 2008 (Anexos G e H). Lidos no MCP_Fontes, na edicao
+NBR 8800:2024/Er1:2025: 5.4 inteiro, Anexo D (D.1, D.2, D.2.8) e Anexo E, com
+as paginas 57, 58, 137, 145 e 148 a 150 conferidas na IMAGEM (as formulas com
+Cb e o kv sao fracoes que a extracao de texto achata).
+
+**1. Flambagem lateral com torcao: o Cb mudou de lugar (o achado que muda
+numero).** Na edicao de 2024 (D.2.1 e D.2.8-a) o Cb entra em lambda_r e em
+Mcr, e a reta do trecho inelastico NAO leva Cb. O motor fazia como em 2008:
+lambda_r sem Cb e a reta multiplicada por Cb, limitada a Mpl. Com Cb = 1 as
+duas formas coincidem; com Cb > 1 o motor dava mais momento resistente do que
+a norma em vigor. Medido a 345 MPa, antes -> depois:
+- IPE450, Lb = 5 m, Cb = 1,75: 587,2 -> 455,4 kN.m (-22,4 %);
+- IPE300, Lb = 5 m, Cb = 2,30: 216,8 -> 168,8 (-22,1 %);
+- IPE500, Lb = 5 m, Cb = 1,75: 756,9 -> 597,8 (-21,0 %);
+- HEB280, Lb = 8 m, Cb = 1,30: 529,2 -> 442,0 (-16,5 %).
+O mesmo vale para a copia da formula no perfil U das tercas e longarinas
+(`secundarios_nbr8800._mrd_eixo_forte_U`) e para a viga de alma esbelta
+(`alma_esbelta`, Anexo E: lambda_r = pi.raiz(E.Cb/(fy - sigma_r))).
+
+**2. Teto de 5.4.2.2.** M_Rd <= 1,50.W.fy/ga1 passou a ser conferido
+(`TETO_ELASTICO`). Nao governa I laminado de catalogo (Zx/Wx ~ 1,1 a 1,15).
+
+**3. Cortante: kv = 5,34.** 5.4.3.1.1 de 2024 da' kv = 5,34 para alma sem
+enrijecedor transversal e para a/h > 3 (a edicao de 2008 dava 5,0, e tambem
+para a/h > [260/(h/tw)]^2, condicao que a de 2024 nao traz). Mudou em
+`check_nbr8800.verifica` e em `enrijecedor_painel.kv`. A favor do perfil; nos
+laminados de catalogo a alma ja' plastificava e o numero nao muda.
+
+**4. Alma esbelta: o enrijecedor nao dispensa o teto de 260.** E.5.3 b): "a
+relacao h/tw nao pode exceder 260 nem 11,7.raiz(E/fy) (a/h <= 1,5) nem
+0,42.E/fy (a/h > 1,5)". O motor dispensava o 260 quando havia enrijecedor com
+a/h <= 3 e nao conferia os outros dois. `alma_esbelta.limite_esbeltez_alma`
+aplica os tres; a 345 MPa sem enrijecedor o teto e' 243,5, abaixo de 260.
+
+**Conferido e igual ao motor.** Mcr e lambda_p da FLT; sigma_r = 0,3 fy;
+FLM e FLA da Tabela D.1 (0,38, 0,83, 0,69.E.W/lambda^2, 3,76 e 5,70); os tres
+dominios do cortante, Vpl = 0,60.Aw.fy e Aw = d.tw; a interacao de 5.5.1.2;
+kpg, a FLM e o escoamento da mesa tracionada do Anexo E.
+
+**A favor da seguranca, mantido e declarado.** h = d - 2.tf sem descontar os
+raios de concordancia do laminado (a norma manda descontar); na tracao a
+interacao usa Nc,Rd no lugar de Nt,Rd.
+
+**Citacao.** `check_nbr8800`, `alma_esbelta` e `enrijecedor_painel` citam a
+edicao de 2024 (Anexos D e E); a chave `anexo` do resultado passou de "G"/"H"
+para "D"/"E". `trechos_norma.py` ganhou 5 recortes na secao de perfis
+(5.4.2.2, D.2.1, D.2.8 e), 5.4.3.1.1, 5.4.3.1.2), gerados pela ferramenta.
+
+**Testes.** `tests/test_flexao_cortante_2024_d231.py` (novo, 22 casos):
+lambda_r com Cb conferido por bissecao de Mcr(L) = Mr, a reta sem Cb em tres
+pontos, o caso que devolvia Mpl inteiro, o teto, o cortante nos tres dominios
+com kv = 5,34, a alma entre o limite de 2008 e o de 2024, o perfil U e o
+relatorio. `test_fase68_alma_esbelta` e `test_fase613_enrijecedor_painel`
+tinham tres testes que cristalizavam a forma de 2008 (Cb travando no plato, o
+260 dispensado, kv = 5): reescritos pelo texto de 2024.
+
+**Limites.** Nao relidos em 2024: 5.4.3.1.3 (a formula de j do enrijecedor), a
+nota a da Tabela 4 (kc), secoes de um eixo de simetria, T, tubulares, e a
+flexao no eixo fraco. Fora desta parte e ainda sem conferencia: tesoura,
+ligacoes parafusadas, base e chumbadores, fundacoes, tercas de chapa dobrada
+(14762), sismo, fogo e os verticais fora do galpao. Textos de outros modulos
+que citam "Anexo G" por nome (console da ponte, mao-francesa, viga de
+rolamento) nao foram tocados.

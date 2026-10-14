@@ -9,7 +9,7 @@
 #       - eixo fraco (y): peso do tapamento + peso proprio; vao = idem eixo forte
 #         reduzido pelos tirantes.
 #       - interacao de flexao biaxial (5.5.1, N=0): Mx/Mrdx + My/Mrdy <= 1.
-#       - Mrdx: Anexo G completo (FLT+FLM+FLA). O FLT do U usa J e Cw do U vindos
+#       - Mrdx: Anexo D da edicao de 2024 completo (FLT+FLM+FLA). O FLT do U usa J e Cw do U vindos
 #         do CATALOGO (nao de formula de I) - dado marcado "A CONFIRMAR"; o METODO
 #         (G.2) e o mesmo do check. Sem J/Cw no dict -> INCONCLUSIVO (nao inventa).
 #       - Mrdy = min(Zy, 1,5*Wy)*fy / ga1 (5.4.2, sem FLT no eixo fraco).
@@ -44,7 +44,7 @@ UPE100 = {"nome": "UPE100", "A": 12.53e-4,
           "Ix": 207e-8, "Wx": 41.4e-6, "Zx": 48.8e-6, "rx": 0.0407,
           "Iy": 38.3e-8, "Wy": 12.9e-6, "Zy": 23.5e-6, "ry": 0.0175,
           "d": 0.100, "bf": 0.055, "tf": 0.0075, "tw": 0.0045,
-          # Torcao/empenamento do U (para o FLT, Anexo G): CATALOGO, nao formula.
+          # Torcao/empenamento do U (para o FLT, Anexo D): CATALOGO, nao formula.
           "J": 2.01e-8, "Cw": 7.9e-10,
           "_fonte": "A CONFIRMAR no catalogo (props, J e Cw)"}
 
@@ -80,7 +80,7 @@ HEA160 = {"A": 38.77e-4, "Ix": 1673e-8, "Iy": 615.6e-8, "ry": 0.0398,
 
 
 def _mrd_eixo_forte_U(sec, fy, Lb, Cb=1.0):
-    """Mrd,x do perfil U (kN.m) pelo Anexo G (FLT, FLM, FLA). Mesmas formulas de
+    """Mrd,x do perfil U (kN.m) pelo Anexo D da NBR 8800:2024 (FLT, FLM, FLA). Mesmas formulas de
     check_nbr8800.momento_resistente, mas J e Cw vem do CATALOGO do U (nao de
     formula de I). Se faltarem J/Cw no dict -> INCONCLUSIVO (nao inventa)."""
     if "Cw" not in sec or "J" not in sec:
@@ -100,15 +100,16 @@ def _mrd_eixo_forte_U(sec, fy, Lb, Cb=1.0):
     # FLA (alma): h/tw
     lam_a = h / tw; lamp_a = 3.76 * rE; lamr_a = 5.70 * rE
     Mn_fla = ck._interp_M(lam_a, lamp_a, lamr_a, Mpl, fy * Wx, Mpl)
-    # FLT (Anexo G, com J e Cw do catalogo)
+    # FLT (NBR 8800:2024, D.2.1 e D.2.8-a, com J e Cw do catalogo): Cb entra em
+    # lambda_r e em Mcr; a reta do trecho inelastico nao leva Cb (D231)
     lam = Lb / ry; lamp = 1.76 * rE
     Mr = (fy - sr) * Wx
     b1 = Mr / (E * J)
-    lamr = (1.38 * math.sqrt(Iy * J)) / (ry * J * b1) * \
-        math.sqrt(1 + math.sqrt(1 + 27 * Cw * b1 ** 2 / Iy))
+    lamr = (1.38 * Cb * math.sqrt(Iy * J)) / (ry * J * b1) * \
+        math.sqrt(1 + math.sqrt(1 + 27 * Cw * b1 ** 2 / (Cb ** 2 * Iy)))
     Mcr = (Cb * math.pi ** 2 * E * Iy / Lb ** 2) * \
         math.sqrt(Cw / Iy + 0.039 * J * Lb ** 2 / Iy)
-    Mn_flt = ck._interp_M(lam, lamp, lamr, Mpl, Mr, Mcr, Cb)
+    Mn_flt = ck._interp_M(lam, lamp, max(lamr, lamp), Mpl, Mr, Mcr)
     Mn = min(Mn_flt, Mn_flm, Mn_fla)
     gov = ["FLT", "FLM", "FLA"][[Mn_flt, Mn_flm, Mn_fla].index(Mn)]
     return Mn / GA1, gov, {"Lp": lamp * ry, "Lr": lamr * ry,
@@ -300,7 +301,7 @@ def verifica_montante_oitao(sec, fy, cfg):
 def relatorio_pt(r):
     if r["tipo"] == "longarina":
         L = ["=" * 68, f"LONGARINA DE PAREDE (perfil U) - {r['nome']}",
-             "NBR 8800 Anexo G + interacao biaxial (vento eixo forte, peso fraco)",
+             "NBR 8800:2024 Anexo D + interacao biaxial (vento eixo forte, peso fraco)",
              "=" * 68,
              f"  Vao (entre porticos) ........ {r['vao']:.2f} m",
              f"  Lb (mesa interna, succao) ... {r['Lb']:.2f} m  (Lp={r['Lp']:.2f} m ; "

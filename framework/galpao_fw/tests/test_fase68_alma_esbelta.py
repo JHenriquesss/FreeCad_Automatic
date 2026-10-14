@@ -72,17 +72,27 @@ def test_selftest_roda():
 
 
 def test_cb_nao_excede_plato():
-    # parecer 38 ponto 2: no regime inelastico da FLT, Cb alto (2,5) NAO pode gerar
-    # Mn > plato = kpg Wxc fy. A trava min(..., plato) deve segurar.
+    # NBR 8800:2024, Anexo E (FLT de alma esbelta, D231): Cb entra em lambda_r e em
+    # Mcr; a reta do trecho inelastico nao leva Cb. Cb alto alarga o trecho
+    # inelastico (sobe o momento), mas nunca devolve o plato kpg Wxc fy.
+    import math
     import alma_esbelta as ae
     s = _sec_esbelta()
-    # Lb=3,0 coloca a FLT no regime inelastico (lamp_t < lam_t < lamr_t)
-    r = ae.mrd_alma_esbelta(s, 250e3, Lb=3.0, Cb=2.5)
-    plato = r["kpg"] * s["Wx"] * 250e3
-    assert r["M_flt"] <= plato + 1e-6, "Cb nao pode levar M_flt acima do plato kpg Wxc fy"
-    assert r["Mn"] <= plato + 1e-6, "Mn (min) nunca supera o plato"
-    # confirma que a trava REALMENTE engatou (Cb 2,5 empurraria acima sem o clamp)
-    assert abs(r["M_flt"] - plato) < 1e-6, "com Cb=2,5 no inelastico a FLT deve travar no plato"
+    fy, Lb = 250e3, 3.0
+    r1 = ae.mrd_alma_esbelta(s, fy, Lb=Lb, Cb=1.0)
+    r = ae.mrd_alma_esbelta(s, fy, Lb=Lb, Cb=2.5)
+    plato = r["kpg"] * s["Wx"] * fy
+    assert r1["M_flt"] < r["M_flt"] < plato, "Cb sobe a FLT sem chegar ao plato"
+    # a reta com lambda_r = pi.raiz(E.Cb/(0,7 fy)), calculada aqui a mao
+    lam = Lb / r["ryT"]
+    lamp = 1.10 * math.sqrt(ae.E / fy)
+    lamr = math.pi * math.sqrt(ae.E * 2.5 / (0.7 * fy))
+    assert lamp < lam < lamr
+    esperado = plato * (1.0 - 0.3 * (lam - lamp) / (lamr - lamp))
+    assert abs(r["M_flt"] - esperado) < 1e-6 * plato
+    # continuidade em lambda_r: Mcr(lambda_r) = Mr = 0,7 do plato
+    mcr = r["kpg"] * 2.5 * math.pi ** 2 * ae.E * s["Wx"] / lamr ** 2
+    assert abs(mcr - 0.7 * plato) < 1e-9 * plato
 
 
 def test_flm_inelastico_presente():
@@ -105,7 +115,7 @@ def test_momento_resistente_nao_aborta_esbelta():
     # antes: ValueError; agora: despacha Anexo H
     Mn, gov, det = ck.momento_resistente(s, 250e3, Lb=2.0, Cb=1.0)
     assert Mn > 0, "momento_resistente deve calcular (Anexo H), nao abortar"
-    assert det.get("anexo") == "H", "deve marcar que usou o Anexo H"
+    assert det.get("anexo") == "E", "deve marcar que usou o Anexo E (2024)"
 
 
 def test_compacta_usa_anexo_g_inalterado():
@@ -113,7 +123,7 @@ def test_compacta_usa_anexo_g_inalterado():
     import check_nbr8800 as ck
     s = _sec_compacta()
     Mn, gov, det = ck.momento_resistente(s, 250e3, Lb=2.0, Cb=1.0)
-    assert det.get("anexo", "G") == "G", "compacta deve seguir Anexo G"
+    assert det.get("anexo") == "D", "compacta deve seguir o Anexo D (2024)"
     # Mpl > 0 (Anexo G usa Zx)
     assert det["Mpl"] == pytest.approx(s["Zx"] * 250e3)
 

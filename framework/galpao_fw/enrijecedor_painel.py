@@ -1,18 +1,21 @@
 # ============================================================================
 # enrijecedor_painel.py - Enrijecedores transversais da ALMA (painel do joelho).
-# NBR 8800:2008 §5.4.3.1. A alma esbelta do joelho de portico tapered pode ter a
+# NBR 8800:2024 §5.4.3.1. A alma esbelta do joelho de portico tapered pode ter a
 # forca cortante resistente AUMENTADA por enrijecedores transversais espacados de
-# "a": o coeficiente de flambagem por cisalhamento sobe de kv=5 (sem enrijecedores)
+# "a": o coeficiente de flambagem por cisalhamento sobe de kv=5,34 (sem enrijecedores)
 # para kv = 5 + 5/(a/h)^2, elevando lambda_p / lambda_r e portanto V_Rd.
 #
-# Base normativa (lida verbatim de pesquisa/aço/nbr8800_2008_1.pdf, pags 59-60):
+# Base normativa: 5.4.3.1.1 e 5.4.3.1.2 conferidos na imagem das paginas 57 e 58
+# da edicao de 2024 (MCP_Fontes, 2026-10-13, D231); 5.4.3.1.3 segue como lido na
+# edicao de 2008 (a formula de j NAO foi relida em 2024):
 #   §5.4.3.1.1  V_Rd em 3 dominios de lambda = h/tw:
 #       lambda <= lambda_p:      V_Rd = Vpl / gamma_a1
 #       lambda_p < l <= lambda_r:V_Rd = (lambda_p/lambda) Vpl / gamma_a1
 #       lambda > lambda_r:       V_Rd = 1,24 (lambda_p/lambda)^2 Vpl / gamma_a1
 #     lambda_p = 1,10 sqrt(kv E/fy) ; lambda_r = 1,37 sqrt(kv E/fy)
-#     kv = 5,0                          para almas SEM enrijecedores transversais,
-#                                       para a/h > 3 ou a/h > [260/(h/tw)]^2
+#     kv = 5,34                         para almas SEM enrijecedores transversais
+#                                       e para a/h > 3 (a edicao de 2008 dava 5,0
+#                                       e tambem para a/h > [260/(h/tw)]^2)
 #     kv = 5 + 5/(a/h)^2                para todos os outros casos
 #   §5.4.3.1.2  Vpl = 0,60 Aw fy ; Aw = d tw (altura TOTAL d).
 #   §5.4.3.1.3  requisitos do enrijecedor (quando necessario):
@@ -42,15 +45,14 @@ def _h(sec):
 def kv(sec, a):
     """§5.4.3.1.1 - coeficiente de flambagem por cisalhamento.
     a = espacamento entre enrijecedores transversais adjacentes (m); a=None => sem
-    enrijecedores. kv=5,0 se sem enrijecedores OU a/h>3 OU a/h>[260/(h/tw)]^2;
-    caso contrario kv = 5 + 5/(a/h)^2 (>5)."""
-    h = _h(sec); tw = sec["tw"]
+    enrijecedores. NBR 8800:2024: kv = 5,34 se sem enrijecedores OU a/h > 3;
+    caso contrario kv = 5 + 5/(a/h)^2."""
+    h = _h(sec)
     if a is None:
-        return 5.0
+        return ck.KV_SEM_ENRIJECEDOR
     a_h = a / h
-    lim = (260.0 / (h / tw)) ** 2
-    if a_h > 3.0 or a_h > lim:
-        return 5.0
+    if a_h > 3.0:
+        return ck.KV_SEM_ENRIJECEDOR
     return 5.0 + 5.0 / a_h ** 2
 
 
@@ -61,7 +63,7 @@ def vpl(sec, fy):
 
 def vrd(sec, fy, a=None):
     """§5.4.3.1.1 - forca cortante resistente de calculo V_Rd com kv por a/h.
-    a=None => kv=5 (identico ao cortante de check_nbr8800). Retorna dict com V_Rd,
+    a=None => kv=5,34 (identico ao cortante de check_nbr8800). Retorna dict com V_Rd,
     kv, lambda/lambda_p/lambda_r e o dominio governante."""
     kvv = kv(sec, a)
     lam = _h(sec) / sec["tw"]
@@ -159,16 +161,16 @@ def _selftest():
     import alma_variavel as av
     fy = 250e3
     s = av.props_I(0.95, 0.25, 0.004, 0.016)           # alma esbelta (h/tw ~ 230)
-    assert kv(s, None) == 5.0                           # sem enrijecedor
+    assert kv(s, None) == 5.34                          # sem enrijecedor
     h = _h(s)
     assert abs(kv(s, a=h) - 10.0) < 1e-9                # a/h=1 -> 5+5=10
-    assert kv(s, a=4.0 * h) == 5.0                      # a/h>3 -> 5
+    assert kv(s, a=4.0 * h) == 5.34                     # a/h>3 -> 5,34
     # V_Rd sobe com enrijecedores (kv maior) em alma esbelta
     v0 = vrd(s, fy, None)["Vrd"]
     v1 = vrd(s, fy, a=h)["Vrd"]
     assert v1 > v0 > 0, "enrijecedores devem elevar V_Rd na alma esbelta"
-    # a=None reproduz kv=5 do check_nbr8800
-    assert abs(vrd(s, fy, None)["kv"] - 5.0) < 1e-12
+    # a=None reproduz o kv do check_nbr8800
+    assert abs(vrd(s, fy, None)["kv"] - 5.34) < 1e-12
     # j: a/h=1 -> 0,5 ; a/h pequeno -> cresce
     assert abs(j_rigidez(1.0) - 0.5) < 1e-9
     assert j_rigidez(0.5) > 0.5
