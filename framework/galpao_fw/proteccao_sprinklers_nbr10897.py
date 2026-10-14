@@ -32,7 +32,7 @@ import math
 # minima de operacao (m2). Cobertura de extra = 9,3 (densidade >= 10,2), conservador.
 RISCO = {
     "leve":        {"h_max_m": None, "cobertura_m2": 18.6, "espacamento_m": 4.6,
-                    "densidade": (2.25, 4.1), "area": (280.0, 140.0),
+                    "densidade": (2.85, 4.1), "area": (280.0, 140.0),
                     "duracao_min": 30, "hidrantes_Lmin": 380, "area_min_m2": 140.0},
     "ordinario_I": {"h_max_m": 2.4, "cobertura_m2": 12.1, "espacamento_m": 4.6,
                     "densidade": (4.1, 6.1), "area": (370.0, 140.0),
@@ -47,6 +47,11 @@ RISCO = {
                     "densidade": (12.2, 16.3), "area": (465.0, 230.0),
                     "duracao_min": 90, "hidrantes_Lmin": 1900, "area_min_m2": 230.0},
 }
+# D232: a curva do risco leve da Figura 42 da NBR 10897:2020 (Figura 43 em 2014)
+# comeca em ~2,85 L/min/m2 a 280 m2 (lida na imagem da pagina 70, grade de 0,35);
+# o motor tinha 2,25, e como o padrao da reserva e' esse ponto, a vazao do risco
+# leve saia ~24 % menor. Tabela 10 (cobertura/espacamento), Tabela 27 (duracao) e
+# Tabela 29 (hidrantes) de 2020 conferem com os valores abaixo.
 COBERTURA_MAX_ABS_M2 = 21.0      # limite absoluto por chuveiro padrao (7.6.2.1)
 PAREDE_MIN_MM = 100.0            # distancia minima a parede (7.7.3)
 K_PADRAO = 80.0                  # DN15, L/min/bar^0,5 (Tab.1)

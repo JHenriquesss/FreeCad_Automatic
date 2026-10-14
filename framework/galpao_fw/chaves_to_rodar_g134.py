@@ -80,8 +80,8 @@ import pathlib
 
 GALPAO = pathlib.Path(__file__).resolve().parent
 
-# As 29 chaves de topo que to_rodar_params escreve depois do G134 (sem
-# `cimento`). Ordem alfabetica, baseline nos dois sentidos: chave nova sem
+# As 30 chaves de topo que to_rodar_params escreve (29 do G134, sem `cimento`,
+# mais `terca` do D232). Ordem alfabetica, baseline nos dois sentidos: chave nova sem
 # triagem = vermelho; chave sumida = nome morto = vermelho.
 CHAVES_ESPERADAS = frozenset({
     "aguas",
@@ -108,6 +108,7 @@ CHAVES_ESPERADAS = frozenset({
     "secundarios",
     "tapered",
     "telha",
+    "terca",           # D232: Lb_succao (travamento da mesa inferior), lido em params["terca"]
     "terreno",
     "tipo_ligacao",
     "tipo_portico",

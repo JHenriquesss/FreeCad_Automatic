@@ -56,13 +56,13 @@ sys.path.insert(0, GALPAO)
 
 import chaves_to_rodar_g134 as lente
 
-# Os 29 escritos a mao (anti-tautologia do test_06: contra o AST vivo).
+# Os 30 escritos a mao (anti-tautologia do test_06: contra o AST vivo; terca no D232).
 ESPERADAS_MAO = (
     "aguas", "baldrame", "base_fixed", "calha", "cargas", "chuva_I_mm_h",
     "creditar_cortante_mesa_inclinada", "divisa", "escada", "estaca",
     "fogo", "fu", "fundacao", "fy", "geometria", "mf_sec", "neve",
     "norma_6118_edicao", "parede", "plataforma", "ponte", "secundarios",
-    "tapered", "telha", "terreno", "tipo_ligacao", "tipo_portico",
+    "tapered", "telha", "terca", "terreno", "tipo_ligacao", "tipo_portico",
     "trelica", "vento",
 )
 
@@ -82,8 +82,8 @@ def test_01_portao_censo_real_passa_e_cimento_reinjetado_reprova():
     if not conf["OK"] or conf["sem_leitor"] or conf["extras"] \
             or conf["faltando"]:
         lados.append("censo real devia passar zerado: %r" % (conf,))
-    if len(conf["escritas"]) != 29:
-        lados.append("escritas=%d, esperado 29 (30 menos o cimento)"
+    if len(conf["escritas"]) != 30:
+        lados.append("escritas=%d, esperado 30 (30 menos o cimento, mais terca do D232)"
                      % len(conf["escritas"]))
     if "cimento" in conf["escritas"]:
         lados.append("to_rodar_params ainda escreve cimento: %r"

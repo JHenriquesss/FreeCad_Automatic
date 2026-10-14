@@ -7867,10 +7867,21 @@ e gama_w; NBR 15200:2024 Tabela 4. Dois achados:
 - Estacas: os metodos (Aoki-Velloso, Decourt-Quaresma, Teixeira) sao de livro; a
   NBR 6122 (6.2.1.2) fixa o FS: 2,0 no semiempirico, 1,6 com prova de carga. O
   motor usa 3,0 (decisao do usuario, D179).
+- Edicoes no acervo: a NBR 10897 tem a edicao de 2020 (o motor cita a de 2014).
+  Conferidos na de 2020: Tabela 10 (cobertura e espacamento), Tabela 27
+  (duracao), Tabela 29 (hidrantes) e a Figura 42 (curvas de densidade e area).
+  Na curva do risco leve o motor comecava em 2,25 L/min/m2 a 280 m2; a figura
+  da' ~2,85 (lida na imagem, grade de 0,35). Como a reserva usa esse ponto por
+  padrao, a vazao do risco leve saia ~24 % menor. Corrigido.
+- NBR 5419-3:2026: Tabela 2 (esfera rolante 20/30/45/60 m, malha 5/10/15/20 m) e
+  Tabela 5 (descidas 10/10/15/20 m) conferem.
+- A ficha nova `cobertura.terca_Lb_succao` gera a chave de topo `terca` em
+  `to_rodar_params`; a lente G134 (`chaves_to_rodar_g134.CHAVES_ESPERADAS`) a
+  registra (29 -> 30), porque o `rodar_galpao` a le em `params["terca"]`.
 Ainda nao relidos: flexao composta do pilar de concreto, protensao, laje por
-tabelas de Bares, telhado de madeira, SPDA, aterramento e luminotecnica.
+tabelas de Bares, telhado de madeira, aterramento e luminotecnica.
 
-**Testes.** `tests/test_auditoria_acervo_d232.py` (novo, 29 casos, cada
+**Testes.** `tests/test_auditoria_acervo_d232.py` (novo, 30 casos, cada
 referencia refeita pela formula da norma). Atualizados os que cristalizavam os
 valores antigos: furo-padrao em `test_tolerancias`, ky(550) em
 `test_modulos_sem_teste_g85`, caixa de descarga em `test_hidraulica_predial`,

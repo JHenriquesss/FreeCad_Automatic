@@ -234,3 +234,11 @@ def test_puncao_limites_da_6118_2023():
     assert pu.tau_rd1(0.10, 0.01, fck) == pytest.approx(0.13 * 2.0 * (100 * 0.01 * 30) ** (1 / 3) * 1000)
     assert pu.tau_rd1(0.30, 0.05, fck) == pytest.approx(pu.tau_rd1(0.30, 0.02, fck))
     assert pu.tau_rd1(0.30, 0.01, fck, 800.0) == pytest.approx(pu.tau_rd1(0.30, 0.01, fck))
+
+
+def test_curva_do_risco_leve_dos_chuveiros_automaticos():
+    import proteccao_sprinklers_nbr10897 as sp
+    assert sp.RISCO["leve"]["densidade"] == (2.85, 4.1)          # Fig.42 de 2020
+    assert sp.RISCO["ordinario_I"]["densidade"] == (4.1, 6.1)
+    assert sp.RISCO["extra_II"]["densidade"] == (12.2, 16.3)
+    assert [sp.RISCO[r]["duracao_min"] for r in ("leve", "ordinario_II", "extra_I")] == [30, 60, 90]
