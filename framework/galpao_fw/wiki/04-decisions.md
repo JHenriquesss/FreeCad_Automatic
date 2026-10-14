@@ -7845,10 +7845,32 @@ e gama_w; NBR 15200:2024 Tabela 4. Dois achados:
 - NBR 5626:2020, 6.9.2: "em qualquer caso" a pressao dinamica no ponto de
   utilizacao nao pode ser inferior a 10 kPa. O motor aceitava 5 kPa na caixa de
   descarga (valor da edicao de 1998).
-Nao foram relidos os metodos de calculo desses verticais (so' as tabelas e
-limites acima): ficam para rodadas proprias.
+**11. Segunda rodada (2026-10-14, pedida pela revisao do objetivo).**
+- NBR 5410 Tabelas 38 e 39 (metodos E, F, G): a 38 confere; na 39 (EPR/XLPE,
+  metodo F, 3 condutores em trifolio) o motor tinha 469/538/637/736 A para 150 a
+  300 mm2, valores que nao estao na tabela e maiores que os dela (444/510/607/
+  703 A, coluna 5). Corrigido.
+- Metodo do eletrico: coordenacao IB <= In <= Iz e I2 <= 1,45.Iz (5.3.4.1),
+  soma das Iz em paralelo (5.3.4.5.2) e k da Tabela 30 (115 PVC, 143 EPR)
+  conferem.
+- Metodo da hidraulica: Fair-Whipple-Hsiao (A.2.1), Tabela A.3 e Q = 0,3.raiz(SP)
+  conferem. Na Tabela A.1 os PESOS do mictorio estavam trocados entre as
+  chaves (com sifao integrado = valvula, peso 2,8; sem sifao = caixa, 0,3),
+  enquanto as vazoes da mesma tabela ja' estavam certas. Corrigido.
+- Concreto (NBR 6118:2023): rigidez da sapata (22.6.1) e Modelo I do cortante
+  (17.4.2.2: VRd2, Vc0, armadura) conferem. Puncao (19.5.3.2 e 19.5.3.3): faltavam
+  os limites ke = 1 + raiz(20/d) <= 2, rho <= 0,02 e sigma_cp ate' 3,5 MPa,
+  desprezado ate' 1 MPa; em laje com d < 20 cm a resistencia saia ate' ~20 %
+  maior. Corrigido em `puncao_nbr6118` (usado pela sapata e pela laje).
+- Alvenaria (NBR 16868-1, 11.2.1): NRd = fd.A.R, 0,9 no pilar, R = 1 - (lambda/40)3
+  conferem.
+- Estacas: os metodos (Aoki-Velloso, Decourt-Quaresma, Teixeira) sao de livro; a
+  NBR 6122 (6.2.1.2) fixa o FS: 2,0 no semiempirico, 1,6 com prova de carga. O
+  motor usa 3,0 (decisao do usuario, D179).
+Ainda nao relidos: flexao composta do pilar de concreto, protensao, laje por
+tabelas de Bares, telhado de madeira, SPDA, aterramento e luminotecnica.
 
-**Testes.** `tests/test_auditoria_acervo_d232.py` (novo, 26 casos, cada
+**Testes.** `tests/test_auditoria_acervo_d232.py` (novo, 29 casos, cada
 referencia refeita pela formula da norma). Atualizados os que cristalizavam os
 valores antigos: furo-padrao em `test_tolerancias`, ky(550) em
 `test_modulos_sem_teste_g85`, caixa de descarga em `test_hidraulica_predial`,

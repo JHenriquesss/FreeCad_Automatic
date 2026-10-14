@@ -78,9 +78,13 @@ C_PESOS = 0.3                # coeficiente da formula Q = C*raiz(SP) (NBR 5626:1
 PESO_RELATIVO = {
     "bacia_caixa": 0.3, "bacia_valvula": 32.0, "banheira": 1.0, "bebedouro": 0.1,
     "bide": 0.1, "chuveiro": 0.4, "chuveiro_eletrico": 0.1, "maquina_lavar": 1.0,
-    "lavatorio": 0.3, "mictorio_sifao": 0.3, "mictorio": 2.8, "mictorio_calha": 0.3,
+    "lavatorio": 0.3, "mictorio_sifao": 2.8, "mictorio": 0.3, "mictorio_calha": 0.3,
     "pia": 0.7, "pia_eletrica": 0.1, "tanque": 0.7, "torneira_jardim": 0.4,
 }
+# D232 (imagem da pagina 28 da NBR 5626:1998 no MCP_Fontes): na Tabela A.1 o
+# mictorio COM sifao integrado e' o de valvula de descarga (0,50 L/s ; peso 2,8)
+# e o SEM sifao integrado o de caixa/registro (0,15 L/s ; peso 0,3) - como ja'
+# estava em VAZAO_PROJETO_LS. Os pesos estavam trocados entre as duas chaves.
 METODOS_AGUA = ("soma", "pesos")
 
 

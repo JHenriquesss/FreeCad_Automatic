@@ -210,3 +210,27 @@ def test_pressao_minima_no_ponto_nbr5626_2020():
     import hidraulica_predial as hp
     assert hp.P_MIN_PONTO_KPA["caixa_descarga"] >= 10.0
     assert min(hp.P_MIN_PONTO_KPA.values()) >= 10.0
+
+
+# ---- segunda rodada: Tabela 39, pesos da 5626, puncao -------------------------
+def test_tabela_39_epr_metodo_F_tres_condutores():
+    import condutores_nbr5410 as cd
+    col5 = {150: 444, 185: 510, 240: 607, 300: 703}      # Tab.39, coluna (5), trifolio
+    for s, iz in col5.items():
+        assert cd.AMPACIDADE["EPR"]["F"][3][s] == iz
+
+
+def test_pesos_do_mictorio_seguem_a_tabela_A1():
+    import hidraulica_predial as hp
+    # com sifao integrado = valvula (0,50 L/s ; 2,8) ; sem sifao = caixa (0,15 ; 0,3)
+    assert hp.VAZAO_PROJETO_LS["mictorio_sifao"] == 0.50 and hp.PESO_RELATIVO["mictorio_sifao"] == 2.8
+    assert hp.VAZAO_PROJETO_LS["mictorio"] == 0.15 and hp.PESO_RELATIVO["mictorio"] == 0.3
+
+
+def test_puncao_limites_da_6118_2023():
+    import puncao_nbr6118 as pu
+    fck = 30e3
+    # d = 10 cm: 1 + raiz(2) = 2,41 -> ke = 2
+    assert pu.tau_rd1(0.10, 0.01, fck) == pytest.approx(0.13 * 2.0 * (100 * 0.01 * 30) ** (1 / 3) * 1000)
+    assert pu.tau_rd1(0.30, 0.05, fck) == pytest.approx(pu.tau_rd1(0.30, 0.02, fck))
+    assert pu.tau_rd1(0.30, 0.01, fck, 800.0) == pytest.approx(pu.tau_rd1(0.30, 0.01, fck))

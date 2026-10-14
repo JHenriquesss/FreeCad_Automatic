@@ -65,7 +65,7 @@ def test_condutor_paralelo_900A():
                                 "sistema": "trifasico", "n_cond": 3, "isolacao": "EPR",
                                 "metodo": "F", "fp": 0.85, "dv_max": 7.0})
     assert r["n_paralelo"] == 2 and r["secao_mm2"] == 300
-    assert r["Iz"] == 736 * 2 and r["OK"]
+    assert r["Iz"] == 703 * 2 and r["OK"]          # Tab.39 col.5 (D232: era 736)
 
 
 def test_condutor_secao_grande_unica():
@@ -78,7 +78,7 @@ def test_condutor_secao_grande_unica():
 
 def test_secoes_estendidas_ate_300():
     assert 300 in cd.SECOES and 150 in cd.SECOES
-    assert cd.AMPACIDADE["EPR"]["F"][3][300] == 736
+    assert cd.AMPACIDADE["EPR"]["F"][3][300] == 703   # Tab.39 col.5 (D232)
 
 
 # ------------------------------ varredura de galpoes -------------------------

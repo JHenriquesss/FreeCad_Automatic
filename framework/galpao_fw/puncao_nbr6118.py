@@ -85,18 +85,29 @@ def tau_rd2(fck):
     return 0.27 * (1.0 - fck_MPa / 250.0) * (fck / 1.4)
 
 
+def _ke_rho_scp(d, rho, sigma_cp):
+    """NBR 6118:2023, 19.5.3.2 (lido na imagem da pagina 168 no MCP_Fontes, D232):
+    ke = 1 + raiz(20/d) <= 2 (d em cm) ; rho = raiz(rho_x.rho_y) <= 0,02 ;
+    sigma_cp <= 3,5 MPa e desprezado quando nao passa de 1 MPa (a norma pede por
+    direcao; aqui chega a media). Ate' o D232 nenhum dos tres limites era aplicado:
+    em laje com d < 20 cm a resistencia saia ate' ~20 % maior."""
+    ke = min(1.0 + math.sqrt(20.0 / (d * 100.0)), 2.0)
+    rho_ef = min(max(rho, 0.0), 0.02)
+    scp = 0.0 if sigma_cp <= 1000.0 else min(sigma_cp, 3500.0)
+    return ke, rho_ef, scp
+
+
 def tau_rd1(d, rho, fck, sigma_cp=0.0):
     """Tensao resistente na superficie C' SEM armadura de puncao (19.5.3.2):
-    tau_Rd1 = 0,13*(1 + raiz(20/d))*(100*rho*fck)^(1/3) + 0,10*sigma_cp,
-    com d em CENTIMETROS na parcela (1 + raiz(20/d)) e fck em MPa.
+    tau_Rd1 = 0,13*ke*(100*rho*fck)^(1/3) + 0,10*sigma_cp, ke = 1 + raiz(20/d) <= 2,
+    com d em CENTIMETROS na parcela de ke e fck em MPa (limites em _ke_rho_scp).
     rho = raiz(rho_x*rho_y) nas duas direcoes ortogonais."""
     if d <= 0:
         raise ValueError("altura util d deve ser positiva (d=%r)" % (d,))
-    d_cm = d * 100.0
     fck_MPa = fck / 1000.0
-    base = 0.13 * (1.0 + math.sqrt(20.0 / d_cm)) \
-        * (100.0 * max(rho, 0.0) * fck_MPa) ** (1.0 / 3.0) * 1000.0
-    return base + 0.10 * sigma_cp
+    ke, rho_ef, scp = _ke_rho_scp(d, rho, sigma_cp)
+    base = 0.13 * ke * (100.0 * rho_ef * fck_MPa) ** (1.0 / 3.0) * 1000.0
+    return base + 0.10 * scp
 
 
 def tau_rd3(d, rho, fck, Asw, fywd, sr, u, alpha_graus=90.0, sigma_cp=0.0):
@@ -104,14 +115,13 @@ def tau_rd3(d, rho, fck, Asw, fywd, sr, u, alpha_graus=90.0, sigma_cp=0.0):
     tau_Rd3 = 0,10*(1 + raiz(20/d))*(100*rho*fck)^(1/3) + 0,10*sigma_cp
               + 1,5*(d/s_r)*Asw*fywd*sen(alpha)/(u*d).
     Asw e a area total de UM contorno completo paralelo a C'."""
-    d_cm = d * 100.0
     fck_MPa = fck / 1000.0
-    concreto = 0.10 * (1.0 + math.sqrt(20.0 / d_cm)) \
-        * (100.0 * max(rho, 0.0) * fck_MPa) ** (1.0 / 3.0) * 1000.0
+    ke, rho_ef, scp = _ke_rho_scp(d, rho, sigma_cp)
+    concreto = 0.10 * ke * (100.0 * rho_ef * fck_MPa) ** (1.0 / 3.0) * 1000.0
     aco = 0.0
     if Asw > 0 and sr > 0 and u > 0:
         aco = 1.5 * (d / sr) * Asw * fywd * math.sin(math.radians(alpha_graus)) / (u * d)
-    return concreto + 0.10 * sigma_cp + aco
+    return concreto + 0.10 * scp + aco
 
 
 def fywd_de_projeto(fyk, tipo="stud"):

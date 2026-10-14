@@ -127,18 +127,26 @@ def test_tau_rd2_e_a_expressao_de_19_5_3_1():
 
 
 def test_tau_rd1_e_a_expressao_de_19_5_3_2():
-    """tau_Rd1 = 0,13*(1+raiz(20/d[cm]))*(100*rho*fck[MPa])^(1/3) + 0,10*sigma_cp."""
-    d, rho, fck, scp = 0.16, 0.0075, 30e3, 500.0
-    esperado = (0.13 * (1 + math.sqrt(20.0 / 16.0)) * (100 * rho * 30) ** (1 / 3.0)
-                * 1000.0 + 0.10 * scp)
-    assert pu.tau_rd1(d, rho, fck, scp) == pytest.approx(esperado)
+    """tau_Rd1 = 0,13*ke*(100*rho*fck[MPa])^(1/3) + 0,10*sigma_cp, com ke =
+    1 + raiz(20/d[cm]) <= 2, rho <= 0,02 e sigma_cp desprezado ate' 1 MPa e
+    limitado a 3,5 MPa (NBR 6118:2023, 19.5.3.2; D232)."""
+    d, rho, fck = 0.25, 0.0075, 30e3                    # ke = 1,894 (abaixo do teto)
+    ke = 1 + math.sqrt(20.0 / 25.0)
+    base = 0.13 * ke * (100 * rho * 30) ** (1 / 3.0) * 1000.0
+    assert pu.tau_rd1(d, rho, fck, 2000.0) == pytest.approx(base + 0.10 * 2000.0)
+    assert pu.tau_rd1(d, rho, fck, 500.0) == pytest.approx(base)          # <= 1 MPa: despreza
+    assert pu.tau_rd1(d, rho, fck, 5000.0) == pytest.approx(base + 0.10 * 3500.0)
+    # d = 16 cm: 1 + raiz(20/16) = 2,12 -> ke = 2 ; rho 0,03 -> 0,02
+    assert pu.tau_rd1(0.16, 0.0075, fck) == pytest.approx(
+        0.13 * 2.0 * (100 * 0.0075 * 30) ** (1 / 3.0) * 1000.0)
+    assert pu.tau_rd1(d, 0.03, fck) == pytest.approx(pu.tau_rd1(d, 0.02, fck))
 
 
 def test_tau_rd3_e_a_expressao_de_19_5_3_3():
     """tau_Rd3 = 0,10*(...) + 0,10*sigma_cp + 1,5*(d/sr)*Asw*fywd*sen(a)/(u*d)."""
     d, rho, fck = 0.16, 0.0075, 30e3
     Asw, fywd, sr, u = 6e-4, 300e3, 0.10, 3.6
-    esperado = (0.10 * (1 + math.sqrt(20.0 / 16.0)) * (100 * rho * 30) ** (1 / 3.0)
+    esperado = (0.10 * 2.0 * (100 * rho * 30) ** (1 / 3.0)        # ke = 2 (teto; D232)
                 * 1000.0 + 1.5 * (d / sr) * Asw * fywd * 1.0 / (u * d))
     assert pu.tau_rd3(d, rho, fck, Asw, fywd, sr, u) == pytest.approx(esperado)
     # a parcela do concreto de tau_Rd3 (0,10) e MENOR que a de tau_Rd1 (0,13)

@@ -44,7 +44,8 @@ def test_pesos_tabela_A1():
     # lavatorio 0,3 ; pia 0,7 ; tanque 0,7 ; mictorio s/ sifao 2,8
     assert hp.PESO_RELATIVO["bacia_caixa"] == 0.3
     assert hp.PESO_RELATIVO["bacia_valvula"] == 32.0
-    assert hp.PESO_RELATIVO["mictorio"] == 2.8
+    # Tab.A.1: com sifao integrado = valvula (2,8); sem sifao = caixa (0,3) - D232
+    assert hp.PESO_RELATIVO["mictorio_sifao"] == 2.8 and hp.PESO_RELATIVO["mictorio"] == 0.3
     assert hp.soma_pesos({"bacia_caixa": 1, "lavatorio": 1, "chuveiro": 1}) == 1.0
 
 

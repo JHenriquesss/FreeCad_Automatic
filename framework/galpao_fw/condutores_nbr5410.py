@@ -34,6 +34,9 @@ SECOES = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
 # Cobre. PVC 70C: Tab.36 (B1) / Tab.38 (F). EPR/XLPE 90C: Tab.37 (B1) / Tab.39 (F).
 # secoes grandes (150-300 mm2) so p/ 3 condutores carregados (trifasico) e p/ B1 2cond
 # (Tab.36-39; valores lidos via NotebookLM). F 2cond grande nao tabelado aqui.
+# D232: as quatro tabelas conferidas na imagem das paginas 101 a 105 (MCP_Fontes);
+# EPR/XLPE metodo F, 3 condutores, 150 a 300 mm2 estava 469/538/637/736 A, que
+# nao sao da Tabela 39 (coluna 5, trifolio: 444/510/607/703 A).
 AMPACIDADE = {
     "PVC": {
         "B1": {2: {2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101, 35: 125,
@@ -56,8 +59,8 @@ AMPACIDADE = {
         "F":  {2: {2.5: 37, 4: 50, 6: 65, 10: 90, 16: 121, 25: 161, 35: 200,
                    50: 242, 70: 310, 95: 377, 120: 437},
                3: {2.5: 29, 4: 40, 6: 53, 10: 74, 16: 101, 25: 135, 35: 169,
-                   50: 207, 70: 268, 95: 328, 120: 383, 150: 469, 185: 538, 240: 637,
-                   300: 736}},
+                   50: 207, 70: 268, 95: 328, 120: 383, 150: 444, 185: 510, 240: 607,
+                   300: 703}},
     },
 }
 # XLPE compartilha a tabela do EPR (mesma temperatura de 90C)
@@ -316,14 +319,14 @@ def _selftest():
     assert abs(fct(37, "PVC") - (0.94 + 0.4 * (0.87 - 0.94))) < 1e-9   # interpola
     assert fca(3) == 0.70 and fca(1) == 1.0
     assert fca(5) == 0.60 and fca(13) == 0.45 and fca(25) == 0.38   # Tab.42 inteira (D232)
-    # CONDUTORES EM PARALELO: alimentador de 900 A (EPR F 3cond, Iz max 300mm2=736A)
-    # -> IC=900 excede 736 -> 2 condutores de 300mm2 por fase.
+    # CONDUTORES EM PARALELO: alimentador de 900 A (EPR F 3cond, Iz max 300mm2=703A)
+    # -> IC=900 excede 703 -> 2 condutores de 300mm2 por fase.
     rp = dimensiona_condutor({"IB": 900.0, "V": 380.0, "L_km": 0.05,
                               "sistema": "trifasico", "n_cond": 3, "isolacao": "EPR",
                               "metodo": "F", "fp": 0.85, "temp_amb": 30.0,
                               "n_agrupados": 1, "uso": "forca", "dv_max": 7.0})
     assert rp["n_paralelo"] == 2 and rp["secao_mm2"] == 300, (rp["n_paralelo"], rp["secao_mm2"])
-    assert rp["Iz"] == 736 * 2 and rp["OK"]
+    assert rp["Iz"] == 703 * 2 and rp["OK"]      # Tab.39 col.5 (D232)
     # secao unica ainda vale p/ 300 A (nao vira paralelo)
     r300 = dimensiona_condutor({"IB": 300.0, "V": 380.0, "L_km": 0.05,
                                 "sistema": "trifasico", "n_cond": 3, "isolacao": "EPR",
