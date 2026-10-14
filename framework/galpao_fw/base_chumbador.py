@@ -924,6 +924,31 @@ def dimensiona_base(caso, escada=None, esforcos=None):
             "tabela": _tabela_base(linhas, aprovado, caso, chaveta, len(esforcos))}
 
 
+def confere_base(caso, B, L, db, n, borda, t_placa, esforcos):
+    """Confere uma base de geometria FIXA (B, L, db, n, borda) num pilar (d_col,
+    bf_col do `caso`) em todas as combinacoes `esforcos` [(nome, N, V, M)].
+    t_placa None: so' calcula a espessura exigida; com t_placa, o OK inclui
+    t_placa >= t_req e o cortante do chumbador com essa placa (6.7.2.5). Usado
+    para levar a base do pilar 0 aos demais pilares do portico (D235)."""
+    c = dict(caso)
+    c.update(B=B, L=L, db=db, n_chumbadores=n, n_tracionados=max(1, n // 2),
+             borda=borda, d_anchor=L - borda, A2=(B + 0.15) * (L + 0.15),
+             t_placa=t_placa)
+    rs = [(nome, verifica_base(dict(c, N=N, V=abs(V), M=abs(M), nome=nome)))
+          for (nome, N, V, M) in esforcos]
+    pior_nome, pior = max(rs, key=lambda p: (not p[1]["OK"], max(
+        p[1]["u_tracao"], p[1]["u_corte"], p[1]["u_concreto"], p[1]["interacao"])))
+    # u_concreto = 1,0 na grande excentricidade e' o bloco plastificado por
+    # hipotese (o criterio ai e' Y <= L), por isso vai separado do chumbador
+    return {"OK": all(r["OK"] for _n, r in rs),
+            "t_placa_req": max(r["t_placa_req"] for _n, r in rs),
+            "util_chumbador": round(max(max(r["u_tracao"], r["u_corte"], r["interacao"])
+                                        for _n, r in rs), 3),
+            "u_concreto": round(max(r["u_concreto"] for _n, r in rs), 3),
+            "Y_cabe": all(r["Y_cabe"] for _n, r in rs),
+            "governante": pior_nome, "n_comb": len(rs)}
+
+
 def _tabela_base(linhas, aprovado, caso, chaveta=None, n_comb=1):
     L = ["=" * 74, "DIMENSIONAMENTO DA BASE ENGASTADA (placa + chumbadores)",
          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",

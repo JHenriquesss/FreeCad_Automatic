@@ -766,6 +766,48 @@ def rodar(params, out_dir):
         res["base_ok"] = True
         if dimb.get("chaveta"):
             res["base_chaveta"] = {k: round(float(v), 4) for k, v in dimb["chaveta"].items()}
+        # D235: a base e' uma so' para o portico, mas cada pilar tem o seu perfil
+        # (no galpao do cliente: HEB280 e HEB240). A base dimensionada no pilar 0
+        # e' conferida em CADA pilar, com as medidas dele e os esforcos dele; a
+        # espessura adotada e' a maior exigida. Ate' o D235 o pilar 1 nunca era
+        # conferido com as proprias medidas (mesa mais estreita = balanco maior).
+        cols = list(res.get("perfil_colunas") or [])
+        if len(set(cols)) > 1:
+            esf_todos = _esforcos_base_todos()
+            borda = float(cb.get("borda", b.get("borda", 0.05)))
+            casos_col = []
+            for i, pn in enumerate(cols):
+                p_i = perfis.PERFIS[pn]
+                c_i = dict(b, d_col=p_i["d"], bf_col=p_i["bf"], beff_tracao=p_i["bf"],
+                           chaveta=bool(dimb.get("chaveta")))
+                e_i = [e for e in esf_todos if e[0].endswith("coluna %d" % i)]
+                casos_col.append((i, pn, c_i, e_i))
+            t_uni = tb
+            for i, pn, c_i, e_i in casos_col:
+                r0 = bc.confere_base(c_i, B, Lm, db, nb, borda, None, e_i)
+                t_uni = max(t_uni, bc._std_t(r0["t_placa_req"]))
+            por_col = []
+            for i, pn, c_i, e_i in casos_col:
+                r_i = bc.confere_base(c_i, B, Lm, db, nb, borda, t_uni, e_i)
+                por_col.append({"coluna": i, "perfil": pn, "OK": r_i["OK"],
+                                "util_chumbador": r_i["util_chumbador"],
+                                "u_concreto": r_i["u_concreto"], "Y_cabe": r_i["Y_cabe"],
+                                "governante": r_i["governante"],
+                                "t_req_mm": round(r_i["t_placa_req"] * 1000.0, 1)})
+            res["base_por_coluna"] = por_col
+            res["base_adotada"]["t"] = t_uni
+            res["base_ok"] = all(x["OK"] for x in por_col)
+            linhas_col = ["", "BASE UNICA CONFERIDA EM CADA PILAR (D235): placa "
+                          "%.0f x %.0f x %.0f mm, %d chumbadores d=%.0f mm"
+                          % (B * 1000, Lm * 1000, t_uni * 1000, nb, db * 1000)]
+            for x in por_col:
+                linhas_col.append("  coluna %d (%s): chumbador %.2f, concreto %.2f (Y<=L %s),"
+                                  " t_req %.0f mm, pior %s - %s"
+                                  % (x["coluna"], x["perfil"], x["util_chumbador"],
+                                     x["u_concreto"], "sim" if x["Y_cabe"] else "NAO",
+                                     x["t_req_mm"], x["governante"],
+                                     "PASSA" if x["OK"] else "NAO PASSA"))
+            save("gate7-base.txt", dimb["tabela"] + "\n".join(linhas_col) + "\n")
     else:
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}

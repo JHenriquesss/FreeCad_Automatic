@@ -193,3 +193,46 @@ def test_tabela_8_uma_agua_celulas():
         assert c["vento_90"] == {"H": Hm90, "L": Lm90}
     with pytest.raises(ValueError):
         vi.cpe_telhado_1agua(35.0)
+
+
+def test_tabela_10_todas_as_celulas():
+    """NBR 6123:2023 Tabela 10, alfa = 0 (imagem da p.24): as 40 celulas
+    (theta 5/10/20/30/45 x a*, b*, c*, d*, m*, n*, x*, z*), uma a uma."""
+    imagem = {
+        5:  (-0.9, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.3),
+        10: (-1.1, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.4),
+        20: (-0.7, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.5),
+        30: (-0.2, -0.6, -0.4, -0.3, -0.2, -0.3, -0.2, -0.5),
+        45: (+0.3, -0.6, -0.6, -0.4, -0.2, -0.4, -0.2, -0.5),
+    }
+    for th, cel in imagem.items():
+        assert vi._linha_tab10(float(th)) == pytest.approx(cel)
+        t = vi.cpe_telhado_multiplo(4, float(th))
+        a, b, c, d, m, n, x, z = cel
+        assert [(v["barlavento"], v["sotavento"]) for v in t] == pytest.approx(
+            [(a, b), (c, d), (m, n), (x, z)])
+
+
+# ---- base unica conferida em cada pilar (D235) -------------------------------
+def test_base_conferida_com_as_medidas_de_cada_pilar():
+    """A mesma placa num pilar mais estreito tem balanco maior: confere_base
+    recalcula a espessura exigida com as medidas do pilar (D235)."""
+    import base_chumbador as bc
+    import perfis
+    base = {"fck": 25e3, "B": 0.32, "L": 0.60, "A2": 0.47 * 0.75, "n_chumbadores": 4,
+            "n_tracionados": 2, "db": 0.038, "fub": 400e3, "borda": 0.06,
+            "fy_placa": 250e3, "t_placa": None, "rosca_no_plano": True,
+            "d_anchor": 0.54, "N": 0.0, "V": 0.0, "M": 0.0}
+    esf = [("c1", 120.0, 25.0, 90.0), ("c2", -20.0, 30.0, 40.0)]
+    r = {}
+    for pn in ("HEB280", "HEB240"):
+        p = perfis.PERFIS[pn]
+        c = dict(base, d_col=p["d"], bf_col=p["bf"], beff_tracao=p["bf"])
+        r[pn] = bc.confere_base(c, 0.32, 0.60, 0.038, 4, 0.06, None, esf)
+        assert r[pn]["n_comb"] == 2 and r[pn]["t_placa_req"] > 0
+    assert r["HEB240"]["t_placa_req"] != pytest.approx(r["HEB280"]["t_placa_req"])
+    # com a espessura dada, o OK passa a exigir t_placa >= t_req
+    p = perfis.PERFIS["HEB240"]
+    c = dict(base, d_col=p["d"], bf_col=p["bf"], beff_tracao=p["bf"])
+    fino = bc.confere_base(c, 0.32, 0.60, 0.038, 4, 0.06, 0.005, esf)
+    assert not fino["OK"]

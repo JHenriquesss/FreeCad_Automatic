@@ -8061,3 +8061,24 @@ defeito do D232); base 320 x 600 x 50 mm com 4 chumbadores de 38 mm, conferida e
 18 combinacoes (era 600 x 800 x 100 com 6 de 32); bloco de fundacao 2,50 x 3,00 x
 2,30 m (era x 2,35); peso primario de aco igual (19,32 t). 15 folhas conferidas
 no CADCraft (`pranchas-ifc/conferencia`).
+
+## D235 - Base unica conferida em cada pilar do portico; Tabela 10 da NBR 6123:2023 celula a celula (2026-10-14) - FECHADO
+
+**Base do pilar 1.** O redimensionamento adota um perfil por pilar (galpao do
+cliente: coluna 0 HEB280, coluna 1 HEB240), mas a base era dimensionada so' com
+as medidas da coluna 0 (com os esforcos de todas). O pilar mais estreito tem
+balanco de placa maior e nunca era conferido com as proprias medidas. Agora
+`rodar_galpao` leva a base adotada (geometria unica, mais simples de fabricar e
+de desenhar) a cada pilar com as medidas e os esforcos DELE
+(`base_chumbador.confere_base`, todas as combinacoes) e adota a maior espessura
+exigida; `res["base_por_coluna"]` e o fim de `gate7-base.txt` dizem o resultado
+por pilar. Galpao do cliente: coluna 0 (HEB280) chumbador 0,85, t_req 48,5 mm;
+coluna 1 (HEB240) chumbador 0,29, t_req 44,6 mm; placa unica 320 x 600 x 50 mm
+com 4 chumbadores de 38 mm passa nos dois. O "concreto 1,00" do relatorio e' o
+bloco plastificado por hipotese na grande excentricidade (o criterio e' Y <= L),
+por isso vai separado da utilizacao do chumbador.
+
+**Tabela 10 celula a celula.** `test_tabela_10_todas_as_celulas` confere as 40
+celulas de alfa = 0 (theta 5/10/20/30/45 x a* ... z*) contra a imagem da p.24 e a
+montagem dos tramos (1o a*/b*, 2o c*/d*, intermediarios m*/n*, ultimo x*/z*).
+A Tabela 8 (uma agua) ja' tem o teste das 24 celulas usadas (90 e -90 graus).
