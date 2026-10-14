@@ -8082,3 +8082,9 @@ por isso vai separado da utilizacao do chumbador.
 celulas de alfa = 0 (theta 5/10/20/30/45 x a* ... z*) contra a imagem da p.24 e a
 montagem dos tramos (1o a*/b*, 2o c*/d*, intermediarios m*/n*, ultimo x*/z*).
 A Tabela 8 (uma agua) ja' tem o teste das 24 celulas usadas (90 e -90 graus).
+
+**Pacote do cliente regerado com o D235** em `plano-2026-10-d235` (fora do git;
+d229 e d234 intocados), 217 s, ATENDE: a `gate7-base.txt` traz a base unica
+conferida nos dois pilares (HEB280 chumbador 0,85; HEB240 0,29; placa 50 mm),
+terca Ue 300x85 travada a 2,85 m, 15 folhas conferidas no CADCraft. Suite
+completa depois da triagem D86: 4368 passaram, 2 pulados, nenhuma falha.
