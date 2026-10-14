@@ -8089,7 +8089,7 @@ conferida nos dois pilares (HEB280 chumbador 0,85; HEB240 0,29; placa 50 mm),
 terca Ue 300x85 travada a 2,85 m, 15 folhas conferidas no CADCraft. Suite
 completa depois da triagem D86: 4368 passaram, 2 pulados, nenhuma falha.
 
-## D236 - Migracao da NBR 6118 para a 2023 + Emenda 1: plano e fase 1 (pilar de concreto) (2026-10-14) - EM ANDAMENTO
+## D236 - Migracao da NBR 6118 para a 2023 + Emenda 1 (plano, fases 1 a 3) (2026-10-14) - FECHADO
 
 **Decisao do usuario (2026-10-14, pergunta direta):** "Migrar tudo para 2023".
 O D233 mostrou que o inventario G116/G122 dava como IGUAIS dois itens que mudam
@@ -8207,3 +8207,10 @@ por padrao e pela 2014 quando o projeto a declarar.
 - O cache do solver do pilar (`_N_M_resistente`, D158) recebia `edicao=None`
   na chave: um resultado da 2014 (contexto) voltava numa rodada da 2023.
   `_x_para_Nd` e `MRd_para_Nd` passam a edicao RESOLVIDA.
+
+**Suite final da migracao: 4375 passaram, 2 pulados, nenhuma falha.** Pacote
+do cliente regerado em `plano-2026-10-d236` (fora do git; d229/d234/d235
+intocados), ATENDE: nenhum numero muda no galpao do cliente (concreto C25, onde
+as duas edicoes coincidem; tercas, base, fundacao e portico iguais ao d235); o
+memorial e as folhas passam a declarar a NBR 6118:2023 + Emenda 1:2026 e o
+caderno traz a secao da ATP (5.3). D236 - FECHADO.
