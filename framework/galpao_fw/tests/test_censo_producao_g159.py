@@ -130,6 +130,7 @@ COBERTURA_COMMIT_D = {
     "3fd0d75be72ddc82e576582406ebb52afd97c244": "D230",  # dossie com as pranchas do IFC; carimbo com data e revisao
     "5eb95e5d8535780fc41a5b4f0eeac97a57017ce4": "D231",  # flexao e cortante pela NBR 8800:2024 (Cb, teto, kv, alma esbelta)
     "9655447d9f1457717fe2bf642462a2af9d8650da": "D232",  # tesoura, ligacoes, base, tercas, fogo e amostra dos verticais
+    "9478d3c1e3a347f02b4cba6bc33c2d1564e829ee": "D232",  # terca_Lb_succao na ficha e G derivado (complemento)
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -265,9 +266,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 50:
-        lados.append("censo=%d, esperado 50 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 38 do plano de 2026-10-08)"
+    if len(censo) != 51:
+        lados.append("censo=%d, esperado 51 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 39 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
