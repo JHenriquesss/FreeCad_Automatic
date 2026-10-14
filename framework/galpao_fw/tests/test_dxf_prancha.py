@@ -603,3 +603,25 @@ def test_nota_da_lista_separa_o_peso_do_calculo_do_peso_pela_secao(tmp_path):
     # as notas cabem na largura do quadro da folha A3 do DXF (de x = 34,5 a
     # x = 410 mm; 2,25 mm por letra, medido no QCAD - D221)
     assert all(len(n) * DP.ALTURA_TEXTO * DP.LARGURA_MEDIA_DA_LETRA <= 375.5 for n in notas)
+
+
+def test_data_e_revisao_tem_celula_e_rotulo_no_carimbo(tmp_path):
+    """D230: a data e a revisao saiam soltas, sem rotulo, na linha do projeto."""
+    _resumo, doc = _dxf(tmp_path, [DP.ler_desenho(_svg(tmp_path))], PROJETO="Galpao X")
+    blk = doc.blocks.get("CARIMBO")
+    rotulos = {t.dxf.text: t.dxf.insert for t in blk.query("TEXT")}
+    campos = {a.dxf.tag: a.dxf.insert for a in blk.query("ATTDEF")}
+    assert {"Data", "Revisao"} <= set(rotulos)
+    topo = 3 * DP.CARIMBO_H / 4.0
+    divisorias = sorted(ln.dxf.start.x for ln in blk.query("LINE")
+                        if ln.dxf.start.x == ln.dxf.end.x and ln.dxf.start.y == topo)
+    x_data = DP.CARIMBO_L - DP.CARIMBO_DATA_L - DP.CARIMBO_REV_L
+    x_rev = DP.CARIMBO_L - DP.CARIMBO_REV_L
+    assert divisorias == pytest.approx([x_data, x_rev])
+    for nome, tag, x0, x1 in (("Data", "DATA", x_data, x_rev),
+                              ("Revisao", "REVISAO", x_rev, DP.CARIMBO_L)):
+        for p in (rotulos[nome], campos[tag]):
+            assert x0 < p.x < x1 and topo < p.y < DP.CARIMBO_H    # dentro da propria celula
+        assert rotulos[nome].y > campos[tag].y                    # rotulo acima do valor
+    # a data de 10 letras cabe na celula (0,75 da altura por letra, adotado)
+    assert campos["DATA"].x + 10 * 3.0 * 0.75 <= x_rev

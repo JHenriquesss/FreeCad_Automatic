@@ -52,6 +52,7 @@ ESCALAS_DE_ESCAPE = (125, 150, 200, 250, 500)   # vista que nao cabe em A1 a 1:1
 FORMATOS = (("A3", 420.0, 297.0), ("A2", 594.0, 420.0), ("A1", 841.0, 594.0))
 MARGEM_ESQ, MARGEM = 25.0, 10.0
 CARIMBO_L, CARIMBO_H = 175.0, 40.0
+CARIMBO_DATA_L, CARIMBO_REV_L = 27.0, 20.0     # celulas da data e da revisao (mm)
 ALTURA_TEXTO = 2.5
 # largura media de uma letra em relacao a altura do texto, so para avisar do
 # texto que passa da janela da vista. MEDIDO (2026-10-09) no galpao do cliente
@@ -346,9 +347,15 @@ def _bloco_carimbo(doc):
             "insert": (x + 1.5, y + linhas - 3.0)})
         blk.add_attdef(campo, (x + 1.5, y + 1.8), dxfattribs={
             "layer": CAMADA_FOLHA, "height": 3.0, "style": "TEXTO", "prompt": campo})
-    for campo, dx in (("DATA", 45.0), ("REVISAO", 20.0)):
-        blk.add_attdef(campo, (CARIMBO_L - dx, 3 * linhas + 1.8), dxfattribs={
-            "layer": CAMADA_FOLHA, "height": 2.5, "style": "TEXTO", "prompt": campo})
+    # data e revisao: cada uma na sua celula, com rotulo, na linha do projeto (D230)
+    for campo, dx in (("DATA", CARIMBO_DATA_L + CARIMBO_REV_L), ("REVISAO", CARIMBO_REV_L)):
+        x, y = CARIMBO_L - dx, 3 * linhas
+        blk.add_line((x, y), (x, y + linhas), dxfattribs=cam)
+        blk.add_text(campo.capitalize(), dxfattribs={
+            "layer": CAMADA_FOLHA, "height": 1.8, "style": "TEXTO",
+            "insert": (x + 1.5, y + linhas - 3.0)})
+        blk.add_attdef(campo, (x + 1.5, y + 1.8), dxfattribs={
+            "layer": CAMADA_FOLHA, "height": 3.0, "style": "TEXTO", "prompt": campo})
     return blk
 
 

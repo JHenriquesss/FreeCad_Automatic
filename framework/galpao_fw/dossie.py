@@ -4,9 +4,10 @@
 #   1. CAPA (identificacao + carimbo de responsabilidade/ART)
 #   2. RELATORIO CONSOLIDADO (veredito + gates + escopo)
 #   3. MEMORIAL DE CALCULO (o PDF do relatorio_calculo, se existir)
-#   4. PRANCHAS EXECUTIVAS (todas as PE*.pdf, em ordem)
+#   4. PRANCHAS (as PE*.pdf do FreeCAD, em ordem; sem elas, as folhas das
+#      pranchas do IFC - Bonsai - que a corrida gravou)
 # Usa PyMuPDF (fitz) para criar as paginas de texto e MESCLAR os PDFs existentes
-# (as pranchas vem do FreeCAD; o memorial do reportlab). Nada e regerado aqui.
+# (o memorial vem do reportlab). Nada e regerado aqui.
 # ============================================================================
 """Dossie executivo unico: capa + relatorio + memorial + pranchas num PDF so."""
 
@@ -54,7 +55,7 @@ def _linhas_capa(spec, carimbo="framework galpao_fw"):
          "  SUMARIO",
          "    1. Relatorio consolidado (veredito, gates, escopo)",
          "    2. Memorial de calculo",
-         "    3. Pranchas executivas (PE01 ...)",
+         "    3. Pranchas",
          ]
     return L
 
@@ -91,17 +92,26 @@ def _memorial_pdf(out_dir, spec):
     return None
 
 
-def _pranchas_pdf(out_dir):
-    """Lista ordenada das pranchas PE*.pdf (zero-padded -> ordem alfabetica = PE01..PE15)."""
-    prdir = os.path.join(out_dir, "pranchas")
-    return sorted(glob.glob(os.path.join(prdir, "PE*.pdf")))
+def _pranchas_pdf(out_dir, spec=None):
+    """(lista ordenada de PDFs, origem). Primeiro as PE*.pdf do FreeCAD
+    (zero-padded -> ordem alfabetica = PE01..PE15); sem nenhuma, as folhas das
+    pranchas do IFC desta corrida: as que `pranchas_ifc` declarou no spec e que
+    existem no disco, senao as de `<out_dir>/pranchas-ifc/pdf`."""
+    pe = sorted(glob.glob(os.path.join(out_dir, "pranchas", "PE*.pdf")))
+    if pe:
+        return pe, "FreeCAD"
+    do_ifc = ((spec or {}).get("estrutura", {}) or {}).get("pranchas_ifc") or {}
+    declaradas = [p for p in (do_ifc["pdf"] if "pdf" in do_ifc else []) if os.path.isfile(p)]
+    if not declaradas:
+        declaradas = glob.glob(os.path.join(out_dir, "pranchas-ifc", "pdf", "*.pdf"))
+    return sorted(declaradas), ("IFC" if declaradas else None)
 
 
 def gerar_dossie(out_dir, spec, dossie_path=None, relatorio=None,
                  carimbo="framework galpao_fw"):
     """Monta o DOSSIE unico (capa + relatorio + memorial + pranchas) em um PDF.
     `relatorio` (texto do RELATORIO-CONSOLIDADO); se None, le o .txt do out_dir.
-    Retorna {path, n_paginas, memorial, n_pranchas, faltando}."""
+    Retorna {path, n_paginas, memorial, n_pranchas, origem_pranchas, faltando}."""
     import fitz
     slug = spec.get("slug", "galpao")
     dossie_path = dossie_path or os.path.join(out_dir, "DOSSIE-%s.pdf" % slug)
@@ -128,7 +138,7 @@ def gerar_dossie(out_dir, spec, dossie_path=None, relatorio=None,
     else:
         faltando.append("memorial (nao encontrado)")
     # 4) PRANCHAS EXECUTIVAS
-    pranchas = _pranchas_pdf(out_dir)
+    pranchas, origem = _pranchas_pdf(out_dir, spec)
     for pp in pranchas:
         try:
             with fitz.open(pp) as pr:
@@ -136,13 +146,13 @@ def gerar_dossie(out_dir, spec, dossie_path=None, relatorio=None,
         except Exception as ex:
             faltando.append("%s (%s)" % (os.path.basename(pp), ex))
     if not pranchas:
-        faltando.append("pranchas (nenhuma PE*.pdf)")
+        faltando.append("pranchas (nenhuma PE*.pdf nem folha das pranchas do IFC)")
 
     n_pag = doc.page_count
     doc.save(dossie_path, garbage=3, deflate=True)
     doc.close()
     return {"path": dossie_path, "n_paginas": n_pag, "memorial": mem,
-            "n_pranchas": len(pranchas), "faltando": faltando}
+            "n_pranchas": len(pranchas), "origem_pranchas": origem, "faltando": faltando}
 
 
 def _selftest():

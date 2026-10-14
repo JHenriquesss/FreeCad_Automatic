@@ -7630,3 +7630,33 @@ invadindo a vizinha): so' prova que outro programa abre, audita e imprime. A
 versao do CADCraft nao e' fixada pelo codigo: a instalada e' a 0.6.2.
 `framework/tanque_fw/scripts/desenho_cadcraft.py` (piloto de folha desenhada
 no CADCraft, fora do pacote do galpao) nao entra nesta decisao.
+
+## D230 - O dossie leva as pranchas do IFC e o carimbo do DXF ganha celula de data e de revisao (2026-10-13) - FECHADO
+
+**Por que.** Visto na corrida do galpao do cliente depois do D229
+(`plano-2026-10-d229`): o registro dizia "Dossie ... faltando: pranchas
+(nenhuma PE*.pdf)" com 7 folhas gravadas na pasta ao lado, e no carimbo das
+folhas do DXF a data e a revisao saiam soltas, sem rotulo, dentro da linha do
+campo "Projeto".
+
+**1. Dossie (`dossie.py`).** `_pranchas_pdf` so' procurava `pranchas/PE*.pdf`,
+que e' o caminho do FreeCAD. Passou a devolver, sem nenhuma PE, as folhas das
+pranchas do IFC: as que `pranchas_ifc` declarou em
+`spec["estrutura"]["pranchas_ifc"]["pdf"]` e que existem no disco, senao as de
+`<out_dir>/pranchas-ifc/pdf`. As PE do FreeCAD tem precedencia e os dois
+conjuntos nao se somam. `gerar_dossie` devolve `origem_pranchas` ("FreeCAD",
+"IFC" ou None). Sem nenhuma folha o dossie continua dizendo o que faltou.
+
+**2. Carimbo (`dxf_prancha._bloco_carimbo`).** Data e revisao ganharam cada uma
+a sua celula na linha do projeto (27 e 20 mm, `CARIMBO_DATA_L` e
+`CARIMBO_REV_L`), com divisoria, rotulo e o valor na mesma altura dos demais
+campos (3,0 mm; antes 2,5).
+
+**Testes.** `tests/test_dossie_pranchas_ifc_d230.py` (novo, 5 casos) e
+`test_data_e_revisao_tem_celula_e_rotulo_no_carimbo` em
+`tests/test_dxf_prancha.py`. O carimbo foi impresso de um desenho real pelo
+CADCraft e olhado.
+
+**Limites.** O pacote continua com dois conjuntos de folhas: o PDF (folhas
+montadas pelo Bonsai, que vao ao dossie) e o DXF/DWG (uma vista por folha). O
+carimbo das folhas do Bonsai e' outro (SVG) e nao mudou.
