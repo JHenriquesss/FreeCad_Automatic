@@ -245,6 +245,12 @@ ganhou confere_fechamento_area. Cada guarda vem com origem dos 2 lados:
     mesma forma do item 16: codigo x declaracao; .get novo sem triagem,
     triado que sumiu ou motivo/produtor vazio = vermelho, provado por
     injecao em tmp_path).
+47. base_chumbador.confere_base (D235) - A=geometria da base adotada
+    (dimensionada nas medidas do pilar 0 por dimensiona_base), B=medidas do
+    perfil de CADA pilar (perfis.PERFIS) e os esforcos daquele pilar em todas
+    as combinacoes do portico. INDEPENDENTE (a placa decidida num pilar x a
+    exigencia calculada no outro; placa fina = vermelho em
+    test_base_conferida_com_as_medidas_de_cada_pilar).
 
 Proibido G69: apagar guarda fraca sem substituto. As declaracoes acima
 ficam — ditas como declaracoes — e a prova do vermelho mora nestes testes.
@@ -319,6 +325,7 @@ TRIADAS_G69 = {
     ("fctd_nbr6118_g136", "confere_copias"),
     ("fctd_nbr6118_g136", "confere_uso_fctd"),
     ("varredura_fallback_folha", "confere_get"),
+    ("base_chumbador", "confere_base"),
 }
 
 
