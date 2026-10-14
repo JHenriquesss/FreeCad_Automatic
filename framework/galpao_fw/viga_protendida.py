@@ -11,7 +11,7 @@
 #   3) ELU a FLEXAO: Mrd (cordoalha a fpyd + bloco de concreto) >= Md.
 # Cordoalha CP-190 RB (NBR 7483:2021 4.1.2): fptk=1900 MPa, fpyk=0,9 fptk, Ep=200 GPa; areas
 # Ø12,7=1,01 cm2, Ø15,2=1,40 cm2. Tensao de estiramento (9.6.1.2.1, pre-tracao):
-# sigma_pi <= min(0,77 fptk ; 0,90 fpyk). PERDAS por 9.6.3 (processo aproximado
+# sigma_pi <= min(0,77 fptk ; 0,85 fpyk), aco RB. PERDAS por 9.6.3 (processo aproximado
 # permitido, 9.6.3.4.3) - estimadas por um fator, marcado A CONFIRMAR.
 # Convencao de tensao: COMPRESSAO NEGATIVA. A aritmetica de tensoes de borda foi
 # aferida contra o exemplo resolvido de Bastos ("Fundamentos do Concreto Protendido",
@@ -33,8 +33,13 @@ AP_CORDOALHA = {12.7: 1.01e-4, 15.2: 1.40e-4}   # area nominal (m2), NBR 7483
 GAMMA_S = 1.15
 GAMMA_P_ATO = 1.1                  # ponderacao da protensao no ato (17.2.4.3.2)
 
-# tensao maxima de estiramento na pre-tracao (9.6.1.2.1): min(0,77 fptk ; 0,90 fpyk)
-SIGMA_PI_MAX = min(0.77 * FPTK_CP190, 0.90 * FPYK_CP190)
+# tensao maxima de estiramento na pre-tracao, aco RB (NBR 6118:2014 9.6.1.2.1-a,
+# lido no F016 p.47, D233): 0,77 fptk e 0,85 fpyk. O 0,90 fpyk e' do aco RN; ate'
+# o D233 o motor usava 0,90 e estirava a 0,770 fptk em vez de 0,765 fptk.
+SIGMA_PI_MAX = min(0.77 * FPTK_CP190, 0.85 * FPYK_CP190)
+# ao termino da operacao (9.6.1.2.2): sigma_p0 nao supera 9.6.1.2.1-b (RB: 0,74
+# fptk e 0,82 fpyk). Ate' o D233 nao era verificado.
+SIGMA_P0_MAX = min(0.74 * FPTK_CP190, 0.82 * FPYK_CP190)
 
 # fatores de combinacao (NBR 8681) para a cobertura
 PSI1_SOBRECARGA = 0.5              # frequente (sobrecarga de cobertura)
@@ -83,9 +88,12 @@ def verifica_ato(P0, ep, Mg, b, h, fckj):
 
 def verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, nivel=2):
     """SERVICO por nivel de protensao (Tab.13.4). Nivel 2 (LIMITADA, pre-tracao CAA
-    II): ELS-F (comb. FREQUENTE, tracao <= fct,f) + ELS-D (comb. QUASE-PERMANENTE,
-    sem tracao). fct,f = 1,5*fctm (modulo de ruptura, secao retangular). Retorna dict."""
-    fctf = 1.5 * _fctm(fck)                        # limite de formacao de fissuras
+    II): ELS-F (comb. FREQUENTE, tracao <= alfa.fctk,inf) + ELS-D (comb.
+    QUASE-PERMANENTE, sem tracao). NBR 6118:2014 17.3.1 (F016 p.125, D233): alfa =
+    1,5 na secao retangular e, no estado-limite de formacao de fissuras, fctk,inf
+    (= 0,7 fctm). Ate' o D233 o motor usava 1,5 fctm: aceitava 43 % mais tracao.
+    Retorna dict."""
+    fctf = 1.5 * fctm_nbr6118_g127.fctk_inf(fck)   # limite de formacao de fissuras
     # combinacao FREQUENTE: g + psi1*q
     M_freq = Mg + PSI1_SOBRECARGA * Mq
     stf, sbf = tensoes_borda(Pinf, ep, M_freq, b, h)
@@ -100,17 +108,28 @@ def verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, nivel=2):
 
 
 def verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck, gamma_f=1.4):
-    """ELU a flexao (simplificado): a cordoalha atinge fpyd e equilibra o bloco de
-    concreto 0,8x/0,85fcd. Mrd = Ap*fpyd*(dp - 0,4x). Md = gamma_f*(Mg+Mq)."""
+    """ELU a flexao (simplificado): a cordoalha atinge fpyd e equilibra o bloco
+    retangular de 17.2.2-e (lambda.x, alfa_c.fcd; 0,8 e 0,85 ate' C50).
+    Mrd = Ap*fpyd*(dp - lambda.x/2). Md = gamma_f*(Mg+Mq).
+    Dutilidade (14.6.4.3, D233): x/dp <= 0,45 (fck <= 50) ou 0,35; acima disso a
+    secao e' superarmada, a cordoalha pode nao escoar e o Mrd simplificado nao
+    vale - sai reprovado (antes nao havia limite)."""
     fcd = fck / 1.4
+    fck_MPa = fck / 1000.0
+    lam = 0.8 if fck_MPa <= 50.0 else 0.8 - (fck_MPa - 50.0) / 400.0
+    ac = 0.85 if fck_MPa <= 50.0 else 0.85 * (1.0 - (fck_MPa - 50.0) / 200.0)
+    xd_lim = 0.45 if fck_MPa <= 50.0 else 0.35
     fpyd = FPYK_CP190 / GAMMA_S
     Rp = Ap * fpyd                                 # forca da cordoalha (kN)
-    x = Rp / (0.85 * fcd * b * 0.8)                # 0,85fcd*b*0,8x = Rp
-    z = dp - 0.4 * x
+    x = Rp / (ac * fcd * b * lam)                  # alfa_c.fcd.b.lambda.x = Rp
+    z = dp - 0.5 * lam * x
     Mrd = Rp * z
     Md = gamma_f * (Mg + Mq)
+    dut_ok = x / dp <= xd_lim + 1e-9
     return {"Mrd": Mrd, "Md": Md, "x": x, "z": z, "dp": dp,
-            "u": Md / Mrd if Mrd > 0 else float("inf"), "ok": Md <= Mrd + 1e-6}
+            "x_d": x / dp, "x_d_lim": xd_lim, "dutilidade_ok": dut_ok,
+            "u": Md / Mrd if Mrd > 0 else float("inf"),
+            "ok": Md <= Mrd + 1e-6 and dut_ok}
 
 
 def verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, Msd_max, Vsd, fywk=500e3):
@@ -205,6 +224,7 @@ def verifica_viga_protendida(cfg):
     P0 = Ap * sigma_p0                              # no ato (apos perda imediata)
     Pinf = Ap * sigma_pi * (1.0 - perdas)          # em servico (perdas totais)
 
+    sigma_p0_ok = sigma_p0 <= SIGMA_P0_MAX + 1e-6     # 9.6.1.2.2 (D233)
     ato = verifica_ato(P0, ep, Mg, b, h, fckj)
     serv = verifica_servico(Pinf, ep, Mg, Mq, b, h, fck, cfg.get("nivel", 2))
     elu = verifica_elu_flexao(Ap, dp, Mg, Mq, b, h, fck)
@@ -212,13 +232,15 @@ def verifica_viga_protendida(cfg):
     Vsd = 1.4 * (g + cfg.get("q", 0.0)) * L / 2.0
     cort = verifica_cortante_protendida(Pinf, ep, b, h, dp, fck, elu["Md"], Vsd,
                                         fywk=cfg.get("fyk", 500e3))
-    OK = ato["ok"] and serv["ok"] and elu["ok"] and cort["ok"]
+    OK = ato["ok"] and serv["ok"] and elu["ok"] and cort["ok"] and sigma_p0_ok
     return {"vao": L, "b": b, "h": h, "n_cordoalhas": ncord, "phi_cord": phi,
             "fck": fck, "fck_origem": fck_origem, "fck_explicito": fck_explicito,
             "fckj": fckj, "fckj_origem": fckj_origem,
             "fckj_explicito": fckj_explicito,
             "Ap_cm2": round(Ap * 1e4, 2), "ep_cm": round(ep * 100, 1),
             "P0": round(P0, 1), "Pinf": round(Pinf, 1), "sigma_pi_MPa": round(sigma_pi / 1000, 0),
+            "sigma_p0_MPa": round(sigma_p0 / 1000, 0),
+            "sigma_p0_max_MPa": round(SIGMA_P0_MAX / 1000, 0), "sigma_p0_ok": sigma_p0_ok,
             "Mg": round(Mg, 1), "Mq": round(Mq, 1), "g": round(g, 2),
             "ato": ato, "servico": serv, "elu": elu, "cortante": cort, "perdas": perdas,
             "perdas_info": perdas_info, "OK": OK}

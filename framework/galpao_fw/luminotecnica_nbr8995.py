@@ -25,19 +25,21 @@ from __future__ import annotations
 
 import math
 
-# Niveis de iluminancia mantida E (lux) por atividade (NBR ISO/CIE 8995-1 / 5413)
+# Niveis de iluminancia mantida E (lux) por atividade: NBR ISO/CIE 8995-1:2013
+# Tabela 5, lida nas imagens das p.12-16 no MCP_Fontes (D233). Ate' o D233 havia
+# "deposito" = 150 e "usinagem_grosseira" = 500, sem linha na tabela.
 ILUMINANCIA = {
-    "circulacao": 100,          # areas de circulacao/corredores industriais
-    "armazem_geral": 100,       # locais de armazenamento - geral
-    "deposito": 150,            # deposito/estoque
-    "armazem_volumes": 200,     # armazenamento de grandes volumes
-    "producao_bruta": 300,      # trabalho industrial bruto
-    "usinagem_grosseira": 500,  # usinagem grosseira / maquinaria
-    "producao": 500,            # galpao de producao / montagem media
-    "montagem_media": 500,      # montagem media (ex.: quadros)
-    "montagem_fina": 750,       # montagem fina
-    "montagem_precisao": 1000,  # montagem de precisao / inspecao
-    "escritorio": 500,          # escritorio administrativo
+    "circulacao": 100,          # 1. Areas de circulacao e corredores
+    "armazem_geral": 100,       # 1. Deposito, estoques, camara fria
+    "deposito": 200,            # 1. idem, "200 lux, se forem continuamente ocupados"
+    "armazem_volumes": 200,     # 1. idem, continuamente ocupado
+    "producao_bruta": 300,      # 4./5. Trabalhos em maquinas em geral
+    "usinagem_grosseira": 300,  # 14. Usinagem grosseira e media (tolerancias > 0,1 mm)
+    "producao": 500,            # 7. Montagem media, ex. quadros de distribuicao
+    "montagem_media": 500,      # 7. Montagem media, ex. quadros de distribuicao
+    "montagem_fina": 750,       # 7. Montagem fina, ex. telefone
+    "montagem_precisao": 1000,  # 7. Montagem de precisao, ex. equipamentos de medicao
+    "escritorio": 500,          # 22. Escritorios: escrever, ler, processar dados
 }
 
 # Refletancias medias (fracao) por tonalidade (Mamede 2.6.7.1.2)

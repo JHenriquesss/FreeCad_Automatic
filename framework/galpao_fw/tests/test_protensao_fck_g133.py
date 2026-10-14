@@ -387,10 +387,12 @@ def test_05_casos_do_repo_antes_e_depois_na_funcao_real():
     b_antes = _galpao_concreto(vao=20.0, fck_protendida=40e3,
                                fckj_protensao=40e3)["viga_prot"]
     b_depois = _galpao_concreto(vao=20.0)["viga_prot"]
-    if (b_antes["b"], b_antes["h"]) != (0.20, 0.60):
-        lados.append("B antes devia ser 20x60: %r" % ((b_antes["b"], b_antes["h"]),))
-    if (b_depois["b"], b_depois["h"]) != (0.25, 0.70):
-        lados.append("B depois devia ser 25x70: %r" % ((b_depois["b"], b_depois["h"]),))
+    # D233: o ELS-F passou a 1,5 fctk,inf (17.3.1); a secao sobe um degrau nos
+    # dois lados (eram 20x60 e 25x70 com o limite 43 % folgado).
+    if (b_antes["b"], b_antes["h"]) != (0.25, 0.70):
+        lados.append("B antes devia ser 25x70: %r" % ((b_antes["b"], b_antes["h"]),))
+    if (b_depois["b"], b_depois["h"]) != (0.30, 0.80):
+        lados.append("B depois devia ser 30x80: %r" % ((b_depois["b"], b_depois["h"]),))
     if not (b_antes["OK"] and b_depois["OK"]):
         lados.append("B devia ATENDER antes e depois")
     # C. viga isolada 16 m C40 (selftest): ja era C40, numero bit a bit igual.

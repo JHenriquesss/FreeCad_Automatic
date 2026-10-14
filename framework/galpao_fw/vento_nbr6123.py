@@ -190,7 +190,10 @@ def cpi_cases(abertura_dominante="portao_oitao"):
 
 
 def cpe_telhado_1agua(theta_graus=5.71):
-    """NBR 6123 Tabela 6 - telhado de UMA AGUA (shed), h/b < 2. Coef. de FORMA Ce
+    """NBR 6123:2023 Tabela 8 (Tabela 6 de 1988; celulas de 5/10/15 graus
+    conferidas na imagem da p.22 no D233) - telhado de UMA AGUA (shed), h/b < 2.
+    Acima de 15 graus fica a linha de 15 (mais succao que a tabela: a favor).
+    Coef. de FORMA Ce
     (para o portico principal) por metade do telhado: H (metade BAIXA) e L (metade
     ALTA), nas duas direcoes de vento perpendicular a cumeeira:
       'vento90'  = vento sobe (atinge a fachada BAIXA): H barlavento, L sotavento;
@@ -335,41 +338,55 @@ def cpe_local_cobertura(theta_graus=5.71, b=10.0, h=6.0, a=20.0):
             "lanternim_cpe_medio": -2.0}
 
 
+# NBR 6123:2023 Tabela 10 (telhados multiplos, simetricos, de tramos iguais,
+# h <= a'), alfa = 0 (vento perpendicular as cumeeiras), lida na imagem da p.24
+# no MCP_Fontes (D233): theta -> (a*, b*, c*, d*, m*, n*, x*, z*). Era a Tabela 7
+# da edicao de 1988. Ate' o D233 o motor so' tinha 5 e 10 graus (acima de 10
+# ficava na linha de 10: z* -0,4 onde a tabela da' -0,5, e a* -1,1 onde aos 45
+# graus ha' PRESSAO +0,3) e o 2o tramo usava m*/n* no lugar de c*/d*.
+_TAB10_ALFA0 = (
+    (5.0, (-0.9, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.3)),
+    (10.0, (-1.1, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.4)),
+    (20.0, (-0.7, -0.6, -0.4, -0.3, -0.3, -0.3, -0.3, -0.5)),
+    (30.0, (-0.2, -0.6, -0.4, -0.3, -0.2, -0.3, -0.2, -0.5)),
+    (45.0, (+0.3, -0.6, -0.6, -0.4, -0.2, -0.4, -0.2, -0.5)),
+)
+
+
+def _linha_tab10(theta_graus):
+    """Linha da Tabela 10 (alfa = 0) interpolada em theta. Abaixo de 5 graus usa
+    a de 5 (a tabela nao tem 0); acima de 45 graus nao ha' valor: erro."""
+    if theta_graus > 45.0 + 1e-9:
+        raise ValueError(f"theta={theta_graus:.1f} graus fora da Tabela 10 (ate' 45)")
+    th = max(theta_graus, 5.0)
+    for (t0, v0), (t1, v1) in zip(_TAB10_ALFA0, _TAB10_ALFA0[1:]):
+        if th <= t1 + 1e-9:
+            f = (th - t0) / (t1 - t0)
+            return tuple(round(a + (b - a) * f, 4) for a, b in zip(v0, v1))
+    return _TAB10_ALFA0[-1][1]
+
+
 def cpe_telhado_multiplo(n_vaos, theta_graus=5.71):
-    """Cpe para telhados MULTIPLOS simetricos de tramos IGUAIS (NBR 6123 Tab.7).
-    Retorna uma lista de dicts, um por tramo (vao). Cada dict tem:
-      {"barlavento": float, "sotavento": float}  (face E e D de cada vao)
-    Para vento a 0° (perpendicular as cumeeiras): o 1o tramo recebe mais carga,
-    os intermediarios e o ultimo recebem menos (sombreamento aerodinamico).
-    Para vento a 90° (paralelo) os valores sao constantes ao longo do telhado:
-      faixa b1 (h): -0,8 ; b2 (h): -0,6 ; b3: -0,2 (Tab.7, α=90°).
-    Interpolacao linear entre 5° e 10°. h/b e a/b definem as faixas (nao os
-    coeficientes nominais, que dependem so de θ)."""
-    th = max(5.0, min(theta_graus, 10.0))
-    f = (th - 5.0) / (10.0 - 5.0)
-    # Tramo 1 (barlavento): face a (barlavento), face b (sotavento)
-    a = -0.9 + f * (-1.1 + 0.9)     # -0.9 (5°) a -1.1 (10°)
-    b = -0.6                         # constante
-    # Tramo 2 (1o intermediario): faces c (barl) e d (sot)
-    c = -0.4; d = -0.3              # constante
-    # Demais intermediarios: m (barl) e n (sot)
-    m = -0.3; n = -0.3
-    # Ultimo tramo (sotavento): x (barl) e z (sot)
-    x = -0.3
-    z = -0.3 + f * (-0.4 + 0.3)     # -0.3 (5°) a -0.4 (10°)
+    """Ce para telhados MULTIPLOS simetricos de tramos IGUAIS (NBR 6123:2023
+    Tabela 10, alfa = 0: vento perpendicular as cumeeiras). Lista de dicts, um por
+    tramo, {"barlavento", "sotavento"} (as duas aguas do tramo):
+      1o tramo (a*, b*) ; 2o tramo (c*, d*) ; intermediarios (m*, n*) ;
+      ultimo tramo (x*, z*).
+    Com dois tramos ficam o 1o e o ultimo. Vento a 90 graus (paralelo as
+    cumeeiras): faixas b1 = -0,8, b2 = -0,6, b3 = -0,2, sem tramo."""
+    a, b, c, d, m, n, x, z = _linha_tab10(theta_graus)
     tramos = []
     if n_vaos == 1:
-        tramos.append({"barlavento": a, "sotavento": b if th < 7.5 else z})
+        tramos.append({"barlavento": a, "sotavento": z})
     elif n_vaos == 2:
         tramos.append({"barlavento": a, "sotavento": b})
         tramos.append({"barlavento": x, "sotavento": z})
     else:
         tramos.append({"barlavento": a, "sotavento": b})
-        for _ in range(n_vaos - 2):
+        tramos.append({"barlavento": c, "sotavento": d})
+        for _ in range(n_vaos - 3):
             tramos.append({"barlavento": m, "sotavento": n})
         tramos.append({"barlavento": x, "sotavento": z})
-    # Vento a 90°: valores por faixa longitudinal (nao por tramo)
-    # Retorna tambem os valores para α=90°
     return tramos
 
 

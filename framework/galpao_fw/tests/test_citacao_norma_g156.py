@@ -129,9 +129,9 @@ BASELINE = [
      "CONFERE NBR 5419-2:2026 5.3 Tab.4 p.27 (R1 = 1e-5)"),
     ("viga_protendida.py", "Cordoalha CP-190 RB (NBR 7483:2021 4.1.2)",
      "CONFERE NBR 7483:2021 4.1.2 p.3 (categoria CP-190)"),
-    ("telhado_casa_madeira.py", "1,4.(G+Q) (NBR 8681",
-     "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (adotado 1,4; madeira desf 1,30) - "
-     "Pendencia ao usuario: confirmar 1,4 ante o 1,30 da madeira"),
+    ("telhado_casa_madeira.py", "(NBR 8681:2025 Tab.2 agrupadas",
+     "CONFERE NBR 8681:2025 Tab.2 p.14 (agrupadas 1,35), Tab.4 p.15 (vento 1,4; "
+     "demais 1,5) e Tab.6 p.16 (psi0 coberturas 0,8; vento 0,6) - D233"),
     ("tercas_nbr14762.py", "gamma_g FAVORAVEL: adotado 0,90",
      "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (fav 1,0; adotado 0,90 conservador) + "
      "NBR 8800 Tab.1 (permite 1,00) ja declarados no comentario"),
@@ -356,8 +356,9 @@ BASELINE = [
      "REMISSAO: docstring de parametro (E por atividade), sem valor"),
     ("luminotecnica_nbr8995.py", "Base: ABNT NBR ISO/CIE 8995-1",
      "REMISSAO: comentario cita a base, sem valor"),
-    ("luminotecnica_nbr8995.py", "por atividade (NBR ISO/CIE 8995-1 / 5413)",
-     "REMISSAO: comentario cita a base, sem valor"),
+    ("luminotecnica_nbr8995.py", "por atividade: NBR ISO/CIE 8995-1:2013",
+     "CONFERE NBR ISO/CIE 8995-1:2013 Tabela 5 p.12-16 (imagem, D233): 100/200/"
+     "300/500/750/1000 lux por linha; 'deposito' 150 e 'usinagem' 500 corrigidos"),
     ("techdraw_eletrico.py", "metodo dos lumens, NBR ISO/CIE 8995-1",
      "REMISSAO: nota da folha cita o metodo, sem valor (placeholders %s)"),
 ]

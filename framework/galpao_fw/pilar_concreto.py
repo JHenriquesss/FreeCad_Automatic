@@ -210,13 +210,25 @@ def curvatura(h, nu):
 # ---------------------------------------------------------------------------
 # Solver de resistencia: FLEXAO COMPOSTA RETA por compatibilidade de deformacoes
 # ---------------------------------------------------------------------------
+def _z_pivo_c(h, ecu, ec2):
+    """Profundidade do pivo C (dominio 5), NBR 6118 Figura 17.1: (eps_cu - eps_c2).h/
+    eps_cu a partir da face mais comprimida. Ate' C50 da' 3h/7 (mantido literal,
+    resultado bit a bit igual ao de antes). Ate' o D233 o motor usava 3h/7 tambem
+    em C55-C90: a reta do dominio 5 nao encontrava a do dominio 4a em x = h (em C70
+    a face comprimida chegava a 4,2 por mil, com eps_cu = 2,66 por mil)."""
+    if ecu == EPS_CU and ec2 == EPS_C2:
+        return 3.0 * h / 7.0
+    return (ecu - ec2) * h / ecu
+
+
 def _eps_fibra(z, x, d, h, fck=None):
     """Deformacao (COMPRESSAO POSITIVA) na fibra a distancia z da face mais
     comprimida, para linha neutra a profundidade x. Pivos da NBR 6118 (17.2.2
     + 8.2.10.1 Fig.8.2, G50): fck em kN/m2 (None = C50 legado).
       - x <= x23  -> dominio 2: pivo no aco tracionado (EPS_SU em z=d);
       - x23 < x <= h -> dominios 3/4: pivo no concreto (eps_cu na face z=0);
-      - x > h -> dominio 5: pivo C (eps_c2 na fibra z=3h/7)."""
+      - x > h -> dominio 5: pivo C (eps_c2 na fibra z = (eps_cu - eps_c2).h/eps_cu,
+        Fig. 17.1; 3h/7 so' ate' C50 - ver _z_pivo_c)."""
     fck_MPa = fck / 1000.0 if fck is not None else None
     ecu = eps_cu(fck_MPa)
     ec2 = eps_c2(fck_MPa)
@@ -226,7 +238,7 @@ def _eps_fibra(z, x, d, h, fck=None):
     elif x <= h:
         k = ecu / x
     else:
-        k = ec2 / (x - 3.0 * h / 7.0)
+        k = ec2 / (x - _z_pivo_c(h, ecu, ec2))
     return k * (x - z)
 
 
@@ -277,7 +289,7 @@ def _resultante_concreto(x, b, h, d, fck, n=60):
     elif x <= h:
         k = ecu / x
     else:
-        k = ec2 / (x - 3.0 * h / 7.0)
+        k = ec2 / (x - _z_pivo_c(h, ecu, ec2))
     # --- invariantes de _sigma_c (dependem de fck; nao da deformacao) ---
     nn = expoente_n(fck_MPa)
     ac = alpha_c_pilar(fck_MPa)
@@ -617,21 +629,26 @@ def dimensiona_pilar(caso):
         # Ma/Mb: momentos de 1a ordem de CALCULO M1d (gamma_f e gamma_n ja embutidos,
         # como saem da envoltoria do modelo). alpha_b usa a RAZAO Mb/Ma (invariante).
         M1dA = abs(md.get("Ma", 0.0))
-        ab = alpha_b(md)
+        M1min = momento_minimo(Nd, hcol)
+        # 15.8.2 d): momento de 1a ordem abaixo do minimo -> alpha_b = 1,0 (tambem
+        # no lambda1; ate' o D233 o alpha_b < 1 do diagrama aumentava lambda1).
+        ab = 1.0 if M1dA < M1min else alpha_b(md)
         e1 = M1dA / Nd if Nd > 0 else 0.0
         l1 = lambda_1(e1, hcol, ab)
-        M1min = momento_minimo(Nd, hcol)
-        # base de 1a ordem: alpha_b*M1d,A, com piso no momento minimo (11.3.3.4.3):
-        # a norma (15.8.3.3.2) exige alpha_b*M1d,A >= M1d,min.
-        M1d_base = max(ab * M1dA, M1min)
+        # NBR 6118:2014 15.8.3.3.2 (lido na imagem da pagina 109 do F016, D233):
+        # Md,tot = alpha_b.M1d,A + Nd.le2/10.1/r >= M1d,A ; 11.3.3.4.3: M1d,min com
+        # os momentos de 2a ordem somados. Sem 2a ordem a extremidade leva M1d,A
+        # inteiro: alpha_b so' reduz o momento de 1a ordem na secao intermediaria.
+        # Ate' o D233 o motor dimensionava com alpha_b.M1d,A nos dois casos e sem o
+        # piso M1d,A (pilar em balanco: ate' 15 % de momento a menos).
         if lam <= l1:                            # dispensa 2a ordem nesta direcao
             e2 = 0.0; M2 = 0.0
-            Mtot = M1d_base
+            Mtot = max(M1dA, M1min)
         else:
             inv_r = curvatura(hcol, nu)
             e2 = le ** 2 / 10.0 * inv_r
             M2 = Nd * e2                          # M2 SOMA-SE a base de 1a ordem
-            Mtot = M1d_base + M2
+            Mtot = max(ab * M1dA + M2, M1min + M2, M1dA)
         val = valida_esbeltez(lam, nu)
         res["dir"][dirn] = {
             "esbeltez_valida": val["ok"], "avisos_esbeltez": val["avisos"],

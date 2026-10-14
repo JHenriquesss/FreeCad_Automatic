@@ -440,8 +440,10 @@ def test_07_predio_divisa_recusa_e_sem_700_calado():
         "por_pilar"]["P1"]["geometria"]
     if base.get("subtipo") != "divisa_estaca":
         gaps.append("P1 devia ser divisa_estaca: %r" % (base,))
-    if (base.get("n_estacas"), esc.get("n_estacas")) != (2, 3):
-        gaps.append("tipo devia mudar n na divisa (2/3): %r/%r"
+    # D233: a escavada passou a ter a ponta limitada ao atrito (NBR 6122 8.2.1.2);
+    # P_adm 334,1 -> 275,4 kN e a divisa sobe de 3 para 4 estacas.
+    if (base.get("n_estacas"), esc.get("n_estacas")) != (2, 4):
+        gaps.append("tipo devia mudar n na divisa (2/4): %r/%r"
                     % (base, esc))
     assert not gaps, "G149 predio-divisa:\n%s" % "\n".join(
         "  - " + g for g in gaps)

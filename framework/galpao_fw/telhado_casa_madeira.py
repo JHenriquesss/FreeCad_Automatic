@@ -43,7 +43,15 @@ import math
 
 import madeira_nbr7190 as mad
 
-GF = 1.4  # ELU gravitacional (mesma convencao dos modulos de concreto)
+# D233 - combinacoes normais pela NBR 8681:2025 (lida no PDF, p.14-17), a que a
+# NBR 7190-1:2022 remete: permanentes AGRUPADAS (Tab.2) desfavoravel 1,35;
+# variaveis SEPARADAS (Tab.4): vento 1,4, demais acoes 1,5; Tab.6: psi0 = 0,8
+# para coberturas e 0,6 para o vento. Ate' o D233 o modulo usava 1,4.(G+Q) e
+# nao combinava a gravidade com o vento de PRESSAO (so' o uplift 0,9.G+1,4.W).
+GAMA_G = 1.35
+GAMA_Q = 1.5
+PSI0_COBERTURA = 0.8
+PSI0_VENTO = 0.6
 # G71 - combinacao com permanente favoravel (uplift). Fontes lidas na pagina
 # (NBR 8681:2025, fontes/04_ACOES_EQUIPAMENTOS/...8681-2025...pdf):
 # - 5.1.3.1 (p.12): em casos especificos consideram-se DOIS conjuntos de
@@ -515,6 +523,22 @@ def confere_fechamento_area(G_lancado_kN, Q_lancado_kN, g_total_kN_m2,
             "erro_rel": round(erro, 5)}
 
 
+def combinacoes_desfavoraveis(xg, xq, xw_por_caso):
+    """Combinacoes normais com o permanente desfavoravel (NBR 8681:2025 5.1.3.1,
+    Tab.2/4/6) de uma grandeza que a trelica soma linearmente. xw_por_caso:
+    {caso: valor do vento caracteristico}. A variavel favoravel nao entra
+    (5.1.4.2): por isso cada combinacao com Q tem a irma sem Q. Devolve
+    [(nome, valor)]."""
+    out = [("1,35G+1,5Q", GAMA_G * xg + GAMA_Q * xq)]
+    for caso, xw in xw_por_caso.items():
+        out.append(("1,35G+1,5Q+0,84W[%s]" % caso,
+                    GAMA_G * xg + GAMA_Q * xq + GAMA_VENTO * PSI0_VENTO * xw))
+        out.append(("1,35G+1,4W[%s]+1,2Q" % caso,
+                    GAMA_G * xg + GAMA_VENTO * xw + GAMA_Q * PSI0_COBERTURA * xq))
+        out.append(("1,35G+1,4W[%s]" % caso, GAMA_G * xg + GAMA_VENTO * xw))
+    return out
+
+
 def _checa_barra_axial(n1, n2, grupo, L, Nd, sec, res, prop,
                        d_pino_mm, spacing_inf_m, vao):
     b = float(sec["b"])
@@ -723,12 +747,22 @@ def rodar(spec):
         L = comp[bar]
         Nk_g = analise_G["esforcos_Nk"][bar]
         Nk_q = analise_Q["esforcos_Nk"][bar]
-        Nd_grav = GF * (Nk_g + Nk_q)
-        r_grav, c_grav = _checa_barra_axial(
-            n1, n2, grupo, L, Nd_grav, secoes[grupo], res, prop,
-            d_pino, spacing_inf_m, vao)
-        construtivas.extend(c for c in c_grav
-                            if c not in construtivas)
+        # D233: todas as combinacoes com o permanente desfavoravel; governa
+        # a de maior utilizacao (a de gravidade pura continua entre elas).
+        Nk_w_por_caso = {c: an_W["esforcos_Nk"][bar]
+                         for c, an_W in casos_W.items()}
+        r_grav, Nd_grav, comb_grav = None, None, None
+        for nome_c, Nd_c in combinacoes_desfavoraveis(Nk_g, Nk_q,
+                                                      Nk_w_por_caso):
+            r_c, c_c = _checa_barra_axial(
+                n1, n2, grupo, L, Nd_c, secoes[grupo], res, prop,
+                d_pino, spacing_inf_m, vao)
+            construtivas.extend(c for c in c_c if c not in construtivas)
+            if (r_grav is None or (not r_c["OK"] and r_grav["OK"])
+                    or ((r_c["OK"] == r_grav["OK"])
+                        and float(r_c.get("util") or 0.0)
+                        > float(r_grav.get("util") or 0.0))):
+                r_grav, Nd_grav, comb_grav = r_c, Nd_c, nome_c
         # uplift: um Nd por caso de vento; governa o pior modulo.
         Nd_up, caso_up, r_up = None, None, None
         if casos_W:
@@ -746,6 +780,8 @@ def rodar(spec):
         r = dict(r_grav, Nk_kN=round(Nk_g + Nk_q, 2),
                  Nk_G_kN=round(Nk_g, 2), Nk_Q_kN=round(Nk_q, 2),
                  Nd_kN=round(Nd_grav, 2), Nd_grav_kN=round(Nd_grav, 2),
+                 comb_governante=comb_grav,
+                 Nd_gravidade_pura_kN=round(GAMA_G * Nk_g + GAMA_Q * Nk_q, 2),
                  Nd_uplift_kN=(None if Nd_up is None
                                else round(Nd_up, 2)),
                  uplift_caso=caso_up)
@@ -773,8 +809,15 @@ def rodar(spec):
     trib_h_terca = painel_inc * cos_t
     g_lin = (g_telha + pp_kNm2) * painel_inc  # kN/m por terca interior
     q_lin = sobre_q * trib_h_terca
-    Md = GF * (g_lin + q_lin) * esp ** 2 / 8.0
-    Vd = GF * (g_lin + q_lin) * esp / 2.0
+    # D233: a pressao do vento (normal a agua) soma-se a gravidade; governa a
+    # maior carga de calculo entre as combinacoes desfavoraveis.
+    p_pressao = max([0.0] + [casos_W[c]["p_agua_L"] for c in casos_W]
+                    + [casos_W[c]["p_agua_R"] for c in casos_W])
+    _w_p = {"pressao": p_pressao * painel_inc} if p_pressao > 0 else {}
+    comb_terca, w_terca_d = max(
+        combinacoes_desfavoraveis(g_lin, q_lin, _w_p), key=lambda c: c[1])
+    Md = w_terca_d * esp ** 2 / 8.0
+    Vd = w_terca_d * esp / 2.0
     L1 = float(spec["travamento_borda_comprimida_m"])
     r_estab = mad.dispensa_estabilidade_lateral_656(
         bt, ht, L1, prop["E0m"], res["fmd"], km["kmod"],
@@ -793,7 +836,8 @@ def rodar(spec):
     # tramo, porem na EXTREMIDADE da peca, onde a 6.2.4 manda alfa_n = 1.
     # Os dois casos sao verificados e governa o pior: usar so R = w.esp/2
     # com o alfa_n da Tab.6 subestimava o apoio interior em 2x.
-    w_terca = g_lin + q_lin
+    # D233: reacao de CALCULO (antes ia a caracteristica g + q, sem gama).
+    w_terca = w_terca_d
     A_apoio_terca = bt * float(secoes["banzo_sup"]["b"])
     ext_apoio_cm = float(secoes["banzo_sup"]["b"]) * 100.0
     tem_interior = ext > esp + 1e-9
@@ -865,6 +909,7 @@ def rodar(spec):
              "dimensoes_9_2_1": r921_terca,
              "estabilidade_lateral": r_estab,
              "Md_kNm": round(Md, 3), "Vd_kN": round(Vd, 3),
+             "comb_governante": comb_terca, "w_d_kNm": round(w_terca_d, 3),
               "flexao": r_flex, "cisalhamento": r_cis, "els": r_els,
               "apoio": r_apoio_terca, "w_g_kNm": round(g_lin, 3),
               "w_q_kNm": round(q_lin, 3), "uplift": terca_up}
@@ -882,7 +927,14 @@ def rodar(spec):
                                    True, 0.0)
     fe_no = mad.embutimento_fek(d_mm, prop["rhok"], conifera, True,
                                 float(inc))
-    R_apoio_kN = max(abs(analise["RyL"]), abs(analise["RyR"]))
+    # D233: reacao de CALCULO no apoio (todas as combinacoes desfavoraveis);
+    # antes a ligacao recebia 1,4.R(G+Q) e o apoio da tesoura R caracteristico.
+    R_apoio_d = 0.0
+    for _lado in ("RyL", "RyR"):
+        _rw = {c: an_W[_lado] for c, an_W in casos_W.items()}
+        for _n, _v in combinacoes_desfavoraveis(analise_G[_lado],
+                                                analise_Q[_lado], _rw):
+            R_apoio_d = max(R_apoio_d, abs(_v))
 
     def _demanda_barra(r):
         vals = [abs(r["Nd_grav_kN"])]
@@ -911,7 +963,7 @@ def rodar(spec):
             fe1_Nmm2=fe_apoio["fe_k_Nmm2"],
             fe2_Nmm2=fe_apoio["fe_k_Nmm2"],
             n_planos=2 if "dupla" in lig["config_73"] else 1)
-        r_lig_apoio = mad.verifica_ligacao(GF * R_apoio_kN, cfg_apoio)
+        r_lig_apoio = mad.verifica_ligacao(R_apoio_d, cfg_apoio)
         cfg_no = dict(
             base_lig, config_73=lig["config_73"],
             t1_mm=float(sec_c["h"]) * 1000.0,
@@ -945,7 +997,7 @@ def rodar(spec):
             fe1_Nmm2=fe_apoio["fe_k_Nmm2"],
             fe2_Nmm2=fe_apoio["fe_k_Nmm2"])
         r_lig_apoio = mad.verifica_ligacao_madeira_madeira(
-            GF * R_apoio_kN, cfg_apoio)
+            R_apoio_d, cfg_apoio)
         cfg_no = dict(
             base_mm,
             t1_mm=float(sec_c["h"]) * 1000.0,
@@ -958,12 +1010,12 @@ def rodar(spec):
         r_lig_no = mad.verifica_ligacao_madeira_madeira(
             _demanda_barra(bar_crit), cfg_no)
     # tracao perpendicular no beiral (componente da banzo superior).
-    N_sup_beiral = max((abs(analise["esforcos_Nk"][bar])
-                        for bar in barras if bar[2] == "banzo_sup"),
-                       default=0.0)
+    # D233: Nd de calculo do banzo superior (governante das combinacoes).
+    N_sup_beiral = max((abs(float(r["Nd_grav_kN"])) for r in ver_barras
+                        if r.get("grupo") == "banzo_sup"), default=0.0)
     Fv_beiral = N_sup_beiral * math.sin(math.radians(inc))
     r_f90 = mad.verifica_tracao_perp_no(
-        GF * Fv_beiral, float(secoes["banzo_sup"]["b"]) * 1000.0,
+        Fv_beiral, float(secoes["banzo_sup"]["b"]) * 1000.0,
         float(secoes["banzo_sup"]["h"]) * 1000.0,
         float(lig["he_mm"]), km["kmod"])
     ligacoes = {"OK": bool(r_lig_apoio["OK"] and r_lig_no["OK"]
@@ -979,7 +1031,7 @@ def rodar(spec):
     # alfa_n = 1 quando a forca chega a menos de 7,5 cm da ponta, e e'
     # esse o caso (dist_extremidade nao declarada => piso).
     r_apoio = mad.verifica_apoio(
-        R_apoio_kN, float(sec_inf["b"]) * comp_apoio, res["fc0d"],
+        R_apoio_d, float(sec_inf["b"]) * comp_apoio, res["fc0d"],
         comp_apoio * 100.0)
 
     # ancoragem no apoio (G71): sob succao a reacao pode trocar de sinal -
@@ -1192,7 +1244,9 @@ def rodar(spec):
         "vento_ativo": bool(casos_W), "vento": vento_info,
         "casos_W": casos_W, "ancoragem": ancoragem,
         "combinacoes": {
-            "gravidade": "1,4.(G+Q) (NBR 8681:2025 Tab.1: madeira desf 1,30 - adotado 1,4; confirmar)",
+            "gravidade": ("1,35.G+1,5.Q e, com vento, 1,35.G+1,5.Q+0,84.W e "
+                          "1,35.G+1,4.W(+1,2.Q) (NBR 8681:2025 Tab.2 agrupadas, "
+                          "Tab.4 e Tab.6 coberturas/vento; D233)"),
             "uplift": ("0,9.G+1,4.W por caso de vento (NBR 8681 5.1.3.1 "
                        "conjunto favoravel; 5.1.4.2: Q favoravel = 0; "
                        "Tab.4: vento 1,4; G_FAV 0,9 = extremo estrito "

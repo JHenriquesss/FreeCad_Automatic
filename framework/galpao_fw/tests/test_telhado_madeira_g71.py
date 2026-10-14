@@ -149,15 +149,17 @@ def test_vento_fraco_nao_inventa_arrancamento():
 # --- o par (gravidade, uplift) barra a barra ------------------------------------
 
 def test_cada_barra_guarda_o_par_e_verifica_os_dois():
-    """Nd_grav = 1,4.(G+Q); Nd_uplift = 0,9.G+1,4.W no pior caso - relacao
-    recomposta aqui sem passar pelo par guardado."""
+    """Nd_grav = governante das combinacoes com G desfavoravel (D233: 1,35.G+
+    1,5.Q e as com vento de pressao); Nd_uplift = 0,9.G+1,4.W no pior caso -
+    relacao recomposta aqui sem passar pelo par guardado."""
     r = tmad.rodar(_telhado_vento())
     assert r["vento_ativo"] is True
     assert "0,9.G+1,4.W" in r["combinacoes"]["uplift"]
     flips = 0
     for b in r["barras"]:
-        assert b["Nd_grav_kN"] == pytest.approx(
-            1.4 * (b["Nk_G_kN"] + b["Nk_Q_kN"]), abs=0.05)
+        assert b["Nd_gravidade_pura_kN"] == pytest.approx(
+            1.35 * b["Nk_G_kN"] + 1.5 * b["Nk_Q_kN"], abs=0.05)
+        assert b["comb_governante"].startswith("1,35G")
         assert b["Nd_uplift_kN"] is not None and b["uplift_caso"] is not None
         Nk_w = r["casos_W"][b["uplift_caso"]]["esforcos_Nk"][
             next(k for k in r["casos_W"][b["uplift_caso"]][

@@ -72,6 +72,12 @@ N_LIMITE = 50.0        # valor limite de N adotado no metodo (Veloso & Lopes p.2
 FS_GLOBAL = 3.0
 
 
+# 8.2.1.2: tipos em que a ponta fica limitada ao atrito lateral (escavada com
+# fluido estabilizante e helice continua). "escavada" entra inteira: o motor nao
+# distingue a escavada a seco, e o limite e' a favor da seguranca nela.
+TIPOS_PONTA_LIMITADA_8212 = frozenset({"escavada", "helice"})
+
+
 def capacidade_aoki_velloso(perfil, D, L, tipo_estaca="pre_moldada",
                             N_ponta=None, fs_global=FS_GLOBAL):
     """Capacidade de carga da estaca (Aoki-Velloso 1975).
@@ -105,10 +111,18 @@ def capacidade_aoki_velloso(perfil, D, L, tipo_estaca="pre_moldada",
                         "rl_kPa": round(r_l, 1), "dR_kN": round(dR, 1)})
         z += dz
     R_ult = R_ponta + R_lat
-    P_adm = R_ult / fs_global
+    # NBR 6122:2022 8.2.1.2 (lido no MCP_Fontes, p.39, D233): estaca escavada com
+    # fluido estabilizante e helice continua -> no ELU a ponta tem como limite
+    # superior o atrito lateral (R_p <= R_l). Ate' o D233 a ponta entrava inteira:
+    # com R_p = 4.R_l a carga admissivel saia 67 % acima da norma.
+    limita_ponta = tipo_estaca in TIPOS_PONTA_LIMITADA_8212
+    R_ponta_ef = min(R_ponta, R_lat) if limita_ponta else R_ponta
+    P_adm = (R_ponta_ef + R_lat) / fs_global
     return {"tipo_estaca": tipo_estaca, "D": D, "L": L, "F1": F1, "F2": F2,
             "A_ponta": A_ponta, "U": U, "N_ponta": Np, "K_ponta": K_p,
             "R_ponta_kN": round(R_ponta, 1), "R_lateral_kN": round(R_lat, 1),
+            "ponta_limitada_8212": limita_ponta,
+            "R_ponta_considerada_kN": round(R_ponta_ef, 1),
             "R_ult_kN": round(R_ult, 1), "FS": fs_global, "P_adm_kN": round(P_adm, 1),
             "camadas": detalhe}
 

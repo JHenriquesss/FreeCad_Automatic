@@ -462,8 +462,8 @@ def _vento_nas_paredes(fr, ix, q, cpi, cw, da_direita=False):
 
 
 def _wind_multi(cpi_key, fr=None, ix=None):
-    """Aplica vento para portico de N vaos. Usa NBR 6123 Tabela 7 para
-    telhados multiplos simetricos."""
+    """Aplica vento para portico de N vaos. Usa NBR 6123:2023 Tabela 10 (a 7 de
+    1988) para telhados multiplos simetricos."""
     import vento_nbr6123 as vi
     xc, _ = _posicoes()
     n = N_VAOS

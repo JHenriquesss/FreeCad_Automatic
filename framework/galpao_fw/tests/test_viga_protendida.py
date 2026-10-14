@@ -15,8 +15,10 @@ import viga_protendida as vp
 def test_cordoalha_cp190_e_estiramento():
     assert vp.FPTK_CP190 == 1900e3                 # CP-190: 1900 MPa
     assert abs(vp.FPYK_CP190 - 0.9 * 1900e3) < 1   # RB: 0,9 fptk
-    # estiramento pre-tracao (9.6.1.2.1): min(0,77 fptk ; 0,90 fpyk)
-    assert abs(vp.SIGMA_PI_MAX - min(0.77 * 1900e3, 0.90 * 0.9 * 1900e3)) < 1
+    # estiramento pre-tracao, aco RB (9.6.1.2.1-a de 2014, D233): 0,77 fptk e 0,85 fpyk
+    assert abs(vp.SIGMA_PI_MAX - min(0.77 * 1900e3, 0.85 * 0.9 * 1900e3)) < 1
+    # ao termino da operacao (9.6.1.2.2 -> 9.6.1.2.1-b, RB): 0,74 fptk e 0,82 fpyk
+    assert abs(vp.SIGMA_P0_MAX - min(0.74 * 1900e3, 0.82 * 0.9 * 1900e3)) < 1
     assert vp.AP_CORDOALHA[12.7] == 1.01e-4        # NBR 7483
 
 
@@ -52,7 +54,8 @@ def test_servico_nivel2_els_f_e_els_d():
                                      "q": 5.0, "n_cordoalhas": 8})
     s = r["servico"]
     assert "els_f_ok" in s and "els_d_ok" in s
-    assert abs(s["fct_f"] - 1.5 * vp._fctm(40e3)) < 1   # fct,f = 1,5 fctm
+    # 17.3.1 (D233): formacao de fissuras com fctk,inf = 0,7 fctm, alfa 1,5 (retangular)
+    assert abs(s["fct_f"] - 1.5 * 0.7 * vp._fctm(40e3)) < 1
 
 
 def test_vao_grande_fecha_com_protensao():

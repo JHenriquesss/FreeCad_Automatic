@@ -434,7 +434,10 @@ def cortante_laje(V_sd, bw, d, fck, As1, sigma_cp=0.0, metade_no_apoio=False):
     """V_Rd1 = [tau_Rd*k*(1,2+40*rho1) + 0,15*sigma_cp]*bw*d  (19.4.1), com
     tau_Rd = 0,25*fctd ; k = 1,0 se 50% da armadura inferior NAO chega ao apoio,
     senao k = |1,6 - d| >= 1 (d em m) ; rho1 = As1/(bw*d) <= 0,02.
-    Verifica tambem a biela: V_Rd2 = 0,5*alpha_v1*fcd*bw*0,9d.
+    Biela: a 19.4.1 de 2014 (F016 p.159) nao traz V_Rd2; vale a de 17.4.2.2,
+    V_Rd2 = 0,27*alpha_v2*fcd*bw*d, alpha_v2 = 1 - fck/250 (D233). Ate' o D233 o
+    motor usava 0,5*(1 - fck/250)*fcd*bw*0,9d, mistura da formula de 2003 com o
+    alpha da 2014, 67 % acima.
     Formulacao de LAJE - diferente do modelo de trelica da viga."""
     fck_MPa = fck / 1000.0
     fctm_MPa = fctm_nbr6118_g127.fctm_MPa(fck_MPa)  # 8.2.5, fonte unica G127
@@ -444,8 +447,8 @@ def cortante_laje(V_sd, bw, d, fck, As1, sigma_cp=0.0, metade_no_apoio=False):
     rho1 = min(As1 / (bw * d), 0.02) if bw * d > 0 else 0.0
     V_rd1 = (tau_rd * k * (1.2 + 40.0 * rho1) + 0.15 * sigma_cp) * bw * d
     fcd = fck / 1.4
-    alpha_v1 = 1.0 - fck_MPa / 250.0
-    V_rd2 = 0.5 * alpha_v1 * fcd * bw * 0.9 * d
+    alpha_v2 = 1.0 - fck_MPa / 250.0
+    V_rd2 = 0.27 * alpha_v2 * fcd * bw * d
     return {"V_sd": V_sd, "V_rd1": V_rd1, "V_rd2": V_rd2, "k": k, "rho1": rho1,
             "tau_rd": tau_rd, "u_cort": V_sd / V_rd1 if V_rd1 > 0 else float("inf"),
             "u_biela": V_sd / V_rd2 if V_rd2 > 0 else float("inf"),

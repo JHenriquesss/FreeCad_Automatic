@@ -7893,3 +7893,109 @@ do usuario), a parte de concreto da sapata (NBR 6118), placa de base de pilar
 tubular (NBR 16239), cone de arrancamento (ACI), as Tabelas 38 e 39 da NBR 5410 (metodo F) e os
 metodos de calculo dos verticais fora do galpao (item 10). A base e' uma so' para todas as colunas, com as medidas do pilar da
 coluna 0 (HEB280); o pilar interno (HEB240) nao tem base propria - a conferir.
+
+## D233 - Auditoria dos motores contra as fontes do acervo, 6a parte: os METODOS dos verticais fora do galpao de aco (2026-10-14) - FECHADO
+
+Continuacao do D232 (pedido do usuario: "o que ainda falta"). A edicao da NBR
+6118 do projeto e' a de 2014 (G123); o acervo do MCP so' tem a de 2023, entao a
+2014 foi lida no PDF local F016 (`fontes/01_CONCRETO/...-2014...pdf`), na imagem
+da pagina.
+
+**1. Pilar de concreto (flexao composta).** Conferem: esbeltez (15.8.2),
+lambda1 com 35 <= lambda1 <= 90, alpha_b (biapoiado e balanco de 2014: 0,80 +
+0,20.Mc/Ma >= 0,85), M1d,min (11.3.3.4.3), curvatura 1/r (15.8.3.3.2), parabola-
+retangulo e eps_c2/eps_cu (8.2.10.1), interacao obliqua alfa 1,2 (17.2.5),
+As,min/As,max (17.3.5.3), gama_n (13.2.3), cortante do fuste (17.4.2). Defeitos:
+- 15.8.3.3.2 (F016 p.109): Md,tot = alpha_b.M1d,A + Nd.le2/10.1/r >= M1d,A. O
+  motor usava alpha_b.M1d,A tambem quando a 2a ordem e' dispensada (a
+  extremidade leva M1d,A inteiro) e nao tinha o piso M1d,A: pilar em balanco
+  dimensionado com ate' 15 % de momento a menos. Corrigido; 15.8.2 d (alpha_b =
+  1 abaixo do momento minimo) passou a valer tambem no lambda1.
+- Figura 17.1: pivo C do dominio 5 a (eps_cu - eps_c2).h/eps_cu. O motor usava
+  3h/7 em todas as classes; em C55-C90 a reta do dominio 5 nao encontrava a do 4a
+  (em C70 a face chegava a 4,2 por mil, eps_cu = 2,66). Corrigido; ate' C50 o
+  resultado e' bit a bit o mesmo.
+- Achado do inventario G116 (`wiki/07-...-g116.md`): a 2023 MUDA dois numeros
+  que o inventario deu como IGUAIS - 15.8.2 c (balanco: alpha_b = 1,0 em 2023) e
+  8.2.10.1/17.2.2 e (pico do parabola-retangulo 0,85.eta_c.fcd, eta_c =
+  (40/fck)^(1/3) acima de C40). O motor segue a 2014 declarada; anotado no
+  inventario para quando a chave virar.
+
+**2. Protensao (viga pre-tracionada).** Conferem: ato (17.2.4.3.2: gama_p 1,1,
+0,7.fckj e 1,2.fctm,j), cortante com Vc0.(1 + M0/Msd) <= 2.Vc0 (17.4.2.2),
+processo aproximado de perdas (9.6.3.4.3, RB). Defeitos:
+- 9.6.1.2.1-a de 2014 (F016 p.47): aco RB na pre-tracao, 0,77 fptk e 0,85 fpyk
+  (o 0,90 e' do RN). Estiramento 0,770 -> 0,765 fptk. Faltava 9.6.1.2.2
+  (sigma_p0 <= 0,74 fptk e 0,82 fpyk): agora no portao.
+- 17.3.1 (F016 p.125): no estado-limite de formacao de fissuras o fct e' o
+  fctk,inf. O motor usava 1,5.fctm: aceitava 43 % mais tracao em servico. A viga
+  de 20 m do galpao de concreto sobe de 20x60 para 25x70 (C40) e de 25x70 para
+  30x80 (C30).
+- ELU a flexao sem limite de dutilidade: entrou x/dp <= 0,45 (14.6.4.3), o bloco
+  de 17.2.2 por classe (lambda, alfa_c acima de C50).
+
+**3. Laje macica.** Conferem: Tabela 13.2 (h minimo e gama_n do balanco), Tabela
+19.1, 20.1 (phi <= h/8, s <= 2h e 20 cm, secundaria 33 cm), VRd1 de 19.4.1 com k e
+rho1, xi(t) e alfa_f (17.3.2.1.2), Branson com fctm (17.3.1), 13.2.4.2
+(nervurada). Defeito: a 19.4.1 de 2014 nao tem VRd2; o motor usava
+0,5.(1 - fck/250).fcd.bw.0,9d (formula de 2003 com o alfa da 2014), 67 % acima da
+biela de 17.4.2.2 (0,27.alfa_v2.fcd.bw.d), que passou a ser a usada.
+
+**4. Telhado de madeira (NBR 7190-1:2022 + NBR 8681:2025).** Conferem na imagem:
+6.5.3 a 6.5.6 (lambda, lambda_rel, kc com beta_c 0,2, Tabela 8 de beta_M e o
+alternativo), 6.3.6/6.3.7 (flexotracao e flexocompressao quadratica), 6.4.2
+(1,5.V/A). Defeitos, todos nas combinacoes:
+- a NBR 7190 remete a NBR 8681:2025 (PDF local, p.14-17): permanentes agrupadas
+  1,35 (Tab.2), vento 1,4 e demais acoes 1,5 (Tab.4), psi0 0,8 para coberturas e
+  0,6 para vento (Tab.6). O motor usava 1,4.(G+Q) e so' combinava o vento como
+  uplift (0,9.G + 1,4.W). Faltavam 1,35.G + 1,5.Q + 0,84.W e 1,35.G + 1,4.W
+  (+ 1,2.Q): com cpi -0,3 a agua de barlavento de um telhado a 30-45 graus fica
+  em PRESSAO. Num telhado a 45 graus a carga de calculo da terca sobe 61 %.
+- o apoio da terca e o da tesoura eram verificados com a reacao
+  CARACTERISTICA (sem gama). Agora com a de calculo de todas as combinacoes.
+
+**5. Luminotecnica.** O metodo dos lumens e' de livro. Tabela 5 da NBR ISO/CIE
+8995-1:2013 (imagens das p.12-16): "deposito" estava em 150 lux e
+"usinagem_grosseira" em 500, sem linha na tabela (depositos: 100, ou 200 se
+continuamente ocupados; usinagem grosseira e media: 300). Corrigidos (deposito
+= 200, o continuamente ocupado); demais conferem.
+
+**6. Aterramento.** As formulas (haste, hastes em paralelo, malha de Sverak) sao
+de livro; a NBR 15749 trata so' de medicao e a NBR 5419-3:2026 (5.5.1, 7.1.4)
+nao fixa valor de resistencia - o modulo ja' declara o 10 ohm como escolha a
+confirmar. Nada a corrigir contra norma.
+
+**7. Fundacoes.** Sapata (22.6 de 2014): rigidez, compressao diagonal 19.5.3.1
+com o termo de momento, puncao da flexivel a 2d com alivio da reacao, flexao na
+face do pilar (22.6.3 admite modelo de flexao) - conferem. Estabilidade: o modo
+NBR 6122 (6.2.1.1.2: peso/1,2, solo/1,4, acao x1,4) confere e e' o do galpao
+de aco; o predio e o galpao de concreto caem no caminho legado de FS 1,5 quando
+a ficha nao declara o metodo (com aviso) - o FS global equivalente da norma e'
+~1,68 no tombamento so' com peso: decisao do usuario se o legado continua.
+Estacas: NBR 6122 6.2.1.2.1 confere o FS 2,0 (o motor usa 3,0 por decisao do
+usuario, D179). Defeito: 8.2.1.2 (p.39) - escavada com fluido e helice
+continua: no ELU R_p <= R_l. O motor somava a ponta inteira (com R_p = 4.R_l a
+carga admissivel saia 67 % acima). Corrigido em `capacidade_aoki_velloso` para
+"helice" e "escavada" (o motor nao distingue a escavada a seco; o limite e' a
+favor nela). A divisa do predio com escavada vai de 3 para 4 estacas.
+
+**8. Vento em telhados de uma agua e multiplos (NBR 6123:2023).** Tabela 8 (uma
+agua, a 6 de 1988): as celulas de 5/10/15 graus conferem; acima de 15 o motor
+fica na linha de 15 (mais succao, a favor). Tabela 10 (multiplos simetricos, a
+7 de 1988): 5 e 10 graus conferiam, mas o 2o tramo usava m*/n* no lugar de
+c*/d* (-0,3 em vez de -0,4) e acima de 10 graus ficava na linha de 10 (z* -0,4
+onde a tabela da' -0,5; aos 45 graus a* e' PRESSAO +0,3). Tabela inteira
+transcrita (5/10/20/30/45), erro acima de 45.
+
+**Testes.** `tests/test_auditoria_verticais_d233.py` (novo, 16 casos, cada
+referencia pela formula da norma). Atualizados os que cristalizavam os valores
+antigos: estiramento e fct,f em `test_viga_protendida`, secoes da viga de 20 m
+em `test_protensao_fck_g133`, 1,4.(G+Q) em `test_telhado_madeira_g71`, reacao
+do apoio da terca em `test_telhado_madeira_g66`, n de estacas da divisa em
+`test_estaca_g149`, e duas entradas da BASELINE do G156.
+
+**Limites.** O motor continua pela NBR 6118:2014 (G123); a migracao para 2023 e'
+decisao do usuario e agora tem mais dois numeros que mudam (item 1). As perdas
+de protensao calculam sigma_c,p0g com a forca antes da perda imediata (um pouco
+a mais de perda; simplificacao mantida). O pacote do cliente `plano-2026-10-d229`
+nao foi regenerado.

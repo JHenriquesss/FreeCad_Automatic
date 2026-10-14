@@ -687,8 +687,11 @@ def test_apoio_interior_da_terca_recebe_os_dois_tramos():
     r = tmad.rodar(copy.deepcopy(TELHADO_VIGA))
     a = r["terca"]["apoio"]
     assert a["apoio"] == "interior"
-    # relacao, nao numero: o interior e' o dobro da carga da ponta.
-    w = r["terca"]["w_g_kNm"] + r["terca"]["w_q_kNm"]
+    # relacao, nao numero: o interior e' o dobro da carga da ponta. D233: a
+    # reacao e' a de CALCULO (antes ia a caracteristica g + q, sem gama).
+    w = r["terca"]["w_d_kNm"]
+    assert w == pytest.approx(1.35 * r["terca"]["w_g_kNm"]
+                              + 1.5 * r["terca"]["w_q_kNm"], abs=2e-3)
     assert a["R_kN"] == pytest.approx(w * r["espacamento_m"], rel=1e-3)
     # e a ponta, com meio tramo, nao ganha o alfa_n da Tab.6.
     ponta = mad.verifica_apoio(w * r["espacamento_m"] / 2.0,
