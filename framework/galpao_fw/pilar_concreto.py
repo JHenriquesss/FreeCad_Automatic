@@ -342,6 +342,10 @@ def _N_M_resistente(x, As, b, h, dl, fck, fyk, edicao=None):
 def _x_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao=None):
     """Acha a profundidade x da linha neutra que equilibra a forca normal Nd
     (NRd(x)=Nd) por bisseccao. NRd e monotona crescente em x."""
+    # D236: o cache de _N_M_resistente tem de ver a edicao RESOLVIDA (None
+    # depende do contexto do projeto; com None na chave, um resultado da 2014
+    # voltava numa rodada da 2023).
+    edicao = _ed_g123.resolver_edicao(edicao)["edicao"]
     lo, hi = 1e-5, 20.0 * h                        # x pode passar de h (dominio 5)
     N_lo, _ = _N_M_resistente(lo, As, b, h, dl, fck, fyk, edicao)
     N_hi, _ = _N_M_resistente(hi, As, b, h, dl, fck, fyk, edicao)
@@ -362,6 +366,7 @@ def _x_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao=None):
 def MRd_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao=None):
     """Momento resistente MRd para a forca normal Nd atuante e armadura As total
     (m2). Acha x tal que NRd(x)=Nd e devolve o MRd correspondente (kN.m, >=0)."""
+    edicao = _ed_g123.resolver_edicao(edicao)["edicao"]   # D236: chave do cache
     x = _x_para_Nd(Nd, As, b, h, dl, fck, fyk, edicao)
     _, MRd = _N_M_resistente(x, As, b, h, dl, fck, fyk, edicao)
     return abs(MRd)

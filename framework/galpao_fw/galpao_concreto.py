@@ -243,6 +243,11 @@ def rodar(spec):
     G_roof = spec.get("G_roof", 0.30); Q_roof = spec.get("Q_roof", 0.25)
 
     # ---------------------------------------------------------------- VENTO
+    # D236: o estado de sitio do vento e' global (vento_nbr6123._CFG); sem o
+    # reset, o que o spec nao declara (ex. s3) vinha da rodada ANTERIOR - um
+    # galpao de aco com s3 = 1,0 mudava a sapata deste (medido: 2,0 x 2,5 ->
+    # 2,5 x 2,5). O que o spec nao diz vale o default do modulo.
+    vento.reset()
     v = vento.compute(v0=spec.get("v0"), cat=spec.get("cat"), classe=spec.get("classe"),
                       s1=spec.get("s1"), s3=spec.get("s3"), z=H, theta=theta,
                       larg_b=vao, alt_h=H, comp_a=comp)

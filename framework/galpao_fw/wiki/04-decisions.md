@@ -8195,3 +8195,15 @@ atualizado.
 
 **Estado.** Migracao concluida: o motor calcula pela NBR 6118:2023 + Emenda 1
 por padrao e pela 2014 quando o projeto a declarar.
+
+**Fechamento da fase 3 (suite: 4374 passaram, 1 falhou so' na ordem paralela).**
+- `test_fundacao_locacao_g140` falhava depois da rodada real do galpao de aco
+  no mesmo processo: o estado de sitio do vento e' global
+  (`vento_nbr6123._CFG`) e o `galpao_concreto.rodar` herdava o s3 = 1,0 da
+  rodada anterior quando o spec nao declarava s3 (sapata 2,0 x 2,5 -> 2,5 x
+  2,5). O vazamento ja' existia antes (medido no commit e610b81: s3 0,95 ->
+  1,0), so' nao mudava a sapata; a 2023 a deixou no limiar. Agora
+  `galpao_concreto.rodar` faz `vento.reset()` antes do `compute`.
+- O cache do solver do pilar (`_N_M_resistente`, D158) recebia `edicao=None`
+  na chave: um resultado da 2014 (contexto) voltava numa rodada da 2023.
+  `_x_para_Nd` e `MRd_para_Nd` passam a edicao RESOLVIDA.
