@@ -618,10 +618,10 @@ def test_data_e_revisao_tem_celula_e_rotulo_no_carimbo(tmp_path):
     x_data = DP.CARIMBO_L - DP.CARIMBO_DATA_L - DP.CARIMBO_REV_L
     x_rev = DP.CARIMBO_L - DP.CARIMBO_REV_L
     assert divisorias == pytest.approx([x_data, x_rev])
-    for nome, tag, x0, x1 in (("Data", "DATA", x_data, x_rev),
+    for nome, tag, esq, dir_ in (("Data", "DATA", x_data, x_rev),
                               ("Revisao", "REVISAO", x_rev, DP.CARIMBO_L)):
         for p in (rotulos[nome], campos[tag]):
-            assert x0 < p.x < x1 and topo < p.y < DP.CARIMBO_H    # dentro da propria celula
+            assert esq < p.x < dir_ and topo < p.y < DP.CARIMBO_H    # dentro da propria celula
         assert rotulos[nome].y > campos[tag].y                    # rotulo acima do valor
     # a data de 10 letras cabe na celula (0,75 da altura por letra, adotado)
     assert campos["DATA"].x + 10 * 3.0 * 0.75 <= x_rev
