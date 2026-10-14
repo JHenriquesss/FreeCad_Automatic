@@ -908,6 +908,11 @@ def to_rodar_params(spec):
                   "s1": v.get("s1", 1.0), "s3": v["s3"], "z": v.get("z", ridge),
                   "abertura_dominante": v.get("abertura_dominante", "portao_oitao")}
     p["aguas"] = spec.get("cobertura", {}).get("aguas", 2)   # 1=shed, 2=simetrico
+    # travamento da mesa INFERIOR da terca (a comprimida na succao), m: so' quando
+    # o detalhe o garante (NBR 14762:2010 9.8.2.2; sem ele, Lb = vao). D232.
+    _lbs = spec.get("cobertura", {}).get("terca_Lb_succao")
+    if _lbs not in (None, PENDENTE):
+        p["terca"] = dict(p["terca"], Lb_succao=float(_lbs))
     fe = spec.get("fechamento", {})     # longarina: travamento da mesa interna
     lg = p.setdefault("secundarios", {}).setdefault("longarina", {})
     lg["mesa_interna_travada"] = bool(fe.get("mesa_interna_travada", False))

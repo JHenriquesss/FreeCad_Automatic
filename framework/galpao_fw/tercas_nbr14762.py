@@ -101,9 +101,6 @@ def fator_R_anexoF(bw_mm, secao="U", continua=False):
     return None                                     # fora do escopo do Anexo F
 
 
-G_ACO = 77e6       # kN/m2 (modulo de elasticidade transversal do aco)
-
-
 def condicoes_anexoF(bw, bf, t, L, fy, r=0.0):
     """NBR 14762:2010, F.1: condicoes das alineas b), c), d), e), g) e m) que
     se conferem pela geometria e pelo vao (dimensoes em mm, L em m, fy em
@@ -203,7 +200,8 @@ def mrd_flt(perfil, fy, Lb, Ml, Cb=1.0):
     Wc = perfil.get("Wxc", perfil["Wx"])
     r0q = (Ix + Iy) / A + perfil["x0"] ** 2
     Ney = math.pi ** 2 * E * Iy / Lb ** 2
-    Nez = (math.pi ** 2 * E * perfil["Cw"] / Lb ** 2 + G_ACO * perfil["J"]) / r0q
+    G = E / (2.0 * (1.0 + NU))          # G124: derivado de E e NU, sem constante propria
+    Nez = (math.pi ** 2 * E * perfil["Cw"] / Lb ** 2 + G * perfil["J"]) / r0q
     Me = Cb * math.sqrt(r0q) * math.sqrt(Ney * Nez)
     lam0 = math.sqrt(Wc * fy / Me)
     chi = chi_flt(lam0)

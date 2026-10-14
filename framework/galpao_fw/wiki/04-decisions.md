@@ -7824,6 +7824,15 @@ solo), dimensao minima de 60 cm e beta >= 60 graus do bloco conferem. A
 profundidade minima de 1,5 m nas divisas (7.7.2) e o lastro de 5 cm (7.1.3)
 nao sao conferidos pelo motor (dado de obra).
 
+**Complemento (suite completa).** A suite inteira deu 4344 passaram e 2
+falharam: (a) `test_varredura_constantes_orfas_g124` - o `G_ACO` que o G124
+tirou de `tercas_nbr14762` voltou com a 9.8.2.2; agora G = E/(2.(1 + nu)); (b) o
+projeto sintetico de seis disciplinas (vento 40 m/s, vao de terca 5,71 m)
+reprovava o aco porque nenhuma terca passa na succao com a mesa inferior livre.
+A ficha do projeto ganhou `cobertura.terca_Lb_succao` (m, travamento declarado
+da mesa inferior, levado a `params["terca"]["Lb_succao"]`), e o teste declara a
+linha de corrente ligada a mesa inferior no meio do vao.
+
 **10. Verticais fora do galpao, por amostragem das tabelas que mais pesam.**
 Conferidos na imagem da pagina e iguais ao motor: NBR 5410 Tabelas 35, 36 e 37
 (metodo B1, PVC e EPR, 2 e 3 condutores), Tabela 40 e os limites de queda de

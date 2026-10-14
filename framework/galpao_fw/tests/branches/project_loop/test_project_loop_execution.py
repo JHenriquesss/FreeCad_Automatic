@@ -36,6 +36,9 @@ def _complete_synthetic_structural_spec():
         "G": 0.30, "Q": 0.25, "self": 0.35, "tapamento": 0.10,
     })
     structural["fundacao"]["sigma_solo_adm"] = 250.0
+    # D232: na succao a terca so' passa com a mesa inferior travada (NBR 14762
+    # 9.8.2.2); o projeto declara a linha de corrente ligada a ela no meio do vao.
+    structural["cobertura"]["terca_Lb_succao"] = structural["geometria"]["bay"] / 2.0
     return structural
 
 
