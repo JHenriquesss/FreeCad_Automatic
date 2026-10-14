@@ -8051,3 +8051,13 @@ Perguntado ao usuario em 2026-10-14, respostas:
 **Testes.** Atualizados os dois de `test_fundacao_estabilidade_metodos` que
 esperavam o legado como padrao; Alonso (`test_validacao_alonso`) e G140 voltam
 a passar com a tensao no solo corrigida.
+
+**Pacote do cliente regerado** em `projects/amostra_engenheiro/saida/plano-2026-10-d234`
+(fora do git; o `plano-2026-10-d229` enviado nao foi tocado): `rodar_tudo(spec,
+com_3d=False, com_executivo=False, com_pranchas_ifc=True, com_render_ifc=True)`,
+246 s, veredito ATENDE. Mudou em relacao ao d229: terca Ue 300x85 com a mesa
+inferior travada a cada 2,85 m (interacao 0,68; no d229 ela saia aprovada pelo
+defeito do D232); base 320 x 600 x 50 mm com 4 chumbadores de 38 mm, conferida em
+18 combinacoes (era 600 x 800 x 100 com 6 de 32); bloco de fundacao 2,50 x 3,00 x
+2,30 m (era x 2,35); peso primario de aco igual (19,32 t). 15 folhas conferidas
+no CADCraft (`pranchas-ifc/conferencia`).
