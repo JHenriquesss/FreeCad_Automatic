@@ -128,6 +128,7 @@ COBERTURA_COMMIT_D = {
     "44da228140dcd9dd8140570290a61a3205c5457a": "D228",  # recorte de 6.3.2.1 c) sem a lista incompleta
     "7ce12e62614ab919ca48e8dbd719562f57d8cd43": "D229",  # conferencia do DWG no CADCraft; cota sem linha nula
     "3fd0d75be72ddc82e576582406ebb52afd97c244": "D230",  # dossie com as pranchas do IFC; carimbo com data e revisao
+    "5eb95e5d8535780fc41a5b4f0eeac97a57017ce4": "D231",  # flexao e cortante pela NBR 8800:2024 (Cb, teto, kv, alma esbelta)
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -263,9 +264,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 48:
-        lados.append("censo=%d, esperado 48 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 36 do plano de 2026-10-08)"
+    if len(censo) != 49:
+        lados.append("censo=%d, esperado 49 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 37 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
