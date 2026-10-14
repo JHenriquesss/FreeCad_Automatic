@@ -1062,8 +1062,9 @@ def _avisos(spec_fundacao, tipo, horizontais, recomendacao, por_pilar=None,
         avisos.append({
             "code": "verificacao_estabilidade_legada",
             "detail": "fundacao.verificacao_estabilidade nao declarada: a "
-                      "estabilidade roda no caminho legado de FS global; declare "
-                      "o metodo (NBR 6122 por valores de calculo ou FS global)"})
+                      "estabilidade roda pelo padrao NBR 6122 6.2.1.1.2 (D233), com "
+                      "o N caracteristico como peso favoravel; declare o metodo "
+                      "para separar a parcela variavel"})
     if (spec_fundacao.get("tipo") and recomendacao
             and recomendacao["tipo"] in TIPOS
             and recomendacao["tipo"] != spec_fundacao["tipo"]):

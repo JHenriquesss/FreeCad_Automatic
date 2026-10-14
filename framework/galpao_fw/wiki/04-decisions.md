@@ -8021,3 +8021,33 @@ nao foi regenerado.
   enrijecedor mais rigido quando ele esta' mais proximo - CONFERE. kc da viga
   de alma esbelta (Tabela 4, nota a, p.47 da 2024): kc = 4/raiz(h/tw), 0,35 <=
   kc <= 0,76 - CONFERE.
+
+## D234 - Decisoes do usuario sobre o que o D232/D233 deixou aberto: terca travada, estabilidade da sapata pela NBR 6122 por padrao, FS 3,0 das estacas mantido (2026-10-14) - FECHADO
+
+Perguntado ao usuario em 2026-10-14, respostas:
+1. **Terca do galpao do cliente (Ue 300x85):** travar a mesa inferior no meio
+   do vao. `spec_amostra_engenheiro.json` ganhou `cobertura.terca_Lb_succao =
+   2,85` (metade do vao de 5,70 m). Utilizacao na succao: 1,51 -> 0,68 (D232).
+   O projeto passa a prever a linha de travamento (corrente ou escora) na mesa
+   inferior das tercas.
+2. **Estabilidade da sapata sem metodo declarado:** padrao NBR 6122:2022
+   6.2.1.1.2 (peso favoravel /1,2 ; resistencia do solo /1,4 ; acao
+   caracteristica x1,4), no lugar do caminho legado de FS global 1,5.
+   `fundacao_sapata.normaliza_verificacao` sem bloco devolve o modo NBR com
+   acoes caracteristicas e `decompor_N_padrao`: o N externo entra como peso
+   favoravel quando comprime e como acao desfavoravel quando traciona (sem
+   separar a parcela variavel - o aviso diz isso e pede o metodo declarado).
+   O caminho legado so' existe agora declarado (`fs_global_legacy`).
+   Achado ao ligar o padrao: no modo NBR a tensao no solo e a area comprimida
+   eram medidas com N/1,2 e o peso proprio /1,2 (a minoracao e' so' do
+   tombamento e do deslizamento). A sapata do exemplo de Alonso (1700 kN,
+   300 kPa) saia 2,0 x 2,0 m no lugar dos 2,5 x 2,5 m do livro. Corrigido: o
+   solo e' verificado com N + peso proprio inteiro e M como chegaram (no galpao
+   de aco, que ja' usava o modo NBR por valores de calculo, o peso proprio da
+   sapata deixa de ser reduzido no solo - a favor).
+3. **Estacas:** mantido o FS 3,0 (a norma pede 2,0; decisao do D179 confirmada).
+4. **Pacote do cliente:** regerar em pasta nova depois deste commit (ver abaixo).
+
+**Testes.** Atualizados os dois de `test_fundacao_estabilidade_metodos` que
+esperavam o legado como padrao; Alonso (`test_validacao_alonso`) e G140 voltam
+a passar com a tensao no solo corrigida.

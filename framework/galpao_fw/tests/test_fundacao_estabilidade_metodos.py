@@ -43,9 +43,15 @@ def test_normaliza_legacy_exige_fs_explicito():
 
 
 def test_normaliza_sem_configuracao_marca_compatibilidade():
+    """D233 (decisao do usuario): sem metodo declarado vale o padrao NBR 6122
+    6.2.1.1.2 (antes: caminho legado de FS 1,5)."""
     resultado = fs.normaliza_verificacao({})
 
-    assert resultado["metodo"] == "compatibilidade_legacy"
+    assert resultado["metodo"] == "nbr6122_valores_calculo"
+    assert resultado["tipo_acoes"] == "caracteristicas"
+    assert (resultado["gamma_f"], resultado["gamma_peso_favoravel"],
+            resultado["gamma_resistencia_solo"]) == (1.4, 1.2, 1.4)
+    assert resultado["decompor_N_padrao"] is True
     assert resultado["avisos"]
 
 
@@ -153,10 +159,12 @@ def test_nbr_rejeita_fs_global_misturado():
 
 
 def test_sem_configuracao_e_compatibilidade_explicita():
+    """D233: sem metodo, NBR 6122 com o N como peso favoravel; nao inconclusivo."""
     resultado = fs.verifica_sapata_A(_caso_base())
 
-    assert resultado["metodo_verificacao"] == "compatibilidade_legacy"
-    assert any("legado" in aviso.lower() for aviso in resultado["avisos_verificacao"])
+    assert resultado["metodo_verificacao"] == "nbr6122_valores_calculo"
+    assert not resultado["inconclusivo"]
+    assert any("6122" in aviso for aviso in resultado["avisos_verificacao"])
 
 
 def test_nbr_caracteristico_sem_decomposicao_vertical_fica_inconclusivo():

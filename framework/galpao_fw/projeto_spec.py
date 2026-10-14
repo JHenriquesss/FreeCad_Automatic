@@ -235,7 +235,7 @@ def validar(spec):
                          "valor invalido '%s' (use %s)" % (tipo, "/".join(TIPOS_FUNDACAO))))
     # Estabilidade da fundacao: a configuracao explicita nao pode chegar ao
     # motor com metodo/fatores invalidos. Ausencia continua sendo aceita para
-    # specs antigos (o motor registra compatibilidade_legacy); quando o bloco
+    # specs antigos (o motor aplica o padrao NBR 6122 6.2.1.1.2, D233); quando o bloco
     # existe, porem, a validacao deve reproduzir as mesmas restricoes do
     # normalizador sem deixar uma ValueError aparecer no meio da orquestracao.
     _ve_path = "fundacao.verificacao_estabilidade"

@@ -57,20 +57,29 @@ def normaliza_verificacao(caso):
     """
     cfg = caso.get("verificacao_estabilidade")
     if cfg is None:
+        # D233 (decisao do usuario, 2026-10-14): sem metodo declarado vale a NBR
+        # 6122:2022 6.2.1.1.2 (peso favoravel /1,2 ; resistencia do solo /1,4 ;
+        # acao caracteristica x1,4), lida na imagem da p.17. Ate' o D233 caia no
+        # caminho legado de FS global 1,5, abaixo do equivalente da norma (~1,68
+        # no tombamento so' com peso, ~2,35 no deslizamento). O N externo
+        # caracteristico entra como peso favoravel quando comprime e como acao
+        # desfavoravel quando traciona (decompor_N_padrao).
         return {
-            "metodo": "compatibilidade_legacy",
+            "metodo": "nbr6122_valores_calculo",
             "tipo_acoes": "caracteristicas",
-            "gamma_f": 1.0,
-            "gamma_peso_favoravel": 1.0,
-            "gamma_resistencia_solo": 1.0,
-            "fs_tombamento": caso.get("fs_tomb_min", FS_TOMB_MIN),
-            "fs_deslizamento": caso.get("fs_desl_min", FS_DESL_MIN),
+            "gamma_f": 1.4,
+            "gamma_peso_favoravel": 1.2,
+            "gamma_resistencia_solo": 1.4,
+            "fs_tombamento": None,
+            "fs_deslizamento": None,
             "empuxo_passivo_kN": 0.0,
             "solo_nao_removivel": False,
             "peso_favoravel_superestrutura_kN": 0.0,
             "N_acao_desfavoravel_kN": None,
+            "decompor_N_padrao": True,
             "avisos": [
-                "sem verificacao_estabilidade: caminho legado de compatibilidade",
+                "sem verificacao_estabilidade: padrao NBR 6122 6.2.1.1.2 com o N "
+                "externo como peso favoravel (inclui a parcela variavel, se houver)",
             ],
         }
     if not isinstance(cfg, dict):
@@ -284,6 +293,10 @@ def verifica_sapata_A(caso):
     cfg_nbr = cfg["metodo"] == "nbr6122_valores_calculo"
     cfg_extra = cfg.get("peso_favoravel_superestrutura_kN", 0.0)
     cfg_ndesf = cfg.get("N_acao_desfavoravel_kN")
+    if cfg.get("decompor_N_padrao"):
+        # D233: compressao = peso favoravel (/1,2); tracao = acao (x1,4)
+        cfg_extra = max(float(N), 0.0)
+        cfg_ndesf = min(float(N), 0.0)
     inconclusivo = False
     if cfg_nbr and cfg["tipo_acoes"] == "caracteristicas":
         if cfg_ndesf is None:
@@ -301,8 +314,12 @@ def verifica_sapata_A(caso):
                        caso.get("h_ped", 0.0), verificacao=cfg,
                        peso_favoravel_superestrutura=cfg_extra,
                        N_acao_desfavoravel=cfg_ndesf)
+    # Tensao no solo e area comprimida com as acoes como chegaram (N + peso
+    # proprio inteiro, M sem gama_f): a minoracao do peso (/1,2) e a majoracao
+    # da acao (x1,4) sao do tombamento e do deslizamento (6.2.1.1.2), nao da
+    # tensao admissivel. Ate' o D233 o modo NBR media o solo com N/1,2.
     sig_max, sig_min, regime, xcont = tensoes_solo(
-        est["N_tot"], est["M_verificacao"], B, L)
+        N + est["Pp"], M, B, L)
     sig_adm = caso["sigma_solo_adm"]
     r = {"nome": caso.get("nome", "sapata"), "B": B, "L": L, "h": h,
          "sigma_max": sig_max, "sigma_min": sig_min, "regime": regime,

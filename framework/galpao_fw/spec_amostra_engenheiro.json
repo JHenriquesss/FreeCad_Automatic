@@ -30,7 +30,8 @@
     "telha_tipo": "trapezoidal",
     "telha_peso": 0.1,
     "calha": true,
-    "chuva_I_mm_h": 150.0
+    "chuva_I_mm_h": 150.0,
+    "terca_Lb_succao": 2.85
   },
   "fechamento": {
     "tipo": "alvenaria",
