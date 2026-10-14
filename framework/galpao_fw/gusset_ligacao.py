@@ -68,8 +68,9 @@ def _compressao_whitmore(N, bw, t, Kl, fy):
 def _ruptura_whitmore(N, bw, t, fu, n_furos_transv, db, Ct):
     """Ruptura da secao liquida na faixa de Whitmore (NBR 8800 5.2.2b/5.2.3).
     So quando a barra e PARAFUSADA ao gusset. An = (bw - n_furos_transv*dh)*t;
-    Ae = Ct*An; Nt,Rd = Ae*fu/GA2. dh = furo-padrao (Tabela 12, reusa ligacoes)."""
-    dh = LG._diam_furo(db)
+    Ae = Ct*An; Nt,Rd = Ae*fu/GA2. dh = furo-padrao (Tabela 14 da NBR 8800:2024)
+    mais 2 mm (5.2.4.1 a), reusa ligacoes)."""
+    dh = LG.largura_furo_area_liquida(db)
     An = max(bw - n_furos_transv * dh, 0.0) * t
     Ae = Ct * An
     Nt_Rd = Ae * fu / GA2
@@ -222,7 +223,7 @@ def _selftest():
     assert abs(bs["Frd"] - ref_bs["Frd"]) < 1e-9
     # ruptura liquida: An = (bw - n_furos_transv*dh)*t ; Nt_Rd = Ae*fu/GA2
     rup = r3["estados"]["ruptura_whitmore"]
-    dh = LG._diam_furo(0.020)
+    dh = LG._diam_furo(0.020) + 0.002              # 5.2.4.1 a): furo + 2 mm
     An_ref = (r3["bw"] - 1 * dh) * 0.012
     assert abs(rup["An"] - An_ref) < 1e-12
     assert abs(rup["Nt_Rd"] - An_ref * 400e3 / GA2) < 1e-6   # Ct=1

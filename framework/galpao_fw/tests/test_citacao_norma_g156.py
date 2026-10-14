@@ -119,8 +119,6 @@ BASELINE = [
      "CONFERE NBR 8800:2008 Tab.C.1 p.117 (L/600 <200 kN; L/800 >=200; L/1000 siderurgica)"),
     ("ponte_rolante.py", "ELS (NBR 8800:2008 Tab.C.1): flecha vertical L/600",
      "CONFERE NBR 8800:2008 Tab.C.1 p.117 (comentario)"),
-    ("tesoura.py", "NBR 8800:2008 Tab.3: ruptura (1,35)",
-     "CONFERE NBR 8800:2008 4.8.2.1 Tab.3 p.23 (gama2 ruptura = 1,35)"),
     ("techdraw_hidraulica.py", "v<=3 m/s",
      "CONFERE NBR 5626:2020 6.8.3 NOTA p.21 (limite maximo 3 m/s)"),
     ("techdraw_hidraulica.py", "coletor predial DN minimo 100",
@@ -134,9 +132,6 @@ BASELINE = [
     ("telhado_casa_madeira.py", "1,4.(G+Q) (NBR 8681",
      "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (adotado 1,4; madeira desf 1,30) - "
      "Pendencia ao usuario: confirmar 1,4 ante o 1,30 da madeira"),
-    ("tesoura.py", "gamma_g do peso permanente (NBR 8681:2025 Tab.1",
-     "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (fav 1,0; adotado 0,9 conservador p/ uplift; "
-     "desf 1,4) - Pendencia ao usuario: confirmar 0,9/1,4 ante Tab.1"),
     ("tercas_nbr14762.py", "gamma_g FAVORAVEL: adotado 0,90",
      "CONFERE-parcial NBR 8681:2025 Tab.1 p.14 (fav 1,0; adotado 0,90 conservador) + "
      "NBR 8800 Tab.1 (permite 1,00) ja declarados no comentario"),

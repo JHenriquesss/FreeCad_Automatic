@@ -26,32 +26,32 @@ TOLERANCIAS_MONTAGEM = [
 
 
 def folga_furo(db_mm):
-    """Folga do FURO PADRAO em relacao ao diametro do parafuso db (NBR 8800
-    Tabela 12): dh = db + 1,5 mm (db < 24 mm) ; db + 2,0 mm (db >= 24 mm)."""
-    return db_mm + (1.5 if db_mm < 24.0 else 2.0)
+    """Diametro do FURO PADRAO para o parafuso db (NBR 8800:2024, Tabela 14):
+    db + 2 mm (db < 24 mm) ; db + 3 mm (db >= 24 mm)."""
+    return db_mm + (2.0 if db_mm < 24.0 else 3.0)
 
 
 def linhas_quadro(db_mm=None):
     """Linhas do QUADRO DE TOLERANCIAS: (grupo, item, tolerancia, fonte). Se db_mm
-    for dado, acrescenta a folga do furo-padrao daquele parafuso (NBR 8800 Tab.12)."""
+    for dado, acrescenta a folga do furo-padrao daquele parafuso (NBR 8800:2024 Tab.14)."""
     linhas = [("FABRICACAO", it, tol, f) for (it, tol, f) in TOLERANCIAS_FABRICACAO]
     linhas += [("MONTAGEM", it, tol, f) for (it, tol, f) in TOLERANCIAS_MONTAGEM]
-    dh = ("db+1,5 (db<24) ; db+2,0 (db>=24)" if db_mm is None
+    dh = ("db+2 (db<24) ; db+3 (db>=24)" if db_mm is None
           else "db=%.0f -> furo %.1f mm" % (db_mm, folga_furo(db_mm)))
-    linhas.append(("FURACAO", "Folga do furo-padrao", dh, "NBR 8800 Tab.12"))
+    linhas.append(("FURACAO", "Folga do furo-padrao", dh, "NBR 8800:2024 Tab.14"))
     return linhas
 
 
 def _selftest():
-    assert abs(folga_furo(20.0) - 21.5) < 1e-9       # db<24 -> +1,5
-    assert abs(folga_furo(24.0) - 26.0) < 1e-9       # db>=24 -> +2,0
-    assert abs(folga_furo(22.0) - 23.5) < 1e-9
+    assert abs(folga_furo(20.0) - 22.0) < 1e-9       # db<24 -> +2
+    assert abs(folga_furo(24.0) - 27.0) < 1e-9       # db>=24 -> +3
+    assert abs(folga_furo(22.0) - 24.0) < 1e-9
     ls = linhas_quadro(db_mm=24.0)
     assert ls[0][0] == "FABRICACAO" and any(g == "MONTAGEM" for g, *_ in ls)
-    assert ls[-1][0] == "FURACAO" and "26.0" in ls[-1][2]
+    assert ls[-1][0] == "FURACAO" and "27.0" in ls[-1][2]
     assert all(len(t) == 4 and t[3] for t in ls)     # toda linha tem FONTE
     ls0 = linhas_quadro()
-    assert "db+1,5" in ls0[-1][2]
+    assert "db+2" in ls0[-1][2]
     print("tolerancias_fabricacao _selftest PASSED")
 
 

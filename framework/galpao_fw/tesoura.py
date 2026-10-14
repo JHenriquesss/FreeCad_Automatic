@@ -149,16 +149,27 @@ def _trib_sup(t):
     return trib, seg
 
 
+# NBR 8800:2024, Tabelas 1 e 2 e 4.8.7.2.1 (lidas no MCP_Fontes, D225 e D232):
+# os mesmos coeficientes do portico de alma cheia (`galpao_portico._combos_elu`).
+GAMA_G = 1.25            # peso proprio de estrutura de aco, desfavoravel
+GAMA_G_FAV = 0.9         # favoravel: a Tabela 1 da' 1,00; mantido 0,9 (a favor da seguranca)
+GAMA_Q = 1.50            # sobrecarga de cobertura
+GAMA_W = 1.40            # vento
+PSI0_COBERTURA = 0.8     # Tabela 2: sobrecarga em coberturas
+PSI0_VENTO = 0.6         # Tabela 2: vento
+ESBELTEZ_MAX_COMPRESSAO = 200.0   # 5.3.7.1 (recomendacao)
+ESBELTEZ_MAX_TRACAO = 300.0       # 5.2.8.1 (recomendacao)
+
+
 def _gamma_g_dead(wv):
-    """gamma_g do peso permanente (NBR 8681:2025 Tab.1: fav 1,0, adotado 0,9
-    conservador p/ uplift; desf 1,25-1,50, adotado 1,4) conforme o SENTIDO do vento no no:
-    - vento de SUCCAO (wv<=0, uplift): peso e FAVORAVEL (opoe o arranque) -> 0,9;
-    - vento de PRESSAO (wv>0, p/ baixo): peso e DESFAVORAVEL (soma) -> 1,4.
-    (parecer item 41, pt.3: nao usar 0,9 hardcoded se o vento vira pressao.)"""
-    return 0.9 if wv <= 0.0 else 1.4
+    """gama_g do peso permanente conforme o SENTIDO do vento no no:
+    - vento de SUCCAO (wv<=0, arrancamento): peso FAVORAVEL -> 0,9 (a Tabela 1 da
+      NBR 8800:2024 da' 1,00; 0,9 fica a favor da seguranca);
+    - vento de PRESSAO (wv>0, para baixo): peso DESFAVORAVEL -> 1,25."""
+    return GAMA_G_FAV if wv <= 0.0 else GAMA_G
 
 
-def _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction=1):
+def _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction=1, w_q=0.0):
     """Cargas nodais da combinacao com vento POR AGUA (zona). Cada metade do banzo
     superior recebe o Cpe da sua agua (NBR 6123 Tabela 5, barlavento EF / sotavento
     GH), atuando SIMULTANEAMENTE. w_barl/w_sot: vento por m de banzo (kN/m, <0 =
@@ -180,6 +191,11 @@ def _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction=1):
             barlavento = esq if direction >= 0 else (not esq)
             wv = w_barl if barlavento else w_sot
         w_no = 1.4 * wv + _gamma_g_dead(wv) * w_dead
+        if wv > 0.0:
+            # vento principal que SOMA a gravidade: a sobrecarga entra como
+            # secundaria, gama_q.psi0 = 1,50 x 0,8 (NBR 8800:2024, 4.8.7.2.1 e
+            # Tabela 2, coberturas). Na succao ela fica fora (Tabela 1, nota a).
+            w_no += GAMA_Q * PSI0_COBERTURA * w_q
         P[i] = (0.0, -w_no * trib[i])
     return P
 
@@ -191,37 +207,38 @@ def cargas_vento_zonas(cfg, w_barl, w_sot, direction=1):
                      cfg.get("tipo", "warren"))
     trib, _ = _trib_sup(t)
     w_dead = cfg.get("w_dead_kN_m", cfg["w_grav_kN_m"])
-    return _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction)
+    w_q = max(cfg["w_grav_kN_m"] - w_dead, 0.0)
+    return _P_vento_zonas(t, trib, w_barl, w_sot, w_dead, direction, w_q)
 
 
 # ---- verificacao das barras (reusa check_nbr8800) ---------------------------
 def _props_I(sec):
     """A, rx (raio de giracao forte), ry (fraco) de um I duplamente simetrico
     (h,b,tw,tf) m. rx = no plano da trelica ; ry = fora do plano (banzo comprimido)."""
+    s = _sec_dict(sec)
+    return s["A"], math.sqrt(s["Ix"] / s["A"]), math.sqrt(s["Iy"] / s["A"])
+
+
+def _sec_dict(sec):
+    """Perfil (h, b, tw, tf) em m -> dicionario de propriedades que o
+    `check_nbr8800` le (chapas retas, sem raio de concordancia)."""
     h, bf, tw, tf = sec
     A = 2.0 * bf * tf + (h - 2.0 * tf) * tw
     Ix = (bf * h ** 3 - (bf - tw) * (h - 2.0 * tf) ** 3) / 12.0
     Iy = (2.0 * tf * bf ** 3 + (h - 2.0 * tf) * tw ** 3) / 12.0
-    rx = math.sqrt(Ix / A) if A > 0 else 1e-6
-    ry = math.sqrt(Iy / A) if A > 0 else 1e-6
-    return A, rx, ry
+    return {"A": A, "Ix": Ix, "Iy": Iy, "d": h, "bf": bf, "tw": tw, "tf": tf}
 
 
 def _nc_rd(sec, fy, L_plano, L_fora):
-    """COMPRESSAO (kN): flambagem chi*Q*A*fy/ga1. Verifica os DOIS eixos (parecer):
-    - no plano da trelica: esbeltez L_plano/rx (comprimento da barra entre nos);
-    - FORA do plano: L_fora/ry (distancia entre pontos TRAVADOS - tercas/contravento,
-      nem sempre = comprimento da barra). Governa o MAIOR indice de esbeltez (menor chi)."""
+    """COMPRESSAO (kN) pela NBR 8800:2024, 5.3 (`check_nbr8800.compressao`):
+    Nc,Rd = chi.Aef.fy/ga1, com Ne o menor entre a flexao NO plano da trelica
+    (L_plano, eixo forte), a flexao FORA do plano (L_fora, eixo fraco: distancia
+    entre pontos travados por terca ou contravento) e a torcao; a flambagem local
+    entra pela area efetiva de 5.3.4. Ate' o D232 a flambagem local era pedida ao
+    fator Q de 2008 com o perfil em tupla: a chamada falhava e um `except`
+    devolvia Q = 1, ou seja, chapa esbelta nunca reduzia a resistencia."""
     import check_nbr8800 as ck
-    A, rx, ry = _props_I(sec)
-    lam_x = (L_plano / rx) / math.pi * math.sqrt(fy / ck.E)
-    lam_y = (L_fora / ry) / math.pi * math.sqrt(fy / ck.E)
-    chi = min(ck.chi_compressao(lam_x), ck.chi_compressao(lam_y))
-    try:
-        Q = ck.fator_Q(sec, fy)
-    except Exception:
-        Q = 1.0
-    return chi * Q * A * fy / ck.GA1
+    return ck.compressao(_sec_dict(sec), fy, L_plano, L_fora)["Nc_Rd"]
 
 
 def _nt_rd(sec, fy, fu, Ct=1.0, area_furos=0.0):
@@ -231,7 +248,7 @@ def _nt_rd(sec, fy, fu, Ct=1.0, area_furos=0.0):
     na secao critica (parafusada). Parecer: a ruptura liquida costuma governar o
     banzo tracionado parafusado."""
     import check_nbr8800 as ck
-    GA2 = getattr(ck, "GA2", 1.35)                    # NBR 8800:2008 Tab.3: ruptura (1,35)
+    GA2 = getattr(ck, "GA2", 1.35)                    # NBR 8800:2024, Tabela 3: ruptura (1,35)
     A, _, _ = _props_I(sec)
     N_esc = A * fy / ck.GA1
     An = max(A - area_furos, 0.0)
@@ -246,11 +263,13 @@ def verifica_tesoura(cfg):
     Lb_y_sup (m; travamento FORA do plano do banzo superior - terças; default =
     painel inclinado, i.e. cada no travado), Ct (shear lag, default 1.0),
     area_furos (m2, secao critica parafusada, default 0)}.
-    Combinacoes (NBR 8681): gravidade 1,4.w_grav ; vento (uplift) 1,4.w_vento +
-    0,9.w_dead, onde w_dead = carga PERMANENTE estabilizante (>0, p/ baixo) e
-    w_vento e a succao (<0, p/ cima) - vetores OPOSTOS. A sobrecarga Q NAO estabiliza
-    o uplift (carga variavel pode estar ausente): w_dead exclui Q (default = w_grav
-    p/ retrocompatibilidade se w_dead_kN_m nao for informado).
+    Combinacoes (NBR 8800:2024, Tabelas 1 e 2 e 4.8.7.2.1): gravidade
+    1,25.G + 1,50.Q, com G = w_dead e Q = w_grav - w_dead; vento de succao
+    1,40.w_vento + 0,9.G (a sobrecarga nao estabiliza o arrancamento); vento de
+    pressao principal 1,40.W + 1,25.G + 1,20.Q; e sobrecarga principal com vento
+    de pressao secundario 1,25.G + 1,50.Q + 0,84.W. Sem w_dead_kN_m nao ha' como
+    separar G de Q: a gravidade inteira leva 1,50 e o arrancamento usa w_grav
+    como permanente (entrada antiga; informar w_dead_kN_m).
     Convencao do solver (_cargas): w>0 -> carga p/ BAIXO (Fy = -w.trib).
     N>0 tracao. Carga distribuida -> NODAL por trib. inclinada (metodo dos nos).
     Retorna util maxima, barra governante e esforcos por banzo."""
@@ -279,21 +298,45 @@ def verifica_tesoura(cfg):
     # Combinacoes (NBR 8681): gravidade + uplift. O uplift pode vir POR ZONA (agua):
     # cfg["w_vento_zonas"]=(w_barl,w_sot) -> NBR 6123 Tabela 5 por agua, ENVELOPE das
     # 2 direcoes de vento. Ausente -> escalar w_vento_kN_m uniforme (back-compat).
-    load_cases = [("gravidade", _cargas(1.4 * cfg["w_grav_kN_m"]))]
+    if "w_dead_kN_m" in cfg:
+        w_q = max(cfg["w_grav_kN_m"] - w_dead, 0.0)
+        w_grav_d = GAMA_G * w_dead + GAMA_Q * w_q
+    else:
+        w_q = 0.0
+        w_grav_d = GAMA_Q * cfg["w_grav_kN_m"]
+    load_cases = [("gravidade", _cargas(w_grav_d))]
     zonas = cfg.get("w_vento_zonas")
     if zonas is not None:
         wb, ws = zonas
-        load_cases.append(("vento(barl.esq)", _P_vento_zonas(t, trib, wb, ws, w_dead, +1)))
-        load_cases.append(("vento(barl.dir)", _P_vento_zonas(t, trib, wb, ws, w_dead, -1)))
+        for rot, sent in (("barl.esq", +1), ("barl.dir", -1)):
+            load_cases.append(("vento(%s)" % rot,
+                               _P_vento_zonas(t, trib, wb, ws, w_dead, sent, w_q)))
+            if max(wb, ws) > 0.0:
+                # sobrecarga principal + vento de PRESSAO secundario (1,40 x 0,6);
+                # a agua em succao nao desconta (Tabela 1, nota a)
+                so_vento = _P_vento_zonas(t, trib, max(wb, 0.0) / 1.4,
+                                          max(ws, 0.0) / 1.4, 0.0, sent)
+                grav = _cargas(w_grav_d)
+                load_cases.append((
+                    "gravidade+vento(%s)" % rot,
+                    {i: (0.0, grav[i][1] + GAMA_W * PSI0_VENTO * so_vento[i][1])
+                     for i in grav}))
     else:
-        load_cases.append(("vento", _cargas(1.4 * cfg.get("w_vento_kN_m", 0.0)
-                                            + 0.9 * w_dead)))
+        wv = cfg.get("w_vento_kN_m", 0.0)
+        if wv > 0.0:
+            load_cases.append(("vento", _cargas(GAMA_W * wv + GAMA_G * w_dead
+                                                + GAMA_Q * PSI0_COBERTURA * w_q)))
+            load_cases.append(("gravidade+vento",
+                               _cargas(w_grav_d + GAMA_W * PSI0_VENTO * wv)))
+        else:
+            load_cases.append(("vento", _cargas(GAMA_W * wv + GAMA_G_FAV * w_dead)))
     bars = _barras(t)
     sol0 = resolve_trelica(t, _cargas(1.0))
     diag_idx = set(sol0["idx_diagonais"] + sol0["idx_montantes"])
     sup_idx = set(sol0["idx_banzo_sup"])
     inf_idx = set(sol0["idx_banzo_inf"])
     u_max = 0.0; gov = None; Nsup = 0.0; Ninf = 0.0
+    esb_c = 0.0; esb_t = 0.0
     for nome, P in load_cases:
         sol = resolve_trelica(t, P)
         for bi, N in enumerate(sol["N_barras"]):
@@ -312,8 +355,12 @@ def verifica_tesoura(cfg):
                 else:
                     Lfora = Lbar
                 Nrd = _nc_rd(sec, fy, Lbar, Lfora)
+                _a, rx, ry = _props_I(sec)
+                esb_c = max(esb_c, Lbar / rx, Lfora / ry)
             else:                                            # TRACAO (escoam + ruptura)
                 Nrd = _nt_rd(sec, fy, fu, Ct, area_furos)
+                _a, rx, ry = _props_I(sec)
+                esb_t = max(esb_t, Lbar / min(rx, ry))
             u = abs(N) / Nrd if Nrd > 0 else float("inf")
             if u > u_max:
                 u_max = u; gov = {"combo": nome, "barra": bars[bi],
@@ -327,6 +374,10 @@ def verifica_tesoura(cfg):
             "N_banzo_sup_max": round(Nsup, 1), "N_banzo_inf_max": round(Ninf, 1),
             "Lb_y_sup_m": round(Lby_sup, 3),
             "Lb_y_inf_m": (round(Lby_inf, 3) if Lby_inf else None),
+            "esbeltez_compressao_max": round(esb_c, 1),
+            "esbeltez_tracao_max": round(esb_t, 1),
+            "esbeltez_ok": (esb_c <= ESBELTEZ_MAX_COMPRESSAO
+                            and esb_t <= ESBELTEZ_MAX_TRACAO),
             "OK": u_max <= 1.0, "trelica": t}
 
 
@@ -347,6 +398,11 @@ def relatorio_tesoura_pt(r):
           "(sob uplift)" if r.get("Lb_y_inf_m") else
           "  Banzo INF: sob uplift assume-se travado a CADA no (mao-francesa em "
           "todos). Se nao, informar Lb_y_inf (espacamento real) - pode reprovar."),
+         f"  Esbeltez maxima: compressao {r.get('esbeltez_compressao_max')} "
+         f"(recomendado ate' 200, NBR 8800:2024 5.3.7.1) ; tracao "
+         f"{r.get('esbeltez_tracao_max')} (recomendado ate' 300, 5.2.8.1)"
+         + ("" if r.get("esbeltez_ok", True) else
+            " -> ACIMA DO RECOMENDADO: o responsavel tecnico define o limite"),
          "  Banzo sup RETO em duas aguas (tercas apoiam nos nos); metodo dos nos",
          "  (isostatica). Tracao = escoam.(bruta)+ruptura(liquida); compressao = 2 eixos.",
          "  Perfis, Ct(shear lag), area de furos e Lb_y = A CONFIRMAR (gate).", "=" * 66]

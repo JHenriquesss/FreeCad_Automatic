@@ -7728,3 +7728,126 @@ ligacoes parafusadas, base e chumbadores, fundacoes, tercas de chapa dobrada
 (14762), sismo, fogo e os verticais fora do galpao. Textos de outros modulos
 que citam "Anexo G" por nome (console da ponte, mao-francesa, viga de
 rolamento) nao foram tocados.
+
+## D232 - Auditoria dos motores contra as fontes do acervo, 5a parte: tesoura, ligacoes parafusadas, base de pilar, tercas de chapa dobrada, sismo, fogo e fundacao rasa (2026-10-14) - FECHADO
+
+**Por que.** Era a lista "ainda sem conferencia" do D231, pedida pelo usuario
+em 2026-10-14. Lidos no MCP_Fontes, com as formulas de fracao e as tabelas
+conferidas na IMAGEM da pagina: NBR 8800:2024/Er1:2025 (5.2.4, 5.2.8, 5.3.7,
+5.4.3.1.3, Tabela 4, 6.1.5.2, 6.3.2.2 a 6.3.12, Tabelas 14 e 16, 6.5.6, 6.6.5,
+6.7 inteiro com a Tabela 18), NBR 14762:2010 (9.8.2.2, 9.8.3, Tabelas 13 e 14,
+Anexo F), NBR 15421:2023 (6.1 a 6.3, 7.3, 9.1 a 9.3, Tabela 6), NBR 14323:2013
+(5.1.1.2, Tabela 1, 8.5.1.1, 8.5.1.2, E.3) e NBR 6122:2022 (6.2.1.1, 7.7, 7.8).
+
+**1. Dois pontos da flexao (sem mudanca de numero).** kc = 4/raiz(h/tw) entre
+0,35 e 0,76 (Tabela 4, nota a) confere. A formula de j do enrijecedor
+(5.4.3.1.3 c) sai impressa na edicao de 2024 como "[2,5(a/h)2] - 2", sem a barra
+de fracao; a de 2008 traz 2,5/(a/h)2. Mantida a de 2008 (a impressa daria mais
+rigidez para enrijecedor mais espacado, o contrario do fenomeno).
+
+**2. Tesoura.** (a) A flambagem local nunca entrava: `fator_Q` de 2008 recebia o
+perfil em tupla, falhava e um `except` devolvia Q = 1. Agora a compressao e'
+`check_nbr8800.compressao` (area efetiva de 5.3.4, Ne com torcao), a mesma do
+perfil de alma cheia: em chapa esbelta Nc,Rd cai 8 a 10 %. (b) Combinacoes
+pelas Tabelas 1 e 2 da 8800:2024: gravidade 1,25.G + 1,50.Q (era 1,4 em tudo),
+vento de pressao com a sobrecarga secundaria (1,20.Q) e sobrecarga principal
+com vento de pressao secundario (0,84.W). (c) Esbeltez maxima informada
+(recomendacoes 200 e 300 de 5.3.7.1 e 5.2.8.1).
+
+**3. Ligacoes parafusadas (6.3).** Cortante do parafuso 0,45 e 0,56.Ab.fub/ga2
+(2008: 0,4 e 0,5; a favor da seguranca, ate' 12 % abaixo). Furo-padrao pela
+Tabela 14 de 2024: db + 2 mm ate' 22 e db + 3 mm de 24 em diante (era db + 1,5 e
++ 2,0: furo menor, area liquida e distancia livre maiores que as da norma).
+Distancia minima a borda pela Tabela 16 de 2024 (uma coluna so'; a de 2008
+separava borda cortada e laminada). Area liquida com furo + 2 mm (5.2.4.1 a)
+no rasgamento em bloco e na faixa de Whitmore do gusset. Conferidos e iguais:
+6.3.3.1, 6.3.3.3, 6.3.3.4, 6.3.9, 6.3.10, 6.3.12, 6.5.6 e os 45 kN de 6.1.5.2.
+
+**4. Base de pilar (6.6.5 e 6.7, item que a edicao de 2008 nao tinha).**
+(a) Pressao no concreto 0,85.fck/gc.raiz(A2/A1) <= 1,7.fck/gc (era
+fck/(gc.gn).raiz(A2/A1) <= fck). (b) Pilar arrancado pelos casos T1, T2 e T3 de
+6.7.2.2: o motor fazia T = N + M/d e, com momento, punha na linha tracionada
+menos que N/2 + M/(2a). (c) Espessura da placa por l_max = maior entre m, n e
+lambda.n0 (com m pela linha 0,95.d), o que inclui o balanco lateral n que o
+motor ignorava. (d) Cortante no chumbador pela 6.7.2.5 (arruela especial
+soldada): o chumbador flete na espessura da placa e a resistencia cai a uns
+40 % de 6.3.3.2; o atrito (mu = 0,45, ate' tau_c,Rd.lx.ly) e' o primeiro
+mecanismo e, se nem atrito nem chumbador bastam, a base so' passa com a placa
+de cisalhamento de 6.7.2.4 declarada (`chaveta`), que o dimensionamento adota
+e escreve como OBRIGATORIA. (e) Escada de bases pela geometria do Tipo 1 da
+norma (lx = d + 4.a1, ly >= bf + 25 mm, a1 e a2 da Tabela 18) e escolha pela
+placa mais leve; Tabela 18 informada no relatorio. (f) A base passa a ser
+conferida em TODAS as combinacoes e colunas (`_esforcos_base_todos`), nao so'
+na de maior momento, e a espessura adotada e' reconferida em todas.
+
+**5. Defeito anterior achado no caminho: a base nao via o pilar adotado.** O
+`rodar_galpao` testava `res.get("perfil_col")`, chave que nunca existiu: base,
+zona de painel e pedestal da sapata saiam sempre com as medidas do HEA200 do
+exemplo. Galpao do cliente (pilar HEB280): base de 600 x 800 x 100 mm com 6
+chumbadores de 32 mm passa a 320 x 600 x 50 mm com 4 de 38 mm.
+
+**6. Tercas (NBR 14762:2010).** O fator R do Anexo F era aplicado so' com o
+teste bw <= 292 mm; F.1 exige tambem 60 <= bw/t <= 170, 2,8 <= bw/bf <= 4,5,
+16 <= b/t <= 43, vao < 10 m e fy <= 410 MPa. Tres dos cinco perfis da escada
+(150x60, 200x75 e 200x75x2,65) tem bw/bf abaixo de 2,8, e o 300x85 tem alma
+acima de 292: neste o motor caia na resistencia da mesa TRAVADA tambem na
+succao. Fora do Anexo F vale agora a flambagem lateral com torcao de 9.8.2.2
+(Me = Cb.r0.raiz(Ney.Nez)), com a mesa inferior destravada no vao inteiro,
+salvo `Lb_succao` declarado. J, Cw e centro de torcao saem de
+`tercas_nbr14762.torcao_secao_aberta` (a `prop2` do pycufsm devolve Cw = 0
+para o Ue); conferido contra a formula fechada do U simples.
+**Galpao do cliente:** a terca 300x85x25x3,35 estava aprovada por esse
+defeito; com a mesa inferior livre nos 5,7 m a utilizacao na succao e' 1,51 e
+NENHUM perfil da escada passa. Com a mesa inferior travada a meio vao
+(`terca.Lb_succao` = 2,85 m, linha de corrente que trave a mesa de baixo) o
+300x85 fica em 0,68. E' decisao do engenheiro (detalhe de travamento, perfil
+maior ou vao menor); a ficha do cliente NAO foi alterada.
+Conferidos e iguais: Tabela 13, Tabela 14, Tabela F.1, MSE, cortante 9.8.3.
+
+**7. Sismo (NBR 15421:2023).** Zonas e tetos de ag, Tabela 3 (Ca, Cv),
+espectro, Cs com teto e piso 0,01, Ta = CT.hn^x, Cup, expoente k e a Tabela 6
+(R, Omega0, Cd) conferem. Mantido para o engenheiro: G = 1,20 nas combinacoes
+de sismo (D225).
+
+**8. Aco em incendio (NBR 14323:2013).** (a) Sem revestimento: emissividade
+0,7 (era 0,5) e passo de no maximo 5 s (8.5.1.1.4; o motor dava passos de ate'
+5 MINUTOS com a temperatura dos gases do inicio do passo). Medido: o aco sai 20
+a 86 C mais quente aos 15 e 30 min (u/A = 50: 630 -> 716 C aos 30 min). (b) Com
+revestimento: a equacao de 8.5.1.2.2 (1 + xi/4 e dtheta_g/(4/xi + 1)); o motor
+usava a do Eurocode (1 + xi/3 e e^(xi/10) - 1); diferenca abaixo de 3 C nos
+casos medidos. (c) Tabela 1 sem a linha de 550 C que nao e' da norma e com
+kE = 0,023 a 1100 C (era 0,030).
+
+**9. Fundacao rasa (NBR 6122:2022).** Coeficientes de tracao, deslizamento e
+tombamento (1,4 no esforco, 1,2 no peso favoravel, 1,4 na resistencia do
+solo), dimensao minima de 60 cm e beta >= 60 graus do bloco conferem. A
+profundidade minima de 1,5 m nas divisas (7.7.2) e o lastro de 5 cm (7.1.3)
+nao sao conferidos pelo motor (dado de obra).
+
+**10. Verticais fora do galpao, por amostragem das tabelas que mais pesam.**
+Conferidos na imagem da pagina e iguais ao motor: NBR 5410 Tabelas 35, 36 e 37
+(metodo B1, PVC e EPR, 2 e 3 condutores), Tabela 40 e os limites de queda de
+tensao de 6.2.7.1; NBR 5626:2020 6.9.4 e 6.9.5; NBR 8160 Tabelas 3, 5, 6 e 7;
+NBR 6118:2023 Tabela 17.3; NBR 16868-1 Tabela 2; NBR 7190-1:2022 Tabelas 4 e 5
+e gama_w; NBR 15200:2024 Tabela 4. Dois achados:
+- NBR 5410, Tabela 42 (agrupamento em feixe): o motor parava em 9 circuitos e
+  dava 0,50 para qualquer agrupamento maior; a tabela da' 0,45 (12 a 15), 0,41
+  (16 a 19) e 0,38 (20 ou mais). Linha inteira transcrita (5, 7 e 8 tambem).
+- NBR 5626:2020, 6.9.2: "em qualquer caso" a pressao dinamica no ponto de
+  utilizacao nao pode ser inferior a 10 kPa. O motor aceitava 5 kPa na caixa de
+  descarga (valor da edicao de 1998).
+Nao foram relidos os metodos de calculo desses verticais (so' as tabelas e
+limites acima): ficam para rodadas proprias.
+
+**Testes.** `tests/test_auditoria_acervo_d232.py` (novo, 26 casos, cada
+referencia refeita pela formula da norma). Atualizados os que cristalizavam os
+valores antigos: furo-padrao em `test_tolerancias`, ky(550) em
+`test_modulos_sem_teste_g85`, caixa de descarga em `test_hidraulica_predial`,
+pressao com 1,4 em `test_fase611_vento_zona_tesoura`,
+e duas entradas da BASELINE do G156 cujas frases sumiram da tesoura.
+
+**Limites.** Nao relidos: estacas (o FS 3,0 contra 2,0 do D179 segue decisao
+do usuario), a parte de concreto da sapata (NBR 6118), placa de base de pilar
+tubular (NBR 16239), cone de arrancamento (ACI), as Tabelas 38 e 39 da NBR 5410 (metodo F) e os
+metodos de calculo dos verticais fora do galpao (item 10). A base e' uma so' para todas as colunas, com as medidas do pilar da
+coluna 0 (HEB280); o pilar interno (HEB240) nao tem base propria - a conferir.

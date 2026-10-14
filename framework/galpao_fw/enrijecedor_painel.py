@@ -81,7 +81,11 @@ def vrd(sec, fy, a=None):
 
 
 def j_rigidez(a_h):
-    """§5.4.3.1.3c - fator de rigidez j = [2,5/(a/h)^2] - 2 >= 0,5."""
+    """5.4.3.1.3 c) - fator de rigidez j = [2,5/(a/h)^2] - 2 >= 0,5.
+    A NBR 8800:2024 (pagina 58) imprime "[2,5(a/h)2] - 2", sem a barra de fracao;
+    a edicao de 2008 (pagina 51) traz 2,5/(a/h)2, que e' a forma que da'
+    rigidez exigida maior para enrijecedores mais proximos. Mantida a de 2008
+    (conferido nas imagens das duas paginas no D232)."""
     return max(2.5 / a_h ** 2 - 2.0, 0.5)
 
 

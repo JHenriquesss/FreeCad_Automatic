@@ -26,7 +26,8 @@
 #            elastico:   0,90 kpg E kc Wxc / lambda^2.
 #   kpg = 1 - ar/(1200 + 300 ar) (hc/tw - 5,70 sqrt(E/fy))  <= 1,0
 #          ar = hc tw/Afc (<=10) ; hc = 2 x (CG -> face interna da mesa comprimida).
-#   kc = 4 / sqrt(h/tw) , 0,35 <= kc <= 0,76 (Tabela 4, nota a - NAO relida no D231).
+#   kc = 4 / sqrt(h/tw) , 0,35 <= kc <= 0,76 (Tabela 4, nota a; conferida na
+#   imagem da pagina 47 no D232).
 #   sigma_r = 0,3 fy (D.2.8-e).
 #   M_Rd = min(E.6.1, E.6.2, E.6.3).
 # Premissa: perfil I duplamente simetrico (mesas iguais) -> Wxc=Wxt=Wx, hc=hw.
@@ -53,7 +54,7 @@ def e_esbelta(sec, fy):
 
 
 def kc(sec):
-    """F.2 - kc = 4/sqrt(h/tw), limitado a [0,35 ; 0,76]."""
+    """NBR 8800:2024, Tabela 4, nota a: kc = 4/raiz(h/tw), com 0,35 <= kc <= 0,76."""
     val = 4.0 / math.sqrt(_lam_alma(sec))
     return min(0.76, max(0.35, val))
 

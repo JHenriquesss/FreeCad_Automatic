@@ -69,8 +69,12 @@ _FCT = {10: (1.22, 1.15), 15: (1.17, 1.12), 20: (1.12, 1.08), 25: (1.06, 1.04),
         30: (1.00, 1.00), 35: (0.94, 0.96), 40: (0.87, 0.91), 45: (0.79, 0.87),
         50: (0.71, 0.82), 55: (0.61, 0.76), 60: (0.50, 0.71)}
 
-# --- Tab.42: fator de correcao por agrupamento (feixe/camada unica) -----------
-_FCA = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 6: 0.57, 9: 0.50}
+# --- Tab.42, referencia 1 (em feixe): fator de correcao por agrupamento --------
+# Linha inteira, lida na imagem da pagina 108 da NBR 5410:2004 (MCP_Fontes, D232).
+# Chave = menor numero de circuitos da coluna (9 a 11, 12 a 15, 16 a 19, >= 20).
+# Ate' o D232 a tabela parava em 9 e todo agrupamento maior levava 0,50.
+_FCA = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57, 7: 0.54, 8: 0.52,
+        9: 0.50, 12: 0.45, 16: 0.41, 20: 0.38}
 
 # --- Tab.47: secao minima do condutor de fase (cobre), por uso ----------------
 SECAO_MINIMA = {"iluminacao": 1.5, "forca": 2.5, "sinalizacao": 0.5}
@@ -119,17 +123,13 @@ def fct(temp_amb, isolacao):
 
 
 def fca(n_agrupados):
-    """Fator de correcao por agrupamento (Tab.42). Para n nao tabelado usa o
-    proximo n MAIOR tabelado (mais conservador) - nao inventa valor intermediario."""
+    """Fator de correcao por agrupamento em feixe (Tab.42, referencia 1): o da
+    coluna em que n cai (9 a 11 -> 0,50 ; 12 a 15 -> 0,45 ; 16 a 19 -> 0,41 ;
+    20 ou mais -> 0,38)."""
     n = int(n_agrupados)
     if n <= 1:
         return 1.0
-    if n in _FCA:
-        return _FCA[n]
-    maiores = [k for k in _FCA if k >= n]
-    if maiores:
-        return _FCA[min(maiores)]
-    return _FCA[max(_FCA)]
+    return _FCA[max(k for k in _FCA if k <= n)]
 
 
 def _fp_coluna(fp):
@@ -315,7 +315,7 @@ def _selftest():
     assert fct(40, "PVC") == 0.87 and fct(40, "EPR") == 0.91
     assert abs(fct(37, "PVC") - (0.94 + 0.4 * (0.87 - 0.94))) < 1e-9   # interpola
     assert fca(3) == 0.70 and fca(1) == 1.0
-    assert fca(5) == 0.57                                  # n=5 -> usa coluna 6 (conserv.)
+    assert fca(5) == 0.60 and fca(13) == 0.45 and fca(25) == 0.38   # Tab.42 inteira (D232)
     # CONDUTORES EM PARALELO: alimentador de 900 A (EPR F 3cond, Iz max 300mm2=736A)
     # -> IC=900 excede 736 -> 2 condutores de 300mm2 por fase.
     rp = dimensiona_condutor({"IB": 900.0, "V": 380.0, "L_km": 0.05,

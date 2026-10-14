@@ -96,7 +96,8 @@ def test_cumeeira_carga_media():
 
 def test_pressao_dead_desfavoravel():
     # parecer item 41 (pt.3): agua em PRESSAO (wv>0, p/ baixo) -> peso e DESFAVORAVEL
-    # -> gamma_g = 1,4 (nao 0,9). Sucao mantem 0,9 (peso favoravel ao uplift).
+    # -> gama_g = 1,25 e a sobrecarga entra como secundaria, 1,50 x 0,8 (NBR 8800:2024,
+    # Tabelas 1 e 2; D232). Sucao mantem 0,9 e fica sem a sobrecarga.
     import tesoura as TS
     P = TS.cargas_vento_zonas(_cfg(), w_barl=+1.5, w_sot=-6.0, direction=+1)
     t = TS.gera_trelica(20.0, 2.5, 8, "warren"); nos = t["nos"]
@@ -104,10 +105,10 @@ def test_pressao_dead_desfavoravel():
     wd = _cfg()["w_dead_kN_m"]
     left = [i for i in range(t["n_paineis"] + 1) if nos[i][0] < 10.0 - 1e-9]
     right = [i for i in range(t["n_paineis"] + 1) if nos[i][0] > 10.0 + 1e-9]
-    # barlavento em pressao: 1,4*1,5 + 1,4*wd (peso desfavoravel)
-    w_press = 1.4 * 1.5 + 1.4 * wd
+    wq = _cfg()["w_grav_kN_m"] - wd
+    w_press = 1.4 * 1.5 + 1.25 * wd + 1.50 * 0.8 * wq
     assert P[left[1]][1] == pytest.approx(-w_press * trib[left[1]], rel=1e-9), \
-        "agua em pressao: peso com gamma_g=1,4 (desfavoravel)"
+        "agua em pressao: 1,40.W + 1,25.G + 1,20.Q"
     # sotavento em sucao: 1,4*(-6) + 0,9*wd (peso favoravel)
     w_suc = 1.4 * (-6.0) + 0.9 * wd
     assert P[right[1]][1] == pytest.approx(-w_suc * trib[right[1]], rel=1e-9), \

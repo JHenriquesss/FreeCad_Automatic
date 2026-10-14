@@ -1,25 +1,27 @@
 # ============================================================================
 # ligacoes.py - O QUE ESTE SCRIPT FAZ / CALCULA
 # Verifica LIGACOES de estrutura de aco (parafusadas e soldadas) pela ABNT
-# NBR 8800:2008. Generico e parametrico (qualquer ligacao: joelho viga-coluna,
+# NBR 8800:2024/Er1:2025 (secao 6 lida no MCP_Fontes em 2026-10-14, D232).
+# Generico e parametrico (qualquer ligacao: joelho viga-coluna,
 # emenda, ligacao de contravento, chapa de terca, etc.).
-#   - Parafusos (6.3.3): cisalhamento Fv,Rd=0,4*Ab*fub/ga2 (rosca no plano) ou
-#     0,5 (fora); tracao Ft,Rd=Abe*fub/ga2 ; pressao de contato/esmagamento
+#   - Parafusos (6.3.3): cisalhamento Fv,Rd=0,45*Ab*fub/ga2 (rosca no plano) ou
+#     0,56 (fora) - a edicao de 2008 dava 0,4 e 0,5; tracao Ft,Rd=Abe*fub/ga2 ; pressao de contato/esmagamento
 #     Fc,Rd=min(1,2*lf*t*fu ; 2,4*db*t*fu)/ga2 ; interacao tracao+corte
 #     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4).
 #   - Solda de filete (6.2.5): metal da solda Fw,Rd=0,60*fw*Aw/gw2
-#     (Aw=0,707*perna*comprimento). Metal-base (Tabela 8 -> 6.5.5): menor entre
+#     (Aw=0,707*perna*comprimento). Metal-base (Tabela 9 -> 6.5.5): menor entre
 #     escoamento 0,60*fy*AMB/ga1 e ruptura 0,60*fu*AMB/ga2.
 #   - Forca minima de ligacao 45 kN (6.1.5.2), com as excecoes da norma
 #     (tirantes redondos, travessas, TERCAS de cobertura, travejamento).
 #   - Detalhamento dos furos (6.3.9/6.3.10/6.3.11): espacamento >= 2,7 db (pref
 #     3 db), distancia livre entre furos >= db, espacamento max <= min(24t; 300);
 #     lf (do esmagamento 6.3.3.3) DERIVADO da geometria (e_borda/s_furos). A
-#     Tabela 14 (furo-borda) fica FLAG (resistencia governada por 6.3.3.3).
+#     A Tabela 16 (furo-borda) e' conferida; a nota dela admite distancia menor
+#     se 6.3.3.3 for atendido.
 # NAO cobre estados-limites da chapa (rasgamento em bloco/flexao) alem do
 # esmagamento - FLAG onde aplicavel. Saidas em portugues. Unidades SI: m, kN.
 # ============================================================================
-"""Verificacao de ligacoes parafusadas e soldadas conforme ABNT NBR 8800:2008."""
+"""Verificacao de ligacoes parafusadas e soldadas conforme ABNT NBR 8800:2024."""
 
 from __future__ import annotations
 
@@ -29,6 +31,8 @@ GA2 = 1.35         # ruptura (parafuso/solda de ruptura)
 GA1 = 1.10         # escoamento (metal-base)
 GW2 = 1.35         # solda (NBR 8800:2024, Tabela 9, nota i)
 FORCA_MIN = 45.0   # kN (6.1.5.2)
+CORTE_ROSCA_NO_PLANO = 0.45   # 6.3.3.2 a)
+CORTE_ROSCA_FORA = 0.56       # 6.3.3.2 b)
 
 
 # ---- parafusos -------------------------------------------------------------
@@ -38,8 +42,10 @@ def _area(db):
 
 
 def fv_rd(db, fub, rosca_no_plano=True, n_planos=1):
+    """NBR 8800:2024, 6.3.3.2: 0,45.Ab.fub/ga2 por plano de corte que passa pela
+    rosca (e parafuso comum em qualquer situacao); 0,56 quando nao passa."""
     Ab, _ = _area(db)
-    c = 0.4 if rosca_no_plano else 0.5
+    c = CORTE_ROSCA_NO_PLANO if rosca_no_plano else CORTE_ROSCA_FORA
     return c * Ab * fub / GA2 * n_planos
 
 
@@ -54,19 +60,24 @@ def fc_rd(db, t, fu, lf):
 
 
 def _diam_furo(db):
-    """Diametro do furo-padrao (Tabela 12, NBR 8800). db em m.
-    db < 24 mm: dh = db + 1,5 mm ; db >= 24 mm: dh = db + 2,0 mm.
-    Unidades m."""
-    return db + (0.002 if db >= 0.024 else 0.0015)
+    """Diametro do furo-padrao (NBR 8800:2024, Tabela 14). db em m.
+    Serie metrica: 16->18, 20->22, 22->24 (db + 2 mm) ; 24->27, 27->30, 30->33 e
+    db >= 36 (db + 3 mm). A edicao de 2008 dava db + 1,5 mm: furo menor, area
+    liquida e distancia livre maiores do que as da norma em vigor."""
+    return db + (0.003 if db >= 0.024 - 1e-9 else 0.002)
 
 
-# Tabela 14 (NBR 8800) - distancia minima do centro de furo-padrao a borda [mm],
-# por diametro db [mm]: (borda cortada com serra/tesoura ; borda laminada ou cortada
-# a macarico). Linhas em pol convertidas p/ mm nominal. LIDO do PDF (pg.94).
-_TAB14 = [(12.7, 22.0, 19.0), (16.0, 29.0, 22.0), (19.05, 32.0, 26.0),
-          (20.0, 35.0, 27.0), (22.0, 38.0, 29.0), (24.0, 42.0, 31.0),
-          (25.4, 44.0, 32.0), (27.0, 50.0, 38.0), (30.0, 53.0, 39.0),
-          (31.75, 57.0, 42.0), (36.0, 64.0, 46.0)]
+def largura_furo_area_liquida(db, broca=False):
+    """NBR 8800:2024, 5.2.4.1 a): na area liquida a largura do furo e' a do
+    furo-padrao mais 2,0 mm (furo feito com broca: a do proprio furo)."""
+    return _diam_furo(db) + (0.0 if broca else 0.002)
+
+
+# NBR 8800:2024, Tabela 16 - distancia minima do centro de furo-padrao a borda
+# [mm], por diametro db [mm] (linhas em polegada convertidas). Uma coluna so': a
+# edicao de 2008 (Tabela 14) separava borda cortada de borda laminada.
+_TAB16 = [(12.7, 19.0), (16.0, 22.0), (19.05, 25.0), (20.0, 26.0), (22.0, 28.0),
+          (24.0, 30.0), (25.4, 32.0), (27.0, 34.0), (30.0, 38.0), (31.75, 41.0)]
 
 
 def tstub_prying(leff, m, e, t_chapa, fy, Ft_Rd_total, gM0=1.0):
@@ -100,20 +111,15 @@ def tstub_prying(leff, m, e, t_chapa, fy, Ft_Rd_total, gM0=1.0):
 
 
 def dist_min_borda(db, borda_cortada=True, baixa_solicitacao=False):
-    """Distancia minima do centro do furo a borda (NBR 8800 Tabela 14). db em m.
-    borda_cortada=True -> coluna serra/tesoura ; False -> laminada/macarico.
-    baixa_solicitacao (nota b): so p/ borda laminada, reduz 3 mm quando Fsd <= 25%
-    da forca resistente. Para db > 36 mm: 1,75 db (cortada) / 1,25 db (laminada).
-    Retorna a distancia minima em m."""
+    """Distancia minima do centro do furo-padrao a borda (NBR 8800:2024, 6.3.11.1
+    e Tabela 16). db em m; acima de 1 1/4" (31,75 mm): 1,25 db. `borda_cortada` e
+    `baixa_solicitacao` eram distincoes da Tabela 14 de 2008 que a edicao de 2024
+    nao traz; ficam na assinatura e nao mudam o resultado. Retorna em m."""
     dbmm = db * 1000.0
-    if dbmm > 36.0 + 1e-9:
-        e_mm = 1.75 * dbmm if borda_cortada else 1.25 * dbmm
-    else:
-        row = next((r for r in _TAB14 if r[0] >= dbmm - 1e-6), _TAB14[-1])
-        e_mm = row[1] if borda_cortada else row[2]
-        if (not borda_cortada) and baixa_solicitacao:
-            e_mm -= 3.0                              # nota b
-    return e_mm / 1000.0
+    if dbmm > 31.75 + 1e-9:
+        return 1.25 * dbmm / 1000.0
+    row = next(r for r in _TAB16 if r[0] >= dbmm - 1e-6)
+    return row[1] / 1000.0
 
 
 def block_shear(Agv, Anv, Ant, fy, fu, Cts=1.0):
@@ -146,7 +152,7 @@ def block_shear_linha(n, s_furos, e_long, e_transv, db, t, fy, fu, Cts=1.0):
       - tracao transversal Lnt = e_transv (subtrai 1/2 furo)
     e_long = distancia do 1o furo a borda na direcao da forca ; e_transv = distancia
     do furo a borda transversal. Unidades m. Retorna o dict de block_shear."""
-    dh = _diam_furo(db)
+    dh = largura_furo_area_liquida(db)              # 5.2.4.1 a): furo + 2 mm
     Lgv = e_long + (n - 1) * s_furos
     Agv = Lgv * t
     Anv = (Lgv - (n - 0.5) * dh) * t                  # 6.5.6: meio furo na borda
@@ -167,8 +173,8 @@ def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
                furo a borda / ao furo vizinho, na direcao da forca), dh do furo.
 
     db, s_furos (centro a centro), e_borda (centro-borda), t em m. borda_cortada:
-    True = serra/tesoura ; False = laminada/macarico (Tabela 14). A distancia minima
-    furo-borda (6.3.11 / Tabela 14) AGORA e verificada; o estado-limite de resistencia
+    sem efeito desde a edicao de 2024 (Tabela 16 tem uma coluna so'). A distancia minima
+    furo-borda (6.3.11 / Tabela 16) e' verificada; o estado-limite de resistencia
     segue o esmagamento 6.3.3.3 (nota a). Retorna dict."""
     dh = _diam_furo(db)
     s_min = 2.7 * db                                 # 6.3.9 (pref 3 db)
@@ -176,7 +182,7 @@ def verifica_espacamento(db, s_furos, e_borda, t=None, borda_cortada=True):
     lf_borda = e_borda - dh / 2.0                    # livre furo-extremidade
     lf_inter = s_furos - dh                          # livre furo-furo
     lf = max(min(lf_borda, lf_inter), 0.0)
-    e_min_borda = dist_min_borda(db, borda_cortada)  # 6.3.11 / Tabela 14
+    e_min_borda = dist_min_borda(db, borda_cortada)  # 6.3.11 / Tabela 16
     r = {"dh": dh, "s_min_2p7db": s_min, "s_furos": s_furos, "e_borda": e_borda,
          "livre_furos": livre_furos, "lf": lf,
          "e_min_borda": e_min_borda, "ok_borda_t14": e_borda >= e_min_borda - 1e-9,
@@ -248,7 +254,7 @@ def fw_rd_filete(perna, Lw, fw):
 
 
 def fw_rd_base(t_base, Lw, fy, fu=None):
-    """Metal-base ao cisalhamento (Tabela 8 filete -> 6.5.5): menor entre
+    """Metal-base ao cisalhamento (Tabela 9 filete -> 6.5.5): menor entre
     escoamento 0,60*fy*Ag/ga1 e ruptura 0,60*fu*Anv/ga2. Ao longo da solda nao
     ha furos -> Anv=Ag=AMB. Sem fu -> so escoamento (retrocompativel)."""
     AMB = t_base * Lw
@@ -402,7 +408,7 @@ def _tabela_ligacao(linhas, aprovado, caso):
 
 
 def relatorio_pt(rs):
-    L = ["VERIFICACAO DE LIGACOES (ABNT NBR 8800:2008 - 6.2 / 6.3 / 6.1.5)"]
+    L = ["VERIFICACAO DE LIGACOES (ABNT NBR 8800:2024 - 6.2 / 6.3 / 6.1.5)"]
     for r in rs:
         L += ["", f"  --- {r['nome']} ({r['tipo']}) ---"]
         if r["min_governou"]:
@@ -420,8 +426,8 @@ def relatorio_pt(rs):
                       f"(>=2,7db={esp['s_min_2p7db']*1000:.0f}: {'OK' if esp['ok_espac'] else 'NAO'}) ; "
                       f"livre entre furos={esp['livre_furos']*1000:.0f} mm "
                       f"(>=db: {'OK' if esp['ok_livre'] else 'NAO'}) ; lf={esp['lf']*1000:.0f} mm",
-                      "    [FLAG] distancia furo-borda pela Tabela 14 (borda cortada x "
-                      "laminada) = confirmar; resistencia governada por 6.3.3.3 (esmag.)."]
+                      "    Distancia furo-borda conferida pela Tabela 16 (6.3.11.1); a nota "
+                      "admite distancia menor se 6.3.3.3 (pressao de contato) for atendido."]
         else:
             L += [f"    Aw={r['Aw']*1e4:.2f} cm2 ; metal solda={r['Fw_metal']:.1f} ; "
                   f"metal-base={r['Fw_base']:.1f} -> Fw,Rd={r['Fw_Rd']:.1f} kN "
@@ -433,9 +439,10 @@ def relatorio_pt(rs):
 
 
 def _selftest():
-    # parafuso: Fv,Rd = 0,4*Ab*fub/1,35
+    # parafuso: Fv,Rd = 0,45*Ab*fub/1,35 (0,56 com a rosca fora do plano de corte)
     Ab, _ = _area(0.016)
-    assert abs(fv_rd(0.016, 800e3) - 0.4 * Ab * 800e3 / 1.35) < 1e-6
+    assert abs(fv_rd(0.016, 800e3) - 0.45 * Ab * 800e3 / 1.35) < 1e-6
+    assert abs(fv_rd(0.016, 800e3, False) - 0.56 * Ab * 800e3 / 1.35) < 1e-6
     # solda: Fw = 0,60*fw*0,707*perna*L/1,35
     Fw, Aw = fw_rd_filete(0.006, 0.200, 485e3)
     assert abs(Fw - 0.60 * 485e3 * Aw / 1.35) < 1e-6
@@ -446,24 +453,24 @@ def _selftest():
     assert abs(fw_rd_base(0.008, 0.200, 250e3) - esc) < 1e-6   # sem fu -> escoamento
     # forca minima
     assert forca_minima(30.0)[0] == 45.0 and forca_minima(30.0, excecao=True)[0] == 30.0
-    # diametro do furo (Tabela 12): db=20 (<24) -> dh=21,5mm ; db=24 -> dh=26mm
-    assert abs(_diam_furo(0.020) - 0.0215) < 1e-9
-    assert abs(_diam_furo(0.024) - 0.0260) < 1e-9
-    assert abs(_diam_furo(0.030) - 0.0320) < 1e-9
-    # espacamento (6.3.9/10/11) + lf derivado da geometria. db=20, dh=21,5.
+    # diametro do furo-padrao (Tabela 14 de 2024): 20 -> 22 ; 24 -> 27 ; 30 -> 33
+    assert abs(_diam_furo(0.020) - 0.022) < 1e-9
+    assert abs(_diam_furo(0.024) - 0.027) < 1e-9
+    assert abs(_diam_furo(0.030) - 0.033) < 1e-9
+    # espacamento (6.3.9/10/11) + lf derivado da geometria. db=20, dh=22.
     esp = verifica_espacamento(0.020, s_furos=0.060, e_borda=0.035, t=0.0125)
-    assert abs(esp["dh"] - 0.0215) < 1e-9
+    assert abs(esp["dh"] - 0.022) < 1e-9
     assert esp["ok_espac"]                          # 60 >= 2,7*20=54 mm
-    assert esp["ok_livre"]                          # 60-21,5=38,5 >= 20 mm
-    assert abs(esp["lf"] - min(0.035 - 0.0215 / 2, 0.060 - 0.0215)) < 1e-9
-    # Tabela 14 (6.3.11): db=20 borda cortada -> e_min=35 mm ; e_borda=35 -> OK
-    assert abs(dist_min_borda(0.020, borda_cortada=True) - 0.035) < 1e-9
-    assert abs(dist_min_borda(0.020, borda_cortada=False) - 0.027) < 1e-9
-    assert abs(dist_min_borda(0.040, borda_cortada=True) - 1.75 * 0.040) < 1e-9  # >36mm
+    assert esp["ok_livre"]                          # 60-22=38 >= 20 mm
+    assert abs(esp["lf"] - min(0.035 - 0.022 / 2, 0.060 - 0.022)) < 1e-9
+    # Tabela 16 (6.3.11): db=20 -> e_min=26 mm, qualquer que seja a borda
+    assert abs(dist_min_borda(0.020, borda_cortada=True) - 0.026) < 1e-9
+    assert abs(dist_min_borda(0.020, borda_cortada=False) - 0.026) < 1e-9
+    assert abs(dist_min_borda(0.040) - 1.25 * 0.040) < 1e-9          # > 1 1/4"
     assert esp["ok_borda_t14"] and esp["OK"]
-    # e_borda insuficiente pela Tabela 14 reprova (db24 cortada precisa 42 mm)
-    esp3 = verifica_espacamento(0.024, s_furos=0.070, e_borda=0.035, t=0.0125)
-    assert not esp3["ok_borda_t14"] and not esp3["OK"]      # 35 < 42 mm
+    # e_borda insuficiente pela Tabela 16 reprova (db24 precisa 30 mm)
+    esp3 = verifica_espacamento(0.024, s_furos=0.070, e_borda=0.028, t=0.0125)
+    assert not esp3["ok_borda_t14"] and not esp3["OK"]      # 28 < 30 mm
     # espacamento apertado reprova (s < 2,7 db)
     esp2 = verifica_espacamento(0.020, s_furos=0.045, e_borda=0.030)
     assert not esp2["ok_espac"] and not esp2["OK"]  # 45 < 54 mm
@@ -482,7 +489,7 @@ def _selftest():
     Lgv = 0.035 + 2 * 0.060
     assert abs(bl["Lgv"] - Lgv) < 1e-9 and bl["Frd"] > 0
     # Anv com (n-0,5) furos: 3 furos -> 2,5*dh subtraidos
-    dh_esp = _diam_furo(0.020)
+    dh_esp = _diam_furo(0.020) + 0.002              # 5.2.4.1 a): furo + 2 mm
     Anv_esp = (Lgv - (3 - 0.5) * dh_esp) * 0.0125
     assert abs(bl["Anv"] - Anv_esp) < 1e-12, f"Anv {bl['Anv']} != {Anv_esp}"
     # T-stub / prying (EN 1993-1-8): 3 modos, F_T,Rd = min

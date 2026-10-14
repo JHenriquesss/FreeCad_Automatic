@@ -14,7 +14,10 @@ import math
 def temp_gases(t_min):
     return 20.0 + 345.0 * math.log10(8.0 * t_min + 1.0)
 
-# Fatores de reducao p/ aco laminado a quente (NBR 14323 Tab. 6.2 / Fakury)
+# Fatores de reducao ky e kE do aco (NBR 14323:2013, 5.1.1.2.1 e Tabela 1, lida
+# na imagem da pagina no MCP_Fontes em 2026-10-14, D232; interpolacao linear,
+# nota a). Ate' o D232 havia uma linha de 550 C que nao e' da tabela (0,63 e
+# 0,45) e kE = 0,030 a 1100 C (a tabela da' 0,023).
 _REDUCAO = [
     (20,   1.000, 1.000),
     (100,  1.000, 1.000),
@@ -22,15 +25,19 @@ _REDUCAO = [
     (300,  1.000, 0.800),
     (400,  1.000, 0.700),
     (500,  0.780, 0.600),
-    (550,  0.630, 0.450),
     (600,  0.470, 0.310),
     (700,  0.230, 0.130),
     (800,  0.110, 0.090),
     (900,  0.060, 0.068),
     (1000, 0.040, 0.045),
-    (1100, 0.020, 0.030),
+    (1100, 0.020, 0.023),
     (1200, 0.000, 0.000),
 ]
+EPS_RES = 0.7          # 8.5.1.1.3: emissividade resultante
+ALFA_C = 25.0          # 8.5.1.1.3: conveccao no incendio-padrao (W/m2.C)
+DT_SEM_REVEST = 5.0    # 8.5.1.1.4: passo maximo (s), aco sem revestimento
+DT_COM_REVEST = 30.0   # 8.5.1.2.3: passo maximo (s), aco com revestimento
+UA_MIN = 10.0          # 8.5.1.1.5: u/A nao menor que 10 m-1
 
 def k_y(theta_C):
     """Fator de reducao de fy na temperatura theta (C)."""
@@ -59,20 +66,23 @@ def massividade_I(h, b, tw, tf, lados=4):
     return u / (h * tw + 2.0 * b * tf)
 
 
-def temp_aco_nao_protegido(t_min, u_A, emissividade=0.5, amb=20.0):
-    """Temperatura do aco sem protecao apos t_min, metodo incremental
-    simplificado (NBR 14323 Anexo A). u_A em 1/m."""
-    Dt = min(t_min / 20.0, 5.0)          # passo de tempo (min)
+def temp_aco_nao_protegido(t_min, u_A, emissividade=EPS_RES, amb=20.0, ksh=1.0):
+    """Temperatura do aco sem revestimento apos t_min (NBR 14323:2013, 8.5.1.1):
+    d(theta_a) = ksh.(u/A)/(ca.rho_a).phi.dt, phi = alfa_c.(theta_g - theta_a) +
+    5,67e-8.eps_res.[(theta_g + 273)^4 - (theta_a + 273)^4], dt <= 5 s, u/A >= 10,
+    ca = 600 J/kg.C (E.3.2). Ate' o D232 o passo chegava a 5 MINUTOS, com a
+    temperatura dos gases do inicio do passo e emissividade 0,5: o aco saia frio."""
+    u_A = max(u_A, UA_MIN)
+    ca = 600.0                            # E.3.2: calor especifico simplificado (J/kg.C)
+    rho_a = 7850.0                        # massa especifica do aco (kg/m3)
+    n_passos = max(1, int(math.ceil(t_min * 60.0 / DT_SEM_REVEST)))
+    Dt = t_min * 60.0 / n_passos          # s
     theta_a = amb
-    n_passos = int(t_min / Dt)
-    ca = 600.0                            # calor especifico do aco (J/kgC)
-    rho_a = 7850.0                        # massa especifica aco (kg/m3)
-    for _ in range(n_passos):
-        theta_g = 20.0 + 345.0 * math.log10(8.0 * _ * Dt + 1.0)
-        h_net = 25.0 * (theta_g - theta_a) + 5.67e-8 * emissividade * (
+    for i in range(n_passos):
+        theta_g = temp_gases(i * Dt / 60.0)
+        phi = ALFA_C * (theta_g - theta_a) + 5.67e-8 * emissividade * (
             (theta_g + 273.0) ** 4 - (theta_a + 273.0) ** 4)
-        dtheta = (u_A / (ca * rho_a)) * h_net * Dt * 60.0
-        theta_a += dtheta
+        theta_a += ksh * (u_A / (ca * rho_a)) * phi * Dt
     return round(theta_a, 1)
 
 
@@ -141,13 +151,14 @@ _PROT_TERM = {
 
 
 def _temp_com_protecao(t_min, u_A, tipo, espessura_mm, props=None):
-    """Temperatura do aco COM protecao pelo metodo incremental da NBR 14323
-    (Anexo B / Fluxograma 2). A ESPESSURA da protecao (tp) entra fisicamente:
+    """Temperatura do aco COM revestimento (NBR 14323:2013, 8.5.1.2.2). A
+    ESPESSURA do revestimento (tp) entra:
       - na condutancia termica lambda_p/tp (barreira ao fluxo de calor);
-      - no fator de inercia termica xi = (c_p*rho_p)/(c_a*rho_a)*tp*(u/A).
-    Passo a passo (Dt<=30 s), com:
-      dtheta_a = (lambda_p/tp)*(u/A)/(c_a*rho_a) * (theta_g - theta_a)/(1+xi/3)*Dt
-                 - (e^(xi/10) - 1) * dtheta_g
+      - no fator xi = (c_p*rho_p)/(c_a*rho_a)*tp*(u/A).
+    Passo a passo (Dt <= 30 s, 8.5.1.2.3), com:
+      dtheta_a = (lambda_p/tp)*(u/A)/(c_a*rho_a) * (theta_g - theta_a)/(1+xi/4)*Dt
+                 - dtheta_g/((4/xi) + 1) , mas dtheta_a >= 0 se dtheta_g > 0
+    Ate' o D232 o motor usava a forma do Eurocode (1 + xi/3 e e^(xi/10) - 1).
     `props`: dict opcional {lambda_p, c_p, rho_p} do BOLETIM do fabricante;
     o que faltar cai no valor TIPICO calibrado de _PROT_TERM. Retorna a
     temperatura do aco (C) apos t_min."""
@@ -160,7 +171,7 @@ def _temp_com_protecao(t_min, u_A, tipo, espessura_mm, props=None):
     c_p = props.get("c_p", base["c_p"])
     rho_p = props.get("rho_p", base["rho_p"])
     ca, rho_a = 600.0, 7850.0                  # aco
-    Dt = min(0.5, max(t_min / 200.0, 1e-3))    # passo (min) <= 30 s p/ estabilidade
+    Dt = min(DT_COM_REVEST / 60.0, max(t_min / 200.0, 1e-3))   # passo (min) <= 30 s
     n_passos = max(1, int(round(t_min / Dt)))
     Dt = t_min / n_passos
     xi = (c_p * rho_p) / (ca * rho_a) * tp * u_A
@@ -170,8 +181,8 @@ def _temp_com_protecao(t_min, u_A, tipo, espessura_mm, props=None):
         theta_g = 20.0 + 345.0 * math.log10(8.0 * (i + 1) * Dt + 1.0)
         d_theta_g = theta_g - theta_g_prev
         d_theta_a = ((lam_p / tp) * (u_A / (ca * rho_a))
-                     * (theta_g - theta_a) / (1.0 + xi / 3.0) * Dt * 60.0
-                     - (math.exp(xi / 10.0) - 1.0) * d_theta_g)
+                     * (theta_g - theta_a) / (1.0 + xi / 4.0) * Dt * 60.0
+                     - d_theta_g / (4.0 / xi + 1.0))
         if d_theta_a < 0.0 and d_theta_g > 0.0:
             d_theta_a = 0.0                    # NBR 14323: nao resfria enquanto gases sobem
         theta_a += d_theta_a

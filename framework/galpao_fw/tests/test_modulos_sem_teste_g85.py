@@ -44,13 +44,15 @@ def test_fogo_gases_trrf60_confere_iso834():
 
 
 def test_fogo_reducao_nos_nos_da_tabela_nbr14323():
-    """Nos exatos da Tab. 6.2: ky(500)=0.78, ky(600)=0.47, kE(600)=0.31."""
+    """Nos exatos da Tabela 1 da NBR 14323:2013: ky(500)=0.78, ky(600)=0.47,
+    kE(600)=0.31; 550 C nao e' no da tabela (interpolacao linear, nota a)."""
     assert fogo.k_y(500.0) == pytest.approx(0.78)
     assert fogo.k_y(600.0) == pytest.approx(0.47)
     assert fogo.k_E(600.0) == pytest.approx(0.31)
     assert fogo.k_y(20.0) == pytest.approx(1.0)
     assert fogo.k_y(1200.0) == pytest.approx(0.0)
-    assert fogo.k_y(550.0) == pytest.approx(0.63)  # interpolado entre nos
+    assert fogo.k_y(550.0) == pytest.approx(0.625)  # (0,78 + 0,47)/2 (D232: era 0,63)
+    assert fogo.k_E(1100.0) == pytest.approx(0.023)  # D232: era 0,030
 
 
 def test_fogo_verifica_protecao_reduz_temperatura():

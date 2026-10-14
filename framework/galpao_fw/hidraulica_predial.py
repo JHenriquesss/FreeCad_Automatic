@@ -318,9 +318,11 @@ COMPRIMENTO_EQUIV_M = {
     100: (4.3, 1.9, 1.6, 1.0, 2.6, 8.3), 125: (4.9, 2.4, 1.9, 1.1, 3.3, 10.0),
     150: (5.4, 2.6, 2.1, 1.2, 3.8, 11.1),
 }
-# Pressao dinamica minima no ponto (NBR 5626:1998 Sec.5.3.5.1): 10 kPa geral; 5 kPa na
-# caixa de descarga; 15 kPa na valvula de descarga p/ bacia sanitaria.
-P_MIN_PONTO_KPA = {"geral": 10.0, "caixa_descarga": 5.0, "valvula_descarga": 15.0}
+# Pressao dinamica minima no ponto: NBR 5626:2020, 6.9.2 - a pressao requerida e' a
+# do fabricante e "em qualquer caso" nao inferior a 10 kPa (lido no MCP_Fontes,
+# D232). A edicao de 1998 aceitava 5 kPa na caixa de descarga; a de 2020 nao.
+# 15 kPa na valvula de descarga e' o requisito tipico do fabricante (A CONFIRMAR).
+P_MIN_PONTO_KPA = {"geral": 10.0, "caixa_descarga": 10.0, "valvula_descarga": 15.0}
 PESO_ESPEC_AGUA_KPA_M = 10.0    # peso especifico da agua (10 kN/m3 = 10 kPa/m) - A.4.2
 
 
@@ -358,10 +360,10 @@ def comprimento_equivalente(dn_mm, conexoes):
 
 def verifica_pressao(Q_ls, d_mm, L_real_m, p_entrada_kPa, conexoes=None, dcota_m=0.0,
                      material="liso", tipo_ponto="geral", perda_singular_kPa=0.0):
-    """Verifica a pressao no ponto de utilizacao (NBR 5626:1998 Anexo A.2/A.4 + Sec.5.3.5.1).
+    """Verifica a pressao no ponto de utilizacao (NBR 5626 Anexo A.2/A.4 + 2020, 6.9.2).
     p_disponivel = p_entrada + dcota*10 (dcota>0 = ponto ABAIXO da entrada -> ganho);
     p_residual = p_disponivel - J*(L_real+Leq) - perdas singulares. OK se p_residual >=
-    minimo do ponto (10 geral / 5 caixa / 15 valvula). Retorna o balanco completo."""
+    minimo do ponto (10 geral e caixa / 15 valvula). Retorna o balanco completo."""
     if tipo_ponto not in P_MIN_PONTO_KPA:
         raise ValueError("tipo_ponto invalido: %r (validos: %s)."
                          % (tipo_ponto, tuple(P_MIN_PONTO_KPA)))

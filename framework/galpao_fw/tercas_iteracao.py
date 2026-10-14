@@ -29,16 +29,21 @@ BAY = 5.0           # vao da terca (espacamento de porticos), m
 LY = 2.5            # eixo fraco (linha de corrente no meio-vao), m
 TRIB = 1.675        # largura de influencia da agua, m
 THETA = math.atan(0.5 / 5.0)
+# Distancia entre travamentos da mesa INFERIOR (a comprimida na succao), m. None =
+# vao inteiro: a linha de corrente comum trava so' a mesa superior. Declarar so'
+# quando o detalhe travar a mesa inferior (NBR 14762:2010, 9.8.2.2; D232).
+LB_SUCCAO = None
 
 
-def configurar(bay=None, ly=None, trib=None, theta=None, fy=None):
+def configurar(bay=None, ly=None, trib=None, theta=None, fy=None, lb_succao=None):
     """Parametros da terca do projeto (do gate). None mantem o atual."""
-    global BAY, LY, TRIB, THETA, FY
+    global BAY, LY, TRIB, THETA, FY, LB_SUCCAO
     if bay is not None:   BAY = float(bay)
     if ly is not None:    LY = float(ly)
     if trib is not None:  TRIB = float(trib)
     if theta is not None: THETA = float(theta)
     if fy is not None:    FY = float(fy)
+    if lb_succao is not None: LB_SUCCAO = float(lb_succao)
 
 # escada Ue (bw x bf x D x t, mm) do mais leve ao mais pesado
 ESCADA = [
@@ -51,6 +56,7 @@ def _props_ue(bw, bf, D, t):
     """Propriedades da linha media via prop2 (mm) -> SI. A CONFIRMAR catalogo."""
     coord, ends = fsm.secao_ue(bw, bf, D, t)
     sp = prop2(coord, ends)
+    tor = tc.torcao_secao_aberta(coord, ends)
     cx, cy = sp["cx"], sp["cy"]
     ymax = max(abs(coord[:, 1] - cy))
     xmax = max(abs(coord[:, 0] - cx))
@@ -59,6 +65,8 @@ def _props_ue(bw, bf, D, t):
         "bw": bw, "bf": bf, "D": D, "t": t, "r": 0.0, "secao": "U",
         "A": sp["A"] * 1e-6, "Ix": sp["Ixx"] * 1e-12, "Iy": sp["Iyy"] * 1e-12,
         "Wx": (sp["Ixx"] / ymax) * 1e-9, "Wy": (sp["Iyy"] / xmax) * 1e-9,
+        # torcao (9.8.2.2): J, Cw e a distancia do centro de torcao ao centroide
+        "J": tor["J"] * 1e-12, "Cw": tor["Cw"] * 1e-18, "x0": tor["x0"] * 1e-3,
         "peso": sp["A"],           # ~ area (proxy do peso linear)
     }
 
@@ -82,6 +90,8 @@ def avalia(bw, bf, D, t):
            "larg_influencia": TRIB, "continua": False,
            "G": 0.10, "Q": 0.25, "W": _sucao_caracteristica(),
            "Mdist": md.get("Mdist_kNm")}
+    if LB_SUCCAO:
+        cfg["Lb_succao"] = LB_SUCCAO
     res = tc.verifica_terca(perfil, cfg)
     ok = all(c["OK"] for c in res["casos"].values()) and \
         res["els"]["ok_grav"] and res["els"]["ok_vento"]
@@ -112,7 +122,12 @@ def memoria_pt():
          f"Vao {BAY:.1f} m ; linha de corrente no meio (Ly={LY:.1f} m) ; "
          f"trib {TRIB:.3f} m ; inclinacao {math.degrees(THETA):.2f} graus",
          f"Cargas caract.: G=0,10 Q=0,25 W={W:+.3f} kN/m2 (pior sucao do vento) ; "
-         f"aco fy={FY/1000:.0f} MPa", "",
+         f"aco fy={FY/1000:.0f} MPa",
+         "Succao (mesa inferior comprimida): Anexo F (fator R) so' dentro das condicoes",
+         "de F.1; fora delas, flambagem lateral com torcao (9.8.2.2) com a mesa inferior",
+         (f"travada a cada {LB_SUCCAO:.2f} m (declarado)." if LB_SUCCAO else
+          f"destravada no vao inteiro ({BAY:.1f} m): a linha de corrente comum trava so' a superior."),
+         "",
          f"{'Perfil':>18} {'Mdist':>7} {'disp?':>5} {'inter':>6} {'flecha_v':>9} | resultado",
          "-" * 74]
     adotado = None

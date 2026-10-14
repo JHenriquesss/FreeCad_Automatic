@@ -6,7 +6,7 @@
 #     D226): Nc,Rd = chi.Aef.fy/ga1; chi de 5.3.3 com lambda0 = raiz(Ag.fy/Ne);
 #     Ne = menor entre flexao em x, flexao em y e torcao (5.3.5.1); Aef pelas
 #     larguras efetivas de 5.3.4.2 (Tabelas 4 e 5). A edicao de 2008 fazia a
-#     flambagem local pelo fator Q do Anexo F (`fator_Q`, mantido para a tesoura).
+#     flambagem local pelo fator Q do Anexo F (`fator_Q`, que ficou so' como registro da edicao anterior).
 #   Flexao: NBR 8800:2024/Er1:2025, 5.4.2 e Anexo D (lidos no MCP_Fontes em
 #     2026-10-13, D231; na edicao de 2008 era o Anexo G). Estados-limite FLT,
 #     FLM e FLA da Tabela D.1 para I/H de dois eixos de simetria: Mr = (fy -
@@ -187,6 +187,24 @@ def momento_resistente(sec, fy, Lb, Cb=1.0):
                      "Mn_teto": Mn_teto, "Cw": Cw, "J": J, "anexo": "D"}
 
 
+def compressao(sec, fy, Lx, Ly):
+    """NBR 8800:2024, 5.3: forca axial de compressao resistente de calculo do
+    perfil I/H. Lx e Ly sao os comprimentos de flambagem (K.L) por flexao em x e
+    em y; a torcao usa o de y. Ne de 5.3.5.1, chi de 5.3.3, Aef de 5.3.4."""
+    A, Ix, Iy = sec["A"], sec["Ix"], sec["Iy"]
+    Cw, J = _cw_j(sec)
+    Nex = math.pi ** 2 * E * Ix / Lx ** 2
+    Ney = math.pi ** 2 * E * Iy / Ly ** 2
+    Nez = (math.pi ** 2 * E * Cw / Ly ** 2 + G_ACO * J) / ((Ix + Iy) / A)
+    Ne = min(Nex, Ney, Nez)
+    lambda0 = math.sqrt(A * fy / Ne)
+    chi = chi_compressao(lambda0)
+    Aef, Qs, Qa = area_efetiva(sec, fy, chi)
+    return {"Q": Aef / A, "Qs": Qs, "Qa": Qa, "Aef": Aef, "Ne": Ne, "Nex": Nex,
+            "Ney": Ney, "Nez": Nez, "lambda0": lambda0, "chi": chi,
+            "Nc_Rd": chi * Aef * fy / GA1}
+
+
 def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""):
     A, Ix, Iy = sec["A"], sec["Ix"], sec["Iy"]
     d, tw, tf = sec["d"], sec["tw"], sec["tf"]
@@ -197,18 +215,8 @@ def verifica(sec, fy, L, Nsd, Msd, Vsd, Kx=1.0, Ky=1.0, Lb=None, Cb=1.0, nome=""
 
     # Compressao (NBR 8800:2024, 5.3): Ne de 5.3.5.1 (flexao em x, em y e torcao,
     # esta com o mesmo comprimento destravado de y), chi de 5.3.3 e Aef de 5.3.4
-    Cw, J = _cw_j(sec)
-    Nex = math.pi ** 2 * E * Ix / (Kx * L) ** 2
-    Ney = math.pi ** 2 * E * Iy / (Ky * Lb) ** 2
-    Nez = (math.pi ** 2 * E * Cw / (Ky * Lb) ** 2 + G_ACO * J) / ((Ix + Iy) / A)
-    Ne = min(Nex, Ney, Nez)
-    lambda0 = math.sqrt(A * fy / Ne)
-    chi = chi_compressao(lambda0)
-    Aef, Qs, Qa = area_efetiva(sec, fy, chi)
-    Q = Aef / A
-    Nc_Rd = chi * Aef * fy / GA1
-    r.update(Q=Q, Qs=Qs, Qa=Qa, Aef=Aef, Ne=Ne, Nex=Nex, Ney=Ney, Nez=Nez,
-             lambda0=lambda0, chi=chi, Nc_Rd=Nc_Rd)
+    r.update(compressao(sec, fy, Kx * L, Ky * Lb))
+    Nc_Rd = r["Nc_Rd"]
 
     # Flexao (NBR 8800:2024, 5.4.2 e Anexo D; alma esbelta: Anexo E)
     Mn, gov, det = momento_resistente(sec, fy, Lb, Cb)

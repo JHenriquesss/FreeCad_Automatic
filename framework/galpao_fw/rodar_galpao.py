@@ -126,6 +126,21 @@ def _esforcos_base_joelho():
     return base_best, knee_best
 
 
+def _esforcos_base_todos():
+    """(nome, N, V, M) na base de cada coluna em cada combinacao ELU; N > 0 =
+    compressao (reacao para cima)."""
+    casos = _casos_mf_reac()
+    _, _, ix = casos["G"]
+    bases = ix.get("nBases", [ix.get("nBaseL"), ix.get("nBaseR")])
+    lista = []
+    for nm, c in gp._combos_elu(gp.PONTE, gp.SISMO).items():
+        for i, nb in enumerate(bases):
+            R = sum(fac * casos[cs][1] for cs, fac in c.items())
+            lista.append(("%s, coluna %d" % (nm, i), float(R[3 * nb + 1]),
+                          float(R[3 * nb]), float(R[3 * nb + 2])))
+    return lista
+
+
 def _esforcos_cumeeira():
     """Esforcos (nome, N, V, M) na ponta da viga que chega a cumeeira: pior |M|
     entre os vaos e as combinacoes ELU. None no portico sem cumeeira (uma agua)."""
@@ -246,7 +261,7 @@ def rodar(params, out_dir):
                       aguas=_aguas)
     ti.configurar(bay=g["bay"], ly=g["bay"] / 2.0,
                   trib=params["terca"]["trib"], theta=gp.THETA,
-                  fy=params["terca"]["fy"])
+                  fy=params["terca"]["fy"], lb_succao=params["terca"].get("Lb_succao"))
     if params.get("vento"):                       # parametros de sitio (Gate 5)
         vt = params["vento"]
         vento.configurar(v0=vt.get("v0"), cat=vt.get("cat"), classe=vt.get("classe"),
@@ -733,10 +748,15 @@ def rodar(params, out_dir):
     b = dict(params["base"])
     b.update(N=abs(bN) if bN > 0 else bN, V=abs(bV), M=abs(bM),
              nome=f"Base engastada - {bnm} (M={abs(bM):.1f})")
-    if res.get("perfil_col") in perfis.PERFIS:      # base ve o pilar ADOTADO
-        pc = perfis.PERFIS[res["perfil_col"]]
-        b["d_col"] = pc["d"]; b["bf_col"] = pc["bf"]; b["beff_tracao"] = pc["bf"]
-    dimb = bc.dimensiona_base(b)                     # dimensiona ao esforco real
+    # base ve o pilar ADOTADO (sc["perfil_col"], o da coluna 0). Ate' o D232 o
+    # teste era `res.get("perfil_col")`, chave que nunca existiu: a base e o
+    # pedestal saiam sempre com as medidas do HEA200 do exemplo.
+    pc = sc["perfil_col"]
+    b["d_col"] = pc["d"]; b["bf_col"] = pc["bf"]; b["beff_tracao"] = pc["bf"]
+    # a base passa em TODAS as combinacoes e colunas (N, V, M simultaneos), nao
+    # so' na de maior momento: o arrancamento com cortante costuma governar o
+    # chumbador (NBR 8800:2024, 6.7.2.2 e 6.7.2.5; D232).
+    dimb = bc.dimensiona_base(b, esforcos=_esforcos_base_todos())
     save("gate7-base.txt", dimb["tabela"])
     if dimb["aprovado"]:
         B, Lm, tb, db, nb, rb, cb = dimb["aprovado"]
@@ -744,6 +764,8 @@ def rodar(params, out_dir):
         res["base_adotada"] = {"B": B, "L": Lm, "t": tb, "db": db, "n": nb}
         res["base_util"] = round(max(rb["u_tracao"], rb["u_corte"], rb["u_concreto"]), 2)
         res["base_ok"] = True
+        if dimb.get("chaveta"):
+            res["base_chaveta"] = {k: round(float(v), 4) for k, v in dimb["chaveta"].items()}
     else:
         res["base_adotada"] = {"B": b["B"], "L": b["L"], "t": b["t_placa"],
                                "db": b["db"], "n": b["n_chumbadores"]}
@@ -761,7 +783,7 @@ def rodar(params, out_dir):
             dc, tw_c, tf_c, bf_c, Ag_c = pj["d"], pj["tw"], pj["tf"], pj["bf"], pj["A"]
             d_viga, tf_viga = tap["h_joelho"], tap.get("tf", 0.0125)
         else:
-            pc = perfis.PERFIS.get(res.get("perfil_col"), sc["perfil_col"])
+            pc = sc["perfil_col"]
             praf = sc["perfil_raf"]
             dc, tw_c, tf_c, bf_c, Ag_c = pc["d"], pc["tw"], pc["tf"], pc["bf"], pc["A"]
             d_viga, tf_viga = praf["d"], praf["tf"]
@@ -805,8 +827,8 @@ def rodar(params, out_dir):
     # pega a combinacao que a governa (bearing = N max gravitacional ; tombamento
     # = N min + M ; etc). Pedestal ~ pilar adotado.
     sap = dict(params["fundacao"])
-    if res.get("perfil_col") in perfis.PERFIS:
-        pc = perfis.PERFIS[res["perfil_col"]]
+    if sc.get("perfil_col"):                        # pedestal ~ pilar adotado (D232)
+        pc = sc["perfil_col"]
         sap["b_ped"] = max(sap.get("b_ped", 0.30), round(pc["bf"] + 0.10, 2))
         sap["d_ped"] = max(sap.get("d_ped", 0.30), round(pc["d"] + 0.10, 2))
     # alvenaria autoportante: desce direto na fundacao (nao pela coluna de aco) ->

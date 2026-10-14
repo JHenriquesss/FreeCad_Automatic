@@ -6,7 +6,12 @@
 # de influencia, inclinacao, CARGAS CARACTERISTICAS G/Q/W) e verifica:
 #   - Momento resistente por escoamento da secao efetiva (9.8.2.1, MSE) -> caso
 #     GRAVIDADE (mesa comprimida travada pela telha, sem FLT).
-#   - Momento resistente sob SUCCAO (mesa comprimida livre): Anexo F -> R*Wef.
+#   - Momento resistente sob SUCCAO (mesa comprimida livre): Anexo F -> R*Wef,
+#     SO' dentro das condicoes de F.1 (60 <= bw/t <= 170, 2,8 <= bw/bf <= 4,5,
+#     16 <= b/t <= 43, vao < 10 m, fy <= 410 MPa, bw <= 292 mm). Fora delas vale a
+#     flambagem lateral com torcao de 9.8.2.2, com a mesa comprimida (a de baixo)
+#     destravada no vao inteiro, salvo travamento declarado em cfg["Lb_succao"]
+#     (conferido no MCP_Fontes em 2026-10-14, D232).
 #   - Flambagem distorcional (9.8.2.3): dispensa (Tab.14) ou, se informado o
 #     Mdist (analise de estabilidade elastica), entra no menor MRd.
 #   - Cortante (9.8.3).
@@ -96,6 +101,118 @@ def fator_R_anexoF(bw_mm, secao="U", continua=False):
     return None                                     # fora do escopo do Anexo F
 
 
+G_ACO = 77e6       # kN/m2 (modulo de elasticidade transversal do aco)
+
+
+def condicoes_anexoF(bw, bf, t, L, fy, r=0.0):
+    """NBR 14762:2010, F.1: condicoes das alineas b), c), d), e), g) e m) que
+    se conferem pela geometria e pelo vao (dimensoes em mm, L em m, fy em
+    kN/m2). Devolve a lista das NAO atendidas (vazia = o fator R vale). As
+    demais alineas (painel, conectores, traspasse) sao de execucao e ficam para
+    o projeto."""
+    b_plana = bf - 2.0 * (t + r)
+    fora = []
+    if bw > 292.0:
+        fora.append("bw = %.0f mm > 292" % bw)
+    if not 60.0 <= bw / t <= 170.0:
+        fora.append("bw/t = %.1f fora de 60 a 170" % (bw / t))
+    if not 2.8 <= bw / bf <= 4.5:
+        fora.append("bw/bf = %.2f fora de 2,8 a 4,5" % (bw / bf))
+    if not 16.0 <= b_plana / t <= 43.0:
+        fora.append("b/t = %.1f fora de 16 a 43" % (b_plana / t))
+    if L >= 10.0:
+        fora.append("vao = %.2f m, nao inferior a 10 m" % L)
+    if fy > 410e3:
+        fora.append("fy = %.0f MPa > 410" % (fy / 1000.0))
+    return fora
+
+
+def torcao_secao_aberta(coord, ends):
+    """J, Cw e centro de torcao de uma secao aberta de parede fina dada pela
+    linha media (coord: pontos (x, y); ends: (i, j, t), em sequencia, sem
+    ramificacao). Coordenada setorial com polo no centroide, polo transferido
+    para o centro de torcao pelas condicoes integral(w.x dA) = integral(w.y dA) = 0
+    e Cw = integral(wn2 dA), com wn normalizada. Mesmas unidades da entrada
+    (mm -> J em mm4, Cw em mm6). A `prop2` do pycufsm devolve Cw = 0 para o Ue
+    (medido em 2026-10-14): por isso a conta propria."""
+    els = [(int(i), int(j), float(tt)) for i, j, tt in ends]
+    A = sum(math.hypot(coord[j][0] - coord[i][0], coord[j][1] - coord[i][1]) * tt
+            for i, j, tt in els)
+    xc = sum(math.hypot(coord[j][0] - coord[i][0], coord[j][1] - coord[i][1]) * tt
+             * (coord[i][0] + coord[j][0]) / 2.0 for i, j, tt in els) / A
+    yc = sum(math.hypot(coord[j][0] - coord[i][0], coord[j][1] - coord[i][1]) * tt
+             * (coord[i][1] + coord[j][1]) / 2.0 for i, j, tt in els) / A
+    pts = [(float(p[0]) - xc, float(p[1]) - yc) for p in coord]
+
+    def setorial(px, py):
+        w = {els[0][0]: 0.0}
+        for i, j, _tt in els:
+            (xa, ya), (xb, yb) = pts[i], pts[j]
+            w[j] = w[i] + (xa - px) * (yb - py) - (xb - px) * (ya - py)
+        return w
+
+    def integ(fa, fb, ga, gb, dA):
+        return dA / 6.0 * (2 * fa * ga + fa * gb + fb * ga + 2 * fb * gb)
+
+    def momentos(w):
+        s = dict(Ixx=0.0, Iyy=0.0, Ixy=0.0, Iwx=0.0, Iwy=0.0, Iw=0.0, Sw=0.0)
+        for i, j, tt in els:
+            (xa, ya), (xb, yb) = pts[i], pts[j]
+            dA = math.hypot(xb - xa, yb - ya) * tt
+            s["Ixx"] += integ(ya, yb, ya, yb, dA)
+            s["Iyy"] += integ(xa, xb, xa, xb, dA)
+            s["Ixy"] += integ(xa, xb, ya, yb, dA)
+            s["Iwx"] += integ(w[i], w[j], xa, xb, dA)
+            s["Iwy"] += integ(w[i], w[j], ya, yb, dA)
+            s["Iw"] += integ(w[i], w[j], w[i], w[j], dA)
+            s["Sw"] += dA * (w[i] + w[j]) / 2.0
+        return s
+
+    m = momentos(setorial(0.0, 0.0))
+    # Iwy - xs.Ixx + ys.Ixy = 0 ; Iwx - xs.Ixy + ys.Iyy = 0
+    det = m["Ixx"] * m["Iyy"] - m["Ixy"] ** 2
+    xs = (m["Iwy"] * m["Iyy"] - m["Iwx"] * m["Ixy"]) / det
+    ys = (m["Iwy"] * m["Ixy"] - m["Iwx"] * m["Ixx"]) / det
+    ms = momentos(setorial(xs, ys))
+    Cw = ms["Iw"] - ms["Sw"] ** 2 / A
+    J = sum(math.hypot(coord[j][0] - coord[i][0], coord[j][1] - coord[i][1]) * tt ** 3
+            for i, j, tt in els) / 3.0
+    return {"A": A, "J": J, "Cw": Cw, "xs": xs, "ys": ys, "x0": math.hypot(xs, ys),
+            "xc": xc, "yc": yc}
+
+
+def chi_flt(lam0):
+    """9.8.2.2: fator de reducao da flambagem lateral com torcao."""
+    if lam0 <= 0.6:
+        return 1.0
+    if lam0 < 1.336:
+        return 1.11 * (1.0 - 0.278 * lam0 ** 2)
+    return 1.0 / lam0 ** 2
+
+
+def mrd_flt(perfil, fy, Lb, Ml, Cb=1.0):
+    """9.8.2.2: M_Rd = chi_FLT.Wc,ef.fy/gama para o perfil U enrijecido fletido
+    em torno do eixo de simetria, mesa comprimida livre entre travamentos
+    distantes Lb. Me = Cb.r0.raiz(Ney.Nez) (9.7.2.1, KyLy = KzLz = Lb). Wc,ef
+    pelo MSE com lambda_p = raiz(chi.Wc.fy/Ml). Precisa de A, Ix, Iy, J, Cw e x0
+    (distancia do centro de torcao ao centroide) no perfil; sem eles devolve
+    None."""
+    if not all(perfil.get(k) for k in ("A", "Ix", "Iy", "J", "Cw")) or "x0" not in perfil:
+        return None
+    A, Ix, Iy = perfil["A"], perfil["Ix"], perfil["Iy"]
+    Wc = perfil.get("Wxc", perfil["Wx"])
+    r0q = (Ix + Iy) / A + perfil["x0"] ** 2
+    Ney = math.pi ** 2 * E * Iy / Lb ** 2
+    Nez = (math.pi ** 2 * E * perfil["Cw"] / Lb ** 2 + G_ACO * perfil["J"]) / r0q
+    Me = Cb * math.sqrt(r0q) * math.sqrt(Ney * Nez)
+    lam0 = math.sqrt(Wc * fy / Me)
+    chi = chi_flt(lam0)
+    lp = math.sqrt(chi * Wc * fy / Ml)
+    Wcef = Wc if lp <= 0.673 else Wc * (1.0 - 0.22 / lp) / lp
+    return {"Mrd": chi * Wcef * fy / GA, "Me": Me, "lambda0": lam0, "chi": chi,
+            "Wcef": Wcef, "Lb": Lb}
+
+
 # Tabela 14: D/bw minimo para DISPENSAR distorcional (flexao, Ue). bw/t nas
 # colunas (250,200,125,100,50) ; bf/bw nas linhas.
 _TAB14_BWT = [250, 200, 125, 100, 50]
@@ -182,8 +299,18 @@ def verifica_terca(perfil, cfg):
 
     # ---- eixo forte: momentos resistentes ---------------------------------
     Mrd_local = Wef * fy / GA                                  # 9.8.2.1
-    R = fator_R_anexoF(bw, perfil.get("secao", "U"), cfg.get("continua", False))
+    anexoF_fora = condicoes_anexoF(bw, bf, t, cfg["vao"], fy, perfil.get("r", 0.0))
+    R = (None if anexoF_fora else
+         fator_R_anexoF(bw, perfil.get("secao", "U"), cfg.get("continua", False)))
     Mrd_succ_local = (R * Wef * fy / GA) if R else None        # Anexo F
+    # fora do Anexo F: flambagem lateral com torcao (9.8.2.2). A mesa comprimida
+    # na succao e' a de baixo, que a linha de corrente em geral nao trava: Lb =
+    # vao da terca, salvo cfg["Lb_succao"] (travamento declarado da mesa inferior).
+    flt = None
+    if Mrd_succ_local is None:
+        flt = mrd_flt(perfil, fy, cfg.get("Lb_succao", cfg["vao"]), Ml)
+        if flt:
+            Mrd_succ_local = flt["Mrd"]
     # distorcional (9.8.2.3): dispensa (Tab.14) ou Mdist informado
     disp, lim14 = dispensa_distorcional(bw, bf, D, t)
     Mdist = cfg.get("Mdist")
@@ -244,7 +371,8 @@ def verifica_terca(perfil, cfg):
 
     res = {"perfil": perfil.get("nome", "Ue"), "kl": kl, "Wef": Wef, "Ml": Ml,
            "lp": lp, "Mrd_local": Mrd_local, "Mrd_grav": Mrd_grav,
-           "Mrd_succ": Mrd_succ, "R": R, "Mrdy": Mrdy, "Wefy": Wefy,
+           "Mrd_succ": Mrd_succ, "R": R, "anexoF_fora": anexoF_fora, "flt": flt,
+           "Mrdy": Mrdy, "Wefy": Wefy,
            "rho_y": rho_y, "Vrd": Vrd, "dispensa_dist": disp, "lim_tab14": lim14,
            "Mrd_dist": Mrd_dist, "dist_inconclusivo": dist_inconclusivo,
            "Ief": Ief, "Ief_fonte": Ief_fonte, "aviso_eixo_fraco": aviso_y,
@@ -261,7 +389,9 @@ def verifica_terca(perfil, cfg):
         Msy = cM * abs(qy) * Ly ** 2
         Vsx = cV * abs(qx) * L
         uplift = qx < 0                             # mesa comprimida livre
-        Mrdx = Mrd_succ if (uplift and Mrd_succ) else Mrd_grav
+        # na succao a mesa comprimida esta livre: sem Anexo F e sem 9.8.2.2 nao
+        # ha' resistencia a declarar (antes caia na da mesa travada)
+        Mrdx = Mrd_succ if uplift else Mrd_grav
         inter = (Msx / Mrdx + Msy / Mrdy) if Mrdx else float("inf")
         okv = Vsx / Vrd
         # 9.8.4 M+V combinados, alma SEM enrijecedores transversais (terca):
@@ -271,7 +401,7 @@ def verifica_terca(perfil, cfg):
         ok = (inter <= 1.0 and okv <= 1.0 and mv <= 1.0
               and not (uplift and dist_inconclusivo))
         res["casos"][nome] = {"qx": qx, "qy": qy, "Msx": Msx, "Msy": Msy,
-                              "Vsx": Vsx, "Mrdx": Mrdx, "uplift": uplift,
+                              "Vsx": Vsx, "Mrdx": Mrdx or 0.0, "uplift": uplift,
                               "interacao": inter, "uV": okv, "mv": mv, "OK": ok}
 
     gf = g.get("G_fav", 0.90)
@@ -306,7 +436,13 @@ def relatorio_pt(res, cfg):
          f"lambda_p = {res['lp']:.3f}",
          f"  Wef = {res['Wef']*1e6:.2f} cm3 ; Mrd(local) = {res['Mrd_local']:.2f} kN.m",
          (f"  Anexo F: R = {res['R']} ; Mrd(succao) = {res['Mrd_succ']:.2f} kN.m"
-          if res['Mrd_succ'] else "  Anexo F: fora do escopo (bw>292)"),
+          if res['R'] else
+          "  Anexo F NAO se aplica (F.1): " + "; ".join(res['anexoF_fora'] or ["fora da Tabela F.1"])
+          + (f". Succao pela flambagem lateral com torcao (9.8.2.2), Lb = "
+             f"{res['flt']['Lb']:.2f} m: lambda0 = {res['flt']['lambda0']:.2f} ; chi = "
+             f"{res['flt']['chi']:.3f} ; Mrd(succao) = {res['Mrd_succ']:.2f} kN.m"
+             if res['flt'] else
+             ". Sem J, Cw e x0 do perfil nao ha' como calcular 9.8.2.2: SUCCAO SEM RESISTENCIA DECLARADA.")),
          f"  Eixo fraco: rho_y = {res['rho_y']:.3f} -> Wef,y = {res['Wefy']*1e6:.2f} cm3 "
          f"; Mrd,y = {res['Mrdy']:.2f} kN.m (NAO usa Wy bruto)",
          f"  [AVISO] {res['aviso_eixo_fraco']}",

@@ -103,9 +103,10 @@ def test_verifica_pressao_balanco():
 
 
 def test_verifica_pressao_reprova_e_tipos_de_ponto():
-    # pressao baixa -> reprova ; valvula de descarga exige 15 kPa, caixa aceita 5 kPa
+    # pressao baixa -> reprova ; valvula de descarga exige 15 kPa ; caixa de descarga
+    # 10 kPa como qualquer ponto (NBR 5626:2020, 6.9.2; a de 1998 aceitava 5 - D232)
     assert not hp.verifica_pressao(0.30, 25.0, 5.0, 12.0, tipo_ponto="valvula_descarga")["OK"]
-    assert hp.P_MIN_PONTO_KPA["caixa_descarga"] == 5.0
+    assert hp.P_MIN_PONTO_KPA["caixa_descarga"] == 10.0
     assert hp.P_MIN_PONTO_KPA["valvula_descarga"] == 15.0
     with pytest.raises(ValueError):
         hp.verifica_pressao(0.30, 25.0, 5.0, 100.0, tipo_ponto="inexistente")

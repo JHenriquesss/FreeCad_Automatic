@@ -3,8 +3,10 @@
 # Dimensiona/verifica a LIGACAO DE BASE de um pilar (placa de base + chumbadores)
 # sob N (axial), V (cortante) e M (momento) - serve para base rotulada (M=0) e
 # engastada (M/=0). Generico e parametrico.
-#   - Pressao de contato no concreto: NBR 8800 item 6.6.5
-#       sigma_c,Rd = fck/(gamma_c*gamma_n)*sqrt(A2/A1) <= fck ; gamma_n=1,40.
+# Norma: ABNT NBR 8800:2024/Er1:2025, 6.3.3, 6.6.5 e 6.7 (bases de pilares),
+# lidos no MCP_Fontes em 2026-10-14 (D232). A edicao de 2008 nao tinha o 6.7.
+#   - Pressao de contato no concreto (6.6.5):
+#       sigma_c,Rd = 0,85.fck/gamma_c.raiz(A2/A1) <= 1,7.fck/gamma_c.
 #   - Placa sob N+M pelo metodo da excentricidade (equilibrio bloco de
 #     compressao PLASTIFICADO em sig_c,Rd + tracao nos chumbadores; AISC DG1).
 #     Na grande excentricidade sigma_max = sig_c,Rd (bloco plastificado, u=1),
@@ -14,8 +16,11 @@
 #     lado tracionado (linha de dobra: T no braco ate a mesa do pilar).
 #     Precisa das dims do pilar (d_col, bf_col) e do braco de tracao.
 #   - Chumbador: tracao Ft,Rd=Abe*fub/gamma_a2 (6.3.3.1), cisalhamento
-#     Fv,Rd=0,4*Ab*fub/gamma_a2 (rosca no plano, 6.3.3.2), interacao
-#     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4).
+#     Fv,Rd=0,45*Ab*fub/gamma_a2 (rosca no plano, 6.3.3.2), interacao
+#     (Ft/FtRd)^2+(Fv/FvRd)^2<=1 (6.3.3.4). Cortante que vai ao chumbador:
+#     V_Rd,i de 6.7.2.5 (arruela especial soldada a placa), que desconta a
+#     flexao do chumbador na espessura da placa e a tracao simultanea.
+#   - Pilar arrancado (6.7.2.2 d, e, f): casos T1, T2 e T3.
 #   - Espessura da placa por flexao em balanco (modelo de mesa em balanco).
 #   - Ancoragem do chumbador no concreto por ADERENCIA (NBR 6118 9.4.2): produz o
 #     embutimento reto requerido lb,nec (informativo/requisito, como t_req).
@@ -23,8 +28,8 @@
 #     via Nilson cap.21): breakout Ncbg + pullout Npn + side-face Nsb do grupo
 #     tracionado (opt-in via cone_geom - a geometria do bloco de fundacao e do
 #     projeto de fundacao). Informativo; gateia so se gate_cone=True.
-#   - TRANSFERENCIA DE CORTANTE (Fakury cap.11 - NBR 8800): triagem automatica
-#     ATRITO (Vat,Rd=min(0,7 mu Nc; 0,2 fck Y B), mu=0,55) -> se sobrar, CHUMBADOR
+#   - TRANSFERENCIA DE CORTANTE (NBR 8800:2024, 6.7.2.2 a 6.7.2.5): triagem
+#     ATRITO (V_Rd = mu.C/gamma_a2 <= tau_c,Rd.lx.ly, mu=0,45) -> se sobrar, CHUMBADOR
 #     (Vca,Sd=VSd-Vat) e/ou dimensiona a CHAVETA (barra de cisalhamento: hbc, tbc,
 #     sigma_bc<=sig_c,Rd). Informativo (credita atrito so se atrito_cortante=True).
 #   - EDGE BREAKOUT no cisalhamento (ACI 318 Ch.17 / Nilson cap.21): quando o V vai
@@ -37,7 +42,7 @@
 # Saidas em portugues.
 # Calcula apenas; pendente revisao. Unidades SI: m, kN (fck, fub em kN/m2).
 # ============================================================================
-"""Ligacao de base (placa + chumbadores) conforme NBR 8800 6.3/6.6 + AISC DG1."""
+"""Ligacao de base (placa + chumbadores) conforme NBR 8800:2024 6.3, 6.6.5 e 6.7."""
 
 from __future__ import annotations
 
@@ -49,13 +54,42 @@ import fctd_nbr6118_g136
 GA2 = 1.35         # coef. ruptura (parafuso), NBR 8800
 GA1 = 1.10         # coef. escoamento
 GC = 1.40          # concreto (NBR 6118)
-GN = 1.40          # 6.6.5
+MU_PLACA_ARGAMASSA = 0.45     # 6.7.2.2 a): atrito placa de base x argamassa
+TAU_C_MAX = 4000.0            # kN/m2: tau_c,Rd = 0,2.fck/gamma_c <= 4 MPa (6.7.2.1)
+
+# NBR 8800:2024, Tabela 18 - disposicoes construtivas da base (mm; fck em MPa):
+# db, a1, a2, a3, h1, h2, r1, r2, df, t da arruela especial, lado da arruela,
+# en, fck minimo, Nb minimo, espacamento e diametro da armadura minima do bloco.
+# Valida para chumbador ASTM A36 e de 4 a 8 chumbadores (nota a).
+TABELA_18 = [
+    (19, 40, 80, 120, 450, 150, 175, 50, 33, 6.3, 50, 40, 20, 800, 125, 10.0),
+    (22, 45, 90, 140, 465, 200, 225, 50, 40, 6.3, 65, 50, 20, 800, 100, 10.0),
+    (25, 50, 100, 160, 465, 200, 225, 50, 45, 8.0, 75, 60, 25, 800, 125, 12.5),
+    (32, 65, 130, 190, 525, 225, 250, 60, 50, 9.5, 75, 60, 25, 900, 100, 12.5),
+    (38, 80, 160, 230, 610, 250, 275, 70, 60, 9.5, 90, 70, 25, 1200, 150, 16.0),
+    (44, 90, 180, 270, 700, 300, 325, 70, 70, 12.5, 100, 80, 25, 1300, 125, 16.0),
+    (50, 100, 200, 300, 850, 350, 375, 100, 80, 16.0, 125, 90, 30, 1300, 100, 16.0),
+]
+_CAMPOS_18 = ("db", "a1", "a2", "a3", "h1", "h2", "r1", "r2", "df", "t_arruela",
+              "lado_arruela", "en", "fck_min", "Nb_min", "s_armadura", "phi_armadura")
+
+
+def tabela18(db):
+    """Linha da Tabela 18 para o chumbador de diametro db (m): a do menor
+    diametro tabelado que nao fica abaixo de db. Fora da tabela (db > 50 mm)
+    devolve None."""
+    dbmm = db * 1000.0
+    for linha in TABELA_18:
+        if linha[0] >= dbmm - 0.5:
+            return dict(zip(_CAMPOS_18, linha))
+    return None
 
 
 def sigma_c_rd(fck, A1, A2):
-    """NBR 8800 6.6.5: pressao de contato resistente no concreto."""
-    val = fck / (GC * GN) * math.sqrt(A2 / A1)
-    return min(val, fck)
+    """NBR 8800:2024, 6.6.5: tensao resistente de calculo a pressao de contato
+    sob a placa de apoio, 0,85.fck/gamma_c.raiz(A2/A1) <= 1,7.fck/gamma_c. A
+    edicao de 2008 dava fck/(gamma_c.gamma_n).raiz(A2/A1) <= fck."""
+    return min(0.85 * fck / GC * math.sqrt(A2 / A1), 1.7 * fck / GC)
 
 
 def ft_rd_chumbador(Abe, fub):
@@ -65,8 +99,23 @@ def ft_rd_chumbador(Abe, fub):
 
 def fv_rd_chumbador(Ab, fub, rosca_no_plano=True):
     """6.3.3.2: cisalhamento resistente por chumbador (por plano de corte)."""
-    c = 0.4 if rosca_no_plano else 0.5
+    c = 0.45 if rosca_no_plano else 0.56          # NBR 8800:2024, 6.3.3.2 (era 0,4 e 0,5)
     return c * Ab * fub / GA2
+
+
+def vrd_chumbador_arruela(Fv_rd, Ft_sd, db, t_placa, t_arruela, fub, fy, sig_c_rd):
+    """NBR 8800:2024, 6.7.2.5: forca cortante resistente de calculo de UM
+    chumbador com arruela especial soldada a placa de base:
+      V_Rd,i = [raiz((1 + alfa2).Fv,Rd2 - (0,533.Ft,Sd)2) - alfa.0,533.Ft,Sd]/(1 + alfa2)
+               <= 5.db2.sigma_c,Rd
+      alfa = 1,45.(tp + 0,5.ta)/db . fub/fy . gamma_a1/gamma_a2
+    O chumbador flete na espessura da placa e da arruela: a resistencia fica bem
+    abaixo do Fv,Rd de 6.3.3.2. Devolve (V_Rd,i, alfa)."""
+    alfa = 1.45 * (t_placa + 0.5 * t_arruela) / db * (fub / fy) * (GA1 / GA2)
+    ft = 0.533 * Ft_sd
+    rad = (1.0 + alfa ** 2) * Fv_rd ** 2 - ft ** 2
+    v = (math.sqrt(rad) - alfa * ft) / (1.0 + alfa ** 2) if rad > 0 else 0.0
+    return max(min(v, 5.0 * db ** 2 * sig_c_rd), 0.0), alfa
 
 
 def _area_efetiva(db):
@@ -348,37 +397,34 @@ def interacao_tracao_cortante_aci(Nua, Vua, phiNn, phiVn, curva_exata=False):
             "soma": rN + rV}
 
 
-# ---- Transferencia de cortante na base (Fakury cap.11 - NBR 8800) ------------
-# Fonte: "Dimensionamento de elementos estruturais de aco e mistos de aco e
-# concreto" (Fakury/Silva/Caldas), cap.11 "Bases de pilar", lido do PDF em
-# pesquisa/aco/ (NAO de memoria). Triade de transferencia de cisalhamento:
-#   1) ATRITO placa-concreto (11.21): Vat,Rd = min(0,7*mu*Nc,Sd ; 0,2*fck*Y*Bpb),
-#      mu=0,55 (face inferior SEM pintura). So com compressao na base.
-#   2) BARRA DE CISALHAMENTO / chaveta (11.22-25,28): Vbc,Sd = VSd - Vat,Rd ;
-#      hbc >= 2*har ; sigma_bc,Sd = Vbc/(bbc*(hbc-har)) <= sigma_c,Rd ;
-#      Mbc,Sd = Vbc*cbc , cbc = har + (hbc-har)/2 -> flexao da chapa da chaveta.
-#   3) CHUMBADORES (11.26): Vca,Sd = VSd - Vat,Rd (exige arruela especial soldada).
-MU_ACO_CONCRETO = 0.55          # coef. atrito placa de aco x concreto (sem pintura)
+# ---- Transferencia de cortante na base (NBR 8800:2024, 6.7.2.2 a 6.7.2.5) -----
+#   1) ATRITO placa-argamassa (6.7.2.2): V_Rd = mu.C/gamma_a2 <= tau_c,Rd.lx.ly,
+#      com C = resultante de compressao no contato, mu = 0,45 e
+#      tau_c,Rd = 0,2.fck/gamma_c <= 4 MPa. So com compressao no contato.
+#   2) Quando o atrito nao basta ou o pilar esta tracionado (6.7.2.3): dispositivo
+#      especial - PLACA DE CISALHAMENTO (6.7.2.4) ou ARRUELAS ESPECIAIS SOLDADAS
+#      a placa de base (6.7.2.5); a resistencia e' so' a do dispositivo.
+# Ate' o D232 o atrito era o do livro do Fakury para a edicao de 2008
+# (0,7 x 0,55 x N <= 0,2.fck.Y.B).
+MU_ACO_CONCRETO = MU_PLACA_ARGAMASSA
 
 
 def transferencia_cortante_base(V_sd, N_comp, fck, B, Y, sig_c_rd, n_ch, Fv_rd,
                                 mu=MU_ACO_CONCRETO, har=0.030, b_chaveta=None,
-                                fy_chaveta=250e3):
-    """Triagem automatica do cortante da base (Fakury cap.11). Ordem de prioridade:
-    ATRITO -> se sobrar, CHUMBADOR (aco) e/ou CHAVETA (barra de cisalhamento).
-
-    V_sd = cortante de calculo (kN) ; N_comp = forca NORMAL de COMPRESSAO na mesma
-    combinacao (kN, 0 se tracao/uplift -> sem atrito) ; Y = comprimento comprimido
-    do concreto (m, de placa_sob_NM) ; sig_c_rd = tensao resistente de contato
-    (kN/m2, 6.6.5) ; b_chaveta = largura da chaveta (m, default = B) ; har = altura
-    da argamassa/graute (m). Unidades SI. Dimensiona a chaveta requerida (hbc, tbc).
-
-    Retorna o mecanismo que RESOLVE o cortante e o dimensionamento da chaveta caso
-    o atrito nao baste. INFORMATIVO (nao gateia): creditar o atrito exige que a
-    COMPRESSAO atue na MESMA combinacao do cortante - decisao do projetista."""
-    # 1) ATRITO (11.21): so com compressao. Cap por esmagamento do contato.
+                                fy_chaveta=250e3, L=None):
+    """Triagem do cortante da base (NBR 8800:2024, 6.7.2.2 a 6.7.2.5). Ordem:
+    ATRITO -> se sobrar, CHUMBADOR com arruela soldada e/ou PLACA DE CISALHAMENTO.
+    V_sd = cortante de calculo (kN) ; N_comp = resultante de COMPRESSAO no
+    contato na mesma combinacao (kN, 0 se nao ha contato -> sem atrito) ; Y =
+    comprimento comprimido (m) ; L = comprimento da placa (m; sem ele o teto do
+    atrito usa Y, a favor da seguranca) ; sig_c_rd = tensao resistente de contato
+    (kN/m2, 6.6.5) ; Fv_rd = resistencia de UM chumbador ao cortante (a de 6.7.2.5
+    quando vem de `verifica_base`) ; b_chaveta = largura da placa de cisalhamento
+    (m, default = B) ; har = altura da argamassa (m). Dimensiona a placa de
+    cisalhamento requerida (hbc, tbc)."""
     if N_comp and N_comp > 0:
-        Vat_rd = min(0.7 * mu * N_comp, 0.2 * fck * max(Y, 0.0) * B)
+        tau = min(0.2 * fck / GC, TAU_C_MAX)
+        Vat_rd = min(mu * N_comp / GA2, tau * max(L if L else Y, 0.0) * B)
     else:
         Vat_rd = 0.0
     V_resid = max(V_sd - Vat_rd, 0.0)
@@ -421,10 +467,26 @@ def placa_sob_NM(N, M, B, L, sig_rd, d_anchor):
     tracionados. Convencao: momento positivo tende a tracionar o lado dos
     chumbadores.
     """
-    if N <= 0:                      # uplift liquido: tudo tracionado
-        # tracao total = |N| + par do momento (bracos aproximados)
-        T = abs(N) + (abs(M) / d_anchor if d_anchor > 0 else 0.0)
-        return T, 0.0, 0.0, "uplift (N tracao)"
+    if N <= 0:
+        # NBR 8800:2024, 6.7.2.2 d), e), f): forca axial de TRACAO. a = distancia
+        # da linha de chumbadores ao eixo da placa. T devolvido = tracao total na
+        # linha mais tracionada (metade dos chumbadores).
+        Nt, Mt = abs(N), abs(M)
+        a_ch = d_anchor - L / 2.0
+        if a_ch <= 0:
+            return None, None, sig_rd, "SEM SOLUCAO (chumbador no eixo da placa)"
+        if Mt <= Nt * a_ch + 1e-12:
+            # T1 (e = 0) e T2 (0 < e <= a): sem contato com o concreto
+            T = Nt / 2.0 + Mt / (2.0 * a_ch)
+            return T, 0.0, 0.0, ("tracao sem momento (caso T1)" if Mt == 0
+                                 else "tracao, pequena excentricidade (caso T2)")
+        # T3 (e > a): aparece o bloco de compressao lc
+        D = L / 2.0 + a_ch
+        K = 2.0 * (Mt - Nt * a_ch) / (sig_rd * B)
+        if D * D < K:
+            return None, None, sig_rd, "SEM SOLUCAO (placa/bloco insuficiente)"
+        lc = D - math.sqrt(D * D - K)
+        return sig_rd * lc * B + Nt, lc, sig_rd, "tracao, grande excentricidade (caso T3)"
     e = M / N if N != 0 else 0.0
     if abs(e) <= L / 6.0:           # dentro do nucleo: sem tracao
         sig_max = N / (B * L) * (1 + 6 * abs(e) / L)
@@ -493,6 +555,57 @@ def verifica_base(caso):
     r["u_corte"] = Fv_sd / Fv_rd
     r["interacao"] = (Ft_sd / Ft_rd) ** 2 + (Fv_sd / Fv_rd) ** 2
 
+    # ---- espessura da placa (NBR 8800:2024, 6.7.2.2): t = l.raiz(2.sigma/(fy/ga1))
+    fy_p = caso["fy_placa"]
+    d_col = caso.get("d_col")             # altura do perfil do pilar (m)
+    bf_col = caso.get("bf_col")           # largura da mesa (m)
+    # lado COMPRIMIDO: l_max = maior entre m, n e lambda.n0 quando o contato
+    # cobre o balanco (lc >= m); senao maior entre p = raiz(lc.(2m - lc)) e n.
+    # m = (lx - 0,95.d)/2 ; n = (ly - 0,80.bf)/2 ; n0 = raiz(d.bf)/4. lambda = 1
+    # (a norma permite reduzir; 1 fica a favor da seguranca).
+    m_bal = ((L - 0.95 * d_col) / 2.0 if d_col else caso.get("balanco", 0.05))
+    m_bal = max(m_bal, 0.0)
+    n_bal = max((B - 0.80 * bf_col) / 2.0, 0.0) if bf_col else 0.0
+    n0 = math.sqrt(d_col * bf_col) / 4.0 if (d_col and bf_col) else 0.0
+    p = sig_max if sig_max else sig_rd
+    if not Y:                             # sem contato (T1/T2): so' o lado tracionado
+        l_max = 0.0
+    elif min(Y, L) >= m_bal:
+        l_max = max(m_bal, n_bal, n0)
+    else:
+        l_max = max(math.sqrt(min(Y, L) * (2.0 * m_bal - min(Y, L))), n_bal)
+    t_comp = l_max * math.sqrt(2.0 * p * GA1 / fy_p)
+    c_bal = l_max
+    # lado TRACIONADO: t = raiz(2.nb.Ft,Sd.(m - a1)/(ly.fy/ga1)), com nb.Ft,Sd/2 = T
+    # e m - a1 = distancia do chumbador a linha de dobra (0,95.d).
+    x_t = caso.get("x_tracao")
+    if x_t is None and d_col:
+        x_t = max(d_anchor - L / 2.0 - 0.475 * d_col, 0.0)
+    beff = caso.get("beff_tracao", B)     # largura efetiva (default = largura)
+    t_trac = 0.0
+    if T and x_t and beff > 0:
+        t_trac = math.sqrt(4.0 * T * x_t * GA1 / (beff * fy_p))
+    t_req = max(t_comp, t_trac)
+    r.update(t_comp=t_comp, t_trac=t_trac, c_bal=c_bal, x_trac=x_t or 0.0,
+             t_placa_req=t_req, t_placa=caso.get("t_placa", None))
+    # ---- cortante no chumbador (6.7.2.5): arruela especial soldada a placa
+    t18 = tabela18(db)
+    t_arr = caso.get("t_arruela", (t18["t_arruela"] / 1000.0) if t18 else 0.016)
+    tp_calc = caso.get("t_placa") or _std_t(t_req)
+    Vrd_i, alfa = vrd_chumbador_arruela(Fv_rd, Ft_sd, db, tp_calc, t_arr, fub,
+                                        fy_p, sig_rd)
+    r.update(Vrd_chumbador=Vrd_i, alfa_arruela=alfa, t_arruela=t_arr)
+    # ---- disposicoes construtivas (Tabela 18): informativo
+    if t18:
+        a1_ef = (L - d_anchor) * 1000.0
+        r["tabela18"] = dict(t18, a1_dado=round(a1_ef, 1),
+                             ok_a1=a1_ef >= t18["a1"] - 1e-6,
+                             ok_fck=fck / 1000.0 >= t18["fck_min"] - 1e-9,
+                             ok_h1=(caso.get("h_embed") is None
+                                    or caso["h_embed"] * 1000.0 >= t18["h1"] - 1e-6),
+                             ok_n=4 <= n <= 8)
+    else:
+        r["tabela18"] = None
     # ancoragem no concreto por aderencia (NBR 6118 9.4.2) - lado do concreto
     anc = ancoragem_chumbador(Ft_sd, db, fck, caso.get("fyk_chumbador", 250e3),
                               com_gancho=caso.get("com_gancho", True),
@@ -517,13 +630,17 @@ def verifica_base(caso):
             A_brg=g.get("A_brg"))
     r["cone"] = cone
 
-    # transferencia de cortante (Fakury cap.11): atrito -> chumbador/chaveta.
-    # N>0 = compressao (convencao placa_sob_NM). So credita atrito se o caso pedir
-    # (a compressao tem de atuar na MESMA combinacao do cortante) - default: sem
-    # credito (conservador, todo V nos chumbadores, como antes).
-    N_comp = N if (N and N > 0 and caso.get("atrito_cortante", False)) else 0.0
+    # transferencia de cortante (6.7.2.2 a 6.7.2.5): atrito -> chumbador/chaveta.
+    # O atrito e' o primeiro mecanismo da norma e vale quando ha' contato com o
+    # concreto na MESMA combinacao (N, V e M do caso sao simultaneos). O que
+    # sobra vai aos chumbadores com arruela soldada (6.7.2.5); se eles nao
+    # bastam, so' a placa de cisalhamento (6.7.2.4) resolve e ela precisa estar
+    # declarada no caso (`chaveta`: True) para a base ser aprovada.
+    # resultante de compressao no contato: N + tracao dos chumbadores
+    C_contato = (max(N, 0.0) + (T or 0.0)) if Y else 0.0
+    N_comp = C_contato if caso.get("atrito_cortante", True) else 0.0
     cv = transferencia_cortante_base(
-        abs(V), N_comp, fck, B, (Y if Y else 0.0), sig_rd, n, Fv_rd,
+        abs(V), N_comp, fck, B, (Y if Y else 0.0), sig_rd, n, Vrd_i, L=L,
         har=caso.get("h_graute", 0.030), b_chaveta=caso.get("b_chaveta"),
         fy_chaveta=caso.get("fy_chaveta", caso.get("fy_placa", 250e3)))
     # edge breakout no cisalhamento (ACI Ch.17): so quando o V residual vai aos
@@ -540,6 +657,17 @@ def verifica_base(caso):
             com_reforco=g.get("com_reforco", False), ncbg_kN=ncbg_nom,
             paralelo=caso.get("cortante_paralelo_borda", False))
     r["cortante"] = cv
+    por_atrito = cv["mecanismo"] == "atrito"
+    r["chaveta_necessaria"] = (not por_atrito) and (not cv["ok_chumbador"])
+    r["chaveta_adotada"] = bool(caso.get("chaveta", False)) and r["chaveta_necessaria"]
+    # cortante que de fato chega ao chumbador (0 se o atrito ou a placa de
+    # cisalhamento levam tudo)
+    Fv_sd = 0.0 if (por_atrito or r["chaveta_adotada"]) else cv["Fv_sd_liq"]
+    r["Fv_sd"] = Fv_sd
+    r["u_corte"] = (Fv_sd / Vrd_i) if Vrd_i > 0 else (0.0 if Fv_sd == 0 else float("inf"))
+    if r["chaveta_necessaria"] and not r["chaveta_adotada"]:
+        r["u_corte"] = cv["u_chumbador"]
+    r["interacao"] = (Ft_sd / Ft_rd) ** 2 + (Fv_sd / Fv_rd) ** 2
     # interacao tracao-cortante do CONCRETO (ACI 318 17.6): so quando ambos os
     # modos do concreto foram calculados (cone de tracao + edge breakout).
     if cone is not None and cv.get("edge") is not None:
@@ -553,41 +681,6 @@ def verifica_base(caso):
     r["sigma_max"] = sig_max
     r["u_concreto"] = (sig_max / sig_rd) if sig_rd else 0.0
     r["Y_cabe"] = (Y is not None and Y <= L)
-
-    # ---- espessura da placa: AISC DG1 3.1.3, MAIOR entre os dois lados ------
-    fy_p = caso["fy_placa"]
-    d_col = caso.get("d_col")             # altura do perfil do pilar (m)
-    bf_col = caso.get("bf_col")           # largura da mesa (m)
-    # lado COMPRIMIDO: momento da flexao da placa na secao critica (face da mesa
-    # do pilar). A pressao sig_max atua SO sobre o bloco de comprimento Y (na
-    # grande excentricidade Y<<balanco), nao sobre todo o balanco -> usa-se o
-    # bloco de contato e seu braco ate a face da mesa (nao o m,n de pressao
-    # uniforme, que so vale na pequena excentricidade).
-    x_face = (max(L / 2.0 - d_col / 2.0, 0.0) if d_col
-              else caso.get("balanco", 0.05))
-    Ybear = min(Y, L) if Y else L
-    p = sig_max if sig_max else sig_rd
-    if Ybear >= x_face:                       # bloco cobre alem da secao critica
-        m_comp = p * x_face ** 2 / 2.0
-    else:                                     # bloco (Y) fica antes da secao
-        m_comp = p * Ybear * (x_face - Ybear / 2.0)
-    t_comp = math.sqrt(4 * m_comp * GA1 / fy_p)
-    c_bal = x_face
-    # lado TRACIONADO: a placa flexiona contra a mesa do pilar (linha de dobra).
-    # braco x = distancia do chumbador tracionado a face da mesa do pilar.
-    x_t = caso.get("x_tracao")
-    if x_t is None and d_col:
-        # chumbador a d_anchor da borda comprimida ; face tracionada da mesa em
-        # (L/2 + d_col/2) da borda comprimida
-        x_t = max(d_anchor - (L / 2.0 + d_col / 2.0), 0.0)
-    beff = caso.get("beff_tracao", B)     # largura efetiva (default = largura)
-    t_trac = 0.0
-    if T and x_t and beff > 0:
-        m_trac = (T / beff) * x_t         # momento por metro (kN.m/m)
-        t_trac = math.sqrt(4 * m_trac * GA1 / fy_p)
-    t_req = max(t_comp, t_trac)
-    r.update(t_comp=t_comp, t_trac=t_trac, c_bal=c_bal, x_trac=x_t or 0.0,
-             t_placa_req=t_req, t_placa=caso.get("t_placa", None))
 
     # A ancoragem PRODUZ o embutimento requerido lb,nec (como t_req da placa) -
     # INFORMATIVO por default; so reprova o OK se o caso pedir gate_ancoragem=True
@@ -610,7 +703,7 @@ def verifica_base(caso):
 
 
 def relatorio_pt(r, caso):
-    L = ["LIGACAO DE BASE (placa + chumbadores) - NBR 8800 6.3/6.6 + AISC DG1",
+    L = ["LIGACAO DE BASE (placa + chumbadores) - NBR 8800:2024, itens 6.3.3, 6.6.5 e 6.7.2",
          f"  {r['nome']}",
          f"  Esforcos: N={caso['N']:+.1f} kN ; V={caso['V']:.1f} kN ; "
          f"M={caso['M']:.1f} kN.m  (base {'ENGASTADA' if caso['M'] else 'ROTULADA'})",
@@ -627,11 +720,27 @@ def relatorio_pt(r, caso):
          f"  Chumbador: tracao u={r['u_tracao']:.2f} ; corte u={r['u_corte']:.2f} ; "
          f"interacao (Ft/FtRd)^2+(Fv/FvRd)^2 = {r['interacao']:.2f}",
          _linha_ancoragem(r["ancoragem"]),
-         f"  Placa (AISC DG1): lado comprimido t={r['t_comp']*1000:.1f} mm "
+         f"  Cortante por chumbador (6.7.2.5, arruela especial de "
+         f"{r['t_arruela']*1000:.1f} mm soldada a placa): V_Rd,i={r['Vrd_chumbador']:.1f} kN "
+         f"(alfa={r['alfa_arruela']:.2f})",
+         f"  Placa (6.7.2.2): lado comprimido t={r['t_comp']*1000:.1f} mm "
          f"(balanco {r['c_bal']*1000:.0f} mm) ; lado tracionado t={r['t_trac']*1000:.1f} mm "
          f"(braco {r['x_trac']*1000:.0f} mm) -> t_req={r['t_placa_req']*1000:.1f} mm"
          + (f" ; t_adotada={r['t_placa']*1000:.0f} mm" if r['t_placa'] else ""),
          f"  -> {'OK' if r['OK'] else 'NAO PASSA'}"]
+    t18 = r.get("tabela18")
+    if t18:
+        falta = [rot for rot, ok in (("a1 (furo-borda)", t18["ok_a1"]),
+                                     ("fck minimo", t18["ok_fck"]),
+                                     ("h1 (embutimento)", t18["ok_h1"]),
+                                     ("4 a 8 chumbadores", t18["ok_n"])) if not ok]
+        L += [f"  Disposicoes construtivas (Tabela 18, chumbador ASTM A36 de "
+              f"{t18['db']} mm): a1>={t18['a1']} ; a2>={t18['a2']} ; a3>={t18['a3']} ; "
+              f"h1>={t18['h1']} mm ; arruela {t18['lado_arruela']}x{t18['lado_arruela']}x"
+              f"{t18['t_arruela']} mm ; fck>={t18['fck_min']} MPa"
+              + (" -> NAO ATENDE: " + ", ".join(falta) if falta else " -> atende")]
+    else:
+        L += ["  [FLAG] Chumbador acima de 50 mm: fora da Tabela 18 (6.7.1.5 c)."]
     c = r.get("cone")
     if c is not None:
         tag = ("OK" if c["ok_cone"] else
@@ -649,11 +758,16 @@ def relatorio_pt(r, caso):
     cv = r.get("cortante")
     if cv is not None:
         if cv["mecanismo"] == "atrito":
-            L += [f"  Cortante (Fakury cap.11): atrito Vat,Rd={cv['Vat_rd']:.0f} kN >= "
+            L += [f"  Cortante (6.7.2.2 a 6.7.2.5): atrito Vat,Rd={cv['Vat_rd']:.0f} kN >= "
                   f"V={caso['V']:.0f} kN -> RESOLVIDO por atrito (chumbadores so a tracao)."]
         else:
             ch = cv["chaveta"]
-            L += [f"  Cortante (Fakury cap.11): atrito Vat,Rd={cv['Vat_rd']:.0f} kN ; "
+            if r.get("chaveta_necessaria"):
+                L += ["  PLACA DE CISALHAMENTO NECESSARIA (6.7.2.3 e 6.7.2.4): o atrito e os "
+                      "chumbadores nao levam o cortante"
+                      + (" - adotada." if r.get("chaveta_adotada")
+                         else " - NAO declarada: a base nao passa sem ela.")]
+            L += [f"  Cortante (6.7.2.2 a 6.7.2.5): atrito Vat,Rd={cv['Vat_rd']:.0f} kN ; "
                   f"residual Vbc,Sd={cv['V_resid']:.0f} kN -> "
                   f"chumbador u={cv['u_chumbador']:.2f}"
                   + (" OK" if cv["ok_chumbador"] else " NAO PASSA (aco) -> usar CHAVETA"),
@@ -720,38 +834,102 @@ def _std_t(t_m):
     return STD_T[-1] / 1000.0
 
 
-def dimensiona_base(caso, escada=None):
-    """Escolhe a base (placa + chumbadores) MAIS LEVE que PASSA sob o esforco real
-    (N,V,M do caso), variando (B,L,db,n); a ESPESSURA e derivada de t_req (chapa
-    padrao >= t_req). Retorna {aprovado:(B,L,t,db,n,r,caso)|None, linhas, tabela}."""
-    escada = escada or ESCADA_BASE
+def _pior(rs):
+    """Resultado que governa entre os das combinacoes: o que reprova, senao o
+    de maior utilizacao."""
+    def nota(r):
+        return (not r["OK"], max(r["u_tracao"], r["u_corte"], r["u_concreto"],
+                                 r["interacao"]))
+    return max(rs, key=nota)
+
+
+def escada_norma(d_col, bf_col):
+    """Bases do Tipo 1 da NBR 8800:2024 (Figura 21 e Tabela 18) para o pilar de
+    altura d_col e mesa bf_col (m): lx = d + 4.a1 ; ly = (0,5.nb - 1).a2 + 2.a1 >=
+    bf + 25 mm, com a1 e a2 da Tabela 18. Devolve (B, L, db, nb, a1) da mais leve
+    para a mais pesada. Placa bem mais larga que a mesa pede espessura grande: o
+    balanco lateral n = (ly - 0,80.bf)/2 entra na espessura de 6.7.2.2."""
+    cand = []
+    for linha in TABELA_18:
+        l18 = dict(zip(_CAMPOS_18, linha))
+        a1, a2 = l18["a1"] / 1000.0, l18["a2"] / 1000.0
+        for nb in (4, 6, 8):
+            ly = max((0.5 * nb - 1.0) * a2 + 2.0 * a1, bf_col + 0.025)
+            lx = d_col + 4.0 * a1
+            cand.append((round(ly, 3), round(lx, 3), l18["db"] / 1000.0, nb, a1))
+    return sorted(cand, key=lambda c: (c[2] ** 2 * c[3], c[0] * c[1]))
+
+
+def dimensiona_base(caso, escada=None, esforcos=None):
+    """Escolhe a base (placa + chumbadores) MAIS LEVE que PASSA, variando
+    (B,L,db,n); a ESPESSURA e derivada de t_req (chapa padrao >= t_req).
+    `esforcos` = lista de (nome, N, V, M) simultaneos, um por combinacao: a base
+    tem de passar em TODAS (sem a lista, vale o N, V, M do caso). Se nenhuma
+    passa so' por atrito e chumbadores, tenta de novo com a placa de
+    cisalhamento (6.7.2.4), que entao fica obrigatoria (`chaveta` no resultado).
+    Retorna {aprovado:(B,L,t,db,n,r,caso)|None, linhas, tabela, chaveta}."""
     seed = (round(caso["B"], 3), round(caso["L"], 3), round(caso["db"], 3),
             int(caso["n_chumbadores"]))
-    cand = list(escada)
-    if seed not in cand:
+    if escada is None and caso.get("d_col") and caso.get("bf_col"):
+        escada = escada_norma(caso["d_col"], caso["bf_col"])
+    cand = list(escada or ESCADA_BASE)
+    if seed not in [c[:4] for c in cand]:
         cand = [seed] + cand
-    linhas, aprovado = [], None
-    for (B, L, db, n) in cand:
-        c = dict(caso)
-        c.update(B=B, L=L, db=db, n_chumbadores=n, n_tracionados=max(1, n // 2),
-                 borda=caso.get("borda", 0.05), d_anchor=L - caso.get("borda", 0.05),
-                 A2=(B + 0.15) * (L + 0.15), t_placa=None)   # t_placa None: OK ignora espessura
-        r = verifica_base(c)
-        t_adot = _std_t(r["t_placa_req"])                    # espessura derivada
-        linhas.append((B, L, t_adot, db, n, r))
-        if r["OK"] and aprovado is None:                     # OK = ancoragem+concreto+Y
-            c["t_placa"] = t_adot
-            aprovado = (B, L, t_adot, db, n, r, c)
-    return {"aprovado": aprovado, "linhas": linhas,
-            "tabela": _tabela_base(linhas, aprovado, caso)}
+    esforcos = esforcos or [(caso.get("nome", "base"), caso["N"], caso["V"], caso["M"])]
+    for com_chaveta in (False, True):
+        linhas, aprovado, peso_ap = [], None, None
+        for item in cand:
+            B, L, db, n = item[:4]
+            borda = item[4] if len(item) > 4 else caso.get("borda", 0.05)
+            c = dict(caso)
+            c.update(B=B, L=L, db=db, n_chumbadores=n, n_tracionados=max(1, n // 2),
+                     borda=borda, d_anchor=L - borda,
+                     A2=(B + 0.15) * (L + 0.15), t_placa=None,   # t_placa None: OK ignora espessura
+                     chaveta=com_chaveta or caso.get("chaveta", False))
+            rs = []
+            for (nome, N, V, M) in esforcos:
+                ci = dict(c, N=N, V=abs(V), M=abs(M), nome=nome)
+                rs.append((verifica_base(ci), ci))
+            t_req = max(ri["t_placa_req"] for ri, _c in rs)
+            # a espessura adotada e' a maior das combinacoes; o cortante no
+            # chumbador (6.7.2.5) piora com placa mais grossa: confere de novo
+            # todas as combinacoes com a placa adotada
+            t_adot = _std_t(t_req)
+            rs = [(verifica_base(dict(ci, t_placa=t_adot)), dict(ci, t_placa=t_adot))
+                  for _r, ci in rs]
+            r, cgov = max(rs, key=lambda par: (not par[0]["OK"],
+                                              max(par[0]["u_tracao"], par[0]["u_corte"],
+                                                  par[0]["u_concreto"], par[0]["interacao"])))
+            r = dict(r, t_placa_req=t_req, OK=all(ri["OK"] for ri, _c in rs),
+                     chaveta_adotada=any(ri["chaveta_adotada"] for ri, _c in rs))
+            linhas.append((B, L, t_adot, db, n, r))
+            # mais leve = menor volume de placa; no empate, menos aco de chumbador
+            peso = (round(B * L * t_adot, 9), n * db ** 2)
+            if r["OK"] and (aprovado is None or peso < peso_ap):
+                cgov = dict(cgov, t_placa=t_adot)
+                aprovado, peso_ap = (B, L, t_adot, db, n, r, cgov), peso
+        if aprovado:
+            break
+    chaveta = None
+    if aprovado and aprovado[5]["chaveta_adotada"]:
+        chs = []
+        for (nome, N, V, M) in esforcos:
+            ri = verifica_base(dict(aprovado[6], N=N, V=abs(V), M=abs(M)))
+            if ri["chaveta_adotada"]:
+                chs.append(ri["cortante"]["chaveta"])
+        chaveta = {"bbc": chs[0]["bbc"], "har": chs[0]["har"],
+                   "hbc_req": max(c["hbc_req"] for c in chs),
+                   "tbc_req": max(c["tbc_req"] for c in chs)}
+    return {"aprovado": aprovado, "linhas": linhas, "chaveta": chaveta,
+            "tabela": _tabela_base(linhas, aprovado, caso, chaveta, len(esforcos))}
 
 
-def _tabela_base(linhas, aprovado, caso):
+def _tabela_base(linhas, aprovado, caso, chaveta=None, n_comb=1):
     L = ["=" * 74, "DIMENSIONAMENTO DA BASE ENGASTADA (placa + chumbadores)",
          "CONCEITUAL - PENDENTE REVISAO DO ENGENHEIRO RESPONSAVEL", "=" * 74, "",
          f"Esforco: N={caso['N']:+.1f} kN ; V={caso['V']:.1f} kN ; M={caso['M']:.1f} kN.m",
          "Criterio: interacao chumbador<=1 ; corte<=1 ; concreto<=1 ; Y<=L ;"
-         " t_placa>=t_req (AISC DG1).", "",
+         " t_placa>=t_req (6.7.2.2).", "",
          f"{'BxL (mm)':>12} {'t':>4} {'db':>4} {'n':>2} | {'u.trac':>6} {'u.corte':>7}"
          f" {'u.conc':>6} {'Y<=L':>5} {'t_req':>6} | resultado", "-" * 74]
     for (B, Lm, t, db, n, r) in linhas:
@@ -764,7 +942,14 @@ def _tabela_base(linhas, aprovado, caso):
     if aprovado:
         B, Lm, t, db, n = aprovado[:5]
         L += [f"ADOTADA (mais leve que passa): {B*1000:.0f} x {Lm*1000:.0f} x "
-              f"{t*1000:.0f} mm ; {n} chumbadores d={db*1000:.0f} mm"]
+              f"{t*1000:.0f} mm ; {n} chumbadores d={db*1000:.0f} mm"
+              + (f" ; conferida em {n_comb} combinacoes" if n_comb > 1 else "")]
+        if chaveta:
+            L += [f"PLACA DE CISALHAMENTO OBRIGATORIA (NBR 8800:2024, 6.7.2.3 e 6.7.2.4): "
+                  f"largura {chaveta['bbc']*1000:.0f} mm ; altura >= "
+                  f"{chaveta['hbc_req']*1000:.0f} mm (com {chaveta['har']*1000:.0f} mm de "
+                  f"argamassa) ; espessura >= {chaveta['tbc_req']*1000:.1f} mm, sem passar a "
+                  f"da placa de base. O atrito e os chumbadores nao levam o cortante."]
     else:
         L += ["NENHUMA base da escada passou - ampliar a escada ou revisar (M muito",
               "alto: aumentar pilar/base, ou considerar base rotulada + contravento)."]
@@ -784,12 +969,21 @@ def _selftest():
     ft = ft_rd_chumbador(Abe, 400e3)      # ASTM A307-ish fub=400 MPa
     exp = Abe * 400e3 / 1.35
     assert abs(ft - exp) < 1e-6
-    # 2) bearing: A2=A1 -> sqrt=1 -> sigma = fck/(1,4*1,4)
+    # 2) contato: A2=A1 -> 0,85.fck/1,4 ; teto 1,7.fck/1,4 (A2/A1 >= 4)
     s = sigma_c_rd(20e3, 0.16, 0.16)
-    assert abs(s - 20e3 / (1.4 * 1.4)) < 1e-6, s
-    # 3) uplift puro: T_total = |N|
+    assert abs(s - 0.85 * 20e3 / 1.4) < 1e-6, s
+    assert abs(sigma_c_rd(20e3, 0.16, 1.60) - 1.7 * 20e3 / 1.4) < 1e-6
+    # 3) arrancamento puro (T1): cada linha leva metade, Ft,Sd = N/nb
     T, Y, sm, m = placa_sob_NM(-100.0, 0.0, 0.4, 0.4, 5000.0, 0.30)
-    assert abs(T - 100.0) < 1e-9, (T, m)
+    assert abs(T - 50.0) < 1e-9 and "T1" in m, (T, m)
+    # T2: e <= a -> Ft,Sd = N/nb + M/(a.nb) ; a = 0,30 - 0,20 = 0,10
+    T, Y, sm, m = placa_sob_NM(-100.0, 5.0, 0.4, 0.4, 5000.0, 0.30)
+    assert abs(T - (50.0 + 5.0 / 0.20)) < 1e-9 and Y == 0.0 and "T2" in m
+    # T3: e > a -> equilibrio de forcas e de momentos em torno da linha tracionada
+    T, Y, sm, m = placa_sob_NM(-100.0, 40.0, 0.4, 0.4, 5000.0, 0.30)
+    C = 5000.0 * Y * 0.4
+    assert "T3" in m and abs(T - C - 100.0) < 1e-9
+    assert abs(C * (0.30 - Y / 2.0) - (40.0 - 100.0 * 0.10)) < 1e-9
     # 4) grande excentricidade: bloco plastificado (sig_max = sig_rd)
     Tg, Yg, smg, mg = placa_sob_NM(49.0, 60.0, 0.40, 0.45, 24791.5, 0.40)
     assert abs(smg - 24791.5) < 1e-6 and abs(Tg - 126.3) < 0.5, (Tg, Yg, smg)
@@ -829,7 +1023,7 @@ def _selftest():
     sig = sigma_c_rd(25e3, 0.4 * 0.45, 0.4 * 0.45)
     t1 = transferencia_cortante_base(V_sd=26.0, N_comp=200.0, fck=25e3, B=0.40,
                                      Y=0.10, sig_c_rd=sig, n_ch=4, Fv_rd=37.2)
-    Vat_exp = min(0.7 * 0.55 * 200.0, 0.2 * 25e3 * 0.10 * 0.40)   # 77 vs 200 -> 77
+    Vat_exp = min(0.45 * 200.0 / 1.35, 0.2 * 25e3 / 1.4 * 0.10 * 0.40)   # 66,7 vs 142,9
     assert abs(t1["Vat_rd"] - Vat_exp) < 1e-6 and t1["mecanismo"] == "atrito", t1
     #    (b) uplift (sem compressao) -> atrito=0, cortante vai p/ chumbador/chaveta.
     t2 = transferencia_cortante_base(V_sd=120.0, N_comp=0.0, fck=25e3, B=0.40,
