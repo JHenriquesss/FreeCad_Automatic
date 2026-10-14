@@ -17,13 +17,15 @@ FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terce
 `rodar_tudo(..., com_pranchas_ifc=True)` gera do IFC as folhas, o DXF, o DWG e o PDF num
 passo; o motor instala como pacote (`framework/galpao_fw/pyproject.toml`). Estado por
 fase em `framework/galpao_fw/wiki/03-phases.md` ("Plano de 2026-10-08"); decisões em
-`wiki/04-decisions.md` (D193–D231).
+`wiki/04-decisions.md` (D193–D232).
 
-**Auditoria dos motores contra as normas do acervo (D224–D231, em andamento).** Conferidos
+**Auditoria dos motores contra as normas do acervo (D224–D232).** Conferidos
 e corrigidos: vento lateral do pórtico e coeficientes de forma pela proporção do galpão
-(NBR 6123:2023), combinações últimas, compressão, flexão e cortante do perfil (NBR 8800:2024), perna mínima
-de filete. Ainda com as fórmulas da edição anterior, sem conferência:
-tesoura, ligações parafusadas, base, fundações, terças de chapa dobrada e os verticais fora do galpão.
+(NBR 6123:2023), combinações últimas, compressão, flexão e cortante do perfil, tesoura,
+ligações parafusadas e base de pilar (NBR 8800:2024), terças (NBR 14762), aço em incêndio
+(NBR 14323), perna mínima de filete; sismo e fundação rasa conferem. Nos verticais fora do
+galpão foram conferidas por amostragem as tabelas e limites principais (D232); os métodos
+de cálculo deles ainda não.
 O memorial em PDF traz os trechos literais das normas já conferidas. O DWG entregue é
 conferido em outro programa (CADCraft, D229).
 
