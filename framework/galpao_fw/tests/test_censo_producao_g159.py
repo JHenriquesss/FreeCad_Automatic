@@ -132,6 +132,7 @@ COBERTURA_COMMIT_D = {
     "9655447d9f1457717fe2bf642462a2af9d8650da": "D232",  # tesoura, ligacoes, base, tercas, fogo e amostra dos verticais
     "9478d3c1e3a347f02b4cba6bc33c2d1564e829ee": "D232",  # terca_Lb_succao na ficha e G derivado (complemento)
     "9c5c13687aa5f26e57c8476b4681694965486169": "D232",  # 2a rodada: Tab.39 5410, pesos 5626, puncao 6118
+    "113579a3ca5ea518f2c164caddad604371f13b41": "D232",  # curva do risco leve (10897:2020) e terca na lente G134
 }
 
 #: Isencoes: commit (hash cheio) -> motivo medido. Isencao sem motivo reprova
@@ -267,9 +268,9 @@ def test_01_baseline_verde_e_censo_real_no_repo():
         lados.append("censo divergente: faltam=%r sobram=%r"
                      % (sorted(esperado - set(censo)),
                         sorted(set(censo) - esperado)))
-    if len(censo) != 52:
-        lados.append("censo=%d, esperado 52 (7 goals + 1 auditoria + 4 WKI "
-                     "+ 40 do plano de 2026-10-08)"
+    if len(censo) != 53:
+        lados.append("censo=%d, esperado 53 (7 goals + 1 auditoria + 4 WKI "
+                     "+ 41 do plano de 2026-10-08)"
                      % len(censo))
     curtos = {h[:7] for h in censo}
     if not {"dc686af", "700afd8", "6734fc8", "a85bdbe"} <= curtos:
