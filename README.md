@@ -17,14 +17,15 @@ FreeCAD → IFC → pranchas (Bonsai), DXF/DWG e elétrico sobre planta de terce
 `rodar_tudo(..., com_pranchas_ifc=True)` gera do IFC as folhas, o DXF, o DWG e o PDF num
 passo; o motor instala como pacote (`framework/galpao_fw/pyproject.toml`). Estado por
 fase em `framework/galpao_fw/wiki/03-phases.md` ("Plano de 2026-10-08"); decisões em
-`wiki/04-decisions.md` (D193–D228).
+`wiki/04-decisions.md` (D193–D231).
 
-**Auditoria dos motores contra as normas do acervo (D224–D228, em andamento).** Conferidos
+**Auditoria dos motores contra as normas do acervo (D224–D231, em andamento).** Conferidos
 e corrigidos: vento lateral do pórtico e coeficientes de forma pela proporção do galpão
-(NBR 6123:2023), combinações últimas e compressão do perfil (NBR 8800:2024), perna mínima
-de filete. Ainda com as fórmulas da edição anterior, sem conferência: flexão e cortante do
-perfil, tesoura, ligações parafusadas, base, fundações, terças e os verticais fora do galpão.
-O memorial em PDF traz os trechos literais das normas já conferidas.
+(NBR 6123:2023), combinações últimas, compressão, flexão e cortante do perfil (NBR 8800:2024), perna mínima
+de filete. Ainda com as fórmulas da edição anterior, sem conferência:
+tesoura, ligações parafusadas, base, fundações, terças de chapa dobrada e os verticais fora do galpão.
+O memorial em PDF traz os trechos literais das normas já conferidas. O DWG entregue é
+conferido em outro programa (CADCraft, D229).
 
 `framework/tanque_fw` é um pacote à parte (tanque-base sob contêiner): 77 testes próprios,
 fora da suíte acima.
