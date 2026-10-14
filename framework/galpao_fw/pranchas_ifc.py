@@ -8,11 +8,14 @@
 #   3. o DWG pelo ODA File Converter;
 #   4. o PDF de cada folha pelo Inkscape.
 #   5. (pedido) o render de apresentacao do mesmo modelo
-#      (docs/fase3-bonsai/scripts/render_apresentacao.py).
+#      (docs/fase3-bonsai/scripts/render_apresentacao.py);
+#   6. a conferencia do arquivo entregue (o DWG; sem ele, o DXF) pelo
+#      CADCraft sem janela: outro programa abre o arquivo, audita e imprime
+#      cada folha em PDF. O CADCraft so' LE: nao grava nada da entrega.
 # A lista de material e' contada uma vez no IFC (dxf_prancha.lista_do_ifc) e
 # vai, com os mesmos textos, a uma folha do DXF e a uma folha do Bonsai.
 #
-# Blender, ODA e Inkscape sao programas de fora: cada um e' procurado na
+# Blender, ODA, Inkscape e CADCraft sao programas de fora: cada um e' procurado na
 # maquina e, se nao estiver, o passo dele fica NAO GERADO com o motivo
 # escrito - nada e' dado como entregue sem o arquivo existir. Sem o Blender
 # nao ha desenho e nada mais sai.
@@ -58,6 +61,9 @@ PROGRAMAS = {
             "ODAFileConverter"),
     "inkscape": ("INKSCAPE_EXE",
                  (r"C:\Program Files\Inkscape\bin\inkscape.com",), "inkscape"),
+    "cadcraft": ("CADCRAFT_CLI",
+                 (os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "CADCraft",
+                               "cadcraft-cli.exe"),), "cadcraft-cli"),
 }
 
 
@@ -202,9 +208,69 @@ def _render(blender, ifc, png, timeout, rodar):
     return rel
 
 
+def _json_da_saida(saida):
+    """O primeiro objeto JSON da saida do cadcraft-cli (uma ou varias linhas)."""
+    inicio = saida.find("{")
+    if inicio < 0:
+        raise ValueError("sem JSON na saida: %s" % saida.strip()[-300:])
+    return json.JSONDecoder().raw_decode(saida[inicio:])[0]
+
+
+def _conferencia(cadcraft, arquivo, folhas, pasta_conf, timeout, rodar, dxf=None):
+    """Abre `arquivo` (o DWG ou o DXF da entrega) no CADCraft sem janela: conta
+    as entidades, audita e imprime cada folha esperada em PDF. Devolve o
+    resultado com `divergencias` (lista de frases; vazia = conferido). Se o
+    arquivo e' o DWG e o `dxf` de origem e' dado, as contagens dos dois tem de
+    ser iguais."""
+    os.makedirs(pasta_conf, exist_ok=True)
+    conf = {"arquivo": arquivo, "divergencias": [], "pdf": []}
+
+    def _info(caminho):
+        codigo, saida = rodar([cadcraft, "info", caminho], timeout)
+        if codigo != 0:
+            raise RuntimeError("o CADCraft nao abriu %s (codigo %s): %s"
+                               % (caminho, codigo, saida.strip()[-300:]))
+        return _json_da_saida(saida)
+
+    info = _info(arquivo)
+    conf["entidades"] = info["counts"]
+    faltam = [f for f in folhas if f not in info["layouts"]]
+    sobram = [f for f in info["layouts"] if f not in folhas]
+    if faltam:
+        conf["divergencias"].append("folhas ausentes no arquivo: %s" % ", ".join(faltam))
+    if sobram:
+        conf["divergencias"].append("folhas a mais no arquivo: %s" % ", ".join(sobram))
+    if dxf and os.path.abspath(dxf) != os.path.abspath(arquivo):
+        do_dxf = _info(dxf)["counts"]
+        if do_dxf != info["counts"]:
+            conf["divergencias"].append("o DWG e o DXF nao tem as mesmas entidades: %r x %r"
+                                        % (info["counts"], do_dxf))
+    codigo, saida = rodar([cadcraft, "run", arquivo, "--cmd", "audit {}"], timeout)
+    if codigo != 0:
+        raise RuntimeError("a auditoria do CADCraft falhou (codigo %s): %s"
+                           % (codigo, saida.strip()[-300:]))
+    aud = _json_da_saida(saida)
+    conf["auditoria_erros"] = aud["errors"]
+    for item in aud["issues"]:
+        conf["divergencias"].append("auditoria: %s (%s)" % (item["message"], item["location"]))
+    for folha in folhas:
+        if folha in faltam:
+            continue
+        pdf = os.path.join(pasta_conf, folha + ".pdf")
+        codigo, saida = rodar([cadcraft, "run", arquivo, "--cmd", "plot " + json.dumps(
+            {"path": pdf, "layout": folha, "plotArea": "layout"})], timeout)
+        if codigo != 0 or not os.path.isfile(pdf) or os.path.getsize(pdf) == 0:
+            conf["divergencias"].append("a folha %s nao imprimiu (codigo %s): %s"
+                                        % (folha, codigo, saida.strip()[-200:]))
+        else:
+            conf["pdf"].append(pdf)
+    return conf
+
+
 def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
           timeout_conversao=600, ambiente=None, rodar=_rodar, render=False):
-    """Gera desenhos, folhas, DXF, DWG e PDF do `ifc` em `pasta`.
+    """Gera desenhos, folhas, DXF, DWG e PDF do `ifc` em `pasta` e confere o
+    arquivo entregue em outro programa (`conferencia`).
 
     Devolve um dicionario com `gerado` (ha desenho e DXF), o caminho de cada
     entrega feita e, em `nao_gerado`, o motivo de cada entrega que faltou.
@@ -298,6 +364,20 @@ def gerar(ifc, pasta, titulo, revisao, carimbo=None, timeout_bonsai=3600,
                                os.path.join(pasta, "pdf"), timeout_conversao, rodar)
         except Exception as ex:
             res["nao_gerado"]["pdf"] = str(ex)
+    cadcraft = localizar("cadcraft", ambiente)
+    if not cadcraft:
+        res["nao_gerado"]["conferencia"] = ("CADCraft nao encontrado (declare CADCRAFT_CLI): "
+                                            "DXF e DWG nao foram abertos em outro programa")
+    else:
+        folhas = [f["folha"] for f in res["dxf_resumo"]["folhas"]]
+        if "lista" in res["dxf_resumo"]:
+            folhas.append(res["dxf_resumo"]["lista"]["folha"])
+        try:
+            res["conferencia"] = _conferencia(
+                cadcraft, res["dwg"] if "dwg" in res else dxf, folhas,
+                os.path.join(pasta, "conferencia"), timeout_conversao, rodar, dxf=dxf)
+        except Exception as ex:
+            res["nao_gerado"]["conferencia"] = str(ex)
     if render:
         try:
             png = os.path.join(pasta, "render", "apresentacao.png")
@@ -321,6 +401,14 @@ def resumo_pt(res):
         if chave in res:
             linhas.append("%s: %s" % (chave.upper(), "%d folhas" % len(res[chave])
                                       if chave == "pdf" else res[chave]))
+    if "conferencia" in res:
+        conf = res["conferencia"]
+        linhas.append("conferencia no CADCraft (%s): %d folhas impressas, %s" % (
+            os.path.basename(conf["arquivo"]), len(conf["pdf"]),
+            "sem divergencia" if not conf["divergencias"]
+            else "%d DIVERGENCIA(S)" % len(conf["divergencias"])))
+        for frase in conf["divergencias"]:
+            linhas.append("conferencia: " + frase)
     for chave in sorted(res["nao_gerado"]):
         linhas.append("%s: NAO GERADO (%s)" % (chave, res["nao_gerado"][chave]))
     if "passos_com_erro" in res and res["passos_com_erro"]:

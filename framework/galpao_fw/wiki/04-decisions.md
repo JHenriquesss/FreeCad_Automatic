@@ -7584,3 +7584,49 @@ edicao que o motor declara.
 trecho de 6.3.2.1 c) trazia a lista de valores de cpi com a coluna das razoes
 de area incompleta (no texto do acervo so' aparecem "1,5" e "6 ou mais"): a
 citacao parava de fazer sentido. O recorte passou a terminar antes da lista.
+
+## D229 - Conferencia do DXF/DWG entregue em outro programa (CADCraft sem janela) e a linha de comprimento zero no bloco da cota (2026-10-13) - FECHADO
+
+**Por que.** O DWG da entrega so' era conferido por ida e volta no proprio ODA
+que o grava, e o PDF das folhas sai do SVG do Bonsai pelo Inkscape: nenhum dos
+dois prova o que ha' no DWG que o cliente abre. O QCAD, que fazia essa
+conferencia, nao esta' mais na maquina. O usuario indicou o CADCraft
+(github.com/storytold/cadcraft, MIT/Apache, 0.6.2) em 2026-10-13 e pediu a
+instalacao.
+
+**1. Passo 6 de `pranchas_ifc.gerar`: `conferencia`.** Com o `cadcraft-cli`
+na maquina (`CADCRAFT_CLI`, ou `%LOCALAPPDATA%\Programs\CADCraft`, ou o PATH),
+o arquivo entregue - o DWG; sem ele, o DXF - e' aberto sem janela e:
+- as folhas do arquivo sao comparadas com as que o `dxf_prancha` declarou
+  (folha ausente e folha a mais sao ditas);
+- as contagens de entidades do DWG e do DXF tem de ser iguais;
+- a auditoria do CADCraft (`audit`) roda e cada item vira uma divergencia;
+- cada folha e' impressa em PDF em `conferencia/` (o PDF sai do proprio DWG).
+O resultado vai em `res["conferencia"]` com a lista `divergencias`; o
+`resumo_pt` escreve "sem divergencia" ou cada frase. Sem o programa, ou se ele
+nao abre o arquivo, fica `nao_gerado["conferencia"]` com o motivo. A
+conferencia nao muda `gerado`: a entrega existe, a conferencia acusa.
+
+**2. O CADCraft so' LE.** Ele nao grava nada da entrega. Medido em 2026-10-13:
+o DWG que ele grava abre no ODA sem erro, mas ha' relato aberto (issue #604 do
+projeto) de 6 erros de estilo de tabela na auditoria do AutoCAD 2027; o
+projeto tem 6 dias e se declara pre-alfa. O ODA continua gravando o DWG.
+
+**3. Achado da primeira conferencia (galpao do cliente, plano-2026-10-d228).**
+15 folhas impressas, contagens iguais, e 4 linhas de comprimento zero em
+blocos de cota. Causa: cota cuja linha de chamada nao acha traco nasce em cima
+da propria linha de cota, e o `ezdxf` grava a chamada com comprimento zero.
+`dxf_prancha.gerar_dxf` passou a retirar a linha nula do bloco da cota depois
+de `render()`; a cota e a medida nao mudam.
+
+**Testes.** `tests/test_pranchas_ifc.py`: a cadeia inteira confere o DWG folha
+por folha; sem DWG confere o DXF; quatro defeitos injetados (auditoria, folha
+ausente, folha que nao imprime, DWG diferente do DXF) aparecem na divergencia
+e no resumo; programa que nao abre o arquivo vira NAO GERADO; cota sem chamada
+nao deixa linha nula (o teste reprova sem a correcao - conferido).
+
+**Limites.** A conferencia nao le o conteudo das folhas (texto cortado, vista
+invadindo a vizinha): so' prova que outro programa abre, audita e imprime. A
+versao do CADCraft nao e' fixada pelo codigo: a instalada e' a 0.6.2.
+`framework/tanque_fw/scripts/desenho_cadcraft.py` (piloto de folha desenhada
+no CADCraft, fora do pacote do galpao) nao entra nesta decisao.

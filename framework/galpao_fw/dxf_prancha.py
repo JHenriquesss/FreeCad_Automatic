@@ -582,6 +582,11 @@ def gerar_dxf(desenhos, destino, carimbo=None, folga_entre_vistas_mm=5000.0, lis
                 angle=math.degrees(math.atan2(by - ay, bx - ax)), dimstyle=estilo,
                 dxfattribs={"layer": CAMADA_COTA})
             dim.render()
+            # chamada que nasce em cima da linha de cota sai do ezdxf como linha de
+            # comprimento zero no bloco da cota; quem audita o DWG acusa (D229)
+            bloco = doc.blocks.get(dim.dimension.dxf.geometry)
+            for nula in [e for e in bloco.query("LINE") if e.dxf.start.isclose(e.dxf.end)]:
+                bloco.delete_entity(nula)
         for (ax, ay), (bx, by), rotulo in des.get("eixos", ()):
             cam_eixo = {"layer": CAMADA_EIXO}
             msp.add_line((ax + dx, ay + dy), (bx + dx, by + dy),

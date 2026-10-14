@@ -26,7 +26,7 @@ import pranchas_ifc as PI
 import test_dxf_prancha as TDP
 
 
-def _programas(tmp_path, nomes=("blender", "oda", "inkscape")):
+def _programas(tmp_path, nomes=("blender", "oda", "inkscape", "cadcraft")):
     """Ambiente com um executavel de mentira por programa pedido; os outros
     ficam fora da maquina (padroes de busca e PATH esvaziados no monkeypatch)."""
     amb = {}
@@ -44,8 +44,49 @@ def so_o_ambiente(monkeypatch):
         n: (v[0], (), "programa-que-nao-existe-" + n) for n, v in PI.PROGRAMAS.items()})
 
 
+def _cadcraft_de_mentira(comando, conferencia):
+    """O que o cadcraft-cli responde: `info` (contagens e folhas lidas do DXF de
+    verdade pelo ezdxf; o DWG de mentira responde como o DXF ao lado), `audit` e
+    `plot`. `conferencia` troca o comportamento: "ok", "auditoria", "sem_folha",
+    "nao_imprime", "dwg_diferente" ou "nao_abre"."""
+    arquivo = comando[2]
+    eh_dwg = arquivo.lower().endswith(".dwg")
+    if conferencia == "nao_abre":
+        return 1, "invalid parameters for `open`: arquivo ilegivel"
+    if comando[1] == "info":
+        dxf = arquivo
+        if eh_dwg:
+            dxf = os.path.join(os.path.dirname(os.path.dirname(arquivo)), "dxf",
+                               os.path.basename(arquivo)[:-4] + ".dxf")
+        doc = ezdxf.readfile(dxf)
+        contagem = {}
+        for e in doc.modelspace():
+            contagem[e.dxftype()] = contagem.get(e.dxftype(), 0) + 1
+        folhas = [l.name for l in doc.layouts if l.name != "Model"]
+        if conferencia == "sem_folha":
+            folhas = folhas[1:] + ["Layout9"]
+        if conferencia == "dwg_diferente" and eh_dwg:
+            contagem["LINE"] = contagem.get("LINE", 0) - 1
+        return 0, json.dumps({"counts": contagem, "layouts": folhas}, indent=2)
+    pedido = comando[comando.index("--cmd") + 1]
+    if pedido.startswith("audit"):
+        itens = ([{"kind": "invalidGeometry", "location": "block *D1", "handle": "5E6",
+                   "message": "Line has zero length", "fix": "removed"}]
+                 if conferencia == "auditoria" else [])
+        return 0, json.dumps({"errors": len(itens), "fixed": 0, "issues": itens,
+                              "message": "Audit"})
+    assert pedido.startswith("plot ")
+    par = json.loads(pedido[5:])
+    assert par["plotArea"] == "layout"
+    if conferencia == "nao_imprime":
+        return 1, "invalid parameters for `plot`: no layout `%s`" % par["layout"]
+    with open(par["path"], "wb") as g:
+        g.write(b"%PDF-1.7")
+    return 0, json.dumps({"bytes": 8, "layout": par["layout"], "pages": 1, "path": par["path"]})
+
+
 def _executor(tmp_path, passos=(("PLANTA", "ok"),), sem_relatorio=False, sem_dwg=False,
-              chamadas=None, sem_folha_da_lista=False, render="ok"):
+              chamadas=None, sem_folha_da_lista=False, render="ok", conferencia="ok"):
     def rodar(comando, timeout):
         if chamadas is not None:
             chamadas.append(list(comando))
@@ -92,6 +133,8 @@ def _executor(tmp_path, passos=(("PLANTA", "ok"),), sem_relatorio=False, sem_dwg
             with open(pdf, "wb") as g:
                 g.write(b"%PDF-1.4")
             return 0, ""
+        if nome == "cadcraft.exe":
+            return _cadcraft_de_mentira(comando, conferencia)
         raise AssertionError("programa inesperado: %r" % (comando,))
     return rodar
 
@@ -101,7 +144,7 @@ def _gerar(tmp_path, amb, ifc=None, **kw):
     executor = _executor(tmp_path, **{k: kw.pop(k) for k in list(kw)
                                       if k in ("passos", "sem_relatorio", "sem_dwg",
                                                "chamadas", "sem_folha_da_lista",
-                                               "render")})
+                                               "render", "conferencia")})
     if "render_pedido" in kw:
         kw["render"] = kw.pop("render_pedido")
     return ifc, PI.gerar(ifc, str(tmp_path / "pranchas"), titulo="GALPAO 40x20 m",
@@ -146,6 +189,12 @@ def test_cadeia_inteira_grava_dxf_dwg_e_pdf_e_nao_toca_o_ifc(tmp_path, so_o_ambi
     for chave in ("dxf", "dwg"):
         assert os.path.isfile(res[chave]) and os.path.getsize(res[chave]) > 0
     assert [os.path.basename(p) for p in res["pdf"]] == ["EST-01.pdf"]
+    # o arquivo conferido e' o DWG (o que o cliente abre), folha por folha
+    conf = res["conferencia"]
+    assert conf["arquivo"] == res["dwg"] and conf["divergencias"] == []
+    assert conf["auditoria_erros"] == 0 and len(conf["pdf"]) == 2
+    assert all(os.path.isfile(p) for p in conf["pdf"])
+    assert any("sem divergencia" in ln for ln in PI.resumo_pt(res))
     # o DXF e' lido de volta: a folha da vista e a da lista de material do IFC
     doc = ezdxf.readfile(res["dxf"])
     folhas = [l.name for l in doc.layouts if l.name != "Model"]
@@ -166,7 +215,8 @@ def test_oda_que_nao_grava_o_dwg_vira_nao_gerado_e_o_dxf_fica(tmp_path, so_o_amb
 def test_sem_oda_e_sem_inkscape_cada_um_diz_o_que_faltou(tmp_path, so_o_ambiente):
     _ifc, res = _gerar(tmp_path, _programas(tmp_path, ("blender",)))
     assert res["gerado"] is True
-    assert sorted(res["nao_gerado"]) == ["dwg", "pdf"]
+    assert sorted(res["nao_gerado"]) == ["conferencia", "dwg", "pdf"]
+    assert "CADCRAFT_CLI" in res["nao_gerado"]["conferencia"] and "conferencia" not in res
     assert "ODA_EXE" in res["nao_gerado"]["dwg"] and "INKSCAPE_EXE" in res["nao_gerado"]["pdf"]
 
 
@@ -275,3 +325,47 @@ def test_render_so_quando_pedido_e_so_com_a_imagem_gravada(tmp_path, so_o_ambien
     _ifc, mudo = _gerar(tmp_path, amb, render_pedido=True, render="nao grava")
     assert "render" not in mudo and "sem gravar" in mudo["nao_gerado"]["render"]
     assert mudo["gerado"] is True and os.path.isfile(mudo["dxf"])
+
+
+def test_sem_dwg_a_conferencia_abre_o_dxf(tmp_path, so_o_ambiente):
+    _ifc, res = _gerar(tmp_path, _programas(tmp_path), sem_dwg=True)
+    assert "dwg" not in res and res["conferencia"]["arquivo"] == res["dxf"]
+    assert res["conferencia"]["divergencias"] == []
+
+
+@pytest.mark.parametrize("caso, trecho", [
+    ("auditoria", "auditoria: Line has zero length (block *D1)"),
+    ("sem_folha", "folhas ausentes no arquivo"),
+    ("nao_imprime", "nao imprimiu"),
+    ("dwg_diferente", "nao tem as mesmas entidades"),
+])
+def test_conferencia_que_acha_defeito_diz_qual(tmp_path, so_o_ambiente, caso, trecho):
+    _ifc, res = _gerar(tmp_path, _programas(tmp_path), conferencia=caso)
+    conf = res["conferencia"]
+    assert any(trecho in d for d in conf["divergencias"]), conf["divergencias"]
+    linhas = PI.resumo_pt(res)
+    assert any("DIVERGENCIA" in ln for ln in linhas)
+    assert any(ln.startswith("conferencia: ") and trecho in ln for ln in linhas)
+    if caso == "sem_folha":                       # folha a mais tambem e' dita
+        assert any("folhas a mais" in d for d in conf["divergencias"])
+    assert res["gerado"] is True                  # a entrega existe; a conferencia acusa
+
+
+def test_cadcraft_que_nao_abre_o_arquivo_vira_nao_gerado(tmp_path, so_o_ambiente):
+    _ifc, res = _gerar(tmp_path, _programas(tmp_path), conferencia="nao_abre")
+    assert "conferencia" not in res and "nao abriu" in res["nao_gerado"]["conferencia"]
+
+
+def test_cota_sem_chamada_nao_deixa_linha_nula_no_bloco(tmp_path):
+    import dxf_prancha as DP
+    des = DP.ler_desenho(TDP._svg(tmp_path))
+    # cota levada para longe de qualquer traco: nao ha' onde nascer a chamada
+    des["cotas"] = [((90000.0, 90000.0), (95000.0, 90000.0))]
+    resumo = DP.gerar_dxf([des], str(tmp_path / "c.dxf"))
+    assert resumo["folhas"][0]["cotas_sem_linha_de_chamada"] == 1
+    doc = ezdxf.readfile(str(tmp_path / "c.dxf"))
+    dim = doc.modelspace().query("DIMENSION")[0]
+    assert dim.get_measurement() == pytest.approx(5000.0)
+    linhas = list(doc.blocks.get(dim.dxf.geometry).query("LINE"))
+    assert linhas, "a linha de cota continua no bloco"
+    assert [e.dxf.handle for e in linhas if e.dxf.start.isclose(e.dxf.end)] == []
