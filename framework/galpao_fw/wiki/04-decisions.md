@@ -8010,3 +8010,14 @@ nao foi regenerado.
   protendida 25x70 -> 30x80 e sapata 2,0x2,0x0,6 -> 1,5x2,0x0,5 (o peso a mais
   estabiliza o tombamento, que governava no caminho legado FS 1,5); concreto de
   fundacao/estrutura 33,6/35,0 -> 21,0/44,1 m3. A razao de 0,8 do teste vira 0,4.
+
+**Fechamento (revisao do objetivo).**
+- Tabela 8 da NBR 6123:2023 (uma agua) transcrita inteira nas colunas que o
+  portico usa (90 e -90 graus, 5 a 30 graus, imagem da p.22): ate' aqui o motor
+  so' tinha 5/10/15 e ficava na linha de 15 acima disso. Acima de 30 graus: erro.
+- Veredito fechado dos dois pontos da flexao, relidos na imagem:
+  enrijecedor (5.4.3.1.3 c): a 2024 (p.58) imprime "[2,5(a/h)2] - 2", a 2008
+  (p.51) "[2,5/(a/h)2] - 2 >= 0,5"; o motor usa a de 2008, a unica que exige
+  enrijecedor mais rigido quando ele esta' mais proximo - CONFERE. kc da viga
+  de alma esbelta (Tabela 4, nota a, p.47 da 2024): kc = 4/raiz(h/tw), 0,35 <=
+  kc <= 0,76 - CONFERE.

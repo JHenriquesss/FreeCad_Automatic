@@ -192,7 +192,8 @@ def cpi_cases(abertura_dominante="portao_oitao"):
 def cpe_telhado_1agua(theta_graus=5.71):
     """NBR 6123:2023 Tabela 8 (Tabela 6 de 1988; celulas de 5/10/15 graus
     conferidas na imagem da p.22 no D233) - telhado de UMA AGUA (shed), h/b < 2.
-    Acima de 15 graus fica a linha de 15 (mais succao que a tabela: a favor).
+    Linhas de 5 a 30 graus inteiras (D233; antes so' 5/10/15 e acima de 15
+    ficava a linha de 15); acima de 30 graus nao ha' linha: erro.
     Coef. de FORMA Ce
     (para o portico principal) por metade do telhado: H (metade BAIXA) e L (metade
     ALTA), nas duas direcoes de vento perpendicular a cumeeira:
@@ -200,9 +201,13 @@ def cpe_telhado_1agua(theta_graus=5.71):
       'vento_90' = vento desce (atinge a fachada ALTA): L barlavento, H sotavento.
     Todos os valores sao de SUCCAO (negativos) -> uplift. Interpola theta em
     5/10/15 graus (valores lidos da Tabela 6). Barlavento sempre -0,9 a -1,0."""
-    pts = [5.0, 10.0, 15.0]
-    H90 = [-1.0, -1.0, -0.9]; L90 = [-0.5, -0.5, -0.5]      # vento 90 (sobe)
-    Hm90 = [-0.5, -0.4, -0.3]; Lm90 = [-1.0, -1.0, -1.0]    # vento -90 (desce)
+    if theta_graus > 30.0 + 1e-9:
+        raise ValueError(f"theta={theta_graus:.1f} graus fora da Tabela 8 (ate' 30)")
+    pts = [5.0, 10.0, 15.0, 20.0, 25.0, 30.0]
+    H90 = [-1.0, -1.0, -0.9, -0.8, -0.7, -0.5]               # vento 90 (sobe): H e I
+    L90 = [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5]               # L e J
+    Hm90 = [-0.5, -0.4, -0.3, -0.2, -0.1, 0.0]               # vento -90 (desce): H e I
+    Lm90 = [-1.0, -1.0, -1.0, -1.0, -0.9, -0.6]              # L e J
 
     def _ip(ys):
         t = min(max(theta_graus, pts[0]), pts[-1])

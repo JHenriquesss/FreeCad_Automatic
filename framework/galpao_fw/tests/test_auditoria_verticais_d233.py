@@ -183,7 +183,13 @@ def test_tabela_10_linhas_e_tramos():
 
 
 def test_tabela_8_uma_agua_celulas():
-    for th, H90, Hm90 in ((5, -1.0, -0.5), (10, -1.0, -0.4), (15, -0.9, -0.3)):
+    """NBR 6123:2023 Tabela 8 (imagem da p.22), colunas 90 e -90 graus, 5 a 30."""
+    linhas = ((5, -1.0, -0.5, -0.5, -1.0), (10, -1.0, -0.5, -0.4, -1.0),
+              (15, -0.9, -0.5, -0.3, -1.0), (20, -0.8, -0.5, -0.2, -1.0),
+              (25, -0.7, -0.5, -0.1, -0.9), (30, -0.5, -0.5, 0.0, -0.6))
+    for th, H90, L90, Hm90, Lm90 in linhas:
         c = vi.cpe_telhado_1agua(th)
-        assert c["vento90"] == {"H": H90, "L": -0.5}
-        assert c["vento_90"] == {"H": Hm90, "L": -1.0}
+        assert c["vento90"] == {"H": H90, "L": L90}
+        assert c["vento_90"] == {"H": Hm90, "L": Lm90}
+    with pytest.raises(ValueError):
+        vi.cpe_telhado_1agua(35.0)
