@@ -72,7 +72,10 @@ def test_sapata_vai_para_fundacao_e_nao_para_concreto_estrutural():
     # o volume das sapatas e' da ordem do da superestrutura; se tudo caisse em
     # concreto_estrut, o preco unitario aplicado seria o da superestrutura (620 vs
     # 780 R$/m3). Ate' o D224 as sapatas dominavam (o vento antigo pedia mais base).
-    assert q["fundacao_concreto"] > 0.8 * q["concreto_estrut"]
+    # D233: a viga protendida subiu de 25x70 para 30x80 (ELS-F com fctk,inf) e o
+    # peso a mais estabiliza o tombamento, que governava a sapata (2,0x2,0x0,6 ->
+    # 1,5x2,0x0,5): 33,6/35,0 m3 -> 21,0/44,1 m3. A razao continua da ordem.
+    assert q["fundacao_concreto"] > 0.4 * q["concreto_estrut"]
 
 
 # ---------------------- (3) orcamento parcial se declara ----------------------

@@ -529,7 +529,21 @@ DESGUARDADAS_TRIADAS = [   (   'cargas_nbr6120.py',
     # sai OK=False com motivo `esbeltez_acima_do_teto` (teto 24 sem armadura,
     # 30 com a nota "a"); nao satura no teto.
     (   'alvenaria_estrutural.py',
-        'com tetos da Tab.9 (10.1.2), gamma_m da Tab.2 e fk a partir do fpk de'),]
+        'com tetos da Tab.9 (10.1.2), gamma_m da Tab.2 e fk a partir do fpk de'),
+    # D233: tres frases novas; a guarda que cada uma alega existe e foi medida
+    # em tests/test_auditoria_verticais_d233.py.
+    # - estaca: o limite R_p <= R_l e' o min() em capacidade_aoki_velloso
+    #   (test_ponta_limitada_ao_atrito: P_adm = R_l com R_p > R_l);
+    (   'estaca_profunda.py',
+        '# 8.2.1.2: tipos em que a ponta fica limitada ao atrito lateral (escav'),
+    # - pilar: frase historica do defeito (o 3h/7 acima de C50); a conta por
+    #   classe e' _z_pivo_c (test_pivo_C_do_dominio_5_acima_de_C50, C30-C90);
+    (   'pilar_concreto.py',
+        'em C55-C90: a reta do dominio 5 nao encontrava a do dominio 4a em x = '),
+    # - protendida: x/dp > limite sai ok=False (dutilidade_ok entra no ok;
+    #   test_elu_protendida_reprova_secao_superarmada).
+    (   'viga_protendida.py',
+        'Dutilidade (14.6.4.3, D233): x/dp <= 0,45 (fck <= 50) ou 0,35; acima d'),]
 
 
 def chaves_desguardadas(raiz=None):
@@ -736,8 +750,8 @@ SEM_FAIXA_DECLARADA = {
     "vibracao_piso.py": "escopo ilimitado ('vale para toda classe') fora da lente; 'restrito' e de acesso.",
     "viga_baldrame.py": "G127: fct,m vem da fonte unica fctm_nbr6118_g127; faixas vivem na fonte.",
     "viga_baldrame_edificio.py": "fronteira sem faixa declarada.",
+    "vento_nbr6123.py": "DIVIDA-LENTE: as faixas (theta e h/b das Tabelas 6, 7, 8 e 10 da NBR 6123:2023) sao guardadas por ValueError 'fora da Tabela', vocabulario fora da lente (D233 tirou o ultimo comentario que ela lia).",
     "viga_equilibrio.py": "DIVIDA-LENTE: teto de armadura (5cm2/m) em vocabulario generico fora da lente.",
-    "viga_protendida.py": "G127: fct,m vem da fonte unica fctm_nbr6118_g127; faixas vivem na fonte.",
     "exigencias_nao_verificadas_g130.py": "fonte unica G130 (aplicabilidade por tipologia + portao, funcao pura de texto; clausulas vivem em ORFAS_TRIADAS); sem faixa propria.",
     "wizard.py": "formulario de entrada; validacao de entrada nao e faixa de metodo.",
     "zona_painel.py": "DIVIDA-LENTE: limite b/t (Tab.F.1) fora da lente.",

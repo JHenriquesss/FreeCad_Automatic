@@ -7999,3 +7999,14 @@ decisao do usuario e agora tem mais dois numeros que mudam (item 1). As perdas
 de protensao calculam sigma_c,p0g com a forca antes da perda imediata (um pouco
 a mais de perda; simplificacao mantida). O pacote do cliente `plano-2026-10-d229`
 nao foi regenerado.
+
+**Complemento (suite completa apos o commit 736f16e: 4363 passaram, 3 falharam).**
+- Lente G51 (`varredura_faixa_validade`): tres frases novas com faixa (estaca
+  8.2.1.2, pivo do pilar acima de C50, dutilidade da protendida) entram em
+  DESGUARDADAS_TRIADAS com a guarda medida no teste do D233; `viga_protendida`
+  sai de SEM_FAIXA_DECLARADA (passou a produzir chave) e `vento_nbr6123` entra
+  como DIVIDA-LENTE (as faixas das tabelas sao guardadas por ValueError).
+- `test_orcamento_cobertura`: o galpao de concreto de 20 m mudou - viga
+  protendida 25x70 -> 30x80 e sapata 2,0x2,0x0,6 -> 1,5x2,0x0,5 (o peso a mais
+  estabiliza o tombamento, que governava no caminho legado FS 1,5); concreto de
+  fundacao/estrutura 33,6/35,0 -> 21,0/44,1 m3. A razao de 0,8 do teste vira 0,4.
